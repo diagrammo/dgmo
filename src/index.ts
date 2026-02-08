@@ -85,8 +85,14 @@ export {
   computeActivations,
   applyPositionOverrides,
   applyGroupOrdering,
+  groupMessagesBySection,
 } from './sequence/renderer';
-export type { RenderStep, Activation } from './sequence/renderer';
+export type {
+  RenderStep,
+  Activation,
+  SectionMessageGroup,
+  SequenceRenderOptions,
+} from './sequence/renderer';
 
 // ============================================================
 // Colors & Palettes

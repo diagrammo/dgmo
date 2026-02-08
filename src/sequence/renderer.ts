@@ -393,6 +393,71 @@ function renderGatewayParticipant(
 }
 
 // ============================================================
+// Collapsible Section Support
+// ============================================================
+
+export interface SectionMessageGroup {
+  section: import('./parser').SequenceSection;
+  messageIndices: number[]; // indices into messages[]
+}
+
+export interface SequenceRenderOptions {
+  collapsedSections?: Set<number>; // keyed by section lineNumber
+}
+
+/**
+ * Group messages by the top-level section that precedes them.
+ * Messages before the first section are ungrouped (always visible).
+ * Only top-level sections are collapsible — sections inside blocks are excluded.
+ */
+export function groupMessagesBySection(
+  elements: SequenceElement[],
+  messages: SequenceMessage[]
+): SectionMessageGroup[] {
+  const groups: SectionMessageGroup[] = [];
+  let currentGroup: SectionMessageGroup | null = null;
+
+  // Recursively collect all message indices from an element subtree
+  const collectIndices = (els: SequenceElement[]): number[] => {
+    const indices: number[] = [];
+    for (const el of els) {
+      if (isSequenceBlock(el)) {
+        indices.push(
+          ...collectIndices(el.children),
+          ...collectIndices(el.elseChildren)
+        );
+      } else if (isSequenceSection(el)) {
+        // Sections inside blocks are not top-level — skip
+        continue;
+      } else {
+        const idx = messages.indexOf(el);
+        if (idx >= 0) indices.push(idx);
+      }
+    }
+    return indices;
+  };
+
+  for (const el of elements) {
+    if (isSequenceSection(el)) {
+      // Start a new group for this top-level section
+      currentGroup = { section: el, messageIndices: [] };
+      groups.push(currentGroup);
+    } else if (currentGroup) {
+      // Collect messages from this element into the current group
+      if (isSequenceBlock(el)) {
+        currentGroup.messageIndices.push(...collectIndices([el]));
+      } else {
+        const idx = messages.indexOf(el);
+        if (idx >= 0) currentGroup.messageIndices.push(idx);
+      }
+    }
+    // Messages before the first section are ungrouped — skip
+  }
+
+  return groups;
+}
+
+// ============================================================
 // Render Sequence Builder (stack-based return placement)
 // ============================================================
 
@@ -650,21 +715,41 @@ export function renderSequenceDiagram(
   parsed: ParsedSequenceDgmo,
   palette: PaletteColors,
   isDark: boolean,
-  _onNavigateToLine?: (line: number) => void
+  _onNavigateToLine?: (line: number) => void,
+  options?: SequenceRenderOptions
 ): void {
   // Clear previous content
   d3Selection.select(container).selectAll('*').remove();
 
-  const { title, messages, elements, groups, options } = parsed;
+  const { title, messages, elements, groups, options: parsedOptions } = parsed;
+  const collapsedSections = options?.collapsedSections;
   const participants = applyPositionOverrides(
     applyGroupOrdering(parsed.participants, groups)
   );
   if (participants.length === 0) return;
 
-  const activationsOff = options.activations?.toLowerCase() === 'off';
+  const activationsOff = parsedOptions.activations?.toLowerCase() === 'off';
+
+  // Build hidden message set for collapse support
+  const hiddenMsgIndices = new Set<number>();
+  if (collapsedSections && collapsedSections.size > 0) {
+    const sectionGroups = groupMessagesBySection(elements, messages);
+    for (const grp of sectionGroups) {
+      if (collapsedSections.has(grp.section.lineNumber)) {
+        for (const idx of grp.messageIndices) {
+          hiddenMsgIndices.add(idx);
+        }
+      }
+    }
+  }
 
   // Build render sequence with stack-based return placement
-  const renderSteps = buildRenderSequence(messages);
+  // Run on ALL messages first (preserves call stack correctness), then filter
+  const allRenderSteps = buildRenderSequence(messages);
+  const renderSteps =
+    hiddenMsgIndices.size > 0
+      ? allRenderSteps.filter((s) => !hiddenMsgIndices.has(s.messageIndex))
+      : allRenderSteps;
   const activations = activationsOff ? [] : computeActivations(renderSteps);
   const stepSpacing = 35;
 
@@ -683,7 +768,7 @@ export function renderSequenceDiagram(
     msgToLastStep.set(step.messageIndex, si);
   });
 
-  // Find the first message index in an element subtree
+  // Find the first visible message index in an element subtree
   const findFirstMsgIndex = (els: SequenceElement[]): number => {
     for (const el of els) {
       if (isSequenceBlock(el)) {
@@ -691,58 +776,37 @@ export function renderSequenceDiagram(
         if (idx >= 0) return idx;
       } else if (!isSequenceSection(el)) {
         const idx = messages.indexOf(el);
-        if (idx >= 0) return idx;
+        if (idx >= 0 && !hiddenMsgIndices.has(idx)) return idx;
       }
     }
     return -1;
   };
 
-  // Compute extra Y offset needed before each message
-  const SECTION_SPACING = 40;
+  // Section layout constants
+  const SECTION_TOP_PAD = 35;   // space above section divider line (matches stepSpacing)
+  const SECTION_BOTTOM_PAD = 45; // space below section divider line before next content
+
+  // Block spacing via extraBeforeMsg (sections handled separately below)
   const extraBeforeMsg = new Map<number, number>();
   const addExtra = (msgIdx: number, amount: number) => {
     extraBeforeMsg.set(msgIdx, (extraBeforeMsg.get(msgIdx) || 0) + amount);
   };
 
-  // Track sections mapped to the message index they precede
-  const sectionBeforeMsg = new Map<
-    number,
-    import('./parser').SequenceSection[]
-  >();
-
-  const markElementSpacing = (els: SequenceElement[]): void => {
+  const markBlockSpacing = (els: SequenceElement[]): void => {
     for (let i = 0; i < els.length; i++) {
       const el = els[i];
-
-      // Handle sections — add spacing before the next message
-      if (isSequenceSection(el)) {
-        // Find the next message after this section
-        const nextMsgIdx =
-          i + 1 < els.length ? findFirstMsgIndex(els.slice(i + 1)) : -1;
-        if (nextMsgIdx >= 0) {
-          addExtra(nextMsgIdx, SECTION_SPACING);
-          const existing = sectionBeforeMsg.get(nextMsgIdx) || [];
-          existing.push(el);
-          sectionBeforeMsg.set(nextMsgIdx, existing);
-        }
-        continue;
-      }
-
+      if (isSequenceSection(el)) continue; // sections handled separately
       if (!isSequenceBlock(el)) continue;
 
-      // First message in this block needs header space
       const firstIdx = findFirstMsgIndex(el.children);
       if (firstIdx >= 0) addExtra(firstIdx, BLOCK_HEADER_SPACE);
 
-      // First message in else section needs header space
       const firstElseIdx = findFirstMsgIndex(el.elseChildren);
       if (firstElseIdx >= 0) addExtra(firstElseIdx, BLOCK_HEADER_SPACE);
 
-      // Recurse into nested blocks and sections
-      markElementSpacing(el.children);
-      markElementSpacing(el.elseChildren);
+      markBlockSpacing(el.children);
+      markBlockSpacing(el.elseChildren);
 
-      // Next sibling after this block needs after-block spacing
       if (i + 1 < els.length) {
         const nextIdx = findFirstMsgIndex([els[i + 1]]);
         if (nextIdx >= 0) addExtra(nextIdx, BLOCK_AFTER_SPACE);
@@ -751,7 +815,119 @@ export function renderSequenceDiagram(
   };
 
   if (elements && elements.length > 0) {
-    markElementSpacing(elements);
+    markBlockSpacing(elements);
+  }
+
+  // --- Section-aware Y layout ---
+  // Sections get their own Y positions computed from content above them (not anchored
+  // to messages below). This ensures toggling collapse/expand doesn't move the divider.
+
+  // Walk top-level elements to build section regions
+  interface SectionRegion {
+    section: import('./parser').SequenceSection;
+    msgIndices: number[]; // message indices belonging to this section
+  }
+  const preSectionMsgIndices: number[] = [];
+  const sectionRegions: SectionRegion[] = [];
+  {
+    const collectMsgIndicesFromBlock = (
+      block: import('./parser').SequenceBlock
+    ): number[] => {
+      const indices: number[] = [];
+      for (const child of block.children) {
+        if (isSequenceBlock(child)) {
+          indices.push(...collectMsgIndicesFromBlock(child));
+        } else if (!isSequenceSection(child)) {
+          const idx = messages.indexOf(child);
+          if (idx >= 0) indices.push(idx);
+        }
+      }
+      for (const child of block.elseChildren) {
+        if (isSequenceBlock(child)) {
+          indices.push(...collectMsgIndicesFromBlock(child));
+        } else if (!isSequenceSection(child)) {
+          const idx = messages.indexOf(child);
+          if (idx >= 0) indices.push(idx);
+        }
+      }
+      return indices;
+    };
+
+    let currentTarget = preSectionMsgIndices;
+    for (const el of elements) {
+      if (isSequenceSection(el)) {
+        const region: SectionRegion = { section: el, msgIndices: [] };
+        sectionRegions.push(region);
+        currentTarget = region.msgIndices;
+      } else if (isSequenceBlock(el)) {
+        currentTarget.push(...collectMsgIndicesFromBlock(el));
+      } else {
+        const idx = messages.indexOf(el);
+        if (idx >= 0) currentTarget.push(idx);
+      }
+    }
+  }
+
+  // Build mapping from original (all) render step index → filtered step index
+  const allMsgToFirstStep = new Map<number, number>();
+  allRenderSteps.forEach((step, si) => {
+    if (!allMsgToFirstStep.has(step.messageIndex)) {
+      allMsgToFirstStep.set(step.messageIndex, si);
+    }
+  });
+
+  const originalToFiltered = new Map<number, number>();
+  {
+    let fi = 0;
+    for (let oi = 0; oi < allRenderSteps.length; oi++) {
+      if (!hiddenMsgIndices.has(allRenderSteps[oi].messageIndex)) {
+        originalToFiltered.set(oi, fi);
+        fi++;
+      }
+    }
+  }
+
+  // For each section, find the filtered step index where its padding should be inserted
+  const findFilteredInsertionPoint = (origStep: number): number | null => {
+    for (let i = origStep; i < allRenderSteps.length; i++) {
+      const fi = originalToFiltered.get(i);
+      if (fi !== undefined) return fi;
+    }
+    return null;
+  };
+
+  // Map: filtered step index → sections to insert before it (in document order)
+  const sectionsBeforeStep = new Map<
+    number,
+    import('./parser').SequenceSection[]
+  >();
+  const trailingSections: import('./parser').SequenceSection[] = [];
+
+  for (const region of sectionRegions) {
+    if (region.msgIndices.length === 0) {
+      trailingSections.push(region.section);
+      continue;
+    }
+    const firstMsgIdx = region.msgIndices[0];
+    const origStep = allMsgToFirstStep.get(firstMsgIdx);
+    if (origStep === undefined) {
+      trailingSections.push(region.section);
+      continue;
+    }
+    const filteredStep = findFilteredInsertionPoint(origStep);
+    if (filteredStep === null) {
+      trailingSections.push(region.section);
+      continue;
+    }
+    const existing = sectionsBeforeStep.get(filteredStep) || [];
+    existing.push(region.section);
+    sectionsBeforeStep.set(filteredStep, existing);
+  }
+
+  // Section message counts for collapsed labels
+  const sectionMsgCounts = new Map<number, number>();
+  for (const region of sectionRegions) {
+    sectionMsgCounts.set(region.section.lineNumber, region.msgIndices.length);
   }
 
   // Group box layout constants (needed early for Y offset)
@@ -760,7 +936,7 @@ export function renderSequenceDiagram(
   const GROUP_PADDING_BOTTOM = 8;
   const GROUP_LABEL_SIZE = 11;
 
-  // Compute cumulative Y positions for each step
+  // Compute cumulative Y positions for each step, with section dividers as stable anchors
   const titleOffset = title ? TITLE_HEIGHT : 0;
   const groupOffset =
     groups.length > 0 ? GROUP_PADDING_TOP + GROUP_LABEL_SIZE : 0;
@@ -770,11 +946,23 @@ export function renderSequenceDiagram(
   const hasActors = participants.some((p) => p.type === 'actor');
   const messageStartOffset = MESSAGE_START_OFFSET + (hasActors ? 20 : 0);
   const stepYPositions: number[] = [];
+  const sectionYPositions = new Map<number, number>(); // section lineNumber → Y
+  let layoutEndY: number; // final Y after all steps and trailing sections
   {
     let curY = lifelineStartY0 + messageStartOffset;
     for (let i = 0; i < renderSteps.length; i++) {
+      // Insert section padding before this step if needed
+      const sections = sectionsBeforeStep.get(i);
+      if (sections) {
+        for (const sec of sections) {
+          curY += SECTION_TOP_PAD;
+          sectionYPositions.set(sec.lineNumber, curY);
+          curY += SECTION_BOTTOM_PAD;
+        }
+      }
+
       const step = renderSteps[i];
-      // Add extra spacing before the first render step of a flagged message
+      // Add extra spacing before the first render step of a flagged message (block spacing)
       if (msgToFirstStep.get(step.messageIndex) === i) {
         const extra = extraBeforeMsg.get(step.messageIndex) || 0;
         curY += extra;
@@ -782,14 +970,23 @@ export function renderSequenceDiagram(
       stepYPositions.push(curY);
       curY += stepSpacing;
     }
+    // Handle trailing sections (after all steps)
+    for (const sec of trailingSections) {
+      curY += SECTION_TOP_PAD;
+      sectionYPositions.set(sec.lineNumber, curY);
+      curY += SECTION_BOTTOM_PAD;
+    }
+    layoutEndY = curY;
   }
 
-  const messageAreaHeight =
+  const contentBottomY =
     renderSteps.length > 0
-      ? stepYPositions[stepYPositions.length - 1] -
-        lifelineStartY0 +
-        stepSpacing
-      : 0;
+      ? Math.max(
+          stepYPositions[stepYPositions.length - 1] + stepSpacing,
+          layoutEndY
+        )
+      : layoutEndY;
+  const messageAreaHeight = contentBottomY - lifelineStartY0;
   const lifelineLength = messageAreaHeight + LIFELINE_TAIL;
   const totalWidth = Math.max(
     participants.length * PARTICIPANT_GAP,
@@ -1227,62 +1424,95 @@ export function renderSequenceDiagram(
   const sectionLineX1 = leftmostX - PARTICIPANT_BOX_WIDTH / 2 - 10;
   const sectionLineX2 = rightmostX + PARTICIPANT_BOX_WIDTH / 2 + 10;
 
-  for (const [msgIdx, secs] of sectionBeforeMsg.entries()) {
-    const firstStep = msgToFirstStep.get(msgIdx);
-    if (firstStep === undefined) continue;
-    const nextY = stepY(firstStep);
+  for (const region of sectionRegions) {
+    const sec = region.section;
+    const secY = sectionYPositions.get(sec.lineNumber);
+    if (secY === undefined) continue;
 
-    for (let si = 0; si < secs.length; si++) {
-      const sec = secs[si];
-      const secY = nextY - SECTION_SPACING / 2 + si * 20;
-      const lineColor = sec.color
-        ? resolveColor(sec.color, palette)
-        : palette.textMuted;
+    const isCollapsed = collapsedSections?.has(sec.lineNumber) ?? false;
+    const lineColor = sec.color
+      ? resolveColor(sec.color, palette)
+      : palette.textMuted;
 
-      // Horizontal divider line
-      svg
-        .append('line')
-        .attr('x1', sectionLineX1)
-        .attr('y1', secY)
-        .attr('x2', sectionLineX2)
-        .attr('y2', secY)
-        .attr('stroke', lineColor)
-        .attr('stroke-width', 1)
-        .attr('stroke-dasharray', '6 3')
-        .attr('opacity', 0.6)
-        .attr('class', 'section-divider')
-        .attr('data-line-number', String(sec.lineNumber))
-        .attr('data-section', '');
+    // Wrap section elements in a <g> for toggle.
+    // IMPORTANT: only the <g> carries data-line-number / data-section —
+    // children must NOT have them, otherwise the click walk-up resolves
+    // to a line-number navigation before reaching data-section-toggle.
+    const HIT_AREA_HEIGHT = 36;
+    const sectionG = svg
+      .append('g')
+      .attr('data-section-toggle', '')
+      .attr('data-line-number', String(sec.lineNumber))
+      .attr('data-section', '')
+      .attr('tabindex', '0')
+      .attr('role', 'button')
+      .attr('aria-expanded', String(!isCollapsed));
 
-      // Label background knockout
-      const labelText = sec.label;
-      const labelWidth = labelText.length * 7 + 16;
-      const labelX = (sectionLineX1 + sectionLineX2) / 2;
-      svg
-        .append('rect')
-        .attr('x', labelX - labelWidth / 2)
-        .attr('y', secY - 8)
-        .attr('width', labelWidth)
-        .attr('height', 16)
-        .attr('fill', isDark ? palette.surface : palette.bg)
-        .attr('class', 'section-label-bg')
-        .attr('data-line-number', String(sec.lineNumber))
-        .attr('data-section', '');
+    // Full-width tinted band
+    const BAND_HEIGHT = 22;
+    const bandX = sectionLineX1 - 10;
+    const bandWidth = sectionLineX2 - sectionLineX1 + 20;
+    const bandOpacity = isCollapsed
+      ? (isDark ? 0.35 : 0.25)
+      : (isDark ? 0.1 : 0.08);
+    sectionG
+      .append('rect')
+      .attr('x', bandX)
+      .attr('y', secY - BAND_HEIGHT / 2)
+      .attr('width', bandWidth)
+      .attr('height', BAND_HEIGHT)
+      .attr('fill', lineColor)
+      .attr('opacity', bandOpacity)
+      .attr('rx', 2)
+      .attr('class', 'section-divider');
 
-      // Centered label text
-      svg
-        .append('text')
-        .attr('x', labelX)
-        .attr('y', secY + 4)
-        .attr('text-anchor', 'middle')
-        .attr('fill', lineColor)
-        .attr('font-size', 11)
-        .attr('font-weight', 'bold')
-        .attr('class', 'section-label')
-        .attr('data-line-number', String(sec.lineNumber))
-        .attr('data-section', '')
-        .text(labelText);
+    // Build display label
+    const msgCount = sectionMsgCounts.get(sec.lineNumber) ?? 0;
+    const labelText = isCollapsed
+      ? `${sec.label} (${msgCount} ${msgCount === 1 ? 'message' : 'messages'})`
+      : sec.label;
+
+    // Collapsed sections use white text for contrast against the darker band
+    const labelColor = isCollapsed ? '#ffffff' : lineColor;
+
+    // Chevron indicator
+    const chevronSpace = 14;
+    const labelX = (sectionLineX1 + sectionLineX2) / 2;
+    const chevronX = labelX - (labelText.length * 3.5 + 8 + chevronSpace / 2);
+    const chevronY = secY;
+    if (isCollapsed) {
+      // Right-pointing triangle ▶
+      sectionG
+        .append('path')
+        .attr(
+          'd',
+          `M ${chevronX} ${chevronY - 4} L ${chevronX + 6} ${chevronY} L ${chevronX} ${chevronY + 4} Z`
+        )
+        .attr('fill', labelColor)
+        .attr('class', 'section-chevron');
+    } else {
+      // Down-pointing triangle ▼
+      sectionG
+        .append('path')
+        .attr(
+          'd',
+          `M ${chevronX - 1} ${chevronY - 3} L ${chevronX + 7} ${chevronY - 3} L ${chevronX + 3} ${chevronY + 3} Z`
+        )
+        .attr('fill', labelColor)
+        .attr('class', 'section-chevron');
     }
+
+    // Centered label text
+    sectionG
+      .append('text')
+      .attr('x', labelX + chevronSpace / 2)
+      .attr('y', secY + 4)
+      .attr('text-anchor', 'middle')
+      .attr('fill', labelColor)
+      .attr('font-size', 11)
+      .attr('font-weight', 'bold')
+      .attr('class', 'section-label')
+      .text(labelText);
   }
 
   // Render steps (calls and returns in stack-inferred order)

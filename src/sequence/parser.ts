@@ -247,8 +247,15 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     if (trimmed.startsWith('#') || trimmed.startsWith('//')) continue;
 
     // Parse section dividers — "== Label ==" or "== Label(color) =="
+    // Close blocks first — sections at indent 0 should not nest inside blocks
     const sectionMatch = trimmed.match(SECTION_PATTERN);
     if (sectionMatch) {
+      const sectionIndent = measureIndent(raw);
+      while (blockStack.length > 0) {
+        const top = blockStack[blockStack.length - 1];
+        if (sectionIndent > top.indent) break;
+        blockStack.pop();
+      }
       const labelRaw = sectionMatch[1].trim();
       const colorMatch = labelRaw.match(/^(.+?)\((\w+)\)$/);
       const section: SequenceSection = {
