@@ -1335,6 +1335,14 @@ export function renderSequenceDiagram(
     const y1 = stepY(act.startStep);
     const y2 = stepY(act.endStep);
 
+    // Collect message line numbers covered by this activation
+    const coveredLines: number[] = [];
+    for (let si = act.startStep; si <= act.endStep; si++) {
+      const step = renderSteps[si];
+      const msg = messages[step.messageIndex];
+      if (msg) coveredLines.push(msg.lineNumber);
+    }
+
     // Opaque background to mask the lifeline
     svg
       .append('rect')
@@ -1355,6 +1363,8 @@ export function renderSequenceDiagram(
       .attr('stroke', palette.primary)
       .attr('stroke-width', 1)
       .attr('stroke-opacity', 0.5)
+      .attr('data-participant-id', act.participantId)
+      .attr('data-msg-lines', coveredLines.join(','))
       .attr('class', 'activation');
   });
 
