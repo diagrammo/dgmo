@@ -6,11 +6,42 @@ Write simple, readable `.dgmo` text files and render them as charts, diagrams, a
 
 ## Install
 
+### As a library
+
 ```bash
 npm install @diagrammo/dgmo
 # or
 pnpm add @diagrammo/dgmo
 ```
+
+### As a CLI
+
+```bash
+# via Homebrew (macOS)
+brew tap diagrammo/dgmo
+brew install dgmo
+
+# or run directly via npx
+npx @diagrammo/dgmo render diagram.dgmo -o output.svg
+```
+
+## CLI usage
+
+```bash
+# Render a .dgmo file to SVG
+dgmo render diagram.dgmo -o output.svg
+
+# Write to stdout
+dgmo render diagram.dgmo
+
+# With theme and palette options
+dgmo render diagram.dgmo -o output.svg --theme dark --palette catppuccin
+```
+
+| Option | Values | Default |
+|---|---|---|
+| `--theme` | `light`, `dark`, `transparent` | `light` |
+| `--palette` | `nord`, `solarized`, `catppuccin`, `rose-pine`, `gruvbox`, `tokyo-night`, `one-dark`, `bold` | `nord` |
 
 ## How it works
 
