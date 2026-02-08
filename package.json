@@ -4,6 +4,9 @@
   "description": "DGMO diagram markup language — parser, renderer, and color system",
   "license": "MIT",
   "type": "module",
+  "bin": {
+    "dgmo": "./dist/cli.cjs"
+  },
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -37,9 +40,11 @@
     "d3-scale": "^4.0.2",
     "d3-selection": "^3.0.0",
     "d3-shape": "^3.2.0",
-    "echarts": "^5.6.0"
+    "echarts": "^5.6.0",
+    "jsdom": "^26.0.0"
   },
   "devDependencies": {
+    "@types/jsdom": "^21.1.7",
     "@types/d3-array": "^3.2.1",
     "@types/d3-cloud": "^1.2.9",
     "@types/d3-scale": "^4.0.8",
