@@ -5,6 +5,7 @@
 import * as d3Selection from 'd3-selection';
 import type { PaletteColors } from '../palettes';
 import { resolveColor } from '../colors';
+import { FONT_FAMILY } from '../fonts';
 import type {
   ParsedSequenceDgmo,
   SequenceElement,
@@ -1037,10 +1038,7 @@ export function renderSequenceDiagram(
     .attr('viewBox', `0 0 ${svgWidth} ${totalHeight}`)
     .attr('preserveAspectRatio', 'xMidYMin meet')
     .attr('class', 'sequence-diagram')
-    .style(
-      'font-family',
-      'Inter, system-ui, Avenir, Helvetica, Arial, sans-serif'
-    );
+    .style('font-family', FONT_FAMILY);
 
   // Define arrowhead markers
   const defs = svg.append('defs');

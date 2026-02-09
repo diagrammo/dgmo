@@ -4,6 +4,7 @@ import { JSDOM } from 'jsdom';
 import { Resvg } from '@resvg/resvg-js';
 import { renderD3ForExport } from './d3';
 import { getPalette } from './palettes/registry';
+import { DEFAULT_FONT_NAME } from './fonts';
 
 const PALETTES = [
   'nord',
@@ -128,6 +129,11 @@ function svgToPng(svg: string, background?: string): Buffer {
   const resvg = new Resvg(svg, {
     fitTo: { mode: 'zoom', value: 2 },
     ...(background ? { background } : {}),
+    font: {
+      loadSystemFonts: true,
+      defaultFontFamily: DEFAULT_FONT_NAME,
+      sansSerifFamily: DEFAULT_FONT_NAME,
+    },
   });
   const rendered = resvg.render();
   return rendered.asPng();

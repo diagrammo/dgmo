@@ -3,6 +3,7 @@ import * as d3Selection from 'd3-selection';
 import * as d3Shape from 'd3-shape';
 import * as d3Array from 'd3-array';
 import cloud from 'd3-cloud';
+import { FONT_FAMILY } from './fonts';
 
 // ============================================================
 // Types
@@ -3770,13 +3771,13 @@ export function renderWordCloud(
     .padding(4)
     .rotate(rotateFn)
     .fontSize((d) => d.size!)
-    .font('system-ui, -apple-system, sans-serif')
+    .font(FONT_FAMILY)
     .on('end', (layoutWords) => {
       g.selectAll('text')
         .data(layoutWords)
         .join('text')
         .style('font-size', (d) => `${d.size}px`)
-        .style('font-family', 'system-ui, -apple-system, sans-serif')
+        .style('font-family', FONT_FAMILY)
         .style('font-weight', '600')
         .style('fill', (_d, i) => colors[i % colors.length])
         .style('cursor', (d) =>
@@ -3874,13 +3875,13 @@ function renderWordCloudAsync(
       .padding(4)
       .rotate(rotateFn)
       .fontSize((d) => d.size!)
-      .font('system-ui, -apple-system, sans-serif')
+      .font(FONT_FAMILY)
       .on('end', (layoutWords) => {
         g.selectAll('text')
           .data(layoutWords)
           .join('text')
           .style('font-size', (d) => `${d.size}px`)
-          .style('font-family', 'system-ui, -apple-system, sans-serif')
+          .style('font-family', FONT_FAMILY)
           .style('font-weight', '600')
           .style('fill', (_d, i) => colors[i % colors.length])
           .attr('text-anchor', 'middle')
@@ -5013,6 +5014,7 @@ export async function renderD3ForExport(
 
     // Add xmlns for standalone SVG
     svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    svgEl.style.fontFamily = FONT_FAMILY;
 
     return svgEl.outerHTML;
   } finally {

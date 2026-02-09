@@ -1,4 +1,5 @@
 import type { EChartsOption } from 'echarts';
+import { FONT_FAMILY } from './fonts';
 
 // ============================================================
 // Types
@@ -407,7 +408,7 @@ export function buildEChartsOption(
           color: textColor,
           fontSize: 18,
           fontWeight: 'bold' as const,
-          fontFamily: 'system-ui, -apple-system, sans-serif',
+          fontFamily: FONT_FAMILY,
         },
       }
     : undefined;
