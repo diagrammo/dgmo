@@ -17,6 +17,6 @@ export default defineConfig([
     sourcemap: false,
     splitting: false,
     banner: { js: '#!/usr/bin/env node' },
-    external: [],
+    external: ['@resvg/resvg-js'],
   },
 ]);

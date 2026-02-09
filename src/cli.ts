@@ -1,6 +1,7 @@
-import { readFileSync, writeFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { resolve, basename, extname } from 'node:path';
 import { JSDOM } from 'jsdom';
+import { Resvg } from '@resvg/resvg-js';
 import { renderD3ForExport } from './d3';
 import { getPalette } from './palettes/registry';
 
@@ -18,13 +19,15 @@ const PALETTES = [
 const THEMES = ['light', 'dark', 'transparent'] as const;
 
 function printHelp(): void {
-  console.log(`Usage: dgmo render <input> [options]
+  console.log(`Usage: dgmo <input> [options]
+       cat input.dgmo | dgmo [options]
 
-Commands:
-  render <input>    Render a .dgmo file to SVG
+Render a .dgmo file to PNG (default) or SVG.
 
 Options:
-  -o <file>         Write SVG to file (default: stdout)
+  -o <file>         Output file (default: <input>.png in cwd)
+                    Format inferred from extension: .svg → SVG, else PNG
+                    With stdin and no -o, PNG is written to stdout
   --theme <theme>   Theme: ${THEMES.join(', ')} (default: light)
   --palette <name>  Palette: ${PALETTES.join(', ')} (default: nord)
   --help            Show this help
@@ -39,7 +42,6 @@ function printVersion(): void {
 }
 
 function parseArgs(argv: string[]): {
-  command: string | undefined;
   input: string | undefined;
   output: string | undefined;
   theme: (typeof THEMES)[number];
@@ -48,7 +50,6 @@ function parseArgs(argv: string[]): {
   version: boolean;
 } {
   const result = {
-    command: undefined as string | undefined,
     input: undefined as string | undefined,
     output: undefined as string | undefined,
     theme: 'light' as (typeof THEMES)[number],
@@ -92,9 +93,6 @@ function parseArgs(argv: string[]): {
       }
       result.palette = val;
       i++;
-    } else if (!result.command) {
-      result.command = arg;
-      i++;
     } else if (!result.input) {
       result.input = arg;
       i++;
@@ -119,6 +117,55 @@ function setupDom(): void {
   Object.defineProperty(globalThis, 'SVGElement', { value: win.SVGElement, configurable: true });
 }
 
+function inferFormat(outputPath: string | undefined): 'svg' | 'png' {
+  if (outputPath && extname(outputPath).toLowerCase() === '.svg') {
+    return 'svg';
+  }
+  return 'png';
+}
+
+function svgToPng(svg: string): Buffer {
+  const resvg = new Resvg(svg, {
+    fitTo: { mode: 'zoom', value: 2 },
+  });
+  const rendered = resvg.render();
+  return rendered.asPng();
+}
+
+function noInput(): never {
+  const samplePath = resolve('sample.dgmo');
+  if (existsSync(samplePath)) {
+    console.error('Error: No input file specified');
+    console.error(`Try: dgmo ${basename(samplePath)}`);
+    process.exit(1);
+  }
+  writeFileSync(
+    samplePath,
+    [
+      'chart: sequence',
+      'activations: off',
+      '',
+      '  Client -> API: POST /login',
+      '  API -> Auth: validate credentials',
+      '  Auth -> DB: SELECT user',
+      '  DB -> Auth: user record',
+      '  Auth -> API: JWT token',
+      '  API -> Client: 200 OK { token }',
+      '',
+    ].join('\n'),
+    'utf-8'
+  );
+  console.error(`Created ${samplePath}`);
+  console.error('');
+  console.error('  Render it:  dgmo sample.dgmo');
+  console.error('  As SVG:     dgmo sample.dgmo -o sample.svg');
+  console.error('');
+  console.error(
+    'Edit sample.dgmo to make it your own, or run dgmo --help for all options.'
+  );
+  process.exit(0);
+}
+
 async function main(): Promise<void> {
   const opts = parseArgs(process.argv);
 
@@ -132,29 +179,33 @@ async function main(): Promise<void> {
     return;
   }
 
-  if (opts.command !== 'render') {
-    if (opts.command) {
-      console.error(`Error: Unknown command "${opts.command}"`);
-    } else {
-      console.error('Error: No command specified');
-    }
-    console.error('Run "dgmo --help" for usage');
-    process.exit(1);
-  }
-
-  if (!opts.input) {
-    console.error('Error: No input file specified');
-    console.error('Usage: dgmo render <input> [-o output.svg]');
-    process.exit(1);
-  }
-
-  const inputPath = resolve(opts.input);
+  // Determine input source
   let content: string;
-  try {
-    content = readFileSync(inputPath, 'utf-8');
-  } catch {
-    console.error(`Error: Cannot read file "${inputPath}"`);
-    process.exit(1);
+  let inputBasename: string | undefined;
+  const stdinIsPiped = !process.stdin.isTTY;
+
+  if (opts.input) {
+    // File argument provided
+    const inputPath = resolve(opts.input);
+    try {
+      content = readFileSync(inputPath, 'utf-8');
+    } catch {
+      console.error(`Error: Cannot read file "${inputPath}"`);
+      process.exit(1);
+    }
+    // Strip extension for default output name
+    const name = basename(opts.input);
+    const ext = extname(name);
+    inputBasename = ext ? name.slice(0, -ext.length) : name;
+  } else if (stdinIsPiped) {
+    // Read from stdin
+    try {
+      content = readFileSync(0, 'utf-8');
+    } catch {
+      noInput();
+    }
+  } else {
+    noInput();
   }
 
   // Set up jsdom before any d3/renderer code runs
@@ -174,12 +225,26 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  // Determine output format and destination
+  const format = inferFormat(opts.output);
+
   if (opts.output) {
+    // Explicit output path
     const outputPath = resolve(opts.output);
-    writeFileSync(outputPath, svg, 'utf-8');
+    if (format === 'svg') {
+      writeFileSync(outputPath, svg, 'utf-8');
+    } else {
+      writeFileSync(outputPath, svgToPng(svg));
+    }
+    console.error(`Wrote ${outputPath}`);
+  } else if (inputBasename) {
+    // File input, no -o → write <basename>.png in cwd
+    const outputPath = resolve(`${inputBasename}.png`);
+    writeFileSync(outputPath, svgToPng(svg));
     console.error(`Wrote ${outputPath}`);
   } else {
-    process.stdout.write(svg);
+    // Stdin input, no -o → write PNG to stdout
+    process.stdout.write(svgToPng(svg));
   }
 }
 
