@@ -33,6 +33,7 @@
     "dev": "tsup --watch"
   },
   "dependencies": {
+    "@resvg/resvg-js": "^2.6.2",
     "chart.js": "^4.4.8",
     "chartjs-plugin-datalabels": "^2.2.0",
     "d3-array": "^3.2.4",
@@ -44,12 +45,12 @@
     "jsdom": "^26.0.0"
   },
   "devDependencies": {
-    "@types/jsdom": "^21.1.7",
     "@types/d3-array": "^3.2.1",
     "@types/d3-cloud": "^1.2.9",
     "@types/d3-scale": "^4.0.8",
     "@types/d3-selection": "^3.0.11",
     "@types/d3-shape": "^3.1.7",
+    "@types/jsdom": "^21.1.7",
     "tsup": "^8.5.1",
     "typescript": "^5.7.3"
   }
