@@ -22,20 +22,30 @@ brew tap diagrammo/dgmo
 brew install dgmo
 
 # or run directly via npx
-npx @diagrammo/dgmo render diagram.dgmo -o output.svg
+npx @diagrammo/dgmo diagram.dgmo
 ```
 
 ## CLI usage
 
 ```bash
-# Render a .dgmo file to SVG
-dgmo render diagram.dgmo -o output.svg
+# First time with no args? Creates a sample.dgmo to get you started
+dgmo
 
-# Write to stdout
-dgmo render diagram.dgmo
+# Render to PNG (default)
+dgmo diagram.dgmo              # → diagram.png
+
+# Render to SVG
+dgmo diagram.dgmo -o output.svg
+
+# Explicit PNG
+dgmo diagram.dgmo -o output.png
+
+# Pipe from stdin
+cat diagram.dgmo | dgmo -o out.png
+cat diagram.dgmo | dgmo > out.png    # PNG to stdout
 
 # With theme and palette options
-dgmo render diagram.dgmo -o output.svg --theme dark --palette catppuccin
+dgmo diagram.dgmo --theme dark --palette catppuccin
 ```
 
 | Option | Values | Default |
