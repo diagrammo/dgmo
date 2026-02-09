@@ -29,9 +29,21 @@ const MESSAGE_START_OFFSET = 30;
 const LIFELINE_TAIL = 30;
 const ARROWHEAD_SIZE = 8;
 
+// Mix two hex colors in sRGB: pct% of a, rest of b
+function mix(a: string, b: string, pct: number): string {
+  const parse = (h: string) => {
+    const r = h.replace('#', '');
+    const f = r.length === 3 ? r[0]+r[0]+r[1]+r[1]+r[2]+r[2] : r;
+    return [parseInt(f.substring(0,2),16), parseInt(f.substring(2,4),16), parseInt(f.substring(4,6),16)];
+  };
+  const [ar,ag,ab] = parse(a), [br,bg,bb] = parse(b), t = pct/100;
+  const c = (x: number, y: number) => Math.round(x*t + y*(1-t)).toString(16).padStart(2,'0');
+  return `#${c(ar,br)}${c(ag,bg)}${c(ab,bb)}`;
+}
+
 // Shared fill/stroke helpers
 const fill = (palette: PaletteColors, isDark: boolean): string =>
-  `color-mix(in srgb, ${palette.primary} ${isDark ? '15%' : '30%'}, ${isDark ? palette.surface : palette.bg})`;
+  mix(palette.primary, isDark ? palette.surface : palette.bg, isDark ? 15 : 30);
 const stroke = (palette: PaletteColors): string => palette.textMuted;
 const SW = 1.5;
 const W = PARTICIPANT_BOX_WIDTH;
@@ -746,10 +758,15 @@ export function renderSequenceDiagram(
   // Build render sequence with stack-based return placement
   // Run on ALL messages first (preserves call stack correctness), then filter
   const allRenderSteps = buildRenderSequence(messages);
-  const renderSteps =
+  let renderSteps =
     hiddenMsgIndices.size > 0
       ? allRenderSteps.filter((s) => !hiddenMsgIndices.has(s.messageIndex))
       : allRenderSteps;
+  // Drop unlabeled returns — they add visual noise without conveying information.
+  // Labeled returns (explicit <- value) are kept.
+  renderSteps = renderSteps.filter(
+    (s) => s.type === 'call' || s.label
+  );
   const activations = activationsOff ? [] : computeActivations(renderSteps);
   const stepSpacing = 35;
 
@@ -1119,7 +1136,7 @@ export function renderSequenceDiagram(
       ? resolveColor(group.color, palette)
       : undefined;
     const fillColor = resolvedGroupColor
-      ? `color-mix(in srgb, ${resolvedGroupColor} 10%, ${isDark ? palette.surface : palette.bg})`
+      ? mix(resolvedGroupColor, isDark ? palette.surface : palette.bg, 10)
       : isDark
         ? palette.surface
         : palette.bg;
@@ -1352,7 +1369,7 @@ export function renderSequenceDiagram(
       .attr('height', y2 - y1)
       .attr('fill', isDark ? palette.surface : palette.bg);
 
-    const actFill = `color-mix(in srgb, ${palette.primary} ${isDark ? '15%' : '30%'}, ${isDark ? palette.surface : palette.bg})`;
+    const actFill = mix(palette.primary, isDark ? palette.surface : palette.bg, isDark ? 15 : 30);
     svg
       .append('rect')
       .attr('x', x)
