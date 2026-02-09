@@ -50,8 +50,8 @@ dgmo diagram.dgmo --theme dark --palette catppuccin
 
 | Option | Values | Default |
 |---|---|---|
-| `--theme` | `light`, `dark`, `transparent` | `light` |
-| `--palette` | `nord`, `solarized`, `catppuccin`, `rose-pine`, `gruvbox`, `tokyo-night`, `one-dark`, `bold` | `nord` |
+| --theme | light, dark, transparent | light |
+| --palette | nord, solarized, catppuccin, rose-pine, gruvbox, tokyo-night, one-dark, bold | nord |
 
 ## How it works
 
