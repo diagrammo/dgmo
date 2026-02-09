@@ -124,9 +124,10 @@ function inferFormat(outputPath: string | undefined): 'svg' | 'png' {
   return 'png';
 }
 
-function svgToPng(svg: string): Buffer {
+function svgToPng(svg: string, background?: string): Buffer {
   const resvg = new Resvg(svg, {
     fitTo: { mode: 'zoom', value: 2 },
+    ...(background ? { background } : {}),
   });
   const rendered = resvg.render();
   return rendered.asPng();
@@ -227,6 +228,7 @@ async function main(): Promise<void> {
 
   // Determine output format and destination
   const format = inferFormat(opts.output);
+  const pngBg = opts.theme === 'transparent' ? undefined : paletteColors.bg;
 
   if (opts.output) {
     // Explicit output path
@@ -234,17 +236,17 @@ async function main(): Promise<void> {
     if (format === 'svg') {
       writeFileSync(outputPath, svg, 'utf-8');
     } else {
-      writeFileSync(outputPath, svgToPng(svg));
+      writeFileSync(outputPath, svgToPng(svg, pngBg));
     }
     console.error(`Wrote ${outputPath}`);
   } else if (inputBasename) {
     // File input, no -o → write <basename>.png in cwd
     const outputPath = resolve(`${inputBasename}.png`);
-    writeFileSync(outputPath, svgToPng(svg));
+    writeFileSync(outputPath, svgToPng(svg, pngBg));
     console.error(`Wrote ${outputPath}`);
   } else {
     // Stdin input, no -o → write PNG to stdout
-    process.stdout.write(svgToPng(svg));
+    process.stdout.write(svgToPng(svg, pngBg));
   }
 }
 
