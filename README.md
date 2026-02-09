@@ -48,10 +48,10 @@ cat diagram.dgmo | dgmo > out.png    # PNG to stdout
 dgmo diagram.dgmo --theme dark --palette catppuccin
 ```
 
-| Option | Values | Default |
-|---|---|---|
-| --theme | light, dark, transparent | light |
-| --palette | nord, solarized, catppuccin, rose-pine, gruvbox, tokyo-night, one-dark, bold | nord |
+**Available options:**
+
+- `--theme` — light, dark, transparent (default: light)
+- `--palette` — nord, solarized, catppuccin, rose-pine, gruvbox, tokyo-night, one-dark, bold (default: nord)
 
 ## How it works
 
