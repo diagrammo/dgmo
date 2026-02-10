@@ -140,7 +140,7 @@ describe('buildEChartsOptionFromChart', () => {
     expect(s[0].type).toBe('pie');
     expect(s[0].radius).toEqual(['0%', '70%']);
     expect(s[0].label.position).toBe('outside');
-    expect(s[0].label.formatter).toBe('{b}');
+    expect(s[0].label.formatter).toBe('{b} — {c} ({d}%)');
     expect(s[0].labelLine.show).toBe(true);
     // Per-point colors
     for (const d of s[0].data) {
