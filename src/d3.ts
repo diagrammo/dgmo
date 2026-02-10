@@ -130,6 +130,12 @@ export interface QuadrantLabels {
   bottomRight: QuadrantLabel | null;
 }
 
+/** Optional explicit dimensions for CLI/export rendering (bypasses DOM layout). */
+export interface D3ExportDimensions {
+  width?: number;
+  height?: number;
+}
+
 export interface ParsedD3 {
   type: D3ChartType | null;
   title: string | null;
@@ -1047,7 +1053,8 @@ export function renderSlopeChart(
   parsed: ParsedD3,
   palette: PaletteColors,
   isDark: boolean,
-  onClickItem?: (lineNumber: number) => void
+  onClickItem?: (lineNumber: number) => void,
+  exportDims?: D3ExportDimensions
 ): void {
   // Clear existing content
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
@@ -1055,8 +1062,8 @@ export function renderSlopeChart(
   const { periods, data, title } = parsed;
   if (data.length === 0 || periods.length < 2) return;
 
-  const width = container.clientWidth;
-  const height = container.clientHeight;
+  const width = exportDims?.width ?? container.clientWidth;
+  const height = exportDims?.height ?? container.clientHeight;
   if (width <= 0 || height <= 0) return;
 
   // Compute right margin from the longest end-of-line label
@@ -1420,15 +1427,16 @@ export function renderArcDiagram(
   parsed: ParsedD3,
   palette: PaletteColors,
   _isDark: boolean,
-  onClickItem?: (lineNumber: number) => void
+  onClickItem?: (lineNumber: number) => void,
+  exportDims?: D3ExportDimensions
 ): void {
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
 
   const { links, title, orientation, arcOrder, arcNodeGroups } = parsed;
   if (links.length === 0) return;
 
-  const width = container.clientWidth;
-  const height = container.clientHeight;
+  const width = exportDims?.width ?? container.clientWidth;
+  const height = exportDims?.height ?? container.clientHeight;
   if (width <= 0 || height <= 0) return;
 
   const isVertical = orientation === 'vertical';
@@ -2549,7 +2557,8 @@ export function renderTimeline(
   parsed: ParsedD3,
   palette: PaletteColors,
   isDark: boolean,
-  onClickItem?: (lineNumber: number) => void
+  onClickItem?: (lineNumber: number) => void,
+  exportDims?: D3ExportDimensions
 ): void {
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
 
@@ -2568,8 +2577,8 @@ export function renderTimeline(
 
   const tooltip = createTooltip(container, palette, isDark);
 
-  const width = container.clientWidth;
-  const height = container.clientHeight;
+  const width = exportDims?.width ?? container.clientWidth;
+  const height = exportDims?.height ?? container.clientHeight;
   if (width <= 0 || height <= 0) return;
 
   const isVertical = orientation === 'vertical';
@@ -3708,15 +3717,16 @@ export function renderWordCloud(
   parsed: ParsedD3,
   palette: PaletteColors,
   _isDark: boolean,
-  onClickItem?: (lineNumber: number) => void
+  onClickItem?: (lineNumber: number) => void,
+  exportDims?: D3ExportDimensions
 ): void {
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
 
   const { words, title, cloudOptions } = parsed;
   if (words.length === 0) return;
 
-  const width = container.clientWidth;
-  const height = container.clientHeight;
+  const width = exportDims?.width ?? container.clientWidth;
+  const height = exportDims?.height ?? container.clientHeight;
   if (width <= 0 || height <= 0) return;
 
   const titleHeight = title ? 40 : 0;
@@ -3805,7 +3815,8 @@ function renderWordCloudAsync(
   container: HTMLDivElement,
   parsed: ParsedD3,
   palette: PaletteColors,
-  _isDark: boolean
+  _isDark: boolean,
+  exportDims?: D3ExportDimensions
 ): Promise<void> {
   return new Promise((resolve) => {
     d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
@@ -3816,8 +3827,8 @@ function renderWordCloudAsync(
       return;
     }
 
-    const width = container.clientWidth;
-    const height = container.clientHeight;
+    const width = exportDims?.width ?? container.clientWidth;
+    const height = exportDims?.height ?? container.clientHeight;
     if (width <= 0 || height <= 0) {
       resolve();
       return;
@@ -4096,15 +4107,16 @@ export function renderVenn(
   parsed: ParsedD3,
   palette: PaletteColors,
   isDark: boolean,
-  onClickItem?: (lineNumber: number) => void
+  onClickItem?: (lineNumber: number) => void,
+  exportDims?: D3ExportDimensions
 ): void {
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
 
   const { vennSets, vennOverlaps, vennShowValues, title } = parsed;
   if (vennSets.length < 2) return;
 
-  const width = container.clientWidth;
-  const height = container.clientHeight;
+  const width = exportDims?.width ?? container.clientWidth;
+  const height = exportDims?.height ?? container.clientHeight;
   if (width <= 0 || height <= 0) return;
 
   const textColor = palette.text;
@@ -4510,7 +4522,8 @@ export function renderQuadrant(
   parsed: ParsedD3,
   palette: PaletteColors,
   isDark: boolean,
-  onClickItem?: (lineNumber: number) => void
+  onClickItem?: (lineNumber: number) => void,
+  exportDims?: D3ExportDimensions
 ): void {
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
 
@@ -4527,8 +4540,8 @@ export function renderQuadrant(
 
   if (quadrantPoints.length === 0) return;
 
-  const width = container.clientWidth;
-  const height = container.clientHeight;
+  const width = exportDims?.width ?? container.clientWidth;
+  const height = exportDims?.height ?? container.clientHeight;
   if (width <= 0 || height <= 0) return;
 
   const textColor = palette.text;
@@ -4958,7 +4971,15 @@ export async function renderD3ForExport(
   palette?: PaletteColors
 ): Promise<string> {
   const parsed = parseD3(content, palette);
-  if (parsed.error) return '';
+  // Allow sequence diagrams through even if parseD3 errors —
+  // sequence is parsed by its own dedicated parser (parseSequenceDgmo)
+  // and may not have a "chart:" line (auto-detected from arrow syntax).
+  if (parsed.error && parsed.type !== 'sequence') {
+    // Check if content looks like a sequence diagram (has arrows but no chart: line)
+    const looksLikeSequence = /->|~>|<-/.test(content);
+    if (!looksLikeSequence) return '';
+    parsed.type = 'sequence';
+  }
   if (parsed.type === 'wordcloud' && parsed.words.length === 0) return '';
   if (parsed.type === 'slope' && parsed.data.length === 0) return '';
   if (parsed.type === 'arc' && parsed.links.length === 0) return '';
@@ -4983,25 +5004,29 @@ export async function renderD3ForExport(
   container.style.left = '-9999px';
   document.body.appendChild(container);
 
+  const dims: D3ExportDimensions = { width: EXPORT_WIDTH, height: EXPORT_HEIGHT };
+
   try {
     if (parsed.type === 'sequence') {
       const { parseSequenceDgmo } = await import('./sequence/parser');
       const { renderSequenceDiagram } = await import('./sequence/renderer');
       const seqParsed = parseSequenceDgmo(content);
       if (seqParsed.error || seqParsed.participants.length === 0) return '';
-      renderSequenceDiagram(container, seqParsed, effectivePalette, isDark);
+      renderSequenceDiagram(container, seqParsed, effectivePalette, isDark, undefined, {
+        exportWidth: EXPORT_WIDTH,
+      });
     } else if (parsed.type === 'wordcloud') {
-      await renderWordCloudAsync(container, parsed, effectivePalette, isDark);
+      await renderWordCloudAsync(container, parsed, effectivePalette, isDark, dims);
     } else if (parsed.type === 'arc') {
-      renderArcDiagram(container, parsed, effectivePalette, isDark);
+      renderArcDiagram(container, parsed, effectivePalette, isDark, undefined, dims);
     } else if (parsed.type === 'timeline') {
-      renderTimeline(container, parsed, effectivePalette, isDark);
+      renderTimeline(container, parsed, effectivePalette, isDark, undefined, dims);
     } else if (parsed.type === 'venn') {
-      renderVenn(container, parsed, effectivePalette, isDark);
+      renderVenn(container, parsed, effectivePalette, isDark, undefined, dims);
     } else if (parsed.type === 'quadrant') {
-      renderQuadrant(container, parsed, effectivePalette, isDark);
+      renderQuadrant(container, parsed, effectivePalette, isDark, undefined, dims);
     } else {
-      renderSlopeChart(container, parsed, effectivePalette, isDark);
+      renderSlopeChart(container, parsed, effectivePalette, isDark, undefined, dims);
     }
 
     const svgEl = container.querySelector('svg');

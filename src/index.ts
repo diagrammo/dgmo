@@ -31,7 +31,7 @@ export {
   computeTimeTicks,
   formatDateLabel,
 } from './d3';
-export type { ParsedD3, D3ChartType, ArcLink, ArcNodeGroup } from './d3';
+export type { ParsedD3, D3ChartType, D3ExportDimensions, ArcLink, ArcNodeGroup } from './d3';
 
 export {
   parseSequenceDgmo,
