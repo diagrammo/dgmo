@@ -79,7 +79,7 @@ export interface ParsedEChart {
 
 import { resolveColor } from './colors';
 import type { PaletteColors } from './palettes';
-import { getSeriesColors } from './palettes';
+import { getSeriesColors, contrastText } from './palettes';
 import { parseChart } from './chart';
 import type { ParsedChart } from './chart';
 
@@ -914,6 +914,16 @@ function buildScatterOption(
     },
   };
 
+  // Auto-fit axes to data range with ~10% padding
+  const xValues = points.map((p) => p.x);
+  const yValues = points.map((p) => p.y);
+  const xMin = Math.min(...xValues);
+  const xMax = Math.max(...xValues);
+  const yMin = Math.min(...yValues);
+  const yMax = Math.max(...yValues);
+  const xPad = (xMax - xMin) * 0.1 || 1;
+  const yPad = (yMax - yMin) * 0.1 || 1;
+
   return {
     backgroundColor: 'transparent',
     animation: false,
@@ -942,6 +952,8 @@ function buildScatterOption(
         color: textColor,
         fontSize: 12,
       },
+      min: Math.floor(xMin - xPad),
+      max: Math.ceil(xMax + xPad),
       axisLine: {
         lineStyle: { color: axisLineColor },
       },
@@ -963,6 +975,8 @@ function buildScatterOption(
         color: textColor,
         fontSize: 12,
       },
+      min: Math.floor(yMin - yPad),
+      max: Math.ceil(yMax + yPad),
       axisLine: {
         lineStyle: { color: axisLineColor },
       },
@@ -1544,7 +1558,7 @@ function buildPieOption(
         data,
         label: {
           position: 'outside',
-          formatter: '{b}',
+          formatter: '{b} — {c} ({d}%)',
           color: textColor,
           fontFamily: FONT_FAMILY,
         },
@@ -1653,7 +1667,7 @@ function buildPolarAreaOption(
         data,
         label: {
           position: 'outside',
-          formatter: '{b}',
+          formatter: '{b} — {c} ({d}%)',
           color: textColor,
           fontFamily: FONT_FAMILY,
         },
@@ -1684,12 +1698,21 @@ function buildBarStackedOption(
     const data = parsed.data.map((dp) =>
       idx === 0 ? dp.value : (dp.extraValues?.[idx - 1] ?? 0)
     );
+    const labelColor = contrastText(color, '#ffffff', '#333333');
     return {
       name,
       type: 'bar' as const,
       stack: 'total',
       data,
       itemStyle: { color },
+      label: {
+        show: true,
+        position: 'inside' as const,
+        formatter: '{c}',
+        color: labelColor,
+        fontSize: 11,
+        fontFamily: FONT_FAMILY,
+      },
     };
   });
 
