@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { parseChartJs } from '../src/chartjs';
+import { parseChart } from '../src/chart';
 import {
-  buildEChartsOptionFromChartJs,
+  buildEChartsOptionFromChart,
   renderEChartsForExport,
 } from '../src/echarts';
 import { getDgmoFramework } from '../src/dgmo-router';
@@ -11,8 +11,8 @@ const palette = getPalette('nord').light;
 
 // Helper: parse + build in one step
 function build(input: string) {
-  const parsed = parseChartJs(input, palette);
-  return buildEChartsOptionFromChartJs(parsed, palette, false);
+  const parsed = parseChart(input, palette);
+  return buildEChartsOptionFromChart(parsed, palette, false);
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -20,7 +20,7 @@ function series(opt: Record<string, unknown>): any[] {
   return (opt as { series: unknown[] }).series ?? [];
 }
 
-describe('buildEChartsOptionFromChartJs', () => {
+describe('buildEChartsOptionFromChart', () => {
   // ── Common properties ────────────────────────────────────
 
   it('returns transparent background and animation: false for all types', () => {
@@ -45,8 +45,8 @@ describe('buildEChartsOptionFromChartJs', () => {
   // ── Error ────────────────────────────────────────────────
 
   it('returns empty object on parse error', () => {
-    const parsed = parseChartJs('chart: bar', palette); // no data → error
-    const opt = buildEChartsOptionFromChartJs(parsed, palette, false);
+    const parsed = parseChart('chart: bar', palette); // no data → error
+    const opt = buildEChartsOptionFromChart(parsed, palette, false);
     expect(opt).toEqual({});
   });
 
@@ -227,8 +227,8 @@ describe('buildEChartsOptionFromChartJs', () => {
 
 // ── Router tests ──────────────────────────────────────────────
 
-describe('getDgmoFramework — Chart.js types route to echart', () => {
-  const chartjsTypes = [
+describe('getDgmoFramework — standard chart types route to echart', () => {
+  const standardTypes = [
     'bar',
     'line',
     'multi-line',
@@ -240,7 +240,7 @@ describe('getDgmoFramework — Chart.js types route to echart', () => {
     'bar-stacked',
   ];
 
-  for (const type of chartjsTypes) {
+  for (const type of standardTypes) {
     it(`routes "${type}" to echart`, () => {
       expect(getDgmoFramework(type)).toBe('echart');
     });
@@ -255,8 +255,8 @@ describe('getDgmoFramework — Chart.js types route to echart', () => {
 
 // ── SSR render test ───────────────────────────────────────────
 
-describe('renderEChartsForExport — Chart.js types', () => {
-  it('renders a bar chart to SVG via the Chart.js→ECharts pipeline', async () => {
+describe('renderEChartsForExport — standard chart types', () => {
+  it('renders a bar chart to SVG via the parseChart→ECharts pipeline', async () => {
     const svg = await renderEChartsForExport(
       'chart: bar\nA: 10\nB: 20',
       'light'

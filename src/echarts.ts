@@ -80,8 +80,8 @@ export interface ParsedEChart {
 import { resolveColor } from './colors';
 import type { PaletteColors } from './palettes';
 import { getSeriesColors } from './palettes';
-import { parseChartJs } from './chartjs';
-import type { ParsedChartJs } from './chartjs';
+import { parseChart } from './chart';
+import type { ParsedChart } from './chart';
 
 // ============================================================
 // Parser
@@ -1211,14 +1211,13 @@ function buildFunnelOption(
 }
 
 // ============================================================
-// Chart.js → ECharts Option Builder
+// Standard Chart → ECharts Option Builder
 // ============================================================
 
 /**
- * Resolves axis labels from parsed ChartJs orientation/xlabel/ylabel/label.
- * Replicates the logic in buildChartJsConfig.
+ * Resolves axis labels from parsed chart orientation/xlabel/ylabel/label.
  */
-function resolveAxisLabels(parsed: ParsedChartJs): {
+function resolveAxisLabels(parsed: ParsedChart): {
   xLabel?: string;
   yLabel?: string;
 } {
@@ -1256,12 +1255,11 @@ function makeGridAxis(
 }
 
 /**
- * Converts a ParsedChartJs (from parseChartJs) into an EChartsOption.
- * This enables rendering Chart.js-type charts (bar, line, pie, etc.) with the
- * ECharts renderer instead of Chart.js.
+ * Converts a ParsedChart into an EChartsOption.
+ * Renders standard chart types (bar, line, pie, etc.) with ECharts.
  */
-export function buildEChartsOptionFromChartJs(
-  parsed: ParsedChartJs,
+export function buildEChartsOptionFromChart(
+  parsed: ParsedChart,
   palette: PaletteColors,
   _isDark: boolean
 ): EChartsOption {
@@ -1293,30 +1291,30 @@ export function buildEChartsOptionFromChartJs(
 
   switch (parsed.type) {
     case 'bar':
-      return buildCjsBarOption(parsed, textColor, axisLineColor, splitLineColor, colors, titleConfig, tooltipTheme);
+      return buildBarOption(parsed, textColor, axisLineColor, splitLineColor, colors, titleConfig, tooltipTheme);
     case 'bar-stacked':
-      return buildCjsBarStackedOption(parsed, textColor, axisLineColor, splitLineColor, colors, titleConfig, tooltipTheme);
+      return buildBarStackedOption(parsed, textColor, axisLineColor, splitLineColor, colors, titleConfig, tooltipTheme);
     case 'line':
       return parsed.seriesNames
-        ? buildCjsMultiLineOption(parsed, textColor, axisLineColor, splitLineColor, colors, titleConfig, tooltipTheme)
-        : buildCjsLineOption(parsed, palette, textColor, axisLineColor, splitLineColor, titleConfig, tooltipTheme);
+        ? buildMultiLineOption(parsed, textColor, axisLineColor, splitLineColor, colors, titleConfig, tooltipTheme)
+        : buildLineOption(parsed, palette, textColor, axisLineColor, splitLineColor, titleConfig, tooltipTheme);
     case 'area':
-      return buildCjsAreaOption(parsed, palette, textColor, axisLineColor, splitLineColor, titleConfig, tooltipTheme);
+      return buildAreaOption(parsed, palette, textColor, axisLineColor, splitLineColor, titleConfig, tooltipTheme);
     case 'pie':
-      return buildCjsPieOption(parsed, textColor, colors, titleConfig, tooltipTheme, false);
+      return buildPieOption(parsed, textColor, colors, titleConfig, tooltipTheme, false);
     case 'doughnut':
-      return buildCjsPieOption(parsed, textColor, colors, titleConfig, tooltipTheme, true);
+      return buildPieOption(parsed, textColor, colors, titleConfig, tooltipTheme, true);
     case 'radar':
-      return buildCjsRadarOption(parsed, palette, textColor, colors, titleConfig, tooltipTheme);
+      return buildRadarOption(parsed, palette, textColor, colors, titleConfig, tooltipTheme);
     case 'polar-area':
-      return buildCjsPolarAreaOption(parsed, textColor, colors, titleConfig, tooltipTheme);
+      return buildPolarAreaOption(parsed, textColor, colors, titleConfig, tooltipTheme);
   }
 }
 
 // ── Bar ──────────────────────────────────────────────────────
 
-function buildCjsBarOption(
-  parsed: ParsedChartJs,
+function buildBarOption(
+  parsed: ParsedChart,
   textColor: string,
   axisLineColor: string,
   splitLineColor: string,
@@ -1364,8 +1362,8 @@ function buildCjsBarOption(
 
 // ── Line ─────────────────────────────────────────────────────
 
-function buildCjsLineOption(
-  parsed: ParsedChartJs,
+function buildLineOption(
+  parsed: ParsedChart,
   palette: PaletteColors,
   textColor: string,
   axisLineColor: string,
@@ -1411,8 +1409,8 @@ function buildCjsLineOption(
 
 // ── Multi-line ───────────────────────────────────────────────
 
-function buildCjsMultiLineOption(
-  parsed: ParsedChartJs,
+function buildMultiLineOption(
+  parsed: ParsedChart,
   textColor: string,
   axisLineColor: string,
   splitLineColor: string,
@@ -1469,8 +1467,8 @@ function buildCjsMultiLineOption(
 
 // ── Area ─────────────────────────────────────────────────────
 
-function buildCjsAreaOption(
-  parsed: ParsedChartJs,
+function buildAreaOption(
+  parsed: ParsedChart,
   palette: PaletteColors,
   textColor: string,
   axisLineColor: string,
@@ -1517,8 +1515,8 @@ function buildCjsAreaOption(
 
 // ── Pie / Doughnut ───────────────────────────────────────────
 
-function buildCjsPieOption(
-  parsed: ParsedChartJs,
+function buildPieOption(
+  parsed: ParsedChart,
   textColor: string,
   colors: string[],
   titleConfig: EChartsOption['title'],
@@ -1558,8 +1556,8 @@ function buildCjsPieOption(
 
 // ── Radar ────────────────────────────────────────────────────
 
-function buildCjsRadarOption(
-  parsed: ParsedChartJs,
+function buildRadarOption(
+  parsed: ParsedChart,
   palette: PaletteColors,
   textColor: string,
   colors: string[],
@@ -1626,8 +1624,8 @@ function buildCjsRadarOption(
 
 // ── Polar Area ───────────────────────────────────────────────
 
-function buildCjsPolarAreaOption(
-  parsed: ParsedChartJs,
+function buildPolarAreaOption(
+  parsed: ParsedChart,
   textColor: string,
   colors: string[],
   titleConfig: EChartsOption['title'],
@@ -1667,8 +1665,8 @@ function buildCjsPolarAreaOption(
 
 // ── Bar Stacked ──────────────────────────────────────────────
 
-function buildCjsBarStackedOption(
-  parsed: ParsedChartJs,
+function buildBarStackedOption(
+  parsed: ParsedChart,
   textColor: string,
   axisLineColor: string,
   splitLineColor: string,
@@ -1732,7 +1730,7 @@ function buildCjsBarStackedOption(
 const ECHART_EXPORT_WIDTH = 1200;
 const ECHART_EXPORT_HEIGHT = 800;
 
-const CHARTJS_TYPES = new Set([
+const STANDARD_CHART_TYPES = new Set([
   'bar',
   'line',
   'multi-line',
@@ -1765,10 +1763,10 @@ export async function renderEChartsForExport(
   const chartType = chartLine?.[1]?.trim().toLowerCase();
 
   let option: EChartsOption;
-  if (chartType && CHARTJS_TYPES.has(chartType)) {
-    const parsed = parseChartJs(content, effectivePalette);
+  if (chartType && STANDARD_CHART_TYPES.has(chartType)) {
+    const parsed = parseChart(content, effectivePalette);
     if (parsed.error) return '';
-    option = buildEChartsOptionFromChartJs(parsed, effectivePalette, isDark);
+    option = buildEChartsOptionFromChart(parsed, effectivePalette, isDark);
   } else {
     const parsed = parseEChart(content, effectivePalette);
     if (parsed.error) return '';

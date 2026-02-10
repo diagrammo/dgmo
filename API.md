@@ -8,7 +8,7 @@ All functions are exported flat from the package root. This is the modern npm co
 
 ```ts
 // Recommended
-import { parseChartJs, buildChartJsConfig } from '@diagrammo/dgmo';
+import { parseChart, buildEChartsOptionFromChart } from '@diagrammo/dgmo';
 
 // NOT: dgmo.parse.chartjs() or dgmo.chartjs.parse()
 ```
@@ -25,7 +25,7 @@ For headless/SSR use cases, `renderD3ForExport()` creates a temporary offscreen 
 
 ### Config builders return plain objects
 
-`buildChartJsConfig()` and `buildEChartsOption()` return framework config objects. The consumer brings their own Chart.js or ECharts runtime — the library has zero runtime dependency on those frameworks.
+`buildEChartsOptionFromChart()` and `buildEChartsOption()` return framework config objects. The consumer brings their own ECharts runtime — the library has zero runtime dependency on those frameworks.
 
 ---
 
@@ -45,10 +45,10 @@ Determine which framework handles a given `.dgmo` file.
 import { parseDgmoChartType, getDgmoFramework } from '@diagrammo/dgmo';
 
 const chartType = parseDgmoChartType(fileContent); // "bar"
-const framework = getDgmoFramework(chartType); // "chartjs"
+const framework = getDgmoFramework(chartType); // "echart"
 ```
 
-**Types**: `DgmoFramework = 'chartjs' | 'echart' | 'd3' | 'mermaid'`
+**Types**: `DgmoFramework = 'echart' | 'd3' | 'mermaid'`
 
 ---
 
@@ -56,22 +56,22 @@ const framework = getDgmoFramework(chartType); // "chartjs"
 
 All parsers take a `.dgmo` text string and return a structured parsed object. Parsing is pure — no DOM, no side effects.
 
-#### Chart.js
+#### Standard Charts
 
-| Function       | Signature                                                     |
-| -------------- | ------------------------------------------------------------- |
-| `parseChartJs` | `(content: string, palette?: PaletteColors) => ParsedChartJs` |
+| Function     | Signature                                                   |
+| ------------ | ----------------------------------------------------------- |
+| `parseChart` | `(content: string, palette?: PaletteColors) => ParsedChart` |
 
 ```ts
-import { parseChartJs, nordPalette } from '@diagrammo/dgmo';
+import { parseChart, nordPalette } from '@diagrammo/dgmo';
 
-const parsed = parseChartJs(fileContent, nordPalette.light);
+const parsed = parseChart(fileContent, nordPalette.light);
 if (parsed.error) console.error(parsed.error);
 // parsed.type — "bar" | "line" | "pie" | "doughnut" | "radar" | "polar"
 // parsed.data — array of { label, values, lineNumber }
 ```
 
-**Types**: `ParsedChartJs`, `ChartJsChartType`, `ChartJsDataPoint`
+**Types**: `ParsedChart`, `ChartType`, `ChartDataPoint`
 
 #### ECharts
 
@@ -133,23 +133,23 @@ const parsed = parseSequenceDgmo(fileContent);
 
 ### Config Builders
 
-Produce framework-specific configuration objects from parsed data. The consumer provides the rendering runtime (Chart.js, ECharts, Mermaid).
+Produce framework-specific configuration objects from parsed data. The consumer provides the rendering runtime (ECharts, Mermaid).
 
 | Function               | Signature                                                                                                         | Output                 |
 | ---------------------- | ----------------------------------------------------------------------------------------------------------------- | ---------------------- |
-| `buildChartJsConfig`   | `(parsed: ParsedChartJs, palette: PaletteColors, isDark: boolean) => ChartConfiguration`                          | Chart.js config object |
-| `buildEChartsOption`   | `(parsed: ParsedEChart, palette: PaletteColors, isDark: boolean) => EChartsOption`                                | ECharts option object  |
-| `buildMermaidQuadrant` | `(parsed: ParsedQuadrant, options?: { isDark?: boolean; textColor?: string; mutedTextColor?: string }) => string` | Mermaid syntax string  |
+| `buildEChartsOptionFromChart` | `(parsed: ParsedChart, palette: PaletteColors, isDark: boolean) => EChartsOption`                                 | ECharts option for standard chart types |
+| `buildEChartsOption`          | `(parsed: ParsedEChart, palette: PaletteColors, isDark: boolean) => EChartsOption`                                | ECharts option object                   |
+| `buildMermaidQuadrant`        | `(parsed: ParsedQuadrant, options?: { isDark?: boolean; textColor?: string; mutedTextColor?: string }) => string` | Mermaid syntax string                   |
 
 ```ts
-import { parseChartJs, buildChartJsConfig, nordPalette } from '@diagrammo/dgmo';
-import { Chart } from 'chart.js';
+import { parseChart, buildEChartsOptionFromChart, getPalette } from '@diagrammo/dgmo';
+import * as echarts from 'echarts';
 
-const parsed = parseChartJs(content, nordPalette.light);
-const config = buildChartJsConfig(parsed, nordPalette.light, false);
+const parsed = parseChart(content, nordPalette.light);
+const option = buildEChartsOptionFromChart(parsed, nordPalette.light, false);
 
-// Consumer provides Chart.js runtime
-new Chart(canvasElement, config);
+// Consumer provides ECharts runtime
+echarts.init(containerElement).setOption(option);
 ```
 
 ---
@@ -366,11 +366,11 @@ const container = document.getElementById('chart') as HTMLDivElement;
 renderSlopeChart(container, parsed, colors, false);
 ```
 
-### Parse + Build config for Chart.js
+### Parse + Build config for standard charts
 
 ```ts
-import { parseChartJs, buildChartJsConfig, getPalette } from '@diagrammo/dgmo';
-import { Chart } from 'chart.js/auto';
+import { parseChart, buildEChartsOptionFromChart, getPalette } from '@diagrammo/dgmo';
+import * as echarts from 'echarts';
 
 const content = `chart: bar
 title: Sales
@@ -379,10 +379,10 @@ Q2: 150
 Q3: 200`;
 
 const { light } = getPalette('catppuccin');
-const parsed = parseChartJs(content, light);
-const config = buildChartJsConfig(parsed, light, false);
+const parsed = parseChart(content, light);
+const option = buildEChartsOptionFromChart(parsed, light, false);
 
-new Chart(document.getElementById('canvas'), config);
+echarts.init(document.getElementById('chart')).setOption(option);
 ```
 
 ### Export to SVG string
@@ -400,8 +400,8 @@ fs.writeFileSync('output.svg', svg);
 import {
   registerPalette,
   getPalette,
-  parseChartJs,
-  buildChartJsConfig,
+  parseChart,
+  buildEChartsOptionFromChart,
 } from '@diagrammo/dgmo';
 
 registerPalette({
@@ -444,8 +444,8 @@ const palette = getPalette('corporate');
 Core parse/render/build functions — these are the main library API:
 
 - `parseDgmoChartType`, `getDgmoFramework`
-- `parseChartJs`, `parseEChart`, `parseD3`, `parseSequenceDgmo`, `parseQuadrant`
-- `buildChartJsConfig`, `buildEChartsOption`, `buildMermaidQuadrant`
+- `parseChart`, `parseEChart`, `parseD3`, `parseSequenceDgmo`, `parseQuadrant`
+- `buildEChartsOptionFromChart`, `buildEChartsOption`, `buildMermaidQuadrant`
 - `renderSlopeChart`, `renderArcDiagram`, `renderTimeline`, `renderWordCloud`, `renderVenn`, `renderQuadrant`
 - `renderSequenceDiagram`, `renderD3ForExport`
 - `getPalette`, `getAvailablePalettes`, `registerPalette`
