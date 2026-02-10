@@ -30,7 +30,9 @@
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",
-    "dev": "tsup --watch"
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@resvg/resvg-js": "^2.6.2",
@@ -52,6 +54,7 @@
     "@types/d3-shape": "^3.1.7",
     "@types/jsdom": "^21.1.7",
     "tsup": "^8.5.1",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.0"
   }
 }

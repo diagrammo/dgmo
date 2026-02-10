@@ -3,6 +3,8 @@ import { resolve, basename, extname } from 'node:path';
 import { JSDOM } from 'jsdom';
 import { Resvg } from '@resvg/resvg-js';
 import { renderD3ForExport } from './d3';
+import { renderEChartsForExport } from './echarts';
+import { parseDgmoChartType, getDgmoFramework } from './dgmo-router';
 import { getPalette } from './palettes/registry';
 import { DEFAULT_FONT_NAME } from './fonts';
 
@@ -215,19 +217,36 @@ async function main(): Promise<void> {
     noInput();
   }
 
-  // Set up jsdom before any d3/renderer code runs
-  setupDom();
-
   const isDark = opts.theme === 'dark';
   const paletteColors = isDark
     ? getPalette(opts.palette).dark
     : getPalette(opts.palette).light;
 
-  const svg = await renderD3ForExport(content, opts.theme, paletteColors);
+  // Determine which rendering framework to use
+  const chartType = parseDgmoChartType(content);
+  const framework = chartType ? getDgmoFramework(chartType) : null;
+
+  let svg: string;
+
+  if (framework === 'echart') {
+    svg = await renderEChartsForExport(content, opts.theme, paletteColors);
+  } else if (framework === 'd3' || framework === null) {
+    // Set up jsdom before any d3/renderer code runs
+    setupDom();
+    svg = await renderD3ForExport(content, opts.theme, paletteColors);
+  } else if (framework === 'chartjs') {
+    console.error(
+      'Error: Chart.js chart types (bar, line, pie, etc.) are not yet supported in CLI mode.'
+    );
+    process.exit(1);
+  } else {
+    console.error(`Error: Unknown chart framework "${framework}".`);
+    process.exit(1);
+  }
 
   if (!svg) {
     console.error(
-      'Error: Failed to render diagram. The input may be empty, invalid, or use an unsupported chart type (e.g. Chart.js/ECharts charts require a browser).'
+      'Error: Failed to render diagram. The input may be empty, invalid, or use an unsupported chart type.'
     );
     process.exit(1);
   }
