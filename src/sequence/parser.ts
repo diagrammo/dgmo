@@ -140,7 +140,8 @@ const UML_RETURN_PATTERN = /^(\w+\([^)]*\))\s*:\s*(.+)$/;
 
 /**
  * Extract return label from a message label string.
- * Priority: `<-` syntax first, then UML `method(): return` syntax.
+ * Priority: `<-` syntax first, then UML `method(): return` syntax,
+ * then shorthand ` : ` separator (splits on last occurrence).
  */
 function parseReturnLabel(rawLabel: string): {
   label: string;
@@ -158,6 +159,16 @@ function parseReturnLabel(rawLabel: string): {
   const umlReturn = rawLabel.match(UML_RETURN_PATTERN);
   if (umlReturn) {
     return { label: umlReturn[1].trim(), returnLabel: umlReturn[2].trim() };
+  }
+
+  // Shorthand request : response syntax (split on last " : ")
+  const lastSep = rawLabel.lastIndexOf(' : ');
+  if (lastSep > 0) {
+    const reqPart = rawLabel.substring(0, lastSep).trim();
+    const resPart = rawLabel.substring(lastSep + 3).trim();
+    if (reqPart && resPart) {
+      return { label: reqPart, returnLabel: resPart };
+    }
   }
 
   return { label: rawLabel };
