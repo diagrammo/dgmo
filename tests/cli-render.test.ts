@@ -44,7 +44,7 @@ A -> B: hello
 B -> A: world`,
 
   slope: `chart: slope
-series: Before, After
+Before, After
 Alpha: 10, 20
 Beta: 30, 15`,
 
@@ -76,18 +76,12 @@ High Impact, Low Effort: 20, 80
 Low Impact, High Effort: 80, 20`,
 };
 
-// D3 types that work in jsdom (have full DOM support)
-const D3_JSDOM_TYPES = ['sequence'];
+// All D3 types now render in JSDOM via explicit dimensions (Epic 41)
+const D3_TYPES = ['sequence', 'slope', 'arc', 'timeline', 'venn', 'quadrant'];
 
-// D3 types that need real browser SVG layout (fail in jsdom)
-const D3_BROWSER_ONLY_TYPES = [
-  'slope',
-  'wordcloud',
-  'arc',
-  'timeline',
-  'venn',
-  'quadrant',
-];
+// Wordcloud requires HTMLCanvasElement.getContext('2d') for d3-cloud text measurement —
+// not available in JSDOM without the `canvas` npm package.
+const D3_CANVAS_TYPES = ['wordcloud'];
 
 const ECHART_INPUTS: Record<string, string> = {
   scatter: `chart: scatter
@@ -171,21 +165,24 @@ B: 30, 40`,
 // ============================================================
 
 describe('renderD3ForExport', () => {
-  for (const type of D3_JSDOM_TYPES) {
+  for (const type of D3_TYPES) {
     it(`renders ${type} chart to non-empty SVG`, async () => {
       const svg = await renderD3ForExport(D3_INPUTS[type], 'light');
       expect(svg).toBeTruthy();
       expect(svg).toContain('<svg');
       expect(svg).toContain('</svg>');
     });
+
+    it(`renders ${type} chart in dark theme`, async () => {
+      const svg = await renderD3ForExport(D3_INPUTS[type], 'dark');
+      expect(svg).toBeTruthy();
+      expect(svg).toContain('<svg');
+    });
   }
 
-  // These D3 types need real browser SVG layout (getBBox, etc.)
-  // They work via the actual CLI (which uses jsdom + full DOM setup)
-  // but not in the vitest jsdom environment.
-  for (const type of D3_BROWSER_ONLY_TYPES) {
+  for (const type of D3_CANVAS_TYPES) {
     it.todo(
-      `renders ${type} chart to non-empty SVG (requires browser SVG layout)`
+      `renders ${type} chart to non-empty SVG (requires canvas npm package)`
     );
   }
 });
