@@ -234,11 +234,6 @@ async function main(): Promise<void> {
     // Set up jsdom before any d3/renderer code runs
     setupDom();
     svg = await renderD3ForExport(content, opts.theme, paletteColors);
-  } else if (framework === 'chartjs') {
-    console.error(
-      'Error: Chart.js chart types (bar, line, pie, etc.) are not yet supported in CLI mode.'
-    );
-    process.exit(1);
   } else {
     console.error(`Error: Unknown chart framework "${framework}".`);
     process.exit(1);

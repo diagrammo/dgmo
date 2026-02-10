@@ -118,6 +118,52 @@ Afternoon: 40, 50, 60`,
 Visitors: 1000
 Signups: 500
 Paid: 100`,
+
+  // Chart.js types (now rendered via ECharts)
+  bar: `chart: bar
+A: 10
+B: 20
+C: 30`,
+
+  line: `chart: line
+A: 10
+B: 20
+C: 30`,
+
+  'multi-line': `chart: multi-line
+series: X, Y
+A: 10, 20
+B: 30, 40`,
+
+  area: `chart: area
+A: 10
+B: 20
+C: 30`,
+
+  pie: `chart: pie
+A: 10
+B: 20
+C: 30`,
+
+  doughnut: `chart: doughnut
+A: 10
+B: 20
+C: 30`,
+
+  radar: `chart: radar
+Speed: 80
+Power: 60
+Defense: 90`,
+
+  'polar-area': `chart: polar-area
+A: 10
+B: 20
+C: 30`,
+
+  'bar-stacked': `chart: bar-stacked
+series: X, Y
+A: 10, 20
+B: 30, 40`,
 };
 
 // ============================================================
@@ -168,8 +214,6 @@ describe('CLI chart type coverage', () => {
     const allInputs = { ...D3_INPUTS, ...ECHART_INPUTS };
     for (const chartType of Object.keys(DGMO_CHART_TYPE_MAP)) {
       const framework = getDgmoFramework(chartType);
-      // Skip chartjs — not yet supported in CLI
-      if (framework === 'chartjs') continue;
       expect(
         allInputs[chartType],
         `Missing test input for chart type "${chartType}" (framework: ${framework})`
@@ -200,7 +244,7 @@ describe('CLI chart type coverage', () => {
     expect(getDgmoFramework('scatter')).toBe('echart');
     expect(getDgmoFramework('sankey')).toBe('echart');
     expect(getDgmoFramework('sequence')).toBe('d3');
-    expect(getDgmoFramework('bar')).toBe('chartjs');
+    expect(getDgmoFramework('bar')).toBe('echart');
     expect(getDgmoFramework('nonexistent')).toBeNull();
   });
 });

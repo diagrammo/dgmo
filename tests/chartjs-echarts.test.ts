@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { parseChartJs } from '../src/chartjs';
-import { buildEChartsOptionFromChartJs } from '../src/echarts';
+import {
+  buildEChartsOptionFromChartJs,
+  renderEChartsForExport,
+} from '../src/echarts';
+import { getDgmoFramework } from '../src/dgmo-router';
 import { getPalette } from '../src/palettes';
 
 const palette = getPalette('nord').light;
@@ -218,5 +222,53 @@ describe('buildEChartsOptionFromChartJs', () => {
     const yAxis = (opt as any).yAxis;
     expect(xAxis.type).toBe('value');
     expect(yAxis.type).toBe('category');
+  });
+});
+
+// ── Router tests ──────────────────────────────────────────────
+
+describe('getDgmoFramework — Chart.js types route to echart', () => {
+  const chartjsTypes = [
+    'bar',
+    'line',
+    'multi-line',
+    'area',
+    'pie',
+    'doughnut',
+    'radar',
+    'polar-area',
+    'bar-stacked',
+  ];
+
+  for (const type of chartjsTypes) {
+    it(`routes "${type}" to echart`, () => {
+      expect(getDgmoFramework(type)).toBe('echart');
+    });
+  }
+
+  it('still routes native echart types to echart', () => {
+    expect(getDgmoFramework('scatter')).toBe('echart');
+    expect(getDgmoFramework('sankey')).toBe('echart');
+    expect(getDgmoFramework('funnel')).toBe('echart');
+  });
+});
+
+// ── SSR render test ───────────────────────────────────────────
+
+describe('renderEChartsForExport — Chart.js types', () => {
+  it('renders a bar chart to SVG via the Chart.js→ECharts pipeline', async () => {
+    const svg = await renderEChartsForExport(
+      'chart: bar\nA: 10\nB: 20',
+      'light'
+    );
+    expect(svg).toContain('<svg');
+  });
+
+  it('still renders native echart types', async () => {
+    const svg = await renderEChartsForExport(
+      'chart: funnel\nA: 100\nB: 60\nC: 30',
+      'light'
+    );
+    expect(svg).toContain('<svg');
   });
 });

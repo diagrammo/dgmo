@@ -8,26 +8,25 @@ import { looksLikeSequence } from './sequence/parser';
  * Framework identifiers used by the .dgmo router.
  * Maps to the existing preview components and export paths.
  */
-export type DgmoFramework = 'chartjs' | 'echart' | 'd3' | 'mermaid';
+export type DgmoFramework = 'echart' | 'd3' | 'mermaid';
 
 /**
  * Maps every supported chart type string to its backing framework.
  *
- * Chart.js: standard chart types (bar, line, pie, etc.)
- * ECharts:  scatter, flow/relationship diagrams, math, heatmap
+ * ECharts:  standard chart types (bar, line, pie, etc.), scatter, flow/relationship diagrams, math, heatmap
  * D3:       slope, wordcloud, arc diagram, timeline
  */
 export const DGMO_CHART_TYPE_MAP: Record<string, DgmoFramework> = {
-  // Chart.js
-  bar: 'chartjs',
-  line: 'chartjs',
-  'multi-line': 'chartjs',
-  area: 'chartjs',
-  pie: 'chartjs',
-  doughnut: 'chartjs',
-  radar: 'chartjs',
-  'polar-area': 'chartjs',
-  'bar-stacked': 'chartjs',
+  // Standard charts (via ECharts)
+  bar: 'echart',
+  line: 'echart',
+  'multi-line': 'echart',
+  area: 'echart',
+  pie: 'echart',
+  doughnut: 'echart',
+  radar: 'echart',
+  'polar-area': 'echart',
+  'bar-stacked': 'echart',
 
   // ECharts
   scatter: 'echart',
