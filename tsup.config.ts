@@ -35,6 +35,7 @@ export default defineConfig([
     banner: { js: '#!/usr/bin/env node' },
     noExternal: [/^(?!@resvg\/)/],
     external: ['@resvg/resvg-js'],
+    minify: true,
     esbuildPlugins: [fixJsdomXhrWorker],
   },
 ]);
