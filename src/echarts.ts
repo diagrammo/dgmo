@@ -80,6 +80,7 @@ export interface ParsedEChart {
 import { resolveColor } from './colors';
 import type { PaletteColors } from './palettes';
 import { getSeriesColors } from './palettes';
+import { parseChartJs } from './chartjs';
 import type { ParsedChartJs } from './chartjs';
 
 // ============================================================
@@ -1731,6 +1732,18 @@ function buildCjsBarStackedOption(
 const ECHART_EXPORT_WIDTH = 1200;
 const ECHART_EXPORT_HEIGHT = 800;
 
+const CHARTJS_TYPES = new Set([
+  'bar',
+  'line',
+  'multi-line',
+  'area',
+  'pie',
+  'doughnut',
+  'radar',
+  'polar-area',
+  'bar-stacked',
+]);
+
 /**
  * Renders an ECharts diagram to SVG using server-side rendering.
  * Mirrors the `renderD3ForExport` API — returns an SVG string or empty string on failure.
@@ -1747,10 +1760,20 @@ export async function renderEChartsForExport(
   const effectivePalette =
     palette ?? (isDark ? getPalette('nord').dark : getPalette('nord').light);
 
-  const parsed = parseEChart(content, effectivePalette);
-  if (parsed.error) return '';
+  // Detect chart type to dispatch to the right parser/builder
+  const chartLine = content.match(/^chart\s*:\s*(.+)/im);
+  const chartType = chartLine?.[1]?.trim().toLowerCase();
 
-  const option = buildEChartsOption(parsed, effectivePalette, isDark);
+  let option: EChartsOption;
+  if (chartType && CHARTJS_TYPES.has(chartType)) {
+    const parsed = parseChartJs(content, effectivePalette);
+    if (parsed.error) return '';
+    option = buildEChartsOptionFromChartJs(parsed, effectivePalette, isDark);
+  } else {
+    const parsed = parseEChart(content, effectivePalette);
+    if (parsed.error) return '';
+    option = buildEChartsOption(parsed, effectivePalette, isDark);
+  }
   if (!option || Object.keys(option).length === 0) return '';
 
   const chart = echarts.init(null, null, {
