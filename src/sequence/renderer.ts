@@ -899,7 +899,11 @@ export function renderSequenceDiagram(
   {
     let fi = 0;
     for (let oi = 0; oi < allRenderSteps.length; oi++) {
-      if (!hiddenMsgIndices.has(allRenderSteps[oi].messageIndex)) {
+      const step = allRenderSteps[oi];
+      if (
+        !hiddenMsgIndices.has(step.messageIndex) &&
+        (step.type === 'call' || step.label)
+      ) {
         originalToFiltered.set(oi, fi);
         fi++;
       }
