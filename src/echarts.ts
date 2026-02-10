@@ -1,3 +1,4 @@
+import * as echarts from 'echarts';
 import type { EChartsOption } from 'echarts';
 import { FONT_FAMILY } from './fonts';
 
@@ -1205,4 +1206,56 @@ function buildFunnelOption(
       },
     ],
   };
+}
+
+// ============================================================
+// ECharts SSR Export
+// ============================================================
+
+const ECHART_EXPORT_WIDTH = 1200;
+const ECHART_EXPORT_HEIGHT = 800;
+
+/**
+ * Renders an ECharts diagram to SVG using server-side rendering.
+ * Mirrors the `renderD3ForExport` API — returns an SVG string or empty string on failure.
+ */
+export async function renderEChartsForExport(
+  content: string,
+  theme: 'light' | 'dark' | 'transparent',
+  palette?: PaletteColors
+): Promise<string> {
+  const isDark = theme === 'dark';
+
+  // Fall back to Nord palette if none provided
+  const { getPalette } = await import('./palettes');
+  const effectivePalette =
+    palette ?? (isDark ? getPalette('nord').dark : getPalette('nord').light);
+
+  const parsed = parseEChart(content, effectivePalette);
+  if (parsed.error) return '';
+
+  const option = buildEChartsOption(parsed, effectivePalette, isDark);
+  if (!option || Object.keys(option).length === 0) return '';
+
+  const chart = echarts.init(null, null, {
+    renderer: 'svg',
+    ssr: true,
+    width: ECHART_EXPORT_WIDTH,
+    height: ECHART_EXPORT_HEIGHT,
+  });
+
+  try {
+    chart.setOption(option);
+    const svgString = chart.renderToSVGString();
+    if (!svgString) return '';
+
+    // The SSR output already includes xmlns, width, height, and viewBox.
+    // Inject font-family on the root <svg> element for consistent rendering.
+    return svgString.replace(
+      /^<svg /,
+      `<svg style="font-family: ${FONT_FAMILY}" `
+    );
+  } finally {
+    chart.dispose();
+  }
 }

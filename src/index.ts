@@ -62,7 +62,7 @@ export type { ParsedQuadrant } from './dgmo-mermaid';
 // ============================================================
 
 export { buildChartJsConfig } from './chartjs';
-export { buildEChartsOption } from './echarts';
+export { buildEChartsOption, renderEChartsForExport } from './echarts';
 export { buildMermaidQuadrant } from './dgmo-mermaid';
 
 // ============================================================
