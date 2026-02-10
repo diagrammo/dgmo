@@ -80,6 +80,7 @@ export interface ParsedEChart {
 import { resolveColor } from './colors';
 import type { PaletteColors } from './palettes';
 import { getSeriesColors } from './palettes';
+import type { ParsedChartJs } from './chartjs';
 
 // ============================================================
 // Parser
@@ -1205,6 +1206,521 @@ function buildFunnelOption(
         })),
       },
     ],
+  };
+}
+
+// ============================================================
+// Chart.js → ECharts Option Builder
+// ============================================================
+
+/**
+ * Resolves axis labels from parsed ChartJs orientation/xlabel/ylabel/label.
+ * Replicates the logic in buildChartJsConfig.
+ */
+function resolveAxisLabels(parsed: ParsedChartJs): {
+  xLabel?: string;
+  yLabel?: string;
+} {
+  const isHorizontal = parsed.orientation === 'horizontal';
+  return {
+    xLabel: parsed.xlabel ?? (isHorizontal ? parsed.label : undefined),
+    yLabel: parsed.ylabel ?? (isHorizontal ? undefined : parsed.label),
+  };
+}
+
+/**
+ * Produces a reusable axis config object for category or value axes.
+ */
+function makeGridAxis(
+  type: 'category' | 'value',
+  textColor: string,
+  axisLineColor: string,
+  splitLineColor: string,
+  label?: string,
+  data?: string[]
+): Record<string, unknown> {
+  return {
+    type,
+    ...(data && { data }),
+    axisLine: { lineStyle: { color: axisLineColor } },
+    axisLabel: { color: textColor, fontFamily: FONT_FAMILY },
+    splitLine: { lineStyle: { color: splitLineColor } },
+    ...(label && {
+      name: label,
+      nameLocation: 'middle',
+      nameGap: 30,
+      nameTextStyle: { color: textColor, fontSize: 12, fontFamily: FONT_FAMILY },
+    }),
+  };
+}
+
+/**
+ * Converts a ParsedChartJs (from parseChartJs) into an EChartsOption.
+ * This enables rendering Chart.js-type charts (bar, line, pie, etc.) with the
+ * ECharts renderer instead of Chart.js.
+ */
+export function buildEChartsOptionFromChartJs(
+  parsed: ParsedChartJs,
+  palette: PaletteColors,
+  _isDark: boolean
+): EChartsOption {
+  if (parsed.error) return {};
+
+  const textColor = palette.text;
+  const axisLineColor = palette.border;
+  const splitLineColor = palette.overlay;
+  const colors = getSeriesColors(palette);
+
+  const titleConfig = parsed.title
+    ? {
+        text: parsed.title,
+        left: 'center' as const,
+        textStyle: {
+          color: textColor,
+          fontSize: 18,
+          fontWeight: 'bold' as const,
+          fontFamily: FONT_FAMILY,
+        },
+      }
+    : undefined;
+
+  const tooltipTheme = {
+    backgroundColor: palette.surface,
+    borderColor: palette.border,
+    textStyle: { color: palette.text },
+  };
+
+  switch (parsed.type) {
+    case 'bar':
+      return buildCjsBarOption(parsed, textColor, axisLineColor, splitLineColor, colors, titleConfig, tooltipTheme);
+    case 'bar-stacked':
+      return buildCjsBarStackedOption(parsed, textColor, axisLineColor, splitLineColor, colors, titleConfig, tooltipTheme);
+    case 'line':
+      return parsed.seriesNames
+        ? buildCjsMultiLineOption(parsed, textColor, axisLineColor, splitLineColor, colors, titleConfig, tooltipTheme)
+        : buildCjsLineOption(parsed, palette, textColor, axisLineColor, splitLineColor, titleConfig, tooltipTheme);
+    case 'area':
+      return buildCjsAreaOption(parsed, palette, textColor, axisLineColor, splitLineColor, titleConfig, tooltipTheme);
+    case 'pie':
+      return buildCjsPieOption(parsed, textColor, colors, titleConfig, tooltipTheme, false);
+    case 'doughnut':
+      return buildCjsPieOption(parsed, textColor, colors, titleConfig, tooltipTheme, true);
+    case 'radar':
+      return buildCjsRadarOption(parsed, palette, textColor, colors, titleConfig, tooltipTheme);
+    case 'polar-area':
+      return buildCjsPolarAreaOption(parsed, textColor, colors, titleConfig, tooltipTheme);
+  }
+}
+
+// ── Bar ──────────────────────────────────────────────────────
+
+function buildCjsBarOption(
+  parsed: ParsedChartJs,
+  textColor: string,
+  axisLineColor: string,
+  splitLineColor: string,
+  colors: string[],
+  titleConfig: EChartsOption['title'],
+  tooltipTheme: Record<string, unknown>
+): EChartsOption {
+  const { xLabel, yLabel } = resolveAxisLabels(parsed);
+  const isHorizontal = parsed.orientation === 'horizontal';
+  const labels = parsed.data.map((d) => d.label);
+  const data = parsed.data.map((d, i) => ({
+    value: d.value,
+    itemStyle: { color: d.color ?? colors[i % colors.length] },
+  }));
+
+  const categoryAxis = makeGridAxis('category', textColor, axisLineColor, splitLineColor, isHorizontal ? yLabel : xLabel, labels);
+  const valueAxis = makeGridAxis('value', textColor, axisLineColor, splitLineColor, isHorizontal ? xLabel : yLabel);
+
+  return {
+    backgroundColor: 'transparent',
+    animation: false,
+    title: titleConfig,
+    tooltip: {
+      trigger: 'axis',
+      ...tooltipTheme,
+      axisPointer: { type: 'shadow' },
+    },
+    grid: {
+      left: '3%',
+      right: '4%',
+      bottom: '3%',
+      top: parsed.title ? '15%' : '5%',
+      containLabel: true,
+    },
+    xAxis: isHorizontal ? valueAxis : categoryAxis,
+    yAxis: isHorizontal ? categoryAxis : valueAxis,
+    series: [
+      {
+        type: 'bar',
+        data,
+      },
+    ],
+  };
+}
+
+// ── Line ─────────────────────────────────────────────────────
+
+function buildCjsLineOption(
+  parsed: ParsedChartJs,
+  palette: PaletteColors,
+  textColor: string,
+  axisLineColor: string,
+  splitLineColor: string,
+  titleConfig: EChartsOption['title'],
+  tooltipTheme: Record<string, unknown>
+): EChartsOption {
+  const { xLabel, yLabel } = resolveAxisLabels(parsed);
+  const lineColor = parsed.color ?? parsed.seriesNameColors?.[0] ?? palette.primary;
+  const labels = parsed.data.map((d) => d.label);
+  const values = parsed.data.map((d) => d.value);
+
+  return {
+    backgroundColor: 'transparent',
+    animation: false,
+    title: titleConfig,
+    tooltip: {
+      trigger: 'axis',
+      ...tooltipTheme,
+      axisPointer: { type: 'line' },
+    },
+    grid: {
+      left: '3%',
+      right: '4%',
+      bottom: '3%',
+      top: parsed.title ? '15%' : '5%',
+      containLabel: true,
+    },
+    xAxis: makeGridAxis('category', textColor, axisLineColor, splitLineColor, xLabel, labels),
+    yAxis: makeGridAxis('value', textColor, axisLineColor, splitLineColor, yLabel),
+    series: [
+      {
+        type: 'line',
+        data: values,
+        smooth: false,
+        symbolSize: 8,
+        lineStyle: { color: lineColor, width: 3 },
+        itemStyle: { color: lineColor },
+      },
+    ],
+  };
+}
+
+// ── Multi-line ───────────────────────────────────────────────
+
+function buildCjsMultiLineOption(
+  parsed: ParsedChartJs,
+  textColor: string,
+  axisLineColor: string,
+  splitLineColor: string,
+  colors: string[],
+  titleConfig: EChartsOption['title'],
+  tooltipTheme: Record<string, unknown>
+): EChartsOption {
+  const { xLabel, yLabel } = resolveAxisLabels(parsed);
+  const seriesNames = parsed.seriesNames ?? [];
+  const labels = parsed.data.map((d) => d.label);
+
+  const series = seriesNames.map((name, idx) => {
+    const color = parsed.seriesNameColors?.[idx] ?? colors[idx % colors.length];
+    const data = parsed.data.map((dp) =>
+      idx === 0 ? dp.value : (dp.extraValues?.[idx - 1] ?? 0)
+    );
+    return {
+      name,
+      type: 'line' as const,
+      data,
+      smooth: false,
+      symbolSize: 8,
+      lineStyle: { color, width: 3 },
+      itemStyle: { color },
+    };
+  });
+
+  return {
+    backgroundColor: 'transparent',
+    animation: false,
+    title: titleConfig,
+    tooltip: {
+      trigger: 'axis',
+      ...tooltipTheme,
+      axisPointer: { type: 'line' },
+    },
+    legend: {
+      data: seriesNames,
+      bottom: 10,
+      textStyle: { color: textColor },
+    },
+    grid: {
+      left: '3%',
+      right: '4%',
+      bottom: '15%',
+      top: parsed.title ? '15%' : '5%',
+      containLabel: true,
+    },
+    xAxis: makeGridAxis('category', textColor, axisLineColor, splitLineColor, xLabel, labels),
+    yAxis: makeGridAxis('value', textColor, axisLineColor, splitLineColor, yLabel),
+    series,
+  };
+}
+
+// ── Area ─────────────────────────────────────────────────────
+
+function buildCjsAreaOption(
+  parsed: ParsedChartJs,
+  palette: PaletteColors,
+  textColor: string,
+  axisLineColor: string,
+  splitLineColor: string,
+  titleConfig: EChartsOption['title'],
+  tooltipTheme: Record<string, unknown>
+): EChartsOption {
+  const { xLabel, yLabel } = resolveAxisLabels(parsed);
+  const lineColor = parsed.color ?? parsed.seriesNameColors?.[0] ?? palette.primary;
+  const labels = parsed.data.map((d) => d.label);
+  const values = parsed.data.map((d) => d.value);
+
+  return {
+    backgroundColor: 'transparent',
+    animation: false,
+    title: titleConfig,
+    tooltip: {
+      trigger: 'axis',
+      ...tooltipTheme,
+      axisPointer: { type: 'line' },
+    },
+    grid: {
+      left: '3%',
+      right: '4%',
+      bottom: '3%',
+      top: parsed.title ? '15%' : '5%',
+      containLabel: true,
+    },
+    xAxis: makeGridAxis('category', textColor, axisLineColor, splitLineColor, xLabel, labels),
+    yAxis: makeGridAxis('value', textColor, axisLineColor, splitLineColor, yLabel),
+    series: [
+      {
+        type: 'line',
+        data: values,
+        smooth: false,
+        symbolSize: 8,
+        lineStyle: { color: lineColor, width: 3 },
+        itemStyle: { color: lineColor },
+        areaStyle: { opacity: 0.25 },
+      },
+    ],
+  };
+}
+
+// ── Pie / Doughnut ───────────────────────────────────────────
+
+function buildCjsPieOption(
+  parsed: ParsedChartJs,
+  textColor: string,
+  colors: string[],
+  titleConfig: EChartsOption['title'],
+  tooltipTheme: Record<string, unknown>,
+  isDoughnut: boolean
+): EChartsOption {
+  const data = parsed.data.map((d, i) => ({
+    name: d.label,
+    value: d.value,
+    itemStyle: { color: d.color ?? colors[i % colors.length] },
+  }));
+
+  return {
+    backgroundColor: 'transparent',
+    animation: false,
+    title: titleConfig,
+    tooltip: {
+      trigger: 'item',
+      ...tooltipTheme,
+    },
+    series: [
+      {
+        type: 'pie',
+        radius: isDoughnut ? ['40%', '70%'] : ['0%', '70%'],
+        data,
+        label: {
+          position: 'outside',
+          formatter: '{b}',
+          color: textColor,
+          fontFamily: FONT_FAMILY,
+        },
+        labelLine: { show: true },
+      },
+    ],
+  };
+}
+
+// ── Radar ────────────────────────────────────────────────────
+
+function buildCjsRadarOption(
+  parsed: ParsedChartJs,
+  palette: PaletteColors,
+  textColor: string,
+  colors: string[],
+  titleConfig: EChartsOption['title'],
+  tooltipTheme: Record<string, unknown>
+): EChartsOption {
+  const radarColor = parsed.color ?? parsed.seriesNameColors?.[0] ?? palette.primary;
+  const values = parsed.data.map((d) => d.value);
+  const maxValue = Math.max(...values) * 1.15;
+  const gridOpacity = 0.6;
+
+  const indicator = parsed.data.map((d) => ({
+    name: d.label,
+    max: maxValue,
+  }));
+
+  return {
+    backgroundColor: 'transparent',
+    animation: false,
+    title: titleConfig,
+    tooltip: {
+      trigger: 'item',
+      ...tooltipTheme,
+    },
+    radar: {
+      indicator,
+      axisName: {
+        color: textColor,
+        fontFamily: FONT_FAMILY,
+      },
+      splitLine: {
+        lineStyle: { color: palette.border, opacity: gridOpacity },
+      },
+      axisLine: {
+        lineStyle: { color: palette.border, opacity: gridOpacity },
+      },
+      splitArea: { show: false },
+    },
+    series: [
+      {
+        type: 'radar',
+        data: [
+          {
+            value: values,
+            name: parsed.series ?? 'Value',
+            areaStyle: { color: radarColor, opacity: 0.25 },
+            lineStyle: { color: radarColor },
+            itemStyle: { color: radarColor },
+            symbol: 'circle',
+            symbolSize: 8,
+            label: {
+              show: true,
+              formatter: '{c}',
+              color: textColor,
+              fontSize: 11,
+              fontFamily: FONT_FAMILY,
+            },
+          },
+        ],
+      },
+    ],
+  };
+}
+
+// ── Polar Area ───────────────────────────────────────────────
+
+function buildCjsPolarAreaOption(
+  parsed: ParsedChartJs,
+  textColor: string,
+  colors: string[],
+  titleConfig: EChartsOption['title'],
+  tooltipTheme: Record<string, unknown>
+): EChartsOption {
+  const data = parsed.data.map((d, i) => ({
+    name: d.label,
+    value: d.value,
+    itemStyle: { color: d.color ?? colors[i % colors.length] },
+  }));
+
+  return {
+    backgroundColor: 'transparent',
+    animation: false,
+    title: titleConfig,
+    tooltip: {
+      trigger: 'item',
+      ...tooltipTheme,
+    },
+    series: [
+      {
+        type: 'pie',
+        roseType: 'radius',
+        radius: ['10%', '70%'],
+        data,
+        label: {
+          position: 'outside',
+          formatter: '{b}',
+          color: textColor,
+          fontFamily: FONT_FAMILY,
+        },
+        labelLine: { show: true },
+      },
+    ],
+  };
+}
+
+// ── Bar Stacked ──────────────────────────────────────────────
+
+function buildCjsBarStackedOption(
+  parsed: ParsedChartJs,
+  textColor: string,
+  axisLineColor: string,
+  splitLineColor: string,
+  colors: string[],
+  titleConfig: EChartsOption['title'],
+  tooltipTheme: Record<string, unknown>
+): EChartsOption {
+  const { xLabel, yLabel } = resolveAxisLabels(parsed);
+  const isHorizontal = parsed.orientation === 'horizontal';
+  const seriesNames = parsed.seriesNames ?? [];
+  const labels = parsed.data.map((d) => d.label);
+
+  const series = seriesNames.map((name, idx) => {
+    const color = parsed.seriesNameColors?.[idx] ?? colors[idx % colors.length];
+    const data = parsed.data.map((dp) =>
+      idx === 0 ? dp.value : (dp.extraValues?.[idx - 1] ?? 0)
+    );
+    return {
+      name,
+      type: 'bar' as const,
+      stack: 'total',
+      data,
+      itemStyle: { color },
+    };
+  });
+
+  const categoryAxis = makeGridAxis('category', textColor, axisLineColor, splitLineColor, isHorizontal ? yLabel : xLabel, labels);
+  const valueAxis = makeGridAxis('value', textColor, axisLineColor, splitLineColor, isHorizontal ? xLabel : yLabel);
+
+  return {
+    backgroundColor: 'transparent',
+    animation: false,
+    title: titleConfig,
+    tooltip: {
+      trigger: 'axis',
+      ...tooltipTheme,
+      axisPointer: { type: 'shadow' },
+    },
+    legend: {
+      data: seriesNames,
+      bottom: 10,
+      textStyle: { color: textColor },
+    },
+    grid: {
+      left: '3%',
+      right: '4%',
+      bottom: '15%',
+      top: parsed.title ? '15%' : '5%',
+      containLabel: true,
+    },
+    xAxis: isHorizontal ? valueAxis : categoryAxis,
+    yAxis: isHorizontal ? categoryAxis : valueAxis,
+    series,
   };
 }
 
