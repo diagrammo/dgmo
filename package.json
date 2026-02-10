@@ -1,6 +1,6 @@
 {
   "name": "@diagrammo/dgmo",
-  "version": "0.1.7",
+  "version": "0.2.0",
   "description": "DGMO diagram markup language — parser, renderer, and color system",
   "license": "MIT",
   "type": "module",
@@ -36,9 +36,7 @@
   },
   "dependencies": {
     "@resvg/resvg-js": "^2.6.2",
-    "chart.js": "^4.4.8",
-    "chartjs-plugin-datalabels": "^2.2.0",
-    "d3-array": "^3.2.4",
+"d3-array": "^3.2.4",
     "d3-cloud": "^1.2.7",
     "d3-scale": "^4.0.2",
     "d3-selection": "^3.0.0",

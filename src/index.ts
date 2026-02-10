@@ -13,12 +13,12 @@ export type { DgmoFramework } from './dgmo-router';
 // Parsers
 // ============================================================
 
-export { parseChartJs } from './chartjs';
+export { parseChart } from './chart';
 export type {
-  ParsedChartJs,
-  ChartJsChartType,
-  ChartJsDataPoint,
-} from './chartjs';
+  ParsedChart,
+  ChartType,
+  ChartDataPoint,
+} from './chart';
 
 export { parseEChart } from './echarts';
 export type { ParsedEChart, EChartsChartType } from './echarts';
@@ -61,8 +61,7 @@ export type { ParsedQuadrant } from './dgmo-mermaid';
 // Config Builders (produce framework-specific config objects)
 // ============================================================
 
-export { buildChartJsConfig } from './chartjs';
-export { buildEChartsOption, buildEChartsOptionFromChartJs, renderEChartsForExport } from './echarts';
+export { buildEChartsOption, buildEChartsOptionFromChart, renderEChartsForExport } from './echarts';
 export { buildMermaidQuadrant } from './dgmo-mermaid';
 
 // ============================================================

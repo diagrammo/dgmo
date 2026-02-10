@@ -4,7 +4,7 @@
 
 **Bundle everything.** `npm install @diagrammo/dgmo` should be all a consumer needs. No peer dependencies, no extra installs, no dependency management. This follows the pattern used by [Recharts](https://www.npmjs.com/package/recharts), [Nivo](https://www.npmjs.com/package/@nivo/core), and other self-contained charting libraries.
 
-Tree-shaking via `"sideEffects": false` ensures consumers only pay for what they use — importing only `parseD3` won't pull in chart.js or echarts.
+Tree-shaking via `"sideEffects": false` ensures consumers only pay for what they use — importing only `parseD3` won't pull in echarts.
 
 ## Summary
 
@@ -15,8 +15,6 @@ Tree-shaking via `"sideEffects": false` ensures consumers only pay for what they
 | `d3-shape`                  | Runtime  | **dependency** | D3 renderer implementation detail                 |
 | `d3-array`                  | Runtime  | **dependency** | D3 renderer implementation detail                 |
 | `d3-cloud`                  | Runtime  | **dependency** | Wordcloud renderer implementation detail          |
-| `chart.js`                  | Runtime  | **dependency** | Config builder types + consumer rendering runtime |
-| `chartjs-plugin-datalabels` | Runtime  | **dependency** | Chart.js datalabels plugin (used in config build) |
 | `echarts`                   | Runtime  | **dependency** | Option builder types + consumer rendering runtime |
 
 ## `package.json`
@@ -25,8 +23,6 @@ Tree-shaking via `"sideEffects": false` ensures consumers only pay for what they
 {
   "sideEffects": false,
   "dependencies": {
-    "chart.js": "^4.4.8",
-    "chartjs-plugin-datalabels": "^2.2.0",
     "d3-array": "^3.2.4",
     "d3-cloud": "^1.2.7",
     "d3-scale": "^4.0.2",
@@ -57,18 +53,6 @@ Tree-shaking via `"sideEffects": false` ensures consumers only pay for what they
 
 These are small (~15KB gzipped total), pure-function modules with no global state. They're internal implementation details — consumers never interact with d3 directly. This is the standard approach (Recharts, Nivo both bundle d3 modules as regular dependencies).
 
-### chart.js + chartjs-plugin-datalabels → bundled
-
-**Imports**: `import type { ChartConfiguration } from 'chart.js'` (currently type-only in library)
-
-**File**: `chartjs.ts`
-
-chart.js (~200KB minified, ~60KB gzipped) is bundled so the consumer doesn't need to install it separately. The `buildChartJsConfig()` function returns a native `ChartConfiguration` type, ensuring full type safety when the consumer passes it to `new Chart()`.
-
-`chartjs-plugin-datalabels` provides datalabel support used by the config builder. Bundling it means consumers get full functionality without extra installs.
-
-**Tree-shaking**: Consumers who never import from `chartjs.ts` (i.e., only use D3 or sequence charts) won't have chart.js in their final bundle. The `"sideEffects": false` flag tells bundlers it's safe to eliminate unused modules.
-
 ### echarts → bundled
 
 **Import**: `import type { EChartsOption } from 'echarts'` (currently type-only in library)
@@ -93,7 +77,7 @@ That's it. Their esbuild config bundles everything. They import what they need:
 import { parseD3, renderSlopeChart, getPalette } from '@diagrammo/dgmo';
 ```
 
-If they only use D3 charts, chart.js and echarts are tree-shaken away.
+If they only use D3 charts, echarts is tree-shaken away.
 
 ### React app developer
 
@@ -101,7 +85,7 @@ If they only use D3 charts, chart.js and echarts are tree-shaken away.
 npm install @diagrammo/dgmo
 ```
 
-Same experience. If they use Chart.js charts, chart.js is already available as a transitive dependency — no extra install needed.
+Same experience.
 
 ### Node.js / SSR
 
@@ -117,20 +101,19 @@ Parsers work in any environment. Renderers that produce SVG strings (`renderD3Fo
 
 ### Install size
 
-Adding chart.js and echarts to dependencies increases `node_modules` by ~1.5MB. This is a one-time install cost and is standard for charting libraries. The alternative (peer deps) trades install size for developer friction — a bad trade for a library meant to be easy to use.
+Adding echarts as a dependency increases `node_modules` by ~1.5MB. This is a one-time install cost and is standard for charting libraries. The alternative (peer deps) trades install size for developer friction — a bad trade for a library meant to be easy to use.
 
 ### Bundle size
 
 With `"sideEffects": false`, modern bundlers (esbuild, rollup, webpack) tree-shake unused code paths:
 
-| Consumer imports only...                                         | chart.js included? | echarts included? |
-| ---------------------------------------------------------------- | ------------------ | ----------------- |
-| D3 charts (`parseD3`, `renderSlopeChart`)                        | No                 | No                |
-| Sequence diagrams (`parseSequenceDgmo`, `renderSequenceDiagram`) | No                 | No                |
-| Chart.js charts (`parseChartJs`, `buildChartJsConfig`)           | Yes                | No                |
-| ECharts charts (`parseEChart`, `buildEChartsOption`)             | No                 | Yes               |
-| Everything                                                       | Yes                | Yes               |
+| Consumer imports only...                                         | echarts included? |
+| ---------------------------------------------------------------- | ----------------- |
+| D3 charts (`parseD3`, `renderSlopeChart`)                        | No                |
+| Sequence diagrams (`parseSequenceDgmo`, `renderSequenceDiagram`) | No                |
+| ECharts charts (`parseEChart`, `buildEChartsOption`)             | Yes               |
+| Everything                                                       | Yes               |
 
 ### Why not peer deps?
 
-Peer deps are for frameworks the consumer already has (React, Angular). chart.js and echarts are implementation details of specific chart types — the consumer shouldn't need to know or care which rendering library is used under the hood. Bundling follows the same pattern as Recharts (bundles d3 + victory-vendor) and Nivo (bundles d3 modules).
+Peer deps are for frameworks the consumer already has (React, Angular). echarts is an implementation detail of specific chart types — the consumer shouldn't need to know or care which rendering library is used under the hood. Bundling follows the same pattern as Recharts (bundles d3 + victory-vendor) and Nivo (bundles d3 modules).

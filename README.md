@@ -2,7 +2,7 @@
 
 A unified diagram markup language — parser, config builder, renderer, and color system.
 
-Write simple, readable `.dgmo` text files and render them as charts, diagrams, and visualizations using Chart.js, ECharts, D3, or Mermaid.
+Write simple, readable `.dgmo` text files and render them as charts, diagrams, and visualizations using ECharts, D3, or Mermaid.
 
 ## Install
 
@@ -57,7 +57,7 @@ dgmo diagram.dgmo --theme dark --palette catppuccin
 
 Every `.dgmo` file is plain text with a `chart: <type>` header followed by metadata and data. The library routes each chart type to the right framework and gives you either:
 
-- A **framework config object** you render yourself (Chart.js, ECharts, Mermaid)
+- A **framework config object** you render yourself (ECharts, Mermaid)
 - A **rendered SVG** via D3 or the built-in sequence renderer
 
 ```
@@ -70,14 +70,14 @@ All parsers are pure functions with no DOM dependency. Renderers that produce SV
 
 | Type | Framework | Description |
 |------|-----------|-------------|
-| `bar` | Chart.js | Vertical/horizontal bar charts |
-| `bar-stacked` | Chart.js | Stacked bar charts |
-| `line` | Chart.js | Line charts with crosshair |
-| `area` | Chart.js | Filled area charts |
-| `pie` | Chart.js | Pie charts with connector labels |
-| `doughnut` | Chart.js | Doughnut charts |
-| `radar` | Chart.js | Radar/spider charts |
-| `polar-area` | Chart.js | Polar area charts |
+| `bar` | ECharts | Vertical/horizontal bar charts |
+| `bar-stacked` | ECharts | Stacked bar charts |
+| `line` | ECharts | Line charts with crosshair |
+| `area` | ECharts | Filled area charts |
+| `pie` | ECharts | Pie charts with connector labels |
+| `doughnut` | ECharts | Doughnut charts |
+| `radar` | ECharts | Radar/spider charts |
+| `polar-area` | ECharts | Polar area charts |
 | `scatter` | ECharts | XY scatter with categories and sizing |
 | `sankey` | ECharts | Flow diagrams |
 | `chord` | ECharts | Circular relationship diagrams |
@@ -94,11 +94,11 @@ All parsers are pure functions with no DOM dependency. Renderers that produce SV
 
 ## Usage
 
-### Chart.js (bar, line, pie, radar, etc.)
+### Standard charts (bar, line, pie, radar, etc.)
 
 ```typescript
-import { parseChartJs, buildChartJsConfig } from '@diagrammo/dgmo';
-import { Chart } from 'chart.js/auto';
+import { parseChart, buildEChartsOptionFromChart } from '@diagrammo/dgmo';
+import * as echarts from 'echarts';
 
 const content = `
 chart: bar
@@ -112,9 +112,9 @@ Q3: 15
 Q4: 22
 `;
 
-const parsed = parseChartJs(content, palette.light);
-const config = buildChartJsConfig(parsed, palette.light, false);
-new Chart(canvas, config);
+const parsed = parseChart(content, palette.light);
+const option = buildEChartsOptionFromChart(parsed, palette.light, false);
+echarts.init(container).setOption(option);
 ```
 
 ### ECharts (scatter, sankey, heatmap, etc.)
@@ -212,7 +212,7 @@ If you don't know the chart type ahead of time, use the router:
 import { parseDgmoChartType, getDgmoFramework } from '@diagrammo/dgmo';
 
 const chartType = parseDgmoChartType(content); // e.g. 'bar'
-const framework = getDgmoFramework(chartType);  // e.g. 'chartjs'
+const framework = getDgmoFramework(chartType);  // e.g. 'echart'
 ```
 
 Content with `->` arrows and no `chart:` header is automatically detected as a sequence diagram.
@@ -323,7 +323,7 @@ const svgString = await renderD3ForExport(content, 'light');
 
 | Export | Description |
 |--------|-------------|
-| `parseChartJs(content, colors)` | Parse Chart.js chart types |
+| `parseChart(content, colors)` | Parse standard chart types |
 | `parseEChart(content)` | Parse ECharts chart types |
 | `parseD3(content, colors)` | Parse D3 chart types |
 | `parseSequenceDgmo(content)` | Parse sequence diagrams |
@@ -333,7 +333,7 @@ const svgString = await renderD3ForExport(content, 'light');
 
 | Export | Description |
 |--------|-------------|
-| `buildChartJsConfig(parsed, colors, dark)` | Chart.js configuration object |
+| `buildEChartsOptionFromChart(parsed, colors, dark)` | ECharts option object |
 | `buildEChartsOption(parsed, colors, dark)` | ECharts option object |
 | `buildMermaidQuadrant(parsed, colors)` | Mermaid quadrant syntax string |
 
