@@ -416,6 +416,7 @@ export interface SectionMessageGroup {
 
 export interface SequenceRenderOptions {
   collapsedSections?: Set<number>; // keyed by section lineNumber
+  exportWidth?: number; // Explicit width for CLI/export rendering (bypasses getBoundingClientRect)
 }
 
 /**
@@ -1016,7 +1017,7 @@ export function renderSequenceDiagram(
     Math.max(lifelineLength, 40) +
     40;
 
-  const { width: containerWidth } = container.getBoundingClientRect();
+  const containerWidth = options?.exportWidth ?? container.getBoundingClientRect().width;
   const svgWidth = Math.max(totalWidth, containerWidth);
 
   // Center the diagram horizontally
