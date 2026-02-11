@@ -395,7 +395,7 @@ export function buildEChartsOption(
 ): EChartsOption {
   const textColor = palette.text;
   const axisLineColor = palette.border;
-  const gridOpacity = isDark ? 0.7 : 0.15;
+  const gridOpacity = isDark ? 0.7 : 0.4;
   const colors = getSeriesColors(palette);
 
   if (parsed.error) {
@@ -1292,7 +1292,7 @@ export function buildEChartsOptionFromChart(
   const textColor = palette.text;
   const axisLineColor = palette.border;
   const splitLineColor = palette.border;
-  const gridOpacity = isDark ? 0.7 : 0.15;
+  const gridOpacity = isDark ? 0.7 : 0.4;
   const colors = getSeriesColors(palette);
 
   const titleConfig = parsed.title
