@@ -1837,10 +1837,11 @@ export async function renderEChartsForExport(
     if (!svgString) return '';
 
     // The SSR output already includes xmlns, width, height, and viewBox.
-    // Inject font-family on the root <svg> element for consistent rendering.
+    // Inject font-family and background on the root <svg> element.
+    const bgStyle = theme !== 'transparent' ? `background: ${effectivePalette.bg}; ` : '';
     return svgString.replace(
       /^<svg /,
-      `<svg style="font-family: ${FONT_FAMILY}" `
+      `<svg style="${bgStyle}font-family: ${FONT_FAMILY}" `
     );
   } finally {
     chart.dispose();
