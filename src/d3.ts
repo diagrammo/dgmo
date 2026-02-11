@@ -1154,28 +1154,6 @@ export function renderSlopeChart(
       .attr('stroke-dasharray', '4,4');
   }
 
-  // Horizontal reference lines at Y-axis ticks
-  const yTicks = yScale.ticks(5);
-  for (const tick of yTicks) {
-    g.append('text')
-      .attr('x', -8)
-      .attr('y', yScale(tick))
-      .attr('text-anchor', 'end')
-      .attr('dominant-baseline', 'middle')
-      .attr('fill', mutedColor)
-      .attr('font-size', '11px')
-      .text(tick);
-
-    g.append('line')
-      .attr('x1', 0)
-      .attr('y1', yScale(tick))
-      .attr('x2', innerWidth)
-      .attr('y2', yScale(tick))
-      .attr('stroke', mutedColor)
-      .attr('stroke-width', 1)
-      .attr('stroke-dasharray', '4,4');
-  }
-
   // Line generator
   const lineGen = d3Shape
     .line<number>()

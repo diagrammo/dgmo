@@ -779,8 +779,7 @@ function buildFunctionOption(
       },
       splitLine: {
         lineStyle: {
-          color: palette.border,
-          opacity: 0.3,
+          color: palette.overlay,
         },
       },
     },
@@ -794,8 +793,7 @@ function buildFunctionOption(
       },
       splitLine: {
         lineStyle: {
-          color: palette.border,
-          opacity: 0.3,
+          color: palette.overlay,
         },
       },
     },
@@ -964,8 +962,7 @@ function buildScatterOption(
       },
       splitLine: {
         lineStyle: {
-          color: palette.border,
-          opacity: 0.3,
+          color: palette.overlay,
         },
       },
     },
@@ -988,8 +985,7 @@ function buildScatterOption(
       },
       splitLine: {
         lineStyle: {
-          color: palette.border,
-          opacity: 0.3,
+          color: palette.overlay,
         },
       },
     },
@@ -1262,7 +1258,7 @@ function makeGridAxis(
     ...(data && { data }),
     axisLine: { lineStyle: { color: axisLineColor } },
     axisLabel: { color: textColor, fontFamily: FONT_FAMILY },
-    splitLine: { lineStyle: { color: splitLineColor, opacity: 0.3 } },
+    splitLine: { lineStyle: { color: splitLineColor } },
     ...(label && {
       name: label,
       nameLocation: 'middle',
@@ -1285,7 +1281,7 @@ export function buildEChartsOptionFromChart(
 
   const textColor = palette.text;
   const axisLineColor = palette.border;
-  const splitLineColor = palette.border;
+  const splitLineColor = palette.overlay;
   const colors = getSeriesColors(palette);
 
   const titleConfig = parsed.title
