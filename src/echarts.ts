@@ -765,7 +765,7 @@ function buildFunctionOption(
       },
     },
     grid: {
-      left: '3%',
+      left: '4%',
       right: '4%',
       bottom: '15%',
       top: parsed.title ? '15%' : '5%',
@@ -780,6 +780,7 @@ function buildFunctionOption(
       },
       axisLabel: {
         color: textColor,
+        fontSize: 16,
       },
       splitLine: {
         lineStyle: {
@@ -795,6 +796,7 @@ function buildFunctionOption(
       },
       axisLabel: {
         color: textColor,
+        fontSize: 16,
       },
       splitLine: {
         lineStyle: {
@@ -944,9 +946,9 @@ function buildScatterOption(
       },
     }),
     grid: {
-      left: '3%',
+      left: parsed.ylabel ? '5%' : '3%',
       right: '4%',
-      bottom: hasCategories ? '15%' : '3%',
+      bottom: hasCategories ? '15%' : parsed.xlabel ? '10%' : '3%',
       top: parsed.title ? '15%' : '5%',
       containLabel: true,
     },
@@ -954,10 +956,10 @@ function buildScatterOption(
       type: 'value',
       name: parsed.xlabel,
       nameLocation: 'middle',
-      nameGap: 30,
+      nameGap: 40,
       nameTextStyle: {
         color: textColor,
-        fontSize: 12,
+        fontSize: 18,
       },
       min: Math.floor(xMin - xPad),
       max: Math.ceil(xMax + xPad),
@@ -966,6 +968,7 @@ function buildScatterOption(
       },
       axisLabel: {
         color: textColor,
+        fontSize: 16,
       },
       splitLine: {
         lineStyle: {
@@ -978,10 +981,10 @@ function buildScatterOption(
       type: 'value',
       name: parsed.ylabel,
       nameLocation: 'middle',
-      nameGap: 40,
+      nameGap: 50,
       nameTextStyle: {
         color: textColor,
-        fontSize: 12,
+        fontSize: 18,
       },
       min: Math.floor(yMin - yPad),
       max: Math.ceil(yMax + yPad),
@@ -990,6 +993,7 @@ function buildScatterOption(
       },
       axisLabel: {
         color: textColor,
+        fontSize: 16,
       },
       splitLine: {
         lineStyle: {
@@ -1062,6 +1066,7 @@ function buildHeatmapOption(
       },
       axisLabel: {
         color: textColor,
+        fontSize: 16,
       },
     },
     yAxis: {
@@ -1075,6 +1080,7 @@ function buildHeatmapOption(
       },
       axisLabel: {
         color: textColor,
+        fontSize: 16,
       },
     },
     visualMap: {
@@ -1267,13 +1273,13 @@ function makeGridAxis(
     type,
     ...(data && { data }),
     axisLine: { lineStyle: { color: axisLineColor } },
-    axisLabel: { color: textColor, fontFamily: FONT_FAMILY },
+    axisLabel: { color: textColor, fontSize: 16, fontFamily: FONT_FAMILY },
     splitLine: { lineStyle: { color: splitLineColor, opacity: gridOpacity } },
     ...(label && {
       name: label,
       nameLocation: 'middle',
-      nameGap: 30,
-      nameTextStyle: { color: textColor, fontSize: 12, fontFamily: FONT_FAMILY },
+      nameGap: 40,
+      nameTextStyle: { color: textColor, fontSize: 18, fontFamily: FONT_FAMILY },
     }),
   };
 }
@@ -1359,6 +1365,8 @@ function buildBarOption(
   const categoryAxis = makeGridAxis('category', textColor, axisLineColor, splitLineColor, gridOpacity, isHorizontal ? yLabel : xLabel, labels);
   const valueAxis = makeGridAxis('value', textColor, axisLineColor, splitLineColor, gridOpacity, isHorizontal ? xLabel : yLabel);
 
+  // xAxis is always the bottom axis, yAxis is always the left axis in ECharts
+
   return {
     backgroundColor: 'transparent',
     animation: false,
@@ -1369,9 +1377,9 @@ function buildBarOption(
       axisPointer: { type: 'shadow' },
     },
     grid: {
-      left: '3%',
+      left: yLabel ? '5%' : '3%',
       right: '4%',
-      bottom: '3%',
+      bottom: xLabel ? '10%' : '3%',
       top: parsed.title ? '15%' : '5%',
       containLabel: true,
     },
@@ -1413,9 +1421,9 @@ function buildLineOption(
       axisPointer: { type: 'line' },
     },
     grid: {
-      left: '3%',
+      left: yLabel ? '5%' : '3%',
       right: '4%',
-      bottom: '3%',
+      bottom: xLabel ? '10%' : '3%',
       top: parsed.title ? '15%' : '5%',
       containLabel: true,
     },
@@ -1481,7 +1489,7 @@ function buildMultiLineOption(
       textStyle: { color: textColor },
     },
     grid: {
-      left: '3%',
+      left: yLabel ? '5%' : '3%',
       right: '4%',
       bottom: '15%',
       top: parsed.title ? '15%' : '5%',
@@ -1520,9 +1528,9 @@ function buildAreaOption(
       axisPointer: { type: 'line' },
     },
     grid: {
-      left: '3%',
+      left: yLabel ? '5%' : '3%',
       right: '4%',
-      bottom: '3%',
+      bottom: xLabel ? '10%' : '3%',
       top: parsed.title ? '15%' : '5%',
       containLabel: true,
     },
@@ -1616,6 +1624,7 @@ function buildRadarOption(
       axisName: {
         color: textColor,
         fontFamily: FONT_FAMILY,
+        fontSize: 16,
       },
       splitLine: {
         lineStyle: { color: palette.border, opacity: gridOpacity },
@@ -1750,7 +1759,7 @@ function buildBarStackedOption(
       textStyle: { color: textColor },
     },
     grid: {
-      left: '3%',
+      left: yLabel ? '5%' : '3%',
       right: '4%',
       bottom: '15%',
       top: parsed.title ? '15%' : '5%',
