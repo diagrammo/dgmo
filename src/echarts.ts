@@ -391,10 +391,11 @@ export function parseEChart(
 export function buildEChartsOption(
   parsed: ParsedEChart,
   palette: PaletteColors,
-  _isDark: boolean
+  isDark: boolean
 ): EChartsOption {
   const textColor = palette.text;
   const axisLineColor = palette.border;
+  const gridOpacity = isDark ? 0.7 : 0.15;
   const colors = getSeriesColors(palette);
 
   if (parsed.error) {
@@ -452,6 +453,7 @@ export function buildEChartsOption(
       palette,
       textColor,
       axisLineColor,
+      gridOpacity,
       colors,
       titleConfig,
       tooltipTheme
@@ -465,6 +467,7 @@ export function buildEChartsOption(
       palette,
       textColor,
       axisLineColor,
+      gridOpacity,
       colors,
       titleConfig,
       tooltipTheme
@@ -704,6 +707,7 @@ function buildFunctionOption(
   palette: PaletteColors,
   textColor: string,
   axisLineColor: string,
+  gridOpacity: number,
   colors: string[],
   titleConfig: EChartsOption['title'],
   tooltipTheme: Record<string, unknown>
@@ -779,7 +783,8 @@ function buildFunctionOption(
       },
       splitLine: {
         lineStyle: {
-          color: palette.overlay,
+          color: palette.border,
+          opacity: gridOpacity,
         },
       },
     },
@@ -793,7 +798,8 @@ function buildFunctionOption(
       },
       splitLine: {
         lineStyle: {
-          color: palette.overlay,
+          color: palette.border,
+          opacity: gridOpacity,
         },
       },
     },
@@ -812,6 +818,7 @@ function buildScatterOption(
   palette: PaletteColors,
   textColor: string,
   axisLineColor: string,
+  gridOpacity: number,
   colors: string[],
   titleConfig: EChartsOption['title'],
   tooltipTheme: Record<string, unknown>
@@ -962,7 +969,8 @@ function buildScatterOption(
       },
       splitLine: {
         lineStyle: {
-          color: palette.overlay,
+          color: palette.border,
+          opacity: gridOpacity,
         },
       },
     },
@@ -985,7 +993,8 @@ function buildScatterOption(
       },
       splitLine: {
         lineStyle: {
-          color: palette.overlay,
+          color: palette.border,
+          opacity: gridOpacity,
         },
       },
     },
@@ -1250,6 +1259,7 @@ function makeGridAxis(
   textColor: string,
   axisLineColor: string,
   splitLineColor: string,
+  gridOpacity: number,
   label?: string,
   data?: string[]
 ): Record<string, unknown> {
@@ -1258,7 +1268,7 @@ function makeGridAxis(
     ...(data && { data }),
     axisLine: { lineStyle: { color: axisLineColor } },
     axisLabel: { color: textColor, fontFamily: FONT_FAMILY },
-    splitLine: { lineStyle: { color: splitLineColor } },
+    splitLine: { lineStyle: { color: splitLineColor, opacity: gridOpacity } },
     ...(label && {
       name: label,
       nameLocation: 'middle',
@@ -1275,13 +1285,14 @@ function makeGridAxis(
 export function buildEChartsOptionFromChart(
   parsed: ParsedChart,
   palette: PaletteColors,
-  _isDark: boolean
+  isDark: boolean
 ): EChartsOption {
   if (parsed.error) return {};
 
   const textColor = palette.text;
   const axisLineColor = palette.border;
-  const splitLineColor = palette.overlay;
+  const splitLineColor = palette.border;
+  const gridOpacity = isDark ? 0.7 : 0.15;
   const colors = getSeriesColors(palette);
 
   const titleConfig = parsed.title
@@ -1305,21 +1316,21 @@ export function buildEChartsOptionFromChart(
 
   switch (parsed.type) {
     case 'bar':
-      return buildBarOption(parsed, textColor, axisLineColor, splitLineColor, colors, titleConfig, tooltipTheme);
+      return buildBarOption(parsed, textColor, axisLineColor, splitLineColor, gridOpacity, colors, titleConfig, tooltipTheme);
     case 'bar-stacked':
-      return buildBarStackedOption(parsed, textColor, axisLineColor, splitLineColor, colors, titleConfig, tooltipTheme);
+      return buildBarStackedOption(parsed, textColor, axisLineColor, splitLineColor, gridOpacity, colors, titleConfig, tooltipTheme);
     case 'line':
       return parsed.seriesNames
-        ? buildMultiLineOption(parsed, textColor, axisLineColor, splitLineColor, colors, titleConfig, tooltipTheme)
-        : buildLineOption(parsed, palette, textColor, axisLineColor, splitLineColor, titleConfig, tooltipTheme);
+        ? buildMultiLineOption(parsed, textColor, axisLineColor, splitLineColor, gridOpacity, colors, titleConfig, tooltipTheme)
+        : buildLineOption(parsed, palette, textColor, axisLineColor, splitLineColor, gridOpacity, titleConfig, tooltipTheme);
     case 'area':
-      return buildAreaOption(parsed, palette, textColor, axisLineColor, splitLineColor, titleConfig, tooltipTheme);
+      return buildAreaOption(parsed, palette, textColor, axisLineColor, splitLineColor, gridOpacity, titleConfig, tooltipTheme);
     case 'pie':
       return buildPieOption(parsed, textColor, colors, titleConfig, tooltipTheme, false);
     case 'doughnut':
       return buildPieOption(parsed, textColor, colors, titleConfig, tooltipTheme, true);
     case 'radar':
-      return buildRadarOption(parsed, palette, textColor, colors, titleConfig, tooltipTheme);
+      return buildRadarOption(parsed, palette, textColor, gridOpacity, colors, titleConfig, tooltipTheme);
     case 'polar-area':
       return buildPolarAreaOption(parsed, textColor, colors, titleConfig, tooltipTheme);
   }
@@ -1332,6 +1343,7 @@ function buildBarOption(
   textColor: string,
   axisLineColor: string,
   splitLineColor: string,
+  gridOpacity: number,
   colors: string[],
   titleConfig: EChartsOption['title'],
   tooltipTheme: Record<string, unknown>
@@ -1344,8 +1356,8 @@ function buildBarOption(
     itemStyle: { color: d.color ?? colors[i % colors.length] },
   }));
 
-  const categoryAxis = makeGridAxis('category', textColor, axisLineColor, splitLineColor, isHorizontal ? yLabel : xLabel, labels);
-  const valueAxis = makeGridAxis('value', textColor, axisLineColor, splitLineColor, isHorizontal ? xLabel : yLabel);
+  const categoryAxis = makeGridAxis('category', textColor, axisLineColor, splitLineColor, gridOpacity, isHorizontal ? yLabel : xLabel, labels);
+  const valueAxis = makeGridAxis('value', textColor, axisLineColor, splitLineColor, gridOpacity, isHorizontal ? xLabel : yLabel);
 
   return {
     backgroundColor: 'transparent',
@@ -1382,6 +1394,7 @@ function buildLineOption(
   textColor: string,
   axisLineColor: string,
   splitLineColor: string,
+  gridOpacity: number,
   titleConfig: EChartsOption['title'],
   tooltipTheme: Record<string, unknown>
 ): EChartsOption {
@@ -1406,8 +1419,8 @@ function buildLineOption(
       top: parsed.title ? '15%' : '5%',
       containLabel: true,
     },
-    xAxis: makeGridAxis('category', textColor, axisLineColor, splitLineColor, xLabel, labels),
-    yAxis: makeGridAxis('value', textColor, axisLineColor, splitLineColor, yLabel),
+    xAxis: makeGridAxis('category', textColor, axisLineColor, splitLineColor, gridOpacity, xLabel, labels),
+    yAxis: makeGridAxis('value', textColor, axisLineColor, splitLineColor, gridOpacity, yLabel),
     series: [
       {
         type: 'line',
@@ -1428,6 +1441,7 @@ function buildMultiLineOption(
   textColor: string,
   axisLineColor: string,
   splitLineColor: string,
+  gridOpacity: number,
   colors: string[],
   titleConfig: EChartsOption['title'],
   tooltipTheme: Record<string, unknown>
@@ -1473,8 +1487,8 @@ function buildMultiLineOption(
       top: parsed.title ? '15%' : '5%',
       containLabel: true,
     },
-    xAxis: makeGridAxis('category', textColor, axisLineColor, splitLineColor, xLabel, labels),
-    yAxis: makeGridAxis('value', textColor, axisLineColor, splitLineColor, yLabel),
+    xAxis: makeGridAxis('category', textColor, axisLineColor, splitLineColor, gridOpacity, xLabel, labels),
+    yAxis: makeGridAxis('value', textColor, axisLineColor, splitLineColor, gridOpacity, yLabel),
     series,
   };
 }
@@ -1487,6 +1501,7 @@ function buildAreaOption(
   textColor: string,
   axisLineColor: string,
   splitLineColor: string,
+  gridOpacity: number,
   titleConfig: EChartsOption['title'],
   tooltipTheme: Record<string, unknown>
 ): EChartsOption {
@@ -1511,8 +1526,8 @@ function buildAreaOption(
       top: parsed.title ? '15%' : '5%',
       containLabel: true,
     },
-    xAxis: makeGridAxis('category', textColor, axisLineColor, splitLineColor, xLabel, labels),
-    yAxis: makeGridAxis('value', textColor, axisLineColor, splitLineColor, yLabel),
+    xAxis: makeGridAxis('category', textColor, axisLineColor, splitLineColor, gridOpacity, xLabel, labels),
+    yAxis: makeGridAxis('value', textColor, axisLineColor, splitLineColor, gridOpacity, yLabel),
     series: [
       {
         type: 'line',
@@ -1574,6 +1589,7 @@ function buildRadarOption(
   parsed: ParsedChart,
   palette: PaletteColors,
   textColor: string,
+  gridOpacity: number,
   colors: string[],
   titleConfig: EChartsOption['title'],
   tooltipTheme: Record<string, unknown>
@@ -1581,7 +1597,6 @@ function buildRadarOption(
   const radarColor = parsed.color ?? parsed.seriesNameColors?.[0] ?? palette.primary;
   const values = parsed.data.map((d) => d.value);
   const maxValue = Math.max(...values) * 1.15;
-  const gridOpacity = 0.6;
 
   const indicator = parsed.data.map((d) => ({
     name: d.label,
@@ -1684,6 +1699,7 @@ function buildBarStackedOption(
   textColor: string,
   axisLineColor: string,
   splitLineColor: string,
+  gridOpacity: number,
   colors: string[],
   titleConfig: EChartsOption['title'],
   tooltipTheme: Record<string, unknown>
@@ -1716,8 +1732,8 @@ function buildBarStackedOption(
     };
   });
 
-  const categoryAxis = makeGridAxis('category', textColor, axisLineColor, splitLineColor, isHorizontal ? yLabel : xLabel, labels);
-  const valueAxis = makeGridAxis('value', textColor, axisLineColor, splitLineColor, isHorizontal ? xLabel : yLabel);
+  const categoryAxis = makeGridAxis('category', textColor, axisLineColor, splitLineColor, gridOpacity, isHorizontal ? yLabel : xLabel, labels);
+  const valueAxis = makeGridAxis('value', textColor, axisLineColor, splitLineColor, gridOpacity, isHorizontal ? xLabel : yLabel);
 
   return {
     backgroundColor: 'transparent',
