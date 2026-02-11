@@ -3380,8 +3380,8 @@ export function renderTimeline(
               .attr('dy', '0.35em')
               .attr('text-anchor', 'start')
               .attr('fill', '#ffffff')
-              .attr('font-size', '13px')
-              .attr('font-weight', '500')
+              .attr('font-size', '14px')
+              .attr('font-weight', '700')
               .text(ev.label);
           } else {
             // Text outside bar - check if it fits on left or must go right
@@ -3648,8 +3648,8 @@ export function renderTimeline(
             .attr('dy', '0.35em')
             .attr('text-anchor', 'start')
             .attr('fill', '#ffffff')
-            .attr('font-size', '13px')
-            .attr('font-weight', '500')
+            .attr('font-size', '14px')
+            .attr('font-weight', '700')
             .text(ev.label);
         } else {
           // Text outside bar - check if it fits on left or must go right
@@ -4624,14 +4624,12 @@ export function renderQuadrant(
     return `#${c(ar,br)}${c(ag,bg)}${c(ab,bb)}`;
   };
 
-  // Pastel quadrant fills: mix color into background at 30% (light) or 25% (dark)
-  const fillPct = isDark ? 25 : 30;
+  // Opaque quadrant fills using the assigned color directly
   const getQuadrantFill = (
     label: QuadrantLabel | null,
     defaultIdx: number
   ): string => {
-    const raw = label?.color ?? defaultColors[defaultIdx % defaultColors.length];
-    return mixHex(raw, bgColor, fillPct);
+    return label?.color ?? defaultColors[defaultIdx % defaultColors.length];
   };
 
   // Quadrant definitions: position, rect bounds, label position
@@ -4707,9 +4705,9 @@ export function renderQuadrant(
     .attr('stroke', borderColor)
     .attr('stroke-width', 0.5);
 
-  // Contrast color for text/points on colored backgrounds
-  const contrastColor = isDark ? '#ffffff' : '#333333';
-  const shadowColor = isDark ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.5)';
+  // Light text on opaque colored quadrant backgrounds
+  const contrastColor = '#ffffff';
+  const shadowColor = 'rgba(0,0,0,0.4)';
 
   // Draw quadrant labels (large, centered, contrasting color for readability)
   const quadrantLabelTexts = chartG
@@ -4724,7 +4722,7 @@ export function renderQuadrant(
     .attr('dominant-baseline', 'central')
     .attr('fill', contrastColor)
     .attr('font-size', '16px')
-    .attr('font-weight', '600')
+    .attr('font-weight', '700')
     .style('text-shadow', `0 1px 2px ${shadowColor}`)
     .style('cursor', (d) =>
       onClickItem && d.label?.lineNumber ? 'pointer' : 'default'
@@ -4877,13 +4875,13 @@ export function renderQuadrant(
 
     const pointG = pointsG.append('g').attr('class', 'point-group');
 
-    // Circle (contrasting fill with colored border for visibility)
+    // Circle with white fill and colored border for visibility on opaque quadrants
     pointG
       .append('circle')
       .attr('cx', cx)
       .attr('cy', cy)
       .attr('r', 6)
-      .attr('fill', contrastColor)
+      .attr('fill', '#ffffff')
       .attr('stroke', pointColor)
       .attr('stroke-width', 2);
 
@@ -4894,7 +4892,8 @@ export function renderQuadrant(
       .attr('y', cy - 10)
       .attr('text-anchor', 'middle')
       .attr('fill', contrastColor)
-      .attr('font-size', '11px')
+      .attr('font-size', '12px')
+      .attr('font-weight', '700')
       .style('text-shadow', `0 1px 2px ${shadowColor}`)
       .text(point.label);
 
