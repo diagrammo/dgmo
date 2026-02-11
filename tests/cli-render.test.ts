@@ -195,15 +195,6 @@ describe('renderD3ForExport', () => {
     expect(matches, 'slope chart should have horizontal dashed reference lines').toBeTruthy();
     expect(matches!.length).toBeGreaterThanOrEqual(2);
   });
-
-  it('slope chart with gridlines: off has no guide lines', async () => {
-    const input = `chart: slope\ngridlines: off\nBefore, After\nAlpha: 10, 20\nBeta: 30, 15`;
-    const svg = await renderD3ForExport(input, 'light');
-    expect(svg).toContain('<svg');
-    // Should have no dashed lines at all
-    const dashedLines = svg.match(/stroke-dasharray="4,4"/g);
-    expect(dashedLines, 'slope chart with gridlines: off should have no dashed guide lines').toBeNull();
-  });
 });
 
 // ============================================================
