@@ -1126,7 +1126,7 @@ export function renderSlopeChart(
       .attr('y', 30)
       .attr('text-anchor', 'middle')
       .attr('fill', textColor)
-      .attr('font-size', '18px')
+      .attr('font-size', '20px')
       .attr('font-weight', '700')
       .text(title);
   }
@@ -1507,7 +1507,7 @@ export function renderArcDiagram(
       .attr('y', 30)
       .attr('text-anchor', 'middle')
       .attr('fill', textColor)
-      .attr('font-size', '18px')
+      .attr('font-size', '20px')
       .attr('font-weight', '700')
       .text(title);
   }
@@ -1549,11 +1549,11 @@ export function renderArcDiagram(
     g.selectAll<SVGGElement, unknown>('.arc-node').attr('opacity', 1);
     g.selectAll<SVGRectElement, unknown>('.arc-group-band').attr(
       'fill-opacity',
-      0.08
+      0.06
     );
     g.selectAll<SVGTextElement, unknown>('.arc-group-label').attr(
       'fill-opacity',
-      0.7
+      0.5
     );
   }
 
@@ -1618,8 +1618,8 @@ export function renderArcDiagram(
           .attr('width', bandHalfW * 2)
           .attr('height', maxY - minY)
           .attr('rx', 4)
-          .attr('fill', bandColor)
-          .attr('fill-opacity', 0.08)
+          .attr('fill', textColor)
+          .attr('fill-opacity', 0.06)
           .style('cursor', 'pointer')
           .on('mouseenter', () => handleGroupEnter(group.name))
           .on('mouseleave', handleMouseLeave)
@@ -1631,11 +1631,11 @@ export function renderArcDiagram(
           .attr('class', 'arc-group-label')
           .attr('data-group', group.name)
           .attr('x', baseX - bandHalfW + 6)
-          .attr('y', minY + 12)
-          .attr('fill', bandColor)
-          .attr('font-size', '10px')
+          .attr('y', minY + 14)
+          .attr('fill', textColor)
+          .attr('font-size', '12px')
           .attr('font-weight', '600')
-          .attr('fill-opacity', 0.7)
+          .attr('fill-opacity', 0.5)
           .style('cursor', onClickItem ? 'pointer' : 'default')
           .text(group.name)
           .on('mouseenter', () => handleGroupEnter(group.name))
@@ -1751,8 +1751,8 @@ export function renderArcDiagram(
           .attr('width', maxX - minX)
           .attr('height', bandHalfH * 2)
           .attr('rx', 4)
-          .attr('fill', bandColor)
-          .attr('fill-opacity', 0.08)
+          .attr('fill', textColor)
+          .attr('fill-opacity', 0.06)
           .style('cursor', 'pointer')
           .on('mouseenter', () => handleGroupEnter(group.name))
           .on('mouseleave', handleMouseLeave)
@@ -1766,10 +1766,10 @@ export function renderArcDiagram(
           .attr('x', (minX + maxX) / 2)
           .attr('y', baseY + bandHalfH - 4)
           .attr('text-anchor', 'middle')
-          .attr('fill', bandColor)
-          .attr('font-size', '10px')
+          .attr('fill', textColor)
+          .attr('font-size', '12px')
           .attr('font-weight', '600')
-          .attr('fill-opacity', 0.7)
+          .attr('fill-opacity', 0.5)
           .style('cursor', onClickItem ? 'pointer' : 'default')
           .text(group.name)
           .on('mouseenter', () => handleGroupEnter(group.name))
@@ -2741,7 +2741,7 @@ export function renderTimeline(
           .attr('y', 30)
           .attr('text-anchor', 'middle')
           .attr('fill', textColor)
-          .attr('font-size', '18px')
+          .attr('font-size', '20px')
           .attr('font-weight', '700')
           .text(title);
       }
@@ -2932,7 +2932,7 @@ export function renderTimeline(
           .attr('y', 30)
           .attr('text-anchor', 'middle')
           .attr('fill', textColor)
-          .attr('font-size', '18px')
+          .attr('font-size', '20px')
           .attr('font-weight', '700')
           .text(title);
       }
@@ -3184,7 +3184,7 @@ export function renderTimeline(
         .attr('y', 30)
         .attr('text-anchor', 'middle')
         .attr('fill', textColor)
-        .attr('font-size', '18px')
+        .attr('font-size', '20px')
         .attr('font-weight', '700')
         .text(title);
     }
@@ -3468,7 +3468,7 @@ export function renderTimeline(
         .attr('y', 30)
         .attr('text-anchor', 'middle')
         .attr('fill', textColor)
-        .attr('font-size', '18px')
+        .attr('font-size', '20px')
         .attr('font-weight', '700')
         .text(title);
     }
@@ -3760,10 +3760,10 @@ export function renderWordCloud(
     svg
       .append('text')
       .attr('x', width / 2)
-      .attr('y', 28)
+      .attr('y', 30)
       .attr('text-anchor', 'middle')
       .attr('fill', textColor)
-      .attr('font-size', '18px')
+      .attr('font-size', '20px')
       .attr('font-weight', '700')
       .text(title);
   }
@@ -3865,10 +3865,10 @@ function renderWordCloudAsync(
       svg
         .append('text')
         .attr('x', width / 2)
-        .attr('y', 28)
+        .attr('y', 30)
         .attr('text-anchor', 'middle')
         .attr('fill', textColor)
-        .attr('font-size', '18px')
+        .attr('font-size', '20px')
         .attr('font-weight', '700')
         .text(title);
     }
@@ -4210,10 +4210,10 @@ export function renderVenn(
     svg
       .append('text')
       .attr('x', width / 2)
-      .attr('y', 28)
+      .attr('y', 30)
       .attr('text-anchor', 'middle')
       .attr('fill', textColor)
-      .attr('font-size', '18px')
+      .attr('font-size', '20px')
       .attr('font-weight', '700')
       .text(title);
   }
@@ -4587,7 +4587,7 @@ export function renderQuadrant(
       .attr('y', 30)
       .attr('text-anchor', 'middle')
       .attr('fill', textColor)
-      .attr('font-size', '18px')
+      .attr('font-size', '20px')
       .attr('font-weight', '700')
       .style(
         'cursor',

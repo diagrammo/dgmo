@@ -408,9 +408,10 @@ export function buildEChartsOption(
     ? {
         text: parsed.title,
         left: 'center' as const,
+        top: 8,
         textStyle: {
           color: textColor,
-          fontSize: 18,
+          fontSize: 20,
           fontWeight: 'bold' as const,
           fontFamily: FONT_FAMILY,
         },
@@ -1305,9 +1306,10 @@ export function buildEChartsOptionFromChart(
     ? {
         text: parsed.title,
         left: 'center' as const,
+        top: 8,
         textStyle: {
           color: textColor,
-          fontSize: 18,
+          fontSize: 20,
           fontWeight: 'bold' as const,
           fontFamily: FONT_FAMILY,
         },
