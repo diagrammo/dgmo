@@ -2,12 +2,10 @@ import { describe, it, expect } from 'vitest';
 import { parseChart } from '../src/chart';
 import {
   buildEChartsOptionFromChart,
-  parseEChart,
   renderEChartsForExport,
 } from '../src/echarts';
 import { getDgmoFramework } from '../src/dgmo-router';
 import { getPalette } from '../src/palettes';
-import { parseD3 } from '../src/d3';
 
 const palette = getPalette('nord').light;
 
@@ -272,73 +270,5 @@ describe('renderEChartsForExport — standard chart types', () => {
       'light'
     );
     expect(svg).toContain('<svg');
-  });
-});
-
-// ============================================================
-// gridlines: off parsing tests
-// ============================================================
-
-describe('gridlines option parsing', () => {
-  it('parseChart: gridlines defaults to undefined (treated as on)', () => {
-    const parsed = parseChart('chart: bar\nA: 10\nB: 20', palette);
-    expect(parsed.gridlines).toBeUndefined();
-  });
-
-  it('parseChart: gridlines: off sets gridlines to false', () => {
-    const parsed = parseChart('chart: bar\ngridlines: off\nA: 10\nB: 20', palette);
-    expect(parsed.gridlines).toBe(false);
-  });
-
-  it('parseChart: gridlines: on keeps gridlines undefined', () => {
-    const parsed = parseChart('chart: bar\ngridlines: on\nA: 10\nB: 20', palette);
-    expect(parsed.gridlines).toBeUndefined();
-  });
-
-  it('parseEChart: gridlines: off sets gridlines to false', () => {
-    const parsed = parseEChart('chart: scatter\ngridlines: off\nA: 1, 2\nB: 3, 4', palette);
-    expect(parsed.gridlines).toBe(false);
-  });
-
-  it('parseEChart: gridlines defaults to undefined', () => {
-    const parsed = parseEChart('chart: scatter\nA: 1, 2\nB: 3, 4', palette);
-    expect(parsed.gridlines).toBeUndefined();
-  });
-
-  it('parseD3: gridlines defaults to true', () => {
-    const parsed = parseD3('chart: slope\nBefore, After\nAlpha: 10, 20', palette);
-    expect(parsed.gridlines).toBe(true);
-  });
-
-  it('parseD3: gridlines: off sets gridlines to false', () => {
-    const parsed = parseD3('chart: slope\ngridlines: off\nBefore, After\nAlpha: 10, 20', palette);
-    expect(parsed.gridlines).toBe(false);
-  });
-});
-
-// ============================================================
-// gridlines: off rendering tests
-// ============================================================
-
-describe('gridlines: off rendering', () => {
-  it('bar chart with gridlines: off has splitLine show: false', () => {
-    const opt = build('chart: bar\ngridlines: off\nA: 10\nB: 20');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const yAxis = (opt as any).yAxis;
-    expect(yAxis.splitLine.show).toBe(false);
-  });
-
-  it('bar chart without gridlines option has splitLine show: true', () => {
-    const opt = build('chart: bar\nA: 10\nB: 20');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const yAxis = (opt as any).yAxis;
-    expect(yAxis.splitLine.show).toBe(true);
-  });
-
-  it('radar chart with gridlines: off has splitLine show: false', () => {
-    const opt = build('chart: radar\ngridlines: off\nSpeed: 80\nPower: 60');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const radar = (opt as any).radar;
-    expect(radar.splitLine.show).toBe(false);
   });
 });
