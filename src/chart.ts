@@ -31,6 +31,7 @@ export interface ParsedChart {
   orientation?: 'horizontal' | 'vertical';
   color?: string;
   label?: string;
+  gridlines?: boolean;
   data: ChartDataPoint[];
   error?: string;
 }
@@ -142,6 +143,14 @@ export function parseChart(
       const v = value.toLowerCase();
       if (v === 'horizontal' || v === 'vertical') {
         result.orientation = v;
+      }
+      continue;
+    }
+
+    if (key === 'gridlines') {
+      const v = value.toLowerCase();
+      if (v === 'off' || v === 'false' || v === 'no') {
+        result.gridlines = false;
       }
       continue;
     }

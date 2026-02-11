@@ -70,6 +70,7 @@ export interface ParsedEChart {
   sizelabel?: string;
   showLabels?: boolean;
   categoryColors?: Record<string, string>;
+  gridlines?: boolean;
   error?: string;
 }
 
@@ -215,6 +216,14 @@ export function parseEChart(
 
     if (key === 'sizelabel') {
       result.sizelabel = value;
+      continue;
+    }
+
+    if (key === 'gridlines') {
+      const v = value.toLowerCase();
+      if (v === 'off' || v === 'false' || v === 'no') {
+        result.gridlines = false;
+      }
       continue;
     }
 
@@ -778,6 +787,7 @@ function buildFunctionOption(
         color: textColor,
       },
       splitLine: {
+        show: parsed.gridlines !== false,
         lineStyle: {
           color: palette.border,
           opacity: 0.3,
@@ -793,6 +803,7 @@ function buildFunctionOption(
         color: textColor,
       },
       splitLine: {
+        show: parsed.gridlines !== false,
         lineStyle: {
           color: palette.border,
           opacity: 0.3,
@@ -963,6 +974,7 @@ function buildScatterOption(
         color: textColor,
       },
       splitLine: {
+        show: parsed.gridlines !== false,
         lineStyle: {
           color: palette.border,
           opacity: 0.3,
@@ -987,6 +999,7 @@ function buildScatterOption(
         color: textColor,
       },
       splitLine: {
+        show: parsed.gridlines !== false,
         lineStyle: {
           color: palette.border,
           opacity: 0.3,
@@ -1254,6 +1267,7 @@ function makeGridAxis(
   textColor: string,
   axisLineColor: string,
   splitLineColor: string,
+  showGridlines: boolean,
   label?: string,
   data?: string[]
 ): Record<string, unknown> {
@@ -1262,7 +1276,7 @@ function makeGridAxis(
     ...(data && { data }),
     axisLine: { lineStyle: { color: axisLineColor } },
     axisLabel: { color: textColor, fontFamily: FONT_FAMILY },
-    splitLine: { lineStyle: { color: splitLineColor, opacity: 0.3 } },
+    splitLine: { show: showGridlines, lineStyle: { color: splitLineColor, opacity: 0.3 } },
     ...(label && {
       name: label,
       nameLocation: 'middle',
@@ -1348,8 +1362,9 @@ function buildBarOption(
     itemStyle: { color: d.color ?? colors[i % colors.length] },
   }));
 
-  const categoryAxis = makeGridAxis('category', textColor, axisLineColor, splitLineColor, isHorizontal ? yLabel : xLabel, labels);
-  const valueAxis = makeGridAxis('value', textColor, axisLineColor, splitLineColor, isHorizontal ? xLabel : yLabel);
+  const showGridlines = parsed.gridlines !== false;
+  const categoryAxis = makeGridAxis('category', textColor, axisLineColor, splitLineColor, showGridlines, isHorizontal ? yLabel : xLabel, labels);
+  const valueAxis = makeGridAxis('value', textColor, axisLineColor, splitLineColor, showGridlines, isHorizontal ? xLabel : yLabel);
 
   return {
     backgroundColor: 'transparent',
@@ -1410,8 +1425,8 @@ function buildLineOption(
       top: parsed.title ? '15%' : '5%',
       containLabel: true,
     },
-    xAxis: makeGridAxis('category', textColor, axisLineColor, splitLineColor, xLabel, labels),
-    yAxis: makeGridAxis('value', textColor, axisLineColor, splitLineColor, yLabel),
+    xAxis: makeGridAxis('category', textColor, axisLineColor, splitLineColor, parsed.gridlines !== false, xLabel, labels),
+    yAxis: makeGridAxis('value', textColor, axisLineColor, splitLineColor, parsed.gridlines !== false, yLabel),
     series: [
       {
         type: 'line',
@@ -1477,8 +1492,8 @@ function buildMultiLineOption(
       top: parsed.title ? '15%' : '5%',
       containLabel: true,
     },
-    xAxis: makeGridAxis('category', textColor, axisLineColor, splitLineColor, xLabel, labels),
-    yAxis: makeGridAxis('value', textColor, axisLineColor, splitLineColor, yLabel),
+    xAxis: makeGridAxis('category', textColor, axisLineColor, splitLineColor, parsed.gridlines !== false, xLabel, labels),
+    yAxis: makeGridAxis('value', textColor, axisLineColor, splitLineColor, parsed.gridlines !== false, yLabel),
     series,
   };
 }
@@ -1515,8 +1530,8 @@ function buildAreaOption(
       top: parsed.title ? '15%' : '5%',
       containLabel: true,
     },
-    xAxis: makeGridAxis('category', textColor, axisLineColor, splitLineColor, xLabel, labels),
-    yAxis: makeGridAxis('value', textColor, axisLineColor, splitLineColor, yLabel),
+    xAxis: makeGridAxis('category', textColor, axisLineColor, splitLineColor, parsed.gridlines !== false, xLabel, labels),
+    yAxis: makeGridAxis('value', textColor, axisLineColor, splitLineColor, parsed.gridlines !== false, yLabel),
     series: [
       {
         type: 'line',
@@ -1607,6 +1622,7 @@ function buildRadarOption(
         fontFamily: FONT_FAMILY,
       },
       splitLine: {
+        show: parsed.gridlines !== false,
         lineStyle: { color: palette.border, opacity: gridOpacity },
       },
       axisLine: {
@@ -1720,8 +1736,9 @@ function buildBarStackedOption(
     };
   });
 
-  const categoryAxis = makeGridAxis('category', textColor, axisLineColor, splitLineColor, isHorizontal ? yLabel : xLabel, labels);
-  const valueAxis = makeGridAxis('value', textColor, axisLineColor, splitLineColor, isHorizontal ? xLabel : yLabel);
+  const showGridlines = parsed.gridlines !== false;
+  const categoryAxis = makeGridAxis('category', textColor, axisLineColor, splitLineColor, showGridlines, isHorizontal ? yLabel : xLabel, labels);
+  const valueAxis = makeGridAxis('value', textColor, axisLineColor, splitLineColor, showGridlines, isHorizontal ? xLabel : yLabel);
 
   return {
     backgroundColor: 'transparent',
