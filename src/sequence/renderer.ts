@@ -1108,10 +1108,10 @@ export function renderSequenceDiagram(
     svg
       .append('text')
       .attr('x', svgWidth / 2)
-      .attr('y', TOP_MARGIN + TITLE_HEIGHT * 0.7)
+      .attr('y', 30)
       .attr('text-anchor', 'middle')
       .attr('fill', palette.text)
-      .attr('font-size', 16)
+      .attr('font-size', 20)
       .attr('font-weight', 'bold')
       .text(title);
   }
