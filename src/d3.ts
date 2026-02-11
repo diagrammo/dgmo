@@ -154,6 +154,7 @@ export interface ParsedD3 {
   timelineSort: TimelineSort;
   timelineScale: boolean;
   timelineSwimlanes: boolean;
+  gridlines: boolean;
   vennSets: VennSet[];
   vennOverlaps: VennOverlap[];
   vennShowValues: boolean;
@@ -280,6 +281,7 @@ export function parseD3(content: string, palette?: PaletteColors): ParsedD3 {
     timelineSort: 'time',
     timelineScale: true,
     timelineSwimlanes: false,
+    gridlines: true,
     vennSets: [],
     vennOverlaps: [],
     vennShowValues: false,
@@ -657,6 +659,17 @@ export function parseD3(content: string, palette?: PaletteColors): ParsedD3 {
           result.timelineSwimlanes = true;
         } else if (v === 'off') {
           result.timelineSwimlanes = false;
+        }
+        continue;
+      }
+
+      if (key === 'gridlines') {
+        const v = line
+          .substring(colonIndex + 1)
+          .trim()
+          .toLowerCase();
+        if (v === 'off' || v === 'false' || v === 'no') {
+          result.gridlines = false;
         }
         continue;
       }
@@ -1143,37 +1156,41 @@ export function renderSlopeChart(
       .attr('font-weight', '600')
       .text(period);
 
-    // Vertical guide line
-    g.append('line')
-      .attr('x1', x)
-      .attr('y1', 0)
-      .attr('x2', x)
-      .attr('y2', innerHeight)
-      .attr('stroke', mutedColor)
-      .attr('stroke-width', 1)
-      .attr('stroke-dasharray', '4,4');
+    if (parsed.gridlines !== false) {
+      // Vertical guide line
+      g.append('line')
+        .attr('x1', x)
+        .attr('y1', 0)
+        .attr('x2', x)
+        .attr('y2', innerHeight)
+        .attr('stroke', mutedColor)
+        .attr('stroke-width', 1)
+        .attr('stroke-dasharray', '4,4');
+    }
   }
 
-  // Horizontal reference lines at Y-axis ticks
-  const yTicks = yScale.ticks(5);
-  for (const tick of yTicks) {
-    g.append('text')
-      .attr('x', -8)
-      .attr('y', yScale(tick))
-      .attr('text-anchor', 'end')
-      .attr('dominant-baseline', 'middle')
-      .attr('fill', mutedColor)
-      .attr('font-size', '11px')
-      .text(tick);
+  if (parsed.gridlines !== false) {
+    // Horizontal reference lines at Y-axis ticks
+    const yTicks = yScale.ticks(5);
+    for (const tick of yTicks) {
+      g.append('text')
+        .attr('x', -8)
+        .attr('y', yScale(tick))
+        .attr('text-anchor', 'end')
+        .attr('dominant-baseline', 'middle')
+        .attr('fill', mutedColor)
+        .attr('font-size', '11px')
+        .text(tick);
 
-    g.append('line')
-      .attr('x1', 0)
-      .attr('y1', yScale(tick))
-      .attr('x2', innerWidth)
-      .attr('y2', yScale(tick))
-      .attr('stroke', mutedColor)
-      .attr('stroke-width', 1)
-      .attr('stroke-dasharray', '4,4');
+      g.append('line')
+        .attr('x1', 0)
+        .attr('y1', yScale(tick))
+        .attr('x2', innerWidth)
+        .attr('y2', yScale(tick))
+        .attr('stroke', mutedColor)
+        .attr('stroke-width', 1)
+        .attr('stroke-dasharray', '4,4');
+    }
   }
 
   // Line generator
