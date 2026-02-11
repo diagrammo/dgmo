@@ -1,0 +1,22 @@
+chart: sankey
+title: Website Traffic Flow
+
+// Source channels
+Organic Search -> Landing Page: 450
+Paid Ads -> Landing Page: 280
+Social Media -> Landing Page: 180
+Email -> Landing Page: 120
+Direct -> Landing Page: 90
+
+// Engagement
+Landing Page -> Sign Up: 340
+Landing Page -> Browse Products: 520
+Landing Page -> Bounce: 260
+
+// Conversion
+Sign Up -> Free Trial: 240
+Sign Up -> Paid Plan: 100
+Browse Products -> Add to Cart: 310
+Browse Products -> Exit: 210
+Add to Cart -> Purchase: 220
+Add to Cart -> Abandon: 90

@@ -1,0 +1,11 @@
+chart: bar
+title: Monthly Revenue by Product Line
+xlabel: Product
+ylabel: Revenue ($K)
+
+Enterprise: 245
+Professional: 182
+Starter: 97
+Free Trial: 43
+Add-ons: 61
+Consulting: 128

@@ -1,0 +1,40 @@
+chart: sequence
+title: OAuth 2.0 Authorization Code Flow
+
+Browser is a frontend
+App Server is a service
+Auth Provider is an external aka AuthZ
+Database is a database aka DB
+
+## Authentication
+  Browser -> App Server: GET /login
+  App Server -> Browser: redirect to AuthZ
+
+  Browser -> Auth Provider: authorize request
+  Auth Provider -> Browser: login page
+  Browser -> Auth Provider: credentials
+
+  == Token Exchange ==
+
+  Auth Provider -> Browser: redirect with auth code
+  Browser -> App Server: GET /callback?code=abc
+
+  if code valid
+    App Server -> Auth Provider: exchange code for token
+    Auth Provider -> App Server: access_token + refresh_token
+
+    App Server -> Database: store refresh_token
+    Database -> App Server: ok
+
+    App Server -> Browser: set session cookie
+  else
+    App Server -> Browser: 401 Unauthorized
+
+## Resource Access
+  Browser -> App Server: GET /api/profile
+  App Server -> Auth Provider: validate token
+  Auth Provider -> App Server: token valid
+
+  App Server -> Database: SELECT user
+  Database -> App Server: user record
+  App Server -> Browser: 200 OK { user }

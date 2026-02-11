@@ -1,0 +1,9 @@
+chart: heatmap
+title: Deploy Frequency by Day and Hour
+
+columns: Mon, Tue, Wed, Thu, Fri
+6 AM: 1, 2, 0, 1, 0
+9 AM: 5, 8, 6, 7, 4
+12 PM: 3, 4, 5, 3, 2
+3 PM: 8, 12, 9, 10, 6
+6 PM: 2, 3, 1, 2, 1

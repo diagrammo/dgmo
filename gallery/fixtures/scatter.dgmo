@@ -1,0 +1,22 @@
+chart: scatter
+title: Startup Funding vs Revenue
+xlabel: Funding ($M)
+ylabel: Annual Revenue ($M)
+
+## SaaS (blue)
+Acme Cloud: 12, 8.5
+DataSync: 5.2, 3.1
+CloudOps: 25, 18.4
+PlatformX: 8, 5.7
+NexGen: 3.5, 1.2
+
+## Fintech (green)
+PayFlow: 45, 32
+LendTech: 18, 12.5
+CoinBase+: 60, 41
+QuickPay: 9, 6.8
+
+## HealthTech (red)
+MediScan: 15, 7.2
+HealthAI: 22, 14.1
+CareLink: 7, 3.8

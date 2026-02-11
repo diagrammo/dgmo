@@ -1,0 +1,9 @@
+chart: polar-area
+title: Incident Categories (Last 30 Days)
+
+Security: 12
+Performance: 28
+Availability: 8
+Data Loss: 3
+Configuration: 19
+Network: 15
