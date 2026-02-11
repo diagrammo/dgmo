@@ -4705,11 +4705,17 @@ export function renderQuadrant(
     .attr('stroke', borderColor)
     .attr('stroke-width', 0.5);
 
-  // Light text on opaque colored quadrant backgrounds
+  // White text for points; quadrant labels use a darkened shade of their fill
   const contrastColor = '#ffffff';
   const shadowColor = 'rgba(0,0,0,0.4)';
 
-  // Draw quadrant labels (large, centered, contrasting color for readability)
+  // Darken the quadrant fill to create a watermark-style label color
+  const getQuadrantLabelColor = (d: (typeof quadrantDefs)[number]): string => {
+    const fill = getQuadrantFill(d.label, d.colorIdx);
+    return mixHex('#000000', fill, 40);
+  };
+
+  // Draw quadrant labels (large, centered, darkened shade of fill — recedes behind points)
   const quadrantLabelTexts = chartG
     .selectAll('text.quadrant-label')
     .data(quadrantDefs.filter((d) => d.label !== null))
@@ -4720,10 +4726,9 @@ export function renderQuadrant(
     .attr('y', (d) => d.labelY)
     .attr('text-anchor', 'middle')
     .attr('dominant-baseline', 'central')
-    .attr('fill', contrastColor)
-    .attr('font-size', '16px')
+    .attr('fill', (d) => getQuadrantLabelColor(d))
+    .attr('font-size', '48px')
     .attr('font-weight', '700')
-    .style('text-shadow', `0 1px 2px ${shadowColor}`)
     .style('cursor', (d) =>
       onClickItem && d.label?.lineNumber ? 'pointer' : 'default'
     )
