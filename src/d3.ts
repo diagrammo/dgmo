@@ -1042,8 +1042,8 @@ function tokenizeFreeformText(text: string): WordCloudWord[] {
 // ============================================================
 
 const SLOPE_MARGIN = { top: 80, bottom: 40, left: 80 };
-const SLOPE_LABEL_FONT_SIZE = 12;
-const SLOPE_CHAR_WIDTH = 7; // approximate px per character at 12px
+const SLOPE_LABEL_FONT_SIZE = 14;
+const SLOPE_CHAR_WIDTH = 8; // approximate px per character at 14px
 
 /**
  * Renders a slope chart into the given container using D3.
@@ -1074,7 +1074,7 @@ export function renderSlopeChart(
   const estimatedLabelWidth = maxLabelText.length * SLOPE_CHAR_WIDTH;
   const maxRightMargin = Math.floor(width * 0.35);
   const rightMargin = Math.min(
-    Math.max(estimatedLabelWidth + 20, 100),
+    Math.max(estimatedLabelWidth + 30, 120),
     maxRightMargin
   );
 
@@ -1139,7 +1139,7 @@ export function renderSlopeChart(
       .attr('y', -15)
       .attr('text-anchor', 'middle')
       .attr('fill', textColor)
-      .attr('font-size', '13px')
+      .attr('font-size', '18px')
       .attr('font-weight', '600')
       .text(period);
 
@@ -1239,7 +1239,7 @@ export function renderSlopeChart(
           .attr('dy', '0.35em')
           .attr('text-anchor', isFirst ? 'end' : 'middle')
           .attr('fill', textColor)
-          .attr('font-size', '12px')
+          .attr('font-size', '16px')
           .text(val.toString());
       }
     });
@@ -4558,7 +4558,9 @@ export function renderQuadrant(
   ];
 
   // Margins
-  const margin = { top: title ? 60 : 30, right: 30, bottom: 50, left: 60 };
+  const hasXAxis = !!quadrantXAxis;
+  const hasYAxis = !!quadrantYAxis;
+  const margin = { top: title ? 60 : 30, right: 30, bottom: hasXAxis ? 70 : 40, left: hasYAxis ? 80 : 40 };
   const chartWidth = width - margin.left - margin.right;
   const chartHeight = height - margin.top - margin.bottom;
 
@@ -4748,10 +4750,10 @@ export function renderQuadrant(
     const xLowLabel = svg
       .append('text')
       .attr('x', margin.left + chartWidth / 4)
-      .attr('y', height - 12)
+      .attr('y', height - 20)
       .attr('text-anchor', 'middle')
       .attr('fill', textColor)
-      .attr('font-size', '16px')
+      .attr('font-size', '18px')
       .style(
         'cursor',
         onClickItem && quadrantXAxisLineNumber ? 'pointer' : 'default'
@@ -4762,10 +4764,10 @@ export function renderQuadrant(
     const xHighLabel = svg
       .append('text')
       .attr('x', margin.left + (chartWidth * 3) / 4)
-      .attr('y', height - 12)
+      .attr('y', height - 20)
       .attr('text-anchor', 'middle')
       .attr('fill', textColor)
-      .attr('font-size', '16px')
+      .attr('font-size', '18px')
       .style(
         'cursor',
         onClickItem && quadrantXAxisLineNumber ? 'pointer' : 'default'
@@ -4794,12 +4796,12 @@ export function renderQuadrant(
     // Low label (centered on bottom half)
     const yLowLabel = svg
       .append('text')
-      .attr('x', 15)
+      .attr('x', 22)
       .attr('y', yMidBottom)
       .attr('text-anchor', 'middle')
       .attr('fill', textColor)
-      .attr('font-size', '16px')
-      .attr('transform', `rotate(-90, 15, ${yMidBottom})`)
+      .attr('font-size', '18px')
+      .attr('transform', `rotate(-90, 22, ${yMidBottom})`)
       .style(
         'cursor',
         onClickItem && quadrantYAxisLineNumber ? 'pointer' : 'default'
@@ -4809,12 +4811,12 @@ export function renderQuadrant(
     // High label (centered on top half)
     const yHighLabel = svg
       .append('text')
-      .attr('x', 15)
+      .attr('x', 22)
       .attr('y', yMidTop)
       .attr('text-anchor', 'middle')
       .attr('fill', textColor)
-      .attr('font-size', '16px')
-      .attr('transform', `rotate(-90, 15, ${yMidTop})`)
+      .attr('font-size', '18px')
+      .attr('transform', `rotate(-90, 22, ${yMidTop})`)
       .style(
         'cursor',
         onClickItem && quadrantYAxisLineNumber ? 'pointer' : 'default'
