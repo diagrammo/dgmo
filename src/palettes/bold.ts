@@ -34,7 +34,7 @@ export const boldPalette: PaletteConfig = {
   dark: {
     bg: '#000000',
     surface: '#111111',
-    overlay: '#000000',
+    overlay: '#1a1a1a',
     border: '#333333',
     text: '#ffffff',
     textMuted: '#aaaaaa',

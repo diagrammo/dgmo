@@ -7,6 +7,7 @@ import {
   getDgmoFramework,
   parseDgmoChartType,
 } from '../src/dgmo-router';
+import { boldPalette } from '../src/palettes/bold';
 
 // Set up jsdom globals for D3 tests
 beforeAll(() => {
@@ -185,6 +186,25 @@ describe('renderD3ForExport', () => {
       `renders ${type} chart to non-empty SVG (requires canvas npm package)`
     );
   }
+
+  it('slope chart contains horizontal reference lines', async () => {
+    const svg = await renderD3ForExport(D3_INPUTS['slope'], 'light');
+    // Horizontal lines have y1 === y2 and span the chart width (x1=0, x2>0)
+    const horizontalLinePattern = /<line[^>]+x1="0"[^>]+x2="[^0][^"]*"[^>]+stroke-dasharray="4,4"/g;
+    const matches = svg.match(horizontalLinePattern);
+    expect(matches, 'slope chart should have horizontal dashed reference lines').toBeTruthy();
+    expect(matches!.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+// ============================================================
+// Palette contrast tests
+// ============================================================
+
+describe('palette contrast', () => {
+  it('bold dark overlay differs from bg', () => {
+    expect(boldPalette.dark.overlay).not.toBe(boldPalette.dark.bg);
+  });
 });
 
 // ============================================================
