@@ -95,3 +95,11 @@ tsup produces dual ESM/CJS:
 
 - **Framework:** Vitest with jsdom environment
 - **Tests:** `tests/cli-render.test.ts`, `tests/chart-echarts.test.ts`, `tests/echarts-ssr.test.ts`
+
+## Pre-Commit Validation
+
+Before committing any change, always build, run the test suite, and verify visually if the change affects rendering. Summarize to the user:
+1. **What changed** — brief description of the modification
+2. **How to validate** — specific commands or manual checks (e.g. render a specific fixture with a specific palette/theme, open a PNG to inspect)
+
+Wait for the user to confirm before committing.

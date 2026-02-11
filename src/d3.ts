@@ -4742,45 +4742,35 @@ export function renderQuadrant(
       });
   }
 
-  // X-axis labels
+  // X-axis labels — centered on left/right halves
   if (quadrantXAxis) {
-    // Low label (left)
+    // Low label (centered on left half)
     const xLowLabel = svg
       .append('text')
-      .attr('x', margin.left)
-      .attr('y', height - 15)
-      .attr('text-anchor', 'start')
+      .attr('x', margin.left + chartWidth / 4)
+      .attr('y', height - 12)
+      .attr('text-anchor', 'middle')
       .attr('fill', textColor)
-      .attr('font-size', '12px')
+      .attr('font-size', '16px')
       .style(
         'cursor',
         onClickItem && quadrantXAxisLineNumber ? 'pointer' : 'default'
       )
       .text(quadrantXAxis[0]);
 
-    // High label (right)
+    // High label (centered on right half)
     const xHighLabel = svg
       .append('text')
-      .attr('x', width - margin.right)
-      .attr('y', height - 15)
-      .attr('text-anchor', 'end')
+      .attr('x', margin.left + (chartWidth * 3) / 4)
+      .attr('y', height - 12)
+      .attr('text-anchor', 'middle')
       .attr('fill', textColor)
-      .attr('font-size', '12px')
+      .attr('font-size', '16px')
       .style(
         'cursor',
         onClickItem && quadrantXAxisLineNumber ? 'pointer' : 'default'
       )
       .text(quadrantXAxis[1]);
-
-    // Arrow in the middle
-    svg
-      .append('text')
-      .attr('x', width / 2)
-      .attr('y', height - 15)
-      .attr('text-anchor', 'middle')
-      .attr('fill', mutedColor)
-      .attr('font-size', '12px')
-      .text('→');
 
     if (onClickItem && quadrantXAxisLineNumber) {
       [xLowLabel, xHighLabel].forEach((label) => {
@@ -4796,48 +4786,40 @@ export function renderQuadrant(
     }
   }
 
-  // Y-axis labels
+  // Y-axis labels — centered on top/bottom halves
   if (quadrantYAxis) {
-    // Low label (bottom)
+    const yMidBottom = margin.top + (chartHeight * 3) / 4;
+    const yMidTop = margin.top + chartHeight / 4;
+
+    // Low label (centered on bottom half)
     const yLowLabel = svg
       .append('text')
       .attr('x', 15)
-      .attr('y', height - margin.bottom)
-      .attr('text-anchor', 'start')
+      .attr('y', yMidBottom)
+      .attr('text-anchor', 'middle')
       .attr('fill', textColor)
-      .attr('font-size', '12px')
-      .attr('transform', `rotate(-90, 15, ${height - margin.bottom})`)
+      .attr('font-size', '16px')
+      .attr('transform', `rotate(-90, 15, ${yMidBottom})`)
       .style(
         'cursor',
         onClickItem && quadrantYAxisLineNumber ? 'pointer' : 'default'
       )
       .text(quadrantYAxis[0]);
 
-    // High label (top)
+    // High label (centered on top half)
     const yHighLabel = svg
       .append('text')
       .attr('x', 15)
-      .attr('y', margin.top)
-      .attr('text-anchor', 'end')
+      .attr('y', yMidTop)
+      .attr('text-anchor', 'middle')
       .attr('fill', textColor)
-      .attr('font-size', '12px')
-      .attr('transform', `rotate(-90, 15, ${margin.top})`)
+      .attr('font-size', '16px')
+      .attr('transform', `rotate(-90, 15, ${yMidTop})`)
       .style(
         'cursor',
         onClickItem && quadrantYAxisLineNumber ? 'pointer' : 'default'
       )
       .text(quadrantYAxis[1]);
-
-    // Arrow in the middle
-    svg
-      .append('text')
-      .attr('x', 15)
-      .attr('y', height / 2)
-      .attr('text-anchor', 'middle')
-      .attr('fill', mutedColor)
-      .attr('font-size', '12px')
-      .attr('transform', `rotate(-90, 15, ${height / 2})`)
-      .text('→');
 
     if (onClickItem && quadrantYAxisLineNumber) {
       [yLowLabel, yHighLabel].forEach((label) => {
