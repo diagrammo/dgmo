@@ -1,40 +1,33 @@
 chart: sequence
-title: OAuth 2.0 Authorization Code Flow
+title: E-Commerce Checkout
 
-Browser is a frontend
-App Server is a service
-Auth Provider is an external aka AuthZ
-Database is a database aka DB
+User is an actor
+App is a frontend
+API is a gateway
+Orders is a service
+Payments is an external aka Stripe
+DB is a database
 
-## Authentication
-  Browser -> App Server: GET /login
-  App Server -> Browser: redirect to AuthZ
+## Place Order
+  User -> App: click checkout
+  App -> API: POST /orders <- 201 Created
+  API -> Orders: createOrder(items) : OrderID
 
-  Browser -> Auth Provider: authorize request
-  Auth Provider -> Browser: login page
-  Browser -> Auth Provider: credentials
+  if items in stock
+    Orders -> DB: reserveStock(skus) <- ok
+    Orders -> Payments: POST /charges <- charge_id
 
-  == Token Exchange ==
+    parallel Notify
+      Orders ~> DB: UPDATE analytics
+      Orders ~> API: emit OrderPlaced
 
-  Auth Provider -> Browser: redirect with auth code
-  Browser -> App Server: GET /callback?code=abc
-
-  if code valid
-    App Server -> Auth Provider: exchange code for token
-    Auth Provider -> App Server: access_token + refresh_token
-
-    App Server -> Database: store refresh_token
-    Database -> App Server: ok
-
-    App Server -> Browser: set session cookie
+    API -> App: order confirmation
+    App -> User: receipt page
   else
-    App Server -> Browser: 401 Unauthorized
+    Orders -> API: 409 Out of Stock
+    API -> App: error
+    App -> User: items unavailable
 
-## Resource Access
-  Browser -> App Server: GET /api/profile
-  App Server -> Auth Provider: validate token
-  Auth Provider -> App Server: token valid
-
-  App Server -> Database: SELECT user
-  Database -> App Server: user record
-  App Server -> Browser: 200 OK { user }
+## Fulfillment
+  loop Retry up to 3 times
+    API -> Payments: reconcileCharge(id) : status
