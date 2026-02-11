@@ -1084,7 +1084,7 @@ export function renderSlopeChart(
   // Theme colors
   const textColor = palette.text;
   const mutedColor = palette.border;
-  const bgColor = palette.overlay;
+  const bgColor = palette.bg;
   const colors = getSeriesColors(palette);
 
   // Scales
@@ -1455,7 +1455,7 @@ export function renderArcDiagram(
   // Theme colors
   const textColor = palette.text;
   const mutedColor = palette.border;
-  const bgColor = palette.overlay;
+  const bgColor = palette.bg;
   const colors = getSeriesColors(palette);
 
   // Order nodes by selected strategy
@@ -2586,7 +2586,7 @@ export function renderTimeline(
   // Theme colors
   const textColor = palette.text;
   const mutedColor = palette.border;
-  const bgColor = palette.overlay;
+  const bgColor = palette.bg;
   const colors = getSeriesColors(palette);
 
   // Assign colors to groups
@@ -3733,7 +3733,7 @@ export function renderWordCloud(
   const cloudHeight = height - titleHeight;
 
   const textColor = palette.text;
-  const bgColor = palette.overlay;
+  const bgColor = palette.bg;
   const colors = getSeriesColors(palette);
 
   const { minSize, maxSize } = cloudOptions;
@@ -3838,7 +3838,7 @@ function renderWordCloudAsync(
     const cloudHeight = height - titleHeight;
 
     const textColor = palette.text;
-    const bgColor = palette.overlay;
+    const bgColor = palette.bg;
     const colors = getSeriesColors(palette);
 
     const { minSize, maxSize } = cloudOptions;
@@ -4120,7 +4120,7 @@ export function renderVenn(
   if (width <= 0 || height <= 0) return;
 
   const textColor = palette.text;
-  const bgColor = palette.overlay;
+  const bgColor = palette.bg;
   const colors = getSeriesColors(palette);
   const titleHeight = title ? 40 : 0;
 
@@ -4546,7 +4546,7 @@ export function renderQuadrant(
 
   const textColor = palette.text;
   const mutedColor = palette.textMuted;
-  const bgColor = palette.overlay;
+  const bgColor = palette.bg;
   const borderColor = palette.border;
 
   // Default quadrant colors with alpha
@@ -5030,9 +5030,11 @@ export async function renderD3ForExport(
     const svgEl = container.querySelector('svg');
     if (!svgEl) return '';
 
-    // For transparent theme, remove the background
+    // Ensure all chart types have a consistent background
     if (theme === 'transparent') {
       svgEl.style.background = 'none';
+    } else if (!svgEl.style.background) {
+      svgEl.style.background = effectivePalette.bg;
     }
 
     // Add xmlns for standalone SVG
