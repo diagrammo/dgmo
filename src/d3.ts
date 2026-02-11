@@ -4610,12 +4610,26 @@ export function renderQuadrant(
     .append('g')
     .attr('transform', `translate(${margin.left}, ${margin.top})`);
 
-  // Get fill color for each quadrant (solid, no transparency)
+  // Mix two hex colors: pct=100 → all `a`, pct=0 → all `b`
+  const mixHex = (a: string, b: string, pct: number): string => {
+    const parse = (h: string) => {
+      const r = h.replace('#', '');
+      const f = r.length === 3 ? r[0]+r[0]+r[1]+r[1]+r[2]+r[2] : r;
+      return [parseInt(f.substring(0,2),16), parseInt(f.substring(2,4),16), parseInt(f.substring(4,6),16)];
+    };
+    const [ar,ag,ab] = parse(a), [br,bg,bb] = parse(b), t = pct/100;
+    const c = (x: number, y: number) => Math.round(x*t + y*(1-t)).toString(16).padStart(2,'0');
+    return `#${c(ar,br)}${c(ag,bg)}${c(ab,bb)}`;
+  };
+
+  // Pastel quadrant fills: mix color into background at 30% (light) or 25% (dark)
+  const fillPct = isDark ? 25 : 30;
   const getQuadrantFill = (
     label: QuadrantLabel | null,
     defaultIdx: number
   ): string => {
-    return label?.color ?? defaultColors[defaultIdx % defaultColors.length];
+    const raw = label?.color ?? defaultColors[defaultIdx % defaultColors.length];
+    return mixHex(raw, bgColor, fillPct);
   };
 
   // Quadrant definitions: position, rect bounds, label position
