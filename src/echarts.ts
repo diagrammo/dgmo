@@ -79,7 +79,7 @@ export interface ParsedEChart {
 
 import { resolveColor } from './colors';
 import type { PaletteColors } from './palettes';
-import { getSeriesColors, contrastText } from './palettes';
+import { getSeriesColors } from './palettes';
 import { parseChart } from './chart';
 import type { ParsedChart } from './chart';
 
@@ -1093,7 +1093,6 @@ function buildHeatmapOption(
       top: 'center',
       inRange: {
         color: [
-          palette.bg,
           palette.primary,
           palette.colors.cyan,
           palette.colors.yellow,
@@ -1110,7 +1109,9 @@ function buildHeatmapOption(
         data,
         label: {
           show: true,
-          color: textColor,
+          color: '#ffffff',
+          fontSize: 14,
+          fontWeight: 'bold' as const,
         },
         emphasis: {
           itemStyle: {
@@ -1725,7 +1726,6 @@ function buildBarStackedOption(
     const data = parsed.data.map((dp) =>
       idx === 0 ? dp.value : (dp.extraValues?.[idx - 1] ?? 0)
     );
-    const labelColor = contrastText(color, '#ffffff', '#333333');
     return {
       name,
       type: 'bar' as const,
@@ -1736,8 +1736,9 @@ function buildBarStackedOption(
         show: true,
         position: 'inside' as const,
         formatter: '{c}',
-        color: labelColor,
-        fontSize: 11,
+        color: '#ffffff',
+        fontSize: 14,
+        fontWeight: 'bold' as const,
         fontFamily: FONT_FAMILY,
       },
     };
