@@ -1,0 +1,13 @@
+chart: chord
+title: Inter-Department Collaboration
+
+Engineering -> Design: 85
+Engineering -> Product: 72
+Engineering -> QA: 95
+Design -> Product: 68
+Design -> Marketing: 45
+Product -> Marketing: 58
+Product -> Sales: 42
+Marketing -> Sales: 65
+QA -> Engineering: 88
+Sales -> Product: 30

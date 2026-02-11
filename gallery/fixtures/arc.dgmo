@@ -1,0 +1,19 @@
+chart: arc
+title: Microservice Dependencies
+order: group
+
+## Frontend
+WebApp -> API Gateway: 5
+MobileApp -> API Gateway: 3
+
+## Core Services
+API Gateway -> AuthService: 4
+API Gateway -> UserService: 5
+API Gateway -> OrderService: 3
+UserService -> Database: 4
+OrderService -> Database: 3
+OrderService -> PaymentService: 2
+
+## External
+PaymentService -> Stripe: 2
+AuthService -> OAuth: 3

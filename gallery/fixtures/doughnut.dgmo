@@ -1,0 +1,9 @@
+chart: doughnut
+title: Cloud Spending by Service
+
+Compute (blue): 34
+Storage (cyan): 22
+Database (green): 18
+Networking (orange): 12
+AI/ML (purple): 8
+Other (gray): 6

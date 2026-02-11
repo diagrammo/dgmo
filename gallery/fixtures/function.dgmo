@@ -1,0 +1,9 @@
+chart: function
+title: Mathematical Functions
+xlabel: x
+ylabel: f(x)
+
+x: -6 to 6
+f(x) (blue): sin(x)
+g(x) (red): x^2 / 10
+h(x) (green): cos(x) * 2

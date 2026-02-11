@@ -1,0 +1,25 @@
+chart: wordcloud
+title: Tech Conference Topics
+
+Kubernetes: 95
+Machine Learning: 88
+Microservices: 72
+DevOps: 68
+Serverless: 55
+GraphQL: 48
+TypeScript: 82
+Rust: 62
+WebAssembly: 45
+Edge Computing: 38
+Observability: 52
+Platform Engineering: 60
+AI Agents: 90
+LLM: 85
+RAG: 70
+Vector Database: 58
+Terraform: 42
+Docker: 65
+GitOps: 35
+Zero Trust: 30
+Service Mesh: 28
+eBPF: 25

@@ -32,7 +32,8 @@
     "typecheck": "tsc --noEmit",
     "dev": "tsup --watch",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "gallery": "pnpm build && node scripts/generate-gallery.mjs"
   },
   "dependencies": {
     "@resvg/resvg-js": "^2.6.2",
