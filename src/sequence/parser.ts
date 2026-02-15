@@ -213,9 +213,13 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
 
   const lines = content.split('\n');
   let hasExplicitChart = false;
+  let contentStarted = false;
 
   // Group parsing state — tracks the active ## group heading
   let activeGroup: SequenceGroup | null = null;
+
+  // Track participant → group name for duplicate membership detection
+  const participantGroupMap = new Map<string, string>();
 
   // Block parsing state
   const blockStack: {
@@ -248,6 +252,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
         result.error = `Line ${lineNumber}: Use a named color instead of hex (e.g., blue, red, teal)`;
         return result;
       }
+      contentStarted = true;
       activeGroup = {
         name: groupMatch[1].trim(),
         color: groupColor || undefined,
@@ -288,6 +293,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
         result.error = `Line ${lineNumber}: Use a named color instead of hex (e.g., blue, red, teal)`;
         return result;
       }
+      contentStarted = true;
       const section: SequenceSection = {
         kind: 'section',
         label: colorMatch ? colorMatch[1].trim() : labelRaw,
@@ -314,6 +320,12 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
         continue;
       }
 
+      // Enforce headers-before-content
+      if (contentStarted) {
+        result.error = `Line ${lineNumber}: Options like '${key}: ${value}' must appear before the first message or declaration`;
+        return result;
+      }
+
       if (key === 'title') {
         result.title = value;
         continue;
@@ -327,6 +339,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     // Parse "Name is a type [aka Alias]" declarations (always top-level)
     const isAMatch = trimmed.match(IS_A_PATTERN);
     if (isAMatch) {
+      contentStarted = true;
       const id = isAMatch[1];
       const typeStr = isAMatch[2].toLowerCase();
       const remainder = isAMatch[3]?.trim() || '';
@@ -357,7 +370,13 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       }
       // Track group membership
       if (activeGroup && !activeGroup.participantIds.includes(id)) {
+        const existingGroup = participantGroupMap.get(id);
+        if (existingGroup) {
+          result.error = `Line ${lineNumber}: Participant '${id}' is already in group '${existingGroup}' — participants can only belong to one group`;
+          return result;
+        }
         activeGroup.participantIds.push(id);
+        participantGroupMap.set(id, activeGroup.name);
       }
       continue;
     }
@@ -365,6 +384,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     // Parse standalone "Name position N" (no "is a" type)
     const posOnlyMatch = trimmed.match(POSITION_ONLY_PATTERN);
     if (posOnlyMatch) {
+      contentStarted = true;
       const id = posOnlyMatch[1];
       const position = parseInt(posOnlyMatch[2], 10);
 
@@ -379,13 +399,20 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       }
       // Track group membership
       if (activeGroup && !activeGroup.participantIds.includes(id)) {
+        const existingGroup = participantGroupMap.get(id);
+        if (existingGroup) {
+          result.error = `Line ${lineNumber}: Participant '${id}' is already in group '${existingGroup}' — participants can only belong to one group`;
+          return result;
+        }
         activeGroup.participantIds.push(id);
+        participantGroupMap.set(id, activeGroup.name);
       }
       continue;
     }
 
     // Bare participant name inside an active group (single identifier on an indented line)
     if (activeGroup && measureIndent(raw) > 0 && /^\S+$/.test(trimmed)) {
+      contentStarted = true;
       const id = trimmed;
       if (!result.participants.some((p) => p.id === id)) {
         result.participants.push({
@@ -396,7 +423,13 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
         });
       }
       if (!activeGroup.participantIds.includes(id)) {
+        const existingGroup = participantGroupMap.get(id);
+        if (existingGroup) {
+          result.error = `Line ${lineNumber}: Participant '${id}' is already in group '${existingGroup}' — participants can only belong to one group`;
+          return result;
+        }
         activeGroup.participantIds.push(id);
+        participantGroupMap.set(id, activeGroup.name);
       }
       continue;
     }
@@ -438,6 +471,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     if (asyncArrowMatch) isAsync = true;
 
     if (arrowMatch) {
+      contentStarted = true;
       const from = arrowMatch[1];
       const to = arrowMatch[2];
       const rawLabel = arrowMatch[3]?.trim() || '';
@@ -481,6 +515,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     // Parse 'if <label>' block keyword
     const ifMatch = trimmed.match(/^if\s+(.+)$/i);
     if (ifMatch) {
+      contentStarted = true;
       const block: SequenceBlock = {
         kind: 'block',
         type: 'if',
@@ -497,6 +532,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     // Parse 'loop <label>' block keyword
     const loopMatch = trimmed.match(/^loop\s+(.+)$/i);
     if (loopMatch) {
+      contentStarted = true;
       const block: SequenceBlock = {
         kind: 'block',
         type: 'loop',
@@ -513,6 +549,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     // Parse 'parallel [label]' block keyword
     const parallelMatch = trimmed.match(/^parallel(?:\s+(.+))?$/i);
     if (parallelMatch) {
+      contentStarted = true;
       const block: SequenceBlock = {
         kind: 'block',
         type: 'parallel',

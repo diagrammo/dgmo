@@ -353,3 +353,116 @@ describe('Story 47.2 — parser tolerance', () => {
     });
   });
 });
+
+describe('Story 47.3 — parser validation', () => {
+  describe('headers-before-content', () => {
+    it('title before first message parses normally', () => {
+      const result = parseSequenceDgmo(
+        'chart: sequence\ntitle: Auth Flow\nA -> B: login'
+      );
+      expect(result.error).toBeNull();
+      expect(result.title).toBe('Auth Flow');
+    });
+
+    it('options before first message parse normally', () => {
+      const result = parseSequenceDgmo(
+        'chart: sequence\nactivations: off\nA -> B: login'
+      );
+      expect(result.error).toBeNull();
+      expect(result.options.activations).toBe('off');
+    });
+
+    it('title after a message produces error', () => {
+      const result = parseSequenceDgmo(
+        'chart: sequence\nA -> B: login\ntitle: Too Late'
+      );
+      expect(result.error).toMatch(
+        /Line 3.*Options like 'title: Too Late' must appear before/
+      );
+    });
+
+    it('option after a section produces error', () => {
+      const result = parseSequenceDgmo(
+        'chart: sequence\n== Auth\nactivations: off\nA -> B: login'
+      );
+      expect(result.error).toMatch(
+        /Line 3.*Options like 'activations: off' must appear before/
+      );
+    });
+
+    it('option after a participant declaration produces error', () => {
+      const result = parseSequenceDgmo(
+        'chart: sequence\nAPI is a service\nactivations: off\nAPI -> DB: query'
+      );
+      expect(result.error).toMatch(/Line 3.*must appear before/);
+    });
+
+    it('option after a group produces error', () => {
+      const result = parseSequenceDgmo(
+        'chart: sequence\n## Backend\n  API\nactivations: off\nAPI -> DB: query'
+      );
+      expect(result.error).toMatch(/Line 4.*must appear before/);
+    });
+
+    it('chart: sequence is always allowed', () => {
+      const result = parseSequenceDgmo(
+        'title: Flow\nchart: sequence\nA -> B: msg'
+      );
+      expect(result.error).toBeNull();
+    });
+  });
+
+  describe('duplicate participant group membership', () => {
+    it('participant in two groups produces error', () => {
+      const result = parseSequenceDgmo(
+        '## Backend(blue)\n  API\n\n## Frontend(red)\n  API\nAPI -> DB: query'
+      );
+      expect(result.error).toMatch(
+        /Line 5.*Participant 'API' is already in group 'Backend'/
+      );
+    });
+
+    it('participant in two groups via "is a" syntax produces error', () => {
+      const result = parseSequenceDgmo(
+        '## Backend\n  API is a service\n\n## Frontend\n  API is a gateway\nAPI -> DB: query'
+      );
+      expect(result.error).toMatch(
+        /Line 5.*Participant 'API' is already in group 'Backend'/
+      );
+    });
+
+    it('different participants in different groups is fine', () => {
+      const result = parseSequenceDgmo(
+        '## Backend(blue)\n  API\n  DB\n\n## Frontend(red)\n  App\nAPI -> DB: query\nApp -> API: request'
+      );
+      expect(result.error).toBeNull();
+      expect(result.groups).toHaveLength(2);
+    });
+
+    it('same participant listed twice in same group is fine', () => {
+      const result = parseSequenceDgmo(
+        '## Backend\n  API\n  API\nAPI -> DB: query'
+      );
+      expect(result.error).toBeNull();
+    });
+  });
+
+  describe('lone # line errors (from 47.1)', () => {
+    it('# produces error with correct line number', () => {
+      const result = parseSequenceDgmo('A -> B: msg\n#\nB -> C: next');
+      expect(result.error).toMatch(/Line 2.*Use \/\/ for comments/);
+    });
+
+    it('# with text produces error', () => {
+      const result = parseSequenceDgmo('# my comment\nA -> B: msg');
+      expect(result.error).toMatch(/Line 1.*Use \/\/ for comments/);
+    });
+
+    it('## group heading does not error', () => {
+      const result = parseSequenceDgmo(
+        '## Backend\n  API\nAPI -> DB: query'
+      );
+      expect(result.error).toBeNull();
+    });
+  });
+});
