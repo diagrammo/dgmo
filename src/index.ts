@@ -43,6 +43,7 @@ export type {
   SequenceParticipant,
   SequenceMessage,
   SequenceBlock,
+  ElseIfBranch,
   SequenceSection,
   SequenceElement,
   SequenceGroup,

@@ -3,6 +3,7 @@ import {
   parseSequenceDgmo,
   buildRenderSequence,
   computeActivations,
+  type SequenceBlock,
 } from '../src/index';
 
 describe('parseReturnLabel — shorthand ` : ` syntax', () => {
@@ -463,6 +464,179 @@ describe('Story 47.3 — parser validation', () => {
         '## Backend\n  API\nAPI -> DB: query'
       );
       expect(result.error).toBeNull();
+    });
+  });
+});
+
+describe('Story 47.4 — else if support', () => {
+  describe('single else if branch', () => {
+    it('parses if / else if / else with correct children', () => {
+      const content = [
+        'if authenticated',
+        '  A -> B: proceed',
+        'else if guest',
+        '  A -> C: redirect',
+        'else',
+        '  A -> D: deny',
+      ].join('\n');
+      const result = parseSequenceDgmo(content);
+      expect(result.error).toBeNull();
+      expect(result.elements).toHaveLength(1);
+      const block = result.elements[0] as SequenceBlock;
+      expect(block.type).toBe('if');
+      expect(block.label).toBe('authenticated');
+      expect(block.children).toHaveLength(1);
+      expect(block.elseIfBranches).toHaveLength(1);
+      expect(block.elseIfBranches![0].label).toBe('guest');
+      expect(block.elseIfBranches![0].children).toHaveLength(1);
+      expect(block.elseChildren).toHaveLength(1);
+    });
+
+    it('parses if / else if without final else', () => {
+      const content = [
+        'if status 200',
+        '  A -> B: ok',
+        'else if status 404',
+        '  A -> C: not found',
+      ].join('\n');
+      const result = parseSequenceDgmo(content);
+      expect(result.error).toBeNull();
+      const block = result.elements[0] as SequenceBlock;
+      expect(block.children).toHaveLength(1);
+      expect(block.elseIfBranches).toHaveLength(1);
+      expect(block.elseIfBranches![0].label).toBe('status 404');
+      expect(block.elseChildren).toHaveLength(0);
+    });
+  });
+
+  describe('multiple else if branches', () => {
+    it('parses if / else if / else if / else', () => {
+      const content = [
+        'if premium',
+        '  A -> B: full access',
+        'else if trial',
+        '  A -> C: limited access',
+        'else if expired',
+        '  A -> D: renew prompt',
+        'else',
+        '  A -> E: register',
+      ].join('\n');
+      const result = parseSequenceDgmo(content);
+      expect(result.error).toBeNull();
+      const block = result.elements[0] as SequenceBlock;
+      expect(block.children).toHaveLength(1);
+      expect(block.elseIfBranches).toHaveLength(2);
+      expect(block.elseIfBranches![0].label).toBe('trial');
+      expect(block.elseIfBranches![0].children).toHaveLength(1);
+      expect(block.elseIfBranches![1].label).toBe('expired');
+      expect(block.elseIfBranches![1].children).toHaveLength(1);
+      expect(block.elseChildren).toHaveLength(1);
+    });
+  });
+
+  describe('else if with multiple messages per branch', () => {
+    it('each branch collects its own messages', () => {
+      const content = [
+        'if admin',
+        '  A -> B: check perms',
+        '  B -> C: audit log',
+        'else if user',
+        '  A -> D: basic check',
+        '  D -> C: log',
+        'else',
+        '  A -> E: block',
+      ].join('\n');
+      const result = parseSequenceDgmo(content);
+      expect(result.error).toBeNull();
+      const block = result.elements[0] as SequenceBlock;
+      expect(block.children).toHaveLength(2);
+      expect(block.elseIfBranches![0].children).toHaveLength(2);
+      expect(block.elseChildren).toHaveLength(1);
+      expect(result.messages).toHaveLength(5);
+    });
+  });
+
+  describe('else if is case-insensitive', () => {
+    it('Else If works', () => {
+      const content = [
+        'if cond1',
+        '  A -> B: yes',
+        'Else If cond2',
+        '  A -> C: maybe',
+      ].join('\n');
+      const result = parseSequenceDgmo(content);
+      expect(result.error).toBeNull();
+      const block = result.elements[0] as SequenceBlock;
+      expect(block.elseIfBranches).toHaveLength(1);
+      expect(block.elseIfBranches![0].label).toBe('cond2');
+    });
+  });
+
+  describe('nested blocks inside else if', () => {
+    it('nested loop inside else if branch', () => {
+      const content = [
+        'if ready',
+        '  A -> B: go',
+        'else if retry',
+        '  loop 3 times',
+        '    A -> B: attempt',
+        'else',
+        '  A -> C: fail',
+      ].join('\n');
+      const result = parseSequenceDgmo(content);
+      expect(result.error).toBeNull();
+      const block = result.elements[0] as SequenceBlock;
+      expect(block.elseIfBranches).toHaveLength(1);
+      // The else-if branch contains a loop block
+      const branchChildren = block.elseIfBranches![0].children;
+      expect(branchChildren).toHaveLength(1);
+      const nestedLoop = branchChildren[0] as SequenceBlock;
+      expect(nestedLoop.type).toBe('loop');
+      expect(nestedLoop.children).toHaveLength(1);
+    });
+  });
+
+  describe('else if rejected in parallel blocks', () => {
+    it('rejects else if inside parallel block', () => {
+      const content = [
+        'parallel Tasks',
+        '  A -> B: task1',
+        'else if fallback',
+        '  A -> C: task2',
+      ].join('\n');
+      const result = parseSequenceDgmo(content);
+      expect(result.error).toMatch(
+        /Line 3.*parallel blocks don't support else if/
+      );
+    });
+  });
+
+  describe('else if without parent block', () => {
+    it('else if at top level is ignored (no crash)', () => {
+      const content = ['A -> B: msg', 'else if stray'].join('\n');
+      const result = parseSequenceDgmo(content);
+      // No error — orphan else if is silently ignored like orphan else
+      expect(result.error).toBeNull();
+      expect(result.messages).toHaveLength(1);
+    });
+  });
+
+  describe('render integration with else if', () => {
+    it('produces correct render steps for all branches', () => {
+      const content = [
+        'if cond1',
+        '  A -> B: branch1',
+        'else if cond2',
+        '  A -> C: branch2',
+        'else',
+        '  A -> D: branch3',
+      ].join('\n');
+      const parsed = parseSequenceDgmo(content);
+      expect(parsed.error).toBeNull();
+      const steps = buildRenderSequence(parsed.messages);
+      // 3 calls + 3 returns
+      expect(steps).toHaveLength(6);
+      expect(steps.filter((s) => s.type === 'call')).toHaveLength(3);
     });
   });
 });

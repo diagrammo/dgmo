@@ -63,12 +63,18 @@ export interface SequenceMessage {
 /**
  * A conditional or loop block in the sequence diagram.
  */
+export interface ElseIfBranch {
+  label: string;
+  children: SequenceElement[];
+}
+
 export interface SequenceBlock {
   kind: 'block';
   type: 'if' | 'loop' | 'parallel';
   label: string;
   children: SequenceElement[];
   elseChildren: SequenceElement[];
+  elseIfBranches?: ElseIfBranch[];
   lineNumber: number;
 }
 
@@ -226,10 +232,12 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     block: SequenceBlock;
     indent: number;
     inElse: boolean;
+    activeElseIfBranch?: ElseIfBranch;
   }[] = [];
   const currentContainer = (): SequenceElement[] => {
     if (blockStack.length === 0) return result.elements;
     const top = blockStack[blockStack.length - 1];
+    if (top.activeElseIfBranch) return top.activeElseIfBranch.children;
     return top.inElse ? top.block.elseChildren : top.block.children;
   };
 
@@ -441,13 +449,14 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     while (blockStack.length > 0) {
       const top = blockStack[blockStack.length - 1];
       if (indent > top.indent) break;
-      // Keep block on stack when 'else' matches current indent — handled below
+      // Keep block on stack when 'else' or 'else if' matches current indent — handled below
       if (
         indent === top.indent &&
-        trimmed.toLowerCase() === 'else' &&
         (top.block.type === 'if' || top.block.type === 'parallel')
-      )
-        break;
+      ) {
+        const lower = trimmed.toLowerCase();
+        if (lower === 'else' || lower.startsWith('else if ')) break;
+      }
       blockStack.pop();
     }
 
@@ -563,16 +572,37 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       continue;
     }
 
+    // Parse 'else if <label>' keyword (must come before bare 'else')
+    const elseIfMatch = trimmed.match(/^else\s+if\s+(.+)$/i);
+    if (elseIfMatch) {
+      if (blockStack.length > 0 && blockStack[blockStack.length - 1].indent === indent) {
+        const top = blockStack[blockStack.length - 1];
+        if (top.block.type === 'parallel') {
+          result.error = `Line ${lineNumber}: parallel blocks don't support else if — list all concurrent messages directly inside the block`;
+          return result;
+        }
+        if (top.block.type === 'if') {
+          const branch: ElseIfBranch = { label: elseIfMatch[1].trim(), children: [] };
+          if (!top.block.elseIfBranches) top.block.elseIfBranches = [];
+          top.block.elseIfBranches.push(branch);
+          top.activeElseIfBranch = branch;
+          top.inElse = false;
+        }
+      }
+      continue;
+    }
+
     // Parse 'else' keyword (only applies to 'if' blocks)
     if (trimmed.toLowerCase() === 'else') {
       if (blockStack.length > 0 && blockStack[blockStack.length - 1].indent === indent) {
-        const parentType = blockStack[blockStack.length - 1].block.type;
-        if (parentType === 'parallel') {
+        const top = blockStack[blockStack.length - 1];
+        if (top.block.type === 'parallel') {
           result.error = `Line ${lineNumber}: parallel blocks don't support else — list all concurrent messages directly inside the block`;
           return result;
         }
-        if (parentType === 'if') {
-          blockStack[blockStack.length - 1].inElse = true;
+        if (top.block.type === 'if') {
+          top.inElse = true;
+          top.activeElseIfBranch = undefined;
         }
       }
       continue;

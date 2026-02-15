@@ -440,6 +440,11 @@ export function groupMessagesBySection(
           ...collectIndices(el.children),
           ...collectIndices(el.elseChildren)
         );
+        if (el.elseIfBranches) {
+          for (const branch of el.elseIfBranches) {
+            indices.push(...collectIndices(branch.children));
+          }
+        }
       } else if (isSequenceSection(el)) {
         // Sections inside blocks are not top-level — skip
         continue;
@@ -793,6 +798,14 @@ export function renderSequenceDiagram(
       if (isSequenceBlock(el)) {
         const idx = findFirstMsgIndex(el.children);
         if (idx >= 0) return idx;
+        if (el.elseIfBranches) {
+          for (const branch of el.elseIfBranches) {
+            const branchIdx = findFirstMsgIndex(branch.children);
+            if (branchIdx >= 0) return branchIdx;
+          }
+        }
+        const elseIdx = findFirstMsgIndex(el.elseChildren);
+        if (elseIdx >= 0) return elseIdx;
       } else if (!isSequenceSection(el)) {
         const idx = messages.indexOf(el);
         if (idx >= 0 && !hiddenMsgIndices.has(idx)) return idx;
@@ -819,6 +832,14 @@ export function renderSequenceDiagram(
 
       const firstIdx = findFirstMsgIndex(el.children);
       if (firstIdx >= 0) addExtra(firstIdx, BLOCK_HEADER_SPACE);
+
+      if (el.elseIfBranches) {
+        for (const branch of el.elseIfBranches) {
+          const firstBranchIdx = findFirstMsgIndex(branch.children);
+          if (firstBranchIdx >= 0) addExtra(firstBranchIdx, BLOCK_HEADER_SPACE);
+          markBlockSpacing(branch.children);
+        }
+      }
 
       const firstElseIdx = findFirstMsgIndex(el.elseChildren);
       if (firstElseIdx >= 0) addExtra(firstElseIdx, BLOCK_HEADER_SPACE);
@@ -859,6 +880,18 @@ export function renderSequenceDiagram(
         } else if (!isSequenceSection(child)) {
           const idx = messages.indexOf(child);
           if (idx >= 0) indices.push(idx);
+        }
+      }
+      if (block.elseIfBranches) {
+        for (const branch of block.elseIfBranches) {
+          for (const child of branch.children) {
+            if (isSequenceBlock(child)) {
+              indices.push(...collectMsgIndicesFromBlock(child));
+            } else if (!isSequenceSection(child)) {
+              const idx = messages.indexOf(child);
+              if (idx >= 0) indices.push(idx);
+            }
+          }
         }
       }
       for (const child of block.elseChildren) {
@@ -1212,6 +1245,11 @@ export function renderSequenceDiagram(
           ...collectMsgIndices(el.children),
           ...collectMsgIndices(el.elseChildren)
         );
+        if (el.elseIfBranches) {
+          for (const branch of el.elseIfBranches) {
+            indices.push(...collectMsgIndices(branch.children));
+          }
+        }
       } else if (!isSequenceSection(el)) {
         const idx = messages.indexOf(el);
         if (idx >= 0) indices.push(idx);
@@ -1242,8 +1280,21 @@ export function renderSequenceDiagram(
       if (!isSequenceBlock(el)) continue;
 
       const ifIndices = collectMsgIndices(el.children);
+      const elseIfBranchData: { label: string; indices: number[] }[] = [];
+      if (el.elseIfBranches) {
+        for (const branch of el.elseIfBranches) {
+          elseIfBranchData.push({
+            label: branch.label,
+            indices: collectMsgIndices(branch.children),
+          });
+        }
+      }
       const elseIndices = collectMsgIndices(el.elseChildren);
-      const allIndices = [...ifIndices, ...elseIndices];
+      const allIndices = [
+        ...ifIndices,
+        ...elseIfBranchData.flatMap((b) => b.indices),
+        ...elseIndices,
+      ];
       if (allIndices.length === 0) continue;
 
       // Find render step range
@@ -1308,6 +1359,34 @@ export function renderSequenceDiagram(
         blockLine: el.lineNumber,
       });
 
+      // Else-if dividers
+      for (const branchData of elseIfBranchData) {
+        if (branchData.indices.length > 0) {
+          let firstBranchStep = Infinity;
+          for (const mi of branchData.indices) {
+            const first = msgToFirstStep.get(mi);
+            if (first !== undefined)
+              firstBranchStep = Math.min(firstBranchStep, first);
+          }
+          if (firstBranchStep < Infinity) {
+            const dividerY = stepY(firstBranchStep) - stepSpacing / 2;
+            deferredLines.push({
+              x1: frameX,
+              y1: dividerY,
+              x2: frameX + frameW,
+              y2: dividerY,
+            });
+            deferredLabels.push({
+              x: frameX + 6,
+              y: dividerY + 14,
+              text: `else if ${branchData.label}`,
+              bold: false,
+              italic: true,
+            });
+          }
+        }
+      }
+
       // Else divider
       if (elseIndices.length > 0) {
         let firstElseStep = Infinity;
@@ -1336,6 +1415,11 @@ export function renderSequenceDiagram(
 
       // Recurse into nested blocks
       renderBlockFrames(el.children, depth + 1);
+      if (el.elseIfBranches) {
+        for (const branch of el.elseIfBranches) {
+          renderBlockFrames(branch.children, depth + 1);
+        }
+      }
       renderBlockFrames(el.elseChildren, depth + 1);
     }
   };
