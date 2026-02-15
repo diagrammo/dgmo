@@ -88,7 +88,22 @@ export interface SequenceSection {
   lineNumber: number;
 }
 
-export type SequenceElement = SequenceMessage | SequenceBlock | SequenceSection;
+/**
+ * An annotation attached to a message, rendered as a folded-corner box.
+ */
+export interface SequenceNote {
+  kind: 'note';
+  text: string;
+  position: 'right' | 'left';
+  participantId: string;
+  lineNumber: number;
+}
+
+export type SequenceElement =
+  | SequenceMessage
+  | SequenceBlock
+  | SequenceSection
+  | SequenceNote;
 
 export function isSequenceBlock(el: SequenceElement): el is SequenceBlock {
   return 'kind' in el && (el as SequenceBlock).kind === 'block';
@@ -96,6 +111,10 @@ export function isSequenceBlock(el: SequenceElement): el is SequenceBlock {
 
 export function isSequenceSection(el: SequenceElement): el is SequenceSection {
   return 'kind' in el && (el as SequenceSection).kind === 'section';
+}
+
+export function isSequenceNote(el: SequenceElement): el is SequenceNote {
+  return 'kind' in el && (el as SequenceNote).kind === 'note';
 }
 
 /**
@@ -143,6 +162,10 @@ const ARROW_RETURN_PATTERN = /^(.+?)\s*<-\s*(.+)$/;
 
 // UML method(args): returnType syntax: "getUser(id): UserObj"
 const UML_RETURN_PATTERN = /^(\w+\([^)]*\))\s*:\s*(.+)$/;
+
+// Note patterns — "note: text", "note right of API: text", "note left of User"
+const NOTE_SINGLE = /^note(?:\s+(right|left)\s+of\s+(\S+))?\s*:\s*(.+)$/i;
+const NOTE_MULTI = /^note(?:\s+(right|left)\s+of\s+(\S+))?\s*$/i;
 
 /**
  * Extract return label from a message label string.
@@ -241,6 +264,9 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     return top.inElse ? top.block.elseChildren : top.block.children;
   };
 
+  // Track last message sender for default note positioning
+  let lastMsgFrom: string | null = null;
+
   for (let i = 0; i < lines.length; i++) {
     const raw = lines[i];
     const trimmed = raw.trim();
@@ -314,9 +340,13 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     }
 
     // Parse header key: value lines (always top-level)
+    // Skip 'note' lines — parsed in the indent-aware section below
     const colonIndex = trimmed.indexOf(':');
     if (colonIndex > 0 && !trimmed.includes('->') && !trimmed.includes('~>')) {
       const key = trimmed.substring(0, colonIndex).trim().toLowerCase();
+      if (key === 'note' || key.startsWith('note ')) {
+        // Fall through to indent-aware note parsing below
+      } else {
       const value = trimmed.substring(colonIndex + 1).trim();
 
       if (key === 'chart') {
@@ -342,6 +372,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       // Store other options
       result.options[key] = value;
       continue;
+      }
     }
 
     // Parse "Name is a type [aka Alias]" declarations (always top-level)
@@ -483,6 +514,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       contentStarted = true;
       const from = arrowMatch[1];
       const to = arrowMatch[2];
+      lastMsgFrom = from;
       const rawLabel = arrowMatch[3]?.trim() || '';
 
       // Extract return label — skip for async messages
@@ -605,6 +637,77 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
           top.activeElseIfBranch = undefined;
         }
       }
+      continue;
+    }
+
+    // Parse single-line note — "note: text" or "note right of API: text"
+    const noteSingleMatch = trimmed.match(NOTE_SINGLE);
+    if (noteSingleMatch) {
+      const notePosition =
+        (noteSingleMatch[1]?.toLowerCase() as 'right' | 'left') || 'right';
+      let noteParticipant = noteSingleMatch[2] || null;
+      if (!noteParticipant) {
+        if (!lastMsgFrom) {
+          result.error = `Line ${lineNumber}: note requires a preceding message`;
+          return result;
+        }
+        noteParticipant = lastMsgFrom;
+      }
+      if (!result.participants.some((p) => p.id === noteParticipant)) {
+        result.error = `Line ${lineNumber}: note references unknown participant '${noteParticipant}'`;
+        return result;
+      }
+      const note: SequenceNote = {
+        kind: 'note',
+        text: noteSingleMatch[3].trim(),
+        position: notePosition,
+        participantId: noteParticipant,
+        lineNumber,
+      };
+      currentContainer().push(note);
+      continue;
+    }
+
+    // Parse multi-line note — "note" or "note right of API" (no colon, body indented below)
+    const noteMultiMatch = trimmed.match(NOTE_MULTI);
+    if (noteMultiMatch) {
+      const notePosition =
+        (noteMultiMatch[1]?.toLowerCase() as 'right' | 'left') || 'right';
+      let noteParticipant = noteMultiMatch[2] || null;
+      if (!noteParticipant) {
+        if (!lastMsgFrom) {
+          result.error = `Line ${lineNumber}: note requires a preceding message`;
+          return result;
+        }
+        noteParticipant = lastMsgFrom;
+      }
+      if (!result.participants.some((p) => p.id === noteParticipant)) {
+        result.error = `Line ${lineNumber}: note references unknown participant '${noteParticipant}'`;
+        return result;
+      }
+      // Collect indented body lines
+      const noteLines: string[] = [];
+      while (i + 1 < lines.length) {
+        const nextRaw = lines[i + 1];
+        const nextTrimmed = nextRaw.trim();
+        if (!nextTrimmed) break;
+        const nextIndent = measureIndent(nextRaw);
+        if (nextIndent <= indent) break;
+        noteLines.push(nextTrimmed);
+        i++;
+      }
+      if (noteLines.length === 0) {
+        result.error = `Line ${lineNumber}: multi-line note has no content — add indented lines or use 'note: text'`;
+        return result;
+      }
+      const note: SequenceNote = {
+        kind: 'note',
+        text: noteLines.join('\n'),
+        position: notePosition,
+        participantId: noteParticipant,
+        lineNumber,
+      };
+      currentContainer().push(note);
       continue;
     }
   }

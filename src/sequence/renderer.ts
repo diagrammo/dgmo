@@ -11,9 +11,10 @@ import type {
   SequenceElement,
   SequenceGroup,
   SequenceMessage,
+  SequenceNote,
   SequenceParticipant,
 } from './parser';
-import { isSequenceBlock, isSequenceSection } from './parser';
+import { isSequenceBlock, isSequenceSection, isSequenceNote } from './parser';
 
 // ============================================================
 // Layout Constants
@@ -29,6 +30,62 @@ const SERVICE_BORDER_RADIUS = 10;
 const MESSAGE_START_OFFSET = 30;
 const LIFELINE_TAIL = 30;
 const ARROWHEAD_SIZE = 8;
+
+// Note rendering constants
+const NOTE_MAX_W = 200;
+const NOTE_FOLD = 10;
+const NOTE_PAD_H = 8;
+const NOTE_PAD_V = 6;
+const NOTE_FONT_SIZE = 10;
+const NOTE_LINE_H = 14;
+const NOTE_GAP = 15;
+const NOTE_CHAR_W = 6;
+const NOTE_CHARS_PER_LINE = Math.floor((NOTE_MAX_W - NOTE_PAD_H * 2 - NOTE_FOLD) / NOTE_CHAR_W);
+
+interface InlineSpan {
+  text: string;
+  bold?: boolean;
+  italic?: boolean;
+  code?: boolean;
+  href?: string;
+}
+
+function parseInlineMarkdown(text: string): InlineSpan[] {
+  const spans: InlineSpan[] = [];
+  const regex = /\*\*(.+?)\*\*|\*(.+?)\*|`(.+?)`|\[(.+?)\]\((.+?)\)|([^*`[]+)/g;
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    if (match[1]) spans.push({ text: match[1], bold: true });
+    else if (match[2]) spans.push({ text: match[2], italic: true });
+    else if (match[3]) spans.push({ text: match[3], code: true });
+    else if (match[4]) spans.push({ text: match[4], href: match[5] });
+    else if (match[6]) spans.push({ text: match[6] });
+  }
+  return spans;
+}
+
+function wrapTextLines(text: string, maxChars: number): string[] {
+  const rawLines = text.split('\n');
+  const wrapped: string[] = [];
+  for (const line of rawLines) {
+    if (line.length <= maxChars) {
+      wrapped.push(line);
+    } else {
+      const words = line.split(' ');
+      let current = '';
+      for (const word of words) {
+        if (current && (current + ' ' + word).length > maxChars) {
+          wrapped.push(current);
+          current = word;
+        } else {
+          current = current ? current + ' ' + word : word;
+        }
+      }
+      if (current) wrapped.push(current);
+    }
+  }
+  return wrapped;
+}
 
 // Mix two hex colors in sRGB: pct% of a, rest of b
 function mix(a: string, b: string, pct: number): string {
@@ -445,11 +502,11 @@ export function groupMessagesBySection(
             indices.push(...collectIndices(branch.children));
           }
         }
-      } else if (isSequenceSection(el)) {
-        // Sections inside blocks are not top-level — skip
+      } else if (isSequenceSection(el) || isSequenceNote(el)) {
+        // Sections and notes inside blocks are not messages — skip
         continue;
       } else {
-        const idx = messages.indexOf(el);
+        const idx = messages.indexOf(el as SequenceMessage);
         if (idx >= 0) indices.push(idx);
       }
     }
@@ -465,8 +522,8 @@ export function groupMessagesBySection(
       // Collect messages from this element into the current group
       if (isSequenceBlock(el)) {
         currentGroup.messageIndices.push(...collectIndices([el]));
-      } else {
-        const idx = messages.indexOf(el);
+      } else if (!isSequenceNote(el)) {
+        const idx = messages.indexOf(el as SequenceMessage);
         if (idx >= 0) currentGroup.messageIndices.push(idx);
       }
     }
@@ -806,8 +863,8 @@ export function renderSequenceDiagram(
         }
         const elseIdx = findFirstMsgIndex(el.elseChildren);
         if (elseIdx >= 0) return elseIdx;
-      } else if (!isSequenceSection(el)) {
-        const idx = messages.indexOf(el);
+      } else if (!isSequenceSection(el) && !isSequenceNote(el)) {
+        const idx = messages.indexOf(el as SequenceMessage);
         if (idx >= 0 && !hiddenMsgIndices.has(idx)) return idx;
       }
     }
@@ -877,8 +934,8 @@ export function renderSequenceDiagram(
       for (const child of block.children) {
         if (isSequenceBlock(child)) {
           indices.push(...collectMsgIndicesFromBlock(child));
-        } else if (!isSequenceSection(child)) {
-          const idx = messages.indexOf(child);
+        } else if (!isSequenceSection(child) && !isSequenceNote(child)) {
+          const idx = messages.indexOf(child as SequenceMessage);
           if (idx >= 0) indices.push(idx);
         }
       }
@@ -887,8 +944,8 @@ export function renderSequenceDiagram(
           for (const child of branch.children) {
             if (isSequenceBlock(child)) {
               indices.push(...collectMsgIndicesFromBlock(child));
-            } else if (!isSequenceSection(child)) {
-              const idx = messages.indexOf(child);
+            } else if (!isSequenceSection(child) && !isSequenceNote(child)) {
+              const idx = messages.indexOf(child as SequenceMessage);
               if (idx >= 0) indices.push(idx);
             }
           }
@@ -897,8 +954,8 @@ export function renderSequenceDiagram(
       for (const child of block.elseChildren) {
         if (isSequenceBlock(child)) {
           indices.push(...collectMsgIndicesFromBlock(child));
-        } else if (!isSequenceSection(child)) {
-          const idx = messages.indexOf(child);
+        } else if (!isSequenceSection(child) && !isSequenceNote(child)) {
+          const idx = messages.indexOf(child as SequenceMessage);
           if (idx >= 0) indices.push(idx);
         }
       }
@@ -914,7 +971,7 @@ export function renderSequenceDiagram(
       } else if (isSequenceBlock(el)) {
         currentTarget.push(...collectMsgIndicesFromBlock(el));
       } else {
-        const idx = messages.indexOf(el);
+        const idx = messages.indexOf(el as SequenceMessage);
         if (idx >= 0) currentTarget.push(idx);
       }
     }
@@ -1250,8 +1307,8 @@ export function renderSequenceDiagram(
             indices.push(...collectMsgIndices(branch.children));
           }
         }
-      } else if (!isSequenceSection(el)) {
-        const idx = messages.indexOf(el);
+      } else if (!isSequenceSection(el) && !isSequenceNote(el)) {
+        const idx = messages.indexOf(el as SequenceMessage);
         if (idx >= 0) indices.push(idx);
       }
     }
@@ -1765,6 +1822,159 @@ export function renderSequenceDiagram(
       }
     }
   });
+
+  // Render notes — folded-corner boxes attached to participant lifelines
+  const noteFill = isDark
+    ? mix(palette.surface, palette.bg, 50)
+    : mix(palette.bg, palette.surface, 15);
+
+  const findAssociatedStep = (note: SequenceNote): number => {
+    let bestMsgIndex = -1;
+    let bestLine = -1;
+    for (let mi = 0; mi < messages.length; mi++) {
+      if (
+        messages[mi].lineNumber < note.lineNumber &&
+        messages[mi].lineNumber > bestLine &&
+        !hiddenMsgIndices.has(mi)
+      ) {
+        bestLine = messages[mi].lineNumber;
+        bestMsgIndex = mi;
+      }
+    }
+    if (bestMsgIndex < 0) return -1;
+    return msgToFirstStep.get(bestMsgIndex) ?? -1;
+  };
+
+  const renderNoteElements = (els: SequenceElement[]): void => {
+    for (const el of els) {
+      if (isSequenceNote(el)) {
+        const px = participantX.get(el.participantId);
+        if (px === undefined) continue;
+        const si = findAssociatedStep(el);
+        if (si < 0) continue;
+        const noteY = stepY(si);
+
+        const wrappedLines = wrapTextLines(el.text, NOTE_CHARS_PER_LINE);
+        const noteH = wrappedLines.length * NOTE_LINE_H + NOTE_PAD_V * 2;
+        const maxLineLen = Math.max(...wrappedLines.map((l) => l.length));
+        const noteW = Math.min(
+          NOTE_MAX_W,
+          Math.max(80, maxLineLen * NOTE_CHAR_W + NOTE_PAD_H * 2 + NOTE_FOLD)
+        );
+        const isRight = el.position === 'right';
+        const noteX = isRight
+          ? px + ACTIVATION_WIDTH + NOTE_GAP
+          : px - ACTIVATION_WIDTH - NOTE_GAP - noteW;
+        const noteTopY = noteY - noteH / 2;
+
+        // Wrap in <g> with data attributes for toggle support
+        const noteG = svg
+          .append('g')
+          .attr('class', 'note')
+          .attr('data-note-toggle', '')
+          .attr('data-line-number', String(el.lineNumber));
+
+        // Folded-corner path
+        noteG
+          .append('path')
+          .attr(
+            'd',
+            [
+              `M ${noteX} ${noteTopY}`,
+              `L ${noteX + noteW - NOTE_FOLD} ${noteTopY}`,
+              `L ${noteX + noteW} ${noteTopY + NOTE_FOLD}`,
+              `L ${noteX + noteW} ${noteTopY + noteH}`,
+              `L ${noteX} ${noteTopY + noteH}`,
+              'Z',
+            ].join(' ')
+          )
+          .attr('fill', noteFill)
+          .attr('stroke', palette.textMuted)
+          .attr('stroke-width', 0.75)
+          .attr('class', 'note-box');
+
+        // Fold triangle
+        noteG
+          .append('path')
+          .attr(
+            'd',
+            [
+              `M ${noteX + noteW - NOTE_FOLD} ${noteTopY}`,
+              `L ${noteX + noteW - NOTE_FOLD} ${noteTopY + NOTE_FOLD}`,
+              `L ${noteX + noteW} ${noteTopY + NOTE_FOLD}`,
+            ].join(' ')
+          )
+          .attr('fill', 'none')
+          .attr('stroke', palette.textMuted)
+          .attr('stroke-width', 0.75)
+          .attr('class', 'note-fold');
+
+        // Dashed connector to lifeline
+        const connectorNoteX = isRight ? noteX : noteX + noteW;
+        const connectorLifeX = isRight
+          ? px + ACTIVATION_WIDTH / 2
+          : px - ACTIVATION_WIDTH / 2;
+        noteG
+          .append('line')
+          .attr('x1', connectorNoteX)
+          .attr('y1', noteY)
+          .attr('x2', connectorLifeX)
+          .attr('y2', noteY)
+          .attr('stroke', palette.textMuted)
+          .attr('stroke-width', 0.75)
+          .attr('stroke-dasharray', '3 2')
+          .attr('class', 'note-connector');
+
+        // Render text with inline markdown
+        wrappedLines.forEach((line, li) => {
+          const textY =
+            noteTopY + NOTE_PAD_V + (li + 1) * NOTE_LINE_H - 3;
+          const textEl = noteG
+            .append('text')
+            .attr('x', noteX + NOTE_PAD_H)
+            .attr('y', textY)
+            .attr('fill', palette.text)
+            .attr('font-size', NOTE_FONT_SIZE)
+            .attr('class', 'note-text');
+
+          const spans = parseInlineMarkdown(line);
+          for (const span of spans) {
+            if (span.href) {
+              const a = textEl
+                .append('a')
+                .attr('href', span.href);
+              a.append('tspan')
+                .text(span.text)
+                .attr('fill', palette.primary)
+                .style('text-decoration', 'underline');
+            } else {
+              const tspan = textEl
+                .append('tspan')
+                .text(span.text);
+              if (span.bold) tspan.attr('font-weight', 'bold');
+              if (span.italic) tspan.attr('font-style', 'italic');
+              if (span.code)
+                tspan
+                  .attr('font-family', 'monospace')
+                  .attr('font-size', NOTE_FONT_SIZE - 1);
+            }
+          }
+        });
+      } else if (isSequenceBlock(el)) {
+        renderNoteElements(el.children);
+        if (el.elseIfBranches) {
+          for (const branch of el.elseIfBranches) {
+            renderNoteElements(branch.children);
+          }
+        }
+        renderNoteElements(el.elseChildren);
+      }
+    }
+  };
+
+  if (elements && elements.length > 0) {
+    renderNoteElements(elements);
+  }
 }
 
 function renderParticipant(

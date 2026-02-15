@@ -37,6 +37,7 @@ export {
   parseSequenceDgmo,
   looksLikeSequence,
   isSequenceBlock,
+  isSequenceNote,
 } from './sequence/parser';
 export type {
   ParsedSequenceDgmo,
@@ -45,6 +46,7 @@ export type {
   SequenceBlock,
   ElseIfBranch,
   SequenceSection,
+  SequenceNote,
   SequenceElement,
   SequenceGroup,
   ParticipantType,

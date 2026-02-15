@@ -3,7 +3,9 @@ import {
   parseSequenceDgmo,
   buildRenderSequence,
   computeActivations,
+  isSequenceNote,
   type SequenceBlock,
+  type SequenceNote,
 } from '../src/index';
 
 describe('parseReturnLabel — shorthand ` : ` syntax', () => {
@@ -637,6 +639,223 @@ describe('Story 47.4 — else if support', () => {
       // 3 calls + 3 returns
       expect(steps).toHaveLength(6);
       expect(steps.filter((s) => s.type === 'call')).toHaveLength(3);
+    });
+  });
+});
+
+describe('Story 47.5 — note syntax', () => {
+  describe('single-line note with default position', () => {
+    it('parses note after a message', () => {
+      const content = ['A -> B: login', 'note: Rate limited'].join('\n');
+      const result = parseSequenceDgmo(content);
+      expect(result.error).toBeNull();
+      expect(result.elements).toHaveLength(2);
+      const note = result.elements[1] as SequenceNote;
+      expect(note.kind).toBe('note');
+      expect(note.text).toBe('Rate limited');
+      expect(note.position).toBe('right');
+      expect(note.participantId).toBe('A');
+    });
+
+    it('default position uses last message sender', () => {
+      const content = [
+        'A -> B: step1',
+        'B -> C: step2',
+        'note: about step2',
+      ].join('\n');
+      const result = parseSequenceDgmo(content);
+      expect(result.error).toBeNull();
+      const note = result.elements[2] as SequenceNote;
+      expect(note.participantId).toBe('B');
+    });
+  });
+
+  describe('single-line note with explicit position', () => {
+    it('parses note right of <participant>', () => {
+      const content = [
+        'A -> B: login',
+        'note right of B: Validates JWT',
+      ].join('\n');
+      const result = parseSequenceDgmo(content);
+      expect(result.error).toBeNull();
+      const note = result.elements[1] as SequenceNote;
+      expect(note.position).toBe('right');
+      expect(note.participantId).toBe('B');
+      expect(note.text).toBe('Validates JWT');
+    });
+
+    it('parses note left of <participant>', () => {
+      const content = [
+        'A -> B: login',
+        'note left of A: Shows spinner',
+      ].join('\n');
+      const result = parseSequenceDgmo(content);
+      expect(result.error).toBeNull();
+      const note = result.elements[1] as SequenceNote;
+      expect(note.position).toBe('left');
+      expect(note.participantId).toBe('A');
+    });
+
+    it('position is case-insensitive', () => {
+      const content = [
+        'A -> B: login',
+        'Note Right Of B: case test',
+      ].join('\n');
+      const result = parseSequenceDgmo(content);
+      expect(result.error).toBeNull();
+      const note = result.elements[1] as SequenceNote;
+      expect(note.position).toBe('right');
+      expect(note.participantId).toBe('B');
+    });
+  });
+
+  describe('multi-line note', () => {
+    it('collects indented body lines', () => {
+      const content = [
+        'A -> B: login',
+        'note right of B',
+        '  Validates the JWT token.',
+        '  See auth docs for details.',
+      ].join('\n');
+      const result = parseSequenceDgmo(content);
+      expect(result.error).toBeNull();
+      const note = result.elements[1] as SequenceNote;
+      expect(note.text).toBe(
+        'Validates the JWT token.\nSee auth docs for details.'
+      );
+    });
+
+    it('stops collecting on blank line', () => {
+      const content = [
+        'A -> B: login',
+        'note',
+        '  Line 1',
+        '',
+        'B -> C: next',
+      ].join('\n');
+      const result = parseSequenceDgmo(content);
+      expect(result.error).toBeNull();
+      const note = result.elements[1] as SequenceNote;
+      expect(note.text).toBe('Line 1');
+      expect(result.messages).toHaveLength(2);
+    });
+
+    it('stops collecting on dedent', () => {
+      const content = [
+        'A -> B: login',
+        'note right of A',
+        '  Note body',
+        'B -> C: next',
+      ].join('\n');
+      const result = parseSequenceDgmo(content);
+      expect(result.error).toBeNull();
+      const note = result.elements[1] as SequenceNote;
+      expect(note.text).toBe('Note body');
+      expect(result.messages).toHaveLength(2);
+    });
+
+    it('errors on empty multi-line note', () => {
+      const content = [
+        'A -> B: login',
+        'note right of B',
+        'B -> C: next',
+      ].join('\n');
+      const result = parseSequenceDgmo(content);
+      expect(result.error).toMatch(/multi-line note has no content/);
+    });
+  });
+
+  describe('note inside blocks', () => {
+    it('note inside if block is in block children', () => {
+      const content = [
+        'if authenticated',
+        '  A -> B: proceed',
+        '  note: Success path',
+      ].join('\n');
+      const result = parseSequenceDgmo(content);
+      expect(result.error).toBeNull();
+      const block = result.elements[0] as SequenceBlock;
+      expect(block.children).toHaveLength(2);
+      const note = block.children[1] as SequenceNote;
+      expect(note.kind).toBe('note');
+      expect(note.text).toBe('Success path');
+    });
+
+    it('note inside loop block', () => {
+      const content = [
+        'loop 3 times',
+        '  A -> B: attempt',
+        '  note left of B: Retry logic',
+      ].join('\n');
+      const result = parseSequenceDgmo(content);
+      expect(result.error).toBeNull();
+      const block = result.elements[0] as SequenceBlock;
+      const note = block.children[1] as SequenceNote;
+      expect(note.position).toBe('left');
+      expect(note.participantId).toBe('B');
+    });
+  });
+
+  describe('error cases', () => {
+    it('note with no preceding message errors', () => {
+      const content = 'note: orphan note';
+      const result = parseSequenceDgmo(content);
+      expect(result.error).toMatch(/note requires a preceding message/);
+    });
+
+    it('note referencing unknown participant errors', () => {
+      const content = [
+        'A -> B: login',
+        'note right of Z: unknown',
+      ].join('\n');
+      const result = parseSequenceDgmo(content);
+      expect(result.error).toMatch(
+        /note references unknown participant 'Z'/
+      );
+    });
+
+    it('default note with no preceding message in multi-line form errors', () => {
+      const content = ['note', '  body text'].join('\n');
+      const result = parseSequenceDgmo(content);
+      expect(result.error).toMatch(/note requires a preceding message/);
+    });
+  });
+
+  describe('note does not interfere with message parsing', () => {
+    it('messages after notes parse correctly', () => {
+      const content = [
+        'A -> B: step1',
+        'note: annotation',
+        'B -> C: step2',
+        'note right of C: another',
+        'C -> A: step3',
+      ].join('\n');
+      const result = parseSequenceDgmo(content);
+      expect(result.error).toBeNull();
+      expect(result.messages).toHaveLength(3);
+      const notes = result.elements.filter(isSequenceNote);
+      expect(notes).toHaveLength(2);
+    });
+
+    it('note does not appear in messages array', () => {
+      const content = ['A -> B: msg', 'note: text'].join('\n');
+      const result = parseSequenceDgmo(content);
+      expect(result.messages).toHaveLength(1);
+      expect(result.elements).toHaveLength(2);
+    });
+  });
+
+  describe('render integration with notes', () => {
+    it('notes do not affect render step count', () => {
+      const content = [
+        'A -> B: step1',
+        'note: annotation',
+        'B -> C: step2',
+      ].join('\n');
+      const parsed = parseSequenceDgmo(content);
+      const steps = buildRenderSequence(parsed.messages);
+      // 2 calls + 2 returns = 4 steps (notes don't generate steps)
+      expect(steps).toHaveLength(4);
     });
   });
 });
