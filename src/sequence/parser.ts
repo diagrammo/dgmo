@@ -123,8 +123,8 @@ const IS_A_PATTERN = /^(\S+)\s+is\s+an?\s+(\w+)(?:\s+(.+))?$/i;
 // Standalone "Name position N" pattern — e.g. "DB position -1"
 const POSITION_ONLY_PATTERN = /^(\S+)\s+position\s+(-?\d+)$/i;
 
-// Group heading pattern — "## Backend" or "## Backend(blue)"
-const GROUP_HEADING_PATTERN = /^##\s+(\S+?)(?:\((\w+)\))?$/;
+// Group heading pattern — "## Backend" or "## Backend(blue)" or "## Backend(#hex)"
+const GROUP_HEADING_PATTERN = /^##\s+(\S+?)(?:\(([^)]+)\))?$/;
 
 // Section divider pattern — "== Label ==" or "== Label(color) =="
 const SECTION_PATTERN = /^==\s+(.+?)\s*==$/;
@@ -239,9 +239,14 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     // Parse group heading — must be checked before comment skip since ## starts with #
     const groupMatch = trimmed.match(GROUP_HEADING_PATTERN);
     if (groupMatch) {
+      const groupColor = groupMatch[2]?.trim();
+      if (groupColor && groupColor.startsWith('#')) {
+        result.error = `Line ${lineNumber}: Use a named color instead of hex (e.g., blue, red, teal)`;
+        return result;
+      }
       activeGroup = {
         name: groupMatch[1],
-        color: groupMatch[2] || undefined,
+        color: groupColor || undefined,
         participantIds: [],
         lineNumber,
       };
@@ -254,8 +259,14 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       activeGroup = null;
     }
 
-    // Skip comments
-    if (trimmed.startsWith('#') || trimmed.startsWith('//')) continue;
+    // Skip comments — only // is supported
+    if (trimmed.startsWith('//')) continue;
+
+    // Reject # as comment syntax (## is for group headings, handled above)
+    if (trimmed.startsWith('#') && !trimmed.startsWith('##')) {
+      result.error = `Line ${lineNumber}: Use // for comments. # is reserved for group headings (##)`;
+      return result;
+    }
 
     // Parse section dividers — "== Label ==" or "== Label(color) =="
     // Close blocks first — sections at indent 0 should not nest inside blocks
@@ -268,11 +279,15 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
         blockStack.pop();
       }
       const labelRaw = sectionMatch[1].trim();
-      const colorMatch = labelRaw.match(/^(.+?)\((\w+)\)$/);
+      const colorMatch = labelRaw.match(/^(.+?)\(([^)]+)\)$/);
+      if (colorMatch && colorMatch[2].trim().startsWith('#')) {
+        result.error = `Line ${lineNumber}: Use a named color instead of hex (e.g., blue, red, teal)`;
+        return result;
+      }
       const section: SequenceSection = {
         kind: 'section',
         label: colorMatch ? colorMatch[1].trim() : labelRaw,
-        color: colorMatch ? colorMatch[2] : undefined,
+        color: colorMatch ? colorMatch[2].trim() : undefined,
         lineNumber,
       };
       result.sections.push(section);
@@ -389,30 +404,30 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     while (blockStack.length > 0) {
       const top = blockStack[blockStack.length - 1];
       if (indent > top.indent) break;
+      // Keep block on stack when 'else' matches current indent — handled below
       if (
         indent === top.indent &&
         trimmed.toLowerCase() === 'else' &&
-        top.block.type === 'if'
+        (top.block.type === 'if' || top.block.type === 'parallel')
       )
         break;
       blockStack.pop();
     }
 
     // Parse message lines first — arrows take priority over keywords
-    // Detect async prefix: "async A -> B: msg"
-    let isAsync = false;
-    let arrowLine = trimmed;
+    // Reject "async" keyword prefix — use ~> instead
     const asyncPrefixMatch = trimmed.match(/^async\s+(.+)$/i);
-    if (asyncPrefixMatch) {
-      isAsync = true;
-      arrowLine = asyncPrefixMatch[1];
+    if (asyncPrefixMatch && ARROW_PATTERN.test(asyncPrefixMatch[1])) {
+      result.error = `Line ${lineNumber}: Use ~> for async messages: A ~> B: message`;
+      return result;
     }
 
     // Match ~> (async arrow) or -> (sync arrow)
-    const asyncArrowMatch = arrowLine.match(
+    let isAsync = false;
+    const asyncArrowMatch = trimmed.match(
       /^(\S+)\s*~>\s*([^\s:]+)\s*(?::\s*(.+))?$/
     );
-    const syncArrowMatch = arrowLine.match(
+    const syncArrowMatch = trimmed.match(
       /^(\S+)\s*->\s*([^\s:]+)\s*(?::\s*(.+))?$/
     );
     const arrowMatch = asyncArrowMatch || syncArrowMatch;
@@ -509,12 +524,15 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
 
     // Parse 'else' keyword (only applies to 'if' blocks)
     if (trimmed.toLowerCase() === 'else') {
-      if (
-        blockStack.length > 0 &&
-        blockStack[blockStack.length - 1].indent === indent &&
-        blockStack[blockStack.length - 1].block.type === 'if'
-      ) {
-        blockStack[blockStack.length - 1].inElse = true;
+      if (blockStack.length > 0 && blockStack[blockStack.length - 1].indent === indent) {
+        const parentType = blockStack[blockStack.length - 1].block.type;
+        if (parentType === 'parallel') {
+          result.error = `Line ${lineNumber}: parallel blocks don't support else — list all concurrent messages directly inside the block`;
+          return result;
+        }
+        if (parentType === 'if') {
+          blockStack[blockStack.length - 1].inElse = true;
+        }
       }
       continue;
     }
@@ -543,7 +561,7 @@ export function looksLikeSequence(content: string): boolean {
   const lines = content.split('\n');
   return lines.some((line) => {
     const trimmed = line.trim();
-    if (trimmed.startsWith('#') || trimmed.startsWith('//')) return false;
+    if (trimmed.startsWith('//')) return false;
     return ARROW_PATTERN.test(trimmed);
   });
 }
