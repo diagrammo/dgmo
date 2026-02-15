@@ -123,11 +123,11 @@ const IS_A_PATTERN = /^(\S+)\s+is\s+an?\s+(\w+)(?:\s+(.+))?$/i;
 // Standalone "Name position N" pattern — e.g. "DB position -1"
 const POSITION_ONLY_PATTERN = /^(\S+)\s+position\s+(-?\d+)$/i;
 
-// Group heading pattern — "## Backend" or "## Backend(blue)" or "## Backend(#hex)"
-const GROUP_HEADING_PATTERN = /^##\s+(\S+?)(?:\(([^)]+)\))?$/;
+// Group heading pattern — "## Backend", "## API Services(blue)", "## Backend(#hex)"
+const GROUP_HEADING_PATTERN = /^##\s+(.+?)(?:\(([^)]+)\))?\s*$/;
 
-// Section divider pattern — "== Label ==" or "== Label(color) =="
-const SECTION_PATTERN = /^==\s+(.+?)\s*==$/;
+// Section divider pattern — "== Label ==", "== Label(color) ==", or "== Label" (trailing == optional)
+const SECTION_PATTERN = /^==\s+(.+?)(?:\s*==)?\s*$/;
 
 // Arrow pattern for sequence inference — "A -> B: message" or "A ~> B: message"
 const ARROW_PATTERN = /\S+\s*(?:->|~>)\s*\S+/;
@@ -161,13 +161,17 @@ function parseReturnLabel(rawLabel: string): {
     return { label: umlReturn[1].trim(), returnLabel: umlReturn[2].trim() };
   }
 
-  // Shorthand request : response syntax (split on last " : ")
-  const lastSep = rawLabel.lastIndexOf(' : ');
-  if (lastSep > 0) {
-    const reqPart = rawLabel.substring(0, lastSep).trim();
-    const resPart = rawLabel.substring(lastSep + 3).trim();
-    if (reqPart && resPart) {
-      return { label: reqPart, returnLabel: resPart };
+  // Shorthand colon return syntax (split on last ":")
+  // Skip if the colon is part of a URL scheme (followed by //)
+  const lastColon = rawLabel.lastIndexOf(':');
+  if (lastColon > 0 && lastColon < rawLabel.length - 1) {
+    const afterColon = rawLabel.substring(lastColon + 1);
+    if (!afterColon.startsWith('//')) {
+      const reqPart = rawLabel.substring(0, lastColon).trim();
+      const resPart = afterColon.trim();
+      if (reqPart && resPart) {
+        return { label: reqPart, returnLabel: resPart };
+      }
     }
   }
 
@@ -245,7 +249,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
         return result;
       }
       activeGroup = {
-        name: groupMatch[1],
+        name: groupMatch[1].trim(),
         color: groupColor || undefined,
         participantIds: [],
         lineNumber,
