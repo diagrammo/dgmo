@@ -51,10 +51,16 @@ describe('parseReturnLabel — shorthand ` : ` syntax', () => {
     expect(result.messages[0].returnLabel).toBe('T');
   });
 
-  it('no space around colon — no split (e.g. URLs)', () => {
+  it('URL with :// is not split', () => {
     const result = parseSequenceDgmo('A -> B: http://example.com');
     expect(result.messages[0].label).toBe('http://example.com');
     expect(result.messages[0].returnLabel).toBeUndefined();
+  });
+
+  it('colon without spaces splits (space-insensitive)', () => {
+    const result = parseSequenceDgmo('A -> B: req:resp');
+    expect(result.messages[0].label).toBe('req');
+    expect(result.messages[0].returnLabel).toBe('resp');
   });
 
   it('self-call with shorthand', () => {
@@ -192,6 +198,158 @@ describe('Story 47.1 — syntax cleanup', () => {
       const result = parseSequenceDgmo('A -> B: msg\n== Phase 2(teal) ==');
       expect(result.error).toBeNull();
       expect(result.sections[0].color).toBe('teal');
+    });
+  });
+});
+
+describe('Story 47.2 — parser tolerance', () => {
+  describe('space-insensitive colon return splitting', () => {
+    it('splits on colon without spaces', () => {
+      const result = parseSequenceDgmo('A -> B: request:response');
+      expect(result.messages[0].label).toBe('request');
+      expect(result.messages[0].returnLabel).toBe('response');
+    });
+
+    it('splits on colon with spaces (unchanged)', () => {
+      const result = parseSequenceDgmo('A -> B: request : response');
+      expect(result.messages[0].label).toBe('request');
+      expect(result.messages[0].returnLabel).toBe('response');
+    });
+
+    it('splits on last colon for multiple colons', () => {
+      const result = parseSequenceDgmo('A -> B: a:b:c');
+      expect(result.messages[0].label).toBe('a:b');
+      expect(result.messages[0].returnLabel).toBe('c');
+    });
+
+    it('does not split URL scheme (://)', () => {
+      const result = parseSequenceDgmo('A -> B: http://example.com');
+      expect(result.messages[0].label).toBe('http://example.com');
+      expect(result.messages[0].returnLabel).toBeUndefined();
+    });
+
+    it('UML method():type takes priority over generic colon split', () => {
+      const result = parseSequenceDgmo('A -> B: getUser(id):UserObj');
+      expect(result.messages[0].label).toBe('getUser(id)');
+      expect(result.messages[0].returnLabel).toBe('UserObj');
+    });
+
+    it('<- takes priority over colon split', () => {
+      const result = parseSequenceDgmo('A -> B: POST /orders <- 201');
+      expect(result.messages[0].label).toBe('POST /orders');
+      expect(result.messages[0].returnLabel).toBe('201');
+    });
+  });
+
+  describe('whitespace tolerance on arrows', () => {
+    it('A->B:msg (no spaces)', () => {
+      const result = parseSequenceDgmo('A->B:msg');
+      expect(result.messages[0]).toMatchObject({
+        from: 'A',
+        to: 'B',
+        label: 'msg',
+      });
+    });
+
+    it('A ->B: msg (space before arrow only)', () => {
+      const result = parseSequenceDgmo('A ->B: msg');
+      expect(result.messages[0]).toMatchObject({
+        from: 'A',
+        to: 'B',
+        label: 'msg',
+      });
+    });
+
+    it('A-> B: msg (space after arrow only)', () => {
+      const result = parseSequenceDgmo('A-> B: msg');
+      expect(result.messages[0]).toMatchObject({
+        from: 'A',
+        to: 'B',
+        label: 'msg',
+      });
+    });
+
+    it('A  ->  B  :  msg (multiple spaces)', () => {
+      const result = parseSequenceDgmo('A  ->  B  :  msg');
+      expect(result.messages[0]).toMatchObject({
+        from: 'A',
+        to: 'B',
+        label: 'msg',
+      });
+    });
+
+    it('same tolerance for ~> async arrows', () => {
+      const result = parseSequenceDgmo('A~>B:fire');
+      expect(result.messages[0]).toMatchObject({
+        from: 'A',
+        to: 'B',
+        label: 'fire',
+        async: true,
+      });
+    });
+  });
+
+  describe('multi-word group names', () => {
+    it('parses multi-word group name with color', () => {
+      const result = parseSequenceDgmo(
+        '## API Services(blue)\n  API\nAPI -> DB: query'
+      );
+      expect(result.groups[0].name).toBe('API Services');
+      expect(result.groups[0].color).toBe('blue');
+    });
+
+    it('parses multi-word group name without color', () => {
+      const result = parseSequenceDgmo(
+        '## My Group\n  API\nAPI -> DB: query'
+      );
+      expect(result.groups[0].name).toBe('My Group');
+      expect(result.groups[0].color).toBeUndefined();
+    });
+
+    it('single-word group still works', () => {
+      const result = parseSequenceDgmo(
+        '## Backend(red)\n  API\nAPI -> DB: query'
+      );
+      expect(result.groups[0].name).toBe('Backend');
+      expect(result.groups[0].color).toBe('red');
+    });
+
+    it('trims trailing whitespace from group name', () => {
+      const result = parseSequenceDgmo(
+        '## API Services  (blue)\n  API\nAPI -> DB: query'
+      );
+      expect(result.groups[0].name).toBe('API Services');
+    });
+  });
+
+  describe('optional trailing == on sections', () => {
+    it('parses section without trailing ==', () => {
+      const result = parseSequenceDgmo('A -> B: msg\n== Authentication');
+      expect(result.sections).toHaveLength(1);
+      expect(result.sections[0].label).toBe('Authentication');
+    });
+
+    it('parses section with trailing == (unchanged)', () => {
+      const result = parseSequenceDgmo('A -> B: msg\n== Authentication ==');
+      expect(result.sections).toHaveLength(1);
+      expect(result.sections[0].label).toBe('Authentication');
+    });
+
+    it('parses section with color and no trailing ==', () => {
+      const result = parseSequenceDgmo('A -> B: msg\n== Phase 2(red)');
+      expect(result.sections[0].label).toBe('Phase 2');
+      expect(result.sections[0].color).toBe('red');
+    });
+
+    it('parses section with color and trailing ==', () => {
+      const result = parseSequenceDgmo('A -> B: msg\n== Phase 2(red) ==');
+      expect(result.sections[0].label).toBe('Phase 2');
+      expect(result.sections[0].color).toBe('red');
+    });
+
+    it('trailing whitespace is ignored', () => {
+      const result = parseSequenceDgmo('A -> B: msg\n== Auth   ');
+      expect(result.sections[0].label).toBe('Auth');
     });
   });
 });
