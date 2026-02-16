@@ -371,6 +371,137 @@ const svgString = await renderD3ForExport(content, 'light');
 | `buildMermaidThemeVars(colors)` | Mermaid CSS variables |
 | `buildThemeCSS(colors)` | Mermaid theme CSS string |
 
+## Development
+
+### Prerequisites
+
+- Node.js 18+
+- pnpm (`npm install -g pnpm`)
+
+### Setup
+
+```bash
+pnpm install
+pnpm build        # tsup → dist/ (ESM + CJS + CLI)
+```
+
+### Commands
+
+```bash
+pnpm build            # Production build (lib + CLI)
+pnpm dev              # Watch mode (rebuild on save)
+pnpm test             # Run tests (Vitest)
+pnpm test:watch       # Tests in watch mode
+pnpm typecheck        # TypeScript type checking
+```
+
+### Quick CLI testing
+
+```bash
+./test-cli.sh input.dgmo [args...]    # Builds and runs in one step
+```
+
+### Project structure
+
+```
+src/
+├── index.ts              # Public API exports
+├── cli.ts                # CLI entry point → dist/cli.cjs
+├── dgmo-router.ts        # Framework dispatcher
+├── chart.ts              # Standard chart parser (bar, line, pie, etc.)
+├── echarts.ts            # ECharts parser + config builder
+├── d3.ts                 # D3 renderers (slope, arc, timeline, etc.)
+├── dgmo-mermaid.ts       # Mermaid quadrant parser/builder
+├── colors.ts             # Color utilities
+├── fonts.ts              # Font constants
+├── sequence/
+│   ├── parser.ts         # Sequence diagram DSL parser
+│   ├── renderer.ts       # SVG renderer (D3-based)
+│   └── participant-inference.ts
+└── palettes/
+    ├── types.ts          # PaletteConfig, PaletteColors
+    ├── registry.ts       # Palette registry
+    ├── color-utils.ts    # HSL conversions, color mixing
+    ├── mermaid-bridge.ts # Mermaid theme builder
+    └── *.ts              # Individual palettes (nord, catppuccin, etc.)
+```
+
+### Testing
+
+Tests live in `tests/` and use Vitest with jsdom:
+
+```bash
+pnpm test                 # Run all tests
+pnpm test -- --reporter verbose   # Verbose output
+```
+
+## Releasing
+
+### npm publish
+
+1. Bump version in `package.json`
+2. Build and test:
+   ```bash
+   pnpm build && pnpm test
+   ```
+3. Publish:
+   ```bash
+   npm publish
+   ```
+4. After publishing, update downstream consumers:
+   - **homebrew-dgmo**: Update `Formula/dgmo.rb` with new version URL and sha256
+   - **obsidian-dgmo**: Update `@diagrammo/dgmo` version in `package.json`
+   - **diagrammo-app**: Update submodule ref (`git submodule update --remote`)
+
+### Generating the sha256 for Homebrew
+
+```bash
+curl -sL https://registry.npmjs.org/@diagrammo/dgmo/-/dgmo-<VERSION>.tgz | shasum -a 256
+```
+
+## Gallery
+
+The gallery renders every fixture in `gallery/fixtures/` across all palettes, themes, and formats, producing a filterable HTML page.
+
+### Build the full gallery
+
+```bash
+pnpm gallery
+```
+
+This builds the CLI first, then renders all combinations. Output lands in `gallery/output/` (gitignored):
+
+- `gallery/output/renders/` — individual SVG and PNG files
+- `gallery/output/index.html` — filterable gallery page (open in a browser)
+
+### Filter options
+
+Render a subset to save time:
+
+```bash
+# Single chart type
+pnpm gallery -- --chart bar
+
+# Single palette
+pnpm gallery -- --palette nord
+
+# Single theme
+pnpm gallery -- --theme dark
+
+# Single format
+pnpm gallery -- --format svg
+
+# Combine filters
+pnpm gallery -- --chart sequence --palette catppuccin --theme light --format png
+
+# Control parallelism (defaults to CPU count)
+pnpm gallery -- --concurrency 4
+```
+
+### Adding fixtures
+
+Drop a new `.dgmo` file into `gallery/fixtures/` and re-run `pnpm gallery`. It will automatically be picked up and rendered across all palette/theme/format combinations.
+
 ## License
 
 MIT
