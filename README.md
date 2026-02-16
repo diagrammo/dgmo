@@ -2,7 +2,7 @@
 
 A diagram markup language — parser, config builder, renderer, and color system.
 
-Write plain-text `.dgmo` files and render them as charts, diagrams, and visualizations. Supports 23 chart types across ECharts, D3, and a built-in sequence renderer. Ships as both a library and a standalone CLI.
+Write plain-text `.dgmo` files and render them as charts, diagrams, and visualizations. Supports 22 chart types across ECharts, D3, and a built-in sequence renderer. Ships as both a library and a standalone CLI.
 
 ## Install
 
