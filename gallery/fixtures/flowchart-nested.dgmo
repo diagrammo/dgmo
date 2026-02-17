@@ -1,0 +1,8 @@
+chart: flowchart
+title: Authentication Flow
+
+(Start) -> <Authenticated?>
+  -yes-> <Authorized?>
+    -yes-> [Process Request] -> [Return 200] -> (End)
+    -no-> [Return 403] -> (End)
+  -no-> [Return 401] -> (End)

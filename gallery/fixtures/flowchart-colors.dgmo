@@ -1,0 +1,6 @@
+chart: flowchart
+title: Color Demo
+
+(Start(green)) -> [Parse Input] -> <Valid?(blue)>
+  -yes(green)-> [Process(teal)] -> (Success(green))
+  -no(red)-> [Error Handler(red)] -> /Log Error(orange)/ -> (Failure(red))

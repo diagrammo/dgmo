@@ -1,0 +1,6 @@
+chart: flowchart
+title: Decision Flow
+
+(Start) -> /Get Input/ -> <Valid?>
+  -yes-> [Process Data] -> (Done)
+  -no-> [Show Error] -> /Get Input/

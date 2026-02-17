@@ -1,0 +1,22 @@
+chart: flowchart
+title: CI/CD Pipeline
+direction: LR
+
+## Source(blue)
+  (Push to Repo) -> [[Run Linter]] -> <Lint Pass?>
+    -yes-> [[Run Tests]]
+    -no-> [Lint Report~] -> /Notify Dev/ -> (Fix & Retry)
+
+## Test(green)
+  [[Run Tests]] -> <Tests Pass?>
+    -yes-> [Build Artifact]
+    -no-> [Test Report~] -> /Notify Dev/ -> (Fix & Retry)
+
+## Deploy(purple)
+  [Build Artifact] -> <Environment?>
+    -staging-> [[Deploy to Staging]] -> /Run Smoke Tests/ -> <Smoke OK?>
+      -yes-> /Await Approval/
+      -no-> /Notify Team/ -> (Rollback)
+    -production-> [[Deploy to Prod]] -> /Health Check/ -> <Healthy?>
+      -yes-> (Done)
+      -no-> (Rollback)

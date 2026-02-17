@@ -36,6 +36,7 @@
     "gallery": "pnpm build && node scripts/generate-gallery.mjs"
   },
   "dependencies": {
+    "@dagrejs/dagre": "^2.0.4",
     "@resvg/resvg-js": "^2.6.2",
     "d3-array": "^3.2.4",
     "d3-cloud": "^1.2.7",
@@ -51,6 +52,7 @@
     "@types/d3-scale": "^4.0.8",
     "@types/d3-selection": "^3.0.11",
     "@types/d3-shape": "^3.1.7",
+    "@types/dagre": "^0.7.53",
     "@types/jsdom": "^21.1.7",
     "tsup": "^8.5.1",
     "typescript": "^5.7.3",
