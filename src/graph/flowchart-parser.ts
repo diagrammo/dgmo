@@ -81,8 +81,8 @@ function parseNodeRef(
     return { id: nodeId('process', label), label, shape: 'process', color };
   }
 
-  // Terminal: (Label)
-  m = t.match(/^\(([^)]+)\)$/);
+  // Terminal: (Label) — use .+ (greedy) so (Label(color)) matches outermost parens
+  m = t.match(/^\((.+)\)$/);
   if (m) {
     const { label, color } = extractColor(m[1].trim(), palette);
     return { id: nodeId('terminal', label), label, shape: 'terminal', color };

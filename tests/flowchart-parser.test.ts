@@ -250,6 +250,15 @@ describe('parseFlowchart', () => {
       expect(result.nodes[0].label).toBe('Report');
       expect(result.nodes[0].color).toBeDefined();
     });
+
+    it('parses inline color on terminal (Start(green))', () => {
+      const result = parseFlowchart('(Start(green)) -> (End(red))');
+      expect(result.nodes).toHaveLength(2);
+      expect(result.nodes[0].label).toBe('Start');
+      expect(result.nodes[0].color).toBeDefined();
+      expect(result.nodes[1].label).toBe('End');
+      expect(result.nodes[1].color).toBeDefined();
+    });
   });
 
   // === AC 13: Line numbers ===
