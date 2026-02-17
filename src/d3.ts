@@ -2146,7 +2146,17 @@ export function computeTimeTicks(
   const firstYear = Math.ceil(domainMin);
   const lastYear = Math.floor(domainMax);
   if (lastYear >= firstYear + 1) {
-    for (let y = firstYear; y <= lastYear; y++) {
+    // Decimate ticks for long spans so labels don't overlap
+    const yearSpan = lastYear - firstYear;
+    let step = 1;
+    if (yearSpan > 80) step = 20;
+    else if (yearSpan > 40) step = 10;
+    else if (yearSpan > 20) step = 5;
+    else if (yearSpan > 10) step = 2;
+
+    // Align to step boundary so ticks land on round years (1700, 1710, …)
+    const alignedFirst = Math.ceil(firstYear / step) * step;
+    for (let y = alignedFirst; y <= lastYear; y += step) {
       ticks.push({ pos: scale(y), label: String(y) });
     }
   } else if (span > 0.25) {
