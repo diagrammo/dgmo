@@ -1,0 +1,8 @@
+chart: flowchart
+title: Retry Logic
+
+(Start) -> [Initialize] -> [Attempt Request] -> <Success?>
+  -yes-> [Process Response] -> (Done)
+  -no-> <Retries Left?>
+    -yes-> [Wait & Backoff] -> [Attempt Request]
+    -no-> [Log Failure] -> (Error)

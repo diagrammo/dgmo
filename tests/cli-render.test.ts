@@ -74,10 +74,15 @@ xlabel: Effort
 ylabel: Impact
 High Impact, Low Effort: 20, 80
 Low Impact, High Effort: 80, 20`,
+
+  flowchart: `chart: flowchart
+(Start) -> [Process] -> <Check?>
+  -yes-> (End)
+  -no-> [Retry] -> (Start)`,
 };
 
 // All D3 types now render in JSDOM via explicit dimensions (Epic 41)
-const D3_TYPES = ['sequence', 'slope', 'arc', 'timeline', 'venn', 'quadrant'];
+const D3_TYPES = ['sequence', 'slope', 'arc', 'timeline', 'venn', 'quadrant', 'flowchart'];
 
 // Wordcloud requires HTMLCanvasElement.getContext('2d') for d3-cloud text measurement —
 // not available in JSDOM without the `canvas` npm package.

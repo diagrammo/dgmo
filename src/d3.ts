@@ -4972,6 +4972,54 @@ export async function renderD3ForExport(
   theme: 'light' | 'dark' | 'transparent',
   palette?: PaletteColors
 ): Promise<string> {
+  // Flowchart uses its own parser pipeline — intercept before parseD3()
+  const { parseDgmoChartType } = await import('./dgmo-router');
+  const detectedType = parseDgmoChartType(content);
+  if (detectedType === 'flowchart') {
+    const { parseFlowchart } = await import('./graph/flowchart-parser');
+    const { layoutGraph } = await import('./graph/layout');
+    const { renderFlowchart } = await import('./graph/flowchart-renderer');
+
+    const isDark = theme === 'dark';
+    const { getPalette } = await import('./palettes');
+    const effectivePalette =
+      palette ?? (isDark ? getPalette('nord').dark : getPalette('nord').light);
+
+    const fcParsed = parseFlowchart(content, effectivePalette);
+    if (fcParsed.error || fcParsed.nodes.length === 0) return '';
+
+    const layout = layoutGraph(fcParsed);
+    const container = document.createElement('div');
+    container.style.width = `${EXPORT_WIDTH}px`;
+    container.style.height = `${EXPORT_HEIGHT}px`;
+    container.style.position = 'absolute';
+    container.style.left = '-9999px';
+    document.body.appendChild(container);
+
+    try {
+      renderFlowchart(container, fcParsed, layout, effectivePalette, isDark, undefined, {
+        width: EXPORT_WIDTH,
+        height: EXPORT_HEIGHT,
+      });
+
+      const svgEl = container.querySelector('svg');
+      if (!svgEl) return '';
+
+      if (theme === 'transparent') {
+        svgEl.style.background = 'none';
+      } else if (!svgEl.style.background) {
+        svgEl.style.background = effectivePalette.bg;
+      }
+
+      svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+      svgEl.style.fontFamily = FONT_FAMILY;
+
+      return svgEl.outerHTML;
+    } finally {
+      document.body.removeChild(container);
+    }
+  }
+
   const parsed = parseD3(content, palette);
   // Allow sequence diagrams through even if parseD3 errors —
   // sequence is parsed by its own dedicated parser (parseSequenceDgmo)

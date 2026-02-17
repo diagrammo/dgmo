@@ -1,0 +1,15 @@
+chart: flowchart
+title: Microservice Architecture
+direction: LR
+
+## API Gateway(blue)
+  /Request/ -> [Auth Check] -> <Authorized?>
+
+## Order Service(green)
+  <Authorized?>
+    -yes-> [Create Order] -> [Validate Items]
+
+## Notification(purple)
+  [Validate Items] -> [[Send Confirmation]]
+  <Authorized?>
+    -no-> [[Send Rejection]]

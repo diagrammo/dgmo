@@ -1,0 +1,11 @@
+chart: flowchart
+title: All Shapes
+
+(Terminal Start)
+  -> [Process Step]
+  -> <Decision?>
+    -yes-> /Input Output/
+      -> [[Subroutine Call]]
+      -> [Report~]
+      -> (Terminal End)
+    -no-> (Terminal End)

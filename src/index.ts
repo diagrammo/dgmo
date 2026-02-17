@@ -60,6 +60,27 @@ export {
 export { parseQuadrant } from './dgmo-mermaid';
 export type { ParsedQuadrant } from './dgmo-mermaid';
 
+export { parseFlowchart, looksLikeFlowchart } from './graph/flowchart-parser';
+
+export type {
+  ParsedGraph,
+  GraphNode,
+  GraphEdge,
+  GraphGroup,
+  GraphShape,
+  GraphDirection,
+} from './graph/types';
+
+export { layoutGraph } from './graph/layout';
+export type {
+  LayoutResult,
+  LayoutNode,
+  LayoutEdge,
+  LayoutGroup,
+} from './graph/layout';
+
+export { renderFlowchart, renderFlowchartForExport } from './graph/flowchart-renderer';
+
 // ============================================================
 // Config Builders (produce framework-specific config objects)
 // ============================================================
