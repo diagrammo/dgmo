@@ -165,7 +165,7 @@ const UML_RETURN_PATTERN = /^(\w+\([^)]*\))\s*:\s*(.+)$/;
 
 // Note patterns — "note: text", "note right of API: text", "note left of User"
 const NOTE_SINGLE = /^note(?:\s+(right|left)\s+of\s+(\S+))?\s*:\s*(.+)$/i;
-const NOTE_MULTI = /^note(?:\s+(right|left)\s+of\s+(\S+))?\s*$/i;
+const NOTE_MULTI = /^note(?:\s+(right|left)\s+of\s+([^\s:]+))?\s*:?\s*$/i;
 
 /**
  * Extract return label from a message label string.
