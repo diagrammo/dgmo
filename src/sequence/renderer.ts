@@ -851,6 +851,24 @@ export function renderSequenceDiagram(
     msgToLastStep.set(step.messageIndex, si);
   });
 
+  // Map a note to the last render-step index of its preceding message
+  const findAssociatedLastStep = (note: SequenceNote): number => {
+    let bestMsgIndex = -1;
+    let bestLine = -1;
+    for (let mi = 0; mi < messages.length; mi++) {
+      if (
+        messages[mi].lineNumber < note.lineNumber &&
+        messages[mi].lineNumber > bestLine &&
+        !hiddenMsgIndices.has(mi)
+      ) {
+        bestLine = messages[mi].lineNumber;
+        bestMsgIndex = mi;
+      }
+    }
+    if (bestMsgIndex < 0) return -1;
+    return msgToLastStep.get(bestMsgIndex) ?? -1;
+  };
+
   // Find the first visible message index in an element subtree
   const findFirstMsgIndex = (els: SequenceElement[]): number => {
     for (const el of els) {
@@ -923,17 +941,33 @@ export function renderSequenceDiagram(
     const lines = wrapTextLines(text, NOTE_CHARS_PER_LINE);
     return lines.length * NOTE_LINE_H + NOTE_PAD_V * 2;
   };
+  let trailingNoteSpace = 0; // extra space for notes at the end with no following message
   const markNoteSpacing = (els: SequenceElement[]): void => {
     for (let i = 0; i < els.length; i++) {
       const el = els[i];
       if (isSequenceNote(el)) {
-        const noteH = computeNoteHeight(el.text);
-        // Find the next non-note element after this note
-        const nextIdx =
-          i + 1 < els.length ? findFirstMsgIndex([els[i + 1]]) : -1;
-        if (nextIdx >= 0) {
-          addExtra(nextIdx, noteH + NOTE_OFFSET_BELOW);
+        // Accumulate heights of consecutive notes starting from this one
+        let accumulatedHeight = 0;
+        let j = i;
+        while (j < els.length && isSequenceNote(els[j])) {
+          const noteH = computeNoteHeight((els[j] as SequenceNote).text);
+          accumulatedHeight += noteH + NOTE_OFFSET_BELOW;
+          j++;
         }
+        // Scan forward past sections, blocks, and other non-message elements to find next message
+        let nextMsgIdx = -1;
+        for (let k = j; k < els.length; k++) {
+          nextMsgIdx = findFirstMsgIndex([els[k]]);
+          if (nextMsgIdx >= 0) break;
+        }
+        if (nextMsgIdx >= 0) {
+          addExtra(nextMsgIdx, accumulatedHeight);
+        } else {
+          // Notes at the end — track trailing space for viewport extension
+          trailingNoteSpace = Math.max(trailingNoteSpace, accumulatedHeight);
+        }
+        // Skip over the consecutive notes we just processed
+        i = j - 1;
       } else if (isSequenceBlock(el)) {
         markNoteSpacing(el.children);
         if (el.elseIfBranches) {
@@ -1123,16 +1157,64 @@ export function renderSequenceDiagram(
       sectionYPositions.set(sec.lineNumber, curY);
       curY += SECTION_BOTTOM_PAD;
     }
+    // Extend for trailing notes that have no following message
+    curY += trailingNoteSpace;
     layoutEndY = curY;
   }
 
-  const contentBottomY =
+  // Helper: compute Y for a step index
+  const stepY = (i: number) => stepYPositions[i];
+
+  // Compute absolute Y positions for each note element
+  const noteYMap = new Map<SequenceNote, number>();
+  {
+    const computeNotePositions = (els: SequenceElement[]): void => {
+      for (let i = 0; i < els.length; i++) {
+        const el = els[i];
+        if (isSequenceNote(el)) {
+          const si = findAssociatedLastStep(el);
+          if (si < 0) continue;
+          // Check if there's a preceding note that we should stack below
+          const prevNote = i > 0 && isSequenceNote(els[i - 1]) ? (els[i - 1] as SequenceNote) : null;
+          const prevNoteY = prevNote ? noteYMap.get(prevNote) : undefined;
+          let noteTopY: number;
+          if (prevNoteY !== undefined && prevNote) {
+            // Stack below previous note
+            const prevNoteH = computeNoteHeight(prevNote.text);
+            noteTopY = prevNoteY + prevNoteH + NOTE_OFFSET_BELOW;
+          } else {
+            // First note after a message
+            noteTopY = stepY(si) + stepSpacing + NOTE_OFFSET_BELOW;
+          }
+          noteYMap.set(el, noteTopY);
+        } else if (isSequenceBlock(el)) {
+          computeNotePositions(el.children);
+          if (el.elseIfBranches) {
+            for (const branch of el.elseIfBranches) {
+              computeNotePositions(branch.children);
+            }
+          }
+          computeNotePositions(el.elseChildren);
+        }
+      }
+    };
+    if (elements && elements.length > 0) {
+      computeNotePositions(elements);
+    }
+  }
+
+  // Ensure contentBottomY accounts for all note extents
+  let contentBottomY =
     renderSteps.length > 0
       ? Math.max(
           stepYPositions[stepYPositions.length - 1] + stepSpacing,
           layoutEndY
         )
       : layoutEndY;
+  for (const [note, noteTopY] of noteYMap) {
+    const noteH = computeNoteHeight(note.text);
+    contentBottomY = Math.max(contentBottomY, noteTopY + noteH + NOTE_OFFSET_BELOW);
+  }
   const messageAreaHeight = contentBottomY - lifelineStartY0;
   const lifelineLength = messageAreaHeight + LIFELINE_TAIL;
   const totalWidth = Math.max(
@@ -1322,9 +1404,6 @@ export function renderSequenceDiagram(
       .attr('stroke-dasharray', '6 4')
       .attr('class', 'lifeline');
   });
-
-  // Helper: compute Y for a step index
-  const stepY = (i: number) => stepYPositions[i];
 
   // Render block frames (behind everything else)
   const FRAME_PADDING_X = 30;
@@ -1867,32 +1946,13 @@ export function renderSequenceDiagram(
     ? mix(palette.surface, palette.bg, 50)
     : mix(palette.bg, palette.surface, 15);
 
-  const findAssociatedLastStep = (note: SequenceNote): number => {
-    let bestMsgIndex = -1;
-    let bestLine = -1;
-    for (let mi = 0; mi < messages.length; mi++) {
-      if (
-        messages[mi].lineNumber < note.lineNumber &&
-        messages[mi].lineNumber > bestLine &&
-        !hiddenMsgIndices.has(mi)
-      ) {
-        bestLine = messages[mi].lineNumber;
-        bestMsgIndex = mi;
-      }
-    }
-    if (bestMsgIndex < 0) return -1;
-    return msgToLastStep.get(bestMsgIndex) ?? -1;
-  };
-
   const renderNoteElements = (els: SequenceElement[]): void => {
     for (const el of els) {
       if (isSequenceNote(el)) {
         const px = participantX.get(el.participantId);
         if (px === undefined) continue;
-        const si = findAssociatedLastStep(el);
-        if (si < 0) continue;
-        // Position note in its own row below the associated message's last step
-        const noteY = stepY(si) + stepSpacing;
+        const noteTopY = noteYMap.get(el);
+        if (noteTopY === undefined) continue;
 
         const wrappedLines = wrapTextLines(el.text, NOTE_CHARS_PER_LINE);
         const noteH = wrappedLines.length * NOTE_LINE_H + NOTE_PAD_V * 2;
@@ -1905,7 +1965,6 @@ export function renderSequenceDiagram(
         const noteX = isRight
           ? px + ACTIVATION_WIDTH + NOTE_GAP
           : px - ACTIVATION_WIDTH - NOTE_GAP - noteW;
-        const noteTopY = noteY + NOTE_OFFSET_BELOW;
 
         // Wrap in <g> with data attributes for toggle support
         const noteG = svg
