@@ -1229,8 +1229,9 @@ export function renderSequenceDiagram(
 
   // Render title
   if (title) {
-    svg
+    const titleEl = svg
       .append('text')
+      .attr('class', 'chart-title')
       .attr('x', svgWidth / 2)
       .attr('y', 30)
       .attr('text-anchor', 'middle')
@@ -1238,6 +1239,10 @@ export function renderSequenceDiagram(
       .attr('font-size', 20)
       .attr('font-weight', 'bold')
       .text(title);
+
+    if (parsed.titleLineNumber) {
+      titleEl.attr('data-line-number', parsed.titleLineNumber);
+    }
   }
 
   // Render group boxes (behind participant shapes)

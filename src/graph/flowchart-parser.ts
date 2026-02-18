@@ -436,6 +436,7 @@ export function parseFlowchart(
 
       if (key === 'title') {
         result.title = value;
+        result.titleLineNumber = lineNumber;
         continue;
       }
 
