@@ -425,7 +425,8 @@ export function renderFlowchart(
       .append('g')
       .attr('transform', `translate(${node.x}, ${node.y})`)
       .attr('class', 'fc-node')
-      .attr('data-line-number', String(node.lineNumber));
+      .attr('data-line-number', String(node.lineNumber))
+      .attr('data-node-id', node.id);
 
     if (onClickItem) {
       nodeG.style('cursor', 'pointer').on('click', () => {
