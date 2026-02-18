@@ -647,15 +647,11 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
         (noteSingleMatch[1]?.toLowerCase() as 'right' | 'left') || 'right';
       let noteParticipant = noteSingleMatch[2] || null;
       if (!noteParticipant) {
-        if (!lastMsgFrom) {
-          result.error = `Line ${lineNumber}: note requires a preceding message`;
-          return result;
-        }
+        if (!lastMsgFrom) continue; // incomplete — skip during live typing
         noteParticipant = lastMsgFrom;
       }
       if (!result.participants.some((p) => p.id === noteParticipant)) {
-        result.error = `Line ${lineNumber}: note references unknown participant '${noteParticipant}'`;
-        return result;
+        continue; // unknown participant — skip during live typing
       }
       const note: SequenceNote = {
         kind: 'note',
@@ -675,15 +671,11 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
         (noteMultiMatch[1]?.toLowerCase() as 'right' | 'left') || 'right';
       let noteParticipant = noteMultiMatch[2] || null;
       if (!noteParticipant) {
-        if (!lastMsgFrom) {
-          result.error = `Line ${lineNumber}: note requires a preceding message`;
-          return result;
-        }
+        if (!lastMsgFrom) continue; // incomplete — skip during live typing
         noteParticipant = lastMsgFrom;
       }
       if (!result.participants.some((p) => p.id === noteParticipant)) {
-        result.error = `Line ${lineNumber}: note references unknown participant '${noteParticipant}'`;
-        return result;
+        continue; // unknown participant — skip during live typing
       }
       // Collect indented body lines
       const noteLines: string[] = [];
@@ -696,10 +688,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
         noteLines.push(nextTrimmed);
         i++;
       }
-      if (noteLines.length === 0) {
-        result.error = `Line ${lineNumber}: multi-line note has no content — add indented lines or use 'note: text'`;
-        return result;
-      }
+      if (noteLines.length === 0) continue; // no body yet — skip during live typing
       const note: SequenceNote = {
         kind: 'note',
         text: noteLines.join('\n'),

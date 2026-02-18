@@ -754,14 +754,16 @@ describe('Story 47.5 — note syntax', () => {
       expect(result.messages).toHaveLength(2);
     });
 
-    it('errors on empty multi-line note', () => {
+    it('skips empty multi-line note gracefully', () => {
       const content = [
         'A -> B: login',
         'note right of B',
         'B -> C: next',
       ].join('\n');
       const result = parseSequenceDgmo(content);
-      expect(result.error).toMatch(/multi-line note has no content/);
+      expect(result.error).toBeNull();
+      // The incomplete note is skipped; both messages still parse
+      expect(result.messages).toHaveLength(2);
     });
   });
 
@@ -796,28 +798,52 @@ describe('Story 47.5 — note syntax', () => {
     });
   });
 
-  describe('error cases', () => {
-    it('note with no preceding message errors', () => {
-      const content = 'note: orphan note';
-      const result = parseSequenceDgmo(content);
-      expect(result.error).toMatch(/note requires a preceding message/);
+  describe('tolerance — incomplete notes are skipped', () => {
+    it('note with no preceding message is skipped', () => {
+      const content = ['chart: sequence', 'A -> B: hello', ''].join('\n');
+      // Insert orphan note before any messages in a separate section
+      const orphanContent = [
+        'chart: sequence',
+        'note: orphan note',
+        'A -> B: hello',
+      ].join('\n');
+      const result = parseSequenceDgmo(orphanContent);
+      expect(result.error).toBeNull();
+      // The orphan note is skipped; only the message element remains
+      expect(result.messages).toHaveLength(1);
+      expect(result.elements).toHaveLength(1);
     });
 
-    it('note referencing unknown participant errors', () => {
+    it('note referencing unknown participant is skipped', () => {
       const content = [
         'A -> B: login',
         'note right of Z: unknown',
       ].join('\n');
       const result = parseSequenceDgmo(content);
-      expect(result.error).toMatch(
-        /note references unknown participant 'Z'/
-      );
+      expect(result.error).toBeNull();
+      expect(result.messages).toHaveLength(1);
+      // The invalid note is skipped, only the message element remains
+      expect(result.elements).toHaveLength(1);
     });
 
-    it('default note with no preceding message in multi-line form errors', () => {
-      const content = ['note', '  body text'].join('\n');
+    it('default note with no preceding message in multi-line form is skipped', () => {
+      const content = ['chart: sequence', 'note', '  body text', 'A -> B: hello'].join('\n');
       const result = parseSequenceDgmo(content);
-      expect(result.error).toMatch(/note requires a preceding message/);
+      expect(result.error).toBeNull();
+      expect(result.messages).toHaveLength(1);
+    });
+
+    it('bare "note" keyword mid-diagram is skipped', () => {
+      const content = [
+        'chart: sequence',
+        'Captain -> Quartermaster: Battle stations!',
+        'Quartermaster -> GunCrew: Load cannons',
+        'note',
+        'Quartermaster -> Helmsman: Close to broadside range',
+      ].join('\n');
+      const result = parseSequenceDgmo(content);
+      expect(result.error).toBeNull();
+      expect(result.messages).toHaveLength(3);
     });
   });
 
@@ -856,6 +882,150 @@ describe('Story 47.5 — note syntax', () => {
       const steps = buildRenderSequence(parsed.messages);
       // 2 calls + 2 returns = 4 steps (notes don't generate steps)
       expect(steps).toHaveLength(4);
+    });
+  });
+});
+
+describe('Story 47.2 — Parser tolerance', () => {
+  describe('space-insensitive colon return splitting', () => {
+    it('splits on colon without spaces', () => {
+      const result = parseSequenceDgmo('A -> B: request:response');
+      expect(result.messages[0].label).toBe('request');
+      expect(result.messages[0].returnLabel).toBe('response');
+    });
+
+    it('splits on colon with space only before', () => {
+      const result = parseSequenceDgmo('A -> B: request :response');
+      expect(result.messages[0].label).toBe('request');
+      expect(result.messages[0].returnLabel).toBe('response');
+    });
+
+    it('splits on colon with space only after', () => {
+      const result = parseSequenceDgmo('A -> B: request: response');
+      expect(result.messages[0].label).toBe('request');
+      expect(result.messages[0].returnLabel).toBe('response');
+    });
+
+    it('splits on colon with spaces on both sides (original behavior)', () => {
+      const result = parseSequenceDgmo('A -> B: request : response');
+      expect(result.messages[0].label).toBe('request');
+      expect(result.messages[0].returnLabel).toBe('response');
+    });
+
+    it('URL with :// is preserved', () => {
+      const result = parseSequenceDgmo('A -> B: https://api.example.com/v1');
+      expect(result.messages[0].label).toBe('https://api.example.com/v1');
+      expect(result.messages[0].returnLabel).toBeUndefined();
+    });
+
+    it('multiple colons — splits on last one', () => {
+      const result = parseSequenceDgmo('A -> B: a:b:c');
+      expect(result.messages[0].label).toBe('a:b');
+      expect(result.messages[0].returnLabel).toBe('c');
+    });
+
+    it('<- still takes priority over colon', () => {
+      const result = parseSequenceDgmo('A -> B: call <- result');
+      expect(result.messages[0].label).toBe('call');
+      expect(result.messages[0].returnLabel).toBe('result');
+    });
+
+    it('UML method():Type still takes priority', () => {
+      const result = parseSequenceDgmo('A -> B: getUser():User');
+      expect(result.messages[0].label).toBe('getUser()');
+      expect(result.messages[0].returnLabel).toBe('User');
+    });
+  });
+
+  describe('multi-word group names', () => {
+    it('two-word group name', () => {
+      const result = parseSequenceDgmo(
+        '## Order Service\n  API\n\nA -> B: msg'
+      );
+      expect(result.error).toBeNull();
+      expect(result.groups).toHaveLength(1);
+      expect(result.groups[0].name).toBe('Order Service');
+    });
+
+    it('multi-word group with color', () => {
+      const result = parseSequenceDgmo(
+        '## Payment Gateway(blue)\n  API\n\nA -> B: msg'
+      );
+      expect(result.error).toBeNull();
+      expect(result.groups[0].name).toBe('Payment Gateway');
+      expect(result.groups[0].color).toBe('blue');
+    });
+
+    it('single-word group still works', () => {
+      const result = parseSequenceDgmo(
+        '## Backend\n  API\n\nA -> B: msg'
+      );
+      expect(result.error).toBeNull();
+      expect(result.groups[0].name).toBe('Backend');
+    });
+
+    it('trailing spaces in group name are trimmed', () => {
+      const result = parseSequenceDgmo(
+        '## Backend   \n  API\n\nA -> B: msg'
+      );
+      expect(result.error).toBeNull();
+      expect(result.groups[0].name).toBe('Backend');
+    });
+  });
+
+  describe('optional trailing == on sections', () => {
+    it('section without trailing ==', () => {
+      const result = parseSequenceDgmo('A -> B: msg\n== Phase One');
+      expect(result.error).toBeNull();
+      expect(result.sections).toHaveLength(1);
+      expect(result.sections[0].label).toBe('Phase One');
+    });
+
+    it('section with trailing == still works', () => {
+      const result = parseSequenceDgmo('A -> B: msg\n== Phase One ==');
+      expect(result.error).toBeNull();
+      expect(result.sections[0].label).toBe('Phase One');
+    });
+
+    it('section without trailing == and with color', () => {
+      const result = parseSequenceDgmo('A -> B: msg\n== Critical(red)');
+      expect(result.error).toBeNull();
+      expect(result.sections[0].label).toBe('Critical');
+      expect(result.sections[0].color).toBe('red');
+    });
+
+    it('section with trailing == and color', () => {
+      const result = parseSequenceDgmo('A -> B: msg\n== Critical(red) ==');
+      expect(result.error).toBeNull();
+      expect(result.sections[0].label).toBe('Critical');
+      expect(result.sections[0].color).toBe('red');
+    });
+  });
+
+  describe('arrow whitespace tolerance', () => {
+    it('extra spaces around ->', () => {
+      const result = parseSequenceDgmo('A  ->  B: msg');
+      expect(result.error).toBeNull();
+      expect(result.messages).toHaveLength(1);
+      expect(result.messages[0].from).toBe('A');
+      expect(result.messages[0].to).toBe('B');
+    });
+
+    it('extra spaces around ~>', () => {
+      const result = parseSequenceDgmo('A  ~>  B: msg');
+      expect(result.error).toBeNull();
+      expect(result.messages).toHaveLength(1);
+      expect(result.messages[0].from).toBe('A');
+      expect(result.messages[0].to).toBe('B');
+      expect(result.messages[0].async).toBe(true);
+    });
+
+    it('no spaces around ->', () => {
+      const result = parseSequenceDgmo('A->B: msg');
+      expect(result.error).toBeNull();
+      expect(result.messages).toHaveLength(1);
+      expect(result.messages[0].from).toBe('A');
+      expect(result.messages[0].to).toBe('B');
     });
   });
 });
