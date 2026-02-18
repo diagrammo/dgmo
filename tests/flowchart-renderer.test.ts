@@ -221,14 +221,11 @@ describe('renderFlowchart', () => {
   });
 
   describe('palette theming', () => {
-    it('applies background from palette', () => {
+    it('does not set inline background (handled by preview container)', () => {
       const container = renderToContainer('(Start) -> (End)');
       const svg = container.querySelector('svg');
       expect(svg).toBeTruthy();
-      // jsdom normalizes hex (#eceff4) to rgb(236, 239, 244)
-      const bg = svg!.style.background;
-      expect(bg).toBeTruthy();
-      expect(bg).toContain('236'); // R channel of #eceff4
+      expect(svg!.style.background).toBeFalsy();
       document.body.removeChild(container);
     });
 
