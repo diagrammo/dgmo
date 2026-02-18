@@ -257,7 +257,6 @@ export function renderFlowchart(
     .append('svg')
     .attr('width', width)
     .attr('height', height)
-    .style('background', palette.bg)
     .style('font-family', FONT_FAMILY);
 
   // Defs: arrowhead markers
