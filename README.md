@@ -2,7 +2,7 @@
 
 A diagram markup language — parser, config builder, renderer, and color system.
 
-Write plain-text `.dgmo` files and render them as charts, diagrams, and visualizations. Supports 23 chart types across ECharts, D3, and a built-in sequence renderer. Ships as both a library and a standalone CLI.
+Write plain-text `.dgmo` files and render them as charts, diagrams, and visualizations. Supports 24 chart types across ECharts, D3, and a built-in sequence renderer. Ships as both a library and a standalone CLI.
 
 ## Install
 
@@ -82,6 +82,7 @@ dgmo diagram.dgmo --theme dark --palette catppuccin
 | `venn` | D3 | Set intersection diagrams |
 | `quadrant` | D3 | 2D quadrant scatter (also has a Mermaid output path) |
 | `sequence` | D3 | Sequence diagrams with type inference |
+| `flowchart` | D3 | Directed graph flowcharts with branching and 6 node shapes |
 
 ## How it works
 
@@ -218,6 +219,29 @@ renderSequenceDiagram(container, parsed, colors, false, (lineNum) => {
 | Service, API, Lambda, Fn | service | pill shape |
 | External, ThirdParty, Vendor | external | dashed square |
 
+### Flowcharts
+
+Flowcharts use a concise syntax with 6 node shapes: `(terminal)`, `[process]`, `<decision>`, `/io/`, `{preparation}`, and `[[subroutine]]`. Edges support labels and branching.
+
+```typescript
+import { parseFlowchart, layoutGraph, renderFlowchart, getPalette } from '@diagrammo/dgmo';
+
+const colors = getPalette('nord').dark;
+
+const content = `
+chart: flowchart
+title: Decision Flow
+
+(Start) -> /Get Input/ -> <Valid?>
+  -yes-> [Process Data] -> (Done)
+  -no-> [Show Error] -> /Get Input/
+`;
+
+const parsed = parseFlowchart(content, colors);
+const layout = layoutGraph(parsed);
+renderFlowchart(container, parsed, layout, colors, true);
+```
+
 ### Routing
 
 If you don't know the chart type ahead of time, use the router:
@@ -347,6 +371,7 @@ Both accept an optional third argument for a custom `PaletteColors` object (defa
 | `parseEChart(content)` | Parse ECharts-specific types (scatter, sankey, heatmap, etc.) |
 | `parseD3(content, colors)` | Parse D3 chart types (slope, arc, timeline, etc.) |
 | `parseSequenceDgmo(content)` | Parse sequence diagrams |
+| `parseFlowchart(content, colors)` | Parse flowchart diagrams |
 | `parseQuadrant(content)` | Parse quadrant charts |
 
 ### Config builders
@@ -367,6 +392,8 @@ Both accept an optional third argument for a custom `PaletteColors` object (defa
 | `renderWordCloud(el, parsed, colors, dark)` | Word cloud SVG |
 | `renderVenn(el, parsed, colors, dark)` | Venn diagram SVG |
 | `renderQuadrant(el, parsed, colors, dark)` | Quadrant chart SVG |
+| `renderFlowchart(el, parsed, layout, colors, dark)` | Flowchart SVG |
+| `layoutGraph(parsed)` | Compute flowchart node positions |
 | `renderSequenceDiagram(el, parsed, colors, dark, onClick)` | Sequence diagram SVG |
 | `renderD3ForExport(content, theme, palette?)` | Any D3/sequence chart → SVG string |
 | `renderEChartsForExport(content, theme, palette?)` | Any ECharts chart → SVG string |
@@ -436,6 +463,7 @@ src/
 ├── chart.ts                  # Standard chart parser (bar, line, pie, etc.)
 ├── echarts.ts                # ECharts parser, config builder, SSR export
 ├── d3.ts                     # D3 parsers + renderers (slope, arc, timeline, wordcloud, venn, quadrant)
+├── graph/                    # Flowchart parser, layout engine, and renderer
 ├── dgmo-mermaid.ts           # Quadrant parser + Mermaid syntax builder
 ├── colors.ts                 # Named color map, resolve helper
 ├── fonts.ts                  # Font family constants (Helvetica for resvg)
