@@ -1906,7 +1906,8 @@ export function renderSequenceDiagram(
           .append('g')
           .attr('class', 'note')
           .attr('data-note-toggle', '')
-          .attr('data-line-number', String(el.lineNumber));
+          .attr('data-line-number', String(el.lineNumber))
+          .attr('data-line-end', String(el.endLineNumber));
 
         // Folded-corner path
         noteG

@@ -97,6 +97,7 @@ export interface SequenceNote {
   position: 'right' | 'left';
   participantId: string;
   lineNumber: number;
+  endLineNumber: number;
 }
 
 export type SequenceElement =
@@ -659,6 +660,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
         position: notePosition,
         participantId: noteParticipant,
         lineNumber,
+        endLineNumber: lineNumber,
       };
       currentContainer().push(note);
       continue;
@@ -695,6 +697,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
         position: notePosition,
         participantId: noteParticipant,
         lineNumber,
+        endLineNumber: i + 1, // i has advanced past the body lines (1-based)
       };
       currentContainer().push(note);
       continue;
