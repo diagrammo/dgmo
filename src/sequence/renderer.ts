@@ -52,14 +52,16 @@ interface InlineSpan {
 
 function parseInlineMarkdown(text: string): InlineSpan[] {
   const spans: InlineSpan[] = [];
-  const regex = /\*\*(.+?)\*\*|\*(.+?)\*|`(.+?)`|\[(.+?)\]\((.+?)\)|([^*`[]+)/g;
+  const regex = /\*\*(.+?)\*\*|__(.+?)__|\*(.+?)\*|_(.+?)_|`(.+?)`|\[(.+?)\]\((.+?)\)|([^*_`[]+)/g;
   let match;
   while ((match = regex.exec(text)) !== null) {
-    if (match[1]) spans.push({ text: match[1], bold: true });
-    else if (match[2]) spans.push({ text: match[2], italic: true });
-    else if (match[3]) spans.push({ text: match[3], code: true });
-    else if (match[4]) spans.push({ text: match[4], href: match[5] });
-    else if (match[6]) spans.push({ text: match[6] });
+    if (match[1]) spans.push({ text: match[1], bold: true });       // **bold**
+    else if (match[2]) spans.push({ text: match[2], bold: true });  // __bold__
+    else if (match[3]) spans.push({ text: match[3], italic: true }); // *italic*
+    else if (match[4]) spans.push({ text: match[4], italic: true }); // _italic_
+    else if (match[5]) spans.push({ text: match[5], code: true });   // `code`
+    else if (match[6]) spans.push({ text: match[6], href: match[7] }); // [text](url)
+    else if (match[8]) spans.push({ text: match[8] });
   }
   return spans;
 }
