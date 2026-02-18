@@ -1945,15 +1945,28 @@ export function renderSequenceDiagram(
         wrappedLines.forEach((line, li) => {
           const textY =
             noteTopY + NOTE_PAD_V + (li + 1) * NOTE_LINE_H - 3;
+          const isBullet = line.startsWith('- ');
+          const bulletIndent = isBullet ? 10 : 0;
+          const displayLine = isBullet ? line.slice(2) : line;
           const textEl = noteG
             .append('text')
-            .attr('x', noteX + NOTE_PAD_H)
+            .attr('x', noteX + NOTE_PAD_H + bulletIndent)
             .attr('y', textY)
             .attr('fill', palette.text)
             .attr('font-size', NOTE_FONT_SIZE)
             .attr('class', 'note-text');
 
-          const spans = parseInlineMarkdown(line);
+          if (isBullet) {
+            noteG
+              .append('text')
+              .attr('x', noteX + NOTE_PAD_H)
+              .attr('y', textY)
+              .attr('fill', palette.text)
+              .attr('font-size', NOTE_FONT_SIZE)
+              .text('\u2022');
+          }
+
+          const spans = parseInlineMarkdown(displayLine);
           for (const span of spans) {
             if (span.href) {
               const a = textEl
