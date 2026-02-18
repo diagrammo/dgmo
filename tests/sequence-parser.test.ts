@@ -754,6 +754,40 @@ describe('Story 47.5 — note syntax', () => {
       expect(result.messages).toHaveLength(2);
     });
 
+    it('parses multi-line note with trailing colon', () => {
+      const content = [
+        'chart: sequence',
+        'A -> B: login',
+        'note:',
+        '  - [this](http://example.com)',
+        '  - _that_ is a bullet list',
+        '  - and the **other**',
+      ].join('\n');
+      const result = parseSequenceDgmo(content);
+      expect(result.error).toBeNull();
+      const note = result.elements[1] as SequenceNote;
+      expect(note.kind).toBe('note');
+      expect(note.text).toBe(
+        '- [this](http://example.com)\n- _that_ is a bullet list\n- and the **other**'
+      );
+      expect(note.participantId).toBe('A');
+    });
+
+    it('parses multi-line note with "note right of X:" form', () => {
+      const content = [
+        'A -> B: login',
+        'note right of B:',
+        '  First line',
+        '  Second line',
+      ].join('\n');
+      const result = parseSequenceDgmo(content);
+      expect(result.error).toBeNull();
+      const note = result.elements[1] as SequenceNote;
+      expect(note.text).toBe('First line\nSecond line');
+      expect(note.position).toBe('right');
+      expect(note.participantId).toBe('B');
+    });
+
     it('skips empty multi-line note gracefully', () => {
       const content = [
         'A -> B: login',
