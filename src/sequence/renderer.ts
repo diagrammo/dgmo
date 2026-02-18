@@ -1941,23 +1941,6 @@ export function renderSequenceDiagram(
           .attr('stroke-width', 0.75)
           .attr('class', 'note-fold');
 
-        // Dashed connector to lifeline
-        const connectorNoteX = isRight ? noteX : noteX + noteW;
-        const connectorLifeX = isRight
-          ? px + ACTIVATION_WIDTH / 2
-          : px - ACTIVATION_WIDTH / 2;
-        const connectorY = noteTopY + noteH / 2;
-        noteG
-          .append('line')
-          .attr('x1', connectorNoteX)
-          .attr('y1', connectorY)
-          .attr('x2', connectorLifeX)
-          .attr('y2', connectorY)
-          .attr('stroke', palette.textMuted)
-          .attr('stroke-width', 0.75)
-          .attr('stroke-dasharray', '3 2')
-          .attr('class', 'note-connector');
-
         // Render text with inline markdown
         wrappedLines.forEach((line, li) => {
           const textY =
