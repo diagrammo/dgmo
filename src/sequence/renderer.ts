@@ -915,6 +915,38 @@ export function renderSequenceDiagram(
     markBlockSpacing(elements);
   }
 
+  // Note spacing — add vertical room after messages that have notes attached
+  const NOTE_OFFSET_BELOW = 16; // gap between message arrow and top of note box
+  const computeNoteHeight = (text: string): number => {
+    const lines = wrapTextLines(text, NOTE_CHARS_PER_LINE);
+    return lines.length * NOTE_LINE_H + NOTE_PAD_V * 2;
+  };
+  const markNoteSpacing = (els: SequenceElement[]): void => {
+    for (let i = 0; i < els.length; i++) {
+      const el = els[i];
+      if (isSequenceNote(el)) {
+        const noteH = computeNoteHeight(el.text);
+        // Find the next non-note element after this note
+        const nextIdx =
+          i + 1 < els.length ? findFirstMsgIndex([els[i + 1]]) : -1;
+        if (nextIdx >= 0) {
+          addExtra(nextIdx, noteH + NOTE_OFFSET_BELOW);
+        }
+      } else if (isSequenceBlock(el)) {
+        markNoteSpacing(el.children);
+        if (el.elseIfBranches) {
+          for (const branch of el.elseIfBranches) {
+            markNoteSpacing(branch.children);
+          }
+        }
+        markNoteSpacing(el.elseChildren);
+      }
+    }
+  };
+  if (elements && elements.length > 0) {
+    markNoteSpacing(elements);
+  }
+
   // --- Section-aware Y layout ---
   // Sections get their own Y positions computed from content above them (not anchored
   // to messages below). This ensures toggling collapse/expand doesn't move the divider.
@@ -1865,7 +1897,7 @@ export function renderSequenceDiagram(
         const noteX = isRight
           ? px + ACTIVATION_WIDTH + NOTE_GAP
           : px - ACTIVATION_WIDTH - NOTE_GAP - noteW;
-        const noteTopY = noteY - noteH / 2;
+        const noteTopY = noteY + NOTE_OFFSET_BELOW;
 
         // Wrap in <g> with data attributes for toggle support
         const noteG = svg
@@ -1914,12 +1946,13 @@ export function renderSequenceDiagram(
         const connectorLifeX = isRight
           ? px + ACTIVATION_WIDTH / 2
           : px - ACTIVATION_WIDTH / 2;
+        const connectorY = noteTopY + noteH / 2;
         noteG
           .append('line')
           .attr('x1', connectorNoteX)
-          .attr('y1', noteY)
+          .attr('y1', connectorY)
           .attr('x2', connectorLifeX)
-          .attr('y2', noteY)
+          .attr('y2', connectorY)
           .attr('stroke', palette.textMuted)
           .attr('stroke-width', 0.75)
           .attr('stroke-dasharray', '3 2')
