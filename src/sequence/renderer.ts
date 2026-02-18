@@ -1867,7 +1867,7 @@ export function renderSequenceDiagram(
     ? mix(palette.surface, palette.bg, 50)
     : mix(palette.bg, palette.surface, 15);
 
-  const findAssociatedStep = (note: SequenceNote): number => {
+  const findAssociatedLastStep = (note: SequenceNote): number => {
     let bestMsgIndex = -1;
     let bestLine = -1;
     for (let mi = 0; mi < messages.length; mi++) {
@@ -1881,7 +1881,7 @@ export function renderSequenceDiagram(
       }
     }
     if (bestMsgIndex < 0) return -1;
-    return msgToFirstStep.get(bestMsgIndex) ?? -1;
+    return msgToLastStep.get(bestMsgIndex) ?? -1;
   };
 
   const renderNoteElements = (els: SequenceElement[]): void => {
@@ -1889,9 +1889,10 @@ export function renderSequenceDiagram(
       if (isSequenceNote(el)) {
         const px = participantX.get(el.participantId);
         if (px === undefined) continue;
-        const si = findAssociatedStep(el);
+        const si = findAssociatedLastStep(el);
         if (si < 0) continue;
-        const noteY = stepY(si);
+        // Position note in its own row below the associated message's last step
+        const noteY = stepY(si) + stepSpacing;
 
         const wrappedLines = wrapTextLines(el.text, NOTE_CHARS_PER_LINE);
         const noteH = wrappedLines.length * NOTE_LINE_H + NOTE_PAD_V * 2;
