@@ -305,7 +305,7 @@ export function renderFlowchart(
 
   // Title
   if (graph.title) {
-    mainG
+    const titleEl = mainG
       .append('text')
       .attr('x', diagramW / 2)
       .attr('y', TITLE_FONT_SIZE)
@@ -313,8 +313,19 @@ export function renderFlowchart(
       .attr('fill', palette.text)
       .attr('font-size', TITLE_FONT_SIZE)
       .attr('font-weight', 'bold')
-      .attr('class', 'fc-title')
+      .attr('class', 'fc-title chart-title')
+      .style('cursor', onClickItem && graph.titleLineNumber ? 'pointer' : 'default')
       .text(graph.title);
+
+    if (graph.titleLineNumber) {
+      titleEl.attr('data-line-number', graph.titleLineNumber);
+      if (onClickItem) {
+        titleEl
+          .on('click', () => onClickItem(graph.titleLineNumber!))
+          .on('mouseenter', function () { d3Selection.select(this).attr('opacity', 0.7); })
+          .on('mouseleave', function () { d3Selection.select(this).attr('opacity', 1); });
+      }
+    }
   }
 
   // Content group (offset by title)

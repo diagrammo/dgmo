@@ -36,6 +36,7 @@ export interface GraphGroup {
 export interface ParsedGraph {
   type: 'flowchart';
   title?: string;
+  titleLineNumber?: number;
   direction: GraphDirection;
   nodes: GraphNode[];
   edges: GraphEdge[];

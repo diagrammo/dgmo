@@ -23,6 +23,7 @@ export interface ChartDataPoint {
 export interface ParsedChart {
   type: ChartType;
   title?: string;
+  titleLineNumber?: number;
   series?: string;
   xlabel?: string;
   ylabel?: string;
@@ -120,6 +121,7 @@ export function parseChart(
 
     if (key === 'title') {
       result.title = value;
+      result.titleLineNumber = lineNumber;
       continue;
     }
 

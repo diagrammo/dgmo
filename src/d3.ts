@@ -139,6 +139,7 @@ export interface D3ExportDimensions {
 export interface ParsedD3 {
   type: D3ChartType | null;
   title: string | null;
+  titleLineNumber: number | null;
   orientation: 'horizontal' | 'vertical';
   periods: string[];
   data: D3DataItem[];
@@ -265,6 +266,7 @@ export function parseD3(content: string, palette?: PaletteColors): ParsedD3 {
   const result: ParsedD3 = {
     type: null,
     title: null,
+    titleLineNumber: null,
     orientation: 'horizontal',
     periods: [],
     data: [],
@@ -609,6 +611,7 @@ export function parseD3(content: string, palette?: PaletteColors): ParsedD3 {
 
       if (key === 'title') {
         result.title = line.substring(colonIndex + 1).trim();
+        result.titleLineNumber = lineNumber;
         if (result.type === 'quadrant') {
           result.quadrantTitleLineNumber = lineNumber;
         }
@@ -1120,15 +1123,27 @@ export function renderSlopeChart(
 
   // Title
   if (title) {
-    svg
+    const titleEl = svg
       .append('text')
+      .attr('class', 'chart-title')
       .attr('x', width / 2)
       .attr('y', 30)
       .attr('text-anchor', 'middle')
       .attr('fill', textColor)
       .attr('font-size', '20px')
       .attr('font-weight', '700')
+      .style('cursor', onClickItem && parsed.titleLineNumber ? 'pointer' : 'default')
       .text(title);
+
+    if (parsed.titleLineNumber) {
+      titleEl.attr('data-line-number', parsed.titleLineNumber);
+      if (onClickItem) {
+        titleEl
+          .on('click', () => onClickItem(parsed.titleLineNumber!))
+          .on('mouseenter', function () { d3Selection.select(this).attr('opacity', 0.7); })
+          .on('mouseleave', function () { d3Selection.select(this).attr('opacity', 1); });
+      }
+    }
   }
 
   // Period column headers
@@ -1501,15 +1516,27 @@ export function renderArcDiagram(
 
   // Title
   if (title) {
-    svg
+    const titleEl = svg
       .append('text')
+      .attr('class', 'chart-title')
       .attr('x', width / 2)
       .attr('y', 30)
       .attr('text-anchor', 'middle')
       .attr('fill', textColor)
       .attr('font-size', '20px')
       .attr('font-weight', '700')
+      .style('cursor', onClickItem && parsed.titleLineNumber ? 'pointer' : 'default')
       .text(title);
+
+    if (parsed.titleLineNumber) {
+      titleEl.attr('data-line-number', parsed.titleLineNumber);
+      if (onClickItem) {
+        titleEl
+          .on('click', () => onClickItem(parsed.titleLineNumber!))
+          .on('mouseenter', function () { d3Selection.select(this).attr('opacity', 0.7); })
+          .on('mouseleave', function () { d3Selection.select(this).attr('opacity', 1); });
+      }
+    }
   }
 
   // Build adjacency map for hover interactions
@@ -2745,15 +2772,27 @@ export function renderTimeline(
         .attr('transform', `translate(${margin.left},${margin.top})`);
 
       if (title) {
-        svg
+        const titleEl = svg
           .append('text')
+          .attr('class', 'chart-title')
           .attr('x', width / 2)
           .attr('y', 30)
           .attr('text-anchor', 'middle')
           .attr('fill', textColor)
           .attr('font-size', '20px')
           .attr('font-weight', '700')
+          .style('cursor', onClickItem && parsed.titleLineNumber ? 'pointer' : 'default')
           .text(title);
+
+        if (parsed.titleLineNumber) {
+          titleEl.attr('data-line-number', parsed.titleLineNumber);
+          if (onClickItem) {
+            titleEl
+              .on('click', () => onClickItem(parsed.titleLineNumber!))
+              .on('mouseenter', function () { d3Selection.select(this).attr('opacity', 0.7); })
+              .on('mouseleave', function () { d3Selection.select(this).attr('opacity', 1); });
+          }
+        }
       }
 
       renderEras(
@@ -2936,15 +2975,27 @@ export function renderTimeline(
         .attr('transform', `translate(${margin.left},${margin.top})`);
 
       if (title) {
-        svg
+        const titleEl = svg
           .append('text')
+          .attr('class', 'chart-title')
           .attr('x', width / 2)
           .attr('y', 30)
           .attr('text-anchor', 'middle')
           .attr('fill', textColor)
           .attr('font-size', '20px')
           .attr('font-weight', '700')
+          .style('cursor', onClickItem && parsed.titleLineNumber ? 'pointer' : 'default')
           .text(title);
+
+        if (parsed.titleLineNumber) {
+          titleEl.attr('data-line-number', parsed.titleLineNumber);
+          if (onClickItem) {
+            titleEl
+              .on('click', () => onClickItem(parsed.titleLineNumber!))
+              .on('mouseenter', function () { d3Selection.select(this).attr('opacity', 0.7); })
+              .on('mouseleave', function () { d3Selection.select(this).attr('opacity', 1); });
+          }
+        }
       }
 
       renderEras(
@@ -3188,15 +3239,27 @@ export function renderTimeline(
       .attr('transform', `translate(${margin.left},${margin.top})`);
 
     if (title) {
-      svg
+      const titleEl = svg
         .append('text')
+        .attr('class', 'chart-title')
         .attr('x', width / 2)
         .attr('y', 30)
         .attr('text-anchor', 'middle')
         .attr('fill', textColor)
         .attr('font-size', '20px')
         .attr('font-weight', '700')
+        .style('cursor', onClickItem && parsed.titleLineNumber ? 'pointer' : 'default')
         .text(title);
+
+      if (parsed.titleLineNumber) {
+        titleEl.attr('data-line-number', parsed.titleLineNumber);
+        if (onClickItem) {
+          titleEl
+            .on('click', () => onClickItem(parsed.titleLineNumber!))
+            .on('mouseenter', function () { d3Selection.select(this).attr('opacity', 0.7); })
+            .on('mouseleave', function () { d3Selection.select(this).attr('opacity', 1); });
+        }
+      }
     }
 
     renderEras(
@@ -3472,15 +3535,27 @@ export function renderTimeline(
       .attr('transform', `translate(${margin.left},${margin.top})`);
 
     if (title) {
-      svg
+      const titleEl = svg
         .append('text')
+        .attr('class', 'chart-title')
         .attr('x', width / 2)
         .attr('y', 30)
         .attr('text-anchor', 'middle')
         .attr('fill', textColor)
         .attr('font-size', '20px')
         .attr('font-weight', '700')
+        .style('cursor', onClickItem && parsed.titleLineNumber ? 'pointer' : 'default')
         .text(title);
+
+      if (parsed.titleLineNumber) {
+        titleEl.attr('data-line-number', parsed.titleLineNumber);
+        if (onClickItem) {
+          titleEl
+            .on('click', () => onClickItem(parsed.titleLineNumber!))
+            .on('mouseenter', function () { d3Selection.select(this).attr('opacity', 0.7); })
+            .on('mouseleave', function () { d3Selection.select(this).attr('opacity', 1); });
+        }
+      }
     }
 
     renderEras(
@@ -3767,15 +3842,27 @@ export function renderWordCloud(
     .style('background', bgColor);
 
   if (title) {
-    svg
+    const titleEl = svg
       .append('text')
+      .attr('class', 'chart-title')
       .attr('x', width / 2)
       .attr('y', 30)
       .attr('text-anchor', 'middle')
       .attr('fill', textColor)
       .attr('font-size', '20px')
       .attr('font-weight', '700')
+      .style('cursor', onClickItem && parsed.titleLineNumber ? 'pointer' : 'default')
       .text(title);
+
+    if (parsed.titleLineNumber) {
+      titleEl.attr('data-line-number', parsed.titleLineNumber);
+      if (onClickItem) {
+        titleEl
+          .on('click', () => onClickItem(parsed.titleLineNumber!))
+          .on('mouseenter', function () { d3Selection.select(this).attr('opacity', 0.7); })
+          .on('mouseleave', function () { d3Selection.select(this).attr('opacity', 1); });
+      }
+    }
   }
 
   const g = svg
@@ -3872,8 +3959,9 @@ function renderWordCloudAsync(
       .style('background', bgColor);
 
     if (title) {
-      svg
+      const titleEl = svg
         .append('text')
+        .attr('class', 'chart-title')
         .attr('x', width / 2)
         .attr('y', 30)
         .attr('text-anchor', 'middle')
@@ -3881,6 +3969,10 @@ function renderWordCloudAsync(
         .attr('font-size', '20px')
         .attr('font-weight', '700')
         .text(title);
+
+      if (parsed.titleLineNumber) {
+        titleEl.attr('data-line-number', parsed.titleLineNumber);
+      }
     }
 
     const g = svg
@@ -4217,15 +4309,27 @@ export function renderVenn(
 
   // Title
   if (title) {
-    svg
+    const titleEl = svg
       .append('text')
+      .attr('class', 'chart-title')
       .attr('x', width / 2)
       .attr('y', 30)
       .attr('text-anchor', 'middle')
       .attr('fill', textColor)
       .attr('font-size', '20px')
       .attr('font-weight', '700')
+      .style('cursor', onClickItem && parsed.titleLineNumber ? 'pointer' : 'default')
       .text(title);
+
+    if (parsed.titleLineNumber) {
+      titleEl.attr('data-line-number', parsed.titleLineNumber);
+      if (onClickItem) {
+        titleEl
+          .on('click', () => onClickItem(parsed.titleLineNumber!))
+          .on('mouseenter', function () { d3Selection.select(this).attr('opacity', 0.7); })
+          .on('mouseleave', function () { d3Selection.select(this).attr('opacity', 1); });
+      }
+    }
   }
 
   // ── Clip-path definitions ──
@@ -4593,6 +4697,7 @@ export function renderQuadrant(
   if (title) {
     const titleText = svg
       .append('text')
+      .attr('class', 'chart-title')
       .attr('x', width / 2)
       .attr('y', 30)
       .attr('text-anchor', 'middle')
@@ -4604,6 +4709,10 @@ export function renderQuadrant(
         onClickItem && quadrantTitleLineNumber ? 'pointer' : 'default'
       )
       .text(title);
+
+    if (quadrantTitleLineNumber) {
+      titleText.attr('data-line-number', quadrantTitleLineNumber);
+    }
 
     if (onClickItem && quadrantTitleLineNumber) {
       titleText

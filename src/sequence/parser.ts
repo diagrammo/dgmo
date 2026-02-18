@@ -133,6 +133,7 @@ export interface SequenceGroup {
  */
 export interface ParsedSequenceDgmo {
   title: string | null;
+  titleLineNumber: number | null;
   participants: SequenceParticipant[];
   messages: SequenceMessage[];
   elements: SequenceElement[];
@@ -227,6 +228,7 @@ function measureIndent(line: string): number {
 export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
   const result: ParsedSequenceDgmo = {
     title: null,
+    titleLineNumber: null,
     participants: [],
     messages: [],
     elements: [],
@@ -367,6 +369,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
 
       if (key === 'title') {
         result.title = value;
+        result.titleLineNumber = lineNumber;
         continue;
       }
 
