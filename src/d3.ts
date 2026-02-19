@@ -4858,10 +4858,81 @@ export function renderQuadrant(
     return mixHex('#000000', fill, 40);
   };
 
+  // Scale label font size to fit within quadrant bounds, wrapping into multiple lines if needed
+  const LABEL_MAX_FONT = 48;
+  const LABEL_MIN_FONT = 14;
+  const LABEL_PAD = 40;
+  const CHAR_WIDTH_RATIO = 0.6;
+
+  const estTextWidth = (text: string, fontSize: number): number =>
+    text.length * fontSize * CHAR_WIDTH_RATIO;
+
+  interface QuadrantLabelLayout {
+    lines: string[];
+    fontSize: number;
+  }
+
+  const quadrantLabelLayout = (text: string, qw: number, qh: number): QuadrantLabelLayout => {
+    const availW = qw - LABEL_PAD;
+    const availH = qh - LABEL_PAD;
+    const words = text.split(/\s+/);
+
+    // Try single line first
+    if (estTextWidth(text, LABEL_MAX_FONT) <= availW) {
+      const fs = Math.min(LABEL_MAX_FONT, availH);
+      return { lines: [text], fontSize: Math.max(LABEL_MIN_FONT, Math.round(fs)) };
+    }
+
+    // Try wrapping into 2+ lines: greedily pack words so each line fits availW
+    const wrapLines = (fs: number): string[] => {
+      const result: string[] = [];
+      let cur = '';
+      for (const w of words) {
+        const trial = cur ? `${cur} ${w}` : w;
+        if (estTextWidth(trial, fs) > availW && cur) {
+          result.push(cur);
+          cur = w;
+        } else {
+          cur = trial;
+        }
+      }
+      if (cur) result.push(cur);
+      return result;
+    };
+
+    // Binary-search for largest font size where wrapped text fits both width and height
+    let lo = LABEL_MIN_FONT;
+    let hi = LABEL_MAX_FONT;
+    let bestLines = wrapLines(lo);
+    let bestFs = lo;
+    while (lo <= hi) {
+      const mid = Math.round((lo + hi) / 2);
+      const lines = wrapLines(mid);
+      const totalH = lines.length * mid * 1.2; // line height ~1.2em
+      const maxLineW = Math.max(...lines.map((l) => estTextWidth(l, mid)));
+      if (maxLineW <= availW && totalH <= availH) {
+        bestFs = mid;
+        bestLines = lines;
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
+    }
+    return { lines: bestLines, fontSize: Math.max(LABEL_MIN_FONT, bestFs) };
+  };
+
   // Draw quadrant labels (large, centered, darkened shade of fill — recedes behind points)
+  // Pre-compute layout (lines + font size) for each quadrant label
+  const qw = chartWidth / 2;
+  const qh = chartHeight / 2;
+  const quadrantDefsWithLabel = quadrantDefs.filter((d) => d.label !== null);
+  const labelLayouts = new Map(
+    quadrantDefsWithLabel.map((d) => [d.label!.text, quadrantLabelLayout(d.label!.text, qw, qh)])
+  );
+
   const quadrantLabelTexts = chartG
     .selectAll('text.quadrant-label')
-    .data(quadrantDefs.filter((d) => d.label !== null))
+    .data(quadrantDefsWithLabel)
     .enter()
     .append('text')
     .attr('class', 'quadrant-label')
@@ -4870,7 +4941,7 @@ export function renderQuadrant(
     .attr('text-anchor', 'middle')
     .attr('dominant-baseline', 'central')
     .attr('fill', (d) => getQuadrantLabelColor(d))
-    .attr('font-size', '48px')
+    .attr('font-size', (d) => `${labelLayouts.get(d.label!.text)!.fontSize}px`)
     .attr('font-weight', '700')
     .attr('data-line-number', (d) =>
       d.label?.lineNumber ? String(d.label.lineNumber) : null
@@ -4878,7 +4949,24 @@ export function renderQuadrant(
     .style('cursor', (d) =>
       onClickItem && d.label?.lineNumber ? 'pointer' : 'default'
     )
-    .text((d) => d.label!.text);
+    .each(function (d) {
+      const layout = labelLayouts.get(d.label!.text)!;
+      const el = d3Selection.select(this);
+      if (layout.lines.length === 1) {
+        el.text(layout.lines[0]);
+      } else {
+        // Multi-line: use tspan elements, offset from center
+        const lineH = layout.fontSize * 1.2;
+        const totalH = layout.lines.length * lineH;
+        const startY = -totalH / 2 + lineH / 2;
+        layout.lines.forEach((line, i) => {
+          el.append('tspan')
+            .attr('x', d.labelX)
+            .attr('dy', i === 0 ? `${startY}px` : `${lineH}px`)
+            .text(line);
+        });
+      }
+    });
 
   if (onClickItem) {
     quadrantLabelTexts
