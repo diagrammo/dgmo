@@ -849,6 +849,7 @@ export function renderSequenceDiagram(
   // Extra spacing constants for block boundaries
   const BLOCK_HEADER_SPACE = 30; // Extra space for frame label above first message in a block
   const BLOCK_AFTER_SPACE = 15; // Extra space after a block ends (before next sibling)
+  const FRAME_PADDING_TOP = 42; // Vertical padding from frame top to first message
 
   // Build maps from messageIndex to render step indices (needed early for spacing)
   const msgToFirstStep = new Map<number, number>();
@@ -945,7 +946,7 @@ export function renderSequenceDiagram(
   }
 
   // Note spacing — add vertical room after messages that have notes attached
-  const NOTE_OFFSET_BELOW = 16; // gap between message arrow and top of note box
+  const NOTE_OFFSET_BELOW = 14; // gap between message arrow and top of note box
   const computeNoteHeight = (text: string): number => {
     const lines = wrapTextLines(text, NOTE_CHARS_PER_LINE);
     return lines.length * NOTE_LINE_H + NOTE_PAD_V * 2;
@@ -955,33 +956,38 @@ export function renderSequenceDiagram(
     for (let i = 0; i < els.length; i++) {
       const el = els[i];
       if (isSequenceNote(el)) {
-        // Accumulate heights of consecutive notes starting from this one
-        let accumulatedHeight = 0;
+        // Total vertical extent of notes from the message arrow:
+        //   NOTE_OFFSET_BELOW (gap above first note)
+        //   + each note's height + NOTE_OFFSET_BELOW (gap below each note)
+        let totalExtent = NOTE_OFFSET_BELOW;
         let j = i;
         while (j < els.length && isSequenceNote(els[j])) {
           const note = els[j] as SequenceNote;
           const noteH = isNoteExpanded(note)
             ? computeNoteHeight(note.text)
             : COLLAPSED_NOTE_H;
-          accumulatedHeight += noteH + NOTE_OFFSET_BELOW;
+          totalExtent += noteH + NOTE_OFFSET_BELOW;
           j++;
         }
-        // If notes are followed by a block, add extra space so the block frame
-        // (which extends above its first message) doesn't overlap with the note
-        if (j < els.length && isSequenceBlock(els[j])) {
-          accumulatedHeight += 20;
-        }
+        // Only reserve space beyond the existing stepSpacing gap
+        let extraNeeded = Math.max(0, totalExtent - stepSpacing);
         // Scan forward past sections, blocks, and other non-message elements to find next message
         let nextMsgIdx = -1;
         for (let k = j; k < els.length; k++) {
           nextMsgIdx = findFirstMsgIndex([els[k]]);
           if (nextMsgIdx >= 0) break;
         }
+        // If a block follows, its frame extends FRAME_PADDING_TOP above the first
+        // message but only BLOCK_HEADER_SPACE is reserved. Add the difference so
+        // the note doesn't overlap the frame.
+        if (j < els.length && isSequenceBlock(els[j])) {
+          extraNeeded += FRAME_PADDING_TOP - BLOCK_HEADER_SPACE;
+        }
         if (nextMsgIdx >= 0) {
-          addExtra(nextMsgIdx, accumulatedHeight);
+          addExtra(nextMsgIdx, extraNeeded);
         } else {
-          // Notes at the end — track trailing space for viewport extension
-          trailingNoteSpace = Math.max(trailingNoteSpace, accumulatedHeight);
+          // Notes at the end — reserve only the excess beyond stepSpacing
+          trailingNoteSpace = Math.max(trailingNoteSpace, extraNeeded);
         }
         // Skip over the consecutive notes we just processed
         i = j - 1;
@@ -1203,7 +1209,7 @@ export function renderSequenceDiagram(
             noteTopY = prevNoteY + prevNoteH + NOTE_OFFSET_BELOW;
           } else {
             // First note after a message
-            noteTopY = stepY(si) + stepSpacing + NOTE_OFFSET_BELOW;
+            noteTopY = stepY(si) + NOTE_OFFSET_BELOW;
           }
           noteYMap.set(el, noteTopY);
         } else if (isSequenceBlock(el)) {
@@ -1426,7 +1432,7 @@ export function renderSequenceDiagram(
 
   // Render block frames (behind everything else)
   const FRAME_PADDING_X = 30;
-  const FRAME_PADDING_TOP = 42;
+  // FRAME_PADDING_TOP declared earlier (near BLOCK_HEADER_SPACE)
   const FRAME_PADDING_BOTTOM = 15;
   const FRAME_LABEL_HEIGHT = 18;
 
