@@ -1,4 +1,3 @@
-import { JSDOM } from 'jsdom';
 import { renderD3ForExport } from './d3';
 import { renderEChartsForExport } from './echarts';
 import { parseDgmoChartType, getDgmoFramework } from './dgmo-router';
@@ -7,10 +6,12 @@ import { getPalette } from './palettes/registry';
 /**
  * Ensures DOM globals are available for D3 renderers.
  * No-ops in browser environments where `document` already exists.
+ * Dynamically imports jsdom only in Node.js to avoid bundling it for browsers.
  */
-function ensureDom(): void {
+async function ensureDom(): Promise<void> {
   if (typeof document !== 'undefined') return;
 
+  const { JSDOM } = await import('jsdom');
   const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>');
   const win = dom.window;
 
@@ -62,6 +63,6 @@ export async function render(
   }
 
   // D3 and unknown/null frameworks both go through D3 renderer
-  ensureDom();
+  await ensureDom();
   return renderD3ForExport(content, theme, paletteColors);
 }

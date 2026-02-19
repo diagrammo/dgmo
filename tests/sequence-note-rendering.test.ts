@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { JSDOM } from 'jsdom';
 import { parseSequenceDgmo } from '../src/sequence/parser';
-import { renderSequenceDiagram } from '../src/sequence/renderer';
+import { renderSequenceDiagram, buildNoteMessageMap } from '../src/sequence/renderer';
 import { getPalette } from '../src/palettes';
 
 // Set up jsdom globals for D3
@@ -199,5 +199,137 @@ describe('Sequence diagram note rendering', () => {
     const viewBox = svg!.getAttribute('viewBox')!;
     const svgHeight = Number(viewBox.split(' ')[3]);
     expect(svgHeight).toBeGreaterThanOrEqual(noteBottomY);
+  });
+});
+
+describe('Collapsed note rendering', () => {
+  it('renders collapsed notes when expandedNoteLines is empty set', () => {
+    const svg = renderToSvg('A -> B: hello\nnote right of A: annotation', {
+      expandedNoteLines: new Set(),
+    });
+    expect(svg).not.toBeNull();
+    const notes = svg!.querySelectorAll('.note');
+    expect(notes.length).toBe(1);
+    // Should have collapsed class
+    expect(notes[0].classList.contains('note-collapsed')).toBe(true);
+    // Should show "..." text
+    const textEl = notes[0].querySelector('.note-text');
+    expect(textEl?.textContent).toBe('\u2026');
+  });
+
+  it('renders expanded notes when note lineNumber is in expandedNoteLines', () => {
+    const parsed = parseSequenceDgmo('A -> B: hello\nnote right of A: annotation');
+    const noteLineNumber = parsed.elements
+      .filter((el): el is import('../src/sequence/parser').SequenceNote => 'kind' in el && el.kind === 'note')
+      .map((n) => n.lineNumber)[0];
+
+    const svg = renderToSvg('A -> B: hello\nnote right of A: annotation', {
+      expandedNoteLines: new Set([noteLineNumber]),
+    });
+    expect(svg).not.toBeNull();
+    const notes = svg!.querySelectorAll('.note');
+    expect(notes.length).toBe(1);
+    // Should NOT have collapsed class
+    expect(notes[0].classList.contains('note-collapsed')).toBe(false);
+  });
+
+  it('collapsed notes are shorter than expanded notes', () => {
+    const input = 'A -> B: hello\nnote right of A: this is a longer annotation text';
+
+    // Expanded (default, no expandedNoteLines)
+    const svgExpanded = renderToSvg(input);
+    const expandedBox = svgExpanded!.querySelector('.note-box');
+    const dExpanded = expandedBox!.getAttribute('d') || '';
+    const expandedCoords = dExpanded.match(/[\d.]+/g)!.map(Number);
+    const expandedHeight = expandedCoords[9] - expandedCoords[1]; // bottomY - topY
+
+    // Collapsed
+    const svgCollapsed = renderToSvg(input, { expandedNoteLines: new Set() });
+    const collapsedBox = svgCollapsed!.querySelector('.note-box');
+    const dCollapsed = collapsedBox!.getAttribute('d') || '';
+    const collapsedCoords = dCollapsed.match(/[\d.]+/g)!.map(Number);
+    const collapsedHeight = collapsedCoords[9] - collapsedCoords[1];
+
+    expect(collapsedHeight).toBeLessThan(expandedHeight);
+  });
+
+  it('mixed expanded/collapsed notes render correctly', () => {
+    const input = [
+      'A -> B: hello',
+      'note right of A: first note',
+      'note right of A: second note',
+    ].join('\n');
+    const parsed = parseSequenceDgmo(input);
+    const noteLines = parsed.elements
+      .filter((el): el is import('../src/sequence/parser').SequenceNote => 'kind' in el && el.kind === 'note')
+      .map((n) => n.lineNumber);
+    expect(noteLines.length).toBe(2);
+
+    // Expand only the first note
+    const svg = renderToSvg(input, {
+      expandedNoteLines: new Set([noteLines[0]]),
+    });
+    expect(svg).not.toBeNull();
+    const notes = svg!.querySelectorAll('.note');
+    expect(notes.length).toBe(2);
+    // First expanded, second collapsed
+    expect(notes[0].classList.contains('note-collapsed')).toBe(false);
+    expect(notes[1].classList.contains('note-collapsed')).toBe(true);
+  });
+
+  it('collapse-notes: no overrides expandedNoteLines', () => {
+    const input = [
+      'collapse-notes: no',
+      'A -> B: hello',
+      'note right of A: annotation',
+    ].join('\n');
+    // Even with empty expandedNoteLines, note should be expanded
+    const svg = renderToSvg(input, { expandedNoteLines: new Set() });
+    expect(svg).not.toBeNull();
+    const notes = svg!.querySelectorAll('.note');
+    expect(notes.length).toBe(1);
+    expect(notes[0].classList.contains('note-collapsed')).toBe(false);
+  });
+
+  it('undefined expandedNoteLines renders all notes expanded (CLI default)', () => {
+    const svg = renderToSvg('A -> B: hello\nnote right of A: annotation');
+    expect(svg).not.toBeNull();
+    const notes = svg!.querySelectorAll('.note');
+    expect(notes.length).toBe(1);
+    expect(notes[0].classList.contains('note-collapsed')).toBe(false);
+  });
+});
+
+describe('buildNoteMessageMap', () => {
+  it('maps notes to their preceding message lines', () => {
+    const parsed = parseSequenceDgmo([
+      'A -> B: hello',
+      'note right of A: annotation',
+      'A -> B: world',
+      'note right of B: second annotation',
+    ].join('\n'));
+
+    const map = buildNoteMessageMap(parsed.elements);
+    const notes = parsed.elements
+      .filter((el): el is import('../src/sequence/parser').SequenceNote => 'kind' in el && el.kind === 'note');
+
+    expect(notes.length).toBe(2);
+    // First note maps to first message
+    expect(map.get(notes[0].lineNumber)).toBe(parsed.messages[0].lineNumber);
+    // Second note maps to second message
+    expect(map.get(notes[1].lineNumber)).toBe(parsed.messages[1].lineNumber);
+  });
+
+  it('handles notes inside blocks', () => {
+    const parsed = parseSequenceDgmo([
+      'A -> B: setup',
+      'if condition',
+      '  A -> B: action',
+      '  note right of A: inside block',
+      'A -> B: done',
+    ].join('\n'));
+
+    const map = buildNoteMessageMap(parsed.elements);
+    expect(map.size).toBe(1);
   });
 });

@@ -115,6 +115,7 @@ export {
   applyPositionOverrides,
   applyGroupOrdering,
   groupMessagesBySection,
+  buildNoteMessageMap,
 } from './sequence/renderer';
 export type {
   RenderStep,
