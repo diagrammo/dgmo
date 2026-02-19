@@ -1,10 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve, basename, extname } from 'node:path';
-import { JSDOM } from 'jsdom';
 import { Resvg } from '@resvg/resvg-js';
-import { renderD3ForExport } from './d3';
-import { renderEChartsForExport } from './echarts';
-import { parseDgmoChartType, getDgmoFramework } from './dgmo-router';
+import { render } from './render';
 import { getPalette } from './palettes/registry';
 import { DEFAULT_FONT_NAME } from './fonts';
 
@@ -108,18 +105,6 @@ function parseArgs(argv: string[]): {
   return result;
 }
 
-function setupDom(): void {
-  const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>');
-  const win = dom.window;
-
-  // Expose DOM globals needed by d3-selection and renderers
-  Object.defineProperty(globalThis, 'document', { value: win.document, configurable: true });
-  Object.defineProperty(globalThis, 'window', { value: win, configurable: true });
-  Object.defineProperty(globalThis, 'navigator', { value: win.navigator, configurable: true });
-  Object.defineProperty(globalThis, 'HTMLElement', { value: win.HTMLElement, configurable: true });
-  Object.defineProperty(globalThis, 'SVGElement', { value: win.SVGElement, configurable: true });
-}
-
 function inferFormat(outputPath: string | undefined): 'svg' | 'png' {
   if (outputPath && extname(outputPath).toLowerCase() === '.svg') {
     return 'svg';
@@ -217,27 +202,12 @@ async function main(): Promise<void> {
     noInput();
   }
 
-  const isDark = opts.theme === 'dark';
-  const paletteColors = isDark
-    ? getPalette(opts.palette).dark
-    : getPalette(opts.palette).light;
+  const paletteColors = getPalette(opts.palette)[opts.theme === 'dark' ? 'dark' : 'light'];
 
-  // Determine which rendering framework to use
-  const chartType = parseDgmoChartType(content);
-  const framework = chartType ? getDgmoFramework(chartType) : null;
-
-  let svg: string;
-
-  if (framework === 'echart') {
-    svg = await renderEChartsForExport(content, opts.theme, paletteColors);
-  } else if (framework === 'd3' || framework === null) {
-    // Set up jsdom before any d3/renderer code runs
-    setupDom();
-    svg = await renderD3ForExport(content, opts.theme, paletteColors);
-  } else {
-    console.error(`Error: Unknown chart framework "${framework}".`);
-    process.exit(1);
-  }
+  const svg = await render(content, {
+    theme: opts.theme,
+    palette: opts.palette,
+  });
 
   if (!svg) {
     console.error(
