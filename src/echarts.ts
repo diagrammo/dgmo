@@ -538,6 +538,7 @@ function buildSankeyOption(
         type: 'sankey',
         emphasis: {
           focus: 'adjacency',
+          blurScope: 'global' as const,
         },
         nodeAlign: 'left',
         nodeGap: 12,
@@ -745,6 +746,10 @@ function buildFunctionOption(
       },
       itemStyle: {
         color: fnColor,
+      },
+      emphasis: {
+        focus: 'self' as const,
+        blurScope: 'global' as const,
       },
     };
   });
@@ -1116,6 +1121,8 @@ function buildHeatmapOption(
           fontWeight: 'bold' as const,
         },
         emphasis: {
+          focus: 'self' as const,
+          blurScope: 'global' as const,
           itemStyle: {
             shadowBlur: 10,
             shadowColor: 'rgba(0, 0, 0, 0.5)',
@@ -1210,6 +1217,8 @@ function buildFunnelOption(
           lineStyle: { color: textColor, opacity: 0.3 },
         },
         emphasis: {
+          focus: 'self' as const,
+          blurScope: 'global' as const,
           label: {
             fontSize: 15,
           },
@@ -1394,6 +1403,10 @@ function buildBarOption(
       {
         type: 'bar',
         data,
+        emphasis: {
+          focus: 'self' as const,
+          blurScope: 'global' as const,
+        },
       },
     ],
   };
@@ -1442,6 +1455,10 @@ function buildLineOption(
         symbolSize: 8,
         lineStyle: { color: lineColor, width: 3 },
         itemStyle: { color: lineColor },
+        emphasis: {
+          focus: 'self' as const,
+          blurScope: 'global' as const,
+        },
       },
     ],
   };
@@ -1476,6 +1493,10 @@ function buildMultiLineOption(
       symbolSize: 8,
       lineStyle: { color, width: 3 },
       itemStyle: { color },
+      emphasis: {
+        focus: 'self' as const,
+        blurScope: 'global' as const,
+      },
     };
   });
 
@@ -1550,6 +1571,10 @@ function buildAreaOption(
         lineStyle: { color: lineColor, width: 3 },
         itemStyle: { color: lineColor },
         areaStyle: { opacity: 0.25 },
+        emphasis: {
+          focus: 'self' as const,
+          blurScope: 'global' as const,
+        },
       },
     ],
   };
@@ -1591,6 +1616,10 @@ function buildPieOption(
           fontFamily: FONT_FAMILY,
         },
         labelLine: { show: true },
+        emphasis: {
+          focus: 'self' as const,
+          blurScope: 'global' as const,
+        },
       },
     ],
   };
@@ -1660,6 +1689,10 @@ function buildRadarOption(
             },
           },
         ],
+        emphasis: {
+          focus: 'self' as const,
+          blurScope: 'global' as const,
+        },
       },
     ],
   };
@@ -1701,6 +1734,10 @@ function buildPolarAreaOption(
           fontFamily: FONT_FAMILY,
         },
         labelLine: { show: true },
+        emphasis: {
+          focus: 'self' as const,
+          blurScope: 'global' as const,
+        },
       },
     ],
   };
@@ -1742,6 +1779,10 @@ function buildBarStackedOption(
         fontSize: 14,
         fontWeight: 'bold' as const,
         fontFamily: FONT_FAMILY,
+      },
+      emphasis: {
+        focus: 'self' as const,
+        blurScope: 'global' as const,
       },
     };
   });

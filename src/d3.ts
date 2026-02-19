@@ -1179,6 +1179,12 @@ export function renderSlopeChart(
   data.forEach((item, idx) => {
     const color = item.color ?? colors[idx % colors.length];
 
+    // Wrap each series in a group with data-line-number for sync adapter
+    const seriesG = g
+      .append('g')
+      .attr('class', 'slope-series')
+      .attr('data-line-number', String(item.lineNumber));
+
     // Tooltip content – overall change for this series
     const firstVal = item.values[0];
     const lastVal = item.values[item.values.length - 1];
@@ -1193,7 +1199,7 @@ export function renderSlopeChart(
       `Change: ${sign}${absChange}${pctPart}`;
 
     // Line
-    g.append('path')
+    seriesG.append('path')
       .datum(item.values)
       .attr('fill', 'none')
       .attr('stroke', color)
@@ -1201,7 +1207,7 @@ export function renderSlopeChart(
       .attr('d', lineGen);
 
     // Invisible wider path for easier hover targeting
-    g.append('path')
+    seriesG.append('path')
       .datum(item.values)
       .attr('fill', 'none')
       .attr('stroke', 'transparent')
@@ -1225,7 +1231,7 @@ export function renderSlopeChart(
       const y = yScale(val);
 
       // Point circle
-      g.append('circle')
+      seriesG.append('circle')
         .attr('cx', x)
         .attr('cy', y)
         .attr('r', 4)
@@ -1248,7 +1254,7 @@ export function renderSlopeChart(
       const isFirst = i === 0;
       const isLast = i === periods.length - 1;
       if (!isLast) {
-        g.append('text')
+        seriesG.append('text')
           .attr('x', isFirst ? x - 10 : x)
           .attr('y', y)
           .attr('dy', '0.35em')
@@ -1266,7 +1272,7 @@ export function renderSlopeChart(
     const availableWidth = rightMargin - 15;
     const maxChars = Math.floor(availableWidth / SLOPE_CHAR_WIDTH);
 
-    const labelEl = g
+    const labelEl = seriesG
       .append('text')
       .attr('x', lastX + 10)
       .attr('y', lastY)
@@ -1640,6 +1646,7 @@ export function renderArcDiagram(
         g.append('rect')
           .attr('class', 'arc-group-band')
           .attr('data-group', group.name)
+          .attr('data-line-number', String(group.lineNumber))
           .attr('x', baseX - bandHalfW)
           .attr('y', minY)
           .attr('width', bandHalfW * 2)
@@ -1657,6 +1664,7 @@ export function renderArcDiagram(
         g.append('text')
           .attr('class', 'arc-group-label')
           .attr('data-group', group.name)
+          .attr('data-line-number', String(group.lineNumber))
           .attr('x', baseX - bandHalfW + 6)
           .attr('y', minY + 14)
           .attr('fill', textColor)
@@ -1696,6 +1704,7 @@ export function renderArcDiagram(
         .attr('class', 'arc-link')
         .attr('data-source', link.source)
         .attr('data-target', link.target)
+        .attr('data-line-number', String(link.lineNumber))
         .attr('d', `M ${baseX},${y1} Q ${controlX},${midY} ${baseX},${y2}`)
         .attr('fill', 'none')
         .attr('stroke', color)
@@ -1720,6 +1729,7 @@ export function renderArcDiagram(
         .append('g')
         .attr('class', 'arc-node')
         .attr('data-node', node)
+        .attr('data-line-number', nodeLink?.lineNumber ? String(nodeLink.lineNumber) : null)
         .style('cursor', 'pointer')
         .on('mouseenter', () => handleMouseEnter(node))
         .on('mouseleave', handleMouseLeave)
@@ -1773,6 +1783,7 @@ export function renderArcDiagram(
         g.append('rect')
           .attr('class', 'arc-group-band')
           .attr('data-group', group.name)
+          .attr('data-line-number', String(group.lineNumber))
           .attr('x', minX)
           .attr('y', baseY - bandHalfH)
           .attr('width', maxX - minX)
@@ -1790,6 +1801,7 @@ export function renderArcDiagram(
         g.append('text')
           .attr('class', 'arc-group-label')
           .attr('data-group', group.name)
+          .attr('data-line-number', String(group.lineNumber))
           .attr('x', (minX + maxX) / 2)
           .attr('y', baseY + bandHalfH - 4)
           .attr('text-anchor', 'middle')
@@ -1830,6 +1842,7 @@ export function renderArcDiagram(
         .attr('class', 'arc-link')
         .attr('data-source', link.source)
         .attr('data-target', link.target)
+        .attr('data-line-number', String(link.lineNumber))
         .attr('d', `M ${x1},${baseY} Q ${midX},${controlY} ${x2},${baseY}`)
         .attr('fill', 'none')
         .attr('stroke', color)
@@ -1854,6 +1867,7 @@ export function renderArcDiagram(
         .append('g')
         .attr('class', 'arc-node')
         .attr('data-node', node)
+        .attr('data-line-number', nodeLink?.lineNumber ? String(nodeLink.lineNumber) : null)
         .style('cursor', 'pointer')
         .on('mouseenter', () => handleMouseEnter(node))
         .on('mouseleave', handleMouseLeave)
@@ -2019,6 +2033,7 @@ function renderMarkers(
       .append('g')
       .attr('class', 'tl-marker')
       .attr('data-marker-date', String(dateVal))
+      .attr('data-line-number', String(marker.lineNumber))
       .style('cursor', 'pointer')
       .on('mouseenter', function (event: MouseEvent) {
         if (tooltip) {
@@ -2880,6 +2895,7 @@ export function renderTimeline(
             .append('g')
             .attr('class', 'tl-event')
             .attr('data-group', laneName)
+            .attr('data-line-number', String(ev.lineNumber))
             .attr('data-date', String(parseTimelineDate(ev.date)))
             .attr(
               'data-end-date',
@@ -3090,6 +3106,7 @@ export function renderTimeline(
           .append('g')
           .attr('class', 'tl-event')
           .attr('data-group', ev.group || '')
+          .attr('data-line-number', String(ev.lineNumber))
           .attr('data-date', String(parseTimelineDate(ev.date)))
           .attr(
             'data-end-date',
@@ -3363,6 +3380,7 @@ export function renderTimeline(
           .append('g')
           .attr('class', 'tl-event')
           .attr('data-group', lane.name)
+          .attr('data-line-number', String(ev.lineNumber))
           .attr('data-date', String(parseTimelineDate(ev.date)))
           .attr(
             'data-end-date',
@@ -3643,6 +3661,7 @@ export function renderTimeline(
         .append('g')
         .attr('class', 'tl-event')
         .attr('data-group', ev.group || '')
+        .attr('data-line-number', String(ev.lineNumber))
         .attr('data-date', String(parseTimelineDate(ev.date)))
         .attr(
           'data-end-date',
@@ -3895,6 +3914,10 @@ export function renderWordCloud(
           'transform',
           (d) => `translate(${d.x},${d.y}) rotate(${d.rotate})`
         )
+        .attr('data-line-number', (d) => {
+          const ln = (d as WordCloudWord).lineNumber;
+          return ln ? String(ln) : null;
+        })
         .text((d) => d.text!)
         .on('click', (_event, d) => {
           const ln = (d as WordCloudWord).lineNumber;
@@ -4594,6 +4617,7 @@ export function renderVenn(
       .attr('cy', c.y)
       .attr('r', c.r)
       .attr('fill', 'transparent')
+      .attr('data-line-number', String(vennSets[i].lineNumber))
       .style('cursor', onClickItem ? 'pointer' : 'default')
       .on('mouseenter', (event: MouseEvent) => {
         for (const rg of regionGroups) {
@@ -4848,6 +4872,9 @@ export function renderQuadrant(
     .attr('fill', (d) => getQuadrantLabelColor(d))
     .attr('font-size', '48px')
     .attr('font-weight', '700')
+    .attr('data-line-number', (d) =>
+      d.label?.lineNumber ? String(d.label.lineNumber) : null
+    )
     .style('cursor', (d) =>
       onClickItem && d.label?.lineNumber ? 'pointer' : 'default'
     )
@@ -4871,11 +4898,13 @@ export function renderQuadrant(
     // Low label (centered on left half)
     const xLowLabel = svg
       .append('text')
+      .attr('class', 'quadrant-axis-label')
       .attr('x', margin.left + chartWidth / 4)
       .attr('y', height - 20)
       .attr('text-anchor', 'middle')
       .attr('fill', textColor)
       .attr('font-size', '18px')
+      .attr('data-line-number', quadrantXAxisLineNumber ? String(quadrantXAxisLineNumber) : null)
       .style(
         'cursor',
         onClickItem && quadrantXAxisLineNumber ? 'pointer' : 'default'
@@ -4885,11 +4914,13 @@ export function renderQuadrant(
     // High label (centered on right half)
     const xHighLabel = svg
       .append('text')
+      .attr('class', 'quadrant-axis-label')
       .attr('x', margin.left + (chartWidth * 3) / 4)
       .attr('y', height - 20)
       .attr('text-anchor', 'middle')
       .attr('fill', textColor)
       .attr('font-size', '18px')
+      .attr('data-line-number', quadrantXAxisLineNumber ? String(quadrantXAxisLineNumber) : null)
       .style(
         'cursor',
         onClickItem && quadrantXAxisLineNumber ? 'pointer' : 'default'
@@ -4918,12 +4949,14 @@ export function renderQuadrant(
     // Low label (centered on bottom half)
     const yLowLabel = svg
       .append('text')
+      .attr('class', 'quadrant-axis-label')
       .attr('x', 22)
       .attr('y', yMidBottom)
       .attr('text-anchor', 'middle')
       .attr('fill', textColor)
       .attr('font-size', '18px')
       .attr('transform', `rotate(-90, 22, ${yMidBottom})`)
+      .attr('data-line-number', quadrantYAxisLineNumber ? String(quadrantYAxisLineNumber) : null)
       .style(
         'cursor',
         onClickItem && quadrantYAxisLineNumber ? 'pointer' : 'default'
@@ -4933,12 +4966,14 @@ export function renderQuadrant(
     // High label (centered on top half)
     const yHighLabel = svg
       .append('text')
+      .attr('class', 'quadrant-axis-label')
       .attr('x', 22)
       .attr('y', yMidTop)
       .attr('text-anchor', 'middle')
       .attr('fill', textColor)
       .attr('font-size', '18px')
       .attr('transform', `rotate(-90, 22, ${yMidTop})`)
+      .attr('data-line-number', quadrantYAxisLineNumber ? String(quadrantYAxisLineNumber) : null)
       .style(
         'cursor',
         onClickItem && quadrantYAxisLineNumber ? 'pointer' : 'default'
@@ -4997,7 +5032,8 @@ export function renderQuadrant(
     const pointColor =
       quadDef?.label?.color ?? defaultColors[quadDef?.colorIdx ?? 0];
 
-    const pointG = pointsG.append('g').attr('class', 'point-group');
+    const pointG = pointsG.append('g').attr('class', 'point-group')
+      .attr('data-line-number', String(point.lineNumber));
 
     // Circle with white fill and colored border for visibility on opaque quadrants
     pointG
