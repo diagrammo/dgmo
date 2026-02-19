@@ -32,6 +32,7 @@ export interface ParsedChart {
   orientation?: 'horizontal' | 'vertical';
   color?: string;
   label?: string;
+  labels?: 'name' | 'value' | 'percent' | 'full';
   data: ChartDataPoint[];
   error?: string;
 }
@@ -137,6 +138,14 @@ export function parseChart(
 
     if (key === 'label') {
       result.label = value;
+      continue;
+    }
+
+    if (key === 'labels') {
+      const v = value.toLowerCase();
+      if (v === 'name' || v === 'value' || v === 'percent' || v === 'full') {
+        result.labels = v;
+      }
       continue;
     }
 
