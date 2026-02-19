@@ -1580,6 +1580,17 @@ function buildAreaOption(
   };
 }
 
+// ── Segment label formatter ──────────────────────────────────
+
+function segmentLabelFormatter(mode: ParsedChart['labels']): string {
+  switch (mode) {
+    case 'name':    return '{b}';
+    case 'value':   return '{b} — {c}';
+    case 'percent': return '{b} — {d}%';
+    default:        return '{b} — {c} ({d}%)';
+  }
+}
+
 // ── Pie / Doughnut ───────────────────────────────────────────
 
 function buildPieOption(
@@ -1611,7 +1622,7 @@ function buildPieOption(
         data,
         label: {
           position: 'outside',
-          formatter: '{b} — {c} ({d}%)',
+          formatter: segmentLabelFormatter(parsed.labels),
           color: textColor,
           fontFamily: FONT_FAMILY,
         },
@@ -1729,7 +1740,7 @@ function buildPolarAreaOption(
         data,
         label: {
           position: 'outside',
-          formatter: '{b} — {c} ({d}%)',
+          formatter: segmentLabelFormatter(parsed.labels),
           color: textColor,
           fontFamily: FONT_FAMILY,
         },

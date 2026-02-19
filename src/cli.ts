@@ -204,6 +204,16 @@ async function main(): Promise<void> {
 
   const paletteColors = getPalette(opts.palette)[opts.theme === 'dark' ? 'dark' : 'light'];
 
+  // Word clouds require Canvas APIs (HTMLCanvasElement.getContext('2d'))
+  // which are unavailable in Node.js — check before attempting render.
+  const wordcloudRe = /^\s*chart\s*:\s*wordcloud\b/im;
+  if (wordcloudRe.test(content)) {
+    console.error(
+      'Error: Word clouds are not supported in the CLI (requires Canvas). Use the desktop app or browser instead.'
+    );
+    process.exit(1);
+  }
+
   const svg = await render(content, {
     theme: opts.theme,
     palette: opts.palette,
