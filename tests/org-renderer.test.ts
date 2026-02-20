@@ -131,11 +131,55 @@ Bob
     expect(alice.color).not.toBe(bob.color);
   });
 
+  it('computes container bounds for containers with children', () => {
+    const parsed = parseOrg(
+      'chart: org\n[Engineering]\n  Alice\n  Bob'
+    );
+    const layout = layoutOrg(parsed);
+
+    expect(layout.containers).toHaveLength(1);
+    const c = layout.containers[0];
+    expect(c.label).toBe('Engineering');
+    expect(c.width).toBeGreaterThan(0);
+    expect(c.height).toBeGreaterThan(0);
+    // Box should encompass children
+    const alice = layout.nodes.find((n) => n.label === 'Alice')!;
+    const bob = layout.nodes.find((n) => n.label === 'Bob')!;
+    expect(c.x).toBeLessThanOrEqual(alice.x - alice.width / 2);
+    expect(c.x + c.width).toBeGreaterThanOrEqual(bob.x + bob.width / 2);
+  });
+
+  it('does not create container bounds for childless containers', () => {
+    const parsed = parseOrg('chart: org\n[Empty Team]');
+    const layout = layoutOrg(parsed);
+
+    expect(layout.containers).toHaveLength(0);
+    expect(layout.nodes).toHaveLength(1);
+    expect(layout.nodes[0].isContainer).toBe(true);
+  });
+
+  it('creates nested container bounds', () => {
+    const parsed = parseOrg(
+      '[Engineering]\n  [Platform]\n    Alice\n  [Frontend]\n    Bob'
+    );
+    const layout = layoutOrg(parsed);
+
+    // Engineering + Platform + Frontend (all have children)
+    expect(layout.containers).toHaveLength(3);
+    const eng = layout.containers.find((c) => c.label === 'Engineering')!;
+    const plat = layout.containers.find((c) => c.label === 'Platform')!;
+    expect(eng).toBeDefined();
+    expect(plat).toBeDefined();
+    // Engineering box should be larger than Platform box
+    expect(eng.width).toBeGreaterThanOrEqual(plat.width);
+  });
+
   it('returns empty result for empty input', () => {
     const parsed = parseOrg('chart: org');
     const layout = layoutOrg(parsed);
     expect(layout.nodes).toHaveLength(0);
     expect(layout.edges).toHaveLength(0);
+    expect(layout.containers).toHaveLength(0);
   });
 
   it('produces positive width and height', () => {
@@ -182,11 +226,21 @@ Alice
     expect(svg).toBe('');
   });
 
-  it('renders containers with dashed borders', () => {
+  it('renders containers with children as background boxes', () => {
     const input = `chart: org
 Alice
   [Platform Team]
     Bob`;
+    const svg = renderOrgForExport(input, 'light', palette.light);
+    expect(svg).toContain('org-container');
+    // Container children rendered as normal cards, not the container itself
+    expect(svg).toContain('Bob');
+  });
+
+  it('renders childless containers with dashed borders', () => {
+    const input = `chart: org
+Alice
+  [Empty Team]`;
     const svg = renderOrgForExport(input, 'light', palette.light);
     expect(svg).toContain('stroke-dasharray');
   });

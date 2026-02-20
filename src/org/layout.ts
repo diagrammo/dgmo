@@ -28,9 +28,23 @@ export interface OrgLayoutEdge {
   points: { x: number; y: number }[];
 }
 
+export interface OrgContainerBounds {
+  nodeId: string;
+  label: string;
+  lineNumber: number;
+  color?: string;
+  metadata: Record<string, string>;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  labelHeight: number;
+}
+
 export interface OrgLayoutResult {
   nodes: OrgLayoutNode[];
   edges: OrgLayoutEdge[];
+  containers: OrgContainerBounds[];
   width: number;
   height: number;
 }
@@ -51,6 +65,10 @@ const MIN_CARD_WIDTH = 140;
 const H_GAP = 30;
 const V_GAP = 50;
 const MARGIN = 40;
+const CONTAINER_PAD_X = 16;
+const CONTAINER_PAD_BOTTOM = 12;
+const CONTAINER_LABEL_HEIGHT = 28;
+const CONTAINER_META_LINE_HEIGHT = 16;
 
 // ============================================================
 // Card Sizing
@@ -126,7 +144,7 @@ function buildTreeNodes(nodes: OrgNode[]): TreeNode[] {
 
 export function layoutOrg(parsed: ParsedOrg): OrgLayoutResult {
   if (parsed.roots.length === 0) {
-    return { nodes: [], edges: [], width: 0, height: 0 };
+    return { nodes: [], edges: [], containers: [], width: 0, height: 0 };
   }
 
   // Build tree structure
@@ -252,13 +270,105 @@ export function layoutOrg(parsed: ParsedOrg): OrgLayoutResult {
     }
   }
 
-  // Bounding box
-  const totalWidth = maxX - minX + MARGIN * 2;
-  const totalHeight = maxY - minY + MARGIN * 2;
+  // Compute container bounds from d3 hierarchy
+  const containers: OrgContainerBounds[] = [];
+  for (const d of h.descendants()) {
+    if (d.data.orgNode.id === '__virtual_root__') continue;
+    if (!d.data.orgNode.isContainer) continue;
+    if (!d.children || d.children.length === 0) continue;
+
+    // Collect all descendants (not just direct children)
+    const allDesc: typeof d[] = [];
+    const collectDesc = (node: typeof d) => {
+      if (node.children) {
+        for (const child of node.children) {
+          allDesc.push(child);
+          collectDesc(child);
+        }
+      }
+    };
+    collectDesc(d);
+
+    if (allDesc.length === 0) continue;
+
+    // Compute bounding box from all descendants
+    let descMinX = Infinity;
+    let descMaxX = -Infinity;
+    let descMaxY = -Infinity;
+
+    for (const desc of allDesc) {
+      const dw = desc.data.width;
+      const dh = desc.data.height;
+      const dx = desc.x! + offsetX;
+      const dy = desc.y! + offsetY;
+
+      if (dx - dw / 2 < descMinX) descMinX = dx - dw / 2;
+      if (dx + dw / 2 > descMaxX) descMaxX = dx + dw / 2;
+      if (dy + dh > descMaxY) descMaxY = dy + dh;
+    }
+
+    const containerX = d.x! + offsetX;
+    const containerY = d.y! + offsetY;
+    const metaCount = Object.keys(d.data.orgNode.metadata).length;
+    const labelHeight =
+      CONTAINER_LABEL_HEIGHT + metaCount * CONTAINER_META_LINE_HEIGHT;
+
+    // Box top = container's own y, extends to cover all children
+    const boxX = descMinX - CONTAINER_PAD_X;
+    const boxWidth = Math.max(
+      descMaxX - descMinX + CONTAINER_PAD_X * 2,
+      d.data.width
+    );
+    const boxY = containerY;
+    const boxHeight = descMaxY - containerY + CONTAINER_PAD_BOTTOM;
+
+    // Ensure box is centered around container x position
+    const boxCenterX = boxX + (descMaxX - descMinX + CONTAINER_PAD_X * 2) / 2;
+    const containerCenterX = containerX;
+    const finalBoxX = boxX + (containerCenterX - boxCenterX);
+    const finalBoxWidth = Math.max(
+      boxWidth,
+      (Math.max(
+        Math.abs(descMaxX + CONTAINER_PAD_X - containerCenterX),
+        Math.abs(containerCenterX - descMinX + CONTAINER_PAD_X)
+      )) * 2
+    );
+    const centeredBoxX = containerCenterX - finalBoxWidth / 2;
+
+    containers.push({
+      nodeId: d.data.orgNode.id,
+      label: d.data.orgNode.label,
+      lineNumber: d.data.orgNode.lineNumber,
+      color: resolveTagColor(d.data.orgNode, parsed.tagGroups),
+      metadata: d.data.orgNode.metadata,
+      x: centeredBoxX,
+      y: boxY,
+      width: finalBoxWidth,
+      height: boxHeight,
+      labelHeight,
+    });
+  }
+
+  // Bounding box — expand for container backgrounds that may extend beyond nodes
+  let finalMinX = minX;
+  let finalMaxX = maxX;
+  let finalMaxY = maxY;
+  for (const c of containers) {
+    const cLeft = c.x - offsetX + minX;
+    const cRight = cLeft + c.width;
+    const cBottom = c.y - offsetY + minY + c.height;
+    if (cLeft < finalMinX) finalMinX = cLeft;
+    if (cRight > finalMaxX) finalMaxX = cRight;
+    if (cBottom > finalMaxY) finalMaxY = cBottom;
+  }
+
+  const totalWidth = finalMaxX - finalMinX + MARGIN * 2;
+  const totalHeight = finalMaxY - minY + MARGIN * 2;
 
   return {
     nodes: layoutNodes,
     edges: layoutEdges,
+    containers,
     width: totalWidth,
     height: totalHeight,
   };
