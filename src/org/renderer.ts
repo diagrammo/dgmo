@@ -114,13 +114,13 @@ export function renderOrg(
   const diagramH = layout.height + titleOffset;
   const scaleX = (width - DIAGRAM_PADDING * 2) / diagramW;
   const scaleY = (height - DIAGRAM_PADDING * 2) / diagramH;
-  const scale = Math.min(1, scaleX, scaleY);
+  const scale = Math.min(scaleX, scaleY);
 
   // Center the diagram
   const scaledW = diagramW * scale;
   const scaledH = diagramH * scale;
   const offsetX = (width - scaledW) / 2;
-  const offsetY = (height - scaledH) / 2;
+  const offsetY = DIAGRAM_PADDING;
 
   // Create SVG
   const svg = d3Selection
