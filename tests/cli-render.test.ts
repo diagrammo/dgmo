@@ -79,6 +79,12 @@ Low Impact, High Effort: 80, 20`,
 (Start) -> [Process] -> <Check?>
   -yes-> (End)
   -no-> [Retry] -> (Start)`,
+
+  org: `chart: org
+Jane Smith
+  role: CEO
+  Alex Chen
+    role: CTO`,
 };
 
 // All D3 types now render in JSDOM via explicit dimensions (Epic 41)

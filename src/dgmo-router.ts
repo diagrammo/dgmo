@@ -46,6 +46,7 @@ export const DGMO_CHART_TYPE_MAP: Record<string, DgmoFramework> = {
   quadrant: 'd3',
   sequence: 'd3',
   flowchart: 'd3',
+  org: 'd3',
 };
 
 /**

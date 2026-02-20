@@ -1,0 +1,17 @@
+chart: org
+title: Small Startup
+
+Jane Smith
+  role: CEO
+
+  Alex Chen
+    role: CTO
+
+  Maria Lopez
+    role: Head of Design
+
+  Sam Wilson
+    role: Head of Sales
+
+    Tom Brown
+      role: Account Executive

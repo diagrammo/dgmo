@@ -77,6 +77,14 @@ export type {
   GraphDirection,
 } from './graph/types';
 
+export { parseOrg } from './org/parser';
+export type {
+  ParsedOrg,
+  OrgNode,
+  OrgTagGroup,
+  OrgTagEntry,
+} from './org/parser';
+
 export { layoutGraph } from './graph/layout';
 export type {
   LayoutResult,
