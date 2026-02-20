@@ -3,7 +3,8 @@ import { JSDOM } from 'jsdom';
 import { parseOrg } from '../src/org/parser';
 import { layoutOrg } from '../src/org/layout';
 import type { OrgLayoutResult } from '../src/org/layout';
-import { renderOrgForExport } from '../src/org/renderer';
+import { renderOrgForExport, renderOrg } from '../src/org/renderer';
+import { collapseOrgTree } from '../src/org/collapse';
 import { getPalette } from '../src/palettes';
 
 // Set up jsdom globals
@@ -264,5 +265,93 @@ Alice
   it('renders edges as paths', () => {
     const svg = renderOrgForExport(basicInput, 'light', palette.light);
     expect(svg).toContain('org-edge');
+  });
+});
+
+// ============================================================
+// Collapse interactivity attributes
+// ============================================================
+
+describe('collapse attributes in rendered SVG', () => {
+  it('adds data-node-toggle on nodes with children', () => {
+    const content = `chart: org
+Alice
+  Bob
+  Carol`;
+    const parsed = parseOrg(content, palette.light);
+    const layout = layoutOrg(parsed);
+
+    const container = document.createElement('div');
+    container.style.width = '800px';
+    container.style.height = '600px';
+    // Need to set client dimensions for renderOrg
+    Object.defineProperty(container, 'clientWidth', { value: 800 });
+    Object.defineProperty(container, 'clientHeight', { value: 600 });
+
+    renderOrg(container, parsed, layout, palette.light, false);
+
+    const svg = container.innerHTML;
+    expect(svg).toContain('data-node-toggle');
+    expect(svg).toContain('aria-expanded="true"');
+    expect(svg).toContain('role="button"');
+  });
+
+  it('does not add data-node-toggle on leaf nodes', () => {
+    const content = `chart: org\nAlice`;
+    const parsed = parseOrg(content, palette.light);
+    const layout = layoutOrg(parsed);
+
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'clientWidth', { value: 800 });
+    Object.defineProperty(container, 'clientHeight', { value: 600 });
+
+    renderOrg(container, parsed, layout, palette.light, false);
+
+    const svg = container.innerHTML;
+    expect(svg).not.toContain('data-node-toggle');
+  });
+
+  it('renders +N badge on collapsed nodes', () => {
+    const content = `chart: org
+Alice
+  Bob
+  Carol`;
+    const parsed = parseOrg(content, palette.light);
+    const aliceId = parsed.roots[0].id;
+    const { parsed: collapsed, hiddenCounts } = collapseOrgTree(
+      parsed,
+      new Set([aliceId])
+    );
+    const layout = layoutOrg(collapsed, hiddenCounts);
+
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'clientWidth', { value: 800 });
+    Object.defineProperty(container, 'clientHeight', { value: 600 });
+
+    renderOrg(container, collapsed, layout, palette.light, false);
+
+    const svg = container.innerHTML;
+    expect(svg).toContain('org-collapse-badge');
+    expect(svg).toContain('+2');
+    expect(svg).toContain('aria-expanded="false"');
+  });
+
+  it('adds data-node-toggle on containers with children', () => {
+    const content = `chart: org
+[Engineering]
+  Alice
+  Bob`;
+    const parsed = parseOrg(content, palette.light);
+    const layout = layoutOrg(parsed);
+
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'clientWidth', { value: 800 });
+    Object.defineProperty(container, 'clientHeight', { value: 600 });
+
+    renderOrg(container, parsed, layout, palette.light, false);
+
+    const svg = container.innerHTML;
+    // Container should have toggle
+    expect(svg).toContain('data-node-toggle');
   });
 });

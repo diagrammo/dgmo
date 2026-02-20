@@ -180,6 +180,21 @@ export function renderOrg(
       .attr('class', 'org-container')
       .attr('data-line-number', String(c.lineNumber)) as GSelection;
 
+    // Toggle attribute for containers that have (or had) children
+    if (c.hasChildren) {
+      cG.attr('data-node-toggle', c.nodeId)
+        .attr('tabindex', '0')
+        .attr('role', 'button')
+        .attr(
+          'aria-expanded',
+          String(!c.hiddenCount)
+        )
+        .attr(
+          'aria-label',
+          `${c.label}${c.hiddenCount ? `, +${c.hiddenCount} hidden` : ''}`
+        );
+    }
+
     if (onClickItem) {
       cG.style('cursor', 'pointer').on('click', () => {
         onClickItem(c.lineNumber);
@@ -235,6 +250,38 @@ export function renderOrg(
           .text(value);
       }
     }
+
+    // "+N" badge for collapsed containers
+    if (c.hiddenCount && c.hiddenCount > 0) {
+      const badgeText = `+${c.hiddenCount}`;
+      const badgeW = Math.max(28, badgeText.length * 8 + 12);
+      const badgeH = 18;
+      const badgeX = c.width / 2 - badgeW / 2;
+      const badgeY = c.height - badgeH - 6;
+
+      const badgeG = cG
+        .append('g')
+        .attr('class', 'org-collapse-badge')
+        .attr('transform', `translate(${badgeX}, ${badgeY})`);
+
+      badgeG
+        .append('rect')
+        .attr('width', badgeW)
+        .attr('height', badgeH)
+        .attr('rx', badgeH / 2)
+        .attr('fill', palette.primary)
+        .attr('opacity', 0.85);
+
+      badgeG
+        .append('text')
+        .attr('x', badgeW / 2)
+        .attr('y', badgeH / 2 + 4)
+        .attr('text-anchor', 'middle')
+        .attr('fill', '#ffffff')
+        .attr('font-size', 10)
+        .attr('font-weight', 'bold')
+        .text(badgeText);
+    }
   }
 
   // Render edges
@@ -271,6 +318,19 @@ export function renderOrg(
       )
       .attr('class', 'org-node')
       .attr('data-line-number', String(node.lineNumber)) as GSelection;
+
+    // Toggle attribute for nodes that have (or had) children
+    if (node.hasChildren) {
+      nodeG
+        .attr('data-node-toggle', node.id)
+        .attr('tabindex', '0')
+        .attr('role', 'button')
+        .attr('aria-expanded', String(!node.hiddenCount))
+        .attr(
+          'aria-label',
+          `${node.label}${node.hiddenCount ? `, +${node.hiddenCount} hidden` : ''}`
+        );
+    }
 
     if (onClickItem) {
       nodeG.style('cursor', 'pointer').on('click', () => {
@@ -348,6 +408,38 @@ export function renderOrg(
           .attr('font-size', META_FONT_SIZE)
           .text(value);
       }
+    }
+
+    // "+N" badge for collapsed nodes
+    if (node.hiddenCount && node.hiddenCount > 0) {
+      const badgeText = `+${node.hiddenCount}`;
+      const badgeW = Math.max(28, badgeText.length * 8 + 12);
+      const badgeH = 18;
+      const badgeX = node.width / 2 - badgeW / 2;
+      const badgeY = node.height - badgeH - 4;
+
+      const badgeG = nodeG
+        .append('g')
+        .attr('class', 'org-collapse-badge')
+        .attr('transform', `translate(${badgeX}, ${badgeY})`);
+
+      badgeG
+        .append('rect')
+        .attr('width', badgeW)
+        .attr('height', badgeH)
+        .attr('rx', badgeH / 2)
+        .attr('fill', palette.primary)
+        .attr('opacity', 0.85);
+
+      badgeG
+        .append('text')
+        .attr('x', badgeW / 2)
+        .attr('y', badgeH / 2 + 4)
+        .attr('text-anchor', 'middle')
+        .attr('fill', '#ffffff')
+        .attr('font-size', 10)
+        .attr('font-weight', 'bold')
+        .text(badgeText);
     }
   }
 }

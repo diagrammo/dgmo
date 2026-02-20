@@ -95,6 +95,9 @@ export type {
 
 export { renderOrg, renderOrgForExport } from './org/renderer';
 
+export { collapseOrgTree } from './org/collapse';
+export type { CollapsedOrgResult } from './org/collapse';
+
 export { layoutGraph } from './graph/layout';
 export type {
   LayoutResult,

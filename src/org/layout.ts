@@ -20,6 +20,10 @@ export interface OrgLayoutNode {
   y: number;
   width: number;
   height: number;
+  /** Count of hidden descendants when this node is collapsed */
+  hiddenCount?: number;
+  /** True if node has children (expanded or collapsed) — drives toggle UI */
+  hasChildren?: boolean;
 }
 
 export interface OrgLayoutEdge {
@@ -39,6 +43,10 @@ export interface OrgContainerBounds {
   width: number;
   height: number;
   labelHeight: number;
+  /** Count of hidden descendants when this container is collapsed */
+  hiddenCount?: number;
+  /** True if container has children (expanded or collapsed) — drives toggle UI */
+  hasChildren?: boolean;
 }
 
 export interface OrgLayoutResult {
@@ -143,7 +151,10 @@ function buildTreeNodes(nodes: OrgNode[]): TreeNode[] {
 // Layout
 // ============================================================
 
-export function layoutOrg(parsed: ParsedOrg): OrgLayoutResult {
+export function layoutOrg(
+  parsed: ParsedOrg,
+  hiddenCounts?: Map<string, number>
+): OrgLayoutResult {
   if (parsed.roots.length === 0) {
     return { nodes: [], edges: [], containers: [], width: 0, height: 0 };
   }
@@ -411,6 +422,7 @@ export function layoutOrg(parsed: ParsedOrg): OrgLayoutResult {
 
   // Add expanded stack children as layout nodes
   for (const ec of expandedChildren) {
+    const hc = hiddenCounts?.get(ec.orgNode.id);
     layoutNodes.push({
       id: ec.orgNode.id,
       label: ec.orgNode.label,
@@ -422,6 +434,8 @@ export function layoutOrg(parsed: ParsedOrg): OrgLayoutResult {
       y: ec.cy + offsetY,
       width: ec.width,
       height: ec.height,
+      hiddenCount: hc,
+      hasChildren: (ec.orgNode.children.length > 0 || (hc != null && hc > 0)) || undefined,
     });
   }
 
@@ -435,6 +449,7 @@ export function layoutOrg(parsed: ParsedOrg): OrgLayoutResult {
     const x = d.x! + offsetX;
     const y = d.y! + offsetY;
 
+    const hc = hiddenCounts?.get(orgNode.id);
     layoutNodes.push({
       id: orgNode.id,
       label: orgNode.label,
@@ -446,6 +461,8 @@ export function layoutOrg(parsed: ParsedOrg): OrgLayoutResult {
       y,
       width: w,
       height: ht,
+      hiddenCount: hc,
+      hasChildren: (d.children != null && d.children.length > 0) || (hc != null && hc > 0) || undefined,
     });
 
     // Elbow edges from parent to this node
@@ -520,6 +537,7 @@ export function layoutOrg(parsed: ParsedOrg): OrgLayoutResult {
       maxY: boxY + boxHeight,
     });
 
+    const chc = hiddenCounts?.get(d.data.orgNode.id);
     containers.push({
       nodeId: d.data.orgNode.id,
       label: d.data.orgNode.label,
@@ -531,6 +549,8 @@ export function layoutOrg(parsed: ParsedOrg): OrgLayoutResult {
       width: boxWidth,
       height: boxHeight,
       labelHeight,
+      hiddenCount: chc,
+      hasChildren: (chc != null && chc > 0) || undefined,
     });
   }
 
@@ -623,6 +643,7 @@ export function layoutOrg(parsed: ParsedOrg): OrgLayoutResult {
       maxY: boxY + boxHeight,
     });
 
+    const chc2 = hiddenCounts?.get(d.data.orgNode.id);
     containers.push({
       nodeId: d.data.orgNode.id,
       label: d.data.orgNode.label,
@@ -634,6 +655,8 @@ export function layoutOrg(parsed: ParsedOrg): OrgLayoutResult {
       width: finalBoxWidth,
       height: boxHeight,
       labelHeight,
+      hiddenCount: chc2,
+      hasChildren: true,
     });
   }
 
