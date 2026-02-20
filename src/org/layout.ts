@@ -78,6 +78,7 @@ const CONTAINER_PAD_BOTTOM = 24;
 const CONTAINER_LABEL_HEIGHT = 28;
 const CONTAINER_META_LINE_HEIGHT = 16;
 const STACK_V_GAP = 20;
+const BADGE_ROW_HEIGHT = 18;
 
 // ============================================================
 // Card Sizing
@@ -138,13 +139,20 @@ interface TreeNode {
   height: number;
 }
 
-function buildTreeNodes(nodes: OrgNode[]): TreeNode[] {
-  return nodes.map((orgNode) => ({
-    orgNode,
-    children: buildTreeNodes(orgNode.children),
-    width: computeCardWidth(orgNode),
-    height: computeCardHeight(orgNode),
-  }));
+function buildTreeNodes(
+  nodes: OrgNode[],
+  hiddenCounts?: Map<string, number>
+): TreeNode[] {
+  return nodes.map((orgNode) => {
+    const baseHeight = computeCardHeight(orgNode);
+    const hasBadge = hiddenCounts?.has(orgNode.id) ?? false;
+    return {
+      orgNode,
+      children: buildTreeNodes(orgNode.children, hiddenCounts),
+      width: computeCardWidth(orgNode),
+      height: hasBadge ? baseHeight + BADGE_ROW_HEIGHT : baseHeight,
+    };
+  });
 }
 
 // ============================================================
@@ -160,7 +168,7 @@ export function layoutOrg(
   }
 
   // Build tree structure
-  const treeNodes = buildTreeNodes(parsed.roots);
+  const treeNodes = buildTreeNodes(parsed.roots, hiddenCounts);
 
   // Single root or virtual root for multiple roots
   let root: TreeNode;
