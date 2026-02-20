@@ -196,6 +196,34 @@ export function layoutOrg(parsed: ParsedOrg): OrgLayoutResult {
   ]);
   treeLayout(h);
 
+  // Post-layout: tighten vertical spacing inside containers.
+  // Container-with-children nodes render as background boxes (not cards),
+  // so their children can sit closer to the container header.
+  const levelHeight = maxHeight + V_GAP;
+  for (const d of h.descendants()) {
+    if (d.data.orgNode.id === '__virtual_root__') continue;
+    if (!d.data.orgNode.isContainer) continue;
+    if (!d.children || d.children.length === 0) continue;
+
+    const metaCount = Object.keys(d.data.orgNode.metadata).length;
+    const headerHeight =
+      CONTAINER_LABEL_HEIGHT + metaCount * CONTAINER_META_LINE_HEIGHT;
+    const desiredGap = headerHeight + 15;
+    const shiftUp = levelHeight - desiredGap;
+    if (shiftUp <= 0) continue;
+
+    // Shift all descendants upward
+    const shift = (node: typeof d) => {
+      if (node.children) {
+        for (const child of node.children) {
+          child.y! -= shiftUp;
+          shift(child);
+        }
+      }
+    };
+    shift(d);
+  }
+
   // Collect positioned nodes and edges
   const layoutNodes: OrgLayoutNode[] = [];
   const layoutEdges: OrgLayoutEdge[] = [];
@@ -248,7 +276,17 @@ export function layoutOrg(parsed: ParsedOrg): OrgLayoutResult {
     });
 
     // Elbow edges from parent to this node
-    if (d.parent && d.parent.data.orgNode.id !== '__virtual_root__') {
+    // Skip edges where the parent is a container with children — the
+    // container background box already visually groups its contents
+    const parentIsContainerBox =
+      d.parent?.data.orgNode.isContainer &&
+      d.parent.children &&
+      d.parent.children.length > 0;
+    if (
+      d.parent &&
+      d.parent.data.orgNode.id !== '__virtual_root__' &&
+      !parentIsContainerBox
+    ) {
       const px = d.parent.x! + offsetX;
       const py = d.parent.y! + offsetY;
       const parentH = d.parent.data.height;
