@@ -149,13 +149,12 @@ Bob
     expect(c.x + c.width).toBeGreaterThanOrEqual(bob.x + bob.width / 2);
   });
 
-  it('does not create container bounds for childless containers', () => {
+  it('creates container bounds for childless containers', () => {
     const parsed = parseOrg('chart: org\n[Empty Team]');
     const layout = layoutOrg(parsed);
 
-    expect(layout.containers).toHaveLength(0);
-    expect(layout.nodes).toHaveLength(1);
-    expect(layout.nodes[0].isContainer).toBe(true);
+    expect(layout.containers).toHaveLength(1);
+    expect(layout.containers[0].label).toBe('Empty Team');
   });
 
   it('creates nested container bounds', () => {
@@ -237,12 +236,13 @@ Alice
     expect(svg).toContain('Bob');
   });
 
-  it('renders childless containers with dashed borders', () => {
+  it('renders childless containers as container boxes', () => {
     const input = `chart: org
 Alice
   [Empty Team]`;
     const svg = renderOrgForExport(input, 'light', palette.light);
-    expect(svg).toContain('stroke-dasharray');
+    expect(svg).toContain('org-container');
+    expect(svg).toContain('Empty Team');
   });
 
   it('renders metadata text', () => {
