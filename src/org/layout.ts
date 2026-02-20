@@ -69,6 +69,7 @@ const CONTAINER_PAD_X = 24;
 const CONTAINER_PAD_BOTTOM = 24;
 const CONTAINER_LABEL_HEIGHT = 28;
 const CONTAINER_META_LINE_HEIGHT = 16;
+const STACK_V_GAP = 20;
 
 // ============================================================
 // Card Sizing
@@ -185,6 +186,57 @@ export function layoutOrg(parsed: ParsedOrg): OrgLayoutResult {
   };
   collectNodes(root);
 
+  // Collapse leaf containers: when a container's children are ALL leaves
+  // (no grandchildren), replace them with a single virtual stack node so
+  // the d3 tree allocates a narrow column instead of a wide row.
+  const leafStacks = new Map<
+    string,
+    { children: TreeNode[]; placeholderId: string }
+  >();
+
+  const collapseLeafContainers = (tn: TreeNode): void => {
+    for (const child of tn.children) collapseLeafContainers(child);
+
+    if (
+      tn.orgNode.isContainer &&
+      tn.children.length > 0 &&
+      tn.children.every((c) => c.children.length === 0)
+    ) {
+      const placeholderId = `__stack_${tn.orgNode.id}`;
+      leafStacks.set(tn.orgNode.id, {
+        children: [...tn.children],
+        placeholderId,
+      });
+
+      const maxW = Math.max(...tn.children.map((c) => c.width));
+      // Standardize all children to the widest card width
+      for (const child of tn.children) {
+        child.width = maxW;
+      }
+      const totalH =
+        tn.children.reduce((s, c) => s + c.height, 0) +
+        (tn.children.length - 1) * STACK_V_GAP;
+
+      tn.children = [
+        {
+          orgNode: {
+            id: placeholderId,
+            label: '',
+            metadata: {},
+            children: [],
+            parentId: tn.orgNode.id,
+            isContainer: false,
+            lineNumber: 0,
+          },
+          children: [],
+          width: maxW,
+          height: totalH,
+        },
+      ];
+    }
+  };
+  collapseLeafContainers(root);
+
   // Build d3 hierarchy
   const h = hierarchy<TreeNode>(root, (d) => d.children);
 
@@ -224,6 +276,71 @@ export function layoutOrg(parsed: ParsedOrg): OrgLayoutResult {
     shift(d);
   }
 
+  // Post-layout: compact sibling spacing based on actual subtree widths.
+  // D3 uses uniform nodeSize so narrow stacks get the same gap as wide
+  // subtrees. Process bottom-up so inner subtrees are compact first.
+  {
+    type HNode = (typeof h);
+    const subtreeExtent = (node: HNode): { minX: number; maxX: number } => {
+      let min = Infinity;
+      let max = -Infinity;
+      const walk = (n: HNode) => {
+        // Container boxes extend beyond card bounds by padding
+        const pad = n.data.orgNode.isContainer ? CONTAINER_PAD_X : 0;
+        const l = n.x! - n.data.width / 2 - pad;
+        const r = n.x! + n.data.width / 2 + pad;
+        if (l < min) min = l;
+        if (r > max) max = r;
+        if (n.children) n.children.forEach(walk);
+      };
+      walk(node);
+      return { minX: min, maxX: max };
+    };
+
+    const shiftX = (node: HNode, dx: number) => {
+      node.x! += dx;
+      if (node.children) node.children.forEach((c) => shiftX(c, dx));
+    };
+
+    const internalNodes = h
+      .descendants()
+      .filter((d) => d.children && d.children.length >= 2)
+      .sort((a, b) => b.depth - a.depth);
+
+    for (const parent of internalNodes) {
+      const children = parent.children!;
+
+      const extents = children.map((child) => {
+        const ext = subtreeExtent(child);
+        return {
+          relLeft: ext.minX - child.x!,
+          relRight: ext.maxX - child.x!,
+        };
+      });
+
+      const currentCenter =
+        (children[0].x! + children[children.length - 1].x!) / 2;
+
+      const positions: number[] = [0];
+      for (let i = 1; i < children.length; i++) {
+        const prevRight = positions[i - 1] + extents[i - 1].relRight;
+        positions[i] = prevRight + H_GAP - extents[i].relLeft;
+      }
+
+      const newCenter =
+        (positions[0] + positions[positions.length - 1]) / 2;
+      const centerShift = currentCenter - newCenter;
+
+      for (let i = 0; i < children.length; i++) {
+        const newX = positions[i] + centerShift;
+        const dx = newX - children[i].x!;
+        if (Math.abs(dx) > 0.001) {
+          shiftX(children[i], dx);
+        }
+      }
+    }
+  }
+
   // Collect positioned nodes and edges
   const layoutNodes: OrgLayoutNode[] = [];
   const layoutEdges: OrgLayoutEdge[] = [];
@@ -234,12 +351,44 @@ export function layoutOrg(parsed: ParsedOrg): OrgLayoutResult {
   let minY = Infinity;
   let maxY = -Infinity;
 
+  // Expand leaf container stacks: compute individual child positions
+  // in d3 coordinate space (before offset) so bounding box is correct
+  interface ExpandedChild {
+    orgNode: OrgNode;
+    width: number;
+    height: number;
+    cx: number;
+    cy: number;
+  }
+  const expandedChildren: ExpandedChild[] = [];
+
   for (const d of h.descendants()) {
     if (d.data.orgNode.id === '__virtual_root__') continue;
+    if (!d.data.orgNode.id.startsWith('__stack_')) continue;
+
+    const containerId = d.data.orgNode.id.replace('__stack_', '');
+    const stack = leafStacks.get(containerId);
+    if (!stack) continue;
+
+    let currentY = d.y!;
+    for (const child of stack.children) {
+      expandedChildren.push({
+        orgNode: child.orgNode,
+        width: child.width,
+        height: child.height,
+        cx: d.x!,
+        cy: currentY,
+      });
+      currentY += child.height + STACK_V_GAP;
+    }
+  }
+
+  for (const d of h.descendants()) {
+    if (d.data.orgNode.id === '__virtual_root__') continue;
+    if (d.data.orgNode.id.startsWith('__stack_')) continue;
 
     const w = d.data.width;
     const ht = d.data.height;
-    // d3 tree: x = horizontal, y = depth (vertical)
     const cx = d.x!;
     const cy = d.y!;
 
@@ -249,12 +398,36 @@ export function layoutOrg(parsed: ParsedOrg): OrgLayoutResult {
     if (cy + ht > maxY) maxY = cy + ht;
   }
 
+  for (const ec of expandedChildren) {
+    if (ec.cx - ec.width / 2 < minX) minX = ec.cx - ec.width / 2;
+    if (ec.cx + ec.width / 2 > maxX) maxX = ec.cx + ec.width / 2;
+    if (ec.cy < minY) minY = ec.cy;
+    if (ec.cy + ec.height > maxY) maxY = ec.cy + ec.height;
+  }
+
   // Translate so all coordinates are positive, starting at MARGIN
   const offsetX = -minX + MARGIN;
   const offsetY = -minY + MARGIN;
 
+  // Add expanded stack children as layout nodes
+  for (const ec of expandedChildren) {
+    layoutNodes.push({
+      id: ec.orgNode.id,
+      label: ec.orgNode.label,
+      metadata: ec.orgNode.metadata,
+      isContainer: ec.orgNode.isContainer,
+      lineNumber: ec.orgNode.lineNumber,
+      color: resolveTagColor(ec.orgNode, parsed.tagGroups),
+      x: ec.cx + offsetX,
+      y: ec.cy + offsetY,
+      width: ec.width,
+      height: ec.height,
+    });
+  }
+
   for (const d of h.descendants()) {
     if (d.data.orgNode.id === '__virtual_root__') continue;
+    if (d.data.orgNode.id.startsWith('__stack_')) continue;
 
     const orgNode = d.data.orgNode;
     const w = d.data.width;
@@ -310,15 +483,11 @@ export function layoutOrg(parsed: ParsedOrg): OrgLayoutResult {
 
   // Compute container bounds from d3 hierarchy (bottom-up so inner
   // container boxes are available when computing outer containers)
-  const containerCandidates = h.descendants().filter(
+  const allContainerNodes = h.descendants().filter(
     (d) =>
       d.data.orgNode.id !== '__virtual_root__' &&
-      d.data.orgNode.isContainer &&
-      d.children &&
-      d.children.length > 0
+      d.data.orgNode.isContainer
   );
-  // Sort deepest first so inner containers are computed before outer ones
-  containerCandidates.sort((a, b) => b.depth - a.depth);
 
   // Map from node ID to computed visual bounds (offset-space)
   const containerBoundsMap = new Map<
@@ -327,6 +496,50 @@ export function layoutOrg(parsed: ParsedOrg): OrgLayoutResult {
   >();
 
   const containers: OrgContainerBounds[] = [];
+
+  // First pass: childless containers — simple boxes at their own position.
+  // Must be computed before parent containers so their bounds are available.
+  const EMPTY_CONTAINER_MIN_HEIGHT = 60;
+  for (const d of allContainerNodes) {
+    if (d.children && d.children.length > 0) continue;
+
+    const cx = d.x! + offsetX;
+    const cy = d.y! + offsetY;
+    const metaCount = Object.keys(d.data.orgNode.metadata).length;
+    const labelHeight =
+      CONTAINER_LABEL_HEIGHT + metaCount * CONTAINER_META_LINE_HEIGHT;
+    const boxWidth = d.data.width + CONTAINER_PAD_X * 2;
+    const boxHeight = Math.max(labelHeight + CONTAINER_PAD_BOTTOM, EMPTY_CONTAINER_MIN_HEIGHT);
+    const boxX = cx - boxWidth / 2;
+    const boxY = cy;
+
+    containerBoundsMap.set(d.data.orgNode.id, {
+      minX: boxX,
+      maxX: boxX + boxWidth,
+      minY: boxY,
+      maxY: boxY + boxHeight,
+    });
+
+    containers.push({
+      nodeId: d.data.orgNode.id,
+      label: d.data.orgNode.label,
+      lineNumber: d.data.orgNode.lineNumber,
+      color: resolveTagColor(d.data.orgNode, parsed.tagGroups),
+      metadata: d.data.orgNode.metadata,
+      x: boxX,
+      y: boxY,
+      width: boxWidth,
+      height: boxHeight,
+      labelHeight,
+    });
+  }
+
+  // Second pass: containers with children, deepest first
+  const containerCandidates = allContainerNodes.filter(
+    (d) => d.children && d.children.length > 0
+  );
+  containerCandidates.sort((a, b) => b.depth - a.depth);
+
   for (const d of containerCandidates) {
     // Collect all descendants (not just direct children)
     const allDesc: typeof d[] = [];
@@ -355,6 +568,20 @@ export function layoutOrg(parsed: ParsedOrg): OrgLayoutResult {
         if (innerBounds.minX < descMinX) descMinX = innerBounds.minX;
         if (innerBounds.maxX > descMaxX) descMaxX = innerBounds.maxX;
         if (innerBounds.maxY > descMaxY) descMaxY = innerBounds.maxY;
+      } else if (desc.data.orgNode.id.startsWith('__stack_')) {
+        // Use expanded children positions for stack placeholders
+        const cid = desc.data.orgNode.id.replace('__stack_', '');
+        const stack = leafStacks.get(cid);
+        if (stack) {
+          for (const ec of expandedChildren) {
+            if (ec.orgNode.parentId !== cid) continue;
+            const ex = ec.cx + offsetX;
+            const ey = ec.cy + offsetY;
+            if (ex - ec.width / 2 < descMinX) descMinX = ex - ec.width / 2;
+            if (ex + ec.width / 2 > descMaxX) descMaxX = ex + ec.width / 2;
+            if (ey + ec.height > descMaxY) descMaxY = ey + ec.height;
+          }
+        }
       } else {
         // Use card dimensions
         const dw = desc.data.width;
