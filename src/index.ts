@@ -90,6 +90,7 @@ export type {
   OrgLayoutResult,
   OrgLayoutNode,
   OrgLayoutEdge,
+  OrgContainerBounds,
 } from './org/layout';
 
 export { renderOrg, renderOrgForExport } from './org/renderer';

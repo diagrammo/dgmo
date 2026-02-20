@@ -25,6 +25,11 @@ const SEPARATOR_GAP = 6;
 const EDGE_STROKE_WIDTH = 1.5;
 const NODE_STROKE_WIDTH = 1.5;
 const CARD_RADIUS = 6;
+const CONTAINER_RADIUS = 8;
+const CONTAINER_LABEL_FONT_SIZE = 13;
+const CONTAINER_META_FONT_SIZE = 11;
+const CONTAINER_META_LINE_HEIGHT = 16;
+const CONTAINER_HEADER_HEIGHT = 28;
 
 // ============================================================
 // Color helpers (inline to avoid cross-module import issues)
@@ -62,6 +67,21 @@ function nodeFill(
 }
 
 function nodeStroke(palette: PaletteColors, nodeColor?: string): string {
+  return nodeColor ?? palette.textMuted;
+}
+
+function containerFill(
+  palette: PaletteColors,
+  isDark: boolean,
+  nodeColor?: string
+): string {
+  if (nodeColor) {
+    return mix(nodeColor, isDark ? palette.surface : palette.bg, 10);
+  }
+  return mix(palette.surface, palette.bg, 40);
+}
+
+function containerStroke(palette: PaletteColors, nodeColor?: string): string {
   return nodeColor ?? palette.textMuted;
 }
 
@@ -152,7 +172,72 @@ export function renderOrg(
     .append('g')
     .attr('transform', `translate(0, ${titleOffset})`);
 
-  // Render edges (background layer)
+  // Render container backgrounds (bottom layer)
+  for (const c of layout.containers) {
+    const cG = contentG
+      .append('g')
+      .attr('transform', `translate(${c.x}, ${c.y})`)
+      .attr('class', 'org-container')
+      .attr('data-line-number', String(c.lineNumber)) as GSelection;
+
+    if (onClickItem) {
+      cG.style('cursor', 'pointer').on('click', () => {
+        onClickItem(c.lineNumber);
+      });
+    }
+
+    const fill = containerFill(palette, isDark, c.color);
+    const stroke = containerStroke(palette, c.color);
+
+    // Background rect
+    cG.append('rect')
+      .attr('x', 0)
+      .attr('y', 0)
+      .attr('width', c.width)
+      .attr('height', c.height)
+      .attr('rx', CONTAINER_RADIUS)
+      .attr('fill', fill)
+      .attr('stroke', stroke)
+      .attr('stroke-opacity', 0.35)
+      .attr('stroke-width', NODE_STROKE_WIDTH);
+
+    // Container label (bold, at top)
+    cG.append('text')
+      .attr('x', c.width / 2)
+      .attr('y', CONTAINER_HEADER_HEIGHT / 2 + CONTAINER_LABEL_FONT_SIZE / 2 - 2)
+      .attr('text-anchor', 'middle')
+      .attr('fill', palette.text)
+      .attr('font-size', CONTAINER_LABEL_FONT_SIZE)
+      .attr('font-weight', 'bold')
+      .text(c.label);
+
+    // Container metadata (below label)
+    const metaEntries = Object.entries(c.metadata);
+    if (metaEntries.length > 0) {
+      const metaStartY = CONTAINER_HEADER_HEIGHT + CONTAINER_META_FONT_SIZE - 2;
+      for (let i = 0; i < metaEntries.length; i++) {
+        const [key, value] = metaEntries[i];
+        const rowY = metaStartY + i * CONTAINER_META_LINE_HEIGHT;
+
+        cG.append('text')
+          .attr('x', 10)
+          .attr('y', rowY)
+          .attr('fill', palette.textMuted)
+          .attr('font-size', CONTAINER_META_FONT_SIZE)
+          .text(`${key}: `);
+
+        const keyWidth = (key.length + 2) * (CONTAINER_META_FONT_SIZE * 0.6);
+        cG.append('text')
+          .attr('x', 10 + keyWidth)
+          .attr('y', rowY)
+          .attr('fill', palette.text)
+          .attr('font-size', CONTAINER_META_FONT_SIZE)
+          .text(value);
+      }
+    }
+  }
+
+  // Render edges
   for (const edge of layout.edges) {
     if (edge.points.length < 2) continue;
 
@@ -171,8 +256,13 @@ export function renderOrg(
       .attr('class', 'org-edge');
   }
 
-  // Render node cards (top layer)
+  // Collect container node IDs so we can skip them in card rendering
+  const containerNodeIds = new Set(layout.containers.map((c) => c.nodeId));
+
+  // Render node cards (top layer) — skip containers (already drawn as background boxes)
   for (const node of layout.nodes) {
+    if (containerNodeIds.has(node.id)) continue;
+
     const nodeG = contentG
       .append('g')
       .attr(
