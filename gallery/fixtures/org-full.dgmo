@@ -1,0 +1,70 @@
+chart: org
+title: Acme Corp
+
+## Location
+  NY(blue)
+  LA(yellow)
+  CO(green)
+  Remote(purple)
+
+## Status
+  FTE(green)
+  Contractor(orange)
+
+Jane Smith
+  role: CEO
+  location: NY
+  status: FTE
+
+  Alex Chen
+    role: CTO
+    location: LA
+    status: FTE
+
+    [Platform Team]
+      goal: Core infrastructure and APIs
+      charter: Platform reliability and developer experience
+
+      Alice Park
+        role: Senior Engineer
+        focus: APIs
+        location: NY
+        status: FTE
+      Bob Torres
+        role: Junior Engineer
+        location: CO
+        status: FTE
+
+    [Frontend Team]
+      goal: Ship new design system by Q3
+
+      Carol Wu
+        role: Senior Engineer
+        location: Remote
+        status: FTE
+      Dave Kim
+        role: Junior Engineer
+        location: LA
+        status: Contractor
+
+  Maria Lopez
+    role: Head of Design
+    location: LA
+    status: FTE
+
+    Frank Lee
+      role: Senior Designer
+      location: Remote
+      status: Contractor
+
+  Sam Wilson
+    role: VP of Sales
+    location: NY
+    status: FTE
+
+    Tom Brown
+      role: Account Executive
+      location: NY
+    Lisa Park
+      role: Account Executive
+      location: CO

@@ -1,0 +1,26 @@
+chart: org
+title: Engineering Division
+
+Alex Chen
+  role: CTO
+
+  [Platform Team]
+    goal: Core infrastructure and APIs
+    charter: Platform reliability and developer experience
+
+    Alice Park | role: Senior Engineer | location: NY
+    Bob Torres | role: Junior Engineer | location: CO
+
+  [Frontend Team]
+    goal: Ship new design system by Q3
+
+    Carol Wu
+      role: Senior Engineer
+    Dave Kim
+      role: Junior Engineer
+
+  [Data Team]
+    goal: ML pipeline and analytics
+
+    Eve Martinez
+      role: Data Scientist
