@@ -205,6 +205,19 @@ describe('parseOrg', () => {
       expect(team.children[0].metadata).toEqual({ role: 'Engineer' });
     });
 
+    it('container with pipe-delimited children', () => {
+      const result = parseOrg(
+        '[Platform Team]\n  goal: Core infra\n  Alice Park | role: Senior Engineer | location: NY\n  Bob Torres | role: Junior Engineer | location: CO'
+      );
+      const team = result.roots[0];
+      expect(team.metadata).toEqual({ goal: 'Core infra' });
+      expect(team.children).toHaveLength(2);
+      expect(team.children[0].label).toBe('Alice Park');
+      expect(team.children[0].metadata).toEqual({ role: 'Senior Engineer', location: 'NY' });
+      expect(team.children[1].label).toBe('Bob Torres');
+      expect(team.children[1].metadata).toEqual({ role: 'Junior Engineer', location: 'CO' });
+    });
+
     it('nested containers', () => {
       const result = parseOrg(
         '[Engineering]\n  [Platform]\n    Alice\n  [Frontend]\n    Bob'

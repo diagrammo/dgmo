@@ -192,7 +192,9 @@ export function parseOrg(
     const containerMatch = trimmed.match(CONTAINER_RE);
 
     // Check for metadata syntax: key: value
-    const metadataMatch = trimmed.match(METADATA_RE);
+    // Lines containing '|' are pipe-delimited nodes (e.g. "Alice | role: Engineer"),
+    // not metadata — skip the metadata regex for them.
+    const metadataMatch = trimmed.includes('|') ? null : trimmed.match(METADATA_RE);
 
     if (containerMatch) {
       // It's a container node

@@ -5215,9 +5215,55 @@ export async function renderD3ForExport(
   theme: 'light' | 'dark' | 'transparent',
   palette?: PaletteColors
 ): Promise<string> {
-  // Flowchart uses its own parser pipeline — intercept before parseD3()
+  // Flowchart and org chart use their own parser pipelines — intercept before parseD3()
   const { parseDgmoChartType } = await import('./dgmo-router');
   const detectedType = parseDgmoChartType(content);
+
+  if (detectedType === 'org') {
+    const { parseOrg } = await import('./org/parser');
+    const { layoutOrg } = await import('./org/layout');
+    const { renderOrg } = await import('./org/renderer');
+
+    const isDark = theme === 'dark';
+    const { getPalette } = await import('./palettes');
+    const effectivePalette =
+      palette ?? (isDark ? getPalette('nord').dark : getPalette('nord').light);
+
+    const orgParsed = parseOrg(content, effectivePalette);
+    if (orgParsed.error || orgParsed.roots.length === 0) return '';
+
+    const orgLayout = layoutOrg(orgParsed);
+    const container = document.createElement('div');
+    container.style.width = `${EXPORT_WIDTH}px`;
+    container.style.height = `${EXPORT_HEIGHT}px`;
+    container.style.position = 'absolute';
+    container.style.left = '-9999px';
+    document.body.appendChild(container);
+
+    try {
+      renderOrg(container, orgParsed, orgLayout, effectivePalette, isDark, undefined, {
+        width: EXPORT_WIDTH,
+        height: EXPORT_HEIGHT,
+      });
+
+      const svgEl = container.querySelector('svg');
+      if (!svgEl) return '';
+
+      if (theme === 'transparent') {
+        svgEl.style.background = 'none';
+      } else if (!svgEl.style.background) {
+        svgEl.style.background = effectivePalette.bg;
+      }
+
+      svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+      svgEl.style.fontFamily = FONT_FAMILY;
+
+      return svgEl.outerHTML;
+    } finally {
+      document.body.removeChild(container);
+    }
+  }
+
   if (detectedType === 'flowchart') {
     const { parseFlowchart } = await import('./graph/flowchart-parser');
     const { layoutGraph } = await import('./graph/layout');

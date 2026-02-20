@@ -1,0 +1,214 @@
+import { describe, it, expect, beforeAll } from 'vitest';
+import { JSDOM } from 'jsdom';
+import { parseOrg } from '../src/org/parser';
+import { layoutOrg } from '../src/org/layout';
+import type { OrgLayoutResult } from '../src/org/layout';
+import { renderOrgForExport } from '../src/org/renderer';
+import { getPalette } from '../src/palettes';
+
+// Set up jsdom globals
+beforeAll(() => {
+  const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>');
+  const win = dom.window;
+  Object.defineProperty(globalThis, 'document', {
+    value: win.document,
+    configurable: true,
+  });
+  Object.defineProperty(globalThis, 'window', {
+    value: win,
+    configurable: true,
+  });
+  Object.defineProperty(globalThis, 'navigator', {
+    value: win.navigator,
+    configurable: true,
+  });
+  Object.defineProperty(globalThis, 'HTMLElement', {
+    value: win.HTMLElement,
+    configurable: true,
+  });
+  Object.defineProperty(globalThis, 'SVGElement', {
+    value: win.SVGElement,
+    configurable: true,
+  });
+});
+
+const palette = getPalette('nord');
+
+// ============================================================
+// layoutOrg
+// ============================================================
+
+describe('layoutOrg', () => {
+  it('positions a single root node', () => {
+    const parsed = parseOrg('chart: org\nAlice');
+    const layout = layoutOrg(parsed);
+
+    expect(layout.nodes).toHaveLength(1);
+    expect(layout.nodes[0].label).toBe('Alice');
+    expect(layout.nodes[0].x).toBeGreaterThan(0);
+    expect(layout.nodes[0].y).toBeGreaterThan(0);
+    expect(layout.nodes[0].width).toBeGreaterThanOrEqual(140);
+    expect(layout.nodes[0].height).toBeGreaterThan(0);
+    expect(layout.edges).toHaveLength(0);
+  });
+
+  it('arranges parent-child in separate rows', () => {
+    const parsed = parseOrg('chart: org\nAlice\n  Bob');
+    const layout = layoutOrg(parsed);
+
+    expect(layout.nodes).toHaveLength(2);
+    const alice = layout.nodes.find((n) => n.label === 'Alice')!;
+    const bob = layout.nodes.find((n) => n.label === 'Bob')!;
+    expect(bob.y).toBeGreaterThan(alice.y);
+  });
+
+  it('creates elbow edges between parent and child', () => {
+    const parsed = parseOrg('chart: org\nAlice\n  Bob');
+    const layout = layoutOrg(parsed);
+
+    expect(layout.edges).toHaveLength(1);
+    const edge = layout.edges[0];
+    expect(edge.sourceId).toBe('node-1');
+    expect(edge.targetId).toBe('node-2');
+    expect(edge.points).toHaveLength(4);
+    // Elbow: vertical down, horizontal, vertical down
+    expect(edge.points[0].y).toBeLessThan(edge.points[3].y);
+  });
+
+  it('handles multiple roots with virtual root', () => {
+    const parsed = parseOrg('chart: org\nAlice\nBob');
+    const layout = layoutOrg(parsed);
+
+    expect(layout.nodes).toHaveLength(2);
+    // Both should be on the same row
+    const alice = layout.nodes.find((n) => n.label === 'Alice')!;
+    const bob = layout.nodes.find((n) => n.label === 'Bob')!;
+    expect(alice.y).toBe(bob.y);
+    // No edges (virtual root edges are excluded)
+    expect(layout.edges).toHaveLength(0);
+  });
+
+  it('computes card width from label and metadata', () => {
+    const parsed = parseOrg(
+      'chart: org\nAlice Park | role: Senior Software Engineer'
+    );
+    const layout = layoutOrg(parsed);
+
+    const node = layout.nodes[0];
+    // Should be wider than MIN_CARD_WIDTH due to long metadata
+    expect(node.width).toBeGreaterThan(140);
+  });
+
+  it('computes card height from metadata count', () => {
+    const parsed = parseOrg(
+      'chart: org\nAlice\n  role: Engineer\n  location: NY'
+    );
+    const layout = layoutOrg(parsed);
+
+    const node = layout.nodes[0];
+    // Height should account for header + 2 metadata rows
+    expect(node.height).toBeGreaterThan(40);
+  });
+
+  it('resolves tag group colors for nodes', () => {
+    const content = `chart: org
+
+## Location
+  NY(blue)
+  LA(yellow)
+
+Alice
+  location: NY
+Bob
+  location: LA`;
+    const parsed = parseOrg(content, palette.light);
+    const layout = layoutOrg(parsed);
+
+    const alice = layout.nodes.find((n) => n.label === 'Alice')!;
+    const bob = layout.nodes.find((n) => n.label === 'Bob')!;
+    expect(alice.color).toBeTruthy();
+    expect(bob.color).toBeTruthy();
+    expect(alice.color).not.toBe(bob.color);
+  });
+
+  it('returns empty result for empty input', () => {
+    const parsed = parseOrg('chart: org');
+    const layout = layoutOrg(parsed);
+    expect(layout.nodes).toHaveLength(0);
+    expect(layout.edges).toHaveLength(0);
+  });
+
+  it('produces positive width and height', () => {
+    const parsed = parseOrg('chart: org\nAlice\n  Bob\n  Carol');
+    const layout = layoutOrg(parsed);
+    expect(layout.width).toBeGreaterThan(0);
+    expect(layout.height).toBeGreaterThan(0);
+  });
+});
+
+// ============================================================
+// renderOrgForExport
+// ============================================================
+
+describe('renderOrgForExport', () => {
+  const basicInput = `chart: org
+title: Test Org
+
+Alice
+  role: CEO
+  Bob
+    role: CTO`;
+
+  it('produces valid SVG', () => {
+    const svg = renderOrgForExport(basicInput, 'light', palette.light);
+    expect(svg).toContain('<svg');
+    expect(svg).toContain('</svg>');
+  });
+
+  it('renders in dark theme', () => {
+    const svg = renderOrgForExport(basicInput, 'dark', palette.dark);
+    expect(svg).toContain('<svg');
+    expect(svg).toContain('</svg>');
+  });
+
+  it('renders in transparent theme', () => {
+    const svg = renderOrgForExport(basicInput, 'transparent', palette.light);
+    expect(svg).toContain('<svg');
+    expect(svg).toContain('background: none');
+  });
+
+  it('returns empty string for error input', () => {
+    const svg = renderOrgForExport('', 'light', palette.light);
+    expect(svg).toBe('');
+  });
+
+  it('renders containers with dashed borders', () => {
+    const input = `chart: org
+Alice
+  [Platform Team]
+    Bob`;
+    const svg = renderOrgForExport(input, 'light', palette.light);
+    expect(svg).toContain('stroke-dasharray');
+  });
+
+  it('renders metadata text', () => {
+    const svg = renderOrgForExport(basicInput, 'light', palette.light);
+    expect(svg).toContain('CEO');
+    expect(svg).toContain('CTO');
+  });
+
+  it('includes data-line-number attributes', () => {
+    const svg = renderOrgForExport(basicInput, 'light', palette.light);
+    expect(svg).toContain('data-line-number');
+  });
+
+  it('renders title', () => {
+    const svg = renderOrgForExport(basicInput, 'light', palette.light);
+    expect(svg).toContain('Test Org');
+  });
+
+  it('renders edges as paths', () => {
+    const svg = renderOrgForExport(basicInput, 'light', palette.light);
+    expect(svg).toContain('org-edge');
+  });
+});
