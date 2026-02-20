@@ -378,15 +378,15 @@ export function layoutOrg(parsed: ParsedOrg): OrgLayoutResult {
     const boxY = containerY;
     const boxHeight = descMaxY - containerY + CONTAINER_PAD_BOTTOM;
 
-    // Ensure box is centered around container x position
-    const containerCenterX = containerX;
-    const halfWidth = Math.max(
-      Math.abs(descMaxX + CONTAINER_PAD_X - containerCenterX),
-      Math.abs(containerCenterX - descMinX + CONTAINER_PAD_X),
-      d.data.width / 2
-    );
-    const finalBoxWidth = halfWidth * 2;
-    const centeredBoxX = containerCenterX - halfWidth;
+    // Tight-fit box around content with padding
+    const boxX = descMinX - CONTAINER_PAD_X;
+    const contentWidth = descMaxX - descMinX + CONTAINER_PAD_X * 2;
+    const finalBoxWidth = Math.max(contentWidth, d.data.width);
+    // Center the box if the label is wider than the content
+    const centeredBoxX =
+      finalBoxWidth > contentWidth
+        ? containerX - finalBoxWidth / 2
+        : boxX;
 
     // Store bounds for parent containers to reference
     containerBoundsMap.set(d.data.orgNode.id, {
