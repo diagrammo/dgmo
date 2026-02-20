@@ -251,36 +251,17 @@ export function renderOrg(
       }
     }
 
-    // "+N" badge for collapsed containers
+    // Subtle "+N" label for collapsed containers
     if (c.hiddenCount && c.hiddenCount > 0) {
-      const badgeText = `+${c.hiddenCount}`;
-      const badgeW = Math.max(28, badgeText.length * 8 + 12);
-      const badgeH = 18;
-      const badgeX = c.width / 2 - badgeW / 2;
-      const badgeY = c.height - badgeH - 6;
-
-      const badgeG = cG
-        .append('g')
+      cG.append('text')
         .attr('class', 'org-collapse-badge')
-        .attr('transform', `translate(${badgeX}, ${badgeY})`);
-
-      badgeG
-        .append('rect')
-        .attr('width', badgeW)
-        .attr('height', badgeH)
-        .attr('rx', badgeH / 2)
-        .attr('fill', palette.primary)
-        .attr('opacity', 0.85);
-
-      badgeG
-        .append('text')
-        .attr('x', badgeW / 2)
-        .attr('y', badgeH / 2 + 4)
+        .attr('x', c.width / 2)
+        .attr('y', c.height - 8)
         .attr('text-anchor', 'middle')
-        .attr('fill', '#ffffff')
+        .attr('fill', palette.textMuted)
         .attr('font-size', 10)
-        .attr('font-weight', 'bold')
-        .text(badgeText);
+        .attr('opacity', 0.7)
+        .text(`+${c.hiddenCount} hidden`);
     }
   }
 
@@ -410,36 +391,18 @@ export function renderOrg(
       }
     }
 
-    // "+N" badge for collapsed nodes
+    // Subtle "+N" label for collapsed nodes — below attributes
     if (node.hiddenCount && node.hiddenCount > 0) {
-      const badgeText = `+${node.hiddenCount}`;
-      const badgeW = Math.max(28, badgeText.length * 8 + 12);
-      const badgeH = 18;
-      const badgeX = node.width / 2 - badgeW / 2;
-      const badgeY = node.height - badgeH - 4;
-
-      const badgeG = nodeG
-        .append('g')
-        .attr('class', 'org-collapse-badge')
-        .attr('transform', `translate(${badgeX}, ${badgeY})`);
-
-      badgeG
-        .append('rect')
-        .attr('width', badgeW)
-        .attr('height', badgeH)
-        .attr('rx', badgeH / 2)
-        .attr('fill', palette.primary)
-        .attr('opacity', 0.85);
-
-      badgeG
+      nodeG
         .append('text')
-        .attr('x', badgeW / 2)
-        .attr('y', badgeH / 2 + 4)
+        .attr('class', 'org-collapse-badge')
+        .attr('x', node.width / 2)
+        .attr('y', node.height - 6)
         .attr('text-anchor', 'middle')
-        .attr('fill', '#ffffff')
+        .attr('fill', palette.textMuted)
         .attr('font-size', 10)
-        .attr('font-weight', 'bold')
-        .text(badgeText);
+        .attr('opacity', 0.7)
+        .text(`+${node.hiddenCount} hidden`);
     }
   }
 }
