@@ -121,6 +121,28 @@ const parsed = parseSequenceDgmo(fileContent);
 
 **Types**: `ParsedSequenceDgmo`, `SequenceParticipant`, `SequenceMessage`, `SequenceBlock`, `SequenceSection`, `SequenceGroup`, `SequenceElement`, `ParticipantType`
 
+#### Org Chart
+
+| Function          | Signature                                                            |
+| ----------------- | -------------------------------------------------------------------- |
+| `parseOrg`        | `(content: string, palette?: PaletteColors) => ParsedOrg`           |
+| `collapseOrgTree` | `(original: ParsedOrg, collapsedIds: Set<string>) => CollapsedOrgResult` |
+
+```ts
+import { parseOrg, collapseOrgTree, nordPalette } from '@diagrammo/dgmo';
+
+const parsed = parseOrg(fileContent, nordPalette.light);
+// parsed.roots — top-level OrgNode[]
+// parsed.title, parsed.tagGroups
+
+// Collapse subtrees interactively
+const collapsed = collapseOrgTree(parsed, new Set(['node-id']));
+// collapsed.parsed — new ParsedOrg with subtrees removed
+// collapsed.hiddenCounts — Map<string, number> of hidden node counts
+```
+
+**Types**: `ParsedOrg`, `OrgNode`, `OrgTagGroup`, `OrgTagEntry`, `CollapsedOrgResult`
+
 #### Quadrant (Mermaid bridge)
 
 | Function        | Signature                             |
@@ -202,6 +224,28 @@ import {
 const parsed = parseSequenceDgmo(content);
 renderSequenceDiagram(container, parsed, nordPalette.light, false);
 ```
+
+#### Org Chart Renderer
+
+| Function             | Signature                                                                                                                          |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `renderOrg`          | `(container: HTMLDivElement, parsed: ParsedOrg, layout: OrgLayoutResult, palette: PaletteColors, isDark: boolean, onClickItem?: (lineNumber: number) => void, exportDims?: { width?: number; height?: number }) => void` |
+| `renderOrgForExport` | `(content: string, theme: 'light' \| 'dark' \| 'transparent', palette: PaletteColors) => string`                                  |
+| `layoutOrg`          | `(parsed: ParsedOrg, hiddenCounts?: Map<string, number>) => OrgLayoutResult`                                                       |
+
+```ts
+import { parseOrg, layoutOrg, renderOrg, nordPalette } from '@diagrammo/dgmo';
+
+const parsed = parseOrg(content, nordPalette.light);
+const layout = layoutOrg(parsed);
+const container = document.getElementById('chart') as HTMLDivElement;
+
+renderOrg(container, parsed, layout, nordPalette.light, false, (line) => {
+  console.log('Clicked node from line', line);
+});
+```
+
+**Types**: `OrgLayoutResult`, `OrgLayoutNode`, `OrgLayoutEdge`, `OrgContainerBounds`
 
 #### Export Renderer (SVG string output)
 
@@ -448,6 +492,7 @@ Core parse/render/build functions — these are the main library API:
 - `buildEChartsOptionFromChart`, `buildEChartsOption`, `buildMermaidQuadrant`
 - `renderSlopeChart`, `renderArcDiagram`, `renderTimeline`, `renderWordCloud`, `renderVenn`, `renderQuadrant`
 - `renderSequenceDiagram`, `renderD3ForExport`
+- `parseOrg`, `layoutOrg`, `renderOrg`, `renderOrgForExport`, `collapseOrgTree`
 - `getPalette`, `getAvailablePalettes`, `registerPalette`
 - All `PaletteConfig` definitions
 
