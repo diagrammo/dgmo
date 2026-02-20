@@ -65,8 +65,8 @@ const MIN_CARD_WIDTH = 140;
 const H_GAP = 30;
 const V_GAP = 50;
 const MARGIN = 40;
-const CONTAINER_PAD_X = 16;
-const CONTAINER_PAD_BOTTOM = 12;
+const CONTAINER_PAD_X = 24;
+const CONTAINER_PAD_BOTTOM = 24;
 const CONTAINER_LABEL_HEIGHT = 28;
 const CONTAINER_META_LINE_HEIGHT = 16;
 
@@ -270,13 +270,26 @@ export function layoutOrg(parsed: ParsedOrg): OrgLayoutResult {
     }
   }
 
-  // Compute container bounds from d3 hierarchy
-  const containers: OrgContainerBounds[] = [];
-  for (const d of h.descendants()) {
-    if (d.data.orgNode.id === '__virtual_root__') continue;
-    if (!d.data.orgNode.isContainer) continue;
-    if (!d.children || d.children.length === 0) continue;
+  // Compute container bounds from d3 hierarchy (bottom-up so inner
+  // container boxes are available when computing outer containers)
+  const containerCandidates = h.descendants().filter(
+    (d) =>
+      d.data.orgNode.id !== '__virtual_root__' &&
+      d.data.orgNode.isContainer &&
+      d.children &&
+      d.children.length > 0
+  );
+  // Sort deepest first so inner containers are computed before outer ones
+  containerCandidates.sort((a, b) => b.depth - a.depth);
 
+  // Map from node ID to computed visual bounds (offset-space)
+  const containerBoundsMap = new Map<
+    string,
+    { minX: number; maxX: number; minY: number; maxY: number }
+  >();
+
+  const containers: OrgContainerBounds[] = [];
+  for (const d of containerCandidates) {
     // Collect all descendants (not just direct children)
     const allDesc: typeof d[] = [];
     const collectDesc = (node: typeof d) => {
@@ -291,20 +304,30 @@ export function layoutOrg(parsed: ParsedOrg): OrgLayoutResult {
 
     if (allDesc.length === 0) continue;
 
-    // Compute bounding box from all descendants
+    // Compute bounding box from all descendants, using inner container
+    // bounds when available (so nested boxes don't overlap)
     let descMinX = Infinity;
     let descMaxX = -Infinity;
     let descMaxY = -Infinity;
 
     for (const desc of allDesc) {
-      const dw = desc.data.width;
-      const dh = desc.data.height;
-      const dx = desc.x! + offsetX;
-      const dy = desc.y! + offsetY;
+      const innerBounds = containerBoundsMap.get(desc.data.orgNode.id);
+      if (innerBounds) {
+        // Use the inner container's expanded box
+        if (innerBounds.minX < descMinX) descMinX = innerBounds.minX;
+        if (innerBounds.maxX > descMaxX) descMaxX = innerBounds.maxX;
+        if (innerBounds.maxY > descMaxY) descMaxY = innerBounds.maxY;
+      } else {
+        // Use card dimensions
+        const dw = desc.data.width;
+        const dh = desc.data.height;
+        const dx = desc.x! + offsetX;
+        const dy = desc.y! + offsetY;
 
-      if (dx - dw / 2 < descMinX) descMinX = dx - dw / 2;
-      if (dx + dw / 2 > descMaxX) descMaxX = dx + dw / 2;
-      if (dy + dh > descMaxY) descMaxY = dy + dh;
+        if (dx - dw / 2 < descMinX) descMinX = dx - dw / 2;
+        if (dx + dw / 2 > descMaxX) descMaxX = dx + dw / 2;
+        if (dy + dh > descMaxY) descMaxY = dy + dh;
+      }
     }
 
     const containerX = d.x! + offsetX;
@@ -314,26 +337,26 @@ export function layoutOrg(parsed: ParsedOrg): OrgLayoutResult {
       CONTAINER_LABEL_HEIGHT + metaCount * CONTAINER_META_LINE_HEIGHT;
 
     // Box top = container's own y, extends to cover all children
-    const boxX = descMinX - CONTAINER_PAD_X;
-    const boxWidth = Math.max(
-      descMaxX - descMinX + CONTAINER_PAD_X * 2,
-      d.data.width
-    );
     const boxY = containerY;
     const boxHeight = descMaxY - containerY + CONTAINER_PAD_BOTTOM;
 
     // Ensure box is centered around container x position
-    const boxCenterX = boxX + (descMaxX - descMinX + CONTAINER_PAD_X * 2) / 2;
     const containerCenterX = containerX;
-    const finalBoxX = boxX + (containerCenterX - boxCenterX);
-    const finalBoxWidth = Math.max(
-      boxWidth,
-      (Math.max(
-        Math.abs(descMaxX + CONTAINER_PAD_X - containerCenterX),
-        Math.abs(containerCenterX - descMinX + CONTAINER_PAD_X)
-      )) * 2
+    const halfWidth = Math.max(
+      Math.abs(descMaxX + CONTAINER_PAD_X - containerCenterX),
+      Math.abs(containerCenterX - descMinX + CONTAINER_PAD_X),
+      d.data.width / 2
     );
-    const centeredBoxX = containerCenterX - finalBoxWidth / 2;
+    const finalBoxWidth = halfWidth * 2;
+    const centeredBoxX = containerCenterX - halfWidth;
+
+    // Store bounds for parent containers to reference
+    containerBoundsMap.set(d.data.orgNode.id, {
+      minX: centeredBoxX,
+      maxX: centeredBoxX + finalBoxWidth,
+      minY: boxY,
+      maxY: boxY + boxHeight,
+    });
 
     containers.push({
       nodeId: d.data.orgNode.id,
@@ -349,14 +372,18 @@ export function layoutOrg(parsed: ParsedOrg): OrgLayoutResult {
     });
   }
 
+  // Reverse so outer containers render first (behind inner containers)
+  containers.reverse();
+
   // Bounding box — expand for container backgrounds that may extend beyond nodes
+  // Convert container coords (offset space) back to pre-offset space for comparison
   let finalMinX = minX;
   let finalMaxX = maxX;
   let finalMaxY = maxY;
   for (const c of containers) {
-    const cLeft = c.x - offsetX + minX;
+    const cLeft = c.x - offsetX;
     const cRight = cLeft + c.width;
-    const cBottom = c.y - offsetY + minY + c.height;
+    const cBottom = c.y - offsetY + c.height;
     if (cLeft < finalMinX) finalMinX = cLeft;
     if (cRight > finalMaxX) finalMaxX = cRight;
     if (cBottom > finalMaxY) finalMaxY = cBottom;
