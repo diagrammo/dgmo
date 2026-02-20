@@ -947,6 +947,10 @@ export function renderSequenceDiagram(
 
   // Note spacing — add vertical room after messages that have notes attached
   const NOTE_OFFSET_BELOW = 14; // gap between message arrow and top of note box
+  // The next message label extends ~17px above its arrow line (8px offset + 9px cap height).
+  // When notes share horizontal space with subsequent arrows, generous vertical clearance
+  // is needed so note boxes don't visually cover message labels.
+  const NOTE_TRAILING_GAP = 35;
   const computeNoteHeight = (text: string): number => {
     const lines = wrapTextLines(text, NOTE_CHARS_PER_LINE);
     return lines.length * NOTE_LINE_H + NOTE_PAD_V * 2;
@@ -958,7 +962,8 @@ export function renderSequenceDiagram(
       if (isSequenceNote(el)) {
         // Total vertical extent of notes from the message arrow:
         //   NOTE_OFFSET_BELOW (gap above first note)
-        //   + each note's height + NOTE_OFFSET_BELOW (gap below each note)
+        //   + each note's height + NOTE_OFFSET_BELOW (inter-note gap)
+        //   + NOTE_TRAILING_GAP (gap below last note — clears next message label)
         let totalExtent = NOTE_OFFSET_BELOW;
         let j = i;
         while (j < els.length && isSequenceNote(els[j])) {
@@ -969,6 +974,8 @@ export function renderSequenceDiagram(
           totalExtent += noteH + NOTE_OFFSET_BELOW;
           j++;
         }
+        // Replace the final inter-note gap with the larger trailing gap
+        totalExtent += NOTE_TRAILING_GAP - NOTE_OFFSET_BELOW;
         // Only reserve space beyond the existing stepSpacing gap
         let extraNeeded = Math.max(0, totalExtent - stepSpacing);
         // Scan forward past sections, blocks, and other non-message elements to find next message
@@ -1238,7 +1245,7 @@ export function renderSequenceDiagram(
       : layoutEndY;
   for (const [note, noteTopY] of noteYMap) {
     const noteH = isNoteExpanded(note) ? computeNoteHeight(note.text) : COLLAPSED_NOTE_H;
-    contentBottomY = Math.max(contentBottomY, noteTopY + noteH + NOTE_OFFSET_BELOW);
+    contentBottomY = Math.max(contentBottomY, noteTopY + noteH + NOTE_TRAILING_GAP);
   }
   const messageAreaHeight = contentBottomY - lifelineStartY0;
   const lifelineLength = messageAreaHeight + LIFELINE_TAIL;
