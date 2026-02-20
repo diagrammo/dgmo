@@ -85,6 +85,15 @@ export type {
   OrgTagEntry,
 } from './org/parser';
 
+export { layoutOrg } from './org/layout';
+export type {
+  OrgLayoutResult,
+  OrgLayoutNode,
+  OrgLayoutEdge,
+} from './org/layout';
+
+export { renderOrg, renderOrgForExport } from './org/renderer';
+
 export { layoutGraph } from './graph/layout';
 export type {
   LayoutResult,
