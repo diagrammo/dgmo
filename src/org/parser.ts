@@ -36,6 +36,7 @@ export interface ParsedOrg {
   titleLineNumber: number | null;
   roots: OrgNode[];
   tagGroups: OrgTagGroup[];
+  options: Record<string, string>;
   error: string | null;
 }
 
@@ -73,6 +74,7 @@ const CONTAINER_RE = /^\[([^\]]+)\]$/;
 const METADATA_RE = /^([^:]+):\s*(.+)$/;
 const CHART_TYPE_RE = /^chart\s*:\s*(.+)/i;
 const TITLE_RE = /^title\s*:\s*(.+)/i;
+const OPTION_RE = /^([a-z][a-z0-9-]*)\s*:\s*(.+)$/i;
 
 // ============================================================
 // Parser
@@ -87,6 +89,7 @@ export function parseOrg(
     titleLineNumber: null,
     roots: [],
     tagGroups: [],
+    options: {},
     error: null,
   };
 
@@ -149,6 +152,19 @@ export function parseOrg(
         result.title = titleMatch[1].trim();
         result.titleLineNumber = lineNumber;
         continue;
+      }
+    }
+
+    // Generic header options (key: value lines before content/tag groups)
+    // Only match non-indented lines with simple hyphenated keys
+    if (!contentStarted && !currentTagGroup && measureIndent(line) === 0) {
+      const optMatch = trimmed.match(OPTION_RE);
+      if (optMatch && !trimmed.startsWith('##')) {
+        const key = optMatch[1].trim().toLowerCase();
+        if (key !== 'chart' && key !== 'title') {
+          result.options[key] = optMatch[2].trim();
+          continue;
+        }
       }
     }
 

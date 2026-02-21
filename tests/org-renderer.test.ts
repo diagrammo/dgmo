@@ -569,8 +569,9 @@ Alice
     expect(alice.color).toBe(nyEntry.color);
   });
 
-  it('includes legend in layout dimensions', () => {
+  it('includes legend in layout dimensions (bottom position)', () => {
     const withGroups = `chart: org
+legend-position: bottom
 
 ## Location
   NY(blue)
@@ -588,8 +589,58 @@ Alice`;
     expect(layoutWith.legend[0].name).toBe('Location');
     // Layout without tag groups should have empty legend
     expect(layoutWithout.legend).toHaveLength(0);
-    // Legend adds to height
+    // Bottom legend adds to height — legend Y is below content
     expect(layoutWith.height).toBeGreaterThan(layoutWith.legend[0].y);
+  });
+
+  it('places legend at top-right by default', () => {
+    const input = `chart: org
+
+## Location
+  NY(blue)
+  LA(yellow)
+
+## Status
+  FTE(green)
+
+Alice | location: NY, status: FTE`;
+    const parsed = parseOrg(input, palette.light);
+    const layout = layoutOrg(parsed);
+
+    // Legend should be at top-right: all groups share same X, stacked vertically
+    expect(layout.legend.length).toBeGreaterThanOrEqual(2);
+    const [first, second] = layout.legend;
+    // Same X (both at top-right)
+    expect(first.x).toBe(second.x);
+    // Stacked vertically: second below first
+    expect(second.y).toBeGreaterThan(first.y);
+    // Y starts at MARGIN (40)
+    expect(first.y).toBe(40);
+  });
+
+  it('top legend does not add to height when shorter than content', () => {
+    const input = `chart: org
+
+## Location
+  NY(blue)
+
+Alice
+  Bob
+    Carol
+      Dave`;
+    const withoutLegend = `chart: org
+Alice
+  Bob
+    Carol
+      Dave`;
+    const parsedWith = parseOrg(input, palette.light);
+    const layoutWith = layoutOrg(parsedWith);
+    const parsedWithout = parseOrg(withoutLegend, palette.light);
+    const layoutWithout = layoutOrg(parsedWithout);
+
+    // Top legend is short (1 group) and the content is deep (4 levels)
+    // So legend should NOT increase diagram height
+    expect(layoutWith.height).toBe(layoutWithout.height);
   });
 
   it('legend groups have data-legend-group attributes', () => {

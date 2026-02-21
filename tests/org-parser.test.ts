@@ -390,6 +390,39 @@ describe('parseOrg', () => {
     });
   });
 
+  // === Header options ===
+  describe('header options', () => {
+    it('parses legend-position option', () => {
+      const result = parseOrg('chart: org\nlegend-position: bottom\n\nJane Smith');
+      expect(result.options).toEqual({ 'legend-position': 'bottom' });
+    });
+
+    it('defaults to empty options', () => {
+      const result = parseOrg('chart: org\nJane Smith');
+      expect(result.options).toEqual({});
+    });
+
+    it('works alongside title and tag groups', () => {
+      const result = parseOrg(
+        'chart: org\ntitle: Acme\nlegend-position: top\n\n## Location\n  NY(blue)\n\nJane'
+      );
+      expect(result.title).toBe('Acme');
+      expect(result.options).toEqual({ 'legend-position': 'top' });
+      expect(result.tagGroups).toHaveLength(1);
+      expect(result.roots).toHaveLength(1);
+    });
+
+    it('does not treat chart or title as options', () => {
+      const result = parseOrg('chart: org\ntitle: Test\nJane');
+      expect(result.options).toEqual({});
+    });
+
+    it('parses multiple options', () => {
+      const result = parseOrg('chart: org\nlegend-position: bottom\nfoo: bar\n\nJane');
+      expect(result.options).toEqual({ 'legend-position': 'bottom', foo: 'bar' });
+    });
+  });
+
   // === Colors ===
   describe('colors', () => {
     it('extracts color from node label', () => {
