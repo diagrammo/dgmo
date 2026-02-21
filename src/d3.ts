@@ -1720,10 +1720,8 @@ export function renderArcDiagram(
     for (const node of nodes) {
       const y = yScale(node)!;
       const nodeColor = nodeColorMap.get(node) ?? textColor;
-      // Find the first link involving this node
-      const nodeLink = onClickItem
-        ? links.find((l) => l.source === node || l.target === node)
-        : undefined;
+      // Find the first link involving this node (for line number and click target)
+      const nodeLink = links.find((l) => l.source === node || l.target === node);
 
       const nodeG = g
         .append('g')
@@ -1858,10 +1856,8 @@ export function renderArcDiagram(
     for (const node of nodes) {
       const x = xScale(node)!;
       const nodeColor = nodeColorMap.get(node) ?? textColor;
-      // Find the first link involving this node
-      const nodeLink = onClickItem
-        ? links.find((l) => l.source === node || l.target === node)
-        : undefined;
+      // Find the first link involving this node (for line number and click target)
+      const nodeLink = links.find((l) => l.source === node || l.target === node);
 
       const nodeG = g
         .append('g')
