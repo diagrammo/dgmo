@@ -371,3 +371,91 @@ Alice
     expect(svg).toContain('data-node-toggle');
   });
 });
+
+// ============================================================
+// Legend
+// ============================================================
+
+describe('legend rendering', () => {
+  it('renders legend when tag groups exist', () => {
+    const input = `chart: org
+
+## Location
+  NY(blue)
+  LA(yellow)
+
+Alice
+  location: NY
+Bob
+  location: LA`;
+    const svg = renderOrgForExport(input, 'light', palette.light);
+    expect(svg).toContain('org-legend-group');
+  });
+
+  it('does not render legend when no tag groups defined', () => {
+    const input = `chart: org
+Alice
+  Bob`;
+    const svg = renderOrgForExport(input, 'light', palette.light);
+    expect(svg).not.toContain('org-legend-group');
+  });
+
+  it('shows group names in legend', () => {
+    const input = `chart: org
+
+## Location
+  NY(blue)
+  LA(yellow)
+
+## Status
+  FTE(green)
+
+Alice | location: NY, status: FTE`;
+    const svg = renderOrgForExport(input, 'light', palette.light);
+    // Two legend groups
+    const matches = svg.match(/org-legend-group/g);
+    expect(matches).toHaveLength(2);
+    // Group names rendered as headers
+    expect(svg).toContain('>Location<');
+    expect(svg).toContain('>Status<');
+  });
+
+  it('shows entry values with colored indicators', () => {
+    const input = `chart: org
+
+## Location
+  NY(blue)
+  LA(yellow)
+
+Alice | location: NY`;
+    const svg = renderOrgForExport(input, 'light', palette.light);
+    // Entry values rendered
+    expect(svg).toContain('>NY<');
+    expect(svg).toContain('>LA<');
+    // Colored circles (indicators)
+    expect(svg).toContain('<circle');
+  });
+
+  it('includes legend in layout dimensions', () => {
+    const withGroups = `chart: org
+
+## Location
+  NY(blue)
+
+Alice | location: NY`;
+    const withoutGroups = `chart: org
+Alice`;
+    const parsedWith = parseOrg(withGroups, palette.light);
+    const layoutWith = layoutOrg(parsedWith);
+    const parsedWithout = parseOrg(withoutGroups, palette.light);
+    const layoutWithout = layoutOrg(parsedWithout);
+
+    // Layout with legend should have legend groups
+    expect(layoutWith.legend).toHaveLength(1);
+    expect(layoutWith.legend[0].name).toBe('Location');
+    // Layout without tag groups should have empty legend
+    expect(layoutWithout.legend).toHaveLength(0);
+    // Legend adds to height
+    expect(layoutWith.height).toBeGreaterThan(layoutWith.legend[0].y);
+  });
+});
