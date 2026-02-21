@@ -35,7 +35,7 @@ function cloneNode(node: OrgNode): OrgNode {
 function countDescendants(node: OrgNode): number {
   let count = 0;
   for (const child of node.children) {
-    count += 1 + countDescendants(child);
+    count += (child.isContainer ? 0 : 1) + countDescendants(child);
   }
   return count;
 }

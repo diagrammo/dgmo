@@ -223,7 +223,7 @@ export function renderOrg(
         )
         .attr(
           'aria-label',
-          `${c.label}${c.hiddenCount ? `, +${c.hiddenCount} hidden` : ''}`
+          `${c.label}${c.hiddenCount ? `, +${c.hiddenCount}` : ''}`
         );
     }
 
@@ -298,7 +298,7 @@ export function renderOrg(
         .attr('fill', palette.textMuted)
         .attr('font-size', 10)
         .attr('opacity', 0.7)
-        .text(`+${c.hiddenCount} hidden`);
+        .text(`+${c.hiddenCount}`);
     }
   }
 
@@ -346,7 +346,7 @@ export function renderOrg(
         .attr('aria-expanded', String(!node.hiddenCount))
         .attr(
           'aria-label',
-          `${node.label}${node.hiddenCount ? `, +${node.hiddenCount} hidden` : ''}`
+          `${node.label}${node.hiddenCount ? `, +${node.hiddenCount}` : ''}`
         );
     }
 
@@ -443,7 +443,7 @@ export function renderOrg(
         .attr('fill', palette.textMuted)
         .attr('font-size', 10)
         .attr('opacity', 0.7)
-        .text(`+${node.hiddenCount} hidden`);
+        .text(`+${node.hiddenCount}`);
     }
   }
 

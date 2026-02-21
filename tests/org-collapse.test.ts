@@ -32,7 +32,7 @@ describe('collapseOrgTree', () => {
     expect(result.roots[0].children).toHaveLength(0);
   });
 
-  it('collapses node with nested descendants → counts all', () => {
+  it('collapses node with nested descendants → counts all nodes', () => {
     const content = `chart: org
 Alice
   Bob
@@ -44,7 +44,7 @@ Alice
 
     const { hiddenCounts } = collapseOrgTree(parsed, new Set([aliceId]));
 
-    // Bob + Charlie + Dave + Eve = 4
+    // Bob + Charlie + Dave + Eve = 4 (all non-container nodes)
     expect(hiddenCounts.get(aliceId)).toBe(4);
   });
 
@@ -157,6 +157,22 @@ Alice
     expect(result.roots[0].children[1].children).toHaveLength(2);
     expect(result.roots[0].children[1].children[0].label).toBe('Eve');
     expect(result.roots[0].children[1].children[1].label).toBe('Frank');
+  });
+
+  it('excludes containers from hidden count', () => {
+    const content = `chart: org
+Alice
+  [Platform Team]
+    Bob
+    Carol
+  Dave`;
+    const parsed = parseOrg(content);
+    const aliceId = parsed.roots[0].id;
+
+    const { hiddenCounts } = collapseOrgTree(parsed, new Set([aliceId]));
+
+    // Bob + Carol + Dave = 3 (container [Platform Team] not counted)
+    expect(hiddenCounts.get(aliceId)).toBe(3);
   });
 
   it('preserves ParsedOrg metadata fields', () => {
