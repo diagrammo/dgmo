@@ -416,8 +416,8 @@ export function renderOrg(
 
   }
 
-  // Render legend — hide non-active groups when one is active
-  for (const group of layout.legend) {
+  // Render legend — skip entirely in export mode; hide non-active groups when one is active
+  if (!exportDims) for (const group of layout.legend) {
     const isActive =
       activeTagGroup != null &&
       group.name.toLowerCase() === activeTagGroup.toLowerCase();

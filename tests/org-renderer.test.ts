@@ -500,7 +500,7 @@ Alice
 // ============================================================
 
 describe('legend rendering', () => {
-  it('renders legend when tag groups exist', () => {
+  it('omits legend in export mode', () => {
     const input = `chart: org
 
 ## Location
@@ -512,7 +512,7 @@ Alice
 Bob
   location: LA`;
     const svg = renderOrgForExport(input, 'light', palette.light);
-    expect(svg).toContain('org-legend-group');
+    expect(svg).not.toContain('org-legend-group');
   });
 
   it('does not render legend when no tag groups defined', () => {
@@ -523,7 +523,7 @@ Alice
     expect(svg).not.toContain('org-legend-group');
   });
 
-  it('shows group names in legend', () => {
+  it('shows group names in legend (interactive)', () => {
     const input = `chart: org
 
 ## Location
@@ -534,7 +534,16 @@ Alice
   FTE(green)
 
 Alice | location: NY, status: FTE`;
-    const svg = renderOrgForExport(input, 'light', palette.light);
+    const parsed = parseOrg(input, palette.light);
+    const layout = layoutOrg(parsed);
+
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'clientWidth', { value: 800 });
+    Object.defineProperty(container, 'clientHeight', { value: 600 });
+
+    renderOrg(container, parsed, layout, palette.light, false);
+    const svg = container.innerHTML;
+
     // Two legend groups
     const matches = svg.match(/org-legend-group/g);
     expect(matches).toHaveLength(2);
@@ -543,7 +552,7 @@ Alice | location: NY, status: FTE`;
     expect(svg).toContain('>Status<');
   });
 
-  it('shows entry values with colored indicators', () => {
+  it('shows entry values with colored indicators (interactive)', () => {
     const input = `chart: org
 
 ## Location
@@ -551,7 +560,16 @@ Alice | location: NY, status: FTE`;
   LA(yellow)
 
 Alice | location: NY`;
-    const svg = renderOrgForExport(input, 'light', palette.light);
+    const parsed = parseOrg(input, palette.light);
+    const layout = layoutOrg(parsed);
+
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'clientWidth', { value: 800 });
+    Object.defineProperty(container, 'clientHeight', { value: 600 });
+
+    renderOrg(container, parsed, layout, palette.light, false);
+    const svg = container.innerHTML;
+
     // Entry values rendered
     expect(svg).toContain('>NY<');
     expect(svg).toContain('>LA<');
