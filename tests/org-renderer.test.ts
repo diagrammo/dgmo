@@ -408,7 +408,7 @@ Alice
     expect(svg).not.toContain('data-node-toggle');
   });
 
-  it('renders collapsed count as metadata row (default label)', () => {
+  it('renders collapsed count as chevron indicator (not metadata row)', () => {
     const content = `chart: org
 Alice
   Bob
@@ -428,12 +428,15 @@ Alice
     renderOrg(container, collapsed, layout, palette.light, false);
 
     const svg = container.innerHTML;
-    expect(svg).toContain('Sub-node Count');
-    expect(svg).not.toContain('org-collapse-badge');
+    // No metadata row for hidden count
+    expect(svg).not.toContain('Sub-node Count');
+    // Chevron indicator rendered instead
+    expect(svg).toContain('org-collapse-indicator');
+    expect(svg).toContain('▸ +2');
     expect(svg).toContain('aria-expanded="false"');
   });
 
-  it('uses custom sub-node-label when set', () => {
+  it('collapsed nodes use hiddenCount instead of custom sub-node-label metadata', () => {
     const content = `chart: org
 sub-node-label: Direct Reports
 Alice
@@ -448,7 +451,10 @@ Alice
     const layout = layoutOrg(collapsed, hiddenCounts);
 
     const alice = layout.nodes.find((n) => n.label === 'Alice')!;
-    expect(alice.metadata['Direct Reports']).toBe('2');
+    // Collapsed nodes no longer inject count as metadata
+    expect(alice.metadata['Direct Reports']).toBeUndefined();
+    // Instead, hiddenCount is set for the renderer to draw a chevron indicator
+    expect(alice.hiddenCount).toBe(2);
   });
 
   it('shows sub-node count on all nodes when show-sub-node-count: yes', () => {
@@ -474,7 +480,7 @@ Alice
     expect(carol.metadata['Reports']).toBeUndefined();
   });
 
-  it('sub-node count includes collapsed descendants', () => {
+  it('sub-node count includes collapsed descendants for expanded nodes only', () => {
     const content = `chart: org
 show-sub-node-count: yes
 sub-node-label: Reports
@@ -491,13 +497,14 @@ Alice
     );
     const layout = layoutOrg(collapsed, hiddenCounts);
 
-    // Alice: Bob(1) + Bob's hidden(Charlie+Dave=2) + Carol(1) = 4
+    // Alice is expanded: Bob(1) + Bob's hidden(Charlie+Dave=2) + Carol(1) = 4
     const alice = layout.nodes.find((n) => n.label === 'Alice')!;
     expect(alice.metadata['Reports']).toBe('4');
 
-    // Bob is collapsed: shows its hiddenCount = 2
+    // Bob is collapsed: no metadata row, uses hiddenCount instead
     const bob = layout.nodes.find((n) => n.label === 'Bob')!;
-    expect(bob.metadata['Reports']).toBe('2');
+    expect(bob.metadata['Reports']).toBeUndefined();
+    expect(bob.hiddenCount).toBe(2);
   });
 
   it('adds data-node-toggle on containers with children', () => {
