@@ -43,6 +43,18 @@ const LEGEND_FONT_SIZE = 11;
 const LEGEND_MAX_PER_ROW = 3;
 const LEGEND_CHAR_WIDTH = 7.5;
 
+// Eye icon (12×12 viewBox, scaled from 0,0 to 12,12)
+const EYE_ICON_SIZE = 12;
+const EYE_ICON_GAP = 6;
+// Open eye: elliptical outline + circle pupil
+const EYE_OPEN_PATH =
+  'M1 6C1 6 3 2 6 2C9 2 11 6 11 6C11 6 9 10 6 10C3 10 1 6 1 6Z';
+const EYE_PUPIL_CX = 6;
+const EYE_PUPIL_CY = 6;
+const EYE_PUPIL_R = 1.8;
+// Closed eye: same outline + diagonal slash
+const EYE_SLASH_PATH = 'M2 2L10 10';
+
 // ============================================================
 // Color helpers (inline to avoid cross-module import issues)
 // ============================================================
@@ -111,7 +123,8 @@ export function renderOrg(
   isDark: boolean,
   onClickItem?: (lineNumber: number) => void,
   exportDims?: { width?: number; height?: number },
-  activeTagGroup?: string | null
+  activeTagGroup?: string | null,
+  hiddenAttributes?: Set<string>
 ): void {
   // Clear existing content
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
@@ -483,6 +496,62 @@ export function renderOrg(
       .attr('font-weight', 'bold')
       .text(group.name);
 
+    // Eye icon for visibility toggle (interactive only, not export)
+    if (hiddenAttributes !== undefined && !exportDims) {
+      const groupKey = group.name.toLowerCase();
+      const isHidden = hiddenAttributes.has(groupKey);
+      const eyeX =
+        LEGEND_PAD + group.name.length * LEGEND_CHAR_WIDTH + EYE_ICON_GAP;
+      const eyeY = (LEGEND_HEADER_H - EYE_ICON_SIZE) / 2;
+
+      const eyeG = gEl
+        .append('g')
+        .attr('class', 'org-legend-eye')
+        .attr('data-legend-visibility', groupKey)
+        .attr('transform', `translate(${eyeX}, ${eyeY})`);
+
+      // Transparent hit area
+      eyeG
+        .append('rect')
+        .attr('x', -4)
+        .attr('y', -4)
+        .attr('width', EYE_ICON_SIZE + 8)
+        .attr('height', EYE_ICON_SIZE + 8)
+        .attr('fill', 'transparent');
+
+      // Eye outline
+      eyeG
+        .append('path')
+        .attr('d', EYE_OPEN_PATH)
+        .attr('fill', isHidden ? 'none' : palette.textMuted)
+        .attr('fill-opacity', isHidden ? 0 : 0.15)
+        .attr('stroke', palette.textMuted)
+        .attr('stroke-width', 1.2)
+        .attr('opacity', isHidden ? 0.5 : 0.7);
+
+      if (!isHidden) {
+        // Pupil (only when visible)
+        eyeG
+          .append('circle')
+          .attr('cx', EYE_PUPIL_CX)
+          .attr('cy', EYE_PUPIL_CY)
+          .attr('r', EYE_PUPIL_R)
+          .attr('fill', palette.textMuted)
+          .attr('opacity', 0.7);
+      } else {
+        // Slash through the eye (hidden state)
+        eyeG
+          .append('line')
+          .attr('x1', 2)
+          .attr('y1', 2)
+          .attr('x2', 10)
+          .attr('y2', 10)
+          .attr('stroke', palette.textMuted)
+          .attr('stroke-width', 1.5)
+          .attr('opacity', 0.5);
+      }
+    }
+
     // Entries: colored dot + value label
     for (let i = 0; i < group.entries.length; i++) {
       const entry = group.entries[i];
@@ -535,7 +604,13 @@ export function renderOrgForExport(
   const parsed = parseOrg(content, palette);
   if (parsed.error || parsed.roots.length === 0) return '';
 
-  const layout = layoutOrg(parsed);
+  // Extract hide option for export: cards sized without hidden attributes
+  const hideOption = parsed.options?.['hide'];
+  const exportHidden = hideOption
+    ? new Set(hideOption.split(',').map((s) => s.trim().toLowerCase()))
+    : undefined;
+
+  const layout = layoutOrg(parsed, undefined, undefined, exportHidden);
   const isDark = theme === 'dark';
 
   // Create offscreen container
@@ -552,6 +627,7 @@ export function renderOrgForExport(
   document.body.appendChild(container);
 
   try {
+    // No hiddenAttributes passed to renderOrg — export never shows eye icons
     renderOrg(container, parsed, layout, palette, isDark, undefined, {
       width: exportWidth,
       height: exportHeight,

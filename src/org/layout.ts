@@ -105,15 +105,32 @@ const LEGEND_HEADER_H = 20;
 const LEGEND_ENTRY_H = 18;
 const LEGEND_MAX_PER_ROW = 3;
 const LEGEND_V_GAP = 12;
+const EYE_ICON_WIDTH = 16;
+const EYE_ICON_GAP = 6;
 
 // ============================================================
 // Card Sizing
 // ============================================================
 
-function computeCardWidth(node: OrgNode): number {
+function filterMetadata(
+  metadata: Record<string, string>,
+  hiddenAttributes?: Set<string>
+): Record<string, string> {
+  if (!hiddenAttributes || hiddenAttributes.size === 0) return metadata;
+  const filtered: Record<string, string> = {};
+  for (const [key, value] of Object.entries(metadata)) {
+    if (!hiddenAttributes.has(key)) {
+      filtered[key] = value;
+    }
+  }
+  return filtered;
+}
+
+function computeCardWidth(node: OrgNode, hiddenAttributes?: Set<string>): number {
   let maxChars = node.label.length;
 
-  for (const [key, value] of Object.entries(node.metadata)) {
+  const meta = filterMetadata(node.metadata, hiddenAttributes);
+  for (const [key, value] of Object.entries(meta)) {
     const lineChars = key.length + 2 + value.length; // "key: value"
     if (lineChars > maxChars) maxChars = lineChars;
   }
@@ -121,8 +138,9 @@ function computeCardWidth(node: OrgNode): number {
   return Math.max(MIN_CARD_WIDTH, Math.ceil(maxChars * CHAR_WIDTH) + CARD_H_PAD * 2);
 }
 
-function computeCardHeight(node: OrgNode): number {
-  const metaCount = Object.keys(node.metadata).length;
+function computeCardHeight(node: OrgNode, hiddenAttributes?: Set<string>): number {
+  const meta = filterMetadata(node.metadata, hiddenAttributes);
+  const metaCount = Object.keys(meta).length;
   if (metaCount === 0) return HEADER_HEIGHT + CARD_V_PAD;
   return HEADER_HEIGHT + SEPARATOR_GAP + metaCount * META_LINE_HEIGHT + CARD_V_PAD;
 }
@@ -165,15 +183,16 @@ interface TreeNode {
 
 function buildTreeNodes(
   nodes: OrgNode[],
-  hiddenCounts?: Map<string, number>
+  hiddenCounts?: Map<string, number>,
+  hiddenAttributes?: Set<string>
 ): TreeNode[] {
   return nodes.map((orgNode) => {
-    const baseHeight = computeCardHeight(orgNode);
+    const baseHeight = computeCardHeight(orgNode, hiddenAttributes);
     const hasBadge = hiddenCounts?.has(orgNode.id) ?? false;
     return {
       orgNode,
-      children: buildTreeNodes(orgNode.children, hiddenCounts),
-      width: computeCardWidth(orgNode),
+      children: buildTreeNodes(orgNode.children, hiddenCounts, hiddenAttributes),
+      width: computeCardWidth(orgNode, hiddenAttributes),
       height: hasBadge ? baseHeight + BADGE_ROW_HEIGHT : baseHeight,
     };
   });
@@ -183,7 +202,7 @@ function buildTreeNodes(
 // Layout
 // ============================================================
 
-function computeLegendGroups(tagGroups: OrgTagGroup[]): OrgLegendGroup[] {
+function computeLegendGroups(tagGroups: OrgTagGroup[], showEyeIcons: boolean): OrgLegendGroup[] {
   const groups: OrgLegendGroup[] = [];
 
   for (const group of tagGroups) {
@@ -200,7 +219,8 @@ function computeLegendGroups(tagGroups: OrgTagGroup[]): OrgLegendGroup[] {
       rows.push(entryWidths.slice(i, i + LEGEND_MAX_PER_ROW));
     }
 
-    const headerWidth = group.name.length * CHAR_WIDTH;
+    const eyeExtra = showEyeIcons ? EYE_ICON_GAP + EYE_ICON_WIDTH : 0;
+    const headerWidth = group.name.length * CHAR_WIDTH + eyeExtra;
     let maxRowWidth = headerWidth;
     for (const row of rows) {
       const rowWidth =
@@ -253,7 +273,8 @@ function injectDefaultMetadata(
 export function layoutOrg(
   parsed: ParsedOrg,
   hiddenCounts?: Map<string, number>,
-  activeTagGroup?: string | null
+  activeTagGroup?: string | null,
+  hiddenAttributes?: Set<string>
 ): OrgLayoutResult {
   if (parsed.roots.length === 0) {
     return { nodes: [], edges: [], containers: [], legend: [], width: 0, height: 0 };
@@ -264,7 +285,7 @@ export function layoutOrg(
   injectDefaultMetadata(parsed.roots, parsed.tagGroups);
 
   // Build tree structure
-  const treeNodes = buildTreeNodes(parsed.roots, hiddenCounts);
+  const treeNodes = buildTreeNodes(parsed.roots, hiddenCounts, hiddenAttributes);
 
   // Single root or virtual root for multiple roots
   let root: TreeNode;
@@ -573,7 +594,7 @@ export function layoutOrg(
     layoutNodes.push({
       id: ec.orgNode.id,
       label: ec.orgNode.label,
-      metadata: ec.orgNode.metadata,
+      metadata: filterMetadata(ec.orgNode.metadata, hiddenAttributes),
       isContainer: ec.orgNode.isContainer,
       lineNumber: ec.orgNode.lineNumber,
       color: resolveNodeColor(ec.orgNode, parsed.tagGroups, activeTagGroup ?? null),
@@ -600,7 +621,7 @@ export function layoutOrg(
     layoutNodes.push({
       id: orgNode.id,
       label: orgNode.label,
-      metadata: orgNode.metadata,
+      metadata: filterMetadata(orgNode.metadata, hiddenAttributes),
       isContainer: orgNode.isContainer,
       lineNumber: orgNode.lineNumber,
       color: resolveNodeColor(orgNode, parsed.tagGroups, activeTagGroup ?? null),
@@ -690,7 +711,7 @@ export function layoutOrg(
       label: d.data.orgNode.label,
       lineNumber: d.data.orgNode.lineNumber,
       color: resolveNodeColor(d.data.orgNode, parsed.tagGroups, activeTagGroup ?? null),
-      metadata: d.data.orgNode.metadata,
+      metadata: filterMetadata(d.data.orgNode.metadata, hiddenAttributes),
       x: boxX,
       y: boxY,
       width: boxWidth,
@@ -796,7 +817,7 @@ export function layoutOrg(
       label: d.data.orgNode.label,
       lineNumber: d.data.orgNode.lineNumber,
       color: resolveNodeColor(d.data.orgNode, parsed.tagGroups, activeTagGroup ?? null),
-      metadata: d.data.orgNode.metadata,
+      metadata: filterMetadata(d.data.orgNode.metadata, hiddenAttributes),
       x: centeredBoxX,
       y: boxY,
       width: finalBoxWidth,
@@ -828,7 +849,8 @@ export function layoutOrg(
   const totalHeight = finalMaxY - minY + MARGIN * 2;
 
   // Compute legend for tag groups
-  const legendGroups = computeLegendGroups(parsed.tagGroups);
+  const showEyeIcons = hiddenAttributes !== undefined;
+  const legendGroups = computeLegendGroups(parsed.tagGroups, showEyeIcons);
   let finalWidth = totalWidth;
   let finalHeight = totalHeight;
 

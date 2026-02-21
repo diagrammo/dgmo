@@ -421,6 +421,11 @@ describe('parseOrg', () => {
       const result = parseOrg('chart: org\nlegend-position: bottom\nfoo: bar\n\nJane');
       expect(result.options).toEqual({ 'legend-position': 'bottom', foo: 'bar' });
     });
+
+    it('parses hide option with comma-separated keys', () => {
+      const result = parseOrg('chart: org\nhide: location, status\n\nJane');
+      expect(result.options).toEqual({ hide: 'location, status' });
+    });
   });
 
   // === Colors ===
