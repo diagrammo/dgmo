@@ -111,11 +111,15 @@ describe('layoutOrg', () => {
     const layout = layoutOrg(parsed);
 
     const alice = layout.nodes.find((n) => n.label === 'Alice')!;
-    const bob = layout.nodes.find((n) => n.label === 'Bob')!;
-    const eve = layout.nodes.find((n) => n.label === 'Eve')!;
+    const children = ['Bob', 'Carol', 'Dave', 'Eve'].map(
+      (name) => layout.nodes.find((n) => n.label === name)!
+    );
+    const leftmost = children.reduce((a, b) => (a.x < b.x ? a : b));
+    const rightmost = children.reduce((a, b) => (a.x > b.x ? a : b));
 
     // Alice's center X should be exactly midpoint of leftmost and rightmost child
-    const expectedX = (bob.x + bob.width / 2 + eve.x + eve.width / 2) / 2;
+    const expectedX =
+      (leftmost.x + leftmost.width / 2 + rightmost.x + rightmost.width / 2) / 2;
     expect(alice.x + alice.width / 2).toBeCloseTo(expectedX, 1);
   });
 
@@ -236,6 +240,27 @@ Bob`;
     expect(layout.nodes).toHaveLength(0);
     expect(layout.edges).toHaveLength(0);
     expect(layout.containers).toHaveLength(0);
+  });
+
+  it('places heaviest subtrees in center positions', () => {
+    const parsed = parseOrg(
+      'chart: org\n' +
+        'Boss\n' +
+        '  Alice\n' +
+        '  Bob\n' +
+        '    B1\n' +
+        '      B1a\n' +
+        '        B1a1\n' +
+        '  Carol\n'
+    );
+    const layout = layoutOrg(parsed);
+    const alice = layout.nodes.find((n) => n.label === 'Alice')!;
+    const bob = layout.nodes.find((n) => n.label === 'Bob')!;
+    const carol = layout.nodes.find((n) => n.label === 'Carol')!;
+
+    // Bob (heaviest) should be between Alice and Carol (center position)
+    expect(bob.x).toBeGreaterThan(Math.min(alice.x, carol.x));
+    expect(bob.x).toBeLessThan(Math.max(alice.x, carol.x));
   });
 
   it('produces positive width and height', () => {
