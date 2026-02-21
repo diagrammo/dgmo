@@ -235,10 +235,15 @@ export function renderOrg(
     // Container metadata (below label)
     const metaEntries = Object.entries(c.metadata);
     if (metaEntries.length > 0) {
+      // Compute max key width so values align vertically
+      const metaDisplayKeys = metaEntries.map(([k]) => displayNames.get(k) ?? k);
+      const maxKeyLen = Math.max(...metaDisplayKeys.map((k) => k.length));
+      const valueX = 10 + (maxKeyLen + 2) * (CONTAINER_META_FONT_SIZE * 0.6);
+
       const metaStartY = CONTAINER_HEADER_HEIGHT + CONTAINER_META_FONT_SIZE - 2;
       for (let i = 0; i < metaEntries.length; i++) {
-        const [key, value] = metaEntries[i];
-        const displayKey = displayNames.get(key) ?? key;
+        const [, value] = metaEntries[i];
+        const displayKey = metaDisplayKeys[i];
         const rowY = metaStartY + i * CONTAINER_META_LINE_HEIGHT;
 
         cG.append('text')
@@ -248,9 +253,8 @@ export function renderOrg(
           .attr('font-size', CONTAINER_META_FONT_SIZE)
           .text(`${displayKey}: `);
 
-        const keyWidth = (displayKey.length + 2) * (CONTAINER_META_FONT_SIZE * 0.6);
         cG.append('text')
-          .attr('x', 10 + keyWidth)
+          .attr('x', valueX)
           .attr('y', rowY)
           .attr('fill', palette.text)
           .attr('font-size', CONTAINER_META_FONT_SIZE)
@@ -371,11 +375,15 @@ export function renderOrg(
         .attr('stroke-opacity', 0.3)
         .attr('stroke-width', 1);
 
-      // Metadata rows
+      // Metadata rows — compute max key width so values align vertically
+      const metaDisplayKeys = metaEntries.map(([k]) => displayNames.get(k) ?? k);
+      const maxKeyLen = Math.max(...metaDisplayKeys.map((k) => k.length));
+      const valueX = 10 + (maxKeyLen + 2) * (META_FONT_SIZE * 0.6);
+
       const metaStartY = HEADER_HEIGHT + SEPARATOR_GAP + META_FONT_SIZE;
       for (let i = 0; i < metaEntries.length; i++) {
-        const [key, value] = metaEntries[i];
-        const displayKey = displayNames.get(key) ?? key;
+        const [, value] = metaEntries[i];
+        const displayKey = metaDisplayKeys[i];
         const rowY = metaStartY + i * META_LINE_HEIGHT;
 
         // Key (muted)
@@ -388,10 +396,9 @@ export function renderOrg(
           .text(`${displayKey}: `);
 
         // Value (normal)
-        const keyWidth = (displayKey.length + 2) * (META_FONT_SIZE * 0.6);
         nodeG
           .append('text')
-          .attr('x', 10 + keyWidth)
+          .attr('x', valueX)
           .attr('y', rowY)
           .attr('fill', palette.text)
           .attr('font-size', META_FONT_SIZE)
