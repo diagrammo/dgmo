@@ -490,7 +490,7 @@ Alice(red)
     expect(alice.color).toBe(parsed.roots[0].color);
   });
 
-  it('nodes without matching metadata stay uncolored when activeTagGroup set', () => {
+  it('nodes without matching metadata get gray when activeTagGroup set', () => {
     const input = `chart: org
 
 ## Location
@@ -505,7 +505,7 @@ Bob`;
     const alice = layout.nodes.find((n) => n.label === 'Alice')!;
     const bob = layout.nodes.find((n) => n.label === 'Bob')!;
     expect(alice.color).toBeTruthy();
-    expect(bob.color).toBeUndefined();
+    expect(bob.color).toBe('#999999');
   });
 
   it('nodes without metadata get default tag group color when activeTagGroup set', () => {
@@ -607,8 +607,8 @@ Alice
     const eng = layout.containers.find((c) => c.label === 'Engineering')!;
     // Alice gets NY blue
     expect(alice.color).toBeTruthy();
-    // Container should NOT get default CO green
-    expect(eng.color).toBeUndefined();
+    // Container should NOT get default CO green — gets gray fallback instead
+    expect(eng.color).toBe('#999999');
   });
 
   it('explicit metadata wins over default tag group value', () => {
