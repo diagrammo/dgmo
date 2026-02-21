@@ -164,10 +164,10 @@ function resolveNodeColor(
   const metaValue =
     node.metadata[group.name.toLowerCase()] ??
     (node.isContainer ? undefined : group.defaultValue);
-  if (!metaValue) return undefined;
+  if (!metaValue) return '#999999';
   return group.entries.find(
     (e) => e.value.toLowerCase() === metaValue.toLowerCase()
-  )?.color;
+  )?.color ?? '#999999';
 }
 
 // ============================================================
