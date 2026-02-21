@@ -534,6 +534,39 @@ export function layoutOrg(
     shift(d);
   }
 
+  // Post-layout: tighten gap between non-container parents and their
+  // container children. Containers render as header boxes (not full cards),
+  // so the standard inter-level gap is visually excessive.
+  for (const d of h.descendants()) {
+    if (d.data.orgNode.id === '__virtual_root__') continue;
+    if (d.data.orgNode.isContainer) continue; // only non-container parents
+    if (!d.children || d.children.length === 0) continue;
+
+    // Only apply when ALL direct children are containers — mixed children
+    // need standard spacing so siblings stay aligned.
+    if (!d.children.every((c) => c.data.orgNode.isContainer)) continue;
+
+    const parentBottomY = d.y! + d.data.height;
+    const firstChildY = Math.min(...d.children.map((c) => c.y!));
+    const currentGap = firstChildY - parentBottomY;
+    const desiredGap = V_GAP * 0.6;
+    const shiftUp = currentGap - desiredGap;
+    if (shiftUp <= 0) continue;
+
+    // Shift all container children and their descendants up
+    const shiftDown = (node: typeof d) => {
+      node.y! -= shiftUp;
+      if (node.children) {
+        for (const child of node.children) {
+          shiftDown(child);
+        }
+      }
+    };
+    for (const child of d.children) {
+      shiftDown(child);
+    }
+  }
+
   // Post-layout: compact sibling spacing based on actual subtree widths.
   // D3 uses uniform nodeSize so narrow stacks get the same gap as wide
   // subtrees. Process bottom-up so inner subtrees are compact first.
