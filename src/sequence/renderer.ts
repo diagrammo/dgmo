@@ -73,6 +73,14 @@ export function parseInlineMarkdown(text: string): InlineSpan[] {
   return spans;
 }
 
+const BARE_URL_MAX_DISPLAY = 35;
+
+export function truncateBareUrl(url: string): string {
+  const stripped = url.replace(/^https?:\/\//, '').replace(/^www\./, '');
+  if (stripped.length <= BARE_URL_MAX_DISPLAY) return stripped;
+  return stripped.slice(0, BARE_URL_MAX_DISPLAY - 1) + '\u2026';
+}
+
 function renderInlineText(
   textEl: d3Selection.Selection<SVGTextElement, unknown, null, undefined>,
   text: string,
@@ -82,9 +90,15 @@ function renderInlineText(
   const spans = parseInlineMarkdown(text);
   for (const span of spans) {
     if (span.href) {
+      // Bare URLs (text === href or href with https:// prepended) get truncated display;
+      // markdown links [text](url) keep their user-chosen text as-is.
+      const isBareUrl =
+        span.text === span.href ||
+        `https://${span.text}` === span.href;
+      const display = isBareUrl ? truncateBareUrl(span.text) : span.text;
       const a = textEl.append('a').attr('href', span.href);
       a.append('tspan')
-        .text(span.text)
+        .text(display)
         .attr('fill', palette.primary)
         .style('text-decoration', 'underline');
     } else {
