@@ -153,6 +153,13 @@ describe('parseOrg', () => {
       expect(alice.metadata).toEqual({ role: 'Senior', location: 'NY' });
     });
 
+    it('parses comma-separated metadata within pipe segment', () => {
+      const result = parseOrg('Alice Park | role: Senior, location: NY');
+      const alice = result.roots[0];
+      expect(alice.label).toBe('Alice Park');
+      expect(alice.metadata).toEqual({ role: 'Senior', location: 'NY' });
+    });
+
     it('single-line metadata with color', () => {
       const result = parseOrg('Alice Park(blue) | role: Senior');
       const alice = result.roots[0];
@@ -280,6 +287,91 @@ describe('parseOrg', () => {
     it('error on tag entry without color', () => {
       const result = parseOrg('## Location\n  NY\n\nJane');
       expect(result.error).toMatch(/Expected 'Value\(color\)' in tag group/);
+    });
+  });
+
+  // === Tag group aliases ===
+  describe('tag group aliases', () => {
+    it('parses alias from tag group heading', () => {
+      const result = parseOrg(
+        '## Location alias loc\n  NY(blue)\n\nJane Smith'
+      );
+      expect(result.tagGroups).toHaveLength(1);
+      expect(result.tagGroups[0].name).toBe('Location');
+      expect(result.tagGroups[0].alias).toBe('loc');
+      expect(result.tagGroups[0].entries).toHaveLength(1);
+    });
+
+    it('tag group without alias still works', () => {
+      const result = parseOrg('## Location\n  NY(blue)\n\nJane Smith');
+      expect(result.tagGroups[0].name).toBe('Location');
+      expect(result.tagGroups[0].alias).toBeUndefined();
+    });
+
+    it('expands alias in pipe-delimited metadata', () => {
+      const result = parseOrg(
+        '## Title alias t\n  CTO(purple)\n\nSean Curtis| t: CTO'
+      );
+      const sean = result.roots[0];
+      expect(sean.metadata).toEqual({ title: 'CTO' });
+    });
+
+    it('expands alias in comma-separated metadata', () => {
+      const result = parseOrg(
+        '## Title alias t\n  CTO(purple)\n\n## Location alias loc\n  NY(blue)\n\nSean Curtis| t: CTO, loc: NY'
+      );
+      const sean = result.roots[0];
+      expect(sean.metadata).toEqual({ title: 'CTO', location: 'NY' });
+    });
+
+    it('expands alias in standalone metadata lines', () => {
+      const result = parseOrg(
+        '## Location alias loc\n  NY(blue)\n\nSean Curtis\n  loc: NY'
+      );
+      const sean = result.roots[0];
+      expect(sean.metadata).toEqual({ location: 'NY' });
+    });
+
+    it('multiple aliases with pipe separators', () => {
+      const result = parseOrg(
+        '## Location alias loc\n  NY(blue)\n  CA(green)\n\n## Status alias st\n  FTE(green)\n\n## Title alias t\n  CTO(purple)\n\nSean Curtis| t: CTO| loc: NY| st: FTE'
+      );
+      expect(result.tagGroups).toHaveLength(3);
+      const sean = result.roots[0];
+      expect(sean.metadata).toEqual({
+        title: 'CTO',
+        location: 'NY',
+        status: 'FTE',
+      });
+    });
+
+    it('multiple aliases with comma separators', () => {
+      const result = parseOrg(
+        '## Location alias loc\n  NY(blue)\n  CA(green)\n\n## Status alias st\n  FTE(green)\n\n## Title alias t\n  CTO(purple)\n\nSean Curtis| t: CTO, loc: NY, st: FTE'
+      );
+      expect(result.tagGroups).toHaveLength(3);
+      const sean = result.roots[0];
+      expect(sean.metadata).toEqual({
+        title: 'CTO',
+        location: 'NY',
+        status: 'FTE',
+      });
+    });
+
+    it('alias with color on tag group heading', () => {
+      const result = parseOrg(
+        '## Status alias st(red)\n  FTE(green)\n\nJane'
+      );
+      expect(result.tagGroups[0].name).toBe('Status');
+      expect(result.tagGroups[0].alias).toBe('st');
+    });
+
+    it('non-aliased keys pass through unchanged', () => {
+      const result = parseOrg(
+        '## Title alias t\n  CTO(purple)\n\nSean Curtis| t: CTO| role: VP'
+      );
+      const sean = result.roots[0];
+      expect(sean.metadata).toEqual({ title: 'CTO', role: 'VP' });
     });
   });
 

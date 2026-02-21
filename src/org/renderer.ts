@@ -172,6 +172,12 @@ export function renderOrg(
     .append('g')
     .attr('transform', `translate(0, ${titleOffset})`);
 
+  // Build display name map from tag groups (lowercase key → original casing)
+  const displayNames = new Map<string, string>();
+  for (const group of parsed.tagGroups) {
+    displayNames.set(group.name.toLowerCase(), group.name);
+  }
+
   // Render container backgrounds (bottom layer)
   for (const c of layout.containers) {
     const cG = contentG
@@ -232,6 +238,7 @@ export function renderOrg(
       const metaStartY = CONTAINER_HEADER_HEIGHT + CONTAINER_META_FONT_SIZE - 2;
       for (let i = 0; i < metaEntries.length; i++) {
         const [key, value] = metaEntries[i];
+        const displayKey = displayNames.get(key) ?? key;
         const rowY = metaStartY + i * CONTAINER_META_LINE_HEIGHT;
 
         cG.append('text')
@@ -239,9 +246,9 @@ export function renderOrg(
           .attr('y', rowY)
           .attr('fill', palette.textMuted)
           .attr('font-size', CONTAINER_META_FONT_SIZE)
-          .text(`${key}: `);
+          .text(`${displayKey}: `);
 
-        const keyWidth = (key.length + 2) * (CONTAINER_META_FONT_SIZE * 0.6);
+        const keyWidth = (displayKey.length + 2) * (CONTAINER_META_FONT_SIZE * 0.6);
         cG.append('text')
           .attr('x', 10 + keyWidth)
           .attr('y', rowY)
@@ -368,6 +375,7 @@ export function renderOrg(
       const metaStartY = HEADER_HEIGHT + SEPARATOR_GAP + META_FONT_SIZE;
       for (let i = 0; i < metaEntries.length; i++) {
         const [key, value] = metaEntries[i];
+        const displayKey = displayNames.get(key) ?? key;
         const rowY = metaStartY + i * META_LINE_HEIGHT;
 
         // Key (muted)
@@ -377,10 +385,10 @@ export function renderOrg(
           .attr('y', rowY)
           .attr('fill', palette.textMuted)
           .attr('font-size', META_FONT_SIZE)
-          .text(`${key}: `);
+          .text(`${displayKey}: `);
 
         // Value (normal)
-        const keyWidth = (key.length + 2) * (META_FONT_SIZE * 0.6);
+        const keyWidth = (displayKey.length + 2) * (META_FONT_SIZE * 0.6);
         nodeG
           .append('text')
           .attr('x', 10 + keyWidth)

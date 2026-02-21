@@ -13,6 +13,7 @@ export interface OrgTagEntry {
 
 export interface OrgTagGroup {
   name: string;
+  alias?: string;
   entries: OrgTagEntry[];
   lineNumber: number;
 }
@@ -65,7 +66,7 @@ function extractColor(
   };
 }
 
-const GROUP_HEADING_RE = /^##\s+(.+?)(?:\(([^)]+)\))?\s*$/;
+const GROUP_HEADING_RE = /^##\s+(.+?)(?:\s+alias\s+(\w+))?(?:\s*\(([^)]+)\))?\s*$/;
 const CONTAINER_RE = /^\[([^\]]+)\]$/;
 const METADATA_RE = /^([^:]+):\s*(.+)$/;
 const CHART_TYPE_RE = /^chart\s*:\s*(.+)/i;
@@ -99,6 +100,9 @@ export function parseOrg(
 
   // Tag group parsing state
   let currentTagGroup: OrgTagGroup | null = null;
+
+  // Alias map: alias (lowercased) → group name (lowercased)
+  const aliasMap = new Map<string, string>();
 
   // Indent stack for hierarchy tracking
   // Each entry: { node, indent }
@@ -153,11 +157,17 @@ export function parseOrg(
         result.error = `Line ${lineNumber}: Tag groups (##) must appear before org content`;
         return result;
       }
+      const groupName = groupMatch[1].trim();
+      const alias = groupMatch[2] || undefined;
       currentTagGroup = {
-        name: groupMatch[1].trim(),
+        name: groupName,
+        alias,
         entries: [],
         lineNumber,
       };
+      if (alias) {
+        aliasMap.set(alias.toLowerCase(), groupName.toLowerCase());
+      }
       result.tagGroups.push(currentTagGroup);
       continue;
     }
@@ -216,7 +226,8 @@ export function parseOrg(
       attachNode(node, indent, indentStack, result);
     } else if (metadataMatch && indentStack.length > 0) {
       // It's a metadata line — attach to most recent node on stack at shallower indent
-      const key = metadataMatch[1].trim().toLowerCase();
+      const rawKey = metadataMatch[1].trim().toLowerCase();
+      const key = aliasMap.get(rawKey) ?? rawKey;
       const value = metadataMatch[2].trim();
 
       // Find the parent node: top of stack (the most recent node)
@@ -232,7 +243,7 @@ export function parseOrg(
       // Otherwise it's an orphan metadata error
       if (indent === 0) {
         // Treat as a node label (e.g., "Dr. Smith: Surgeon" is a valid name)
-        const node = parseNodeLabel(trimmed, indent, lineNumber, palette, ++nodeCounter);
+        const node = parseNodeLabel(trimmed, indent, lineNumber, palette, ++nodeCounter, aliasMap);
         attachNode(node, indent, indentStack, result);
       } else {
         result.error = `Line ${lineNumber}: Metadata has no parent node`;
@@ -240,7 +251,7 @@ export function parseOrg(
       }
     } else {
       // It's a node label — possibly with single-line pipe-delimited metadata
-      const node = parseNodeLabel(trimmed, indent, lineNumber, palette, ++nodeCounter);
+      const node = parseNodeLabel(trimmed, indent, lineNumber, palette, ++nodeCounter, aliasMap);
       attachNode(node, indent, indentStack, result);
     }
   }
@@ -261,7 +272,8 @@ function parseNodeLabel(
   _indent: number,
   lineNumber: number,
   palette: PaletteColors | undefined,
-  counter: number
+  counter: number,
+  aliasMap: Map<string, string> = new Map()
 ): OrgNode {
   // Check for single-line compact metadata: "Alice Park | role: Senior | location: NY"
   const segments = trimmed.split('|').map((s) => s.trim());
@@ -270,12 +282,20 @@ function parseNodeLabel(
   const { label, color } = extractColor(rawLabel, palette);
 
   const metadata: Record<string, string> = {};
+  // Collect all metadata parts: split pipe segments further on commas
+  const metaParts: string[] = [];
   for (let j = 1; j < segments.length; j++) {
-    const seg = segments[j];
-    const colonIdx = seg.indexOf(':');
+    for (const part of segments[j].split(',')) {
+      const trimmedPart = part.trim();
+      if (trimmedPart) metaParts.push(trimmedPart);
+    }
+  }
+  for (const part of metaParts) {
+    const colonIdx = part.indexOf(':');
     if (colonIdx > 0) {
-      const key = seg.substring(0, colonIdx).trim().toLowerCase();
-      const value = seg.substring(colonIdx + 1).trim();
+      const rawKey = part.substring(0, colonIdx).trim().toLowerCase();
+      const key = aliasMap.get(rawKey) ?? rawKey;
+      const value = part.substring(colonIdx + 1).trim();
       metadata[key] = value;
     }
   }
