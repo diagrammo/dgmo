@@ -40,20 +40,30 @@ function countDescendants(node: OrgNode): number {
   return count;
 }
 
-function pruneCollapsed(
-  node: OrgNode,
+/** Compute hidden counts from the ORIGINAL (unpruned) tree so nested
+ *  collapses don't lose ancestor descendant totals. */
+function computeHiddenCounts(
+  nodes: OrgNode[],
   collapsedIds: Set<string>,
   hiddenCounts: Map<string, number>
 ): void {
-  // Process children first (depth-first) so nested collapses are handled
-  for (const child of node.children) {
-    pruneCollapsed(child, collapsedIds, hiddenCounts);
+  for (const node of nodes) {
+    if (collapsedIds.has(node.id) && node.children.length > 0) {
+      hiddenCounts.set(node.id, countDescendants(node));
+    }
+    computeHiddenCounts(node.children, collapsedIds, hiddenCounts);
   }
+}
 
-  // If this node is collapsed and has children, prune them
+/** Remove children of collapsed nodes on the cloned tree. */
+function pruneCollapsed(
+  node: OrgNode,
+  collapsedIds: Set<string>
+): void {
+  for (const child of node.children) {
+    pruneCollapsed(child, collapsedIds);
+  }
   if (collapsedIds.has(node.id) && node.children.length > 0) {
-    const count = countDescendants(node);
-    hiddenCounts.set(node.id, count);
     node.children = [];
   }
 }
@@ -72,11 +82,13 @@ export function collapseOrgTree(
     return { parsed: original, hiddenCounts };
   }
 
-  // Deep-clone roots to avoid mutating the memoized parse result
-  const clonedRoots = original.roots.map(cloneNode);
+  // Compute counts from the ORIGINAL tree before any pruning
+  computeHiddenCounts(original.roots, collapsedIds, hiddenCounts);
 
+  // Deep-clone roots and prune collapsed subtrees
+  const clonedRoots = original.roots.map(cloneNode);
   for (const root of clonedRoots) {
-    pruneCollapsed(root, collapsedIds, hiddenCounts);
+    pruneCollapsed(root, collapsedIds);
   }
 
   return {

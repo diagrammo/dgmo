@@ -175,6 +175,27 @@ Alice
     expect(hiddenCounts.get(aliceId)).toBe(3);
   });
 
+  it('nested collapse: parent counts all descendants from original tree', () => {
+    const content = `chart: org
+Alice
+  Bob
+    Charlie
+    Dave
+  Eve`;
+    const parsed = parseOrg(content);
+    const aliceId = parsed.roots[0].id;
+    const bobId = parsed.roots[0].children[0].id;
+
+    // Both Alice and Bob collapsed — Alice should still count all 4 descendants
+    const { hiddenCounts } = collapseOrgTree(
+      parsed,
+      new Set([aliceId, bobId])
+    );
+
+    expect(hiddenCounts.get(bobId)).toBe(2); // Charlie + Dave
+    expect(hiddenCounts.get(aliceId)).toBe(4); // Bob + Charlie + Dave + Eve
+  });
+
   it('preserves ParsedOrg metadata fields', () => {
     const content = `chart: org
 title: My Org
