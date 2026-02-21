@@ -221,6 +221,52 @@ function buildTreeNodes(
   });
 }
 
+/**
+ * Count total descendants (children + grandchildren + ...) of a TreeNode.
+ */
+function countDescendants(node: TreeNode): number {
+  let count = 0;
+  for (const child of node.children) {
+    count += 1 + countDescendants(child);
+  }
+  return count;
+}
+
+/**
+ * Recursively reorder children so subtrees with the most descendants
+ * occupy center positions. Produces a balanced, symmetrical layout.
+ * Skips nodes with ≤2 children (no meaningful center to target).
+ */
+function centerHeavyChildren(node: TreeNode): void {
+  for (const child of node.children) {
+    centerHeavyChildren(child);
+  }
+  if (node.children.length <= 2) return;
+
+  const weighted = node.children
+    .map((child) => ({ child, weight: countDescendants(child) }))
+    .sort((a, b) => b.weight - a.weight);
+
+  const result: TreeNode[] = new Array(weighted.length);
+  const mid = Math.floor((weighted.length - 1) / 2);
+  let left = mid;
+  let right = mid;
+
+  for (let i = 0; i < weighted.length; i++) {
+    if (i === 0) {
+      result[mid] = weighted[i].child;
+    } else if (i % 2 === 1) {
+      right++;
+      result[right] = weighted[i].child;
+    } else {
+      left--;
+      result[left] = weighted[i].child;
+    }
+  }
+
+  node.children = result;
+}
+
 // ============================================================
 // Layout
 // ============================================================
@@ -397,6 +443,9 @@ export function layoutOrg(
     }
   };
   collapseLeafContainers(root);
+
+  // Reorder children: heaviest subtrees in center positions
+  centerHeavyChildren(root);
 
   // Build d3 hierarchy
   const h = hierarchy<TreeNode>(root, (d) => d.children);
@@ -613,7 +662,9 @@ export function layoutOrg(
     if (d.data.orgNode.id === '__virtual_root__') continue;
     if (d.data.orgNode.id.startsWith('__stack_')) continue;
 
-    const w = d.data.width;
+    const isChildlessCtr =
+      d.data.orgNode.isContainer && (!d.children || d.children.length === 0);
+    const w = isChildlessCtr ? Math.max(d.data.width, maxWidth) : d.data.width;
     const ht = d.data.height;
     const cx = d.x!;
     const cy = d.y!;
@@ -677,7 +728,10 @@ export function layoutOrg(
     if (d.data.orgNode.id.startsWith('__stack_')) continue;
 
     const orgNode = d.data.orgNode;
-    const w = d.data.width;
+    // Childless containers should match node card width for visual consistency
+    const isChildlessContainer =
+      orgNode.isContainer && (!d.children || d.children.length === 0);
+    const w = isChildlessContainer ? Math.max(d.data.width, maxWidth) : d.data.width;
     const ht = d.data.height;
     const x = d.x! + offsetX;
     const y = d.y! + offsetY;
@@ -820,7 +874,7 @@ export function layoutOrg(
     const metaCount = Object.keys(d.data.orgNode.metadata).length;
     const labelHeight =
       CONTAINER_LABEL_HEIGHT + metaCount * CONTAINER_META_LINE_HEIGHT;
-    const boxWidth = d.data.width + CONTAINER_PAD_X * 2;
+    const boxWidth = Math.max(d.data.width, maxWidth);
     const boxHeight = Math.max(labelHeight + CONTAINER_PAD_BOTTOM, EMPTY_CONTAINER_MIN_HEIGHT);
     const boxX = cx - boxWidth / 2;
     const boxY = cy;
@@ -924,7 +978,7 @@ export function layoutOrg(
     // Tight-fit box around content with padding
     const boxX = descMinX - CONTAINER_PAD_X;
     const contentWidth = descMaxX - descMinX + CONTAINER_PAD_X * 2;
-    const finalBoxWidth = Math.max(contentWidth, d.data.width);
+    const finalBoxWidth = Math.max(contentWidth, d.data.width, maxWidth);
     // Center the box if the label is wider than the content
     const centeredBoxX =
       finalBoxWidth > contentWidth
