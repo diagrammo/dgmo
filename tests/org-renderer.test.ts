@@ -104,6 +104,21 @@ describe('layoutOrg', () => {
     }
   });
 
+  it('centers parent exactly between direct children', () => {
+    const parsed = parseOrg(
+      'chart: org\nAlice\n  Bob\n  Carol\n  Dave\n  Eve'
+    );
+    const layout = layoutOrg(parsed);
+
+    const alice = layout.nodes.find((n) => n.label === 'Alice')!;
+    const bob = layout.nodes.find((n) => n.label === 'Bob')!;
+    const eve = layout.nodes.find((n) => n.label === 'Eve')!;
+
+    // Alice's center X should be exactly midpoint of leftmost and rightmost child
+    const expectedX = (bob.x + bob.width / 2 + eve.x + eve.width / 2) / 2;
+    expect(alice.x + alice.width / 2).toBeCloseTo(expectedX, 1);
+  });
+
   it('handles multiple roots with virtual root', () => {
     const parsed = parseOrg('chart: org\nAlice\nBob');
     const layout = layoutOrg(parsed);
