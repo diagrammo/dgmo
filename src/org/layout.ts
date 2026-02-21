@@ -204,9 +204,7 @@ function buildTreeNodes(
   return nodes.map((orgNode) => {
     const meta = filterMetadata(orgNode.metadata, hiddenAttributes);
     const hc = hiddenCounts?.get(orgNode.id);
-    if (!orgNode.isContainer && hc != null && hc > 0) {
-      meta[subNodeLabel ?? 'Sub-node Count'] = String(hc);
-    } else if (!orgNode.isContainer && showSubNodeCount) {
+    if (!orgNode.isContainer && showSubNodeCount && !(hc != null && hc > 0)) {
       const count = countDescendantNodes(orgNode, hiddenCounts);
       if (count > 0) {
         meta[subNodeLabel ?? 'Sub-node Count'] = String(count);
@@ -727,9 +725,7 @@ export function layoutOrg(
   for (const ec of expandedChildren) {
     const hc = hiddenCounts?.get(ec.orgNode.id);
     const meta = filterMetadata(ec.orgNode.metadata, hiddenAttributes);
-    if (!ec.orgNode.isContainer && hc != null && hc > 0) {
-      meta[subNodeKey] = String(hc);
-    } else if (!ec.orgNode.isContainer && showSubNodeCount) {
+    if (!ec.orgNode.isContainer && showSubNodeCount && !(hc != null && hc > 0)) {
       const count = countDescendantNodes(ec.orgNode, hiddenCounts);
       if (count > 0) meta[subNodeKey] = String(count);
     }
@@ -771,9 +767,7 @@ export function layoutOrg(
 
     const hc = hiddenCounts?.get(orgNode.id);
     const nodeMeta = filterMetadata(orgNode.metadata, hiddenAttributes);
-    if (!orgNode.isContainer && hc != null && hc > 0) {
-      nodeMeta[subNodeKey] = String(hc);
-    } else if (!orgNode.isContainer && showSubNodeCount) {
+    if (!orgNode.isContainer && showSubNodeCount && !(hc != null && hc > 0)) {
       const count = countDescendantNodes(orgNode, hiddenCounts);
       if (count > 0) nodeMeta[subNodeKey] = String(count);
     }
