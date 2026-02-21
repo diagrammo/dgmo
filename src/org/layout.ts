@@ -520,6 +520,28 @@ export function layoutOrg(
     }
   }
 
+  // Post-layout: center each parent exactly over its direct children.
+  // d3-hierarchy centers over the subtree centroid, which drifts when
+  // grandchildren have asymmetric widths. Process bottom-up so parents
+  // see already-adjusted child positions.
+  {
+    const parentNodes = h
+      .descendants()
+      .filter(
+        (d) =>
+          d.children &&
+          d.children.length >= 1 &&
+          d.data.orgNode.id !== '__virtual_root__'
+      )
+      .sort((a, b) => b.depth - a.depth);
+
+    for (const parent of parentNodes) {
+      const childXs = parent.children!.map((c) => c.x!);
+      const desiredX = (Math.min(...childXs) + Math.max(...childXs)) / 2;
+      parent.x = desiredX;
+    }
+  }
+
   // Collect positioned nodes and edges
   const layoutNodes: OrgLayoutNode[] = [];
   const layoutEdges: OrgLayoutEdge[] = [];
