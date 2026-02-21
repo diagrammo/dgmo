@@ -607,6 +607,16 @@ export function layoutOrg(
     });
   }
 
+  // Map parent ID → { parentX, parentBottomY, children[] } for bus-style edges
+  const busGroups = new Map<
+    string,
+    {
+      parentX: number;
+      parentBottomY: number;
+      children: { id: string; x: number; topY: number }[];
+    }
+  >();
+
   for (const d of h.descendants()) {
     if (d.data.orgNode.id === '__virtual_root__') continue;
     if (d.data.orgNode.id.startsWith('__stack_')) continue;
@@ -633,9 +643,7 @@ export function layoutOrg(
       hasChildren: (d.children != null && d.children.length > 0) || (hc != null && hc > 0) || undefined,
     });
 
-    // Elbow edges from parent to this node
-    // Skip edges where the parent is a container with children — the
-    // container background box already visually groups its contents
+    // Collect children per parent for bus-style edge generation
     const parentIsContainerBox =
       d.parent?.data.orgNode.isContainer &&
       d.parent.children &&
@@ -645,24 +653,81 @@ export function layoutOrg(
       d.parent.data.orgNode.id !== '__virtual_root__' &&
       !parentIsContainerBox
     ) {
-      const px = d.parent.x! + offsetX;
-      const py = d.parent.y! + offsetY;
-      const parentH = d.parent.data.height;
+      const parentId = d.parent.data.orgNode.id;
+      if (!busGroups.has(parentId)) {
+        const px = d.parent.x! + offsetX;
+        const py = d.parent.y! + offsetY;
+        const parentH = d.parent.data.height;
+        busGroups.set(parentId, {
+          parentX: px,
+          parentBottomY: py + parentH,
+          children: [],
+        });
+      }
+      busGroups.get(parentId)!.children.push({
+        id: orgNode.id,
+        x,
+        topY: y,
+      });
+    }
+  }
 
-      const parentBottomY = py + parentH;
-      const childTopY = y;
-      const midY = (parentBottomY + childTopY) / 2;
+  // Generate non-overlapping edges using bus pattern
+  for (const [parentId, group] of busGroups) {
+    const { parentX, parentBottomY, children } = group;
 
+    if (children.length === 1) {
+      // Single child: simple elbow (no overlap possible)
+      const child = children[0];
+      const midY = (parentBottomY + child.topY) / 2;
       layoutEdges.push({
-        sourceId: d.parent.data.orgNode.id,
-        targetId: orgNode.id,
+        sourceId: parentId,
+        targetId: child.id,
         points: [
-          { x: px, y: parentBottomY },
-          { x: px, y: midY },
-          { x: x, y: midY },
-          { x: x, y: childTopY },
+          { x: parentX, y: parentBottomY },
+          { x: parentX, y: midY },
+          { x: child.x, y: midY },
+          { x: child.x, y: child.topY },
         ],
       });
+    } else {
+      // Bus pattern: trunk + horizontal bar + per-child drops
+      const midY = (parentBottomY + children[0].topY) / 2;
+      const childXs = children.map((c) => c.x);
+      const leftX = Math.min(...childXs);
+      const rightX = Math.max(...childXs);
+
+      // Trunk: parent bottom → midY
+      layoutEdges.push({
+        sourceId: parentId,
+        targetId: parentId,
+        points: [
+          { x: parentX, y: parentBottomY },
+          { x: parentX, y: midY },
+        ],
+      });
+
+      // Horizontal bus: leftmost child → rightmost child at midY
+      layoutEdges.push({
+        sourceId: parentId,
+        targetId: parentId,
+        points: [
+          { x: leftX, y: midY },
+          { x: rightX, y: midY },
+        ],
+      });
+
+      // Drops: midY → child top for each child
+      for (const child of children) {
+        layoutEdges.push({
+          sourceId: parentId,
+          targetId: child.id,
+          points: [
+            { x: child.x, y: midY },
+            { x: child.x, y: child.topY },
+          ],
+        });
+      }
     }
   }
 

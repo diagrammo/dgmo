@@ -76,6 +76,34 @@ describe('layoutOrg', () => {
     expect(edge.points[0].y).toBeLessThan(edge.points[3].y);
   });
 
+  it('uses bus pattern for multiple children (no overlapping edges)', () => {
+    const parsed = parseOrg('chart: org\nAlice\n  Bob\n  Carol\n  Dave');
+    const layout = layoutOrg(parsed);
+
+    // Bus pattern: 1 trunk + 1 horizontal bus + 3 drops = 5 edges
+    expect(layout.edges).toHaveLength(5);
+
+    const trunk = layout.edges[0];
+    expect(trunk.points).toHaveLength(2);
+    // Trunk is vertical (same x)
+    expect(trunk.points[0].x).toBe(trunk.points[1].x);
+    expect(trunk.points[0].y).toBeLessThan(trunk.points[1].y);
+
+    const bus = layout.edges[1];
+    expect(bus.points).toHaveLength(2);
+    // Bus is horizontal (same y)
+    expect(bus.points[0].y).toBe(bus.points[1].y);
+    expect(bus.points[0].x).toBeLessThan(bus.points[1].x);
+
+    // Drops: each has 2 points, vertical
+    for (let i = 2; i < 5; i++) {
+      const drop = layout.edges[i];
+      expect(drop.points).toHaveLength(2);
+      expect(drop.points[0].x).toBe(drop.points[1].x);
+      expect(drop.points[0].y).toBeLessThan(drop.points[1].y);
+    }
+  });
+
   it('handles multiple roots with virtual root', () => {
     const parsed = parseOrg('chart: org\nAlice\nBob');
     const layout = layoutOrg(parsed);
