@@ -393,6 +393,11 @@ export function layoutOrg(
   };
   collectNodes(root);
 
+  // Standardize all cards to the widest width for uniform appearance
+  for (const tn of allTreeNodes) {
+    tn.width = maxWidth;
+  }
+
   // Collapse leaf containers: when a container's children are ALL leaves
   // (no grandchildren), replace them with a single virtual stack node so
   // the d3 tree allocates a narrow column instead of a wide row.
@@ -662,9 +667,7 @@ export function layoutOrg(
     if (d.data.orgNode.id === '__virtual_root__') continue;
     if (d.data.orgNode.id.startsWith('__stack_')) continue;
 
-    const isChildlessCtr =
-      d.data.orgNode.isContainer && (!d.children || d.children.length === 0);
-    const w = isChildlessCtr ? Math.max(d.data.width, maxWidth) : d.data.width;
+    const w = d.data.width;
     const ht = d.data.height;
     const cx = d.x!;
     const cy = d.y!;
@@ -728,10 +731,7 @@ export function layoutOrg(
     if (d.data.orgNode.id.startsWith('__stack_')) continue;
 
     const orgNode = d.data.orgNode;
-    // Childless containers should match node card width for visual consistency
-    const isChildlessContainer =
-      orgNode.isContainer && (!d.children || d.children.length === 0);
-    const w = isChildlessContainer ? Math.max(d.data.width, maxWidth) : d.data.width;
+    const w = d.data.width;
     const ht = d.data.height;
     const x = d.x! + offsetX;
     const y = d.y! + offsetY;
@@ -874,7 +874,7 @@ export function layoutOrg(
     const metaCount = Object.keys(d.data.orgNode.metadata).length;
     const labelHeight =
       CONTAINER_LABEL_HEIGHT + metaCount * CONTAINER_META_LINE_HEIGHT;
-    const boxWidth = Math.max(d.data.width, maxWidth);
+    const boxWidth = d.data.width;
     const boxHeight = Math.max(labelHeight + CONTAINER_PAD_BOTTOM, EMPTY_CONTAINER_MIN_HEIGHT);
     const boxX = cx - boxWidth / 2;
     const boxY = cy;
@@ -978,7 +978,7 @@ export function layoutOrg(
     // Tight-fit box around content with padding
     const boxX = descMinX - CONTAINER_PAD_X;
     const contentWidth = descMaxX - descMinX + CONTAINER_PAD_X * 2;
-    const finalBoxWidth = Math.max(contentWidth, d.data.width, maxWidth);
+    const finalBoxWidth = Math.max(contentWidth, d.data.width);
     // Center the box if the label is wider than the content
     const centeredBoxX =
       finalBoxWidth > contentWidth
