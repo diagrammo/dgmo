@@ -383,7 +383,7 @@ Alice
     expect(svg).not.toContain('data-node-toggle');
   });
 
-  it('renders +N badge on collapsed nodes', () => {
+  it('renders collapsed count as metadata row (default label)', () => {
     const content = `chart: org
 Alice
   Bob
@@ -403,9 +403,27 @@ Alice
     renderOrg(container, collapsed, layout, palette.light, false);
 
     const svg = container.innerHTML;
-    expect(svg).toContain('org-collapse-badge');
-    expect(svg).toContain('+2');
+    expect(svg).toContain('Sub-node Count');
+    expect(svg).not.toContain('org-collapse-badge');
     expect(svg).toContain('aria-expanded="false"');
+  });
+
+  it('uses custom sub-node-label when set', () => {
+    const content = `chart: org
+sub-node-label: Direct Reports
+Alice
+  Bob
+  Carol`;
+    const parsed = parseOrg(content, palette.light);
+    const aliceId = parsed.roots[0].id;
+    const { parsed: collapsed, hiddenCounts } = collapseOrgTree(
+      parsed,
+      new Set([aliceId])
+    );
+    const layout = layoutOrg(collapsed, hiddenCounts);
+
+    const alice = layout.nodes.find((n) => n.label === 'Alice')!;
+    expect(alice.metadata['Direct Reports']).toBe('2');
   });
 
   it('adds data-node-toggle on containers with children', () => {

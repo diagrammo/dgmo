@@ -93,7 +93,7 @@ const CONTAINER_PAD_BOTTOM = 24;
 const CONTAINER_LABEL_HEIGHT = 28;
 const CONTAINER_META_LINE_HEIGHT = 16;
 const STACK_V_GAP = 20;
-const BADGE_ROW_HEIGHT = 18;
+
 
 // Legend
 const LEGEND_GAP = 30;
@@ -126,10 +126,9 @@ function filterMetadata(
   return filtered;
 }
 
-function computeCardWidth(node: OrgNode, hiddenAttributes?: Set<string>): number {
-  let maxChars = node.label.length;
+function computeCardWidth(label: string, meta: Record<string, string>): number {
+  let maxChars = label.length;
 
-  const meta = filterMetadata(node.metadata, hiddenAttributes);
   for (const [key, value] of Object.entries(meta)) {
     const lineChars = key.length + 2 + value.length; // "key: value"
     if (lineChars > maxChars) maxChars = lineChars;
@@ -138,8 +137,7 @@ function computeCardWidth(node: OrgNode, hiddenAttributes?: Set<string>): number
   return Math.max(MIN_CARD_WIDTH, Math.ceil(maxChars * CHAR_WIDTH) + CARD_H_PAD * 2);
 }
 
-function computeCardHeight(node: OrgNode, hiddenAttributes?: Set<string>): number {
-  const meta = filterMetadata(node.metadata, hiddenAttributes);
+function computeCardHeight(meta: Record<string, string>): number {
   const metaCount = Object.keys(meta).length;
   if (metaCount === 0) return HEADER_HEIGHT + CARD_V_PAD;
   return HEADER_HEIGHT + SEPARATOR_GAP + metaCount * META_LINE_HEIGHT + CARD_V_PAD;
@@ -184,16 +182,20 @@ interface TreeNode {
 function buildTreeNodes(
   nodes: OrgNode[],
   hiddenCounts?: Map<string, number>,
-  hiddenAttributes?: Set<string>
+  hiddenAttributes?: Set<string>,
+  subNodeLabel?: string
 ): TreeNode[] {
   return nodes.map((orgNode) => {
-    const baseHeight = computeCardHeight(orgNode, hiddenAttributes);
-    const hasBadge = hiddenCounts?.has(orgNode.id) ?? false;
+    const meta = filterMetadata(orgNode.metadata, hiddenAttributes);
+    const hc = hiddenCounts?.get(orgNode.id);
+    if (hc != null && hc > 0) {
+      meta[subNodeLabel ?? 'Sub-node Count'] = String(hc);
+    }
     return {
       orgNode,
-      children: buildTreeNodes(orgNode.children, hiddenCounts, hiddenAttributes),
-      width: computeCardWidth(orgNode, hiddenAttributes),
-      height: hasBadge ? baseHeight + BADGE_ROW_HEIGHT : baseHeight,
+      children: buildTreeNodes(orgNode.children, hiddenCounts, hiddenAttributes, subNodeLabel),
+      width: computeCardWidth(orgNode.label, meta),
+      height: computeCardHeight(meta),
     };
   });
 }
@@ -285,7 +287,8 @@ export function layoutOrg(
   injectDefaultMetadata(parsed.roots, parsed.tagGroups);
 
   // Build tree structure
-  const treeNodes = buildTreeNodes(parsed.roots, hiddenCounts, hiddenAttributes);
+  const subNodeLabel = parsed.options['sub-node-label'] ?? undefined;
+  const treeNodes = buildTreeNodes(parsed.roots, hiddenCounts, hiddenAttributes, subNodeLabel);
 
   // Single root or virtual root for multiple roots
   let root: TreeNode;
@@ -611,12 +614,15 @@ export function layoutOrg(
   const offsetY = -minY + MARGIN;
 
   // Add expanded stack children as layout nodes
+  const subNodeKey = subNodeLabel ?? 'Sub-node Count';
   for (const ec of expandedChildren) {
     const hc = hiddenCounts?.get(ec.orgNode.id);
+    const meta = filterMetadata(ec.orgNode.metadata, hiddenAttributes);
+    if (hc != null && hc > 0) meta[subNodeKey] = String(hc);
     layoutNodes.push({
       id: ec.orgNode.id,
       label: ec.orgNode.label,
-      metadata: filterMetadata(ec.orgNode.metadata, hiddenAttributes),
+      metadata: meta,
       isContainer: ec.orgNode.isContainer,
       lineNumber: ec.orgNode.lineNumber,
       color: resolveNodeColor(ec.orgNode, parsed.tagGroups, activeTagGroup ?? null),
@@ -650,10 +656,12 @@ export function layoutOrg(
     const y = d.y! + offsetY;
 
     const hc = hiddenCounts?.get(orgNode.id);
+    const nodeMeta = filterMetadata(orgNode.metadata, hiddenAttributes);
+    if (hc != null && hc > 0) nodeMeta[subNodeKey] = String(hc);
     layoutNodes.push({
       id: orgNode.id,
       label: orgNode.label,
-      metadata: filterMetadata(orgNode.metadata, hiddenAttributes),
+      metadata: nodeMeta,
       isContainer: orgNode.isContainer,
       lineNumber: orgNode.lineNumber,
       color: resolveNodeColor(orgNode, parsed.tagGroups, activeTagGroup ?? null),
@@ -793,12 +801,14 @@ export function layoutOrg(
     });
 
     const chc = hiddenCounts?.get(d.data.orgNode.id);
+    const cMeta = filterMetadata(d.data.orgNode.metadata, hiddenAttributes);
+    if (chc != null && chc > 0) cMeta[subNodeKey] = String(chc);
     containers.push({
       nodeId: d.data.orgNode.id,
       label: d.data.orgNode.label,
       lineNumber: d.data.orgNode.lineNumber,
       color: resolveNodeColor(d.data.orgNode, parsed.tagGroups, activeTagGroup ?? null),
-      metadata: filterMetadata(d.data.orgNode.metadata, hiddenAttributes),
+      metadata: cMeta,
       x: boxX,
       y: boxY,
       width: boxWidth,
@@ -899,12 +909,14 @@ export function layoutOrg(
     });
 
     const chc2 = hiddenCounts?.get(d.data.orgNode.id);
+    const cMeta2 = filterMetadata(d.data.orgNode.metadata, hiddenAttributes);
+    if (chc2 != null && chc2 > 0) cMeta2[subNodeKey] = String(chc2);
     containers.push({
       nodeId: d.data.orgNode.id,
       label: d.data.orgNode.label,
       lineNumber: d.data.orgNode.lineNumber,
       color: resolveNodeColor(d.data.orgNode, parsed.tagGroups, activeTagGroup ?? null),
-      metadata: filterMetadata(d.data.orgNode.metadata, hiddenAttributes),
+      metadata: cMeta2,
       x: centeredBoxX,
       y: boxY,
       width: finalBoxWidth,

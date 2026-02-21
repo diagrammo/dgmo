@@ -221,10 +221,7 @@ export function renderOrg(
           'aria-expanded',
           String(!c.hiddenCount)
         )
-        .attr(
-          'aria-label',
-          `${c.label}${c.hiddenCount ? `, +${c.hiddenCount}` : ''}`
-        );
+        .attr('aria-label', c.label);
     }
 
     if (onClickItem) {
@@ -288,18 +285,6 @@ export function renderOrg(
       }
     }
 
-    // Subtle "+N" label for collapsed containers
-    if (c.hiddenCount && c.hiddenCount > 0) {
-      cG.append('text')
-        .attr('class', 'org-collapse-badge')
-        .attr('x', c.width / 2)
-        .attr('y', c.height - 8)
-        .attr('text-anchor', 'middle')
-        .attr('fill', palette.textMuted)
-        .attr('font-size', 10)
-        .attr('opacity', 0.7)
-        .text(`+${c.hiddenCount}`);
-    }
   }
 
   // Render edges
@@ -344,10 +329,7 @@ export function renderOrg(
         .attr('tabindex', '0')
         .attr('role', 'button')
         .attr('aria-expanded', String(!node.hiddenCount))
-        .attr(
-          'aria-label',
-          `${node.label}${node.hiddenCount ? `, +${node.hiddenCount}` : ''}`
-        );
+        .attr('aria-label', node.label);
     }
 
     if (onClickItem) {
@@ -432,19 +414,6 @@ export function renderOrg(
       }
     }
 
-    // Subtle "+N" label for collapsed nodes — below attributes
-    if (node.hiddenCount && node.hiddenCount > 0) {
-      nodeG
-        .append('text')
-        .attr('class', 'org-collapse-badge')
-        .attr('x', node.width / 2)
-        .attr('y', node.height - 6)
-        .attr('text-anchor', 'middle')
-        .attr('fill', palette.textMuted)
-        .attr('font-size', 10)
-        .attr('opacity', 0.7)
-        .text(`+${node.hiddenCount}`);
-    }
   }
 
   // Render legend — hide non-active groups when one is active
