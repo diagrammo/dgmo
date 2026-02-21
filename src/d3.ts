@@ -5213,7 +5213,12 @@ const EXPORT_HEIGHT = 800;
 export async function renderD3ForExport(
   content: string,
   theme: 'light' | 'dark' | 'transparent',
-  palette?: PaletteColors
+  palette?: PaletteColors,
+  orgExportState?: {
+    collapsedNodes?: Set<string>;
+    activeTagGroup?: string | null;
+    hiddenAttributes?: Set<string>;
+  }
 ): Promise<string> {
   // Flowchart and org chart use their own parser pipelines — intercept before parseD3()
   const { parseDgmoChartType } = await import('./dgmo-router');
@@ -5222,6 +5227,7 @@ export async function renderD3ForExport(
   if (detectedType === 'org') {
     const { parseOrg } = await import('./org/parser');
     const { layoutOrg } = await import('./org/layout');
+    const { collapseOrgTree } = await import('./org/collapse');
     const { renderOrg } = await import('./org/renderer');
 
     const isDark = theme === 'dark';
@@ -5232,19 +5238,48 @@ export async function renderD3ForExport(
     const orgParsed = parseOrg(content, effectivePalette);
     if (orgParsed.error || orgParsed.roots.length === 0) return '';
 
-    const orgLayout = layoutOrg(orgParsed);
+    // Apply interactive collapse state when provided
+    const collapsedNodes = orgExportState?.collapsedNodes;
+    const activeTagGroup = orgExportState?.activeTagGroup ?? null;
+    const hiddenAttributes = orgExportState?.hiddenAttributes;
+
+    const { parsed: effectiveParsed, hiddenCounts } =
+      collapsedNodes && collapsedNodes.size > 0
+        ? collapseOrgTree(orgParsed, collapsedNodes)
+        : { parsed: orgParsed, hiddenCounts: new Map<string, number>() };
+
+    const orgLayout = layoutOrg(
+      effectiveParsed,
+      hiddenCounts.size > 0 ? hiddenCounts : undefined,
+      activeTagGroup,
+      hiddenAttributes
+    );
+
+    // Size container to fit the diagram content
+    const PADDING = 20;
+    const titleOffset = effectiveParsed.title ? 30 : 0;
+    const exportWidth = orgLayout.width + PADDING * 2;
+    const exportHeight = orgLayout.height + PADDING * 2 + titleOffset;
+
     const container = document.createElement('div');
-    container.style.width = `${EXPORT_WIDTH}px`;
-    container.style.height = `${EXPORT_HEIGHT}px`;
+    container.style.width = `${exportWidth}px`;
+    container.style.height = `${exportHeight}px`;
     container.style.position = 'absolute';
     container.style.left = '-9999px';
     document.body.appendChild(container);
 
     try {
-      renderOrg(container, orgParsed, orgLayout, effectivePalette, isDark, undefined, {
-        width: EXPORT_WIDTH,
-        height: EXPORT_HEIGHT,
-      });
+      renderOrg(
+        container,
+        effectiveParsed,
+        orgLayout,
+        effectivePalette,
+        isDark,
+        undefined,
+        { width: exportWidth, height: exportHeight },
+        activeTagGroup,
+        hiddenAttributes
+      );
 
       const svgEl = container.querySelector('svg');
       if (!svgEl) return '';
