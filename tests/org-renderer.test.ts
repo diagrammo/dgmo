@@ -449,6 +449,32 @@ Alice
     expect(carol.metadata['Reports']).toBeUndefined();
   });
 
+  it('sub-node count includes collapsed descendants', () => {
+    const content = `chart: org
+show-sub-node-count: yes
+sub-node-label: Reports
+Alice
+  Bob
+    Charlie
+    Dave
+  Carol`;
+    const parsed = parseOrg(content, palette.light);
+    const bobId = parsed.roots[0].children[0].id;
+    const { parsed: collapsed, hiddenCounts } = collapseOrgTree(
+      parsed,
+      new Set([bobId])
+    );
+    const layout = layoutOrg(collapsed, hiddenCounts);
+
+    // Alice: Bob(1) + Bob's hidden(Charlie+Dave=2) + Carol(1) = 4
+    const alice = layout.nodes.find((n) => n.label === 'Alice')!;
+    expect(alice.metadata['Reports']).toBe('4');
+
+    // Bob is collapsed: shows its hiddenCount = 2
+    const bob = layout.nodes.find((n) => n.label === 'Bob')!;
+    expect(bob.metadata['Reports']).toBe('2');
+  });
+
   it('adds data-node-toggle on containers with children', () => {
     const content = `chart: org
 [Engineering]

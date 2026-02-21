@@ -112,11 +112,13 @@ const EYE_ICON_GAP = 6;
 // Helpers
 // ============================================================
 
-/** Count all non-container descendants recursively. */
-function countDescendantNodes(node: OrgNode): number {
+/** Count all non-container descendants recursively, including hidden (collapsed) ones. */
+function countDescendantNodes(node: OrgNode, hiddenCounts?: Map<string, number>): number {
   let count = 0;
   for (const child of node.children) {
-    count += (child.isContainer ? 0 : 1) + countDescendantNodes(child);
+    count += (child.isContainer ? 0 : 1) + countDescendantNodes(child, hiddenCounts);
+    const hc = hiddenCounts?.get(child.id);
+    if (hc) count += hc;
   }
   return count;
 }
@@ -205,7 +207,7 @@ function buildTreeNodes(
     if (!orgNode.isContainer && hc != null && hc > 0) {
       meta[subNodeLabel ?? 'Sub-node Count'] = String(hc);
     } else if (!orgNode.isContainer && showSubNodeCount) {
-      const count = countDescendantNodes(orgNode);
+      const count = countDescendantNodes(orgNode, hiddenCounts);
       if (count > 0) {
         meta[subNodeLabel ?? 'Sub-node Count'] = String(count);
       }
@@ -641,7 +643,7 @@ export function layoutOrg(
     if (!ec.orgNode.isContainer && hc != null && hc > 0) {
       meta[subNodeKey] = String(hc);
     } else if (!ec.orgNode.isContainer && showSubNodeCount) {
-      const count = countDescendantNodes(ec.orgNode);
+      const count = countDescendantNodes(ec.orgNode, hiddenCounts);
       if (count > 0) meta[subNodeKey] = String(count);
     }
     layoutNodes.push({
@@ -685,7 +687,7 @@ export function layoutOrg(
     if (!orgNode.isContainer && hc != null && hc > 0) {
       nodeMeta[subNodeKey] = String(hc);
     } else if (!orgNode.isContainer && showSubNodeCount) {
-      const count = countDescendantNodes(orgNode);
+      const count = countDescendantNodes(orgNode, hiddenCounts);
       if (count > 0) nodeMeta[subNodeKey] = String(count);
     }
     layoutNodes.push({
