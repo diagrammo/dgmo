@@ -530,6 +530,66 @@ Bob`;
     expect(alice.color).not.toBe(bob.color);
   });
 
+  it('nodes display default metadata values from tag groups', () => {
+    const input = `chart: org
+
+## Location
+  NY(blue)
+  CO(green) default
+
+## Status
+  FTE(green) default
+  Contractor(orange)
+
+Alice
+  location: NY
+Bob`;
+    const parsed = parseOrg(input, palette.light);
+    const layout = layoutOrg(parsed);
+
+    const alice = layout.nodes.find((n) => n.label === 'Alice')!;
+    const bob = layout.nodes.find((n) => n.label === 'Bob')!;
+    // Alice has explicit location, should keep it; gets default status
+    expect(alice.metadata['location']).toBe('NY');
+    expect(alice.metadata['status']).toBe('FTE');
+    // Bob has no metadata, should get both defaults
+    expect(bob.metadata['location']).toBe('CO');
+    expect(bob.metadata['status']).toBe('FTE');
+  });
+
+  it('default metadata does not override explicit values', () => {
+    const input = `chart: org
+
+## Location
+  NY(blue)
+  CO(green) default
+
+Alice
+  location: NY`;
+    const parsed = parseOrg(input, palette.light);
+    const layout = layoutOrg(parsed);
+
+    const alice = layout.nodes.find((n) => n.label === 'Alice')!;
+    expect(alice.metadata['location']).toBe('NY');
+  });
+
+  it('containers do not get default metadata', () => {
+    const input = `chart: org
+
+## Status
+  FTE(green) default
+
+[Engineering]
+  Alice`;
+    const parsed = parseOrg(input, palette.light);
+    const layout = layoutOrg(parsed);
+
+    const eng = layout.containers.find((c) => c.label === 'Engineering')!;
+    const alice = layout.nodes.find((n) => n.label === 'Alice')!;
+    expect(eng.metadata['status']).toBeUndefined();
+    expect(alice.metadata['status']).toBe('FTE');
+  });
+
   it('containers do not get default tag group color', () => {
     const input = `chart: org
 

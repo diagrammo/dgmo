@@ -221,6 +221,35 @@ function computeLegendGroups(tagGroups: OrgTagGroup[]): OrgLegendGroup[] {
   return groups;
 }
 
+/**
+ * Inject default tag group values into non-container node metadata.
+ * Idempotent — only sets keys not already present.
+ */
+function injectDefaultMetadata(
+  roots: OrgNode[],
+  tagGroups: OrgTagGroup[]
+): void {
+  const defaults: { key: string; value: string }[] = [];
+  for (const group of tagGroups) {
+    if (group.defaultValue) {
+      defaults.push({ key: group.name.toLowerCase(), value: group.defaultValue });
+    }
+  }
+  if (defaults.length === 0) return;
+
+  const walk = (node: OrgNode) => {
+    if (!node.isContainer) {
+      for (const { key, value } of defaults) {
+        if (!(key in node.metadata)) {
+          node.metadata[key] = value;
+        }
+      }
+    }
+    for (const child of node.children) walk(child);
+  };
+  for (const root of roots) walk(root);
+}
+
 export function layoutOrg(
   parsed: ParsedOrg,
   hiddenCounts?: Map<string, number>,
@@ -229,6 +258,10 @@ export function layoutOrg(
   if (parsed.roots.length === 0) {
     return { nodes: [], edges: [], containers: [], legend: [], width: 0, height: 0 };
   }
+
+  // Inject default tag group values into node metadata for display.
+  // Must happen before buildTreeNodes so card sizing accounts for extra rows.
+  injectDefaultMetadata(parsed.roots, parsed.tagGroups);
 
   // Build tree structure
   const treeNodes = buildTreeNodes(parsed.roots, hiddenCounts);
