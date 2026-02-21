@@ -252,6 +252,22 @@ Alice
     expect(svg).toContain('CTO');
   });
 
+  it('renders tag group names with original casing as display labels', () => {
+    const input = `## Title alias t
+  CTO(purple)
+
+## Location alias loc
+  NY(blue)
+
+Sean Curtis| t: CTO, loc: NY`;
+    const svg = renderOrgForExport(input, 'light', palette.light);
+    // Should show "Title: " and "Location: " (original group casing), not "title: " or "t: "
+    expect(svg).toContain('Title: ');
+    expect(svg).toContain('Location: ');
+    expect(svg).not.toContain('>t: <');
+    expect(svg).not.toContain('>loc: <');
+  });
+
   it('includes data-line-number attributes', () => {
     const svg = renderOrgForExport(basicInput, 'light', palette.light);
     expect(svg).toContain('data-line-number');
