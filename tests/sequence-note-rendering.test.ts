@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { JSDOM } from 'jsdom';
 import { parseSequenceDgmo } from '../src/sequence/parser';
-import { renderSequenceDiagram, buildNoteMessageMap } from '../src/sequence/renderer';
+import { renderSequenceDiagram, buildNoteMessageMap, parseInlineMarkdown } from '../src/sequence/renderer';
 import { getPalette } from '../src/palettes';
 
 // Set up jsdom globals for D3
@@ -331,5 +331,94 @@ describe('buildNoteMessageMap', () => {
 
     const map = buildNoteMessageMap(parsed.elements);
     expect(map.size).toBe(1);
+  });
+});
+
+describe('parseInlineMarkdown — bare URL detection', () => {
+  it('detects https:// URLs', () => {
+    const spans = parseInlineMarkdown('visit https://example.com today');
+    expect(spans).toEqual([
+      { text: 'visit ' },
+      { text: 'https://example.com', href: 'https://example.com' },
+      { text: ' today' },
+    ]);
+  });
+
+  it('detects http:// URLs', () => {
+    const spans = parseInlineMarkdown('http://example.com/path?q=1');
+    expect(spans).toEqual([
+      { text: 'http://example.com/path?q=1', href: 'http://example.com/path?q=1' },
+    ]);
+  });
+
+  it('detects www. URLs and prepends https://', () => {
+    const spans = parseInlineMarkdown('go to www.example.com');
+    expect(spans).toEqual([
+      { text: 'go to ' },
+      { text: 'www.example.com', href: 'https://www.example.com' },
+    ]);
+  });
+
+  it('preserves existing markdown link syntax', () => {
+    const spans = parseInlineMarkdown('[docs](https://docs.example.com)');
+    expect(spans).toEqual([
+      { text: 'docs', href: 'https://docs.example.com' },
+    ]);
+  });
+
+  it('handles bare URL alongside markdown formatting', () => {
+    const spans = parseInlineMarkdown('see **bold** and https://example.com');
+    expect(spans).toEqual([
+      { text: 'see ' },
+      { text: 'bold', bold: true },
+      { text: ' and ' },
+      { text: 'https://example.com', href: 'https://example.com' },
+    ]);
+  });
+
+  it('handles URL at the start of text', () => {
+    const spans = parseInlineMarkdown('https://start.com is the link');
+    expect(spans).toEqual([
+      { text: 'https://start.com', href: 'https://start.com' },
+      { text: ' is the link' },
+    ]);
+  });
+
+  it('plain text without URLs returns single span', () => {
+    const spans = parseInlineMarkdown('no links here');
+    expect(spans).toEqual([{ text: 'no links here' }]);
+  });
+});
+
+describe('Message label inline markdown rendering', () => {
+  it('renders bare URL in a message label as an <a> element', () => {
+    const svg = renderToSvg('A -> B: call https://api.example.com/endpoint');
+    expect(svg).not.toBeNull();
+    const labels = svg!.querySelectorAll('.message-label');
+    expect(labels.length).toBe(1);
+    const anchor = labels[0].querySelector('a');
+    expect(anchor).not.toBeNull();
+    expect(anchor!.getAttribute('href')).toBe('https://api.example.com/endpoint');
+  });
+
+  it('renders markdown link in a message label as an <a> element', () => {
+    const svg = renderToSvg('A -> B: see [docs](https://docs.example.com)');
+    expect(svg).not.toBeNull();
+    const anchor = svg!.querySelector('.message-label a');
+    expect(anchor).not.toBeNull();
+    expect(anchor!.getAttribute('href')).toBe('https://docs.example.com');
+    expect(anchor!.textContent).toBe('docs');
+  });
+
+  it('renders bare URL in a return label as an <a> element', () => {
+    const svg = renderToSvg('A -> B: call <- https://result.example.com');
+    expect(svg).not.toBeNull();
+    const labels = svg!.querySelectorAll('.message-label');
+    // Should have both a call label and a return label
+    expect(labels.length).toBeGreaterThanOrEqual(2);
+    const returnLabel = labels[labels.length - 1];
+    const anchor = returnLabel.querySelector('a');
+    expect(anchor).not.toBeNull();
+    expect(anchor!.getAttribute('href')).toBe('https://result.example.com');
   });
 });
