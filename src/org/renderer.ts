@@ -434,11 +434,14 @@ export function renderOrg(
     }
   }
 
-  // Render legend
+  // Render legend — hide non-active groups when one is active
   for (const group of layout.legend) {
     const isActive =
       activeTagGroup != null &&
       group.name.toLowerCase() === activeTagGroup.toLowerCase();
+
+    // When a group is active, skip rendering all other groups
+    if (activeTagGroup != null && !isActive) continue;
 
     const gEl = contentG
       .append('g')

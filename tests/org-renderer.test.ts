@@ -614,6 +614,56 @@ Alice | location: NY`;
     expect(legendGroups[0].getAttribute('data-legend-group')).toBe('location');
   });
 
+  it('only active legend group is rendered when activeTagGroup set', () => {
+    const input = `chart: org
+
+## Location
+  NY(blue)
+
+## Status
+  FTE(green)
+
+Alice | location: NY, status: FTE`;
+    const parsed = parseOrg(input, palette.light);
+    const layout = layoutOrg(parsed, undefined, 'location');
+
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'clientWidth', { value: 800 });
+    Object.defineProperty(container, 'clientHeight', { value: 600 });
+
+    renderOrg(
+      container, parsed, layout, palette.light, false,
+      undefined, undefined, 'location'
+    );
+
+    const legendGroups = container.querySelectorAll('[data-legend-group]');
+    expect(legendGroups).toHaveLength(1);
+    expect(legendGroups[0].getAttribute('data-legend-group')).toBe('location');
+  });
+
+  it('all legend groups rendered when no activeTagGroup', () => {
+    const input = `chart: org
+
+## Location
+  NY(blue)
+
+## Status
+  FTE(green)
+
+Alice | location: NY, status: FTE`;
+    const parsed = parseOrg(input, palette.light);
+    const layout = layoutOrg(parsed);
+
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'clientWidth', { value: 800 });
+    Object.defineProperty(container, 'clientHeight', { value: 600 });
+
+    renderOrg(container, parsed, layout, palette.light, false);
+
+    const legendGroups = container.querySelectorAll('[data-legend-group]');
+    expect(legendGroups).toHaveLength(2);
+  });
+
   it('active legend group has distinct border styling', () => {
     const input = `chart: org
 
