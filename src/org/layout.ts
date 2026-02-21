@@ -130,8 +130,25 @@ function computeCardHeight(node: OrgNode): number {
 // Tag Group Color Resolution
 // ============================================================
 
-function resolveNodeColor(node: OrgNode): string | undefined {
-  return node.color;
+function resolveNodeColor(
+  node: OrgNode,
+  tagGroups: OrgTagGroup[],
+  activeGroupName: string | null
+): string | undefined {
+  if (node.color) return node.color;
+  if (!activeGroupName) return undefined;
+
+  const group = tagGroups.find(
+    (g) => g.name.toLowerCase() === activeGroupName.toLowerCase()
+  );
+  if (!group) return undefined;
+  const metaValue =
+    node.metadata[group.name.toLowerCase()] ??
+    (node.isContainer ? undefined : group.defaultValue);
+  if (!metaValue) return undefined;
+  return group.entries.find(
+    (e) => e.value.toLowerCase() === metaValue.toLowerCase()
+  )?.color;
 }
 
 // ============================================================
@@ -205,7 +222,8 @@ function computeLegendGroups(tagGroups: OrgTagGroup[]): OrgLegendGroup[] {
 
 export function layoutOrg(
   parsed: ParsedOrg,
-  hiddenCounts?: Map<string, number>
+  hiddenCounts?: Map<string, number>,
+  activeTagGroup?: string | null
 ): OrgLayoutResult {
   if (parsed.roots.length === 0) {
     return { nodes: [], edges: [], containers: [], legend: [], width: 0, height: 0 };
@@ -524,7 +542,7 @@ export function layoutOrg(
       metadata: ec.orgNode.metadata,
       isContainer: ec.orgNode.isContainer,
       lineNumber: ec.orgNode.lineNumber,
-      color: resolveNodeColor(ec.orgNode),
+      color: resolveNodeColor(ec.orgNode, parsed.tagGroups, activeTagGroup ?? null),
       x: ec.cx + offsetX,
       y: ec.cy + offsetY,
       width: ec.width,
@@ -551,7 +569,7 @@ export function layoutOrg(
       metadata: orgNode.metadata,
       isContainer: orgNode.isContainer,
       lineNumber: orgNode.lineNumber,
-      color: resolveNodeColor(orgNode),
+      color: resolveNodeColor(orgNode, parsed.tagGroups, activeTagGroup ?? null),
       x,
       y,
       width: w,
@@ -637,7 +655,7 @@ export function layoutOrg(
       nodeId: d.data.orgNode.id,
       label: d.data.orgNode.label,
       lineNumber: d.data.orgNode.lineNumber,
-      color: resolveNodeColor(d.data.orgNode),
+      color: resolveNodeColor(d.data.orgNode, parsed.tagGroups, activeTagGroup ?? null),
       metadata: d.data.orgNode.metadata,
       x: boxX,
       y: boxY,
@@ -743,7 +761,7 @@ export function layoutOrg(
       nodeId: d.data.orgNode.id,
       label: d.data.orgNode.label,
       lineNumber: d.data.orgNode.lineNumber,
-      color: resolveNodeColor(d.data.orgNode),
+      color: resolveNodeColor(d.data.orgNode, parsed.tagGroups, activeTagGroup ?? null),
       metadata: d.data.orgNode.metadata,
       x: centeredBoxX,
       y: boxY,

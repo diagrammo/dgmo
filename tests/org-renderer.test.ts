@@ -449,6 +449,126 @@ Alice | location: NY`;
     expect(svg).toContain('<circle');
   });
 
+  it('activeTagGroup colors nodes from matching tag entries', () => {
+    const input = `chart: org
+
+## Location
+  NY(blue)
+  LA(yellow)
+
+Alice
+  location: NY
+Bob
+  location: LA`;
+    const parsed = parseOrg(input, palette.light);
+    const layout = layoutOrg(parsed, undefined, 'location');
+
+    const alice = layout.nodes.find((n) => n.label === 'Alice')!;
+    const bob = layout.nodes.find((n) => n.label === 'Bob')!;
+    // Should have colors resolved from the Location group
+    expect(alice.color).toBeTruthy();
+    expect(bob.color).toBeTruthy();
+    // Colors should differ (NY=blue, LA=yellow)
+    expect(alice.color).not.toBe(bob.color);
+  });
+
+  it('explicit node (color) is not overridden by activeTagGroup', () => {
+    const input = `chart: org
+
+## Location
+  NY(blue)
+
+Alice(red)
+  location: NY`;
+    const parsed = parseOrg(input, palette.light);
+    const layout = layoutOrg(parsed, undefined, 'location');
+
+    const alice = layout.nodes.find((n) => n.label === 'Alice')!;
+    // Explicit red wins over tag group blue
+    expect(alice.color).toBeTruthy();
+    // Should be the parsed red color, not a blue-ish one
+    expect(alice.color).toBe(parsed.roots[0].color);
+  });
+
+  it('nodes without matching metadata stay uncolored when activeTagGroup set', () => {
+    const input = `chart: org
+
+## Location
+  NY(blue)
+
+Alice
+  location: NY
+Bob`;
+    const parsed = parseOrg(input, palette.light);
+    const layout = layoutOrg(parsed, undefined, 'location');
+
+    const alice = layout.nodes.find((n) => n.label === 'Alice')!;
+    const bob = layout.nodes.find((n) => n.label === 'Bob')!;
+    expect(alice.color).toBeTruthy();
+    expect(bob.color).toBeUndefined();
+  });
+
+  it('nodes without metadata get default tag group color when activeTagGroup set', () => {
+    const input = `chart: org
+
+## Location
+  NY(blue)
+  CO(green) default
+
+Alice
+  location: NY
+Bob`;
+    const parsed = parseOrg(input, palette.light);
+    const layout = layoutOrg(parsed, undefined, 'location');
+
+    const alice = layout.nodes.find((n) => n.label === 'Alice')!;
+    const bob = layout.nodes.find((n) => n.label === 'Bob')!;
+    // Alice has explicit location: NY → blue
+    expect(alice.color).toBeTruthy();
+    // Bob has no location metadata → falls back to default CO → green
+    expect(bob.color).toBeTruthy();
+    expect(alice.color).not.toBe(bob.color);
+  });
+
+  it('containers do not get default tag group color', () => {
+    const input = `chart: org
+
+## Location
+  NY(blue)
+  CO(green) default
+
+[Engineering]
+  Alice
+    location: NY`;
+    const parsed = parseOrg(input, palette.light);
+    const layout = layoutOrg(parsed, undefined, 'location');
+
+    const alice = layout.nodes.find((n) => n.label === 'Alice')!;
+    const eng = layout.containers.find((c) => c.label === 'Engineering')!;
+    // Alice gets NY blue
+    expect(alice.color).toBeTruthy();
+    // Container should NOT get default CO green
+    expect(eng.color).toBeUndefined();
+  });
+
+  it('explicit metadata wins over default tag group value', () => {
+    const input = `chart: org
+
+## Location
+  NY(blue)
+  CO(green) default
+
+Alice
+  location: NY`;
+    const parsed = parseOrg(input, palette.light);
+    const layout = layoutOrg(parsed, undefined, 'location');
+
+    const alice = layout.nodes.find((n) => n.label === 'Alice')!;
+    // Alice explicitly has NY, not the default CO
+    const nyEntry = parsed.tagGroups[0].entries.find(e => e.value === 'NY')!;
+    expect(alice.color).toBe(nyEntry.color);
+  });
+
   it('includes legend in layout dimensions', () => {
     const withGroups = `chart: org
 
@@ -470,5 +590,57 @@ Alice`;
     expect(layoutWithout.legend).toHaveLength(0);
     // Legend adds to height
     expect(layoutWith.height).toBeGreaterThan(layoutWith.legend[0].y);
+  });
+
+  it('legend groups have data-legend-group attributes', () => {
+    const input = `chart: org
+
+## Location
+  NY(blue)
+  LA(yellow)
+
+Alice | location: NY`;
+    const parsed = parseOrg(input, palette.light);
+    const layout = layoutOrg(parsed);
+
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'clientWidth', { value: 800 });
+    Object.defineProperty(container, 'clientHeight', { value: 600 });
+
+    renderOrg(container, parsed, layout, palette.light, false);
+
+    const legendGroups = container.querySelectorAll('[data-legend-group]');
+    expect(legendGroups).toHaveLength(1);
+    expect(legendGroups[0].getAttribute('data-legend-group')).toBe('location');
+  });
+
+  it('active legend group has distinct border styling', () => {
+    const input = `chart: org
+
+## Location
+  NY(blue)
+  LA(yellow)
+
+Alice | location: NY`;
+    const parsed = parseOrg(input, palette.light);
+    const layout = layoutOrg(parsed, undefined, 'location');
+
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'clientWidth', { value: 800 });
+    Object.defineProperty(container, 'clientHeight', { value: 600 });
+
+    renderOrg(
+      container, parsed, layout, palette.light, false,
+      undefined, undefined, 'location'
+    );
+
+    const legendGroup = container.querySelector('[data-legend-group="location"]');
+    expect(legendGroup).toBeTruthy();
+    const rect = legendGroup!.querySelector('rect');
+    expect(rect).toBeTruthy();
+    // Active group should have stroke-width of 2
+    expect(rect!.getAttribute('stroke-width')).toBe('2');
+    // Active group should use palette.primary as stroke
+    expect(rect!.getAttribute('stroke')).toBe(palette.light.primary);
   });
 });
