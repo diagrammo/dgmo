@@ -49,10 +49,25 @@ export interface OrgContainerBounds {
   hasChildren?: boolean;
 }
 
+export interface OrgLegendEntry {
+  value: string;
+  color: string;
+}
+
+export interface OrgLegendGroup {
+  name: string;
+  entries: OrgLegendEntry[];
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export interface OrgLayoutResult {
   nodes: OrgLayoutNode[];
   edges: OrgLayoutEdge[];
   containers: OrgContainerBounds[];
+  legend: OrgLegendGroup[];
   width: number;
   height: number;
 }
@@ -79,6 +94,16 @@ const CONTAINER_LABEL_HEIGHT = 28;
 const CONTAINER_META_LINE_HEIGHT = 16;
 const STACK_V_GAP = 20;
 const BADGE_ROW_HEIGHT = 18;
+
+// Legend
+const LEGEND_GAP = 30;
+const LEGEND_DOT_R = 5;
+const LEGEND_DOT_TEXT_GAP = 6;
+const LEGEND_ENTRY_GAP = 12;
+const LEGEND_PAD = 10;
+const LEGEND_HEADER_H = 20;
+const LEGEND_ENTRY_H = 18;
+const LEGEND_MAX_PER_ROW = 3;
 
 // ============================================================
 // Card Sizing
@@ -159,12 +184,50 @@ function buildTreeNodes(
 // Layout
 // ============================================================
 
+function computeLegendGroups(tagGroups: OrgTagGroup[]): OrgLegendGroup[] {
+  const groups: OrgLegendGroup[] = [];
+
+  for (const group of tagGroups) {
+    if (group.entries.length === 0) continue;
+
+    const entryWidths = group.entries.map(
+      (e) =>
+        LEGEND_DOT_R * 2 + LEGEND_DOT_TEXT_GAP + e.value.length * CHAR_WIDTH
+    );
+
+    // Pack into rows of up to LEGEND_MAX_PER_ROW
+    const rows: number[][] = [];
+    for (let i = 0; i < entryWidths.length; i += LEGEND_MAX_PER_ROW) {
+      rows.push(entryWidths.slice(i, i + LEGEND_MAX_PER_ROW));
+    }
+
+    const headerWidth = group.name.length * CHAR_WIDTH;
+    let maxRowWidth = headerWidth;
+    for (const row of rows) {
+      const rowWidth =
+        row.reduce((s, w) => s + w, 0) + (row.length - 1) * LEGEND_ENTRY_GAP;
+      if (rowWidth > maxRowWidth) maxRowWidth = rowWidth;
+    }
+
+    groups.push({
+      name: group.name,
+      entries: group.entries.map((e) => ({ value: e.value, color: e.color })),
+      x: 0,
+      y: 0,
+      width: maxRowWidth + LEGEND_PAD * 2,
+      height: LEGEND_HEADER_H + rows.length * LEGEND_ENTRY_H + LEGEND_PAD,
+    });
+  }
+
+  return groups;
+}
+
 export function layoutOrg(
   parsed: ParsedOrg,
   hiddenCounts?: Map<string, number>
 ): OrgLayoutResult {
   if (parsed.roots.length === 0) {
-    return { nodes: [], edges: [], containers: [], width: 0, height: 0 };
+    return { nodes: [], edges: [], containers: [], legend: [], width: 0, height: 0 };
   }
 
   // Build tree structure
@@ -267,20 +330,63 @@ export function layoutOrg(
   ]);
   treeLayout(h);
 
+  // Post-layout: compact vertical spacing per depth level.
+  // D3 tree uses uniform nodeSize (maxHeight + V_GAP) for every level, which
+  // creates disproportionate gaps when short nodes (no metadata) are placed at
+  // the same level-spacing as tall nodes (multiple metadata rows). Recompute
+  // Y positions so each level's gap is based on the actual max height at that
+  // level rather than the global max.
+  {
+    const descendants = h.descendants().filter(
+      (d) => d.data.orgNode.id !== '__virtual_root__'
+    );
+
+    // Collect max actual card height per depth level
+    const levelMaxHeight = new Map<number, number>();
+    for (const d of descendants) {
+      const cur = levelMaxHeight.get(d.depth) ?? 0;
+      if (d.data.height > cur) levelMaxHeight.set(d.depth, d.data.height);
+    }
+
+    // Compute compacted Y position for each depth level
+    const maxDepth = Math.max(...levelMaxHeight.keys(), 0);
+    const compactedY = new Map<number, number>();
+    // Virtual root (depth 0 in hierarchy) stays at y=0
+    // First real level starts at depth 1 for multi-root or depth 0 for single root.
+    // We compute based on the d3 hierarchy's depth numbering.
+    const rootDepth = treeNodes.length === 1 ? 0 : 1;
+    compactedY.set(rootDepth, 0);
+    for (let d = rootDepth + 1; d <= maxDepth; d++) {
+      const parentH = levelMaxHeight.get(d - 1) ?? maxHeight;
+      const prevY = compactedY.get(d - 1) ?? 0;
+      compactedY.set(d, prevY + parentH + V_GAP);
+    }
+
+    // Shift each node from uniform Y to compacted Y (top-aligned).
+    // Siblings share the same Y so connecting edges align cleanly.
+    for (const d of h.descendants()) {
+      if (d.data.orgNode.id === '__virtual_root__') continue;
+      d.y = compactedY.get(d.depth) ?? d.y!;
+    }
+  }
+
   // Post-layout: tighten vertical spacing inside containers.
   // Container-with-children nodes render as background boxes (not cards),
   // so their children can sit closer to the container header.
-  const levelHeight = maxHeight + V_GAP;
   for (const d of h.descendants()) {
     if (d.data.orgNode.id === '__virtual_root__') continue;
     if (!d.data.orgNode.isContainer) continue;
     if (!d.children || d.children.length === 0) continue;
 
+    // Actual gap between this container and its direct children
+    const childY = d.children[0].y!;
+    const actualLevelGap = childY - d.y!;
+
     const metaCount = Object.keys(d.data.orgNode.metadata).length;
     const headerHeight =
       CONTAINER_LABEL_HEIGHT + metaCount * CONTAINER_META_LINE_HEIGHT;
     const desiredGap = headerHeight + 15;
-    const shiftUp = levelHeight - desiredGap;
+    const shiftUp = actualLevelGap - desiredGap;
     if (shiftUp <= 0) continue;
 
     // Shift all descendants upward
@@ -688,11 +794,46 @@ export function layoutOrg(
   const totalWidth = finalMaxX - finalMinX + MARGIN * 2;
   const totalHeight = finalMaxY - minY + MARGIN * 2;
 
+  // Compute legend for tag groups
+  const legendGroups = computeLegendGroups(parsed.tagGroups);
+  let finalWidth = totalWidth;
+  let finalHeight = totalHeight;
+
+  if (legendGroups.length > 0) {
+    const totalGroupsWidth =
+      legendGroups.reduce((s, g) => s + g.width, 0) +
+      (legendGroups.length - 1) * H_GAP;
+    const neededWidth = totalGroupsWidth + MARGIN * 2;
+
+    if (neededWidth > totalWidth) {
+      finalWidth = neededWidth;
+      const shift = (finalWidth - totalWidth) / 2;
+      for (const n of layoutNodes) n.x += shift;
+      for (const c of containers) c.x += shift;
+    }
+
+    const contentBottom = totalHeight - MARGIN;
+    const legendY = contentBottom + LEGEND_GAP;
+    const startX = (finalWidth - totalGroupsWidth) / 2;
+
+    let cx = startX;
+    let maxH = 0;
+    for (const g of legendGroups) {
+      g.x = cx;
+      g.y = legendY;
+      cx += g.width + H_GAP;
+      if (g.height > maxH) maxH = g.height;
+    }
+
+    finalHeight = totalHeight + LEGEND_GAP + maxH;
+  }
+
   return {
     nodes: layoutNodes,
     edges: layoutEdges,
     containers,
-    width: totalWidth,
-    height: totalHeight,
+    legend: legendGroups,
+    width: finalWidth,
+    height: finalHeight,
   };
 }

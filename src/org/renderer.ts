@@ -31,6 +31,18 @@ const CONTAINER_META_FONT_SIZE = 11;
 const CONTAINER_META_LINE_HEIGHT = 16;
 const CONTAINER_HEADER_HEIGHT = 28;
 
+// Legend
+const LEGEND_RADIUS = 6;
+const LEGEND_DOT_R = 5;
+const LEGEND_DOT_TEXT_GAP = 6;
+const LEGEND_ENTRY_GAP = 12;
+const LEGEND_PAD = 10;
+const LEGEND_HEADER_H = 20;
+const LEGEND_ENTRY_H = 18;
+const LEGEND_FONT_SIZE = 11;
+const LEGEND_MAX_PER_ROW = 3;
+const LEGEND_CHAR_WIDTH = 7.5;
+
 // ============================================================
 // Color helpers (inline to avoid cross-module import issues)
 // ============================================================
@@ -418,6 +430,76 @@ export function renderOrg(
         .attr('font-size', 10)
         .attr('opacity', 0.7)
         .text(`+${node.hiddenCount} hidden`);
+    }
+  }
+
+  // Render legend
+  for (const group of layout.legend) {
+    const gEl = contentG
+      .append('g')
+      .attr('transform', `translate(${group.x}, ${group.y})`)
+      .attr('class', 'org-legend-group');
+
+    // Background rect
+    const legendFill = mix(palette.surface, palette.bg, 40);
+    gEl
+      .append('rect')
+      .attr('x', 0)
+      .attr('y', 0)
+      .attr('width', group.width)
+      .attr('height', group.height)
+      .attr('rx', LEGEND_RADIUS)
+      .attr('fill', legendFill)
+      .attr('stroke', palette.textMuted)
+      .attr('stroke-opacity', 0.35)
+      .attr('stroke-width', NODE_STROKE_WIDTH);
+
+    // Group name header
+    gEl
+      .append('text')
+      .attr('x', LEGEND_PAD)
+      .attr('y', LEGEND_HEADER_H / 2 + LEGEND_FONT_SIZE / 2 - 2)
+      .attr('fill', palette.text)
+      .attr('font-size', LEGEND_FONT_SIZE)
+      .attr('font-weight', 'bold')
+      .text(group.name);
+
+    // Entries: colored dot + value label
+    for (let i = 0; i < group.entries.length; i++) {
+      const entry = group.entries[i];
+      const row = Math.floor(i / LEGEND_MAX_PER_ROW);
+      const colStart = row * LEGEND_MAX_PER_ROW;
+
+      // Compute x position from preceding entries in the same row
+      let entryX = LEGEND_PAD;
+      for (let j = colStart; j < i; j++) {
+        const prev = group.entries[j];
+        entryX +=
+          LEGEND_DOT_R * 2 +
+          LEGEND_DOT_TEXT_GAP +
+          prev.value.length * LEGEND_CHAR_WIDTH +
+          LEGEND_ENTRY_GAP;
+      }
+
+      const entryY =
+        LEGEND_HEADER_H + row * LEGEND_ENTRY_H + LEGEND_ENTRY_H / 2;
+
+      // Colored dot
+      gEl
+        .append('circle')
+        .attr('cx', entryX + LEGEND_DOT_R)
+        .attr('cy', entryY)
+        .attr('r', LEGEND_DOT_R)
+        .attr('fill', entry.color);
+
+      // Value label
+      gEl
+        .append('text')
+        .attr('x', entryX + LEGEND_DOT_R * 2 + LEGEND_DOT_TEXT_GAP)
+        .attr('y', entryY + LEGEND_FONT_SIZE / 2 - 2)
+        .attr('fill', palette.text)
+        .attr('font-size', LEGEND_FONT_SIZE)
+        .text(entry.value);
     }
   }
 }
