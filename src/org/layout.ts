@@ -130,27 +130,8 @@ function computeCardHeight(node: OrgNode): number {
 // Tag Group Color Resolution
 // ============================================================
 
-function resolveTagColor(
-  node: OrgNode,
-  tagGroups: OrgTagGroup[]
-): string | undefined {
-  // Explicit node color takes priority
-  if (node.color) return node.color;
-
-  // Search tag groups for first metadata match
-  for (const group of tagGroups) {
-    const groupKey = group.name.toLowerCase();
-    const metaValue = node.metadata[groupKey];
-    if (!metaValue) continue;
-
-    for (const entry of group.entries) {
-      if (entry.value.toLowerCase() === metaValue.toLowerCase()) {
-        return entry.color;
-      }
-    }
-  }
-
-  return undefined;
+function resolveNodeColor(node: OrgNode): string | undefined {
+  return node.color;
 }
 
 // ============================================================
@@ -543,7 +524,7 @@ export function layoutOrg(
       metadata: ec.orgNode.metadata,
       isContainer: ec.orgNode.isContainer,
       lineNumber: ec.orgNode.lineNumber,
-      color: resolveTagColor(ec.orgNode, parsed.tagGroups),
+      color: resolveNodeColor(ec.orgNode),
       x: ec.cx + offsetX,
       y: ec.cy + offsetY,
       width: ec.width,
@@ -570,7 +551,7 @@ export function layoutOrg(
       metadata: orgNode.metadata,
       isContainer: orgNode.isContainer,
       lineNumber: orgNode.lineNumber,
-      color: resolveTagColor(orgNode, parsed.tagGroups),
+      color: resolveNodeColor(orgNode),
       x,
       y,
       width: w,
@@ -656,7 +637,7 @@ export function layoutOrg(
       nodeId: d.data.orgNode.id,
       label: d.data.orgNode.label,
       lineNumber: d.data.orgNode.lineNumber,
-      color: resolveTagColor(d.data.orgNode, parsed.tagGroups),
+      color: resolveNodeColor(d.data.orgNode),
       metadata: d.data.orgNode.metadata,
       x: boxX,
       y: boxY,
@@ -762,7 +743,7 @@ export function layoutOrg(
       nodeId: d.data.orgNode.id,
       label: d.data.orgNode.label,
       lineNumber: d.data.orgNode.lineNumber,
-      color: resolveTagColor(d.data.orgNode, parsed.tagGroups),
+      color: resolveNodeColor(d.data.orgNode),
       metadata: d.data.orgNode.metadata,
       x: centeredBoxX,
       y: boxY,

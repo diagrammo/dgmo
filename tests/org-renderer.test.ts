@@ -111,7 +111,7 @@ describe('layoutOrg', () => {
     expect(node.height).toBeGreaterThan(40);
   });
 
-  it('resolves tag group colors for nodes', () => {
+  it('does not color nodes from tag groups (legend only)', () => {
     const content = `chart: org
 
 ## Location
@@ -127,9 +127,22 @@ Bob
 
     const alice = layout.nodes.find((n) => n.label === 'Alice')!;
     const bob = layout.nodes.find((n) => n.label === 'Bob')!;
+    // Tag groups drive legend only, not node colors
+    expect(alice.color).toBeUndefined();
+    expect(bob.color).toBeUndefined();
+  });
+
+  it('resolves explicit node colors', () => {
+    const content = `chart: org
+Alice(red)
+Bob`;
+    const parsed = parseOrg(content, palette.light);
+    const layout = layoutOrg(parsed);
+
+    const alice = layout.nodes.find((n) => n.label === 'Alice')!;
+    const bob = layout.nodes.find((n) => n.label === 'Bob')!;
     expect(alice.color).toBeTruthy();
-    expect(bob.color).toBeTruthy();
-    expect(alice.color).not.toBe(bob.color);
+    expect(bob.color).toBeUndefined();
   });
 
   it('computes container bounds for containers with children', () => {
