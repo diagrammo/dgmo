@@ -426,6 +426,29 @@ Alice
     expect(alice.metadata['Direct Reports']).toBe('2');
   });
 
+  it('shows sub-node count on all nodes when show-sub-node-count: yes', () => {
+    const content = `chart: org
+show-sub-node-count: yes
+sub-node-label: Reports
+Alice
+  Bob
+    Charlie
+  Carol`;
+    const parsed = parseOrg(content, palette.light);
+    const layout = layoutOrg(parsed);
+
+    const alice = layout.nodes.find((n) => n.label === 'Alice')!;
+    // Bob(+Charlie) + Carol = 3 descendants
+    expect(alice.metadata['Reports']).toBe('3');
+
+    const bob = layout.nodes.find((n) => n.label === 'Bob')!;
+    expect(bob.metadata['Reports']).toBe('1');
+
+    // Leaf nodes should not have the count
+    const carol = layout.nodes.find((n) => n.label === 'Carol')!;
+    expect(carol.metadata['Reports']).toBeUndefined();
+  });
+
   it('adds data-node-toggle on containers with children', () => {
     const content = `chart: org
 [Engineering]
