@@ -288,6 +288,21 @@ describe('parseOrg', () => {
       const result = parseOrg('## Location\n  NY\n\nJane');
       expect(result.error).toMatch(/Expected 'Value\(color\)' in tag group/);
     });
+
+    it('parses default keyword on tag entry', () => {
+      const result = parseOrg(
+        '## Location\n  NY(blue)\n  CO(green) default\n\nJane'
+      );
+      expect(result.tagGroups).toHaveLength(1);
+      expect(result.tagGroups[0].defaultValue).toBe('CO');
+      expect(result.tagGroups[0].entries).toHaveLength(2);
+      expect(result.tagGroups[0].entries[1].value).toBe('CO');
+    });
+
+    it('tag group without default has no defaultValue', () => {
+      const result = parseOrg('## Location\n  NY(blue)\n\nJane');
+      expect(result.tagGroups[0].defaultValue).toBeUndefined();
+    });
   });
 
   // === Tag group aliases ===

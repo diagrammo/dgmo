@@ -110,7 +110,8 @@ export function renderOrg(
   palette: PaletteColors,
   isDark: boolean,
   onClickItem?: (lineNumber: number) => void,
-  exportDims?: { width?: number; height?: number }
+  exportDims?: { width?: number; height?: number },
+  activeTagGroup?: string | null
 ): void {
   // Clear existing content
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
@@ -435,24 +436,39 @@ export function renderOrg(
 
   // Render legend
   for (const group of layout.legend) {
+    const isActive =
+      activeTagGroup != null &&
+      group.name.toLowerCase() === activeTagGroup.toLowerCase();
+
     const gEl = contentG
       .append('g')
       .attr('transform', `translate(${group.x}, ${group.y})`)
-      .attr('class', 'org-legend-group');
+      .attr('class', 'org-legend-group')
+      .attr('data-legend-group', group.name.toLowerCase())
+      .style('cursor', 'pointer');
 
     // Background rect
     const legendFill = mix(palette.surface, palette.bg, 40);
-    gEl
+    const bgRect = gEl
       .append('rect')
       .attr('x', 0)
       .attr('y', 0)
       .attr('width', group.width)
       .attr('height', group.height)
       .attr('rx', LEGEND_RADIUS)
-      .attr('fill', legendFill)
-      .attr('stroke', palette.textMuted)
-      .attr('stroke-opacity', 0.35)
-      .attr('stroke-width', NODE_STROKE_WIDTH);
+      .attr('fill', legendFill);
+
+    if (isActive) {
+      bgRect
+        .attr('stroke', palette.primary)
+        .attr('stroke-opacity', 0.8)
+        .attr('stroke-width', 2);
+    } else {
+      bgRect
+        .attr('stroke', palette.textMuted)
+        .attr('stroke-opacity', 0.35)
+        .attr('stroke-width', NODE_STROKE_WIDTH);
+    }
 
     // Group name header
     gEl

@@ -15,6 +15,8 @@ export interface OrgTagGroup {
   name: string;
   alias?: string;
   entries: OrgTagEntry[];
+  /** Value of the entry marked `default` (nodes without metadata get this) */
+  defaultValue?: string;
   lineNumber: number;
 }
 
@@ -172,14 +174,22 @@ export function parseOrg(
       continue;
     }
 
-    // Tag group entries (indented Value(color) under ## heading)
+    // Tag group entries (indented Value(color) [default] under ## heading)
     if (currentTagGroup && !contentStarted) {
       const indent = measureIndent(line);
       if (indent > 0) {
-        const { label, color } = extractColor(trimmed, palette);
+        // Strip trailing `default` keyword before extracting color
+        const isDefault = /\bdefault\s*$/.test(trimmed);
+        const entryText = isDefault
+          ? trimmed.replace(/\s+default\s*$/, '').trim()
+          : trimmed;
+        const { label, color } = extractColor(entryText, palette);
         if (!color) {
           result.error = `Line ${lineNumber}: Expected 'Value(color)' in tag group '${currentTagGroup.name}'`;
           return result;
+        }
+        if (isDefault) {
+          currentTagGroup.defaultValue = label;
         }
         currentTagGroup.entries.push({
           value: label,
