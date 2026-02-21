@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { JSDOM } from 'jsdom';
 import { parseSequenceDgmo } from '../src/sequence/parser';
-import { renderSequenceDiagram, buildNoteMessageMap, parseInlineMarkdown } from '../src/sequence/renderer';
+import { renderSequenceDiagram, buildNoteMessageMap, parseInlineMarkdown, truncateBareUrl } from '../src/sequence/renderer';
 import { getPalette } from '../src/palettes';
 
 // Set up jsdom globals for D3
@@ -420,5 +420,54 @@ describe('Message label inline markdown rendering', () => {
     const anchor = returnLabel.querySelector('a');
     expect(anchor).not.toBeNull();
     expect(anchor!.getAttribute('href')).toBe('https://result.example.com');
+  });
+});
+
+describe('truncateBareUrl', () => {
+  it('strips https:// protocol', () => {
+    expect(truncateBareUrl('https://example.com')).toBe('example.com');
+  });
+
+  it('strips http:// protocol', () => {
+    expect(truncateBareUrl('http://example.com')).toBe('example.com');
+  });
+
+  it('strips www. prefix', () => {
+    expect(truncateBareUrl('https://www.example.com')).toBe('example.com');
+  });
+
+  it('keeps short URLs intact after stripping', () => {
+    expect(truncateBareUrl('https://api.example.com/v2/users')).toBe('api.example.com/v2/users');
+  });
+
+  it('truncates long URLs with ellipsis', () => {
+    const long = 'https://api.example.com/v2/users/authentication/oauth2/callback';
+    const result = truncateBareUrl(long);
+    expect(result.length).toBe(35);
+    expect(result.endsWith('\u2026')).toBe(true);
+    expect(result).toBe('api.example.com/v2/users/authentic\u2026');
+  });
+});
+
+describe('Rendered bare URL truncation', () => {
+  it('truncates long bare URL display text but preserves full href', () => {
+    const longUrl = 'https://api.example.com/v2/users/authentication/oauth2/callback';
+    const svg = renderToSvg(`A -> B: ${longUrl}`);
+    expect(svg).not.toBeNull();
+    const anchor = svg!.querySelector('.message-label a');
+    expect(anchor).not.toBeNull();
+    expect(anchor!.getAttribute('href')).toBe(longUrl);
+    // Display text should be truncated
+    const tspan = anchor!.querySelector('tspan');
+    expect(tspan!.textContent!.endsWith('\u2026')).toBe(true);
+    expect(tspan!.textContent!.length).toBe(35);
+  });
+
+  it('does not truncate markdown link display text', () => {
+    const svg = renderToSvg('A -> B: [my custom label](https://api.example.com/v2/users/authentication/oauth2/callback)');
+    expect(svg).not.toBeNull();
+    const anchor = svg!.querySelector('.message-label a');
+    expect(anchor).not.toBeNull();
+    expect(anchor!.querySelector('tspan')!.textContent).toBe('my custom label');
   });
 });
