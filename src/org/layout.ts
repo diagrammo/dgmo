@@ -104,6 +104,7 @@ const LEGEND_PAD = 10;
 const LEGEND_HEADER_H = 20;
 const LEGEND_ENTRY_H = 18;
 const LEGEND_MAX_PER_ROW = 3;
+const LEGEND_V_GAP = 12;
 
 // ============================================================
 // Card Sizing
@@ -798,33 +799,59 @@ export function layoutOrg(
   let finalWidth = totalWidth;
   let finalHeight = totalHeight;
 
+  const legendPosition = parsed.options?.['legend-position'] ?? 'top';
+
   if (legendGroups.length > 0) {
-    const totalGroupsWidth =
-      legendGroups.reduce((s, g) => s + g.width, 0) +
-      (legendGroups.length - 1) * H_GAP;
-    const neededWidth = totalGroupsWidth + MARGIN * 2;
+    if (legendPosition === 'bottom') {
+      // Bottom: center legend groups horizontally below diagram content
+      const totalGroupsWidth =
+        legendGroups.reduce((s, g) => s + g.width, 0) +
+        (legendGroups.length - 1) * H_GAP;
+      const neededWidth = totalGroupsWidth + MARGIN * 2;
 
-    if (neededWidth > totalWidth) {
-      finalWidth = neededWidth;
-      const shift = (finalWidth - totalWidth) / 2;
-      for (const n of layoutNodes) n.x += shift;
-      for (const c of containers) c.x += shift;
+      if (neededWidth > totalWidth) {
+        finalWidth = neededWidth;
+        const shift = (finalWidth - totalWidth) / 2;
+        for (const n of layoutNodes) n.x += shift;
+        for (const c of containers) c.x += shift;
+      }
+
+      const contentBottom = totalHeight - MARGIN;
+      const legendY = contentBottom + LEGEND_GAP;
+      const startX = (finalWidth - totalGroupsWidth) / 2;
+
+      let cx = startX;
+      let maxH = 0;
+      for (const g of legendGroups) {
+        g.x = cx;
+        g.y = legendY;
+        cx += g.width + H_GAP;
+        if (g.height > maxH) maxH = g.height;
+      }
+
+      finalHeight = totalHeight + LEGEND_GAP + maxH;
+    } else {
+      // Top (default): stack legend groups vertically at top-right
+      const maxLegendWidth = Math.max(...legendGroups.map((g) => g.width));
+      const legendStartX = totalWidth - MARGIN + LEGEND_GAP;
+      let legendY = MARGIN;
+
+      for (const g of legendGroups) {
+        g.x = legendStartX;
+        g.y = legendY;
+        legendY += g.height + LEGEND_V_GAP;
+      }
+
+      const legendRight = legendStartX + maxLegendWidth + MARGIN;
+      if (legendRight > finalWidth) {
+        finalWidth = legendRight;
+      }
+
+      const legendBottom = legendY - LEGEND_V_GAP + MARGIN;
+      if (legendBottom > finalHeight) {
+        finalHeight = legendBottom;
+      }
     }
-
-    const contentBottom = totalHeight - MARGIN;
-    const legendY = contentBottom + LEGEND_GAP;
-    const startX = (finalWidth - totalGroupsWidth) / 2;
-
-    let cx = startX;
-    let maxH = 0;
-    for (const g of legendGroups) {
-      g.x = cx;
-      g.y = legendY;
-      cx += g.width + H_GAP;
-      if (g.height > maxH) maxH = g.height;
-    }
-
-    finalHeight = totalHeight + LEGEND_GAP + maxH;
   }
 
   return {
