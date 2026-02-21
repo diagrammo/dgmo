@@ -52,9 +52,10 @@ interface InlineSpan {
   href?: string;
 }
 
-function parseInlineMarkdown(text: string): InlineSpan[] {
+export function parseInlineMarkdown(text: string): InlineSpan[] {
   const spans: InlineSpan[] = [];
-  const regex = /\*\*(.+?)\*\*|__(.+?)__|\*(.+?)\*|_(.+?)_|`(.+?)`|\[(.+?)\]\((.+?)\)|([^*_`[]+)/g;
+  const regex =
+    /\*\*(.+?)\*\*|__(.+?)__|\*(.+?)\*|_(.+?)_|`(.+?)`|\[(.+?)\]\((.+?)\)|(https?:\/\/[^\s)>\]]+|www\.[^\s)>\]]+)|([^*_`[]+?(?=https?:\/\/|www\.|$)|[^*_`[]+)/g;
   let match;
   while ((match = regex.exec(text)) !== null) {
     if (match[1]) spans.push({ text: match[1], bold: true });       // **bold**
@@ -63,9 +64,39 @@ function parseInlineMarkdown(text: string): InlineSpan[] {
     else if (match[4]) spans.push({ text: match[4], italic: true }); // _italic_
     else if (match[5]) spans.push({ text: match[5], code: true });   // `code`
     else if (match[6]) spans.push({ text: match[6], href: match[7] }); // [text](url)
-    else if (match[8]) spans.push({ text: match[8] });
+    else if (match[8]) {                                              // bare URL
+      const url = match[8];
+      const href = url.startsWith('www.') ? `https://${url}` : url;
+      spans.push({ text: url, href });
+    } else if (match[9]) spans.push({ text: match[9] });             // plain text
   }
   return spans;
+}
+
+function renderInlineText(
+  textEl: d3Selection.Selection<SVGTextElement, unknown, null, undefined>,
+  text: string,
+  palette: PaletteColors,
+  fontSize?: number
+): void {
+  const spans = parseInlineMarkdown(text);
+  for (const span of spans) {
+    if (span.href) {
+      const a = textEl.append('a').attr('href', span.href);
+      a.append('tspan')
+        .text(span.text)
+        .attr('fill', palette.primary)
+        .style('text-decoration', 'underline');
+    } else {
+      const tspan = textEl.append('tspan').text(span.text);
+      if (span.bold) tspan.attr('font-weight', 'bold');
+      if (span.italic) tspan.attr('font-style', 'italic');
+      if (span.code) {
+        tspan.attr('font-family', 'monospace');
+        if (fontSize) tspan.attr('font-size', fontSize - 1);
+      }
+    }
+  }
 }
 
 function wrapTextLines(text: string, maxChars: number): string[] {
@@ -1874,7 +1905,7 @@ export function renderSequenceDiagram(
           .attr('data-msg-index', String(step.messageIndex));
 
         if (step.label) {
-          svg
+          const labelEl = svg
             .append('text')
             .attr('x', x + SELF_CALL_WIDTH + 5)
             .attr('y', y + SELF_CALL_HEIGHT / 2 + 4)
@@ -1886,8 +1917,8 @@ export function renderSequenceDiagram(
               'data-line-number',
               String(messages[step.messageIndex].lineNumber)
             )
-            .attr('data-msg-index', String(step.messageIndex))
-            .text(step.label);
+            .attr('data-msg-index', String(step.messageIndex));
+          renderInlineText(labelEl, step.label, palette);
         }
       } else {
         // Normal call arrow — snap to activation box edges
@@ -1916,7 +1947,7 @@ export function renderSequenceDiagram(
 
         if (step.label) {
           const midX = (x1 + x2) / 2;
-          svg
+          const labelEl = svg
             .append('text')
             .attr('x', midX)
             .attr('y', y - 8)
@@ -1928,8 +1959,8 @@ export function renderSequenceDiagram(
               'data-line-number',
               String(messages[step.messageIndex].lineNumber)
             )
-            .attr('data-msg-index', String(step.messageIndex))
-            .text(step.label);
+            .attr('data-msg-index', String(step.messageIndex));
+          renderInlineText(labelEl, step.label, palette);
         }
       }
     } else {
@@ -1961,7 +1992,7 @@ export function renderSequenceDiagram(
 
       if (step.label) {
         const midX = (x1 + x2) / 2;
-        svg
+        const labelEl = svg
           .append('text')
           .attr('x', midX)
           .attr('y', y - 6)
@@ -1973,8 +2004,8 @@ export function renderSequenceDiagram(
             'data-line-number',
             String(messages[step.messageIndex].lineNumber)
           )
-          .attr('data-msg-index', String(step.messageIndex))
-          .text(step.label);
+          .attr('data-msg-index', String(step.messageIndex));
+        renderInlineText(labelEl, step.label, palette);
       }
     }
   });
@@ -2077,28 +2108,7 @@ export function renderSequenceDiagram(
                 .text('\u2022');
             }
 
-            const spans = parseInlineMarkdown(displayLine);
-            for (const span of spans) {
-              if (span.href) {
-                const a = textEl
-                  .append('a')
-                  .attr('href', span.href);
-                a.append('tspan')
-                  .text(span.text)
-                  .attr('fill', palette.primary)
-                  .style('text-decoration', 'underline');
-              } else {
-                const tspan = textEl
-                  .append('tspan')
-                  .text(span.text);
-                if (span.bold) tspan.attr('font-weight', 'bold');
-                if (span.italic) tspan.attr('font-style', 'italic');
-                if (span.code)
-                  tspan
-                    .attr('font-family', 'monospace')
-                    .attr('font-size', NOTE_FONT_SIZE - 1);
-              }
-            }
+            renderInlineText(textEl, displayLine, palette, NOTE_FONT_SIZE);
           });
         } else {
           // --- Collapsed note: compact indicator ---
