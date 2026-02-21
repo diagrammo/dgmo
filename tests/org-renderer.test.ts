@@ -805,3 +805,198 @@ Alice | location: NY`;
     expect(rect!.getAttribute('stroke')).toBe(palette.light.primary);
   });
 });
+
+// ============================================================
+// Visibility toggles (hiddenAttributes)
+// ============================================================
+
+describe('hiddenAttributes visibility', () => {
+  const input = `chart: org
+
+## Location
+  NY(blue)
+  LA(yellow)
+
+## Status
+  FTE(green)
+
+Alice
+  location: NY
+  status: FTE
+Bob
+  location: LA
+  status: FTE`;
+
+  it('cards shrink when attributes are hidden', () => {
+    const parsed = parseOrg(input, palette.light);
+    const fullLayout = layoutOrg(parsed);
+    const hiddenLayout = layoutOrg(parsed, undefined, undefined, new Set(['location']));
+
+    const aliceFull = fullLayout.nodes.find((n) => n.label === 'Alice')!;
+    const aliceHidden = hiddenLayout.nodes.find((n) => n.label === 'Alice')!;
+    // Height should decrease when one attribute is hidden
+    expect(aliceHidden.height).toBeLessThan(aliceFull.height);
+  });
+
+  it('hiding all attributes produces header-only cards', () => {
+    const parsed = parseOrg(input, palette.light);
+    const layout = layoutOrg(
+      parsed,
+      undefined,
+      undefined,
+      new Set(['location', 'status'])
+    );
+
+    const alice = layout.nodes.find((n) => n.label === 'Alice')!;
+    // No metadata → height = HEADER_HEIGHT + CARD_V_PAD = 28 + 10 = 38
+    expect(alice.height).toBe(38);
+    expect(Object.keys(alice.metadata)).toHaveLength(0);
+  });
+
+  it('hidden defaults still exist on orgNode but filtered from layout', () => {
+    const inputWithDefaults = `chart: org
+
+## Status
+  FTE(green) default
+
+Alice`;
+    const parsed = parseOrg(inputWithDefaults, palette.light);
+    const layout = layoutOrg(
+      parsed,
+      undefined,
+      undefined,
+      new Set(['status'])
+    );
+
+    // The orgNode still has the default injected
+    expect(parsed.roots[0].metadata['status']).toBe('FTE');
+    // But the layout node has it filtered out
+    const alice = layout.nodes.find((n) => n.label === 'Alice')!;
+    expect(alice.metadata['status']).toBeUndefined();
+  });
+
+  it('container metadata is also filtered', () => {
+    const containerInput = `chart: org
+
+## Status
+  FTE(green)
+
+[Engineering]
+  status: FTE
+  Alice`;
+    const parsed = parseOrg(containerInput, palette.light);
+    const layout = layoutOrg(
+      parsed,
+      undefined,
+      undefined,
+      new Set(['status'])
+    );
+
+    const eng = layout.containers.find((c) => c.label === 'Engineering')!;
+    expect(eng.metadata['status']).toBeUndefined();
+  });
+
+  it('eye icon renders when hiddenAttributes provided', () => {
+    const parsed = parseOrg(input, palette.light);
+    const layout = layoutOrg(parsed, undefined, undefined, new Set());
+
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'clientWidth', { value: 800 });
+    Object.defineProperty(container, 'clientHeight', { value: 600 });
+
+    renderOrg(
+      container, parsed, layout, palette.light, false,
+      undefined, undefined, undefined, new Set()
+    );
+
+    const eyeIcons = container.querySelectorAll('.org-legend-eye');
+    expect(eyeIcons.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('no eye icon when hiddenAttributes not provided', () => {
+    const parsed = parseOrg(input, palette.light);
+    const layout = layoutOrg(parsed);
+
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'clientWidth', { value: 800 });
+    Object.defineProperty(container, 'clientHeight', { value: 600 });
+
+    renderOrg(container, parsed, layout, palette.light, false);
+
+    const eyeIcons = container.querySelectorAll('.org-legend-eye');
+    expect(eyeIcons).toHaveLength(0);
+  });
+
+  it('closed eye path when attribute is hidden', () => {
+    const parsed = parseOrg(input, palette.light);
+    const hidden = new Set(['location']);
+    const layout = layoutOrg(parsed, undefined, undefined, hidden);
+
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'clientWidth', { value: 800 });
+    Object.defineProperty(container, 'clientHeight', { value: 600 });
+
+    renderOrg(
+      container, parsed, layout, palette.light, false,
+      undefined, undefined, undefined, hidden
+    );
+
+    const locationEye = container.querySelector(
+      '[data-legend-visibility="location"]'
+    );
+    expect(locationEye).toBeTruthy();
+    // Hidden attribute has a slash line instead of pupil circle
+    const slashLine = locationEye!.querySelector('line');
+    expect(slashLine).toBeTruthy();
+    const pupilCircle = locationEye!.querySelector('circle');
+    expect(pupilCircle).toBeNull();
+
+    // Status eye should be open (has pupil, no slash)
+    const statusEye = container.querySelector(
+      '[data-legend-visibility="status"]'
+    );
+    expect(statusEye).toBeTruthy();
+    const statusPupil = statusEye!.querySelector('circle');
+    expect(statusPupil).toBeTruthy();
+  });
+
+  it('no eye icons in export', () => {
+    const parsed = parseOrg(input, palette.light);
+    const hidden = new Set(['location']);
+    const layout = layoutOrg(parsed, undefined, undefined, hidden);
+
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'clientWidth', { value: 800 });
+    Object.defineProperty(container, 'clientHeight', { value: 600 });
+
+    renderOrg(
+      container, parsed, layout, palette.light, false,
+      undefined, { width: 800, height: 600 }, undefined, hidden
+    );
+
+    const eyeIcons = container.querySelectorAll('.org-legend-eye');
+    expect(eyeIcons).toHaveLength(0);
+  });
+
+  it('export respects DSL hide option', () => {
+    const exportInput = `chart: org
+hide: location
+
+## Location
+  NY(blue)
+
+## Status
+  FTE(green)
+
+Alice
+  location: NY
+  status: FTE`;
+    const svg = renderOrgForExport(exportInput, 'light', palette.light);
+    expect(svg).toContain('<svg');
+    // Location should be filtered out from card metadata
+    // Status should still be visible
+    expect(svg).toContain('>FTE<');
+    // No eye icons in export
+    expect(svg).not.toContain('org-legend-eye');
+  });
+});
