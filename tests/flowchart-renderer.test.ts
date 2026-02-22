@@ -176,7 +176,7 @@ describe('renderFlowchart', () => {
   describe('title rendering', () => {
     it('renders title text element', () => {
       const container = renderToContainer('title: My Flow\n(Start) -> (End)');
-      const titles = container.querySelectorAll('text.fc-title');
+      const titles = container.querySelectorAll('text.chart-title');
       expect(titles.length).toBe(1);
       expect(titles[0].textContent).toBe('My Flow');
       document.body.removeChild(container);
