@@ -189,3 +189,32 @@ export function getSeriesColors(palette: PaletteColors): string[] {
   const c = palette.colors;
   return [c.blue, c.green, c.yellow, c.orange, c.purple, c.red, c.teal, c.cyan];
 }
+
+/**
+ * Generate `count` visually distinct colors for segment-based charts
+ * (pie, doughnut, polar-area).
+ *
+ * Problem: several palettes have duplicate hex values for different named
+ * colors (e.g. Solarized teal===cyan, One Dark orange===yellow), and the
+ * 8-color modulo cycle repeats when there are more than 8 segments.
+ *
+ * Solution: generate evenly-spaced hues using the palette's characteristic
+ * saturation and lightness, guaranteeing every segment gets a unique,
+ * perceptually distinct color regardless of segment count.
+ */
+export function getSegmentColors(palette: PaletteColors, count: number): string[] {
+  const base = getSeriesColors(palette);
+  const unique = [...new Set(base)];
+  const hsls = unique.map(hexToHSL);
+
+  const avgS = Math.round(hsls.reduce((s, c) => s + c.s, 0) / hsls.length);
+  const avgL = Math.round(hsls.reduce((s, c) => s + c.l, 0) / hsls.length);
+
+  // Start from the palette's blue hue (first in series) for consistency
+  const startHue = hsls[0].h;
+  const step = 360 / count;
+
+  return Array.from({ length: count }, (_, i) =>
+    hslToHex(Math.round((startHue + i * step) % 360), avgS, avgL)
+  );
+}

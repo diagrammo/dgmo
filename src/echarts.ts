@@ -80,7 +80,7 @@ export interface ParsedEChart {
 
 import { resolveColor } from './colors';
 import type { PaletteColors } from './palettes';
-import { getSeriesColors } from './palettes';
+import { getSeriesColors, getSegmentColors } from './palettes';
 import { parseChart } from './chart';
 import type { ParsedChart } from './chart';
 
@@ -1346,13 +1346,13 @@ export function buildEChartsOptionFromChart(
     case 'area':
       return buildAreaOption(parsed, palette, textColor, axisLineColor, splitLineColor, gridOpacity, titleConfig, tooltipTheme);
     case 'pie':
-      return buildPieOption(parsed, textColor, colors, titleConfig, tooltipTheme, false);
+      return buildPieOption(parsed, textColor, getSegmentColors(palette, parsed.data.length), titleConfig, tooltipTheme, false);
     case 'doughnut':
-      return buildPieOption(parsed, textColor, colors, titleConfig, tooltipTheme, true);
+      return buildPieOption(parsed, textColor, getSegmentColors(palette, parsed.data.length), titleConfig, tooltipTheme, true);
     case 'radar':
       return buildRadarOption(parsed, palette, textColor, gridOpacity, colors, titleConfig, tooltipTheme);
     case 'polar-area':
-      return buildPolarAreaOption(parsed, textColor, colors, titleConfig, tooltipTheme);
+      return buildPolarAreaOption(parsed, textColor, getSegmentColors(palette, parsed.data.length), titleConfig, tooltipTheme);
   }
 }
 
