@@ -524,6 +524,49 @@ Alice
     // Container should have toggle
     expect(svg).toContain('data-node-toggle');
   });
+
+  it('collapsed node with container-only children retains data-node-toggle', () => {
+    // Reproduces the Anne Bonny scenario: a node whose only children are containers
+    const content = `chart: org
+Boss
+  Manager
+    [Team A]
+      Alice
+      Bob
+    [Team B]
+      Carol`;
+    const parsed = parseOrg(content, palette.light);
+    // Manager is node-2, has only container children
+    const managerId = parsed.roots[0].children[0].id;
+    expect(managerId).toBe('node-2');
+
+    // Collapse Manager
+    const { parsed: collapsed, hiddenCounts } = collapseOrgTree(
+      parsed,
+      new Set([managerId])
+    );
+    expect(hiddenCounts.get(managerId)).toBe(3); // Alice + Bob + Carol
+
+    const layout = layoutOrg(collapsed, hiddenCounts);
+
+    // Manager should be in layout nodes with hasChildren
+    const managerNode = layout.nodes.find((n) => n.id === managerId);
+    expect(managerNode).toBeDefined();
+    expect(managerNode!.hasChildren).toBe(true);
+    expect(managerNode!.hiddenCount).toBe(3);
+
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'clientWidth', { value: 800 });
+    Object.defineProperty(container, 'clientHeight', { value: 600 });
+
+    renderOrg(container, collapsed, layout, palette.light, false);
+
+    const svg = container.innerHTML;
+    // Collapsed Manager should have toggle attribute and collapse bar
+    expect(svg).toContain(`data-node-toggle="${managerId}"`);
+    expect(svg).toContain('org-collapse-bar');
+    expect(svg).toContain('aria-expanded="false"');
+  });
 });
 
 // ============================================================
