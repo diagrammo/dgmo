@@ -302,7 +302,6 @@ export function renderOrg(
         .attr('width', c.width - COLLAPSE_BAR_INSET * 2)
         .attr('height', COLLAPSE_BAR_HEIGHT)
         .attr('fill', containerStroke(palette, c.color))
-        .attr('opacity', 0.5)
         .attr('clip-path', `url(#${clipId})`)
         .attr('class', 'org-collapse-bar');
     }
@@ -450,7 +449,6 @@ export function renderOrg(
         .attr('width', node.width - COLLAPSE_BAR_INSET * 2)
         .attr('height', COLLAPSE_BAR_HEIGHT)
         .attr('fill', nodeStroke(palette, node.color))
-        .attr('opacity', 0.5)
         .attr('clip-path', `url(#${clipId})`)
         .attr('class', 'org-collapse-bar');
     }
