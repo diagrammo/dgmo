@@ -6,7 +6,7 @@ import * as d3Selection from 'd3-selection';
 import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
-import type { ParsedGraph } from './types';
+import type { ParsedGraph, GraphShape } from './types';
 import type { LayoutResult, LayoutNode, LayoutEdge, LayoutGroup } from './layout';
 import { parseFlowchart } from './flowchart-parser';
 import { layoutGraph } from './layout';
@@ -16,8 +16,6 @@ import { layoutGraph } from './layout';
 // ============================================================
 
 const DIAGRAM_PADDING = 20;
-const TITLE_HEIGHT = 30;
-const TITLE_FONT_SIZE = 18;
 const NODE_FONT_SIZE = 13;
 const EDGE_LABEL_FONT_SIZE = 11;
 const GROUP_LABEL_FONT_SIZE = 11;
@@ -45,15 +43,24 @@ function mix(a: string, b: string, pct: number): string {
   return `#${c(ar,br)}${c(ag,bg)}${c(ab,bb)}`;
 }
 
-function nodeFill(palette: PaletteColors, isDark: boolean, nodeColor?: string): string {
-  if (nodeColor) {
-    return mix(nodeColor, isDark ? palette.surface : palette.bg, 25);
+function shapeDefaultColor(shape: GraphShape, palette: PaletteColors, isEndTerminal?: boolean): string {
+  switch (shape) {
+    case 'terminal':   return isEndTerminal ? palette.colors.red : palette.colors.green;
+    case 'process':    return palette.colors.blue;
+    case 'decision':   return palette.colors.yellow;
+    case 'io':         return palette.colors.purple;
+    case 'subroutine': return palette.colors.teal;
+    case 'document':   return palette.colors.orange;
   }
-  return mix(palette.primary, isDark ? palette.surface : palette.bg, 15);
 }
 
-function nodeStroke(palette: PaletteColors, nodeColor?: string): string {
-  return nodeColor ?? palette.textMuted;
+function nodeFill(palette: PaletteColors, isDark: boolean, shape: GraphShape, nodeColor?: string, isEndTerminal?: boolean): string {
+  const color = nodeColor ?? shapeDefaultColor(shape, palette, isEndTerminal);
+  return mix(color, isDark ? palette.surface : palette.bg, 25);
+}
+
+function nodeStroke(palette: PaletteColors, shape: GraphShape, nodeColor?: string, isEndTerminal?: boolean): string {
+  return nodeColor ?? shapeDefaultColor(shape, palette, isEndTerminal);
 }
 
 // ============================================================
@@ -62,7 +69,7 @@ function nodeStroke(palette: PaletteColors, nodeColor?: string): string {
 
 type GSelection = d3Selection.Selection<SVGGElement, unknown, null, undefined>;
 
-function renderTerminal(g: GSelection, node: LayoutNode, palette: PaletteColors, isDark: boolean): void {
+function renderTerminal(g: GSelection, node: LayoutNode, palette: PaletteColors, isDark: boolean, isEnd: boolean): void {
   const w = node.width;
   const h = node.height;
   const rx = h / 2;
@@ -73,8 +80,8 @@ function renderTerminal(g: GSelection, node: LayoutNode, palette: PaletteColors,
     .attr('height', h)
     .attr('rx', rx)
     .attr('ry', rx)
-    .attr('fill', nodeFill(palette, isDark, node.color))
-    .attr('stroke', nodeStroke(palette, node.color))
+    .attr('fill', nodeFill(palette, isDark, node.shape, node.color, isEnd))
+    .attr('stroke', nodeStroke(palette, node.shape, node.color, isEnd))
     .attr('stroke-width', NODE_STROKE_WIDTH);
 }
 
@@ -88,8 +95,8 @@ function renderProcess(g: GSelection, node: LayoutNode, palette: PaletteColors, 
     .attr('height', h)
     .attr('rx', 3)
     .attr('ry', 3)
-    .attr('fill', nodeFill(palette, isDark, node.color))
-    .attr('stroke', nodeStroke(palette, node.color))
+    .attr('fill', nodeFill(palette, isDark, node.shape, node.color))
+    .attr('stroke', nodeStroke(palette, node.shape, node.color))
     .attr('stroke-width', NODE_STROKE_WIDTH);
 }
 
@@ -104,8 +111,8 @@ function renderDecision(g: GSelection, node: LayoutNode, palette: PaletteColors,
   ].join(' ');
   g.append('polygon')
     .attr('points', points)
-    .attr('fill', nodeFill(palette, isDark, node.color))
-    .attr('stroke', nodeStroke(palette, node.color))
+    .attr('fill', nodeFill(palette, isDark, node.shape, node.color))
+    .attr('stroke', nodeStroke(palette, node.shape, node.color))
     .attr('stroke-width', NODE_STROKE_WIDTH);
 }
 
@@ -121,15 +128,15 @@ function renderIO(g: GSelection, node: LayoutNode, palette: PaletteColors, isDar
   ].join(' ');
   g.append('polygon')
     .attr('points', points)
-    .attr('fill', nodeFill(palette, isDark, node.color))
-    .attr('stroke', nodeStroke(palette, node.color))
+    .attr('fill', nodeFill(palette, isDark, node.shape, node.color))
+    .attr('stroke', nodeStroke(palette, node.shape, node.color))
     .attr('stroke-width', NODE_STROKE_WIDTH);
 }
 
 function renderSubroutine(g: GSelection, node: LayoutNode, palette: PaletteColors, isDark: boolean): void {
   const w = node.width;
   const h = node.height;
-  const s = nodeStroke(palette, node.color);
+  const s = nodeStroke(palette, node.shape, node.color);
   // Outer rectangle
   g.append('rect')
     .attr('x', -w / 2)
@@ -138,7 +145,7 @@ function renderSubroutine(g: GSelection, node: LayoutNode, palette: PaletteColor
     .attr('height', h)
     .attr('rx', 3)
     .attr('ry', 3)
-    .attr('fill', nodeFill(palette, isDark, node.color))
+    .attr('fill', nodeFill(palette, isDark, node.shape, node.color))
     .attr('stroke', s)
     .attr('stroke-width', NODE_STROKE_WIDTH);
   // Left inner border
@@ -179,15 +186,15 @@ function renderDocument(g: GSelection, node: LayoutNode, palette: PaletteColors,
 
   g.append('path')
     .attr('d', d)
-    .attr('fill', nodeFill(palette, isDark, node.color))
-    .attr('stroke', nodeStroke(palette, node.color))
+    .attr('fill', nodeFill(palette, isDark, node.shape, node.color))
+    .attr('stroke', nodeStroke(palette, node.shape, node.color))
     .attr('stroke-width', NODE_STROKE_WIDTH);
 }
 
-function renderNodeShape(g: GSelection, node: LayoutNode, palette: PaletteColors, isDark: boolean): void {
+function renderNodeShape(g: GSelection, node: LayoutNode, palette: PaletteColors, isDark: boolean, endTerminalIds: Set<string>): void {
   switch (node.shape) {
     case 'terminal':
-      renderTerminal(g, node, palette, isDark);
+      renderTerminal(g, node, palette, isDark, endTerminalIds.has(node.id));
       break;
     case 'process':
       renderProcess(g, node, palette, isDark);
@@ -236,20 +243,21 @@ export function renderFlowchart(
   const height = exportDims?.height ?? container.clientHeight;
   if (width <= 0 || height <= 0) return;
 
-  const titleOffset = graph.title ? TITLE_HEIGHT : 0;
+  const titleHeight = graph.title ? 40 : 0;
 
-  // Compute scale to fit diagram in viewport
+  // Compute scale to fit diagram in available space below title
   const diagramW = layout.width;
-  const diagramH = layout.height + titleOffset;
+  const diagramH = layout.height;
+  const availH = height - titleHeight;
   const scaleX = (width - DIAGRAM_PADDING * 2) / diagramW;
-  const scaleY = (height - DIAGRAM_PADDING * 2) / diagramH;
+  const scaleY = (availH - DIAGRAM_PADDING * 2) / diagramH;
   const scale = Math.min(1, scaleX, scaleY);
 
-  // Center the diagram
+  // Center the diagram in the area below the title
   const scaledW = diagramW * scale;
   const scaledH = diagramH * scale;
   const offsetX = (width - scaledW) / 2;
-  const offsetY = (height - scaledH) / 2;
+  const offsetY = titleHeight + (availH - scaledH) / 2;
 
   // Create SVG
   const svg = d3Selection
@@ -297,22 +305,17 @@ export function renderFlowchart(
       .attr('fill', color);
   }
 
-  // Main content group with scale/translate
-  const mainG = svg
-    .append('g')
-    .attr('transform', `translate(${offsetX}, ${offsetY}) scale(${scale})`);
-
-  // Title
+  // Title (rendered directly on SVG, not inside scaled group)
   if (graph.title) {
-    const titleEl = mainG
+    const titleEl = svg
       .append('text')
-      .attr('x', diagramW / 2)
-      .attr('y', TITLE_FONT_SIZE)
+      .attr('class', 'chart-title')
+      .attr('x', width / 2)
+      .attr('y', 30)
       .attr('text-anchor', 'middle')
       .attr('fill', palette.text)
-      .attr('font-size', TITLE_FONT_SIZE)
-      .attr('font-weight', 'bold')
-      .attr('class', 'fc-title chart-title')
+      .attr('font-size', '20px')
+      .attr('font-weight', '700')
       .style('cursor', onClickItem && graph.titleLineNumber ? 'pointer' : 'default')
       .text(graph.title);
 
@@ -327,10 +330,10 @@ export function renderFlowchart(
     }
   }
 
-  // Content group (offset by title)
-  const contentG = mainG
+  // Main content group with scale/translate
+  const contentG = svg
     .append('g')
-    .attr('transform', `translate(0, ${titleOffset})`);
+    .attr('transform', `translate(${offsetX}, ${offsetY}) scale(${scale})`);
 
   // Render groups (background layer)
   for (const group of layout.groups) {
@@ -429,6 +432,16 @@ export function renderFlowchart(
     }
   }
 
+  // Identify end terminals (terminal nodes with no outgoing edges)
+  const nodesWithOutgoing = new Set<string>();
+  for (const edge of layout.edges) nodesWithOutgoing.add(edge.source);
+  const endTerminalIds = new Set<string>();
+  for (const node of layout.nodes) {
+    if (node.shape === 'terminal' && !nodesWithOutgoing.has(node.id)) {
+      endTerminalIds.add(node.id);
+    }
+  }
+
   // Render nodes (top layer)
   for (const node of layout.nodes) {
     const nodeG = contentG
@@ -445,7 +458,7 @@ export function renderFlowchart(
     }
 
     // Shape
-    renderNodeShape(nodeG as GSelection, node, palette, isDark);
+    renderNodeShape(nodeG as GSelection, node, palette, isDark, endTerminalIds);
 
     // Label
     nodeG
@@ -478,13 +491,13 @@ export function renderFlowchartForExport(
   // Create offscreen container
   const container = document.createElement('div');
   container.style.width = `${layout.width + DIAGRAM_PADDING * 2}px`;
-  container.style.height = `${layout.height + DIAGRAM_PADDING * 2 + (parsed.title ? TITLE_HEIGHT : 0)}px`;
+  container.style.height = `${layout.height + DIAGRAM_PADDING * 2 + (parsed.title ? 40 : 0)}px`;
   container.style.position = 'absolute';
   container.style.left = '-9999px';
   document.body.appendChild(container);
 
   const exportWidth = layout.width + DIAGRAM_PADDING * 2;
-  const exportHeight = layout.height + DIAGRAM_PADDING * 2 + (parsed.title ? TITLE_HEIGHT : 0);
+  const exportHeight = layout.height + DIAGRAM_PADDING * 2 + (parsed.title ? 40 : 0);
 
   try {
     renderFlowchart(
