@@ -906,10 +906,11 @@ export function renderSequenceDiagram(
     msgToLastStep.set(step.messageIndex, si);
   });
 
-  // Map a note to the last render-step index of its preceding message.
+  // Map a note to the first render-step index of its preceding message
+  // (the forward/call arrow, not the return arrow).
   // If the note's closest preceding message is hidden (collapsed section), return -1
   // so the note is hidden along with its section.
-  const findAssociatedLastStep = (note: SequenceNote): number => {
+  const findAssociatedFirstStep = (note: SequenceNote): number => {
     // First find the closest preceding message (ignoring hidden filter)
     let closestMsgIndex = -1;
     let closestLine = -1;
@@ -927,7 +928,7 @@ export function renderSequenceDiagram(
       return -1;
     }
     if (closestMsgIndex < 0) return -1;
-    return msgToLastStep.get(closestMsgIndex) ?? -1;
+    return msgToFirstStep.get(closestMsgIndex) ?? -1;
   };
 
   // Find the first visible message index in an element subtree
@@ -1253,7 +1254,7 @@ export function renderSequenceDiagram(
       for (let i = 0; i < els.length; i++) {
         const el = els[i];
         if (isSequenceNote(el)) {
-          const si = findAssociatedLastStep(el);
+          const si = findAssociatedFirstStep(el);
           if (si < 0) continue;
           // Check if there's a preceding note that we should stack below
           const prevNote = i > 0 && isSequenceNote(els[i - 1]) ? (els[i - 1] as SequenceNote) : null;
