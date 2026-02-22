@@ -408,7 +408,7 @@ Alice
     expect(svg).not.toContain('data-node-toggle');
   });
 
-  it('renders collapsed count as chevron indicator (not metadata row)', () => {
+  it('renders collapsed accent bar (not metadata row)', () => {
     const content = `chart: org
 Alice
   Bob
@@ -430,9 +430,8 @@ Alice
     const svg = container.innerHTML;
     // No metadata row for hidden count
     expect(svg).not.toContain('Sub-node Count');
-    // Chevron indicator rendered instead
-    expect(svg).toContain('org-collapse-indicator');
-    expect(svg).toContain('▸ +2');
+    // Accent bar rendered instead
+    expect(svg).toContain('org-collapse-bar');
     expect(svg).toContain('aria-expanded="false"');
   });
 
