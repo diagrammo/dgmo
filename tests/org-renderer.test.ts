@@ -812,8 +812,9 @@ Alice`;
     expect(layoutWith.height).toBeGreaterThan(layoutWith.legend[0].y);
   });
 
-  it('places legend at top-right by default', () => {
+  it('places legend at top-right when legend-position: top', () => {
     const input = `chart: org
+legend-position: top
 
 ## Location
   NY(blue)
@@ -839,6 +840,7 @@ Alice | location: NY, status: FTE`;
 
   it('top legend does not add to height when shorter than content', () => {
     const input = `chart: org
+legend-position: top
 
 ## Location
   NY(blue)

@@ -32,7 +32,7 @@ const CONTAINER_META_LINE_HEIGHT = 16;
 const CONTAINER_HEADER_HEIGHT = 28;
 
 // Collapsed-node accent bar
-const COLLAPSE_BAR_HEIGHT = 3;
+const COLLAPSE_BAR_HEIGHT = 6;
 const COLLAPSE_BAR_INSET = 6;
 
 // Legend
@@ -298,7 +298,7 @@ export function renderOrg(
         .attr('height', COLLAPSE_BAR_HEIGHT)
         .attr('rx', COLLAPSE_BAR_HEIGHT / 2)
         .attr('fill', palette.primary)
-        .attr('opacity', 0.35)
+        .attr('opacity', 0.5)
         .attr('class', 'org-collapse-bar');
     }
 
@@ -441,7 +441,7 @@ export function renderOrg(
         .attr('height', COLLAPSE_BAR_HEIGHT)
         .attr('rx', COLLAPSE_BAR_HEIGHT / 2)
         .attr('fill', palette.primary)
-        .attr('opacity', 0.35)
+        .attr('opacity', 0.5)
         .attr('class', 'org-collapse-bar');
     }
 

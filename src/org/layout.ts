@@ -1070,7 +1070,7 @@ export function layoutOrg(
   let finalWidth = totalWidth;
   let finalHeight = totalHeight;
 
-  const legendPosition = parsed.options?.['legend-position'] ?? 'top';
+  const legendPosition = parsed.options?.['legend-position'] ?? 'bottom';
 
   if (legendGroups.length > 0) {
     if (legendPosition === 'bottom') {
