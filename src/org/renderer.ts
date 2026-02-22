@@ -31,9 +31,9 @@ const CONTAINER_META_FONT_SIZE = 11;
 const CONTAINER_META_LINE_HEIGHT = 16;
 const CONTAINER_HEADER_HEIGHT = 28;
 
-// Collapse/expand chevron indicators
-const COLLAPSE_FONT_SIZE = 10;
-const COLLAPSE_GAP = 4;
+// Collapsed-node accent bar
+const COLLAPSE_BAR_HEIGHT = 3;
+const COLLAPSE_BAR_INSET = 6;
 
 // Legend
 const LEGEND_RADIUS = 6;
@@ -289,31 +289,17 @@ export function renderOrg(
       }
     }
 
-    // Collapse/expand chevron indicator (interactive only)
-    if (!exportDims) {
-      if (c.hiddenCount && c.hiddenCount > 0) {
-        // Collapsed: ▸ +N below the container box
-        cG.append('text')
-          .attr('x', c.width / 2)
-          .attr('y', c.height + COLLAPSE_GAP + COLLAPSE_FONT_SIZE)
-          .attr('text-anchor', 'middle')
-          .attr('fill', palette.textMuted)
-          .attr('font-size', COLLAPSE_FONT_SIZE)
-          .attr('opacity', 0.6)
-          .attr('class', 'org-collapse-indicator')
-          .text(`▸ +${c.hiddenCount}`);
-      } else if (c.hasChildren && !c.hiddenCount) {
-        // Expanded with children: ▾ in header top-right
-        cG.append('text')
-          .attr('x', c.width - 14)
-          .attr('y', CONTAINER_HEADER_HEIGHT / 2 + COLLAPSE_FONT_SIZE / 2 - 2)
-          .attr('text-anchor', 'middle')
-          .attr('fill', palette.textMuted)
-          .attr('font-size', COLLAPSE_FONT_SIZE)
-          .attr('opacity', 0.4)
-          .attr('class', 'org-collapse-indicator')
-          .text('▾');
-      }
+    // Collapsed accent bar (interactive only)
+    if (!exportDims && c.hiddenCount && c.hiddenCount > 0) {
+      cG.append('rect')
+        .attr('x', COLLAPSE_BAR_INSET)
+        .attr('y', c.height - COLLAPSE_BAR_HEIGHT)
+        .attr('width', c.width - COLLAPSE_BAR_INSET * 2)
+        .attr('height', COLLAPSE_BAR_HEIGHT)
+        .attr('rx', COLLAPSE_BAR_HEIGHT / 2)
+        .attr('fill', palette.primary)
+        .attr('opacity', 0.35)
+        .attr('class', 'org-collapse-bar');
     }
 
   }
@@ -445,33 +431,18 @@ export function renderOrg(
       }
     }
 
-    // Collapse/expand chevron indicator (interactive only)
-    if (!exportDims) {
-      if (node.hiddenCount && node.hiddenCount > 0) {
-        // Collapsed: ▸ +N below the card
-        nodeG
-          .append('text')
-          .attr('x', node.width / 2)
-          .attr('y', node.height + COLLAPSE_GAP + COLLAPSE_FONT_SIZE)
-          .attr('text-anchor', 'middle')
-          .attr('fill', palette.textMuted)
-          .attr('font-size', COLLAPSE_FONT_SIZE)
-          .attr('opacity', 0.6)
-          .attr('class', 'org-collapse-indicator')
-          .text(`▸ +${node.hiddenCount}`);
-      } else if (node.hasChildren && !node.hiddenCount) {
-        // Expanded with children: ▾ in header top-right
-        nodeG
-          .append('text')
-          .attr('x', node.width - 14)
-          .attr('y', HEADER_HEIGHT / 2 + COLLAPSE_FONT_SIZE / 2 - 2)
-          .attr('text-anchor', 'middle')
-          .attr('fill', palette.textMuted)
-          .attr('font-size', COLLAPSE_FONT_SIZE)
-          .attr('opacity', 0.4)
-          .attr('class', 'org-collapse-indicator')
-          .text('▾');
-      }
+    // Collapsed accent bar (interactive only)
+    if (!exportDims && node.hiddenCount && node.hiddenCount > 0) {
+      nodeG
+        .append('rect')
+        .attr('x', COLLAPSE_BAR_INSET)
+        .attr('y', node.height - COLLAPSE_BAR_HEIGHT)
+        .attr('width', node.width - COLLAPSE_BAR_INSET * 2)
+        .attr('height', COLLAPSE_BAR_HEIGHT)
+        .attr('rx', COLLAPSE_BAR_HEIGHT / 2)
+        .attr('fill', palette.primary)
+        .attr('opacity', 0.35)
+        .attr('class', 'org-collapse-bar');
     }
 
   }
