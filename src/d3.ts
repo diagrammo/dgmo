@@ -1193,10 +1193,9 @@ export function renderSlopeChart(
     const sign = absChange > 0 ? '+' : '';
     const pctPart =
       pctChange !== null ? ` (${sign}${pctChange.toFixed(1)}%)` : '';
-    const tipHtml =
-      `<strong>${item.label}</strong><br>` +
-      `${periods[0]}: ${firstVal} → ${periods[periods.length - 1]}: ${lastVal}<br>` +
-      `Change: ${sign}${absChange}${pctPart}`;
+    const tipLines = [`${sign}${absChange}`];
+    if (pctChange !== null) tipLines.push(`${sign}${pctChange.toFixed(1)}%`);
+    const tipHtml = tipLines.join('<br>');
 
     // Line
     seriesG.append('path')
