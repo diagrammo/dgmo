@@ -4105,11 +4105,14 @@ function thirdCirclePosition(
   };
 }
 
-function fitCirclesToContainer(
+function fitCirclesToContainerAsymmetric(
   circles: Circle[],
   w: number,
   h: number,
-  margin: number
+  mLeft: number,
+  mRight: number,
+  mTop: number,
+  mBottom: number
 ): Circle[] {
   if (circles.length === 0) return [];
   let minX = Infinity,
@@ -4124,13 +4127,13 @@ function fitCirclesToContainer(
   }
   const bw = maxX - minX;
   const bh = maxY - minY;
-  const availW = w - 2 * margin;
-  const availH = h - 2 * margin;
-  const scale = Math.min(availW / bw, availH / bh) * 0.85;
+  const availW = w - mLeft - mRight;
+  const availH = h - mTop - mBottom;
+  const scale = Math.min(availW / bw, availH / bh);
   const cx = (minX + maxX) / 2;
   const cy = (minY + maxY) / 2;
-  const tx = w / 2;
-  const ty = h / 2;
+  const tx = mLeft + availW / 2;
+  const ty = mTop + availH / 2;
   return circles.map((c) => ({
     x: (c.x - cx) * scale + tx,
     y: (c.y - cy) * scale + ty,
@@ -4145,8 +4148,8 @@ function pointInCircle(p: Point, c: Circle): boolean {
 }
 
 function regionCentroid(circles: Circle[], inside: boolean[]): Point {
-  // Sample points and average those matching the region
-  const N = 500;
+  // Deterministic 50×50 grid scan instead of random sampling
+  const GRID = 50;
   let minX = Infinity,
     maxX = -Infinity,
     minY = Infinity,
@@ -4157,24 +4160,28 @@ function regionCentroid(circles: Circle[], inside: boolean[]): Point {
     minY = Math.min(minY, c.y - c.r);
     maxY = Math.max(maxY, c.y + c.r);
   }
+  const stepX = (maxX - minX) / GRID;
+  const stepY = (maxY - minY) / GRID;
   let sx = 0,
     sy = 0,
     count = 0;
-  for (let i = 0; i < N; i++) {
-    const x = minX + Math.random() * (maxX - minX);
-    const y = minY + Math.random() * (maxY - minY);
-    let match = true;
-    for (let j = 0; j < circles.length; j++) {
-      const isIn = pointInCircle({ x, y }, circles[j]);
-      if (isIn !== inside[j]) {
-        match = false;
-        break;
+  for (let gi = 0; gi <= GRID; gi++) {
+    const x = minX + gi * stepX;
+    for (let gj = 0; gj <= GRID; gj++) {
+      const y = minY + gj * stepY;
+      let match = true;
+      for (let j = 0; j < circles.length; j++) {
+        const isIn = pointInCircle({ x, y }, circles[j]);
+        if (isIn !== inside[j]) {
+          match = false;
+          break;
+        }
       }
-    }
-    if (match) {
-      sx += x;
-      sy += y;
-      count++;
+      if (match) {
+        sx += x;
+        sy += y;
+        count++;
+      }
     }
   }
   if (count === 0) {
@@ -4197,30 +4204,6 @@ function regionCentroid(circles: Circle[], inside: boolean[]): Point {
 // ============================================================
 // Venn Diagram Renderer
 // ============================================================
-
-function blendColors(hexColors: string[]): string {
-  let r = 0,
-    g = 0,
-    b = 0;
-  for (const hex of hexColors) {
-    const h = hex.replace('#', '');
-    r += parseInt(h.substring(0, 2), 16);
-    g += parseInt(h.substring(2, 4), 16);
-    b += parseInt(h.substring(4, 6), 16);
-  }
-  const n = hexColors.length;
-  return `#${Math.round(r / n)
-    .toString(16)
-    .padStart(2, '0')}${Math.round(g / n)
-    .toString(16)
-    .padStart(2, '0')}${Math.round(b / n)
-    .toString(16)
-    .padStart(2, '0')}`;
-}
-
-function circlePathD(cx: number, cy: number, r: number): string {
-  return `M${cx - r},${cy} A${r},${r} 0 1,0 ${cx + r},${cy} A${r},${r} 0 1,0 ${cx - r},${cy} Z`;
-}
 
 export function renderVenn(
   container: HTMLDivElement,
@@ -4300,19 +4283,53 @@ export function renderVenn(
     ];
   }
 
-  const drawH = height - titleHeight;
-  const labelMargin = 100; // extra margin for external labels
-  const circles = fitCirclesToContainer(
-    rawCircles,
-    width,
-    drawH,
-    labelMargin
-  ).map((c) => ({ ...c, y: c.y + titleHeight }));
-
   // Resolve colors for each set
   const setColors = vennSets.map(
     (s, i) => s.color ?? colors[i % colors.length]
   );
+
+  // ── Layout-aware centering with label space ──
+  // Estimate per-side label widths and compute asymmetric margins
+  const clusterCx = rawCircles.reduce((s, c) => s + c.x, 0) / n;
+  const clusterCy = rawCircles.reduce((s, c) => s + c.y, 0) / n;
+
+  // Estimate which side each set label falls on
+  let marginLeft = 30,
+    marginRight = 30,
+    marginTop = 30,
+    marginBottom = 30;
+  const stubLen = 20;
+  const edgePad = 8;
+  const labelTextPad = 4;
+
+  for (let i = 0; i < n; i++) {
+    const displayName = vennSets[i].label ?? vennSets[i].name;
+    const estimatedWidth = displayName.length * 8.5 + stubLen + edgePad + labelTextPad;
+    const dx = rawCircles[i].x - clusterCx;
+    const dy = rawCircles[i].y - clusterCy;
+
+    if (Math.abs(dx) >= Math.abs(dy)) {
+      // Label exits left or right
+      if (dx >= 0) marginRight = Math.max(marginRight, estimatedWidth);
+      else marginLeft = Math.max(marginLeft, estimatedWidth);
+    } else {
+      // Label exits top or bottom
+      const halfEstimate = estimatedWidth * 0.5;
+      if (dy >= 0) marginBottom = Math.max(marginBottom, halfEstimate + 20);
+      else marginTop = Math.max(marginTop, halfEstimate + 20);
+    }
+  }
+
+  const drawH = height - titleHeight;
+  const circles = fitCirclesToContainerAsymmetric(
+    rawCircles,
+    width,
+    drawH,
+    marginLeft,
+    marginRight,
+    marginTop,
+    marginBottom
+  ).map((c) => ({ ...c, y: c.y + titleHeight }));
 
   // SVG
   const svg = d3Selection
@@ -4350,171 +4367,32 @@ export function renderVenn(
     }
   }
 
-  // ── Clip-path definitions ──
-  // For each circle: a clip-path to include it, and one to exclude it (hole)
-  const defs = svg.append('defs');
-  const pad = 20;
+  // ── Semi-transparent filled circles ──
+  const circleEls: d3Selection.Selection<SVGCircleElement, unknown, null, undefined>[] = [];
+  const circleGroup = svg.append('g');
   circles.forEach((c, i) => {
-    // Include clip: just the circle
-    defs
-      .append('clipPath')
-      .attr('id', `venn-in-${i}`)
-      .append('circle')
-      .attr('cx', c.x)
-      .attr('cy', c.y)
-      .attr('r', c.r);
-
-    // Exclude clip: large rect with circle punched out via evenodd
-    defs
-      .append('clipPath')
-      .attr('id', `venn-out-${i}`)
-      .append('path')
-      .attr(
-        'd',
-        `M${-pad},${-pad} H${width + pad} V${height + pad} H${-pad} Z ` +
-          circlePathD(c.x, c.y, c.r)
-      )
-      .attr('clip-rule', 'evenodd');
-  });
-
-  // Helper: nest clip-path groups and append a filled rect
-  function drawClippedRegion(
-    parent: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
-    clipIds: string[],
-    fill: string
-  ): d3Selection.Selection<SVGGElement, unknown, null, undefined> {
-    let g = parent;
-    for (const id of clipIds) {
-      g = g
-        .append('g')
-        .attr('clip-path', `url(#${id})`) as d3Selection.Selection<
-        SVGGElement,
-        unknown,
-        null,
-        undefined
-      >;
-    }
-    g.append('rect')
-      .attr('x', -pad)
-      .attr('y', -pad)
-      .attr('width', width + 2 * pad)
-      .attr('height', height + 2 * pad)
-      .attr('fill', fill);
-    return g;
-  }
-
-  // ── Draw opaque regions ──
-  // Track region groups by which circle indices they relate to (for hover dimming)
-  const regionGroups: {
-    g: d3Selection.Selection<SVGGElement, unknown, null, undefined>;
-    circleIdxs: number[];
-  }[] = [];
-
-  // Exclusive regions: inside circle i, outside all others
-  const regionsParent = svg.append('g');
-  for (let i = 0; i < n; i++) {
-    const clips = [`venn-in-${i}`];
-    for (let j = 0; j < n; j++) {
-      if (j !== i) clips.push(`venn-out-${j}`);
-    }
-    const g = regionsParent.append('g') as d3Selection.Selection<
-      SVGGElement,
-      unknown,
-      null,
-      undefined
-    >;
-    drawClippedRegion(g, clips, setColors[i]);
-    regionGroups.push({ g, circleIdxs: [i] });
-  }
-
-  // Pairwise overlap regions (excluding any third circle)
-  const pairIndices: [number, number][] = [];
-  for (let i = 0; i < n; i++) {
-    for (let j = i + 1; j < n; j++) {
-      pairIndices.push([i, j]);
-    }
-  }
-  for (const [i, j] of pairIndices) {
-    const clips = [`venn-in-${i}`, `venn-in-${j}`];
-    for (let k = 0; k < n; k++) {
-      if (k !== i && k !== j) clips.push(`venn-out-${k}`);
-    }
-    const blended = blendColors([setColors[i], setColors[j]]);
-    const g = regionsParent.append('g') as d3Selection.Selection<
-      SVGGElement,
-      unknown,
-      null,
-      undefined
-    >;
-    drawClippedRegion(g, clips, blended);
-    regionGroups.push({ g, circleIdxs: [i, j] });
-  }
-
-  // Triple overlap region (if 3 sets)
-  if (n === 3) {
-    const clips = [`venn-in-0`, `venn-in-1`, `venn-in-2`];
-    const blended = blendColors([setColors[0], setColors[1], setColors[2]]);
-    const g = regionsParent.append('g') as d3Selection.Selection<
-      SVGGElement,
-      unknown,
-      null,
-      undefined
-    >;
-    drawClippedRegion(g, clips, blended);
-    regionGroups.push({ g, circleIdxs: [0, 1, 2] });
-  }
-
-  // ── Circle outlines ──
-  const outlineGroup = svg.append('g');
-  circles.forEach((c, i) => {
-    outlineGroup
+    const el = circleGroup
       .append('circle')
       .attr('cx', c.x)
       .attr('cy', c.y)
       .attr('r', c.r)
-      .attr('fill', 'none')
+      .attr('fill', setColors[i])
+      .attr('fill-opacity', 0.35)
       .attr('stroke', setColors[i])
       .attr('stroke-width', 2)
-      .style('pointer-events', 'none');
+      .style('pointer-events', 'none') as d3Selection.Selection<
+      SVGCircleElement,
+      unknown,
+      null,
+      undefined
+    >;
+    circleEls.push(el);
   });
 
-  // ── External labels with leader lines (pie-chart style) ──
-  interface LabelEntry {
-    centroid: Point;
-    text: string;
-    involvedIdxs: number[]; // which circle indices this label belongs to
-  }
-  const labelEntries: LabelEntry[] = [];
-
+  // ── Labels ──
   // Global center of all circles (for projecting outward)
   const gcx = circles.reduce((s, c) => s + c.x, 0) / n;
   const gcy = circles.reduce((s, c) => s + c.y, 0) / n;
-
-  // Set name labels (exclusive regions)
-  circles.forEach((_c, i) => {
-    const inside = circles.map((_, j) => j === i);
-    const centroid = regionCentroid(circles, inside);
-    const displayName = vennSets[i].label ?? vennSets[i].name;
-    const text = vennShowValues
-      ? `${displayName} (${vennSets[i].size})`
-      : displayName;
-    labelEntries.push({ centroid, text, involvedIdxs: [i] });
-  });
-
-  // Overlap labels
-  for (const ov of vennOverlaps) {
-    const idxs = ov.sets.map((s) => vennSets.findIndex((vs) => vs.name === s));
-    if (idxs.some((i) => i < 0)) continue;
-    if (!ov.label && !vennShowValues) continue;
-
-    const inside = circles.map((_, j) => idxs.includes(j));
-    const centroid = regionCentroid(circles, inside);
-    let text = '';
-    if (ov.label && vennShowValues) text = `${ov.label} (${ov.size})`;
-    else if (ov.label) text = ov.label;
-    else text = String(ov.size);
-    labelEntries.push({ centroid, text, involvedIdxs: idxs });
-  }
 
   // Helper: ray-circle exit distance (positive = forward along direction)
   function rayCircleExit(
@@ -4532,69 +4410,171 @@ export function renderVenn(
     return -b + Math.sqrt(det);
   }
 
-  const stubLen = 20;
-  const edgePad = 8; // clearance from circle edge
   const labelGroup = svg.append('g').style('pointer-events', 'none');
 
-  for (const entry of labelEntries) {
-    const { centroid, text } = entry;
+  // ── Set name labels (inside exclusive region if they fit, else external leader line) ──
+  // Helper: measure horizontal clearance at a point inside circle i but outside others
+  function exclusiveHSpan(px: number, py: number, ci: number): number {
+    // Start with full chord width of circle i at height py
+    const dy = py - circles[ci].y;
+    const halfChord = Math.sqrt(Math.max(0, circles[ci].r * circles[ci].r - dy * dy));
+    let left = circles[ci].x - halfChord;
+    let right = circles[ci].x + halfChord;
+    // Subtract any overlapping circle chord that covers this y
+    for (let j = 0; j < n; j++) {
+      if (j === ci) continue;
+      const djy = py - circles[j].y;
+      if (Math.abs(djy) >= circles[j].r) continue; // circle j doesn't reach this y
+      const hc = Math.sqrt(circles[j].r * circles[j].r - djy * djy);
+      const jLeft = circles[j].x - hc;
+      const jRight = circles[j].x + hc;
+      // Clamp our span to exclude the overlap with circle j
+      if (jLeft <= left && jRight >= right) return 0; // fully covered
+      if (jLeft <= left && jRight > left) left = jRight;
+      if (jRight >= right && jLeft < right) right = jLeft;
+    }
+    return Math.max(0, right - left);
+  }
 
-    // Direction from global center to centroid
-    let dx = centroid.x - gcx;
-    let dy = centroid.y - gcy;
-    const mag = Math.sqrt(dx * dx + dy * dy);
-    if (mag < 1e-6) {
-      dx = 1;
-      dy = 0;
+  // Font size scaling: 0.6 ch-width per character at a given font size
+  const CH_RATIO = 0.6;
+  const MIN_FONT = 10;
+  const MAX_FONT = 22;
+  const INTERNAL_PAD = 12;
+
+  circles.forEach((c, i) => {
+    const text = vennSets[i].label ?? vennSets[i].name;
+
+    // Compute exclusive region centroid
+    const inside = circles.map((_, j) => j === i);
+    const centroid = regionCentroid(circles, inside);
+
+    // Available width at centroid
+    const availW = exclusiveHSpan(centroid.x, centroid.y, i);
+    // Font size that makes text fill ~80% of available width
+    const fitFont = Math.min(MAX_FONT, Math.max(MIN_FONT,
+      (availW - INTERNAL_PAD * 2) / (text.length * CH_RATIO)));
+    const estTextW = text.length * CH_RATIO * fitFont;
+
+    const fitsInside = estTextW + INTERNAL_PAD * 2 < availW &&
+      pointInCircle({ x: centroid.x, y: centroid.y - fitFont / 2 }, c) &&
+      pointInCircle({ x: centroid.x, y: centroid.y + fitFont / 2 }, c);
+
+    if (fitsInside) {
+      labelGroup
+        .append('text')
+        .attr('x', centroid.x)
+        .attr('y', centroid.y)
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'central')
+        .attr('fill', textColor)
+        .attr('font-size', `${Math.round(fitFont)}px`)
+        .attr('font-weight', 'bold')
+        .text(text);
     } else {
-      dx /= mag;
-      dy /= mag;
+      // External label with leader line
+      let dx = c.x - gcx;
+      let dy = c.y - gcy;
+      const mag = Math.sqrt(dx * dx + dy * dy);
+      if (mag < 1e-6) {
+        dx = 1;
+        dy = 0;
+      } else {
+        dx /= mag;
+        dy /= mag;
+      }
+
+      const exitX = c.x + dx * c.r;
+      const exitY = c.y + dy * c.r;
+      const edgeX = exitX + dx * edgePad;
+      const edgeY = exitY + dy * edgePad;
+      const stubEndX = edgeX + dx * stubLen;
+      const stubEndY = edgeY + dy * stubLen;
+
+      labelGroup
+        .append('line')
+        .attr('x1', edgeX)
+        .attr('y1', edgeY)
+        .attr('x2', stubEndX)
+        .attr('y2', stubEndY)
+        .attr('stroke', textColor)
+        .attr('stroke-width', 1);
+
+      const isRight = stubEndX >= gcx;
+      const textAnchor = isRight ? 'start' : 'end';
+      let textX = stubEndX + (isRight ? labelTextPad : -labelTextPad);
+      const textY = stubEndY;
+
+      const estW = text.length * 8.5;
+      if (isRight) {
+        textX = Math.min(textX, width - estW - 4);
+      } else {
+        textX = Math.max(textX, estW + 4);
+      }
+
+      labelGroup
+        .append('text')
+        .attr('x', textX)
+        .attr('y', Math.max(14, Math.min(height - 4, textY)))
+        .attr('text-anchor', textAnchor)
+        .attr('dominant-baseline', 'central')
+        .attr('fill', textColor)
+        .attr('font-size', '14px')
+        .attr('font-weight', 'bold')
+        .text(text);
     }
+  });
 
-    // Exit at the farthest circle edge so the label lands in white space
-    let exitT = 0;
-    for (const c of circles) {
-      const t = rayCircleExit(centroid.x, centroid.y, dx, dy, c);
-      if (t > exitT) exitT = t;
+  // ── Overlap labels (inline at region centroid, scaled to fit) ──
+  // Helper: horizontal span at y inside all circles in idxs, outside others
+  function overlapHSpan(py: number, idxs: number[]): number {
+    let left = -Infinity, right = Infinity;
+    // Intersect chords of all "inside" circles
+    for (const ci of idxs) {
+      const dy = py - circles[ci].y;
+      if (Math.abs(dy) >= circles[ci].r) return 0;
+      const hc = Math.sqrt(circles[ci].r * circles[ci].r - dy * dy);
+      left = Math.max(left, circles[ci].x - hc);
+      right = Math.min(right, circles[ci].x + hc);
     }
+    if (left >= right) return 0;
+    // Subtract any "outside" circle that intrudes
+    for (let j = 0; j < n; j++) {
+      if (idxs.includes(j)) continue;
+      const dy = py - circles[j].y;
+      if (Math.abs(dy) >= circles[j].r) continue;
+      const hc = Math.sqrt(circles[j].r * circles[j].r - dy * dy);
+      const jLeft = circles[j].x - hc;
+      const jRight = circles[j].x + hc;
+      if (jLeft <= left && jRight >= right) return 0;
+      if (jLeft <= left && jRight > left) left = jRight;
+      if (jRight >= right && jLeft < right) right = jLeft;
+    }
+    return Math.max(0, right - left);
+  }
 
-    // Edge point: outside the exit boundary with padding
-    const edgeX = centroid.x + dx * (exitT + edgePad);
-    const edgeY = centroid.y + dy * (exitT + edgePad);
+  for (const ov of vennOverlaps) {
+    const idxs = ov.sets.map((s) => vennSets.findIndex((vs) => vs.name === s));
+    if (idxs.some((idx) => idx < 0)) continue;
+    if (!ov.label) continue;
 
-    // Stub end point
-    const stubX = edgeX + dx * stubLen;
-    const stubY = edgeY + dy * stubLen;
+    const inside = circles.map((_, j) => idxs.includes(j));
+    const centroid = regionCentroid(circles, inside);
+    const text = ov.label;
 
-    // For overlap regions (2+ sets), draw leader from centroid into the region
-    // For exclusive regions (single set), just draw from edge outward
-    const isOverlap = entry.involvedIdxs.length > 1;
-    const lineStartX = isOverlap ? centroid.x : edgeX;
-    const lineStartY = isOverlap ? centroid.y : edgeY;
-
-    labelGroup
-      .append('line')
-      .attr('x1', lineStartX)
-      .attr('y1', lineStartY)
-      .attr('x2', stubX)
-      .attr('y2', stubY)
-      .attr('stroke', textColor)
-      .attr('stroke-width', 1);
-
-    // Text positioned right after the stub
-    const isRight = stubX >= gcx;
-    const textAnchor = isRight ? 'start' : 'end';
-    const textX = stubX + (isRight ? 4 : -4);
+    const availW = overlapHSpan(centroid.y, idxs);
+    const fitFont = Math.min(MAX_FONT, Math.max(MIN_FONT,
+      (availW - INTERNAL_PAD * 2) / (text.length * CH_RATIO)));
 
     labelGroup
       .append('text')
-      .attr('x', textX)
-      .attr('y', stubY)
-      .attr('text-anchor', textAnchor)
+      .attr('x', centroid.x)
+      .attr('y', centroid.y)
+      .attr('text-anchor', 'middle')
       .attr('dominant-baseline', 'central')
       .attr('fill', textColor)
-      .attr('font-size', '14px')
-      .attr('font-weight', 'bold')
+      .attr('font-size', `${Math.round(fitFont)}px`)
+      .attr('font-weight', '600')
       .text(text);
   }
 
@@ -4615,18 +4595,18 @@ export function renderVenn(
       .attr('data-line-number', String(vennSets[i].lineNumber))
       .style('cursor', onClickItem ? 'pointer' : 'default')
       .on('mouseenter', (event: MouseEvent) => {
-        for (const rg of regionGroups) {
-          rg.g.style('opacity', rg.circleIdxs.includes(i) ? '1' : '0.25');
-        }
+        circleEls.forEach((el, ci) => {
+          el.attr('fill-opacity', ci === i ? 0.5 : 0.1);
+        });
         showTooltip(tooltip, tipHtml, event);
       })
       .on('mousemove', (event: MouseEvent) => {
         showTooltip(tooltip, tipHtml, event);
       })
       .on('mouseleave', () => {
-        for (const rg of regionGroups) {
-          rg.g.style('opacity', '1');
-        }
+        circleEls.forEach((el) => {
+          el.attr('fill-opacity', 0.35);
+        });
         hideTooltip(tooltip);
       })
       .on('click', () => {
