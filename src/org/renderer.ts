@@ -552,22 +552,34 @@ export function renderOrg(
       }
     }
 
+    // Pre-compute column widths so dots align across rows
+    const entryWidths = group.entries.map(
+      (e) =>
+        LEGEND_DOT_R * 2 + LEGEND_DOT_TEXT_GAP + e.value.length * LEGEND_CHAR_WIDTH
+    );
+    const numRows = Math.ceil(group.entries.length / LEGEND_MAX_PER_ROW);
+    const colWidths: number[] = [];
+    for (let col = 0; col < LEGEND_MAX_PER_ROW; col++) {
+      let maxW = 0;
+      for (let r = 0; r < numRows; r++) {
+        const idx = r * LEGEND_MAX_PER_ROW + col;
+        if (idx < entryWidths.length && entryWidths[idx] > maxW) {
+          maxW = entryWidths[idx];
+        }
+      }
+      if (maxW > 0) colWidths.push(maxW);
+    }
+    const colX: number[] = [LEGEND_PAD];
+    for (let c = 1; c < colWidths.length; c++) {
+      colX.push(colX[c - 1] + colWidths[c - 1] + LEGEND_ENTRY_GAP);
+    }
+
     // Entries: colored dot + value label
     for (let i = 0; i < group.entries.length; i++) {
       const entry = group.entries[i];
       const row = Math.floor(i / LEGEND_MAX_PER_ROW);
-      const colStart = row * LEGEND_MAX_PER_ROW;
-
-      // Compute x position from preceding entries in the same row
-      let entryX = LEGEND_PAD;
-      for (let j = colStart; j < i; j++) {
-        const prev = group.entries[j];
-        entryX +=
-          LEGEND_DOT_R * 2 +
-          LEGEND_DOT_TEXT_GAP +
-          prev.value.length * LEGEND_CHAR_WIDTH +
-          LEGEND_ENTRY_GAP;
-      }
+      const col = i % LEGEND_MAX_PER_ROW;
+      const entryX = colX[col];
 
       const entryY =
         LEGEND_HEADER_H + row * LEGEND_ENTRY_H + LEGEND_ENTRY_H / 2;
