@@ -18,6 +18,7 @@ export {
   tint,
   shade,
   getSeriesColors,
+  getSegmentColors,
   contrastText,
 } from './color-utils';
 
