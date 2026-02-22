@@ -280,20 +280,26 @@ function computeLegendGroups(tagGroups: OrgTagGroup[], showEyeIcons: boolean): O
         LEGEND_DOT_R * 2 + LEGEND_DOT_TEXT_GAP + e.value.length * CHAR_WIDTH
     );
 
-    // Pack into rows of up to LEGEND_MAX_PER_ROW
-    const rows: number[][] = [];
-    for (let i = 0; i < entryWidths.length; i += LEGEND_MAX_PER_ROW) {
-      rows.push(entryWidths.slice(i, i + LEGEND_MAX_PER_ROW));
+    // Compute max width per column so columns align across rows
+    const numRows = Math.ceil(entryWidths.length / LEGEND_MAX_PER_ROW);
+    const colWidths: number[] = [];
+    for (let col = 0; col < LEGEND_MAX_PER_ROW; col++) {
+      let maxW = 0;
+      for (let row = 0; row < numRows; row++) {
+        const idx = row * LEGEND_MAX_PER_ROW + col;
+        if (idx < entryWidths.length && entryWidths[idx] > maxW) {
+          maxW = entryWidths[idx];
+        }
+      }
+      if (maxW > 0) colWidths.push(maxW);
     }
 
     const eyeExtra = showEyeIcons ? EYE_ICON_GAP + EYE_ICON_WIDTH : 0;
     const headerWidth = group.name.length * CHAR_WIDTH + eyeExtra;
-    let maxRowWidth = headerWidth;
-    for (const row of rows) {
-      const rowWidth =
-        row.reduce((s, w) => s + w, 0) + (row.length - 1) * LEGEND_ENTRY_GAP;
-      if (rowWidth > maxRowWidth) maxRowWidth = rowWidth;
-    }
+    const totalColumnsWidth =
+      colWidths.reduce((s, w) => s + w, 0) +
+      (colWidths.length - 1) * LEGEND_ENTRY_GAP;
+    const maxRowWidth = Math.max(headerWidth, totalColumnsWidth);
 
     groups.push({
       name: group.name,
@@ -301,7 +307,7 @@ function computeLegendGroups(tagGroups: OrgTagGroup[], showEyeIcons: boolean): O
       x: 0,
       y: 0,
       width: maxRowWidth + LEGEND_PAD * 2,
-      height: LEGEND_HEADER_H + rows.length * LEGEND_ENTRY_H + LEGEND_PAD,
+      height: LEGEND_HEADER_H + numRows * LEGEND_ENTRY_H + LEGEND_PAD,
     });
   }
 
