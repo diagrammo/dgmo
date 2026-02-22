@@ -2,5 +2,5 @@ chart: flowchart
 title: Pirate's Code
 (Sail Ho!) -> <Friend or Foe?>
   -friend-> [Check Logs~] -> /Trade Rum/ -> [Celebrate]
-  -foe-> [Fire Cannons] -> /Claim Loot/ -> [Celebrate]
+  -foe-> [Fire Cannons] -> [[Claim Loot]] -> [Celebrate]
 [Celebrate]->(Sail On)
