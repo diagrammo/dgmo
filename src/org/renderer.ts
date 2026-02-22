@@ -296,8 +296,7 @@ export function renderOrg(
         .attr('y', c.height - COLLAPSE_BAR_HEIGHT)
         .attr('width', c.width - COLLAPSE_BAR_INSET * 2)
         .attr('height', COLLAPSE_BAR_HEIGHT)
-        .attr('rx', COLLAPSE_BAR_HEIGHT / 2)
-        .attr('fill', palette.primary)
+        .attr('fill', containerStroke(palette, c.color))
         .attr('opacity', 0.5)
         .attr('class', 'org-collapse-bar');
     }
@@ -439,8 +438,7 @@ export function renderOrg(
         .attr('y', node.height - COLLAPSE_BAR_HEIGHT)
         .attr('width', node.width - COLLAPSE_BAR_INSET * 2)
         .attr('height', COLLAPSE_BAR_HEIGHT)
-        .attr('rx', COLLAPSE_BAR_HEIGHT / 2)
-        .attr('fill', palette.primary)
+        .attr('fill', nodeStroke(palette, node.color))
         .attr('opacity', 0.5)
         .attr('class', 'org-collapse-bar');
     }

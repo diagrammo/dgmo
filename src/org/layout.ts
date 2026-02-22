@@ -1085,6 +1085,9 @@ export function layoutOrg(
         const shift = (finalWidth - totalWidth) / 2;
         for (const n of layoutNodes) n.x += shift;
         for (const c of containers) c.x += shift;
+        for (const e of layoutEdges) {
+          for (const p of e.points) p.x += shift;
+        }
       }
 
       const contentBottom = totalHeight - MARGIN;
