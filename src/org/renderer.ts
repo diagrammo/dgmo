@@ -33,7 +33,7 @@ const CONTAINER_HEADER_HEIGHT = 28;
 
 // Collapsed-node accent bar
 const COLLAPSE_BAR_HEIGHT = 6;
-const COLLAPSE_BAR_INSET = 6;
+const COLLAPSE_BAR_INSET = 0;
 
 // Legend
 const LEGEND_RADIUS = 6;
@@ -289,8 +289,13 @@ export function renderOrg(
       }
     }
 
-    // Collapsed accent bar (interactive only)
+    // Collapsed accent bar (interactive only), clipped to card shape
     if (!exportDims && c.hiddenCount && c.hiddenCount > 0) {
+      const clipId = `clip-${c.nodeId}`;
+      cG.append('clipPath').attr('id', clipId)
+        .append('rect')
+        .attr('width', c.width).attr('height', c.height)
+        .attr('rx', CONTAINER_RADIUS);
       cG.append('rect')
         .attr('x', COLLAPSE_BAR_INSET)
         .attr('y', c.height - COLLAPSE_BAR_HEIGHT)
@@ -298,6 +303,7 @@ export function renderOrg(
         .attr('height', COLLAPSE_BAR_HEIGHT)
         .attr('fill', containerStroke(palette, c.color))
         .attr('opacity', 0.5)
+        .attr('clip-path', `url(#${clipId})`)
         .attr('class', 'org-collapse-bar');
     }
 
@@ -430,8 +436,13 @@ export function renderOrg(
       }
     }
 
-    // Collapsed accent bar (interactive only)
+    // Collapsed accent bar (interactive only), clipped to card shape
     if (!exportDims && node.hiddenCount && node.hiddenCount > 0) {
+      const clipId = `clip-${node.id}`;
+      nodeG.append('clipPath').attr('id', clipId)
+        .append('rect')
+        .attr('width', node.width).attr('height', node.height)
+        .attr('rx', CARD_RADIUS);
       nodeG
         .append('rect')
         .attr('x', COLLAPSE_BAR_INSET)
@@ -440,6 +451,7 @@ export function renderOrg(
         .attr('height', COLLAPSE_BAR_HEIGHT)
         .attr('fill', nodeStroke(palette, node.color))
         .attr('opacity', 0.5)
+        .attr('clip-path', `url(#${clipId})`)
         .attr('class', 'org-collapse-bar');
     }
 
