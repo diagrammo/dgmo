@@ -1,0 +1,46 @@
+chart: class
+title: Design Patterns
+
+Drawable [interface]
+  + draw(): void
+  + resize(w: number, h: number): void
+
+Shape [abstract] (purple)
+  # x: number
+  # y: number
+  + area(): number
+  + move(dx: number, dy: number): void
+  - validate(): boolean
+
+Circle
+  - radius: number
+  + getRadius(): number
+
+Rectangle
+  - width: number
+  - height: number
+  + getDiagonal(): number
+
+Color [enum] (yellow)
+  Red
+  Green
+  Blue
+
+Canvas
+  - shapes: Shape[]
+  + render(): void
+  + addShape(s: Shape): void
+  + clear(): void
+  count: number {static}
+
+Logger
+  - instance: Logger {static}
+  + log(msg: string): void
+  + getInstance(): Logger {static}
+
+Circle --|> Shape
+Rectangle --|> Shape
+Shape ..|> Drawable
+Canvas *-- Shape : contains
+Canvas ..> Logger : uses
+Circle -> Color : has fill

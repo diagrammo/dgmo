@@ -4,6 +4,7 @@ import * as d3Shape from 'd3-shape';
 import * as d3Array from 'd3-array';
 import cloud from 'd3-cloud';
 import { FONT_FAMILY } from './fonts';
+import { injectBranding } from './branding';
 
 // ============================================================
 // Types
@@ -5193,7 +5194,8 @@ export async function renderD3ForExport(
     collapsedNodes?: Set<string>;
     activeTagGroup?: string | null;
     hiddenAttributes?: Set<string>;
-  }
+  },
+  options?: { branding?: boolean }
 ): Promise<string> {
   // Flowchart and org chart use their own parser pipelines — intercept before parseD3()
   const { parseDgmoChartType } = await import('./dgmo-router');
@@ -5268,7 +5270,72 @@ export async function renderD3ForExport(
       svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
       svgEl.style.fontFamily = FONT_FAMILY;
 
-      return svgEl.outerHTML;
+      const svgHtml = svgEl.outerHTML;
+      if (options?.branding !== false) {
+        const brandColor = theme === 'transparent' ? '#888' : effectivePalette.textMuted;
+        return injectBranding(svgHtml, brandColor);
+      }
+      return svgHtml;
+    } finally {
+      document.body.removeChild(container);
+    }
+  }
+
+  if (detectedType === 'class') {
+    const { parseClassDiagram } = await import('./class/parser');
+    const { layoutClassDiagram } = await import('./class/layout');
+    const { renderClassDiagram } = await import('./class/renderer');
+
+    const isDark = theme === 'dark';
+    const { getPalette } = await import('./palettes');
+    const effectivePalette =
+      palette ?? (isDark ? getPalette('nord').dark : getPalette('nord').light);
+
+    const classParsed = parseClassDiagram(content, effectivePalette);
+    if (classParsed.error || classParsed.classes.length === 0) return '';
+
+    const classLayout = layoutClassDiagram(classParsed);
+    const PADDING = 20;
+    const titleOffset = classParsed.title ? 40 : 0;
+    const exportWidth = classLayout.width + PADDING * 2;
+    const exportHeight = classLayout.height + PADDING * 2 + titleOffset;
+
+    const container = document.createElement('div');
+    container.style.width = `${exportWidth}px`;
+    container.style.height = `${exportHeight}px`;
+    container.style.position = 'absolute';
+    container.style.left = '-9999px';
+    document.body.appendChild(container);
+
+    try {
+      renderClassDiagram(
+        container,
+        classParsed,
+        classLayout,
+        effectivePalette,
+        isDark,
+        undefined,
+        { width: exportWidth, height: exportHeight }
+      );
+
+      const svgEl = container.querySelector('svg');
+      if (!svgEl) return '';
+
+      if (theme === 'transparent') {
+        svgEl.style.background = 'none';
+      } else if (!svgEl.style.background) {
+        svgEl.style.background = effectivePalette.bg;
+      }
+
+      svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+      svgEl.style.fontFamily = FONT_FAMILY;
+
+      const svgHtml = svgEl.outerHTML;
+      if (options?.branding !== false) {
+        const brandColor = theme === 'transparent' ? '#888' : effectivePalette.textMuted;
+        return injectBranding(svgHtml, brandColor);
+      }
+      return svgHtml;
     } finally {
       document.body.removeChild(container);
     }
@@ -5313,7 +5380,12 @@ export async function renderD3ForExport(
       svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
       svgEl.style.fontFamily = FONT_FAMILY;
 
-      return svgEl.outerHTML;
+      const svgHtml = svgEl.outerHTML;
+      if (options?.branding !== false) {
+        const brandColor = theme === 'transparent' ? '#888' : effectivePalette.textMuted;
+        return injectBranding(svgHtml, brandColor);
+      }
+      return svgHtml;
     } finally {
       document.body.removeChild(container);
     }
@@ -5392,7 +5464,12 @@ export async function renderD3ForExport(
     svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
     svgEl.style.fontFamily = FONT_FAMILY;
 
-    return svgEl.outerHTML;
+    const svgHtml = svgEl.outerHTML;
+    if (options?.branding !== false) {
+      const brandColor = theme === 'transparent' ? '#888' : effectivePalette.textMuted;
+      return injectBranding(svgHtml, brandColor);
+    }
+    return svgHtml;
   } finally {
     document.body.removeChild(container);
   }

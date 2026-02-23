@@ -80,6 +80,12 @@ Low Impact, High Effort: 80, 20`,
   -yes-> (End)
   -no-> [Retry] -> (Start)`,
 
+  class: `chart: class
+Animal
+  name: string
+  speak(): void
+Dog --|> Animal`,
+
   org: `chart: org
 Jane Smith
   role: CEO

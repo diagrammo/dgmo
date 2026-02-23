@@ -1,0 +1,18 @@
+chart: class
+title: Animal Hierarchy
+
+Animal
+  name: string
+  age: number
+  speak(): void
+
+Dog
+  breed: string
+  fetch(): void
+
+Cat
+  indoor: boolean
+  purr(): void
+
+Dog --|> Animal
+Cat --|> Animal

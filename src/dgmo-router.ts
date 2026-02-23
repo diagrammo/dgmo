@@ -4,6 +4,7 @@
 
 import { looksLikeSequence } from './sequence/parser';
 import { looksLikeFlowchart } from './graph/flowchart-parser';
+import { looksLikeClassDiagram } from './class/parser';
 
 /**
  * Framework identifiers used by the .dgmo router.
@@ -46,6 +47,7 @@ export const DGMO_CHART_TYPE_MAP: Record<string, DgmoFramework> = {
   quadrant: 'd3',
   sequence: 'd3',
   flowchart: 'd3',
+  class: 'd3',
   org: 'd3',
 };
 
@@ -76,6 +78,7 @@ export function parseDgmoChartType(content: string): string | null {
   // both use `->` but sequence uses bare names while flowchart uses shape delimiters)
   if (looksLikeSequence(content)) return 'sequence';
   if (looksLikeFlowchart(content)) return 'flowchart';
+  if (looksLikeClassDiagram(content)) return 'class';
 
   return null;
 }

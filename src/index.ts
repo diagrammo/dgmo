@@ -68,6 +68,27 @@ export type { ParsedQuadrant } from './dgmo-mermaid';
 
 export { parseFlowchart, looksLikeFlowchart } from './graph/flowchart-parser';
 
+export { parseClassDiagram, looksLikeClassDiagram } from './class/parser';
+
+export type {
+  ParsedClassDiagram,
+  ClassNode,
+  ClassMember,
+  ClassRelationship,
+  ClassModifier,
+  MemberVisibility,
+  RelationshipType,
+} from './class/types';
+
+export { layoutClassDiagram } from './class/layout';
+export type {
+  ClassLayoutResult,
+  ClassLayoutNode,
+  ClassLayoutEdge,
+} from './class/layout';
+
+export { renderClassDiagram, renderClassDiagramForExport } from './class/renderer';
+
 export type {
   ParsedGraph,
   GraphNode,
@@ -188,3 +209,9 @@ export type { PaletteConfig, PaletteColors } from './palettes';
 
 export { encodeDiagramUrl, decodeDiagramUrl } from './sharing';
 export type { EncodeDiagramUrlOptions, EncodeDiagramUrlResult } from './sharing';
+
+// ============================================================
+// Branding
+// ============================================================
+
+export { injectBranding } from './branding';
