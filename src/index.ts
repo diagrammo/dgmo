@@ -89,6 +89,26 @@ export type {
 
 export { renderClassDiagram, renderClassDiagramForExport } from './class/renderer';
 
+export { parseERDiagram, looksLikeERDiagram } from './er/parser';
+
+export type {
+  ParsedERDiagram,
+  ERTable,
+  ERColumn,
+  ERRelationship,
+  ERConstraint,
+  ERCardinality,
+} from './er/types';
+
+export { layoutERDiagram } from './er/layout';
+export type {
+  ERLayoutResult,
+  ERLayoutNode,
+  ERLayoutEdge,
+} from './er/layout';
+
+export { renderERDiagram, renderERDiagramForExport } from './er/renderer';
+
 export type {
   ParsedGraph,
   GraphNode,
@@ -208,7 +228,12 @@ export type { PaletteConfig, PaletteColors } from './palettes';
 // ============================================================
 
 export { encodeDiagramUrl, decodeDiagramUrl } from './sharing';
-export type { EncodeDiagramUrlOptions, EncodeDiagramUrlResult } from './sharing';
+export type {
+  EncodeDiagramUrlOptions,
+  EncodeDiagramUrlResult,
+  DiagramViewState,
+  DecodedDiagramUrl,
+} from './sharing';
 
 // ============================================================
 // Branding

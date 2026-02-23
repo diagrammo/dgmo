@@ -2,7 +2,7 @@
 
 A diagram markup language — parser, config builder, renderer, and color system.
 
-Write plain-text `.dgmo` files and render them as charts, diagrams, and visualizations. Supports 24 chart types across ECharts, D3, and a built-in sequence renderer. Ships as both a library and a standalone CLI.
+Write plain-text `.dgmo` files and render them as charts, diagrams, and visualizations. Supports 26 chart types across ECharts, D3, and a built-in sequence renderer. Ships as both a library and a standalone CLI.
 
 ## Install
 
@@ -83,6 +83,9 @@ dgmo diagram.dgmo --theme dark --palette catppuccin
 | `quadrant` | D3 | 2D quadrant scatter (also has a Mermaid output path) |
 | `sequence` | D3 | Sequence diagrams with type inference |
 | `flowchart` | D3 | Directed graph flowcharts with branching and 6 node shapes |
+| `class` | D3 | UML class diagrams with inheritance, composition, and visibility |
+| `er` | D3 | Entity-relationship diagrams with crow's foot notation |
+| `org` | D3 | Org charts with hierarchy, team containers, and tag group color-coding |
 
 ## How it works
 
@@ -242,6 +245,145 @@ const layout = layoutGraph(parsed);
 renderFlowchart(container, parsed, layout, colors, true);
 ```
 
+### ER diagrams
+
+ER diagrams use a table-and-column syntax with constraint annotations and cardinality relationships. Crow's foot notation is the default, with an optional `notation: labels` mode.
+
+```typescript
+import { parseERDiagram, layoutERDiagram, renderERDiagram, getPalette } from '@diagrammo/dgmo';
+
+const colors = getPalette('nord').light;
+
+const content = `
+chart: er
+title: Blog Platform
+
+users
+  id: int [pk]
+  name: varchar
+  email: varchar [unique]
+
+posts
+  id: int [pk]
+  author_id: int [fk]
+  title: varchar
+
+users 1--* posts: writes
+`;
+
+const parsed = parseERDiagram(content, colors);
+const layout = layoutERDiagram(parsed);
+renderERDiagram(container, parsed, layout, colors, false);
+```
+
+**ER diagram syntax:**
+
+- `chart: er` — chart type header
+- `title: Text` — optional title
+- `notation: labels` — use text labels instead of crow's foot markers
+- Table declaration: unindented name (e.g. `users`, `order_items`)
+- Column: indented `name: type [constraints]`
+- Constraints: `[pk]`, `[fk]`, `[unique]`, `[nullable]`, or combined `[pk, unique]`
+- Relationships with cardinality: `table1 1--* table2: label`
+  - Symbolic: `1--*`, `1-*`, `?--1`, `*--*`
+  - Keyword: `one-to-many`, `many-to-one`, `one-to-one`
+  - Natural: `one to many`, `1 to many`
+- Colors: `table_name (color)` for explicit color
+
+### Org charts
+
+Org charts use indentation to define hierarchy, with metadata on nodes, team containers, and tag groups for color-coding.
+
+```typescript
+import { parseOrg, renderOrg, getPalette } from '@diagrammo/dgmo';
+
+const colors = getPalette('nord').light;
+
+const content = `
+chart: org
+title: Engineering
+
+## Location
+  NY(blue)
+  SF(green)
+
+Alex Chen
+  role: CTO
+  location: NY
+
+  [Platform Team]
+    goal: Core infrastructure
+
+    Alice Park | role: Senior Engineer, location: NY
+    Bob Torres | role: Junior Engineer, location: SF
+`;
+
+const parsed = parseOrg(content, colors);
+renderOrg(container, parsed, colors, false);
+```
+
+**Org chart syntax:**
+
+- `chart: org` — chart type header (required)
+- `title: Text` — optional title
+- Indentation defines parent-child hierarchy (2 or 4 spaces, consistent within file)
+- Multiple root nodes supported (e.g., co-CEOs at top level)
+
+**Node metadata:**
+
+```
+Jane Smith
+  role: CEO
+  location: NY
+```
+
+Or single-line with pipe delimiter:
+
+```
+Jane Smith | role: CEO, location: NY
+```
+
+**Team containers** — grouping constructs rendered as labeled boxes:
+
+```
+[Platform Team]
+  goal: Core infrastructure
+  charter: Developer experience
+
+  Alice Park
+    role: Senior Engineer
+```
+
+Containers can nest and carry their own metadata (key: value pairs). Children are bare labels (no colon).
+
+**Tag groups** — define color coding for metadata values. Must appear before org content:
+
+```
+## Location alias l
+  NY(blue)
+  SF(green)
+  Remote(purple) default
+```
+
+- `## GroupName` starts a tag group; `alias` provides a shorthand for metadata keys
+- `Value(color)` maps a metadata value to a color
+- `default` marks the fallback value for nodes without that metadata
+- Nodes whose metadata matches a tag group value get color-coded automatically
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `title: Text` | Chart title |
+| `sub-node-label: Text` | Label for child count badges (e.g., "Crew", "Reports") |
+| `show-sub-node-count: yes` | Show descendant count on nodes |
+
+**Comments:**
+
+```
+// This is a comment
+```
+
 ### Routing
 
 If you don't know the chart type ahead of time, use the router:
@@ -372,6 +514,9 @@ Both accept an optional third argument for a custom `PaletteColors` object (defa
 | `parseD3(content, colors)` | Parse D3 chart types (slope, arc, timeline, etc.) |
 | `parseSequenceDgmo(content)` | Parse sequence diagrams |
 | `parseFlowchart(content, colors)` | Parse flowchart diagrams |
+| `parseClassDiagram(content, colors)` | Parse class diagrams |
+| `parseERDiagram(content, colors)` | Parse ER diagrams |
+| `parseOrg(content, colors)` | Parse org chart diagrams |
 | `parseQuadrant(content)` | Parse quadrant charts |
 
 ### Config builders
@@ -393,6 +538,11 @@ Both accept an optional third argument for a custom `PaletteColors` object (defa
 | `renderVenn(el, parsed, colors, dark)` | Venn diagram SVG |
 | `renderQuadrant(el, parsed, colors, dark)` | Quadrant chart SVG |
 | `renderFlowchart(el, parsed, layout, colors, dark)` | Flowchart SVG |
+| `renderClassDiagram(el, parsed, layout, colors, dark)` | Class diagram SVG |
+| `renderERDiagram(el, parsed, layout, colors, dark)` | ER diagram SVG |
+| `renderOrg(el, parsed, colors, dark)` | Org chart SVG |
+| `layoutClassDiagram(parsed)` | Compute class diagram node positions |
+| `layoutERDiagram(parsed)` | Compute ER diagram node positions |
 | `layoutGraph(parsed)` | Compute flowchart node positions |
 | `renderSequenceDiagram(el, parsed, colors, dark, onClick)` | Sequence diagram SVG |
 | `renderD3ForExport(content, theme, palette?)` | Any D3/sequence chart → SVG string |
@@ -463,7 +613,10 @@ src/
 ├── chart.ts                  # Standard chart parser (bar, line, pie, etc.)
 ├── echarts.ts                # ECharts parser, config builder, SSR export
 ├── d3.ts                     # D3 parsers + renderers (slope, arc, timeline, wordcloud, venn, quadrant)
+├── class/                    # Class diagram parser, layout engine, and renderer
+├── er/                       # ER diagram parser, layout engine, and renderer
 ├── graph/                    # Flowchart parser, layout engine, and renderer
+├── org/                      # Org chart parser, layout engine, and renderer
 ├── dgmo-mermaid.ts           # Quadrant parser + Mermaid syntax builder
 ├── colors.ts                 # Named color map, resolve helper
 ├── fonts.ts                  # Font family constants (Helvetica for resvg)

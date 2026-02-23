@@ -5341,6 +5341,66 @@ export async function renderD3ForExport(
     }
   }
 
+  if (detectedType === 'er') {
+    const { parseERDiagram } = await import('./er/parser');
+    const { layoutERDiagram } = await import('./er/layout');
+    const { renderERDiagram } = await import('./er/renderer');
+
+    const isDark = theme === 'dark';
+    const { getPalette } = await import('./palettes');
+    const effectivePalette =
+      palette ?? (isDark ? getPalette('nord').dark : getPalette('nord').light);
+
+    const erParsed = parseERDiagram(content, effectivePalette);
+    if (erParsed.error || erParsed.tables.length === 0) return '';
+
+    const erLayout = layoutERDiagram(erParsed);
+    const PADDING = 20;
+    const titleOffset = erParsed.title ? 40 : 0;
+    const exportWidth = erLayout.width + PADDING * 2;
+    const exportHeight = erLayout.height + PADDING * 2 + titleOffset;
+
+    const container = document.createElement('div');
+    container.style.width = `${exportWidth}px`;
+    container.style.height = `${exportHeight}px`;
+    container.style.position = 'absolute';
+    container.style.left = '-9999px';
+    document.body.appendChild(container);
+
+    try {
+      renderERDiagram(
+        container,
+        erParsed,
+        erLayout,
+        effectivePalette,
+        isDark,
+        undefined,
+        { width: exportWidth, height: exportHeight }
+      );
+
+      const svgEl = container.querySelector('svg');
+      if (!svgEl) return '';
+
+      if (theme === 'transparent') {
+        svgEl.style.background = 'none';
+      } else if (!svgEl.style.background) {
+        svgEl.style.background = effectivePalette.bg;
+      }
+
+      svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+      svgEl.style.fontFamily = FONT_FAMILY;
+
+      const svgHtml = svgEl.outerHTML;
+      if (options?.branding !== false) {
+        const brandColor = theme === 'transparent' ? '#888' : effectivePalette.textMuted;
+        return injectBranding(svgHtml, brandColor);
+      }
+      return svgHtml;
+    } finally {
+      document.body.removeChild(container);
+    }
+  }
+
   if (detectedType === 'flowchart') {
     const { parseFlowchart } = await import('./graph/flowchart-parser');
     const { layoutGraph } = await import('./graph/layout');

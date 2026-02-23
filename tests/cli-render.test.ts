@@ -86,6 +86,15 @@ Animal
   speak(): void
 Dog --|> Animal`,
 
+  er: `chart: er
+users
+  id: int [pk]
+  name: varchar
+posts
+  id: int [pk]
+  author_id: int [fk]
+users 1--* posts`,
+
   org: `chart: org
 Jane Smith
   role: CEO

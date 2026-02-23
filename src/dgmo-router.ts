@@ -5,6 +5,7 @@
 import { looksLikeSequence } from './sequence/parser';
 import { looksLikeFlowchart } from './graph/flowchart-parser';
 import { looksLikeClassDiagram } from './class/parser';
+import { looksLikeERDiagram } from './er/parser';
 
 /**
  * Framework identifiers used by the .dgmo router.
@@ -48,6 +49,7 @@ export const DGMO_CHART_TYPE_MAP: Record<string, DgmoFramework> = {
   sequence: 'd3',
   flowchart: 'd3',
   class: 'd3',
+  er: 'd3',
   org: 'd3',
 };
 
@@ -79,6 +81,7 @@ export function parseDgmoChartType(content: string): string | null {
   if (looksLikeSequence(content)) return 'sequence';
   if (looksLikeFlowchart(content)) return 'flowchart';
   if (looksLikeClassDiagram(content)) return 'class';
+  if (looksLikeERDiagram(content)) return 'er';
 
   return null;
 }
