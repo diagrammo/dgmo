@@ -181,3 +181,10 @@ export {
 } from './palettes';
 
 export type { PaletteConfig, PaletteColors } from './palettes';
+
+// ============================================================
+// Sharing (URL encoding/decoding)
+// ============================================================
+
+export { encodeDiagramUrl, decodeDiagramUrl } from './sharing';
+export type { EncodeDiagramUrlOptions, EncodeDiagramUrlResult } from './sharing';
