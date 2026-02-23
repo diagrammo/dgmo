@@ -48,10 +48,12 @@ export async function render(
   options?: {
     theme?: 'light' | 'dark' | 'transparent';
     palette?: string;
+    branding?: boolean;
   },
 ): Promise<string> {
   const theme = options?.theme ?? 'light';
   const paletteName = options?.palette ?? 'nord';
+  const branding = options?.branding ?? true;
 
   const paletteColors = getPalette(paletteName)[theme === 'dark' ? 'dark' : 'light'];
 
@@ -59,10 +61,10 @@ export async function render(
   const framework = chartType ? getDgmoFramework(chartType) : null;
 
   if (framework === 'echart') {
-    return renderEChartsForExport(content, theme, paletteColors);
+    return renderEChartsForExport(content, theme, paletteColors, { branding });
   }
 
   // D3 and unknown/null frameworks both go through D3 renderer
   await ensureDom();
-  return renderD3ForExport(content, theme, paletteColors);
+  return renderD3ForExport(content, theme, paletteColors, undefined, { branding });
 }

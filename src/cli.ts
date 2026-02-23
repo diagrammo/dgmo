@@ -1,9 +1,11 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { execSync } from 'node:child_process';
 import { resolve, basename, extname } from 'node:path';
 import { Resvg } from '@resvg/resvg-js';
 import { render } from './render';
 import { getPalette } from './palettes/registry';
 import { DEFAULT_FONT_NAME } from './fonts';
+import { encodeDiagramUrl } from './sharing';
 
 const PALETTES = [
   'nord',
@@ -27,9 +29,12 @@ Render a .dgmo file to PNG (default) or SVG.
 Options:
   -o <file>         Output file (default: <input>.png in cwd)
                     Format inferred from extension: .svg → SVG, else PNG
+                    Use -o url to output a shareable diagrammo.app URL
                     With stdin and no -o, PNG is written to stdout
   --theme <theme>   Theme: ${THEMES.join(', ')} (default: light)
   --palette <name>  Palette: ${PALETTES.join(', ')} (default: nord)
+  --no-branding     Omit diagrammo.app branding from exports
+  --copy            Copy URL to clipboard (only with -o url)
   --help            Show this help
   --version         Show version`);
 }
@@ -48,6 +53,8 @@ function parseArgs(argv: string[]): {
   palette: string;
   help: boolean;
   version: boolean;
+  noBranding: boolean;
+  copy: boolean;
 } {
   const result = {
     input: undefined as string | undefined,
@@ -56,6 +63,8 @@ function parseArgs(argv: string[]): {
     palette: 'nord',
     help: false,
     version: false,
+    noBranding: false,
+    copy: false,
   };
 
   const args = argv.slice(2); // skip node + script
@@ -93,6 +102,12 @@ function parseArgs(argv: string[]): {
       }
       result.palette = val;
       i++;
+    } else if (arg === '--no-branding') {
+      result.noBranding = true;
+      i++;
+    } else if (arg === '--copy') {
+      result.copy = true;
+      i++;
     } else if (!result.input) {
       result.input = arg;
       i++;
@@ -105,7 +120,10 @@ function parseArgs(argv: string[]): {
   return result;
 }
 
-function inferFormat(outputPath: string | undefined): 'svg' | 'png' {
+function inferFormat(outputPath: string | undefined): 'svg' | 'png' | 'url' {
+  if (outputPath === 'url') {
+    return 'url';
+  }
   if (outputPath && extname(outputPath).toLowerCase() === '.svg') {
     return 'svg';
   }
@@ -202,6 +220,45 @@ async function main(): Promise<void> {
     noInput();
   }
 
+  // Determine output format early to handle URL before rendering
+  const format = inferFormat(opts.output);
+
+  // Validate --copy flag
+  if (opts.copy && format !== 'url') {
+    console.error('Error: --copy can only be used with -o url');
+    process.exit(1);
+  }
+
+  // URL output — encode DSL directly, no rendering needed
+  if (format === 'url') {
+    const result = encodeDiagramUrl(content);
+    if (result.error) {
+      console.error(
+        `Error: Diagram too large for URL sharing (${result.compressedSize} bytes, limit ${result.limit} bytes)`
+      );
+      process.exit(1);
+    }
+
+    if (opts.copy) {
+      try {
+        const platform = process.platform;
+        if (platform === 'darwin') {
+          execSync('pbcopy', { input: result.url });
+        } else if (platform === 'win32') {
+          execSync('clip', { input: result.url });
+        } else {
+          execSync('xclip -selection clipboard', { input: result.url });
+        }
+        console.error('URL copied to clipboard');
+      } catch {
+        console.error('Warning: Could not copy to clipboard');
+      }
+    }
+
+    process.stdout.write(result.url + '\n');
+    return;
+  }
+
   const paletteColors = getPalette(opts.palette)[opts.theme === 'dark' ? 'dark' : 'light'];
 
   // Word clouds require Canvas APIs (HTMLCanvasElement.getContext('2d'))
@@ -217,6 +274,7 @@ async function main(): Promise<void> {
   const svg = await render(content, {
     theme: opts.theme,
     palette: opts.palette,
+    branding: !opts.noBranding,
   });
 
   if (!svg) {
@@ -226,8 +284,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  // Determine output format and destination
-  const format = inferFormat(opts.output);
+  // Determine output destination
   const pngBg = opts.theme === 'transparent' ? undefined : paletteColors.bg;
 
   if (opts.output) {

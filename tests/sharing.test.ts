@@ -18,7 +18,7 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
         throw new Error(`Unexpected error for ${name}: ${result.error}`);
       }
       const hash = new URL(result.url).hash;
-      expect(decodeDiagramUrl(hash)).toBe(dsl);
+      expect(decodeDiagramUrl(hash).dsl).toBe(dsl);
     });
   }
 
@@ -57,37 +57,94 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
       const result = encodeDiagramUrl('chart: pie\nA: 10');
       if (result.error) throw new Error('unexpected error');
       const hash = new URL(result.url).hash; // includes #
-      expect(decodeDiagramUrl(hash)).toBe('chart: pie\nA: 10');
+      expect(decodeDiagramUrl(hash).dsl).toBe('chart: pie\nA: 10');
     });
 
     it('handles hash without # prefix', () => {
       const result = encodeDiagramUrl('chart: pie\nA: 10');
       if (result.error) throw new Error('unexpected error');
       const hash = new URL(result.url).hash.slice(1); // strip #
-      expect(decodeDiagramUrl(hash)).toBe('chart: pie\nA: 10');
+      expect(decodeDiagramUrl(hash).dsl).toBe('chart: pie\nA: 10');
     });
 
     it('handles bare payload (no dgmo= prefix)', () => {
       const result = encodeDiagramUrl('chart: pie\nA: 10');
       if (result.error) throw new Error('unexpected error');
       const payload = new URL(result.url).hash.replace('#dgmo=', '');
-      expect(decodeDiagramUrl(payload)).toBe('chart: pie\nA: 10');
+      expect(decodeDiagramUrl(payload).dsl).toBe('chart: pie\nA: 10');
     });
 
-    it('returns empty string for invalid payload', () => {
-      expect(decodeDiagramUrl('not-valid-lz-data!!!')).toBe('');
+    it('returns empty dsl for invalid payload', () => {
+      expect(decodeDiagramUrl('not-valid-lz-data!!!')).toEqual({
+        dsl: '',
+        viewState: {},
+      });
     });
 
-    it('returns empty string for empty input', () => {
-      expect(decodeDiagramUrl('')).toBe('');
+    it('returns empty dsl for empty input', () => {
+      expect(decodeDiagramUrl('')).toEqual({ dsl: '', viewState: {} });
     });
 
-    it('returns empty string for just #', () => {
-      expect(decodeDiagramUrl('#')).toBe('');
+    it('returns empty dsl for just #', () => {
+      expect(decodeDiagramUrl('#')).toEqual({ dsl: '', viewState: {} });
     });
 
-    it('returns empty string for just #dgmo=', () => {
-      expect(decodeDiagramUrl('#dgmo=')).toBe('');
+    it('returns empty dsl for just #dgmo=', () => {
+      expect(decodeDiagramUrl('#dgmo=')).toEqual({ dsl: '', viewState: {} });
+    });
+  });
+
+  describe('view state (activeTagGroup)', () => {
+    it('round-trips with activeTagGroup', () => {
+      const dsl = 'chart: org\nCEO\n  VP Engineering';
+      const result = encodeDiagramUrl(dsl, {
+        viewState: { activeTagGroup: 'Location' },
+      });
+      if (result.error) throw new Error('unexpected error');
+      expect(result.url).toContain('&tag=Location');
+      const hash = new URL(result.url).hash;
+      const decoded = decodeDiagramUrl(hash);
+      expect(decoded.dsl).toBe(dsl);
+      expect(decoded.viewState.activeTagGroup).toBe('Location');
+    });
+
+    it('URL-encodes unsafe characters in tag name', () => {
+      const dsl = 'chart: org\nCEO';
+      const result = encodeDiagramUrl(dsl, {
+        viewState: { activeTagGroup: 'Team & Role' },
+      });
+      if (result.error) throw new Error('unexpected error');
+      expect(result.url).toContain('&tag=Team%20%26%20Role');
+      const hash = new URL(result.url).hash;
+      const decoded = decodeDiagramUrl(hash);
+      expect(decoded.viewState.activeTagGroup).toBe('Team & Role');
+    });
+
+    it('omits tag param when activeTagGroup is undefined', () => {
+      const result = encodeDiagramUrl('chart: org\nCEO', { viewState: {} });
+      if (result.error) throw new Error('unexpected error');
+      expect(result.url).not.toContain('&tag=');
+    });
+
+    it('omits tag param when viewState is not provided', () => {
+      const result = encodeDiagramUrl('chart: org\nCEO');
+      if (result.error) throw new Error('unexpected error');
+      expect(result.url).not.toContain('&tag=');
+    });
+
+    it('returns empty viewState when no tag param present', () => {
+      const result = encodeDiagramUrl('chart: org\nCEO');
+      if (result.error) throw new Error('unexpected error');
+      const hash = new URL(result.url).hash;
+      const decoded = decodeDiagramUrl(hash);
+      expect(decoded.viewState).toEqual({});
+    });
+
+    it('handles hash with tag but no dgmo prefix gracefully', () => {
+      // Bare payload shouldn't have &tag but decoder should still be robust
+      const decoded = decodeDiagramUrl('#dgmo=&tag=Location');
+      expect(decoded.dsl).toBe('');
+      expect(decoded.viewState.activeTagGroup).toBe('Location');
     });
   });
 });

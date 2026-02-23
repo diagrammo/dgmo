@@ -1,6 +1,7 @@
 import * as echarts from 'echarts';
 import type { EChartsOption } from 'echarts';
 import { FONT_FAMILY } from './fonts';
+import { injectBranding } from './branding';
 
 // ============================================================
 // Types
@@ -1854,7 +1855,8 @@ const STANDARD_CHART_TYPES = new Set([
 export async function renderEChartsForExport(
   content: string,
   theme: 'light' | 'dark' | 'transparent',
-  palette?: PaletteColors
+  palette?: PaletteColors,
+  options?: { branding?: boolean }
 ): Promise<string> {
   const isDark = theme === 'dark';
 
@@ -1894,10 +1896,17 @@ export async function renderEChartsForExport(
     // The SSR output already includes xmlns, width, height, and viewBox.
     // Inject font-family and background on the root <svg> element.
     const bgStyle = theme !== 'transparent' ? `background: ${effectivePalette.bg}; ` : '';
-    return svgString.replace(
+    let result = svgString.replace(
       /^<svg /,
       `<svg style="${bgStyle}font-family: ${FONT_FAMILY}" `
     );
+
+    if (options?.branding !== false) {
+      const brandColor = theme === 'transparent' ? '#888' : effectivePalette.textMuted;
+      result = injectBranding(result, brandColor);
+    }
+
+    return result;
   } finally {
     chart.dispose();
   }

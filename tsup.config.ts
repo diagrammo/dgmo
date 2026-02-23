@@ -24,7 +24,8 @@ export default defineConfig([
     sourcemap: true,
     clean: true,
     splitting: false,
-    external: [],
+    external: ['jsdom'],
+    esbuildPlugins: [fixJsdomXhrWorker],
   },
   {
     entry: ['src/cli.ts'],
