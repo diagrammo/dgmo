@@ -153,17 +153,59 @@ export function layoutERDiagram(parsed: ParsedERDiagram): ERLayoutResult {
     };
   });
 
-  // Compute total dimensions
-  let totalWidth = 0;
-  let totalHeight = 0;
+  // Compute total dimensions from nodes, edge points, and labels
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = 0;
+  let maxY = 0;
   for (const node of layoutNodes) {
+    const left = node.x - node.width / 2;
     const right = node.x + node.width / 2;
+    const top = node.y - node.height / 2;
     const bottom = node.y + node.height / 2;
-    if (right > totalWidth) totalWidth = right;
-    if (bottom > totalHeight) totalHeight = bottom;
+    if (left < minX) minX = left;
+    if (right > maxX) maxX = right;
+    if (top < minY) minY = top;
+    if (bottom > maxY) maxY = bottom;
   }
-  totalWidth += 40;
-  totalHeight += 40;
+  for (const edge of layoutEdges) {
+    for (const pt of edge.points) {
+      if (pt.x < minX) minX = pt.x;
+      if (pt.x > maxX) maxX = pt.x;
+      if (pt.y < minY) minY = pt.y;
+      if (pt.y > maxY) maxY = pt.y;
+    }
+    // Edge labels extend ~50px from midpoint
+    if (edge.label && edge.points.length > 0) {
+      const midPt = edge.points[Math.floor(edge.points.length / 2)];
+      const labelHalfW = (edge.label.length * 7 + 8) / 2;
+      if (midPt.x + labelHalfW > maxX) maxX = midPt.x + labelHalfW;
+      if (midPt.x - labelHalfW < minX) minX = midPt.x - labelHalfW;
+    }
+  }
+
+  // Shift all nodes and edges so content starts near origin
+  const shiftX = minX > 0 ? 0 : -minX;
+  const shiftY = minY > 0 ? 0 : -minY;
+  if (shiftX || shiftY) {
+    for (const node of layoutNodes) {
+      node.x += shiftX;
+      node.y += shiftY;
+    }
+    for (const edge of layoutEdges) {
+      for (const pt of edge.points) {
+        pt.x += shiftX;
+        pt.y += shiftY;
+      }
+    }
+    maxX += shiftX;
+    maxY += shiftY;
+  }
+
+  // Padding for cardinality markers (~25px) + edge labels
+  const EDGE_MARGIN = 60;
+  const totalWidth = maxX + EDGE_MARGIN;
+  const totalHeight = maxY + EDGE_MARGIN;
 
   return {
     nodes: layoutNodes,
