@@ -2,7 +2,7 @@
 
 A diagram markup language — parser, config builder, renderer, and color system.
 
-Write plain-text `.dgmo` files and render them as charts, diagrams, and visualizations. Supports 26 chart types across ECharts, D3, and a built-in sequence renderer. Ships as both a library and a standalone CLI.
+Write plain-text `.dgmo` files and render them as charts, diagrams, and visualizations. Supports 26 chart types — data charts, structural diagrams, and sequence diagrams. Ships as both a library and a standalone CLI.
 
 ## Install
 
@@ -58,47 +58,47 @@ dgmo diagram.dgmo --theme dark --palette catppuccin
 
 ## Supported chart types
 
-| Type | Framework | Description |
-|------|-----------|-------------|
-| `bar` | ECharts | Vertical/horizontal bar charts |
-| `bar-stacked` | ECharts | Stacked bar charts |
-| `line` | ECharts | Line charts with crosshair |
-| `multi-line` | ECharts | Multi-series line charts |
-| `area` | ECharts | Filled area charts |
-| `pie` | ECharts | Pie charts with connector labels |
-| `doughnut` | ECharts | Doughnut charts |
-| `radar` | ECharts | Radar/spider charts |
-| `polar-area` | ECharts | Polar area charts |
-| `scatter` | ECharts | XY scatter with categories and sizing |
-| `sankey` | ECharts | Flow diagrams |
-| `chord` | ECharts | Circular relationship diagrams |
-| `function` | ECharts | Mathematical function plots |
-| `heatmap` | ECharts | Matrix heatmaps |
-| `funnel` | ECharts | Conversion funnels |
-| `slope` | D3 | Before/after comparison |
-| `wordcloud` | D3 | Weighted text clouds |
-| `arc` | D3 | Arc/network diagrams |
-| `timeline` | D3 | Timelines with eras and markers |
-| `venn` | D3 | Set intersection diagrams |
-| `quadrant` | D3 | 2D quadrant scatter (also has a Mermaid output path) |
-| `sequence` | D3 | Sequence diagrams with type inference |
-| `flowchart` | D3 | Directed graph flowcharts with branching and 6 node shapes |
-| `class` | D3 | UML class diagrams with inheritance, composition, and visibility |
-| `er` | D3 | Entity-relationship diagrams with crow's foot notation |
-| `org` | D3 | Org charts with hierarchy, team containers, and tag group color-coding |
+| Type | Description |
+|------|-------------|
+| `bar` | Vertical/horizontal bar charts |
+| `bar-stacked` | Stacked bar charts |
+| `line` | Line charts with crosshair |
+| `multi-line` | Multi-series line charts |
+| `area` | Filled area charts |
+| `pie` | Pie charts with connector labels |
+| `doughnut` | Doughnut charts |
+| `radar` | Radar/spider charts |
+| `polar-area` | Polar area charts |
+| `scatter` | XY scatter with categories and sizing |
+| `sankey` | Flow diagrams |
+| `chord` | Circular relationship diagrams |
+| `function` | Mathematical function plots |
+| `heatmap` | Matrix heatmaps |
+| `funnel` | Conversion funnels |
+| `slope` | Before/after comparison |
+| `wordcloud` | Weighted text clouds |
+| `arc` | Arc/network diagrams |
+| `timeline` | Timelines with eras and markers |
+| `venn` | Set intersection diagrams |
+| `quadrant` | 2D quadrant scatter |
+| `sequence` | Sequence diagrams with type inference |
+| `flowchart` | Directed graph flowcharts with branching and 6 node shapes |
+| `class` | UML class diagrams with inheritance, composition, and visibility |
+| `er` | Entity-relationship diagrams with crow's foot notation |
+| `org` | Org charts with hierarchy, team containers, and tag group color-coding |
 
 ## How it works
 
-Every `.dgmo` file is plain text with a `chart: <type>` header followed by metadata and data. The library routes each chart type to the right framework and gives you either:
+Every `.dgmo` file is plain text with a `chart: <type>` header followed by metadata and data. The library parses each chart type and gives you either:
 
-- A **framework config object** you render yourself (ECharts, Mermaid)
-- A **rendered SVG** via D3 or the built-in sequence renderer
+- A **config object** you render yourself
+- A **rendered SVG** directly
 
 ```
 parse → build config → render
 ```
 
-All parsers are pure functions with no DOM dependency. D3 renderers accept a container element. The CLI sets up jsdom internally for headless rendering.
+All parsers are pure functions with no DOM dependency. The CLI sets up jsdom internally for headless rendering.
 
 ## Usage
 
