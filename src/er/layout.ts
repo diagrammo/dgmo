@@ -184,28 +184,28 @@ export function layoutERDiagram(parsed: ParsedERDiagram): ERLayoutResult {
     }
   }
 
-  // Shift all nodes and edges so content starts near origin
-  const shiftX = minX > 0 ? 0 : -minX;
-  const shiftY = minY > 0 ? 0 : -minY;
-  if (shiftX || shiftY) {
-    for (const node of layoutNodes) {
-      node.x += shiftX;
-      node.y += shiftY;
-    }
-    for (const edge of layoutEdges) {
-      for (const pt of edge.points) {
-        pt.x += shiftX;
-        pt.y += shiftY;
-      }
-    }
-    maxX += shiftX;
-    maxY += shiftY;
-  }
-
   // Padding for cardinality markers (~25px) + edge labels
   const EDGE_MARGIN = 60;
-  const totalWidth = maxX + EDGE_MARGIN;
-  const totalHeight = maxY + EDGE_MARGIN;
+  const HALF_MARGIN = EDGE_MARGIN / 2;
+
+  // Shift all nodes and edges so content starts at HALF_MARGIN (breathing room on all sides)
+  const shiftX = -minX + HALF_MARGIN;
+  const shiftY = -minY + HALF_MARGIN;
+  for (const node of layoutNodes) {
+    node.x += shiftX;
+    node.y += shiftY;
+  }
+  for (const edge of layoutEdges) {
+    for (const pt of edge.points) {
+      pt.x += shiftX;
+      pt.y += shiftY;
+    }
+  }
+  maxX += shiftX;
+  maxY += shiftY;
+
+  const totalWidth = maxX + HALF_MARGIN;
+  const totalHeight = maxY + HALF_MARGIN;
 
   return {
     nodes: layoutNodes,

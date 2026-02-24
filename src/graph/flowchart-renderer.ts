@@ -16,6 +16,7 @@ import { layoutGraph } from './layout';
 // ============================================================
 
 const DIAGRAM_PADDING = 20;
+const MAX_SCALE = 3;
 const NODE_FONT_SIZE = 13;
 const EDGE_LABEL_FONT_SIZE = 11;
 const GROUP_LABEL_FONT_SIZE = 11;
@@ -252,7 +253,7 @@ export function renderFlowchart(
   const availH = height - titleHeight;
   const scaleX = (width - DIAGRAM_PADDING * 2) / diagramW;
   const scaleY = (availH - DIAGRAM_PADDING * 2) / diagramH;
-  const scale = Math.min(1, scaleX, scaleY);
+  const scale = Math.min(MAX_SCALE, scaleX, scaleY);
 
   // Center the diagram in the area below the title
   const scaledW = diagramW * scale;

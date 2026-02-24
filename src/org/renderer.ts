@@ -15,6 +15,7 @@ import { layoutOrg } from './layout';
 // ============================================================
 
 const DIAGRAM_PADDING = 20;
+const MAX_SCALE = 3;
 const TITLE_HEIGHT = 30;
 const TITLE_FONT_SIZE = 18;
 const LABEL_FONT_SIZE = 13;
@@ -144,7 +145,7 @@ export function renderOrg(
   const diagramH = layout.height + titleOffset;
   const scaleX = (width - DIAGRAM_PADDING * 2) / diagramW;
   const scaleY = (height - DIAGRAM_PADDING * 2) / diagramH;
-  const scale = Math.min(scaleX, scaleY);
+  const scale = Math.min(MAX_SCALE, scaleX, scaleY);
 
   // Center the diagram
   const scaledW = diagramW * scale;
