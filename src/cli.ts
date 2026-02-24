@@ -4,10 +4,12 @@ import { resolve, basename, extname } from 'node:path';
 import { Resvg } from '@resvg/resvg-js';
 import { render } from './render';
 import { parseDgmo } from './dgmo-router';
+import { parseDgmoChartType } from './dgmo-router';
 import { formatDgmoError } from './diagnostics';
 import { getPalette } from './palettes/registry';
 import { DEFAULT_FONT_NAME } from './fonts';
 import { encodeDiagramUrl } from './sharing';
+import { resolveOrgImports } from './org/resolver';
 
 const PALETTES = [
   'nord',
@@ -220,6 +222,20 @@ async function main(): Promise<void> {
     }
   } else {
     noInput();
+  }
+
+  // Resolve org chart imports (tags: and import: directives)
+  if (opts.input && parseDgmoChartType(content) === 'org') {
+    const inputPath = resolve(opts.input);
+    const resolved = await resolveOrgImports(
+      content,
+      inputPath,
+      (p) => readFileSync(p, 'utf-8'),
+    );
+    for (const diag of resolved.diagnostics) {
+      console.error(formatDgmoError(diag));
+    }
+    content = resolved.content;
   }
 
   // Determine output format early to handle URL before rendering

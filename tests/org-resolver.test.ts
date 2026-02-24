@@ -1,0 +1,523 @@
+import { describe, it, expect } from 'vitest';
+import { resolveOrgImports } from '../src/org/resolver';
+import type { ReadFileFn } from '../src/org/resolver';
+import { parseOrg } from '../src/org/parser';
+
+// ============================================================
+// Mock reader
+// ============================================================
+
+function mockReader(files: Record<string, string>): ReadFileFn {
+  return (path) => {
+    if (!(path in files)) throw new Error(`Not found: ${path}`);
+    return files[path];
+  };
+}
+
+// ============================================================
+// Tests
+// ============================================================
+
+describe('resolveOrgImports', () => {
+  // ----------------------------------------------------------
+  // 1. No-op: no imports, no tags
+  // ----------------------------------------------------------
+  it('passes through content unchanged when no imports or tags', async () => {
+    const content = `chart: org
+title: Simple
+
+Alice
+  Bob`;
+    const result = await resolveOrgImports(content, '/proj/org.dgmo', mockReader({}));
+    expect(result.diagnostics).toEqual([]);
+    expect(result.content).toContain('Alice');
+    expect(result.content).toContain('Bob');
+  });
+
+  // ----------------------------------------------------------
+  // 2. tags: loads tag groups from external file
+  // ----------------------------------------------------------
+  it('loads tag groups from external tags: file', async () => {
+    const tagsFile = `## Department
+  Engineering (blue)
+  Product (green)`;
+
+    const content = `chart: org
+title: Test
+tags: shared-tags.dgmo
+
+Alice | department: Engineering`;
+
+    const reader = mockReader({
+      '/proj/shared-tags.dgmo': tagsFile,
+    });
+
+    const result = await resolveOrgImports(content, '/proj/org.dgmo', reader);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.content).toContain('## Department');
+    expect(result.content).toContain('Engineering (blue)');
+    expect(result.content).toContain('Alice | department: Engineering');
+    // tags: directive should be stripped
+    expect(result.content).not.toMatch(/^tags:/m);
+  });
+
+  // ----------------------------------------------------------
+  // 3. Inline ## overrides same-name group from tags: file
+  // ----------------------------------------------------------
+  it('inline tag groups override same-name groups from tags file', async () => {
+    const tagsFile = `## Department
+  Engineering (blue)
+  Product (green)`;
+
+    const content = `chart: org
+tags: shared-tags.dgmo
+
+## Department
+  Engineering (red)
+  Sales (purple)
+
+Alice | department: Engineering`;
+
+    const reader = mockReader({
+      '/proj/shared-tags.dgmo': tagsFile,
+    });
+
+    const result = await resolveOrgImports(content, '/proj/org.dgmo', reader);
+    expect(result.diagnostics).toEqual([]);
+    // Should have the inline version (red) not the tags file version (blue)
+    expect(result.content).toContain('Engineering (red)');
+    expect(result.content).not.toContain('Engineering (blue)');
+  });
+
+  // ----------------------------------------------------------
+  // 4. tags: file with non-tag content — only ## blocks extracted
+  // ----------------------------------------------------------
+  it('extracts only tag groups from a tags file that has other content', async () => {
+    const tagsFile = `chart: org
+title: Other Chart
+
+## Department
+  Engineering (blue)
+
+CEO
+  CTO`;
+
+    const content = `chart: org
+tags: other.dgmo
+
+Alice`;
+
+    const reader = mockReader({
+      '/proj/other.dgmo': tagsFile,
+    });
+
+    const result = await resolveOrgImports(content, '/proj/org.dgmo', reader);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.content).toContain('## Department');
+    expect(result.content).toContain('Engineering (blue)');
+    expect(result.content).toContain('Alice');
+    // The non-tag content from the tags file should NOT be included
+    expect(result.content).not.toContain('CEO');
+    expect(result.content).not.toContain('CTO');
+  });
+
+  // ----------------------------------------------------------
+  // 5. tags: file not found → diagnostic, proceeds without
+  // ----------------------------------------------------------
+  it('produces diagnostic when tags file not found', async () => {
+    const content = `chart: org
+tags: missing.dgmo
+
+Alice`;
+
+    const result = await resolveOrgImports(content, '/proj/org.dgmo', mockReader({}));
+    expect(result.diagnostics).toHaveLength(1);
+    expect(result.diagnostics[0].message).toContain('Tags file not found');
+    expect(result.content).toContain('Alice');
+  });
+
+  // ----------------------------------------------------------
+  // 6. Single import grafts content at correct indentation
+  // ----------------------------------------------------------
+  it('grafts imported content at correct indentation', async () => {
+    const teamFile = `chart: org
+title: Platform Team
+
+Alice Chen | role: Staff Eng
+Bob Rivera | role: Senior Eng`;
+
+    const content = `chart: org
+
+CEO
+  CTO
+    import: teams/platform.dgmo`;
+
+    const reader = mockReader({
+      '/proj/teams/platform.dgmo': teamFile,
+    });
+
+    const result = await resolveOrgImports(content, '/proj/org.dgmo', reader);
+    expect(result.diagnostics).toEqual([]);
+    // Content should be re-indented under CTO
+    expect(result.content).toContain('    Alice Chen | role: Staff Eng');
+    expect(result.content).toContain('    Bob Rivera | role: Senior Eng');
+    expect(result.content).not.toContain('import:');
+  });
+
+  // ----------------------------------------------------------
+  // 7. Multiple imports under same parent
+  // ----------------------------------------------------------
+  it('handles multiple imports under the same parent', async () => {
+    const team1 = `Alice`;
+    const team2 = `Bob`;
+
+    const content = `chart: org
+
+CEO
+  import: team1.dgmo
+  import: team2.dgmo`;
+
+    const reader = mockReader({
+      '/proj/team1.dgmo': team1,
+      '/proj/team2.dgmo': team2,
+    });
+
+    const result = await resolveOrgImports(content, '/proj/org.dgmo', reader);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.content).toContain('  Alice');
+    expect(result.content).toContain('  Bob');
+  });
+
+  // ----------------------------------------------------------
+  // 8. Import mixed with regular children
+  // ----------------------------------------------------------
+  it('handles imports mixed with regular children', async () => {
+    const teamFile = `Charlie`;
+
+    const content = `chart: org
+
+CEO
+  Alice
+  import: team.dgmo
+  Bob`;
+
+    const reader = mockReader({
+      '/proj/team.dgmo': teamFile,
+    });
+
+    const result = await resolveOrgImports(content, '/proj/org.dgmo', reader);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.content).toContain('  Alice');
+    expect(result.content).toContain('  Charlie');
+    expect(result.content).toContain('  Bob');
+  });
+
+  // ----------------------------------------------------------
+  // 9. Imported file's chart:, title:, tags:, options stripped
+  // ----------------------------------------------------------
+  it('strips header directives from imported files', async () => {
+    const teamFile = `chart: org
+title: Platform Team
+hide: role
+
+Alice Chen | role: Staff Eng`;
+
+    const content = `chart: org
+
+CEO
+  import: team.dgmo`;
+
+    const reader = mockReader({
+      '/proj/team.dgmo': teamFile,
+    });
+
+    const result = await resolveOrgImports(content, '/proj/org.dgmo', reader);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.content).toContain('  Alice Chen | role: Staff Eng');
+    // Header lines from imported file should be stripped
+    expect(result.content).not.toMatch(/^\s*title: Platform Team/m);
+    // chart: org from parent is fine
+    expect(result.content).toMatch(/^chart: org/m);
+  });
+
+  // ----------------------------------------------------------
+  // 10. Nested imports: A→B→C, indentation accumulates
+  // ----------------------------------------------------------
+  it('resolves nested imports with accumulated indentation', async () => {
+    const fileC = `Charlie`;
+
+    const fileB = `Bob
+  import: c.dgmo`;
+
+    const content = `chart: org
+
+Alice
+  import: b.dgmo`;
+
+    const reader = mockReader({
+      '/proj/b.dgmo': fileB,
+      '/proj/c.dgmo': fileC,
+    });
+
+    const result = await resolveOrgImports(content, '/proj/org.dgmo', reader);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.content).toContain('  Bob');
+    expect(result.content).toContain('    Charlie');
+  });
+
+  // ----------------------------------------------------------
+  // 11. Tag group merging: parent inline > tags file > imported
+  // ----------------------------------------------------------
+  it('merges tag groups with correct precedence', async () => {
+    const tagsFile = `## Department
+  Engineering (blue)
+
+## Location
+  NY (nord-8)`;
+
+    const importedFile = `## Department
+  Engineering (green)
+
+## Status
+  Active (yellow)
+
+Alice`;
+
+    const content = `chart: org
+tags: tags.dgmo
+
+## Department
+  Engineering (red)
+
+CEO
+  import: imported.dgmo`;
+
+    const reader = mockReader({
+      '/proj/tags.dgmo': tagsFile,
+      '/proj/imported.dgmo': importedFile,
+    });
+
+    const result = await resolveOrgImports(content, '/proj/org.dgmo', reader);
+    expect(result.diagnostics).toEqual([]);
+    // Inline wins for Department (red)
+    expect(result.content).toContain('Engineering (red)');
+    expect(result.content).not.toContain('Engineering (blue)');
+    expect(result.content).not.toContain('Engineering (green)');
+    // Location from tags file
+    expect(result.content).toContain('NY (nord-8)');
+    // Status from imported file (additive)
+    expect(result.content).toContain('Active (yellow)');
+  });
+
+  // ----------------------------------------------------------
+  // 12. New groups from imported files added (no conflict)
+  // ----------------------------------------------------------
+  it('adds new tag groups from imported files', async () => {
+    const importedFile = `## Role
+  Manager (orange)
+
+Alice | role: Manager`;
+
+    const content = `chart: org
+
+## Department
+  Engineering (blue)
+
+CEO
+  import: team.dgmo`;
+
+    const reader = mockReader({
+      '/proj/team.dgmo': importedFile,
+    });
+
+    const result = await resolveOrgImports(content, '/proj/org.dgmo', reader);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.content).toContain('## Department');
+    expect(result.content).toContain('## Role');
+    expect(result.content).toContain('Manager (orange)');
+  });
+
+  // ----------------------------------------------------------
+  // 13. Imported file with tags: — its tags resolved before merging up
+  // ----------------------------------------------------------
+  it('resolves tags: in imported files before merging', async () => {
+    const sharedTags = `## Department
+  Engineering (blue)`;
+
+    const importedFile = `chart: org
+tags: ../shared-tags.dgmo
+
+Alice | department: Engineering`;
+
+    const content = `chart: org
+
+CEO
+  import: teams/eng.dgmo`;
+
+    const reader = mockReader({
+      '/proj/shared-tags.dgmo': sharedTags,
+      '/proj/teams/eng.dgmo': importedFile,
+    });
+
+    const result = await resolveOrgImports(content, '/proj/org.dgmo', reader);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.content).toContain('## Department');
+    expect(result.content).toContain('  Alice | department: Engineering');
+  });
+
+  // ----------------------------------------------------------
+  // 14. Circular import: A→B→A detected with error
+  // ----------------------------------------------------------
+  it('detects circular imports', async () => {
+    const fileB = `Bob
+  import: a.dgmo`;
+
+    const content = `chart: org
+
+Alice
+  import: b.dgmo`;
+
+    const reader = mockReader({
+      '/proj/a.dgmo': content,
+      '/proj/b.dgmo': fileB,
+    });
+
+    const result = await resolveOrgImports(content, '/proj/a.dgmo', reader);
+    expect(result.diagnostics.length).toBeGreaterThan(0);
+    expect(result.diagnostics.some(d => d.message.includes('Circular import'))).toBe(true);
+  });
+
+  // ----------------------------------------------------------
+  // 15. Diamond: A→B,C both→D works (no false cycle)
+  // ----------------------------------------------------------
+  it('allows diamond imports (not a cycle)', async () => {
+    const fileD = `Dave`;
+    const fileB = `Bob
+  import: d.dgmo`;
+    const fileC = `Carol
+  import: d.dgmo`;
+
+    const content = `chart: org
+
+Alice
+  import: b.dgmo
+  import: c.dgmo`;
+
+    const reader = mockReader({
+      '/proj/b.dgmo': fileB,
+      '/proj/c.dgmo': fileC,
+      '/proj/d.dgmo': fileD,
+    });
+
+    const result = await resolveOrgImports(content, '/proj/a.dgmo', reader);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.content).toContain('  Bob');
+    expect(result.content).toContain('  Carol');
+    // Dave appears twice (once under each)
+    const daveMatches = result.content.match(/Dave/g);
+    expect(daveMatches?.length).toBe(2);
+  });
+
+  // ----------------------------------------------------------
+  // 16. File not found → diagnostic, rest renders
+  // ----------------------------------------------------------
+  it('produces diagnostic for missing import, continues rendering', async () => {
+    const content = `chart: org
+
+CEO
+  import: missing.dgmo
+  Alice`;
+
+    const result = await resolveOrgImports(content, '/proj/org.dgmo', mockReader({}));
+    expect(result.diagnostics).toHaveLength(1);
+    expect(result.diagnostics[0].message).toContain('Import file not found');
+    expect(result.content).toContain('Alice');
+  });
+
+  // ----------------------------------------------------------
+  // 17. Empty imported file → no content added
+  // ----------------------------------------------------------
+  it('handles empty imported files gracefully', async () => {
+    const content = `chart: org
+
+CEO
+  import: empty.dgmo
+  Alice`;
+
+    const reader = mockReader({
+      '/proj/empty.dgmo': '',
+    });
+
+    const result = await resolveOrgImports(content, '/proj/org.dgmo', reader);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.content).toContain('Alice');
+    expect(result.content).not.toContain('import:');
+  });
+
+  // ----------------------------------------------------------
+  // 18. ./ and ../ paths resolve correctly
+  // ----------------------------------------------------------
+  it('resolves relative paths with ./ and ../', async () => {
+    const siblingFile = `Charlie`;
+    const parentFile = `Dave`;
+
+    const content = `chart: org
+
+Alice
+  import: ./sibling.dgmo
+  import: ../parent.dgmo`;
+
+    const reader = mockReader({
+      '/proj/sub/sibling.dgmo': siblingFile,
+      '/proj/parent.dgmo': parentFile,
+    });
+
+    const result = await resolveOrgImports(content, '/proj/sub/org.dgmo', reader);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.content).toContain('  Charlie');
+    expect(result.content).toContain('  Dave');
+  });
+
+  // ----------------------------------------------------------
+  // 19. Integration: merged output parses correctly with parseOrg()
+  // ----------------------------------------------------------
+  it('produces output that parses correctly with parseOrg', async () => {
+    const tagsFile = `## Department
+  Engineering (blue)
+  Product (green)`;
+
+    const teamFile = `[Platform Team]
+  Alice Chen | department: Engineering
+  Bob Rivera | department: Engineering`;
+
+    const content = `chart: org
+title: Acme Corp
+tags: company-tags.dgmo
+
+CEO | department: Engineering
+  CTO | department: Engineering
+    import: teams/platform.dgmo
+  VP Product | department: Product`;
+
+    const reader = mockReader({
+      '/proj/company-tags.dgmo': tagsFile,
+      '/proj/teams/platform.dgmo': teamFile,
+    });
+
+    const result = await resolveOrgImports(content, '/proj/org.dgmo', reader);
+    expect(result.diagnostics).toEqual([]);
+
+    // Parse the merged output
+    const parsed = parseOrg(result.content);
+    expect(parsed.error).toBeNull();
+    expect(parsed.title).toBe('Acme Corp');
+    expect(parsed.tagGroups).toHaveLength(1);
+    expect(parsed.tagGroups[0].name).toBe('Department');
+    expect(parsed.roots).toHaveLength(1);
+    expect(parsed.roots[0].label).toBe('CEO');
+    // CTO should have Platform Team container as child
+    const cto = parsed.roots[0].children[0];
+    expect(cto.label).toBe('CTO');
+    expect(cto.children.length).toBeGreaterThanOrEqual(1);
+  });
+});
