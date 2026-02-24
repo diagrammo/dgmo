@@ -635,13 +635,17 @@ Alice | location: NY, status: FTE`;
 
 Alice | location: NY`;
     const parsed = parseOrg(input, palette.light);
-    const layout = layoutOrg(parsed);
+    // Need activeTagGroup to render the group fully (with entries)
+    const layout = layoutOrg(parsed, undefined, 'location');
 
     const container = document.createElement('div');
     Object.defineProperty(container, 'clientWidth', { value: 800 });
     Object.defineProperty(container, 'clientHeight', { value: 600 });
 
-    renderOrg(container, parsed, layout, palette.light, false);
+    renderOrg(
+      container, parsed, layout, palette.light, false,
+      undefined, undefined, 'location'
+    );
     const svg = container.innerHTML;
 
     // Entry values rendered
@@ -929,7 +933,7 @@ Alice | location: NY`;
     expect(legendGroups[0].getAttribute('data-legend-group')).toBe('location');
   });
 
-  it('only active legend group is rendered when activeTagGroup set', () => {
+  it('only active legend group rendered when activeTagGroup set', () => {
     const input = `chart: org
 
 ## Location
@@ -954,9 +958,12 @@ Alice | location: NY, status: FTE`;
     const legendGroups = container.querySelectorAll('[data-legend-group]');
     expect(legendGroups).toHaveLength(1);
     expect(legendGroups[0].getAttribute('data-legend-group')).toBe('location');
+
+    // Active group has entry dots (full rendering)
+    expect(legendGroups[0].querySelectorAll('circle').length).toBeGreaterThan(0);
   });
 
-  it('all legend groups rendered when no activeTagGroup', () => {
+  it('all legend groups rendered minified when no activeTagGroup', () => {
     const input = `chart: org
 
 ## Location
@@ -977,6 +984,11 @@ Alice | location: NY, status: FTE`;
 
     const legendGroups = container.querySelectorAll('[data-legend-group]');
     expect(legendGroups).toHaveLength(2);
+
+    // All groups are minified — no entry dots, just headers
+    for (const g of legendGroups) {
+      expect(g.querySelectorAll('circle').length).toBe(0);
+    }
   });
 
   it('active legend group has distinct border styling', () => {
@@ -1102,7 +1114,7 @@ Alice`;
 
   it('eye icon renders when hiddenAttributes provided', () => {
     const parsed = parseOrg(input, palette.light);
-    const layout = layoutOrg(parsed, undefined, undefined, new Set());
+    const layout = layoutOrg(parsed, undefined, 'location', new Set());
 
     const container = document.createElement('div');
     Object.defineProperty(container, 'clientWidth', { value: 800 });
@@ -1110,11 +1122,12 @@ Alice`;
 
     renderOrg(
       container, parsed, layout, palette.light, false,
-      undefined, undefined, undefined, new Set()
+      undefined, undefined, 'location', new Set()
     );
 
+    // Only the active group is rendered fully (with eye icon)
     const eyeIcons = container.querySelectorAll('.org-legend-eye');
-    expect(eyeIcons.length).toBeGreaterThanOrEqual(2);
+    expect(eyeIcons.length).toBeGreaterThanOrEqual(1);
   });
 
   it('no eye icon when hiddenAttributes not provided', () => {
@@ -1134,7 +1147,8 @@ Alice`;
   it('closed eye path when attribute is hidden', () => {
     const parsed = parseOrg(input, palette.light);
     const hidden = new Set(['location']);
-    const layout = layoutOrg(parsed, undefined, undefined, hidden);
+    // Must set activeTagGroup so the group renders fully (with eye icon)
+    const layout = layoutOrg(parsed, undefined, 'location', hidden);
 
     const container = document.createElement('div');
     Object.defineProperty(container, 'clientWidth', { value: 800 });
@@ -1142,7 +1156,7 @@ Alice`;
 
     renderOrg(
       container, parsed, layout, palette.light, false,
-      undefined, undefined, undefined, hidden
+      undefined, undefined, 'location', hidden
     );
 
     const locationEye = container.querySelector(
@@ -1154,14 +1168,6 @@ Alice`;
     expect(slashLine).toBeTruthy();
     const pupilCircle = locationEye!.querySelector('circle');
     expect(pupilCircle).toBeNull();
-
-    // Status eye should be open (has pupil, no slash)
-    const statusEye = container.querySelector(
-      '[data-legend-visibility="status"]'
-    );
-    expect(statusEye).toBeTruthy();
-    const statusPupil = statusEye!.querySelector('circle');
-    expect(statusPupil).toBeTruthy();
   });
 
   it('no eye icons in export', () => {

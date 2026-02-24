@@ -61,6 +61,8 @@ export interface OrgLegendGroup {
   y: number;
   width: number;
   height: number;
+  minifiedWidth: number;
+  minifiedHeight: number;
 }
 
 export interface OrgLayoutResult {
@@ -301,6 +303,8 @@ function computeLegendGroups(tagGroups: OrgTagGroup[], showEyeIcons: boolean): O
       (colWidths.length - 1) * LEGEND_ENTRY_GAP;
     const maxRowWidth = Math.max(headerWidth, totalColumnsWidth);
 
+    const minifiedWidth = group.name.length * CHAR_WIDTH + LEGEND_PAD * 2;
+
     groups.push({
       name: group.name,
       entries: group.entries.map((e) => ({ value: e.value, color: e.color })),
@@ -308,6 +312,8 @@ function computeLegendGroups(tagGroups: OrgTagGroup[], showEyeIcons: boolean): O
       y: 0,
       width: maxRowWidth + LEGEND_PAD * 2,
       height: LEGEND_HEADER_H + numRows * LEGEND_ENTRY_H + LEGEND_PAD,
+      minifiedWidth,
+      minifiedHeight: LEGEND_HEADER_H + LEGEND_PAD,
     });
   }
 
@@ -577,18 +583,26 @@ export function layoutOrg(
   {
     type HNode = (typeof h);
     const subtreeExtent = (node: HNode): { minX: number; maxX: number } => {
-      let min = Infinity;
-      let max = -Infinity;
-      const walk = (n: HNode) => {
-        // Container boxes extend beyond card bounds by padding
-        const pad = n.data.orgNode.isContainer ? CONTAINER_PAD_X : 0;
-        const l = n.x! - n.data.width / 2 - pad;
-        const r = n.x! + n.data.width / 2 + pad;
-        if (l < min) min = l;
-        if (r > max) max = r;
-        if (n.children) n.children.forEach(walk);
-      };
-      walk(node);
+      // Start with this node's own card/header bounds
+      let min = node.x! - node.data.width / 2;
+      let max = node.x! + node.data.width / 2;
+
+      // Include children's subtree extents
+      if (node.children) {
+        for (const child of node.children) {
+          const childExt = subtreeExtent(child);
+          if (childExt.minX < min) min = childExt.minX;
+          if (childExt.maxX > max) max = childExt.maxX;
+        }
+      }
+
+      // Container boxes wrap their content with padding — mirror the
+      // actual bounding-box computation so compaction sees the true width.
+      if (node.data.orgNode.isContainer) {
+        min -= CONTAINER_PAD_X;
+        max += CONTAINER_PAD_X;
+      }
+
       return { minX: min, maxX: max };
     };
 
@@ -1072,12 +1086,22 @@ export function layoutOrg(
 
   const legendPosition = parsed.options?.['legend-position'] ?? 'bottom';
 
-  if (legendGroups.length > 0) {
+  // When a tag group is active, only that group is laid out (full size).
+  // When none is active, all groups are laid out minified.
+  const visibleGroups = activeTagGroup != null
+    ? legendGroups.filter((g) => g.name.toLowerCase() === activeTagGroup.toLowerCase())
+    : legendGroups;
+  const effectiveW = (g: OrgLegendGroup) =>
+    activeTagGroup != null ? g.width : g.minifiedWidth;
+  const effectiveH = (g: OrgLegendGroup) =>
+    activeTagGroup != null ? g.height : g.minifiedHeight;
+
+  if (visibleGroups.length > 0) {
     if (legendPosition === 'bottom') {
       // Bottom: center legend groups horizontally below diagram content
       const totalGroupsWidth =
-        legendGroups.reduce((s, g) => s + g.width, 0) +
-        (legendGroups.length - 1) * H_GAP;
+        visibleGroups.reduce((s, g) => s + effectiveW(g), 0) +
+        (visibleGroups.length - 1) * H_GAP;
       const neededWidth = totalGroupsWidth + MARGIN * 2;
 
       if (neededWidth > totalWidth) {
@@ -1096,24 +1120,25 @@ export function layoutOrg(
 
       let cx = startX;
       let maxH = 0;
-      for (const g of legendGroups) {
+      for (const g of visibleGroups) {
         g.x = cx;
         g.y = legendY;
-        cx += g.width + H_GAP;
-        if (g.height > maxH) maxH = g.height;
+        cx += effectiveW(g) + H_GAP;
+        const h = effectiveH(g);
+        if (h > maxH) maxH = h;
       }
 
       finalHeight = totalHeight + LEGEND_GAP + maxH;
     } else {
       // Top (default): stack legend groups vertically at top-right
-      const maxLegendWidth = Math.max(...legendGroups.map((g) => g.width));
+      const maxLegendWidth = Math.max(...visibleGroups.map((g) => effectiveW(g)));
       const legendStartX = totalWidth - MARGIN + LEGEND_GAP;
       let legendY = MARGIN;
 
-      for (const g of legendGroups) {
+      for (const g of visibleGroups) {
         g.x = legendStartX;
         g.y = legendY;
-        legendY += g.height + LEGEND_V_GAP;
+        legendY += effectiveH(g) + LEGEND_V_GAP;
       }
 
       const legendRight = legendStartX + maxLegendWidth + MARGIN;
