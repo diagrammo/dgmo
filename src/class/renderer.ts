@@ -40,7 +40,8 @@ function mix(a: string, b: string, pct: number): string {
   return `#${c(ar,br)}${c(ag,bg)}${c(ab,bb)}`;
 }
 
-function modifierColor(modifier: ClassModifier | undefined, palette: PaletteColors): string {
+function modifierColor(modifier: ClassModifier | undefined, palette: PaletteColors, colorOff?: boolean): string {
+  if (colorOff) return palette.textMuted;
   switch (modifier) {
     case 'interface':  return palette.colors.blue;
     case 'abstract':   return palette.colors.purple;
@@ -49,13 +50,13 @@ function modifierColor(modifier: ClassModifier | undefined, palette: PaletteColo
   }
 }
 
-function nodeFill(palette: PaletteColors, isDark: boolean, modifier: ClassModifier | undefined, nodeColor?: string): string {
-  const color = nodeColor ?? modifierColor(modifier, palette);
+function nodeFill(palette: PaletteColors, isDark: boolean, modifier: ClassModifier | undefined, nodeColor?: string, colorOff?: boolean): string {
+  const color = nodeColor ?? modifierColor(modifier, palette, colorOff);
   return mix(color, isDark ? palette.surface : palette.bg, 20);
 }
 
-function nodeStroke(palette: PaletteColors, modifier: ClassModifier | undefined, nodeColor?: string): string {
-  return nodeColor ?? modifierColor(modifier, palette);
+function nodeStroke(palette: PaletteColors, modifier: ClassModifier | undefined, nodeColor?: string, colorOff?: boolean): string {
+  return nodeColor ?? modifierColor(modifier, palette, colorOff);
 }
 
 // ============================================================
@@ -340,8 +341,9 @@ export function renderClassDiagram(
 
     const w = node.width;
     const h = node.height;
-    const fill = nodeFill(palette, isDark, node.modifier, node.color);
-    const stroke = nodeStroke(palette, node.modifier, node.color);
+    const colorOff = parsed.options?.color === 'off';
+    const fill = nodeFill(palette, isDark, node.modifier, node.color, colorOff);
+    const stroke = nodeStroke(palette, node.modifier, node.color, colorOff);
 
     // Outer rectangle
     nodeG.append('rect')

@@ -43,7 +43,8 @@ function mix(a: string, b: string, pct: number): string {
   return `#${c(ar,br)}${c(ag,bg)}${c(ab,bb)}`;
 }
 
-function shapeDefaultColor(shape: GraphShape, palette: PaletteColors, isEndTerminal?: boolean): string {
+function shapeDefaultColor(shape: GraphShape, palette: PaletteColors, isEndTerminal?: boolean, colorOff?: boolean): string {
+  if (colorOff) return palette.textMuted;
   switch (shape) {
     case 'terminal':   return isEndTerminal ? palette.colors.red : palette.colors.green;
     case 'process':    return palette.colors.blue;
@@ -54,13 +55,13 @@ function shapeDefaultColor(shape: GraphShape, palette: PaletteColors, isEndTermi
   }
 }
 
-function nodeFill(palette: PaletteColors, isDark: boolean, shape: GraphShape, nodeColor?: string, isEndTerminal?: boolean): string {
-  const color = nodeColor ?? shapeDefaultColor(shape, palette, isEndTerminal);
+function nodeFill(palette: PaletteColors, isDark: boolean, shape: GraphShape, nodeColor?: string, isEndTerminal?: boolean, colorOff?: boolean): string {
+  const color = nodeColor ?? shapeDefaultColor(shape, palette, isEndTerminal, colorOff);
   return mix(color, isDark ? palette.surface : palette.bg, 25);
 }
 
-function nodeStroke(palette: PaletteColors, shape: GraphShape, nodeColor?: string, isEndTerminal?: boolean): string {
-  return nodeColor ?? shapeDefaultColor(shape, palette, isEndTerminal);
+function nodeStroke(palette: PaletteColors, shape: GraphShape, nodeColor?: string, isEndTerminal?: boolean, colorOff?: boolean): string {
+  return nodeColor ?? shapeDefaultColor(shape, palette, isEndTerminal, colorOff);
 }
 
 // ============================================================
@@ -69,7 +70,7 @@ function nodeStroke(palette: PaletteColors, shape: GraphShape, nodeColor?: strin
 
 type GSelection = d3Selection.Selection<SVGGElement, unknown, null, undefined>;
 
-function renderTerminal(g: GSelection, node: LayoutNode, palette: PaletteColors, isDark: boolean, isEnd: boolean): void {
+function renderTerminal(g: GSelection, node: LayoutNode, palette: PaletteColors, isDark: boolean, isEnd: boolean, colorOff?: boolean): void {
   const w = node.width;
   const h = node.height;
   const rx = h / 2;
@@ -80,12 +81,12 @@ function renderTerminal(g: GSelection, node: LayoutNode, palette: PaletteColors,
     .attr('height', h)
     .attr('rx', rx)
     .attr('ry', rx)
-    .attr('fill', nodeFill(palette, isDark, node.shape, node.color, isEnd))
-    .attr('stroke', nodeStroke(palette, node.shape, node.color, isEnd))
+    .attr('fill', nodeFill(palette, isDark, node.shape, node.color, isEnd, colorOff))
+    .attr('stroke', nodeStroke(palette, node.shape, node.color, isEnd, colorOff))
     .attr('stroke-width', NODE_STROKE_WIDTH);
 }
 
-function renderProcess(g: GSelection, node: LayoutNode, palette: PaletteColors, isDark: boolean): void {
+function renderProcess(g: GSelection, node: LayoutNode, palette: PaletteColors, isDark: boolean, colorOff?: boolean): void {
   const w = node.width;
   const h = node.height;
   g.append('rect')
@@ -95,12 +96,12 @@ function renderProcess(g: GSelection, node: LayoutNode, palette: PaletteColors, 
     .attr('height', h)
     .attr('rx', 3)
     .attr('ry', 3)
-    .attr('fill', nodeFill(palette, isDark, node.shape, node.color))
-    .attr('stroke', nodeStroke(palette, node.shape, node.color))
+    .attr('fill', nodeFill(palette, isDark, node.shape, node.color, undefined, colorOff))
+    .attr('stroke', nodeStroke(palette, node.shape, node.color, undefined, colorOff))
     .attr('stroke-width', NODE_STROKE_WIDTH);
 }
 
-function renderDecision(g: GSelection, node: LayoutNode, palette: PaletteColors, isDark: boolean): void {
+function renderDecision(g: GSelection, node: LayoutNode, palette: PaletteColors, isDark: boolean, colorOff?: boolean): void {
   const w = node.width / 2;
   const h = node.height / 2;
   const points = [
@@ -111,12 +112,12 @@ function renderDecision(g: GSelection, node: LayoutNode, palette: PaletteColors,
   ].join(' ');
   g.append('polygon')
     .attr('points', points)
-    .attr('fill', nodeFill(palette, isDark, node.shape, node.color))
-    .attr('stroke', nodeStroke(palette, node.shape, node.color))
+    .attr('fill', nodeFill(palette, isDark, node.shape, node.color, undefined, colorOff))
+    .attr('stroke', nodeStroke(palette, node.shape, node.color, undefined, colorOff))
     .attr('stroke-width', NODE_STROKE_WIDTH);
 }
 
-function renderIO(g: GSelection, node: LayoutNode, palette: PaletteColors, isDark: boolean): void {
+function renderIO(g: GSelection, node: LayoutNode, palette: PaletteColors, isDark: boolean, colorOff?: boolean): void {
   const w = node.width / 2;
   const h = node.height / 2;
   const sk = IO_SKEW;
@@ -128,15 +129,15 @@ function renderIO(g: GSelection, node: LayoutNode, palette: PaletteColors, isDar
   ].join(' ');
   g.append('polygon')
     .attr('points', points)
-    .attr('fill', nodeFill(palette, isDark, node.shape, node.color))
-    .attr('stroke', nodeStroke(palette, node.shape, node.color))
+    .attr('fill', nodeFill(palette, isDark, node.shape, node.color, undefined, colorOff))
+    .attr('stroke', nodeStroke(palette, node.shape, node.color, undefined, colorOff))
     .attr('stroke-width', NODE_STROKE_WIDTH);
 }
 
-function renderSubroutine(g: GSelection, node: LayoutNode, palette: PaletteColors, isDark: boolean): void {
+function renderSubroutine(g: GSelection, node: LayoutNode, palette: PaletteColors, isDark: boolean, colorOff?: boolean): void {
   const w = node.width;
   const h = node.height;
-  const s = nodeStroke(palette, node.shape, node.color);
+  const s = nodeStroke(palette, node.shape, node.color, undefined, colorOff);
   // Outer rectangle
   g.append('rect')
     .attr('x', -w / 2)
@@ -145,7 +146,7 @@ function renderSubroutine(g: GSelection, node: LayoutNode, palette: PaletteColor
     .attr('height', h)
     .attr('rx', 3)
     .attr('ry', 3)
-    .attr('fill', nodeFill(palette, isDark, node.shape, node.color))
+    .attr('fill', nodeFill(palette, isDark, node.shape, node.color, undefined, colorOff))
     .attr('stroke', s)
     .attr('stroke-width', NODE_STROKE_WIDTH);
   // Left inner border
@@ -166,7 +167,7 @@ function renderSubroutine(g: GSelection, node: LayoutNode, palette: PaletteColor
     .attr('stroke-width', NODE_STROKE_WIDTH);
 }
 
-function renderDocument(g: GSelection, node: LayoutNode, palette: PaletteColors, isDark: boolean): void {
+function renderDocument(g: GSelection, node: LayoutNode, palette: PaletteColors, isDark: boolean, colorOff?: boolean): void {
   const w = node.width;
   const h = node.height;
   const waveH = DOC_WAVE_HEIGHT;
@@ -186,30 +187,30 @@ function renderDocument(g: GSelection, node: LayoutNode, palette: PaletteColors,
 
   g.append('path')
     .attr('d', d)
-    .attr('fill', nodeFill(palette, isDark, node.shape, node.color))
-    .attr('stroke', nodeStroke(palette, node.shape, node.color))
+    .attr('fill', nodeFill(palette, isDark, node.shape, node.color, undefined, colorOff))
+    .attr('stroke', nodeStroke(palette, node.shape, node.color, undefined, colorOff))
     .attr('stroke-width', NODE_STROKE_WIDTH);
 }
 
-function renderNodeShape(g: GSelection, node: LayoutNode, palette: PaletteColors, isDark: boolean, endTerminalIds: Set<string>): void {
+function renderNodeShape(g: GSelection, node: LayoutNode, palette: PaletteColors, isDark: boolean, endTerminalIds: Set<string>, colorOff?: boolean): void {
   switch (node.shape) {
     case 'terminal':
-      renderTerminal(g, node, palette, isDark, endTerminalIds.has(node.id));
+      renderTerminal(g, node, palette, isDark, endTerminalIds.has(node.id), colorOff);
       break;
     case 'process':
-      renderProcess(g, node, palette, isDark);
+      renderProcess(g, node, palette, isDark, colorOff);
       break;
     case 'decision':
-      renderDecision(g, node, palette, isDark);
+      renderDecision(g, node, palette, isDark, colorOff);
       break;
     case 'io':
-      renderIO(g, node, palette, isDark);
+      renderIO(g, node, palette, isDark, colorOff);
       break;
     case 'subroutine':
-      renderSubroutine(g, node, palette, isDark);
+      renderSubroutine(g, node, palette, isDark, colorOff);
       break;
     case 'document':
-      renderDocument(g, node, palette, isDark);
+      renderDocument(g, node, palette, isDark, colorOff);
       break;
   }
 }
@@ -443,6 +444,7 @@ export function renderFlowchart(
   }
 
   // Render nodes (top layer)
+  const colorOff = graph.options?.color === 'off';
   for (const node of layout.nodes) {
     const nodeG = contentG
       .append('g')
@@ -458,7 +460,7 @@ export function renderFlowchart(
     }
 
     // Shape
-    renderNodeShape(nodeG as GSelection, node, palette, isDark, endTerminalIds);
+    renderNodeShape(nodeG as GSelection, node, palette, isDark, endTerminalIds, colorOff);
 
     // Label
     nodeG

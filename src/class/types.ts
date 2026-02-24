@@ -47,5 +47,6 @@ export interface ParsedClassDiagram {
   titleLineNumber?: number;
   classes: ClassNode[];
   relationships: ClassRelationship[];
+  options: Record<string, string>;
   error?: string;
 }

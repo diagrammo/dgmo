@@ -169,6 +169,7 @@ export function parseClassDiagram(
     type: 'class',
     classes: [],
     relationships: [],
+    options: {},
   };
 
   const classMap = new Map<string, ClassNode>();
@@ -228,8 +229,11 @@ export function parseClassDiagram(
         continue;
       }
 
-      // Unknown single-word keys are metadata — skip
-      if (!/\s/.test(key)) continue;
+      // Store diagram-level options (e.g., color: off)
+      if (!/\s/.test(key)) {
+        result.options[key] = value;
+        continue;
+      }
     }
 
     // Indented lines = members of current class

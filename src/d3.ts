@@ -620,12 +620,15 @@ export function parseD3(content: string, palette?: PaletteColors): ParsedD3 {
       }
 
       if (key === 'orientation') {
-        const v = line
-          .substring(colonIndex + 1)
-          .trim()
-          .toLowerCase();
-        if (v === 'horizontal' || v === 'vertical') {
-          result.orientation = v;
+        // Only arc and timeline support orientation
+        if (result.type === 'arc' || result.type === 'timeline') {
+          const v = line
+            .substring(colonIndex + 1)
+            .trim()
+            .toLowerCase();
+          if (v === 'horizontal' || v === 'vertical') {
+            result.orientation = v;
+          }
         }
         continue;
       }
@@ -2916,6 +2919,34 @@ export function renderTimeline(
           if (ev.endDate) {
             const y2 = yScale(parseTimelineDate(ev.endDate));
             const rectH = Math.max(y2 - y, 4);
+
+            let fill: string = laneColor;
+            if (ev.uncertain) {
+              const gradientId = `uncertain-vg-${ev.lineNumber}`;
+              const defs =
+                svg.select('defs').node() || svg.append('defs').node();
+              d3Selection
+                .select(defs as Element)
+                .append('linearGradient')
+                .attr('id', gradientId)
+                .attr('x1', '0%')
+                .attr('y1', '0%')
+                .attr('x2', '0%')
+                .attr('y2', '100%')
+                .selectAll('stop')
+                .data([
+                  { offset: '0%', opacity: 1 },
+                  { offset: '80%', opacity: 1 },
+                  { offset: '100%', opacity: 0 },
+                ])
+                .enter()
+                .append('stop')
+                .attr('offset', (d) => d.offset)
+                .attr('stop-color', laneColor)
+                .attr('stop-opacity', (d) => d.opacity);
+              fill = `url(#${gradientId})`;
+            }
+
             evG
               .append('rect')
               .attr('x', laneCenter - 6)
@@ -2923,7 +2954,7 @@ export function renderTimeline(
               .attr('width', 12)
               .attr('height', rectH)
               .attr('rx', 4)
-              .attr('fill', laneColor);
+              .attr('fill', fill);
             evG
               .append('text')
               .attr('x', laneCenter + 14)
@@ -3127,6 +3158,34 @@ export function renderTimeline(
         if (ev.endDate) {
           const y2 = yScale(parseTimelineDate(ev.endDate));
           const rectH = Math.max(y2 - y, 4);
+
+          let fill: string = color;
+          if (ev.uncertain) {
+            const gradientId = `uncertain-v-${ev.lineNumber}`;
+            const defs =
+              svg.select('defs').node() || svg.append('defs').node();
+            d3Selection
+              .select(defs as Element)
+              .append('linearGradient')
+              .attr('id', gradientId)
+              .attr('x1', '0%')
+              .attr('y1', '0%')
+              .attr('x2', '0%')
+              .attr('y2', '100%')
+              .selectAll('stop')
+              .data([
+                { offset: '0%', opacity: 1 },
+                { offset: '80%', opacity: 1 },
+                { offset: '100%', opacity: 0 },
+              ])
+              .enter()
+              .append('stop')
+              .attr('offset', (d) => d.offset)
+              .attr('stop-color', color)
+              .attr('stop-opacity', (d) => d.opacity);
+            fill = `url(#${gradientId})`;
+          }
+
           evG
             .append('rect')
             .attr('x', axisX - 6)
@@ -3134,7 +3193,7 @@ export function renderTimeline(
             .attr('width', 12)
             .attr('height', rectH)
             .attr('rx', 4)
-            .attr('fill', color);
+            .attr('fill', fill);
           evG
             .append('text')
             .attr('x', axisX + 16)

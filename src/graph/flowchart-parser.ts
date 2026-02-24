@@ -236,6 +236,7 @@ export function parseFlowchart(
     direction: 'TB',
     nodes: [],
     edges: [],
+    options: {},
   };
 
   const nodeMap = new Map<string, GraphNode>();
@@ -448,7 +449,8 @@ export function parseFlowchart(
         continue;
       }
 
-      // Unknown metadata — skip
+      // Store other options (e.g., color: off)
+      result.options[key] = value;
       continue;
     }
 

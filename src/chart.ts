@@ -150,9 +150,12 @@ export function parseChart(
     }
 
     if (key === 'orientation') {
-      const v = value.toLowerCase();
-      if (v === 'horizontal' || v === 'vertical') {
-        result.orientation = v;
+      // Only bar and bar-stacked support orientation (axis swapping)
+      if (result.type === 'bar' || result.type === 'bar-stacked') {
+        const v = value.toLowerCase();
+        if (v === 'horizontal' || v === 'vertical') {
+          result.orientation = v;
+        }
       }
       continue;
     }

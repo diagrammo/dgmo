@@ -41,5 +41,6 @@ export interface ParsedGraph {
   nodes: GraphNode[];
   edges: GraphEdge[];
   groups?: GraphGroup[];
+  options: Record<string, string>;
   error?: string;
 }

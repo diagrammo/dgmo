@@ -209,6 +209,7 @@ export function renderOrg(
   }
 
   // Render container backgrounds (bottom layer)
+  const colorOff = parsed.options?.color === 'off';
   for (const c of layout.containers) {
     const cG = contentG
       .append('g')
@@ -234,8 +235,8 @@ export function renderOrg(
       });
     }
 
-    const fill = containerFill(palette, isDark, c.color);
-    const stroke = containerStroke(palette, c.color);
+    const fill = containerFill(palette, isDark, colorOff ? undefined : c.color);
+    const stroke = containerStroke(palette, colorOff ? undefined : c.color);
 
     // Background rect
     cG.append('rect')
@@ -301,7 +302,7 @@ export function renderOrg(
         .attr('y', c.height - COLLAPSE_BAR_HEIGHT)
         .attr('width', c.width - COLLAPSE_BAR_INSET * 2)
         .attr('height', COLLAPSE_BAR_HEIGHT)
-        .attr('fill', containerStroke(palette, c.color))
+        .attr('fill', containerStroke(palette, colorOff ? undefined : c.color))
         .attr('clip-path', `url(#${clipId})`)
         .attr('class', 'org-collapse-bar');
     }
@@ -360,8 +361,8 @@ export function renderOrg(
     }
 
     // Card background
-    const fill = nodeFill(palette, isDark, node.color);
-    const stroke = nodeStroke(palette, node.color);
+    const fill = nodeFill(palette, isDark, colorOff ? undefined : node.color);
+    const stroke = nodeStroke(palette, colorOff ? undefined : node.color);
 
     const rect = nodeG
       .append('rect')
@@ -448,21 +449,29 @@ export function renderOrg(
         .attr('y', node.height - COLLAPSE_BAR_HEIGHT)
         .attr('width', node.width - COLLAPSE_BAR_INSET * 2)
         .attr('height', COLLAPSE_BAR_HEIGHT)
-        .attr('fill', nodeStroke(palette, node.color))
+        .attr('fill', nodeStroke(palette, colorOff ? undefined : node.color))
         .attr('clip-path', `url(#${clipId})`)
         .attr('class', 'org-collapse-bar');
     }
 
   }
 
-  // Render legend — skip entirely in export mode; hide non-active groups when one is active
+  // Render legend — skip entirely in export mode.
+  // No active group: all groups rendered minified (compact chips).
+  // Active group selected: only that group rendered (full size), others hidden.
   if (!exportDims) for (const group of layout.legend) {
     const isActive =
       activeTagGroup != null &&
       group.name.toLowerCase() === activeTagGroup.toLowerCase();
 
-    // When a group is active, skip rendering all other groups
+    // When a group is active, skip all other groups entirely
     if (activeTagGroup != null && !isActive) continue;
+
+    // No active group → minified; active group → full
+    const isMinified = activeTagGroup == null;
+
+    const renderW = isMinified ? group.minifiedWidth : group.width;
+    const renderH = isMinified ? group.minifiedHeight : group.height;
 
     const gEl = contentG
       .append('g')
@@ -477,8 +486,8 @@ export function renderOrg(
       .append('rect')
       .attr('x', 0)
       .attr('y', 0)
-      .attr('width', group.width)
-      .attr('height', group.height)
+      .attr('width', renderW)
+      .attr('height', renderH)
       .attr('rx', LEGEND_RADIUS)
       .attr('fill', legendFill);
 
@@ -499,10 +508,13 @@ export function renderOrg(
       .append('text')
       .attr('x', LEGEND_PAD)
       .attr('y', LEGEND_HEADER_H / 2 + LEGEND_FONT_SIZE / 2 - 2)
-      .attr('fill', palette.text)
+      .attr('fill', isMinified ? palette.textMuted : palette.text)
       .attr('font-size', LEGEND_FONT_SIZE)
       .attr('font-weight', 'bold')
       .text(group.name);
+
+    // Minified groups only show the header — skip entries and eye icon
+    if (isMinified) continue;
 
     // Eye icon for visibility toggle (interactive only, not export)
     if (hiddenAttributes !== undefined && !exportDims) {

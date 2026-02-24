@@ -275,6 +275,7 @@ function renderDatabaseParticipant(
 
   // Filled body (no stroke) to hide the top arc of the bottom ellipse
   g.append('rect')
+    .attr('class', 'participant-body')
     .attr('x', -W / 2)
     .attr('y', topY)
     .attr('width', W)
@@ -333,6 +334,7 @@ function renderQueueParticipant(
 
   // Body rect (no stroke) to hide left arc of right ellipse
   g.append('rect')
+    .attr('class', 'participant-body')
     .attr('x', leftX)
     .attr('y', 0)
     .attr('width', bodyW)
@@ -380,6 +382,7 @@ function renderCacheParticipant(
   const s = stroke(palette);
   const dash = '4 3';
 
+  // Bottom ellipse (back face)
   g.append('ellipse')
     .attr('cx', 0)
     .attr('cy', topY + bodyH)
@@ -391,6 +394,7 @@ function renderCacheParticipant(
     .attr('stroke-dasharray', dash);
 
   g.append('rect')
+    .attr('class', 'participant-body')
     .attr('x', -W / 2)
     .attr('y', topY)
     .attr('width', W)
@@ -415,6 +419,7 @@ function renderCacheParticipant(
     .attr('stroke-width', SW)
     .attr('stroke-dasharray', dash);
 
+  // Top ellipse cap
   g.append('ellipse')
     .attr('cx', 0)
     .attr('cy', topY)
@@ -1728,6 +1733,7 @@ export function renderSequenceDiagram(
       .attr('stroke-opacity', 0.5)
       .attr('data-participant-id', act.participantId)
       .attr('data-msg-lines', coveredLines.join(','))
+      .attr('data-line-number', coveredLines[0] ?? '')
       .attr('class', 'activation');
   });
 
