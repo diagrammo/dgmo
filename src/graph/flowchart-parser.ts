@@ -1,5 +1,6 @@
 import { resolveColor } from '../colors';
 import type { PaletteColors } from '../palettes';
+import { makeDgmoError, formatDgmoError } from '../diagnostics';
 import type {
   ParsedGraph,
   GraphNode,
@@ -237,6 +238,14 @@ export function parseFlowchart(
     nodes: [],
     edges: [],
     options: {},
+    diagnostics: [],
+  };
+
+  const fail = (line: number, message: string): ParsedGraph => {
+    const diag = makeDgmoError(line, message);
+    result.diagnostics.push(diag);
+    result.error = formatDgmoError(diag);
+    return result;
   };
 
   const nodeMap = new Map<string, GraphNode>();
@@ -429,8 +438,7 @@ export function parseFlowchart(
 
       if (key === 'chart') {
         if (value.toLowerCase() !== 'flowchart') {
-          result.error = `Line ${lineNumber}: Expected chart type "flowchart", got "${value}"`;
-          return result;
+          return fail(lineNumber, `Expected chart type "flowchart", got "${value}"`);
         }
         continue;
       }
@@ -462,7 +470,23 @@ export function parseFlowchart(
 
   // Validation: no nodes found
   if (result.nodes.length === 0 && !result.error) {
-    result.error = 'No nodes found. Add flowchart content with shape syntax like [Process] or (Start).';
+    const diag = makeDgmoError(1, 'No nodes found. Add flowchart content with shape syntax like [Process] or (Start).');
+    result.diagnostics.push(diag);
+    result.error = formatDgmoError(diag);
+  }
+
+  // Warn about orphaned nodes (not referenced in any edge)
+  if (result.nodes.length >= 2 && result.edges.length >= 1 && !result.error) {
+    const connectedIds = new Set<string>();
+    for (const edge of result.edges) {
+      connectedIds.add(edge.source);
+      connectedIds.add(edge.target);
+    }
+    for (const node of result.nodes) {
+      if (!connectedIds.has(node.id)) {
+        result.diagnostics.push(makeDgmoError(node.lineNumber, `Node "${node.label}" is not connected to any other node`, 'warning'));
+      }
+    }
   }
 
   return result;

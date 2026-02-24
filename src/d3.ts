@@ -167,6 +167,7 @@ export interface ParsedD3 {
   quadrantYAxis: [string, string] | null;
   quadrantYAxisLineNumber: number | null;
   quadrantTitleLineNumber: number | null;
+  diagnostics: DgmoError[];
   error: string | null;
 }
 
@@ -177,6 +178,8 @@ export interface ParsedD3 {
 import { resolveColor } from './colors';
 import type { PaletteColors } from './palettes';
 import { getSeriesColors } from './palettes';
+import type { DgmoError } from './diagnostics';
+import { makeDgmoError, formatDgmoError } from './diagnostics';
 
 // ============================================================
 // Timeline Date Helper
@@ -298,12 +301,19 @@ export function parseD3(content: string, palette?: PaletteColors): ParsedD3 {
     quadrantYAxis: null,
     quadrantYAxisLineNumber: null,
     quadrantTitleLineNumber: null,
+    diagnostics: [],
     error: null,
   };
 
-  if (!content || !content.trim()) {
-    result.error = 'Empty content';
+  const fail = (line: number, message: string): ParsedD3 => {
+    const diag = makeDgmoError(line, message);
+    result.diagnostics.push(diag);
+    result.error = formatDgmoError(diag);
     return result;
+  };
+
+  if (!content || !content.trim()) {
+    return fail(0, 'Empty content');
   }
 
   const lines = content.split('\n');
@@ -604,8 +614,7 @@ export function parseD3(content: string, palette?: PaletteColors): ParsedD3 {
         ) {
           result.type = value;
         } else {
-          result.error = `Unsupported chart type: ${value}. Supported types: slope, wordcloud, arc, timeline, venn, quadrant, sequence`;
-          return result;
+          return fail(lineNumber, `Unsupported chart type: ${value}. Supported types: slope, wordcloud, arc, timeline, venn, quadrant, sequence`);
         }
         continue;
       }
@@ -786,8 +795,7 @@ export function parseD3(content: string, palette?: PaletteColors): ParsedD3 {
 
   // Validation
   if (!result.type) {
-    result.error = 'Missing required "chart:" line (e.g., "chart: slope")';
-    return result;
+    return fail(1, 'Missing required "chart:" line (e.g., "chart: slope")');
   }
 
   // Sequence diagrams are parsed by their own dedicated parser
@@ -795,15 +803,17 @@ export function parseD3(content: string, palette?: PaletteColors): ParsedD3 {
     return result;
   }
 
+  const warn = (line: number, message: string): void => {
+    result.diagnostics.push(makeDgmoError(line, message, 'warning'));
+  };
+
   if (result.type === 'wordcloud') {
     // If no structured words were found, parse freeform text as word frequencies
     if (result.words.length === 0 && freeformLines.length > 0) {
       result.words = tokenizeFreeformText(freeformLines.join(' '));
     }
     if (result.words.length === 0) {
-      result.error =
-        'No words found. Add words as "word: weight", one per line, or paste freeform text';
-      return result;
+      warn(1, 'No words found. Add words as "word: weight", one per line, or paste freeform text');
     }
     // Apply max word limit (words are already sorted by weight desc for freeform)
     if (
@@ -820,15 +830,13 @@ export function parseD3(content: string, palette?: PaletteColors): ParsedD3 {
 
   if (result.type === 'arc') {
     if (result.links.length === 0) {
-      result.error =
-        'No links found. Add links as "Source -> Target: weight" (e.g., "Alice -> Bob: 5")';
-      return result;
+      warn(1, 'No links found. Add links as "Source -> Target: weight" (e.g., "Alice -> Bob: 5")');
     }
     // Validate arc ordering vs groups
     if (result.arcNodeGroups.length > 0) {
       if (result.arcOrder === 'name' || result.arcOrder === 'degree') {
-        result.error = `Cannot use "order: ${result.arcOrder}" with ## section headers. Use "order: group" or remove section headers.`;
-        return result;
+        warn(1, `Cannot use "order: ${result.arcOrder}" with ## section headers. Use "order: group" or remove section headers.`);
+        result.arcOrder = 'group';
       }
       if (result.arcOrder === 'appearance') {
         result.arcOrder = 'group';
@@ -839,36 +847,29 @@ export function parseD3(content: string, palette?: PaletteColors): ParsedD3 {
 
   if (result.type === 'timeline') {
     if (result.timelineEvents.length === 0) {
-      result.error =
-        'No events found. Add events as "YYYY: description" or "YYYY->YYYY: description"';
-      return result;
+      warn(1, 'No events found. Add events as "YYYY: description" or "YYYY->YYYY: description"');
     }
     return result;
   }
 
   if (result.type === 'venn') {
     if (result.vennSets.length < 2) {
-      result.error =
-        'At least 2 sets are required. Add sets as "Name: size" (e.g., "Math: 100")';
-      return result;
+      return fail(1, 'At least 2 sets are required. Add sets as "Name: size" (e.g., "Math: 100")');
     }
     if (result.vennSets.length > 3) {
-      result.error = 'At most 3 sets are supported. Remove extra sets.';
-      return result;
+      return fail(1, 'At most 3 sets are supported. Remove extra sets.');
     }
     // Validate overlap references and sizes
     const setMap = new Map(result.vennSets.map((s) => [s.name, s.size]));
     for (const ov of result.vennOverlaps) {
       for (const setName of ov.sets) {
         if (!setMap.has(setName)) {
-          result.error = `Overlap references unknown set "${setName}". Define it first as "${setName}: <size>"`;
-          return result;
+          return fail(ov.lineNumber, `Overlap references unknown set "${setName}". Define it first as "${setName}: <size>"`);
         }
       }
       const minSetSize = Math.min(...ov.sets.map((s) => setMap.get(s)!));
       if (ov.size > minSetSize) {
-        result.error = `Overlap size ${ov.size} exceeds smallest constituent set size ${minSetSize}`;
-        return result;
+        warn(ov.lineNumber, `Overlap size ${ov.size} exceeds smallest constituent set size ${minSetSize}`);
       }
     }
     return result;
@@ -876,33 +877,29 @@ export function parseD3(content: string, palette?: PaletteColors): ParsedD3 {
 
   if (result.type === 'quadrant') {
     if (result.quadrantPoints.length === 0) {
-      result.error =
-        'No data points found. Add points as "Label: x, y" (e.g., "Item A: 0.5, 0.7")';
-      return result;
+      warn(1, 'No data points found. Add points as "Label: x, y" (e.g., "Item A: 0.5, 0.7")');
     }
     return result;
   }
 
   // Slope chart validation
   if (result.periods.length < 2) {
-    result.error =
-      'Missing or invalid periods line. Provide at least 2 comma-separated period labels (e.g., "2020, 2024")';
-    return result;
+    return fail(1, 'Missing or invalid periods line. Provide at least 2 comma-separated period labels (e.g., "2020, 2024")');
   }
 
   if (result.data.length === 0) {
-    result.error =
-      'No data lines found. Add data as "Label: value1, value2" (e.g., "Apple: 25, 35")';
-    return result;
+    warn(1, 'No data lines found. Add data as "Label: value1, value2" (e.g., "Apple: 25, 35")');
   }
 
-  // Validate value counts match period count
+  // Validate value counts match period count — warn and skip mismatched items
   for (const item of result.data) {
     if (item.values.length !== result.periods.length) {
-      result.error = `Data item "${item.label}" has ${item.values.length} value(s) but ${result.periods.length} period(s) are defined`;
-      return result;
+      warn(item.lineNumber, `Data item "${item.label}" has ${item.values.length} value(s) but ${result.periods.length} period(s) are defined`);
     }
   }
+  result.data = result.data.filter(
+    (item) => item.values.length === result.periods.length
+  );
 
   return result;
 }

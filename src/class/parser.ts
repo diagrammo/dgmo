@@ -1,5 +1,6 @@
 import { resolveColor } from '../colors';
 import type { PaletteColors } from '../palettes';
+import { makeDgmoError, formatDgmoError } from '../diagnostics';
 import type {
   ParsedClassDiagram,
   ClassNode,
@@ -170,6 +171,14 @@ export function parseClassDiagram(
     classes: [],
     relationships: [],
     options: {},
+    diagnostics: [],
+  };
+
+  const fail = (line: number, message: string): ParsedClassDiagram => {
+    const diag = makeDgmoError(line, message);
+    result.diagnostics.push(diag);
+    result.error = formatDgmoError(diag);
+    return result;
   };
 
   const classMap = new Map<string, ClassNode>();
@@ -217,8 +226,7 @@ export function parseClassDiagram(
       // Only recognize known metadata keys
       if (key === 'chart') {
         if (value.toLowerCase() !== 'class') {
-          result.error = `Line ${lineNumber}: Expected chart type "class", got "${value}"`;
-          return result;
+          return fail(lineNumber, `Expected chart type "class", got "${value}"`);
         }
         continue;
       }
@@ -318,8 +326,23 @@ export function parseClassDiagram(
 
   // Validation
   if (result.classes.length === 0 && !result.error) {
-    result.error =
-      'No classes found. Add class declarations like "ClassName" or "ClassName [interface]".';
+    const diag = makeDgmoError(1, 'No classes found. Add class declarations like "ClassName" or "ClassName [interface]".');
+    result.diagnostics.push(diag);
+    result.error = formatDgmoError(diag);
+  }
+
+  // Warn about isolated classes (not in any relationship)
+  if (result.classes.length >= 2 && result.relationships.length >= 1 && !result.error) {
+    const connectedIds = new Set<string>();
+    for (const rel of result.relationships) {
+      connectedIds.add(rel.source);
+      connectedIds.add(rel.target);
+    }
+    for (const cls of result.classes) {
+      if (!connectedIds.has(cls.id)) {
+        result.diagnostics.push(makeDgmoError(cls.lineNumber, `Class "${cls.name}" is not connected to any other class`, 'warning'));
+      }
+    }
   }
 
   return result;

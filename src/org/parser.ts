@@ -1,5 +1,7 @@
 import { resolveColor } from '../colors';
 import type { PaletteColors } from '../palettes';
+import type { DgmoError } from '../diagnostics';
+import { makeDgmoError, formatDgmoError } from '../diagnostics';
 
 // ============================================================
 // Types
@@ -37,6 +39,7 @@ export interface ParsedOrg {
   roots: OrgNode[];
   tagGroups: OrgTagGroup[];
   options: Record<string, string>;
+  diagnostics: DgmoError[];
   error: string | null;
 }
 
@@ -90,12 +93,19 @@ export function parseOrg(
     roots: [],
     tagGroups: [],
     options: {},
+    diagnostics: [],
     error: null,
   };
 
-  if (!content || !content.trim()) {
-    result.error = 'No content provided';
+  const fail = (line: number, message: string): ParsedOrg => {
+    const diag = makeDgmoError(line, message);
+    result.diagnostics.push(diag);
+    result.error = formatDgmoError(diag);
     return result;
+  };
+
+  if (!content || !content.trim()) {
+    return fail(0, 'No content provided');
   }
 
   const lines = content.split('\n');
@@ -138,8 +148,7 @@ export function parseOrg(
       if (chartMatch) {
         const chartType = chartMatch[1].trim().toLowerCase();
         if (chartType !== 'org') {
-          result.error = `Line ${lineNumber}: Expected chart type "org", got "${chartType}"`;
-          return result;
+          return fail(lineNumber, `Expected chart type "org", got "${chartType}"`);
         }
         continue;
       }
@@ -172,8 +181,7 @@ export function parseOrg(
     const groupMatch = trimmed.match(GROUP_HEADING_RE);
     if (groupMatch) {
       if (contentStarted) {
-        result.error = `Line ${lineNumber}: Tag groups (##) must appear before org content`;
-        return result;
+        return fail(lineNumber, 'Tag groups (##) must appear before org content');
       }
       const groupName = groupMatch[1].trim();
       const alias = groupMatch[2] || undefined;
@@ -201,8 +209,7 @@ export function parseOrg(
           : trimmed;
         const { label, color } = extractColor(entryText, palette);
         if (!color) {
-          result.error = `Line ${lineNumber}: Expected 'Value(color)' in tag group '${currentTagGroup.name}'`;
-          return result;
+          return fail(lineNumber, `Expected 'Value(color)' in tag group '${currentTagGroup.name}'`);
         }
         if (isDefault) {
           currentTagGroup.defaultValue = label;
@@ -259,8 +266,7 @@ export function parseOrg(
       // Find the parent node: top of stack (the most recent node)
       const parent = findMetadataParent(indent, indentStack);
       if (!parent) {
-        result.error = `Line ${lineNumber}: Metadata has no parent node`;
-        return result;
+        return fail(lineNumber, 'Metadata has no parent node');
       }
       parent.metadata[key] = value;
     } else if (metadataMatch && indentStack.length === 0) {
@@ -272,8 +278,7 @@ export function parseOrg(
         const node = parseNodeLabel(trimmed, indent, lineNumber, palette, ++nodeCounter, aliasMap);
         attachNode(node, indent, indentStack, result);
       } else {
-        result.error = `Line ${lineNumber}: Metadata has no parent node`;
-        return result;
+        return fail(lineNumber, 'Metadata has no parent node');
       }
     } else {
       // It's a node label — possibly with single-line pipe-delimited metadata
@@ -283,7 +288,9 @@ export function parseOrg(
   }
 
   if (result.roots.length === 0 && !result.error) {
-    result.error = 'No nodes found in org chart';
+    const diag = makeDgmoError(1, 'No nodes found in org chart');
+    result.diagnostics.push(diag);
+    result.error = formatDgmoError(diag);
   }
 
   return result;

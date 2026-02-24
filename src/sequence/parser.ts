@@ -3,6 +3,8 @@
 // ============================================================
 
 import { inferParticipantType } from './participant-inference';
+import type { DgmoError } from '../diagnostics';
+import { makeDgmoError, formatDgmoError } from '../diagnostics';
 
 /**
  * Participant types that can be declared via "Name is a type" syntax.
@@ -140,6 +142,7 @@ export interface ParsedSequenceDgmo {
   groups: SequenceGroup[];
   sections: SequenceSection[];
   options: Record<string, string>;
+  diagnostics: DgmoError[];
   error: string | null;
 }
 
@@ -235,12 +238,19 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     groups: [],
     sections: [],
     options: {},
+    diagnostics: [],
     error: null,
   };
 
-  if (!content || !content.trim()) {
-    result.error = 'Empty content';
+  const fail = (line: number, message: string): ParsedSequenceDgmo => {
+    const diag = makeDgmoError(line, message);
+    result.diagnostics.push(diag);
+    result.error = formatDgmoError(diag);
     return result;
+  };
+
+  if (!content || !content.trim()) {
+    return fail(0, 'Empty content');
   }
 
   const lines = content.split('\n');
@@ -286,8 +296,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     if (groupMatch) {
       const groupColor = groupMatch[2]?.trim();
       if (groupColor && groupColor.startsWith('#')) {
-        result.error = `Line ${lineNumber}: Use a named color instead of hex (e.g., blue, red, teal)`;
-        return result;
+        return fail(lineNumber, 'Use a named color instead of hex (e.g., blue, red, teal)');
       }
       contentStarted = true;
       activeGroup = {
@@ -310,8 +319,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
 
     // Reject # as comment syntax (## is for group headings, handled above)
     if (trimmed.startsWith('#') && !trimmed.startsWith('##')) {
-      result.error = `Line ${lineNumber}: Use // for comments. # is reserved for group headings (##)`;
-      return result;
+      return fail(lineNumber, 'Use // for comments. # is reserved for group headings (##)');
     }
 
     // Parse section dividers — "== Label ==" or "== Label(color) =="
@@ -327,8 +335,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       const labelRaw = sectionMatch[1].trim();
       const colorMatch = labelRaw.match(/^(.+?)\(([^)]+)\)$/);
       if (colorMatch && colorMatch[2].trim().startsWith('#')) {
-        result.error = `Line ${lineNumber}: Use a named color instead of hex (e.g., blue, red, teal)`;
-        return result;
+        return fail(lineNumber, 'Use a named color instead of hex (e.g., blue, red, teal)');
       }
       contentStarted = true;
       const section: SequenceSection = {
@@ -355,16 +362,14 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       if (key === 'chart') {
         hasExplicitChart = true;
         if (value.toLowerCase() !== 'sequence') {
-          result.error = `Expected chart type "sequence", got "${value}"`;
-          return result;
+          return fail(lineNumber, `Expected chart type "sequence", got "${value}"`);
         }
         continue;
       }
 
       // Enforce headers-before-content
       if (contentStarted) {
-        result.error = `Line ${lineNumber}: Options like '${key}: ${value}' must appear before the first message or declaration`;
-        return result;
+        return fail(lineNumber, `Options like '${key}: ${value}' must appear before the first message or declaration`);
       }
 
       if (key === 'title') {
@@ -415,8 +420,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       if (activeGroup && !activeGroup.participantIds.includes(id)) {
         const existingGroup = participantGroupMap.get(id);
         if (existingGroup) {
-          result.error = `Line ${lineNumber}: Participant '${id}' is already in group '${existingGroup}' — participants can only belong to one group`;
-          return result;
+          return fail(lineNumber, `Participant '${id}' is already in group '${existingGroup}' — participants can only belong to one group`);
         }
         activeGroup.participantIds.push(id);
         participantGroupMap.set(id, activeGroup.name);
@@ -444,8 +448,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       if (activeGroup && !activeGroup.participantIds.includes(id)) {
         const existingGroup = participantGroupMap.get(id);
         if (existingGroup) {
-          result.error = `Line ${lineNumber}: Participant '${id}' is already in group '${existingGroup}' — participants can only belong to one group`;
-          return result;
+          return fail(lineNumber, `Participant '${id}' is already in group '${existingGroup}' — participants can only belong to one group`);
         }
         activeGroup.participantIds.push(id);
         participantGroupMap.set(id, activeGroup.name);
@@ -468,8 +471,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       if (!activeGroup.participantIds.includes(id)) {
         const existingGroup = participantGroupMap.get(id);
         if (existingGroup) {
-          result.error = `Line ${lineNumber}: Participant '${id}' is already in group '${existingGroup}' — participants can only belong to one group`;
-          return result;
+          return fail(lineNumber, `Participant '${id}' is already in group '${existingGroup}' — participants can only belong to one group`);
         }
         activeGroup.participantIds.push(id);
         participantGroupMap.set(id, activeGroup.name);
@@ -499,8 +501,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     // Reject "async" keyword prefix — use ~> instead
     const asyncPrefixMatch = trimmed.match(/^async\s+(.+)$/i);
     if (asyncPrefixMatch && ARROW_PATTERN.test(asyncPrefixMatch[1])) {
-      result.error = `Line ${lineNumber}: Use ~> for async messages: A ~> B: message`;
-      return result;
+      return fail(lineNumber, 'Use ~> for async messages: A ~> B: message');
     }
 
     // Match ~> (async arrow) or -> (sync arrow)
@@ -614,8 +615,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       if (blockStack.length > 0 && blockStack[blockStack.length - 1].indent === indent) {
         const top = blockStack[blockStack.length - 1];
         if (top.block.type === 'parallel') {
-          result.error = `Line ${lineNumber}: parallel blocks don't support else if — list all concurrent messages directly inside the block`;
-          return result;
+          return fail(lineNumber, "parallel blocks don't support else if — list all concurrent messages directly inside the block");
         }
         if (top.block.type === 'if') {
           const branch: ElseIfBranch = { label: elseIfMatch[1].trim(), children: [] };
@@ -633,8 +633,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       if (blockStack.length > 0 && blockStack[blockStack.length - 1].indent === indent) {
         const top = blockStack[blockStack.length - 1];
         if (top.block.type === 'parallel') {
-          result.error = `Line ${lineNumber}: parallel blocks don't support else — list all concurrent messages directly inside the block`;
-          return result;
+          return fail(lineNumber, "parallel blocks don't support else — list all concurrent messages directly inside the block");
         }
         if (top.block.type === 'if') {
           top.inElse = true;
@@ -712,9 +711,50 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     // Check if raw content has arrow patterns for inference
     const hasArrows = lines.some((line) => ARROW_PATTERN.test(line.trim()));
     if (!hasArrows) {
-      result.error =
-        'No "chart: sequence" header and no sequence content detected';
-      return result;
+      return fail(1, 'No "chart: sequence" header and no sequence content detected');
+    }
+  }
+
+  const warn = (line: number, message: string): void => {
+    result.diagnostics.push(makeDgmoError(line, message, 'warning'));
+  };
+
+  // Warn about unused participants (only when the diagram has messages)
+  if (result.messages.length > 0) {
+    const usedIds = new Set<string>();
+    for (const msg of result.messages) {
+      usedIds.add(msg.from);
+      usedIds.add(msg.to);
+    }
+    // Walk elements recursively to find note participant references
+    const walkElements = (elements: SequenceElement[]): void => {
+      for (const el of elements) {
+        if (isSequenceNote(el)) {
+          usedIds.add(el.participantId);
+        } else if (isSequenceBlock(el)) {
+          walkElements(el.children);
+          walkElements(el.elseChildren);
+          if (el.elseIfBranches) {
+            for (const branch of el.elseIfBranches) {
+              walkElements(branch.children);
+            }
+          }
+        }
+      }
+    };
+    walkElements(result.elements);
+
+    for (const p of result.participants) {
+      if (!usedIds.has(p.id)) {
+        warn(p.lineNumber, `Participant "${p.label}" is declared but never used in any message or note`);
+      }
+    }
+  }
+
+  // Warn about empty groups
+  for (const group of result.groups) {
+    if (group.participantIds.length === 0) {
+      warn(group.lineNumber, `Group "${group.name}" has no participants`);
     }
   }
 

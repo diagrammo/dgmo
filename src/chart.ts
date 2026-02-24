@@ -20,6 +20,8 @@ export interface ChartDataPoint {
   lineNumber: number;
 }
 
+import type { DgmoError } from './diagnostics';
+
 export interface ParsedChart {
   type: ChartType;
   title?: string;
@@ -34,6 +36,7 @@ export interface ParsedChart {
   label?: string;
   labels?: 'name' | 'value' | 'percent' | 'full';
   data: ChartDataPoint[];
+  diagnostics: DgmoError[];
   error?: string;
 }
 
@@ -43,6 +46,7 @@ export interface ParsedChart {
 
 import { resolveColor } from './colors';
 import type { PaletteColors } from './palettes';
+import { makeDgmoError, formatDgmoError } from './diagnostics';
 
 // ============================================================
 // Parser
@@ -85,6 +89,14 @@ export function parseChart(
   const result: ParsedChart = {
     type: 'bar',
     data: [],
+    diagnostics: [],
+  };
+
+  const fail = (line: number, message: string): ParsedChart => {
+    const diag = makeDgmoError(line, message);
+    result.diagnostics.push(diag);
+    result.error = formatDgmoError(diag);
+    return result;
   };
 
   for (let i = 0; i < lines.length; i++) {
@@ -114,8 +126,7 @@ export function parseChart(
       if (VALID_TYPES.has(chartType)) {
         result.type = chartType;
       } else {
-        result.error = `Unsupported chart type: ${value}. Supported types: ${[...VALID_TYPES].join(', ')}.`;
-        return result;
+        return fail(lineNumber, `Unsupported chart type: ${value}. Supported types: ${[...VALID_TYPES].join(', ')}.`);
       }
       continue;
     }
@@ -222,12 +233,22 @@ export function parseChart(
   }
 
   // Validation
+  const setChartError = (line: number, message: string) => {
+    const diag = makeDgmoError(line, message);
+    result.diagnostics.push(diag);
+    result.error = formatDgmoError(diag);
+  };
+
+  const warn = (line: number, message: string): void => {
+    result.diagnostics.push(makeDgmoError(line, message, 'warning'));
+  };
+
   if (!result.error && result.data.length === 0) {
-    result.error = 'No data points found. Add data in format: Label: 123';
+    warn(1, 'No data points found. Add data in format: Label: 123');
   }
 
   if (!result.error && result.type === 'bar-stacked' && !result.seriesNames) {
-    result.error = `Chart type "bar-stacked" requires multiple series names. Use: series: Name1, Name2, Name3`;
+    setChartError(1, 'Chart type "bar-stacked" requires multiple series names. Use: series: Name1, Name2, Name3');
   }
 
   if (!result.error && result.seriesNames) {
@@ -235,10 +256,14 @@ export function parseChart(
     for (const dp of result.data) {
       const actualCount = 1 + (dp.extraValues?.length ?? 0);
       if (actualCount !== expectedCount) {
-        result.error = `Data point "${dp.label}" has ${actualCount} value(s), but ${expectedCount} series defined. Each row must have ${expectedCount} comma-separated values.`;
-        break;
+        warn(dp.lineNumber, `Data point "${dp.label}" has ${actualCount} value(s), but ${expectedCount} series defined. Each row must have ${expectedCount} comma-separated values.`);
       }
     }
+    // Filter out mismatched data points so renderers get clean data
+    result.data = result.data.filter((dp) => {
+      const actualCount = 1 + (dp.extraValues?.length ?? 0);
+      return actualCount === expectedCount;
+    });
   }
 
   return result;

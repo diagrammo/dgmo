@@ -75,9 +75,10 @@ describe('renderEChartsForExport', () => {
     expect(svg).toContain('</svg>');
   });
 
-  it('returns empty string for invalid input', async () => {
+  it('returns SVG with warning for empty scatter input', async () => {
     const svg = await renderEChartsForExport('chart: scatter\n', 'light');
-    expect(svg).toBe('');
+    // No data is now a warning, not a fatal error — diagram renders empty
+    expect(svg).toContain('<svg');
   });
 
   it('returns empty string for unsupported chart type', async () => {

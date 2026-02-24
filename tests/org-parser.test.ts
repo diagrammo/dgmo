@@ -7,12 +7,18 @@ describe('parseOrg', () => {
     it('accepts chart: org', () => {
       const result = parseOrg('chart: org\nJane Smith');
       expect(result.error).toBeNull();
+      expect(result.diagnostics).toEqual([]);
       expect(result.roots).toHaveLength(1);
     });
 
     it('rejects wrong chart type', () => {
       const result = parseOrg('chart: flowchart\nJane Smith');
       expect(result.error).toMatch(/Expected chart type "org"/);
+      // diagnostics
+      expect(result.diagnostics).toHaveLength(1);
+      expect(result.diagnostics[0].message).toMatch(/Expected chart type "org"/);
+      expect(result.diagnostics[0].severity).toBe('error');
+      expect(result.diagnostics[0].line).toBeGreaterThanOrEqual(0);
     });
 
     it('works without explicit chart: header', () => {
@@ -457,16 +463,24 @@ describe('parseOrg', () => {
     it('returns error for empty content', () => {
       const result = parseOrg('');
       expect(result.error).toBe('No content provided');
+      // diagnostics
+      expect(result.diagnostics).toHaveLength(1);
+      expect(result.diagnostics[0].message).toBe('No content provided');
+      expect(result.diagnostics[0].severity).toBe('error');
+      expect(result.diagnostics[0].line).toBeGreaterThanOrEqual(0);
     });
 
     it('returns error for whitespace-only content', () => {
       const result = parseOrg('   \n  \n  ');
       expect(result.error).toBe('No content provided');
+      // diagnostics
+      expect(result.diagnostics).toHaveLength(1);
+      expect(result.diagnostics[0].severity).toBe('error');
     });
 
     it('returns error for no nodes', () => {
       const result = parseOrg('chart: org\ntitle: Empty');
-      expect(result.error).toBe('No nodes found in org chart');
+      expect(result.error).toBe('Line 1: No nodes found in org chart');
     });
 
     it('returns error for orphan metadata', () => {

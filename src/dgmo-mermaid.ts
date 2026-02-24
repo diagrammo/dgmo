@@ -4,6 +4,8 @@
 // ============================================================
 
 import { resolveColor } from './colors';
+import type { DgmoError } from './diagnostics';
+import { makeDgmoError, formatDgmoError } from './diagnostics';
 
 // ============================================================
 // Types
@@ -29,6 +31,7 @@ export interface ParsedQuadrant {
     bottomRight: QuadrantLabel | null;
   };
   points: { label: string; x: number; y: number; lineNumber: number }[];
+  diagnostics: DgmoError[];
   error: string | null;
 }
 
@@ -68,6 +71,7 @@ export function parseQuadrant(content: string): ParsedQuadrant {
       bottomRight: null,
     },
     points: [],
+    diagnostics: [],
     error: null,
   };
 
@@ -154,7 +158,9 @@ export function parseQuadrant(content: string): ParsedQuadrant {
   }
 
   if (result.points.length === 0) {
-    result.error = 'No data points found. Add lines like: Label: 0.5, 0.7';
+    const diag = makeDgmoError(1, 'No data points found. Add lines like: Label: 0.5, 0.7');
+    result.diagnostics.push(diag);
+    result.error = formatDgmoError(diag);
   }
 
   return result;

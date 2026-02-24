@@ -1,5 +1,6 @@
 import { resolveColor } from '../colors';
 import type { PaletteColors } from '../palettes';
+import { makeDgmoError, formatDgmoError } from '../diagnostics';
 import type {
   ParsedERDiagram,
   ERTable,
@@ -155,6 +156,14 @@ export function parseERDiagram(
     options: {},
     tables: [],
     relationships: [],
+    diagnostics: [],
+  };
+
+  const fail = (line: number, message: string): ParsedERDiagram => {
+    const diag = makeDgmoError(line, message);
+    result.diagnostics.push(diag);
+    result.error = formatDgmoError(diag);
+    return result;
   };
 
   const tableMap = new Map<string, ERTable>();
@@ -200,8 +209,7 @@ export function parseERDiagram(
 
       if (key === 'chart') {
         if (value.toLowerCase() !== 'er') {
-          result.error = `Line ${lineNumber}: Expected chart type "er", got "${value}"`;
-          return result;
+          return fail(lineNumber, `Expected chart type "er", got "${value}"`);
         }
         continue;
       }
@@ -278,8 +286,23 @@ export function parseERDiagram(
 
   // Validation
   if (result.tables.length === 0 && !result.error) {
-    result.error =
-      'No tables found. Add table declarations like "users" or "orders (blue)".';
+    const diag = makeDgmoError(1, 'No tables found. Add table declarations like "users" or "orders (blue)".');
+    result.diagnostics.push(diag);
+    result.error = formatDgmoError(diag);
+  }
+
+  // Warn about isolated tables (not in any relationship)
+  if (result.tables.length >= 2 && result.relationships.length >= 1 && !result.error) {
+    const connectedIds = new Set<string>();
+    for (const rel of result.relationships) {
+      connectedIds.add(rel.source);
+      connectedIds.add(rel.target);
+    }
+    for (const table of result.tables) {
+      if (!connectedIds.has(table.id)) {
+        result.diagnostics.push(makeDgmoError(table.lineNumber, `Table "${table.name}" is not connected to any other table`, 'warning'));
+      }
+    }
   }
 
   return result;

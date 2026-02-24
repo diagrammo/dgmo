@@ -44,13 +44,22 @@ describe('buildEChartsOptionFromChart', () => {
 
   // ── Error ────────────────────────────────────────────────
 
-  it('returns empty object on parse error', () => {
-    const parsed = parseChart('chart: bar', palette); // no data → error
-    const opt = buildEChartsOptionFromChart(parsed, palette, false);
-    expect(opt).toEqual({});
+  it('returns warning diagnostic when no data points', () => {
+    const parsed = parseChart('chart: bar', palette); // no data → warning
+    expect(parsed.error).toBeUndefined();
+    // diagnostics
+    expect(parsed.diagnostics).toHaveLength(1);
+    expect(parsed.diagnostics[0].severity).toBe('warning');
+    expect(parsed.diagnostics[0].line).toBe(1);
   });
 
   // ── Bar ──────────────────────────────────────────────────
+
+  it('successful parse has empty diagnostics', () => {
+    const parsed = parseChart('chart: bar\nA: 10\nB: 20', palette);
+    expect(parsed.error).toBeUndefined();
+    expect(parsed.diagnostics).toEqual([]);
+  });
 
   it('builds bar chart with per-point colors', () => {
     const opt = build('chart: bar\ntitle: Sales\nA: 10\nB: 20\nC: 30');

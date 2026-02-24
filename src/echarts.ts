@@ -52,6 +52,8 @@ export interface ParsedHeatmapRow {
   lineNumber: number;
 }
 
+import type { DgmoError } from './diagnostics';
+
 export interface ParsedEChart {
   type: EChartsChartType;
   title?: string;
@@ -72,6 +74,7 @@ export interface ParsedEChart {
   sizelabel?: string;
   showLabels?: boolean;
   categoryColors?: Record<string, string>;
+  diagnostics: DgmoError[];
   error?: string;
 }
 
@@ -84,6 +87,7 @@ import type { PaletteColors } from './palettes';
 import { getSeriesColors, getSegmentColors } from './palettes';
 import { parseChart } from './chart';
 import type { ParsedChart } from './chart';
+import { makeDgmoError, formatDgmoError } from './diagnostics';
 
 // ============================================================
 // Parser
@@ -111,6 +115,7 @@ export function parseEChart(
   const result: ParsedEChart = {
     type: 'scatter',
     data: [],
+    diagnostics: [],
   };
 
   // Track current category for grouped scatter charts
@@ -168,7 +173,9 @@ export function parseEChart(
       ) {
         result.type = chartType;
       } else {
-        result.error = `Unsupported chart type: ${value}. Supported types: scatter, sankey, chord, function, heatmap, funnel.`;
+        const diag = makeDgmoError(lineNumber, `Unsupported chart type: ${value}. Supported types: scatter, sankey, chord, function, heatmap, funnel.`);
+        result.diagnostics.push(diag);
+        result.error = formatDgmoError(diag);
         return result;
       }
       continue;
@@ -341,42 +348,40 @@ export function parseEChart(
     }
   }
 
+  const warn = (line: number, message: string): void => {
+    result.diagnostics.push(makeDgmoError(line, message, 'warning'));
+  };
+
   if (!result.error) {
     if (result.type === 'sankey') {
       if (!result.links || result.links.length === 0) {
-        result.error =
-          'No links found. Add links in format: Source -> Target: 123';
+        warn(1, 'No links found. Add links in format: Source -> Target: 123');
       }
     } else if (result.type === 'chord') {
       if (!result.links || result.links.length === 0) {
-        result.error =
-          'No links found. Add links in format: Source -> Target: 123';
+        warn(1, 'No links found. Add links in format: Source -> Target: 123');
       }
     } else if (result.type === 'function') {
       if (!result.functions || result.functions.length === 0) {
-        result.error =
-          'No functions found. Add functions in format: Name: expression';
+        warn(1, 'No functions found. Add functions in format: Name: expression');
       }
       if (!result.xRange) {
         result.xRange = { min: -10, max: 10 }; // Default range
       }
     } else if (result.type === 'scatter') {
       if (!result.scatterPoints || result.scatterPoints.length === 0) {
-        result.error =
-          'No scatter points found. Add points in format: Name: x, y or Name: x, y, size';
+        warn(1, 'No scatter points found. Add points in format: Name: x, y or Name: x, y, size');
       }
     } else if (result.type === 'heatmap') {
       if (!result.heatmapRows || result.heatmapRows.length === 0) {
-        result.error =
-          'No heatmap data found. Add data in format: RowLabel: val1, val2, val3';
+        warn(1, 'No heatmap data found. Add data in format: RowLabel: val1, val2, val3');
       }
       if (!result.columns || result.columns.length === 0) {
-        result.error =
-          'No columns defined. Add columns in format: columns: Col1, Col2, Col3';
+        warn(1, 'No columns defined. Add columns in format: columns: Col1, Col2, Col3');
       }
     } else if (result.type === 'funnel') {
       if (result.data.length === 0) {
-        result.error = 'No data found. Add data in format: Label: value';
+        warn(1, 'No data found. Add data in format: Label: value');
       }
     }
   }
