@@ -8,11 +8,17 @@ describe('parseERDiagram', () => {
       const result = parseERDiagram('chart: er\nusers\n  id: int [pk]');
       expect(result.type).toBe('er');
       expect(result.error).toBeUndefined();
+      expect(result.diagnostics).toEqual([]);
     });
 
     it('rejects wrong chart type', () => {
       const result = parseERDiagram('chart: flowchart\nusers\n  id: int [pk]');
       expect(result.error).toContain('Expected chart type "er"');
+      // diagnostics
+      expect(result.diagnostics).toHaveLength(1);
+      expect(result.diagnostics[0].message).toMatch(/Expected chart type "er"/);
+      expect(result.diagnostics[0].severity).toBe('error');
+      expect(result.diagnostics[0].line).toBeGreaterThanOrEqual(0);
     });
 
     it('parses title', () => {
@@ -248,6 +254,10 @@ describe('parseERDiagram', () => {
     it('returns error for empty input', () => {
       const result = parseERDiagram('');
       expect(result.error).toBeDefined();
+      // diagnostics
+      expect(result.diagnostics).toHaveLength(1);
+      expect(result.diagnostics[0].severity).toBe('error');
+      expect(result.diagnostics[0].line).toBeGreaterThanOrEqual(0);
     });
 
     it('column with no type', () => {

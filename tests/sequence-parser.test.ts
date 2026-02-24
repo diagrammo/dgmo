@@ -40,6 +40,11 @@ describe('parseReturnLabel — shorthand ` : ` syntax', () => {
     const result = parseSequenceDgmo('async A -> B: x : y');
     expect(result.error).toMatch(/Use ~> for async messages/);
     expect(result.messages).toHaveLength(0);
+    // diagnostics
+    expect(result.diagnostics).toHaveLength(1);
+    expect(result.diagnostics[0].message).toMatch(/Use ~> for async messages/);
+    expect(result.diagnostics[0].severity).toBe('error');
+    expect(result.diagnostics[0].line).toBeGreaterThanOrEqual(0);
   });
 
   it('<- syntax takes priority over shorthand', () => {
@@ -81,6 +86,7 @@ describe('parseReturnLabel — shorthand ` : ` syntax', () => {
   it('~> async syntax continues to work', () => {
     const result = parseSequenceDgmo('A ~> B: fire and forget');
     expect(result.error).toBeNull();
+    expect(result.diagnostics).toEqual([]);
     expect(result.messages).toHaveLength(1);
     expect(result.messages[0].async).toBe(true);
     expect(result.messages[0].label).toBe('fire and forget');
@@ -156,6 +162,11 @@ describe('Story 47.1 — syntax cleanup', () => {
       expect(result.error).toMatch(
         /Line 2.*Use \/\/ for comments.*# is reserved/
       );
+      // diagnostics
+      expect(result.diagnostics).toHaveLength(1);
+      expect(result.diagnostics[0].message).toMatch(/Use \/\/ for comments/);
+      expect(result.diagnostics[0].severity).toBe('error');
+      expect(result.diagnostics[0].line).toBe(2);
     });
 
     it('// comments still work', () => {
@@ -180,6 +191,11 @@ describe('Story 47.1 — syntax cleanup', () => {
         '## Backend(#ff6b6b)\n  API\nAPI -> DB: query'
       );
       expect(result.error).toMatch(/Line 1.*Use a named color instead of hex/);
+      // diagnostics
+      expect(result.diagnostics).toHaveLength(1);
+      expect(result.diagnostics[0].message).toMatch(/Use a named color instead of hex/);
+      expect(result.diagnostics[0].severity).toBe('error');
+      expect(result.diagnostics[0].line).toBe(1);
     });
 
     it('rejects hex color in section divider', () => {

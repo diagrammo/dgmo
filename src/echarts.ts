@@ -87,7 +87,7 @@ import type { PaletteColors } from './palettes';
 import { getSeriesColors, getSegmentColors } from './palettes';
 import { parseChart } from './chart';
 import type { ParsedChart } from './chart';
-import { makeDgmoError, formatDgmoError } from './diagnostics';
+import { makeDgmoError, formatDgmoError, suggest } from './diagnostics';
 
 // ============================================================
 // Parser
@@ -173,7 +173,11 @@ export function parseEChart(
       ) {
         result.type = chartType;
       } else {
-        const diag = makeDgmoError(lineNumber, `Unsupported chart type: ${value}. Supported types: scatter, sankey, chord, function, heatmap, funnel.`);
+        const validTypes = ['scatter', 'sankey', 'chord', 'function', 'heatmap', 'funnel'];
+        let msg = `Unsupported chart type: ${value}. Supported types: ${validTypes.join(', ')}.`;
+        const hint = suggest(chartType, validTypes);
+        if (hint) msg += ` ${hint}`;
+        const diag = makeDgmoError(lineNumber, msg);
         result.diagnostics.push(diag);
         result.error = formatDgmoError(diag);
         return result;

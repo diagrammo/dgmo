@@ -8,11 +8,17 @@ describe('parseClassDiagram', () => {
       const result = parseClassDiagram('chart: class\nAnimal\n  name: string');
       expect(result.type).toBe('class');
       expect(result.error).toBeUndefined();
+      expect(result.diagnostics).toEqual([]);
     });
 
     it('rejects wrong chart type', () => {
       const result = parseClassDiagram('chart: flowchart\nAnimal\n  name: string');
       expect(result.error).toContain('Expected chart type "class"');
+      // diagnostics
+      expect(result.diagnostics).toHaveLength(1);
+      expect(result.diagnostics[0].message).toMatch(/Expected chart type "class"/);
+      expect(result.diagnostics[0].severity).toBe('error');
+      expect(result.diagnostics[0].line).toBeGreaterThanOrEqual(0);
     });
 
     it('parses title', () => {
@@ -283,6 +289,10 @@ describe('parseClassDiagram', () => {
     it('returns error for empty input', () => {
       const result = parseClassDiagram('');
       expect(result.error).toBeDefined();
+      // diagnostics
+      expect(result.diagnostics).toHaveLength(1);
+      expect(result.diagnostics[0].severity).toBe('error');
+      expect(result.diagnostics[0].line).toBeGreaterThanOrEqual(0);
     });
 
     it('handles mixed fields and methods', () => {

@@ -4,7 +4,7 @@
 
 import { inferParticipantType } from './participant-inference';
 import type { DgmoError } from '../diagnostics';
-import { makeDgmoError, formatDgmoError } from '../diagnostics';
+import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
 
 /**
  * Participant types that can be declared via "Name is a type" syntax.
@@ -249,6 +249,13 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     return result;
   };
 
+  /** Push a recoverable error and continue parsing. */
+  const pushError = (line: number, message: string): void => {
+    const diag = makeDgmoError(line, message);
+    result.diagnostics.push(diag);
+    if (!result.error) result.error = formatDgmoError(diag);
+  };
+
   if (!content || !content.trim()) {
     return fail(0, 'Empty content');
   }
@@ -296,7 +303,8 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     if (groupMatch) {
       const groupColor = groupMatch[2]?.trim();
       if (groupColor && groupColor.startsWith('#')) {
-        return fail(lineNumber, 'Use a named color instead of hex (e.g., blue, red, teal)');
+        pushError(lineNumber, 'Use a named color instead of hex (e.g., blue, red, teal)');
+        continue;
       }
       contentStarted = true;
       activeGroup = {
@@ -319,7 +327,8 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
 
     // Reject # as comment syntax (## is for group headings, handled above)
     if (trimmed.startsWith('#') && !trimmed.startsWith('##')) {
-      return fail(lineNumber, 'Use // for comments. # is reserved for group headings (##)');
+      pushError(lineNumber, 'Use // for comments. # is reserved for group headings (##)');
+      continue;
     }
 
     // Parse section dividers — "== Label ==" or "== Label(color) =="
@@ -335,7 +344,8 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       const labelRaw = sectionMatch[1].trim();
       const colorMatch = labelRaw.match(/^(.+?)\(([^)]+)\)$/);
       if (colorMatch && colorMatch[2].trim().startsWith('#')) {
-        return fail(lineNumber, 'Use a named color instead of hex (e.g., blue, red, teal)');
+        pushError(lineNumber, 'Use a named color instead of hex (e.g., blue, red, teal)');
+        continue;
       }
       contentStarted = true;
       const section: SequenceSection = {
@@ -369,7 +379,8 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
 
       // Enforce headers-before-content
       if (contentStarted) {
-        return fail(lineNumber, `Options like '${key}: ${value}' must appear before the first message or declaration`);
+        pushError(lineNumber, `Options like '${key}: ${value}' must appear before the first message or declaration`);
+        continue;
       }
 
       if (key === 'title') {
@@ -420,10 +431,11 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       if (activeGroup && !activeGroup.participantIds.includes(id)) {
         const existingGroup = participantGroupMap.get(id);
         if (existingGroup) {
-          return fail(lineNumber, `Participant '${id}' is already in group '${existingGroup}' — participants can only belong to one group`);
+          pushError(lineNumber, `Participant '${id}' is already in group '${existingGroup}' — participants can only belong to one group`);
+        } else {
+          activeGroup.participantIds.push(id);
+          participantGroupMap.set(id, activeGroup.name);
         }
-        activeGroup.participantIds.push(id);
-        participantGroupMap.set(id, activeGroup.name);
       }
       continue;
     }
@@ -448,10 +460,11 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       if (activeGroup && !activeGroup.participantIds.includes(id)) {
         const existingGroup = participantGroupMap.get(id);
         if (existingGroup) {
-          return fail(lineNumber, `Participant '${id}' is already in group '${existingGroup}' — participants can only belong to one group`);
+          pushError(lineNumber, `Participant '${id}' is already in group '${existingGroup}' — participants can only belong to one group`);
+        } else {
+          activeGroup.participantIds.push(id);
+          participantGroupMap.set(id, activeGroup.name);
         }
-        activeGroup.participantIds.push(id);
-        participantGroupMap.set(id, activeGroup.name);
       }
       continue;
     }
@@ -471,10 +484,11 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       if (!activeGroup.participantIds.includes(id)) {
         const existingGroup = participantGroupMap.get(id);
         if (existingGroup) {
-          return fail(lineNumber, `Participant '${id}' is already in group '${existingGroup}' — participants can only belong to one group`);
+          pushError(lineNumber, `Participant '${id}' is already in group '${existingGroup}' — participants can only belong to one group`);
+        } else {
+          activeGroup.participantIds.push(id);
+          participantGroupMap.set(id, activeGroup.name);
         }
-        activeGroup.participantIds.push(id);
-        participantGroupMap.set(id, activeGroup.name);
       }
       continue;
     }
@@ -501,7 +515,8 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     // Reject "async" keyword prefix — use ~> instead
     const asyncPrefixMatch = trimmed.match(/^async\s+(.+)$/i);
     if (asyncPrefixMatch && ARROW_PATTERN.test(asyncPrefixMatch[1])) {
-      return fail(lineNumber, 'Use ~> for async messages: A ~> B: message');
+      pushError(lineNumber, 'Use ~> for async messages: A ~> B: message');
+      continue;
     }
 
     // Match ~> (async arrow) or -> (sync arrow)
@@ -615,7 +630,8 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       if (blockStack.length > 0 && blockStack[blockStack.length - 1].indent === indent) {
         const top = blockStack[blockStack.length - 1];
         if (top.block.type === 'parallel') {
-          return fail(lineNumber, "parallel blocks don't support else if — list all concurrent messages directly inside the block");
+          pushError(lineNumber, "parallel blocks don't support else if — list all concurrent messages directly inside the block");
+          continue;
         }
         if (top.block.type === 'if') {
           const branch: ElseIfBranch = { label: elseIfMatch[1].trim(), children: [] };
@@ -633,7 +649,8 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       if (blockStack.length > 0 && blockStack[blockStack.length - 1].indent === indent) {
         const top = blockStack[blockStack.length - 1];
         if (top.block.type === 'parallel') {
-          return fail(lineNumber, "parallel blocks don't support else — list all concurrent messages directly inside the block");
+          pushError(lineNumber, "parallel blocks don't support else — list all concurrent messages directly inside the block");
+          continue;
         }
         if (top.block.type === 'if') {
           top.inElse = true;

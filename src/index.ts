@@ -1,4 +1,11 @@
 // ============================================================
+// Diagnostics
+// ============================================================
+
+export { makeDgmoError, formatDgmoError } from './diagnostics';
+export type { DgmoError, DgmoSeverity } from './diagnostics';
+
+// ============================================================
 // Unified API
 // ============================================================
 
@@ -11,6 +18,7 @@ export { render } from './render';
 export {
   parseDgmoChartType,
   getDgmoFramework,
+  parseDgmo,
   DGMO_CHART_TYPE_MAP,
 } from './dgmo-router';
 export type { DgmoFramework } from './dgmo-router';

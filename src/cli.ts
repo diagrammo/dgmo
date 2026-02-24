@@ -3,6 +3,8 @@ import { execSync } from 'node:child_process';
 import { resolve, basename, extname } from 'node:path';
 import { Resvg } from '@resvg/resvg-js';
 import { render } from './render';
+import { parseDgmo } from './dgmo-router';
+import { formatDgmoError } from './diagnostics';
 import { getPalette } from './palettes/registry';
 import { DEFAULT_FONT_NAME } from './fonts';
 import { encodeDiagramUrl } from './sharing';
@@ -271,6 +273,21 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  // Parse first to collect diagnostics
+  const { diagnostics } = parseDgmo(content);
+  const errors = diagnostics.filter((d) => d.severity === 'error');
+  const warnings = diagnostics.filter((d) => d.severity === 'warning');
+
+  // Print warnings even if rendering succeeds
+  for (const w of warnings) {
+    console.error(`\u26A0 ${formatDgmoError(w)}`);
+  }
+
+  // Print errors
+  for (const e of errors) {
+    console.error(`\u2716 ${formatDgmoError(e)}`);
+  }
+
   const svg = await render(content, {
     theme: opts.theme,
     palette: opts.palette,
@@ -278,9 +295,11 @@ async function main(): Promise<void> {
   });
 
   if (!svg) {
-    console.error(
-      'Error: Failed to render diagram. The input may be empty, invalid, or use an unsupported chart type.'
-    );
+    if (errors.length === 0) {
+      console.error(
+        'Error: Failed to render diagram. The input may be empty, invalid, or use an unsupported chart type.'
+      );
+    }
     process.exit(1);
   }
 

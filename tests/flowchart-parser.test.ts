@@ -8,6 +8,7 @@ describe('parseFlowchart', () => {
       const result = parseFlowchart('chart: flowchart\n(Start) -> (End)');
       expect(result.type).toBe('flowchart');
       expect(result.error).toBeUndefined();
+      expect(result.diagnostics).toEqual([]);
     });
 
     it('parses title', () => {
@@ -278,11 +279,20 @@ describe('parseFlowchart', () => {
     it('error on empty content (no nodes)', () => {
       const result = parseFlowchart('chart: flowchart\n');
       expect(result.error).toBeDefined();
+      // diagnostics
+      expect(result.diagnostics).toHaveLength(1);
+      expect(result.diagnostics[0].message).toMatch(/No nodes found/);
+      expect(result.diagnostics[0].severity).toBe('error');
+      expect(result.diagnostics[0].line).toBeGreaterThanOrEqual(0);
     });
 
     it('error on only comments and whitespace', () => {
       const result = parseFlowchart('// just a comment\n\n');
       expect(result.error).toBeDefined();
+      // diagnostics
+      expect(result.diagnostics).toHaveLength(1);
+      expect(result.diagnostics[0].severity).toBe('error');
+      expect(result.diagnostics[0].line).toBeGreaterThanOrEqual(0);
     });
   });
 

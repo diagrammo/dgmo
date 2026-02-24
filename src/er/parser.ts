@@ -1,6 +1,6 @@
 import { resolveColor } from '../colors';
 import type { PaletteColors } from '../palettes';
-import { makeDgmoError, formatDgmoError } from '../diagnostics';
+import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
 import type {
   ParsedERDiagram,
   ERTable,
@@ -209,7 +209,11 @@ export function parseERDiagram(
 
       if (key === 'chart') {
         if (value.toLowerCase() !== 'er') {
-          return fail(lineNumber, `Expected chart type "er", got "${value}"`);
+          const allTypes = ['er', 'class', 'flowchart', 'sequence', 'org', 'bar', 'line', 'pie', 'scatter', 'sankey', 'venn', 'timeline', 'arc', 'slope'];
+          let msg = `Expected chart type "er", got "${value}"`;
+          const hint = suggest(value.toLowerCase(), allTypes);
+          if (hint) msg += `. ${hint}`;
+          return fail(lineNumber, msg);
         }
         continue;
       }

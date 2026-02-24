@@ -179,7 +179,7 @@ import { resolveColor } from './colors';
 import type { PaletteColors } from './palettes';
 import { getSeriesColors } from './palettes';
 import type { DgmoError } from './diagnostics';
-import { makeDgmoError, formatDgmoError } from './diagnostics';
+import { makeDgmoError, formatDgmoError, suggest } from './diagnostics';
 
 // ============================================================
 // Timeline Date Helper
@@ -614,7 +614,11 @@ export function parseD3(content: string, palette?: PaletteColors): ParsedD3 {
         ) {
           result.type = value;
         } else {
-          return fail(lineNumber, `Unsupported chart type: ${value}. Supported types: slope, wordcloud, arc, timeline, venn, quadrant, sequence`);
+          const validD3Types = ['slope', 'wordcloud', 'arc', 'timeline', 'venn', 'quadrant', 'sequence'];
+          let msg = `Unsupported chart type: ${value}. Supported types: ${validD3Types.join(', ')}`;
+          const hint = suggest(value, validD3Types);
+          if (hint) msg += `. ${hint}`;
+          return fail(lineNumber, msg);
         }
         continue;
       }
@@ -859,19 +863,27 @@ export function parseD3(content: string, palette?: PaletteColors): ParsedD3 {
     if (result.vennSets.length > 3) {
       return fail(1, 'At most 3 sets are supported. Remove extra sets.');
     }
-    // Validate overlap references and sizes
+    // Validate overlap references and sizes — skip invalid overlaps
     const setMap = new Map(result.vennSets.map((s) => [s.name, s.size]));
+    const validOverlaps = [];
     for (const ov of result.vennOverlaps) {
+      let valid = true;
       for (const setName of ov.sets) {
         if (!setMap.has(setName)) {
-          return fail(ov.lineNumber, `Overlap references unknown set "${setName}". Define it first as "${setName}: <size>"`);
+          result.diagnostics.push(makeDgmoError(ov.lineNumber, `Overlap references unknown set "${setName}". Define it first as "${setName}: <size>"`));
+          if (!result.error) result.error = formatDgmoError(result.diagnostics[result.diagnostics.length - 1]);
+          valid = false;
+          break;
         }
       }
+      if (!valid) continue;
       const minSetSize = Math.min(...ov.sets.map((s) => setMap.get(s)!));
       if (ov.size > minSetSize) {
         warn(ov.lineNumber, `Overlap size ${ov.size} exceeds smallest constituent set size ${minSetSize}`);
       }
+      validOverlaps.push(ov);
     }
+    result.vennOverlaps = validOverlaps;
     return result;
   }
 

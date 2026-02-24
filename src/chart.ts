@@ -46,7 +46,7 @@ export interface ParsedChart {
 
 import { resolveColor } from './colors';
 import type { PaletteColors } from './palettes';
-import { makeDgmoError, formatDgmoError } from './diagnostics';
+import { makeDgmoError, formatDgmoError, suggest } from './diagnostics';
 
 // ============================================================
 // Parser
@@ -126,7 +126,10 @@ export function parseChart(
       if (VALID_TYPES.has(chartType)) {
         result.type = chartType;
       } else {
-        return fail(lineNumber, `Unsupported chart type: ${value}. Supported types: ${[...VALID_TYPES].join(', ')}.`);
+        let msg = `Unsupported chart type: ${value}. Supported types: ${[...VALID_TYPES].join(', ')}.`;
+        const hint = suggest(raw, [...VALID_TYPES]);
+        if (hint) msg += ` ${hint}`;
+        return fail(lineNumber, msg);
       }
       continue;
     }

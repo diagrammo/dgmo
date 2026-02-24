@@ -1,6 +1,6 @@
 import { resolveColor } from '../colors';
 import type { PaletteColors } from '../palettes';
-import { makeDgmoError, formatDgmoError } from '../diagnostics';
+import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
 import type {
   ParsedGraph,
   GraphNode,
@@ -438,7 +438,11 @@ export function parseFlowchart(
 
       if (key === 'chart') {
         if (value.toLowerCase() !== 'flowchart') {
-          return fail(lineNumber, `Expected chart type "flowchart", got "${value}"`);
+          const allTypes = ['flowchart', 'sequence', 'class', 'er', 'org', 'bar', 'line', 'pie', 'scatter', 'sankey', 'venn', 'timeline', 'arc', 'slope'];
+          let msg = `Expected chart type "flowchart", got "${value}"`;
+          const hint = suggest(value.toLowerCase(), allTypes);
+          if (hint) msg += `. ${hint}`;
+          return fail(lineNumber, msg);
         }
         continue;
       }

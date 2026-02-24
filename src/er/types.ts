@@ -29,6 +29,8 @@ export interface ERRelationship {
   lineNumber: number;
 }
 
+import type { DgmoError } from '../diagnostics';
+
 export interface ParsedERDiagram {
   type: 'er';
   title?: string;
@@ -36,5 +38,6 @@ export interface ParsedERDiagram {
   options: Record<string, string>;
   tables: ERTable[];
   relationships: ERRelationship[];
+  diagnostics: DgmoError[];
   error?: string;
 }

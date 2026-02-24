@@ -41,6 +41,8 @@ export interface ClassRelationship {
   lineNumber: number;
 }
 
+import type { DgmoError } from '../diagnostics';
+
 export interface ParsedClassDiagram {
   type: 'class';
   title?: string;
@@ -48,5 +50,6 @@ export interface ParsedClassDiagram {
   classes: ClassNode[];
   relationships: ClassRelationship[];
   options: Record<string, string>;
+  diagnostics: DgmoError[];
   error?: string;
 }

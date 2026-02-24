@@ -33,6 +33,8 @@ export interface GraphGroup {
   lineNumber: number;
 }
 
+import type { DgmoError } from '../diagnostics';
+
 export interface ParsedGraph {
   type: 'flowchart';
   title?: string;
@@ -42,5 +44,6 @@ export interface ParsedGraph {
   edges: GraphEdge[];
   groups?: GraphGroup[];
   options: Record<string, string>;
+  diagnostics: DgmoError[];
   error?: string;
 }
