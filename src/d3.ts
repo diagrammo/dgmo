@@ -429,15 +429,15 @@ export function parseD3(content: string, palette?: PaletteColors): ParsedD3 {
     if (result.type === 'timeline') {
       // Duration event: 2026-07-15->30d: description (d=days, w=weeks, m=months, y=years)
       // Supports decimals up to 2 places (e.g., 1.25y = 1 year 3 months)
-      // Supports uncertain end with ? prefix (e.g., ->?3m fades out the last 20%)
+      // Supports uncertain end with ? suffix (e.g., ->3m?: fades out the last 20%)
       const durationMatch = line.match(
-        /^(\d{4}(?:-\d{2})?(?:-\d{2})?)\s*->\s*(\?)?(\d+(?:\.\d{1,2})?)([dwmy])\s*:\s*(.+)$/
+        /^(\d{4}(?:-\d{2})?(?:-\d{2})?)\s*->\s*(\d+(?:\.\d{1,2})?)([dwmy])(\?)?\s*:\s*(.+)$/
       );
       if (durationMatch) {
         const startDate = durationMatch[1];
-        const uncertain = durationMatch[2] === '?';
-        const amount = parseFloat(durationMatch[3]);
-        const unit = durationMatch[4] as 'd' | 'w' | 'm' | 'y';
+        const uncertain = durationMatch[4] === '?';
+        const amount = parseFloat(durationMatch[2]);
+        const unit = durationMatch[3] as 'd' | 'w' | 'm' | 'y';
         const endDate = addDurationToDate(startDate, amount, unit);
         result.timelineEvents.push({
           date: startDate,
@@ -450,18 +450,18 @@ export function parseD3(content: string, palette?: PaletteColors): ParsedD3 {
         continue;
       }
 
-      // Range event: 1655->1667: description (supports uncertain end: 1655->?1667)
+      // Range event: 1655->1667: description (supports uncertain end: 1655->1667?)
       const rangeMatch = line.match(
-        /^(\d{4}(?:-\d{2})?(?:-\d{2})?)\s*->\s*(\?)?(\d{4}(?:-\d{2})?(?:-\d{2})?)\s*:\s*(.+)$/
+        /^(\d{4}(?:-\d{2})?(?:-\d{2})?)\s*->\s*(\d{4}(?:-\d{2})?(?:-\d{2})?)(\?)?\s*:\s*(.+)$/
       );
       if (rangeMatch) {
         result.timelineEvents.push({
           date: rangeMatch[1],
-          endDate: rangeMatch[3],
+          endDate: rangeMatch[2],
           label: rangeMatch[4].trim(),
           group: currentTimelineGroup,
           lineNumber,
-          uncertain: rangeMatch[2] === '?',
+          uncertain: rangeMatch[3] === '?',
         });
         continue;
       }
