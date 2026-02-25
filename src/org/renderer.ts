@@ -36,29 +36,17 @@ const CONTAINER_HEADER_HEIGHT = 28;
 const COLLAPSE_BAR_HEIGHT = 6;
 const COLLAPSE_BAR_INSET = 0;
 
-// Legend
-const LEGEND_RADIUS = 6;
-const LEGEND_DOT_R = 5;
-const LEGEND_DOT_TEXT_GAP = 6;
-const LEGEND_ENTRY_GAP = 12;
-const LEGEND_PAD = 10;
-const LEGEND_HEADER_H = 20;
-const LEGEND_ENTRY_H = 18;
-const LEGEND_FONT_SIZE = 11;
-const LEGEND_MAX_PER_ROW = 3;
-const LEGEND_CHAR_WIDTH = 7.5;
-
-// Eye icon (12×12 viewBox, scaled from 0,0 to 12,12)
-const EYE_ICON_SIZE = 12;
-const EYE_ICON_GAP = 6;
-// Open eye: elliptical outline + circle pupil
-const EYE_OPEN_PATH =
-  'M1 6C1 6 3 2 6 2C9 2 11 6 11 6C11 6 9 10 6 10C3 10 1 6 1 6Z';
-const EYE_PUPIL_CX = 6;
-const EYE_PUPIL_CY = 6;
-const EYE_PUPIL_R = 1.8;
-// Closed eye: same outline + diagonal slash
-const EYE_SLASH_PATH = 'M2 2L10 10';
+// Legend (kanban-style pills)
+const LEGEND_HEIGHT = 28;
+const LEGEND_PILL_PAD = 16;
+const LEGEND_PILL_FONT_SIZE = 11;
+const LEGEND_PILL_FONT_W = LEGEND_PILL_FONT_SIZE * 0.6;
+const LEGEND_CAPSULE_PAD = 4;
+const LEGEND_DOT_R = 4;
+const LEGEND_ENTRY_FONT_SIZE = 10;
+const LEGEND_ENTRY_FONT_W = LEGEND_ENTRY_FONT_SIZE * 0.6;
+const LEGEND_ENTRY_DOT_GAP = 4;
+const LEGEND_ENTRY_TRAIL = 8;
 
 // ============================================================
 // Color helpers (inline to avoid cross-module import issues)
@@ -457,9 +445,10 @@ export function renderOrg(
 
   }
 
-  // Render legend — skip entirely in export mode.
-  // No active group: all groups rendered minified (compact chips).
-  // Active group selected: only that group rendered (full size), others hidden.
+  // Render legend — kanban-style pills.
+  // Skip in export mode (unless legend-only chart).
+  // Active group: only that group rendered as capsule (pill + entries).
+  // No active group: all groups rendered as standalone pills.
   if (!exportDims || layout.nodes.length === 0) for (const group of layout.legend) {
     const isActive =
       activeTagGroup != null &&
@@ -468,11 +457,10 @@ export function renderOrg(
     // When a group is active, skip all other groups entirely
     if (activeTagGroup != null && !isActive) continue;
 
-    // No active group → minified; active group → full
-    const isMinified = activeTagGroup == null;
+    const groupBg = mix(palette.surface, palette.bg, isDark ? 35 : 20);
 
-    const renderW = isMinified ? group.minifiedWidth : group.width;
-    const renderH = isMinified ? group.minifiedHeight : group.height;
+    const pillWidth =
+      group.name.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
 
     const gEl = contentG
       .append('g')
@@ -481,146 +469,77 @@ export function renderOrg(
       .attr('data-legend-group', group.name.toLowerCase())
       .style('cursor', 'pointer');
 
-    // Background rect
-    const legendFill = mix(palette.surface, palette.bg, 40);
-    const bgRect = gEl
-      .append('rect')
-      .attr('x', 0)
-      .attr('y', 0)
-      .attr('width', renderW)
-      .attr('height', renderH)
-      .attr('rx', LEGEND_RADIUS)
-      .attr('fill', legendFill);
-
+    // Outer capsule background (active only)
     if (isActive) {
-      bgRect
-        .attr('stroke', palette.primary)
-        .attr('stroke-opacity', 0.8)
-        .attr('stroke-width', 2);
-    } else {
-      bgRect
-        .attr('stroke', palette.textMuted)
-        .attr('stroke-opacity', 0.35)
-        .attr('stroke-width', NODE_STROKE_WIDTH);
+      gEl
+        .append('rect')
+        .attr('width', group.width)
+        .attr('height', LEGEND_HEIGHT)
+        .attr('rx', LEGEND_HEIGHT / 2)
+        .attr('fill', groupBg);
     }
 
-    // Group name header
+    const pillX = isActive ? LEGEND_CAPSULE_PAD : 0;
+    const pillY = isActive ? LEGEND_CAPSULE_PAD : 0;
+    const pillH = LEGEND_HEIGHT - (isActive ? LEGEND_CAPSULE_PAD * 2 : 0);
+
+    // Pill background
+    gEl
+      .append('rect')
+      .attr('x', pillX)
+      .attr('y', pillY)
+      .attr('width', pillWidth)
+      .attr('height', pillH)
+      .attr('rx', pillH / 2)
+      .attr('fill', isActive ? palette.bg : groupBg);
+
+    // Active pill border
+    if (isActive) {
+      gEl
+        .append('rect')
+        .attr('x', pillX)
+        .attr('y', pillY)
+        .attr('width', pillWidth)
+        .attr('height', pillH)
+        .attr('rx', pillH / 2)
+        .attr('fill', 'none')
+        .attr('stroke', mix(palette.textMuted, palette.bg, 50))
+        .attr('stroke-width', 0.75);
+    }
+
+    // Pill text
     gEl
       .append('text')
-      .attr('x', LEGEND_PAD)
-      .attr('y', LEGEND_HEADER_H / 2 + LEGEND_FONT_SIZE / 2 - 2)
-      .attr('fill', isMinified ? palette.textMuted : palette.text)
-      .attr('font-size', LEGEND_FONT_SIZE)
-      .attr('font-weight', 'bold')
+      .attr('x', pillX + pillWidth / 2)
+      .attr('y', LEGEND_HEIGHT / 2 + LEGEND_PILL_FONT_SIZE / 2 - 2)
+      .attr('font-size', LEGEND_PILL_FONT_SIZE)
+      .attr('font-weight', '500')
+      .attr('fill', isActive ? palette.text : palette.textMuted)
+      .attr('text-anchor', 'middle')
       .text(group.name);
 
-    // Minified groups only show the header — skip entries and eye icon
-    if (isMinified) continue;
-
-    // Eye icon for visibility toggle (interactive only, not export)
-    if (hiddenAttributes !== undefined && !exportDims) {
-      const groupKey = group.name.toLowerCase();
-      const isHidden = hiddenAttributes.has(groupKey);
-      const eyeX =
-        LEGEND_PAD + group.name.length * LEGEND_CHAR_WIDTH + EYE_ICON_GAP;
-      const eyeY = (LEGEND_HEADER_H - EYE_ICON_SIZE) / 2;
-
-      const eyeG = gEl
-        .append('g')
-        .attr('class', 'org-legend-eye')
-        .attr('data-legend-visibility', groupKey)
-        .attr('transform', `translate(${eyeX}, ${eyeY})`);
-
-      // Transparent hit area
-      eyeG
-        .append('rect')
-        .attr('x', -4)
-        .attr('y', -4)
-        .attr('width', EYE_ICON_SIZE + 8)
-        .attr('height', EYE_ICON_SIZE + 8)
-        .attr('fill', 'transparent');
-
-      // Eye outline
-      eyeG
-        .append('path')
-        .attr('d', EYE_OPEN_PATH)
-        .attr('fill', isHidden ? 'none' : palette.textMuted)
-        .attr('fill-opacity', isHidden ? 0 : 0.15)
-        .attr('stroke', palette.textMuted)
-        .attr('stroke-width', 1.2)
-        .attr('opacity', isHidden ? 0.5 : 0.7);
-
-      if (!isHidden) {
-        // Pupil (only when visible)
-        eyeG
+    // Entries inside capsule (active only)
+    if (isActive) {
+      let entryX = pillX + pillWidth + 4;
+      for (const entry of group.entries) {
+        gEl
           .append('circle')
-          .attr('cx', EYE_PUPIL_CX)
-          .attr('cy', EYE_PUPIL_CY)
-          .attr('r', EYE_PUPIL_R)
+          .attr('cx', entryX + LEGEND_DOT_R)
+          .attr('cy', LEGEND_HEIGHT / 2)
+          .attr('r', LEGEND_DOT_R)
+          .attr('fill', entry.color);
+
+        const textX = entryX + LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP;
+        gEl
+          .append('text')
+          .attr('x', textX)
+          .attr('y', LEGEND_HEIGHT / 2 + LEGEND_ENTRY_FONT_SIZE / 2 - 1)
+          .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
           .attr('fill', palette.textMuted)
-          .attr('opacity', 0.7);
-      } else {
-        // Slash through the eye (hidden state)
-        eyeG
-          .append('line')
-          .attr('x1', 2)
-          .attr('y1', 2)
-          .attr('x2', 10)
-          .attr('y2', 10)
-          .attr('stroke', palette.textMuted)
-          .attr('stroke-width', 1.5)
-          .attr('opacity', 0.5);
+          .text(entry.value);
+
+        entryX = textX + entry.value.length * LEGEND_ENTRY_FONT_W + LEGEND_ENTRY_TRAIL;
       }
-    }
-
-    // Pre-compute column widths so dots align across rows
-    const entryWidths = group.entries.map(
-      (e) =>
-        LEGEND_DOT_R * 2 + LEGEND_DOT_TEXT_GAP + e.value.length * LEGEND_CHAR_WIDTH
-    );
-    const numRows = Math.ceil(group.entries.length / LEGEND_MAX_PER_ROW);
-    const colWidths: number[] = [];
-    for (let col = 0; col < LEGEND_MAX_PER_ROW; col++) {
-      let maxW = 0;
-      for (let r = 0; r < numRows; r++) {
-        const idx = r * LEGEND_MAX_PER_ROW + col;
-        if (idx < entryWidths.length && entryWidths[idx] > maxW) {
-          maxW = entryWidths[idx];
-        }
-      }
-      if (maxW > 0) colWidths.push(maxW);
-    }
-    const colX: number[] = [LEGEND_PAD];
-    for (let c = 1; c < colWidths.length; c++) {
-      colX.push(colX[c - 1] + colWidths[c - 1] + LEGEND_ENTRY_GAP);
-    }
-
-    // Entries: colored dot + value label
-    for (let i = 0; i < group.entries.length; i++) {
-      const entry = group.entries[i];
-      const row = Math.floor(i / LEGEND_MAX_PER_ROW);
-      const col = i % LEGEND_MAX_PER_ROW;
-      const entryX = colX[col];
-
-      const entryY =
-        LEGEND_HEADER_H + row * LEGEND_ENTRY_H + LEGEND_ENTRY_H / 2;
-
-      // Colored dot
-      gEl
-        .append('circle')
-        .attr('cx', entryX + LEGEND_DOT_R)
-        .attr('cy', entryY)
-        .attr('r', LEGEND_DOT_R)
-        .attr('fill', entry.color);
-
-      // Value label
-      gEl
-        .append('text')
-        .attr('x', entryX + LEGEND_DOT_R * 2 + LEGEND_DOT_TEXT_GAP)
-        .attr('y', entryY + LEGEND_FONT_SIZE / 2 - 2)
-        .attr('fill', palette.text)
-        .attr('font-size', LEGEND_FONT_SIZE)
-        .text(entry.value);
     }
   }
 }

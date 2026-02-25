@@ -97,18 +97,17 @@ const CONTAINER_META_LINE_HEIGHT = 16;
 const STACK_V_GAP = 20;
 
 
-// Legend
+// Legend (kanban-style pills)
 const LEGEND_GAP = 30;
-const LEGEND_DOT_R = 5;
-const LEGEND_DOT_TEXT_GAP = 6;
-const LEGEND_ENTRY_GAP = 12;
-const LEGEND_PAD = 10;
-const LEGEND_HEADER_H = 20;
-const LEGEND_ENTRY_H = 18;
-const LEGEND_MAX_PER_ROW = 3;
-const LEGEND_V_GAP = 12;
-const EYE_ICON_WIDTH = 16;
-const EYE_ICON_GAP = 6;
+const LEGEND_HEIGHT = 28;
+const LEGEND_PILL_PAD = 16;
+const LEGEND_PILL_FONT_W = 11 * 0.6;
+const LEGEND_CAPSULE_PAD = 4;
+const LEGEND_DOT_R = 4;
+const LEGEND_ENTRY_FONT_W = 10 * 0.6;
+const LEGEND_ENTRY_DOT_GAP = 4;
+const LEGEND_ENTRY_TRAIL = 8;
+const LEGEND_GROUP_GAP = 12;
 
 // ============================================================
 // Helpers
@@ -271,49 +270,35 @@ function centerHeavyChildren(node: TreeNode): void {
 // Layout
 // ============================================================
 
-function computeLegendGroups(tagGroups: OrgTagGroup[], showEyeIcons: boolean): OrgLegendGroup[] {
+function computeLegendGroups(tagGroups: OrgTagGroup[], _showEyeIcons: boolean): OrgLegendGroup[] {
   const groups: OrgLegendGroup[] = [];
 
   for (const group of tagGroups) {
     if (group.entries.length === 0) continue;
 
-    const entryWidths = group.entries.map(
-      (e) =>
-        LEGEND_DOT_R * 2 + LEGEND_DOT_TEXT_GAP + e.value.length * CHAR_WIDTH
-    );
+    const pillWidth = group.name.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
 
-    // Compute max width per column so columns align across rows
-    const numRows = Math.ceil(entryWidths.length / LEGEND_MAX_PER_ROW);
-    const colWidths: number[] = [];
-    for (let col = 0; col < LEGEND_MAX_PER_ROW; col++) {
-      let maxW = 0;
-      for (let row = 0; row < numRows; row++) {
-        const idx = row * LEGEND_MAX_PER_ROW + col;
-        if (idx < entryWidths.length && entryWidths[idx] > maxW) {
-          maxW = entryWidths[idx];
-        }
-      }
-      if (maxW > 0) colWidths.push(maxW);
+    // Capsule: pad + pill + gap + entries + pad
+    let entriesWidth = 0;
+    for (const entry of group.entries) {
+      entriesWidth +=
+        LEGEND_DOT_R * 2 +
+        LEGEND_ENTRY_DOT_GAP +
+        entry.value.length * LEGEND_ENTRY_FONT_W +
+        LEGEND_ENTRY_TRAIL;
     }
-
-    const eyeExtra = showEyeIcons ? EYE_ICON_GAP + EYE_ICON_WIDTH : 0;
-    const headerWidth = group.name.length * CHAR_WIDTH + eyeExtra;
-    const totalColumnsWidth =
-      colWidths.reduce((s, w) => s + w, 0) +
-      (colWidths.length - 1) * LEGEND_ENTRY_GAP;
-    const maxRowWidth = Math.max(headerWidth, totalColumnsWidth);
-
-    const minifiedWidth = group.name.length * CHAR_WIDTH + LEGEND_PAD * 2;
+    const capsuleWidth =
+      LEGEND_CAPSULE_PAD * 2 + pillWidth + 4 + entriesWidth;
 
     groups.push({
       name: group.name,
       entries: group.entries.map((e) => ({ value: e.value, color: e.color })),
       x: 0,
       y: 0,
-      width: maxRowWidth + LEGEND_PAD * 2,
-      height: LEGEND_HEADER_H + numRows * LEGEND_ENTRY_H + LEGEND_PAD,
-      minifiedWidth,
-      minifiedHeight: LEGEND_HEADER_H + LEGEND_PAD,
+      width: capsuleWidth,
+      height: LEGEND_HEIGHT,
+      minifiedWidth: pillWidth,
+      minifiedHeight: LEGEND_HEIGHT,
     });
   }
 
@@ -363,22 +348,20 @@ export function layoutOrg(
       return { nodes: [], edges: [], containers: [], legend: [], width: 0, height: 0 };
     }
 
-    // Layout legend groups horizontally
+    // Layout legend groups horizontally (all minified when no nodes)
     let cx = MARGIN;
-    let maxH = 0;
     for (const g of legendGroups) {
       g.x = cx;
       g.y = MARGIN;
-      cx += g.width + H_GAP;
-      if (g.height > maxH) maxH = g.height;
+      cx += g.minifiedWidth + LEGEND_GROUP_GAP;
     }
     return {
       nodes: [],
       edges: [],
       containers: [],
       legend: legendGroups,
-      width: cx - H_GAP + MARGIN,
-      height: maxH + MARGIN * 2,
+      width: cx - LEGEND_GROUP_GAP + MARGIN,
+      height: LEGEND_HEIGHT + MARGIN * 2,
     };
   }
 
@@ -1124,7 +1107,7 @@ export function layoutOrg(
       // Bottom: center legend groups horizontally below diagram content
       const totalGroupsWidth =
         visibleGroups.reduce((s, g) => s + effectiveW(g), 0) +
-        (visibleGroups.length - 1) * H_GAP;
+        (visibleGroups.length - 1) * LEGEND_GROUP_GAP;
       const neededWidth = totalGroupsWidth + MARGIN * 2;
 
       if (neededWidth > totalWidth) {
@@ -1142,34 +1125,34 @@ export function layoutOrg(
       const startX = (finalWidth - totalGroupsWidth) / 2;
 
       let cx = startX;
-      let maxH = 0;
       for (const g of visibleGroups) {
         g.x = cx;
         g.y = legendY;
-        cx += effectiveW(g) + H_GAP;
-        const h = effectiveH(g);
-        if (h > maxH) maxH = h;
+        cx += effectiveW(g) + LEGEND_GROUP_GAP;
       }
 
-      finalHeight = totalHeight + LEGEND_GAP + maxH;
+      finalHeight = totalHeight + LEGEND_GAP + LEGEND_HEIGHT;
     } else {
-      // Top (default): stack legend groups vertically at top-right
-      const maxLegendWidth = Math.max(...visibleGroups.map((g) => effectiveW(g)));
+      // Top: horizontal row at top-right
+      const totalGroupsWidth =
+        visibleGroups.reduce((s, g) => s + effectiveW(g), 0) +
+        (visibleGroups.length - 1) * LEGEND_GROUP_GAP;
       const legendStartX = totalWidth - MARGIN + LEGEND_GAP;
-      let legendY = MARGIN;
+      const legendY = MARGIN;
 
+      let cx = legendStartX;
       for (const g of visibleGroups) {
-        g.x = legendStartX;
+        g.x = cx;
         g.y = legendY;
-        legendY += effectiveH(g) + LEGEND_V_GAP;
+        cx += effectiveW(g) + LEGEND_GROUP_GAP;
       }
 
-      const legendRight = legendStartX + maxLegendWidth + MARGIN;
+      const legendRight = legendStartX + totalGroupsWidth + MARGIN;
       if (legendRight > finalWidth) {
         finalWidth = legendRight;
       }
 
-      const legendBottom = legendY - LEGEND_V_GAP + MARGIN;
+      const legendBottom = legendY + LEGEND_HEIGHT + MARGIN;
       if (legendBottom > finalHeight) {
         finalHeight = legendBottom;
       }

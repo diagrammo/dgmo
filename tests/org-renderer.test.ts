@@ -874,13 +874,13 @@ Alice | location: NY, status: FTE`;
     const parsed = parseOrg(input, palette.light);
     const layout = layoutOrg(parsed);
 
-    // Legend should be at top-right: all groups share same X, stacked vertically
+    // Legend should be at top-right: groups in a horizontal row
     expect(layout.legend.length).toBeGreaterThanOrEqual(2);
     const [first, second] = layout.legend;
-    // Same X (both at top-right)
-    expect(first.x).toBe(second.x);
-    // Stacked vertically: second below first
-    expect(second.y).toBeGreaterThan(first.y);
+    // Same Y (both on same row)
+    expect(first.y).toBe(second.y);
+    // Laid out horizontally: second to the right of first
+    expect(second.x).toBeGreaterThan(first.x);
     // Y starts at MARGIN (40)
     expect(first.y).toBe(40);
   });
@@ -1013,12 +1013,12 @@ Alice | location: NY`;
 
     const legendGroup = container.querySelector('[data-legend-group="location"]');
     expect(legendGroup).toBeTruthy();
-    const rect = legendGroup!.querySelector('rect');
-    expect(rect).toBeTruthy();
-    // Active group should have stroke-width of 2
-    expect(rect!.getAttribute('stroke-width')).toBe('2');
-    // Active group should use palette.primary as stroke
-    expect(rect!.getAttribute('stroke')).toBe(palette.light.primary);
+    // Active group renders as capsule: outer rounded rect + inner pill + pill border
+    const rects = legendGroup!.querySelectorAll('rect');
+    expect(rects.length).toBeGreaterThanOrEqual(2);
+    // Entries should be visible (dot circles)
+    const dots = legendGroup!.querySelectorAll('circle');
+    expect(dots.length).toBeGreaterThanOrEqual(1);
   });
 });
 
@@ -1112,7 +1112,7 @@ Alice`;
     expect(eng.metadata['status']).toBeUndefined();
   });
 
-  it('eye icon renders when hiddenAttributes provided', () => {
+  it('active legend group shows entry dots', () => {
     const parsed = parseOrg(input, palette.light);
     const layout = layoutOrg(parsed, undefined, 'location', new Set());
 
@@ -1125,12 +1125,14 @@ Alice`;
       undefined, undefined, 'location', new Set()
     );
 
-    // Only the active group is rendered fully (with eye icon)
-    const eyeIcons = container.querySelectorAll('.org-legend-eye');
-    expect(eyeIcons.length).toBeGreaterThanOrEqual(1);
+    // Active legend group should have entry dots
+    const legendGroup = container.querySelector('[data-legend-group="location"]');
+    expect(legendGroup).toBeTruthy();
+    const dots = legendGroup!.querySelectorAll('circle');
+    expect(dots.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('no eye icon when hiddenAttributes not provided', () => {
+  it('no entry dots when no active tag group', () => {
     const parsed = parseOrg(input, palette.light);
     const layout = layoutOrg(parsed);
 
@@ -1140,52 +1142,21 @@ Alice`;
 
     renderOrg(container, parsed, layout, palette.light, false);
 
-    const eyeIcons = container.querySelectorAll('.org-legend-eye');
-    expect(eyeIcons).toHaveLength(0);
+    // Minified pills have no entry dots
+    const legendGroups = container.querySelectorAll('[data-legend-group]');
+    for (const g of legendGroups) {
+      expect(g.querySelectorAll('circle').length).toBe(0);
+    }
   });
 
-  it('closed eye path when attribute is hidden', () => {
+  it('hidden attributes still filter card metadata', () => {
     const parsed = parseOrg(input, palette.light);
     const hidden = new Set(['location']);
-    // Must set activeTagGroup so the group renders fully (with eye icon)
     const layout = layoutOrg(parsed, undefined, 'location', hidden);
 
-    const container = document.createElement('div');
-    Object.defineProperty(container, 'clientWidth', { value: 800 });
-    Object.defineProperty(container, 'clientHeight', { value: 600 });
-
-    renderOrg(
-      container, parsed, layout, palette.light, false,
-      undefined, undefined, 'location', hidden
-    );
-
-    const locationEye = container.querySelector(
-      '[data-legend-visibility="location"]'
-    );
-    expect(locationEye).toBeTruthy();
-    // Hidden attribute has a slash line instead of pupil circle
-    const slashLine = locationEye!.querySelector('line');
-    expect(slashLine).toBeTruthy();
-    const pupilCircle = locationEye!.querySelector('circle');
-    expect(pupilCircle).toBeNull();
-  });
-
-  it('no eye icons in export', () => {
-    const parsed = parseOrg(input, palette.light);
-    const hidden = new Set(['location']);
-    const layout = layoutOrg(parsed, undefined, undefined, hidden);
-
-    const container = document.createElement('div');
-    Object.defineProperty(container, 'clientWidth', { value: 800 });
-    Object.defineProperty(container, 'clientHeight', { value: 600 });
-
-    renderOrg(
-      container, parsed, layout, palette.light, false,
-      undefined, { width: 800, height: 600 }, undefined, hidden
-    );
-
-    const eyeIcons = container.querySelectorAll('.org-legend-eye');
-    expect(eyeIcons).toHaveLength(0);
+    // Cards should have location filtered from metadata
+    const alice = layout.nodes.find((n) => n.label === 'Alice')!;
+    expect(alice.metadata['location']).toBeUndefined();
   });
 
   it('export respects DSL hide option', () => {
