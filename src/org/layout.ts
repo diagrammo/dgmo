@@ -52,7 +52,6 @@ export interface OrgContainerBounds {
 export interface OrgLegendEntry {
   value: string;
   color: string;
-  isDefault?: boolean;
 }
 
 export interface OrgLegendGroup {
@@ -272,29 +271,34 @@ function centerHeavyChildren(node: TreeNode): void {
 // Layout
 // ============================================================
 
-function computeLegendGroups(tagGroups: OrgTagGroup[], _showEyeIcons: boolean): OrgLegendGroup[] {
+function computeLegendGroups(
+  tagGroups: OrgTagGroup[],
+  _showEyeIcons: boolean,
+  usedValuesByGroup?: Map<string, Set<string>>
+): OrgLegendGroup[] {
   const groups: OrgLegendGroup[] = [];
 
   for (const group of tagGroups) {
     if (group.entries.length === 0) continue;
 
-    // Pill label includes alias if present (e.g., "Rank (r)")
-    const pillLabel = group.alias ? `${group.name} (${group.alias})` : group.name;
-    const pillWidth = pillLabel.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
-    // Minified pill shows just the group name (no alias)
-    const minPillWidth = group.name.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
+    // Filter entries to only values actually used by nodes (if provided)
+    const usedValues = usedValuesByGroup?.get(group.name.toLowerCase());
+    const visibleEntries = usedValues
+      ? group.entries.filter((e) => usedValues.has(e.value.toLowerCase()))
+      : group.entries;
+    if (visibleEntries.length === 0) continue;
+
+    // Pill label shows just the group name (alias is for DSL shorthand only)
+    const pillWidth = group.name.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
+    const minPillWidth = pillWidth;
 
     // Capsule: pad + pill + gap + entries + pad
-    const isDefaultValue = group.defaultValue?.toLowerCase();
     let entriesWidth = 0;
-    for (const entry of group.entries) {
-      const entryLabel = isDefaultValue === entry.value.toLowerCase()
-        ? `${entry.value} (default)`
-        : entry.value;
+    for (const entry of visibleEntries) {
       entriesWidth +=
         LEGEND_DOT_R * 2 +
         LEGEND_ENTRY_DOT_GAP +
-        entryLabel.length * LEGEND_ENTRY_FONT_W +
+        entry.value.length * LEGEND_ENTRY_FONT_W +
         LEGEND_ENTRY_TRAIL;
     }
     const capsuleWidth =
@@ -303,10 +307,9 @@ function computeLegendGroups(tagGroups: OrgTagGroup[], _showEyeIcons: boolean): 
     groups.push({
       name: group.name,
       alias: group.alias,
-      entries: group.entries.map((e) => ({
+      entries: visibleEntries.map((e) => ({
         value: e.value,
         color: e.color,
-        isDefault: group.defaultValue?.toLowerCase() === e.value.toLowerCase() || undefined,
       })),
       x: 0,
       y: 0,
@@ -1101,9 +1104,24 @@ export function layoutOrg(
   const totalWidth = finalMaxX - finalMinX + MARGIN * 2;
   const totalHeight = finalMaxY - minY + MARGIN * 2;
 
+  // Collect which tag group values are actually used by nodes
+  const usedValuesByGroup = new Map<string, Set<string>>();
+  for (const group of parsed.tagGroups) {
+    const key = group.name.toLowerCase();
+    const used = new Set<string>();
+    const walk = (node: OrgNode) => {
+      if (!node.isContainer && node.metadata[key]) {
+        used.add(node.metadata[key].toLowerCase());
+      }
+      for (const child of node.children) walk(child);
+    };
+    for (const root of parsed.roots) walk(root);
+    usedValuesByGroup.set(key, used);
+  }
+
   // Compute legend for tag groups
   const showEyeIcons = hiddenAttributes !== undefined;
-  const legendGroups = computeLegendGroups(parsed.tagGroups, showEyeIcons);
+  const legendGroups = computeLegendGroups(parsed.tagGroups, showEyeIcons, usedValuesByGroup);
   let finalWidth = totalWidth;
   let finalHeight = totalHeight;
 

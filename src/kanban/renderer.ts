@@ -347,7 +347,12 @@ export function renderKanban(
       if (isActive) {
         let entryX = pillX + pillWidth + 4;
         for (const entry of group.entries) {
-          svg
+          const entryG = svg
+            .append('g')
+            .attr('data-legend-entry', entry.value.toLowerCase())
+            .style('cursor', 'pointer');
+
+          entryG
             .append('circle')
             .attr('cx', entryX + LEGEND_DOT_R)
             .attr('cy', legendY + LEGEND_HEIGHT / 2)
@@ -355,7 +360,7 @@ export function renderKanban(
             .attr('fill', entry.color);
 
           const entryTextX = entryX + LEGEND_DOT_R * 2 + 4;
-          svg
+          entryG
             .append('text')
             .attr('x', entryTextX)
             .attr('y', legendY + LEGEND_HEIGHT / 2 + LEGEND_ENTRY_FONT_SIZE / 2 - 1)
@@ -465,6 +470,19 @@ export function renderKanban(
         .attr('class', 'kanban-card')
         .attr('data-card-id', card.id)
         .attr('data-line-number', card.lineNumber);
+
+      // Expose active tag group value for legend-entry hover dimming
+      if (activeTagGroup) {
+        const tagKey = activeTagGroup.toLowerCase();
+        const tagValue = card.tags[tagKey];
+        const group = parsed.tagGroups.find(
+          (tg) => tg.name.toLowerCase() === tagKey
+        );
+        const value = tagValue ?? group?.defaultValue;
+        if (value) {
+          cg.attr(`data-tag-${tagKey}`, value.toLowerCase());
+        }
+      }
 
       const cx = colLayout.x + cardLayout.x;
       const cy = colLayout.y + cardLayout.y;
