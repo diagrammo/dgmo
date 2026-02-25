@@ -17,20 +17,20 @@ const COLUMN_GAP = 16;
 const COLUMN_HEADER_HEIGHT = 36;
 const COLUMN_PADDING = 12;
 const COLUMN_MIN_WIDTH = 200;
-const CARD_HEIGHT_BASE = 32;
-const CARD_DETAIL_LINE_HEIGHT = 16;
+const CARD_HEADER_HEIGHT = 24;
+const CARD_META_LINE_HEIGHT = 14;
+const CARD_SEPARATOR_GAP = 4;
 const CARD_GAP = 8;
 const CARD_RADIUS = 6;
 const CARD_PADDING_X = 10;
-const CARD_PADDING_Y = 8;
+const CARD_PADDING_Y = 6;
+const CARD_STROKE_WIDTH = 1.5;
 const TITLE_HEIGHT = 30;
 const TITLE_FONT_SIZE = 18;
 const COLUMN_HEADER_FONT_SIZE = 13;
 const CARD_TITLE_FONT_SIZE = 12;
-const CARD_DETAIL_FONT_SIZE = 10;
+const CARD_META_FONT_SIZE = 10;
 const WIP_FONT_SIZE = 10;
-const TAG_DOT_R = 4;
-const TAG_DOT_GAP = 6;
 const COLUMN_RADIUS = 8;
 const COLUMN_HEADER_RADIUS = 8;
 const LEGEND_HEIGHT = 28;
@@ -66,11 +66,11 @@ function mix(a: string, b: string, pct: number): string {
 // Tag color resolution
 // ============================================================
 
-function resolveCardTagColors(
+function resolveCardTagMeta(
   card: KanbanCard,
   tagGroups: KanbanTagGroup[]
-): { color: string; groupName: string }[] {
-  const dots: { color: string; groupName: string }[] = [];
+): { label: string; value: string; color?: string }[] {
+  const meta: { label: string; value: string; color?: string }[] = [];
   for (const group of tagGroups) {
     const tagValue = card.tags[group.name.toLowerCase()];
     const value = tagValue ?? group.defaultValue;
@@ -78,11 +78,9 @@ function resolveCardTagColors(
     const entry = group.entries.find(
       (e) => e.value.toLowerCase() === value.toLowerCase()
     );
-    if (entry) {
-      dots.push({ color: entry.color, groupName: group.name });
-    }
+    meta.push({ label: group.name, value, color: entry?.color });
   }
-  return dots;
+  return meta;
 }
 
 function resolveCardTagColor(
@@ -148,15 +146,25 @@ function computeLayout(
 
     for (const card of col.cards) {
       const titleWidth = card.title.length * charWidth;
-      const tagDotWidth =
-        Object.keys(card.tags).length * (TAG_DOT_R * 2 + TAG_DOT_GAP);
       maxCardTextWidth = Math.max(
         maxCardTextWidth,
-        titleWidth + tagDotWidth + CARD_PADDING_X * 2
+        titleWidth + CARD_PADDING_X * 2
       );
 
-      const detailHeight = card.details.length * CARD_DETAIL_LINE_HEIGHT;
-      const cardHeight = CARD_HEIGHT_BASE + detailHeight;
+      // Count metadata rows (tag groups + detail lines)
+      const tagMeta = resolveCardTagMeta(card, parsed.tagGroups);
+      const metaCount = tagMeta.length + card.details.length;
+      const metaHeight =
+        metaCount > 0
+          ? CARD_SEPARATOR_GAP + 1 + CARD_PADDING_Y + metaCount * CARD_META_LINE_HEIGHT
+          : 0;
+      const cardHeight = CARD_HEADER_HEIGHT + CARD_PADDING_Y + metaHeight;
+
+      // Account for meta label widths
+      for (const m of tagMeta) {
+        const metaW = (m.label.length + 2 + m.value.length) * CARD_META_FONT_SIZE * 0.6 + CARD_PADDING_X * 2;
+        maxCardTextWidth = Math.max(maxCardTextWidth, metaW);
+      }
 
       cardLayouts.push({
         x: COLUMN_PADDING,
@@ -362,10 +370,7 @@ export function renderKanban(
     ? mix(palette.surface, palette.bg, 70)
     : mix(palette.surface, palette.bg, 50);
 
-  const cardBg = palette.bg;
-  const cardBorder = isDark
-    ? mix(palette.textMuted, palette.bg, 30)
-    : mix(palette.textMuted, palette.bg, 20);
+  const cardBaseBg = isDark ? palette.surface : palette.bg;
 
   for (const colLayout of layout.columns) {
     const col = colLayout.column;
@@ -436,6 +441,14 @@ export function renderKanban(
     for (const cardLayout of colLayout.cardLayouts) {
       const card = cardLayout.card;
       const resolvedColor = resolveCardTagColor(card, parsed.tagGroups, activeTagGroup ?? null);
+      const tagMeta = resolveCardTagMeta(card, parsed.tagGroups);
+      const hasMeta = tagMeta.length > 0 || card.details.length > 0;
+
+      // Org-chart-style fill: 15% blend of color into bg
+      const cardFill = resolvedColor
+        ? mix(resolvedColor, cardBaseBg, 15)
+        : mix(palette.primary, cardBaseBg, 15);
+      const cardStroke = resolvedColor ?? palette.textMuted;
 
       const cg = g
         .append('g')
@@ -453,56 +466,65 @@ export function renderKanban(
         .attr('width', cardLayout.width)
         .attr('height', cardLayout.height)
         .attr('rx', CARD_RADIUS)
-        .attr('fill', resolvedColor ? mix(resolvedColor, cardBg, 15) : cardBg)
-        .attr('stroke', resolvedColor ?? cardBorder)
-        .attr('stroke-width', resolvedColor ? 1.5 : 0.75);
-
-      // Color accent bar (left edge)
-      if (resolvedColor) {
-        cg.append('rect')
-          .attr('x', cx)
-          .attr('y', cy + CARD_RADIUS)
-          .attr('width', 3)
-          .attr('height', cardLayout.height - CARD_RADIUS * 2)
-          .attr('fill', resolvedColor);
-      }
-
-      // Tag color dots (right-aligned)
-      const tagDots = resolveCardTagColors(card, parsed.tagGroups);
-      let dotX =
-        cx + cardLayout.width - CARD_PADDING_X - TAG_DOT_R;
-      for (let di = tagDots.length - 1; di >= 0; di--) {
-        cg.append('circle')
-          .attr('cx', dotX)
-          .attr('cy', cy + CARD_PADDING_Y + CARD_TITLE_FONT_SIZE / 2)
-          .attr('r', TAG_DOT_R)
-          .attr('fill', tagDots[di].color);
-        dotX -= TAG_DOT_R * 2 + TAG_DOT_GAP;
-      }
+        .attr('fill', cardFill)
+        .attr('stroke', cardStroke)
+        .attr('stroke-width', CARD_STROKE_WIDTH);
 
       // Card title
       cg.append('text')
-        .attr('x', cx + CARD_PADDING_X + (resolvedColor ? 4 : 0))
-        .attr('y', cy + CARD_PADDING_Y + CARD_TITLE_FONT_SIZE - 1)
+        .attr('x', cx + CARD_PADDING_X)
+        .attr('y', cy + CARD_PADDING_Y + CARD_TITLE_FONT_SIZE)
         .attr('font-size', CARD_TITLE_FONT_SIZE)
+        .attr('font-weight', '500')
         .attr('fill', palette.text)
         .text(card.title);
 
-      // Detail lines
-      for (let di = 0; di < card.details.length; di++) {
-        cg.append('text')
-          .attr('x', cx + CARD_PADDING_X + (resolvedColor ? 4 : 0))
-          .attr(
-            'y',
-            cy +
-              CARD_PADDING_Y +
-              CARD_TITLE_FONT_SIZE +
-              6 +
-              (di + 1) * CARD_DETAIL_LINE_HEIGHT
-          )
-          .attr('font-size', CARD_DETAIL_FONT_SIZE)
-          .attr('fill', palette.textMuted)
-          .text(card.details[di]);
+      // Separator + metadata
+      if (hasMeta) {
+        const separatorY = cy + CARD_HEADER_HEIGHT;
+
+        cg.append('line')
+          .attr('x1', cx)
+          .attr('y1', separatorY)
+          .attr('x2', cx + cardLayout.width)
+          .attr('y2', separatorY)
+          .attr('stroke', cardStroke)
+          .attr('stroke-opacity', 0.3)
+          .attr('stroke-width', 1);
+
+        let metaY = separatorY + CARD_SEPARATOR_GAP + CARD_META_FONT_SIZE;
+
+        // Tag metadata rows
+        for (const meta of tagMeta) {
+          cg.append('text')
+            .attr('x', cx + CARD_PADDING_X)
+            .attr('y', metaY)
+            .attr('font-size', CARD_META_FONT_SIZE)
+            .attr('fill', palette.textMuted)
+            .text(`${meta.label}: `);
+
+          const labelWidth = (meta.label.length + 2) * CARD_META_FONT_SIZE * 0.6;
+          cg.append('text')
+            .attr('x', cx + CARD_PADDING_X + labelWidth)
+            .attr('y', metaY)
+            .attr('font-size', CARD_META_FONT_SIZE)
+            .attr('fill', palette.text)
+            .text(meta.value);
+
+          metaY += CARD_META_LINE_HEIGHT;
+        }
+
+        // Detail lines
+        for (const detail of card.details) {
+          cg.append('text')
+            .attr('x', cx + CARD_PADDING_X)
+            .attr('y', metaY)
+            .attr('font-size', CARD_META_FONT_SIZE)
+            .attr('fill', palette.textMuted)
+            .text(detail);
+
+          metaY += CARD_META_LINE_HEIGHT;
+        }
       }
     }
   }
