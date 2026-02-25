@@ -478,6 +478,58 @@ Old task`;
     const parsed = parseKanban(board);
     expect(computeCardArchive(board, parsed, 'card-999')).toBeNull();
   });
+
+  it('archives card with tag metadata', () => {
+    const tagBoard = `chart: kanban
+
+## Priority
+  High(red)
+  Low(green) default
+
+== In Progress ==
+Build login | priority: High
+  Needs review
+
+== Done ==
+Write docs | priority: Low
+
+== Archive ==`;
+
+    const parsed = parseKanban(tagBoard);
+    const result = computeCardArchive(tagBoard, parsed, 'card-1');
+    expect(result).not.toBeNull();
+    const lines = result!.split('\n');
+
+    // Card should be under Archive
+    const archiveIdx = lines.findIndex((l) => l.includes('== Archive =='));
+    expect(lines[archiveIdx + 1]).toBe('Build login | priority: High');
+    expect(lines[archiveIdx + 2]).toBe('  Needs review');
+
+    // Card should no longer be under In Progress
+    const ipIdx = lines.findIndex((l) => l.includes('== In Progress =='));
+    expect(lines[ipIdx + 1]).not.toBe('Build login | priority: High');
+  });
+
+  it('archives card and re-parses correctly', () => {
+    const parsed = parseKanban(board);
+    const result = computeCardArchive(board, parsed, 'card-1');
+    expect(result).not.toBeNull();
+
+    // Re-parse the result to verify it's valid kanban
+    const reParsed = parseKanban(result!);
+    expect(reParsed.error).toBeUndefined();
+
+    // Archive column should have the moved card
+    const archiveCol = reParsed.columns.find((c) => isArchiveColumn(c.name));
+    expect(archiveCol).toBeDefined();
+    expect(archiveCol!.cards).toHaveLength(1);
+    expect(archiveCol!.cards[0].title).toBe('Task A');
+
+    // To Do should have one fewer card
+    const todoCol = reParsed.columns.find((c) => c.name === 'To Do');
+    expect(todoCol!.cards).toHaveLength(1);
+    expect(todoCol!.cards[0].title).toBe('Task B');
+  });
 });
 
 // ============================================================

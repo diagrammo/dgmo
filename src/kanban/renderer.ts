@@ -7,6 +7,7 @@ import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
 import type { ParsedKanban, KanbanColumn, KanbanCard, KanbanTagGroup } from './types';
 import { parseKanban } from './parser';
+import { isArchiveColumn } from './mutations';
 
 // ============================================================
 // Constants
@@ -127,9 +128,10 @@ function computeLayout(
   parsed: ParsedKanban,
   _palette: PaletteColors
 ): { columns: ColumnLayout[]; totalWidth: number; totalHeight: number } {
-  const titleOffset = parsed.title ? TITLE_HEIGHT + 8 : 0;
-  const legendOffset = parsed.tagGroups.length > 0 ? LEGEND_HEIGHT + 8 : 0;
-  const startY = DIAGRAM_PADDING + titleOffset + legendOffset;
+  // Title and legend share one row
+  const hasHeader = !!parsed.title || parsed.tagGroups.length > 0;
+  const headerHeight = hasHeader ? Math.max(TITLE_HEIGHT, LEGEND_HEIGHT) + 8 : 0;
+  const startY = DIAGRAM_PADDING + headerHeight;
 
   // Estimate column widths based on content
   const charWidth = CARD_TITLE_FONT_SIZE * 0.6;
@@ -137,7 +139,10 @@ function computeLayout(
 
   let maxColumnHeight = 0;
 
-  for (const col of parsed.columns) {
+  // Filter out the archive column — it's a drop target only, not rendered
+  const visibleColumns = parsed.columns.filter((c) => !isArchiveColumn(c.name));
+
+  for (const col of visibleColumns) {
     // Compute card heights and column width
     let maxCardTextWidth = col.name.length * (COLUMN_HEADER_FONT_SIZE * 0.65);
 
@@ -254,11 +259,14 @@ export function renderKanban(
       .text(parsed.title);
   }
 
-  // Legend
+  // Legend (same row as title)
   if (parsed.tagGroups.length > 0) {
-    const titleOffset = parsed.title ? TITLE_HEIGHT + 8 : 0;
-    const legendY = DIAGRAM_PADDING + titleOffset;
-    let legendX = DIAGRAM_PADDING;
+    const legendY = DIAGRAM_PADDING;
+    // Start legend after title text
+    const titleTextWidth = parsed.title
+      ? parsed.title.length * TITLE_FONT_SIZE * 0.6 + 16
+      : 0;
+    let legendX = DIAGRAM_PADDING + titleTextWidth;
     const groupBg = mix(palette.surface, palette.bg, isDark ? 35 : 20);
     const capsulePad = 4;
 
