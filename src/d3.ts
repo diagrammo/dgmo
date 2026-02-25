@@ -5281,7 +5281,7 @@ export async function renderD3ForExport(
       palette ?? (isDark ? getPalette('nord').dark : getPalette('nord').light);
 
     const orgParsed = parseOrg(content, effectivePalette);
-    if (orgParsed.error || orgParsed.roots.length === 0) return '';
+    if (orgParsed.error) return '';
 
     // Apply interactive collapse state when provided
     const collapsedNodes = orgExportState?.collapsedNodes;
@@ -5325,6 +5325,49 @@ export async function renderD3ForExport(
         activeTagGroup,
         hiddenAttributes
       );
+
+      const svgEl = container.querySelector('svg');
+      if (!svgEl) return '';
+
+      if (theme === 'transparent') {
+        svgEl.style.background = 'none';
+      } else if (!svgEl.style.background) {
+        svgEl.style.background = effectivePalette.bg;
+      }
+
+      svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+      svgEl.style.fontFamily = FONT_FAMILY;
+
+      const svgHtml = svgEl.outerHTML;
+      if (options?.branding !== false) {
+        const brandColor = theme === 'transparent' ? '#888' : effectivePalette.textMuted;
+        return injectBranding(svgHtml, brandColor);
+      }
+      return svgHtml;
+    } finally {
+      document.body.removeChild(container);
+    }
+  }
+
+  if (detectedType === 'kanban') {
+    const { parseKanban } = await import('./kanban/parser');
+    const { renderKanban } = await import('./kanban/renderer');
+
+    const isDark = theme === 'dark';
+    const { getPalette } = await import('./palettes');
+    const effectivePalette =
+      palette ?? (isDark ? getPalette('nord').dark : getPalette('nord').light);
+
+    const kanbanParsed = parseKanban(content, effectivePalette);
+    if (kanbanParsed.error || kanbanParsed.columns.length === 0) return '';
+
+    const container = document.createElement('div');
+    container.style.position = 'absolute';
+    container.style.left = '-9999px';
+    document.body.appendChild(container);
+
+    try {
+      renderKanban(container, kanbanParsed, effectivePalette, isDark);
 
       const svgEl = container.querySelector('svg');
       if (!svgEl) return '';

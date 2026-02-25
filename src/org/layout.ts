@@ -356,7 +356,30 @@ export function layoutOrg(
   hiddenAttributes?: Set<string>
 ): OrgLayoutResult {
   if (parsed.roots.length === 0) {
-    return { nodes: [], edges: [], containers: [], legend: [], width: 0, height: 0 };
+    // Legend-only: compute and position legend groups even without nodes
+    const showEyeIcons = hiddenAttributes !== undefined;
+    const legendGroups = computeLegendGroups(parsed.tagGroups, showEyeIcons);
+    if (legendGroups.length === 0) {
+      return { nodes: [], edges: [], containers: [], legend: [], width: 0, height: 0 };
+    }
+
+    // Layout legend groups horizontally
+    let cx = MARGIN;
+    let maxH = 0;
+    for (const g of legendGroups) {
+      g.x = cx;
+      g.y = MARGIN;
+      cx += g.width + H_GAP;
+      if (g.height > maxH) maxH = g.height;
+    }
+    return {
+      nodes: [],
+      edges: [],
+      containers: [],
+      legend: legendGroups,
+      width: cx - H_GAP + MARGIN,
+      height: maxH + MARGIN * 2,
+    };
   }
 
   // Inject default tag group values into node metadata for display.

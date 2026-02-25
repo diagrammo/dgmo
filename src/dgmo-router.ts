@@ -9,7 +9,8 @@ import { looksLikeERDiagram, parseERDiagram } from './er/parser';
 import { parseChart } from './chart';
 import { parseEChart } from './echarts';
 import { parseD3 } from './d3';
-import { parseOrg } from './org/parser';
+import { parseOrg, looksLikeOrg } from './org/parser';
+import { parseKanban } from './kanban/parser';
 import type { DgmoError } from './diagnostics';
 
 /**
@@ -56,6 +57,7 @@ export const DGMO_CHART_TYPE_MAP: Record<string, DgmoFramework> = {
   class: 'd3',
   er: 'd3',
   org: 'd3',
+  kanban: 'd3',
 };
 
 /**
@@ -87,6 +89,7 @@ export function parseDgmoChartType(content: string): string | null {
   if (looksLikeFlowchart(content)) return 'flowchart';
   if (looksLikeClassDiagram(content)) return 'class';
   if (looksLikeERDiagram(content)) return 'er';
+  if (looksLikeOrg(content)) return 'org';
 
   return null;
 }
@@ -133,6 +136,10 @@ export function parseDgmo(content: string): { diagnostics: DgmoError[] } {
   }
   if (chartType === 'org') {
     const parsed = parseOrg(content);
+    return { diagnostics: parsed.diagnostics };
+  }
+  if (chartType === 'kanban') {
+    const parsed = parseKanban(content);
     return { diagnostics: parsed.diagnostics };
   }
   if (STANDARD_CHART_TYPES.has(chartType)) {

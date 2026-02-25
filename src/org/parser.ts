@@ -80,6 +80,20 @@ const TITLE_RE = /^title\s*:\s*(.+)/i;
 const OPTION_RE = /^([a-z][a-z0-9-]*)\s*:\s*(.+)$/i;
 
 // ============================================================
+// Inference
+// ============================================================
+
+/** Returns true if content contains tag group headings (`## ...`), suggesting an org chart. */
+export function looksLikeOrg(content: string): boolean {
+  for (const line of content.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('//')) continue;
+    if (GROUP_HEADING_RE.test(trimmed)) return true;
+  }
+  return false;
+}
+
+// ============================================================
 // Parser
 // ============================================================
 
@@ -301,7 +315,7 @@ export function parseOrg(
     }
   }
 
-  if (result.roots.length === 0 && !result.error) {
+  if (result.roots.length === 0 && result.tagGroups.length === 0 && !result.error) {
     const diag = makeDgmoError(1, 'No nodes found in org chart');
     result.diagnostics.push(diag);
     result.error = formatDgmoError(diag);

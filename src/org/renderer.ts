@@ -460,7 +460,7 @@ export function renderOrg(
   // Render legend — skip entirely in export mode.
   // No active group: all groups rendered minified (compact chips).
   // Active group selected: only that group rendered (full size), others hidden.
-  if (!exportDims) for (const group of layout.legend) {
+  if (!exportDims || layout.nodes.length === 0) for (const group of layout.legend) {
     const isActive =
       activeTagGroup != null &&
       group.name.toLowerCase() === activeTagGroup.toLowerCase();
@@ -635,7 +635,7 @@ export function renderOrgForExport(
   palette: PaletteColors
 ): string {
   const parsed = parseOrg(content, palette);
-  if (parsed.error || parsed.roots.length === 0) return '';
+  if (parsed.error) return '';
 
   // Extract hide option for export: cards sized without hidden attributes
   const hideOption = parsed.options?.['hide'];

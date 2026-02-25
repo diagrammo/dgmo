@@ -144,6 +144,17 @@ export type {
 
 export { renderOrg, renderOrgForExport } from './org/renderer';
 
+export { parseKanban } from './kanban/parser';
+export type {
+  ParsedKanban,
+  KanbanColumn,
+  KanbanCard,
+  KanbanTagGroup,
+  KanbanTagEntry,
+} from './kanban/types';
+export { computeCardMove, computeCardArchive, isArchiveColumn } from './kanban/mutations';
+export { renderKanban, renderKanbanForExport } from './kanban/renderer';
+
 export { collapseOrgTree } from './org/collapse';
 export type { CollapsedOrgResult } from './org/collapse';
 
