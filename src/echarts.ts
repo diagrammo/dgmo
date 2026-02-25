@@ -1198,16 +1198,15 @@ function buildFunnelOption(
         const val = p.value;
         const prev = prevValueMap.get(p.name) ?? val;
         const isFirst = p.dataIndex === 0;
-        let html = `<strong>${p.name}</strong>: ${val}`;
-        if (!isFirst) {
-          const stepDrop = ((1 - val / prev) * 100).toFixed(1);
-          html += `<br/>Step drop-off: ${stepDrop}%`;
-        }
-        if (!isFirst && topValue > 0) {
+        if (isFirst) return '';
+        const parts: string[] = [];
+        const stepDrop = ((1 - val / prev) * 100).toFixed(1);
+        parts.push(`Step drop-off: ${stepDrop}%`);
+        if (topValue > 0) {
           const totalDrop = ((1 - val / topValue) * 100).toFixed(1);
-          html += `<br/>Overall drop-off: ${totalDrop}%`;
+          parts.push(`Overall drop-off: ${totalDrop}%`);
         }
-        return html;
+        return parts.join('<br/>');
       },
     },
     series: [
