@@ -106,6 +106,11 @@ Jane Smith
 Task A
 == Done ==
 Task B`,
+
+  c4: `chart: c4
+person Customer
+system Banking
+  -> Customer: Serves`,
 };
 
 // All D3 types now render in JSDOM via explicit dimensions (Epic 41)

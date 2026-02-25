@@ -54,8 +54,8 @@ describe('flowchart routing', () => {
     expect(DGMO_CHART_TYPE_MAP['flowchart']).toBe('d3');
   });
 
-  it('chart type count is 27', () => {
-    expect(Object.keys(DGMO_CHART_TYPE_MAP).length).toBe(27);
+  it('chart type count is 28', () => {
+    expect(Object.keys(DGMO_CHART_TYPE_MAP).length).toBe(28);
   });
 });
 

@@ -155,6 +155,20 @@ export type {
 export { computeCardMove, computeCardArchive, isArchiveColumn } from './kanban/mutations';
 export { renderKanban, renderKanbanForExport } from './kanban/renderer';
 
+export { parseC4 } from './c4/parser';
+export type {
+  ParsedC4,
+  C4Element,
+  C4ElementType,
+  C4Shape,
+  C4ArrowType,
+  C4Relationship,
+  C4Group,
+  C4DeploymentNode,
+  C4TagGroup,
+  C4TagEntry,
+} from './c4/types';
+
 export { collapseOrgTree } from './org/collapse';
 export type { CollapsedOrgResult } from './org/collapse';
 
