@@ -200,6 +200,7 @@ async function resolveFile(
   const bodyStartIndex = findBodyStart(lines);
 
   // Collect header lines (chart:, title:, options, tags:)
+  let tagsLineNumber = 0; // 1-based line number of the tags: directive
   for (let i = 0; i < bodyStartIndex; i++) {
     const trimmed = lines[i].trim();
     if (trimmed === '' || trimmed.startsWith('//')) {
@@ -212,6 +213,7 @@ async function resolveFile(
     const tagsMatch = trimmed.match(TAGS_RE);
     if (tagsMatch) {
       tagsDirective = tagsMatch[1].trim();
+      tagsLineNumber = i + 1; // 1-based
       continue;
     }
 
@@ -228,7 +230,7 @@ async function resolveFile(
       tagsFileGroups = extractTagGroups(tagsLines);
     } catch {
       diagnostics.push(
-        makeDgmoError(0, `Tags file not found: ${tagsDirective}`)
+        makeDgmoError(tagsLineNumber, `Tags file not found: ${tagsDirective}`)
       );
     }
   }
