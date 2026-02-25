@@ -206,6 +206,15 @@ export function renderOrg(
       .attr('class', 'org-container')
       .attr('data-line-number', String(c.lineNumber)) as GSelection;
 
+    // Expose active tag group value for legend-entry hover dimming
+    if (activeTagGroup) {
+      const tagKey = activeTagGroup.toLowerCase();
+      const metaValue = c.metadata[tagKey];
+      if (metaValue) {
+        cG.attr(`data-tag-${tagKey}`, metaValue.toLowerCase());
+      }
+    }
+
     // Toggle attribute for containers that have (or had) children
     if (c.hasChildren) {
       cG.attr('data-node-toggle', c.nodeId)
@@ -332,6 +341,15 @@ export function renderOrg(
       )
       .attr('class', 'org-node')
       .attr('data-line-number', String(node.lineNumber)) as GSelection;
+
+    // Expose active tag group value for legend-entry hover dimming
+    if (activeTagGroup) {
+      const tagKey = activeTagGroup.toLowerCase();
+      const metaValue = node.metadata[tagKey];
+      if (metaValue) {
+        nodeG.attr(`data-tag-${tagKey}`, metaValue.toLowerCase());
+      }
+    }
 
     // Toggle attribute for nodes that have (or had) children
     if (node.hasChildren) {
@@ -464,8 +482,8 @@ export function renderOrg(
       ? mix(palette.surface, palette.bg, 50)
       : mix(palette.surface, palette.bg, 30);
 
-    // Pill label: include alias when expanded (e.g., "Rank (r)")
-    const pillLabel = isActive && group.alias ? `${group.name} (${group.alias})` : group.name;
+    // Pill label: just the group name (alias is for DSL shorthand only)
+    const pillLabel = group.name;
     const pillWidth =
       pillLabel.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
 
@@ -529,7 +547,12 @@ export function renderOrg(
     if (isActive) {
       let entryX = pillX + pillWidth + 4;
       for (const entry of group.entries) {
-        gEl
+        const entryG = gEl
+          .append('g')
+          .attr('data-legend-entry', entry.value.toLowerCase())
+          .style('cursor', 'pointer');
+
+        entryG
           .append('circle')
           .attr('cx', entryX + LEGEND_DOT_R)
           .attr('cy', LEGEND_HEIGHT / 2)
@@ -537,8 +560,8 @@ export function renderOrg(
           .attr('fill', entry.color);
 
         const textX = entryX + LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP;
-        const entryLabel = entry.isDefault ? `${entry.value} (default)` : entry.value;
-        gEl
+        const entryLabel = entry.value;
+        entryG
           .append('text')
           .attr('x', textX)
           .attr('y', LEGEND_HEIGHT / 2 + LEGEND_ENTRY_FONT_SIZE / 2 - 1)

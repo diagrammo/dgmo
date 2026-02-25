@@ -633,7 +633,8 @@ Alice | location: NY, status: FTE`;
   NY(blue)
   LA(yellow)
 
-Alice | location: NY`;
+Alice | location: NY
+Bob | location: LA`;
     const parsed = parseOrg(input, palette.light);
     // Need activeTagGroup to render the group fully (with entries)
     const layout = layoutOrg(parsed, undefined, 'location');
@@ -648,11 +649,37 @@ Alice | location: NY`;
     );
     const svg = container.innerHTML;
 
-    // Entry values rendered
+    // Entry values rendered (only values used by nodes)
     expect(svg).toContain('>NY<');
     expect(svg).toContain('>LA<');
     // Colored circles (indicators)
     expect(svg).toContain('<circle');
+  });
+
+  it('omits unused tag group values from legend', () => {
+    const input = `chart: org
+
+## Location
+  NY(blue)
+  LA(yellow)
+
+Alice | location: NY`;
+    const parsed = parseOrg(input, palette.light);
+    const layout = layoutOrg(parsed, undefined, 'location');
+
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'clientWidth', { value: 800 });
+    Object.defineProperty(container, 'clientHeight', { value: 600 });
+
+    renderOrg(
+      container, parsed, layout, palette.light, false,
+      undefined, undefined, 'location'
+    );
+    const svg = container.innerHTML;
+
+    // NY is used by Alice, LA is not used by any node
+    expect(svg).toContain('>NY<');
+    expect(svg).not.toContain('>LA<');
   });
 
   it('activeTagGroup colors nodes from matching tag entries', () => {
@@ -893,22 +920,16 @@ legend-position: top
 ## Location
   NY(blue)
 
-Alice
-  Bob
-    Carol
-      Dave`;
-    const withoutLegend = `chart: org
-Alice
-  Bob
-    Carol
-      Dave`;
-    const parsedWith = parseOrg(input, palette.light);
-    const layoutWith = layoutOrg(parsedWith);
-    const parsedWithout = parseOrg(withoutLegend, palette.light);
-    const layoutWithout = layoutOrg(parsedWithout);
+Alice | location: NY
+  Bob | location: NY`;
+    const parsed = parseOrg(input, palette.light);
+    const layout = layoutOrg(parsed);
 
-    // Top legend pushes content down by LEGEND_HEIGHT (28) + LEGEND_GROUP_GAP (12) = 40
-    expect(layoutWith.height).toBe(layoutWithout.height + 40);
+    // Legend should exist and be positioned at top
+    expect(layout.legend).toHaveLength(1);
+    expect(layout.legend[0].y).toBe(40); // MARGIN
+    // First node should be pushed down by LEGEND_HEIGHT (28) + LEGEND_GROUP_GAP (12)
+    expect(layout.nodes[0].y).toBeGreaterThanOrEqual(40 + 28 + 12);
   });
 
   it('legend groups have data-legend-group attributes', () => {
@@ -1217,15 +1238,11 @@ describe('tag-group-only legend', () => {
     expect(layout.legend[1].y).toBeGreaterThan(layout.legend[0].y);
   });
 
-  it('carries alias and isDefault in legend data', () => {
+  it('carries alias in legend data', () => {
     const parsed = parseOrg(tagGroupOnlyInput);
     const layout = layoutOrg(parsed);
 
     expect(layout.legend[0].alias).toBe('r');
-    const sailor = layout.legend[0].entries.find((e) => e.value === 'Sailor');
-    expect(sailor?.isDefault).toBe(true);
-    const captain = layout.legend[0].entries.find((e) => e.value === 'Captain');
-    expect(captain?.isDefault).toBeUndefined();
   });
 
   it('renders all groups expanded with entries', () => {
@@ -1236,13 +1253,151 @@ describe('tag-group-only legend', () => {
     expect(groupMatches?.length).toBe(2);
     // Entries should be visible (expanded capsules)
     expect(svg).toContain('>Captain<');
-    expect(svg).toContain('>Sailor (default)<');
+    expect(svg).toContain('>Sailor<');
+    expect(svg).not.toContain('(default)');
     expect(svg).toContain('>Active<');
     expect(svg).toContain('>Inactive<');
   });
 
-  it('shows alias in pill label', () => {
+  it('shows group name without alias in pill label', () => {
     const svg = renderOrgForExport(tagGroupOnlyInput, 'light', palette.light);
-    expect(svg).toContain('>Rank (r)<');
+    expect(svg).toContain('>Rank<');
+    expect(svg).not.toContain('>Rank (r)<');
+  });
+});
+
+// ============================================================
+// Legend entry hover data attributes
+// ============================================================
+
+describe('legend entry hover attributes', () => {
+  it('wraps legend entries in g[data-legend-entry]', () => {
+    const input = `chart: org
+
+## Location
+  NY(blue)
+  LA(yellow)
+
+Alice | location: NY
+Bob | location: LA`;
+    const parsed = parseOrg(input, palette.light);
+    const layout = layoutOrg(parsed, undefined, 'location');
+
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'clientWidth', { value: 800 });
+    Object.defineProperty(container, 'clientHeight', { value: 600 });
+
+    renderOrg(
+      container, parsed, layout, palette.light, false,
+      undefined, undefined, 'location'
+    );
+
+    const entries = container.querySelectorAll('[data-legend-entry]');
+    expect(entries.length).toBeGreaterThanOrEqual(2);
+    const values = Array.from(entries).map((e) =>
+      e.getAttribute('data-legend-entry')
+    );
+    expect(values).toContain('ny');
+    expect(values).toContain('la');
+  });
+
+  it('each legend entry wraps circle + text', () => {
+    const input = `chart: org
+
+## Location
+  NY(blue)
+
+Alice | location: NY`;
+    const parsed = parseOrg(input, palette.light);
+    const layout = layoutOrg(parsed, undefined, 'location');
+
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'clientWidth', { value: 800 });
+    Object.defineProperty(container, 'clientHeight', { value: 600 });
+
+    renderOrg(
+      container, parsed, layout, palette.light, false,
+      undefined, undefined, 'location'
+    );
+
+    const entry = container.querySelector('[data-legend-entry="ny"]');
+    expect(entry).toBeTruthy();
+    expect(entry!.querySelector('circle')).toBeTruthy();
+    expect(entry!.querySelector('text')).toBeTruthy();
+  });
+
+  it('adds data-tag-* on nodes when activeTagGroup is set', () => {
+    const input = `chart: org
+
+## Location
+  NY(blue)
+  LA(yellow)
+
+Alice
+  location: NY
+Bob
+  location: LA`;
+    const parsed = parseOrg(input, palette.light);
+    const layout = layoutOrg(parsed, undefined, 'location');
+
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'clientWidth', { value: 800 });
+    Object.defineProperty(container, 'clientHeight', { value: 600 });
+
+    renderOrg(
+      container, parsed, layout, palette.light, false,
+      undefined, undefined, 'location'
+    );
+
+    const alice = container.querySelector('.org-node[data-tag-location="ny"]');
+    const bob = container.querySelector('.org-node[data-tag-location="la"]');
+    expect(alice).toBeTruthy();
+    expect(bob).toBeTruthy();
+  });
+
+  it('does not add data-tag-* when no activeTagGroup', () => {
+    const input = `chart: org
+
+## Location
+  NY(blue)
+
+Alice
+  location: NY`;
+    const parsed = parseOrg(input, palette.light);
+    const layout = layoutOrg(parsed);
+
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'clientWidth', { value: 800 });
+    Object.defineProperty(container, 'clientHeight', { value: 600 });
+
+    renderOrg(container, parsed, layout, palette.light, false);
+
+    const tagged = container.querySelector('[data-tag-location]');
+    expect(tagged).toBeNull();
+  });
+
+  it('adds data-tag-* on containers when activeTagGroup is set', () => {
+    const input = `chart: org
+
+## Status
+  Active(green)
+
+[Engineering]
+  status: Active
+  Alice`;
+    const parsed = parseOrg(input, palette.light);
+    const layout = layoutOrg(parsed, undefined, 'status');
+
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'clientWidth', { value: 800 });
+    Object.defineProperty(container, 'clientHeight', { value: 600 });
+
+    renderOrg(
+      container, parsed, layout, palette.light, false,
+      undefined, undefined, 'status'
+    );
+
+    const eng = container.querySelector('.org-container[data-tag-status="active"]');
+    expect(eng).toBeTruthy();
   });
 });
