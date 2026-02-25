@@ -621,4 +621,25 @@ Jane Smith
       });
     });
   });
+
+  // === Tag-group-only files ===
+  describe('tag-group-only files', () => {
+    it('parses tag-group-only input with no error', () => {
+      const result = parseOrg(
+        '## Rank alias r\n  Captain(red)\n  Sailor(blue) default\n\n## Status\n  Active(green)\n  Inactive(gray)'
+      );
+      expect(result.error).toBeNull();
+      expect(result.roots).toHaveLength(0);
+      expect(result.tagGroups).toHaveLength(2);
+    });
+
+    it('preserves alias and default in tag-group-only input', () => {
+      const result = parseOrg(
+        '## Rank alias r\n  Captain(red)\n  Sailor(blue) default'
+      );
+      expect(result.tagGroups[0].name).toBe('Rank');
+      expect(result.tagGroups[0].alias).toBe('r');
+      expect(result.tagGroups[0].defaultValue).toBe('Sailor');
+    });
+  });
 });

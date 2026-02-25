@@ -52,10 +52,12 @@ export interface OrgContainerBounds {
 export interface OrgLegendEntry {
   value: string;
   color: string;
+  isDefault?: boolean;
 }
 
 export interface OrgLegendGroup {
   name: string;
+  alias?: string;
   entries: OrgLegendEntry[];
   x: number;
   y: number;
@@ -276,15 +278,23 @@ function computeLegendGroups(tagGroups: OrgTagGroup[], _showEyeIcons: boolean): 
   for (const group of tagGroups) {
     if (group.entries.length === 0) continue;
 
-    const pillWidth = group.name.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
+    // Pill label includes alias if present (e.g., "Rank (r)")
+    const pillLabel = group.alias ? `${group.name} (${group.alias})` : group.name;
+    const pillWidth = pillLabel.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
+    // Minified pill shows just the group name (no alias)
+    const minPillWidth = group.name.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
 
     // Capsule: pad + pill + gap + entries + pad
+    const isDefaultValue = group.defaultValue?.toLowerCase();
     let entriesWidth = 0;
     for (const entry of group.entries) {
+      const entryLabel = isDefaultValue === entry.value.toLowerCase()
+        ? `${entry.value} (default)`
+        : entry.value;
       entriesWidth +=
         LEGEND_DOT_R * 2 +
         LEGEND_ENTRY_DOT_GAP +
-        entry.value.length * LEGEND_ENTRY_FONT_W +
+        entryLabel.length * LEGEND_ENTRY_FONT_W +
         LEGEND_ENTRY_TRAIL;
     }
     const capsuleWidth =
@@ -292,12 +302,17 @@ function computeLegendGroups(tagGroups: OrgTagGroup[], _showEyeIcons: boolean): 
 
     groups.push({
       name: group.name,
-      entries: group.entries.map((e) => ({ value: e.value, color: e.color })),
+      alias: group.alias,
+      entries: group.entries.map((e) => ({
+        value: e.value,
+        color: e.color,
+        isDefault: group.defaultValue?.toLowerCase() === e.value.toLowerCase() || undefined,
+      })),
       x: 0,
       y: 0,
       width: capsuleWidth,
       height: LEGEND_HEIGHT,
-      minifiedWidth: pillWidth,
+      minifiedWidth: minPillWidth,
       minifiedHeight: LEGEND_HEIGHT,
     });
   }
@@ -348,20 +363,22 @@ export function layoutOrg(
       return { nodes: [], edges: [], containers: [], legend: [], width: 0, height: 0 };
     }
 
-    // Layout legend groups horizontally (all minified when no nodes)
-    let cx = MARGIN;
+    // Legend-only mode: stack groups vertically, all expanded
+    let cy = MARGIN;
+    let maxWidth = 0;
     for (const g of legendGroups) {
-      g.x = cx;
-      g.y = MARGIN;
-      cx += g.minifiedWidth + LEGEND_GROUP_GAP;
+      g.x = MARGIN;
+      g.y = cy;
+      cy += LEGEND_HEIGHT + LEGEND_GROUP_GAP;
+      if (g.width > maxWidth) maxWidth = g.width;
     }
     return {
       nodes: [],
       edges: [],
       containers: [],
       legend: legendGroups,
-      width: cx - LEGEND_GROUP_GAP + MARGIN,
-      height: LEGEND_HEIGHT + MARGIN * 2,
+      width: maxWidth + MARGIN * 2,
+      height: cy - LEGEND_GROUP_GAP + MARGIN,
     };
   }
 

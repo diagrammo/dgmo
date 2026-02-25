@@ -447,29 +447,34 @@ export function renderOrg(
 
   // Render legend — kanban-style pills.
   // Skip in export mode (unless legend-only chart).
+  // Legend-only (no nodes): all groups rendered as expanded capsules.
   // Active group: only that group rendered as capsule (pill + entries).
   // No active group: all groups rendered as standalone pills.
-  if (!exportDims || layout.nodes.length === 0) for (const group of layout.legend) {
+  const legendOnly = layout.nodes.length === 0;
+  if (!exportDims || legendOnly) for (const group of layout.legend) {
     const isActive =
-      activeTagGroup != null &&
-      group.name.toLowerCase() === activeTagGroup.toLowerCase();
+      legendOnly ||
+      (activeTagGroup != null &&
+        group.name.toLowerCase() === activeTagGroup.toLowerCase());
 
-    // When a group is active, skip all other groups entirely
-    if (activeTagGroup != null && !isActive) continue;
+    // When a group is active, skip all other groups entirely (not in legend-only mode)
+    if (!legendOnly && activeTagGroup != null && !isActive) continue;
 
     const groupBg = isDark
       ? mix(palette.surface, palette.bg, 50)
       : mix(palette.surface, palette.bg, 30);
 
+    // Pill label: include alias when expanded (e.g., "Rank (r)")
+    const pillLabel = isActive && group.alias ? `${group.name} (${group.alias})` : group.name;
     const pillWidth =
-      group.name.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
+      pillLabel.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
 
     const gEl = contentG
       .append('g')
       .attr('transform', `translate(${group.x}, ${group.y})`)
       .attr('class', 'org-legend-group')
       .attr('data-legend-group', group.name.toLowerCase())
-      .style('cursor', 'pointer');
+      .style('cursor', legendOnly ? 'default' : 'pointer');
 
     // Outer capsule background (active only)
     if (isActive) {
@@ -518,7 +523,7 @@ export function renderOrg(
       .attr('font-weight', '500')
       .attr('fill', isActive ? palette.text : palette.textMuted)
       .attr('text-anchor', 'middle')
-      .text(group.name);
+      .text(pillLabel);
 
     // Entries inside capsule (active only)
     if (isActive) {
@@ -532,15 +537,16 @@ export function renderOrg(
           .attr('fill', entry.color);
 
         const textX = entryX + LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP;
+        const entryLabel = entry.isDefault ? `${entry.value} (default)` : entry.value;
         gEl
           .append('text')
           .attr('x', textX)
           .attr('y', LEGEND_HEIGHT / 2 + LEGEND_ENTRY_FONT_SIZE / 2 - 1)
           .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
           .attr('fill', palette.textMuted)
-          .text(entry.value);
+          .text(entryLabel);
 
-        entryX = textX + entry.value.length * LEGEND_ENTRY_FONT_W + LEGEND_ENTRY_TRAIL;
+        entryX = textX + entryLabel.length * LEGEND_ENTRY_FONT_W + LEGEND_ENTRY_TRAIL;
       }
     }
   }

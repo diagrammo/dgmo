@@ -1181,3 +1181,68 @@ Alice
     expect(svg).not.toContain('org-legend-eye');
   });
 });
+
+// ============================================================
+// Tag-group-only (legend-only) rendering
+// ============================================================
+
+describe('tag-group-only legend', () => {
+  const tagGroupOnlyInput = `## Rank alias r
+  Captain(red)
+  Sailor(blue) default
+
+## Status
+  Active(green)
+  Inactive(gray)`;
+
+  it('layoutOrg produces legend groups with no nodes', () => {
+    const parsed = parseOrg(tagGroupOnlyInput);
+    const layout = layoutOrg(parsed);
+
+    expect(layout.nodes).toHaveLength(0);
+    expect(layout.edges).toHaveLength(0);
+    expect(layout.legend).toHaveLength(2);
+    expect(layout.legend[0].name).toBe('Rank');
+    expect(layout.legend[1].name).toBe('Status');
+    expect(layout.width).toBeGreaterThan(0);
+    expect(layout.height).toBeGreaterThan(0);
+  });
+
+  it('stacks legend groups vertically', () => {
+    const parsed = parseOrg(tagGroupOnlyInput);
+    const layout = layoutOrg(parsed);
+
+    // Same x, increasing y
+    expect(layout.legend[0].x).toBe(layout.legend[1].x);
+    expect(layout.legend[1].y).toBeGreaterThan(layout.legend[0].y);
+  });
+
+  it('carries alias and isDefault in legend data', () => {
+    const parsed = parseOrg(tagGroupOnlyInput);
+    const layout = layoutOrg(parsed);
+
+    expect(layout.legend[0].alias).toBe('r');
+    const sailor = layout.legend[0].entries.find((e) => e.value === 'Sailor');
+    expect(sailor?.isDefault).toBe(true);
+    const captain = layout.legend[0].entries.find((e) => e.value === 'Captain');
+    expect(captain?.isDefault).toBeUndefined();
+  });
+
+  it('renders all groups expanded with entries', () => {
+    const svg = renderOrgForExport(tagGroupOnlyInput, 'light', palette.light);
+    expect(svg).toContain('<svg');
+    // Both groups should be rendered
+    const groupMatches = svg.match(/org-legend-group/g);
+    expect(groupMatches?.length).toBe(2);
+    // Entries should be visible (expanded capsules)
+    expect(svg).toContain('>Captain<');
+    expect(svg).toContain('>Sailor (default)<');
+    expect(svg).toContain('>Active<');
+    expect(svg).toContain('>Inactive<');
+  });
+
+  it('shows alias in pill label', () => {
+    const svg = renderOrgForExport(tagGroupOnlyInput, 'light', palette.light);
+    expect(svg).toContain('>Rank (r)<');
+  });
+});
