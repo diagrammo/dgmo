@@ -859,7 +859,7 @@ Alice`;
     expect(layoutWith.height).toBeGreaterThan(layoutWith.legend[0].y);
   });
 
-  it('places legend at top-right when legend-position: top', () => {
+  it('places legend at top-left when legend-position: top', () => {
     const input = `chart: org
 legend-position: top
 
@@ -874,18 +874,19 @@ Alice | location: NY, status: FTE`;
     const parsed = parseOrg(input, palette.light);
     const layout = layoutOrg(parsed);
 
-    // Legend should be at top-right: groups in a horizontal row
+    // Legend should be at top-left: groups in a horizontal row
     expect(layout.legend.length).toBeGreaterThanOrEqual(2);
     const [first, second] = layout.legend;
     // Same Y (both on same row)
     expect(first.y).toBe(second.y);
     // Laid out horizontally: second to the right of first
     expect(second.x).toBeGreaterThan(first.x);
-    // Y starts at MARGIN (40)
+    // X starts at MARGIN (40), Y starts at MARGIN (40)
+    expect(first.x).toBe(40);
     expect(first.y).toBe(40);
   });
 
-  it('top legend does not add to height when shorter than content', () => {
+  it('top legend adds height and shifts content down', () => {
     const input = `chart: org
 legend-position: top
 
@@ -906,9 +907,8 @@ Alice
     const parsedWithout = parseOrg(withoutLegend, palette.light);
     const layoutWithout = layoutOrg(parsedWithout);
 
-    // Top legend is short (1 group) and the content is deep (4 levels)
-    // So legend should NOT increase diagram height
-    expect(layoutWith.height).toBe(layoutWithout.height);
+    // Top legend pushes content down by LEGEND_HEIGHT (28) + LEGEND_GROUP_GAP (12) = 40
+    expect(layoutWith.height).toBe(layoutWithout.height + 40);
   });
 
   it('legend groups have data-legend-group attributes', () => {

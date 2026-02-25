@@ -457,7 +457,9 @@ export function renderOrg(
     // When a group is active, skip all other groups entirely
     if (activeTagGroup != null && !isActive) continue;
 
-    const groupBg = mix(palette.surface, palette.bg, isDark ? 35 : 20);
+    const groupBg = isDark
+      ? mix(palette.surface, palette.bg, 50)
+      : mix(palette.surface, palette.bg, 30);
 
     const pillWidth =
       group.name.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;

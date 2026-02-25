@@ -1090,7 +1090,7 @@ export function layoutOrg(
   let finalWidth = totalWidth;
   let finalHeight = totalHeight;
 
-  const legendPosition = parsed.options?.['legend-position'] ?? 'bottom';
+  const legendPosition = parsed.options?.['legend-position'] ?? 'top';
 
   // When a tag group is active, only that group is laid out (full size).
   // When none is active, all groups are laid out minified.
@@ -1133,28 +1133,31 @@ export function layoutOrg(
 
       finalHeight = totalHeight + LEGEND_GAP + LEGEND_HEIGHT;
     } else {
-      // Top: horizontal row at top-right
+      // Top: horizontal row above chart content, left-aligned
+      const legendShift = LEGEND_HEIGHT + LEGEND_GROUP_GAP;
+
+      // Push all chart content down
+      for (const n of layoutNodes) n.y += legendShift;
+      for (const c of containers) c.y += legendShift;
+      for (const e of layoutEdges) {
+        for (const p of e.points) p.y += legendShift;
+      }
+
       const totalGroupsWidth =
         visibleGroups.reduce((s, g) => s + effectiveW(g), 0) +
         (visibleGroups.length - 1) * LEGEND_GROUP_GAP;
-      const legendStartX = totalWidth - MARGIN + LEGEND_GAP;
-      const legendY = MARGIN;
 
-      let cx = legendStartX;
+      let cx = MARGIN;
       for (const g of visibleGroups) {
         g.x = cx;
-        g.y = legendY;
+        g.y = MARGIN;
         cx += effectiveW(g) + LEGEND_GROUP_GAP;
       }
 
-      const legendRight = legendStartX + totalGroupsWidth + MARGIN;
-      if (legendRight > finalWidth) {
-        finalWidth = legendRight;
-      }
-
-      const legendBottom = legendY + LEGEND_HEIGHT + MARGIN;
-      if (legendBottom > finalHeight) {
-        finalHeight = legendBottom;
+      finalHeight += legendShift;
+      const neededWidth = totalGroupsWidth + MARGIN * 2;
+      if (neededWidth > finalWidth) {
+        finalWidth = neededWidth;
       }
     }
   }

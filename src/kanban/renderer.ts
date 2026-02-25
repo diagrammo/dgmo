@@ -267,7 +267,9 @@ export function renderKanban(
       ? parsed.title.length * TITLE_FONT_SIZE * 0.6 + 16
       : 0;
     let legendX = DIAGRAM_PADDING + titleTextWidth;
-    const groupBg = mix(palette.surface, palette.bg, isDark ? 35 : 20);
+    const groupBg = isDark
+      ? mix(palette.surface, palette.bg, 50)
+      : mix(palette.surface, palette.bg, 30);
     const capsulePad = 4;
 
     for (const group of parsed.tagGroups) {
