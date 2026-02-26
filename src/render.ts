@@ -49,6 +49,8 @@ export async function render(
     theme?: 'light' | 'dark' | 'transparent';
     palette?: string;
     branding?: boolean;
+    c4Level?: 'context' | 'containers';
+    c4System?: string;
   },
 ): Promise<string> {
   const theme = options?.theme ?? 'light';
@@ -66,5 +68,9 @@ export async function render(
 
   // D3 and unknown/null frameworks both go through D3 renderer
   await ensureDom();
-  return renderD3ForExport(content, theme, paletteColors, undefined, { branding });
+  return renderD3ForExport(content, theme, paletteColors, undefined, {
+    branding,
+    c4Level: options?.c4Level,
+    c4System: options?.c4System,
+  });
 }

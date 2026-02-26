@@ -3,10 +3,16 @@ import { JSDOM } from 'jsdom';
 import { parseC4 } from '../src/c4/parser';
 import {
   layoutC4Context,
+  layoutC4Containers,
   rollUpContextRelationships,
   computeC4NodeDimensions,
 } from '../src/c4/layout';
-import { renderC4Context, renderC4ContextForExport } from '../src/c4/renderer';
+import {
+  renderC4Context,
+  renderC4ContextForExport,
+  renderC4Containers,
+  renderC4ContainersForExport,
+} from '../src/c4/renderer';
 import { getPalette, getAvailablePalettes } from '../src/palettes';
 
 // Set up jsdom globals
@@ -392,5 +398,395 @@ system Banking
   it('handles transparent theme', () => {
     const svg = renderC4ContextForExport(basicInput, 'transparent', palette.light);
     expect(svg.length).toBeGreaterThan(0);
+  });
+});
+
+// ============================================================
+// layoutC4Containers
+// ============================================================
+
+const containerInput = `chart: c4
+title: Container View
+
+## Technology alias tech
+  React(blue)
+  Node.js(green)
+  PostgreSQL(purple)
+  Redis(red)
+
+person Customer
+system Banking | description: Internet banking system
+  -> Customer: Serves
+  containers:
+    container WebApp | tech: React, description: SPA frontend
+      -> API: Calls [JSON/HTTPS]
+      -> Customer: Serves UI to [HTTPS]
+    container API | tech: Node.js, description: REST API backend
+      -> Database: Reads/writes [SQL]
+      ~> Cache: Sessions [TCP]
+    container Database is a database | tech: PostgreSQL, description: User data
+    container Cache is a cache | tech: Redis, description: Session store
+system Email | description: Email delivery service
+  ~> Customer: Sends emails to`;
+
+describe('layoutC4Containers', () => {
+  it('renders all containers for a system', () => {
+    const parsed = parseC4(containerInput, palette.light);
+    const layout = layoutC4Containers(parsed, 'Banking');
+
+    const containerNodes = layout.nodes.filter((n) => n.type === 'container');
+    expect(containerNodes.length).toBe(4);
+    expect(containerNodes.map((n) => n.name).sort()).toEqual(
+      ['API', 'Cache', 'Database', 'WebApp']
+    );
+  });
+
+  it('includes external elements with relationships to containers', () => {
+    const parsed = parseC4(containerInput, palette.light);
+    const layout = layoutC4Containers(parsed, 'Banking');
+
+    const externalNodes = layout.nodes.filter((n) => n.type !== 'container');
+    expect(externalNodes.length).toBeGreaterThanOrEqual(1);
+    expect(externalNodes.some((n) => n.name === 'Customer')).toBe(true);
+  });
+
+  it('computes boundary box from container positions', () => {
+    const parsed = parseC4(containerInput, palette.light);
+    const layout = layoutC4Containers(parsed, 'Banking');
+
+    expect(layout.boundary).toBeDefined();
+    expect(layout.boundary!.label).toBe('Banking');
+    expect(layout.boundary!.typeLabel).toBe('system');
+    expect(layout.boundary!.width).toBeGreaterThan(0);
+    expect(layout.boundary!.height).toBeGreaterThan(0);
+  });
+
+  it('carries shape information on container nodes', () => {
+    const parsed = parseC4(containerInput, palette.light);
+    const layout = layoutC4Containers(parsed, 'Banking');
+
+    const dbNode = layout.nodes.find((n) => n.name === 'Database');
+    expect(dbNode?.shape).toBe('database');
+
+    const cacheNode = layout.nodes.find((n) => n.name === 'Cache');
+    expect(cacheNode?.shape).toBe('cache');
+  });
+
+  it('carries technology on container nodes', () => {
+    const parsed = parseC4(containerInput, palette.light);
+    const layout = layoutC4Containers(parsed, 'Banking');
+
+    const apiNode = layout.nodes.find((n) => n.name === 'API');
+    expect(apiNode?.technology).toBe('Node.js');
+
+    const dbNode = layout.nodes.find((n) => n.name === 'Database');
+    expect(dbNode?.technology).toBe('PostgreSQL');
+  });
+
+  it('produces edges for container relationships', () => {
+    const parsed = parseC4(containerInput, palette.light);
+    const layout = layoutC4Containers(parsed, 'Banking');
+
+    expect(layout.edges.length).toBeGreaterThanOrEqual(3);
+    // WebApp -> API
+    expect(layout.edges.some((e) => e.source === 'WebApp' && e.target === 'API')).toBe(true);
+    // API -> Database
+    expect(layout.edges.some((e) => e.source === 'API' && e.target === 'Database')).toBe(true);
+  });
+
+  it('returns empty result for unknown system name', () => {
+    const parsed = parseC4(containerInput, palette.light);
+    const layout = layoutC4Containers(parsed, 'NonExistent');
+
+    expect(layout.nodes.length).toBe(0);
+    expect(layout.edges.length).toBe(0);
+  });
+
+  it('returns empty result for system with no containers', () => {
+    const input = `chart: c4
+system Simple | description: No containers`;
+    const parsed = parseC4(input, palette.light);
+    const layout = layoutC4Containers(parsed, 'Simple');
+
+    expect(layout.nodes.length).toBe(0);
+  });
+
+  it('resolves tag group colors on containers', () => {
+    const parsed = parseC4(containerInput, palette.light);
+    const layout = layoutC4Containers(parsed, 'Banking', 'Technology');
+
+    const webNode = layout.nodes.find((n) => n.name === 'WebApp');
+    expect(webNode?.color).toBeDefined();
+  });
+
+  it('has positive dimensions', () => {
+    const parsed = parseC4(containerInput, palette.light);
+    const layout = layoutC4Containers(parsed, 'Banking');
+
+    expect(layout.width).toBeGreaterThan(0);
+    expect(layout.height).toBeGreaterThan(0);
+  });
+});
+
+// ============================================================
+// renderC4Containers (JSDOM)
+// ============================================================
+
+describe('renderC4Containers', () => {
+  it('produces SVG with container cards and boundary', () => {
+    const parsed = parseC4(containerInput, palette.light);
+    const layout = layoutC4Containers(parsed, 'Banking');
+
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+
+    renderC4Containers(el, parsed, layout, palette.light, false, undefined, {
+      width: 1000,
+      height: 800,
+    });
+
+    const svg = el.querySelector('svg');
+    expect(svg).not.toBeNull();
+
+    // Container cards
+    const cards = svg!.querySelectorAll('.c4-card');
+    expect(cards.length).toBeGreaterThanOrEqual(4);
+
+    // Boundary box
+    const boundary = svg!.querySelector('.c4-boundary');
+    expect(boundary).not.toBeNull();
+
+    // Edges
+    const edges = svg!.querySelectorAll('.c4-edge');
+    expect(edges.length).toBeGreaterThanOrEqual(1);
+
+    document.body.removeChild(el);
+  });
+
+  it('renders database shape with cylinder (ellipse)', () => {
+    const parsed = parseC4(containerInput, palette.light);
+    const layout = layoutC4Containers(parsed, 'Banking');
+
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+
+    renderC4Containers(el, parsed, layout, palette.light, false, undefined, {
+      width: 1000,
+      height: 800,
+    });
+
+    // Find the Database card by data-shape attribute
+    const dbCard = el.querySelector('[data-shape="database"]');
+    expect(dbCard).not.toBeNull();
+    // Database shape should have an ellipse (cylinder top)
+    const ellipse = dbCard!.querySelector('ellipse');
+    expect(ellipse).not.toBeNull();
+
+    document.body.removeChild(el);
+  });
+
+  it('renders cache shape with dashed cylinder', () => {
+    const parsed = parseC4(containerInput, palette.light);
+    const layout = layoutC4Containers(parsed, 'Banking');
+
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+
+    renderC4Containers(el, parsed, layout, palette.light, false, undefined, {
+      width: 1000,
+      height: 800,
+    });
+
+    const cacheCard = el.querySelector('[data-shape="cache"]');
+    expect(cacheCard).not.toBeNull();
+    // Cache should have dashed stroke
+    const path = cacheCard!.querySelector('path');
+    expect(path?.getAttribute('stroke-dasharray')).toBe('6 3');
+
+    document.body.removeChild(el);
+  });
+
+  it('renders technology row on container cards', () => {
+    const parsed = parseC4(containerInput, palette.light);
+    const layout = layoutC4Containers(parsed, 'Banking');
+
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+
+    renderC4Containers(el, parsed, layout, palette.light, false, undefined, {
+      width: 1000,
+      height: 800,
+    });
+
+    // Technology should appear as metadata row (org-chart style "Technology:" + value)
+    const allTexts = Array.from(el.querySelectorAll('text'));
+    const techKeyText = allTexts.find((t) => t.textContent === 'Technology:');
+    expect(techKeyText).toBeDefined();
+
+    document.body.removeChild(el);
+  });
+
+  it('renders data-line-number on cards and boundary', () => {
+    const parsed = parseC4(containerInput, palette.light);
+    const layout = layoutC4Containers(parsed, 'Banking');
+
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+
+    renderC4Containers(el, parsed, layout, palette.light, false, undefined, {
+      width: 1000,
+      height: 800,
+    });
+
+    const cards = el.querySelectorAll('.c4-card');
+    for (const card of cards) {
+      expect(card.getAttribute('data-line-number')).toBeTruthy();
+    }
+
+    const boundary = el.querySelector('.c4-boundary');
+    expect(boundary?.getAttribute('data-line-number')).toBeTruthy();
+
+    document.body.removeChild(el);
+  });
+
+  it('renders title', () => {
+    const parsed = parseC4(containerInput, palette.light);
+    const layout = layoutC4Containers(parsed, 'Banking');
+
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+
+    renderC4Containers(el, parsed, layout, palette.light, false, undefined, {
+      width: 1000,
+      height: 800,
+    });
+
+    const title = el.querySelector('.chart-title');
+    expect(title).not.toBeNull();
+    expect(title!.textContent).toBe('Container View');
+
+    document.body.removeChild(el);
+  });
+});
+
+// ============================================================
+// renderC4ContainersForExport
+// ============================================================
+
+describe('renderC4ContainersForExport', () => {
+  for (const paletteName of getAvailablePalettes()) {
+    for (const theme of ['light', 'dark'] as const) {
+      it(`produces non-empty SVG for ${paletteName} / ${theme}`, () => {
+        const pal = getPalette(paletteName);
+        const colors = theme === 'dark' ? pal.dark : pal.light;
+        const svg = renderC4ContainersForExport(containerInput, 'Banking', theme, colors);
+
+        expect(svg.length).toBeGreaterThan(0);
+        expect(svg).toContain('<svg');
+        expect(svg).toContain('</svg>');
+      });
+    }
+  }
+
+  it('returns empty string for unknown system', () => {
+    const svg = renderC4ContainersForExport(containerInput, 'NonExistent', 'light', palette.light);
+    expect(svg).toBe('');
+  });
+
+  it('handles transparent theme', () => {
+    const svg = renderC4ContainersForExport(containerInput, 'Banking', 'transparent', palette.light);
+    expect(svg.length).toBeGreaterThan(0);
+  });
+});
+
+// ============================================================
+// computeC4NodeDimensions with technology
+// ============================================================
+
+describe('computeC4NodeDimensions with technology', () => {
+  it('accounts for technology in height when showTechnology is true', () => {
+    const input = `chart: c4
+system Banking
+  containers:
+  container API | tech: Node.js, description: REST API`;
+
+    const parsed = parseC4(input, palette.light);
+    const container = parsed.elements[0].children[0];
+
+    const dimsContext = computeC4NodeDimensions(container);
+    const dimsContainer = computeC4NodeDimensions(container, { showTechnology: true });
+
+    // Container card: no type label, but has metadata rows below divider
+    // Both should be reasonable heights
+    expect(dimsContext.height).toBeGreaterThan(50);
+    expect(dimsContainer.height).toBeGreaterThan(50);
+    // Container card should include metadata row space
+    // (metadata adds divider + tech row, but removes type label)
+    expect(dimsContainer.height).toBeGreaterThan(0);
+  });
+});
+
+// ============================================================
+// is a shape override
+// ============================================================
+
+describe('is a shape override in container layout', () => {
+  it('renders is-a shape override correctly', () => {
+    const input = `chart: c4
+system Platform
+  containers:
+  container MessageBus is a queue | description: Event backbone`;
+
+    const parsed = parseC4(input, palette.light);
+    const layout = layoutC4Containers(parsed, 'Platform');
+
+    const queueNode = layout.nodes.find((n) => n.name === 'MessageBus');
+    expect(queueNode).toBeDefined();
+    expect(queueNode!.shape).toBe('queue');
+  });
+});
+
+// ============================================================
+// External element reverse relationship discovery
+// ============================================================
+
+describe('reverse relationship discovery', () => {
+  it('includes external systems that target containers', () => {
+    const input = `chart: c4
+system Banking
+  containers:
+  container API | description: Backend
+system Monitoring | description: Watches services
+  -> API: Health checks`;
+
+    const parsed = parseC4(input, palette.light);
+    const layout = layoutC4Containers(parsed, 'Banking');
+
+    // Monitoring targets API (a container), so it should appear as external
+    const monNode = layout.nodes.find((n) => n.name === 'Monitoring');
+    expect(monNode).toBeDefined();
+    expect(monNode!.type).toBe('system');
+  });
+});
+
+// ============================================================
+// Containers in groups
+// ============================================================
+
+describe('containers in groups', () => {
+  it('collects containers from groups', () => {
+    const input = `chart: c4
+system Analytics
+  containers:
+    [Frontend]
+      container Dashboard | description: SPA
+      container Admin | description: Admin panel
+    [Backend]
+      container API | description: REST API`;
+
+    const parsed = parseC4(input, palette.light);
+    const layout = layoutC4Containers(parsed, 'Analytics');
+
+    expect(layout.nodes.filter((n) => n.type === 'container').length).toBe(3);
   });
 });

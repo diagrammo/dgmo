@@ -53,7 +53,7 @@ function modifierColor(modifier: ClassModifier | undefined, palette: PaletteColo
 
 function nodeFill(palette: PaletteColors, isDark: boolean, modifier: ClassModifier | undefined, nodeColor?: string, colorOff?: boolean): string {
   const color = nodeColor ?? modifierColor(modifier, palette, colorOff);
-  return mix(color, isDark ? palette.surface : palette.bg, 20);
+  return mix(color, isDark ? palette.surface : palette.bg, 25);
 }
 
 function nodeStroke(palette: PaletteColors, modifier: ClassModifier | undefined, nodeColor?: string, colorOff?: boolean): string {

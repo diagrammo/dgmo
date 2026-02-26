@@ -5263,7 +5263,7 @@ export async function renderD3ForExport(
     activeTagGroup?: string | null;
     hiddenAttributes?: Set<string>;
   },
-  options?: { branding?: boolean }
+  options?: { branding?: boolean; c4Level?: 'context' | 'containers'; c4System?: string }
 ): Promise<string> {
   // Flowchart and org chart use their own parser pipelines — intercept before parseD3()
   const { parseDgmoChartType } = await import('./dgmo-router');
@@ -5514,8 +5514,8 @@ export async function renderD3ForExport(
 
   if (detectedType === 'c4') {
     const { parseC4 } = await import('./c4/parser');
-    const { layoutC4Context } = await import('./c4/layout');
-    const { renderC4Context } = await import('./c4/renderer');
+    const { layoutC4Context, layoutC4Containers } = await import('./c4/layout');
+    const { renderC4Context, renderC4Containers } = await import('./c4/renderer');
 
     const isDark = theme === 'dark';
     const { getPalette } = await import('./palettes');
@@ -5525,7 +5525,16 @@ export async function renderD3ForExport(
     const c4Parsed = parseC4(content, effectivePalette);
     if (c4Parsed.error || c4Parsed.elements.length === 0) return '';
 
-    const c4Layout = layoutC4Context(c4Parsed);
+    // Container-level rendering
+    const c4Level = options?.c4Level ?? 'context';
+    const c4System = options?.c4System;
+
+    const c4Layout = c4Level === 'containers' && c4System
+      ? layoutC4Containers(c4Parsed, c4System)
+      : layoutC4Context(c4Parsed);
+
+    if (c4Layout.nodes.length === 0) return '';
+
     const PADDING = 20;
     const titleOffset = c4Parsed.title ? 40 : 0;
     const exportWidth = c4Layout.width + PADDING * 2;
@@ -5539,7 +5548,11 @@ export async function renderD3ForExport(
     document.body.appendChild(container);
 
     try {
-      renderC4Context(
+      const renderFn = c4Level === 'containers' && c4System
+        ? renderC4Containers
+        : renderC4Context;
+
+      renderFn(
         container,
         c4Parsed,
         c4Layout,

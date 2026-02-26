@@ -1925,7 +1925,8 @@ export function renderSequenceDiagram(
             'data-line-number',
             String(messages[step.messageIndex].lineNumber)
           )
-          .attr('data-msg-index', String(step.messageIndex));
+          .attr('data-msg-index', String(step.messageIndex))
+          .attr('data-step-index', String(i));
 
         if (step.label) {
           const labelEl = svg
@@ -1940,7 +1941,8 @@ export function renderSequenceDiagram(
               'data-line-number',
               String(messages[step.messageIndex].lineNumber)
             )
-            .attr('data-msg-index', String(step.messageIndex));
+            .attr('data-msg-index', String(step.messageIndex))
+            .attr('data-step-index', String(i));
           renderInlineText(labelEl, step.label, palette);
         }
       } else {
@@ -1966,7 +1968,8 @@ export function renderSequenceDiagram(
             'data-line-number',
             String(messages[step.messageIndex].lineNumber)
           )
-          .attr('data-msg-index', String(step.messageIndex));
+          .attr('data-msg-index', String(step.messageIndex))
+          .attr('data-step-index', String(i));
 
         if (step.label) {
           const midX = (x1 + x2) / 2;
@@ -1982,7 +1985,8 @@ export function renderSequenceDiagram(
               'data-line-number',
               String(messages[step.messageIndex].lineNumber)
             )
-            .attr('data-msg-index', String(step.messageIndex));
+            .attr('data-msg-index', String(step.messageIndex))
+            .attr('data-step-index', String(i));
           renderInlineText(labelEl, step.label, palette);
         }
       }
@@ -2011,7 +2015,8 @@ export function renderSequenceDiagram(
           'data-line-number',
           String(messages[step.messageIndex].lineNumber)
         )
-        .attr('data-msg-index', String(step.messageIndex));
+        .attr('data-msg-index', String(step.messageIndex))
+        .attr('data-step-index', String(i));
 
       if (step.label) {
         const midX = (x1 + x2) / 2;
@@ -2027,7 +2032,8 @@ export function renderSequenceDiagram(
             'data-line-number',
             String(messages[step.messageIndex].lineNumber)
           )
-          .attr('data-msg-index', String(step.messageIndex));
+          .attr('data-msg-index', String(step.messageIndex))
+          .attr('data-step-index', String(i));
         renderInlineText(labelEl, step.label, palette);
       }
     }

@@ -77,14 +77,12 @@ function nodeFill(
   isDark: boolean,
   nodeColor?: string
 ): string {
-  if (nodeColor) {
-    return mix(nodeColor, isDark ? palette.surface : palette.bg, 25);
-  }
-  return mix(palette.primary, isDark ? palette.surface : palette.bg, 15);
+  const color = nodeColor ?? palette.primary;
+  return mix(color, isDark ? palette.surface : palette.bg, 25);
 }
 
 function nodeStroke(palette: PaletteColors, nodeColor?: string): string {
-  return nodeColor ?? palette.textMuted;
+  return nodeColor ?? palette.primary;
 }
 
 function containerFill(

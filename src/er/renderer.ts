@@ -369,7 +369,7 @@ export function renderERDiagram(
 
     const w = node.width;
     const h = node.height;
-    const fill = mix(nodeColor, isDark ? palette.surface : palette.bg, 20);
+    const fill = mix(nodeColor, isDark ? palette.surface : palette.bg, 25);
     const stroke = nodeColor;
 
     // Outer rectangle

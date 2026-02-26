@@ -3,7 +3,7 @@
 // ============================================================
 
 import dagre from '@dagrejs/dagre';
-import type { ParsedC4, C4Element, C4Relationship, C4ArrowType } from './types';
+import type { ParsedC4, C4Element, C4Relationship, C4ArrowType, C4Shape } from './types';
 import type { OrgTagGroup } from '../org/parser';
 
 // ============================================================
@@ -13,11 +13,14 @@ import type { OrgTagGroup } from '../org/parser';
 export interface C4LayoutNode {
   id: string;
   name: string;
-  type: 'person' | 'system';
+  type: 'person' | 'system' | 'container' | 'component';
   description?: string;
   metadata: Record<string, string>;
   lineNumber: number;
   color?: string;
+  shape?: C4Shape;
+  technology?: string;
+  drillable?: boolean;
   x: number;
   y: number;
   width: number;
@@ -48,10 +51,21 @@ export interface C4LegendGroup {
   height: number;
 }
 
+export interface C4LayoutBoundary {
+  label: string;
+  typeLabel: string;
+  lineNumber: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export interface C4LayoutResult {
   nodes: C4LayoutNode[];
   edges: C4LayoutEdge[];
   legend: C4LegendGroup[];
+  boundary?: C4LayoutBoundary;
   width: number;
   height: number;
 }
@@ -70,7 +84,11 @@ const DESC_LINE_HEIGHT = 16;
 const DESC_CHAR_WIDTH = 6.5;
 const CARD_V_PAD = 14;
 const CARD_H_PAD = 20;
+const TECH_LINE_HEIGHT = 16;
+const META_LINE_HEIGHT = 16;
+const META_CHAR_WIDTH = 6.5;
 const MARGIN = 40;
+const BOUNDARY_PAD = 40;
 
 // Legend constants (match org)
 const LEGEND_HEIGHT = 28;
@@ -265,12 +283,66 @@ function wrapText(text: string, maxWidth: number, charWidth: number): string[] {
   return lines;
 }
 
-export function computeC4NodeDimensions(el: C4Element): { width: number; height: number } {
+/** Keys to exclude from the below-divider metadata display. */
+const META_EXCLUDE_KEYS = new Set(['description', 'tech', 'technology', 'is a']);
+
+/** Collect displayable metadata entries for a container card. */
+export function collectCardMetadata(
+  metadata: Record<string, string>
+): { key: string; value: string }[] {
+  const entries: { key: string; value: string }[] = [];
+  // Technology first
+  const tech = metadata['tech'] ?? metadata['technology'];
+  if (tech) entries.push({ key: 'Technology', value: tech });
+  // Then other metadata (tag groups, etc.)
+  for (const [k, v] of Object.entries(metadata)) {
+    if (META_EXCLUDE_KEYS.has(k.toLowerCase())) continue;
+    // Capitalize key for display
+    const displayKey = k.charAt(0).toUpperCase() + k.slice(1);
+    entries.push({ key: displayKey, value: v });
+  }
+  return entries;
+}
+
+export function computeC4NodeDimensions(
+  el: C4Element,
+  options?: { showTechnology?: boolean }
+): { width: number; height: number } {
   // Width: based on name length, clamped
   const nameWidth = el.name.length * CHAR_WIDTH + CARD_H_PAD * 2;
-  const width = Math.max(MIN_NODE_WIDTH, Math.min(MAX_NODE_WIDTH, nameWidth));
+  let width = Math.max(MIN_NODE_WIDTH, Math.min(MAX_NODE_WIDTH, nameWidth));
 
-  // Height: type label + divider + name + optional description
+  if (options?.showTechnology) {
+    // Container card layout: name + description | divider | metadata rows
+    // (no type label — containers are the default in container view)
+    let height = CARD_V_PAD + NAME_HEIGHT;
+
+    const desc = el.metadata['description'];
+    if (desc) {
+      const contentWidth = width - CARD_H_PAD * 2;
+      const lines = wrapText(desc, contentWidth, DESC_CHAR_WIDTH);
+      height += lines.length * DESC_LINE_HEIGHT;
+    }
+
+    // Metadata rows below divider
+    const metaEntries = collectCardMetadata(el.metadata);
+    if (metaEntries.length > 0) {
+      height += DIVIDER_GAP; // divider
+      height += metaEntries.length * META_LINE_HEIGHT;
+      // Widen card if metadata rows need more space
+      const maxMetaWidth = Math.max(
+        ...metaEntries.map(
+          (e) => (e.key.length + 2 + e.value.length) * META_CHAR_WIDTH + CARD_H_PAD * 2
+        )
+      );
+      if (maxMetaWidth > width) width = Math.min(MAX_NODE_WIDTH, maxMetaWidth);
+    }
+
+    height += CARD_V_PAD;
+    return { width, height };
+  }
+
+  // Context card layout: type + name | divider | description
   let height = CARD_V_PAD + TYPE_LABEL_HEIGHT + DIVIDER_GAP + NAME_HEIGHT;
 
   const desc = el.metadata['description'];
@@ -385,6 +457,9 @@ export function layoutC4Context(
   const nodes: C4LayoutNode[] = contextElements.map((el) => {
     const pos = g.node(el.name);
     const color = resolveNodeColor(el, parsed.tagGroups, activeTagGroup ?? null);
+    const hasContainers =
+      el.children.some((c) => c.type === 'container') ||
+      el.groups.some((g) => g.children.some((c) => c.type === 'container'));
     return {
       id: el.name,
       name: el.name,
@@ -393,6 +468,7 @@ export function layoutC4Context(
       metadata: el.metadata,
       lineNumber: el.lineNumber,
       color,
+      drillable: hasContainers || undefined,
       x: pos.x,
       y: pos.y,
       width: pos.width,
@@ -414,15 +490,45 @@ export function layoutC4Context(
     };
   });
 
-  // Compute diagram dimensions
-  let totalWidth = 0;
-  let totalHeight = 0;
+  // Compute bounding box of all content (nodes + edge points)
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   for (const node of nodes) {
+    const left = node.x - node.width / 2;
+    const top = node.y - node.height / 2;
     const right = node.x + node.width / 2;
     const bottom = node.y + node.height / 2;
-    if (right > totalWidth) totalWidth = right;
-    if (bottom > totalHeight) totalHeight = bottom;
+    if (left < minX) minX = left;
+    if (top < minY) minY = top;
+    if (right > maxX) maxX = right;
+    if (bottom > maxY) maxY = bottom;
   }
+  for (const edge of edges) {
+    for (const pt of edge.points) {
+      if (pt.x < minX) minX = pt.x;
+      if (pt.y < minY) minY = pt.y;
+      if (pt.x > maxX) maxX = pt.x;
+      if (pt.y > maxY) maxY = pt.y;
+    }
+  }
+
+  // Shift everything so content starts at (MARGIN, MARGIN)
+  if (nodes.length > 0) {
+    const shiftX = MARGIN - minX;
+    const shiftY = MARGIN - minY;
+    for (const node of nodes) {
+      node.x += shiftX;
+      node.y += shiftY;
+    }
+    for (const edge of edges) {
+      for (const pt of edge.points) {
+        pt.x += shiftX;
+        pt.y += shiftY;
+      }
+    }
+  }
+
+  let totalWidth = nodes.length > 0 ? maxX - minX + MARGIN * 2 : 0;
+  let totalHeight = nodes.length > 0 ? maxY - minY + MARGIN * 2 : 0;
 
   // Legend
   const usedValuesByGroup = new Map<string, Set<string>>();
@@ -454,8 +560,331 @@ export function layoutC4Context(
     if (legendBottom > totalHeight) totalHeight = legendBottom;
   }
 
-  totalWidth += MARGIN;
-  totalHeight += MARGIN;
-
   return { nodes, edges, legend: legendGroups, width: totalWidth, height: totalHeight };
+}
+
+// ============================================================
+// Container-Level Layout
+// ============================================================
+
+/**
+ * Layout containers within a specific system, plus external elements
+ * that have relationships with those containers.
+ */
+export function layoutC4Containers(
+  parsed: ParsedC4,
+  systemName: string,
+  activeTagGroup?: string | null
+): C4LayoutResult {
+  // Find the system element by name
+  const system = parsed.elements.find(
+    (el) => el.name.toLowerCase() === systemName.toLowerCase()
+  );
+  if (!system) {
+    return { nodes: [], edges: [], legend: [], width: 0, height: 0 };
+  }
+
+  // Collect all containers: direct children + group children
+  const containers: C4Element[] = [];
+  for (const child of system.children) {
+    if (child.type === 'container') containers.push(child);
+  }
+  for (const group of system.groups) {
+    for (const child of group.children) {
+      if (child.type === 'container') containers.push(child);
+    }
+  }
+
+  if (containers.length === 0) {
+    return { nodes: [], edges: [], legend: [], width: 0, height: 0 };
+  }
+
+  const containerNames = new Set(containers.map((c) => c.name.toLowerCase()));
+
+  // Build name → element map for all top-level elements
+  const topElementsByName = new Map<string, C4Element>();
+  for (const el of parsed.elements) {
+    topElementsByName.set(el.name.toLowerCase(), el);
+  }
+
+  // Identify external elements: targets of container relationships that aren't
+  // in this system, OR top-level elements that target containers in this system
+  const externalNames = new Set<string>();
+
+  // Forward: container → target outside this system
+  for (const container of containers) {
+    for (const rel of container.relationships) {
+      const targetLower = rel.target.toLowerCase();
+      if (!containerNames.has(targetLower)) {
+        externalNames.add(targetLower);
+      }
+    }
+  }
+
+  // Reverse: top-level elements (and their children) that target containers in this system
+  const ownerMap = buildOwnershipMap(parsed.elements);
+  const allRels = collectAllRelationships(parsed.elements, ownerMap);
+  for (const { sourceName, rel } of allRels) {
+    const sourceAncestor = ownerMap.get(sourceName) ?? sourceName;
+    // Skip relationships from within this system
+    if (sourceAncestor.toLowerCase() === system.name.toLowerCase()) continue;
+    // Check if target is a container in this system
+    if (containerNames.has(rel.target.toLowerCase())) {
+      externalNames.add(sourceAncestor.toLowerCase());
+    }
+  }
+
+  // Resolve external elements
+  const externals: C4Element[] = [];
+  for (const name of externalNames) {
+    const el = topElementsByName.get(name);
+    if (el) externals.push(el);
+  }
+
+  // Create dagre graph
+  const g = new dagre.graphlib.Graph();
+  g.setGraph({
+    rankdir: 'TB',
+    nodesep: 80,
+    ranksep: 100,
+    edgesep: 30,
+  });
+  g.setDefaultEdgeLabel(() => ({}));
+
+  // Add container nodes
+  const nameToElement = new Map<string, C4Element>();
+  for (const el of containers) {
+    nameToElement.set(el.name, el);
+    const dims = computeC4NodeDimensions(el, { showTechnology: true });
+    g.setNode(el.name, { width: dims.width, height: dims.height });
+  }
+
+  // Add external nodes
+  for (const el of externals) {
+    nameToElement.set(el.name, el);
+    const dims = computeC4NodeDimensions(el);
+    g.setNode(el.name, { width: dims.width, height: dims.height });
+  }
+
+  // Collect container-level relationships (not rolled up)
+  interface ContainerRel {
+    sourceName: string;
+    targetName: string;
+    label?: string;
+    technology?: string;
+    arrowType: C4ArrowType;
+    lineNumber: number;
+  }
+
+  const containerRels: ContainerRel[] = [];
+  const seenEdgeKeys = new Set<string>();
+
+  // Forward: container → target
+  for (const container of containers) {
+    for (const rel of container.relationships) {
+      const targetEl = nameToElement.get(rel.target);
+      if (!targetEl) continue;
+      const key = `${container.name}→${rel.target}`;
+      if (!seenEdgeKeys.has(key)) {
+        seenEdgeKeys.add(key);
+        containerRels.push({
+          sourceName: container.name,
+          targetName: rel.target,
+          label: rel.label,
+          technology: rel.technology,
+          arrowType: rel.arrowType,
+          lineNumber: rel.lineNumber,
+        });
+      }
+    }
+  }
+
+  // Reverse: external → container (find specific container-level relationships)
+  for (const { sourceName, rel } of allRels) {
+    const sourceAncestor = ownerMap.get(sourceName) ?? sourceName;
+    if (sourceAncestor.toLowerCase() === system.name.toLowerCase()) continue;
+    if (containerNames.has(rel.target.toLowerCase())) {
+      const externalEl = nameToElement.get(sourceAncestor);
+      if (!externalEl) continue;
+      const key = `${sourceAncestor}→${rel.target}`;
+      if (!seenEdgeKeys.has(key)) {
+        seenEdgeKeys.add(key);
+        containerRels.push({
+          sourceName: sourceAncestor,
+          targetName: rel.target,
+          label: rel.label,
+          technology: rel.technology,
+          arrowType: rel.arrowType,
+          lineNumber: rel.lineNumber,
+        });
+      }
+    }
+  }
+
+  // Add edges to dagre
+  for (const rel of containerRels) {
+    if (nameToElement.has(rel.sourceName) && nameToElement.has(rel.targetName)) {
+      g.setEdge(rel.sourceName, rel.targetName, { label: rel.label ?? '' });
+    }
+  }
+
+  // Run layout
+  dagre.layout(g);
+
+  // Extract positioned nodes
+  const nodes: C4LayoutNode[] = [];
+  for (const el of containers) {
+    const pos = g.node(el.name);
+    const color = resolveNodeColor(el, parsed.tagGroups, activeTagGroup ?? null);
+    const tech = el.metadata['tech'] ?? el.metadata['technology'];
+    nodes.push({
+      id: el.name,
+      name: el.name,
+      type: 'container',
+      description: el.metadata['description'],
+      metadata: el.metadata,
+      lineNumber: el.lineNumber,
+      color,
+      shape: el.shape,
+      technology: tech,
+      x: pos.x,
+      y: pos.y,
+      width: pos.width,
+      height: pos.height,
+    });
+  }
+
+  for (const el of externals) {
+    const pos = g.node(el.name);
+    const color = resolveNodeColor(el, parsed.tagGroups, activeTagGroup ?? null);
+    nodes.push({
+      id: el.name,
+      name: el.name,
+      type: el.type as 'person' | 'system',
+      description: el.metadata['description'],
+      metadata: el.metadata,
+      lineNumber: el.lineNumber,
+      color,
+      x: pos.x,
+      y: pos.y,
+      width: pos.width,
+      height: pos.height,
+    });
+  }
+
+  // Extract edges
+  const edges: C4LayoutEdge[] = containerRels
+    .filter((rel) => nameToElement.has(rel.sourceName) && nameToElement.has(rel.targetName))
+    .map((rel) => {
+      const edgeData = g.edge(rel.sourceName, rel.targetName);
+      return {
+        source: rel.sourceName,
+        target: rel.targetName,
+        arrowType: rel.arrowType,
+        label: rel.label,
+        technology: rel.technology,
+        lineNumber: rel.lineNumber,
+        points: edgeData?.points ?? [],
+      };
+    });
+
+  // Compute boundary box from container nodes only
+  const containerNodes = nodes.filter((n) => n.type === 'container');
+  let bMinX = Infinity, bMinY = Infinity, bMaxX = -Infinity, bMaxY = -Infinity;
+  for (const n of containerNodes) {
+    const left = n.x - n.width / 2;
+    const top = n.y - n.height / 2;
+    const right = n.x + n.width / 2;
+    const bottom = n.y + n.height / 2;
+    if (left < bMinX) bMinX = left;
+    if (top < bMinY) bMinY = top;
+    if (right > bMaxX) bMaxX = right;
+    if (bottom > bMaxY) bMaxY = bottom;
+  }
+
+  const boundary: C4LayoutBoundary = {
+    label: system.name,
+    typeLabel: 'system',
+    lineNumber: system.lineNumber,
+    x: bMinX - BOUNDARY_PAD,
+    y: bMinY - BOUNDARY_PAD,
+    width: (bMaxX - bMinX) + BOUNDARY_PAD * 2,
+    height: (bMaxY - bMinY) + BOUNDARY_PAD * 2,
+  };
+
+  // Compute bounding box of all content (nodes + boundary + edge points)
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const node of nodes) {
+    const left = node.x - node.width / 2;
+    const top = node.y - node.height / 2;
+    const right = node.x + node.width / 2;
+    const bottom = node.y + node.height / 2;
+    if (left < minX) minX = left;
+    if (top < minY) minY = top;
+    if (right > maxX) maxX = right;
+    if (bottom > maxY) maxY = bottom;
+  }
+  if (boundary.x < minX) minX = boundary.x;
+  if (boundary.y < minY) minY = boundary.y;
+  if (boundary.x + boundary.width > maxX) maxX = boundary.x + boundary.width;
+  if (boundary.y + boundary.height > maxY) maxY = boundary.y + boundary.height;
+  for (const edge of edges) {
+    for (const pt of edge.points) {
+      if (pt.x < minX) minX = pt.x;
+      if (pt.y < minY) minY = pt.y;
+      if (pt.x > maxX) maxX = pt.x;
+      if (pt.y > maxY) maxY = pt.y;
+    }
+  }
+
+  // Shift everything so content starts at (MARGIN, MARGIN)
+  const shiftX = MARGIN - minX;
+  const shiftY = MARGIN - minY;
+  for (const node of nodes) {
+    node.x += shiftX;
+    node.y += shiftY;
+  }
+  boundary.x += shiftX;
+  boundary.y += shiftY;
+  for (const edge of edges) {
+    for (const pt of edge.points) {
+      pt.x += shiftX;
+      pt.y += shiftY;
+    }
+  }
+
+  let totalWidth = maxX - minX + MARGIN * 2;
+  let totalHeight = maxY - minY + MARGIN * 2;
+
+  // Legend
+  const usedValuesByGroup = new Map<string, Set<string>>();
+  for (const el of [...containers, ...externals]) {
+    for (const group of parsed.tagGroups) {
+      const key = group.name.toLowerCase();
+      const val = el.metadata[key];
+      if (val) {
+        if (!usedValuesByGroup.has(key)) usedValuesByGroup.set(key, new Set());
+        usedValuesByGroup.get(key)!.add(val.toLowerCase());
+      }
+    }
+  }
+
+  const legendGroups = computeLegendGroups(parsed.tagGroups, usedValuesByGroup);
+
+  // Position legend below diagram
+  if (legendGroups.length > 0) {
+    const legendY = totalHeight + MARGIN;
+    let legendX = MARGIN;
+    for (const lg of legendGroups) {
+      lg.x = legendX;
+      lg.y = legendY;
+      legendX += lg.width + 12;
+    }
+    const legendRight = legendX;
+    const legendBottom = legendY + LEGEND_HEIGHT;
+    if (legendRight > totalWidth) totalWidth = legendRight;
+    if (legendBottom > totalHeight) totalHeight = legendBottom;
+  }
+
+  return { nodes, edges, legend: legendGroups, boundary, width: totalWidth, height: totalHeight };
 }
