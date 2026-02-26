@@ -1516,8 +1516,8 @@ export function renderC4Containers(
       yPos += CYLINDER_RY;
     }
 
-    // Type label — only for external elements (person/system); containers are the default
-    if (node.type !== 'container') {
+    // Type label — only for external elements (person/system); containers/components are the default
+    if (node.type !== 'container' && node.type !== 'component') {
       const typeLabel = `\u00AB${node.type}\u00BB`;
       nodeG
         .append('text')
