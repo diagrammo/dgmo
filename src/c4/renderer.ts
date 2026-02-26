@@ -35,10 +35,12 @@ const TYPE_LABEL_HEIGHT = 18;
 const DIVIDER_GAP = 6;
 const NAME_HEIGHT = 20;
 
-// Person icon dimensions
-const PERSON_HEAD_R = 6;
-const PERSON_BODY_H = 8;
-const PERSON_ICON_W = 14;
+// Person stick-figure dimensions (sequence-diagram style, scaled for cards)
+const PERSON_HEAD_R = 4;
+const PERSON_ARM_SPAN = 10;
+const PERSON_LEG_SPAN = 7;
+const PERSON_ICON_W = PERSON_ARM_SPAN * 2; // total width including arms
+const PERSON_SW = 1.5;
 
 // Legend constants (match org)
 const LEGEND_HEIGHT = 28;
@@ -151,55 +153,65 @@ function hasBidirectionalMarkers(arrowType: string): boolean {
 // Person stick-figure icon
 // ============================================================
 
+/**
+ * Stick-figure person icon matching the sequence diagram actor style.
+ * Drawn centered at (cx, cy) with total height ~22px.
+ */
 function drawPersonIcon(
   g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   cx: number,
   cy: number,
   color: string
 ): void {
+  const headY = cy - 7;
+  const bodyTopY = headY + PERSON_HEAD_R + 1;
+  const bodyBottomY = cy + 4;
+  const legY = cy + 10;
+
   // Head
   g.append('circle')
     .attr('cx', cx)
-    .attr('cy', cy - PERSON_BODY_H)
+    .attr('cy', headY)
     .attr('r', PERSON_HEAD_R)
     .attr('fill', 'none')
     .attr('stroke', color)
-    .attr('stroke-width', 1.5);
+    .attr('stroke-width', PERSON_SW);
 
   // Body
   g.append('line')
     .attr('x1', cx)
-    .attr('y1', cy - PERSON_BODY_H + PERSON_HEAD_R)
+    .attr('y1', bodyTopY)
     .attr('x2', cx)
-    .attr('y2', cy + 2)
+    .attr('y2', bodyBottomY)
     .attr('stroke', color)
-    .attr('stroke-width', 1.5);
+    .attr('stroke-width', PERSON_SW);
 
   // Arms
   g.append('line')
-    .attr('x1', cx - PERSON_ICON_W / 2)
-    .attr('y1', cy - 2)
-    .attr('x2', cx + PERSON_ICON_W / 2)
-    .attr('y2', cy - 2)
+    .attr('x1', cx - PERSON_ARM_SPAN)
+    .attr('y1', bodyTopY + 3)
+    .attr('x2', cx + PERSON_ARM_SPAN)
+    .attr('y2', bodyTopY + 3)
     .attr('stroke', color)
-    .attr('stroke-width', 1.5);
+    .attr('stroke-width', PERSON_SW);
 
-  // Legs
+  // Left leg
   g.append('line')
     .attr('x1', cx)
-    .attr('y1', cy + 2)
-    .attr('x2', cx - PERSON_ICON_W / 3)
-    .attr('y2', cy + PERSON_BODY_H)
+    .attr('y1', bodyBottomY)
+    .attr('x2', cx - PERSON_LEG_SPAN)
+    .attr('y2', legY)
     .attr('stroke', color)
-    .attr('stroke-width', 1.5);
+    .attr('stroke-width', PERSON_SW);
 
+  // Right leg
   g.append('line')
     .attr('x1', cx)
-    .attr('y1', cy + 2)
-    .attr('x2', cx + PERSON_ICON_W / 3)
-    .attr('y2', cy + PERSON_BODY_H)
+    .attr('y1', bodyBottomY)
+    .attr('x2', cx + PERSON_LEG_SPAN)
+    .attr('y2', legY)
     .attr('stroke', color)
-    .attr('stroke-width', 1.5);
+    .attr('stroke-width', PERSON_SW);
 }
 
 // ============================================================
@@ -456,37 +468,28 @@ export function renderC4Context(
 
     yPos += TYPE_LABEL_HEIGHT;
 
-    // Subtle divider
-    nodeG
-      .append('line')
-      .attr('x1', -w / 2 + CARD_H_PAD / 2)
-      .attr('y1', yPos)
-      .attr('x2', w / 2 - CARD_H_PAD / 2)
-      .attr('y2', yPos)
-      .attr('stroke', stroke)
-      .attr('stroke-width', 0.5)
-      .attr('stroke-opacity', 0.4);
-
-    yPos += DIVIDER_GAP;
-
-    // Name (bold)
+    // Name (bold) — above divider
     if (node.type === 'person') {
-      // Person icon beside name
-      const iconOffset = PERSON_ICON_W + 6;
-      const nameX = iconOffset / 2;
+      // Person icon to the left of name
+      const nameCharWidth = NAME_FONT_SIZE * 0.6;
+      const textWidth = node.name.length * nameCharWidth;
+      const gap = 6;
+      const totalWidth = PERSON_ICON_W + gap + textWidth;
+      const iconCx = -totalWidth / 2 + PERSON_ICON_W / 2;
+      const textX = iconCx + PERSON_ICON_W / 2 + gap;
 
       drawPersonIcon(
         nodeG as GSelection,
-        -nameX - PERSON_ICON_W / 2 + 4,
+        iconCx,
         yPos + NAME_FONT_SIZE / 2 - 2,
         stroke
       );
 
       nodeG
         .append('text')
-        .attr('x', nameX / 2)
+        .attr('x', textX)
         .attr('y', yPos + NAME_FONT_SIZE / 2)
-        .attr('text-anchor', 'middle')
+        .attr('text-anchor', 'start')
         .attr('dominant-baseline', 'central')
         .attr('fill', palette.text)
         .attr('font-size', NAME_FONT_SIZE)
@@ -506,6 +509,19 @@ export function renderC4Context(
     }
 
     yPos += NAME_HEIGHT;
+
+    // Subtle divider — between name and description
+    nodeG
+      .append('line')
+      .attr('x1', -w / 2 + CARD_H_PAD / 2)
+      .attr('y1', yPos)
+      .attr('x2', w / 2 - CARD_H_PAD / 2)
+      .attr('y2', yPos)
+      .attr('stroke', stroke)
+      .attr('stroke-width', 0.5)
+      .attr('stroke-opacity', 0.4);
+
+    yPos += DIVIDER_GAP;
 
     // Description (wrapping, muted)
     if (node.description) {
