@@ -103,6 +103,205 @@ const LEGEND_ENTRY_TRAIL = 8;
 const LEGEND_CAPSULE_PAD = 4;
 
 // ============================================================
+// Post-Layout Crossing Reduction
+// ============================================================
+
+/**
+ * Compute penalty for an edge ordering. Uses degree-weighted edge distance:
+ * long edges to high-degree nodes are penalized more than to low-degree nodes.
+ * This places shared/important nodes closer to their neighbors, reducing
+ * visual edge congestion.
+ *
+ */
+function computeEdgePenalty(
+  edgeList: { source: string; target: string }[],
+  nodePositions: Map<string, number>,
+  degrees: Map<string, number>
+): number {
+  let penalty = 0;
+
+  // Degree-weighted edge distance: longer edges to higher-degree nodes
+  // are penalized more, pulling "important" (shared) nodes closer to
+  // their neighbors.
+  for (const edge of edgeList) {
+    const sx = nodePositions.get(edge.source);
+    const tx = nodePositions.get(edge.target);
+    if (sx == null || tx == null) continue;
+    const dist = Math.abs(sx - tx);
+    const weight = Math.min(degrees.get(edge.source) ?? 1, degrees.get(edge.target) ?? 1);
+    penalty += dist * weight;
+  }
+
+  return penalty;
+}
+
+/**
+ * Post-dagre crossing reduction via permutation search.
+ *
+ * For each rank, tries all permutations (up to rank size 8) to find the
+ * node ordering that minimizes degree-weighted edge distance. Nodes with
+ * more connections (like a database shared by multiple services) get placed
+ * closer to their neighbors, producing cleaner visual layouts.
+ */
+function reduceCrossings(
+  g: dagre.graphlib.Graph,
+  edgeList: { source: string; target: string }[]
+): void {
+  if (edgeList.length < 2) return;
+
+  // Compute degree (number of edges) for each node
+  const degrees = new Map<string, number>();
+  for (const edge of edgeList) {
+    degrees.set(edge.source, (degrees.get(edge.source) ?? 0) + 1);
+    degrees.set(edge.target, (degrees.get(edge.target) ?? 0) + 1);
+  }
+
+  // Group nodes by rank
+  const rankMap = new Map<number, string[]>();
+  for (const name of g.nodes()) {
+    const pos = g.node(name);
+    const rankY = Math.round(pos.y);
+    if (!rankMap.has(rankY)) rankMap.set(rankY, []);
+    rankMap.get(rankY)!.push(name);
+  }
+
+  // Sort each rank by current x position
+  for (const [, rankNodes] of rankMap) {
+    rankNodes.sort((a, b) => g.node(a).x - g.node(b).x);
+  }
+
+  let anyMoved = false;
+
+  for (const [, rankNodes] of rankMap) {
+    if (rankNodes.length < 2) continue;
+
+    // Collect the x-slots for this rank (sorted)
+    const xSlots = rankNodes.map((name) => g.node(name).x).sort((a, b) => a - b);
+
+    // Build position map snapshot
+    const basePositions = new Map<string, number>();
+    for (const name of g.nodes()) {
+      basePositions.set(name, g.node(name).x);
+    }
+
+    // Current penalty
+    const currentPenalty = computeEdgePenalty(edgeList, basePositions, degrees);
+
+    // Try permutations (feasible for rank sizes ≤ 8)
+    let bestPerm = [...rankNodes];
+    let bestPenalty = currentPenalty;
+
+    if (rankNodes.length <= 8) {
+      const perms = permutations(rankNodes);
+      for (const perm of perms) {
+        const testPositions = new Map(basePositions);
+        for (let i = 0; i < perm.length; i++) {
+          testPositions.set(perm[i]!, xSlots[i]!);
+        }
+        const penalty = computeEdgePenalty(edgeList, testPositions, degrees);
+        if (penalty < bestPenalty) {
+          bestPenalty = penalty;
+          bestPerm = [...perm];
+        }
+      }
+    } else {
+      // For large ranks, use adjacent swap
+      const workingOrder = [...rankNodes];
+      let improved = true;
+      let passes = 0;
+      while (improved && passes < 10) {
+        improved = false;
+        passes++;
+        for (let i = 0; i < workingOrder.length - 1; i++) {
+          const testPositions = new Map(basePositions);
+          for (let k = 0; k < workingOrder.length; k++) {
+            testPositions.set(workingOrder[k]!, xSlots[k]!);
+          }
+          const before = computeEdgePenalty(edgeList, testPositions, degrees);
+
+          [workingOrder[i], workingOrder[i + 1]] = [workingOrder[i + 1]!, workingOrder[i]!];
+          const testPositions2 = new Map(basePositions);
+          for (let k = 0; k < workingOrder.length; k++) {
+            testPositions2.set(workingOrder[k]!, xSlots[k]!);
+          }
+          const after = computeEdgePenalty(edgeList, testPositions2, degrees);
+
+          if (after < before) {
+            improved = true;
+            if (after < bestPenalty) {
+              bestPenalty = after;
+              bestPerm = [...workingOrder];
+            }
+          } else {
+            [workingOrder[i], workingOrder[i + 1]] = [workingOrder[i + 1]!, workingOrder[i]!];
+          }
+        }
+      }
+    }
+
+    // Apply best permutation if it differs from current
+    if (bestPerm.some((name, i) => name !== rankNodes[i])) {
+      for (let i = 0; i < bestPerm.length; i++) {
+        g.node(bestPerm[i]!).x = xSlots[i]!;
+        rankNodes[i] = bestPerm[i]!;
+      }
+      anyMoved = true;
+    }
+  }
+
+  // Recompute edge waypoints if any positions changed
+  if (anyMoved) {
+    for (const edge of edgeList) {
+      const edgeData = g.edge(edge.source, edge.target);
+      if (!edgeData) continue;
+      const srcPos = g.node(edge.source);
+      const tgtPos = g.node(edge.target);
+      if (!srcPos || !tgtPos) continue;
+
+      const srcBottom = { x: srcPos.x, y: srcPos.y + srcPos.height / 2 };
+      const tgtTop = { x: tgtPos.x, y: tgtPos.y - tgtPos.height / 2 };
+      const midY = (srcBottom.y + tgtTop.y) / 2;
+
+      edgeData.points = [
+        srcBottom,
+        { x: srcBottom.x, y: midY },
+        { x: tgtTop.x, y: midY },
+        tgtTop,
+      ];
+    }
+  }
+}
+
+/** Generate all permutations of an array (Heap's algorithm). */
+function permutations<T>(arr: T[]): T[][] {
+  const result: T[][] = [];
+  const a = [...arr];
+  const n = a.length;
+  const c = new Array(n).fill(0) as number[];
+
+  result.push([...a]);
+
+  let i = 0;
+  while (i < n) {
+    if (c[i]! < i) {
+      if (i % 2 === 0) {
+        [a[0], a[i]] = [a[i]!, a[0]!];
+      } else {
+        [a[c[i]!], a[i]] = [a[i]!, a[c[i]!]!];
+      }
+      result.push([...a]);
+      c[i]!++;
+      i = 0;
+    } else {
+      c[i] = 0;
+      i++;
+    }
+  }
+
+  return result;
+}
+
+// ============================================================
 // Roll-Up Logic
 // ============================================================
 
@@ -404,6 +603,37 @@ function computeLegendGroups(
 }
 
 // ============================================================
+// Adaptive Spacing
+// ============================================================
+
+/**
+ * Compute dagre graph spacing based on edge density.
+ * Nodes with high fan-out (many labeled edges) need more inter-rank
+ * space so labels don't overlap. Returns ranksep and edgesep.
+ */
+function computeAdaptiveSpacing(
+  edges: { sourceName: string; label?: string; technology?: string }[]
+): { nodesep: number; ranksep: number; edgesep: number } {
+  // Count max labeled out-degree for any single source node
+  const outDegree = new Map<string, number>();
+  for (const edge of edges) {
+    if (edge.label || edge.technology) {
+      outDegree.set(edge.sourceName, (outDegree.get(edge.sourceName) ?? 0) + 1);
+    }
+  }
+  const maxFanOut = Math.max(0, ...outDegree.values());
+
+  // Scale spacing: each additional fan-out edge needs more room for its label.
+  // nodesep: wider horizontal gaps give fan-out edges distinct angles,
+  // making it clear which label belongs to which line.
+  const nodesep = Math.max(80, 60 + maxFanOut * 20);
+  const ranksep = Math.max(140, 100 + maxFanOut * 35);
+  const edgesep = Math.max(30, 20 + maxFanOut * 8);
+
+  return { nodesep, ranksep, edgesep };
+}
+
+// ============================================================
 // Main Layout
 // ============================================================
 
@@ -423,13 +653,16 @@ export function layoutC4Context(
   // Roll up relationships
   const contextRels = rollUpContextRelationships(parsed);
 
+  // Compute adaptive spacing based on edge density
+  const spacing = computeAdaptiveSpacing(contextRels);
+
   // Create dagre graph
   const g = new dagre.graphlib.Graph();
   g.setGraph({
     rankdir: 'TB',
-    nodesep: 80,
-    ranksep: 100,
-    edgesep: 30,
+    nodesep: spacing.nodesep,
+    ranksep: spacing.ranksep,
+    edgesep: spacing.edgesep,
   });
   g.setDefaultEdgeLabel(() => ({}));
 
@@ -452,6 +685,12 @@ export function layoutC4Context(
 
   // Run layout
   dagre.layout(g);
+
+  // Post-dagre crossing reduction
+  reduceCrossings(
+    g,
+    validRels.map((r) => ({ source: r.sourceName, target: r.targetName }))
+  );
 
   // Extract positioned nodes
   const nodes: C4LayoutNode[] = contextElements.map((el) => {
@@ -641,14 +880,8 @@ export function layoutC4Containers(
     if (el) externals.push(el);
   }
 
-  // Create dagre graph
+  // Create dagre graph — spacing computed after edges are collected
   const g = new dagre.graphlib.Graph();
-  g.setGraph({
-    rankdir: 'TB',
-    nodesep: 80,
-    ranksep: 100,
-    edgesep: 30,
-  });
   g.setDefaultEdgeLabel(() => ({}));
 
   // Add container nodes
@@ -721,6 +954,15 @@ export function layoutC4Containers(
     }
   }
 
+  // Compute adaptive spacing based on edge fan-out
+  const spacing = computeAdaptiveSpacing(containerRels);
+  g.setGraph({
+    rankdir: 'TB',
+    nodesep: spacing.nodesep,
+    ranksep: spacing.ranksep,
+    edgesep: spacing.edgesep,
+  });
+
   // Add edges to dagre
   for (const rel of containerRels) {
     if (nameToElement.has(rel.sourceName) && nameToElement.has(rel.targetName)) {
@@ -730,6 +972,14 @@ export function layoutC4Containers(
 
   // Run layout
   dagre.layout(g);
+
+  // Post-dagre crossing reduction
+  reduceCrossings(
+    g,
+    containerRels
+      .filter((r) => nameToElement.has(r.sourceName) && nameToElement.has(r.targetName))
+      .map((r) => ({ source: r.sourceName, target: r.targetName }))
+  );
 
   // Extract positioned nodes
   const nodes: C4LayoutNode[] = [];

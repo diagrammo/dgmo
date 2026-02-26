@@ -813,6 +813,19 @@ function renderEdges(
   palette: PaletteColors,
   onClickItem?: (lineNumber: number) => void
 ): void {
+  // Collect labels for deferred rendering with collision avoidance
+  const pendingLabels: {
+    edgeG: GSelection;
+    labelText: string;
+    techText: string;
+    bgW: number;
+    bgH: number;
+    x: number;
+    y: number;
+    edgeColor: string;
+    edgeIdx: number;
+  }[] = [];
+
   for (const edge of edges) {
     if (edge.points.length < 2) continue;
 
@@ -851,59 +864,319 @@ function renderEdges(
       }
     }
 
-    // Label at midpoint
+    // Collect label info for deferred placement
     if (edge.label || edge.technology) {
-      const midIdx = Math.floor(edge.points.length / 2);
-      const midPt = edge.points[midIdx];
-
       const labelText = edge.label ?? '';
       const techText = edge.technology ? `[${edge.technology}]` : '';
-
       const textLen = Math.max(labelText.length, techText.length);
       const bgW = textLen * 7 + 12;
       const bgH = (labelText ? 16 : 0) + (techText ? 14 : 0) + 4;
 
-      edgeG
-        .append('rect')
-        .attr('x', midPt.x - bgW / 2)
-        .attr('y', midPt.y - bgH / 2)
-        .attr('width', bgW)
-        .attr('height', bgH)
-        .attr('rx', 3)
-        .attr('fill', palette.bg)
-        .attr('opacity', 0.9)
-        .attr('class', 'c4-edge-label-bg');
+      pendingLabels.push({
+        edgeG,
+        labelText,
+        techText,
+        bgW,
+        bgH,
+        x: 0,
+        y: 0,
+        edgeColor,
+        edgeIdx: edges.indexOf(edge),
+      });
+    }
+  }
 
-      let textY = midPt.y;
-      if (labelText && techText) {
-        textY = midPt.y - 4;
+  // Place labels using maximum-clearance algorithm: for each label,
+  // find the position along its own edge that is farthest from all
+  // other edges and already-placed labels.
+  placeEdgeLabels(pendingLabels, edges);
+
+  // Render all labels
+  for (const lbl of pendingLabels) {
+    lbl.edgeG
+      .append('rect')
+      .attr('x', lbl.x - lbl.bgW / 2)
+      .attr('y', lbl.y - lbl.bgH / 2)
+      .attr('width', lbl.bgW)
+      .attr('height', lbl.bgH)
+      .attr('rx', 3)
+      .attr('fill', palette.bg)
+      .attr('opacity', 0.9)
+      .attr('class', 'c4-edge-label-bg');
+
+    let textY = lbl.y;
+    if (lbl.labelText && lbl.techText) {
+      textY = lbl.y - 4;
+    }
+
+    if (lbl.labelText) {
+      lbl.edgeG
+        .append('text')
+        .attr('x', lbl.x)
+        .attr('y', textY + 4)
+        .attr('text-anchor', 'middle')
+        .attr('fill', lbl.edgeColor)
+        .attr('font-size', EDGE_LABEL_FONT_SIZE)
+        .attr('class', 'c4-edge-label')
+        .text(lbl.labelText);
+    }
+
+    if (lbl.techText) {
+      lbl.edgeG
+        .append('text')
+        .attr('x', lbl.x)
+        .attr('y', lbl.labelText ? textY + 18 : textY + 4)
+        .attr('text-anchor', 'middle')
+        .attr('fill', lbl.edgeColor)
+        .attr('font-size', TECH_FONT_SIZE)
+        .attr('font-style', 'italic')
+        .attr('class', 'c4-edge-tech')
+        .text(lbl.techText);
+    }
+  }
+}
+
+// ============================================================
+// Edge Label Placement (Maximum Clearance)
+// ============================================================
+
+/** Interpolate a point at fraction t (0–1) along a polyline path. */
+function interpolateAlongPath(
+  points: { x: number; y: number }[],
+  t: number
+): { x: number; y: number } {
+  if (points.length < 2) return points[0]!;
+
+  let totalLen = 0;
+  for (let i = 1; i < points.length; i++) {
+    const dx = points[i]!.x - points[i - 1]!.x;
+    const dy = points[i]!.y - points[i - 1]!.y;
+    totalLen += Math.sqrt(dx * dx + dy * dy);
+  }
+
+  const targetLen = t * totalLen;
+  let accumulated = 0;
+  for (let i = 1; i < points.length; i++) {
+    const dx = points[i]!.x - points[i - 1]!.x;
+    const dy = points[i]!.y - points[i - 1]!.y;
+    const segLen = Math.sqrt(dx * dx + dy * dy);
+    if (accumulated + segLen >= targetLen) {
+      const segT = segLen > 0 ? (targetLen - accumulated) / segLen : 0;
+      return {
+        x: points[i - 1]!.x + dx * segT,
+        y: points[i - 1]!.y + dy * segT,
+      };
+    }
+    accumulated += segLen;
+  }
+  return points[points.length - 1]!;
+}
+
+/** Minimum distance from point p to a line segment (a, b). */
+function pointToSegmentDist(
+  p: { x: number; y: number },
+  a: { x: number; y: number },
+  b: { x: number; y: number }
+): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq === 0) {
+    const ex = p.x - a.x;
+    const ey = p.y - a.y;
+    return Math.sqrt(ex * ex + ey * ey);
+  }
+  let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq;
+  t = Math.max(0, Math.min(1, t));
+  const projX = a.x + t * dx;
+  const projY = a.y + t * dy;
+  const ex = p.x - projX;
+  const ey = p.y - projY;
+  return Math.sqrt(ex * ex + ey * ey);
+}
+
+/** Minimum distance from point p to a polyline path. */
+function pointToPolylineDist(
+  p: { x: number; y: number },
+  points: { x: number; y: number }[]
+): number {
+  let minDist = Infinity;
+  for (let i = 1; i < points.length; i++) {
+    const d = pointToSegmentDist(p, points[i - 1]!, points[i]!);
+    if (d < minDist) minDist = d;
+  }
+  return minDist;
+}
+
+/** Check if a rect overlaps another rect. */
+function rectsOverlap(
+  ax: number, ay: number, aw: number, ah: number,
+  bx: number, by: number, bw: number, bh: number,
+  pad: number
+): boolean {
+  return !(
+    ax + aw / 2 + pad < bx - bw / 2 - pad ||
+    bx + bw / 2 + pad < ax - aw / 2 - pad ||
+    ay + ah / 2 + pad < by - bh / 2 - pad ||
+    by + bh / 2 + pad < ay - ah / 2 - pad
+  );
+}
+
+/**
+ * Place edge labels using maximum-clearance algorithm.
+ *
+ * For each edge with a label, samples candidate positions along the edge
+ * path (avoiding the endpoints near nodes) and scores each by:
+ *   1. Minimum distance to all OTHER edge paths (want: far from other lines)
+ *   2. No overlap with already-placed labels (hard constraint)
+ *
+ * Labels are placed greedily: edges with fewer good positions go first.
+ */
+/** Compute the tangent direction at fraction t along a polyline. */
+function tangentAt(
+  points: { x: number; y: number }[],
+  t: number
+): { x: number; y: number } {
+  if (points.length < 2) return { x: 0, y: 1 };
+  let totalLen = 0;
+  for (let i = 1; i < points.length; i++) {
+    const dx = points[i]!.x - points[i - 1]!.x;
+    const dy = points[i]!.y - points[i - 1]!.y;
+    totalLen += Math.sqrt(dx * dx + dy * dy);
+  }
+  const targetLen = t * totalLen;
+  let accumulated = 0;
+  for (let i = 1; i < points.length; i++) {
+    const dx = points[i]!.x - points[i - 1]!.x;
+    const dy = points[i]!.y - points[i - 1]!.y;
+    const segLen = Math.sqrt(dx * dx + dy * dy);
+    if (accumulated + segLen >= targetLen || i === points.length - 1) {
+      return { x: dx, y: dy };
+    }
+    accumulated += segLen;
+  }
+  return { x: 0, y: 1 };
+}
+
+function placeEdgeLabels(
+  labels: {
+    edgeIdx: number;
+    bgW: number;
+    bgH: number;
+    x: number;
+    y: number;
+  }[],
+  edges: C4LayoutEdge[]
+): void {
+  if (labels.length === 0) return;
+
+  // Collect all edge polylines
+  const allPaths = edges.map((e) => e.points);
+
+  // Already-placed label rects for overlap checking
+  const placedRects: { x: number; y: number; w: number; h: number }[] = [];
+
+  // Bias samples toward target end (50–90%) where edges have diverged
+  const SAMPLES = [0.40, 0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90];
+
+  // Pre-compute candidate positions for each label
+  const candidates = labels.map((lbl) => {
+    const ownPath = allPaths[lbl.edgeIdx]!;
+    return SAMPLES.map((t) => ({ pt: interpolateAlongPath(ownPath, t), t }));
+  });
+
+  // Place greedily — label with fewest high-scoring candidates goes first
+  const order = labels.map((_, i) => i);
+
+  // Sort: labels on edges with more nearby edges go first (hardest to place)
+  order.sort((a, b) => {
+    const midA = interpolateAlongPath(allPaths[labels[a]!.edgeIdx]!, 0.5);
+    const midB = interpolateAlongPath(allPaths[labels[b]!.edgeIdx]!, 0.5);
+    let nearA = 0, nearB = 0;
+    for (let e = 0; e < allPaths.length; e++) {
+      if (e === labels[a]!.edgeIdx) continue;
+      if (pointToPolylineDist(midA, allPaths[e]!) < 100) nearA++;
+    }
+    for (let e = 0; e < allPaths.length; e++) {
+      if (e === labels[b]!.edgeIdx) continue;
+      if (pointToPolylineDist(midB, allPaths[e]!) < 100) nearB++;
+    }
+    return nearB - nearA; // Most constrained first
+  });
+
+  for (const idx of order) {
+    const lbl = labels[idx]!;
+    const ownEdgeIdx = lbl.edgeIdx;
+    const ownPath = allPaths[ownEdgeIdx]!;
+    const cands = candidates[idx]!;
+
+    let bestScore = -Infinity;
+    let bestPt = cands[Math.floor(cands.length / 2)]!.pt;
+    let bestT = 0.5;
+
+    for (const { pt, t } of cands) {
+      // Min distance to all OTHER edge paths
+      let minEdgeDist = Infinity;
+      for (let e = 0; e < allPaths.length; e++) {
+        if (e === ownEdgeIdx) continue;
+        const d = pointToPolylineDist(pt, allPaths[e]!);
+        if (d < minEdgeDist) minEdgeDist = d;
       }
 
-      if (labelText) {
-        edgeG
-          .append('text')
-          .attr('x', midPt.x)
-          .attr('y', textY + 4)
-          .attr('text-anchor', 'middle')
-          .attr('fill', edgeColor)
-          .attr('font-size', EDGE_LABEL_FONT_SIZE)
-          .attr('class', 'c4-edge-label')
-          .text(labelText);
+      // Penalty for overlapping already-placed labels
+      let labelOverlapPenalty = 0;
+      for (const placed of placedRects) {
+        if (rectsOverlap(pt.x, pt.y, lbl.bgW, lbl.bgH, placed.x, placed.y, placed.w, placed.h, 6)) {
+          labelOverlapPenalty += 200;
+        }
       }
 
-      if (techText) {
-        edgeG
-          .append('text')
-          .attr('x', midPt.x)
-          .attr('y', labelText ? textY + 18 : textY + 4)
-          .attr('text-anchor', 'middle')
-          .attr('fill', edgeColor)
-          .attr('font-size', TECH_FONT_SIZE)
-          .attr('font-style', 'italic')
-          .attr('class', 'c4-edge-tech')
-          .text(techText);
+      const score = minEdgeDist - labelOverlapPenalty;
+      if (score > bestScore) {
+        bestScore = score;
+        bestPt = pt;
+        bestT = t;
       }
     }
+
+    // Perpendicular offset: push label to the side of its edge with more
+    // clearance from other edges. This makes it unambiguous which line a
+    // label belongs to even when edges are close together.
+    const tan = tangentAt(ownPath, bestT);
+    const tLen = Math.sqrt(tan.x * tan.x + tan.y * tan.y);
+    if (tLen > 0) {
+      // Normal perpendicular to edge tangent
+      const nx = -tan.y / tLen;
+      const ny = tan.x / tLen;
+      const offsetDist = lbl.bgH / 2 + 4;
+      const sideA = { x: bestPt.x + nx * offsetDist, y: bestPt.y + ny * offsetDist };
+      const sideB = { x: bestPt.x - nx * offsetDist, y: bestPt.y - ny * offsetDist };
+
+      // Score each side: clearance from other edges + overlap with placed labels
+      let scoreA = Infinity, scoreB = Infinity;
+      for (let e = 0; e < allPaths.length; e++) {
+        if (e === ownEdgeIdx) continue;
+        scoreA = Math.min(scoreA, pointToPolylineDist(sideA, allPaths[e]!));
+        scoreB = Math.min(scoreB, pointToPolylineDist(sideB, allPaths[e]!));
+      }
+      for (const placed of placedRects) {
+        if (rectsOverlap(sideA.x, sideA.y, lbl.bgW, lbl.bgH, placed.x, placed.y, placed.w, placed.h, 6)) {
+          scoreA -= 200;
+        }
+        if (rectsOverlap(sideB.x, sideB.y, lbl.bgW, lbl.bgH, placed.x, placed.y, placed.w, placed.h, 6)) {
+          scoreB -= 200;
+        }
+      }
+
+      const finalPt = scoreA >= scoreB ? sideA : sideB;
+      lbl.x = finalPt.x;
+      lbl.y = finalPt.y;
+    } else {
+      lbl.x = bestPt.x;
+      lbl.y = bestPt.y;
+    }
+
+    placedRects.push({ x: lbl.x, y: lbl.y, w: lbl.bgW, h: lbl.bgH });
   }
 }
 
