@@ -439,7 +439,8 @@ export function rollUpContextRelationships(parsed: ParsedC4): ContextRelationshi
 function resolveNodeColor(
   el: C4Element,
   tagGroups: OrgTagGroup[],
-  activeGroupName: string | null
+  activeGroupName: string | null,
+  ancestors?: C4Element[]
 ): string | undefined {
   // Check metadata for explicit color
   const colorMeta = el.metadata['color'];
@@ -450,12 +451,20 @@ function resolveNodeColor(
     (g) => g.name.toLowerCase() === activeGroupName.toLowerCase()
   );
   if (!group) return undefined;
-  const metaValue =
-    el.metadata[group.name.toLowerCase()] ?? group.defaultValue;
-  if (!metaValue) return '#999999';
+  const key = group.name.toLowerCase();
+  // Walk inheritance chain: element → ancestors (container → system)
+  let metaValue: string | undefined = el.metadata[key];
+  if (!metaValue && ancestors) {
+    for (const ancestor of ancestors) {
+      metaValue = ancestor.metadata[key];
+      if (metaValue) break;
+    }
+  }
+  const resolvedValue = metaValue ?? group.defaultValue;
+  if (!resolvedValue) return '#999999';
   return (
     group.entries.find(
-      (e) => e.value.toLowerCase() === metaValue.toLowerCase()
+      (e) => e.value.toLowerCase() === resolvedValue.toLowerCase()
     )?.color ?? '#999999'
   );
 }
@@ -1112,6 +1121,414 @@ export function layoutC4Containers(
     for (const group of parsed.tagGroups) {
       const key = group.name.toLowerCase();
       const val = el.metadata[key];
+      if (val) {
+        if (!usedValuesByGroup.has(key)) usedValuesByGroup.set(key, new Set());
+        usedValuesByGroup.get(key)!.add(val.toLowerCase());
+      }
+    }
+  }
+
+  const legendGroups = computeLegendGroups(parsed.tagGroups, usedValuesByGroup);
+
+  // Position legend below diagram
+  if (legendGroups.length > 0) {
+    const legendY = totalHeight + MARGIN;
+    let legendX = MARGIN;
+    for (const lg of legendGroups) {
+      lg.x = legendX;
+      lg.y = legendY;
+      legendX += lg.width + 12;
+    }
+    const legendRight = legendX;
+    const legendBottom = legendY + LEGEND_HEIGHT;
+    if (legendRight > totalWidth) totalWidth = legendRight;
+    if (legendBottom > totalHeight) totalHeight = legendBottom;
+  }
+
+  return { nodes, edges, legend: legendGroups, boundary, width: totalWidth, height: totalHeight };
+}
+
+// ============================================================
+// Component-Level Layout
+// ============================================================
+
+/**
+ * Layout components within a specific container, plus external elements
+ * that have relationships with those components.
+ */
+export function layoutC4Components(
+  parsed: ParsedC4,
+  systemName: string,
+  containerName: string,
+  activeTagGroup?: string | null
+): C4LayoutResult {
+  // Find the system element by name
+  const system = parsed.elements.find(
+    (el) => el.name.toLowerCase() === systemName.toLowerCase()
+  );
+  if (!system) {
+    return { nodes: [], edges: [], legend: [], width: 0, height: 0 };
+  }
+
+  // Find the container within the system (direct children + group children)
+  let targetContainer: C4Element | undefined;
+  for (const child of system.children) {
+    if (child.type === 'container' && child.name.toLowerCase() === containerName.toLowerCase()) {
+      targetContainer = child;
+      break;
+    }
+  }
+  if (!targetContainer) {
+    for (const group of system.groups) {
+      for (const child of group.children) {
+        if (child.type === 'container' && child.name.toLowerCase() === containerName.toLowerCase()) {
+          targetContainer = child;
+          break;
+        }
+      }
+      if (targetContainer) break;
+    }
+  }
+  if (!targetContainer) {
+    return { nodes: [], edges: [], legend: [], width: 0, height: 0 };
+  }
+
+  // Collect all components: direct children + group children
+  const components: C4Element[] = [];
+  for (const child of targetContainer.children) {
+    if (child.type === 'component') components.push(child);
+  }
+  for (const group of targetContainer.groups) {
+    for (const child of group.children) {
+      if (child.type === 'component') components.push(child);
+    }
+  }
+
+  if (components.length === 0) {
+    return { nodes: [], edges: [], legend: [], width: 0, height: 0 };
+  }
+
+  const componentNames = new Set(components.map((c) => c.name.toLowerCase()));
+
+  // Build name → element map for all top-level elements and containers in this system
+  const topElementsByName = new Map<string, C4Element>();
+  for (const el of parsed.elements) {
+    topElementsByName.set(el.name.toLowerCase(), el);
+    // Also index containers in every system for external container resolution
+    for (const child of el.children) {
+      if (child.type === 'container') {
+        topElementsByName.set(child.name.toLowerCase(), child);
+      }
+    }
+    for (const group of el.groups) {
+      for (const child of group.children) {
+        if (child.type === 'container') {
+          topElementsByName.set(child.name.toLowerCase(), child);
+        }
+      }
+    }
+  }
+
+  // Identify external elements: targets of component relationships not in this container,
+  // or elements whose relationships target components in this container
+  const externalNames = new Set<string>();
+
+  // Forward: component → target outside this container
+  for (const component of components) {
+    for (const rel of component.relationships) {
+      const targetLower = rel.target.toLowerCase();
+      if (!componentNames.has(targetLower)) {
+        externalNames.add(targetLower);
+      }
+    }
+  }
+
+  // Reverse: any element that targets a component in this container
+  const ownerMap = buildOwnershipMap(parsed.elements);
+  const allRels = collectAllRelationships(parsed.elements, ownerMap);
+  for (const { sourceName, rel } of allRels) {
+    // Skip relationships from within this container
+    if (componentNames.has(sourceName.toLowerCase())) continue;
+    // Check if target is a component in this container
+    if (componentNames.has(rel.target.toLowerCase())) {
+      // Resolve to the most specific known element: if source is a container, use it;
+      // otherwise roll up to system ancestor
+      const sourceAncestor = ownerMap.get(sourceName) ?? sourceName;
+      // If source is inside the same container, skip
+      if (sourceAncestor.toLowerCase() === targetContainer.name.toLowerCase()) continue;
+      if (sourceAncestor.toLowerCase() === system.name.toLowerCase()) {
+        // Source is in same system — try to resolve to container level
+        const sourceLower = sourceName.toLowerCase();
+        if (topElementsByName.has(sourceLower)) {
+          externalNames.add(sourceLower);
+        } else {
+          externalNames.add(sourceAncestor.toLowerCase());
+        }
+      } else {
+        externalNames.add(sourceAncestor.toLowerCase());
+      }
+    }
+  }
+
+  // Resolve external elements
+  const externals: C4Element[] = [];
+  for (const name of externalNames) {
+    const el = topElementsByName.get(name);
+    if (el) externals.push(el);
+  }
+
+  // Create dagre graph
+  const g = new dagre.graphlib.Graph();
+  g.setDefaultEdgeLabel(() => ({}));
+
+  // Add component nodes
+  const nameToElement = new Map<string, C4Element>();
+  for (const el of components) {
+    nameToElement.set(el.name, el);
+    const dims = computeC4NodeDimensions(el, { showTechnology: true });
+    g.setNode(el.name, { width: dims.width, height: dims.height });
+  }
+
+  // Add external nodes
+  for (const el of externals) {
+    nameToElement.set(el.name, el);
+    const dims = computeC4NodeDimensions(el);
+    g.setNode(el.name, { width: dims.width, height: dims.height });
+  }
+
+  // Collect component-level relationships
+  interface ComponentRel {
+    sourceName: string;
+    targetName: string;
+    label?: string;
+    technology?: string;
+    arrowType: C4ArrowType;
+    lineNumber: number;
+  }
+
+  const componentRels: ComponentRel[] = [];
+  const seenEdgeKeys = new Set<string>();
+
+  // Forward: component → target
+  for (const component of components) {
+    for (const rel of component.relationships) {
+      const targetEl = nameToElement.get(rel.target);
+      if (!targetEl) continue;
+      const key = `${component.name}→${rel.target}`;
+      if (!seenEdgeKeys.has(key)) {
+        seenEdgeKeys.add(key);
+        componentRels.push({
+          sourceName: component.name,
+          targetName: rel.target,
+          label: rel.label,
+          technology: rel.technology,
+          arrowType: rel.arrowType,
+          lineNumber: rel.lineNumber,
+        });
+      }
+    }
+  }
+
+  // Reverse: external → component
+  for (const { sourceName, rel } of allRels) {
+    if (componentNames.has(sourceName.toLowerCase())) continue;
+    if (!componentNames.has(rel.target.toLowerCase())) continue;
+
+    const sourceAncestor = ownerMap.get(sourceName) ?? sourceName;
+    if (sourceAncestor.toLowerCase() === targetContainer.name.toLowerCase()) continue;
+
+    // Resolve source to the external element we added
+    let resolvedSource: string | undefined;
+    if (nameToElement.has(sourceName)) {
+      resolvedSource = sourceName;
+    } else if (nameToElement.has(sourceAncestor)) {
+      resolvedSource = sourceAncestor;
+    }
+    if (!resolvedSource) continue;
+
+    const key = `${resolvedSource}→${rel.target}`;
+    if (!seenEdgeKeys.has(key)) {
+      seenEdgeKeys.add(key);
+      componentRels.push({
+        sourceName: resolvedSource,
+        targetName: rel.target,
+        label: rel.label,
+        technology: rel.technology,
+        arrowType: rel.arrowType,
+        lineNumber: rel.lineNumber,
+      });
+    }
+  }
+
+  // Compute adaptive spacing based on edge fan-out
+  const spacing = computeAdaptiveSpacing(componentRels);
+  g.setGraph({
+    rankdir: 'TB',
+    nodesep: spacing.nodesep,
+    ranksep: spacing.ranksep,
+    edgesep: spacing.edgesep,
+  });
+
+  // Add edges to dagre
+  for (const rel of componentRels) {
+    if (nameToElement.has(rel.sourceName) && nameToElement.has(rel.targetName)) {
+      g.setEdge(rel.sourceName, rel.targetName, { label: rel.label ?? '' });
+    }
+  }
+
+  // Run layout
+  dagre.layout(g);
+
+  // Post-dagre crossing reduction
+  reduceCrossings(
+    g,
+    componentRels
+      .filter((r) => nameToElement.has(r.sourceName) && nameToElement.has(r.targetName))
+      .map((r) => ({ source: r.sourceName, target: r.targetName }))
+  );
+
+  // Tag inheritance ancestors: container → system
+  const ancestors = [targetContainer, system];
+
+  // Extract positioned nodes
+  const nodes: C4LayoutNode[] = [];
+  for (const el of components) {
+    const pos = g.node(el.name);
+    const color = resolveNodeColor(el, parsed.tagGroups, activeTagGroup ?? null, ancestors);
+    const tech = el.metadata['tech'] ?? el.metadata['technology'];
+    const hasComponents =
+      el.children.some((c) => c.type === 'component') ||
+      el.groups.some((grp) => grp.children.some((c) => c.type === 'component'));
+    nodes.push({
+      id: el.name,
+      name: el.name,
+      type: 'component',
+      description: el.metadata['description'],
+      metadata: el.metadata,
+      lineNumber: el.lineNumber,
+      color,
+      shape: el.shape,
+      technology: tech,
+      drillable: hasComponents || undefined,
+      x: pos.x,
+      y: pos.y,
+      width: pos.width,
+      height: pos.height,
+    });
+  }
+
+  for (const el of externals) {
+    const pos = g.node(el.name);
+    const color = resolveNodeColor(el, parsed.tagGroups, activeTagGroup ?? null);
+    nodes.push({
+      id: el.name,
+      name: el.name,
+      type: el.type as 'person' | 'system' | 'container',
+      description: el.metadata['description'],
+      metadata: el.metadata,
+      lineNumber: el.lineNumber,
+      color,
+      x: pos.x,
+      y: pos.y,
+      width: pos.width,
+      height: pos.height,
+    });
+  }
+
+  // Extract edges
+  const edges: C4LayoutEdge[] = componentRels
+    .filter((rel) => nameToElement.has(rel.sourceName) && nameToElement.has(rel.targetName))
+    .map((rel) => {
+      const edgeData = g.edge(rel.sourceName, rel.targetName);
+      return {
+        source: rel.sourceName,
+        target: rel.targetName,
+        arrowType: rel.arrowType,
+        label: rel.label,
+        technology: rel.technology,
+        lineNumber: rel.lineNumber,
+        points: edgeData?.points ?? [],
+      };
+    });
+
+  // Compute boundary box from component nodes only
+  const componentNodes = nodes.filter((n) => n.type === 'component');
+  let bMinX = Infinity, bMinY = Infinity, bMaxX = -Infinity, bMaxY = -Infinity;
+  for (const n of componentNodes) {
+    const left = n.x - n.width / 2;
+    const top = n.y - n.height / 2;
+    const right = n.x + n.width / 2;
+    const bottom = n.y + n.height / 2;
+    if (left < bMinX) bMinX = left;
+    if (top < bMinY) bMinY = top;
+    if (right > bMaxX) bMaxX = right;
+    if (bottom > bMaxY) bMaxY = bottom;
+  }
+
+  const boundary: C4LayoutBoundary = {
+    label: targetContainer.name,
+    typeLabel: 'container',
+    lineNumber: targetContainer.lineNumber,
+    x: bMinX - BOUNDARY_PAD,
+    y: bMinY - BOUNDARY_PAD,
+    width: (bMaxX - bMinX) + BOUNDARY_PAD * 2,
+    height: (bMaxY - bMinY) + BOUNDARY_PAD * 2,
+  };
+
+  // Compute bounding box of all content (nodes + boundary + edge points)
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const node of nodes) {
+    const left = node.x - node.width / 2;
+    const top = node.y - node.height / 2;
+    const right = node.x + node.width / 2;
+    const bottom = node.y + node.height / 2;
+    if (left < minX) minX = left;
+    if (top < minY) minY = top;
+    if (right > maxX) maxX = right;
+    if (bottom > maxY) maxY = bottom;
+  }
+  if (boundary.x < minX) minX = boundary.x;
+  if (boundary.y < minY) minY = boundary.y;
+  if (boundary.x + boundary.width > maxX) maxX = boundary.x + boundary.width;
+  if (boundary.y + boundary.height > maxY) maxY = boundary.y + boundary.height;
+  for (const edge of edges) {
+    for (const pt of edge.points) {
+      if (pt.x < minX) minX = pt.x;
+      if (pt.y < minY) minY = pt.y;
+      if (pt.x > maxX) maxX = pt.x;
+      if (pt.y > maxY) maxY = pt.y;
+    }
+  }
+
+  // Shift everything so content starts at (MARGIN, MARGIN)
+  const shiftX = MARGIN - minX;
+  const shiftY = MARGIN - minY;
+  for (const node of nodes) {
+    node.x += shiftX;
+    node.y += shiftY;
+  }
+  boundary.x += shiftX;
+  boundary.y += shiftY;
+  for (const edge of edges) {
+    for (const pt of edge.points) {
+      pt.x += shiftX;
+      pt.y += shiftY;
+    }
+  }
+
+  let totalWidth = maxX - minX + MARGIN * 2;
+  let totalHeight = maxY - minY + MARGIN * 2;
+
+  // Legend
+  const usedValuesByGroup = new Map<string, Set<string>>();
+  for (const el of [...components, ...externals]) {
+    for (const group of parsed.tagGroups) {
+      const key = group.name.toLowerCase();
+      // Check element + ancestors for inherited values
+      let val = el.metadata[key];
+      if (!val && components.includes(el)) {
+        val = targetContainer.metadata[key] ?? system.metadata[key];
+      }
       if (val) {
         if (!usedValuesByGroup.has(key)) usedValuesByGroup.set(key, new Set());
         usedValuesByGroup.get(key)!.add(val.toLowerCase());

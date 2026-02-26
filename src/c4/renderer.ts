@@ -10,7 +10,7 @@ import type { ParsedC4 } from './types';
 import type { C4Shape } from './types';
 import type { C4LayoutResult, C4LayoutNode, C4LayoutEdge, C4LayoutBoundary } from './layout';
 import { parseC4 } from './parser';
-import { layoutC4Context, layoutC4Containers, collectCardMetadata } from './layout';
+import { layoutC4Context, layoutC4Containers, layoutC4Components, collectCardMetadata } from './layout';
 
 // ============================================================
 // Constants
@@ -1667,6 +1667,59 @@ export function renderC4ContainersForExport(
   document.body.appendChild(el);
 
   try {
+    renderC4Containers(el, parsed, layout, palette, isDark, undefined, {
+      width: exportWidth,
+      height: exportHeight,
+    });
+
+    const svgEl = el.querySelector('svg');
+    if (!svgEl) return '';
+
+    if (theme === 'transparent') {
+      svgEl.style.background = 'none';
+    }
+
+    svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    svgEl.style.fontFamily = FONT_FAMILY;
+
+    return svgEl.outerHTML;
+  } finally {
+    document.body.removeChild(el);
+  }
+}
+
+// ============================================================
+// Component Export convenience function
+// ============================================================
+
+export function renderC4ComponentsForExport(
+  content: string,
+  systemName: string,
+  containerName: string,
+  theme: 'light' | 'dark' | 'transparent',
+  palette: PaletteColors
+): string {
+  const parsed = parseC4(content, palette);
+  if (parsed.error || parsed.elements.length === 0) return '';
+
+  const layout = layoutC4Components(parsed, systemName, containerName);
+  if (layout.nodes.length === 0) return '';
+
+  const isDark = theme === 'dark';
+
+  const el = document.createElement('div');
+  const titleOffset = parsed.title ? TITLE_HEIGHT + 10 : 0;
+  const exportWidth = layout.width + DIAGRAM_PADDING * 2;
+  const exportHeight = layout.height + DIAGRAM_PADDING * 2 + titleOffset;
+
+  el.style.width = `${exportWidth}px`;
+  el.style.height = `${exportHeight}px`;
+  el.style.position = 'absolute';
+  el.style.left = '-9999px';
+  document.body.appendChild(el);
+
+  try {
+    // Reuse the container renderer — it handles all node types generically
     renderC4Containers(el, parsed, layout, palette, isDark, undefined, {
       width: exportWidth,
       height: exportHeight,

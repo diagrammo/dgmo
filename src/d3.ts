@@ -5263,7 +5263,7 @@ export async function renderD3ForExport(
     activeTagGroup?: string | null;
     hiddenAttributes?: Set<string>;
   },
-  options?: { branding?: boolean; c4Level?: 'context' | 'containers'; c4System?: string }
+  options?: { branding?: boolean; c4Level?: 'context' | 'containers' | 'components'; c4System?: string; c4Container?: string }
 ): Promise<string> {
   // Flowchart and org chart use their own parser pipelines — intercept before parseD3()
   const { parseDgmoChartType } = await import('./dgmo-router');
@@ -5514,7 +5514,7 @@ export async function renderD3ForExport(
 
   if (detectedType === 'c4') {
     const { parseC4 } = await import('./c4/parser');
-    const { layoutC4Context, layoutC4Containers } = await import('./c4/layout');
+    const { layoutC4Context, layoutC4Containers, layoutC4Components } = await import('./c4/layout');
     const { renderC4Context, renderC4Containers } = await import('./c4/renderer');
 
     const isDark = theme === 'dark';
@@ -5525,13 +5525,16 @@ export async function renderD3ForExport(
     const c4Parsed = parseC4(content, effectivePalette);
     if (c4Parsed.error || c4Parsed.elements.length === 0) return '';
 
-    // Container-level rendering
+    // Container/component-level rendering
     const c4Level = options?.c4Level ?? 'context';
     const c4System = options?.c4System;
+    const c4Container = options?.c4Container;
 
-    const c4Layout = c4Level === 'containers' && c4System
-      ? layoutC4Containers(c4Parsed, c4System)
-      : layoutC4Context(c4Parsed);
+    const c4Layout = c4Level === 'components' && c4System && c4Container
+      ? layoutC4Components(c4Parsed, c4System, c4Container)
+      : c4Level === 'containers' && c4System
+        ? layoutC4Containers(c4Parsed, c4System)
+        : layoutC4Context(c4Parsed);
 
     if (c4Layout.nodes.length === 0) return '';
 
@@ -5548,7 +5551,7 @@ export async function renderD3ForExport(
     document.body.appendChild(container);
 
     try {
-      const renderFn = c4Level === 'containers' && c4System
+      const renderFn = (c4Level === 'components' && c4System && c4Container) || (c4Level === 'containers' && c4System)
         ? renderC4Containers
         : renderC4Context;
 

@@ -37,8 +37,9 @@ Options:
                        With stdin and no -o, PNG is written to stdout
   --theme <theme>      Theme: ${THEMES.join(', ')} (default: light)
   --palette <name>     Palette: ${PALETTES.join(', ')} (default: nord)
-  --c4-level <level>   C4 render level: context (default), containers
-  --c4-system <name>   System to render containers for (with --c4-level containers)
+  --c4-level <level>   C4 render level: context (default), containers, components
+  --c4-system <name>   System to drill into (with --c4-level containers or components)
+  --c4-container <name> Container to drill into (with --c4-level components)
   --no-branding        Omit diagrammo.app branding from exports
   --copy               Copy URL to clipboard (only with -o url)
   --help               Show this help
@@ -61,8 +62,9 @@ function parseArgs(argv: string[]): {
   version: boolean;
   noBranding: boolean;
   copy: boolean;
-  c4Level: 'context' | 'containers';
+  c4Level: 'context' | 'containers' | 'components';
   c4System: string | undefined;
+  c4Container: string | undefined;
 } {
   const result = {
     input: undefined as string | undefined,
@@ -73,8 +75,9 @@ function parseArgs(argv: string[]): {
     version: false,
     noBranding: false,
     copy: false,
-    c4Level: 'context' as 'context' | 'containers',
+    c4Level: 'context' as 'context' | 'containers' | 'components',
     c4System: undefined as string | undefined,
+    c4Container: undefined as string | undefined,
   };
 
   const args = argv.slice(2); // skip node + script
@@ -114,9 +117,9 @@ function parseArgs(argv: string[]): {
       i++;
     } else if (arg === '--c4-level') {
       const val = args[++i];
-      if (val !== 'context' && val !== 'containers') {
+      if (val !== 'context' && val !== 'containers' && val !== 'components') {
         console.error(
-          `Error: Invalid C4 level "${val}". Valid levels: context, containers`
+          `Error: Invalid C4 level "${val}". Valid levels: context, containers, components`
         );
         process.exit(1);
       }
@@ -124,6 +127,9 @@ function parseArgs(argv: string[]): {
       i++;
     } else if (arg === '--c4-system') {
       result.c4System = args[++i];
+      i++;
+    } else if (arg === '--c4-container') {
+      result.c4Container = args[++i];
       i++;
     } else if (arg === '--no-branding') {
       result.noBranding = true;
@@ -328,6 +334,16 @@ async function main(): Promise<void> {
     console.error('Error: --c4-system is required when --c4-level is containers');
     process.exit(1);
   }
+  if (opts.c4Level === 'components') {
+    if (!opts.c4System) {
+      console.error('Error: --c4-system is required when --c4-level is components');
+      process.exit(1);
+    }
+    if (!opts.c4Container) {
+      console.error('Error: --c4-container is required when --c4-level is components');
+      process.exit(1);
+    }
+  }
 
   const svg = await render(content, {
     theme: opts.theme,
@@ -335,6 +351,7 @@ async function main(): Promise<void> {
     branding: !opts.noBranding,
     c4Level: opts.c4Level,
     c4System: opts.c4System,
+    c4Container: opts.c4Container,
   });
 
   if (!svg) {

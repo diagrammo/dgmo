@@ -4,6 +4,7 @@ import { parseC4 } from '../src/c4/parser';
 import {
   layoutC4Context,
   layoutC4Containers,
+  layoutC4Components,
   rollUpContextRelationships,
   computeC4NodeDimensions,
 } from '../src/c4/layout';
@@ -12,6 +13,7 @@ import {
   renderC4ContextForExport,
   renderC4Containers,
   renderC4ContainersForExport,
+  renderC4ComponentsForExport,
 } from '../src/c4/renderer';
 import { getPalette, getAvailablePalettes } from '../src/palettes';
 
@@ -788,5 +790,269 @@ system Analytics
     const layout = layoutC4Containers(parsed, 'Analytics');
 
     expect(layout.nodes.filter((n) => n.type === 'container').length).toBe(3);
+  });
+});
+
+// ============================================================
+// Component-Level Tests
+// ============================================================
+
+const componentInput = `chart: c4
+title: Component View
+
+## Technology alias tech
+  Spring(green)
+  React(blue)
+  PostgreSQL(purple)
+
+person Customer
+system Ride Platform | description: Ride-sharing platform
+  containers:
+    container Ride Service | tech: Spring, description: Core ride logic
+      components:
+        component Ride Controller | tech: Spring, description: REST endpoints
+          -> Ride Manager: Delegates to
+          -> Customer: Sends ride status [WebSocket]
+        component Ride Manager | description: Business logic
+          -> Ride Repository: Reads/writes rides
+        component Ride Repository is a database | tech: PostgreSQL, description: Ride data access
+    container API Gateway | tech: Spring, description: Edge proxy
+      -> Ride Controller: Routes requests [HTTPS]
+system Payments | description: Payment processing
+  -> Ride Manager: Charges rider`;
+
+describe('layoutC4Components', () => {
+  it('renders all components for a container', () => {
+    const parsed = parseC4(componentInput, palette.light);
+    const layout = layoutC4Components(parsed, 'Ride Platform', 'Ride Service');
+
+    const compNodes = layout.nodes.filter((n) => n.type === 'component');
+    expect(compNodes.length).toBe(3);
+    expect(compNodes.map((n) => n.name).sort()).toEqual(
+      ['Ride Controller', 'Ride Manager', 'Ride Repository']
+    );
+  });
+
+  it('includes external elements with relationships to components', () => {
+    const parsed = parseC4(componentInput, palette.light);
+    const layout = layoutC4Components(parsed, 'Ride Platform', 'Ride Service');
+
+    const externalNodes = layout.nodes.filter((n) => n.type !== 'component');
+    expect(externalNodes.length).toBeGreaterThanOrEqual(1);
+    // Customer has a relationship from Ride Controller
+    expect(externalNodes.some((n) => n.name === 'Customer')).toBe(true);
+  });
+
+  it('includes external systems that target components (reverse)', () => {
+    const parsed = parseC4(componentInput, palette.light);
+    const layout = layoutC4Components(parsed, 'Ride Platform', 'Ride Service');
+
+    const externalNodes = layout.nodes.filter((n) => n.type !== 'component');
+    // Payments targets Ride Manager
+    expect(externalNodes.some((n) => n.name === 'Payments')).toBe(true);
+  });
+
+  it('includes external containers that target components (reverse)', () => {
+    const parsed = parseC4(componentInput, palette.light);
+    const layout = layoutC4Components(parsed, 'Ride Platform', 'Ride Service');
+
+    const externalNodes = layout.nodes.filter((n) => n.type !== 'component');
+    // API Gateway targets Ride Controller
+    expect(externalNodes.some((n) => n.name === 'API Gateway')).toBe(true);
+  });
+
+  it('computes boundary box labeled with container name', () => {
+    const parsed = parseC4(componentInput, palette.light);
+    const layout = layoutC4Components(parsed, 'Ride Platform', 'Ride Service');
+
+    expect(layout.boundary).toBeDefined();
+    expect(layout.boundary!.label).toBe('Ride Service');
+    expect(layout.boundary!.typeLabel).toBe('container');
+    expect(layout.boundary!.width).toBeGreaterThan(0);
+    expect(layout.boundary!.height).toBeGreaterThan(0);
+  });
+
+  it('carries shape information on component nodes', () => {
+    const parsed = parseC4(componentInput, palette.light);
+    const layout = layoutC4Components(parsed, 'Ride Platform', 'Ride Service');
+
+    const repoNode = layout.nodes.find((n) => n.name === 'Ride Repository');
+    expect(repoNode?.shape).toBe('database');
+  });
+
+  it('carries technology on component nodes', () => {
+    const parsed = parseC4(componentInput, palette.light);
+    const layout = layoutC4Components(parsed, 'Ride Platform', 'Ride Service');
+
+    const controllerNode = layout.nodes.find((n) => n.name === 'Ride Controller');
+    expect(controllerNode?.technology).toBe('Spring');
+
+    const repoNode = layout.nodes.find((n) => n.name === 'Ride Repository');
+    expect(repoNode?.technology).toBe('PostgreSQL');
+  });
+
+  it('produces edges for component relationships', () => {
+    const parsed = parseC4(componentInput, palette.light);
+    const layout = layoutC4Components(parsed, 'Ride Platform', 'Ride Service');
+
+    expect(layout.edges.length).toBeGreaterThanOrEqual(2);
+    // Ride Controller -> Ride Manager
+    expect(layout.edges.some((e) => e.source === 'Ride Controller' && e.target === 'Ride Manager')).toBe(true);
+    // Ride Manager -> Ride Repository
+    expect(layout.edges.some((e) => e.source === 'Ride Manager' && e.target === 'Ride Repository')).toBe(true);
+  });
+
+  it('produces edges from components to external elements', () => {
+    const parsed = parseC4(componentInput, palette.light);
+    const layout = layoutC4Components(parsed, 'Ride Platform', 'Ride Service');
+
+    // Ride Controller -> Customer
+    expect(layout.edges.some((e) => e.source === 'Ride Controller' && e.target === 'Customer')).toBe(true);
+  });
+
+  it('returns empty result for unknown system', () => {
+    const parsed = parseC4(componentInput, palette.light);
+    const layout = layoutC4Components(parsed, 'NonExistent', 'Ride Service');
+    expect(layout.nodes.length).toBe(0);
+  });
+
+  it('returns empty result for unknown container', () => {
+    const parsed = parseC4(componentInput, palette.light);
+    const layout = layoutC4Components(parsed, 'Ride Platform', 'NonExistent');
+    expect(layout.nodes.length).toBe(0);
+  });
+
+  it('returns empty result for container with no components', () => {
+    const input = `chart: c4
+system Platform
+  containers:
+    container Simple | description: No components`;
+    const parsed = parseC4(input, palette.light);
+    const layout = layoutC4Components(parsed, 'Platform', 'Simple');
+    expect(layout.nodes.length).toBe(0);
+  });
+
+  it('resolves tag group colors with inheritance (system → container → component)', () => {
+    const parsed = parseC4(componentInput, palette.light);
+    const layout = layoutC4Components(parsed, 'Ride Platform', 'Ride Service', 'Technology');
+
+    const controllerNode = layout.nodes.find((n) => n.name === 'Ride Controller');
+    expect(controllerNode?.color).toBeDefined();
+  });
+
+  it('has positive dimensions', () => {
+    const parsed = parseC4(componentInput, palette.light);
+    const layout = layoutC4Components(parsed, 'Ride Platform', 'Ride Service');
+
+    expect(layout.width).toBeGreaterThan(0);
+    expect(layout.height).toBeGreaterThan(0);
+  });
+});
+
+// ============================================================
+// renderC4Containers reused for components (JSDOM)
+// ============================================================
+
+describe('renderC4Components via renderC4Containers', () => {
+  it('produces SVG with component cards and boundary', () => {
+    const parsed = parseC4(componentInput, palette.light);
+    const layout = layoutC4Components(parsed, 'Ride Platform', 'Ride Service');
+
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+
+    renderC4Containers(el, parsed, layout, palette.light, false, undefined, {
+      width: 1000,
+      height: 800,
+    });
+
+    const svg = el.querySelector('svg');
+    expect(svg).not.toBeNull();
+
+    // Component cards
+    const cards = svg!.querySelectorAll('.c4-card');
+    expect(cards.length).toBeGreaterThanOrEqual(3);
+
+    // Boundary box
+    const boundary = svg!.querySelector('.c4-boundary');
+    expect(boundary).not.toBeNull();
+
+    // Edges
+    const edges = svg!.querySelectorAll('.c4-edge');
+    expect(edges.length).toBeGreaterThanOrEqual(1);
+
+    document.body.removeChild(el);
+  });
+
+  it('renders database shape on component with is a database', () => {
+    const parsed = parseC4(componentInput, palette.light);
+    const layout = layoutC4Components(parsed, 'Ride Platform', 'Ride Service');
+
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+
+    renderC4Containers(el, parsed, layout, palette.light, false, undefined, {
+      width: 1000,
+      height: 800,
+    });
+
+    const dbCard = el.querySelector('[data-shape="database"]');
+    expect(dbCard).not.toBeNull();
+
+    document.body.removeChild(el);
+  });
+
+  it('renders technology row on component cards', () => {
+    const parsed = parseC4(componentInput, palette.light);
+    const layout = layoutC4Components(parsed, 'Ride Platform', 'Ride Service');
+
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+
+    renderC4Containers(el, parsed, layout, palette.light, false, undefined, {
+      width: 1000,
+      height: 800,
+    });
+
+    const allTexts = Array.from(el.querySelectorAll('text'));
+    const techKeyText = allTexts.find((t) => t.textContent === 'Technology:');
+    expect(techKeyText).toBeDefined();
+
+    document.body.removeChild(el);
+  });
+});
+
+// ============================================================
+// renderC4ComponentsForExport
+// ============================================================
+
+describe('renderC4ComponentsForExport', () => {
+  for (const paletteName of getAvailablePalettes()) {
+    for (const theme of ['light', 'dark'] as const) {
+      it(`produces non-empty SVG for ${paletteName} / ${theme}`, () => {
+        const pal = getPalette(paletteName);
+        const colors = theme === 'dark' ? pal.dark : pal.light;
+        const svg = renderC4ComponentsForExport(componentInput, 'Ride Platform', 'Ride Service', theme, colors);
+
+        expect(svg.length).toBeGreaterThan(0);
+        expect(svg).toContain('<svg');
+        expect(svg).toContain('</svg>');
+      });
+    }
+  }
+
+  it('returns empty string for unknown system', () => {
+    const svg = renderC4ComponentsForExport(componentInput, 'NonExistent', 'Ride Service', 'light', palette.light);
+    expect(svg).toBe('');
+  });
+
+  it('returns empty string for unknown container', () => {
+    const svg = renderC4ComponentsForExport(componentInput, 'Ride Platform', 'NonExistent', 'light', palette.light);
+    expect(svg).toBe('');
+  });
+
+  it('handles transparent theme', () => {
+    const svg = renderC4ComponentsForExport(componentInput, 'Ride Platform', 'Ride Service', 'transparent', palette.light);
+    expect(svg.length).toBeGreaterThan(0);
   });
 });
