@@ -169,6 +169,18 @@ export type {
   C4TagEntry,
 } from './c4/types';
 
+export { layoutC4Context, rollUpContextRelationships } from './c4/layout';
+export type {
+  C4LayoutResult,
+  C4LayoutNode,
+  C4LayoutEdge,
+  C4LegendGroup,
+  C4LegendEntry,
+  ContextRelationship,
+} from './c4/layout';
+
+export { renderC4Context, renderC4ContextForExport } from './c4/renderer';
+
 export { collapseOrgTree } from './org/collapse';
 export type { CollapsedOrgResult } from './org/collapse';
 

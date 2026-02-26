@@ -114,7 +114,7 @@ system Banking
 };
 
 // All D3 types now render in JSDOM via explicit dimensions (Epic 41)
-const D3_TYPES = ['sequence', 'slope', 'arc', 'timeline', 'venn', 'quadrant', 'flowchart', 'org', 'kanban'];
+const D3_TYPES = ['sequence', 'slope', 'arc', 'timeline', 'venn', 'quadrant', 'flowchart', 'org', 'kanban', 'c4'];
 
 // Wordcloud requires HTMLCanvasElement.getContext('2d') for d3-cloud text measurement —
 // not available in JSDOM without the `canvas` npm package.

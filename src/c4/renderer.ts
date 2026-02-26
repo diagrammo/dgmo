@@ -1,0 +1,674 @@
+// ============================================================
+// C4 Context Diagram SVG Renderer
+// ============================================================
+
+import * as d3Selection from 'd3-selection';
+import * as d3Shape from 'd3-shape';
+import { FONT_FAMILY } from '../fonts';
+import type { PaletteColors } from '../palettes';
+import type { ParsedC4 } from './types';
+import type { C4LayoutResult, C4LayoutNode, C4LayoutEdge } from './layout';
+import { parseC4 } from './parser';
+import { layoutC4Context } from './layout';
+
+// ============================================================
+// Constants
+// ============================================================
+
+const DIAGRAM_PADDING = 20;
+const MAX_SCALE = 3;
+const TITLE_HEIGHT = 30;
+const TITLE_FONT_SIZE = 20;
+const TYPE_FONT_SIZE = 10;
+const NAME_FONT_SIZE = 14;
+const DESC_FONT_SIZE = 11;
+const DESC_LINE_HEIGHT = 16;
+const DESC_CHAR_WIDTH = 6.5;
+const EDGE_LABEL_FONT_SIZE = 11;
+const TECH_FONT_SIZE = 10;
+const EDGE_STROKE_WIDTH = 1.5;
+const NODE_STROKE_WIDTH = 1.5;
+const CARD_RADIUS = 6;
+const CARD_H_PAD = 20;
+const CARD_V_PAD = 14;
+const TYPE_LABEL_HEIGHT = 18;
+const DIVIDER_GAP = 6;
+const NAME_HEIGHT = 20;
+
+// Person icon dimensions
+const PERSON_HEAD_R = 6;
+const PERSON_BODY_H = 8;
+const PERSON_ICON_W = 14;
+
+// Legend constants (match org)
+const LEGEND_HEIGHT = 28;
+const LEGEND_PILL_FONT_SIZE = 11;
+const LEGEND_PILL_FONT_W = LEGEND_PILL_FONT_SIZE * 0.6;
+const LEGEND_PILL_PAD = 16;
+const LEGEND_DOT_R = 4;
+const LEGEND_ENTRY_FONT_SIZE = 10;
+const LEGEND_ENTRY_FONT_W = LEGEND_ENTRY_FONT_SIZE * 0.6;
+const LEGEND_ENTRY_DOT_GAP = 4;
+const LEGEND_ENTRY_TRAIL = 8;
+const LEGEND_CAPSULE_PAD = 4;
+
+// ============================================================
+// Color helpers
+// ============================================================
+
+function mix(a: string, b: string, pct: number): string {
+  const parse = (h: string) => {
+    const r = h.replace('#', '');
+    const f = r.length === 3 ? r[0] + r[0] + r[1] + r[1] + r[2] + r[2] : r;
+    return [
+      parseInt(f.substring(0, 2), 16),
+      parseInt(f.substring(2, 4), 16),
+      parseInt(f.substring(4, 6), 16),
+    ];
+  };
+  const [ar, ag, ab] = parse(a),
+    [br, bg, bb] = parse(b),
+    t = pct / 100;
+  const c = (x: number, y: number) =>
+    Math.round(x * t + y * (1 - t))
+      .toString(16)
+      .padStart(2, '0');
+  return `#${c(ar, br)}${c(ag, bg)}${c(ab, bb)}`;
+}
+
+function typeColor(
+  type: 'person' | 'system',
+  palette: PaletteColors,
+  nodeColor?: string
+): string {
+  if (nodeColor) return nodeColor;
+  return type === 'person' ? palette.colors.blue : palette.colors.teal;
+}
+
+function nodeFill(
+  palette: PaletteColors,
+  isDark: boolean,
+  type: 'person' | 'system',
+  nodeColor?: string
+): string {
+  const color = typeColor(type, palette, nodeColor);
+  return mix(color, isDark ? palette.surface : palette.bg, 20);
+}
+
+function nodeStroke(
+  palette: PaletteColors,
+  type: 'person' | 'system',
+  nodeColor?: string
+): string {
+  return typeColor(type, palette, nodeColor);
+}
+
+// ============================================================
+// Text wrapping helper
+// ============================================================
+
+function wrapText(text: string, maxWidth: number, charWidth: number): string[] {
+  const words = text.split(/\s+/);
+  const lines: string[] = [];
+  let current = '';
+
+  for (const word of words) {
+    const test = current ? `${current} ${word}` : word;
+    if (test.length * charWidth > maxWidth && current) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = test;
+    }
+  }
+  if (current) lines.push(current);
+  return lines;
+}
+
+// ============================================================
+// Edge path generator
+// ============================================================
+
+const lineGenerator = d3Shape
+  .line<{ x: number; y: number }>()
+  .x((d) => d.x)
+  .y((d) => d.y)
+  .curve(d3Shape.curveBasis);
+
+// ============================================================
+// Edge line style helpers
+// ============================================================
+
+function isDashedEdge(arrowType: string): boolean {
+  return arrowType === 'async' || arrowType === 'bidirectional-async';
+}
+
+function hasBidirectionalMarkers(arrowType: string): boolean {
+  return arrowType === 'bidirectional' || arrowType === 'bidirectional-async';
+}
+
+// ============================================================
+// Person stick-figure icon
+// ============================================================
+
+function drawPersonIcon(
+  g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
+  cx: number,
+  cy: number,
+  color: string
+): void {
+  // Head
+  g.append('circle')
+    .attr('cx', cx)
+    .attr('cy', cy - PERSON_BODY_H)
+    .attr('r', PERSON_HEAD_R)
+    .attr('fill', 'none')
+    .attr('stroke', color)
+    .attr('stroke-width', 1.5);
+
+  // Body
+  g.append('line')
+    .attr('x1', cx)
+    .attr('y1', cy - PERSON_BODY_H + PERSON_HEAD_R)
+    .attr('x2', cx)
+    .attr('y2', cy + 2)
+    .attr('stroke', color)
+    .attr('stroke-width', 1.5);
+
+  // Arms
+  g.append('line')
+    .attr('x1', cx - PERSON_ICON_W / 2)
+    .attr('y1', cy - 2)
+    .attr('x2', cx + PERSON_ICON_W / 2)
+    .attr('y2', cy - 2)
+    .attr('stroke', color)
+    .attr('stroke-width', 1.5);
+
+  // Legs
+  g.append('line')
+    .attr('x1', cx)
+    .attr('y1', cy + 2)
+    .attr('x2', cx - PERSON_ICON_W / 3)
+    .attr('y2', cy + PERSON_BODY_H)
+    .attr('stroke', color)
+    .attr('stroke-width', 1.5);
+
+  g.append('line')
+    .attr('x1', cx)
+    .attr('y1', cy + 2)
+    .attr('x2', cx + PERSON_ICON_W / 3)
+    .attr('y2', cy + PERSON_BODY_H)
+    .attr('stroke', color)
+    .attr('stroke-width', 1.5);
+}
+
+// ============================================================
+// Main Renderer
+// ============================================================
+
+type GSelection = d3Selection.Selection<SVGGElement, unknown, null, undefined>;
+
+export function renderC4Context(
+  container: HTMLDivElement,
+  parsed: ParsedC4,
+  layout: C4LayoutResult,
+  palette: PaletteColors,
+  isDark: boolean,
+  onClickItem?: (lineNumber: number) => void,
+  exportDims?: { width?: number; height?: number },
+  activeTagGroup?: string | null
+): void {
+  d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
+
+  const width = exportDims?.width ?? container.clientWidth;
+  const height = exportDims?.height ?? container.clientHeight;
+  if (width <= 0 || height <= 0) return;
+
+  const titleHeight = parsed.title ? TITLE_HEIGHT + 10 : 0;
+  const diagramW = layout.width;
+  const diagramH = layout.height;
+  const availH = height - titleHeight;
+  const scaleX = (width - DIAGRAM_PADDING * 2) / diagramW;
+  const scaleY = (availH - DIAGRAM_PADDING * 2) / diagramH;
+  const scale = Math.min(MAX_SCALE, scaleX, scaleY);
+
+  const scaledW = diagramW * scale;
+  const scaledH = diagramH * scale;
+  const offsetX = (width - scaledW) / 2;
+  const offsetY = titleHeight + (availH - scaledH) / 2;
+
+  const svg = d3Selection
+    .select(container)
+    .append('svg')
+    .attr('width', width)
+    .attr('height', height)
+    .style('font-family', FONT_FAMILY);
+
+  // ── Marker defs ──
+  const defs = svg.append('defs');
+  const AW = 10;
+  const AH = 7;
+
+  // Filled triangle — end marker
+  defs
+    .append('marker')
+    .attr('id', 'c4-arrow-end')
+    .attr('viewBox', `0 0 ${AW} ${AH}`)
+    .attr('refX', AW)
+    .attr('refY', AH / 2)
+    .attr('markerWidth', AW)
+    .attr('markerHeight', AH)
+    .attr('orient', 'auto')
+    .append('polygon')
+    .attr('points', `0,0 ${AW},${AH / 2} 0,${AH}`)
+    .attr('fill', palette.textMuted);
+
+  // Filled triangle — start marker (for bidirectional)
+  defs
+    .append('marker')
+    .attr('id', 'c4-arrow-start')
+    .attr('viewBox', `0 0 ${AW} ${AH}`)
+    .attr('refX', 0)
+    .attr('refY', AH / 2)
+    .attr('markerWidth', AW)
+    .attr('markerHeight', AH)
+    .attr('orient', 'auto')
+    .append('polygon')
+    .attr('points', `${AW},0 0,${AH / 2} ${AW},${AH}`)
+    .attr('fill', palette.textMuted);
+
+  // ── Title ──
+  if (parsed.title) {
+    const titleEl = svg
+      .append('text')
+      .attr('class', 'chart-title')
+      .attr('x', width / 2)
+      .attr('y', 30)
+      .attr('text-anchor', 'middle')
+      .attr('fill', palette.text)
+      .attr('font-size', `${TITLE_FONT_SIZE}px`)
+      .attr('font-weight', '700')
+      .style('cursor', onClickItem && parsed.titleLineNumber ? 'pointer' : 'default')
+      .text(parsed.title);
+
+    if (parsed.titleLineNumber) {
+      titleEl.attr('data-line-number', parsed.titleLineNumber);
+      if (onClickItem) {
+        titleEl
+          .on('click', () => onClickItem(parsed.titleLineNumber!))
+          .on('mouseenter', function () {
+            d3Selection.select(this).attr('opacity', 0.7);
+          })
+          .on('mouseleave', function () {
+            d3Selection.select(this).attr('opacity', 1);
+          });
+      }
+    }
+  }
+
+  // ── Content group ──
+  const contentG = svg
+    .append('g')
+    .attr('transform', `translate(${offsetX}, ${offsetY}) scale(${scale})`);
+
+  // ── Edges (behind nodes) ──
+  for (const edge of layout.edges) {
+    if (edge.points.length < 2) continue;
+
+    const edgeG = contentG
+      .append('g')
+      .attr('class', 'c4-edge-group')
+      .attr('data-line-number', String(edge.lineNumber));
+
+    if (onClickItem) {
+      edgeG.style('cursor', 'pointer').on('click', () => {
+        onClickItem(edge.lineNumber);
+      });
+    }
+
+    const edgeColor = palette.textMuted;
+    const dashed = isDashedEdge(edge.arrowType);
+    const bidir = hasBidirectionalMarkers(edge.arrowType);
+
+    const pathD = lineGenerator(edge.points);
+    if (pathD) {
+      const pathEl = edgeG
+        .append('path')
+        .attr('d', pathD)
+        .attr('fill', 'none')
+        .attr('stroke', edgeColor)
+        .attr('stroke-width', EDGE_STROKE_WIDTH)
+        .attr('class', 'c4-edge')
+        .attr('marker-end', 'url(#c4-arrow-end)');
+
+      if (dashed) {
+        pathEl.attr('stroke-dasharray', '6 3');
+      }
+
+      if (bidir) {
+        pathEl.attr('marker-start', 'url(#c4-arrow-start)');
+      }
+    }
+
+    // Label at midpoint
+    if (edge.label || edge.technology) {
+      const midIdx = Math.floor(edge.points.length / 2);
+      const midPt = edge.points[midIdx];
+
+      const labelText = edge.label ?? '';
+      const techText = edge.technology ? `[${edge.technology}]` : '';
+
+      // Background rect
+      const textLen = Math.max(labelText.length, techText.length);
+      const bgW = textLen * 7 + 12;
+      const bgH = (labelText ? 16 : 0) + (techText ? 14 : 0) + 4;
+
+      edgeG
+        .append('rect')
+        .attr('x', midPt.x - bgW / 2)
+        .attr('y', midPt.y - bgH / 2)
+        .attr('width', bgW)
+        .attr('height', bgH)
+        .attr('rx', 3)
+        .attr('fill', palette.bg)
+        .attr('opacity', 0.9)
+        .attr('class', 'c4-edge-label-bg');
+
+      let textY = midPt.y;
+      if (labelText && techText) {
+        textY = midPt.y - 4;
+      }
+
+      if (labelText) {
+        edgeG
+          .append('text')
+          .attr('x', midPt.x)
+          .attr('y', textY + 4)
+          .attr('text-anchor', 'middle')
+          .attr('fill', edgeColor)
+          .attr('font-size', EDGE_LABEL_FONT_SIZE)
+          .attr('class', 'c4-edge-label')
+          .text(labelText);
+      }
+
+      if (techText) {
+        edgeG
+          .append('text')
+          .attr('x', midPt.x)
+          .attr('y', (labelText ? textY + 18 : textY + 4))
+          .attr('text-anchor', 'middle')
+          .attr('fill', edgeColor)
+          .attr('font-size', TECH_FONT_SIZE)
+          .attr('font-style', 'italic')
+          .attr('class', 'c4-edge-tech')
+          .text(techText);
+      }
+    }
+  }
+
+  // ── Nodes (top layer) ──
+  for (const node of layout.nodes) {
+    const nodeG = contentG
+      .append('g')
+      .attr('transform', `translate(${node.x}, ${node.y})`)
+      .attr('class', 'c4-card')
+      .attr('data-line-number', String(node.lineNumber))
+      .attr('data-node-id', node.id);
+
+    if (onClickItem) {
+      nodeG.style('cursor', 'pointer').on('click', () => {
+        onClickItem(node.lineNumber);
+      });
+    }
+
+    const w = node.width;
+    const h = node.height;
+    const fill = nodeFill(palette, isDark, node.type, node.color);
+    const stroke = nodeStroke(palette, node.type, node.color);
+
+    // Card background
+    nodeG
+      .append('rect')
+      .attr('x', -w / 2)
+      .attr('y', -h / 2)
+      .attr('width', w)
+      .attr('height', h)
+      .attr('rx', CARD_RADIUS)
+      .attr('ry', CARD_RADIUS)
+      .attr('fill', fill)
+      .attr('stroke', stroke)
+      .attr('stroke-width', NODE_STROKE_WIDTH);
+
+    let yPos = -h / 2 + CARD_V_PAD;
+
+    // Type label (e.g. «person» or «system»)
+    const typeLabel = `\u00AB${node.type}\u00BB`;
+    nodeG
+      .append('text')
+      .attr('x', 0)
+      .attr('y', yPos + TYPE_FONT_SIZE / 2)
+      .attr('text-anchor', 'middle')
+      .attr('dominant-baseline', 'central')
+      .attr('fill', palette.textMuted)
+      .attr('font-size', TYPE_FONT_SIZE)
+      .attr('font-style', 'italic')
+      .text(typeLabel);
+
+    yPos += TYPE_LABEL_HEIGHT;
+
+    // Subtle divider
+    nodeG
+      .append('line')
+      .attr('x1', -w / 2 + CARD_H_PAD / 2)
+      .attr('y1', yPos)
+      .attr('x2', w / 2 - CARD_H_PAD / 2)
+      .attr('y2', yPos)
+      .attr('stroke', stroke)
+      .attr('stroke-width', 0.5)
+      .attr('stroke-opacity', 0.4);
+
+    yPos += DIVIDER_GAP;
+
+    // Name (bold)
+    if (node.type === 'person') {
+      // Person icon beside name
+      const iconOffset = PERSON_ICON_W + 6;
+      const nameX = iconOffset / 2;
+
+      drawPersonIcon(
+        nodeG as GSelection,
+        -nameX - PERSON_ICON_W / 2 + 4,
+        yPos + NAME_FONT_SIZE / 2 - 2,
+        stroke
+      );
+
+      nodeG
+        .append('text')
+        .attr('x', nameX / 2)
+        .attr('y', yPos + NAME_FONT_SIZE / 2)
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'central')
+        .attr('fill', palette.text)
+        .attr('font-size', NAME_FONT_SIZE)
+        .attr('font-weight', 'bold')
+        .text(node.name);
+    } else {
+      nodeG
+        .append('text')
+        .attr('x', 0)
+        .attr('y', yPos + NAME_FONT_SIZE / 2)
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'central')
+        .attr('fill', palette.text)
+        .attr('font-size', NAME_FONT_SIZE)
+        .attr('font-weight', 'bold')
+        .text(node.name);
+    }
+
+    yPos += NAME_HEIGHT;
+
+    // Description (wrapping, muted)
+    if (node.description) {
+      const contentWidth = w - CARD_H_PAD * 2;
+      const lines = wrapText(node.description, contentWidth, DESC_CHAR_WIDTH);
+      for (const line of lines) {
+        nodeG
+          .append('text')
+          .attr('x', 0)
+          .attr('y', yPos + DESC_FONT_SIZE / 2)
+          .attr('text-anchor', 'middle')
+          .attr('dominant-baseline', 'central')
+          .attr('fill', palette.textMuted)
+          .attr('font-size', DESC_FONT_SIZE)
+          .text(line);
+        yPos += DESC_LINE_HEIGHT;
+      }
+    }
+  }
+
+  // ── Legend ──
+  if (!exportDims) {
+    for (const group of layout.legend) {
+      const isActive =
+        activeTagGroup != null &&
+        group.name.toLowerCase() === (activeTagGroup ?? '').toLowerCase();
+
+      if (activeTagGroup != null && !isActive) continue;
+
+      const groupBg = isDark
+        ? mix(palette.surface, palette.bg, 50)
+        : mix(palette.surface, palette.bg, 30);
+
+      const pillLabel = group.name;
+      const pillWidth = pillLabel.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
+
+      const gEl = contentG
+        .append('g')
+        .attr('transform', `translate(${group.x}, ${group.y})`)
+        .attr('class', 'c4-legend-group')
+        .attr('data-legend-group', group.name.toLowerCase())
+        .style('cursor', 'pointer');
+
+      if (isActive) {
+        gEl
+          .append('rect')
+          .attr('width', group.width)
+          .attr('height', LEGEND_HEIGHT)
+          .attr('rx', LEGEND_HEIGHT / 2)
+          .attr('fill', groupBg);
+      }
+
+      const pillX = isActive ? LEGEND_CAPSULE_PAD : 0;
+      const pillY = isActive ? LEGEND_CAPSULE_PAD : 0;
+      const pillH = LEGEND_HEIGHT - (isActive ? LEGEND_CAPSULE_PAD * 2 : 0);
+
+      gEl
+        .append('rect')
+        .attr('x', pillX)
+        .attr('y', pillY)
+        .attr('width', pillWidth)
+        .attr('height', pillH)
+        .attr('rx', pillH / 2)
+        .attr('fill', isActive ? palette.bg : groupBg);
+
+      if (isActive) {
+        gEl
+          .append('rect')
+          .attr('x', pillX)
+          .attr('y', pillY)
+          .attr('width', pillWidth)
+          .attr('height', pillH)
+          .attr('rx', pillH / 2)
+          .attr('fill', 'none')
+          .attr('stroke', mix(palette.textMuted, palette.bg, 50))
+          .attr('stroke-width', 0.75);
+      }
+
+      gEl
+        .append('text')
+        .attr('x', pillX + pillWidth / 2)
+        .attr('y', LEGEND_HEIGHT / 2 + LEGEND_PILL_FONT_SIZE / 2 - 2)
+        .attr('font-size', LEGEND_PILL_FONT_SIZE)
+        .attr('font-weight', '500')
+        .attr('fill', isActive ? palette.text : palette.textMuted)
+        .attr('text-anchor', 'middle')
+        .text(pillLabel);
+
+      if (isActive) {
+        let entryX = pillX + pillWidth + 4;
+        for (const entry of group.entries) {
+          const entryG = gEl
+            .append('g')
+            .attr('data-legend-entry', entry.value.toLowerCase())
+            .style('cursor', 'pointer');
+
+          entryG
+            .append('circle')
+            .attr('cx', entryX + LEGEND_DOT_R)
+            .attr('cy', LEGEND_HEIGHT / 2)
+            .attr('r', LEGEND_DOT_R)
+            .attr('fill', entry.color);
+
+          const textX = entryX + LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP;
+          entryG
+            .append('text')
+            .attr('x', textX)
+            .attr('y', LEGEND_HEIGHT / 2 + LEGEND_ENTRY_FONT_SIZE / 2 - 1)
+            .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
+            .attr('fill', palette.textMuted)
+            .text(entry.value);
+
+          entryX = textX + entry.value.length * LEGEND_ENTRY_FONT_W + LEGEND_ENTRY_TRAIL;
+        }
+      }
+    }
+  }
+}
+
+// ============================================================
+// Export convenience function
+// ============================================================
+
+export function renderC4ContextForExport(
+  content: string,
+  theme: 'light' | 'dark' | 'transparent',
+  palette: PaletteColors
+): string {
+  const parsed = parseC4(content, palette);
+  if (parsed.error || parsed.elements.length === 0) return '';
+
+  const layout = layoutC4Context(parsed);
+  const isDark = theme === 'dark';
+
+  const container = document.createElement('div');
+  const titleOffset = parsed.title ? TITLE_HEIGHT + 10 : 0;
+  const exportWidth = layout.width + DIAGRAM_PADDING * 2;
+  const exportHeight = layout.height + DIAGRAM_PADDING * 2 + titleOffset;
+
+  container.style.width = `${exportWidth}px`;
+  container.style.height = `${exportHeight}px`;
+  container.style.position = 'absolute';
+  container.style.left = '-9999px';
+  document.body.appendChild(container);
+
+  try {
+    renderC4Context(container, parsed, layout, palette, isDark, undefined, {
+      width: exportWidth,
+      height: exportHeight,
+    });
+
+    const svgEl = container.querySelector('svg');
+    if (!svgEl) return '';
+
+    if (theme === 'transparent') {
+      svgEl.style.background = 'none';
+    }
+
+    svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    svgEl.style.fontFamily = FONT_FAMILY;
+
+    return svgEl.outerHTML;
+  } finally {
+    document.body.removeChild(container);
+  }
+}
