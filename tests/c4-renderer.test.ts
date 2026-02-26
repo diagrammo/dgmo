@@ -1056,3 +1056,137 @@ describe('renderC4ComponentsForExport', () => {
     expect(svg.length).toBeGreaterThan(0);
   });
 });
+
+// ============================================================
+// Group Boundaries
+// ============================================================
+
+const groupedContainerInput = `chart: c4
+title: Grouped Containers
+system Analytics | description: Analytics platform
+  containers:
+    [Frontend]
+      container Dashboard | description: SPA
+      container Admin | description: Admin panel
+    [Backend]
+      container API | description: REST API
+      container Worker | description: Background jobs
+        -> API: Calls
+person User
+  -> Dashboard: Uses`;
+
+describe('group boundaries in container layout', () => {
+  it('produces groupBoundaries with correct labels and typeLabel', () => {
+    const parsed = parseC4(groupedContainerInput, palette.light);
+    const layout = layoutC4Containers(parsed, 'Analytics');
+
+    expect(layout.groupBoundaries.length).toBe(2);
+    const labels = layout.groupBoundaries.map((gb) => gb.label).sort();
+    expect(labels).toEqual(['Backend', 'Frontend']);
+    for (const gb of layout.groupBoundaries) {
+      expect(gb.typeLabel).toBe('group');
+    }
+  });
+
+  it('group boundaries have positive dimensions', () => {
+    const parsed = parseC4(groupedContainerInput, palette.light);
+    const layout = layoutC4Containers(parsed, 'Analytics');
+
+    for (const gb of layout.groupBoundaries) {
+      expect(gb.width).toBeGreaterThan(0);
+      expect(gb.height).toBeGreaterThan(0);
+    }
+  });
+
+  it('no-group layouts produce groupBoundaries: []', () => {
+    const parsed = parseC4(containerInput, palette.light);
+    const layout = layoutC4Containers(parsed, 'Banking');
+
+    expect(layout.groupBoundaries).toEqual([]);
+  });
+
+  it('renderer produces .c4-group-boundary SVG elements matching group count', () => {
+    const parsed = parseC4(groupedContainerInput, palette.light);
+    const layout = layoutC4Containers(parsed, 'Analytics');
+
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+
+    renderC4Containers(el, parsed, layout, palette.light, false, undefined, {
+      width: 1000,
+      height: 800,
+    });
+
+    const groupBounds = el.querySelectorAll('.c4-group-boundary');
+    expect(groupBounds.length).toBe(2);
+
+    document.body.removeChild(el);
+  });
+
+  it('parent boundary rect has no stroke-dasharray (solid)', () => {
+    const parsed = parseC4(containerInput, palette.light);
+    const layout = layoutC4Containers(parsed, 'Banking');
+
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+
+    renderC4Containers(el, parsed, layout, palette.light, false, undefined, {
+      width: 1000,
+      height: 800,
+    });
+
+    const boundaryRect = el.querySelector('.c4-boundary rect');
+    expect(boundaryRect).not.toBeNull();
+    expect(boundaryRect!.getAttribute('stroke-dasharray')).toBeNull();
+
+    document.body.removeChild(el);
+  });
+
+  it('group boundaries carry data-line-number', () => {
+    const parsed = parseC4(groupedContainerInput, palette.light);
+    const layout = layoutC4Containers(parsed, 'Analytics');
+
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+
+    renderC4Containers(el, parsed, layout, palette.light, false, undefined, {
+      width: 1000,
+      height: 800,
+    });
+
+    const groupBounds = el.querySelectorAll('.c4-group-boundary');
+    for (const gb of groupBounds) {
+      expect(gb.getAttribute('data-line-number')).toBeTruthy();
+    }
+
+    document.body.removeChild(el);
+  });
+});
+
+const groupedComponentInput = `chart: c4
+system Platform | description: Platform
+  containers:
+    container Service | description: Main service
+      components:
+        [Controllers]
+          component UserCtrl | description: User endpoints
+          component OrderCtrl | description: Order endpoints
+        [Repositories]
+          component UserRepo is a database | description: User data
+`;
+
+describe('group boundaries in component layout', () => {
+  it('component-level groups produce group boundaries', () => {
+    const parsed = parseC4(groupedComponentInput, palette.light);
+    const layout = layoutC4Components(parsed, 'Platform', 'Service');
+
+    expect(layout.groupBoundaries.length).toBe(2);
+    const labels = layout.groupBoundaries.map((gb) => gb.label).sort();
+    expect(labels).toEqual(['Controllers', 'Repositories']);
+    for (const gb of layout.groupBoundaries) {
+      expect(gb.typeLabel).toBe('group');
+      expect(gb.width).toBeGreaterThan(0);
+      expect(gb.height).toBeGreaterThan(0);
+    }
+  });
+});

@@ -66,6 +66,7 @@ export interface C4LayoutResult {
   edges: C4LayoutEdge[];
   legend: C4LegendGroup[];
   boundary?: C4LayoutBoundary;
+  groupBoundaries: C4LayoutBoundary[];
   width: number;
   height: number;
 }
@@ -89,6 +90,7 @@ const META_LINE_HEIGHT = 16;
 const META_CHAR_WIDTH = 6.5;
 const MARGIN = 40;
 const BOUNDARY_PAD = 40;
+const GROUP_BOUNDARY_PAD = 24;
 
 // Legend constants (match org)
 const LEGEND_HEIGHT = 28;
@@ -145,7 +147,8 @@ function computeEdgePenalty(
  */
 function reduceCrossings(
   g: dagre.graphlib.Graph,
-  edgeList: { source: string; target: string }[]
+  edgeList: { source: string; target: string }[],
+  nodeGroupMap?: Map<string, string>
 ): void {
   if (edgeList.length < 2) return;
 
@@ -160,6 +163,7 @@ function reduceCrossings(
   const rankMap = new Map<number, string[]>();
   for (const name of g.nodes()) {
     const pos = g.node(name);
+    if (!pos) continue;
     const rankY = Math.round(pos.y);
     if (!rankMap.has(rankY)) rankMap.set(rankY, []);
     rankMap.get(rankY)!.push(name);
@@ -175,77 +179,106 @@ function reduceCrossings(
   for (const [, rankNodes] of rankMap) {
     if (rankNodes.length < 2) continue;
 
-    // Collect the x-slots for this rank (sorted)
-    const xSlots = rankNodes.map((name) => g.node(name).x).sort((a, b) => a - b);
-
-    // Build position map snapshot
-    const basePositions = new Map<string, number>();
-    for (const name of g.nodes()) {
-      basePositions.set(name, g.node(name).x);
-    }
-
-    // Current penalty
-    const currentPenalty = computeEdgePenalty(edgeList, basePositions, degrees);
-
-    // Try permutations (feasible for rank sizes ≤ 8)
-    let bestPerm = [...rankNodes];
-    let bestPenalty = currentPenalty;
-
-    if (rankNodes.length <= 8) {
-      const perms = permutations(rankNodes);
-      for (const perm of perms) {
-        const testPositions = new Map(basePositions);
-        for (let i = 0; i < perm.length; i++) {
-          testPositions.set(perm[i]!, xSlots[i]!);
-        }
-        const penalty = computeEdgePenalty(edgeList, testPositions, degrees);
-        if (penalty < bestPenalty) {
-          bestPenalty = penalty;
-          bestPerm = [...perm];
+    // When groups exist, partition rank nodes by group and only permute within groups
+    const partitions: string[][] = [];
+    if (nodeGroupMap && nodeGroupMap.size > 0) {
+      const groupBuckets = new Map<string, string[]>();
+      const ungrouped: string[] = [];
+      for (const name of rankNodes) {
+        const grp = nodeGroupMap.get(name);
+        if (grp) {
+          if (!groupBuckets.has(grp)) groupBuckets.set(grp, []);
+          groupBuckets.get(grp)!.push(name);
+        } else {
+          ungrouped.push(name);
         }
       }
+      for (const bucket of groupBuckets.values()) {
+        if (bucket.length >= 2) partitions.push(bucket);
+      }
+      if (ungrouped.length >= 2) partitions.push(ungrouped);
     } else {
-      // For large ranks, use adjacent swap
-      const workingOrder = [...rankNodes];
-      let improved = true;
-      let passes = 0;
-      while (improved && passes < 10) {
-        improved = false;
-        passes++;
-        for (let i = 0; i < workingOrder.length - 1; i++) {
+      partitions.push(rankNodes);
+    }
+
+    for (const partition of partitions) {
+      if (partition.length < 2) continue;
+
+      // Collect the x-slots for this partition (sorted)
+      const xSlots = partition.map((name) => g.node(name).x).sort((a, b) => a - b);
+
+      // Build position map snapshot
+      const basePositions = new Map<string, number>();
+      for (const name of g.nodes()) {
+        const pos = g.node(name);
+        if (pos) basePositions.set(name, pos.x);
+      }
+
+      // Current penalty
+      const currentPenalty = computeEdgePenalty(edgeList, basePositions, degrees);
+
+      // Try permutations (feasible for partition sizes ≤ 8)
+      let bestPerm = [...partition];
+      let bestPenalty = currentPenalty;
+
+      if (partition.length <= 8) {
+        const perms = permutations(partition);
+        for (const perm of perms) {
           const testPositions = new Map(basePositions);
-          for (let k = 0; k < workingOrder.length; k++) {
-            testPositions.set(workingOrder[k]!, xSlots[k]!);
+          for (let i = 0; i < perm.length; i++) {
+            testPositions.set(perm[i]!, xSlots[i]!);
           }
-          const before = computeEdgePenalty(edgeList, testPositions, degrees);
-
-          [workingOrder[i], workingOrder[i + 1]] = [workingOrder[i + 1]!, workingOrder[i]!];
-          const testPositions2 = new Map(basePositions);
-          for (let k = 0; k < workingOrder.length; k++) {
-            testPositions2.set(workingOrder[k]!, xSlots[k]!);
+          const penalty = computeEdgePenalty(edgeList, testPositions, degrees);
+          if (penalty < bestPenalty) {
+            bestPenalty = penalty;
+            bestPerm = [...perm];
           }
-          const after = computeEdgePenalty(edgeList, testPositions2, degrees);
-
-          if (after < before) {
-            improved = true;
-            if (after < bestPenalty) {
-              bestPenalty = after;
-              bestPerm = [...workingOrder];
+        }
+      } else {
+        // For large partitions, use adjacent swap
+        const workingOrder = [...partition];
+        let improved = true;
+        let passes = 0;
+        while (improved && passes < 10) {
+          improved = false;
+          passes++;
+          for (let i = 0; i < workingOrder.length - 1; i++) {
+            const testPositions = new Map(basePositions);
+            for (let k = 0; k < workingOrder.length; k++) {
+              testPositions.set(workingOrder[k]!, xSlots[k]!);
             }
-          } else {
+            const before = computeEdgePenalty(edgeList, testPositions, degrees);
+
             [workingOrder[i], workingOrder[i + 1]] = [workingOrder[i + 1]!, workingOrder[i]!];
+            const testPositions2 = new Map(basePositions);
+            for (let k = 0; k < workingOrder.length; k++) {
+              testPositions2.set(workingOrder[k]!, xSlots[k]!);
+            }
+            const after = computeEdgePenalty(edgeList, testPositions2, degrees);
+
+            if (after < before) {
+              improved = true;
+              if (after < bestPenalty) {
+                bestPenalty = after;
+                bestPerm = [...workingOrder];
+              }
+            } else {
+              [workingOrder[i], workingOrder[i + 1]] = [workingOrder[i + 1]!, workingOrder[i]!];
+            }
           }
         }
       }
-    }
 
-    // Apply best permutation if it differs from current
-    if (bestPerm.some((name, i) => name !== rankNodes[i])) {
-      for (let i = 0; i < bestPerm.length; i++) {
-        g.node(bestPerm[i]!).x = xSlots[i]!;
-        rankNodes[i] = bestPerm[i]!;
+      // Apply best permutation if it differs from current
+      if (bestPerm.some((name, i) => name !== partition[i])) {
+        for (let i = 0; i < bestPerm.length; i++) {
+          g.node(bestPerm[i]!).x = xSlots[i]!;
+          // Update in the original rankNodes too
+          const rankIdx = rankNodes.indexOf(partition[i]!);
+          if (rankIdx >= 0) rankNodes[rankIdx] = bestPerm[i]!;
+        }
+        anyMoved = true;
       }
-      anyMoved = true;
     }
   }
 
@@ -656,7 +689,7 @@ export function layoutC4Context(
   );
 
   if (contextElements.length === 0) {
-    return { nodes: [], edges: [], legend: [], width: 0, height: 0 };
+    return { nodes: [], edges: [], legend: [], groupBoundaries: [], width: 0, height: 0 };
   }
 
   // Roll up relationships
@@ -808,7 +841,7 @@ export function layoutC4Context(
     if (legendBottom > totalHeight) totalHeight = legendBottom;
   }
 
-  return { nodes, edges, legend: legendGroups, width: totalWidth, height: totalHeight };
+  return { nodes, edges, legend: legendGroups, groupBoundaries: [], width: totalWidth, height: totalHeight };
 }
 
 // ============================================================
@@ -829,7 +862,7 @@ export function layoutC4Containers(
     (el) => el.name.toLowerCase() === systemName.toLowerCase()
   );
   if (!system) {
-    return { nodes: [], edges: [], legend: [], width: 0, height: 0 };
+    return { nodes: [], edges: [], legend: [], groupBoundaries: [], width: 0, height: 0 };
   }
 
   // Collect all containers: direct children + group children
@@ -844,7 +877,7 @@ export function layoutC4Containers(
   }
 
   if (containers.length === 0) {
-    return { nodes: [], edges: [], legend: [], width: 0, height: 0 };
+    return { nodes: [], edges: [], legend: [], groupBoundaries: [], width: 0, height: 0 };
   }
 
   const containerNames = new Set(containers.map((c) => c.name.toLowerCase()));
@@ -889,9 +922,33 @@ export function layoutC4Containers(
     if (el) externals.push(el);
   }
 
-  // Create dagre graph — spacing computed after edges are collected
-  const g = new dagre.graphlib.Graph();
+  // Build element-to-group mapping for compound graph
+  const elementToGroup = new Map<string, { name: string; lineNumber: number }>();
+  for (const group of system.groups) {
+    for (const child of group.children) {
+      if (child.type === 'container') {
+        elementToGroup.set(child.name, { name: group.name, lineNumber: group.lineNumber });
+      }
+    }
+  }
+  const hasGroups = elementToGroup.size > 0;
+
+  // Create dagre graph — use compound when groups exist
+  const g = hasGroups
+    ? new dagre.graphlib.Graph({ compound: true })
+    : new dagre.graphlib.Graph();
   g.setDefaultEdgeLabel(() => ({}));
+
+  // Add virtual group parent nodes
+  if (hasGroups) {
+    const seenGroups = new Set<string>();
+    for (const { name } of elementToGroup.values()) {
+      if (!seenGroups.has(name)) {
+        seenGroups.add(name);
+        g.setNode('__group_' + name, {});
+      }
+    }
+  }
 
   // Add container nodes
   const nameToElement = new Map<string, C4Element>();
@@ -899,6 +956,11 @@ export function layoutC4Containers(
     nameToElement.set(el.name, el);
     const dims = computeC4NodeDimensions(el, { showTechnology: true });
     g.setNode(el.name, { width: dims.width, height: dims.height });
+    // Set group parent
+    const grp = elementToGroup.get(el.name);
+    if (grp) {
+      g.setParent(el.name, '__group_' + grp.name);
+    }
   }
 
   // Add external nodes
@@ -982,12 +1044,16 @@ export function layoutC4Containers(
   // Run layout
   dagre.layout(g);
 
-  // Post-dagre crossing reduction
+  // Post-dagre crossing reduction (with group-aware partitioning)
+  const nodeGroupMap = hasGroups
+    ? new Map([...elementToGroup.entries()].map(([k, v]) => [k, v.name]))
+    : undefined;
   reduceCrossings(
     g,
     containerRels
       .filter((r) => nameToElement.has(r.sourceName) && nameToElement.has(r.targetName))
-      .map((r) => ({ source: r.sourceName, target: r.targetName }))
+      .map((r) => ({ source: r.sourceName, target: r.targetName })),
+    nodeGroupMap
   );
 
   // Extract positioned nodes
@@ -996,6 +1062,9 @@ export function layoutC4Containers(
     const pos = g.node(el.name);
     const color = resolveNodeColor(el, parsed.tagGroups, activeTagGroup ?? null);
     const tech = el.metadata['tech'] ?? el.metadata['technology'];
+    const hasComponents =
+      el.children.some((c) => c.type === 'component') ||
+      el.groups.some((grp) => grp.children.some((c) => c.type === 'component'));
     nodes.push({
       id: el.name,
       name: el.name,
@@ -1006,6 +1075,7 @@ export function layoutC4Containers(
       color,
       shape: el.shape,
       technology: tech,
+      drillable: hasComponents || undefined,
       x: pos.x,
       y: pos.y,
       width: pos.width,
@@ -1071,7 +1141,45 @@ export function layoutC4Containers(
     height: (bMaxY - bMinY) + BOUNDARY_PAD * 2,
   };
 
-  // Compute bounding box of all content (nodes + boundary + edge points)
+  // Compute group boundaries from member node positions
+  const groupBoundaries: C4LayoutBoundary[] = [];
+  if (hasGroups) {
+    const nodeMap = new Map(containerNodes.map((n) => [n.name, n]));
+    const seenGroups = new Map<string, { lineNumber: number; members: C4LayoutNode[] }>();
+    for (const [elName, grp] of elementToGroup) {
+      const node = nodeMap.get(elName);
+      if (!node) continue;
+      if (!seenGroups.has(grp.name)) {
+        seenGroups.set(grp.name, { lineNumber: grp.lineNumber, members: [] });
+      }
+      seenGroups.get(grp.name)!.members.push(node);
+    }
+    for (const [groupName, { lineNumber, members }] of seenGroups) {
+      if (members.length === 0) continue;
+      let gMinX = Infinity, gMinY = Infinity, gMaxX = -Infinity, gMaxY = -Infinity;
+      for (const m of members) {
+        const left = m.x - m.width / 2;
+        const top = m.y - m.height / 2;
+        const right = m.x + m.width / 2;
+        const bottom = m.y + m.height / 2;
+        if (left < gMinX) gMinX = left;
+        if (top < gMinY) gMinY = top;
+        if (right > gMaxX) gMaxX = right;
+        if (bottom > gMaxY) gMaxY = bottom;
+      }
+      groupBoundaries.push({
+        label: groupName,
+        typeLabel: 'group',
+        lineNumber,
+        x: gMinX - GROUP_BOUNDARY_PAD,
+        y: gMinY - GROUP_BOUNDARY_PAD,
+        width: (gMaxX - gMinX) + GROUP_BOUNDARY_PAD * 2,
+        height: (gMaxY - gMinY) + GROUP_BOUNDARY_PAD * 2,
+      });
+    }
+  }
+
+  // Compute bounding box of all content (nodes + boundary + group boundaries + edge points)
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   for (const node of nodes) {
     const left = node.x - node.width / 2;
@@ -1087,6 +1195,12 @@ export function layoutC4Containers(
   if (boundary.y < minY) minY = boundary.y;
   if (boundary.x + boundary.width > maxX) maxX = boundary.x + boundary.width;
   if (boundary.y + boundary.height > maxY) maxY = boundary.y + boundary.height;
+  for (const gb of groupBoundaries) {
+    if (gb.x < minX) minX = gb.x;
+    if (gb.y < minY) minY = gb.y;
+    if (gb.x + gb.width > maxX) maxX = gb.x + gb.width;
+    if (gb.y + gb.height > maxY) maxY = gb.y + gb.height;
+  }
   for (const edge of edges) {
     for (const pt of edge.points) {
       if (pt.x < minX) minX = pt.x;
@@ -1105,6 +1219,10 @@ export function layoutC4Containers(
   }
   boundary.x += shiftX;
   boundary.y += shiftY;
+  for (const gb of groupBoundaries) {
+    gb.x += shiftX;
+    gb.y += shiftY;
+  }
   for (const edge of edges) {
     for (const pt of edge.points) {
       pt.x += shiftX;
@@ -1145,7 +1263,7 @@ export function layoutC4Containers(
     if (legendBottom > totalHeight) totalHeight = legendBottom;
   }
 
-  return { nodes, edges, legend: legendGroups, boundary, width: totalWidth, height: totalHeight };
+  return { nodes, edges, legend: legendGroups, boundary, groupBoundaries, width: totalWidth, height: totalHeight };
 }
 
 // ============================================================
@@ -1167,7 +1285,7 @@ export function layoutC4Components(
     (el) => el.name.toLowerCase() === systemName.toLowerCase()
   );
   if (!system) {
-    return { nodes: [], edges: [], legend: [], width: 0, height: 0 };
+    return { nodes: [], edges: [], legend: [], groupBoundaries: [], width: 0, height: 0 };
   }
 
   // Find the container within the system (direct children + group children)
@@ -1190,7 +1308,7 @@ export function layoutC4Components(
     }
   }
   if (!targetContainer) {
-    return { nodes: [], edges: [], legend: [], width: 0, height: 0 };
+    return { nodes: [], edges: [], legend: [], groupBoundaries: [], width: 0, height: 0 };
   }
 
   // Collect all components: direct children + group children
@@ -1205,7 +1323,7 @@ export function layoutC4Components(
   }
 
   if (components.length === 0) {
-    return { nodes: [], edges: [], legend: [], width: 0, height: 0 };
+    return { nodes: [], edges: [], legend: [], groupBoundaries: [], width: 0, height: 0 };
   }
 
   const componentNames = new Set(components.map((c) => c.name.toLowerCase()));
@@ -1277,9 +1395,33 @@ export function layoutC4Components(
     if (el) externals.push(el);
   }
 
-  // Create dagre graph
-  const g = new dagre.graphlib.Graph();
+  // Build element-to-group mapping for compound graph
+  const elementToGroup = new Map<string, { name: string; lineNumber: number }>();
+  for (const group of targetContainer.groups) {
+    for (const child of group.children) {
+      if (child.type === 'component') {
+        elementToGroup.set(child.name, { name: group.name, lineNumber: group.lineNumber });
+      }
+    }
+  }
+  const hasGroups = elementToGroup.size > 0;
+
+  // Create dagre graph — use compound when groups exist
+  const g = hasGroups
+    ? new dagre.graphlib.Graph({ compound: true })
+    : new dagre.graphlib.Graph();
   g.setDefaultEdgeLabel(() => ({}));
+
+  // Add virtual group parent nodes
+  if (hasGroups) {
+    const seenGroups = new Set<string>();
+    for (const { name } of elementToGroup.values()) {
+      if (!seenGroups.has(name)) {
+        seenGroups.add(name);
+        g.setNode('__group_' + name, {});
+      }
+    }
+  }
 
   // Add component nodes
   const nameToElement = new Map<string, C4Element>();
@@ -1287,6 +1429,11 @@ export function layoutC4Components(
     nameToElement.set(el.name, el);
     const dims = computeC4NodeDimensions(el, { showTechnology: true });
     g.setNode(el.name, { width: dims.width, height: dims.height });
+    // Set group parent
+    const grp = elementToGroup.get(el.name);
+    if (grp) {
+      g.setParent(el.name, '__group_' + grp.name);
+    }
   }
 
   // Add external nodes
@@ -1379,12 +1526,16 @@ export function layoutC4Components(
   // Run layout
   dagre.layout(g);
 
-  // Post-dagre crossing reduction
+  // Post-dagre crossing reduction (with group-aware partitioning)
+  const nodeGroupMap = hasGroups
+    ? new Map([...elementToGroup.entries()].map(([k, v]) => [k, v.name]))
+    : undefined;
   reduceCrossings(
     g,
     componentRels
       .filter((r) => nameToElement.has(r.sourceName) && nameToElement.has(r.targetName))
-      .map((r) => ({ source: r.sourceName, target: r.targetName }))
+      .map((r) => ({ source: r.sourceName, target: r.targetName })),
+    nodeGroupMap
   );
 
   // Tag inheritance ancestors: container → system
@@ -1475,7 +1626,45 @@ export function layoutC4Components(
     height: (bMaxY - bMinY) + BOUNDARY_PAD * 2,
   };
 
-  // Compute bounding box of all content (nodes + boundary + edge points)
+  // Compute group boundaries from member node positions
+  const groupBoundaries: C4LayoutBoundary[] = [];
+  if (hasGroups) {
+    const nodeMap = new Map(componentNodes.map((n) => [n.name, n]));
+    const seenGroups = new Map<string, { lineNumber: number; members: C4LayoutNode[] }>();
+    for (const [elName, grp] of elementToGroup) {
+      const node = nodeMap.get(elName);
+      if (!node) continue;
+      if (!seenGroups.has(grp.name)) {
+        seenGroups.set(grp.name, { lineNumber: grp.lineNumber, members: [] });
+      }
+      seenGroups.get(grp.name)!.members.push(node);
+    }
+    for (const [groupName, { lineNumber, members }] of seenGroups) {
+      if (members.length === 0) continue;
+      let gMinX = Infinity, gMinY = Infinity, gMaxX = -Infinity, gMaxY = -Infinity;
+      for (const m of members) {
+        const left = m.x - m.width / 2;
+        const top = m.y - m.height / 2;
+        const right = m.x + m.width / 2;
+        const bottom = m.y + m.height / 2;
+        if (left < gMinX) gMinX = left;
+        if (top < gMinY) gMinY = top;
+        if (right > gMaxX) gMaxX = right;
+        if (bottom > gMaxY) gMaxY = bottom;
+      }
+      groupBoundaries.push({
+        label: groupName,
+        typeLabel: 'group',
+        lineNumber,
+        x: gMinX - GROUP_BOUNDARY_PAD,
+        y: gMinY - GROUP_BOUNDARY_PAD,
+        width: (gMaxX - gMinX) + GROUP_BOUNDARY_PAD * 2,
+        height: (gMaxY - gMinY) + GROUP_BOUNDARY_PAD * 2,
+      });
+    }
+  }
+
+  // Compute bounding box of all content (nodes + boundary + group boundaries + edge points)
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   for (const node of nodes) {
     const left = node.x - node.width / 2;
@@ -1491,6 +1680,12 @@ export function layoutC4Components(
   if (boundary.y < minY) minY = boundary.y;
   if (boundary.x + boundary.width > maxX) maxX = boundary.x + boundary.width;
   if (boundary.y + boundary.height > maxY) maxY = boundary.y + boundary.height;
+  for (const gb of groupBoundaries) {
+    if (gb.x < minX) minX = gb.x;
+    if (gb.y < minY) minY = gb.y;
+    if (gb.x + gb.width > maxX) maxX = gb.x + gb.width;
+    if (gb.y + gb.height > maxY) maxY = gb.y + gb.height;
+  }
   for (const edge of edges) {
     for (const pt of edge.points) {
       if (pt.x < minX) minX = pt.x;
@@ -1509,6 +1704,10 @@ export function layoutC4Components(
   }
   boundary.x += shiftX;
   boundary.y += shiftY;
+  for (const gb of groupBoundaries) {
+    gb.x += shiftX;
+    gb.y += shiftY;
+  }
   for (const edge of edges) {
     for (const pt of edge.points) {
       pt.x += shiftX;
@@ -1553,5 +1752,5 @@ export function layoutC4Components(
     if (legendBottom > totalHeight) totalHeight = legendBottom;
   }
 
-  return { nodes, edges, legend: legendGroups, boundary, width: totalWidth, height: totalHeight };
+  return { nodes, edges, legend: legendGroups, boundary, groupBoundaries, width: totalWidth, height: totalHeight };
 }

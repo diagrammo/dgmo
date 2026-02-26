@@ -1419,8 +1419,7 @@ export function renderC4Containers(
       .attr('ry', BOUNDARY_RADIUS)
       .attr('fill', boundaryFill)
       .attr('stroke', boundaryStroke)
-      .attr('stroke-width', BOUNDARY_STROKE_WIDTH)
-      .attr('stroke-dasharray', '8 4');
+      .attr('stroke-width', BOUNDARY_STROKE_WIDTH);
 
     // Boundary label
     boundaryG
@@ -1431,6 +1430,47 @@ export function renderC4Containers(
       .attr('font-size', BOUNDARY_LABEL_FONT_SIZE)
       .attr('font-style', 'italic')
       .text(`${b.label} \u2014 ${b.typeLabel}`);
+  }
+
+  // ── Group boundaries (between parent boundary and edges) ──
+  if (layout.groupBoundaries.length > 0) {
+    const groupFill = mix(palette.surface, palette.bg, 15);
+    const groupStroke = mix(palette.textMuted, palette.bg, 60);
+
+    for (const gb of layout.groupBoundaries) {
+      const gbG = contentG
+        .append('g')
+        .attr('class', 'c4-group-boundary')
+        .attr('data-line-number', String(gb.lineNumber));
+
+      if (onClickItem) {
+        gbG.style('cursor', 'pointer').on('click', () => {
+          onClickItem(gb.lineNumber);
+        });
+      }
+
+      gbG
+        .append('rect')
+        .attr('x', gb.x)
+        .attr('y', gb.y)
+        .attr('width', gb.width)
+        .attr('height', gb.height)
+        .attr('rx', 6)
+        .attr('ry', 6)
+        .attr('fill', groupFill)
+        .attr('stroke', groupStroke)
+        .attr('stroke-width', 1);
+
+      // Group label — top-left, italic, name only
+      gbG
+        .append('text')
+        .attr('x', gb.x + 10)
+        .attr('y', gb.y + 14)
+        .attr('fill', palette.textMuted)
+        .attr('font-size', BOUNDARY_LABEL_FONT_SIZE)
+        .attr('font-style', 'italic')
+        .text(gb.label);
+    }
   }
 
   // ── Edges (behind nodes) ──
@@ -1628,6 +1668,24 @@ export function renderC4Containers(
           yPos += DESC_LINE_HEIGHT;
         }
       }
+    }
+
+    // Drillable accent bar — solid bar at bottom of card, clipped to rounded corners
+    if (node.drillable) {
+      const clipId = `clip-drill-${node.id.replace(/\s+/g, '-')}`;
+      nodeG.append('clipPath').attr('id', clipId)
+        .append('rect')
+        .attr('x', -w / 2).attr('y', -h / 2)
+        .attr('width', w).attr('height', h)
+        .attr('rx', CARD_RADIUS);
+      nodeG.append('rect')
+        .attr('x', -w / 2)
+        .attr('y', h / 2 - DRILL_BAR_HEIGHT)
+        .attr('width', w)
+        .attr('height', DRILL_BAR_HEIGHT)
+        .attr('fill', stroke)
+        .attr('clip-path', `url(#${clipId})`)
+        .attr('class', 'c4-drill-bar');
     }
   }
 
