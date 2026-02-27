@@ -111,13 +111,9 @@ export function layoutInitiativeStatus(parsed: ParsedInitiativeStatus): ISLayout
   // Compute layout
   dagre.layout(g);
 
-  // Build declaration-order index (lower = declared earlier in DSL)
-  const declOrder = new Map<string, number>();
-  for (let i = 0; i < parsed.nodes.length; i++) {
-    declOrder.set(parsed.nodes[i].label, i);
-  }
-
-  // Extract positioned nodes
+  // Extract positioned nodes — dagre owns within-rank ordering
+  // (crossing minimization). We don't reorder post-layout because
+  // that would desync edge waypoints from node positions.
   const layoutNodes: ISLayoutNode[] = parsed.nodes.map((node) => {
     const pos = g.node(node.label);
     return {
@@ -131,37 +127,6 @@ export function layoutInitiativeStatus(parsed: ParsedInitiativeStatus): ISLayout
       height: pos.height,
     };
   });
-
-  // Reorder nodes within each rank to match DSL declaration order.
-  // Dagre optimizes for crossing minimization which can scramble the
-  // author's intended ordering — here we restore it.
-  const RANK_TOLERANCE = 1; // nodes within 1px are in the same rank
-  const rankGroups = new Map<number, ISLayoutNode[]>();
-  for (const node of layoutNodes) {
-    // Quantize x to group nodes in the same rank
-    const rx = Math.round(node.x / RANK_TOLERANCE) * RANK_TOLERANCE;
-    let group = rankGroups.get(rx);
-    if (!group) {
-      group = [];
-      rankGroups.set(rx, group);
-    }
-    group.push(node);
-  }
-
-  for (const group of rankGroups.values()) {
-    if (group.length < 2) continue;
-
-    // Capture the y-slots dagre assigned (sorted ascending)
-    const ySlots = group.map((n) => n.y).sort((a, b) => a - b);
-
-    // Sort nodes by DSL declaration order
-    group.sort((a, b) => (declOrder.get(a.label) ?? 0) - (declOrder.get(b.label) ?? 0));
-
-    // Reassign y positions: declaration-first gets the top slot
-    for (let i = 0; i < group.length; i++) {
-      group[i].y = ySlots[i];
-    }
-  }
 
   // Extract edge waypoints
   const layoutEdges: ISLayoutEdge[] = parsed.edges.map((edge, i) => {

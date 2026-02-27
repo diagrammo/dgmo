@@ -388,7 +388,7 @@ export function renderInitiativeStatus(
   const scaledW = diagramW * scale;
   const scaledH = diagramH * scale;
   const offsetX = (width - scaledW) / 2;
-  const offsetY = titleHeight + (availH - scaledH) / 2;
+  const offsetY = titleHeight + DIAGRAM_PADDING;
 
   // Create SVG
   const svg = d3Selection
@@ -670,6 +670,17 @@ export function renderInitiativeStatus(
         onClickItem(node.lineNumber);
       });
     }
+
+    // Transparent hit-area rect — ensures the full bounding box captures
+    // clicks for shapes with gaps (actors, frontends, databases, etc.)
+    nodeG
+      .append('rect')
+      .attr('x', -node.width / 2)
+      .attr('y', -node.height / 2)
+      .attr('width', node.width)
+      .attr('height', node.height)
+      .attr('fill', 'transparent')
+      .attr('class', 'is-node-hit-area');
 
     const fill = nodeFill(node.status, palette, isDark);
     const stroke = nodeStroke(node.status, palette, isDark);

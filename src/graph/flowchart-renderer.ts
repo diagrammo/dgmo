@@ -259,7 +259,7 @@ export function renderFlowchart(
   const scaledW = diagramW * scale;
   const scaledH = diagramH * scale;
   const offsetX = (width - scaledW) / 2;
-  const offsetY = titleHeight + (availH - scaledH) / 2;
+  const offsetY = titleHeight + DIAGRAM_PADDING;
 
   // Create SVG
   const svg = d3Selection

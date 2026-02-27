@@ -233,7 +233,7 @@ export function renderERDiagram(
   const scaledW = diagramW * scale;
   const scaledH = diagramH * scale;
   const offsetX = (width - scaledW) / 2;
-  const offsetY = titleHeight + (availH - scaledH) / 2;
+  const offsetY = titleHeight + DIAGRAM_PADDING;
 
   const svg = d3Selection
     .select(container)
