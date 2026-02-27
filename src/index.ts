@@ -190,6 +190,23 @@ export {
   renderC4DeploymentForExport,
 } from './c4/renderer';
 
+export { parseInitiativeStatus, looksLikeInitiativeStatus } from './initiative-status/parser';
+export type {
+  ParsedInitiativeStatus,
+  ISNode,
+  ISEdge,
+  InitiativeStatus,
+} from './initiative-status/types';
+
+export { layoutInitiativeStatus } from './initiative-status/layout';
+export type {
+  ISLayoutResult,
+  ISLayoutNode,
+  ISLayoutEdge,
+} from './initiative-status/layout';
+
+export { renderInitiativeStatus, renderInitiativeStatusForExport } from './initiative-status/renderer';
+
 export { collapseOrgTree } from './org/collapse';
 export type { CollapsedOrgResult } from './org/collapse';
 

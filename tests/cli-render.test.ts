@@ -111,10 +111,16 @@ Task B`,
 person Customer
 system Banking
   -> Customer: Serves`,
+
+  'initiative-status': `chart: initiative-status
+title: Test
+Mobile | done
+Back End | wip
+Mobile -> Back End: getUser | done`,
 };
 
 // All D3 types now render in JSDOM via explicit dimensions (Epic 41)
-const D3_TYPES = ['sequence', 'slope', 'arc', 'timeline', 'venn', 'quadrant', 'flowchart', 'org', 'kanban', 'c4'];
+const D3_TYPES = ['sequence', 'slope', 'arc', 'timeline', 'venn', 'quadrant', 'flowchart', 'org', 'kanban', 'c4', 'initiative-status'];
 
 // Wordcloud requires HTMLCanvasElement.getContext('2d') for d3-cloud text measurement —
 // not available in JSDOM without the `canvas` npm package.
