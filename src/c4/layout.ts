@@ -21,6 +21,7 @@ export interface C4LayoutNode {
   shape?: C4Shape;
   technology?: string;
   drillable?: boolean;
+  importPath?: string;
   x: number;
   y: number;
   width: number;
@@ -749,7 +750,8 @@ export function layoutC4Context(
       metadata: el.metadata,
       lineNumber: el.lineNumber,
       color,
-      drillable: hasContainers || undefined,
+      drillable: hasContainers || el.importPath ? true : undefined,
+      importPath: el.importPath,
       x: pos.x,
       y: pos.y,
       width: pos.width,
@@ -1075,7 +1077,8 @@ export function layoutC4Containers(
       color,
       shape: el.shape,
       technology: tech,
-      drillable: hasComponents || undefined,
+      drillable: hasComponents || el.importPath ? true : undefined,
+      importPath: el.importPath,
       x: pos.x,
       y: pos.y,
       width: pos.width,
@@ -1560,7 +1563,8 @@ export function layoutC4Components(
       color,
       shape: el.shape,
       technology: tech,
-      drillable: hasComponents || undefined,
+      drillable: hasComponents || el.importPath ? true : undefined,
+      importPath: el.importPath,
       x: pos.x,
       y: pos.y,
       width: pos.width,

@@ -446,6 +446,10 @@ export function renderC4Context(
       .attr('data-line-number', String(node.lineNumber))
       .attr('data-node-id', node.id);
 
+    if (node.importPath) {
+      nodeG.attr('data-import-path', node.importPath);
+    }
+
     if (onClickItem) {
       nodeG.style('cursor', 'pointer').on('click', () => {
         onClickItem(node.lineNumber);
@@ -1487,6 +1491,10 @@ export function renderC4Containers(
 
     if (node.shape) {
       nodeG.attr('data-shape', node.shape);
+    }
+
+    if (node.importPath) {
+      nodeG.attr('data-import-path', node.importPath);
     }
 
     if (onClickItem) {
