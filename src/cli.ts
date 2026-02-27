@@ -249,6 +249,11 @@ async function main(): Promise<void> {
     noInput();
   }
 
+  // Strip any ANSI escape codes that may have leaked into input
+  // (e.g. from shell aliases like cat=bat with --color always)
+  // eslint-disable-next-line no-control-regex
+  content = content.replace(/\x1b\[[0-9;]*m/g, '');
+
   // Resolve org chart imports (tags: and import: directives)
   if (opts.input && parseDgmoChartType(content) === 'org') {
     const inputPath = resolve(opts.input);

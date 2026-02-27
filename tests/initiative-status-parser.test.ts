@@ -59,7 +59,7 @@ describe('parseInitiativeStatus', () => {
       const result = parseInitiativeStatus('Back End');
       expect(result.nodes).toHaveLength(1);
       expect(result.nodes[0].label).toBe('Back End');
-      expect(result.nodes[0].status).toBeNull();
+      expect(result.nodes[0].status).toBe('na');
     });
 
     it('parses all status values', () => {
@@ -113,7 +113,7 @@ describe('parseInitiativeStatus', () => {
     it('parses edge without status', () => {
       const result = parseInitiativeStatus('A | done\nB | done\nA -> B: getUser');
       expect(result.edges[0].label).toBe('getUser');
-      expect(result.edges[0].status).toBeNull();
+      expect(result.edges[0].status).toBe('na');
     });
 
     it('parses bare edge', () => {
@@ -121,7 +121,7 @@ describe('parseInitiativeStatus', () => {
       expect(result.edges[0].source).toBe('A');
       expect(result.edges[0].target).toBe('B');
       expect(result.edges[0].label).toBeUndefined();
-      expect(result.edges[0].status).toBeNull();
+      expect(result.edges[0].status).toBe('na');
     });
 
     it('parses multiple edges between same pair', () => {
@@ -214,6 +214,101 @@ B | wip`;
     });
   });
 
+  // === Indented edge shorthand ===
+  describe('indented edge shorthand', () => {
+    it('parses indented edge with implied source', () => {
+      const input = `A | done\nB | done\nA | done\n  -> B: getUser | done`;
+      const result = parseInitiativeStatus(input);
+      expect(result.edges).toHaveLength(1);
+      expect(result.edges[0].source).toBe('A');
+      expect(result.edges[0].target).toBe('B');
+      expect(result.edges[0].label).toBe('getUser');
+      expect(result.edges[0].status).toBe('done');
+    });
+
+    it('parses multiple indented edges under one node', () => {
+      const input = `A | done\nB | done\nC | done\nA | done\n  -> B: api | done\n  -> C: rpc | wip`;
+      const result = parseInitiativeStatus(input);
+      expect(result.edges).toHaveLength(2);
+      expect(result.edges[0].source).toBe('A');
+      expect(result.edges[0].target).toBe('B');
+      expect(result.edges[1].source).toBe('A');
+      expect(result.edges[1].target).toBe('C');
+    });
+
+    it('mixes flat and indented edge syntax', () => {
+      const input = `A | done\nB | done\nC | done\nA -> B: flat | done\nC | done\n  -> A: indented | wip`;
+      const result = parseInitiativeStatus(input);
+      expect(result.edges).toHaveLength(2);
+      expect(result.edges[0].source).toBe('A');
+      expect(result.edges[0].target).toBe('B');
+      expect(result.edges[1].source).toBe('C');
+      expect(result.edges[1].target).toBe('A');
+    });
+
+    it('warns when indented edge has no preceding node', () => {
+      const input = `  -> B: api | done`;
+      const result = parseInitiativeStatus(input);
+      expect(result.edges).toHaveLength(0);
+      expect(result.diagnostics.some((d) => d.message.includes('no preceding node'))).toBe(true);
+    });
+
+    it('parses indented edges under nodes inside groups', () => {
+      const input = `A | done\n[External]\n  B | wip\n    -> A: callback | done`;
+      const result = parseInitiativeStatus(input);
+      expect(result.edges).toHaveLength(1);
+      expect(result.edges[0].source).toBe('B');
+      expect(result.edges[0].target).toBe('A');
+      expect(result.edges[0].status).toBe('done');
+    });
+
+    it('parses Operation Blackbeard example', () => {
+      const input = `chart: initiative-status
+title: Operation Blackbeard
+
+Captain
+  -> CrewApp: issueOrders
+  -> ShipDashboard: viewCharts
+CrewApp | done
+  -> Quartermaster: getCrewRoster | done
+  -> Quartermaster: assignWatch | todo
+ShipDashboard | todo
+  -> Quartermaster: API | todo
+Quartermaster | wip
+  -> PortAuthority: dockRequest | done
+  -> NavigationService: plotCourse | todo
+  -> ShipLog: recordVoyage | done
+  -> ShipLog: logMutiny | done
+  -> TradingPost: tradeGoods | wip
+  -> TradingPost: fenceBooty | todo
+NavigationService | wip
+ShipLog | done
+CargoService | wip
+  -> Quartermaster: inventoryUpdate | wip
+[Royal Navy]
+  PortAuthority
+  TradingPost`;
+
+      const result = parseInitiativeStatus(input);
+      expect(result.error).toBeUndefined();
+      expect(result.title).toBe('Operation Blackbeard');
+      expect(result.nodes.map((n) => n.label)).toEqual([
+        'Captain', 'CrewApp', 'ShipDashboard', 'Quartermaster',
+        'NavigationService', 'ShipLog', 'CargoService',
+        'PortAuthority', 'TradingPost',
+      ]);
+      expect(result.edges).toHaveLength(12);
+      expect(result.edges[0]).toMatchObject({ source: 'Captain', target: 'CrewApp', label: 'issueOrders', status: 'na' });
+      expect(result.edges[1]).toMatchObject({ source: 'Captain', target: 'ShipDashboard', label: 'viewCharts', status: 'na' });
+      expect(result.edges[2]).toMatchObject({ source: 'CrewApp', target: 'Quartermaster', label: 'getCrewRoster', status: 'done' });
+      expect(result.groups).toHaveLength(1);
+      expect(result.groups[0].label).toBe('Royal Navy');
+      expect(result.groups[0].nodeLabels).toEqual(['PortAuthority', 'TradingPost']);
+      // Captain has no explicit status → defaults to 'na'
+      expect(result.nodes[0]).toMatchObject({ label: 'Captain', status: 'na' });
+    });
+  });
+
   // === Full diagram ===
   describe('full diagram', () => {
     it('parses the example from the plan', () => {
@@ -284,5 +379,9 @@ describe('looksLikeInitiativeStatus', () => {
 
   it('rejects content without arrows', () => {
     expect(looksLikeInitiativeStatus('A | done\nB | wip')).toBe(false);
+  });
+
+  it('detects indented arrows without status markers', () => {
+    expect(looksLikeInitiativeStatus('Captain\n  -> CrewApp: issueOrders\n  -> ShipDashboard: viewCharts')).toBe(true);
   });
 });
