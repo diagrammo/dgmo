@@ -11,6 +11,7 @@ import type {
   InitiativeStatus,
 } from './types';
 import { VALID_STATUSES } from './types';
+import { inferParticipantType } from '../sequence/participant-inference';
 
 // ============================================================
 // Heuristic — does this content look like an initiative-status diagram?
@@ -125,7 +126,7 @@ export function parseInitiativeStatus(content: string): ParsedInitiativeStatus {
       );
       // Auto-create an implicit node
       if (!result.nodes.some((n) => n.label === edge.source)) {
-        result.nodes.push({ label: edge.source, status: null, lineNumber: edge.lineNumber });
+        result.nodes.push({ label: edge.source, status: null, shape: inferParticipantType(edge.source), lineNumber: edge.lineNumber });
         nodeLabels.add(edge.source);
       }
     }
@@ -134,7 +135,7 @@ export function parseInitiativeStatus(content: string): ParsedInitiativeStatus {
         makeDgmoError(edge.lineNumber, `Edge target "${edge.target}" is not a declared node`, 'warning')
       );
       if (!result.nodes.some((n) => n.label === edge.target)) {
-        result.nodes.push({ label: edge.target, status: null, lineNumber: edge.lineNumber });
+        result.nodes.push({ label: edge.target, status: null, shape: inferParticipantType(edge.target), lineNumber: edge.lineNumber });
         nodeLabels.add(edge.target);
       }
     }
@@ -160,9 +161,9 @@ function parseNodeLine(
     const statusRaw = trimmed.slice(pipeIdx + 1).trim();
     if (!label) return null;
     const status = parseStatus(statusRaw, lineNum, diagnostics);
-    return { label, status, lineNumber: lineNum };
+    return { label, status, shape: inferParticipantType(label), lineNumber: lineNum };
   }
-  return { label: trimmed, status: null, lineNumber: lineNum };
+  return { label: trimmed, status: null, shape: inferParticipantType(trimmed), lineNumber: lineNum };
 }
 
 function parseEdgeLine(

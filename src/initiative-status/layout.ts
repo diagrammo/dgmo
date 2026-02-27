@@ -8,6 +8,7 @@ import type { ParsedInitiativeStatus, ISEdge } from './types';
 export interface ISLayoutNode {
   label: string;
   status: import('./types').InitiativeStatus;
+  shape: import('../sequence/parser').ParticipantType;
   lineNumber: number;
   x: number;
   y: number;
@@ -76,6 +77,7 @@ export function layoutInitiativeStatus(parsed: ParsedInitiativeStatus): ISLayout
     return {
       label: node.label,
       status: node.status,
+      shape: node.shape,
       lineNumber: node.lineNumber,
       x: pos.x,
       y: pos.y,

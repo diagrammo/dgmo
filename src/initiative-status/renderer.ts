@@ -8,6 +8,7 @@ import { FONT_FAMILY } from '../fonts';
 import { contrastText } from '../palettes/color-utils';
 import type { PaletteColors } from '../palettes';
 import type { ParsedInitiativeStatus, InitiativeStatus } from './types';
+import type { ParticipantType } from '../sequence/parser';
 import type { ISLayoutResult, ISLayoutNode, ISLayoutEdge } from './layout';
 import { parseInitiativeStatus } from './parser';
 import { layoutInitiativeStatus } from './layout';
@@ -28,6 +29,7 @@ const ARROWHEAD_W = 10;
 const ARROWHEAD_H = 7;
 const CHAR_WIDTH_RATIO = 0.6; // approx char width / font size for Helvetica
 const NODE_TEXT_PADDING = 12; // horizontal padding inside node for text
+const SERVICE_RX = 10;
 
 // ============================================================
 // Color helpers
@@ -150,6 +152,205 @@ function fitTextToNode(label: string, nodeWidth: number, nodeHeight: number): Fi
   const maxChars = Math.floor((nodeWidth - NODE_TEXT_PADDING * 2) / charWidth);
   const truncated = label.length > maxChars ? label.slice(0, maxChars - 1) + '\u2026' : label;
   return { lines: [truncated], fontSize: MIN_NODE_FONT_SIZE };
+}
+
+// ============================================================
+// Shape renderers — each draws within a centered (0,0) coordinate system
+// ============================================================
+
+type D3G = d3Selection.Selection<SVGGElement, unknown, null, undefined>;
+
+/** Default rectangle */
+function renderShapeRect(g: D3G, w: number, h: number, f: string, s: string): void {
+  g.append('rect')
+    .attr('x', -w / 2).attr('y', -h / 2)
+    .attr('width', w).attr('height', h)
+    .attr('rx', NODE_RX).attr('ry', NODE_RX)
+    .attr('fill', f).attr('stroke', s).attr('stroke-width', NODE_STROKE_WIDTH);
+}
+
+/** Service — more rounded rectangle */
+function renderShapeService(g: D3G, w: number, h: number, f: string, s: string): void {
+  g.append('rect')
+    .attr('x', -w / 2).attr('y', -h / 2)
+    .attr('width', w).attr('height', h)
+    .attr('rx', SERVICE_RX).attr('ry', SERVICE_RX)
+    .attr('fill', f).attr('stroke', s).attr('stroke-width', NODE_STROKE_WIDTH);
+}
+
+/** Actor — stick figure (no fill box) */
+function renderShapeActor(g: D3G, w: number, h: number, s: string): void {
+  // Stick figure centered in top ~70% of the box, label goes below
+  const figH = h * 0.65;
+  const topY = -h / 2;
+  const headR = Math.min(figH * 0.22, w * 0.12);
+  const headY = topY + headR + 2;
+  const bodyTopY = headY + headR + 1;
+  const bodyBottomY = topY + figH * 0.75;
+  const legY = topY + figH;
+  const armSpan = Math.min(16, w * 0.18);
+  const legSpan = Math.min(12, w * 0.14);
+  const sw = 2.5;
+
+  g.append('circle')
+    .attr('cx', 0).attr('cy', headY).attr('r', headR)
+    .attr('fill', 'none').attr('stroke', s).attr('stroke-width', sw);
+  g.append('line')
+    .attr('x1', 0).attr('y1', bodyTopY).attr('x2', 0).attr('y2', bodyBottomY)
+    .attr('stroke', s).attr('stroke-width', sw);
+  g.append('line')
+    .attr('x1', -armSpan).attr('y1', bodyTopY + 4).attr('x2', armSpan).attr('y2', bodyTopY + 4)
+    .attr('stroke', s).attr('stroke-width', sw);
+  g.append('line')
+    .attr('x1', 0).attr('y1', bodyBottomY).attr('x2', -legSpan).attr('y2', legY)
+    .attr('stroke', s).attr('stroke-width', sw);
+  g.append('line')
+    .attr('x1', 0).attr('y1', bodyBottomY).attr('x2', legSpan).attr('y2', legY)
+    .attr('stroke', s).attr('stroke-width', sw);
+}
+
+/** Database — vertical cylinder */
+function renderShapeDatabase(g: D3G, w: number, h: number, f: string, s: string): void {
+  const ry = 7;
+  const topY = -h / 2 + ry;
+  const bodyH = h - ry * 2;
+
+  // Bottom ellipse
+  g.append('ellipse')
+    .attr('cx', 0).attr('cy', topY + bodyH).attr('rx', w / 2).attr('ry', ry)
+    .attr('fill', f).attr('stroke', s).attr('stroke-width', NODE_STROKE_WIDTH);
+  // Body (covers bottom ellipse top arc)
+  g.append('rect')
+    .attr('x', -w / 2).attr('y', topY).attr('width', w).attr('height', bodyH)
+    .attr('fill', f).attr('stroke', 'none');
+  // Side lines
+  g.append('line')
+    .attr('x1', -w / 2).attr('y1', topY).attr('x2', -w / 2).attr('y2', topY + bodyH)
+    .attr('stroke', s).attr('stroke-width', NODE_STROKE_WIDTH);
+  g.append('line')
+    .attr('x1', w / 2).attr('y1', topY).attr('x2', w / 2).attr('y2', topY + bodyH)
+    .attr('stroke', s).attr('stroke-width', NODE_STROKE_WIDTH);
+  // Top ellipse cap
+  g.append('ellipse')
+    .attr('cx', 0).attr('cy', topY).attr('rx', w / 2).attr('ry', ry)
+    .attr('fill', f).attr('stroke', s).attr('stroke-width', NODE_STROKE_WIDTH);
+}
+
+/** Queue — horizontal cylinder (pipe) */
+function renderShapeQueue(g: D3G, w: number, h: number, f: string, s: string): void {
+  const rx = 10;
+  const leftX = -w / 2 + rx;
+  const bodyW = w - rx * 2;
+
+  // Right ellipse (back)
+  g.append('ellipse')
+    .attr('cx', leftX + bodyW).attr('cy', 0).attr('rx', rx).attr('ry', h / 2)
+    .attr('fill', f).attr('stroke', s).attr('stroke-width', NODE_STROKE_WIDTH);
+  // Body
+  g.append('rect')
+    .attr('x', leftX).attr('y', -h / 2).attr('width', bodyW).attr('height', h)
+    .attr('fill', f).attr('stroke', 'none');
+  // Top and bottom lines
+  g.append('line')
+    .attr('x1', leftX).attr('y1', -h / 2).attr('x2', leftX + bodyW).attr('y2', -h / 2)
+    .attr('stroke', s).attr('stroke-width', NODE_STROKE_WIDTH);
+  g.append('line')
+    .attr('x1', leftX).attr('y1', h / 2).attr('x2', leftX + bodyW).attr('y2', h / 2)
+    .attr('stroke', s).attr('stroke-width', NODE_STROKE_WIDTH);
+  // Left ellipse (front)
+  g.append('ellipse')
+    .attr('cx', leftX).attr('cy', 0).attr('rx', rx).attr('ry', h / 2)
+    .attr('fill', f).attr('stroke', s).attr('stroke-width', NODE_STROKE_WIDTH);
+}
+
+/** Cache — dashed cylinder */
+function renderShapeCache(g: D3G, w: number, h: number, f: string, s: string): void {
+  const ry = 7;
+  const topY = -h / 2 + ry;
+  const bodyH = h - ry * 2;
+  const dash = '4 3';
+
+  g.append('ellipse')
+    .attr('cx', 0).attr('cy', topY + bodyH).attr('rx', w / 2).attr('ry', ry)
+    .attr('fill', f).attr('stroke', s).attr('stroke-width', NODE_STROKE_WIDTH).attr('stroke-dasharray', dash);
+  g.append('rect')
+    .attr('x', -w / 2).attr('y', topY).attr('width', w).attr('height', bodyH)
+    .attr('fill', f).attr('stroke', 'none');
+  g.append('line')
+    .attr('x1', -w / 2).attr('y1', topY).attr('x2', -w / 2).attr('y2', topY + bodyH)
+    .attr('stroke', s).attr('stroke-width', NODE_STROKE_WIDTH).attr('stroke-dasharray', dash);
+  g.append('line')
+    .attr('x1', w / 2).attr('y1', topY).attr('x2', w / 2).attr('y2', topY + bodyH)
+    .attr('stroke', s).attr('stroke-width', NODE_STROKE_WIDTH).attr('stroke-dasharray', dash);
+  g.append('ellipse')
+    .attr('cx', 0).attr('cy', topY).attr('rx', w / 2).attr('ry', ry)
+    .attr('fill', f).attr('stroke', s).attr('stroke-width', NODE_STROKE_WIDTH).attr('stroke-dasharray', dash);
+}
+
+/** Networking — hexagon */
+function renderShapeNetworking(g: D3G, w: number, h: number, f: string, s: string): void {
+  const inset = 16;
+  const points = [
+    `${-w / 2 + inset},${-h / 2}`,
+    `${w / 2 - inset},${-h / 2}`,
+    `${w / 2},0`,
+    `${w / 2 - inset},${h / 2}`,
+    `${-w / 2 + inset},${h / 2}`,
+    `${-w / 2},0`,
+  ].join(' ');
+  g.append('polygon')
+    .attr('points', points)
+    .attr('fill', f).attr('stroke', s).attr('stroke-width', NODE_STROKE_WIDTH);
+}
+
+/** Frontend — monitor with stand */
+function renderShapeFrontend(g: D3G, w: number, h: number, f: string, s: string): void {
+  const screenH = h - 10;
+  // Screen
+  g.append('rect')
+    .attr('x', -w / 2).attr('y', -h / 2).attr('width', w).attr('height', screenH)
+    .attr('rx', 3).attr('ry', 3)
+    .attr('fill', f).attr('stroke', s).attr('stroke-width', NODE_STROKE_WIDTH);
+  // Stand
+  g.append('line')
+    .attr('x1', 0).attr('y1', -h / 2 + screenH).attr('x2', 0).attr('y2', h / 2 - 2)
+    .attr('stroke', s).attr('stroke-width', NODE_STROKE_WIDTH);
+  // Base
+  g.append('line')
+    .attr('x1', -14).attr('y1', h / 2 - 2).attr('x2', 14).attr('y2', h / 2 - 2)
+    .attr('stroke', s).attr('stroke-width', NODE_STROKE_WIDTH);
+}
+
+/** External — dashed rectangle */
+function renderShapeExternal(g: D3G, w: number, h: number, f: string, s: string): void {
+  g.append('rect')
+    .attr('x', -w / 2).attr('y', -h / 2)
+    .attr('width', w).attr('height', h)
+    .attr('rx', NODE_RX).attr('ry', NODE_RX)
+    .attr('fill', f).attr('stroke', s).attr('stroke-width', NODE_STROKE_WIDTH)
+    .attr('stroke-dasharray', '6 3');
+}
+
+/** Dispatch to the right shape renderer */
+function renderNodeShape(
+  g: D3G,
+  shape: ParticipantType,
+  w: number,
+  h: number,
+  fillColor: string,
+  strokeColor: string
+): void {
+  switch (shape) {
+    case 'actor':      renderShapeActor(g, w, h, strokeColor); break;
+    case 'database':   renderShapeDatabase(g, w, h, fillColor, strokeColor); break;
+    case 'queue':      renderShapeQueue(g, w, h, fillColor, strokeColor); break;
+    case 'cache':      renderShapeCache(g, w, h, fillColor, strokeColor); break;
+    case 'networking': renderShapeNetworking(g, w, h, fillColor, strokeColor); break;
+    case 'frontend':   renderShapeFrontend(g, w, h, fillColor, strokeColor); break;
+    case 'external':   renderShapeExternal(g, w, h, fillColor, strokeColor); break;
+    case 'service':    renderShapeService(g, w, h, fillColor, strokeColor); break;
+    default:           renderShapeRect(g, w, h, fillColor, strokeColor); break;
+  }
 }
 
 // ============================================================
@@ -418,36 +619,46 @@ export function renderInitiativeStatus(
       });
     }
 
-    // Rounded rect
-    nodeG
-      .append('rect')
-      .attr('x', -node.width / 2)
-      .attr('y', -node.height / 2)
-      .attr('width', node.width)
-      .attr('height', node.height)
-      .attr('rx', NODE_RX)
-      .attr('ry', NODE_RX)
-      .attr('fill', nodeFill(node.status, palette, isDark))
-      .attr('stroke', nodeStroke(node.status, palette, isDark))
-      .attr('stroke-width', NODE_STROKE_WIDTH);
+    const fill = nodeFill(node.status, palette, isDark);
+    const stroke = nodeStroke(node.status, palette, isDark);
+    renderNodeShape(nodeG, node.shape, node.width, node.height, fill, stroke);
 
-    // Label — fit text into fixed-size box
-    const fitted = fitTextToNode(node.label, node.width, node.height);
-    const textColor = nodeTextColor(node.status, palette, isDark);
-    const totalTextHeight = fitted.lines.length * fitted.fontSize * 1.3;
-    const startY = -totalTextHeight / 2 + fitted.fontSize * 0.65;
+    // Label placement: actors put label below the figure, others center inside
+    const isActor = node.shape === 'actor';
+    if (isActor) {
+      const textColor = nodeTextColor(node.status, palette, isDark);
+      const fitted = fitTextToNode(node.label, node.width, node.height * 0.35);
+      const labelY = node.height / 2 - fitted.fontSize * 0.3;
+      for (let li = 0; li < fitted.lines.length; li++) {
+        nodeG
+          .append('text')
+          .attr('x', 0)
+          .attr('y', labelY + li * fitted.fontSize * 1.3)
+          .attr('text-anchor', 'middle')
+          .attr('dominant-baseline', 'central')
+          .attr('fill', textColor)
+          .attr('font-size', fitted.fontSize)
+          .attr('font-weight', '600')
+          .text(fitted.lines[li]);
+      }
+    } else {
+      const fitted = fitTextToNode(node.label, node.width, node.height);
+      const textColor = nodeTextColor(node.status, palette, isDark);
+      const totalTextHeight = fitted.lines.length * fitted.fontSize * 1.3;
+      const startY = -totalTextHeight / 2 + fitted.fontSize * 0.65;
 
-    for (let li = 0; li < fitted.lines.length; li++) {
-      nodeG
-        .append('text')
-        .attr('x', 0)
-        .attr('y', startY + li * fitted.fontSize * 1.3)
-        .attr('text-anchor', 'middle')
-        .attr('dominant-baseline', 'central')
-        .attr('fill', textColor)
-        .attr('font-size', fitted.fontSize)
-        .attr('font-weight', '600')
-        .text(fitted.lines[li]);
+      for (let li = 0; li < fitted.lines.length; li++) {
+        nodeG
+          .append('text')
+          .attr('x', 0)
+          .attr('y', startY + li * fitted.fontSize * 1.3)
+          .attr('text-anchor', 'middle')
+          .attr('dominant-baseline', 'central')
+          .attr('fill', textColor)
+          .attr('font-size', fitted.fontSize)
+          .attr('font-weight', '600')
+          .text(fitted.lines[li]);
+      }
     }
   }
 }

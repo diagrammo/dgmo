@@ -3,6 +3,7 @@
 // ============================================================
 
 import type { DgmoError } from '../diagnostics';
+import type { ParticipantType } from '../sequence/parser';
 
 export type InitiativeStatus = 'done' | 'wip' | 'todo' | 'na' | null;
 
@@ -11,6 +12,7 @@ export const VALID_STATUSES: readonly string[] = ['done', 'wip', 'todo', 'na'];
 export interface ISNode {
   label: string;
   status: InitiativeStatus;
+  shape: ParticipantType;
   lineNumber: number;
 }
 
