@@ -815,7 +815,8 @@ function renderEdges(
   contentG: GSelection,
   edges: C4LayoutEdge[],
   palette: PaletteColors,
-  onClickItem?: (lineNumber: number) => void
+  onClickItem?: (lineNumber: number) => void,
+  obstacleRects?: { x: number; y: number; w: number; h: number }[]
 ): void {
   // Collect labels for deferred rendering with collision avoidance
   const pendingLabels: {
@@ -893,7 +894,7 @@ function renderEdges(
   // Place labels using maximum-clearance algorithm: for each label,
   // find the position along its own edge that is farthest from all
   // other edges and already-placed labels.
-  placeEdgeLabels(pendingLabels, edges);
+  placeEdgeLabels(pendingLabels, edges, obstacleRects);
 
   // Render all labels
   for (const lbl of pendingLabels) {
@@ -1070,7 +1071,8 @@ function placeEdgeLabels(
     x: number;
     y: number;
   }[],
-  edges: C4LayoutEdge[]
+  edges: C4LayoutEdge[],
+  obstacleRects?: { x: number; y: number; w: number; h: number }[]
 ): void {
   if (labels.length === 0) return;
 
@@ -1135,6 +1137,15 @@ function placeEdgeLabels(
         }
       }
 
+      // Penalty for overlapping boundary/obstacle rects (e.g. boundary labels)
+      if (obstacleRects) {
+        for (const obs of obstacleRects) {
+          if (rectsOverlap(pt.x, pt.y, lbl.bgW, lbl.bgH, obs.x + obs.w / 2, obs.y + obs.h / 2, obs.w, obs.h, 6)) {
+            labelOverlapPenalty += 200;
+          }
+        }
+      }
+
       const score = minEdgeDist - labelOverlapPenalty;
       if (score > bestScore) {
         bestScore = score;
@@ -1169,6 +1180,17 @@ function placeEdgeLabels(
         }
         if (rectsOverlap(sideB.x, sideB.y, lbl.bgW, lbl.bgH, placed.x, placed.y, placed.w, placed.h, 6)) {
           scoreB -= 200;
+        }
+      }
+      if (obstacleRects) {
+        for (const obs of obstacleRects) {
+          const cx = obs.x + obs.w / 2, cy = obs.y + obs.h / 2;
+          if (rectsOverlap(sideA.x, sideA.y, lbl.bgW, lbl.bgH, cx, cy, obs.w, obs.h, 6)) {
+            scoreA -= 200;
+          }
+          if (rectsOverlap(sideB.x, sideB.y, lbl.bgW, lbl.bgH, cx, cy, obs.w, obs.h, 6)) {
+            scoreB -= 200;
+          }
         }
       }
 
@@ -1477,8 +1499,23 @@ export function renderC4Containers(
     }
   }
 
+  // ── Collect boundary label rects as obstacles for edge label placement ──
+  const boundaryLabelObstacles: { x: number; y: number; w: number; h: number }[] = [];
+  if (layout.boundary) {
+    const b = layout.boundary;
+    const labelText = `${b.label} \u2014 ${b.typeLabel}`;
+    const w = labelText.length * 7 + 12;
+    const h = BOUNDARY_LABEL_FONT_SIZE + 4;
+    boundaryLabelObstacles.push({ x: b.x + 12, y: b.y + 16 - h + 4, w, h });
+  }
+  for (const gb of layout.groupBoundaries) {
+    const w = gb.label.length * 7 + 12;
+    const h = BOUNDARY_LABEL_FONT_SIZE + 4;
+    boundaryLabelObstacles.push({ x: gb.x + 10, y: gb.y + 14 - h + 4, w, h });
+  }
+
   // ── Edges (behind nodes) ──
-  renderEdges(contentG as GSelection, layout.edges, palette, onClickItem);
+  renderEdges(contentG as GSelection, layout.edges, palette, onClickItem, boundaryLabelObstacles);
 
   // ── Nodes ──
   for (const node of layout.nodes) {
