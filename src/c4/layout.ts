@@ -3,7 +3,7 @@
 // ============================================================
 
 import dagre from '@dagrejs/dagre';
-import type { ParsedC4, C4Element, C4Relationship, C4ArrowType, C4Shape } from './types';
+import type { ParsedC4, C4Element, C4Relationship, C4ArrowType, C4Shape, C4DeploymentNode } from './types';
 import type { OrgTagGroup } from '../org/parser';
 
 // ============================================================
@@ -1757,4 +1757,381 @@ export function layoutC4Components(
   }
 
   return { nodes, edges, legend: legendGroups, boundary, groupBoundaries, width: totalWidth, height: totalHeight };
+}
+
+// ============================================================
+// Deployment Diagram Layout
+// ============================================================
+
+/**
+ * Resolve a container reference name to its C4Element by walking the parsed
+ * element tree. Matches container names case-insensitively.
+ */
+function resolveContainerRef(parsed: ParsedC4, refName: string): C4Element | undefined {
+  const lower = refName.toLowerCase();
+  for (const el of parsed.elements) {
+    for (const child of el.children) {
+      if (child.type === 'container' && child.name.toLowerCase() === lower) return child;
+    }
+    for (const group of el.groups) {
+      for (const child of group.children) {
+        if (child.type === 'container' && child.name.toLowerCase() === lower) return child;
+      }
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Collect all container ref nodes from the deployment tree, flattened with
+ * their parent infra node ID for compound graph assignment.
+ */
+interface DeploymentRefEntry {
+  refName: string;
+  element: C4Element;
+  infraId: string;
+  /** Line number of the infra node containing this ref. */
+  deployLineNumber: number;
+}
+
+function collectDeploymentRefs(
+  nodes: C4DeploymentNode[],
+  parsed: ParsedC4,
+  parentId: string | null,
+  refs: DeploymentRefEntry[],
+  infraIds: Map<string, C4DeploymentNode>,
+  infraParents: Map<string, string | null>,
+): void {
+  for (const node of nodes) {
+    const infraId = `__infra_${node.name}`;
+    infraIds.set(infraId, node);
+    infraParents.set(infraId, parentId);
+
+    for (const ref of node.containerRefs) {
+      const el = resolveContainerRef(parsed, ref);
+      if (el) {
+        refs.push({ refName: ref, element: el, infraId, deployLineNumber: node.lineNumber });
+      }
+    }
+
+    collectDeploymentRefs(node.children, parsed, infraId, refs, infraIds, infraParents);
+  }
+}
+
+/**
+ * Layout a C4 deployment diagram.
+ *
+ * Infrastructure nodes become boundary boxes (nested).
+ * Container refs inside them become cards.
+ * Edges are drawn between referenced containers that have relationships.
+ */
+export function layoutC4Deployment(
+  parsed: ParsedC4,
+  activeTagGroup?: string | null,
+): C4LayoutResult {
+  if (parsed.deployment.length === 0) {
+    return { nodes: [], edges: [], legend: [], groupBoundaries: [], width: 0, height: 0 };
+  }
+
+  // Collect all refs and infra node info
+  const refs: DeploymentRefEntry[] = [];
+  const infraIds = new Map<string, C4DeploymentNode>();
+  const infraParents = new Map<string, string | null>();
+  collectDeploymentRefs(parsed.deployment, parsed, null, refs, infraIds, infraParents);
+
+  if (refs.length === 0) {
+    return { nodes: [], edges: [], legend: [], groupBoundaries: [], width: 0, height: 0 };
+  }
+
+  // Deduplicate refs by element name (a container can appear in multiple infra
+  // nodes — keep first occurrence). Track which container names are in scope.
+  const seenRefs = new Map<string, DeploymentRefEntry>();
+  for (const ref of refs) {
+    const key = ref.element.name.toLowerCase();
+    if (!seenRefs.has(key)) seenRefs.set(key, ref);
+  }
+  const refEntries = [...seenRefs.values()];
+  const refNames = new Set(refEntries.map((r) => r.element.name.toLowerCase()));
+
+  // Build a name→element map for resolved containers
+  const nameToElement = new Map<string, C4Element>();
+  for (const r of refEntries) {
+    nameToElement.set(r.element.name, r.element);
+  }
+
+  // Build compound dagre graph: infra nodes as parents, container refs as leaf nodes
+  const g = new dagre.graphlib.Graph({ compound: true });
+  g.setDefaultEdgeLabel(() => ({}));
+
+  // Add virtual parent nodes for each infra node
+  for (const [infraId] of infraIds) {
+    g.setNode(infraId, {});
+    const parentId = infraParents.get(infraId);
+    if (parentId) g.setParent(infraId, parentId);
+  }
+
+  // Add container ref nodes
+  for (const r of refEntries) {
+    const dims = computeC4NodeDimensions(r.element, { showTechnology: true });
+    g.setNode(r.element.name, { width: dims.width, height: dims.height });
+    g.setParent(r.element.name, r.infraId);
+  }
+
+  // Collect relationships between referenced containers
+  interface DeployRel {
+    sourceName: string;
+    targetName: string;
+    label?: string;
+    technology?: string;
+    arrowType: C4ArrowType;
+    lineNumber: number;
+  }
+  const deployRels: DeployRel[] = [];
+  const seenEdgeKeys = new Set<string>();
+
+  for (const r of refEntries) {
+    for (const rel of r.element.relationships) {
+      if (refNames.has(rel.target.toLowerCase())) {
+        const key = `${r.element.name}\u2192${rel.target}`;
+        if (!seenEdgeKeys.has(key)) {
+          seenEdgeKeys.add(key);
+          deployRels.push({
+            sourceName: r.element.name,
+            targetName: rel.target,
+            label: rel.label,
+            technology: rel.technology,
+            arrowType: rel.arrowType,
+            lineNumber: rel.lineNumber,
+          });
+        }
+      }
+    }
+  }
+
+  // Adaptive spacing and graph config
+  const spacing = computeAdaptiveSpacing(deployRels);
+  g.setGraph({
+    rankdir: 'TB',
+    nodesep: spacing.nodesep,
+    ranksep: spacing.ranksep,
+    edgesep: spacing.edgesep,
+  });
+
+  // Add edges to dagre
+  for (const rel of deployRels) {
+    if (nameToElement.has(rel.sourceName) && nameToElement.has(rel.targetName)) {
+      g.setEdge(rel.sourceName, rel.targetName, { label: rel.label ?? '' });
+    }
+  }
+
+  // Run layout
+  dagre.layout(g);
+
+  // Post-dagre crossing reduction
+  const nodeInfraMap = new Map<string, string>();
+  for (const r of refEntries) nodeInfraMap.set(r.element.name, r.infraId);
+  reduceCrossings(
+    g,
+    deployRels
+      .filter((r) => nameToElement.has(r.sourceName) && nameToElement.has(r.targetName))
+      .map((r) => ({ source: r.sourceName, target: r.targetName })),
+    nodeInfraMap,
+  );
+
+  // Extract positioned nodes
+  const nodes: C4LayoutNode[] = [];
+  for (const r of refEntries) {
+    const pos = g.node(r.element.name);
+    const color = resolveNodeColor(r.element, parsed.tagGroups, activeTagGroup ?? null);
+    const tech = r.element.metadata['tech'] ?? r.element.metadata['technology'];
+    nodes.push({
+      id: r.element.name,
+      name: r.element.name,
+      type: 'container',
+      description: r.element.metadata['description'],
+      metadata: r.element.metadata,
+      lineNumber: r.element.lineNumber,
+      color,
+      shape: r.element.shape,
+      technology: tech,
+      x: pos.x,
+      y: pos.y,
+      width: pos.width,
+      height: pos.height,
+    });
+  }
+
+  // Extract edges
+  const edges: C4LayoutEdge[] = deployRels
+    .filter((rel) => nameToElement.has(rel.sourceName) && nameToElement.has(rel.targetName))
+    .map((rel) => {
+      const edgeData = g.edge(rel.sourceName, rel.targetName);
+      return {
+        source: rel.sourceName,
+        target: rel.targetName,
+        arrowType: rel.arrowType,
+        label: rel.label,
+        technology: rel.technology,
+        lineNumber: rel.lineNumber,
+        points: edgeData?.points ?? [],
+      };
+    });
+
+  // Compute infrastructure boundary boxes from member node positions
+  const groupBoundaries: C4LayoutBoundary[] = [];
+  const nodeMap = new Map(nodes.map((n) => [n.name, n]));
+
+  // Collect members for each infra node (containers directly inside it)
+  const infraMembers = new Map<string, C4LayoutNode[]>();
+  for (const r of refEntries) {
+    const members = infraMembers.get(r.infraId) ?? [];
+    const node = nodeMap.get(r.element.name);
+    if (node) members.push(node);
+    infraMembers.set(r.infraId, members);
+  }
+
+  // Compute boundaries bottom-up: leaf infra nodes first, then parents.
+  const infraBounds = new Map<string, { x: number; y: number; width: number; height: number }>();
+
+  function computeInfraBounds(infraId: string): { x: number; y: number; width: number; height: number } | null {
+    if (infraBounds.has(infraId)) return infraBounds.get(infraId)!;
+
+    let bMinX = Infinity, bMinY = Infinity, bMaxX = -Infinity, bMaxY = -Infinity;
+    let hasContent = false;
+
+    // Direct container ref members
+    const members = infraMembers.get(infraId) ?? [];
+    for (const m of members) {
+      hasContent = true;
+      const left = m.x - m.width / 2;
+      const top = m.y - m.height / 2;
+      const right = m.x + m.width / 2;
+      const bottom = m.y + m.height / 2;
+      if (left < bMinX) bMinX = left;
+      if (top < bMinY) bMinY = top;
+      if (right > bMaxX) bMaxX = right;
+      if (bottom > bMaxY) bMaxY = bottom;
+    }
+
+    // Child infra node boundaries
+    for (const [childId, parentId] of infraParents) {
+      if (parentId === infraId) {
+        const childBounds = computeInfraBounds(childId);
+        if (childBounds) {
+          hasContent = true;
+          if (childBounds.x < bMinX) bMinX = childBounds.x;
+          if (childBounds.y < bMinY) bMinY = childBounds.y;
+          if (childBounds.x + childBounds.width > bMaxX) bMaxX = childBounds.x + childBounds.width;
+          if (childBounds.y + childBounds.height > bMaxY) bMaxY = childBounds.y + childBounds.height;
+        }
+      }
+    }
+
+    if (!hasContent) return null;
+
+    const bounds = {
+      x: bMinX - BOUNDARY_PAD,
+      y: bMinY - BOUNDARY_PAD,
+      width: (bMaxX - bMinX) + BOUNDARY_PAD * 2,
+      height: (bMaxY - bMinY) + BOUNDARY_PAD * 2,
+    };
+    infraBounds.set(infraId, bounds);
+    return bounds;
+  }
+
+  // Process all infra nodes (recursion handles ordering)
+  for (const [infraId, node] of infraIds) {
+    const bounds = computeInfraBounds(infraId);
+    if (bounds) {
+      const shapeLabel = node.shape !== 'default' ? node.shape : 'node';
+      groupBoundaries.push({
+        label: node.name,
+        typeLabel: shapeLabel,
+        lineNumber: node.lineNumber,
+        ...bounds,
+      });
+    }
+  }
+
+  // Sort boundaries so outermost (largest area) are first — rendered bottom to top
+  groupBoundaries.sort((a, b) => (b.width * b.height) - (a.width * a.height));
+
+  // Compute total bounding box
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const node of nodes) {
+    const left = node.x - node.width / 2;
+    const top = node.y - node.height / 2;
+    const right = node.x + node.width / 2;
+    const bottom = node.y + node.height / 2;
+    if (left < minX) minX = left;
+    if (top < minY) minY = top;
+    if (right > maxX) maxX = right;
+    if (bottom > maxY) maxY = bottom;
+  }
+  for (const gb of groupBoundaries) {
+    if (gb.x < minX) minX = gb.x;
+    if (gb.y < minY) minY = gb.y;
+    if (gb.x + gb.width > maxX) maxX = gb.x + gb.width;
+    if (gb.y + gb.height > maxY) maxY = gb.y + gb.height;
+  }
+  for (const edge of edges) {
+    for (const pt of edge.points) {
+      if (pt.x < minX) minX = pt.x;
+      if (pt.y < minY) minY = pt.y;
+      if (pt.x > maxX) maxX = pt.x;
+      if (pt.y > maxY) maxY = pt.y;
+    }
+  }
+
+  // Shift everything so content starts at (MARGIN, MARGIN)
+  const shiftX = MARGIN - minX;
+  const shiftY = MARGIN - minY;
+  for (const node of nodes) {
+    node.x += shiftX;
+    node.y += shiftY;
+  }
+  for (const gb of groupBoundaries) {
+    gb.x += shiftX;
+    gb.y += shiftY;
+  }
+  for (const edge of edges) {
+    for (const pt of edge.points) {
+      pt.x += shiftX;
+      pt.y += shiftY;
+    }
+  }
+
+  let totalWidth = maxX - minX + MARGIN * 2;
+  let totalHeight = maxY - minY + MARGIN * 2;
+
+  // Legend
+  const usedValuesByGroup = new Map<string, Set<string>>();
+  for (const r of refEntries) {
+    for (const group of parsed.tagGroups) {
+      const key = group.name.toLowerCase();
+      const val = r.element.metadata[key];
+      if (val) {
+        if (!usedValuesByGroup.has(key)) usedValuesByGroup.set(key, new Set());
+        usedValuesByGroup.get(key)!.add(val.toLowerCase());
+      }
+    }
+  }
+
+  const legendGroups = computeLegendGroups(parsed.tagGroups, usedValuesByGroup);
+
+  if (legendGroups.length > 0) {
+    const legendY = totalHeight + MARGIN;
+    let legendX = MARGIN;
+    for (const lg of legendGroups) {
+      lg.x = legendX;
+      lg.y = legendY;
+      legendX += lg.width + 12;
+    }
+    const legendRight = legendX;
+    const legendBottom = legendY + LEGEND_HEIGHT;
+    if (legendRight > totalWidth) totalWidth = legendRight;
+    if (legendBottom > totalHeight) totalHeight = legendBottom;
+  }
+
+  return { nodes, edges, legend: legendGroups, groupBoundaries, width: totalWidth, height: totalHeight };
 }

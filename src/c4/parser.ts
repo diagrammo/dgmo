@@ -482,6 +482,7 @@ export function parseC4(
       if (parentEntry) {
         parentEntry.element.sectionHeader =
           sectionType as 'containers' | 'components';
+        parentEntry.element.sectionHeaderLineNumber = lineNumber;
         stack.push({
           kind: 'section',
           sectionType: sectionType as 'containers' | 'components',

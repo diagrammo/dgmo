@@ -302,6 +302,24 @@ describe('parseC4', () => {
       expect(api.sectionHeader).toBe('components');
       expect(api.children).toHaveLength(2);
     });
+
+    it('stores sectionHeaderLineNumber on parent element', () => {
+      const result = parseC4(
+        [
+          'chart: c4',
+          'system Banking',
+          '  containers:',
+          '    container API',
+          '      components:',
+          '        component Auth',
+        ].join('\n'),
+      );
+      // containers: is on line 3
+      expect(result.elements[0].sectionHeaderLineNumber).toBe(3);
+      // components: is on line 5
+      const api = result.elements[0].children[0];
+      expect(api.sectionHeaderLineNumber).toBe(5);
+    });
   });
 
   // === Groups ===

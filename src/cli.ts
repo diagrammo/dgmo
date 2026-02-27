@@ -37,7 +37,7 @@ Options:
                        With stdin and no -o, PNG is written to stdout
   --theme <theme>      Theme: ${THEMES.join(', ')} (default: light)
   --palette <name>     Palette: ${PALETTES.join(', ')} (default: nord)
-  --c4-level <level>   C4 render level: context (default), containers, components
+  --c4-level <level>   C4 render level: context (default), containers, components, deployment
   --c4-system <name>   System to drill into (with --c4-level containers or components)
   --c4-container <name> Container to drill into (with --c4-level components)
   --no-branding        Omit diagrammo.app branding from exports
@@ -62,7 +62,7 @@ function parseArgs(argv: string[]): {
   version: boolean;
   noBranding: boolean;
   copy: boolean;
-  c4Level: 'context' | 'containers' | 'components';
+  c4Level: 'context' | 'containers' | 'components' | 'deployment';
   c4System: string | undefined;
   c4Container: string | undefined;
 } {
@@ -75,7 +75,7 @@ function parseArgs(argv: string[]): {
     version: false,
     noBranding: false,
     copy: false,
-    c4Level: 'context' as 'context' | 'containers' | 'components',
+    c4Level: 'context' as 'context' | 'containers' | 'components' | 'deployment',
     c4System: undefined as string | undefined,
     c4Container: undefined as string | undefined,
   };
@@ -117,9 +117,9 @@ function parseArgs(argv: string[]): {
       i++;
     } else if (arg === '--c4-level') {
       const val = args[++i];
-      if (val !== 'context' && val !== 'containers' && val !== 'components') {
+      if (val !== 'context' && val !== 'containers' && val !== 'components' && val !== 'deployment') {
         console.error(
-          `Error: Invalid C4 level "${val}". Valid levels: context, containers, components`
+          `Error: Invalid C4 level "${val}". Valid levels: context, containers, components, deployment`
         );
         process.exit(1);
       }

@@ -49,7 +49,7 @@ export async function render(
     theme?: 'light' | 'dark' | 'transparent';
     palette?: string;
     branding?: boolean;
-    c4Level?: 'context' | 'containers' | 'components';
+    c4Level?: 'context' | 'containers' | 'components' | 'deployment';
     c4System?: string;
     c4Container?: string;
   },

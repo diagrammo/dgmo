@@ -10,7 +10,7 @@ import type { ParsedC4 } from './types';
 import type { C4Shape } from './types';
 import type { C4LayoutResult, C4LayoutNode, C4LayoutEdge, C4LayoutBoundary } from './layout';
 import { parseC4 } from './parser';
-import { layoutC4Context, layoutC4Containers, layoutC4Components, collectCardMetadata } from './layout';
+import { layoutC4Context, layoutC4Containers, layoutC4Components, layoutC4Deployment, collectCardMetadata } from './layout';
 
 // ============================================================
 // Constants
@@ -1786,6 +1786,77 @@ export function renderC4ComponentsForExport(
 
   try {
     // Reuse the container renderer — it handles all node types generically
+    renderC4Containers(el, parsed, layout, palette, isDark, undefined, {
+      width: exportWidth,
+      height: exportHeight,
+    });
+
+    const svgEl = el.querySelector('svg');
+    if (!svgEl) return '';
+
+    if (theme === 'transparent') {
+      svgEl.style.background = 'none';
+    }
+
+    svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    svgEl.style.fontFamily = FONT_FAMILY;
+
+    return svgEl.outerHTML;
+  } finally {
+    document.body.removeChild(el);
+  }
+}
+
+// ============================================================
+// Deployment Diagram Renderer
+// ============================================================
+
+/**
+ * Render a C4 deployment diagram interactively.
+ * Reuses the container renderer — infrastructure boundaries are rendered
+ * as group boundaries and container refs as cards (same visual pattern).
+ */
+export function renderC4Deployment(
+  container: HTMLDivElement,
+  parsed: ParsedC4,
+  layout: C4LayoutResult,
+  palette: PaletteColors,
+  isDark: boolean,
+  onClickItem?: (lineNumber: number) => void,
+  exportDims?: { width?: number; height?: number },
+  activeTagGroup?: string | null,
+): void {
+  renderC4Containers(container, parsed, layout, palette, isDark, onClickItem, exportDims, activeTagGroup);
+}
+
+/**
+ * Export convenience function for deployment diagrams.
+ */
+export function renderC4DeploymentForExport(
+  content: string,
+  theme: 'light' | 'dark' | 'transparent',
+  palette: PaletteColors,
+): string {
+  const parsed = parseC4(content, palette);
+  if (parsed.error || parsed.deployment.length === 0) return '';
+
+  const layout = layoutC4Deployment(parsed);
+  if (layout.nodes.length === 0) return '';
+
+  const isDark = theme === 'dark';
+
+  const el = document.createElement('div');
+  const titleOffset = parsed.title ? TITLE_HEIGHT + 10 : 0;
+  const exportWidth = layout.width + DIAGRAM_PADDING * 2;
+  const exportHeight = layout.height + DIAGRAM_PADDING * 2 + titleOffset;
+
+  el.style.width = `${exportWidth}px`;
+  el.style.height = `${exportHeight}px`;
+  el.style.position = 'absolute';
+  el.style.left = '-9999px';
+  document.body.appendChild(el);
+
+  try {
     renderC4Containers(el, parsed, layout, palette, isDark, undefined, {
       width: exportWidth,
       height: exportHeight,

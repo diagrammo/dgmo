@@ -169,7 +169,7 @@ export type {
   C4TagEntry,
 } from './c4/types';
 
-export { layoutC4Context, layoutC4Containers, layoutC4Components, rollUpContextRelationships } from './c4/layout';
+export { layoutC4Context, layoutC4Containers, layoutC4Components, layoutC4Deployment, rollUpContextRelationships } from './c4/layout';
 export type {
   C4LayoutResult,
   C4LayoutNode,
@@ -186,6 +186,8 @@ export {
   renderC4Containers,
   renderC4ContainersForExport,
   renderC4ComponentsForExport,
+  renderC4Deployment,
+  renderC4DeploymentForExport,
 } from './c4/renderer';
 
 export { collapseOrgTree } from './org/collapse';

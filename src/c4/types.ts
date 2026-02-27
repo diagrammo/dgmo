@@ -57,6 +57,7 @@ export interface C4Element {
   importPath?: string;
   lineNumber: number;
   sectionHeader?: 'containers' | 'components';
+  sectionHeaderLineNumber?: number;
 }
 
 // ── Deployment ───────────────────────────────────────────────
