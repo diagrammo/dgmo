@@ -250,13 +250,48 @@ export function renderInitiativeStatus(
     .append('g')
     .attr('transform', `translate(${offsetX}, ${offsetY}) scale(${scale})`);
 
-  // Compute edge label positions first, then nudge to avoid overlaps
+  // Helper: interpolate a point at parameter t (0–1) along a polyline
+  function interpolatePolyline(
+    pts: { x: number; y: number }[],
+    t: number
+  ): { x: number; y: number } {
+    if (pts.length < 2) return pts[0];
+    // Compute cumulative segment lengths
+    const segLens: number[] = [];
+    let total = 0;
+    for (let i = 1; i < pts.length; i++) {
+      const dx = pts[i].x - pts[i - 1].x;
+      const dy = pts[i].y - pts[i - 1].y;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      segLens.push(d);
+      total += d;
+    }
+    const target = t * total;
+    let accum = 0;
+    for (let i = 0; i < segLens.length; i++) {
+      if (accum + segLens[i] >= target) {
+        const frac = segLens[i] > 0 ? (target - accum) / segLens[i] : 0;
+        return {
+          x: pts[i].x + (pts[i + 1].x - pts[i].x) * frac,
+          y: pts[i].y + (pts[i + 1].y - pts[i].y) * frac,
+        };
+      }
+      accum += segLens[i];
+    }
+    return pts[pts.length - 1];
+  }
+
+  // Compute label positions — place each label ON its own edge path.
+  // Start at t=0.5 (midpoint). If two labels overlap, slide them apart
+  // along their respective paths.
   interface LabelPlacement {
     x: number;
     y: number;
     w: number;
     h: number;
     edgeIdx: number;
+    t: number; // parameter along path
+    points: { x: number; y: number }[];
   }
   const labelPlacements: LabelPlacement[] = [];
 
@@ -264,55 +299,44 @@ export function renderInitiativeStatus(
     const edge = layout.edges[ei];
     if (!edge.label || edge.points.length < 2) continue;
 
-    // Place label at ~40% along the path (closer to source) to avoid
-    // clustering at the midpoint when many edges converge on one node
-    const paramIdx = Math.max(1, Math.floor(edge.points.length * 0.4));
-    const pt = edge.points[paramIdx];
-
-    // Compute perpendicular offset so label sits beside the edge, not on it
-    const prev = edge.points[Math.max(0, paramIdx - 1)];
-    const next = edge.points[Math.min(edge.points.length - 1, paramIdx + 1)];
-    const dx = next.x - prev.x;
-    const dy = next.y - prev.y;
-    const len = Math.sqrt(dx * dx + dy * dy) || 1;
-    // Normal vector (perpendicular), pointing "above" the edge
-    const nx = -dy / len;
-    const ny = dx / len;
-    const LABEL_OFFSET = 14;
-
+    const t = 0.5;
+    const pt = interpolatePolyline(edge.points, t);
     const labelLen = edge.label.length;
     const bgW = labelLen * 7 + 10;
     const bgH = 18;
 
     labelPlacements.push({
-      x: pt.x + nx * LABEL_OFFSET,
-      y: pt.y + ny * LABEL_OFFSET,
+      x: pt.x,
+      y: pt.y,
       w: bgW,
       h: bgH,
       edgeIdx: ei,
+      t,
+      points: edge.points,
     });
   }
 
-  // Resolve label overlaps by nudging colliding labels apart vertically
-  const MIN_LABEL_GAP = 4;
-  for (let passes = 0; passes < 5; passes++) {
+  // Resolve overlaps by sliding labels along their own paths
+  const MIN_LABEL_GAP = 6;
+  for (let pass = 0; pass < 8; pass++) {
     let moved = false;
     for (let i = 0; i < labelPlacements.length; i++) {
       for (let j = i + 1; j < labelPlacements.length; j++) {
         const a = labelPlacements[i];
         const b = labelPlacements[j];
-        // Check AABB overlap
         const overlapX = Math.abs(a.x - b.x) < (a.w + b.w) / 2 + MIN_LABEL_GAP;
         const overlapY = Math.abs(a.y - b.y) < (a.h + b.h) / 2 + MIN_LABEL_GAP;
         if (overlapX && overlapY) {
-          const nudge = ((a.h + b.h) / 2 + MIN_LABEL_GAP - Math.abs(a.y - b.y)) / 2 + 1;
-          if (a.y <= b.y) {
-            a.y -= nudge;
-            b.y += nudge;
-          } else {
-            a.y += nudge;
-            b.y -= nudge;
-          }
+          // Slide each label along its own path in opposite directions
+          const step = 0.08;
+          a.t = Math.max(0.15, a.t - step);
+          b.t = Math.min(0.85, b.t + step);
+          const ptA = interpolatePolyline(a.points, a.t);
+          const ptB = interpolatePolyline(b.points, b.t);
+          a.x = ptA.x;
+          a.y = ptA.y;
+          b.x = ptB.x;
+          b.y = ptB.y;
           moved = true;
         }
       }
@@ -320,7 +344,7 @@ export function renderInitiativeStatus(
     if (!moved) break;
   }
 
-  // Build a lookup from edge index to label placement
+  // Build lookup from edge index to label placement
   const labelMap = new Map<number, LabelPlacement>();
   for (const lp of labelPlacements) labelMap.set(lp.edgeIdx, lp);
 
@@ -348,7 +372,7 @@ export function renderInitiativeStatus(
         .attr('class', 'is-edge');
     }
 
-    // Edge label at computed position
+    // Edge label placed on its own path
     const lp = labelMap.get(ei);
     if (edge.label && lp) {
       edgeG
