@@ -22,10 +22,10 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
     });
   }
 
-  it('uses the default base URL', () => {
+  it('uses the default base URL with both query and hash', () => {
     const result = encodeDiagramUrl('chart: pie\nA: 10');
     if (result.error) throw new Error('unexpected error');
-    expect(result.url).toMatch(/^https:\/\/diagrammo\.app\/view\?dgmo=/);
+    expect(result.url).toMatch(/^https:\/\/diagrammo\.app\/view\?dgmo=.+#dgmo=/);
   });
 
   it('accepts a custom base URL', () => {
@@ -33,7 +33,14 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
       baseUrl: 'https://example.com/playground',
     });
     if (result.error) throw new Error('unexpected error');
-    expect(result.url).toMatch(/^https:\/\/example\.com\/playground\?dgmo=/);
+    expect(result.url).toMatch(/^https:\/\/example\.com\/playground\?dgmo=.+#dgmo=/);
+  });
+
+  it('decodes from hash when query is stripped', () => {
+    const result = encodeDiagramUrl('chart: pie\nA: 10');
+    if (result.error) throw new Error('unexpected error');
+    const hash = new URL(result.url).hash;
+    expect(decodeDiagramUrl(hash).dsl).toBe('chart: pie\nA: 10');
   });
 
   describe('size limit enforcement', () => {

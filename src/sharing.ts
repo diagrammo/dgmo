@@ -47,7 +47,9 @@ export function encodeDiagramUrl(
     hash += `&tag=${encodeURIComponent(options.viewState.activeTagGroup)}`;
   }
 
-  return { url: `${baseUrl}?${hash}` };
+  // Encode in both query param AND hash fragment — some share mechanisms
+  // strip one or the other (iOS share sheet strips #, AirDrop strips ?)
+  return { url: `${baseUrl}?${hash}#${hash}` };
 }
 
 /**
