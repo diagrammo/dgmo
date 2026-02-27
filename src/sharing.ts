@@ -47,13 +47,14 @@ export function encodeDiagramUrl(
     hash += `&tag=${encodeURIComponent(options.viewState.activeTagGroup)}`;
   }
 
-  return { url: `${baseUrl}#${hash}` };
+  return { url: `${baseUrl}?${hash}` };
 }
 
 /**
- * Decode a DGMO DSL string and view state from a URL hash.
+ * Decode a DGMO DSL string and view state from a URL query string or hash.
  * Accepts any of:
- *   - `#dgmo=<payload>&tag=<name>`
+ *   - `?dgmo=<payload>&tag=<name>`
+ *   - `#dgmo=<payload>&tag=<name>` (backwards compat)
  *   - `dgmo=<payload>`
  *   - `<bare payload>`
  *
@@ -65,8 +66,8 @@ export function decodeDiagramUrl(hash: string): DecodedDiagramUrl {
 
   let raw = hash;
 
-  // Strip leading '#'
-  if (raw.startsWith('#')) {
+  // Strip leading '#' or '?'
+  if (raw.startsWith('#') || raw.startsWith('?')) {
     raw = raw.slice(1);
   }
 

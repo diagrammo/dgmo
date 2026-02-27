@@ -17,15 +17,15 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
       if (result.error) {
         throw new Error(`Unexpected error for ${name}: ${result.error}`);
       }
-      const hash = new URL(result.url).hash;
-      expect(decodeDiagramUrl(hash).dsl).toBe(dsl);
+      const query = new URL(result.url).search;
+      expect(decodeDiagramUrl(query).dsl).toBe(dsl);
     });
   }
 
   it('uses the default base URL', () => {
     const result = encodeDiagramUrl('chart: pie\nA: 10');
     if (result.error) throw new Error('unexpected error');
-    expect(result.url).toMatch(/^https:\/\/diagrammo\.app\/view#dgmo=/);
+    expect(result.url).toMatch(/^https:\/\/diagrammo\.app\/view\?dgmo=/);
   });
 
   it('accepts a custom base URL', () => {
@@ -33,7 +33,7 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
       baseUrl: 'https://example.com/playground',
     });
     if (result.error) throw new Error('unexpected error');
-    expect(result.url).toMatch(/^https:\/\/example\.com\/playground#dgmo=/);
+    expect(result.url).toMatch(/^https:\/\/example\.com\/playground\?dgmo=/);
   });
 
   describe('size limit enforcement', () => {
@@ -53,25 +53,33 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
   });
 
   describe('decodeDiagramUrl edge cases', () => {
-    it('handles hash with # prefix', () => {
+    it('handles query with ? prefix', () => {
       const result = encodeDiagramUrl('chart: pie\nA: 10');
       if (result.error) throw new Error('unexpected error');
-      const hash = new URL(result.url).hash; // includes #
-      expect(decodeDiagramUrl(hash).dsl).toBe('chart: pie\nA: 10');
+      const query = new URL(result.url).search; // includes ?
+      expect(decodeDiagramUrl(query).dsl).toBe('chart: pie\nA: 10');
     });
 
-    it('handles hash without # prefix', () => {
+    it('handles query without ? prefix', () => {
       const result = encodeDiagramUrl('chart: pie\nA: 10');
       if (result.error) throw new Error('unexpected error');
-      const hash = new URL(result.url).hash.slice(1); // strip #
-      expect(decodeDiagramUrl(hash).dsl).toBe('chart: pie\nA: 10');
+      const query = new URL(result.url).search.slice(1); // strip ?
+      expect(decodeDiagramUrl(query).dsl).toBe('chart: pie\nA: 10');
     });
 
     it('handles bare payload (no dgmo= prefix)', () => {
       const result = encodeDiagramUrl('chart: pie\nA: 10');
       if (result.error) throw new Error('unexpected error');
-      const payload = new URL(result.url).hash.replace('#dgmo=', '');
+      const payload = new URL(result.url).search.replace('?dgmo=', '');
       expect(decodeDiagramUrl(payload).dsl).toBe('chart: pie\nA: 10');
+    });
+
+    it('backwards compat: handles hash with # prefix', () => {
+      const result = encodeDiagramUrl('chart: pie\nA: 10');
+      if (result.error) throw new Error('unexpected error');
+      // Simulate old-style URL with hash fragment
+      const query = new URL(result.url).search.slice(1); // dgmo=...
+      expect(decodeDiagramUrl(`#${query}`).dsl).toBe('chart: pie\nA: 10');
     });
 
     it('returns empty dsl for invalid payload', () => {
@@ -102,8 +110,8 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
       });
       if (result.error) throw new Error('unexpected error');
       expect(result.url).toContain('&tag=Location');
-      const hash = new URL(result.url).hash;
-      const decoded = decodeDiagramUrl(hash);
+      const query = new URL(result.url).search;
+      const decoded = decodeDiagramUrl(query);
       expect(decoded.dsl).toBe(dsl);
       expect(decoded.viewState.activeTagGroup).toBe('Location');
     });
@@ -115,8 +123,8 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
       });
       if (result.error) throw new Error('unexpected error');
       expect(result.url).toContain('&tag=Team%20%26%20Role');
-      const hash = new URL(result.url).hash;
-      const decoded = decodeDiagramUrl(hash);
+      const query = new URL(result.url).search;
+      const decoded = decodeDiagramUrl(query);
       expect(decoded.viewState.activeTagGroup).toBe('Team & Role');
     });
 
@@ -135,8 +143,8 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
     it('returns empty viewState when no tag param present', () => {
       const result = encodeDiagramUrl('chart: org\nCEO');
       if (result.error) throw new Error('unexpected error');
-      const hash = new URL(result.url).hash;
-      const decoded = decodeDiagramUrl(hash);
+      const query = new URL(result.url).search;
+      const decoded = decodeDiagramUrl(query);
       expect(decoded.viewState).toEqual({});
     });
 
