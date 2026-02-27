@@ -44,9 +44,9 @@ export function layoutInitiativeStatus(parsed: ParsedInitiativeStatus): ISLayout
   const g = new dagre.graphlib.Graph({ multigraph: true });
   g.setGraph({
     rankdir: 'LR',
-    nodesep: 50,
-    ranksep: 80,
-    edgesep: 25,
+    nodesep: 80,
+    ranksep: 160,
+    edgesep: 40,
   });
   g.setDefaultEdgeLabel(() => ({}));
 

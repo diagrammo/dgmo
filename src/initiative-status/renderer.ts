@@ -250,8 +250,83 @@ export function renderInitiativeStatus(
     .append('g')
     .attr('transform', `translate(${offsetX}, ${offsetY}) scale(${scale})`);
 
+  // Compute edge label positions first, then nudge to avoid overlaps
+  interface LabelPlacement {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    edgeIdx: number;
+  }
+  const labelPlacements: LabelPlacement[] = [];
+
+  for (let ei = 0; ei < layout.edges.length; ei++) {
+    const edge = layout.edges[ei];
+    if (!edge.label || edge.points.length < 2) continue;
+
+    // Place label at ~40% along the path (closer to source) to avoid
+    // clustering at the midpoint when many edges converge on one node
+    const paramIdx = Math.max(1, Math.floor(edge.points.length * 0.4));
+    const pt = edge.points[paramIdx];
+
+    // Compute perpendicular offset so label sits beside the edge, not on it
+    const prev = edge.points[Math.max(0, paramIdx - 1)];
+    const next = edge.points[Math.min(edge.points.length - 1, paramIdx + 1)];
+    const dx = next.x - prev.x;
+    const dy = next.y - prev.y;
+    const len = Math.sqrt(dx * dx + dy * dy) || 1;
+    // Normal vector (perpendicular), pointing "above" the edge
+    const nx = -dy / len;
+    const ny = dx / len;
+    const LABEL_OFFSET = 14;
+
+    const labelLen = edge.label.length;
+    const bgW = labelLen * 7 + 10;
+    const bgH = 18;
+
+    labelPlacements.push({
+      x: pt.x + nx * LABEL_OFFSET,
+      y: pt.y + ny * LABEL_OFFSET,
+      w: bgW,
+      h: bgH,
+      edgeIdx: ei,
+    });
+  }
+
+  // Resolve label overlaps by nudging colliding labels apart vertically
+  const MIN_LABEL_GAP = 4;
+  for (let passes = 0; passes < 5; passes++) {
+    let moved = false;
+    for (let i = 0; i < labelPlacements.length; i++) {
+      for (let j = i + 1; j < labelPlacements.length; j++) {
+        const a = labelPlacements[i];
+        const b = labelPlacements[j];
+        // Check AABB overlap
+        const overlapX = Math.abs(a.x - b.x) < (a.w + b.w) / 2 + MIN_LABEL_GAP;
+        const overlapY = Math.abs(a.y - b.y) < (a.h + b.h) / 2 + MIN_LABEL_GAP;
+        if (overlapX && overlapY) {
+          const nudge = ((a.h + b.h) / 2 + MIN_LABEL_GAP - Math.abs(a.y - b.y)) / 2 + 1;
+          if (a.y <= b.y) {
+            a.y -= nudge;
+            b.y += nudge;
+          } else {
+            a.y += nudge;
+            b.y -= nudge;
+          }
+          moved = true;
+        }
+      }
+    }
+    if (!moved) break;
+  }
+
+  // Build a lookup from edge index to label placement
+  const labelMap = new Map<number, LabelPlacement>();
+  for (const lp of labelPlacements) labelMap.set(lp.edgeIdx, lp);
+
   // Render edges (below nodes)
-  for (const edge of layout.edges) {
+  for (let ei = 0; ei < layout.edges.length; ei++) {
+    const edge = layout.edges[ei];
     if (edge.points.length < 2) continue;
     const edgeColor = edgeStrokeColor(edge.status, palette, isDark);
     const markerId = `is-arrow-${edgeColor.replace('#', '')}`;
@@ -273,20 +348,15 @@ export function renderInitiativeStatus(
         .attr('class', 'is-edge');
     }
 
-    // Edge label at midpoint
-    if (edge.label) {
-      const midIdx = Math.floor(edge.points.length / 2);
-      const midPt = edge.points[midIdx];
-
-      const labelLen = edge.label.length;
-      const bgW = labelLen * 7 + 10;
-      const bgH = 18;
+    // Edge label at computed position
+    const lp = labelMap.get(ei);
+    if (edge.label && lp) {
       edgeG
         .append('rect')
-        .attr('x', midPt.x - bgW / 2)
-        .attr('y', midPt.y - bgH / 2 - 1)
-        .attr('width', bgW)
-        .attr('height', bgH)
+        .attr('x', lp.x - lp.w / 2)
+        .attr('y', lp.y - lp.h / 2 - 1)
+        .attr('width', lp.w)
+        .attr('height', lp.h)
         .attr('rx', 3)
         .attr('fill', palette.bg)
         .attr('opacity', 0.9)
@@ -294,8 +364,8 @@ export function renderInitiativeStatus(
 
       edgeG
         .append('text')
-        .attr('x', midPt.x)
-        .attr('y', midPt.y + 4)
+        .attr('x', lp.x)
+        .attr('y', lp.y + 4)
         .attr('text-anchor', 'middle')
         .attr('fill', edgeColor)
         .attr('font-size', EDGE_LABEL_FONT_SIZE)
