@@ -19,12 +19,15 @@ import { layoutInitiativeStatus } from './layout';
 const DIAGRAM_PADDING = 20;
 const MAX_SCALE = 3;
 const NODE_FONT_SIZE = 13;
+const MIN_NODE_FONT_SIZE = 9;
 const EDGE_LABEL_FONT_SIZE = 11;
 const EDGE_STROKE_WIDTH = 2;
 const NODE_STROKE_WIDTH = 2;
 const NODE_RX = 8;
 const ARROWHEAD_W = 10;
 const ARROWHEAD_H = 7;
+const CHAR_WIDTH_RATIO = 0.6; // approx char width / font size for Helvetica
+const NODE_TEXT_PADDING = 12; // horizontal padding inside node for text
 
 // ============================================================
 // Color helpers
@@ -77,6 +80,77 @@ const lineGenerator = d3Shape.line<{ x: number; y: number }>()
   .x((d) => d.x)
   .y((d) => d.y)
   .curve(d3Shape.curveBasis);
+
+// ============================================================
+// Text fitting — wrap or shrink to fit fixed-size nodes
+// ============================================================
+
+interface FittedText {
+  lines: string[];
+  fontSize: number;
+}
+
+function fitTextToNode(label: string, nodeWidth: number, nodeHeight: number): FittedText {
+  const maxTextWidth = nodeWidth - NODE_TEXT_PADDING * 2;
+  const lineHeight = 1.3;
+
+  // Try at full font size first, then shrink
+  for (let fontSize = NODE_FONT_SIZE; fontSize >= MIN_NODE_FONT_SIZE; fontSize--) {
+    const charWidth = fontSize * CHAR_WIDTH_RATIO;
+    const maxCharsPerLine = Math.floor(maxTextWidth / charWidth);
+    const maxLines = Math.floor((nodeHeight - 8) / (fontSize * lineHeight));
+
+    if (maxCharsPerLine < 2 || maxLines < 1) continue;
+
+    // If it fits on one line, done
+    if (label.length <= maxCharsPerLine) {
+      return { lines: [label], fontSize };
+    }
+
+    // Try word-wrapping
+    const words = label.split(/\s+/);
+    const lines: string[] = [];
+    let current = '';
+
+    for (const word of words) {
+      const test = current ? `${current} ${word}` : word;
+      if (test.length <= maxCharsPerLine) {
+        current = test;
+      } else {
+        if (current) lines.push(current);
+        current = word;
+      }
+    }
+    if (current) lines.push(current);
+
+    // If all lines fit, check each line width
+    if (lines.length <= maxLines && lines.every((l) => l.length <= maxCharsPerLine)) {
+      return { lines, fontSize };
+    }
+
+    // Lines don't fit — try hard-breaking long words
+    const hardLines: string[] = [];
+    for (const line of lines) {
+      if (line.length <= maxCharsPerLine) {
+        hardLines.push(line);
+      } else {
+        for (let i = 0; i < line.length; i += maxCharsPerLine) {
+          hardLines.push(line.slice(i, i + maxCharsPerLine));
+        }
+      }
+    }
+
+    if (hardLines.length <= maxLines) {
+      return { lines: hardLines, fontSize };
+    }
+  }
+
+  // Last resort: smallest font, truncate with ellipsis
+  const charWidth = MIN_NODE_FONT_SIZE * CHAR_WIDTH_RATIO;
+  const maxChars = Math.floor((nodeWidth - NODE_TEXT_PADDING * 2) / charWidth);
+  const truncated = label.length > maxChars ? label.slice(0, maxChars - 1) + '\u2026' : label;
+  return { lines: [truncated], fontSize: MIN_NODE_FONT_SIZE };
+}
 
 // ============================================================
 // Main renderer
@@ -263,17 +337,24 @@ export function renderInitiativeStatus(
       .attr('stroke', nodeStroke(node.status, palette, isDark))
       .attr('stroke-width', NODE_STROKE_WIDTH);
 
-    // Label
-    nodeG
-      .append('text')
-      .attr('x', 0)
-      .attr('y', 0)
-      .attr('text-anchor', 'middle')
-      .attr('dominant-baseline', 'central')
-      .attr('fill', nodeTextColor(node.status, palette, isDark))
-      .attr('font-size', NODE_FONT_SIZE)
-      .attr('font-weight', '600')
-      .text(node.label);
+    // Label — fit text into fixed-size box
+    const fitted = fitTextToNode(node.label, node.width, node.height);
+    const textColor = nodeTextColor(node.status, palette, isDark);
+    const totalTextHeight = fitted.lines.length * fitted.fontSize * 1.3;
+    const startY = -totalTextHeight / 2 + fitted.fontSize * 0.65;
+
+    for (let li = 0; li < fitted.lines.length; li++) {
+      nodeG
+        .append('text')
+        .attr('x', 0)
+        .attr('y', startY + li * fitted.fontSize * 1.3)
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'central')
+        .attr('fill', textColor)
+        .attr('font-size', fitted.fontSize)
+        .attr('font-weight', '600')
+        .text(fitted.lines[li]);
+    }
   }
 }
 

@@ -31,14 +31,10 @@ export interface ISLayoutResult {
   height: number;
 }
 
-const NODE_HEIGHT = 44;
-const CHAR_WIDTH = 8;
-const NODE_PADDING = 40;
-const MIN_NODE_WIDTH = 120;
-
-function computeNodeWidth(label: string): number {
-  return Math.max(MIN_NODE_WIDTH, label.length * CHAR_WIDTH + NODE_PADDING);
-}
+// Golden ratio fixed-size nodes — all boxes are identical dimensions
+const PHI = 1.618;
+const NODE_HEIGHT = 60;
+const NODE_WIDTH = Math.round(NODE_HEIGHT * PHI); // ~97
 
 export function layoutInitiativeStatus(parsed: ParsedInitiativeStatus): ISLayoutResult {
   if (parsed.nodes.length === 0) {
@@ -54,10 +50,9 @@ export function layoutInitiativeStatus(parsed: ParsedInitiativeStatus): ISLayout
   });
   g.setDefaultEdgeLabel(() => ({}));
 
-  // Add nodes
+  // Add nodes — all same size (golden ratio)
   for (const node of parsed.nodes) {
-    const width = computeNodeWidth(node.label);
-    g.setNode(node.label, { label: node.label, width, height: NODE_HEIGHT });
+    g.setNode(node.label, { label: node.label, width: NODE_WIDTH, height: NODE_HEIGHT });
   }
 
   // Add edges — use multigraph names to allow duplicates between same pair
