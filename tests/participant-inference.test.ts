@@ -7,7 +7,7 @@ import { inferParticipantType, RULE_COUNT } from '../src/sequence/participant-in
 
 describe('RULE_COUNT', () => {
   it('matches the actual number of rules in the table', () => {
-    expect(RULE_COUNT).toBe(222);
+    expect(RULE_COUNT).toBe(223);
   });
 });
 
@@ -106,7 +106,7 @@ describe('regression guard — original rules', () => {
     expect(inferParticipantType(name)).toBe(expected);
   });
 
-  // Group 6: Actor (17 rules — 14 exact + 3 suffix)
+  // Group 6: Actor (18 rules — 14 exact + 4 suffix)
   it.each([
     ['Admin', 'actor'],
     ['User', 'actor'],
@@ -125,6 +125,7 @@ describe('regression guard — original rules', () => {
     ['EndUser', 'actor'],
     ['SystemActor', 'actor'],
     ['DataAnalyst', 'actor'],
+    ['SupportStaff', 'actor'],
   ])('%s → %s', (name, expected) => {
     expect(inferParticipantType(name)).toBe(expected);
   });

@@ -203,6 +203,7 @@ const PARTICIPANT_RULES: readonly InferenceRule[] = [
   { pattern: /User$/i, type: 'actor' },
   { pattern: /Actor$/i, type: 'actor' },
   { pattern: /Analyst$/i, type: 'actor' },
+  { pattern: /Staff$/i, type: 'actor' },
 
   // ── 7. Frontend patterns ────────────────────────────────
   { pattern: /App$/i, type: 'frontend' },

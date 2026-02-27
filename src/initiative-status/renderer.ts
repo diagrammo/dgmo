@@ -89,6 +89,33 @@ const lineGenerator = d3Shape.line<{ x: number; y: number }>()
 // Text fitting — wrap or shrink to fit fixed-size nodes
 // ============================================================
 
+/**
+ * Splits a word at camelCase boundaries.
+ * "MyProVenue" → ["MyPro", "Venue"]
+ * "HTMLParser" → ["HTML", "Parser"]
+ * "getUserID" → ["get", "User", "ID"]
+ */
+function splitCamelCase(word: string): string[] {
+  const parts: string[] = [];
+  let start = 0;
+  for (let i = 1; i < word.length; i++) {
+    const prev = word[i - 1];
+    const curr = word[i];
+    const next = i + 1 < word.length ? word[i + 1] : '';
+    // aB → split before B (lowercase → uppercase)
+    const lowerToUpper = prev >= 'a' && prev <= 'z' && curr >= 'A' && curr <= 'Z';
+    // ABc → split before B when followed by lowercase (end of uppercase run)
+    const upperRunEnd =
+      prev >= 'A' && prev <= 'Z' && curr >= 'A' && curr <= 'Z' && next >= 'a' && next <= 'z';
+    if (lowerToUpper || upperRunEnd) {
+      parts.push(word.slice(start, i));
+      start = i;
+    }
+  }
+  parts.push(word.slice(start));
+  return parts.length > 1 ? parts : [word];
+}
+
 interface FittedText {
   lines: string[];
   fontSize: number;
@@ -132,9 +159,36 @@ function fitTextToNode(label: string, nodeWidth: number, nodeHeight: number): Fi
       return { lines, fontSize };
     }
 
+    // Try splitting long words on camelCase boundaries and re-wrapping
+    const camelWords: string[] = [];
+    for (const word of words) {
+      if (word.length > maxCharsPerLine) {
+        camelWords.push(...splitCamelCase(word));
+      } else {
+        camelWords.push(word);
+      }
+    }
+
+    const camelLines: string[] = [];
+    let camelCurrent = '';
+    for (const word of camelWords) {
+      const test = camelCurrent ? `${camelCurrent} ${word}` : word;
+      if (test.length <= maxCharsPerLine) {
+        camelCurrent = test;
+      } else {
+        if (camelCurrent) camelLines.push(camelCurrent);
+        camelCurrent = word;
+      }
+    }
+    if (camelCurrent) camelLines.push(camelCurrent);
+
+    if (camelLines.length <= maxLines && camelLines.every((l) => l.length <= maxCharsPerLine)) {
+      return { lines: camelLines, fontSize };
+    }
+
     // Lines don't fit — try hard-breaking long words
     const hardLines: string[] = [];
-    for (const line of lines) {
+    for (const line of camelLines) {
       if (line.length <= maxCharsPerLine) {
         hardLines.push(line);
       } else {
