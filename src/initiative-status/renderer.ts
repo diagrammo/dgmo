@@ -186,7 +186,10 @@ function fitTextToNode(label: string, nodeWidth: number, nodeHeight: number): Fi
       return { lines: camelLines, fontSize };
     }
 
-    // Lines don't fit — try hard-breaking long words
+    // If not at minimum font size yet, try shrinking before hard-breaking
+    if (fontSize > MIN_NODE_FONT_SIZE) continue;
+
+    // At minimum font size — hard-break as last resort
     const hardLines: string[] = [];
     for (const line of camelLines) {
       if (line.length <= maxCharsPerLine) {
