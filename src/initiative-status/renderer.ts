@@ -9,7 +9,7 @@ import { contrastText } from '../palettes/color-utils';
 import type { PaletteColors } from '../palettes';
 import type { ParsedInitiativeStatus, InitiativeStatus } from './types';
 import type { ParticipantType } from '../sequence/parser';
-import type { ISLayoutResult, ISLayoutNode, ISLayoutEdge } from './layout';
+import type { ISLayoutResult, ISLayoutNode, ISLayoutEdge, ISLayoutGroup } from './layout';
 import { parseInitiativeStatus } from './parser';
 import { layoutInitiativeStatus } from './layout';
 
@@ -30,6 +30,8 @@ const ARROWHEAD_H = 7;
 const CHAR_WIDTH_RATIO = 0.6; // approx char width / font size for Helvetica
 const NODE_TEXT_PADDING = 12; // horizontal padding inside node for text
 const SERVICE_RX = 10;
+const GROUP_EXTRA_PADDING = 8;
+const GROUP_LABEL_FONT_SIZE = 11;
 
 // ============================================================
 // Color helpers
@@ -548,6 +550,56 @@ export function renderInitiativeStatus(
   // Build lookup from edge index to label placement
   const labelMap = new Map<number, LabelPlacement>();
   for (const lp of labelPlacements) labelMap.set(lp.edgeIdx, lp);
+
+  // Render groups (background layer, before edges and nodes)
+  for (const group of layout.groups) {
+    if (group.width === 0 && group.height === 0) continue;
+    const gx = group.x - GROUP_EXTRA_PADDING;
+    const gy = group.y - GROUP_EXTRA_PADDING - GROUP_LABEL_FONT_SIZE - 4;
+    const gw = group.width + GROUP_EXTRA_PADDING * 2;
+    const gh = group.height + GROUP_EXTRA_PADDING * 2 + GROUP_LABEL_FONT_SIZE + 4;
+
+    const groupStatusColor = group.status
+      ? statusColor(group.status, palette, isDark)
+      : palette.textMuted;
+    // More subdued than nodes: 15% status color vs 30% for nodes
+    const fillColor = mix(groupStatusColor, isDark ? palette.surface : palette.bg, 15);
+    const strokeColor = mix(groupStatusColor, palette.textMuted, 50);
+
+    const groupG = contentG
+      .append('g')
+      .attr('class', 'is-group')
+      .attr('data-line-number', String(group.lineNumber));
+
+    groupG
+      .append('rect')
+      .attr('x', gx)
+      .attr('y', gy)
+      .attr('width', gw)
+      .attr('height', gh)
+      .attr('rx', 6)
+      .attr('fill', fillColor)
+      .attr('stroke', strokeColor)
+      .attr('stroke-width', 1)
+      .attr('stroke-opacity', 0.5);
+
+    groupG
+      .append('text')
+      .attr('x', gx + 8)
+      .attr('y', gy + GROUP_LABEL_FONT_SIZE + 4)
+      .attr('fill', strokeColor)
+      .attr('font-size', GROUP_LABEL_FONT_SIZE)
+      .attr('font-weight', 'bold')
+      .attr('opacity', 0.7)
+      .attr('class', 'is-group-label')
+      .text(group.label);
+
+    if (onClickItem) {
+      groupG.style('cursor', 'pointer').on('click', () => {
+        onClickItem(group.lineNumber);
+      });
+    }
+  }
 
   // Render edges (below nodes)
   for (let ei = 0; ei < layout.edges.length; ei++) {

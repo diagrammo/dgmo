@@ -140,6 +140,80 @@ describe('parseInitiativeStatus', () => {
     });
   });
 
+  // === Groups ===
+  describe('groups', () => {
+    it('parses a group with indented children', () => {
+      const input = `chart: initiative-status
+title: Test
+User | na
+[External]
+  Identity Service | na
+  Vendor | na`;
+      const result = parseInitiativeStatus(input);
+      expect(result.groups).toHaveLength(1);
+      expect(result.groups[0].label).toBe('External');
+      expect(result.groups[0].nodeLabels).toEqual(['Identity Service', 'Vendor']);
+      expect(result.nodes).toHaveLength(3);
+    });
+
+    it('closes group on non-indented line', () => {
+      const input = `[Group A]
+  A | done
+B | wip`;
+      const result = parseInitiativeStatus(input);
+      expect(result.groups).toHaveLength(1);
+      expect(result.groups[0].nodeLabels).toEqual(['A']);
+      expect(result.nodes).toHaveLength(2);
+    });
+
+    it('supports multiple groups', () => {
+      const input = `[First]
+  A | done
+[Second]
+  B | wip
+  C | todo`;
+      const result = parseInitiativeStatus(input);
+      expect(result.groups).toHaveLength(2);
+      expect(result.groups[0].label).toBe('First');
+      expect(result.groups[0].nodeLabels).toEqual(['A']);
+      expect(result.groups[1].label).toBe('Second');
+      expect(result.groups[1].nodeLabels).toEqual(['B', 'C']);
+    });
+
+    it('records group line number', () => {
+      const input = `A | done\n[MyGroup]\n  B | wip`;
+      const result = parseInitiativeStatus(input);
+      expect(result.groups[0].lineNumber).toBe(2);
+    });
+
+    it('does not add non-indented nodes to group', () => {
+      const input = `[Group]
+  A | done
+B | wip`;
+      const result = parseInitiativeStatus(input);
+      expect(result.groups[0].nodeLabels).toEqual(['A']);
+    });
+
+    it('closes trailing group at end of input', () => {
+      const input = `[Trailing]
+  X | na`;
+      const result = parseInitiativeStatus(input);
+      expect(result.groups).toHaveLength(1);
+      expect(result.groups[0].nodeLabels).toEqual(['X']);
+    });
+
+    it('edges inside groups are parsed normally', () => {
+      const input = `A | done
+[External]
+  B | wip
+  A -> B | done`;
+      const result = parseInitiativeStatus(input);
+      expect(result.edges).toHaveLength(1);
+      expect(result.edges[0].source).toBe('A');
+      expect(result.groups[0].nodeLabels).toEqual(['B']);
+    });
+  });
+
   // === Full diagram ===
   describe('full diagram', () => {
     it('parses the example from the plan', () => {
@@ -172,6 +246,29 @@ Web Front End -> Back End: API | todo`;
       expect(result.nodes).toHaveLength(8);
       expect(result.edges).toHaveLength(10);
       expect(result.diagnostics).toEqual([]);
+    });
+
+    it('parses diagram with groups', () => {
+      const input = `chart: initiative-status
+title: Project Phoenix
+
+User | na
+Mobile | done
+Back End | wip
+[External]
+  Identity Service | na
+  Vendor | na
+
+Mobile -> Back End: getUser | done
+Back End -> Identity Service: auth | done`;
+
+      const result = parseInitiativeStatus(input);
+      expect(result.error).toBeUndefined();
+      expect(result.nodes).toHaveLength(5);
+      expect(result.groups).toHaveLength(1);
+      expect(result.groups[0].label).toBe('External');
+      expect(result.groups[0].nodeLabels).toEqual(['Identity Service', 'Vendor']);
+      expect(result.edges).toHaveLength(2);
     });
   });
 });

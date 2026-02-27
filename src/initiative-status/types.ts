@@ -24,12 +24,19 @@ export interface ISEdge {
   lineNumber: number;
 }
 
+export interface ISGroup {
+  label: string;
+  nodeLabels: string[];
+  lineNumber: number;
+}
+
 export interface ParsedInitiativeStatus {
   type: 'initiative-status';
   title: string | null;
   titleLineNumber: number | null;
   nodes: ISNode[];
   edges: ISEdge[];
+  groups: ISGroup[];
   options: Record<string, string>;
   diagnostics: DgmoError[];
   error?: string;

@@ -8,6 +8,7 @@ import type {
   ParsedInitiativeStatus,
   ISNode,
   ISEdge,
+  ISGroup,
   InitiativeStatus,
 } from './types';
 import { VALID_STATUSES } from './types';
@@ -60,6 +61,7 @@ export function parseInitiativeStatus(content: string): ParsedInitiativeStatus {
     titleLineNumber: null,
     nodes: [],
     edges: [],
+    groups: [],
     options: {},
     diagnostics: [],
     error: undefined,
@@ -67,6 +69,7 @@ export function parseInitiativeStatus(content: string): ParsedInitiativeStatus {
 
   const lines = content.split('\n');
   const nodeLabels = new Set<string>();
+  let currentGroup: ISGroup | null = null;
 
   for (let i = 0; i < lines.length; i++) {
     const lineNum = i + 1; // 1-based
@@ -97,6 +100,24 @@ export function parseInitiativeStatus(content: string): ParsedInitiativeStatus {
       continue;
     }
 
+    // Group header: [Group Name]
+    const groupMatch = trimmed.match(/^\[(.+)\]\s*$/);
+    if (groupMatch) {
+      // Close previous group
+      if (currentGroup) {
+        result.groups.push(currentGroup);
+      }
+      currentGroup = { label: groupMatch[1], nodeLabels: [], lineNumber: lineNum };
+      continue;
+    }
+
+    // Non-indented line closes the current group
+    const isIndented = raw.length > 0 && raw !== trimmed && /^\s/.test(raw);
+    if (!isIndented && currentGroup) {
+      result.groups.push(currentGroup);
+      currentGroup = null;
+    }
+
     // Edge: contains `->`
     if (trimmed.includes('->')) {
       const edge = parseEdgeLine(trimmed, lineNum, result.diagnostics);
@@ -115,7 +136,16 @@ export function parseInitiativeStatus(content: string): ParsedInitiativeStatus {
         nodeLabels.add(node.label);
       }
       result.nodes.push(node);
+      // Add to current group if indented
+      if (currentGroup && isIndented) {
+        currentGroup.nodeLabels.push(node.label);
+      }
     }
+  }
+
+  // Close any trailing group
+  if (currentGroup) {
+    result.groups.push(currentGroup);
   }
 
   // Validate edges reference declared nodes

@@ -195,6 +195,7 @@ export type {
   ParsedInitiativeStatus,
   ISNode,
   ISEdge,
+  ISGroup,
   InitiativeStatus,
 } from './initiative-status/types';
 
@@ -203,6 +204,7 @@ export type {
   ISLayoutResult,
   ISLayoutNode,
   ISLayoutEdge,
+  ISLayoutGroup,
 } from './initiative-status/layout';
 
 export { renderInitiativeStatus, renderInitiativeStatusForExport } from './initiative-status/renderer';

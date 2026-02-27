@@ -66,6 +66,19 @@ Database | done
 Mobile -> Back End: getUser | done
 Back End -> Database: query | done`;
 
+const SAMPLE_WITH_GROUPS = `chart: initiative-status
+title: Grouped
+
+User | na
+Mobile | done
+Back End | wip
+[External]
+  Identity Service | na
+  Vendor | na
+
+Mobile -> Back End: getUser | done
+Back End -> Identity Service: auth | done`;
+
 describe('layoutInitiativeStatus', () => {
   it('positions nodes for a simple diagram', () => {
     const parsed = parseInitiativeStatus(SAMPLE);
@@ -89,6 +102,54 @@ describe('layoutInitiativeStatus', () => {
     const layout = layoutInitiativeStatus(parsed);
     expect(layout.nodes).toHaveLength(0);
     expect(layout.edges).toHaveLength(0);
+    expect(layout.groups).toHaveLength(0);
+  });
+
+  it('computes group bounding boxes', () => {
+    const parsed = parseInitiativeStatus(SAMPLE_WITH_GROUPS);
+    const layout = layoutInitiativeStatus(parsed);
+
+    expect(layout.groups).toHaveLength(1);
+    const group = layout.groups[0];
+    expect(group.label).toBe('External');
+    expect(group.width).toBeGreaterThan(0);
+    expect(group.height).toBeGreaterThan(0);
+    expect(group.lineNumber).toBe(7);
+  });
+
+  it('rolls up group status from children (worst wins)', () => {
+    // Both children are na → group rolls up to na
+    const parsed = parseInitiativeStatus(SAMPLE_WITH_GROUPS);
+    const layout = layoutInitiativeStatus(parsed);
+    expect(layout.groups[0].status).toBe('na');
+
+    // Mixed: todo > wip > done > na
+    const mixed = parseInitiativeStatus(`[Mixed]
+  A | done
+  B | todo
+  C | wip`);
+    const mixedLayout = layoutInitiativeStatus(mixed);
+    expect(mixedLayout.groups[0].status).toBe('todo');
+
+    // All done
+    const allDone = parseInitiativeStatus(`[Complete]
+  X | done
+  Y | done`);
+    const doneLayout = layoutInitiativeStatus(allDone);
+    expect(doneLayout.groups[0].status).toBe('done');
+  });
+
+  it('includes group bounds in total dimensions', () => {
+    const parsed = parseInitiativeStatus(SAMPLE_WITH_GROUPS);
+    const layout = layoutInitiativeStatus(parsed);
+
+    const group = layout.groups[0];
+    const groupRight = group.x + group.width;
+    const groupBottom = group.y + group.height;
+
+    // Total dimensions should encompass group bounds (plus margin)
+    expect(layout.width).toBeGreaterThanOrEqual(groupRight);
+    expect(layout.height).toBeGreaterThanOrEqual(groupBottom);
   });
 });
 
@@ -195,6 +256,30 @@ describe('renderInitiativeStatus', () => {
     const texts = Array.from(labels).map((l) => l.textContent);
     expect(texts).toContain('getUser');
     expect(texts).toContain('query');
+  });
+
+  it('renders groups as background rects with labels', () => {
+    const parsed = parseInitiativeStatus(SAMPLE_WITH_GROUPS);
+    const layout = layoutInitiativeStatus(parsed);
+    const container = document.createElement('div') as unknown as HTMLDivElement;
+
+    renderInitiativeStatus(
+      container,
+      parsed,
+      layout,
+      testPalette,
+      false,
+      undefined,
+      { width: 800, height: 600 }
+    );
+
+    const groups = container.querySelectorAll('.is-group');
+    expect(groups.length).toBe(1);
+    expect(groups[0].getAttribute('data-line-number')).toBe('7');
+
+    const label = container.querySelector('.is-group-label');
+    expect(label).not.toBeNull();
+    expect(label?.textContent).toBe('External');
   });
 
   it('renders in dark mode without errors', () => {
