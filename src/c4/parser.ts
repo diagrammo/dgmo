@@ -6,7 +6,8 @@ import { resolveColor } from '../colors';
 import type { PaletteColors } from '../palettes';
 import type { DgmoError } from '../diagnostics';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
-import type { OrgTagGroup } from '../org/parser';
+import type { TagGroup } from '../utils/tag-groups';
+import { matchTagBlockHeading } from '../utils/tag-groups';
 import { inferParticipantType } from '../sequence/participant-inference';
 import type {
   ParsedC4,
@@ -26,8 +27,6 @@ import type {
 const CHART_TYPE_RE = /^chart\s*:\s*(.+)/i;
 const TITLE_RE = /^title\s*:\s*(.+)/i;
 const OPTION_RE = /^([a-z][a-z0-9-]*)\s*:\s*(.+)$/i;
-const GROUP_HEADING_RE =
-  /^##\s+(.+?)(?:\s+alias\s+(\w+))?(?:\s*\(([^)]+)\))?\s*$/;
 const COLOR_SUFFIX_RE = /\(([^)]+)\)\s*$/;
 const CONTAINER_RE = /^\[([^\]]+)\]$/;
 
@@ -287,7 +286,7 @@ export function parseC4(
   let inDeployment = false;
 
   // Tag group parsing state
-  let currentTagGroup: OrgTagGroup | null = null;
+  let currentTagGroup: TagGroup | null = null;
   const aliasMap = new Map<string, string>();
 
   // Name uniqueness tracking
@@ -341,38 +340,40 @@ export function parseC4(
       }
     }
 
+    // Tag group heading — `tag: Name` (new) or `## Name` (deprecated)
+    // Must be checked BEFORE OPTION_RE to prevent `tag: Rank` being swallowed as option
+    const tagBlockMatch = matchTagBlockHeading(trimmed);
+    if (tagBlockMatch) {
+      if (contentStarted) {
+        pushError(lineNumber, 'Tag groups must appear before content');
+        continue;
+      }
+      if (tagBlockMatch.deprecated) {
+        pushError(lineNumber, `'## ${tagBlockMatch.name}' is deprecated for tag groups — use 'tag: ${tagBlockMatch.name}' instead`, 'warning');
+      }
+      currentTagGroup = {
+        name: tagBlockMatch.name,
+        alias: tagBlockMatch.alias,
+        entries: [],
+        lineNumber,
+      };
+      if (tagBlockMatch.alias) {
+        aliasMap.set(tagBlockMatch.alias.toLowerCase(), tagBlockMatch.name.toLowerCase());
+      }
+      result.tagGroups.push(currentTagGroup);
+      continue;
+    }
+
     // Generic header options
     if (!contentStarted && !currentTagGroup && measureIndent(line) === 0) {
       const optMatch = trimmed.match(OPTION_RE);
-      if (optMatch && !trimmed.startsWith('##')) {
+      if (optMatch) {
         const key = optMatch[1].trim().toLowerCase();
         if (key !== 'chart' && key !== 'title') {
           result.options[key] = optMatch[2].trim();
           continue;
         }
       }
-    }
-
-    // ## Tag group heading
-    const groupMatch = trimmed.match(GROUP_HEADING_RE);
-    if (groupMatch) {
-      if (contentStarted) {
-        pushError(lineNumber, 'Tag groups (##) must appear before content');
-        continue;
-      }
-      const groupName = groupMatch[1].trim();
-      const alias = groupMatch[2] || undefined;
-      currentTagGroup = {
-        name: groupName,
-        alias,
-        entries: [],
-        lineNumber,
-      };
-      if (alias) {
-        aliasMap.set(alias.toLowerCase(), groupName.toLowerCase());
-      }
-      result.tagGroups.push(currentTagGroup);
-      continue;
     }
 
     // Tag group entries

@@ -209,6 +209,57 @@ describe('parseKanban', () => {
     });
   });
 
+  // === tag: block syntax ===
+  describe('tag: block syntax', () => {
+    it('parses tag: heading with entries', () => {
+      const result = parseKanban(
+        'chart: kanban\ntag: Priority\n  High(red)\n  Low(green)\n\n== To Do ==\nTask 1'
+      );
+      expect(result.tagGroups).toHaveLength(1);
+      expect(result.tagGroups[0].name).toBe('Priority');
+      expect(result.tagGroups[0].entries).toHaveLength(2);
+    });
+
+    it('parses tag: with alias', () => {
+      const result = parseKanban(
+        'chart: kanban\ntag: Priority alias p\n  High(red)\n  Low(green)\n\n== To Do ==\nTask | p: High'
+      );
+      expect(result.tagGroups[0].alias).toBe('p');
+      expect(result.columns[0].cards[0].tags).toEqual({ priority: 'High' });
+    });
+
+    it('parses tag: with default value', () => {
+      const result = parseKanban(
+        'chart: kanban\ntag: Priority\n  High(red)\n  Low(green) default\n\n== To Do ==\nTask 1'
+      );
+      expect(result.tagGroups[0].defaultValue).toBe('Low');
+    });
+
+    it('is case-insensitive', () => {
+      const result = parseKanban(
+        'chart: kanban\nTag: Priority\n  High(red)\n\n== To Do ==\nTask 1'
+      );
+      expect(result.tagGroups[0].name).toBe('Priority');
+    });
+
+    it('does not emit deprecation warning for tag: syntax', () => {
+      const result = parseKanban(
+        'chart: kanban\ntag: Priority\n  High(red)\n\n== To Do ==\nTask 1'
+      );
+      const warnings = result.diagnostics.filter(d => d.message.includes('deprecated'));
+      expect(warnings).toHaveLength(0);
+    });
+
+    it('emits deprecation warning for ## syntax', () => {
+      const result = parseKanban(
+        'chart: kanban\n## Priority\n  High(red)\n\n== To Do ==\nTask 1'
+      );
+      const warnings = result.diagnostics.filter(d => d.message.includes('deprecated'));
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].message).toContain("tag: Priority");
+    });
+  });
+
   // === Warnings ===
   describe('warnings', () => {
     it('warns when WIP limit exceeded', () => {

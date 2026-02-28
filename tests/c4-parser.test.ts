@@ -466,6 +466,57 @@ describe('parseC4', () => {
     });
   });
 
+  // === tag: block syntax ===
+  describe('tag: block syntax', () => {
+    it('parses tag: heading with entries', () => {
+      const result = parseC4(
+        ['chart: c4', 'tag: Technology alias tech', '  React(blue)', '  Node.js(green)', '', 'person Alice'].join('\n'),
+      );
+      expect(result.tagGroups).toHaveLength(1);
+      expect(result.tagGroups[0].name).toBe('Technology');
+      expect(result.tagGroups[0].alias).toBe('tech');
+      expect(result.tagGroups[0].entries).toHaveLength(2);
+    });
+
+    it('parses tag: with default entry', () => {
+      const result = parseC4(
+        ['chart: c4', 'tag: Team alias t', '  Platform(blue) default', '  Payments(orange)', '', 'person Alice'].join('\n'),
+      );
+      expect(result.tagGroups[0].defaultValue).toBe('Platform');
+    });
+
+    it('is case-insensitive', () => {
+      const result = parseC4(
+        ['chart: c4', 'Tag: Team', '  Platform(blue)', '', 'person Alice'].join('\n'),
+      );
+      expect(result.tagGroups[0].name).toBe('Team');
+    });
+
+    it('does not emit deprecation warning for tag: syntax', () => {
+      const result = parseC4(
+        ['chart: c4', 'tag: Team', '  Platform(blue)', '', 'person Alice'].join('\n'),
+      );
+      const warnings = result.diagnostics.filter(d => d.message.includes('deprecated'));
+      expect(warnings).toHaveLength(0);
+    });
+
+    it('emits deprecation warning for ## syntax', () => {
+      const result = parseC4(
+        ['chart: c4', '## Team', '  Platform(blue)', '', 'person Alice'].join('\n'),
+      );
+      const warnings = result.diagnostics.filter(d => d.message.includes('deprecated'));
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].message).toContain("tag: Team");
+    });
+
+    it('resolves alias in pipe metadata with tag: syntax', () => {
+      const result = parseC4(
+        ['chart: c4', 'tag: Team alias t', '  Platform(blue)', '', 'system Banking | t: Platform'].join('\n'),
+      );
+      expect(result.elements[0].metadata.team).toBe('Platform');
+    });
+  });
+
   // === Nesting ===
   describe('nesting', () => {
     it('builds system > container > component hierarchy', () => {

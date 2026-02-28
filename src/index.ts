@@ -126,6 +126,8 @@ export type {
   GraphDirection,
 } from './graph/types';
 
+export type { TagGroup, TagEntry } from './utils/tag-groups';
+
 export { parseOrg } from './org/parser';
 export type {
   ParsedOrg,

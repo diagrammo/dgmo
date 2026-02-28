@@ -520,4 +520,83 @@ CEO | department: Engineering
     expect(cto.label).toBe('CTO');
     expect(cto.children.length).toBeGreaterThanOrEqual(1);
   });
+
+  // ----------------------------------------------------------
+  // 20. tag: syntax in tags: file
+  // ----------------------------------------------------------
+  it('loads tag groups from tags: file using tag: syntax', async () => {
+    const tagsFile = `tag: Department
+  Engineering (blue)
+  Product (green)`;
+
+    const content = `chart: org
+title: Test
+tags: shared-tags.dgmo
+
+Alice | department: Engineering`;
+
+    const reader = mockReader({
+      '/proj/shared-tags.dgmo': tagsFile,
+    });
+
+    const result = await resolveOrgImports(content, '/proj/org.dgmo', reader);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.content).toContain('tag: Department');
+    expect(result.content).toContain('Engineering (blue)');
+  });
+
+  // ----------------------------------------------------------
+  // 21. Mixed syntax: main uses tag:, import uses ##
+  // ----------------------------------------------------------
+  it('merges tag groups across mixed syntax (tag: and ##)', async () => {
+    const importedFile = `## Role
+  Manager (orange)
+
+Alice | role: Manager`;
+
+    const content = `chart: org
+
+tag: Department
+  Engineering (blue)
+
+CEO
+  import: team.dgmo`;
+
+    const reader = mockReader({
+      '/proj/team.dgmo': importedFile,
+    });
+
+    const result = await resolveOrgImports(content, '/proj/org.dgmo', reader);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.content).toContain('tag: Department');
+    expect(result.content).toContain('## Role');
+    expect(result.content).toContain('Manager (orange)');
+  });
+
+  // ----------------------------------------------------------
+  // 22. tag: syntax inline overrides same-name from tags file
+  // ----------------------------------------------------------
+  it('inline tag: groups override same-name ## groups from tags file', async () => {
+    const tagsFile = `## Department
+  Engineering (blue)
+  Product (green)`;
+
+    const content = `chart: org
+tags: shared-tags.dgmo
+
+tag: Department
+  Engineering (red)
+  Sales (purple)
+
+Alice | department: Engineering`;
+
+    const reader = mockReader({
+      '/proj/shared-tags.dgmo': tagsFile,
+    });
+
+    const result = await resolveOrgImports(content, '/proj/org.dgmo', reader);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.content).toContain('Engineering (red)');
+    expect(result.content).not.toContain('Engineering (blue)');
+  });
 });

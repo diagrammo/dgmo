@@ -1,5 +1,6 @@
 import type { DgmoError } from '../diagnostics';
 import { makeDgmoError } from '../diagnostics';
+import { isTagBlockHeading, matchTagBlockHeading } from '../utils/tag-groups';
 
 // ============================================================
 // Types
@@ -25,7 +26,6 @@ const IMPORT_RE = /^(\s+)import:\s+(.+\.dgmo)\s*$/i;
 const TAGS_RE = /^tags:\s+(.+\.dgmo)\s*$/i;
 const HEADER_RE = /^(chart|title)\s*:/i;
 const OPTION_RE = /^[a-z][a-z0-9-]*\s*:/i;
-const GROUP_HEADING_RE = /^##\s+/;
 
 // ============================================================
 // Path Helpers (pure string ops — no Node `path` dependency)
@@ -67,10 +67,9 @@ function extractTagGroups(lines: string[]): TagGroupBlock[] {
 
   for (const line of lines) {
     const trimmed = line.trim();
-    if (GROUP_HEADING_RE.test(trimmed)) {
-      // Extract group name (everything after "## " up to optional alias/color)
-      const nameMatch = trimmed.match(/^##\s+(.+?)(?:\s+alias\s+\w+)?(?:\s*\([^)]+\))?\s*$/);
-      const name = nameMatch ? nameMatch[1].trim().toLowerCase() : trimmed.substring(3).trim().toLowerCase();
+    const headingMatch = matchTagBlockHeading(trimmed);
+    if (headingMatch) {
+      const name = headingMatch.name.toLowerCase();
       current = { name, lines: [line] };
       blocks.push(current);
     } else if (current) {
@@ -144,7 +143,7 @@ function parseFileHeader(lines: string[]): ParsedHeader {
       }
 
       // Other option-like header lines (non-indented key: value)
-      if (OPTION_RE.test(trimmed) && !trimmed.startsWith('##') && !lines[i].match(/^\s/)) {
+      if (OPTION_RE.test(trimmed) && !isTagBlockHeading(trimmed) && !lines[i].match(/^\s/)) {
         // Check it's not a content line (node with metadata)
         const key = trimmed.split(':')[0].trim().toLowerCase();
         if (key !== 'chart' && key !== 'title' && !trimmed.includes('|')) {
@@ -207,7 +206,7 @@ async function resolveFile(
       headerLines.push(lines[i]);
       continue;
     }
-    if (GROUP_HEADING_RE.test(trimmed)) continue; // skip inline tag group headings
+    if (isTagBlockHeading(trimmed)) continue; // skip inline tag group headings
     if (lines[i] !== trimmed) continue; // skip tag group entries (indented lines)
 
     const tagsMatch = trimmed.match(TAGS_RE);
@@ -248,7 +247,7 @@ async function resolveFile(
     if (!importMatch) {
       // Pass through — skip inline tag group lines (already extracted above)
       const trimmed = line.trim();
-      if (GROUP_HEADING_RE.test(trimmed) || (inlineTagGroups.length > 0 && isTagGroupEntry(line, bodyLines, i))) {
+      if (isTagBlockHeading(trimmed) || (inlineTagGroups.length > 0 && isTagGroupEntry(line, bodyLines, i))) {
         continue;
       }
       resolvedBodyLines.push(line);
@@ -386,7 +385,7 @@ function findBodyStart(lines: string[]): number {
     }
 
     // Tag group heading
-    if (GROUP_HEADING_RE.test(trimmed)) {
+    if (isTagBlockHeading(trimmed)) {
       inTagGroup = true;
       continue;
     }
@@ -405,7 +404,7 @@ function findBodyStart(lines: string[]): number {
     if (TAGS_RE.test(trimmed)) continue;
 
     // Option-like lines (non-indented key: value before content)
-    if (OPTION_RE.test(trimmed) && !lines[i].match(/^\s/) && !trimmed.includes('|')) {
+    if (OPTION_RE.test(trimmed) && !isTagBlockHeading(trimmed) && !lines[i].match(/^\s/) && !trimmed.includes('|')) {
       const key = trimmed.split(':')[0].trim().toLowerCase();
       if (key !== 'chart' && key !== 'title') {
         continue;
@@ -420,7 +419,7 @@ function findBodyStart(lines: string[]): number {
 }
 
 /**
- * Check if a line is a tag group entry (indented line under a ## heading).
+ * Check if a line is a tag group entry (indented line under a tag block heading).
  */
 function isTagGroupEntry(line: string, allLines: string[], index: number): boolean {
   if (!line.match(/^\s+/)) return false;
@@ -428,7 +427,7 @@ function isTagGroupEntry(line: string, allLines: string[], index: number): boole
   for (let i = index - 1; i >= 0; i--) {
     const prev = allLines[i].trim();
     if (prev === '' || prev.startsWith('//')) continue;
-    if (GROUP_HEADING_RE.test(prev)) return true;
+    if (isTagBlockHeading(prev)) return true;
     if (allLines[i].match(/^\s+/)) continue; // another entry
     return false;
   }

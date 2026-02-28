@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseOrg } from '../src/org/parser';
+import { parseOrg, looksLikeOrg } from '../src/org/parser';
 
 describe('parseOrg', () => {
   // === Chart type ===
@@ -287,7 +287,7 @@ describe('parseOrg', () => {
 
     it('error on tag group after content', () => {
       const result = parseOrg('Jane Smith\n## Location\n  NY(blue)');
-      expect(result.error).toMatch(/Tag groups .* must appear before org content/);
+      expect(result.error).toMatch(/Tag groups must appear before org content/);
     });
 
     it('error on tag entry without color', () => {
@@ -393,6 +393,71 @@ describe('parseOrg', () => {
       );
       const sean = result.roots[0];
       expect(sean.metadata).toEqual({ title: 'CTO', role: 'VP' });
+    });
+  });
+
+  // === tag: block syntax ===
+  describe('tag: block syntax', () => {
+    it('parses tag: heading with entries', () => {
+      const result = parseOrg('tag: Location\n  NY(blue)\n  LA(yellow)\n\nJane Smith');
+      expect(result.tagGroups).toHaveLength(1);
+      expect(result.tagGroups[0].name).toBe('Location');
+      expect(result.tagGroups[0].entries).toHaveLength(2);
+      expect(result.tagGroups[0].entries[0].value).toBe('NY');
+    });
+
+    it('parses tag: with alias', () => {
+      const result = parseOrg('tag: Location alias loc\n  NY(blue)\n\nJane Smith');
+      expect(result.tagGroups[0].name).toBe('Location');
+      expect(result.tagGroups[0].alias).toBe('loc');
+    });
+
+    it('parses tag: with default entry', () => {
+      const result = parseOrg('tag: Location\n  NY(blue)\n  CO(green) default\n\nJane');
+      expect(result.tagGroups[0].defaultValue).toBe('CO');
+    });
+
+    it('is case-insensitive (Tag:, TAG:)', () => {
+      const r1 = parseOrg('Tag: Location\n  NY(blue)\n\nJane');
+      expect(r1.tagGroups[0].name).toBe('Location');
+
+      const r2 = parseOrg('TAG: Location\n  NY(blue)\n\nJane');
+      expect(r2.tagGroups[0].name).toBe('Location');
+    });
+
+    it('does not emit deprecation warning for tag: syntax', () => {
+      const result = parseOrg('tag: Location\n  NY(blue)\n\nJane');
+      const warnings = result.diagnostics.filter(d => d.severity === 'warning');
+      expect(warnings).toHaveLength(0);
+    });
+
+    it('emits deprecation warning for ## syntax', () => {
+      const result = parseOrg('## Location\n  NY(blue)\n\nJane');
+      const warnings = result.diagnostics.filter(d => d.severity === 'warning');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].message).toContain('deprecated');
+      expect(warnings[0].message).toContain("tag: Location");
+    });
+
+    it('tag: Rank is not swallowed as option key', () => {
+      const result = parseOrg('tag: Rank\n  Captain(red)\n\nJane');
+      expect(result.tagGroups).toHaveLength(1);
+      expect(result.tagGroups[0].name).toBe('Rank');
+      expect(result.options['tag']).toBeUndefined();
+    });
+
+    it('expands alias in metadata with tag: syntax', () => {
+      const result = parseOrg('tag: Title alias t\n  CTO(purple)\n\nSean| t: CTO');
+      expect(result.roots[0].metadata).toEqual({ title: 'CTO' });
+    });
+
+    it('looksLikeOrg recognizes tag: syntax', () => {
+      expect(looksLikeOrg('tag: Rank\n  Captain(red)\n\nJane')).toBe(true);
+      expect(looksLikeOrg('Tag: Rank\n  Captain(red)\n\nJane')).toBe(true);
+      // Still recognizes ##
+      expect(looksLikeOrg('## Rank\n  Captain(red)\n\nJane')).toBe(true);
+      // Non-tag content
+      expect(looksLikeOrg('chart: org\nJane')).toBe(false);
     });
   });
 

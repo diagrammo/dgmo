@@ -2,11 +2,13 @@
 // C4 Architecture Diagram — Types
 // ============================================================
 
-import type { OrgTagGroup, OrgTagEntry } from '../org/parser';
+import type { TagGroup, TagEntry } from '../utils/tag-groups';
 import type { DgmoError } from '../diagnostics';
 
-// Re-export tag types for convenience
-export type { OrgTagGroup as C4TagGroup, OrgTagEntry as C4TagEntry };
+/** @deprecated Use `TagEntry` from `utils/tag-groups` */
+export type C4TagEntry = TagEntry;
+/** @deprecated Use `TagGroup` from `utils/tag-groups` */
+export type C4TagGroup = TagGroup;
 
 // ── String unions ────────────────────────────────────────────
 
@@ -77,7 +79,7 @@ export interface ParsedC4 {
   title: string | null;
   titleLineNumber: number | null;
   options: Record<string, string>;
-  tagGroups: OrgTagGroup[];
+  tagGroups: TagGroup[];
   elements: C4Element[];
   relationships: C4Relationship[];
   deployment: C4DeploymentNode[];

@@ -1,18 +1,10 @@
 import type { DgmoError } from '../diagnostics';
+import type { TagGroup, TagEntry } from '../utils/tag-groups';
 
-export interface KanbanTagEntry {
-  value: string;
-  color: string;
-  lineNumber: number;
-}
-
-export interface KanbanTagGroup {
-  name: string;
-  alias?: string;
-  entries: KanbanTagEntry[];
-  defaultValue?: string;
-  lineNumber: number;
-}
+/** @deprecated Use `TagEntry` from `utils/tag-groups` */
+export type KanbanTagEntry = TagEntry;
+/** @deprecated Use `TagGroup` from `utils/tag-groups` */
+export type KanbanTagGroup = TagGroup;
 
 export interface KanbanCard {
   id: string;

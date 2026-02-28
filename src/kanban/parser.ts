@@ -2,6 +2,7 @@ import { resolveColor } from '../colors';
 import type { PaletteColors } from '../palettes';
 import type { DgmoError } from '../diagnostics';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
+import { matchTagBlockHeading } from '../utils/tag-groups';
 import type {
   ParsedKanban,
   KanbanColumn,
@@ -17,8 +18,6 @@ import type {
 const CHART_TYPE_RE = /^chart\s*:\s*(.+)/i;
 const TITLE_RE = /^title\s*:\s*(.+)/i;
 const OPTION_RE = /^([a-z][a-z0-9-]*)\s*:\s*(.+)$/i;
-const GROUP_HEADING_RE =
-  /^##\s+(.+?)(?:\s+alias\s+(\w+))?(?:\s*\(([^)]+)\))?\s*$/;
 const COLUMN_RE = /^==\s+(.+?)\s*(?:\[wip:\s*(\d+)\])?\s*==$/;
 const COLOR_SUFFIX_RE = /\(([^)]+)\)\s*$/;
 
@@ -146,34 +145,38 @@ export function parseKanban(
       }
     }
 
+    // Tag group heading — `tag: Name` (new) or `## Name` (deprecated)
+    // Must be checked BEFORE OPTION_RE to prevent `tag: Rank` being swallowed as option
+    if (!contentStarted) {
+      const tagBlockMatch = matchTagBlockHeading(trimmed);
+      if (tagBlockMatch) {
+        if (tagBlockMatch.deprecated) {
+          warn(lineNumber, `'## ${tagBlockMatch.name}' is deprecated for tag groups — use 'tag: ${tagBlockMatch.name}' instead`);
+        }
+        currentTagGroup = {
+          name: tagBlockMatch.name,
+          alias: tagBlockMatch.alias,
+          entries: [],
+          lineNumber,
+        };
+        if (tagBlockMatch.alias) {
+          aliasMap.set(tagBlockMatch.alias.toLowerCase(), tagBlockMatch.name.toLowerCase());
+        }
+        result.tagGroups.push(currentTagGroup);
+        continue;
+      }
+    }
+
     // Generic header options (key: value before content/tag groups)
     if (!contentStarted && !currentTagGroup && measureIndent(line) === 0) {
       const optMatch = trimmed.match(OPTION_RE);
-      if (optMatch && !trimmed.startsWith('##') && !COLUMN_RE.test(trimmed)) {
+      if (optMatch && !COLUMN_RE.test(trimmed)) {
         const key = optMatch[1].trim().toLowerCase();
         if (key !== 'chart' && key !== 'title') {
           result.options[key] = optMatch[2].trim();
           continue;
         }
       }
-    }
-
-    // ## Tag group heading
-    const groupMatch = trimmed.match(GROUP_HEADING_RE);
-    if (groupMatch && !contentStarted) {
-      const groupName = groupMatch[1].trim();
-      const alias = groupMatch[2] || undefined;
-      currentTagGroup = {
-        name: groupName,
-        alias,
-        entries: [],
-        lineNumber,
-      };
-      if (alias) {
-        aliasMap.set(alias.toLowerCase(), groupName.toLowerCase());
-      }
-      result.tagGroups.push(currentTagGroup);
-      continue;
     }
 
     // Tag group entries (indented Value(color) [default] under ## heading)

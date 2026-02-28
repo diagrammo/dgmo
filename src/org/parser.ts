@@ -2,25 +2,17 @@ import { resolveColor } from '../colors';
 import type { PaletteColors } from '../palettes';
 import type { DgmoError } from '../diagnostics';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
+import type { TagGroup, TagEntry } from '../utils/tag-groups';
+import { isTagBlockHeading, matchTagBlockHeading } from '../utils/tag-groups';
 
 // ============================================================
 // Types
 // ============================================================
 
-export interface OrgTagEntry {
-  value: string;
-  color: string;
-  lineNumber: number;
-}
-
-export interface OrgTagGroup {
-  name: string;
-  alias?: string;
-  entries: OrgTagEntry[];
-  /** Value of the entry marked `default` (nodes without metadata get this) */
-  defaultValue?: string;
-  lineNumber: number;
-}
+/** @deprecated Use `TagEntry` from `utils/tag-groups` */
+export type OrgTagEntry = TagEntry;
+/** @deprecated Use `TagGroup` from `utils/tag-groups` */
+export type OrgTagGroup = TagGroup;
 
 export interface OrgNode {
   id: string;
@@ -72,7 +64,6 @@ function extractColor(
   };
 }
 
-const GROUP_HEADING_RE = /^##\s+(.+?)(?:\s+alias\s+(\w+))?(?:\s*\(([^)]+)\))?\s*$/;
 const CONTAINER_RE = /^\[([^\]]+)\]$/;
 const METADATA_RE = /^([^:]+):\s*(.+)$/;
 const CHART_TYPE_RE = /^chart\s*:\s*(.+)/i;
@@ -83,12 +74,12 @@ const OPTION_RE = /^([a-z][a-z0-9-]*)\s*:\s*(.+)$/i;
 // Inference
 // ============================================================
 
-/** Returns true if content contains tag group headings (`## ...`), suggesting an org chart. */
+/** Returns true if content contains tag group headings (`tag: …` or `## …`), suggesting an org chart. */
 export function looksLikeOrg(content: string): boolean {
   for (const line of content.split('\n')) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('//')) continue;
-    if (GROUP_HEADING_RE.test(trimmed)) return true;
+    if (isTagBlockHeading(trimmed)) return true;
   }
   return false;
 }
@@ -123,6 +114,11 @@ export function parseOrg(
     const diag = makeDgmoError(line, message);
     result.diagnostics.push(diag);
     if (!result.error) result.error = formatDgmoError(diag);
+  };
+
+  /** Push a non-fatal warning (does not set result.error). */
+  const pushWarning = (line: number, message: string): void => {
+    result.diagnostics.push(makeDgmoError(line, message, 'warning'));
   };
 
   if (!content || !content.trim()) {
@@ -189,39 +185,41 @@ export function parseOrg(
       }
     }
 
+    // Tag group heading — `tag: Name` (new) or `## Name` (deprecated)
+    // Must be checked BEFORE OPTION_RE to prevent `tag: Rank` being swallowed as option `tag=Rank`
+    const tagBlockMatch = matchTagBlockHeading(trimmed);
+    if (tagBlockMatch) {
+      if (contentStarted) {
+        pushError(lineNumber, 'Tag groups must appear before org content');
+        continue;
+      }
+      if (tagBlockMatch.deprecated) {
+        pushWarning(lineNumber, `'## ${tagBlockMatch.name}' is deprecated for tag groups — use 'tag: ${tagBlockMatch.name}' instead`);
+      }
+      currentTagGroup = {
+        name: tagBlockMatch.name,
+        alias: tagBlockMatch.alias,
+        entries: [],
+        lineNumber,
+      };
+      if (tagBlockMatch.alias) {
+        aliasMap.set(tagBlockMatch.alias.toLowerCase(), tagBlockMatch.name.toLowerCase());
+      }
+      result.tagGroups.push(currentTagGroup);
+      continue;
+    }
+
     // Generic header options (key: value lines before content/tag groups)
     // Only match non-indented lines with simple hyphenated keys
     if (!contentStarted && !currentTagGroup && measureIndent(line) === 0) {
       const optMatch = trimmed.match(OPTION_RE);
-      if (optMatch && !trimmed.startsWith('##')) {
+      if (optMatch) {
         const key = optMatch[1].trim().toLowerCase();
         if (key !== 'chart' && key !== 'title') {
           result.options[key] = optMatch[2].trim();
           continue;
         }
       }
-    }
-
-    // ## Tag group heading
-    const groupMatch = trimmed.match(GROUP_HEADING_RE);
-    if (groupMatch) {
-      if (contentStarted) {
-        pushError(lineNumber, 'Tag groups (##) must appear before org content');
-        continue;
-      }
-      const groupName = groupMatch[1].trim();
-      const alias = groupMatch[2] || undefined;
-      currentTagGroup = {
-        name: groupName,
-        alias,
-        entries: [],
-        lineNumber,
-      };
-      if (alias) {
-        aliasMap.set(alias.toLowerCase(), groupName.toLowerCase());
-      }
-      result.tagGroups.push(currentTagGroup);
-      continue;
     }
 
     // Tag group entries (indented Value(color) [default] under ## heading)
