@@ -2,6 +2,27 @@
 
 Use AI coding tools to generate `.dgmo` diagrams. This guide covers Claude Code, Copilot, Cursor, and other AI tools.
 
+## MCP Server
+
+`@diagrammo/dgmo-mcp` provides an MCP server that exposes DGMO rendering, sharing, and documentation tools. Works with Claude Desktop, Claude Code, and any MCP-compatible client.
+
+5 tools: `render_diagram`, `share_diagram`, `open_in_app`, `list_chart_types`, `get_language_reference`.
+
+Setup (Claude Code — add to `.claude/settings.local.json`):
+
+```json
+{
+  "mcpServers": {
+    "dgmo": {
+      "command": "npx",
+      "args": ["-y", "@diagrammo/dgmo-mcp"]
+    }
+  }
+}
+```
+
+See `dgmo-mcp/README.md` for full configuration options.
+
 ## Claude Code — Skills
 
 Copy the `.claude/skills/dgmo-*` directories from this repo into your project's `.claude/skills/` directory. This gives you four slash commands:
