@@ -144,7 +144,7 @@ export function parseEChart(
     }
 
     // Skip comments
-    if (trimmed.startsWith('#') || trimmed.startsWith('//')) continue;
+    if (trimmed.startsWith('//')) continue;
 
     // Check for category header: [Category Name]
     const categoryMatch = trimmed.match(/^\[(.+)\]$/);

@@ -82,7 +82,7 @@ export function parseQuadrant(content: string): ParsedQuadrant {
     const lineNumber = i + 1; // 1-indexed for editor
 
     // Skip empty lines and comments
-    if (!line || line.startsWith('#') || line.startsWith('//')) continue;
+    if (!line || line.startsWith('//')) continue;
 
     // Skip the chart: directive (already consumed by router)
     if (/^chart\s*:/i.test(line)) continue;

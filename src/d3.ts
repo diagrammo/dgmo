@@ -350,7 +350,7 @@ export function parseD3(content: string, palette?: PaletteColors): ParsedD3 {
     }
 
     // Skip comments
-    if (line.startsWith('#') || line.startsWith('//')) {
+    if (line.startsWith('//')) {
       continue;
     }
 

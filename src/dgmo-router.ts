@@ -81,7 +81,7 @@ export function parseDgmoChartType(content: string): string | null {
   for (const line of lines) {
     const trimmed = line.trim();
     // Skip empty lines and comments
-    if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('//'))
+    if (!trimmed || trimmed.startsWith('//'))
       continue;
     const match = trimmed.match(/^chart\s*:\s*(.+)/i);
     if (match) return match[1].trim().toLowerCase();

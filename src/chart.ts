@@ -110,7 +110,7 @@ export function parseChart(
     if (/^#{2,}\s+/.test(trimmed)) continue;
 
     // Skip comments
-    if (trimmed.startsWith('#') || trimmed.startsWith('//')) continue;
+    if (trimmed.startsWith('//')) continue;
 
     // Parse key: value pairs
     const colonIndex = trimmed.indexOf(':');

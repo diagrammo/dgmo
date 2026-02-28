@@ -29,7 +29,7 @@ export function looksLikeInitiativeStatus(content: string): boolean {
   let hasIndentedArrow = false;
   for (const line of lines) {
     const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('//')) continue;
+    if (!trimmed || trimmed.startsWith('//')) continue;
     if (trimmed.match(/^chart\s*:/i)) continue;
     if (trimmed.match(/^title\s*:/i)) continue;
     if (trimmed.includes('->')) hasArrow = true;
@@ -82,7 +82,7 @@ export function parseInitiativeStatus(content: string): ParsedInitiativeStatus {
     const trimmed = raw.trim();
 
     // Skip blanks and comments
-    if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('//')) continue;
+    if (!trimmed || trimmed.startsWith('//')) continue;
 
     // chart: header
     const chartMatch = trimmed.match(/^chart\s*:\s*(.+)/i);
