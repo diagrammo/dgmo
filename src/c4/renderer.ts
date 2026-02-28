@@ -6,6 +6,7 @@ import * as d3Selection from 'd3-selection';
 import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
+import { renderInlineText } from '../utils/inline-markdown';
 import type { ParsedC4 } from './types';
 import type { C4Shape } from './types';
 import type { C4LayoutResult, C4LayoutNode, C4LayoutEdge, C4LayoutBoundary } from './layout';
@@ -546,20 +547,20 @@ export function renderC4Context(
 
     yPos += DIVIDER_GAP;
 
-    // Description (wrapping, muted)
+    // Description (wrapping, muted, inline markdown)
     if (node.description) {
       const contentWidth = w - CARD_H_PAD * 2;
       const lines = wrapText(node.description, contentWidth, DESC_CHAR_WIDTH);
       for (const line of lines) {
-        nodeG
+        const textEl = nodeG
           .append('text')
           .attr('x', 0)
           .attr('y', yPos + DESC_FONT_SIZE / 2)
           .attr('text-anchor', 'middle')
           .attr('dominant-baseline', 'central')
           .attr('fill', palette.textMuted)
-          .attr('font-size', DESC_FONT_SIZE)
-          .text(line);
+          .attr('font-size', DESC_FONT_SIZE);
+        renderInlineText(textEl, line, palette, DESC_FONT_SIZE);
         yPos += DESC_LINE_HEIGHT;
       }
     }
@@ -1617,20 +1618,20 @@ export function renderC4Containers(
     if (node.type === 'container') {
       // Container cards: description above divider, metadata below
 
-      // Description (above divider)
+      // Description (above divider, inline markdown)
       if (node.description) {
         const contentWidth = w - CARD_H_PAD * 2;
         const lines = wrapText(node.description, contentWidth, DESC_CHAR_WIDTH);
         for (const line of lines) {
-          nodeG
+          const textEl = nodeG
             .append('text')
             .attr('x', 0)
             .attr('y', yPos + DESC_FONT_SIZE / 2)
             .attr('text-anchor', 'middle')
             .attr('dominant-baseline', 'central')
             .attr('fill', palette.textMuted)
-            .attr('font-size', DESC_FONT_SIZE)
-            .text(line);
+            .attr('font-size', DESC_FONT_SIZE);
+          renderInlineText(textEl, line, palette, DESC_FONT_SIZE);
           yPos += DESC_LINE_HEIGHT;
         }
       }
@@ -1696,20 +1697,20 @@ export function renderC4Containers(
 
       yPos += DIVIDER_GAP;
 
-      // Description
+      // Description (inline markdown)
       if (node.description) {
         const contentWidth = w - CARD_H_PAD * 2;
         const lines = wrapText(node.description, contentWidth, DESC_CHAR_WIDTH);
         for (const line of lines) {
-          nodeG
+          const textEl = nodeG
             .append('text')
             .attr('x', 0)
             .attr('y', yPos + DESC_FONT_SIZE / 2)
             .attr('text-anchor', 'middle')
             .attr('dominant-baseline', 'central')
             .attr('fill', palette.textMuted)
-            .attr('font-size', DESC_FONT_SIZE)
-            .text(line);
+            .attr('font-size', DESC_FONT_SIZE);
+          renderInlineText(textEl, line, palette, DESC_FONT_SIZE);
           yPos += DESC_LINE_HEIGHT;
         }
       }

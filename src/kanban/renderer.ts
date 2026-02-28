@@ -5,6 +5,7 @@
 import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
+import { renderInlineText } from '../utils/inline-markdown';
 import type { ParsedKanban, KanbanColumn, KanbanCard, KanbanTagGroup } from './types';
 import { parseKanban } from './parser';
 import { isArchiveColumn } from './mutations';
@@ -498,14 +499,14 @@ export function renderKanban(
         .attr('stroke', cardStroke)
         .attr('stroke-width', CARD_STROKE_WIDTH);
 
-      // Card title
-      cg.append('text')
+      // Card title (inline markdown)
+      const titleEl = cg.append('text')
         .attr('x', cx + CARD_PADDING_X)
         .attr('y', cy + CARD_PADDING_Y + CARD_TITLE_FONT_SIZE)
         .attr('font-size', CARD_TITLE_FONT_SIZE)
         .attr('font-weight', '500')
-        .attr('fill', palette.text)
-        .text(card.title);
+        .attr('fill', palette.text);
+      renderInlineText(titleEl, card.title, palette, CARD_TITLE_FONT_SIZE);
 
       // Separator + metadata
       if (hasMeta) {
@@ -542,14 +543,14 @@ export function renderKanban(
           metaY += CARD_META_LINE_HEIGHT;
         }
 
-        // Detail lines
+        // Detail lines (inline markdown)
         for (const detail of card.details) {
-          cg.append('text')
+          const detailEl = cg.append('text')
             .attr('x', cx + CARD_PADDING_X)
             .attr('y', metaY)
             .attr('font-size', CARD_META_FONT_SIZE)
-            .attr('fill', palette.textMuted)
-            .text(detail);
+            .attr('fill', palette.textMuted);
+          renderInlineText(detailEl, detail, palette, CARD_META_FONT_SIZE);
 
           metaY += CARD_META_LINE_HEIGHT;
         }

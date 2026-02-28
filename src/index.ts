@@ -128,6 +128,9 @@ export type {
 
 export type { TagGroup, TagEntry } from './utils/tag-groups';
 
+export { parseInlineMarkdown, truncateBareUrl } from './utils/inline-markdown';
+export type { InlineSpan } from './utils/inline-markdown';
+
 export { parseOrg } from './org/parser';
 export type {
   ParsedOrg,
