@@ -53,6 +53,32 @@ Full reference: see `node_modules/@diagrammo/dgmo/docs/language-reference.md`
 Render with: `dgmo file.dgmo -o output.svg` or `dgmo file.dgmo -o url` for shareable link.
 ```
 
+## Other AI Tools — Prompt Files
+
+DGMO ships prompt files for popular AI coding tools. These are included in the npm package:
+
+| File | Tool | How it works |
+|------|------|-------------|
+| `.github/copilot-instructions.md` | GitHub Copilot | Auto-loaded in repos with this file |
+| `.cursorrules` | Cursor | Auto-loaded when present in project root |
+| `.windsurfrules` | Windsurf | Auto-loaded when present in project root |
+
+### Setup
+
+Copy the relevant file into your project root:
+
+```bash
+# From node_modules
+cp node_modules/@diagrammo/dgmo/.cursorrules .
+cp node_modules/@diagrammo/dgmo/.windsurfrules .
+mkdir -p .github && cp node_modules/@diagrammo/dgmo/.github/copilot-instructions.md .github/
+
+# Or from global install
+cp $(npm root -g)/@diagrammo/dgmo/.cursorrules .
+```
+
+Each file contains a condensed DGMO syntax reference with examples for the most common diagram types, all 29 chart types listed, rendering commands, and common mistakes to avoid.
+
 ## Rendering
 
 If the `dgmo` CLI is installed, diagrams can be rendered:

@@ -26,7 +26,10 @@
     "dist",
     "src",
     "docs",
-    ".claude/skills"
+    ".claude/skills",
+    ".github/copilot-instructions.md",
+    ".cursorrules",
+    ".windsurfrules"
   ],
   "sideEffects": false,
   "scripts": {
