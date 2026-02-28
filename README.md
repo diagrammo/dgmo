@@ -197,7 +197,13 @@ renderSequenceDiagram(container, parsed, colors, false, (lineNum) => {
 **Sequence syntax:**
 
 - `A -> B: message` — synchronous call
+- `A -message-> B` — inline label (same result, label sits in the arrow)
 - `A ~> B: message` — async/fire-and-forget
+- `A ~message~> B` — async with inline label
+- `A <-> B: message` — bidirectional synchronous
+- `A <-message-> B` — bidirectional with inline label
+- `A <~> B: message` — bidirectional async
+- `A <~message~> B` — bidirectional async with inline label
 - `A -> B: method(): returnValue` — call with return
 - `B -> A: <- response` — explicit return
 - `if condition` / `else` / `end` — conditional blocks
@@ -303,7 +309,7 @@ const content = `
 chart: org
 title: Engineering
 
-## Location
+tag: Location
   NY(blue)
   SF(green)
 
@@ -359,16 +365,17 @@ Containers can nest and carry their own metadata (key: value pairs). Children ar
 **Tag groups** — define color coding for metadata values. Must appear before org content:
 
 ```
-## Location alias l
+tag: Location alias l
   NY(blue)
   SF(green)
   Remote(purple) default
 ```
 
-- `## GroupName` starts a tag group; `alias` provides a shorthand for metadata keys
+- `tag: GroupName` starts a tag group; `alias` provides a shorthand for metadata keys
 - `Value(color)` maps a metadata value to a color
 - `default` marks the fallback value for nodes without that metadata
 - Nodes whose metadata matches a tag group value get color-coded automatically
+- `##` syntax is deprecated but still accepted — use `tag:` for new diagrams
 
 **Options:**
 

@@ -1,0 +1,784 @@
+# DGMO Language Reference
+
+DGMO is a text-based diagram markup language. Files use the `.dgmo` extension. Render with the `dgmo` CLI, the Diagrammo desktop app, or the `@diagrammo/dgmo` npm library.
+
+## Common Patterns
+
+Every `.dgmo` file can start with optional directives, followed by content.
+
+### Directives
+
+```
+chart: bar              // explicit chart type (optional — auto-detected)
+title: My Diagram       // diagram title
+palette: nord           // color palette
+```
+
+### Comments
+
+```
+// This is a comment (only // is supported)
+```
+
+### Inline Colors
+
+Append `(colorname)` to labels, nodes, or data points:
+
+```
+Port Royal(red): 850
+[Process(blue)]
+person Customer(green)
+```
+
+Named colors: `red`, `orange`, `yellow`, `green`, `blue`, `purple`, `teal`, `cyan`, `gray`. Palette-specific colors also available.
+
+### Palettes and Themes
+
+8 palettes: `nord` (default), `solarized`, `catppuccin`, `rose-pine`, `gruvbox`, `tokyo-night`, `one-dark`, `bold`
+
+3 themes per palette: `light`, `dark`, `transparent`
+
+Set via CLI: `dgmo diagram.dgmo --palette catppuccin --theme dark`
+
+### Inline Markdown
+
+Text fields support: `*italic*`, `**bold**`, `` `code` ``, `[link text](url)`. Bare URLs are auto-linked.
+
+---
+
+## Chart Types
+
+### bar
+
+```
+chart: bar
+title: Revenue by Region
+series: Revenue
+
+North: 850
+South: 620
+East: 1100
+West: 430
+```
+
+Options: `series`, `xlabel`, `ylabel`, `orientation` (`horizontal`/`vertical`), `labels` (`name`/`value`/`percent`/`full`), `color`.
+
+Colors per item: `North(red): 850`
+
+### line
+
+```
+title: Quarterly Performance
+series: Sales(red), Costs(blue)
+
+Q1: 100, 50
+Q2: 120, 55
+Q3: 110, 60
+Q4: 130, 58
+```
+
+Multi-series: comma-separated values matching the `series` list. Single series omits `series` directive. Also works as `chart: multi-line`.
+
+Options: `series`, `xlabel`, `ylabel`, `labels`.
+
+### area
+
+Same syntax as `line`. Renders as a filled area chart.
+
+### pie
+
+```
+chart: pie
+title: Market Share
+labels: percent
+
+Company A: 40
+Company B: 35
+Company C: 25
+```
+
+Options: `labels` (`name`/`value`/`percent`/`full`).
+
+### doughnut
+
+Same syntax as `pie`. Renders as a doughnut (ring) chart.
+
+### polar-area
+
+Same syntax as `pie`. Renders as a polar area (rose) chart.
+
+### radar
+
+```
+chart: radar
+title: Team Skills
+
+Frontend: 85
+Backend: 70
+DevOps: 60
+Design: 90
+Testing: 75
+```
+
+### bar-stacked
+
+```
+chart: bar-stacked
+title: Budget Allocation
+series: Engineering, Marketing, Sales
+
+Q1: 100, 50, 30
+Q2: 110, 55, 35
+Q3: 105, 60, 40
+```
+
+Options: `series` (required), `xlabel`, `ylabel`, `orientation`.
+
+### scatter
+
+```
+chart: scatter
+title: Performance Metrics
+labels: on
+xlabel: Experience (years)
+ylabel: Output
+
+Alice: 3, 85
+Bob: 7, 92
+Carol: 2, 70
+```
+
+Data: `Label: x, y` or `Label: x, y, size` (bubble chart). Group with `## Category(color)` headers.
+
+Options: `labels` (`on`/`off`), `xlabel`, `ylabel`, `sizelabel`.
+
+### heatmap
+
+```
+chart: heatmap
+title: Activity by Month
+columns: Jan, Feb, Mar, Apr, May, Jun
+
+Team A: 5, 4, 5, 3, 4, 5
+Team B: 2, 3, 2, 4, 3, 2
+Team C: 3, 2, 1, 2, 3, 4
+```
+
+Options: `columns` (required).
+
+### sankey
+
+```
+chart: sankey
+title: Resource Flow
+
+Source A -> Processing: 300
+Source B -> Processing: 200
+Processing -> Output X: 350
+Processing -> Output Y: 150
+```
+
+Data: `Source -> Target: value`
+
+### chord
+
+Same syntax as `sankey`. Renders as a circular chord diagram.
+
+### funnel
+
+```
+chart: funnel
+title: Conversion Pipeline
+
+Visitors: 1000
+Signups: 500
+Trials: 200
+Customers: 100
+```
+
+### function
+
+```
+chart: function
+title: Trajectories
+xlabel: Distance (m)
+ylabel: Height (m)
+x: 0 to 250
+
+Low(blue): -0.001*x^2 + 0.27*x
+High(red): -0.003*x^2 + 0.75*x
+```
+
+Options: `x: start to end` (required), `xlabel`, `ylabel`.
+
+Expressions support: `+`, `-`, `*`, `/`, `^`, `sin`, `cos`, `sqrt`, `abs`, `log`, `exp`, `pi`, `e`.
+
+### slope
+
+```
+chart: slope
+title: Before vs After
+
+Period A, Period B
+
+Item 1: 40, 80
+Item 2: 30, 50
+Item 3: 60, 40
+```
+
+First data line defines the two period labels. Options: `orientation` (`horizontal`/`vertical`).
+
+### wordcloud
+
+```
+chart: wordcloud
+title: Top Terms
+
+kubernetes: 95
+docker: 80
+terraform: 65
+ansible: 50
+```
+
+Data: `word: weight` (higher = larger). Options: `rotate` (`none`/`mixed`/`angled`), `max` (word limit), `size: min, max` (font range).
+
+### arc
+
+```
+chart: arc
+title: Team Collaboration
+
+## Frontend(blue)
+Alice -> Bob: 8
+Alice -> Carol: 5
+
+## Backend(green)
+Dave -> Carol: 10
+```
+
+Data: `Source -> Target: weight`. Group nodes with `## Group(color)` headers.
+
+Options: `order` (`appearance`/`name`/`group`/`degree`), `orientation`.
+
+### venn
+
+```
+chart: venn
+title: Skill Overlap
+
+dev(blue): 120 "Development"
+ops(green): 100 "Operations"
+sec(red): 80 "Security"
+
+dev & ops: 35 "DevOps"
+ops & sec: 40 "SecOps"
+dev & sec: 30 "DevSec"
+dev & ops & sec: 10 "DevSecOps"
+```
+
+Sets: `id(color): size "label"`. Overlaps: `id1 & id2: size "label"`. Options: `values` (`on`/`off`).
+
+### quadrant
+
+```
+chart: quadrant
+title: Priority Matrix
+x-axis: Low Impact, High Impact
+y-axis: Low Effort, High Effort
+
+top-right: Quick Wins(green)
+top-left: Big Bets(yellow)
+bottom-left: Skip(red)
+bottom-right: Reconsider(gray)
+
+Task A: 0.9, 0.8
+Task B: 0.2, 0.3
+Task C: 0.7, 0.4
+```
+
+Options: `x-axis: low, high`, `y-axis: low, high`. Quadrant labels: `top-right`, `top-left`, `bottom-left`, `bottom-right`. Data: `Label: x, y` where x,y are 0–1.
+
+### timeline
+
+```
+chart: timeline
+title: Project History
+
+era 2023->2024: Phase 1
+marker 2023-06: Launch(orange)
+
+## Team A(blue)
+2023-01->2023-06: Planning
+2023-06->2024-01: Development
+2024-02: Release
+
+## Team B(green)
+2023-03->2023-09: Research
+2023-09->2024-03?: Implementation
+```
+
+Date formats: `YYYY`, `YYYY-MM`, `YYYY-MM-DD`. Ranges: `start->end`. Durations: `start->1y`, `start->6m`, `start->2w`, `start->30d`. Uncertain end: append `?` (e.g., `2024-03?`).
+
+Elements: `era start->end: Label(color)`, `marker date: Label(color)`, `## Group(color)` headers.
+
+Options: `scale` (`on`/`off`), `sort` (`time`/`group`), `swimlanes` (`on`/`off`).
+
+---
+
+## Diagram Types
+
+### sequence
+
+Minimal example:
+
+```
+User -> API: login
+API -> DB: findUser
+DB -> API: <- user
+API -> User: <- token
+```
+
+Full example:
+
+```
+chart: sequence
+title: Authentication Flow
+
+// participant declarations (optional)
+User is an actor
+API is a service
+DB is a database
+NotifyQueue is a queue aka Notifications
+
+User -Login request-> API
+API -Find user by email-> DB
+DB -> API: <- user record
+note on DB:
+  Indexed lookup on email column
+
+  if credentials valid
+    API -Create session-> DB
+    DB -> API: <- session token
+    API -> User: <- 200 OK + token
+    API ~session.created~> NotifyQueue
+  else
+    API -> User: <- 401 Unauthorized
+
+== Logout ==
+
+User -Logout-> API
+API -Delete session-> DB
+API -> User: <- 200 OK
+```
+
+**Participants**: Auto-inferred from message names. Declare explicitly for type/positioning:
+- `Name is a [actor|service|database|queue|cache|gateway|external|networking|frontend]`
+- `Name aka Display Label` — alias for display
+- `Name at position 2` — manual left-to-right ordering (0-based; negative from right)
+
+**Messages**:
+- Sync: `A -> B: label` or `A -label-> B`
+- Async: `A ~> B: label` or `A ~label~> B`
+- Return: `B -> A: <- response` (on the calling line) or separate line
+- Bidirectional: `A <-> B: label` or `A <-label-> B`
+- Bidirectional async: `A <~> B: label` or `A <~label~> B`
+
+**Blocks** (indentation-scoped):
+- `if condition` ... `else` ... (no explicit `end` needed — indentation closes blocks)
+- `loop label` ...
+- `parallel label` ...
+
+**Notes**:
+- `note: text` — standalone
+- `note on Participant: text` — anchored
+- Multi-line: indent continuation lines under `note:`
+
+**Sections**: `== Section Title ==` or `== Section Title(color) ==`
+
+**Groups**: `## Group Name` — visual grouping box around messages
+
+**Options**: `activations: off`, `collapse-notes: no`
+
+### flowchart
+
+Minimal example:
+
+```
+(Start) -> [Process] -> (End)
+```
+
+Full example:
+
+```
+chart: flowchart
+title: Decision Process
+
+(Start) -> <Valid Input?>
+  -yes-> [Process Data] -> [[Run Subroutine]]
+  -no-> /Get User Input/ -> <Valid Input?>
+[[Run Subroutine]] -> [Document~] -> (Done)
+```
+
+**Node shapes**:
+- `(Terminal)` — oval
+- `[Process]` — rectangle
+- `<Decision?>` — diamond
+- `/Input Output/` — parallelogram
+- `[[Subroutine]]` — double-bordered rectangle
+- `[Document~]` — document (wavy bottom)
+
+**Arrows**: `-label-> Target`, `-(color)-> Target`, `-label(color)-> Target`
+
+Colors on nodes: `[Process(blue)]`
+
+### class
+
+Minimal example:
+
+```
+Animal
+  + name: string
+  + speak(): void
+
+Dog extends Animal
+Cat extends Animal
+```
+
+Full example:
+
+```
+chart: class
+title: Type Hierarchy
+
+Printable [interface]
+  + print(): void
+
+Shape [abstract]
+  # x: number
+  # y: number
+  + area(): number
+  {static} count: number
+
+Circle
+  - radius: number
+  + area(): number
+
+Rectangle
+  - width: number
+  - height: number
+
+Circle extends Shape
+Rectangle extends Shape
+Shape implements Printable
+Shape *-- Circle : contains
+```
+
+**Class modifiers**: `[abstract]`, `[interface]`, `[enum]`
+
+**Member visibility**: `+` public, `#` protected, `-` private. Static: `{static}`.
+
+**Relationships** (keyword or arrow):
+- Inheritance: `A extends B` or `A --|> B`
+- Implementation: `A implements B` or `A ..|> B`
+- Composition: `A contains B` or `A *-- B`
+- Aggregation: `A has B` or `A o-- B`
+- Dependency: `A uses B` or `A ..> B`
+- Association: `A -> B`
+- Optional label: `A extends B : description`
+
+### er
+
+Minimal example:
+
+```
+users
+  id: int [pk]
+  name: varchar
+
+posts
+  id: int [pk]
+  user_id: int [fk]
+
+users 1--* posts : writes
+```
+
+Full example:
+
+```
+chart: er
+title: Blog Schema
+
+users
+  id: int [pk]
+  email: varchar [unique]
+  name: varchar
+
+posts
+  id: int [pk]
+  title: varchar
+  body: text
+  author_id: int [fk]
+  category_id: int [fk, nullable]
+
+categories
+  id: int [pk]
+  name: varchar [unique]
+
+users 1--* posts : writes
+categories 1--* posts : contains
+users ?--* categories : moderates
+```
+
+**Columns**: `name: type [constraints]`. Constraints: `pk`, `fk`, `unique`, `nullable`. Multiple: `[fk, nullable]`.
+
+**Relationships** (symbolic cardinality):
+- `1--1` — one-to-one
+- `1--*` — one-to-many
+- `?--1` — zero-or-one to one
+- `?--*` — zero-or-more
+- Optional label: `table1 1--* table2 : description`
+
+### c4
+
+Minimal example:
+
+```
+chart: c4
+
+person User
+system MyApp | description: The main application
+  -Uses-> User
+```
+
+Full example:
+
+```
+chart: c4
+title: Banking System
+
+tag: Scope alias sc
+  Internal(blue) default
+  External(gray)
+
+person Customer | description: A customer of the bank
+
+system Internet Banking | description: Online banking portal
+  -Delivers content [HTTPS]-> Customer
+  -Sends emails [SMTP]-> Email
+
+  containers:
+    container Web App | description: SPA, tech: React
+      -API calls [JSON/HTTPS]-> API
+
+    container API | description: Backend, tech: Node.js
+      -Reads/writes [SQL]-> Database
+
+    container Database | description: Data store, tech: PostgreSQL
+
+system Email | description: Email delivery, sc: External
+  ~Sends emails~> Customer
+
+deployment:
+  Vercel is a cloud
+    container Web App
+  Railway
+    container API
+  Neon is a database
+    container Database
+```
+
+**Element types**: `person`, `system`, `container`, `component`
+
+**Metadata** (pipe-delimited): `element Name | description: text, tech: stack, tagalias: value`
+
+**Sections**: `containers:` (inside system), `components:` (inside container), `deployment:`
+
+**Deployment nodes**: `NodeName is a [cloud|database|cache|queue|external]`
+
+**Relationships**:
+- Sync: `-> Target` or `-label [tech]-> Target`
+- Async: `~> Target` or `~label [tech]~> Target`
+- Bidirectional: `<-> Target`, `<~> Target`
+
+**Tag groups**: See tag group syntax below.
+
+### org
+
+Minimal example:
+
+```
+chart: org
+
+CEO
+  VP Engineering
+    Team Lead
+  VP Marketing
+```
+
+Full example:
+
+```
+chart: org
+title: Engineering Org
+sub-node-label: Reports
+show-sub-node-count: yes
+
+tag: Level alias lv
+  Director(red)
+  Manager(blue)
+  IC(green) default
+
+CTO | lv: Director
+  VP Engineering | lv: Director
+    [Platform]
+      Lead | lv: Manager
+        Dev 1
+        Dev 2
+    [Product]
+      Lead | lv: Manager
+        Dev 3
+```
+
+Hierarchy via indentation. `[Group Name]` creates collapsible sub-groups.
+
+**Metadata**: `Name | tagalias: value, tag2: value2`
+
+Options: `sub-node-label`, `show-sub-node-count` (`yes`/`no`).
+
+**Imports**: `import: path/to/file.dgmo` (indented under a parent node), `tags: path/to/tags.dgmo` (top-level).
+
+### kanban
+
+Minimal example:
+
+```
+chart: kanban
+
+== To Do ==
+Task 1
+Task 2
+
+== Done ==
+Task 3
+```
+
+Full example:
+
+```
+chart: kanban
+title: Sprint Board
+
+tag: Priority
+  Critical(red)
+  High(orange)
+  Low(green) default
+
+tag: Owner alias o
+  Alice(blue)
+  Bob(green)
+
+== Backlog(gray) ==
+Research API options | priority: High, o: Alice
+
+== In Progress [wip: 3](orange) ==
+Build auth module | priority: Critical, o: Bob
+  Integrate OAuth2
+  Add session management
+
+== Done(green) ==
+Setup CI pipeline | priority: High, o: Alice
+```
+
+**Columns**: `== Column Name ==`, `== Column Name(color) ==`, `== Column Name [wip: N] ==`
+
+**Cards**: `Card Title | tag: value`. Indented lines below become card details.
+
+### initiative-status
+
+Minimal example:
+
+```
+chart: initiative-status
+
+Auth | done
+  -> UserService | wip
+  -> NotifyService | todo
+UserService | wip
+NotifyService | todo
+```
+
+Full example:
+
+```
+chart: initiative-status
+title: Platform Roadmap
+
+Auth | done
+  -depends-> UserService | wip
+  -feeds-> Dashboard | todo
+Dashboard | todo
+UserService | wip
+  -calls-> DBLayer | done
+DBLayer | done
+
+[External]
+  PaymentGW | na
+  EmailProvider | na
+```
+
+**Status values**: `done`, `wip`, `todo`, `na`
+
+**Relationships**: `-label-> Target | status` or indented children.
+
+**Groups**: `[Group Name]` for visual grouping.
+
+---
+
+## Tag Groups
+
+Define reusable metadata categories for org charts, kanban boards, and C4 diagrams:
+
+```
+tag: Priority
+  Critical(red)
+  High(orange)
+  Medium(yellow)
+  Low(green) default
+
+tag: Team alias t
+  Frontend(blue)
+  Backend(green)
+```
+
+- `tag:` keyword (case-insensitive)
+- Optional `alias` for shorthand in metadata: `| t: Frontend`
+- `default` keyword marks the fallback value
+- Indented entries with `Value(color)`
+
+Assign to elements via pipe metadata: `Element Name | priority: High, t: Frontend`
+
+---
+
+## Anti-Patterns
+
+**Common mistakes to avoid:**
+
+- `# comment` — wrong. Use `// comment`
+- `async A -> B: msg` — wrong. Use `A ~> B: msg` or `A ~msg~> B`
+- `parallel else` — not supported. Use separate `parallel` blocks
+- Hex colors in sections `== Foo(#ff0000) ==` — wrong. Use named colors: `== Foo(red) ==`
+- `->` inside labeled arrows `A -routes to /api-> B` — ambiguous. Rephrase the label
+- Missing `chart:` for ambiguous content — when auto-detection picks the wrong type, add an explicit `chart:` directive
+- `end` keyword in sequence blocks — not needed. Indentation closes blocks
+
+---
+
+## CLI Usage
+
+```bash
+dgmo diagram.dgmo                              # PNG output (default)
+dgmo diagram.dgmo -o output.svg                # SVG output
+dgmo diagram.dgmo -o url                        # Shareable URL
+dgmo diagram.dgmo --palette catppuccin --theme dark
+dgmo diagram.dgmo -o output.png --palette bold
+```
