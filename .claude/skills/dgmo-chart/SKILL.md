@@ -99,4 +99,9 @@ Team B: 2, 3, 2, 4, 3
 
 ## Output
 
-Write to a descriptive `.dgmo` file and offer to render with `dgmo` CLI if available.
+Write to a descriptive `.dgmo` file, then check if `dgmo` CLI is available (`command -v dgmo`). If not installed, tell the user:
+- `brew install diagrammo/dgmo/dgmo` (macOS, recommended)
+- `npm install -g @diagrammo/dgmo`
+- Or: `npx @diagrammo/dgmo <file>.dgmo`
+
+If available, offer to render: `dgmo <file>.dgmo -o <file>.svg` or `dgmo <file>.dgmo -o url`

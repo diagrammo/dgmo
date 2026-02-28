@@ -35,10 +35,15 @@ Generate a `.dgmo` diagram file based on the user's description. Pick the best d
 
 Check if `dgmo` CLI is available:
 ```bash
-command -v dgmo || npx @diagrammo/dgmo --version
+command -v dgmo 2>/dev/null
 ```
 
-If available, offer to render:
+If **not installed**, tell the user how to install it:
+- `brew install diagrammo/dgmo/dgmo` (macOS, recommended)
+- `npm install -g @diagrammo/dgmo`
+- Or run without installing: `npx @diagrammo/dgmo <file>.dgmo`
+
+If available (or after install), offer to render:
 ```bash
 dgmo <file>.dgmo -o <file>.svg
 dgmo <file>.dgmo -o url          # shareable link
