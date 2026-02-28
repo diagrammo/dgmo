@@ -1,6 +1,7 @@
 import { resolveColor } from '../colors';
 import type { PaletteColors } from '../palettes';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
+import { measureIndent } from '../utils/parsing';
 import type {
   ParsedERDiagram,
   ERTable,
@@ -12,16 +13,6 @@ import type {
 // ============================================================
 // Helpers
 // ============================================================
-
-function measureIndent(line: string): number {
-  let indent = 0;
-  for (const ch of line) {
-    if (ch === ' ') indent++;
-    else if (ch === '\t') indent += 4;
-    else break;
-  }
-  return indent;
-}
 
 function tableId(name: string): string {
   return name.toLowerCase().trim();

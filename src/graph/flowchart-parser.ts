@@ -1,6 +1,7 @@
 import { resolveColor } from '../colors';
 import type { PaletteColors } from '../palettes';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
+import { measureIndent, extractColor } from '../utils/parsing';
 import type {
   ParsedGraph,
   GraphNode,
@@ -14,16 +15,6 @@ import type {
 // Helpers
 // ============================================================
 
-function measureIndent(line: string): number {
-  let indent = 0;
-  for (const ch of line) {
-    if (ch === ' ') indent++;
-    else if (ch === '\t') indent += 4;
-    else break;
-  }
-  return indent;
-}
-
 function nodeId(shape: GraphShape, label: string): string {
   return `${shape}:${label.toLowerCase().trim()}`;
 }
@@ -33,21 +24,6 @@ interface NodeRef {
   label: string;
   shape: GraphShape;
   color?: string;
-}
-
-const COLOR_SUFFIX_RE = /\(([^)]+)\)\s*$/;
-
-function extractColor(
-  label: string,
-  palette?: PaletteColors
-): { label: string; color?: string } {
-  const m = label.match(COLOR_SUFFIX_RE);
-  if (!m) return { label };
-  const colorName = m[1].trim();
-  return {
-    label: label.substring(0, m.index!).trim(),
-    color: resolveColor(colorName, palette),
-  };
 }
 
 /**

@@ -1,9 +1,16 @@
-import { resolveColor } from '../colors';
 import type { PaletteColors } from '../palettes';
 import type { DgmoError } from '../diagnostics';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
 import type { TagGroup, TagEntry } from '../utils/tag-groups';
 import { isTagBlockHeading, matchTagBlockHeading } from '../utils/tag-groups';
+import {
+  measureIndent,
+  extractColor,
+  parsePipeMetadata,
+  CHART_TYPE_RE,
+  TITLE_RE,
+  OPTION_RE,
+} from '../utils/parsing';
 
 // ============================================================
 // Types
@@ -39,36 +46,8 @@ export interface ParsedOrg {
 // Helpers
 // ============================================================
 
-function measureIndent(line: string): number {
-  let indent = 0;
-  for (const ch of line) {
-    if (ch === ' ') indent++;
-    else if (ch === '\t') indent += 4;
-    else break;
-  }
-  return indent;
-}
-
-const COLOR_SUFFIX_RE = /\(([^)]+)\)\s*$/;
-
-function extractColor(
-  label: string,
-  palette?: PaletteColors
-): { label: string; color?: string } {
-  const m = label.match(COLOR_SUFFIX_RE);
-  if (!m) return { label };
-  const colorName = m[1].trim();
-  return {
-    label: label.substring(0, m.index!).trim(),
-    color: resolveColor(colorName, palette),
-  };
-}
-
 const CONTAINER_RE = /^\[([^\]]+)\]$/;
 const METADATA_RE = /^([^:]+):\s*(.+)$/;
-const CHART_TYPE_RE = /^chart\s*:\s*(.+)/i;
-const TITLE_RE = /^title\s*:\s*(.+)/i;
-const OPTION_RE = /^([a-z][a-z0-9-]*)\s*:\s*(.+)$/i;
 
 // ============================================================
 // Inference
@@ -340,24 +319,7 @@ function parseNodeLabel(
   let rawLabel = segments[0];
   const { label, color } = extractColor(rawLabel, palette);
 
-  const metadata: Record<string, string> = {};
-  // Collect all metadata parts: split pipe segments further on commas
-  const metaParts: string[] = [];
-  for (let j = 1; j < segments.length; j++) {
-    for (const part of segments[j].split(',')) {
-      const trimmedPart = part.trim();
-      if (trimmedPart) metaParts.push(trimmedPart);
-    }
-  }
-  for (const part of metaParts) {
-    const colonIdx = part.indexOf(':');
-    if (colonIdx > 0) {
-      const rawKey = part.substring(0, colonIdx).trim().toLowerCase();
-      const key = aliasMap.get(rawKey) ?? rawKey;
-      const value = part.substring(colonIdx + 1).trim();
-      metadata[key] = value;
-    }
-  }
+  const metadata = parsePipeMetadata(segments, aliasMap);
 
   return {
     id: `node-${counter}`,

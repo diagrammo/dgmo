@@ -1,8 +1,14 @@
-import { resolveColor } from '../colors';
 import type { PaletteColors } from '../palettes';
 import type { DgmoError } from '../diagnostics';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
 import { matchTagBlockHeading } from '../utils/tag-groups';
+import {
+  measureIndent,
+  extractColor,
+  CHART_TYPE_RE,
+  TITLE_RE,
+  OPTION_RE,
+} from '../utils/parsing';
 import type {
   ParsedKanban,
   KanbanColumn,
@@ -15,38 +21,7 @@ import type {
 // Regex patterns
 // ============================================================
 
-const CHART_TYPE_RE = /^chart\s*:\s*(.+)/i;
-const TITLE_RE = /^title\s*:\s*(.+)/i;
-const OPTION_RE = /^([a-z][a-z0-9-]*)\s*:\s*(.+)$/i;
 const COLUMN_RE = /^==\s+(.+?)\s*(?:\[wip:\s*(\d+)\])?\s*==$/;
-const COLOR_SUFFIX_RE = /\(([^)]+)\)\s*$/;
-
-// ============================================================
-// Helpers
-// ============================================================
-
-function measureIndent(line: string): number {
-  let indent = 0;
-  for (const ch of line) {
-    if (ch === ' ') indent++;
-    else if (ch === '\t') indent += 4;
-    else break;
-  }
-  return indent;
-}
-
-function extractColor(
-  label: string,
-  palette?: PaletteColors
-): { label: string; color?: string } {
-  const m = label.match(COLOR_SUFFIX_RE);
-  if (!m) return { label };
-  const colorName = m[1].trim();
-  return {
-    label: label.substring(0, m.index!).trim(),
-    color: resolveColor(colorName, palette),
-  };
-}
 
 // ============================================================
 // Parser

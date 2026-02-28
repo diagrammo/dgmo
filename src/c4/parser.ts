@@ -2,13 +2,20 @@
 // C4 Architecture Diagram — Parser
 // ============================================================
 
-import { resolveColor } from '../colors';
 import type { PaletteColors } from '../palettes';
 import type { DgmoError } from '../diagnostics';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
 import type { TagGroup } from '../utils/tag-groups';
 import { matchTagBlockHeading } from '../utils/tag-groups';
 import { inferParticipantType } from '../sequence/participant-inference';
+import {
+  measureIndent,
+  extractColor,
+  parsePipeMetadata,
+  CHART_TYPE_RE,
+  TITLE_RE,
+  OPTION_RE,
+} from '../utils/parsing';
 import type {
   ParsedC4,
   C4Element,
@@ -24,10 +31,6 @@ import type {
 // Regex patterns
 // ============================================================
 
-const CHART_TYPE_RE = /^chart\s*:\s*(.+)/i;
-const TITLE_RE = /^title\s*:\s*(.+)/i;
-const OPTION_RE = /^([a-z][a-z0-9-]*)\s*:\s*(.+)$/i;
-const COLOR_SUFFIX_RE = /\(([^)]+)\)\s*$/;
 const CONTAINER_RE = /^\[([^\]]+)\]$/;
 
 /** Matches element declarations: `person Name`, `system Name | k: v` */
@@ -58,28 +61,6 @@ const METADATA_RE = /^([^:]+):\s*(.+)$/;
 // Helpers
 // ============================================================
 
-function measureIndent(line: string): number {
-  let indent = 0;
-  for (const ch of line) {
-    if (ch === ' ') indent++;
-    else if (ch === '\t') indent += 4;
-    else break;
-  }
-  return indent;
-}
-
-function extractColor(
-  label: string,
-  palette?: PaletteColors,
-): { label: string; color?: string } {
-  const m = label.match(COLOR_SUFFIX_RE);
-  if (!m) return { label };
-  const colorName = m[1].trim();
-  return {
-    label: label.substring(0, m.index!).trim(),
-    color: resolveColor(colorName, palette),
-  };
-}
 
 const VALID_ELEMENT_TYPES = new Set<string>([
   'person',
@@ -191,27 +172,6 @@ function parseRelationshipBody(
   return { target, label: rest };
 }
 
-/** Parse pipe-delimited metadata from segments after the first (name) segment. */
-function parsePipeMetadata(
-  segments: string[],
-  aliasMap: Map<string, string>,
-): Record<string, string> {
-  const metadata: Record<string, string> = {};
-  for (let j = 1; j < segments.length; j++) {
-    for (const part of segments[j].split(',')) {
-      const trimmedPart = part.trim();
-      if (!trimmedPart) continue;
-      const colonIdx = trimmedPart.indexOf(':');
-      if (colonIdx > 0) {
-        const rawKey = trimmedPart.substring(0, colonIdx).trim().toLowerCase();
-        const key = aliasMap.get(rawKey) ?? rawKey;
-        const value = trimmedPart.substring(colonIdx + 1).trim();
-        metadata[key] = value;
-      }
-    }
-  }
-  return metadata;
-}
 
 // ============================================================
 // Stack entry types

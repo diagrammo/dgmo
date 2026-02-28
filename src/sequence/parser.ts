@@ -6,6 +6,7 @@ import { inferParticipantType } from './participant-inference';
 import type { DgmoError } from '../diagnostics';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
 import { parseArrow } from '../utils/arrows';
+import { measureIndent } from '../utils/parsing';
 
 /**
  * Participant types that can be declared via "Name is a type" syntax.
@@ -213,19 +214,6 @@ function parseReturnLabel(rawLabel: string): {
   }
 
   return { label: rawLabel };
-}
-
-/**
- * Measure leading whitespace of a line, normalizing tabs to 4 spaces.
- */
-function measureIndent(line: string): number {
-  let indent = 0;
-  for (const ch of line) {
-    if (ch === ' ') indent++;
-    else if (ch === '\t') indent += 4;
-    else break;
-  }
-  return indent;
 }
 
 /**
