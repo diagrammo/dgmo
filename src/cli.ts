@@ -3,7 +3,7 @@ import { execSync } from 'node:child_process';
 import { resolve, basename, extname } from 'node:path';
 import { Resvg } from '@resvg/resvg-js';
 import { render } from './render';
-import { parseDgmo } from './dgmo-router';
+import { parseDgmo, DGMO_CHART_TYPE_MAP } from './dgmo-router';
 import { parseDgmoChartType } from './dgmo-router';
 import { formatDgmoError } from './diagnostics';
 import { getPalette } from './palettes/registry';
@@ -24,6 +24,38 @@ const PALETTES = [
 
 const THEMES = ['light', 'dark', 'transparent'] as const;
 
+const CHART_TYPE_DESCRIPTIONS: Record<string, string> = {
+  bar: 'Bar chart — categorical comparisons',
+  line: 'Line chart — trends over time',
+  'multi-line': 'Multi-line chart — multiple series trends',
+  area: 'Area chart — filled line chart',
+  pie: 'Pie chart — part-to-whole proportions',
+  doughnut: 'Doughnut chart — ring-style pie chart',
+  radar: 'Radar chart — multi-dimensional metrics',
+  'polar-area': 'Polar area chart — radial bar chart',
+  'bar-stacked': 'Stacked bar chart — multi-series categorical',
+  scatter: 'Scatter plot — 2D data points or bubble chart',
+  sankey: 'Sankey diagram — flow/allocation visualization',
+  chord: 'Chord diagram — circular flow relationships',
+  function: 'Function plot — mathematical expressions',
+  heatmap: 'Heatmap — matrix intensity visualization',
+  funnel: 'Funnel chart — conversion pipeline',
+  slope: 'Slope chart — change between two periods',
+  wordcloud: 'Word cloud — term frequency visualization',
+  arc: 'Arc diagram — network relationships',
+  timeline: 'Timeline — events, eras, and date ranges',
+  venn: 'Venn diagram — set overlaps',
+  quadrant: 'Quadrant chart — 2x2 positioning matrix',
+  sequence: 'Sequence diagram — message/interaction flows',
+  flowchart: 'Flowchart — decision trees and process flows',
+  class: 'Class diagram — UML class hierarchies',
+  er: 'ER diagram — database schemas and relationships',
+  org: 'Org chart — hierarchical tree structures',
+  kanban: 'Kanban board — task/workflow columns',
+  c4: 'C4 diagram — system architecture (context, container, component, deployment)',
+  'initiative-status': 'Initiative status — project roadmap with dependency tracking',
+};
+
 function printHelp(): void {
   console.log(`Usage: dgmo <input> [options]
        cat input.dgmo | dgmo [options]
@@ -42,6 +74,8 @@ Options:
   --c4-container <name> Container to drill into (with --c4-level components)
   --no-branding        Omit diagrammo.app branding from exports
   --copy               Copy URL to clipboard (only with -o url)
+  --json               Output structured JSON to stdout
+  --chart-types        List all supported chart types
   --help               Show this help
   --version            Show version`);
 }
@@ -62,6 +96,8 @@ function parseArgs(argv: string[]): {
   version: boolean;
   noBranding: boolean;
   copy: boolean;
+  json: boolean;
+  chartTypes: boolean;
   c4Level: 'context' | 'containers' | 'components' | 'deployment';
   c4System: string | undefined;
   c4Container: string | undefined;
@@ -75,6 +111,8 @@ function parseArgs(argv: string[]): {
     version: false,
     noBranding: false,
     copy: false,
+    json: false,
+    chartTypes: false,
     c4Level: 'context' as 'context' | 'containers' | 'components' | 'deployment',
     c4System: undefined as string | undefined,
     c4Container: undefined as string | undefined,
@@ -133,6 +171,12 @@ function parseArgs(argv: string[]): {
       i++;
     } else if (arg === '--no-branding') {
       result.noBranding = true;
+      i++;
+    } else if (arg === '--json') {
+      result.json = true;
+      i++;
+    } else if (arg === '--chart-types') {
+      result.chartTypes = true;
       i++;
     } else if (arg === '--copy') {
       result.copy = true;
@@ -220,6 +264,23 @@ async function main(): Promise<void> {
     return;
   }
 
+  if (opts.chartTypes) {
+    const types = Object.keys(DGMO_CHART_TYPE_MAP);
+    if (opts.json) {
+      const chartTypes = types.map((id) => ({
+        id,
+        description: CHART_TYPE_DESCRIPTIONS[id] ?? id,
+      }));
+      process.stdout.write(JSON.stringify({ chartTypes }, null, 2) + '\n');
+    } else {
+      for (const id of types) {
+        const desc = CHART_TYPE_DESCRIPTIONS[id];
+        console.log(desc ? `${id} — ${desc.split(' — ')[1]}` : id);
+      }
+    }
+    return;
+  }
+
   // Determine input source
   let content: string;
   let inputBasename: string | undefined;
@@ -277,14 +338,30 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  const chartType = parseDgmoChartType(content);
+
+  // Helper for JSON error output
+  function exitWithJsonError(error: string, line?: number): never {
+    if (opts.json) {
+      process.stdout.write(JSON.stringify({
+        success: false,
+        error,
+        ...(line != null ? { line } : {}),
+        ...(chartType ? { chartType } : {}),
+      }, null, 2) + '\n');
+    } else {
+      console.error(error);
+    }
+    process.exit(1);
+  }
+
   // URL output — encode DSL directly, no rendering needed
   if (format === 'url') {
     const result = encodeDiagramUrl(content);
     if (result.error) {
-      console.error(
+      exitWithJsonError(
         `Error: Diagram too large for URL sharing (${result.compressedSize} bytes, limit ${result.limit} bytes)`
       );
-      process.exit(1);
     }
 
     if (opts.copy) {
@@ -303,7 +380,15 @@ async function main(): Promise<void> {
       }
     }
 
-    process.stdout.write(result.url + '\n');
+    if (opts.json) {
+      process.stdout.write(JSON.stringify({
+        success: true,
+        url: result.url,
+        ...(chartType ? { chartType } : {}),
+      }, null, 2) + '\n');
+    } else {
+      process.stdout.write(result.url + '\n');
+    }
     return;
   }
 
@@ -313,10 +398,9 @@ async function main(): Promise<void> {
   // which are unavailable in Node.js — check before attempting render.
   const wordcloudRe = /^\s*chart\s*:\s*wordcloud\b/im;
   if (wordcloudRe.test(content)) {
-    console.error(
+    exitWithJsonError(
       'Error: Word clouds are not supported in the CLI (requires Canvas). Use the desktop app or browser instead.'
     );
-    process.exit(1);
   }
 
   // Parse first to collect diagnostics
@@ -325,28 +409,36 @@ async function main(): Promise<void> {
   const warnings = diagnostics.filter((d) => d.severity === 'warning');
 
   // Print warnings even if rendering succeeds
-  for (const w of warnings) {
-    console.error(`\u26A0 ${formatDgmoError(w)}`);
+  if (!opts.json) {
+    for (const w of warnings) {
+      console.error(`\u26A0 ${formatDgmoError(w)}`);
+    }
   }
 
-  // Print errors
-  for (const e of errors) {
-    console.error(`\u2716 ${formatDgmoError(e)}`);
+  // Print errors and exit
+  if (errors.length > 0) {
+    if (opts.json) {
+      const firstError = errors[0];
+      exitWithJsonError(
+        formatDgmoError(firstError),
+        firstError.line,
+      );
+    }
+    for (const e of errors) {
+      console.error(`\u2716 ${formatDgmoError(e)}`);
+    }
   }
 
   // Validate C4 options
   if (opts.c4Level === 'containers' && !opts.c4System) {
-    console.error('Error: --c4-system is required when --c4-level is containers');
-    process.exit(1);
+    exitWithJsonError('Error: --c4-system is required when --c4-level is containers');
   }
   if (opts.c4Level === 'components') {
     if (!opts.c4System) {
-      console.error('Error: --c4-system is required when --c4-level is components');
-      process.exit(1);
+      exitWithJsonError('Error: --c4-system is required when --c4-level is components');
     }
     if (!opts.c4Container) {
-      console.error('Error: --c4-container is required when --c4-level is components');
-      process.exit(1);
+      exitWithJsonError('Error: --c4-container is required when --c4-level is components');
     }
   }
 
@@ -361,7 +453,7 @@ async function main(): Promise<void> {
 
   if (!svg) {
     if (errors.length === 0) {
-      console.error(
+      exitWithJsonError(
         'Error: Failed to render diagram. The input may be empty, invalid, or use an unsupported chart type.'
       );
     }
@@ -371,7 +463,26 @@ async function main(): Promise<void> {
   // Determine output destination
   const pngBg = opts.theme === 'transparent' ? undefined : paletteColors.bg;
 
-  if (opts.output) {
+  if (opts.json) {
+    // JSON mode: write file as normal but output JSON result to stdout
+    let outputPath: string | undefined;
+    if (opts.output) {
+      outputPath = resolve(opts.output);
+      if (format === 'svg') {
+        writeFileSync(outputPath, svg, 'utf-8');
+      } else {
+        writeFileSync(outputPath, svgToPng(svg, pngBg));
+      }
+    } else if (inputBasename) {
+      outputPath = resolve(`${inputBasename}.png`);
+      writeFileSync(outputPath, svgToPng(svg, pngBg));
+    }
+    process.stdout.write(JSON.stringify({
+      success: true,
+      ...(outputPath ? { output: outputPath } : {}),
+      ...(chartType ? { chartType } : {}),
+    }, null, 2) + '\n');
+  } else if (opts.output) {
     // Explicit output path
     const outputPath = resolve(opts.output);
     if (format === 'svg') {
