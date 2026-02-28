@@ -802,4 +802,92 @@ describe('parseC4', () => {
       expect(result.deployment[1].name).toBe('Cloudflare');
     });
   });
+
+  // ============================================================
+  // Labeled arrow syntax: -label->, ~label~>, <-label->, <~label~>
+  // ============================================================
+  describe('labeled arrow syntax', () => {
+    it('-label-> produces sync relationship', () => {
+      const result = parseC4(`chart: c4
+system API
+  -Makes calls-> Backend`);
+      expect(result.error).toBeNull();
+      const rels = result.elements[0].relationships;
+      expect(rels).toHaveLength(1);
+      expect(rels[0]).toMatchObject({
+        target: 'Backend',
+        label: 'Makes calls',
+        arrowType: 'sync',
+      });
+    });
+
+    it('~label~> produces async relationship', () => {
+      const result = parseC4(`chart: c4
+system API
+  ~Sends events~> Queue`);
+      expect(result.error).toBeNull();
+      const rels = result.elements[0].relationships;
+      expect(rels).toHaveLength(1);
+      expect(rels[0]).toMatchObject({
+        target: 'Queue',
+        label: 'Sends events',
+        arrowType: 'async',
+      });
+    });
+
+    it('<-label-> produces bidirectional relationship', () => {
+      const result = parseC4(`chart: c4
+system API
+  <-Syncs data-> Database`);
+      expect(result.error).toBeNull();
+      const rels = result.elements[0].relationships;
+      expect(rels).toHaveLength(1);
+      expect(rels[0]).toMatchObject({
+        target: 'Database',
+        label: 'Syncs data',
+        arrowType: 'bidirectional',
+      });
+    });
+
+    it('<~label~> produces bidirectional-async relationship', () => {
+      const result = parseC4(`chart: c4
+system API
+  <~heartbeat~> Monitor`);
+      expect(result.error).toBeNull();
+      const rels = result.elements[0].relationships;
+      expect(rels).toHaveLength(1);
+      expect(rels[0]).toMatchObject({
+        target: 'Monitor',
+        label: 'heartbeat',
+        arrowType: 'bidirectional-async',
+      });
+    });
+
+    it('technology annotation in labeled arrow', () => {
+      const result = parseC4(`chart: c4
+system WebApp
+  -Makes calls [JSON/HTTPS]-> API`);
+      expect(result.error).toBeNull();
+      const rels = result.elements[0].relationships;
+      expect(rels).toHaveLength(1);
+      expect(rels[0]).toMatchObject({
+        target: 'API',
+        label: 'Makes calls',
+        technology: 'JSON/HTTPS',
+        arrowType: 'sync',
+      });
+    });
+
+    it('both syntax forms coexist in same diagram', () => {
+      const result = parseC4(`chart: c4
+system API
+  -Calls-> Backend
+  -> Database: Reads data`);
+      expect(result.error).toBeNull();
+      const rels = result.elements[0].relationships;
+      expect(rels).toHaveLength(2);
+      expect(rels[0]).toMatchObject({ label: 'Calls', arrowType: 'sync' });
+      expect(rels[1]).toMatchObject({ label: 'Reads data', arrowType: 'sync' });
+    });
+  });
 });

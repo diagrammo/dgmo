@@ -33,5 +33,5 @@ export interface ParsedKanban {
   tagGroups: KanbanTagGroup[];
   options: Record<string, string>;
   diagnostics: DgmoError[];
-  error?: string;
+  error: string | null;
 }

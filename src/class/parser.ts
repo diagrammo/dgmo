@@ -172,6 +172,7 @@ export function parseClassDiagram(
     relationships: [],
     options: {},
     diagnostics: [],
+    error: null,
   };
 
   const fail = (line: number, message: string): ParsedClassDiagram => {

@@ -5,6 +5,7 @@
 import { inferParticipantType } from './participant-inference';
 import type { DgmoError } from '../diagnostics';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
+import { parseArrow } from '../utils/arrows';
 
 /**
  * Participant types that can be declared via "Name is a type" syntax.
@@ -60,6 +61,7 @@ export interface SequenceMessage {
   returnLabel?: string;
   lineNumber: number;
   async?: boolean;
+  bidirectional?: boolean;
 }
 
 /**
@@ -159,8 +161,9 @@ const GROUP_HEADING_PATTERN = /^##\s+(.+?)(?:\(([^)]+)\))?\s*$/;
 // Section divider pattern — "== Label ==", "== Label(color) ==", or "== Label" (trailing == optional)
 const SECTION_PATTERN = /^==\s+(.+?)(?:\s*==)?\s*$/;
 
-// Arrow pattern for sequence inference — "A -> B: message" or "A ~> B: message"
-const ARROW_PATTERN = /\S+\s*(?:->|~>)\s*\S+/;
+// Arrow pattern for sequence inference — "A -> B: message", "A ~> B: message",
+// "A -label-> B", "A ~label~> B", "A <-> B", "A <~> B"
+const ARROW_PATTERN = /\S+\s*(?:<->|<~>|->|~>|-\S+->|~\S+~>|<-\S+->|<~\S+~>)\s*\S+/;
 
 // <- return syntax: "Login <- 200 OK"
 const ARROW_RETURN_PATTERN = /^(.+?)\s*<-\s*(.+)$/;
@@ -516,6 +519,97 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     const asyncPrefixMatch = trimmed.match(/^async\s+(.+)$/i);
     if (asyncPrefixMatch && ARROW_PATTERN.test(asyncPrefixMatch[1])) {
       pushError(lineNumber, 'Use ~> for async messages: A ~> B: message');
+      continue;
+    }
+
+    // ---- Labeled arrows: -label->, ~label~>, <-label->, <~label~> ----
+    // Must be checked BEFORE plain arrow patterns to avoid partial matches
+    const labeledArrow = parseArrow(trimmed);
+    if (labeledArrow && 'error' in labeledArrow) {
+      pushError(lineNumber, labeledArrow.error);
+      continue;
+    }
+    if (labeledArrow) {
+      contentStarted = true;
+      const { from, to, label, async: isAsync, bidirectional } = labeledArrow;
+      lastMsgFrom = from;
+
+      const msg: SequenceMessage = {
+        from,
+        to,
+        label,
+        returnLabel: undefined,
+        lineNumber,
+        ...(isAsync ? { async: true } : {}),
+        ...(bidirectional ? { bidirectional: true } : {}),
+      };
+      result.messages.push(msg);
+      currentContainer().push(msg);
+
+      // Auto-register participants
+      if (!result.participants.some((p) => p.id === from)) {
+        result.participants.push({
+          id: from,
+          label: from,
+          type: inferParticipantType(from),
+          lineNumber,
+        });
+      }
+      if (!result.participants.some((p) => p.id === to)) {
+        result.participants.push({
+          id: to,
+          label: to,
+          type: inferParticipantType(to),
+          lineNumber,
+        });
+      }
+      continue;
+    }
+
+    // ---- Plain bidi arrows: <-> and <~> ----
+    // Must be checked BEFORE unidirectional plain arrows
+    const bidiSyncMatch = trimmed.match(
+      /^(\S+)\s*<->\s*([^\s:]+)\s*(?::\s*(.+))?$/
+    );
+    const bidiAsyncMatch = trimmed.match(
+      /^(\S+)\s*<~>\s*([^\s:]+)\s*(?::\s*(.+))?$/
+    );
+    const bidiMatch = bidiSyncMatch || bidiAsyncMatch;
+    if (bidiMatch) {
+      contentStarted = true;
+      const from = bidiMatch[1];
+      const to = bidiMatch[2];
+      lastMsgFrom = from;
+      const rawLabel = bidiMatch[3]?.trim() || '';
+      const isBidiAsync = !!bidiAsyncMatch;
+
+      const msg: SequenceMessage = {
+        from,
+        to,
+        label: rawLabel,
+        lineNumber,
+        bidirectional: true,
+        ...(isBidiAsync ? { async: true } : {}),
+      };
+      result.messages.push(msg);
+      currentContainer().push(msg);
+
+      if (!result.participants.some((p) => p.id === from)) {
+        result.participants.push({
+          id: from,
+          label: from,
+          type: inferParticipantType(from),
+          lineNumber,
+        });
+      }
+      if (!result.participants.some((p) => p.id === to)) {
+        result.participants.push({
+          id: to,
+          label: to,
+          type: inferParticipantType(to),
+          lineNumber,
+        });
+      }
       continue;
     }
 

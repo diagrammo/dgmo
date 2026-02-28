@@ -7,7 +7,7 @@ describe('parseFlowchart', () => {
     it('parses chart: flowchart', () => {
       const result = parseFlowchart('chart: flowchart\n(Start) -> (End)');
       expect(result.type).toBe('flowchart');
-      expect(result.error).toBeUndefined();
+      expect(result.error).toBeNull();
       expect(result.diagnostics).toEqual([]);
     });
 
@@ -36,7 +36,7 @@ describe('parseFlowchart', () => {
   describe('comments', () => {
     it('ignores // comments', () => {
       const result = parseFlowchart('// this is a comment\n(Start) -> (End)');
-      expect(result.error).toBeUndefined();
+      expect(result.error).toBeNull();
       expect(result.nodes).toHaveLength(2);
     });
   });
@@ -133,7 +133,7 @@ describe('parseFlowchart', () => {
     it('branches under decision associate correctly', () => {
       const input = '<Check?>\n  -yes-> [A]\n  -no-> [B]';
       const result = parseFlowchart(input);
-      expect(result.error).toBeUndefined();
+      expect(result.error).toBeNull();
 
       const decision = result.nodes.find((n) => n.shape === 'decision')!;
       expect(decision).toBeDefined();
@@ -155,7 +155,7 @@ describe('parseFlowchart', () => {
         '  -no-> [Login]',
       ].join('\n');
       const result = parseFlowchart(input);
-      expect(result.error).toBeUndefined();
+      expect(result.error).toBeNull();
 
       expect(result.nodes).toHaveLength(5); // Auth?, Admin?, Dashboard, Profile, Login
       expect(result.edges).toHaveLength(4); // Auth->Admin, Admin->Dashboard, Admin->Profile, Auth->Login
@@ -167,7 +167,7 @@ describe('parseFlowchart', () => {
     it('indented -> [B] continues from previous node', () => {
       const input = '(Start)\n  -> [Step]\n  -> (End)';
       const result = parseFlowchart(input);
-      expect(result.error).toBeUndefined();
+      expect(result.error).toBeNull();
       expect(result.nodes).toHaveLength(3);
       expect(result.edges).toHaveLength(2);
     });
@@ -182,7 +182,7 @@ describe('parseFlowchart', () => {
         '  -no-> [Path B] -> [Merge]',
       ].join('\n');
       const result = parseFlowchart(input);
-      expect(result.error).toBeUndefined();
+      expect(result.error).toBeNull();
 
       const mergeNodes = result.nodes.filter((n) => n.label === 'Merge');
       expect(mergeNodes).toHaveLength(1);
@@ -197,7 +197,7 @@ describe('parseFlowchart', () => {
     it('referencing earlier node creates loop edge', () => {
       const input = '(Start) -> /Get Input/ -> <Valid?>\n  -yes-> [Process] -> (End)\n  -no-> /Get Input/';
       const result = parseFlowchart(input);
-      expect(result.error).toBeUndefined();
+      expect(result.error).toBeNull();
 
       const inputNodes = result.nodes.filter((n) => n.label === 'Get Input');
       expect(inputNodes).toHaveLength(1); // convergence: single node
@@ -212,7 +212,7 @@ describe('parseFlowchart', () => {
     it('parses ## Group(color) with member nodes', () => {
       const input = '## API(blue)\n  [Auth] -> [Route]';
       const result = parseFlowchart(input);
-      expect(result.error).toBeUndefined();
+      expect(result.error).toBeNull();
       expect(result.groups).toHaveLength(1);
       expect(result.groups![0].label).toBe('API');
       expect(result.groups![0].color).toBeDefined();
@@ -321,7 +321,7 @@ describe('parseFlowchart', () => {
       ].join('\n');
 
       const result = parseFlowchart(input);
-      expect(result.error).toBeUndefined();
+      expect(result.error).toBeNull();
       expect(result.title).toBe('CI/CD Pipeline');
       expect(result.direction).toBe('LR');
       expect(result.groups).toHaveLength(3);

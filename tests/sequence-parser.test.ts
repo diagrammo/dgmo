@@ -1078,4 +1078,205 @@ describe('Story 47.2 — Parser tolerance', () => {
       expect(result.messages[0].to).toBe('B');
     });
   });
+
+  // ============================================================
+  // Labeled arrow syntax: -label->, ~label~>, <-label->, <~label~>
+  // ============================================================
+  describe('labeled arrow syntax', () => {
+    it('-label-> produces correct SequenceMessage', () => {
+      const result = parseSequenceDgmo('User -login-> API');
+      expect(result.error).toBeNull();
+      expect(result.messages).toHaveLength(1);
+      expect(result.messages[0]).toMatchObject({
+        from: 'User',
+        to: 'API',
+        label: 'login',
+        returnLabel: undefined,
+      });
+      expect(result.messages[0].async).toBeFalsy();
+      expect(result.messages[0].bidirectional).toBeFalsy();
+    });
+
+    it('~label~> produces async message', () => {
+      const result = parseSequenceDgmo('API ~event~> Queue');
+      expect(result.error).toBeNull();
+      expect(result.messages).toHaveLength(1);
+      expect(result.messages[0]).toMatchObject({
+        from: 'API',
+        to: 'Queue',
+        label: 'event',
+        async: true,
+      });
+      expect(result.messages[0].bidirectional).toBeFalsy();
+    });
+
+    it('labeled arrow does not produce returnLabel', () => {
+      const result = parseSequenceDgmo('A -findUser-> B');
+      expect(result.messages[0].returnLabel).toBeUndefined();
+    });
+
+    it('multi-word label in -label->', () => {
+      const result = parseSequenceDgmo('User -send request-> API');
+      expect(result.messages[0].label).toBe('send request');
+    });
+
+    it('error on arrow chars inside label', () => {
+      const result = parseSequenceDgmo('A -bad->val-> B');
+      expect(result.diagnostics.length).toBeGreaterThan(0);
+      expect(result.diagnostics[0].message).toContain('not allowed');
+    });
+
+    it('self-call with labeled arrow', () => {
+      const result = parseSequenceDgmo('API -validate-> API');
+      expect(result.messages).toHaveLength(1);
+      expect(result.messages[0].from).toBe('API');
+      expect(result.messages[0].to).toBe('API');
+    });
+
+    it('auto-registers participants', () => {
+      const result = parseSequenceDgmo('Frontend -fetch-> Backend');
+      expect(result.participants.map((p) => p.id)).toEqual(['Frontend', 'Backend']);
+    });
+  });
+
+  // ============================================================
+  // Bidirectional arrows: <->, <~>, <-label->, <~label~>
+  // ============================================================
+  describe('bidirectional arrows', () => {
+    it('<-> produces bidirectional message', () => {
+      const result = parseSequenceDgmo('A <-> B');
+      expect(result.error).toBeNull();
+      expect(result.messages).toHaveLength(1);
+      expect(result.messages[0]).toMatchObject({
+        from: 'A',
+        to: 'B',
+        bidirectional: true,
+      });
+      expect(result.messages[0].async).toBeFalsy();
+    });
+
+    it('<-> with colon label', () => {
+      const result = parseSequenceDgmo('A <-> B: sync data');
+      expect(result.messages[0]).toMatchObject({
+        from: 'A',
+        to: 'B',
+        label: 'sync data',
+        bidirectional: true,
+      });
+    });
+
+    it('<~> produces async bidirectional', () => {
+      const result = parseSequenceDgmo('A <~> B: heartbeat');
+      expect(result.messages[0]).toMatchObject({
+        from: 'A',
+        to: 'B',
+        label: 'heartbeat',
+        async: true,
+        bidirectional: true,
+      });
+    });
+
+    it('<-label-> produces labeled bidirectional', () => {
+      const result = parseSequenceDgmo('A <-data sync-> B');
+      expect(result.messages[0]).toMatchObject({
+        from: 'A',
+        to: 'B',
+        label: 'data sync',
+        bidirectional: true,
+      });
+    });
+
+    it('<~label~> produces labeled async bidirectional', () => {
+      const result = parseSequenceDgmo('A <~heartbeat~> B');
+      expect(result.messages[0]).toMatchObject({
+        from: 'A',
+        to: 'B',
+        label: 'heartbeat',
+        async: true,
+        bidirectional: true,
+      });
+    });
+
+    it('bidirectional messages produce no activation bars', () => {
+      const result = parseSequenceDgmo('A <-> B\nA <~> B');
+      const steps = buildRenderSequence(result.messages);
+      const activations = computeActivations(steps);
+      expect(activations).toHaveLength(0);
+    });
+
+    it('bidirectional messages produce call steps with no returns', () => {
+      const result = parseSequenceDgmo('A <-> B');
+      const steps = buildRenderSequence(result.messages);
+      expect(steps).toHaveLength(1);
+      expect(steps[0]).toMatchObject({
+        type: 'call',
+        bidirectional: true,
+      });
+    });
+  });
+
+  // ============================================================
+  // Activation bar equivalence: old syntax vs new syntax
+  // ============================================================
+  describe('activation bar equivalence', () => {
+    it('Form A (: label) and Form B (-label->) produce identical activations', () => {
+      const formA = parseSequenceDgmo([
+        'User -> API: login',
+        'API -> DB: findUser',
+        'DB -> API: <- user',
+        'API -> User: <- token',
+      ].join('\n'));
+
+      const formB = parseSequenceDgmo([
+        'User -login-> API',
+        'API -findUser-> DB',
+        'DB -> API: <- user',
+        'API -> User: <- token',
+      ].join('\n'));
+
+      const stepsA = buildRenderSequence(formA.messages);
+      const stepsB = buildRenderSequence(formB.messages);
+      const activationsA = computeActivations(stepsA);
+      const activationsB = computeActivations(stepsB);
+
+      expect(activationsA.length).toBe(activationsB.length);
+      for (let i = 0; i < activationsA.length; i++) {
+        expect(activationsA[i].participantId).toBe(activationsB[i].participantId);
+        expect(activationsA[i].startStep).toBe(activationsB[i].startStep);
+        expect(activationsA[i].endStep).toBe(activationsB[i].endStep);
+        expect(activationsA[i].depth).toBe(activationsB[i].depth);
+      }
+    });
+
+    it('nested stacks with mixed syntax', () => {
+      const result = parseSequenceDgmo([
+        'User -login-> API',
+        'API -> DB: findUser(email) <- user',
+        'API -token-> User',
+      ].join('\n'));
+      expect(result.error).toBeNull();
+      expect(result.messages).toHaveLength(3);
+
+      const steps = buildRenderSequence(result.messages);
+      const activations = computeActivations(steps);
+      expect(activations.length).toBeGreaterThan(0);
+    });
+  });
+
+  // ============================================================
+  // Sequence inference with new arrow forms
+  // ============================================================
+  describe('looksLikeSequence with new arrows', () => {
+    it('detects -label->', () => {
+      expect(
+        parseSequenceDgmo('User -login-> API').messages
+      ).toHaveLength(1);
+    });
+
+    it('detects <->', () => {
+      expect(
+        parseSequenceDgmo('A <-> B').messages
+      ).toHaveLength(1);
+    });
+  });
 });

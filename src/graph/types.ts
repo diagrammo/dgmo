@@ -45,5 +45,5 @@ export interface ParsedGraph {
   groups?: GraphGroup[];
   options: Record<string, string>;
   diagnostics: DgmoError[];
-  error?: string;
+  error: string | null;
 }

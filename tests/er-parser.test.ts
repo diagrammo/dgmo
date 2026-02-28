@@ -7,7 +7,7 @@ describe('parseERDiagram', () => {
     it('parses chart: er', () => {
       const result = parseERDiagram('chart: er\nusers\n  id: int [pk]');
       expect(result.type).toBe('er');
-      expect(result.error).toBeUndefined();
+      expect(result.error).toBeNull();
       expect(result.diagnostics).toEqual([]);
     });
 
@@ -37,7 +37,7 @@ describe('parseERDiagram', () => {
   describe('comments', () => {
     it('ignores // comments', () => {
       const result = parseERDiagram('// this is a comment\nusers\n  id: int [pk]');
-      expect(result.error).toBeUndefined();
+      expect(result.error).toBeNull();
       expect(result.tables).toHaveLength(1);
     });
   });
@@ -168,56 +168,38 @@ describe('parseERDiagram', () => {
       });
     });
 
-    describe('keyword cardinality', () => {
-      it('parses one-to-many', () => {
+    describe('keyword cardinality (rejected with helpful error)', () => {
+      it('rejects one-to-many with symbolic suggestion', () => {
         const result = parseERDiagram('users\n  id: int [pk]\n\nposts\n  id: int [pk]\n\nusers one-to-many posts');
-        expect(result.relationships[0].cardinality.from).toBe('1');
-        expect(result.relationships[0].cardinality.to).toBe('*');
+        expect(result.error).toBeTruthy();
+        expect(result.diagnostics[0].message).toContain('1--*');
+        expect(result.relationships).toHaveLength(0);
       });
 
-      it('parses many-to-one', () => {
+      it('rejects many-to-one with symbolic suggestion', () => {
         const result = parseERDiagram('posts\n  id: int [pk]\n\nusers\n  id: int [pk]\n\nposts many-to-one users');
-        expect(result.relationships[0].cardinality.from).toBe('*');
-        expect(result.relationships[0].cardinality.to).toBe('1');
+        expect(result.error).toBeTruthy();
+        expect(result.diagnostics[0].message).toContain('*--1');
       });
 
-      it('parses one-to-one', () => {
+      it('rejects one-to-one with symbolic suggestion', () => {
         const result = parseERDiagram('users\n  id: int [pk]\n\nprofiles\n  id: int [pk]\n\nusers one-to-one profiles');
-        expect(result.relationships[0].cardinality.from).toBe('1');
-        expect(result.relationships[0].cardinality.to).toBe('1');
+        expect(result.error).toBeTruthy();
+        expect(result.diagnostics[0].message).toContain('1--1');
       });
     });
 
-    describe('natural cardinality', () => {
-      it('parses one to many', () => {
+    describe('natural cardinality (rejected)', () => {
+      it('rejects one to many with symbolic suggestion', () => {
         const result = parseERDiagram('users\n  id: int [pk]\n\nposts\n  id: int [pk]\n\nusers one to many posts');
-        expect(result.relationships[0].cardinality.from).toBe('1');
-        expect(result.relationships[0].cardinality.to).toBe('*');
-      });
-    });
-
-    describe('mixed cardinality', () => {
-      it('parses 1 to many', () => {
-        const result = parseERDiagram('users\n  id: int [pk]\n\nposts\n  id: int [pk]\n\nusers 1 to many posts');
-        expect(result.relationships[0].cardinality.from).toBe('1');
-        expect(result.relationships[0].cardinality.to).toBe('*');
-      });
-
-      it('parses ? to *', () => {
-        const result = parseERDiagram('a\n  id: int [pk]\n\nb\n  id: int [pk]\n\na ?-to-* b');
-        expect(result.relationships[0].cardinality.from).toBe('?');
-        expect(result.relationships[0].cardinality.to).toBe('*');
+        expect(result.error).toBeTruthy();
+        expect(result.diagnostics[0].message).toContain('1--*');
       });
     });
 
     describe('relationship labels', () => {
       it('parses symbolic with label', () => {
         const result = parseERDiagram('users\n  id: int [pk]\n\nposts\n  id: int [pk]\n\nusers 1--* posts: writes');
-        expect(result.relationships[0].label).toBe('writes');
-      });
-
-      it('parses keyword with label', () => {
-        const result = parseERDiagram('users\n  id: int [pk]\n\nposts\n  id: int [pk]\n\nusers one-to-many posts: writes');
         expect(result.relationships[0].label).toBe('writes');
       });
     });

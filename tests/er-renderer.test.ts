@@ -73,7 +73,7 @@ users 1--* posts: writes`;
 
 function renderToContainer(content: string, isDark = false): HTMLDivElement {
   const parsed = parseERDiagram(content, testPalette);
-  expect(parsed.error).toBeUndefined();
+  expect(parsed.error).toBeNull();
   const layout = layoutERDiagram(parsed);
 
   const container = document.createElement('div');

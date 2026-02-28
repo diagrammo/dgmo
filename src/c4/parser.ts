@@ -39,6 +39,12 @@ const IS_A_RE = /\s+is\s+a(?:n)?\s+(\w+)\s*$/i;
 /** Matches relationship arrows: `->`, `~>`, `<->`, `<~>` */
 const RELATIONSHIP_RE = /^(<?-?>|<?~?>)\s+(.+)$/;
 
+/** Labeled arrow relationships: -label->, ~label~>, <-label->, <~label~> */
+const C4_LABELED_SYNC_RE = /^-(.+)->\s+(.+)$/;
+const C4_LABELED_ASYNC_RE = /^~(.+)~>\s+(.+)$/;
+const C4_LABELED_BIDI_SYNC_RE = /^<-(.+)->\s+(.+)$/;
+const C4_LABELED_BIDI_ASYNC_RE = /^<~(.+)~>\s+(.+)$/;
+
 /** Matches section headers: `containers:`, `components:`, `deployment:` */
 const SECTION_HEADER_RE = /^(containers|components|deployment)\s*:\s*$/i;
 
@@ -528,6 +534,55 @@ export function parseC4(
         pushError(lineNumber, `Group [${groupName}] must be inside an element`);
       }
       continue;
+    }
+
+    // ── Labeled arrow relationships: -label->, ~label~>, <-label->, <~label~> ──
+    // Must be checked BEFORE plain RELATIONSHIP_RE to avoid partial matches
+    {
+      const labeledPatterns: {
+        re: RegExp;
+        arrowType: C4ArrowType;
+      }[] = [
+        { re: C4_LABELED_BIDI_SYNC_RE, arrowType: 'bidirectional' },
+        { re: C4_LABELED_BIDI_ASYNC_RE, arrowType: 'bidirectional-async' },
+        { re: C4_LABELED_SYNC_RE, arrowType: 'sync' },
+        { re: C4_LABELED_ASYNC_RE, arrowType: 'async' },
+      ];
+      let labeledHandled = false;
+      for (const { re, arrowType } of labeledPatterns) {
+        const m = trimmed.match(re);
+        if (!m) continue;
+        const rawLabel = m[1].trim();
+        const targetBody = m[2].trim();
+        if (!rawLabel) break; // empty label — fall through to plain arrow
+
+        // Extract [technology] from end of label
+        let label: string | undefined = rawLabel;
+        let technology: string | undefined;
+        const techMatch = rawLabel.match(/\[([^\]]+)\]\s*$/);
+        if (techMatch) {
+          label = rawLabel.substring(0, techMatch.index!).trim() || undefined;
+          technology = techMatch[1].trim();
+        }
+
+        const rel: C4Relationship = {
+          target: targetBody,
+          label,
+          technology,
+          arrowType,
+          lineNumber,
+        };
+
+        const parentEntry = findParentElement(indent, stack);
+        if (parentEntry) {
+          parentEntry.element.relationships.push(rel);
+        } else {
+          result.relationships.push(rel);
+        }
+        labeledHandled = true;
+        break;
+      }
+      if (labeledHandled) continue;
     }
 
     // ── Relationships ───────────────────────────────────────

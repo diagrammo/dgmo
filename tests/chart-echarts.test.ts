@@ -46,7 +46,7 @@ describe('buildEChartsOptionFromChart', () => {
 
   it('returns warning diagnostic when no data points', () => {
     const parsed = parseChart('chart: bar', palette); // no data → warning
-    expect(parsed.error).toBeUndefined();
+    expect(parsed.error).toBeNull();
     // diagnostics
     expect(parsed.diagnostics).toHaveLength(1);
     expect(parsed.diagnostics[0].severity).toBe('warning');
@@ -57,7 +57,7 @@ describe('buildEChartsOptionFromChart', () => {
 
   it('successful parse has empty diagnostics', () => {
     const parsed = parseChart('chart: bar\nA: 10\nB: 20', palette);
-    expect(parsed.error).toBeUndefined();
+    expect(parsed.error).toBeNull();
     expect(parsed.diagnostics).toEqual([]);
   });
 

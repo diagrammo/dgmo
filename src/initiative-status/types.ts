@@ -39,5 +39,5 @@ export interface ParsedInitiativeStatus {
   groups: ISGroup[];
   options: Record<string, string>;
   diagnostics: DgmoError[];
-  error?: string;
+  error: string | null;
 }

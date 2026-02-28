@@ -39,5 +39,5 @@ export interface ParsedERDiagram {
   tables: ERTable[];
   relationships: ERRelationship[];
   diagnostics: DgmoError[];
-  error?: string;
+  error: string | null;
 }

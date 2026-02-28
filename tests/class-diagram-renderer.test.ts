@@ -58,7 +58,7 @@ const testPalette: PaletteColors = {
 
 function renderToContainer(content: string, isDark = false): HTMLDivElement {
   const parsed = parseClassDiagram(content, testPalette);
-  expect(parsed.error).toBeUndefined();
+  expect(parsed.error).toBeNull();
   const layout = layoutClassDiagram(parsed);
 
   const container = document.createElement('div');

@@ -62,6 +62,7 @@ export function parseKanban(
     tagGroups: [],
     options: {},
     diagnostics: [],
+    error: null,
   };
 
   const fail = (line: number, message: string): ParsedKanban => {

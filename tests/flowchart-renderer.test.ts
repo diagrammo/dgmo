@@ -58,7 +58,7 @@ const testPalette: PaletteColors = {
 
 function renderToContainer(content: string, isDark = false): HTMLDivElement {
   const parsed = parseFlowchart(content, testPalette);
-  expect(parsed.error).toBeUndefined();
+  expect(parsed.error).toBeNull();
   const layout = layoutGraph(parsed);
 
   const container = document.createElement('div');

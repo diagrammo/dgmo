@@ -81,7 +81,7 @@ describe('flowchart: orphaned node warnings', () => {
     const result = parseFlowchart(
       'chart: flowchart\n[Start] -> [Process]\n[Orphan]'
     );
-    expect(result.error).toBeUndefined();
+    expect(result.error).toBeNull();
     const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
     expect(warnings).toHaveLength(1);
     expect(warnings[0].message).toContain('Orphan');
@@ -91,7 +91,7 @@ describe('flowchart: orphaned node warnings', () => {
     const result = parseFlowchart(
       'chart: flowchart\n[Start] -> [Process] -> [End]'
     );
-    expect(result.error).toBeUndefined();
+    expect(result.error).toBeNull();
     expect(
       result.diagnostics.filter((d) => d.severity === 'warning')
     ).toHaveLength(0);
@@ -99,7 +99,7 @@ describe('flowchart: orphaned node warnings', () => {
 
   it('does not warn for single-node diagrams', () => {
     const result = parseFlowchart('chart: flowchart\n[Single]');
-    expect(result.error).toBeUndefined();
+    expect(result.error).toBeNull();
     expect(
       result.diagnostics.filter((d) => d.severity === 'warning')
     ).toHaveLength(0);
@@ -115,7 +115,7 @@ describe('class: isolated class warnings', () => {
     const result = parseClassDiagram(
       'chart: class\nAnimal\nDog extends Animal\nOrphan'
     );
-    expect(result.error).toBeUndefined();
+    expect(result.error).toBeNull();
     const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
     expect(warnings).toHaveLength(1);
     expect(warnings[0].message).toContain('Orphan');
@@ -125,7 +125,7 @@ describe('class: isolated class warnings', () => {
     const result = parseClassDiagram(
       'chart: class\nAnimal\nDog extends Animal'
     );
-    expect(result.error).toBeUndefined();
+    expect(result.error).toBeNull();
     expect(
       result.diagnostics.filter((d) => d.severity === 'warning')
     ).toHaveLength(0);
@@ -141,7 +141,7 @@ describe('er: isolated table warnings', () => {
     const result = parseERDiagram(
       'chart: er\nusers\norders\nusers 1--* orders\norphan'
     );
-    expect(result.error).toBeUndefined();
+    expect(result.error).toBeNull();
     const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
     expect(warnings).toHaveLength(1);
     expect(warnings[0].message).toContain('orphan');
@@ -151,7 +151,7 @@ describe('er: isolated table warnings', () => {
     const result = parseERDiagram(
       'chart: er\nusers\norders\nusers 1--* orders'
     );
-    expect(result.error).toBeUndefined();
+    expect(result.error).toBeNull();
     expect(
       result.diagnostics.filter((d) => d.severity === 'warning')
     ).toHaveLength(0);
@@ -245,7 +245,7 @@ describe('d3: non-fatal validation warnings', () => {
 describe('echarts: non-fatal validation warnings', () => {
   it('sankey: warns about no links', () => {
     const result = parseEChart('chart: sankey');
-    expect(result.error).toBeUndefined();
+    expect(result.error).toBeNull();
     const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
     expect(warnings).toHaveLength(1);
     expect(warnings[0].message).toContain('No links found');
@@ -254,7 +254,7 @@ describe('echarts: non-fatal validation warnings', () => {
 
   it('scatter: warns about no points', () => {
     const result = parseEChart('chart: scatter');
-    expect(result.error).toBeUndefined();
+    expect(result.error).toBeNull();
     const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
     expect(warnings).toHaveLength(1);
     expect(warnings[0].message).toContain('No scatter points found');
@@ -262,7 +262,7 @@ describe('echarts: non-fatal validation warnings', () => {
 
   it('funnel: warns about no data', () => {
     const result = parseEChart('chart: funnel');
-    expect(result.error).toBeUndefined();
+    expect(result.error).toBeNull();
     const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
     expect(warnings).toHaveLength(1);
     expect(warnings[0].message).toContain('No data found');
@@ -283,7 +283,7 @@ describe('echarts: non-fatal validation warnings', () => {
 describe('chart: non-fatal validation warnings', () => {
   it('warns about no data points', () => {
     const result = parseChart('chart: bar');
-    expect(result.error).toBeUndefined();
+    expect(result.error).toBeNull();
     const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
     expect(warnings).toHaveLength(1);
     expect(warnings[0].message).toContain('No data points found');
@@ -294,7 +294,7 @@ describe('chart: non-fatal validation warnings', () => {
     const result = parseChart(
       'chart: line\nseries: A, B\nX: 1\nY: 10, 20'
     );
-    expect(result.error).toBeUndefined();
+    expect(result.error).toBeNull();
     const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
     expect(warnings).toHaveLength(1);
     expect(warnings[0].message).toContain('X');

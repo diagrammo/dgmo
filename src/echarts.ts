@@ -75,7 +75,7 @@ export interface ParsedEChart {
   showLabels?: boolean;
   categoryColors?: Record<string, string>;
   diagnostics: DgmoError[];
-  error?: string;
+  error: string | null;
 }
 
 // ============================================================
@@ -116,6 +116,7 @@ export function parseEChart(
     type: 'scatter',
     data: [],
     diagnostics: [],
+    error: null,
   };
 
   // Track current category for grouped scatter charts

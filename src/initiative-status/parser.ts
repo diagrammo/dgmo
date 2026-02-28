@@ -36,7 +36,7 @@ export function looksLikeInitiativeStatus(content: string): boolean {
     if (/\|\s*(done|wip|todo|na)\s*$/i.test(trimmed)) hasStatus = true;
     // Indented arrow is a strong signal — only initiative-status uses this
     const isIndented = line.length > 0 && line !== trimmed && /^\s/.test(line);
-    if (isIndented && trimmed.startsWith('->')) hasIndentedArrow = true;
+    if (isIndented && (trimmed.startsWith('->') || /^-[^>].*->/.test(trimmed))) hasIndentedArrow = true;
     if (hasArrow && hasStatus) return true;
   }
   return hasIndentedArrow;
@@ -68,7 +68,7 @@ export function parseInitiativeStatus(content: string): ParsedInitiativeStatus {
     groups: [],
     options: {},
     diagnostics: [],
-    error: undefined,
+    error: null,
   };
 
   const lines = content.split('\n');
@@ -123,11 +123,11 @@ export function parseInitiativeStatus(content: string): ParsedInitiativeStatus {
       currentGroup = null;
     }
 
-    // Edge: contains `->`
+    // Edge: contains `->` or labeled form `-label->`
     if (trimmed.includes('->')) {
       let edgeText = trimmed;
-      // Indented `-> Target` shorthand — prepend the last node label as source
-      if (trimmed.startsWith('->')) {
+      // Indented `-> Target` or `-label-> Target` shorthand
+      if (trimmed.startsWith('->') || /^-[^>].*->/.test(trimmed)) {
         if (!lastNodeLabel) {
           result.diagnostics.push(
             makeDgmoError(lineNum, 'Indented edge has no preceding node to use as source', 'warning')
@@ -222,6 +222,35 @@ function parseEdgeLine(
   // or:     <source> -> <target> | <status>
   // or:     <source> -> <target>: <label>
   // or:     <source> -> <target>
+  // or:     <source> -<label>-> <target> [| <status>]
+
+  // Check for labeled arrow form: SOURCE -LABEL-> TARGET [| status]
+  const labeledMatch = trimmed.match(/^(\S+)\s+-(.+)->\s+(.+)$/);
+  if (labeledMatch) {
+    const source = labeledMatch[1];
+    const label = labeledMatch[2].trim();
+    let targetRest = labeledMatch[3].trim();
+
+    if (label) {
+      // Extract status from end (after last |)
+      let status: InitiativeStatus = 'na';
+      const lastPipe = targetRest.lastIndexOf('|');
+      if (lastPipe >= 0) {
+        const statusRaw = targetRest.slice(lastPipe + 1).trim();
+        status = parseStatus(statusRaw, lineNum, diagnostics);
+        targetRest = targetRest.slice(0, lastPipe).trim();
+      }
+
+      const target = targetRest.trim();
+      if (!target) {
+        diagnostics.push(makeDgmoError(lineNum, 'Edge is missing target'));
+        return null;
+      }
+
+      return { source, target, label, status, lineNumber: lineNum };
+    }
+    // Empty label — fall through to plain arrow parsing
+  }
 
   const arrowIdx = trimmed.indexOf('->');
   if (arrowIdx < 0) return null;

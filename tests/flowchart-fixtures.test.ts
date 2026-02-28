@@ -21,7 +21,7 @@ describe('flowchart fixtures', () => {
     it(`${file} parses without errors`, () => {
       const content = readFileSync(resolve(FIXTURE_DIR, file), 'utf-8');
       const result = parseFlowchart(content);
-      expect(result.error).toBeUndefined();
+      expect(result.error).toBeNull();
       expect(result.nodes.length).toBeGreaterThan(0);
       expect(result.edges.length).toBeGreaterThan(0);
     });

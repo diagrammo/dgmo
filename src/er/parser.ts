@@ -50,42 +50,39 @@ const CONSTRAINT_MAP: Record<string, ERConstraint> = {
 // Cardinality parsing
 // ============================================================
 
-// Cardinality keyword map
-const CARD_WORD: Record<string, ERCardinality> = {
-  one: '1',
-  many: '*',
-  '1': '1',
-  '*': '*',
-  '?': '?',
-  zero: '?',
-};
-
 /**
- * Parse a cardinality side token (e.g. "1", "*", "?", "one", "many", "zero").
+ * Parse a cardinality side token (symbolic only: "1", "*", "?").
  */
 function parseCardSide(token: string): ERCardinality | null {
-  return CARD_WORD[token.toLowerCase()] ?? null;
+  if (token === '1' || token === '*' || token === '?') return token;
+  return null;
 }
 
 /**
- * Try to parse a relationship line with cardinality.
+ * Try to parse a relationship line with symbolic cardinality.
  *
- * Supported forms:
+ * Supported form:
  *   tableName 1--* tableName : label
  *   tableName 1-* tableName : label
- *   tableName one-to-many tableName : label
- *   tableName one to many tableName : label
- *   tableName 1 to many tableName : label
  *   tableName ?--1 tableName : label
  */
 const REL_SYMBOLIC_RE =
   /^([a-zA-Z_]\w*)\s+([1*?])\s*-{1,2}\s*([1*?])\s+([a-zA-Z_]\w*)(?:\s*:\s*(.+))?$/;
 
+/** Detects keyword cardinality forms to emit helpful error */
 const REL_KEYWORD_RE =
-  /^([a-zA-Z_]\w*)\s+(one|many|zero|1|\*|\?)[- ]to[- ](one|many|zero|1|\*|\?)\s+([a-zA-Z_]\w*)(?:\s*:\s*(.+))?$/i;
+  /^([a-zA-Z_]\w*)\s+(one|many|zero)[- ]to[- ](one|many|zero)\s+([a-zA-Z_]\w*)(?:\s*:\s*(.+))?$/i;
+
+const KEYWORD_TO_SYMBOL: Record<string, string> = {
+  one: '1',
+  many: '*',
+  zero: '?',
+};
 
 function parseRelationship(
-  trimmed: string
+  trimmed: string,
+  lineNumber: number,
+  pushError: (line: number, message: string) => void,
 ): {
   source: string;
   target: string;
@@ -109,20 +106,16 @@ function parseRelationship(
     }
   }
 
-  // Keyword / natural: one-to-many, one to many, 1 to many, etc.
+  // Keyword / natural: produce helpful error with symbolic suggestion
   const kw = trimmed.match(REL_KEYWORD_RE);
   if (kw) {
-    const fromCard = parseCardSide(kw[2]);
-    const toCard = parseCardSide(kw[3]);
-    if (fromCard && toCard) {
-      return {
-        source: kw[1],
-        target: kw[4],
-        from: fromCard,
-        to: toCard,
-        label: kw[5]?.trim(),
-      };
-    }
+    const fromSym = KEYWORD_TO_SYMBOL[kw[2].toLowerCase()] ?? kw[2];
+    const toSym = KEYWORD_TO_SYMBOL[kw[3].toLowerCase()] ?? kw[3];
+    pushError(
+      lineNumber,
+      `Use symbolic cardinality (1--*, ?--1, *--*) instead of "${kw[2]}-to-${kw[3]}". Example: ${kw[1]} ${fromSym}--${toSym} ${kw[4]}`,
+    );
+    return null;
   }
 
   return null;
@@ -157,6 +150,7 @@ export function parseERDiagram(
     tables: [],
     relationships: [],
     diagnostics: [],
+    error: null,
   };
 
   const fail = (line: number, message: string): ParsedERDiagram => {
@@ -164,6 +158,12 @@ export function parseERDiagram(
     result.diagnostics.push(diag);
     result.error = formatDgmoError(diag);
     return result;
+  };
+
+  const pushError = (line: number, message: string): void => {
+    const diag = makeDgmoError(line, message);
+    result.diagnostics.push(diag);
+    if (!result.error) result.error = formatDgmoError(diag);
   };
 
   const tableMap = new Map<string, ERTable>();
@@ -257,7 +257,7 @@ export function parseERDiagram(
     contentStarted = true;
 
     // Try relationship
-    const rel = parseRelationship(trimmed);
+    const rel = parseRelationship(trimmed, lineNumber, pushError);
     if (rel) {
       getOrCreateTable(rel.source, lineNumber);
       getOrCreateTable(rel.target, lineNumber);
@@ -347,7 +347,7 @@ export function looksLikeERDiagram(content: string): boolean {
         hasTableDecl = true;
       }
       // Check for relationship patterns
-      if (REL_SYMBOLIC_RE.test(trimmed) || REL_KEYWORD_RE.test(trimmed)) {
+      if (REL_SYMBOLIC_RE.test(trimmed)) {
         hasRelationship = true;
       }
     }

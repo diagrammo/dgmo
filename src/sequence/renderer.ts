@@ -599,6 +599,7 @@ export interface RenderStep {
   label: string;
   messageIndex: number;
   async?: boolean;
+  bidirectional?: boolean;
 }
 
 /**
@@ -639,7 +640,13 @@ export function buildRenderSequence(messages: SequenceMessage[]): RenderStep[] {
       label: msg.label,
       messageIndex: mi,
       ...(msg.async ? { async: true } : {}),
+      ...(msg.bidirectional ? { bidirectional: true } : {}),
     });
+
+    // Bidirectional messages: no activation bar, no return
+    if (msg.bidirectional) {
+      continue;
+    }
 
     // Async messages: no return arrow, no activation on target
     if (msg.async) {
@@ -1400,6 +1407,42 @@ export function renderSequenceDiagram(
     .attr('stroke', palette.text)
     .attr('stroke-width', 1.2);
 
+  // Filled reverse arrowhead for bidirectional sync arrows (marker-start)
+  defs
+    .append('marker')
+    .attr('id', 'seq-arrowhead-reverse')
+    .attr('viewBox', `0 0 ${ARROWHEAD_SIZE} ${ARROWHEAD_SIZE}`)
+    .attr('refX', 0)
+    .attr('refY', ARROWHEAD_SIZE / 2)
+    .attr('markerWidth', ARROWHEAD_SIZE)
+    .attr('markerHeight', ARROWHEAD_SIZE)
+    .attr('orient', 'auto')
+    .append('polygon')
+    .attr(
+      'points',
+      `${ARROWHEAD_SIZE},0 0,${ARROWHEAD_SIZE / 2} ${ARROWHEAD_SIZE},${ARROWHEAD_SIZE}`
+    )
+    .attr('fill', palette.text);
+
+  // Open reverse arrowhead for bidirectional async arrows (marker-start)
+  defs
+    .append('marker')
+    .attr('id', 'seq-arrowhead-async-reverse')
+    .attr('viewBox', `0 0 ${ARROWHEAD_SIZE} ${ARROWHEAD_SIZE}`)
+    .attr('refX', 0)
+    .attr('refY', ARROWHEAD_SIZE / 2)
+    .attr('markerWidth', ARROWHEAD_SIZE)
+    .attr('markerHeight', ARROWHEAD_SIZE)
+    .attr('orient', 'auto')
+    .append('polyline')
+    .attr(
+      'points',
+      `${ARROWHEAD_SIZE},0 0,${ARROWHEAD_SIZE / 2} ${ARROWHEAD_SIZE},${ARROWHEAD_SIZE}`
+    )
+    .attr('fill', 'none')
+    .attr('stroke', palette.text)
+    .attr('stroke-width', 1.2);
+
   // Render title
   if (title) {
     const titleEl = svg
@@ -1954,7 +1997,12 @@ export function renderSequenceDiagram(
         const markerRef = step.async
           ? 'url(#seq-arrowhead-async)'
           : 'url(#seq-arrowhead)';
-        svg
+        const markerStartRef = step.bidirectional
+          ? step.async
+            ? 'url(#seq-arrowhead-async-reverse)'
+            : 'url(#seq-arrowhead-reverse)'
+          : null;
+        const line = svg
           .append('line')
           .attr('x1', x1)
           .attr('y1', y)
@@ -1970,6 +2018,12 @@ export function renderSequenceDiagram(
           )
           .attr('data-msg-index', String(step.messageIndex))
           .attr('data-step-index', String(i));
+        if (markerStartRef) {
+          line.attr('marker-start', markerStartRef);
+        }
+        if (step.bidirectional && step.async) {
+          line.attr('stroke-dasharray', '6 4');
+        }
 
         if (step.label) {
           const midX = (x1 + x2) / 2;

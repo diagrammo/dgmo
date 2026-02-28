@@ -239,6 +239,7 @@ export function parseFlowchart(
     edges: [],
     options: {},
     diagnostics: [],
+    error: null,
   };
 
   const fail = (line: number, message: string): ParsedGraph => {

@@ -51,5 +51,5 @@ export interface ParsedClassDiagram {
   relationships: ClassRelationship[];
   options: Record<string, string>;
   diagnostics: DgmoError[];
-  error?: string;
+  error: string | null;
 }

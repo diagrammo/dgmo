@@ -7,7 +7,7 @@ describe('parseInitiativeStatus', () => {
     it('parses chart: initiative-status', () => {
       const result = parseInitiativeStatus('chart: initiative-status\nMobile | done');
       expect(result.type).toBe('initiative-status');
-      expect(result.error).toBeUndefined();
+      expect(result.error).toBeNull();
       expect(result.diagnostics).toEqual([]);
     });
 
@@ -27,10 +27,10 @@ describe('parseInitiativeStatus', () => {
 
   // === Comments ===
   describe('comments', () => {
-    it('ignores # comments', () => {
+    it('# is not a comment — only // is supported', () => {
       const result = parseInitiativeStatus('# this is a comment\nMobile | done');
-      expect(result.diagnostics).toEqual([]);
-      expect(result.nodes).toHaveLength(1);
+      // # is parsed as a node, not a comment
+      expect(result.nodes).toHaveLength(2);
     });
 
     it('ignores // comments', () => {
@@ -290,7 +290,7 @@ CargoService | wip
   TradingPost`;
 
       const result = parseInitiativeStatus(input);
-      expect(result.error).toBeUndefined();
+      expect(result.error).toBeNull();
       expect(result.title).toBe('Operation Blackbeard');
       expect(result.nodes.map((n) => n.label)).toEqual([
         'Captain', 'CrewApp', 'ShipDashboard', 'Quartermaster',
@@ -336,7 +336,7 @@ Another Service -> Back End: callback | wip
 Web Front End -> Back End: API | todo`;
 
       const result = parseInitiativeStatus(input);
-      expect(result.error).toBeUndefined();
+      expect(result.error).toBeNull();
       expect(result.title).toBe('Project Phoenix');
       expect(result.nodes).toHaveLength(8);
       expect(result.edges).toHaveLength(10);
@@ -358,7 +358,7 @@ Mobile -> Back End: getUser | done
 Back End -> Identity Service: auth | done`;
 
       const result = parseInitiativeStatus(input);
-      expect(result.error).toBeUndefined();
+      expect(result.error).toBeNull();
       expect(result.nodes).toHaveLength(5);
       expect(result.groups).toHaveLength(1);
       expect(result.groups[0].label).toBe('External');
@@ -383,5 +383,52 @@ describe('looksLikeInitiativeStatus', () => {
 
   it('detects indented arrows without status markers', () => {
     expect(looksLikeInitiativeStatus('Captain\n  -> CrewApp: issueOrders\n  -> ShipDashboard: viewCharts')).toBe(true);
+  });
+
+  it('detects indented labeled arrows', () => {
+    expect(looksLikeInitiativeStatus('Planning\n  -approved-> Design')).toBe(true);
+  });
+});
+
+// ============================================================
+// Labeled arrow syntax
+// ============================================================
+describe('parseInitiativeStatus — labeled arrows', () => {
+  it('-label-> produces edge with label', () => {
+    const result = parseInitiativeStatus('Planning | todo\nDesign | todo\nPlanning -approved-> Design');
+    expect(result.edges).toHaveLength(1);
+    expect(result.edges[0]).toMatchObject({
+      source: 'Planning',
+      target: 'Design',
+      label: 'approved',
+    });
+  });
+
+  it('-label-> with status', () => {
+    const result = parseInitiativeStatus('A | todo\nB | todo\nA -go-> B | done');
+    expect(result.edges).toHaveLength(1);
+    expect(result.edges[0]).toMatchObject({
+      source: 'A',
+      target: 'B',
+      label: 'go',
+      status: 'done',
+    });
+  });
+
+  it('indented -label-> edge', () => {
+    const result = parseInitiativeStatus('Planning | todo\nDesign | todo\nPlanning\n  -approved-> Design');
+    expect(result.edges).toHaveLength(1);
+    expect(result.edges[0]).toMatchObject({
+      source: 'Planning',
+      target: 'Design',
+      label: 'approved',
+    });
+  });
+
+  it('coexists with plain -> syntax', () => {
+    const result = parseInitiativeStatus('A | todo\nB | todo\nC | todo\nA -go-> B\nB -> C: next');
+    expect(result.edges).toHaveLength(2);
+    expect(result.edges[0].label).toBe('go');
+    expect(result.edges[1].label).toBe('next');
   });
 });

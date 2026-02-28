@@ -7,7 +7,7 @@ describe('parseClassDiagram', () => {
     it('parses chart: class', () => {
       const result = parseClassDiagram('chart: class\nAnimal\n  name: string');
       expect(result.type).toBe('class');
-      expect(result.error).toBeUndefined();
+      expect(result.error).toBeNull();
       expect(result.diagnostics).toEqual([]);
     });
 
@@ -32,7 +32,7 @@ describe('parseClassDiagram', () => {
   describe('comments', () => {
     it('ignores // comments', () => {
       const result = parseClassDiagram('// this is a comment\nAnimal\n  name: string');
-      expect(result.error).toBeUndefined();
+      expect(result.error).toBeNull();
       expect(result.classes).toHaveLength(1);
     });
   });

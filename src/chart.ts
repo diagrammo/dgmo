@@ -37,7 +37,7 @@ export interface ParsedChart {
   labels?: 'name' | 'value' | 'percent' | 'full';
   data: ChartDataPoint[];
   diagnostics: DgmoError[];
-  error?: string;
+  error: string | null;
 }
 
 // ============================================================
@@ -90,6 +90,7 @@ export function parseChart(
     type: 'bar',
     data: [],
     diagnostics: [],
+    error: null,
   };
 
   const fail = (line: number, message: string): ParsedChart => {

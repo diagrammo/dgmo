@@ -7,7 +7,7 @@ describe('parseKanban', () => {
   describe('chart type', () => {
     it('accepts chart: kanban', () => {
       const result = parseKanban('chart: kanban\n== To Do ==\nTask 1');
-      expect(result.error).toBeUndefined();
+      expect(result.error).toBeNull();
       expect(result.columns).toHaveLength(1);
     });
 
@@ -46,7 +46,7 @@ describe('parseKanban', () => {
       const result = parseKanban(
         'chart: kanban\n// comment\n== To Do ==\nTask 1'
       );
-      expect(result.error).toBeUndefined();
+      expect(result.error).toBeNull();
       expect(result.columns).toHaveLength(1);
     });
   });
@@ -324,7 +324,7 @@ Refactor nav | priority: High, a: Bob
 Setup CI | priority: Low, a: Alice`;
 
       const result = parseKanban(input);
-      expect(result.error).toBeUndefined();
+      expect(result.error).toBeNull();
       expect(result.title).toBe('Sprint 12');
       expect(result.tagGroups).toHaveLength(2);
       expect(result.columns).toHaveLength(3);
@@ -568,7 +568,7 @@ Write docs | priority: Low
 
     // Re-parse the result to verify it's valid kanban
     const reParsed = parseKanban(result!);
-    expect(reParsed.error).toBeUndefined();
+    expect(reParsed.error).toBeNull();
 
     // Archive column should have the moved card
     const archiveCol = reParsed.columns.find((c) => isArchiveColumn(c.name));
