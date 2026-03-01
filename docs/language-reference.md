@@ -441,7 +441,10 @@ Animal
   + speak(): void
 
 Dog extends Animal
+  + breed: string
+
 Cat extends Animal
+  + indoor: boolean
 ```
 
 Full example:
@@ -453,38 +456,37 @@ title: Type Hierarchy
 Printable [interface]
   + print(): void
 
-Shape [abstract]
+Shape implements Printable [abstract]
   # x: number
   # y: number
   + area(): number
-  {static} count: number
+  count: number {static}
 
-Circle
+Circle extends Shape
   - radius: number
   + area(): number
 
-Rectangle
+Rectangle extends Shape
   - width: number
   - height: number
 
-Circle extends Shape
-Rectangle extends Shape
-Shape implements Printable
 Shape *-- Circle : contains
 ```
 
 **Class modifiers**: `[abstract]`, `[interface]`, `[enum]`
 
+**Inheritance**: `ClassName extends Parent` or `ClassName implements Interface` — declared inline in the class header. Members are indented below.
+
 **Member visibility**: `+` public, `#` protected, `-` private. Static: `{static}`.
 
-**Relationships** (keyword or arrow):
-- Inheritance: `A extends B` or `A --|> B`
-- Implementation: `A implements B` or `A ..|> B`
-- Composition: `A contains B` or `A *-- B`
-- Aggregation: `A has B` or `A o-- B`
-- Dependency: `A uses B` or `A ..> B`
+**Relationships** (arrow syntax):
+- Inheritance: `A --|> B`
+- Implementation: `A ..|> B`
+- Composition: `A *-- B`
+- Aggregation: `A o-- B`
+- Dependency: `A ..> B`
 - Association: `A -> B`
-- Optional label: `A extends B : description`
+- Optional label: `A *-- B : description`
 
 ### er
 

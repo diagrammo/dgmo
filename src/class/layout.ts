@@ -87,7 +87,7 @@ function computeNodeDimensions(node: ClassNode): {
   const headerHeight = HEADER_BASE + (node.modifier ? MODIFIER_BADGE : 0);
 
   // Fields compartment
-  let fieldsHeight = 0;
+  let fieldsHeight: number;
   if (isEnum) {
     // Enum values go in fields compartment
     const enumValues = node.members; // all members are enum values
@@ -96,6 +96,8 @@ function computeNodeDimensions(node: ClassNode): {
         COMPARTMENT_PADDING_Y * 2 +
         enumValues.length * MEMBER_LINE_HEIGHT +
         SEPARATOR_HEIGHT;
+    } else {
+      fieldsHeight = SEPARATOR_HEIGHT + COMPARTMENT_PADDING_Y;
     }
   } else {
     if (fields.length > 0) {
@@ -103,24 +105,27 @@ function computeNodeDimensions(node: ClassNode): {
         COMPARTMENT_PADDING_Y * 2 +
         fields.length * MEMBER_LINE_HEIGHT +
         SEPARATOR_HEIGHT;
+    } else {
+      // UML: always show attributes compartment
+      fieldsHeight = SEPARATOR_HEIGHT + COMPARTMENT_PADDING_Y;
     }
   }
 
   // Methods compartment (not for enums)
   let methodsHeight = 0;
-  if (!isEnum && methods.length > 0) {
-    methodsHeight =
-      COMPARTMENT_PADDING_Y * 2 +
-      methods.length * MEMBER_LINE_HEIGHT +
-      SEPARATOR_HEIGHT;
+  if (!isEnum) {
+    if (methods.length > 0) {
+      methodsHeight =
+        COMPARTMENT_PADDING_Y * 2 +
+        methods.length * MEMBER_LINE_HEIGHT +
+        SEPARATOR_HEIGHT;
+    } else {
+      // UML: always show methods compartment
+      methodsHeight = SEPARATOR_HEIGHT + COMPARTMENT_PADDING_Y;
+    }
   }
 
-  // If no members at all, add minimal padding
-  const height =
-    headerHeight +
-    fieldsHeight +
-    methodsHeight +
-    (fieldsHeight === 0 && methodsHeight === 0 ? 4 : 0);
+  const height = headerHeight + fieldsHeight + methodsHeight;
 
   return { width, height, headerHeight, fieldsHeight, methodsHeight };
 }

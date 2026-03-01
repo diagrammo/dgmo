@@ -183,39 +183,52 @@ describe('parseClassDiagram', () => {
     });
   });
 
-  // === Relationships — keyword syntax ===
-  describe('relationships (keywords)', () => {
-    it('parses extends', () => {
-      const result = parseClassDiagram('Animal\n  name: string\n\nDog extends Animal');
+  // === Inline extends/implements ===
+  describe('inline extends/implements', () => {
+    it('parses extends in class declaration', () => {
+      const result = parseClassDiagram('Animal\n  name: string\n\nDog extends Animal\n  breed: string');
       expect(result.relationships).toHaveLength(1);
       expect(result.relationships[0].type).toBe('extends');
       expect(result.relationships[0].source).toBe('dog');
       expect(result.relationships[0].target).toBe('animal');
+      // Dog should have its member
+      const dog = result.classes.find(c => c.name === 'Dog')!;
+      expect(dog.members).toHaveLength(1);
+      expect(dog.members[0].name).toBe('breed');
     });
 
-    it('parses implements', () => {
-      const result = parseClassDiagram('Drawable [interface]\n  draw(): void\n\nCircle implements Drawable');
+    it('parses implements in class declaration', () => {
+      const result = parseClassDiagram('Drawable [interface]\n  draw(): void\n\nCircle implements Drawable\n  - radius: number');
+      expect(result.relationships).toHaveLength(1);
       expect(result.relationships[0].type).toBe('implements');
+      expect(result.relationships[0].source).toBe('circle');
+      expect(result.relationships[0].target).toBe('drawable');
     });
 
-    it('parses contains (composition)', () => {
-      const result = parseClassDiagram('Car\n  engine: Engine\n\nCar contains Engine');
-      expect(result.relationships[0].type).toBe('composes');
+    it('auto-creates parent class from extends', () => {
+      const result = parseClassDiagram('Dog extends Animal\n  breed: string');
+      expect(result.classes).toHaveLength(2);
+      expect(result.classes.map(c => c.name).sort()).toEqual(['Animal', 'Dog']);
     });
 
-    it('parses has (aggregation)', () => {
-      const result = parseClassDiagram('Library\n  books: Book[]\n\nLibrary has Book');
-      expect(result.relationships[0].type).toBe('aggregates');
+    it('extends with modifier', () => {
+      const result = parseClassDiagram('Shape [abstract]\n  + area(): number\n\nCircle extends Shape\n  - radius: number');
+      expect(result.relationships[0].type).toBe('extends');
+      expect(result.relationships[0].source).toBe('circle');
+      expect(result.relationships[0].target).toBe('shape');
     });
 
-    it('parses uses (dependency)', () => {
-      const result = parseClassDiagram('Controller\n  handle(): void\n\nController uses Service');
-      expect(result.relationships[0].type).toBe('depends');
+    it('extends with color', () => {
+      const result = parseClassDiagram('Dog extends Animal (red)\n  breed: string');
+      expect(result.relationships[0].type).toBe('extends');
+      const dog = result.classes.find(c => c.name === 'Dog')!;
+      expect(dog.color).toBeDefined();
     });
 
-    it('parses relationship with label', () => {
-      const result = parseClassDiagram('Dog extends Animal : inherits behavior');
-      expect(result.relationships[0].label).toBe('inherits behavior');
+    it('extends with no members', () => {
+      const result = parseClassDiagram('Animal\n  name: string\n\nDog extends Animal');
+      expect(result.relationships).toHaveLength(1);
+      expect(result.relationships[0].type).toBe('extends');
     });
   });
 
@@ -259,18 +272,14 @@ describe('parseClassDiagram', () => {
 
   // === Relationship line numbers ===
   describe('relationship line numbers', () => {
-    it('tracks relationship line numbers', () => {
-      const result = parseClassDiagram('Animal\n  name: string\n\nDog extends Animal');
+    it('tracks inline extends line number', () => {
+      const result = parseClassDiagram('Animal\n  name: string\n\nDog extends Animal\n  breed: string');
       expect(result.relationships[0].lineNumber).toBe(4);
     });
-  });
 
-  // === Auto-creates classes from relationships ===
-  describe('auto-create classes', () => {
-    it('creates classes referenced in relationships', () => {
-      const result = parseClassDiagram('Dog extends Animal');
-      expect(result.classes).toHaveLength(2);
-      expect(result.classes.map(c => c.name).sort()).toEqual(['Animal', 'Dog']);
+    it('tracks arrow relationship line number', () => {
+      const result = parseClassDiagram('Animal\n  name: string\n\nDog\n  breed: string\n\nDog --|> Animal');
+      expect(result.relationships[0].lineNumber).toBe(7);
     });
   });
 
@@ -319,8 +328,8 @@ describe('looksLikeClassDiagram', () => {
     expect(looksLikeClassDiagram('Color [enum]\n  Red\n  Green')).toBe(true);
   });
 
-  it('detects relationship keywords with members', () => {
-    expect(looksLikeClassDiagram('Animal\n  name: string\nDog extends Animal')).toBe(true);
+  it('detects inline extends with members', () => {
+    expect(looksLikeClassDiagram('Animal\n  name: string\n\nDog extends Animal\n  breed: string')).toBe(true);
   });
 
   it('detects relationship arrows with members', () => {

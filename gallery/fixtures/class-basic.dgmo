@@ -6,13 +6,10 @@ Animal
   age: number
   speak(): void
 
-Dog
+Dog extends Animal
   breed: string
   fetch(): void
 
-Cat
+Cat extends Animal
   indoor: boolean
   purr(): void
-
-Dog --|> Animal
-Cat --|> Animal

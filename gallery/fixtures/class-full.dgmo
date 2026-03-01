@@ -5,18 +5,18 @@ Drawable [interface]
   + draw(): void
   + resize(w: number, h: number): void
 
-Shape [abstract] (purple)
+Shape implements Drawable [abstract] (purple)
   # x: number
   # y: number
   + area(): number
   + move(dx: number, dy: number): void
   - validate(): boolean
 
-Circle
+Circle extends Shape
   - radius: number
   + getRadius(): number
 
-Rectangle
+Rectangle extends Shape
   - width: number
   - height: number
   + getDiagonal(): number
@@ -38,9 +38,6 @@ Logger
   + log(msg: string): void
   + getInstance(): Logger {static}
 
-Circle --|> Shape
-Rectangle --|> Shape
-Shape ..|> Drawable
 Canvas *-- Shape : contains
 Canvas ..> Logger : uses
 Circle -> Color : has fill

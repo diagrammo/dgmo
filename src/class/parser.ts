@@ -6,7 +6,6 @@ import type {
   ParsedClassDiagram,
   ClassNode,
   ClassMember,
-  ClassRelationship,
   ClassModifier,
   MemberVisibility,
   RelationshipType,
@@ -24,14 +23,9 @@ function classId(name: string): string {
 // Regex patterns
 // ============================================================
 
-// Class declaration: ClassName [modifier] (color)
+// Class declaration: ClassName [extends|implements ParentClass] [modifier] (color)
 const CLASS_DECL_RE =
-  /^([A-Z][A-Za-z0-9_]*)(?:\s+\[(abstract|interface|enum)\])?(?:\s+\(([^)]+)\))?\s*$/;
-
-// Relationship — keyword syntax:
-// ClassName extends|implements|contains|has|uses TargetClass : label
-const REL_KEYWORD_RE =
-  /^([A-Z][A-Za-z0-9_]*)\s+(extends|implements|contains|has|uses)\s+([A-Z][A-Za-z0-9_]*)(?:\s*:\s*(.+))?$/;
+  /^([A-Z][A-Za-z0-9_]*)(?:\s+(extends|implements)\s+([A-Z][A-Za-z0-9_]*))?(?:\s+\[(abstract|interface|enum)\])?(?:\s+\(([^)]+)\))?\s*$/;
 
 // Relationship — arrow syntax:
 // ClassName --|> TargetClass : label
@@ -44,14 +38,6 @@ const VISIBILITY_RE = /^([+\-#])\s*/;
 const STATIC_SUFFIX_RE = /\{static\}\s*$/;
 const METHOD_RE = /^(.+?)\(([^)]*)\)(?:\s*:\s*(.+))?$/;
 const FIELD_RE = /^(.+?)\s*:\s*(.+)$/;
-
-const KEYWORD_TO_TYPE: Record<string, RelationshipType> = {
-  extends: 'extends',
-  implements: 'implements',
-  contains: 'composes',
-  has: 'aggregates',
-  uses: 'depends',
-};
 
 const ARROW_TO_TYPE: Record<string, RelationshipType> = {
   '--|>': 'extends',
@@ -257,28 +243,6 @@ export function parseClassDiagram(
     currentClass = null;
     contentStarted = true;
 
-    // Try relationship — keyword syntax
-    const relKeyword = trimmed.match(REL_KEYWORD_RE);
-    if (relKeyword) {
-      const sourceName = relKeyword[1];
-      const keyword = relKeyword[2].toLowerCase();
-      const targetName = relKeyword[3];
-      const label = relKeyword[4]?.trim();
-
-      // Ensure both classes exist
-      getOrCreateClass(sourceName, lineNumber);
-      getOrCreateClass(targetName, lineNumber);
-
-      result.relationships.push({
-        source: classId(sourceName),
-        target: classId(targetName),
-        type: KEYWORD_TO_TYPE[keyword],
-        ...(label && { label }),
-        lineNumber,
-      });
-      continue;
-    }
-
     // Try relationship — arrow syntax
     const relArrow = trimmed.match(REL_ARROW_RE);
     if (relArrow) {
@@ -305,8 +269,10 @@ export function parseClassDiagram(
     const classDecl = trimmed.match(CLASS_DECL_RE);
     if (classDecl) {
       const name = classDecl[1];
-      const modifier = classDecl[2] as ClassModifier | undefined;
-      const colorName = classDecl[3]?.trim();
+      const relKeyword = classDecl[2] as 'extends' | 'implements' | undefined;
+      const parentName = classDecl[3];
+      const modifier = classDecl[4] as ClassModifier | undefined;
+      const colorName = classDecl[5]?.trim();
       const color = colorName ? resolveColor(colorName, palette) : undefined;
 
       const node = getOrCreateClass(name, lineNumber);
@@ -314,6 +280,17 @@ export function parseClassDiagram(
       if (color) node.color = color;
       // Update line number to the declaration line (may have been created by relationship)
       node.lineNumber = lineNumber;
+
+      // Inline extends/implements creates a relationship
+      if (relKeyword && parentName) {
+        getOrCreateClass(parentName, lineNumber);
+        result.relationships.push({
+          source: classId(name),
+          target: classId(parentName),
+          type: relKeyword as RelationshipType,
+          lineNumber,
+        });
+      }
 
       currentClass = node;
       continue;
@@ -376,9 +353,10 @@ export function looksLikeClassDiagram(content: string): boolean {
         hasModifier = true;
         hasClassDecl = true;
       }
-      // Check for relationship keywords
-      if (REL_KEYWORD_RE.test(trimmed)) {
+      // Check for inline extends/implements in class declaration
+      if (/^[A-Z][A-Za-z0-9_]*\s+(extends|implements)\s+[A-Z]/.test(trimmed)) {
         hasRelationship = true;
+        hasClassDecl = true;
       }
       // Check for relationship arrows
       if (REL_ARROW_RE.test(trimmed)) {

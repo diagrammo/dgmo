@@ -406,43 +406,42 @@ export function renderClassDiagram(
     const methods = node.members.filter((m) => m.isMethod);
 
     if (isEnum) {
-      // Enum: all members as values
-      if (node.members.length > 0) {
-        // Separator
-        nodeG.append('line')
-          .attr('x1', -w / 2)
-          .attr('y1', yPos)
-          .attr('x2', w / 2)
-          .attr('y2', yPos)
-          .attr('stroke', stroke)
-          .attr('stroke-width', 0.5)
-          .attr('stroke-opacity', 0.5);
+      // Enum: single values compartment
+      // Separator
+      nodeG.append('line')
+        .attr('x1', -w / 2)
+        .attr('y1', yPos)
+        .attr('x2', w / 2)
+        .attr('y2', yPos)
+        .attr('stroke', stroke)
+        .attr('stroke-width', 0.5)
+        .attr('stroke-opacity', 0.5);
 
-        let memberY = yPos + COMPARTMENT_PADDING_Y;
-        for (const member of node.members) {
-          nodeG.append('text')
-            .attr('x', -w / 2 + MEMBER_PADDING_X)
-            .attr('y', memberY + MEMBER_LINE_HEIGHT / 2)
-            .attr('dominant-baseline', 'central')
-            .attr('fill', palette.text)
-            .attr('font-size', MEMBER_FONT_SIZE)
-            .text(member.name);
-          memberY += MEMBER_LINE_HEIGHT;
-        }
+      let memberY = yPos + COMPARTMENT_PADDING_Y;
+      for (const member of node.members) {
+        nodeG.append('text')
+          .attr('x', -w / 2 + MEMBER_PADDING_X)
+          .attr('y', memberY + MEMBER_LINE_HEIGHT / 2)
+          .attr('dominant-baseline', 'central')
+          .attr('fill', palette.text)
+          .attr('font-size', MEMBER_FONT_SIZE)
+          .text(member.name);
+        memberY += MEMBER_LINE_HEIGHT;
       }
     } else {
-      // Fields compartment
-      if (fields.length > 0) {
-        // Separator
-        nodeG.append('line')
-          .attr('x1', -w / 2)
-          .attr('y1', yPos)
-          .attr('x2', w / 2)
-          .attr('y2', yPos)
-          .attr('stroke', stroke)
-          .attr('stroke-width', 0.5)
-          .attr('stroke-opacity', 0.5);
+      // UML 3-compartment layout: always show both separators
 
+      // Fields separator
+      nodeG.append('line')
+        .attr('x1', -w / 2)
+        .attr('y1', yPos)
+        .attr('x2', w / 2)
+        .attr('y2', yPos)
+        .attr('stroke', stroke)
+        .attr('stroke-width', 0.5)
+        .attr('stroke-opacity', 0.5);
+
+      if (fields.length > 0) {
         let memberY = yPos + COMPARTMENT_PADDING_Y;
         for (const field of fields) {
           const vis = visibilitySymbol(field.visibility);
@@ -463,21 +462,20 @@ export function renderClassDiagram(
 
           memberY += MEMBER_LINE_HEIGHT;
         }
-        yPos += node.fieldsHeight;
       }
+      yPos += node.fieldsHeight;
 
-      // Methods compartment
+      // Methods separator
+      nodeG.append('line')
+        .attr('x1', -w / 2)
+        .attr('y1', yPos)
+        .attr('x2', w / 2)
+        .attr('y2', yPos)
+        .attr('stroke', stroke)
+        .attr('stroke-width', 0.5)
+        .attr('stroke-opacity', 0.5);
+
       if (methods.length > 0) {
-        // Separator
-        nodeG.append('line')
-          .attr('x1', -w / 2)
-          .attr('y1', yPos)
-          .attr('x2', w / 2)
-          .attr('y2', yPos)
-          .attr('stroke', stroke)
-          .attr('stroke-width', 0.5)
-          .attr('stroke-opacity', 0.5);
-
         let memberY = yPos + COMPARTMENT_PADDING_Y;
         for (const method of methods) {
           const vis = visibilitySymbol(method.visibility);
