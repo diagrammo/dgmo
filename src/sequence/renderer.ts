@@ -571,6 +571,28 @@ export function buildRenderSequence(messages: SequenceMessage[]): RenderStep[] {
       });
     }
 
+    // Standalone return: emit as a return step directly (no call, no stack).
+    // Also pop the matching pending call from the stack so it doesn't
+    // generate a duplicate empty return later.
+    if (msg.standaloneReturn) {
+      // Find and remove the stack entry this return satisfies
+      // (the pending call where from→to matches to→from of this return)
+      for (let si = stack.length - 1; si >= 0; si--) {
+        if (stack[si].from === msg.to && stack[si].to === msg.from) {
+          stack.splice(si, 1);
+          break;
+        }
+      }
+      steps.push({
+        type: 'return',
+        from: msg.from,
+        to: msg.to,
+        label: msg.label,
+        messageIndex: mi,
+      });
+      continue;
+    }
+
     // Emit call
     steps.push({
       type: 'call',

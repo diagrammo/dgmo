@@ -63,6 +63,8 @@ export interface SequenceMessage {
   lineNumber: number;
   async?: boolean;
   bidirectional?: boolean;
+  /** Standalone return — the message itself IS a return (dashed arrow, no call). */
+  standaloneReturn?: boolean;
 }
 
 /**
@@ -184,10 +186,20 @@ const NOTE_MULTI = /^note(?:\s+(right|left)\s+of\s+([^\s:]+))?\s*:?\s*$/i;
 function parseReturnLabel(rawLabel: string): {
   label: string;
   returnLabel?: string;
+  standaloneReturn?: boolean;
 } {
   if (!rawLabel) return { label: '' };
 
-  // Check <- syntax first
+  // Standalone return: label starts with `<-` (no forward label)
+  const standaloneMatch = rawLabel.match(/^<-\s*(.*)$/);
+  if (standaloneMatch) {
+    return {
+      label: standaloneMatch[1].trim(),
+      standaloneReturn: true,
+    };
+  }
+
+  // Check <- syntax first (separates forward label from return label)
   const arrowReturn = rawLabel.match(ARROW_RETURN_PATTERN);
   if (arrowReturn) {
     return { label: arrowReturn[1].trim(), returnLabel: arrowReturn[2].trim() };
@@ -620,8 +632,8 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       const rawLabel = arrowMatch[3]?.trim() || '';
 
       // Extract return label — skip for async messages
-      const { label, returnLabel } = isAsync
-        ? { label: rawLabel, returnLabel: undefined }
+      const { label, returnLabel, standaloneReturn } = isAsync
+        ? { label: rawLabel, returnLabel: undefined, standaloneReturn: undefined }
         : parseReturnLabel(rawLabel);
 
       const msg: SequenceMessage = {
@@ -631,6 +643,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
         returnLabel,
         lineNumber,
         ...(isAsync ? { async: true } : {}),
+        ...(standaloneReturn ? { standaloneReturn: true } : {}),
       };
       result.messages.push(msg);
       currentContainer().push(msg);
