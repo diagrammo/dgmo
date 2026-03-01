@@ -965,7 +965,7 @@ function buildScatterOption(
       },
     }),
     grid: {
-      left: parsed.ylabel ? '5%' : '3%',
+      left: parsed.ylabel ? '12%' : '3%',
       right: '4%',
       bottom: hasCategories ? '15%' : parsed.xlabel ? '10%' : '3%',
       top: parsed.title ? '15%' : '5%',
@@ -1290,8 +1290,10 @@ function makeGridAxis(
   splitLineColor: string,
   gridOpacity: number,
   label?: string,
-  data?: string[]
+  data?: string[],
+  nameGapOverride?: number
 ): Record<string, unknown> {
+  const defaultGap = type === 'value' ? 75 : 40;
   return {
     type,
     ...(data && { data }),
@@ -1310,7 +1312,7 @@ function makeGridAxis(
     ...(label && {
       name: label,
       nameLocation: 'middle',
-      nameGap: type === 'value' ? 75 : 40,
+      nameGap: nameGapOverride ?? defaultGap,
       nameTextStyle: { color: textColor, fontSize: 18, fontFamily: FONT_FAMILY },
     }),
   };
@@ -1395,7 +1397,12 @@ function buildBarOption(
     itemStyle: { color: d.color ?? colors[i % colors.length] },
   }));
 
-  const categoryAxis = makeGridAxis('category', textColor, axisLineColor, splitLineColor, gridOpacity, isHorizontal ? yLabel : xLabel, labels);
+  // When category labels are on the y-axis (horizontal bars), they can be wide —
+  // compute a nameGap that clears the longest label so the ylabel doesn't overlap.
+  const hCatGap = isHorizontal && yLabel
+    ? Math.max(40, Math.max(...labels.map((l) => l.length)) * 8 + 16)
+    : undefined;
+  const categoryAxis = makeGridAxis('category', textColor, axisLineColor, splitLineColor, gridOpacity, isHorizontal ? yLabel : xLabel, labels, hCatGap);
   const valueAxis = makeGridAxis('value', textColor, axisLineColor, splitLineColor, gridOpacity, isHorizontal ? xLabel : yLabel);
 
   // xAxis is always the bottom axis, yAxis is always the left axis in ECharts
@@ -1410,7 +1417,7 @@ function buildBarOption(
       axisPointer: { type: 'shadow' },
     },
     grid: {
-      left: yLabel ? '5%' : '3%',
+      left: yLabel ? '12%' : '3%',
       right: '4%',
       bottom: xLabel ? '10%' : '3%',
       top: parsed.title ? '15%' : '5%',
@@ -1458,7 +1465,7 @@ function buildLineOption(
       axisPointer: { type: 'line' },
     },
     grid: {
-      left: yLabel ? '5%' : '3%',
+      left: yLabel ? '12%' : '3%',
       right: '4%',
       bottom: xLabel ? '10%' : '3%',
       top: parsed.title ? '15%' : '5%',
@@ -1534,7 +1541,7 @@ function buildMultiLineOption(
       textStyle: { color: textColor },
     },
     grid: {
-      left: yLabel ? '5%' : '3%',
+      left: yLabel ? '12%' : '3%',
       right: '4%',
       bottom: '15%',
       top: parsed.title ? '15%' : '5%',
@@ -1573,7 +1580,7 @@ function buildAreaOption(
       axisPointer: { type: 'line' },
     },
     grid: {
-      left: yLabel ? '5%' : '3%',
+      left: yLabel ? '12%' : '3%',
       right: '4%',
       bottom: xLabel ? '10%' : '3%',
       top: parsed.title ? '15%' : '5%',
@@ -1817,7 +1824,10 @@ function buildBarStackedOption(
     };
   });
 
-  const categoryAxis = makeGridAxis('category', textColor, axisLineColor, splitLineColor, gridOpacity, isHorizontal ? yLabel : xLabel, labels);
+  const hCatGap = isHorizontal && yLabel
+    ? Math.max(40, Math.max(...labels.map((l) => l.length)) * 8 + 16)
+    : undefined;
+  const categoryAxis = makeGridAxis('category', textColor, axisLineColor, splitLineColor, gridOpacity, isHorizontal ? yLabel : xLabel, labels, hCatGap);
   const valueAxis = makeGridAxis('value', textColor, axisLineColor, splitLineColor, gridOpacity, isHorizontal ? xLabel : yLabel);
 
   return {
@@ -1835,7 +1845,7 @@ function buildBarStackedOption(
       textStyle: { color: textColor },
     },
     grid: {
-      left: yLabel ? '5%' : '3%',
+      left: yLabel ? '12%' : '3%',
       right: '4%',
       bottom: '15%',
       top: parsed.title ? '15%' : '5%',
