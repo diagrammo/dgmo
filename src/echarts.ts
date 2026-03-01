@@ -1296,12 +1296,21 @@ function makeGridAxis(
     type,
     ...(data && { data }),
     axisLine: { lineStyle: { color: axisLineColor } },
-    axisLabel: { color: textColor, fontSize: 16, fontFamily: FONT_FAMILY },
+    axisLabel: {
+      color: textColor,
+      fontSize: type === 'category' && data ? (data.length > 10 ? 11 : data.length > 5 ? 12 : 16) : 16,
+      fontFamily: FONT_FAMILY,
+      ...(type === 'category' && {
+        interval: 0,
+        formatter: (value: string) =>
+          value.replace(/([a-z])([A-Z])/g, '$1\n$2').replace(/ /g, '\n'),
+      }),
+    },
     splitLine: { lineStyle: { color: splitLineColor, opacity: gridOpacity } },
     ...(label && {
       name: label,
       nameLocation: 'middle',
-      nameGap: 40,
+      nameGap: type === 'value' ? 75 : 40,
       nameTextStyle: { color: textColor, fontSize: 18, fontFamily: FONT_FAMILY },
     }),
   };
