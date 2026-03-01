@@ -1,6 +1,6 @@
 {
   "name": "@diagrammo/dgmo",
-  "version": "0.2.28",
+  "version": "0.3.0",
   "description": "DGMO diagram markup language — parser, renderer, and color system",
   "license": "MIT",
   "type": "module",
@@ -50,11 +50,11 @@
     "d3-scale": "^4.0.2",
     "d3-selection": "^3.0.0",
     "d3-shape": "^3.2.0",
-    "echarts": "^5.6.0",
+    "echarts": "^6.0.0",
     "lz-string": "^1.5.0"
   },
   "optionalDependencies": {
-    "jsdom": "^26.0.0"
+    "jsdom": "^28.1.0"
   },
   "devDependencies": {
     "@types/d3-array": "^3.2.1",
@@ -63,11 +63,11 @@
     "@types/d3-scale": "^4.0.8",
     "@types/d3-selection": "^3.0.11",
     "@types/d3-shape": "^3.1.7",
-    "@types/dagre": "^0.7.53",
-    "@types/jsdom": "^21.1.7",
+    "@types/dagre": "^0.7.54",
+    "@types/jsdom": "^28.0.0",
     "jscpd": "^4.0.8",
     "tsup": "^8.5.1",
     "typescript": "^5.7.3",
-    "vitest": "^3.0.0"
+    "vitest": "^4.0.18"
   }
 }
