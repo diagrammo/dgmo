@@ -1074,6 +1074,29 @@ function tokenizeFreeformText(text: string): WordCloudWord[] {
 // Slope Chart Renderer
 // ============================================================
 
+/**
+ * Resolves vertical label collisions by nudging overlapping items apart.
+ * Takes items with a naturalY (center) and height, returns adjusted center Y positions.
+ */
+function resolveVerticalCollisions(
+  items: { naturalY: number; height: number }[],
+  minGap: number
+): number[] {
+  if (items.length === 0) return [];
+  const sorted = items
+    .map((it, i) => ({ ...it, idx: i }))
+    .sort((a, b) => a.naturalY - b.naturalY);
+  const adjustedY = new Array<number>(items.length);
+  let prevBottom = -Infinity;
+  for (const item of sorted) {
+    const halfH = item.height / 2;
+    const top = Math.max(item.naturalY - halfH, prevBottom + minGap);
+    adjustedY[item.idx] = top + halfH;
+    prevBottom = top + item.height;
+  }
+  return adjustedY;
+}
+
 const SLOPE_MARGIN = { top: 80, bottom: 40, left: 80 };
 const SLOPE_LABEL_FONT_SIZE = 14;
 const SLOPE_CHAR_WIDTH = 8; // approximate px per character at 14px
@@ -1205,27 +1228,82 @@ export function renderSlopeChart(
     .x((_d, i) => xScale(periods[i])!)
     .y((d) => yScale(d));
 
+  // Pre-compute per-series data for label collision resolution
+  const seriesInfo = data.map((item, idx) => {
+    const color = item.color ?? colors[idx % colors.length];
+    const firstVal = item.values[0];
+    const lastVal = item.values[item.values.length - 1];
+    const absChange = lastVal - firstVal;
+    const pctChange = firstVal !== 0 ? (absChange / firstVal) * 100 : null;
+    const sign = absChange > 0 ? '+' : '';
+    const tipLines = [`${sign}${parseFloat(absChange.toFixed(2))}`];
+    if (pctChange !== null) tipLines.push(`${sign}${pctChange.toFixed(1)}%`);
+    const tipHtml = tipLines.join('<br>');
+
+    // Compute right-side label text and wrapping info
+    const lastX = xScale(periods[periods.length - 1])!;
+    const labelText = `${lastVal} — ${item.label}`;
+    const availableWidth = rightMargin - 15;
+    const maxChars = Math.floor(availableWidth / SLOPE_CHAR_WIDTH);
+
+    let labelLineCount = 1;
+    let wrappedLines: string[] | null = null;
+    if (labelText.length > maxChars) {
+      const words = labelText.split(/\s+/);
+      const lines: string[] = [];
+      let current = '';
+      for (const word of words) {
+        const test = current ? `${current} ${word}` : word;
+        if (test.length > maxChars && current) {
+          lines.push(current);
+          current = word;
+        } else {
+          current = test;
+        }
+      }
+      if (current) lines.push(current);
+      labelLineCount = lines.length;
+      wrappedLines = lines;
+    }
+    const lineHeight = SLOPE_LABEL_FONT_SIZE * 1.2;
+    const labelHeight = labelLineCount === 1
+      ? SLOPE_LABEL_FONT_SIZE
+      : labelLineCount * lineHeight;
+
+    return {
+      item, idx, color, firstVal, lastVal, tipHtml,
+      lastX, labelText, maxChars, wrappedLines, labelHeight,
+    };
+  });
+
+  // --- Resolve left-side label collisions per non-last period column ---
+  const leftLabelHeight = 20; // 16px font needs ~20px to avoid glyph overlap
+  const leftLabelCollisions: Map<number, number[]> = new Map();
+  for (let pi = 0; pi < periods.length - 1; pi++) {
+    const entries = data.map((item) => ({
+      naturalY: yScale(item.values[pi]),
+      height: leftLabelHeight,
+    }));
+    leftLabelCollisions.set(pi, resolveVerticalCollisions(entries, 4));
+  }
+
+  // --- Resolve right-side label collisions ---
+  const rightEntries = seriesInfo.map((si) => ({
+    naturalY: yScale(si.lastVal),
+    height: Math.max(si.labelHeight, SLOPE_LABEL_FONT_SIZE * 1.4),
+  }));
+  const rightAdjustedY = resolveVerticalCollisions(rightEntries, 4);
+
   // Render each data series
   data.forEach((item, idx) => {
-    const color = item.color ?? colors[idx % colors.length];
+    const si = seriesInfo[idx];
+    const color = si.color;
 
     // Wrap each series in a group with data-line-number for sync adapter
     const seriesG = g
       .append('g')
       .attr('class', 'slope-series')
       .attr('data-line-number', String(item.lineNumber));
-
-    // Tooltip content – overall change for this series
-    const firstVal = item.values[0];
-    const lastVal = item.values[item.values.length - 1];
-    const absChange = lastVal - firstVal;
-    const pctChange = firstVal !== 0 ? (absChange / firstVal) * 100 : null;
-    const sign = absChange > 0 ? '+' : '';
-    const pctPart =
-      pctChange !== null ? ` (${sign}${pctChange.toFixed(1)}%)` : '';
-    const tipLines = [`${sign}${absChange}`];
-    if (pctChange !== null) tipLines.push(`${sign}${pctChange.toFixed(1)}%`);
-    const tipHtml = tipLines.join('<br>');
 
     // Line
     seriesG.append('path')
@@ -1244,10 +1322,10 @@ export function renderSlopeChart(
       .attr('d', lineGen)
       .style('cursor', onClickItem ? 'pointer' : 'default')
       .on('mouseenter', (event: MouseEvent) =>
-        showTooltip(tooltip, tipHtml, event)
+        showTooltip(tooltip, si.tipHtml, event)
       )
       .on('mousemove', (event: MouseEvent) =>
-        showTooltip(tooltip, tipHtml, event)
+        showTooltip(tooltip, si.tipHtml, event)
       )
       .on('mouseleave', () => hideTooltip(tooltip))
       .on('click', () => {
@@ -1269,10 +1347,10 @@ export function renderSlopeChart(
         .attr('stroke-width', 1.5)
         .style('cursor', onClickItem ? 'pointer' : 'default')
         .on('mouseenter', (event: MouseEvent) =>
-          showTooltip(tooltip, tipHtml, event)
+          showTooltip(tooltip, si.tipHtml, event)
         )
         .on('mousemove', (event: MouseEvent) =>
-          showTooltip(tooltip, tipHtml, event)
+          showTooltip(tooltip, si.tipHtml, event)
         )
         .on('mouseleave', () => hideTooltip(tooltip))
         .on('click', () => {
@@ -1283,59 +1361,41 @@ export function renderSlopeChart(
       const isFirst = i === 0;
       const isLast = i === periods.length - 1;
       if (!isLast) {
+        const adjustedY = leftLabelCollisions.get(i)![idx];
         seriesG.append('text')
           .attr('x', isFirst ? x - 10 : x)
-          .attr('y', y)
+          .attr('y', adjustedY)
           .attr('dy', '0.35em')
           .attr('text-anchor', isFirst ? 'end' : 'middle')
-          .attr('fill', textColor)
+          .attr('fill', color)
           .attr('font-size', '16px')
           .text(val.toString());
       }
     });
 
     // Series label with value at end of line — wraps if it exceeds available space
-    const lastX = xScale(periods[periods.length - 1])!;
-    const lastY = yScale(lastVal);
-    const labelText = `${lastVal} — ${item.label}`;
-    const availableWidth = rightMargin - 15;
-    const maxChars = Math.floor(availableWidth / SLOPE_CHAR_WIDTH);
+    const adjustedLastY = rightAdjustedY[idx];
 
     const labelEl = seriesG
       .append('text')
-      .attr('x', lastX + 10)
-      .attr('y', lastY)
+      .attr('x', si.lastX + 10)
+      .attr('y', adjustedLastY)
       .attr('text-anchor', 'start')
       .attr('fill', color)
       .attr('font-size', `${SLOPE_LABEL_FONT_SIZE}px`)
       .attr('font-weight', '500');
 
-    if (labelText.length <= maxChars) {
-      labelEl.attr('dy', '0.35em').text(labelText);
+    if (!si.wrappedLines) {
+      labelEl.attr('dy', '0.35em').text(si.labelText);
     } else {
-      // Wrap into lines that fit the available width
-      const words = labelText.split(/\s+/);
-      const lines: string[] = [];
-      let current = '';
-      for (const word of words) {
-        const test = current ? `${current} ${word}` : word;
-        if (test.length > maxChars && current) {
-          lines.push(current);
-          current = word;
-        } else {
-          current = test;
-        }
-      }
-      if (current) lines.push(current);
-
       const lineHeight = SLOPE_LABEL_FONT_SIZE * 1.2;
-      const totalHeight = (lines.length - 1) * lineHeight;
+      const totalHeight = (si.wrappedLines.length - 1) * lineHeight;
       const startDy = -totalHeight / 2;
 
-      lines.forEach((line, li) => {
+      si.wrappedLines.forEach((line, li) => {
         labelEl
           .append('tspan')
-          .attr('x', lastX + 10)
+          .attr('x', si.lastX + 10)
           .attr(
             'dy',
             li === 0
