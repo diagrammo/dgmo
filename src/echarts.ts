@@ -1876,7 +1876,10 @@ function buildBarStackedOption(
     ? Math.max(40, Math.max(...labels.map((l) => l.length)) * 8 + 16)
     : undefined;
   const categoryAxis = makeGridAxis('category', textColor, axisLineColor, splitLineColor, gridOpacity, isHorizontal ? yLabel : xLabel, labels, hCatGap, !isHorizontal ? chartWidth : undefined);
-  const valueAxis = makeGridAxis('value', textColor, axisLineColor, splitLineColor, gridOpacity, isHorizontal ? xLabel : yLabel);
+  // For horizontal bars with a legend, use a smaller nameGap so the xlabel
+  // stays close to the axis ticks rather than drifting toward the legend.
+  const hValueGap = isHorizontal && xLabel ? 40 : undefined;
+  const valueAxis = makeGridAxis('value', textColor, axisLineColor, splitLineColor, gridOpacity, isHorizontal ? xLabel : yLabel, undefined, hValueGap);
 
   return {
     backgroundColor: 'transparent',
