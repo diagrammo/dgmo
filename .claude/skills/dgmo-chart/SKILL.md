@@ -92,6 +92,12 @@ Team B: 2, 3, 2, 4, 3
 ## Common patterns
 
 - `series: Name1(color1), Name2(color2)` — multi-series with colors
+- Multi-line values: leave the value empty and indent each entry on its own line
+  ```
+  series:
+    Name1 (color1)
+    Name2 (color2)
+  ```
 - `Label(color): value` — per-item colors
 - `labels: percent` — show percentages on pie/doughnut
 - `orientation: horizontal` — rotate bar charts

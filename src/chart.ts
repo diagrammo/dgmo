@@ -47,6 +47,7 @@ export interface ParsedChart {
 import { resolveColor } from './colors';
 import type { PaletteColors } from './palettes';
 import { makeDgmoError, formatDgmoError, suggest } from './diagnostics';
+import { collectIndentedValues } from './utils/parsing';
 
 // ============================================================
 // Parser
@@ -181,12 +182,17 @@ export function parseChart(
     }
 
     if (key === 'series') {
-      result.series = value;
-      // Parse comma-separated series names for multi-series chart types
-      const rawNames = value
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean);
+      // Parse series names — comma-separated on one line, or indented multi-line
+      let rawNames: string[];
+      if (value) {
+        result.series = value;
+        rawNames = value.split(',').map((s) => s.trim()).filter(Boolean);
+      } else {
+        const collected = collectIndentedValues(lines, i);
+        i = collected.newIndex;
+        rawNames = collected.values;
+        result.series = rawNames.join(', ');
+      }
       const names: string[] = [];
       const nameColors: (string | undefined)[] = [];
       for (const raw of rawNames) {

@@ -1,11 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { parseChart } from '../src/chart';
+import { parseEChart } from '../src/echarts';
 import {
   buildEChartsOptionFromChart,
   renderEChartsForExport,
 } from '../src/echarts';
 import { getDgmoFramework } from '../src/dgmo-router';
 import { getPalette } from '../src/palettes';
+import { collectIndentedValues } from '../src/utils/parsing';
 
 const palette = getPalette('nord').light;
 
@@ -259,6 +261,157 @@ describe('getDgmoFramework — standard chart types route to echart', () => {
     expect(getDgmoFramework('scatter')).toBe('echart');
     expect(getDgmoFramework('sankey')).toBe('echart');
     expect(getDgmoFramework('funnel')).toBe('echart');
+  });
+});
+
+// ── collectIndentedValues unit tests ─────────────────────────
+
+describe('collectIndentedValues', () => {
+  it('collects indented lines after start index', () => {
+    const lines = ['series:', '  Rum', '  Spices', '  Gold', 'Jan: 10'];
+    const { values, newIndex } = collectIndentedValues(lines, 0);
+    expect(values).toEqual(['Rum', 'Spices', 'Gold']);
+    expect(newIndex).toBe(3);
+  });
+
+  it('skips blank lines within block', () => {
+    const lines = ['series:', '  Rum', '', '  Spices', 'Jan: 10'];
+    const { values } = collectIndentedValues(lines, 0);
+    expect(values).toEqual(['Rum', 'Spices']);
+  });
+
+  it('skips comment lines within block', () => {
+    const lines = ['series:', '  Rum', '  // a comment', '  Spices', 'Jan: 10'];
+    const { values } = collectIndentedValues(lines, 0);
+    expect(values).toEqual(['Rum', 'Spices']);
+  });
+
+  it('strips trailing commas', () => {
+    const lines = ['series:', '  Rum,', '  Spices, ', '  Gold'];
+    const { values } = collectIndentedValues(lines, 0);
+    expect(values).toEqual(['Rum', 'Spices', 'Gold']);
+  });
+
+  it('returns empty array when no indented lines follow', () => {
+    const lines = ['series:', 'Jan: 10'];
+    const { values, newIndex } = collectIndentedValues(lines, 0);
+    expect(values).toEqual([]);
+    expect(newIndex).toBe(0);
+  });
+
+  it('handles EOF after indented lines', () => {
+    const lines = ['series:', '  A', '  B'];
+    const { values, newIndex } = collectIndentedValues(lines, 0);
+    expect(values).toEqual(['A', 'B']);
+    expect(newIndex).toBe(2);
+  });
+
+  it('handles tab indentation', () => {
+    const lines = ['series:', '\tRum', '\tSpices', 'Jan: 10'];
+    const { values } = collectIndentedValues(lines, 0);
+    expect(values).toEqual(['Rum', 'Spices']);
+  });
+});
+
+// ── Multi-line series in parseChart ─────────────────────────
+
+describe('parseChart — multi-line series', () => {
+  it('parses multi-line series for bar-stacked', () => {
+    const input = [
+      'chart: bar-stacked',
+      'series:',
+      '  Rum',
+      '  Spices',
+      '  Gold',
+      '',
+      'Q1: 10, 20, 30',
+      'Q2: 40, 50, 60',
+    ].join('\n');
+    const parsed = parseChart(input, palette);
+    expect(parsed.seriesNames).toEqual(['Rum', 'Spices', 'Gold']);
+    expect(parsed.data).toHaveLength(2);
+  });
+
+  it('parses multi-line series with color annotations', () => {
+    const input = [
+      'chart: bar-stacked',
+      'series:',
+      '  Rum (red)',
+      '  Spices (green)',
+      '  Gold (yellow)',
+      '',
+      'Q1: 10, 20, 30',
+    ].join('\n');
+    const parsed = parseChart(input, palette);
+    expect(parsed.seriesNames).toEqual(['Rum', 'Spices', 'Gold']);
+    expect(parsed.seriesNameColors).toHaveLength(3);
+    expect(parsed.seriesNameColors![0]).toBeDefined();
+    expect(parsed.seriesNameColors![1]).toBeDefined();
+    expect(parsed.seriesNameColors![2]).toBeDefined();
+  });
+
+  it('single-line series still works (regression)', () => {
+    const input = 'chart: bar-stacked\nseries: A, B, C\nQ1: 10, 20, 30';
+    const parsed = parseChart(input, palette);
+    expect(parsed.seriesNames).toEqual(['A', 'B', 'C']);
+  });
+
+  it('multi-line series produces identical ECharts option to single-line', () => {
+    const singleLine = build(
+      'chart: bar-stacked\nseries: Rum, Spices, Gold\nQ1: 10, 20, 30\nQ2: 40, 50, 60'
+    );
+    const multiLine = build(
+      [
+        'chart: bar-stacked',
+        'series:',
+        '  Rum',
+        '  Spices',
+        '  Gold',
+        '',
+        'Q1: 10, 20, 30',
+        'Q2: 40, 50, 60',
+      ].join('\n')
+    );
+    expect(series(multiLine)).toEqual(series(singleLine));
+  });
+});
+
+// ── Multi-line columns/rows in parseEChart ──────────────────
+
+describe('parseEChart — multi-line columns/rows', () => {
+  it('parses multi-line columns for heatmap', () => {
+    const input = [
+      'chart: heatmap',
+      'columns:',
+      '  Jan',
+      '  Feb',
+      '  Mar',
+      '',
+      'Team A: 5, 4, 3',
+    ].join('\n');
+    const parsed = parseEChart(input, palette);
+    expect(parsed.columns).toEqual(['Jan', 'Feb', 'Mar']);
+  });
+
+  it('parses multi-line rows for heatmap', () => {
+    const input = [
+      'chart: heatmap',
+      'columns: Jan, Feb',
+      'rows:',
+      '  Team A',
+      '  Team B',
+      '',
+      'Team A: 5, 4',
+      'Team B: 3, 2',
+    ].join('\n');
+    const parsed = parseEChart(input, palette);
+    expect(parsed.rows).toEqual(['Team A', 'Team B']);
+  });
+
+  it('single-line columns still works (regression)', () => {
+    const input = 'chart: heatmap\ncolumns: Jan, Feb, Mar\nTeam A: 5, 4, 3';
+    const parsed = parseEChart(input, palette);
+    expect(parsed.columns).toEqual(['Jan', 'Feb', 'Mar']);
   });
 });
 

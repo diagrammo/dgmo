@@ -44,6 +44,37 @@ export const TITLE_RE = /^title\s*:\s*(.+)/i;
 /** Matches `option: value` header lines. */
 export const OPTION_RE = /^([a-z][a-z0-9-]*)\s*:\s*(.+)$/i;
 
+/**
+ * Collect indented continuation lines as individual values.
+ * Used when a property like `series:` has an empty value — subsequent
+ * indented lines each become one value entry.
+ *
+ * - Skips blank lines and `//` comment lines within the block
+ * - Stops at first non-indented non-empty line (or EOF)
+ * - Strips trailing commas from values (user habit tolerance)
+ * - Returns `newIndex` so caller does `i = newIndex` and the loop's `i++` lands correctly
+ */
+export function collectIndentedValues(
+  lines: string[],
+  startIndex: number,
+): { values: string[]; newIndex: number } {
+  const values: string[] = [];
+  let j = startIndex + 1;
+  for (; j < lines.length; j++) {
+    const raw = lines[j];
+    const trimmed = raw.trim();
+    // Skip blank lines within the block
+    if (!trimmed) continue;
+    // Skip comment lines within the block
+    if (trimmed.startsWith('//')) continue;
+    // Stop at non-indented lines (first char is not whitespace)
+    if (raw[0] !== ' ' && raw[0] !== '\t') break;
+    // Strip trailing comma and collect
+    values.push(trimmed.replace(/,\s*$/, ''));
+  }
+  return { values, newIndex: j - 1 };
+}
+
 /** Parse pipe-delimited metadata from segments after the first (name) segment. */
 export function parsePipeMetadata(
   segments: string[],

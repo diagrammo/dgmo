@@ -180,6 +180,7 @@ import type { PaletteColors } from './palettes';
 import { getSeriesColors } from './palettes';
 import type { DgmoError } from './diagnostics';
 import { makeDgmoError, formatDgmoError, suggest } from './diagnostics';
+import { collectIndentedValues } from './utils/parsing';
 
 // ============================================================
 // Timeline Date Helper
@@ -517,10 +518,18 @@ export function parseD3(content: string, palette?: PaletteColors): ParsedD3 {
 
     // Quadrant-specific parsing
     if (result.type === 'quadrant') {
-      // x-axis: Low, High
-      const xAxisMatch = line.match(/^x-axis\s*:\s*(.+)/i);
+      // x-axis: Low, High  — or indented multi-line
+      const xAxisMatch = line.match(/^x-axis\s*:\s*(.*)/i);
       if (xAxisMatch) {
-        const parts = xAxisMatch[1].split(',').map((s) => s.trim());
+        const val = xAxisMatch[1].trim();
+        let parts: string[];
+        if (val) {
+          parts = val.split(',').map((s) => s.trim());
+        } else {
+          const collected = collectIndentedValues(lines, i);
+          i = collected.newIndex;
+          parts = collected.values;
+        }
         if (parts.length >= 2) {
           result.quadrantXAxis = [parts[0], parts[1]];
           result.quadrantXAxisLineNumber = lineNumber;
@@ -528,10 +537,18 @@ export function parseD3(content: string, palette?: PaletteColors): ParsedD3 {
         continue;
       }
 
-      // y-axis: Low, High
-      const yAxisMatch = line.match(/^y-axis\s*:\s*(.+)/i);
+      // y-axis: Low, High  — or indented multi-line
+      const yAxisMatch = line.match(/^y-axis\s*:\s*(.*)/i);
       if (yAxisMatch) {
-        const parts = yAxisMatch[1].split(',').map((s) => s.trim());
+        const val = yAxisMatch[1].trim();
+        let parts: string[];
+        if (val) {
+          parts = val.split(',').map((s) => s.trim());
+        } else {
+          const collected = collectIndentedValues(lines, i);
+          i = collected.newIndex;
+          parts = collected.values;
+        }
         if (parts.length >= 2) {
           result.quadrantYAxis = [parts[0], parts[1]];
           result.quadrantYAxisLineNumber = lineNumber;

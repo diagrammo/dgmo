@@ -44,6 +44,41 @@ Set via CLI: `dgmo diagram.dgmo --palette catppuccin --theme dark`
 
 Text fields support: `*italic*`, `**bold**`, `` `code` ``, `[link text](url)`. Bare URLs are auto-linked.
 
+### Multi-line Values
+
+Properties that accept comma-separated lists (`series`, `columns`, `rows`, `x-axis`, `y-axis`) also accept an indented multi-line format. Leave the value after the colon empty and list each value on its own indented line:
+
+```
+// Single-line (still works)
+series: Rum, Spices, Silk, Gold
+
+// Multi-line equivalent
+series:
+  Rum
+  Spices
+  Silk
+  Gold
+```
+
+Multi-line blocks support blank lines and `//` comments within the block. Trailing commas on values are stripped for convenience.
+
+```
+series:
+  Rum (red)
+  Spices (green)
+  // gold last
+  Gold (yellow)
+```
+
+Works with `columns:` and `rows:` in heatmaps:
+
+```
+columns:
+  January
+  February
+  March
+```
+
 ---
 
 ## Chart Types

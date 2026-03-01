@@ -88,6 +88,7 @@ import { getSeriesColors, getSegmentColors } from './palettes';
 import { parseChart } from './chart';
 import type { ParsedChart } from './chart';
 import { makeDgmoError, formatDgmoError, suggest } from './diagnostics';
+import { collectIndentedValues } from './utils/parsing';
 
 // ============================================================
 // Parser
@@ -193,11 +194,16 @@ export function parseEChart(
     }
 
     if (key === 'series') {
-      result.series = value;
-      const rawNames = value
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean);
+      let rawNames: string[];
+      if (value) {
+        result.series = value;
+        rawNames = value.split(',').map((s) => s.trim()).filter(Boolean);
+      } else {
+        const collected = collectIndentedValues(lines, i);
+        i = collected.newIndex;
+        rawNames = collected.values;
+        result.series = rawNames.join(', ');
+      }
       const names: string[] = [];
       const nameColors: (string | undefined)[] = [];
       for (const raw of rawNames) {
@@ -241,12 +247,24 @@ export function parseEChart(
 
     // Heatmap columns and rows headers
     if (key === 'columns') {
-      result.columns = value.split(',').map((s) => s.trim());
+      if (value) {
+        result.columns = value.split(',').map((s) => s.trim());
+      } else {
+        const collected = collectIndentedValues(lines, i);
+        i = collected.newIndex;
+        result.columns = collected.values;
+      }
       continue;
     }
 
     if (key === 'rows') {
-      result.rows = value.split(',').map((s) => s.trim());
+      if (value) {
+        result.rows = value.split(',').map((s) => s.trim());
+      } else {
+        const collected = collectIndentedValues(lines, i);
+        i = collected.newIndex;
+        result.rows = collected.values;
+      }
       continue;
     }
 

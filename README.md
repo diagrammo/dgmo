@@ -416,6 +416,11 @@ ylabel: Y Axis
 series: Series1, Series2
 orientation: horizontal
 
+# Multi-line values (alternative to comma-separated)
+series:
+  Series1
+  Series2
+
 # Data section
 Label: value
 Label (color): value
