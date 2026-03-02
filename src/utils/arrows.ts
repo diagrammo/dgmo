@@ -2,38 +2,35 @@
 // Shared Arrow Parsing Utility
 // ============================================================
 //
-// Labeled arrow syntax:
-//   Forward: `-label->`, `~label~>`
-//   Return:  `<-label-`, `<~label~`
+// Labeled arrow syntax (always left-to-right):
+//   Sync:  `-label->`
+//   Async: `~label~>`
 
 export interface ParsedArrow {
   from: string;
   to: string;
   label: string;
   async: boolean;
-  isReturn: boolean;
 }
 
 // Forward (call) patterns
 const SYNC_LABELED_RE = /^(\S+)\s+-(.+)->\s+(\S+)$/;
 const ASYNC_LABELED_RE = /^(\S+)\s+~(.+)~>\s+(\S+)$/;
 
-// Return patterns — A <-msg- B means from=B, to=A
+// Deprecated patterns — produce errors
 const RETURN_SYNC_LABELED_RE = /^(\S+)\s+<-(.+)-\s+(\S+)$/;
 const RETURN_ASYNC_LABELED_RE = /^(\S+)\s+<~(.+)~\s+(\S+)$/;
-
-// Bidi detection (for error messages only)
 const BIDI_SYNC_RE = /^(\S+)\s+<-(.+)->\s+(\S+)$/;
 const BIDI_ASYNC_RE = /^(\S+)\s+<~(.+)~>\s+(\S+)$/;
 
-const ARROW_CHARS = ['->', '~>', '<-', '<~'];
+const ARROW_CHARS = ['->', '~>'];
 
 /**
  * Try to parse a labeled arrow from a trimmed line.
  *
  * Returns:
  *  - `ParsedArrow` if matched and valid
- *  - `{ error: string }` if matched but invalid (bidi, or arrow chars in label)
+ *  - `{ error: string }` if matched but invalid (deprecated syntax)
  *  - `null` if not a labeled arrow (caller should fall through to bare patterns)
  */
 export function parseArrow(
@@ -47,18 +44,28 @@ export function parseArrow(
     };
   }
 
+  // Check deprecated return arrow patterns — return error
+  if (RETURN_SYNC_LABELED_RE.test(line) || RETURN_ASYNC_LABELED_RE.test(line)) {
+    const m =
+      line.match(RETURN_SYNC_LABELED_RE) ??
+      line.match(RETURN_ASYNC_LABELED_RE);
+    const from = m![3];
+    const to = m![1];
+    const label = m![2].trim();
+    return {
+      error: `Left-pointing arrows are no longer supported. Write '${from} -${label}-> ${to}' instead`,
+    };
+  }
+
   const patterns: {
     re: RegExp;
     async: boolean;
-    isReturn: boolean;
   }[] = [
-    { re: RETURN_SYNC_LABELED_RE, async: false, isReturn: true },
-    { re: RETURN_ASYNC_LABELED_RE, async: true, isReturn: true },
-    { re: SYNC_LABELED_RE, async: false, isReturn: false },
-    { re: ASYNC_LABELED_RE, async: true, isReturn: false },
+    { re: SYNC_LABELED_RE, async: false },
+    { re: ASYNC_LABELED_RE, async: true },
   ];
 
-  for (const { re, async: isAsync, isReturn } of patterns) {
+  for (const { re, async: isAsync } of patterns) {
     const m = line.match(re);
     if (!m) continue;
 
@@ -71,20 +78,9 @@ export function parseArrow(
     for (const arrow of ARROW_CHARS) {
       if (label.includes(arrow)) {
         return {
-          error: 'Arrow characters (->, ~>, <-, <~) are not allowed inside labels',
+          error: 'Arrow characters (->, ~>) are not allowed inside labels',
         };
       }
-    }
-
-    if (isReturn) {
-      // Return arrow: A <-msg- B → from=B (source), to=A (destination)
-      return {
-        from: m[3],
-        to: m[1],
-        label,
-        async: isAsync,
-        isReturn: true,
-      };
     }
 
     return {
@@ -92,7 +88,6 @@ export function parseArrow(
       to: m[3],
       label,
       async: isAsync,
-      isReturn: false,
     };
   }
 

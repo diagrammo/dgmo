@@ -30,10 +30,10 @@ API is a service
 DB is a database
 Queue is a queue
 
-// Messages
+// Messages — always left-to-right
 User -Login-> API
 API -Find user-> DB
-DB -> API: <- user record
+DB -user record-> API
 
 // Async messages
 API ~event~> Queue
@@ -44,9 +44,9 @@ note on DB:
 
 // Conditional blocks (indentation-scoped, no "end" needed)
   if credentials valid
-    API -> User: <- 200 OK
+    API -200 OK-> User
   else
-    API -> User: <- 401 Unauthorized
+    API -401 Unauthorized-> User
 
 // Loops
   loop retry 3 times
@@ -61,11 +61,9 @@ note on DB:
 
 **Participant types**: `actor`, `service`, `database`, `queue`, `cache`, `gateway`, `external`, `networking`, `frontend`
 
-**Arrow types**:
-- Sync: `A -> B: label` or `A -label-> B`
-- Async: `A ~> B: label` or `A ~label~> B`
-- Return: `B -> A: <- response`
-- Bidirectional: `A <-> B: label`
+**Arrow types** (always left-to-right):
+- Sync: `A -label-> B`
+- Async: `A ~label~> B`
 
 **Key rules**:
 - Indentation closes blocks (no `end` keyword)

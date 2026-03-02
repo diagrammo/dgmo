@@ -15,9 +15,9 @@ API -createOrder(items)-> Orders
 
 if items in stock
   Orders -reserveStock(skus)-> DB
-  Orders <-ok- DB
+  DB -ok-> Orders
   Orders -POST /charges-> Payments
-  Orders <-charge_id- Payments
+  Payments -charge_id-> Orders
 
   parallel Notify
     Orders ~UPDATE analytics~> DB
@@ -33,4 +33,4 @@ else
 ## Fulfillment
 loop Retry up to 3 times
   API -reconcileCharge(id)-> Payments
-  API <-status- Payments
+  Payments -status-> API

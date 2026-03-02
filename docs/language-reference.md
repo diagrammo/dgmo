@@ -369,8 +369,8 @@ Minimal example:
 ```
 User -login-> API
 API -findUser-> DB
-API <-user- DB
-User <-token- API
+DB -user-> API
+API -token-> User
 ```
 
 Full example:
@@ -387,23 +387,23 @@ NotifyQueue is a queue aka Notifications
 
 User -Login request-> API
 API -Find user by email-> DB
-API <-user record- DB
+DB -user record-> API
 note on DB:
   Indexed lookup on email column
 
 if credentials valid
   API -Create session-> DB
-  API <-session token- DB
+  DB -session token-> API
   API ~session.created~> NotifyQueue
-  User <-200 OK + token- API
+  API -200 OK + token-> User
 else
-  User <-401 Unauthorized- API
+  API -401 Unauthorized-> User
 
 == Logout ==
 
 User -Logout-> API
 API -Delete session-> DB
-User <-200 OK- API
+API -200 OK-> User
 ```
 
 **Participants**: Auto-inferred from message names. Declare explicitly for type/positioning:
@@ -412,10 +412,8 @@ User <-200 OK- API
 - `Name at position 2` — manual left-to-right ordering (0-based; negative from right)
 
 **Messages**:
-- Sync call: `A -label-> B` or `A -> B` (unlabeled)
+- Sync call: `A -label-> B` or `A -> B` (unlabeled) — always left-to-right
 - Async call: `A ~label~> B` or `A ~> B` (unlabeled)
-- Sync return: `A <-label- B` or `A <- B` (unlabeled) — dashed arrow from B to A
-- Async return: `A <~label~ B` or `A <~ B` (unlabeled)
 
 **Blocks** (indentation-scoped):
 - `if condition` ... `else` ... (no explicit `end` needed — indentation closes blocks)

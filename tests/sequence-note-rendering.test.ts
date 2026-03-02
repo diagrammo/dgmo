@@ -410,15 +410,14 @@ describe('Message label inline markdown rendering', () => {
     expect(anchor!.textContent).toBe('docs');
   });
 
-  it('renders a return label as a message label element', () => {
-    const svg = renderToSvg('A -call-> B\nA <-result data- B');
+  it('renders two forward labels as message label elements', () => {
+    const svg = renderToSvg('A -call-> B\nB -result data-> A');
     expect(svg).not.toBeNull();
     const labels = svg!.querySelectorAll('.message-label');
-    // Should have both a call label and a return label
     expect(labels.length).toBeGreaterThanOrEqual(2);
-    const returnLabelEl = labels[labels.length - 1];
-    expect(returnLabelEl).not.toBeNull();
-    expect(returnLabelEl.textContent).toContain('result data');
+    const secondLabel = labels[labels.length - 1];
+    expect(secondLabel).not.toBeNull();
+    expect(secondLabel.textContent).toContain('result data');
   });
 });
 

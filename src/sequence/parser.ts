@@ -60,8 +60,6 @@ export interface SequenceMessage {
   label: string;
   lineNumber: number;
   async?: boolean;
-  /** Standalone return — the message itself IS a return (dashed arrow, no call). */
-  standaloneReturn?: boolean;
 }
 
 /**
@@ -462,7 +460,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       continue;
     }
 
-    // ---- Labeled arrows: -label->, ~label~>, <-label->, <~label~> ----
+    // ---- Labeled arrows: -label->, ~label~> ----
     // Must be checked BEFORE plain arrow patterns to avoid partial matches
     const labeledArrow = parseArrow(trimmed);
     if (labeledArrow && 'error' in labeledArrow) {
@@ -471,7 +469,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     }
     if (labeledArrow) {
       contentStarted = true;
-      const { from, to, label, async: isAsync, isReturn } = labeledArrow;
+      const { from, to, label, async: isAsync } = labeledArrow;
       lastMsgFrom = from;
 
       const msg: SequenceMessage = {
@@ -480,7 +478,6 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
         label,
         lineNumber,
         ...(isAsync ? { async: true } : {}),
-        ...(isReturn ? { standaloneReturn: true } : {}),
       };
       result.messages.push(msg);
       currentContainer().push(msg);
@@ -538,43 +535,17 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       continue;
     }
 
-    // ---- Bare (unlabeled) return arrows: A <- B, A <~ B ----
+    // ---- Deprecated bare return arrows: A <- B, A <~ B ----
     const bareReturnSync = trimmed.match(/^(\S+)\s+<-\s+(\S+)$/);
     const bareReturnAsync = trimmed.match(/^(\S+)\s+<~\s+(\S+)$/);
     const bareReturn = bareReturnSync || bareReturnAsync;
     if (bareReturn) {
-      contentStarted = true;
-      const to = bareReturn[1];   // left side = receiver
-      const from = bareReturn[2]; // right side = sender
-      lastMsgFrom = from;
-
-      const msg: SequenceMessage = {
-        from,
-        to,
-        label: '',
+      const to = bareReturn[1];
+      const from = bareReturn[2];
+      pushError(
         lineNumber,
-        standaloneReturn: true,
-        ...(bareReturnAsync ? { async: true } : {}),
-      };
-      result.messages.push(msg);
-      currentContainer().push(msg);
-
-      if (!result.participants.some((p) => p.id === from)) {
-        result.participants.push({
-          id: from,
-          label: from,
-          type: inferParticipantType(from),
-          lineNumber,
-        });
-      }
-      if (!result.participants.some((p) => p.id === to)) {
-        result.participants.push({
-          id: to,
-          label: to,
-          type: inferParticipantType(to),
-          lineNumber,
-        });
-      }
+        `Left-pointing arrows are no longer supported. Write '${from} -> ${to}' instead`
+      );
       continue;
     }
 

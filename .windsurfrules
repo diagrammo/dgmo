@@ -18,11 +18,11 @@ title: Auth Flow
 
 User -Login-> API
 API -Find user-> DB
-DB -> API: <- user
+DB -user-> API
   if valid
-    API -> User: <- 200 OK
+    API -200 OK-> User
   else
-    API -> User: <- 401
+    API -401-> User
 ```
 
 ### Flowchart
@@ -112,6 +112,6 @@ Install: `brew install diagrammo/dgmo/dgmo` or `npm install -g @diagrammo/dgmo`
 - Don't use `end` to close sequence blocks — indentation closes them
 - Don't use hex colors in section headers — use named colors
 - Don't forget `chart:` directive when content is ambiguous
-- Sequence arrows: `->` (sync), `~>` (async), `<->` (bidirectional)
+- Sequence arrows: `->` (sync), `~>` (async) — always left-to-right
 
 Full reference: `docs/language-reference.md`

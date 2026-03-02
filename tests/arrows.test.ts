@@ -11,7 +11,6 @@ describe('parseArrow — labeled arrow utility', () => {
         to: 'B',
         label: 'login',
         async: false,
-        isReturn: false,
       });
     });
 
@@ -22,7 +21,6 @@ describe('parseArrow — labeled arrow utility', () => {
         to: 'API',
         label: 'send request',
         async: false,
-        isReturn: false,
       });
     });
 
@@ -33,7 +31,6 @@ describe('parseArrow — labeled arrow utility', () => {
         to: 'B',
         label: 'msg',
         async: false,
-        isReturn: false,
       });
     });
 
@@ -44,7 +41,6 @@ describe('parseArrow — labeled arrow utility', () => {
         to: 'API',
         label: 'Makes calls [JSON/HTTPS]',
         async: false,
-        isReturn: false,
       });
     });
   });
@@ -58,7 +54,6 @@ describe('parseArrow — labeled arrow utility', () => {
         to: 'Queue',
         label: 'event',
         async: true,
-        isReturn: false,
       });
     });
 
@@ -69,69 +64,23 @@ describe('parseArrow — labeled arrow utility', () => {
         to: 'Worker',
         label: 'send notification',
         async: true,
-        isReturn: false,
       });
     });
   });
 
-  // ---- Sync return: <-label- ----
-  describe('sync return (<-label-)', () => {
-    it('basic form', () => {
+  // ---- Deprecated return arrows produce errors ----
+  describe('return arrows (<-label-) produce errors', () => {
+    it('sync return produces error with migration hint', () => {
       const r = parseArrow('A <-response- B');
-      expect(r).toEqual({
-        from: 'B',
-        to: 'A',
-        label: 'response',
-        async: false,
-        isReturn: true,
-      });
+      expect(r).toHaveProperty('error');
+      expect((r as { error: string }).error).toContain('no longer supported');
+      expect((r as { error: string }).error).toContain("'B -response-> A'");
     });
 
-    it('multi-word label', () => {
+    it('async return produces error', () => {
       const r = parseArrow('Client <-200 OK- Server');
-      expect(r).toEqual({
-        from: 'Server',
-        to: 'Client',
-        label: '200 OK',
-        async: false,
-        isReturn: true,
-      });
-    });
-
-    it('extra whitespace around arrow', () => {
-      const r = parseArrow('A  <-msg-  B');
-      expect(r).toEqual({
-        from: 'B',
-        to: 'A',
-        label: 'msg',
-        async: false,
-        isReturn: true,
-      });
-    });
-  });
-
-  // ---- Async return: <~label~ ----
-  describe('async return (<~label~)', () => {
-    it('basic form', () => {
-      const r = parseArrow('A <~result~ B');
-      expect(r).toEqual({
-        from: 'B',
-        to: 'A',
-        label: 'result',
-        async: true,
-        isReturn: true,
-      });
-    });
-
-    it('multi-word label', () => {
-      const r = parseArrow('Client <~batch result~ Worker');
-      expect(r).toEqual({
-        from: 'Worker',
-        to: 'Client',
-        label: 'batch result',
-        async: true,
-        isReturn: true,
-      });
+      expect(r).toHaveProperty('error');
+      expect((r as { error: string }).error).toContain('no longer supported');
     });
   });
 
@@ -187,11 +136,6 @@ describe('parseArrow — labeled arrow utility', () => {
 
     it('~> inside label', () => {
       const r = parseArrow('A -has~>val-> B');
-      expect(r).toHaveProperty('error');
-    });
-
-    it('<- inside return label', () => {
-      const r = parseArrow('A <-bad<-val- B');
       expect(r).toHaveProperty('error');
     });
   });

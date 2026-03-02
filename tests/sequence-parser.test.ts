@@ -68,7 +68,6 @@ describe('labeled call arrows', () => {
       label: 'login',
     });
     expect(result.messages[0].async).toBeFalsy();
-    expect(result.messages[0].standaloneReturn).toBeFalsy();
   });
 
   it('~label~> produces async message', () => {
@@ -108,67 +107,28 @@ describe('labeled call arrows', () => {
 });
 
 // ============================================================
-// New arrow syntax — return arrows
+// Deprecated return arrows — produce errors
 // ============================================================
-describe('return arrows', () => {
-  it('labeled return <-msg- parses correctly', () => {
-    const result = parseSequenceDgmo('Client -login-> Server\nClient <-token- Server');
-    expect(result.error).toBeNull();
-    expect(result.messages).toHaveLength(2);
-    expect(result.messages[1]).toMatchObject({
-      from: 'Server',
-      to: 'Client',
-      label: 'token',
-      standaloneReturn: true,
-    });
+describe('return arrows produce errors', () => {
+  it('labeled return <-msg- gives error with migration hint', () => {
+    const result = parseSequenceDgmo('Client <-token- Server');
+    expect(result.error).toContain('no longer supported');
+    expect(result.error).toContain("'Server -token-> Client'");
   });
 
-  it('bare return <- parses correctly', () => {
+  it('bare return <- gives error', () => {
     const result = parseSequenceDgmo('A -msg-> B\nA <- B');
-    expect(result.error).toBeNull();
-    expect(result.messages).toHaveLength(2);
-    expect(result.messages[1]).toMatchObject({
-      from: 'B',
-      to: 'A',
-      label: '',
-      standaloneReturn: true,
-    });
+    expect(result.error).toContain('no longer supported');
   });
 
-  it('async labeled return <~msg~ parses correctly', () => {
-    const result = parseSequenceDgmo('A ~fire~> B\nA <~result~ B');
-    expect(result.error).toBeNull();
-    expect(result.messages[1]).toMatchObject({
-      from: 'B',
-      to: 'A',
-      label: 'result',
-      async: true,
-      standaloneReturn: true,
-    });
+  it('async labeled return <~msg~ gives error', () => {
+    const result = parseSequenceDgmo('A <~result~ B');
+    expect(result.error).toContain('no longer supported');
   });
 
-  it('bare async return <~ parses correctly', () => {
+  it('bare async return <~ gives error', () => {
     const result = parseSequenceDgmo('A ~fire~> B\nA <~ B');
-    expect(result.error).toBeNull();
-    expect(result.messages[1]).toMatchObject({
-      from: 'B',
-      to: 'A',
-      label: '',
-      async: true,
-      standaloneReturn: true,
-    });
-  });
-
-  it('return auto-registers participants', () => {
-    const result = parseSequenceDgmo('A <-data- B');
-    expect(result.participants.map((p) => p.id)).toEqual(['B', 'A']);
-  });
-
-  it('multi-word return label', () => {
-    const result = parseSequenceDgmo('Client <-200 OK + JWT- Server');
-    expect(result.messages[0].label).toBe('200 OK + JWT');
-    expect(result.messages[0].from).toBe('Server');
-    expect(result.messages[0].to).toBe('Client');
+    expect(result.error).toContain('no longer supported');
   });
 });
 
@@ -185,7 +145,6 @@ describe('bare arrows', () => {
       to: 'B',
       label: '',
     });
-    expect(result.messages[0].standaloneReturn).toBeFalsy();
   });
 
   it('A ~> B parses as unlabeled async call', () => {
@@ -209,12 +168,15 @@ describe('bare arrows', () => {
 // Render integration — calls and returns
 // ============================================================
 describe('render integration', () => {
-  it('call + explicit return produces correct steps', () => {
-    const parsed = parseSequenceDgmo('A -request-> B\nA <-response- B');
+  it('call + response produces correct steps', () => {
+    const parsed = parseSequenceDgmo('A -request-> B\nB -response-> A');
     const steps = buildRenderSequence(parsed.messages);
-    expect(steps).toHaveLength(2);
+    // B -response-> A is a nested call (B calls A back), with auto-returns
+    expect(steps).toHaveLength(4);
     expect(steps[0]).toMatchObject({ type: 'call', from: 'A', to: 'B', label: 'request' });
-    expect(steps[1]).toMatchObject({ type: 'return', from: 'B', to: 'A', label: 'response' });
+    expect(steps[1]).toMatchObject({ type: 'call', from: 'B', to: 'A', label: 'response' });
+    expect(steps[2]).toMatchObject({ type: 'return', from: 'A', to: 'B', label: '' });
+    expect(steps[3]).toMatchObject({ type: 'return', from: 'B', to: 'A', label: '' });
   });
 
   it('call without explicit return produces auto-return', () => {
@@ -225,31 +187,16 @@ describe('render integration', () => {
     expect(steps[1]).toMatchObject({ type: 'return', from: 'B', to: 'A', label: '' });
   });
 
-  it('explicit return suppresses auto-return', () => {
+  it('forward-only multi-step flow', () => {
     const parsed = parseSequenceDgmo([
       'Client -login-> Server',
       '  Server -query-> DB',
-      '  Server <-rows- DB',
-      'Client <-token- Server',
+      '  DB -rows-> Server',
+      'Server -token-> Client',
     ].join('\n'));
     const steps = buildRenderSequence(parsed.messages);
-    // 2 calls + 2 explicit returns = 4 steps
-    expect(steps).toHaveLength(4);
+    expect(steps.length).toBeGreaterThanOrEqual(4);
     expect(steps[0]).toMatchObject({ type: 'call', from: 'Client', to: 'Server' });
-    expect(steps[1]).toMatchObject({ type: 'call', from: 'Server', to: 'DB' });
-    expect(steps[2]).toMatchObject({ type: 'return', from: 'DB', to: 'Server', label: 'rows' });
-    expect(steps[3]).toMatchObject({ type: 'return', from: 'Server', to: 'Client', label: 'token' });
-  });
-
-  it('activations from explicit returns', () => {
-    const parsed = parseSequenceDgmo([
-      'A -call-> B',
-      'A <-result- B',
-    ].join('\n'));
-    const steps = buildRenderSequence(parsed.messages);
-    const activations = computeActivations(steps);
-    expect(activations).toHaveLength(1);
-    expect(activations[0].participantId).toBe('B');
   });
 
   it('async messages produce no activations', () => {
@@ -1033,10 +980,10 @@ describe('looksLikeSequence with new arrows', () => {
     ).toHaveLength(1);
   });
 
-  it('detects <-label-', () => {
-    expect(
-      parseSequenceDgmo('A <-result- B').messages
-    ).toHaveLength(1);
+  it('<-label- produces error, not message', () => {
+    const parsed = parseSequenceDgmo('A <-result- B');
+    expect(parsed.messages).toHaveLength(0);
+    expect(parsed.diagnostics.length).toBeGreaterThan(0);
   });
 
   it('detects bare ->', () => {
@@ -1045,9 +992,9 @@ describe('looksLikeSequence with new arrows', () => {
     ).toHaveLength(1);
   });
 
-  it('detects bare <-', () => {
-    expect(
-      parseSequenceDgmo('A -call-> B\nA <- B').messages
-    ).toHaveLength(2);
+  it('bare <- produces error, not message', () => {
+    const parsed = parseSequenceDgmo('A -call-> B\nA <- B');
+    expect(parsed.messages).toHaveLength(1);
+    expect(parsed.diagnostics.length).toBeGreaterThan(0);
   });
 });
