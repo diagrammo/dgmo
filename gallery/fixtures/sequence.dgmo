@@ -9,28 +9,28 @@ Payments is an external aka Stripe
 DB is a database
 
 ## Place Order
-  User -click checkout-> App
-  App -POST /orders-> API
-  API -createOrder(items)-> Orders
+User -click checkout-> App
+App -POST /orders-> API
+API -createOrder(items)-> Orders
 
-  if items in stock
-    Orders -reserveStock(skus)-> DB
-    Orders <-ok- DB
-    Orders -POST /charges-> Payments
-    Orders <-charge_id- Payments
+if items in stock
+  Orders -reserveStock(skus)-> DB
+  Orders <-ok- DB
+  Orders -POST /charges-> Payments
+  Orders <-charge_id- Payments
 
-    parallel Notify
-      Orders ~UPDATE analytics~> DB
-      Orders ~emit OrderPlaced~> API
+  parallel Notify
+    Orders ~UPDATE analytics~> DB
+    Orders ~emit OrderPlaced~> API
 
-    API -order confirmation-> App
-    App -receipt page-> User
-  else
-    Orders -409 Out of Stock-> API
-    API -error-> App
-    App -items unavailable-> User
+  API -order confirmation-> App
+  App -receipt page-> User
+else
+  Orders -409 Out of Stock-> API
+  API -error-> App
+  App -items unavailable-> User
 
 ## Fulfillment
-  loop Retry up to 3 times
-    API -reconcileCharge(id)-> Payments
-    API <-status- Payments
+loop Retry up to 3 times
+  API -reconcileCharge(id)-> Payments
+  API <-status- Payments
