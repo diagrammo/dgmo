@@ -367,10 +367,10 @@ Options: `scale` (`on`/`off`), `sort` (`time`/`group`), `swimlanes` (`on`/`off`)
 Minimal example:
 
 ```
-User -> API: login
-API -> DB: findUser
-DB -> API: <- user
-API -> User: <- token
+User -login-> API
+API -findUser-> DB
+API <-user- DB
+User <-token- API
 ```
 
 Full example:
@@ -386,23 +386,23 @@ DB is a database
 NotifyQueue is a queue aka Notifications
 
 User -Login request-> API
-  API -Find user by email-> DB
-  API <-user record- DB
-  note on DB:
-    Indexed lookup on email column
+API -Find user by email-> DB
+API <-user record- DB
+note on DB:
+  Indexed lookup on email column
 
-  if credentials valid
-    API -Create session-> DB
-    API <-session token- DB
-    API ~session.created~> NotifyQueue
+if credentials valid
+  API -Create session-> DB
+  API <-session token- DB
+  API ~session.created~> NotifyQueue
   User <-200 OK + token- API
-  else
-    User <-401 Unauthorized- API
+else
+  User <-401 Unauthorized- API
 
 == Logout ==
 
 User -Logout-> API
-  API -Delete session-> DB
+API -Delete session-> DB
 User <-200 OK- API
 ```
 
@@ -800,7 +800,7 @@ Assign to elements via pipe metadata: `Element Name | priority: High, t: Fronten
 **Common mistakes to avoid:**
 
 - `# comment` — wrong. Use `// comment`
-- `async A -> B: msg` — wrong. Use `A ~> B: msg` or `A ~msg~> B`
+- `async A -> B: msg` — wrong. Use `A ~msg~> B`
 - `parallel else` — not supported. Use separate `parallel` blocks
 - Hex colors in sections `== Foo(#ff0000) ==` — wrong. Use named colors: `== Foo(red) ==`
 - `->` inside labeled arrows `A -routes to /api-> B` — ambiguous. Rephrase the label
