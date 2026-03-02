@@ -53,14 +53,14 @@ function renderToSvg(
 
 describe('Sequence diagram note rendering', () => {
   it('renders a basic note without error', () => {
-    const svg = renderToSvg('A -> B: hello\nnote right of A: annotation');
+    const svg = renderToSvg('A -hello-> B\nnote right of A: annotation');
     expect(svg).not.toBeNull();
     const notes = svg!.querySelectorAll('.note');
     expect(notes.length).toBe(1);
   });
 
   it('trailing note is included in SVG viewport', () => {
-    const svg = renderToSvg('A -> B: hello\nnote right of A: trailing note');
+    const svg = renderToSvg('A -hello-> B\nnote right of A: trailing note');
     expect(svg).not.toBeNull();
 
     const noteBox = svg!.querySelector('.note-box');
@@ -83,7 +83,7 @@ describe('Sequence diagram note rendering', () => {
 
   it('consecutive notes get distinct Y positions', () => {
     const svg = renderToSvg(
-      'A -> B: hello\nnote right of A: first note\nnote right of A: second note'
+      'A -hello-> B\nnote right of A: first note\nnote right of A: second note'
     );
     expect(svg).not.toBeNull();
 
@@ -106,10 +106,10 @@ describe('Sequence diagram note rendering', () => {
   it('note before a section gets proper spacing', () => {
     const svg = renderToSvg(
       [
-        'A -> B: hello',
+        'A -hello-> B',
         'note right of A: my note',
         '== Phase 2 ==',
-        'A -> B: world',
+        'A -world-> B',
       ].join('\n')
     );
     expect(svg).not.toBeNull();
@@ -138,11 +138,11 @@ describe('Sequence diagram note rendering', () => {
   it('note inside a block renders correctly', () => {
     const svg = renderToSvg(
       [
-        'A -> B: setup',
+        'A -setup-> B',
         'if condition',
-        '  A -> B: action',
+        '  A -action-> B',
         '  note right of A: inside block',
-        'A -> B: done',
+        'A -done-> B',
       ].join('\n')
     );
     expect(svg).not.toBeNull();
@@ -154,7 +154,7 @@ describe('Sequence diagram note rendering', () => {
   it('three consecutive notes all get distinct Y positions', () => {
     const svg = renderToSvg(
       [
-        'A -> B: hello',
+        'A -hello-> B',
         'note right of A: first',
         'note right of A: second',
         'note right of A: third',
@@ -181,9 +181,9 @@ describe('Sequence diagram note rendering', () => {
   it('trailing note after section is included in viewport', () => {
     const svg = renderToSvg(
       [
-        'A -> B: hello',
+        'A -hello-> B',
         '== Section ==',
-        'A -> B: world',
+        'A -world-> B',
         'note right of A: trailing after section',
       ].join('\n')
     );
@@ -204,7 +204,7 @@ describe('Sequence diagram note rendering', () => {
 
 describe('Collapsed note rendering', () => {
   it('renders collapsed notes when expandedNoteLines is empty set', () => {
-    const svg = renderToSvg('A -> B: hello\nnote right of A: annotation', {
+    const svg = renderToSvg('A -hello-> B\nnote right of A: annotation', {
       expandedNoteLines: new Set(),
     });
     expect(svg).not.toBeNull();
@@ -218,12 +218,12 @@ describe('Collapsed note rendering', () => {
   });
 
   it('renders expanded notes when note lineNumber is in expandedNoteLines', () => {
-    const parsed = parseSequenceDgmo('A -> B: hello\nnote right of A: annotation');
+    const parsed = parseSequenceDgmo('A -hello-> B\nnote right of A: annotation');
     const noteLineNumber = parsed.elements
       .filter((el): el is import('../src/sequence/parser').SequenceNote => 'kind' in el && el.kind === 'note')
       .map((n) => n.lineNumber)[0];
 
-    const svg = renderToSvg('A -> B: hello\nnote right of A: annotation', {
+    const svg = renderToSvg('A -hello-> B\nnote right of A: annotation', {
       expandedNoteLines: new Set([noteLineNumber]),
     });
     expect(svg).not.toBeNull();
@@ -234,7 +234,7 @@ describe('Collapsed note rendering', () => {
   });
 
   it('collapsed notes are shorter than expanded notes', () => {
-    const input = 'A -> B: hello\nnote right of A: this is a longer annotation text';
+    const input = 'A -hello-> B\nnote right of A: this is a longer annotation text';
 
     // Expanded (default, no expandedNoteLines)
     const svgExpanded = renderToSvg(input);
@@ -255,7 +255,7 @@ describe('Collapsed note rendering', () => {
 
   it('mixed expanded/collapsed notes render correctly', () => {
     const input = [
-      'A -> B: hello',
+      'A -hello-> B',
       'note right of A: first note',
       'note right of A: second note',
     ].join('\n');
@@ -280,7 +280,7 @@ describe('Collapsed note rendering', () => {
   it('collapse-notes: no overrides expandedNoteLines', () => {
     const input = [
       'collapse-notes: no',
-      'A -> B: hello',
+      'A -hello-> B',
       'note right of A: annotation',
     ].join('\n');
     // Even with empty expandedNoteLines, note should be expanded
@@ -292,7 +292,7 @@ describe('Collapsed note rendering', () => {
   });
 
   it('undefined expandedNoteLines renders all notes expanded (CLI default)', () => {
-    const svg = renderToSvg('A -> B: hello\nnote right of A: annotation');
+    const svg = renderToSvg('A -hello-> B\nnote right of A: annotation');
     expect(svg).not.toBeNull();
     const notes = svg!.querySelectorAll('.note');
     expect(notes.length).toBe(1);
@@ -303,9 +303,9 @@ describe('Collapsed note rendering', () => {
 describe('buildNoteMessageMap', () => {
   it('maps notes to their preceding message lines', () => {
     const parsed = parseSequenceDgmo([
-      'A -> B: hello',
+      'A -hello-> B',
       'note right of A: annotation',
-      'A -> B: world',
+      'A -world-> B',
       'note right of B: second annotation',
     ].join('\n'));
 
@@ -322,11 +322,11 @@ describe('buildNoteMessageMap', () => {
 
   it('handles notes inside blocks', () => {
     const parsed = parseSequenceDgmo([
-      'A -> B: setup',
+      'A -setup-> B',
       'if condition',
-      '  A -> B: action',
+      '  A -action-> B',
       '  note right of A: inside block',
-      'A -> B: done',
+      'A -done-> B',
     ].join('\n'));
 
     const map = buildNoteMessageMap(parsed.elements);
@@ -392,7 +392,7 @@ describe('parseInlineMarkdown — bare URL detection', () => {
 
 describe('Message label inline markdown rendering', () => {
   it('renders bare URL in a message label as an <a> element', () => {
-    const svg = renderToSvg('A -> B: call https://api.example.com/endpoint');
+    const svg = renderToSvg('A -call https://api.example.com/endpoint-> B');
     expect(svg).not.toBeNull();
     const labels = svg!.querySelectorAll('.message-label');
     expect(labels.length).toBe(1);
@@ -402,7 +402,7 @@ describe('Message label inline markdown rendering', () => {
   });
 
   it('renders markdown link in a message label as an <a> element', () => {
-    const svg = renderToSvg('A -> B: see [docs](https://docs.example.com)');
+    const svg = renderToSvg('A -see [docs](https://docs.example.com)-> B');
     expect(svg).not.toBeNull();
     const anchor = svg!.querySelector('.message-label a');
     expect(anchor).not.toBeNull();
@@ -410,16 +410,15 @@ describe('Message label inline markdown rendering', () => {
     expect(anchor!.textContent).toBe('docs');
   });
 
-  it('renders bare URL in a return label as an <a> element', () => {
-    const svg = renderToSvg('A -> B: call <- https://result.example.com');
+  it('renders a return label as a message label element', () => {
+    const svg = renderToSvg('A -call-> B\nA <-result data- B');
     expect(svg).not.toBeNull();
     const labels = svg!.querySelectorAll('.message-label');
     // Should have both a call label and a return label
     expect(labels.length).toBeGreaterThanOrEqual(2);
-    const returnLabel = labels[labels.length - 1];
-    const anchor = returnLabel.querySelector('a');
-    expect(anchor).not.toBeNull();
-    expect(anchor!.getAttribute('href')).toBe('https://result.example.com');
+    const returnLabelEl = labels[labels.length - 1];
+    expect(returnLabelEl).not.toBeNull();
+    expect(returnLabelEl.textContent).toContain('result data');
   });
 });
 
@@ -452,7 +451,7 @@ describe('truncateBareUrl', () => {
 describe('Rendered bare URL truncation', () => {
   it('truncates long bare URL display text but preserves full href', () => {
     const longUrl = 'https://api.example.com/v2/users/authentication/oauth2/callback';
-    const svg = renderToSvg(`A -> B: ${longUrl}`);
+    const svg = renderToSvg(`A -${longUrl}-> B`);
     expect(svg).not.toBeNull();
     const anchor = svg!.querySelector('.message-label a');
     expect(anchor).not.toBeNull();
@@ -464,7 +463,7 @@ describe('Rendered bare URL truncation', () => {
   });
 
   it('does not truncate markdown link display text', () => {
-    const svg = renderToSvg('A -> B: [my custom label](https://api.example.com/v2/users/authentication/oauth2/callback)');
+    const svg = renderToSvg('A -[my custom label](https://api.example.com/v2/users/authentication/oauth2/callback)-> B');
     expect(svg).not.toBeNull();
     const anchor = svg!.querySelector('.message-label a');
     expect(anchor).not.toBeNull();

@@ -182,10 +182,10 @@ const colors = getPalette('nord').light;
 const content = `
 title: Login Flow
 
-User -> AuthService: login(email, pass)
-AuthService -> UserDB: findByEmail(email)
-UserDB -> AuthService: <- user
-AuthService -> User: <- token
+User -login(email, pass)-> AuthService
+  AuthService -findByEmail(email)-> UserDB
+  AuthService <-user- UserDB
+User <-token- AuthService
 `;
 
 const parsed = parseSequenceDgmo(content);
@@ -196,16 +196,13 @@ renderSequenceDiagram(container, parsed, colors, false, (lineNum) => {
 
 **Sequence syntax:**
 
-- `A -> B: message` — synchronous call
-- `A -message-> B` — inline label (same result, label sits in the arrow)
-- `A ~> B: message` — async/fire-and-forget
-- `A ~message~> B` — async with inline label
-- `A <-> B: message` — bidirectional synchronous
-- `A <-message-> B` — bidirectional with inline label
-- `A <~> B: message` — bidirectional async
-- `A <~message~> B` — bidirectional async with inline label
-- `A -> B: method(): returnValue` — call with return
-- `B -> A: <- response` — explicit return
+- `A -message-> B` — synchronous call
+- `A -> B` — unlabeled synchronous call
+- `A ~message~> B` — async/fire-and-forget call
+- `A ~> B` — unlabeled async call
+- `A <-message- B` — synchronous return (dashed arrow, from B to A)
+- `A <- B` — unlabeled return
+- `A <~message~ B` — async return
 - `if condition` / `else` / `end` — conditional blocks
 - `loop condition` / `end` — loop blocks
 - `parallel` / `else` / `end` — concurrent branches

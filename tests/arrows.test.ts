@@ -11,7 +11,7 @@ describe('parseArrow — labeled arrow utility', () => {
         to: 'B',
         label: 'login',
         async: false,
-        bidirectional: false,
+        isReturn: false,
       });
     });
 
@@ -22,7 +22,7 @@ describe('parseArrow — labeled arrow utility', () => {
         to: 'API',
         label: 'send request',
         async: false,
-        bidirectional: false,
+        isReturn: false,
       });
     });
 
@@ -33,7 +33,7 @@ describe('parseArrow — labeled arrow utility', () => {
         to: 'B',
         label: 'msg',
         async: false,
-        bidirectional: false,
+        isReturn: false,
       });
     });
 
@@ -44,7 +44,7 @@ describe('parseArrow — labeled arrow utility', () => {
         to: 'API',
         label: 'Makes calls [JSON/HTTPS]',
         async: false,
-        bidirectional: false,
+        isReturn: false,
       });
     });
   });
@@ -58,7 +58,7 @@ describe('parseArrow — labeled arrow utility', () => {
         to: 'Queue',
         label: 'event',
         async: true,
-        bidirectional: false,
+        isReturn: false,
       });
     });
 
@@ -69,36 +69,84 @@ describe('parseArrow — labeled arrow utility', () => {
         to: 'Worker',
         label: 'send notification',
         async: true,
-        bidirectional: false,
+        isReturn: false,
       });
     });
   });
 
-  // ---- Bidi sync labeled: <-label-> ----
-  describe('bidi sync labeled (<-label->)', () => {
+  // ---- Sync return: <-label- ----
+  describe('sync return (<-label-)', () => {
     it('basic form', () => {
-      const r = parseArrow('A <-data sync-> B');
+      const r = parseArrow('A <-response- B');
       expect(r).toEqual({
-        from: 'A',
-        to: 'B',
-        label: 'data sync',
+        from: 'B',
+        to: 'A',
+        label: 'response',
         async: false,
-        bidirectional: true,
+        isReturn: true,
+      });
+    });
+
+    it('multi-word label', () => {
+      const r = parseArrow('Client <-200 OK- Server');
+      expect(r).toEqual({
+        from: 'Server',
+        to: 'Client',
+        label: '200 OK',
+        async: false,
+        isReturn: true,
+      });
+    });
+
+    it('extra whitespace around arrow', () => {
+      const r = parseArrow('A  <-msg-  B');
+      expect(r).toEqual({
+        from: 'B',
+        to: 'A',
+        label: 'msg',
+        async: false,
+        isReturn: true,
       });
     });
   });
 
-  // ---- Bidi async labeled: <~label~> ----
-  describe('bidi async labeled (<~label~>)', () => {
+  // ---- Async return: <~label~ ----
+  describe('async return (<~label~)', () => {
     it('basic form', () => {
-      const r = parseArrow('A <~heartbeat~> B');
+      const r = parseArrow('A <~result~ B');
       expect(r).toEqual({
-        from: 'A',
-        to: 'B',
-        label: 'heartbeat',
+        from: 'B',
+        to: 'A',
+        label: 'result',
         async: true,
-        bidirectional: true,
+        isReturn: true,
       });
+    });
+
+    it('multi-word label', () => {
+      const r = parseArrow('Client <~batch result~ Worker');
+      expect(r).toEqual({
+        from: 'Worker',
+        to: 'Client',
+        label: 'batch result',
+        async: true,
+        isReturn: true,
+      });
+    });
+  });
+
+  // ---- Bidi errors ----
+  describe('bidirectional arrows produce errors', () => {
+    it('<-label-> produces error', () => {
+      const r = parseArrow('A <-data sync-> B');
+      expect(r).toHaveProperty('error');
+      expect((r as { error: string }).error).toContain('no longer supported');
+    });
+
+    it('<~label~> produces error', () => {
+      const r = parseArrow('A <~heartbeat~> B');
+      expect(r).toHaveProperty('error');
+      expect((r as { error: string }).error).toContain('no longer supported');
     });
   });
 
@@ -120,6 +168,10 @@ describe('parseArrow — labeled arrow utility', () => {
       expect(parseArrow('A --> B')).toBeNull();
     });
 
+    it('bare return arrow', () => {
+      expect(parseArrow('A <- B')).toBeNull();
+    });
+
     it('random text', () => {
       expect(parseArrow('hello world')).toBeNull();
     });
@@ -138,8 +190,8 @@ describe('parseArrow — labeled arrow utility', () => {
       expect(r).toHaveProperty('error');
     });
 
-    it('<-> inside label', () => {
-      const r = parseArrow('A <-test<->val-> B');
+    it('<- inside return label', () => {
+      const r = parseArrow('A <-bad<-val- B');
       expect(r).toHaveProperty('error');
     });
   });

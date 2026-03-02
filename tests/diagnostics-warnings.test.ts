@@ -14,7 +14,7 @@ import { parseChart } from '../src/chart';
 describe('sequence: unused participant warnings', () => {
   it('warns about declared-but-unused participant', () => {
     const result = parseSequenceDgmo(
-      'chart: sequence\nDB is a database\nUser -> API: request'
+      'chart: sequence\nDB is a database\nUser -request-> API'
     );
     expect(result.error).toBeNull();
     const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
@@ -25,7 +25,7 @@ describe('sequence: unused participant warnings', () => {
 
   it('does not warn when all participants are used', () => {
     const result = parseSequenceDgmo(
-      'chart: sequence\nUser -> API: request\nAPI -> DB: query'
+      'chart: sequence\nUser -request-> API\nAPI -query-> DB'
     );
     expect(result.error).toBeNull();
     expect(
@@ -45,7 +45,7 @@ describe('sequence: unused participant warnings', () => {
 
   it('counts note references as usage', () => {
     const result = parseSequenceDgmo(
-      'chart: sequence\nDB is a database\nUser -> API: request\nnote right of DB: stores data'
+      'chart: sequence\nDB is a database\nUser -request-> API\nnote right of DB: stores data'
     );
     expect(result.error).toBeNull();
     expect(
@@ -61,7 +61,7 @@ describe('sequence: unused participant warnings', () => {
 describe('sequence: empty group warnings', () => {
   it('warns about group with no participants', () => {
     const result = parseSequenceDgmo(
-      'chart: sequence\n## Backend\n\nUser -> API: request'
+      'chart: sequence\n## Backend\n\nUser -request-> API'
     );
     expect(result.error).toBeNull();
     const warnings = result.diagnostics.filter((d) => d.severity === 'warning');

@@ -4,10 +4,10 @@ import { encodeDiagramUrl, decodeDiagramUrl } from '../src/sharing';
 describe('encodeDiagramUrl / decodeDiagramUrl', () => {
   const samples = [
     { name: 'pie chart', dsl: 'chart: pie\nA: 10\nB: 20\nC: 30' },
-    { name: 'sequence diagram', dsl: 'chart: sequence\nA -> B: hello\nB -> A: world' },
+    { name: 'sequence diagram', dsl: 'chart: sequence\nA -hello-> B\nB -world-> A' },
     { name: 'bar chart', dsl: 'chart: bar\nApples: 40\nOranges: 25\nBananas: 60' },
     { name: 'unicode content', dsl: 'chart: pie\n日本語: 10\nEmoji 🎉: 20\nÜmlaut: 30' },
-    { name: 'long lines', dsl: 'chart: sequence\n' + 'A -> B: ' + 'x'.repeat(500) },
+    { name: 'long lines', dsl: 'chart: sequence\n' + 'A -' + 'x'.repeat(500) + '-> B' },
     { name: 'empty DSL', dsl: '' },
   ];
 

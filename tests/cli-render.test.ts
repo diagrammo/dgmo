@@ -40,8 +40,8 @@ beforeAll(() => {
 
 const D3_INPUTS: Record<string, string> = {
   sequence: `chart: sequence
-A -> B: hello
-B -> A: world`,
+A -hello-> B
+B -world-> A`,
 
   slope: `chart: slope
 Before, After
@@ -277,7 +277,7 @@ describe('CLI chart type coverage', () => {
   it('parseDgmoChartType extracts chart type from content', () => {
     expect(parseDgmoChartType('chart: scatter\nA: 1, 2')).toBe('scatter');
     expect(parseDgmoChartType('chart: sankey\nA -> B: 10')).toBe('sankey');
-    expect(parseDgmoChartType('chart: sequence\nA -> B: hi')).toBe('sequence');
+    expect(parseDgmoChartType('chart: sequence\nA -hi-> B')).toBe('sequence');
   });
 
   it('getDgmoFramework maps types to frameworks', () => {

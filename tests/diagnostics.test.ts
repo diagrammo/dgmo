@@ -54,7 +54,7 @@ describe('sequence: multiple recoverable errors', () => {
       '## Backend(#ff0000)',
       '  API',
       '== Phase(#00ff00) ==',
-      'User -> API: request',
+      'User -request-> API',
     ].join('\n');
 
     const result = parseSequenceDgmo(content);
@@ -71,7 +71,7 @@ describe('sequence: multiple recoverable errors', () => {
     const content = [
       'chart: sequence',
       '# this is wrong',
-      'User -> API: request',
+      'User -request-> API',
     ].join('\n');
 
     const result = parseSequenceDgmo(content);
@@ -91,7 +91,7 @@ describe('sequence: multiple recoverable errors', () => {
       '## Backend',
       '  User',
       '',
-      'User -> API: request',
+      'User -request-> API',
     ].join('\n');
 
     const result = parseSequenceDgmo(content);
@@ -105,9 +105,9 @@ describe('sequence: multiple recoverable errors', () => {
   it('collects options-after-content error and continues', () => {
     const content = [
       'chart: sequence',
-      'User -> API: request',
+      'User -request-> API',
       'activations: off',
-      'API -> DB: query',
+      'API -query-> DB',
     ].join('\n');
 
     const result = parseSequenceDgmo(content);
@@ -121,8 +121,8 @@ describe('sequence: multiple recoverable errors', () => {
   it('collects async prefix error and continues', () => {
     const content = [
       'chart: sequence',
-      'async User -> API: request',
-      'API -> DB: query',
+      'async User -request-> API',
+      'API -query-> DB',
     ].join('\n');
 
     const result = parseSequenceDgmo(content);
@@ -233,7 +233,7 @@ describe('venn: recoverable overlap errors', () => {
 
 describe('parseDgmo()', () => {
   it('returns diagnostics for sequence diagrams', () => {
-    const { diagnostics } = parseDgmo('chart: sequence\n# bad comment\nA -> B: msg');
+    const { diagnostics } = parseDgmo('chart: sequence\n# bad comment\nA -msg-> B');
     const errors = diagnostics.filter((d) => d.severity === 'error');
     expect(errors.length).toBeGreaterThanOrEqual(1);
     expect(errors[0].message).toContain('Use //');

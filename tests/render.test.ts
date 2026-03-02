@@ -13,8 +13,8 @@ C: 30`);
 
   it('renders a sequence diagram with default options', async () => {
     const svg = await render(`chart: sequence
-A -> B: hello
-B -> A: world`);
+A -hello-> B
+B -world-> A`);
     expect(svg).toContain('<svg');
     expect(svg).toContain('</svg>');
   });

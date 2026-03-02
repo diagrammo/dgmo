@@ -2,49 +2,63 @@
 // Shared Arrow Parsing Utility
 // ============================================================
 //
-// Labeled arrow syntax: `-label->`, `~label~>`, `<-label->`, `<~label~>`
-// Used by sequence, C4, and init-status parsers.
+// Labeled arrow syntax:
+//   Forward: `-label->`, `~label~>`
+//   Return:  `<-label-`, `<~label~`
 
 export interface ParsedArrow {
   from: string;
   to: string;
   label: string;
   async: boolean;
-  bidirectional: boolean;
+  isReturn: boolean;
 }
 
-// Bidi patterns checked FIRST — longer prefix avoids partial match
-const BIDI_SYNC_LABELED_RE = /^(\S+)\s+<-(.+)->\s+(\S+)$/;
-const BIDI_ASYNC_LABELED_RE = /^(\S+)\s+<~(.+)~>\s+(\S+)$/;
+// Forward (call) patterns
 const SYNC_LABELED_RE = /^(\S+)\s+-(.+)->\s+(\S+)$/;
 const ASYNC_LABELED_RE = /^(\S+)\s+~(.+)~>\s+(\S+)$/;
 
-const ARROW_CHARS = ['->', '~>', '<->', '<~>'];
+// Return patterns — A <-msg- B means from=B, to=A
+const RETURN_SYNC_LABELED_RE = /^(\S+)\s+<-(.+)-\s+(\S+)$/;
+const RETURN_ASYNC_LABELED_RE = /^(\S+)\s+<~(.+)~\s+(\S+)$/;
+
+// Bidi detection (for error messages only)
+const BIDI_SYNC_RE = /^(\S+)\s+<-(.+)->\s+(\S+)$/;
+const BIDI_ASYNC_RE = /^(\S+)\s+<~(.+)~>\s+(\S+)$/;
+
+const ARROW_CHARS = ['->', '~>', '<-', '<~'];
 
 /**
  * Try to parse a labeled arrow from a trimmed line.
  *
  * Returns:
  *  - `ParsedArrow` if matched and valid
- *  - `{ error: string }` if matched but label contains arrow chars
- *  - `null` if not a labeled arrow (caller should fall through to plain patterns)
+ *  - `{ error: string }` if matched but invalid (bidi, or arrow chars in label)
+ *  - `null` if not a labeled arrow (caller should fall through to bare patterns)
  */
 export function parseArrow(
   line: string,
 ): ParsedArrow | { error: string } | null {
-  // Order: bidi first (longer prefix), then unidirectional
+  // Check bidi patterns first — return error
+  if (BIDI_SYNC_RE.test(line) || BIDI_ASYNC_RE.test(line)) {
+    return {
+      error:
+        "Bidirectional arrows are no longer supported. Use two separate lines: 'A -msg-> B' and 'B -msg-> A'",
+    };
+  }
+
   const patterns: {
     re: RegExp;
     async: boolean;
-    bidirectional: boolean;
+    isReturn: boolean;
   }[] = [
-    { re: BIDI_SYNC_LABELED_RE, async: false, bidirectional: true },
-    { re: BIDI_ASYNC_LABELED_RE, async: true, bidirectional: true },
-    { re: SYNC_LABELED_RE, async: false, bidirectional: false },
-    { re: ASYNC_LABELED_RE, async: true, bidirectional: false },
+    { re: RETURN_SYNC_LABELED_RE, async: false, isReturn: true },
+    { re: RETURN_ASYNC_LABELED_RE, async: true, isReturn: true },
+    { re: SYNC_LABELED_RE, async: false, isReturn: false },
+    { re: ASYNC_LABELED_RE, async: true, isReturn: false },
   ];
 
-  for (const { re, async: isAsync, bidirectional } of patterns) {
+  for (const { re, async: isAsync, isReturn } of patterns) {
     const m = line.match(re);
     if (!m) continue;
 
@@ -57,9 +71,20 @@ export function parseArrow(
     for (const arrow of ARROW_CHARS) {
       if (label.includes(arrow)) {
         return {
-          error: 'Arrow characters (->, ~>) are not allowed inside labels',
+          error: 'Arrow characters (->, ~>, <-, <~) are not allowed inside labels',
         };
       }
+    }
+
+    if (isReturn) {
+      // Return arrow: A <-msg- B → from=B (source), to=A (destination)
+      return {
+        from: m[3],
+        to: m[1],
+        label,
+        async: isAsync,
+        isReturn: true,
+      };
     }
 
     return {
@@ -67,7 +92,7 @@ export function parseArrow(
       to: m[3],
       label,
       async: isAsync,
-      bidirectional,
+      isReturn: false,
     };
   }
 

@@ -53,16 +53,13 @@ export interface SequenceParticipant {
 
 /**
  * A message between two participants.
- * Placeholder for future stories — included in the interface now for completeness.
  */
 export interface SequenceMessage {
   from: string;
   to: string;
   label: string;
-  returnLabel?: string;
   lineNumber: number;
   async?: boolean;
-  bidirectional?: boolean;
   /** Standalone return — the message itself IS a return (dashed arrow, no call). */
   standaloneReturn?: boolean;
 }
@@ -164,69 +161,12 @@ const GROUP_HEADING_PATTERN = /^##\s+(.+?)(?:\(([^)]+)\))?\s*$/;
 // Section divider pattern — "== Label ==", "== Label(color) ==", or "== Label" (trailing == optional)
 const SECTION_PATTERN = /^==\s+(.+?)(?:\s*==)?\s*$/;
 
-// Arrow pattern for sequence inference — "A -> B: message", "A ~> B: message",
-// "A -label-> B", "A ~label~> B", "A <-> B", "A <~> B"
-const ARROW_PATTERN = /\S+\s*(?:<->|<~>|->|~>|-\S+->|~\S+~>|<-\S+->|<~\S+~>)\s*\S+/;
-
-// <- return syntax: "Login <- 200 OK"
-const ARROW_RETURN_PATTERN = /^(.+?)\s*<-\s*(.+)$/;
-
-// UML method(args): returnType syntax: "getUser(id): UserObj"
-const UML_RETURN_PATTERN = /^(\w+\([^)]*\))\s*:\s*(.+)$/;
+// Arrow pattern for sequence inference — detects any arrow form
+const ARROW_PATTERN = /\S+\s*(?:<-\S+-|<~\S+~|-\S+->|~\S+~>|->|~>|<-|<~)\s*\S+/;
 
 // Note patterns — "note: text", "note right of API: text", "note left of User"
 const NOTE_SINGLE = /^note(?:\s+(right|left)\s+of\s+(\S+))?\s*:\s*(.+)$/i;
 const NOTE_MULTI = /^note(?:\s+(right|left)\s+of\s+([^\s:]+))?\s*:?\s*$/i;
-
-/**
- * Extract return label from a message label string.
- * Priority: `<-` syntax first, then UML `method(): return` syntax,
- * then shorthand ` : ` separator (splits on last occurrence).
- */
-function parseReturnLabel(rawLabel: string): {
-  label: string;
-  returnLabel?: string;
-  standaloneReturn?: boolean;
-} {
-  if (!rawLabel) return { label: '' };
-
-  // Standalone return: label starts with `<-` (no forward label)
-  const standaloneMatch = rawLabel.match(/^<-\s*(.*)$/);
-  if (standaloneMatch) {
-    return {
-      label: standaloneMatch[1].trim(),
-      standaloneReturn: true,
-    };
-  }
-
-  // Check <- syntax first (separates forward label from return label)
-  const arrowReturn = rawLabel.match(ARROW_RETURN_PATTERN);
-  if (arrowReturn) {
-    return { label: arrowReturn[1].trim(), returnLabel: arrowReturn[2].trim() };
-  }
-
-  // Check UML method(args): returnType syntax
-  const umlReturn = rawLabel.match(UML_RETURN_PATTERN);
-  if (umlReturn) {
-    return { label: umlReturn[1].trim(), returnLabel: umlReturn[2].trim() };
-  }
-
-  // Shorthand colon return syntax (split on last ":")
-  // Skip if the colon is part of a URL scheme (followed by //)
-  const lastColon = rawLabel.lastIndexOf(':');
-  if (lastColon > 0 && lastColon < rawLabel.length - 1) {
-    const afterColon = rawLabel.substring(lastColon + 1);
-    if (!afterColon.startsWith('//')) {
-      const reqPart = rawLabel.substring(0, lastColon).trim();
-      const resPart = afterColon.trim();
-      if (reqPart && resPart) {
-        return { label: reqPart, returnLabel: resPart };
-      }
-    }
-  }
-
-  return { label: rawLabel };
-}
 
 /**
  * Parse a .dgmo file with `chart: sequence` into a structured representation.
@@ -365,7 +305,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     // Parse header key: value lines (always top-level)
     // Skip 'note' lines — parsed in the indent-aware section below
     const colonIndex = trimmed.indexOf(':');
-    if (colonIndex > 0 && !trimmed.includes('->') && !trimmed.includes('~>')) {
+    if (colonIndex > 0 && !trimmed.includes('->') && !trimmed.includes('~>') && !trimmed.includes('<-') && !trimmed.includes('<~')) {
       const key = trimmed.substring(0, colonIndex).trim().toLowerCase();
       if (key === 'note' || key.startsWith('note ')) {
         // Fall through to indent-aware note parsing below
@@ -531,17 +471,16 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     }
     if (labeledArrow) {
       contentStarted = true;
-      const { from, to, label, async: isAsync, bidirectional } = labeledArrow;
+      const { from, to, label, async: isAsync, isReturn } = labeledArrow;
       lastMsgFrom = from;
 
       const msg: SequenceMessage = {
         from,
         to,
         label,
-        returnLabel: undefined,
         lineNumber,
         ...(isAsync ? { async: true } : {}),
-        ...(bidirectional ? { bidirectional: true } : {}),
+        ...(isReturn ? { standaloneReturn: true } : {}),
       };
       result.messages.push(msg);
       currentContainer().push(msg);
@@ -566,30 +505,56 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       continue;
     }
 
-    // ---- Plain bidi arrows: <-> and <~> ----
-    // Must be checked BEFORE unidirectional plain arrows
-    const bidiSyncMatch = trimmed.match(
-      /^(\S+)\s*<->\s*([^\s:]+)\s*(?::\s*(.+))?$/
+    // ---- Error: old colon-postfix syntax (A -> B: msg) ----
+    const colonPostfixSync = trimmed.match(
+      /^(\S+)\s*->\s*([^\s:]+)\s*:\s*(.+)$/
     );
-    const bidiAsyncMatch = trimmed.match(
-      /^(\S+)\s*<~>\s*([^\s:]+)\s*(?::\s*(.+))?$/
+    const colonPostfixAsync = trimmed.match(
+      /^(\S+)\s*~>\s*([^\s:]+)\s*:\s*(.+)$/
     );
-    const bidiMatch = bidiSyncMatch || bidiAsyncMatch;
-    if (bidiMatch) {
+    const colonPostfix = colonPostfixSync || colonPostfixAsync;
+    if (colonPostfix) {
+      const a = colonPostfix[1];
+      const b = colonPostfix[2];
+      const msg = colonPostfix[3].trim();
+      const arrowChar = colonPostfixAsync ? '~' : '-';
+      const arrowEnd = colonPostfixAsync ? '~>' : '->';
+      pushError(
+        lineNumber,
+        `Colon syntax is no longer supported. Use '${a} ${arrowChar}${msg}${arrowEnd} ${b}' instead`
+      );
+      continue;
+    }
+
+    // ---- Error: plain bidirectional arrows (A <-> B, A <~> B) ----
+    const bidiPlainMatch = trimmed.match(
+      /^(\S+)\s*(?:<->|<~>)\s*(\S+)/
+    );
+    if (bidiPlainMatch) {
+      pushError(
+        lineNumber,
+        "Bidirectional arrows are no longer supported. Use two separate lines: 'A -msg-> B' and 'B -msg-> A'"
+      );
+      continue;
+    }
+
+    // ---- Bare (unlabeled) return arrows: A <- B, A <~ B ----
+    const bareReturnSync = trimmed.match(/^(\S+)\s+<-\s+(\S+)$/);
+    const bareReturnAsync = trimmed.match(/^(\S+)\s+<~\s+(\S+)$/);
+    const bareReturn = bareReturnSync || bareReturnAsync;
+    if (bareReturn) {
       contentStarted = true;
-      const from = bidiMatch[1];
-      const to = bidiMatch[2];
+      const to = bareReturn[1];   // left side = receiver
+      const from = bareReturn[2]; // right side = sender
       lastMsgFrom = from;
-      const rawLabel = bidiMatch[3]?.trim() || '';
-      const isBidiAsync = !!bidiAsyncMatch;
 
       const msg: SequenceMessage = {
         from,
         to,
-        label: rawLabel,
+        label: '',
         lineNumber,
-        bidirectional: true,
-        ...(isBidiAsync ? { async: true } : {}),
+        standaloneReturn: true,
+        ...(bareReturnAsync ? { async: true } : {}),
       };
       result.messages.push(msg);
       currentContainer().push(msg);
@@ -613,42 +578,26 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       continue;
     }
 
-    // Match ~> (async arrow) or -> (sync arrow)
-    let isAsync = false;
-    const asyncArrowMatch = trimmed.match(
-      /^(\S+)\s*~>\s*([^\s:]+)\s*(?::\s*(.+))?$/
-    );
-    const syncArrowMatch = trimmed.match(
-      /^(\S+)\s*->\s*([^\s:]+)\s*(?::\s*(.+))?$/
-    );
-    const arrowMatch = asyncArrowMatch || syncArrowMatch;
-    if (asyncArrowMatch) isAsync = true;
-
-    if (arrowMatch) {
+    // ---- Bare (unlabeled) call arrows: A -> B, A ~> B ----
+    const bareCallSync = trimmed.match(/^(\S+)\s*->\s*(\S+)$/);
+    const bareCallAsync = trimmed.match(/^(\S+)\s*~>\s*(\S+)$/);
+    const bareCall = bareCallSync || bareCallAsync;
+    if (bareCall) {
       contentStarted = true;
-      const from = arrowMatch[1];
-      const to = arrowMatch[2];
+      const from = bareCall[1];
+      const to = bareCall[2];
       lastMsgFrom = from;
-      const rawLabel = arrowMatch[3]?.trim() || '';
-
-      // Extract return label — skip for async messages
-      const { label, returnLabel, standaloneReturn } = isAsync
-        ? { label: rawLabel, returnLabel: undefined, standaloneReturn: undefined }
-        : parseReturnLabel(rawLabel);
 
       const msg: SequenceMessage = {
         from,
         to,
-        label,
-        returnLabel,
+        label: '',
         lineNumber,
-        ...(isAsync ? { async: true } : {}),
-        ...(standaloneReturn ? { standaloneReturn: true } : {}),
+        ...(bareCallAsync ? { async: true } : {}),
       };
       result.messages.push(msg);
       currentContainer().push(msg);
 
-      // Auto-register participants from message usage with type inference
       if (!result.participants.some((p) => p.id === from)) {
         result.participants.push({
           id: from,

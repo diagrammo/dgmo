@@ -386,24 +386,24 @@ DB is a database
 NotifyQueue is a queue aka Notifications
 
 User -Login request-> API
-API -Find user by email-> DB
-DB -> API: <- user record
-note on DB:
-  Indexed lookup on email column
+  API -Find user by email-> DB
+  API <-user record- DB
+  note on DB:
+    Indexed lookup on email column
 
   if credentials valid
     API -Create session-> DB
-    DB -> API: <- session token
-    API -> User: <- 200 OK + token
+    API <-session token- DB
     API ~session.created~> NotifyQueue
+  User <-200 OK + token- API
   else
-    API -> User: <- 401 Unauthorized
+    User <-401 Unauthorized- API
 
 == Logout ==
 
 User -Logout-> API
-API -Delete session-> DB
-API -> User: <- 200 OK
+  API -Delete session-> DB
+User <-200 OK- API
 ```
 
 **Participants**: Auto-inferred from message names. Declare explicitly for type/positioning:
@@ -412,11 +412,10 @@ API -> User: <- 200 OK
 - `Name at position 2` — manual left-to-right ordering (0-based; negative from right)
 
 **Messages**:
-- Sync: `A -> B: label` or `A -label-> B`
-- Async: `A ~> B: label` or `A ~label~> B`
-- Return: `B -> A: <- response` (on the calling line) or separate line
-- Bidirectional: `A <-> B: label` or `A <-label-> B`
-- Bidirectional async: `A <~> B: label` or `A <~label~> B`
+- Sync call: `A -label-> B` or `A -> B` (unlabeled)
+- Async call: `A ~label~> B` or `A ~> B` (unlabeled)
+- Sync return: `A <-label- B` or `A <- B` (unlabeled) — dashed arrow from B to A
+- Async return: `A <~label~ B` or `A <~ B` (unlabeled)
 
 **Blocks** (indentation-scoped):
 - `if condition` ... `else` ... (no explicit `end` needed — indentation closes blocks)
