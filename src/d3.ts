@@ -1077,10 +1077,12 @@ function tokenizeFreeformText(text: string): WordCloudWord[] {
 /**
  * Resolves vertical label collisions by nudging overlapping items apart.
  * Takes items with a naturalY (center) and height, returns adjusted center Y positions.
+ * Optional maxY clamps the bottom edge so labels don't overflow the chart area.
  */
-function resolveVerticalCollisions(
+export function resolveVerticalCollisions(
   items: { naturalY: number; height: number }[],
-  minGap: number
+  minGap: number,
+  maxY?: number
 ): number[] {
   if (items.length === 0) return [];
   const sorted = items
@@ -1090,7 +1092,11 @@ function resolveVerticalCollisions(
   let prevBottom = -Infinity;
   for (const item of sorted) {
     const halfH = item.height / 2;
-    const top = Math.max(item.naturalY - halfH, prevBottom + minGap);
+    let top = Math.max(item.naturalY - halfH, prevBottom + minGap);
+    // Clamp so the label bottom doesn't exceed maxY
+    if (maxY !== undefined) {
+      top = Math.min(top, maxY - item.height);
+    }
     adjustedY[item.idx] = top + halfH;
     prevBottom = top + item.height;
   }
@@ -1284,7 +1290,7 @@ export function renderSlopeChart(
       naturalY: yScale(item.values[pi]),
       height: leftLabelHeight,
     }));
-    leftLabelCollisions.set(pi, resolveVerticalCollisions(entries, 4));
+    leftLabelCollisions.set(pi, resolveVerticalCollisions(entries, 4, innerHeight));
   }
 
   // --- Resolve right-side label collisions ---
@@ -1292,7 +1298,7 @@ export function renderSlopeChart(
     naturalY: yScale(si.lastVal),
     height: Math.max(si.labelHeight, SLOPE_LABEL_FONT_SIZE * 1.4),
   }));
-  const rightAdjustedY = resolveVerticalCollisions(rightEntries, 4);
+  const rightAdjustedY = resolveVerticalCollisions(rightEntries, 4, innerHeight);
 
   // Render each data series
   data.forEach((item, idx) => {
