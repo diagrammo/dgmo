@@ -82,13 +82,19 @@ export interface ParsedEChart {
 // Nord Colors for Charts
 // ============================================================
 
-import { resolveColor } from './colors';
 import type { PaletteColors } from './palettes';
 import { getSeriesColors, getSegmentColors } from './palettes';
 import { parseChart } from './chart';
 import type { ParsedChart } from './chart';
 import { makeDgmoError, formatDgmoError, suggest } from './diagnostics';
-import { collectIndentedValues } from './utils/parsing';
+import { collectIndentedValues, extractColor, parseSeriesNames } from './utils/parsing';
+
+// ============================================================
+// Shared Constants
+// ============================================================
+
+const EMPHASIS_SELF = { focus: 'self' as const, blurScope: 'global' as const };
+const CHART_BASE: Pick<EChartsOption, 'backgroundColor' | 'animation'> = { backgroundColor: 'transparent', animation: false };
 
 // ============================================================
 // Parser
@@ -133,13 +139,10 @@ export function parseEChart(
     // Check for markdown-style category header: ## Category Name or ## Category Name(color)
     const mdCategoryMatch = trimmed.match(/^#{2,}\s+(.+)$/);
     if (mdCategoryMatch) {
-      let catName = mdCategoryMatch[1].trim();
-      const catColorMatch = catName.match(/\(([^)]+)\)\s*$/);
-      if (catColorMatch) {
-        const resolved = resolveColor(catColorMatch[1].trim(), palette);
+      const { label: catName, color: catColor } = extractColor(mdCategoryMatch[1].trim(), palette);
+      if (catColor) {
         if (!result.categoryColors) result.categoryColors = {};
-        catName = catName.substring(0, catColorMatch.index!).trim();
-        result.categoryColors[catName] = resolved;
+        result.categoryColors[catName] = catColor;
       }
       currentCategory = catName;
       continue;
@@ -194,32 +197,13 @@ export function parseEChart(
     }
 
     if (key === 'series') {
-      let rawNames: string[];
-      if (value) {
-        result.series = value;
-        rawNames = value.split(',').map((s) => s.trim()).filter(Boolean);
-      } else {
-        const collected = collectIndentedValues(lines, i);
-        i = collected.newIndex;
-        rawNames = collected.values;
-        result.series = rawNames.join(', ');
+      const parsed = parseSeriesNames(value, lines, i, palette);
+      i = parsed.newIndex;
+      result.series = parsed.series;
+      if (parsed.names.length > 1) {
+        result.seriesNames = parsed.names;
       }
-      const names: string[] = [];
-      const nameColors: (string | undefined)[] = [];
-      for (const raw of rawNames) {
-        const colorMatch = raw.match(/\(([^)]+)\)\s*$/);
-        if (colorMatch) {
-          nameColors.push(resolveColor(colorMatch[1].trim(), palette));
-          names.push(raw.substring(0, colorMatch.index!).trim());
-        } else {
-          nameColors.push(undefined);
-          names.push(raw);
-        }
-      }
-      if (names.length === 1) {
-        result.series = names[0];
-      }
-      if (nameColors.some(Boolean)) result.seriesNameColors = nameColors;
+      if (parsed.nameColors.some(Boolean)) result.seriesNameColors = parsed.nameColors;
       continue;
     }
 
@@ -296,13 +280,7 @@ export function parseEChart(
 
     // For function charts, treat non-numeric values as function expressions
     if (result.type === 'function') {
-      let fnName = trimmed.substring(0, colonIndex).trim();
-      let fnColor: string | undefined;
-      const colorMatch = fnName.match(/\(([^)]+)\)\s*$/);
-      if (colorMatch) {
-        fnColor = resolveColor(colorMatch[1].trim(), palette);
-        fnName = fnName.substring(0, colorMatch.index!).trim();
-      }
+      const { label: fnName, color: fnColor } = extractColor(trimmed.substring(0, colonIndex).trim(), palette);
       if (!result.functions) result.functions = [];
       result.functions.push({
         name: fnName,
@@ -319,13 +297,7 @@ export function parseEChart(
         /^(-?[\d.]+)\s*,\s*(-?[\d.]+)(?:\s*,\s*(-?[\d.]+))?$/
       );
       if (scatterMatch) {
-        let scatterName = trimmed.substring(0, colonIndex).trim();
-        let scatterColor: string | undefined;
-        const colorMatch = scatterName.match(/\(([^)]+)\)\s*$/);
-        if (colorMatch) {
-          scatterColor = resolveColor(colorMatch[1].trim(), palette);
-          scatterName = scatterName.substring(0, colorMatch.index!).trim();
-        }
+        const { label: scatterName, color: scatterColor } = extractColor(trimmed.substring(0, colonIndex).trim(), palette);
         if (!result.scatterPoints) result.scatterPoints = [];
         result.scatterPoints.push({
           name: scatterName,
@@ -354,14 +326,7 @@ export function parseEChart(
     // Otherwise treat as data point (label: value)
     const numValue = parseFloat(value);
     if (!isNaN(numValue)) {
-      // Use the original case for the label (before lowercasing)
-      let rawLabel = trimmed.substring(0, colonIndex).trim();
-      let pointColor: string | undefined;
-      const colorMatch = rawLabel.match(/\(([^)]+)\)\s*$/);
-      if (colorMatch) {
-        pointColor = resolveColor(colorMatch[1].trim(), palette);
-        rawLabel = rawLabel.substring(0, colorMatch.index!).trim();
-      }
+      const { label: rawLabel, color: pointColor } = extractColor(trimmed.substring(0, colonIndex).trim(), palette);
       result.data.push({
         label: rawLabel,
         value: numValue,
@@ -417,6 +382,20 @@ export function parseEChart(
 // ============================================================
 
 /**
+ * Computes the shared set of theme-derived variables used by all chart option builders.
+ */
+function buildChartCommons(parsed: { title?: string; error?: string | null }, palette: PaletteColors, isDark: boolean) {
+  const textColor = palette.text;
+  const axisLineColor = palette.border;
+  const splitLineColor = palette.border;
+  const gridOpacity = isDark ? 0.7 : 0.55;
+  const colors = getSeriesColors(palette);
+  const titleConfig = parsed.title ? { text: parsed.title, left: 'center' as const, top: 8, textStyle: { color: textColor, fontSize: 20, fontWeight: 'bold' as const, fontFamily: FONT_FAMILY } } : undefined;
+  const tooltipTheme = { backgroundColor: palette.surface, borderColor: palette.border, textStyle: { color: palette.text } };
+  return { textColor, axisLineColor, splitLineColor, gridOpacity, colors, titleConfig, tooltipTheme };
+}
+
+/**
  * Converts parsed echart data to ECharts option object.
  */
 export function buildEChartsOption(
@@ -424,37 +403,12 @@ export function buildEChartsOption(
   palette: PaletteColors,
   isDark: boolean
 ): EChartsOption {
-  const textColor = palette.text;
-  const axisLineColor = palette.border;
-  const gridOpacity = isDark ? 0.7 : 0.55;
-  const colors = getSeriesColors(palette);
-
   if (parsed.error) {
     // Return empty option, error will be shown separately
     return {};
   }
 
-  // Common title configuration
-  const titleConfig = parsed.title
-    ? {
-        text: parsed.title,
-        left: 'center' as const,
-        top: 8,
-        textStyle: {
-          color: textColor,
-          fontSize: 20,
-          fontWeight: 'bold' as const,
-          fontFamily: FONT_FAMILY,
-        },
-      }
-    : undefined;
-
-  // Shared tooltip theme so tooltips match light/dark mode
-  const tooltipTheme = {
-    backgroundColor: palette.surface,
-    borderColor: palette.border,
-    textStyle: { color: palette.text },
-  };
+  const { textColor, axisLineColor, gridOpacity, colors, titleConfig, tooltipTheme } = buildChartCommons(parsed, palette, isDark);
 
   // Sankey chart has different structure
   if (parsed.type === 'sankey') {
@@ -555,8 +509,7 @@ function buildSankeyOption(
   }));
 
   return {
-    backgroundColor: 'transparent',
-    animation: false,
+    ...CHART_BASE,
     title: titleConfig,
     tooltip: {
       show: false,
@@ -633,8 +586,7 @@ function buildChordOption(
   }));
 
   return {
-    backgroundColor: 'transparent',
-    animation: false,
+    ...CHART_BASE,
     title: titleConfig,
     tooltip: {
       trigger: 'item',
@@ -776,16 +728,12 @@ function buildFunctionOption(
       itemStyle: {
         color: fnColor,
       },
-      emphasis: {
-        focus: 'self' as const,
-        blurScope: 'global' as const,
-      },
+      emphasis: EMPHASIS_SELF,
     };
   });
 
   return {
-    backgroundColor: 'transparent',
-    animation: false,
+    ...CHART_BASE,
     title: titleConfig,
     tooltip: {
       trigger: 'axis',
@@ -971,8 +919,7 @@ function buildScatterOption(
   const yPad = (yMax - yMin) * 0.1 || 1;
 
   return {
-    backgroundColor: 'transparent',
-    animation: false,
+    ...CHART_BASE,
     title: titleConfig,
     tooltip,
     ...(legendData && {
@@ -1072,8 +1019,7 @@ function buildHeatmapOption(
   });
 
   return {
-    backgroundColor: 'transparent',
-    animation: false,
+    ...CHART_BASE,
     title: titleConfig,
     tooltip: {
       trigger: 'item',
@@ -1150,8 +1096,7 @@ function buildHeatmapOption(
           fontWeight: 'bold' as const,
         },
         emphasis: {
-          focus: 'self' as const,
-          blurScope: 'global' as const,
+          ...EMPHASIS_SELF,
           itemStyle: {
             shadowBlur: 10,
             shadowColor: 'rgba(0, 0, 0, 0.5)',
@@ -1206,8 +1151,7 @@ function buildFunnelOption(
   };
 
   return {
-    backgroundColor: 'transparent',
-    animation: false,
+    ...CHART_BASE,
     title: titleConfig,
     tooltip: {
       trigger: 'item',
@@ -1245,8 +1189,7 @@ function buildFunnelOption(
           lineStyle: { color: textColor, opacity: 0.3 },
         },
         emphasis: {
-          focus: 'self' as const,
-          blurScope: 'global' as const,
+          ...EMPHASIS_SELF,
           label: {
             fontSize: 15,
           },
@@ -1372,31 +1315,7 @@ export function buildEChartsOptionFromChart(
 ): EChartsOption {
   if (parsed.error) return {};
 
-  const textColor = palette.text;
-  const axisLineColor = palette.border;
-  const splitLineColor = palette.border;
-  const gridOpacity = isDark ? 0.7 : 0.55;
-  const colors = getSeriesColors(palette);
-
-  const titleConfig = parsed.title
-    ? {
-        text: parsed.title,
-        left: 'center' as const,
-        top: 8,
-        textStyle: {
-          color: textColor,
-          fontSize: 20,
-          fontWeight: 'bold' as const,
-          fontFamily: FONT_FAMILY,
-        },
-      }
-    : undefined;
-
-  const tooltipTheme = {
-    backgroundColor: palette.surface,
-    borderColor: palette.border,
-    textStyle: { color: palette.text },
-  };
+  const { textColor, axisLineColor, splitLineColor, gridOpacity, colors, titleConfig, tooltipTheme } = buildChartCommons(parsed, palette, isDark);
 
   switch (parsed.type) {
     case 'bar':
@@ -1418,6 +1337,19 @@ export function buildEChartsOptionFromChart(
     case 'polar-area':
       return buildPolarAreaOption(parsed, textColor, getSegmentColors(palette, parsed.data.length), titleConfig, tooltipTheme);
   }
+}
+
+/**
+ * Builds a standard chart grid object with consistent spacing rules.
+ */
+function makeChartGrid(options: { xLabel?: string; yLabel?: string; hasTitle: boolean; hasLegend?: boolean }): Record<string, unknown> {
+  return {
+    left: options.yLabel ? '12%' : '3%',
+    right: '4%',
+    bottom: options.hasLegend ? '15%' : options.xLabel ? '10%' : '3%',
+    top: options.hasTitle ? '15%' : '5%',
+    containLabel: true,
+  };
 }
 
 // ── Bar ──────────────────────────────────────────────────────
@@ -1452,31 +1384,21 @@ function buildBarOption(
   // xAxis is always the bottom axis, yAxis is always the left axis in ECharts
 
   return {
-    backgroundColor: 'transparent',
-    animation: false,
+    ...CHART_BASE,
     title: titleConfig,
     tooltip: {
       trigger: 'axis',
       ...tooltipTheme,
       axisPointer: { type: 'shadow' },
     },
-    grid: {
-      left: yLabel ? '12%' : '3%',
-      right: '4%',
-      bottom: xLabel ? '10%' : '3%',
-      top: parsed.title ? '15%' : '5%',
-      containLabel: true,
-    },
+    grid: makeChartGrid({ xLabel, yLabel, hasTitle: !!parsed.title }),
     xAxis: isHorizontal ? valueAxis : categoryAxis,
     yAxis: isHorizontal ? categoryAxis : valueAxis,
     series: [
       {
         type: 'bar',
         data,
-        emphasis: {
-          focus: 'self' as const,
-          blurScope: 'global' as const,
-        },
+        emphasis: EMPHASIS_SELF,
       },
     ],
   };
@@ -1501,21 +1423,14 @@ function buildLineOption(
   const values = parsed.data.map((d) => d.value);
 
   return {
-    backgroundColor: 'transparent',
-    animation: false,
+    ...CHART_BASE,
     title: titleConfig,
     tooltip: {
       trigger: 'axis',
       ...tooltipTheme,
       axisPointer: { type: 'line' },
     },
-    grid: {
-      left: yLabel ? '12%' : '3%',
-      right: '4%',
-      bottom: xLabel ? '10%' : '3%',
-      top: parsed.title ? '15%' : '5%',
-      containLabel: true,
-    },
+    grid: makeChartGrid({ xLabel, yLabel, hasTitle: !!parsed.title }),
     xAxis: makeGridAxis('category', textColor, axisLineColor, splitLineColor, gridOpacity, xLabel, labels, undefined, chartWidth),
     yAxis: makeGridAxis('value', textColor, axisLineColor, splitLineColor, gridOpacity, yLabel),
     series: [
@@ -1526,10 +1441,7 @@ function buildLineOption(
         symbolSize: 8,
         lineStyle: { color: lineColor, width: 3 },
         itemStyle: { color: lineColor },
-        emphasis: {
-          focus: 'self' as const,
-          blurScope: 'global' as const,
-        },
+        emphasis: EMPHASIS_SELF,
       },
     ],
   };
@@ -1565,16 +1477,12 @@ function buildMultiLineOption(
       symbolSize: 8,
       lineStyle: { color, width: 3 },
       itemStyle: { color },
-      emphasis: {
-        focus: 'self' as const,
-        blurScope: 'global' as const,
-      },
+      emphasis: EMPHASIS_SELF,
     };
   });
 
   return {
-    backgroundColor: 'transparent',
-    animation: false,
+    ...CHART_BASE,
     title: titleConfig,
     tooltip: {
       trigger: 'axis',
@@ -1586,13 +1494,7 @@ function buildMultiLineOption(
       bottom: 10,
       textStyle: { color: textColor },
     },
-    grid: {
-      left: yLabel ? '12%' : '3%',
-      right: '4%',
-      bottom: '15%',
-      top: parsed.title ? '15%' : '5%',
-      containLabel: true,
-    },
+    grid: makeChartGrid({ xLabel, yLabel, hasTitle: !!parsed.title, hasLegend: true }),
     xAxis: makeGridAxis('category', textColor, axisLineColor, splitLineColor, gridOpacity, xLabel, labels, undefined, chartWidth),
     yAxis: makeGridAxis('value', textColor, axisLineColor, splitLineColor, gridOpacity, yLabel),
     series,
@@ -1618,21 +1520,14 @@ function buildAreaOption(
   const values = parsed.data.map((d) => d.value);
 
   return {
-    backgroundColor: 'transparent',
-    animation: false,
+    ...CHART_BASE,
     title: titleConfig,
     tooltip: {
       trigger: 'axis',
       ...tooltipTheme,
       axisPointer: { type: 'line' },
     },
-    grid: {
-      left: yLabel ? '12%' : '3%',
-      right: '4%',
-      bottom: xLabel ? '10%' : '3%',
-      top: parsed.title ? '15%' : '5%',
-      containLabel: true,
-    },
+    grid: makeChartGrid({ xLabel, yLabel, hasTitle: !!parsed.title }),
     xAxis: makeGridAxis('category', textColor, axisLineColor, splitLineColor, gridOpacity, xLabel, labels, undefined, chartWidth),
     yAxis: makeGridAxis('value', textColor, axisLineColor, splitLineColor, gridOpacity, yLabel),
     series: [
@@ -1644,10 +1539,7 @@ function buildAreaOption(
         lineStyle: { color: lineColor, width: 3 },
         itemStyle: { color: lineColor },
         areaStyle: { opacity: 0.25 },
-        emphasis: {
-          focus: 'self' as const,
-          blurScope: 'global' as const,
-        },
+        emphasis: EMPHASIS_SELF,
       },
     ],
   };
@@ -1681,8 +1573,7 @@ function buildPieOption(
   }));
 
   return {
-    backgroundColor: 'transparent',
-    animation: false,
+    ...CHART_BASE,
     title: titleConfig,
     tooltip: {
       trigger: 'item',
@@ -1700,10 +1591,7 @@ function buildPieOption(
           fontFamily: FONT_FAMILY,
         },
         labelLine: { show: true },
-        emphasis: {
-          focus: 'self' as const,
-          blurScope: 'global' as const,
-        },
+        emphasis: EMPHASIS_SELF,
       },
     ],
   };
@@ -1730,8 +1618,7 @@ function buildRadarOption(
   }));
 
   return {
-    backgroundColor: 'transparent',
-    animation: false,
+    ...CHART_BASE,
     title: titleConfig,
     tooltip: {
       trigger: 'item',
@@ -1773,10 +1660,7 @@ function buildRadarOption(
             },
           },
         ],
-        emphasis: {
-          focus: 'self' as const,
-          blurScope: 'global' as const,
-        },
+        emphasis: EMPHASIS_SELF,
       },
     ],
   };
@@ -1798,8 +1682,7 @@ function buildPolarAreaOption(
   }));
 
   return {
-    backgroundColor: 'transparent',
-    animation: false,
+    ...CHART_BASE,
     title: titleConfig,
     tooltip: {
       trigger: 'item',
@@ -1818,10 +1701,7 @@ function buildPolarAreaOption(
           fontFamily: FONT_FAMILY,
         },
         labelLine: { show: true },
-        emphasis: {
-          focus: 'self' as const,
-          blurScope: 'global' as const,
-        },
+        emphasis: EMPHASIS_SELF,
       },
     ],
   };
@@ -1865,10 +1745,7 @@ function buildBarStackedOption(
         fontWeight: 'bold' as const,
         fontFamily: FONT_FAMILY,
       },
-      emphasis: {
-        focus: 'self' as const,
-        blurScope: 'global' as const,
-      },
+      emphasis: EMPHASIS_SELF,
     };
   });
 
@@ -1882,8 +1759,7 @@ function buildBarStackedOption(
   const valueAxis = makeGridAxis('value', textColor, axisLineColor, splitLineColor, gridOpacity, isHorizontal ? xLabel : yLabel, undefined, hValueGap);
 
   return {
-    backgroundColor: 'transparent',
-    animation: false,
+    ...CHART_BASE,
     title: titleConfig,
     tooltip: {
       trigger: 'axis',
@@ -1895,13 +1771,7 @@ function buildBarStackedOption(
       bottom: 10,
       textStyle: { color: textColor },
     },
-    grid: {
-      left: yLabel ? '12%' : '3%',
-      right: '4%',
-      bottom: '15%',
-      top: parsed.title ? '15%' : '5%',
-      containLabel: true,
-    },
+    grid: makeChartGrid({ xLabel, yLabel, hasTitle: !!parsed.title, hasLegend: true }),
     xAxis: isHorizontal ? valueAxis : categoryAxis,
     yAxis: isHorizontal ? categoryAxis : valueAxis,
     series,
@@ -1915,17 +1785,7 @@ function buildBarStackedOption(
 const ECHART_EXPORT_WIDTH = 1200;
 const ECHART_EXPORT_HEIGHT = 800;
 
-const STANDARD_CHART_TYPES = new Set([
-  'bar',
-  'line',
-  'multi-line',
-  'area',
-  'pie',
-  'doughnut',
-  'radar',
-  'polar-area',
-  'bar-stacked',
-]);
+import { STANDARD_CHART_TYPES } from './dgmo-router';
 
 /**
  * Renders an ECharts diagram to SVG using server-side rendering.

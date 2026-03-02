@@ -20,6 +20,7 @@ export {
   getDgmoFramework,
   parseDgmo,
   DGMO_CHART_TYPE_MAP,
+  STANDARD_CHART_TYPES,
 } from './dgmo-router';
 export type { DgmoFramework } from './dgmo-router';
 

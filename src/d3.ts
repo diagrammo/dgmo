@@ -183,6 +183,64 @@ import { makeDgmoError, formatDgmoError, suggest } from './diagnostics';
 import { collectIndentedValues } from './utils/parsing';
 
 // ============================================================
+// Shared Rendering Helpers
+// ============================================================
+
+/**
+ * Renders a chart title on the SVG with optional click interaction.
+ */
+function renderChartTitle(
+  svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
+  title: string | undefined | null,
+  titleLineNumber: number | undefined | null,
+  width: number,
+  textColor: string,
+  onClickItem?: (lineNumber: number) => void
+): void {
+  if (!title) return;
+  const titleEl = svg.append('text')
+    .attr('class', 'chart-title')
+    .attr('x', width / 2)
+    .attr('y', 30)
+    .attr('text-anchor', 'middle')
+    .attr('fill', textColor)
+    .attr('font-size', '20px')
+    .attr('font-weight', '700')
+    .style('cursor', onClickItem && titleLineNumber ? 'pointer' : 'default')
+    .text(title);
+  if (titleLineNumber) {
+    titleEl.attr('data-line-number', titleLineNumber);
+    if (onClickItem) {
+      titleEl
+        .on('click', () => onClickItem(titleLineNumber))
+        .on('mouseenter', function () { d3Selection.select(this).attr('opacity', 0.7); })
+        .on('mouseleave', function () { d3Selection.select(this).attr('opacity', 1); });
+    }
+  }
+}
+
+/**
+ * Initializes a D3 chart: clears existing content, creates SVG, resolves palette colors.
+ * Returns null if the container has zero dimensions.
+ */
+function initD3Chart(
+  container: HTMLDivElement,
+  palette: PaletteColors,
+  exportDims?: D3ExportDimensions
+): { svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>; width: number; height: number; textColor: string; mutedColor: string; bgColor: string; colors: string[] } | null {
+  d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
+  const width = exportDims?.width ?? container.clientWidth;
+  const height = exportDims?.height ?? container.clientHeight;
+  if (width <= 0 || height <= 0) return null;
+  const textColor = palette.text;
+  const mutedColor = palette.border;
+  const bgColor = palette.bg;
+  const colors = getSeriesColors(palette);
+  const svg = d3Selection.select(container).append('svg').attr('width', width).attr('height', height).style('background', bgColor);
+  return { svg, width, height, textColor, mutedColor, bgColor, colors };
+}
+
+// ============================================================
 // Timeline Date Helper
 // ============================================================
 
@@ -1118,15 +1176,12 @@ export function renderSlopeChart(
   onClickItem?: (lineNumber: number) => void,
   exportDims?: D3ExportDimensions
 ): void {
-  // Clear existing content
-  d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
-
   const { periods, data, title } = parsed;
   if (data.length === 0 || periods.length < 2) return;
 
-  const width = exportDims?.width ?? container.clientWidth;
-  const height = exportDims?.height ?? container.clientHeight;
-  if (width <= 0 || height <= 0) return;
+  const init = initD3Chart(container, palette, exportDims);
+  if (!init) return;
+  const { svg, width, height, textColor, mutedColor, bgColor, colors } = init;
 
   // Compute right margin from the longest end-of-line label
   const maxLabelText = data.reduce((longest, item) => {
@@ -1142,12 +1197,6 @@ export function renderSlopeChart(
 
   const innerWidth = width - SLOPE_MARGIN.left - rightMargin;
   const innerHeight = height - SLOPE_MARGIN.top - SLOPE_MARGIN.bottom;
-
-  // Theme colors
-  const textColor = palette.text;
-  const mutedColor = palette.border;
-  const bgColor = palette.bg;
-  const colors = getSeriesColors(palette);
 
   // Scales
   const allValues = data.flatMap((d) => d.values);
@@ -1165,14 +1214,6 @@ export function renderSlopeChart(
     .range([0, innerWidth])
     .padding(0);
 
-  // SVG
-  const svg = d3Selection
-    .select(container)
-    .append('svg')
-    .attr('width', width)
-    .attr('height', height)
-    .style('background', bgColor);
-
   const g = svg
     .append('g')
     .attr('transform', `translate(${SLOPE_MARGIN.left},${SLOPE_MARGIN.top})`);
@@ -1181,29 +1222,7 @@ export function renderSlopeChart(
   const tooltip = createTooltip(container, palette, isDark);
 
   // Title
-  if (title) {
-    const titleEl = svg
-      .append('text')
-      .attr('class', 'chart-title')
-      .attr('x', width / 2)
-      .attr('y', 30)
-      .attr('text-anchor', 'middle')
-      .attr('fill', textColor)
-      .attr('font-size', '20px')
-      .attr('font-weight', '700')
-      .style('cursor', onClickItem && parsed.titleLineNumber ? 'pointer' : 'default')
-      .text(title);
-
-    if (parsed.titleLineNumber) {
-      titleEl.attr('data-line-number', parsed.titleLineNumber);
-      if (onClickItem) {
-        titleEl
-          .on('click', () => onClickItem(parsed.titleLineNumber!))
-          .on('mouseenter', function () { d3Selection.select(this).attr('opacity', 0.7); })
-          .on('mouseleave', function () { d3Selection.select(this).attr('opacity', 1); });
-      }
-    }
-  }
+  renderChartTitle(svg, title, parsed.titleLineNumber, width, textColor, onClickItem);
 
   // Period column headers
   for (const period of periods) {
@@ -1546,14 +1565,12 @@ export function renderArcDiagram(
   onClickItem?: (lineNumber: number) => void,
   exportDims?: D3ExportDimensions
 ): void {
-  d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
-
   const { links, title, orientation, arcOrder, arcNodeGroups } = parsed;
   if (links.length === 0) return;
 
-  const width = exportDims?.width ?? container.clientWidth;
-  const height = exportDims?.height ?? container.clientHeight;
-  if (width <= 0 || height <= 0) return;
+  const init = initD3Chart(container, palette, exportDims);
+  if (!init) return;
+  const { svg, width, height, textColor, mutedColor, bgColor, colors } = init;
 
   const isVertical = orientation === 'vertical';
   const margin = isVertical
@@ -1567,12 +1584,6 @@ export function renderArcDiagram(
 
   const innerWidth = width - margin.left - margin.right;
   const innerHeight = height - margin.top - margin.bottom;
-
-  // Theme colors
-  const textColor = palette.text;
-  const mutedColor = palette.border;
-  const bgColor = palette.bg;
-  const colors = getSeriesColors(palette);
 
   // Order nodes by selected strategy
   const nodes = orderArcNodes(links, arcOrder, arcNodeGroups);
@@ -1603,42 +1614,12 @@ export function renderArcDiagram(
     .domain([minVal, maxVal])
     .range([1.5, 6]);
 
-  // SVG
-  const svg = d3Selection
-    .select(container)
-    .append('svg')
-    .attr('width', width)
-    .attr('height', height)
-    .style('background', bgColor);
-
   const g = svg
     .append('g')
     .attr('transform', `translate(${margin.left},${margin.top})`);
 
   // Title
-  if (title) {
-    const titleEl = svg
-      .append('text')
-      .attr('class', 'chart-title')
-      .attr('x', width / 2)
-      .attr('y', 30)
-      .attr('text-anchor', 'middle')
-      .attr('fill', textColor)
-      .attr('font-size', '20px')
-      .attr('font-weight', '700')
-      .style('cursor', onClickItem && parsed.titleLineNumber ? 'pointer' : 'default')
-      .text(title);
-
-    if (parsed.titleLineNumber) {
-      titleEl.attr('data-line-number', parsed.titleLineNumber);
-      if (onClickItem) {
-        titleEl
-          .on('click', () => onClickItem(parsed.titleLineNumber!))
-          .on('mouseenter', function () { d3Selection.select(this).attr('opacity', 0.7); })
-          .on('mouseleave', function () { d3Selection.select(this).attr('opacity', 1); });
-      }
-    }
-  }
+  renderChartTitle(svg, title, parsed.titleLineNumber, width, textColor, onClickItem);
 
   // Build adjacency map for hover interactions
   const neighbors = new Map<string, Set<string>>();
@@ -2877,29 +2858,7 @@ export function renderTimeline(
         .append('g')
         .attr('transform', `translate(${margin.left},${margin.top})`);
 
-      if (title) {
-        const titleEl = svg
-          .append('text')
-          .attr('class', 'chart-title')
-          .attr('x', width / 2)
-          .attr('y', 30)
-          .attr('text-anchor', 'middle')
-          .attr('fill', textColor)
-          .attr('font-size', '20px')
-          .attr('font-weight', '700')
-          .style('cursor', onClickItem && parsed.titleLineNumber ? 'pointer' : 'default')
-          .text(title);
-
-        if (parsed.titleLineNumber) {
-          titleEl.attr('data-line-number', parsed.titleLineNumber);
-          if (onClickItem) {
-            titleEl
-              .on('click', () => onClickItem(parsed.titleLineNumber!))
-              .on('mouseenter', function () { d3Selection.select(this).attr('opacity', 0.7); })
-              .on('mouseleave', function () { d3Selection.select(this).attr('opacity', 1); });
-          }
-        }
-      }
+      renderChartTitle(svg, title, parsed.titleLineNumber, width, textColor, onClickItem);
 
       renderEras(
         g,
@@ -3109,29 +3068,7 @@ export function renderTimeline(
         .append('g')
         .attr('transform', `translate(${margin.left},${margin.top})`);
 
-      if (title) {
-        const titleEl = svg
-          .append('text')
-          .attr('class', 'chart-title')
-          .attr('x', width / 2)
-          .attr('y', 30)
-          .attr('text-anchor', 'middle')
-          .attr('fill', textColor)
-          .attr('font-size', '20px')
-          .attr('font-weight', '700')
-          .style('cursor', onClickItem && parsed.titleLineNumber ? 'pointer' : 'default')
-          .text(title);
-
-        if (parsed.titleLineNumber) {
-          titleEl.attr('data-line-number', parsed.titleLineNumber);
-          if (onClickItem) {
-            titleEl
-              .on('click', () => onClickItem(parsed.titleLineNumber!))
-              .on('mouseenter', function () { d3Selection.select(this).attr('opacity', 0.7); })
-              .on('mouseleave', function () { d3Selection.select(this).attr('opacity', 1); });
-          }
-        }
-      }
+      renderChartTitle(svg, title, parsed.titleLineNumber, width, textColor, onClickItem);
 
       renderEras(
         g,
@@ -3402,29 +3339,7 @@ export function renderTimeline(
       .append('g')
       .attr('transform', `translate(${margin.left},${margin.top})`);
 
-    if (title) {
-      const titleEl = svg
-        .append('text')
-        .attr('class', 'chart-title')
-        .attr('x', width / 2)
-        .attr('y', 30)
-        .attr('text-anchor', 'middle')
-        .attr('fill', textColor)
-        .attr('font-size', '20px')
-        .attr('font-weight', '700')
-        .style('cursor', onClickItem && parsed.titleLineNumber ? 'pointer' : 'default')
-        .text(title);
-
-      if (parsed.titleLineNumber) {
-        titleEl.attr('data-line-number', parsed.titleLineNumber);
-        if (onClickItem) {
-          titleEl
-            .on('click', () => onClickItem(parsed.titleLineNumber!))
-            .on('mouseenter', function () { d3Selection.select(this).attr('opacity', 0.7); })
-            .on('mouseleave', function () { d3Selection.select(this).attr('opacity', 1); });
-        }
-      }
-    }
+    renderChartTitle(svg, title, parsed.titleLineNumber, width, textColor, onClickItem);
 
     renderEras(
       g,
@@ -3699,29 +3614,7 @@ export function renderTimeline(
       .append('g')
       .attr('transform', `translate(${margin.left},${margin.top})`);
 
-    if (title) {
-      const titleEl = svg
-        .append('text')
-        .attr('class', 'chart-title')
-        .attr('x', width / 2)
-        .attr('y', 30)
-        .attr('text-anchor', 'middle')
-        .attr('fill', textColor)
-        .attr('font-size', '20px')
-        .attr('font-weight', '700')
-        .style('cursor', onClickItem && parsed.titleLineNumber ? 'pointer' : 'default')
-        .text(title);
-
-      if (parsed.titleLineNumber) {
-        titleEl.attr('data-line-number', parsed.titleLineNumber);
-        if (onClickItem) {
-          titleEl
-            .on('click', () => onClickItem(parsed.titleLineNumber!))
-            .on('mouseenter', function () { d3Selection.select(this).attr('opacity', 0.7); })
-            .on('mouseleave', function () { d3Selection.select(this).attr('opacity', 1); });
-        }
-      }
-    }
+    renderChartTitle(svg, title, parsed.titleLineNumber, width, textColor, onClickItem);
 
     renderEras(
       g,
@@ -3971,21 +3864,15 @@ export function renderWordCloud(
   onClickItem?: (lineNumber: number) => void,
   exportDims?: D3ExportDimensions
 ): void {
-  d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
-
   const { words, title, cloudOptions } = parsed;
   if (words.length === 0) return;
 
-  const width = exportDims?.width ?? container.clientWidth;
-  const height = exportDims?.height ?? container.clientHeight;
-  if (width <= 0 || height <= 0) return;
+  const init = initD3Chart(container, palette, exportDims);
+  if (!init) return;
+  const { svg, width, height, textColor, colors } = init;
 
   const titleHeight = title ? 40 : 0;
   const cloudHeight = height - titleHeight;
-
-  const textColor = palette.text;
-  const bgColor = palette.bg;
-  const colors = getSeriesColors(palette);
 
   const { minSize, maxSize } = cloudOptions;
   const weights = words.map((w) => w.weight);
@@ -4000,36 +3887,7 @@ export function renderWordCloud(
 
   const rotateFn = getRotateFn(cloudOptions.rotate);
 
-  const svg = d3Selection
-    .select(container)
-    .append('svg')
-    .attr('width', width)
-    .attr('height', height)
-    .style('background', bgColor);
-
-  if (title) {
-    const titleEl = svg
-      .append('text')
-      .attr('class', 'chart-title')
-      .attr('x', width / 2)
-      .attr('y', 30)
-      .attr('text-anchor', 'middle')
-      .attr('fill', textColor)
-      .attr('font-size', '20px')
-      .attr('font-weight', '700')
-      .style('cursor', onClickItem && parsed.titleLineNumber ? 'pointer' : 'default')
-      .text(title);
-
-    if (parsed.titleLineNumber) {
-      titleEl.attr('data-line-number', parsed.titleLineNumber);
-      if (onClickItem) {
-        titleEl
-          .on('click', () => onClickItem(parsed.titleLineNumber!))
-          .on('mouseenter', function () { d3Selection.select(this).attr('opacity', 0.7); })
-          .on('mouseleave', function () { d3Selection.select(this).attr('opacity', 1); });
-      }
-    }
-  }
+  renderChartTitle(svg, title, parsed.titleLineNumber, width, textColor, onClickItem);
 
   const g = svg
     .append('g')
@@ -4128,22 +3986,7 @@ function renderWordCloudAsync(
       .attr('height', height)
       .style('background', bgColor);
 
-    if (title) {
-      const titleEl = svg
-        .append('text')
-        .attr('class', 'chart-title')
-        .attr('x', width / 2)
-        .attr('y', 30)
-        .attr('text-anchor', 'middle')
-        .attr('fill', textColor)
-        .attr('font-size', '20px')
-        .attr('font-weight', '700')
-        .text(title);
-
-      if (parsed.titleLineNumber) {
-        titleEl.attr('data-line-number', parsed.titleLineNumber);
-      }
-    }
+    renderChartTitle(svg, title, parsed.titleLineNumber, width, textColor);
 
     const g = svg
       .append('g')
@@ -4365,18 +4208,12 @@ export function renderVenn(
   onClickItem?: (lineNumber: number) => void,
   exportDims?: D3ExportDimensions
 ): void {
-  d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
-
   const { vennSets, vennOverlaps, vennShowValues, title } = parsed;
   if (vennSets.length < 2) return;
 
-  const width = exportDims?.width ?? container.clientWidth;
-  const height = exportDims?.height ?? container.clientHeight;
-  if (width <= 0 || height <= 0) return;
-
-  const textColor = palette.text;
-  const bgColor = palette.bg;
-  const colors = getSeriesColors(palette);
+  const init = initD3Chart(container, palette, exportDims);
+  if (!init) return;
+  const { svg, width, height, textColor, colors } = init;
   const titleHeight = title ? 40 : 0;
 
   // Compute radii
@@ -4483,41 +4320,11 @@ export function renderVenn(
     marginBottom
   ).map((c) => ({ ...c, y: c.y + titleHeight }));
 
-  // SVG
-  const svg = d3Selection
-    .select(container)
-    .append('svg')
-    .attr('width', width)
-    .attr('height', height)
-    .style('background', bgColor);
-
   // Tooltip
   const tooltip = createTooltip(container, palette, isDark);
 
   // Title
-  if (title) {
-    const titleEl = svg
-      .append('text')
-      .attr('class', 'chart-title')
-      .attr('x', width / 2)
-      .attr('y', 30)
-      .attr('text-anchor', 'middle')
-      .attr('fill', textColor)
-      .attr('font-size', '20px')
-      .attr('font-weight', '700')
-      .style('cursor', onClickItem && parsed.titleLineNumber ? 'pointer' : 'default')
-      .text(title);
-
-    if (parsed.titleLineNumber) {
-      titleEl.attr('data-line-number', parsed.titleLineNumber);
-      if (onClickItem) {
-        titleEl
-          .on('click', () => onClickItem(parsed.titleLineNumber!))
-          .on('mouseenter', function () { d3Selection.select(this).attr('opacity', 0.7); })
-          .on('mouseleave', function () { d3Selection.select(this).attr('opacity', 1); });
-      }
-    }
-  }
+  renderChartTitle(svg, title, parsed.titleLineNumber, width, textColor, onClickItem);
 
   // ── Semi-transparent filled circles ──
   const circleEls: d3Selection.Selection<SVGCircleElement, unknown, null, undefined>[] = [];
@@ -4790,8 +4597,6 @@ export function renderQuadrant(
   onClickItem?: (lineNumber: number) => void,
   exportDims?: D3ExportDimensions
 ): void {
-  d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
-
   const {
     title,
     quadrantLabels,
@@ -4805,13 +4610,10 @@ export function renderQuadrant(
 
   if (quadrantPoints.length === 0) return;
 
-  const width = exportDims?.width ?? container.clientWidth;
-  const height = exportDims?.height ?? container.clientHeight;
-  if (width <= 0 || height <= 0) return;
-
-  const textColor = palette.text;
+  const init = initD3Chart(container, palette, exportDims);
+  if (!init) return;
+  const { svg, width, height, textColor } = init;
   const mutedColor = palette.textMuted;
-  const bgColor = palette.bg;
   const borderColor = palette.border;
 
   // Default quadrant colors with alpha
@@ -4833,49 +4635,11 @@ export function renderQuadrant(
   const xScale = d3Scale.scaleLinear().domain([0, 1]).range([0, chartWidth]);
   const yScale = d3Scale.scaleLinear().domain([0, 1]).range([chartHeight, 0]);
 
-  // Create SVG
-  const svg = d3Selection
-    .select(container)
-    .append('svg')
-    .attr('width', width)
-    .attr('height', height)
-    .style('background', bgColor);
-
   // Tooltip
   const tooltip = createTooltip(container, palette, isDark);
 
   // Title
-  if (title) {
-    const titleText = svg
-      .append('text')
-      .attr('class', 'chart-title')
-      .attr('x', width / 2)
-      .attr('y', 30)
-      .attr('text-anchor', 'middle')
-      .attr('fill', textColor)
-      .attr('font-size', '20px')
-      .attr('font-weight', '700')
-      .style(
-        'cursor',
-        onClickItem && quadrantTitleLineNumber ? 'pointer' : 'default'
-      )
-      .text(title);
-
-    if (quadrantTitleLineNumber) {
-      titleText.attr('data-line-number', quadrantTitleLineNumber);
-    }
-
-    if (onClickItem && quadrantTitleLineNumber) {
-      titleText
-        .on('click', () => onClickItem(quadrantTitleLineNumber))
-        .on('mouseenter', function () {
-          d3Selection.select(this).attr('opacity', 0.7);
-        })
-        .on('mouseleave', function () {
-          d3Selection.select(this).attr('opacity', 1);
-        });
-    }
-  }
+  renderChartTitle(svg, title, quadrantTitleLineNumber, width, textColor, onClickItem);
 
   // Chart group (translated by margins)
   const chartG = svg
@@ -5334,6 +5098,55 @@ const EXPORT_WIDTH = 1200;
 const EXPORT_HEIGHT = 800;
 
 /**
+ * Resolves the palette for export, falling back to Nord light/dark.
+ */
+async function resolveExportPalette(theme: string, palette?: PaletteColors): Promise<PaletteColors> {
+  if (palette) return palette;
+  const { getPalette } = await import('./palettes');
+  return theme === 'dark' ? getPalette('nord').dark : getPalette('nord').light;
+}
+
+/**
+ * Creates an offscreen container for export rendering.
+ */
+function createExportContainer(width: number, height: number): HTMLDivElement {
+  const container = document.createElement('div');
+  container.style.width = `${width}px`;
+  container.style.height = `${height}px`;
+  container.style.position = 'absolute';
+  container.style.left = '-9999px';
+  document.body.appendChild(container);
+  return container;
+}
+
+/**
+ * Extracts the SVG from a container, applies common export styling, and cleans up.
+ */
+function finalizeSvgExport(
+  container: HTMLDivElement,
+  theme: string,
+  palette: PaletteColors,
+  options?: { branding?: boolean }
+): string {
+  const svgEl = container.querySelector('svg');
+  if (!svgEl) return '';
+  if (theme === 'transparent') {
+    svgEl.style.background = 'none';
+  } else if (!svgEl.style.background) {
+    svgEl.style.background = palette.bg;
+  }
+  svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  svgEl.style.fontFamily = FONT_FAMILY;
+  const svgHtml = svgEl.outerHTML;
+  document.body.removeChild(container);
+  if (options?.branding !== false) {
+    const brandColor = theme === 'transparent' ? '#888' : palette.textMuted;
+    return injectBranding(svgHtml, brandColor);
+  }
+  return svgHtml;
+}
+
+/**
  * Renders a D3 chart to an SVG string for export.
  * Creates a detached DOM element, renders into it, extracts the SVG, then cleans up.
  */
@@ -5359,9 +5172,7 @@ export async function renderD3ForExport(
     const { renderOrg } = await import('./org/renderer');
 
     const isDark = theme === 'dark';
-    const { getPalette } = await import('./palettes');
-    const effectivePalette =
-      palette ?? (isDark ? getPalette('nord').dark : getPalette('nord').light);
+    const effectivePalette = await resolveExportPalette(theme, palette);
 
     const orgParsed = parseOrg(content, effectivePalette);
     if (orgParsed.error) return '';
@@ -5383,96 +5194,32 @@ export async function renderD3ForExport(
       hiddenAttributes
     );
 
-    // Size container to fit the diagram content
     const PADDING = 20;
     const titleOffset = effectiveParsed.title ? 30 : 0;
     const exportWidth = orgLayout.width + PADDING * 2;
     const exportHeight = orgLayout.height + PADDING * 2 + titleOffset;
+    const container = createExportContainer(exportWidth, exportHeight);
 
-    const container = document.createElement('div');
-    container.style.width = `${exportWidth}px`;
-    container.style.height = `${exportHeight}px`;
-    container.style.position = 'absolute';
-    container.style.left = '-9999px';
-    document.body.appendChild(container);
-
-    try {
-      renderOrg(
-        container,
-        effectiveParsed,
-        orgLayout,
-        effectivePalette,
-        isDark,
-        undefined,
-        { width: exportWidth, height: exportHeight },
-        activeTagGroup,
-        hiddenAttributes
-      );
-
-      const svgEl = container.querySelector('svg');
-      if (!svgEl) return '';
-
-      if (theme === 'transparent') {
-        svgEl.style.background = 'none';
-      } else if (!svgEl.style.background) {
-        svgEl.style.background = effectivePalette.bg;
-      }
-
-      svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-      svgEl.style.fontFamily = FONT_FAMILY;
-
-      const svgHtml = svgEl.outerHTML;
-      if (options?.branding !== false) {
-        const brandColor = theme === 'transparent' ? '#888' : effectivePalette.textMuted;
-        return injectBranding(svgHtml, brandColor);
-      }
-      return svgHtml;
-    } finally {
-      document.body.removeChild(container);
-    }
+    renderOrg(container, effectiveParsed, orgLayout, effectivePalette, isDark, undefined, { width: exportWidth, height: exportHeight }, activeTagGroup, hiddenAttributes);
+    return finalizeSvgExport(container, theme, effectivePalette, options);
   }
 
   if (detectedType === 'kanban') {
     const { parseKanban } = await import('./kanban/parser');
     const { renderKanban } = await import('./kanban/renderer');
 
-    const isDark = theme === 'dark';
-    const { getPalette } = await import('./palettes');
-    const effectivePalette =
-      palette ?? (isDark ? getPalette('nord').dark : getPalette('nord').light);
-
+    const effectivePalette = await resolveExportPalette(theme, palette);
     const kanbanParsed = parseKanban(content, effectivePalette);
     if (kanbanParsed.error || kanbanParsed.columns.length === 0) return '';
 
+    // Kanban renderer self-sizes — no explicit width/height needed
     const container = document.createElement('div');
     container.style.position = 'absolute';
     container.style.left = '-9999px';
     document.body.appendChild(container);
 
-    try {
-      renderKanban(container, kanbanParsed, effectivePalette, isDark);
-
-      const svgEl = container.querySelector('svg');
-      if (!svgEl) return '';
-
-      if (theme === 'transparent') {
-        svgEl.style.background = 'none';
-      } else if (!svgEl.style.background) {
-        svgEl.style.background = effectivePalette.bg;
-      }
-
-      svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-      svgEl.style.fontFamily = FONT_FAMILY;
-
-      const svgHtml = svgEl.outerHTML;
-      if (options?.branding !== false) {
-        const brandColor = theme === 'transparent' ? '#888' : effectivePalette.textMuted;
-        return injectBranding(svgHtml, brandColor);
-      }
-      return svgHtml;
-    } finally {
-      document.body.removeChild(container);
-    }
+    renderKanban(container, kanbanParsed, effectivePalette, theme === 'dark');
+    return finalizeSvgExport(container, theme, effectivePalette, options);
   }
 
   if (detectedType === 'class') {
@@ -5480,11 +5227,7 @@ export async function renderD3ForExport(
     const { layoutClassDiagram } = await import('./class/layout');
     const { renderClassDiagram } = await import('./class/renderer');
 
-    const isDark = theme === 'dark';
-    const { getPalette } = await import('./palettes');
-    const effectivePalette =
-      palette ?? (isDark ? getPalette('nord').dark : getPalette('nord').light);
-
+    const effectivePalette = await resolveExportPalette(theme, palette);
     const classParsed = parseClassDiagram(content, effectivePalette);
     if (classParsed.error || classParsed.classes.length === 0) return '';
 
@@ -5493,46 +5236,10 @@ export async function renderD3ForExport(
     const titleOffset = classParsed.title ? 40 : 0;
     const exportWidth = classLayout.width + PADDING * 2;
     const exportHeight = classLayout.height + PADDING * 2 + titleOffset;
+    const container = createExportContainer(exportWidth, exportHeight);
 
-    const container = document.createElement('div');
-    container.style.width = `${exportWidth}px`;
-    container.style.height = `${exportHeight}px`;
-    container.style.position = 'absolute';
-    container.style.left = '-9999px';
-    document.body.appendChild(container);
-
-    try {
-      renderClassDiagram(
-        container,
-        classParsed,
-        classLayout,
-        effectivePalette,
-        isDark,
-        undefined,
-        { width: exportWidth, height: exportHeight }
-      );
-
-      const svgEl = container.querySelector('svg');
-      if (!svgEl) return '';
-
-      if (theme === 'transparent') {
-        svgEl.style.background = 'none';
-      } else if (!svgEl.style.background) {
-        svgEl.style.background = effectivePalette.bg;
-      }
-
-      svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-      svgEl.style.fontFamily = FONT_FAMILY;
-
-      const svgHtml = svgEl.outerHTML;
-      if (options?.branding !== false) {
-        const brandColor = theme === 'transparent' ? '#888' : effectivePalette.textMuted;
-        return injectBranding(svgHtml, brandColor);
-      }
-      return svgHtml;
-    } finally {
-      document.body.removeChild(container);
-    }
+    renderClassDiagram(container, classParsed, classLayout, effectivePalette, theme === 'dark', undefined, { width: exportWidth, height: exportHeight });
+    return finalizeSvgExport(container, theme, effectivePalette, options);
   }
 
   if (detectedType === 'er') {
@@ -5540,11 +5247,7 @@ export async function renderD3ForExport(
     const { layoutERDiagram } = await import('./er/layout');
     const { renderERDiagram } = await import('./er/renderer');
 
-    const isDark = theme === 'dark';
-    const { getPalette } = await import('./palettes');
-    const effectivePalette =
-      palette ?? (isDark ? getPalette('nord').dark : getPalette('nord').light);
-
+    const effectivePalette = await resolveExportPalette(theme, palette);
     const erParsed = parseERDiagram(content, effectivePalette);
     if (erParsed.error || erParsed.tables.length === 0) return '';
 
@@ -5553,46 +5256,10 @@ export async function renderD3ForExport(
     const titleOffset = erParsed.title ? 40 : 0;
     const exportWidth = erLayout.width + PADDING * 2;
     const exportHeight = erLayout.height + PADDING * 2 + titleOffset;
+    const container = createExportContainer(exportWidth, exportHeight);
 
-    const container = document.createElement('div');
-    container.style.width = `${exportWidth}px`;
-    container.style.height = `${exportHeight}px`;
-    container.style.position = 'absolute';
-    container.style.left = '-9999px';
-    document.body.appendChild(container);
-
-    try {
-      renderERDiagram(
-        container,
-        erParsed,
-        erLayout,
-        effectivePalette,
-        isDark,
-        undefined,
-        { width: exportWidth, height: exportHeight }
-      );
-
-      const svgEl = container.querySelector('svg');
-      if (!svgEl) return '';
-
-      if (theme === 'transparent') {
-        svgEl.style.background = 'none';
-      } else if (!svgEl.style.background) {
-        svgEl.style.background = effectivePalette.bg;
-      }
-
-      svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-      svgEl.style.fontFamily = FONT_FAMILY;
-
-      const svgHtml = svgEl.outerHTML;
-      if (options?.branding !== false) {
-        const brandColor = theme === 'transparent' ? '#888' : effectivePalette.textMuted;
-        return injectBranding(svgHtml, brandColor);
-      }
-      return svgHtml;
-    } finally {
-      document.body.removeChild(container);
-    }
+    renderERDiagram(container, erParsed, erLayout, effectivePalette, theme === 'dark', undefined, { width: exportWidth, height: exportHeight });
+    return finalizeSvgExport(container, theme, effectivePalette, options);
   }
 
   if (detectedType === 'initiative-status') {
@@ -5600,11 +5267,7 @@ export async function renderD3ForExport(
     const { layoutInitiativeStatus } = await import('./initiative-status/layout');
     const { renderInitiativeStatus } = await import('./initiative-status/renderer');
 
-    const isDark = theme === 'dark';
-    const { getPalette } = await import('./palettes');
-    const effectivePalette =
-      palette ?? (isDark ? getPalette('nord').dark : getPalette('nord').light);
-
+    const effectivePalette = await resolveExportPalette(theme, palette);
     const isParsed = parseInitiativeStatus(content);
     if (isParsed.error || isParsed.nodes.length === 0) return '';
 
@@ -5613,46 +5276,10 @@ export async function renderD3ForExport(
     const titleOffset = isParsed.title ? 40 : 0;
     const exportWidth = isLayout.width + PADDING * 2;
     const exportHeight = isLayout.height + PADDING * 2 + titleOffset;
+    const container = createExportContainer(exportWidth, exportHeight);
 
-    const container = document.createElement('div');
-    container.style.width = `${exportWidth}px`;
-    container.style.height = `${exportHeight}px`;
-    container.style.position = 'absolute';
-    container.style.left = '-9999px';
-    document.body.appendChild(container);
-
-    try {
-      renderInitiativeStatus(
-        container,
-        isParsed,
-        isLayout,
-        effectivePalette,
-        isDark,
-        undefined,
-        { width: exportWidth, height: exportHeight }
-      );
-
-      const svgEl = container.querySelector('svg');
-      if (!svgEl) return '';
-
-      if (theme === 'transparent') {
-        svgEl.style.background = 'none';
-      } else if (!svgEl.style.background) {
-        svgEl.style.background = effectivePalette.bg;
-      }
-
-      svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-      svgEl.style.fontFamily = FONT_FAMILY;
-
-      const svgHtml = svgEl.outerHTML;
-      if (options?.branding !== false) {
-        const brandColor = theme === 'transparent' ? '#888' : effectivePalette.textMuted;
-        return injectBranding(svgHtml, brandColor);
-      }
-      return svgHtml;
-    } finally {
-      document.body.removeChild(container);
-    }
+    renderInitiativeStatus(container, isParsed, isLayout, effectivePalette, theme === 'dark', undefined, { width: exportWidth, height: exportHeight });
+    return finalizeSvgExport(container, theme, effectivePalette, options);
   }
 
   if (detectedType === 'c4') {
@@ -5660,11 +5287,7 @@ export async function renderD3ForExport(
     const { layoutC4Context, layoutC4Containers, layoutC4Components, layoutC4Deployment } = await import('./c4/layout');
     const { renderC4Context, renderC4Containers } = await import('./c4/renderer');
 
-    const isDark = theme === 'dark';
-    const { getPalette } = await import('./palettes');
-    const effectivePalette =
-      palette ?? (isDark ? getPalette('nord').dark : getPalette('nord').light);
-
+    const effectivePalette = await resolveExportPalette(theme, palette);
     const c4Parsed = parseC4(content, effectivePalette);
     if (c4Parsed.error || c4Parsed.elements.length === 0) return '';
 
@@ -5687,50 +5310,14 @@ export async function renderD3ForExport(
     const titleOffset = c4Parsed.title ? 40 : 0;
     const exportWidth = c4Layout.width + PADDING * 2;
     const exportHeight = c4Layout.height + PADDING * 2 + titleOffset;
+    const container = createExportContainer(exportWidth, exportHeight);
 
-    const container = document.createElement('div');
-    container.style.width = `${exportWidth}px`;
-    container.style.height = `${exportHeight}px`;
-    container.style.position = 'absolute';
-    container.style.left = '-9999px';
-    document.body.appendChild(container);
+    const renderFn = c4Level === 'deployment' || (c4Level === 'components' && c4System && c4Container) || (c4Level === 'containers' && c4System)
+      ? renderC4Containers
+      : renderC4Context;
 
-    try {
-      const renderFn = c4Level === 'deployment' || (c4Level === 'components' && c4System && c4Container) || (c4Level === 'containers' && c4System)
-        ? renderC4Containers
-        : renderC4Context;
-
-      renderFn(
-        container,
-        c4Parsed,
-        c4Layout,
-        effectivePalette,
-        isDark,
-        undefined,
-        { width: exportWidth, height: exportHeight }
-      );
-
-      const svgEl = container.querySelector('svg');
-      if (!svgEl) return '';
-
-      if (theme === 'transparent') {
-        svgEl.style.background = 'none';
-      } else if (!svgEl.style.background) {
-        svgEl.style.background = effectivePalette.bg;
-      }
-
-      svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-      svgEl.style.fontFamily = FONT_FAMILY;
-
-      const svgHtml = svgEl.outerHTML;
-      if (options?.branding !== false) {
-        const brandColor = theme === 'transparent' ? '#888' : effectivePalette.textMuted;
-        return injectBranding(svgHtml, brandColor);
-      }
-      return svgHtml;
-    } finally {
-      document.body.removeChild(container);
-    }
+    renderFn(container, c4Parsed, c4Layout, effectivePalette, theme === 'dark', undefined, { width: exportWidth, height: exportHeight });
+    return finalizeSvgExport(container, theme, effectivePalette, options);
   }
 
   if (detectedType === 'flowchart') {
@@ -5738,49 +5325,15 @@ export async function renderD3ForExport(
     const { layoutGraph } = await import('./graph/layout');
     const { renderFlowchart } = await import('./graph/flowchart-renderer');
 
-    const isDark = theme === 'dark';
-    const { getPalette } = await import('./palettes');
-    const effectivePalette =
-      palette ?? (isDark ? getPalette('nord').dark : getPalette('nord').light);
-
+    const effectivePalette = await resolveExportPalette(theme, palette);
     const fcParsed = parseFlowchart(content, effectivePalette);
     if (fcParsed.error || fcParsed.nodes.length === 0) return '';
 
     const layout = layoutGraph(fcParsed);
-    const container = document.createElement('div');
-    container.style.width = `${EXPORT_WIDTH}px`;
-    container.style.height = `${EXPORT_HEIGHT}px`;
-    container.style.position = 'absolute';
-    container.style.left = '-9999px';
-    document.body.appendChild(container);
+    const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
 
-    try {
-      renderFlowchart(container, fcParsed, layout, effectivePalette, isDark, undefined, {
-        width: EXPORT_WIDTH,
-        height: EXPORT_HEIGHT,
-      });
-
-      const svgEl = container.querySelector('svg');
-      if (!svgEl) return '';
-
-      if (theme === 'transparent') {
-        svgEl.style.background = 'none';
-      } else if (!svgEl.style.background) {
-        svgEl.style.background = effectivePalette.bg;
-      }
-
-      svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-      svgEl.style.fontFamily = FONT_FAMILY;
-
-      const svgHtml = svgEl.outerHTML;
-      if (options?.branding !== false) {
-        const brandColor = theme === 'transparent' ? '#888' : effectivePalette.textMuted;
-        return injectBranding(svgHtml, brandColor);
-      }
-      return svgHtml;
-    } finally {
-      document.body.removeChild(container);
-    }
+    renderFlowchart(container, fcParsed, layout, effectivePalette, theme === 'dark', undefined, { width: EXPORT_WIDTH, height: EXPORT_HEIGHT });
+    return finalizeSvgExport(container, theme, effectivePalette, options);
   }
 
   const parsed = parseD3(content, palette);
@@ -5802,67 +5355,32 @@ export async function renderD3ForExport(
   if (parsed.type === 'quadrant' && parsed.quadrantPoints.length === 0)
     return '';
 
+  const effectivePalette = await resolveExportPalette(theme, palette);
   const isDark = theme === 'dark';
-
-  // Fall back to Nord palette if none provided
-  const { getPalette } = await import('./palettes');
-  const effectivePalette =
-    palette ?? (isDark ? getPalette('nord').dark : getPalette('nord').light);
-
-  // Create a temporary offscreen container
-  const container = document.createElement('div');
-  container.style.width = `${EXPORT_WIDTH}px`;
-  container.style.height = `${EXPORT_HEIGHT}px`;
-  container.style.position = 'absolute';
-  container.style.left = '-9999px';
-  document.body.appendChild(container);
-
+  const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
   const dims: D3ExportDimensions = { width: EXPORT_WIDTH, height: EXPORT_HEIGHT };
 
-  try {
-    if (parsed.type === 'sequence') {
-      const { parseSequenceDgmo } = await import('./sequence/parser');
-      const { renderSequenceDiagram } = await import('./sequence/renderer');
-      const seqParsed = parseSequenceDgmo(content);
-      if (seqParsed.error || seqParsed.participants.length === 0) return '';
-      renderSequenceDiagram(container, seqParsed, effectivePalette, isDark, undefined, {
-        exportWidth: EXPORT_WIDTH,
-      });
-    } else if (parsed.type === 'wordcloud') {
-      await renderWordCloudAsync(container, parsed, effectivePalette, isDark, dims);
-    } else if (parsed.type === 'arc') {
-      renderArcDiagram(container, parsed, effectivePalette, isDark, undefined, dims);
-    } else if (parsed.type === 'timeline') {
-      renderTimeline(container, parsed, effectivePalette, isDark, undefined, dims);
-    } else if (parsed.type === 'venn') {
-      renderVenn(container, parsed, effectivePalette, isDark, undefined, dims);
-    } else if (parsed.type === 'quadrant') {
-      renderQuadrant(container, parsed, effectivePalette, isDark, undefined, dims);
-    } else {
-      renderSlopeChart(container, parsed, effectivePalette, isDark, undefined, dims);
-    }
-
-    const svgEl = container.querySelector('svg');
-    if (!svgEl) return '';
-
-    // Ensure all chart types have a consistent background
-    if (theme === 'transparent') {
-      svgEl.style.background = 'none';
-    } else if (!svgEl.style.background) {
-      svgEl.style.background = effectivePalette.bg;
-    }
-
-    // Add xmlns for standalone SVG
-    svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-    svgEl.style.fontFamily = FONT_FAMILY;
-
-    const svgHtml = svgEl.outerHTML;
-    if (options?.branding !== false) {
-      const brandColor = theme === 'transparent' ? '#888' : effectivePalette.textMuted;
-      return injectBranding(svgHtml, brandColor);
-    }
-    return svgHtml;
-  } finally {
-    document.body.removeChild(container);
+  if (parsed.type === 'sequence') {
+    const { parseSequenceDgmo } = await import('./sequence/parser');
+    const { renderSequenceDiagram } = await import('./sequence/renderer');
+    const seqParsed = parseSequenceDgmo(content);
+    if (seqParsed.error || seqParsed.participants.length === 0) return '';
+    renderSequenceDiagram(container, seqParsed, effectivePalette, isDark, undefined, {
+      exportWidth: EXPORT_WIDTH,
+    });
+  } else if (parsed.type === 'wordcloud') {
+    await renderWordCloudAsync(container, parsed, effectivePalette, isDark, dims);
+  } else if (parsed.type === 'arc') {
+    renderArcDiagram(container, parsed, effectivePalette, isDark, undefined, dims);
+  } else if (parsed.type === 'timeline') {
+    renderTimeline(container, parsed, effectivePalette, isDark, undefined, dims);
+  } else if (parsed.type === 'venn') {
+    renderVenn(container, parsed, effectivePalette, isDark, undefined, dims);
+  } else if (parsed.type === 'quadrant') {
+    renderQuadrant(container, parsed, effectivePalette, isDark, undefined, dims);
+  } else {
+    renderSlopeChart(container, parsed, effectivePalette, isDark, undefined, dims);
   }
+
+  return finalizeSvgExport(container, theme, effectivePalette, options);
 }

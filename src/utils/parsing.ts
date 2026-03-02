@@ -75,6 +75,49 @@ export function collectIndentedValues(
   return { values, newIndex: j - 1 };
 }
 
+/**
+ * Parse series names from a `series:` value or indented block, extracting
+ * optional per-name color suffixes. Shared between chart.ts and echarts.ts.
+ *
+ * Returns the parsed names, optional colors, and the raw series string
+ * (for single-series display), plus `newIndex` if indented values were consumed.
+ */
+export function parseSeriesNames(
+  value: string,
+  lines: string[],
+  lineIndex: number,
+  palette?: PaletteColors,
+): {
+  series: string;
+  names: string[];
+  nameColors: (string | undefined)[];
+  newIndex: number;
+} {
+  let rawNames: string[];
+  let series: string;
+  let newIndex = lineIndex;
+  if (value) {
+    series = value;
+    rawNames = value.split(',').map((s) => s.trim()).filter(Boolean);
+  } else {
+    const collected = collectIndentedValues(lines, lineIndex);
+    newIndex = collected.newIndex;
+    rawNames = collected.values;
+    series = rawNames.join(', ');
+  }
+  const names: string[] = [];
+  const nameColors: (string | undefined)[] = [];
+  for (const raw of rawNames) {
+    const extracted = extractColor(raw, palette);
+    nameColors.push(extracted.color);
+    names.push(extracted.label);
+  }
+  if (names.length === 1) {
+    series = names[0];
+  }
+  return { series, names, nameColors, newIndex };
+}
+
 /** Parse pipe-delimited metadata from segments after the first (name) segment. */
 export function parsePipeMetadata(
   segments: string[],

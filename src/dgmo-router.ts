@@ -99,8 +99,8 @@ export function parseDgmoChartType(content: string): string | null {
   return null;
 }
 
-// Standard chart types parsed by parseChart (then rendered via ECharts)
-const STANDARD_CHART_TYPES = new Set([
+/** Standard chart types parsed by parseChart (then rendered via ECharts). */
+export const STANDARD_CHART_TYPES = new Set([
   'bar', 'line', 'multi-line', 'area', 'pie', 'doughnut',
   'radar', 'polar-area', 'bar-stacked',
 ]);
@@ -108,6 +108,18 @@ const STANDARD_CHART_TYPES = new Set([
 // ECharts-native types parsed by parseEChart
 const ECHART_TYPES = new Set([
   'scatter', 'sankey', 'chord', 'function', 'heatmap', 'funnel',
+]);
+
+/** Map chart type strings to their parse function (content → { diagnostics }). */
+const PARSE_DISPATCH = new Map<string, (content: string) => { diagnostics: DgmoError[] }>([
+  ['sequence', (c) => parseSequenceDgmo(c)],
+  ['flowchart', (c) => parseFlowchart(c)],
+  ['class', (c) => parseClassDiagram(c)],
+  ['er', (c) => parseERDiagram(c)],
+  ['org', (c) => parseOrg(c)],
+  ['kanban', (c) => parseKanban(c)],
+  ['c4', (c) => parseC4(c)],
+  ['initiative-status', (c) => parseInitiativeStatus(c)],
 ]);
 
 /**
@@ -119,52 +131,19 @@ export function parseDgmo(content: string): { diagnostics: DgmoError[] } {
 
   if (!chartType) {
     // No chart type detected — try D3 parser as fallback (it handles missing chart: line)
-    const parsed = parseD3(content);
-    return { diagnostics: parsed.diagnostics };
+    return { diagnostics: parseD3(content).diagnostics };
   }
 
-  if (chartType === 'sequence') {
-    const parsed = parseSequenceDgmo(content);
-    return { diagnostics: parsed.diagnostics };
-  }
-  if (chartType === 'flowchart') {
-    const parsed = parseFlowchart(content);
-    return { diagnostics: parsed.diagnostics };
-  }
-  if (chartType === 'class') {
-    const parsed = parseClassDiagram(content);
-    return { diagnostics: parsed.diagnostics };
-  }
-  if (chartType === 'er') {
-    const parsed = parseERDiagram(content);
-    return { diagnostics: parsed.diagnostics };
-  }
-  if (chartType === 'org') {
-    const parsed = parseOrg(content);
-    return { diagnostics: parsed.diagnostics };
-  }
-  if (chartType === 'kanban') {
-    const parsed = parseKanban(content);
-    return { diagnostics: parsed.diagnostics };
-  }
-  if (chartType === 'c4') {
-    const parsed = parseC4(content);
-    return { diagnostics: parsed.diagnostics };
-  }
-  if (chartType === 'initiative-status') {
-    const parsed = parseInitiativeStatus(content);
-    return { diagnostics: parsed.diagnostics };
-  }
+  const directParser = PARSE_DISPATCH.get(chartType);
+  if (directParser) return { diagnostics: directParser(content).diagnostics };
+
   if (STANDARD_CHART_TYPES.has(chartType)) {
-    const parsed = parseChart(content);
-    return { diagnostics: parsed.diagnostics };
+    return { diagnostics: parseChart(content).diagnostics };
   }
   if (ECHART_TYPES.has(chartType)) {
-    const parsed = parseEChart(content);
-    return { diagnostics: parsed.diagnostics };
+    return { diagnostics: parseEChart(content).diagnostics };
   }
 
   // D3 types (slope, wordcloud, arc, timeline, venn, quadrant)
-  const parsed = parseD3(content);
-  return { diagnostics: parsed.diagnostics };
+  return { diagnostics: parseD3(content).diagnostics };
 }

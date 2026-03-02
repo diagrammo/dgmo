@@ -47,7 +47,7 @@ export interface ParsedChart {
 import { resolveColor } from './colors';
 import type { PaletteColors } from './palettes';
 import { makeDgmoError, formatDgmoError, suggest } from './diagnostics';
-import { collectIndentedValues } from './utils/parsing';
+import { extractColor, parseSeriesNames } from './utils/parsing';
 
 // ============================================================
 // Parser
@@ -182,37 +182,13 @@ export function parseChart(
     }
 
     if (key === 'series') {
-      // Parse series names — comma-separated on one line, or indented multi-line
-      let rawNames: string[];
-      if (value) {
-        result.series = value;
-        rawNames = value.split(',').map((s) => s.trim()).filter(Boolean);
-      } else {
-        const collected = collectIndentedValues(lines, i);
-        i = collected.newIndex;
-        rawNames = collected.values;
-        result.series = rawNames.join(', ');
+      const parsed = parseSeriesNames(value, lines, i, palette);
+      i = parsed.newIndex;
+      result.series = parsed.series;
+      if (parsed.names.length > 1) {
+        result.seriesNames = parsed.names;
       }
-      const names: string[] = [];
-      const nameColors: (string | undefined)[] = [];
-      for (const raw of rawNames) {
-        const colorMatch = raw.match(/\(([^)]+)\)\s*$/);
-        if (colorMatch) {
-          const resolved = resolveColor(colorMatch[1].trim(), palette);
-          nameColors.push(resolved);
-          names.push(raw.substring(0, colorMatch.index!).trim());
-        } else {
-          nameColors.push(undefined);
-          names.push(raw);
-        }
-      }
-      if (names.length === 1) {
-        result.series = names[0];
-      }
-      if (names.length > 1) {
-        result.seriesNames = names;
-      }
-      if (nameColors.some(Boolean)) result.seriesNameColors = nameColors;
+      if (parsed.nameColors.some(Boolean)) result.seriesNameColors = parsed.nameColors;
       continue;
     }
 
@@ -220,14 +196,7 @@ export function parseChart(
     const parts = value.split(',').map((s) => s.trim());
     const numValue = parseFloat(parts[0]);
     if (!isNaN(numValue)) {
-      let rawLabel = trimmed.substring(0, colonIndex).trim();
-      let pointColor: string | undefined;
-      const colorMatch = rawLabel.match(/\(([^)]+)\)\s*$/);
-      if (colorMatch) {
-        const resolved = resolveColor(colorMatch[1].trim(), palette);
-        pointColor = resolved;
-        rawLabel = rawLabel.substring(0, colorMatch.index!).trim();
-      }
+      const { label: rawLabel, color: pointColor } = extractColor(trimmed.substring(0, colonIndex).trim(), palette);
       const extra = parts
         .slice(1)
         .map((s) => parseFloat(s))
