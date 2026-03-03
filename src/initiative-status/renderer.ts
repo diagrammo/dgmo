@@ -672,6 +672,14 @@ export function renderInitiativeStatus(
 
     const pathD = lineGenerator(edge.points);
     if (pathD) {
+      // Transparent wide hit area behind the visible edge
+      edgeG
+        .append('path')
+        .attr('d', pathD)
+        .attr('fill', 'none')
+        .attr('stroke', 'transparent')
+        .attr('stroke-width', 16);
+
       edgeG
         .append('path')
         .attr('d', pathD)
