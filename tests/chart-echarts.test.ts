@@ -434,3 +434,122 @@ describe('renderEChartsForExport — standard chart types', () => {
     expect(svg).toContain('<svg');
   });
 });
+
+// ── Sankey indentation syntax ─────────────────────────────────
+
+describe('parseEChart — sankey indentation syntax', () => {
+  it('basic indentation: source with indented targets produces correct links', () => {
+    const input = [
+      'chart: sankey',
+      '',
+      'Revenue',
+      '  Costs: 600',
+      '  Profit: 400',
+    ].join('\n');
+    const parsed = parseEChart(input, palette);
+    expect(parsed.links).toHaveLength(2);
+    expect(parsed.links![0]).toMatchObject({ source: 'Revenue', target: 'Costs', value: 600 });
+    expect(parsed.links![1]).toMatchObject({ source: 'Revenue', target: 'Profit', value: 400 });
+  });
+
+  it('deep nesting: 3-level nesting produces correct parent→child links', () => {
+    const input = [
+      'chart: sankey',
+      '',
+      'Revenue',
+      '  Operating Costs: 400',
+      '    Rent: 150',
+      '    Utilities: 100',
+      '    Supplies: 150',
+      '  Salaries: 300',
+      '    Engineering: 180',
+      '    Sales: 120',
+      '  Profit: 300',
+    ].join('\n');
+    const parsed = parseEChart(input, palette);
+    expect(parsed.links).toHaveLength(8);
+    // Level 1: Revenue → children
+    expect(parsed.links![0]).toMatchObject({ source: 'Revenue', target: 'Operating Costs', value: 400 });
+    expect(parsed.links![4]).toMatchObject({ source: 'Revenue', target: 'Salaries', value: 300 });
+    expect(parsed.links![7]).toMatchObject({ source: 'Revenue', target: 'Profit', value: 300 });
+    // Level 2: Operating Costs → children
+    expect(parsed.links![1]).toMatchObject({ source: 'Operating Costs', target: 'Rent', value: 150 });
+    expect(parsed.links![2]).toMatchObject({ source: 'Operating Costs', target: 'Utilities', value: 100 });
+    expect(parsed.links![3]).toMatchObject({ source: 'Operating Costs', target: 'Supplies', value: 150 });
+    // Level 2: Salaries → children
+    expect(parsed.links![5]).toMatchObject({ source: 'Salaries', target: 'Engineering', value: 180 });
+    expect(parsed.links![6]).toMatchObject({ source: 'Salaries', target: 'Sales', value: 120 });
+  });
+
+  it('multiple source groups: two bare labels each with children', () => {
+    const input = [
+      'chart: sankey',
+      '',
+      'Source A',
+      '  Target 1: 100',
+      '  Target 2: 200',
+      'Source B',
+      '  Target 3: 300',
+      '  Target 4: 400',
+    ].join('\n');
+    const parsed = parseEChart(input, palette);
+    expect(parsed.links).toHaveLength(4);
+    expect(parsed.links![0]).toMatchObject({ source: 'Source A', target: 'Target 1', value: 100 });
+    expect(parsed.links![1]).toMatchObject({ source: 'Source A', target: 'Target 2', value: 200 });
+    expect(parsed.links![2]).toMatchObject({ source: 'Source B', target: 'Target 3', value: 300 });
+    expect(parsed.links![3]).toMatchObject({ source: 'Source B', target: 'Target 4', value: 400 });
+  });
+
+  it('mixed syntax: flat arrows + indented groups coexist', () => {
+    const input = [
+      'chart: sankey',
+      '',
+      '// Flat arrow',
+      'External -> Revenue: 1000',
+      '',
+      '// Indented',
+      'Revenue',
+      '  Costs: 600',
+      '  Profit: 400',
+    ].join('\n');
+    const parsed = parseEChart(input, palette);
+    expect(parsed.links).toHaveLength(3);
+    expect(parsed.links![0]).toMatchObject({ source: 'External', target: 'Revenue', value: 1000 });
+    expect(parsed.links![1]).toMatchObject({ source: 'Revenue', target: 'Costs', value: 600 });
+    expect(parsed.links![2]).toMatchObject({ source: 'Revenue', target: 'Profit', value: 400 });
+  });
+
+  it('backward compat: flat-only sankey still parses identically', () => {
+    const input = [
+      'chart: sankey',
+      '',
+      'A -> B: 100',
+      'A -> C: 200',
+      'B -> D: 50',
+    ].join('\n');
+    const parsed = parseEChart(input, palette);
+    expect(parsed.links).toHaveLength(3);
+    expect(parsed.links![0]).toMatchObject({ source: 'A', target: 'B', value: 100 });
+    expect(parsed.links![1]).toMatchObject({ source: 'A', target: 'C', value: 200 });
+    expect(parsed.links![2]).toMatchObject({ source: 'B', target: 'D', value: 50 });
+  });
+
+  it('comments and blank lines inside indented group do not break it', () => {
+    const input = [
+      'chart: sankey',
+      '',
+      'Revenue',
+      '  // Core business',
+      '  Operating Costs: 400',
+      '  Salaries: 300',
+      '',
+      '  // Retained',
+      '  Profit: 300',
+    ].join('\n');
+    const parsed = parseEChart(input, palette);
+    expect(parsed.links).toHaveLength(3);
+    expect(parsed.links![0]).toMatchObject({ source: 'Revenue', target: 'Operating Costs', value: 400 });
+    expect(parsed.links![1]).toMatchObject({ source: 'Revenue', target: 'Salaries', value: 300 });
+    expect(parsed.links![2]).toMatchObject({ source: 'Revenue', target: 'Profit', value: 300 });
+  });
+});

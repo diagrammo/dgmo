@@ -87,7 +87,7 @@ import { getSeriesColors, getSegmentColors } from './palettes';
 import { parseChart } from './chart';
 import type { ParsedChart } from './chart';
 import { makeDgmoError, formatDgmoError, suggest } from './diagnostics';
-import { collectIndentedValues, extractColor, parseSeriesNames } from './utils/parsing';
+import { collectIndentedValues, extractColor, measureIndent, parseSeriesNames } from './utils/parsing';
 
 // ============================================================
 // Shared Constants
@@ -129,6 +129,9 @@ export function parseEChart(
   // Track current category for grouped scatter charts
   let currentCategory = 'Default';
 
+  // Sankey indentation state: stack of source nodes by indent level
+  const sankeyStack: { name: string; indent: number }[] = [];
+
   for (let i = 0; i < lines.length; i++) {
     const trimmed = lines[i].trim();
     const lineNumber = i + 1;
@@ -160,6 +163,17 @@ export function parseEChart(
 
     // Parse key: value pairs
     const colonIndex = trimmed.indexOf(':');
+
+    // Sankey: bare label (no colon) at any indent = source node for indented children
+    if (result.type === 'sankey' && colonIndex === -1) {
+      const indent = measureIndent(lines[i]);
+      while (sankeyStack.length && sankeyStack.at(-1)!.indent >= indent) {
+        sankeyStack.pop();
+      }
+      sankeyStack.push({ name: trimmed, indent });
+      continue;
+    }
+
     if (colonIndex === -1) continue;
 
     const key = trimmed.substring(0, colonIndex).trim().toLowerCase();
@@ -276,6 +290,29 @@ export function parseEChart(
         lineNumber,
       });
       continue;
+    }
+
+    // Sankey: indented "Target: Value" under a source node on the indent stack
+    if (result.type === 'sankey' && sankeyStack.length > 0) {
+      const indent = measureIndent(lines[i]);
+      if (indent > 0) {
+        // Pop entries at same or deeper indent to find the parent
+        while (sankeyStack.length && sankeyStack.at(-1)!.indent >= indent) {
+          sankeyStack.pop();
+        }
+        if (sankeyStack.length > 0) {
+          const source = sankeyStack.at(-1)!.name;
+          const target = trimmed.substring(0, colonIndex).trim();
+          const val = parseFloat(value);
+          if (!isNaN(val)) {
+            if (!result.links) result.links = [];
+            result.links.push({ source, target, value: val, lineNumber });
+            // Push target as potential source for deeper nesting
+            sankeyStack.push({ name: target, indent });
+            continue;
+          }
+        }
+      }
     }
 
     // For function charts, treat non-numeric values as function expressions
