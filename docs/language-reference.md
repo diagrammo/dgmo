@@ -203,6 +203,8 @@ Options: `columns` (required).
 
 ### sankey
 
+**Arrow syntax:**
+
 ```
 chart: sankey
 title: Resource Flow
@@ -213,7 +215,43 @@ Processing -> Output X: 350
 Processing -> Output Y: 150
 ```
 
-Data: `Source -> Target: value`
+**Indentation syntax:**
+
+```
+chart: sankey
+title: Resource Flow
+
+Source A
+  Processing: 300
+Source B
+  Processing: 200
+Processing
+  Output X: 350
+  Output Y: 150
+```
+
+Both syntaxes can be mixed in the same diagram.
+
+**Node colors** — `(color)` after a node name:
+
+```
+Revenue (green)
+  Costs (red): 600
+  Profit (blue): 400
+
+// or with arrows
+Revenue (green) -> Costs (red): 600
+```
+
+**Link colors** — `(color)` after the value:
+
+```
+Revenue
+  Costs: 600 (orange)
+
+// or with arrows
+Revenue -> Costs: 600 (orange)
+```
 
 ### chord
 

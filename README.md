@@ -139,8 +139,10 @@ const content = `
 chart: sankey
 title: Energy Flow
 
-Coal -> Electricity: 50
-Gas -> Electricity: 30
+Coal (orange)
+  Electricity: 50
+Gas (blue)
+  Electricity: 30
 Electricity -> Industry: 45
 Electricity -> Homes: 35
 `;
@@ -425,6 +427,11 @@ Label: value1, value2
 
 # Connections (sankey, chord, arc)
 Source -> Target: weight
+Source (color) -> Target (color): weight (linkcolor)
+
+# Indentation syntax (sankey)
+Source (color)
+  Target (color): weight (linkcolor)
 
 # Groups
 ## Category Name

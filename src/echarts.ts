@@ -26,6 +26,7 @@ export interface ParsedSankeyLink {
   source: string;
   target: string;
   value: number;
+  color?: string;
   lineNumber: number;
 }
 
@@ -74,6 +75,7 @@ export interface ParsedEChart {
   sizelabel?: string;
   showLabels?: boolean;
   categoryColors?: Record<string, string>;
+  nodeColors?: Record<string, string>;
   diagnostics: DgmoError[];
   error: string | null;
 }
@@ -87,6 +89,7 @@ import { getSeriesColors, getSegmentColors } from './palettes';
 import { parseChart } from './chart';
 import type { ParsedChart } from './chart';
 import { makeDgmoError, formatDgmoError, suggest } from './diagnostics';
+import { resolveColor } from './colors';
 import { collectIndentedValues, extractColor, measureIndent, parseSeriesNames } from './utils/parsing';
 
 // ============================================================
@@ -170,7 +173,12 @@ export function parseEChart(
       while (sankeyStack.length && sankeyStack.at(-1)!.indent >= indent) {
         sankeyStack.pop();
       }
-      sankeyStack.push({ name: trimmed, indent });
+      const { label: nodeName, color: nodeColor } = extractColor(trimmed, palette);
+      if (nodeColor) {
+        if (!result.nodeColors) result.nodeColors = {};
+        result.nodeColors[nodeName] = nodeColor;
+      }
+      sankeyStack.push({ name: nodeName, indent });
       continue;
     }
 
@@ -278,15 +286,24 @@ export function parseEChart(
       continue;
     }
 
-    // Check for Sankey arrow syntax: Source -> Target: Value
-    const arrowMatch = trimmed.match(/^(.+?)\s*->\s*(.+?):\s*(\d+(?:\.\d+)?)$/);
+    // Check for Sankey arrow syntax: Source (color) -> Target (color): Value (color)
+    const arrowMatch = trimmed.match(/^(.+?)\s*->\s*(.+?):\s*(\d+(?:\.\d+)?)\s*(?:\(([^)]+)\))?\s*$/);
     if (arrowMatch) {
-      const [, source, target, val] = arrowMatch;
+      const [, rawSource, rawTarget, val, rawLinkColor] = arrowMatch;
+      const { label: source, color: sourceColor } = extractColor(rawSource.trim(), palette);
+      const { label: target, color: targetColor } = extractColor(rawTarget.trim(), palette);
+      if (sourceColor || targetColor) {
+        if (!result.nodeColors) result.nodeColors = {};
+        if (sourceColor) result.nodeColors[source] = sourceColor;
+        if (targetColor) result.nodeColors[target] = targetColor;
+      }
+      const linkColor = rawLinkColor ? resolveColor(rawLinkColor.trim(), palette) : undefined;
       if (!result.links) result.links = [];
       result.links.push({
-        source: source.trim(),
-        target: target.trim(),
+        source,
+        target,
         value: parseFloat(val),
+        ...(linkColor && { color: linkColor }),
         lineNumber,
       });
       continue;
@@ -302,11 +319,18 @@ export function parseEChart(
         }
         if (sankeyStack.length > 0) {
           const source = sankeyStack.at(-1)!.name;
-          const target = trimmed.substring(0, colonIndex).trim();
-          const val = parseFloat(value);
+          const { label: target, color: targetColor } = extractColor(trimmed.substring(0, colonIndex).trim(), palette);
+          if (targetColor) {
+            if (!result.nodeColors) result.nodeColors = {};
+            result.nodeColors[target] = targetColor;
+          }
+          // Parse value with optional trailing (color) for link color
+          const valColorMatch = value.match(/^(\d+(?:\.\d+)?)\s*(?:\(([^)]+)\))?\s*$/);
+          const val = valColorMatch ? parseFloat(valColorMatch[1]) : NaN;
+          const linkColor = valColorMatch?.[2] ? resolveColor(valColorMatch[2].trim(), palette) : undefined;
           if (!isNaN(val)) {
             if (!result.links) result.links = [];
-            result.links.push({ source, target, value: val, lineNumber });
+            result.links.push({ source, target, value: val, ...(linkColor && { color: linkColor }), lineNumber });
             // Push target as potential source for deeper nesting
             sankeyStack.push({ name: target, indent });
             continue;
@@ -541,7 +565,7 @@ function buildSankeyOption(
   const nodes = Array.from(nodeSet).map((name, index) => ({
     name,
     itemStyle: {
-      color: colors[index % colors.length],
+      color: parsed.nodeColors?.[name] ?? colors[index % colors.length],
     },
   }));
 
@@ -563,7 +587,12 @@ function buildSankeyOption(
         nodeGap: 12,
         nodeWidth: 20,
         data: nodes,
-        links: parsed.links ?? [],
+        links: (parsed.links ?? []).map(link => ({
+          source: link.source,
+          target: link.target,
+          value: link.value,
+          ...(link.color && { lineStyle: { color: link.color } }),
+        })),
         lineStyle: {
           color: 'gradient',
           curveness: 0.5,

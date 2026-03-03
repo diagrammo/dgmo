@@ -79,6 +79,32 @@ Bob: 9, 88
 Carol: 2, 70
 ```
 
+**Sankey** (arrow syntax):
+```
+chart: sankey
+title: Energy Flow
+
+Coal -> Electricity: 50
+Gas -> Electricity: 30
+Electricity -> Industry: 45
+Electricity -> Homes: 35
+```
+
+**Sankey** (indentation + colors):
+```
+chart: sankey
+title: Budget Flow
+
+Revenue (green)
+  Operating Costs (red): 600
+  R&D (blue): 250
+  Profit (green): 150
+
+Operating Costs
+  Salaries: 400
+  Infrastructure: 200 (orange)
+```
+
 **Heatmap**:
 ```
 chart: heatmap
@@ -102,6 +128,8 @@ Team B: 2, 3, 2, 4, 3
 - `labels: percent` — show percentages on pie/doughnut
 - `orientation: horizontal` — rotate bar charts
 - Data is always `Label: value` or `Label: v1, v2, v3` for multi-series
+- Sankey: `Source -> Target: value` or indent targets under a bare source label
+- Sankey colors: `Node (color)` for nodes, `value (color)` for links
 
 ## Output
 

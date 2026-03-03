@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parseChart } from '../src/chart';
-import { parseEChart } from '../src/echarts';
+import { parseEChart, buildEChartsOption } from '../src/echarts';
 import {
   buildEChartsOptionFromChart,
   renderEChartsForExport,
@@ -551,5 +551,132 @@ describe('parseEChart — sankey indentation syntax', () => {
     expect(parsed.links![0]).toMatchObject({ source: 'Revenue', target: 'Operating Costs', value: 400 });
     expect(parsed.links![1]).toMatchObject({ source: 'Revenue', target: 'Salaries', value: 300 });
     expect(parsed.links![2]).toMatchObject({ source: 'Revenue', target: 'Profit', value: 300 });
+  });
+});
+
+// ── Sankey color annotations ─────────────────────────────────
+
+describe('parseEChart — sankey color annotations', () => {
+  it('node color via indentation syntax: bare label with (color)', () => {
+    const input = [
+      'chart: sankey',
+      '',
+      'Revenue (green)',
+      '  Costs: 600',
+      '  Profit: 400',
+    ].join('\n');
+    const parsed = parseEChart(input, palette);
+    expect(parsed.nodeColors).toBeDefined();
+    expect(parsed.nodeColors!['Revenue']).toBe('#a3be8c');
+    // Source name is clean (no color suffix)
+    expect(parsed.links![0].source).toBe('Revenue');
+    expect(parsed.links![1].source).toBe('Revenue');
+  });
+
+  it('target node color via indentation syntax', () => {
+    const input = [
+      'chart: sankey',
+      '',
+      'Revenue',
+      '  Costs (red): 600',
+      '  Profit (blue): 400',
+    ].join('\n');
+    const parsed = parseEChart(input, palette);
+    expect(parsed.nodeColors!['Costs']).toBe('#bf616a');
+    expect(parsed.nodeColors!['Profit']).toBe('#5e81ac');
+    expect(parsed.links![0].target).toBe('Costs');
+    expect(parsed.links![1].target).toBe('Profit');
+  });
+
+  it('node colors via arrow syntax', () => {
+    const input = [
+      'chart: sankey',
+      '',
+      'A (blue) -> B (red): 100',
+    ].join('\n');
+    const parsed = parseEChart(input, palette);
+    expect(parsed.nodeColors!['A']).toBe('#5e81ac');
+    expect(parsed.nodeColors!['B']).toBe('#bf616a');
+    expect(parsed.links![0].source).toBe('A');
+    expect(parsed.links![0].target).toBe('B');
+  });
+
+  it('link color via indentation syntax', () => {
+    const input = [
+      'chart: sankey',
+      '',
+      'Revenue',
+      '  Costs: 600 (orange)',
+    ].join('\n');
+    const parsed = parseEChart(input, palette);
+    expect(parsed.links![0].color).toBe('#d08770');
+    expect(parsed.links![0].value).toBe(600);
+  });
+
+  it('link color via arrow syntax', () => {
+    const input = [
+      'chart: sankey',
+      '',
+      'A -> B: 100 (purple)',
+    ].join('\n');
+    const parsed = parseEChart(input, palette);
+    expect(parsed.links![0].color).toBe('#b48ead');
+    expect(parsed.links![0].value).toBe(100);
+  });
+
+  it('uncolored sankey still works (backward compat)', () => {
+    const input = [
+      'chart: sankey',
+      '',
+      'A -> B: 100',
+      'B -> C: 50',
+    ].join('\n');
+    const parsed = parseEChart(input, palette);
+    expect(parsed.nodeColors).toBeUndefined();
+    expect(parsed.links![0].color).toBeUndefined();
+    expect(parsed.links![1].color).toBeUndefined();
+    expect(parsed.links).toHaveLength(2);
+  });
+});
+
+describe('buildSankeyOption — color annotations', () => {
+  // Helper to parse + build sankey (native echart type, not routed through parseChart)
+  function buildSankey(input: string) {
+    const parsed = parseEChart(input, palette);
+    return buildEChartsOption(parsed, palette, false);
+  }
+
+  it('uses nodeColors for node itemStyle.color', () => {
+    const input = [
+      'chart: sankey',
+      '',
+      'A (green) -> B (red): 100',
+      'B -> C: 50',
+    ].join('\n');
+    const opt = buildSankey(input);
+    const s = series(opt)[0];
+    const nodeA = s.data.find((n: { name: string }) => n.name === 'A');
+    const nodeB = s.data.find((n: { name: string }) => n.name === 'B');
+    const nodeC = s.data.find((n: { name: string }) => n.name === 'C');
+    expect(nodeA.itemStyle.color).toBe('#a3be8c');
+    expect(nodeB.itemStyle.color).toBe('#bf616a');
+    // C has no annotation — falls back to palette color
+    expect(nodeC.itemStyle.color).toBeDefined();
+    expect(nodeC.itemStyle.color).not.toBe('#a3be8c');
+  });
+
+  it('applies lineStyle.color on colored links', () => {
+    const input = [
+      'chart: sankey',
+      '',
+      'A -> B: 100 (orange)',
+      'A -> C: 50',
+    ].join('\n');
+    const opt = buildSankey(input);
+    const s = series(opt)[0];
+    const linkAB = s.links.find((l: { source: string; target: string }) => l.source === 'A' && l.target === 'B');
+    const linkAC = s.links.find((l: { source: string; target: string }) => l.source === 'A' && l.target === 'C');
+    expect(linkAB.lineStyle).toEqual({ color: '#d08770' });
+    expect(linkAC.lineStyle).toBeUndefined();
   });
 });
