@@ -610,25 +610,16 @@ function generateWaypoints(
   }
   const detourY = maxBottom + NODESEP * 0.7;
 
-  // If detour is well below the target, approach from below the target
-  // to avoid overlapping with regular left-entering edges.
-  const tgtBottom = tgtY + NODE_HEIGHT / 2;
-  const approachFromBelow = detourY > tgtBottom + pad;
-
   const points: { x: number; y: number }[] = [];
   points.push({ x: exitX, y: srcY });
   points.push({ x: exitX + clearance, y: srcY });
   // Descend to detour Y
   points.push({ x: exitX + clearance * 2, y: detourY });
-  // Horizontal segment at detour Y
-  if (approachFromBelow) {
-    // Route to directly below the target, then ascend vertically
-    points.push({ x: tgtX, y: detourY });
-    points.push({ x: tgtX, y: tgtBottom + clearance });
-  } else {
-    points.push({ x: enterX - clearance * 2, y: detourY });
-    points.push({ x: enterX - clearance, y: tgtY });
-  }
+  // Horizontal run at detour Y, then gentle diagonal up to target.
+  // Using a wide spread so curveBasis produces a smooth arc.
+  const midX = (exitX + enterX) / 2;
+  points.push({ x: Math.max(midX, enterX - RANKSEP), y: detourY });
+  points.push({ x: enterX - clearance, y: tgtY });
   points.push({ x: enterX, y: tgtY });
 
   return points;
