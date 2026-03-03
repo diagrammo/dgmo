@@ -599,4 +599,129 @@ Alice | department: Engineering`;
     expect(result.content).toContain('Engineering (red)');
     expect(result.content).not.toContain('Engineering (blue)');
   });
+
+  // ----------------------------------------------------------
+  // 23. importSourceMap: non-imported lines have null
+  // ----------------------------------------------------------
+  it('importSourceMap is null for non-imported lines', async () => {
+    const content = `chart: org
+title: Simple
+
+Alice
+  Bob`;
+    const result = await resolveOrgImports(content, '/proj/org.dgmo', mockReader({}));
+    expect(result.importSourceMap).toBeDefined();
+    // All entries should be null (no imports)
+    for (let i = 1; i < result.importSourceMap.length; i++) {
+      expect(result.importSourceMap[i]).toBeNull();
+    }
+  });
+
+  // ----------------------------------------------------------
+  // 24. importSourceMap: imported lines point to source file + line
+  // ----------------------------------------------------------
+  it('importSourceMap points to source file and line for imported content', async () => {
+    const teamFile = `chart: org
+title: Platform Team
+
+Alice Chen
+Bob Rivera`;
+
+    const content = `chart: org
+
+CEO
+  import: team.dgmo`;
+
+    const reader = mockReader({
+      '/proj/team.dgmo': teamFile,
+    });
+
+    const result = await resolveOrgImports(content, '/proj/org.dgmo', reader);
+    expect(result.diagnostics).toEqual([]);
+
+    // Find imported lines in resolved content
+    const lines = result.content.split('\n');
+    const aliceIdx = lines.findIndex(l => l.includes('Alice Chen'));
+    const bobIdx = lines.findIndex(l => l.includes('Bob Rivera'));
+    expect(aliceIdx).toBeGreaterThan(0);
+    expect(bobIdx).toBeGreaterThan(0);
+
+    // importSourceMap uses 1-based indexing
+    const aliceSource = result.importSourceMap[aliceIdx + 1];
+    const bobSource = result.importSourceMap[bobIdx + 1];
+
+    expect(aliceSource).not.toBeNull();
+    expect(aliceSource!.filePath).toBe('/proj/team.dgmo');
+    expect(aliceSource!.sourceLine).toBe(4); // "Alice Chen" is line 4 in team.dgmo
+
+    expect(bobSource).not.toBeNull();
+    expect(bobSource!.filePath).toBe('/proj/team.dgmo');
+    expect(bobSource!.sourceLine).toBe(5); // "Bob Rivera" is line 5 in team.dgmo
+  });
+
+  // ----------------------------------------------------------
+  // 25. importSourceMap: nested imports point to deepest source
+  // ----------------------------------------------------------
+  it('importSourceMap tracks through nested imports to deepest source', async () => {
+    const fileC = `Charlie`;
+
+    const fileB = `Bob
+  import: c.dgmo`;
+
+    const content = `chart: org
+
+Alice
+  import: b.dgmo`;
+
+    const reader = mockReader({
+      '/proj/b.dgmo': fileB,
+      '/proj/c.dgmo': fileC,
+    });
+
+    const result = await resolveOrgImports(content, '/proj/a.dgmo', reader);
+    expect(result.diagnostics).toEqual([]);
+
+    const lines = result.content.split('\n');
+    const charlieIdx = lines.findIndex(l => l.includes('Charlie'));
+    expect(charlieIdx).toBeGreaterThan(0);
+
+    // Charlie comes from c.dgmo (deepest source), not b.dgmo
+    const charlieSource = result.importSourceMap[charlieIdx + 1];
+    expect(charlieSource).not.toBeNull();
+    expect(charlieSource!.filePath).toBe('/proj/c.dgmo');
+    expect(charlieSource!.sourceLine).toBe(1); // "Charlie" is line 1 in c.dgmo
+  });
+
+  // ----------------------------------------------------------
+  // 26. importSourceMap: non-imported lines remain null even with imports present
+  // ----------------------------------------------------------
+  it('importSourceMap is null for non-imported lines when imports exist', async () => {
+    const teamFile = `Alice`;
+
+    const content = `chart: org
+
+CEO
+  import: team.dgmo
+  Bob`;
+
+    const reader = mockReader({
+      '/proj/team.dgmo': teamFile,
+    });
+
+    const result = await resolveOrgImports(content, '/proj/org.dgmo', reader);
+    expect(result.diagnostics).toEqual([]);
+
+    const lines = result.content.split('\n');
+
+    // CEO and Bob are from the main file — should be null
+    const ceoIdx = lines.findIndex(l => l.trim() === 'CEO');
+    const bobIdx = lines.findIndex(l => l.includes('Bob'));
+    expect(result.importSourceMap[ceoIdx + 1]).toBeNull();
+    expect(result.importSourceMap[bobIdx + 1]).toBeNull();
+
+    // Alice is imported — should have source
+    const aliceIdx = lines.findIndex(l => l.includes('Alice'));
+    expect(result.importSourceMap[aliceIdx + 1]).not.toBeNull();
+    expect(result.importSourceMap[aliceIdx + 1]!.filePath).toBe('/proj/team.dgmo');
+  });
 });

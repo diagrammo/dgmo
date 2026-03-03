@@ -219,7 +219,7 @@ export { collapseOrgTree } from './org/collapse';
 export type { CollapsedOrgResult } from './org/collapse';
 
 export { resolveOrgImports } from './org/resolver';
-export type { ReadFileFn, ResolveImportsResult } from './org/resolver';
+export type { ReadFileFn, ResolveImportsResult, ImportSource } from './org/resolver';
 
 export { layoutGraph } from './graph/layout';
 export type {

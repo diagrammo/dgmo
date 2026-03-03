@@ -12,9 +12,21 @@ import { isTagBlockHeading, matchTagBlockHeading } from '../utils/tag-groups';
  */
 export type ReadFileFn = (path: string) => string | Promise<string>;
 
+/** Tracks the original source file and line for an imported line. */
+export interface ImportSource {
+  /** Absolute path of the file this line originates from */
+  filePath: string;
+  /** 1-based line number in the original (pre-resolution) source file */
+  sourceLine: number;
+}
+
 export interface ResolveImportsResult {
   content: string;
   diagnostics: DgmoError[];
+  /** resolvedLine (1-based index) → originalLine (1-based) or null for inserted lines */
+  lineMap: (number | null)[];
+  /** resolvedLine (1-based index) → import source info or null for non-imported lines */
+  importSourceMap: (ImportSource | null)[];
 }
 
 // ============================================================
@@ -96,6 +108,8 @@ function extractTagGroups(lines: string[]): TagGroupBlock[] {
 interface ParsedHeader {
   /** Lines that are NOT header/tags/tag-groups — the "content" body */
   contentLines: string[];
+  /** For each contentLine, its 0-based index in the input lines[] array */
+  contentLineIndices: number[];
   tagGroups: TagGroupBlock[];
   tagsDirective: string | null;
 }
@@ -121,6 +135,7 @@ function parseFileHeader(lines: string[]): ParsedHeader {
 
   let tagsDirective: string | null = null;
   const contentLines: string[] = [];
+  const contentLineIndices: number[] = [];
   let headerDone = false;
 
   for (let i = 0; i < lines.length; i++) {
@@ -155,9 +170,10 @@ function parseFileHeader(lines: string[]): ParsedHeader {
     }
 
     contentLines.push(lines[i]);
+    contentLineIndices.push(i);
   }
 
-  return { contentLines, tagGroups, tagsDirective };
+  return { contentLines, contentLineIndices, tagGroups, tagsDirective };
 }
 
 // ============================================================
@@ -179,7 +195,12 @@ export async function resolveOrgImports(
 ): Promise<ResolveImportsResult> {
   const diagnostics: DgmoError[] = [];
   const result = await resolveFile(content, filePath, readFileFn, diagnostics, new Set([filePath]), 0);
-  return { content: result, diagnostics };
+  return {
+    content: result.content,
+    diagnostics,
+    lineMap: result.lineMap,
+    importSourceMap: result.importSourceMap,
+  };
 }
 
 async function resolveFile(
@@ -189,11 +210,11 @@ async function resolveFile(
   diagnostics: DgmoError[],
   ancestorChain: Set<string>,
   depth: number,
-): Promise<string> {
+): Promise<{ content: string; lineMap: (number | null)[]; importSourceMap: (ImportSource | null)[] }> {
   const lines = content.split('\n');
 
   // ---- Step 1: Identify header, tags directive, inline tag groups ----
-  const headerLines: string[] = [];
+  const headerLines: { text: string; originalLine: number }[] = [];
   let tagsDirective: string | null = null;
   const inlineTagGroups = extractTagGroups(lines);
   const bodyStartIndex = findBodyStart(lines);
@@ -203,7 +224,7 @@ async function resolveFile(
   for (let i = 0; i < bodyStartIndex; i++) {
     const trimmed = lines[i].trim();
     if (trimmed === '' || trimmed.startsWith('//')) {
-      headerLines.push(lines[i]);
+      headerLines.push({ text: lines[i], originalLine: i + 1 });
       continue;
     }
     if (isTagBlockHeading(trimmed)) continue; // skip inline tag group headings
@@ -216,7 +237,7 @@ async function resolveFile(
       continue;
     }
 
-    headerLines.push(lines[i]);
+    headerLines.push({ text: lines[i], originalLine: i + 1 });
   }
 
   // ---- Step 2: Resolve tags: directive ----
@@ -236,7 +257,7 @@ async function resolveFile(
 
   // ---- Step 3: Resolve import: directives in body ----
   const bodyLines = lines.slice(bodyStartIndex);
-  const resolvedBodyLines: string[] = [];
+  const resolvedBodyLines: { text: string; originalLine: number | null; importSource: ImportSource | null }[] = [];
   const importedTagGroups: TagGroupBlock[] = [];
 
   for (let i = 0; i < bodyLines.length; i++) {
@@ -250,7 +271,7 @@ async function resolveFile(
       if (isTagBlockHeading(trimmed) || (inlineTagGroups.length > 0 && isTagGroupEntry(line, bodyLines, i))) {
         continue;
       }
-      resolvedBodyLines.push(line);
+      resolvedBodyLines.push({ text: line, originalLine: lineNumber, importSource: null });
       continue;
     }
 
@@ -299,7 +320,7 @@ async function resolveFile(
     );
 
     // Strip header, extract tag groups from resolved content
-    const resolvedLines = resolved.split('\n');
+    const resolvedLines = resolved.content.split('\n');
     const parsed = parseFileHeader(resolvedLines);
 
     // Collect tag groups from imported file (lowest priority)
@@ -307,23 +328,43 @@ async function resolveFile(
       importedTagGroups.push(group);
     }
 
-    // Re-indent and insert content lines
-    const importedContentLines = parsed.contentLines.filter(
-      (l) => l.trim() !== ''  // skip trailing blank lines
-    );
+    // Re-indent and insert content lines, computing import source for each
+    const importedContentLines: { text: string; index: number }[] = [];
+    for (let j = 0; j < parsed.contentLines.length; j++) {
+      if (parsed.contentLines[j].trim() !== '') {
+        importedContentLines.push({ text: parsed.contentLines[j], index: parsed.contentLineIndices[j] });
+      }
+    }
 
     // Trim trailing empty lines but keep internal structure
     let lastNonEmpty = importedContentLines.length - 1;
-    while (lastNonEmpty >= 0 && importedContentLines[lastNonEmpty].trim() === '') {
+    while (lastNonEmpty >= 0 && importedContentLines[lastNonEmpty].text.trim() === '') {
       lastNonEmpty--;
     }
     const trimmedImported = importedContentLines.slice(0, lastNonEmpty + 1);
 
-    for (const importedLine of trimmedImported) {
-      if (importedLine.trim() === '') {
-        resolvedBodyLines.push('');
+    for (const entry of trimmedImported) {
+      // Compute import source: which file and line does this content originate from?
+      // entry.index is the 0-based index in resolved.content.split('\n')
+      const resolvedLineNum = entry.index + 1; // 1-based line in the resolved imported content
+
+      // Check if this line itself came from a deeper import
+      let importSource: ImportSource | null = null;
+      if (resolved.importSourceMap[resolvedLineNum]) {
+        // Nested import — use the deepest source
+        importSource = resolved.importSourceMap[resolvedLineNum];
       } else {
-        resolvedBodyLines.push(indent + importedLine);
+        // Direct content from this imported file
+        const origLine = resolved.lineMap[resolvedLineNum];
+        if (origLine != null) {
+          importSource = { filePath: importAbsPath, sourceLine: origLine };
+        }
+      }
+
+      if (entry.text.trim() === '') {
+        resolvedBodyLines.push({ text: '', originalLine: lineNumber, importSource });
+      } else {
+        resolvedBodyLines.push({ text: indent + entry.text, originalLine: lineNumber, importSource });
       }
     }
   }
@@ -334,10 +375,17 @@ async function resolveFile(
 
   // ---- Step 5: Rebuild output ----
   const outputLines: string[] = [];
+  // lineMap[i] maps resolved line i (1-based) to original line (1-based) or null
+  // importSourceMap[i] maps resolved line i (1-based) to import source or null
+  // Index 0 is unused padding so indices align with 1-based line numbers
+  const lineMap: (number | null)[] = [null];
+  const importSourceMap: (ImportSource | null)[] = [null];
 
   // Header lines (chart:, title:, options — no tags: or tag groups)
-  for (const line of headerLines) {
-    outputLines.push(line);
+  for (const entry of headerLines) {
+    outputLines.push(entry.text);
+    lineMap.push(entry.originalLine);
+    importSourceMap.push(null);
   }
 
   // Merged tag groups
@@ -345,12 +393,27 @@ async function resolveFile(
     // Ensure blank line before tag groups if header has content
     if (outputLines.length > 0 && outputLines[outputLines.length - 1].trim() !== '') {
       outputLines.push('');
+      lineMap.push(null);
+      importSourceMap.push(null);
     }
     for (const group of mergedGroups) {
+      // Find original line for inline tag groups, null for external
+      const inlineMatch = inlineTagGroups.find((g) => g.name === group.name);
       for (const line of group.lines) {
         outputLines.push(line);
+        // Inline tag groups map to their original line, external ones map to null
+        if (inlineMatch) {
+          // Find the original line index of this tag group in the source
+          const srcIdx = lines.indexOf(line);
+          lineMap.push(srcIdx >= 0 ? srcIdx + 1 : null);
+        } else {
+          lineMap.push(null);
+        }
+        importSourceMap.push(null);
       }
       outputLines.push(''); // blank line between groups
+      lineMap.push(null);
+      importSourceMap.push(null);
     }
   }
 
@@ -358,12 +421,16 @@ async function resolveFile(
   // Ensure blank line separator
   if (resolvedBodyLines.length > 0 && outputLines.length > 0 && outputLines[outputLines.length - 1].trim() !== '') {
     outputLines.push('');
+    lineMap.push(null);
+    importSourceMap.push(null);
   }
-  for (const line of resolvedBodyLines) {
-    outputLines.push(line);
+  for (const entry of resolvedBodyLines) {
+    outputLines.push(entry.text);
+    lineMap.push(entry.originalLine);
+    importSourceMap.push(entry.importSource);
   }
 
-  return outputLines.join('\n');
+  return { content: outputLines.join('\n'), lineMap, importSourceMap };
 }
 
 // ============================================================
