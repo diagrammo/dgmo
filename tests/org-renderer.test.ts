@@ -574,7 +574,7 @@ Boss
 // ============================================================
 
 describe('legend rendering', () => {
-  it('omits legend in export mode', () => {
+  it('renders legend in export mode', () => {
     const input = `chart: org
 
 ## Location
@@ -586,7 +586,8 @@ Alice
 Bob
   location: LA`;
     const svg = renderOrgForExport(input, 'light', palette.light);
-    expect(svg).not.toContain('org-legend-group');
+    expect(svg).toContain('org-legend-group');
+    expect(svg).toContain('Location');
   });
 
   it('does not render legend when no tag groups defined', () => {

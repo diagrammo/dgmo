@@ -356,7 +356,8 @@ export function layoutOrg(
   parsed: ParsedOrg,
   hiddenCounts?: Map<string, number>,
   activeTagGroup?: string | null,
-  hiddenAttributes?: Set<string>
+  hiddenAttributes?: Set<string>,
+  expandAllLegend?: boolean
 ): OrgLayoutResult {
   if (parsed.roots.length === 0) {
     // Legend-only: compute and position legend groups even without nodes
@@ -1128,14 +1129,16 @@ export function layoutOrg(
   const legendPosition = parsed.options?.['legend-position'] ?? 'top';
 
   // When a tag group is active, only that group is laid out (full size).
-  // When none is active, all groups are laid out minified.
+  // When none is active, all groups are laid out minified — unless
+  // expandAllLegend is set (export mode), which shows all groups expanded.
   const visibleGroups = activeTagGroup != null
     ? legendGroups.filter((g) => g.name.toLowerCase() === activeTagGroup.toLowerCase())
     : legendGroups;
+  const allExpanded = expandAllLegend && activeTagGroup == null;
   const effectiveW = (g: OrgLegendGroup) =>
-    activeTagGroup != null ? g.width : g.minifiedWidth;
+    activeTagGroup != null || allExpanded ? g.width : g.minifiedWidth;
   const effectiveH = (g: OrgLegendGroup) =>
-    activeTagGroup != null ? g.height : g.minifiedHeight;
+    activeTagGroup != null || allExpanded ? g.height : g.minifiedHeight;
 
   if (visibleGroups.length > 0) {
     if (legendPosition === 'bottom') {

@@ -5191,7 +5191,8 @@ export async function renderD3ForExport(
       effectiveParsed,
       hiddenCounts.size > 0 ? hiddenCounts : undefined,
       activeTagGroup,
-      hiddenAttributes
+      hiddenAttributes,
+      true // expandAllLegend — show all tag groups expanded in export
     );
 
     const PADDING = 20;

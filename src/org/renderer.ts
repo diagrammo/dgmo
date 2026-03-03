@@ -462,14 +462,15 @@ export function renderOrg(
   }
 
   // Render legend — kanban-style pills.
-  // Skip in export mode (unless legend-only chart).
   // Legend-only (no nodes): all groups rendered as expanded capsules.
   // Active group: only that group rendered as capsule (pill + entries).
-  // No active group: all groups rendered as standalone pills.
+  // No active group: all groups rendered as standalone pills (or expanded in export).
   const legendOnly = layout.nodes.length === 0;
-  if (!exportDims || legendOnly) for (const group of layout.legend) {
+  const isExport = !!exportDims;
+  for (const group of layout.legend) {
     const isActive =
       legendOnly ||
+      (isExport && activeTagGroup == null) ||
       (activeTagGroup != null &&
         group.name.toLowerCase() === activeTagGroup.toLowerCase());
 
@@ -490,7 +491,7 @@ export function renderOrg(
       .attr('transform', `translate(${group.x}, ${group.y})`)
       .attr('class', 'org-legend-group')
       .attr('data-legend-group', group.name.toLowerCase())
-      .style('cursor', legendOnly ? 'default' : 'pointer');
+      .style('cursor', legendOnly || isExport ? 'default' : 'pointer');
 
     // Outer capsule background (active only)
     if (isActive) {
@@ -548,7 +549,7 @@ export function renderOrg(
         const entryG = gEl
           .append('g')
           .attr('data-legend-entry', entry.value.toLowerCase())
-          .style('cursor', 'pointer');
+          .style('cursor', isExport ? 'default' : 'pointer');
 
         entryG
           .append('circle')
@@ -591,7 +592,7 @@ export function renderOrgForExport(
     ? new Set(hideOption.split(',').map((s) => s.trim().toLowerCase()))
     : undefined;
 
-  const layout = layoutOrg(parsed, undefined, undefined, exportHidden);
+  const layout = layoutOrg(parsed, undefined, undefined, exportHidden, true);
   const isDark = theme === 'dark';
 
   // Create offscreen container
