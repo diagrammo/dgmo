@@ -523,6 +523,45 @@ function straightenEdges(
 // Edge waypoint generation
 // ============================================================
 
+/**
+ * Check if a straight-line segment from (x1,y1) to (x2,y2) would
+ * collide with any node bounding box (inflated by `pad`).
+ */
+function segmentHitsNodes(
+  x1: number, y1: number, x2: number, y2: number,
+  nodes: ISLayoutNode[], pad: number,
+): boolean {
+  for (const n of nodes) {
+    const left = n.x - n.width / 2 - pad;
+    const right = n.x + n.width / 2 + pad;
+    const top = n.y - n.height / 2 - pad;
+    const bottom = n.y + n.height / 2 + pad;
+
+    // Clamp the segment's X range to the box's X range
+    const minX = Math.max(Math.min(x1, x2), left);
+    const maxX = Math.min(Math.max(x1, x2), right);
+    if (minX > maxX) continue; // no horizontal overlap
+
+    // Interpolate Y at the entry and exit X of the box
+    const dx = x2 - x1;
+    if (Math.abs(dx) < 0.1) {
+      // Vertical-ish segment: check if X is inside box
+      if (x1 >= left && x1 <= right) {
+        const segTop = Math.min(y1, y2);
+        const segBot = Math.max(y1, y2);
+        if (segBot >= top && segTop <= bottom) return true;
+      }
+      continue;
+    }
+    const yAtMin = y1 + (minX - x1) / dx * (y2 - y1);
+    const yAtMax = y1 + (maxX - x1) / dx * (y2 - y1);
+    const segTop = Math.min(yAtMin, yAtMax);
+    const segBot = Math.max(yAtMin, yAtMax);
+    if (segBot >= top && segTop <= bottom) return true;
+  }
+  return false;
+}
+
 function generateWaypoints(
   srcX: number, srcY: number, srcW: number,
   tgtX: number, tgtY: number, tgtW: number,
@@ -533,35 +572,37 @@ function generateWaypoints(
   const gap = enterX - exitX;
   const clearance = Math.min(gap / 3, RANKSEP / 3);
 
-  // For short edges (adjacent or close ranks), use simple 4-point path
-  if (!allNodes || gap < RANKSEP * 1.8) {
-    return [
-      { x: exitX, y: srcY },
-      { x: exitX + clearance, y: srcY },
-      { x: enterX - clearance, y: tgtY },
-      { x: enterX, y: tgtY },
-    ];
-  }
+  const simplePath = [
+    { x: exitX, y: srcY },
+    { x: exitX + clearance, y: srcY },
+    { x: enterX - clearance, y: tgtY },
+    { x: enterX, y: tgtY },
+  ];
 
-  // For long edges spanning multiple ranks, route around ALL nodes
-  // in the path (including target's rank) to avoid collisions.
-  const pad = NODE_HEIGHT / 2;
+  // No nodes to avoid → simple path
+  if (!allNodes) return simplePath;
+
+  // Find nodes strictly between source and target (not src/tgt themselves)
+  const pad = NODE_HEIGHT * 0.4;
   const obstacleNodes = allNodes.filter((n) => {
-    const nRight = n.x + n.width / 2 + pad;
-    const nLeft = n.x - n.width / 2 - pad;
-    return nRight > exitX && nLeft < enterX;
+    const nLeft = n.x - n.width / 2;
+    const nRight = n.x + n.width / 2;
+    // Must overlap horizontally with the edge span and not be src or tgt
+    if (nRight + pad <= exitX || nLeft - pad >= enterX) return false;
+    // Exclude source and target nodes themselves
+    if (Math.abs(n.x - srcX) < 1 && Math.abs(n.y - srcY) < 1) return false;
+    if (Math.abs(n.x - tgtX) < 1 && Math.abs(n.y - tgtY) < 1) return false;
+    return true;
   });
 
-  if (obstacleNodes.length === 0) {
-    return [
-      { x: exitX, y: srcY },
-      { x: exitX + clearance, y: srcY },
-      { x: enterX - clearance, y: tgtY },
-      { x: enterX, y: tgtY },
-    ];
+  // If the simple diagonal doesn't hit any obstacle, use it
+  if (!segmentHitsNodes(exitX + clearance, srcY, enterX - clearance, tgtY, obstacleNodes, pad)) {
+    return simplePath;
   }
 
-  // Find the max bottom of all obstacle nodes (and source/target)
+  // Detour needed — route below (or above) the obstacles.
+  // Compute the minimum detour needed: just below the lowest obstacle
+  // that's actually in the path of the diagonal.
   let maxBottom = Math.max(srcY, tgtY);
   for (const n of obstacleNodes) {
     const bottom = n.y + n.height / 2;
@@ -569,15 +610,25 @@ function generateWaypoints(
   }
   const detourY = maxBottom + NODESEP * 0.7;
 
+  // If detour is well below the target, approach from below the target
+  // to avoid overlapping with regular left-entering edges.
+  const tgtBottom = tgtY + NODE_HEIGHT / 2;
+  const approachFromBelow = detourY > tgtBottom + pad;
+
   const points: { x: number; y: number }[] = [];
   points.push({ x: exitX, y: srcY });
   points.push({ x: exitX + clearance, y: srcY });
   // Descend to detour Y
   points.push({ x: exitX + clearance * 2, y: detourY });
   // Horizontal segment at detour Y
-  points.push({ x: enterX - clearance * 2, y: detourY });
-  // Ascend back to target
-  points.push({ x: enterX - clearance, y: tgtY });
+  if (approachFromBelow) {
+    // Route to directly below the target, then ascend vertically
+    points.push({ x: tgtX, y: detourY });
+    points.push({ x: tgtX, y: tgtBottom + clearance });
+  } else {
+    points.push({ x: enterX - clearance * 2, y: detourY });
+    points.push({ x: enterX - clearance, y: tgtY });
+  }
   points.push({ x: enterX, y: tgtY });
 
   return points;
