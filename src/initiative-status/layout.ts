@@ -118,10 +118,36 @@ export function layoutInitiativeStatus(parsed: ParsedInitiativeStatus): ISLayout
     };
   });
 
-  // Use dagre's edge points directly
+  const nodeMap = new Map(layoutNodes.map((n) => [n.label, n]));
+  const allNodeX = layoutNodes.map((n) => n.x);
+
+  // Adjacent-rank edges: 4-point elbow (perpendicular exit/entry, no crossings).
+  // Multi-rank edges: dagre's interior waypoints for obstacle avoidance, with
+  // first/last points pinned to exact node boundaries at node-center Y.
   const layoutEdges: ISLayoutEdge[] = parsed.edges.map((edge, i) => {
+    const src = nodeMap.get(edge.source)!;
+    const tgt = nodeMap.get(edge.target)!;
+    const exitX = src.x + src.width / 2;
+    const enterX = tgt.x - tgt.width / 2;
     const dagreEdge = g.edge(edge.source, edge.target, `e${i}`);
-    const points: { x: number; y: number }[] = dagreEdge?.points ?? [];
+    const dagrePoints: { x: number; y: number }[] = dagreEdge?.points ?? [];
+    const hasIntermediateRank = allNodeX.some((x) => x > src.x + 20 && x < tgt.x - 20);
+    const step = Math.min((enterX - exitX) * 0.15, 20);
+
+    const fixedDagrePoints = dagrePoints.length >= 2 ? [
+      { x: exitX, y: src.y },
+      ...dagrePoints.slice(1, -1),
+      { x: enterX, y: tgt.y },
+    ] : dagrePoints;
+
+    const points = (tgt.x > src.x && !hasIntermediateRank)
+      ? [
+          { x: exitX,         y: src.y },
+          { x: exitX + step,  y: src.y },
+          { x: enterX - step, y: tgt.y },
+          { x: enterX,        y: tgt.y },
+        ]
+      : fixedDagrePoints;
     return { source: edge.source, target: edge.target, label: edge.label,
              status: edge.status, lineNumber: edge.lineNumber, points };
   });

@@ -80,10 +80,13 @@ function edgeStrokeColor(status: InitiativeStatus, palette: PaletteColors, isDar
 // Edge path generator
 // ============================================================
 
+// curveMonotoneX: interpolates through all control points and guarantees no
+// Y-overshoot between consecutive points.  Works for both our 4-point elbows
+// (adjacent-rank) and dagre's fixed waypoints (multi-rank).
 const lineGenerator = d3Shape.line<{ x: number; y: number }>()
   .x((d) => d.x)
   .y((d) => d.y)
-  .curve(d3Shape.curveBasis);
+  .curve(d3Shape.curveMonotoneX);
 
 // ============================================================
 // Text fitting — wrap or shrink to fit fixed-size nodes
