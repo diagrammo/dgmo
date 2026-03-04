@@ -205,7 +205,19 @@ export function renderState(
         : mix(palette.border, palette.bg, 30);
     const strokeColor = group.color ?? palette.textMuted;
 
-    contentG
+    const groupWrapper = contentG
+      .append('g')
+      .attr('class', 'st-group-wrapper')
+      .attr('data-line-number', String(group.lineNumber))
+      .attr('data-group-id', group.id);
+
+    if (onClickItem) {
+      groupWrapper.style('cursor', 'pointer').on('click', () => {
+        onClickItem(group.lineNumber);
+      });
+    }
+
+    groupWrapper
       .append('rect')
       .attr('x', gx)
       .attr('y', gy)
@@ -218,7 +230,7 @@ export function renderState(
       .attr('stroke-opacity', 0.5)
       .attr('class', 'st-group');
 
-    contentG
+    groupWrapper
       .append('text')
       .attr('x', gx + 8)
       .attr('y', gy + GROUP_LABEL_FONT_SIZE + 4)

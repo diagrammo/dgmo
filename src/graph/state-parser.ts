@@ -293,10 +293,14 @@ export function parseState(
     const segments = splitArrows(trimmed);
 
     if (segments.length === 1) {
-      // Single state reference, no arrows
+      // Single state reference, no arrows — this is the canonical definition
       const ref = parseStateNodeRef(segments[0], palette);
       if (ref) {
         const node = getOrCreateNode(ref, lineNumber);
+        // Standalone heading is the "definition" — update lineNumber so
+        // clicking the node in the preview navigates here, not to the
+        // first edge mention.
+        node.lineNumber = lineNumber;
         indentStack.push({ nodeId: node.id, indent });
       }
       continue;

@@ -32,6 +32,7 @@ export interface LayoutGroup {
   id: string;
   label: string;
   color?: string;
+  lineNumber: number;
   x: number;
   y: number;
   width: number;
@@ -159,6 +160,7 @@ export function layoutGraph(graph: ParsedGraph): LayoutResult {
           id: group.id,
           label: group.label,
           color: group.color,
+          lineNumber: group.lineNumber,
           x: 0,
           y: 0,
           width: 0,
@@ -187,6 +189,7 @@ export function layoutGraph(graph: ParsedGraph): LayoutResult {
         id: group.id,
         label: group.label,
         color: group.color,
+        lineNumber: group.lineNumber,
         x: minX - GROUP_PADDING,
         y: minY - GROUP_PADDING,
         width: maxX - minX + GROUP_PADDING * 2,
