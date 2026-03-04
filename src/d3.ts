@@ -5337,6 +5337,22 @@ export async function renderD3ForExport(
     return finalizeSvgExport(container, theme, effectivePalette, options);
   }
 
+  if (detectedType === 'state') {
+    const { parseState } = await import('./graph/state-parser');
+    const { layoutGraph } = await import('./graph/layout');
+    const { renderState } = await import('./graph/state-renderer');
+
+    const effectivePalette = await resolveExportPalette(theme, palette);
+    const stateParsed = parseState(content, effectivePalette);
+    if (stateParsed.error || stateParsed.nodes.length === 0) return '';
+
+    const layout = layoutGraph(stateParsed);
+    const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
+
+    renderState(container, stateParsed, layout, effectivePalette, theme === 'dark', undefined, { width: EXPORT_WIDTH, height: EXPORT_HEIGHT });
+    return finalizeSvgExport(container, theme, effectivePalette, options);
+  }
+
   const parsed = parseD3(content, palette);
   // Allow sequence diagrams through even if parseD3 errors —
   // sequence is parsed by its own dedicated parser (parseSequenceDgmo)

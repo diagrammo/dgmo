@@ -49,12 +49,14 @@ export interface LayoutResult {
 const GROUP_PADDING = 20;
 
 function computeNodeWidth(label: string, shape: GraphShape): number {
+  if (shape === 'pseudostate') return 24;
   const base = Math.max(120, label.length * 9 + 40);
   if (shape === 'subroutine') return base + 10;
   return base;
 }
 
 function computeNodeHeight(shape: GraphShape): number {
+  if (shape === 'pseudostate') return 24;
   return shape === 'decision' ? 60 : 50;
 }
 

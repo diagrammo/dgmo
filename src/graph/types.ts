@@ -4,7 +4,9 @@ export type GraphShape =
   | 'decision' // <>  — diamond
   | 'io' // //  — parallelogram
   | 'subroutine' // [[]] — double-bordered rectangle
-  | 'document'; // [~] — wavy-bottom rectangle
+  | 'document' // [~] — wavy-bottom rectangle
+  | 'state' // state diagram — rounded rectangle
+  | 'pseudostate'; // [*] — filled circle (start/end)
 
 export type GraphDirection = 'TB' | 'LR';
 
@@ -36,7 +38,7 @@ export interface GraphGroup {
 import type { DgmoError } from '../diagnostics';
 
 export interface ParsedGraph {
-  type: 'flowchart';
+  type: 'flowchart' | 'state';
   title?: string;
   titleLineNumber?: number;
   direction: GraphDirection;

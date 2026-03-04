@@ -77,6 +77,9 @@ export type { ParsedQuadrant } from './dgmo-mermaid';
 
 export { parseFlowchart, looksLikeFlowchart } from './graph/flowchart-parser';
 
+export { parseState, looksLikeState } from './graph/state-parser';
+export { renderState, renderStateForExport } from './graph/state-renderer';
+
 export { parseClassDiagram, looksLikeClassDiagram } from './class/parser';
 
 export type {

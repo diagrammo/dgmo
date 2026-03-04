@@ -4,6 +4,7 @@
 
 import { looksLikeSequence, parseSequenceDgmo } from './sequence/parser';
 import { looksLikeFlowchart, parseFlowchart } from './graph/flowchart-parser';
+import { looksLikeState, parseState } from './graph/state-parser';
 import { looksLikeClassDiagram, parseClassDiagram } from './class/parser';
 import { looksLikeERDiagram, parseERDiagram } from './er/parser';
 import { parseChart } from './chart';
@@ -62,6 +63,7 @@ export const DGMO_CHART_TYPE_MAP: Record<string, DgmoFramework> = {
   kanban: 'd3',
   c4: 'd3',
   'initiative-status': 'd3',
+  state: 'd3',
 };
 
 /**
@@ -94,6 +96,7 @@ export function parseDgmoChartType(content: string): string | null {
   if (looksLikeClassDiagram(content)) return 'class';
   if (looksLikeERDiagram(content)) return 'er';
   if (looksLikeInitiativeStatus(content)) return 'initiative-status';
+  if (looksLikeState(content)) return 'state';
   if (looksLikeOrg(content)) return 'org';
 
   return null;
@@ -120,6 +123,7 @@ const PARSE_DISPATCH = new Map<string, (content: string) => { diagnostics: DgmoE
   ['kanban', (c) => parseKanban(c)],
   ['c4', (c) => parseC4(c)],
   ['initiative-status', (c) => parseInitiativeStatus(c)],
+  ['state', (c) => parseState(c)],
 ]);
 
 /**

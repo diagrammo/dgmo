@@ -53,6 +53,7 @@ function shapeDefaultColor(shape: GraphShape, palette: PaletteColors, isEndTermi
     case 'io':         return palette.colors.purple;
     case 'subroutine': return palette.colors.teal;
     case 'document':   return palette.colors.orange;
+    default:           return palette.colors.blue;
   }
 }
 
@@ -377,8 +378,58 @@ export function renderFlowchart(
       .text(group.label);
   }
 
+  // Compute edge label positions with perpendicular offset to hug their path,
+  // then resolve remaining collisions.
+  const LABEL_CHAR_W = 7;
+  const LABEL_PAD = 8;
+  const LABEL_H = 16;
+  const PERP_OFFSET = 10;
+
+  interface LabelPos { x: number; y: number; w: number; h: number; edgeIdx: number }
+  const labelPositions: LabelPos[] = [];
+
+  for (let ei = 0; ei < layout.edges.length; ei++) {
+    const edge = layout.edges[ei];
+    if (!edge.label || edge.points.length < 2) continue;
+    const midIdx = Math.floor(edge.points.length / 2);
+    const midPt = edge.points[midIdx];
+    const bgW = edge.label.length * LABEL_CHAR_W + LABEL_PAD;
+
+    const prev = edge.points[Math.max(0, midIdx - 1)];
+    const next = edge.points[Math.min(edge.points.length - 1, midIdx + 1)];
+    const dx = next.x - prev.x;
+    const dy = next.y - prev.y;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    let lx = midPt.x;
+    let ly = midPt.y;
+    if (len > 0) {
+      lx += (-dy / len) * PERP_OFFSET;
+      ly += (dx / len) * PERP_OFFSET;
+    }
+
+    labelPositions.push({ x: lx, y: ly, w: bgW, h: LABEL_H, edgeIdx: ei });
+  }
+
+  // Resolve remaining label collisions.
+  labelPositions.sort((a, b) => a.y - b.y);
+  for (let i = 0; i < labelPositions.length; i++) {
+    for (let j = i + 1; j < labelPositions.length; j++) {
+      const a = labelPositions[i];
+      const b = labelPositions[j];
+      const overlapX = Math.abs(a.x - b.x) < (a.w + b.w) / 2;
+      const overlapY = Math.abs(a.y - b.y) < (a.h + b.h) / 2;
+      if (overlapX && overlapY) {
+        b.y = a.y + (a.h + b.h) / 2 + 2;
+      }
+    }
+  }
+
+  const labelPosMap = new Map<number, LabelPos>();
+  for (const lp of labelPositions) labelPosMap.set(lp.edgeIdx, lp);
+
   // Render edges (middle layer)
-  for (const edge of layout.edges) {
+  for (let ei = 0; ei < layout.edges.length; ei++) {
+    const edge = layout.edges[ei];
     if (edge.points.length < 2) continue;
     const edgeG = contentG
       .append('g')
@@ -402,21 +453,15 @@ export function renderFlowchart(
         .attr('class', 'fc-edge');
     }
 
-    // Edge label at midpoint
-    if (edge.label) {
-      const midIdx = Math.floor(edge.points.length / 2);
-      const midPt = edge.points[midIdx];
-
-      // Background rect for legibility
-      const labelLen = edge.label.length;
-      const bgW = labelLen * 7 + 8;
-      const bgH = 16;
+    // Edge label with collision-resolved position
+    const lp = labelPosMap.get(ei);
+    if (edge.label && lp) {
       edgeG
         .append('rect')
-        .attr('x', midPt.x - bgW / 2)
-        .attr('y', midPt.y - bgH / 2 - 1)
-        .attr('width', bgW)
-        .attr('height', bgH)
+        .attr('x', lp.x - lp.w / 2)
+        .attr('y', lp.y - lp.h / 2 - 1)
+        .attr('width', lp.w)
+        .attr('height', lp.h)
         .attr('rx', 3)
         .attr('fill', palette.bg)
         .attr('opacity', 0.85)
@@ -424,8 +469,8 @@ export function renderFlowchart(
 
       edgeG
         .append('text')
-        .attr('x', midPt.x)
-        .attr('y', midPt.y + 4)
+        .attr('x', lp.x)
+        .attr('y', lp.y + 4)
         .attr('text-anchor', 'middle')
         .attr('fill', edgeColor)
         .attr('font-size', EDGE_LABEL_FONT_SIZE)
