@@ -463,9 +463,9 @@ API -200 OK-> User
 - `note on Participant: text` — anchored
 - Multi-line: indent continuation lines under `note:`
 
-**Sections**: `== Section Title ==` or `== Section Title(color) ==`
+**Sections**: `== Section Title ==`
 
-**Groups**: `[Group Name]` or `[Group Name(color)]` — visual grouping box around participants
+**Groups**: `[Group Name]` or `[Group Name | key: value]` — visual grouping box around participants
 
 **Options**: `activations: off`, `collapse-notes: no`, `active-tag: GroupName`
 
