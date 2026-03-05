@@ -209,7 +209,7 @@ renderSequenceDiagram(container, parsed, colors, false, (lineNum) => {
 - `loop condition` / `end` — loop blocks
 - `parallel` / `else` / `end` — concurrent branches
 - `== Section ==` — horizontal dividers (collapsible in the desktop app)
-- `## GroupName(color)` — participant grouping with optional color
+- `[GroupName(color)]` — participant grouping with optional color
 - `Name is a database` — explicit type declaration
 - `Name position 0` — explicit ordering
 - `activations: off` — disable activation bars

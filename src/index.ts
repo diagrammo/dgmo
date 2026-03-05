@@ -227,6 +227,21 @@ export type {
   SitemapDirection,
 } from './sitemap/types';
 
+export { layoutSitemap } from './sitemap/layout';
+export type {
+  SitemapLayoutResult,
+  SitemapLayoutNode,
+  SitemapLayoutEdge,
+  SitemapContainerBounds,
+  SitemapLegendGroup,
+  SitemapLegendEntry,
+} from './sitemap/layout';
+
+export { renderSitemap, renderSitemapForExport } from './sitemap/renderer';
+
+export { collapseSitemapTree } from './sitemap/collapse';
+export type { CollapsedSitemapResult } from './sitemap/collapse';
+
 export { collapseOrgTree } from './org/collapse';
 export type { CollapsedOrgResult } from './org/collapse';
 

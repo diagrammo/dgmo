@@ -5,6 +5,7 @@
 import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
+import { mix } from '../palettes/color-utils';
 import type { ParsedOrg } from './parser';
 import type { OrgLayoutResult, OrgLayoutNode } from './layout';
 import { parseOrg } from './parser';
@@ -47,30 +48,12 @@ const LEGEND_ENTRY_FONT_SIZE = 10;
 const LEGEND_ENTRY_FONT_W = LEGEND_ENTRY_FONT_SIZE * 0.6;
 const LEGEND_ENTRY_DOT_GAP = 4;
 const LEGEND_ENTRY_TRAIL = 8;
+const LEGEND_GROUP_GAP = 12;
+const LEGEND_FIXED_GAP = 8; // gap between fixed legend and scaled diagram
 
 // ============================================================
-// Color helpers (inline to avoid cross-module import issues)
+// Color helpers
 // ============================================================
-
-function mix(a: string, b: string, pct: number): string {
-  const parse = (h: string) => {
-    const r = h.replace('#', '');
-    const f = r.length === 3 ? r[0] + r[0] + r[1] + r[1] + r[2] + r[2] : r;
-    return [
-      parseInt(f.substring(0, 2), 16),
-      parseInt(f.substring(2, 4), 16),
-      parseInt(f.substring(4, 6), 16),
-    ];
-  };
-  const [ar, ag, ab] = parse(a),
-    [br, bg, bb] = parse(b),
-    t = pct / 100;
-  const c = (x: number, y: number) =>
-    Math.round(x * t + y * (1 - t))
-      .toString(16)
-      .padStart(2, '0');
-  return `#${c(ar, br)}${c(ag, bg)}${c(ab, bb)}`;
-}
 
 function nodeFill(
   palette: PaletteColors,
@@ -125,19 +108,39 @@ export function renderOrg(
   if (width <= 0 || height <= 0) return;
 
   const titleOffset = parsed.title ? TITLE_HEIGHT : 0;
+  const legendOnly = layout.nodes.length === 0;
+  const legendPosition = parsed.options?.['legend-position'] ?? 'top';
+  const hasLegend = layout.legend.length > 0;
+
+  // In app mode (not export), render the legend at a fixed size outside the
+  // scaled diagram group so it stays legible on large org charts.
+  // The layout already shifted chart content down by legendShift for top legends
+  // (LEGEND_HEIGHT + LEGEND_GROUP_GAP = 40px). We subtract that from the
+  // diagram height so the scale is computed on chart content only, then
+  // reserve fixed pixel space for the legend above or below.
+  const layoutLegendShift = LEGEND_HEIGHT + LEGEND_GROUP_GAP; // 40px — what layout added
+  const fixedLegend = !exportDims && hasLegend && !legendOnly;
+  const legendReserve = fixedLegend ? LEGEND_HEIGHT + LEGEND_FIXED_GAP : 0;
 
   // Compute scale to fit diagram in viewport
   const diagramW = layout.width;
-  const diagramH = layout.height + titleOffset;
+  let diagramH = layout.height + titleOffset;
+  if (fixedLegend) {
+    // Remove the legend space from diagram height — legend is rendered separately
+    diagramH -= layoutLegendShift;
+  }
+  const availH = height - DIAGRAM_PADDING * 2 - legendReserve;
   const scaleX = (width - DIAGRAM_PADDING * 2) / diagramW;
-  const scaleY = (height - DIAGRAM_PADDING * 2) / diagramH;
+  const scaleY = availH / diagramH;
   const scale = Math.min(MAX_SCALE, scaleX, scaleY);
 
   // Center the diagram
   const scaledW = diagramW * scale;
-  const scaledH = diagramH * scale;
   const offsetX = (width - scaledW) / 2;
-  const offsetY = DIAGRAM_PADDING;
+  const offsetY =
+    legendPosition === 'top' && fixedLegend
+      ? DIAGRAM_PADDING + legendReserve
+      : DIAGRAM_PADDING;
 
   // Create SVG
   const svg = d3Selection
@@ -462,113 +465,147 @@ export function renderOrg(
   }
 
   // Render legend — kanban-style pills.
-  // Legend-only (no nodes): all groups rendered as expanded capsules.
-  // Active group: only that group rendered as capsule (pill + entries).
-  // No active group: all groups rendered as standalone pills (or expanded in export).
-  const legendOnly = layout.nodes.length === 0;
-  const isExport = !!exportDims;
-  for (const group of layout.legend) {
-    const isActive =
-      legendOnly ||
-      (isExport && activeTagGroup == null) ||
-      (activeTagGroup != null &&
-        group.name.toLowerCase() === activeTagGroup.toLowerCase());
+  // In app mode (fixedLegend): render at native size outside the scaled group.
+  // In export mode: skip legend (unless legend-only chart).
+  // Legend-only (no nodes): all groups rendered as expanded capsules inside scaled group.
+  if (fixedLegend || legendOnly || (exportDims && hasLegend)) {
+    // Determine which groups to render
+    const visibleGroups = layout.legend.filter((group) => {
+      if (legendOnly) return true;
+      if (activeTagGroup == null) return true;
+      return group.name.toLowerCase() === activeTagGroup.toLowerCase();
+    });
 
-    // When a group is active, skip all other groups entirely (not in legend-only mode)
-    if (!legendOnly && activeTagGroup != null && !isActive) continue;
-
-    const groupBg = isDark
-      ? mix(palette.surface, palette.bg, 50)
-      : mix(palette.surface, palette.bg, 30);
-
-    // Pill label: just the group name (alias is for DSL shorthand only)
-    const pillLabel = group.name;
-    const pillWidth =
-      pillLabel.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
-
-    const gEl = contentG
-      .append('g')
-      .attr('transform', `translate(${group.x}, ${group.y})`)
-      .attr('class', 'org-legend-group')
-      .attr('data-legend-group', group.name.toLowerCase())
-      .style('cursor', legendOnly || isExport ? 'default' : 'pointer');
-
-    // Outer capsule background (active only)
-    if (isActive) {
-      gEl
-        .append('rect')
-        .attr('width', group.width)
-        .attr('height', LEGEND_HEIGHT)
-        .attr('rx', LEGEND_HEIGHT / 2)
-        .attr('fill', groupBg);
+    // For fixedLegend: compute positions in pixel space, centered in SVG
+    let fixedPositions: Map<string, number> | undefined;
+    if (fixedLegend && visibleGroups.length > 0) {
+      fixedPositions = new Map();
+      const effectiveW = (g: typeof visibleGroups[0]) =>
+        activeTagGroup != null ? g.width : g.minifiedWidth;
+      const totalW =
+        visibleGroups.reduce((s, g) => s + effectiveW(g), 0) +
+        (visibleGroups.length - 1) * LEGEND_GROUP_GAP;
+      let cx = (width - totalW) / 2;
+      for (const g of visibleGroups) {
+        fixedPositions.set(g.name, cx);
+        cx += effectiveW(g) + LEGEND_GROUP_GAP;
+      }
     }
 
-    const pillX = isActive ? LEGEND_CAPSULE_PAD : 0;
-    const pillY = isActive ? LEGEND_CAPSULE_PAD : 0;
-    const pillH = LEGEND_HEIGHT - (isActive ? LEGEND_CAPSULE_PAD * 2 : 0);
+    // Choose parent: unscaled group for fixedLegend, contentG for legend-only
+    const legendParent = fixedLegend
+      ? svg
+          .append('g')
+          .attr('class', 'org-legend-fixed')
+          .attr(
+            'transform',
+            legendPosition === 'bottom'
+              ? `translate(0, ${height - DIAGRAM_PADDING - LEGEND_HEIGHT})`
+              : `translate(0, ${DIAGRAM_PADDING})`
+          )
+      : contentG;
 
-    // Pill background
-    gEl
-      .append('rect')
-      .attr('x', pillX)
-      .attr('y', pillY)
-      .attr('width', pillWidth)
-      .attr('height', pillH)
-      .attr('rx', pillH / 2)
-      .attr('fill', isActive ? palette.bg : groupBg);
+    for (const group of visibleGroups) {
+      const isActive =
+        legendOnly ||
+        (activeTagGroup != null &&
+          group.name.toLowerCase() === activeTagGroup.toLowerCase());
 
-    // Active pill border
-    if (isActive) {
+      const groupBg = isDark
+        ? mix(palette.surface, palette.bg, 50)
+        : mix(palette.surface, palette.bg, 30);
+
+      const pillLabel = group.name;
+      const pillWidth =
+        pillLabel.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
+
+      const gX = fixedPositions?.get(group.name) ?? group.x;
+      const gY = fixedPositions ? 0 : group.y;
+
+      const gEl = legendParent
+        .append('g')
+        .attr('transform', `translate(${gX}, ${gY})`)
+        .attr('class', 'org-legend-group')
+        .attr('data-legend-group', group.name.toLowerCase())
+        .style('cursor', legendOnly ? 'default' : 'pointer');
+
+      // Outer capsule background (active only)
+      if (isActive) {
+        gEl
+          .append('rect')
+          .attr('width', group.width)
+          .attr('height', LEGEND_HEIGHT)
+          .attr('rx', LEGEND_HEIGHT / 2)
+          .attr('fill', groupBg);
+      }
+
+      const pillXOff = isActive ? LEGEND_CAPSULE_PAD : 0;
+      const pillYOff = isActive ? LEGEND_CAPSULE_PAD : 0;
+      const pillH = LEGEND_HEIGHT - (isActive ? LEGEND_CAPSULE_PAD * 2 : 0);
+
+      // Pill background
       gEl
         .append('rect')
-        .attr('x', pillX)
-        .attr('y', pillY)
+        .attr('x', pillXOff)
+        .attr('y', pillYOff)
         .attr('width', pillWidth)
         .attr('height', pillH)
         .attr('rx', pillH / 2)
-        .attr('fill', 'none')
-        .attr('stroke', mix(palette.textMuted, palette.bg, 50))
-        .attr('stroke-width', 0.75);
-    }
+        .attr('fill', isActive ? palette.bg : groupBg);
 
-    // Pill text
-    gEl
-      .append('text')
-      .attr('x', pillX + pillWidth / 2)
-      .attr('y', LEGEND_HEIGHT / 2 + LEGEND_PILL_FONT_SIZE / 2 - 2)
-      .attr('font-size', LEGEND_PILL_FONT_SIZE)
-      .attr('font-weight', '500')
-      .attr('fill', isActive ? palette.text : palette.textMuted)
-      .attr('text-anchor', 'middle')
-      .text(pillLabel);
+      // Active pill border
+      if (isActive) {
+        gEl
+          .append('rect')
+          .attr('x', pillXOff)
+          .attr('y', pillYOff)
+          .attr('width', pillWidth)
+          .attr('height', pillH)
+          .attr('rx', pillH / 2)
+          .attr('fill', 'none')
+          .attr('stroke', mix(palette.textMuted, palette.bg, 50))
+          .attr('stroke-width', 0.75);
+      }
 
-    // Entries inside capsule (active only)
-    if (isActive) {
-      let entryX = pillX + pillWidth + 4;
-      for (const entry of group.entries) {
-        const entryG = gEl
-          .append('g')
-          .attr('data-legend-entry', entry.value.toLowerCase())
-          .style('cursor', isExport ? 'default' : 'pointer');
+      // Pill text
+      gEl
+        .append('text')
+        .attr('x', pillXOff + pillWidth / 2)
+        .attr('y', LEGEND_HEIGHT / 2 + LEGEND_PILL_FONT_SIZE / 2 - 2)
+        .attr('font-size', LEGEND_PILL_FONT_SIZE)
+        .attr('font-weight', '500')
+        .attr('fill', isActive ? palette.text : palette.textMuted)
+        .attr('text-anchor', 'middle')
+        .text(pillLabel);
 
-        entryG
-          .append('circle')
-          .attr('cx', entryX + LEGEND_DOT_R)
-          .attr('cy', LEGEND_HEIGHT / 2)
-          .attr('r', LEGEND_DOT_R)
-          .attr('fill', entry.color);
+      // Entries inside capsule (active only)
+      if (isActive) {
+        let entryX = pillXOff + pillWidth + 4;
+        for (const entry of group.entries) {
+          const entryG = gEl
+            .append('g')
+            .attr('data-legend-entry', entry.value.toLowerCase())
+            .style('cursor', 'pointer');
 
-        const textX = entryX + LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP;
-        const entryLabel = entry.value;
-        entryG
-          .append('text')
-          .attr('x', textX)
-          .attr('y', LEGEND_HEIGHT / 2 + LEGEND_ENTRY_FONT_SIZE / 2 - 1)
-          .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
-          .attr('fill', palette.textMuted)
-          .text(entryLabel);
+          entryG
+            .append('circle')
+            .attr('cx', entryX + LEGEND_DOT_R)
+            .attr('cy', LEGEND_HEIGHT / 2)
+            .attr('r', LEGEND_DOT_R)
+            .attr('fill', entry.color);
 
-        entryX = textX + entryLabel.length * LEGEND_ENTRY_FONT_W + LEGEND_ENTRY_TRAIL;
+          const textX = entryX + LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP;
+          const entryLabel = entry.value;
+          entryG
+            .append('text')
+            .attr('x', textX)
+            .attr('y', LEGEND_HEIGHT / 2 + LEGEND_ENTRY_FONT_SIZE / 2 - 1)
+            .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
+            .attr('fill', palette.textMuted)
+            .text(entryLabel);
+
+          entryX = textX + entryLabel.length * LEGEND_ENTRY_FONT_W + LEGEND_ENTRY_TRAIL;
+        }
       }
     }
   }
@@ -592,7 +629,7 @@ export function renderOrgForExport(
     ? new Set(hideOption.split(',').map((s) => s.trim().toLowerCase()))
     : undefined;
 
-  const layout = layoutOrg(parsed, undefined, undefined, exportHidden, true);
+  const layout = layoutOrg(parsed, undefined, undefined, exportHidden);
   const isDark = theme === 'dark';
 
   // Create offscreen container

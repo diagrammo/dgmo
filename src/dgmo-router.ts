@@ -14,6 +14,7 @@ import { parseOrg, looksLikeOrg } from './org/parser';
 import { parseKanban } from './kanban/parser';
 import { parseC4 } from './c4/parser';
 import { looksLikeInitiativeStatus, parseInitiativeStatus } from './initiative-status/parser';
+import { looksLikeSitemap, parseSitemap } from './sitemap/parser';
 import type { DgmoError } from './diagnostics';
 
 /**
@@ -64,6 +65,7 @@ export const DGMO_CHART_TYPE_MAP: Record<string, DgmoFramework> = {
   c4: 'd3',
   'initiative-status': 'd3',
   state: 'd3',
+  sitemap: 'd3',
 };
 
 /**
@@ -97,6 +99,7 @@ export function parseDgmoChartType(content: string): string | null {
   if (looksLikeERDiagram(content)) return 'er';
   if (looksLikeInitiativeStatus(content)) return 'initiative-status';
   if (looksLikeState(content)) return 'state';
+  if (looksLikeSitemap(content)) return 'sitemap';
   if (looksLikeOrg(content)) return 'org';
 
   return null;
@@ -124,6 +127,7 @@ const PARSE_DISPATCH = new Map<string, (content: string) => { diagnostics: DgmoE
   ['c4', (c) => parseC4(c)],
   ['initiative-status', (c) => parseInitiativeStatus(c)],
   ['state', (c) => parseState(c)],
+  ['sitemap', (c) => parseSitemap(c)],
 ]);
 
 /**

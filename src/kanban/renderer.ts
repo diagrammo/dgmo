@@ -5,6 +5,7 @@
 import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
+import { mix } from '../palettes/color-utils';
 import { renderInlineText } from '../utils/inline-markdown';
 import type { ParsedKanban, KanbanColumn, KanbanCard, KanbanTagGroup } from './types';
 import { parseKanban } from './parser';
@@ -39,30 +40,6 @@ const LEGEND_HEIGHT = 28;
 const LEGEND_FONT_SIZE = 11;
 const LEGEND_DOT_R = 4;
 const LEGEND_ENTRY_FONT_SIZE = 10;
-
-// ============================================================
-// Color helpers
-// ============================================================
-
-function mix(a: string, b: string, pct: number): string {
-  const parse = (h: string) => {
-    const r = h.replace('#', '');
-    const f = r.length === 3 ? r[0] + r[0] + r[1] + r[1] + r[2] + r[2] : r;
-    return [
-      parseInt(f.substring(0, 2), 16),
-      parseInt(f.substring(2, 4), 16),
-      parseInt(f.substring(4, 6), 16),
-    ];
-  };
-  const [ar, ag, ab] = parse(a);
-  const [br, bg, bb] = parse(b);
-  const t = pct / 100;
-  const c = (x: number, y: number) =>
-    Math.round(x * t + y * (1 - t))
-      .toString(16)
-      .padStart(2, '0');
-  return `#${c(ar, br)}${c(ag, bg)}${c(ab, bb)}`;
-}
 
 // ============================================================
 // Tag color resolution

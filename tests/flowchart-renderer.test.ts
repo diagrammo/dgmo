@@ -161,18 +161,6 @@ describe('renderFlowchart', () => {
     });
   });
 
-  describe('group rendering', () => {
-    it('renders group box and label', () => {
-      const container = renderToContainer('## API(blue)\n  [Auth] -> [Route]');
-      const groupRects = container.querySelectorAll('rect.fc-group');
-      expect(groupRects.length).toBe(1);
-      const groupLabels = container.querySelectorAll('text.fc-group-label');
-      expect(groupLabels.length).toBe(1);
-      expect(groupLabels[0].textContent).toBe('API');
-      document.body.removeChild(container);
-    });
-  });
-
   describe('title rendering', () => {
     it('renders title text element', () => {
       const container = renderToContainer('title: My Flow\n(Start) -> (End)');

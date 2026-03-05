@@ -4,6 +4,7 @@
 
 import { hierarchy, tree } from 'd3-hierarchy';
 import type { ParsedOrg, OrgNode, OrgTagGroup } from './parser';
+import { resolveTagColor, injectDefaultTagMetadata } from '../utils/tag-groups';
 
 // ============================================================
 // Types
@@ -169,20 +170,9 @@ function resolveNodeColor(
   tagGroups: OrgTagGroup[],
   activeGroupName: string | null
 ): string | undefined {
+  // Explicit inline (color) always wins — handled before tag resolution
   if (node.color) return node.color;
-  if (!activeGroupName) return undefined;
-
-  const group = tagGroups.find(
-    (g) => g.name.toLowerCase() === activeGroupName.toLowerCase()
-  );
-  if (!group) return undefined;
-  const metaValue =
-    node.metadata[group.name.toLowerCase()] ??
-    (node.isContainer ? undefined : group.defaultValue);
-  if (!metaValue) return '#999999';
-  return group.entries.find(
-    (e) => e.value.toLowerCase() === metaValue.toLowerCase()
-  )?.color ?? '#999999';
+  return resolveTagColor(node.metadata, tagGroups, activeGroupName, node.isContainer);
 }
 
 // ============================================================
@@ -325,31 +315,25 @@ function computeLegendGroups(
 
 /**
  * Inject default tag group values into non-container node metadata.
- * Idempotent — only sets keys not already present.
+ * Delegates to shared `injectDefaultTagMetadata` with org-specific skip logic.
  */
 function injectDefaultMetadata(
   roots: OrgNode[],
   tagGroups: OrgTagGroup[]
 ): void {
-  const defaults: { key: string; value: string }[] = [];
-  for (const group of tagGroups) {
-    if (group.defaultValue) {
-      defaults.push({ key: group.name.toLowerCase(), value: group.defaultValue });
-    }
-  }
-  if (defaults.length === 0) return;
-
-  const walk = (node: OrgNode) => {
-    if (!node.isContainer) {
-      for (const { key, value } of defaults) {
-        if (!(key in node.metadata)) {
-          node.metadata[key] = value;
-        }
-      }
-    }
-    for (const child of node.children) walk(child);
+  // Flatten all nodes (recursive) for the shared utility
+  const allNodes: OrgNode[] = [];
+  const collect = (node: OrgNode) => {
+    allNodes.push(node);
+    for (const child of node.children) collect(child);
   };
-  for (const root of roots) walk(root);
+  for (const root of roots) collect(root);
+
+  injectDefaultTagMetadata(
+    allNodes,
+    tagGroups,
+    (entity) => (entity as OrgNode).isContainer
+  );
 }
 
 export function layoutOrg(
@@ -511,9 +495,13 @@ export function layoutOrg(
       (d) => d.data.orgNode.id !== '__virtual_root__'
     );
 
-    // Collect max actual card height per depth level
+    // Collect max actual card height per depth level.
+    // Exclude __stack_ placeholders — their aggregate height (multiple
+    // stacked cards) would inflate the level max and push sibling
+    // subtrees' deeper children far below where they need to be.
     const levelMaxHeight = new Map<number, number>();
     for (const d of descendants) {
+      if (d.data.orgNode.id.startsWith('__stack_')) continue;
       const cur = levelMaxHeight.get(d.depth) ?? 0;
       if (d.data.height > cur) levelMaxHeight.set(d.depth, d.data.height);
     }

@@ -1,0 +1,241 @@
+import { describe, it, expect, beforeAll } from 'vitest';
+import { JSDOM } from 'jsdom';
+import { parseState } from '../src/graph/state-parser';
+import { layoutGraph } from '../src/graph/layout';
+import { renderState, renderStateForExport } from '../src/graph/state-renderer';
+import type { PaletteColors } from '../src/palettes/types';
+
+// Set up jsdom globals for D3
+beforeAll(() => {
+  const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>');
+  const win = dom.window;
+  Object.defineProperty(globalThis, 'document', {
+    value: win.document,
+    configurable: true,
+  });
+  Object.defineProperty(globalThis, 'window', {
+    value: win,
+    configurable: true,
+  });
+  Object.defineProperty(globalThis, 'navigator', {
+    value: win.navigator,
+    configurable: true,
+  });
+  Object.defineProperty(globalThis, 'HTMLElement', {
+    value: win.HTMLElement,
+    configurable: true,
+  });
+  Object.defineProperty(globalThis, 'SVGElement', {
+    value: win.SVGElement,
+    configurable: true,
+  });
+});
+
+// Minimal Nord light palette for testing
+const testPalette: PaletteColors = {
+  bg: '#eceff4',
+  surface: '#e5e9f0',
+  overlay: '#e5e9f0',
+  border: '#d8dee9',
+  text: '#2e3440',
+  textMuted: '#4c566a',
+  primary: '#5e81ac',
+  secondary: '#81a1c1',
+  accent: '#88c0d0',
+  destructive: '#bf616a',
+  colors: {
+    red: '#bf616a',
+    orange: '#d08770',
+    yellow: '#ebcb8b',
+    green: '#a3be8c',
+    blue: '#5e81ac',
+    purple: '#b48ead',
+    teal: '#8fbcbb',
+    cyan: '#88c0d0',
+    gray: '#4c566a',
+  },
+};
+
+function renderToContainer(content: string, isDark = false): HTMLDivElement {
+  const parsed = parseState(content, testPalette);
+  expect(parsed.error).toBeNull();
+  const layout = layoutGraph(parsed);
+
+  const container = document.createElement('div');
+  Object.defineProperty(container, 'clientWidth', { value: 1200, configurable: true });
+  Object.defineProperty(container, 'clientHeight', { value: 800, configurable: true });
+  document.body.appendChild(container);
+
+  renderState(container, parsed, layout, testPalette, isDark);
+  return container;
+}
+
+describe('renderState', () => {
+  describe('basic rendering', () => {
+    it('renders SVG with expected structure', () => {
+      const container = renderToContainer('[*] -> Idle -> Active -> [*]');
+      const svg = container.querySelector('svg');
+      expect(svg).toBeTruthy();
+      document.body.removeChild(container);
+    });
+
+    it('renders correct number of node groups', () => {
+      const container = renderToContainer('[*] -> Idle -> Active -> [*]');
+      const nodeGroups = container.querySelectorAll('g.st-node');
+      // [*] (1 pseudostate), Idle, Active = 3 nodes
+      expect(nodeGroups.length).toBe(3);
+      document.body.removeChild(container);
+    });
+  });
+
+  describe('node rendering', () => {
+    it('renders states as rounded rects with rx=10', () => {
+      const container = renderToContainer('Idle -> Active');
+      const rects = container.querySelectorAll('g.st-node rect');
+      expect(rects.length).toBeGreaterThanOrEqual(1);
+      const rx = rects[0].getAttribute('rx');
+      expect(Number(rx)).toBe(10);
+      document.body.removeChild(container);
+    });
+
+    it('renders pseudostates as circles with r=10', () => {
+      const container = renderToContainer('[*] -> Idle');
+      const circles = container.querySelectorAll('g.st-node circle');
+      expect(circles.length).toBe(1);
+      const r = circles[0].getAttribute('r');
+      expect(Number(r)).toBe(10);
+      document.body.removeChild(container);
+    });
+
+    it('renders state labels', () => {
+      const container = renderToContainer('Idle -> Active');
+      const texts = container.querySelectorAll('g.st-node text');
+      const labels = Array.from(texts).map((t) => t.textContent);
+      expect(labels).toContain('Idle');
+      expect(labels).toContain('Active');
+      document.body.removeChild(container);
+    });
+  });
+
+  describe('edge rendering', () => {
+    it('renders edges as paths with marker-end', () => {
+      const container = renderToContainer('A -> B');
+      const edgePaths = container.querySelectorAll('path.st-edge');
+      expect(edgePaths.length).toBe(1);
+      const markerEnd = edgePaths[0].getAttribute('marker-end');
+      expect(markerEnd).toContain('url(#');
+      document.body.removeChild(container);
+    });
+
+    it('renders edge labels', () => {
+      const container = renderToContainer('Idle -start-> Running');
+      const edgeLabels = container.querySelectorAll('text.st-edge-label');
+      expect(edgeLabels.length).toBe(1);
+      expect(edgeLabels[0].textContent).toBe('start');
+      document.body.removeChild(container);
+    });
+
+    it('renders label backgrounds', () => {
+      const container = renderToContainer('A -go-> B');
+      const labelBgs = container.querySelectorAll('rect.st-edge-label-bg');
+      expect(labelBgs.length).toBe(1);
+      document.body.removeChild(container);
+    });
+
+    it('renders self-loop edges', () => {
+      const container = renderToContainer('Running -retry-> Running');
+      const edgePaths = container.querySelectorAll('path.st-edge');
+      expect(edgePaths.length).toBe(1);
+      const d = edgePaths[0].getAttribute('d');
+      expect(d).toContain('C'); // cubic bezier for self-loop
+      document.body.removeChild(container);
+    });
+  });
+
+  describe('group rendering', () => {
+    it('renders group box rect', () => {
+      const container = renderToContainer('[Processing](blue)\n  Validating -> Approved');
+      const groupRects = container.querySelectorAll('rect.st-group');
+      expect(groupRects.length).toBe(1);
+      document.body.removeChild(container);
+    });
+
+    it('renders group label text', () => {
+      const container = renderToContainer('[Processing]\n  A -> B');
+      const groupLabels = container.querySelectorAll('text.st-group-label');
+      expect(groupLabels.length).toBe(1);
+      expect(groupLabels[0].textContent).toBe('Processing');
+      document.body.removeChild(container);
+    });
+  });
+
+  describe('title rendering', () => {
+    it('renders title text element', () => {
+      const container = renderToContainer('title: My States\nIdle -> Active');
+      const titles = container.querySelectorAll('text.chart-title');
+      expect(titles.length).toBe(1);
+      expect(titles[0].textContent).toBe('My States');
+      document.body.removeChild(container);
+    });
+
+    it('adds data-line-number to title', () => {
+      const container = renderToContainer('title: Test\n[*] -> Idle');
+      const title = container.querySelector('text.chart-title');
+      expect(title).toBeTruthy();
+      expect(title!.getAttribute('data-line-number')).toBe('1');
+      document.body.removeChild(container);
+    });
+  });
+
+  describe('data attributes', () => {
+    it('adds data-line-number to node groups', () => {
+      const container = renderToContainer('A -> B');
+      const nodeGroups = container.querySelectorAll('g.st-node[data-line-number]');
+      expect(nodeGroups.length).toBe(2);
+      document.body.removeChild(container);
+    });
+
+    it('adds data-line-number to edge groups', () => {
+      const container = renderToContainer('A -> B');
+      const edgeGroups = container.querySelectorAll('g.st-edge-group[data-line-number]');
+      expect(edgeGroups.length).toBe(1);
+      document.body.removeChild(container);
+    });
+  });
+
+  describe('dark theme', () => {
+    it('renders without error in dark mode', () => {
+      const container = renderToContainer('[*] -> Idle -> Active -> [*]', true);
+      const svg = container.querySelector('svg');
+      expect(svg).toBeTruthy();
+      document.body.removeChild(container);
+    });
+  });
+
+  describe('export function', () => {
+    it('renderStateForExport produces valid SVG string', () => {
+      const svg = renderStateForExport(
+        '[*] -> Idle -> Active -> [*]',
+        'light',
+        testPalette
+      );
+      expect(svg).toContain('<svg');
+      expect(svg).toContain('xmlns');
+      expect(svg).toContain('</svg>');
+    });
+
+    it('renderStateForExport returns empty on parse error', () => {
+      const svg = renderStateForExport('chart: state\n', 'light', testPalette);
+      expect(svg).toBe('');
+    });
+
+    it('renderStateForExport handles transparent theme', () => {
+      const svg = renderStateForExport(
+        '[*] -> Idle -> [*]',
+        'transparent',
+        testPalette
+      );
+      expect(svg).toContain('<svg');
+    });
+  });
+});

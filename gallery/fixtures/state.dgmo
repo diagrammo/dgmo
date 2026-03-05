@@ -1,0 +1,31 @@
+chart: state
+title: Order Lifecycle
+
+[*] -> Pending
+
+Pending
+  -submit-> Validating
+
+Validating
+  -approved-> Processing
+  -rejected-> Cancelled
+
+[Fulfillment]
+  Processing
+    -pack-> Shipping
+    -out of stock-> Cancelled
+
+  Shipping
+    -delivered-> Delivered
+    -lost-> Refunded
+
+[Resolution]
+  Delivered
+    -return request-> Returning
+
+  Returning
+    -received-> Refunded
+
+Cancelled -> [*]
+Refunded -> [*]
+Delivered -> [*]

@@ -6,6 +6,7 @@ import * as d3Selection from 'd3-selection';
 import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
+import { mix } from '../palettes/color-utils';
 import { renderInlineText } from '../utils/inline-markdown';
 import type { ParsedC4 } from './types';
 import type { C4Shape } from './types';
@@ -72,26 +73,6 @@ const LEGEND_CAPSULE_PAD = 4;
 // ============================================================
 // Color helpers
 // ============================================================
-
-function mix(a: string, b: string, pct: number): string {
-  const parse = (h: string) => {
-    const r = h.replace('#', '');
-    const f = r.length === 3 ? r[0] + r[0] + r[1] + r[1] + r[2] + r[2] : r;
-    return [
-      parseInt(f.substring(0, 2), 16),
-      parseInt(f.substring(2, 4), 16),
-      parseInt(f.substring(4, 6), 16),
-    ];
-  };
-  const [ar, ag, ab] = parse(a),
-    [br, bg, bb] = parse(b),
-    t = pct / 100;
-  const c = (x: number, y: number) =>
-    Math.round(x * t + y * (1 - t))
-      .toString(16)
-      .padStart(2, '0');
-  return `#${c(ar, br)}${c(ag, bg)}${c(ab, bb)}`;
-}
 
 function typeColor(
   type: 'person' | 'system' | 'container' | 'component',

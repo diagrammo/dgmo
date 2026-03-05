@@ -707,4 +707,92 @@ Jane Smith
       expect(result.tagGroups[0].defaultValue).toBe('Sailor');
     });
   });
+
+  // === Tag value validation ===
+  describe('tag value validation', () => {
+    it('warns on undefined tag group value', () => {
+      const input = `tag: Department
+  Engineering(blue)
+  Design(green)
+
+Alice | department: Marketing`;
+      const result = parseOrg(input);
+      expect(result.error).toBeNull();
+      const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].message).toContain("Unknown value 'Marketing'");
+      expect(warnings[0].message).toContain('Department');
+      expect(warnings[0].line).toBe(5);
+    });
+
+    it('does not warn on valid tag group value', () => {
+      const input = `tag: Department
+  Engineering(blue)
+  Design(green)
+
+Alice | department: Engineering`;
+      const result = parseOrg(input);
+      const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
+      expect(warnings).toHaveLength(0);
+    });
+
+    it('matches tag values case-insensitively', () => {
+      const input = `tag: Department
+  Engineering(blue)
+
+Alice | department: engineering`;
+      const result = parseOrg(input);
+      const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
+      expect(warnings).toHaveLength(0);
+    });
+
+    it('suggests similar value with did-you-mean', () => {
+      const input = `tag: Department
+  Engineering(blue)
+  Design(green)
+
+Alice | department: Enginering`;
+      const result = parseOrg(input);
+      const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].message).toContain('Did you mean');
+    });
+
+    it('lists defined values when no close match', () => {
+      const input = `tag: Department
+  Engineering(blue)
+  Design(green)
+
+Alice | department: Finance`;
+      const result = parseOrg(input);
+      const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].message).toContain('Engineering, Design');
+    });
+
+    it('validates values on nested nodes', () => {
+      const input = `tag: Role
+  Manager(red)
+  IC(blue)
+
+CEO
+  Alice | role: VP`;
+      const result = parseOrg(input);
+      const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].message).toContain("Unknown value 'VP'");
+    });
+
+    it('validates values assigned via alias', () => {
+      const input = `tag: Department alias d
+  Engineering(blue)
+
+Alice | d: Marketing`;
+      const result = parseOrg(input);
+      const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].message).toContain("Unknown value 'Marketing'");
+      expect(warnings[0].message).toContain('Department');
+    });
+  });
 });

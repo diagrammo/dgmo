@@ -69,15 +69,12 @@ describe('flowchart fixtures', () => {
     expect(shapes.size).toBe(6);
   });
 
-  it('flowchart-groups has groups with colors', () => {
+  it('flowchart-groups parses without groups (## removed)', () => {
     const content = readFileSync(resolve(FIXTURE_DIR, 'flowchart-groups.dgmo'), 'utf-8');
     const result = parseFlowchart(content);
-    expect(result.groups).toBeDefined();
-    expect(result.groups!.length).toBeGreaterThanOrEqual(3);
+    expect(result.groups).toBeUndefined();
     expect(result.direction).toBe('LR');
-    // Groups have colors
-    const coloredGroups = result.groups!.filter((g) => g.color);
-    expect(coloredGroups.length).toBeGreaterThanOrEqual(3);
+    expect(result.nodes.length).toBeGreaterThan(0);
   });
 
   it('flowchart-loop has back-edges', () => {
@@ -90,11 +87,10 @@ describe('flowchart fixtures', () => {
     expect(edgesToAttempt.length).toBeGreaterThanOrEqual(2); // from Initialize and from Wait & Backoff
   });
 
-  it('flowchart-complex has groups, labeled edges, and multiple shapes', () => {
+  it('flowchart-complex has labeled edges and multiple shapes', () => {
     const content = readFileSync(resolve(FIXTURE_DIR, 'flowchart-complex.dgmo'), 'utf-8');
     const result = parseFlowchart(content);
-    expect(result.groups).toBeDefined();
-    expect(result.groups!.length).toBe(3);
+    expect(result.groups).toBeUndefined();
     expect(result.direction).toBe('LR');
     expect(result.title).toBe('CI/CD Pipeline');
     // Multiple shape types

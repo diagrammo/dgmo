@@ -17,7 +17,7 @@ import type {
 const PSEUDOSTATE_ID = 'pseudostate:[*]';
 const PSEUDOSTATE_LABEL = '[*]';
 
-const GROUP_HEADING_RE = /^##\s+(.+?)(?:\(([^)]+)\))?\s*$/;
+const GROUP_BRACKET_RE = /^\[([^\]]+)\](?:\(([^)]+)\))?\s*$/;
 
 // ============================================================
 // Arrow splitter
@@ -166,6 +166,7 @@ export function parseState(
   const nodeMap = new Map<string, GraphNode>();
   const indentStack: { nodeId: string; indent: number }[] = [];
   let currentGroup: GraphGroup | null = null;
+  let groupIndent = -1;
   const groups: GraphGroup[] = [];
   let contentStarted = false;
 
@@ -217,9 +218,9 @@ export function parseState(
     if (!trimmed) continue;
     if (trimmed.startsWith('//')) continue;
 
-    // Group headings
-    const groupMatch = trimmed.match(GROUP_HEADING_RE);
-    if (groupMatch) {
+    // Group brackets: [Name] or [Name](color)
+    const groupMatch = trimmed.match(GROUP_BRACKET_RE);
+    if (groupMatch && groupMatch[1].trim() !== '*') {
       const groupLabel = groupMatch[1].trim();
       const groupColorName = groupMatch[2]?.trim();
       const groupColor = groupColorName
@@ -233,6 +234,7 @@ export function parseState(
         lineNumber,
         ...(groupColor && { color: groupColor }),
       };
+      groupIndent = indent;
       groups.push(currentGroup);
       continue;
     }
@@ -274,6 +276,12 @@ export function parseState(
 
     // Content line — nodes and edges
     contentStarted = true;
+
+    // Close current group when indent returns to or below the bracket level
+    if (currentGroup && indent <= groupIndent) {
+      currentGroup = null;
+      groupIndent = -1;
+    }
 
     // Pop indent stack entries at same or deeper indent
     while (indentStack.length > 0) {

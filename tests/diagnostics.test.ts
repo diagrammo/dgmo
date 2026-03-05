@@ -48,21 +48,21 @@ describe('suggest()', () => {
 // ============================================================
 
 describe('sequence: multiple recoverable errors', () => {
-  it('collects hex color errors across group + section, continues parsing', () => {
+  it('collects color deprecation warnings across group + section, continues parsing', () => {
     const content = [
       'chart: sequence',
-      '## Backend(#ff0000)',
+      '[Backend(#ff0000)]',
       '  API',
       '== Phase(#00ff00) ==',
       'User -request-> API',
     ].join('\n');
 
     const result = parseSequenceDgmo(content);
-    const errors = result.diagnostics.filter((d) => d.severity === 'error');
-    // Both hex color lines should produce errors
-    expect(errors.length).toBeGreaterThanOrEqual(2);
-    expect(errors[0].message).toContain('named color');
-    expect(errors[1].message).toContain('named color');
+    const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
+    // Both color lines should produce deprecation warnings
+    expect(warnings.length).toBeGreaterThanOrEqual(2);
+    expect(warnings[0].message).toContain('color syntax removed');
+    expect(warnings[1].message).toContain('color syntax removed');
     // The message should still be parsed
     expect(result.messages).toHaveLength(1);
   });
@@ -85,10 +85,10 @@ describe('sequence: multiple recoverable errors', () => {
   it('collects duplicate group membership and continues', () => {
     const content = [
       'chart: sequence',
-      '## Frontend',
+      '[Frontend]',
       '  User',
       '',
-      '## Backend',
+      '[Backend]',
       '  User',
       '',
       'User -request-> API',

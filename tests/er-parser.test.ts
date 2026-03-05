@@ -226,6 +226,80 @@ describe('parseERDiagram', () => {
     });
   });
 
+  // === Indented relationships ===
+  describe('indented relationships', () => {
+    it('parses basic indented 1-* relationship', () => {
+      const result = parseERDiagram('users\n  id: int [pk]\n  1-* posts');
+      expect(result.relationships).toHaveLength(1);
+      expect(result.relationships[0].source).toBe('users');
+      expect(result.relationships[0].target).toBe('posts');
+      expect(result.relationships[0].cardinality.from).toBe('1');
+      expect(result.relationships[0].cardinality.to).toBe('*');
+      expect(result.relationships[0].label).toBeUndefined();
+    });
+
+    it('parses labeled indented relationship', () => {
+      const result = parseERDiagram('users\n  1-writes-* posts');
+      expect(result.relationships).toHaveLength(1);
+      expect(result.relationships[0].label).toBe('writes');
+      expect(result.relationships[0].source).toBe('users');
+      expect(result.relationships[0].target).toBe('posts');
+    });
+
+    it('mixes columns and indented relationships', () => {
+      const result = parseERDiagram('users\n  id: int [pk]\n  name: varchar\n  1-* posts\n  1-writes-* comments');
+      expect(result.tables[0].columns).toHaveLength(2);
+      expect(result.relationships).toHaveLength(2);
+      expect(result.relationships[0].target).toBe('posts');
+      expect(result.relationships[1].target).toBe('comments');
+      expect(result.relationships[1].label).toBe('writes');
+    });
+
+    it('handles all cardinality combos', () => {
+      const combos = [
+        ['1-* t1', '1', '*'],
+        ['*-1 t2', '*', '1'],
+        ['1-1 t3', '1', '1'],
+        ['*-* t4', '*', '*'],
+        ['?-1 t5', '?', '1'],
+        ['1-? t6', '1', '?'],
+      ] as const;
+      const lines = ['src\n  id: int [pk]', ...combos.map(([line]) => `  ${line}`)].join('\n');
+      const result = parseERDiagram(lines);
+      expect(result.relationships).toHaveLength(6);
+      combos.forEach(([, from, to], i) => {
+        expect(result.relationships[i].cardinality.from).toBe(from);
+        expect(result.relationships[i].cardinality.to).toBe(to);
+      });
+    });
+
+    it('auto-creates target table', () => {
+      const result = parseERDiagram('users\n  1-* posts');
+      expect(result.tables).toHaveLength(2);
+      expect(result.tables.find((t) => t.name === 'posts')).toBeDefined();
+    });
+
+    it('supports self-referencing relationship', () => {
+      const result = parseERDiagram('employees\n  id: int [pk]\n  1-manages-* employees');
+      expect(result.relationships).toHaveLength(1);
+      expect(result.relationships[0].source).toBe('employees');
+      expect(result.relationships[0].target).toBe('employees');
+      expect(result.relationships[0].label).toBe('manages');
+    });
+
+    it('backward compat — flat syntax still works', () => {
+      const result = parseERDiagram('users 1--* posts');
+      expect(result.relationships).toHaveLength(1);
+      expect(result.relationships[0].source).toBe('users');
+      expect(result.relationships[0].target).toBe('posts');
+    });
+
+    it('tracks line numbers for indented relationships', () => {
+      const result = parseERDiagram('users\n  id: int [pk]\n  1-* posts');
+      expect(result.relationships[0].lineNumber).toBe(3);
+    });
+  });
+
   // === Edge cases ===
   describe('edge cases', () => {
     it('handles multiple tables', () => {
@@ -257,6 +331,14 @@ describe('looksLikeERDiagram', () => {
 
   it('detects tables with [fk] constraints', () => {
     expect(looksLikeERDiagram('posts\n  author_id: int [fk]')).toBe(true);
+  });
+
+  it('detects indented relationships', () => {
+    expect(looksLikeERDiagram('users\n  id: int [pk]\n  1-* posts')).toBe(true);
+  });
+
+  it('detects indented relationships with table decl (no constraints)', () => {
+    expect(looksLikeERDiagram('users\n  1-* posts\nposts\n  1-* comments')).toBe(true);
   });
 
   it('does not false-positive on plain text', () => {

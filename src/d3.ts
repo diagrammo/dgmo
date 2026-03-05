@@ -5205,6 +5205,46 @@ export async function renderD3ForExport(
     return finalizeSvgExport(container, theme, effectivePalette, options);
   }
 
+  if (detectedType === 'sitemap') {
+    const { parseSitemap } = await import('./sitemap/parser');
+    const { layoutSitemap } = await import('./sitemap/layout');
+    const { collapseSitemapTree } = await import('./sitemap/collapse');
+    const { renderSitemap } = await import('./sitemap/renderer');
+
+    const isDark = theme === 'dark';
+    const effectivePalette = await resolveExportPalette(theme, palette);
+
+    const sitemapParsed = parseSitemap(content, effectivePalette);
+    if (sitemapParsed.error || sitemapParsed.roots.length === 0) return '';
+
+    // Apply interactive collapse state when provided
+    const collapsedNodes = orgExportState?.collapsedNodes;
+    const activeTagGroup = orgExportState?.activeTagGroup ?? null;
+    const hiddenAttributes = orgExportState?.hiddenAttributes;
+
+    const { parsed: effectiveParsed, hiddenCounts } =
+      collapsedNodes && collapsedNodes.size > 0
+        ? collapseSitemapTree(sitemapParsed, collapsedNodes)
+        : { parsed: sitemapParsed, hiddenCounts: new Map<string, number>() };
+
+    const sitemapLayout = layoutSitemap(
+      effectiveParsed,
+      hiddenCounts.size > 0 ? hiddenCounts : undefined,
+      activeTagGroup,
+      hiddenAttributes,
+      true,
+    );
+
+    const PADDING = 20;
+    const titleOffset = effectiveParsed.title ? 30 : 0;
+    const exportWidth = sitemapLayout.width + PADDING * 2;
+    const exportHeight = sitemapLayout.height + PADDING * 2 + titleOffset;
+    const container = createExportContainer(exportWidth, exportHeight);
+
+    renderSitemap(container, effectiveParsed, sitemapLayout, effectivePalette, isDark, undefined, { width: exportWidth, height: exportHeight }, activeTagGroup, hiddenAttributes);
+    return finalizeSvgExport(container, theme, effectivePalette, options);
+  }
+
   if (detectedType === 'kanban') {
     const { parseKanban } = await import('./kanban/parser');
     const { renderKanban } = await import('./kanban/renderer');

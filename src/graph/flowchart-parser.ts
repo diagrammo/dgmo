@@ -6,7 +6,6 @@ import type {
   ParsedGraph,
   GraphNode,
   GraphEdge,
-  GraphGroup,
   GraphShape,
   GraphDirection,
 } from './types';
@@ -195,9 +194,9 @@ function parseArrowToken(token: string, palette?: PaletteColors): ArrowInfo {
 }
 
 // ============================================================
-// Group heading pattern
+// Legacy group heading (deprecated — emit error)
 // ============================================================
-const GROUP_HEADING_RE = /^##\s+(.+?)(?:\(([^)]+)\))?\s*$/;
+const LEGACY_GROUP_RE = /^##\s+/;
 
 // ============================================================
 // Main parser
@@ -227,8 +226,6 @@ export function parseFlowchart(
 
   const nodeMap = new Map<string, GraphNode>();
   const indentStack: { nodeId: string; indent: number }[] = [];
-  let currentGroup: GraphGroup | null = null;
-  const groups: GraphGroup[] = [];
   let contentStarted = false;
 
   function getOrCreateNode(ref: NodeRef, lineNumber: number): GraphNode {
@@ -241,15 +238,9 @@ export function parseFlowchart(
       shape: ref.shape,
       lineNumber,
       ...(ref.color && { color: ref.color }),
-      ...(currentGroup && { group: currentGroup.id }),
     };
     nodeMap.set(ref.id, node);
     result.nodes.push(node);
-
-    // Add to current group
-    if (currentGroup && !currentGroup.nodeIds.includes(ref.id)) {
-      currentGroup.nodeIds.push(ref.id);
-    }
 
     return node;
   }
@@ -387,23 +378,11 @@ export function parseFlowchart(
     // Skip comments
     if (trimmed.startsWith('//')) continue;
 
-    // Group headings
-    const groupMatch = trimmed.match(GROUP_HEADING_RE);
-    if (groupMatch) {
-      const groupLabel = groupMatch[1].trim();
-      const groupColorName = groupMatch[2]?.trim();
-      const groupColor = groupColorName
-        ? resolveColor(groupColorName, palette)
-        : undefined;
-
-      currentGroup = {
-        id: `group:${groupLabel.toLowerCase()}`,
-        label: groupLabel,
-        nodeIds: [],
-        lineNumber,
-        ...(groupColor && { color: groupColor }),
-      };
-      groups.push(currentGroup);
+    // Legacy ## group headings — no longer supported
+    if (LEGACY_GROUP_RE.test(trimmed)) {
+      result.diagnostics.push(
+        makeDgmoError(lineNumber, '## group syntax is not supported in flowcharts. Remove the ## line.', 'error')
+      );
       continue;
     }
 
@@ -446,8 +425,6 @@ export function parseFlowchart(
     // Content line (nodes and edges)
     processContentLine(trimmed, lineNumber, indent);
   }
-
-  if (groups.length > 0) result.groups = groups;
 
   // Validation: no nodes found
   if (result.nodes.length === 0 && !result.error) {

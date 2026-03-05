@@ -29,6 +29,9 @@ const TABLE_DECL_RE = /^([a-zA-Z_]\w*)(?:\s+\(([^)]+)\))?\s*$/;
 // Column: name: type [constraints]  or  name [constraints]  or  name: type  or  name
 const COLUMN_RE = /^(\w+)(?:\s*:\s*(\w[\w()]*(?:\s*\[\])?))?(?:\s+\[([^\]]+)\])?\s*$/;
 
+// Indented relationship: 1-* target  or  1-label-* target
+const INDENT_REL_RE = /^([1*?])-(?:(.+)-)?([1*?])\s+([a-zA-Z_]\w*)\s*$/;
+
 // Constraint keywords
 const CONSTRAINT_MAP: Record<string, ERConstraint> = {
   pk: 'pk',
@@ -224,8 +227,27 @@ export function parseERDiagram(
       if (!/\s/.test(key)) continue;
     }
 
-    // Indented lines = columns of current table
+    // Indented lines = columns or relationships of current table
     if (indent > 0 && currentTable) {
+      // Try indented relationship first: 1-* target  or  1-label-* target
+      const indentRel = trimmed.match(INDENT_REL_RE);
+      if (indentRel) {
+        const fromCard = parseCardSide(indentRel[1]);
+        const toCard = parseCardSide(indentRel[3]);
+        if (fromCard && toCard) {
+          const targetName = indentRel[4];
+          getOrCreateTable(targetName, lineNumber);
+          result.relationships.push({
+            source: currentTable.id,
+            target: tableId(targetName),
+            cardinality: { from: fromCard, to: toCard },
+            ...(indentRel[2]?.trim() && { label: indentRel[2].trim() }),
+            lineNumber,
+          });
+        }
+        continue;
+      }
+
       const colMatch = trimmed.match(COLUMN_RE);
       if (colMatch) {
         const colName = colMatch[1];
@@ -332,6 +354,10 @@ export function looksLikeERDiagram(content: string): boolean {
       if (/\[(pk|fk)\]/i.test(trimmed)) {
         hasConstraint = true;
       }
+      // Indented relationship is a strong ER signal
+      if (INDENT_REL_RE.test(trimmed)) {
+        hasRelationship = true;
+      }
     } else {
       // Check for table-like declaration
       if (TABLE_DECL_RE.test(trimmed)) {
@@ -347,8 +373,8 @@ export function looksLikeERDiagram(content: string): boolean {
   // [pk]/[fk] constraint is a strong enough signal
   if (hasConstraint && hasTableDecl) return true;
 
-  // Relationship with table declarations and constraints
-  if (hasRelationship && hasTableDecl && hasConstraint) return true;
+  // Relationship with table declarations is sufficient
+  if (hasRelationship && hasTableDecl) return true;
 
   return false;
 }

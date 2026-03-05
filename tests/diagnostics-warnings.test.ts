@@ -61,7 +61,7 @@ describe('sequence: unused participant warnings', () => {
 describe('sequence: empty group warnings', () => {
   it('warns about group with no participants', () => {
     const result = parseSequenceDgmo(
-      'chart: sequence\n## Backend\n\nUser -request-> API'
+      'chart: sequence\n[Backend]\n\nUser -request-> API'
     );
     expect(result.error).toBeNull();
     const warnings = result.diagnostics.filter((d) => d.severity === 'warning');

@@ -6,8 +6,9 @@ import * as d3Selection from 'd3-selection';
 import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
+import { mix } from '../palettes/color-utils';
 import type { ParsedGraph, GraphShape } from './types';
-import type { LayoutResult, LayoutNode, LayoutEdge, LayoutGroup } from './layout';
+import type { LayoutResult, LayoutNode, LayoutEdge } from './layout';
 import { parseFlowchart } from './flowchart-parser';
 import { layoutGraph } from './layout';
 
@@ -19,7 +20,6 @@ const DIAGRAM_PADDING = 20;
 const MAX_SCALE = 3;
 const NODE_FONT_SIZE = 13;
 const EDGE_LABEL_FONT_SIZE = 11;
-const GROUP_LABEL_FONT_SIZE = 11;
 const EDGE_STROKE_WIDTH = 1.5;
 const NODE_STROKE_WIDTH = 1.5;
 const ARROWHEAD_W = 10;
@@ -27,22 +27,10 @@ const ARROWHEAD_H = 7;
 const IO_SKEW = 15;
 const SUBROUTINE_INSET = 8;
 const DOC_WAVE_HEIGHT = 10;
-const GROUP_EXTRA_PADDING = 12;
 
 // ============================================================
-// Color helpers (inline mix to avoid cross-module import issues)
+// Color helpers
 // ============================================================
-
-function mix(a: string, b: string, pct: number): string {
-  const parse = (h: string) => {
-    const r = h.replace('#', '');
-    const f = r.length === 3 ? r[0]+r[0]+r[1]+r[1]+r[2]+r[2] : r;
-    return [parseInt(f.substring(0,2),16), parseInt(f.substring(2,4),16), parseInt(f.substring(4,6),16)];
-  };
-  const [ar,ag,ab] = parse(a), [br,bg,bb] = parse(b), t = pct/100;
-  const c = (x: number, y: number) => Math.round(x*t + y*(1-t)).toString(16).padStart(2,'0');
-  return `#${c(ar,br)}${c(ag,bg)}${c(ab,bb)}`;
-}
 
 function shapeDefaultColor(shape: GraphShape, palette: PaletteColors, isEndTerminal?: boolean, colorOff?: boolean): string {
   if (colorOff) return palette.textMuted;
@@ -337,46 +325,6 @@ export function renderFlowchart(
   const contentG = svg
     .append('g')
     .attr('transform', `translate(${offsetX}, ${offsetY}) scale(${scale})`);
-
-  // Render groups (background layer)
-  for (const group of layout.groups) {
-    if (group.width === 0 && group.height === 0) continue;
-    const gx = group.x - GROUP_EXTRA_PADDING;
-    const gy = group.y - GROUP_EXTRA_PADDING - GROUP_LABEL_FONT_SIZE - 4;
-    const gw = group.width + GROUP_EXTRA_PADDING * 2;
-    const gh = group.height + GROUP_EXTRA_PADDING * 2 + GROUP_LABEL_FONT_SIZE + 4;
-
-    const fillColor = group.color
-      ? mix(group.color, isDark ? palette.surface : palette.bg, 10)
-      : isDark
-        ? palette.surface
-        : mix(palette.border, palette.bg, 30);
-    const strokeColor = group.color ?? palette.textMuted;
-
-    contentG
-      .append('rect')
-      .attr('x', gx)
-      .attr('y', gy)
-      .attr('width', gw)
-      .attr('height', gh)
-      .attr('rx', 6)
-      .attr('fill', fillColor)
-      .attr('stroke', strokeColor)
-      .attr('stroke-width', 1)
-      .attr('stroke-opacity', 0.5)
-      .attr('class', 'fc-group');
-
-    contentG
-      .append('text')
-      .attr('x', gx + 8)
-      .attr('y', gy + GROUP_LABEL_FONT_SIZE + 4)
-      .attr('fill', strokeColor)
-      .attr('font-size', GROUP_LABEL_FONT_SIZE)
-      .attr('font-weight', 'bold')
-      .attr('opacity', 0.7)
-      .attr('class', 'fc-group-label')
-      .text(group.label);
-  }
 
   // Compute edge label positions with perpendicular offset to hug their path,
   // then resolve remaining collisions.

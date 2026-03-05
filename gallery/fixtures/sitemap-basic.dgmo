@@ -1,0 +1,13 @@
+chart: sitemap
+title: Simple Website
+
+Home
+  -about-> About
+  -blog-> Blog
+
+[Content]
+  About
+  Blog
+    -read-> Post
+
+  Post

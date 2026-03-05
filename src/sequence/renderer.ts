@@ -537,7 +537,7 @@ export interface SequenceRenderOptions {
   collapsedSections?: Set<number>; // keyed by section lineNumber
   expandedNoteLines?: Set<number>; // keyed by note lineNumber; undefined = all expanded (CLI default)
   exportWidth?: number; // Explicit width for CLI/export rendering (bypasses getBoundingClientRect)
-  activeTagGroup?: string; // Active tag group name for tag-driven recoloring
+  activeTagGroup?: string | null; // Active tag group name for tag-driven recoloring; null = explicitly none
 }
 
 /**
@@ -918,8 +918,12 @@ export function renderSequenceDiagram(
   const activationsOff = parsedOptions.activations?.toLowerCase() === 'off';
 
   // Tag resolution — compute resolved tag values and build color lookup
-  // Explicit render option wins, then fall back to diagram-level `active-tag: Name` option
-  const activeTagGroup = options?.activeTagGroup || parsedOptions['active-tag'] || undefined;
+  // Explicit render option wins (including null = "no active group"),
+  // then fall back to diagram-level `active-tag: Name` option for CLI/export
+  const activeTagGroup =
+    options?.activeTagGroup !== undefined
+      ? options.activeTagGroup || undefined
+      : parsedOptions['active-tag'] || undefined;
   let tagMap: ResolvedTagMap | undefined;
   const tagValueToColor = new Map<string, string>();
   if (activeTagGroup) {
@@ -1772,16 +1776,20 @@ export function renderSequenceDiagram(
     renderParticipant(svg, participant, cx, cy, palette, isDark, pTagColor, pTagAttr);
 
     // Render lifeline
-    svg
+    const lifelineEl = svg
       .append('line')
       .attr('x1', cx)
       .attr('y1', lifelineStartY)
       .attr('x2', cx)
       .attr('y2', lifelineStartY + lifelineLength)
-      .attr('stroke', palette.textMuted)
+      .attr('stroke', pTagColor || palette.textMuted)
       .attr('stroke-width', 1)
       .attr('stroke-dasharray', '6 4')
-      .attr('class', 'lifeline');
+      .attr('class', 'lifeline')
+      .attr('data-participant-id', participant.id);
+    if (tagKey && pTagValue) {
+      lifelineEl.attr(`data-tag-${tagKey}`, pTagValue.toLowerCase());
+    }
   });
 
   // Render block frames (behind everything else)
@@ -2245,7 +2253,9 @@ export function renderSequenceDiagram(
             String(messages[step.messageIndex].lineNumber)
           )
           .attr('data-msg-index', String(step.messageIndex))
-          .attr('data-step-index', String(i));
+          .attr('data-step-index', String(i))
+          .attr('data-from', step.from)
+          .attr('data-to', step.to);
         if (tagKey && msgTagValue) {
           selfCallEl.attr(`data-tag-${tagKey}`, msgTagValue.toLowerCase());
         }
@@ -2265,6 +2275,9 @@ export function renderSequenceDiagram(
             )
             .attr('data-msg-index', String(step.messageIndex))
             .attr('data-step-index', String(i));
+          if (tagKey && msgTagValue) {
+            labelEl.attr(`data-tag-${tagKey}`, msgTagValue.toLowerCase());
+          }
           renderInlineText(labelEl, step.label, palette);
         }
       } else {
@@ -2303,7 +2316,9 @@ export function renderSequenceDiagram(
             String(messages[step.messageIndex].lineNumber)
           )
           .attr('data-msg-index', String(step.messageIndex))
-          .attr('data-step-index', String(i));
+          .attr('data-step-index', String(i))
+          .attr('data-from', step.from)
+          .attr('data-to', step.to);
         if (tagKey && msgTagValue) {
           arrowEl.attr(`data-tag-${tagKey}`, msgTagValue.toLowerCase());
         }
@@ -2324,6 +2339,9 @@ export function renderSequenceDiagram(
             )
             .attr('data-msg-index', String(step.messageIndex))
             .attr('data-step-index', String(i));
+          if (tagKey && msgTagValue) {
+            labelEl.attr(`data-tag-${tagKey}`, msgTagValue.toLowerCase());
+          }
           renderInlineText(labelEl, step.label, palette);
         }
       }
@@ -2350,7 +2368,7 @@ export function renderSequenceDiagram(
         .attr('data-msg-index', String(step.messageIndex))
         .attr('data-step-index', String(i));
 
-      svg
+      const returnEl = svg
         .append('line')
         .attr('x1', x1)
         .attr('y1', y)
@@ -2366,7 +2384,12 @@ export function renderSequenceDiagram(
           String(messages[step.messageIndex].lineNumber)
         )
         .attr('data-msg-index', String(step.messageIndex))
-        .attr('data-step-index', String(i));
+        .attr('data-step-index', String(i))
+        .attr('data-from', step.from)
+        .attr('data-to', step.to);
+      if (tagKey && msgTagValue) {
+        returnEl.attr(`data-tag-${tagKey}`, msgTagValue.toLowerCase());
+      }
 
       if (step.label) {
         const midX = (x1 + x2) / 2;
@@ -2384,6 +2407,9 @@ export function renderSequenceDiagram(
           )
           .attr('data-msg-index', String(step.messageIndex))
           .attr('data-step-index', String(i));
+        if (tagKey && msgTagValue) {
+          labelEl.attr(`data-tag-${tagKey}`, msgTagValue.toLowerCase());
+        }
         renderInlineText(labelEl, step.label, palette);
       }
     }

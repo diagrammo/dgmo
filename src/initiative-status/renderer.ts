@@ -5,7 +5,7 @@
 import * as d3Selection from 'd3-selection';
 import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
-import { contrastText } from '../palettes/color-utils';
+import { contrastText, mix } from '../palettes/color-utils';
 import type { PaletteColors } from '../palettes';
 import type { ParsedInitiativeStatus, InitiativeStatus } from './types';
 import type { ParticipantType } from '../sequence/parser';
@@ -36,17 +36,6 @@ const GROUP_LABEL_FONT_SIZE = 11;
 // ============================================================
 // Color helpers
 // ============================================================
-
-function mix(a: string, b: string, pct: number): string {
-  const parse = (h: string) => {
-    const r = h.replace('#', '');
-    const f = r.length === 3 ? r[0]+r[0]+r[1]+r[1]+r[2]+r[2] : r;
-    return [parseInt(f.substring(0,2),16), parseInt(f.substring(2,4),16), parseInt(f.substring(4,6),16)];
-  };
-  const [ar,ag,ab] = parse(a), [br,bg,bb] = parse(b), t = pct/100;
-  const c = (x: number, y: number) => Math.round(x*t + y*(1-t)).toString(16).padStart(2,'0');
-  return `#${c(ar,br)}${c(ag,bg)}${c(ab,bb)}`;
-}
 
 function statusColor(status: InitiativeStatus, palette: PaletteColors, isDark: boolean): string {
   switch (status) {

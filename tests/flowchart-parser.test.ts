@@ -207,25 +207,15 @@ describe('parseFlowchart', () => {
     });
   });
 
-  // === AC 9: Groups ===
+  // === AC 9: Groups (removed — ## no longer supported) ===
   describe('groups', () => {
-    it('parses ## Group(color) with member nodes', () => {
+    it('## emits an error diagnostic', () => {
       const input = '## API(blue)\n  [Auth] -> [Route]';
       const result = parseFlowchart(input);
-      expect(result.error).toBeNull();
-      expect(result.groups).toHaveLength(1);
-      expect(result.groups![0].label).toBe('API');
-      expect(result.groups![0].color).toBeDefined();
-      expect(result.groups![0].nodeIds).toContain(result.nodes[0].id);
-      expect(result.groups![0].nodeIds).toContain(result.nodes[1].id);
-    });
-
-    it('group without color works', () => {
-      const input = '## Backend\n  [Service]';
-      const result = parseFlowchart(input);
-      expect(result.groups).toHaveLength(1);
-      expect(result.groups![0].label).toBe('Backend');
-      expect(result.groups![0].color).toBeUndefined();
+      expect(result.groups).toBeUndefined();
+      const groupError = result.diagnostics.find((d) => d.message.includes('## group syntax'));
+      expect(groupError).toBeDefined();
+      expect(groupError!.severity).toBe('error');
     });
   });
 
@@ -304,27 +294,24 @@ describe('parseFlowchart', () => {
         'title: CI/CD Pipeline',
         'direction: LR',
         '',
-        '## Source(blue)',
-        '  (Push to Repo) -> [[Run Linter]] -> <Lint Pass?>',
-        '    -yes-> [[Run Tests]]',
-        '    -no-> [Lint Report~] -> /Notify Dev/ -> (Fix & Retry)',
+        '(Push to Repo) -> [[Run Linter]] -> <Lint Pass?>',
+        '  -yes-> [[Run Tests]]',
+        '  -no-> [Lint Report~] -> /Notify Dev/ -> (Fix & Retry)',
         '',
-        '## Test(green)',
-        '  [[Run Tests]] -> <Tests Pass?>',
-        '    -yes-> [Build Artifact]',
-        '    -no-> [Test Report~] -> /Notify Dev/ -> (Fix & Retry)',
+        '[[Run Tests]] -> <Tests Pass?>',
+        '  -yes-> [Build Artifact]',
+        '  -no-> [Test Report~] -> /Notify Dev/ -> (Fix & Retry)',
         '',
-        '## Deploy(purple)',
-        '  [Build Artifact] -> <Environment?>',
-        '    -staging-> [[Deploy to Staging]]',
-        '    -production-> [[Deploy to Prod]]',
+        '[Build Artifact] -> <Environment?>',
+        '  -staging-> [[Deploy to Staging]]',
+        '  -production-> [[Deploy to Prod]]',
       ].join('\n');
 
       const result = parseFlowchart(input);
       expect(result.error).toBeNull();
       expect(result.title).toBe('CI/CD Pipeline');
       expect(result.direction).toBe('LR');
-      expect(result.groups).toHaveLength(3);
+      expect(result.groups).toBeUndefined();
       expect(result.nodes.length).toBeGreaterThanOrEqual(10);
       expect(result.edges.length).toBeGreaterThanOrEqual(8);
     });

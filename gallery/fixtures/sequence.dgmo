@@ -8,7 +8,7 @@ Orders is a service
 Payments is an external aka Stripe
 DB is a database
 
-## Place Order
+[Place Order]
 User -click checkout-> App
 App -POST /orders-> API
 API -createOrder(items)-> Orders
@@ -30,7 +30,7 @@ else
   API -error-> App
   App -items unavailable-> User
 
-## Fulfillment
+[Fulfillment]
 loop Retry up to 3 times
   API -reconcileCharge(id)-> Payments
   Payments -status-> API

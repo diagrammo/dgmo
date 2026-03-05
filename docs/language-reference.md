@@ -893,11 +893,111 @@ DBLayer | done
 
 **Groups**: `[Group Name]` for visual grouping.
 
+### sitemap
+
+Minimal example:
+
+```
+chart: sitemap
+
+Home
+  -about-> About
+  -blog-> Blog
+
+[Content]
+  About
+  Blog
+    -read-> Post
+  Post
+```
+
+Full example:
+
+```
+chart: sitemap
+title: SaaS Platform
+direction: TB
+
+tag: Auth
+  Public(green)
+  Required(blue)
+  Admin(red)
+
+tag: Type
+  Landing(purple)
+  Form(orange)
+  Content(cyan)
+
+Home
+  Auth: Public
+  Type: Landing
+  -pricing-> Pricing
+  -login-> Login
+  -docs-> Docs
+
+[Marketing]
+  Pricing
+    Auth: Public
+    Type: Content
+    -sign up-> Register
+
+  Docs
+    Auth: Public
+    Type: Content
+
+[Auth]
+  Login
+    Auth: Public
+    Type: Form
+    -success-> Dashboard
+    -forgot-> Reset Password
+
+  Register
+    Auth: Public
+    Type: Form
+    -success-> Dashboard
+
+  Reset Password
+    Auth: Public
+    Type: Form
+    -submitted-> Login
+
+[App]
+  Dashboard
+    Auth: Required
+    Type: Landing
+    -projects-> Projects
+    -settings-> Settings
+
+  Projects
+    Auth: Required
+    Type: Content
+
+  Settings
+    Auth: Required
+    Type: Form
+    -saved-> Dashboard
+```
+
+**Pages**: Plain labels at any indent level become page nodes.
+
+**Groups**: `[Group Name]` wraps indented children in a container.
+
+**Arrows**: `-label-> Target`, `-(color)-> Target`, `-label(color)-> Target` — cross-link between any pages.
+
+**Metadata**: `Key: Value` lines attach to the parent page (displayed as card rows).
+
+**Tag groups**: `tag: Name` with colored entries — same syntax as org charts.
+
+**Direction**: `direction: TB` (top-to-bottom, default) or `direction: LR` (left-to-right).
+
+**Collapsible groups**: Groups can be collapsed/expanded in the app — arrows to hidden pages re-terminate at the group boundary.
+
 ---
 
 ## Tag Groups
 
-Define reusable metadata categories for org charts, kanban boards, and C4 diagrams:
+Define reusable metadata categories for org charts, kanban boards, C4 diagrams, and sitemaps:
 
 ```
 tag: Priority

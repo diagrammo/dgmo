@@ -1,0 +1,157 @@
+chart: sitemap
+title: Grand Slam Tickets
+direction: TB
+
+tag: Auth
+  Public(green)
+  Required(blue)
+  Admin(red)
+
+tag: Type
+  Landing(purple)
+  Form(orange)
+  Content(cyan)
+  Transactional(yellow)
+
+Home
+  Auth: Public
+  Type: Landing
+  -browse-> Game Schedule
+  -search-> Search
+  -sign in-> Login
+  -my tickets-> My Account
+
+[Browse & Discovery]
+  Game Schedule
+    Auth: Public
+    Type: Content
+    -select game-> Game Detail
+    -filter-> Search
+
+  Search
+    Auth: Public
+    Type: Form
+    -results-> Game Detail
+    -no results-> Game Schedule
+
+  Game Detail
+    Auth: Public
+    Type: Content
+    -buy tickets-> Seat Picker
+    -view promotions-> Promotions
+    -back-> Game Schedule
+
+  Promotions
+    Auth: Public
+    Type: Content
+    -select deal-> Game Detail
+
+[Purchase Flow]
+  Seat Picker
+    Auth: Public
+    Type: Form
+    -select seats-> Cart
+    -back-> Game Detail
+
+  Cart
+    Auth: Public
+    Type: Transactional
+    -checkout-> Login
+    -add more-> Seat Picker
+    -apply promo-> Cart
+
+  Checkout
+    Auth: Required
+    Type: Form
+    -submit-> Payment
+    -edit cart-> Cart
+
+  Payment
+    Auth: Required
+    Type: Transactional
+    -success-> Confirmation
+    -declined-> Payment
+    -cancel-> Cart
+
+  Confirmation
+    Auth: Required
+    Type: Transactional
+    -view tickets-> My Tickets
+    -buy more-> Game Schedule
+
+[Account]
+  Login
+    Auth: Public
+    Type: Form
+    -success-> My Account
+    -forgot password-> Reset Password
+    -create account-> Register
+
+  Register
+    Auth: Public
+    Type: Form
+    -success-> My Account
+    -already have account-> Login
+
+  Reset Password
+    Auth: Public
+    Type: Form
+    -submitted-> Login
+
+  My Account
+    Auth: Required
+    Type: Landing
+    -view tickets-> My Tickets
+    -edit profile-> Profile
+    -payment methods-> Payment Methods
+
+  My Tickets
+    Auth: Required
+    Type: Content
+    -transfer-> Ticket Transfer
+    -sell-> Ticket Resale
+    -view detail-> Ticket Detail
+
+  Ticket Detail
+    Auth: Required
+    Type: Content
+    -download-> Ticket Detail
+    -add to wallet-> Ticket Detail
+    -get directions-> Stadium Map
+
+  Ticket Transfer
+    Auth: Required
+    Type: Form
+    -sent-> My Tickets
+
+  Ticket Resale
+    Auth: Required
+    Type: Form
+    -listed-> My Tickets
+
+  Profile
+    Auth: Required
+    Type: Form
+    -saved-> My Account
+
+  Payment Methods
+    Auth: Required
+    Type: Form
+    -saved-> My Account
+
+[Stadium Info]
+  Stadium Map
+    Auth: Public
+    Type: Content
+    -find food-> Concessions
+    -find parking-> Parking
+
+  Concessions
+    Auth: Public
+    Type: Content
+    -pre-order-> Cart
+
+  Parking
+    Auth: Public
+    Type: Content
+    -buy pass-> Cart
