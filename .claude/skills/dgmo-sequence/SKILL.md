@@ -56,7 +56,24 @@ note on DB:
 == Phase 2 ==
 
 // Visual groups
-## Authentication
+[Backend]
+  OrderAPI
+  DB
+
+// Tag groups — define color-coded metadata dimensions
+tag: Concern alias c
+  Caching(blue)
+  Auth(green)
+
+// Pipe metadata — attach tags to participants and messages
+API is a service | concern: Caching
+User -login-> API | concern: Auth
+[Backend | concern: Caching]
+  OrderAPI
+  DB
+
+// Activate a tag group for recoloring
+active-tag: Concern
 ```
 
 **Participant types**: `actor`, `service`, `database`, `queue`, `cache`, `gateway`, `external`, `networking`, `frontend`
@@ -64,6 +81,12 @@ note on DB:
 **Arrow types** (always left-to-right):
 - Sync: `A -label-> B`
 - Async: `A ~label~> B`
+
+**Tag groups** — color-coded metadata for interactive recoloring:
+- `tag: Name alias x` — declare a group with optional alias
+- Entry: `Value(color)` — named color; add `default` for untagged elements
+- Pipe metadata: `| key: value` on participants, messages, groups
+- `active-tag: Name` — activate a group for CLI/export rendering
 
 **Key rules**:
 - Indentation closes blocks (no `end` keyword)

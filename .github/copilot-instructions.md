@@ -16,8 +16,16 @@ When the user asks for a diagram, visualization, or chart, generate a `.dgmo` fi
 chart: sequence
 title: Auth Flow
 
+tag: Concern alias c
+  Auth(green)
+  Data(blue)
+
+User is an actor
+API is a service | c: Auth
+DB is a database | c: Data
+
 User -Login-> API
-API -Find user-> DB
+API -Find user-> DB | c: Data
 DB -user-> API
   if valid
     API -200 OK-> User

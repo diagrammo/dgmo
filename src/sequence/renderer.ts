@@ -4,7 +4,7 @@
 
 import * as d3Selection from 'd3-selection';
 import type { PaletteColors } from '../palettes';
-import { resolveColor } from '../colors';
+import { mix } from '../palettes/color-utils';
 import {
   parseInlineMarkdown,
   truncateBareUrl,
@@ -13,6 +13,7 @@ import {
 export type { InlineSpan } from '../utils/inline-markdown';
 export { parseInlineMarkdown, truncateBareUrl };
 import { FONT_FAMILY } from '../fonts';
+import { resolveColor } from '../colors';
 import type {
   ParsedSequenceDgmo,
   SequenceElement,
@@ -22,6 +23,8 @@ import type {
   SequenceParticipant,
 } from './parser';
 import { isSequenceBlock, isSequenceSection, isSequenceNote } from './parser';
+import { resolveSequenceTags } from './tag-resolution';
+import type { ResolvedTagMap } from './tag-resolution';
 
 // ============================================================
 // Layout Constants
@@ -51,6 +54,20 @@ const NOTE_CHARS_PER_LINE = Math.floor((NOTE_MAX_W - NOTE_PAD_H * 2 - NOTE_FOLD)
 const COLLAPSED_NOTE_H = 20;
 const COLLAPSED_NOTE_W = 40;
 
+// Legend rendering constants (consistent with org chart legend)
+const LEGEND_HEIGHT = 28;
+const LEGEND_PILL_PAD = 16;
+const LEGEND_PILL_FONT_SIZE = 11;
+const LEGEND_PILL_FONT_W = LEGEND_PILL_FONT_SIZE * 0.6;
+const LEGEND_CAPSULE_PAD = 4;
+const LEGEND_DOT_R = 4;
+const LEGEND_ENTRY_FONT_SIZE = 10;
+const LEGEND_ENTRY_FONT_W = LEGEND_ENTRY_FONT_SIZE * 0.6;
+const LEGEND_ENTRY_DOT_GAP = 4;
+const LEGEND_ENTRY_TRAIL = 8;
+const LEGEND_GROUP_GAP = 12;
+const LEGEND_BOTTOM_GAP = 8;
+
 
 function wrapTextLines(text: string, maxChars: number): string[] {
   const rawLines = text.split('\n');
@@ -75,22 +92,64 @@ function wrapTextLines(text: string, maxChars: number): string[] {
   return wrapped;
 }
 
-// Mix two hex colors in sRGB: pct% of a, rest of b
-function mix(a: string, b: string, pct: number): string {
-  const parse = (h: string) => {
-    const r = h.replace('#', '');
-    const f = r.length === 3 ? r[0]+r[0]+r[1]+r[1]+r[2]+r[2] : r;
-    return [parseInt(f.substring(0,2),16), parseInt(f.substring(2,4),16), parseInt(f.substring(4,6),16)];
-  };
-  const [ar,ag,ab] = parse(a), [br,bg,bb] = parse(b), t = pct/100;
-  const c = (x: number, y: number) => Math.round(x*t + y*(1-t)).toString(16).padStart(2,'0');
-  return `#${c(ar,br)}${c(ag,bg)}${c(ab,bb)}`;
+/**
+ * Split a participant label into multiple lines if it exceeds the box width.
+ * Splits on spaces first, then dashes, then camelCase boundaries.
+ * Approximate max chars based on font-size 13 (~7.5px per char average).
+ */
+const LABEL_CHAR_WIDTH = 7.5;
+const LABEL_MAX_CHARS = Math.floor((PARTICIPANT_BOX_WIDTH - 10) / LABEL_CHAR_WIDTH); // ~14 chars
+
+function splitParticipantLabel(label: string): string[] {
+  if (label.length <= LABEL_MAX_CHARS) return [label];
+
+  // Split on spaces
+  if (label.includes(' ')) {
+    return wrapLabelWords(label.split(' '));
+  }
+
+  // Split on dashes/underscores
+  if (/[-_]/.test(label)) {
+    const parts = label.split(/[-_]/);
+    return wrapLabelWords(parts);
+  }
+
+  // Split on camelCase boundaries: "UserLookupCloudFx" → ["User", "Lookup", "Cloud", "Fx"]
+  const camelParts = label.replace(/([a-z])([A-Z])/g, '$1\x00$2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1\x00$2')
+    .split('\x00');
+  if (camelParts.length > 1) {
+    return wrapLabelWords(camelParts);
+  }
+
+  return [label];
 }
 
-// Shared fill/stroke helpers
-const fill = (palette: PaletteColors, isDark: boolean): string =>
-  mix(palette.primary, isDark ? palette.surface : palette.bg, isDark ? 15 : 30);
-const stroke = (palette: PaletteColors): string => palette.textMuted;
+/** Greedily join word parts into lines that fit within LABEL_MAX_CHARS. */
+function wrapLabelWords(words: string[]): string[] {
+  const lines: string[] = [];
+  let current = '';
+  for (const word of words) {
+    const test = current ? current + word : word;
+    if (test.length > LABEL_MAX_CHARS && current) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = test;
+    }
+  }
+  if (current) lines.push(current);
+  return lines;
+}
+
+// Shared fill/stroke helpers — accept optional color override for per-participant coloring
+const fill = (palette: PaletteColors, isDark: boolean, color?: string): string =>
+  color
+    ? mix(color, isDark ? palette.surface : palette.bg, isDark ? 30 : 40)
+    : isDark
+      ? mix(palette.overlay, palette.surface, 50)
+      : mix(palette.bg, palette.surface, 50);
+const stroke = (palette: PaletteColors, color?: string): string => color || palette.border;
 const SW = 1.5;
 const W = PARTICIPANT_BOX_WIDTH;
 const H = PARTICIPANT_BOX_HEIGHT;
@@ -102,7 +161,8 @@ const H = PARTICIPANT_BOX_HEIGHT;
 function renderRectParticipant(
   g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   palette: PaletteColors,
-  isDark: boolean
+  isDark: boolean,
+  color?: string
 ): void {
   g.append('rect')
     .attr('x', -W / 2)
@@ -111,15 +171,16 @@ function renderRectParticipant(
     .attr('height', H)
     .attr('rx', 2)
     .attr('ry', 2)
-    .attr('fill', fill(palette, isDark))
-    .attr('stroke', stroke(palette))
+    .attr('fill', fill(palette, isDark, color))
+    .attr('stroke', stroke(palette, color))
     .attr('stroke-width', SW);
 }
 
 function renderServiceParticipant(
   g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   palette: PaletteColors,
-  isDark: boolean
+  isDark: boolean,
+  color?: string
 ): void {
   g.append('rect')
     .attr('x', -W / 2)
@@ -128,14 +189,15 @@ function renderServiceParticipant(
     .attr('height', H)
     .attr('rx', SERVICE_BORDER_RADIUS)
     .attr('ry', SERVICE_BORDER_RADIUS)
-    .attr('fill', fill(palette, isDark))
-    .attr('stroke', stroke(palette))
+    .attr('fill', fill(palette, isDark, color))
+    .attr('stroke', stroke(palette, color))
     .attr('stroke-width', SW);
 }
 
 function renderActorParticipant(
   g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
-  palette: PaletteColors
+  palette: PaletteColors,
+  color?: string
 ): void {
   // Stick figure — no background, natural proportions
   const headR = 8;
@@ -146,7 +208,7 @@ function renderActorParticipant(
   const legY = H - 2;
   const armSpan = 16;
   const legSpan = 12;
-  const s = stroke(palette);
+  const s = stroke(palette, color);
   const actorSW = 2.5;
 
   g.append('circle')
@@ -193,14 +255,15 @@ function renderActorParticipant(
 function renderDatabaseParticipant(
   g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   palette: PaletteColors,
-  isDark: boolean
+  isDark: boolean,
+  color?: string
 ): void {
   // Cylinder fitting within W x H
   const ry = 7;
   const topY = ry;
   const bodyH = H - ry * 2;
-  const f = fill(palette, isDark);
-  const s = stroke(palette);
+  const f = fill(palette, isDark, color);
+  const s = stroke(palette, color);
 
   // Bottom ellipse (drawn first — rect will cover its top arc)
   g.append('ellipse')
@@ -252,14 +315,15 @@ function renderDatabaseParticipant(
 function renderQueueParticipant(
   g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   palette: PaletteColors,
-  isDark: boolean
+  isDark: boolean,
+  color?: string
 ): void {
   // Horizontal cylinder (pipe) — like database rotated 90 degrees
   const rx = 10;
   const leftX = -W / 2 + rx;
   const bodyW = W - rx * 2;
-  const f = fill(palette, isDark);
-  const s = stroke(palette);
+  const f = fill(palette, isDark, color);
+  const s = stroke(palette, color);
 
   // Right ellipse (back face, drawn first — rect will cover its left arc)
   g.append('ellipse')
@@ -311,14 +375,15 @@ function renderQueueParticipant(
 function renderCacheParticipant(
   g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   palette: PaletteColors,
-  isDark: boolean
+  isDark: boolean,
+  color?: string
 ): void {
   // Dashed cylinder — variation of database to convey ephemeral storage
   const ry = 7;
   const topY = ry;
   const bodyH = H - ry * 2;
-  const f = fill(palette, isDark);
-  const s = stroke(palette);
+  const f = fill(palette, isDark, color);
+  const s = stroke(palette, color);
   const dash = '4 3';
 
   // Bottom ellipse (back face)
@@ -373,7 +438,8 @@ function renderCacheParticipant(
 function renderNetworkingParticipant(
   g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   palette: PaletteColors,
-  isDark: boolean
+  isDark: boolean,
+  color?: string
 ): void {
   // Hexagon fitting within W x H
   const inset = 16;
@@ -387,19 +453,20 @@ function renderNetworkingParticipant(
   ].join(' ');
   g.append('polygon')
     .attr('points', points)
-    .attr('fill', fill(palette, isDark))
-    .attr('stroke', stroke(palette))
+    .attr('fill', fill(palette, isDark, color))
+    .attr('stroke', stroke(palette, color))
     .attr('stroke-width', SW);
 }
 
 function renderFrontendParticipant(
   g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   palette: PaletteColors,
-  isDark: boolean
+  isDark: boolean,
+  color?: string
 ): void {
   // Monitor shape fitting within W x H
   const screenH = H - 10;
-  const s = stroke(palette);
+  const s = stroke(palette, color);
   g.append('rect')
     .attr('x', -W / 2)
     .attr('y', 0)
@@ -407,7 +474,7 @@ function renderFrontendParticipant(
     .attr('height', screenH)
     .attr('rx', 3)
     .attr('ry', 3)
-    .attr('fill', fill(palette, isDark))
+    .attr('fill', fill(palette, isDark, color))
     .attr('stroke', s)
     .attr('stroke-width', SW);
   // Stand
@@ -431,7 +498,8 @@ function renderFrontendParticipant(
 function renderExternalParticipant(
   g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   palette: PaletteColors,
-  isDark: boolean
+  isDark: boolean,
+  color?: string
 ): void {
   // Dashed border rectangle
   g.append('rect')
@@ -441,8 +509,8 @@ function renderExternalParticipant(
     .attr('height', H)
     .attr('rx', 2)
     .attr('ry', 2)
-    .attr('fill', fill(palette, isDark))
-    .attr('stroke', stroke(palette))
+    .attr('fill', fill(palette, isDark, color))
+    .attr('stroke', stroke(palette, color))
     .attr('stroke-width', SW)
     .attr('stroke-dasharray', '6 3');
 }
@@ -450,9 +518,10 @@ function renderExternalParticipant(
 function renderGatewayParticipant(
   g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   palette: PaletteColors,
-  isDark: boolean
+  isDark: boolean,
+  color?: string
 ): void {
-  renderRectParticipant(g, palette, isDark);
+  renderRectParticipant(g, palette, isDark, color);
 }
 
 // ============================================================
@@ -468,6 +537,7 @@ export interface SequenceRenderOptions {
   collapsedSections?: Set<number>; // keyed by section lineNumber
   expandedNoteLines?: Set<number>; // keyed by note lineNumber; undefined = all expanded (CLI default)
   exportWidth?: number; // Explicit width for CLI/export rendering (bypasses getBoundingClientRect)
+  activeTagGroup?: string; // Active tag group name for tag-driven recoloring
 }
 
 /**
@@ -738,35 +808,78 @@ export function applyPositionOverrides(
 
 /**
  * Reorder participants so that members of the same group are adjacent.
- * Groups appear in declaration order, followed by ungrouped participants.
+ * Groups are positioned at the point where their first member would naturally
+ * appear based on message order (first-occurrence positioning). This prevents
+ * groups declared at the top of the file from being placed before participants
+ * that appear in messages earlier.
+ *
+ * Explicit `position` overrides are handled separately by `applyPositionOverrides`.
  */
 export function applyGroupOrdering(
   participants: SequenceParticipant[],
-  groups: SequenceGroup[]
+  groups: SequenceGroup[],
+  messages: SequenceMessage[] = []
 ): SequenceParticipant[] {
   if (groups.length === 0) return participants;
 
-  const groupedIds = new Set(groups.flatMap((g) => g.participantIds));
-  const result: SequenceParticipant[] = [];
-  const placed = new Set<string>();
-
-  // Place grouped participants in group declaration order
+  // Build a map: participantId → group
+  const idToGroup = new Map<string, SequenceGroup>();
   for (const group of groups) {
     for (const id of group.participantIds) {
+      idToGroup.set(id, group);
+    }
+  }
+
+  // Build first-appearance index from messages (order in which participants
+  // are first referenced). Participants not in any message keep their
+  // declaration order from the participants array.
+  const appearanceOrder: string[] = [];
+  const seen = new Set<string>();
+  for (const msg of messages) {
+    for (const id of [msg.from, msg.to]) {
+      if (!seen.has(id)) {
+        seen.add(id);
+        appearanceOrder.push(id);
+      }
+    }
+  }
+  // Append any participants not referenced in messages (declaration-only)
+  for (const p of participants) {
+    if (!seen.has(p.id)) {
+      seen.add(p.id);
+      appearanceOrder.push(p.id);
+    }
+  }
+
+  // Walk appearance order; when we encounter a grouped participant,
+  // insert the entire group at that position (if not already placed).
+  const result: SequenceParticipant[] = [];
+  const placed = new Set<string>();
+  const placedGroups = new Set<SequenceGroup>();
+
+  for (const id of appearanceOrder) {
+    if (placed.has(id)) continue;
+
+    const group = idToGroup.get(id);
+    if (group && !placedGroups.has(group)) {
+      // Place entire group here
+      placedGroups.add(group);
+      for (const gid of group.participantIds) {
+        const p = participants.find((pp) => pp.id === gid);
+        if (p && !placed.has(gid)) {
+          result.push(p);
+          placed.add(gid);
+        }
+      }
+    } else if (!group) {
+      // Ungrouped participant
       const p = participants.find((pp) => pp.id === id);
-      if (p && !placed.has(id)) {
+      if (p) {
         result.push(p);
         placed.add(id);
       }
     }
-  }
-
-  // Append ungrouped participants in their original order
-  for (const p of participants) {
-    if (!groupedIds.has(p.id) && !placed.has(p.id)) {
-      result.push(p);
-      placed.add(p.id);
-    }
+    // If group already placed, skip (member already included)
   }
 
   return result;
@@ -798,11 +911,31 @@ export function renderSequenceDiagram(
   const isNoteExpanded = (note: SequenceNote): boolean =>
     expandedNoteLines === undefined || collapseNotesDisabled || expandedNoteLines.has(note.lineNumber);
   const participants = applyPositionOverrides(
-    applyGroupOrdering(parsed.participants, groups)
+    applyGroupOrdering(parsed.participants, groups, messages)
   );
   if (participants.length === 0) return;
 
   const activationsOff = parsedOptions.activations?.toLowerCase() === 'off';
+
+  // Tag resolution — compute resolved tag values and build color lookup
+  // Explicit render option wins, then fall back to diagram-level `active-tag: Name` option
+  const activeTagGroup = options?.activeTagGroup || parsedOptions['active-tag'] || undefined;
+  let tagMap: ResolvedTagMap | undefined;
+  const tagValueToColor = new Map<string, string>();
+  if (activeTagGroup) {
+    tagMap = resolveSequenceTags(parsed, activeTagGroup);
+    const tg = parsed.tagGroups.find(
+      (g) => g.name.toLowerCase() === activeTagGroup.toLowerCase(),
+    );
+    if (tg) {
+      for (const entry of tg.entries) {
+        tagValueToColor.set(entry.value.toLowerCase(), resolveColor(entry.color));
+      }
+    }
+  }
+  const getTagColor = (value: string | undefined): string | undefined =>
+    value ? tagValueToColor.get(value.toLowerCase()) : undefined;
+  const tagKey = activeTagGroup?.toLowerCase();
 
   // Build hidden message set for collapse support
   const hiddenMsgIndices = new Set<number>();
@@ -1145,10 +1278,12 @@ export function renderSequenceDiagram(
 
   // Compute cumulative Y positions for each step, with section dividers as stable anchors
   const titleOffset = title ? TITLE_HEIGHT : 0;
+  const legendOffset =
+    parsed.tagGroups.length > 0 ? LEGEND_HEIGHT + LEGEND_BOTTOM_GAP : 0;
   const groupOffset =
     groups.length > 0 ? GROUP_PADDING_TOP + GROUP_LABEL_SIZE : 0;
   const participantStartY =
-    TOP_MARGIN + titleOffset + PARTICIPANT_Y_OFFSET + groupOffset;
+    TOP_MARGIN + titleOffset + legendOffset + PARTICIPANT_Y_OFFSET + groupOffset;
   const lifelineStartY0 = participantStartY + PARTICIPANT_BOX_HEIGHT;
   const hasActors = participants.some((p) => p.type === 'actor');
   const messageStartOffset = MESSAGE_START_OFFSET + (hasActors ? 20 : 0);
@@ -1337,6 +1472,81 @@ export function renderSequenceDiagram(
     .attr('stroke', palette.text)
     .attr('stroke-width', 1.2);
 
+  // Per-color arrowhead markers for tag-driven coloring
+  const arrowPoints = `0,0 ${ARROWHEAD_SIZE},${ARROWHEAD_SIZE / 2} 0,${ARROWHEAD_SIZE}`;
+  for (const [, color] of tagValueToColor) {
+    const hex = color.replace('#', '');
+    // Filled arrowhead (call arrows)
+    defs
+      .append('marker')
+      .attr('id', `seq-arrowhead-c${hex}`)
+      .attr('viewBox', `0 0 ${ARROWHEAD_SIZE} ${ARROWHEAD_SIZE}`)
+      .attr('refX', ARROWHEAD_SIZE)
+      .attr('refY', ARROWHEAD_SIZE / 2)
+      .attr('markerWidth', ARROWHEAD_SIZE)
+      .attr('markerHeight', ARROWHEAD_SIZE)
+      .attr('orient', 'auto')
+      .append('polygon')
+      .attr('points', arrowPoints)
+      .attr('fill', color);
+    // Open arrowhead (async arrows)
+    defs
+      .append('marker')
+      .attr('id', `seq-arrowhead-async-c${hex}`)
+      .attr('viewBox', `0 0 ${ARROWHEAD_SIZE} ${ARROWHEAD_SIZE}`)
+      .attr('refX', ARROWHEAD_SIZE)
+      .attr('refY', ARROWHEAD_SIZE / 2)
+      .attr('markerWidth', ARROWHEAD_SIZE)
+      .attr('markerHeight', ARROWHEAD_SIZE)
+      .attr('orient', 'auto')
+      .append('polyline')
+      .attr('points', arrowPoints)
+      .attr('fill', 'none')
+      .attr('stroke', color)
+      .attr('stroke-width', 1.2);
+    // Open arrowhead (return arrows)
+    defs
+      .append('marker')
+      .attr('id', `seq-arrowhead-open-c${hex}`)
+      .attr('viewBox', `0 0 ${ARROWHEAD_SIZE} ${ARROWHEAD_SIZE}`)
+      .attr('refX', ARROWHEAD_SIZE)
+      .attr('refY', ARROWHEAD_SIZE / 2)
+      .attr('markerWidth', ARROWHEAD_SIZE)
+      .attr('markerHeight', ARROWHEAD_SIZE)
+      .attr('orient', 'auto')
+      .append('polyline')
+      .attr('points', arrowPoints)
+      .attr('fill', 'none')
+      .attr('stroke', color)
+      .attr('stroke-width', 1.2);
+  }
+
+  // Helper: resolve marker ref for tag-colored arrows
+  const coloredMarker = (
+    type: 'call' | 'async' | 'return',
+    tagColor?: string,
+  ): string => {
+    if (tagColor) {
+      const hex = tagColor.replace('#', '');
+      switch (type) {
+        case 'call':
+          return `url(#seq-arrowhead-c${hex})`;
+        case 'async':
+          return `url(#seq-arrowhead-async-c${hex})`;
+        case 'return':
+          return `url(#seq-arrowhead-open-c${hex})`;
+      }
+    }
+    switch (type) {
+      case 'call':
+        return 'url(#seq-arrowhead)';
+      case 'async':
+        return 'url(#seq-arrowhead-async)';
+      case 'return':
+        return 'url(#seq-arrowhead-open)';
+    }
+  };
+
   // Render title
   if (title) {
     const titleEl = svg
@@ -1352,6 +1562,142 @@ export function renderSequenceDiagram(
 
     if (parsed.titleLineNumber) {
       titleEl.attr('data-line-number', parsed.titleLineNumber);
+    }
+  }
+
+  // Render legend pills for tag groups
+  if (parsed.tagGroups.length > 0) {
+    const legendY = TOP_MARGIN + titleOffset;
+    const groupBg = isDark
+      ? mix(palette.surface, palette.bg, 50)
+      : mix(palette.surface, palette.bg, 30);
+
+    // Pre-compute pill/capsule widths for centering
+    const legendItems: Array<{
+      group: typeof parsed.tagGroups[0];
+      isActive: boolean;
+      pillWidth: number;
+      totalWidth: number;
+      entries: Array<{ value: string; color: string }>;
+    }> = [];
+    for (const tg of parsed.tagGroups) {
+      if (tg.entries.length === 0) continue;
+      const isActive =
+        !!activeTagGroup &&
+        tg.name.toLowerCase() === activeTagGroup.toLowerCase();
+      const pillWidth = tg.name.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
+      const entries = tg.entries.map((e) => ({
+        value: e.value,
+        color: resolveColor(e.color),
+      }));
+      let totalWidth = pillWidth;
+      if (isActive) {
+        let entriesWidth = 0;
+        for (const entry of entries) {
+          entriesWidth +=
+            LEGEND_DOT_R * 2 +
+            LEGEND_ENTRY_DOT_GAP +
+            entry.value.length * LEGEND_ENTRY_FONT_W +
+            LEGEND_ENTRY_TRAIL;
+        }
+        totalWidth = LEGEND_CAPSULE_PAD * 2 + pillWidth + 4 + entriesWidth;
+      }
+      legendItems.push({ group: tg, isActive, pillWidth, totalWidth, entries });
+    }
+
+    // Center legend horizontally
+    const totalLegendWidth =
+      legendItems.reduce((s, item) => s + item.totalWidth, 0) +
+      (legendItems.length - 1) * LEGEND_GROUP_GAP;
+    let legendX = (svgWidth - totalLegendWidth) / 2;
+
+    for (const item of legendItems) {
+      const gEl = svg
+        .append('g')
+        .attr('transform', `translate(${legendX}, ${legendY})`)
+        .attr('class', 'sequence-legend-group')
+        .attr('data-legend-group', item.group.name.toLowerCase())
+        .style('cursor', 'pointer');
+
+      // Outer capsule background (active only)
+      if (item.isActive) {
+        gEl
+          .append('rect')
+          .attr('width', item.totalWidth)
+          .attr('height', LEGEND_HEIGHT)
+          .attr('rx', LEGEND_HEIGHT / 2)
+          .attr('fill', groupBg);
+      }
+
+      const pillXOff = item.isActive ? LEGEND_CAPSULE_PAD : 0;
+      const pillYOff = item.isActive ? LEGEND_CAPSULE_PAD : 0;
+      const pillH = LEGEND_HEIGHT - (item.isActive ? LEGEND_CAPSULE_PAD * 2 : 0);
+
+      // Pill background
+      gEl
+        .append('rect')
+        .attr('x', pillXOff)
+        .attr('y', pillYOff)
+        .attr('width', item.pillWidth)
+        .attr('height', pillH)
+        .attr('rx', pillH / 2)
+        .attr('fill', item.isActive ? palette.bg : groupBg);
+
+      // Active pill border
+      if (item.isActive) {
+        gEl
+          .append('rect')
+          .attr('x', pillXOff)
+          .attr('y', pillYOff)
+          .attr('width', item.pillWidth)
+          .attr('height', pillH)
+          .attr('rx', pillH / 2)
+          .attr('fill', 'none')
+          .attr('stroke', mix(palette.textMuted, palette.bg, 50))
+          .attr('stroke-width', 0.75);
+      }
+
+      // Pill text
+      gEl
+        .append('text')
+        .attr('x', pillXOff + item.pillWidth / 2)
+        .attr('y', LEGEND_HEIGHT / 2 + LEGEND_PILL_FONT_SIZE / 2 - 2)
+        .attr('font-size', LEGEND_PILL_FONT_SIZE)
+        .attr('font-weight', '500')
+        .attr('fill', item.isActive ? palette.text : palette.textMuted)
+        .attr('text-anchor', 'middle')
+        .text(item.group.name);
+
+      // Entries inside capsule (active only)
+      if (item.isActive) {
+        let entryX = pillXOff + item.pillWidth + 4;
+        for (const entry of item.entries) {
+          const entryG = gEl
+            .append('g')
+            .attr('data-legend-entry', entry.value.toLowerCase())
+            .style('cursor', 'pointer');
+
+          entryG
+            .append('circle')
+            .attr('cx', entryX + LEGEND_DOT_R)
+            .attr('cy', LEGEND_HEIGHT / 2)
+            .attr('r', LEGEND_DOT_R)
+            .attr('fill', entry.color);
+
+          const textX = entryX + LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP;
+          entryG
+            .append('text')
+            .attr('x', textX)
+            .attr('y', LEGEND_HEIGHT / 2 + LEGEND_ENTRY_FONT_SIZE / 2 - 1)
+            .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
+            .attr('fill', palette.textMuted)
+            .text(entry.value);
+
+          entryX = textX + entry.value.length * LEGEND_ENTRY_FONT_W + LEGEND_ENTRY_TRAIL;
+        }
+      }
+
+      legendX += item.totalWidth + LEGEND_GROUP_GAP;
     }
   }
 
@@ -1373,16 +1719,15 @@ export function renderSequenceDiagram(
     const boxH =
       PARTICIPANT_BOX_HEIGHT + GROUP_PADDING_TOP + GROUP_PADDING_BOTTOM;
 
-    // Group box background
-    const resolvedGroupColor = group.color
-      ? resolveColor(group.color, palette)
-      : undefined;
-    const fillColor = resolvedGroupColor
-      ? mix(resolvedGroupColor, isDark ? palette.surface : palette.bg, 10)
+    // Group box background — use tag color if group has metadata for the active tag group
+    const groupTagValue = tagKey && group.metadata?.[tagKey];
+    const groupTagColor = getTagColor(groupTagValue || undefined);
+    const fillColor = groupTagColor
+      ? mix(groupTagColor, isDark ? palette.surface : palette.bg, isDark ? 15 : 20)
       : isDark
         ? palette.surface
         : palette.bg;
-    const strokeColor = resolvedGroupColor || palette.textMuted;
+    const strokeColor = groupTagColor || palette.textMuted;
 
     svg
       .append('rect')
@@ -1418,7 +1763,13 @@ export function renderSequenceDiagram(
     const cx = offsetX + index * PARTICIPANT_GAP;
     const cy = participantStartY;
 
-    renderParticipant(svg, participant, cx, cy, palette, isDark);
+    const pTagValue = tagMap?.participants.get(participant.id);
+    const pTagColor = getTagColor(pTagValue);
+    const pTagAttr =
+      tagKey && pTagValue
+        ? { key: tagKey, value: pTagValue.toLowerCase() }
+        : undefined;
+    renderParticipant(svg, participant, cx, cy, palette, isDark, pTagColor, pTagAttr);
 
     // Render lifeline
     svg
@@ -1650,6 +2001,14 @@ export function renderSequenceDiagram(
       if (msg) coveredLines.push(msg.lineNumber);
     }
 
+    // Determine activation color from triggering message's tag
+    const triggerMsg = messages[renderSteps[act.startStep]?.messageIndex];
+    const actTagValue = triggerMsg
+      ? tagMap?.messages.get(triggerMsg.lineNumber)
+      : undefined;
+    const actTagColor = getTagColor(actTagValue);
+    const actBaseColor = actTagColor || palette.primary;
+
     // Opaque background to mask the lifeline
     svg
       .append('rect')
@@ -1659,21 +2018,24 @@ export function renderSequenceDiagram(
       .attr('height', y2 - y1)
       .attr('fill', isDark ? palette.surface : palette.bg);
 
-    const actFill = mix(palette.primary, isDark ? palette.surface : palette.bg, isDark ? 15 : 30);
-    svg
+    const actFill = mix(actBaseColor, isDark ? palette.surface : palette.bg, isDark ? 15 : 30);
+    const actRect = svg
       .append('rect')
       .attr('x', x)
       .attr('y', y1)
       .attr('width', ACTIVATION_WIDTH)
       .attr('height', y2 - y1)
       .attr('fill', actFill)
-      .attr('stroke', palette.primary)
+      .attr('stroke', actBaseColor)
       .attr('stroke-width', 1)
       .attr('stroke-opacity', 0.5)
       .attr('data-participant-id', act.participantId)
       .attr('data-msg-lines', coveredLines.join(','))
       .attr('data-line-number', coveredLines[0] ?? '')
       .attr('class', 'activation');
+    if (tagKey && actTagValue) {
+      actRect.attr(`data-tag-${tagKey}`, actTagValue.toLowerCase());
+    }
   });
 
   // Render deferred else dividers (on top of activations)
@@ -1748,9 +2110,7 @@ export function renderSequenceDiagram(
     if (secY === undefined) continue;
 
     const isCollapsed = collapsedSections?.has(sec.lineNumber) ?? false;
-    const lineColor = sec.color
-      ? resolveColor(sec.color, palette)
-      : palette.textMuted;
+    const lineColor = palette.textMuted;
 
     // Wrap section elements in a <g> for toggle.
     // IMPORTANT: only the <g> carries data-line-number / data-section —
@@ -1843,20 +2203,42 @@ export function renderSequenceDiagram(
 
     const y = stepY(i);
 
+    const HIT_H = 20; // transparent hit area height (10px above + below arrow)
+
+    // Resolve tag color for this message
+    const msg = messages[step.messageIndex];
+    const msgTagValue = msg ? tagMap?.messages.get(msg.lineNumber) : undefined;
+    const msgTagColor = getTagColor(msgTagValue);
+
     if (step.type === 'call') {
+      const arrowColor = msgTagColor || palette.text;
+
       if (step.from === step.to) {
         // Self-call: loopback arrow from right edge of activation
         const x = arrowEdgeX(step.from, i, 'right');
-        svg
+
+        // Hit area for self-call
+        svg.append('rect')
+          .attr('x', x)
+          .attr('y', y - 5)
+          .attr('width', SELF_CALL_WIDTH)
+          .attr('height', SELF_CALL_HEIGHT + 10)
+          .attr('fill', 'transparent')
+          .attr('class', 'message-hit-area')
+          .attr('data-line-number', String(messages[step.messageIndex].lineNumber))
+          .attr('data-msg-index', String(step.messageIndex))
+          .attr('data-step-index', String(i));
+
+        const selfCallEl = svg
           .append('path')
           .attr(
             'd',
             `M ${x} ${y} H ${x + SELF_CALL_WIDTH} V ${y + SELF_CALL_HEIGHT} H ${x}`
           )
           .attr('fill', 'none')
-          .attr('stroke', palette.text)
+          .attr('stroke', arrowColor)
           .attr('stroke-width', 1.2)
-          .attr('marker-end', 'url(#seq-arrowhead)')
+          .attr('marker-end', coloredMarker('call', msgTagColor))
           .attr('class', 'message-arrow self-call')
           .attr(
             'data-line-number',
@@ -1864,6 +2246,9 @@ export function renderSequenceDiagram(
           )
           .attr('data-msg-index', String(step.messageIndex))
           .attr('data-step-index', String(i));
+        if (tagKey && msgTagValue) {
+          selfCallEl.attr(`data-tag-${tagKey}`, msgTagValue.toLowerCase());
+        }
 
         if (step.label) {
           const labelEl = svg
@@ -1871,7 +2256,7 @@ export function renderSequenceDiagram(
             .attr('x', x + SELF_CALL_WIDTH + 5)
             .attr('y', y + SELF_CALL_HEIGHT / 2 + 4)
             .attr('text-anchor', 'start')
-            .attr('fill', palette.text)
+            .attr('fill', arrowColor)
             .attr('font-size', 12)
             .attr('class', 'message-label')
             .attr(
@@ -1888,16 +2273,28 @@ export function renderSequenceDiagram(
         const x1 = arrowEdgeX(step.from, i, goingRight ? 'right' : 'left');
         const x2 = arrowEdgeX(step.to, i, goingRight ? 'left' : 'right');
 
+        // Hit area for call arrow
+        svg.append('rect')
+          .attr('x', Math.min(x1, x2))
+          .attr('y', y - HIT_H / 2)
+          .attr('width', Math.abs(x2 - x1))
+          .attr('height', HIT_H)
+          .attr('fill', 'transparent')
+          .attr('class', 'message-hit-area')
+          .attr('data-line-number', String(messages[step.messageIndex].lineNumber))
+          .attr('data-msg-index', String(step.messageIndex))
+          .attr('data-step-index', String(i));
+
         const markerRef = step.async
-          ? 'url(#seq-arrowhead-async)'
-          : 'url(#seq-arrowhead)';
-        svg
+          ? coloredMarker('async', msgTagColor)
+          : coloredMarker('call', msgTagColor);
+        const arrowEl = svg
           .append('line')
           .attr('x1', x1)
           .attr('y1', y)
           .attr('x2', x2)
           .attr('y2', y)
-          .attr('stroke', palette.text)
+          .attr('stroke', arrowColor)
           .attr('stroke-width', 1.2)
           .attr('marker-end', markerRef)
           .attr('class', 'message-arrow')
@@ -1907,6 +2304,9 @@ export function renderSequenceDiagram(
           )
           .attr('data-msg-index', String(step.messageIndex))
           .attr('data-step-index', String(i));
+        if (tagKey && msgTagValue) {
+          arrowEl.attr(`data-tag-${tagKey}`, msgTagValue.toLowerCase());
+        }
 
         if (step.label) {
           const midX = (x1 + x2) / 2;
@@ -1915,7 +2315,7 @@ export function renderSequenceDiagram(
             .attr('x', midX)
             .attr('y', y - 8)
             .attr('text-anchor', 'middle')
-            .attr('fill', palette.text)
+            .attr('fill', arrowColor)
             .attr('font-size', 12)
             .attr('class', 'message-label')
             .attr(
@@ -1936,6 +2336,19 @@ export function renderSequenceDiagram(
       const goingRight = fromX < toX;
       const x1 = arrowEdgeX(step.from, i, goingRight ? 'right' : 'left');
       const x2 = arrowEdgeX(step.to, i, goingRight ? 'left' : 'right');
+      const returnColor = msgTagColor || palette.textMuted;
+
+      // Hit area for return arrow
+      svg.append('rect')
+        .attr('x', Math.min(x1, x2))
+        .attr('y', y - HIT_H / 2)
+        .attr('width', Math.abs(x2 - x1))
+        .attr('height', HIT_H)
+        .attr('fill', 'transparent')
+        .attr('class', 'message-hit-area')
+        .attr('data-line-number', String(messages[step.messageIndex].lineNumber))
+        .attr('data-msg-index', String(step.messageIndex))
+        .attr('data-step-index', String(i));
 
       svg
         .append('line')
@@ -1943,10 +2356,10 @@ export function renderSequenceDiagram(
         .attr('y1', y)
         .attr('x2', x2)
         .attr('y2', y)
-        .attr('stroke', palette.textMuted)
+        .attr('stroke', returnColor)
         .attr('stroke-width', 1)
         .attr('stroke-dasharray', '6 4')
-        .attr('marker-end', 'url(#seq-arrowhead-open)')
+        .attr('marker-end', coloredMarker('return', msgTagColor))
         .attr('class', 'return-arrow')
         .attr(
           'data-line-number',
@@ -1962,7 +2375,7 @@ export function renderSequenceDiagram(
           .attr('x', midX)
           .attr('y', y - 6)
           .attr('text-anchor', 'middle')
-          .attr('fill', palette.textMuted)
+          .attr('fill', returnColor)
           .attr('font-size', 11)
           .attr('class', 'message-label')
           .attr(
@@ -2194,7 +2607,9 @@ function renderParticipant(
   cx: number,
   cy: number,
   palette: PaletteColors,
-  isDark: boolean
+  isDark: boolean,
+  color?: string,
+  tagAttr?: { key: string; value: string },
 ): void {
   const g = svg
     .append('g')
@@ -2202,51 +2617,73 @@ function renderParticipant(
     .attr('class', 'participant')
     .attr('data-participant-id', participant.id);
 
+  // Set data-tag attribute for legend hover dimming
+  if (tagAttr) {
+    g.attr(`data-tag-${tagAttr.key}`, tagAttr.value);
+  }
+
   // Render shape based on type
   switch (participant.type) {
     case 'actor':
-      renderActorParticipant(g, palette);
+      renderActorParticipant(g, palette, color);
       break;
     case 'database':
-      renderDatabaseParticipant(g, palette, isDark);
+      renderDatabaseParticipant(g, palette, isDark, color);
       break;
     case 'service':
-      renderServiceParticipant(g, palette, isDark);
+      renderServiceParticipant(g, palette, isDark, color);
       break;
     case 'queue':
-      renderQueueParticipant(g, palette, isDark);
+      renderQueueParticipant(g, palette, isDark, color);
       break;
     case 'cache':
-      renderCacheParticipant(g, palette, isDark);
+      renderCacheParticipant(g, palette, isDark, color);
       break;
     case 'networking':
-      renderNetworkingParticipant(g, palette, isDark);
+      renderNetworkingParticipant(g, palette, isDark, color);
       break;
     case 'frontend':
-      renderFrontendParticipant(g, palette, isDark);
+      renderFrontendParticipant(g, palette, isDark, color);
       break;
     case 'external':
-      renderExternalParticipant(g, palette, isDark);
+      renderExternalParticipant(g, palette, isDark, color);
       break;
     case 'gateway':
-      renderGatewayParticipant(g, palette, isDark);
+      renderGatewayParticipant(g, palette, isDark, color);
       break;
     default:
-      renderRectParticipant(g, palette, isDark);
+      renderRectParticipant(g, palette, isDark, color);
       break;
   }
 
   // Render label — below the shape for actors, centered inside for others
   const isActor = participant.type === 'actor';
-  g.append('text')
+  const labelLines = splitParticipantLabel(participant.label);
+  const fontSize = 13;
+  const lineHeight = fontSize + 2;
+  const textEl = g.append('text')
     .attr('x', 0)
-    .attr(
-      'y',
-      isActor ? PARTICIPANT_BOX_HEIGHT + 14 : PARTICIPANT_BOX_HEIGHT / 2 + 5
-    )
     .attr('text-anchor', 'middle')
     .attr('fill', palette.text)
-    .attr('font-size', 13)
-    .attr('font-weight', 500)
-    .text(participant.label);
+    .attr('font-size', fontSize)
+    .attr('font-weight', 500);
+
+  if (labelLines.length === 1) {
+    textEl
+      .attr('y', isActor ? PARTICIPANT_BOX_HEIGHT + 14 : PARTICIPANT_BOX_HEIGHT / 2 + 5)
+      .text(participant.label);
+  } else {
+    // Multi-line: vertically center the lines within the box (or below for actors)
+    const totalHeight = labelLines.length * lineHeight;
+    const baseY = isActor
+      ? PARTICIPANT_BOX_HEIGHT + 14 - ((labelLines.length - 1) * lineHeight) / 2
+      : PARTICIPANT_BOX_HEIGHT / 2 + 5 - (totalHeight - lineHeight) / 2;
+
+    labelLines.forEach((line, i) => {
+      textEl.append('tspan')
+        .attr('x', 0)
+        .attr('dy', i === 0 ? `${baseY}px` : `${lineHeight}px`)
+        .text(line);
+    });
+  }
 }

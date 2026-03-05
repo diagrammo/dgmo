@@ -260,7 +260,7 @@ describe('Story 47.1 — syntax cleanup', () => {
     it('rejects # as comment', () => {
       const result = parseSequenceDgmo('A -msg-> B\n# this is a comment');
       expect(result.error).toMatch(
-        /Line 2.*Use \/\/ for comments.*# is reserved/
+        /Line 2.*Use \/\/ for comments/
       );
       expect(result.diagnostics).toHaveLength(1);
       expect(result.diagnostics[0].message).toMatch(/Use \/\/ for comments/);
@@ -274,9 +274,9 @@ describe('Story 47.1 — syntax cleanup', () => {
       expect(result.messages).toHaveLength(1);
     });
 
-    it('## group headings still work', () => {
+    it('[Group] headings work', () => {
       const result = parseSequenceDgmo(
-        '## Backend\n  API\n  DB\nAPI -query-> DB'
+        '[Backend]\n  API\n  DB\nAPI -query-> DB'
       );
       expect(result.error).toBeNull();
       expect(result.groups).toHaveLength(1);
@@ -284,37 +284,43 @@ describe('Story 47.1 — syntax cleanup', () => {
     });
   });
 
-  describe('hex colors rejected', () => {
-    it('rejects hex color in group heading', () => {
+  describe('color syntax produces deprecation warnings', () => {
+    it('warns on hex color in group heading', () => {
       const result = parseSequenceDgmo(
-        '## Backend(#ff6b6b)\n  API\nAPI -query-> DB'
+        '[Backend(#ff6b6b)]\n  API\nAPI -query-> DB'
       );
-      expect(result.error).toMatch(/Line 1.*Use a named color instead of hex/);
-      expect(result.diagnostics).toHaveLength(1);
-      expect(result.diagnostics[0].message).toMatch(/Use a named color instead of hex/);
-      expect(result.diagnostics[0].severity).toBe('error');
-      expect(result.diagnostics[0].line).toBe(1);
+      expect(result.error).toBeNull();
+      const warnings = result.diagnostics.filter(d => d.severity === 'warning');
+      expect(warnings.some(w => w.message.includes('color syntax removed'))).toBe(true);
+      expect(result.groups[0].name).toBe('Backend');
     });
 
-    it('rejects hex color in section divider', () => {
+    it('warns on hex color in section divider', () => {
       const result = parseSequenceDgmo(
         'A -msg-> B\n== Phase 2(#abc123) =='
       );
-      expect(result.error).toMatch(/Line 2.*Use a named color instead of hex/);
+      expect(result.error).toBeNull();
+      const warnings = result.diagnostics.filter(d => d.severity === 'warning');
+      expect(warnings.some(w => w.message.includes('color syntax removed'))).toBe(true);
+      expect(result.sections[0].label).toBe('Phase 2');
     });
 
-    it('named colors in groups still work', () => {
+    it('warns on named color in group (no longer stored)', () => {
       const result = parseSequenceDgmo(
-        '## Backend(blue)\n  API\nAPI -query-> DB'
+        '[Backend(blue)]\n  API\nAPI -query-> DB'
       );
       expect(result.error).toBeNull();
-      expect(result.groups[0].color).toBe('blue');
+      const warnings = result.diagnostics.filter(d => d.severity === 'warning');
+      expect(warnings.some(w => w.message.includes('(blue)'))).toBe(true);
+      expect(result.groups[0].name).toBe('Backend');
     });
 
-    it('named colors in sections still work', () => {
+    it('warns on named color in section (no longer stored)', () => {
       const result = parseSequenceDgmo('A -msg-> B\n== Phase 2(teal) ==');
       expect(result.error).toBeNull();
-      expect(result.sections[0].color).toBe('teal');
+      const warnings = result.diagnostics.filter(d => d.severity === 'warning');
+      expect(warnings.some(w => w.message.includes('(teal)'))).toBe(true);
+      expect(result.sections[0].label).toBe('Phase 2');
     });
   });
 });
@@ -326,25 +332,26 @@ describe('Story 47.2 — Parser tolerance', () => {
   describe('multi-word group names', () => {
     it('two-word group name', () => {
       const result = parseSequenceDgmo(
-        '## Order Service\n  API\n\nA -msg-> B'
+        '[Order Service]\n  API\n\nA -msg-> B'
       );
       expect(result.error).toBeNull();
       expect(result.groups).toHaveLength(1);
       expect(result.groups[0].name).toBe('Order Service');
     });
 
-    it('multi-word group with color', () => {
+    it('multi-word group with color emits warning', () => {
       const result = parseSequenceDgmo(
-        '## Payment Gateway(blue)\n  API\n\nA -msg-> B'
+        '[Payment Gateway(blue)]\n  API\n\nA -msg-> B'
       );
       expect(result.error).toBeNull();
       expect(result.groups[0].name).toBe('Payment Gateway');
-      expect(result.groups[0].color).toBe('blue');
+      const warnings = result.diagnostics.filter(d => d.severity === 'warning');
+      expect(warnings.some(w => w.message.includes('(blue)'))).toBe(true);
     });
 
     it('single-word group still works', () => {
       const result = parseSequenceDgmo(
-        '## Backend\n  API\n\nA -msg-> B'
+        '[Backend]\n  API\n\nA -msg-> B'
       );
       expect(result.error).toBeNull();
       expect(result.groups[0].name).toBe('Backend');
@@ -352,7 +359,7 @@ describe('Story 47.2 — Parser tolerance', () => {
 
     it('trailing spaces in group name are trimmed', () => {
       const result = parseSequenceDgmo(
-        '## Backend   \n  API\n\nA -msg-> B'
+        '[Backend]   \n  API\n\nA -msg-> B'
       );
       expect(result.error).toBeNull();
       expect(result.groups[0].name).toBe('Backend');
@@ -373,18 +380,20 @@ describe('Story 47.2 — Parser tolerance', () => {
       expect(result.sections[0].label).toBe('Phase One');
     });
 
-    it('section without trailing == and with color', () => {
+    it('section without trailing == and with color emits warning', () => {
       const result = parseSequenceDgmo('A -msg-> B\n== Critical(red)');
       expect(result.error).toBeNull();
       expect(result.sections[0].label).toBe('Critical');
-      expect(result.sections[0].color).toBe('red');
+      const warnings = result.diagnostics.filter(d => d.severity === 'warning');
+      expect(warnings.some(w => w.message.includes('(red)'))).toBe(true);
     });
 
-    it('section with trailing == and color', () => {
+    it('section with trailing == and color emits warning', () => {
       const result = parseSequenceDgmo('A -msg-> B\n== Critical(red) ==');
       expect(result.error).toBeNull();
       expect(result.sections[0].label).toBe('Critical');
-      expect(result.sections[0].color).toBe('red');
+      const warnings = result.diagnostics.filter(d => d.severity === 'warning');
+      expect(warnings.some(w => w.message.includes('(red)'))).toBe(true);
     });
   });
 
@@ -453,7 +462,7 @@ describe('Story 47.3 — parser validation', () => {
 
     it('option after a group produces error', () => {
       const result = parseSequenceDgmo(
-        'chart: sequence\n## Backend\n  API\nactivations: off\nAPI -query-> DB'
+        'chart: sequence\n[Backend]\n  API\nactivations: off\nAPI -query-> DB'
       );
       expect(result.error).toMatch(/Line 4.*must appear before/);
     });
@@ -469,7 +478,7 @@ describe('Story 47.3 — parser validation', () => {
   describe('duplicate participant group membership', () => {
     it('participant in two groups produces error', () => {
       const result = parseSequenceDgmo(
-        '## Backend(blue)\n  API\n\n## Frontend(red)\n  API\nAPI -query-> DB'
+        '[Backend(blue)]\n  API\n\n[Frontend(red)]\n  API\nAPI -query-> DB'
       );
       expect(result.error).toMatch(
         /Line 5.*Participant 'API' is already in group 'Backend'/
@@ -478,7 +487,7 @@ describe('Story 47.3 — parser validation', () => {
 
     it('participant in two groups via "is a" syntax produces error', () => {
       const result = parseSequenceDgmo(
-        '## Backend\n  API is a service\n\n## Frontend\n  API is a gateway\nAPI -query-> DB'
+        '[Backend]\n  API is a service\n\n[Frontend]\n  API is a gateway\nAPI -query-> DB'
       );
       expect(result.error).toMatch(
         /Line 5.*Participant 'API' is already in group 'Backend'/
@@ -487,7 +496,7 @@ describe('Story 47.3 — parser validation', () => {
 
     it('different participants in different groups is fine', () => {
       const result = parseSequenceDgmo(
-        '## Backend(blue)\n  API\n  DB\n\n## Frontend(red)\n  App\nAPI -query-> DB\nApp -request-> API'
+        '[Backend(blue)]\n  API\n  DB\n\n[Frontend(red)]\n  App\nAPI -query-> DB\nApp -request-> API'
       );
       expect(result.error).toBeNull();
       expect(result.groups).toHaveLength(2);
@@ -495,7 +504,7 @@ describe('Story 47.3 — parser validation', () => {
 
     it('same participant listed twice in same group is fine', () => {
       const result = parseSequenceDgmo(
-        '## Backend\n  API\n  API\nAPI -query-> DB'
+        '[Backend]\n  API\n  API\nAPI -query-> DB'
       );
       expect(result.error).toBeNull();
     });
@@ -512,9 +521,16 @@ describe('Story 47.3 — parser validation', () => {
       expect(result.error).toMatch(/Line 1.*Use \/\/ for comments/);
     });
 
-    it('## group heading does not error', () => {
+    it('## group heading produces migration error', () => {
       const result = parseSequenceDgmo(
         '## Backend\n  API\nAPI -query-> DB'
+      );
+      expect(result.error).toMatch(/no longer supported.*\[Backend\]/);
+    });
+
+    it('[Group] heading does not error', () => {
+      const result = parseSequenceDgmo(
+        '[Backend]\n  API\nAPI -query-> DB'
       );
       expect(result.error).toBeNull();
     });
@@ -996,5 +1012,322 @@ describe('looksLikeSequence with new arrows', () => {
     const parsed = parseSequenceDgmo('A -call-> B\nA <- B');
     expect(parsed.messages).toHaveLength(1);
     expect(parsed.diagnostics.length).toBeGreaterThan(0);
+  });
+});
+
+// ============================================================
+// Tag group declarations
+// ============================================================
+describe('tag group declarations', () => {
+  it('parses a single tag group with entries', () => {
+    const content = [
+      'tag: Concern alias c',
+      '  Caching(blue)',
+      '  Auth(green)',
+      '',
+      'A -req-> B',
+    ].join('\n');
+    const result = parseSequenceDgmo(content);
+    expect(result.error).toBeNull();
+    expect(result.tagGroups).toHaveLength(1);
+    expect(result.tagGroups[0].name).toBe('Concern');
+    expect(result.tagGroups[0].alias).toBe('c');
+    expect(result.tagGroups[0].entries).toHaveLength(2);
+    expect(result.tagGroups[0].entries[0].value).toBe('Caching');
+    expect(result.tagGroups[0].entries[1].value).toBe('Auth');
+  });
+
+  it('parses multiple tag groups', () => {
+    const content = [
+      'tag: Concern alias c',
+      '  Caching(blue)',
+      '  Auth(green)',
+      'tag: Team alias t',
+      '  Platform(purple)',
+      '  Product(orange)',
+      '',
+      'A -req-> B',
+    ].join('\n');
+    const result = parseSequenceDgmo(content);
+    expect(result.error).toBeNull();
+    expect(result.tagGroups).toHaveLength(2);
+    expect(result.tagGroups[0].name).toBe('Concern');
+    expect(result.tagGroups[1].name).toBe('Team');
+  });
+
+  it('parses default keyword on tag entry', () => {
+    const content = [
+      'tag: Role',
+      '  Gateway(blue) default',
+      '  Service(green)',
+      '',
+      'A -req-> B',
+    ].join('\n');
+    const result = parseSequenceDgmo(content);
+    expect(result.tagGroups[0].defaultValue).toBe('Gateway');
+  });
+
+  it('registers aliases in aliasMap', () => {
+    const content = [
+      'tag: Concern alias c',
+      '  Caching(blue)',
+      '',
+      'A -req-> B | c: Caching',
+    ].join('\n');
+    const result = parseSequenceDgmo(content);
+    // The alias "c" should resolve to "concern" in the metadata
+    expect(result.messages[0].metadata).toEqual({ concern: 'Caching' });
+  });
+
+  it('errors when tag group appears after content', () => {
+    const content = [
+      'A -req-> B',
+      'tag: Concern',
+      '  Caching(blue)',
+    ].join('\n');
+    const result = parseSequenceDgmo(content);
+    expect(result.diagnostics.some(d => d.message.includes('before sequence content'))).toBe(true);
+  });
+
+  it('errors on entry without color', () => {
+    const content = [
+      'tag: Concern',
+      '  Caching',
+      '',
+      'A -req-> B',
+    ].join('\n');
+    const result = parseSequenceDgmo(content);
+    expect(result.diagnostics.some(d => d.message.includes("Expected 'Value(color)'"))).toBe(true);
+  });
+
+  it('does not treat ## as tag group in sequence diagrams', () => {
+    const content = [
+      '## Backend',
+      '  API',
+      '',
+      'A -req-> B',
+    ].join('\n');
+    const result = parseSequenceDgmo(content);
+    // ## in sequence is a legacy group syntax error, not a tag group
+    expect(result.tagGroups).toHaveLength(0);
+  });
+});
+
+// ============================================================
+// Pipe metadata on participants
+// ============================================================
+describe('pipe metadata on participants', () => {
+  it('parses metadata on "is a" declaration', () => {
+    const content = [
+      'API is a gateway | role: Gateway, team: Platform',
+      'DB is a database',
+      'API -query-> DB',
+    ].join('\n');
+    const result = parseSequenceDgmo(content);
+    expect(result.error).toBeNull();
+    const api = result.participants.find(p => p.id === 'API');
+    expect(api?.metadata).toEqual({ role: 'Gateway', team: 'Platform' });
+    const db = result.participants.find(p => p.id === 'DB');
+    expect(db?.metadata).toBeUndefined();
+  });
+
+  it('parses metadata on colored participant (color stripped with warning)', () => {
+    const content = [
+      'API(blue) | role: Gateway',
+      'API -req-> DB',
+    ].join('\n');
+    const result = parseSequenceDgmo(content);
+    const api = result.participants.find(p => p.id === 'API');
+    expect(api?.metadata).toEqual({ role: 'Gateway' });
+    const warnings = result.diagnostics.filter(d => d.severity === 'warning');
+    expect(warnings.some(w => w.message.includes('(blue)'))).toBe(true);
+  });
+
+  it('parses metadata on bare participant in group', () => {
+    const content = [
+      '[Backend]',
+      '  API | role: Gateway',
+      '',
+      'API -req-> DB',
+    ].join('\n');
+    const result = parseSequenceDgmo(content);
+    const api = result.participants.find(p => p.id === 'API');
+    expect(api?.metadata).toEqual({ role: 'Gateway' });
+    expect(result.groups[0].participantIds).toContain('API');
+  });
+
+  it('parses metadata on position declaration', () => {
+    const content = [
+      'DB position -1 | role: Storage',
+      'API -req-> DB',
+    ].join('\n');
+    const result = parseSequenceDgmo(content);
+    const db = result.participants.find(p => p.id === 'DB');
+    expect(db?.position).toBe(-1);
+    expect(db?.metadata).toEqual({ role: 'Storage' });
+  });
+
+  it('resolves alias in participant metadata', () => {
+    const content = [
+      'tag: Concern alias c',
+      '  Caching(blue)',
+      '',
+      'API is a gateway | c: Caching',
+      'API -req-> DB',
+    ].join('\n');
+    const result = parseSequenceDgmo(content);
+    const api = result.participants.find(p => p.id === 'API');
+    expect(api?.metadata).toEqual({ concern: 'Caching' });
+  });
+});
+
+// ============================================================
+// Pipe metadata on messages
+// ============================================================
+describe('pipe metadata on messages', () => {
+  it('parses metadata on labeled arrow', () => {
+    const content = 'A -request-> B | c: Caching';
+    const result = parseSequenceDgmo(content);
+    expect(result.error).toBeNull();
+    expect(result.messages[0].metadata).toEqual({ c: 'Caching' });
+    expect(result.messages[0].label).toBe('request');
+    expect(result.messages[0].from).toBe('A');
+    expect(result.messages[0].to).toBe('B');
+  });
+
+  it('parses metadata on async arrow', () => {
+    const content = 'A ~fire~> B | c: Async';
+    const result = parseSequenceDgmo(content);
+    expect(result.messages[0].async).toBe(true);
+    expect(result.messages[0].metadata).toEqual({ c: 'Async' });
+  });
+
+  it('parses metadata on bare arrow', () => {
+    const content = 'A -> B | c: Caching';
+    const result = parseSequenceDgmo(content);
+    expect(result.messages[0].metadata).toEqual({ c: 'Caching' });
+    expect(result.messages[0].label).toBe('');
+  });
+
+  it('parses metadata on bare async arrow', () => {
+    const content = 'A ~> B | c: Async';
+    const result = parseSequenceDgmo(content);
+    expect(result.messages[0].async).toBe(true);
+    expect(result.messages[0].metadata).toEqual({ c: 'Async' });
+  });
+
+  it('parses multiple metadata keys', () => {
+    const content = 'A -req-> B | c: Caching, t: Platform';
+    const result = parseSequenceDgmo(content);
+    expect(result.messages[0].metadata).toEqual({ c: 'Caching', t: 'Platform' });
+  });
+
+  it('parses multiple pipe-separated metadata', () => {
+    const content = 'A -req-> B | c: Caching | t: Platform';
+    const result = parseSequenceDgmo(content);
+    expect(result.messages[0].metadata).toEqual({ c: 'Caching', t: 'Platform' });
+  });
+
+  it('resolves alias in message metadata', () => {
+    const content = [
+      'tag: Concern alias c',
+      '  Caching(blue)',
+      '',
+      'A -req-> B | c: Caching',
+    ].join('\n');
+    const result = parseSequenceDgmo(content);
+    expect(result.messages[0].metadata).toEqual({ concern: 'Caching' });
+  });
+
+  it('no metadata when no pipe present', () => {
+    const content = 'A -req-> B';
+    const result = parseSequenceDgmo(content);
+    expect(result.messages[0].metadata).toBeUndefined();
+  });
+});
+
+// ============================================================
+// Pipe metadata on group headers
+// ============================================================
+describe('pipe metadata on group headers', () => {
+  it('parses metadata on group heading', () => {
+    const content = [
+      '[Backend | t: Product]',
+      '  API',
+      '',
+      'API -req-> DB',
+    ].join('\n');
+    const result = parseSequenceDgmo(content);
+    expect(result.groups[0].name).toBe('Backend');
+    expect(result.groups[0].metadata).toEqual({ t: 'Product' });
+  });
+
+  it('parses metadata with color on group heading (color stripped with warning)', () => {
+    const content = [
+      '[Backend(blue) | t: Product]',
+      '  API',
+      '',
+      'API -req-> DB',
+    ].join('\n');
+    const result = parseSequenceDgmo(content);
+    expect(result.groups[0].name).toBe('Backend');
+    expect(result.groups[0].metadata).toEqual({ t: 'Product' });
+    const warnings = result.diagnostics.filter(d => d.severity === 'warning');
+    expect(warnings.some(w => w.message.includes('(blue)'))).toBe(true);
+  });
+
+  it('group without pipe has no metadata', () => {
+    const content = [
+      '[Backend]',
+      '  API',
+      '',
+      'API -req-> DB',
+    ].join('\n');
+    const result = parseSequenceDgmo(content);
+    expect(result.groups[0].metadata).toBeUndefined();
+  });
+});
+
+// ============================================================
+// Tag validation
+// ============================================================
+describe('tag validation on sequence diagrams', () => {
+  it('warns on unknown tag value in message', () => {
+    const content = [
+      'tag: Concern',
+      '  Caching(blue)',
+      '  Auth(green)',
+      '',
+      'A -req-> B | concern: Typo',
+    ].join('\n');
+    const result = parseSequenceDgmo(content);
+    const warnings = result.diagnostics.filter(d => d.severity === 'warning');
+    expect(warnings.some(w => w.message.includes("Unknown value 'Typo'"))).toBe(true);
+  });
+
+  it('no warning for valid tag value', () => {
+    const content = [
+      'tag: Concern',
+      '  Caching(blue)',
+      '',
+      'A -req-> B | concern: Caching',
+    ].join('\n');
+    const result = parseSequenceDgmo(content);
+    const warnings = result.diagnostics.filter(d => d.severity === 'warning');
+    expect(warnings).toHaveLength(0);
+  });
+
+  it('warns on unknown value with did-you-mean', () => {
+    const content = [
+      'tag: Concern',
+      '  Caching(blue)',
+      '',
+      'A -req-> B | concern: Cachng',
+    ].join('\n');
+    const result = parseSequenceDgmo(content);
+    const warnings = result.diagnostics.filter(d => d.severity === 'warning');
+    expect(warnings.length).toBeGreaterThan(0);
+    // Should contain either a did-you-mean or list of defined values
+    expect(warnings[0].message).toMatch(/Caching/);
   });
 });

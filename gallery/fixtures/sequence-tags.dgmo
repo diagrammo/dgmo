@@ -1,0 +1,42 @@
+chart: sequence
+title: API Gateway — Infrastructure Concerns
+active-tag: Concern
+
+tag: Concern alias c
+  Caching(blue)
+  Auth(green)
+  RateLimiting(orange)
+  BusinessLogic(purple) default
+
+tag: Team alias t
+  Platform(teal)
+  Product(orange)
+  Security(red)
+
+Mobile is an actor
+Gateway is a gateway | t: Platform
+Redis is a cache | c: Caching, t: Platform
+
+[Backend | t: Product]
+  UserAPI is a service
+  OrderAPI is a service
+  DB is a database
+
+== Authentication ==
+Mobile -POST /orders-> Gateway
+Gateway -verify token-> Gateway | c: Auth
+Gateway -check rate limit-> Redis | c: RateLimiting
+
+== Business Logic ==
+Gateway -POST /orders-> OrderAPI
+OrderAPI -getUser(id)-> UserAPI
+UserAPI -SELECT user-> DB
+DB -user-> UserAPI
+UserAPI -user-> OrderAPI
+OrderAPI -INSERT order-> DB
+DB -ok-> OrderAPI
+OrderAPI -201 Created-> Gateway
+
+== Response ==
+Gateway -cache response-> Redis | c: Caching
+Gateway -201 Created-> Mobile

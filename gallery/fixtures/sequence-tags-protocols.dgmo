@@ -1,0 +1,46 @@
+chart: sequence
+title: Order Fulfillment — Protocols & Ownership
+active-tag: Protocol
+
+tag: Protocol alias p
+  REST(blue)
+  gRPC(green)
+  Async(orange)
+  SQL(purple)
+
+tag: Owner alias o
+  Checkout(teal)
+  Fulfillment(orange)
+  Payments(red)
+  Data(blue)
+
+Buyer is an actor
+CheckoutSvc is a service | o: Checkout
+InventorySvc is a service | o: Fulfillment
+PaymentSvc is a service | o: Payments
+OrderDB is a database | o: Data
+EventBus is a queue
+
+== Place Order ==
+Buyer -POST /checkout-> CheckoutSvc | p: REST
+CheckoutSvc -reserveItems(skus)-> InventorySvc | p: gRPC
+InventorySvc -UPDATE stock-> OrderDB | p: SQL
+OrderDB -ok-> InventorySvc
+InventorySvc -reserved-> CheckoutSvc
+
+== Payment ==
+CheckoutSvc -charge(amount)-> PaymentSvc | p: REST
+PaymentSvc -confirmed-> CheckoutSvc
+
+== Fulfillment ==
+CheckoutSvc -INSERT order-> OrderDB | p: SQL
+CheckoutSvc ~OrderPlaced~> EventBus | p: Async
+
+parallel Notify
+  EventBus ~fulfill~> InventorySvc | p: Async
+  EventBus ~analytics~> OrderDB | p: Async
+
+InventorySvc -createShipment-> InventorySvc
+InventorySvc ~ShipmentCreated~> EventBus | p: Async
+EventBus ~shipment update~> CheckoutSvc | p: Async
+CheckoutSvc -shipment confirmation-> Buyer | p: REST

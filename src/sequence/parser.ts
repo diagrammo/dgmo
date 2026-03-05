@@ -6,7 +6,9 @@ import { inferParticipantType } from './participant-inference';
 import type { DgmoError } from '../diagnostics';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
 import { parseArrow } from '../utils/arrows';
-import { measureIndent } from '../utils/parsing';
+import { measureIndent, extractColor, parsePipeMetadata } from '../utils/parsing';
+import type { TagGroup } from '../utils/tag-groups';
+import { matchTagBlockHeading, validateTagValues } from '../utils/tag-groups';
 
 /**
  * Participant types that can be declared via "Name is a type" syntax.
@@ -49,6 +51,8 @@ export interface SequenceParticipant {
   lineNumber: number;
   /** Explicit layout position override (0-based from left, negative from right) */
   position?: number;
+  /** Pipe-delimited tag metadata (e.g. `| role: Gateway`) */
+  metadata?: Record<string, string>;
 }
 
 /**
@@ -60,6 +64,8 @@ export interface SequenceMessage {
   label: string;
   lineNumber: number;
   async?: boolean;
+  /** Pipe-delimited tag metadata (e.g. `| c: Caching`) */
+  metadata?: Record<string, string>;
 }
 
 /**
@@ -86,7 +92,6 @@ export interface SequenceBlock {
 export interface SequenceSection {
   kind: 'section';
   label: string;
-  color?: string;
   lineNumber: number;
 }
 
@@ -125,9 +130,10 @@ export function isSequenceNote(el: SequenceElement): el is SequenceNote {
  */
 export interface SequenceGroup {
   name: string;
-  color?: string;
   participantIds: string[];
   lineNumber: number;
+  /** Pipe-delimited tag metadata (e.g. `[Backend | t: Product]`) */
+  metadata?: Record<string, string>;
 }
 
 /**
@@ -141,6 +147,7 @@ export interface ParsedSequenceDgmo {
   elements: SequenceElement[];
   groups: SequenceGroup[];
   sections: SequenceSection[];
+  tagGroups: TagGroup[];
   options: Record<string, string>;
   diagnostics: DgmoError[];
   error: string | null;
@@ -153,8 +160,13 @@ const IS_A_PATTERN = /^(\S+)\s+is\s+an?\s+(\w+)(?:\s+(.+))?$/i;
 // Standalone "Name position N" pattern — e.g. "DB position -1"
 const POSITION_ONLY_PATTERN = /^(\S+)\s+position\s+(-?\d+)$/i;
 
-// Group heading pattern — "## Backend", "## API Services(blue)", "## Backend(#hex)"
-const GROUP_HEADING_PATTERN = /^##\s+(.+?)(?:\(([^)]+)\))?\s*$/;
+// Colored participant declaration — e.g. "Tapin2(green)", "API(blue)"
+const COLORED_PARTICIPANT_PATTERN = /^(\S+?)\(([^)]+)\)\s*$/;
+
+// Group heading pattern — "[Backend]", "[API Services(blue)]", "[Backend(#hex)]"
+const GROUP_HEADING_PATTERN = /^\[(.+?)(?:\(([^)]+)\))?\]\s*$/;
+// Legacy ## syntax — detect and emit migration error
+const LEGACY_GROUP_PATTERN = /^##\s+(.+?)(?:\(([^)]+)\))?\s*$/;
 
 // Section divider pattern — "== Label ==", "== Label(color) ==", or "== Label" (trailing == optional)
 const SECTION_PATTERN = /^==\s+(.+?)(?:\s*==)?\s*$/;
@@ -178,6 +190,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     elements: [],
     groups: [],
     sections: [],
+    tagGroups: [],
     options: {},
     diagnostics: [],
     error: null,
@@ -197,6 +210,11 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     if (!result.error) result.error = formatDgmoError(diag);
   };
 
+  /** Push a non-fatal warning (does not set result.error). */
+  const pushWarning = (line: number, message: string): void => {
+    result.diagnostics.push(makeDgmoError(line, message, 'warning'));
+  };
+
   if (!content || !content.trim()) {
     return fail(0, 'Empty content');
   }
@@ -205,11 +223,25 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
   let hasExplicitChart = false;
   let contentStarted = false;
 
-  // Group parsing state — tracks the active ## group heading
+  // Group parsing state — tracks the active [Group] heading
   let activeGroup: SequenceGroup | null = null;
 
   // Track participant → group name for duplicate membership detection
   const participantGroupMap = new Map<string, string>();
+
+  // Tag group parsing state
+  let currentTagGroup: TagGroup | null = null;
+  const aliasMap = new Map<string, string>();
+
+  /** Split pipe metadata from a line: "core | k: v" → { core, meta } */
+  const splitPipe = (text: string): { core: string; meta?: Record<string, string> } => {
+    const idx = text.indexOf('|');
+    if (idx < 0) return { core: text };
+    const core = text.substring(0, idx).trimEnd();
+    const segments = text.substring(idx).split('|');
+    const meta = parsePipeMetadata(segments, aliasMap);
+    return Object.keys(meta).length > 0 ? { core, meta } : { core };
+  };
 
   // Block parsing state
   const blockStack: {
@@ -236,25 +268,55 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     // Skip empty lines
     if (!trimmed) {
       activeGroup = null;
+      currentTagGroup = null;
       continue;
     }
 
-    // Parse group heading — must be checked before comment skip since ## starts with #
+    // Parse group heading — [Group Name] or [Group Name(color)] or [Group | k: v]
     const groupMatch = trimmed.match(GROUP_HEADING_PATTERN);
     if (groupMatch) {
-      const groupColor = groupMatch[2]?.trim();
-      if (groupColor && groupColor.startsWith('#')) {
-        pushError(lineNumber, 'Use a named color instead of hex (e.g., blue, red, teal)');
-        continue;
+      let groupName = groupMatch[1].trim();
+      let groupColor = groupMatch[2]?.trim();
+      let groupMeta: Record<string, string> | undefined;
+
+      // Check for pipe metadata inside brackets
+      const gpipeIdx = groupName.indexOf('|');
+      if (gpipeIdx >= 0) {
+        const nameAndColor = groupName.substring(0, gpipeIdx).trimEnd();
+        const segments = groupName.substring(gpipeIdx).split('|');
+        const meta = parsePipeMetadata(segments, aliasMap);
+        if (Object.keys(meta).length > 0) groupMeta = meta;
+        // Re-extract color from name part
+        const colorSuffix = nameAndColor.match(/^(.+?)\(([^)]+)\)$/);
+        if (colorSuffix) {
+          groupName = colorSuffix[1].trim();
+          groupColor = colorSuffix[2].trim();
+        } else {
+          groupName = nameAndColor;
+        }
+      }
+
+      if (groupColor) {
+        pushWarning(lineNumber, `(${groupColor}) color syntax removed from sequence diagrams — use 'tag:' groups for coloring`);
       }
       contentStarted = true;
       activeGroup = {
-        name: groupMatch[1].trim(),
-        color: groupColor || undefined,
+        name: groupName,
         participantIds: [],
         lineNumber,
+        ...(groupMeta ? { metadata: groupMeta } : {}),
       };
       result.groups.push(activeGroup);
+      continue;
+    }
+
+    // Reject legacy ## group syntax with migration hint
+    if (trimmed.match(LEGACY_GROUP_PATTERN)) {
+      const legacyMatch = trimmed.match(LEGACY_GROUP_PATTERN)!;
+      const name = legacyMatch[1].trim();
+      const color = legacyMatch[2]?.trim();
+      const suggestion = color ? `[${name}(${color})]` : `[${name}]`;
+      pushError(lineNumber, `'## ${name}' group syntax is no longer supported. Use '${suggestion}' instead`);
       continue;
     }
 
@@ -266,10 +328,54 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     // Skip comments — only // is supported
     if (trimmed.startsWith('//')) continue;
 
-    // Reject # as comment syntax (## is for group headings, handled above)
-    if (trimmed.startsWith('#') && !trimmed.startsWith('##')) {
-      pushError(lineNumber, 'Use // for comments. # is reserved for group headings (##)');
+    // Reject # as comment syntax
+    if (trimmed.startsWith('#')) {
+      pushError(lineNumber, 'Use // for comments');
       continue;
+    }
+
+    // ---- Tag group handling ----
+    // Tag block heading: "tag: Name [alias X]"
+    const tagBlockMatch = matchTagBlockHeading(trimmed);
+    if (tagBlockMatch && !tagBlockMatch.deprecated) {
+      if (contentStarted) {
+        pushError(lineNumber, 'Tag groups must appear before sequence content');
+        continue;
+      }
+      currentTagGroup = {
+        name: tagBlockMatch.name,
+        alias: tagBlockMatch.alias,
+        entries: [],
+        lineNumber,
+      };
+      if (tagBlockMatch.alias) {
+        aliasMap.set(tagBlockMatch.alias.toLowerCase(), tagBlockMatch.name.toLowerCase());
+      }
+      result.tagGroups.push(currentTagGroup);
+      continue;
+    }
+
+    // Tag group entries (indented Value(color) [default] under tag: heading)
+    if (currentTagGroup && !contentStarted && measureIndent(raw) > 0) {
+      const isDefault = /\bdefault\s*$/.test(trimmed);
+      const entryText = isDefault
+        ? trimmed.replace(/\s+default\s*$/, '').trim()
+        : trimmed;
+      const { label, color } = extractColor(entryText);
+      if (!color) {
+        pushError(lineNumber, `Expected 'Value(color)' in tag group '${currentTagGroup.name}'`);
+        continue;
+      }
+      if (isDefault) {
+        currentTagGroup.defaultValue = label;
+      }
+      currentTagGroup.entries.push({ value: label, color, lineNumber });
+      continue;
+    }
+
+    // Non-indented line after tag group — close it
+    if (currentTagGroup) {
+      currentTagGroup = null;
     }
 
     // Parse section dividers — "== Label ==" or "== Label(color) =="
@@ -284,15 +390,13 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       }
       const labelRaw = sectionMatch[1].trim();
       const colorMatch = labelRaw.match(/^(.+?)\(([^)]+)\)$/);
-      if (colorMatch && colorMatch[2].trim().startsWith('#')) {
-        pushError(lineNumber, 'Use a named color instead of hex (e.g., blue, red, teal)');
-        continue;
+      if (colorMatch) {
+        pushWarning(lineNumber, `(${colorMatch[2].trim()}) color syntax removed from sequence diagrams — use 'tag:' groups for coloring`);
       }
       contentStarted = true;
       const section: SequenceSection = {
         kind: 'section',
         label: colorMatch ? colorMatch[1].trim() : labelRaw,
-        color: colorMatch ? colorMatch[2].trim() : undefined,
         lineNumber,
       };
       result.sections.push(section);
@@ -303,7 +407,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     // Parse header key: value lines (always top-level)
     // Skip 'note' lines — parsed in the indent-aware section below
     const colonIndex = trimmed.indexOf(':');
-    if (colonIndex > 0 && !trimmed.includes('->') && !trimmed.includes('~>') && !trimmed.includes('<-') && !trimmed.includes('<~')) {
+    if (colonIndex > 0 && !trimmed.includes('->') && !trimmed.includes('~>') && !trimmed.includes('<-') && !trimmed.includes('<~') && !trimmed.includes('|')) {
       const key = trimmed.substring(0, colonIndex).trim().toLowerCase();
       if (key === 'note' || key.startsWith('note ')) {
         // Fall through to indent-aware note parsing below
@@ -337,7 +441,8 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     }
 
     // Parse "Name is a type [aka Alias]" declarations (always top-level)
-    const isAMatch = trimmed.match(IS_A_PATTERN);
+    const { core: isACore, meta: isAMeta } = splitPipe(trimmed);
+    const isAMatch = isACore.match(IS_A_PATTERN);
     if (isAMatch) {
       contentStarted = true;
       const id = isAMatch[1];
@@ -366,6 +471,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
           type: participantType,
           lineNumber,
           ...(position !== undefined ? { position } : {}),
+          ...(isAMeta ? { metadata: isAMeta } : {}),
         });
       }
       // Track group membership
@@ -382,7 +488,8 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     }
 
     // Parse standalone "Name position N" (no "is a" type)
-    const posOnlyMatch = trimmed.match(POSITION_ONLY_PATTERN);
+    const { core: posCore, meta: posMeta } = splitPipe(trimmed);
+    const posOnlyMatch = posCore.match(POSITION_ONLY_PATTERN);
     if (posOnlyMatch) {
       contentStarted = true;
       const id = posOnlyMatch[1];
@@ -395,6 +502,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
           type: inferParticipantType(id),
           lineNumber,
           position,
+          ...(posMeta ? { metadata: posMeta } : {}),
         });
       }
       // Track group membership
@@ -410,19 +518,25 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       continue;
     }
 
-    // Bare participant name inside an active group (single identifier on an indented line)
-    if (activeGroup && measureIndent(raw) > 0 && /^\S+$/.test(trimmed)) {
+    // Colored participant declaration — "Name(color)" at any level
+    // Color syntax is deprecated — emit warning and register without color
+    const { core: colorCore, meta: colorMeta } = splitPipe(trimmed);
+    const coloredMatch = colorCore.match(COLORED_PARTICIPANT_PATTERN);
+    if (coloredMatch && !ARROW_PATTERN.test(colorCore)) {
+      const id = coloredMatch[1];
+      const color = coloredMatch[2].trim();
+      pushWarning(lineNumber, `(${color}) color syntax removed from sequence diagrams — use 'tag:' groups for coloring`);
       contentStarted = true;
-      const id = trimmed;
       if (!result.participants.some((p) => p.id === id)) {
         result.participants.push({
           id,
           label: id,
           type: inferParticipantType(id),
           lineNumber,
+          ...(colorMeta ? { metadata: colorMeta } : {}),
         });
       }
-      if (!activeGroup.participantIds.includes(id)) {
+      if (activeGroup && !activeGroup.participantIds.includes(id)) {
         const existingGroup = participantGroupMap.get(id);
         if (existingGroup) {
           pushError(lineNumber, `Participant '${id}' is already in group '${existingGroup}' — participants can only belong to one group`);
@@ -432,6 +546,35 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
         }
       }
       continue;
+    }
+
+    // Bare participant name inside an active group (single identifier on an indented line)
+    // Supports pipe metadata: "  API | c: Gateway"
+    if (activeGroup && measureIndent(raw) > 0) {
+      const { core: bareCore, meta: bareMeta } = splitPipe(trimmed);
+      if (/^\S+$/.test(bareCore)) {
+        contentStarted = true;
+        const id = bareCore;
+        if (!result.participants.some((p) => p.id === id)) {
+          result.participants.push({
+            id,
+            label: id,
+            type: inferParticipantType(id),
+            lineNumber,
+            ...(bareMeta ? { metadata: bareMeta } : {}),
+          });
+        }
+        if (!activeGroup.participantIds.includes(id)) {
+          const existingGroup = participantGroupMap.get(id);
+          if (existingGroup) {
+            pushError(lineNumber, `Participant '${id}' is already in group '${existingGroup}' — participants can only belong to one group`);
+          } else {
+            activeGroup.participantIds.push(id);
+            participantGroupMap.set(id, activeGroup.name);
+          }
+        }
+        continue;
+      }
     }
 
     // ---- Indent-aware parsing for messages and block keywords ----
@@ -452,9 +595,12 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       blockStack.pop();
     }
 
+    // Split pipe metadata before arrow parsing (arrows use $ anchor)
+    const { core: arrowCore, meta: arrowMeta } = splitPipe(trimmed);
+
     // Parse message lines first — arrows take priority over keywords
     // Reject "async" keyword prefix — use ~> instead
-    const asyncPrefixMatch = trimmed.match(/^async\s+(.+)$/i);
+    const asyncPrefixMatch = arrowCore.match(/^async\s+(.+)$/i);
     if (asyncPrefixMatch && ARROW_PATTERN.test(asyncPrefixMatch[1])) {
       pushError(lineNumber, 'Use ~> for async messages: A ~> B: message');
       continue;
@@ -462,7 +608,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
 
     // ---- Labeled arrows: -label->, ~label~> ----
     // Must be checked BEFORE plain arrow patterns to avoid partial matches
-    const labeledArrow = parseArrow(trimmed);
+    const labeledArrow = parseArrow(arrowCore);
     if (labeledArrow && 'error' in labeledArrow) {
       pushError(lineNumber, labeledArrow.error);
       continue;
@@ -478,6 +624,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
         label,
         lineNumber,
         ...(isAsync ? { async: true } : {}),
+        ...(arrowMeta ? { metadata: arrowMeta } : {}),
       };
       result.messages.push(msg);
       currentContainer().push(msg);
@@ -503,10 +650,10 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     }
 
     // ---- Error: old colon-postfix syntax (A -> B: msg) ----
-    const colonPostfixSync = trimmed.match(
+    const colonPostfixSync = arrowCore.match(
       /^(\S+)\s*->\s*([^\s:]+)\s*:\s*(.+)$/
     );
-    const colonPostfixAsync = trimmed.match(
+    const colonPostfixAsync = arrowCore.match(
       /^(\S+)\s*~>\s*([^\s:]+)\s*:\s*(.+)$/
     );
     const colonPostfix = colonPostfixSync || colonPostfixAsync;
@@ -524,7 +671,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     }
 
     // ---- Error: plain bidirectional arrows (A <-> B, A <~> B) ----
-    const bidiPlainMatch = trimmed.match(
+    const bidiPlainMatch = arrowCore.match(
       /^(\S+)\s*(?:<->|<~>)\s*(\S+)/
     );
     if (bidiPlainMatch) {
@@ -536,8 +683,8 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     }
 
     // ---- Deprecated bare return arrows: A <- B, A <~ B ----
-    const bareReturnSync = trimmed.match(/^(\S+)\s+<-\s+(\S+)$/);
-    const bareReturnAsync = trimmed.match(/^(\S+)\s+<~\s+(\S+)$/);
+    const bareReturnSync = arrowCore.match(/^(\S+)\s+<-\s+(\S+)$/);
+    const bareReturnAsync = arrowCore.match(/^(\S+)\s+<~\s+(\S+)$/);
     const bareReturn = bareReturnSync || bareReturnAsync;
     if (bareReturn) {
       const to = bareReturn[1];
@@ -550,8 +697,8 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     }
 
     // ---- Bare (unlabeled) call arrows: A -> B, A ~> B ----
-    const bareCallSync = trimmed.match(/^(\S+)\s*->\s*(\S+)$/);
-    const bareCallAsync = trimmed.match(/^(\S+)\s*~>\s*(\S+)$/);
+    const bareCallSync = arrowCore.match(/^(\S+)\s*->\s*(\S+)$/);
+    const bareCallAsync = arrowCore.match(/^(\S+)\s*~>\s*(\S+)$/);
     const bareCall = bareCallSync || bareCallAsync;
     if (bareCall) {
       contentStarted = true;
@@ -565,6 +712,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
         label: '',
         lineNumber,
         ...(bareCallAsync ? { async: true } : {}),
+        ...(arrowMeta ? { metadata: arrowMeta } : {}),
       };
       result.messages.push(msg);
       currentContainer().push(msg);
@@ -747,10 +895,6 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     }
   }
 
-  const warn = (line: number, message: string): void => {
-    result.diagnostics.push(makeDgmoError(line, message, 'warning'));
-  };
-
   // Warn about unused participants (only when the diagram has messages)
   if (result.messages.length > 0) {
     const usedIds = new Set<string>();
@@ -778,7 +922,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
 
     for (const p of result.participants) {
       if (!usedIds.has(p.id)) {
-        warn(p.lineNumber, `Participant "${p.label}" is declared but never used in any message or note`);
+        pushWarning(p.lineNumber, `Participant "${p.label}" is declared but never used in any message or note`);
       }
     }
   }
@@ -786,8 +930,23 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
   // Warn about empty groups
   for (const group of result.groups) {
     if (group.participantIds.length === 0) {
-      warn(group.lineNumber, `Group "${group.name}" has no participants`);
+      pushWarning(group.lineNumber, `Group "${group.name}" has no participants`);
     }
+  }
+
+  // Validate tag group values on participants and messages
+  if (result.tagGroups.length > 0) {
+    const entities: Array<{ metadata: Record<string, string>; lineNumber: number }> = [];
+    for (const p of result.participants) {
+      if (p.metadata) entities.push({ metadata: p.metadata, lineNumber: p.lineNumber });
+    }
+    for (const m of result.messages) {
+      if (m.metadata) entities.push({ metadata: m.metadata, lineNumber: m.lineNumber });
+    }
+    for (const g of result.groups) {
+      if (g.metadata) entities.push({ metadata: g.metadata, lineNumber: g.lineNumber });
+    }
+    validateTagValues(entities, result.tagGroups, pushWarning, suggest);
   }
 
   return result;

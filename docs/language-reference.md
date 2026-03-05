@@ -465,9 +465,45 @@ API -200 OK-> User
 
 **Sections**: `== Section Title ==` or `== Section Title(color) ==`
 
-**Groups**: `## Group Name` — visual grouping box around messages
+**Groups**: `[Group Name]` or `[Group Name(color)]` — visual grouping box around participants
 
-**Options**: `activations: off`, `collapse-notes: no`
+**Options**: `activations: off`, `collapse-notes: no`, `active-tag: GroupName`
+
+**Tag groups** — define color-coded metadata dimensions for interactive recoloring:
+
+```
+tag: Concern alias c
+  Caching(blue)
+  Auth(green)
+  BusinessLogic(purple) default
+```
+
+- `tag: Name` declares a tag group; `alias x` adds a shorthand
+- Each entry: `Value(color)` — named color for that value
+- `default` on an entry applies it to untagged elements when the group is active
+
+**Pipe metadata** — attach tag values to participants, messages, and groups:
+
+```
+API is a service | concern: Caching, team: Platform
+User -login-> API | concern: Auth
+[Backend | concern: BusinessLogic]
+  OrderAPI
+  DB
+```
+
+- `| key: value` after participant declarations, message lines, or group headers
+- Multiple tags: `| key1: val1, key2: val2`
+- Aliases work: `| c: Caching` (if `alias c` was declared)
+
+**Tag resolution priority** (when a tag group is active):
+1. Explicit metadata on the participant
+2. Group propagation (participant inherits from its group)
+3. Receiver inheritance (all incoming tagged messages agree on same value)
+4. `default` entry value
+5. Neutral (no color)
+
+**Legend** — rendered automatically above participants when tag groups exist. The active group expands to show colored entry dots. Click a group pill to activate it (in the desktop app).
 
 ### flowchart
 
@@ -500,6 +536,55 @@ title: Decision Process
 **Arrows**: `-label-> Target`, `-(color)-> Target`, `-label(color)-> Target`
 
 Colors on nodes: `[Process(blue)]`
+
+### state
+
+Minimal example:
+
+```
+[*] -> Idle -> Active -> [*]
+```
+
+Full example:
+
+```
+chart: state
+title: Order Lifecycle
+direction: LR
+
+## Processing(blue)
+  Validating -valid-> Approved
+  Validating -invalid-> Rejected(red)
+
+[*] -> Pending -submit-> Validating
+Approved -ship-> Shipped -> [*]
+Rejected -> [*]
+Shipped -return-> Pending
+```
+
+**States**: bare text — `Idle`, `Active`, `Processing`. Optional color suffix: `Active(green)`.
+
+**Pseudostates**: `[*]` — rendered as a filled circle. Use for start and end points.
+
+**Transitions**: `->`, `-label->`, `-(color)->`, `-label(color)->`.
+
+**Chains**: `A -> B -> C` on a single line creates two transitions.
+
+**Indentation**: indented lines use the parent as implicit source:
+
+```
+Idle
+  -start-> Running
+  -configure-> Configuring
+```
+
+is equivalent to `Idle -start-> Running` and `Idle -configure-> Configuring`.
+
+**Groups**: `## GroupName` or `## GroupName(color)` — groups subsequent indented states visually.
+
+**Self-loops**: `Running -retry-> Running` — a state transitioning to itself.
+
+**Options**: `direction` (`TB` or `LR`), `title`, `color: off` (monochrome mode).
 
 ### class
 
@@ -566,12 +651,11 @@ Minimal example:
 users
   id: int [pk]
   name: varchar
+  1-* posts
 
 posts
   id: int [pk]
   user_id: int [fk]
-
-users 1--* posts : writes
 ```
 
 Full example:
@@ -584,6 +668,8 @@ users
   id: int [pk]
   email: varchar [unique]
   name: varchar
+  1-writes-* posts
+  ?-moderates-* categories
 
 posts
   id: int [pk]
@@ -595,20 +681,23 @@ posts
 categories
   id: int [pk]
   name: varchar [unique]
-
-users 1--* posts : writes
-categories 1--* posts : contains
-users ?--* categories : moderates
+  1-* posts
 ```
 
 **Columns**: `name: type [constraints]`. Constraints: `pk`, `fk`, `unique`, `nullable`. Multiple: `[fk, nullable]`.
 
-**Relationships** (symbolic cardinality):
-- `1--1` — one-to-one
-- `1--*` — one-to-many
-- `?--1` — zero-or-one to one
-- `?--*` — zero-or-more
-- Optional label: `table1 1--* table2 : description`
+**Relationships** — indented under the source table (preferred):
+- `1-* target` — one-to-many
+- `1-1 target` — one-to-one
+- `?-1 target` — zero-or-one to one
+- `?-* target` — zero-or-more
+- Labeled: `1-writes-* target` (label between dashes)
+
+Columns and relationships can be mixed under the same table. The parser distinguishes them by the leading cardinality character (`1`, `*`, `?`).
+
+**Flat relationships** — at indent 0 (also supported):
+- `table1 1--* table2` — one-to-many
+- `table1 1--* table2 : label` — with label
 
 ### c4
 

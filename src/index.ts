@@ -218,6 +218,15 @@ export type {
 
 export { renderInitiativeStatus, renderInitiativeStatusForExport } from './initiative-status/renderer';
 
+export { parseSitemap, looksLikeSitemap } from './sitemap/parser';
+
+export type {
+  ParsedSitemap,
+  SitemapNode,
+  SitemapEdge,
+  SitemapDirection,
+} from './sitemap/types';
+
 export { collapseOrgTree } from './org/collapse';
 export type { CollapsedOrgResult } from './org/collapse';
 

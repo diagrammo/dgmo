@@ -116,10 +116,10 @@ const parsed = parseD3(fileContent);
 import { parseSequenceDgmo } from '@diagrammo/dgmo';
 
 const parsed = parseSequenceDgmo(fileContent);
-// parsed.participants, parsed.messages, parsed.blocks, parsed.sections, parsed.groups
+// parsed.participants, parsed.messages, parsed.blocks, parsed.sections, parsed.groups, parsed.tagGroups
 ```
 
-**Types**: `ParsedSequenceDgmo`, `SequenceParticipant`, `SequenceMessage`, `SequenceBlock`, `SequenceSection`, `SequenceGroup`, `SequenceElement`, `ParticipantType`
+**Types**: `ParsedSequenceDgmo`, `SequenceParticipant`, `SequenceMessage`, `SequenceBlock`, `SequenceSection`, `SequenceGroup`, `SequenceElement`, `ParticipantType`, `SequenceTagGroup`, `SequenceTagEntry`
 
 #### Org Chart
 
