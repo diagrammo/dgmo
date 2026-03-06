@@ -1,0 +1,40 @@
+chart: infra
+title: Production Traffic Flow
+direction: LR
+
+tag: Team alias t
+  Backend(blue)
+  Platform(teal)
+
+edge
+  rps: 10000
+  -> CloudFront
+
+CloudFront | t: Platform
+  cache-hit: 80%
+  -> CloudArmor
+
+CloudArmor | t: Platform
+  firewall-block: 5%
+  -> ALB
+
+ALB | t: Platform
+  -/api-> [API Pods] | split: 60%
+  -/purchase-> [Commerce Pods] | split: 30%
+  -/static-> StaticServer | split: 10%
+
+[API Pods]
+  APIServer | t: Backend
+    instances: 3
+    max-rps: 500
+    latency-ms: 45
+    cb-error-threshold: 50%
+
+[Commerce Pods]
+  PurchaseMS
+    instances: 1-8
+    max-rps: 300
+    latency-ms: 120
+
+StaticServer | t: Platform
+  latency-ms: 5

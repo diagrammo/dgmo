@@ -5159,7 +5159,7 @@ export async function renderD3ForExport(
     activeTagGroup?: string | null;
     hiddenAttributes?: Set<string>;
   },
-  options?: { branding?: boolean; c4Level?: 'context' | 'containers' | 'components' | 'deployment'; c4System?: string; c4Container?: string }
+  options?: { branding?: boolean; c4Level?: 'context' | 'containers' | 'components' | 'deployment'; c4System?: string; c4Container?: string; scenario?: string }
 ): Promise<string> {
   // Flowchart and org chart use their own parser pipelines — intercept before parseD3()
   const { parseDgmoChartType } = await import('./dgmo-router');
@@ -5374,6 +5374,39 @@ export async function renderD3ForExport(
     const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
 
     renderFlowchart(container, fcParsed, layout, effectivePalette, theme === 'dark', undefined, { width: EXPORT_WIDTH, height: EXPORT_HEIGHT });
+    return finalizeSvgExport(container, theme, effectivePalette, options);
+  }
+
+  if (detectedType === 'infra') {
+    const { parseInfra } = await import('./infra/parser');
+    const { computeInfra } = await import('./infra/compute');
+    const { layoutInfra } = await import('./infra/layout');
+    const { renderInfra, computeInfraLegendGroups } = await import('./infra/renderer');
+
+    const effectivePalette = await resolveExportPalette(theme, palette);
+    const infraParsed = parseInfra(content);
+    if (infraParsed.error || infraParsed.nodes.length === 0) return '';
+
+    const selectedScenario = options?.scenario
+      ? infraParsed.scenarios.find((s) => s.name.toLowerCase() === options.scenario!.toLowerCase()) ?? null
+      : null;
+    const infraComputed = computeInfra(infraParsed, selectedScenario ? { scenario: selectedScenario } : {});
+    const infraLayout = layoutInfra(infraComputed);
+
+    const titleOffset = infraParsed.title ? 40 : 0;
+    const legendGroups = computeInfraLegendGroups(infraLayout.nodes, infraParsed.tagGroups, effectivePalette);
+    const legendOffset = legendGroups.length > 0 ? 28 : 0;
+    const exportWidth = infraLayout.width;
+    const exportHeight = infraLayout.height + titleOffset + legendOffset;
+    const container = createExportContainer(exportWidth, exportHeight);
+
+    renderInfra(container, infraLayout, effectivePalette, theme === 'dark', infraParsed.title, infraParsed.titleLineNumber, infraParsed.tagGroups, null, false, null, null, true);
+    // Restore explicit pixel dimensions for resvg (renderer uses 100%/viewBox for app scaling)
+    const infraSvg = container.querySelector('svg');
+    if (infraSvg) {
+      infraSvg.setAttribute('width', String(exportWidth));
+      infraSvg.setAttribute('height', String(exportHeight));
+    }
     return finalizeSvgExport(container, theme, effectivePalette, options);
   }
 

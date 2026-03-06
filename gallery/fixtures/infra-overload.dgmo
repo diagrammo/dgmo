@@ -1,0 +1,26 @@
+chart: infra
+title: Microservice Overload Demo
+direction: TB
+
+edge
+  rps: 8000
+  -> Gateway
+
+Gateway
+  ratelimit-rps: 5000
+  -> AuthProxy
+
+AuthProxy
+  cache-hit: 60%
+  -> [Services]
+
+[Services]
+  OrderAPI
+    instances: 2
+    max-rps: 400
+    latency-ms: 80
+    cb-error-threshold: 60%
+  PaymentAPI
+    instances: 1
+    max-rps: 200
+    latency-ms: 150

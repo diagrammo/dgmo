@@ -54,6 +54,7 @@ const CHART_TYPE_DESCRIPTIONS: Record<string, string> = {
   kanban: 'Kanban board — task/workflow columns',
   c4: 'C4 diagram — system architecture (context, container, component, deployment)',
   'initiative-status': 'Initiative status — project roadmap with dependency tracking',
+  infra: 'Infra chart — infrastructure traffic flow with rps computation',
 };
 
 function printHelp(): void {
@@ -101,6 +102,7 @@ function parseArgs(argv: string[]): {
   c4Level: 'context' | 'containers' | 'components' | 'deployment';
   c4System: string | undefined;
   c4Container: string | undefined;
+  scenario: string | undefined;
 } {
   const result = {
     input: undefined as string | undefined,
@@ -116,6 +118,7 @@ function parseArgs(argv: string[]): {
     c4Level: 'context' as 'context' | 'containers' | 'components' | 'deployment',
     c4System: undefined as string | undefined,
     c4Container: undefined as string | undefined,
+    scenario: undefined as string | undefined,
   };
 
   const args = argv.slice(2); // skip node + script
@@ -168,6 +171,9 @@ function parseArgs(argv: string[]): {
       i++;
     } else if (arg === '--c4-container') {
       result.c4Container = args[++i];
+      i++;
+    } else if (arg === '--scenario') {
+      result.scenario = args[++i];
       i++;
     } else if (arg === '--no-branding') {
       result.noBranding = true;
@@ -449,6 +455,7 @@ async function main(): Promise<void> {
     c4Level: opts.c4Level,
     c4System: opts.c4System,
     c4Container: opts.c4Container,
+    scenario: opts.scenario,
   });
 
   if (!svg) {
