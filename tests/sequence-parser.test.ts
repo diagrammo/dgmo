@@ -1156,6 +1156,53 @@ describe('pipe metadata on participants', () => {
     expect(result.groups[0].participantIds).toContain('API');
   });
 
+  it('parses metadata on bare top-level participant', () => {
+    const content = [
+      'tag: Location alias l',
+      '  Park(red)',
+      '  Cloud(blue) default',
+      '',
+      'Tapin2 | l:Park',
+      '',
+      'User -push-> Tapin2',
+    ].join('\n');
+    const result = parseSequenceDgmo(content);
+    const tapin = result.participants.find(p => p.id === 'Tapin2');
+    expect(tapin?.metadata).toEqual({ location: 'Park' });
+  });
+
+  it('parses metadata on bare top-level participant after groups', () => {
+    const content = [
+      'tag: Location alias l',
+      '  Park(red)',
+      '  Cloud(blue) default',
+      '',
+      '[Backend]',
+      '  API',
+      '',
+      'Tapin2 | l:Park',
+      '',
+      'User -push-> Tapin2',
+    ].join('\n');
+    const result = parseSequenceDgmo(content);
+    const tapin = result.participants.find(p => p.id === 'Tapin2');
+    expect(tapin?.metadata).toEqual({ location: 'Park' });
+    // Should not be added to the Backend group
+    expect(result.groups[0].participantIds).not.toContain('Tapin2');
+  });
+
+  it('parses bare top-level participant without metadata', () => {
+    const content = [
+      'MyService',
+      '',
+      'User -call-> MyService',
+    ].join('\n');
+    const result = parseSequenceDgmo(content);
+    const svc = result.participants.find(p => p.id === 'MyService');
+    expect(svc).toBeDefined();
+    expect(svc?.metadata).toBeUndefined();
+  });
+
   it('parses metadata on position declaration', () => {
     const content = [
       'DB position -1 | role: Storage',

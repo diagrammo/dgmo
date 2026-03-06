@@ -548,11 +548,12 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       continue;
     }
 
-    // Bare participant name inside an active group (single identifier on an indented line)
-    // Supports pipe metadata: "  API | c: Gateway"
-    if (activeGroup && measureIndent(raw) > 0) {
+    // Bare participant name — either inside an active group (indented) or top-level declaration
+    // Supports pipe metadata: "  API | c: Gateway" or "Tapin2 | l:Park"
+    {
       const { core: bareCore, meta: bareMeta } = splitPipe(trimmed);
-      if (/^\S+$/.test(bareCore)) {
+      const inGroup = activeGroup && measureIndent(raw) > 0;
+      if (/^\S+$/.test(bareCore) && !ARROW_PATTERN.test(bareCore) && (inGroup || !contentStarted || bareMeta)) {
         contentStarted = true;
         const id = bareCore;
         if (!result.participants.some((p) => p.id === id)) {
@@ -564,7 +565,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
             ...(bareMeta ? { metadata: bareMeta } : {}),
           });
         }
-        if (!activeGroup.participantIds.includes(id)) {
+        if (activeGroup && !activeGroup.participantIds.includes(id)) {
           const existingGroup = participantGroupMap.get(id);
           if (existingGroup) {
             pushError(lineNumber, `Participant '${id}' is already in group '${existingGroup}' — participants can only belong to one group`);
