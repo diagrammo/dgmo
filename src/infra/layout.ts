@@ -335,7 +335,7 @@ function formatUptime(fraction: number): string {
 // Layout engine
 // ============================================================
 
-export function layoutInfra(computed: ComputedInfraModel, selectedNodeId?: string | null): InfraLayoutResult {
+export function layoutInfra(computed: ComputedInfraModel, selectedNodeId?: string | null, collapsedNodes?: Set<string> | null): InfraLayoutResult {
   if (computed.nodes.length === 0) {
     return { nodes: [], edges: [], groups: [], options: {}, width: 0, height: 0 };
   }
@@ -363,9 +363,12 @@ export function layoutInfra(computed: ComputedInfraModel, selectedNodeId?: strin
   const widthMap = new Map<string, number>();
   const heightMap = new Map<string, number>();
   for (const node of computed.nodes) {
-    const expanded = node.id === selectedNodeId;
+    const isNodeCollapsed = collapsedNodes?.has(node.id) ?? false;
+    const expanded = !isNodeCollapsed && node.id === selectedNodeId;
     const width = computeNodeWidth(node, expanded, computed.options);
-    const height = computeNodeHeight(node, expanded, computed.options);
+    const height = isNodeCollapsed
+      ? NODE_HEADER_HEIGHT + NODE_PAD_BOTTOM
+      : computeNodeHeight(node, expanded, computed.options);
     widthMap.set(node.id, width);
     heightMap.set(node.id, height);
     const inGroup = groupedNodeIds.has(node.id);

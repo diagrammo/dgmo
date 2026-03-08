@@ -615,6 +615,7 @@ function renderNodes(
   selectedNodeId?: string | null,
   activeGroup?: string | null,
   diagramOptions?: Record<string, string>,
+  collapsedNodes?: Set<string> | null,
 ) {
   const mutedColor = palette.textMuted;
 
@@ -632,12 +633,13 @@ function renderNodes(
     const g = svg.append('g')
       .attr('class', cls)
       .attr('data-line-number', node.lineNumber)
-      .attr('data-infra-node', node.id);
+      .attr('data-infra-node', node.id)
+      .attr('data-node-collapse', node.id)
+      .style('cursor', 'pointer');
 
-    // Collapsed group nodes: toggle attribute + pointer cursor
+    // Collapsed group nodes: toggle attribute
     if (node.id.startsWith('[')) {
-      g.attr('data-node-toggle', node.id)
-        .style('cursor', 'pointer');
+      g.attr('data-node-toggle', node.id);
     }
 
     // Expose tag values for legend hover dimming
@@ -681,8 +683,22 @@ function renderNodes(
       .attr('fill', textFill)
       .text(node.label);
 
-    // --- Key-value rows below header ---
-    {
+    // --- Key-value rows below header (skipped for collapsed nodes) ---
+    const isNodeCollapsed = collapsedNodes?.has(node.id) ?? false;
+    if (isNodeCollapsed) {
+      // Collapsed: show a subtle chevron indicator at the bottom of the header
+      const chevronY = y + node.height - 6;
+      g.append('text')
+        .attr('x', node.x)
+        .attr('y', chevronY)
+        .attr('text-anchor', 'middle')
+        .attr('font-family', FONT_FAMILY)
+        .attr('font-size', 8)
+        .attr('fill', textFill)
+        .attr('opacity', 0.5)
+        .text('▼');
+    }
+    if (!isNodeCollapsed) {
       const expanded = node.id === selectedNodeId;
       // Declared properties only shown when node is selected (expanded)
       const displayProps = (!node.isEdge && expanded) ? getDisplayProps(node, expanded, diagramOptions) : [];
@@ -1380,6 +1396,7 @@ export function renderInfra(
   playback?: InfraPlaybackState | null,
   selectedNodeId?: string | null,
   exportMode?: boolean,
+  collapsedNodes?: Set<string> | null,
 ) {
   // Clear previous render (preserve tooltips if any)
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
@@ -1470,7 +1487,7 @@ export function renderInfra(
   // Render layers: groups (back), edge paths, nodes, reject particles, edge labels (front)
   renderGroups(svg, layout.groups, palette, isDark);
   renderEdgePaths(svg, layout.edges, layout.nodes, palette, isDark, shouldAnimate);
-  renderNodes(svg, layout.nodes, palette, isDark, shouldAnimate, selectedNodeId, activeGroup, layout.options);
+  renderNodes(svg, layout.nodes, palette, isDark, shouldAnimate, selectedNodeId, activeGroup, layout.options, collapsedNodes);
   if (shouldAnimate) {
     renderRejectParticles(svg, layout.nodes);
   }
