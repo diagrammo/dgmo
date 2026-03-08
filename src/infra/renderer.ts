@@ -51,7 +51,7 @@ const LEGEND_ENTRY_FONT_W = LEGEND_ENTRY_FONT_SIZE * 0.6;
 const LEGEND_ENTRY_DOT_GAP = 4;
 const LEGEND_ENTRY_TRAIL = 8;
 const LEGEND_GROUP_GAP = 12;
-const LEGEND_FIXED_GAP = 8; // gap between fixed legend and scaled diagram
+const LEGEND_FIXED_GAP = 16; // gap between fixed legend and scaled diagram
 
 // Health colors (from UX spec)
 const COLOR_HEALTHY = '#22c55e';
@@ -621,7 +621,9 @@ function renderNodes(
   for (const node of nodes) {
     const { fill, stroke, textFill } = nodeColor(node, palette, isDark);
     let cls = 'infra-node';
-    if (animate && !node.isEdge) {
+    if (animate && node.isEdge) {
+      cls += ' infra-node-edge-throb';
+    } else if (animate && !node.isEdge) {
       const severity = worstNodeSeverity(node);
       if (node.computedCbState === 'open') cls += ' infra-node-cb-open';
       else if (severity === 'overloaded') cls += ' infra-node-overload';
@@ -1427,6 +1429,14 @@ export function renderInfra(
       .infra-node-cb-open > rect:first-of-type {
         stroke-dasharray: 6 4;
         animation: infra-pulse-cb 1s step-end infinite;
+      }
+      @keyframes infra-edge-throb {
+        0%, 100% { stroke-width: 1.5; }
+        50% { stroke-width: 3; }
+      }
+      .infra-node-edge-throb > rect:first-of-type {
+        animation: infra-edge-throb 2s ease-in-out infinite;
+        cursor: pointer;
       }
       .infra-edge-label {
         opacity: 0;
