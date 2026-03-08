@@ -8,6 +8,7 @@ const COMPRESSED_SIZE_LIMIT = 8192; // 8 KB
 
 export interface DiagramViewState {
   activeTagGroup?: string;
+  collapsedGroups?: string[];
 }
 
 export interface DecodedDiagramUrl {
@@ -45,6 +46,10 @@ export function encodeDiagramUrl(
 
   if (options?.viewState?.activeTagGroup) {
     hash += `&tag=${encodeURIComponent(options.viewState.activeTagGroup)}`;
+  }
+
+  if (options?.viewState?.collapsedGroups?.length) {
+    hash += `&cg=${encodeURIComponent(options.viewState.collapsedGroups.join(','))}`;
   }
 
   // Encode in both query param AND hash fragment — some share mechanisms
@@ -88,6 +93,9 @@ export function decodeDiagramUrl(hash: string): DecodedDiagramUrl {
     const val = decodeURIComponent(parts[i].slice(eq + 1));
     if (key === 'tag' && val) {
       viewState.activeTagGroup = val;
+    }
+    if (key === 'cg' && val) {
+      viewState.collapsedGroups = val.split(',').filter(Boolean);
     }
   }
 
