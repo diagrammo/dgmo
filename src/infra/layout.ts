@@ -26,6 +26,7 @@ export interface InfraLayoutNode {
   height: number;
   computedRps: number;
   overloaded: boolean;
+  rateLimited: boolean;
   isEdge: boolean;
   groupId: string | null;
   computedLatencyMs: number;
@@ -34,9 +35,11 @@ export interface InfraLayoutNode {
   computedAvailability: number;
   computedAvailabilityPercentiles: ComputedInfraNode['computedAvailabilityPercentiles'];
   computedInstances: number;
+  computedConcurrentInvocations: number;
   computedCbState: ComputedInfraNode['computedCbState'];
   childHealthState?: ComputedInfraNode['childHealthState'];
   properties: ComputedInfraNode['properties'];
+  queueMetrics?: ComputedInfraNode['queueMetrics'];
   tags: Record<string, string>;
   lineNumber: number;
 }
@@ -94,30 +97,53 @@ const EDGE_MARGIN = 60;
 
 /** Display property keys shown as key: value rows. */
 const DISPLAY_KEYS = new Set([
-  'cache-hit', 'firewall-block', 'bot-filter', 'ratelimit-rps',
+  'cache-hit', 'firewall-block', 'ratelimit-rps',
   'latency-ms', 'uptime', 'instances', 'max-rps',
   'cb-error-threshold', 'cb-latency-threshold-ms',
+  'concurrency', 'duration-ms', 'cold-start-ms',
+  'buffer', 'drain-rate', 'retention-hours', 'partitions',
 ]);
 
 /** Display names for width estimation. */
 const DISPLAY_NAMES: Record<string, string> = {
-  'cache-hit': 'cache hit', 'firewall-block': 'fw block', 'bot-filter': 'bot filter',
+  'cache-hit': 'cache hit', 'firewall-block': 'fw block',
   'ratelimit-rps': 'rate limit', 'latency-ms': 'latency', 'uptime': 'uptime',
-  'instances': 'instances', 'max-rps': 'max rps',
-  'cb-error-threshold': 'CB err %', 'cb-latency-threshold-ms': 'CB latency',
+  'instances': 'instances', 'max-rps': 'capacity',
+  'cb-error-threshold': 'CB error', 'cb-latency-threshold-ms': 'CB latency',
+  'concurrency': 'concurrency', 'duration-ms': 'duration', 'cold-start-ms': 'cold start',
+  'buffer': 'buffer', 'drain-rate': 'drain', 'retention-hours': 'retention', 'partitions': 'partitions',
 };
 
-function countDisplayProps(node: ComputedInfraNode): number {
-  return node.properties.filter((p) => DISPLAY_KEYS.has(p.key)).length;
+function countDisplayProps(node: ComputedInfraNode, expanded: boolean): number {
+  // Declared properties are only shown when the node is selected (expanded)
+  if (!expanded) return 0;
+  return node.properties.filter((p) => {
+    if (!DISPLAY_KEYS.has(p.key)) return false;
+    return true;
+  }).length;
 }
 
 /** Count computed rows shown below declared props. When expanded, shows p50/p90/p99; otherwise just p99. */
 function countComputedRows(node: ComputedInfraNode, expanded: boolean): number {
   let count = 0;
+  // Serverless instances row
+  if (node.computedConcurrentInvocations > 0) count += 1;
   const p = node.computedLatencyPercentiles;
   if (p.p50 > 0 || p.p90 > 0 || p.p99 > 0) count += expanded ? 3 : 1; // all percentiles or just p99
-  if (node.computedUptime < 1) count += 1;
+  if (node.computedUptime < 1) {
+    const declaredUptime = node.properties.find((p) => p.key === 'uptime');
+    const declaredVal = declaredUptime ? Number(declaredUptime.value) / 100 : 1;
+    const differs = Math.abs(node.computedUptime - declaredVal) > 0.000001;
+    if (differs || node.isEdge) count += 1;
+  }
   if (node.computedAvailability < 1) count += 1;
+  // CB state row when circuit breaker is open
+  if (node.computedCbState === 'open') count += 1;
+  // Queue computed rows: lag + overflow
+  if (node.queueMetrics) {
+    if (node.queueMetrics.fillRate > 0) count += 1; // lag row
+    if (node.queueMetrics.fillRate > 0 && node.queueMetrics.timeToOverflow < Infinity) count += 1; // overflow row
+  }
   return count;
 }
 
@@ -127,18 +153,26 @@ function hasRoles(node: ComputedInfraNode): boolean {
 }
 
 function computeNodeWidth(node: ComputedInfraNode, expanded: boolean): number {
-  const labelWidth = node.label.length * CHAR_WIDTH + PADDING_X;
+  // Account for badge text (e.g., "3x") in header width — serverless nodes no longer show a badge
+  const badgeVal = node.computedConcurrentInvocations === 0 && node.computedInstances > 1
+    ? node.computedInstances : 0;
+  const badgeLen = badgeVal > 0 ? `${badgeVal}x`.length + 2 : 0;
+  const labelWidth = (node.label.length + badgeLen) * CHAR_WIDTH + PADDING_X;
 
   // Collect all key names (including "RPS" and computed rows) to compute aligned value column
   const allKeys: string[] = [];
   if (node.computedRps > 0) allKeys.push('RPS');
-  for (const p of node.properties) {
-    const dk = DISPLAY_NAMES[p.key];
-    if (dk) allKeys.push(dk);
+  // Declared property keys only included when expanded
+  if (expanded) {
+    for (const p of node.properties) {
+      const dk = DISPLAY_NAMES[p.key];
+      if (dk) allKeys.push(dk);
+    }
   }
   // Computed rows
   const computedRows = countComputedRows(node, expanded);
   if (computedRows > 0) {
+    if (node.computedConcurrentInvocations > 0) allKeys.push('instances');
     const perc = node.computedLatencyPercentiles;
     if (perc.p50 > 0 || perc.p90 > 0 || perc.p99 > 0) {
       if (expanded) {
@@ -147,8 +181,19 @@ function computeNodeWidth(node: ComputedInfraNode, expanded: boolean): number {
         allKeys.push('p99');
       }
     }
-    if (node.computedUptime < 1) allKeys.push('uptime');
-    if (node.computedAvailability < 1) allKeys.push('avail');
+    if (node.computedUptime < 1) {
+      const declaredUptime = node.properties.find((p) => p.key === 'uptime');
+      const declaredVal = declaredUptime ? Number(declaredUptime.value) / 100 : 1;
+      if (Math.abs(node.computedUptime - declaredVal) > 0.000001 || node.isEdge) {
+        allKeys.push('eff. uptime');
+      }
+    }
+    if (node.computedAvailability < 1) allKeys.push('availability');
+    if (node.computedCbState === 'open') allKeys.push('CB');
+    if (node.queueMetrics) {
+      if (node.queueMetrics.fillRate > 0) allKeys.push('lag');
+      if (node.queueMetrics.fillRate > 0 && node.queueMetrics.timeToOverflow < Infinity) allKeys.push('overflow');
+    }
   }
   if (allKeys.length === 0) return Math.max(MIN_NODE_WIDTH, labelWidth);
 
@@ -156,14 +201,39 @@ function computeNodeWidth(node: ComputedInfraNode, expanded: boolean): number {
   // key + ": " + value
   let maxRowWidth = 0;
   if (node.computedRps > 0) {
-    const valLen = formatRps(node.computedRps).length;
-    maxRowWidth = Math.max(maxRowWidth, (maxKeyLen + 2 + valLen) * META_CHAR_WIDTH);
+    // RPS row may show "29.3k / 50k" when an effective cap exists
+    const nodeMaxRps = getNumProp(node, 'max-rps', 0);
+    const nodeRateLimit = getNumProp(node, 'ratelimit-rps', 0);
+    const nodeConcurrency = getNumProp(node, 'concurrency', 0);
+    const nodeDurationMs = getNumProp(node, 'duration-ms', 100);
+    const serverlessCap = nodeConcurrency > 0 ? nodeConcurrency / (nodeDurationMs / 1000) : 0;
+    const effectiveCap = serverlessCap > 0 ? serverlessCap
+      : nodeMaxRps > 0 && nodeRateLimit > 0
+      ? Math.min(nodeMaxRps * node.computedInstances, nodeRateLimit)
+      : nodeMaxRps > 0 ? nodeMaxRps * node.computedInstances
+      : nodeRateLimit > 0 ? nodeRateLimit
+      : 0;
+    const rpsVal = effectiveCap > 0 && !node.isEdge
+      ? `${formatRpsShort(node.computedRps)} / ${formatRpsShort(effectiveCap)}`
+      : formatRps(node.computedRps);
+    maxRowWidth = Math.max(maxRowWidth, (maxKeyLen + 2 + rpsVal.length) * META_CHAR_WIDTH);
   }
-  for (const p of node.properties) {
-    const dk = DISPLAY_NAMES[p.key];
-    if (!dk) continue;
-    const valLen = String(p.value).length;
-    maxRowWidth = Math.max(maxRowWidth, (maxKeyLen + 2 + valLen) * META_CHAR_WIDTH);
+  // Declared property value widths only when expanded
+  if (expanded) {
+    for (const p of node.properties) {
+      const dk = DISPLAY_NAMES[p.key];
+      if (!dk) continue;
+      const numVal = typeof p.value === 'number' ? p.value : parseFloat(String(p.value)) || 0;
+      const PCT_KEYS = ['cache-hit', 'firewall-block', 'uptime', 'cb-error-threshold'];
+      const valLen = (p.key === 'max-rps' || p.key === 'ratelimit-rps')
+        ? formatRpsShort(numVal).length
+        : (p.key === 'latency-ms' || p.key === 'cb-latency-threshold-ms' || p.key === 'duration-ms' || p.key === 'cold-start-ms')
+        ? formatMs(numVal).length
+        : PCT_KEYS.includes(p.key)
+        ? `${numVal}%`.length
+        : String(p.value).length;
+      maxRowWidth = Math.max(maxRowWidth, (maxKeyLen + 2 + valLen) * META_CHAR_WIDTH);
+    }
   }
   // Computed row widths (e.g., "p99: 120ms")
   if (computedRows > 0) {
@@ -183,24 +253,29 @@ function computeNodeWidth(node: ComputedInfraNode, expanded: boolean): number {
       const valLen = formatUptime(node.computedAvailability).length;
       maxRowWidth = Math.max(maxRowWidth, (maxKeyLen + 2 + valLen) * META_CHAR_WIDTH);
     }
+    // CB state row ("CB: OPEN") — inverted pill, use full text width
+    if (node.computedCbState === 'open') {
+      maxRowWidth = Math.max(maxRowWidth, 'CB: OPEN'.length * META_CHAR_WIDTH + 8);
+    }
   }
 
   return Math.max(MIN_NODE_WIDTH, labelWidth, maxRowWidth + 20);
 }
 
 function computeNodeHeight(node: ComputedInfraNode, expanded: boolean): number {
-  const propCount = countDisplayProps(node);
+  const propCount = countDisplayProps(node, expanded);
   const computedCount = countComputedRows(node, expanded);
   const hasRps = node.computedRps > 0;
   if (propCount === 0 && computedCount === 0 && !hasRps) return NODE_HEADER_HEIGHT + NODE_PAD_BOTTOM;
 
   let h = NODE_HEADER_HEIGHT + NODE_SEPARATOR_GAP;
-  // RPS row
-  if (hasRps) h += META_LINE_HEIGHT;
-  // Key-value rows
+  // Computed section: RPS + computed rows
+  const computedSectionCount = (hasRps ? 1 : 0) + computedCount;
+  h += computedSectionCount * META_LINE_HEIGHT;
+  // Separator between computed and declared sections
+  if (computedSectionCount > 0 && propCount > 0) h += NODE_SEPARATOR_GAP;
+  // Declared property rows
   h += propCount * META_LINE_HEIGHT;
-  // Computed rows (p50/p90/p99, uptime)
-  h += computedCount * META_LINE_HEIGHT;
   // Role dots row
   if (hasRoles(node)) h += ROLE_DOT_ROW;
   h += NODE_PAD_BOTTOM;
@@ -212,6 +287,17 @@ function computeNodeHeight(node: ComputedInfraNode, expanded: boolean): number {
 function formatRps(rps: number): string {
   if (rps >= 1000) return `${(rps / 1000).toFixed(1)}k rps`;
   return `${Math.round(rps)} rps`;
+}
+
+function formatRpsShort(rps: number): string {
+  if (rps >= 1000) return `${(rps / 1000).toFixed(1)}k`;
+  return `${Math.round(rps)}`;
+}
+
+function getNumProp(node: ComputedInfraNode, key: string, fallback: number): number {
+  const p = node.properties.find((pr) => pr.key === key);
+  if (!p) return fallback;
+  return typeof p.value === 'number' ? p.value : parseFloat(String(p.value)) || fallback;
 }
 
 function formatMs(ms: number): string {
@@ -315,6 +401,7 @@ export function layoutInfra(computed: ComputedInfraModel, selectedNodeId?: strin
       height: heightMap.get(node.id) ?? NODE_HEADER_HEIGHT + NODE_PAD_BOTTOM,
       computedRps: node.computedRps,
       overloaded: node.overloaded,
+      rateLimited: node.rateLimited,
       isEdge: node.isEdge,
       groupId: node.groupId,
       computedLatencyMs: node.computedLatencyMs,
@@ -323,8 +410,10 @@ export function layoutInfra(computed: ComputedInfraModel, selectedNodeId?: strin
       computedAvailability: node.computedAvailability,
       computedAvailabilityPercentiles: node.computedAvailabilityPercentiles,
       computedInstances: node.computedInstances,
+      computedConcurrentInvocations: node.computedConcurrentInvocations,
       computedCbState: node.computedCbState,
       childHealthState: node.childHealthState,
+      queueMetrics: node.queueMetrics,
       properties: node.properties,
       tags: node.tags,
       lineNumber: node.lineNumber,

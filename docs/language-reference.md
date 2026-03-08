@@ -993,11 +993,103 @@ Home
 
 **Collapsible groups**: Groups can be collapsed/expanded in the app — arrows to hidden pages re-terminate at the group boundary.
 
+### infra
+
+Minimal example:
+
+```
+chart: infra
+
+edge
+  rps: 1000
+  -> CDN
+
+CDN
+  cache-hit: 80%
+  -> API
+
+API
+  instances: 2
+  max-rps: 400
+  latency-ms: 30
+```
+
+Full example:
+
+```
+chart: infra
+title: Production Traffic Flow
+direction: LR
+
+tag: Team alias t
+  Backend(blue)
+  Platform(teal)
+
+edge
+  rps: 10000
+  -> CloudFront
+
+CloudFront | t: Platform
+  cache-hit: 80%
+  -> CloudArmor
+
+CloudArmor | t: Platform
+  firewall-block: 5%
+  -> ALB
+
+ALB | t: Platform
+  -/api-> [API Pods] | split: 60%
+  -/purchase-> [Commerce Pods] | split: 30%
+  -/static-> StaticServer | split: 10%
+
+[API Pods]
+  APIServer | t: Backend
+    instances: 3
+    max-rps: 500
+    latency-ms: 45
+    cb-error-threshold: 50%
+
+[Commerce Pods]
+  PurchaseMS
+    instances: 1-8
+    max-rps: 300
+    latency-ms: 120
+
+StaticServer | t: Platform
+  latency-ms: 5
+```
+
+**Entry point**: The `edge` block declares the external traffic source with `rps:` (requests per second). All downstream rps are computed automatically.
+
+**Components**: Bare labels at indent 0 define infrastructure components. Properties are indented below:
+- `cache-hit: N%` — percentage of traffic served from cache (reduces downstream flow)
+- `firewall-block: N%` — percentage of traffic blocked (reduces downstream flow)
+- `ratelimit-rps: N` — maximum rps allowed through (excess dropped)
+- `max-rps: N` — maximum rps capacity per instance
+- `instances: N` or `instances: N-M` — fixed or auto-scaling instance count
+- `latency-ms: N` — per-request latency in milliseconds
+- `cb-error-threshold: N%` — circuit breaker opens when overload exceeds this ratio
+- `cb-latency-threshold-ms: N` — circuit breaker opens when cumulative latency exceeds this
+
+**Connections**: `-> Target` (unlabeled), `-label-> Target` (labeled). Pipe metadata for splits: `-> Target | split: N%`.
+
+**Branching**: Multiple outbound connections with `split: N%` metadata. Splits must sum to 100%. Undeclared splits are evenly distributed from the remaining percentage.
+
+**Groups**: `[Group Name]` with indented children — rendered as dashed-border containers. Edges targeting a group route to all children.
+
+**Roles**: Inferred automatically from behavior properties — no type declarations needed. Components with `cache-hit` get a Cache role, `firewall-block` gets Firewall, etc. Roles appear as colored dots on nodes and in the legend.
+
+**Overload**: When computed rps exceeds `max-rps × instances`, the node turns red. Dynamic scaling (`instances: 1-8`) auto-scales within the range before overloading.
+
+**Direction**: `direction: LR` (left-to-right, default) or `direction: TB` (top-to-bottom).
+
+**Tag groups**: Same syntax as org/kanban/sitemap — `tag: Name alias x` with colored entries.
+
 ---
 
 ## Tag Groups
 
-Define reusable metadata categories for org charts, kanban boards, C4 diagrams, and sitemaps:
+Define reusable metadata categories for org charts, kanban boards, C4 diagrams, sitemaps, and infra charts:
 
 ```
 tag: Priority

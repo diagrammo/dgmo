@@ -59,6 +59,24 @@ const COLOR_WARNING = '#eab308';
 const COLOR_OVERLOADED = '#ef4444';
 const COLOR_NEUTRAL = '#94a3b8';
 
+/** A row in the node card body. `inverted` renders as a colored pill with light text. */
+interface NodeRow {
+  key: string;
+  value: string;
+  valueFill: string;
+  fontWeight: string;
+  inverted?: boolean;
+  invertedBg?: string;
+}
+
+/** Computed metric row (latency percentiles, availability, CB state). */
+interface ComputedRow {
+  key: string;
+  value: string;
+  color?: string;
+  inverted?: boolean;
+}
+
 // Animation constants
 const FLOW_DASH = '8 6';          // dash-array for animated edges
 const FLOW_DASH_LEN = 14;         // sum of dash + gap (for offset keyframe)
@@ -72,7 +90,7 @@ const NODE_PULSE_SPEED = 1.5;     // seconds for warning pulse
 const NODE_PULSE_OVERLOAD = 0.7;  // seconds for overload pulse
 
 // Reject particle constants
-const REJECT_PARTICLE_R = 2.5;
+const REJECT_PARTICLE_R = PARTICLE_R;
 const REJECT_DROP_DISTANCE = 30;  // px downward travel
 const REJECT_DURATION_MIN = 1.5;  // seconds per drop at max reject
 const REJECT_DURATION_MAX = 3;    // seconds per drop at min reject
@@ -124,6 +142,16 @@ function particleCount(rps: number, maxRps: number): number {
 /** Determine if a node is in warning state (>70% capacity but not overloaded). */
 function isWarning(node: InfraLayoutNode): boolean {
   if (node.overloaded || node.isEdge) return false;
+  // Serverless: concurrency-based capacity
+  const concurrencyProp = node.properties.find((p) => p.key === 'concurrency');
+  if (concurrencyProp) {
+    const concurrency = Number(concurrencyProp.value);
+    const durationProp = node.properties.find((p) => p.key === 'duration-ms');
+    const durationMs = durationProp ? Number(durationProp.value) : 100;
+    const cap = concurrency / (durationMs / 1000);
+    return cap > 0 && node.computedRps / cap > 0.7;
+  }
+  // Traditional: max-rps * instances
   const maxRps = node.properties.find((p) => p.key === 'max-rps');
   if (!maxRps) return false;
   const cap = Number(maxRps.value) * node.computedInstances;
@@ -138,19 +166,47 @@ function isWarning(node: InfraLayoutNode): boolean {
 const PROP_DISPLAY: Record<string, string> = {
   'cache-hit': 'cache hit',
   'firewall-block': 'fw block',
-  'bot-filter': 'bot filter',
   'ratelimit-rps': 'rate limit',
   'latency-ms': 'latency',
   'uptime': 'uptime',
   'instances': 'instances',
-  'max-rps': 'max rps',
-  'cb-error-threshold': 'CB err %',
+  'max-rps': 'capacity',
+  'cb-error-threshold': 'CB error',
   'cb-latency-threshold-ms': 'CB latency',
+  'concurrency': 'concurrency',
+  'duration-ms': 'duration',
+  'cold-start-ms': 'cold start',
+  'buffer': 'buffer',
+  'drain-rate': 'drain',
+  'retention-hours': 'retention',
+  'partitions': 'partitions',
 };
 
-/** Computed metric rows (latency percentiles, uptime, availability) shown after declared props. */
-function getComputedRows(node: InfraLayoutNode, expanded: boolean): { key: string; value: string; color?: string }[] {
-  const rows: { key: string; value: string; color?: string }[] = [];
+/** Keys whose values are RPS counts and should be formatted like RPS. */
+const RPS_FORMAT_KEYS = new Set(['max-rps', 'ratelimit-rps']);
+
+/** Keys whose values are milliseconds and should show the "ms" suffix. */
+const MS_FORMAT_KEYS = new Set(['latency-ms', 'cb-latency-threshold-ms', 'duration-ms', 'cold-start-ms']);
+
+/** Keys whose values are percentages and should show the "%" suffix. */
+const PCT_FORMAT_KEYS = new Set(['cache-hit', 'firewall-block', 'uptime', 'cb-error-threshold']);
+
+/** Computed metric rows (latency percentiles, uptime, availability, CB state) shown after declared props. */
+function getComputedRows(node: InfraLayoutNode, expanded: boolean): ComputedRow[] {
+  const rows: ComputedRow[] = [];
+
+  // Serverless instances: demand vs concurrency limit
+  if (node.computedConcurrentInvocations > 0) {
+    const concurrency = getNodeNumProp(node, 'concurrency', 0);
+    const demand = node.computedConcurrentInvocations;
+    const ratio = concurrency > 0 ? demand / concurrency : 0;
+    const color = ratio > 1 ? COLOR_OVERLOADED : ratio > 0.7 ? COLOR_WARNING : undefined;
+    const value = concurrency > 0
+      ? `${formatCount(demand)} / ${formatCount(concurrency)}`
+      : `${formatCount(demand)}`;
+    rows.push({ key: 'instances', value, color, inverted: color != null });
+  }
+
   const p = node.computedLatencyPercentiles;
   if (p.p50 > 0 || p.p90 > 0 || p.p99 > 0) {
     if (expanded) {
@@ -159,17 +215,50 @@ function getComputedRows(node: InfraLayoutNode, expanded: boolean): { key: strin
     }
     rows.push({ key: 'p99', value: formatMsShort(p.p99) });
   }
-  // Edge node shows system-wide uptime/availability; other nodes show their own
+  // Computed (cumulative) uptime — only show when it differs from the declared node uptime.
+  // On the edge node this is the system-wide uptime; on other nodes it's the path product.
+  // Label as "eff. uptime" to distinguish from the declared "uptime" property row.
   if (node.computedUptime < 1) {
-    rows.push({ key: 'uptime', value: formatUptimeShort(node.computedUptime) });
+    const declaredUptime = node.properties.find((p) => p.key === 'uptime');
+    const declaredVal = declaredUptime ? Number(declaredUptime.value) / 100 : 1;
+    const differs = Math.abs(node.computedUptime - declaredVal) > 0.000001;
+    if (differs || node.isEdge) {
+      rows.push({ key: 'eff. uptime', value: formatUptimeShort(node.computedUptime) });
+    }
   }
   if (node.computedAvailability < 1) {
     const color = node.computedAvailability < 0.95 ? COLOR_OVERLOADED
       : node.computedAvailability < 0.99 ? COLOR_WARNING
       : undefined;
-    rows.push({ key: 'avail', value: formatUptimeShort(node.computedAvailability), color });
+    rows.push({ key: 'availability', value: formatUptimeShort(node.computedAvailability), color, inverted: color != null });
+  }
+  // Circuit breaker state — show when a CB is configured and open
+  if (node.computedCbState === 'open') {
+    rows.push({ key: 'CB', value: 'OPEN', color: COLOR_OVERLOADED, inverted: true });
+  }
+  // Queue computed rows: lag and overflow
+  if (node.queueMetrics) {
+    const { fillRate, timeToOverflow } = node.queueMetrics;
+    if (fillRate > 0) {
+      rows.push({ key: 'lag', value: `${formatCount(Math.round(fillRate))} msg/s` });
+    }
+    if (fillRate > 0 && timeToOverflow < Infinity) {
+      const overflowColor = timeToOverflow < 60 ? COLOR_OVERLOADED : COLOR_WARNING;
+      rows.push({
+        key: 'overflow',
+        value: `~${Math.round(timeToOverflow)}s`,
+        color: overflowColor,
+        inverted: timeToOverflow < 60,
+      });
+    }
   }
   return rows;
+}
+
+function formatCount(n: number): string {
+  if (n >= 1000000) return `${(n / 1000000).toFixed(n % 1000000 === 0 ? 0 : 1)}M`;
+  if (n >= 1000) return `${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}k`;
+  return String(n);
 }
 
 function formatMsShort(ms: number): string {
@@ -186,14 +275,39 @@ function formatUptimeShort(fraction: number): string {
 }
 
 /** Properties shown as key-value rows inside the node card. */
-function getDisplayProps(node: InfraLayoutNode): { key: string; displayKey: string; value: string }[] {
+function getDisplayProps(node: InfraLayoutNode, expanded: boolean): { key: string; displayKey: string; value: string }[] {
   if (node.isEdge) return [];
   const rows: { key: string; displayKey: string; value: string }[] = [];
   for (const p of node.properties) {
     const displayKey = PROP_DISPLAY[p.key];
     if (!displayKey) continue;
-    const val = String(p.value);
-    rows.push({ key: p.key, displayKey, value: val.endsWith('%') ? val : val });
+    // Rate limit and max-rps are already shown in the RPS denominator —
+    // only show the dedicated row when the node is expanded (selected).
+    if (p.key === 'ratelimit-rps' && !expanded) continue;
+    if (p.key === 'max-rps' && !expanded) continue;
+    if (p.key === 'concurrency' && !expanded) continue;
+    // Format values with appropriate units
+    if (RPS_FORMAT_KEYS.has(p.key)) {
+      const num = typeof p.value === 'number' ? p.value : parseFloat(String(p.value));
+      rows.push({ key: p.key, displayKey, value: isNaN(num) ? String(p.value) : formatRpsShort(num) });
+    } else if (MS_FORMAT_KEYS.has(p.key)) {
+      const num = typeof p.value === 'number' ? p.value : parseFloat(String(p.value));
+      rows.push({ key: p.key, displayKey, value: isNaN(num) ? String(p.value) : formatMsShort(num) });
+    } else if (PCT_FORMAT_KEYS.has(p.key)) {
+      const num = typeof p.value === 'number' ? p.value : parseFloat(String(p.value));
+      rows.push({ key: p.key, displayKey, value: isNaN(num) ? String(p.value) : `${num}%` });
+    } else if (p.key === 'buffer') {
+      const num = typeof p.value === 'number' ? p.value : parseFloat(String(p.value));
+      rows.push({ key: p.key, displayKey, value: isNaN(num) ? String(p.value) : formatCount(num) });
+    } else if (p.key === 'drain-rate') {
+      const num = typeof p.value === 'number' ? p.value : parseFloat(String(p.value));
+      rows.push({ key: p.key, displayKey, value: isNaN(num) ? String(p.value) : `${formatRpsShort(num)}/s` });
+    } else if (p.key === 'retention-hours') {
+      const num = typeof p.value === 'number' ? p.value : parseFloat(String(p.value));
+      rows.push({ key: p.key, displayKey, value: isNaN(num) ? String(p.value) : `${num}h` });
+    } else {
+      rows.push({ key: p.key, displayKey, value: String(p.value) });
+    }
   }
   return rows;
 }
@@ -209,44 +323,73 @@ function formatRpsShort(rps: number): string {
   return `${Math.round(rps)}`;
 }
 
+/** Compute the worst severity across all row-producing conditions for a node.
+ *  Returns 'overloaded' (red), 'warning' (yellow), or 'normal'. */
+function worstNodeSeverity(node: InfraLayoutNode): 'overloaded' | 'warning' | 'normal' {
+  let worst: 'overloaded' | 'warning' | 'normal' = 'normal';
+  const upgrade = (s: 'overloaded' | 'warning') => {
+    if (s === 'overloaded') worst = 'overloaded';
+    else if (worst !== 'overloaded') worst = 'warning';
+  };
+
+  // Collapsed group nodes: incorporate child health state
+  if (node.childHealthState === 'overloaded') upgrade('overloaded');
+  else if (node.childHealthState === 'warning') upgrade('warning');
+
+  // RPS-based: overloaded, rate-limited, or >70% capacity
+  if (node.overloaded) upgrade('overloaded');
+  if (node.rateLimited) upgrade('warning');
+  if (isWarning(node)) upgrade('warning');
+
+  // Availability
+  if (node.computedAvailability < 0.95) upgrade('overloaded');
+  else if (node.computedAvailability < 0.99) upgrade('warning');
+
+  // Circuit breaker open
+  if (node.computedCbState === 'open') upgrade('overloaded');
+
+  // Queue state: filling → warning, imminent overflow → overloaded
+  if (node.queueMetrics && node.queueMetrics.fillRate > 0) {
+    if (node.queueMetrics.timeToOverflow < 60) upgrade('overloaded');
+    else upgrade('warning');
+  }
+
+  // Rate-limit row (pre-rate-limit RPS vs configured limit)
+  if (!node.isEdge) {
+    const nodeRateLimit = getNodeNumProp(node, 'ratelimit-rps', 0);
+    if (nodeRateLimit > 0 && node.computedRps > 0) {
+      let preRl = node.computedRps;
+      const ch = getNodeNumProp(node, 'cache-hit', 0);
+      if (ch > 0) preRl *= (100 - ch) / 100;
+      const fw = getNodeNumProp(node, 'firewall-block', 0);
+      if (fw > 0) preRl *= (100 - fw) / 100;
+      if (preRl > nodeRateLimit) upgrade('overloaded');
+      else if (preRl > nodeRateLimit * 0.8) upgrade('warning');
+    }
+  }
+
+  return worst;
+}
+
 function nodeColor(node: InfraLayoutNode, palette: PaletteColors, isDark: boolean): {
   fill: string;
   stroke: string;
   textFill: string;
 } {
-  // Collapsed group nodes use the worst child health state for coloring
-  const healthState = node.childHealthState;
-  if (healthState) {
-    if (healthState === 'overloaded') {
-      return {
-        fill: mix(palette.bg, COLOR_OVERLOADED, isDark ? 80 : 92),
-        stroke: COLOR_OVERLOADED,
-        textFill: palette.text,
-      };
-    }
-    if (healthState === 'warning') {
-      return {
-        fill: mix(palette.bg, COLOR_WARNING, isDark ? 85 : 92),
-        stroke: COLOR_WARNING,
-        textFill: palette.text,
-      };
-    }
-    // 'normal' falls through to default
-  } else {
-    if (node.overloaded) {
-      return {
-        fill: mix(palette.bg, COLOR_OVERLOADED, isDark ? 80 : 92),
-        stroke: COLOR_OVERLOADED,
-        textFill: palette.text,
-      };
-    }
-    if (isWarning(node)) {
-      return {
-        fill: mix(palette.bg, COLOR_WARNING, isDark ? 85 : 92),
-        stroke: COLOR_WARNING,
-        textFill: palette.text,
-      };
-    }
+  const severity = worstNodeSeverity(node);
+  if (severity === 'overloaded') {
+    return {
+      fill: mix(palette.bg, COLOR_OVERLOADED, isDark ? 80 : 92),
+      stroke: COLOR_OVERLOADED,
+      textFill: palette.text,
+    };
+  }
+  if (severity === 'warning') {
+    return {
+      fill: mix(palette.bg, COLOR_WARNING, isDark ? 85 : 92),
+      stroke: COLOR_WARNING,
+      textFill: palette.text,
+    };
   }
   return {
     fill: isDark ? mix(palette.bg, palette.text, 90) : mix(palette.bg, palette.text, 95),
@@ -464,9 +607,10 @@ function renderNodes(
     const { fill, stroke, textFill } = nodeColor(node, palette, isDark);
     let cls = 'infra-node';
     if (animate && !node.isEdge) {
+      const severity = worstNodeSeverity(node);
       if (node.computedCbState === 'open') cls += ' infra-node-cb-open';
-      else if (node.overloaded) cls += ' infra-node-overload';
-      else if (isWarning(node)) cls += ' infra-node-warning';
+      else if (severity === 'overloaded') cls += ' infra-node-overload';
+      else if (severity === 'warning') cls += ' infra-node-warning';
     }
     const g = svg.append('g')
       .attr('class', cls)
@@ -495,7 +639,7 @@ function renderNodes(
     const x = node.x - node.width / 2;
     const y = node.y - node.height / 2;
     const isCollapsedGroup = node.id.startsWith('[');
-    const strokeWidth = node.overloaded || isWarning(node) ? OVERLOAD_STROKE_WIDTH : NODE_STROKE_WIDTH;
+    const strokeWidth = worstNodeSeverity(node) !== 'normal' ? OVERLOAD_STROKE_WIDTH : NODE_STROKE_WIDTH;
 
     // Node rect
     g.append('rect')
@@ -522,8 +666,9 @@ function renderNodes(
 
     // --- Key-value rows below header ---
     {
-      const displayProps = node.isEdge ? [] : getDisplayProps(node);
       const expanded = node.id === selectedNodeId;
+      // Declared properties only shown when node is selected (expanded)
+      const displayProps = (!node.isEdge && expanded) ? getDisplayProps(node, expanded) : [];
       const computedRows = getComputedRows(node, expanded);
       const hasContent = displayProps.length > 0 || computedRows.length > 0 || node.computedRps > 0;
 
@@ -539,50 +684,168 @@ function renderNodes(
           .attr('stroke-opacity', 0.3)
           .attr('stroke-width', 1);
 
-        // Build all rows (RPS + declared properties + computed) so values align
-        const rows: { key: string; value: string; valueFill: string; fontWeight: string }[] = [];
+        // Build rows in two sections: computed (dynamic) on top, declared (config) below.
+        // A second separator line divides them when both sections have content.
+        const computedSection: NodeRow[] = [];
+        const declaredSection: NodeRow[] = [];
+
+        // Determine effective throughput limit for the RPS row denominator
+        const nodeMaxRps = getNodeNumProp(node, 'max-rps', 0);
+        const nodeRateLimit = getNodeNumProp(node, 'ratelimit-rps', 0);
+        const nodeConcurrency = getNodeNumProp(node, 'concurrency', 0);
+        const nodeDurationMs = getNodeNumProp(node, 'duration-ms', 100);
+        const serverlessCap = nodeConcurrency > 0 ? nodeConcurrency / (nodeDurationMs / 1000) : 0;
+        const effectiveCap = serverlessCap > 0 ? serverlessCap
+          : nodeMaxRps > 0 && nodeRateLimit > 0
+          ? Math.min(nodeMaxRps * node.computedInstances, nodeRateLimit)
+          : nodeMaxRps > 0 ? nodeMaxRps * node.computedInstances
+          : nodeRateLimit > 0 ? nodeRateLimit
+          : 0;
+
+        // --- Computed section: RPS + computed metrics ---
         if (node.computedRps > 0) {
-          const rpsColor = node.overloaded ? COLOR_OVERLOADED : mutedColor;
-          rows.push({ key: 'RPS', value: formatRpsShort(node.computedRps), valueFill: rpsColor, fontWeight: '500' });
-        }
-        for (const prop of displayProps) {
-          rows.push({ key: prop.displayKey, value: prop.value, valueFill: textFill, fontWeight: 'normal' });
+          // Check rate-limit proximity (pre-ratelimit RPS after cache/fw reductions)
+          let rlSeverity: 'overloaded' | 'warning' | 'normal' = 'normal';
+          if (nodeRateLimit > 0 && node.computedRps > 0 && !node.isEdge) {
+            let preRl = node.computedRps;
+            const ch = getNodeNumProp(node, 'cache-hit', 0);
+            if (ch > 0) preRl *= (100 - ch) / 100;
+            const fw = getNodeNumProp(node, 'firewall-block', 0);
+            if (fw > 0) preRl *= (100 - fw) / 100;
+            if (preRl > nodeRateLimit) rlSeverity = 'overloaded';
+            else if (preRl > nodeRateLimit * 0.8) rlSeverity = 'warning';
+          }
+          const rpsSeverity: 'overloaded' | 'warning' | 'normal' =
+            node.overloaded ? 'overloaded'
+            : rlSeverity === 'overloaded' ? 'overloaded'
+            : node.rateLimited ? 'warning'
+            : isWarning(node) ? 'warning'
+            : rlSeverity === 'warning' ? 'warning'
+            : 'normal';
+          const rpsColor = rpsSeverity === 'overloaded' ? COLOR_OVERLOADED : rpsSeverity === 'warning' ? COLOR_WARNING : mutedColor;
+          const rpsInverted = rpsSeverity !== 'normal';
+          const rpsText = effectiveCap > 0 && !node.isEdge
+            ? `${formatRpsShort(node.computedRps)} / ${formatRpsShort(effectiveCap)}`
+            : formatRpsShort(node.computedRps);
+          computedSection.push({
+            key: 'RPS', value: rpsText, valueFill: rpsColor, fontWeight: '500',
+            inverted: rpsInverted, invertedBg: rpsInverted ? rpsColor : undefined,
+          });
         }
         for (const cr of computedRows) {
-          rows.push({ key: cr.key, value: cr.value, valueFill: cr.color ?? mutedColor, fontWeight: 'normal' });
+          computedSection.push({
+            key: cr.key, value: cr.value,
+            valueFill: cr.color ?? mutedColor,
+            fontWeight: 'normal',
+            inverted: cr.inverted,
+            invertedBg: cr.inverted ? cr.color : undefined,
+          });
         }
+
+        // --- Declared section: user-defined properties (only when node is selected) ---
+        for (const prop of displayProps) {
+          let propColor = textFill;
+          let inverted = false;
+          let invertedBg: string | undefined;
+          if (prop.key === 'ratelimit-rps' && nodeRateLimit > 0 && node.computedRps > 0) {
+            let preRl = node.computedRps;
+            const ch = getNodeNumProp(node, 'cache-hit', 0);
+            if (ch > 0) preRl *= (100 - ch) / 100;
+            const fw = getNodeNumProp(node, 'firewall-block', 0);
+            if (fw > 0) preRl *= (100 - fw) / 100;
+            if (preRl > nodeRateLimit) { propColor = COLOR_OVERLOADED; inverted = true; invertedBg = COLOR_OVERLOADED; }
+            else if (preRl > nodeRateLimit * 0.8) { propColor = COLOR_WARNING; inverted = true; invertedBg = COLOR_WARNING; }
+          }
+          declaredSection.push({ key: prop.displayKey, value: prop.value, valueFill: propColor, fontWeight: 'normal', inverted, invertedBg });
+        }
+
+        const rows = [...computedSection, ...declaredSection];
 
         // Compute max key width so values align vertically
         const maxKeyLen = Math.max(...rows.map((r) => r.key.length));
         const valueX = x + 10 + (maxKeyLen + 2) * (META_FONT_SIZE * 0.6);
 
         let rowY = sepY + NODE_SEPARATOR_GAP + META_FONT_SIZE;
+        const needsSectionSep = computedSection.length > 0 && declaredSection.length > 0;
+        let rowIdx = 0;
         for (const row of rows) {
-          // Key (muted)
-          g.append('text')
-            .attr('x', x + 10)
-            .attr('y', rowY)
-            .attr('font-family', FONT_FAMILY)
-            .attr('font-size', META_FONT_SIZE)
-            .attr('fill', mutedColor)
-            .text(`${row.key}: `);
+          // Draw separator line between computed and declared sections
+          if (needsSectionSep && rowIdx === computedSection.length) {
+            const sepLineY = rowY - META_FONT_SIZE + 1;
+            g.append('line')
+              .attr('x1', x)
+              .attr('y1', sepLineY)
+              .attr('x2', x + node.width)
+              .attr('y2', sepLineY)
+              .attr('stroke', stroke)
+              .attr('stroke-opacity', 0.3)
+              .attr('stroke-width', 1);
+            rowY += NODE_SEPARATOR_GAP;
+          }
+          if (row.inverted && row.invertedBg) {
+            // Inverted pill: colored background spanning full row width, white text, values still aligned
+            const pillH = META_LINE_HEIGHT - 1;
+            const pillPad = 4;
+            const pillX = x + pillPad;
+            const pillY = rowY - META_FONT_SIZE + 1;
+            const pillW = node.width - pillPad * 2;
+            g.append('rect')
+              .attr('x', pillX)
+              .attr('y', pillY)
+              .attr('width', pillW)
+              .attr('height', pillH)
+              .attr('rx', 3)
+              .attr('fill', row.invertedBg)
+              .attr('opacity', 0.9);
+            // Inverted text: use lightest available color for max contrast on colored pills
+            const pillTextColor = isDark ? '#ffffff' : palette.text;
+            // Key — same x as normal rows
+            g.append('text')
+              .attr('x', x + 10)
+              .attr('y', rowY)
+              .attr('font-family', FONT_FAMILY)
+              .attr('font-size', META_FONT_SIZE)
+              .attr('font-weight', '600')
+              .attr('fill', pillTextColor)
+              .text(`${row.key}: `);
+            // Value — aligned with other rows
+            g.append('text')
+              .attr('x', valueX)
+              .attr('y', rowY)
+              .attr('font-family', FONT_FAMILY)
+              .attr('font-size', META_FONT_SIZE)
+              .attr('font-weight', '600')
+              .attr('fill', pillTextColor)
+              .text(row.value);
+          } else {
+            // Normal row: muted key + colored value
+            g.append('text')
+              .attr('x', x + 10)
+              .attr('y', rowY)
+              .attr('font-family', FONT_FAMILY)
+              .attr('font-size', META_FONT_SIZE)
+              .attr('fill', mutedColor)
+              .text(`${row.key}: `);
 
-          // Value (aligned)
-          g.append('text')
-            .attr('x', valueX)
-            .attr('y', rowY)
-            .attr('font-family', FONT_FAMILY)
-            .attr('font-size', META_FONT_SIZE)
-            .attr('font-weight', row.fontWeight)
-            .attr('fill', row.valueFill)
-            .text(row.value);
+            g.append('text')
+              .attr('x', valueX)
+              .attr('y', rowY)
+              .attr('font-family', FONT_FAMILY)
+              .attr('font-size', META_FONT_SIZE)
+              .attr('font-weight', row.fontWeight)
+              .attr('fill', row.valueFill)
+              .text(row.value);
+          }
 
           rowY += META_LINE_HEIGHT;
+          rowIdx++;
         }
       }
 
-      // Instance count — clickable for interactive adjustment (not for edge nodes)
-      if (!node.isEdge && node.computedInstances > 0) {
+      // Instance badge — clickable for interactive adjustment (not for edge or serverless nodes)
+      // Serverless nodes show instances in a computed row instead (demand / concurrency).
+      if (!node.isEdge && node.computedConcurrentInvocations === 0 && node.computedInstances > 1) {
+        const badgeText = `${node.computedInstances}x`;
         g.append('text')
           .attr('x', x + node.width - 6)
           .attr('y', y + NODE_HEADER_HEIGHT / 2 + META_FONT_SIZE * 0.35)
@@ -592,7 +855,7 @@ function renderNodes(
           .attr('fill', mutedColor)
           .attr('data-instance-node', node.id)
           .style('cursor', 'pointer')
-          .text(node.computedInstances > 1 ? `${node.computedInstances}x` : '');
+          .text(badgeText);
       }
 
       // Role badge dots — only shown when Capabilities legend is expanded
@@ -650,7 +913,7 @@ function getNodeNumProp(node: InfraLayoutNode, key: string, fallback: number): n
 
 /**
  * Compute rejected RPS for a node — traffic that arrives but is dropped/blocked.
- * This includes: firewall-block, bot-filter, rate-limit excess, and overload excess.
+ * This includes: firewall-block, rate-limit excess, and overload excess.
  * Cache-hit is NOT a reject — the request is served from cache.
  */
 function computeRejectedRps(node: InfraLayoutNode): number {
@@ -662,18 +925,13 @@ function computeRejectedRps(node: InfraLayoutNode): number {
   const fwBlock = getNodeNumProp(node, 'firewall-block', 0);
   if (fwBlock > 0) rejected += inbound * (fwBlock / 100);
 
-  // Bot filter: N% of remaining is rejected
-  const botFilter = getNodeNumProp(node, 'bot-filter', 0);
-  if (botFilter > 0) rejected += inbound * (botFilter / 100);
-
-  // Rate limit excess (applied after cache/fw/bot reductions)
+  // Rate limit excess (applied after cache/fw reductions)
   const rateLimit = getNodeNumProp(node, 'ratelimit-rps', 0);
   if (rateLimit > 0) {
     let preRateLimitRps = inbound;
     const cacheHit = getNodeNumProp(node, 'cache-hit', 0);
     if (cacheHit > 0) preRateLimitRps *= (100 - cacheHit) / 100;
     if (fwBlock > 0) preRateLimitRps *= (100 - fwBlock) / 100;
-    if (botFilter > 0) preRateLimitRps *= (100 - botFilter) / 100;
     if (preRateLimitRps > rateLimit) {
       rejected += preRateLimitRps - rateLimit;
     }
@@ -729,9 +987,11 @@ function renderRejectParticles(
       const startY = nodeBottom;
       const endY = nodeBottom + REJECT_DROP_DISTANCE;
 
+      const rejectColor = node.overloaded || node.childHealthState === 'overloaded'
+        ? COLOR_OVERLOADED : COLOR_WARNING;
       const circle = svg.append('circle')
         .attr('r', REJECT_PARTICLE_R)
-        .attr('fill', COLOR_OVERLOADED)
+        .attr('fill', rejectColor)
         .attr('opacity', 0);
 
       // Drop straight down from node bottom
@@ -845,31 +1105,21 @@ export function computeInfraLegendGroups(
   return groups;
 }
 
-/** Compute total width for the playback legend group. */
-function computePlaybackWidth(playback: InfraPlaybackState | undefined, _palette: PaletteColors): number {
+/** Compute total width for the playback pill (speed only). */
+function computePlaybackWidth(playback: InfraPlaybackState | undefined): number {
   if (!playback) return 0;
   const pillWidth = 'Playback'.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
   if (!playback.expanded) return pillWidth;
 
   let entriesW = 8; // gap after pill
-  // Play/Pause icon
-  entriesW += LEGEND_PILL_FONT_SIZE * 0.8 + 6;
-  // Speed options
+  entriesW += LEGEND_PILL_FONT_SIZE * 0.8 + 6; // play/pause
   for (const s of playback.speedOptions) {
     entriesW += `${s}x`.length * LEGEND_ENTRY_FONT_W + 6;
   }
-  // Scenarios
-  for (const name of playback.scenarioNames) {
-    entriesW += name.length * LEGEND_ENTRY_FONT_W + LEGEND_ENTRY_TRAIL;
-  }
-  // Reset
-  if (playback.hasOverrides) {
-    entriesW += 'Reset'.length * LEGEND_ENTRY_FONT_W + LEGEND_ENTRY_TRAIL;
-  }
-
   return LEGEND_CAPSULE_PAD * 2 + pillWidth + entriesW;
 }
 
+/** Whether a separate Scenario pill should render. */
 function renderLegend(
   rootSvg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
   legendGroups: InfraLegendGroup[],
@@ -888,11 +1138,11 @@ function renderLegend(
   // Compute centered positions
   const effectiveW = (g: InfraLegendGroup) =>
     activeGroup != null && g.name.toLowerCase() === activeGroup.toLowerCase() ? g.width : g.minifiedWidth;
-  const playbackW = computePlaybackWidth(playback, palette);
-  const playbackGap = playback && legendGroups.length > 0 ? LEGEND_GROUP_GAP : 0;
+  const playbackW = computePlaybackWidth(playback);
+  const trailingGaps = legendGroups.length > 0 && playbackW > 0 ? LEGEND_GROUP_GAP : 0;
   const totalLegendW = legendGroups.reduce((s, g) => s + effectiveW(g), 0)
     + (legendGroups.length - 1) * LEGEND_GROUP_GAP
-    + playbackGap + playbackW;
+    + trailingGaps + playbackW;
   let cursorX = (totalWidth - totalLegendW) / 2;
 
   for (const group of legendGroups) {
@@ -997,7 +1247,7 @@ function renderLegend(
     cursorX += effectiveW(group) + LEGEND_GROUP_GAP;
   }
 
-  // Playback pill — same capsule pattern as other legend groups
+  // Playback pill — speed + pause only
   if (playback) {
     const isExpanded = playback.expanded;
     const groupBg = isDark
@@ -1006,7 +1256,7 @@ function renderLegend(
 
     const pillLabel = 'Playback';
     const pillWidth = pillLabel.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
-    const fullW = computePlaybackWidth(playback, palette);
+    const fullW = computePlaybackWidth(playback);
 
     const pbG = legendG
       .append('g')
@@ -1014,7 +1264,6 @@ function renderLegend(
       .attr('class', 'infra-legend-group infra-playback-pill')
       .style('cursor', 'pointer');
 
-    // Outer capsule (expanded only)
     if (isExpanded) {
       pbG.append('rect')
         .attr('width', fullW)
@@ -1027,29 +1276,22 @@ function renderLegend(
     const pillYOff = isExpanded ? LEGEND_CAPSULE_PAD : 0;
     const pillH = LEGEND_HEIGHT - (isExpanded ? LEGEND_CAPSULE_PAD * 2 : 0);
 
-    // Pill background
     pbG.append('rect')
-      .attr('x', pillXOff)
-      .attr('y', pillYOff)
-      .attr('width', pillWidth)
-      .attr('height', pillH)
+      .attr('x', pillXOff).attr('y', pillYOff)
+      .attr('width', pillWidth).attr('height', pillH)
       .attr('rx', pillH / 2)
       .attr('fill', isExpanded ? palette.bg : groupBg);
 
-    // Active pill border
     if (isExpanded) {
       pbG.append('rect')
-        .attr('x', pillXOff)
-        .attr('y', pillYOff)
-        .attr('width', pillWidth)
-        .attr('height', pillH)
+        .attr('x', pillXOff).attr('y', pillYOff)
+        .attr('width', pillWidth).attr('height', pillH)
         .attr('rx', pillH / 2)
         .attr('fill', 'none')
-        .attr('stroke', isDark ? mix(palette.textMuted, palette.bg, 50) : mix(palette.textMuted, palette.bg, 50))
+        .attr('stroke', mix(palette.textMuted, palette.bg, 50))
         .attr('stroke-width', 0.75);
     }
 
-    // Pill text
     pbG.append('text')
       .attr('x', pillXOff + pillWidth / 2)
       .attr('y', LEGEND_HEIGHT / 2 + LEGEND_PILL_FONT_SIZE / 2 - 2)
@@ -1060,16 +1302,13 @@ function renderLegend(
       .attr('text-anchor', 'middle')
       .text(pillLabel);
 
-    // Expanded entries
     if (isExpanded) {
       let entryX = pillXOff + pillWidth + 8;
       const entryY = LEGEND_HEIGHT / 2 + LEGEND_ENTRY_FONT_SIZE / 2 - 1;
 
-      // Play/Pause
       const ppLabel = playback.paused ? '▶' : '⏸';
       pbG.append('text')
-        .attr('x', entryX)
-        .attr('y', entryY)
+        .attr('x', entryX).attr('y', entryY)
         .attr('font-family', FONT_FAMILY)
         .attr('font-size', LEGEND_PILL_FONT_SIZE)
         .attr('fill', palette.textMuted)
@@ -1078,55 +1317,26 @@ function renderLegend(
         .text(ppLabel);
       entryX += LEGEND_PILL_FONT_SIZE * 0.8 + 6;
 
-      // Speed options
       for (const s of playback.speedOptions) {
         const label = `${s}x`;
         const isActive = playback.speed === s;
         pbG.append('text')
-          .attr('x', entryX)
-          .attr('y', entryY)
+          .attr('x', entryX).attr('y', entryY)
           .attr('font-family', FONT_FAMILY)
           .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
           .attr('font-weight', isActive ? '600' : '400')
-          .attr('fill', isActive ? palette.text : palette.textMuted)
+          .attr('fill', isActive ? palette.primary : palette.textMuted)
           .attr('data-playback-action', 'set-speed')
           .attr('data-playback-value', String(s))
           .style('cursor', 'pointer')
           .text(label);
         entryX += label.length * LEGEND_ENTRY_FONT_W + 6;
       }
-
-      // Scenarios
-      for (const name of playback.scenarioNames) {
-        const isActive = playback.activeScenario === name;
-        pbG.append('text')
-          .attr('x', entryX)
-          .attr('y', entryY)
-          .attr('font-family', FONT_FAMILY)
-          .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
-          .attr('font-weight', isActive ? '600' : '400')
-          .attr('fill', isActive ? palette.text : palette.textMuted)
-          .attr('data-playback-action', 'set-scenario')
-          .attr('data-playback-value', name)
-          .style('cursor', 'pointer')
-          .text(name);
-        entryX += name.length * LEGEND_ENTRY_FONT_W + LEGEND_ENTRY_TRAIL;
-      }
-
-      // Reset
-      if (playback.hasOverrides) {
-        pbG.append('text')
-          .attr('x', entryX)
-          .attr('y', entryY)
-          .attr('font-family', FONT_FAMILY)
-          .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
-          .attr('fill', palette.textMuted)
-          .attr('data-playback-action', 'reset')
-          .style('cursor', 'pointer')
-          .text('Reset');
-      }
     }
+
+    cursorX += fullW + LEGEND_GROUP_GAP;
   }
+
 }
 
 // ============================================================
@@ -1138,9 +1348,6 @@ export interface InfraPlaybackState {
   paused: boolean;
   speed: number;
   speedOptions: readonly number[];
-  scenarioNames: string[];
-  activeScenario: string | null;
-  hasOverrides: boolean;
 }
 
 export function renderInfra(

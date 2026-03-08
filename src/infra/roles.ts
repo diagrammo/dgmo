@@ -16,10 +16,11 @@ export interface InfraRole {
 const ROLE_RULES: { keys: string[]; role: InfraRole }[] = [
   { keys: ['cache-hit'], role: { name: 'Cache', color: '#22c55e' } },
   { keys: ['firewall-block'], role: { name: 'Firewall', color: '#ef4444' } },
-  { keys: ['bot-filter'], role: { name: 'Bot Filter', color: '#f97316' } },
   { keys: ['ratelimit-rps'], role: { name: 'Rate Limiter', color: '#eab308' } },
   { keys: ['max-rps'], role: { name: 'Service', color: '#3b82f6' } },
   { keys: ['cb-error-threshold', 'cb-latency-threshold-ms'], role: { name: 'Circuit Breaker', color: '#a855f7' } },
+  { keys: ['concurrency'], role: { name: 'Serverless', color: '#06b6d4' } },
+  { keys: ['buffer'], role: { name: 'Queue', color: '#8b5cf6' } },
 ];
 
 /**

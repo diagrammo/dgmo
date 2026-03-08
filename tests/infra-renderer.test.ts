@@ -5,15 +5,15 @@ import { layoutInfra } from '../src/infra/layout';
 import { renderInfra } from '../src/infra/renderer';
 import { getPalette } from '../src/palettes';
 
-function renderToSvg(content: string, theme: 'light' | 'dark' = 'light'): string {
+function renderToSvg(content: string, theme: 'light' | 'dark' = 'light', selectedNodeId?: string): string {
   const parsed = parseInfra(content);
   expect(parsed.error).toBeNull();
   const computed = computeInfra(parsed);
-  const layout = layoutInfra(computed);
+  const layout = layoutInfra(computed, selectedNodeId ?? undefined);
   const paletteConfig = getPalette('nord');
   const palette = theme === 'dark' ? paletteConfig.dark : paletteConfig.light;
   const container = document.createElement('div');
-  renderInfra(container, layout, palette, theme === 'dark', parsed.title, parsed.titleLineNumber, parsed.tagGroups, null, false);
+  renderInfra(container, layout, palette, theme === 'dark', parsed.title, parsed.titleLineNumber, parsed.tagGroups, null, false, null, selectedNodeId);
   return container.innerHTML;
 }
 
@@ -52,6 +52,7 @@ CDN
   });
 
   it('renders metrics (latency, instances) as key-value rows', () => {
+    // Declared properties only shown when node is selected
     const svg = renderToSvg(`chart: infra
 edge
   rps: 500
@@ -59,10 +60,10 @@ edge
 API
   instances: 3
   max-rps: 200
-  latency-ms: 45`);
-    // Key-value style: "latency: " then "45"
+  latency-ms: 45`, 'light', 'API');
+    // Key-value style: "latency: " then "45ms"
     expect(svg).toContain('latency: ');
-    expect(svg).toContain('>45<');
+    expect(svg).toContain('>45ms<');
     // Instance count badge
     expect(svg).toContain('3x');
   });
@@ -80,6 +81,7 @@ API
   });
 
   it('renders CB threshold as key-value row', () => {
+    // Declared properties only shown when node is selected
     const svg = renderToSvg(`chart: infra
 edge
   rps: 5000
@@ -87,10 +89,10 @@ edge
 API
   instances: 1
   max-rps: 100
-  cb-error-threshold: 50%`);
+  cb-error-threshold: 50%`, 'light', 'API');
     // CB threshold shown as key-value row
-    expect(svg).toContain('CB err %: ');
-    expect(svg).toContain('>50<');
+    expect(svg).toContain('CB error: ');
+    expect(svg).toContain('>50%<');
   });
 
   it('renders Capabilities legend pill; dots only when active', () => {
@@ -300,6 +302,49 @@ API
     expect(svg).toContain('infra-node-cb-open');
   });
 
+  it('renders CB state row as inverted pill when CB is open', () => {
+    const parsed = parseInfra(`chart: infra
+edge
+  rps: 5000
+  -> API
+API
+  instances: 1
+  max-rps: 100
+  cb-error-threshold: 50%`);
+    expect(parsed.error).toBeNull();
+    const computed = computeInfra(parsed);
+    const layout = layoutInfra(computed);
+    const palette = getPalette('nord').light;
+    const container = document.createElement('div');
+    renderInfra(container, layout, palette, false, null, null, undefined, null, false);
+    const svg = container.innerHTML;
+    // Should show CB key and OPEN value as inverted pill with palette text on red background
+    expect(svg).toContain('CB: ');
+    expect(svg).toContain('OPEN');
+    expect(svg).toContain(palette.text);
+    expect(svg).toContain('#ef4444');
+  });
+
+  it('renders low availability as inverted pill', () => {
+    const parsed = parseInfra(`chart: infra
+edge
+  rps: 5000
+  -> API
+API
+  instances: 1
+  max-rps: 100`);
+    expect(parsed.error).toBeNull();
+    const computed = computeInfra(parsed);
+    const layout = layoutInfra(computed);
+    const palette = getPalette('nord').light;
+    const container = document.createElement('div');
+    renderInfra(container, layout, palette, false, null, null, undefined, null, false);
+    const svg = container.innerHTML;
+    // Availability < 95% should render as inverted pill with palette text color
+    expect(svg).toContain('availability:');
+    expect(svg).toContain(palette.text);
+  });
+
   it('uses more particles for higher RPS edges', () => {
     const parsed = parseInfra(`chart: infra
 edge
@@ -439,6 +484,68 @@ API`);
       propertyOverrides: { Gateway: { 'ratelimit-rps': 2000 } },
     });
     expect(limited.nodes.find((n) => n.id === 'API')!.computedRps).toBe(2000);
+  });
+
+  it('renders serverless node with instances row and property rows', () => {
+    // Select Lambda to show declared properties (duration, cold start)
+    const svg = renderToSvg(`chart: infra
+edge
+  rps: 3000
+  -> Lambda
+Lambda
+  concurrency: 1000
+  duration-ms: 200
+  cold-start-ms: 250`, 'light', 'Lambda');
+    expect(svg).toContain('Lambda');
+    // Computed instances row: 600 / 1,000 (3000 rps × 200ms / 1000 = 600 demand vs 1000 concurrency)
+    expect(svg).toContain('instances');
+    expect(svg).toContain('600');
+    // No header badge for serverless — instances are in the computed row
+    expect(svg).not.toContain('~600');
+    // Declared property display names (visible because node is selected)
+    expect(svg).toContain('duration');
+    expect(svg).toContain('cold start');
+    // MS-formatted values
+    expect(svg).toContain('200ms');
+    expect(svg).toContain('250ms');
+  });
+
+  it('renders queue node with buffer, drain, lag, and overflow rows', () => {
+    // Select Queue to show declared properties (buffer, drain, retention, partitions)
+    const svg = renderToSvg(`chart: infra
+edge
+  rps: 2000
+  -> Queue
+Queue
+  buffer: 100000
+  drain-rate: 500
+  retention-hours: 72
+  partitions: 6
+  -> Processor
+Processor
+  max-rps: 1000`, 'light', 'Queue');
+    expect(svg).toContain('Queue');
+    // Buffer formatted as 100k
+    expect(svg).toContain('100k');
+    // Drain rate
+    expect(svg).toContain('drain');
+    // Lag row (buffer is filling: 2000 - 500 = 1500)
+    expect(svg).toContain('lag');
+    // Overflow row
+    expect(svg).toContain('overflow');
+  });
+
+  it('renders serverless node with RPS showing capacity denominator', () => {
+    const svg = renderToSvg(`chart: infra
+edge
+  rps: 3000
+  -> Lambda
+Lambda
+  concurrency: 1000
+  duration-ms: 200`);
+    // Should show "3.0k / 5.0k" (RPS / effective capacity)
+    expect(svg).toContain('3.0k');
+    expect(svg).toContain('5.0k');
   });
 
   it('property overrides take precedence over scenario overrides', () => {

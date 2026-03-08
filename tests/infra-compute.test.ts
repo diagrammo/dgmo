@@ -58,16 +58,16 @@ API
       expect(node(result, 'API').computedRps).toBe(9500);
     });
 
-    it('applies bot-filter reduction', () => {
+    it('applies firewall-block reduction', () => {
       const result = compute(`
 chart: infra
 
 edge
   rps: 10000
-  -> BotShield
+  -> WAF
 
-BotShield
-  bot-filter: 10%
+WAF
+  firewall-block: 10%
   -> API
 
 API
@@ -1085,6 +1085,624 @@ API
       const api = node(result, 'API');
       // With 90% uptime, availability should reflect that
       expect(api.computedAvailability).toBeCloseTo(0.9, 1);
+    });
+  });
+
+  describe('serverless capacity model (Epic 77)', () => {
+    it('computes effective capacity from concurrency and duration-ms', () => {
+      const result = compute(`
+chart: infra
+
+edge
+  rps: 3000
+  -> Lambda
+
+Lambda
+  concurrency: 1000
+  duration-ms: 200
+`);
+      const lambda = node(result, 'Lambda');
+      // effective capacity = 1000 / (200/1000) = 5000
+      expect(lambda.overloaded).toBe(false);
+      expect(lambda.computedRps).toBe(3000);
+    });
+
+    it('detects overload when rps exceeds effective capacity', () => {
+      const result = compute(`
+chart: infra
+
+edge
+  rps: 6000
+  -> Lambda
+
+Lambda
+  concurrency: 1000
+  duration-ms: 200
+`);
+      const lambda = node(result, 'Lambda');
+      // effective capacity = 5000, rps = 6000 → overloaded
+      expect(lambda.overloaded).toBe(true);
+    });
+
+    it('computedInstances is 0 for serverless nodes', () => {
+      const result = compute(`
+chart: infra
+
+edge
+  rps: 1000
+  -> Lambda
+
+Lambda
+  concurrency: 500
+  duration-ms: 100
+`);
+      expect(node(result, 'Lambda').computedInstances).toBe(0);
+    });
+
+    it('computes concurrent invocations via Little\'s Law (RPS × duration / 1000)', () => {
+      const result = compute(`
+chart: infra
+
+edge
+  rps: 5000
+  -> Lambda
+
+Lambda
+  concurrency: 500
+  duration-ms: 100
+`);
+      // 5000 rps × 100ms / 1000 = 500 concurrent invocations
+      expect(node(result, 'Lambda').computedConcurrentInvocations).toBe(500);
+
+      // Non-serverless nodes should be 0
+      expect(node(result, 'edge').computedConcurrentInvocations).toBe(0);
+    });
+
+    it('concurrent invocations scale with RPS', () => {
+      const result = compute(`
+chart: infra
+
+edge
+  rps: 200
+  -> Lambda
+
+Lambda
+  concurrency: 500
+  duration-ms: 100
+`);
+      // 200 rps × 100ms / 1000 = 20 concurrent invocations
+      expect(node(result, 'Lambda').computedConcurrentInvocations).toBe(20);
+    });
+
+    it('uses duration-ms as latency contribution', () => {
+      const result = compute(`
+chart: infra
+
+edge
+  rps: 1000
+  -> Lambda
+
+Lambda
+  concurrency: 1000
+  duration-ms: 200
+  -> DB
+
+DB
+  latency-ms: 10
+`);
+      const lambda = node(result, 'Lambda');
+      const db = node(result, 'DB');
+      expect(lambda.computedLatencyMs).toBe(200);
+      expect(db.computedLatencyMs).toBe(210); // 200 + 10
+    });
+
+    it('p99 latency includes cold-start-ms', () => {
+      const result = compute(`
+chart: infra
+
+edge
+  rps: 1000
+  -> Lambda
+
+Lambda
+  concurrency: 1000
+  duration-ms: 200
+  cold-start-ms: 250
+`);
+      const percentiles = node(result, 'Lambda').computedLatencyPercentiles;
+      expect(percentiles.p50).toBe(200); // warm path
+      expect(percentiles.p99).toBe(450); // 200 + 250
+    });
+
+    it('availability reflects throttled requests under overload', () => {
+      const result = compute(`
+chart: infra
+
+edge
+  rps: 10000
+  -> Lambda
+
+Lambda
+  concurrency: 1000
+  duration-ms: 200
+`);
+      const lambda = node(result, 'Lambda');
+      // capacity = 5000, rps = 10000 → 50% throttled
+      expect(lambda.computedAvailability).toBeCloseTo(0.5, 1);
+    });
+
+    it('circuit breaker works with concurrency-based capacity', () => {
+      const result = compute(`
+chart: infra
+
+edge
+  rps: 10000
+  -> Lambda
+
+Lambda
+  concurrency: 1000
+  duration-ms: 200
+  cb-error-threshold: 30%
+`);
+      // capacity=5000, rps=10000, error rate = 50% > 30% → open
+      expect(node(result, 'Lambda').computedCbState).toBe('open');
+    });
+
+    it('scenario override adjusts concurrency', () => {
+      const parsed = parseInfra(`
+chart: infra
+
+edge
+  rps: 8000
+  -> Lambda
+
+Lambda
+  concurrency: 1000
+  duration-ms: 200
+
+scenario: scaled
+  Lambda
+    concurrency: 2000
+`);
+      const result = computeInfra(parsed, { scenario: parsed.scenarios[0] });
+      const lambda = node(result, 'Lambda');
+      // New capacity = 2000 / 0.2 = 10000. 8000 < 10000 → not overloaded
+      expect(lambda.overloaded).toBe(false);
+    });
+  });
+
+  describe('queue traffic decoupling & availability (Epic 78)', () => {
+    it('caps outbound RPS at drain-rate', () => {
+      const result = compute(`
+chart: infra
+
+edge
+  rps: 2000
+  -> Queue
+
+Queue
+  buffer: 100000
+  drain-rate: 500
+  -> Processor
+
+Processor
+  max-rps: 1000
+`);
+      const q = node(result, 'Queue');
+      const proc = node(result, 'Processor');
+      expect(q.computedRps).toBe(2000);
+      expect(proc.computedRps).toBe(500); // capped at drain-rate
+    });
+
+    it('computes buffer fill rate and time-to-overflow', () => {
+      const result = compute(`
+chart: infra
+
+edge
+  rps: 2000
+  -> Queue
+
+Queue
+  buffer: 100000
+  drain-rate: 500
+`);
+      const q = node(result, 'Queue');
+      expect(q.queueMetrics).toBeDefined();
+      expect(q.queueMetrics!.fillRate).toBe(1500); // 2000 - 500
+      expect(q.queueMetrics!.timeToOverflow).toBeCloseTo(66.67, 0); // 100000 / 1500
+    });
+
+    it('fill rate is 0 when inbound <= drain-rate', () => {
+      const result = compute(`
+chart: infra
+
+edge
+  rps: 300
+  -> Queue
+
+Queue
+  buffer: 100000
+  drain-rate: 500
+`);
+      const q = node(result, 'Queue');
+      expect(q.queueMetrics!.fillRate).toBe(0);
+      expect(q.queueMetrics!.timeToOverflow).toBe(Infinity);
+    });
+
+    it('availability = 1.0 when buffer has headroom', () => {
+      const result = compute(`
+chart: infra
+
+edge
+  rps: 2000
+  -> Queue
+
+Queue
+  buffer: 100000
+  drain-rate: 500
+`);
+      const q = node(result, 'Queue');
+      // Buffer filling but has headroom (100000 / 1500 ≈ 67s > 60s threshold)
+      expect(q.computedAvailability).toBe(1);
+    });
+
+    it('availability degrades when overflow is imminent', () => {
+      const result = compute(`
+chart: infra
+
+edge
+  rps: 10000
+  -> Queue
+
+Queue
+  buffer: 100
+  drain-rate: 500
+`);
+      const q = node(result, 'Queue');
+      // buffer=100, fillRate=9500, overflow in ~0.01s → availability degrades
+      expect(q.computedAvailability).toBeLessThan(1);
+    });
+
+    it('availability decouples at queue boundary', () => {
+      const result = compute(`
+chart: infra
+
+edge
+  rps: 1000
+  -> Queue
+
+Queue
+  buffer: 100000
+  drain-rate: 500
+  -> Processor
+
+Processor
+  max-rps: 100
+  uptime: 50
+`);
+      // Producer side: edge → Queue. Queue has headroom, so availability = 1.0
+      // Consumer side: Processor has 50% uptime and is overloaded (500 > 100)
+      // But producer availability should NOT be reduced by consumer downtime
+      const q = node(result, 'Queue');
+      expect(q.computedAvailability).toBe(1);
+    });
+
+    it('passes through all traffic when no drain-rate', () => {
+      const result = compute(`
+chart: infra
+
+edge
+  rps: 5000
+  -> Queue
+
+Queue
+  buffer: 100000
+  -> Processor
+
+Processor
+  max-rps: 10000
+`);
+      expect(node(result, 'Processor').computedRps).toBe(5000);
+    });
+
+    it('scenario overrides adjust drain-rate', () => {
+      const parsed = parseInfra(`
+chart: infra
+
+edge
+  rps: 2000
+  -> Queue
+
+Queue
+  buffer: 100000
+  drain-rate: 500
+  -> Processor
+
+Processor
+  max-rps: 5000
+
+scenario: scaled
+  Queue
+    drain-rate: 1000
+`);
+      const result = computeInfra(parsed, { scenario: parsed.scenarios[0] });
+      expect(node(result, 'Processor').computedRps).toBe(1000);
+    });
+  });
+
+  describe('queue latency boundary (Story 78.3)', () => {
+    it('resets cumulative latency at queue boundary', () => {
+      const result = compute(`
+chart: infra
+
+edge
+  rps: 1000
+  -> API
+
+API
+  latency-ms: 50
+  -> Queue
+
+Queue
+  buffer: 100000
+  drain-rate: 1000
+  -> Processor
+
+Processor
+  latency-ms: 200
+  -> DB
+
+DB
+  latency-ms: 10
+`);
+      // Producer side: edge(0) + API(50) = 50ms
+      expect(node(result, 'API').computedLatencyMs).toBe(50);
+      // Queue: inbound=1000, drain=1000, no filling → wait time = 0ms
+      // Consumer side: Processor(200) + DB(10) = 210ms, starting from 0
+      expect(node(result, 'Processor').computedLatencyMs).toBe(200);
+      expect(node(result, 'DB').computedLatencyMs).toBe(210);
+    });
+
+    it('adds queue wait time when buffer is filling', () => {
+      const result = compute(`
+chart: infra
+
+edge
+  rps: 2000
+  -> Queue
+
+Queue
+  buffer: 100000
+  drain-rate: 500
+  -> Processor
+
+Processor
+  latency-ms: 100
+`);
+      // Queue: inbound=2000, drain=500, fill=1500
+      // wait time = 1500/500 * 1000 = 3000ms
+      const proc = node(result, 'Processor');
+      // Consumer latency starts from queue wait time (3000) + processor (100)
+      expect(proc.computedLatencyMs).toBe(3100);
+    });
+
+    it('queue wait time is 0 when not filling', () => {
+      const result = compute(`
+chart: infra
+
+edge
+  rps: 300
+  -> Queue
+
+Queue
+  buffer: 100000
+  drain-rate: 500
+  -> Processor
+
+Processor
+  latency-ms: 100
+`);
+      const proc = node(result, 'Processor');
+      // No filling → wait time 0, consumer latency = 100
+      expect(proc.computedLatencyMs).toBe(100);
+    });
+  });
+
+  describe('serverless in groups (Story 77.4)', () => {
+    it('group instances do NOT multiply concurrency', () => {
+      const result = compute(`
+chart: infra
+
+edge
+  rps: 3000
+  -> Lambda
+
+[Functions]
+  instances: 3
+
+  Lambda
+    concurrency: 1000
+    duration-ms: 200
+`);
+      const lambda = node(result, 'Lambda');
+      // Serverless capacity = 1000/0.2 = 5000, NOT multiplied by group instances
+      // computedInstances is 0 for serverless
+      expect(lambda.computedInstances).toBe(0);
+      expect(lambda.overloaded).toBe(false);
+    });
+
+    it('mixed diagram: traditional and serverless nodes coexist', () => {
+      const result = compute(`
+chart: infra
+
+edge
+  rps: 10000
+  -> API | split: 70%
+  -> Lambda | split: 30%
+
+API
+  max-rps: 2000
+  instances: 5
+
+Lambda
+  concurrency: 1000
+  duration-ms: 200
+`);
+      const api = node(result, 'API');
+      const lambda = node(result, 'Lambda');
+      expect(api.computedRps).toBe(7000);
+      expect(api.computedInstances).toBe(5);
+      expect(lambda.computedRps).toBe(3000);
+      expect(lambda.computedInstances).toBe(0);
+      // Neither overloaded: API cap=10000, Lambda cap=5000
+      expect(api.overloaded).toBe(false);
+      expect(lambda.overloaded).toBe(false);
+    });
+  });
+
+  describe('rateLimited flag', () => {
+    it('sets rateLimited when inbound exceeds ratelimit-rps', () => {
+      const result = compute(`
+chart: infra
+edge
+  rps: 1000
+  -> WAF
+WAF
+  ratelimit-rps: 500
+  -> API
+API
+  max-rps: 5000
+`);
+      expect(node(result, 'WAF').rateLimited).toBe(true);
+      expect(node(result, 'API').rateLimited).toBe(false);
+    });
+
+    it('rateLimited is false when traffic is below limit', () => {
+      const result = compute(`
+chart: infra
+edge
+  rps: 100
+  -> WAF
+WAF
+  ratelimit-rps: 500
+  -> API
+API
+`);
+      expect(node(result, 'WAF').rateLimited).toBe(false);
+    });
+
+    it('rateLimited accounts for cache-hit reduction', () => {
+      const result = compute(`
+chart: infra
+edge
+  rps: 1000
+  -> CDN
+CDN
+  cache-hit: 80%
+  ratelimit-rps: 300
+  -> API
+API
+`);
+      // Pre-rate-limit RPS = 1000 * 0.2 = 200, which is below 300
+      expect(node(result, 'CDN').rateLimited).toBe(false);
+    });
+
+    it('rateLimited is true even when not overloaded', () => {
+      const result = compute(`
+chart: infra
+edge
+  rps: 1000
+  -> LB
+LB
+  ratelimit-rps: 500
+  max-rps: 2000
+  -> API
+API
+`);
+      const lb = node(result, 'LB');
+      expect(lb.rateLimited).toBe(true);
+      expect(lb.overloaded).toBe(false);
+    });
+  });
+
+  describe('queue in groups (Story 78.5)', () => {
+    it('drain-rate scales with group instances', () => {
+      const result = compute(`
+chart: infra
+
+edge
+  rps: 1500
+  -> MQ
+
+[Workers]
+  instances: 3
+
+  MQ
+    buffer: 100000
+    drain-rate: 500
+    -> Processor
+
+  Processor
+    max-rps: 500
+`);
+      const mq = node(result, 'MQ');
+      // drain-rate 500 × 3 group instances = 1500, matches inbound → no filling
+      expect(mq.queueMetrics!.fillRate).toBe(0);
+      expect(mq.overloaded).toBe(false);
+    });
+
+    it('buffer does NOT scale with group instances', () => {
+      const result = compute(`
+chart: infra
+
+edge
+  rps: 2000
+  -> MQ
+
+[Workers]
+  instances: 3
+
+  MQ
+    buffer: 100000
+    drain-rate: 500
+    -> Processor
+
+  Processor
+    max-rps: 500
+`);
+      const mq = node(result, 'MQ');
+      // Effective drain = 500 × 3 = 1500, inbound = 2000, fillRate = 500
+      expect(mq.queueMetrics!.fillRate).toBe(500);
+      // timeToOverflow = buffer / fillRate = 100000 / 500 = 200s (buffer is NOT scaled)
+      expect(mq.queueMetrics!.timeToOverflow).toBe(200);
+    });
+
+    it('collapsed group with queue child shows correct health state', () => {
+      const result = compute(`
+chart: infra
+
+edge
+  rps: 2000
+  -> MQ
+
+[Workers]
+  instances: 1
+  collapsed: true
+
+  MQ
+    buffer: 10000
+    drain-rate: 500
+    -> Processor
+
+  Processor
+    max-rps: 500
+`);
+      // The collapsed group becomes a virtual node
+      const workers = result.nodes.find((n) => n.label === 'Workers' || n.id === 'Workers');
+      expect(workers).toBeDefined();
+      // The virtual node should carry queue properties from collapsed children
+      const hasBuf = workers!.properties.some((p) => p.key === 'buffer');
+      expect(hasBuf).toBe(true);
     });
   });
 });

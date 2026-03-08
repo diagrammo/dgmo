@@ -8,20 +8,25 @@ import type { DgmoError } from '../diagnostics';
 export type InfraBehaviorKey =
   | 'cache-hit'
   | 'firewall-block'
-  | 'bot-filter'
   | 'ratelimit-rps'
   | 'latency-ms'
   | 'uptime'
   | 'instances'
   | 'max-rps'
   | 'cb-error-threshold'
-  | 'cb-latency-threshold-ms';
+  | 'cb-latency-threshold-ms'
+  | 'concurrency'
+  | 'duration-ms'
+  | 'cold-start-ms'
+  | 'buffer'
+  | 'drain-rate'
+  | 'retention-hours'
+  | 'partitions';
 
 /** All recognized property keys (behavior + structural). */
 export const INFRA_BEHAVIOR_KEYS = new Set<string>([
   'cache-hit',
   'firewall-block',
-  'bot-filter',
   'ratelimit-rps',
   'latency-ms',
   'uptime',
@@ -29,6 +34,13 @@ export const INFRA_BEHAVIOR_KEYS = new Set<string>([
   'max-rps',
   'cb-error-threshold',
   'cb-latency-threshold-ms',
+  'concurrency',
+  'duration-ms',
+  'cold-start-ms',
+  'buffer',
+  'drain-rate',
+  'retention-hours',
+  'partitions',
 ]);
 
 /** The `rps` key is only valid on the `edge` component. */
@@ -113,7 +125,7 @@ export interface InfraComputeParams {
   instanceOverrides?: Record<string, number>; // nodeId -> instance count override
   scenario?: InfraScenario | null; // apply a named scenario's overrides
   /** Per-node property overrides: nodeId -> { propertyKey: numericValue }.
-   *  Applied after scenario overrides. Lets sliders adjust cache-hit, firewall-block, etc. */
+   *  Applied after scenario overrides. Lets sliders adjust cache-hit, etc. */
   propertyOverrides?: Record<string, Record<string, number>>;
   /** Set of group IDs that should be treated as collapsed (virtual nodes). */
   collapsedGroups?: Set<string>;
@@ -128,6 +140,8 @@ export interface ComputedInfraNode {
   isEdge: boolean;
   computedRps: number;
   overloaded: boolean;
+  /** True when inbound RPS exceeds the node's ratelimit-rps and traffic is being shed. */
+  rateLimited: boolean;
   /** Cumulative latency from edge to this node (ms). */
   computedLatencyMs: number;
   /** Latency percentiles from this node through all downstream paths (ms). */
@@ -142,9 +156,20 @@ export interface ComputedInfraNode {
   computedCbState: InfraCbState;
   /** Computed instance count for auto-scaling (min-max) ranges. */
   computedInstances: number;
+  /** For serverless nodes: estimated concurrent invocations (Little's Law: RPS × duration_ms / 1000). */
+  computedConcurrentInvocations: number;
   /** For collapsed group virtual nodes: worst health state of any child.
    *  'overloaded' > 'warning' > 'normal'. Undefined for regular nodes. */
   childHealthState?: 'normal' | 'warning' | 'overloaded';
+  /** Queue metrics — only present when buffer property exists. */
+  queueMetrics?: {
+    /** Messages per second filling the buffer (inbound - drain-rate, clamped to 0). */
+    fillRate: number;
+    /** Seconds until buffer overflow at sustained fill rate. Infinity if not filling. */
+    timeToOverflow: number;
+    /** Queue wait time in ms (pending_messages / drain_rate * 1000). */
+    waitTimeMs: number;
+  };
   properties: InfraProperty[];
   tags: Record<string, string>;
   lineNumber: number;
@@ -160,7 +185,7 @@ export interface ComputedInfraEdge {
 }
 
 export interface InfraDiagnostic {
-  type: 'SPLIT_SUM' | 'CYCLE' | 'OVERLOAD' | 'ORPHAN' | 'SYNTAX' | 'UPTIME';
+  type: 'SPLIT_SUM' | 'CYCLE' | 'OVERLOAD' | 'RATE_LIMITED' | 'ORPHAN' | 'SYNTAX' | 'UPTIME';
   line: number;
   message: string;
 }
