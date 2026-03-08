@@ -1094,6 +1094,7 @@ export function computeInfra(
     edgeLatency,
     systemUptime,
     systemAvailability,
+    options: parsed.options,
     diagnostics,
   };
 }

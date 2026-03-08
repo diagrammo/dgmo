@@ -275,7 +275,7 @@ function formatUptimeShort(fraction: number): string {
 }
 
 /** Properties shown as key-value rows inside the node card. */
-function getDisplayProps(node: InfraLayoutNode, expanded: boolean): { key: string; displayKey: string; value: string }[] {
+function getDisplayProps(node: InfraLayoutNode, expanded: boolean, diagramOptions?: Record<string, string>): { key: string; displayKey: string; value: string }[] {
   if (node.isEdge) return [];
   const rows: { key: string; displayKey: string; value: string }[] = [];
   for (const p of node.properties) {
@@ -307,6 +307,20 @@ function getDisplayProps(node: InfraLayoutNode, expanded: boolean): { key: strin
       rows.push({ key: p.key, displayKey, value: isNaN(num) ? String(p.value) : `${num}h` });
     } else {
       rows.push({ key: p.key, displayKey, value: String(p.value) });
+    }
+  }
+  // Inject diagram-level defaults for properties the node doesn't explicitly declare
+  if (diagramOptions) {
+    const hasLatency = node.properties.some((p) => p.key === 'latency-ms');
+    const hasUptime = node.properties.some((p) => p.key === 'uptime');
+    const isServerlessNode = node.properties.some((p) => p.key === 'concurrency');
+    const defaultLatency = parseFloat(diagramOptions['default-latency-ms'] ?? '') || 0;
+    const defaultUptime = parseFloat(diagramOptions['default-uptime'] ?? '') || 0;
+    if (!hasLatency && !isServerlessNode && defaultLatency > 0) {
+      rows.push({ key: 'latency-ms', displayKey: 'latency', value: formatMsShort(defaultLatency) });
+    }
+    if (!hasUptime && defaultUptime > 0 && defaultUptime < 100) {
+      rows.push({ key: 'uptime', displayKey: 'uptime', value: `${defaultUptime}%` });
     }
   }
   return rows;
@@ -600,6 +614,7 @@ function renderNodes(
   animate: boolean,
   selectedNodeId?: string | null,
   activeGroup?: string | null,
+  diagramOptions?: Record<string, string>,
 ) {
   const mutedColor = palette.textMuted;
 
@@ -668,7 +683,7 @@ function renderNodes(
     {
       const expanded = node.id === selectedNodeId;
       // Declared properties only shown when node is selected (expanded)
-      const displayProps = (!node.isEdge && expanded) ? getDisplayProps(node, expanded) : [];
+      const displayProps = (!node.isEdge && expanded) ? getDisplayProps(node, expanded, diagramOptions) : [];
       const computedRows = getComputedRows(node, expanded);
       const hasContent = displayProps.length > 0 || computedRows.length > 0 || node.computedRps > 0;
 
@@ -1445,7 +1460,7 @@ export function renderInfra(
   // Render layers: groups (back), edge paths, nodes, reject particles, edge labels (front)
   renderGroups(svg, layout.groups, palette, isDark);
   renderEdgePaths(svg, layout.edges, layout.nodes, palette, isDark, shouldAnimate);
-  renderNodes(svg, layout.nodes, palette, isDark, shouldAnimate, selectedNodeId, activeGroup);
+  renderNodes(svg, layout.nodes, palette, isDark, shouldAnimate, selectedNodeId, activeGroup, layout.options);
   if (shouldAnimate) {
     renderRejectParticles(svg, layout.nodes);
   }

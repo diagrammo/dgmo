@@ -209,6 +209,8 @@ export interface ComputedInfraModel {
   tagGroups: InfraTagGroup[];
   title: string | null;
   direction: 'LR' | 'TB';
+  /** Diagram-level options (e.g., default-latency-ms, default-uptime). */
+  options: Record<string, string>;
   /** Latency percentiles at the edge entry point (weighted by traffic probability). */
   edgeLatency: InfraLatencyPercentiles;
   /** System uptime at edge (weighted average across all paths). */

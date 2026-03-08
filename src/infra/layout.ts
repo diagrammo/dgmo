@@ -69,6 +69,8 @@ export interface InfraLayoutResult {
   nodes: InfraLayoutNode[];
   edges: InfraLayoutEdge[];
   groups: InfraLayoutGroup[];
+  /** Diagram-level options (e.g., default-latency-ms, default-uptime). */
+  options: Record<string, string>;
   width: number;
   height: number;
 }
@@ -114,13 +116,21 @@ const DISPLAY_NAMES: Record<string, string> = {
   'buffer': 'buffer', 'drain-rate': 'drain', 'retention-hours': 'retention', 'partitions': 'partitions',
 };
 
-function countDisplayProps(node: ComputedInfraNode, expanded: boolean): number {
+function countDisplayProps(node: ComputedInfraNode, expanded: boolean, options?: Record<string, string>): number {
   // Declared properties are only shown when the node is selected (expanded)
   if (!expanded) return 0;
-  return node.properties.filter((p) => {
-    if (!DISPLAY_KEYS.has(p.key)) return false;
-    return true;
-  }).length;
+  let count = node.properties.filter((p) => DISPLAY_KEYS.has(p.key)).length;
+  // Count diagram-level default rows for properties the node doesn't explicitly declare
+  if (options) {
+    const hasLatency = node.properties.some((p) => p.key === 'latency-ms');
+    const hasUptime = node.properties.some((p) => p.key === 'uptime');
+    const isServerless = node.properties.some((p) => p.key === 'concurrency');
+    const defaultLatency = parseFloat(options['default-latency-ms'] ?? '') || 0;
+    const defaultUptime = parseFloat(options['default-uptime'] ?? '') || 0;
+    if (!hasLatency && !isServerless && defaultLatency > 0) count++;
+    if (!hasUptime && defaultUptime > 0 && defaultUptime < 100) count++;
+  }
+  return count;
 }
 
 /** Count computed rows shown below declared props. When expanded, shows p50/p90/p99; otherwise just p99. */
@@ -152,7 +162,7 @@ function hasRoles(node: ComputedInfraNode): boolean {
   return node.properties.some((p) => DISPLAY_KEYS.has(p.key));
 }
 
-function computeNodeWidth(node: ComputedInfraNode, expanded: boolean): number {
+function computeNodeWidth(node: ComputedInfraNode, expanded: boolean, options?: Record<string, string>): number {
   // Account for badge text (e.g., "3x") in header width — serverless nodes no longer show a badge
   const badgeVal = node.computedConcurrentInvocations === 0 && node.computedInstances > 1
     ? node.computedInstances : 0;
@@ -167,6 +177,14 @@ function computeNodeWidth(node: ComputedInfraNode, expanded: boolean): number {
     for (const p of node.properties) {
       const dk = DISPLAY_NAMES[p.key];
       if (dk) allKeys.push(dk);
+    }
+    // Default property keys
+    if (options) {
+      const hasLatency = node.properties.some((p) => p.key === 'latency-ms');
+      const hasUptime = node.properties.some((p) => p.key === 'uptime');
+      const isServerless = node.properties.some((p) => p.key === 'concurrency');
+      if (!hasLatency && !isServerless && (parseFloat(options['default-latency-ms'] ?? '') || 0) > 0) allKeys.push('latency');
+      if (!hasUptime && (parseFloat(options['default-uptime'] ?? '') || 0) > 0 && parseFloat(options['default-uptime'] ?? '') < 100) allKeys.push('uptime');
     }
   }
   // Computed rows
@@ -262,8 +280,8 @@ function computeNodeWidth(node: ComputedInfraNode, expanded: boolean): number {
   return Math.max(MIN_NODE_WIDTH, labelWidth, maxRowWidth + 20);
 }
 
-function computeNodeHeight(node: ComputedInfraNode, expanded: boolean): number {
-  const propCount = countDisplayProps(node, expanded);
+function computeNodeHeight(node: ComputedInfraNode, expanded: boolean, options?: Record<string, string>): number {
+  const propCount = countDisplayProps(node, expanded, options);
   const computedCount = countComputedRows(node, expanded);
   const hasRps = node.computedRps > 0;
   if (propCount === 0 && computedCount === 0 && !hasRps) return NODE_HEADER_HEIGHT + NODE_PAD_BOTTOM;
@@ -319,7 +337,7 @@ function formatUptime(fraction: number): string {
 
 export function layoutInfra(computed: ComputedInfraModel, selectedNodeId?: string | null): InfraLayoutResult {
   if (computed.nodes.length === 0) {
-    return { nodes: [], edges: [], groups: [], width: 0, height: 0 };
+    return { nodes: [], edges: [], groups: [], options: {}, width: 0, height: 0 };
   }
 
   const g = new dagre.graphlib.Graph();
@@ -346,8 +364,8 @@ export function layoutInfra(computed: ComputedInfraModel, selectedNodeId?: strin
   const heightMap = new Map<string, number>();
   for (const node of computed.nodes) {
     const expanded = node.id === selectedNodeId;
-    const width = computeNodeWidth(node, expanded);
-    const height = computeNodeHeight(node, expanded);
+    const width = computeNodeWidth(node, expanded, computed.options);
+    const height = computeNodeHeight(node, expanded, computed.options);
     widthMap.set(node.id, width);
     heightMap.set(node.id, height);
     const inGroup = groupedNodeIds.has(node.id);
@@ -550,6 +568,7 @@ export function layoutInfra(computed: ComputedInfraModel, selectedNodeId?: strin
     nodes: layoutNodes,
     edges: layoutEdges,
     groups: layoutGroups,
+    options: computed.options,
     width: totalWidth,
     height: totalHeight,
   };
