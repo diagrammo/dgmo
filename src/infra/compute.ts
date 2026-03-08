@@ -228,7 +228,7 @@ interface CollapseResult {
   groupInstances: Map<string, number>;
 }
 
-function collapseGroups(parsed: ParsedInfra, collapsedIds: Set<string>): CollapseResult {
+function collapseGroups(parsed: ParsedInfra, collapsedIds: Set<string>, defaultLatencyMs = 0, defaultUptime = 100): CollapseResult {
   if (collapsedIds.size === 0) return { parsed, childCapacities: new Map(), groupInstances: new Map() };
 
   // Build child sets per collapsed group
@@ -304,8 +304,20 @@ function collapseGroups(parsed: ParsedInfra, collapsedIds: Set<string>): Collaps
     const perChildCapacities: number[] = [];
 
     for (const child of children) {
-      const latency = child.properties.find((p) => p.key === 'latency-ms');
-      if (latency) totalLatency += (typeof latency.value === 'number' ? latency.value : parseFloat(String(latency.value)) || 0);
+      // Latency: use explicit value, or diagram default (matching BFS behavior)
+      const latencyProp = child.properties.find((p) => p.key === 'latency-ms');
+      const childIsServerless = child.properties.some((p) => p.key === 'concurrency');
+      if (childIsServerless) {
+        // Serverless nodes use duration-ms as latency contribution
+        const durationProp = child.properties.find((p) => p.key === 'duration-ms');
+        totalLatency += durationProp
+          ? (typeof durationProp.value === 'number' ? durationProp.value : parseFloat(String(durationProp.value)) || 100)
+          : 100;
+      } else if (latencyProp) {
+        totalLatency += (typeof latencyProp.value === 'number' ? latencyProp.value : parseFloat(String(latencyProp.value)) || 0);
+      } else {
+        totalLatency += defaultLatencyMs;
+      }
 
       const maxRps = child.properties.find((p) => p.key === 'max-rps');
       if (maxRps) {
@@ -319,11 +331,12 @@ function collapseGroups(parsed: ParsedInfra, collapsedIds: Set<string>): Collaps
         perChildCapacities.push(effectiveCapacity);
       }
 
-      const uptime = child.properties.find((p) => p.key === 'uptime');
-      if (uptime) {
-        const val = typeof uptime.value === 'number' ? uptime.value : parseFloat(String(uptime.value)) || 100;
-        composedUptime *= val / 100;
-      }
+      // Uptime: use explicit value, or diagram default (matching BFS behavior)
+      const uptimeProp = child.properties.find((p) => p.key === 'uptime');
+      const uptimeVal = uptimeProp
+        ? (typeof uptimeProp.value === 'number' ? uptimeProp.value : parseFloat(String(uptimeProp.value)) || 100)
+        : defaultUptime;
+      composedUptime *= uptimeVal / 100;
 
       // Collect behavior keys (cache-hit, firewall-block, ratelimit-rps)
       // and queue/serverless properties
@@ -568,7 +581,7 @@ export function computeInfra(
   let collapseChildCaps = new Map<string, number[]>();
   let collapseGroupInst = new Map<string, number>();
   if (collapsedGroups.size > 0) {
-    const cr = collapseGroups(effectiveParsed, collapsedGroups);
+    const cr = collapseGroups(effectiveParsed, collapsedGroups, defaultLatencyMs, defaultUptime);
     effectiveParsed = cr.parsed;
     collapseChildCaps = cr.childCapacities;
     collapseGroupInst = cr.groupInstances;
