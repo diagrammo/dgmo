@@ -122,4 +122,4 @@ dgmo --chart-types --json         # List all chart types
 
 Run `dgmo --chart-types` for the full list, or see `docs/language-reference.md`.
 
-29 types: bar, line, area, pie, doughnut, radar, polar-area, bar-stacked, scatter, sankey, chord, function, heatmap, funnel, slope, wordcloud, arc, timeline, venn, quadrant, sequence, flowchart, class, er, org, kanban, c4, initiative-status.
+32 types: bar, line, area, pie, doughnut, radar, polar-area, bar-stacked, scatter, sankey, chord, function, heatmap, funnel, slope, wordcloud, arc, timeline, venn, quadrant, sequence, flowchart, state, class, er, org, kanban, c4, initiative-status, sitemap, infra.

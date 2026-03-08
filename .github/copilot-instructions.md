@@ -91,9 +91,34 @@ system App | description: Main application
   -Uses-> User
 ```
 
-## All 29 chart types
+## Infra chart
+```
+chart: infra
+direction: LR
 
-bar, line, multi-line, area, pie, doughnut, radar, polar-area, bar-stacked, scatter, sankey, chord, function, heatmap, funnel, slope, wordcloud, arc, timeline, venn, quadrant, sequence, flowchart, class, er, org, kanban, c4, initiative-status
+edge
+  rps: 10000
+  -> CDN
+
+CDN
+  cache-hit: 80%
+  -> LB
+
+LB
+  -/api-> API | split: 70%
+  -/web-> Web | split: 30%
+
+API
+  instances: 3
+  max-rps: 500
+  latency-ms: 45
+```
+
+Properties: `cache-hit`, `firewall-block`, `ratelimit-rps`, `bot-filter`, `max-rps`, `instances` (N or N-M), `latency-ms`, `cb-error-threshold`. Groups: `[Name]` with children. Roles are inferred from behavior.
+
+## All 32 chart types
+
+bar, line, multi-line, area, pie, doughnut, radar, polar-area, bar-stacked, scatter, sankey, chord, function, heatmap, funnel, slope, wordcloud, arc, timeline, venn, quadrant, sequence, flowchart, state, class, er, org, kanban, c4, initiative-status, sitemap, infra
 
 ## Common patterns
 

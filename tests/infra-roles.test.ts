@@ -32,6 +32,18 @@ describe('infra role inference', () => {
     expect(roles.map((r) => r.name)).toContain('Service');
   });
 
+  it('infers Queue role from buffer', () => {
+    const roles = inferRoles(props('buffer', 'drain-rate'));
+    expect(roles.map((r) => r.name)).toContain('Queue');
+    expect(roles.find((r) => r.name === 'Queue')!.color).toBe('#8b5cf6');
+  });
+
+  it('infers Serverless role from concurrency', () => {
+    const roles = inferRoles(props('concurrency', 'duration-ms'));
+    expect(roles.map((r) => r.name)).toContain('Serverless');
+    expect(roles.find((r) => r.name === 'Serverless')!.color).toBe('#06b6d4');
+  });
+
   it('returns empty for no matching properties', () => {
     const roles = inferRoles(props('latency-ms', 'uptime'));
     expect(roles).toHaveLength(0);

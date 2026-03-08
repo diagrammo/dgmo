@@ -1,5 +1,5 @@
 // ============================================================
-// Sitemap Diagram Layout Engine (Dagre compound graph)
+// Sitemap Diagram Layout Engine (Dagre flat graph)
 // ============================================================
 
 import dagre from '@dagrejs/dagre';
@@ -160,6 +160,8 @@ function resolveNodeColor(
   return resolveTagColor(node.metadata, tagGroups, activeGroupName, node.isContainer);
 }
 
+const OVERLAP_GAP = 20;
+
 function countDescendantNodes(node: SitemapNode, hiddenCounts?: Map<string, number>): number {
   let count = 0;
   for (const child of node.children) {
@@ -226,6 +228,8 @@ function computeLegendGroups(
 interface FlatNode {
   sitemapNode: SitemapNode;
   parentContainerId: string | null;
+  /** Nearest ancestor that is a page (not container) — used for invisible hierarchy edges */
+  parentPageId: string | null;
   meta: Record<string, string>;
   /** Original (unfiltered) metadata — used for tag coloring/hover even when hidden */
   fullMeta: Record<string, string>;
@@ -236,6 +240,7 @@ interface FlatNode {
 function flattenNodes(
   nodes: SitemapNode[],
   parentContainerId: string | null,
+  parentPageId: string | null,
   hiddenCounts: Map<string, number> | undefined,
   hiddenAttributes: Set<string> | undefined,
   result: FlatNode[],
@@ -243,31 +248,33 @@ function flattenNodes(
   for (const node of nodes) {
     const meta = filterMetadata(node.metadata, hiddenAttributes);
     if (node.isContainer) {
-      // Container gets added as a flat entry with minimal dims (dagre compound handles sizing)
+      // Container gets added as a flat entry (not added to dagre — bounds computed post-hoc)
       const metaCount = Object.keys(meta).length;
       const labelHeight = CONTAINER_LABEL_HEIGHT + metaCount * CONTAINER_META_LINE_HEIGHT;
       result.push({
         sitemapNode: node,
         parentContainerId,
+        parentPageId,
         meta,
         fullMeta: { ...node.metadata },
         width: Math.max(MIN_CARD_WIDTH, node.label.length * CHAR_WIDTH + CARD_H_PAD * 2),
         height: labelHeight + CONTAINER_PAD_BOTTOM,
       });
-      // Recurse into children with this container as parent
-      flattenNodes(node.children, node.id, hiddenCounts, hiddenAttributes, result);
+      // Recurse into children — container becomes parent container, parentPageId stays the same
+      flattenNodes(node.children, node.id, parentPageId, hiddenCounts, hiddenAttributes, result);
     } else {
       result.push({
         sitemapNode: node,
         parentContainerId,
+        parentPageId,
         meta,
         fullMeta: { ...node.metadata },
         width: computeCardWidth(node.label, meta),
         height: computeCardHeight(meta),
       });
-      // Pages can have children too (nested pages)
+      // Pages can have children too (nested pages) — this page becomes the parentPageId
       if (node.children.length > 0) {
-        flattenNodes(node.children, parentContainerId, hiddenCounts, hiddenAttributes, result);
+        flattenNodes(node.children, parentContainerId, node.id, hiddenCounts, hiddenAttributes, result);
       }
     }
   }
@@ -299,92 +306,141 @@ export function layoutSitemap(
 
   // Flatten hierarchy
   const flatNodes: FlatNode[] = [];
-  flattenNodes(parsed.roots, null, hiddenCounts, hiddenAttributes, flatNodes);
+  flattenNodes(parsed.roots, null, null, hiddenCounts, hiddenAttributes, flatNodes);
 
-  // Build dagre compound graph
-  const g = new dagre.graphlib.Graph({ compound: true });
+  // Build nodeMap for lookups
+  const nodeMap = new Map<string, FlatNode>();
+  for (const flat of flatNodes) {
+    nodeMap.set(flat.sitemapNode.id, flat);
+  }
+
+  // Build compound dagre graph — containers use setParent() for clean grouping.
+  // Collapsed containers (no children) are added as regular nodes.
+  // Multigraph: collapsed edges can produce multiple edges between the same pair
+  // (e.g. Dashboard→Account for both "settings" and "billing").
+  const g = new dagre.graphlib.Graph({ compound: true, multigraph: true });
   g.setGraph({
     rankdir: parsed.direction,
-    nodesep: 40,
+    nodesep: 50,
     ranksep: 60,
-    edgesep: 20,
+    edgesep: 30,
     marginx: MARGIN,
     marginy: MARGIN,
   });
   g.setDefaultEdgeLabel(() => ({}));
 
-  // Separate containers from page nodes
   const containerIds = new Set<string>();
   const pageNodeIds = new Set<string>();
+  const collapsedContainerIds = new Set<string>();
 
+  // Identify containers vs pages, and detect collapsed (empty) containers
   for (const flat of flatNodes) {
-    const node = flat.sitemapNode;
-    if (node.isContainer) {
-      containerIds.add(node.id);
-      // Container: set as dagre node with padding for children
-      g.setNode(node.id, {
-        label: node.label,
-        width: flat.width,
-        height: flat.height,
-        clusterLabelPos: 'top',
-        paddingTop: CONTAINER_PAD_TOP,
-        paddingBottom: CONTAINER_PAD_BOTTOM,
-        paddingLeft: CONTAINER_PAD_X,
-        paddingRight: CONTAINER_PAD_X,
-      });
-      if (flat.parentContainerId && containerIds.has(flat.parentContainerId)) {
-        g.setParent(node.id, flat.parentContainerId);
+    if (flat.sitemapNode.isContainer) {
+      containerIds.add(flat.sitemapNode.id);
+      // A container is "collapsed" if it has no children at all in the flat list
+      const hasAnyChild = flatNodes.some(
+        (f) => f.parentContainerId === flat.sitemapNode.id,
+      );
+      if (!hasAnyChild) {
+        collapsedContainerIds.add(flat.sitemapNode.id);
       }
     } else {
-      pageNodeIds.add(node.id);
-      g.setNode(node.id, {
-        label: node.label,
-        width: flat.width,
-        height: flat.height,
-      });
-      if (flat.parentContainerId && containerIds.has(flat.parentContainerId)) {
-        g.setParent(node.id, flat.parentContainerId);
-      }
+      pageNodeIds.add(flat.sitemapNode.id);
     }
   }
 
-  // Add edges
-  for (const edge of parsed.edges) {
-    // Only add edges for nodes that exist in the graph
+  // Add nodes to dagre
+  for (const flat of flatNodes) {
+    const node = flat.sitemapNode;
+    if (node.isContainer) {
+      if (collapsedContainerIds.has(node.id)) {
+        // Collapsed container — regular node with explicit dimensions
+        g.setNode(node.id, {
+          label: node.label,
+          width: flat.width,
+          height: flat.height,
+        });
+      } else {
+        // Regular container — compound node with padding for child layout
+        g.setNode(node.id, {
+          label: node.label,
+          paddingLeft: CONTAINER_PAD_X,
+          paddingRight: CONTAINER_PAD_X,
+          paddingTop: CONTAINER_PAD_TOP,
+          paddingBottom: CONTAINER_PAD_BOTTOM,
+        });
+      }
+    } else {
+      g.setNode(node.id, {
+        label: node.label,
+        width: flat.width,
+        height: flat.height,
+      });
+    }
+  }
+
+  // Set parent relationships — dagre compound nesting keeps nodes grouped
+  for (const flat of flatNodes) {
+    if (flat.parentContainerId && !collapsedContainerIds.has(flat.parentContainerId)) {
+      g.setParent(flat.sitemapNode.id, flat.parentContainerId);
+    }
+  }
+
+  // Add user edges (named for multigraph — each edge gets unique routing)
+  for (let i = 0; i < parsed.edges.length; i++) {
+    const edge = parsed.edges[i];
     if (g.hasNode(edge.sourceId) && g.hasNode(edge.targetId)) {
       g.setEdge(edge.sourceId, edge.targetId, {
         label: edge.label ?? '',
         minlen: 1,
-      });
+      }, `e${i}`);
     }
   }
 
   // Run dagre layout
   dagre.layout(g);
 
-  // Extract layout results
+  // Extract layout results — all positions from dagre
   const layoutNodes: SitemapLayoutNode[] = [];
   const layoutContainers: SitemapContainerBounds[] = [];
-  const nodeMap = new Map<string, FlatNode>();
-  for (const flat of flatNodes) {
-    nodeMap.set(flat.sitemapNode.id, flat);
-  }
 
+  // Page nodes
   for (const flat of flatNodes) {
     const node = flat.sitemapNode;
+    if (node.isContainer) continue;
     const pos = g.node(node.id);
     if (!pos) continue;
 
-    // dagre positions are center-based
-    const x = pos.x;
-    const y = pos.y;
-    const w = pos.width;
-    const h = pos.height;
     const hc = hiddenCounts?.get(node.id);
+    layoutNodes.push({
+      id: node.id,
+      label: node.label,
+      metadata: flat.meta,
+      tagMetadata: flat.fullMeta,
+      isContainer: false,
+      lineNumber: node.lineNumber,
+      color: resolveNodeColor(node, parsed.tagGroups, activeTagGroup ?? null),
+      x: pos.x,
+      y: pos.y - pos.height / 2,
+      width: pos.width,
+      height: pos.height,
+      hiddenCount: hc,
+      hasChildren:
+        (node.children.length > 0 || (hc != null && hc > 0)) || undefined,
+    });
+  }
 
-    if (node.isContainer) {
-      const metaCount = Object.keys(flat.meta).length;
-      const labelHeight = CONTAINER_LABEL_HEIGHT + metaCount * CONTAINER_META_LINE_HEIGHT;
+  // Containers — bounds from dagre compound layout
+  for (const flat of flatNodes) {
+    const node = flat.sitemapNode;
+    if (!node.isContainer) continue;
+
+    const pos = g.node(node.id);
+    const hc = hiddenCounts?.get(node.id);
+    const metaCount = Object.keys(flat.meta).length;
+    const labelHeight = CONTAINER_LABEL_HEIGHT + metaCount * CONTAINER_META_LINE_HEIGHT;
+
+    if (pos) {
       layoutContainers.push({
         nodeId: node.id,
         label: node.label,
@@ -392,28 +448,29 @@ export function layoutSitemap(
         color: resolveNodeColor(node, parsed.tagGroups, activeTagGroup ?? null),
         metadata: flat.meta,
         tagMetadata: flat.fullMeta,
-        x: x - w / 2,
-        y: y - h / 2,
-        width: w,
-        height: h,
+        x: pos.x - pos.width / 2,
+        y: pos.y - pos.height / 2,
+        width: pos.width,
+        height: pos.height,
         labelHeight,
         hiddenCount: hc,
         hasChildren:
           (node.children.length > 0 || (hc != null && hc > 0)) || undefined,
       });
     } else {
-      layoutNodes.push({
-        id: node.id,
+      // Fallback
+      layoutContainers.push({
+        nodeId: node.id,
         label: node.label,
-        metadata: flat.meta,
-        tagMetadata: flat.fullMeta,
-        isContainer: false,
         lineNumber: node.lineNumber,
         color: resolveNodeColor(node, parsed.tagGroups, activeTagGroup ?? null),
-        x,
-        y: y - h / 2,
-        width: w,
-        height: h,
+        metadata: flat.meta,
+        tagMetadata: flat.fullMeta,
+        x: MARGIN,
+        y: MARGIN,
+        width: flat.width,
+        height: labelHeight + CONTAINER_PAD_BOTTOM,
+        labelHeight,
         hiddenCount: hc,
         hasChildren:
           (node.children.length > 0 || (hc != null && hc > 0)) || undefined,
@@ -421,11 +478,12 @@ export function layoutSitemap(
     }
   }
 
-  // Extract edge waypoints
+  // Edge waypoints from dagre (named edges for multigraph)
   const layoutEdges: SitemapLayoutEdge[] = [];
-  for (const edge of parsed.edges) {
+  for (let i = 0; i < parsed.edges.length; i++) {
+    const edge = parsed.edges[i];
     if (!g.hasNode(edge.sourceId) || !g.hasNode(edge.targetId)) continue;
-    const edgeData = g.edge(edge.sourceId, edge.targetId);
+    const edgeData = g.edge({ v: edge.sourceId, w: edge.targetId, name: `e${i}` });
     if (!edgeData) continue;
 
     layoutEdges.push({
@@ -436,6 +494,156 @@ export function layoutSitemap(
       color: edge.color,
       lineNumber: edge.lineNumber,
     });
+  }
+
+  // === Isolated subgraph separation ===
+  // Disconnected subgraphs (like Admin with no edges to main content) get pushed
+  // below the main content so they don't compete for top-level positioning.
+  {
+    // Union-find on page nodes + collapsed containers using user edges
+    const allNodeIds = new Set([...pageNodeIds, ...collapsedContainerIds]);
+    const ufParent = new Map<string, string>();
+    for (const id of allNodeIds) ufParent.set(id, id);
+    const ufFind = (x: string): string => {
+      while (ufParent.get(x) !== x) {
+        ufParent.set(x, ufParent.get(ufParent.get(x)!)!);
+        x = ufParent.get(x)!;
+      }
+      return x;
+    };
+    const ufUnion = (a: string, b: string): void => {
+      const ra = ufFind(a);
+      const rb = ufFind(b);
+      if (ra !== rb) ufParent.set(ra, rb);
+    };
+    for (const edge of parsed.edges) {
+      if (allNodeIds.has(edge.sourceId) && allNodeIds.has(edge.targetId)) {
+        ufUnion(edge.sourceId, edge.targetId);
+      }
+    }
+
+    // Main component = component containing the first root page
+    const firstRootPage = flatNodes.find((f) => !f.sitemapNode.isContainer)?.sitemapNode.id;
+    const mainRoot = firstRootPage ? ufFind(firstRootPage) : null;
+
+    // Collect isolated node IDs (not in main component)
+    const isolatedNodeIds = new Set<string>();
+    for (const id of allNodeIds) {
+      if (mainRoot && ufFind(id) !== mainRoot) {
+        isolatedNodeIds.add(id);
+      }
+    }
+
+    // Identify isolated containers (all page descendants are isolated)
+    const isolatedContainerIds = new Set<string>();
+    for (const cid of containerIds) {
+      if (collapsedContainerIds.has(cid)) {
+        if (isolatedNodeIds.has(cid)) isolatedContainerIds.add(cid);
+        continue;
+      }
+      const members = flatNodes.filter(
+        (f) => !f.sitemapNode.isContainer && f.parentContainerId === cid,
+      );
+      if (
+        members.length > 0 &&
+        members.every((m) => isolatedNodeIds.has(m.sitemapNode.id))
+      ) {
+        isolatedContainerIds.add(cid);
+      }
+    }
+
+    if (isolatedNodeIds.size > 0) {
+      const isVertical = parsed.direction === 'TB';
+
+      // Place isolated subgraphs BESIDE the main content (right for TB, below for LR)
+      // instead of extending the diagram in the primary axis. This keeps the diagram
+      // compact and allows better zoom.
+
+      // Main content bounding box
+      let mainRight = 0;
+      let mainBottom = 0;
+      let mainTop = Infinity;
+      let mainLeft = Infinity;
+      for (const n of layoutNodes) {
+        if (!isolatedNodeIds.has(n.id)) {
+          mainRight = Math.max(mainRight, n.x + n.width / 2);
+          mainBottom = Math.max(mainBottom, n.y + n.height);
+          mainTop = Math.min(mainTop, n.y);
+          mainLeft = Math.min(mainLeft, n.x - n.width / 2);
+        }
+      }
+      for (const c of layoutContainers) {
+        if (!isolatedContainerIds.has(c.nodeId)) {
+          mainRight = Math.max(mainRight, c.x + c.width);
+          mainBottom = Math.max(mainBottom, c.y + c.height);
+          mainTop = Math.min(mainTop, c.y);
+          mainLeft = Math.min(mainLeft, c.x);
+        }
+      }
+
+      // Isolated content bounding box
+      let isoLeft = Infinity;
+      let isoTop = Infinity;
+      let isoRight = 0;
+      let isoBottom = 0;
+      for (const n of layoutNodes) {
+        if (isolatedNodeIds.has(n.id)) {
+          isoLeft = Math.min(isoLeft, n.x - n.width / 2);
+          isoTop = Math.min(isoTop, n.y);
+          isoRight = Math.max(isoRight, n.x + n.width / 2);
+          isoBottom = Math.max(isoBottom, n.y + n.height);
+        }
+      }
+      for (const c of layoutContainers) {
+        if (isolatedContainerIds.has(c.nodeId)) {
+          isoLeft = Math.min(isoLeft, c.x);
+          isoTop = Math.min(isoTop, c.y);
+          isoRight = Math.max(isoRight, c.x + c.width);
+          isoBottom = Math.max(isoBottom, c.y + c.height);
+        }
+      }
+
+      if (isoLeft !== Infinity) {
+        // TB: place isolated to the RIGHT, aligned to top of main content
+        // LR: place isolated BELOW, aligned to left of main content
+        const gap = OVERLAP_GAP * 2;
+        let shiftX: number;
+        let shiftY: number;
+
+        if (isVertical) {
+          shiftX = mainRight + gap - isoLeft;
+          shiftY = (mainTop === Infinity ? 0 : mainTop) - isoTop;
+        } else {
+          shiftX = (mainLeft === Infinity ? 0 : mainLeft) - isoLeft;
+          shiftY = mainBottom + gap - isoTop;
+        }
+
+        if (shiftX !== 0 || shiftY !== 0) {
+          for (const n of layoutNodes) {
+            if (isolatedNodeIds.has(n.id)) {
+              n.x += shiftX;
+              n.y += shiftY;
+            }
+          }
+          for (const c of layoutContainers) {
+            if (isolatedContainerIds.has(c.nodeId)) {
+              c.x += shiftX;
+              c.y += shiftY;
+            }
+          }
+          for (const e of layoutEdges) {
+            const srcIsolated = isolatedNodeIds.has(e.sourceId);
+            const tgtIsolated = isolatedNodeIds.has(e.targetId);
+            if (srcIsolated || tgtIsolated) {
+              for (const p of e.points) {
+                p.x += shiftX;
+                p.y += shiftY;
+              }
+            }
+          }
+        }
+      }
+    }
   }
 
   // Compute bounding box

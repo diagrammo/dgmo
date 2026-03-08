@@ -135,9 +135,11 @@ export function collapseSitemapTree(
   const parentMap = new Map<string, string>();
   buildParentMap(original.roots, parentMap);
 
-  // Re-terminate edges that reference hidden nodes
+  // Re-terminate edges that reference hidden nodes.
+  // No deduplication — multiple edges between the same collapsed pair are kept
+  // so each retains its own label (e.g. "settings" and "billing" both show).
+  // Layout uses dagre multigraph to route each edge separately.
   const newEdges: SitemapEdge[] = [];
-  const edgeDedup = new Set<string>();
 
   for (const edge of original.edges) {
     let sourceId = edge.sourceId;
@@ -166,11 +168,6 @@ export function collapseSitemapTree(
 
     // Remove self-loops (both endpoints re-terminated to same collapsed group)
     if (sourceId === targetId) continue;
-
-    // Deduplicate: same source→target pair (keep first occurrence)
-    const key = `${sourceId}::${targetId}`;
-    if (edgeDedup.has(key)) continue;
-    edgeDedup.add(key);
 
     newEdges.push({
       ...edge,

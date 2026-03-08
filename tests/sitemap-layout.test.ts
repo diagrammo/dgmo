@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parseSitemap } from '../src/sitemap/parser';
+import { collapseSitemapTree } from '../src/sitemap/collapse';
 import { layoutSitemap } from '../src/sitemap/layout';
 
 function layout(content: string) {
@@ -168,5 +169,65 @@ describe('layoutSitemap', () => {
     // Total dimensions should be reasonable
     expect(result.width).toBeGreaterThan(200);
     expect(result.height).toBeGreaterThan(200);
+  });
+
+  it('positions collapsed containers via dagre (not at origin)', () => {
+    const content = [
+      'Home',
+      '  -settings-> Settings',
+      '  -docs-> Docs',
+      '',
+      '[Account]',
+      '  Settings',
+      '  Billing',
+      '',
+      '[Marketing]',
+      '  Docs',
+      '  Blog',
+    ].join('\n');
+    const parsed = parseSitemap(content);
+
+    // Simulate collapse: provide hiddenCounts and remove children
+    // We manually collapse by creating a pruned version
+    const cloned = JSON.parse(JSON.stringify(parsed));
+    // Find and prune Account container
+    for (const root of cloned.roots) {
+      if (root.isContainer && root.label === 'Account') {
+        root.children = [];
+      }
+    }
+    const hiddenCounts = new Map<string, number>();
+    // Find Account's container ID
+    const accountContainer = parsed.roots.find(
+      (r) => r.isContainer && r.label === 'Account',
+    );
+    if (accountContainer) {
+      hiddenCounts.set(accountContainer.id, 2);
+    }
+
+    // Re-terminate edges: Settings is inside Account, so Home -> Settings becomes Home -> Account
+    for (const edge of cloned.edges) {
+      if (edge.targetId === 'node-2' && accountContainer) {
+        edge.targetId = accountContainer.id;
+      }
+    }
+
+    const result = layoutSitemap(cloned, hiddenCounts);
+
+    // Account should be a collapsed container (no members) positioned by dagre
+    const accountBounds = result.containers.find((c) => c.label === 'Account');
+    expect(accountBounds).toBeDefined();
+    expect(accountBounds!.hiddenCount).toBe(2);
+
+    // Should NOT be at the default fallback position (MARGIN, MARGIN) = (40, 40)
+    // It should be positioned near Home due to the re-terminated edge
+    const isAtFallback = accountBounds!.x < 50 && accountBounds!.y < 50;
+    expect(isAtFallback).toBe(false);
+
+    // Edges to collapsed containers should be present
+    const edgesToAccount = result.edges.filter(
+      (e) => e.targetId === accountContainer!.id || e.sourceId === accountContainer!.id,
+    );
+    expect(edgesToAccount.length).toBeGreaterThanOrEqual(1);
   });
 });

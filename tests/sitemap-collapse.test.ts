@@ -83,7 +83,7 @@ describe('collapseSitemapTree', () => {
     expect(result.edges).toHaveLength(0);
   });
 
-  it('deduplicates edges after re-termination', () => {
+  it('keeps all edges after re-termination (no dedup)', () => {
     const content = [
       'Home',
       '  -a-> Page A',
@@ -96,9 +96,12 @@ describe('collapseSitemapTree', () => {
     const containerId = parsed.roots[1].id;
 
     const { parsed: result } = collapseSitemapTree(parsed, new Set([containerId]));
-    // Both arrows re-terminate to [Group] → same source→target pair → dedup to 1
-    expect(result.edges).toHaveLength(1);
+    // Both arrows re-terminate to [Group] — kept as separate edges with distinct labels
+    expect(result.edges).toHaveLength(2);
     expect(result.edges[0].targetId).toBe(containerId);
+    expect(result.edges[0].label).toBe('a');
+    expect(result.edges[1].targetId).toBe(containerId);
+    expect(result.edges[1].label).toBe('b');
   });
 
   it('handles nested collapse — terminates at outermost visible boundary', () => {

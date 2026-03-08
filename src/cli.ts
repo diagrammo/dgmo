@@ -103,6 +103,7 @@ function parseArgs(argv: string[]): {
   c4System: string | undefined;
   c4Container: string | undefined;
   scenario: string | undefined;
+  listScenarios: boolean;
 } {
   const result = {
     input: undefined as string | undefined,
@@ -119,6 +120,7 @@ function parseArgs(argv: string[]): {
     c4System: undefined as string | undefined,
     c4Container: undefined as string | undefined,
     scenario: undefined as string | undefined,
+    listScenarios: false,
   };
 
   const args = argv.slice(2); // skip node + script
@@ -174,6 +176,9 @@ function parseArgs(argv: string[]): {
       i++;
     } else if (arg === '--scenario') {
       result.scenario = args[++i];
+      i++;
+    } else if (arg === '--list-scenarios') {
+      result.listScenarios = true;
       i++;
     } else if (arg === '--no-branding') {
       result.noBranding = true;
@@ -432,6 +437,34 @@ async function main(): Promise<void> {
     }
     for (const e of errors) {
       console.error(`\u2716 ${formatDgmoError(e)}`);
+    }
+  }
+
+  // List scenarios (infra diagrams)
+  if (opts.listScenarios) {
+    const { parseInfra } = await import('./infra/parser');
+    const infraParsed = parseInfra(content);
+    if (infraParsed.scenarios.length === 0) {
+      console.log('(no scenarios defined)');
+    } else {
+      for (const s of infraParsed.scenarios) {
+        console.log(s.name);
+      }
+    }
+    return;
+  }
+
+  // Validate --scenario name against defined scenarios
+  if (opts.scenario) {
+    const { parseInfra } = await import('./infra/parser');
+    const infraParsed = parseInfra(content);
+    const match = infraParsed.scenarios.find((s) => s.name.toLowerCase() === opts.scenario!.toLowerCase());
+    if (!match) {
+      const available = infraParsed.scenarios.map((s) => s.name);
+      const msg = available.length > 0
+        ? `Error: Unknown scenario "${opts.scenario}". Available: ${available.join(', ')}`
+        : `Error: Unknown scenario "${opts.scenario}". No scenarios defined in this file.`;
+      exitWithJsonError(msg);
     }
   }
 

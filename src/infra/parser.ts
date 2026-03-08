@@ -136,6 +136,24 @@ export function parseInfra(content: string): ParsedInfra {
 
   function finishCurrentNode() {
     if (currentNode && !nodeMap.has(currentNode.id)) {
+      // Validate mutual exclusion: concurrency vs instances/max-rps
+      const keys = new Set(currentNode.properties.map((p) => p.key));
+      if (keys.has('concurrency') && (keys.has('instances') || keys.has('max-rps'))) {
+        const conflicting = [keys.has('instances') ? 'instances' : '', keys.has('max-rps') ? 'max-rps' : '']
+          .filter(Boolean)
+          .join(', ');
+        warn(
+          currentNode.lineNumber,
+          `'concurrency' (serverless) is mutually exclusive with ${conflicting}. Serverless nodes scale via concurrency, not instances.`,
+        );
+      }
+      // Validate mutual exclusion: buffer (queue) vs max-rps (service)
+      if (keys.has('buffer') && keys.has('max-rps')) {
+        warn(
+          currentNode.lineNumber,
+          `'buffer' (queue) and 'max-rps' (service) represent different capacity models. A queue buffers messages; a service processes them.`,
+        );
+      }
       nodeMap.set(currentNode.id, currentNode);
       result.nodes.push(currentNode);
     }

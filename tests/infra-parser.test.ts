@@ -442,6 +442,133 @@ StaticServer | t: Platform
     });
   });
 
+  describe('serverless properties (Epic 77)', () => {
+    it('parses concurrency, duration-ms, cold-start-ms as numeric values', () => {
+      const result = parseInfra(`
+chart: infra
+
+ProcessOrder
+  concurrency: 1000
+  duration-ms: 200
+  cold-start-ms: 250
+  -> DB
+`);
+      expect(result.error).toBeNull();
+      const node = result.nodes.find((n) => n.id === 'ProcessOrder');
+      expect(node).toBeDefined();
+      expect(node!.properties.find((p) => p.key === 'concurrency')!.value).toBe(1000);
+      expect(node!.properties.find((p) => p.key === 'duration-ms')!.value).toBe(200);
+      expect(node!.properties.find((p) => p.key === 'cold-start-ms')!.value).toBe(250);
+      // No unknown property warnings
+      const unknownWarnings = result.diagnostics.filter((d) => d.message.includes('Unknown property'));
+      expect(unknownWarnings).toHaveLength(0);
+    });
+
+    it('emits diagnostic when concurrency used with instances', () => {
+      const result = parseInfra(`
+chart: infra
+
+Lambda
+  concurrency: 1000
+  instances: 3
+`);
+      const warnings = result.diagnostics.filter((d) => d.message.includes('mutually exclusive'));
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].message).toContain('instances');
+      // Still parses — warning, not error
+      expect(result.nodes).toHaveLength(1);
+    });
+
+    it('emits diagnostic when concurrency used with max-rps', () => {
+      const result = parseInfra(`
+chart: infra
+
+Lambda
+  concurrency: 500
+  max-rps: 2000
+`);
+      const warnings = result.diagnostics.filter((d) => d.message.includes('mutually exclusive'));
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].message).toContain('max-rps');
+    });
+
+    it('emits diagnostic mentioning both when concurrency used with instances and max-rps', () => {
+      const result = parseInfra(`
+chart: infra
+
+Lambda
+  concurrency: 500
+  instances: 2
+  max-rps: 1000
+`);
+      const warnings = result.diagnostics.filter((d) => d.message.includes('mutually exclusive'));
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0].message).toContain('instances');
+      expect(warnings[0].message).toContain('max-rps');
+    });
+
+    it('no diagnostic when concurrency used alone', () => {
+      const result = parseInfra(`
+chart: infra
+
+Lambda
+  concurrency: 1000
+  duration-ms: 200
+`);
+      const warnings = result.diagnostics.filter((d) => d.message.includes('mutually exclusive'));
+      expect(warnings).toHaveLength(0);
+    });
+  });
+
+  describe('queue properties (Epic 78)', () => {
+    it('parses buffer, drain-rate, retention-hours, partitions as numeric values', () => {
+      const result = parseInfra(`
+chart: infra
+
+OrderQueue
+  buffer: 100000
+  drain-rate: 500
+  retention-hours: 72
+  partitions: 6
+  -> OrderProcessor
+`);
+      expect(result.error).toBeNull();
+      const node = result.nodes.find((n) => n.id === 'OrderQueue');
+      expect(node).toBeDefined();
+      expect(node!.properties.find((p) => p.key === 'buffer')!.value).toBe(100000);
+      expect(node!.properties.find((p) => p.key === 'drain-rate')!.value).toBe(500);
+      expect(node!.properties.find((p) => p.key === 'retention-hours')!.value).toBe(72);
+      expect(node!.properties.find((p) => p.key === 'partitions')!.value).toBe(6);
+      const unknownWarnings = result.diagnostics.filter((d) => d.message.includes('Unknown property'));
+      expect(unknownWarnings).toHaveLength(0);
+    });
+
+    it('emits diagnostic when buffer used with max-rps', () => {
+      const result = parseInfra(`
+chart: infra
+
+Queue
+  buffer: 100000
+  max-rps: 5000
+`);
+      const warnings = result.diagnostics.filter((d) => d.message.includes('capacity models'));
+      expect(warnings).toHaveLength(1);
+      expect(result.nodes).toHaveLength(1);
+    });
+
+    it('no diagnostic when buffer used alone', () => {
+      const result = parseInfra(`
+chart: infra
+
+Queue
+  buffer: 50000
+  drain-rate: 1000
+`);
+      const warnings = result.diagnostics.filter((d) => d.message.includes('capacity models'));
+      expect(warnings).toHaveLength(0);
+    });
+  });
+
   describe('comments and blank lines', () => {
     it('skips comments', () => {
       const result = parseInfra(`

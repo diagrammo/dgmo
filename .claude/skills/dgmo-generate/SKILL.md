@@ -20,6 +20,7 @@ Generate a `.dgmo` diagram file based on the user's description. Pick the best d
    - Database schemas → `er`
    - Class/type hierarchies → `class`
    - System architecture → `c4`
+   - Infrastructure traffic flow → `infra`
    - Task boards → `kanban`
    - Project roadmaps → `initiative-status`
    - Comparisons, data → `bar`, `line`, `pie`, etc.
