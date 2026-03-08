@@ -638,10 +638,6 @@ function renderNodes(
     if (node.id.startsWith('[')) {
       g.attr('data-node-toggle', node.id)
         .style('cursor', 'pointer');
-    } else if (node.groupId) {
-      // Nodes inside a group: clicking the node also collapses the parent group
-      g.attr('data-node-toggle', node.groupId)
-        .style('cursor', 'pointer');
     }
 
     // Expose tag values for legend hover dimming
