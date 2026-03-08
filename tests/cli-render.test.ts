@@ -102,10 +102,10 @@ Jane Smith
     role: CTO`,
 
   kanban: `chart: kanban
-== To Do ==
-Task A
-== Done ==
-Task B`,
+[To Do]
+  Task A
+[Done]
+  Task B`,
 
   c4: `chart: c4
 person Customer

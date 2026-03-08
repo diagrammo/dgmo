@@ -171,7 +171,7 @@ export function computeCardArchive(
       : [...withoutCard, ''];
     return [
       ...trimmedEnd,
-      '== Archive ==',
+      '[Archive]',
       ...cardLines,
     ].join('\n');
   }

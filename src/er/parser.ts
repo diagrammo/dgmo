@@ -1,7 +1,9 @@
 import { resolveColor } from '../colors';
 import type { PaletteColors } from '../palettes';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
-import { measureIndent } from '../utils/parsing';
+import { measureIndent, extractColor, parsePipeMetadata } from '../utils/parsing';
+import { matchTagBlockHeading, validateTagValues } from '../utils/tag-groups';
+import type { TagGroup } from '../utils/tag-groups';
 import type {
   ParsedERDiagram,
   ERTable,
@@ -22,9 +24,9 @@ function tableId(name: string): string {
 // Regex patterns
 // ============================================================
 
-// Table declaration: table_name or table_name (color)
+// Table declaration: table_name or table_name (color) or table_name | key: value
 // Allows lowercase, uppercase, underscores, digits — must start with letter or underscore
-const TABLE_DECL_RE = /^([a-zA-Z_]\w*)(?:\s+\(([^)]+)\))?\s*$/;
+const TABLE_DECL_RE = /^([a-zA-Z_]\w*)(?:\s*\(([^)]+)\))?(?:\s*\|(.+))?$/;
 
 // Column: name: type [constraints]  or  name [constraints]  or  name: type  or  name
 const COLUMN_RE = /^(\w+)(?:\s*:\s*(\w[\w()]*(?:\s*\[\])?))?(?:\s+\[([^\]]+)\])?\s*$/;
@@ -143,6 +145,7 @@ export function parseERDiagram(
     options: {},
     tables: [],
     relationships: [],
+    tagGroups: [],
     diagnostics: [],
     error: null,
   };
@@ -163,6 +166,8 @@ export function parseERDiagram(
   const tableMap = new Map<string, ERTable>();
   let currentTable: ERTable | null = null;
   let contentStarted = false;
+  let currentTagGroup: TagGroup | null = null;
+  const aliasMap = new Map<string, string>();
 
   function getOrCreateTable(name: string, lineNumber: number): ERTable {
     const id = tableId(name);
@@ -173,6 +178,7 @@ export function parseERDiagram(
       id,
       name,
       columns: [],
+      metadata: {},
       lineNumber,
     };
     tableMap.set(id, table);
@@ -194,6 +200,52 @@ export function parseERDiagram(
 
     // Skip comments
     if (trimmed.startsWith('//')) continue;
+
+    // Tag group heading — `tag: Name` or deprecated `## Name`
+    if (!contentStarted && indent === 0) {
+      const tagBlockMatch = matchTagBlockHeading(trimmed);
+      if (tagBlockMatch) {
+        if (tagBlockMatch.deprecated) {
+          result.diagnostics.push(makeDgmoError(lineNumber,
+            `'## ${tagBlockMatch.name}' is deprecated for tag groups — use 'tag: ${tagBlockMatch.name}' instead`, 'warning'));
+        }
+        currentTagGroup = {
+          name: tagBlockMatch.name,
+          alias: tagBlockMatch.alias,
+          entries: [],
+          lineNumber,
+        };
+        if (tagBlockMatch.alias) {
+          aliasMap.set(tagBlockMatch.alias.toLowerCase(), tagBlockMatch.name.toLowerCase());
+        }
+        result.tagGroups.push(currentTagGroup);
+        continue;
+      }
+    }
+
+    // Tag group entries (indented under tag: heading)
+    if (currentTagGroup && !contentStarted && indent > 0) {
+      const isDefault = /\bdefault\s*$/.test(trimmed);
+      const entryText = isDefault
+        ? trimmed.replace(/\s+default\s*$/, '').trim()
+        : trimmed;
+      const { label, color } = extractColor(entryText, palette);
+      if (!color) {
+        result.diagnostics.push(makeDgmoError(lineNumber,
+          `Expected 'Value(color)' in tag group '${currentTagGroup.name}'`, 'warning'));
+        continue;
+      }
+      if (isDefault) {
+        currentTagGroup.defaultValue = label;
+      }
+      currentTagGroup.entries.push({ value: label, color, lineNumber });
+      continue;
+    }
+
+    // End tag group on non-indented line
+    if (currentTagGroup && indent === 0) {
+      currentTagGroup = null;
+    }
 
     // Metadata directives (before content)
     if (!contentStarted && indent === 0 && /^[a-z][a-z0-9-]*\s*:/i.test(trimmed)) {
@@ -296,6 +348,14 @@ export function parseERDiagram(
       if (color) table.color = color;
       table.lineNumber = lineNumber;
 
+      // Parse pipe metadata: TableName(color) | key: value, key2: value2
+      const pipeStr = tableDecl[3]?.trim();
+      if (pipeStr) {
+        // parsePipeMetadata skips index 0 (name segment), so prepend empty
+        const meta = parsePipeMetadata(['', pipeStr], aliasMap);
+        Object.assign(table.metadata, meta);
+      }
+
       currentTable = table;
       continue;
     }
@@ -306,6 +366,31 @@ export function parseERDiagram(
     const diag = makeDgmoError(1, 'No tables found. Add table declarations like "users" or "orders (blue)".');
     result.diagnostics.push(diag);
     result.error = formatDgmoError(diag);
+  }
+
+  // Validate tag values on tables
+  if (result.tagGroups.length > 0) {
+    const tagEntities = result.tables.map((t) => ({
+      metadata: t.metadata,
+      lineNumber: t.lineNumber,
+    }));
+    validateTagValues(
+      tagEntities,
+      result.tagGroups,
+      (line, msg) => result.diagnostics.push(makeDgmoError(line, msg, 'warning')),
+      suggest,
+    );
+
+    // Inject defaults for tables without explicit tags
+    for (const group of result.tagGroups) {
+      if (!group.defaultValue) continue;
+      const key = group.name.toLowerCase();
+      for (const table of result.tables) {
+        if (!table.metadata[key]) {
+          table.metadata[key] = group.defaultValue;
+        }
+      }
+    }
   }
 
   // Warn about isolated tables (not in any relationship)

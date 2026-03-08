@@ -44,12 +44,12 @@ describe('legend entry hover attributes', () => {
   Medium(#ebcb8b)
   Low(#a3be8c)
 
-== To Do ==
-Fix login bug | priority: High
-Update docs | priority: Low
+[To Do]
+  Fix login bug | priority: High
+  Update docs | priority: Low
 
-== Done ==
-Refactor API | priority: Medium`;
+[Done]
+  Refactor API | priority: Medium`;
 
   it('wraps legend entries in g[data-legend-entry]', () => {
     const parsed = parseKanban(input, palette.light);

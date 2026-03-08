@@ -142,25 +142,26 @@ export function parseEChart(
     // Skip empty lines
     if (!trimmed) continue;
 
-    // Check for markdown-style category header: ## Category Name or ## Category Name(color)
-    const mdCategoryMatch = trimmed.match(/^#{2,}\s+(.+)$/);
-    if (mdCategoryMatch) {
-      const { label: catName, color: catColor } = extractColor(mdCategoryMatch[1].trim(), palette);
-      if (catColor) {
-        if (!result.categoryColors) result.categoryColors = {};
-        result.categoryColors[catName] = catColor;
-      }
-      currentCategory = catName;
+    // Reject legacy ## category syntax
+    if (/^#{2,}\s+/.test(trimmed)) {
+      const name = trimmed.replace(/^#{2,}\s+/, '').replace(/\s*\([^)]*\)\s*$/, '').trim();
+      result.diagnostics.push(makeDgmoError(lineNumber, `'## ${name}' is no longer supported. Use '[${name}]' instead`));
       continue;
     }
 
     // Skip comments
     if (trimmed.startsWith('//')) continue;
 
-    // Check for category header: [Category Name]
-    const categoryMatch = trimmed.match(/^\[(.+)\]$/);
+    // [Category] container header with optional color: [Category Name] or [Category Name](color)
+    const categoryMatch = trimmed.match(/^\[(.+?)\](?:\s*\(([^)]+)\))?\s*$/);
     if (categoryMatch) {
-      currentCategory = categoryMatch[1].trim();
+      const catName = categoryMatch[1].trim();
+      const catColor = categoryMatch[2] ? resolveColor(categoryMatch[2].trim(), palette) : null;
+      if (catColor) {
+        if (!result.categoryColors) result.categoryColors = {};
+        result.categoryColors[catName] = catColor;
+      }
+      currentCategory = catName;
       continue;
     }
 

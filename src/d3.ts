@@ -72,6 +72,7 @@ export interface TimelineEvent {
   endDate: string | null;
   label: string;
   group: string | null;
+  metadata: Record<string, string>;
   lineNumber: number;
   uncertain?: boolean;
 }
@@ -153,6 +154,7 @@ export interface ParsedD3 {
   timelineGroups: TimelineGroup[];
   timelineEras: TimelineEra[];
   timelineMarkers: TimelineMarker[];
+  timelineTagGroups: TagGroup[];
   timelineSort: TimelineSort;
   timelineScale: boolean;
   timelineSwimlanes: boolean;
@@ -178,9 +180,12 @@ export interface ParsedD3 {
 import { resolveColor } from './colors';
 import type { PaletteColors } from './palettes';
 import { getSeriesColors } from './palettes';
+import { mix } from './palettes/color-utils';
 import type { DgmoError } from './diagnostics';
 import { makeDgmoError, formatDgmoError, suggest } from './diagnostics';
-import { collectIndentedValues } from './utils/parsing';
+import { collectIndentedValues, extractColor, parsePipeMetadata } from './utils/parsing';
+import { matchTagBlockHeading, validateTagValues, resolveTagColor } from './utils/tag-groups';
+import type { TagGroup } from './utils/tag-groups';
 
 // ============================================================
 // Shared Rendering Helpers
@@ -342,6 +347,7 @@ export function parseD3(content: string, palette?: PaletteColors): ParsedD3 {
     timelineGroups: [],
     timelineEras: [],
     timelineMarkers: [],
+    timelineTagGroups: [],
     timelineSort: 'time',
     timelineScale: true,
     timelineSwimlanes: false,
@@ -379,33 +385,92 @@ export function parseD3(content: string, palette?: PaletteColors): ParsedD3 {
   const freeformLines: string[] = [];
   let currentArcGroup: string | null = null;
   let currentTimelineGroup: string | null = null;
+  let currentTimelineTagGroup: TagGroup | null = null;
+  const timelineAliasMap = new Map<string, string>();
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
+    const rawLine = lines[i];
+    const line = rawLine.trim();
+    const indent = rawLine.length - rawLine.trimStart().length;
     const lineNumber = i + 1;
 
     // Skip empty lines
     if (!line) continue;
 
-    // ## Section headers for arc diagram node grouping (before # comment check)
-    const sectionMatch = line.match(/^#{2,}\s+(.+?)(?:\s*\(([^)]+)\))?\s*$/);
-    if (sectionMatch) {
+    // Timeline tag group heading: `tag: Name [alias X]`
+    if (result.type === 'timeline' && indent === 0) {
+      const tagBlockMatch = matchTagBlockHeading(line);
+      if (tagBlockMatch) {
+        if (tagBlockMatch.deprecated) {
+          result.diagnostics.push(makeDgmoError(lineNumber,
+            `'## ${tagBlockMatch.name}' is deprecated for tag groups — use 'tag: ${tagBlockMatch.name}' instead`, 'warning'));
+        }
+        currentTimelineTagGroup = {
+          name: tagBlockMatch.name,
+          alias: tagBlockMatch.alias,
+          entries: [],
+          lineNumber,
+        };
+        if (tagBlockMatch.alias) {
+          timelineAliasMap.set(tagBlockMatch.alias.toLowerCase(), tagBlockMatch.name.toLowerCase());
+        }
+        result.timelineTagGroups.push(currentTimelineTagGroup);
+        continue;
+      }
+    }
+
+    // Timeline tag group entries (indented under tag: heading)
+    if (currentTimelineTagGroup && indent > 0) {
+      const trimmedEntry = line;
+      const isDefault = /\bdefault\s*$/.test(trimmedEntry);
+      const entryText = isDefault
+        ? trimmedEntry.replace(/\s+default\s*$/, '').trim()
+        : trimmedEntry;
+      const { label, color } = extractColor(entryText, palette);
+      if (color) {
+        if (isDefault) currentTimelineTagGroup.defaultValue = label;
+        currentTimelineTagGroup.entries.push({ value: label, color, lineNumber });
+        continue;
+      }
+    }
+
+    // End tag group on non-indented line
+    if (currentTimelineTagGroup && indent === 0) {
+      currentTimelineTagGroup = null;
+    }
+
+    // [Group] container headers for arc diagram node grouping and timeline eras
+    const groupMatch = line.match(/^\[(.+?)\](?:\s*\(([^)]+)\))?\s*$/);
+    if (groupMatch) {
       if (result.type === 'arc') {
-        const name = sectionMatch[1].trim();
-        const color = sectionMatch[2]
-          ? resolveColor(sectionMatch[2].trim(), palette)
+        const name = groupMatch[1].trim();
+        const color = groupMatch[2]
+          ? resolveColor(groupMatch[2].trim(), palette)
           : null;
         result.arcNodeGroups.push({ name, nodes: [], color, lineNumber });
         currentArcGroup = name;
       } else if (result.type === 'timeline') {
-        const name = sectionMatch[1].trim();
-        const color = sectionMatch[2]
-          ? resolveColor(sectionMatch[2].trim(), palette)
+        const name = groupMatch[1].trim();
+        const color = groupMatch[2]
+          ? resolveColor(groupMatch[2].trim(), palette)
           : null;
         result.timelineGroups.push({ name, color, lineNumber });
         currentTimelineGroup = name;
       }
       continue;
+    }
+
+    // Reject legacy ## group syntax
+    if (/^#{2,}\s+/.test(line) && (result.type === 'arc' || result.type === 'timeline')) {
+      const name = line.replace(/^#{2,}\s+/, '').replace(/\s*\([^)]*\)\s*$/, '').trim();
+      result.diagnostics.push(makeDgmoError(lineNumber, `'## ${name}' is no longer supported. Use '[${name}]' instead`, 'warning'));
+      continue;
+    }
+
+    // Clear group context on un-indented lines (except [Group] already handled above)
+    if (indent === 0) {
+      currentArcGroup = null;
+      currentTimelineGroup = null;
     }
 
     // Skip comments
@@ -498,11 +563,16 @@ export function parseD3(content: string, palette?: PaletteColors): ParsedD3 {
         const amount = parseFloat(durationMatch[2]);
         const unit = durationMatch[3] as 'd' | 'w' | 'm' | 'y';
         const endDate = addDurationToDate(startDate, amount, unit);
+        const segments = durationMatch[5].split('|');
+        const metadata = segments.length > 1
+          ? parsePipeMetadata(['', ...segments.slice(1)], timelineAliasMap)
+          : {};
         result.timelineEvents.push({
           date: startDate,
           endDate,
-          label: durationMatch[5].trim(),
+          label: segments[0].trim(),
           group: currentTimelineGroup,
+          metadata,
           lineNumber,
           uncertain,
         });
@@ -514,11 +584,16 @@ export function parseD3(content: string, palette?: PaletteColors): ParsedD3 {
         /^(\d{4}(?:-\d{2})?(?:-\d{2})?)\s*->\s*(\d{4}(?:-\d{2})?(?:-\d{2})?)(\?)?\s*:\s*(.+)$/
       );
       if (rangeMatch) {
+        const segments = rangeMatch[4].split('|');
+        const metadata = segments.length > 1
+          ? parsePipeMetadata(['', ...segments.slice(1)], timelineAliasMap)
+          : {};
         result.timelineEvents.push({
           date: rangeMatch[1],
           endDate: rangeMatch[2],
-          label: rangeMatch[4].trim(),
+          label: segments[0].trim(),
           group: currentTimelineGroup,
+          metadata,
           lineNumber,
           uncertain: rangeMatch[3] === '?',
         });
@@ -530,11 +605,16 @@ export function parseD3(content: string, palette?: PaletteColors): ParsedD3 {
         /^(\d{4}(?:-\d{2})?(?:-\d{2})?)\s*:\s*(.+)$/
       );
       if (pointMatch) {
+        const segments = pointMatch[2].split('|');
+        const metadata = segments.length > 1
+          ? parsePipeMetadata(['', ...segments.slice(1)], timelineAliasMap)
+          : {};
         result.timelineEvents.push({
           date: pointMatch[1],
           endDate: null,
-          label: pointMatch[2].trim(),
+          label: segments[0].trim(),
           group: currentTimelineGroup,
+          metadata,
           lineNumber,
         });
         continue;
@@ -914,7 +994,7 @@ export function parseD3(content: string, palette?: PaletteColors): ParsedD3 {
     // Validate arc ordering vs groups
     if (result.arcNodeGroups.length > 0) {
       if (result.arcOrder === 'name' || result.arcOrder === 'degree') {
-        warn(1, `Cannot use "order: ${result.arcOrder}" with ## section headers. Use "order: group" or remove section headers.`);
+        warn(1, `Cannot use "order: ${result.arcOrder}" with [Group] headers. Use "order: group" or remove group headers.`);
         result.arcOrder = 'group';
       }
       if (result.arcOrder === 'appearance') {
@@ -927,6 +1007,24 @@ export function parseD3(content: string, palette?: PaletteColors): ParsedD3 {
   if (result.type === 'timeline') {
     if (result.timelineEvents.length === 0) {
       warn(1, 'No events found. Add events as "YYYY: description" or "YYYY->YYYY: description"');
+    }
+    // Validate tag values and inject defaults
+    if (result.timelineTagGroups.length > 0) {
+      validateTagValues(
+        result.timelineEvents,
+        result.timelineTagGroups,
+        (line, msg) => result.diagnostics.push(makeDgmoError(line, msg, 'warning')),
+        suggest,
+      );
+      for (const group of result.timelineTagGroups) {
+        if (!group.defaultValue) continue;
+        const key = group.name.toLowerCase();
+        for (const event of result.timelineEvents) {
+          if (!event.metadata[key]) {
+            event.metadata[key] = group.defaultValue;
+          }
+        }
+      }
     }
     return result;
   }
@@ -2682,7 +2780,8 @@ export function renderTimeline(
   palette: PaletteColors,
   isDark: boolean,
   onClickItem?: (lineNumber: number) => void,
-  exportDims?: D3ExportDimensions
+  exportDims?: D3ExportDimensions,
+  activeTagGroup?: string | null
 ): void {
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
 
@@ -2720,6 +2819,11 @@ export function renderTimeline(
   });
 
   function eventColor(ev: TimelineEvent): string {
+    // Tag color takes priority when a tag group is active
+    if (activeTagGroup) {
+      const tagColor = resolveTagColor(ev.metadata, parsed.timelineTagGroups, activeTagGroup);
+      if (tagColor) return tagColor;
+    }
     if (ev.group && groupColorMap.has(ev.group)) {
       return groupColorMap.get(ev.group)!;
     }
@@ -2811,10 +2915,48 @@ export function renderTimeline(
     g: d3Selection.Selection<SVGGElement, unknown, null, undefined>
   ) {
     g.selectAll<SVGGElement, unknown>(
-      '.tl-event, .tl-legend-item, .tl-lane-header, .tl-marker'
+      '.tl-event, .tl-legend-item, .tl-lane-header, .tl-marker, .tl-tag-legend-entry'
     ).attr('opacity', 1);
     g.selectAll<SVGGElement, unknown>('.tl-era').attr('opacity', 1);
   }
+
+  function fadeToTagValue(
+    g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
+    tagKey: string,
+    tagValue: string
+  ) {
+    const attrName = `data-tag-${tagKey}`;
+    g.selectAll<SVGGElement, unknown>('.tl-event').each(function () {
+      const el = d3Selection.select(this);
+      const val = el.attr(attrName);
+      el.attr('opacity', val === tagValue ? 1 : FADE_OPACITY);
+    });
+    g.selectAll<SVGGElement, unknown>('.tl-legend-item, .tl-lane-header').attr(
+      'opacity', FADE_OPACITY
+    );
+    g.selectAll<SVGGElement, unknown>('.tl-marker').attr('opacity', FADE_OPACITY);
+    // Fade legend entry dots/labels that don't match (keep group pill visible)
+    g.selectAll<SVGGElement, unknown>('.tl-tag-legend-entry').each(function () {
+      const el = d3Selection.select(this);
+      const entryValue = el.attr('data-legend-entry');
+      if (entryValue === '__group__') return; // keep group pill at full opacity
+      const entryGroup = el.attr('data-tag-group');
+      el.attr('opacity', entryGroup === tagKey && entryValue === tagValue ? 1 : FADE_OPACITY);
+    });
+  }
+
+  /** Attach data-tag-* attributes on an event group element */
+  function setTagAttrs(
+    evG: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
+    ev: TimelineEvent
+  ) {
+    for (const [key, value] of Object.entries(ev.metadata)) {
+      evG.attr(`data-tag-${key}`, value.toLowerCase());
+    }
+  }
+
+  // Reserve space for tag legend between title and chart content
+  const tagLegendReserve = parsed.timelineTagGroups.length > 0 ? 36 : 0;
 
   // ================================================================
   // VERTICAL orientation (time flows top→bottom)
@@ -2833,7 +2975,7 @@ export function renderTimeline(
       const scaleMargin = timelineScale ? 40 : 0;
       const markerMargin = timelineMarkers.length > 0 ? 30 : 0;
       const margin = {
-        top: 104 + markerMargin,
+        top: 104 + markerMargin + tagLegendReserve,
         right: 40 + scaleMargin,
         bottom: 40,
         left: 60 + scaleMargin,
@@ -2966,6 +3108,7 @@ export function renderTimeline(
             .on('click', () => {
               if (onClickItem && ev.lineNumber) onClickItem(ev.lineNumber);
             });
+          setTagAttrs(evG, ev);
 
           if (ev.endDate) {
             const y2 = yScale(parseTimelineDate(ev.endDate));
@@ -3039,7 +3182,7 @@ export function renderTimeline(
       const scaleMargin = timelineScale ? 40 : 0;
       const markerMargin = timelineMarkers.length > 0 ? 30 : 0;
       const margin = {
-        top: 104 + markerMargin,
+        top: 104 + markerMargin + tagLegendReserve,
         right: 200,
         bottom: 40,
         left: 60 + scaleMargin,
@@ -3183,6 +3326,7 @@ export function renderTimeline(
           .on('click', () => {
             if (onClickItem && ev.lineNumber) onClickItem(ev.lineNumber);
           });
+        setTagAttrs(evG, ev);
 
         if (ev.endDate) {
           const y2 = yScale(parseTimelineDate(ev.endDate));
@@ -3313,7 +3457,7 @@ export function renderTimeline(
     // Group-sorted doesn't need legend space (group names shown on left)
     const baseTopMargin = title ? 50 : 20;
     const margin = {
-      top: baseTopMargin + (timelineScale ? 40 : 0) + markerMargin,
+      top: baseTopMargin + (timelineScale ? 40 : 0) + markerMargin + tagLegendReserve,
       right: 40,
       bottom: 40 + scaleMargin,
       left: dynamicLeftMargin,
@@ -3480,6 +3624,7 @@ export function renderTimeline(
           .on('click', () => {
             if (onClickItem && ev.lineNumber) onClickItem(ev.lineNumber);
           });
+        setTagAttrs(evG, ev);
 
         if (ev.endDate) {
           const x2 = xScale(parseTimelineDate(ev.endDate));
@@ -3589,7 +3734,7 @@ export function renderTimeline(
     const scaleMargin = timelineScale ? 24 : 0;
     const markerMargin = timelineMarkers.length > 0 ? 30 : 0;
     const margin = {
-      top: 104 + (timelineScale ? 40 : 0) + markerMargin,
+      top: 104 + (timelineScale ? 40 : 0) + markerMargin + tagLegendReserve,
       right: 40,
       bottom: 40 + scaleMargin,
       left: 60,
@@ -3739,6 +3884,7 @@ export function renderTimeline(
         .on('click', () => {
           if (onClickItem && ev.lineNumber) onClickItem(ev.lineNumber);
         });
+      setTagAttrs(evG, ev);
 
       if (ev.endDate) {
         const x2 = xScale(parseTimelineDate(ev.endDate));
@@ -3836,6 +3982,227 @@ export function renderTimeline(
           .text(ev.label);
       }
     });
+  }
+
+  // ── Tag Legend (org-chart-style pills) ──
+  if (parsed.timelineTagGroups.length > 0) {
+    const LG_HEIGHT = 28;
+    const LG_PILL_PAD = 16;
+    const LG_PILL_FONT_SIZE = 11;
+    const LG_PILL_FONT_W = LG_PILL_FONT_SIZE * 0.6;
+    const LG_CAPSULE_PAD = 4;
+    const LG_DOT_R = 4;
+    const LG_ENTRY_FONT_SIZE = 10;
+    const LG_ENTRY_FONT_W = LG_ENTRY_FONT_SIZE * 0.6;
+    const LG_ENTRY_DOT_GAP = 4;
+    const LG_ENTRY_TRAIL = 8;
+    const LG_GROUP_GAP = 12;
+
+    const mainSvg = d3Selection.select(container).select<SVGSVGElement>('svg');
+    const mainG = mainSvg.select<SVGGElement>('g');
+    if (!mainSvg.empty() && !mainG.empty()) {
+      // Legend goes in the reserved space between title and chart content.
+      // Title is at y=30 in SVG coords; we place the legend centered in the
+      // tagLegendReserve gap just above where g starts (margin.top).
+      // Render legend directly on SVG (not inside g) for clean centering.
+      const legendY = title ? 50 : 10;
+
+      const groupBg = isDark
+        ? mix(palette.surface, palette.bg, 50)
+        : mix(palette.surface, palette.bg, 30);
+
+      // Pre-compute group widths (minified and expanded)
+      type LegendGroup = {
+        group: TagGroup;
+        minifiedWidth: number;
+        expandedWidth: number;
+      };
+      const legendGroups: LegendGroup[] = parsed.timelineTagGroups.map((g) => {
+        const pillW = g.name.length * LG_PILL_FONT_W + LG_PILL_PAD;
+        let entryX = LG_CAPSULE_PAD + pillW + 4;
+        for (const entry of g.entries) {
+          const textX = entryX + LG_DOT_R * 2 + LG_ENTRY_DOT_GAP;
+          entryX = textX + entry.value.length * LG_ENTRY_FONT_W + LG_ENTRY_TRAIL;
+        }
+        return {
+          group: g,
+          minifiedWidth: pillW,
+          expandedWidth: entryX + LG_CAPSULE_PAD,
+        };
+      });
+
+      // Current active state (for standalone interactivity)
+      let currentActiveGroup: string | null = activeTagGroup ?? null;
+
+      function drawLegend() {
+        // Remove previous legend
+        mainSvg.selectAll('.tl-tag-legend-group').remove();
+
+        // Compute total width and center horizontally in SVG
+        const totalW = legendGroups.reduce((s, lg) => {
+          const isActive = currentActiveGroup != null &&
+            lg.group.name.toLowerCase() === currentActiveGroup.toLowerCase();
+          return s + (isActive ? lg.expandedWidth : lg.minifiedWidth);
+        }, 0) + (legendGroups.length - 1) * LG_GROUP_GAP;
+
+        let cx = (width - totalW) / 2;
+
+        for (const lg of legendGroups) {
+          const isActive = currentActiveGroup != null &&
+            lg.group.name.toLowerCase() === currentActiveGroup.toLowerCase();
+
+          const pillLabel = lg.group.name;
+          const pillWidth = pillLabel.length * LG_PILL_FONT_W + LG_PILL_PAD;
+
+          const gEl = mainSvg
+            .append('g')
+            .attr('transform', `translate(${cx}, ${legendY})`)
+            .attr('class', 'tl-tag-legend-group tl-tag-legend-entry')
+            .attr('data-legend-group', lg.group.name.toLowerCase())
+            .attr('data-tag-group', lg.group.name.toLowerCase())
+            .attr('data-legend-entry', '__group__')
+            .style('cursor', 'pointer')
+            .on('click', () => {
+              const groupKey = lg.group.name.toLowerCase();
+              currentActiveGroup = currentActiveGroup === groupKey ? null : groupKey;
+              drawLegend();
+              recolorEvents();
+            });
+
+          // Outer capsule background (active only)
+          if (isActive) {
+            gEl.append('rect')
+              .attr('width', lg.expandedWidth)
+              .attr('height', LG_HEIGHT)
+              .attr('rx', LG_HEIGHT / 2)
+              .attr('fill', groupBg);
+          }
+
+          const pillXOff = isActive ? LG_CAPSULE_PAD : 0;
+          const pillYOff = isActive ? LG_CAPSULE_PAD : 0;
+          const pillH = LG_HEIGHT - (isActive ? LG_CAPSULE_PAD * 2 : 0);
+
+          // Pill background
+          gEl.append('rect')
+            .attr('x', pillXOff)
+            .attr('y', pillYOff)
+            .attr('width', pillWidth)
+            .attr('height', pillH)
+            .attr('rx', pillH / 2)
+            .attr('fill', isActive ? palette.bg : groupBg);
+
+          // Active pill border
+          if (isActive) {
+            gEl.append('rect')
+              .attr('x', pillXOff)
+              .attr('y', pillYOff)
+              .attr('width', pillWidth)
+              .attr('height', pillH)
+              .attr('rx', pillH / 2)
+              .attr('fill', 'none')
+              .attr('stroke', mix(palette.textMuted, palette.bg, 50))
+              .attr('stroke-width', 0.75);
+          }
+
+          // Pill text
+          gEl.append('text')
+            .attr('x', pillXOff + pillWidth / 2)
+            .attr('y', LG_HEIGHT / 2 + LG_PILL_FONT_SIZE / 2 - 2)
+            .attr('font-size', LG_PILL_FONT_SIZE)
+            .attr('font-weight', '500')
+            .attr('font-family', FONT_FAMILY)
+            .attr('fill', isActive ? palette.text : palette.textMuted)
+            .attr('text-anchor', 'middle')
+            .text(pillLabel);
+
+          // Entries inside capsule (active only)
+          if (isActive) {
+            let entryX = pillXOff + pillWidth + 4;
+            for (const entry of lg.group.entries) {
+              const tagKey = lg.group.name.toLowerCase();
+              const tagVal = entry.value.toLowerCase();
+
+              const entryG = gEl.append('g')
+                .attr('class', 'tl-tag-legend-entry')
+                .attr('data-tag-group', tagKey)
+                .attr('data-legend-entry', tagVal)
+                .style('cursor', 'pointer')
+                .on('mouseenter', (event: MouseEvent) => {
+                  event.stopPropagation();
+                  fadeToTagValue(mainG, tagKey, tagVal);
+                  // Also fade legend entries on the SVG level
+                  mainSvg.selectAll<SVGGElement, unknown>('.tl-tag-legend-entry').each(function () {
+                    const el = d3Selection.select(this);
+                    const ev = el.attr('data-legend-entry');
+                    if (ev === '__group__') return;
+                    const eg = el.attr('data-tag-group');
+                    el.attr('opacity', eg === tagKey && ev === tagVal ? 1 : FADE_OPACITY);
+                  });
+                })
+                .on('mouseleave', (event: MouseEvent) => {
+                  event.stopPropagation();
+                  fadeReset(mainG);
+                  mainSvg.selectAll<SVGGElement, unknown>('.tl-tag-legend-entry')
+                    .attr('opacity', 1);
+                })
+                .on('click', (event: MouseEvent) => {
+                  event.stopPropagation(); // don't toggle group
+                });
+
+              entryG.append('circle')
+                .attr('cx', entryX + LG_DOT_R)
+                .attr('cy', LG_HEIGHT / 2)
+                .attr('r', LG_DOT_R)
+                .attr('fill', entry.color);
+
+              const textX = entryX + LG_DOT_R * 2 + LG_ENTRY_DOT_GAP;
+              entryG.append('text')
+                .attr('x', textX)
+                .attr('y', LG_HEIGHT / 2 + LG_ENTRY_FONT_SIZE / 2 - 1)
+                .attr('font-size', LG_ENTRY_FONT_SIZE)
+                .attr('font-family', FONT_FAMILY)
+                .attr('fill', palette.textMuted)
+                .text(entry.value);
+
+              entryX = textX + entry.value.length * LG_ENTRY_FONT_W + LG_ENTRY_TRAIL;
+            }
+          }
+
+          cx += (isActive ? lg.expandedWidth : lg.minifiedWidth) + LG_GROUP_GAP;
+        }
+      }
+
+      // Build a quick lineNumber→event lookup
+      const eventByLine = new Map<string, TimelineEvent>();
+      for (const ev of timelineEvents) {
+        eventByLine.set(String(ev.lineNumber), ev);
+      }
+
+      function recolorEvents() {
+        mainG.selectAll<SVGGElement, unknown>('.tl-event').each(function () {
+          const el = d3Selection.select(this);
+          const lineNum = el.attr('data-line-number');
+          const ev = lineNum ? eventByLine.get(lineNum) : undefined;
+          if (!ev) return;
+
+          let color: string;
+          if (currentActiveGroup) {
+            const tagColor = resolveTagColor(
+              ev.metadata, parsed.timelineTagGroups, currentActiveGroup
+            );
+            color = tagColor ?? (ev.group && groupColorMap.has(ev.group)
+              ? groupColorMap.get(ev.group)! : textColor);
+          } else {
+            color = ev.group && groupColorMap.has(ev.group)
+              ? groupColorMap.get(ev.group)! : textColor;
+          }
+          el.selectAll('rect').attr('fill', color);
+          el.selectAll('circle:not(.tl-event-point-outline)').attr('fill', color);
+        });
+      }
+
+      drawLegend();
+    }
   }
 }
 

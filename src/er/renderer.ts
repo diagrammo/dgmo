@@ -8,6 +8,7 @@ import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
 import { mix } from '../palettes/color-utils';
 import { getSeriesColors } from '../palettes';
+import { resolveTagColor } from '../utils/tag-groups';
 import type { ParsedERDiagram, ERConstraint } from './types';
 import type { ERLayoutResult, ERLayoutNode, ERLayoutEdge } from './layout';
 import { parseERDiagram } from './parser';
@@ -200,7 +201,8 @@ export function renderERDiagram(
   palette: PaletteColors,
   isDark: boolean,
   onClickItem?: (lineNumber: number) => void,
-  exportDims?: { width?: number; height?: number }
+  exportDims?: { width?: number; height?: number },
+  activeTagGroup?: string | null
 ): void {
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
 
@@ -338,7 +340,8 @@ export function renderERDiagram(
   // ── Nodes (top layer) ──
   for (let ni = 0; ni < layout.nodes.length; ni++) {
     const node = layout.nodes[ni];
-    const nodeColor = node.color ?? seriesColors[ni % seriesColors.length];
+    const tagColor = resolveTagColor(node.metadata, parsed.tagGroups, activeTagGroup ?? null);
+    const nodeColor = node.color ?? tagColor ?? seriesColors[ni % seriesColors.length];
 
     const nodeG = contentG
       .append('g')
@@ -346,6 +349,15 @@ export function renderERDiagram(
       .attr('class', 'er-table')
       .attr('data-line-number', String(node.lineNumber))
       .attr('data-node-id', node.id);
+
+    // Set data-tag-* attributes for legend hover
+    if (activeTagGroup) {
+      const tagKey = activeTagGroup.toLowerCase();
+      const tagValue = node.metadata[tagKey];
+      if (tagValue) {
+        nodeG.attr(`data-tag-${tagKey}`, tagValue.toLowerCase());
+      }
+    }
 
     if (onClickItem) {
       nodeG.style('cursor', 'pointer').on('click', () => {
@@ -428,6 +440,83 @@ export function renderERDiagram(
 
         memberY += MEMBER_LINE_HEIGHT;
       }
+    }
+  }
+
+  // ── Tag Legend ──
+  if (parsed.tagGroups.length > 0) {
+    const LEGEND_Y_PAD = 16;
+    const LEGEND_PILL_H = 22;
+    const LEGEND_PILL_RX = 11;
+    const LEGEND_PILL_PAD = 10;
+    const LEGEND_GAP = 8;
+    const LEGEND_FONT_SIZE = 11;
+    const LEGEND_GROUP_GAP = 16;
+
+    const legendG = svg.append('g')
+      .attr('class', 'er-tag-legend');
+
+    let legendX = DIAGRAM_PADDING;
+    let legendY = height - DIAGRAM_PADDING;
+
+    for (const group of parsed.tagGroups) {
+      const groupG = legendG.append('g')
+        .attr('data-legend-group', group.name.toLowerCase());
+
+      // Group label
+      const labelText = groupG.append('text')
+        .attr('x', legendX)
+        .attr('y', legendY + LEGEND_PILL_H / 2)
+        .attr('dominant-baseline', 'central')
+        .attr('fill', palette.textMuted)
+        .attr('font-size', LEGEND_FONT_SIZE)
+        .attr('font-family', FONT_FAMILY)
+        .text(`${group.name}:`);
+
+      const labelWidth = (labelText.node()?.getComputedTextLength?.() ?? group.name.length * 7) + 6;
+      legendX += labelWidth;
+
+      // Entries
+      for (const entry of group.entries) {
+        const pillG = groupG.append('g')
+          .attr('data-legend-entry', entry.value.toLowerCase())
+          .style('cursor', 'pointer');
+
+        // Estimate text width
+        const tmpText = legendG.append('text')
+          .attr('font-size', LEGEND_FONT_SIZE)
+          .attr('font-family', FONT_FAMILY)
+          .text(entry.value);
+        const textW = tmpText.node()?.getComputedTextLength?.() ?? entry.value.length * 7;
+        tmpText.remove();
+
+        const pillW = textW + LEGEND_PILL_PAD * 2;
+
+        pillG.append('rect')
+          .attr('x', legendX)
+          .attr('y', legendY)
+          .attr('width', pillW)
+          .attr('height', LEGEND_PILL_H)
+          .attr('rx', LEGEND_PILL_RX)
+          .attr('ry', LEGEND_PILL_RX)
+          .attr('fill', mix(entry.color, isDark ? palette.surface : palette.bg, 25))
+          .attr('stroke', entry.color)
+          .attr('stroke-width', 1);
+
+        pillG.append('text')
+          .attr('x', legendX + pillW / 2)
+          .attr('y', legendY + LEGEND_PILL_H / 2)
+          .attr('text-anchor', 'middle')
+          .attr('dominant-baseline', 'central')
+          .attr('fill', palette.text)
+          .attr('font-size', LEGEND_FONT_SIZE)
+          .attr('font-family', FONT_FAMILY)
+          .text(entry.value);
+
+        legendX += pillW + LEGEND_GAP;
+      }
+
+      legendX += LEGEND_GROUP_GAP;
     }
   }
 }

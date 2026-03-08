@@ -18,6 +18,7 @@ export interface ERTable {
   name: string;
   color?: string;
   columns: ERColumn[];
+  metadata: Record<string, string>;
   lineNumber: number;
 }
 
@@ -30,6 +31,7 @@ export interface ERRelationship {
 }
 
 import type { DgmoError } from '../diagnostics';
+import type { TagGroup } from '../utils/tag-groups';
 
 export interface ParsedERDiagram {
   type: 'er';
@@ -38,6 +40,7 @@ export interface ParsedERDiagram {
   options: Record<string, string>;
   tables: ERTable[];
   relationships: ERRelationship[];
+  tagGroups: TagGroup[];
   diagnostics: DgmoError[];
   error: string | null;
 }

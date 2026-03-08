@@ -357,3 +357,115 @@ describe('looksLikeERDiagram', () => {
     expect(looksLikeERDiagram('Alice -> Bob: Hello\nBob -> Alice: Hi')).toBe(false);
   });
 });
+
+// ============================================================
+// Tag Groups
+// ============================================================
+
+describe('tag groups', () => {
+  it('parses tag: blocks with entries', () => {
+    const result = parseERDiagram(`chart: er
+
+tag: Domain alias d
+  Billing(blue)
+  Shipping(green)
+
+Users | d: Billing
+  id: int [pk]`);
+    expect(result.tagGroups).toHaveLength(1);
+    expect(result.tagGroups[0].name).toBe('Domain');
+    expect(result.tagGroups[0].alias).toBe('d');
+    expect(result.tagGroups[0].entries).toHaveLength(2);
+    expect(result.tagGroups[0].entries[0].value).toBe('Billing');
+    expect(result.tagGroups[0].entries[1].value).toBe('Shipping');
+  });
+
+  it('parses pipe metadata on table declarations', () => {
+    const result = parseERDiagram(`chart: er
+
+tag: Domain alias d
+  Billing(blue)
+
+Users | d: Billing
+  id: int [pk]`);
+    expect(result.tables[0].metadata).toEqual({ domain: 'Billing' });
+  });
+
+  it('resolves alias in pipe metadata', () => {
+    const result = parseERDiagram(`chart: er
+
+tag: Domain alias d
+  Billing(blue)
+
+Orders | d: Billing
+  id: int [pk]`);
+    // Alias 'd' resolves to 'domain'
+    expect(result.tables[0].metadata).toEqual({ domain: 'Billing' });
+  });
+
+  it('injects default tag values', () => {
+    const result = parseERDiagram(`chart: er
+
+tag: Domain
+  Billing(blue)
+  Core(gray) default
+
+Users
+  id: int [pk]`);
+    // Users has no explicit Domain tag, so it should get the default
+    expect(result.tables[0].metadata.domain).toBe('Core');
+  });
+
+  it('warns on unknown tag values', () => {
+    const result = parseERDiagram(`chart: er
+
+tag: Domain
+  Billing(blue)
+  Shipping(green)
+
+Users | Domain: Unknown
+  id: int [pk]`);
+    const warnings = result.diagnostics.filter(d => d.message.includes("Unknown value 'Unknown'"));
+    expect(warnings).toHaveLength(1);
+  });
+
+  it('preserves explicit table color alongside metadata', () => {
+    const result = parseERDiagram(`chart: er
+
+tag: Domain
+  Billing(blue)
+
+Users(red) | Domain: Billing
+  id: int [pk]`);
+    expect(result.tables[0].color).toBeDefined();
+    expect(result.tables[0].metadata.domain).toBe('Billing');
+  });
+
+  it('existing ER without tags still works', () => {
+    const result = parseERDiagram(`chart: er
+Users
+  id: int [pk]
+  email: varchar [unique]
+
+Orders
+  id: int [pk]
+
+Users 1--* Orders`);
+    expect(result.error).toBeNull();
+    expect(result.tagGroups).toHaveLength(0);
+    expect(result.tables).toHaveLength(2);
+  });
+
+  it('emits deprecation warning for ## tag group syntax', () => {
+    const result = parseERDiagram(`chart: er
+
+## Domain
+  Billing(blue)
+
+Users | Domain: Billing
+  id: int [pk]`);
+    const warnings = result.diagnostics.filter(d => d.message.includes('deprecated'));
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0].message).toContain('tag: Domain');
+  });
+});

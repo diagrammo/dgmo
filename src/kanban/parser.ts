@@ -1,6 +1,7 @@
 import type { PaletteColors } from '../palettes';
 import type { DgmoError } from '../diagnostics';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
+import { resolveColor } from '../colors';
 import { matchTagBlockHeading } from '../utils/tag-groups';
 import {
   measureIndent,
@@ -21,7 +22,10 @@ import type {
 // Regex patterns
 // ============================================================
 
-const COLUMN_RE = /^==\s+(.+?)\s*(?:\[wip:\s*(\d+)\])?\s*==$/;
+// [Column Name], [Column Name](color), [Column Name] | wip: 3, etc.
+const COLUMN_RE = /^\[(.+?)\](?:\s*\(([^)]+)\))?\s*(?:\|\s*(.+))?$/;
+// Legacy delimiter
+const LEGACY_COLUMN_RE = /^==\s+(.+?)\s*(?:\[wip:\s*(\d+)\])?\s*==$/;
 
 // ============================================================
 // Parser
@@ -60,6 +64,7 @@ export function parseKanban(
   let currentTagGroup: KanbanTagGroup | null = null;
   let currentColumn: KanbanColumn | null = null;
   let currentCard: KanbanCard | null = null;
+  let cardBaseIndent = 0; // indent level of current card (for detail detection)
   let columnCounter = 0;
   let cardCounter = 0;
 
@@ -155,7 +160,7 @@ export function parseKanban(
       }
     }
 
-    // Tag group entries (indented Value(color) [default] under ## heading)
+    // Tag group entries (indented Value(color) [default] under tag: heading)
     if (currentTagGroup && !contentStarted) {
       const indent = measureIndent(line);
       if (indent > 0) {
@@ -187,8 +192,18 @@ export function parseKanban(
 
     // --- Content phase ---
 
-    // Column delimiter: == Name == or == Name [wip: N] ==
-    const columnMatch = trimmed.match(COLUMN_RE);
+    const indent = measureIndent(line);
+
+    // Reject legacy == Column == syntax
+    if (LEGACY_COLUMN_RE.test(trimmed)) {
+      const legacyMatch = trimmed.match(LEGACY_COLUMN_RE)!;
+      const name = legacyMatch[1].replace(/\s*\(.*\)\s*$/, '').trim();
+      warn(lineNumber, `'== ${name} ==' is no longer supported. Use '[${name}]' instead`);
+      continue;
+    }
+
+    // [Column] header at indent 0
+    const columnMatch = indent === 0 ? trimmed.match(COLUMN_RE) : null;
     if (columnMatch) {
       contentStarted = true;
       currentTagGroup = null;
@@ -196,7 +211,6 @@ export function parseKanban(
       // Finalize previous card's endLineNumber
       if (currentCard) {
         currentCard.endLineNumber = lineNumber - 1;
-        // Walk back over trailing empty lines
         while (
           currentCard.endLineNumber > currentCard.lineNumber &&
           !lines[currentCard.endLineNumber - 1].trim()
@@ -207,16 +221,25 @@ export function parseKanban(
       currentCard = null;
 
       columnCounter++;
-      const rawColName = columnMatch[1].trim();
-      const wipStr = columnMatch[2];
-      const { label: colName, color: colColor } = extractColor(
-        rawColName,
-        palette
-      );
+      const colName = columnMatch[1].trim();
+      const colColor = columnMatch[2]
+        ? resolveColor(columnMatch[2].trim(), palette)
+        : undefined;
+
+      // Parse WIP limit from pipe metadata (e.g., "| wip: 3")
+      let wipLimit: number | undefined;
+      const pipeStr = columnMatch[3];
+      if (pipeStr) {
+        const wipMatch = pipeStr.match(/\bwip\s*:\s*(\d+)\b/i);
+        if (wipMatch) {
+          wipLimit = parseInt(wipMatch[1], 10);
+        }
+      }
+
       currentColumn = {
         id: `col-${columnCounter}`,
         name: colName,
-        wipLimit: wipStr ? parseInt(wipStr, 10) : undefined,
+        wipLimit,
         color: colColor,
         cards: [],
         lineNumber,
@@ -226,45 +249,41 @@ export function parseKanban(
     }
 
     // If we hit a non-column, non-header line and haven't started content yet,
-    // it's invalid (cards without a column)
+    // skip silently (blank lines or whitespace between header and columns)
     if (!contentStarted) {
-      // Could be the first column, or an error
-      // For permissiveness, skip these lines silently (they might be blank
-      // lines or just whitespace between header and columns)
       continue;
     }
 
     if (!currentColumn) {
-      // Content line before any column — skip with warning
       warn(lineNumber, 'Card line found before any column');
       continue;
     }
 
-    const indent = measureIndent(line);
-
-    // Detail lines: indented under a card
-    if (indent > 0 && currentCard) {
+    // Detail lines: indented deeper than the card
+    if (currentCard && indent > cardBaseIndent) {
       currentCard.details.push(trimmed);
       currentCard.endLineNumber = lineNumber;
       continue;
     }
 
-    // New card line (non-indented within a column)
-    // Finalize previous card
-    if (currentCard) {
-      // endLineNumber already tracked
+    // Card line: indented under a [Column]
+    if (indent > 0) {
+      cardCounter++;
+      const card = parseCardLine(
+        trimmed,
+        lineNumber,
+        cardCounter,
+        aliasMap,
+        palette
+      );
+      cardBaseIndent = indent;
+      currentCard = card;
+      currentColumn.cards.push(card);
+      continue;
     }
 
-    cardCounter++;
-    const card = parseCardLine(
-      trimmed,
-      lineNumber,
-      cardCounter,
-      aliasMap,
-      palette
-    );
-    currentCard = card;
-    currentColumn.cards.push(card);
+    // Un-indented non-column line in content phase — could be stray text
+    // For permissiveness, skip silently
   }
 
   // Finalize last card's endLineNumber
@@ -310,7 +329,7 @@ export function parseKanban(
   }
 
   if (result.columns.length === 0 && !result.error) {
-    return fail(1, 'No columns found. Use == Column Name == to define columns');
+    return fail(1, 'No columns found. Use [Column Name] to define columns');
   }
 
   return result;

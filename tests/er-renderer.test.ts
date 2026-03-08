@@ -186,4 +186,74 @@ describe('renderERDiagram', () => {
       document.body.removeChild(container);
     });
   });
+
+  describe('tag groups', () => {
+    const ER_WITH_TAGS = `chart: er
+
+tag: Domain alias d
+  Billing(blue)
+  Shipping(green)
+
+Users | d: Billing
+  id: int [pk]
+
+Orders | d: Shipping
+  id: int [pk]`;
+
+    it('sets data-tag-* attributes when activeTagGroup is set', () => {
+      const parsed = parseERDiagram(ER_WITH_TAGS, testPalette);
+      const layout = layoutERDiagram(parsed);
+      const container = document.createElement('div');
+      container.style.width = '800px';
+      container.style.height = '600px';
+      document.body.appendChild(container);
+      renderERDiagram(container, parsed, layout, testPalette, false, undefined, { width: 800, height: 600 }, 'domain');
+      const billingTable = container.querySelector('.er-table[data-tag-domain="billing"]');
+      const shippingTable = container.querySelector('.er-table[data-tag-domain="shipping"]');
+      expect(billingTable).toBeTruthy();
+      expect(shippingTable).toBeTruthy();
+      document.body.removeChild(container);
+    });
+
+    it('does not set data-tag-* when no activeTagGroup', () => {
+      const parsed = parseERDiagram(ER_WITH_TAGS, testPalette);
+      const layout = layoutERDiagram(parsed);
+      const container = document.createElement('div');
+      container.style.width = '800px';
+      container.style.height = '600px';
+      document.body.appendChild(container);
+      renderERDiagram(container, parsed, layout, testPalette, false, undefined, { width: 800, height: 600 });
+      const tagged = container.querySelector('[data-tag-domain]');
+      expect(tagged).toBeNull();
+      document.body.removeChild(container);
+    });
+
+    it('renders tag legend when tag groups exist', () => {
+      const parsed = parseERDiagram(ER_WITH_TAGS, testPalette);
+      const layout = layoutERDiagram(parsed);
+      const container = document.createElement('div');
+      container.style.width = '800px';
+      container.style.height = '600px';
+      document.body.appendChild(container);
+      renderERDiagram(container, parsed, layout, testPalette, false, undefined, { width: 800, height: 600 });
+      const legend = container.querySelector('.er-tag-legend');
+      expect(legend).toBeTruthy();
+      const entries = container.querySelectorAll('[data-legend-entry]');
+      expect(entries.length).toBe(2); // Billing, Shipping
+      document.body.removeChild(container);
+    });
+
+    it('no legend when no tag groups', () => {
+      const parsed = parseERDiagram('users\n  id: int [pk]', testPalette);
+      const layout = layoutERDiagram(parsed);
+      const container = document.createElement('div');
+      container.style.width = '800px';
+      container.style.height = '600px';
+      document.body.appendChild(container);
+      renderERDiagram(container, parsed, layout, testPalette, false, undefined, { width: 800, height: 600 });
+      const legend = container.querySelector('.er-tag-legend');
+      expect(legend).toBeNull();
+      document.body.removeChild(container);
+    });
+  });
 });

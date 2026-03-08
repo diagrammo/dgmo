@@ -108,8 +108,11 @@ export function parseChart(
     // Skip empty lines
     if (!trimmed) continue;
 
-    // Recognize ## section headers (skip, but don't treat as comments)
-    if (/^#{2,}\s+/.test(trimmed)) continue;
+    // Reject legacy ## section headers
+    if (/^#{2,}\s+/.test(trimmed)) {
+      result.diagnostics.push(makeDgmoError(lineNumber, `'${trimmed}' — ## syntax is no longer supported. Use [Group] containers instead`));
+      continue;
+    }
 
     // Skip comments
     if (trimmed.startsWith('//')) continue;
