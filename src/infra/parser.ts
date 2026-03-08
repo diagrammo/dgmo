@@ -43,8 +43,8 @@ const TAG_VALUE_RE = /^(\w[\w\s]*?)(?:\(([^)]+)\))?(\s+default)?\s*$/;
 // Component line: ComponentName  or  ComponentName | t: Backend | env: Prod
 const COMPONENT_RE = /^([a-zA-Z_][\w]*)(.*)$/;
 
-// Pipe metadata: | key: value
-const PIPE_META_RE = /\|\s*(\w+)\s*:\s*([^|]+)/g;
+// Pipe metadata: | key: value  or  | k1: v1, k2: v2  (comma-separated)
+const PIPE_META_RE = /[|,]\s*(\w+)\s*:\s*([^|,]+)/g;
 
 // Property: key: value
 const PROPERTY_RE = /^([\w-]+)\s*:\s*(.+)$/;

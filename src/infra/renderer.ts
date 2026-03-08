@@ -606,6 +606,23 @@ function renderEdgeLabels(
   }
 }
 
+/** Returns the resolved tag color for a node's active tag group, or null if not applicable. */
+function resolveActiveTagStroke(
+  node: InfraLayoutNode,
+  activeGroup: string,
+  tagGroups: InfraTagGroup[],
+  palette: PaletteColors,
+): string | null {
+  const tg = tagGroups.find((t) => t.name.toLowerCase() === activeGroup.toLowerCase());
+  if (!tg) return null;
+  const tagKey = (tg.alias ?? tg.name).toLowerCase();
+  const tagVal = node.tags[tagKey];
+  if (!tagVal) return null;
+  const tv = tg.values.find((v) => v.name.toLowerCase() === tagVal.toLowerCase());
+  if (!tv?.color) return null;
+  return resolveColor(tv.color, palette);
+}
+
 function renderNodes(
   svg: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   nodes: InfraLayoutNode[],
@@ -616,11 +633,21 @@ function renderNodes(
   activeGroup?: string | null,
   diagramOptions?: Record<string, string>,
   collapsedNodes?: Set<string> | null,
+  tagGroups?: InfraTagGroup[],
 ) {
   const mutedColor = palette.textMuted;
 
   for (const node of nodes) {
-    const { fill, stroke, textFill } = nodeColor(node, palette, isDark);
+    let { fill, stroke, textFill } = nodeColor(node, palette, isDark);
+
+    // When a tag legend is active, override border color with tag color
+    if (activeGroup && tagGroups && !node.isEdge) {
+      const tagStroke = resolveActiveTagStroke(node, activeGroup, tagGroups, palette);
+      if (tagStroke) {
+        stroke = tagStroke;
+        fill = mix(palette.bg, tagStroke, isDark ? 88 : 94);
+      }
+    }
     let cls = 'infra-node';
     if (animate && node.isEdge) {
       cls += ' infra-node-edge-throb';
@@ -1487,7 +1514,7 @@ export function renderInfra(
   // Render layers: groups (back), edge paths, nodes, reject particles, edge labels (front)
   renderGroups(svg, layout.groups, palette, isDark);
   renderEdgePaths(svg, layout.edges, layout.nodes, palette, isDark, shouldAnimate);
-  renderNodes(svg, layout.nodes, palette, isDark, shouldAnimate, selectedNodeId, activeGroup, layout.options, collapsedNodes);
+  renderNodes(svg, layout.nodes, palette, isDark, shouldAnimate, selectedNodeId, activeGroup, layout.options, collapsedNodes, tagGroups ?? []);
   if (shouldAnimate) {
     renderRejectParticles(svg, layout.nodes);
   }
