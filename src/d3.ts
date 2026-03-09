@@ -4214,12 +4214,16 @@ export function renderTimeline(
         // Remove previous legend
         mainSvg.selectAll('.tl-tag-legend-group').remove();
 
-        // In view mode, only show the active color tag group (expanded, non-interactive)
+        // Effective color source: explicit color group > swimlane group
+        const effectiveColorKey = (currentActiveGroup ?? currentSwimlaneGroup)?.toLowerCase() ?? null;
+
+        // In view mode, only show the color-driving tag group (expanded, non-interactive).
+        // Skip the swimlane group if it's separate from the color group (lane headers already label it).
         const visibleGroups = viewMode
           ? legendGroups.filter(
               (lg) =>
-                currentActiveGroup != null &&
-                lg.group.name.toLowerCase() === currentActiveGroup.toLowerCase()
+                effectiveColorKey != null &&
+                lg.group.name.toLowerCase() === effectiveColorKey
             )
           : legendGroups;
 
@@ -4227,8 +4231,9 @@ export function renderTimeline(
 
         // Compute total width and center horizontally in SVG
         const totalW = visibleGroups.reduce((s, lg) => {
-          const isActive = currentActiveGroup != null &&
-            lg.group.name.toLowerCase() === currentActiveGroup.toLowerCase();
+          const isActive = viewMode ||
+            (currentActiveGroup != null &&
+              lg.group.name.toLowerCase() === currentActiveGroup.toLowerCase());
           return s + (isActive ? lg.expandedWidth : lg.minifiedWidth);
         }, 0) + (visibleGroups.length - 1) * LG_GROUP_GAP;
 
@@ -4236,8 +4241,9 @@ export function renderTimeline(
 
         for (const lg of visibleGroups) {
           const groupKey = lg.group.name.toLowerCase();
-          const isActive = currentActiveGroup != null &&
-            currentActiveGroup.toLowerCase() === groupKey;
+          const isActive = viewMode ||
+            (currentActiveGroup != null &&
+              currentActiveGroup.toLowerCase() === groupKey);
           const isSwimActive = currentSwimlaneGroup != null &&
             currentSwimlaneGroup.toLowerCase() === groupKey;
 
