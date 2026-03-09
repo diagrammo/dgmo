@@ -394,7 +394,23 @@ Date formats: `YYYY`, `YYYY-MM`, `YYYY-MM-DD`. Ranges: `start->end`. Durations: 
 
 Elements: `era start->end: Label(color)`, `marker date: Label(color)`, `## Group(color)` headers.
 
-Options: `scale` (`on`/`off`), `sort` (`time`/`group`), `swimlanes` (`on`/`off`).
+Tag groups for interactive coloring and swimlanes:
+
+```
+chart: timeline
+sort: tag:Team
+
+tag: Team
+  Engineering(blue)
+  Design(green)
+
+2024-01->2024-06: Build API | Team: Engineering
+2024-03->2024-05: UX Review | Team: Design
+```
+
+Options: `scale` (`on`/`off`), `sort` (`time`/`group`/`tag`/`tag:GroupName`), `swimlanes` (`on`/`off`).
+
+Tag groups add interactive color and swimlane controls. `sort: tag` uses the first tag group for swimlanes; `sort: tag:GroupName` specifies which group (aliases work: `sort: tag:p` resolves to `sort: tag:Pirate`).
 
 ---
 
