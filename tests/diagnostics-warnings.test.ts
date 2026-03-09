@@ -439,3 +439,111 @@ tag: Team
     expect(result.timelineEvents[0].metadata).toEqual({});
   });
 });
+
+describe('timeline sort: tag directive', () => {
+  it('parses sort: tag and defaults swimlane to first tag group', () => {
+    const result = parseD3(`chart: timeline
+sort: tag
+
+tag: Pirate alias p
+  Blackbeard(red)
+  Roberts(blue)
+
+1716: Event | p: Blackbeard`);
+    expect(result.timelineSort).toBe('tag');
+    expect(result.timelineDefaultSwimlaneTG).toBe('Pirate');
+  });
+
+  it('parses sort: tag:GroupName with explicit group', () => {
+    const result = parseD3(`chart: timeline
+sort: tag:Outcome
+
+tag: Pirate alias p
+  Blackbeard(red)
+
+tag: Outcome alias o
+  Victory(green)
+  Defeat(red)
+
+1716: Event | p: Blackbeard, o: Victory`);
+    expect(result.timelineSort).toBe('tag');
+    expect(result.timelineDefaultSwimlaneTG).toBe('Outcome');
+  });
+
+  it('resolves alias in sort: tag:alias', () => {
+    const result = parseD3(`chart: timeline
+sort: tag:p
+
+tag: Pirate alias p
+  Blackbeard(red)
+  Roberts(blue)
+
+1716: Event | p: Blackbeard`);
+    expect(result.timelineSort).toBe('tag');
+    expect(result.timelineDefaultSwimlaneTG).toBe('Pirate');
+  });
+
+  it('warns and falls back to first group when alias not found', () => {
+    const result = parseD3(`chart: timeline
+sort: tag:nonexistent
+
+tag: Pirate alias p
+  Blackbeard(red)
+
+tag: Outcome alias o
+  Victory(green)
+
+1716: Event | p: Blackbeard`);
+    expect(result.timelineSort).toBe('tag');
+    expect(result.timelineDefaultSwimlaneTG).toBe('Pirate');
+    const warnings = result.diagnostics.filter((d) =>
+      d.message.includes('no tag group matches')
+    );
+    expect(warnings).toHaveLength(1);
+  });
+
+  it('falls back to sort: time when no tag groups defined', () => {
+    const result = parseD3(`chart: timeline
+sort: tag
+
+[Q1]
+  2026-01: Some task`);
+    expect(result.timelineSort).toBe('time');
+    const warnings = result.diagnostics.filter((d) =>
+      d.message.includes('requires at least one tag group')
+    );
+    expect(warnings).toHaveLength(1);
+  });
+
+  it('case-insensitive alias resolution', () => {
+    const result = parseD3(`chart: timeline
+sort: tag:P
+
+tag: Pirate alias p
+  Blackbeard(red)
+
+1716: Event | p: Blackbeard`);
+    expect(result.timelineSort).toBe('tag');
+    expect(result.timelineDefaultSwimlaneTG).toBe('Pirate');
+  });
+
+  it('preserves sort: time (default)', () => {
+    const result = parseD3(`chart: timeline
+
+tag: Pirate alias p
+  Blackbeard(red)
+
+1716: Event | p: Blackbeard`);
+    expect(result.timelineSort).toBe('time');
+    expect(result.timelineDefaultSwimlaneTG).toBeUndefined();
+  });
+
+  it('preserves sort: group', () => {
+    const result = parseD3(`chart: timeline
+sort: group
+
+[Engineering]
+  2026-01: Task A`);
+    expect(result.timelineSort).toBe('group');
+  });
+});

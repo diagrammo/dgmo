@@ -162,4 +162,41 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
       expect(decoded.viewState.activeTagGroup).toBe('Location');
     });
   });
+
+  describe('view state (swimlaneTagGroup)', () => {
+    it('round-trips with swimlaneTagGroup', () => {
+      const dsl = 'chart: timeline\n1716->1717: Event | p: Blackbeard';
+      const result = encodeDiagramUrl(dsl, {
+        viewState: { swimlaneTagGroup: 'Pirate' },
+      });
+      if (result.error) throw new Error('unexpected error');
+      expect(result.url).toContain('&swim=Pirate');
+      const query = new URL(result.url).search;
+      const decoded = decodeDiagramUrl(query);
+      expect(decoded.dsl).toBe(dsl);
+      expect(decoded.viewState.swimlaneTagGroup).toBe('Pirate');
+    });
+
+    it('round-trips with both activeTagGroup and swimlaneTagGroup', () => {
+      const dsl = 'chart: timeline\n1716->1717: Event';
+      const result = encodeDiagramUrl(dsl, {
+        viewState: { activeTagGroup: 'Outcome', swimlaneTagGroup: 'Pirate' },
+      });
+      if (result.error) throw new Error('unexpected error');
+      expect(result.url).toContain('&tag=Outcome');
+      expect(result.url).toContain('&swim=Pirate');
+      const query = new URL(result.url).search;
+      const decoded = decodeDiagramUrl(query);
+      expect(decoded.viewState.activeTagGroup).toBe('Outcome');
+      expect(decoded.viewState.swimlaneTagGroup).toBe('Pirate');
+    });
+
+    it('omits swim param when swimlaneTagGroup is undefined', () => {
+      const result = encodeDiagramUrl('chart: timeline\n1716: Event', {
+        viewState: { activeTagGroup: 'Pirate' },
+      });
+      if (result.error) throw new Error('unexpected error');
+      expect(result.url).not.toContain('&swim=');
+    });
+  });
 });

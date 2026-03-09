@@ -65,7 +65,7 @@ export interface ArcNodeGroup {
   lineNumber: number;
 }
 
-export type TimelineSort = 'time' | 'group';
+export type TimelineSort = 'time' | 'group' | 'tag';
 
 export interface TimelineEvent {
   date: string;
@@ -156,6 +156,7 @@ export interface ParsedD3 {
   timelineMarkers: TimelineMarker[];
   timelineTagGroups: TagGroup[];
   timelineSort: TimelineSort;
+  timelineDefaultSwimlaneTG?: string;
   timelineScale: boolean;
   timelineSwimlanes: boolean;
   vennSets: VennSet[];
@@ -815,10 +816,19 @@ export function parseD3(content: string, palette?: PaletteColors): ParsedD3 {
       if (key === 'sort') {
         const v = line
           .substring(colonIndex + 1)
-          .trim()
-          .toLowerCase();
-        if (v === 'time' || v === 'group') {
-          result.timelineSort = v;
+          .trim();
+        const vLower = v.toLowerCase();
+        if (vLower === 'time' || vLower === 'group') {
+          result.timelineSort = vLower;
+        } else if (vLower === 'tag' || vLower.startsWith('tag:')) {
+          result.timelineSort = 'tag';
+          if (vLower.startsWith('tag:')) {
+            // Extract group name (preserving original case for display)
+            const groupRef = v.substring(4).trim();
+            if (groupRef) {
+              result.timelineDefaultSwimlaneTG = groupRef;
+            }
+          }
         }
         continue;
       }
@@ -1026,6 +1036,30 @@ export function parseD3(content: string, palette?: PaletteColors): ParsedD3 {
         }
       }
     }
+
+    // Resolve sort: tag default swimlane group
+    if (result.timelineSort === 'tag') {
+      if (result.timelineTagGroups.length === 0) {
+        warn(1, '"sort: tag" requires at least one tag group definition');
+        result.timelineSort = 'time';
+      } else if (result.timelineDefaultSwimlaneTG) {
+        // Resolve alias → full group name
+        const ref = result.timelineDefaultSwimlaneTG.toLowerCase();
+        const match = result.timelineTagGroups.find(
+          (g) => g.name.toLowerCase() === ref || g.alias?.toLowerCase() === ref
+        );
+        if (match) {
+          result.timelineDefaultSwimlaneTG = match.name;
+        } else {
+          warn(1, `"sort: tag:${result.timelineDefaultSwimlaneTG}" — no tag group matches "${result.timelineDefaultSwimlaneTG}"`);
+          result.timelineDefaultSwimlaneTG = result.timelineTagGroups[0].name;
+        }
+      } else {
+        // Default to first tag group
+        result.timelineDefaultSwimlaneTG = result.timelineTagGroups[0].name;
+      }
+    }
+
     return result;
   }
 
@@ -2781,7 +2815,9 @@ export function renderTimeline(
   isDark: boolean,
   onClickItem?: (lineNumber: number) => void,
   exportDims?: D3ExportDimensions,
-  activeTagGroup?: string | null
+  activeTagGroup?: string | null,
+  swimlaneTagGroup?: string | null,
+  onTagStateChange?: (activeTagGroup: string | null, swimlaneTagGroup: string | null) => void
 ): void {
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
 
@@ -2797,6 +2833,11 @@ export function renderTimeline(
     orientation,
   } = parsed;
   if (timelineEvents.length === 0) return;
+
+  // When sort: tag is set and no explicit swimlane param, use the default
+  if (swimlaneTagGroup == null && timelineSort === 'tag' && parsed.timelineDefaultSwimlaneTG) {
+    swimlaneTagGroup = parsed.timelineDefaultSwimlaneTG;
+  }
 
   const tooltip = createTooltip(container, palette, isDark);
 
@@ -2818,10 +2859,61 @@ export function renderTimeline(
     groupColorMap.set(grp.name, grp.color ?? colors[i % colors.length]);
   });
 
+  // When tag-based swimlanes are active, compute lanes from tag values
+  // and populate groupColorMap with tag entry colors for lane headers.
+  type Lane = { name: string; events: TimelineEvent[] };
+  let tagLanes: Lane[] | null = null;
+
+  if (swimlaneTagGroup) {
+    const tagKey = swimlaneTagGroup.toLowerCase();
+    const tagGroup = parsed.timelineTagGroups.find(
+      (g) => g.name.toLowerCase() === tagKey
+    );
+    if (tagGroup) {
+      // Collect events per tag value
+      const buckets = new Map<string, TimelineEvent[]>();
+      const otherEvents: TimelineEvent[] = [];
+      for (const ev of timelineEvents) {
+        const val = ev.metadata[tagKey];
+        if (val) {
+          const list = buckets.get(val) ?? [];
+          list.push(ev);
+          buckets.set(val, list);
+        } else {
+          otherEvents.push(ev);
+        }
+      }
+
+      // Order lanes by earliest event date
+      const laneEntries = [...buckets.entries()].sort((a, b) => {
+        const aMin = Math.min(
+          ...a[1].map((e) => parseTimelineDate(e.date))
+        );
+        const bMin = Math.min(
+          ...b[1].map((e) => parseTimelineDate(e.date))
+        );
+        return aMin - bMin;
+      });
+
+      tagLanes = laneEntries.map(([name, events]) => ({ name, events }));
+      if (otherEvents.length > 0) {
+        tagLanes.push({ name: '(Other)', events: otherEvents });
+      }
+
+      // Populate groupColorMap from tag entry colors
+      for (const entry of tagGroup.entries) {
+        groupColorMap.set(entry.value, entry.color);
+      }
+    }
+  }
+
+  // Determine effective color source: explicit colorTG > swimlaneTG > group
+  const effectiveColorTG = activeTagGroup ?? swimlaneTagGroup ?? null;
+
   function eventColor(ev: TimelineEvent): string {
     // Tag color takes priority when a tag group is active
-    if (activeTagGroup) {
-      const tagColor = resolveTagColor(ev.metadata, parsed.timelineTagGroups, activeTagGroup);
+    if (effectiveColorTG) {
+      const tagColor = resolveTagColor(ev.metadata, parsed.timelineTagGroups, effectiveColorTG);
       if (tagColor) return tagColor;
     }
     if (ev.group && groupColorMap.has(ev.group)) {
@@ -2962,14 +3054,34 @@ export function renderTimeline(
   // VERTICAL orientation (time flows top→bottom)
   // ================================================================
   if (isVertical) {
-    if (timelineSort === 'group' && timelineGroups.length > 0) {
+    const useGroupedVertical = tagLanes != null ||
+      (timelineSort === 'group' && timelineGroups.length > 0);
+    if (useGroupedVertical) {
       // === GROUPED: one column/lane per group, vertical ===
-      const groupNames = timelineGroups.map((gr) => gr.name);
-      const ungroupedEvents = timelineEvents.filter(
-        (ev) => ev.group === null || !groupNames.includes(ev.group)
-      );
-      const laneNames =
-        ungroupedEvents.length > 0 ? [...groupNames, '(Other)'] : groupNames;
+      let laneNames: string[];
+      let laneEventsByName: Map<string, TimelineEvent[]>;
+
+      if (tagLanes) {
+        laneNames = tagLanes.map((l) => l.name);
+        laneEventsByName = new Map(tagLanes.map((l) => [l.name, l.events]));
+      } else {
+        const groupNames = timelineGroups.map((gr) => gr.name);
+        const ungroupedEvents = timelineEvents.filter(
+          (ev) => ev.group === null || !groupNames.includes(ev.group)
+        );
+        laneNames =
+          ungroupedEvents.length > 0 ? [...groupNames, '(Other)'] : groupNames;
+        laneEventsByName = new Map(
+          laneNames.map((name) => [
+            name,
+            timelineEvents.filter((ev) =>
+              name === '(Other)'
+                ? ev.group === null || !groupNames.includes(ev.group)
+                : ev.group === name
+            ),
+          ])
+        );
+      }
 
       const laneCount = laneNames.length;
       const scaleMargin = timelineScale ? 40 : 0;
@@ -3043,6 +3155,23 @@ export function renderTimeline(
         );
       }
 
+      // Render swimlane backgrounds for vertical lanes
+      if (timelineSwimlanes || tagLanes) {
+        laneNames.forEach((laneName, laneIdx) => {
+          const laneX = laneIdx * laneWidth;
+          const fillColor = laneIdx % 2 === 0 ? textColor : 'transparent';
+          g.append('rect')
+            .attr('class', 'tl-swimlane')
+            .attr('data-group', laneName)
+            .attr('x', laneX)
+            .attr('y', 0)
+            .attr('width', laneWidth)
+            .attr('height', innerHeight)
+            .attr('fill', fillColor)
+            .attr('opacity', 0.06);
+        });
+      }
+
       laneNames.forEach((laneName, laneIdx) => {
         const laneX = laneIdx * laneWidth;
         const laneColor = groupColorMap.get(laneName) ?? textColor;
@@ -3075,11 +3204,7 @@ export function renderTimeline(
           .attr('stroke-width', 1)
           .attr('stroke-dasharray', '4,4');
 
-        const laneEvents = timelineEvents.filter((ev) =>
-          laneName === '(Other)'
-            ? ev.group === null || !groupNames.includes(ev.group)
-            : ev.group === laneName
-        );
+        const laneEvents = laneEventsByName.get(laneName) ?? [];
 
         for (const ev of laneEvents) {
           const y = yScale(parseTimelineDate(ev.date));
@@ -3110,11 +3235,13 @@ export function renderTimeline(
             });
           setTagAttrs(evG, ev);
 
+          const evColor = eventColor(ev);
+
           if (ev.endDate) {
             const y2 = yScale(parseTimelineDate(ev.endDate));
             const rectH = Math.max(y2 - y, 4);
 
-            let fill: string = laneColor;
+            let fill: string = evColor;
             if (ev.uncertain) {
               const gradientId = `uncertain-vg-${ev.lineNumber}`;
               const defs =
@@ -3163,7 +3290,7 @@ export function renderTimeline(
               .attr('cx', laneCenter)
               .attr('cy', y)
               .attr('r', 4)
-              .attr('fill', laneColor)
+              .attr('fill', evColor)
               .attr('stroke', bgColor)
               .attr('stroke-width', 1.5);
             evG
@@ -3429,24 +3556,30 @@ export function renderTimeline(
   const BAR_H = 22; // range bar thickness (tall enough for text inside)
   const GROUP_GAP = 12; // vertical gap between group swim-lanes
 
-  if (timelineSort === 'group' && timelineGroups.length > 0) {
+  const useGroupedHorizontal = tagLanes != null ||
+    (timelineSort === 'group' && timelineGroups.length > 0);
+  if (useGroupedHorizontal) {
     // === GROUPED: swim-lanes stacked vertically, events on own rows ===
-    const groupNames = timelineGroups.map((gr) => gr.name);
-    const ungroupedEvents = timelineEvents.filter(
-      (ev) => ev.group === null || !groupNames.includes(ev.group)
-    );
-    const laneNames =
-      ungroupedEvents.length > 0 ? [...groupNames, '(Other)'] : groupNames;
+    let lanes: Lane[];
 
-    // Build lane data
-    const lanes = laneNames.map((name) => ({
-      name,
-      events: timelineEvents.filter((ev) =>
-        name === '(Other)'
-          ? ev.group === null || !groupNames.includes(ev.group)
-          : ev.group === name
-      ),
-    }));
+    if (tagLanes) {
+      lanes = tagLanes;
+    } else {
+      const groupNames = timelineGroups.map((gr) => gr.name);
+      const ungroupedEvents = timelineEvents.filter(
+        (ev) => ev.group === null || !groupNames.includes(ev.group)
+      );
+      const laneNames =
+        ungroupedEvents.length > 0 ? [...groupNames, '(Other)'] : groupNames;
+      lanes = laneNames.map((name) => ({
+        name,
+        events: timelineEvents.filter((ev) =>
+          name === '(Other)'
+            ? ev.group === null || !groupNames.includes(ev.group)
+            : ev.group === name
+        ),
+      }));
+    }
 
     const totalEventRows = lanes.reduce((s, l) => s + l.events.length, 0);
     const scaleMargin = timelineScale ? 24 : 0;
@@ -3531,7 +3664,7 @@ export function renderTimeline(
 
     // Render swimlane backgrounds first (so they appear behind events)
     // Extend into left margin to include group names
-    if (timelineSwimlanes) {
+    if (timelineSwimlanes || tagLanes) {
       let swimY = markerMargin;
       lanes.forEach((lane, idx) => {
         const laneSpan = lane.events.length * rowH;
@@ -3626,6 +3759,8 @@ export function renderTimeline(
           });
         setTagAttrs(evG, ev);
 
+        const evColor = eventColor(ev);
+
         if (ev.endDate) {
           const x2 = xScale(parseTimelineDate(ev.endDate));
           const rectW = Math.max(x2 - x, 4);
@@ -3633,7 +3768,7 @@ export function renderTimeline(
           const estLabelWidth = ev.label.length * 7 + 16;
           const labelFitsInside = rectW >= estLabelWidth;
 
-          let fill: string = laneColor;
+          let fill: string = evColor;
           if (ev.uncertain) {
             // Create gradient for uncertain end - fades last 20%
             const gradientId = `uncertain-${ev.lineNumber}`;
@@ -3655,7 +3790,7 @@ export function renderTimeline(
               .enter()
               .append('stop')
               .attr('offset', (d) => d.offset)
-              .attr('stop-color', laneColor)
+              .attr('stop-color', evColor)
               .attr('stop-opacity', (d) => d.opacity);
             fill = `url(#${gradientId})`;
           }
@@ -3708,7 +3843,7 @@ export function renderTimeline(
             .attr('cx', x)
             .attr('cy', y)
             .attr('r', 5)
-            .attr('fill', laneColor)
+            .attr('fill', evColor)
             .attr('stroke', bgColor)
             .attr('stroke-width', 1.5);
           evG
@@ -3997,14 +4132,11 @@ export function renderTimeline(
     const LG_ENTRY_DOT_GAP = 4;
     const LG_ENTRY_TRAIL = 8;
     const LG_GROUP_GAP = 12;
+    const LG_ICON_W = 20; // swimlane icon area (icon + surrounding space)
 
     const mainSvg = d3Selection.select(container).select<SVGSVGElement>('svg');
     const mainG = mainSvg.select<SVGGElement>('g');
     if (!mainSvg.empty() && !mainG.empty()) {
-      // Legend goes in the reserved space between title and chart content.
-      // Title is at y=30 in SVG coords; we place the legend centered in the
-      // tagLegendReserve gap just above where g starts (margin.top).
-      // Render legend directly on SVG (not inside g) for clean centering.
       const legendY = title ? 50 : 10;
 
       const groupBg = isDark
@@ -4019,7 +4151,8 @@ export function renderTimeline(
       };
       const legendGroups: LegendGroup[] = parsed.timelineTagGroups.map((g) => {
         const pillW = g.name.length * LG_PILL_FONT_W + LG_PILL_PAD;
-        let entryX = LG_CAPSULE_PAD + pillW + 4;
+        // Expanded: pill + icon + entries
+        let entryX = LG_CAPSULE_PAD + pillW + LG_ICON_W + 4;
         for (const entry of g.entries) {
           const textX = entryX + LG_DOT_R * 2 + LG_ENTRY_DOT_GAP;
           entryX = textX + entry.value.length * LG_ENTRY_FONT_W + LG_ENTRY_TRAIL;
@@ -4031,8 +4164,49 @@ export function renderTimeline(
         };
       });
 
-      // Current active state (for standalone interactivity)
+      // Two independent state axes: swimlane source + color source
       let currentActiveGroup: string | null = activeTagGroup ?? null;
+      let currentSwimlaneGroup: string | null = swimlaneTagGroup ?? null;
+
+      /** Render the swimlane icon (3 horizontal bars of varying width) */
+      function drawSwimlaneIcon(
+        parent: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
+        x: number,
+        y: number,
+        isSwimActive: boolean
+      ) {
+        const iconG = parent.append('g')
+          .attr('class', 'tl-swimlane-icon')
+          .attr('transform', `translate(${x}, ${y})`)
+          .style('cursor', 'pointer');
+
+        const barColor = isSwimActive ? palette.primary : palette.textMuted;
+        const barOpacity = isSwimActive ? 1 : 0.35;
+        const bars = [
+          { y: 0, w: 8 },
+          { y: 4, w: 12 },
+          { y: 8, w: 6 },
+        ];
+        for (const bar of bars) {
+          iconG.append('rect')
+            .attr('x', 0)
+            .attr('y', bar.y)
+            .attr('width', bar.w)
+            .attr('height', 2)
+            .attr('rx', 1)
+            .attr('fill', barColor)
+            .attr('opacity', barOpacity);
+        }
+        return iconG;
+      }
+
+      /** Full re-render with updated swimlane state */
+      function relayout() {
+        renderTimeline(
+          container, parsed, palette, isDark, onClickItem, exportDims,
+          currentActiveGroup, currentSwimlaneGroup, onTagStateChange
+        );
+      }
 
       function drawLegend() {
         // Remove previous legend
@@ -4048,8 +4222,11 @@ export function renderTimeline(
         let cx = (width - totalW) / 2;
 
         for (const lg of legendGroups) {
+          const groupKey = lg.group.name.toLowerCase();
           const isActive = currentActiveGroup != null &&
-            lg.group.name.toLowerCase() === currentActiveGroup.toLowerCase();
+            currentActiveGroup.toLowerCase() === groupKey;
+          const isSwimActive = currentSwimlaneGroup != null &&
+            currentSwimlaneGroup.toLowerCase() === groupKey;
 
           const pillLabel = lg.group.name;
           const pillWidth = pillLabel.length * LG_PILL_FONT_W + LG_PILL_PAD;
@@ -4058,15 +4235,15 @@ export function renderTimeline(
             .append('g')
             .attr('transform', `translate(${cx}, ${legendY})`)
             .attr('class', 'tl-tag-legend-group tl-tag-legend-entry')
-            .attr('data-legend-group', lg.group.name.toLowerCase())
-            .attr('data-tag-group', lg.group.name.toLowerCase())
+            .attr('data-legend-group', groupKey)
+            .attr('data-tag-group', groupKey)
             .attr('data-legend-entry', '__group__')
             .style('cursor', 'pointer')
             .on('click', () => {
-              const groupKey = lg.group.name.toLowerCase();
               currentActiveGroup = currentActiveGroup === groupKey ? null : groupKey;
               drawLegend();
               recolorEvents();
+              onTagStateChange?.(currentActiveGroup, currentSwimlaneGroup);
             });
 
           // Outer capsule background (active only)
@@ -4115,9 +4292,22 @@ export function renderTimeline(
             .attr('text-anchor', 'middle')
             .text(pillLabel);
 
-          // Entries inside capsule (active only)
+          // Entries + swimlane icon inside capsule (active only)
           if (isActive) {
-            let entryX = pillXOff + pillWidth + 4;
+            // Swimlane icon right after the pill label, with breathing room
+            const iconX = pillXOff + pillWidth + 5;
+            const iconY = (LG_HEIGHT - 10) / 2; // vertically centered
+            const iconEl = drawSwimlaneIcon(gEl, iconX, iconY, isSwimActive);
+            iconEl
+              .attr('data-swimlane-toggle', groupKey)
+              .on('click', (event: MouseEvent) => {
+                event.stopPropagation();
+                currentSwimlaneGroup = currentSwimlaneGroup === groupKey ? null : groupKey;
+                onTagStateChange?.(currentActiveGroup, currentSwimlaneGroup);
+                relayout();
+              });
+
+            let entryX = pillXOff + pillWidth + LG_ICON_W + 4;
             for (const entry of lg.group.entries) {
               const tagKey = lg.group.name.toLowerCase();
               const tagVal = entry.value.toLowerCase();
@@ -4179,6 +4369,7 @@ export function renderTimeline(
       }
 
       function recolorEvents() {
+        const colorTG = currentActiveGroup ?? swimlaneTagGroup ?? null;
         mainG.selectAll<SVGGElement, unknown>('.tl-event').each(function () {
           const el = d3Selection.select(this);
           const lineNum = el.attr('data-line-number');
@@ -4186,9 +4377,9 @@ export function renderTimeline(
           if (!ev) return;
 
           let color: string;
-          if (currentActiveGroup) {
+          if (colorTG) {
             const tagColor = resolveTagColor(
-              ev.metadata, parsed.timelineTagGroups, currentActiveGroup
+              ev.metadata, parsed.timelineTagGroups, colorTG
             );
             color = tagColor ?? (ev.group && groupColorMap.has(ev.group)
               ? groupColorMap.get(ev.group)! : textColor);
@@ -5525,6 +5716,7 @@ export async function renderD3ForExport(
     collapsedNodes?: Set<string>;
     activeTagGroup?: string | null;
     hiddenAttributes?: Set<string>;
+    swimlaneTagGroup?: string | null;
   },
   options?: { branding?: boolean; c4Level?: 'context' | 'containers' | 'components' | 'deployment'; c4System?: string; c4Container?: string; scenario?: string }
 ): Promise<string> {
@@ -5830,7 +6022,8 @@ export async function renderD3ForExport(
   } else if (parsed.type === 'arc') {
     renderArcDiagram(container, parsed, effectivePalette, isDark, undefined, dims);
   } else if (parsed.type === 'timeline') {
-    renderTimeline(container, parsed, effectivePalette, isDark, undefined, dims);
+    renderTimeline(container, parsed, effectivePalette, isDark, undefined, dims,
+      orgExportState?.activeTagGroup, orgExportState?.swimlaneTagGroup);
   } else if (parsed.type === 'venn') {
     renderVenn(container, parsed, effectivePalette, isDark, undefined, dims);
   } else if (parsed.type === 'quadrant') {
