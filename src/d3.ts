@@ -2817,7 +2817,8 @@ export function renderTimeline(
   exportDims?: D3ExportDimensions,
   activeTagGroup?: string | null,
   swimlaneTagGroup?: string | null,
-  onTagStateChange?: (activeTagGroup: string | null, swimlaneTagGroup: string | null) => void
+  onTagStateChange?: (activeTagGroup: string | null, swimlaneTagGroup: string | null) => void,
+  viewMode?: boolean
 ): void {
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
 
@@ -4151,8 +4152,9 @@ export function renderTimeline(
       };
       const legendGroups: LegendGroup[] = parsed.timelineTagGroups.map((g) => {
         const pillW = g.name.length * LG_PILL_FONT_W + LG_PILL_PAD;
-        // Expanded: pill + icon + entries
-        let entryX = LG_CAPSULE_PAD + pillW + LG_ICON_W + 4;
+        // Expanded: pill + icon (unless viewMode) + entries
+        const iconSpace = viewMode ? 8 : LG_ICON_W + 4;
+        let entryX = LG_CAPSULE_PAD + pillW + iconSpace;
         for (const entry of g.entries) {
           const textX = entryX + LG_DOT_R * 2 + LG_ENTRY_DOT_GAP;
           entryX = textX + entry.value.length * LG_ENTRY_FONT_W + LG_ENTRY_TRAIL;
@@ -4204,7 +4206,7 @@ export function renderTimeline(
       function relayout() {
         renderTimeline(
           container, parsed, palette, isDark, onClickItem, exportDims,
-          currentActiveGroup, currentSwimlaneGroup, onTagStateChange
+          currentActiveGroup, currentSwimlaneGroup, onTagStateChange, viewMode
         );
       }
 
@@ -4212,16 +4214,27 @@ export function renderTimeline(
         // Remove previous legend
         mainSvg.selectAll('.tl-tag-legend-group').remove();
 
+        // In view mode, only show the active color tag group (expanded, non-interactive)
+        const visibleGroups = viewMode
+          ? legendGroups.filter(
+              (lg) =>
+                currentActiveGroup != null &&
+                lg.group.name.toLowerCase() === currentActiveGroup.toLowerCase()
+            )
+          : legendGroups;
+
+        if (visibleGroups.length === 0) return;
+
         // Compute total width and center horizontally in SVG
-        const totalW = legendGroups.reduce((s, lg) => {
+        const totalW = visibleGroups.reduce((s, lg) => {
           const isActive = currentActiveGroup != null &&
             lg.group.name.toLowerCase() === currentActiveGroup.toLowerCase();
           return s + (isActive ? lg.expandedWidth : lg.minifiedWidth);
-        }, 0) + (legendGroups.length - 1) * LG_GROUP_GAP;
+        }, 0) + (visibleGroups.length - 1) * LG_GROUP_GAP;
 
         let cx = (width - totalW) / 2;
 
-        for (const lg of legendGroups) {
+        for (const lg of visibleGroups) {
           const groupKey = lg.group.name.toLowerCase();
           const isActive = currentActiveGroup != null &&
             currentActiveGroup.toLowerCase() === groupKey;
@@ -4237,14 +4250,18 @@ export function renderTimeline(
             .attr('class', 'tl-tag-legend-group tl-tag-legend-entry')
             .attr('data-legend-group', groupKey)
             .attr('data-tag-group', groupKey)
-            .attr('data-legend-entry', '__group__')
-            .style('cursor', 'pointer')
-            .on('click', () => {
-              currentActiveGroup = currentActiveGroup === groupKey ? null : groupKey;
-              drawLegend();
-              recolorEvents();
-              onTagStateChange?.(currentActiveGroup, currentSwimlaneGroup);
-            });
+            .attr('data-legend-entry', '__group__');
+
+          if (!viewMode) {
+            gEl
+              .style('cursor', 'pointer')
+              .on('click', () => {
+                currentActiveGroup = currentActiveGroup === groupKey ? null : groupKey;
+                drawLegend();
+                recolorEvents();
+                onTagStateChange?.(currentActiveGroup, currentSwimlaneGroup);
+              });
+          }
 
           // Outer capsule background (active only)
           if (isActive) {
@@ -4294,20 +4311,25 @@ export function renderTimeline(
 
           // Entries + swimlane icon inside capsule (active only)
           if (isActive) {
-            // Swimlane icon right after the pill label, with breathing room
-            const iconX = pillXOff + pillWidth + 5;
-            const iconY = (LG_HEIGHT - 10) / 2; // vertically centered
-            const iconEl = drawSwimlaneIcon(gEl, iconX, iconY, isSwimActive);
-            iconEl
-              .attr('data-swimlane-toggle', groupKey)
-              .on('click', (event: MouseEvent) => {
-                event.stopPropagation();
-                currentSwimlaneGroup = currentSwimlaneGroup === groupKey ? null : groupKey;
-                onTagStateChange?.(currentActiveGroup, currentSwimlaneGroup);
-                relayout();
-              });
+            // Swimlane icon (skip in view mode — non-interactive)
+            let entryX: number;
+            if (!viewMode) {
+              const iconX = pillXOff + pillWidth + 5;
+              const iconY = (LG_HEIGHT - 10) / 2; // vertically centered
+              const iconEl = drawSwimlaneIcon(gEl, iconX, iconY, isSwimActive);
+              iconEl
+                .attr('data-swimlane-toggle', groupKey)
+                .on('click', (event: MouseEvent) => {
+                  event.stopPropagation();
+                  currentSwimlaneGroup = currentSwimlaneGroup === groupKey ? null : groupKey;
+                  onTagStateChange?.(currentActiveGroup, currentSwimlaneGroup);
+                  relayout();
+                });
+              entryX = pillXOff + pillWidth + LG_ICON_W + 4;
+            } else {
+              entryX = pillXOff + pillWidth + 8;
+            }
 
-            let entryX = pillXOff + pillWidth + LG_ICON_W + 4;
             for (const entry of lg.group.entries) {
               const tagKey = lg.group.name.toLowerCase();
               const tagVal = entry.value.toLowerCase();
@@ -4315,29 +4337,32 @@ export function renderTimeline(
               const entryG = gEl.append('g')
                 .attr('class', 'tl-tag-legend-entry')
                 .attr('data-tag-group', tagKey)
-                .attr('data-legend-entry', tagVal)
-                .style('cursor', 'pointer')
-                .on('mouseenter', (event: MouseEvent) => {
-                  event.stopPropagation();
-                  fadeToTagValue(mainG, tagKey, tagVal);
-                  // Also fade legend entries on the SVG level
-                  mainSvg.selectAll<SVGGElement, unknown>('.tl-tag-legend-entry').each(function () {
-                    const el = d3Selection.select(this);
-                    const ev = el.attr('data-legend-entry');
-                    if (ev === '__group__') return;
-                    const eg = el.attr('data-tag-group');
-                    el.attr('opacity', eg === tagKey && ev === tagVal ? 1 : FADE_OPACITY);
+                .attr('data-legend-entry', tagVal);
+
+              if (!viewMode) {
+                entryG
+                  .style('cursor', 'pointer')
+                  .on('mouseenter', (event: MouseEvent) => {
+                    event.stopPropagation();
+                    fadeToTagValue(mainG, tagKey, tagVal);
+                    mainSvg.selectAll<SVGGElement, unknown>('.tl-tag-legend-entry').each(function () {
+                      const el = d3Selection.select(this);
+                      const ev = el.attr('data-legend-entry');
+                      if (ev === '__group__') return;
+                      const eg = el.attr('data-tag-group');
+                      el.attr('opacity', eg === tagKey && ev === tagVal ? 1 : FADE_OPACITY);
+                    });
+                  })
+                  .on('mouseleave', (event: MouseEvent) => {
+                    event.stopPropagation();
+                    fadeReset(mainG);
+                    mainSvg.selectAll<SVGGElement, unknown>('.tl-tag-legend-entry')
+                      .attr('opacity', 1);
+                  })
+                  .on('click', (event: MouseEvent) => {
+                    event.stopPropagation();
                   });
-                })
-                .on('mouseleave', (event: MouseEvent) => {
-                  event.stopPropagation();
-                  fadeReset(mainG);
-                  mainSvg.selectAll<SVGGElement, unknown>('.tl-tag-legend-entry')
-                    .attr('opacity', 1);
-                })
-                .on('click', (event: MouseEvent) => {
-                  event.stopPropagation(); // don't toggle group
-                });
+              }
 
               entryG.append('circle')
                 .attr('cx', entryX + LG_DOT_R)
