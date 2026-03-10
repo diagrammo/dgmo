@@ -669,4 +669,85 @@ CDN
       expect(cdn!.lineNumber).toBe(7);
     });
   });
+
+  describe('hyphenated node names', () => {
+    it('parses node declarations with hyphens', () => {
+      const result = parseInfra(`
+chart: infra
+
+api-gateway
+  max-rps: 1000
+
+my-service-v2
+  latency-ms: 10
+`);
+      expect(result.error).toBeNull();
+      const gw = result.nodes.find((n) => n.id === 'api-gateway');
+      const svc = result.nodes.find((n) => n.id === 'my-service-v2');
+      expect(gw).toBeDefined();
+      expect(gw!.label).toBe('api-gateway');
+      expect(svc).toBeDefined();
+      expect(svc!.label).toBe('my-service-v2');
+    });
+
+    it('resolves connections to hyphenated node names', () => {
+      const result = parseInfra(`
+chart: infra
+
+edge
+  rps: 1000
+  -> api-gateway
+
+api-gateway
+  max-rps: 5000
+  -> auth-service
+
+auth-service
+  max-rps: 2000
+`);
+      expect(result.error).toBeNull();
+      expect(result.edges).toHaveLength(2);
+      expect(result.edges[0].targetId).toBe('api-gateway');
+      expect(result.edges[1].sourceId).toBe('api-gateway');
+      expect(result.edges[1].targetId).toBe('auth-service');
+    });
+
+    it('parses labeled connections to hyphenated node names', () => {
+      const result = parseInfra(`
+chart: infra
+
+edge
+  rps: 100
+  -query-> search-service
+
+search-service
+  max-rps: 5000
+`);
+      expect(result.error).toBeNull();
+      expect(result.edges[0].label).toBe('query');
+      expect(result.edges[0].targetId).toBe('search-service');
+    });
+
+    it('parses hyphenated node names inside a group', () => {
+      const result = parseInfra(`
+chart: infra
+
+[Shards]
+  instances: 3
+
+  shard-primary
+    max-rps: 5000
+
+  shard-replica
+    max-rps: 5000
+`);
+      expect(result.error).toBeNull();
+      const primary = result.nodes.find((n) => n.id === 'shard-primary');
+      const replica = result.nodes.find((n) => n.id === 'shard-replica');
+      expect(primary).toBeDefined();
+      expect(primary!.groupId).toBe('[Shards]');
+      expect(replica).toBeDefined();
+      expect(replica!.groupId).toBe('[Shards]');
+    });
+  });
 });
