@@ -919,6 +919,83 @@ DB
       const db = node(result, 'DB');
       expect(db.computedRps).toBe(1000);
     });
+
+    it('collapsed group latency uses critical path, not sum of all children', () => {
+      // [Group] has one entry node (A) that sends to external, plus side dependencies
+      // (SideDep1, SideDep2) that are internal leaves. Only A is on the through-path.
+      // totalLatency should equal A's latency (20ms), NOT A+SideDep1+SideDep2 (260ms).
+      const result = compute(`
+chart: infra
+slo-p90-latency-ms: 500
+
+Edge
+  rps: 1000
+  -> A
+
+[Group]
+  collapsed: true
+
+  A | name: Entry
+    latency-ms: 20
+    -> External
+    -> SideDep1
+    -> SideDep2
+
+  SideDep1
+    latency-ms: 120
+
+  SideDep2
+    latency-ms: 120
+
+External
+  latency-ms: 10
+`);
+      const vn = node(result, '[Group]');
+      // The virtual node's p90 latency should be 20ms (A) + 10ms (External) = 30ms,
+      // well under the 500ms SLO. If it incorrectly summed all children it would be
+      // 260ms (A+SideDep1+SideDep2) + 10ms = 270ms — still under 500 in this case,
+      // but the virtual node's own latency-ms property should be 20ms not 260ms.
+      const latencyProp = vn.properties.find((p: { key: string }) => p.key === 'latency-ms');
+      expect(latencyProp?.value).toBe(20);
+    });
+
+    it('collapsed group with slow side dependency does not falsely inflate virtual node latency-ms', () => {
+      // Reproduces real-world bug: [MLB Ticketing Middleware] has BoxOffice (entry+exit,
+      // latency 20ms) and TicketMaster (internal leaf, latency 1000ms). With a chart-level
+      // slo-p90-latency-ms: 500, the collapsed group should NOT show as overloaded.
+      // The virtual node's own latency-ms should reflect only the through-path (20ms),
+      // not the sum of all children (1020ms).
+      const result = compute(`
+chart: infra
+slo-p90-latency-ms: 500
+
+Edge
+  rps: 1000
+  -> Proxy
+
+[Group]
+  collapsed: true
+
+  Proxy
+    latency-ms: 20
+    -> External
+    -> SlowSideDep
+
+  SlowSideDep
+    latency-ms: 1000
+
+External
+  latency-ms: 10
+`);
+      const groupNode = node(result, '[Group]');
+
+      // Virtual node latency-ms = 20ms (just Proxy, the through-path node)
+      const latencyProp = groupNode.properties.find((p: { key: string }) => p.key === 'latency-ms');
+      expect(latencyProp?.value).toBe(20);
+
+      // p90 latency = Proxy(20) + External(10) = 30ms, well under the 500ms SLO
+      expect(groupNode.computedLatencyPercentiles.p90).toBe(30);
+    });
   });
 
   describe('group instances multiply child capacity', () => {

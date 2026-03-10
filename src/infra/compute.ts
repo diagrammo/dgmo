@@ -295,29 +295,35 @@ function collapseGroups(parsed: ParsedInfra, collapsedIds: Set<string>, defaultL
     const children = groupChildren.get(group.id) ?? [];
     if (children.length === 0) continue;
 
-    // Aggregate properties: sum latencies, bottleneck capacity, compose behaviors
-    let totalLatency = 0;
+    // Aggregate properties: bottleneck capacity, compose behaviors
+    // Latency is computed separately below via critical-path analysis.
     let minEffectiveCapacity = Infinity;
     let hasMaxRps = false;
     let composedUptime = 1;
     const behaviorProps: InfraProperty[] = [];
     const perChildCapacities: number[] = [];
 
+    // Collect per-child latency values for critical-path computation
+    const childIdSet = new Set(children.map((c) => c.id));
+    const childLatencies = new Map<string, number>();
+
     for (const child of children) {
       // Latency: use explicit value, or diagram default (matching BFS behavior)
       const latencyProp = child.properties.find((p) => p.key === 'latency-ms');
       const childIsServerless = child.properties.some((p) => p.key === 'concurrency');
+      let childLat: number;
       if (childIsServerless) {
         // Serverless nodes use duration-ms as latency contribution
         const durationProp = child.properties.find((p) => p.key === 'duration-ms');
-        totalLatency += durationProp
+        childLat = durationProp
           ? (typeof durationProp.value === 'number' ? durationProp.value : parseFloat(String(durationProp.value)) || 100)
           : 100;
       } else if (latencyProp) {
-        totalLatency += (typeof latencyProp.value === 'number' ? latencyProp.value : parseFloat(String(latencyProp.value)) || 0);
+        childLat = typeof latencyProp.value === 'number' ? latencyProp.value : parseFloat(String(latencyProp.value)) || 0;
       } else {
-        totalLatency += defaultLatencyMs;
+        childLat = defaultLatencyMs;
       }
+      childLatencies.set(child.id, childLat);
 
       const maxRps = child.properties.find((p) => p.key === 'max-rps');
       if (maxRps) {
@@ -347,6 +353,73 @@ function collapseGroups(parsed: ParsedInfra, collapsedIds: Set<string>, defaultL
           behaviorProps.push(prop);
         }
       }
+    }
+
+    // ── Critical-path latency through the group ──────────────────────────────
+    // totalLatency = max path length from external-inbound entry nodes to
+    // external-outbound exit nodes, traversing only internal edges.
+    // This prevents side-dependency latencies (nodes only reached via internal
+    // edges with no external exit) from inflating the virtual node's latency.
+    const entryIds = new Set<string>();
+    const exitIds = new Set<string>();
+    for (const edge of inboundEdges) {
+      if (childIdSet.has(edge.targetId)) entryIds.add(edge.targetId);
+    }
+    for (const edge of outboundEdges) {
+      if (childIdSet.has(edge.sourceId)) exitIds.add(edge.sourceId);
+    }
+    for (const edge of crossGroupEdges) {
+      if (childIdSet.has(edge.sourceId)) exitIds.add(edge.sourceId);
+      if (childIdSet.has(edge.targetId)) entryIds.add(edge.targetId);
+    }
+
+    // Build forward adjacency for internal edges scoped to this group
+    const fwdAdj = new Map<string, string[]>();
+    for (const edge of internalEdges) {
+      if (!childIdSet.has(edge.sourceId) || !childIdSet.has(edge.targetId)) continue;
+      const list = fwdAdj.get(edge.sourceId) ?? [];
+      list.push(edge.targetId);
+      fwdAdj.set(edge.sourceId, list);
+    }
+
+    // DAG longest-path from entry nodes (topological DFS + relaxation)
+    const topoOrder: string[] = [];
+    const tsVisited = new Set<string>();
+    const dfsTopoSort = (id: string) => {
+      if (tsVisited.has(id)) return;
+      tsVisited.add(id);
+      for (const next of fwdAdj.get(id) ?? []) dfsTopoSort(next);
+      topoOrder.unshift(id);
+    };
+    for (const child of children) dfsTopoSort(child.id);
+
+    const dist = new Map<string, number>();
+    for (const child of children) {
+      dist.set(child.id, entryIds.has(child.id) ? (childLatencies.get(child.id) ?? 0) : -Infinity);
+    }
+    for (const nodeId of topoOrder) {
+      const curDist = dist.get(nodeId) ?? -Infinity;
+      if (curDist === -Infinity) continue;
+      for (const nextId of fwdAdj.get(nodeId) ?? []) {
+        const newDist = curDist + (childLatencies.get(nextId) ?? 0);
+        if (newDist > (dist.get(nextId) ?? -Infinity)) dist.set(nextId, newDist);
+      }
+    }
+
+    let totalLatency = 0;
+    if (exitIds.size > 0) {
+      for (const id of exitIds) {
+        const d = dist.get(id);
+        if (d !== undefined && d > -Infinity && d > totalLatency) totalLatency = d;
+      }
+    } else if (entryIds.size > 0) {
+      // No explicit exits — use max reachable distance from entry nodes
+      for (const [, d] of dist) {
+        if (d > 0 && d > totalLatency) totalLatency = d;
+      }
+    } else {
+      // No external connections — fall back to summing all children
+      for (const [, lat] of childLatencies) totalLatency += lat;
     }
 
     // Build virtual node properties
@@ -1066,6 +1139,7 @@ export function computeInfra(
       queueMetrics,
       properties: node.properties,
       tags: node.tags,
+      description: node.description,
       lineNumber: node.lineNumber,
     };
   });
