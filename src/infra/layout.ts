@@ -332,6 +332,64 @@ function formatUptime(fraction: number): string {
 }
 
 // ============================================================
+// Group separation pass
+// ============================================================
+
+const GROUP_GAP = 24; // min clear gap between group boxes — matches GROUP_HEADER_HEIGHT
+
+export function separateGroups(
+  groups: InfraLayoutGroup[],
+  nodes: InfraLayoutNode[],
+  isLR: boolean,
+  maxIterations = 20,
+): void {
+  // Symmetric 2D rectangle intersection — no sorting needed, handles all
+  // relative positions correctly, stable after mid-pass shifts.
+  // Endpoint edge routing is not affected: renderer.ts recomputes border
+  // connection points from node x/y at render time via nodeBorderPoint().
+  for (let iter = 0; iter < maxIterations; iter++) {
+    let anyOverlap = false;
+    for (let i = 0; i < groups.length; i++) {
+      for (let j = i + 1; j < groups.length; j++) {
+        const ga = groups[i];
+        const gb = groups[j];
+
+        // Symmetric primary-axis overlap (Y for LR, X for TB)
+        const primaryOverlap = isLR
+          ? Math.min(ga.y + ga.height, gb.y + gb.height) - Math.max(ga.y, gb.y)
+          : Math.min(ga.x + ga.width, gb.x + gb.width) - Math.max(ga.x, gb.x);
+        if (primaryOverlap <= 0) continue;
+
+        // Symmetric cross-axis overlap — boxes must intersect in 2D
+        const crossOverlap = isLR
+          ? Math.min(ga.x + ga.width, gb.x + gb.width) - Math.max(ga.x, gb.x)
+          : Math.min(ga.y + ga.height, gb.y + gb.height) - Math.max(ga.y, gb.y);
+        if (crossOverlap <= 0) continue;
+
+        anyOverlap = true;
+        const shift = primaryOverlap + GROUP_GAP;
+
+        // Shift the group with the larger primary-axis center (deterministic)
+        const aCenter = isLR ? ga.y + ga.height / 2 : ga.x + ga.width / 2;
+        const bCenter = isLR ? gb.y + gb.height / 2 : gb.x + gb.width / 2;
+        const groupToShift = aCenter <= bCenter ? gb : ga;
+
+        if (isLR) groupToShift.y += shift;
+        else groupToShift.x += shift;
+
+        for (const node of nodes) {
+          if (node.groupId === groupToShift.id) {
+            if (isLR) node.y += shift;
+            else node.x += shift;
+          }
+        }
+      }
+    }
+    if (!anyOverlap) break;
+  }
+}
+
+// ============================================================
 // Layout engine
 // ============================================================
 
@@ -508,6 +566,9 @@ export function layoutInfra(computed: ComputedInfraModel, selectedNodeId?: strin
       lineNumber: group.lineNumber,
     };
   });
+
+  // Separate overlapping groups (post-layout pass)
+  separateGroups(layoutGroups, layoutNodes, isLR);
 
   // Compute total dimensions
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;

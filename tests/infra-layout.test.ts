@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { parseInfra } from '../src/infra/parser';
 import { computeInfra } from '../src/infra/compute';
-import { layoutInfra } from '../src/infra/layout';
+import { layoutInfra, separateGroups, type InfraLayoutGroup, type InfraLayoutNode } from '../src/infra/layout';
 
 function layout(source: string) {
   const parsed = parseInfra(source);
@@ -136,5 +136,138 @@ API
     for (const edge of result.edges) {
       expect(edge.lineNumber).toBeGreaterThan(0);
     }
+  });
+
+  it('no two groups overlap after layout with multi-group diagram', () => {
+    const result = layout(`
+chart: infra
+
+edge
+  rps: 10000
+  -> [GroupA]
+  -> [GroupB]
+  -> [GroupC]
+
+[GroupA]
+  instances: 3
+  A1
+    max-rps: 3000
+    latency-ms: 10
+  A2
+    max-rps: 3000
+    latency-ms: 20
+  A3
+    max-rps: 3000
+    latency-ms: 30
+
+[GroupB]
+  instances: 2
+  B1
+    max-rps: 5000
+    latency-ms: 15
+  B2
+    max-rps: 5000
+    latency-ms: 25
+
+[GroupC]
+  instances: 4
+  C1
+    max-rps: 2000
+    latency-ms: 5
+  C2
+    max-rps: 2000
+    latency-ms: 10
+  C3
+    max-rps: 2000
+    latency-ms: 15
+  C4
+    max-rps: 2000
+    latency-ms: 20
+`);
+    expect(result.groups).toHaveLength(3);
+    const { groups } = result;
+    for (let i = 0; i < groups.length; i++) {
+      for (let j = i + 1; j < groups.length; j++) {
+        const ga = groups[i], gb = groups[j];
+        const overlaps =
+          ga.x < gb.x + gb.width && ga.x + ga.width > gb.x &&
+          ga.y < gb.y + gb.height && ga.y + ga.height > gb.y;
+        expect(overlaps).toBe(false);
+      }
+    }
+  });
+});
+
+describe('separateGroups()', () => {
+  function makeGroup(id: string, x: number, y: number, w: number, h: number): InfraLayoutGroup {
+    return { id, label: id, x, y, width: w, height: h, lineNumber: 1 };
+  }
+
+  function makeNode(id: string, groupId: string, x: number, y: number): InfraLayoutNode {
+    return { id, groupId, x, y, width: 100, height: 50 } as InfraLayoutNode;
+  }
+
+  it('shifts the lower group when two groups overlap on Y axis (LR mode)', () => {
+    const groups = [
+      makeGroup('[A]', 0, 0, 200, 100),
+      makeGroup('[B]', 50, 60, 200, 100), // overlaps A by 40px on Y
+    ];
+    const nodes = [makeNode('b1', '[B]', 150, 110)];
+    const originalBY = groups[1].y;
+    const originalNodeY = nodes[0].y;
+
+    separateGroups(groups, nodes, true);
+
+    // B should be pushed below A with at least GROUP_GAP clearance
+    expect(groups[1].y).toBeGreaterThanOrEqual(groups[0].y + groups[0].height);
+    // B's child node shifts by the same amount as the group
+    expect(nodes[0].y - originalNodeY).toBe(groups[1].y - originalBY);
+  });
+
+  it('leaves non-overlapping groups unchanged', () => {
+    const groups = [
+      makeGroup('[A]', 0, 0, 200, 100),
+      makeGroup('[B]', 0, 200, 200, 100), // clearly below A, no overlap
+    ];
+    const nodes: InfraLayoutNode[] = [];
+
+    separateGroups(groups, nodes, true);
+
+    expect(groups[0].y).toBe(0);
+    expect(groups[1].y).toBe(200);
+  });
+
+  it('resolves a chain reaction across three groups', () => {
+    const groups = [
+      makeGroup('[A]', 0, 0, 200, 100),
+      makeGroup('[B]', 50, 60, 200, 100),  // overlaps A
+      makeGroup('[C]', 50, 120, 200, 100), // overlaps B
+    ];
+    const nodes: InfraLayoutNode[] = [];
+
+    separateGroups(groups, nodes, true);
+
+    for (let i = 0; i < groups.length; i++) {
+      for (let j = i + 1; j < groups.length; j++) {
+        const ga = groups[i], gb = groups[j];
+        const overlaps =
+          ga.x < gb.x + gb.width && ga.x + ga.width > gb.x &&
+          ga.y < gb.y + gb.height && ga.y + ga.height > gb.y;
+        expect(overlaps).toBe(false);
+      }
+    }
+  });
+
+  it('separates groups on X axis in TB mode', () => {
+    const groups = [
+      makeGroup('[A]', 0, 0, 100, 200),
+      makeGroup('[B]', 60, 50, 100, 200), // overlaps A on X
+    ];
+    const nodes = [makeNode('b1', '[B]', 110, 100)];
+
+    separateGroups(groups, nodes, false /* TB */);
+
+    expect(groups[1].x).toBeGreaterThanOrEqual(groups[0].x + groups[0].width);
+    expect(nodes[0].x).toBeGreaterThan(110);
   });
 });
