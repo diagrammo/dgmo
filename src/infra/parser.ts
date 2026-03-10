@@ -23,13 +23,13 @@ import { INFRA_BEHAVIOR_KEYS, EDGE_ONLY_KEYS } from './types';
 // Regex patterns
 // ============================================================
 
-// Connection: -label-> Target  or  -> Target  (with optional | split: N%)
+// Connection: -label-> Target  or  -> Target  (with optional | split: N%  and optional x5 fanout)
 const CONNECTION_RE =
-  /^-(?:([^-].*?))?->\s+(.+?)(?:(?:\s*\|\s*|\s+)split\s*:?\s*(\d+)%)?\s*$/;
+  /^-(?:([^-].*?))?->\s+(.+?)(?:(?:\s*\|\s*|\s+)split\s*:?\s*(\d+)%)?\s*(?:x(\d+))?\s*$/;
 
 // Simple connection shorthand: -> Target (no label, no dash prefix needed for edge)
 const SIMPLE_CONNECTION_RE =
-  /^->\s+(.+?)(?:(?:\s*\|\s*|\s+)split\s*:?\s*(\d+)%)?\s*$/;
+  /^->\s+(.+?)(?:(?:\s*\|\s*|\s+)split\s*:?\s*(\d+)%)?\s*(?:x(\d+))?\s*$/;
 
 // Group declaration: [Group Name]
 const GROUP_RE = /^\[([^\]]+)\]$/;
@@ -397,12 +397,19 @@ export function parseInfra(content: string): ParsedInfra {
       if (simpleConn) {
         const targetName = simpleConn[1].trim();
         const splitStr = simpleConn[2];
+        const fanoutStr = simpleConn[3];
         const split = splitStr ? parseFloat(splitStr) : null;
+        const fanoutRaw = fanoutStr ? parseInt(fanoutStr, 10) : null;
+        if (fanoutRaw !== null && fanoutRaw < 1) {
+          warn(lineNumber, `Fan-out multiplier must be at least 1 (got x${fanoutRaw}). Ignoring.`);
+        }
+        const fanout = fanoutRaw !== null && fanoutRaw >= 1 ? fanoutRaw : null;
         result.edges.push({
           sourceId: currentNode.id,
           targetId: nodeId(targetName),
           label: '',
           split,
+          fanout,
           lineNumber,
         });
         continue;
@@ -414,7 +421,13 @@ export function parseInfra(content: string): ParsedInfra {
         const label = connMatch[1]?.trim() || '';
         const targetName = connMatch[2].trim();
         const splitStr = connMatch[3];
+        const fanoutStr = connMatch[4];
         const split = splitStr ? parseFloat(splitStr) : null;
+        const fanoutRaw = fanoutStr ? parseInt(fanoutStr, 10) : null;
+        if (fanoutRaw !== null && fanoutRaw < 1) {
+          warn(lineNumber, `Fan-out multiplier must be at least 1 (got x${fanoutRaw}). Ignoring.`);
+        }
+        const fanout = fanoutRaw !== null && fanoutRaw >= 1 ? fanoutRaw : null;
 
         // Target might be a group ref like [API Pods]
         let targetId: string;
@@ -430,6 +443,7 @@ export function parseInfra(content: string): ParsedInfra {
           targetId,
           label,
           split,
+          fanout,
           lineNumber,
         });
         continue;

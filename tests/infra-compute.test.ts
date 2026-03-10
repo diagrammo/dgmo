@@ -1705,4 +1705,93 @@ edge
       expect(hasBuf).toBe(true);
     });
   });
+
+  describe('fanout multiplier', () => {
+    it('multiplies target rps by fanout (no split)', () => {
+      const result = compute(`
+chart: infra
+
+edge
+  rps: 100
+  -> B x5
+
+B
+  max-rps: 1000
+`);
+      expect(node(result, 'B').computedRps).toBe(500);
+      expect(edge(result, 'edge', 'B').computedRps).toBe(500);
+    });
+
+    it('applies fanout after split — B gets 50% * 5x, C gets 50%', () => {
+      const result = compute(`
+chart: infra
+
+edge
+  rps: 100
+  -> B | split: 50% x5
+  -> C | split: 50%
+
+B
+  max-rps: 1000
+
+C
+  max-rps: 1000
+`);
+      expect(node(result, 'B').computedRps).toBe(250);
+      expect(node(result, 'C').computedRps).toBe(50);
+    });
+
+    it('compounds fanout through multi-hop chain', () => {
+      const result = compute(`
+chart: infra
+
+edge
+  rps: 100
+  -> A x5
+
+A
+  max-rps: 5000
+  -> B x3
+
+B
+  max-rps: 10000
+  -> C
+
+C
+  max-rps: 10000
+`);
+      expect(node(result, 'A').computedRps).toBe(500);
+      expect(node(result, 'B').computedRps).toBe(1500);
+      expect(node(result, 'C').computedRps).toBe(1500);
+    });
+
+    it('null fanout behaves identically to no fanout — regression', () => {
+      const result = compute(`
+chart: infra
+
+edge
+  rps: 100
+  -> API
+
+API
+  max-rps: 1000
+`);
+      expect(node(result, 'API').computedRps).toBe(100);
+      expect(edge(result, 'edge', 'API').computedRps).toBe(100);
+    });
+
+    it('computedEdgeRps reflects fanout wire traffic', () => {
+      const result = compute(`
+chart: infra
+
+edge
+  rps: 100
+  -> Shards x10
+
+Shards
+  max-rps: 5000
+`);
+      expect(edge(result, 'edge', 'Shards').computedRps).toBe(1000);
+    });
+  });
 });

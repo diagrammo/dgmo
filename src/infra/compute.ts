@@ -692,8 +692,10 @@ export function computeInfra(
 
       for (const { edge, split } of resolved) {
         const edgeRps = outboundRps * (split / 100);
+        const fanout = (edge.fanout != null && edge.fanout >= 1) ? edge.fanout : 1;
+        const fanoutedRps = edgeRps * fanout;
         const edgeKey = `${edge.sourceId}->${edge.targetId}`;
-        computedEdgeRps.set(edgeKey, edgeRps);
+        computedEdgeRps.set(edgeKey, fanoutedRps);
 
         // Resolve target — could be a group or a node
         let targetIds: string[];
@@ -705,7 +707,7 @@ export function computeInfra(
         }
 
         for (const targetId of targetIds) {
-          const perTarget = edgeRps / targetIds.length;
+          const perTarget = fanoutedRps / targetIds.length;
           const existing = computedRps.get(targetId) ?? 0;
           computedRps.set(targetId, existing + perTarget);
 
@@ -837,6 +839,7 @@ export function computeInfra(
     const paths: LeafPath[] = [];
 
     for (const { edge, split } of resolved) {
+      const fanout = (edge.fanout != null && edge.fanout >= 1) ? edge.fanout : 1;
       const groupChildren = groupChildMap.get(edge.targetId);
       const targetIds = (groupChildren && groupChildren.length > 0)
         ? groupChildren : [edge.targetId];
@@ -850,21 +853,21 @@ export function computeInfra(
               latency: nodeLatency + cp.latency,
               uptime: nodeUptimeFrac * cp.uptime,
               availability: nodeAvail * cp.availability,
-              weight: cp.weight * (split / 100) / targetIds.length * 0.95,
+              weight: cp.weight * (split / 100) / targetIds.length * fanout * 0.95,
             });
             // Cold path (5% of requests)
             paths.push({
               latency: coldLatency + cp.latency,
               uptime: nodeUptimeFrac * cp.uptime,
               availability: nodeAvail * cp.availability,
-              weight: cp.weight * (split / 100) / targetIds.length * 0.05,
+              weight: cp.weight * (split / 100) / targetIds.length * fanout * 0.05,
             });
           } else {
             paths.push({
               latency: nodeLatency + cp.latency,
               uptime: nodeUptimeFrac * cp.uptime,
               availability: nodeAvail * cp.availability,
-              weight: cp.weight * (split / 100) / targetIds.length,
+              weight: cp.weight * (split / 100) / targetIds.length * fanout,
             });
           }
         }
@@ -1093,6 +1096,7 @@ export function computeInfra(
       label: edge.label,
       computedRps: rps,
       split: resolvedSplit,
+      fanout: edge.fanout,
       lineNumber: edge.lineNumber,
     };
   });

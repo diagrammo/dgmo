@@ -6,6 +6,7 @@
 // Each role maps to a specific color for badge rendering.
 
 import type { InfraProperty } from './types';
+import type { InfraLayoutEdge } from './layout';
 
 export interface InfraRole {
   name: string;
@@ -38,6 +39,20 @@ export function inferRoles(properties: InfraProperty[]): InfraRole[] {
   }
 
   return roles;
+}
+
+/** The Fan-Out role, assigned to nodes with at least one outgoing fanout edge. */
+export const FANOUT_ROLE: InfraRole = { name: 'Fan-Out', color: '#f97316' };
+
+/**
+ * Return the set of sourceIds that have at least one outgoing edge with fanout.
+ */
+export function collectFanoutSourceIds(edges: InfraLayoutEdge[]): Set<string> {
+  const ids = new Set<string>();
+  for (const e of edges) {
+    if (e.fanout != null) ids.add(e.sourceId);
+  }
+  return ids;
 }
 
 /**

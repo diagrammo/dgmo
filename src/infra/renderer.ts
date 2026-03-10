@@ -11,7 +11,7 @@ import type { ParsedInfra, InfraTagGroup } from './types';
 import { resolveColor } from '../colors';
 import type { ComputedInfraModel } from './types';
 import type { InfraLayoutResult, InfraLayoutNode, InfraLayoutEdge, InfraLayoutGroup } from './layout';
-import { inferRoles, collectDiagramRoles } from './roles';
+import { inferRoles, collectDiagramRoles, collectFanoutSourceIds, FANOUT_ROLE } from './roles';
 import type { InfraRole } from './roles';
 import { parseInfra } from './parser';
 import { computeInfra } from './compute';
@@ -634,6 +634,7 @@ function renderNodes(
   diagramOptions?: Record<string, string>,
   collapsedNodes?: Set<string> | null,
   tagGroups?: InfraTagGroup[],
+  fanoutSourceIds?: Set<string>,
 ) {
   const mutedColor = palette.textMuted;
 
@@ -679,6 +680,9 @@ function renderNodes(
       const roles = inferRoles(node.properties);
       for (const role of roles) {
         g.attr(`data-role-${role.name.toLowerCase().replace(/\s+/g, '-')}`, 'true');
+      }
+      if (fanoutSourceIds?.has(node.id)) {
+        g.attr('data-role-fan-out', 'true');
       }
     }
 
@@ -1109,11 +1113,15 @@ export function computeInfraLegendGroups(
   nodes: InfraLayoutNode[],
   tagGroups: InfraTagGroup[],
   palette: PaletteColors,
+  edges?: InfraLayoutEdge[],
 ): InfraLegendGroup[] {
   const groups: InfraLegendGroup[] = [];
 
-  // Capabilities group (from inferred roles)
+  // Capabilities group (from inferred roles + fanout edges)
   const roles = collectDiagramRoles(nodes.filter((n) => !n.isEdge).map((n) => n.properties));
+  if (edges && collectFanoutSourceIds(edges).size > 0) {
+    roles.push(FANOUT_ROLE);
+  }
   if (roles.length > 0) {
     const entries = roles.map((r) => ({
       value: r.name,
@@ -1429,7 +1437,7 @@ export function renderInfra(
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
 
   // Build legend groups
-  const legendGroups = computeInfraLegendGroups(layout.nodes, tagGroups ?? [], palette);
+  const legendGroups = computeInfraLegendGroups(layout.nodes, tagGroups ?? [], palette, layout.edges);
   const hasLegend = legendGroups.length > 0 || !!playback;
   // In app mode (not export), legend is rendered as a separate fixed-size SVG
   const fixedLegend = !exportMode && hasLegend;
@@ -1514,7 +1522,8 @@ export function renderInfra(
   // Render layers: groups (back), edge paths, nodes, reject particles, edge labels (front)
   renderGroups(svg, layout.groups, palette, isDark);
   renderEdgePaths(svg, layout.edges, layout.nodes, palette, isDark, shouldAnimate);
-  renderNodes(svg, layout.nodes, palette, isDark, shouldAnimate, selectedNodeId, activeGroup, layout.options, collapsedNodes, tagGroups ?? []);
+  const fanoutSourceIds = collectFanoutSourceIds(layout.edges);
+  renderNodes(svg, layout.nodes, palette, isDark, shouldAnimate, selectedNodeId, activeGroup, layout.options, collapsedNodes, tagGroups ?? [], fanoutSourceIds);
   if (shouldAnimate) {
     renderRejectParticles(svg, layout.nodes);
   }

@@ -593,6 +593,63 @@ CDN
     });
   });
 
+  describe('fanout multiplier', () => {
+    it('parses simple connection with fanout and no split', () => {
+      const result = parseInfra(`
+chart: infra
+
+edge
+  rps: 100
+  -> API x5
+`);
+      expect(result.edges).toHaveLength(1);
+      expect(result.edges[0].fanout).toBe(5);
+      expect(result.edges[0].split).toBeNull();
+    });
+
+    it('parses connection with both split and fanout', () => {
+      const result = parseInfra(`
+chart: infra
+
+edge
+  rps: 100
+  -> B | split: 50% x3
+  -> C | split: 50%
+`);
+      const edgeB = result.edges.find((e) => e.targetId === 'B')!;
+      const edgeC = result.edges.find((e) => e.targetId === 'C')!;
+      expect(edgeB.split).toBe(50);
+      expect(edgeB.fanout).toBe(3);
+      expect(edgeC.split).toBe(50);
+      expect(edgeC.fanout).toBeNull();
+    });
+
+    it('parses labeled connection with fanout', () => {
+      const result = parseInfra(`
+chart: infra
+
+edge
+  rps: 100
+  -query-> Shards x10
+`);
+      expect(result.edges).toHaveLength(1);
+      expect(result.edges[0].label).toBe('query');
+      expect(result.edges[0].fanout).toBe(10);
+    });
+
+    it('parses connection without fanout — fanout is null (regression)', () => {
+      const result = parseInfra(`
+chart: infra
+
+edge
+  rps: 100
+  -> API
+`);
+      expect(result.edges).toHaveLength(1);
+      expect(result.edges[0].fanout).toBeNull();
+    });
+  });
+
   describe('line numbers', () => {
     it('tracks line numbers on nodes and edges', () => {
       const result = parseInfra(`chart: infra

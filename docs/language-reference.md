@@ -1087,7 +1087,9 @@ StaticServer | t: Platform
 - `cb-error-threshold: N%` — circuit breaker opens when overload exceeds this ratio
 - `cb-latency-threshold-ms: N` — circuit breaker opens when cumulative latency exceeds this
 
-**Connections**: `-> Target` (unlabeled), `-label-> Target` (labeled). Pipe metadata for splits: `-> Target | split: N%`.
+**Connections**: `-> Target` (unlabeled), `-label-> Target` (labeled). Pipe metadata for splits: `-> Target | split: N%`. Fan-out multiplier: `-> Target x5` or `-> Target | split: 50% x5`.
+
+**Fan-out**: Append `xN` to a connection to model request multiplication — one inbound request triggers N outbound calls to the target. The target receives `inbound × N` RPS. Fan-out is applied after split: `-> Shards | split: 60% x8` means the target receives `inbound × 0.60 × 8` RPS. Fan-out compounds naturally through multi-hop chains.
 
 **Branching**: Multiple outbound connections with `split: N%` metadata. Splits must sum to 100%. Undeclared splits are evenly distributed from the remaining percentage.
 

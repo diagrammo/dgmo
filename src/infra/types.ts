@@ -67,6 +67,7 @@ export interface InfraEdge {
   targetId: string;
   label: string;
   split: number | null; // percentage 0-100, or null if not declared
+  fanout: number | null; // request multiplier: target receives inbound * (split/100) * fanout RPS
   lineNumber: number;
 }
 
@@ -181,6 +182,7 @@ export interface ComputedInfraEdge {
   label: string;
   computedRps: number;
   split: number; // resolved split (always 0-100)
+  fanout: number | null;
   lineNumber: number;
 }
 

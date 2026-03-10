@@ -50,6 +50,7 @@ export interface InfraLayoutEdge {
   label: string;
   computedRps: number;
   split: number;
+  fanout: number | null;
   points: { x: number; y: number }[];
   lineNumber: number;
 }
@@ -512,6 +513,7 @@ export function layoutInfra(computed: ComputedInfraModel, selectedNodeId?: strin
         label: edge.label,
         computedRps: edge.computedRps,
         split: edge.split,
+        fanout: edge.fanout,
         points: edgeData?.points ?? [],
         lineNumber: edge.lineNumber,
       });
@@ -523,6 +525,7 @@ export function layoutInfra(computed: ComputedInfraModel, selectedNodeId?: strin
         label: edge.label,
         computedRps: edge.computedRps,
         split: edge.split,
+        fanout: edge.fanout,
         points: edgeData?.points ?? [],
         lineNumber: edge.lineNumber,
       });

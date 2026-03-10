@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { inferRoles, collectDiagramRoles } from '../src/infra/roles';
+import { inferRoles, collectDiagramRoles, collectFanoutSourceIds, FANOUT_ROLE } from '../src/infra/roles';
 import type { InfraProperty } from '../src/infra/types';
+import type { InfraLayoutEdge } from '../src/infra/layout';
 
 function props(...keys: string[]): InfraProperty[] {
   return keys.map((key) => ({ key, value: '10', lineNumber: 1 }));
@@ -57,5 +58,35 @@ describe('infra role inference', () => {
     ];
     const roles = collectDiagramRoles(allProps);
     expect(roles.map((r) => r.name)).toEqual(['Cache', 'Firewall', 'Service']);
+  });
+});
+
+function edge(sourceId: string, targetId: string, fanout: number | null): InfraLayoutEdge {
+  return { sourceId, targetId, label: '', computedRps: 0, split: 100, fanout, points: [], lineNumber: 1 };
+}
+
+describe('collectFanoutSourceIds', () => {
+  it('returns source ids of edges with fanout', () => {
+    const edges = [edge('A', 'B', 3), edge('C', 'D', null)];
+    const ids = collectFanoutSourceIds(edges);
+    expect(ids.has('A')).toBe(true);
+    expect(ids.has('C')).toBe(false);
+    expect(ids.size).toBe(1);
+  });
+
+  it('returns empty set when no fanout edges', () => {
+    const edges = [edge('A', 'B', null), edge('C', 'D', null)];
+    expect(collectFanoutSourceIds(edges).size).toBe(0);
+  });
+
+  it('collects multiple fanout sources', () => {
+    const edges = [edge('A', 'B', 2), edge('C', 'D', 5), edge('E', 'F', null)];
+    const ids = collectFanoutSourceIds(edges);
+    expect([...ids].sort()).toEqual(['A', 'C']);
+  });
+
+  it('FANOUT_ROLE has expected name and color', () => {
+    expect(FANOUT_ROLE.name).toBe('Fan-Out');
+    expect(FANOUT_ROLE.color).toMatch(/^#/);
   });
 });
