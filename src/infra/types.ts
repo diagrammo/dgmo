@@ -41,6 +41,9 @@ export const INFRA_BEHAVIOR_KEYS = new Set<string>([
   'drain-rate',
   'retention-hours',
   'partitions',
+  'slo-availability',
+  'slo-p90-latency-ms',
+  'slo-warning-margin',
 ]);
 
 /** The `rps` key is only valid on the `edge` component. */
@@ -59,6 +62,7 @@ export interface InfraNode {
   groupId: string | null;
   tags: Record<string, string>; // tagGroup -> tagValue
   isEdge: boolean; // true for the `edge` entry-point component
+  description?: string;
   lineNumber: number;
 }
 
@@ -173,6 +177,7 @@ export interface ComputedInfraNode {
   };
   properties: InfraProperty[];
   tags: Record<string, string>;
+  description?: string;
   lineNumber: number;
 }
 

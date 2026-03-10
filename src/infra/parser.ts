@@ -232,6 +232,24 @@ export function parseInfra(content: string): ParsedInfra {
         continue;
       }
 
+      // slo-availability: <percentage e.g. 99.9%>
+      if (/^slo-availability\s*:/i.test(trimmed)) {
+        result.options['slo-availability'] = trimmed.replace(/^slo-availability\s*:\s*/i, '').trim();
+        continue;
+      }
+
+      // slo-p90-latency-ms: <number>
+      if (/^slo-p90-latency-ms\s*:/i.test(trimmed)) {
+        result.options['slo-p90-latency-ms'] = trimmed.replace(/^slo-p90-latency-ms\s*:\s*/i, '').trim();
+        continue;
+      }
+
+      // slo-warning-margin: <percentage e.g. 5%>
+      if (/^slo-warning-margin\s*:/i.test(trimmed)) {
+        result.options['slo-warning-margin'] = trimmed.replace(/^slo-warning-margin\s*:\s*/i, '').trim();
+        continue;
+      }
+
       // scenario: Name
       if (/^scenario\s*:/i.test(trimmed)) {
         finishCurrentNode();
@@ -450,11 +468,21 @@ export function parseInfra(content: string): ParsedInfra {
         continue;
       }
 
+      // Empty description: (no value) — silently skip rather than emitting "Unexpected line"
+      if (/^description\s*:\s*$/i.test(trimmed)) continue;
+
       // Property: key: value
       const propMatch = trimmed.match(PROPERTY_RE);
       if (propMatch) {
         const key = propMatch[1].toLowerCase();
         const rawVal = propMatch[2].trim();
+
+        // description is display metadata, not a behavior key; silently ignored on edge nodes.
+        // Single-line only — no length enforcement, but keep it short for legibility.
+        if (key === 'description' && currentNode) {
+          if (!currentNode.isEdge) currentNode.description = rawVal;
+          continue;
+        }
 
         // Validate property key
         if (!INFRA_BEHAVIOR_KEYS.has(key) && !EDGE_ONLY_KEYS.has(key)) {

@@ -59,6 +59,33 @@ const COLOR_WARNING = '#eab308';
 const COLOR_OVERLOADED = '#ef4444';
 const COLOR_NEUTRAL = '#94a3b8';
 
+/** SLO thresholds resolved for a single node (chart-level + per-node override). */
+interface NodeSlo {
+  availThreshold: number | null; // fraction e.g. 0.999
+  latencyP90: number | null;     // ms e.g. 200
+  warningMargin: number;         // fraction e.g. 0.05
+}
+
+/** Resolve effective SLO for a node: per-node properties take precedence over chart-level options.
+ *  Returns null if neither availThreshold nor latencyP90 is declared. */
+function resolveNodeSlo(node: InfraLayoutNode, diagramOptions: Record<string, string>): NodeSlo | null {
+  const nodeProp = (key: string) => node.properties.find((p) => p.key === key);
+
+  const availRaw = nodeProp('slo-availability')?.value ?? diagramOptions['slo-availability'];
+  const latencyRaw = nodeProp('slo-p90-latency-ms')?.value ?? diagramOptions['slo-p90-latency-ms'];
+  const marginRaw = nodeProp('slo-warning-margin')?.value ?? diagramOptions['slo-warning-margin'];
+
+  const availParsed = availRaw != null ? parseFloat(String(availRaw).replace('%', '')) / 100 : NaN;
+  const availThreshold = !isNaN(availParsed) ? availParsed : null;
+  const latencyParsed = latencyRaw != null ? parseFloat(String(latencyRaw)) : NaN;
+  const latencyP90 = !isNaN(latencyParsed) ? latencyParsed : null;
+  const marginParsed = marginRaw != null ? parseFloat(String(marginRaw).replace('%', '')) / 100 : NaN;
+  const warningMargin = !isNaN(marginParsed) ? marginParsed : 0.05;
+
+  if (availThreshold == null && latencyP90 == null) return null;
+  return { availThreshold, latencyP90, warningMargin };
+}
+
 /** A row in the node card body. `inverted` renders as a colored pill with light text. */
 interface NodeRow {
   key: string;
@@ -192,7 +219,7 @@ const MS_FORMAT_KEYS = new Set(['latency-ms', 'cb-latency-threshold-ms', 'durati
 const PCT_FORMAT_KEYS = new Set(['cache-hit', 'firewall-block', 'uptime', 'cb-error-threshold']);
 
 /** Computed metric rows (latency percentiles, uptime, availability, CB state) shown after declared props. */
-function getComputedRows(node: InfraLayoutNode, expanded: boolean): ComputedRow[] {
+function getComputedRows(node: InfraLayoutNode, expanded: boolean, slo?: NodeSlo | null): ComputedRow[] {
   const rows: ComputedRow[] = [];
 
   // Serverless instances: demand vs concurrency limit
@@ -211,7 +238,16 @@ function getComputedRows(node: InfraLayoutNode, expanded: boolean): ComputedRow[
   if (p.p50 > 0 || p.p90 > 0 || p.p99 > 0) {
     if (expanded) {
       rows.push({ key: 'p50', value: formatMsShort(p.p50) });
-      rows.push({ key: 'p90', value: formatMsShort(p.p90) });
+      if (slo?.latencyP90 != null) {
+        const t = slo.latencyP90;
+        const m = slo.warningMargin;
+        const color = p.p90 > t ? COLOR_OVERLOADED
+          : p.p90 > t * (1 - m) ? COLOR_WARNING
+          : COLOR_HEALTHY;
+        rows.push({ key: 'p90', value: formatMsShort(p.p90), color, inverted: color !== COLOR_HEALTHY });
+      } else {
+        rows.push({ key: 'p90', value: formatMsShort(p.p90) });
+      }
     }
     rows.push({ key: 'p99', value: formatMsShort(p.p99) });
   }
@@ -227,10 +263,19 @@ function getComputedRows(node: InfraLayoutNode, expanded: boolean): ComputedRow[
     }
   }
   if (node.computedAvailability < 1) {
-    const color = node.computedAvailability < 0.95 ? COLOR_OVERLOADED
-      : node.computedAvailability < 0.99 ? COLOR_WARNING
-      : undefined;
-    rows.push({ key: 'availability', value: formatUptimeShort(node.computedAvailability), color, inverted: color != null });
+    let color: string | undefined;
+    if (slo?.availThreshold != null) {
+      const t = slo.availThreshold;
+      const m = slo.warningMargin;
+      if (node.computedAvailability < t) color = COLOR_OVERLOADED;
+      else if (node.computedAvailability < Math.min(1, t + m)) color = COLOR_WARNING;
+      else color = COLOR_HEALTHY;
+    } else {
+      color = node.computedAvailability < 0.95 ? COLOR_OVERLOADED
+        : node.computedAvailability < 0.99 ? COLOR_WARNING
+        : undefined;
+    }
+    rows.push({ key: 'availability', value: formatUptimeShort(node.computedAvailability), color, inverted: color != null && color !== COLOR_HEALTHY });
   }
   // Circuit breaker state — show when a CB is configured and open
   if (node.computedCbState === 'open') {
@@ -338,8 +383,11 @@ function formatRpsShort(rps: number): string {
 }
 
 /** Compute the worst severity across all row-producing conditions for a node.
- *  Returns 'overloaded' (red), 'warning' (yellow), or 'normal'. */
-function worstNodeSeverity(node: InfraLayoutNode): 'overloaded' | 'warning' | 'normal' {
+ *  Returns 'overloaded' (red), 'warning' (yellow), 'healthy' (green), or 'normal'. */
+function worstNodeSeverity(
+  node: InfraLayoutNode,
+  slo?: NodeSlo | null,
+): 'overloaded' | 'warning' | 'healthy' | 'normal' {
   let worst: 'overloaded' | 'warning' | 'normal' = 'normal';
   const upgrade = (s: 'overloaded' | 'warning') => {
     if (s === 'overloaded') worst = 'overloaded';
@@ -355,9 +403,27 @@ function worstNodeSeverity(node: InfraLayoutNode): 'overloaded' | 'warning' | 'n
   if (node.rateLimited) upgrade('warning');
   if (isWarning(node)) upgrade('warning');
 
-  // Availability
-  if (node.computedAvailability < 0.95) upgrade('overloaded');
-  else if (node.computedAvailability < 0.99) upgrade('warning');
+  // Availability — SLO threshold if declared, otherwise hardcoded fallback
+  if (slo?.availThreshold != null) {
+    const t = slo.availThreshold;
+    const m = slo.warningMargin;
+    if (node.computedAvailability < t) upgrade('overloaded');
+    else if (node.computedAvailability < Math.min(1, t + m)) upgrade('warning');
+    // else: in green zone — handled after loop
+  } else {
+    if (node.computedAvailability < 0.95) upgrade('overloaded');
+    else if (node.computedAvailability < 0.99) upgrade('warning');
+  }
+
+  // p90 Latency SLO
+  if (slo?.latencyP90 != null) {
+    const t = slo.latencyP90;
+    const m = slo.warningMargin;
+    const p90 = node.computedLatencyPercentiles.p90;
+    if (p90 > t) upgrade('overloaded');
+    else if (p90 > t * (1 - m)) upgrade('warning');
+    // else: in green zone
+  }
 
   // Circuit breaker open
   if (node.computedCbState === 'open') upgrade('overloaded');
@@ -382,15 +448,28 @@ function worstNodeSeverity(node: InfraLayoutNode): 'overloaded' | 'warning' | 'n
     }
   }
 
+  // Healthy: SLO declared AND all checks are in the green zone
+  if (worst === 'normal' && slo != null) {
+    const availGreen = slo.availThreshold == null ||
+      node.computedAvailability >= Math.min(1, slo.availThreshold + slo.warningMargin);
+    const latencyGreen = slo.latencyP90 == null ||
+      node.computedLatencyPercentiles.p90 <= slo.latencyP90 * (1 - slo.warningMargin);
+    if (availGreen && latencyGreen) return 'healthy';
+  }
+
   return worst;
 }
 
-function nodeColor(node: InfraLayoutNode, palette: PaletteColors, isDark: boolean): {
+function nodeColor(
+  _node: InfraLayoutNode,
+  palette: PaletteColors,
+  isDark: boolean,
+  severity: ReturnType<typeof worstNodeSeverity>,
+): {
   fill: string;
   stroke: string;
   textFill: string;
 } {
-  const severity = worstNodeSeverity(node);
   if (severity === 'overloaded') {
     return {
       fill: mix(palette.bg, COLOR_OVERLOADED, isDark ? 80 : 92),
@@ -402,6 +481,13 @@ function nodeColor(node: InfraLayoutNode, palette: PaletteColors, isDark: boolea
     return {
       fill: mix(palette.bg, COLOR_WARNING, isDark ? 85 : 92),
       stroke: COLOR_WARNING,
+      textFill: palette.text,
+    };
+  }
+  if (severity === 'healthy') {
+    return {
+      fill: mix(palette.bg, COLOR_HEALTHY, isDark ? 85 : 93),
+      stroke: COLOR_HEALTHY,
       textFill: palette.text,
     };
   }
@@ -640,7 +726,9 @@ function renderNodes(
   const mutedColor = palette.textMuted;
 
   for (const node of nodes) {
-    let { fill, stroke, textFill } = nodeColor(node, palette, isDark);
+    const slo = (!node.isEdge && diagramOptions) ? resolveNodeSlo(node, diagramOptions) : null;
+    const severity = worstNodeSeverity(node, slo);
+    let { fill, stroke, textFill } = nodeColor(node, palette, isDark, severity);
 
     // When a tag legend is active, override border color with tag color
     if (activeGroup && tagGroups && !node.isEdge) {
@@ -654,7 +742,6 @@ function renderNodes(
     if (animate && node.isEdge) {
       cls += ' infra-node-edge-throb';
     } else if (animate && !node.isEdge) {
-      const severity = worstNodeSeverity(node);
       if (node.computedCbState === 'open') cls += ' infra-node-cb-open';
       else if (severity === 'overloaded') cls += ' infra-node-overload';
       else if (severity === 'warning') cls += ' infra-node-warning';
@@ -690,7 +777,7 @@ function renderNodes(
     const x = node.x - node.width / 2;
     const y = node.y - node.height / 2;
     const isCollapsedGroup = node.id.startsWith('[');
-    const strokeWidth = worstNodeSeverity(node) !== 'normal' ? OVERLOAD_STROKE_WIDTH : NODE_STROKE_WIDTH;
+    const strokeWidth = severity !== 'normal' ? OVERLOAD_STROKE_WIDTH : NODE_STROKE_WIDTH;
 
     // Node rect
     g.append('rect')
@@ -732,14 +819,28 @@ function renderNodes(
     }
     if (!isNodeCollapsed) {
       const expanded = node.id === selectedNodeId;
+
+      // Description subtitle — shown below label only when node is selected
+      const descH = (expanded && node.description && !node.isEdge) ? META_LINE_HEIGHT : 0;
+      if (descH > 0) {
+        g.append('text')
+          .attr('x', node.x)
+          .attr('y', y + NODE_HEADER_HEIGHT + META_LINE_HEIGHT / 2 + META_FONT_SIZE * 0.35)
+          .attr('text-anchor', 'middle')
+          .attr('font-family', FONT_FAMILY)
+          .attr('font-size', META_FONT_SIZE)
+          .attr('fill', mutedColor)
+          .text(node.description ?? '');
+      }
+
       // Declared properties only shown when node is selected (expanded)
       const displayProps = (!node.isEdge && expanded) ? getDisplayProps(node, expanded, diagramOptions) : [];
-      const computedRows = getComputedRows(node, expanded);
+      const computedRows = getComputedRows(node, expanded, slo);
       const hasContent = displayProps.length > 0 || computedRows.length > 0 || node.computedRps > 0;
 
       if (hasContent) {
         // Separator line between header and body
-        const sepY = y + NODE_HEADER_HEIGHT;
+        const sepY = y + NODE_HEADER_HEIGHT + descH;
         g.append('line')
           .attr('x1', x)
           .attr('y1', sepY)

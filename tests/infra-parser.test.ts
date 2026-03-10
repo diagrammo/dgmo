@@ -750,4 +750,145 @@ chart: infra
       expect(replica!.groupId).toBe('[Shards]');
     });
   });
+
+  describe('description field', () => {
+    it('parses description on a node', () => {
+      const result = parseInfra(`
+chart: infra
+APIServer
+  description: Handles all REST API calls
+`);
+      expect(result.nodes[0].description).toBe('Handles all REST API calls');
+      expect(result.nodes[0].properties).toHaveLength(0);
+    });
+
+    it('description with colon in value', () => {
+      const result = parseInfra(`
+chart: infra
+AuthService
+  description: Handles auth: JWT and sessions
+`);
+      expect(result.nodes[0].description).toBe('Handles auth: JWT and sessions');
+    });
+
+    it('description does not go into properties array', () => {
+      const result = parseInfra(`
+chart: infra
+APIServer
+  description: My service
+  max-rps: 500
+`);
+      expect(result.nodes[0].description).toBe('My service');
+      expect(result.nodes[0].properties).toHaveLength(1);
+      expect(result.nodes[0].properties[0].key).toBe('max-rps');
+    });
+
+    it('description on edge node is silently ignored', () => {
+      const result = parseInfra(`
+chart: infra
+edge
+  rps: 1000
+  description: This is the edge
+  -> APIServer
+`);
+      const edgeNode = result.nodes.find((n) => n.isEdge);
+      expect(edgeNode?.description).toBeUndefined();
+      expect(result.diagnostics).toHaveLength(0);
+    });
+
+    it('no unknown-property warning for description', () => {
+      const result = parseInfra(`
+chart: infra
+MyService
+  description: Does things
+`);
+      expect(result.diagnostics).toHaveLength(0);
+    });
+  });
+
+  describe('SLO chart-level options', () => {
+    it('parses slo-availability as chart option', () => {
+      const result = parseInfra(`
+chart: infra
+slo-availability: 99.9%
+`);
+      expect(result.options['slo-availability']).toBe('99.9%');
+      expect(result.error).toBeNull();
+    });
+
+    it('parses slo-p90-latency-ms as chart option', () => {
+      const result = parseInfra(`
+chart: infra
+slo-p90-latency-ms: 200
+`);
+      expect(result.options['slo-p90-latency-ms']).toBe('200');
+      expect(result.error).toBeNull();
+    });
+
+    it('parses slo-warning-margin as chart option', () => {
+      const result = parseInfra(`
+chart: infra
+slo-warning-margin: 10%
+`);
+      expect(result.options['slo-warning-margin']).toBe('10%');
+      expect(result.error).toBeNull();
+    });
+
+    it('parses per-node slo-availability into node properties', () => {
+      const result = parseInfra(`
+chart: infra
+API
+  slo-availability: 99%
+`);
+      const apiNode = result.nodes.find((n) => n.id === 'API');
+      const sloProp = apiNode?.properties.find((p) => p.key === 'slo-availability');
+      // PROPERTY_RE already captures per-node SLO keys; % is stripped to number by parsePropertyValue
+      expect(sloProp).toBeDefined();
+      expect(Number(sloProp!.value)).toBe(99);
+    });
+
+    it('no unknown-property warning for per-node slo-availability', () => {
+      const result = parseInfra(`
+chart: infra
+API
+  slo-availability: 99%
+`);
+      expect(result.diagnostics).toHaveLength(0);
+    });
+
+    it('no unknown-property warning for per-node slo-p90-latency-ms', () => {
+      const result = parseInfra(`
+chart: infra
+API
+  slo-p90-latency-ms: 200
+`);
+      expect(result.diagnostics).toHaveLength(0);
+    });
+
+    it('no unknown-property warning for per-node slo-warning-margin', () => {
+      const result = parseInfra(`
+chart: infra
+API
+  slo-warning-margin: 10%
+`);
+      expect(result.diagnostics).toHaveLength(0);
+    });
+
+    it('all three SLO keys coexist without warnings', () => {
+      const result = parseInfra(`
+chart: infra
+slo-availability: 99%
+slo-p90-latency-ms: 200
+slo-warning-margin: 5%
+
+API
+  max-rps: 1000
+  slo-availability: 95%
+`);
+      expect(result.options['slo-availability']).toBe('99%');
+      expect(result.options['slo-p90-latency-ms']).toBe('200');
+      expect(result.options['slo-warning-margin']).toBe('5%');
+      expect(result.diagnostics).toHaveLength(0);
+    });
+  });
 });
