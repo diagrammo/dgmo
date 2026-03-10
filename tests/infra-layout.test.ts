@@ -271,3 +271,55 @@ describe('separateGroups()', () => {
     expect(nodes[0].x).toBeGreaterThan(110);
   });
 });
+
+describe('scaled group layout data', () => {
+  it('child nodes carry groupId matching the scaled group, and group preserves instances', () => {
+    const result = layout(`
+chart: infra
+
+edge
+  rps: 1000
+  -> [Shards]
+
+[Shards]
+  instances: 3
+
+  ShardA
+    max-rps: 5000
+    latency-ms: 2
+
+  ShardB
+    max-rps: 5000
+    latency-ms: 2
+`);
+
+    const group = result.groups.find((g) => g.id === '[Shards]');
+    expect(group).toBeDefined();
+    expect(group!.instances).toBe(3);
+
+    const shardA = result.nodes.find((n) => n.id === 'ShardA');
+    const shardB = result.nodes.find((n) => n.id === 'ShardB');
+    expect(shardA).toBeDefined();
+    expect(shardB).toBeDefined();
+    expect(shardA!.groupId).toBe('[Shards]');
+    expect(shardB!.groupId).toBe('[Shards]');
+  });
+
+  it('nodes outside a group have groupId null', () => {
+    const result = layout(`
+chart: infra
+
+edge
+  rps: 1000
+  -> API
+
+API
+  max-rps: 5000
+  instances: 2
+`);
+
+    const api = result.nodes.find((n) => n.id === 'API');
+    expect(api).toBeDefined();
+    expect(api!.groupId).toBeNull();
+  });
+});

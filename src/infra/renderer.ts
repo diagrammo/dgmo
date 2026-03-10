@@ -635,6 +635,7 @@ function renderNodes(
   collapsedNodes?: Set<string> | null,
   tagGroups?: InfraTagGroup[],
   fanoutSourceIds?: Set<string>,
+  scaledGroupIds?: Set<string>,
 ) {
   const mutedColor = palette.textMuted;
 
@@ -908,7 +909,9 @@ function renderNodes(
 
       // Instance badge — clickable for interactive adjustment (not for edge or serverless nodes)
       // Serverless nodes show instances in a computed row instead (demand / concurrency).
-      if (!node.isEdge && node.computedConcurrentInvocations === 0 && node.computedInstances > 1) {
+      // Nodes inside a scaled group suppress their badge — the group header already shows Nx.
+      const inScaledGroup = node.groupId != null && (scaledGroupIds?.has(node.groupId) ?? false);
+      if (!node.isEdge && node.computedConcurrentInvocations === 0 && node.computedInstances > 1 && !inScaledGroup) {
         const badgeText = `${node.computedInstances}x`;
         g.append('text')
           .attr('x', x + node.width - 6)
@@ -1523,7 +1526,16 @@ export function renderInfra(
   renderGroups(svg, layout.groups, palette, isDark);
   renderEdgePaths(svg, layout.edges, layout.nodes, palette, isDark, shouldAnimate);
   const fanoutSourceIds = collectFanoutSourceIds(layout.edges);
-  renderNodes(svg, layout.nodes, palette, isDark, shouldAnimate, selectedNodeId, activeGroup, layout.options, collapsedNodes, tagGroups ?? [], fanoutSourceIds);
+  const scaledGroupIds = new Set<string>(
+    layout.groups
+      .filter((g) => {
+        const gi = typeof g.instances === 'number' ? g.instances
+          : typeof g.instances === 'string' ? parseInt(String(g.instances), 10) || 0 : 0;
+        return gi > 1;
+      })
+      .map((g) => g.id)
+  );
+  renderNodes(svg, layout.nodes, palette, isDark, shouldAnimate, selectedNodeId, activeGroup, layout.options, collapsedNodes, tagGroups ?? [], fanoutSourceIds, scaledGroupIds);
   if (shouldAnimate) {
     renderRejectParticles(svg, layout.nodes);
   }
