@@ -49,7 +49,15 @@ const LEGEND_ENTRY_FONT_W = LEGEND_ENTRY_FONT_SIZE * 0.6;
 const LEGEND_ENTRY_DOT_GAP = 4;
 const LEGEND_ENTRY_TRAIL = 8;
 const LEGEND_GROUP_GAP = 12;
+const LEGEND_EYE_SIZE = 14;
+const LEGEND_EYE_GAP = 6;
 const LEGEND_FIXED_GAP = 8; // gap between fixed legend and scaled diagram
+
+// Eye icon SVG paths (14×14 viewBox)
+const EYE_OPEN_PATH =
+  'M1 7s2.5-5 6-5 6 5 6 5-2.5 5-6 5-6-5-6-5z M7 9.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z';
+const EYE_CLOSED_PATH =
+  'M2.5 2.5l9 9 M1.5 7s2.2-4 5.5-4c1.2 0 2.2.5 3 1.1 M12.5 7s-2.2 4-5.5 4c-1.2 0-2.2-.5-3-1.1';
 
 // ============================================================
 // Color helpers
@@ -578,9 +586,44 @@ export function renderOrg(
         .attr('text-anchor', 'middle')
         .text(pillLabel);
 
+      // Eye icon for visibility toggle (active only, app mode)
+      if (isActive && fixedLegend) {
+        const groupKey = group.name.toLowerCase();
+        const isHidden = hiddenAttributes?.has(groupKey) ?? false;
+        const eyeX = pillXOff + pillWidth + LEGEND_EYE_GAP;
+        const eyeY = (LEGEND_HEIGHT - LEGEND_EYE_SIZE) / 2;
+        const hitPad = 6;
+
+        const eyeG = gEl
+          .append('g')
+          .attr('class', 'org-legend-eye')
+          .attr('data-legend-visibility', groupKey)
+          .style('cursor', 'pointer')
+          .attr('opacity', isHidden ? 0.4 : 0.7);
+
+        // Transparent hit area for easier clicking
+        eyeG.append('rect')
+          .attr('x', eyeX - hitPad)
+          .attr('y', eyeY - hitPad)
+          .attr('width', LEGEND_EYE_SIZE + hitPad * 2)
+          .attr('height', LEGEND_EYE_SIZE + hitPad * 2)
+          .attr('fill', 'transparent')
+          .attr('pointer-events', 'all');
+
+        eyeG.append('path')
+          .attr('d', isHidden ? EYE_CLOSED_PATH : EYE_OPEN_PATH)
+          .attr('transform', `translate(${eyeX}, ${eyeY})`)
+          .attr('fill', 'none')
+          .attr('stroke', palette.textMuted)
+          .attr('stroke-width', 1.2)
+          .attr('stroke-linecap', 'round')
+          .attr('stroke-linejoin', 'round');
+      }
+
       // Entries inside capsule (active only)
       if (isActive) {
-        let entryX = pillXOff + pillWidth + 4;
+        const eyeShift = fixedLegend ? LEGEND_EYE_SIZE + LEGEND_EYE_GAP : 0;
+        let entryX = pillXOff + pillWidth + 4 + eyeShift;
         for (const entry of group.entries) {
           const entryG = gEl
             .append('g')

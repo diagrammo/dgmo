@@ -110,6 +110,8 @@ const LEGEND_ENTRY_FONT_W = 10 * 0.6;
 const LEGEND_ENTRY_DOT_GAP = 4;
 const LEGEND_ENTRY_TRAIL = 8;
 const LEGEND_GROUP_GAP = 12;
+const LEGEND_EYE_SIZE = 14;
+const LEGEND_EYE_GAP = 6;
 
 // ============================================================
 // Helpers
@@ -263,7 +265,7 @@ function centerHeavyChildren(node: TreeNode): void {
 
 function computeLegendGroups(
   tagGroups: OrgTagGroup[],
-  _showEyeIcons: boolean,
+  showEyeIcons: boolean,
   usedValuesByGroup?: Map<string, Set<string>>
 ): OrgLegendGroup[] {
   const groups: OrgLegendGroup[] = [];
@@ -291,8 +293,9 @@ function computeLegendGroups(
         entry.value.length * LEGEND_ENTRY_FONT_W +
         LEGEND_ENTRY_TRAIL;
     }
+    const eyeSpace = showEyeIcons ? LEGEND_EYE_SIZE + LEGEND_EYE_GAP : 0;
     const capsuleWidth =
-      LEGEND_CAPSULE_PAD * 2 + pillWidth + 4 + entriesWidth;
+      LEGEND_CAPSULE_PAD * 2 + pillWidth + 4 + eyeSpace + entriesWidth;
 
     groups.push({
       name: group.name,
