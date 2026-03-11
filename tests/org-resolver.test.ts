@@ -724,4 +724,20 @@ CEO
     expect(result.importSourceMap[aliceIdx + 1]).not.toBeNull();
     expect(result.importSourceMap[aliceIdx + 1]!.filePath).toBe('/proj/team.dgmo');
   });
+
+  // ----------------------------------------------------------
+  // Regression: title line with trailing whitespace must be preserved
+  // ----------------------------------------------------------
+  it('preserves title: line that has trailing whitespace', async () => {
+    const tagsFile = `tag: Status alias s\n  Active(green)\n  Inactive(gray)\n`;
+    const content = `chart: org\ntitle: My Org \nsub-node-label: Reports\ntags: tags.dgmo\n\nAlice\n  Bob\n`;
+
+    const reader = mockReader({ '/proj/tags.dgmo': tagsFile });
+    const result = await resolveOrgImports(content, '/proj/org.dgmo', reader);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.content).toContain('title: My Org');
+
+    const parsed = parseOrg(result.content);
+    expect(parsed.title).toBe('My Org');
+  });
 });

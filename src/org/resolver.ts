@@ -228,7 +228,7 @@ async function resolveFile(
       continue;
     }
     if (isTagBlockHeading(trimmed)) continue; // skip inline tag group headings
-    if (lines[i] !== trimmed) continue; // skip tag group entries (indented lines)
+    if (/^\s/.test(lines[i])) continue; // skip tag group entries (indented lines)
 
     const tagsMatch = trimmed.match(TAGS_RE);
     if (tagsMatch) {
