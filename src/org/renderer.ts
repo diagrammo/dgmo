@@ -130,14 +130,19 @@ export function renderOrg(
   const fixedLegend = !exportDims && hasLegend && !legendOnly;
   const legendReserve = fixedLegend ? LEGEND_HEIGHT + LEGEND_FIXED_GAP : 0;
 
+  // Similarly, render the title at fixed size outside the scaled group in
+  // non-export mode so it stays legible regardless of how small the chart scale is.
+  const fixedTitle = !exportDims && !!parsed.title;
+  const titleReserve = fixedTitle ? TITLE_HEIGHT : 0;
+
   // Compute scale to fit diagram in viewport
   const diagramW = layout.width;
-  let diagramH = layout.height + titleOffset;
+  let diagramH = layout.height + (fixedTitle ? 0 : titleOffset);
   if (fixedLegend) {
     // Remove the legend space from diagram height — legend is rendered separately
     diagramH -= layoutLegendShift;
   }
-  const availH = height - DIAGRAM_PADDING * 2 - legendReserve;
+  const availH = height - DIAGRAM_PADDING * 2 - legendReserve - titleReserve;
   const scaleX = (width - DIAGRAM_PADDING * 2) / diagramW;
   const scaleY = availH / diagramH;
   const scale = Math.min(MAX_SCALE, scaleX, scaleY);
@@ -147,8 +152,8 @@ export function renderOrg(
   const offsetX = (width - scaledW) / 2;
   const offsetY =
     legendPosition === 'top' && fixedLegend
-      ? DIAGRAM_PADDING + legendReserve
-      : DIAGRAM_PADDING;
+      ? DIAGRAM_PADDING + legendReserve + titleReserve
+      : DIAGRAM_PADDING + titleReserve;
 
   // Create SVG
   const svg = d3Selection
@@ -164,11 +169,17 @@ export function renderOrg(
     .attr('transform', `translate(${offsetX}, ${offsetY}) scale(${scale})`);
 
   // Title
+  // In non-export mode (fixedTitle), render at native size directly on the SVG
+  // so it stays legible regardless of chart scale. In export mode, render inside
+  // mainG so it scales with the diagram to match the exported dimensions.
   if (parsed.title) {
-    const titleEl = mainG
+    const titleParent = fixedTitle ? svg : mainG;
+    const titleX = fixedTitle ? width / 2 : diagramW / 2;
+    const titleY = fixedTitle ? DIAGRAM_PADDING + TITLE_FONT_SIZE : TITLE_FONT_SIZE;
+    const titleEl = titleParent
       .append('text')
-      .attr('x', diagramW / 2)
-      .attr('y', TITLE_FONT_SIZE)
+      .attr('x', titleX)
+      .attr('y', titleY)
       .attr('text-anchor', 'middle')
       .attr('fill', palette.text)
       .attr('font-size', TITLE_FONT_SIZE)
@@ -195,10 +206,10 @@ export function renderOrg(
     }
   }
 
-  // Content group (offset by title)
+  // Content group (offset by title — only when title is inside the scaled group)
   const contentG = mainG
     .append('g')
-    .attr('transform', `translate(0, ${titleOffset})`);
+    .attr('transform', `translate(0, ${fixedTitle ? 0 : titleOffset})`);
 
   // Build display name map from tag groups (lowercase key → original casing)
   const displayNames = new Map<string, string>();
@@ -509,7 +520,7 @@ export function renderOrg(
             'transform',
             legendPosition === 'bottom'
               ? `translate(0, ${height - DIAGRAM_PADDING - LEGEND_HEIGHT})`
-              : `translate(0, ${DIAGRAM_PADDING})`
+              : `translate(0, ${DIAGRAM_PADDING + titleReserve})`
           )
       : contentG;
 
