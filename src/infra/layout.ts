@@ -111,8 +111,8 @@ const DISPLAY_KEYS = new Set([
 /** Display names for width estimation. */
 const DISPLAY_NAMES: Record<string, string> = {
   'cache-hit': 'cache hit', 'firewall-block': 'fw block',
-  'ratelimit-rps': 'rate limit', 'latency-ms': 'latency', 'uptime': 'uptime',
-  'instances': 'instances', 'max-rps': 'capacity',
+  'ratelimit-rps': 'rate limit RPS', 'latency-ms': 'latency', 'uptime': 'uptime',
+  'instances': 'instances', 'max-rps': 'max RPS',
   'cb-error-threshold': 'CB error', 'cb-latency-threshold-ms': 'CB latency',
   'concurrency': 'concurrency', 'duration-ms': 'duration', 'cold-start-ms': 'cold start',
   'buffer': 'buffer', 'drain-rate': 'drain', 'retention-hours': 'retention', 'partitions': 'partitions',

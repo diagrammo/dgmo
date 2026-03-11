@@ -91,8 +91,25 @@ API
   max-rps: 100
   cb-error-threshold: 50%`, 'light', 'API');
     // CB threshold shown as key-value row
-    expect(svg).toContain('CB error: ');
+    expect(svg).toContain('CB error threshold: ');
     expect(svg).toContain('>50%<');
+    // max-rps label
+    expect(svg).toContain('max RPS: ');
+    expect(svg).not.toContain('capacity: ');
+  });
+
+  it('renders ratelimit-rps and cb-latency-threshold-ms with correct labels', () => {
+    const svg = renderToSvg(`chart: infra
+edge
+  rps: 5000
+  -> API
+API
+  ratelimit-rps: 1000
+  cb-latency-threshold-ms: 200`, 'light', 'API');
+    expect(svg).toContain('rate limit RPS: ');
+    expect(svg).toContain('CB latency threshold: ');
+    expect(svg).not.toContain('rate limit: ');
+    expect(svg).not.toContain('cb latency threshold: ');
   });
 
   it('renders Capabilities legend pill; dots only when active', () => {

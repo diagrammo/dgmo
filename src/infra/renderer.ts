@@ -52,6 +52,9 @@ const LEGEND_ENTRY_DOT_GAP = 4;
 const LEGEND_ENTRY_TRAIL = 8;
 const LEGEND_GROUP_GAP = 12;
 const LEGEND_FIXED_GAP = 16; // gap between fixed legend and scaled diagram
+const SPEED_BADGE_H_PAD = 5; // horizontal padding inside active speed badge
+const SPEED_BADGE_V_PAD = 3; // vertical padding inside active speed badge
+const SPEED_BADGE_GAP = 6;   // gap between speed option slots
 
 // Health colors (from UX spec)
 const COLOR_HEALTHY = '#22c55e';
@@ -193,13 +196,13 @@ function isWarning(node: InfraLayoutNode): boolean {
 const PROP_DISPLAY: Record<string, string> = {
   'cache-hit': 'cache hit',
   'firewall-block': 'firewall block',
-  'ratelimit-rps': 'rate limit',
+  'ratelimit-rps': 'rate limit RPS',
   'latency-ms': 'latency',
   'uptime': 'uptime',
   'instances': 'instances',
-  'max-rps': 'capacity',
-  'cb-error-threshold': 'cb error threshold',
-  'cb-latency-threshold-ms': 'cb latency threshold',
+  'max-rps': 'max RPS',
+  'cb-error-threshold': 'CB error threshold',
+  'cb-latency-threshold-ms': 'CB latency threshold',
   'concurrency': 'concurrency',
   'duration-ms': 'duration',
   'cold-start-ms': 'cold start',
@@ -1317,7 +1320,7 @@ function computePlaybackWidth(playback: InfraPlaybackState | undefined): number 
   let entriesW = 8; // gap after pill
   entriesW += LEGEND_PILL_FONT_SIZE * 0.8 + 6; // play/pause
   for (const s of playback.speedOptions) {
-    entriesW += `${s}x`.length * LEGEND_ENTRY_FONT_W + 6;
+    entriesW += `${s}x`.length * LEGEND_ENTRY_FONT_W + SPEED_BADGE_H_PAD * 2 + SPEED_BADGE_GAP;
   }
   return LEGEND_CAPSULE_PAD * 2 + pillWidth + entriesW;
 }
@@ -1523,17 +1526,35 @@ function renderLegend(
       for (const s of playback.speedOptions) {
         const label = `${s}x`;
         const isActive = playback.speed === s;
-        pbG.append('text')
-          .attr('x', entryX).attr('y', entryY)
+        const slotW = label.length * LEGEND_ENTRY_FONT_W + SPEED_BADGE_H_PAD * 2;
+        const badgeH = LEGEND_ENTRY_FONT_SIZE + SPEED_BADGE_V_PAD * 2;
+        const badgeY = (LEGEND_HEIGHT - badgeH) / 2;
+
+        // Wrap in <g> with data attrs so a single element carries the action,
+        // and both rect and text inherit the hit target cleanly.
+        const speedG = pbG.append('g')
+          .attr('data-playback-action', 'set-speed')
+          .attr('data-playback-value', String(s))
+          .style('cursor', 'pointer');
+
+        // Badge rect: filled for active, transparent hit-target for inactive
+        speedG.append('rect')
+          .attr('x', entryX)
+          .attr('y', badgeY)
+          .attr('width', slotW)
+          .attr('height', badgeH)
+          .attr('rx', badgeH / 2)
+          .attr('fill', isActive ? palette.primary : 'transparent');
+
+        speedG.append('text')
+          .attr('x', entryX + slotW / 2).attr('y', entryY)
           .attr('font-family', FONT_FAMILY)
           .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
           .attr('font-weight', isActive ? '600' : '400')
-          .attr('fill', isActive ? palette.primary : palette.textMuted)
-          .attr('data-playback-action', 'set-speed')
-          .attr('data-playback-value', String(s))
-          .style('cursor', 'pointer')
+          .attr('fill', isActive ? palette.bg : palette.textMuted)
+          .attr('text-anchor', 'middle')
           .text(label);
-        entryX += label.length * LEGEND_ENTRY_FONT_W + 6;
+        entryX += slotW + SPEED_BADGE_GAP;
       }
     }
 
