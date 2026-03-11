@@ -41,6 +41,7 @@ export interface InfraLayoutNode {
   properties: ComputedInfraNode['properties'];
   queueMetrics?: ComputedInfraNode['queueMetrics'];
   tags: Record<string, string>;
+  description?: string;
   lineNumber: number;
 }
 
@@ -134,13 +135,13 @@ function countDisplayProps(node: ComputedInfraNode, expanded: boolean, options?:
   return count;
 }
 
-/** Count computed rows shown below declared props. When expanded, shows p50/p90/p99; otherwise just p99. */
+/** Count computed rows shown below declared props. When expanded, shows p50/p90/p99; otherwise just p90. */
 function countComputedRows(node: ComputedInfraNode, expanded: boolean): number {
   let count = 0;
   // Serverless instances row
   if (node.computedConcurrentInvocations > 0) count += 1;
   const p = node.computedLatencyPercentiles;
-  if (p.p50 > 0 || p.p90 > 0 || p.p99 > 0) count += expanded ? 3 : 1; // all percentiles or just p99
+  if (p.p50 > 0 || p.p90 > 0 || p.p99 > 0) count += expanded ? 3 : 1; // all percentiles or just p90
   if (node.computedUptime < 1) {
     const declaredUptime = node.properties.find((p) => p.key === 'uptime');
     const declaredVal = declaredUptime ? Number(declaredUptime.value) / 100 : 1;
@@ -197,7 +198,7 @@ function computeNodeWidth(node: ComputedInfraNode, expanded: boolean, options?: 
       if (expanded) {
         allKeys.push('p50', 'p90', 'p99');
       } else {
-        allKeys.push('p99');
+        allKeys.push('p90');
       }
     }
     if (node.computedUptime < 1) {
@@ -254,14 +255,28 @@ function computeNodeWidth(node: ComputedInfraNode, expanded: boolean, options?: 
       maxRowWidth = Math.max(maxRowWidth, (maxKeyLen + 2 + valLen) * META_CHAR_WIDTH);
     }
   }
-  // Computed row widths (e.g., "p99: 120ms")
+  // Computed row widths (e.g., "p90: 520ms" or "p90: 520ms / 500ms" when SLO configured)
   if (computedRows > 0) {
     const perc = node.computedLatencyPercentiles;
-    const msValues = expanded ? [perc.p50, perc.p90, perc.p99] : [perc.p99];
+    const msValues = expanded ? [perc.p50, perc.p90, perc.p99] : [perc.p90];
     for (const ms of msValues) {
       if (ms > 0) {
         const valLen = formatMs(ms).length;
         maxRowWidth = Math.max(maxRowWidth, (maxKeyLen + 2 + valLen) * META_CHAR_WIDTH);
+      }
+    }
+    // p90 may show "<current> / <threshold>" when non-green. Always reserve combined width
+    // so node width doesn't reflow when SLO state transitions from green to warning/overloaded.
+    if (perc.p90 > 0) {
+      const rawThreshold =
+        node.properties.find((p) => p.key === 'slo-p90-latency-ms')?.value ??
+        options?.['slo-p90-latency-ms'];
+      const threshold = rawThreshold != null ? parseFloat(String(rawThreshold)) : NaN;
+      if (!isNaN(threshold) && threshold > 0) {
+        // formatMs here must produce the same string as formatMsShort in renderer.ts — both are identical.
+        // If either changes, the reserved width and the rendered text will diverge.
+        const combinedVal = `${formatMs(perc.p90)} / ${formatMs(threshold)}`;
+        maxRowWidth = Math.max(maxRowWidth, (maxKeyLen + 2 + combinedVal.length) * META_CHAR_WIDTH);
       }
     }
     if (node.computedUptime < 1) {
@@ -278,16 +293,21 @@ function computeNodeWidth(node: ComputedInfraNode, expanded: boolean, options?: 
     }
   }
 
-  return Math.max(MIN_NODE_WIDTH, labelWidth, maxRowWidth + 20);
+  const DESC_MAX_CHARS = 120;
+  const descText = (expanded && node.description && !node.isEdge) ? node.description : '';
+  const descTruncated = descText.length > DESC_MAX_CHARS ? descText.slice(0, DESC_MAX_CHARS - 1) + '…' : descText;
+  const descWidth = descTruncated.length > 0 ? descTruncated.length * META_CHAR_WIDTH + PADDING_X : 0;
+  return Math.max(MIN_NODE_WIDTH, labelWidth, maxRowWidth + 20, descWidth);
 }
 
 function computeNodeHeight(node: ComputedInfraNode, expanded: boolean, options?: Record<string, string>): number {
   const propCount = countDisplayProps(node, expanded, options);
   const computedCount = countComputedRows(node, expanded);
   const hasRps = node.computedRps > 0;
-  if (propCount === 0 && computedCount === 0 && !hasRps) return NODE_HEADER_HEIGHT + NODE_PAD_BOTTOM;
+  const descH = expanded && node.description && !node.isEdge ? META_LINE_HEIGHT : 0;
+  if (propCount === 0 && computedCount === 0 && !hasRps) return NODE_HEADER_HEIGHT + descH + NODE_PAD_BOTTOM;
 
-  let h = NODE_HEADER_HEIGHT + NODE_SEPARATOR_GAP;
+  let h = NODE_HEADER_HEIGHT + descH + NODE_SEPARATOR_GAP;
   // Computed section: RPS + computed rows
   const computedSectionCount = (hasRps ? 1 : 0) + computedCount;
   h += computedSectionCount * META_LINE_HEIGHT;
@@ -496,6 +516,7 @@ export function layoutInfra(computed: ComputedInfraModel, selectedNodeId?: strin
       queueMetrics: node.queueMetrics,
       properties: node.properties,
       tags: node.tags,
+      description: node.description,
       lineNumber: node.lineNumber,
     };
   });

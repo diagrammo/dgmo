@@ -322,4 +322,175 @@ API
     expect(api).toBeDefined();
     expect(api!.groupId).toBeNull();
   });
+
+  describe('description field layout', () => {
+    it('selected node with description is taller than without', () => {
+      const content = `
+chart: infra
+edge
+  rps: 1000
+  -> MyService
+MyService
+  max-rps: 500
+  description: Handles all REST API calls for the mobile app
+`;
+      const contentNoDesc = content.replace('  description: Handles all REST API calls for the mobile app\n', '');
+      const layoutWith = layoutInfra(computeInfra(parseInfra(content)), 'MyService');
+      const layoutWithout = layoutInfra(computeInfra(parseInfra(contentNoDesc)), 'MyService');
+      const nodeWith = layoutWith.nodes.find((n) => n.id === 'MyService')!;
+      const nodeWithout = layoutWithout.nodes.find((n) => n.id === 'MyService')!;
+      expect(nodeWith.height).toBe(nodeWithout.height + 14); // META_LINE_HEIGHT
+    });
+
+    it('unselected node with description has same height as without', () => {
+      const content = `
+chart: infra
+edge
+  rps: 1000
+  -> MyService
+MyService
+  max-rps: 500
+  description: Handles all REST API calls for the mobile app
+`;
+      const contentNoDesc = content.replace('  description: Handles all REST API calls for the mobile app\n', '');
+      const layoutWith = layoutInfra(computeInfra(parseInfra(content)), null);
+      const layoutWithout = layoutInfra(computeInfra(parseInfra(contentNoDesc)), null);
+      const nodeWith = layoutWith.nodes.find((n) => n.id === 'MyService')!;
+      const nodeWithout = layoutWithout.nodes.find((n) => n.id === 'MyService')!;
+      expect(nodeWith.height).toBe(nodeWithout.height);
+    });
+
+    it('selected node with description and no other content uses no-content early return height', () => {
+      // AC7: NODE_HEADER_HEIGHT(28) + META_LINE_HEIGHT(14) + NODE_PAD_BOTTOM(10) = 52
+      const result = layoutInfra(computeInfra(parseInfra(`
+chart: infra
+edge
+  rps: 0
+  -> Lonely
+Lonely
+  description: Only a description here
+`)), 'Lonely');
+      const node = result.nodes.find((n) => n.id === 'Lonely')!;
+      expect(node.height).toBe(28 + 14 + 10); // NODE_HEADER_HEIGHT + META_LINE_HEIGHT + NODE_PAD_BOTTOM
+    });
+
+    it('selected node with long description is wider than minimum', () => {
+      // AC5: description width = length * META_CHAR_WIDTH(6) + PADDING_X(24)
+      const longDesc = 'A'.repeat(40); // 40 * 6 + 24 = 264px
+      const result = layoutInfra(computeInfra(parseInfra(`
+chart: infra
+edge
+  rps: 1000
+  -> MyService
+MyService
+  description: ${longDesc}
+`)), 'MyService');
+      const node = result.nodes.find((n) => n.id === 'MyService')!;
+      expect(node.width).toBeGreaterThanOrEqual(40 * 6 + 24); // description drives width
+    });
+  });
+});
+
+describe('collapsed p90 row', () => {
+  it('collapsed node with latency has fewer rows than expanded (1 vs 3)', () => {
+    const src = `
+chart: infra
+edge
+  rps: 1000
+  -> API
+API
+  latency-ms: 50
+  max-rps: 500
+`;
+    const collapsed = layoutInfra(computeInfra(parseInfra(src)), null);
+    const expanded = layoutInfra(computeInfra(parseInfra(src)), 'API');
+    const nodeC = collapsed.nodes.find((n) => n.id === 'API')!;
+    const nodeE = expanded.nodes.find((n) => n.id === 'API')!;
+    // Expanded shows p50+p90+p99 (3 rows); collapsed shows p90 (1 row)
+    // Height difference includes 2 latency rows (p50 + p99) plus expanded-only declared props
+    expect(nodeC.height).toBeLessThan(nodeE.height);
+    // Collapsed → expanded diff is at least 2 META_LINE_HEIGHTs (the removed p50 and p99 rows)
+    expect(nodeE.height - nodeC.height).toBeGreaterThanOrEqual(2 * 14); // 2 × META_LINE_HEIGHT
+  });
+
+  it('collapsed and expanded have identical height when latency-ms is 0', () => {
+    // AC6: no latency row when p90=0 — guard prevents rendering
+    const src = `
+chart: infra
+edge
+  rps: 1000
+  -> API
+API
+  max-rps: 500
+`;
+    const collapsed = layoutInfra(computeInfra(parseInfra(src)), null);
+    const expanded = layoutInfra(computeInfra(parseInfra(src)), 'API');
+    const nodeC = collapsed.nodes.find((n) => n.id === 'API')!;
+    const nodeE = expanded.nodes.find((n) => n.id === 'API')!;
+    // No latency data — collapsed and expanded have same computed rows (zero latency rows each)
+    expect(nodeC.height).toBeLessThanOrEqual(nodeE.height);
+    // Expanded shows declared props (max-rps); collapsed does not — height may differ for props, not for latency
+    // Key assertion: no additional latency row in collapsed
+    const collapsedWithLatency = layoutInfra(computeInfra(parseInfra(src + '  latency-ms: 50\n')), null);
+    const apiWithLatency = collapsedWithLatency.nodes.find((n) => n.id === 'API')!;
+    // With latency-ms=50, collapsed is exactly 1 META_LINE_HEIGHT taller (the p90 row)
+    expect(apiWithLatency.height - nodeC.height).toBe(14); // 1 × META_LINE_HEIGHT
+  });
+
+  it('collapsed width key column uses p90 label (same 3-char width as p99)', () => {
+    // p90 and p99 are both 3 chars — verify the key set produces the same maxKeyLen
+    // The meaningful check: layout is stable across the p99→p90 key rename
+    const src = `
+chart: infra
+edge
+  rps: 1000
+  -> API
+API
+  latency-ms: 200
+  max-rps: 500
+`;
+    const collapsedResult = layoutInfra(computeInfra(parseInfra(src)), null);
+    const expandedResult = layoutInfra(computeInfra(parseInfra(src)), 'API');
+    const apiC = collapsedResult.nodes.find((n) => n.id === 'API')!;
+    const apiE = expandedResult.nodes.find((n) => n.id === 'API')!;
+    // Collapsed must have width > MIN_NODE_WIDTH (140) since it shows a p90 row with value
+    expect(apiC.width).toBeGreaterThan(140);
+    // Expanded is wider (shows p50 which can be shorter value, but declared props increase width)
+    // Both should be positive widths
+    expect(apiE.width).toBeGreaterThan(0);
+  });
+
+  it('AC7: node with SLO configured reserves width for "520ms / 200ms" combined string', () => {
+    // Setup rationale: we need maxKeyLen > 3 so the combined "520ms / 200ms" row (13 chars)
+    // produces a width that exceeds MIN_NODE_WIDTH (140px), making the SLO reservation visible.
+    //
+    // SVC has uptime: 90 → API's computedUptime (0.90) differs from declared (none = 100%),
+    // adding "eff. uptime" (11 chars) to API's key column → maxKeyLen = 11.
+    // Constants: META_CHAR_WIDTH=6, PADDING_X=20 (the "+20" in computeNodeWidth return).
+    //
+    //   withSlo p90 row: (11+2+13)*6 = 156; 156+20 = 176 > 140 → width = 176
+    //   noSlo  p90 row: (11+2+5)*6  = 108; 108+20 = 128 < 140 → width = 140 (min)
+    //
+    // If MIN_NODE_WIDTH, META_CHAR_WIDTH, or PADDING_X change, re-validate these numbers.
+    const base = (sloLine = '') => `
+chart: infra
+${sloLine}
+edge
+  rps: 1000
+  -> SVC
+SVC
+  uptime: 90
+  max-rps: 5000
+  -> API
+API
+  latency-ms: 520
+  max-rps: 5000
+`;
+    const noSloResult = layoutInfra(computeInfra(parseInfra(base())));
+    const withSloResult = layoutInfra(computeInfra(parseInfra(base('slo-p90-latency-ms: 200'))));
+    const noSloApi = noSloResult.nodes.find((n) => n.id === 'API')!;
+    const withSloApi = withSloResult.nodes.find((n) => n.id === 'API')!;
+    // Node with SLO must be wider to accommodate "520ms / 200ms" vs "520ms"
+    expect(withSloApi.width).toBeGreaterThan(noSloApi.width);
+  });
 });

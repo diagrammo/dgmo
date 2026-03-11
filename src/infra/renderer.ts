@@ -189,25 +189,33 @@ function isWarning(node: InfraLayoutNode): boolean {
 // Helpers
 // ============================================================
 
-/** Display names for behavior property keys. */
+/** Display names for behavior property keys. Aligned with DSL property names. */
 const PROP_DISPLAY: Record<string, string> = {
   'cache-hit': 'cache hit',
-  'firewall-block': 'fw block',
+  'firewall-block': 'firewall block',
   'ratelimit-rps': 'rate limit',
   'latency-ms': 'latency',
   'uptime': 'uptime',
   'instances': 'instances',
   'max-rps': 'capacity',
-  'cb-error-threshold': 'CB error',
-  'cb-latency-threshold-ms': 'CB latency',
+  'cb-error-threshold': 'cb error threshold',
+  'cb-latency-threshold-ms': 'cb latency threshold',
   'concurrency': 'concurrency',
   'duration-ms': 'duration',
   'cold-start-ms': 'cold start',
   'buffer': 'buffer',
-  'drain-rate': 'drain',
+  'drain-rate': 'drain rate',
   'retention-hours': 'retention',
   'partitions': 'partitions',
 };
+
+const DESC_MAX_CHARS = 120;
+
+/** Truncate description text to DESC_MAX_CHARS. */
+function truncateDesc(text: string): string {
+  if (text.length <= DESC_MAX_CHARS) return text;
+  return text.slice(0, DESC_MAX_CHARS - 1) + '…';
+}
 
 /** Keys whose values are RPS counts and should be formatted like RPS. */
 const RPS_FORMAT_KEYS = new Set(['max-rps', 'ratelimit-rps']);
@@ -217,6 +225,15 @@ const MS_FORMAT_KEYS = new Set(['latency-ms', 'cb-latency-threshold-ms', 'durati
 
 /** Keys whose values are percentages and should show the "%" suffix. */
 const PCT_FORMAT_KEYS = new Set(['cache-hit', 'firewall-block', 'uptime', 'cb-error-threshold']);
+
+/** Compute SLO color for a p90 latency value against the configured threshold.
+ *  Callers must guard slo.latencyP90 != null before calling. */
+function sloLatencyColor(p90: number, slo: NodeSlo): string {
+  const t = slo.latencyP90 ?? 0;
+  if (t === 0) return COLOR_HEALTHY; // no meaningful threshold — treat as healthy
+  const m = slo.warningMargin;
+  return p90 > t ? COLOR_OVERLOADED : p90 > t * (1 - m) ? COLOR_WARNING : COLOR_HEALTHY;
+}
 
 /** Computed metric rows (latency percentiles, uptime, availability, CB state) shown after declared props. */
 function getComputedRows(node: InfraLayoutNode, expanded: boolean, slo?: NodeSlo | null): ComputedRow[] {
@@ -239,17 +256,27 @@ function getComputedRows(node: InfraLayoutNode, expanded: boolean, slo?: NodeSlo
     if (expanded) {
       rows.push({ key: 'p50', value: formatMsShort(p.p50) });
       if (slo?.latencyP90 != null) {
-        const t = slo.latencyP90;
-        const m = slo.warningMargin;
-        const color = p.p90 > t ? COLOR_OVERLOADED
-          : p.p90 > t * (1 - m) ? COLOR_WARNING
-          : COLOR_HEALTHY;
-        rows.push({ key: 'p90', value: formatMsShort(p.p90), color, inverted: color !== COLOR_HEALTHY });
+        const color = sloLatencyColor(p.p90, slo);
+        const p90Value = color !== COLOR_HEALTHY
+          ? `${formatMsShort(p.p90)} / ${formatMsShort(slo.latencyP90!)}`
+          : formatMsShort(p.p90);
+        rows.push({ key: 'p90', value: p90Value, color, inverted: color !== COLOR_HEALTHY });
+      } else {
+        rows.push({ key: 'p90', value: formatMsShort(p.p90) });
+      }
+      rows.push({ key: 'p99', value: formatMsShort(p.p99) });
+    } else if (p.p90 > 0) {
+      // Collapsed: show p90 (with SLO color if configured) instead of p99
+      if (slo?.latencyP90 != null) {
+        const color = sloLatencyColor(p.p90, slo);
+        const p90Value = color !== COLOR_HEALTHY
+          ? `${formatMsShort(p.p90)} / ${formatMsShort(slo.latencyP90!)}`
+          : formatMsShort(p.p90);
+        rows.push({ key: 'p90', value: p90Value, color, inverted: color !== COLOR_HEALTHY });
       } else {
         rows.push({ key: 'p90', value: formatMsShort(p.p90) });
       }
     }
-    rows.push({ key: 'p99', value: formatMsShort(p.p99) });
   }
   // Computed (cumulative) uptime — only show when it differs from the declared node uptime.
   // On the edge node this is the system-wide uptime; on other nodes it's the path product.
@@ -370,6 +397,7 @@ function getDisplayProps(node: InfraLayoutNode, expanded: boolean, diagramOption
   }
   return rows;
 }
+
 
 function formatRps(rps: number): string {
   if (rps >= 1000) return `${(rps / 1000).toFixed(1)}k rps`;
@@ -822,15 +850,18 @@ function renderNodes(
 
       // Description subtitle — shown below label only when node is selected
       const descH = (expanded && node.description && !node.isEdge) ? META_LINE_HEIGHT : 0;
-      if (descH > 0) {
-        g.append('text')
+      if (descH > 0 && node.description) {
+        const descTruncated = truncateDesc(node.description);
+        const isTruncated = descTruncated !== node.description;
+        const textEl = g.append('text')
           .attr('x', node.x)
           .attr('y', y + NODE_HEADER_HEIGHT + META_LINE_HEIGHT / 2 + META_FONT_SIZE * 0.35)
           .attr('text-anchor', 'middle')
           .attr('font-family', FONT_FAMILY)
           .attr('font-size', META_FONT_SIZE)
           .attr('fill', mutedColor)
-          .text(node.description ?? '');
+          .text(descTruncated);
+        if (isTruncated) textEl.append('title').text(node.description);
       }
 
       // Declared properties only shown when node is selected (expanded)
