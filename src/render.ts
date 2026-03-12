@@ -52,7 +52,7 @@ export async function render(
     c4Level?: 'context' | 'containers' | 'components' | 'deployment';
     c4System?: string;
     c4Container?: string;
-    scenario?: string;
+    tagGroup?: string;
   },
 ): Promise<string> {
   const theme = options?.theme ?? 'light';
@@ -75,6 +75,6 @@ export async function render(
     c4Level: options?.c4Level,
     c4System: options?.c4System,
     c4Container: options?.c4Container,
-    scenario: options?.scenario,
+    tagGroup: options?.tagGroup,
   });
 }

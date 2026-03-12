@@ -73,6 +73,7 @@ Options:
   --c4-level <level>   C4 render level: context (default), containers, components, deployment
   --c4-system <name>   System to drill into (with --c4-level containers or components)
   --c4-container <name> Container to drill into (with --c4-level components)
+  --tag-group <name>   Pre-select a tag group for static export coloring
   --no-branding        Omit diagrammo.app branding from exports
   --copy               Copy URL to clipboard (only with -o url)
   --json               Output structured JSON to stdout
@@ -102,8 +103,7 @@ function parseArgs(argv: string[]): {
   c4Level: 'context' | 'containers' | 'components' | 'deployment';
   c4System: string | undefined;
   c4Container: string | undefined;
-  scenario: string | undefined;
-  listScenarios: boolean;
+  tagGroup: string | undefined;
 } {
   const result = {
     input: undefined as string | undefined,
@@ -119,8 +119,7 @@ function parseArgs(argv: string[]): {
     c4Level: 'context' as 'context' | 'containers' | 'components' | 'deployment',
     c4System: undefined as string | undefined,
     c4Container: undefined as string | undefined,
-    scenario: undefined as string | undefined,
-    listScenarios: false,
+    tagGroup: undefined as string | undefined,
   };
 
   const args = argv.slice(2); // skip node + script
@@ -174,11 +173,8 @@ function parseArgs(argv: string[]): {
     } else if (arg === '--c4-container') {
       result.c4Container = args[++i];
       i++;
-    } else if (arg === '--scenario') {
-      result.scenario = args[++i];
-      i++;
-    } else if (arg === '--list-scenarios') {
-      result.listScenarios = true;
+    } else if (arg === '--tag-group') {
+      result.tagGroup = args[++i];
       i++;
     } else if (arg === '--no-branding') {
       result.noBranding = true;
@@ -440,34 +436,6 @@ async function main(): Promise<void> {
     }
   }
 
-  // List scenarios (infra diagrams)
-  if (opts.listScenarios) {
-    const { parseInfra } = await import('./infra/parser');
-    const infraParsed = parseInfra(content);
-    if (infraParsed.scenarios.length === 0) {
-      console.log('(no scenarios defined)');
-    } else {
-      for (const s of infraParsed.scenarios) {
-        console.log(s.name);
-      }
-    }
-    return;
-  }
-
-  // Validate --scenario name against defined scenarios
-  if (opts.scenario) {
-    const { parseInfra } = await import('./infra/parser');
-    const infraParsed = parseInfra(content);
-    const match = infraParsed.scenarios.find((s) => s.name.toLowerCase() === opts.scenario!.toLowerCase());
-    if (!match) {
-      const available = infraParsed.scenarios.map((s) => s.name);
-      const msg = available.length > 0
-        ? `Error: Unknown scenario "${opts.scenario}". Available: ${available.join(', ')}`
-        : `Error: Unknown scenario "${opts.scenario}". No scenarios defined in this file.`;
-      exitWithJsonError(msg);
-    }
-  }
-
   // Validate C4 options
   if (opts.c4Level === 'containers' && !opts.c4System) {
     exitWithJsonError('Error: --c4-system is required when --c4-level is containers');
@@ -488,7 +456,7 @@ async function main(): Promise<void> {
     c4Level: opts.c4Level,
     c4System: opts.c4System,
     c4Container: opts.c4Container,
-    scenario: opts.scenario,
+    tagGroup: opts.tagGroup,
   });
 
   if (!svg) {

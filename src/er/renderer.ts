@@ -9,6 +9,12 @@ import type { PaletteColors } from '../palettes';
 import { mix } from '../palettes/color-utils';
 import { getSeriesColors } from '../palettes';
 import { resolveTagColor } from '../utils/tag-groups';
+import {
+  LEGEND_HEIGHT,
+  LEGEND_PILL_PAD,
+  LEGEND_PILL_FONT_SIZE,
+  LEGEND_GROUP_GAP,
+} from '../utils/legend-constants';
 import type { ParsedERDiagram, ERConstraint } from './types';
 import type { ERLayoutResult, ERLayoutNode, ERLayoutEdge } from './layout';
 import { parseERDiagram } from './parser';
@@ -445,16 +451,16 @@ export function renderERDiagram(
 
   // ── Tag Legend ──
   if (parsed.tagGroups.length > 0) {
-    const LEGEND_Y_PAD = 16;
-    const LEGEND_PILL_H = 22;
-    const LEGEND_PILL_RX = 11;
-    const LEGEND_PILL_PAD = 10;
+    const LEGEND_PILL_H = LEGEND_HEIGHT - 6;
+    const LEGEND_PILL_RX = Math.floor(LEGEND_PILL_H / 2);
     const LEGEND_GAP = 8;
-    const LEGEND_FONT_SIZE = 11;
-    const LEGEND_GROUP_GAP = 16;
 
     const legendG = svg.append('g')
       .attr('class', 'er-tag-legend');
+
+    if (activeTagGroup) {
+      legendG.attr('data-legend-active', activeTagGroup.toLowerCase());
+    }
 
     let legendX = DIAGRAM_PADDING;
     let legendY = height - DIAGRAM_PADDING;
@@ -469,7 +475,7 @@ export function renderERDiagram(
         .attr('y', legendY + LEGEND_PILL_H / 2)
         .attr('dominant-baseline', 'central')
         .attr('fill', palette.textMuted)
-        .attr('font-size', LEGEND_FONT_SIZE)
+        .attr('font-size', LEGEND_PILL_FONT_SIZE)
         .attr('font-family', FONT_FAMILY)
         .text(`${group.name}:`);
 
@@ -484,7 +490,7 @@ export function renderERDiagram(
 
         // Estimate text width
         const tmpText = legendG.append('text')
-          .attr('font-size', LEGEND_FONT_SIZE)
+          .attr('font-size', LEGEND_PILL_FONT_SIZE)
           .attr('font-family', FONT_FAMILY)
           .text(entry.value);
         const textW = tmpText.node()?.getComputedTextLength?.() ?? entry.value.length * 7;
@@ -509,7 +515,7 @@ export function renderERDiagram(
           .attr('text-anchor', 'middle')
           .attr('dominant-baseline', 'central')
           .attr('fill', palette.text)
-          .attr('font-size', LEGEND_FONT_SIZE)
+          .attr('font-size', LEGEND_PILL_FONT_SIZE)
           .attr('font-family', FONT_FAMILY)
           .text(entry.value);
 

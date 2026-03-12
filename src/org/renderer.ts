@@ -10,6 +10,23 @@ import type { ParsedOrg } from './parser';
 import type { OrgLayoutResult, OrgLayoutNode } from './layout';
 import { parseOrg } from './parser';
 import { layoutOrg } from './layout';
+import {
+  LEGEND_HEIGHT,
+  LEGEND_PILL_PAD,
+  LEGEND_PILL_FONT_SIZE,
+  LEGEND_PILL_FONT_W,
+  LEGEND_CAPSULE_PAD,
+  LEGEND_DOT_R,
+  LEGEND_ENTRY_FONT_SIZE,
+  LEGEND_ENTRY_FONT_W,
+  LEGEND_ENTRY_DOT_GAP,
+  LEGEND_ENTRY_TRAIL,
+  LEGEND_GROUP_GAP,
+  LEGEND_EYE_SIZE,
+  LEGEND_EYE_GAP,
+  EYE_OPEN_PATH,
+  EYE_CLOSED_PATH,
+} from '../utils/legend-constants';
 
 // ============================================================
 // Constants
@@ -37,27 +54,7 @@ const CONTAINER_HEADER_HEIGHT = 28;
 const COLLAPSE_BAR_HEIGHT = 6;
 const COLLAPSE_BAR_INSET = 0;
 
-// Legend (kanban-style pills)
-const LEGEND_HEIGHT = 28;
-const LEGEND_PILL_PAD = 16;
-const LEGEND_PILL_FONT_SIZE = 11;
-const LEGEND_PILL_FONT_W = LEGEND_PILL_FONT_SIZE * 0.6;
-const LEGEND_CAPSULE_PAD = 4;
-const LEGEND_DOT_R = 4;
-const LEGEND_ENTRY_FONT_SIZE = 10;
-const LEGEND_ENTRY_FONT_W = LEGEND_ENTRY_FONT_SIZE * 0.6;
-const LEGEND_ENTRY_DOT_GAP = 4;
-const LEGEND_ENTRY_TRAIL = 8;
-const LEGEND_GROUP_GAP = 12;
-const LEGEND_EYE_SIZE = 14;
-const LEGEND_EYE_GAP = 6;
-const LEGEND_FIXED_GAP = 8; // gap between fixed legend and scaled diagram
-
-// Eye icon SVG paths (14×14 viewBox)
-const EYE_OPEN_PATH =
-  'M1 7s2.5-5 6-5 6 5 6 5-2.5 5-6 5-6-5-6-5z M7 9.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z';
-const EYE_CLOSED_PATH =
-  'M2.5 2.5l9 9 M1.5 7s2.2-4 5.5-4c1.2 0 2.2.5 3 1.1 M12.5 7s-2.2 4-5.5 4c-1.2 0-2.2-.5-3-1.1';
+const LEGEND_FIXED_GAP = 8; // gap between fixed legend and scaled diagram — local, not shared
 
 // ============================================================
 // Color helpers
@@ -117,7 +114,7 @@ export function renderOrg(
 
   const titleOffset = parsed.title ? TITLE_HEIGHT : 0;
   const legendOnly = layout.nodes.length === 0;
-  const legendPosition = parsed.options?.['legend-position'] ?? 'top';
+  const legendPosition = parsed.options?.['legend-position'] ?? 'bottom';
   const hasLegend = layout.legend.length > 0;
 
   // In app mode (not export), render the legend at a fixed size outside the
@@ -512,7 +509,7 @@ export function renderOrg(
     }
 
     // Choose parent: unscaled group for fixedLegend, contentG for legend-only
-    const legendParent = fixedLegend
+    const legendParentBase = fixedLegend
       ? svg
           .append('g')
           .attr('class', 'org-legend-fixed')
@@ -523,6 +520,10 @@ export function renderOrg(
               : `translate(0, ${DIAGRAM_PADDING + titleReserve})`
           )
       : contentG;
+    const legendParent = legendParentBase;
+    if (fixedLegend && activeTagGroup) {
+      legendParentBase.attr('data-legend-active', activeTagGroup.toLowerCase());
+    }
 
     for (const group of visibleGroups) {
       const isActive =

@@ -604,28 +604,8 @@ export function computeInfra(
   const defaultLatencyMs = parseFloat(parsed.options['default-latency-ms'] ?? '') || 0;
   const defaultUptime = parseFloat(parsed.options['default-uptime'] ?? '') || 100;
 
-  // Apply scenario overrides (shallow clone nodes with modified properties)
-  let effectiveNodes = parsed.nodes;
-  if (params.scenario) {
-    const overrides = params.scenario.overrides;
-    effectiveNodes = parsed.nodes.map((node) => {
-      const nodeOverrides = overrides[node.id];
-      if (!nodeOverrides) return node;
-      const props = node.properties.map((p) => {
-        const ov = nodeOverrides[p.key];
-        return ov != null ? { ...p, value: ov } : p;
-      });
-      // Add new properties from scenario that don't exist on the node
-      for (const [key, val] of Object.entries(nodeOverrides)) {
-        if (!props.some((p) => p.key === key)) {
-          props.push({ key, value: val, lineNumber: node.lineNumber });
-        }
-      }
-      return { ...node, properties: props };
-    });
-  }
   // Apply per-node property overrides (from interactive sliders)
-  // These take precedence over scenario overrides
+  let effectiveNodes = parsed.nodes;
   if (params.propertyOverrides) {
     const propOv = params.propertyOverrides;
     effectiveNodes = effectiveNodes.map((node) => {

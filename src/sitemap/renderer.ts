@@ -15,6 +15,23 @@ import type {
   SitemapContainerBounds,
   SitemapLegendGroup,
 } from './layout';
+import {
+  LEGEND_HEIGHT,
+  LEGEND_PILL_PAD,
+  LEGEND_PILL_FONT_SIZE,
+  LEGEND_PILL_FONT_W,
+  LEGEND_CAPSULE_PAD,
+  LEGEND_DOT_R,
+  LEGEND_ENTRY_FONT_SIZE,
+  LEGEND_ENTRY_FONT_W,
+  LEGEND_ENTRY_DOT_GAP,
+  LEGEND_ENTRY_TRAIL,
+  LEGEND_GROUP_GAP,
+  LEGEND_EYE_SIZE,
+  LEGEND_EYE_GAP,
+  EYE_OPEN_PATH,
+  EYE_CLOSED_PATH,
+} from '../utils/legend-constants';
 
 // ============================================================
 // Constants
@@ -44,21 +61,7 @@ const EDGE_LABEL_FONT_SIZE = 11;
 // Collapsed-node accent bar
 const COLLAPSE_BAR_HEIGHT = 6;
 
-// Legend
-const LEGEND_HEIGHT = 28;
-const LEGEND_FIXED_GAP = 8;
-const LEGEND_PILL_PAD = 16;
-const LEGEND_PILL_FONT_SIZE = 11;
-const LEGEND_PILL_FONT_W = LEGEND_PILL_FONT_SIZE * 0.6;
-const LEGEND_CAPSULE_PAD = 4;
-const LEGEND_DOT_R = 4;
-const LEGEND_ENTRY_FONT_SIZE = 10;
-const LEGEND_ENTRY_FONT_W = LEGEND_ENTRY_FONT_SIZE * 0.6;
-const LEGEND_ENTRY_DOT_GAP = 4;
-const LEGEND_ENTRY_TRAIL = 8;
-const LEGEND_GROUP_GAP = 12;
-const LEGEND_EYE_SIZE = 14;
-const LEGEND_EYE_GAP = 6;
+const LEGEND_FIXED_GAP = 8; // gap between fixed legend and scaled diagram — local, not shared
 
 // ============================================================
 // Color helpers
@@ -119,16 +122,17 @@ export function renderSitemap(
 
   const hasLegend = layout.legend.length > 0;
 
-  // In app mode (not export), render the title and legend at fixed size
-  // outside the scaled group so they stay legible on large sitemaps.
-  // Layout order: Title → Legend → Diagram content.
+  // In app mode (not export), render the title at fixed size outside the scaled group
+  // and legend at fixed size at the bottom.
+  // Layout order: Title → Diagram content → Legend (bottom).
   const layoutLegendShift = LEGEND_HEIGHT + LEGEND_GROUP_GAP; // 40px — what layout added
   const fixedLegend = !exportDims && hasLegend;
   const fixedTitle = fixedLegend && !!parsed.title;
   const fixedTitleH = fixedTitle ? TITLE_HEIGHT : 0;
   const legendReserveH = fixedLegend ? LEGEND_HEIGHT + LEGEND_FIXED_GAP : 0;
-  // Total fixed pixel space above the scaled content
-  const fixedReserve = fixedTitleH + legendReserveH;
+  // Space reserved above content (title only), and below content (legend)
+  const fixedReserveTop = fixedTitleH;
+  const fixedReserveBottom = legendReserveH;
   // Title inside scaled group only when legend is NOT fixed
   const titleOffset = !fixedTitle && parsed.title ? TITLE_HEIGHT : 0;
 
@@ -139,14 +143,14 @@ export function renderSitemap(
     // Remove the legend space from diagram height — legend is rendered separately
     diagramH -= layoutLegendShift;
   }
-  const availH = height - DIAGRAM_PADDING * 2 - fixedReserve;
+  const availH = height - DIAGRAM_PADDING * 2 - fixedReserveTop - fixedReserveBottom;
   const scaleX = (width - DIAGRAM_PADDING * 2) / diagramW;
   const scaleY = availH / diagramH;
   const scale = Math.min(MAX_SCALE, scaleX, scaleY);
 
   const scaledW = diagramW * scale;
   const offsetX = (width - scaledW) / 2;
-  const offsetY = DIAGRAM_PADDING + fixedReserve;
+  const offsetY = DIAGRAM_PADDING + fixedReserveTop;
 
   // Create SVG
   const svg = d3Selection
@@ -542,7 +546,10 @@ export function renderSitemap(
     const legendParent = svg
       .append('g')
       .attr('class', 'sitemap-legend-fixed')
-      .attr('transform', `translate(0, ${DIAGRAM_PADDING + fixedTitleH})`);
+      .attr('transform', `translate(0, ${height - DIAGRAM_PADDING - LEGEND_HEIGHT})`);
+    if (activeTagGroup) {
+      legendParent.attr('data-legend-active', activeTagGroup.toLowerCase());
+    }
     renderLegend(legendParent, layout.legend, palette, isDark, activeTagGroup, width, hiddenAttributes);
   }
 }
@@ -550,12 +557,6 @@ export function renderSitemap(
 // ============================================================
 // Legend rendering
 // ============================================================
-
-// Eye icon SVG paths (14×14 viewBox)
-const EYE_OPEN_PATH =
-  'M1 7s2.5-5 6-5 6 5 6 5-2.5 5-6 5-6-5-6-5z M7 9.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z';
-const EYE_CLOSED_PATH =
-  'M2.5 2.5l9 9 M1.5 7s2.2-4 5.5-4c1.2 0 2.2.5 3 1.1 M12.5 7s-2.2 4-5.5 4c-1.2 0-2.2-.5-3-1.1';
 
 function renderLegend(
   parent: d3Selection.Selection<SVGGElement, unknown, null, undefined>,

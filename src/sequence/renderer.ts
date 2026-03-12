@@ -25,6 +25,19 @@ import type {
 import { isSequenceBlock, isSequenceSection, isSequenceNote } from './parser';
 import { resolveSequenceTags } from './tag-resolution';
 import type { ResolvedTagMap } from './tag-resolution';
+import {
+  LEGEND_HEIGHT,
+  LEGEND_PILL_PAD,
+  LEGEND_PILL_FONT_SIZE,
+  LEGEND_PILL_FONT_W,
+  LEGEND_CAPSULE_PAD,
+  LEGEND_DOT_R,
+  LEGEND_ENTRY_FONT_SIZE,
+  LEGEND_ENTRY_FONT_W,
+  LEGEND_ENTRY_DOT_GAP,
+  LEGEND_ENTRY_TRAIL,
+  LEGEND_GROUP_GAP,
+} from '../utils/legend-constants';
 
 // ============================================================
 // Layout Constants
@@ -54,19 +67,6 @@ const NOTE_CHARS_PER_LINE = Math.floor((NOTE_MAX_W - NOTE_PAD_H * 2 - NOTE_FOLD)
 const COLLAPSED_NOTE_H = 20;
 const COLLAPSED_NOTE_W = 40;
 
-// Legend rendering constants (consistent with org chart legend)
-const LEGEND_HEIGHT = 28;
-const LEGEND_PILL_PAD = 16;
-const LEGEND_PILL_FONT_SIZE = 11;
-const LEGEND_PILL_FONT_W = LEGEND_PILL_FONT_SIZE * 0.6;
-const LEGEND_CAPSULE_PAD = 4;
-const LEGEND_DOT_R = 4;
-const LEGEND_ENTRY_FONT_SIZE = 10;
-const LEGEND_ENTRY_FONT_W = LEGEND_ENTRY_FONT_SIZE * 0.6;
-const LEGEND_ENTRY_DOT_GAP = 4;
-const LEGEND_ENTRY_TRAIL = 8;
-const LEGEND_GROUP_GAP = 12;
-const LEGEND_BOTTOM_GAP = 8;
 
 
 function wrapTextLines(text: string, maxChars: number): string[] {
@@ -1282,12 +1282,10 @@ export function renderSequenceDiagram(
 
   // Compute cumulative Y positions for each step, with section dividers as stable anchors
   const titleOffset = title ? TITLE_HEIGHT : 0;
-  const legendOffset =
-    parsed.tagGroups.length > 0 ? LEGEND_HEIGHT + LEGEND_BOTTOM_GAP : 0;
   const groupOffset =
     groups.length > 0 ? GROUP_PADDING_TOP + GROUP_LABEL_SIZE : 0;
   const participantStartY =
-    TOP_MARGIN + titleOffset + legendOffset + PARTICIPANT_Y_OFFSET + groupOffset;
+    TOP_MARGIN + titleOffset + PARTICIPANT_Y_OFFSET + groupOffset;
   const lifelineStartY0 = participantStartY + PARTICIPANT_BOX_HEIGHT;
   const hasActors = participants.some((p) => p.type === 'actor');
   const messageStartOffset = MESSAGE_START_OFFSET + (hasActors ? 20 : 0);
@@ -1388,11 +1386,13 @@ export function renderSequenceDiagram(
     participants.length * PARTICIPANT_GAP,
     PARTICIPANT_BOX_WIDTH + 40
   );
-  const totalHeight =
+  const contentHeight =
     participantStartY +
     PARTICIPANT_BOX_HEIGHT +
     Math.max(lifelineLength, 40) +
     40;
+  const legendSpace = parsed.tagGroups.length > 0 ? LEGEND_HEIGHT : 0;
+  const totalHeight = contentHeight + legendSpace;
 
   const containerWidth = options?.exportWidth ?? container.getBoundingClientRect().width;
   const svgWidth = Math.max(totalWidth, containerWidth);
@@ -1571,7 +1571,7 @@ export function renderSequenceDiagram(
 
   // Render legend pills for tag groups
   if (parsed.tagGroups.length > 0) {
-    const legendY = TOP_MARGIN + titleOffset;
+    const legendY = contentHeight;
     const groupBg = isDark
       ? mix(palette.surface, palette.bg, 50)
       : mix(palette.surface, palette.bg, 30);
@@ -1615,8 +1615,13 @@ export function renderSequenceDiagram(
       (legendItems.length - 1) * LEGEND_GROUP_GAP;
     let legendX = (svgWidth - totalLegendWidth) / 2;
 
+    const legendContainer = svg.append('g').attr('class', 'sequence-legend');
+    if (activeTagGroup) {
+      legendContainer.attr('data-legend-active', activeTagGroup.toLowerCase());
+    }
+
     for (const item of legendItems) {
-      const gEl = svg
+      const gEl = legendContainer
         .append('g')
         .attr('transform', `translate(${legendX}, ${legendY})`)
         .attr('class', 'sequence-legend-group')

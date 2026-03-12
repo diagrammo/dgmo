@@ -162,21 +162,22 @@ Bar | done
     const layout = layoutInitiativeStatus(parsed);
     const backEdge = layout.edges.find((e) => e.source === 'Bar' && e.target === 'Foo')!;
     expect(backEdge).toBeDefined();
-    expect(backEdge.points).toHaveLength(3);
+    expect(backEdge.points).toHaveLength(5);
     // First point: bottom-center of source (Bar)
     const srcNode = layout.nodes.find((n) => n.label === 'Bar')!;
     expect(backEdge.points[0].x).toBeCloseTo(srcNode.x, 0);
     expect(backEdge.points[0].y).toBeCloseTo(srcNode.y + srcNode.height / 2, 0);
     // Last point: bottom-center of target (Foo)
     const tgtNode = layout.nodes.find((n) => n.label === 'Foo')!;
-    expect(backEdge.points[2].x).toBeCloseTo(tgtNode.x, 0);
-    expect(backEdge.points[2].y).toBeCloseTo(tgtNode.y + tgtNode.height / 2, 0);
-    // Arc control point is below both node bottoms
+    expect(backEdge.points[4].x).toBeCloseTo(tgtNode.x, 0);
+    expect(backEdge.points[4].y).toBeCloseTo(tgtNode.y + tgtNode.height / 2, 0);
+    // Arc control point (index 2) is below both node bottoms
     const maxBottom = Math.max(srcNode.y + srcNode.height / 2, tgtNode.y + tgtNode.height / 2);
-    expect(backEdge.points[1].y).toBeGreaterThan(maxBottom);
-    // X values must be monotone-decreasing (curveMonotoneX contract)
-    expect(backEdge.points[0].x).toBeGreaterThan(backEdge.points[1].x);
-    expect(backEdge.points[1].x).toBeGreaterThanOrEqual(backEdge.points[2].x);
+    expect(backEdge.points[2].y).toBeGreaterThan(maxBottom);
+    // X values must be monotone-decreasing across all 5 points (curveMonotoneX contract)
+    for (let i = 0; i < backEdge.points.length - 1; i++) {
+      expect(backEdge.points[i].x).toBeGreaterThanOrEqual(backEdge.points[i + 1].x);
+    }
   });
 
   it('routes back-edge arc control point outside node bounds (routeAbove or routeBelow)', () => {
@@ -193,12 +194,12 @@ B | wip
     const layout = layoutInitiativeStatus(parsed);
     const backEdge = layout.edges.find((e) => e.source === 'B' && e.target === 'A');
     expect(backEdge).toBeDefined();
-    expect(backEdge!.points).toHaveLength(3);
+    expect(backEdge!.points).toHaveLength(5);
     const srcNode = layout.nodes.find((n) => n.label === 'B')!;
     const tgtNode = layout.nodes.find((n) => n.label === 'A')!;
     const minTop = Math.min(srcNode.y - srcNode.height / 2, tgtNode.y - tgtNode.height / 2);
     const maxBottom = Math.max(srcNode.y + srcNode.height / 2, tgtNode.y + tgtNode.height / 2);
-    const ctrlY = backEdge!.points[1].y;
+    const ctrlY = backEdge!.points[2].y;
     // Arc control point must be outside node bounds — arrowhead is never buried
     expect(ctrlY < minTop || ctrlY > maxBottom).toBe(true);
     // Conditional direction check based on actual avgNodeY (exercises both branch paths)
@@ -210,9 +211,9 @@ B | wip
     }
   });
 
-  it('routes Y-displaced forward edge via bottom-center exit', () => {
+  it('routes Y-displaced forward edge via bottom-exit elbow (4 points)', () => {
     // Fan from Src to 4 targets forces dagre to spread them vertically.
-    // At least one target will be > NODESEP (80px) below Src.
+    // At least one target will be > NODESEP (80px) below Src → triggers isBottomExit.
     const parsed = parseInitiativeStatus(`chart: initiative-status
 Src | wip
   -> A | done
@@ -232,14 +233,42 @@ D | todo`);
       return tgt.y > srcNode.y + 80; // NODESEP = 80
     });
     expect(displaced).toBeDefined(); // fan layout guarantees at least one displaced target
-    expect(displaced!.points).toHaveLength(3);
+    expect(displaced!.points).toHaveLength(4);
     // Exit point: center-X of source, bottom Y
     expect(displaced!.points[0].x).toBeCloseTo(srcNode.x, 0);
     expect(displaced!.points[0].y).toBeCloseTo(srcNode.y + srcNode.height / 2, 0);
     // Entry point: left side of target, center Y
     const tgtNode = layout.nodes.find((n) => n.label === displaced!.target)!;
-    expect(displaced!.points[2].x).toBeCloseTo(tgtNode.x - tgtNode.width / 2, 0);
-    expect(displaced!.points[2].y).toBeCloseTo(tgtNode.y, 0);
+    expect(displaced!.points[3].x).toBeCloseTo(tgtNode.x - tgtNode.width / 2, 0);
+    expect(displaced!.points[3].y).toBeCloseTo(tgtNode.y, 0);
+    // X must be monotone-increasing across all 4 points
+    for (let i = 0; i < displaced!.points.length - 1; i++) {
+      expect(displaced!.points[i].x).toBeLessThanOrEqual(displaced!.points[i + 1].x);
+    }
+  });
+
+  it('all forward-edge routing branches produce monotone-increasing X', () => {
+    // Hub fans to 4 targets — dagre will spread them, exercising top-exit, bottom-exit, and elbow paths
+    const parsed = parseInitiativeStatus(`chart: initiative-status
+Hub | wip
+  -> Right | done
+  -> A | done
+  -> B | wip
+  -> C | wip
+Right | done
+A | done
+B | wip
+C | wip`);
+    const layout = layoutInitiativeStatus(parsed);
+    for (const edge of layout.edges) {
+      // Back-edges have monotone-decreasing X — skip them
+      const src = layout.nodes.find((n) => n.label === edge.source)!;
+      const tgt = layout.nodes.find((n) => n.label === edge.target)!;
+      if (tgt.x < src.x - 5) continue; // back-edge
+      for (let i = 0; i < edge.points.length - 1; i++) {
+        expect(edge.points[i].x).toBeLessThanOrEqual(edge.points[i + 1].x);
+      }
+    }
   });
 });
 

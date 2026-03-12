@@ -110,7 +110,6 @@ export function parseInfra(content: string): ParsedInfra {
     edges: [],
     groups: [],
     tagGroups: [],
-    scenarios: [],
     options: {},
     diagnostics: [],
     error: null,
@@ -250,46 +249,20 @@ export function parseInfra(content: string): ParsedInfra {
         continue;
       }
 
-      // scenario: Name
+      // scenario: Name — deprecated, emit warning and skip block
       if (/^scenario\s*:/i.test(trimmed)) {
-        finishCurrentNode();
-        finishCurrentTagGroup();
-        currentGroup = null;
-        const scenarioName = trimmed.replace(/^scenario\s*:\s*/i, '').trim();
-        const scenario: import('./types').InfraScenario = {
-          name: scenarioName,
-          overrides: {},
-          lineNumber,
-        };
-        // Parse indented block for scenario overrides
-        let scenarioNodeId: string | null = null;
+        console.warn('[dgmo warn] scenario syntax is deprecated and will be ignored');
+        // Skip indented block
         let si = i + 1;
         while (si < lines.length) {
           const sLine = lines[si];
           const sTrimmed = sLine.trim();
           if (!sTrimmed || sTrimmed.startsWith('#')) { si++; continue; }
           const sIndent = sLine.length - sLine.trimStart().length;
-          if (sIndent === 0) break; // back to top level
-
-          if (sIndent <= 2) {
-            // Node reference (e.g., "  edge" or "  API")
-            scenarioNodeId = nodeId(sTrimmed.replace(/\|.*$/, '').trim());
-            if (!scenario.overrides[scenarioNodeId]) {
-              scenario.overrides[scenarioNodeId] = {};
-            }
-          } else if (scenarioNodeId) {
-            // Property override (e.g., "    rps: 10000")
-            const pm = sTrimmed.match(PROPERTY_RE);
-            if (pm) {
-              const key = pm[1].toLowerCase();
-              const val = parsePropertyValue(pm[2].trim());
-              scenario.overrides[scenarioNodeId][key] = val;
-            }
-          }
+          if (sIndent === 0) break;
           si++;
         }
-        i = si - 1; // advance past scenario block
-        result.scenarios.push(scenario);
+        i = si - 1;
         continue;
       }
 

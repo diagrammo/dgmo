@@ -99,13 +99,6 @@ export interface InfraTagGroup {
   lineNumber: number;
 }
 
-export interface InfraScenario {
-  name: string;
-  /** Node property overrides: nodeId -> { key: value } */
-  overrides: Record<string, Record<string, string | number>>;
-  lineNumber: number;
-}
-
 export interface ParsedInfra {
   type: 'infra';
   title: string | null;
@@ -115,7 +108,6 @@ export interface ParsedInfra {
   edges: InfraEdge[];
   groups: InfraGroup[];
   tagGroups: InfraTagGroup[];
-  scenarios: InfraScenario[];
   options: Record<string, string>;
   diagnostics: DgmoError[];
   error: string | null;
@@ -128,9 +120,7 @@ export interface ParsedInfra {
 export interface InfraComputeParams {
   rps?: number; // override edge rps (for slider)
   instanceOverrides?: Record<string, number>; // nodeId -> instance count override
-  scenario?: InfraScenario | null; // apply a named scenario's overrides
-  /** Per-node property overrides: nodeId -> { propertyKey: numericValue }.
-   *  Applied after scenario overrides. Lets sliders adjust cache-hit, etc. */
+  /** Per-node property overrides: nodeId -> { propertyKey: numericValue }. */
   propertyOverrides?: Record<string, Record<string, number>>;
   /** Set of group IDs that should be treated as collapsed (virtual nodes). */
   collapsedGroups?: Set<string>;

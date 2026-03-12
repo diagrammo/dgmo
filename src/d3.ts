@@ -184,6 +184,19 @@ import { makeDgmoError, formatDgmoError, suggest } from './diagnostics';
 import { collectIndentedValues, extractColor, parsePipeMetadata } from './utils/parsing';
 import { matchTagBlockHeading, validateTagValues, resolveTagColor } from './utils/tag-groups';
 import type { TagGroup } from './utils/tag-groups';
+import {
+  LEGEND_HEIGHT as TL_LEGEND_HEIGHT,
+  LEGEND_PILL_PAD as TL_LEGEND_PILL_PAD,
+  LEGEND_PILL_FONT_SIZE as TL_LEGEND_PILL_FONT_SIZE,
+  LEGEND_PILL_FONT_W as TL_LEGEND_PILL_FONT_W,
+  LEGEND_CAPSULE_PAD as TL_LEGEND_CAPSULE_PAD,
+  LEGEND_DOT_R as TL_LEGEND_DOT_R,
+  LEGEND_ENTRY_FONT_SIZE as TL_LEGEND_ENTRY_FONT_SIZE,
+  LEGEND_ENTRY_FONT_W as TL_LEGEND_ENTRY_FONT_W,
+  LEGEND_ENTRY_DOT_GAP as TL_LEGEND_ENTRY_DOT_GAP,
+  LEGEND_ENTRY_TRAIL as TL_LEGEND_ENTRY_TRAIL,
+  LEGEND_GROUP_GAP as TL_LEGEND_GROUP_GAP,
+} from './utils/legend-constants';
 
 // ============================================================
 // Shared Rendering Helpers
@@ -3047,7 +3060,7 @@ export function renderTimeline(
     }
   }
 
-  // Reserve space for tag legend between title and chart content
+  // Reserve space for tag legend at the bottom of chart content
   const tagLegendReserve = parsed.timelineTagGroups.length > 0 ? 36 : 0;
 
   // ================================================================
@@ -3087,9 +3100,9 @@ export function renderTimeline(
       const scaleMargin = timelineScale ? 40 : 0;
       const markerMargin = timelineMarkers.length > 0 ? 30 : 0;
       const margin = {
-        top: 104 + markerMargin + tagLegendReserve,
+        top: 104 + markerMargin,
         right: 40 + scaleMargin,
-        bottom: 40,
+        bottom: 40 + tagLegendReserve,
         left: 60 + scaleMargin,
       };
       const innerWidth = width - margin.left - margin.right;
@@ -3309,9 +3322,9 @@ export function renderTimeline(
       const scaleMargin = timelineScale ? 40 : 0;
       const markerMargin = timelineMarkers.length > 0 ? 30 : 0;
       const margin = {
-        top: 104 + markerMargin + tagLegendReserve,
+        top: 104 + markerMargin,
         right: 200,
-        bottom: 40,
+        bottom: 40 + tagLegendReserve,
         left: 60 + scaleMargin,
       };
       const innerWidth = width - margin.left - margin.right;
@@ -3590,9 +3603,9 @@ export function renderTimeline(
     // Group-sorted doesn't need legend space (group names shown on left)
     const baseTopMargin = title ? 50 : 20;
     const margin = {
-      top: baseTopMargin + (timelineScale ? 40 : 0) + markerMargin + tagLegendReserve,
+      top: baseTopMargin + (timelineScale ? 40 : 0) + markerMargin,
       right: 40,
-      bottom: 40 + scaleMargin,
+      bottom: 40 + scaleMargin + tagLegendReserve,
       left: dynamicLeftMargin,
     };
     const innerWidth = width - margin.left - margin.right;
@@ -3869,9 +3882,9 @@ export function renderTimeline(
     const scaleMargin = timelineScale ? 24 : 0;
     const markerMargin = timelineMarkers.length > 0 ? 30 : 0;
     const margin = {
-      top: 104 + (timelineScale ? 40 : 0) + markerMargin + tagLegendReserve,
+      top: 104 + (timelineScale ? 40 : 0) + markerMargin,
       right: 40,
-      bottom: 40 + scaleMargin,
+      bottom: 40 + scaleMargin + tagLegendReserve,
       left: 60,
     };
     const innerWidth = width - margin.left - margin.right;
@@ -4121,23 +4134,23 @@ export function renderTimeline(
 
   // ── Tag Legend (org-chart-style pills) ──
   if (parsed.timelineTagGroups.length > 0) {
-    const LG_HEIGHT = 28;
-    const LG_PILL_PAD = 16;
-    const LG_PILL_FONT_SIZE = 11;
-    const LG_PILL_FONT_W = LG_PILL_FONT_SIZE * 0.6;
-    const LG_CAPSULE_PAD = 4;
-    const LG_DOT_R = 4;
-    const LG_ENTRY_FONT_SIZE = 10;
-    const LG_ENTRY_FONT_W = LG_ENTRY_FONT_SIZE * 0.6;
-    const LG_ENTRY_DOT_GAP = 4;
-    const LG_ENTRY_TRAIL = 8;
-    const LG_GROUP_GAP = 12;
-    const LG_ICON_W = 20; // swimlane icon area (icon + surrounding space)
+    const LG_HEIGHT = TL_LEGEND_HEIGHT;
+    const LG_PILL_PAD = TL_LEGEND_PILL_PAD;
+    const LG_PILL_FONT_SIZE = TL_LEGEND_PILL_FONT_SIZE;
+    const LG_PILL_FONT_W = TL_LEGEND_PILL_FONT_W;
+    const LG_CAPSULE_PAD = TL_LEGEND_CAPSULE_PAD;
+    const LG_DOT_R = TL_LEGEND_DOT_R;
+    const LG_ENTRY_FONT_SIZE = TL_LEGEND_ENTRY_FONT_SIZE;
+    const LG_ENTRY_FONT_W = TL_LEGEND_ENTRY_FONT_W;
+    const LG_ENTRY_DOT_GAP = TL_LEGEND_ENTRY_DOT_GAP;
+    const LG_ENTRY_TRAIL = TL_LEGEND_ENTRY_TRAIL;
+    const LG_GROUP_GAP = TL_LEGEND_GROUP_GAP;
+    const LG_ICON_W = 20; // swimlane icon area (icon + surrounding space) — local
 
     const mainSvg = d3Selection.select(container).select<SVGSVGElement>('svg');
     const mainG = mainSvg.select<SVGGElement>('g');
     if (!mainSvg.empty() && !mainG.empty()) {
-      const legendY = title ? 50 : 10;
+      const legendY = height - LG_HEIGHT - 4;
 
       const groupBg = isDark
         ? mix(palette.surface, palette.bg, 50)
@@ -4212,6 +4225,7 @@ export function renderTimeline(
       function drawLegend() {
         // Remove previous legend
         mainSvg.selectAll('.tl-tag-legend-group').remove();
+        mainSvg.selectAll('.tl-tag-legend-container').remove();
 
         // Effective color source: explicit color group > swimlane group
         const effectiveColorKey = (currentActiveGroup ?? currentSwimlaneGroup)?.toLowerCase() ?? null;
@@ -4238,6 +4252,13 @@ export function renderTimeline(
 
         let cx = (width - totalW) / 2;
 
+        // Legend container for data-legend-active attribute
+        const legendContainer = mainSvg.append('g')
+          .attr('class', 'tl-tag-legend-container');
+        if (currentActiveGroup) {
+          legendContainer.attr('data-legend-active', currentActiveGroup.toLowerCase());
+        }
+
         for (const lg of visibleGroups) {
           const groupKey = lg.group.name.toLowerCase();
           const isActive = viewMode ||
@@ -4249,7 +4270,7 @@ export function renderTimeline(
           const pillLabel = lg.group.name;
           const pillWidth = pillLabel.length * LG_PILL_FONT_W + LG_PILL_PAD;
 
-          const gEl = mainSvg
+          const gEl = legendContainer
             .append('g')
             .attr('transform', `translate(${cx}, ${legendY})`)
             .attr('class', 'tl-tag-legend-group tl-tag-legend-entry')
@@ -5781,7 +5802,7 @@ export async function renderForExport(
     hiddenAttributes?: Set<string>;
     swimlaneTagGroup?: string | null;
   },
-  options?: { branding?: boolean; c4Level?: 'context' | 'containers' | 'components' | 'deployment'; c4System?: string; c4Container?: string; scenario?: string }
+  options?: { branding?: boolean; c4Level?: 'context' | 'containers' | 'components' | 'deployment'; c4System?: string; c4Container?: string; tagGroup?: string }
 ): Promise<string> {
   // Flowchart and org chart use their own parser pipelines — intercept before parseVisualization()
   const { parseDgmoChartType } = await import('./dgmo-router');
@@ -5801,7 +5822,7 @@ export async function renderForExport(
 
     // Apply interactive collapse state when provided
     const collapsedNodes = orgExportState?.collapsedNodes;
-    const activeTagGroup = orgExportState?.activeTagGroup ?? null;
+    const activeTagGroup = orgExportState?.activeTagGroup ?? options?.tagGroup ?? null;
     const hiddenAttributes = orgExportState?.hiddenAttributes;
 
     const { parsed: effectiveParsed, hiddenCounts } =
@@ -5841,7 +5862,7 @@ export async function renderForExport(
 
     // Apply interactive collapse state when provided
     const collapsedNodes = orgExportState?.collapsedNodes;
-    const activeTagGroup = orgExportState?.activeTagGroup ?? null;
+    const activeTagGroup = orgExportState?.activeTagGroup ?? options?.tagGroup ?? null;
     const hiddenAttributes = orgExportState?.hiddenAttributes;
 
     const { parsed: effectiveParsed, hiddenCounts } =
@@ -5881,7 +5902,7 @@ export async function renderForExport(
     container.style.left = '-9999px';
     document.body.appendChild(container);
 
-    renderKanban(container, kanbanParsed, effectivePalette, theme === 'dark');
+    renderKanban(container, kanbanParsed, effectivePalette, theme === 'dark', undefined, undefined, options?.tagGroup);
     return finalizeSvgExport(container, theme, effectivePalette, options);
   }
 
@@ -5921,7 +5942,7 @@ export async function renderForExport(
     const exportHeight = erLayout.height + PADDING * 2 + titleOffset;
     const container = createExportContainer(exportWidth, exportHeight);
 
-    renderERDiagram(container, erParsed, erLayout, effectivePalette, theme === 'dark', undefined, { width: exportWidth, height: exportHeight });
+    renderERDiagram(container, erParsed, erLayout, effectivePalette, theme === 'dark', undefined, { width: exportWidth, height: exportHeight }, options?.tagGroup);
     return finalizeSvgExport(container, theme, effectivePalette, options);
   }
 
@@ -5979,7 +6000,7 @@ export async function renderForExport(
       ? renderC4Containers
       : renderC4Context;
 
-    renderFn(container, c4Parsed, c4Layout, effectivePalette, theme === 'dark', undefined, { width: exportWidth, height: exportHeight });
+    renderFn(container, c4Parsed, c4Layout, effectivePalette, theme === 'dark', undefined, { width: exportWidth, height: exportHeight }, options?.tagGroup);
     return finalizeSvgExport(container, theme, effectivePalette, options);
   }
 
@@ -6009,11 +6030,9 @@ export async function renderForExport(
     const infraParsed = parseInfra(content);
     if (infraParsed.error || infraParsed.nodes.length === 0) return '';
 
-    const selectedScenario = options?.scenario
-      ? infraParsed.scenarios.find((s) => s.name.toLowerCase() === options.scenario!.toLowerCase()) ?? null
-      : null;
-    const infraComputed = computeInfra(infraParsed, selectedScenario ? { scenario: selectedScenario } : {});
+    const infraComputed = computeInfra(infraParsed);
     const infraLayout = layoutInfra(infraComputed);
+    const activeTagGroup = options?.tagGroup ?? null;
 
     const titleOffset = infraParsed.title ? 40 : 0;
     const legendGroups = computeInfraLegendGroups(infraLayout.nodes, infraParsed.tagGroups, effectivePalette);
@@ -6022,7 +6041,7 @@ export async function renderForExport(
     const exportHeight = infraLayout.height + titleOffset + legendOffset;
     const container = createExportContainer(exportWidth, exportHeight);
 
-    renderInfra(container, infraLayout, effectivePalette, theme === 'dark', infraParsed.title, infraParsed.titleLineNumber, infraParsed.tagGroups, null, false, null, null, true);
+    renderInfra(container, infraLayout, effectivePalette, theme === 'dark', infraParsed.title, infraParsed.titleLineNumber, infraParsed.tagGroups, activeTagGroup, false, null, null, true);
     // Restore explicit pixel dimensions for resvg (renderer uses 100%/viewBox for app scaling)
     const infraSvg = container.querySelector('svg');
     if (infraSvg) {
@@ -6079,6 +6098,7 @@ export async function renderForExport(
     if (seqParsed.error || seqParsed.participants.length === 0) return '';
     renderSequenceDiagram(container, seqParsed, effectivePalette, isDark, undefined, {
       exportWidth: EXPORT_WIDTH,
+      activeTagGroup: options?.tagGroup,
     });
   } else if (parsed.type === 'wordcloud') {
     await renderWordCloudAsync(container, parsed, effectivePalette, isDark, dims);
@@ -6086,7 +6106,7 @@ export async function renderForExport(
     renderArcDiagram(container, parsed, effectivePalette, isDark, undefined, dims);
   } else if (parsed.type === 'timeline') {
     renderTimeline(container, parsed, effectivePalette, isDark, undefined, dims,
-      orgExportState?.activeTagGroup, orgExportState?.swimlaneTagGroup);
+      orgExportState?.activeTagGroup ?? options?.tagGroup, orgExportState?.swimlaneTagGroup);
   } else if (parsed.type === 'venn') {
     renderVenn(container, parsed, effectivePalette, isDark, undefined, dims);
   } else if (parsed.type === 'quadrant') {

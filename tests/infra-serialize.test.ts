@@ -102,7 +102,7 @@ describe('serializeScenario', () => {
     expect(result.endsWith('\n')).toBe(true);
   });
 
-  it('round-trip: serialize → parse → compute matches original overrides', () => {
+  it('serialize generates valid scenario text (note: parser ignores scenario blocks as deprecated)', () => {
     const parsed = parse();
     const overrides = {
       rps: 50000,
@@ -110,28 +110,17 @@ describe('serializeScenario', () => {
       propertyOverrides: { CDN: { 'cache-hit': 40 } },
     };
 
-    // Compute with overrides
-    const computedWithOverrides = computeInfra(parsed, overrides);
-
-    // Serialize and re-parse
     const scenarioText = serializeScenario('test', parsed, overrides);
-    const fullSource = BASE + '\n' + scenarioText;
-    const reparsed = parseInfra(fullSource);
-    expect(reparsed.scenarios).toHaveLength(1);
-    expect(reparsed.scenarios[0].name).toBe('test');
+    // Serialized text contains expected scenario block
+    expect(scenarioText).toContain('scenario: test');
+    expect(scenarioText).toContain('rps: 50000');
+    expect(scenarioText).toContain('instances: 10');
+    expect(scenarioText).toContain('cache-hit: 40');
 
-    // Compute with scenario
-    const computedWithScenario = computeInfra(reparsed, { scenario: reparsed.scenarios[0] });
-
-    // Key metrics should match
-    const apiOv = computedWithOverrides.nodes.find((n) => n.id === 'API')!;
-    const apiSc = computedWithScenario.nodes.find((n) => n.id === 'API')!;
-    expect(apiSc.computedInstances).toBe(apiOv.computedInstances);
-    expect(apiSc.computedRps).toBe(apiOv.computedRps);
-
-    const cdnOv = computedWithOverrides.nodes.find((n) => n.id === 'CDN')!;
-    const cdnSc = computedWithScenario.nodes.find((n) => n.id === 'CDN')!;
-    expect(cdnSc.computedRps).toBe(cdnOv.computedRps);
+    // Compute directly with same overrides — scenarios are deprecated in the parser
+    const computedWithOverrides = computeInfra(parsed, overrides);
+    const apiNode = computedWithOverrides.nodes.find((n) => n.id === 'API')!;
+    expect(apiNode.computedInstances).toBe(10);
   });
 
   it('serializes queue property overrides', () => {

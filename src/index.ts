@@ -246,7 +246,7 @@ export { collapseSitemapTree } from './sitemap/collapse';
 
 // ── Infra Chart ────────────────────────────────────────────
 export { parseInfra } from './infra/parser';
-export type { ParsedInfra, InfraNode, InfraEdge, InfraGroup, InfraTagGroup, InfraProperty, InfraDiagnostic, InfraScenario, InfraComputeParams, InfraBehaviorKey } from './infra/types';
+export type { ParsedInfra, InfraNode, InfraEdge, InfraGroup, InfraTagGroup, InfraProperty, InfraDiagnostic, InfraComputeParams, InfraBehaviorKey } from './infra/types';
 export { INFRA_BEHAVIOR_KEYS } from './infra/types';
 export { computeInfra } from './infra/compute';
 export type { ComputedInfraModel, ComputedInfraNode, ComputedInfraEdge, InfraLatencyPercentiles, InfraAvailabilityPercentiles, InfraCbState } from './infra/types';
@@ -256,7 +256,7 @@ export type { InfraRole } from './infra/roles';
 export { layoutInfra } from './infra/layout';
 export type { InfraLayoutResult, InfraLayoutNode, InfraLayoutEdge, InfraLayoutGroup } from './infra/layout';
 export { renderInfra, parseAndLayoutInfra, computeInfraLegendGroups } from './infra/renderer';
-export type { InfraLegendGroup, InfraPlaybackState } from './infra/renderer';
+export type { InfraLegendGroup } from './infra/renderer';
 export type { CollapsedSitemapResult } from './sitemap/collapse';
 
 export { collapseOrgTree } from './org/collapse';

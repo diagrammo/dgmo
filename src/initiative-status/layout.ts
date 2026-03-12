@@ -28,8 +28,8 @@ export interface ISLayoutEdge {
   status: import('./types').InitiativeStatus;
   lineNumber: number;
   // Layout contract for points[]:
-  //   Back-edges:       3 points — [src.bottom/top_center, arc_control, tgt.bottom/top_center]
-  //   Y-displaced:      3 points — [src.bottom/top_center, diagonal_mid, tgt.left_center]
+  //   Back-edges:       5 points — [src.top/bottom_center, depart_ctrl, arc_control, approach_ctrl, tgt.top/bottom_center]
+  //   Top/bottom-exit:  4 points — [src.top/bottom_center, depart_ctrl, tgt_approach, tgt.left_center]
   //   4-point elbow:    points[0] and points[last] pinned at node center Y; interior fans via yOffset
   //   fixedDagrePoints: points[0]=src.right, points[last]=tgt.left; interior from dagre
   points: { x: number; y: number }[];
@@ -81,6 +81,7 @@ const PARALLEL_EDGE_MARGIN = 12; // total vertical margin reserved at top+bottom
 const MAX_PARALLEL_EDGES = 5; // at most this many edges rendered between any directed source→target pair
 const BACK_EDGE_MARGIN = 40; // clearance below/above nodes for back-edge arcs (~half NODESEP)
 const BACK_EDGE_MIN_SPREAD = Math.round(NODE_WIDTH * 0.75); // minimum horizontal arc spread for near-same-X back-edges
+const TOP_EXIT_STEP = 10; // px: control-point offset giving near-vertical departure tangent for top/bottom-exit elbows
 const CHAR_WIDTH_RATIO = 0.6;
 const NODE_FONT_SIZE = 13;
 const NODE_TEXT_PADDING = 12;
@@ -221,15 +222,14 @@ export function layoutInitiativeStatus(
     const dagreEdge = g.edge(edge.source, edge.target, `e${i}`);
     const dagrePoints: { x: number; y: number }[] = dagreEdge?.points ?? [];
     const hasIntermediateRank = allNodeX.some((x) => x > src.x + 20 && x < tgt.x - 20);
-    const step = Math.min((enterX - exitX) * 0.15, 20);
+    const step = Math.max(0, Math.min((enterX - exitX) * 0.15, 20)); // clamped ≥0: guards overlapping nodes
 
-    // 4-branch routing: isBackEdge → isYDisplaced → 4-point elbow → fixedDagrePoints
-    const isBackEdge = tgt.x < src.x - 5; // 5px epsilon: same-rank same-X nodes must not false-match
-    const isYDisplaced = !isBackEdge
-      && Math.abs(tgt.y - src.y) > NODESEP;
-    // Note: hasIntermediateRank guard intentionally omitted from isYDisplaced — the > NODESEP threshold
-    // already filters normal adjacent-rank fans (which spread by ~NODESEP); the guard would block the
-    // original use case (fan targets far below source in the same adjacent rank).
+    // 5-branch routing: isBackEdge → isTopExit → isBottomExit → 4-point elbow → fixedDagrePoints
+    const isBackEdge   = tgt.x < src.x - 5; // 5px epsilon: same-rank same-X nodes must not false-match
+    // Guards: tgt.x > src.x (strict) keeps step positive; !hasIntermediateRank defers multi-rank
+    // displaced edges to fixedDagrePoints so dagre can route around intermediate nodes.
+    const isTopExit    = !isBackEdge && tgt.x > src.x && !hasIntermediateRank && tgt.y < src.y - NODESEP;
+    const isBottomExit = !isBackEdge && tgt.x > src.x && !hasIntermediateRank && tgt.y > src.y + NODESEP;
 
     let points: { x: number; y: number }[];
 
@@ -248,33 +248,52 @@ export function layoutInitiativeStatus(
         ? rawMidX + spreadDir * BACK_EDGE_MIN_SPREAD
         : rawMidX;
       const midX = Math.min(src.x, Math.max(tgt.x, unclamped));
+      // Clamped departure/approach control points give near-orthogonal tangents at node edges.
+      // For narrow back-edges (|src.x - tgt.x| < 2*TOP_EXIT_STEP), clamps degrade to midX±1 — valid.
+      const srcDepart   = Math.max(midX + 1, src.x - TOP_EXIT_STEP);
+      const tgtApproach = Math.min(midX - 1, tgt.x + TOP_EXIT_STEP);
       if (routeAbove) {
         const arcY = Math.min(src.y - srcHalfH, tgt.y - tgtHalfH) - BACK_EDGE_MARGIN;
         points = [
-          { x: src.x, y: src.y - srcHalfH },
-          { x: midX,  y: arcY },
-          { x: tgt.x, y: tgt.y - tgtHalfH },
+          { x: src.x,       y: src.y - srcHalfH },
+          { x: srcDepart,   y: src.y - srcHalfH - TOP_EXIT_STEP },
+          { x: midX,        y: arcY },
+          { x: tgtApproach, y: tgt.y - tgtHalfH - TOP_EXIT_STEP },
+          { x: tgt.x,       y: tgt.y - tgtHalfH },
         ];
       } else {
         const arcY = Math.max(src.y + srcHalfH, tgt.y + tgtHalfH) + BACK_EDGE_MARGIN;
         points = [
-          { x: src.x, y: src.y + srcHalfH },
-          { x: midX,  y: arcY },
-          { x: tgt.x, y: tgt.y + tgtHalfH },
+          { x: src.x,       y: src.y + srcHalfH },
+          { x: srcDepart,   y: src.y + srcHalfH + TOP_EXIT_STEP },
+          { x: midX,        y: arcY },
+          { x: tgtApproach, y: tgt.y + tgtHalfH + TOP_EXIT_STEP },
+          { x: tgt.x,       y: tgt.y + tgtHalfH },
         ];
       }
-    } else if (isYDisplaced) {
-      // 3-point diagonal: exit bottom/top-center of source, enter left-center of target.
-      // Using src.x (center) not exitX (right side) avoids overlapping the parallel bundle.
-      const exitY = tgt.y > src.y + NODESEP
-        ? src.y + src.height / 2   // target is below — exit bottom
-        : src.y - src.height / 2;  // target is above — exit top
-      const midX = Math.max(src.x + 1, (src.x + enterX) / 2); // +1 ensures strictly increasing X
-      const midY = (exitY + tgt.y) / 2;
+    } else if (isTopExit) {
+      // 4-point top-exit elbow: exits top of source ~vertically, arrives left of target horizontally.
+      // Top exit keeps this edge ABOVE the horizontal right-exit bundle → avoids crossings.
+      // yOffset repurposed as X-spread for top/bottom-exit branches (same magnitude, different axis).
+      // p1x: floor at src.x prevents negative-yOffset edges from going left of origin (breaks monotone X);
+      // ceiling at midpoint-1 prevents overshooting for large positive yOffset (±32px for 5 parallel edges).
+      const exitY = src.y - src.height / 2;
+      const p1x = Math.min(Math.max(src.x, src.x + yOffset + TOP_EXIT_STEP), (src.x + enterX) / 2 - 1);
       points = [
-        { x: src.x,  y: exitY },
-        { x: midX,   y: midY },
-        { x: enterX, y: tgt.y },
+        { x: src.x,         y: exitY },
+        { x: p1x,           y: exitY - TOP_EXIT_STEP },
+        { x: enterX - step, y: tgt.y + yOffset },
+        { x: enterX,        y: tgt.y },
+      ];
+    } else if (isBottomExit) {
+      // 4-point bottom-exit elbow: mirror of top-exit. Keeps edge BELOW the horizontal bundle.
+      const exitY = src.y + src.height / 2;
+      const p1x = Math.min(Math.max(src.x, src.x + yOffset + TOP_EXIT_STEP), (src.x + enterX) / 2 - 1);
+      points = [
+        { x: src.x,         y: exitY },
+        { x: p1x,           y: exitY + TOP_EXIT_STEP },
+        { x: enterX - step, y: tgt.y + yOffset },
+        { x: enterX,        y: tgt.y },
       ];
     } else if (tgt.x > src.x && !hasIntermediateRank) {
       // 4-point elbow: adjacent-rank forward edges (unchanged)

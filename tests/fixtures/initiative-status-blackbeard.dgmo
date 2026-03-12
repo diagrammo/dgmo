@@ -1,0 +1,25 @@
+chart: initiative-status
+title: Operation Blackbeard
+
+Captain | na
+  -issueOrders-> CrewApp | na
+  -viewCharts-> ShipDashboard | na
+CrewApp | done
+  -getCrewRoster-> Quartermaster | done
+  -assignWatch-> Quartermaster | todo
+ShipDashboard | todo
+  -API-> Quartermaster | todo
+Quartermaster | wip
+  -dockRequest-> PortAuthority | done
+  -plotCourse-> NavigationService | todo
+  -recordVoyage-> ShipLog | done
+  -logMutiny-> ShipLog | done
+  -tradeGoods-> TradingPost | wip
+  -fenceBooty-> TradingPost | todo
+NavigationService | wip
+ShipLog | done
+CargoService | wip
+  -inventoryUpdate-> Quartermaster | wip
+[Royal Navy]
+  PortAuthority | na
+  TradingPost | na

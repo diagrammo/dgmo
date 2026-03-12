@@ -10,6 +10,13 @@ import { renderInlineText } from '../utils/inline-markdown';
 import type { ParsedKanban, KanbanColumn, KanbanCard, KanbanTagGroup } from './types';
 import { parseKanban } from './parser';
 import { isArchiveColumn } from './mutations';
+import {
+  LEGEND_HEIGHT,
+  LEGEND_PILL_FONT_SIZE,
+  LEGEND_DOT_R,
+  LEGEND_ENTRY_FONT_SIZE,
+  LEGEND_CAPSULE_PAD,
+} from '../utils/legend-constants';
 
 // ============================================================
 // Constants
@@ -36,10 +43,6 @@ const CARD_META_FONT_SIZE = 10;
 const WIP_FONT_SIZE = 10;
 const COLUMN_RADIUS = 8;
 const COLUMN_HEADER_RADIUS = 8;
-const LEGEND_HEIGHT = 28;
-const LEGEND_FONT_SIZE = 11;
-const LEGEND_DOT_R = 4;
-const LEGEND_ENTRY_FONT_SIZE = 10;
 
 // ============================================================
 // Tag color resolution
@@ -106,9 +109,8 @@ function computeLayout(
   parsed: ParsedKanban,
   _palette: PaletteColors
 ): { columns: ColumnLayout[]; totalWidth: number; totalHeight: number } {
-  // Title and legend share one row
-  const hasHeader = !!parsed.title || parsed.tagGroups.length > 0;
-  const headerHeight = hasHeader ? Math.max(TITLE_HEIGHT, LEGEND_HEIGHT) + 8 : 0;
+  // Title row
+  const headerHeight = parsed.title ? TITLE_HEIGHT + 8 : 0;
   const startY = DIAGRAM_PADDING + headerHeight;
 
   // Estimate column widths based on content
@@ -189,7 +191,8 @@ function computeLayout(
   }
 
   const totalWidth = currentX - COLUMN_GAP + DIAGRAM_PADDING;
-  const totalHeight = startY + maxColumnHeight + DIAGRAM_PADDING;
+  const legendSpace = parsed.tagGroups.length > 0 ? LEGEND_HEIGHT : 0;
+  const totalHeight = startY + maxColumnHeight + DIAGRAM_PADDING + legendSpace;
 
   return { columns: columnLayouts, totalWidth, totalHeight };
 }
@@ -237,18 +240,19 @@ export function renderKanban(
       .text(parsed.title);
   }
 
-  // Legend (same row as title)
+  // Legend (bottom of diagram)
   if (parsed.tagGroups.length > 0) {
-    const legendY = DIAGRAM_PADDING;
-    // Start legend after title text
-    const titleTextWidth = parsed.title
-      ? parsed.title.length * TITLE_FONT_SIZE * 0.6 + 16
-      : 0;
-    let legendX = DIAGRAM_PADDING + titleTextWidth;
+    const legendY = height - LEGEND_HEIGHT;
+    let legendX = DIAGRAM_PADDING;
     const groupBg = isDark
       ? mix(palette.surface, palette.bg, 50)
       : mix(palette.surface, palette.bg, 30);
-    const capsulePad = 4;
+    const capsulePad = LEGEND_CAPSULE_PAD;
+
+    const legendContainer = svg.append('g').attr('class', 'kanban-legend');
+    if (activeTagGroup) {
+      legendContainer.attr('data-legend-active', activeTagGroup.toLowerCase());
+    }
 
     for (const group of parsed.tagGroups) {
       const isActive =
@@ -257,7 +261,7 @@ export function renderKanban(
       // When a group is active, skip all other groups entirely
       if (activeTagGroup != null && !isActive) continue;
 
-      const pillTextWidth = group.name.length * LEGEND_FONT_SIZE * 0.6;
+      const pillTextWidth = group.name.length * LEGEND_PILL_FONT_SIZE * 0.6;
       const pillWidth = pillTextWidth + 16;
 
       // Measure total capsule width for active groups (pill + entries)
@@ -272,7 +276,7 @@ export function renderKanban(
 
       // Outer capsule background for active group
       if (isActive) {
-        svg
+        legendContainer
           .append('rect')
           .attr('x', legendX)
           .attr('y', legendY)
@@ -286,7 +290,7 @@ export function renderKanban(
 
       // Pill background
       const pillBg = isActive ? palette.bg : groupBg;
-      svg
+      legendContainer
         .append('rect')
         .attr('x', pillX)
         .attr('y', legendY + (isActive ? capsulePad : 0))
@@ -298,7 +302,7 @@ export function renderKanban(
         .attr('data-legend-group', group.name.toLowerCase());
 
       if (isActive) {
-        svg
+        legendContainer
           .append('rect')
           .attr('x', pillX)
           .attr('y', legendY + capsulePad)
@@ -311,11 +315,11 @@ export function renderKanban(
       }
 
       // Pill text
-      svg
+      legendContainer
         .append('text')
         .attr('x', pillX + pillWidth / 2)
-        .attr('y', legendY + LEGEND_HEIGHT / 2 + LEGEND_FONT_SIZE / 2 - 2)
-        .attr('font-size', LEGEND_FONT_SIZE)
+        .attr('y', legendY + LEGEND_HEIGHT / 2 + LEGEND_PILL_FONT_SIZE / 2 - 2)
+        .attr('font-size', LEGEND_PILL_FONT_SIZE)
         .attr('font-weight', '500')
         .attr('fill', isActive ? palette.text : palette.textMuted)
         .attr('text-anchor', 'middle')
@@ -325,7 +329,7 @@ export function renderKanban(
       if (isActive) {
         let entryX = pillX + pillWidth + 4;
         for (const entry of group.entries) {
-          const entryG = svg
+          const entryG = legendContainer
             .append('g')
             .attr('data-legend-entry', entry.value.toLowerCase())
             .style('cursor', 'pointer');

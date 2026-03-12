@@ -1325,7 +1325,7 @@ Lambda
       expect(node(result, 'Lambda').computedCbState).toBe('open');
     });
 
-    it('scenario override adjusts concurrency', () => {
+    it('property override adjusts concurrency (scenarios deprecated)', () => {
       const parsed = parseInfra(`
 chart: infra
 
@@ -1336,12 +1336,11 @@ edge
 Lambda
   concurrency: 1000
   duration-ms: 200
-
-scenario: scaled
-  Lambda
-    concurrency: 2000
 `);
-      const result = computeInfra(parsed, { scenario: parsed.scenarios[0] });
+      // Use propertyOverrides — scenario syntax is deprecated and ignored by parser
+      const result = computeInfra(parsed, {
+        propertyOverrides: { Lambda: { concurrency: 2000 } },
+      });
       const lambda = node(result, 'Lambda');
       // New capacity = 2000 / 0.2 = 10000. 8000 < 10000 → not overloaded
       expect(lambda.overloaded).toBe(false);
@@ -1482,7 +1481,7 @@ Processor
       expect(node(result, 'Processor').computedRps).toBe(5000);
     });
 
-    it('scenario overrides adjust drain-rate', () => {
+    it('property overrides adjust drain-rate (scenarios deprecated)', () => {
       const parsed = parseInfra(`
 chart: infra
 
@@ -1497,12 +1496,11 @@ Queue
 
 Processor
   max-rps: 5000
-
-scenario: scaled
-  Queue
-    drain-rate: 1000
 `);
-      const result = computeInfra(parsed, { scenario: parsed.scenarios[0] });
+      // Use propertyOverrides — scenario syntax is deprecated and ignored by parser
+      const result = computeInfra(parsed, {
+        propertyOverrides: { Queue: { 'drain-rate': 1000 } },
+      });
       expect(node(result, 'Processor').computedRps).toBe(1000);
     });
   });

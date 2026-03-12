@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { parseInfra } from '../src/infra/parser';
 import { computeInfra } from '../src/infra/compute';
 import { layoutInfra } from '../src/infra/layout';
@@ -382,7 +382,8 @@ CDN
     expect(motionCount).toBeGreaterThan(2);
   });
 
-  it('parses scenario blocks', () => {
+  it('emits deprecation warning for scenario blocks (scenarios removed)', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const parsed = parseInfra(`chart: infra
 edge
   rps: 1000
@@ -397,13 +398,16 @@ scenario: peak
   API
     instances: 8`);
     expect(parsed.error).toBeNull();
-    expect(parsed.scenarios).toHaveLength(1);
-    expect(parsed.scenarios[0].name).toBe('peak');
-    expect(parsed.scenarios[0].overrides['edge']).toEqual({ rps: 10000 });
-    expect(parsed.scenarios[0].overrides['API']).toEqual({ instances: 8 });
+    // Scenario data is no longer parsed — nodes are unaffected
+    expect(parsed.nodes).toHaveLength(2);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('scenario syntax is deprecated'),
+    );
+    warnSpy.mockRestore();
   });
 
-  it('applies scenario overrides to compute', () => {
+  it('compute uses base values when scenario syntax present (deprecated)', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const parsed = parseInfra(`chart: infra
 edge
   rps: 1000
@@ -419,16 +423,12 @@ scenario: peak
     instances: 8`);
     expect(parsed.error).toBeNull();
 
-    // Base compute
-    const base = computeInfra(parsed);
-    const baseApi = base.nodes.find((n) => n.id === 'API')!;
-    expect(baseApi.computedRps).toBe(1000);
-
-    // With scenario
-    const peak = computeInfra(parsed, { scenario: parsed.scenarios[0] });
-    const peakApi = peak.nodes.find((n) => n.id === 'API')!;
-    expect(peakApi.computedRps).toBe(10000);
-    expect(peakApi.computedInstances).toBe(8);
+    // Scenarios are ignored — base values always used
+    const result = computeInfra(parsed);
+    const apiNode = result.nodes.find((n) => n.id === 'API')!;
+    expect(apiNode.computedRps).toBe(1000);
+    expect(apiNode.computedInstances).toBe(3);
+    warnSpy.mockRestore();
   });
 
   it('instance overrides affect overload detection', () => {
@@ -566,7 +566,7 @@ Lambda
     expect(svg).toContain('5.0k');
   });
 
-  it('property overrides take precedence over scenario overrides', () => {
+  it('property overrides affect compute (cache-hit passthrough)', () => {
     const parsed = parseInfra(`chart: infra
 edge
   rps: 10000
@@ -574,22 +574,17 @@ edge
 CDN
   cache-hit: 80%
   -> API
-API
-
-scenario: peak
-  CDN
-    cache-hit: 60`);
+API`);
     expect(parsed.error).toBeNull();
 
-    // Scenario sets cache-hit to 60% → 4000 rps
-    const withScenario = computeInfra(parsed, { scenario: parsed.scenarios[0] });
-    expect(withScenario.nodes.find((n) => n.id === 'API')!.computedRps).toBe(4000);
+    // Base: 80% cache-hit → 20% passes → 2000 rps to API
+    const base = computeInfra(parsed);
+    expect(base.nodes.find((n) => n.id === 'API')!.computedRps).toBe(2000);
 
-    // Property override to 30% takes precedence over scenario's 60% → 7000 rps
-    const withBoth = computeInfra(parsed, {
-      scenario: parsed.scenarios[0],
+    // Property override to 30% cache-hit → 70% passes → 7000 rps to API
+    const withOverride = computeInfra(parsed, {
       propertyOverrides: { CDN: { 'cache-hit': 30 } },
     });
-    expect(withBoth.nodes.find((n) => n.id === 'API')!.computedRps).toBe(7000);
+    expect(withOverride.nodes.find((n) => n.id === 'API')!.computedRps).toBe(7000);
   });
 });
