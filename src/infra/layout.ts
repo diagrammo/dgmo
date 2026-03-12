@@ -414,7 +414,7 @@ export function separateGroups(
 // Layout engine
 // ============================================================
 
-export function layoutInfra(computed: ComputedInfraModel, selectedNodeId?: string | null, collapsedNodes?: Set<string> | null): InfraLayoutResult {
+export function layoutInfra(computed: ComputedInfraModel, expandedNodeIds?: Set<string> | null, collapsedNodes?: Set<string> | null): InfraLayoutResult {
   if (computed.nodes.length === 0) {
     return { nodes: [], edges: [], groups: [], options: {}, width: 0, height: 0 };
   }
@@ -443,7 +443,7 @@ export function layoutInfra(computed: ComputedInfraModel, selectedNodeId?: strin
   const heightMap = new Map<string, number>();
   for (const node of computed.nodes) {
     const isNodeCollapsed = collapsedNodes?.has(node.id) ?? false;
-    const expanded = !isNodeCollapsed && node.id === selectedNodeId;
+    const expanded = !isNodeCollapsed && (expandedNodeIds?.has(node.id) ?? false);
     const width = computeNodeWidth(node, expanded, computed.options);
     const height = isNodeCollapsed
       ? NODE_HEADER_HEIGHT + NODE_PAD_BOTTOM

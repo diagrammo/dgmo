@@ -335,8 +335,8 @@ MyService
   description: Handles all REST API calls for the mobile app
 `;
       const contentNoDesc = content.replace('  description: Handles all REST API calls for the mobile app\n', '');
-      const layoutWith = layoutInfra(computeInfra(parseInfra(content)), 'MyService');
-      const layoutWithout = layoutInfra(computeInfra(parseInfra(contentNoDesc)), 'MyService');
+      const layoutWith = layoutInfra(computeInfra(parseInfra(content)), new Set(['MyService']));
+      const layoutWithout = layoutInfra(computeInfra(parseInfra(contentNoDesc)), new Set(['MyService']));
       const nodeWith = layoutWith.nodes.find((n) => n.id === 'MyService')!;
       const nodeWithout = layoutWithout.nodes.find((n) => n.id === 'MyService')!;
       expect(nodeWith.height).toBe(nodeWithout.height + 14); // META_LINE_HEIGHT
@@ -369,7 +369,7 @@ edge
   -> Lonely
 Lonely
   description: Only a description here
-`)), 'Lonely');
+`)), new Set(['Lonely']));
       const node = result.nodes.find((n) => n.id === 'Lonely')!;
       expect(node.height).toBe(28 + 14 + 10); // NODE_HEADER_HEIGHT + META_LINE_HEIGHT + NODE_PAD_BOTTOM
     });
@@ -384,7 +384,7 @@ edge
   -> MyService
 MyService
   description: ${longDesc}
-`)), 'MyService');
+`)), new Set(['MyService']));
       const node = result.nodes.find((n) => n.id === 'MyService')!;
       expect(node.width).toBeGreaterThanOrEqual(40 * 6 + 24); // description drives width
     });
@@ -403,7 +403,7 @@ API
   max-rps: 500
 `;
     const collapsed = layoutInfra(computeInfra(parseInfra(src)), null);
-    const expanded = layoutInfra(computeInfra(parseInfra(src)), 'API');
+    const expanded = layoutInfra(computeInfra(parseInfra(src)), new Set(['API']));
     const nodeC = collapsed.nodes.find((n) => n.id === 'API')!;
     const nodeE = expanded.nodes.find((n) => n.id === 'API')!;
     // Expanded shows p50+p90+p99 (3 rows); collapsed shows p90 (1 row)
@@ -424,7 +424,7 @@ API
   max-rps: 500
 `;
     const collapsed = layoutInfra(computeInfra(parseInfra(src)), null);
-    const expanded = layoutInfra(computeInfra(parseInfra(src)), 'API');
+    const expanded = layoutInfra(computeInfra(parseInfra(src)), new Set(['API']));
     const nodeC = collapsed.nodes.find((n) => n.id === 'API')!;
     const nodeE = expanded.nodes.find((n) => n.id === 'API')!;
     // No latency data — collapsed and expanded have same computed rows (zero latency rows each)
@@ -450,7 +450,7 @@ API
   max-rps: 500
 `;
     const collapsedResult = layoutInfra(computeInfra(parseInfra(src)), null);
-    const expandedResult = layoutInfra(computeInfra(parseInfra(src)), 'API');
+    const expandedResult = layoutInfra(computeInfra(parseInfra(src)), new Set(['API']));
     const apiC = collapsedResult.nodes.find((n) => n.id === 'API')!;
     const apiE = expandedResult.nodes.find((n) => n.id === 'API')!;
     // Collapsed must have width > MIN_NODE_WIDTH (140) since it shows a p90 row with value

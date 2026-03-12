@@ -60,32 +60,32 @@ dgmo diagram.dgmo --theme dark --palette catppuccin
 
 | Type | Description |
 |------|-------------|
+| `arc` | Arc/network diagrams |
+| `area` | Filled area charts |
 | `bar` | Vertical/horizontal bar charts |
 | `bar-stacked` | Stacked bar charts |
+| `chord` | Circular relationship diagrams |
+| `class` | UML class diagrams with inheritance, composition, and visibility |
+| `doughnut` | Doughnut charts |
+| `er` | Entity-relationship diagrams with crow's foot notation |
+| `flowchart` | Directed graph flowcharts with branching and 6 node shapes |
+| `function` | Mathematical function plots |
+| `funnel` | Conversion funnels |
+| `heatmap` | Matrix heatmaps |
 | `line` | Line charts with crosshair |
 | `multi-line` | Multi-series line charts |
-| `area` | Filled area charts |
+| `org` | Org charts with hierarchy, team containers, and tag group color-coding |
 | `pie` | Pie charts with connector labels |
-| `doughnut` | Doughnut charts |
-| `radar` | Radar/spider charts |
 | `polar-area` | Polar area charts |
-| `scatter` | XY scatter with categories and sizing |
+| `quadrant` | 2D quadrant scatter |
+| `radar` | Radar/spider charts |
 | `sankey` | Flow diagrams |
-| `chord` | Circular relationship diagrams |
-| `function` | Mathematical function plots |
-| `heatmap` | Matrix heatmaps |
-| `funnel` | Conversion funnels |
+| `scatter` | XY scatter with categories and sizing |
+| `sequence` | Sequence diagrams with type inference |
 | `slope` | Before/after comparison |
-| `wordcloud` | Weighted text clouds |
-| `arc` | Arc/network diagrams |
 | `timeline` | Timelines with eras and markers |
 | `venn` | Set intersection diagrams |
-| `quadrant` | 2D quadrant scatter |
-| `sequence` | Sequence diagrams with type inference |
-| `flowchart` | Directed graph flowcharts with branching and 6 node shapes |
-| `class` | UML class diagrams with inheritance, composition, and visibility |
-| `er` | Entity-relationship diagrams with crow's foot notation |
-| `org` | Org charts with hierarchy, team containers, and tag group color-coding |
+| `wordcloud` | Weighted text clouds |
 
 ## How it works
 

@@ -218,6 +218,9 @@ export type {
 
 export { renderInitiativeStatus, renderInitiativeStatusForExport } from './initiative-status/renderer';
 
+export { collapseInitiativeStatus } from './initiative-status/collapse';
+export type { CollapseResult } from './initiative-status/collapse';
+
 export { parseSitemap, looksLikeSitemap } from './sitemap/parser';
 
 export type {

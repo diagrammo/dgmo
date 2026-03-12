@@ -746,7 +746,7 @@ function renderNodes(
   palette: PaletteColors,
   isDark: boolean,
   animate: boolean,
-  selectedNodeId?: string | null,
+  expandedNodeIds?: Set<string> | null,
   activeGroup?: string | null,
   diagramOptions?: Record<string, string>,
   collapsedNodes?: Set<string> | null,
@@ -849,7 +849,7 @@ function renderNodes(
         .text('▼');
     }
     if (!isNodeCollapsed) {
-      const expanded = node.id === selectedNodeId;
+      const expanded = expandedNodeIds?.has(node.id) ?? false;
 
       // Description subtitle — shown below label only when node is selected
       const descH = (expanded && node.description && !node.isEdge) ? META_LINE_HEIGHT : 0;
@@ -1585,7 +1585,7 @@ export function renderInfra(
   activeGroup?: string | null,
   animate?: boolean,
   playback?: InfraPlaybackState | null,
-  selectedNodeId?: string | null,
+  expandedNodeIds?: Set<string> | null,
   exportMode?: boolean,
   collapsedNodes?: Set<string> | null,
 ) {
@@ -1688,7 +1688,7 @@ export function renderInfra(
       })
       .map((g) => g.id)
   );
-  renderNodes(svg, layout.nodes, palette, isDark, shouldAnimate, selectedNodeId, activeGroup, layout.options, collapsedNodes, tagGroups ?? [], fanoutSourceIds, scaledGroupIds);
+  renderNodes(svg, layout.nodes, palette, isDark, shouldAnimate, expandedNodeIds, activeGroup, layout.options, collapsedNodes, tagGroups ?? [], fanoutSourceIds, scaledGroupIds);
   if (shouldAnimate) {
     renderRejectParticles(svg, layout.nodes);
   }

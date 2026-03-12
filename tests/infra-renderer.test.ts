@@ -9,11 +9,12 @@ function renderToSvg(content: string, theme: 'light' | 'dark' = 'light', selecte
   const parsed = parseInfra(content);
   expect(parsed.error).toBeNull();
   const computed = computeInfra(parsed);
-  const layout = layoutInfra(computed, selectedNodeId ?? undefined);
+  const expandedNodeIds = selectedNodeId ? new Set([selectedNodeId]) : undefined;
+  const layout = layoutInfra(computed, expandedNodeIds);
   const paletteConfig = getPalette('nord');
   const palette = theme === 'dark' ? paletteConfig.dark : paletteConfig.light;
   const container = document.createElement('div');
-  renderInfra(container, layout, palette, theme === 'dark', parsed.title, parsed.titleLineNumber, parsed.tagGroups, null, false, null, selectedNodeId);
+  renderInfra(container, layout, palette, theme === 'dark', parsed.title, parsed.titleLineNumber, parsed.tagGroups, null, false, null, expandedNodeIds ?? null);
   return container.innerHTML;
 }
 

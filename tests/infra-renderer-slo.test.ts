@@ -40,9 +40,10 @@ function renderCollapsed(src: string): HTMLElement {
 function renderExpanded(src: string, selectedId: string): HTMLElement {
   const parsed = parseInfra(src);
   const computed = computeInfra(parsed);
-  const laidOut = layoutInfra(computed, selectedId);
+  const expandedNodeIds = new Set([selectedId]);
+  const laidOut = layoutInfra(computed, expandedNodeIds);
   const container = document.createElement('div');
-  renderInfra(container, laidOut, palette.light, false, null, null, [], null, false, null, selectedId, true);
+  renderInfra(container, laidOut, palette.light, false, null, null, [], null, false, null, expandedNodeIds, true);
   return container;
 }
 
