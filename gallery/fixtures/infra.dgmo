@@ -11,10 +11,12 @@ edge
   -> CloudFront
 
 CloudFront | t: Platform
+  description: CDN — edge cache for assets and API responses
   cache-hit: 80%
   -> CloudArmor
 
 CloudArmor | t: Platform
+  description: WAF — blocks bots and malicious traffic
   firewall-block: 5%
   -> ALB
 
@@ -25,6 +27,7 @@ ALB | t: Platform
 
 [API Pods]
   APIServer | t: Backend
+    description: Core REST API — auth, orders, user profiles
     instances: 3
     max-rps: 500
     latency-ms: 45
@@ -32,9 +35,11 @@ ALB | t: Platform
 
 [Commerce Pods]
   PurchaseMS
+    description: Checkout and payment processing
     instances: 1-8
     max-rps: 300
     latency-ms: 120
 
 StaticServer | t: Platform
+  description: Serves static assets (JS, CSS, images)
   latency-ms: 5
