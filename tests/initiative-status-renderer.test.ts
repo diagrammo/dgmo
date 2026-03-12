@@ -151,6 +151,96 @@ describe('layoutInitiativeStatus', () => {
     expect(layout.width).toBeGreaterThanOrEqual(groupRight);
     expect(layout.height).toBeGreaterThanOrEqual(groupBottom);
   });
+
+  it('routes back-edge via bottom arc (arrowhead at tgt bottom-center, not left side)', () => {
+    // Bar→Foo is a back-edge: Bar is at rank 1 (higher X), Foo at rank 0 (lower X) in LR layout
+    const parsed = parseInitiativeStatus(`chart: initiative-status
+Foo | wip
+  -> Bar | wip
+Bar | done
+  -D-> Foo | wip`);
+    const layout = layoutInitiativeStatus(parsed);
+    const backEdge = layout.edges.find((e) => e.source === 'Bar' && e.target === 'Foo')!;
+    expect(backEdge).toBeDefined();
+    expect(backEdge.points).toHaveLength(3);
+    // First point: bottom-center of source (Bar)
+    const srcNode = layout.nodes.find((n) => n.label === 'Bar')!;
+    expect(backEdge.points[0].x).toBeCloseTo(srcNode.x, 0);
+    expect(backEdge.points[0].y).toBeCloseTo(srcNode.y + srcNode.height / 2, 0);
+    // Last point: bottom-center of target (Foo)
+    const tgtNode = layout.nodes.find((n) => n.label === 'Foo')!;
+    expect(backEdge.points[2].x).toBeCloseTo(tgtNode.x, 0);
+    expect(backEdge.points[2].y).toBeCloseTo(tgtNode.y + tgtNode.height / 2, 0);
+    // Arc control point is below both node bottoms
+    const maxBottom = Math.max(srcNode.y + srcNode.height / 2, tgtNode.y + tgtNode.height / 2);
+    expect(backEdge.points[1].y).toBeGreaterThan(maxBottom);
+    // X values must be monotone-decreasing (curveMonotoneX contract)
+    expect(backEdge.points[0].x).toBeGreaterThan(backEdge.points[1].x);
+    expect(backEdge.points[1].x).toBeGreaterThanOrEqual(backEdge.points[2].x);
+  });
+
+  it('routes back-edge arc control point outside node bounds (routeAbove or routeBelow)', () => {
+    // Root→A→B is a 3-rank chain. B→A is a geometric back-edge (B.x > A.x in LR layout).
+    // Linear chain nodes share the same Y so routeBelow fires (both at avgNodeY, not above it).
+    // The test asserts the universal property: control point exits node bounds regardless of direction.
+    const parsed = parseInitiativeStatus(`chart: initiative-status
+Root | done
+  -> A | done
+A | done
+  -> B | wip
+B | wip
+  -back-> A | done`);
+    const layout = layoutInitiativeStatus(parsed);
+    const backEdge = layout.edges.find((e) => e.source === 'B' && e.target === 'A');
+    expect(backEdge).toBeDefined();
+    expect(backEdge!.points).toHaveLength(3);
+    const srcNode = layout.nodes.find((n) => n.label === 'B')!;
+    const tgtNode = layout.nodes.find((n) => n.label === 'A')!;
+    const minTop = Math.min(srcNode.y - srcNode.height / 2, tgtNode.y - tgtNode.height / 2);
+    const maxBottom = Math.max(srcNode.y + srcNode.height / 2, tgtNode.y + tgtNode.height / 2);
+    const ctrlY = backEdge!.points[1].y;
+    // Arc control point must be outside node bounds — arrowhead is never buried
+    expect(ctrlY < minTop || ctrlY > maxBottom).toBe(true);
+    // Conditional direction check based on actual avgNodeY (exercises both branch paths)
+    const avgY = layout.nodes.reduce((s, n) => s + n.y, 0) / layout.nodes.length;
+    if (Math.min(srcNode.y, tgtNode.y) > avgY) {
+      expect(ctrlY).toBeLessThan(minTop); // routed above
+    } else {
+      expect(ctrlY).toBeGreaterThan(maxBottom); // routed below (this fixture always takes this path)
+    }
+  });
+
+  it('routes Y-displaced forward edge via bottom-center exit', () => {
+    // Fan from Src to 4 targets forces dagre to spread them vertically.
+    // At least one target will be > NODESEP (80px) below Src.
+    const parsed = parseInitiativeStatus(`chart: initiative-status
+Src | wip
+  -> A | done
+  -> B | wip
+  -> C | wip
+  -> D | todo
+A | done
+B | wip
+C | wip
+D | todo`);
+    const layout = layoutInitiativeStatus(parsed);
+    const srcNode = layout.nodes.find((n) => n.label === 'Src')!;
+    // Find any forward edge from Src where target is > NODESEP below
+    const displaced = layout.edges.find((e) => {
+      if (e.source !== 'Src') return false;
+      const tgt = layout.nodes.find((n) => n.label === e.target)!;
+      return tgt.y > srcNode.y + 80; // NODESEP = 80
+    });
+    expect(displaced).toBeDefined(); // fan layout guarantees at least one displaced target
+    expect(displaced!.points).toHaveLength(3);
+    // Exit point: center-X of source, bottom Y
+    expect(displaced!.points[0].x).toBeCloseTo(srcNode.x, 0);
+    expect(displaced!.points[0].y).toBeCloseTo(srcNode.y + srcNode.height / 2, 0);
+    // Entry point: left side of target, center Y
+    const tgtNode = layout.nodes.find((n) => n.label === displaced!.target)!;
+    expect(displaced!.points[2].x).toBeCloseTo(tgtNode.x - tgtNode.width / 2, 0);
+    expect(displaced!.points[2].y).toBeCloseTo(tgtNode.y, 0);
+  });
 });
 
 describe('renderInitiativeStatus', () => {

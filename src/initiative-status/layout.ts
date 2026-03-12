@@ -27,9 +27,11 @@ export interface ISLayoutEdge {
   label?: string;
   status: import('./types').InitiativeStatus;
   lineNumber: number;
-  // For parallel edges: points[0] and points[last] are pinned to node center Y (fan start/end).
-  // Interior points carry the Y offset so edges emerge from the same point and fan through the middle.
-  // For single edges (parallelCount=1) all points are at node center Y — identical to legacy behavior.
+  // Layout contract for points[]:
+  //   Back-edges:       3 points — [src.bottom/top_center, arc_control, tgt.bottom/top_center]
+  //   Y-displaced:      3 points — [src.bottom/top_center, diagonal_mid, tgt.left_center]
+  //   4-point elbow:    points[0] and points[last] pinned at node center Y; interior fans via yOffset
+  //   fixedDagrePoints: points[0]=src.right, points[last]=tgt.left; interior from dagre
   points: { x: number; y: number }[];
   parallelCount: number; // 1 for unique edges, >1 for parallel groups — used by renderer to narrow hit area
 }
@@ -77,6 +79,8 @@ const RANKSEP = 160;
 const PARALLEL_SPACING = 16; // px between parallel edges sharing same source→target (~27% of NODE_HEIGHT)
 const PARALLEL_EDGE_MARGIN = 12; // total vertical margin reserved at top+bottom of node for edge bundles (6px each side)
 const MAX_PARALLEL_EDGES = 5; // at most this many edges rendered between any directed source→target pair
+const BACK_EDGE_MARGIN = 40; // clearance below/above nodes for back-edge arcs (~half NODESEP)
+const BACK_EDGE_MIN_SPREAD = Math.round(NODE_WIDTH * 0.75); // minimum horizontal arc spread for near-same-X back-edges
 const CHAR_WIDTH_RATIO = 0.6;
 const NODE_FONT_SIZE = 13;
 const NODE_TEXT_PADDING = 12;
@@ -163,6 +167,14 @@ export function layoutInitiativeStatus(
   }
 
   const allNodeX = [...posMap.values()].map((n) => n.x);
+  // avgNodeY / avgNodeX: O(1) scalars used for back-edge above/below heuristic and arc spread direction.
+  // layoutNodes.length === 0 is unreachable here (early-return guard at line 92 exits for empty diagrams).
+  const avgNodeY = layoutNodes.length > 0
+    ? layoutNodes.reduce((s, n) => s + n.y, 0) / layoutNodes.length
+    : 0;
+  const avgNodeX = layoutNodes.length > 0
+    ? layoutNodes.reduce((s, n) => s + n.x, 0) / layoutNodes.length
+    : 0;
 
   // Adjacent-rank edges: 4-point elbow (perpendicular exit/entry, no crossings).
   // Multi-rank edges: dagre's interior waypoints for obstacle avoidance, with
@@ -211,23 +223,76 @@ export function layoutInitiativeStatus(
     const hasIntermediateRank = allNodeX.some((x) => x > src.x + 20 && x < tgt.x - 20);
     const step = Math.min((enterX - exitX) * 0.15, 20);
 
-    // For multi-rank/back edges: only endpoints are shifted; dagre's interior waypoints stay put
-    // to avoid routing paths through nodes. Parallel back-edges may show a Y kink at intermediate
-    // dagre waypoints — best-effort spread, accepted limitation for non-adjacent-rank cases.
-    const fixedDagrePoints = dagrePoints.length >= 2 ? [
-      { x: exitX, y: src.y + yOffset },
-      ...dagrePoints.slice(1, -1),
-      { x: enterX, y: tgt.y + yOffset },
-    ] : dagrePoints;
+    // 4-branch routing: isBackEdge → isYDisplaced → 4-point elbow → fixedDagrePoints
+    const isBackEdge = tgt.x < src.x - 5; // 5px epsilon: same-rank same-X nodes must not false-match
+    const isYDisplaced = !isBackEdge
+      && Math.abs(tgt.y - src.y) > NODESEP;
+    // Note: hasIntermediateRank guard intentionally omitted from isYDisplaced — the > NODESEP threshold
+    // already filters normal adjacent-rank fans (which spread by ~NODESEP); the guard would block the
+    // original use case (fan targets far below source in the same adjacent rank).
 
-    const points = (tgt.x > src.x && !hasIntermediateRank)
-      ? [
-          { x: exitX,         y: src.y },           // exits node center — stays pinned
-          { x: exitX + step,  y: src.y + yOffset },  // fans out
-          { x: enterX - step, y: tgt.y + yOffset },  // still fanned
-          { x: enterX,        y: tgt.y },            // enters node center — stays pinned
-        ]
-      : fixedDagrePoints;
+    let points: { x: number; y: number }[];
+
+    if (isBackEdge) {
+      // 3-point arc via bottom (or top) of both nodes — bypasses dagre entirely so arrowhead is visible.
+      // curveMonotoneX requires monotone-decreasing X (src.x > tgt.x for back-edges) ✓
+      // Parallel back-edges share the same arc (yOffset ignored) — acknowledged limitation, out of scope.
+      const routeAbove = Math.min(src.y, tgt.y) > avgNodeY;
+      const srcHalfH = src.height / 2;
+      const tgtHalfH = tgt.height / 2;
+      const rawMidX = (src.x + tgt.x) / 2;
+      const spreadDir = avgNodeX < rawMidX ? 1 : -1;
+      // Clamp midX to [tgt.x, src.x] to preserve monotone-decreasing X for curveMonotoneX.
+      // When nodes are near-same-X the arc stays narrow but valid.
+      const unclamped = Math.abs(src.x - tgt.x) < NODE_WIDTH
+        ? rawMidX + spreadDir * BACK_EDGE_MIN_SPREAD
+        : rawMidX;
+      const midX = Math.min(src.x, Math.max(tgt.x, unclamped));
+      if (routeAbove) {
+        const arcY = Math.min(src.y - srcHalfH, tgt.y - tgtHalfH) - BACK_EDGE_MARGIN;
+        points = [
+          { x: src.x, y: src.y - srcHalfH },
+          { x: midX,  y: arcY },
+          { x: tgt.x, y: tgt.y - tgtHalfH },
+        ];
+      } else {
+        const arcY = Math.max(src.y + srcHalfH, tgt.y + tgtHalfH) + BACK_EDGE_MARGIN;
+        points = [
+          { x: src.x, y: src.y + srcHalfH },
+          { x: midX,  y: arcY },
+          { x: tgt.x, y: tgt.y + tgtHalfH },
+        ];
+      }
+    } else if (isYDisplaced) {
+      // 3-point diagonal: exit bottom/top-center of source, enter left-center of target.
+      // Using src.x (center) not exitX (right side) avoids overlapping the parallel bundle.
+      const exitY = tgt.y > src.y + NODESEP
+        ? src.y + src.height / 2   // target is below — exit bottom
+        : src.y - src.height / 2;  // target is above — exit top
+      const midX = Math.max(src.x + 1, (src.x + enterX) / 2); // +1 ensures strictly increasing X
+      const midY = (exitY + tgt.y) / 2;
+      points = [
+        { x: src.x,  y: exitY },
+        { x: midX,   y: midY },
+        { x: enterX, y: tgt.y },
+      ];
+    } else if (tgt.x > src.x && !hasIntermediateRank) {
+      // 4-point elbow: adjacent-rank forward edges (unchanged)
+      points = [
+        { x: exitX,         y: src.y },           // exits node center — stays pinned
+        { x: exitX + step,  y: src.y + yOffset },  // fans out
+        { x: enterX - step, y: tgt.y + yOffset },  // still fanned
+        { x: enterX,        y: tgt.y },            // enters node center — stays pinned
+      ];
+    } else {
+      // fixedDagrePoints: multi-rank forward edges — dagre interior waypoints for obstacle avoidance.
+      // dagrePoints is still fetched above (line 209) and available here.
+      points = dagrePoints.length >= 2 ? [
+        { x: exitX, y: src.y + yOffset },
+        ...dagrePoints.slice(1, -1),
+        { x: enterX, y: tgt.y + yOffset },
+      ] : dagrePoints;
+    }
     layoutEdges.push({ source: edge.source, target: edge.target, label: edge.label,
                        status: edge.status, lineNumber: edge.lineNumber, points, parallelCount });
   }
