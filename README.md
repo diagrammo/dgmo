@@ -58,34 +58,57 @@ dgmo diagram.dgmo --theme dark --palette catppuccin
 
 ## Supported chart types
 
+### Data Charts
+
 | Type | Description |
 |------|-------------|
-| `arc` | Arc/network diagrams |
-| `area` | Filled area charts |
 | `bar` | Vertical/horizontal bar charts |
-| `bar-stacked` | Stacked bar charts |
-| `chord` | Circular relationship diagrams |
-| `class` | UML class diagrams with inheritance, composition, and visibility |
-| `doughnut` | Doughnut charts |
-| `er` | Entity-relationship diagrams with crow's foot notation |
-| `flowchart` | Directed graph flowcharts with branching and 6 node shapes |
-| `function` | Mathematical function plots |
-| `funnel` | Conversion funnels |
-| `heatmap` | Matrix heatmaps |
 | `line` | Line charts with crosshair |
-| `multi-line` | Multi-series line charts |
-| `org` | Org charts with hierarchy, team containers, and tag group color-coding |
+| `area` | Filled area charts |
 | `pie` | Pie charts with connector labels |
-| `polar-area` | Polar area charts |
-| `quadrant` | 2D quadrant scatter |
+| `doughnut` | Doughnut charts |
 | `radar` | Radar/spider charts |
-| `sankey` | Flow diagrams |
+| `polar-area` | Polar area charts |
+| `bar-stacked` | Stacked bar charts |
+| `multi-line` | Multi-series line charts |
 | `scatter` | XY scatter with categories and sizing |
-| `sequence` | Sequence diagrams with type inference |
+| `heatmap` | Matrix heatmaps |
+| `funnel` | Conversion funnels |
+| `sankey` | Flow diagrams |
+| `chord` | Circular relationship diagrams |
+
+### Visualizations
+
+| Type | Description |
+|------|-------------|
 | `slope` | Before/after comparison |
+| `wordcloud` | Weighted text clouds |
+| `arc` | Arc/network diagrams |
 | `timeline` | Timelines with eras and markers |
 | `venn` | Set intersection diagrams |
-| `wordcloud` | Weighted text clouds |
+| `quadrant` | 2D quadrant scatter |
+
+### Structural Diagrams
+
+| Type | Description |
+|------|-------------|
+| `sequence` | Sequence diagrams with type inference |
+| `flowchart` | Directed graph flowcharts with branching and 6 node shapes |
+| `class` | UML class diagrams with inheritance, composition, and visibility |
+| `er` | Entity-relationship diagrams with crow's foot notation |
+| `org` | Org charts with hierarchy, team containers, and tag group color-coding |
+| `c4` | C4 architecture diagrams (context, containers, components, deployment) |
+| `state` | State machine diagrams |
+| `infra` | Infrastructure capacity and latency diagrams |
+| `kanban` | Kanban boards |
+| `initiative-status` | Initiative status and dependency graphs |
+| `sitemap` | Site structure and navigation maps |
+
+### Other
+
+| Type | Description |
+|------|-------------|
+| `function` | Mathematical function plots |
 
 ## How it works
 
@@ -102,10 +125,10 @@ All parsers are pure functions with no DOM dependency. The CLI sets up jsdom int
 
 ## Usage
 
-### Standard charts (bar, line, pie, radar, etc.)
+### Data charts — standard (bar, line, pie, radar, etc.)
 
 ```typescript
-import { parseChart, buildEChartsOptionFromChart, getPalette } from '@diagrammo/dgmo';
+import { parseChart, buildSimpleChartOption, getPalette } from '@diagrammo/dgmo';
 import * as echarts from 'echarts';
 
 const colors = getPalette('nord').light;
@@ -123,14 +146,14 @@ Q4: 22
 `;
 
 const parsed = parseChart(content, colors);
-const option = buildEChartsOptionFromChart(parsed, colors, false);
+const option = buildSimpleChartOption(parsed, colors, false);
 echarts.init(container).setOption(option);
 ```
 
-### ECharts (scatter, sankey, heatmap, etc.)
+### Data charts — extended (scatter, sankey, heatmap, etc.)
 
 ```typescript
-import { parseEChart, buildEChartsOption, getPalette } from '@diagrammo/dgmo';
+import { parseExtendedChart, buildExtendedChartOption, getPalette } from '@diagrammo/dgmo';
 import * as echarts from 'echarts';
 
 const colors = getPalette('nord').light;
@@ -147,15 +170,15 @@ Electricity -> Industry: 45
 Electricity -> Homes: 35
 `;
 
-const parsed = parseEChart(content);
-const option = buildEChartsOption(parsed, colors, false);
+const parsed = parseExtendedChart(content);
+const option = buildExtendedChartOption(parsed, colors, false);
 echarts.init(container).setOption(option);
 ```
 
-### D3 (slope, timeline, wordcloud, etc.)
+### Visualizations (slope, timeline, wordcloud, etc.)
 
 ```typescript
-import { parseD3, renderTimeline, getPalette } from '@diagrammo/dgmo';
+import { parseVisualization, renderTimeline, getPalette } from '@diagrammo/dgmo';
 
 const colors = getPalette('nord').light;
 
@@ -168,7 +191,7 @@ title: Project Milestones
 2024-07: Launch
 `;
 
-const parsed = parseD3(content, colors);
+const parsed = parseVisualization(content, colors);
 renderTimeline(container, parsed, colors, false);
 ```
 
@@ -397,10 +420,17 @@ tag: Location alias l
 If you don't know the chart type ahead of time, use the router:
 
 ```typescript
-import { parseDgmoChartType, getDgmoFramework } from '@diagrammo/dgmo';
+import { parseDgmoChartType, getRenderCategory, isExtendedChartType, parseChart, parseExtendedChart } from '@diagrammo/dgmo';
 
 const chartType = parseDgmoChartType(content); // e.g. 'bar'
-const framework = getDgmoFramework(chartType);  // 'echart' | 'd3' | 'mermaid'
+const category = getRenderCategory(chartType); // 'data-chart' | 'visualization' | 'diagram' | null
+
+// Dispatch within data-chart: standard vs extended parser
+if (isExtendedChartType(chartType)) {
+  const parsed = parseExtendedChart(content); // scatter, sankey, heatmap, funnel, chord, function
+} else {
+  const parsed = parseChart(content);          // bar, line, pie, etc.
+}
 ```
 
 Content with `->` arrows and no `chart:` header is automatically detected as a sequence diagram.
@@ -502,13 +532,13 @@ const css = buildThemeCSS(palette.light);          // complete CSS string
 Render any chart to an SVG string without a visible DOM:
 
 ```typescript
-import { renderD3ForExport, renderEChartsForExport } from '@diagrammo/dgmo';
+import { renderForExport, renderExtendedChartForExport } from '@diagrammo/dgmo';
 
-// D3 and sequence charts
-const svg = await renderD3ForExport(content, 'light');
+// Diagrams, visualizations, and sequence charts
+const svg = await renderForExport(content, 'light');
 
-// ECharts charts
-const svg = await renderEChartsForExport(content, 'light');
+// Data charts (bar, line, scatter, sankey, etc.)
+const svg = await renderExtendedChartForExport(content, 'light');
 ```
 
 Both accept an optional third argument for a custom `PaletteColors` object (defaults to Nord).
@@ -520,16 +550,17 @@ Both accept an optional third argument for a custom `PaletteColors` object (defa
 | Export | Description |
 |--------|-------------|
 | `parseDgmoChartType(content)` | Extract chart type from content (infers `sequence` from arrow syntax) |
-| `getDgmoFramework(type)` | Map chart type → `'echart'` \| `'d3'` \| `'mermaid'` |
-| `DGMO_CHART_TYPE_MAP` | Full type-to-framework registry |
+| `getRenderCategory(type)` | Map chart type → `'data-chart'` \| `'visualization'` \| `'diagram'` \| `null` |
+| `isExtendedChartType(type)` | Returns `true` for extended data-chart types (scatter, sankey, chord, function, heatmap, funnel) |
+| `RenderCategory` | Type alias for `'data-chart' \| 'visualization' \| 'diagram'` |
 
 ### Parsers
 
 | Export | Description |
 |--------|-------------|
-| `parseChart(content, colors)` | Parse standard chart types (bar, line, pie, radar, etc.) |
-| `parseEChart(content)` | Parse ECharts-specific types (scatter, sankey, heatmap, etc.) |
-| `parseD3(content, colors)` | Parse D3 chart types (slope, arc, timeline, etc.) |
+| `parseChart(content, colors)` | Parse standard data-chart types (bar, line, pie, radar, etc.) |
+| `parseExtendedChart(content)` | Parse extended data-chart types (scatter, sankey, heatmap, etc.) |
+| `parseVisualization(content, colors)` | Parse visualization types (slope, arc, timeline, etc.) |
 | `parseSequenceDgmo(content)` | Parse sequence diagrams |
 | `parseFlowchart(content, colors)` | Parse flowchart diagrams |
 | `parseClassDiagram(content, colors)` | Parse class diagrams |
@@ -541,8 +572,8 @@ Both accept an optional third argument for a custom `PaletteColors` object (defa
 
 | Export | Description |
 |--------|-------------|
-| `buildEChartsOptionFromChart(parsed, colors, dark)` | ECharts option from `parseChart` result |
-| `buildEChartsOption(parsed, colors, dark)` | ECharts option from `parseEChart` result |
+| `buildSimpleChartOption(parsed, colors, dark)` | ECharts option from `parseChart` result (bar, line, pie, etc.) |
+| `buildExtendedChartOption(parsed, colors, dark)` | ECharts option from `parseExtendedChart` result (scatter, sankey, etc.) |
 | `buildMermaidQuadrant(parsed, colors)` | Mermaid quadrantChart syntax string |
 
 ### Renderers
@@ -563,8 +594,8 @@ Both accept an optional third argument for a custom `PaletteColors` object (defa
 | `layoutERDiagram(parsed)` | Compute ER diagram node positions |
 | `layoutGraph(parsed)` | Compute flowchart node positions |
 | `renderSequenceDiagram(el, parsed, colors, dark, onClick)` | Sequence diagram SVG |
-| `renderD3ForExport(content, theme, palette?)` | Any D3/sequence chart → SVG string |
-| `renderEChartsForExport(content, theme, palette?)` | Any ECharts chart → SVG string |
+| `renderForExport(content, theme, palette?)` | Any diagram or visualization → SVG string |
+| `renderExtendedChartForExport(content, theme, palette?)` | Any data-chart → SVG string |
 
 ### Sequence internals
 

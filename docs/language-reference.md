@@ -116,9 +116,35 @@ Multi-series: comma-separated values matching the `series` list. Single series o
 
 Options: `series`, `xlabel`, `ylabel`, `labels`.
 
+**Era bands** — annotate named time periods with background shading:
+
+```
+chart: line
+title: U.S. Strategic Petroleum Reserve
+ylabel: Million Barrels
+
+era '81 -> '89: Reagan (red)
+era '89 -> '93: Bush (red)
+era '93 -> '01: Clinton (blue)
+
+'81: 230
+'85: 493
+'89: 580
+'93: 587
+'01: 550
+```
+
+Syntax: `era <start> -> <end>: <label> [(<color>)]`
+
+- `start` and `end` must exactly match category labels in the data
+- Color is optional; defaults to the palette's blue
+- Band label is hidden if the era spans fewer than 3 category slots
+- Works on `line`, `multi-line`, and `area` charts
+- Era boundary labels are always pinned visible on the x-axis even when auto-skip is active
+
 ### area
 
-Same syntax as `line`. Renders as a filled area chart.
+Same syntax as `line`, including era bands. Renders as a filled area chart.
 
 ### pie
 

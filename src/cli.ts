@@ -3,7 +3,7 @@ import { execSync } from 'node:child_process';
 import { resolve, basename, extname } from 'node:path';
 import { Resvg } from '@resvg/resvg-js';
 import { render } from './render';
-import { parseDgmo, DGMO_CHART_TYPE_MAP } from './dgmo-router';
+import { parseDgmo, getAllChartTypes } from './dgmo-router';
 import { parseDgmoChartType } from './dgmo-router';
 import { formatDgmoError } from './diagnostics';
 import { getPalette } from './palettes/registry';
@@ -276,7 +276,7 @@ async function main(): Promise<void> {
   }
 
   if (opts.chartTypes) {
-    const types = Object.keys(DGMO_CHART_TYPE_MAP);
+    const types = getAllChartTypes();
     if (opts.json) {
       const chartTypes = types.map((id) => ({
         id,

@@ -10,7 +10,7 @@ import { injectBranding } from './branding';
 // Types
 // ============================================================
 
-export type D3ChartType =
+export type VisualizationType =
   | 'slope'
   | 'wordcloud'
   | 'arc'
@@ -136,8 +136,8 @@ export interface D3ExportDimensions {
   height?: number;
 }
 
-export interface ParsedD3 {
-  type: D3ChartType | null;
+export interface ParsedVisualization {
+  type: VisualizationType | null;
   title: string | null;
   titleLineNumber: number | null;
   orientation: 'horizontal' | 'vertical';
@@ -328,8 +328,8 @@ export function addDurationToDate(
 /**
  * Parses D3 chart text format into structured data.
  */
-export function parseD3(content: string, palette?: PaletteColors): ParsedD3 {
-  const result: ParsedD3 = {
+export function parseVisualization(content: string, palette?: PaletteColors): ParsedVisualization {
+  const result: ParsedVisualization = {
     type: null,
     title: null,
     titleLineNumber: null,
@@ -367,7 +367,7 @@ export function parseD3(content: string, palette?: PaletteColors): ParsedD3 {
     error: null,
   };
 
-  const fail = (line: number, message: string): ParsedD3 => {
+  const fail = (line: number, message: string): ParsedVisualization => {
     const diag = makeDgmoError(line, message);
     result.diagnostics.push(diag);
     result.error = formatDgmoError(diag);
@@ -1301,7 +1301,7 @@ const SLOPE_CHAR_WIDTH = 8; // approximate px per character at 14px
  */
 export function renderSlopeChart(
   container: HTMLDivElement,
-  parsed: ParsedD3,
+  parsed: ParsedVisualization,
   palette: PaletteColors,
   isDark: boolean,
   onClickItem?: (lineNumber: number) => void,
@@ -1690,7 +1690,7 @@ const ARC_MARGIN = { top: 60, right: 40, bottom: 60, left: 40 };
  */
 export function renderArcDiagram(
   container: HTMLDivElement,
-  parsed: ParsedD3,
+  parsed: ParsedVisualization,
   palette: PaletteColors,
   _isDark: boolean,
   onClickItem?: (lineNumber: number) => void,
@@ -2809,7 +2809,7 @@ function buildEraTooltipHtml(era: TimelineEra): string {
  */
 export function renderTimeline(
   container: HTMLDivElement,
-  parsed: ParsedD3,
+  parsed: ParsedVisualization,
   palette: PaletteColors,
   isDark: boolean,
   onClickItem?: (lineNumber: number) => void,
@@ -4446,7 +4446,7 @@ function getRotateFn(mode: WordCloudRotate): () => number {
  */
 export function renderWordCloud(
   container: HTMLDivElement,
-  parsed: ParsedD3,
+  parsed: ParsedVisualization,
   palette: PaletteColors,
   _isDark: boolean,
   onClickItem?: (lineNumber: number) => void,
@@ -4526,7 +4526,7 @@ export function renderWordCloud(
 
 function renderWordCloudAsync(
   container: HTMLDivElement,
-  parsed: ParsedD3,
+  parsed: ParsedVisualization,
   palette: PaletteColors,
   _isDark: boolean,
   exportDims?: D3ExportDimensions
@@ -4790,7 +4790,7 @@ function regionCentroid(circles: Circle[], inside: boolean[]): Point {
 
 export function renderVenn(
   container: HTMLDivElement,
-  parsed: ParsedD3,
+  parsed: ParsedVisualization,
   palette: PaletteColors,
   isDark: boolean,
   onClickItem?: (lineNumber: number) => void,
@@ -5212,7 +5212,7 @@ type QuadrantPosition =
  */
 export function renderQuadrant(
   container: HTMLDivElement,
-  parsed: ParsedD3,
+  parsed: ParsedVisualization,
   palette: PaletteColors,
   isDark: boolean,
   onClickItem?: (lineNumber: number) => void,
@@ -5771,7 +5771,7 @@ function finalizeSvgExport(
  * Renders a D3 chart to an SVG string for export.
  * Creates a detached DOM element, renders into it, extracts the SVG, then cleans up.
  */
-export async function renderD3ForExport(
+export async function renderForExport(
   content: string,
   theme: 'light' | 'dark' | 'transparent',
   palette?: PaletteColors,
@@ -5783,7 +5783,7 @@ export async function renderD3ForExport(
   },
   options?: { branding?: boolean; c4Level?: 'context' | 'containers' | 'components' | 'deployment'; c4System?: string; c4Container?: string; scenario?: string }
 ): Promise<string> {
-  // Flowchart and org chart use their own parser pipelines — intercept before parseD3()
+  // Flowchart and org chart use their own parser pipelines — intercept before parseVisualization()
   const { parseDgmoChartType } = await import('./dgmo-router');
   const detectedType = parseDgmoChartType(content);
 
@@ -6048,8 +6048,8 @@ export async function renderD3ForExport(
     return finalizeSvgExport(container, theme, effectivePalette, options);
   }
 
-  const parsed = parseD3(content, palette);
-  // Allow sequence diagrams through even if parseD3 errors —
+  const parsed = parseVisualization(content, palette);
+  // Allow sequence diagrams through even if parseVisualization errors —
   // sequence is parsed by its own dedicated parser (parseSequenceDgmo)
   // and may not have a "chart:" line (auto-detected from arrow syntax).
   if (parsed.error && parsed.type !== 'sequence') {

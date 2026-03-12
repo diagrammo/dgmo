@@ -3,6 +3,9 @@ title: Daily Active Users (Q1 2025)
 xlabel: Week
 ylabel: Users (thousands)
 
+era Week 1 -> Week 6: Phase 1 (blue)
+era Week 6 -> Week 12: Phase 2 (green)
+
 Week 1: 12.4
 Week 2: 13.1
 Week 3: 14.8

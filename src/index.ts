@@ -17,12 +17,11 @@ export { render } from './render';
 
 export {
   parseDgmoChartType,
-  getDgmoFramework,
   parseDgmo,
-  DGMO_CHART_TYPE_MAP,
-  STANDARD_CHART_TYPES,
+  getRenderCategory,
+  isExtendedChartType,
 } from './dgmo-router';
-export type { DgmoFramework } from './dgmo-router';
+export type { RenderCategory } from './dgmo-router';
 
 // ============================================================
 // Parsers
@@ -33,20 +32,21 @@ export type {
   ParsedChart,
   ChartType,
   ChartDataPoint,
+  ChartEra,
 } from './chart';
 
-export { parseEChart } from './echarts';
-export type { ParsedEChart, EChartsChartType } from './echarts';
+export { parseExtendedChart } from './echarts';
+export type { ParsedExtendedChart, ExtendedChartType } from './echarts';
 
 export {
-  parseD3,
+  parseVisualization,
   orderArcNodes,
   parseTimelineDate,
   addDurationToDate,
   computeTimeTicks,
   formatDateLabel,
 } from './d3';
-export type { ParsedD3, D3ChartType, D3ExportDimensions, ArcLink, ArcNodeGroup } from './d3';
+export type { ParsedVisualization, VisualizationType, D3ExportDimensions, ArcLink, ArcNodeGroup } from './d3';
 
 export {
   parseSequenceDgmo,
@@ -279,7 +279,7 @@ export { renderFlowchart, renderFlowchartForExport } from './graph/flowchart-ren
 // Config Builders (produce framework-specific config objects)
 // ============================================================
 
-export { buildEChartsOption, buildEChartsOptionFromChart, renderEChartsForExport } from './echarts';
+export { buildExtendedChartOption, buildSimpleChartOption, renderExtendedChartForExport } from './echarts';
 export { buildMermaidQuadrant } from './dgmo-mermaid';
 
 // ============================================================
@@ -293,7 +293,7 @@ export {
   renderWordCloud,
   renderVenn,
   renderQuadrant,
-  renderD3ForExport,
+  renderForExport,
 } from './d3';
 
 export {

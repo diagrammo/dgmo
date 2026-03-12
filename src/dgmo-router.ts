@@ -8,8 +8,8 @@ import { looksLikeState, parseState } from './graph/state-parser';
 import { looksLikeClassDiagram, parseClassDiagram } from './class/parser';
 import { looksLikeERDiagram, parseERDiagram } from './er/parser';
 import { parseChart } from './chart';
-import { parseEChart } from './echarts';
-import { parseD3 } from './d3';
+import { parseExtendedChart } from './echarts';
+import { parseVisualization } from './d3';
 import { parseOrg, looksLikeOrg } from './org/parser';
 import { parseKanban } from './kanban/parser';
 import { parseC4 } from './c4/parser';
@@ -19,18 +19,15 @@ import { parseInfra } from './infra/parser';
 import type { DgmoError } from './diagnostics';
 
 /**
- * Framework identifiers used by the .dgmo router.
- * Maps to the existing preview components and export paths.
+ * Framework identifiers used by the .dgmo router internally.
+ * Not part of the public API — use RenderCategory instead.
  */
-export type DgmoFramework = 'echart' | 'd3' | 'mermaid';
+type DgmoFramework = 'echart' | 'd3' | 'mermaid';
 
 /**
- * Maps every supported chart type string to its backing framework.
- *
- * ECharts:  standard chart types (bar, line, pie, etc.), scatter, flow/relationship diagrams, math, heatmap
- * D3:       slope, wordcloud, arc diagram, timeline
+ * Maps every supported chart type string to its backing framework (internal).
  */
-export const DGMO_CHART_TYPE_MAP: Record<string, DgmoFramework> = {
+const DGMO_CHART_TYPE_MAP: Record<string, DgmoFramework> = {
   // Standard charts (via ECharts)
   bar: 'echart',
   line: 'echart',
@@ -71,9 +68,10 @@ export const DGMO_CHART_TYPE_MAP: Record<string, DgmoFramework> = {
 };
 
 /**
- * Returns the framework for a given chart type, or `null` if unknown.
+ * Returns the internal framework for a given chart type, or `null` if unknown.
+ * Internal only — use getRenderCategory() for public dispatch.
  */
-export function getDgmoFramework(chartType: string): DgmoFramework | null {
+function getDgmoFramework(chartType: string): DgmoFramework | null {
   return DGMO_CHART_TYPE_MAP[chartType.toLowerCase()] ?? null;
 }
 
@@ -107,13 +105,69 @@ export function parseDgmoChartType(content: string): string | null {
   return null;
 }
 
-/** Standard chart types parsed by parseChart (then rendered via ECharts). */
-export const STANDARD_CHART_TYPES = new Set([
+// ============================================================
+// Public render-category API
+// ============================================================
+
+/** User-visible rendering category for dispatch and routing. */
+export type RenderCategory = 'data-chart' | 'visualization' | 'diagram';
+
+const DATA_CHART_TYPES = new Set([
+  'bar', 'line', 'pie', 'doughnut', 'area', 'polar-area', 'radar',
+  'bar-stacked', 'multi-line', 'scatter', 'sankey', 'chord', 'function',
+  'heatmap', 'funnel',
+]);
+const VISUALIZATION_TYPES = new Set([
+  'slope', 'wordcloud', 'arc', 'timeline', 'venn', 'quadrant',
+]);
+const DIAGRAM_TYPES = new Set([
+  'sequence', 'flowchart', 'class', 'er', 'org', 'kanban', 'c4',
+  'initiative-status', 'state', 'sitemap', 'infra',
+]);
+const EXTENDED_CHART_TYPES = new Set([
+  'scatter', 'sankey', 'chord', 'function', 'heatmap', 'funnel',
+]);
+
+/**
+ * Returns the render category for a given chart type, or `null` if unknown.
+ * Use this instead of the internal framework map for dispatch in consumers.
+ */
+export function getRenderCategory(chartType: string): RenderCategory | null {
+  const type = chartType.toLowerCase();
+  if (DATA_CHART_TYPES.has(type)) return 'data-chart';
+  if (VISUALIZATION_TYPES.has(type)) return 'visualization';
+  if (DIAGRAM_TYPES.has(type)) return 'diagram';
+  return null;
+}
+
+/**
+ * Returns true if the chart type is an extended chart type
+ * handled by parseExtendedChart (scatter, sankey, chord, function, heatmap, funnel).
+ * Returns false for standard chart types and all other types.
+ */
+export function isExtendedChartType(chartType: string): boolean {
+  return EXTENDED_CHART_TYPES.has(chartType.toLowerCase());
+}
+
+/** Standard chart types parsed by parseChart (then rendered via ECharts). Internal use. */
+const STANDARD_CHART_TYPES = new Set([
   'bar', 'line', 'multi-line', 'area', 'pie', 'doughnut',
   'radar', 'polar-area', 'bar-stacked',
 ]);
 
-// ECharts-native types parsed by parseEChart
+/**
+ * Returns all supported chart type identifiers.
+ * Useful for CLI enumeration and autocomplete.
+ */
+export function getAllChartTypes(): string[] {
+  return [
+    ...DATA_CHART_TYPES,
+    ...VISUALIZATION_TYPES,
+    ...DIAGRAM_TYPES,
+  ];
+}
+
+// ECharts-native types parsed by parseExtendedChart
 const ECHART_TYPES = new Set([
   'scatter', 'sankey', 'chord', 'function', 'heatmap', 'funnel',
 ]);
@@ -141,8 +195,8 @@ export function parseDgmo(content: string): { diagnostics: DgmoError[] } {
   const chartType = parseDgmoChartType(content);
 
   if (!chartType) {
-    // No chart type detected — try D3 parser as fallback (it handles missing chart: line)
-    return { diagnostics: parseD3(content).diagnostics };
+    // No chart type detected — try visualization parser as fallback (it handles missing chart: line)
+    return { diagnostics: parseVisualization(content).diagnostics };
   }
 
   const directParser = PARSE_DISPATCH.get(chartType);
@@ -152,9 +206,9 @@ export function parseDgmo(content: string): { diagnostics: DgmoError[] } {
     return { diagnostics: parseChart(content).diagnostics };
   }
   if (ECHART_TYPES.has(chartType)) {
-    return { diagnostics: parseEChart(content).diagnostics };
+    return { diagnostics: parseExtendedChart(content).diagnostics };
   }
 
-  // D3 types (slope, wordcloud, arc, timeline, venn, quadrant)
-  return { diagnostics: parseD3(content).diagnostics };
+  // Visualization types (slope, wordcloud, arc, timeline, venn, quadrant)
+  return { diagnostics: parseVisualization(content).diagnostics };
 }

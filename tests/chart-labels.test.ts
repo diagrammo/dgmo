@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { parseChart } from '../src/chart';
-import { buildEChartsOptionFromChart } from '../src/echarts';
+import { buildSimpleChartOption } from '../src/echarts';
 import { getPalette } from '../src/palettes';
 
 const palette = getPalette('nord').light;
 
 function build(input: string) {
   const parsed = parseChart(input, palette);
-  return buildEChartsOptionFromChart(parsed, palette, false);
+  return buildSimpleChartOption(parsed, palette, false);
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

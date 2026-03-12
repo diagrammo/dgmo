@@ -2,10 +2,10 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { JSDOM } from 'jsdom';
 import {
   parseDgmoChartType,
-  getDgmoFramework,
-  DGMO_CHART_TYPE_MAP,
+  getRenderCategory,
+  getAllChartTypes,
 } from '../src/dgmo-router';
-import { renderD3ForExport } from '../src/d3';
+import { renderForExport } from '../src/d3';
 
 // Set up jsdom globals for D3 rendering
 beforeAll(() => {
@@ -46,22 +46,22 @@ describe('flowchart routing', () => {
     expect(parseDgmoChartType('[A] -> [B]')).toBe('sequence');
   });
 
-  it('getDgmoFramework returns d3 for flowchart', () => {
-    expect(getDgmoFramework('flowchart')).toBe('d3');
+  it('getRenderCategory returns diagram for flowchart', () => {
+    expect(getRenderCategory('flowchart')).toBe('diagram');
   });
 
-  it('flowchart is in DGMO_CHART_TYPE_MAP', () => {
-    expect(DGMO_CHART_TYPE_MAP['flowchart']).toBe('d3');
+  it('flowchart is in getAllChartTypes', () => {
+    expect(getAllChartTypes()).toContain('flowchart');
   });
 
   it('chart type count is 32', () => {
-    expect(Object.keys(DGMO_CHART_TYPE_MAP).length).toBe(32);
+    expect(getAllChartTypes().length).toBe(32);
   });
 });
 
-describe('flowchart renderD3ForExport', () => {
+describe('flowchart renderForExport', () => {
   it('renders flowchart to non-empty SVG', async () => {
-    const svg = await renderD3ForExport(
+    const svg = await renderForExport(
       'chart: flowchart\n(Start) -> [Process] -> (End)',
       'light'
     );
@@ -71,7 +71,7 @@ describe('flowchart renderD3ForExport', () => {
   });
 
   it('renders flowchart with dark theme', async () => {
-    const svg = await renderD3ForExport(
+    const svg = await renderForExport(
       'chart: flowchart\n(Start) -> (End)',
       'dark'
     );
@@ -80,7 +80,7 @@ describe('flowchart renderD3ForExport', () => {
   });
 
   it('renders flowchart with transparent theme', async () => {
-    const svg = await renderD3ForExport(
+    const svg = await renderForExport(
       'chart: flowchart\n(Start) -> (End)',
       'transparent'
     );
@@ -90,7 +90,7 @@ describe('flowchart renderD3ForExport', () => {
   });
 
   it('returns empty string for malformed flowchart content', async () => {
-    const svg = await renderD3ForExport(
+    const svg = await renderForExport(
       'chart: flowchart\n// only comments\n',
       'light'
     );
@@ -104,7 +104,7 @@ describe('flowchart renderD3ForExport', () => {
       '  -yes-> /Input/ -> [[Subroutine]] -> [Report~]',
       '  -no-> (End)',
     ].join('\n');
-    const svg = await renderD3ForExport(content, 'light');
+    const svg = await renderForExport(content, 'light');
     expect(svg).toBeTruthy();
     expect(svg).toContain('<svg');
   });
@@ -112,19 +112,19 @@ describe('flowchart renderD3ForExport', () => {
 
 describe('existing chart type regression', () => {
   it('existing chart types still route correctly', () => {
-    expect(getDgmoFramework('bar')).toBe('echart');
-    expect(getDgmoFramework('line')).toBe('echart');
-    expect(getDgmoFramework('pie')).toBe('echart');
-    expect(getDgmoFramework('scatter')).toBe('echart');
-    expect(getDgmoFramework('sankey')).toBe('echart');
-    expect(getDgmoFramework('sequence')).toBe('d3');
-    expect(getDgmoFramework('slope')).toBe('d3');
-    expect(getDgmoFramework('arc')).toBe('d3');
-    expect(getDgmoFramework('venn')).toBe('d3');
-    expect(getDgmoFramework('quadrant')).toBe('d3');
+    expect(getRenderCategory('bar')).toBe('data-chart');
+    expect(getRenderCategory('line')).toBe('data-chart');
+    expect(getRenderCategory('pie')).toBe('data-chart');
+    expect(getRenderCategory('scatter')).toBe('data-chart');
+    expect(getRenderCategory('sankey')).toBe('data-chart');
+    expect(getRenderCategory('sequence')).toBe('diagram');
+    expect(getRenderCategory('slope')).toBe('visualization');
+    expect(getRenderCategory('arc')).toBe('visualization');
+    expect(getRenderCategory('venn')).toBe('visualization');
+    expect(getRenderCategory('quadrant')).toBe('visualization');
   });
 
   it('unknown chart type returns null', () => {
-    expect(getDgmoFramework('nonexistent')).toBeNull();
+    expect(getRenderCategory('nonexistent')).toBeNull();
   });
 });

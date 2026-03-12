@@ -20,6 +20,13 @@ export interface ChartDataPoint {
   lineNumber: number;
 }
 
+export interface ChartEra {
+  start: string;        // exact category label, e.g. "'77"
+  end: string;          // exact category label, e.g. "'81"
+  label: string;        // display name, e.g. "Carter"
+  color: string | null; // resolved CSS color, or null → palette default
+}
+
 import type { DgmoError } from './diagnostics';
 
 export interface ParsedChart {
@@ -36,6 +43,7 @@ export interface ParsedChart {
   label?: string;
   labels?: 'name' | 'value' | 'percent' | 'full';
   data: ChartDataPoint[];
+  eras?: ChartEra[];
   diagnostics: DgmoError[];
   error: string | null;
 }
@@ -87,9 +95,11 @@ export function parseChart(
   palette?: PaletteColors
 ): ParsedChart {
   const lines = content.split('\n');
+  const parsedEras: ChartEra[] = [];
   const result: ParsedChart = {
     type: 'bar',
     data: [],
+    eras: parsedEras,
     diagnostics: [],
     error: null,
   };
@@ -116,6 +126,18 @@ export function parseChart(
 
     // Skip comments
     if (trimmed.startsWith('//')) continue;
+
+    // Era line: must be matched before colon-split (era '77 -> '81: Carter has colons inside)
+    const eraMatch = trimmed.match(/^era\s+(.+?)\s*->\s*(.+?)\s*:\s*(.+?)(?:\s*\(([^)]+)\))?\s*$/);
+    if (eraMatch) {
+      parsedEras.push({
+        start: eraMatch[1].trim(),
+        end: eraMatch[2].trim(),
+        label: eraMatch[3].trim(),
+        color: eraMatch[4] ? resolveColor(eraMatch[4].trim(), palette) : null,
+      });
+      continue;
+    }
 
     // Parse key: value pairs
     const colonIndex = trimmed.indexOf(':');
@@ -212,6 +234,11 @@ export function parseChart(
         lineNumber,
       });
     }
+  }
+
+  // Eras are only valid for line, multi-line (aliased to 'line'), and area chart types
+  if (result.type !== 'line' && result.type !== 'area') {
+    result.eras = undefined;
   }
 
   // Validation

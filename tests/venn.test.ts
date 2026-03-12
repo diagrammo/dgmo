@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { JSDOM } from 'jsdom';
-import { parseD3, renderVenn } from '../src/d3';
+import { parseVisualization, renderVenn } from '../src/d3';
 import { getPalette } from '../src/palettes';
 
 beforeAll(() => {
@@ -19,7 +19,7 @@ const nordLight = getPalette('nord').light;
 
 describe('Venn parser — 2-set minimal', () => {
   it('parses two sets with names only', () => {
-    const result = parseD3(`chart: venn
+    const result = parseVisualization(`chart: venn
 Apples
 Oranges`, nordLight);
     expect(result.vennSets).toHaveLength(2);
@@ -31,7 +31,7 @@ Oranges`, nordLight);
   });
 
   it('parses an optional intersection line', () => {
-    const result = parseD3(`chart: venn
+    const result = parseVisualization(`chart: venn
 Apples
 Oranges
 Apples + Oranges: Cider`, nordLight);
@@ -43,7 +43,7 @@ Apples + Oranges: Cider`, nordLight);
 
 describe('Venn parser — 3-set with aliases and colors', () => {
   it('parses aliases and resolves intersection references by alias', () => {
-    const result = parseD3(`chart: venn
+    const result = parseVisualization(`chart: venn
 Frontend(blue) alias fe
 Backend(green) alias be
 DevOps(orange) alias de
@@ -61,7 +61,7 @@ fe + be + de: Full Stack`, nordLight);
   });
 
   it('parses intersections with no label', () => {
-    const result = parseD3(`chart: venn
+    const result = parseVisualization(`chart: venn
 A
 B
 C
@@ -73,7 +73,7 @@ A + B`, nordLight);
 
 describe('Venn parser — named color resolution and fallback', () => {
   it('resolves known palette colors to hex', () => {
-    const result = parseD3(`chart: venn
+    const result = parseVisualization(`chart: venn
 Alpha(blue)
 Beta(green)`, nordLight);
     expect(result.vennSets[0].color).toMatch(/^#/);
@@ -82,7 +82,7 @@ Beta(green)`, nordLight);
   });
 
   it('emits a warning and falls back to null for unknown color names', () => {
-    const result = parseD3(`chart: venn
+    const result = parseVisualization(`chart: venn
 Alpha(magenta)
 Beta`, nordLight);
     expect(result.vennSets[0].color).toBeNull();
@@ -92,7 +92,7 @@ Beta`, nordLight);
 
 describe('Venn parser — validation errors', () => {
   it('emits error for > 3 sets', () => {
-    const result = parseD3(`chart: venn
+    const result = parseVisualization(`chart: venn
 A
 B
 C
@@ -115,7 +115,7 @@ function makeContainer(): HTMLDivElement {
 
 describe('Venn renderer — circles and labels', () => {
   it('renders circles and set name labels into SVG', () => {
-    const parsed = parseD3(`chart: venn
+    const parsed = parseVisualization(`chart: venn
 title: Test
 Apples
 Oranges
@@ -136,7 +136,7 @@ Apples + Oranges: Cider`, nordLight);
 
 describe('Venn renderer — hover targets for all regions', () => {
   it('creates hover targets for exclusive and intersection regions', () => {
-    const parsed = parseD3(`chart: venn
+    const parsed = parseVisualization(`chart: venn
 Alpha
 Beta
 Gamma`, nordLight);
@@ -150,7 +150,7 @@ Gamma`, nordLight);
   });
 
   it('creates hover targets for 2-set diagram including overlap region', () => {
-    const parsed = parseD3(`chart: venn
+    const parsed = parseVisualization(`chart: venn
 A
 B`, nordLight);
     const container = makeContainer();

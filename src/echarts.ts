@@ -7,7 +7,7 @@ import { injectBranding } from './branding';
 // Types
 // ============================================================
 
-export type EChartsChartType =
+export type ExtendedChartType =
   | 'sankey'
   | 'chord'
   | 'function'
@@ -15,7 +15,7 @@ export type EChartsChartType =
   | 'heatmap'
   | 'funnel';
 
-export interface EChartsDataPoint {
+export interface ExtendedChartDataPoint {
   label: string;
   value: number;
   color?: string;
@@ -55,14 +55,14 @@ export interface ParsedHeatmapRow {
 
 import type { DgmoError } from './diagnostics';
 
-export interface ParsedEChart {
-  type: EChartsChartType;
+export interface ParsedExtendedChart {
+  type: ExtendedChartType;
   title?: string;
   titleLineNumber?: number;
   series?: string;
   seriesNames?: string[];
   seriesNameColors?: (string | undefined)[];
-  data: EChartsDataPoint[];
+  data: ExtendedChartDataPoint[];
   links?: ParsedSankeyLink[];
   functions?: ParsedFunction[];
   scatterPoints?: ParsedScatterPoint[];
@@ -87,7 +87,7 @@ export interface ParsedEChart {
 import type { PaletteColors } from './palettes';
 import { getSeriesColors, getSegmentColors } from './palettes';
 import { parseChart } from './chart';
-import type { ParsedChart } from './chart';
+import type { ParsedChart, ChartEra } from './chart';
 import { makeDgmoError, formatDgmoError, suggest } from './diagnostics';
 import { resolveColor } from './colors';
 import { collectIndentedValues, extractColor, measureIndent, parseSeriesNames } from './utils/parsing';
@@ -104,7 +104,7 @@ const CHART_BASE: Pick<EChartsOption, 'backgroundColor' | 'animation'> = { backg
 // ============================================================
 
 /**
- * Parses the simple echart text format into a structured object.
+ * Parses extended chart content into a structured object.
  *
  * Format:
  * ```
@@ -117,12 +117,12 @@ const CHART_BASE: Pick<EChartsOption, 'backgroundColor' | 'animation'> = { backg
  * Mar: 150
  * ```
  */
-export function parseEChart(
+export function parseExtendedChart(
   content: string,
   palette?: PaletteColors
-): ParsedEChart {
+): ParsedExtendedChart {
   const lines = content.split('\n');
-  const result: ParsedEChart = {
+  const result: ParsedExtendedChart = {
     type: 'scatter',
     data: [],
     diagnostics: [],
@@ -458,10 +458,12 @@ function buildChartCommons(parsed: { title?: string; error?: string | null }, pa
 }
 
 /**
- * Converts parsed echart data to ECharts option object.
+ * Converts a ParsedExtendedChart into an EChartsOption.
+ * Handles extended chart types: scatter, sankey, chord, function, heatmap, funnel.
+ * @param parsed - Result of parseExtendedChart()
  */
-export function buildEChartsOption(
-  parsed: ParsedEChart,
+export function buildExtendedChartOption(
+  parsed: ParsedExtendedChart,
   palette: PaletteColors,
   isDark: boolean
 ): EChartsOption {
@@ -548,7 +550,7 @@ export function buildEChartsOption(
  * Builds ECharts option for sankey diagrams.
  */
 function buildSankeyOption(
-  parsed: ParsedEChart,
+  parsed: ParsedExtendedChart,
   textColor: string,
   colors: string[],
   titleConfig: EChartsOption['title'],
@@ -611,7 +613,7 @@ function buildSankeyOption(
  * Builds ECharts option for chord diagrams.
  */
 function buildChordOption(
-  parsed: ParsedEChart,
+  parsed: ParsedExtendedChart,
   textColor: string,
   colors: string[],
   titleConfig: EChartsOption['title'],
@@ -755,7 +757,7 @@ function evaluateExpression(expr: string, x: number): number {
  * Builds ECharts option for function plots.
  */
 function buildFunctionOption(
-  parsed: ParsedEChart,
+  parsed: ParsedExtendedChart,
   palette: PaletteColors,
   textColor: string,
   axisLineColor: string,
@@ -868,7 +870,7 @@ function buildFunctionOption(
  * - hasSize → dynamic symbol sizing from 3rd value
  */
 function buildScatterOption(
-  parsed: ParsedEChart,
+  parsed: ParsedExtendedChart,
   palette: PaletteColors,
   textColor: string,
   axisLineColor: string,
@@ -1061,7 +1063,7 @@ function buildScatterOption(
  * Builds ECharts option for heatmap charts.
  */
 function buildHeatmapOption(
-  parsed: ParsedEChart,
+  parsed: ParsedExtendedChart,
   palette: PaletteColors,
   textColor: string,
   axisLineColor: string,
@@ -1178,7 +1180,7 @@ function buildHeatmapOption(
  * Builds ECharts option for funnel charts.
  */
 function buildFunnelOption(
-  parsed: ParsedEChart,
+  parsed: ParsedExtendedChart,
   textColor: string,
   colors: string[],
   titleConfig: EChartsOption['title'],
@@ -1320,7 +1322,8 @@ function makeGridAxis(
   label?: string,
   data?: string[],
   nameGapOverride?: number,
-  chartWidthHint?: number
+  chartWidthHint?: number,
+  intervalOverride?: (index: number, value: string) => boolean
 ): Record<string, unknown> {
   const defaultGap = type === 'value' ? 75 : 40;
 
@@ -1354,7 +1357,7 @@ function makeGridAxis(
       fontSize: type === 'category' && data ? catFontSize : 16,
       fontFamily: FONT_FAMILY,
       ...(type === 'category' && {
-        interval: 0,
+        interval: intervalOverride ?? 0,
         formatter: (value: string) =>
           value.replace(/([a-z])([A-Z])/g, '$1\n$2'),
         ...catLabelExtras,
@@ -1372,9 +1375,10 @@ function makeGridAxis(
 
 /**
  * Converts a ParsedChart into an EChartsOption.
- * Renders standard chart types (bar, line, pie, etc.) with ECharts.
+ * Handles standard chart types: bar, line, area, pie, doughnut, radar, polar-area, bar-stacked, multi-line.
+ * @param parsed - Result of parseChart()
  */
-export function buildEChartsOptionFromChart(
+export function buildSimpleChartOption(
   parsed: ParsedChart,
   palette: PaletteColors,
   isDark: boolean,
@@ -1391,7 +1395,7 @@ export function buildEChartsOptionFromChart(
       return buildBarStackedOption(parsed, textColor, axisLineColor, splitLineColor, gridOpacity, colors, titleConfig, tooltipTheme, chartWidth);
     case 'line':
       return parsed.seriesNames
-        ? buildMultiLineOption(parsed, textColor, axisLineColor, splitLineColor, gridOpacity, colors, titleConfig, tooltipTheme, chartWidth)
+        ? buildMultiLineOption(parsed, palette, textColor, axisLineColor, splitLineColor, gridOpacity, colors, titleConfig, tooltipTheme, chartWidth)
         : buildLineOption(parsed, palette, textColor, axisLineColor, splitLineColor, gridOpacity, titleConfig, tooltipTheme, chartWidth);
     case 'area':
       return buildAreaOption(parsed, palette, textColor, axisLineColor, splitLineColor, gridOpacity, titleConfig, tooltipTheme, chartWidth);
@@ -1471,6 +1475,61 @@ function buildBarOption(
   };
 }
 
+// ── Era band helpers ──────────────────────────────────────────
+
+function buildIntervalCallback(
+  labels: string[],
+  eras: ChartEra[]
+): (index: number, value: string) => boolean {
+  const count = labels.length;
+  if (count <= 8) return () => true; // show all; not `0` (ECharts auto ≠ show all)
+  const snapSteps = [1, 2, 4, 5, 10, 20, 25, 50];
+  const raw = Math.ceil(count / 8);
+  const N = [...snapSteps].reverse().find((s) => s <= raw) ?? 1; // snap down
+  const pinned = new Set<number>();
+  for (let i = 0; i < count; i += N) pinned.add(i);
+  for (const era of eras) {
+    const si = labels.indexOf(era.start);
+    const ei = labels.indexOf(era.end);
+    if (si >= 0) pinned.add(si);
+    if (ei >= 0) pinned.add(ei);
+  }
+  return (index: number) => pinned.has(index);
+}
+
+function buildMarkArea(
+  eras: ChartEra[],
+  labels: string[],
+  textColor: string,
+  defaultColor: string
+): Record<string, unknown> | undefined {
+  if (eras.length === 0) return undefined;
+  return {
+    silent: false,
+    tooltip: { show: true },
+    data: eras.map((era) => {
+      const startIdx = labels.indexOf(era.start);
+      const endIdx = labels.indexOf(era.end);
+      const bandSlots = startIdx >= 0 && endIdx >= 0 ? endIdx - startIdx : Infinity;
+      const color = era.color ?? defaultColor;
+      return [
+        {
+          name: era.label,
+          xAxis: era.start,
+          itemStyle: { color, opacity: 0.15 },
+          label: {
+            show: bandSlots >= 3,
+            position: 'insideTop',
+            fontSize: 11,
+            color: textColor,
+          },
+        },
+        { xAxis: era.end },
+      ];
+    }),
+  };
+}
+
 // ── Line ─────────────────────────────────────────────────────
 
 function buildLineOption(
@@ -1488,6 +1547,9 @@ function buildLineOption(
   const lineColor = parsed.color ?? parsed.seriesNameColors?.[0] ?? palette.primary;
   const labels = parsed.data.map((d) => d.label);
   const values = parsed.data.map((d) => d.value);
+  const eras = parsed.eras ?? [];
+  const interval = buildIntervalCallback(labels, eras);
+  const markArea = buildMarkArea(eras, labels, textColor, palette.colors.blue);
 
   return {
     ...CHART_BASE,
@@ -1498,7 +1560,7 @@ function buildLineOption(
       axisPointer: { type: 'line' },
     },
     grid: makeChartGrid({ xLabel, yLabel, hasTitle: !!parsed.title }),
-    xAxis: makeGridAxis('category', textColor, axisLineColor, splitLineColor, gridOpacity, xLabel, labels, undefined, chartWidth),
+    xAxis: makeGridAxis('category', textColor, axisLineColor, splitLineColor, gridOpacity, xLabel, labels, undefined, chartWidth, interval),
     yAxis: makeGridAxis('value', textColor, axisLineColor, splitLineColor, gridOpacity, yLabel),
     series: [
       {
@@ -1509,6 +1571,7 @@ function buildLineOption(
         lineStyle: { color: lineColor, width: 3 },
         itemStyle: { color: lineColor },
         emphasis: EMPHASIS_SELF,
+        ...(markArea && { markArea }),
       },
     ],
   };
@@ -1518,6 +1581,7 @@ function buildLineOption(
 
 function buildMultiLineOption(
   parsed: ParsedChart,
+  palette: PaletteColors,
   textColor: string,
   axisLineColor: string,
   splitLineColor: string,
@@ -1530,6 +1594,9 @@ function buildMultiLineOption(
   const { xLabel, yLabel } = resolveAxisLabels(parsed);
   const seriesNames = parsed.seriesNames ?? [];
   const labels = parsed.data.map((d) => d.label);
+  const eras = parsed.eras ?? [];
+  const interval = buildIntervalCallback(labels, eras);
+  const markArea = buildMarkArea(eras, labels, textColor, palette.colors.blue);
 
   const series = seriesNames.map((name, idx) => {
     const color = parsed.seriesNameColors?.[idx] ?? colors[idx % colors.length];
@@ -1545,6 +1612,7 @@ function buildMultiLineOption(
       lineStyle: { color, width: 3 },
       itemStyle: { color },
       emphasis: EMPHASIS_SELF,
+      ...(idx === 0 && markArea && { markArea }),
     };
   });
 
@@ -1562,7 +1630,7 @@ function buildMultiLineOption(
       textStyle: { color: textColor },
     },
     grid: makeChartGrid({ xLabel, yLabel, hasTitle: !!parsed.title, hasLegend: true }),
-    xAxis: makeGridAxis('category', textColor, axisLineColor, splitLineColor, gridOpacity, xLabel, labels, undefined, chartWidth),
+    xAxis: makeGridAxis('category', textColor, axisLineColor, splitLineColor, gridOpacity, xLabel, labels, undefined, chartWidth, interval),
     yAxis: makeGridAxis('value', textColor, axisLineColor, splitLineColor, gridOpacity, yLabel),
     series,
   };
@@ -1585,6 +1653,9 @@ function buildAreaOption(
   const lineColor = parsed.color ?? parsed.seriesNameColors?.[0] ?? palette.primary;
   const labels = parsed.data.map((d) => d.label);
   const values = parsed.data.map((d) => d.value);
+  const eras = parsed.eras ?? [];
+  const interval = buildIntervalCallback(labels, eras);
+  const markArea = buildMarkArea(eras, labels, textColor, palette.colors.blue);
 
   return {
     ...CHART_BASE,
@@ -1595,7 +1666,7 @@ function buildAreaOption(
       axisPointer: { type: 'line' },
     },
     grid: makeChartGrid({ xLabel, yLabel, hasTitle: !!parsed.title }),
-    xAxis: makeGridAxis('category', textColor, axisLineColor, splitLineColor, gridOpacity, xLabel, labels, undefined, chartWidth),
+    xAxis: makeGridAxis('category', textColor, axisLineColor, splitLineColor, gridOpacity, xLabel, labels, undefined, chartWidth, interval),
     yAxis: makeGridAxis('value', textColor, axisLineColor, splitLineColor, gridOpacity, yLabel),
     series: [
       {
@@ -1607,6 +1678,7 @@ function buildAreaOption(
         itemStyle: { color: lineColor },
         areaStyle: { opacity: 0.25 },
         emphasis: EMPHASIS_SELF,
+        ...(markArea && { markArea }),
       },
     ],
   };
@@ -1852,13 +1924,17 @@ function buildBarStackedOption(
 const ECHART_EXPORT_WIDTH = 1200;
 const ECHART_EXPORT_HEIGHT = 800;
 
-import { STANDARD_CHART_TYPES } from './dgmo-router';
+// Standard chart types handled by buildSimpleChartOption (via parseChart)
+const STANDARD_CHART_TYPES = new Set([
+  'bar', 'line', 'multi-line', 'area', 'pie', 'doughnut',
+  'radar', 'polar-area', 'bar-stacked',
+]);
 
 /**
- * Renders an ECharts diagram to SVG using server-side rendering.
- * Mirrors the `renderD3ForExport` API — returns an SVG string or empty string on failure.
+ * Renders an extended chart (scatter, sankey, chord, function, heatmap, funnel) to SVG using server-side rendering.
+ * Mirrors the `renderForExport` API — returns an SVG string or empty string on failure.
  */
-export async function renderEChartsForExport(
+export async function renderExtendedChartForExport(
   content: string,
   theme: 'light' | 'dark' | 'transparent',
   palette?: PaletteColors,
@@ -1879,11 +1955,11 @@ export async function renderEChartsForExport(
   if (chartType && STANDARD_CHART_TYPES.has(chartType)) {
     const parsed = parseChart(content, effectivePalette);
     if (parsed.error) return '';
-    option = buildEChartsOptionFromChart(parsed, effectivePalette, isDark, ECHART_EXPORT_WIDTH);
+    option = buildSimpleChartOption(parsed, effectivePalette, isDark, ECHART_EXPORT_WIDTH);
   } else {
-    const parsed = parseEChart(content, effectivePalette);
+    const parsed = parseExtendedChart(content, effectivePalette);
     if (parsed.error) return '';
-    option = buildEChartsOption(parsed, effectivePalette, isDark);
+    option = buildExtendedChartOption(parsed, effectivePalette, isDark);
   }
   if (!option || Object.keys(option).length === 0) return '';
 

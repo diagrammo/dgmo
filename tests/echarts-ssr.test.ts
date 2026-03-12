@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { renderEChartsForExport } from '../src/echarts';
+import { renderExtendedChartForExport } from '../src/echarts';
 
 // Minimal valid inputs for each ECharts chart type
 const SCATTER_INPUT = `chart: scatter
@@ -38,67 +38,67 @@ Visitors: 1000
 Signups: 500
 Paid: 100`;
 
-describe('renderEChartsForExport', () => {
+describe('renderExtendedChartForExport', () => {
   it('renders scatter chart to SVG', async () => {
-    const svg = await renderEChartsForExport(SCATTER_INPUT, 'light');
+    const svg = await renderExtendedChartForExport(SCATTER_INPUT, 'light');
     expect(svg).toContain('<svg');
     expect(svg).toContain('</svg>');
   });
 
   it('renders sankey chart to SVG', async () => {
-    const svg = await renderEChartsForExport(SANKEY_INPUT, 'light');
+    const svg = await renderExtendedChartForExport(SANKEY_INPUT, 'light');
     expect(svg).toContain('<svg');
     expect(svg).toContain('</svg>');
   });
 
   it('renders chord chart to SVG', async () => {
-    const svg = await renderEChartsForExport(CHORD_INPUT, 'light');
+    const svg = await renderExtendedChartForExport(CHORD_INPUT, 'light');
     expect(svg).toContain('<svg');
     expect(svg).toContain('</svg>');
   });
 
   it('renders function chart to SVG', async () => {
-    const svg = await renderEChartsForExport(FUNCTION_INPUT, 'light');
+    const svg = await renderExtendedChartForExport(FUNCTION_INPUT, 'light');
     expect(svg).toContain('<svg');
     expect(svg).toContain('</svg>');
   });
 
   it('renders heatmap chart to SVG', async () => {
-    const svg = await renderEChartsForExport(HEATMAP_INPUT, 'light');
+    const svg = await renderExtendedChartForExport(HEATMAP_INPUT, 'light');
     expect(svg).toContain('<svg');
     expect(svg).toContain('</svg>');
   });
 
   it('renders funnel chart to SVG', async () => {
-    const svg = await renderEChartsForExport(FUNNEL_INPUT, 'light');
+    const svg = await renderExtendedChartForExport(FUNNEL_INPUT, 'light');
     expect(svg).toContain('<svg');
     expect(svg).toContain('</svg>');
   });
 
   it('returns SVG with warning for empty scatter input', async () => {
-    const svg = await renderEChartsForExport('chart: scatter\n', 'light');
+    const svg = await renderExtendedChartForExport('chart: scatter\n', 'light');
     // No data is now a warning, not a fatal error — diagram renders empty
     expect(svg).toContain('<svg');
   });
 
   it('returns empty string for unsupported chart type', async () => {
-    const svg = await renderEChartsForExport('chart: unknown\nA: 1', 'light');
+    const svg = await renderExtendedChartForExport('chart: unknown\nA: 1', 'light');
     expect(svg).toBe('');
   });
 
   it('includes font-family in SVG output', async () => {
-    const svg = await renderEChartsForExport(SCATTER_INPUT, 'light');
+    const svg = await renderExtendedChartForExport(SCATTER_INPUT, 'light');
     expect(svg).toContain('font-family');
   });
 
   it('renders with dark theme', async () => {
-    const svg = await renderEChartsForExport(SCATTER_INPUT, 'dark');
+    const svg = await renderExtendedChartForExport(SCATTER_INPUT, 'dark');
     expect(svg).toContain('<svg');
     expect(svg).toContain('</svg>');
   });
 
   it('renders with transparent theme', async () => {
-    const svg = await renderEChartsForExport(SCATTER_INPUT, 'transparent');
+    const svg = await renderExtendedChartForExport(SCATTER_INPUT, 'transparent');
     expect(svg).toContain('<svg');
     expect(svg).toContain('</svg>');
   });
@@ -106,7 +106,7 @@ describe('renderEChartsForExport', () => {
   it('renders with explicit palette', async () => {
     const { getPalette } = await import('../src/palettes');
     const palette = getPalette('solarized').light;
-    const svg = await renderEChartsForExport(SCATTER_INPUT, 'light', palette);
+    const svg = await renderExtendedChartForExport(SCATTER_INPUT, 'light', palette);
     expect(svg).toContain('<svg');
     expect(svg).toContain('</svg>');
   });

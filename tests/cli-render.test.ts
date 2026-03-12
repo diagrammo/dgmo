@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { JSDOM } from 'jsdom';
-import { renderD3ForExport } from '../src/d3';
-import { renderEChartsForExport } from '../src/echarts';
+import { renderForExport } from '../src/d3';
+import { renderExtendedChartForExport } from '../src/echarts';
 import {
-  DGMO_CHART_TYPE_MAP,
-  getDgmoFramework,
+  getAllChartTypes,
+  getRenderCategory,
   parseDgmoChartType,
 } from '../src/dgmo-router';
 
@@ -228,17 +228,17 @@ B: 30, 40`,
 // D3 render tests
 // ============================================================
 
-describe('renderD3ForExport', () => {
+describe('renderForExport', () => {
   for (const type of D3_TYPES) {
     it(`renders ${type} chart to non-empty SVG`, async () => {
-      const svg = await renderD3ForExport(D3_INPUTS[type], 'light');
+      const svg = await renderForExport(D3_INPUTS[type], 'light');
       expect(svg).toBeTruthy();
       expect(svg).toContain('<svg');
       expect(svg).toContain('</svg>');
     });
 
     it(`renders ${type} chart in dark theme`, async () => {
-      const svg = await renderD3ForExport(D3_INPUTS[type], 'dark');
+      const svg = await renderForExport(D3_INPUTS[type], 'dark');
       expect(svg).toBeTruthy();
       expect(svg).toContain('<svg');
     });
@@ -255,10 +255,10 @@ describe('renderD3ForExport', () => {
 // ECharts render tests (all work via SSR — no DOM needed)
 // ============================================================
 
-describe('renderEChartsForExport', () => {
+describe('renderExtendedChartForExport', () => {
   for (const [type, input] of Object.entries(ECHART_INPUTS)) {
     it(`renders ${type} chart to non-empty SVG`, async () => {
-      const svg = await renderEChartsForExport(input, 'light');
+      const svg = await renderExtendedChartForExport(input, 'light');
       expect(svg).toBeTruthy();
       expect(svg).toContain('<svg');
       expect(svg).toContain('</svg>');
@@ -271,23 +271,23 @@ describe('renderEChartsForExport', () => {
 // ============================================================
 
 describe('CLI chart type coverage', () => {
-  it('every chart type in DGMO_CHART_TYPE_MAP has a test input', () => {
+  it('every chart type in getAllChartTypes has a test input', () => {
     const allInputs = { ...D3_INPUTS, ...ECHART_INPUTS };
-    for (const chartType of Object.keys(DGMO_CHART_TYPE_MAP)) {
-      const framework = getDgmoFramework(chartType);
+    for (const chartType of getAllChartTypes()) {
+      const category = getRenderCategory(chartType);
       expect(
         allInputs[chartType],
-        `Missing test input for chart type "${chartType}" (framework: ${framework})`
+        `Missing test input for chart type "${chartType}" (category: ${category})`
       ).toBeDefined();
     }
   });
 
-  it('every ECharts chart type produces SVG via renderEChartsForExport', async () => {
-    for (const [chartType, framework] of Object.entries(DGMO_CHART_TYPE_MAP)) {
-      if (framework !== 'echart') continue;
+  it('every data-chart type produces SVG via renderExtendedChartForExport', async () => {
+    for (const chartType of getAllChartTypes()) {
+      if (getRenderCategory(chartType) !== 'data-chart') continue;
       const input = ECHART_INPUTS[chartType];
       if (!input) continue;
-      const svg = await renderEChartsForExport(input, 'light');
+      const svg = await renderExtendedChartForExport(input, 'light');
       expect(
         svg,
         `ECharts type "${chartType}" produced empty SVG`
@@ -301,11 +301,11 @@ describe('CLI chart type coverage', () => {
     expect(parseDgmoChartType('chart: sequence\nA -hi-> B')).toBe('sequence');
   });
 
-  it('getDgmoFramework maps types to frameworks', () => {
-    expect(getDgmoFramework('scatter')).toBe('echart');
-    expect(getDgmoFramework('sankey')).toBe('echart');
-    expect(getDgmoFramework('sequence')).toBe('d3');
-    expect(getDgmoFramework('bar')).toBe('echart');
-    expect(getDgmoFramework('nonexistent')).toBeNull();
+  it('getRenderCategory maps types to categories', () => {
+    expect(getRenderCategory('scatter')).toBe('data-chart');
+    expect(getRenderCategory('sankey')).toBe('data-chart');
+    expect(getRenderCategory('sequence')).toBe('diagram');
+    expect(getRenderCategory('bar')).toBe('data-chart');
+    expect(getRenderCategory('nonexistent')).toBeNull();
   });
 });

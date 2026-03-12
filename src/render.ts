@@ -1,6 +1,6 @@
-import { renderD3ForExport } from './d3';
-import { renderEChartsForExport } from './echarts';
-import { parseDgmoChartType, getDgmoFramework } from './dgmo-router';
+import { renderForExport } from './d3';
+import { renderExtendedChartForExport } from './echarts';
+import { parseDgmoChartType, getRenderCategory } from './dgmo-router';
 import { getPalette } from './palettes/registry';
 
 /**
@@ -62,15 +62,15 @@ export async function render(
   const paletteColors = getPalette(paletteName)[theme === 'dark' ? 'dark' : 'light'];
 
   const chartType = parseDgmoChartType(content);
-  const framework = chartType ? getDgmoFramework(chartType) : null;
+  const category = chartType ? getRenderCategory(chartType) : null;
 
-  if (framework === 'echart') {
-    return renderEChartsForExport(content, theme, paletteColors, { branding });
+  if (category === 'data-chart') {
+    return renderExtendedChartForExport(content, theme, paletteColors, { branding });
   }
 
-  // D3 and unknown/null frameworks both go through D3 renderer
+  // Visualization/diagram and unknown/null types all go through the unified renderer
   await ensureDom();
-  return renderD3ForExport(content, theme, paletteColors, undefined, {
+  return renderForExport(content, theme, paletteColors, undefined, {
     branding,
     c4Level: options?.c4Level,
     c4System: options?.c4System,

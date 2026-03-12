@@ -8,7 +8,7 @@ All functions are exported flat from the package root. This is the modern npm co
 
 ```ts
 // Recommended
-import { parseChart, buildEChartsOptionFromChart } from '@diagrammo/dgmo';
+import { parseChart, buildSimpleChartOption } from '@diagrammo/dgmo';
 
 // NOT: dgmo.parse.chartjs() or dgmo.chartjs.parse()
 ```
@@ -17,15 +17,15 @@ import { parseChart, buildEChartsOptionFromChart } from '@diagrammo/dgmo';
 
 Parsers accept an optional `palette` parameter. When omitted, they fall back to the built-in Nord palette for color resolution. Renderers and config builders require palette and `isDark` explicitly — no implicit theming.
 
-### D3/Sequence renderers mutate a container element
+### Visualization renderers mutate a container element
 
-The D3 and sequence renderers follow a `render(container, parsed, palette, isDark)` pattern — they append SVG content into a provided `HTMLDivElement`. This is the natural D3 pattern and works well for browser-based consumers.
+The visualization and sequence renderers follow a `render(container, parsed, palette, isDark)` pattern — they append SVG content into a provided `HTMLDivElement`. This is the natural pattern and works well for browser-based consumers.
 
-For headless/SSR use cases, `renderD3ForExport()` creates a temporary offscreen container and returns an SVG string.
+For headless/SSR use cases, `renderForExport()` creates a temporary offscreen container and returns an SVG string.
 
 ### Config builders return plain objects
 
-`buildEChartsOptionFromChart()` and `buildEChartsOption()` return framework config objects. The consumer brings their own ECharts runtime — the library has zero runtime dependency on those frameworks.
+`buildSimpleChartOption()` and `buildExtendedChartOption()` return framework config objects. The consumer brings their own ECharts runtime — the library has zero runtime dependency on those frameworks.
 
 ---
 
@@ -33,22 +33,27 @@ For headless/SSR use cases, `renderD3ForExport()` creates a temporary offscreen 
 
 ### Routing
 
-Determine which framework handles a given `.dgmo` file.
+Determine the render category for a given `.dgmo` chart type.
 
-| Function              | Signature                                      | Description                               |
-| --------------------- | ---------------------------------------------- | ----------------------------------------- |
-| `parseDgmoChartType`  | `(content: string) => string \| null`          | Extract `chart:` type from file content   |
-| `getDgmoFramework`    | `(chartType: string) => DgmoFramework \| null` | Map chart type to its rendering framework |
-| `DGMO_CHART_TYPE_MAP` | `Record<string, DgmoFramework>`                | Complete chart-type-to-framework mapping  |
+| Function              | Signature                                        | Description                                          |
+| --------------------- | ------------------------------------------------ | ---------------------------------------------------- |
+| `parseDgmoChartType`  | `(content: string) => string \| null`            | Extract `chart:` type from file content              |
+| `getRenderCategory`   | `(chartType: string) => RenderCategory \| null`  | Map chart type to its render category                |
+| `isExtendedChartType` | `(chartType: string) => boolean`                 | True for extended chart types (scatter, sankey, etc.) |
 
 ```ts
-import { parseDgmoChartType, getDgmoFramework } from '@diagrammo/dgmo';
+import { parseDgmoChartType, getRenderCategory, isExtendedChartType } from '@diagrammo/dgmo';
 
 const chartType = parseDgmoChartType(fileContent); // "bar"
-const framework = getDgmoFramework(chartType); // "echart"
+const category = getRenderCategory(chartType);     // "data-chart"
+const isExtended = isExtendedChartType(chartType); // false
 ```
 
-**Types**: `DgmoFramework = 'echart' | 'd3' | 'mermaid'`
+**Types**: `RenderCategory = 'data-chart' | 'visualization' | 'diagram'`
+
+- **`data-chart`**: bar, line, area, pie, doughnut, radar, polar-area, bar-stacked, multi-line, scatter, sankey, chord, function, heatmap, funnel
+- **`visualization`**: slope, wordcloud, arc, timeline, venn, quadrant
+- **`diagram`**: sequence, flowchart, class, er, org, kanban, c4, initiative-status, state, sitemap, infra
 
 ---
 
@@ -56,7 +61,7 @@ const framework = getDgmoFramework(chartType); // "echart"
 
 All parsers take a `.dgmo` text string and return a structured parsed object. Parsing is pure — no DOM, no side effects.
 
-#### Standard Charts
+#### Standard Data Charts
 
 | Function     | Signature                                                   |
 | ------------ | ----------------------------------------------------------- |
@@ -73,36 +78,36 @@ if (parsed.error) console.error(parsed.error);
 
 **Types**: `ParsedChart`, `ChartType`, `ChartDataPoint`
 
-#### ECharts
+#### Extended Data Charts
 
-| Function      | Signature                                                    |
-| ------------- | ------------------------------------------------------------ |
-| `parseEChart` | `(content: string, palette?: PaletteColors) => ParsedEChart` |
+| Function             | Signature                                                          |
+| -------------------- | ------------------------------------------------------------------ |
+| `parseExtendedChart` | `(content: string, palette?: PaletteColors) => ParsedExtendedChart` |
 
 ```ts
-import { parseEChart } from '@diagrammo/dgmo';
+import { parseExtendedChart } from '@diagrammo/dgmo';
 
-const parsed = parseEChart(fileContent);
-// parsed.type — "funnel" | "scatter" | "sankey" | "heatmap" | "function" | "chord"
+const parsed = parseExtendedChart(fileContent);
+// parsed.type — "scatter" | "sankey" | "chord" | "function" | "heatmap" | "funnel"
 // parsed.data, parsed.scatterPoints, parsed.links, etc.
 ```
 
-**Types**: `ParsedEChart`, `EChartsChartType`
+**Types**: `ParsedExtendedChart`, `ExtendedChartType`
 
-#### D3
+#### Visualizations
 
-| Function  | Signature                                                |
-| --------- | -------------------------------------------------------- |
-| `parseD3` | `(content: string, palette?: PaletteColors) => ParsedD3` |
+| Function             | Signature                                                          |
+| -------------------- | ------------------------------------------------------------------ |
+| `parseVisualization` | `(content: string, palette?: PaletteColors) => ParsedVisualization` |
 
 ```ts
-import { parseD3 } from '@diagrammo/dgmo';
+import { parseVisualization } from '@diagrammo/dgmo';
 
-const parsed = parseD3(fileContent);
+const parsed = parseVisualization(fileContent);
 // parsed.type — "slope" | "arc" | "timeline" | "wordcloud" | "venn" | "quadrant"
 ```
 
-**Types**: `ParsedD3`, `D3ChartType`, `ArcLink`, `ArcNodeGroup`
+**Types**: `ParsedVisualization`, `VisualizationType`, `ArcLink`, `ArcNodeGroup`
 
 #### Sequence Diagram
 
@@ -157,18 +162,18 @@ const collapsed = collapseOrgTree(parsed, new Set(['node-id']));
 
 Produce framework-specific configuration objects from parsed data. The consumer provides the rendering runtime (ECharts, Mermaid).
 
-| Function               | Signature                                                                                                         | Output                 |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------- | ---------------------- |
-| `buildEChartsOptionFromChart` | `(parsed: ParsedChart, palette: PaletteColors, isDark: boolean) => EChartsOption`                                 | ECharts option for standard chart types |
-| `buildEChartsOption`          | `(parsed: ParsedEChart, palette: PaletteColors, isDark: boolean) => EChartsOption`                                | ECharts option object                   |
-| `buildMermaidQuadrant`        | `(parsed: ParsedQuadrant, options?: { isDark?: boolean; textColor?: string; mutedTextColor?: string }) => string` | Mermaid syntax string                   |
+| Function                  | Signature                                                                                                         | Output                 |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| `buildSimpleChartOption`  | `(parsed: ParsedChart, palette: PaletteColors, isDark: boolean) => EChartsOption`                                | ECharts option for standard chart types (bar, line, pie, etc.) |
+| `buildExtendedChartOption` | `(parsed: ParsedExtendedChart, palette: PaletteColors, isDark: boolean) => EChartsOption`                       | ECharts option for extended chart types (scatter, sankey, etc.) |
+| `buildMermaidQuadrant`    | `(parsed: ParsedQuadrant, options?: { isDark?: boolean; textColor?: string; mutedTextColor?: string }) => string` | Mermaid syntax string  |
 
 ```ts
-import { parseChart, buildEChartsOptionFromChart, getPalette } from '@diagrammo/dgmo';
+import { parseChart, buildSimpleChartOption, getPalette } from '@diagrammo/dgmo';
 import * as echarts from 'echarts';
 
 const parsed = parseChart(content, nordPalette.light);
-const option = buildEChartsOptionFromChart(parsed, nordPalette.light, false);
+const option = buildSimpleChartOption(parsed, nordPalette.light, false);
 
 // Consumer provides ECharts runtime
 echarts.init(containerElement).setOption(option);
@@ -178,14 +183,14 @@ echarts.init(containerElement).setOption(option);
 
 ### Renderers
 
-Render parsed data to SVG. D3 and sequence renderers operate on a DOM container element.
+Render parsed data to SVG. Visualization and sequence renderers operate on a DOM container element.
 
-#### D3 Chart Renderers
+#### Visualization Renderers
 
 All share the same signature pattern:
 
 ```ts
-(container: HTMLDivElement, parsed: ParsedD3, palette: PaletteColors, isDark: boolean, onClickItem?: (lineNumber: number) => void) => void
+(container: HTMLDivElement, parsed: ParsedVisualization, palette: PaletteColors, isDark: boolean, onClickItem?: (lineNumber: number) => void) => void
 ```
 
 | Function           | Chart Type                                 |
@@ -198,9 +203,9 @@ All share the same signature pattern:
 | `renderQuadrant`   | Quadrant chart (2D scatter with quadrants) |
 
 ```ts
-import { parseD3, renderSlopeChart, nordPalette } from '@diagrammo/dgmo';
+import { parseVisualization, renderSlopeChart, nordPalette } from '@diagrammo/dgmo';
 
-const parsed = parseD3(content, nordPalette.light);
+const parsed = parseVisualization(content, nordPalette.light);
 const container = document.getElementById('chart') as HTMLDivElement;
 
 renderSlopeChart(container, parsed, nordPalette.light, false, (line) => {
@@ -249,16 +254,16 @@ renderOrg(container, parsed, layout, nordPalette.light, false, (line) => {
 
 #### Export Renderer (SVG string output)
 
-| Function            | Signature                                                                                                  |
-| ------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `renderD3ForExport` | `(content: string, theme: 'light' \| 'dark' \| 'transparent', palette?: PaletteColors) => Promise<string>` |
+| Function           | Signature                                                                                                   |
+| ------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `renderForExport`  | `(content: string, theme: 'light' \| 'dark' \| 'transparent', palette?: PaletteColors) => Promise<string>` |
 
-Returns a complete SVG string. Works for all D3 chart types including sequence diagrams. Creates a temporary offscreen container internally.
+Returns a complete SVG string. Works for all diagram and visualization types including sequence diagrams. Creates a temporary offscreen container internally.
 
 ```ts
-import { renderD3ForExport } from '@diagrammo/dgmo';
+import { renderForExport } from '@diagrammo/dgmo';
 
-const svgString = await renderD3ForExport(content, 'light');
+const svgString = await renderForExport(content, 'light');
 // Use in Node.js (with jsdom), SSR, or for file export
 ```
 
@@ -384,13 +389,13 @@ interface PaletteColors {
 
 ## Typical Usage Patterns
 
-### Parse + Render a chart (browser)
+### Parse + Render a visualization (browser)
 
 ```ts
 import {
   parseDgmoChartType,
-  getDgmoFramework,
-  parseD3,
+  getRenderCategory,
+  parseVisualization,
   renderSlopeChart,
   getPalette,
 } from '@diagrammo/dgmo';
@@ -403,9 +408,9 @@ Bob: 8, 4`;
 const palette = getPalette('nord');
 const colors = palette.light;
 const chartType = parseDgmoChartType(content); // "slope"
-const framework = getDgmoFramework(chartType); // "d3"
+const category = getRenderCategory(chartType); // "visualization"
 
-const parsed = parseD3(content, colors);
+const parsed = parseVisualization(content, colors);
 const container = document.getElementById('chart') as HTMLDivElement;
 renderSlopeChart(container, parsed, colors, false);
 ```
@@ -413,7 +418,7 @@ renderSlopeChart(container, parsed, colors, false);
 ### Parse + Build config for standard charts
 
 ```ts
-import { parseChart, buildEChartsOptionFromChart, getPalette } from '@diagrammo/dgmo';
+import { parseChart, buildSimpleChartOption, getPalette } from '@diagrammo/dgmo';
 import * as echarts from 'echarts';
 
 const content = `chart: bar
@@ -424,7 +429,7 @@ Q3: 200`;
 
 const { light } = getPalette('catppuccin');
 const parsed = parseChart(content, light);
-const option = buildEChartsOptionFromChart(parsed, light, false);
+const option = buildSimpleChartOption(parsed, light, false);
 
 echarts.init(document.getElementById('chart')).setOption(option);
 ```
@@ -432,9 +437,9 @@ echarts.init(document.getElementById('chart')).setOption(option);
 ### Export to SVG string
 
 ```ts
-import { renderD3ForExport } from '@diagrammo/dgmo';
+import { renderForExport } from '@diagrammo/dgmo';
 
-const svg = await renderD3ForExport(dgmoContent, 'dark');
+const svg = await renderForExport(dgmoContent, 'dark');
 fs.writeFileSync('output.svg', svg);
 ```
 
@@ -445,7 +450,7 @@ import {
   registerPalette,
   getPalette,
   parseChart,
-  buildEChartsOptionFromChart,
+  buildSimpleChartOption,
 } from '@diagrammo/dgmo';
 
 registerPalette({
@@ -487,11 +492,11 @@ const palette = getPalette('corporate');
 
 Core parse/render/build functions — these are the main library API:
 
-- `parseDgmoChartType`, `getDgmoFramework`
-- `parseChart`, `parseEChart`, `parseD3`, `parseSequenceDgmo`, `parseQuadrant`
-- `buildEChartsOptionFromChart`, `buildEChartsOption`, `buildMermaidQuadrant`
+- `parseDgmoChartType`, `getRenderCategory`, `isExtendedChartType`
+- `parseChart`, `parseExtendedChart`, `parseVisualization`, `parseSequenceDgmo`, `parseQuadrant`
+- `buildSimpleChartOption`, `buildExtendedChartOption`, `buildMermaidQuadrant`
 - `renderSlopeChart`, `renderArcDiagram`, `renderTimeline`, `renderWordCloud`, `renderVenn`, `renderQuadrant`
-- `renderSequenceDiagram`, `renderD3ForExport`
+- `renderSequenceDiagram`, `renderForExport`
 - `parseOrg`, `layoutOrg`, `renderOrg`, `renderOrgForExport`, `collapseOrgTree`
 - `getPalette`, `getAvailablePalettes`, `registerPalette`
 - All `PaletteConfig` definitions
@@ -508,6 +513,6 @@ Useful for advanced consumers:
 
 ### Internal (exported for testing, may change)
 
-- `DGMO_CHART_TYPE_MAP`, `RULE_COUNT`
+- `RULE_COUNT`
 - `orderArcNodes`, `parseTimelineDate`, `addDurationToDate`, `computeTimeTicks`, `formatDateLabel`
 - `colorNames`, `nord`, `seriesColors`, `isValidHex`, `hexToHSLString`

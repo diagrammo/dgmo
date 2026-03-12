@@ -4,8 +4,8 @@ import { parseDgmo } from '../src/dgmo-router';
 import { parseSequenceDgmo } from '../src/sequence/parser';
 import { parseOrg } from '../src/org/parser';
 import { parseChart } from '../src/chart';
-import { parseEChart } from '../src/echarts';
-import { parseD3 } from '../src/d3';
+import { parseExtendedChart } from '../src/echarts';
+import { parseVisualization } from '../src/d3';
 
 // ============================================================
 // suggest() utility
@@ -190,13 +190,13 @@ describe('chart type suggestions in error messages', () => {
   });
 
   it('suggests echart type for misspellings', () => {
-    const result = parseEChart('chart: scater\nA: 1, 2');
+    const result = parseExtendedChart('chart: scater\nA: 1, 2');
     expect(result.error).toBeDefined();
     expect(result.diagnostics[0].message).toContain("Did you mean 'scatter'?");
   });
 
   it('suggests d3 type for misspellings', () => {
-    const result = parseD3('chart: slop\nA, B\nX: 1, 2');
+    const result = parseVisualization('chart: slop\nA, B\nX: 1, 2');
     expect(result.error).toBeDefined();
     expect(result.diagnostics[0].message).toContain("Did you mean 'slope'?");
   });
@@ -216,7 +216,7 @@ describe('venn: recoverable overlap errors', () => {
       'Math + Science: Both',
     ].join('\n');
 
-    const result = parseD3(content);
+    const result = parseVisualization(content);
     const errors = result.diagnostics.filter((d) => d.severity === 'error');
     expect(errors).toHaveLength(1);
     expect(errors[0].message).toContain('Typo');

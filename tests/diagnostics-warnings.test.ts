@@ -3,8 +3,8 @@ import { parseSequenceDgmo } from '../src/sequence/parser';
 import { parseFlowchart } from '../src/graph/flowchart-parser';
 import { parseClassDiagram } from '../src/class/parser';
 import { parseERDiagram } from '../src/er/parser';
-import { parseD3 } from '../src/d3';
-import { parseEChart } from '../src/echarts';
+import { parseVisualization } from '../src/d3';
+import { parseExtendedChart } from '../src/echarts';
 import { parseChart } from '../src/chart';
 
 // ============================================================
@@ -164,7 +164,7 @@ describe('er: isolated table warnings', () => {
 
 describe('d3: non-fatal validation warnings', () => {
   it('wordcloud: warns about no words', () => {
-    const result = parseD3('chart: wordcloud');
+    const result = parseVisualization('chart: wordcloud');
     expect(result.error).toBeNull();
     const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
     expect(warnings).toHaveLength(1);
@@ -173,7 +173,7 @@ describe('d3: non-fatal validation warnings', () => {
   });
 
   it('arc: warns about no links', () => {
-    const result = parseD3('chart: arc');
+    const result = parseVisualization('chart: arc');
     expect(result.error).toBeNull();
     const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
     expect(warnings).toHaveLength(1);
@@ -181,7 +181,7 @@ describe('d3: non-fatal validation warnings', () => {
   });
 
   it('timeline: warns about no events', () => {
-    const result = parseD3('chart: timeline');
+    const result = parseVisualization('chart: timeline');
     expect(result.error).toBeNull();
     const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
     expect(warnings).toHaveLength(1);
@@ -189,7 +189,7 @@ describe('d3: non-fatal validation warnings', () => {
   });
 
   it('quadrant: warns about no data points', () => {
-    const result = parseD3('chart: quadrant');
+    const result = parseVisualization('chart: quadrant');
     expect(result.error).toBeNull();
     const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
     expect(warnings).toHaveLength(1);
@@ -197,7 +197,7 @@ describe('d3: non-fatal validation warnings', () => {
   });
 
   it('slope: warns about no data lines', () => {
-    const result = parseD3('chart: slope\n2020, 2024');
+    const result = parseVisualization('chart: slope\n2020, 2024');
     expect(result.error).toBeNull();
     const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
     expect(warnings).toHaveLength(1);
@@ -205,7 +205,7 @@ describe('d3: non-fatal validation warnings', () => {
   });
 
   it('slope: warns about value count mismatch and filters data', () => {
-    const result = parseD3('chart: slope\n2020, 2024\nApple: 25\nBanana: 10, 20');
+    const result = parseVisualization('chart: slope\n2020, 2024\nApple: 25\nBanana: 10, 20');
     expect(result.error).toBeNull();
     const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
     expect(warnings).toHaveLength(1);
@@ -216,7 +216,7 @@ describe('d3: non-fatal validation warnings', () => {
   });
 
   it('venn: unknown color name emits warning', () => {
-    const result = parseD3('chart: venn\nMath(magenta)\nScience(blue)');
+    const result = parseVisualization('chart: venn\nMath(magenta)\nScience(blue)');
     expect(result.error).toBeNull();
     const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
     expect(warnings).toHaveLength(1);
@@ -224,13 +224,13 @@ describe('d3: non-fatal validation warnings', () => {
   });
 
   it('venn: keeps fatal error for too few sets', () => {
-    const result = parseD3('chart: venn\nOnlyOne');
+    const result = parseVisualization('chart: venn\nOnlyOne');
     expect(result.error).not.toBeNull();
     expect(result.diagnostics.some((d) => d.severity === 'error')).toBe(true);
   });
 
   it('slope: keeps fatal error for missing periods', () => {
-    const result = parseD3('chart: slope');
+    const result = parseVisualization('chart: slope');
     expect(result.error).not.toBeNull();
     expect(result.diagnostics[0].severity).toBe('error');
   });
@@ -242,7 +242,7 @@ describe('d3: non-fatal validation warnings', () => {
 
 describe('echarts: non-fatal validation warnings', () => {
   it('sankey: warns about no links', () => {
-    const result = parseEChart('chart: sankey');
+    const result = parseExtendedChart('chart: sankey');
     expect(result.error).toBeNull();
     const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
     expect(warnings).toHaveLength(1);
@@ -251,7 +251,7 @@ describe('echarts: non-fatal validation warnings', () => {
   });
 
   it('scatter: warns about no points', () => {
-    const result = parseEChart('chart: scatter');
+    const result = parseExtendedChart('chart: scatter');
     expect(result.error).toBeNull();
     const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
     expect(warnings).toHaveLength(1);
@@ -259,7 +259,7 @@ describe('echarts: non-fatal validation warnings', () => {
   });
 
   it('funnel: warns about no data', () => {
-    const result = parseEChart('chart: funnel');
+    const result = parseExtendedChart('chart: funnel');
     expect(result.error).toBeNull();
     const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
     expect(warnings).toHaveLength(1);
@@ -267,7 +267,7 @@ describe('echarts: non-fatal validation warnings', () => {
   });
 
   it('keeps fatal error for unsupported type', () => {
-    const result = parseEChart('chart: bogus');
+    const result = parseExtendedChart('chart: bogus');
     expect(result.error).toBeDefined();
     expect(result.diagnostics[0].severity).toBe('error');
     expect(result.diagnostics[0].line).toBe(1);
@@ -327,13 +327,13 @@ describe('line number fixes', () => {
   });
 
   it('d3: unsupported chart type has correct line', () => {
-    const result = parseD3('chart: bogus');
+    const result = parseVisualization('chart: bogus');
     expect(result.error).not.toBeNull();
     expect(result.diagnostics[0].line).toBe(1);
   });
 
   it('echarts: unsupported chart type has correct line', () => {
-    const result = parseEChart('chart: bogus');
+    const result = parseExtendedChart('chart: bogus');
     expect(result.error).toBeDefined();
     expect(result.diagnostics[0].line).toBe(1);
   });
@@ -351,7 +351,7 @@ describe('line number fixes', () => {
 
 describe('timeline tag groups', () => {
   it('parses tag: blocks with entries', () => {
-    const result = parseD3(`chart: timeline
+    const result = parseVisualization(`chart: timeline
 
 tag: Team alias t
   Frontend(blue)
@@ -366,7 +366,7 @@ tag: Team alias t
   });
 
   it('parses pipe metadata on point events', () => {
-    const result = parseD3(`chart: timeline
+    const result = parseVisualization(`chart: timeline
 
 tag: Team alias t
   Frontend(blue)
@@ -378,7 +378,7 @@ tag: Team alias t
   });
 
   it('parses pipe metadata on range events', () => {
-    const result = parseD3(`chart: timeline
+    const result = parseVisualization(`chart: timeline
 
 tag: Team alias t
   Backend(green)
@@ -390,7 +390,7 @@ tag: Team alias t
   });
 
   it('parses pipe metadata on duration events', () => {
-    const result = parseD3(`chart: timeline
+    const result = parseVisualization(`chart: timeline
 
 tag: Team
   Platform(teal)
@@ -402,7 +402,7 @@ tag: Team
   });
 
   it('injects default tag values', () => {
-    const result = parseD3(`chart: timeline
+    const result = parseVisualization(`chart: timeline
 
 tag: Team
   Frontend(blue)
@@ -414,7 +414,7 @@ tag: Team
   });
 
   it('warns on unknown tag values', () => {
-    const result = parseD3(`chart: timeline
+    const result = parseVisualization(`chart: timeline
 
 tag: Team
   Frontend(blue)
@@ -426,7 +426,7 @@ tag: Team
   });
 
   it('existing timelines without tags still work', () => {
-    const result = parseD3(`chart: timeline
+    const result = parseVisualization(`chart: timeline
 
 [Q1]
   2026-01: Some task
@@ -440,7 +440,7 @@ tag: Team
 
 describe('timeline sort: tag directive', () => {
   it('parses sort: tag and defaults swimlane to first tag group', () => {
-    const result = parseD3(`chart: timeline
+    const result = parseVisualization(`chart: timeline
 sort: tag
 
 tag: Pirate alias p
@@ -453,7 +453,7 @@ tag: Pirate alias p
   });
 
   it('parses sort: tag:GroupName with explicit group', () => {
-    const result = parseD3(`chart: timeline
+    const result = parseVisualization(`chart: timeline
 sort: tag:Outcome
 
 tag: Pirate alias p
@@ -469,7 +469,7 @@ tag: Outcome alias o
   });
 
   it('resolves alias in sort: tag:alias', () => {
-    const result = parseD3(`chart: timeline
+    const result = parseVisualization(`chart: timeline
 sort: tag:p
 
 tag: Pirate alias p
@@ -482,7 +482,7 @@ tag: Pirate alias p
   });
 
   it('warns and falls back to first group when alias not found', () => {
-    const result = parseD3(`chart: timeline
+    const result = parseVisualization(`chart: timeline
 sort: tag:nonexistent
 
 tag: Pirate alias p
@@ -501,7 +501,7 @@ tag: Outcome alias o
   });
 
   it('falls back to sort: time when no tag groups defined', () => {
-    const result = parseD3(`chart: timeline
+    const result = parseVisualization(`chart: timeline
 sort: tag
 
 [Q1]
@@ -514,7 +514,7 @@ sort: tag
   });
 
   it('case-insensitive alias resolution', () => {
-    const result = parseD3(`chart: timeline
+    const result = parseVisualization(`chart: timeline
 sort: tag:P
 
 tag: Pirate alias p
@@ -526,7 +526,7 @@ tag: Pirate alias p
   });
 
   it('preserves sort: time (default)', () => {
-    const result = parseD3(`chart: timeline
+    const result = parseVisualization(`chart: timeline
 
 tag: Pirate alias p
   Blackbeard(red)
@@ -537,7 +537,7 @@ tag: Pirate alias p
   });
 
   it('preserves sort: group', () => {
-    const result = parseD3(`chart: timeline
+    const result = parseVisualization(`chart: timeline
 sort: group
 
 [Engineering]
