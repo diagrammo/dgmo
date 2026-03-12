@@ -210,10 +210,10 @@ describe('venn: recoverable overlap errors', () => {
   it('collects unknown set reference and skips bad overlap', () => {
     const content = [
       'chart: venn',
-      'Math: 100',
-      'Science: 80',
-      'Math & Typo: 20',
-      'Math & Science: 30',
+      'Math',
+      'Science',
+      'Math + Typo: Shared',
+      'Math + Science: Both',
     ].join('\n');
 
     const result = parseD3(content);

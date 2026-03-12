@@ -215,20 +215,18 @@ describe('d3: non-fatal validation warnings', () => {
     expect(result.data[0].label).toBe('Banana');
   });
 
-  it('venn: overlap size exceeds set size emits warning', () => {
-    const result = parseD3(
-      'chart: venn\nMath: 100\nScience: 80\nMath & Science: 150'
-    );
+  it('venn: unknown color name emits warning', () => {
+    const result = parseD3('chart: venn\nMath(magenta)\nScience(blue)');
     expect(result.error).toBeNull();
     const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
     expect(warnings).toHaveLength(1);
-    expect(warnings[0].message).toContain('Overlap size');
+    expect(warnings[0].message).toContain('magenta');
   });
 
   it('venn: keeps fatal error for too few sets', () => {
-    const result = parseD3('chart: venn\nMath: 100');
+    const result = parseD3('chart: venn\nOnlyOne');
     expect(result.error).not.toBeNull();
-    expect(result.diagnostics[0].severity).toBe('error');
+    expect(result.diagnostics.some((d) => d.severity === 'error')).toBe(true);
   });
 
   it('slope: keeps fatal error for missing periods', () => {

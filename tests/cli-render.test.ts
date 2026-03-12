@@ -65,9 +65,9 @@ C -> A: 2`,
 2021-01: Launch`,
 
   venn: `chart: venn
-A: 100
-B: 80
-A & B: 30`,
+Apples
+Oranges
+Apples + Oranges: Cider`,
 
   quadrant: `chart: quadrant
 xlabel: Effort

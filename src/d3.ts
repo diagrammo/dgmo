@@ -99,15 +99,13 @@ export interface TimelineMarker {
 
 export interface VennSet {
   name: string;
-  size: number;
+  alias: string | null;
   color: string | null;
-  label: string | null;
   lineNumber: number;
 }
 
 export interface VennOverlap {
   sets: string[];
-  size: number;
   label: string | null;
   lineNumber: number;
 }
@@ -161,7 +159,6 @@ export interface ParsedD3 {
   timelineSwimlanes: boolean;
   vennSets: VennSet[];
   vennOverlaps: VennOverlap[];
-  vennShowValues: boolean;
   // Quadrant chart fields
   quadrantLabels: QuadrantLabels;
   quadrantPoints: QuadrantPoint[];
@@ -354,7 +351,6 @@ export function parseD3(content: string, palette?: PaletteColors): ParsedD3 {
     timelineSwimlanes: false,
     vennSets: [],
     vennOverlaps: [],
-    vennShowValues: false,
     quadrantLabels: {
       topRight: null,
       topLeft: null,
@@ -376,6 +372,10 @@ export function parseD3(content: string, palette?: PaletteColors): ParsedD3 {
     result.diagnostics.push(diag);
     result.error = formatDgmoError(diag);
     return result;
+  };
+
+  const warn = (line: number, message: string): void => {
+    result.diagnostics.push(makeDgmoError(line, message, 'warning'));
   };
 
   if (!content || !content.trim()) {
@@ -622,35 +622,43 @@ export function parseD3(content: string, palette?: PaletteColors): ParsedD3 {
       }
     }
 
-    // Venn overlap line: "A & B: size" or "A & B & C: size \"label\""
+    // Venn diagram DSL
     if (result.type === 'venn') {
-      const overlapMatch = line.match(
-        /^(.+?&.+?)\s*:\s*(\d+(?:\.\d+)?)\s*(?:"([^"]*)")?\s*$/
-      );
-      if (overlapMatch) {
-        const sets = overlapMatch[1]
-          .split('&')
-          .map((s) => s.trim())
-          .filter(Boolean)
-          .sort();
-        const size = parseFloat(overlapMatch[2]);
-        const label = overlapMatch[3] ?? null;
-        result.vennOverlaps.push({ sets, size, label, lineNumber });
-        continue;
+      // Intersection line: "A + B: Label" / "A + B" / "A + B + C: Label"
+      if (/\+/.test(line)) {
+        const colonIdx = line.indexOf(':');
+        let setsPart: string;
+        let label: string | null;
+        if (colonIdx >= 0) {
+          setsPart = line.substring(0, colonIdx).trim();
+          label = line.substring(colonIdx + 1).trim() || null;
+        } else {
+          setsPart = line.trim();
+          label = null;
+        }
+        const rawSets = setsPart.split('+').map((s) => s.trim()).filter(Boolean);
+        if (rawSets.length >= 2) {
+          result.vennOverlaps.push({ sets: rawSets, label, lineNumber });
+          continue;
+        }
       }
 
-      // Venn set line: "Name: size" or "Name(color): size \"label\""
-      const setMatch = line.match(
-        /^(.+?)(?:\(([^)]+)\))?\s*:\s*(\d+(?:\.\d+)?)\s*(?:"([^"]*)")?\s*$/
-      );
-      if (setMatch) {
-        const name = setMatch[1].trim();
-        const color = setMatch[2]
-          ? resolveColor(setMatch[2].trim(), palette)
-          : null;
-        const size = parseFloat(setMatch[3]);
-        const label = setMatch[4] ?? null;
-        result.vennSets.push({ name, size, color, label, lineNumber });
+      // Set declaration: "Name(color) alias x" / "Name alias x" / "Name(color)" / "Name"
+      const setDeclMatch = line.match(/^([^(:]+?)(?:\(([^)]+)\))?(?:\s+alias\s+(\S+))?\s*$/i);
+      if (setDeclMatch) {
+        const name = setDeclMatch[1].trim();
+        const colorName = setDeclMatch[2]?.trim() ?? null;
+        let color: string | null = null;
+        if (colorName) {
+          const resolved = resolveColor(colorName, palette);
+          if (resolved.startsWith('#')) {
+            color = resolved;
+          } else {
+            warn(lineNumber, `Unknown color "${colorName}" on set "${name}". Using auto-assigned color.`);
+          }
+        }
+        const alias = setDeclMatch[3]?.trim() ?? null;
+        result.vennSets.push({ name, alias, color, lineNumber });
         continue;
       }
     }
@@ -846,19 +854,6 @@ export function parseD3(content: string, palette?: PaletteColors): ParsedD3 {
         continue;
       }
 
-      if (key === 'values') {
-        const v = line
-          .substring(colonIndex + 1)
-          .trim()
-          .toLowerCase();
-        if (v === 'off') {
-          result.vennShowValues = false;
-        } else if (v === 'on') {
-          result.vennShowValues = true;
-        }
-        continue;
-      }
-
       if (key === 'rotate') {
         const v = line
           .substring(colonIndex + 1)
@@ -972,10 +967,6 @@ export function parseD3(content: string, palette?: PaletteColors): ParsedD3 {
     return result;
   }
 
-  const warn = (line: number, message: string): void => {
-    result.diagnostics.push(makeDgmoError(line, message, 'warning'));
-  };
-
   if (result.type === 'wordcloud') {
     // If no structured words were found, parse freeform text as word frequencies
     if (result.words.length === 0 && freeformLines.length > 0) {
@@ -1065,30 +1056,38 @@ export function parseD3(content: string, palette?: PaletteColors): ParsedD3 {
 
   if (result.type === 'venn') {
     if (result.vennSets.length < 2) {
-      return fail(1, 'At least 2 sets are required. Add sets as "Name: size" (e.g., "Math: 100")');
+      return fail(1, 'At least 2 sets are required. Add set names (e.g., "Apples", "Oranges")');
     }
     if (result.vennSets.length > 3) {
-      return fail(1, 'At most 3 sets are supported. Remove extra sets.');
+      return fail(1, 'Venn diagrams support 2–3 sets');
     }
-    // Validate overlap references and sizes — skip invalid overlaps
-    const setMap = new Map(result.vennSets.map((s) => [s.name, s.size]));
-    const validOverlaps = [];
+    // Build lookup: full name (lowercase) and alias → canonical name
+    const setNameLower = new Map<string, string>(
+      result.vennSets.map((s) => [s.name.toLowerCase(), s.name])
+    );
+    const aliasLower = new Map<string, string>();
+    for (const s of result.vennSets) {
+      if (s.alias) aliasLower.set(s.alias.toLowerCase(), s.name);
+    }
+    const resolveSetRef = (ref: string): string | null =>
+      setNameLower.get(ref.toLowerCase()) ?? aliasLower.get(ref.toLowerCase()) ?? null;
+
+    // Resolve intersection set references; drop invalid ones with a diagnostic
+    const validOverlaps: VennOverlap[] = [];
     for (const ov of result.vennOverlaps) {
+      const resolvedSets: string[] = [];
       let valid = true;
-      for (const setName of ov.sets) {
-        if (!setMap.has(setName)) {
-          result.diagnostics.push(makeDgmoError(ov.lineNumber, `Overlap references unknown set "${setName}". Define it first as "${setName}: <size>"`));
+      for (const ref of ov.sets) {
+        const resolved = resolveSetRef(ref);
+        if (!resolved) {
+          result.diagnostics.push(makeDgmoError(ov.lineNumber, `Intersection references unknown set or alias "${ref}"`));
           if (!result.error) result.error = formatDgmoError(result.diagnostics[result.diagnostics.length - 1]);
           valid = false;
           break;
         }
+        resolvedSets.push(resolved);
       }
-      if (!valid) continue;
-      const minSetSize = Math.min(...ov.sets.map((s) => setMap.get(s)!));
-      if (ov.size > minSetSize) {
-        warn(ov.lineNumber, `Overlap size ${ov.size} exceeds smallest constituent set size ${minSetSize}`);
-      }
-      validOverlaps.push(ov);
+      if (valid) validOverlaps.push({ ...ov, sets: resolvedSets.sort() });
     }
     result.vennOverlaps = validOverlaps;
     return result;
@@ -4797,67 +4796,34 @@ export function renderVenn(
   onClickItem?: (lineNumber: number) => void,
   exportDims?: D3ExportDimensions
 ): void {
-  const { vennSets, vennOverlaps, vennShowValues, title } = parsed;
+  const { vennSets, vennOverlaps, title } = parsed;
   if (vennSets.length < 2) return;
 
   const init = initD3Chart(container, palette, exportDims);
   if (!init) return;
   const { svg, width, height, textColor, colors } = init;
   const titleHeight = title ? 40 : 0;
-
-  // Compute radii
-  const radii = vennSets.map((s) => radiusFromArea(s.size));
-
-  // Build overlap map keyed by sorted set names
-  const overlapMap = new Map<string, number>();
-  for (const ov of vennOverlaps) {
-    overlapMap.set(ov.sets.join('&'), ov.size);
-  }
-
-  // Layout circles
-  let rawCircles: Circle[];
   const n = vennSets.length;
 
+  // ── Equal-radius layout with ~30% overlap depth ──
+  // All circles share the same base radius; center distance = 1.4r gives ~30% penetration
+  const BASE_R = 100;
+  const OVERLAP_DISTANCE = BASE_R * 1.4;
+
+  let rawCircles: Circle[];
   if (n === 2) {
-    const d = distanceForOverlap(
-      radii[0],
-      radii[1],
-      overlapMap.get([vennSets[0].name, vennSets[1].name].sort().join('&')) ?? 0
-    );
     rawCircles = [
-      { x: -d / 2, y: 0, r: radii[0] },
-      { x: d / 2, y: 0, r: radii[1] },
+      { x: -OVERLAP_DISTANCE / 2, y: 0, r: BASE_R },
+      { x: OVERLAP_DISTANCE / 2, y: 0, r: BASE_R },
     ];
   } else {
-    // 3 sets: place A and B, then compute C position
-    const names = vennSets.map((s) => s.name);
-    const pairKey = (i: number, j: number) =>
-      [names[i], names[j]].sort().join('&');
-
-    const dAB = distanceForOverlap(
-      radii[0],
-      radii[1],
-      overlapMap.get(pairKey(0, 1)) ?? 0
-    );
-    const dAC = distanceForOverlap(
-      radii[0],
-      radii[2],
-      overlapMap.get(pairKey(0, 2)) ?? 0
-    );
-    const dBC = distanceForOverlap(
-      radii[1],
-      radii[2],
-      overlapMap.get(pairKey(1, 2)) ?? 0
-    );
-
-    const ax = -dAB / 2;
-    const bx = dAB / 2;
-    const cPos = thirdCirclePosition(ax, 0, dAC, bx, 0, dBC);
-
+    // Equilateral triangle with side = OVERLAP_DISTANCE
+    const s = OVERLAP_DISTANCE;
+    const h = (Math.sqrt(3) / 2) * s;
     rawCircles = [
-      { x: ax, y: 0, r: radii[0] },
-      { x: bx, y: 0, r: radii[1] },
-      { x: cPos.x, y: cPos.y, r: radii[2] },
+      { x: -s / 2, y: h / 3, r: BASE_R },
+      { x: s / 2, y: h / 3, r: BASE_R },
+      { x: 0, y: -(2 * h) / 3, r: BASE_R },
     ];
   }
 
@@ -4867,11 +4833,9 @@ export function renderVenn(
   );
 
   // ── Layout-aware centering with label space ──
-  // Estimate per-side label widths and compute asymmetric margins
   const clusterCx = rawCircles.reduce((s, c) => s + c.x, 0) / n;
   const clusterCy = rawCircles.reduce((s, c) => s + c.y, 0) / n;
 
-  // Estimate which side each set label falls on
   let marginLeft = 30,
     marginRight = 30,
     marginTop = 30,
@@ -4881,17 +4845,13 @@ export function renderVenn(
   const labelTextPad = 4;
 
   for (let i = 0; i < n; i++) {
-    const displayName = vennSets[i].label ?? vennSets[i].name;
-    const estimatedWidth = displayName.length * 8.5 + stubLen + edgePad + labelTextPad;
+    const estimatedWidth = vennSets[i].name.length * 8.5 + stubLen + edgePad + labelTextPad;
     const dx = rawCircles[i].x - clusterCx;
     const dy = rawCircles[i].y - clusterCy;
-
     if (Math.abs(dx) >= Math.abs(dy)) {
-      // Label exits left or right
       if (dx >= 0) marginRight = Math.max(marginRight, estimatedWidth);
       else marginLeft = Math.max(marginLeft, estimatedWidth);
     } else {
-      // Label exits top or bottom
       const halfEstimate = estimatedWidth * 0.5;
       if (dy >= 0) marginBottom = Math.max(marginBottom, halfEstimate + 20);
       else marginTop = Math.max(marginTop, halfEstimate + 20);
@@ -4909,13 +4869,15 @@ export function renderVenn(
     marginBottom
   ).map((c) => ({ ...c, y: c.y + titleHeight }));
 
-  // Tooltip
-  const tooltip = createTooltip(container, palette, isDark);
+  const scaledR = circles[0].r;
+
+  // Suppress WebKit focus ring on interactive SVG elements
+  svg.append('style').text('circle:focus, circle:focus-visible { outline: none !important; }');
 
   // Title
   renderChartTitle(svg, title, parsed.titleLineNumber, width, textColor, onClickItem);
 
-  // ── Semi-transparent filled circles ──
+  // ── Semi-transparent filled circles (non-interactive) ──
   const circleEls: d3Selection.Selection<SVGCircleElement, unknown, null, undefined>[] = [];
   const circleGroup = svg.append('g');
   circles.forEach((c, i) => {
@@ -4937,69 +4899,131 @@ export function renderVenn(
     circleEls.push(el);
   });
 
+  // ── Per-region highlight overlays (section-only, not full circles) ──
+  // Build SVG defs with clipPaths + masks so each region can be highlighted independently.
+  const defs = svg.append('defs');
+
+  // Individual circle clipPaths
+  circles.forEach((c, i) => {
+    defs.append('clipPath')
+      .attr('id', `vcp-${i}`)
+      .append('circle')
+      .attr('cx', c.x).attr('cy', c.y).attr('r', c.r);
+  });
+
+  // All region index-sets: exclusive then intersection subsets
+  const regionIdxSets: number[][] = circles.map((_, i) => [i]);
+  if (n === 2) {
+    regionIdxSets.push([0, 1]);
+  } else {
+    regionIdxSets.push([0, 1], [0, 2], [1, 2], [0, 1, 2]);
+  }
+
+  const overlayGroup = svg.append('g').style('pointer-events', 'none');
+  const overlayEls = new Map<string, d3Selection.Selection<SVGRectElement, unknown, null, undefined>>();
+
+  for (const idxs of regionIdxSets) {
+    const key = idxs.join('-');
+    const excluded = Array.from({ length: n }, (_, j) => j).filter(j => !idxs.includes(j));
+
+    // Build nested clipPath for intersection of all idxs
+    let clipId = `vcp-${idxs[0]}`;
+    for (let k = 1; k < idxs.length; k++) {
+      const nestedId = `vcp-n-${idxs.slice(0, k + 1).join('-')}`;
+      const ci = idxs[k];
+      defs.append('clipPath')
+        .attr('id', nestedId)
+        .append('circle')
+        .attr('cx', circles[ci].x).attr('cy', circles[ci].y).attr('r', circles[ci].r)
+        .attr('clip-path', `url(#${clipId})`);
+      clipId = nestedId;
+    }
+
+    // Determine line number for this region (for editor sync)
+    let regionLineNumber: number | null = null;
+    if (idxs.length === 1) {
+      regionLineNumber = vennSets[idxs[0]].lineNumber;
+    } else {
+      const sortedNames = idxs.map(i => vennSets[i].name).sort();
+      const ov = vennOverlaps.find(
+        (o) => o.sets.length === sortedNames.length && o.sets.every((s, k) => s === sortedNames[k])
+      );
+      regionLineNumber = ov?.lineNumber ?? null;
+    }
+
+    const el = overlayGroup.append('rect')
+      .attr('x', 0).attr('y', 0)
+      .attr('width', width).attr('height', height)
+      .attr('fill', 'white')
+      .attr('fill-opacity', 0)
+      .attr('class', 'venn-region-overlay')
+      .attr('data-line-number', regionLineNumber != null ? String(regionLineNumber) : '0')
+      .attr('clip-path', `url(#${clipId})`);
+
+    if (excluded.length > 0) {
+      // Mask subtracts excluded circles so only the exact region shape highlights
+      const maskId = `vvm-${key}`;
+      const mask = defs.append('mask').attr('id', maskId);
+      mask.append('rect')
+        .attr('x', 0).attr('y', 0)
+        .attr('width', width).attr('height', height)
+        .attr('fill', 'white');
+      for (const j of excluded) {
+        mask.append('circle')
+          .attr('cx', circles[j].x).attr('cy', circles[j].y).attr('r', circles[j].r)
+          .attr('fill', 'black');
+      }
+      el.attr('mask', `url(#${maskId})`);
+    }
+
+    overlayEls.set(key, el);
+  }
+
+  const showRegionOverlay = (idxs: number[]) => {
+    const key = [...idxs].sort((a, b) => a - b).join('-');
+    overlayEls.forEach((el, k) => el.attr('fill-opacity', k === key ? 0 : 0.55));
+  };
+  const hideAllOverlays = () => {
+    overlayEls.forEach(el => el.attr('fill-opacity', 0));
+  };
+
   // ── Labels ──
-  // Global center of all circles (for projecting outward)
   const gcx = circles.reduce((s, c) => s + c.x, 0) / n;
   const gcy = circles.reduce((s, c) => s + c.y, 0) / n;
 
-  // Helper: ray-circle exit distance (positive = forward along direction)
-  function rayCircleExit(
-    ox: number,
-    oy: number,
-    dx: number,
-    dy: number,
-    c: Circle
-  ): number {
-    const lx = ox - c.x;
-    const ly = oy - c.y;
-    const b = lx * dx + ly * dy;
-    const det = b * b - (lx * lx + ly * ly - c.r * c.r);
-    if (det < 0) return 0;
-    return -b + Math.sqrt(det);
-  }
-
-  const labelGroup = svg.append('g').style('pointer-events', 'none');
-
-  // ── Set name labels (inside exclusive region if they fit, else external leader line) ──
-  // Helper: measure horizontal clearance at a point inside circle i but outside others
   function exclusiveHSpan(px: number, py: number, ci: number): number {
-    // Start with full chord width of circle i at height py
     const dy = py - circles[ci].y;
     const halfChord = Math.sqrt(Math.max(0, circles[ci].r * circles[ci].r - dy * dy));
     let left = circles[ci].x - halfChord;
     let right = circles[ci].x + halfChord;
-    // Subtract any overlapping circle chord that covers this y
     for (let j = 0; j < n; j++) {
       if (j === ci) continue;
       const djy = py - circles[j].y;
-      if (Math.abs(djy) >= circles[j].r) continue; // circle j doesn't reach this y
+      if (Math.abs(djy) >= circles[j].r) continue;
       const hc = Math.sqrt(circles[j].r * circles[j].r - djy * djy);
       const jLeft = circles[j].x - hc;
       const jRight = circles[j].x + hc;
-      // Clamp our span to exclude the overlap with circle j
-      if (jLeft <= left && jRight >= right) return 0; // fully covered
+      if (jLeft <= left && jRight >= right) return 0;
       if (jLeft <= left && jRight > left) left = jRight;
       if (jRight >= right && jLeft < right) right = jLeft;
     }
     return Math.max(0, right - left);
   }
 
-  // Font size scaling: 0.6 ch-width per character at a given font size
   const CH_RATIO = 0.6;
   const MIN_FONT = 10;
   const MAX_FONT = 22;
   const INTERNAL_PAD = 12;
 
-  circles.forEach((c, i) => {
-    const text = vennSets[i].label ?? vennSets[i].name;
+  const labelGroup = svg.append('g').style('pointer-events', 'none');
 
-    // Compute exclusive region centroid
+  // Set name labels: prefer inside exclusive region, fall back to external leader line
+  circles.forEach((c, i) => {
+    const text = vennSets[i].name;
     const inside = circles.map((_, j) => j === i);
     const centroid = regionCentroid(circles, inside);
 
-    // Available width at centroid
     const availW = exclusiveHSpan(centroid.x, centroid.y, i);
-    // Font size that makes text fill ~80% of available width
     const fitFont = Math.min(MAX_FONT, Math.max(MIN_FONT,
       (availW - INTERNAL_PAD * 2) / (text.length * CH_RATIO)));
     const estTextW = text.length * CH_RATIO * fitFont;
@@ -5020,17 +5044,10 @@ export function renderVenn(
         .attr('font-weight', 'bold')
         .text(text);
     } else {
-      // External label with leader line
       let dx = c.x - gcx;
       let dy = c.y - gcy;
       const mag = Math.sqrt(dx * dx + dy * dy);
-      if (mag < 1e-6) {
-        dx = 1;
-        dy = 0;
-      } else {
-        dx /= mag;
-        dy /= mag;
-      }
+      if (mag < 1e-6) { dx = 1; dy = 0; } else { dx /= mag; dy /= mag; }
 
       const exitX = c.x + dx * c.r;
       const exitY = c.y + dy * c.r;
@@ -5041,10 +5058,8 @@ export function renderVenn(
 
       labelGroup
         .append('line')
-        .attr('x1', edgeX)
-        .attr('y1', edgeY)
-        .attr('x2', stubEndX)
-        .attr('y2', stubEndY)
+        .attr('x1', edgeX).attr('y1', edgeY)
+        .attr('x2', stubEndX).attr('y2', stubEndY)
         .attr('stroke', textColor)
         .attr('stroke-width', 1);
 
@@ -5052,13 +5067,9 @@ export function renderVenn(
       const textAnchor = isRight ? 'start' : 'end';
       let textX = stubEndX + (isRight ? labelTextPad : -labelTextPad);
       const textY = stubEndY;
-
       const estW = text.length * 8.5;
-      if (isRight) {
-        textX = Math.min(textX, width - estW - 4);
-      } else {
-        textX = Math.max(textX, estW + 4);
-      }
+      if (isRight) textX = Math.min(textX, width - estW - 4);
+      else textX = Math.max(textX, estW + 4);
 
       labelGroup
         .append('text')
@@ -5073,11 +5084,9 @@ export function renderVenn(
     }
   });
 
-  // ── Overlap labels (inline at region centroid, scaled to fit) ──
-  // Helper: horizontal span at y inside all circles in idxs, outside others
+  // ── Overlap labels (inline at region centroid) ──
   function overlapHSpan(py: number, idxs: number[]): number {
     let left = -Infinity, right = Infinity;
-    // Intersect chords of all "inside" circles
     for (const ci of idxs) {
       const dy = py - circles[ci].y;
       if (Math.abs(dy) >= circles[ci].r) return 0;
@@ -5086,7 +5095,6 @@ export function renderVenn(
       right = Math.min(right, circles[ci].x + hc);
     }
     if (left >= right) return 0;
-    // Subtract any "outside" circle that intrudes
     for (let j = 0; j < n; j++) {
       if (idxs.includes(j)) continue;
       const dy = py - circles[j].y;
@@ -5102,18 +5110,14 @@ export function renderVenn(
   }
 
   for (const ov of vennOverlaps) {
+    if (!ov.label) continue;
     const idxs = ov.sets.map((s) => vennSets.findIndex((vs) => vs.name === s));
     if (idxs.some((idx) => idx < 0)) continue;
-    if (!ov.label) continue;
-
     const inside = circles.map((_, j) => idxs.includes(j));
     const centroid = regionCentroid(circles, inside);
-    const text = ov.label;
-
     const availW = overlapHSpan(centroid.y, idxs);
     const fitFont = Math.min(MAX_FONT, Math.max(MIN_FONT,
-      (availW - INTERNAL_PAD * 2) / (text.length * CH_RATIO)));
-
+      (availW - INTERNAL_PAD * 2) / (ov.label.length * CH_RATIO)));
     labelGroup
       .append('text')
       .attr('x', centroid.x)
@@ -5123,45 +5127,73 @@ export function renderVenn(
       .attr('fill', textColor)
       .attr('font-size', `${Math.round(fitFont)}px`)
       .attr('font-weight', '600')
-      .text(text);
+      .text(ov.label);
   }
 
-  // ── Invisible hover targets (full circles) + interactions ──
+  // ── Hover targets ──
+  // Exclusive circle targets first (lower z-order), then intersection targets (higher z-order)
   const hoverGroup = svg.append('g');
-  circles.forEach((c, i) => {
-    const tipName = vennSets[i].label
-      ? `${vennSets[i].label} (${vennSets[i].name})`
-      : vennSets[i].name;
-    const tipHtml = `<strong>${tipName}</strong><br>Size: ${vennSets[i].size}`;
 
+  circles.forEach((c, i) => {
     hoverGroup
       .append('circle')
       .attr('cx', c.x)
       .attr('cy', c.y)
       .attr('r', c.r)
       .attr('fill', 'transparent')
+      .attr('stroke', 'none')
+      .attr('class', 'venn-hit-target')
       .attr('data-line-number', String(vennSets[i].lineNumber))
       .style('cursor', onClickItem ? 'pointer' : 'default')
-      .on('mouseenter', (event: MouseEvent) => {
-        circleEls.forEach((el, ci) => {
-          el.attr('fill-opacity', ci === i ? 0.5 : 0.1);
-        });
-        showTooltip(tooltip, tipHtml, event);
-      })
-      .on('mousemove', (event: MouseEvent) => {
-        showTooltip(tooltip, tipHtml, event);
-      })
-      .on('mouseleave', () => {
-        circleEls.forEach((el) => {
-          el.attr('fill-opacity', 0.35);
-        });
-        hideTooltip(tooltip);
-      })
-      .on('click', () => {
-        if (onClickItem && vennSets[i].lineNumber)
-          onClickItem(vennSets[i].lineNumber);
+      .style('outline', 'none')
+      .on('mouseenter', () => { showRegionOverlay([i]); })
+      .on('mouseleave', () => { hideAllOverlays(); })
+      .on('click', function () {
+        (this as SVGElement).blur?.();
+        if (onClickItem && vennSets[i].lineNumber) onClickItem(vennSets[i].lineNumber);
       });
   });
+
+  // Intersection targets: centroid-based circles for all overlap regions (declared + undeclared)
+  const overlayR = scaledR * 0.35;
+
+  const subsets: { idxs: number[]; sets: string[] }[] = [];
+  if (n === 2) {
+    subsets.push({ idxs: [0, 1], sets: [vennSets[0].name, vennSets[1].name].sort() });
+  } else {
+    for (let a = 0; a < n; a++) {
+      for (let b = a + 1; b < n; b++) {
+        subsets.push({ idxs: [a, b], sets: [vennSets[a].name, vennSets[b].name].sort() });
+      }
+    }
+    subsets.push({ idxs: [0, 1, 2], sets: [vennSets[0].name, vennSets[1].name, vennSets[2].name].sort() });
+  }
+
+  for (const subset of subsets) {
+    const { idxs, sets } = subset;
+    const inside = circles.map((_, j) => idxs.includes(j));
+    const centroid = regionCentroid(circles, inside);
+    const declaredOv = vennOverlaps.find(
+      (ov) => ov.sets.length === sets.length && ov.sets.every((s, k) => s === sets[k])
+    );
+    hoverGroup
+      .append('circle')
+      .attr('cx', centroid.x)
+      .attr('cy', centroid.y)
+      .attr('r', overlayR)
+      .attr('fill', 'transparent')
+      .attr('stroke', 'none')
+      .attr('class', 'venn-hit-target')
+      .attr('data-line-number', declaredOv ? String(declaredOv.lineNumber) : '')
+      .style('cursor', onClickItem && declaredOv ? 'pointer' : 'default')
+      .style('outline', 'none')
+      .on('mouseenter', () => { showRegionOverlay(idxs); })
+      .on('mouseleave', () => { hideAllOverlays(); })
+      .on('click', function () {
+        (this as SVGElement).blur?.();
+        if (onClickItem && declaredOv) onClickItem(declaredOv.lineNumber);
+      });
+  }
 }
 
 // ============================================================

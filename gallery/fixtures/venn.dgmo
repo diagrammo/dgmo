@@ -1,10 +1,11 @@
 chart: venn
 title: Full-Stack Developer Skills
 
-Frontend (blue): 120
-Backend (green): 95
-DevOps (orange): 60
-Frontend & Backend: 45
-Backend & DevOps: 25
-Frontend & DevOps: 15
-Frontend & Backend & DevOps: 10
+Frontend(blue) alias fe
+Backend(green) alias be
+DevOps(orange) alias de
+
+fe + be: Web Systems
+be + de: Platform Ops
+fe + de: Dev Tools
+fe + be + de: Full Stack
