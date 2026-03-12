@@ -199,4 +199,71 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
       expect(result.url).not.toContain('&swim=');
     });
   });
+
+  describe('view state (palette + theme)', () => {
+    it('round-trips palette: catppuccin', () => {
+      const dsl = 'chart: pie\nA: 10';
+      const result = encodeDiagramUrl(dsl, { viewState: { palette: 'catppuccin' } });
+      if (result.error) throw new Error('unexpected error');
+      expect(result.url).toContain('&pal=catppuccin');
+      const query = new URL(result.url).search;
+      const decoded = decodeDiagramUrl(query);
+      expect(decoded.viewState.palette).toBe('catppuccin');
+    });
+
+    it('round-trips theme: light', () => {
+      const dsl = 'chart: pie\nA: 10';
+      const result = encodeDiagramUrl(dsl, { viewState: { theme: 'light' } });
+      if (result.error) throw new Error('unexpected error');
+      expect(result.url).toContain('&th=light');
+      const query = new URL(result.url).search;
+      const decoded = decodeDiagramUrl(query);
+      expect(decoded.viewState.theme).toBe('light');
+    });
+
+    it('round-trips palette + theme + activeTagGroup together', () => {
+      const dsl = 'chart: org\nCEO';
+      const result = encodeDiagramUrl(dsl, {
+        viewState: { palette: 'catppuccin', theme: 'light', activeTagGroup: 'Team' },
+      });
+      if (result.error) throw new Error('unexpected error');
+      expect(result.url).toContain('&pal=catppuccin');
+      expect(result.url).toContain('&th=light');
+      expect(result.url).toContain('&tag=Team');
+      const query = new URL(result.url).search;
+      const decoded = decodeDiagramUrl(query);
+      expect(decoded.viewState.palette).toBe('catppuccin');
+      expect(decoded.viewState.theme).toBe('light');
+      expect(decoded.viewState.activeTagGroup).toBe('Team');
+    });
+
+    it('omits &pal= when palette is nord (default)', () => {
+      const result = encodeDiagramUrl('chart: pie\nA: 10', { viewState: { palette: 'nord' } });
+      if (result.error) throw new Error('unexpected error');
+      expect(result.url).not.toContain('&pal=');
+    });
+
+    it('omits &th= when theme is dark (default)', () => {
+      const result = encodeDiagramUrl('chart: pie\nA: 10', { viewState: { theme: 'dark' } });
+      if (result.error) throw new Error('unexpected error');
+      expect(result.url).not.toContain('&th=');
+    });
+
+    it('ignores unknown &th= values — transparent → viewState.theme undefined', () => {
+      // Manually craft a URL with an invalid th value
+      const result = encodeDiagramUrl('chart: pie\nA: 10');
+      if (result.error) throw new Error('unexpected error');
+      const query = new URL(result.url).search.replace('?', '') + '&th=transparent';
+      const decoded = decodeDiagramUrl(query);
+      expect(decoded.viewState.theme).toBeUndefined();
+    });
+
+    it('URL without &pal= → viewState.palette is undefined (not nord)', () => {
+      const result = encodeDiagramUrl('chart: pie\nA: 10');
+      if (result.error) throw new Error('unexpected error');
+      const query = new URL(result.url).search;
+      const decoded = decodeDiagramUrl(query);
+      expect(decoded.viewState.palette).toBeUndefined();
+    });
+  });
 });

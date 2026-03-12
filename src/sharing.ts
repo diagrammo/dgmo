@@ -10,6 +10,8 @@ export interface DiagramViewState {
   activeTagGroup?: string;
   collapsedGroups?: string[];
   swimlaneTagGroup?: string;
+  palette?: string;
+  theme?: 'light' | 'dark';
 }
 
 export interface DecodedDiagramUrl {
@@ -55,6 +57,14 @@ export function encodeDiagramUrl(
 
   if (options?.viewState?.swimlaneTagGroup) {
     hash += `&swim=${encodeURIComponent(options.viewState.swimlaneTagGroup)}`;
+  }
+
+  if (options?.viewState?.palette && options.viewState.palette !== 'nord') {
+    hash += `&pal=${encodeURIComponent(options.viewState.palette)}`;
+  }
+
+  if (options?.viewState?.theme && options.viewState.theme !== 'dark') {
+    hash += `&th=${encodeURIComponent(options.viewState.theme)}`;
   }
 
   // Encode in both query param AND hash fragment — some share mechanisms
@@ -105,6 +115,8 @@ export function decodeDiagramUrl(hash: string): DecodedDiagramUrl {
     if (key === 'swim' && val) {
       viewState.swimlaneTagGroup = val;
     }
+    if (key === 'pal' && val) viewState.palette = val;
+    if (key === 'th' && (val === 'light' || val === 'dark')) viewState.theme = val;
   }
 
   // Strip 'dgmo=' prefix
