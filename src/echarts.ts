@@ -1323,7 +1323,7 @@ function makeGridAxis(
   data?: string[],
   nameGapOverride?: number,
   chartWidthHint?: number,
-  intervalOverride?: (index: number, value: string) => boolean
+  intervalOverride?: number
 ): Record<string, unknown> {
   const defaultGap = type === 'value' ? 75 : 40;
 
@@ -1333,13 +1333,17 @@ function makeGridAxis(
   if (type === 'category' && data && data.length > 0) {
     const maxLabelLen = Math.max(...data.map((l) => l.length));
     const count = data.length;
+    // When interval skips labels, base sizing on visible count (≈ count / step)
+    const step = intervalOverride != null && intervalOverride > 0 ? intervalOverride + 1 : 1;
+    const visibleCount = Math.ceil(count / step);
     // Reduce font size based on density and label length
-    if (count > 10 || maxLabelLen > 20) catFontSize = 10;
-    else if (count > 5 || maxLabelLen > 14) catFontSize = 11;
+    if (visibleCount > 10 || maxLabelLen > 20) catFontSize = 10;
+    else if (visibleCount > 5 || maxLabelLen > 14) catFontSize = 11;
     else if (maxLabelLen > 8) catFontSize = 12;
 
-    // Constrain labels to their allotted slot width so ECharts wraps instead of hiding
-    if (chartWidthHint && count > 0) {
+    // Constrain labels to their allotted slot width so ECharts wraps instead of hiding.
+    // Skip when interval > 0 — visible labels are spread out and need no constraint.
+    if ((intervalOverride == null || intervalOverride === 0) && chartWidthHint && count > 0) {
       const availPerLabel = Math.floor((chartWidthHint * 0.85) / count);
       catLabelExtras = {
         width: availPerLabel,
@@ -1358,6 +1362,9 @@ function makeGridAxis(
       fontFamily: FONT_FAMILY,
       ...(type === 'category' && {
         interval: intervalOverride ?? 0,
+        // Prevent ECharts auto-rotation: it measures raw slot width (chartWidth/N),
+        // which is too narrow when an interval skips most labels, and rotates to 90°.
+        rotate: 0,
         formatter: (value: string) =>
           value.replace(/([a-z])([A-Z])/g, '$1\n$2'),
         ...catLabelExtras,
@@ -1477,24 +1484,17 @@ function buildBarOption(
 
 // ── Era band helpers ──────────────────────────────────────────
 
-function buildIntervalCallback(
-  labels: string[],
-  eras: ChartEra[]
-): (index: number, value: string) => boolean {
+// Returns an integer interval for ECharts axisLabel.interval.
+// interval: N means show label at index 0, N+1, 2*(N+1), ...
+// For a desired step S we return S-1.
+// Targets ~5 visible labels — conservative enough to prevent ECharts stagger.
+function buildIntervalStep(labels: string[]): number {
   const count = labels.length;
-  if (count <= 8) return () => true; // show all; not `0` (ECharts auto ≠ show all)
-  const snapSteps = [1, 2, 4, 5, 10, 20, 25, 50];
-  const raw = Math.ceil(count / 8);
+  if (count <= 6) return 0; // show all
+  const snapSteps = [1, 2, 5, 10, 25, 50, 100];
+  const raw = Math.ceil(count / 5); // target ~5 visible labels
   const N = [...snapSteps].reverse().find((s) => s <= raw) ?? 1; // snap down
-  const pinned = new Set<number>();
-  for (let i = 0; i < count; i += N) pinned.add(i);
-  for (const era of eras) {
-    const si = labels.indexOf(era.start);
-    const ei = labels.indexOf(era.end);
-    if (si >= 0) pinned.add(si);
-    if (ei >= 0) pinned.add(ei);
-  }
-  return (index: number) => pinned.has(index);
+  return N - 1; // ECharts shows labels at indices 0, N, 2N, ...
 }
 
 function buildMarkArea(
@@ -1548,7 +1548,7 @@ function buildLineOption(
   const labels = parsed.data.map((d) => d.label);
   const values = parsed.data.map((d) => d.value);
   const eras = parsed.eras ?? [];
-  const interval = buildIntervalCallback(labels, eras);
+  const interval = buildIntervalStep(labels);
   const markArea = buildMarkArea(eras, labels, textColor, palette.colors.blue);
 
   return {
@@ -1595,7 +1595,7 @@ function buildMultiLineOption(
   const seriesNames = parsed.seriesNames ?? [];
   const labels = parsed.data.map((d) => d.label);
   const eras = parsed.eras ?? [];
-  const interval = buildIntervalCallback(labels, eras);
+  const interval = buildIntervalStep(labels);
   const markArea = buildMarkArea(eras, labels, textColor, palette.colors.blue);
 
   const series = seriesNames.map((name, idx) => {
@@ -1654,7 +1654,7 @@ function buildAreaOption(
   const labels = parsed.data.map((d) => d.label);
   const values = parsed.data.map((d) => d.value);
   const eras = parsed.eras ?? [];
-  const interval = buildIntervalCallback(labels, eras);
+  const interval = buildIntervalStep(labels);
   const markArea = buildMarkArea(eras, labels, textColor, palette.colors.blue);
 
   return {

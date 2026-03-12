@@ -417,26 +417,25 @@ describe('Era bands — line chart', () => {
     expect(firstSeries(opt).markArea).toBeUndefined();
   });
 
-  it('axisLabel.interval is a function for all label counts', () => {
-    // ≤8 labels
+  it('axisLabel.interval is a number for all label counts', () => {
+    // ≤8 labels → interval: 0 (show all)
     const opt8 = buildLine("chart: line\nA: 1\nB: 2\nC: 3");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    expect(typeof (opt8.xAxis as any).axisLabel.interval).toBe('function');
+    expect((opt8.xAxis as any).axisLabel.interval).toBe(0);
 
-    // >8 labels with eras
+    // >8 labels → interval: N-1 (integer step, no staggering)
     const manyLabels = Array.from({ length: 10 }, (_, i) => `L${i}: ${i}`).join('\n');
     const opt10 = buildLine(`chart: line\nera L0 -> L5: Phase\n${manyLabels}`);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    expect(typeof (opt10.xAxis as any).axisLabel.interval).toBe('function');
+    expect(typeof (opt10.xAxis as any).axisLabel.interval).toBe('number');
   });
 
-  it('era boundary indices are included in pinned set', () => {
+  it('axisLabel.interval uses clean snap step (era boundaries not pinned)', () => {
+    // 20 labels → raw=ceil(20/5)=4 → snap down to N=2 → interval: 1 (show every 2nd)
     const manyLabels = Array.from({ length: 20 }, (_, i) => `Y${i}: ${i}`).join('\n');
     const opt = buildLine(`chart: line\nera Y3 -> Y15: Era\n${manyLabels}`);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const intervalFn = (opt.xAxis as any).axisLabel.interval;
-    expect(intervalFn(3, 'Y3')).toBe(true);
-    expect(intervalFn(15, 'Y15')).toBe(true);
+    expect((opt.xAxis as any).axisLabel.interval).toBe(1);
   });
 
   it('area chart: markArea present alongside areaStyle', () => {
@@ -463,20 +462,24 @@ describe('Era bands — line chart', () => {
     expect(ma.data).toHaveLength(2);
   });
 
-  it('area chart with 20+ data points: interval is a function', () => {
+  it('area chart with 20+ data points: interval is a number > 0', () => {
     const manyLabels = Array.from({ length: 25 }, (_, i) => `M${i}: ${i}`).join('\n');
     const opt = buildLine(`chart: area\nera M0 -> M10: Phase\n${manyLabels}`);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    expect(typeof (opt.xAxis as any).axisLabel.interval).toBe('function');
+    const iv = (opt.xAxis as any).axisLabel.interval;
+    expect(typeof iv).toBe('number');
+    expect(iv).toBeGreaterThan(0);
   });
 
-  it('multi-line with 20+ data points: interval is a function', () => {
+  it('multi-line with 20+ data points: interval is a number > 0', () => {
     const manyLabels = Array.from({ length: 25 }, (_, i) => `M${i}: ${i}, ${i + 1}`).join('\n');
     const input = `chart: multi-line\nseries: A, B\nera M0 -> M10: Phase\n${manyLabels}`;
     const parsed = parseChart(input, palette);
     const opt = buildSimpleChartOption(parsed, palette, false);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    expect(typeof (opt.xAxis as any).axisLabel.interval).toBe('function');
+    const iv = (opt.xAxis as any).axisLabel.interval;
+    expect(typeof iv).toBe('number');
+    expect(iv).toBeGreaterThan(0);
   });
 
   it('spr-eras smoke test: first series has markArea with 9 entries', () => {
