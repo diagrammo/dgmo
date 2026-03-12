@@ -342,13 +342,16 @@ Bar | wip`);
     expect(Number(hitPaths1[0].getAttribute('stroke-width'))).toBe(16);
   });
 
-  it('compresses spacing when many parallel edges would exceed node bounds', () => {
-    // 7 parallel edges: effectiveSpacing = min(16, 48/6) = 8 (compressed)
+  it('caps parallel edges at MAX_PARALLEL_EDGES (5) and compresses spacing to fit node bounds', () => {
+    // 7 authored edges → only 5 rendered (MAX_PARALLEL_EDGES cap)
+    // effectiveSpacing for 5 edges: min(16, 48/(5-1)) = min(16, 12) = 12
     const lines = Array.from({ length: 7 }, (_, i) => `  -E${i}-> Bar | wip`).join('\n');
     const parsed = parseInitiativeStatus(`chart: initiative-status\nFoo | wip\n${lines}\nBar | wip`);
     const layout = layoutInitiativeStatus(parsed);
-    // All edges must have parallelCount=7
-    expect(layout.edges.every((e) => e.parallelCount === 7)).toBe(true);
+    // Capped at 5 rendered edges
+    expect(layout.edges).toHaveLength(5);
+    // All rendered edges have parallelCount=5
+    expect(layout.edges.every((e) => e.parallelCount === 5)).toBe(true);
     // Outermost interior Y offsets must be within node half-height (30px) of src.y
     const interiorYs = layout.edges.map((e) => e.points[1].y);
     const srcY = layout.edges[0].points[0].y;

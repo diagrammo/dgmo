@@ -76,6 +76,7 @@ const NODESEP = 80;
 const RANKSEP = 160;
 const PARALLEL_SPACING = 16; // px between parallel edges sharing same source→target (~27% of NODE_HEIGHT)
 const PARALLEL_EDGE_MARGIN = 12; // total vertical margin reserved at top+bottom of node for edge bundles (6px each side)
+const MAX_PARALLEL_EDGES = 5; // at most this many edges rendered between any directed source→target pair
 const CHAR_WIDTH_RATIO = 0.6;
 const NODE_FONT_SIZE = 13;
 const NODE_TEXT_PADDING = 12;
@@ -167,7 +168,8 @@ export function layoutInitiativeStatus(
   // Multi-rank edges: dagre's interior waypoints for obstacle avoidance, with
   // first/last points pinned to exact node boundaries at node-center Y.
 
-  // Precompute Y offsets and parallel counts for parallel edges (same directed source→target)
+  // Precompute Y offsets and parallel counts for parallel edges (same directed source→target).
+  // Edges beyond MAX_PARALLEL_EDGES in a group are marked with parallelCount=0 and excluded from layout.
   const edgeYOffsets: number[] = new Array(parsed.edges.length).fill(0);
   const edgeParallelCounts: number[] = new Array(parsed.edges.length).fill(1);
   const parallelGroups = new Map<string, number[]>();
@@ -178,12 +180,17 @@ export function layoutInitiativeStatus(
     parallelGroups.get(key)!.push(i);
   }
   for (const group of parallelGroups.values()) {
-    if (group.length < 2) continue;
+    // Cap group to MAX_PARALLEL_EDGES; mark excess edges for exclusion
+    const capped = group.slice(0, MAX_PARALLEL_EDGES);
+    for (const idx of group.slice(MAX_PARALLEL_EDGES)) {
+      edgeParallelCounts[idx] = 0; // sentinel: exclude from layout
+    }
+    if (capped.length < 2) continue;
     // Clamp spacing so the bundle fits within node bounds regardless of edge count
-    const effectiveSpacing = Math.min(PARALLEL_SPACING, (NODE_HEIGHT - PARALLEL_EDGE_MARGIN) / (group.length - 1));
-    for (let j = 0; j < group.length; j++) {
-      edgeYOffsets[group[j]] = (j - (group.length - 1) / 2) * effectiveSpacing;
-      edgeParallelCounts[group[j]] = group.length;
+    const effectiveSpacing = Math.min(PARALLEL_SPACING, (NODE_HEIGHT - PARALLEL_EDGE_MARGIN) / (capped.length - 1));
+    for (let j = 0; j < capped.length; j++) {
+      edgeYOffsets[capped[j]] = (j - (capped.length - 1) / 2) * effectiveSpacing;
+      edgeParallelCounts[capped[j]] = capped.length;
     }
   }
 
@@ -192,8 +199,8 @@ export function layoutInitiativeStatus(
     const edge = parsed.edges[i];
     const src = posMap.get(edge.source);
     const tgt = posMap.get(edge.target);
-    // Note: skipped edges still report the full group's parallelCount — the hit-area will be
-    // narrower than strictly necessary, but correctness is not affected (no edge rendered).
+    // Exclude edges beyond the parallel cap and edges with missing node positions
+    if (edgeParallelCounts[i] === 0) continue;
     if (!src || !tgt) continue;
     const yOffset = edgeYOffsets[i];
     const parallelCount = edgeParallelCounts[i];
