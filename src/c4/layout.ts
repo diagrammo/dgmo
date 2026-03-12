@@ -603,19 +603,12 @@ export function computeC4NodeDimensions(
 // Legend Helpers
 // ============================================================
 
-function computeLegendGroups(
-  tagGroups: OrgTagGroup[],
-  usedValuesByGroup?: Map<string, Set<string>>
-): C4LegendGroup[] {
+function computeLegendGroups(tagGroups: OrgTagGroup[]): C4LegendGroup[] {
   const result: C4LegendGroup[] = [];
 
   for (const group of tagGroups) {
     const entries: C4LegendEntry[] = [];
     for (const entry of group.entries) {
-      if (usedValuesByGroup) {
-        const used = usedValuesByGroup.get(group.name.toLowerCase());
-        if (!used?.has(entry.value.toLowerCase())) continue;
-      }
       entries.push({ value: entry.value, color: entry.color });
     }
     if (entries.length === 0) continue;
@@ -813,20 +806,9 @@ export function layoutC4Context(
   let totalWidth = nodes.length > 0 ? maxX - minX + MARGIN * 2 : 0;
   let totalHeight = nodes.length > 0 ? maxY - minY + MARGIN * 2 : 0;
 
-  // Legend
-  const usedValuesByGroup = new Map<string, Set<string>>();
-  for (const el of contextElements) {
-    for (const group of parsed.tagGroups) {
-      const key = group.name.toLowerCase();
-      const val = el.metadata[key];
-      if (val) {
-        if (!usedValuesByGroup.has(key)) usedValuesByGroup.set(key, new Set());
-        usedValuesByGroup.get(key)!.add(val.toLowerCase());
-      }
-    }
-  }
-
-  const legendGroups = computeLegendGroups(parsed.tagGroups, usedValuesByGroup);
+  // Legend: show all defined tag groups and entries so users see the full
+  // tag vocabulary regardless of which elements are visible at this view level.
+  const legendGroups = computeLegendGroups(parsed.tagGroups);
 
   // Position legend below diagram
   if (legendGroups.length > 0) {
@@ -1236,20 +1218,7 @@ export function layoutC4Containers(
   let totalWidth = maxX - minX + MARGIN * 2;
   let totalHeight = maxY - minY + MARGIN * 2;
 
-  // Legend
-  const usedValuesByGroup = new Map<string, Set<string>>();
-  for (const el of [...containers, ...externals]) {
-    for (const group of parsed.tagGroups) {
-      const key = group.name.toLowerCase();
-      const val = el.metadata[key];
-      if (val) {
-        if (!usedValuesByGroup.has(key)) usedValuesByGroup.set(key, new Set());
-        usedValuesByGroup.get(key)!.add(val.toLowerCase());
-      }
-    }
-  }
-
-  const legendGroups = computeLegendGroups(parsed.tagGroups, usedValuesByGroup);
+  const legendGroups = computeLegendGroups(parsed.tagGroups);
 
   // Position legend below diagram
   if (legendGroups.length > 0) {
@@ -1722,24 +1691,8 @@ export function layoutC4Components(
   let totalWidth = maxX - minX + MARGIN * 2;
   let totalHeight = maxY - minY + MARGIN * 2;
 
-  // Legend
-  const usedValuesByGroup = new Map<string, Set<string>>();
-  for (const el of [...components, ...externals]) {
-    for (const group of parsed.tagGroups) {
-      const key = group.name.toLowerCase();
-      // Check element + ancestors for inherited values
-      let val = el.metadata[key];
-      if (!val && components.includes(el)) {
-        val = targetContainer.metadata[key] ?? system.metadata[key];
-      }
-      if (val) {
-        if (!usedValuesByGroup.has(key)) usedValuesByGroup.set(key, new Set());
-        usedValuesByGroup.get(key)!.add(val.toLowerCase());
-      }
-    }
-  }
 
-  const legendGroups = computeLegendGroups(parsed.tagGroups, usedValuesByGroup);
+  const legendGroups = computeLegendGroups(parsed.tagGroups);
 
   // Position legend below diagram
   if (legendGroups.length > 0) {
@@ -2104,20 +2057,7 @@ export function layoutC4Deployment(
   let totalWidth = maxX - minX + MARGIN * 2;
   let totalHeight = maxY - minY + MARGIN * 2;
 
-  // Legend
-  const usedValuesByGroup = new Map<string, Set<string>>();
-  for (const r of refEntries) {
-    for (const group of parsed.tagGroups) {
-      const key = group.name.toLowerCase();
-      const val = r.element.metadata[key];
-      if (val) {
-        if (!usedValuesByGroup.has(key)) usedValuesByGroup.set(key, new Set());
-        usedValuesByGroup.get(key)!.add(val.toLowerCase());
-      }
-    }
-  }
-
-  const legendGroups = computeLegendGroups(parsed.tagGroups, usedValuesByGroup);
+  const legendGroups = computeLegendGroups(parsed.tagGroups);
 
   if (legendGroups.length > 0) {
     const legendY = totalHeight + MARGIN;

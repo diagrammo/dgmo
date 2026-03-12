@@ -16,6 +16,19 @@ import type { InfraRole } from './roles';
 import { parseInfra } from './parser';
 import { computeInfra } from './compute';
 import { layoutInfra } from './layout';
+import {
+  LEGEND_HEIGHT,
+  LEGEND_PILL_PAD,
+  LEGEND_PILL_FONT_SIZE,
+  LEGEND_PILL_FONT_W,
+  LEGEND_CAPSULE_PAD,
+  LEGEND_DOT_R,
+  LEGEND_ENTRY_FONT_SIZE,
+  LEGEND_ENTRY_FONT_W,
+  LEGEND_ENTRY_DOT_GAP,
+  LEGEND_ENTRY_TRAIL,
+  LEGEND_GROUP_GAP,
+} from '../utils/legend-constants';
 
 // ============================================================
 // Constants
@@ -39,22 +52,7 @@ const NODE_PAD_BOTTOM = 10;
 const COLLAPSE_BAR_HEIGHT = 6;
 const COLLAPSE_BAR_INSET = 0;
 
-// Legend pill/capsule constants (matching org chart style)
-const LEGEND_HEIGHT = 28;
-const LEGEND_PILL_PAD = 16;
-const LEGEND_PILL_FONT_SIZE = 11;
-const LEGEND_PILL_FONT_W = LEGEND_PILL_FONT_SIZE * 0.6;
-const LEGEND_CAPSULE_PAD = 4;
-const LEGEND_DOT_R = 4;
-const LEGEND_ENTRY_FONT_SIZE = 10;
-const LEGEND_ENTRY_FONT_W = LEGEND_ENTRY_FONT_SIZE * 0.6;
-const LEGEND_ENTRY_DOT_GAP = 4;
-const LEGEND_ENTRY_TRAIL = 8;
-const LEGEND_GROUP_GAP = 12;
-const LEGEND_FIXED_GAP = 16; // gap between fixed legend and scaled diagram
-const SPEED_BADGE_H_PAD = 5; // horizontal padding inside active speed badge
-const SPEED_BADGE_V_PAD = 3; // vertical padding inside active speed badge
-const SPEED_BADGE_GAP = 6;   // gap between speed option slots
+const LEGEND_FIXED_GAP = 16; // gap between fixed legend and scaled diagram — local, not shared
 
 // Health colors (from UX spec)
 const COLOR_HEALTHY = '#22c55e';
@@ -1311,21 +1309,6 @@ export function computeInfraLegendGroups(
   return groups;
 }
 
-/** Compute total width for the playback pill (speed only). */
-function computePlaybackWidth(playback: InfraPlaybackState | undefined): number {
-  if (!playback) return 0;
-  const pillWidth = 'Playback'.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
-  if (!playback.expanded) return pillWidth;
-
-  let entriesW = 8; // gap after pill
-  entriesW += LEGEND_PILL_FONT_SIZE * 0.8 + 6; // play/pause
-  for (const s of playback.speedOptions) {
-    entriesW += `${s}x`.length * LEGEND_ENTRY_FONT_W + SPEED_BADGE_H_PAD * 2 + SPEED_BADGE_GAP;
-  }
-  return LEGEND_CAPSULE_PAD * 2 + pillWidth + entriesW;
-}
-
-/** Whether a separate Scenario pill should render. */
 function renderLegend(
   rootSvg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
   legendGroups: InfraLegendGroup[],
@@ -1334,21 +1317,21 @@ function renderLegend(
   palette: PaletteColors,
   isDark: boolean,
   activeGroup: string | null,
-  playback?: InfraPlaybackState,
 ) {
-  if (legendGroups.length === 0 && !playback) return;
+  if (legendGroups.length === 0) return;
 
   const legendG = rootSvg.append('g')
     .attr('transform', `translate(0, ${legendY})`);
 
+  if (activeGroup) {
+    legendG.attr('data-legend-active', activeGroup.toLowerCase());
+  }
+
   // Compute centered positions
   const effectiveW = (g: InfraLegendGroup) =>
     activeGroup != null && g.name.toLowerCase() === activeGroup.toLowerCase() ? g.width : g.minifiedWidth;
-  const playbackW = computePlaybackWidth(playback);
-  const trailingGaps = legendGroups.length > 0 && playbackW > 0 ? LEGEND_GROUP_GAP : 0;
   const totalLegendW = legendGroups.reduce((s, g) => s + effectiveW(g), 0)
-    + (legendGroups.length - 1) * LEGEND_GROUP_GAP
-    + trailingGaps + playbackW;
+    + (legendGroups.length - 1) * LEGEND_GROUP_GAP;
   let cursorX = (totalWidth - totalLegendW) / 2;
 
   for (const group of legendGroups) {
@@ -1366,7 +1349,6 @@ function renderLegend(
       .attr('transform', `translate(${cursorX}, 0)`)
       .attr('class', 'infra-legend-group')
       .attr('data-legend-group', group.name.toLowerCase())
-      .attr('data-legend-type', group.type)
       .style('cursor', 'pointer');
 
     // Outer capsule background (active only)
@@ -1400,7 +1382,7 @@ function renderLegend(
         .attr('height', pillH)
         .attr('rx', pillH / 2)
         .attr('fill', 'none')
-        .attr('stroke', isDark ? mix(palette.textMuted, palette.bg, 50) : mix(palette.textMuted, palette.bg, 50))
+        .attr('stroke', mix(palette.textMuted, palette.bg, 50))
         .attr('stroke-width', 0.75);
     }
 
@@ -1422,14 +1404,11 @@ function renderLegend(
         const entryG = gEl
           .append('g')
           .attr('class', 'infra-legend-entry')
-          .attr('data-legend-entry', entry.key)
-          .attr('data-legend-type', group.type)
+          .attr('data-legend-entry', entry.key.toLowerCase())
           .attr('data-legend-color', entry.color)
+          .attr('data-legend-type', group.type)
+          .attr('data-legend-tag-group', group.type === 'tag' ? (group.tagKey ?? '') : null)
           .style('cursor', 'pointer');
-
-        if (group.type === 'tag' && group.tagKey) {
-          entryG.attr('data-legend-tag-group', group.tagKey);
-        }
 
         entryG.append('circle')
           .attr('cx', entryX + LEGEND_DOT_R)
@@ -1453,126 +1432,11 @@ function renderLegend(
     cursorX += effectiveW(group) + LEGEND_GROUP_GAP;
   }
 
-  // Playback pill — speed + pause only
-  if (playback) {
-    const isExpanded = playback.expanded;
-    const groupBg = isDark
-      ? mix(palette.bg, palette.text, 85)
-      : mix(palette.bg, palette.text, 92);
-
-    const pillLabel = 'Playback';
-    const pillWidth = pillLabel.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
-    const fullW = computePlaybackWidth(playback);
-
-    const pbG = legendG
-      .append('g')
-      .attr('transform', `translate(${cursorX}, 0)`)
-      .attr('class', 'infra-legend-group infra-playback-pill')
-      .style('cursor', 'pointer');
-
-    if (isExpanded) {
-      pbG.append('rect')
-        .attr('width', fullW)
-        .attr('height', LEGEND_HEIGHT)
-        .attr('rx', LEGEND_HEIGHT / 2)
-        .attr('fill', groupBg);
-    }
-
-    const pillXOff = isExpanded ? LEGEND_CAPSULE_PAD : 0;
-    const pillYOff = isExpanded ? LEGEND_CAPSULE_PAD : 0;
-    const pillH = LEGEND_HEIGHT - (isExpanded ? LEGEND_CAPSULE_PAD * 2 : 0);
-
-    pbG.append('rect')
-      .attr('x', pillXOff).attr('y', pillYOff)
-      .attr('width', pillWidth).attr('height', pillH)
-      .attr('rx', pillH / 2)
-      .attr('fill', isExpanded ? palette.bg : groupBg);
-
-    if (isExpanded) {
-      pbG.append('rect')
-        .attr('x', pillXOff).attr('y', pillYOff)
-        .attr('width', pillWidth).attr('height', pillH)
-        .attr('rx', pillH / 2)
-        .attr('fill', 'none')
-        .attr('stroke', mix(palette.textMuted, palette.bg, 50))
-        .attr('stroke-width', 0.75);
-    }
-
-    pbG.append('text')
-      .attr('x', pillXOff + pillWidth / 2)
-      .attr('y', LEGEND_HEIGHT / 2 + LEGEND_PILL_FONT_SIZE / 2 - 2)
-      .attr('font-family', FONT_FAMILY)
-      .attr('font-size', LEGEND_PILL_FONT_SIZE)
-      .attr('font-weight', '500')
-      .attr('fill', isExpanded ? palette.text : palette.textMuted)
-      .attr('text-anchor', 'middle')
-      .text(pillLabel);
-
-    if (isExpanded) {
-      let entryX = pillXOff + pillWidth + 8;
-      const entryY = LEGEND_HEIGHT / 2 + LEGEND_ENTRY_FONT_SIZE / 2 - 1;
-
-      const ppLabel = playback.paused ? '▶' : '⏸';
-      pbG.append('text')
-        .attr('x', entryX).attr('y', entryY)
-        .attr('font-family', FONT_FAMILY)
-        .attr('font-size', LEGEND_PILL_FONT_SIZE)
-        .attr('fill', palette.textMuted)
-        .attr('data-playback-action', 'toggle-pause')
-        .style('cursor', 'pointer')
-        .text(ppLabel);
-      entryX += LEGEND_PILL_FONT_SIZE * 0.8 + 6;
-
-      for (const s of playback.speedOptions) {
-        const label = `${s}x`;
-        const isActive = playback.speed === s;
-        const slotW = label.length * LEGEND_ENTRY_FONT_W + SPEED_BADGE_H_PAD * 2;
-        const badgeH = LEGEND_ENTRY_FONT_SIZE + SPEED_BADGE_V_PAD * 2;
-        const badgeY = (LEGEND_HEIGHT - badgeH) / 2;
-
-        // Wrap in <g> with data attrs so a single element carries the action,
-        // and both rect and text inherit the hit target cleanly.
-        const speedG = pbG.append('g')
-          .attr('data-playback-action', 'set-speed')
-          .attr('data-playback-value', String(s))
-          .style('cursor', 'pointer');
-
-        // Badge rect: filled for active, transparent hit-target for inactive
-        speedG.append('rect')
-          .attr('x', entryX)
-          .attr('y', badgeY)
-          .attr('width', slotW)
-          .attr('height', badgeH)
-          .attr('rx', badgeH / 2)
-          .attr('fill', isActive ? palette.primary : 'transparent');
-
-        speedG.append('text')
-          .attr('x', entryX + slotW / 2).attr('y', entryY)
-          .attr('font-family', FONT_FAMILY)
-          .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
-          .attr('font-weight', isActive ? '600' : '400')
-          .attr('fill', isActive ? palette.bg : palette.textMuted)
-          .attr('text-anchor', 'middle')
-          .text(label);
-        entryX += slotW + SPEED_BADGE_GAP;
-      }
-    }
-
-    cursorX += fullW + LEGEND_GROUP_GAP;
-  }
-
 }
 
 // ============================================================
 // Main render
 // ============================================================
-
-export interface InfraPlaybackState {
-  expanded: boolean;
-  paused: boolean;
-  speed: number;
-  speedOptions: readonly number[];
-}
 
 export function renderInfra(
   container: HTMLDivElement,
@@ -1584,7 +1448,7 @@ export function renderInfra(
   tagGroups?: InfraTagGroup[],
   activeGroup?: string | null,
   animate?: boolean,
-  playback?: InfraPlaybackState | null,
+  _playback?: unknown,
   expandedNodeIds?: Set<string> | null,
   exportMode?: boolean,
   collapsedNodes?: Set<string> | null,
@@ -1594,7 +1458,7 @@ export function renderInfra(
 
   // Build legend groups
   const legendGroups = computeInfraLegendGroups(layout.nodes, tagGroups ?? [], palette, layout.edges);
-  const hasLegend = legendGroups.length > 0 || !!playback;
+  const hasLegend = legendGroups.length > 0;
   // In app mode (not export), legend is rendered as a separate fixed-size SVG
   const fixedLegend = !exportMode && hasLegend;
   const legendOffset = hasLegend && !fixedLegend ? LEGEND_HEIGHT : 0;
@@ -1707,9 +1571,9 @@ export function renderInfra(
         .attr('viewBox', `0 0 ${containerWidth} ${LEGEND_HEIGHT + LEGEND_FIXED_GAP}`)
         .attr('preserveAspectRatio', 'xMidYMid meet')
         .style('display', 'block');
-      renderLegend(legendSvg, legendGroups, containerWidth, LEGEND_FIXED_GAP / 2, palette, isDark, activeGroup ?? null, playback ?? undefined);
+      renderLegend(legendSvg, legendGroups, containerWidth, LEGEND_FIXED_GAP / 2, palette, isDark, activeGroup ?? null);
     } else {
-      renderLegend(rootSvg, legendGroups, totalWidth, titleOffset + layout.height + 4, palette, isDark, activeGroup ?? null, playback ?? undefined);
+      renderLegend(rootSvg, legendGroups, totalWidth, titleOffset + layout.height + 4, palette, isDark, activeGroup ?? null);
     }
   }
 }

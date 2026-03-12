@@ -10,9 +10,22 @@ import { mix } from '../palettes/color-utils';
 import { renderInlineText } from '../utils/inline-markdown';
 import type { ParsedC4 } from './types';
 import type { C4Shape } from './types';
-import type { C4LayoutResult, C4LayoutNode, C4LayoutEdge, C4LayoutBoundary } from './layout';
+import type { C4LayoutResult, C4LayoutNode, C4LayoutEdge, C4LayoutBoundary, C4LegendGroup } from './layout';
 import { parseC4 } from './parser';
 import { layoutC4Context, layoutC4Containers, layoutC4Components, layoutC4Deployment, collectCardMetadata } from './layout';
+import {
+  LEGEND_HEIGHT,
+  LEGEND_PILL_FONT_SIZE,
+  LEGEND_PILL_FONT_W,
+  LEGEND_PILL_PAD,
+  LEGEND_DOT_R,
+  LEGEND_ENTRY_FONT_SIZE,
+  LEGEND_ENTRY_FONT_W,
+  LEGEND_ENTRY_DOT_GAP,
+  LEGEND_ENTRY_TRAIL,
+  LEGEND_CAPSULE_PAD,
+  LEGEND_GROUP_GAP,
+} from '../utils/legend-constants';
 
 // ============================================================
 // Constants
@@ -59,16 +72,6 @@ const PERSON_ICON_W = PERSON_ARM_SPAN * 2; // total width including arms
 const PERSON_SW = 1.5;
 
 // Legend constants (match org)
-const LEGEND_HEIGHT = 28;
-const LEGEND_PILL_FONT_SIZE = 11;
-const LEGEND_PILL_FONT_W = LEGEND_PILL_FONT_SIZE * 0.6;
-const LEGEND_PILL_PAD = 16;
-const LEGEND_DOT_R = 4;
-const LEGEND_ENTRY_FONT_SIZE = 10;
-const LEGEND_ENTRY_FONT_W = LEGEND_ENTRY_FONT_SIZE * 0.6;
-const LEGEND_ENTRY_DOT_GAP = 4;
-const LEGEND_ENTRY_TRAIL = 8;
-const LEGEND_CAPSULE_PAD = 4;
 
 // ============================================================
 // Color helpers
@@ -239,8 +242,16 @@ export function renderC4Context(
 
   const titleHeight = parsed.title ? TITLE_HEIGHT + 10 : 0;
   const diagramW = layout.width;
-  const diagramH = layout.height;
-  const availH = height - titleHeight;
+  const hasLegend = layout.legend.length > 0;
+  // In app mode, legend is a fixed overlay outside the scaled group.
+  // C4 layout adds MARGIN(40) + LEGEND_HEIGHT below content — remove that from diagramH.
+  const C4_LAYOUT_MARGIN = 40;
+  const LEGEND_FIXED_GAP = 8;
+  const fixedLegend = !exportDims && hasLegend;
+  const legendLayoutSpace = C4_LAYOUT_MARGIN + LEGEND_HEIGHT;
+  const legendReserveH = fixedLegend ? LEGEND_HEIGHT + LEGEND_FIXED_GAP : 0;
+  const diagramH = fixedLegend ? layout.height - legendLayoutSpace : layout.height;
+  const availH = height - titleHeight - legendReserveH;
   const scaleX = (width - DIAGRAM_PADDING * 2) / diagramW;
   const scaleY = (availH - DIAGRAM_PADDING * 2) / diagramH;
   const scale = Math.min(MAX_SCALE, scaleX, scaleY);
@@ -428,6 +439,23 @@ export function renderC4Context(
       .attr('data-line-number', String(node.lineNumber))
       .attr('data-node-id', node.id);
 
+    if (activeTagGroup) {
+      const tagKey = activeTagGroup.toLowerCase();
+      const tagValue = node.metadata[tagKey];
+      if (tagValue) {
+        nodeG.attr(`data-tag-${tagKey}`, tagValue.toLowerCase());
+      } else {
+        // Fall back to the group's defaultValue so hover-dimming works for
+        // nodes that inherit the default (e.g. sc: Internal default).
+        const tagGroup = parsed.tagGroups.find(
+          (g) => g.name.toLowerCase() === tagKey || g.alias?.toLowerCase() === tagKey
+        );
+        if (tagGroup?.defaultValue) {
+          nodeG.attr(`data-tag-${tagKey}`, tagGroup.defaultValue.toLowerCase());
+        }
+      }
+    }
+
     if (node.importPath) {
       nodeG.attr('data-import-path', node.importPath);
     }
@@ -566,101 +594,18 @@ export function renderC4Context(
   }
 
   // ── Legend ──
-  if (!exportDims) {
-    for (const group of layout.legend) {
-      const isActive =
-        activeTagGroup != null &&
-        group.name.toLowerCase() === (activeTagGroup ?? '').toLowerCase();
-
-      if (activeTagGroup != null && !isActive) continue;
-
-      const groupBg = isDark
-        ? mix(palette.surface, palette.bg, 50)
-        : mix(palette.surface, palette.bg, 30);
-
-      const pillLabel = group.name;
-      const pillWidth = pillLabel.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
-
-      const gEl = contentG
-        .append('g')
-        .attr('transform', `translate(${group.x}, ${group.y})`)
-        .attr('class', 'c4-legend-group')
-        .attr('data-legend-group', group.name.toLowerCase())
-        .style('cursor', 'pointer');
-
-      if (isActive) {
-        gEl
-          .append('rect')
-          .attr('width', group.width)
-          .attr('height', LEGEND_HEIGHT)
-          .attr('rx', LEGEND_HEIGHT / 2)
-          .attr('fill', groupBg);
-      }
-
-      const pillX = isActive ? LEGEND_CAPSULE_PAD : 0;
-      const pillY = isActive ? LEGEND_CAPSULE_PAD : 0;
-      const pillH = LEGEND_HEIGHT - (isActive ? LEGEND_CAPSULE_PAD * 2 : 0);
-
-      gEl
-        .append('rect')
-        .attr('x', pillX)
-        .attr('y', pillY)
-        .attr('width', pillWidth)
-        .attr('height', pillH)
-        .attr('rx', pillH / 2)
-        .attr('fill', isActive ? palette.bg : groupBg);
-
-      if (isActive) {
-        gEl
-          .append('rect')
-          .attr('x', pillX)
-          .attr('y', pillY)
-          .attr('width', pillWidth)
-          .attr('height', pillH)
-          .attr('rx', pillH / 2)
-          .attr('fill', 'none')
-          .attr('stroke', mix(palette.textMuted, palette.bg, 50))
-          .attr('stroke-width', 0.75);
-      }
-
-      gEl
-        .append('text')
-        .attr('x', pillX + pillWidth / 2)
-        .attr('y', LEGEND_HEIGHT / 2 + LEGEND_PILL_FONT_SIZE / 2 - 2)
-        .attr('font-size', LEGEND_PILL_FONT_SIZE)
-        .attr('font-weight', '500')
-        .attr('fill', isActive ? palette.text : palette.textMuted)
-        .attr('text-anchor', 'middle')
-        .text(pillLabel);
-
-      if (isActive) {
-        let entryX = pillX + pillWidth + 4;
-        for (const entry of group.entries) {
-          const entryG = gEl
-            .append('g')
-            .attr('data-legend-entry', entry.value.toLowerCase())
-            .style('cursor', 'pointer');
-
-          entryG
-            .append('circle')
-            .attr('cx', entryX + LEGEND_DOT_R)
-            .attr('cy', LEGEND_HEIGHT / 2)
-            .attr('r', LEGEND_DOT_R)
-            .attr('fill', entry.color);
-
-          const textX = entryX + LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP;
-          entryG
-            .append('text')
-            .attr('x', textX)
-            .attr('y', LEGEND_HEIGHT / 2 + LEGEND_ENTRY_FONT_SIZE / 2 - 1)
-            .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
-            .attr('fill', palette.textMuted)
-            .text(entry.value);
-
-          entryX = textX + entry.value.length * LEGEND_ENTRY_FONT_W + LEGEND_ENTRY_TRAIL;
-        }
-      }
+  if (hasLegend) {
+    // App mode: fixed overlay at SVG bottom so it's always readable regardless of scale.
+    // Export mode: render inside scaled contentG at layout coordinates.
+    const legendParent = fixedLegend
+      ? svg.append('g')
+          .attr('class', 'c4-legend-fixed')
+          .attr('transform', `translate(0, ${height - DIAGRAM_PADDING - LEGEND_HEIGHT})`)
+      : contentG.append('g').attr('class', 'c4-legend');
+    if (activeTagGroup) {
+      legendParent.attr('data-legend-active', activeTagGroup.toLowerCase());
     }
+    renderLegend(legendParent as GSelection, layout, palette, isDark, activeTagGroup, fixedLegend ? width : null);
   }
 }
 
@@ -1189,29 +1134,52 @@ function placeEdgeLabels(
 }
 
 function renderLegend(
-  contentG: GSelection,
+  parent: GSelection,
   layout: C4LayoutResult,
   palette: PaletteColors,
   isDark: boolean,
-  activeTagGroup?: string | null
+  activeTagGroup?: string | null,
+  /** When set, center groups horizontally across this width (fixed overlay mode). */
+  fixedWidth?: number | null
 ): void {
-  for (const group of layout.legend) {
+  const visibleGroups = activeTagGroup != null
+    ? layout.legend.filter((g) => g.name.toLowerCase() === (activeTagGroup ?? '').toLowerCase())
+    : layout.legend;
+
+  const pillWidthOf = (g: C4LegendGroup) => g.name.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
+  const effectiveW = (g: C4LegendGroup) => activeTagGroup != null ? g.width : pillWidthOf(g);
+
+  // In fixed mode, compute centered x-positions
+  let fixedPositions: Map<string, number> | null = null;
+  if (fixedWidth != null && visibleGroups.length > 0) {
+    fixedPositions = new Map();
+    const totalW = visibleGroups.reduce((s, g) => s + effectiveW(g), 0)
+      + (visibleGroups.length - 1) * LEGEND_GROUP_GAP;
+    let cx = Math.max(DIAGRAM_PADDING, (fixedWidth - totalW) / 2);
+    for (const g of visibleGroups) {
+      fixedPositions.set(g.name, cx);
+      cx += effectiveW(g) + LEGEND_GROUP_GAP;
+    }
+  }
+
+  for (const group of visibleGroups) {
     const isActive =
       activeTagGroup != null &&
       group.name.toLowerCase() === (activeTagGroup ?? '').toLowerCase();
-
-    if (activeTagGroup != null && !isActive) continue;
 
     const groupBg = isDark
       ? mix(palette.surface, palette.bg, 50)
       : mix(palette.surface, palette.bg, 30);
 
     const pillLabel = group.name;
-    const pillWidth = pillLabel.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
+    const pillWidth = pillWidthOf(group);
 
-    const gEl = contentG
+    const gX = fixedPositions?.get(group.name) ?? group.x;
+    const gY = fixedPositions != null ? 0 : group.y;
+
+    const gEl = parent
       .append('g')
-      .attr('transform', `translate(${group.x}, ${group.y})`)
+      .attr('transform', `translate(${gX}, ${gY})`)
       .attr('class', 'c4-legend-group')
       .attr('data-legend-group', group.name.toLowerCase())
       .style('cursor', 'pointer');
@@ -1317,8 +1285,16 @@ export function renderC4Containers(
 
   const titleHeight = parsed.title ? TITLE_HEIGHT + 10 : 0;
   const diagramW = layout.width;
-  const diagramH = layout.height;
-  const availH = height - titleHeight;
+  const hasLegend = layout.legend.length > 0;
+  // In app mode, legend is a fixed overlay outside the scaled group.
+  // C4 layout adds MARGIN(40) + LEGEND_HEIGHT below content — remove that from diagramH.
+  const C4_LAYOUT_MARGIN = 40;
+  const LEGEND_FIXED_GAP = 8;
+  const fixedLegend = !exportDims && hasLegend;
+  const legendLayoutSpace = C4_LAYOUT_MARGIN + LEGEND_HEIGHT;
+  const legendReserveH = fixedLegend ? LEGEND_HEIGHT + LEGEND_FIXED_GAP : 0;
+  const diagramH = fixedLegend ? layout.height - legendLayoutSpace : layout.height;
+  const availH = height - titleHeight - legendReserveH;
   const scaleX = (width - DIAGRAM_PADDING * 2) / diagramW;
   const scaleY = (availH - DIAGRAM_PADDING * 2) / diagramH;
   const scale = Math.min(MAX_SCALE, scaleX, scaleY);
@@ -1507,6 +1483,23 @@ export function renderC4Containers(
       .attr('class', 'c4-card')
       .attr('data-line-number', String(node.lineNumber))
       .attr('data-node-id', node.id);
+
+    if (activeTagGroup) {
+      const tagKey = activeTagGroup.toLowerCase();
+      const tagValue = node.metadata[tagKey];
+      if (tagValue) {
+        nodeG.attr(`data-tag-${tagKey}`, tagValue.toLowerCase());
+      } else {
+        // Fall back to the group's defaultValue so hover-dimming works for
+        // nodes that inherit the default (e.g. sc: Internal default).
+        const tagGroup = parsed.tagGroups.find(
+          (g) => g.name.toLowerCase() === tagKey || g.alias?.toLowerCase() === tagKey
+        );
+        if (tagGroup?.defaultValue) {
+          nodeG.attr(`data-tag-${tagKey}`, tagGroup.defaultValue.toLowerCase());
+        }
+      }
+    }
 
     if (node.shape) {
       nodeG.attr('data-shape', node.shape);
@@ -1717,8 +1710,18 @@ export function renderC4Containers(
   }
 
   // ── Legend ──
-  if (!exportDims) {
-    renderLegend(contentG as GSelection, layout, palette, isDark, activeTagGroup);
+  if (hasLegend) {
+    // App mode: fixed overlay at SVG bottom so it's always readable regardless of scale.
+    // Export mode: render inside scaled contentG at layout coordinates.
+    const legendParent = fixedLegend
+      ? svg.append('g')
+          .attr('class', 'c4-legend-fixed')
+          .attr('transform', `translate(0, ${height - DIAGRAM_PADDING - LEGEND_HEIGHT})`)
+      : contentG.append('g').attr('class', 'c4-legend');
+    if (activeTagGroup) {
+      legendParent.attr('data-legend-active', activeTagGroup.toLowerCase());
+    }
+    renderLegend(legendParent as GSelection, layout, palette, isDark, activeTagGroup, fixedLegend ? width : null);
   }
 }
 

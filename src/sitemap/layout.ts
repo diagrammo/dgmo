@@ -699,32 +699,25 @@ export function layoutSitemap(
     activeTagGroup != null || allExpanded ? g.width : g.minifiedWidth;
 
   if (visibleGroups.length > 0) {
-    // Top position: horizontal row above chart
+    // Bottom position: horizontal row below chart content
     const legendShift = LEGEND_HEIGHT + LEGEND_GROUP_GAP;
-
-    // Push chart content down
-    for (const n of layoutNodes) n.y += legendShift;
-    for (const c of layoutContainers) c.y += legendShift;
-    for (const e of layoutEdges) {
-      for (const p of e.points) p.y += legendShift;
-    }
 
     const totalGroupsWidth =
       visibleGroups.reduce((s, g) => s + effectiveW(g), 0) +
       (visibleGroups.length - 1) * LEGEND_GROUP_GAP;
 
-    let cx = MARGIN;
+    // Center legend groups horizontally
+    const neededWidth = totalGroupsWidth + MARGIN * 2;
+    if (neededWidth > totalWidth) totalWidth = neededWidth;
+    let cx = (totalWidth - totalGroupsWidth) / 2;
+    const legendY = totalHeight + LEGEND_GROUP_GAP;
     for (const g of visibleGroups) {
       g.x = cx;
-      g.y = MARGIN;
+      g.y = legendY;
       cx += effectiveW(g) + LEGEND_GROUP_GAP;
     }
 
     totalHeight += legendShift;
-    const neededWidth = totalGroupsWidth + MARGIN * 2;
-    if (neededWidth > totalWidth) {
-      totalWidth = neededWidth;
-    }
   }
 
   return {
