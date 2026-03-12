@@ -282,6 +282,80 @@ describe('renderInitiativeStatus', () => {
     expect(label?.textContent).toBe('External');
   });
 
+  it('spreads parallel edges with Y offset on interior control points', () => {
+    const parsed = parseInitiativeStatus(`chart: initiative-status
+Foo | wip
+  -A-> Bar | wip
+  -B-> Bar | wip
+Bar | wip`);
+    const layout = layoutInitiativeStatus(parsed);
+    const [edgeA, edgeB] = layout.edges;
+    // Exit points (first) and entry points (last) share same Y (node center)
+    expect(edgeA.points[0].y).toBe(edgeB.points[0].y);
+    expect(edgeA.points[edgeA.points.length - 1].y).toBe(edgeB.points[edgeB.points.length - 1].y);
+    // Interior control points are offset from each other
+    expect(edgeA.points[1].y).not.toBe(edgeB.points[1].y);
+    // parallelCount is 2 for both
+    expect(edgeA.parallelCount).toBe(2);
+    expect(edgeB.parallelCount).toBe(2);
+  });
+
+  it('leaves single edges unaffected (parallelCount=1, no interior offset)', () => {
+    // This fixture has only two nodes with no intermediate ranks, so dagre always
+    // uses the 4-point elbow path — interior points are at src.y (offset=0).
+    const parsed = parseInitiativeStatus(`chart: initiative-status
+Foo | wip
+  -> Bar | wip
+Bar | wip`);
+    const layout = layoutInitiativeStatus(parsed);
+    expect(layout.edges[0].parallelCount).toBe(1);
+    // Interior points share same Y as exit point (no offset applied)
+    expect(layout.edges[0].points[1].y).toBe(layout.edges[0].points[0].y);
+  });
+
+  it('narrows hit-area stroke-width for parallel edges and keeps full 16px for single edges', () => {
+    // 2 parallel edges → stroke-width = max(6, round(16/2)) = 8
+    const parsed2 = parseInitiativeStatus(`chart: initiative-status
+Foo | wip
+  -A-> Bar | wip
+  -B-> Bar | wip
+Bar | wip`);
+    const layout2 = layoutInitiativeStatus(parsed2);
+    const container2 = document.createElement('div') as unknown as HTMLDivElement;
+    renderInitiativeStatus(container2, parsed2, layout2, testPalette, false, undefined, { width: 800, height: 600 });
+    const hitPaths2 = container2.querySelectorAll('.is-edge-group path[stroke="transparent"]');
+    expect(hitPaths2.length).toBe(2);
+    for (const p of hitPaths2) {
+      expect(Number(p.getAttribute('stroke-width'))).toBe(8);
+    }
+
+    // Single edge → stroke-width = max(6, round(16/1)) = 16
+    const parsed1 = parseInitiativeStatus(`chart: initiative-status
+Foo | wip
+  -> Bar | wip
+Bar | wip`);
+    const layout1 = layoutInitiativeStatus(parsed1);
+    const container1 = document.createElement('div') as unknown as HTMLDivElement;
+    renderInitiativeStatus(container1, parsed1, layout1, testPalette, false, undefined, { width: 800, height: 600 });
+    const hitPaths1 = container1.querySelectorAll('.is-edge-group path[stroke="transparent"]');
+    expect(hitPaths1.length).toBe(1);
+    expect(Number(hitPaths1[0].getAttribute('stroke-width'))).toBe(16);
+  });
+
+  it('compresses spacing when many parallel edges would exceed node bounds', () => {
+    // 7 parallel edges: effectiveSpacing = min(16, 48/6) = 8 (compressed)
+    const lines = Array.from({ length: 7 }, (_, i) => `  -E${i}-> Bar | wip`).join('\n');
+    const parsed = parseInitiativeStatus(`chart: initiative-status\nFoo | wip\n${lines}\nBar | wip`);
+    const layout = layoutInitiativeStatus(parsed);
+    // All edges must have parallelCount=7
+    expect(layout.edges.every((e) => e.parallelCount === 7)).toBe(true);
+    // Outermost interior Y offsets must be within node half-height (30px) of src.y
+    const interiorYs = layout.edges.map((e) => e.points[1].y);
+    const srcY = layout.edges[0].points[0].y;
+    const maxDeviation = Math.max(...interiorYs.map((y) => Math.abs(y - srcY)));
+    expect(maxDeviation).toBeLessThanOrEqual(30); // NODE_HEIGHT / 2
+  });
+
   it('renders in dark mode without errors', () => {
     const parsed = parseInitiativeStatus(SAMPLE);
     const layout = layoutInitiativeStatus(parsed);

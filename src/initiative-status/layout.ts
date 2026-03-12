@@ -8,6 +8,7 @@
 
 import dagre from '@dagrejs/dagre';
 import type { ParsedInitiativeStatus, InitiativeStatus } from './types';
+import type { CollapseResult } from './collapse';
 
 export interface ISLayoutNode {
   label: string;
@@ -26,7 +27,11 @@ export interface ISLayoutEdge {
   label?: string;
   status: import('./types').InitiativeStatus;
   lineNumber: number;
+  // For parallel edges: points[0] and points[last] are pinned to node center Y (fan start/end).
+  // Interior points carry the Y offset so edges emerge from the same point and fan through the middle.
+  // For single edges (parallelCount=1) all points are at node center Y — identical to legacy behavior.
   points: { x: number; y: number }[];
+  parallelCount: number; // 1 for unique edges, >1 for parallel groups — used by renderer to narrow hit area
 }
 
 export interface ISLayoutGroup {
@@ -37,6 +42,7 @@ export interface ISLayoutGroup {
   width: number;
   height: number;
   lineNumber: number;
+  collapsed: boolean;
 }
 
 export interface ISLayoutResult {
@@ -49,7 +55,7 @@ export interface ISLayoutResult {
 
 const STATUS_PRIORITY: Record<string, number> = { todo: 3, wip: 2, done: 1, na: 0 };
 
-function rollUpStatus(members: ISLayoutNode[]): InitiativeStatus {
+export function rollUpStatus(members: { status: InitiativeStatus }[]): InitiativeStatus {
   let worst: InitiativeStatus = null;
   let worstPri = -1;
   for (const m of members) {
@@ -68,22 +74,51 @@ const NODE_WIDTH = Math.round(NODE_HEIGHT * PHI);
 const GROUP_PADDING = 20;
 const NODESEP = 80;
 const RANKSEP = 160;
+const PARALLEL_SPACING = 16; // px between parallel edges sharing same source→target (~27% of NODE_HEIGHT)
+const PARALLEL_EDGE_MARGIN = 12; // total vertical margin reserved at top+bottom of node for edge bundles (6px each side)
+const CHAR_WIDTH_RATIO = 0.6;
+const NODE_FONT_SIZE = 13;
+const NODE_TEXT_PADDING = 12;
 
 // ============================================================
 // Main layout function
 // ============================================================
 
-export function layoutInitiativeStatus(parsed: ParsedInitiativeStatus): ISLayoutResult {
-  if (parsed.nodes.length === 0) {
+export function layoutInitiativeStatus(
+  parsed: ParsedInitiativeStatus,
+  collapseResult?: CollapseResult
+): ISLayoutResult {
+  if (parsed.nodes.length === 0 && (!collapseResult || collapseResult.collapsedGroupStatuses.size === 0)) {
     return { nodes: [], edges: [], groups: [], width: 0, height: 0 };
   }
 
+  // Derive collapse context
+  const originalGroups = collapseResult?.originalGroups ?? parsed.groups;
+  const collapsedGroupStatuses = collapseResult?.collapsedGroupStatuses ?? new Map<string, InitiativeStatus>();
+  const collapsedGroupLabels = new Set(
+    originalGroups
+      .map((g) => g.label)
+      .filter((l) => !parsed.groups.some((g) => g.label === l))
+  );
+
   // Build and run dagre graph
-  const hasGroups = parsed.groups.length > 0;
+  const hasGroups = parsed.groups.length > 0 || collapsedGroupLabels.size > 0;
   const g = new dagre.graphlib.Graph({ multigraph: true, compound: hasGroups });
   g.setGraph({ rankdir: 'LR', nodesep: NODESEP, ranksep: RANKSEP });
   g.setDefaultEdgeLabel(() => ({}));
 
+  // Collapsed groups → regular dagre nodes (no compound parent)
+  for (const group of originalGroups) {
+    if (collapsedGroupLabels.has(group.label)) {
+      const collapsedW = Math.max(
+        NODE_WIDTH,
+        Math.ceil(group.label.length * CHAR_WIDTH_RATIO * NODE_FONT_SIZE) + NODE_TEXT_PADDING * 2
+      );
+      g.setNode(group.label, { label: group.label, width: collapsedW, height: NODE_HEIGHT });
+    }
+  }
+
+  // Expanded groups → compound parents
   for (const group of parsed.groups) {
     g.setNode(`__group_${group.label}`, { label: group.label, clusterLabelPos: 'top' });
   }
@@ -118,15 +153,50 @@ export function layoutInitiativeStatus(parsed: ParsedInitiativeStatus): ISLayout
     };
   });
 
-  const nodeMap = new Map(layoutNodes.map((n) => [n.label, n]));
-  const allNodeX = layoutNodes.map((n) => n.x);
+  // Build a unified position map covering both regular nodes and collapsed groups
+  interface NodePos { x: number; y: number; width: number; height: number }
+  const posMap = new Map<string, NodePos>(layoutNodes.map((n) => [n.label, n]));
+  for (const label of collapsedGroupLabels) {
+    const pos = g.node(label);
+    if (pos) posMap.set(label, { x: pos.x, y: pos.y, width: pos.width, height: pos.height });
+  }
+
+  const allNodeX = [...posMap.values()].map((n) => n.x);
 
   // Adjacent-rank edges: 4-point elbow (perpendicular exit/entry, no crossings).
   // Multi-rank edges: dagre's interior waypoints for obstacle avoidance, with
   // first/last points pinned to exact node boundaries at node-center Y.
-  const layoutEdges: ISLayoutEdge[] = parsed.edges.map((edge, i) => {
-    const src = nodeMap.get(edge.source)!;
-    const tgt = nodeMap.get(edge.target)!;
+
+  // Precompute Y offsets and parallel counts for parallel edges (same directed source→target)
+  const edgeYOffsets: number[] = new Array(parsed.edges.length).fill(0);
+  const edgeParallelCounts: number[] = new Array(parsed.edges.length).fill(1);
+  const parallelGroups = new Map<string, number[]>();
+  for (let i = 0; i < parsed.edges.length; i++) {
+    const edge = parsed.edges[i];
+    const key = `${edge.source}\x00${edge.target}`; // null-byte separator — safe in all label strings
+    parallelGroups.set(key, parallelGroups.get(key) ?? []);
+    parallelGroups.get(key)!.push(i);
+  }
+  for (const group of parallelGroups.values()) {
+    if (group.length < 2) continue;
+    // Clamp spacing so the bundle fits within node bounds regardless of edge count
+    const effectiveSpacing = Math.min(PARALLEL_SPACING, (NODE_HEIGHT - PARALLEL_EDGE_MARGIN) / (group.length - 1));
+    for (let j = 0; j < group.length; j++) {
+      edgeYOffsets[group[j]] = (j - (group.length - 1) / 2) * effectiveSpacing;
+      edgeParallelCounts[group[j]] = group.length;
+    }
+  }
+
+  const layoutEdges: ISLayoutEdge[] = [];
+  for (let i = 0; i < parsed.edges.length; i++) {
+    const edge = parsed.edges[i];
+    const src = posMap.get(edge.source);
+    const tgt = posMap.get(edge.target);
+    // Note: skipped edges still report the full group's parallelCount — the hit-area will be
+    // narrower than strictly necessary, but correctness is not affected (no edge rendered).
+    if (!src || !tgt) continue;
+    const yOffset = edgeYOffsets[i];
+    const parallelCount = edgeParallelCounts[i];
     const exitX = src.x + src.width / 2;
     const enterX = tgt.x - tgt.width / 2;
     const dagreEdge = g.edge(edge.source, edge.target, `e${i}`);
@@ -134,26 +204,49 @@ export function layoutInitiativeStatus(parsed: ParsedInitiativeStatus): ISLayout
     const hasIntermediateRank = allNodeX.some((x) => x > src.x + 20 && x < tgt.x - 20);
     const step = Math.min((enterX - exitX) * 0.15, 20);
 
+    // For multi-rank/back edges: only endpoints are shifted; dagre's interior waypoints stay put
+    // to avoid routing paths through nodes. Parallel back-edges may show a Y kink at intermediate
+    // dagre waypoints — best-effort spread, accepted limitation for non-adjacent-rank cases.
     const fixedDagrePoints = dagrePoints.length >= 2 ? [
-      { x: exitX, y: src.y },
+      { x: exitX, y: src.y + yOffset },
       ...dagrePoints.slice(1, -1),
-      { x: enterX, y: tgt.y },
+      { x: enterX, y: tgt.y + yOffset },
     ] : dagrePoints;
 
     const points = (tgt.x > src.x && !hasIntermediateRank)
       ? [
-          { x: exitX,         y: src.y },
-          { x: exitX + step,  y: src.y },
-          { x: enterX - step, y: tgt.y },
-          { x: enterX,        y: tgt.y },
+          { x: exitX,         y: src.y },           // exits node center — stays pinned
+          { x: exitX + step,  y: src.y + yOffset },  // fans out
+          { x: enterX - step, y: tgt.y + yOffset },  // still fanned
+          { x: enterX,        y: tgt.y },            // enters node center — stays pinned
         ]
       : fixedDagrePoints;
-    return { source: edge.source, target: edge.target, label: edge.label,
-             status: edge.status, lineNumber: edge.lineNumber, points };
-  });
+    layoutEdges.push({ source: edge.source, target: edge.target, label: edge.label,
+                       status: edge.status, lineNumber: edge.lineNumber, points, parallelCount });
+  }
 
   // Compute group bounding boxes
   const layoutGroups: ISLayoutGroup[] = [];
+
+  // Collapsed groups: dagre placed them as regular nodes → normalize to top-left
+  for (const group of originalGroups) {
+    if (collapsedGroupLabels.has(group.label)) {
+      const pos = g.node(group.label);
+      if (!pos) continue;
+      layoutGroups.push({
+        label: group.label,
+        status: collapsedGroupStatuses.get(group.label) ?? null,
+        x: pos.x - pos.width / 2,
+        y: pos.y - pos.height / 2,
+        width: pos.width,
+        height: pos.height,
+        lineNumber: group.lineNumber,
+        collapsed: true,
+      });
+    }
+  }
+
+  // Expanded groups: bounding box from member positions
   if (parsed.groups.length > 0) {
     const nMap = new Map(layoutNodes.map((n) => [n.label, n]));
     for (const group of parsed.groups) {
@@ -182,9 +275,11 @@ export function layoutInitiativeStatus(parsed: ParsedInitiativeStatus): ISLayout
         width: maxX - minX + GROUP_PADDING * 2,
         height: maxY - minY + GROUP_PADDING * 2,
         lineNumber: group.lineNumber,
+        collapsed: false,
       });
     }
   }
+
 
   // Compute total dimensions
   let totalWidth = 0;

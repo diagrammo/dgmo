@@ -32,6 +32,7 @@ const NODE_TEXT_PADDING = 12; // horizontal padding inside node for text
 const SERVICE_RX = 10;
 const GROUP_EXTRA_PADDING = 8;
 const GROUP_LABEL_FONT_SIZE = 11;
+const COLLAPSE_BAR_HEIGHT = 6;
 
 // ============================================================
 // Color helpers
@@ -602,51 +603,98 @@ export function renderInitiativeStatus(
 
   // Render groups (background layer, before edges and nodes)
   for (const group of layout.groups) {
-    if (group.width === 0 && group.height === 0) continue;
-    const gx = group.x - GROUP_EXTRA_PADDING;
-    const gy = group.y - GROUP_EXTRA_PADDING - GROUP_LABEL_FONT_SIZE - 4;
-    const gw = group.width + GROUP_EXTRA_PADDING * 2;
-    const gh = group.height + GROUP_EXTRA_PADDING * 2 + GROUP_LABEL_FONT_SIZE + 4;
+    if (group.collapsed) {
+      // ── Collapsed: node-like box (same fill/stroke as nodes) + drill-bar ──
+      const fillCol = nodeFill(group.status, palette, isDark);
+      const strokeCol = nodeStroke(group.status, palette, isDark);
+      const textCol = nodeTextColor(group.status, palette, isDark);
+      const clipId = `clip-group-${group.lineNumber}`;
 
-    const groupStatusColor = group.status
-      ? statusColor(group.status, palette, isDark)
-      : palette.textMuted;
-    // More subdued than nodes: 15% status color vs 30% for nodes
-    const fillColor = mix(groupStatusColor, isDark ? palette.surface : palette.bg, 15);
-    const strokeColor = mix(groupStatusColor, palette.textMuted, 50);
+      const groupG = contentG
+        .append('g')
+        .attr('class', 'is-group is-group-collapsed')
+        .attr('data-line-number', String(group.lineNumber))
+        .attr('data-group-toggle', group.label)
+        .style('cursor', 'pointer');
 
-    const groupG = contentG
-      .append('g')
-      .attr('class', 'is-group')
-      .attr('data-line-number', String(group.lineNumber));
+      // Clip path for drill-bar rounded corners
+      groupG.append('clipPath').attr('id', clipId)
+        .append('rect')
+        .attr('x', group.x).attr('y', group.y)
+        .attr('width', group.width).attr('height', group.height)
+        .attr('rx', NODE_RX);
 
-    groupG
-      .append('rect')
-      .attr('x', gx)
-      .attr('y', gy)
-      .attr('width', gw)
-      .attr('height', gh)
-      .attr('rx', 6)
-      .attr('fill', fillColor)
-      .attr('stroke', strokeColor)
-      .attr('stroke-width', 1)
-      .attr('stroke-opacity', 0.5);
+      // Main box
+      groupG.append('rect')
+        .attr('x', group.x).attr('y', group.y)
+        .attr('width', group.width).attr('height', group.height)
+        .attr('rx', NODE_RX)
+        .attr('fill', fillCol)
+        .attr('stroke', strokeCol)
+        .attr('stroke-width', NODE_STROKE_WIDTH);
 
-    groupG
-      .append('text')
-      .attr('x', gx + 8)
-      .attr('y', gy + GROUP_LABEL_FONT_SIZE + 4)
-      .attr('fill', strokeColor)
-      .attr('font-size', GROUP_LABEL_FONT_SIZE)
-      .attr('font-weight', 'bold')
-      .attr('opacity', 0.7)
-      .attr('class', 'is-group-label')
-      .text(group.label);
+      // Drill-bar (6px bottom stripe, clipped to rounded corners)
+      groupG.append('rect')
+        .attr('x', group.x)
+        .attr('y', group.y + group.height - COLLAPSE_BAR_HEIGHT)
+        .attr('width', group.width)
+        .attr('height', COLLAPSE_BAR_HEIGHT)
+        .attr('fill', strokeCol)
+        .attr('clip-path', `url(#${clipId})`)
+        .attr('class', 'is-collapse-bar');
 
-    if (onClickItem) {
-      groupG.style('cursor', 'pointer').on('click', () => {
-        onClickItem(group.lineNumber);
-      });
+      // Label centered (above drill-bar)
+      groupG.append('text')
+        .attr('x', group.x + group.width / 2)
+        .attr('y', group.y + group.height / 2 - COLLAPSE_BAR_HEIGHT / 2)
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'central')
+        .attr('fill', textCol)
+        .attr('font-size', NODE_FONT_SIZE)
+        .attr('font-weight', 'bold')
+        .attr('font-family', FONT_FAMILY)
+        .text(group.label);
+
+    } else {
+      // ── Expanded: neutral background (no status color bleed) ──
+      if (group.width === 0 && group.height === 0) continue;
+      const gx = group.x - GROUP_EXTRA_PADDING;
+      const gy = group.y - GROUP_EXTRA_PADDING - GROUP_LABEL_FONT_SIZE - 4;
+      const gw = group.width + GROUP_EXTRA_PADDING * 2;
+      const gh = group.height + GROUP_EXTRA_PADDING * 2 + GROUP_LABEL_FONT_SIZE + 4;
+
+      const fillColor = isDark ? palette.surface : palette.bg;
+      const strokeColor = palette.textMuted;
+
+      const groupG = contentG
+        .append('g')
+        .attr('class', 'is-group')
+        .attr('data-line-number', String(group.lineNumber))
+        .attr('data-group-toggle', group.label)
+        .style('cursor', 'pointer');
+
+      groupG
+        .append('rect')
+        .attr('x', gx)
+        .attr('y', gy)
+        .attr('width', gw)
+        .attr('height', gh)
+        .attr('rx', 6)
+        .attr('fill', fillColor)
+        .attr('stroke', strokeColor)
+        .attr('stroke-opacity', 0.5);
+
+      groupG
+        .append('text')
+        .attr('x', gx + 8)
+        .attr('y', gy + GROUP_LABEL_FONT_SIZE + 4)
+        .attr('fill', strokeColor)
+        .attr('font-size', GROUP_LABEL_FONT_SIZE)
+        .attr('font-weight', 'bold')
+        .attr('opacity', 0.7)
+        .attr('class', 'is-group-label')
+        .text(group.label);
+
     }
   }
 
@@ -670,7 +718,7 @@ export function renderInitiativeStatus(
         .attr('d', pathD)
         .attr('fill', 'none')
         .attr('stroke', 'transparent')
-        .attr('stroke-width', 16);
+        .attr('stroke-width', Math.max(6, Math.round(16 / (edge.parallelCount ?? 1))));
 
       edgeG
         .append('path')
