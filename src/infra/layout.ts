@@ -73,6 +73,7 @@ export interface InfraLayoutResult {
   groups: InfraLayoutGroup[];
   /** Diagram-level options (e.g., default-latency-ms, default-uptime). */
   options: Record<string, string>;
+  direction: 'LR' | 'TB';
   width: number;
   height: number;
 }
@@ -110,12 +111,12 @@ const DISPLAY_KEYS = new Set([
 
 /** Display names for width estimation. */
 const DISPLAY_NAMES: Record<string, string> = {
-  'cache-hit': 'cache hit', 'firewall-block': 'fw block',
+  'cache-hit': 'cache hit', 'firewall-block': 'firewall block',
   'ratelimit-rps': 'rate limit RPS', 'latency-ms': 'latency', 'uptime': 'uptime',
   'instances': 'instances', 'max-rps': 'max RPS',
-  'cb-error-threshold': 'CB error', 'cb-latency-threshold-ms': 'CB latency',
+  'cb-error-threshold': 'CB error threshold', 'cb-latency-threshold-ms': 'CB latency threshold',
   'concurrency': 'concurrency', 'duration-ms': 'duration', 'cold-start-ms': 'cold start',
-  'buffer': 'buffer', 'drain-rate': 'drain', 'retention-hours': 'retention', 'partitions': 'partitions',
+  'buffer': 'buffer', 'drain-rate': 'drain rate', 'retention-hours': 'retention', 'partitions': 'partitions',
 };
 
 function countDisplayProps(node: ComputedInfraNode, expanded: boolean, options?: Record<string, string>): number {
@@ -356,18 +357,20 @@ function formatUptime(fraction: number): string {
 // Group separation pass
 // ============================================================
 
-const GROUP_GAP = 24; // min clear gap between group boxes — matches GROUP_HEADER_HEIGHT
+const GROUP_GAP = GROUP_PADDING * 2 + GROUP_HEADER_HEIGHT; // min clear gap between group boxes
 
 export function separateGroups(
   groups: InfraLayoutGroup[],
   nodes: InfraLayoutNode[],
   isLR: boolean,
   maxIterations = 20,
-): void {
+): Map<string, { dx: number; dy: number }> {
   // Symmetric 2D rectangle intersection — no sorting needed, handles all
   // relative positions correctly, stable after mid-pass shifts.
   // Endpoint edge routing is not affected: renderer.ts recomputes border
   // connection points from node x/y at render time via nodeBorderPoint().
+  const groupDeltas = new Map<string, { dx: number; dy: number }>();
+  let converged = false;
   for (let iter = 0; iter < maxIterations; iter++) {
     let anyOverlap = false;
     for (let i = 0; i < groups.length; i++) {
@@ -398,6 +401,11 @@ export function separateGroups(
         if (isLR) groupToShift.y += shift;
         else groupToShift.x += shift;
 
+        // Accumulate the total delta for this group (used by fixEdgeWaypoints)
+        const prev = groupDeltas.get(groupToShift.id) ?? { dx: 0, dy: 0 };
+        if (isLR) groupDeltas.set(groupToShift.id, { dx: prev.dx, dy: prev.dy + shift });
+        else groupDeltas.set(groupToShift.id, { dx: prev.dx + shift, dy: prev.dy });
+
         for (const node of nodes) {
           if (node.groupId === groupToShift.id) {
             if (isLR) node.y += shift;
@@ -406,7 +414,44 @@ export function separateGroups(
         }
       }
     }
-    if (!anyOverlap) break;
+    if (!anyOverlap) { converged = true; break; }
+  }
+  if (!converged && maxIterations > 0) {
+    console.warn(`separateGroups: hit maxIterations (${maxIterations}) without fully resolving all group overlaps`);
+  }
+  return groupDeltas;
+}
+
+export function fixEdgeWaypoints(
+  edges: InfraLayoutEdge[],
+  nodes: InfraLayoutNode[],
+  groupDeltas: Map<string, { dx: number; dy: number }>,
+): void {
+  if (groupDeltas.size === 0) return;
+  const nodeToGroup = new Map<string, string | null>();
+  for (const node of nodes) nodeToGroup.set(node.id, node.groupId);
+
+  for (const edge of edges) {
+    const srcGroup = nodeToGroup.get(edge.sourceId) ?? null;
+    // Group-targeting edges (targetId is a group ID, not a node) return undefined from the map → null →
+    // treated as "ungrouped target", which is the correct approximation.
+    const tgtGroup = nodeToGroup.get(edge.targetId) ?? null;
+    const srcDelta = srcGroup ? groupDeltas.get(srcGroup) : undefined;
+    const tgtDelta = tgtGroup ? groupDeltas.get(tgtGroup) : undefined;
+
+    if (!srcDelta && !tgtDelta) continue; // neither side shifted
+
+    if (srcDelta && tgtDelta && srcGroup !== tgtGroup) {
+      // both sides in different shifted groups — discard, renderer draws a straight line
+      edge.points = [];
+      continue;
+    }
+
+    const delta = srcDelta ?? tgtDelta!;
+    for (const pt of edge.points) {
+      pt.x += delta.dx;
+      pt.y += delta.dy;
+    }
   }
 }
 
@@ -416,15 +461,16 @@ export function separateGroups(
 
 export function layoutInfra(computed: ComputedInfraModel, expandedNodeIds?: Set<string> | null, collapsedNodes?: Set<string> | null): InfraLayoutResult {
   if (computed.nodes.length === 0) {
-    return { nodes: [], edges: [], groups: [], options: {}, width: 0, height: 0 };
+    return { nodes: [], edges: [], groups: [], options: {}, direction: computed.direction, width: 0, height: 0 };
   }
 
+  const isLR = computed.direction !== 'TB';
   const g = new dagre.graphlib.Graph();
   g.setGraph({
     rankdir: computed.direction === 'TB' ? 'TB' : 'LR',
-    nodesep: 50,
-    ranksep: 100,
-    edgesep: 20,
+    nodesep: isLR ? 70 : 60,
+    ranksep: isLR ? 150 : 120,
+    edgesep: 30,
   });
   g.setDefaultEdgeLabel(() => ({}));
 
@@ -436,7 +482,6 @@ export function layoutInfra(computed: ComputedInfraModel, expandedNodeIds?: Set<
 
   // Extra space dagre must reserve for the group bounding box
   const GROUP_INFLATE = GROUP_PADDING * 2 + GROUP_HEADER_HEIGHT;
-  const isLR = computed.direction !== 'TB';
 
   // Add nodes — inflate grouped nodes so dagre accounts for group boxes
   const widthMap = new Map<string, number>();
@@ -591,8 +636,9 @@ export function layoutInfra(computed: ComputedInfraModel, expandedNodeIds?: Set<
     };
   });
 
-  // Separate overlapping groups (post-layout pass)
-  separateGroups(layoutGroups, layoutNodes, isLR);
+  // Separate overlapping groups (post-layout pass) and fix stale edge waypoints
+  const groupDeltas = separateGroups(layoutGroups, layoutNodes, isLR);
+  fixEdgeWaypoints(layoutEdges, layoutNodes, groupDeltas);
 
   // Compute total dimensions
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -657,6 +703,7 @@ export function layoutInfra(computed: ComputedInfraModel, expandedNodeIds?: Set<
     edges: layoutEdges,
     groups: layoutGroups,
     options: computed.options,
+    direction: computed.direction,
     width: totalWidth,
     height: totalHeight,
   };

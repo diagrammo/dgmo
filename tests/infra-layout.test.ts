@@ -1,7 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { parseInfra } from '../src/infra/parser';
 import { computeInfra } from '../src/infra/compute';
-import { layoutInfra, separateGroups, type InfraLayoutGroup, type InfraLayoutNode } from '../src/infra/layout';
+import { layoutInfra, separateGroups, fixEdgeWaypoints, type InfraLayoutGroup, type InfraLayoutNode, type InfraLayoutEdge } from '../src/infra/layout';
 
 function layout(source: string) {
   const parsed = parseInfra(source);
@@ -258,6 +258,41 @@ describe('separateGroups()', () => {
     }
   });
 
+  it('maintains at least GROUP_GAP clearance (64px) between separated group boxes', () => {
+    // GROUP_GAP = GROUP_PADDING*2 + GROUP_HEADER_HEIGHT = 20*2 + 24 = 64px
+    const groups = [
+      makeGroup('[A]', 0, 0, 200, 100),
+      makeGroup('[B]', 0, 98, 200, 100), // 2px overlap
+    ];
+    separateGroups(groups, [], true);
+    const gap = groups[1].y - (groups[0].y + groups[0].height);
+    expect(gap).toBeGreaterThanOrEqual(64); // GROUP_PADDING*2 + GROUP_HEADER_HEIGHT
+  });
+
+  it('emits console.warn when maxIterations is reached without full resolution', () => {
+    // Three overlapping groups: one pass can only resolve part of the overlaps
+    const groups = [
+      makeGroup('[A]', 0,   0, 200, 100),
+      makeGroup('[B]', 0,  50, 200, 100), // overlaps A
+      makeGroup('[C]', 0, 100, 200, 100), // overlaps B (and A after shift)
+    ];
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    separateGroups(groups, [], true, 1);
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('maxIterations'));
+    warnSpy.mockRestore();
+  });
+
+  it('does NOT emit console.warn when maxIterations is 0 (no resolution attempted)', () => {
+    const groups = [
+      makeGroup('[A]', 0, 0, 200, 100),
+      makeGroup('[B]', 0, 50, 200, 100),
+    ];
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    separateGroups(groups, [], true, 0);
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
   it('separates groups on X axis in TB mode', () => {
     const groups = [
       makeGroup('[A]', 0, 0, 100, 200),
@@ -269,6 +304,77 @@ describe('separateGroups()', () => {
 
     expect(groups[1].x).toBeGreaterThanOrEqual(groups[0].x + groups[0].width);
     expect(nodes[0].x).toBeGreaterThan(110);
+  });
+});
+
+describe('fixEdgeWaypoints()', () => {
+  function makeNode(id: string, groupId: string | null): InfraLayoutNode {
+    return { id, groupId, x: 0, y: 0, width: 100, height: 50 } as InfraLayoutNode;
+  }
+
+  function makeEdge(sourceId: string, targetId: string, points: { x: number; y: number }[]): InfraLayoutEdge {
+    return { sourceId, targetId, label: '', computedRps: 0, split: 1, fanout: null, points, lineNumber: 1 };
+  }
+
+  it('translates intra-group edge waypoints by the group delta', () => {
+    const nodes = [makeNode('a1', '[G]'), makeNode('a2', '[G]')];
+    const edge = makeEdge('a1', 'a2', [{ x: 10, y: 20 }, { x: 30, y: 40 }]);
+    const deltas = new Map([['[G]', { dx: 0, dy: 50 }]]);
+
+    fixEdgeWaypoints([edge], nodes, deltas);
+
+    expect(edge.points[0]).toEqual({ x: 10, y: 70 });
+    expect(edge.points[1]).toEqual({ x: 30, y: 90 });
+  });
+
+  it('translates waypoints when only source side is in a shifted group', () => {
+    const nodes = [makeNode('a1', '[G]'), makeNode('b1', null)];
+    const edge = makeEdge('a1', 'b1', [{ x: 5, y: 5 }]);
+    const deltas = new Map([['[G]', { dx: 10, dy: 0 }]]);
+
+    fixEdgeWaypoints([edge], nodes, deltas);
+
+    expect(edge.points[0]).toEqual({ x: 15, y: 5 });
+  });
+
+  it('translates waypoints when only target side is in a shifted group', () => {
+    const nodes = [makeNode('a1', null), makeNode('b1', '[G]')];
+    const edge = makeEdge('a1', 'b1', [{ x: 5, y: 5 }]);
+    const deltas = new Map([['[G]', { dx: 0, dy: 20 }]]);
+
+    fixEdgeWaypoints([edge], nodes, deltas);
+
+    expect(edge.points[0]).toEqual({ x: 5, y: 25 });
+  });
+
+  it('discards waypoints when both sides are in different shifted groups', () => {
+    const nodes = [makeNode('a1', '[GA]'), makeNode('b1', '[GB]')];
+    const edge = makeEdge('a1', 'b1', [{ x: 50, y: 50 }]);
+    const deltas = new Map([['[GA]', { dx: 0, dy: 30 }], ['[GB]', { dx: 0, dy: 60 }]]);
+
+    fixEdgeWaypoints([edge], nodes, deltas);
+
+    expect(edge.points).toEqual([]);
+  });
+
+  it('leaves waypoints unchanged when neither side is in a shifted group', () => {
+    const nodes = [makeNode('a1', '[GA]'), makeNode('b1', '[GB]')];
+    const edge = makeEdge('a1', 'b1', [{ x: 10, y: 20 }]);
+    const deltas = new Map([['[GC]', { dx: 5, dy: 5 }]]); // different group, not these nodes
+
+    fixEdgeWaypoints([edge], nodes, deltas);
+
+    expect(edge.points[0]).toEqual({ x: 10, y: 20 });
+  });
+
+  it('early-returns immediately when groupDeltas is empty', () => {
+    const nodes = [makeNode('a1', '[G]')];
+    const edge = makeEdge('a1', 'a1', [{ x: 1, y: 2 }]);
+    const deltas = new Map<string, { dx: number; dy: number }>();
+
+    fixEdgeWaypoints([edge], nodes, deltas);
+
+    expect(edge.points[0]).toEqual({ x: 1, y: 2 });
   });
 });
 

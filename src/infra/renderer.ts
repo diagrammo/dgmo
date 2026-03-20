@@ -129,10 +129,246 @@ const REJECT_COUNT_MAX = 3;
 // Edge path generator
 // ============================================================
 
-const lineGenerator = d3Shape.line<{ x: number; y: number }>()
-  .x((d) => d.x)
-  .y((d) => d.y)
-  .curve(d3Shape.curveBasis);
+type Pt = { x: number; y: number };
+
+/** Produce an SVG path string for a sequence of waypoints.
+ *  2-point paths use curveBumpX/Y (nice S-curve).
+ *  Multi-point obstacle-avoiding paths use CatmullRom for a smooth fit. */
+function buildPathD(pts: Pt[], direction: 'LR' | 'TB'): string {
+  const gen = d3Shape.line<Pt>().x((d) => d.x).y((d) => d.y);
+  if (pts.length <= 2) {
+    gen.curve(direction === 'TB' ? d3Shape.curveBumpY : d3Shape.curveBumpX);
+  } else {
+    gen.curve(d3Shape.curveCatmullRom.alpha(0.5));
+  }
+  return gen(pts) ?? '';
+}
+
+type Rect = { x: number; y: number; width: number; height: number };
+
+/** Find the Y lane for routing around blocking obstacles.
+ *  Prefers threading through Y gaps between blocking rects over routing above/below all.
+ *  Picks the candidate closest to targetY to minimise arc size. */
+function findRoutingLane(
+  blocking: Rect[],
+  targetY: number,
+  margin: number,
+): number {
+  // Sort by Y center, then merge overlapping Y intervals (expanded by margin for clearance)
+  const sorted = [...blocking].sort((a, b) => (a.y + a.height / 2) - (b.y + b.height / 2));
+  const merged: [number, number][] = [];
+  for (const r of sorted) {
+    const lo = r.y - margin;
+    const hi = r.y + r.height + margin;
+    if (merged.length && lo <= merged[merged.length - 1][1]) {
+      merged[merged.length - 1][1] = Math.max(merged[merged.length - 1][1], hi);
+    } else {
+      merged.push([lo, hi]);
+    }
+  }
+  if (merged.length === 0) return targetY;
+
+  // Candidate lanes: above all, below all, and mid-points of gaps between intervals
+  const MIN_GAP = margin * 2;
+  const candidates: number[] = [
+    merged[0][0] - margin,                      // above all blocking nodes
+    merged[merged.length - 1][1] + margin,      // below all blocking nodes
+  ];
+  for (let i = 0; i < merged.length - 1; i++) {
+    const gapLo = merged[i][1];
+    const gapHi = merged[i + 1][0];
+    if (gapHi - gapLo >= MIN_GAP) {
+      candidates.push((gapLo + gapHi) / 2);    // thread through the gap
+    }
+  }
+
+  // Return the candidate closest to targetY (tightest arc)
+  return candidates.reduce((best, c) =>
+    Math.abs(c - targetY) < Math.abs(best - targetY) ? c : best,
+    candidates[0]);
+}
+
+/** Check whether segment p1→p2 passes through (or has an endpoint inside) the rectangle. */
+function segmentIntersectsRect(p1: Pt, p2: Pt, rect: { x: number; y: number; width: number; height: number }): boolean {
+  const { x: rx, y: ry, width: rw, height: rh } = rect;
+  const rr = rx + rw;
+  const rb = ry + rh;
+  // Point-in-rect check
+  const inRect = (p: Pt) => p.x >= rx && p.x <= rr && p.y >= ry && p.y <= rb;
+  if (inRect(p1) || inRect(p2)) return true;
+  // Segment bounding box vs rect
+  if (Math.max(p1.x, p2.x) < rx || Math.min(p1.x, p2.x) > rr) return false;
+  if (Math.max(p1.y, p2.y) < ry || Math.min(p1.y, p2.y) > rb) return false;
+  // Cross product sign helper (z-component of cross product)
+  const cross = (o: Pt, a: Pt, b: Pt) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+  // Does segment p1p2 cross segment a→b?
+  const crosses = (a: Pt, b: Pt) => {
+    const d1 = cross(a, b, p1);
+    const d2 = cross(a, b, p2);
+    const d3 = cross(p1, p2, a);
+    const d4 = cross(p1, p2, b);
+    return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
+           ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0));
+  };
+  const tl: Pt = { x: rx, y: ry };
+  const tr: Pt = { x: rr, y: ry };
+  const br: Pt = { x: rr, y: rb };
+  const bl: Pt = { x: rx, y: rb };
+  return crosses(tl, tr) || crosses(tr, br) || crosses(br, bl) || crosses(bl, tl);
+}
+
+/** Check whether the curveBumpX/Y S-curve from sc to tc intersects rect.
+ *
+ *  curveBumpX (LR) stays near sc.y for the left half of the edge, transitions
+ *  vertically at the midpoint, then stays near tc.y for the right half.
+ *  Approximated as three Manhattan segments:
+ *    sc → (midX, sc.y) → (midX, tc.y) → tc
+ *
+ *  curveBumpY (TB) mirrors this on the other axis. */
+function curveIntersectsRect(sc: Pt, tc: Pt, rect: Rect, direction: 'LR' | 'TB'): boolean {
+  if (direction === 'LR') {
+    const midX = (sc.x + tc.x) / 2;
+    const m1: Pt = { x: midX, y: sc.y };
+    const m2: Pt = { x: midX, y: tc.y };
+    return segmentIntersectsRect(sc, m1, rect)
+        || segmentIntersectsRect(m1, m2, rect)
+        || segmentIntersectsRect(m2, tc, rect);
+  } else {
+    const midY = (sc.y + tc.y) / 2;
+    const m1: Pt = { x: sc.x, y: midY };
+    const m2: Pt = { x: tc.x, y: midY };
+    return segmentIntersectsRect(sc, m1, rect)
+        || segmentIntersectsRect(m1, m2, rect)
+        || segmentIntersectsRect(m2, tc, rect);
+  }
+}
+
+/** Compute waypoints for an edge.
+ *
+ *  - Backward edges (going against the primary layout direction) arc above/left
+ *    of all layout content to avoid crossing everything.
+ *  - Forward edges that cross a group bounding box or an unrelated node arc
+ *    above or below the collective blocking region (gap-aware Y routing).
+ *  - Clear forward edges use a direct 2-point path (curveBumpX/Y S-curve). */
+function edgeWaypoints(
+  source: InfraLayoutNode,
+  target: InfraLayoutNode,
+  groups: InfraLayoutGroup[],
+  nodes: InfraLayoutNode[],
+  direction: 'LR' | 'TB',
+  margin = 30,
+): Pt[] {
+  const sc: Pt = { x: source.x, y: source.y };
+  const tc: Pt = { x: target.x, y: target.y };
+
+  // ── Backward edge handling ───────────────────────────────────────────────
+  // curveBumpX/Y on a backward edge creates a loop. Route around obstacles
+  // in the backward path's axis band for a tight arc (not global min/max).
+  const isBackward = direction === 'LR' ? tc.x < sc.x : tc.y < sc.y;
+  if (isBackward) {
+    if (direction === 'LR') {
+      // Collect group/node rects that overlap the X band [tc.x, sc.x]
+      const xBandObs: Rect[] = [];
+      for (const g of groups) {
+        if (g.x + g.width < tc.x - margin || g.x > sc.x + margin) continue;
+        xBandObs.push({ x: g.x, y: g.y, width: g.width, height: g.height });
+      }
+      for (const n of nodes) {
+        if (n.id === source.id || n.id === target.id) continue;
+        const nLeft = n.x - n.width / 2;
+        const nRight = n.x + n.width / 2;
+        if (nRight < tc.x - margin || nLeft > sc.x + margin) continue;
+        xBandObs.push({ x: nLeft, y: n.y - n.height / 2, width: n.width, height: n.height });
+      }
+      const midY    = (sc.y + tc.y) / 2;
+      const routeY  = xBandObs.length > 0 ? findRoutingLane(xBandObs, midY, margin) : midY;
+      const exitPt  : Pt = { x: sc.x, y: routeY };
+      const enterPt : Pt = { x: tc.x, y: routeY };
+      return [
+        nodeBorderPoint(source, exitPt),
+        exitPt,
+        enterPt,
+        nodeBorderPoint(target, enterPt),
+      ];
+    } else {
+      // TB backward: collect obstacles in Y band [tc.y, sc.y]; find X lane
+      const yBandObs: Rect[] = [];
+      for (const g of groups) {
+        if (g.y + g.height < tc.y - margin || g.y > sc.y + margin) continue;
+        yBandObs.push({ x: g.x, y: g.y, width: g.width, height: g.height });
+      }
+      for (const n of nodes) {
+        if (n.id === source.id || n.id === target.id) continue;
+        const nTop = n.y - n.height / 2;
+        const nBot = n.y + n.height / 2;
+        if (nBot < tc.y - margin || nTop > sc.y + margin) continue;
+        yBandObs.push({ x: n.x - n.width / 2, y: nTop, width: n.width, height: n.height });
+      }
+      // Rotate axes so findRoutingLane (which works in Y) resolves an X lane
+      const rotated = yBandObs.map((r) => ({ x: r.y, y: r.x, width: r.height, height: r.width }));
+      const midX    = (sc.x + tc.x) / 2;
+      const routeX  = rotated.length > 0 ? findRoutingLane(rotated, midX, margin) : midX;
+      const exitPt  : Pt = { x: routeX, y: sc.y };
+      const enterPt : Pt = { x: routeX, y: tc.y };
+      return [
+        nodeBorderPoint(source, exitPt),
+        exitPt,
+        enterPt,
+        nodeBorderPoint(target, enterPt),
+      ];
+    }
+  }
+
+  // ── Forward edge: obstacle avoidance (groups + individual nodes) ─────────
+  const blocking: { x: number; y: number; width: number; height: number }[] = [];
+  const blockingGroupIds = new Set<string>();
+
+  // Groups (excluding source/target groups)
+  for (const g of groups) {
+    if (g.id === source.groupId || g.id === target.groupId) continue;
+    const gRect: Rect = { x: g.x, y: g.y, width: g.width, height: g.height };
+    if (curveIntersectsRect(sc, tc, gRect, direction)) {
+      blocking.push(gRect);
+      blockingGroupIds.add(g.id);
+    }
+  }
+
+  // Individual nodes not already covered by a blocking group rect
+  for (const n of nodes) {
+    if (n.id === source.id || n.id === target.id) continue;
+    // Skip nodes in source/target groups (routing around the group handles them)
+    if (n.groupId && (n.groupId === source.groupId || n.groupId === target.groupId)) continue;
+    // Skip nodes inside a group whose bounding box is already blocking
+    if (n.groupId && blockingGroupIds.has(n.groupId)) continue;
+    const nodeRect: Rect = { x: n.x - n.width / 2, y: n.y - n.height / 2, width: n.width, height: n.height };
+    if (curveIntersectsRect(sc, tc, nodeRect, direction)) {
+      blocking.push(nodeRect);
+    }
+  }
+
+  if (blocking.length === 0) {
+    return [nodeBorderPoint(source, tc), nodeBorderPoint(target, sc)];
+  }
+
+  const obsLeft  = Math.min(...blocking.map((o) => o.x));
+  const obsRight = Math.max(...blocking.map((o) => o.x + o.width));
+
+  const routeY = findRoutingLane(blocking, tc.y, margin);
+
+  // Clamp exit/enter X to [sc.x, tc.x] for LR so the path never reverses
+  // direction when an obstacle's bounding box extends past source or target.
+  const exitX  = direction === 'LR' ? Math.max(sc.x, obsLeft  - margin) : obsLeft  - margin;
+  const enterX = direction === 'LR' ? Math.min(tc.x, obsRight + margin) : obsRight + margin;
+  const exitPt  : Pt = { x: exitX,  y: routeY };
+  const enterPt : Pt = { x: enterX, y: routeY };
+
+  return [
+    nodeBorderPoint(source, exitPt),
+    exitPt,
+    enterPt,
+    nodeBorderPoint(target, enterPt),
+  ];
+}
 
 /** Compute the point on a node's border closest to an external target point. */
 function nodeBorderPoint(
@@ -597,9 +833,11 @@ function renderEdgePaths(
   svg: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   edges: InfraLayoutEdge[],
   nodes: InfraLayoutNode[],
+  groups: InfraLayoutGroup[],
   palette: PaletteColors,
   isDark: boolean,
   animate: boolean,
+  direction: 'LR' | 'TB',
 ) {
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
   const maxRps = Math.max(...edges.map((e) => e.computedRps), 1);
@@ -612,29 +850,9 @@ function renderEdgePaths(
     const color = edgeColor(edge, palette);
     const strokeW = edgeWidth();
 
-    // Ensure dagre waypoints are ordered source→target (not guaranteed by dagre)
-    let pts = edge.points;
-    if (sourceNode && targetNode && pts.length >= 2) {
-      const first = pts[0];
-      const distFirstToSource = (first.x - sourceNode.x) ** 2 + (first.y - sourceNode.y) ** 2;
-      const distFirstToTarget = (first.x - targetNode.x) ** 2 + (first.y - targetNode.y) ** 2;
-      if (distFirstToTarget < distFirstToSource) {
-        pts = [...pts].reverse();
-      }
-    }
-
-    // Prepend source border point and append target border point so edges
-    // visually connect to node boundaries (dagre waypoints float between nodes)
-    if (sourceNode && pts.length > 0) {
-      const bp = nodeBorderPoint(sourceNode, pts[0]);
-      pts = [bp, ...pts];
-    }
-    if (targetNode && pts.length > 0) {
-      const bp = nodeBorderPoint(targetNode, pts[pts.length - 1]);
-      pts = [...pts, bp];
-    }
-
-    const pathD = lineGenerator(pts) ?? '';
+    if (!sourceNode || !targetNode) continue;
+    const pts = edgeWaypoints(sourceNode, targetNode, groups, nodes, direction);
+    const pathD = buildPathD(pts, direction);
     const edgeG = svg.append('g')
       .attr('class', 'infra-edge')
       .attr('data-line-number', edge.lineNumber);
@@ -674,16 +892,25 @@ function renderEdgePaths(
 function renderEdgeLabels(
   svg: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   edges: InfraLayoutEdge[],
+  nodes: InfraLayoutNode[],
+  groups: InfraLayoutGroup[],
   palette: PaletteColors,
   isDark: boolean,
   animate: boolean,
+  direction: 'LR' | 'TB',
 ) {
+  const nodeMap = new Map(nodes.map((n) => [n.id, n]));
   for (const edge of edges) {
     if (edge.points.length === 0) continue;
     if (!edge.label) continue;
 
-    const midIdx = Math.floor(edge.points.length / 2);
-    const midPt = edge.points[midIdx];
+    const sourceNode = nodeMap.get(edge.sourceId);
+    const targetNode = nodeMap.get(edge.targetId);
+    if (!sourceNode || !targetNode) continue;
+
+    const wps = edgeWaypoints(sourceNode, targetNode, groups, nodes, direction);
+    // Label midpoint: middle waypoint of the routed path
+    const midPt = wps[Math.floor(wps.length / 2)];
     const labelText = edge.label;
 
     const g = svg.append('g')
@@ -711,7 +938,7 @@ function renderEdgeLabels(
 
     // When animated, add a wider invisible hover zone so labels appear on hover
     if (animate) {
-      const pathD = lineGenerator(edge.points) ?? '';
+      const pathD = buildPathD(wps, direction);
       g.insert('path', ':first-child')
         .attr('d', pathD)
         .attr('fill', 'none')
@@ -1541,7 +1768,7 @@ export function renderInfra(
 
   // Render layers: groups (back), edge paths, nodes, reject particles, edge labels (front)
   renderGroups(svg, layout.groups, palette, isDark);
-  renderEdgePaths(svg, layout.edges, layout.nodes, palette, isDark, shouldAnimate);
+  renderEdgePaths(svg, layout.edges, layout.nodes, layout.groups, palette, isDark, shouldAnimate, layout.direction);
   const fanoutSourceIds = collectFanoutSourceIds(layout.edges);
   const scaledGroupIds = new Set<string>(
     layout.groups
@@ -1556,7 +1783,7 @@ export function renderInfra(
   if (shouldAnimate) {
     renderRejectParticles(svg, layout.nodes);
   }
-  renderEdgeLabels(svg, layout.edges, palette, isDark, shouldAnimate);
+  renderEdgeLabels(svg, layout.edges, layout.nodes, layout.groups, palette, isDark, shouldAnimate, layout.direction);
 
   // Legend at bottom
   if (hasLegend) {
