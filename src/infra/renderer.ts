@@ -238,18 +238,23 @@ function computePortPts(
 
 /** Find the Y lane for routing around blocking obstacles.
  *  Prefers threading through Y gaps between blocking rects over routing above/below all.
- *  Picks the candidate closest to targetY to minimise arc size. */
+ *  Picks the candidate closest to targetY to minimise arc size.
+ *
+ *  Uses a tight merge expansion (MERGE_SLOP) so narrow inter-group gaps are preserved
+ *  and can be threaded, rather than being swallowed into one large merged interval. */
 function findRoutingLane(
   blocking: Rect[],
   targetY: number,
   margin: number,
 ): number {
-  // Sort by Y center, then merge overlapping Y intervals (expanded by margin for clearance)
+  // Use a small slop for merging so closely-spaced (but distinct) groups
+  // stay as separate intervals and the gap between them can be threaded.
+  const MERGE_SLOP = 4;
   const sorted = [...blocking].sort((a, b) => (a.y + a.height / 2) - (b.y + b.height / 2));
   const merged: [number, number][] = [];
   for (const r of sorted) {
-    const lo = r.y - margin;
-    const hi = r.y + r.height + margin;
+    const lo = r.y - MERGE_SLOP;
+    const hi = r.y + r.height + MERGE_SLOP;
     if (merged.length && lo <= merged[merged.length - 1][1]) {
       merged[merged.length - 1][1] = Math.max(merged[merged.length - 1][1], hi);
     } else {
@@ -258,11 +263,12 @@ function findRoutingLane(
   }
   if (merged.length === 0) return targetY;
 
-  // Candidate lanes: above all, below all, and mid-points of gaps between intervals
-  const MIN_GAP = margin * 2;
+  // Candidate lanes: above all, below all, mid-points of gaps wide enough to thread.
+  // MIN_GAP: allow narrow gaps (edge is ~1.5px, so even 10px clearance is fine).
+  const MIN_GAP = 10;
   const candidates: number[] = [
-    merged[0][0] - margin,                      // above all blocking nodes
-    merged[merged.length - 1][1] + margin,      // below all blocking nodes
+    merged[0][0] - margin,                      // above all blocking rects
+    merged[merged.length - 1][1] + margin,      // below all blocking rects
   ];
   for (let i = 0; i < merged.length - 1; i++) {
     const gapLo = merged[i][1];
