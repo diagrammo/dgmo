@@ -1,5 +1,5 @@
 import dagre from '@dagrejs/dagre';
-import type { ParsedERDiagram, ERTable } from './types';
+import type { ParsedERDiagram, ERTable, ERRelationship } from './types';
 
 // ============================================================
 // Layout types
@@ -42,6 +42,9 @@ const MEMBER_LINE_HEIGHT = 18;
 const COMPARTMENT_PADDING_Y = 8;
 const SEPARATOR_HEIGHT = 1;
 
+const HALF_MARGIN = 30;
+const COMP_GAP = 60; // gap between packed components
+
 // ============================================================
 // Node sizing
 // ============================================================
@@ -52,7 +55,6 @@ function computeNodeDimensions(table: ERTable): {
   headerHeight: number;
   columnsHeight: number;
 } {
-  // Width: max of table name, column text lengths
   let maxTextLen = table.name.length;
   for (const col of table.columns) {
     let colText = col.name;
@@ -61,7 +63,6 @@ function computeNodeDimensions(table: ERTable): {
     maxTextLen = Math.max(maxTextLen, colText.length);
   }
   const width = Math.max(MIN_WIDTH, maxTextLen * CHAR_WIDTH + PADDING_X);
-
   const headerHeight = HEADER_BASE;
 
   let columnsHeight = 0;
@@ -72,10 +73,208 @@ function computeNodeDimensions(table: ERTable): {
       SEPARATOR_HEIGHT;
   }
 
-  const height =
-    headerHeight + columnsHeight + (columnsHeight === 0 ? 4 : 0);
-
+  const height = headerHeight + columnsHeight + (columnsHeight === 0 ? 4 : 0);
   return { width, height, headerHeight, columnsHeight };
+}
+
+// ============================================================
+// Connected component detection (undirected BFS)
+// ============================================================
+
+function findConnectedComponents(
+  tableIds: string[],
+  relationships: ERRelationship[]
+): string[][] {
+  const adj = new Map<string, Set<string>>();
+  for (const id of tableIds) adj.set(id, new Set());
+  for (const rel of relationships) {
+    adj.get(rel.source)?.add(rel.target);
+    adj.get(rel.target)?.add(rel.source);
+  }
+
+  const visited = new Set<string>();
+  const components: string[][] = [];
+
+  for (const id of tableIds) {
+    if (visited.has(id)) continue;
+    const comp: string[] = [];
+    const queue = [id];
+    while (queue.length > 0) {
+      const cur = queue.shift()!;
+      if (visited.has(cur)) continue;
+      visited.add(cur);
+      comp.push(cur);
+      for (const nb of adj.get(cur) ?? []) {
+        if (!visited.has(nb)) queue.push(nb);
+      }
+    }
+    components.push(comp);
+  }
+  return components;
+}
+
+// ============================================================
+// Per-component layout (independent dagre run)
+// ============================================================
+
+interface ComponentLayout {
+  /** Node center positions relative to this component's top-left origin */
+  nodePositions: Map<
+    string,
+    { x: number; y: number; width: number; height: number; headerHeight: number; columnsHeight: number }
+  >;
+  /** Edge waypoints keyed by relationship lineNumber, relative to origin */
+  edgePoints: Map<number, { x: number; y: number }[]>;
+  width: number;
+  height: number;
+}
+
+function layoutComponent(
+  tables: ERTable[],
+  rels: ERRelationship[],
+  dimMap: Map<string, { width: number; height: number; headerHeight: number; columnsHeight: number }>
+): ComponentLayout {
+  const nodePositions = new Map<
+    string,
+    { x: number; y: number; width: number; height: number; headerHeight: number; columnsHeight: number }
+  >();
+  const edgePoints = new Map<number, { x: number; y: number }[]>();
+
+  if (tables.length === 1) {
+    // Single node — skip dagre
+    const dims = dimMap.get(tables[0].id)!;
+    nodePositions.set(tables[0].id, { x: dims.width / 2, y: dims.height / 2, ...dims });
+    return { nodePositions, edgePoints, width: dims.width, height: dims.height };
+  }
+
+  const g = new dagre.graphlib.Graph({ multigraph: true });
+  g.setGraph({ rankdir: 'LR', nodesep: 40, ranksep: 80, edgesep: 20 });
+  g.setDefaultEdgeLabel(() => ({}));
+
+  for (const table of tables) {
+    const dims = dimMap.get(table.id)!;
+    g.setNode(table.id, { width: dims.width, height: dims.height });
+  }
+
+  // Use lineNumber as edge name to support multigraph (multiple edges between same pair)
+  for (const rel of rels) {
+    g.setEdge(rel.source, rel.target, { label: rel.label ?? '' }, String(rel.lineNumber));
+  }
+
+  dagre.layout(g);
+
+  // Compute bounding box (dagre coordinates)
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+  for (const table of tables) {
+    const pos = g.node(table.id);
+    const dims = dimMap.get(table.id)!;
+    minX = Math.min(minX, pos.x - dims.width / 2);
+    minY = Math.min(minY, pos.y - dims.height / 2);
+    maxX = Math.max(maxX, pos.x + dims.width / 2);
+    maxY = Math.max(maxY, pos.y + dims.height / 2);
+  }
+
+  for (const rel of rels) {
+    const ed = g.edge(rel.source, rel.target, String(rel.lineNumber));
+    for (const pt of ed?.points ?? []) {
+      minX = Math.min(minX, pt.x);
+      minY = Math.min(minY, pt.y);
+      maxX = Math.max(maxX, pt.x);
+      maxY = Math.max(maxY, pt.y);
+    }
+    if (rel.label && (ed?.points ?? []).length > 0) {
+      const pts = ed!.points;
+      const mid = pts[Math.floor(pts.length / 2)];
+      const hw = (rel.label.length * 7 + 8) / 2;
+      minX = Math.min(minX, mid.x - hw);
+      maxX = Math.max(maxX, mid.x + hw);
+    }
+  }
+
+  // Normalize positions to component origin (0, 0)
+  for (const table of tables) {
+    const pos = g.node(table.id);
+    const dims = dimMap.get(table.id)!;
+    nodePositions.set(table.id, {
+      x: pos.x - minX,
+      y: pos.y - minY,
+      ...dims,
+    });
+  }
+  for (const rel of rels) {
+    const ed = g.edge(rel.source, rel.target, String(rel.lineNumber));
+    edgePoints.set(
+      rel.lineNumber,
+      (ed?.points ?? []).map((pt: { x: number; y: number }) => ({ x: pt.x - minX, y: pt.y - minY }))
+    );
+  }
+
+  return {
+    nodePositions,
+    edgePoints,
+    width: Math.max(0, maxX - minX),
+    height: Math.max(0, maxY - minY),
+  };
+}
+
+// ============================================================
+// Row packing (Next Fit Decreasing Height)
+// ============================================================
+
+interface PackedComponent {
+  compIds: string[];
+  compLayout: ComponentLayout;
+  offsetX: number;
+  offsetY: number;
+}
+
+function packComponents(
+  items: Array<{ compIds: string[]; compLayout: ComponentLayout }>
+): PackedComponent[] {
+  if (items.length === 0) return [];
+
+  // Sort: multi-node components (have relationships, more interesting) first,
+  // then isolated single-node components. Within each group, sort by height descending.
+  const sorted = [...items].sort((a, b) => {
+    const aConnected = a.compIds.length > 1 ? 1 : 0;
+    const bConnected = b.compIds.length > 1 ? 1 : 0;
+    if (aConnected !== bConnected) return bConnected - aConnected;
+    return b.compLayout.height - a.compLayout.height;
+  });
+
+  // Target width: sqrt of total content area × aspect factor (~1.5 = slightly landscape)
+  const totalArea = items.reduce(
+    (s, c) => s + (c.compLayout.width || MIN_WIDTH) * (c.compLayout.height || HEADER_BASE),
+    0
+  );
+  const targetW = Math.max(
+    Math.sqrt(totalArea) * 1.5,
+    sorted[0].compLayout.width // at least as wide as the widest component
+  );
+
+  const placements: PackedComponent[] = [];
+  let curX = 0;
+  let curY = 0;
+  let rowH = 0;
+
+  for (const item of sorted) {
+    const w = item.compLayout.width || MIN_WIDTH;
+    const h = item.compLayout.height || HEADER_BASE;
+
+    // Wrap to next row if this item doesn't fit (but always place if row is empty)
+    if (curX > 0 && curX + w > targetW) {
+      curY += rowH + COMP_GAP;
+      curX = 0;
+      rowH = 0;
+    }
+
+    placements.push({ compIds: item.compIds, compLayout: item.compLayout, offsetX: curX, offsetY: curY });
+    curX += w + COMP_GAP;
+    rowH = Math.max(rowH, h);
+  }
+
+  return placements;
 }
 
 // ============================================================
@@ -87,130 +286,96 @@ export function layoutERDiagram(parsed: ParsedERDiagram): ERLayoutResult {
     return { nodes: [], edges: [], width: 0, height: 0 };
   }
 
-  const g = new dagre.graphlib.Graph();
-  g.setGraph({
-    rankdir: 'TB',
-    nodesep: 60,
-    ranksep: 80,
-    edgesep: 20,
-  });
-  g.setDefaultEdgeLabel(() => ({}));
-
-  // Compute dimensions and add nodes
+  // ── 1. Node dimensions ──────────────────────────────────────────────────────
   const dimMap = new Map<
     string,
-    {
-      width: number;
-      height: number;
-      headerHeight: number;
-      columnsHeight: number;
-    }
+    { width: number; height: number; headerHeight: number; columnsHeight: number }
   >();
-
   for (const table of parsed.tables) {
-    const dims = computeNodeDimensions(table);
-    dimMap.set(table.id, dims);
-    g.setNode(table.id, {
-      label: table.name,
-      width: dims.width,
-      height: dims.height,
-    });
+    dimMap.set(table.id, computeNodeDimensions(table));
   }
 
-  // Add edges
-  for (const rel of parsed.relationships) {
-    g.setEdge(rel.source, rel.target, { label: rel.label ?? '' });
+  // ── 2. Find connected components ────────────────────────────────────────────
+  const compIdSets = findConnectedComponents(
+    parsed.tables.map((t) => t.id),
+    parsed.relationships
+  );
+
+  // ── 3. Layout each component independently ──────────────────────────────────
+  const tableById = new Map(parsed.tables.map((t) => [t.id, t]));
+
+  const componentItems = compIdSets.map((ids) => {
+    const tables = ids.map((id) => tableById.get(id)!);
+    const rels = parsed.relationships.filter((r) => ids.includes(r.source));
+    return { compIds: ids, compLayout: layoutComponent(tables, rels, dimMap) };
+  });
+
+  // ── 4. Pack component bounding boxes into rows ───────────────────────────────
+  const packed = packComponents(componentItems);
+
+  // Build lookup: tableId → packed placement
+  const placementByTableId = new Map<string, PackedComponent>();
+  for (const p of packed) {
+    for (const id of p.compIds) placementByTableId.set(id, p);
   }
 
-  // Run layout
-  dagre.layout(g);
+  // Build lookup: lineNumber → packed placement (for edges)
+  const placementByRelLine = new Map<number, PackedComponent>();
+  for (const p of packed) {
+    for (const lineNum of p.compLayout.edgePoints.keys()) {
+      placementByRelLine.set(lineNum, p);
+    }
+  }
 
-  // Extract positioned nodes
+  // ── 5. Assemble final layout ─────────────────────────────────────────────────
   const layoutNodes: ERLayoutNode[] = parsed.tables.map((table) => {
-    const pos = g.node(table.id);
-    const dims = dimMap.get(table.id)!;
+    const p = placementByTableId.get(table.id)!;
+    const pos = p.compLayout.nodePositions.get(table.id)!;
     return {
       ...table,
-      x: pos.x,
-      y: pos.y,
-      width: dims.width,
-      height: dims.height,
-      headerHeight: dims.headerHeight,
-      columnsHeight: dims.columnsHeight,
+      x: pos.x + p.offsetX + HALF_MARGIN,
+      y: pos.y + p.offsetY + HALF_MARGIN,
+      width: pos.width,
+      height: pos.height,
+      headerHeight: pos.headerHeight,
+      columnsHeight: pos.columnsHeight,
     };
   });
 
-  // Extract edge waypoints
   const layoutEdges: ERLayoutEdge[] = parsed.relationships.map((rel) => {
-    const edgeData = g.edge(rel.source, rel.target);
+    const p = placementByRelLine.get(rel.lineNumber);
+    const pts = p?.compLayout.edgePoints.get(rel.lineNumber) ?? [];
     return {
       source: rel.source,
       target: rel.target,
       cardinality: rel.cardinality,
-      points: edgeData?.points ?? [],
+      points: pts.map((pt) => ({
+        x: pt.x + (p?.offsetX ?? 0) + HALF_MARGIN,
+        y: pt.y + (p?.offsetY ?? 0) + HALF_MARGIN,
+      })),
       label: rel.label,
       lineNumber: rel.lineNumber,
     };
   });
 
-  // Compute total dimensions from nodes, edge points, and labels
-  let minX = Infinity;
-  let minY = Infinity;
+  // ── 6. Total canvas dimensions ───────────────────────────────────────────────
   let maxX = 0;
   let maxY = 0;
   for (const node of layoutNodes) {
-    const left = node.x - node.width / 2;
-    const right = node.x + node.width / 2;
-    const top = node.y - node.height / 2;
-    const bottom = node.y + node.height / 2;
-    if (left < minX) minX = left;
-    if (right > maxX) maxX = right;
-    if (top < minY) minY = top;
-    if (bottom > maxY) maxY = bottom;
+    maxX = Math.max(maxX, node.x + node.width / 2);
+    maxY = Math.max(maxY, node.y + node.height / 2);
   }
   for (const edge of layoutEdges) {
     for (const pt of edge.points) {
-      if (pt.x < minX) minX = pt.x;
-      if (pt.x > maxX) maxX = pt.x;
-      if (pt.y < minY) minY = pt.y;
-      if (pt.y > maxY) maxY = pt.y;
-    }
-    // Edge labels extend ~50px from midpoint
-    if (edge.label && edge.points.length > 0) {
-      const midPt = edge.points[Math.floor(edge.points.length / 2)];
-      const labelHalfW = (edge.label.length * 7 + 8) / 2;
-      if (midPt.x + labelHalfW > maxX) maxX = midPt.x + labelHalfW;
-      if (midPt.x - labelHalfW < minX) minX = midPt.x - labelHalfW;
+      maxX = Math.max(maxX, pt.x);
+      maxY = Math.max(maxY, pt.y);
     }
   }
-
-  // Padding for cardinality markers (~25px) + edge labels
-  const EDGE_MARGIN = 60;
-  const HALF_MARGIN = EDGE_MARGIN / 2;
-
-  // Shift all nodes and edges so content starts at HALF_MARGIN (breathing room on all sides)
-  const shiftX = -minX + HALF_MARGIN;
-  const shiftY = -minY + HALF_MARGIN;
-  for (const node of layoutNodes) {
-    node.x += shiftX;
-    node.y += shiftY;
-  }
-  for (const edge of layoutEdges) {
-    for (const pt of edge.points) {
-      pt.x += shiftX;
-      pt.y += shiftY;
-    }
-  }
-  maxX += shiftX;
-  maxY += shiftY;
-
-  const totalWidth = maxX + HALF_MARGIN;
-  const totalHeight = maxY + HALF_MARGIN;
 
   return {
     nodes: layoutNodes,
     edges: layoutEdges,
-    width: totalWidth,
-    height: totalHeight,
+    width: maxX + HALF_MARGIN,
+    height: maxY + HALF_MARGIN,
   };
 }

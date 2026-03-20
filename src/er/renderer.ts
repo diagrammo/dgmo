@@ -13,12 +13,21 @@ import {
   LEGEND_HEIGHT,
   LEGEND_PILL_PAD,
   LEGEND_PILL_FONT_SIZE,
+  LEGEND_PILL_FONT_W,
+  LEGEND_CAPSULE_PAD,
+  LEGEND_DOT_R,
+  LEGEND_ENTRY_FONT_SIZE,
+  LEGEND_ENTRY_FONT_W,
+  LEGEND_ENTRY_DOT_GAP,
+  LEGEND_ENTRY_TRAIL,
   LEGEND_GROUP_GAP,
 } from '../utils/legend-constants';
 import type { ParsedERDiagram, ERConstraint } from './types';
 import type { ERLayoutResult, ERLayoutNode, ERLayoutEdge } from './layout';
 import { parseERDiagram } from './parser';
 import { layoutERDiagram } from './layout';
+import { classifyEREntities, ROLE_COLORS, ROLE_LABELS, ROLE_ORDER } from './classify';
+import type { EntityRole } from './classify';
 
 // ============================================================
 // Constants
@@ -208,7 +217,9 @@ export function renderERDiagram(
   isDark: boolean,
   onClickItem?: (lineNumber: number) => void,
   exportDims?: { width?: number; height?: number },
-  activeTagGroup?: string | null
+  activeTagGroup?: string | null,
+  /** When false, semantic role colors are suppressed and entities use a neutral color. */
+  semanticColorsActive?: boolean
 ): void {
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
 
@@ -216,10 +227,15 @@ export function renderERDiagram(
   const height = exportDims?.height ?? container.clientHeight;
   if (width <= 0 || height <= 0) return;
 
+  // Compute early so we can reserve legend space before calculating scale
+  const useSemanticColors =
+    parsed.tagGroups.length === 0 && layout.nodes.every((n) => !n.color);
+  const legendReserveH = useSemanticColors ? LEGEND_HEIGHT + DIAGRAM_PADDING : 0;
+
   const titleHeight = parsed.title ? 40 : 0;
   const diagramW = layout.width;
   const diagramH = layout.height;
-  const availH = height - titleHeight;
+  const availH = height - titleHeight - legendReserveH;
   const scaleX = (width - DIAGRAM_PADDING * 2) / diagramW;
   const scaleY = (availH - DIAGRAM_PADDING * 2) / diagramH;
   const scale = Math.min(MAX_SCALE, scaleX, scaleY);
@@ -268,6 +284,15 @@ export function renderERDiagram(
 
   // ── Auto-assign colors ──
   const seriesColors = getSeriesColors(palette);
+
+  // ── Semantic coloring gate ──
+  // Classify entities whenever conditions allow; suppress colors when user collapses the legend.
+  // (useSemanticColors was computed above for legend reserve height)
+  const semanticRoles: Map<string, EntityRole> | null = useSemanticColors
+    ? classifyEREntities(parsed.tables, parsed.relationships)
+    : null;
+  // semanticColorsActive defaults to true; false = legend collapsed, neutral color applied
+  const semanticActive = semanticRoles !== null && (semanticColorsActive ?? true);
 
   // ── Edges (behind nodes) ──
   const useLabels = parsed.options.notation === 'labels';
@@ -347,7 +372,12 @@ export function renderERDiagram(
   for (let ni = 0; ni < layout.nodes.length; ni++) {
     const node = layout.nodes[ni];
     const tagColor = resolveTagColor(node.metadata, parsed.tagGroups, activeTagGroup ?? null);
-    const nodeColor = node.color ?? tagColor ?? seriesColors[ni % seriesColors.length];
+    const semanticColor = semanticActive
+      ? palette.colors[ROLE_COLORS[semanticRoles!.get(node.id) ?? 'unclassified']]
+      : semanticRoles
+        ? palette.primary  // neutral color when legend is collapsed
+        : undefined;
+    const nodeColor = node.color ?? tagColor ?? semanticColor ?? seriesColors[ni % seriesColors.length];
 
     const nodeG = contentG
       .append('g')
@@ -363,6 +393,12 @@ export function renderERDiagram(
       if (tagValue) {
         nodeG.attr(`data-tag-${tagKey}`, tagValue.toLowerCase());
       }
+    }
+
+    // Set data-er-role for semantic coloring (CSS targeting + test assertions)
+    if (semanticRoles) {
+      const role = semanticRoles.get(node.id);
+      if (role) nodeG.attr('data-er-role', role);
     }
 
     if (onClickItem) {
@@ -523,6 +559,161 @@ export function renderERDiagram(
       }
 
       legendX += LEGEND_GROUP_GAP;
+    }
+  }
+
+  // ── Semantic Legend ──
+  // Rendered when semantic role detection is enabled (no tag groups, no explicit colors).
+  // Follows the sequence-legend pattern: one clickable "Role" group pill that expands
+  // to show colored-dot entries. Clicking toggles semanticColorsActive on/off.
+  if (semanticRoles) {
+    const presentRoles = ROLE_ORDER.filter((role) => {
+      for (const r of semanticRoles.values()) {
+        if (r === role) return true;
+      }
+      return false;
+    });
+
+    if (presentRoles.length > 0) {
+      // Measure actual text widths for consistent spacing regardless of character mix.
+      // Falls back to a character-count estimate in jsdom/test environments.
+      const measureLabelW = (text: string, fontSize: number): number => {
+        const dummy = svg.append('text')
+          .attr('font-size', fontSize)
+          .attr('font-family', FONT_FAMILY)
+          .attr('visibility', 'hidden')
+          .text(text);
+        const measured = (dummy.node() as SVGTextElement | null)?.getComputedTextLength?.() ?? 0;
+        dummy.remove();
+        return measured > 0 ? measured : text.length * fontSize * 0.6;
+      };
+
+      const labelWidths = new Map<EntityRole, number>();
+      for (const role of presentRoles) {
+        labelWidths.set(role, measureLabelW(ROLE_LABELS[role], LEGEND_ENTRY_FONT_SIZE));
+      }
+
+      const groupBg = isDark
+        ? mix(palette.surface, palette.bg, 50)
+        : mix(palette.surface, palette.bg, 30);
+
+      const groupName = 'Role';
+      const pillWidth = groupName.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
+      const pillH = LEGEND_HEIGHT - LEGEND_CAPSULE_PAD * 2;
+
+      let totalWidth: number;
+      let entriesWidth = 0;
+      if (semanticActive) {
+        for (const role of presentRoles) {
+          entriesWidth +=
+            LEGEND_DOT_R * 2 +
+            LEGEND_ENTRY_DOT_GAP +
+            labelWidths.get(role)! +
+            LEGEND_ENTRY_TRAIL;
+        }
+        totalWidth = LEGEND_CAPSULE_PAD * 2 + pillWidth + LEGEND_ENTRY_TRAIL + entriesWidth;
+      } else {
+        totalWidth = pillWidth;
+      }
+
+      const legendX = (width - totalWidth) / 2;
+      const legendY = height - DIAGRAM_PADDING - LEGEND_HEIGHT;
+
+      const semanticLegendG = svg
+        .append('g')
+        .attr('class', 'er-semantic-legend')
+        .attr('data-legend-group', 'role')
+        .attr('transform', `translate(${legendX}, ${legendY})`)
+        .style('cursor', 'pointer');
+
+      if (semanticActive) {
+        // ── Expanded: outer capsule + inner pill + dot entries ──
+        semanticLegendG
+          .append('rect')
+          .attr('width', totalWidth)
+          .attr('height', LEGEND_HEIGHT)
+          .attr('rx', LEGEND_HEIGHT / 2)
+          .attr('fill', groupBg);
+
+        semanticLegendG
+          .append('rect')
+          .attr('x', LEGEND_CAPSULE_PAD)
+          .attr('y', LEGEND_CAPSULE_PAD)
+          .attr('width', pillWidth)
+          .attr('height', pillH)
+          .attr('rx', pillH / 2)
+          .attr('fill', palette.bg);
+
+        semanticLegendG
+          .append('rect')
+          .attr('x', LEGEND_CAPSULE_PAD)
+          .attr('y', LEGEND_CAPSULE_PAD)
+          .attr('width', pillWidth)
+          .attr('height', pillH)
+          .attr('rx', pillH / 2)
+          .attr('fill', 'none')
+          .attr('stroke', mix(palette.textMuted, palette.bg, 50))
+          .attr('stroke-width', 0.75);
+
+        semanticLegendG
+          .append('text')
+          .attr('x', LEGEND_CAPSULE_PAD + pillWidth / 2)
+          .attr('y', LEGEND_HEIGHT / 2 + LEGEND_PILL_FONT_SIZE / 2 - 2)
+          .attr('font-size', LEGEND_PILL_FONT_SIZE)
+          .attr('font-weight', '500')
+          .attr('fill', palette.text)
+          .attr('text-anchor', 'middle')
+          .attr('font-family', FONT_FAMILY)
+          .text(groupName);
+
+        let entryX = LEGEND_CAPSULE_PAD + pillWidth + LEGEND_ENTRY_TRAIL;
+        for (const role of presentRoles) {
+          const label = ROLE_LABELS[role];
+          const roleColor = palette.colors[ROLE_COLORS[role]];
+
+          const entryG = semanticLegendG
+            .append('g')
+            .attr('data-legend-entry', role);
+
+          entryG
+            .append('circle')
+            .attr('cx', entryX + LEGEND_DOT_R)
+            .attr('cy', LEGEND_HEIGHT / 2)
+            .attr('r', LEGEND_DOT_R)
+            .attr('fill', roleColor);
+
+          const textX = entryX + LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP;
+          entryG
+            .append('text')
+            .attr('x', textX)
+            .attr('y', LEGEND_HEIGHT / 2 + LEGEND_ENTRY_FONT_SIZE / 2 - 1)
+            .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
+            .attr('fill', palette.textMuted)
+            .attr('font-family', FONT_FAMILY)
+            .text(label);
+
+          entryX = textX + labelWidths.get(role)! + LEGEND_ENTRY_TRAIL;
+        }
+      } else {
+        // ── Collapsed: single muted pill, no entries ──
+        semanticLegendG
+          .append('rect')
+          .attr('width', pillWidth)
+          .attr('height', LEGEND_HEIGHT)
+          .attr('rx', LEGEND_HEIGHT / 2)
+          .attr('fill', groupBg);
+
+        semanticLegendG
+          .append('text')
+          .attr('x', pillWidth / 2)
+          .attr('y', LEGEND_HEIGHT / 2 + LEGEND_PILL_FONT_SIZE / 2 - 2)
+          .attr('font-size', LEGEND_PILL_FONT_SIZE)
+          .attr('font-weight', '500')
+          .attr('fill', palette.textMuted)
+          .attr('text-anchor', 'middle')
+          .attr('font-family', FONT_FAMILY)
+          .text(groupName);
+      }
     }
   }
 }

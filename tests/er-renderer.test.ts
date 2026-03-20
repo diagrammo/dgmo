@@ -256,4 +256,144 @@ Orders | d: Shipping
       document.body.removeChild(container);
     });
   });
+
+  describe('semantic entity coloring', () => {
+    const PLAIN_ER = `chart: er
+
+users
+  id: int [pk]
+  name: varchar
+
+posts
+  id: int [pk]
+  author_id: int [fk]
+  title: varchar
+
+users 1--* posts: writes`;
+
+    const ER_WITH_TAGS = `chart: er
+
+tag: Domain alias d
+  Billing(blue)
+
+users | d: Billing
+  id: int [pk]`;
+
+    const ER_WITH_EXPLICIT_COLOR = `chart: er
+
+users(blue)
+  id: int [pk]
+
+posts
+  id: int [pk]
+  author_id: int [fk]`;
+
+    function renderWithDims(content: string, isDark = false): HTMLDivElement {
+      const parsed = parseERDiagram(content, testPalette);
+      const layout = layoutERDiagram(parsed);
+      const container = document.createElement('div');
+      Object.defineProperty(container, 'clientWidth', { value: 800, configurable: true });
+      Object.defineProperty(container, 'clientHeight', { value: 600, configurable: true });
+      document.body.appendChild(container);
+      renderERDiagram(container, parsed, layout, testPalette, isDark, undefined, { width: 800, height: 600 });
+      return container;
+    }
+
+    it('gate off: no .er-semantic-legend when tag groups are present', () => {
+      const container = renderWithDims(ER_WITH_TAGS);
+      const legend = container.querySelector('.er-semantic-legend');
+      expect(legend).toBeNull();
+      document.body.removeChild(container);
+    });
+
+    it('gate off: no data-er-role attributes when tag groups are present', () => {
+      const container = renderWithDims(ER_WITH_TAGS);
+      const roles = container.querySelectorAll('[data-er-role]');
+      expect(roles.length).toBe(0);
+      document.body.removeChild(container);
+    });
+
+    it('gate off: no .er-semantic-legend when explicit color is present', () => {
+      const container = renderWithDims(ER_WITH_EXPLICIT_COLOR);
+      const legend = container.querySelector('.er-semantic-legend');
+      expect(legend).toBeNull();
+      document.body.removeChild(container);
+    });
+
+    it('gate off: no data-er-role when explicit color is present', () => {
+      const container = renderWithDims(ER_WITH_EXPLICIT_COLOR);
+      const roles = container.querySelectorAll('[data-er-role]');
+      expect(roles.length).toBe(0);
+      document.body.removeChild(container);
+    });
+
+    it('gate on: .er-semantic-legend exists for plain diagram', () => {
+      const container = renderWithDims(PLAIN_ER);
+      const legend = container.querySelector('.er-semantic-legend');
+      expect(legend).toBeTruthy();
+      document.body.removeChild(container);
+    });
+
+    it('gate on: all nodes have data-er-role for plain diagram', () => {
+      const container = renderWithDims(PLAIN_ER);
+      const nodes = container.querySelectorAll('.er-table');
+      const roledNodes = container.querySelectorAll('[data-er-role]');
+      expect(roledNodes.length).toBe(nodes.length);
+      document.body.removeChild(container);
+    });
+
+    it('legend is dynamic: only shows roles present in the diagram', () => {
+      const container = renderWithDims(PLAIN_ER);
+      // users = core (no FK), posts = dependent (has author_id FK)
+      // So only 2 distinct roles should appear in legend
+      const entries = container.querySelectorAll('.er-semantic-legend [data-legend-entry]');
+      expect(entries.length).toBe(2);
+      document.body.removeChild(container);
+    });
+
+    it('core table gets green stroke on its rect', () => {
+      const container = renderWithDims(PLAIN_ER);
+      // users has no FK columns → core → green
+      const usersNode = container.querySelector('.er-table[data-node-id="users"]');
+      expect(usersNode).toBeTruthy();
+      const rect = usersNode?.querySelector('rect');
+      expect(rect?.getAttribute('stroke')).toBe(testPalette.colors.green);
+      document.body.removeChild(container);
+    });
+
+    it('dependent table gets blue stroke on its rect', () => {
+      const container = renderWithDims(PLAIN_ER);
+      // posts has author_id FK → dependent → blue
+      const postsNode = container.querySelector('.er-table[data-node-id="posts"]');
+      expect(postsNode).toBeTruthy();
+      const rect = postsNode?.querySelector('rect');
+      expect(rect?.getAttribute('stroke')).toBe(testPalette.colors.blue);
+      document.body.removeChild(container);
+    });
+
+    it('junction table gets red stroke on its rect', () => {
+      const junctionER = `chart: er
+
+orders
+  id: int [pk]
+
+products
+  id: int [pk]
+
+order_items
+  order_id: int [fk]
+  product_id: int [fk]
+
+orders 1--* order_items
+products 1--* order_items`;
+
+      const container = renderWithDims(junctionER);
+      // order_items: 2 FK / 2 cols = 1.0 ratio → junction → red
+      const junctionNode = container.querySelector('.er-table[data-node-id="order_items"]');
+      expect(junctionNode).toBeTruthy();
+      const rect = junctionNode?.querySelector('rect');
+      expect(rect?.getAttribute('stroke')).toBe(testPalette.colors.red);
+      document.body.removeChild(container);
+    });
+  });
 });
