@@ -223,11 +223,6 @@ export function renderERDiagram(
 ): void {
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
 
-  const width = exportDims?.width ?? container.clientWidth;
-  const height = exportDims?.height ?? container.clientHeight;
-  if (width <= 0 || height <= 0) return;
-
-  // Compute early so we can reserve legend space before calculating scale
   const useSemanticColors =
     parsed.tagGroups.length === 0 && layout.nodes.every((n) => !n.color);
   const legendReserveH = useSemanticColors ? LEGEND_HEIGHT + DIAGRAM_PADDING : 0;
@@ -235,21 +230,49 @@ export function renderERDiagram(
   const titleHeight = parsed.title ? 40 : 0;
   const diagramW = layout.width;
   const diagramH = layout.height;
-  const availH = height - titleHeight - legendReserveH;
-  const scaleX = (width - DIAGRAM_PADDING * 2) / diagramW;
-  const scaleY = (availH - DIAGRAM_PADDING * 2) / diagramH;
-  const scale = Math.min(MAX_SCALE, scaleX, scaleY);
 
-  const scaledW = diagramW * scale;
-  const scaledH = diagramH * scale;
-  const offsetX = (width - scaledW) / 2;
-  const offsetY = titleHeight + DIAGRAM_PADDING;
+  // Natural dimensions derived purely from the layout — no dependency on container
+  // size at render time, which eliminates the stagger caused by reading clientWidth/
+  // clientHeight before the container has stabilized.
+  const naturalW = diagramW + DIAGRAM_PADDING * 2;
+  const naturalH = diagramH + titleHeight + legendReserveH + DIAGRAM_PADDING * 2;
+
+  // For export: scale the natural layout to fit the requested pixel dimensions.
+  // For live preview: render at natural scale (scale=1) and let the SVG viewBox
+  // handle fitting to the container via CSS.
+  let viewW: number;
+  let viewH: number;
+  let scale: number;
+  let offsetX: number;
+  let offsetY: number;
+
+  if (exportDims) {
+    viewW = exportDims.width ?? naturalW;
+    viewH = exportDims.height ?? naturalH;
+    const availH = viewH - titleHeight - legendReserveH;
+    const scaleX = (viewW - DIAGRAM_PADDING * 2) / diagramW;
+    const scaleY = (availH - DIAGRAM_PADDING * 2) / diagramH;
+    scale = Math.min(MAX_SCALE, scaleX, scaleY);
+    const scaledW = diagramW * scale;
+    offsetX = (viewW - scaledW) / 2;
+    offsetY = titleHeight + DIAGRAM_PADDING;
+  } else {
+    viewW = naturalW;
+    viewH = naturalH;
+    scale = 1;
+    offsetX = DIAGRAM_PADDING;
+    offsetY = titleHeight + DIAGRAM_PADDING;
+  }
+
+  if (viewW <= 0 || viewH <= 0) return;
 
   const svg = d3Selection
     .select(container)
     .append('svg')
-    .attr('width', width)
-    .attr('height', height)
+    .attr('width', exportDims ? viewW : '100%')
+    .attr('height', exportDims ? viewH : '100%')
+    .attr('viewBox', `0 0 ${viewW} ${viewH}`)
+    .attr('preserveAspectRatio', 'xMidYMid meet')
     .style('font-family', FONT_FAMILY);
 
   // ── Title ──
@@ -257,7 +280,7 @@ export function renderERDiagram(
     const titleEl = svg
       .append('text')
       .attr('class', 'chart-title')
-      .attr('x', width / 2)
+      .attr('x', viewW / 2)
       .attr('y', 30)
       .attr('text-anchor', 'middle')
       .attr('fill', palette.text)
@@ -499,7 +522,7 @@ export function renderERDiagram(
     }
 
     let legendX = DIAGRAM_PADDING;
-    let legendY = height - DIAGRAM_PADDING;
+    let legendY = viewH - DIAGRAM_PADDING;
 
     for (const group of parsed.tagGroups) {
       const groupG = legendG.append('g')
@@ -616,8 +639,8 @@ export function renderERDiagram(
         totalWidth = pillWidth;
       }
 
-      const legendX = (width - totalWidth) / 2;
-      const legendY = height - DIAGRAM_PADDING - LEGEND_HEIGHT;
+      const legendX = (viewW - totalWidth) / 2;
+      const legendY = viewH - DIAGRAM_PADDING - LEGEND_HEIGHT;
 
       const semanticLegendG = svg
         .append('g')
