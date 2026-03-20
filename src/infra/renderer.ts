@@ -420,11 +420,16 @@ function edgeWaypoints(
   const blocking: { x: number; y: number; width: number; height: number }[] = [];
   const blockingGroupIds = new Set<string>();
 
+  // Use actual path endpoints (port-ordered) for more accurate blocking detection.
+  // Node centers underestimate midX/midY, causing nearby obstacles to go undetected.
+  const pathSrc: Pt = srcExitPt ?? sc;
+  const pathTgt: Pt = tgtEnterPt ?? tc;
+
   // Groups (excluding source/target groups)
   for (const g of groups) {
     if (g.id === source.groupId || g.id === target.groupId) continue;
     const gRect: Rect = { x: g.x, y: g.y, width: g.width, height: g.height };
-    if (curveIntersectsRect(sc, tc, gRect, direction)) {
+    if (curveIntersectsRect(pathSrc, pathTgt, gRect, direction)) {
       blocking.push(gRect);
       blockingGroupIds.add(g.id);
     }
@@ -438,7 +443,7 @@ function edgeWaypoints(
     // Skip nodes inside a group whose bounding box is already blocking
     if (n.groupId && blockingGroupIds.has(n.groupId)) continue;
     const nodeRect: Rect = { x: n.x - n.width / 2, y: n.y - n.height / 2, width: n.width, height: n.height };
-    if (curveIntersectsRect(sc, tc, nodeRect, direction)) {
+    if (curveIntersectsRect(pathSrc, pathTgt, nodeRect, direction)) {
       blocking.push(nodeRect);
     }
   }
