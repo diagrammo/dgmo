@@ -146,6 +146,96 @@ function buildPathD(pts: Pt[], direction: 'LR' | 'TB'): string {
 
 type Rect = { x: number; y: number; width: number; height: number };
 
+/** Port-order exit and enter points for edges to eliminate fan-out crossings.
+ *
+ *  For each node with ≥2 outgoing edges: sort edges by target perpendicular coord
+ *  and assign source-border exit positions in the same order.
+ *  For each node with ≥2 incoming edges: sort edges by source perpendicular coord
+ *  and assign target-border enter positions in the same order.
+ *
+ *  Returns two maps keyed by "sourceId:targetId":
+ *  - srcPts: port-ordered exit point on the source border
+ *  - tgtPts: port-ordered enter point on the target border */
+function computePortPts(
+  edges: InfraLayoutEdge[],
+  nodeMap: Map<string, InfraLayoutNode>,
+  direction: 'LR' | 'TB',
+): { srcPts: Map<string, Pt>; tgtPts: Map<string, Pt> } {
+  const srcPts = new Map<string, Pt>();
+  const tgtPts = new Map<string, Pt>();
+  const PAD = 0.1; // keep ports 10% in from node edges
+
+  const activeEdges = edges.filter((e) => e.points.length > 0);
+
+  // ── Source (exit) port ordering ──────────────────────────────────────────
+  const bySource = new Map<string, InfraLayoutEdge[]>();
+  for (const e of activeEdges) {
+    if (!bySource.has(e.sourceId)) bySource.set(e.sourceId, []);
+    bySource.get(e.sourceId)!.push(e);
+  }
+  for (const [sourceId, es] of bySource) {
+    if (es.length < 2) continue;
+    const source = nodeMap.get(sourceId);
+    if (!source) continue;
+    const sorted = es
+      .map((e) => ({ e, t: nodeMap.get(e.targetId) }))
+      .filter((x): x is { e: InfraLayoutEdge; t: InfraLayoutNode } => x.t != null)
+      .sort((a, b) => (direction === 'LR' ? a.t.y - b.t.y : a.t.x - b.t.x));
+    const n = sorted.length;
+    for (let i = 0; i < n; i++) {
+      const frac = n === 1 ? 0.5 : PAD + (1 - 2 * PAD) * i / (n - 1);
+      const { e, t } = sorted[i];
+      const isBackward = direction === 'LR' ? t.x < source.x : t.y < source.y;
+      if (direction === 'LR') {
+        srcPts.set(`${e.sourceId}:${e.targetId}`, {
+          x: isBackward ? source.x - source.width / 2 : source.x + source.width / 2,
+          y: source.y - source.height / 2 + frac * source.height,
+        });
+      } else {
+        srcPts.set(`${e.sourceId}:${e.targetId}`, {
+          x: source.x - source.width / 2 + frac * source.width,
+          y: isBackward ? source.y - source.height / 2 : source.y + source.height / 2,
+        });
+      }
+    }
+  }
+
+  // ── Target (enter) port ordering ─────────────────────────────────────────
+  const byTarget = new Map<string, InfraLayoutEdge[]>();
+  for (const e of activeEdges) {
+    if (!byTarget.has(e.targetId)) byTarget.set(e.targetId, []);
+    byTarget.get(e.targetId)!.push(e);
+  }
+  for (const [targetId, es] of byTarget) {
+    if (es.length < 2) continue;
+    const target = nodeMap.get(targetId);
+    if (!target) continue;
+    const sorted = es
+      .map((e) => ({ e, s: nodeMap.get(e.sourceId) }))
+      .filter((x): x is { e: InfraLayoutEdge; s: InfraLayoutNode } => x.s != null)
+      .sort((a, b) => (direction === 'LR' ? a.s.y - b.s.y : a.s.x - b.s.x));
+    const n = sorted.length;
+    for (let i = 0; i < n; i++) {
+      const frac = n === 1 ? 0.5 : PAD + (1 - 2 * PAD) * i / (n - 1);
+      const { e, s } = sorted[i];
+      const isBackward = direction === 'LR' ? target.x < s.x : target.y < s.y;
+      if (direction === 'LR') {
+        tgtPts.set(`${e.sourceId}:${e.targetId}`, {
+          x: isBackward ? target.x + target.width / 2 : target.x - target.width / 2,
+          y: target.y - target.height / 2 + frac * target.height,
+        });
+      } else {
+        tgtPts.set(`${e.sourceId}:${e.targetId}`, {
+          x: target.x - target.width / 2 + frac * target.width,
+          y: isBackward ? target.y + target.height / 2 : target.y - target.height / 2,
+        });
+      }
+    }
+  }
+
+  return { srcPts, tgtPts };
+}
+
 /** Find the Y lane for routing around blocking obstacles.
  *  Prefers threading through Y gaps between blocking rects over routing above/below all.
  *  Picks the candidate closest to targetY to minimise arc size. */
@@ -257,6 +347,8 @@ function edgeWaypoints(
   nodes: InfraLayoutNode[],
   direction: 'LR' | 'TB',
   margin = 30,
+  srcExitPt?: Pt, // port-ordered exit point on source border
+  tgtEnterPt?: Pt, // port-ordered enter point on target border
 ): Pt[] {
   const sc: Pt = { x: source.x, y: source.y };
   const tc: Pt = { x: target.x, y: target.y };
@@ -280,16 +372,15 @@ function edgeWaypoints(
         if (nRight < tc.x - margin || nLeft > sc.x + margin) continue;
         xBandObs.push({ x: nLeft, y: n.y - n.height / 2, width: n.width, height: n.height });
       }
-      const midY    = (sc.y + tc.y) / 2;
-      const routeY  = xBandObs.length > 0 ? findRoutingLane(xBandObs, midY, margin) : midY;
-      const exitPt  : Pt = { x: sc.x, y: routeY };
-      const enterPt : Pt = { x: tc.x, y: routeY };
-      return [
-        nodeBorderPoint(source, exitPt),
-        exitPt,
-        enterPt,
-        nodeBorderPoint(target, enterPt),
-      ];
+      const midY   = (sc.y + tc.y) / 2;
+      const routeY = xBandObs.length > 0 ? findRoutingLane(xBandObs, midY, margin) : midY;
+      const exitBorder: Pt = srcExitPt ?? nodeBorderPoint(source, { x: sc.x, y: routeY });
+      const exitPt   : Pt = { x: exitBorder.x, y: routeY };
+      const enterPt  : Pt = { x: tc.x, y: routeY };
+      const tp = tgtEnterPt ?? nodeBorderPoint(target, enterPt);
+      return srcExitPt
+        ? [srcExitPt, exitPt, enterPt, tp]
+        : [exitBorder, exitPt, enterPt, tp];
     } else {
       // TB backward: collect obstacles in Y band [tc.y, sc.y]; find X lane
       const yBandObs: Rect[] = [];
@@ -308,13 +399,13 @@ function edgeWaypoints(
       const rotated = yBandObs.map((r) => ({ x: r.y, y: r.x, width: r.height, height: r.width }));
       const midX    = (sc.x + tc.x) / 2;
       const routeX  = rotated.length > 0 ? findRoutingLane(rotated, midX, margin) : midX;
-      const exitPt  : Pt = { x: routeX, y: sc.y };
+      const exitPt  : Pt = srcExitPt ?? { x: routeX, y: sc.y };
       const enterPt : Pt = { x: routeX, y: tc.y };
       return [
-        nodeBorderPoint(source, exitPt),
+        srcExitPt ?? nodeBorderPoint(source, exitPt),
         exitPt,
         enterPt,
-        nodeBorderPoint(target, enterPt),
+        tgtEnterPt ?? nodeBorderPoint(target, enterPt),
       ];
     }
   }
@@ -347,7 +438,10 @@ function edgeWaypoints(
   }
 
   if (blocking.length === 0) {
-    return [nodeBorderPoint(source, tc), nodeBorderPoint(target, sc)];
+    // Direct 2-point path — use port-ordered entry/exit points when provided.
+    const sp = srcExitPt ?? nodeBorderPoint(source, tc);
+    const tp = tgtEnterPt ?? nodeBorderPoint(target, sp);
+    return [sp, tp];
   }
 
   const obsLeft  = Math.min(...blocking.map((o) => o.x));
@@ -362,12 +456,13 @@ function edgeWaypoints(
   const exitPt  : Pt = { x: exitX,  y: routeY };
   const enterPt : Pt = { x: enterX, y: routeY };
 
-  return [
-    nodeBorderPoint(source, exitPt),
-    exitPt,
-    enterPt,
-    nodeBorderPoint(target, enterPt),
-  ];
+  const tp = tgtEnterPt ?? nodeBorderPoint(target, enterPt);
+
+  if (srcExitPt) {
+    return [srcExitPt, exitPt, enterPt, tp];
+  }
+
+  return [nodeBorderPoint(source, exitPt), exitPt, enterPt, tp];
 }
 
 /** Compute the point on a node's border closest to an external target point. */
@@ -841,6 +936,7 @@ function renderEdgePaths(
 ) {
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
   const maxRps = Math.max(...edges.map((e) => e.computedRps), 1);
+  const { srcPts, tgtPts } = computePortPts(edges, nodeMap, direction);
 
   for (const edge of edges) {
     if (edge.points.length === 0) continue;
@@ -851,7 +947,11 @@ function renderEdgePaths(
     const strokeW = edgeWidth();
 
     if (!sourceNode || !targetNode) continue;
-    const pts = edgeWaypoints(sourceNode, targetNode, groups, nodes, direction);
+    const key = `${edge.sourceId}:${edge.targetId}`;
+    const pts = edgeWaypoints(
+      sourceNode, targetNode, groups, nodes, direction, 30,
+      srcPts.get(key), tgtPts.get(key),
+    );
     const pathD = buildPathD(pts, direction);
     const edgeG = svg.append('g')
       .attr('class', 'infra-edge')
@@ -900,6 +1000,7 @@ function renderEdgeLabels(
   direction: 'LR' | 'TB',
 ) {
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
+  const { srcPts, tgtPts } = computePortPts(edges, nodeMap, direction);
   for (const edge of edges) {
     if (edge.points.length === 0) continue;
     if (!edge.label) continue;
@@ -908,7 +1009,11 @@ function renderEdgeLabels(
     const targetNode = nodeMap.get(edge.targetId);
     if (!sourceNode || !targetNode) continue;
 
-    const wps = edgeWaypoints(sourceNode, targetNode, groups, nodes, direction);
+    const key = `${edge.sourceId}:${edge.targetId}`;
+    const wps = edgeWaypoints(
+      sourceNode, targetNode, groups, nodes, direction, 30,
+      srcPts.get(key), tgtPts.get(key),
+    );
     // Label midpoint: middle waypoint of the routed path
     const midPt = wps[Math.floor(wps.length / 2)];
     const labelText = edge.label;
