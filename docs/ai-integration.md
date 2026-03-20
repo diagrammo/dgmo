@@ -1,14 +1,16 @@
 # DGMO AI Integration Guide
 
-Use AI coding tools to generate `.dgmo` diagrams. This guide covers Claude Code, Copilot, Cursor, and other AI tools.
+Use AI coding tools to generate `.dgmo` diagrams. This guide covers Claude Code, Copilot, Cursor, Windsurf, and any tool with an MCP client.
 
-## MCP Server
+---
 
-`@diagrammo/dgmo-mcp` provides an MCP server that exposes DGMO rendering, sharing, and documentation tools. Works with Claude Desktop, Claude Code, and any MCP-compatible client.
+## MCP Server (recommended for Claude)
 
-5 tools: `render_diagram`, `share_diagram`, `open_in_app`, `list_chart_types`, `get_language_reference`.
+`@diagrammo/dgmo-mcp` provides an MCP server that gives Claude the ability to render, share, and look up DGMO diagrams directly — no file management needed.
 
-Setup (Claude Code — add to `.claude/settings.local.json`):
+**5 tools:** `render_diagram`, `share_diagram`, `open_in_app`, `list_chart_types`, `get_language_reference`
+
+Add to `~/.claude/settings.json` (global) or `.claude/settings.local.json` (project):
 
 ```json
 {
@@ -23,60 +25,46 @@ Setup (Claude Code — add to `.claude/settings.local.json`):
 
 See `dgmo-mcp/README.md` for full configuration options.
 
-## Claude Code — Skills
+---
 
-Copy the `.claude/skills/dgmo-*` directories from this repo into your project's `.claude/skills/` directory. This gives you four slash commands:
+## Claude Code — Skill (slash command)
 
-| Command | What it does |
-|---------|-------------|
-| `/dgmo-generate <description>` | Picks the best diagram type automatically |
-| `/dgmo-sequence <flow>` | Generates a sequence diagram |
-| `/dgmo-flowchart <process>` | Generates a flowchart |
-| `/dgmo-chart <data description>` | Generates a data chart |
-
-### Setup
+Installs a `/dgmo` slash command that gives Claude full dgmo context — all chart types, CLI flags, workflow, and tips.
 
 ```bash
-# Copy skills into your project
-cp -r node_modules/@diagrammo/dgmo/.claude/skills/dgmo-* .claude/skills/
-
-# Or if dgmo is installed globally
-cp -r $(npm root -g)/@diagrammo/dgmo/.claude/skills/dgmo-* .claude/skills/
+dgmo --install-claude-skill
 ```
 
-### Usage examples
+This copies a skill file into `~/.claude/commands/`, making `/dgmo` available in every Claude Code session.
 
-```
-/dgmo-generate an ER diagram for a blog with users, posts, and comments
-/dgmo-sequence the OAuth2 authorization code flow
-/dgmo-flowchart CI/CD pipeline with build, test, and deploy stages
-/dgmo-chart quarterly revenue: Q1 100, Q2 120, Q3 110, Q4 130
-```
+---
 
 ## Claude Code — CLAUDE.md snippet
 
-Add this to your project's `CLAUDE.md` to teach Claude about DGMO without installing skills:
+To teach Claude about DGMO in a specific project without the global skill, add this to your `CLAUDE.md`:
 
 ```markdown
 ## DGMO Diagrams
 
-When the user asks for a diagram, generate a `.dgmo` file. DGMO is a text-based diagram language.
+When the user asks for a diagram, generate a `.dgmo` file.
 
 Quick reference:
-- Sequence: `A -> B: message` or `A -message-> B`
+- Sequence: `A -message-> B` or `A <-response- B`
 - Flowchart: `(Start) -> [Process] -> <Decision?> -yes-> (End)`
 - Bar chart: `chart: bar` then `Label: value` lines
 - ER diagram: `chart: er` then table definitions and `table1 1--* table2` relationships
 - Org chart: `chart: org` then indented hierarchy
 
-Full reference: see `node_modules/@diagrammo/dgmo/docs/language-reference.md`
+Full reference: `node_modules/@diagrammo/dgmo/docs/language-reference.md`
 
-Render with: `dgmo file.dgmo -o output.svg` or `dgmo file.dgmo -o url` for shareable link.
+Render with: `dgmo file.dgmo` (PNG) or `dgmo file.dgmo -o url` (shareable link).
 ```
+
+---
 
 ## Other AI Tools — Prompt Files
 
-DGMO ships prompt files for popular AI coding tools. These are included in the npm package:
+DGMO ships context files for popular AI coding tools, included in the npm package and auto-loaded when present in a project root.
 
 | File | Tool | How it works |
 |------|------|-------------|
@@ -84,42 +72,37 @@ DGMO ships prompt files for popular AI coding tools. These are included in the n
 | `.cursorrules` | Cursor | Auto-loaded when present in project root |
 | `.windsurfrules` | Windsurf | Auto-loaded when present in project root |
 
-### Setup
-
 Copy the relevant file into your project root:
 
 ```bash
-# From node_modules
+# From node_modules (if installed as a dependency)
 cp node_modules/@diagrammo/dgmo/.cursorrules .
 cp node_modules/@diagrammo/dgmo/.windsurfrules .
 mkdir -p .github && cp node_modules/@diagrammo/dgmo/.github/copilot-instructions.md .github/
 
-# Or from global install
+# From global npm install
 cp $(npm root -g)/@diagrammo/dgmo/.cursorrules .
 ```
 
-Each file contains a condensed DGMO syntax reference with examples for the most common diagram types, all 29 chart types listed, rendering commands, and common mistakes to avoid.
+Each file contains a condensed DGMO syntax reference with examples, all chart types listed, rendering commands, and common mistakes to avoid.
 
-## Rendering
+---
 
-If the `dgmo` CLI is installed, diagrams can be rendered:
+## Rendering commands
 
 ```bash
-# Install
-npm install -g @diagrammo/dgmo   # or: brew install diagrammo/dgmo/dgmo
-
-# Render
 dgmo diagram.dgmo                # PNG output
 dgmo diagram.dgmo -o output.svg  # SVG output
-dgmo diagram.dgmo -o url         # Shareable URL
-
-# AI-friendly JSON output
-dgmo diagram.dgmo -o output.svg --json
-dgmo --chart-types --json         # List all chart types
+dgmo diagram.dgmo -o url         # Shareable diagrammo.app URL
+dgmo diagram.dgmo -o url --copy  # URL copied to clipboard
+dgmo --chart-types               # List all supported chart types
+dgmo --chart-types --json        # Machine-readable chart type list
 ```
+
+---
 
 ## Supported chart types
 
 Run `dgmo --chart-types` for the full list, or see `docs/language-reference.md`.
 
-32 types: bar, line, area, pie, doughnut, radar, polar-area, bar-stacked, scatter, sankey, chord, function, heatmap, funnel, slope, wordcloud, arc, timeline, venn, quadrant, sequence, flowchart, state, class, er, org, kanban, c4, initiative-status, sitemap, infra.
+29 types: bar, line, area, multi-line, pie, doughnut, radar, polar-area, bar-stacked, scatter, sankey, chord, function, heatmap, funnel, slope, wordcloud, arc, timeline, venn, quadrant, sequence, flowchart, class, er, org, kanban, c4, initiative-status, infra.
