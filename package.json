@@ -39,7 +39,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "gallery": "pnpm build && node scripts/generate-gallery.mjs",
-    "check:duplication": "jscpd ./src"
+    "check:duplication": "jscpd ./src",
+    "postinstall": "node -e \"console.log('\\n💡 Claude Code user? Run: dgmo --install-claude-skill\\n')\""
   },
   "dependencies": {
     "@dagrejs/dagre": "^2.0.4",
