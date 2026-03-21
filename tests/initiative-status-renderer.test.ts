@@ -247,8 +247,44 @@ D | todo`);
     }
   });
 
+  it('routes Y-displaced forward edge via top-exit elbow (4 points, isTopExit)', () => {
+    // Fan from Src to 4 targets: with NODESEP=80, topmost target is ~120px above Src → triggers isTopExit.
+    const parsed = parseInitiativeStatus(`chart: initiative-status
+Src | wip
+  -> A | done
+  -> B | wip
+  -> C | wip
+  -> D | todo
+A | done
+B | wip
+C | wip
+D | todo`);
+    const layout = layoutInitiativeStatus(parsed);
+    const srcNode = layout.nodes.find((n) => n.label === 'Src')!;
+    // Find any forward edge from Src where target is > NODESEP above
+    const topDisplaced = layout.edges.find((e) => {
+      if (e.source !== 'Src') return false;
+      const tgt = layout.nodes.find((n) => n.label === e.target)!;
+      return tgt.y < srcNode.y - 80; // NODESEP = 80
+    });
+    expect(topDisplaced).toBeDefined(); // fan layout guarantees at least one displaced target above
+    expect(topDisplaced!.points).toHaveLength(4);
+    // Exit point: center-X of source, top Y
+    expect(topDisplaced!.points[0].x).toBeCloseTo(srcNode.x, 0);
+    expect(topDisplaced!.points[0].y).toBeCloseTo(srcNode.y - srcNode.height / 2, 0);
+    // Entry point: left side of target, center Y
+    const tgtNode = layout.nodes.find((n) => n.label === topDisplaced!.target)!;
+    expect(topDisplaced!.points[3].x).toBeCloseTo(tgtNode.x - tgtNode.width / 2, 0);
+    expect(topDisplaced!.points[3].y).toBeCloseTo(tgtNode.y, 0);
+    // X must be monotone-increasing across all 4 points
+    for (let i = 0; i < topDisplaced!.points.length - 1; i++) {
+      expect(topDisplaced!.points[i].x).toBeLessThanOrEqual(topDisplaced!.points[i + 1].x);
+    }
+  });
+
   it('all forward-edge routing branches produce monotone-increasing X', () => {
-    // Hub fans to 4 targets — dagre will spread them, exercising top-exit, bottom-exit, and elbow paths
+    // Hub fans to 4 targets — with NODESEP=80 and 4 targets, extremes are ~120px above/below Hub,
+    // exercising isTopExit (A above), isBottomExit (D below), and 4-point elbow (B, C near center).
     const parsed = parseInitiativeStatus(`chart: initiative-status
 Hub | wip
   -> Right | done
@@ -267,6 +303,47 @@ C | wip`);
       if (tgt.x < src.x - 5) continue; // back-edge
       for (let i = 0; i < edge.points.length - 1; i++) {
         expect(edge.points[i].x).toBeLessThanOrEqual(edge.points[i + 1].x);
+      }
+    }
+  });
+
+  it('lays out Operation Blackbeard fixture without errors or undefined points', () => {
+    // Smoke test for the full Blackbeard diagram (mirrors tests/fixtures/initiative-status-blackbeard.dgmo).
+    // Validates port-routing logic on a realistic multi-rank diagram with groups and back-edges.
+    const content = `chart: initiative-status
+title: Operation Blackbeard
+
+Captain | na
+  -issueOrders-> CrewApp | na
+  -viewCharts-> ShipDashboard | na
+CrewApp | done
+  -getCrewRoster-> Quartermaster | done
+  -assignWatch-> Quartermaster | todo
+ShipDashboard | todo
+  -API-> Quartermaster | todo
+Quartermaster | wip
+  -dockRequest-> PortAuthority | done
+  -plotCourse-> NavigationService | todo
+  -recordVoyage-> ShipLog | done
+  -logMutiny-> ShipLog | done
+  -tradeGoods-> TradingPost | wip
+  -fenceBooty-> TradingPost | todo
+NavigationService | wip
+ShipLog | done
+CargoService | wip
+  -inventoryUpdate-> Quartermaster | wip
+[Royal Navy]
+  PortAuthority | na
+  TradingPost | na`;
+    const parsed = parseInitiativeStatus(content);
+    const layout = layoutInitiativeStatus(parsed);
+    expect(layout.nodes.length).toBeGreaterThan(0);
+    expect(layout.edges.length).toBeGreaterThan(0);
+    // All edge points must be finite numbers — catches NaN/undefined from routing bugs
+    for (const edge of layout.edges) {
+      for (const pt of edge.points) {
+        expect(Number.isFinite(pt.x)).toBe(true);
+        expect(Number.isFinite(pt.y)).toBe(true);
       }
     }
   });

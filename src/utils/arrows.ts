@@ -13,15 +13,15 @@ export interface ParsedArrow {
   async: boolean;
 }
 
-// Forward (call) patterns
-const SYNC_LABELED_RE = /^(\S+)\s+-(.+)->\s+(\S+)$/;
-const ASYNC_LABELED_RE = /^(\S+)\s+~(.+)~>\s+(\S+)$/;
+// Forward (call) patterns — participant names may contain spaces, so use non-greedy (.+?)
+const SYNC_LABELED_RE = /^(.+?)\s+-(.+)->\s+(.+)$/;
+const ASYNC_LABELED_RE = /^(.+?)\s+~(.+)~>\s+(.+)$/;
 
 // Deprecated patterns — produce errors
-const RETURN_SYNC_LABELED_RE = /^(\S+)\s+<-(.+)-\s+(\S+)$/;
-const RETURN_ASYNC_LABELED_RE = /^(\S+)\s+<~(.+)~\s+(\S+)$/;
-const BIDI_SYNC_RE = /^(\S+)\s+<-(.+)->\s+(\S+)$/;
-const BIDI_ASYNC_RE = /^(\S+)\s+<~(.+)~>\s+(\S+)$/;
+const RETURN_SYNC_LABELED_RE = /^(.+?)\s+<-(.+)-\s+(.+)$/;
+const RETURN_ASYNC_LABELED_RE = /^(.+?)\s+<~(.+)~\s+(.+)$/;
+const BIDI_SYNC_RE = /^(.+?)\s+<-(.+)->\s+(.+)$/;
+const BIDI_ASYNC_RE = /^(.+?)\s+<~(.+)~>\s+(.+)$/;
 
 const ARROW_CHARS = ['->', '~>'];
 

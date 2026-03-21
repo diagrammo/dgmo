@@ -1378,3 +1378,100 @@ describe('tag validation on sequence diagrams', () => {
     expect(warnings[0].message).toMatch(/Caching/);
   });
 });
+
+// ============================================================
+describe('multi-word participant names', () => {
+  it('declares a participant with spaces using is-a syntax', () => {
+    const result = parseSequenceDgmo('Auth Server is a service\nAuth Server -ping-> App');
+    expect(result.error).toBeNull();
+    expect(result.participants.some(p => p.id === 'Auth Server')).toBe(true);
+  });
+
+  it('parses labeled arrow with multi-word source', () => {
+    const result = parseSequenceDgmo('Auth Server -Token valid-> App');
+    expect(result.error).toBeNull();
+    expect(result.messages).toHaveLength(1);
+    expect(result.messages[0].from).toBe('Auth Server');
+    expect(result.messages[0].to).toBe('App');
+    expect(result.messages[0].label).toBe('Token valid');
+  });
+
+  it('parses labeled arrow with multi-word target', () => {
+    const result = parseSequenceDgmo('App -Redirect to /authorize-> Auth Server');
+    expect(result.error).toBeNull();
+    expect(result.messages).toHaveLength(1);
+    expect(result.messages[0].from).toBe('App');
+    expect(result.messages[0].to).toBe('Auth Server');
+    expect(result.messages[0].label).toBe('Redirect to /authorize');
+  });
+
+  it('parses labeled arrow with multi-word source and target', () => {
+    const result = parseSequenceDgmo('Auth Server -Token valid + claims-> Resource Server');
+    expect(result.error).toBeNull();
+    expect(result.messages).toHaveLength(1);
+    expect(result.messages[0].from).toBe('Auth Server');
+    expect(result.messages[0].to).toBe('Resource Server');
+    expect(result.messages[0].label).toBe('Token valid + claims');
+  });
+
+  it('parses bare arrow with multi-word source and target', () => {
+    const result = parseSequenceDgmo('Auth Server -> Resource Server');
+    expect(result.error).toBeNull();
+    expect(result.messages).toHaveLength(1);
+    expect(result.messages[0].from).toBe('Auth Server');
+    expect(result.messages[0].to).toBe('Resource Server');
+  });
+
+  it('parses message with special chars: slashes, parens, quotes', () => {
+    const result = parseSequenceDgmo('App -POST /token (code, client_secret)-> Auth Server');
+    expect(result.error).toBeNull();
+    expect(result.messages[0].label).toBe('POST /token (code, client_secret)');
+  });
+
+  it('parses note right of with multi-word participant', () => {
+    const result = parseSequenceDgmo('Auth Server -ping-> App\nnote right of Auth Server: some note text');
+    expect(result.error).toBeNull();
+    const notes = result.elements.filter(e => 'kind' in e && e.kind === 'note');
+    expect(notes).toHaveLength(1);
+    expect((notes[0] as any).participantId).toBe('Auth Server');
+    expect((notes[0] as any).text).toBe('some note text');
+  });
+
+  it('renders full OAuth-style diagram without errors', () => {
+    const diagram = [
+      'chart: sequence',
+      'title: OAuth 2.0 — Authorization Code Flow',
+      '',
+      'User is an actor',
+      'App is a service',
+      'Auth Server is a service',
+      'Resource Server is a service',
+      '',
+      '== 1. Initiate Login ==',
+      '',
+      'User -Click "Login with Google"-> App',
+      'App -Redirect to /authorize-> Auth Server',
+      '',
+      '== 2. User Authenticates ==',
+      '',
+      'Auth Server -Show login + consent screen-> User',
+      'User -Enter credentials + grant consent-> Auth Server',
+      '',
+      '== 4. Exchange Code for Tokens ==',
+      '',
+      'App -POST /token (code, client_secret)-> Auth Server',
+      'Auth Server -access_token + refresh_token-> App',
+      '',
+      '== 5. Access Protected Resource ==',
+      '',
+      'App -GET /api/user (Bearer access_token)-> Resource Server',
+      'Resource Server -Validate token-> Auth Server',
+      'Auth Server -Token valid + claims-> Resource Server',
+      'Resource Server -User data-> App',
+    ].join('\n');
+    const result = parseSequenceDgmo(diagram);
+    expect(result.error).toBeNull();
+    expect(result.participants).toHaveLength(4);
+    expect(result.messages.length).toBeGreaterThan(5);
+  });
+});

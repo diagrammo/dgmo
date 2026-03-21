@@ -153,12 +153,14 @@ export interface ParsedSequenceDgmo {
   error: string | null;
 }
 
-// "Name is a type" pattern — e.g. "AuthService is a service"
+// "Name is a type" pattern — e.g. "Auth Server is a service"
+// Participant names may contain spaces; [^:]+? stops at colons so that
+// note lines like "note right of A: this is a service" are not falsely matched.
 // Remainder after type is parsed separately for aka/position modifiers
-const IS_A_PATTERN = /^(\S+)\s+is\s+an?\s+(\w+)(?:\s+(.+))?$/i;
+const IS_A_PATTERN = /^([^:]+?)\s+is\s+an?\s+(\w+)(?:\s+(.+))?$/i;
 
 // Standalone "Name position N" pattern — e.g. "DB position -1"
-const POSITION_ONLY_PATTERN = /^(\S+)\s+position\s+(-?\d+)$/i;
+const POSITION_ONLY_PATTERN = /^([^:]+?)\s+position\s+(-?\d+)$/i;
 
 // Colored participant declaration — e.g. "Tapin2(green)", "API(blue)"
 const COLORED_PARTICIPANT_PATTERN = /^(\S+?)\(([^)]+)\)\s*$/;
@@ -174,9 +176,10 @@ const SECTION_PATTERN = /^==\s+(.+?)(?:\s*==)?\s*$/;
 // Arrow pattern for sequence inference — detects any arrow form
 const ARROW_PATTERN = /\S+\s*(?:<-\S+-|<~\S+~|-\S+->|~\S+~>|->|~>|<-|<~)\s*\S+/;
 
-// Note patterns — "note: text", "note right of API: text", "note left of User"
-const NOTE_SINGLE = /^note(?:\s+(right|left)\s+of\s+(\S+))?\s*:\s*(.+)$/i;
-const NOTE_MULTI = /^note(?:\s+(right|left)\s+of\s+([^\s:]+))?\s*:?\s*$/i;
+// Note patterns — "note: text", "note right of Auth Server: text"
+// Participant names may contain spaces; the colon acts as the delimiter.
+const NOTE_SINGLE = /^note(?:\s+(right|left)\s+of\s+(.+?))?\s*:\s*(.+)$/i;
+const NOTE_MULTI = /^note(?:\s+(right|left)\s+of\s+(.+?))?\s*:?\s*$/i;
 
 /**
  * Parse a .dgmo file with `chart: sequence` into a structured representation.
@@ -673,7 +676,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
 
     // ---- Error: plain bidirectional arrows (A <-> B, A <~> B) ----
     const bidiPlainMatch = arrowCore.match(
-      /^(\S+)\s*(?:<->|<~>)\s*(\S+)/
+      /^(.+?)\s*(?:<->|<~>)\s*(.+)/
     );
     if (bidiPlainMatch) {
       pushError(
@@ -684,8 +687,8 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     }
 
     // ---- Deprecated bare return arrows: A <- B, A <~ B ----
-    const bareReturnSync = arrowCore.match(/^(\S+)\s+<-\s+(\S+)$/);
-    const bareReturnAsync = arrowCore.match(/^(\S+)\s+<~\s+(\S+)$/);
+    const bareReturnSync = arrowCore.match(/^(.+?)\s+<-\s+(.+)$/);
+    const bareReturnAsync = arrowCore.match(/^(.+?)\s+<~\s+(.+)$/);
     const bareReturn = bareReturnSync || bareReturnAsync;
     if (bareReturn) {
       const to = bareReturn[1];
@@ -698,8 +701,8 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     }
 
     // ---- Bare (unlabeled) call arrows: A -> B, A ~> B ----
-    const bareCallSync = arrowCore.match(/^(\S+)\s*->\s*(\S+)$/);
-    const bareCallAsync = arrowCore.match(/^(\S+)\s*~>\s*(\S+)$/);
+    const bareCallSync = arrowCore.match(/^(.+?)\s*->\s*(.+)$/);
+    const bareCallAsync = arrowCore.match(/^(.+?)\s*~>\s*(.+)$/);
     const bareCall = bareCallSync || bareCallAsync;
     if (bareCall) {
       contentStarted = true;
