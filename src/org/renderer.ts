@@ -4,6 +4,7 @@
 
 import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
+import { runInExportContainer, extractExportSvg } from '../utils/export-container';
 import type { PaletteColors } from '../palettes';
 import { mix } from '../palettes/color-utils';
 import type { ParsedOrg } from './parser';
@@ -687,38 +688,16 @@ export function renderOrgForExport(
   const layout = layoutOrg(parsed, undefined, undefined, exportHidden);
   const isDark = theme === 'dark';
 
-  // Create offscreen container
-  const container = document.createElement('div');
   const titleOffset = parsed.title ? TITLE_HEIGHT : 0;
   const exportWidth = layout.width + DIAGRAM_PADDING * 2;
-  const exportHeight =
-    layout.height + DIAGRAM_PADDING * 2 + titleOffset;
+  const exportHeight = layout.height + DIAGRAM_PADDING * 2 + titleOffset;
 
-  container.style.width = `${exportWidth}px`;
-  container.style.height = `${exportHeight}px`;
-  container.style.position = 'absolute';
-  container.style.left = '-9999px';
-  document.body.appendChild(container);
-
-  try {
-    // No hiddenAttributes passed to renderOrg — export never shows eye icons
+  // No hiddenAttributes passed to renderOrg — export never shows eye icons
+  return runInExportContainer(exportWidth, exportHeight, (container) => {
     renderOrg(container, parsed, layout, palette, isDark, undefined, {
       width: exportWidth,
       height: exportHeight,
     });
-
-    const svgEl = container.querySelector('svg');
-    if (!svgEl) return '';
-
-    if (theme === 'transparent') {
-      svgEl.style.background = 'none';
-    }
-
-    svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-    svgEl.style.fontFamily = FONT_FAMILY;
-
-    return svgEl.outerHTML;
-  } finally {
-    document.body.removeChild(container);
-  }
+    return extractExportSvg(container, theme);
+  });
 }

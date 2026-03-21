@@ -5,6 +5,7 @@
 import * as d3Selection from 'd3-selection';
 import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
+import { runInExportContainer, extractExportSvg } from '../utils/export-container';
 import type { PaletteColors } from '../palettes';
 import { mix } from '../palettes/color-utils';
 import type { ParsedClassDiagram, ClassModifier, RelationshipType } from './types';
@@ -503,16 +504,10 @@ export function renderClassDiagramForExport(
   const layout = layoutClassDiagram(parsed);
   const isDark = theme === 'dark';
 
-  const container = document.createElement('div');
   const exportWidth = layout.width + DIAGRAM_PADDING * 2;
   const exportHeight = layout.height + DIAGRAM_PADDING * 2 + (parsed.title ? 40 : 0);
-  container.style.width = `${exportWidth}px`;
-  container.style.height = `${exportHeight}px`;
-  container.style.position = 'absolute';
-  container.style.left = '-9999px';
-  document.body.appendChild(container);
 
-  try {
+  return runInExportContainer(exportWidth, exportHeight, (container) => {
     renderClassDiagram(
       container,
       parsed,
@@ -522,19 +517,6 @@ export function renderClassDiagramForExport(
       undefined,
       { width: exportWidth, height: exportHeight }
     );
-
-    const svgEl = container.querySelector('svg');
-    if (!svgEl) return '';
-
-    if (theme === 'transparent') {
-      svgEl.style.background = 'none';
-    }
-
-    svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-    svgEl.style.fontFamily = FONT_FAMILY;
-
-    return svgEl.outerHTML;
-  } finally {
-    document.body.removeChild(container);
-  }
+    return extractExportSvg(container, theme);
+  });
 }

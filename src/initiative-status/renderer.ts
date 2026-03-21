@@ -5,6 +5,7 @@
 import * as d3Selection from 'd3-selection';
 import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
+import { runInExportContainer, extractExportSvg } from '../utils/export-container';
 import { contrastText, mix } from '../palettes/color-utils';
 import type { PaletteColors } from '../palettes';
 import type { ParsedInitiativeStatus, InitiativeStatus } from './types';
@@ -849,14 +850,7 @@ export function renderInitiativeStatusForExport(
   const exportWidth = layout.width + DIAGRAM_PADDING * 2;
   const exportHeight = layout.height + DIAGRAM_PADDING * 2 + titleOffset;
 
-  const container = document.createElement('div');
-  container.style.width = `${exportWidth}px`;
-  container.style.height = `${exportHeight}px`;
-  container.style.position = 'absolute';
-  container.style.left = '-9999px';
-  document.body.appendChild(container);
-
-  try {
+  return runInExportContainer(exportWidth, exportHeight, (container) => {
     renderInitiativeStatus(
       container,
       parsed,
@@ -866,19 +860,6 @@ export function renderInitiativeStatusForExport(
       undefined,
       { width: exportWidth, height: exportHeight }
     );
-
-    const svgEl = container.querySelector('svg');
-    if (!svgEl) return '';
-
-    if (theme === 'transparent') {
-      svgEl.style.background = 'none';
-    }
-
-    svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-    svgEl.style.fontFamily = FONT_FAMILY;
-
-    return svgEl.outerHTML;
-  } finally {
-    document.body.removeChild(container);
-  }
+    return extractExportSvg(container, theme);
+  });
 }
