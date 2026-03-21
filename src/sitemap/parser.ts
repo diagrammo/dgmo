@@ -5,7 +5,7 @@
 import type { PaletteColors } from '../palettes';
 import { resolveColor } from '../colors';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
-import type { TagGroup, TagEntry } from '../utils/tag-groups';
+import type { TagGroup } from '../utils/tag-groups';
 import { isTagBlockHeading, matchTagBlockHeading, validateTagValues } from '../utils/tag-groups';
 import {
   measureIndent,
@@ -17,7 +17,6 @@ import {
 } from '../utils/parsing';
 import type {
   SitemapNode,
-  SitemapEdge,
   SitemapDirection,
   ParsedSitemap,
 } from './types';

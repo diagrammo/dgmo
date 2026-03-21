@@ -11,11 +11,8 @@ import { measureIndent } from '../utils/parsing';
 import type {
   ParsedInfra,
   InfraNode,
-  InfraEdge,
   InfraGroup,
   InfraTagGroup,
-  InfraTagValue,
-  InfraProperty,
 } from './types';
 import { INFRA_BEHAVIOR_KEYS, EDGE_ONLY_KEYS } from './types';
 
@@ -116,7 +113,6 @@ export function parseInfra(content: string): ParsedInfra {
   };
 
   const nodeMap = new Map<string, InfraNode>();
-  const edgeNodeId = 'edge';
 
   const setError = (line: number, message: string) => {
     const diag = makeDgmoError(line, message);

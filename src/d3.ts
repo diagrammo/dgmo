@@ -1861,7 +1861,6 @@ export function renderArcDiagram(
         const positions = groupNodes.map((n) => yScale(n)!);
         const minY = Math.min(...positions) - bandPad;
         const maxY = Math.max(...positions) + bandPad;
-        const bandColor = group.color ?? mutedColor;
 
         g.append('rect')
           .attr('class', 'arc-group-band')
@@ -1996,7 +1995,6 @@ export function renderArcDiagram(
         const positions = groupNodes.map((n) => xScale(n)!);
         const minX = Math.min(...positions) - bandPad;
         const maxX = Math.max(...positions) + bandPad;
-        const bandColor = group.color ?? mutedColor;
 
         g.append('rect')
           .attr('class', 'arc-group-band')
@@ -4644,46 +4642,6 @@ function renderWordCloudAsync(
 // Venn Diagram Math Helpers
 // ============================================================
 
-function radiusFromArea(area: number): number {
-  return Math.sqrt(area / Math.PI);
-}
-
-function circleOverlapArea(r1: number, r2: number, d: number): number {
-  // No overlap
-  if (d >= r1 + r2) return 0;
-  // Full containment
-  if (d + Math.min(r1, r2) <= Math.max(r1, r2)) {
-    return Math.PI * Math.min(r1, r2) ** 2;
-  }
-  const part1 = r1 * r1 * Math.acos((d * d + r1 * r1 - r2 * r2) / (2 * d * r1));
-  const part2 = r2 * r2 * Math.acos((d * d + r2 * r2 - r1 * r1) / (2 * d * r2));
-  const part3 =
-    0.5 *
-    Math.sqrt((-d + r1 + r2) * (d + r1 - r2) * (d - r1 + r2) * (d + r1 + r2));
-  return part1 + part2 - part3;
-}
-
-function distanceForOverlap(
-  r1: number,
-  r2: number,
-  targetArea: number
-): number {
-  if (targetArea <= 0) return r1 + r2;
-  const minR = Math.min(r1, r2);
-  if (targetArea >= Math.PI * minR * minR) return Math.abs(r1 - r2);
-  let lo = Math.abs(r1 - r2);
-  let hi = r1 + r2;
-  for (let i = 0; i < 64; i++) {
-    const mid = (lo + hi) / 2;
-    if (circleOverlapArea(r1, r2, mid) > targetArea) {
-      lo = mid;
-    } else {
-      hi = mid;
-    }
-  }
-  return (lo + hi) / 2;
-}
-
 interface Point {
   x: number;
   y: number;
@@ -4693,29 +4651,6 @@ interface Circle {
   x: number;
   y: number;
   r: number;
-}
-
-function thirdCirclePosition(
-  ax: number,
-  ay: number,
-  dAC: number,
-  bx: number,
-  by: number,
-  dBC: number
-): Point {
-  const dx = bx - ax;
-  const dy = by - ay;
-  const dAB = Math.sqrt(dx * dx + dy * dy);
-  if (dAB === 0) return { x: ax + dAC, y: ay };
-  const cosA = (dAB * dAB + dAC * dAC - dBC * dBC) / (2 * dAB * dAC);
-  const sinA = Math.sqrt(Math.max(0, 1 - cosA * cosA));
-  const ux = dx / dAB;
-  const uy = dy / dAB;
-  // Place C above the AB line
-  return {
-    x: ax + dAC * (cosA * ux - sinA * uy),
-    y: ay + dAC * (cosA * uy + sinA * ux),
-  };
 }
 
 function fitCirclesToContainerAsymmetric(
@@ -5264,7 +5199,6 @@ export function renderQuadrant(
   const init = initD3Chart(container, palette, exportDims);
   if (!init) return;
   const { svg, width, height, textColor } = init;
-  const mutedColor = palette.textMuted;
   const borderColor = palette.border;
 
   // Default quadrant colors with alpha
@@ -5401,7 +5335,6 @@ export function renderQuadrant(
     .attr('stroke-width', 2);
 
   // White text for points; quadrant labels use a darkened shade of their fill
-  const contrastColor = '#ffffff';
   const shadowColor = 'rgba(0,0,0,0.4)';
 
   // Darken the full palette color (not the muted fill) to create a watermark-style label

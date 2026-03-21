@@ -9,8 +9,7 @@ import type { PaletteColors } from '../palettes';
 import { mix } from '../palettes/color-utils';
 import { renderInlineText } from '../utils/inline-markdown';
 import type { ParsedC4 } from './types';
-import type { C4Shape } from './types';
-import type { C4LayoutResult, C4LayoutNode, C4LayoutEdge, C4LayoutBoundary, C4LegendGroup } from './layout';
+import type { C4LayoutResult, C4LayoutEdge, C4LegendGroup } from './layout';
 import { parseC4 } from './parser';
 import { layoutC4Context, layoutC4Containers, layoutC4Components, layoutC4Deployment, collectCardMetadata } from './layout';
 import {
@@ -50,7 +49,6 @@ const CARD_V_PAD = 14;
 const TYPE_LABEL_HEIGHT = 18;
 const DIVIDER_GAP = 6;
 const NAME_HEIGHT = 20;
-const TECH_LINE_HEIGHT = 16;
 const META_FONT_SIZE = 11;
 const META_CHAR_WIDTH = 6.5;
 const META_LINE_HEIGHT = 16;
@@ -257,7 +255,6 @@ export function renderC4Context(
   const scale = Math.min(MAX_SCALE, scaleX, scaleY);
 
   const scaledW = diagramW * scale;
-  const scaledH = diagramH * scale;
   const offsetX = (width - scaledW) / 2;
   const offsetY = titleHeight + DIAGRAM_PADDING;
 
@@ -1300,7 +1297,6 @@ export function renderC4Containers(
   const scale = Math.min(MAX_SCALE, scaleX, scaleY);
 
   const scaledW = diagramW * scale;
-  const scaledH = diagramH * scale;
   const offsetX = (width - scaledW) / 2;
   const offsetY = titleHeight + DIAGRAM_PADDING;
 

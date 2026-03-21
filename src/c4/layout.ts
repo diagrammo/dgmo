@@ -86,7 +86,6 @@ const DESC_LINE_HEIGHT = 16;
 const DESC_CHAR_WIDTH = 6.5;
 const CARD_V_PAD = 14;
 const CARD_H_PAD = 20;
-const TECH_LINE_HEIGHT = 16;
 const META_LINE_HEIGHT = 16;
 const META_CHAR_WIDTH = 6.5;
 const MARGIN = 40;
@@ -109,17 +108,31 @@ const LEGEND_CAPSULE_PAD = 4;
 // Post-Layout Crossing Reduction
 // ============================================================
 
+interface NodeGeometry {
+  y: number;
+  width: number;
+  height: number;
+}
+
+// Large penalty per edge-node collision — dominates the distance term so the
+// sifter strongly prefers orderings where edges don't pass through other nodes.
+const EDGE_NODE_COLLISION_WEIGHT = 5000;
+
 /**
  * Compute penalty for an edge ordering. Uses degree-weighted edge distance:
  * long edges to high-degree nodes are penalized more than to low-degree nodes.
  * This places shared/important nodes closer to their neighbors, reducing
  * visual edge congestion.
  *
+ * When nodeGeometry is provided, also adds a heavy penalty for each case where
+ * a straight-line edge bounding box overlaps another node — driving the sifter
+ * to prefer orderings that avoid edge-node collisions.
  */
 function computeEdgePenalty(
   edgeList: { source: string; target: string }[],
   nodePositions: Map<string, number>,
-  degrees: Map<string, number>
+  degrees: Map<string, number>,
+  nodeGeometry?: Map<string, NodeGeometry>
 ): number {
   let penalty = 0;
 
@@ -133,6 +146,48 @@ function computeEdgePenalty(
     const dist = Math.abs(sx - tx);
     const weight = Math.min(degrees.get(edge.source) ?? 1, degrees.get(edge.target) ?? 1);
     penalty += dist * weight;
+  }
+
+  // Edge-node collision penalty: for each edge A→B, check if any other node C
+  // has its bounding box inside the straight-line bounding box of the edge.
+  // Uses x from nodePositions (updated per permutation) and y/size from nodeGeometry.
+  if (nodeGeometry) {
+    for (const edge of edgeList) {
+      const geomA = nodeGeometry.get(edge.source);
+      const geomB = nodeGeometry.get(edge.target);
+      if (!geomA || !geomB) continue;
+
+      const ax = nodePositions.get(edge.source) ?? 0;
+      const bx = nodePositions.get(edge.target) ?? 0;
+      const ay = geomA.y;
+      const by = geomB.y;
+
+      // Skip edges within the same rank — they have no vertical span to check
+      if (ay === by) continue;
+
+      const edgeMinX = Math.min(ax, bx);
+      const edgeMaxX = Math.max(ax, bx);
+      const edgeMinY = Math.min(ay, by);
+      const edgeMaxY = Math.max(ay, by);
+
+      for (const [name, geomC] of nodeGeometry) {
+        if (name === edge.source || name === edge.target) continue;
+        const cx = nodePositions.get(name) ?? 0;
+        const cy = geomC.y;
+        const hw = geomC.width / 2;
+        const hh = geomC.height / 2;
+
+        // AABB overlap: node C's box intersects the edge's straight-line bounding box
+        if (
+          cx + hw > edgeMinX &&
+          cx - hw < edgeMaxX &&
+          cy + hh > edgeMinY &&
+          cy - hh < edgeMaxY
+        ) {
+          penalty += EDGE_NODE_COLLISION_WEIGHT;
+        }
+      }
+    }
   }
 
   return penalty;
@@ -158,6 +213,13 @@ function reduceCrossings(
   for (const edge of edgeList) {
     degrees.set(edge.source, (degrees.get(edge.source) ?? 0) + 1);
     degrees.set(edge.target, (degrees.get(edge.target) ?? 0) + 1);
+  }
+
+  // Build geometry map for edge-node collision scoring
+  const nodeGeometry = new Map<string, NodeGeometry>();
+  for (const name of g.nodes()) {
+    const pos = g.node(name);
+    if (pos) nodeGeometry.set(name, { y: pos.y, width: pos.width, height: pos.height });
   }
 
   // Group nodes by rank
@@ -216,7 +278,7 @@ function reduceCrossings(
       }
 
       // Current penalty
-      const currentPenalty = computeEdgePenalty(edgeList, basePositions, degrees);
+      const currentPenalty = computeEdgePenalty(edgeList, basePositions, degrees, nodeGeometry);
 
       // Try permutations (feasible for partition sizes ≤ 8)
       let bestPerm = [...partition];
@@ -229,7 +291,7 @@ function reduceCrossings(
           for (let i = 0; i < perm.length; i++) {
             testPositions.set(perm[i]!, xSlots[i]!);
           }
-          const penalty = computeEdgePenalty(edgeList, testPositions, degrees);
+          const penalty = computeEdgePenalty(edgeList, testPositions, degrees, nodeGeometry);
           if (penalty < bestPenalty) {
             bestPenalty = penalty;
             bestPerm = [...perm];
@@ -248,14 +310,14 @@ function reduceCrossings(
             for (let k = 0; k < workingOrder.length; k++) {
               testPositions.set(workingOrder[k]!, xSlots[k]!);
             }
-            const before = computeEdgePenalty(edgeList, testPositions, degrees);
+            const before = computeEdgePenalty(edgeList, testPositions, degrees, nodeGeometry);
 
             [workingOrder[i], workingOrder[i + 1]] = [workingOrder[i + 1]!, workingOrder[i]!];
             const testPositions2 = new Map(basePositions);
             for (let k = 0; k < workingOrder.length; k++) {
               testPositions2.set(workingOrder[k]!, xSlots[k]!);
             }
-            const after = computeEdgePenalty(edgeList, testPositions2, degrees);
+            const after = computeEdgePenalty(edgeList, testPositions2, degrees, nodeGeometry);
 
             if (after < before) {
               improved = true;
@@ -415,10 +477,6 @@ export function rollUpContextRelationships(parsed: ParsedC4): ContextRelationshi
   const allRels = collectAllRelationships(parsed.elements, ownerMap);
 
   // Also include orphan relationships
-  for (const rel of parsed.relationships) {
-    // Orphan rels have no source element name — skip them for context roll-up
-  }
-
   // Separate system-level (explicit) from nested (rolled-up)
   const topLevelNames = new Set(parsed.elements.map((e) => e.name));
   const explicitKeys = new Set<string>();

@@ -90,10 +90,6 @@ function parseNodeRef(
  */
 function splitArrows(line: string): string[] {
   const segments: string[] = [];
-  // Match: optional `-label(color)->` or just `->`
-  // We scan left to right looking for `->` and work backwards to find the `-` start.
-  const arrowRe = /(?:^|\s)-([^>\s(][^(>]*?)?\s*(?:\(([^)]+)\))?\s*->|(?:^|\s)->/g;
-
   let lastIndex = 0;
   // Simpler approach: find all `->` positions, then determine if there's a label prefix
   const arrowPositions: { start: number; end: number; label?: string; color?: string }[] = [];

@@ -81,8 +81,6 @@ export interface OrgLayoutResult {
 // ============================================================
 
 const CHAR_WIDTH = 7.5;
-const LABEL_FONT_SIZE = 13;
-const META_FONT_SIZE = 11;
 const META_LINE_HEIGHT = 16;
 const HEADER_HEIGHT = 28;
 const SEPARATOR_GAP = 6;
@@ -1128,8 +1126,6 @@ export function layoutOrg(
   const allExpanded = expandAllLegend && activeTagGroup == null;
   const effectiveW = (g: OrgLegendGroup) =>
     activeTagGroup != null || allExpanded ? g.width : g.minifiedWidth;
-  const effectiveH = (g: OrgLegendGroup) =>
-    activeTagGroup != null || allExpanded ? g.height : g.minifiedHeight;
 
   if (visibleGroups.length > 0) {
     if (legendPosition === 'bottom') {

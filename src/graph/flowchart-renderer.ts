@@ -8,7 +8,7 @@ import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
 import { mix } from '../palettes/color-utils';
 import type { ParsedGraph, GraphShape } from './types';
-import type { LayoutResult, LayoutNode, LayoutEdge } from './layout';
+import type { LayoutResult, LayoutNode } from './layout';
 import { parseFlowchart } from './flowchart-parser';
 import { layoutGraph } from './layout';
 
@@ -246,7 +246,6 @@ export function renderFlowchart(
 
   // Center the diagram in the area below the title
   const scaledW = diagramW * scale;
-  const scaledH = diagramH * scale;
   const offsetX = (width - scaledW) / 2;
   const offsetY = titleHeight + DIAGRAM_PADDING;
 

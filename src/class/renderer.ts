@@ -8,7 +8,7 @@ import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
 import { mix } from '../palettes/color-utils';
 import type { ParsedClassDiagram, ClassModifier, RelationshipType } from './types';
-import type { ClassLayoutResult, ClassLayoutNode, ClassLayoutEdge } from './layout';
+import type { ClassLayoutResult } from './layout';
 import { parseClassDiagram } from './parser';
 import { layoutClassDiagram } from './layout';
 
@@ -99,8 +99,6 @@ function isSourceMarker(type: RelationshipType): boolean {
 // Main renderer
 // ============================================================
 
-type GSelection = d3Selection.Selection<SVGGElement, unknown, null, undefined>;
-
 export function renderClassDiagram(
   container: HTMLDivElement,
   parsed: ParsedClassDiagram,
@@ -125,7 +123,6 @@ export function renderClassDiagram(
   const scale = Math.min(MAX_SCALE, scaleX, scaleY);
 
   const scaledW = diagramW * scale;
-  const scaledH = diagramH * scale;
   const offsetX = (width - scaledW) / 2;
   const offsetY = titleHeight + DIAGRAM_PADDING;
 

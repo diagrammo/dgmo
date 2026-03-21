@@ -8,7 +8,7 @@ import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
 import { mix } from '../palettes/color-utils';
 import type { ParsedGraph } from './types';
-import type { LayoutResult, LayoutNode, LayoutEdge } from './layout';
+import type { LayoutResult, LayoutNode } from './layout';
 import { parseState } from './state-parser';
 import { layoutGraph } from './layout';
 
@@ -75,8 +75,6 @@ function selfLoopPath(node: LayoutNode): string {
 // ============================================================
 // Main renderer
 // ============================================================
-
-type GSelection = d3Selection.Selection<SVGGElement, unknown, null, undefined>;
 
 export function renderState(
   container: HTMLDivElement,

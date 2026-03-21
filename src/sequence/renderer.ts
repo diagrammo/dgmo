@@ -10,7 +10,6 @@ import {
   truncateBareUrl,
   renderInlineText,
 } from '../utils/inline-markdown';
-export type { InlineSpan } from '../utils/inline-markdown';
 export { parseInlineMarkdown, truncateBareUrl };
 import { FONT_FAMILY } from '../fonts';
 import { resolveColor } from '../colors';
@@ -2129,7 +2128,6 @@ export function renderSequenceDiagram(
     // IMPORTANT: only the <g> carries data-line-number / data-section —
     // children must NOT have them, otherwise the click walk-up resolves
     // to a line-number navigation before reaching data-section-toggle.
-    const HIT_AREA_HEIGHT = 36;
     const sectionG = svg
       .append('g')
       .attr('data-section-toggle', '')

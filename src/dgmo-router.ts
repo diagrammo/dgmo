@@ -19,63 +19,6 @@ import { parseInfra } from './infra/parser';
 import type { DgmoError } from './diagnostics';
 
 /**
- * Framework identifiers used by the .dgmo router internally.
- * Not part of the public API — use RenderCategory instead.
- */
-type DgmoFramework = 'echart' | 'd3' | 'mermaid';
-
-/**
- * Maps every supported chart type string to its backing framework (internal).
- */
-const DGMO_CHART_TYPE_MAP: Record<string, DgmoFramework> = {
-  // Standard charts (via ECharts)
-  bar: 'echart',
-  line: 'echart',
-  'multi-line': 'echart',
-  area: 'echart',
-  pie: 'echart',
-  doughnut: 'echart',
-  radar: 'echart',
-  'polar-area': 'echart',
-  'bar-stacked': 'echart',
-
-  // ECharts
-  scatter: 'echart',
-  sankey: 'echart',
-  chord: 'echart',
-  function: 'echart',
-  heatmap: 'echart',
-  funnel: 'echart',
-
-  // D3
-  slope: 'd3',
-  wordcloud: 'd3',
-  arc: 'd3',
-  timeline: 'd3',
-  venn: 'd3',
-  quadrant: 'd3',
-  sequence: 'd3',
-  flowchart: 'd3',
-  class: 'd3',
-  er: 'd3',
-  org: 'd3',
-  kanban: 'd3',
-  c4: 'd3',
-  'initiative-status': 'd3',
-  state: 'd3',
-  sitemap: 'd3',
-  infra: 'd3',
-};
-
-/**
- * Returns the internal framework for a given chart type, or `null` if unknown.
- * Internal only — use getRenderCategory() for public dispatch.
- */
-function getDgmoFramework(chartType: string): DgmoFramework | null {
-  return DGMO_CHART_TYPE_MAP[chartType.toLowerCase()] ?? null;
-}
-
-/**
  * Extracts the `chart:` type value from raw file content.
  * Falls back to inference when no explicit `chart:` line is found
  * (e.g. content containing `->` is inferred as `sequence`).

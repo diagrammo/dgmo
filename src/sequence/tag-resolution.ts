@@ -5,7 +5,6 @@
 // Resolves effective tag values for participants and messages
 // using the priority chain: explicit > group > receiver-inherit > default > neutral
 
-import type { TagGroup } from '../utils/tag-groups';
 import type {
   ParsedSequenceDgmo,
   SequenceParticipant,

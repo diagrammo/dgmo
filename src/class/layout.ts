@@ -2,7 +2,6 @@ import dagre from '@dagrejs/dagre';
 import type {
   ParsedClassDiagram,
   ClassNode,
-  ClassRelationship,
   RelationshipType,
 } from './types';
 

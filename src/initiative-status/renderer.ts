@@ -9,7 +9,7 @@ import { contrastText, mix } from '../palettes/color-utils';
 import type { PaletteColors } from '../palettes';
 import type { ParsedInitiativeStatus, InitiativeStatus } from './types';
 import type { ParticipantType } from '../sequence/parser';
-import type { ISLayoutResult, ISLayoutNode, ISLayoutEdge, ISLayoutGroup } from './layout';
+import type { ISLayoutResult } from './layout';
 import { parseInitiativeStatus } from './parser';
 import { layoutInitiativeStatus } from './layout';
 
@@ -436,7 +436,6 @@ export function renderInitiativeStatus(
   const scale = Math.min(MAX_SCALE, scaleX, scaleY);
 
   const scaledW = diagramW * scale;
-  const scaledH = diagramH * scale;
   const offsetX = (width - scaledW) / 2;
   const offsetY = titleHeight + DIAGRAM_PADDING;
 

@@ -9,8 +9,6 @@ import dagre from '@dagrejs/dagre';
 import type {
   ComputedInfraModel,
   ComputedInfraNode,
-  ComputedInfraEdge,
-  InfraGroup,
 } from './types';
 
 // ============================================================

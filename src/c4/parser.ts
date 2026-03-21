@@ -3,7 +3,6 @@
 // ============================================================
 
 import type { PaletteColors } from '../palettes';
-import type { DgmoError } from '../diagnostics';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
 import type { TagGroup } from '../utils/tag-groups';
 import { matchTagBlockHeading } from '../utils/tag-groups';
@@ -750,21 +749,6 @@ function attachElement(
 // ============================================================
 // Post-parse validation
 // ============================================================
-
-function collectAllNames(result: ParsedC4): Map<string, number> {
-  const names = new Map<string, number>();
-  function walk(elements: C4Element[]) {
-    for (const el of elements) {
-      names.set(el.name.toLowerCase(), el.lineNumber);
-      walk(el.children);
-      for (const g of el.groups) {
-        walk(g.children);
-      }
-    }
-  }
-  walk(result.elements);
-  return names;
-}
 
 function validateRelationshipTargets(
   result: ParsedC4,

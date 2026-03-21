@@ -5,7 +5,6 @@ import { measureIndent, extractColor } from '../utils/parsing';
 import type {
   ParsedGraph,
   GraphNode,
-  GraphEdge,
   GraphGroup,
   GraphDirection,
 } from './types';

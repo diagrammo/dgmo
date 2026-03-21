@@ -7,7 +7,6 @@ import type { TagGroup } from '../utils/tag-groups';
 import type {
   ParsedERDiagram,
   ERTable,
-  ERColumn,
   ERConstraint,
   ERCardinality,
 } from './types';

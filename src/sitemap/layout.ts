@@ -3,7 +3,7 @@
 // ============================================================
 
 import dagre from '@dagrejs/dagre';
-import type { ParsedSitemap, SitemapNode, SitemapEdge } from './types';
+import type { ParsedSitemap, SitemapNode } from './types';
 import type { TagGroup } from '../utils/tag-groups';
 import { resolveTagColor, injectDefaultTagMetadata } from '../utils/tag-groups';
 
@@ -89,8 +89,6 @@ export interface SitemapLayoutResult {
 // ============================================================
 
 const CHAR_WIDTH = 7.5;
-const LABEL_FONT_SIZE = 13;
-const META_FONT_SIZE = 11;
 const META_LINE_HEIGHT = 16;
 const HEADER_HEIGHT = 28;
 const SEPARATOR_GAP = 6;
@@ -105,7 +103,6 @@ const CONTAINER_LABEL_HEIGHT = 28;
 const CONTAINER_META_LINE_HEIGHT = 16;
 
 // Legend (kanban-style pills)
-const LEGEND_GAP = 30;
 const LEGEND_HEIGHT = 28;
 const LEGEND_PILL_PAD = 16;
 const LEGEND_PILL_FONT_W = 11 * 0.6;
@@ -161,16 +158,6 @@ function resolveNodeColor(
 }
 
 const OVERLAP_GAP = 20;
-
-function countDescendantNodes(node: SitemapNode, hiddenCounts?: Map<string, number>): number {
-  let count = 0;
-  for (const child of node.children) {
-    count += (child.isContainer ? 0 : 1) + countDescendantNodes(child, hiddenCounts);
-    const hc = hiddenCounts?.get(child.id);
-    if (hc) count += hc;
-  }
-  return count;
-}
 
 // ============================================================
 // Legend

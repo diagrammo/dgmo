@@ -7,7 +7,7 @@ import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
 import { mix } from '../palettes/color-utils';
 import type { ParsedOrg } from './parser';
-import type { OrgLayoutResult, OrgLayoutNode } from './layout';
+import type { OrgLayoutResult } from './layout';
 import { parseOrg } from './parser';
 import { layoutOrg } from './layout';
 import {

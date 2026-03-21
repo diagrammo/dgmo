@@ -17,13 +17,12 @@ import {
   LEGEND_CAPSULE_PAD,
   LEGEND_DOT_R,
   LEGEND_ENTRY_FONT_SIZE,
-  LEGEND_ENTRY_FONT_W,
   LEGEND_ENTRY_DOT_GAP,
   LEGEND_ENTRY_TRAIL,
   LEGEND_GROUP_GAP,
 } from '../utils/legend-constants';
 import type { ParsedERDiagram, ERConstraint } from './types';
-import type { ERLayoutResult, ERLayoutNode, ERLayoutEdge } from './layout';
+import type { ERLayoutResult } from './layout';
 import { parseERDiagram } from './parser';
 import { layoutERDiagram } from './layout';
 import { classifyEREntities, ROLE_COLORS, ROLE_LABELS, ROLE_ORDER } from './classify';

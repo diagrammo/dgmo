@@ -7,12 +7,10 @@ import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
 import { mix } from '../palettes/color-utils';
-import type { ParsedInfra, InfraTagGroup } from './types';
+import type { InfraTagGroup } from './types';
 import { resolveColor } from '../colors';
-import type { ComputedInfraModel } from './types';
 import type { InfraLayoutResult, InfraLayoutNode, InfraLayoutEdge, InfraLayoutGroup } from './layout';
 import { inferRoles, collectDiagramRoles, collectFanoutSourceIds, FANOUT_ROLE } from './roles';
-import type { InfraRole } from './roles';
 import { parseInfra } from './parser';
 import { computeInfra } from './compute';
 import { layoutInfra } from './layout';
@@ -34,11 +32,9 @@ import {
 // Constants
 // ============================================================
 
-const DIAGRAM_PADDING = 20;
 const NODE_FONT_SIZE = 13;
 const META_FONT_SIZE = 10;
 const META_LINE_HEIGHT = 14;
-const RPS_FONT_SIZE = 11;
 const EDGE_LABEL_FONT_SIZE = 11;
 const GROUP_LABEL_FONT_SIZE = 14;
 const NODE_BORDER_RADIUS = 8;
@@ -58,8 +54,6 @@ const LEGEND_FIXED_GAP = 16; // gap between fixed legend and scaled diagram — 
 const COLOR_HEALTHY = '#22c55e';
 const COLOR_WARNING = '#eab308';
 const COLOR_OVERLOADED = '#ef4444';
-const COLOR_NEUTRAL = '#94a3b8';
-
 /** SLO thresholds resolved for a single node (chart-level + per-node override). */
 interface NodeSlo {
   availThreshold: number | null; // fraction e.g. 0.999
@@ -106,11 +100,8 @@ interface ComputedRow {
 }
 
 // Animation constants
-const FLOW_DASH = '8 6';          // dash-array for animated edges
-const FLOW_DASH_LEN = 14;         // sum of dash + gap (for offset keyframe)
 const FLOW_SPEED_MIN = 2.5;       // seconds at max RPS
 const FLOW_SPEED_MAX = 6;         // seconds at min RPS
-const OVERLOAD_PULSE_SPEED = 0.8; // seconds for overload pulse cycle
 const PARTICLE_R = 5;             // particle circle radius
 const PARTICLE_COUNT_MIN = 1;     // min particles per edge
 const PARTICLE_COUNT_MAX = 4;     // max particles per edge (at max RPS)
@@ -741,11 +732,6 @@ function getDisplayProps(node: InfraLayoutNode, expanded: boolean, diagramOption
   return rows;
 }
 
-
-function formatRps(rps: number): string {
-  if (rps >= 1000) return `${(rps / 1000).toFixed(1)}k rps`;
-  return `${Math.round(rps)} rps`;
-}
 
 /** RPS value without "rps" suffix — for key-value rows where the key already says "RPS". */
 function formatRpsShort(rps: number): string {

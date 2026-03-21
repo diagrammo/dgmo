@@ -10,9 +10,6 @@ import { mix } from '../palettes/color-utils';
 import type { ParsedSitemap } from './types';
 import type {
   SitemapLayoutResult,
-  SitemapLayoutNode,
-  SitemapLayoutEdge,
-  SitemapContainerBounds,
   SitemapLegendGroup,
 } from './layout';
 import {

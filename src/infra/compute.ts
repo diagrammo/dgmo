@@ -22,8 +22,6 @@ import type {
   InfraAvailabilityPercentiles,
   InfraProperty,
 } from './types';
-import { INFRA_BEHAVIOR_KEYS } from './types';
-
 // ============================================================
 // Helpers
 // ============================================================
@@ -69,11 +67,6 @@ function serverlessCapacity(node: InfraNode): number {
   const concurrency = getNumProp(node, 'concurrency', 0);
   const durationMs = getNumProp(node, 'duration-ms', 100);
   return concurrency / (durationMs / 1000);
-}
-
-/** Backward-compatible helper used by overload detection. */
-function getInstances(node: InfraNode): number {
-  return getInstanceRange(node).min;
 }
 
 /** Compute dynamic instance count based on load and max-rps. */

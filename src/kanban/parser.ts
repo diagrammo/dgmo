@@ -1,5 +1,4 @@
 import type { PaletteColors } from '../palettes';
-import type { DgmoError } from '../diagnostics';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
 import { resolveColor } from '../colors';
 import { matchTagBlockHeading } from '../utils/tag-groups';
@@ -15,7 +14,6 @@ import type {
   KanbanColumn,
   KanbanCard,
   KanbanTagGroup,
-  KanbanTagEntry,
 } from './types';
 
 // ============================================================
