@@ -482,3 +482,30 @@ export function looksLikeFlowchart(content: string): boolean {
 
   return shapeNearArrow;
 }
+
+// ============================================================
+// Symbol extraction (for completion API)
+// ============================================================
+
+import type { DiagramSymbols } from '../completion';
+
+// Node ID: identifier at line start followed by a shape delimiter or space (arrow line)
+const NODE_ID_RE = /^([a-zA-Z_][\w-]*)[\s([</{]/;
+
+/**
+ * Extract node IDs (entities) from flowchart document text.
+ * Used by the dgmo completion API for ghost hints and popup completions.
+ */
+export function extractSymbols(docText: string): DiagramSymbols {
+  const entities: string[] = [];
+  let inMetadata = true;
+  for (const rawLine of docText.split('\n')) {
+    const line = rawLine.trim();
+    if (inMetadata && /^[a-z-]+\s*:/i.test(line)) continue;
+    inMetadata = false;
+    if (line.length === 0 || /^\s/.test(rawLine)) continue;
+    const m = NODE_ID_RE.exec(line);
+    if (m && !entities.includes(m[1]!)) entities.push(m[1]!);
+  }
+  return { kind: 'flowchart', entities, keywords: [] };
+}

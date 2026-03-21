@@ -383,3 +383,31 @@ export function looksLikeClassDiagram(content: string): boolean {
 
   return false;
 }
+
+// ============================================================
+// Symbol extraction (for completion API)
+// ============================================================
+
+import type { DiagramSymbols } from '../completion';
+
+/**
+ * Extract class names (entities) from class diagram document text.
+ * Used by the dgmo completion API for ghost hints and popup completions.
+ */
+export function extractSymbols(docText: string): DiagramSymbols {
+  const entities: string[] = [];
+  let inMetadata = true;
+  for (const rawLine of docText.split('\n')) {
+    const line = rawLine.trim();
+    if (inMetadata && /^[a-z-]+\s*:/i.test(line)) continue;
+    inMetadata = false;
+    if (line.length === 0 || /^\s/.test(rawLine)) continue;
+    const m = CLASS_DECL_RE.exec(line);
+    if (m && !entities.includes(m[1]!)) entities.push(m[1]!);
+  }
+  return {
+    kind: 'class',
+    entities,
+    keywords: ['extends', 'implements', 'abstract', 'interface', 'enum'],
+  };
+}

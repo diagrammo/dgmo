@@ -573,3 +573,49 @@ export function parseInfra(content: string): ParsedInfra {
 
   return result;
 }
+
+// ============================================================
+// Symbol extraction (for completion API)
+// ============================================================
+
+import type { DiagramSymbols } from '../completion';
+
+/**
+ * Extract component names (entities) from infra document text.
+ * Used by the dgmo completion API for ghost hints and popup completions.
+ */
+export function extractSymbols(docText: string): DiagramSymbols {
+  const entities: string[] = [];
+  let inMetadata = true;
+  let inTagGroup = false;
+  for (const rawLine of docText.split('\n')) {
+    const line = rawLine.trim();
+    if (line.length === 0) continue;
+    const indented = /^\s/.test(rawLine);
+
+    // Metadata phase: skip until first non-metadata root-level line.
+    // All lines (including indented) are skipped while inMetadata = true.
+    if (inMetadata) {
+      if (!indented && !/^[a-z-]+\s*:/i.test(line)) inMetadata = false;
+      else continue;
+    }
+
+    if (!indented) {
+      // Root-level: tag group declaration, group header, or component
+      if (/^tag\s*:/i.test(line)) { inTagGroup = true; continue; }
+      inTagGroup = false;
+      if (/^\[/.test(line)) continue; // group header
+      const m = COMPONENT_RE.exec(line);
+      if (m && !entities.includes(m[1]!)) entities.push(m[1]!);
+    } else {
+      // Indented: skip tag values, connections, and properties; extract grouped components
+      if (inTagGroup) continue;
+      if (/^->/.test(line)) continue; // simple connection
+      if (/^-[^>]+-?>/.test(line)) continue; // labeled connection
+      if (/^\w[\w-]*\s*:/.test(line)) continue; // property (key: value)
+      const m = COMPONENT_RE.exec(line);
+      if (m && !entities.includes(m[1]!)) entities.push(m[1]!);
+    }
+  }
+  return { kind: 'infra', entities, keywords: [] };
+}

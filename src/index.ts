@@ -362,6 +362,16 @@ export type {
 } from './sharing';
 
 // ============================================================
+// Completion (symbol extraction API)
+// ============================================================
+
+export {
+  registerExtractor,
+  extractDiagramSymbols,
+} from './completion';
+export type { DiagramSymbols, ExtractFn } from './completion';
+
+// ============================================================
 // Branding
 // ============================================================
 

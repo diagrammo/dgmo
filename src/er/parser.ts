@@ -463,3 +463,33 @@ export function looksLikeERDiagram(content: string): boolean {
 
   return false;
 }
+
+// ============================================================
+// Symbol extraction (for completion API)
+// ============================================================
+
+import type { DiagramSymbols } from '../completion';
+
+/**
+ * Extract table names (entities) and ER keywords from document text.
+ * Used by the dgmo completion API for ghost hints and popup completions.
+ */
+export function extractSymbols(docText: string): DiagramSymbols {
+  const entities: string[] = [];
+  let inMetadata = true;
+  for (const rawLine of docText.split('\n')) {
+    const line = rawLine.trim();
+    if (inMetadata && /^chart\s*:/i.test(line)) continue;
+    if (inMetadata && /^[a-z-]+\s*:/i.test(line)) continue; // metadata key
+    inMetadata = false;
+    if (line.length === 0) continue;
+    if (/^\s/.test(rawLine)) continue; // indented = column definition, not table
+    const m = TABLE_DECL_RE.exec(line);
+    if (m) entities.push(m[1]!);
+  }
+  return {
+    kind: 'er',
+    entities,
+    keywords: ['pk', 'fk', 'unique', 'nullable', '1', '*', '?'],
+  };
+}
