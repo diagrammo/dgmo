@@ -2864,6 +2864,7 @@ export function renderTimeline(
   const textColor = palette.text;
   const mutedColor = palette.border;
   const bgColor = palette.bg;
+  const bg = isDark ? palette.surface : palette.bg;
   const colors = getSeriesColors(palette);
 
   // Assign colors to groups
@@ -3254,7 +3255,7 @@ export function renderTimeline(
             const y2 = yScale(parseTimelineDate(ev.endDate));
             const rectH = Math.max(y2 - y, 4);
 
-            let fill: string = evColor;
+            let fill: string = mix(evColor, bg, 30);
             if (ev.uncertain) {
               const gradientId = `uncertain-vg-${ev.lineNumber}`;
               const defs =
@@ -3276,7 +3277,7 @@ export function renderTimeline(
                 .enter()
                 .append('stop')
                 .attr('offset', (d) => d.offset)
-                .attr('stop-color', laneColor)
+                .attr('stop-color', mix(laneColor, bg, 30))
                 .attr('stop-opacity', (d) => d.opacity);
               fill = `url(#${gradientId})`;
             }
@@ -3288,7 +3289,9 @@ export function renderTimeline(
               .attr('width', 12)
               .attr('height', rectH)
               .attr('rx', 4)
-              .attr('fill', fill);
+              .attr('fill', fill)
+              .attr('stroke', evColor)
+              .attr('stroke-width', 2);
             evG
               .append('text')
               .attr('x', laneCenter + 14)
@@ -3303,9 +3306,9 @@ export function renderTimeline(
               .attr('cx', laneCenter)
               .attr('cy', y)
               .attr('r', 4)
-              .attr('fill', evColor)
-              .attr('stroke', bgColor)
-              .attr('stroke-width', 1.5);
+              .attr('fill', mix(evColor, bg, 30))
+              .attr('stroke', evColor)
+              .attr('stroke-width', 2);
             evG
               .append('text')
               .attr('x', laneCenter + 10)
@@ -3472,7 +3475,7 @@ export function renderTimeline(
           const y2 = yScale(parseTimelineDate(ev.endDate));
           const rectH = Math.max(y2 - y, 4);
 
-          let fill: string = color;
+          let fill: string = mix(color, bg, 30);
           if (ev.uncertain) {
             const gradientId = `uncertain-v-${ev.lineNumber}`;
             const defs =
@@ -3494,7 +3497,7 @@ export function renderTimeline(
               .enter()
               .append('stop')
               .attr('offset', (d) => d.offset)
-              .attr('stop-color', color)
+              .attr('stop-color', mix(color, bg, 30))
               .attr('stop-opacity', (d) => d.opacity);
             fill = `url(#${gradientId})`;
           }
@@ -3506,7 +3509,9 @@ export function renderTimeline(
             .attr('width', 12)
             .attr('height', rectH)
             .attr('rx', 4)
-            .attr('fill', fill);
+            .attr('fill', fill)
+            .attr('stroke', color)
+            .attr('stroke-width', 2);
           evG
             .append('text')
             .attr('x', axisX + 16)
@@ -3521,9 +3526,9 @@ export function renderTimeline(
             .attr('cx', axisX)
             .attr('cy', y)
             .attr('r', 4)
-            .attr('fill', color)
-            .attr('stroke', bgColor)
-            .attr('stroke-width', 1.5);
+            .attr('fill', mix(color, bg, 30))
+            .attr('stroke', color)
+            .attr('stroke-width', 2);
           evG
             .append('text')
             .attr('x', axisX + 16)
@@ -3781,7 +3786,7 @@ export function renderTimeline(
           const estLabelWidth = ev.label.length * 7 + 16;
           const labelFitsInside = rectW >= estLabelWidth;
 
-          let fill: string = evColor;
+          let fill: string = mix(evColor, bg, 30);
           if (ev.uncertain) {
             // Create gradient for uncertain end - fades last 20%
             const gradientId = `uncertain-${ev.lineNumber}`;
@@ -3803,7 +3808,7 @@ export function renderTimeline(
               .enter()
               .append('stop')
               .attr('offset', (d) => d.offset)
-              .attr('stop-color', evColor)
+              .attr('stop-color', mix(evColor, bg, 30))
               .attr('stop-opacity', (d) => d.opacity);
             fill = `url(#${gradientId})`;
           }
@@ -3815,17 +3820,19 @@ export function renderTimeline(
             .attr('width', rectW)
             .attr('height', BAR_H)
             .attr('rx', 4)
-            .attr('fill', fill);
+            .attr('fill', fill)
+            .attr('stroke', evColor)
+            .attr('stroke-width', 2);
 
           if (labelFitsInside) {
-            // Text inside bar - always white for readability
+            // Text inside bar - use textColor for readability on muted fill
             evG
               .append('text')
               .attr('x', x + 8)
               .attr('y', y)
               .attr('dy', '0.35em')
               .attr('text-anchor', 'start')
-              .attr('fill', '#ffffff')
+              .attr('fill', textColor)
               .attr('font-size', '14px')
               .attr('font-weight', '700')
               .text(ev.label);
@@ -3856,9 +3863,9 @@ export function renderTimeline(
             .attr('cx', x)
             .attr('cy', y)
             .attr('r', 5)
-            .attr('fill', evColor)
-            .attr('stroke', bgColor)
-            .attr('stroke-width', 1.5);
+            .attr('fill', mix(evColor, bg, 30))
+            .attr('stroke', evColor)
+            .attr('stroke-width', 2);
           evG
             .append('text')
             .attr('x', flipLeft ? x - 10 : x + 10)
@@ -4041,7 +4048,7 @@ export function renderTimeline(
         const estLabelWidth = ev.label.length * 7 + 16;
         const labelFitsInside = rectW >= estLabelWidth;
 
-        let fill: string = color;
+        let fill: string = mix(color, bg, 30);
         if (ev.uncertain) {
           // Create gradient for uncertain end - fades last 20%
           const gradientId = `uncertain-ts-${ev.lineNumber}`;
@@ -4063,7 +4070,7 @@ export function renderTimeline(
             .enter()
             .append('stop')
             .attr('offset', (d) => d.offset)
-            .attr('stop-color', color)
+            .attr('stop-color', mix(color, bg, 30))
             .attr('stop-opacity', (d) => d.opacity);
           fill = `url(#${gradientId})`;
         }
@@ -4075,17 +4082,19 @@ export function renderTimeline(
           .attr('width', rectW)
           .attr('height', BAR_H)
           .attr('rx', 4)
-          .attr('fill', fill);
+          .attr('fill', fill)
+          .attr('stroke', color)
+          .attr('stroke-width', 2);
 
         if (labelFitsInside) {
-          // Text inside bar - always white for readability
+          // Text inside bar - use textColor for readability on muted fill
           evG
             .append('text')
             .attr('x', x + 8)
             .attr('y', y)
             .attr('dy', '0.35em')
             .attr('text-anchor', 'start')
-            .attr('fill', '#ffffff')
+            .attr('fill', textColor)
             .attr('font-size', '14px')
             .attr('font-weight', '700')
             .text(ev.label);
@@ -4116,9 +4125,9 @@ export function renderTimeline(
           .attr('cx', x)
           .attr('cy', y)
           .attr('r', 5)
-          .attr('fill', color)
-          .attr('stroke', bgColor)
-          .attr('stroke-width', 1.5);
+          .attr('fill', mix(color, bg, 30))
+          .attr('stroke', color)
+          .attr('stroke-width', 2);
         evG
           .append('text')
           .attr('x', flipLeft ? x - 10 : x + 10)
@@ -4438,8 +4447,8 @@ export function renderTimeline(
             color = ev.group && groupColorMap.has(ev.group)
               ? groupColorMap.get(ev.group)! : textColor;
           }
-          el.selectAll('rect').attr('fill', color);
-          el.selectAll('circle:not(.tl-event-point-outline)').attr('fill', color);
+          el.selectAll('rect').attr('fill', mix(color, bg, 30)).attr('stroke', color);
+          el.selectAll('circle:not(.tl-event-point-outline)').attr('fill', mix(color, bg, 30)).attr('stroke', color);
         });
       }
 
@@ -5300,12 +5309,22 @@ export function renderQuadrant(
     return `#${c(ar,br)}${c(ag,bg)}${c(ab,bb)}`;
   };
 
-  // Opaque quadrant fills using the assigned color directly
-  const getQuadrantFill = (
+  const bg = isDark ? palette.surface : palette.bg;
+
+  // Full palette color for a quadrant (used for border and label tinting)
+  const getQuadrantColor = (
     label: QuadrantLabel | null,
     defaultIdx: number
   ): string => {
     return label?.color ?? defaultColors[defaultIdx % defaultColors.length];
+  };
+
+  // Muted fill: palette color blended 30% toward bg — matches other chart fill style
+  const getQuadrantFill = (
+    label: QuadrantLabel | null,
+    defaultIdx: number
+  ): string => {
+    return mixHex(getQuadrantColor(label, defaultIdx), bg, 30);
   };
 
   // Quadrant definitions: position, rect bounds, label position
@@ -5378,17 +5397,17 @@ export function renderQuadrant(
     .attr('width', (d) => d.w)
     .attr('height', (d) => d.h)
     .attr('fill', (d) => getQuadrantFill(d.label, d.colorIdx))
-    .attr('stroke', borderColor)
-    .attr('stroke-width', 0.5);
+    .attr('stroke', (d) => getQuadrantColor(d.label, d.colorIdx))
+    .attr('stroke-width', 2);
 
   // White text for points; quadrant labels use a darkened shade of their fill
   const contrastColor = '#ffffff';
   const shadowColor = 'rgba(0,0,0,0.4)';
 
-  // Darken the quadrant fill to create a watermark-style label color
+  // Darken the full palette color (not the muted fill) to create a watermark-style label
   const getQuadrantLabelColor = (d: (typeof quadrantDefs)[number]): string => {
-    const fill = getQuadrantFill(d.label, d.colorIdx);
-    return mixHex('#000000', fill, 40);
+    const color = getQuadrantColor(d.label, d.colorIdx);
+    return mixHex('#000000', color, 40);
   };
 
   // Scale label font size to fit within quadrant bounds, wrapping into multiple lines if needed
@@ -5666,13 +5685,13 @@ export function renderQuadrant(
       .attr('stroke', pointColor)
       .attr('stroke-width', 2);
 
-    // Label (contrasting color with shadow for readability)
+    // Label (palette text color adapts to light/dark mode)
     pointG
       .append('text')
       .attr('x', cx)
       .attr('y', cy - 10)
       .attr('text-anchor', 'middle')
-      .attr('fill', contrastColor)
+      .attr('fill', textColor)
       .attr('font-size', '12px')
       .attr('font-weight', '700')
       .style('text-shadow', `0 1px 2px ${shadowColor}`)
