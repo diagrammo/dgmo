@@ -19,26 +19,27 @@ This is the authoritative, always-up-to-date syntax reference. Use it before gue
 
 ## Your Workflow
 
+**Primary goal: get the user seeing a visualization as fast as possible.**
+
 When the user asks you to create or edit a diagram:
 
 1. **Get syntax** — call `mcp__dgmo__get_language_reference("<type>")` if you're unsure of the syntax.
 2. **Write the `.dgmo` content** — compose the markup.
-3. **Save the source file** (if working in a project) — write it to `<name>.dgmo` so the user has an editable file.
-4. **Render and show** — pick the right output based on what the user wants (see below).
+3. **Open in browser immediately** — call `mcp__dgmo__preview_diagram([{dgmo, title}])` without asking. This is always the right default. The browser preview includes the dgmo source collapsed at the bottom and a dark/light toggle.
+4. **Save the source file** (if working in a project) — write it to `<name>.dgmo` so the user has an editable copy.
 
-### Output options — always offer these proactively after creating a diagram
+Do not ask the user how they want to view the diagram. Just open it. They can ask for other formats if they want.
+
+### Other output options (only when explicitly requested)
 
 | What the user wants | How to do it |
 |---|---|
 | **Quick look in the desktop app** | `mcp__dgmo__open_in_app(dgmo)` — opens directly in Diagrammo (macOS) |
-| **Browser preview with theme toggle** | `mcp__dgmo__preview_diagram([{dgmo, title}])` — opens HTML in browser |
-| **View in macOS Preview (or default image viewer)** | `mcp__dgmo__render_diagram(dgmo, format:"png")` → get temp path → `open <path>` |
-| **View SVG in browser** | `mcp__dgmo__render_diagram(dgmo, format:"svg")` → write SVG to a temp `.svg` file → `open <path>` |
-| **Save as PNG** | `mcp__dgmo__render_diagram(dgmo, format:"png")` → returns temp path; offer to copy to their preferred location. Or CLI: `dgmo file.dgmo -o out.png` |
-| **Save as SVG** | `mcp__dgmo__render_diagram(dgmo, format:"svg")` returns SVG text — write it to the desired path. Or CLI: `dgmo file.dgmo -o out.svg` |
-| **Shareable URL** | `mcp__dgmo__share_diagram(dgmo)` or CLI: `dgmo file.dgmo -o url --copy` |
-
-**After creating a diagram, always present these options to the user** — don't just render silently and stop. A good response ends with something like: *"I've saved the file as `diagram.dgmo`. Want me to open it in the app, export it as a PNG, or generate a shareable link?"*
+| **View in macOS Preview** | `mcp__dgmo__render_diagram(dgmo, format:"png", theme:"dark", palette:"nord")` → get temp path → `open <path>` |
+| **Save as PNG** | `mcp__dgmo__render_diagram(dgmo, format:"png", theme:"dark", palette:"nord")` → returns temp path; offer to copy to their preferred location. Or CLI: `dgmo file.dgmo -o out.png --theme dark --palette nord` |
+| **Save as SVG** | `mcp__dgmo__render_diagram(dgmo, format:"svg", theme:"dark", palette:"nord")` returns SVG text — write it to the desired path. Or CLI: `dgmo file.dgmo -o out.svg --theme dark --palette nord` |
+| **Shareable URL** | `mcp__dgmo__share_diagram(dgmo)` → returns a URL; immediately run `open <url>` — do NOT just display the URL |
+| **Copy markup to clipboard** | Run `echo '<dgmo markup>' \| pbcopy` |
 
 ## CLI Reference
 
@@ -234,7 +235,7 @@ note: line1\nline2  ❌  multi-line notes use indented continuation, not \n:
 
 ## Tips
 
-- Default theme: `light`, default palette: `nord` — ask the user their preference before a final export.
+- Default theme: `dark`, default palette: `nord` (nord dark mode) — use these unless the user requests otherwise.
 - Stdin mode for quick renders: `echo "..." | dgmo -o out.png`
 - For C4, `--c4-level` drills from context → containers → components → deployment.
 - When auto-detection picks the wrong chart type, add an explicit `chart:` directive.
