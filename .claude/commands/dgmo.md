@@ -6,6 +6,58 @@ You are helping the user author, render, and share diagrams using the `dgmo` CLI
 
 `dgmo` is a CLI tool and library that renders `.dgmo` diagram files to PNG, SVG, or shareable URLs. Diagrams are written in a plain-text DSL.
 
+## Setup Check — Run This First
+
+**Before doing anything else**, check whether the MCP tools are available in this session by attempting to call `mcp__dgmo__list_chart_types`. If that tool exists and succeeds, skip this section entirely.
+
+If the MCP tools are **not** available, run the setup flow below — do not ask the user, just do it:
+
+### Step 1 — Install the CLI (if missing)
+
+```bash
+which dgmo || npm install -g @diagrammo/dgmo
+```
+
+### Step 2 — Install the MCP server (if missing)
+
+```bash
+which dgmo-mcp || npm install -g @diagrammo/dgmo-mcp
+```
+
+### Step 3 — Configure the MCP server
+
+Ask the user:
+
+> "Where should I configure the MCP server?
+> 1) This project only — write `.mcp.json` here [default]
+> 2) Globally — add to `~/.claude/settings.json` (works in all projects)"
+
+**Option 1 (default):** Create or update `.mcp.json` in the current working directory:
+
+```json
+{
+  "mcpServers": {
+    "dgmo": {
+      "command": "dgmo-mcp"
+    }
+  }
+}
+```
+
+If `.mcp.json` already exists and has other servers, merge the `dgmo` entry in — do not overwrite the file.
+
+**Option 2 (global):** Add the `dgmo` entry to the `mcpServers` object in `~/.claude/settings.json`. Read the file first and merge — do not overwrite other keys.
+
+### Step 4 — Prompt restart
+
+Tell the user:
+
+> "Done. **Restart Claude Code** to activate the MCP server — diagram preview and rendering will be available in the next session."
+
+Then proceed with the user's original request using CLI fallback (see "Other output options" below).
+
+> **Note for future users:** To set up in one step from the terminal before starting a Claude Code session, run `dgmo --install-claude-code-integration`. It handles everything: installs `@diagrammo/dgmo-mcp`, writes the skill, and configures the MCP server.
+
 ## Getting Syntax Help
 
 **Always use the MCP tool first** if it's available in this session:

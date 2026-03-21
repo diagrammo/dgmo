@@ -65,7 +65,93 @@ You are helping the user author, render, and share diagrams using the \`dgmo\` C
 
 ## What is dgmo?
 
-\`dgmo\` is a CLI tool that renders \`.dgmo\` diagram files to PNG, SVG, or shareable URLs. Diagrams are written in a plain-text DSL.
+\`dgmo\` is a CLI tool and library that renders \`.dgmo\` diagram files to PNG, SVG, or shareable URLs. Diagrams are written in a plain-text DSL.
+
+## Setup Check — Run This First
+
+**Before doing anything else**, check whether the MCP tools are available in this session by attempting to call \`mcp__dgmo__list_chart_types\`. If that tool exists and succeeds, skip this section entirely.
+
+If the MCP tools are **not** available, run the setup flow below — do not ask the user, just do it:
+
+### Step 1 — Install the CLI (if missing)
+
+\`\`\`bash
+which dgmo || npm install -g @diagrammo/dgmo
+\`\`\`
+
+### Step 2 — Install the MCP server (if missing)
+
+\`\`\`bash
+which dgmo-mcp || npm install -g @diagrammo/dgmo-mcp
+\`\`\`
+
+### Step 3 — Configure the MCP server
+
+Ask the user:
+
+> "Where should I configure the MCP server?
+> 1) This project only — write \`.mcp.json\` here [default]
+> 2) Globally — add to \`~/.claude/settings.json\` (works in all projects)"
+
+**Option 1 (default):** Create or update \`.mcp.json\` in the current working directory:
+
+\`\`\`json
+{
+  "mcpServers": {
+    "dgmo": {
+      "command": "dgmo-mcp"
+    }
+  }
+}
+\`\`\`
+
+If \`.mcp.json\` already exists and has other servers, merge the \`dgmo\` entry in — do not overwrite the file.
+
+**Option 2 (global):** Add the \`dgmo\` entry to the \`mcpServers\` object in \`~/.claude/settings.json\`. Read the file first and merge — do not overwrite other keys.
+
+### Step 4 — Prompt restart
+
+Tell the user:
+
+> "Done. **Restart Claude Code** to activate the MCP server — diagram preview and rendering will be available in the next session."
+
+Then proceed with the user's original request using CLI fallback (see "Other output options" below).
+
+> **Note for future users:** To set up in one step from the terminal before starting a Claude Code session, run \`dgmo --install-claude-code-integration\`. It handles everything: installs \`@diagrammo/dgmo-mcp\`, writes the skill, and configures the MCP server.
+
+## Getting Syntax Help
+
+**Always use the MCP tool first** if it's available in this session:
+
+\`\`\`
+mcp__dgmo__get_language_reference            // full reference
+mcp__dgmo__get_language_reference("sequence") // specific chart type
+\`\`\`
+
+This is the authoritative, always-up-to-date syntax reference. Use it before guessing syntax.
+
+## Your Workflow
+
+When the user asks you to create or edit a diagram:
+
+1. **Get syntax** — call \`mcp__dgmo__get_language_reference("<type>")\` if you're unsure of the syntax.
+2. **Write the \`.dgmo\` content** — compose the markup.
+3. **Save the source file** (if working in a project) — write it to \`<name>.dgmo\` so the user has an editable file.
+4. **Render and show** — pick the right output based on what the user wants (see below).
+
+### Output options — always offer these proactively after creating a diagram
+
+| What the user wants | How to do it |
+|---|---|
+| **Quick look in the desktop app** | \`mcp__dgmo__open_in_app(dgmo)\` — opens directly in Diagrammo (macOS) |
+| **Browser preview with theme toggle** | \`mcp__dgmo__preview_diagram([{dgmo, title}])\` — opens HTML in browser |
+| **View in macOS Preview (or default image viewer)** | \`mcp__dgmo__render_diagram(dgmo, format:"png")\` → get temp path → \`open <path>\` |
+| **View SVG in browser** | \`mcp__dgmo__render_diagram(dgmo, format:"svg")\` → write SVG to a temp \`.svg\` file → \`open <path>\` |
+| **Save as PNG** | \`mcp__dgmo__render_diagram(dgmo, format:"png")\` → returns temp path; offer to copy to their preferred location. Or CLI: \`dgmo file.dgmo -o out.png\` |
+| **Save as SVG** | \`mcp__dgmo__render_diagram(dgmo, format:"svg")\` returns SVG text — write it to the desired path. Or CLI: \`dgmo file.dgmo -o out.svg\` |
+| **Shareable URL** | \`mcp__dgmo__share_diagram(dgmo)\` or CLI: \`dgmo file.dgmo -o url --copy\` |
+
+**After creating a diagram, always present these options to the user** — don't just render silently and stop. A good response ends with something like: *"I've saved the file as \`diagram.dgmo\`. Want me to open it in the app, export it as a PNG, or generate a shareable link?"*
 
 ## CLI Reference
 
@@ -106,35 +192,156 @@ Key options:
 | \`quadrant\` | 2x2 positioning matrix |
 | \`sequence\` | Message / interaction flows |
 | \`flowchart\` | Decision trees, process flows |
+| \`state\` | State machine / lifecycle |
 | \`class\` | UML class hierarchies |
 | \`er\` | Database schemas |
 | \`org\` | Hierarchical tree structures |
 | \`kanban\` | Task / workflow columns |
 | \`c4\` | System architecture (context → container → component → deployment) |
 | \`initiative-status\` | Project roadmap with dependency tracking |
+| \`sitemap\` | Website / app navigation structure |
+| \`infra\` | Infrastructure traffic flow with rps computation |
 
-## Your Workflow
+## Key Syntax Patterns
 
-When the user asks you to create or edit a diagram:
+### Common to all diagrams
 
-1. **Write or edit the \`.dgmo\` file** with the appropriate chart type and data.
-2. **Render it** with \`dgmo <file>.dgmo -o <file>.png\` to verify it produces output without errors.
-3. **Show the user** what was created and suggest a shareable URL with \`dgmo <file>.dgmo -o url --copy\` if they want to share it.
-
-When the user asks for a **shareable link**, run:
 \`\`\`
-dgmo <file>.dgmo -o url --copy
+chart: sequence        // explicit type (optional — auto-detected)
+title: My Diagram
+palette: catppuccin    // override palette
+
+// This is a comment (only // syntax — not #)
 \`\`\`
 
-## Getting Syntax Help
+Inline colors on most elements: append \`(colorname)\` — e.g. \`North(red): 850\`, \`[Process(blue)]\`.
+Named colors: \`red\`, \`orange\`, \`yellow\`, \`green\`, \`blue\`, \`purple\`, \`teal\`, \`cyan\`, \`gray\`.
 
-Run \`dgmo --chart-types\` to list types. For detailed syntax of a specific chart type, the best reference is the diagrammo.app documentation or existing \`.dgmo\` files in the project.
+### sequence (most commonly used)
+
+\`\`\`
+chart: sequence
+title: Auth Flow
+
+// Participants auto-inferred, or declare explicitly:
+User is an actor
+API is a service
+DB is a database
+
+User -Login-> API
+API -Find user-> DB
+DB -user record-> API
+
+if credentials valid
+  API -200 OK + token-> User
+else
+  API -401 Unauthorized-> User
+
+== Logout ==
+
+User -Logout-> API
+API -Delete session-> DB
+\`\`\`
+
+- Sync: \`A -label-> B\` · Async: \`A ~label~> B\` · Unlabeled: \`A -> B\`
+- Blocks: \`if\` / \`else\`, \`loop\`, \`parallel\` — closed by indentation (no \`end\` keyword)
+- Notes: \`note on API: text\` or \`note: text\`
+- Sections: \`== Title ==\`
+- Groups: \`[Group Name]\` with indented participants
+
+### flowchart
+
+\`\`\`
+(Start) -> <Valid Input?>
+  -yes-> [Process Data] -> (Done)
+  -no-> /Get Input/ -> <Valid Input?>
+\`\`\`
+
+Shapes: \`(oval)\` \`[rect]\` \`<diamond>\` \`/parallelogram/\` \`[[subroutine]]\` \`[document~]\`
+
+### bar / line / pie (data charts)
+
+\`\`\`
+// bar
+title: Revenue by Region
+series: Revenue
+North: 850
+South: 620
+
+// line (multi-series)
+series: Sales(red), Costs(blue)
+Q1: 100, 50
+Q2: 120, 55
+
+// pie
+chart: pie
+labels: percent
+Company A: 40
+Company B: 35
+\`\`\`
+
+### er
+
+\`\`\`
+users
+  id: int [pk]
+  email: varchar [unique]
+  1-writes-* posts
+
+posts
+  id: int [pk]
+  author_id: int [fk]
+\`\`\`
+
+### org
+
+\`\`\`
+CEO
+  VP Engineering
+    [Platform Team]
+      Lead
+        Dev 1
+        Dev 2
+  VP Marketing
+\`\`\`
+
+### infra
+
+\`\`\`
+chart: infra
+edge
+  rps: 10000
+  -> CDN
+
+CDN
+  cache-hit: 80%
+  -> API
+
+API
+  instances: 3
+  max-rps: 500
+  latency-ms: 45
+\`\`\`
+
+## Anti-Patterns
+
+\`\`\`
+# comment          ❌  use // comment
+async A -> B: msg  ❌  use A ~msg~> B
+A <- B             ❌  left-pointing arrows removed — use B -> A
+parallel else      ❌  not supported — use separate parallel blocks
+== Foo(#ff0000) == ❌  hex colors not supported — use named colors: == Foo(red) ==
+A -routes to /api-> B  ❌  -> inside a label is ambiguous — rephrase the label
+end                ❌  not needed — indentation closes blocks in sequence diagrams
+\`\`\`
 
 ## Tips
 
-- Default theme is \`light\` and default palette is \`nord\` — ask the user if they have a preference before rendering a final export.
-- For C4 diagrams, use \`--c4-level\` to drill from context → containers → components → deployment.
-- Stdin mode is useful for quick one-off renders: \`echo "..." | dgmo -o out.png\`
+- Default theme: \`light\`, default palette: \`nord\` — ask the user their preference before a final export.
+- Stdin mode for quick renders: \`echo "..." | dgmo -o out.png\`
+- For C4, \`--c4-level\` drills from context → containers → components → deployment.
+- When auto-detection picks the wrong chart type, add an explicit \`chart:\` directive.
+- \`mcp__dgmo__preview_diagram\` accepts multiple diagrams at once — useful for showing variants side by side.
 `;
 
 function printHelp(): void {
@@ -158,7 +365,11 @@ Options:
   --copy               Copy URL to clipboard (only with -o url)
   --json               Output structured JSON to stdout
   --chart-types        List all supported chart types
-  --install-claude-skill  Install the dgmo Claude Code skill to ~/.claude/commands/
+  --install-claude-code-integration
+                       Full Claude Code setup: install the /dgmo skill and configure
+                       the dgmo MCP server — installs @diagrammo/dgmo-mcp if needed,
+                       then writes .mcp.json (project) or ~/.claude/settings.json (global)
+  --install-claude-skill  Install only the /dgmo skill to ~/.claude/commands/dgmo.md
   --help               Show this help
   --version            Show version`);
 }
@@ -182,6 +393,7 @@ function parseArgs(argv: string[]): {
   json: boolean;
   chartTypes: boolean;
   installClaudeSkill: boolean;
+  installClaudeCodeIntegration: boolean;
   c4Level: 'context' | 'containers' | 'components' | 'deployment';
   c4System: string | undefined;
   c4Container: string | undefined;
@@ -199,6 +411,7 @@ function parseArgs(argv: string[]): {
     json: false,
     chartTypes: false,
     installClaudeSkill: false,
+    installClaudeCodeIntegration: false,
     c4Level: 'context' as 'context' | 'containers' | 'components' | 'deployment',
     c4System: undefined as string | undefined,
     c4Container: undefined as string | undefined,
@@ -267,6 +480,9 @@ function parseArgs(argv: string[]): {
       i++;
     } else if (arg === '--chart-types') {
       result.chartTypes = true;
+      i++;
+    } else if (arg === '--install-claude-code-integration') {
+      result.installClaudeCodeIntegration = true;
       i++;
     } else if (arg === '--install-claude-skill') {
       result.installClaudeSkill = true;
@@ -371,6 +587,92 @@ async function main(): Promise<void> {
         console.log(desc ? `${id} — ${desc.split(' — ')[1]}` : id);
       }
     }
+    return;
+  }
+
+  if (opts.installClaudeCodeIntegration) {
+    const claudeDir = join(homedir(), '.claude');
+    if (!existsSync(claudeDir)) {
+      console.error('~/.claude directory not found.');
+      console.error('Install Claude Code first: https://claude.ai/code');
+      process.exit(1);
+    }
+
+    function ask(prompt: string): Promise<string> {
+      return new Promise((resolve) => {
+        const rl = createInterface({ input: process.stdin, output: process.stdout });
+        rl.question(prompt, (answer) => { rl.close(); resolve(answer); });
+      });
+    }
+
+    // --- Step 1: Install skill ---
+    const commandsDir = join(claudeDir, 'commands');
+    const skillPath = join(commandsDir, 'dgmo.md');
+    const skillExists = existsSync(skillPath);
+    let installSkill = true;
+    if (skillExists) {
+      const ans = await ask('~/.claude/commands/dgmo.md already exists. Overwrite? [y/N] ');
+      installSkill = ans.toLowerCase() === 'y' || ans.toLowerCase() === 'yes';
+    }
+    if (installSkill) {
+      if (!existsSync(commandsDir)) mkdirSync(commandsDir, { recursive: true });
+      writeFileSync(skillPath, CLAUDE_SKILL_CONTENT, 'utf-8');
+      console.log('✓ Skill installed: ~/.claude/commands/dgmo.md');
+    } else {
+      console.log('  Skipped skill install.');
+    }
+
+    // --- Step 2: Check / install dgmo-mcp binary ---
+    let dgmoMcpInstalled = false;
+    try { execSync('which dgmo-mcp', { stdio: 'pipe' }); dgmoMcpInstalled = true; } catch { /* not found */ }
+    if (!dgmoMcpInstalled) {
+      const ans = await ask('\ndgmo-mcp not found. Install @diagrammo/dgmo-mcp globally now? [Y/n] ');
+      const yes = ans === '' || ans.toLowerCase() === 'y' || ans.toLowerCase() === 'yes';
+      if (yes) {
+        console.log('Installing @diagrammo/dgmo-mcp...');
+        execSync('npm install -g @diagrammo/dgmo-mcp', { stdio: 'inherit' });
+        console.log('✓ @diagrammo/dgmo-mcp installed');
+      } else {
+        console.log('  Skipped. Install later with: npm install -g @diagrammo/dgmo-mcp');
+      }
+    } else {
+      console.log('✓ dgmo-mcp already installed');
+    }
+
+    // --- Step 3: Configure MCP server ---
+    console.log('\nWhere should the MCP server be configured?');
+    console.log('  1) This project only — write .mcp.json here [default]');
+    console.log('  2) Globally — add to ~/.claude/settings.json (works in all projects)');
+    const scopeAns = await ask('\nChoice [1]: ');
+    const useGlobal = scopeAns.trim() === '2';
+    const mcpEntry = { command: 'dgmo-mcp' };
+
+    if (useGlobal) {
+      const settingsPath = join(claudeDir, 'settings.json');
+      let settings: Record<string, unknown> = {};
+      if (existsSync(settingsPath)) {
+        try { settings = JSON.parse(readFileSync(settingsPath, 'utf-8')); } catch { /* use empty */ }
+      }
+      const mcpServers = (settings.mcpServers as Record<string, unknown> | undefined) ?? {};
+      mcpServers['dgmo'] = mcpEntry;
+      settings.mcpServers = mcpServers;
+      writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n', 'utf-8');
+      console.log('✓ MCP server added to ~/.claude/settings.json');
+    } else {
+      const mcpPath = join(process.cwd(), '.mcp.json');
+      let mcp: Record<string, unknown> = {};
+      if (existsSync(mcpPath)) {
+        try { mcp = JSON.parse(readFileSync(mcpPath, 'utf-8')); } catch { /* use empty */ }
+      }
+      const mcpServers = (mcp.mcpServers as Record<string, unknown> | undefined) ?? {};
+      mcpServers['dgmo'] = mcpEntry;
+      mcp.mcpServers = mcpServers;
+      writeFileSync(mcpPath, JSON.stringify(mcp, null, 2) + '\n', 'utf-8');
+      console.log(`✓ MCP server configured: ${join(process.cwd(), '.mcp.json')}`);
+    }
+
+    console.log('\nRestart Claude Code to activate the MCP server.');
+    console.log('Then type /dgmo in any session to start creating diagrams.');
     return;
   }
 
