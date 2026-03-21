@@ -29,7 +29,8 @@
     ".claude/commands",
     ".github/copilot-instructions.md",
     ".cursorrules",
-    ".windsurfrules"
+    ".windsurfrules",
+    "AGENTS.md"
   ],
   "sideEffects": false,
   "scripts": {

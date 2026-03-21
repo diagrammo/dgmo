@@ -344,6 +344,156 @@ end                ❌  not needed — indentation closes blocks in sequence dia
 - \`mcp__dgmo__preview_diagram\` accepts multiple diagrams at once — useful for showing variants side by side.
 `;
 
+const CODEX_AGENTS_CONTENT = `# DGMO Diagram Language — Codex Integration
+
+Use dgmo tools to create, render, and share diagrams. dgmo is a text-based diagram markup language that renders to SVG/PNG.
+
+## Quick setup
+
+If the MCP server is not yet configured:
+
+\`\`\`bash
+dgmo --install-codex-integration
+\`\`\`
+
+This installs the MCP server and writes the dgmo config to \`.codex/config.toml\`. Restart Codex to activate.
+
+## MCP Tools
+
+When the \`dgmo\` MCP server is configured, use these tools directly:
+- \`preview_diagram\` — renders diagram(s) and opens a live HTML preview in the browser (default for showing diagrams)
+- \`render_diagram\` — renders to PNG or SVG, returns file path
+- \`share_diagram\` — creates a shareable diagrammo.app URL
+- \`open_in_app\` — opens diagram in Diagrammo desktop app (macOS)
+- \`list_chart_types\` — lists all 32 supported chart types with descriptions
+- \`get_language_reference\` — fetches full syntax for any chart type (call this before generating an unfamiliar chart type)
+- \`generate_report\` — renders multiple diagrams into an HTML report with table of contents
+
+## When to use dgmo
+
+- Architecture diagrams, sequence diagrams, flowcharts
+- Data charts (bar, line, pie, scatter, heatmap, etc.)
+- ER diagrams, class diagrams, org charts
+- Project roadmaps, kanban boards, timelines
+
+## Quick syntax reference
+
+### Sequence diagram
+\`\`\`
+chart: sequence
+title: Auth Flow
+
+User -Login-> API
+API -Find user-> DB
+DB -user-> API
+  if valid
+    API -200 OK-> User
+  else
+    API -401-> User
+\`\`\`
+
+### Flowchart
+\`\`\`
+chart: flowchart
+title: Process
+
+(Start) -> <Valid?>
+  -yes-> [Process] -> (Done)
+  -no-> /Get Input/ -> <Valid?>
+\`\`\`
+
+### Bar chart
+\`\`\`
+chart: bar
+title: Revenue
+series: USD
+
+North: 850
+South: 620
+East: 1100
+\`\`\`
+
+### ER diagram
+\`\`\`
+chart: er
+title: Schema
+
+users
+  id: int [pk]
+  email: varchar [unique]
+
+posts
+  id: int [pk]
+  user_id: int [fk]
+
+users 1--* posts : writes
+\`\`\`
+
+### Org chart
+\`\`\`
+chart: org
+
+CEO
+  VP Engineering
+    Team Lead A
+    Team Lead B
+  VP Marketing
+\`\`\`
+
+### Infra chart
+\`\`\`
+chart: infra
+direction: LR
+
+edge
+  rps: 10000
+  -> CDN
+
+CDN
+  cache-hit: 80%
+  -> LB
+
+LB
+  -> API | split: 70%
+  -> Web | split: 30%
+
+API
+  instances: 3
+  max-rps: 500
+  latency-ms: 45
+\`\`\`
+
+## All 32 chart types
+
+bar, line, multi-line, area, pie, doughnut, radar, polar-area, bar-stacked, scatter, sankey, chord, function, heatmap, funnel, slope, wordcloud, arc, timeline, venn, quadrant, sequence, flowchart, state, class, er, org, kanban, c4, initiative-status, sitemap, infra
+
+## Common patterns
+
+- \`chart: type\` — explicit chart type (auto-detected if unambiguous)
+- \`title: text\` — diagram title
+- \`// comment\` — only \`//\` comments (not \`#\`)
+- \`(colorname)\` — inline colors: \`Label(red): 100\`
+- \`series: A(red), B(blue)\` — multi-series with colors
+
+## Rendering via CLI
+
+\`\`\`bash
+dgmo file.dgmo -o output.svg       # SVG
+dgmo file.dgmo -o url              # shareable link
+dgmo file.dgmo --json              # structured JSON output
+\`\`\`
+
+## Mistakes to avoid
+
+- Don't use \`#\` for comments — use \`//\`
+- Don't use \`end\` to close sequence blocks — indentation closes them
+- Don't use hex colors in section headers — use named colors
+- Don't forget \`chart:\` directive when content is ambiguous
+- Sequence arrows: \`->\` (sync), \`~>\` (async) — always left-to-right
+
+Full reference: call \`get_language_reference\` MCP tool or visit diagrammo.app/docs
+`;
+
 function printHelp(): void {
   console.log(`Usage: dgmo <input> [options]
        cat input.dgmo | dgmo [options]
@@ -370,6 +520,9 @@ Options:
                        the dgmo MCP server — installs @diagrammo/dgmo-mcp if needed,
                        then writes .mcp.json (project) or ~/.claude/settings.json (global)
   --install-claude-skill  Install only the /dgmo skill to ~/.claude/commands/dgmo.md
+  --install-codex-integration
+                       Full Codex CLI setup: write AGENTS.md to the project and configure
+                       the dgmo MCP server in .codex/config.toml (project) or ~/.codex/config.toml (global)
   --help               Show this help
   --version            Show version`);
 }
@@ -394,6 +547,7 @@ function parseArgs(argv: string[]): {
   chartTypes: boolean;
   installClaudeSkill: boolean;
   installClaudeCodeIntegration: boolean;
+  installCodexIntegration: boolean;
   c4Level: 'context' | 'containers' | 'components' | 'deployment';
   c4System: string | undefined;
   c4Container: string | undefined;
@@ -412,6 +566,7 @@ function parseArgs(argv: string[]): {
     chartTypes: false,
     installClaudeSkill: false,
     installClaudeCodeIntegration: false,
+    installCodexIntegration: false,
     c4Level: 'context' as 'context' | 'containers' | 'components' | 'deployment',
     c4System: undefined as string | undefined,
     c4Container: undefined as string | undefined,
@@ -486,6 +641,9 @@ function parseArgs(argv: string[]): {
       i++;
     } else if (arg === '--install-claude-skill') {
       result.installClaudeSkill = true;
+      i++;
+    } else if (arg === '--install-codex-integration') {
+      result.installCodexIntegration = true;
       i++;
     } else if (arg === '--copy') {
       result.copy = true;
@@ -709,6 +867,95 @@ async function main(): Promise<void> {
     writeFileSync(destPath, CLAUDE_SKILL_CONTENT, 'utf-8');
     console.log(`Installed: ${destPath}`);
     console.log('Use /dgmo in Claude Code to activate the skill.');
+    return;
+  }
+
+  if (opts.installCodexIntegration) {
+    // Validate Codex CLI is installed
+    try { execSync('which codex', { stdio: 'pipe' }); } catch {
+      console.error('codex not found. Install Codex CLI first: https://openai.com/codex');
+      process.exit(1);
+    }
+
+    const ask = (prompt: string): Promise<string> =>
+      new Promise((resolve) => {
+        const rl = createInterface({ input: process.stdin, output: process.stdout });
+        rl.question(prompt, (answer) => { rl.close(); resolve(answer); });
+      });
+
+    // Check / install dgmo-mcp binary
+    let dgmoMcpInstalled = false;
+    try { execSync('which dgmo-mcp', { stdio: 'pipe' }); dgmoMcpInstalled = true; } catch { /* not found */ }
+    if (!dgmoMcpInstalled) {
+      const ans = await ask('\ndgmo-mcp not found. Install @diagrammo/dgmo-mcp globally now? [Y/n] ');
+      const yes = ans === '' || ans.toLowerCase() === 'y' || ans.toLowerCase() === 'yes';
+      if (yes) {
+        console.log('Installing @diagrammo/dgmo-mcp...');
+        try {
+          execSync('npm install -g @diagrammo/dgmo-mcp', { stdio: 'inherit' });
+          console.log('✓ @diagrammo/dgmo-mcp installed');
+        } catch {
+          console.error('Error: Failed to install @diagrammo/dgmo-mcp.');
+          console.error('Try manually: npm install -g @diagrammo/dgmo-mcp');
+        }
+      } else {
+        console.log('  Skipped. Install later with: npm install -g @diagrammo/dgmo-mcp');
+      }
+    } else {
+      console.log('✓ dgmo-mcp already installed');
+    }
+
+    // Configure MCP server
+    console.log('\nWhere should the MCP server be configured?');
+    console.log('  1) This project only — write .codex/config.toml here [default]');
+    console.log('  2) Globally — add to ~/.codex/config.toml (works in all projects)');
+    const scopeAns = await ask('\nChoice [1]: ');
+    if (scopeAns.trim() !== '' && scopeAns.trim() !== '1' && scopeAns.trim() !== '2') {
+      console.log(`  Unrecognized input "${scopeAns.trim()}", defaulting to option 1.`);
+    }
+    const useGlobal = scopeAns.trim() === '2';
+    const tomlEntry = '[mcp_servers.dgmo]\ncommand = ["dgmo-mcp"]\n';
+
+    if (useGlobal) {
+      const configPath = join(homedir(), '.codex', 'config.toml');
+      mkdirSync(join(homedir(), '.codex'), { recursive: true });
+      const existing = existsSync(configPath) ? readFileSync(configPath, 'utf-8') : '';
+      if (existing.includes('[mcp_servers.dgmo]')) {
+        console.log('✓ MCP server already configured in ~/.codex/config.toml');
+      } else {
+        const separator = existing.length > 0 ? '\n' : '';
+        writeFileSync(configPath, existing + separator + tomlEntry, 'utf-8');
+        console.log('✓ MCP server added to ~/.codex/config.toml');
+      }
+    } else {
+      const codexDir = join(process.cwd(), '.codex');
+      const configPath = join(codexDir, 'config.toml');
+      mkdirSync(codexDir, { recursive: true });
+      const existing = existsSync(configPath) ? readFileSync(configPath, 'utf-8') : '';
+      if (existing.includes('[mcp_servers.dgmo]')) {
+        console.log(`✓ MCP server already configured in .codex/config.toml`);
+      } else {
+        const separator = existing.length > 0 ? '\n' : '';
+        writeFileSync(configPath, existing + separator + tomlEntry, 'utf-8');
+        console.log(`✓ MCP server configured: ${configPath}`);
+      }
+    }
+
+    // Write AGENTS.md
+    const agentsPath = join(process.cwd(), 'AGENTS.md');
+    let writeAgents = true;
+    if (existsSync(agentsPath)) {
+      const ans = await ask('\nAGENTS.md already exists. Overwrite? [y/N] ');
+      writeAgents = ans.toLowerCase() === 'y' || ans.toLowerCase() === 'yes';
+    }
+    if (writeAgents) {
+      writeFileSync(agentsPath, CODEX_AGENTS_CONTENT, 'utf-8');
+      console.log(`✓ AGENTS.md written to: ${agentsPath}`);
+    } else {
+      console.log('  Skipped AGENTS.md.');
+    }
+
+    console.log('\nRestart Codex to activate the MCP server.');
     return;
   }
 
