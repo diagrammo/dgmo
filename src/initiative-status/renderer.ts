@@ -6,6 +6,18 @@ import * as d3Selection from 'd3-selection';
 import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
 import { runInExportContainer, extractExportSvg } from '../utils/export-container';
+import {
+  LEGEND_HEIGHT,
+  LEGEND_PILL_PAD,
+  LEGEND_PILL_FONT_SIZE,
+  LEGEND_PILL_FONT_W,
+  LEGEND_CAPSULE_PAD,
+  LEGEND_DOT_R,
+  LEGEND_ENTRY_FONT_SIZE,
+  LEGEND_ENTRY_FONT_W,
+  LEGEND_ENTRY_DOT_GAP,
+  LEGEND_ENTRY_TRAIL,
+} from '../utils/legend-constants';
 import { contrastText, mix } from '../palettes/color-utils';
 import type { PaletteColors } from '../palettes';
 import type { ParsedInitiativeStatus, InitiativeStatus } from './types';
@@ -65,6 +77,44 @@ function nodeTextColor(status: InitiativeStatus, palette: PaletteColors, isDark:
 
 function edgeStrokeColor(status: InitiativeStatus, palette: PaletteColors, isDark: boolean): string {
   return statusColor(status, palette, isDark);
+}
+
+// ============================================================
+// Legend helpers
+// ============================================================
+
+interface ISLegendEntry {
+  label: string;
+  statusKey: InitiativeStatus;
+}
+
+const IS_STATUS_LABELS: Record<string, string> = {
+  done: 'Done',
+  wip:  'In Progress',
+  todo: 'To Do',
+  na:   'N/A',
+};
+
+const IS_STATUS_ORDER: InitiativeStatus[] = ['done', 'wip', 'todo', 'na'];
+
+function collectStatuses(parsed: ParsedInitiativeStatus): ISLegendEntry[] {
+  const present = new Set<string>();
+  for (const n of parsed.nodes) {
+    if (n.status) present.add(n.status);
+  }
+  return IS_STATUS_ORDER
+    .filter((s) => s !== null && present.has(s))
+    .map((s) => ({ label: IS_STATUS_LABELS[s!], statusKey: s }));
+}
+
+const LEGEND_GROUP_NAME = 'Status';
+
+function legendEntriesWidth(entries: ISLegendEntry[]): number {
+  let w = 0;
+  for (const e of entries) {
+    w += LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP + e.label.length * LEGEND_ENTRY_FONT_W + LEGEND_ENTRY_TRAIL;
+  }
+  return w;
 }
 
 // ============================================================
@@ -417,7 +467,8 @@ export function renderInitiativeStatus(
   palette: PaletteColors,
   isDark: boolean,
   onClickItem?: (lineNumber: number) => void,
-  exportDims?: { width?: number; height?: number }
+  exportDims?: { width?: number; height?: number },
+  legendActive?: boolean | null
 ): void {
   // Clear existing content
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
@@ -426,19 +477,25 @@ export function renderInitiativeStatus(
   const height = exportDims?.height ?? container.clientHeight;
   if (width <= 0 || height <= 0) return;
 
+  const legendEntries = collectStatuses(parsed);
+  const hasLegend = legendEntries.length > 1;
+  const isLegendExpanded = legendActive !== false;
+
   const titleHeight = parsed.title ? 40 : 0;
+  const LEGEND_FIXED_GAP = 8;
+  const legendReserve = hasLegend ? LEGEND_HEIGHT + LEGEND_FIXED_GAP : 0;
 
   // Scale to fit
   const diagramW = layout.width;
   const diagramH = layout.height;
-  const availH = height - titleHeight;
+  const availH = height - titleHeight - legendReserve;
   const scaleX = (width - DIAGRAM_PADDING * 2) / diagramW;
   const scaleY = (availH - DIAGRAM_PADDING * 2) / diagramH;
   const scale = Math.min(MAX_SCALE, scaleX, scaleY);
 
   const scaledW = diagramW * scale;
   const offsetX = (width - scaledW) / 2;
-  const offsetY = titleHeight + DIAGRAM_PADDING;
+  const offsetY = titleHeight + legendReserve + DIAGRAM_PADDING;
 
   // Create SVG
   const svg = d3Selection
@@ -495,6 +552,107 @@ export function renderInitiativeStatus(
           .on('mouseenter', function () { d3Selection.select(this).attr('opacity', 0.7); })
           .on('mouseleave', function () { d3Selection.select(this).attr('opacity', 1); });
       }
+    }
+  }
+
+  // ── Legend ──
+  if (hasLegend) {
+    const groupBg = isDark
+      ? mix(palette.surface, palette.bg, 50)
+      : mix(palette.surface, palette.bg, 30);
+
+    const pillWidth = LEGEND_GROUP_NAME.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
+    const pillH = LEGEND_HEIGHT - LEGEND_CAPSULE_PAD * 2;
+    const entriesW = legendEntriesWidth(legendEntries);
+
+    const totalW = isLegendExpanded
+      ? LEGEND_CAPSULE_PAD * 2 + pillWidth + LEGEND_ENTRY_TRAIL + entriesW
+      : pillWidth;
+
+    const legendX = (width - totalW) / 2;
+    const legendY = titleHeight;
+
+    const legendG = svg
+      .append('g')
+      .attr('class', 'is-legend')
+      .attr('data-legend-group', 'status')
+      .attr('transform', `translate(${legendX}, ${legendY})`)
+      .style('cursor', 'pointer');
+
+    if (isLegendExpanded) {
+      legendG.append('rect')
+        .attr('width', totalW)
+        .attr('height', LEGEND_HEIGHT)
+        .attr('rx', LEGEND_HEIGHT / 2)
+        .attr('fill', groupBg);
+
+      legendG.append('rect')
+        .attr('x', LEGEND_CAPSULE_PAD)
+        .attr('y', LEGEND_CAPSULE_PAD)
+        .attr('width', pillWidth)
+        .attr('height', pillH)
+        .attr('rx', pillH / 2)
+        .attr('fill', palette.bg);
+
+      legendG.append('rect')
+        .attr('x', LEGEND_CAPSULE_PAD)
+        .attr('y', LEGEND_CAPSULE_PAD)
+        .attr('width', pillWidth)
+        .attr('height', pillH)
+        .attr('rx', pillH / 2)
+        .attr('fill', 'none')
+        .attr('stroke', mix(palette.textMuted, palette.bg, 50))
+        .attr('stroke-width', 0.75);
+
+      legendG.append('text')
+        .attr('x', LEGEND_CAPSULE_PAD + pillWidth / 2)
+        .attr('y', LEGEND_HEIGHT / 2 + LEGEND_PILL_FONT_SIZE / 2 - 2)
+        .attr('font-size', LEGEND_PILL_FONT_SIZE)
+        .attr('font-weight', '500')
+        .attr('fill', palette.text)
+        .attr('text-anchor', 'middle')
+        .attr('font-family', FONT_FAMILY)
+        .text(LEGEND_GROUP_NAME);
+
+      let entryX = LEGEND_CAPSULE_PAD + pillWidth + LEGEND_ENTRY_TRAIL;
+      for (const entry of legendEntries) {
+        const color = statusColor(entry.statusKey, palette, isDark);
+
+        const entryG = legendG.append('g')
+          .attr('data-legend-entry', entry.statusKey ?? 'na');
+
+        entryG.append('circle')
+          .attr('cx', entryX + LEGEND_DOT_R)
+          .attr('cy', LEGEND_HEIGHT / 2)
+          .attr('r', LEGEND_DOT_R)
+          .attr('fill', color);
+
+        entryG.append('text')
+          .attr('x', entryX + LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP)
+          .attr('y', LEGEND_HEIGHT / 2 + LEGEND_ENTRY_FONT_SIZE / 2 - 1)
+          .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
+          .attr('fill', palette.textMuted)
+          .attr('font-family', FONT_FAMILY)
+          .text(entry.label);
+
+        entryX += LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP + entry.label.length * LEGEND_ENTRY_FONT_W + LEGEND_ENTRY_TRAIL;
+      }
+    } else {
+      legendG.append('rect')
+        .attr('width', pillWidth)
+        .attr('height', LEGEND_HEIGHT)
+        .attr('rx', LEGEND_HEIGHT / 2)
+        .attr('fill', groupBg);
+
+      legendG.append('text')
+        .attr('x', pillWidth / 2)
+        .attr('y', LEGEND_HEIGHT / 2 + LEGEND_PILL_FONT_SIZE / 2 - 2)
+        .attr('font-size', LEGEND_PILL_FONT_SIZE)
+        .attr('font-weight', '500')
+        .attr('fill', palette.textMuted)
+        .attr('text-anchor', 'middle')
+        .attr('font-family', FONT_FAMILY)
+        .text(LEGEND_GROUP_NAME);
     }
   }
 
@@ -702,7 +860,8 @@ export function renderInitiativeStatus(
   for (let ei = 0; ei < layout.edges.length; ei++) {
     const edge = layout.edges[ei];
     if (edge.points.length < 2) continue;
-    const edgeColor = edgeStrokeColor(edge.status, palette, isDark);
+    const effectiveEdgeStatus = (hasLegend && !isLegendExpanded) ? null : edge.status;
+    const edgeColor = edgeStrokeColor(effectiveEdgeStatus, palette, isDark);
     const markerId = `is-arrow-${edgeColor.replace('#', '')}`;
 
     const edgeG = contentG
@@ -768,7 +927,8 @@ export function renderInitiativeStatus(
       .append('g')
       .attr('transform', `translate(${node.x}, ${node.y})`)
       .attr('class', 'is-node')
-      .attr('data-line-number', String(node.lineNumber));
+      .attr('data-line-number', String(node.lineNumber))
+      .attr('data-is-status', node.status ?? 'na');
 
     if (onClickItem) {
       nodeG.style('cursor', 'pointer').on('click', () => {
@@ -787,14 +947,16 @@ export function renderInitiativeStatus(
       .attr('fill', 'transparent')
       .attr('class', 'is-node-hit-area');
 
-    const fill = nodeFill(node.status, palette, isDark);
-    const stroke = nodeStroke(node.status, palette, isDark);
+    const neutralize = hasLegend && !isLegendExpanded;
+    const effectiveStatus = neutralize ? null : node.status;
+    const fill = nodeFill(effectiveStatus, palette, isDark);
+    const stroke = nodeStroke(effectiveStatus, palette, isDark);
     renderNodeShape(nodeG, node.shape, node.width, node.height, fill, stroke);
 
     // Label placement: actors put label below the figure, others center inside
     const isActor = node.shape === 'actor';
     if (isActor) {
-      const textColor = nodeTextColor(node.status, palette, isDark);
+      const textColor = nodeTextColor(effectiveStatus, palette, isDark);
       const fitted = fitTextToNode(node.label, node.width, node.height * 0.35);
       const labelY = node.height / 2 - fitted.fontSize * 0.3;
       for (let li = 0; li < fitted.lines.length; li++) {
@@ -811,7 +973,7 @@ export function renderInitiativeStatus(
       }
     } else {
       const fitted = fitTextToNode(node.label, node.width, node.height);
-      const textColor = nodeTextColor(node.status, palette, isDark);
+      const textColor = nodeTextColor(effectiveStatus, palette, isDark);
       const totalTextHeight = fitted.lines.length * fitted.fontSize * 1.3;
       const startY = -totalTextHeight / 2 + fitted.fontSize * 0.65;
 
@@ -846,9 +1008,12 @@ export function renderInitiativeStatusForExport(
   const layout = layoutInitiativeStatus(parsed);
   const isDark = theme === 'dark';
 
+  const legendEntries = collectStatuses(parsed);
+  const EXPORT_LEGEND_GAP = 8;
+  const legendReserve = legendEntries.length > 1 ? LEGEND_HEIGHT + EXPORT_LEGEND_GAP : 0;
   const titleOffset = parsed.title ? 40 : 0;
   const exportWidth = layout.width + DIAGRAM_PADDING * 2;
-  const exportHeight = layout.height + DIAGRAM_PADDING * 2 + titleOffset;
+  const exportHeight = layout.height + DIAGRAM_PADDING * 2 + titleOffset + legendReserve;
 
   return runInExportContainer(exportWidth, exportHeight, (container) => {
     renderInitiativeStatus(
