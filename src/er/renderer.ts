@@ -227,7 +227,7 @@ export function renderERDiagram(
   const LEGEND_FIXED_GAP = 8;
   const hasTagLegend = parsed.tagGroups.length > 0;
   const legendReserveH = useSemanticColors
-    ? LEGEND_HEIGHT + DIAGRAM_PADDING
+    ? LEGEND_HEIGHT + LEGEND_FIXED_GAP
     : hasTagLegend
       ? LEGEND_HEIGHT + LEGEND_FIXED_GAP
       : 0;

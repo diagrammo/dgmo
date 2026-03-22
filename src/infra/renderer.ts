@@ -1667,8 +1667,8 @@ function renderLegend(
     const isActive = activeGroup != null && group.name.toLowerCase() === activeGroup.toLowerCase();
 
     const groupBg = isDark
-      ? mix(palette.bg, palette.text, 85)
-      : mix(palette.bg, palette.text, 92);
+      ? mix(palette.surface, palette.bg, 50)
+      : mix(palette.surface, palette.bg, 30);
 
     const pillLabel = group.name;
     const pillWidth = pillLabel.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;

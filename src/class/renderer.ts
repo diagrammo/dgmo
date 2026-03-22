@@ -175,7 +175,8 @@ export function renderClassDiagram(
   const hasLegend = legendEntries.length > 1; // only show when multiple types present
 
   const titleHeight = parsed.title ? 40 : 0;
-  const legendReserve = hasLegend ? LEGEND_HEIGHT : 0;
+  const LEGEND_FIXED_GAP = 8;
+  const legendReserve = hasLegend ? LEGEND_HEIGHT + LEGEND_FIXED_GAP : 0;
   const diagramW = layout.width;
   const diagramH = layout.height;
   const availH = height - titleHeight - legendReserve;
@@ -677,7 +678,8 @@ export function renderClassDiagramForExport(
   const isDark = theme === 'dark';
 
   const legendEntries = collectClassTypes(parsed);
-  const legendReserve = legendEntries.length > 1 ? LEGEND_HEIGHT : 0;
+  const EXPORT_LEGEND_GAP = 8;
+  const legendReserve = legendEntries.length > 1 ? LEGEND_HEIGHT + EXPORT_LEGEND_GAP : 0;
   const exportWidth = layout.width + DIAGRAM_PADDING * 2;
   const exportHeight = layout.height + DIAGRAM_PADDING * 2 + (parsed.title ? 40 : 0) + legendReserve;
 
