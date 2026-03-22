@@ -4241,10 +4241,8 @@ export function renderTimeline(
     const mainSvg = d3Selection.select(container).select<SVGSVGElement>('svg');
     const mainG = mainSvg.select<SVGGElement>('g');
     if (!mainSvg.empty() && !mainG.empty()) {
-      // Position legend at top: extract mainG's translateY and place legend just above it
-      const mainGTransform = mainG.attr('transform') ?? '';
-      const mainGY = parseFloat(mainGTransform.match(/translate\([^,]+,\s*([^)]+)\)/)?.[1] ?? '0');
-      const legendY = mainGY - tagLegendReserve + 4;
+      // Position legend at top, below title
+      const legendY = title ? 50 : 10;
 
       const groupBg = isDark
         ? mix(palette.surface, palette.bg, 50)

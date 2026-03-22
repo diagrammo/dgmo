@@ -1798,12 +1798,42 @@ export function renderInfra(
 
   const shouldAnimate = animate !== false;
 
+  // In app mode with legend + title, render the title as a separate fixed-size SVG
+  // so the legend can be inserted between title and diagram.
+  const fixedTitleH = fixedLegend && title ? 40 : 0;
+  const diagramViewHeight = fixedLegend
+    ? layout.height + (title && !fixedTitleH ? titleOffset : 0) + legendOffset
+    : totalHeight;
+
+  if (fixedTitleH) {
+    const titleSvg = d3Selection.select(container)
+      .append('svg')
+      .attr('class', 'infra-title-fixed')
+      .attr('width', '100%')
+      .attr('height', fixedTitleH)
+      .attr('viewBox', `0 0 ${totalWidth} ${fixedTitleH}`)
+      .attr('preserveAspectRatio', 'xMidYMid meet')
+      .style('display', 'block');
+    titleSvg.append('text')
+      .attr('class', 'chart-title')
+      .attr('x', totalWidth / 2)
+      .attr('y', 28)
+      .attr('text-anchor', 'middle')
+      .attr('font-family', FONT_FAMILY)
+      .attr('font-size', 18)
+      .attr('font-weight', '700')
+      .attr('fill', palette.text)
+      .attr('data-line-number', titleLineNumber != null ? titleLineNumber : '')
+      .text(title!);
+  }
+
+  const fixedOverheadH = (fixedLegend ? LEGEND_HEIGHT + LEGEND_FIXED_GAP : 0) + fixedTitleH;
   const rootSvg = d3Selection.select(container)
     .append('svg')
     .attr('xmlns', 'http://www.w3.org/2000/svg')
     .attr('width', '100%')
-    .attr('height', fixedLegend ? `calc(100% - ${LEGEND_HEIGHT + LEGEND_FIXED_GAP}px)` : '100%')
-    .attr('viewBox', `0 0 ${totalWidth} ${totalHeight}`)
+    .attr('height', fixedOverheadH > 0 ? `calc(100% - ${fixedOverheadH}px)` : '100%')
+    .attr('viewBox', `0 0 ${totalWidth} ${diagramViewHeight}`)
     .attr('preserveAspectRatio', 'xMidYMid meet');
 
   // Inject animation keyframes + edge label hover styles
@@ -1850,11 +1880,13 @@ export function renderInfra(
     `);
   }
 
+  // Content group offset: skip title space (unless title was extracted to fixed SVG)
+  const contentTitleOffset = fixedTitleH ? 0 : titleOffset;
   const svg = rootSvg.append('g')
-    .attr('transform', `translate(0, ${titleOffset})`);
+    .attr('transform', `translate(0, ${contentTitleOffset + legendOffset})`);
 
-  // Title
-  if (title) {
+  // Title (inside rootSvg when not using fixed title)
+  if (title && !fixedTitleH) {
     rootSvg.append('text')
       .attr('class', 'chart-title')
       .attr('x', totalWidth / 2)
@@ -1887,22 +1919,26 @@ export function renderInfra(
   }
   renderEdgeLabels(svg, layout.edges, layout.nodes, layout.groups, palette, isDark, shouldAnimate, layout.direction);
 
-  // Legend at bottom
+  // Legend at top
   if (hasLegend) {
     if (fixedLegend) {
-      // Render legend in a separate SVG that stays at fixed pixel size
+      // Render legend in a separate SVG that stays at fixed pixel size, inserted between title and diagram
       const containerWidth = container.clientWidth || totalWidth;
       const legendSvg = d3Selection.select(container)
-        .append('svg')
+        .insert('svg', 'svg:last-of-type')
         .attr('class', 'infra-legend-fixed')
         .attr('width', '100%')
         .attr('height', LEGEND_HEIGHT + LEGEND_FIXED_GAP)
         .attr('viewBox', `0 0 ${containerWidth} ${LEGEND_HEIGHT + LEGEND_FIXED_GAP}`)
         .attr('preserveAspectRatio', 'xMidYMid meet')
-        .style('display', 'block');
+        .style('display', 'block')
+        .style('pointer-events', 'none');
       renderLegend(legendSvg, legendGroups, containerWidth, LEGEND_FIXED_GAP / 2, palette, isDark, activeGroup ?? null);
+      // Re-enable pointer events on interactive legend elements
+      legendSvg.selectAll('.infra-legend-group').style('pointer-events', 'auto');
     } else {
-      renderLegend(rootSvg, legendGroups, totalWidth, titleOffset + layout.height + 4, palette, isDark, activeGroup ?? null);
+      // Export mode: render legend at top (below title)
+      renderLegend(rootSvg, legendGroups, totalWidth, titleOffset, palette, isDark, activeGroup ?? null);
     }
   }
 }

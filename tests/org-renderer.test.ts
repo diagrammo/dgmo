@@ -863,33 +863,8 @@ Alice
     expect(alice.color).toBe(nyEntry.color);
   });
 
-  it('includes legend in layout dimensions (bottom position)', () => {
-    const withGroups = `chart: org
-legend-position: bottom
-
-## Location
-  NY(blue)
-
-Alice | location: NY`;
-    const withoutGroups = `chart: org
-Alice`;
-    const parsedWith = parseOrg(withGroups, palette.light);
-    const layoutWith = layoutOrg(parsedWith);
-    const parsedWithout = parseOrg(withoutGroups, palette.light);
-    const layoutWithout = layoutOrg(parsedWithout);
-
-    // Layout with legend should have legend groups
-    expect(layoutWith.legend).toHaveLength(1);
-    expect(layoutWith.legend[0].name).toBe('Location');
-    // Layout without tag groups should have empty legend
-    expect(layoutWithout.legend).toHaveLength(0);
-    // Bottom legend adds to height — legend Y is below content
-    expect(layoutWith.height).toBeGreaterThan(layoutWith.legend[0].y);
-  });
-
-  it('places legend at top-left when legend-position: top', () => {
+  it('places legend at top-left', () => {
     const input = `chart: org
-legend-position: top
 
 ## Location
   NY(blue)
@@ -914,9 +889,8 @@ Alice | location: NY, status: FTE`;
     expect(first.y).toBe(40);
   });
 
-  it('top legend adds height and shifts content down', () => {
+  it('legend adds height and shifts content down', () => {
     const input = `chart: org
-legend-position: top
 
 ## Location
   NY(blue)

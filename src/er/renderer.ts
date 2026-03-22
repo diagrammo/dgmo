@@ -224,7 +224,13 @@ export function renderERDiagram(
 
   const useSemanticColors =
     parsed.tagGroups.length === 0 && layout.nodes.every((n) => !n.color);
-  const legendReserveH = useSemanticColors ? LEGEND_HEIGHT + DIAGRAM_PADDING : 0;
+  const LEGEND_FIXED_GAP = 8;
+  const hasTagLegend = parsed.tagGroups.length > 0;
+  const legendReserveH = useSemanticColors
+    ? LEGEND_HEIGHT + DIAGRAM_PADDING
+    : hasTagLegend
+      ? LEGEND_HEIGHT + LEGEND_FIXED_GAP
+      : 0;
 
   const titleHeight = parsed.title ? 40 : 0;
   const diagramW = layout.width;
@@ -254,13 +260,13 @@ export function renderERDiagram(
     scale = Math.min(MAX_SCALE, scaleX, scaleY);
     const scaledW = diagramW * scale;
     offsetX = (viewW - scaledW) / 2;
-    offsetY = titleHeight + DIAGRAM_PADDING;
+    offsetY = titleHeight + legendReserveH + DIAGRAM_PADDING;
   } else {
     viewW = naturalW;
     viewH = naturalH;
     scale = 1;
     offsetX = DIAGRAM_PADDING;
-    offsetY = titleHeight + DIAGRAM_PADDING;
+    offsetY = titleHeight + legendReserveH + DIAGRAM_PADDING;
   }
 
   if (viewW <= 0 || viewH <= 0) return;
@@ -521,7 +527,7 @@ export function renderERDiagram(
     }
 
     let legendX = DIAGRAM_PADDING;
-    let legendY = viewH - DIAGRAM_PADDING;
+    let legendY = DIAGRAM_PADDING + titleHeight;
 
     for (const group of parsed.tagGroups) {
       const groupG = legendG.append('g')
@@ -639,7 +645,7 @@ export function renderERDiagram(
       }
 
       const legendX = (viewW - totalWidth) / 2;
-      const legendY = viewH - DIAGRAM_PADDING - LEGEND_HEIGHT;
+      const legendY = DIAGRAM_PADDING + titleHeight;
 
       const semanticLegendG = svg
         .append('g')

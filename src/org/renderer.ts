@@ -115,7 +115,6 @@ export function renderOrg(
 
   const titleOffset = parsed.title ? TITLE_HEIGHT : 0;
   const legendOnly = layout.nodes.length === 0;
-  const legendPosition = parsed.options?.['legend-position'] ?? 'bottom';
   const hasLegend = layout.legend.length > 0;
 
   // In app mode (not export), render the legend at a fixed size outside the
@@ -148,10 +147,9 @@ export function renderOrg(
   // Center the diagram
   const scaledW = diagramW * scale;
   const offsetX = (width - scaledW) / 2;
-  const offsetY =
-    legendPosition === 'top' && fixedLegend
-      ? DIAGRAM_PADDING + legendReserve + titleReserve
-      : DIAGRAM_PADDING + titleReserve;
+  const offsetY = fixedLegend
+    ? DIAGRAM_PADDING + legendReserve + titleReserve
+    : DIAGRAM_PADDING + titleReserve;
 
   // Create SVG
   const svg = d3Selection
@@ -516,9 +514,7 @@ export function renderOrg(
           .attr('class', 'org-legend-fixed')
           .attr(
             'transform',
-            legendPosition === 'bottom'
-              ? `translate(0, ${height - DIAGRAM_PADDING - LEGEND_HEIGHT})`
-              : `translate(0, ${DIAGRAM_PADDING + titleReserve})`
+            `translate(0, ${DIAGRAM_PADDING + titleReserve})`
           )
       : contentG;
     const legendParent = legendParentBase;

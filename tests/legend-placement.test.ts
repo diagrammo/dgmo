@@ -1,20 +1,20 @@
 /**
  * Legend placement tests — verify that legend strips are rendered at the
- * BOTTOM of their respective diagrams after the Legend Standardization refactor.
+ * TOP of their respective diagrams (below title if present).
  *
  * Strategy per renderer:
  * - Sequence / Timeline: extract Y from `transform="translate(X, Y)"` on
- *   `[data-legend-group]`; compare against SVG viewBox height.
+ *   `[data-legend-group]`; verify it's in the top portion of the SVG.
  * - Org / Sitemap: extract Y from `.org-legend-fixed` / `.sitemap-legend-fixed`
- *   container transform (app mode).
+ *   container transform (app mode); verify it's near the top.
  * - Infra (export mode): extract Y from the legend container `<g>` transform
- *   and compare against SVG viewBox height.
+ *   and verify it's near the top of the SVG viewBox.
  * - Kanban: the `[data-legend-group]` is a `<rect>` with an absolute `y` attr;
- *   compare against SVG natural height.
- * - ER: legend children have absolute `y` attrs; compare against SVG height.
+ *   compare against SVG natural height — Kanban stays at bottom.
+ * - ER: legend children have absolute `y` attrs; verify near top.
  * - C4 (app mode): C4 content is scaled/translated so pixel Y is not directly
  *   comparable to SVG height — just verify that legend elements exist and their
- *   layout y-coordinate is positive (below diagram nodes).
+ *   layout y-coordinate is positive.
  */
 import { describe, it, expect, beforeAll } from 'vitest';
 import { JSDOM } from 'jsdom';
@@ -83,7 +83,7 @@ function getSvgHeight(container: Element): number | null {
 
 // ── Sequence ──────────────────────────────────────────────────────────────────
 
-describe('Placement: Sequence legend at bottom', () => {
+describe('Placement: Sequence legend at top', () => {
   const src = `chart: sequence
 
 tag: Team
@@ -95,7 +95,7 @@ Bob is a actor | team: Backend
 Alice -request-> Bob
 Bob <-response- Alice`;
 
-  it('legend Y equals contentHeight (viewBoxHeight - LEGEND_HEIGHT)', () => {
+  it('legend Y is in the top portion of the SVG', () => {
     const parsed = parseSequenceDgmo(src);
     const container = document.createElement('div');
     document.body.appendChild(container);
@@ -108,13 +108,13 @@ Bob <-response- Alice`;
     const legendY = extractTransformY(legendGroup);
     expect(legendY).not.toBeNull();
 
-    // legendY should equal svgHeight - LEGEND_HEIGHT (legend is at contentHeight)
-    expect(legendY!).toBeCloseTo(svgHeight! - LEGEND_HEIGHT, 0);
+    // Legend should be at top — Y in the top 25% of SVG
+    expect(legendY!).toBeLessThan(svgHeight! * 0.25);
 
     document.body.removeChild(container);
   });
 
-  it('SVG viewBox height = contentHeight + LEGEND_HEIGHT (single-row legend)', () => {
+  it('SVG viewBox height grows to include legend space', () => {
     const parsed = parseSequenceDgmo(src);
     const container = document.createElement('div');
     document.body.appendChild(container);
@@ -215,7 +215,7 @@ describe('Placement: Kanban legend at bottom', () => {
 
 // ── Org ───────────────────────────────────────────────────────────────────────
 
-describe('Placement: Org legend at bottom (app mode)', () => {
+describe('Placement: Org legend at top (app mode)', () => {
   const src = `chart: org
 
 tag: Region
@@ -226,7 +226,7 @@ CEO
   VP North | region: North
   VP South | region: South`;
 
-  it('.org-legend-fixed translateY is near svgHeight - LEGEND_HEIGHT', () => {
+  it('.org-legend-fixed translateY is in the top portion', () => {
     const parsed = parseOrg(src, palette);
     const layout = layoutOrg(parsed);
     const container = document.createElement('div');
@@ -240,15 +240,15 @@ CEO
     expect(fixedEl).not.toBeNull();
     const y = extractTransformY(fixedEl);
     expect(y).not.toBeNull();
-    // Legend should be in the bottom quarter of the SVG
-    expect(y!).toBeGreaterThanOrEqual(svgHeight * 0.75);
+    // Legend should be in the top portion of the SVG
+    expect(y!).toBeLessThan(svgHeight * 0.25);
     document.body.removeChild(container);
   });
 });
 
 // ── Sitemap ───────────────────────────────────────────────────────────────────
 
-describe('Placement: Sitemap legend at bottom (app mode)', () => {
+describe('Placement: Sitemap legend at top (app mode)', () => {
   const src = `chart: sitemap
 
 tag: Section
@@ -259,7 +259,7 @@ Home
   Docs | section: Docs
   Blog | section: Blog`;
 
-  it('.sitemap-legend-fixed translateY is near svgHeight - LEGEND_HEIGHT', () => {
+  it('.sitemap-legend-fixed translateY is in the top portion', () => {
     const parsed = parseSitemap(src, palette);
     const layout = layoutSitemap(parsed);
     const container = document.createElement('div');
@@ -273,15 +273,15 @@ Home
     expect(fixedEl).not.toBeNull();
     const y = extractTransformY(fixedEl);
     expect(y).not.toBeNull();
-    // Legend should be in the bottom quarter of the SVG
-    expect(y!).toBeGreaterThanOrEqual(svgHeight * 0.75);
+    // Legend should be in the top portion of the SVG
+    expect(y!).toBeLessThan(svgHeight * 0.25);
     document.body.removeChild(container);
   });
 });
 
 // ── Infra ─────────────────────────────────────────────────────────────────────
 
-describe('Placement: Infra legend at bottom (export mode)', () => {
+describe('Placement: Infra legend at top (export mode)', () => {
   const src = `chart: infra
 
 tag: Team
@@ -293,7 +293,7 @@ edge
   -> API | team: App
   -> DB | team: Platform`;
 
-  it('legend container translateY is near the bottom of the SVG viewBox', () => {
+  it('legend container translateY is near the top of the SVG viewBox', () => {
     const parsed = parseInfra(src);
     const computed = computeInfra(parsed);
     const layout = layoutInfra(computed);
@@ -317,15 +317,15 @@ edge
     const legendY = extractTransformY(legendContainer as Element);
     expect(legendY).not.toBeNull();
 
-    // legendY should be in the bottom 25% of the SVG viewBox
-    expect(legendY!).toBeGreaterThanOrEqual(svgHeight! * 0.7);
+    // legendY should be in the top portion of the SVG viewBox
+    expect(legendY!).toBeLessThan(svgHeight! * 0.25);
     document.body.removeChild(container);
   });
 });
 
 // ── ER ────────────────────────────────────────────────────────────────────────
 
-describe('Placement: ER legend at bottom', () => {
+describe('Placement: ER legend at top', () => {
   const src = `chart: er
 
 tag: Domain
@@ -339,7 +339,7 @@ Order {
   id int PK | domain: Core
 }`;
 
-  it('legend group text y-position is near svgHeight', () => {
+  it('legend group text y-position is in the top portion', () => {
     const parsed = parseERDiagram(src, palette);
     const layout = layoutERDiagram(parsed);
     const container = document.createElement('div');
@@ -354,14 +354,15 @@ Order {
     const firstText = container.querySelector('[data-legend-group] text');
     expect(firstText).not.toBeNull();
     const y = parseFloat(firstText!.getAttribute('y') ?? '0');
-    expect(y).toBeGreaterThanOrEqual(svgHeight * 0.75);
+    // Legend should be in the top portion
+    expect(y).toBeLessThan(svgHeight * 0.25);
     document.body.removeChild(container);
   });
 });
 
 // ── Timeline ──────────────────────────────────────────────────────────────────
 
-describe('Placement: Timeline legend at bottom', () => {
+describe('Placement: Timeline legend at top', () => {
   const src = `chart: timeline
 
 tag: Status
@@ -371,7 +372,7 @@ tag: Status
 2024-01-01 -> 2024-06-01: Feature A | status: Done
 2024-03-01 -> 2024-12-01: Feature B | status: Active`;
 
-  it('legend group translateY is near bottom of SVG', () => {
+  it('legend group translateY is in the top portion of SVG', () => {
     const parsed = parseVisualization(src, palette);
     const container = document.createElement('div');
     document.body.appendChild(container);
@@ -382,8 +383,8 @@ tag: Status
     expect(legendGroup).not.toBeNull();
     const y = extractTransformY(legendGroup);
     expect(y).not.toBeNull();
-    // Timeline legendY = height - LEGEND_HEIGHT - 4 ≈ 368 for height=400
-    expect(y!).toBeGreaterThanOrEqual(svgHeight * 0.75);
+    // Legend should be in the top portion of the SVG
+    expect(y!).toBeLessThan(svgHeight * 0.4);
     document.body.removeChild(container);
   });
 });

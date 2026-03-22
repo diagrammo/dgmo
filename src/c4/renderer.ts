@@ -256,7 +256,7 @@ export function renderC4Context(
 
   const scaledW = diagramW * scale;
   const offsetX = (width - scaledW) / 2;
-  const offsetY = titleHeight + DIAGRAM_PADDING;
+  const offsetY = titleHeight + DIAGRAM_PADDING + legendReserveH;
 
   const svg = d3Selection
     .select(container)
@@ -592,12 +592,12 @@ export function renderC4Context(
 
   // ── Legend ──
   if (hasLegend) {
-    // App mode: fixed overlay at SVG bottom so it's always readable regardless of scale.
+    // App mode: fixed overlay at SVG top so it's always readable regardless of scale.
     // Export mode: render inside scaled contentG at layout coordinates.
     const legendParent = fixedLegend
       ? svg.append('g')
           .attr('class', 'c4-legend-fixed')
-          .attr('transform', `translate(0, ${height - DIAGRAM_PADDING - LEGEND_HEIGHT})`)
+          .attr('transform', `translate(0, ${DIAGRAM_PADDING + titleHeight})`)
       : contentG.append('g').attr('class', 'c4-legend');
     if (activeTagGroup) {
       legendParent.attr('data-legend-active', activeTagGroup.toLowerCase());
@@ -1298,7 +1298,7 @@ export function renderC4Containers(
 
   const scaledW = diagramW * scale;
   const offsetX = (width - scaledW) / 2;
-  const offsetY = titleHeight + DIAGRAM_PADDING;
+  const offsetY = titleHeight + DIAGRAM_PADDING + legendReserveH;
 
   const svg = d3Selection
     .select(container)
@@ -1707,12 +1707,12 @@ export function renderC4Containers(
 
   // ── Legend ──
   if (hasLegend) {
-    // App mode: fixed overlay at SVG bottom so it's always readable regardless of scale.
+    // App mode: fixed overlay at SVG top so it's always readable regardless of scale.
     // Export mode: render inside scaled contentG at layout coordinates.
     const legendParent = fixedLegend
       ? svg.append('g')
           .attr('class', 'c4-legend-fixed')
-          .attr('transform', `translate(0, ${height - DIAGRAM_PADDING - LEGEND_HEIGHT})`)
+          .attr('transform', `translate(0, ${DIAGRAM_PADDING + titleHeight})`)
       : contentG.append('g').attr('class', 'c4-legend');
     if (activeTagGroup) {
       legendParent.attr('data-legend-active', activeTagGroup.toLowerCase());

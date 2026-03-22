@@ -127,9 +127,9 @@ export function renderSitemap(
   const fixedTitle = fixedLegend && !!parsed.title;
   const fixedTitleH = fixedTitle ? TITLE_HEIGHT : 0;
   const legendReserveH = fixedLegend ? LEGEND_HEIGHT + LEGEND_FIXED_GAP : 0;
-  // Space reserved above content (title only), and below content (legend)
-  const fixedReserveTop = fixedTitleH;
-  const fixedReserveBottom = legendReserveH;
+  // Space reserved above content (title + legend)
+  const fixedReserveTop = fixedTitleH + legendReserveH;
+  const fixedReserveBottom = 0;
   // Title inside scaled group only when legend is NOT fixed
   const titleOffset = !fixedTitle && parsed.title ? TITLE_HEIGHT : 0;
 
@@ -543,7 +543,7 @@ export function renderSitemap(
     const legendParent = svg
       .append('g')
       .attr('class', 'sitemap-legend-fixed')
-      .attr('transform', `translate(0, ${height - DIAGRAM_PADDING - LEGEND_HEIGHT})`);
+      .attr('transform', `translate(0, ${DIAGRAM_PADDING + fixedTitleH})`);
     if (activeTagGroup) {
       legendParent.attr('data-legend-active', activeTagGroup.toLowerCase());
     }

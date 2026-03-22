@@ -463,11 +463,6 @@ describe('parseOrg', () => {
 
   // === Header options ===
   describe('header options', () => {
-    it('parses legend-position option', () => {
-      const result = parseOrg('chart: org\nlegend-position: bottom\n\nJane Smith');
-      expect(result.options).toEqual({ 'legend-position': 'bottom' });
-    });
-
     it('defaults to empty options', () => {
       const result = parseOrg('chart: org\nJane Smith');
       expect(result.options).toEqual({});
@@ -475,10 +470,10 @@ describe('parseOrg', () => {
 
     it('works alongside title and tag groups', () => {
       const result = parseOrg(
-        'chart: org\ntitle: Acme\nlegend-position: top\n\n## Location\n  NY(blue)\n\nJane'
+        'chart: org\ntitle: Acme\n\n## Location\n  NY(blue)\n\nJane'
       );
       expect(result.title).toBe('Acme');
-      expect(result.options).toEqual({ 'legend-position': 'top' });
+      expect(result.options).toEqual({});
       expect(result.tagGroups).toHaveLength(1);
       expect(result.roots).toHaveLength(1);
     });
@@ -489,8 +484,8 @@ describe('parseOrg', () => {
     });
 
     it('parses multiple options', () => {
-      const result = parseOrg('chart: org\nlegend-position: bottom\nfoo: bar\n\nJane');
-      expect(result.options).toEqual({ 'legend-position': 'bottom', foo: 'bar' });
+      const result = parseOrg('chart: org\nfoo: bar\n\nJane');
+      expect(result.options).toEqual({ foo: 'bar' });
     });
 
     it('parses hide option with comma-separated keys', () => {

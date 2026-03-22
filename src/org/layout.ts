@@ -1115,8 +1115,6 @@ export function layoutOrg(
   let finalWidth = totalWidth;
   let finalHeight = totalHeight;
 
-  const legendPosition = parsed.options?.['legend-position'] ?? 'top';
-
   // When a tag group is active, only that group is laid out (full size).
   // When none is active, all groups are laid out minified — unless
   // expandAllLegend is set (export mode), which shows all groups expanded.
@@ -1128,62 +1126,31 @@ export function layoutOrg(
     activeTagGroup != null || allExpanded ? g.width : g.minifiedWidth;
 
   if (visibleGroups.length > 0) {
-    if (legendPosition === 'bottom') {
-      // Bottom: center legend groups horizontally below diagram content
-      const totalGroupsWidth =
-        visibleGroups.reduce((s, g) => s + effectiveW(g), 0) +
-        (visibleGroups.length - 1) * LEGEND_GROUP_GAP;
-      const neededWidth = totalGroupsWidth + MARGIN * 2;
+    // Top: horizontal row above chart content, left-aligned
+    const legendShift = LEGEND_HEIGHT + LEGEND_GROUP_GAP;
 
-      if (neededWidth > totalWidth) {
-        finalWidth = neededWidth;
-        const shift = (finalWidth - totalWidth) / 2;
-        for (const n of layoutNodes) n.x += shift;
-        for (const c of containers) c.x += shift;
-        for (const e of layoutEdges) {
-          for (const p of e.points) p.x += shift;
-        }
-      }
+    // Push all chart content down
+    for (const n of layoutNodes) n.y += legendShift;
+    for (const c of containers) c.y += legendShift;
+    for (const e of layoutEdges) {
+      for (const p of e.points) p.y += legendShift;
+    }
 
-      const contentBottom = totalHeight - MARGIN;
-      const legendY = contentBottom + LEGEND_GAP;
-      const startX = (finalWidth - totalGroupsWidth) / 2;
+    const totalGroupsWidth =
+      visibleGroups.reduce((s, g) => s + effectiveW(g), 0) +
+      (visibleGroups.length - 1) * LEGEND_GROUP_GAP;
 
-      let cx = startX;
-      for (const g of visibleGroups) {
-        g.x = cx;
-        g.y = legendY;
-        cx += effectiveW(g) + LEGEND_GROUP_GAP;
-      }
+    let cx = MARGIN;
+    for (const g of visibleGroups) {
+      g.x = cx;
+      g.y = MARGIN;
+      cx += effectiveW(g) + LEGEND_GROUP_GAP;
+    }
 
-      finalHeight = totalHeight + LEGEND_GAP + LEGEND_HEIGHT;
-    } else {
-      // Top: horizontal row above chart content, left-aligned
-      const legendShift = LEGEND_HEIGHT + LEGEND_GROUP_GAP;
-
-      // Push all chart content down
-      for (const n of layoutNodes) n.y += legendShift;
-      for (const c of containers) c.y += legendShift;
-      for (const e of layoutEdges) {
-        for (const p of e.points) p.y += legendShift;
-      }
-
-      const totalGroupsWidth =
-        visibleGroups.reduce((s, g) => s + effectiveW(g), 0) +
-        (visibleGroups.length - 1) * LEGEND_GROUP_GAP;
-
-      let cx = MARGIN;
-      for (const g of visibleGroups) {
-        g.x = cx;
-        g.y = MARGIN;
-        cx += effectiveW(g) + LEGEND_GROUP_GAP;
-      }
-
-      finalHeight += legendShift;
-      const neededWidth = totalGroupsWidth + MARGIN * 2;
-      if (neededWidth > finalWidth) {
-        finalWidth = neededWidth;
-      }
+    finalHeight += legendShift;
+    const neededWidth = totalGroupsWidth + MARGIN * 2;
+    if (neededWidth > finalWidth) {
+      finalWidth = neededWidth;
     }
   }
 

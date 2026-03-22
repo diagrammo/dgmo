@@ -1281,10 +1281,12 @@ export function renderSequenceDiagram(
 
   // Compute cumulative Y positions for each step, with section dividers as stable anchors
   const titleOffset = title ? TITLE_HEIGHT : 0;
+  const LEGEND_FIXED_GAP = 8;
+  const legendTopSpace = parsed.tagGroups.length > 0 ? LEGEND_HEIGHT + LEGEND_FIXED_GAP : 0;
   const groupOffset =
     groups.length > 0 ? GROUP_PADDING_TOP + GROUP_LABEL_SIZE : 0;
   const participantStartY =
-    TOP_MARGIN + titleOffset + PARTICIPANT_Y_OFFSET + groupOffset;
+    TOP_MARGIN + titleOffset + legendTopSpace + PARTICIPANT_Y_OFFSET + groupOffset;
   const lifelineStartY0 = participantStartY + PARTICIPANT_BOX_HEIGHT;
   const hasActors = participants.some((p) => p.type === 'actor');
   const messageStartOffset = MESSAGE_START_OFFSET + (hasActors ? 20 : 0);
@@ -1390,8 +1392,7 @@ export function renderSequenceDiagram(
     PARTICIPANT_BOX_HEIGHT +
     Math.max(lifelineLength, 40) +
     40;
-  const legendSpace = parsed.tagGroups.length > 0 ? LEGEND_HEIGHT : 0;
-  const totalHeight = contentHeight + legendSpace;
+  const totalHeight = contentHeight;
 
   const containerWidth = options?.exportWidth ?? container.getBoundingClientRect().width;
   const svgWidth = Math.max(totalWidth, containerWidth);
@@ -1570,7 +1571,7 @@ export function renderSequenceDiagram(
 
   // Render legend pills for tag groups
   if (parsed.tagGroups.length > 0) {
-    const legendY = contentHeight;
+    const legendY = TOP_MARGIN + titleOffset;
     const groupBg = isDark
       ? mix(palette.surface, palette.bg, 50)
       : mix(palette.surface, palette.bg, 30);

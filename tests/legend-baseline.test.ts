@@ -90,17 +90,17 @@ Bob is a actor | team: Backend
 Alice -request-> Bob
 Bob <-response- Alice`;
 
-  it('renders legend group elements at bottom of SVG', () => {
+  it('renders legend group elements at top of SVG', () => {
     const parsed = parseSequenceDgmo(src);
     const container = document.createElement('div');
     document.body.appendChild(container);
     renderSequenceDiagram(container, parsed, palette, false, undefined, { exportWidth: 800 });
     const ys = collectLegendYs(container);
     expect(ys.length).toBeGreaterThan(0);
-    // Post-refactor: legend is at bottom — y ≈ svgViewboxHeight - LEGEND_HEIGHT
+    // Legend is at top — y should be in the top portion of the SVG
     const svgHeight = getViewboxHeight(container);
     expect(svgHeight).not.toBeNull();
-    expect(ys[0]).toBeGreaterThanOrEqual(svgHeight! - LEGEND_HEIGHT - 1);
+    expect(ys[0]).toBeLessThan(svgHeight! * 0.25);
     document.body.removeChild(container);
   });
 });
