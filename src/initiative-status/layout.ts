@@ -1,9 +1,9 @@
 // ============================================================
 // Initiative Status Diagram — Layout
 //
-// Uses dagre for rank assignment, node ordering, and edge
-// routing.  Edge waypoints are taken directly from dagre's
-// output without modification.
+// Uses dagre for rank assignment and crossing minimization.
+// Post-dagre grid quantization snaps Y positions to a fixed
+// grid for horizontal alignment across columns.
 // ============================================================
 
 import dagre from '@dagrejs/dagre';
@@ -85,6 +85,138 @@ const TOP_EXIT_STEP = 10; // px: control-point offset giving near-vertical depar
 const CHAR_WIDTH_RATIO = 0.6;
 const NODE_FONT_SIZE = 13;
 const NODE_TEXT_PADDING = 12;
+const GRID_ROW_HEIGHT = NODESEP; // 80px — one node (60px) + gap (20px)
+const COLUMN_X_TOLERANCE = 5; // px — dagre may offset same-rank nodes slightly
+
+// ============================================================
+// Grid quantization — replaces dagre's freeform Y with a fixed
+// grid while preserving dagre's rank assignment and crossing-
+// minimized within-column ordering.
+// ============================================================
+
+interface GridNode {
+  label: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** Find nearest available grid row, searching outward. Tie-breaks downward. */
+function findNearestAvailable(preferred: number, taken: Set<number>): number {
+  if (!taken.has(preferred)) return preferred;
+  for (let delta = 1; ; delta++) {
+    if (!taken.has(preferred + delta)) return preferred + delta;
+    if (!taken.has(preferred - delta)) return preferred - delta;
+  }
+}
+
+export function gridQuantize(
+  nodes: GridNode[],
+  edges: { source: string; target: string }[]
+): void {
+  if (nodes.length === 0) return;
+
+  // 1. Cluster columns by X with tolerance
+  const columns: GridNode[][] = [];
+  const sorted = [...nodes].sort((a, b) => a.x - b.x);
+  for (const node of sorted) {
+    const lastCol = columns[columns.length - 1];
+    if (lastCol && Math.abs(node.x - lastCol[0].x) <= COLUMN_X_TOLERANCE) {
+      lastCol.push(node);
+    } else {
+      columns.push([node]);
+    }
+  }
+
+  // Normalize X within each column to the mean, sort nodes by dagre Y
+  for (const col of columns) {
+    const meanX = col.reduce((s, n) => s + n.x, 0) / col.length;
+    for (const n of col) n.x = meanX;
+    col.sort((a, b) => a.y - b.y);
+  }
+
+  // 2. Build upstream map: target → source labels
+  const upstreamMap = new Map<string, string[]>();
+  for (const edge of edges) {
+    const list = upstreamMap.get(edge.target);
+    if (list) list.push(edge.source);
+    else upstreamMap.set(edge.target, [edge.source]);
+  }
+
+  // 3. Assign grid rows column by column, left to right
+  const rowAssignment = new Map<string, number>();
+
+  for (const col of columns) {
+    const takenRows = new Set<number>();
+    const preferredRows: number[] = [];
+
+    for (const node of col) {
+      const upstreams = upstreamMap.get(node.label);
+      let preferred: number;
+
+      if (upstreams && upstreams.length > 0) {
+        const upstreamRows = upstreams
+          .map((l) => rowAssignment.get(l))
+          .filter((r): r is number => r !== undefined);
+
+        if (upstreamRows.length === 1) {
+          preferred = upstreamRows[0];
+        } else if (upstreamRows.length > 1) {
+          upstreamRows.sort((a, b) => a - b);
+          const mid = Math.floor(upstreamRows.length / 2);
+          preferred =
+            upstreamRows.length % 2 === 0
+              ? Math.round((upstreamRows[mid - 1] + upstreamRows[mid]) / 2)
+              : upstreamRows[mid];
+        } else {
+          preferred = preferredRows.length;
+        }
+      } else {
+        preferred = preferredRows.length;
+      }
+
+      preferredRows.push(preferred);
+    }
+
+    // Order preservation: preferred rows must be monotonically non-decreasing
+    let monotone = true;
+    for (let i = 1; i < preferredRows.length; i++) {
+      if (preferredRows[i] < preferredRows[i - 1]) {
+        monotone = false;
+        break;
+      }
+    }
+
+    if (!monotone) {
+      const minRow = Math.min(...preferredRows);
+      for (let i = 0; i < col.length; i++) {
+        preferredRows[i] = minRow + i;
+      }
+    }
+
+    // Resolve collisions
+    for (let i = 0; i < col.length; i++) {
+      const row = findNearestAvailable(preferredRows[i], takenRows);
+      takenRows.add(row);
+      rowAssignment.set(col[i].label, row);
+      col[i].y = row * GRID_ROW_HEIGHT;
+    }
+  }
+
+  // 4. Vertical centering, ensure minY >= 20
+  const allY = nodes.map((n) => n.y);
+  const minY = Math.min(...allY);
+  const maxY = Math.max(...allY);
+  const centerOffset = -(minY + maxY) / 2;
+  for (const n of nodes) n.y += centerOffset;
+
+  const adjustedMinY = Math.min(...nodes.map((n) => n.y));
+  if (adjustedMinY < 20) {
+    const shift = 20 - adjustedMinY;
+    for (const n of nodes) n.y += shift;
+  }
+}
 
 // ============================================================
 // Main layout function
@@ -144,7 +276,7 @@ export function layoutInitiativeStatus(
 
   dagre.layout(g);
 
-  // Extract node positions
+  // Extract node positions from dagre
   const layoutNodes: ISLayoutNode[] = parsed.nodes.map((node) => {
     const pos = g.node(node.label);
     return {
@@ -159,12 +291,38 @@ export function layoutInitiativeStatus(
     };
   });
 
+  // Collect collapsed group positions for grid quantization
+  const collapsedGroupPositions: GridNode[] = [];
+  for (const label of collapsedGroupLabels) {
+    const pos = g.node(label);
+    if (pos) collapsedGroupPositions.push({ label, x: pos.x, y: pos.y, width: pos.width, height: pos.height });
+  }
+
+  // Grid-quantize all node positions (regular + collapsed groups)
+  const allGridNodes: GridNode[] = [
+    ...layoutNodes.map((n) => ({ label: n.label, x: n.x, y: n.y, width: n.width, height: n.height })),
+    ...collapsedGroupPositions,
+  ];
+  gridQuantize(allGridNodes, parsed.edges);
+
+  // Write quantized positions back
+  const quantizedMap = new Map(allGridNodes.map((n) => [n.label, n]));
+  for (const node of layoutNodes) {
+    const q = quantizedMap.get(node.label)!;
+    node.x = q.x;
+    node.y = q.y;
+  }
+  for (const cgp of collapsedGroupPositions) {
+    const q = quantizedMap.get(cgp.label)!;
+    cgp.x = q.x;
+    cgp.y = q.y;
+  }
+
   // Build a unified position map covering both regular nodes and collapsed groups
   interface NodePos { x: number; y: number; width: number; height: number }
   const posMap = new Map<string, NodePos>(layoutNodes.map((n) => [n.label, n]));
-  for (const label of collapsedGroupLabels) {
-    const pos = g.node(label);
-    if (pos) posMap.set(label, { x: pos.x, y: pos.y, width: pos.width, height: pos.height });
+  for (const cgp of collapsedGroupPositions) {
+    posMap.set(cgp.label, { x: cgp.x, y: cgp.y, width: cgp.width, height: cgp.height });
   }
 
   const allNodeX = [...posMap.values()].map((n) => n.x);
@@ -305,7 +463,7 @@ export function layoutInitiativeStatus(
       ];
     } else {
       // fixedDagrePoints: multi-rank forward edges — dagre interior waypoints for obstacle avoidance.
-      // dagrePoints is still fetched above (line 209) and available here.
+      // dagrePoints is still fetched above and available here.
       points = dagrePoints.length >= 2 ? [
         { x: exitX, y: src.y + yOffset },
         ...dagrePoints.slice(1, -1),
@@ -319,18 +477,18 @@ export function layoutInitiativeStatus(
   // Compute group bounding boxes
   const layoutGroups: ISLayoutGroup[] = [];
 
-  // Collapsed groups: dagre placed them as regular nodes → normalize to top-left
+  // Collapsed groups: use quantized positions
   for (const group of originalGroups) {
     if (collapsedGroupLabels.has(group.label)) {
-      const pos = g.node(group.label);
-      if (!pos) continue;
+      const cgp = collapsedGroupPositions.find((p) => p.label === group.label);
+      if (!cgp) continue;
       layoutGroups.push({
         label: group.label,
         status: collapsedGroupStatuses.get(group.label) ?? null,
-        x: pos.x - pos.width / 2,
-        y: pos.y - pos.height / 2,
-        width: pos.width,
-        height: pos.height,
+        x: cgp.x - cgp.width / 2,
+        y: cgp.y - cgp.height / 2,
+        width: cgp.width,
+        height: cgp.height,
         lineNumber: group.lineNumber,
         collapsed: true,
       });
