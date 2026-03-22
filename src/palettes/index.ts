@@ -31,6 +31,8 @@ export { gruvboxPalette } from './gruvbox';
 export { tokyoNightPalette } from './tokyo-night';
 export { oneDarkPalette } from './one-dark';
 export { boldPalette } from './bold';
+export { draculaPalette } from './dracula';
+export { monokaiPalette } from './monokai';
 
 // Re-export Mermaid bridge
 export { buildMermaidThemeVars, buildThemeCSS } from './mermaid-bridge';

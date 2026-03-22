@@ -8,21 +8,13 @@ import { render } from './render';
 import { parseDgmo, getAllChartTypes } from './dgmo-router';
 import { parseDgmoChartType } from './dgmo-router';
 import { formatDgmoError } from './diagnostics';
-import { getPalette } from './palettes/registry';
+import { getPalette, getAvailablePalettes } from './palettes';
 import { DEFAULT_FONT_NAME } from './fonts';
 import { encodeDiagramUrl } from './sharing';
 import { resolveOrgImports } from './org/resolver';
 
-const PALETTES = [
-  'nord',
-  'solarized',
-  'catppuccin',
-  'rose-pine',
-  'gruvbox',
-  'tokyo-night',
-  'one-dark',
-  'bold',
-];
+// Derived from the palette registry so new palettes are auto-included.
+const PALETTES = getAvailablePalettes().map((p) => p.id);
 
 const THEMES = ['light', 'dark', 'transparent'] as const;
 
