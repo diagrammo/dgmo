@@ -500,8 +500,11 @@ export function renderClassDiagram(
     const w = node.width;
     const h = node.height;
     const colorOff = parsed.options?.color === 'off';
-    const fill = nodeFill(palette, isDark, node.modifier, node.color, colorOff);
-    const stroke = nodeStroke(palette, node.modifier, node.color, colorOff);
+    // When legend is collapsed, use neutral color for nodes without explicit color
+    const neutralize = hasLegend && !isLegendExpanded && !node.color;
+    const effectiveColor = neutralize ? palette.primary : node.color;
+    const fill = nodeFill(palette, isDark, node.modifier, effectiveColor, colorOff);
+    const stroke = nodeStroke(palette, node.modifier, effectiveColor, colorOff);
 
     // Outer rectangle
     nodeG.append('rect')
