@@ -74,6 +74,7 @@ const PHI = 1.618;
 const NODE_HEIGHT = 60;
 const NODE_WIDTH = Math.round(NODE_HEIGHT * PHI);
 const GROUP_PADDING = 20;
+const GROUP_LABEL_HEIGHT = 20; // approximate height of the group label text rendered above the box
 const NODESEP = 80;
 const RANKSEP = 160;
 const PARALLEL_SPACING = 16; // px between parallel edges sharing same source→target (~27% of NODE_HEIGHT)
@@ -325,9 +326,154 @@ export function layoutInitiativeStatus(
     posMap.set(cgp.label, { x: cgp.x, y: cgp.y, width: cgp.width, height: cgp.height });
   }
 
+  // Compute group bounding boxes BEFORE edge routing so overlap resolution
+  // can fix node positions before edges are computed.
+  const layoutGroups: ISLayoutGroup[] = [];
+
+  // Collapsed groups
+  for (const group of originalGroups) {
+    if (collapsedGroupLabels.has(group.label)) {
+      const cgp = collapsedGroupPositions.find((p) => p.label === group.label);
+      if (!cgp) continue;
+      layoutGroups.push({
+        label: group.label,
+        status: collapsedGroupStatuses.get(group.label) ?? null,
+        x: cgp.x - cgp.width / 2,
+        y: cgp.y - cgp.height / 2,
+        width: cgp.width,
+        height: cgp.height,
+        lineNumber: group.lineNumber,
+        collapsed: true,
+      });
+    }
+  }
+
+  // Expanded groups: bounding box from member positions
+  if (parsed.groups.length > 0) {
+    const nMap = new Map(layoutNodes.map((n) => [n.label, n]));
+    for (const group of parsed.groups) {
+      const members = group.nodeLabels
+        .map((label) => nMap.get(label))
+        .filter((n): n is ISLayoutNode => n !== undefined);
+      if (members.length === 0) continue;
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const member of members) {
+        const left = member.x - member.width / 2;
+        const right = member.x + member.width / 2;
+        const top = member.y - member.height / 2;
+        const bottom = member.y + member.height / 2;
+        if (left < minX) minX = left;
+        if (right > maxX) maxX = right;
+        if (top < minY) minY = top;
+        if (bottom > maxY) maxY = bottom;
+      }
+      layoutGroups.push({
+        label: group.label,
+        status: rollUpStatus(members),
+        x: minX - GROUP_PADDING,
+        y: minY - GROUP_PADDING,
+        width: maxX - minX + GROUP_PADDING * 2,
+        height: maxY - minY + GROUP_PADDING * 2,
+        lineNumber: group.lineNumber,
+        collapsed: false,
+      });
+    }
+  }
+
+  // Resolve overlaps between expanded group boxes and non-member nodes.
+  // Must happen BEFORE edge routing so edges use final node positions.
+  if (layoutGroups.length > 0) {
+    const groupMemberLabels = new Set(parsed.groups.flatMap((gr) => gr.nodeLabels));
+    let changed = true;
+    let iterations = 0;
+    while (changed && iterations < 10) {
+      changed = false;
+      iterations++;
+      for (const group of layoutGroups) {
+        if (group.collapsed) continue;
+        const gTop = group.y - GROUP_LABEL_HEIGHT;
+        const gBottom = group.y + group.height;
+        const gLeft = group.x;
+        const gRight = group.x + group.width;
+        for (const node of layoutNodes) {
+          if (groupMemberLabels.has(node.label)) continue;
+          const nTop = node.y - node.height / 2;
+          const nBottom = node.y + node.height / 2;
+          const nLeft = node.x - node.width / 2;
+          const nRight = node.x + node.width / 2;
+          if (nRight <= gLeft || nLeft >= gRight) continue;
+          if (nBottom <= gTop || nTop >= gBottom) continue;
+          const groupCenterY = group.y + group.height / 2;
+          if (node.y < groupCenterY) {
+            node.y = gTop - node.height / 2 - GROUP_PADDING;
+          } else {
+            node.y = gBottom + node.height / 2 + GROUP_PADDING;
+          }
+          const pm = posMap.get(node.label);
+          if (pm) pm.y = node.y;
+          changed = true;
+        }
+      }
+      if (changed) {
+        const nMap = new Map(layoutNodes.map((n) => [n.label, n]));
+        for (const group of layoutGroups) {
+          if (group.collapsed) continue;
+          const pg = parsed.groups.find((gr) => gr.label === group.label);
+          if (!pg) continue;
+          const members = pg.nodeLabels
+            .map((label) => nMap.get(label))
+            .filter((n): n is ISLayoutNode => n !== undefined);
+          if (members.length === 0) continue;
+          let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+          for (const member of members) {
+            const left = member.x - member.width / 2;
+            const right = member.x + member.width / 2;
+            const top = member.y - member.height / 2;
+            const bottom = member.y + member.height / 2;
+            if (left < minX) minX = left;
+            if (right > maxX) maxX = right;
+            if (top < minY) minY = top;
+            if (bottom > maxY) maxY = bottom;
+          }
+          group.x = minX - GROUP_PADDING;
+          group.y = minY - GROUP_PADDING;
+          group.width = maxX - minX + GROUP_PADDING * 2;
+          group.height = maxY - minY + GROUP_PADDING * 2;
+        }
+      }
+    }
+  }
+
+  // Normalize Y: ensure all coordinates are non-negative after overlap resolution
+  {
+    let minNodeY = Infinity;
+    for (const node of layoutNodes) {
+      const top = node.y - node.height / 2;
+      if (top < minNodeY) minNodeY = top;
+    }
+    for (const group of layoutGroups) {
+      const top = group.collapsed ? group.y : group.y - GROUP_LABEL_HEIGHT;
+      if (top < minNodeY) minNodeY = top;
+    }
+    if (minNodeY < 20) {
+      const shift = 20 - minNodeY;
+      for (const node of layoutNodes) {
+        node.y += shift;
+        const pm = posMap.get(node.label);
+        if (pm) pm.y = node.y;
+      }
+      for (const group of layoutGroups) {
+        group.y += shift;
+      }
+      for (const cgp of collapsedGroupPositions) {
+        cgp.y += shift;
+        const pm = posMap.get(cgp.label);
+        if (pm) pm.y = cgp.y;
+      }
+    }
+  }
+
   const allNodeX = [...posMap.values()].map((n) => n.x);
-  // avgNodeY / avgNodeX: O(1) scalars used for back-edge above/below heuristic and arc spread direction.
-  // layoutNodes.length === 0 is unreachable here (early-return guard at line 92 exits for empty diagrams).
   const avgNodeY = layoutNodes.length > 0
     ? layoutNodes.reduce((s, n) => s + n.y, 0) / layoutNodes.length
     : 0;
@@ -473,62 +619,6 @@ export function layoutInitiativeStatus(
     layoutEdges.push({ source: edge.source, target: edge.target, label: edge.label,
                        status: edge.status, lineNumber: edge.lineNumber, points, parallelCount });
   }
-
-  // Compute group bounding boxes
-  const layoutGroups: ISLayoutGroup[] = [];
-
-  // Collapsed groups: use quantized positions
-  for (const group of originalGroups) {
-    if (collapsedGroupLabels.has(group.label)) {
-      const cgp = collapsedGroupPositions.find((p) => p.label === group.label);
-      if (!cgp) continue;
-      layoutGroups.push({
-        label: group.label,
-        status: collapsedGroupStatuses.get(group.label) ?? null,
-        x: cgp.x - cgp.width / 2,
-        y: cgp.y - cgp.height / 2,
-        width: cgp.width,
-        height: cgp.height,
-        lineNumber: group.lineNumber,
-        collapsed: true,
-      });
-    }
-  }
-
-  // Expanded groups: bounding box from member positions
-  if (parsed.groups.length > 0) {
-    const nMap = new Map(layoutNodes.map((n) => [n.label, n]));
-    for (const group of parsed.groups) {
-      const members = group.nodeLabels
-        .map((label) => nMap.get(label))
-        .filter((n): n is ISLayoutNode => n !== undefined);
-      if (members.length === 0) continue;
-
-      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-      for (const member of members) {
-        const left = member.x - member.width / 2;
-        const right = member.x + member.width / 2;
-        const top = member.y - member.height / 2;
-        const bottom = member.y + member.height / 2;
-        if (left < minX) minX = left;
-        if (right > maxX) maxX = right;
-        if (top < minY) minY = top;
-        if (bottom > maxY) maxY = bottom;
-      }
-
-      layoutGroups.push({
-        label: group.label,
-        status: rollUpStatus(members),
-        x: minX - GROUP_PADDING,
-        y: minY - GROUP_PADDING,
-        width: maxX - minX + GROUP_PADDING * 2,
-        height: maxY - minY + GROUP_PADDING * 2,
-        lineNumber: group.lineNumber,
-        collapsed: false,
-      });
-    }
-  }
-
 
   // Compute total dimensions
   let totalWidth = 0;
