@@ -1,0 +1,660 @@
+// ============================================================
+// Gantt Schedule Calculator
+// ============================================================
+//
+// Takes a ParsedGantt and resolves all tasks to concrete start/end dates.
+// Algorithm:
+// 1. Flatten task tree, build dependency graph
+// 2. Topological sort with cycle detection
+// 3. Forward pass: resolve dates using universal max rule
+// 4. (Optional) Critical path: backward pass to find zero-slack chain
+
+import { makeDgmoError, formatDgmoError } from '../diagnostics';
+import type { DgmoError } from '../diagnostics';
+import type {
+  ParsedGantt,
+  GanttNode,
+  GanttTask,
+  GanttGroup,
+  ResolvedSchedule,
+  ResolvedTask,
+  ResolvedGroup,
+  Duration,
+} from './types';
+import { collectTasks, resolveTaskName, isResolverError } from './resolver';
+import {
+  addGanttDuration,
+  buildHolidaySet,
+  parseGanttDate,
+  daysBetween,
+} from '../utils/duration';
+
+// ── Internal types ──────────────────────────────────────────
+
+interface TaskNode {
+  task: GanttTask;
+  /** IDs of tasks this task depends on (both implicit and explicit) */
+  predecessors: string[];
+  /** Resolved start/end dates (filled during forward pass) */
+  startDate: Date | null;
+  endDate: Date | null;
+}
+
+// ── Main calculator ─────────────────────────────────────────
+
+export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
+  const diagnostics: DgmoError[] = [...parsed.diagnostics];
+  const result: ResolvedSchedule = {
+    tasks: [],
+    groups: [],
+    startDate: new Date(),
+    endDate: new Date(),
+    holidays: parsed.holidays,
+    tagGroups: parsed.tagGroups,
+    eras: parsed.eras,
+    markers: parsed.markers,
+    options: parsed.options,
+    diagnostics,
+    error: parsed.error,
+  };
+
+  if (parsed.error) return result;
+
+  const warn = (line: number, message: string): void => {
+    diagnostics.push(makeDgmoError(line, message, 'warning'));
+  };
+
+  const fail = (line: number, message: string): ResolvedSchedule => {
+    const diag = makeDgmoError(line, message);
+    diagnostics.push(diag);
+    result.error = formatDgmoError(diag);
+    return result;
+  };
+
+  // ── Build holiday set ───────────────────────────────────
+
+  const holidaySet = buildHolidaySet(parsed.holidays);
+
+  // ── Determine project start ─────────────────────────────
+
+  let projectStart: Date;
+  if (parsed.options.start) {
+    projectStart = parseGanttDate(parsed.options.start);
+  } else {
+    // Relative timeline: use epoch-like reference (Day 1 = Jan 1, 2000)
+    projectStart = new Date(2000, 0, 1);
+  }
+
+  // ── Lag storage ──────────────────────────────────────────
+
+  const lagMap = new Map<string, Duration | null>();
+
+  // ── Collect all tasks ───────────────────────────────────
+
+  const allTasks = collectTasks(parsed.nodes);
+  if (allTasks.length === 0) {
+    return result; // empty chart is valid
+  }
+
+  // Build task map by ID
+  const taskMap = new Map<string, TaskNode>();
+  for (const task of allTasks) {
+    taskMap.set(task.id, {
+      task,
+      predecessors: [],
+      startDate: null,
+      endDate: null,
+    });
+  }
+
+  // ── Build implicit sequential dependencies ──────────────
+
+  buildImplicitDeps(parsed.nodes, taskMap);
+
+  // ── Resolve explicit -> dependencies ────────────────────
+
+  for (const task of allTasks) {
+    const node = taskMap.get(task.id)!;
+    for (const dep of task.dependencies) {
+      const resolved = resolveTaskName(dep.targetName, allTasks);
+      if (isResolverError(resolved)) {
+        if (resolved.kind === 'ambiguous') {
+          return fail(dep.lineNumber, `\`-> ${dep.targetName}\` — ${resolved.message}`);
+        } else {
+          return fail(dep.lineNumber, `\`-> ${dep.targetName}\` — ${resolved.message}`);
+        }
+      }
+
+      // The dependency means: target starts after source
+      // In our model: target's predecessor is source
+      const targetNode = taskMap.get(resolved.task.id);
+      if (targetNode) {
+        // Check for redundant dependency (already a sequential predecessor)
+        if (targetNode.predecessors.includes(task.id)) {
+          warn(dep.lineNumber, `Redundant dependency: "${dep.targetName}" already follows "${task.label}" sequentially. Did you mean to wrap groups in \`parallel\`?`);
+        } else {
+          targetNode.predecessors.push(task.id);
+          // Store lag info on the target — we need it during scheduling
+          // We'll store it in a side map since predecessors is just IDs
+          lagMap.set(`${task.id}->${resolved.task.id}`, dep.lag ?? null);
+        }
+      }
+    }
+  }
+
+  // ── Topological sort with cycle detection ───────────────
+
+  const sortedIds = topologicalSort(taskMap);
+  if (!sortedIds) {
+    // Find cycle for error message
+    const cycle = findCycle(taskMap);
+    const cycleStr = cycle.map(id => taskMap.get(id)!.task.label).join(' → ');
+    return fail(
+      taskMap.get(cycle[0])!.task.lineNumber,
+      `Circular dependency detected: ${cycleStr}`,
+    );
+  }
+
+  // ── Forward pass: resolve dates ─────────────────────────
+
+  for (const taskId of sortedIds) {
+    const node = taskMap.get(taskId)!;
+    const task = node.task;
+
+    // Determine start date: max of all predecessors' end dates (+ lag)
+    let start: Date;
+
+    if (task.explicitStart) {
+      // Explicit date anchor
+      start = parseGanttDate(task.explicitStart);
+    } else if (node.predecessors.length === 0) {
+      // No predecessors: starts at project start
+      start = new Date(projectStart);
+    } else {
+      // Universal max rule: start = max(all predecessor end dates + lag)
+      start = new Date(0); // epoch
+      for (const predId of node.predecessors) {
+        const predNode = taskMap.get(predId)!;
+        if (!predNode.endDate) continue; // shouldn't happen after topo sort
+
+        let predEnd = new Date(predNode.endDate);
+
+        // Apply lag if present
+        const lag = lagMap.get(`${predId}->${taskId}`);
+        if (lag) {
+          predEnd = addGanttDuration(predEnd, lag, parsed.holidays, holidaySet);
+        }
+
+        if (predEnd.getTime() > start.getTime()) {
+          start = predEnd;
+        }
+      }
+    }
+
+    // If explicit start conflicts with predecessors, warn but honor explicit
+    if (task.explicitStart && node.predecessors.length > 0) {
+      let maxPredEnd = new Date(0);
+      for (const predId of node.predecessors) {
+        const predNode = taskMap.get(predId)!;
+        if (predNode.endDate && predNode.endDate.getTime() > maxPredEnd.getTime()) {
+          maxPredEnd = predNode.endDate;
+        }
+      }
+      if (start.getTime() < maxPredEnd.getTime()) {
+        warn(task.lineNumber, `Explicit date ${task.explicitStart} overlaps with predecessor ending ${formatDate(maxPredEnd)}. Using explicit date.`);
+      }
+    }
+
+    // Calculate end date
+    let end: Date;
+    if (task.duration) {
+      if (task.duration.amount === 0) {
+        // Milestone: zero duration, end = start
+        end = new Date(start);
+      } else {
+        end = addGanttDuration(start, task.duration, parsed.holidays, holidaySet);
+      }
+    } else {
+      // Explicit date task with no duration = milestone at that date
+      end = new Date(start);
+    }
+
+    node.startDate = start;
+    node.endDate = end;
+  }
+
+  // ── Build resolved tasks ────────────────────────────────
+
+  // Critical path calculation (if enabled)
+  const criticalSet = parsed.options.criticalPath
+    ? computeCriticalPath(sortedIds, taskMap)
+    : new Set<string>();
+
+  for (const taskId of sortedIds) {
+    const node = taskMap.get(taskId)!;
+    result.tasks.push({
+      task: node.task,
+      startDate: node.startDate!,
+      endDate: node.endDate!,
+      isCriticalPath: criticalSet.has(taskId),
+      isMilestone: (node.task.duration?.amount === 0) || (!node.task.duration && !node.task.explicitStart),
+      groupPath: node.task.groupPath,
+      effectiveMetadata: node.task.metadata,
+    });
+  }
+
+  // ── Build resolved groups ───────────────────────────────
+
+  buildResolvedGroups(parsed.nodes, taskMap, result.groups, 0);
+
+  // ── Compute overall date range ──────────────────────────
+
+  if (result.tasks.length > 0) {
+    let minDate = result.tasks[0].startDate;
+    let maxDate = result.tasks[0].endDate;
+    for (const t of result.tasks) {
+      if (t.startDate.getTime() < minDate.getTime()) minDate = t.startDate;
+      if (t.endDate.getTime() > maxDate.getTime()) maxDate = t.endDate;
+    }
+    result.startDate = minDate;
+    result.endDate = maxDate;
+  }
+
+  // ── Warnings ────────────────────────────────────────────
+
+  // Missing parallel warning: 2+ top-level groups without parallel wrapper
+  const topLevelGroups = parsed.nodes.filter(n => n.kind === 'group');
+  if (topLevelGroups.length >= 2) {
+    const names = topLevelGroups.map(g => (g as GanttGroup & { kind: 'group' }).name);
+    warn(
+      topLevelGroups[0].lineNumber,
+      `${names.join(' and ')} are sequential. Wrap in \`parallel\` if they should run concurrently.`,
+    );
+  }
+
+  return result;
+}
+
+// ── Implicit dependency builder ─────────────────────────────
+
+/**
+ * Walk the gantt tree and create implicit sequential dependencies.
+ * - Siblings are sequential (each task depends on the previous sibling)
+ * - Parallel block children all share the parent's predecessor
+ * - Groups: children are sequential within the group
+ */
+function buildImplicitDeps(
+  nodes: GanttNode[],
+  taskMap: Map<string, TaskNode>,
+): void {
+  walkChildren(nodes, null);
+
+  function walkChildren(children: GanttNode[], afterTaskId: string | null) {
+    let prevTaskId = afterTaskId;
+
+    for (const node of children) {
+      if (node.kind === 'task') {
+        if (prevTaskId) {
+          const taskNode = taskMap.get(node.id);
+          if (taskNode && !taskNode.predecessors.includes(prevTaskId)) {
+            taskNode.predecessors.push(prevTaskId);
+          }
+        }
+        prevTaskId = node.id;
+      } else if (node.kind === 'group') {
+        // Walk group children sequentially, starting after prevTaskId
+        const lastId = walkSequential(node.children, prevTaskId);
+        if (lastId) prevTaskId = lastId;
+      } else if (node.kind === 'parallel') {
+        // All parallel children start after prevTaskId
+        // The parallel block "ends" when all children end
+        // We need to find the last task in each branch
+        const branchLastIds: string[] = [];
+        for (const child of node.children) {
+          if (child.kind === 'task') {
+            if (prevTaskId) {
+              const taskNode = taskMap.get(child.id);
+              if (taskNode && !taskNode.predecessors.includes(prevTaskId)) {
+                taskNode.predecessors.push(prevTaskId);
+              }
+            }
+            branchLastIds.push(child.id);
+          } else if (child.kind === 'group') {
+            // First task in group depends on prevTaskId
+            const firstId = findFirstTask(child.children);
+            if (firstId && prevTaskId) {
+              const taskNode = taskMap.get(firstId);
+              if (taskNode && !taskNode.predecessors.includes(prevTaskId)) {
+                taskNode.predecessors.push(prevTaskId);
+              }
+            }
+            // Walk sequentially within the group
+            walkSequential(child.children, null); // internal deps only
+            const lastId = findLastTask(child.children);
+            if (lastId) branchLastIds.push(lastId);
+          } else if (child.kind === 'parallel') {
+            // Nested parallel — recurse
+            walkChildren([child], prevTaskId);
+            const lastId = findLastTask(child.children);
+            if (lastId) branchLastIds.push(lastId);
+          }
+        }
+        // After parallel, next sibling depends on ALL branch ends
+        // We'll use a synthetic approach: store all branch ends, and the
+        // next task after the parallel block will depend on all of them
+        if (branchLastIds.length > 0) {
+          // Create a temporary "prevTaskId" that represents all branches
+          // The next task will need to depend on all of them
+          // We'll handle this by not setting prevTaskId to a single ID
+          // Instead, we'll track it as a special case
+          prevTaskId = null;
+          // For the next sibling, we need it to depend on all branch ends
+          // We'll do this by finding the next sibling and adding all deps
+          const nextIdx = children.indexOf(node) + 1;
+          if (nextIdx < children.length) {
+            const nextFirstId = findFirstTask([children[nextIdx]]);
+            if (nextFirstId) {
+              const nextNode = taskMap.get(nextFirstId);
+              if (nextNode) {
+                for (const branchId of branchLastIds) {
+                  if (!nextNode.predecessors.includes(branchId)) {
+                    nextNode.predecessors.push(branchId);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Walk children sequentially: each task depends on the previous.
+   * Returns the last task ID in the sequence.
+   */
+  function walkSequential(children: GanttNode[], afterTaskId: string | null): string | null {
+    let prevTaskId = afterTaskId;
+    for (const node of children) {
+      if (node.kind === 'task') {
+        if (prevTaskId) {
+          const taskNode = taskMap.get(node.id);
+          if (taskNode && !taskNode.predecessors.includes(prevTaskId)) {
+            taskNode.predecessors.push(prevTaskId);
+          }
+        }
+        prevTaskId = node.id;
+      } else if (node.kind === 'group') {
+        const lastId = walkSequential(node.children, prevTaskId);
+        if (lastId) prevTaskId = lastId;
+      } else if (node.kind === 'parallel') {
+        walkChildren([node], prevTaskId);
+        const lastId = findLastTask(node.children);
+        if (lastId) prevTaskId = lastId;
+      }
+    }
+    return prevTaskId;
+  }
+}
+
+/** Find the first task ID in a tree (depth-first). */
+function findFirstTask(nodes: GanttNode[]): string | null {
+  for (const node of nodes) {
+    if (node.kind === 'task') return node.id;
+    if (node.kind === 'group' || node.kind === 'parallel') {
+      const found = findFirstTask(node.children);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+/** Find the last task ID in a tree (depth-first, last branch). */
+function findLastTask(nodes: GanttNode[]): string | null {
+  for (let i = nodes.length - 1; i >= 0; i--) {
+    const node = nodes[i];
+    if (node.kind === 'task') return node.id;
+    if (node.kind === 'group' || node.kind === 'parallel') {
+      const found = findLastTask(node.children);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+// ── Topological sort ────────────────────────────────────────
+
+/**
+ * Kahn's algorithm for topological sort.
+ * Returns sorted IDs, or null if a cycle exists.
+ */
+function topologicalSort(taskMap: Map<string, TaskNode>): string[] | null {
+  const inDegree = new Map<string, number>();
+  const adjacency = new Map<string, string[]>(); // pred → successors
+
+  for (const [id, node] of taskMap) {
+    inDegree.set(id, node.predecessors.length);
+    for (const pred of node.predecessors) {
+      const adj = adjacency.get(pred) ?? [];
+      adj.push(id);
+      adjacency.set(pred, adj);
+    }
+  }
+
+  const queue: string[] = [];
+  for (const [id, degree] of inDegree) {
+    if (degree === 0) queue.push(id);
+  }
+
+  const sorted: string[] = [];
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    sorted.push(current);
+    for (const succ of adjacency.get(current) ?? []) {
+      const newDegree = (inDegree.get(succ) ?? 1) - 1;
+      inDegree.set(succ, newDegree);
+      if (newDegree === 0) queue.push(succ);
+    }
+  }
+
+  return sorted.length === taskMap.size ? sorted : null;
+}
+
+/**
+ * Find a cycle in the dependency graph (for error reporting).
+ * Returns the IDs forming the cycle.
+ */
+function findCycle(taskMap: Map<string, TaskNode>): string[] {
+  const visited = new Set<string>();
+  const onStack = new Set<string>();
+  const parent = new Map<string, string>();
+
+  for (const id of taskMap.keys()) {
+    if (!visited.has(id)) {
+      const cycle = dfs(id);
+      if (cycle) return cycle;
+    }
+  }
+  return []; // shouldn't happen if topological sort failed
+
+  function dfs(id: string): string[] | null {
+    visited.add(id);
+    onStack.add(id);
+
+    const node = taskMap.get(id)!;
+    // Build adjacency: successors of id
+    const successors: string[] = [];
+    for (const [otherId, otherNode] of taskMap) {
+      if (otherNode.predecessors.includes(id)) {
+        successors.push(otherId);
+      }
+    }
+
+    for (const succ of successors) {
+      if (!visited.has(succ)) {
+        parent.set(succ, id);
+        const cycle = dfs(succ);
+        if (cycle) return cycle;
+      } else if (onStack.has(succ)) {
+        // Found cycle — trace back
+        const cycle = [succ];
+        let current = id;
+        while (current !== succ) {
+          cycle.push(current);
+          current = parent.get(current)!;
+        }
+        cycle.push(succ); // close the loop
+        return cycle.reverse();
+      }
+    }
+
+    onStack.delete(id);
+    return null;
+  }
+}
+
+// ── Critical path ───────────────────────────────────────────
+
+/**
+ * Compute the critical path: the longest chain through the dependency graph.
+ * Uses a backward pass to identify tasks with zero slack.
+ */
+function computeCriticalPath(
+  sortedIds: string[],
+  taskMap: Map<string, TaskNode>,
+): Set<string> {
+  if (sortedIds.length === 0) return new Set();
+
+  // Forward pass: earliest start/end (already computed)
+  // Backward pass: latest start/end
+  const latestEnd = new Map<string, number>();
+  const latestStart = new Map<string, number>();
+
+  // Find project end time
+  let projectEnd = 0;
+  for (const id of sortedIds) {
+    const node = taskMap.get(id)!;
+    if (node.endDate && node.endDate.getTime() > projectEnd) {
+      projectEnd = node.endDate.getTime();
+    }
+  }
+
+  // Build successor map
+  const successors = new Map<string, string[]>();
+  for (const [id, node] of taskMap) {
+    for (const pred of node.predecessors) {
+      const succs = successors.get(pred) ?? [];
+      succs.push(id);
+      successors.set(pred, succs);
+    }
+  }
+
+  // Backward pass (reverse order)
+  for (let i = sortedIds.length - 1; i >= 0; i--) {
+    const id = sortedIds[i];
+    const node = taskMap.get(id)!;
+    const succs = successors.get(id) ?? [];
+
+    if (succs.length === 0) {
+      // No successors: latest end = project end
+      latestEnd.set(id, projectEnd);
+    } else {
+      // Latest end = min of successors' latest starts
+      let minStart = Infinity;
+      for (const succId of succs) {
+        const succLatestStart = latestStart.get(succId);
+        if (succLatestStart !== undefined && succLatestStart < minStart) {
+          minStart = succLatestStart;
+        }
+      }
+      latestEnd.set(id, minStart);
+    }
+
+    const duration = node.endDate!.getTime() - node.startDate!.getTime();
+    latestStart.set(id, latestEnd.get(id)! - duration);
+  }
+
+  // Critical path = tasks where slack = 0 (latest start == earliest start)
+  const critical = new Set<string>();
+  for (const id of sortedIds) {
+    const node = taskMap.get(id)!;
+    const slack = (latestStart.get(id) ?? 0) - node.startDate!.getTime();
+    if (Math.abs(slack) < 86400000) { // within 1 day tolerance
+      critical.add(id);
+    }
+  }
+
+  return critical;
+}
+
+// ── Resolved groups builder ─────────────────────────────────
+
+function buildResolvedGroups(
+  nodes: GanttNode[],
+  taskMap: Map<string, TaskNode>,
+  groups: ResolvedGroup[],
+  depth: number,
+): void {
+  for (const node of nodes) {
+    if (node.kind === 'group') {
+      const childTasks = collectTasks(node.children);
+      if (childTasks.length === 0) {
+        groups.push({
+          name: node.name,
+          color: node.color,
+          metadata: node.metadata,
+          startDate: new Date(),
+          endDate: new Date(),
+          progress: null,
+          lineNumber: node.lineNumber,
+          depth,
+        });
+        continue;
+      }
+
+      let minStart = Infinity;
+      let maxEnd = -Infinity;
+      let totalProgress = 0;
+      let totalDuration = 0;
+      let hasProgress = false;
+
+      for (const task of childTasks) {
+        const resolved = taskMap.get(task.id);
+        if (!resolved?.startDate || !resolved?.endDate) continue;
+        if (resolved.startDate.getTime() < minStart) minStart = resolved.startDate.getTime();
+        if (resolved.endDate.getTime() > maxEnd) maxEnd = resolved.endDate.getTime();
+        if (task.progress !== null) {
+          const dur = resolved.endDate.getTime() - resolved.startDate.getTime();
+          totalProgress += task.progress * dur;
+          totalDuration += dur;
+          hasProgress = true;
+        }
+      }
+
+      groups.push({
+        name: node.name,
+        color: node.color,
+        metadata: node.metadata,
+        startDate: new Date(minStart === Infinity ? 0 : minStart),
+        endDate: new Date(maxEnd === -Infinity ? 0 : maxEnd),
+        progress: hasProgress && totalDuration > 0 ? totalProgress / totalDuration : null,
+        lineNumber: node.lineNumber,
+        depth,
+      });
+
+      // Recurse into children
+      buildResolvedGroups(node.children, taskMap, groups, depth + 1);
+    } else if (node.kind === 'parallel') {
+      buildResolvedGroups(node.children, taskMap, groups, depth);
+    }
+  }
+}
+
+// ── Utility ─────────────────────────────────────────────────
+
+function formatDate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
