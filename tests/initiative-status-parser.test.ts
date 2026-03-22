@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseInitiativeStatus, looksLikeInitiativeStatus } from '../src/initiative-status/parser';
+import { parseInitiativeStatus, looksLikeInitiativeStatus, parseNodeMetadata } from '../src/initiative-status/parser';
 
 describe('parseInitiativeStatus', () => {
   // === Metadata ===
@@ -430,5 +430,256 @@ describe('parseInitiativeStatus — labeled arrows', () => {
     expect(result.edges).toHaveLength(2);
     expect(result.edges[0].label).toBe('go');
     expect(result.edges[1].label).toBe('next');
+  });
+});
+
+// ============================================================
+// Tag groups
+// ============================================================
+
+describe('tag groups', () => {
+  describe('parseNodeMetadata', () => {
+    const emptyAliasMap = new Map<string, string>();
+    const aliasMap = new Map([['p', 'phase'], ['t', 'team']]);
+
+    it('parses status-only segment', () => {
+      const result = parseNodeMetadata('done', emptyAliasMap);
+      expect(result.status).toBe('done');
+      expect(result.metadata).toEqual({});
+      expect(result.hadStatusWord).toBe(true);
+    });
+
+    it('parses status + tags', () => {
+      const result = parseNodeMetadata('wip, p: Build, t: Backend', aliasMap);
+      expect(result.status).toBe('wip');
+      expect(result.metadata).toEqual({ phase: 'Build', team: 'Backend' });
+    });
+
+    it('parses tags-only (no status keyword)', () => {
+      const result = parseNodeMetadata('p: Build', aliasMap);
+      expect(result.status).toBeNull();
+      expect(result.metadata).toEqual({ phase: 'Build' });
+      expect(result.hadStatusWord).toBe(false);
+    });
+
+    it('handles flexible order — tags before status', () => {
+      const result = parseNodeMetadata('p: Build, done', aliasMap);
+      expect(result.status).toBe('done');
+      expect(result.metadata).toEqual({ phase: 'Build' });
+    });
+
+    it('resolves aliases to lowercase group names', () => {
+      const result = parseNodeMetadata('t: Frontend', aliasMap);
+      expect(result.metadata).toEqual({ team: 'Frontend' });
+    });
+
+    it('lowercases metadata keys', () => {
+      const map = new Map<string, string>();
+      const result = parseNodeMetadata('Phase: Build', map);
+      expect(result.metadata).toEqual({ phase: 'Build' });
+    });
+  });
+
+  describe('tag block declarations', () => {
+    it('parses tag block with alias and colored entries', () => {
+      const input = `chart: initiative-status
+tag: Phase alias p
+  Discovery(blue)
+  Build(yellow)
+  Launch(green)
+
+API | wip, p: Build`;
+      const result = parseInitiativeStatus(input);
+      expect(result.tagGroups).toHaveLength(1);
+      expect(result.tagGroups[0].name).toBe('Phase');
+      expect(result.tagGroups[0].alias).toBe('p');
+      expect(result.tagGroups[0].entries).toHaveLength(3);
+      expect(result.tagGroups[0].entries[0]).toMatchObject({ value: 'Discovery', color: '#5e81ac' });
+      expect(result.tagGroups[0].entries[1]).toMatchObject({ value: 'Build', color: '#ebcb8b' });
+      expect(result.tagGroups[0].entries[2]).toMatchObject({ value: 'Launch', color: '#a3be8c' });
+    });
+
+    it('parses multiple tag groups', () => {
+      const input = `chart: initiative-status
+tag: Phase alias p
+  Build(yellow)
+tag: Team alias t
+  Frontend(purple)
+  Backend(cyan)
+
+API | done`;
+      const result = parseInitiativeStatus(input);
+      expect(result.tagGroups).toHaveLength(2);
+      expect(result.tagGroups[0].name).toBe('Phase');
+      expect(result.tagGroups[1].name).toBe('Team');
+      expect(result.tagGroups[1].entries).toHaveLength(2);
+    });
+
+    it('parses tag entries without color', () => {
+      const input = `chart: initiative-status
+tag: Phase
+  Build
+  Launch
+
+API | done`;
+      const result = parseInitiativeStatus(input);
+      expect(result.tagGroups[0].entries[0]).toMatchObject({ value: 'Build', color: '' });
+    });
+
+    it('parses default tag value', () => {
+      const input = `chart: initiative-status
+tag: Phase alias p
+  Planning(#aaa) default
+  Build(#bbb)
+
+API | done`;
+      const result = parseInitiativeStatus(input);
+      expect(result.tagGroups[0].defaultValue).toBe('Planning');
+    });
+
+    it('emits error when tag block appears after content', () => {
+      const input = `chart: initiative-status
+API | done
+tag: Phase
+  Build(yellow)`;
+      const result = parseInitiativeStatus(input);
+      const errors = result.diagnostics.filter(d => d.severity === 'error');
+      expect(errors).toHaveLength(1);
+      expect(errors[0].message).toContain('Tag groups must appear before diagram content');
+      expect(result.tagGroups).toHaveLength(0);
+    });
+  });
+
+  describe('node pipe metadata with tags', () => {
+    it('parses node with status + tag metadata', () => {
+      const input = `chart: initiative-status
+tag: Phase alias p
+  Build(yellow)
+
+API | wip, p: Build`;
+      const result = parseInitiativeStatus(input);
+      expect(result.nodes[0].status).toBe('wip');
+      expect(result.nodes[0].metadata).toEqual({ phase: 'Build' });
+    });
+
+    it('parses node with tags only — status defaults to na', () => {
+      const input = `chart: initiative-status
+tag: Phase alias p
+  Build(yellow)
+
+API | p: Build`;
+      const result = parseInitiativeStatus(input);
+      expect(result.nodes[0].status).toBe('na');
+      expect(result.nodes[0].metadata).toEqual({ phase: 'Build' });
+    });
+
+    it('handles flexible order: tags before status', () => {
+      const input = `chart: initiative-status
+tag: Phase alias p
+  Build(yellow)
+
+API | p: Build, done`;
+      const result = parseInitiativeStatus(input);
+      expect(result.nodes[0].status).toBe('done');
+      expect(result.nodes[0].metadata).toEqual({ phase: 'Build' });
+    });
+
+    it('backward compat: node with status only, no tags', () => {
+      const input = 'API | done';
+      const result = parseInitiativeStatus(input);
+      expect(result.nodes[0].status).toBe('done');
+      expect(result.nodes[0].metadata).toEqual({});
+    });
+
+    it('node with no pipe has empty metadata', () => {
+      const result = parseInitiativeStatus('API');
+      expect(result.nodes[0].metadata).toEqual({});
+      expect(result.nodes[0].status).toBe('na');
+    });
+  });
+
+  describe('edge pipe metadata with tags', () => {
+    it('parses edge with status + tags', () => {
+      const input = `chart: initiative-status
+tag: Phase alias p
+  Build(yellow)
+
+A | done
+B | done
+A -> B | done, p: Build`;
+      const result = parseInitiativeStatus(input);
+      expect(result.edges[0].status).toBe('done');
+      expect(result.edges[0].metadata).toEqual({ phase: 'Build' });
+    });
+
+    it('edge with status only (backward compat)', () => {
+      const input = `A | done\nB | done\nA -> B | wip`;
+      const result = parseInitiativeStatus(input);
+      expect(result.edges[0].status).toBe('wip');
+      expect(result.edges[0].metadata).toEqual({});
+    });
+  });
+
+  describe('default tag values', () => {
+    it('injects default tag value on untagged nodes', () => {
+      const input = `chart: initiative-status
+tag: Phase alias p
+  Planning(#aaa) default
+  Build(#bbb)
+
+API | done
+DB | done, p: Build`;
+      const result = parseInitiativeStatus(input);
+      // API has no phase tag → gets default "Planning"
+      expect(result.nodes[0].metadata.phase).toBe('Planning');
+      // DB has explicit phase → keeps "Build"
+      expect(result.nodes[1].metadata.phase).toBe('Build');
+    });
+  });
+
+  describe('tag validation warnings', () => {
+    it('warns on unknown tag values with did-you-mean', () => {
+      const input = `chart: initiative-status
+tag: Phase alias p
+  Build(yellow)
+  Launch(green)
+
+API | done, p: Buidl`;
+      const result = parseInitiativeStatus(input);
+      const warnings = result.diagnostics.filter(d => d.severity === 'warning');
+      expect(warnings.length).toBeGreaterThanOrEqual(1);
+      expect(warnings.some(w => w.message.includes("Unknown value 'Buidl'"))).toBe(true);
+    });
+  });
+
+  describe('hide: DSL directive', () => {
+    it('parses hide: with single group:value pair', () => {
+      const input = `chart: initiative-status
+hide: phase:Phase3
+
+API | done`;
+      const result = parseInitiativeStatus(input);
+      expect(result.initialHiddenTagValues.has('phase')).toBe(true);
+      expect(result.initialHiddenTagValues.get('phase')!.has('phase3')).toBe(true);
+    });
+
+    it('parses hide: with multiple group:value pairs', () => {
+      const input = `chart: initiative-status
+hide: phase:Phase3, team:Frontend
+
+API | done`;
+      const result = parseInitiativeStatus(input);
+      expect(result.initialHiddenTagValues.get('phase')!.has('phase3')).toBe(true);
+      expect(result.initialHiddenTagValues.get('team')!.has('frontend')).toBe(true);
+    });
+
+    it('ignores malformed hide entries without colon', () => {
+      const input = `chart: initiative-status
+hide: nocolon
+
+API | done`;
+      const result = parseInitiativeStatus(input);
+      expect(result.initialHiddenTagValues.size).toBe(0);
+    });
   });
 });

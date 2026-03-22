@@ -4,6 +4,7 @@
 
 import type { DgmoError } from '../diagnostics';
 import type { ParticipantType } from '../sequence/parser';
+import type { TagGroup } from '../utils/tag-groups';
 
 export type InitiativeStatus = 'done' | 'wip' | 'todo' | 'na' | null;
 
@@ -14,6 +15,7 @@ export interface ISNode {
   status: InitiativeStatus;
   shape: ParticipantType;
   lineNumber: number;
+  metadata: Record<string, string>;
 }
 
 export interface ISEdge {
@@ -22,6 +24,7 @@ export interface ISEdge {
   label?: string; // e.g. "getUser"
   status: InitiativeStatus;
   lineNumber: number;
+  metadata: Record<string, string>;
 }
 
 export interface ISGroup {
@@ -37,7 +40,10 @@ export interface ParsedInitiativeStatus {
   nodes: ISNode[];
   edges: ISEdge[];
   groups: ISGroup[];
+  tagGroups: TagGroup[];
   options: Record<string, string>;
+  /** Initial hidden tag values from `hide:` DSL directive. Map<groupKey, Set<values>> */
+  initialHiddenTagValues: Map<string, Set<string>>;
   diagnostics: DgmoError[];
   error: string | null;
 }

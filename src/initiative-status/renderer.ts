@@ -17,8 +17,11 @@ import {
   LEGEND_ENTRY_FONT_W,
   LEGEND_ENTRY_DOT_GAP,
   LEGEND_ENTRY_TRAIL,
+  LEGEND_GROUP_GAP,
 } from '../utils/legend-constants';
 import { contrastText, mix } from '../palettes/color-utils';
+import { resolveTagColor } from '../utils/tag-groups';
+import type { TagGroup } from '../utils/tag-groups';
 import type { PaletteColors } from '../palettes';
 import type { ParsedInitiativeStatus, InitiativeStatus } from './types';
 import type { ParticipantType } from '../sequence/parser';
@@ -460,16 +463,31 @@ function renderNodeShape(
 // Main renderer
 // ============================================================
 
+export interface ISRenderOptions {
+  onClickItem?: (lineNumber: number) => void;
+  exportDims?: { width?: number; height?: number };
+  legendActive?: boolean | null;
+  activeTagGroup?: string | null;
+  hiddenTagValues?: Map<string, Set<string>>;
+  tagGroups?: TagGroup[];
+}
+
 export function renderInitiativeStatus(
   container: HTMLDivElement,
   parsed: ParsedInitiativeStatus,
   layout: ISLayoutResult,
   palette: PaletteColors,
   isDark: boolean,
-  onClickItem?: (lineNumber: number) => void,
-  exportDims?: { width?: number; height?: number },
-  legendActive?: boolean | null
+  options?: ISRenderOptions
 ): void {
+  const {
+    onClickItem,
+    exportDims,
+    legendActive,
+    activeTagGroup,
+    hiddenTagValues,
+    tagGroups,
+  } = options ?? {};
   // Clear existing content
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
 
@@ -481,9 +499,12 @@ export function renderInitiativeStatus(
   const hasLegend = legendEntries.length > 1;
   const isLegendExpanded = legendActive !== false;
 
+  const effectiveTagGroups = tagGroups ?? parsed.tagGroups ?? [];
+  const hasTagGroups = effectiveTagGroups.length > 0;
+
   const titleHeight = parsed.title ? 40 : 0;
   const LEGEND_FIXED_GAP = 8;
-  const legendReserve = hasLegend ? LEGEND_HEIGHT + LEGEND_FIXED_GAP : 0;
+  const legendReserve = (hasLegend || hasTagGroups) ? LEGEND_HEIGHT + LEGEND_FIXED_GAP : 0;
 
   // Scale to fit
   const diagramW = layout.width;
@@ -556,104 +577,196 @@ export function renderInitiativeStatus(
   }
 
   // ── Legend ──
-  if (hasLegend) {
+  if (hasLegend || hasTagGroups) {
     const groupBg = isDark
       ? mix(palette.surface, palette.bg, 50)
       : mix(palette.surface, palette.bg, 30);
 
-    const pillWidth = LEGEND_GROUP_NAME.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
-    const pillH = LEGEND_HEIGHT - LEGEND_CAPSULE_PAD * 2;
-    const entriesW = legendEntriesWidth(legendEntries);
+    // Build legend groups: Status + tag groups
+    interface LegendGroup {
+      name: string;
+      key: string; // lowercase key for data attribute
+      isStatus: boolean;
+      entries: { label: string; color: string; value: string }[];
+      width: number; // total width when expanded
+    }
 
-    const totalW = isLegendExpanded
-      ? LEGEND_CAPSULE_PAD * 2 + pillWidth + LEGEND_ENTRY_TRAIL + entriesW
-      : pillWidth;
+    const legendGroups: LegendGroup[] = [];
 
-    const legendX = (width - totalW) / 2;
+    // Status group (always first if entries exist)
+    if (hasLegend) {
+      const statusEntries = legendEntries.map((e) => ({
+        label: e.label,
+        color: statusColor(e.statusKey, palette, isDark),
+        value: e.statusKey ?? 'na',
+      }));
+      const pillW = LEGEND_GROUP_NAME.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
+      const entrW = legendEntriesWidth(legendEntries);
+      legendGroups.push({
+        name: LEGEND_GROUP_NAME,
+        key: 'status',
+        isStatus: true,
+        entries: statusEntries,
+        width: LEGEND_CAPSULE_PAD * 2 + pillW + LEGEND_ENTRY_TRAIL + entrW,
+      });
+    }
+
+    // Tag groups
+    for (const tg of effectiveTagGroups) {
+      const entries = tg.entries.map((e) => ({
+        label: e.value,
+        color: e.color || palette.textMuted,
+        value: e.value.toLowerCase(),
+      }));
+      const pillW = tg.name.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
+      let entrW = 0;
+      for (const e of entries) {
+        entrW += LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP + e.label.length * LEGEND_ENTRY_FONT_W + LEGEND_ENTRY_TRAIL;
+      }
+      legendGroups.push({
+        name: tg.name,
+        key: tg.name.toLowerCase(),
+        isStatus: false,
+        entries,
+        width: LEGEND_CAPSULE_PAD * 2 + pillW + 4 + entrW,
+      });
+    }
+
+    // Determine which group is active/expanded
+    const activeKey = activeTagGroup?.toLowerCase() ?? null;
+    const isStatusExpanded = isLegendExpanded && activeKey === null;
+
+    // Compute total legend width
+    let totalLegendW = 0;
+    for (const lg of legendGroups) {
+      const isActive = lg.isStatus ? isStatusExpanded : (activeKey === lg.key);
+      const pillW = lg.name.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
+      totalLegendW += isActive ? lg.width : pillW;
+      totalLegendW += LEGEND_GROUP_GAP;
+    }
+    totalLegendW -= LEGEND_GROUP_GAP; // remove trailing gap
+
+    // Hidden-node badge width
+    const hiddenCount = hiddenTagValues
+      ? parsed.nodes.length - layout.nodes.length + (layout.nodes.length === 0 ? parsed.nodes.length : 0)
+      : 0;
+    const legendX = (width - totalLegendW) / 2;
     const legendY = titleHeight;
 
-    const legendG = svg
+    const legendRow = svg
       .append('g')
-      .attr('class', 'is-legend')
-      .attr('data-legend-group', 'status')
-      .attr('transform', `translate(${legendX}, ${legendY})`)
-      .style('cursor', 'pointer');
+      .attr('class', 'is-legend-row')
+      .attr('transform', `translate(${legendX}, ${legendY})`);
 
-    if (isLegendExpanded) {
-      legendG.append('rect')
-        .attr('width', totalW)
-        .attr('height', LEGEND_HEIGHT)
-        .attr('rx', LEGEND_HEIGHT / 2)
-        .attr('fill', groupBg);
+    let cursorX = 0;
 
-      legendG.append('rect')
-        .attr('x', LEGEND_CAPSULE_PAD)
-        .attr('y', LEGEND_CAPSULE_PAD)
-        .attr('width', pillWidth)
-        .attr('height', pillH)
-        .attr('rx', pillH / 2)
-        .attr('fill', palette.bg);
+    for (const lg of legendGroups) {
+      const isActive = lg.isStatus ? isStatusExpanded : (activeKey === lg.key);
+      const pillW = lg.name.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
+      const pillH = LEGEND_HEIGHT - (isActive ? LEGEND_CAPSULE_PAD * 2 : 0);
+      const groupW = isActive ? lg.width : pillW;
 
-      legendG.append('rect')
-        .attr('x', LEGEND_CAPSULE_PAD)
-        .attr('y', LEGEND_CAPSULE_PAD)
-        .attr('width', pillWidth)
-        .attr('height', pillH)
-        .attr('rx', pillH / 2)
-        .attr('fill', 'none')
-        .attr('stroke', mix(palette.textMuted, palette.bg, 50))
-        .attr('stroke-width', 0.75);
+      const gEl = legendRow
+        .append('g')
+        .attr('transform', `translate(${cursorX}, 0)`)
+        .attr('class', 'is-legend-group')
+        .attr('data-legend-group', lg.key)
+        .style('cursor', 'pointer');
 
-      legendG.append('text')
-        .attr('x', LEGEND_CAPSULE_PAD + pillWidth / 2)
-        .attr('y', LEGEND_HEIGHT / 2 + LEGEND_PILL_FONT_SIZE / 2 - 2)
-        .attr('font-size', LEGEND_PILL_FONT_SIZE)
-        .attr('font-weight', '500')
-        .attr('fill', palette.text)
-        .attr('text-anchor', 'middle')
-        .attr('font-family', FONT_FAMILY)
-        .text(LEGEND_GROUP_NAME);
-
-      let entryX = LEGEND_CAPSULE_PAD + pillWidth + LEGEND_ENTRY_TRAIL;
-      for (const entry of legendEntries) {
-        const color = statusColor(entry.statusKey, palette, isDark);
-
-        const entryG = legendG.append('g')
-          .attr('data-legend-entry', entry.statusKey ?? 'na');
-
-        entryG.append('circle')
-          .attr('cx', entryX + LEGEND_DOT_R)
-          .attr('cy', LEGEND_HEIGHT / 2)
-          .attr('r', LEGEND_DOT_R)
-          .attr('fill', color);
-
-        entryG.append('text')
-          .attr('x', entryX + LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP)
-          .attr('y', LEGEND_HEIGHT / 2 + LEGEND_ENTRY_FONT_SIZE / 2 - 1)
-          .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
-          .attr('fill', palette.textMuted)
-          .attr('font-family', FONT_FAMILY)
-          .text(entry.label);
-
-        entryX += LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP + entry.label.length * LEGEND_ENTRY_FONT_W + LEGEND_ENTRY_TRAIL;
+      if (isActive) {
+        // Outer capsule background
+        gEl.append('rect')
+          .attr('width', groupW)
+          .attr('height', LEGEND_HEIGHT)
+          .attr('rx', LEGEND_HEIGHT / 2)
+          .attr('fill', groupBg);
       }
-    } else {
-      legendG.append('rect')
-        .attr('width', pillWidth)
-        .attr('height', LEGEND_HEIGHT)
-        .attr('rx', LEGEND_HEIGHT / 2)
-        .attr('fill', groupBg);
 
-      legendG.append('text')
-        .attr('x', pillWidth / 2)
+      const pillXOff = isActive ? LEGEND_CAPSULE_PAD : 0;
+      const pillYOff = isActive ? LEGEND_CAPSULE_PAD : 0;
+
+      // Pill background
+      gEl.append('rect')
+        .attr('x', pillXOff)
+        .attr('y', pillYOff)
+        .attr('width', pillW)
+        .attr('height', pillH)
+        .attr('rx', pillH / 2)
+        .attr('fill', isActive ? palette.bg : groupBg);
+
+      // Active pill border
+      if (isActive) {
+        gEl.append('rect')
+          .attr('x', pillXOff)
+          .attr('y', pillYOff)
+          .attr('width', pillW)
+          .attr('height', pillH)
+          .attr('rx', pillH / 2)
+          .attr('fill', 'none')
+          .attr('stroke', mix(palette.textMuted, palette.bg, 50))
+          .attr('stroke-width', 0.75);
+      }
+
+      // Pill text
+      gEl.append('text')
+        .attr('x', pillXOff + pillW / 2)
         .attr('y', LEGEND_HEIGHT / 2 + LEGEND_PILL_FONT_SIZE / 2 - 2)
         .attr('font-size', LEGEND_PILL_FONT_SIZE)
         .attr('font-weight', '500')
-        .attr('fill', palette.textMuted)
+        .attr('fill', isActive ? palette.text : palette.textMuted)
         .attr('text-anchor', 'middle')
         .attr('font-family', FONT_FAMILY)
-        .text(LEGEND_GROUP_NAME);
+        .text(lg.name);
+
+      // Entries inside capsule (active only)
+      if (isActive) {
+        // Determine which values are hidden for this group
+        const hiddenSet = !lg.isStatus ? hiddenTagValues?.get(lg.key) : undefined;
+
+        let entryX = pillXOff + pillW + 4;
+        for (const entry of lg.entries) {
+          const isHidden = hiddenSet?.has(entry.value) ?? false;
+
+          const entryG = gEl.append('g')
+            .attr('data-legend-entry', entry.value)
+            .style('cursor', !lg.isStatus ? 'pointer' : 'default');
+
+          if (isHidden) {
+            // Hidden: hollow ring + dimmed text (strikethrough-like)
+            entryG.append('circle')
+              .attr('cx', entryX + LEGEND_DOT_R)
+              .attr('cy', LEGEND_HEIGHT / 2)
+              .attr('r', LEGEND_DOT_R)
+              .attr('fill', 'none')
+              .attr('stroke', entry.color)
+              .attr('stroke-width', 1.2)
+              .attr('opacity', 0.5);
+          } else {
+            // Visible: solid dot
+            entryG.append('circle')
+              .attr('cx', entryX + LEGEND_DOT_R)
+              .attr('cy', LEGEND_HEIGHT / 2)
+              .attr('r', LEGEND_DOT_R)
+              .attr('fill', entry.color);
+          }
+
+          entryG.append('text')
+            .attr('x', entryX + LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP)
+            .attr('y', LEGEND_HEIGHT / 2 + LEGEND_ENTRY_FONT_SIZE / 2 - 1)
+            .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
+            .attr('fill', palette.textMuted)
+            .attr('font-family', FONT_FAMILY)
+            .attr('opacity', isHidden ? 0.4 : 1)
+            .attr('text-decoration', isHidden ? 'line-through' : 'none')
+            .text(entry.label);
+
+          entryX += LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP + entry.label.length * LEGEND_ENTRY_FONT_W + LEGEND_ENTRY_TRAIL;
+        }
+      }
+
+      cursorX += groupW + LEGEND_GROUP_GAP;
     }
+
   }
 
   // Content group
@@ -930,6 +1043,13 @@ export function renderInitiativeStatus(
       .attr('data-line-number', String(node.lineNumber))
       .attr('data-is-status', node.status ?? 'na');
 
+    // Tag data attributes for hover dimming
+    if (node.metadata) {
+      for (const [key, val] of Object.entries(node.metadata)) {
+        nodeG.attr(`data-tag-${key}`, val.toLowerCase());
+      }
+    }
+
     if (onClickItem) {
       nodeG.style('cursor', 'pointer').on('click', () => {
         onClickItem(node.lineNumber);
@@ -947,16 +1067,28 @@ export function renderInitiativeStatus(
       .attr('fill', 'transparent')
       .attr('class', 'is-node-hit-area');
 
-    const neutralize = hasLegend && !isLegendExpanded;
-    const effectiveStatus = neutralize ? null : node.status;
-    const fill = nodeFill(effectiveStatus, palette, isDark);
-    const stroke = nodeStroke(effectiveStatus, palette, isDark);
+    // Tag-active coloring: override fill/stroke when an active tag group has user-defined colors
+    const neutralize = hasLegend && !isLegendExpanded && !activeTagGroup;
+    const tagColor = activeTagGroup
+      ? resolveTagColor(node.metadata ?? {}, effectiveTagGroups, activeTagGroup)
+      : undefined;
+    let fill: string;
+    let stroke: string;
+    if (tagColor && tagColor !== '#999999') {
+      fill = mix(tagColor, isDark ? palette.surface : palette.bg, 30);
+      stroke = tagColor;
+    } else {
+      const effectiveStatus = neutralize ? null : node.status;
+      fill = nodeFill(effectiveStatus, palette, isDark);
+      stroke = nodeStroke(effectiveStatus, palette, isDark);
+    }
     renderNodeShape(nodeG, node.shape, node.width, node.height, fill, stroke);
+
+    const textColor = contrastText(fill, '#eceff4', '#2e3440');
 
     // Label placement: actors put label below the figure, others center inside
     const isActor = node.shape === 'actor';
     if (isActor) {
-      const textColor = nodeTextColor(effectiveStatus, palette, isDark);
       const fitted = fitTextToNode(node.label, node.width, node.height * 0.35);
       const labelY = node.height / 2 - fitted.fontSize * 0.3;
       for (let li = 0; li < fitted.lines.length; li++) {
@@ -973,7 +1105,6 @@ export function renderInitiativeStatus(
       }
     } else {
       const fitted = fitTextToNode(node.label, node.width, node.height);
-      const textColor = nodeTextColor(effectiveStatus, palette, isDark);
       const totalTextHeight = fitted.lines.length * fitted.fontSize * 1.3;
       const startY = -totalTextHeight / 2 + fitted.fontSize * 0.65;
 
@@ -1022,8 +1153,7 @@ export function renderInitiativeStatusForExport(
       layout,
       palette,
       isDark,
-      undefined,
-      { width: exportWidth, height: exportHeight }
+      { exportDims: { width: exportWidth, height: exportHeight } }
     );
     return extractExportSvg(container, theme);
   });

@@ -217,9 +217,12 @@ export type {
 } from './initiative-status/layout';
 
 export { renderInitiativeStatus, renderInitiativeStatusForExport } from './initiative-status/renderer';
+export type { ISRenderOptions } from './initiative-status/renderer';
 
 export { collapseInitiativeStatus } from './initiative-status/collapse';
 export type { CollapseResult } from './initiative-status/collapse';
+
+export { filterInitiativeStatusByTags } from './initiative-status/filter';
 
 export { parseSitemap, looksLikeSitemap } from './sitemap/parser';
 
@@ -258,6 +261,29 @@ export type { InfraLayoutResult, InfraLayoutNode, InfraLayoutEdge, InfraLayoutGr
 export { renderInfra, parseAndLayoutInfra, computeInfraLegendGroups } from './infra/renderer';
 export type { InfraLegendGroup } from './infra/renderer';
 export type { CollapsedSitemapResult } from './sitemap/collapse';
+
+// ── Gantt Chart ───────────────────────────────────────────
+export { parseGantt } from './gantt/parser';
+export { calculateSchedule } from './gantt/calculator';
+export { renderGantt } from './gantt/renderer';
+export { resolveTaskName, collectTasks } from './gantt/resolver';
+export type {
+  ParsedGantt,
+  GanttTask,
+  GanttGroup,
+  GanttParallelBlock,
+  GanttNode,
+  GanttDependency,
+  GanttHolidays,
+  GanttEra,
+  GanttMarker,
+  GanttOptions,
+  Duration,
+  DurationUnit,
+  ResolvedSchedule,
+  ResolvedTask,
+  ResolvedGroup,
+} from './gantt/types';
 
 export { collapseOrgTree } from './org/collapse';
 export type { CollapsedOrgResult } from './org/collapse';

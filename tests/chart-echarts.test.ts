@@ -105,10 +105,10 @@ describe('buildSimpleChartOption', () => {
   });
 
   it('uses single color from parsed.color', () => {
-    const opt = build('chart: line\ncolor: #ff0000\nA: 10\nB: 20');
+    const opt = build('chart: line\ncolor: red\nA: 10\nB: 20');
     const s = series(opt);
-    expect(s[0].lineStyle.color).toBe('#ff0000');
-    expect(s[0].itemStyle.color).toBe('#ff0000');
+    expect(s[0].lineStyle.color).toBe('#bf616a');
+    expect(s[0].itemStyle.color).toBe('#bf616a');
   });
 
   // ── Multi-line ───────────────────────────────────────────

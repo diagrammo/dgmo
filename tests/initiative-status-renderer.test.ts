@@ -364,8 +364,7 @@ describe('renderInitiativeStatus', () => {
       layout,
       testPalette,
       false,
-      undefined,
-      { width: 800, height: 600 }
+      { exportDims: { width: 800, height: 600 } }
     );
 
     const svg = container.querySelector('svg');
@@ -383,8 +382,7 @@ describe('renderInitiativeStatus', () => {
       layout,
       testPalette,
       false,
-      undefined,
-      { width: 800, height: 600 }
+      { exportDims: { width: 800, height: 600 } }
     );
 
     const nodes = container.querySelectorAll('.is-node');
@@ -407,8 +405,7 @@ describe('renderInitiativeStatus', () => {
       layout,
       testPalette,
       false,
-      undefined,
-      { width: 800, height: 600 }
+      { exportDims: { width: 800, height: 600 } }
     );
 
     const edges = container.querySelectorAll('.is-edge');
@@ -426,8 +423,7 @@ describe('renderInitiativeStatus', () => {
       layout,
       testPalette,
       false,
-      undefined,
-      { width: 800, height: 600 }
+      { exportDims: { width: 800, height: 600 } }
     );
 
     const title = container.querySelector('.chart-title');
@@ -446,8 +442,7 @@ describe('renderInitiativeStatus', () => {
       layout,
       testPalette,
       false,
-      undefined,
-      { width: 800, height: 600 }
+      { exportDims: { width: 800, height: 600 } }
     );
 
     const labels = container.querySelectorAll('.is-edge-label');
@@ -468,8 +463,7 @@ describe('renderInitiativeStatus', () => {
       layout,
       testPalette,
       false,
-      undefined,
-      { width: 800, height: 600 }
+      { exportDims: { width: 800, height: 600 } }
     );
 
     const groups = container.querySelectorAll('.is-group');
@@ -521,7 +515,7 @@ Foo | wip
 Bar | wip`);
     const layout2 = layoutInitiativeStatus(parsed2);
     const container2 = document.createElement('div') as unknown as HTMLDivElement;
-    renderInitiativeStatus(container2, parsed2, layout2, testPalette, false, undefined, { width: 800, height: 600 });
+    renderInitiativeStatus(container2, parsed2, layout2, testPalette, false, { exportDims: { width: 800, height: 600 } });
     const hitPaths2 = container2.querySelectorAll('.is-edge-group path[stroke="transparent"]');
     expect(hitPaths2.length).toBe(2);
     for (const p of hitPaths2) {
@@ -535,7 +529,7 @@ Foo | wip
 Bar | wip`);
     const layout1 = layoutInitiativeStatus(parsed1);
     const container1 = document.createElement('div') as unknown as HTMLDivElement;
-    renderInitiativeStatus(container1, parsed1, layout1, testPalette, false, undefined, { width: 800, height: 600 });
+    renderInitiativeStatus(container1, parsed1, layout1, testPalette, false, { exportDims: { width: 800, height: 600 } });
     const hitPaths1 = container1.querySelectorAll('.is-edge-group path[stroke="transparent"]');
     expect(hitPaths1.length).toBe(1);
     expect(Number(hitPaths1[0].getAttribute('stroke-width'))).toBe(16);
@@ -569,8 +563,7 @@ Bar | wip`);
       layout,
       testPalette,
       true,
-      undefined,
-      { width: 800, height: 600 }
+      { exportDims: { width: 800, height: 600 } }
     );
 
     const svg = container.querySelector('svg');
@@ -610,7 +603,7 @@ D | todo`);
     // Targets are on distinct rows
     const targetYs = targets.map((t) => t.y).sort((a, b) => a - b);
     for (let i = 1; i < targetYs.length; i++) {
-      expect(targetYs[i] - targetYs[i - 1]).toBe(80); // GRID_ROW_HEIGHT
+      expect(targetYs[i] - targetYs[i - 1]).toBe(100); // GRID_ROW_HEIGHT
     }
   });
 
@@ -628,7 +621,7 @@ C | wip`);
     const cNode = layout.nodes.find((n) => n.label === 'C')!;
     // C should be at median of A and B rows (or nearest available)
     const medianY = (aNode.y + bNode.y) / 2;
-    expect(Math.abs(cNode.y - medianY)).toBeLessThanOrEqual(80); // within one grid row of median
+    expect(Math.abs(cNode.y - medianY)).toBeLessThanOrEqual(100); // within one grid row of median
   });
 
   it('handles disconnected nodes without collision', () => {
@@ -688,7 +681,7 @@ D | todo`);
     const layout = layoutInitiativeStatus(parsed);
     // All Y positions should share a common offset from grid alignment
     const ys = layout.nodes.map((n) => n.y);
-    const offsets = ys.map((y) => ((y % 80) + 80) % 80); // normalize modulo
+    const offsets = ys.map((y) => ((y % 100) + 100) % 100); // normalize modulo
     const commonOffset = offsets[0];
     for (const offset of offsets) {
       expect(offset).toBeCloseTo(commonOffset, 5);

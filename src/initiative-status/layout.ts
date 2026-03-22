@@ -19,6 +19,7 @@ export interface ISLayoutNode {
   y: number;
   width: number;
   height: number;
+  metadata: Record<string, string>;
 }
 
 export interface ISLayoutEdge {
@@ -75,7 +76,7 @@ const NODE_HEIGHT = 60;
 const NODE_WIDTH = Math.round(NODE_HEIGHT * PHI);
 const GROUP_PADDING = 20;
 const GROUP_LABEL_HEIGHT = 20; // approximate height of the group label text rendered above the box
-const NODESEP = 80;
+const NODESEP = 100;
 const RANKSEP = 160;
 const PARALLEL_SPACING = 16; // px between parallel edges sharing same source→target (~27% of NODE_HEIGHT)
 const PARALLEL_EDGE_MARGIN = 12; // total vertical margin reserved at top+bottom of node for edge bundles (6px each side)
@@ -289,6 +290,7 @@ export function layoutInitiativeStatus(
       y: pos.y,
       width: pos.width,
       height: pos.height,
+      metadata: node.metadata,
     };
   });
 
@@ -318,6 +320,7 @@ export function layoutInitiativeStatus(
     cgp.x = q.x;
     cgp.y = q.y;
   }
+
 
   // Build a unified position map covering both regular nodes and collapsed groups
   interface NodePos { x: number; y: number; width: number; height: number }
@@ -391,10 +394,11 @@ export function layoutInitiativeStatus(
       iterations++;
       for (const group of layoutGroups) {
         if (group.collapsed) continue;
-        const gTop = group.y - GROUP_LABEL_HEIGHT;
-        const gBottom = group.y + group.height;
-        const gLeft = group.x;
-        const gRight = group.x + group.width;
+        // Use rendered group bounds (includes GROUP_EXTRA_PADDING + label)
+        const gTop = group.y - GROUP_LABEL_HEIGHT - GROUP_PADDING;
+        const gBottom = group.y + group.height + GROUP_PADDING;
+        const gLeft = group.x - GROUP_PADDING;
+        const gRight = group.x + group.width + GROUP_PADDING;
         for (const node of layoutNodes) {
           if (groupMemberLabels.has(node.label)) continue;
           const nTop = node.y - node.height / 2;

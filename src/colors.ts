@@ -41,9 +41,9 @@ export const colorNames: Record<string, string> = {
 };
 
 /**
- * Resolves a color name or hex code to a valid CSS color.
+ * Resolves a color name to a valid CSS color.
  * When a palette is provided, named colors resolve against its color map first.
- * Hex codes (e.g. "#ff0000") are passed through regardless of palette (FR8).
+ * Hex codes are NOT supported — use named colors only.
  * Unknown names are returned as-is.
  */
 export function resolveColor(
@@ -51,7 +51,6 @@ export function resolveColor(
   palette?: { colors: Record<string, string> }
 ): string {
   const lower = color.toLowerCase();
-  if (lower.startsWith('#')) return lower;
 
   if (palette) {
     const named = palette.colors[lower];
@@ -59,6 +58,7 @@ export function resolveColor(
   }
 
   if (colorNames[lower]) return colorNames[lower];
+  // Unknown color name — return as-is so callers can detect + warn
   return color;
 }
 

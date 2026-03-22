@@ -5999,7 +5999,7 @@ export async function renderForExport(
     const exportHeight = isLayout.height + PADDING * 2 + titleOffset;
     const container = createExportContainer(exportWidth, exportHeight);
 
-    renderInitiativeStatus(container, isParsed, isLayout, effectivePalette, theme === 'dark', undefined, { width: exportWidth, height: exportHeight });
+    renderInitiativeStatus(container, isParsed, isLayout, effectivePalette, theme === 'dark', { exportDims: { width: exportWidth, height: exportHeight } });
     return finalizeSvgExport(container, theme, effectivePalette, options);
   }
 
@@ -6085,6 +6085,26 @@ export async function renderForExport(
       infraSvg.setAttribute('width', String(exportWidth));
       infraSvg.setAttribute('height', String(exportHeight));
     }
+    return finalizeSvgExport(container, theme, effectivePalette, options);
+  }
+
+  if (detectedType === 'gantt') {
+    const { parseGantt } = await import('./gantt/parser');
+    const { calculateSchedule } = await import('./gantt/calculator');
+    const { renderGantt } = await import('./gantt/renderer');
+
+    const effectivePalette = await resolveExportPalette(theme, palette);
+    const ganttParsed = parseGantt(content, effectivePalette);
+    if (ganttParsed.error) return '';
+
+    const resolved = calculateSchedule(ganttParsed);
+    if (resolved.error || resolved.tasks.length === 0) return '';
+
+    const EXPORT_W = 1200;
+    const EXPORT_H = 800;
+    const container = createExportContainer(EXPORT_W, EXPORT_H);
+
+    renderGantt(container, resolved, effectivePalette, theme === 'dark', undefined, { width: EXPORT_W, height: EXPORT_H });
     return finalizeSvgExport(container, theme, effectivePalette, options);
   }
 

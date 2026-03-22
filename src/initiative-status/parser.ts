@@ -13,6 +13,9 @@ import type {
 } from './types';
 import { VALID_STATUSES } from './types';
 import { inferParticipantType } from '../sequence/participant-inference';
+import { matchTagBlockHeading, injectDefaultTagMetadata, validateTagValues } from '../utils/tag-groups';
+import type { TagGroup } from '../utils/tag-groups';
+import { extractColor } from '../utils/parsing';
 
 // ============================================================
 // Heuristic — does this content look like an initiative-status diagram?
@@ -43,6 +46,62 @@ export function looksLikeInitiativeStatus(content: string): boolean {
 }
 
 // ============================================================
+// Metadata parser — splits comma-delimited segment into status + tags
+// ============================================================
+
+/**
+ * Parse the metadata segment after a `|` pipe into a status keyword
+ * and key:value tag pairs. Does NOT use parsePipeMetadata() from
+ * parsing.ts — that utility drops bare words (no colon), making it
+ * incompatible with status keyword extraction.
+ *
+ * @param segment The raw text after `|` — e.g. `"wip, p: Build, t: Backend"`
+ * @param aliasMap Maps lowercase aliases to lowercase group names
+ * @param lineNum Line number for diagnostic reporting
+ * @param diagnostics Array to push warnings into
+ */
+export function parseNodeMetadata(
+  segment: string,
+  aliasMap: Map<string, string>,
+  lineNum?: number,
+  diagnostics?: DgmoError[]
+): { status: InitiativeStatus; metadata: Record<string, string>; hadStatusWord: boolean } {
+  const metadata: Record<string, string> = {};
+  let status: InitiativeStatus = null;
+  let hadStatusWord = false;
+
+  const items = segment.split(',');
+  for (const item of items) {
+    const trimmed = item.trim();
+    if (!trimmed) continue;
+
+    const colonIdx = trimmed.indexOf(':');
+    if (colonIdx >= 0) {
+      // key: value pair
+      const rawKey = trimmed.slice(0, colonIdx).trim().toLowerCase();
+      const value = trimmed.slice(colonIdx + 1).trim();
+      // Resolve alias to group name
+      const resolvedKey = aliasMap.get(rawKey) ?? rawKey;
+      metadata[resolvedKey] = value;
+    } else {
+      // Bare word — check if it's a status keyword
+      hadStatusWord = true;
+      const lower = trimmed.toLowerCase();
+      if (VALID_STATUSES.includes(lower)) {
+        status = lower as InitiativeStatus;
+      } else if (lineNum !== undefined && diagnostics) {
+        // Unknown bare word — likely a status typo, emit warning
+        const hint = suggest(lower, VALID_STATUSES);
+        const msg = `Unknown status "${trimmed}"${hint ? `. ${hint}` : ''}`;
+        diagnostics.push(makeDgmoError(lineNum, msg, 'warning'));
+      }
+    }
+  }
+
+  return { status, metadata, hadStatusWord };
+}
+
+// ============================================================
 // Parser
 // ============================================================
 
@@ -58,6 +117,17 @@ function parseStatus(raw: string, line: number, diagnostics: DgmoError[]): Initi
   return null;
 }
 
+/** Measure leading whitespace (tabs = 4 spaces) */
+function measureIndent(line: string): number {
+  let count = 0;
+  for (const ch of line) {
+    if (ch === ' ') count++;
+    else if (ch === '\t') count += 4;
+    else break;
+  }
+  return count;
+}
+
 export function parseInitiativeStatus(content: string): ParsedInitiativeStatus {
   const result: ParsedInitiativeStatus = {
     type: 'initiative-status',
@@ -66,7 +136,9 @@ export function parseInitiativeStatus(content: string): ParsedInitiativeStatus {
     nodes: [],
     edges: [],
     groups: [],
+    tagGroups: [],
     options: {},
+    initialHiddenTagValues: new Map(),
     diagnostics: [],
     error: null,
   };
@@ -75,6 +147,15 @@ export function parseInitiativeStatus(content: string): ParsedInitiativeStatus {
   const nodeLabels = new Set<string>();
   let currentGroup: ISGroup | null = null;
   let lastNodeLabel: string | null = null;
+
+  // Tag block state
+  let contentStarted = false;
+  let currentTagGroup: TagGroup | null = null;
+  const aliasMap = new Map<string, string>(); // lowercase alias → lowercase group name
+
+  const pushWarning = (lineNumber: number, message: string) => {
+    result.diagnostics.push(makeDgmoError(lineNumber, message, 'warning'));
+  };
 
   for (let i = 0; i < lines.length; i++) {
     const lineNum = i + 1; // 1-based
@@ -105,9 +186,79 @@ export function parseInitiativeStatus(content: string): ParsedInitiativeStatus {
       continue;
     }
 
+    // hide: directive — parse before tag blocks and content
+    const hideMatch = trimmed.match(/^hide\s*:\s*(.+)/i);
+    if (hideMatch) {
+      const pairs = hideMatch[1].split(',');
+      for (const pair of pairs) {
+        const colonIdx = pair.indexOf(':');
+        if (colonIdx >= 0) {
+          const groupKey = pair.slice(0, colonIdx).trim().toLowerCase();
+          const value = pair.slice(colonIdx + 1).trim().toLowerCase();
+          if (groupKey && value) {
+            if (!result.initialHiddenTagValues.has(groupKey)) {
+              result.initialHiddenTagValues.set(groupKey, new Set());
+            }
+            result.initialHiddenTagValues.get(groupKey)!.add(value);
+          }
+        }
+      }
+      continue;
+    }
+
+    // Tag group heading — must be checked BEFORE group/node/edge matching
+    const tagBlockMatch = matchTagBlockHeading(trimmed);
+    if (tagBlockMatch) {
+      if (contentStarted) {
+        result.diagnostics.push(
+          makeDgmoError(lineNum, 'Tag groups must appear before diagram content', 'error')
+        );
+        continue;
+      }
+      if (tagBlockMatch.deprecated) {
+        pushWarning(lineNum, `'## ${tagBlockMatch.name}' is deprecated for tag groups — use 'tag: ${tagBlockMatch.name}' instead`);
+      }
+      currentTagGroup = {
+        name: tagBlockMatch.name,
+        alias: tagBlockMatch.alias,
+        entries: [],
+        lineNumber: lineNum,
+      };
+      if (tagBlockMatch.alias) {
+        aliasMap.set(tagBlockMatch.alias.toLowerCase(), tagBlockMatch.name.toLowerCase());
+      }
+      result.tagGroups.push(currentTagGroup);
+      continue;
+    }
+
+    // Tag group entries (indented Value(color) [default] under tag heading)
+    if (currentTagGroup && !contentStarted) {
+      const indent = measureIndent(raw);
+      if (indent > 0) {
+        const isDefault = /\bdefault\s*$/i.test(trimmed);
+        const entryText = isDefault
+          ? trimmed.replace(/\s+default\s*$/i, '').trim()
+          : trimmed;
+        const { label, color } = extractColor(entryText);
+        if (isDefault) {
+          currentTagGroup.defaultValue = label;
+        }
+        currentTagGroup.entries.push({
+          value: label,
+          color: color ?? '',
+          lineNumber: lineNum,
+        });
+        continue;
+      }
+      // Non-indented line after tag group — close and fall through
+      currentTagGroup = null;
+    }
+
     // Group header: [Group Name]
     const groupMatch = trimmed.match(/^\[(.+)\]\s*$/);
     if (groupMatch) {
+      contentStarted = true;
+      currentTagGroup = null;
       // Close previous group
       if (currentGroup) {
         result.groups.push(currentGroup);
@@ -125,6 +276,8 @@ export function parseInitiativeStatus(content: string): ParsedInitiativeStatus {
 
     // Edge: contains `->` or labeled form `-label->`
     if (trimmed.includes('->')) {
+      contentStarted = true;
+      currentTagGroup = null;
       let edgeText = trimmed;
       // Indented `-> Target` or `-label-> Target` shorthand
       if (trimmed.startsWith('->') || /^-[^>].*->/.test(trimmed)) {
@@ -136,13 +289,15 @@ export function parseInitiativeStatus(content: string): ParsedInitiativeStatus {
         }
         edgeText = `${lastNodeLabel} ${trimmed}`;
       }
-      const edge = parseEdgeLine(edgeText, lineNum, result.diagnostics);
+      const edge = parseEdgeLine(edgeText, lineNum, aliasMap, result.diagnostics);
       if (edge) result.edges.push(edge);
       continue;
     }
 
     // Node: everything else
-    const node = parseNodeLine(trimmed, lineNum, result.diagnostics);
+    contentStarted = true;
+    currentTagGroup = null;
+    const node = parseNodeLine(trimmed, lineNum, aliasMap, result.diagnostics);
     if (node) {
       lastNodeLabel = node.label;
       if (nodeLabels.has(node.label)) {
@@ -173,7 +328,7 @@ export function parseInitiativeStatus(content: string): ParsedInitiativeStatus {
       );
       // Auto-create an implicit node
       if (!result.nodes.some((n) => n.label === edge.source)) {
-        result.nodes.push({ label: edge.source, status: 'na', shape: inferParticipantType(edge.source), lineNumber: edge.lineNumber });
+        result.nodes.push({ label: edge.source, status: 'na', shape: inferParticipantType(edge.source), lineNumber: edge.lineNumber, metadata: {} });
         nodeLabels.add(edge.source);
       }
     }
@@ -182,10 +337,16 @@ export function parseInitiativeStatus(content: string): ParsedInitiativeStatus {
         makeDgmoError(edge.lineNumber, `Edge target "${edge.target}" is not a declared node`, 'warning')
       );
       if (!result.nodes.some((n) => n.label === edge.target)) {
-        result.nodes.push({ label: edge.target, status: 'na', shape: inferParticipantType(edge.target), lineNumber: edge.lineNumber });
+        result.nodes.push({ label: edge.target, status: 'na', shape: inferParticipantType(edge.target), lineNumber: edge.lineNumber, metadata: {} });
         nodeLabels.add(edge.target);
       }
     }
+  }
+
+  // Post-parse: inject default tag metadata and validate tag values
+  if (result.tagGroups.length > 0) {
+    injectDefaultTagMetadata(result.nodes, result.tagGroups);
+    validateTagValues(result.nodes, result.tagGroups, pushWarning, suggest);
   }
 
   return result;
@@ -198,27 +359,36 @@ export function parseInitiativeStatus(content: string): ParsedInitiativeStatus {
 function parseNodeLine(
   trimmed: string,
   lineNum: number,
+  aliasMap: Map<string, string>,
   diagnostics: DgmoError[]
 ): ISNode | null {
-  // Format: <label> | <status>
+  // Format: <label> | <status>, <key: value>, ...
   // or just: <label>
-  const pipeIdx = trimmed.lastIndexOf('|');
+  const pipeIdx = trimmed.indexOf('|');
   if (pipeIdx >= 0) {
     const label = trimmed.slice(0, pipeIdx).trim();
-    const statusRaw = trimmed.slice(pipeIdx + 1).trim();
+    const metaSegment = trimmed.slice(pipeIdx + 1).trim();
     if (!label) return null;
-    const status = parseStatus(statusRaw, lineNum, diagnostics);
-    return { label, status, shape: inferParticipantType(label), lineNumber: lineNum };
+    const { status, metadata, hadStatusWord } = parseNodeMetadata(metaSegment, aliasMap, lineNum, diagnostics);
+    return {
+      label,
+      // Unknown status bare word → keep null; no bare word at all → default 'na'
+      status: hadStatusWord ? status : (status ?? 'na'),
+      shape: inferParticipantType(label),
+      lineNumber: lineNum,
+      metadata,
+    };
   }
-  return { label: trimmed, status: 'na', shape: inferParticipantType(trimmed), lineNumber: lineNum };
+  return { label: trimmed, status: 'na', shape: inferParticipantType(trimmed), lineNumber: lineNum, metadata: {} };
 }
 
 function parseEdgeLine(
   trimmed: string,
   lineNum: number,
+  aliasMap: Map<string, string>,
   diagnostics: DgmoError[]
 ): ISEdge | null {
-  // Format: <source> -> <target>: <label> | <status>
+  // Format: <source> -> <target>: <label> | <status>, <key: value>, ...
   // or:     <source> -> <target> | <status>
   // or:     <source> -> <target>: <label>
   // or:     <source> -> <target>
@@ -232,13 +402,15 @@ function parseEdgeLine(
     let targetRest = labeledMatch[3].trim();
 
     if (label) {
-      // Extract status from end (after last |)
       let status: InitiativeStatus = 'na';
-      const lastPipe = targetRest.lastIndexOf('|');
-      if (lastPipe >= 0) {
-        const statusRaw = targetRest.slice(lastPipe + 1).trim();
-        status = parseStatus(statusRaw, lineNum, diagnostics);
-        targetRest = targetRest.slice(0, lastPipe).trim();
+      let metadata: Record<string, string> = {};
+      const pipeIdx = targetRest.indexOf('|');
+      if (pipeIdx >= 0) {
+        const metaSegment = targetRest.slice(pipeIdx + 1).trim();
+        const parsed = parseNodeMetadata(metaSegment, aliasMap, lineNum, diagnostics);
+        status = parsed.hadStatusWord ? (parsed.status ?? null) : (parsed.status ?? 'na');
+        metadata = parsed.metadata;
+        targetRest = targetRest.slice(0, pipeIdx).trim();
       }
 
       const target = targetRest.trim();
@@ -247,7 +419,7 @@ function parseEdgeLine(
         return null;
       }
 
-      return { source, target, label, status, lineNumber: lineNum };
+      return { source, target, label, status, lineNumber: lineNum, metadata };
     }
     // Empty label — fall through to plain arrow parsing
   }
@@ -263,13 +435,16 @@ function parseEdgeLine(
     return null;
   }
 
-  // Extract status from end (after last |)
+  // Extract metadata from end (after |)
   let status: InitiativeStatus = 'na';
-  const lastPipe = rest.lastIndexOf('|');
-  if (lastPipe >= 0) {
-    const statusRaw = rest.slice(lastPipe + 1).trim();
-    status = parseStatus(statusRaw, lineNum, diagnostics);
-    rest = rest.slice(0, lastPipe).trim();
+  let metadata: Record<string, string> = {};
+  const pipeIdx = rest.indexOf('|');
+  if (pipeIdx >= 0) {
+    const metaSegment = rest.slice(pipeIdx + 1).trim();
+    const parsed = parseNodeMetadata(metaSegment, aliasMap, lineNum, diagnostics);
+    status = parsed.hadStatusWord ? (parsed.status ?? null) : (parsed.status ?? 'na');
+    metadata = parsed.metadata;
+    rest = rest.slice(0, pipeIdx).trim();
   }
 
   // Extract target and optional label (target: label)
@@ -288,5 +463,5 @@ function parseEdgeLine(
     return null;
   }
 
-  return { source, target, label, status, lineNumber: lineNum };
+  return { source, target, label, status, lineNumber: lineNum, metadata };
 }
