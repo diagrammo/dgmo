@@ -1,0 +1,37 @@
+chart: gantt
+title: Product Launch Plan
+start: 2024-01-15
+today-marker: 2024-03-01
+critical-path: on
+dependencies: on
+
+tag: Team alias t
+  Engineering(blue)
+  Design(purple)
+  QA(orange)
+
+tag: Phase alias p
+  Foundation(green)
+  Growth(orange)
+
+era 2024-01 -> 2024-06: Phase 1
+marker 2024-03-01: Kickoff
+
+parallel
+  [Backend] | t: Engineering
+    30bd: Database Layer | p: Foundation | 80%
+    10bd?: Auth Module | p: Foundation | 100%
+      -> Frontend.API Integration
+    parallel
+      5bd: Load Testing | t: QA | p: Growth
+      5bd: Security Audit | t: QA | p: Growth
+
+  [Frontend] | t: Design
+    15bd: Component Library | p: Foundation
+    10bd: API Integration | t: Engineering | p: Growth
+    5bd: Polish | p: Growth | 30%
+
+[Integration] | t: QA
+  10bd: E2E Testing
+  // Final validation before release
+  0d: Release Candidate

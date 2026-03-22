@@ -16,6 +16,7 @@ import { parseC4 } from './c4/parser';
 import { looksLikeInitiativeStatus, parseInitiativeStatus } from './initiative-status/parser';
 import { looksLikeSitemap, parseSitemap } from './sitemap/parser';
 import { parseInfra } from './infra/parser';
+import { parseGantt } from './gantt/parser';
 import type { DgmoError } from './diagnostics';
 
 /**
@@ -65,7 +66,7 @@ const VISUALIZATION_TYPES = new Set([
 ]);
 const DIAGRAM_TYPES = new Set([
   'sequence', 'flowchart', 'class', 'er', 'org', 'kanban', 'c4',
-  'initiative-status', 'state', 'sitemap', 'infra',
+  'initiative-status', 'state', 'sitemap', 'infra', 'gantt',
 ]);
 const EXTENDED_CHART_TYPES = new Set([
   'scatter', 'sankey', 'chord', 'function', 'heatmap', 'funnel',
@@ -128,6 +129,7 @@ const PARSE_DISPATCH = new Map<string, (content: string) => { diagnostics: DgmoE
   ['state', (c) => parseState(c)],
   ['sitemap', (c) => parseSitemap(c)],
   ['infra', (c) => parseInfra(c)],
+  ['gantt', (c) => parseGantt(c)],
 ]);
 
 /**
