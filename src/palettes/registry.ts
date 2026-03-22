@@ -86,7 +86,9 @@ export function getPalette(id: string): PaletteConfig {
   return PALETTE_REGISTRY.get(id) ?? PALETTE_REGISTRY.get(DEFAULT_PALETTE_ID)!;
 }
 
-/** List all registered palettes (for the selector UI). */
+/** List all registered palettes alphabetically (for the selector UI). */
 export function getAvailablePalettes(): PaletteConfig[] {
-  return Array.from(PALETTE_REGISTRY.values());
+  return Array.from(PALETTE_REGISTRY.values()).sort((a, b) =>
+    a.name.localeCompare(b.name)
+  );
 }
