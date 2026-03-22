@@ -95,7 +95,7 @@ const IS_STATUS_LABELS: Record<string, string> = {
   na:   'N/A',
 };
 
-const IS_STATUS_ORDER: InitiativeStatus[] = ['done', 'wip', 'todo', 'na'];
+const IS_STATUS_ORDER: InitiativeStatus[] = ['todo', 'wip', 'done', 'na'];
 
 function collectStatuses(parsed: ParsedInitiativeStatus): ISLegendEntry[] {
   const present = new Set<string>();
