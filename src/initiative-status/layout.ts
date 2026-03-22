@@ -402,7 +402,7 @@ export function layoutInitiativeStatus(
           const nLeft = node.x - node.width / 2;
           const nRight = node.x + node.width / 2;
           if (nRight <= gLeft || nLeft >= gRight) continue;
-          if (nBottom <= gTop || nTop >= gBottom) continue;
+          if (nBottom < gTop || nTop > gBottom) continue;
           const groupCenterY = group.y + group.height / 2;
           if (node.y < groupCenterY) {
             node.y = gTop - node.height / 2 - GROUP_PADDING;
