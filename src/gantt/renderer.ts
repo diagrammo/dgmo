@@ -128,7 +128,7 @@ export function renderGantt(
     if (resolved.tagGroups.length > 0) {
       const legendY = titleHeight;
       renderTagLegend(
-        svg, resolved.tagGroups, currentActiveGroup, leftMargin, innerWidth,
+        svg, g, resolved.tagGroups, currentActiveGroup, leftMargin, innerWidth,
         legendY, palette, isDark,
         (groupName) => {
           // Toggle active group
@@ -274,7 +274,7 @@ export function renderGantt(
 
       // Task label on the left (left-aligned with indent)
       const taskLabelX = 10 + rt.groupPath.length * 14 + 16; // extra offset under group toggle
-      svg
+      const taskLabel = svg
         .append('text')
         .attr('class', 'gantt-task-label')
         .attr('x', taskLabelX)
@@ -289,6 +289,11 @@ export function renderGantt(
         .on('click', () => {
           if (onClickItem) onClickItem(task.lineNumber);
         });
+
+      // Tag attributes on label for legend hover matching
+      for (const [key, value] of Object.entries(rt.effectiveMetadata)) {
+        taskLabel.attr(`data-tag-${key}`, value.toLowerCase());
+      }
 
       // Determine color
       let barColor = resolveTaskColor(rt, currentActiveGroup, resolved, seriesColors, palette);
@@ -347,6 +352,35 @@ export function renderGantt(
           taskG.attr(`data-tag-${key}`, value.toLowerCase());
         }
 
+        // Uncertainty gradient — fade out the trailing edge unless progress > 80%
+        const showUncertainFade = task.uncertain && (task.progress === null || task.progress <= 80);
+        let barFill: string = fillColor;
+        let barStroke: string = barColor;
+        if (showUncertainFade) {
+          const defs = svg.select('defs').empty()
+            ? svg.append('defs')
+            : svg.select<SVGDefsElement>('defs');
+
+          const fillGradId = `gantt-uncertain-fill-${task.id}`;
+          const fillGrad = defs.append('linearGradient')
+            .attr('id', fillGradId)
+            .attr('x1', '0').attr('x2', '1').attr('y1', '0').attr('y2', '0');
+          fillGrad.append('stop').attr('offset', '0%').attr('stop-color', fillColor).attr('stop-opacity', 1);
+          fillGrad.append('stop').attr('offset', '50%').attr('stop-color', fillColor).attr('stop-opacity', 1);
+          fillGrad.append('stop').attr('offset', '100%').attr('stop-color', fillColor).attr('stop-opacity', 0);
+
+          const strokeGradId = `gantt-uncertain-stroke-${task.id}`;
+          const strokeGrad = defs.append('linearGradient')
+            .attr('id', strokeGradId)
+            .attr('x1', '0').attr('x2', '1').attr('y1', '0').attr('y2', '0');
+          strokeGrad.append('stop').attr('offset', '0%').attr('stop-color', barColor).attr('stop-opacity', 1);
+          strokeGrad.append('stop').attr('offset', '50%').attr('stop-color', barColor).attr('stop-opacity', 1);
+          strokeGrad.append('stop').attr('offset', '100%').attr('stop-color', barColor).attr('stop-opacity', 0);
+
+          barFill = `url(#${fillGradId})`;
+          barStroke = `url(#${strokeGradId})`;
+        }
+
         // Main bar
         taskG
           .append('rect')
@@ -355,13 +389,28 @@ export function renderGantt(
           .attr('width', barWidth)
           .attr('height', BAR_H)
           .attr('rx', 4)
-          .attr('fill', fillColor)
-          .attr('stroke', barColor)
+          .attr('fill', barFill)
+          .attr('stroke', barStroke)
           .attr('stroke-width', 2);
 
         // Progress fill
         if (task.progress !== null && task.progress > 0) {
           const progressWidth = barWidth * Math.min(task.progress / 100, 1);
+          let progressFill: string = barColor;
+          if (showUncertainFade) {
+            // Scale gradient stops relative to progress width within the full bar
+            const ratio = barWidth / progressWidth;
+            const fadeStart = Math.min(50 * ratio, 100);
+            const defs = svg.select<SVGDefsElement>('defs');
+            const progGradId = `gantt-uncertain-progress-${task.id}`;
+            const progGrad = defs.append('linearGradient')
+              .attr('id', progGradId)
+              .attr('x1', '0').attr('x2', '1').attr('y1', '0').attr('y2', '0');
+            progGrad.append('stop').attr('offset', '0%').attr('stop-color', barColor).attr('stop-opacity', 1);
+            progGrad.append('stop').attr('offset', `${fadeStart}%`).attr('stop-color', barColor).attr('stop-opacity', 1);
+            progGrad.append('stop').attr('offset', '100%').attr('stop-color', barColor).attr('stop-opacity', 0);
+            progressFill = `url(#${progGradId})`;
+          }
           taskG
             .append('rect')
             .attr('class', 'gantt-progress')
@@ -370,7 +419,7 @@ export function renderGantt(
             .attr('width', progressWidth)
             .attr('height', BAR_H)
             .attr('rx', 4)
-            .attr('fill', barColor)
+            .attr('fill', progressFill)
             .attr('opacity', 0.3);
         }
 
@@ -390,33 +439,6 @@ export function renderGantt(
             .attr('opacity', 0.6);
         }
 
-        // Uncertainty gradient (last 20%)
-        if (task.uncertain) {
-          const gradId = `gantt-uncertain-${task.id}`;
-          const defs = svg.select('defs').empty()
-            ? svg.append('defs')
-            : svg.select<SVGDefsElement>('defs');
-
-          const grad = defs.append('linearGradient')
-            .attr('id', gradId)
-            .attr('x1', '0')
-            .attr('x2', '1')
-            .attr('y1', '0')
-            .attr('y2', '0');
-          grad.append('stop').attr('offset', '0%').attr('stop-color', fillColor).attr('stop-opacity', 1);
-          grad.append('stop').attr('offset', '80%').attr('stop-color', fillColor).attr('stop-opacity', 1);
-          grad.append('stop').attr('offset', '100%').attr('stop-color', fillColor).attr('stop-opacity', 0);
-
-          // Overlay gradient on bar
-          taskG
-            .append('rect')
-            .attr('x', x1)
-            .attr('y', yOffset)
-            .attr('width', barWidth)
-            .attr('height', BAR_H)
-            .attr('rx', 4)
-            .attr('fill', `url(#${gradId})`);
-        }
 
         // Label inside bar (if fits)
         const textWidth = task.label.length * 6.5;
@@ -723,6 +745,7 @@ function arrowheadPoints(x: number, y: number, size: number, angle: number): str
 
 function renderTagLegend(
   svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
+  chartG: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   tagGroups: TagGroup[],
   activeGroupName: string | null,
   chartLeftMargin: number,
@@ -736,10 +759,15 @@ function renderTagLegend(
     ? mix(palette.surface, palette.bg, 50)
     : mix(palette.surface, palette.bg, 30);
 
-  // Compute per-group widths (all groups visible: active expanded, others collapsed)
+  // When a group is active, only show that group expanded — hide others
+  const visibleGroups = activeGroupName
+    ? tagGroups.filter(g => g.name.toLowerCase() === activeGroupName.toLowerCase())
+    : tagGroups;
+
+  // Compute per-group widths
   const groupWidths: number[] = [];
   let totalW = 0;
-  for (const group of tagGroups) {
+  for (const group of visibleGroups) {
     const isActive = activeGroupName?.toLowerCase() === group.name.toLowerCase();
     const pillW = group.name.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
     let groupW = pillW;
@@ -753,7 +781,7 @@ function renderTagLegend(
     groupWidths.push(groupW);
     totalW += groupW;
   }
-  totalW += Math.max(0, (tagGroups.length - 1) * LEGEND_GROUP_GAP);
+  totalW += Math.max(0, (visibleGroups.length - 1) * LEGEND_GROUP_GAP);
 
   // Center over chart area (not full container)
   const legendX = chartLeftMargin + (chartInnerWidth - totalW) / 2;
@@ -764,8 +792,8 @@ function renderTagLegend(
 
   let cursorX = 0;
 
-  for (let i = 0; i < tagGroups.length; i++) {
-    const group = tagGroups[i];
+  for (let i = 0; i < visibleGroups.length; i++) {
+    const group = visibleGroups[i];
     const isActive = activeGroupName?.toLowerCase() === group.name.toLowerCase();
     const pillW = group.name.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
     const pillH = isActive ? LEGEND_HEIGHT - LEGEND_CAPSULE_PAD * 2 : LEGEND_HEIGHT;
@@ -824,23 +852,57 @@ function renderTagLegend(
 
     // Entries (when active)
     if (isActive) {
+      const tagKey = group.name.toLowerCase();
       let ex = pillXOff + pillW + LEGEND_CAPSULE_PAD + 4;
       for (const entry of group.entries) {
+        const entryValue = entry.value.toLowerCase();
+
+        // Wrap dot + label in a <g> for hover targeting
+        const entryG = gEl.append('g')
+          .attr('class', 'gantt-legend-entry')
+          .style('cursor', 'pointer');
+
         // Dot
-        gEl.append('circle')
+        entryG.append('circle')
           .attr('cx', ex + LEGEND_DOT_R)
           .attr('cy', LEGEND_HEIGHT / 2)
           .attr('r', LEGEND_DOT_R)
           .attr('fill', entry.color);
 
         // Label
-        gEl.append('text')
+        entryG.append('text')
           .attr('x', ex + LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP)
           .attr('y', LEGEND_HEIGHT / 2 + LEGEND_ENTRY_FONT_SIZE / 2 - 2)
           .attr('text-anchor', 'start')
           .attr('font-size', `${LEGEND_ENTRY_FONT_SIZE}px`)
           .attr('fill', palette.textMuted)
           .text(entry.value);
+
+        // Hover: highlight matching tasks + labels, fade others
+        entryG
+          .on('mouseenter', () => {
+            chartG.selectAll<SVGGElement, unknown>('.gantt-task').each(function () {
+              const el = d3Selection.select(this);
+              const matches = el.attr(`data-tag-${tagKey}`) === entryValue;
+              el.attr('opacity', matches ? 1 : FADE_OPACITY);
+            });
+            chartG.selectAll<SVGElement, unknown>('.gantt-milestone').attr('opacity', FADE_OPACITY);
+            chartG.selectAll<SVGElement, unknown>('.gantt-group-bar, .gantt-group-summary').attr('opacity', FADE_OPACITY);
+            // Fade left-side task labels
+            svg.selectAll<SVGTextElement, unknown>('.gantt-task-label').each(function () {
+              const el = d3Selection.select(this);
+              const matches = el.attr(`data-tag-${tagKey}`) === entryValue;
+              el.attr('opacity', matches ? 1 : FADE_OPACITY);
+            });
+            // Fade group labels
+            svg.selectAll<SVGGElement, unknown>('.gantt-group-label').attr('opacity', FADE_OPACITY);
+          })
+          .on('mouseleave', () => {
+            chartG.selectAll<SVGGElement, unknown>('.gantt-task, .gantt-milestone').attr('opacity', 1);
+            chartG.selectAll<SVGElement, unknown>('.gantt-group-bar, .gantt-group-summary').attr('opacity', 1);
+            svg.selectAll<SVGTextElement, unknown>('.gantt-task-label').attr('opacity', 1);
+            svg.selectAll<SVGGElement, unknown>('.gantt-group-label').attr('opacity', 1);
+          });
 
         ex += LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP + entry.value.length * LEGEND_ENTRY_FONT_W + LEGEND_ENTRY_TRAIL;
       }
