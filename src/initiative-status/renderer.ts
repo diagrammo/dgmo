@@ -20,7 +20,6 @@ import {
   LEGEND_GROUP_GAP,
 } from '../utils/legend-constants';
 import { contrastText, mix } from '../palettes/color-utils';
-import { resolveTagColor } from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
 import type { PaletteColors } from '../palettes';
 import type { ParsedInitiativeStatus, InitiativeStatus } from './types';
@@ -636,9 +635,15 @@ export function renderInitiativeStatus(
     const activeKey = activeTagGroup?.toLowerCase() ?? null;
     const isStatusExpanded = isLegendExpanded && activeKey === null;
 
+    // When a tag group is active, only show that group (mutual exclusion).
+    // When no tag group is active, show all pills (Status expanded + tag pills minified).
+    const visibleLegendGroups = activeKey !== null
+      ? legendGroups.filter((lg) => !lg.isStatus && lg.key === activeKey)
+      : legendGroups;
+
     // Compute total legend width
     let totalLegendW = 0;
-    for (const lg of legendGroups) {
+    for (const lg of visibleLegendGroups) {
       const isActive = lg.isStatus ? isStatusExpanded : (activeKey === lg.key);
       const pillW = lg.name.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
       totalLegendW += isActive ? lg.width : pillW;
@@ -646,10 +651,6 @@ export function renderInitiativeStatus(
     }
     totalLegendW -= LEGEND_GROUP_GAP; // remove trailing gap
 
-    // Hidden-node badge width
-    const hiddenCount = hiddenTagValues
-      ? parsed.nodes.length - layout.nodes.length + (layout.nodes.length === 0 ? parsed.nodes.length : 0)
-      : 0;
     const legendX = (width - totalLegendW) / 2;
     const legendY = titleHeight;
 
@@ -660,7 +661,7 @@ export function renderInitiativeStatus(
 
     let cursorX = 0;
 
-    for (const lg of legendGroups) {
+    for (const lg of visibleLegendGroups) {
       const isActive = lg.isStatus ? isStatusExpanded : (activeKey === lg.key);
       const pillW = lg.name.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
       const pillH = LEGEND_HEIGHT - (isActive ? LEGEND_CAPSULE_PAD * 2 : 0);
@@ -973,8 +974,7 @@ export function renderInitiativeStatus(
   for (let ei = 0; ei < layout.edges.length; ei++) {
     const edge = layout.edges[ei];
     if (edge.points.length < 2) continue;
-    const effectiveEdgeStatus = (hasLegend && !isLegendExpanded) ? null : edge.status;
-    const edgeColor = edgeStrokeColor(effectiveEdgeStatus, palette, isDark);
+    const edgeColor = edgeStrokeColor(edge.status, palette, isDark);
     const markerId = `is-arrow-${edgeColor.replace('#', '')}`;
 
     const edgeG = contentG
@@ -1067,21 +1067,9 @@ export function renderInitiativeStatus(
       .attr('fill', 'transparent')
       .attr('class', 'is-node-hit-area');
 
-    // Tag-active coloring: override fill/stroke when an active tag group has user-defined colors
-    const neutralize = hasLegend && !isLegendExpanded && !activeTagGroup;
-    const tagColor = activeTagGroup
-      ? resolveTagColor(node.metadata ?? {}, effectiveTagGroups, activeTagGroup)
-      : undefined;
-    let fill: string;
-    let stroke: string;
-    if (tagColor && tagColor !== '#999999') {
-      fill = mix(tagColor, isDark ? palette.surface : palette.bg, 30);
-      stroke = tagColor;
-    } else {
-      const effectiveStatus = neutralize ? null : node.status;
-      fill = nodeFill(effectiveStatus, palette, isDark);
-      stroke = nodeStroke(effectiveStatus, palette, isDark);
-    }
+    // Always use status coloring regardless of legend state
+    const fill = nodeFill(node.status, palette, isDark);
+    const stroke = nodeStroke(node.status, palette, isDark);
     renderNodeShape(nodeG, node.shape, node.width, node.height, fill, stroke);
 
     const textColor = contrastText(fill, '#eceff4', '#2e3440');

@@ -2,14 +2,14 @@ chart: initiative-status
 title: Platform Migration
 
 tag: Phase alias p
-  Discovery(blue)
-  Build(yellow)
-  Launch(green)
+  Discovery default
+  Build
+  Launch
 
 tag: Team alias t
-  Frontend(purple)
-  Backend(cyan)
-  Platform(orange)
+  Frontend
+  Backend
+  Platform
 
 [Identity]
   Auth Service | done, p: Discovery, t: Backend
