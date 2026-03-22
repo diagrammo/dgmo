@@ -3059,7 +3059,7 @@ export function renderTimeline(
     }
   }
 
-  // Reserve space for tag legend at the bottom of chart content
+  // Reserve space for tag legend at the top of chart content (below title/headers)
   const tagLegendReserve = parsed.timelineTagGroups.length > 0 ? 36 : 0;
 
   // ================================================================
@@ -3099,9 +3099,9 @@ export function renderTimeline(
       const scaleMargin = timelineScale ? 40 : 0;
       const markerMargin = timelineMarkers.length > 0 ? 30 : 0;
       const margin = {
-        top: 104 + markerMargin,
+        top: 104 + markerMargin + tagLegendReserve,
         right: 40 + scaleMargin,
-        bottom: 40 + tagLegendReserve,
+        bottom: 40,
         left: 60 + scaleMargin,
       };
       const innerWidth = width - margin.left - margin.right;
@@ -3254,12 +3254,14 @@ export function renderTimeline(
             const rectH = Math.max(y2 - y, 4);
 
             let fill: string = mix(evColor, bg, 30);
+            let stroke: string = evColor;
             if (ev.uncertain) {
               const gradientId = `uncertain-vg-${ev.lineNumber}`;
+              const strokeGradientId = `uncertain-vg-s-${ev.lineNumber}`;
               const defs =
                 svg.select('defs').node() || svg.append('defs').node();
-              d3Selection
-                .select(defs as Element)
+              const defsEl = d3Selection.select(defs as Element);
+              defsEl
                 .append('linearGradient')
                 .attr('id', gradientId)
                 .attr('x1', '0%')
@@ -3277,7 +3279,26 @@ export function renderTimeline(
                 .attr('offset', (d) => d.offset)
                 .attr('stop-color', mix(laneColor, bg, 30))
                 .attr('stop-opacity', (d) => d.opacity);
+              defsEl
+                .append('linearGradient')
+                .attr('id', strokeGradientId)
+                .attr('x1', '0%')
+                .attr('y1', '0%')
+                .attr('x2', '0%')
+                .attr('y2', '100%')
+                .selectAll('stop')
+                .data([
+                  { offset: '0%', opacity: 1 },
+                  { offset: '80%', opacity: 1 },
+                  { offset: '100%', opacity: 0 },
+                ])
+                .enter()
+                .append('stop')
+                .attr('offset', (d) => d.offset)
+                .attr('stop-color', evColor)
+                .attr('stop-opacity', (d) => d.opacity);
               fill = `url(#${gradientId})`;
+              stroke = `url(#${strokeGradientId})`;
             }
 
             evG
@@ -3288,7 +3309,7 @@ export function renderTimeline(
               .attr('height', rectH)
               .attr('rx', 4)
               .attr('fill', fill)
-              .attr('stroke', evColor)
+              .attr('stroke', stroke)
               .attr('stroke-width', 2);
             evG
               .append('text')
@@ -3323,9 +3344,9 @@ export function renderTimeline(
       const scaleMargin = timelineScale ? 40 : 0;
       const markerMargin = timelineMarkers.length > 0 ? 30 : 0;
       const margin = {
-        top: 104 + markerMargin,
+        top: 104 + markerMargin + tagLegendReserve,
         right: 200,
-        bottom: 40 + tagLegendReserve,
+        bottom: 40,
         left: 60 + scaleMargin,
       };
       const innerWidth = width - margin.left - margin.right;
@@ -3474,12 +3495,14 @@ export function renderTimeline(
           const rectH = Math.max(y2 - y, 4);
 
           let fill: string = mix(color, bg, 30);
+          let stroke: string = color;
           if (ev.uncertain) {
             const gradientId = `uncertain-v-${ev.lineNumber}`;
+            const strokeGradientId = `uncertain-v-s-${ev.lineNumber}`;
             const defs =
               svg.select('defs').node() || svg.append('defs').node();
-            d3Selection
-              .select(defs as Element)
+            const defsEl = d3Selection.select(defs as Element);
+            defsEl
               .append('linearGradient')
               .attr('id', gradientId)
               .attr('x1', '0%')
@@ -3497,7 +3520,26 @@ export function renderTimeline(
               .attr('offset', (d) => d.offset)
               .attr('stop-color', mix(color, bg, 30))
               .attr('stop-opacity', (d) => d.opacity);
+            defsEl
+              .append('linearGradient')
+              .attr('id', strokeGradientId)
+              .attr('x1', '0%')
+              .attr('y1', '0%')
+              .attr('x2', '0%')
+              .attr('y2', '100%')
+              .selectAll('stop')
+              .data([
+                { offset: '0%', opacity: 1 },
+                { offset: '80%', opacity: 1 },
+                { offset: '100%', opacity: 0 },
+              ])
+              .enter()
+              .append('stop')
+              .attr('offset', (d) => d.offset)
+              .attr('stop-color', color)
+              .attr('stop-opacity', (d) => d.opacity);
             fill = `url(#${gradientId})`;
+            stroke = `url(#${strokeGradientId})`;
           }
 
           evG
@@ -3508,7 +3550,7 @@ export function renderTimeline(
             .attr('height', rectH)
             .attr('rx', 4)
             .attr('fill', fill)
-            .attr('stroke', color)
+            .attr('stroke', stroke)
             .attr('stroke-width', 2);
           evG
             .append('text')
@@ -3606,9 +3648,9 @@ export function renderTimeline(
     // Group-sorted doesn't need legend space (group names shown on left)
     const baseTopMargin = title ? 50 : 20;
     const margin = {
-      top: baseTopMargin + (timelineScale ? 40 : 0) + markerMargin,
+      top: baseTopMargin + (timelineScale ? 40 : 0) + markerMargin + tagLegendReserve,
       right: 40,
-      bottom: 40 + scaleMargin + tagLegendReserve,
+      bottom: 40 + scaleMargin,
       left: dynamicLeftMargin,
     };
     const innerWidth = width - margin.left - margin.right;
@@ -3785,12 +3827,14 @@ export function renderTimeline(
           const labelFitsInside = rectW >= estLabelWidth;
 
           let fill: string = mix(evColor, bg, 30);
+          let stroke: string = evColor;
           if (ev.uncertain) {
             // Create gradient for uncertain end - fades last 20%
             const gradientId = `uncertain-${ev.lineNumber}`;
+            const strokeGradientId = `uncertain-s-${ev.lineNumber}`;
             const defs = svg.select('defs').node() || svg.append('defs').node();
-            d3Selection
-              .select(defs as Element)
+            const defsEl = d3Selection.select(defs as Element);
+            defsEl
               .append('linearGradient')
               .attr('id', gradientId)
               .attr('x1', '0%')
@@ -3808,7 +3852,26 @@ export function renderTimeline(
               .attr('offset', (d) => d.offset)
               .attr('stop-color', mix(evColor, bg, 30))
               .attr('stop-opacity', (d) => d.opacity);
+            defsEl
+              .append('linearGradient')
+              .attr('id', strokeGradientId)
+              .attr('x1', '0%')
+              .attr('y1', '0%')
+              .attr('x2', '100%')
+              .attr('y2', '0%')
+              .selectAll('stop')
+              .data([
+                { offset: '0%', opacity: 1 },
+                { offset: '80%', opacity: 1 },
+                { offset: '100%', opacity: 0 },
+              ])
+              .enter()
+              .append('stop')
+              .attr('offset', (d) => d.offset)
+              .attr('stop-color', evColor)
+              .attr('stop-opacity', (d) => d.opacity);
             fill = `url(#${gradientId})`;
+            stroke = `url(#${strokeGradientId})`;
           }
 
           evG
@@ -3819,7 +3882,7 @@ export function renderTimeline(
             .attr('height', BAR_H)
             .attr('rx', 4)
             .attr('fill', fill)
-            .attr('stroke', evColor)
+            .attr('stroke', stroke)
             .attr('stroke-width', 2);
 
           if (labelFitsInside) {
@@ -3887,9 +3950,9 @@ export function renderTimeline(
     const scaleMargin = timelineScale ? 24 : 0;
     const markerMargin = timelineMarkers.length > 0 ? 30 : 0;
     const margin = {
-      top: 104 + (timelineScale ? 40 : 0) + markerMargin,
+      top: 104 + (timelineScale ? 40 : 0) + markerMargin + tagLegendReserve,
       right: 40,
-      bottom: 40 + scaleMargin + tagLegendReserve,
+      bottom: 40 + scaleMargin,
       left: 60,
     };
     const innerWidth = width - margin.left - margin.right;
@@ -4047,12 +4110,14 @@ export function renderTimeline(
         const labelFitsInside = rectW >= estLabelWidth;
 
         let fill: string = mix(color, bg, 30);
+        let stroke: string = color;
         if (ev.uncertain) {
           // Create gradient for uncertain end - fades last 20%
           const gradientId = `uncertain-ts-${ev.lineNumber}`;
+          const strokeGradientId = `uncertain-ts-s-${ev.lineNumber}`;
           const defs = svg.select('defs').node() || svg.append('defs').node();
-          d3Selection
-            .select(defs as Element)
+          const defsEl = d3Selection.select(defs as Element);
+          defsEl
             .append('linearGradient')
             .attr('id', gradientId)
             .attr('x1', '0%')
@@ -4070,7 +4135,26 @@ export function renderTimeline(
             .attr('offset', (d) => d.offset)
             .attr('stop-color', mix(color, bg, 30))
             .attr('stop-opacity', (d) => d.opacity);
+          defsEl
+            .append('linearGradient')
+            .attr('id', strokeGradientId)
+            .attr('x1', '0%')
+            .attr('y1', '0%')
+            .attr('x2', '100%')
+            .attr('y2', '0%')
+            .selectAll('stop')
+            .data([
+              { offset: '0%', opacity: 1 },
+              { offset: '80%', opacity: 1 },
+              { offset: '100%', opacity: 0 },
+            ])
+            .enter()
+            .append('stop')
+            .attr('offset', (d) => d.offset)
+            .attr('stop-color', color)
+            .attr('stop-opacity', (d) => d.opacity);
           fill = `url(#${gradientId})`;
+          stroke = `url(#${strokeGradientId})`;
         }
 
         evG
@@ -4081,7 +4165,7 @@ export function renderTimeline(
           .attr('height', BAR_H)
           .attr('rx', 4)
           .attr('fill', fill)
-          .attr('stroke', color)
+          .attr('stroke', stroke)
           .attr('stroke-width', 2);
 
         if (labelFitsInside) {
@@ -4157,7 +4241,10 @@ export function renderTimeline(
     const mainSvg = d3Selection.select(container).select<SVGSVGElement>('svg');
     const mainG = mainSvg.select<SVGGElement>('g');
     if (!mainSvg.empty() && !mainG.empty()) {
-      const legendY = height - LG_HEIGHT - 4;
+      // Position legend at top: extract mainG's translateY and place legend just above it
+      const mainGTransform = mainG.attr('transform') ?? '';
+      const mainGY = parseFloat(mainGTransform.match(/translate\([^,]+,\s*([^)]+)\)/)?.[1] ?? '0');
+      const legendY = mainGY - tagLegendReserve + 4;
 
       const groupBg = isDark
         ? mix(palette.surface, palette.bg, 50)
