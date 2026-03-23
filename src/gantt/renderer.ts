@@ -236,11 +236,32 @@ export function renderGantt(
   const taskPositions = new Map<string, { x1: number; x2: number; y: number }>();
   // Track collapsed group bar positions so hidden-task arrows redirect there
   const groupPositions = new Map<string, { x1: number; x2: number; y: number }>();
+  // Track lane header positions for collapsed lane arrow redirection (tag mode)
+  const lanePositions = new Map<string, { x1: number; x2: number; y: number }>();
+  // Map task ID → lane name for collapsed lane lookup (tag mode)
+  const taskLaneMap = new Map<string, string>();
+  if (isTagMode && currentSwimlaneGroup) {
+    const tagGroup = resolved.tagGroups.find(
+      tg => tg.name.toLowerCase() === currentSwimlaneGroup.toLowerCase()
+    );
+    if (tagGroup) {
+      const tagKey = tagGroup.name.toLowerCase();
+      for (const rt of resolved.tasks) {
+        let value = rt.effectiveMetadata[tagKey];
+        if (!value && tagGroup.defaultValue) value = tagGroup.defaultValue;
+        if (value) {
+          const entry = tagGroup.entries.find(e => e.value.toLowerCase() === value!.toLowerCase());
+          if (entry) taskLaneMap.set(rt.task.id, entry.value);
+        }
+      }
+    }
+  }
   let yOffset = 0;
 
   for (const row of rows) {
     if (row.type === 'lane-header') {
       // ── Lane header (tag swimlane mode) ──
+      lanePositions.set(row.laneName, { x1: 0, x2: innerWidth, y: yOffset + BAR_H / 2 });
       const laneColor = row.laneColor === '#999999' ? palette.textMuted : row.laneColor;
       const toggleIcon = row.isCollapsed ? '►' : '▼';
       const labelX = 10;
@@ -471,20 +492,15 @@ export function renderGantt(
           })
           .on('mouseenter', () => {
             if (resolved.options.dependencies) {
-              highlightDeps(g, task.id, resolved);
+              highlightDeps(g, svg, task.id, resolved);
             }
           })
           .on('mouseleave', () => {
             if (resolved.options.dependencies) {
               if (criticalPathActive) {
-                // Restore critical path highlighting after dep hover
-                g.selectAll<SVGGElement, unknown>('.gantt-task').each(function () {
-                  const el = d3Selection.select(this);
-                  el.attr('opacity', el.attr('data-critical-path') === 'true' ? 1 : FADE_OPACITY);
-                });
-                g.selectAll<SVGGElement, unknown>('.gantt-milestone').attr('opacity', FADE_OPACITY);
+                applyCriticalPathHighlight(svg, g);
               } else {
-                resetHighlight(g);
+                resetHighlight(g, svg);
               }
             }
           });
@@ -628,8 +644,8 @@ export function renderGantt(
 
   // ── Dependency arrows ───────────────────────────────────
 
-  if (!isTagMode && resolved.options.dependencies) {
-    renderDependencyArrows(g, resolved, taskPositions, groupPositions, collapsedGroups, palette, isDark);
+  if (resolved.options.dependencies) {
+    renderDependencyArrows(g, resolved, taskPositions, groupPositions, collapsedGroups, palette, isDark, isTagMode, lanePositions, collapsedLanes, taskLaneMap);
   }
 }
 
@@ -828,6 +844,20 @@ function findCollapsedGroupPos(
   return undefined;
 }
 
+function findCollapsedLanePos(
+  rt: ResolvedTask,
+  collapsedLanes: Set<string> | undefined,
+  taskLaneMap: Map<string, string>,
+  lanePositions: Map<string, { x1: number; x2: number; y: number }>,
+): { x1: number; x2: number; y: number } | undefined {
+  if (!collapsedLanes) return undefined;
+  const laneName = taskLaneMap.get(rt.task.id);
+  if (laneName && collapsedLanes.has(laneName)) {
+    return lanePositions.get(laneName);
+  }
+  return undefined;
+}
+
 function renderDependencyArrows(
   g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   resolved: ResolvedSchedule,
@@ -836,6 +866,10 @@ function renderDependencyArrows(
   collapsedGroups: Set<string> | undefined,
   palette: PaletteColors,
   _isDark: boolean,
+  isTagMode: boolean,
+  lanePositions: Map<string, { x1: number; x2: number; y: number }>,
+  collapsedLanes: Set<string> | undefined,
+  taskLaneMap: Map<string, string>,
 ): void {
   // Deduplicate arrows that collapse to the same source→target position
   const drawnArrows = new Set<string>();
@@ -843,7 +877,9 @@ function renderDependencyArrows(
   // Build arrow list from task dependencies
   for (const rt of resolved.tasks) {
     const sourcePos = taskPositions.get(rt.task.id)
-      ?? findCollapsedGroupPos(rt, collapsedGroups, groupPositions);
+      ?? (isTagMode
+        ? findCollapsedLanePos(rt, collapsedLanes, taskLaneMap, lanePositions)
+        : findCollapsedGroupPos(rt, collapsedGroups, groupPositions));
     if (!sourcePos) continue;
 
     for (const dep of rt.task.dependencies) {
@@ -853,7 +889,9 @@ function renderDependencyArrows(
       if (!targetTask) continue;
 
       const targetPos = taskPositions.get(targetTask.task.id)
-        ?? findCollapsedGroupPos(targetTask, collapsedGroups, groupPositions);
+        ?? (isTagMode
+          ? findCollapsedLanePos(targetTask, collapsedLanes, taskLaneMap, lanePositions)
+          : findCollapsedGroupPos(targetTask, collapsedGroups, groupPositions));
       if (!targetPos) continue;
 
       // Skip self-arrows (both source and target collapsed to the same group)
@@ -870,9 +908,10 @@ function renderDependencyArrows(
       const tx = targetPos.x1;
       const ty = targetPos.y;
 
-      // Simple bezier curve
+      // Bezier curve with dy-scaled control points for cross-lane arrows
       const dx = Math.abs(tx - sx);
-      const cpOffset = Math.max(dx * 0.3, 15);
+      const dy = Math.abs(ty - sy);
+      const cpOffset = Math.max(dx * 0.3, 15, dy * 0.4);
 
       const path = `M ${sx} ${sy} C ${sx + cpOffset} ${sy}, ${tx - cpOffset} ${ty}, ${tx} ${ty}`;
 
@@ -886,9 +925,9 @@ function renderDependencyArrows(
         .attr('stroke-width', 1.5)
         .attr('opacity', 0.5);
 
-      // Arrowhead
+      // Arrowhead — always horizontal arrival (bezier cp2 has same Y as endpoint)
       const headSize = 5;
-      const angle = Math.atan2(ty - sy, tx - (tx - cpOffset));
+      const angle = 0;
       g.append('polygon')
         .attr('class', 'gantt-dep-arrowhead')
         .attr('points', arrowheadPoints(tx, ty, headSize, angle))
@@ -1339,6 +1378,7 @@ const FADE_OPACITY = 0.1;
 
 function highlightDeps(
   g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
+  svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
   taskId: string,
   resolved: ResolvedSchedule,
 ): void {
@@ -1372,12 +1412,17 @@ function highlightDeps(
     el.attr('opacity', id && related.has(id) ? 1 : FADE_OPACITY);
   });
   g.selectAll<SVGGElement, unknown>('.gantt-milestone').attr('opacity', FADE_OPACITY);
+  svg.selectAll<SVGGElement, unknown>('.gantt-lane-header').attr('opacity', FADE_OPACITY);
+  g.selectAll<SVGElement, unknown>('.gantt-lane-band, .gantt-lane-accent').attr('opacity', FADE_OPACITY);
 }
 
 function resetHighlight(
   g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
+  svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
 ): void {
   g.selectAll<SVGGElement, unknown>('.gantt-task, .gantt-milestone').attr('opacity', 1);
+  svg.selectAll<SVGGElement, unknown>('.gantt-lane-header').attr('opacity', 1);
+  g.selectAll<SVGElement, unknown>('.gantt-lane-band, .gantt-lane-accent').attr('opacity', 1);
 }
 
 // ── Row Building ────────────────────────────────────────────

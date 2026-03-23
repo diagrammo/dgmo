@@ -375,10 +375,10 @@ describe('tag swimlane rendering', () => {
     expect(groupLabels.length).toBe(0);
   });
 
-  it('hides dependency arrows when swimlane active', () => {
+  it('renders dependency arrows when swimlane active', () => {
     const container = renderFromInput(TAG_SWIMLANE_INPUT, { currentSwimlaneGroup: 'Team' });
     const arrows = container.querySelectorAll('.gantt-dep-arrow');
-    expect(arrows.length).toBe(0);
+    expect(arrows.length).toBeGreaterThanOrEqual(1);
   });
 
   it('renders task elements with data-tag attributes in tag mode', () => {
@@ -493,5 +493,55 @@ describe('buildTagLaneRowList with collapsedLanes', () => {
     const designHeader = rows.find(r => r.type === 'lane-header' && r.laneName === 'Design');
     expect(engHeader?.type === 'lane-header' && engHeader.isCollapsed).toBe(true);
     expect(designHeader?.type === 'lane-header' && designHeader.isCollapsed).toBe(false);
+  });
+});
+
+// ── Dependency arrows in tag mode ────────────────────────────
+
+describe('dependency arrows in tag mode', () => {
+  it('arrows present in tag mode with dependencies on', () => {
+    const container = renderFromInput(TAG_SWIMLANE_INPUT, { currentSwimlaneGroup: 'Team' });
+    const arrows = container.querySelectorAll('.gantt-dep-arrow');
+    expect(arrows.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('arrowheads count matches arrow count', () => {
+    const container = renderFromInput(TAG_SWIMLANE_INPUT, { currentSwimlaneGroup: 'Team' });
+    const arrows = container.querySelectorAll('.gantt-dep-arrow');
+    const arrowheads = container.querySelectorAll('.gantt-dep-arrowhead');
+    expect(arrowheads.length).toBe(arrows.length);
+  });
+
+  it('no arrows when dependencies off', () => {
+    const input = TAG_SWIMLANE_INPUT.replace('dependencies: on', 'dependencies: off');
+    const container = renderFromInput(input, { currentSwimlaneGroup: 'Team' });
+    const arrows = container.querySelectorAll('.gantt-dep-arrow');
+    expect(arrows.length).toBe(0);
+  });
+
+  it('collapsed lane redirects arrows to lane header position', () => {
+    // Cross-lane dep: Task A (Alpha) -> Task B (Beta) — collapsing Beta redirects target
+    const input = `chart: gantt
+start: 2024-01-15
+dependencies: on
+tag: Lane
+  Alpha(blue)
+  Beta(red)
+parallel
+  10d: Task A | Lane: Alpha
+    -> Task B
+  10d: Task B | Lane: Beta`;
+    const container = renderFromInput(input, {
+      currentSwimlaneGroup: 'Lane',
+      collapsedLanes: new Set(['Beta']),
+    });
+    const arrows = container.querySelectorAll('.gantt-dep-arrow');
+    expect(arrows.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('structural mode regression — arrows still render', () => {
+    const container = renderFromInput(TAG_SWIMLANE_INPUT);
+    const arrows = container.querySelectorAll('.gantt-dep-arrow');
+    expect(arrows.length).toBeGreaterThanOrEqual(1);
   });
 });
