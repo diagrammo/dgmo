@@ -545,3 +545,52 @@ parallel
     expect(arrows.length).toBeGreaterThanOrEqual(1);
   });
 });
+
+// ── Hover Date Indicators ─────────────────────────────────────
+
+describe('hover date indicators', () => {
+  it('shows dashed lines and date labels on task bar hover', () => {
+    const container = renderFromInput('chart: gantt\nstart: 2024-01-15\n10d: Task A');
+    const task = container.querySelector('.gantt-task');
+    expect(task).toBeTruthy();
+
+    // Dispatch mouseenter
+    task!.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+
+    // Should have gantt-hover-date elements (lines + text labels)
+    const hoverDates = container.querySelectorAll('.gantt-hover-date');
+    expect(hoverDates.length).toBeGreaterThanOrEqual(3); // 1 line + 2 labels for start, same for end
+
+    // Scale ticks should be faded
+    const scaleTick = container.querySelector('.gantt-scale-tick');
+    if (scaleTick) {
+      expect(Number(scaleTick.getAttribute('opacity'))).toBeLessThan(0.1);
+    }
+
+    // Dispatch mouseleave — should clean up
+    task!.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));
+    const hoverDatesAfter = container.querySelectorAll('.gantt-hover-date');
+    expect(hoverDatesAfter.length).toBe(0);
+  });
+
+  it('shows single indicator line on milestone hover', () => {
+    const container = renderFromInput('chart: gantt\nstart: 2024-01-15\n0d: Milestone A');
+    const milestone = container.querySelector('.gantt-milestone');
+    expect(milestone).toBeTruthy();
+
+    milestone!.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    const hoverDates = container.querySelectorAll('.gantt-hover-date');
+    // Single date: 1 line + 2 labels = 3
+    expect(hoverDates.length).toBe(3);
+  });
+
+  it('shows indicators on group bar hover', () => {
+    const container = renderFromInput('chart: gantt\nstart: 2024-01-15\n\n[Backend]\n  5d: Task A\n  5d: Task B');
+    const groupBar = container.querySelector('.gantt-group-bar');
+    expect(groupBar).toBeTruthy();
+
+    groupBar!.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    const hoverDates = container.querySelectorAll('.gantt-hover-date');
+    expect(hoverDates.length).toBeGreaterThanOrEqual(3);
+  });
+});
