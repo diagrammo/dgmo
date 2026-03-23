@@ -50,6 +50,8 @@ export interface GanttInteractiveOptions {
   onSwimlaneChange?: (group: string | null) => void;
   currentActiveGroup?: string | null;
   onActiveGroupChange?: (group: string | null) => void;
+  collapsedLanes?: Set<string>;
+  onToggleLane?: (laneName: string) => void;
   viewMode?: boolean;
 }
 
@@ -77,6 +79,8 @@ export function renderGantt(
   const currentSwimlaneGroup = options?.currentSwimlaneGroup ?? null;
   const onSwimlaneChange = options?.onSwimlaneChange;
   const onActiveGroupChange = options?.onActiveGroupChange;
+  const collapsedLanes = options?.collapsedLanes;
+  const onToggleLane = options?.onToggleLane;
 
   // ── Compute layout dimensions ───────────────────────────
 
@@ -89,7 +93,7 @@ export function renderGantt(
   // ── Build row list (structural vs tag mode) ─────────────
 
   const tagRows = currentSwimlaneGroup
-    ? buildTagLaneRowList(resolved, currentSwimlaneGroup)
+    ? buildTagLaneRowList(resolved, currentSwimlaneGroup, collapsedLanes)
     : null;
   const rows = tagRows ?? buildRowList(resolved, collapsedGroups);
   const isTagMode = tagRows !== null;
@@ -237,14 +241,20 @@ export function renderGantt(
   for (const row of rows) {
     if (row.type === 'lane-header') {
       // ── Lane header (tag swimlane mode) ──
+      const laneColor = row.laneColor === '#999999' ? palette.textMuted : row.laneColor;
+      const toggleIcon = row.isCollapsed ? '►' : '▼';
       const labelX = 10;
       const labelG = svg
         .append('g')
         .attr('class', 'gantt-lane-header')
         .attr(`data-tag-${row.tagKey}`, row.laneName.toLowerCase())
-        .attr('data-lane', row.laneName);
+        .attr('data-lane', row.laneName)
+        .style('cursor', onToggleLane ? 'pointer' : 'default')
+        .on('click', () => {
+          if (onToggleLane) onToggleLane(row.laneName);
+        });
 
-      // Label
+      // Label with toggle icon
       labelG
         .append('text')
         .attr('x', labelX)
@@ -253,28 +263,55 @@ export function renderGantt(
         .attr('text-anchor', 'start')
         .attr('font-size', '11px')
         .attr('font-weight', 'bold')
-        .attr('fill', row.laneColor === '#999999' ? palette.textMuted : row.laneColor)
-        .text(row.laneName + (row.aggregateProgress !== null ? ` ${Math.round(row.aggregateProgress)}%` : ''));
+        .attr('fill', laneColor)
+        .text(toggleIcon + ' ' + row.laneName + (row.aggregateProgress !== null ? ` ${Math.round(row.aggregateProgress)}%` : ''));
 
-      // Background band
-      g.append('rect')
-        .attr('class', 'gantt-lane-band')
-        .attr('x', 0)
-        .attr('y', yOffset)
-        .attr('width', innerWidth)
-        .attr('height', BAR_H)
-        .attr('fill', row.laneColor === '#999999' ? palette.textMuted : row.laneColor)
-        .attr('opacity', 0.06)
-        .attr('pointer-events', 'none');
+      if (row.isCollapsed) {
+        // Collapsed: summary bar with aggregate progress
+        const barFill = mix(laneColor, palette.bg, 30);
+        g.append('rect')
+          .attr('class', 'gantt-lane-band')
+          .attr('x', 0)
+          .attr('y', yOffset)
+          .attr('width', innerWidth)
+          .attr('height', BAR_H)
+          .attr('rx', 4)
+          .attr('fill', barFill)
+          .attr('stroke', laneColor)
+          .attr('stroke-width', 1);
 
-      // 4px accent bar on left edge
+        if (row.aggregateProgress !== null && row.aggregateProgress > 0) {
+          g.append('rect')
+            .attr('class', 'gantt-lane-progress')
+            .attr('x', 0)
+            .attr('y', yOffset)
+            .attr('width', innerWidth * Math.min(row.aggregateProgress / 100, 1))
+            .attr('height', BAR_H)
+            .attr('rx', 4)
+            .attr('fill', laneColor)
+            .attr('opacity', 0.5);
+        }
+      } else {
+        // Expanded: subtle background band
+        g.append('rect')
+          .attr('class', 'gantt-lane-band')
+          .attr('x', 0)
+          .attr('y', yOffset)
+          .attr('width', innerWidth)
+          .attr('height', BAR_H)
+          .attr('fill', laneColor)
+          .attr('opacity', 0.06)
+          .attr('pointer-events', 'none');
+      }
+
+      // 4px accent bar on left edge (always)
       g.append('rect')
         .attr('class', 'gantt-lane-accent')
         .attr('x', 0)
         .attr('y', yOffset)
         .attr('width', 4)
         .attr('height', BAR_H)
-        .attr('fill', row.laneColor === '#999999' ? palette.textMuted : row.laneColor)
+        .attr('fill', laneColor)
         .attr('opacity', 1);
 
       yOffset += BAR_H + ROW_GAP;
@@ -1347,7 +1384,7 @@ function resetHighlight(
 
 type GroupRow = { type: 'group'; group: ResolvedGroup };
 type TaskRow = { type: 'task'; task: ResolvedTask };
-type LaneHeaderRow = { type: 'lane-header'; laneName: string; laneColor: string; aggregateProgress: number | null; tagKey: string };
+type LaneHeaderRow = { type: 'lane-header'; laneName: string; laneColor: string; aggregateProgress: number | null; tagKey: string; isCollapsed: boolean };
 type Row = GroupRow | TaskRow | LaneHeaderRow;
 
 // Public type aliases (prefixed to avoid collisions in consumer code)
@@ -1425,6 +1462,7 @@ function buildRowList(resolved: ResolvedSchedule, collapsedGroups?: Set<string>)
 export function buildTagLaneRowList(
   resolved: ResolvedSchedule,
   swimlaneGroup: string,
+  collapsedLanes?: Set<string>,
 ): Row[] | null {
   const tagGroup = resolved.tagGroups.find(
     g => g.name.toLowerCase() === swimlaneGroup.toLowerCase()
@@ -1467,15 +1505,19 @@ export function buildTagLaneRowList(
       ? progressValues.reduce((a, b) => a + b, 0) / progressValues.length
       : null;
 
+    const isCollapsed = collapsedLanes?.has(entry.value) ?? false;
     rows.push({
       type: 'lane-header',
       laneName: entry.value,
       laneColor: entry.color,
       aggregateProgress,
       tagKey,
+      isCollapsed,
     });
-    for (const rt of tasks) {
-      rows.push({ type: 'task', task: rt });
+    if (!isCollapsed) {
+      for (const rt of tasks) {
+        rows.push({ type: 'task', task: rt });
+      }
     }
   }
 
@@ -1489,15 +1531,20 @@ export function buildTagLaneRowList(
       ? progressValues.reduce((a, b) => a + b, 0) / progressValues.length
       : null;
 
+    const noLaneName = `No ${tagGroup.name}`;
+    const isCollapsed = collapsedLanes?.has(noLaneName) ?? false;
     rows.push({
       type: 'lane-header',
-      laneName: `No ${tagGroup.name}`,
+      laneName: noLaneName,
       laneColor: '#999999',
       aggregateProgress,
       tagKey,
+      isCollapsed,
     });
-    for (const rt of unbucketed) {
-      rows.push({ type: 'task', task: rt });
+    if (!isCollapsed) {
+      for (const rt of unbucketed) {
+        rows.push({ type: 'task', task: rt });
+      }
     }
   }
 

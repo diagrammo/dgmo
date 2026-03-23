@@ -106,6 +106,8 @@ export interface GanttOptions {
   todayMarker: 'off' | 'on' | string; // 'on' = current date, string = YYYY-MM-DD
   criticalPath: boolean;
   dependencies: boolean;
+  sort: 'default' | 'tag';
+  defaultSwimlaneGroup: string | null; // tag group name from `sort: tag:Team`
 }
 
 // ── Parsed Result ───────────────────────────────────────────

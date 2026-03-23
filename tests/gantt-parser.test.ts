@@ -371,4 +371,35 @@ describe('gantt parser', () => {
       expect(result.nodes.every(n => n.kind === 'task')).toBe(true);
     });
   });
+
+  describe('sort: tag directive', () => {
+    it('parses sort: tag', () => {
+      const input = 'chart: gantt\nsort: tag\ntag: Team\n  Eng(blue)\nstart: 2024-01-15\n10d: Task';
+      const result = parseGantt(input, palette);
+      expect(result.error).toBeNull();
+      expect(result.options.sort).toBe('tag');
+      expect(result.options.defaultSwimlaneGroup).toBeNull();
+    });
+
+    it('parses sort: tag:Team', () => {
+      const input = 'chart: gantt\nsort: tag:Team\ntag: Team\n  Eng(blue)\nstart: 2024-01-15\n10d: Task';
+      const result = parseGantt(input, palette);
+      expect(result.error).toBeNull();
+      expect(result.options.sort).toBe('tag');
+      expect(result.options.defaultSwimlaneGroup).toBe('Team');
+    });
+
+    it('warns and falls back when no tag groups defined', () => {
+      const input = 'chart: gantt\nsort: tag\nstart: 2024-01-15\n10d: Task';
+      const result = parseGantt(input, palette);
+      expect(result.options.sort).toBe('default');
+      expect(result.diagnostics.some(d => d.message.includes('sort: tag has no effect'))).toBe(true);
+    });
+
+    it('warns on invalid sort value', () => {
+      const input = 'chart: gantt\nsort: date\nstart: 2024-01-15\n10d: Task';
+      const result = parseGantt(input, palette);
+      expect(result.diagnostics.some(d => d.message.includes('Invalid sort value'))).toBe(true);
+    });
+  });
 });

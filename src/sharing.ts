@@ -10,6 +10,7 @@ export interface DiagramViewState {
   activeTagGroup?: string;
   collapsedGroups?: string[];
   swimlaneTagGroup?: string;
+  collapsedLanes?: string[];
   palette?: string;
   theme?: 'light' | 'dark';
 }
@@ -57,6 +58,10 @@ export function encodeDiagramUrl(
 
   if (options?.viewState?.swimlaneTagGroup) {
     hash += `&swim=${encodeURIComponent(options.viewState.swimlaneTagGroup)}`;
+  }
+
+  if (options?.viewState?.collapsedLanes?.length) {
+    hash += `&cl=${encodeURIComponent(options.viewState.collapsedLanes.join(','))}`;
   }
 
   if (options?.viewState?.palette && options.viewState.palette !== 'nord') {
@@ -114,6 +119,9 @@ export function decodeDiagramUrl(hash: string): DecodedDiagramUrl {
     }
     if (key === 'swim' && val) {
       viewState.swimlaneTagGroup = val;
+    }
+    if (key === 'cl' && val) {
+      viewState.collapsedLanes = val.split(',').filter(Boolean);
     }
     if (key === 'pal' && val) viewState.palette = val;
     if (key === 'th' && (val === 'light' || val === 'dark')) viewState.theme = val;

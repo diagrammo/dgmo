@@ -103,6 +103,8 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
       todayMarker: 'off',
       criticalPath: false,
       dependencies: false,
+      sort: 'default',
+      defaultSwimlaneGroup: null,
     },
     diagnostics,
     error: null,
@@ -420,6 +422,17 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
         case 'dependencies':
           result.options.dependencies = value === 'on';
           break;
+        case 'sort':
+          if (value === 'tag' || value.startsWith('tag:')) {
+            result.options.sort = 'tag';
+            const colonIdx = value.indexOf(':');
+            if (colonIdx !== -1) {
+              result.options.defaultSwimlaneGroup = value.slice(colonIdx + 1).trim() || null;
+            }
+          } else {
+            warn(lineNumber, `Invalid sort value: "${value}". Expected "tag" or "tag:GroupName".`);
+          }
+          break;
       }
       continue;
     }
@@ -585,6 +598,12 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
 
   // If no chart type was declared, that's acceptable (inferred from context)
 
+  // Validate sort: tag requires tag groups
+  if (result.options.sort === 'tag' && result.tagGroups.length === 0) {
+    warn(0, 'sort: tag has no effect — no tag groups defined.');
+    result.options.sort = 'default';
+  }
+
   return result;
 
   // ── Helper: create a task ───────────────────────────────
@@ -700,7 +719,7 @@ function parseWorkweek(s: string): Weekday[] | null {
 
 const KNOWN_OPTIONS = new Set([
   'start', 'title', 'orientation', 'today-marker',
-  'critical-path', 'dependencies', 'chart',
+  'critical-path', 'dependencies', 'chart', 'sort',
 ]);
 
 function isKnownOption(key: string): boolean {

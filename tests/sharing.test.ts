@@ -266,4 +266,26 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
       expect(decoded.viewState.palette).toBeUndefined();
     });
   });
+
+  describe('view state (collapsedLanes)', () => {
+    it('round-trips collapsedLanes', () => {
+      const dsl = 'chart: gantt\nstart: 2024-01-15\n10d: Task';
+      const result = encodeDiagramUrl(dsl, {
+        viewState: { collapsedLanes: ['Engineering', 'QA'] },
+      });
+      if (result.error) throw new Error('unexpected error');
+      expect(result.url).toContain('&cl=');
+      const query = new URL(result.url).search;
+      const decoded = decodeDiagramUrl(query);
+      expect(decoded.viewState.collapsedLanes).toEqual(['Engineering', 'QA']);
+    });
+
+    it('omits cl param when collapsedLanes is empty', () => {
+      const result = encodeDiagramUrl('chart: gantt\nstart: 2024-01-15\n10d: Task', {
+        viewState: { collapsedLanes: [] },
+      });
+      if (result.error) throw new Error('unexpected error');
+      expect(result.url).not.toContain('&cl=');
+    });
+  });
 });

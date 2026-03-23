@@ -438,4 +438,60 @@ describe('tag swimlane rendering', () => {
     const markers = container.querySelectorAll('.gantt-marker');
     expect(markers.length).toBeGreaterThanOrEqual(1);
   });
+
+  it('collapsed lane hides task rows but keeps header', () => {
+    const container = renderFromInput(TAG_SWIMLANE_INPUT, {
+      currentSwimlaneGroup: 'Team',
+      collapsedLanes: new Set(['Engineering']),
+    });
+    const laneHeaders = container.querySelectorAll('.gantt-lane-header');
+    expect(laneHeaders.length).toBeGreaterThanOrEqual(3);
+    // Engineering header should still be present
+    const engHeader = Array.from(laneHeaders).find(h => h.getAttribute('data-lane') === 'Engineering');
+    expect(engHeader).toBeDefined();
+    // But Engineering tasks should be hidden — only non-Engineering tasks rendered
+    const tasks = container.querySelectorAll('.gantt-task');
+    const engTasks = Array.from(tasks).filter(t => t.getAttribute('data-tag-team') === 'engineering');
+    expect(engTasks.length).toBe(0);
+  });
+
+  it('collapsed lane shows toggle icon ►', () => {
+    const container = renderFromInput(TAG_SWIMLANE_INPUT, {
+      currentSwimlaneGroup: 'Team',
+      collapsedLanes: new Set(['Engineering']),
+    });
+    const engHeader = Array.from(container.querySelectorAll('.gantt-lane-header'))
+      .find(h => h.getAttribute('data-lane') === 'Engineering');
+    expect(engHeader?.textContent).toContain('►');
+  });
+
+  it('expanded lane shows toggle icon ▼', () => {
+    const container = renderFromInput(TAG_SWIMLANE_INPUT, { currentSwimlaneGroup: 'Team' });
+    const engHeader = Array.from(container.querySelectorAll('.gantt-lane-header'))
+      .find(h => h.getAttribute('data-lane') === 'Engineering');
+    expect(engHeader?.textContent).toContain('▼');
+  });
+});
+
+// ── buildTagLaneRowList collapse tests ──────────────────────
+
+describe('buildTagLaneRowList with collapsedLanes', () => {
+  it('collapsed lane emits header but no task rows', () => {
+    const resolved = resolveFromInput(TAG_SWIMLANE_INPUT);
+    const rows = buildTagLaneRowList(resolved, 'Team', new Set(['Engineering']))!;
+    const engIdx = rows.findIndex(r => r.type === 'lane-header' && r.laneName === 'Engineering');
+    expect(engIdx).toBeGreaterThanOrEqual(0);
+    // Next row should NOT be a task — should be another lane-header or end
+    const nextRow = rows[engIdx + 1];
+    expect(nextRow?.type).not.toBe('task');
+  });
+
+  it('isCollapsed flag set correctly', () => {
+    const resolved = resolveFromInput(TAG_SWIMLANE_INPUT);
+    const rows = buildTagLaneRowList(resolved, 'Team', new Set(['Engineering']))!;
+    const engHeader = rows.find(r => r.type === 'lane-header' && r.laneName === 'Engineering');
+    const designHeader = rows.find(r => r.type === 'lane-header' && r.laneName === 'Design');
+    expect(engHeader?.type === 'lane-header' && engHeader.isCollapsed).toBe(true);
+    expect(designHeader?.type === 'lane-header' && designHeader.isCollapsed).toBe(false);
+  });
 });
