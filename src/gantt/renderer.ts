@@ -27,7 +27,7 @@ import {
 import type { PaletteColors } from '../palettes';
 import type { D3ExportDimensions } from '../d3';
 import type { ResolvedSchedule, ResolvedTask, ResolvedGroup, Weekday } from './types';
-import type { TagGroup } from '../utils/tag-groups';
+import type { TagGroup, TagEntry } from '../utils/tag-groups';
 
 // ── Constants ───────────────────────────────────────────────
 
@@ -186,6 +186,7 @@ export function renderGantt(
         currentSwimlaneGroup,
         onSwimlaneChange,
         viewMode,
+        resolved.tasks,
       );
     }
   }
@@ -1138,6 +1139,7 @@ function renderTagLegend(
   currentSwimlaneGroup?: string | null,
   onSwimlaneChange?: (group: string | null) => void,
   legendViewMode?: boolean,
+  resolvedTasks?: ResolvedTask[],
 ): void {
   const groupBg = isDark
     ? mix(palette.surface, palette.bg, 50)
@@ -1155,6 +1157,32 @@ function renderTagLegend(
     visibleGroups = tagGroups;
   }
 
+  // Build set of used tag values per group from resolved tasks
+  const usedValues = new Map<string, Set<string>>();
+  if (resolvedTasks) {
+    for (const group of visibleGroups) {
+      const key = group.name.toLowerCase();
+      const used = new Set<string>();
+      for (const rt of resolvedTasks) {
+        const val = rt.effectiveMetadata[key];
+        if (val) used.add(val.toLowerCase());
+      }
+      usedValues.set(key, used);
+    }
+  }
+
+  // Filter entries to only those used in the current view
+  const filteredEntries = new Map<string, TagEntry[]>();
+  for (const group of visibleGroups) {
+    const key = group.name.toLowerCase();
+    const used = usedValues.get(key);
+    if (used && used.size > 0) {
+      filteredEntries.set(key, group.entries.filter(e => used.has(e.value.toLowerCase())));
+    } else {
+      filteredEntries.set(key, group.entries);
+    }
+  }
+
   // Compute per-group widths
   const groupWidths: number[] = [];
   let totalW = 0;
@@ -1166,8 +1194,9 @@ function renderTagLegend(
     const pillW = group.name.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD + iconReserve;
     let groupW = pillW;
     if (isActive) {
+      const entries = filteredEntries.get(group.name.toLowerCase()) ?? group.entries;
       let entriesW = 0;
-      for (const entry of group.entries) {
+      for (const entry of entries) {
         entriesW += LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP + entry.value.length * LEGEND_ENTRY_FONT_W + LEGEND_ENTRY_TRAIL;
       }
       groupW = LEGEND_CAPSULE_PAD * 2 + pillW + 4 + entriesW;
@@ -1278,11 +1307,12 @@ function renderTagLegend(
         });
     }
 
-    // Entries (when active — expanded color group)
+    // Entries (when active — expanded color group, only used values)
     if (isActive) {
       const tagKey = group.name.toLowerCase();
+      const entries = filteredEntries.get(tagKey) ?? group.entries;
       let ex = pillXOff + pillW + LEGEND_CAPSULE_PAD + 4;
-      for (const entry of group.entries) {
+      for (const entry of entries) {
         const entryValue = entry.value.toLowerCase();
 
         // Wrap dot + label in a <g> for hover targeting
