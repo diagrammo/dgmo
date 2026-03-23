@@ -536,13 +536,14 @@ export function renderGantt(
           .attr('stroke-width', 1.5)
           .attr('data-line-number', String(task.lineNumber))
           .attr('data-task-name', task.label)
+          .attr('data-task-id', task.id)
           .attr('data-group', topGroup)
           .style('cursor', onClickItem ? 'pointer' : 'default')
           .on('click', () => {
             if (onClickItem) onClickItem(task.lineNumber);
           })
           .on('mouseenter', () => {
-            highlightTaskLabel(svg, task.lineNumber);
+            highlightMilestone(g, svg, task.id);
             showGanttDateIndicators(g, xScale, rt.startDate, null, innerHeight, barColor);
             // Show label next to diamond
             g.append('text')
@@ -557,7 +558,7 @@ export function renderGantt(
               .text(task.label);
           })
           .on('mouseleave', () => {
-            resetTaskLabels(svg);
+            resetHighlight(g, svg);
             hideGanttDateIndicators(g);
             g.selectAll('.gantt-milestone-hover-label').remove();
           });
@@ -1723,6 +1724,31 @@ function highlightTask(
   });
   // Fade milestones not matching
   g.selectAll<SVGElement, unknown>('.gantt-milestone').attr('opacity', FADE_OPACITY);
+  // Fade task labels not matching
+  svg.selectAll<SVGTextElement, unknown>('.gantt-task-label').each(function () {
+    const el = d3Selection.select(this);
+    el.attr('opacity', el.attr('data-task-id') === taskId ? 1 : FADE_OPACITY);
+  });
+  // Fade group/lane elements
+  g.selectAll<SVGElement, unknown>('.gantt-group-bar, .gantt-group-summary').attr('opacity', FADE_OPACITY);
+  svg.selectAll<SVGGElement, unknown>('.gantt-group-label').attr('opacity', FADE_OPACITY);
+  svg.selectAll<SVGGElement, unknown>('.gantt-lane-header').attr('opacity', FADE_OPACITY);
+  g.selectAll<SVGElement, unknown>('.gantt-lane-band, .gantt-lane-accent, .gantt-lane-band-group').attr('opacity', FADE_OPACITY);
+  g.selectAll<SVGElement, unknown>('.gantt-dep-arrow, .gantt-dep-arrowhead').attr('opacity', FADE_OPACITY);
+}
+
+function highlightMilestone(
+  g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
+  svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
+  taskId: string,
+): void {
+  // Fade tasks
+  g.selectAll<SVGGElement, unknown>('.gantt-task').attr('opacity', FADE_OPACITY);
+  // Fade milestones not matching
+  g.selectAll<SVGElement, unknown>('.gantt-milestone').each(function () {
+    const el = d3Selection.select(this);
+    el.attr('opacity', el.attr('data-task-id') === taskId ? 1 : FADE_OPACITY);
+  });
   // Fade task labels not matching
   svg.selectAll<SVGTextElement, unknown>('.gantt-task-label').each(function () {
     const el = d3Selection.select(this);
