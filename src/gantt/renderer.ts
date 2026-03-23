@@ -1859,13 +1859,8 @@ export function buildTagLaneRowList(
     // Sort tasks within lane by start date
     tasks.sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
 
-    // Compute aggregate progress
-    const progressValues = tasks
-      .map(t => t.task.progress)
-      .filter((p): p is number => p !== null);
-    const aggregateProgress = progressValues.length > 0
-      ? progressValues.reduce((a, b) => a + b, 0) / progressValues.length
-      : null;
+    // Compute duration-weighted aggregate progress (tasks without progress count as 0%)
+    const aggregateProgress = durationWeightedProgress(tasks);
 
     // Compute lane date range from tasks
     const laneStartDate = tasks.length > 0 ? new Date(Math.min(...tasks.map(t => t.startDate.getTime()))) : null;
@@ -1892,12 +1887,7 @@ export function buildTagLaneRowList(
   // Append unbucketed tasks as "No {GroupName}" lane
   if (unbucketed.length > 0) {
     unbucketed.sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
-    const progressValues = unbucketed
-      .map(t => t.task.progress)
-      .filter((p): p is number => p !== null);
-    const aggregateProgress = progressValues.length > 0
-      ? progressValues.reduce((a, b) => a + b, 0) / progressValues.length
-      : null;
+    const aggregateProgress = durationWeightedProgress(unbucketed);
 
     const noLaneStartDate = unbucketed.length > 0 ? new Date(Math.min(...unbucketed.map(t => t.startDate.getTime()))) : null;
     const noLaneEndDate = unbucketed.length > 0 ? new Date(Math.max(...unbucketed.map(t => t.endDate.getTime()))) : null;
@@ -1925,6 +1915,22 @@ export function buildTagLaneRowList(
 }
 
 // ── Helpers ─────────────────────────────────────────────────
+
+/** Duration-weighted progress: tasks without explicit progress count as 0%. Returns null if no task has progress. */
+function durationWeightedProgress(tasks: ResolvedTask[]): number | null {
+  let totalDuration = 0;
+  let totalProgress = 0;
+  let hasProgress = false;
+  for (const rt of tasks) {
+    const dur = rt.endDate.getTime() - rt.startDate.getTime();
+    totalDuration += dur;
+    if (rt.task.progress !== null) {
+      totalProgress += rt.task.progress * dur;
+      hasProgress = true;
+    }
+  }
+  return hasProgress && totalDuration > 0 ? totalProgress / totalDuration : null;
+}
 
 function dateToFractionalYear(d: Date): number {
   const y = d.getFullYear();

@@ -329,7 +329,7 @@ tag: Team
     expect(laneHeaders.length).toBe(2); // A and B
   });
 
-  it('aggregate progress is uniform average of non-null progress values', () => {
+  it('aggregate progress is duration-weighted across all tasks (missing progress = 0%)', () => {
     const input = `chart: gantt
 start: 2024-01-15
 tag: Team
@@ -342,8 +342,8 @@ tag: Team
     const header = rows.find(r => r.type === 'lane-header' && r.laneName === 'Eng');
     expect(header).toBeDefined();
     if (header?.type === 'lane-header') {
-      // (80 + 40) / 2 = 60
-      expect(header.aggregateProgress).toBe(60);
+      // (80*10 + 40*10 + 0*10) / (10+10+10) = 40
+      expect(header.aggregateProgress).toBe(40);
     }
   });
 

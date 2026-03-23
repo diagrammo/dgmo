@@ -641,10 +641,10 @@ function buildResolvedGroups(
         if (!resolved?.startDate || !resolved?.endDate) continue;
         if (resolved.startDate.getTime() < minStart) minStart = resolved.startDate.getTime();
         if (resolved.endDate.getTime() > maxEnd) maxEnd = resolved.endDate.getTime();
+        const dur = resolved.endDate.getTime() - resolved.startDate.getTime();
+        totalDuration += dur;
         if (task.progress !== null) {
-          const dur = resolved.endDate.getTime() - resolved.startDate.getTime();
           totalProgress += task.progress * dur;
-          totalDuration += dur;
           hasProgress = true;
         }
       }
