@@ -260,21 +260,24 @@ describe('gantt parser', () => {
       expect(result.diagnostics.some(d => d.message.includes('Explicit "+" is not supported'))).toBe(true);
     });
 
-    it('rejects lag keyword with error', () => {
+    it('rejects lag keyword with soft error', () => {
       const input = 'chart: gantt\n10d: Task A\n  -> Task B | lag: 3bd\n10d: Task B';
       const result = parseGantt(input, palette);
-      expect(result.error).toMatch(/Unknown keyword "lag"/);
+      expect(result.error).toBeNull();
+      expect(result.diagnostics.some(d => d.severity === 'error' && d.message.includes('Unknown keyword "lag"'))).toBe(true);
     });
 
-    it('rejects lead keyword with error', () => {
+    it('rejects lead keyword with soft error', () => {
       const input = 'chart: gantt\n10d: Task A\n  -> Task B | lead: 3bd\n10d: Task B';
       const result = parseGantt(input, palette);
-      expect(result.error).toMatch(/Unknown keyword "lead"/);
+      expect(result.error).toBeNull();
+      expect(result.diagnostics.some(d => d.severity === 'error' && d.message.includes('Unknown keyword "lead"'))).toBe(true);
     });
 
-    it('rejects lag on task line with error', () => {
+    it('rejects lag on task line with soft error', () => {
       const result = parseGantt('chart: gantt\n10bd: Task | lag: 5bd', palette);
-      expect(result.error).toMatch(/Unknown keyword "lag"/);
+      expect(result.error).toBeNull();
+      expect(result.diagnostics.some(d => d.severity === 'error' && d.message.includes('Unknown keyword "lag"'))).toBe(true);
     });
   });
 
@@ -428,7 +431,7 @@ describe('gantt parser', () => {
     });
 
     it('parses marker', () => {
-      const input = 'chart: gantt\nmarker 2024-03-01: Kickoff\n10d: Task';
+      const input = 'chart: gantt\nmarker: 2024-03-01 Kickoff\n10d: Task';
       const result = parseGantt(input, palette);
       expect(result.markers).toHaveLength(1);
       expect(result.markers[0].date).toBe('2024-03-01');
@@ -437,14 +440,18 @@ describe('gantt parser', () => {
   });
 
   describe('validation errors', () => {
-    it('rejects bare labels', () => {
-      const result = parseGantt('chart: gantt\nSome Text', palette);
-      expect(result.error).toMatch(/Expected duration/);
+    it('reports bare labels as soft error and continues parsing', () => {
+      const result = parseGantt('chart: gantt\nSome Text\n10d: Valid Task', palette);
+      expect(result.error).toBeNull();
+      expect(result.diagnostics.some(d => d.severity === 'error' && d.message.includes('Expected duration'))).toBe(true);
+      expect(result.nodes).toHaveLength(1); // Valid Task still parsed
     });
 
-    it('parallel is reserved keyword', () => {
-      const result = parseGantt('chart: gantt\n10d: parallel', palette);
-      expect(result.error).toMatch(/reserved keyword/);
+    it('reports parallel as reserved keyword and continues', () => {
+      const result = parseGantt('chart: gantt\n10d: parallel\n10d: Next Task', palette);
+      expect(result.error).toBeNull();
+      expect(result.diagnostics.some(d => d.severity === 'error' && d.message.includes('reserved keyword'))).toBe(true);
+      expect(result.nodes).toHaveLength(2); // both tasks still parsed
     });
   });
 

@@ -11,9 +11,9 @@ era 2024-01 -> 2024-06: Phase 1 - Foundation
 era 2024-07 -> 2024-12: Phase 2 - Growth
 era 2025-01 -> 2025-06: Phase 3 - Scale
 
-marker 2024-03: Beta Launch
-marker 2024-09: GA Release
-marker 2025-01: Series A
+marker: 2024-03 Beta Launch
+marker: 2024-09 GA Release
+marker: 2025-01 Series A
 
 2024-01->2024-03: Core API Development | t: Engineering
 2024-02->2024-05: Auth & Permissions | t: Engineering

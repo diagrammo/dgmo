@@ -51,8 +51,8 @@ const COMMENT_RE = /^\/\//;
 /** Era: `era YYYY[-MM[-DD]] -> YYYY[-MM[-DD]]: Label (color?)` */
 const ERA_RE = /^era\s+(\d{4}(?:-\d{2}(?:-\d{2})?)?)\s*->\s*(\d{4}(?:-\d{2}(?:-\d{2})?)?)\s*:\s*(.+)$/i;
 
-/** Marker: `marker YYYY[-MM[-DD]]: Label (color?)` */
-const MARKER_RE = /^marker\s+(\d{4}(?:-\d{2}(?:-\d{2})?)?)\s*:\s*(.+)$/i;
+/** Marker: `marker: YYYY[-MM[-DD]] Label (color?)` */
+const MARKER_RE = /^marker:\s+(\d{4}(?:-\d{2}(?:-\d{2})?)?)\s+(.+)$/i;
 
 /** Holiday date: `2024-01-15: Label` */
 const HOLIDAY_DATE_RE = /^(\d{4}-\d{2}-\d{2}):\s*(.+)$/;
@@ -121,6 +121,11 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
 
   const warn = (line: number, message: string): void => {
     diagnostics.push(makeDgmoError(line, message, 'warning'));
+  };
+
+  /** Red squiggly but parsing continues — line is wrong, rest of chart is fine */
+  const softError = (line: number, message: string): void => {
+    diagnostics.push(makeDgmoError(line, message, 'error'));
   };
 
   // ── Alias map for pipe metadata ─────────────────────────
@@ -303,7 +308,7 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
           const meta = parsePipeMetadata(['', ...depParts.slice(1)], aliasMap, () => warn(lineNumber, MULTIPLE_PIPE_WARNING));
           if (meta.lag || meta.lead) {
             const key = meta.lag ? 'lag' : 'lead';
-            return fail(lineNumber, `Unknown keyword "${key}". Use "offset: ${meta[key]}" instead.`);
+            softError(lineNumber, `Unknown keyword "${key}". Use "offset: ${meta[key]}" instead.`);
           }
           if (meta.offset) {
             const raw = meta.offset;
@@ -470,7 +475,8 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
     if (groupMatch) {
       // Validate nesting: group under a task is invalid
       if (blockStack.length > 0 && blockStack[blockStack.length - 1].containerType === 'task') {
-        return fail(lineNumber, `Cannot nest a group inside a task. Groups must be inside other groups or parallel blocks.`);
+        softError(lineNumber, `Cannot nest a group inside a task. Groups must be inside other groups or parallel blocks.`);
+        continue;
       }
 
       const afterBrackets = groupMatch[2].trim();
@@ -523,7 +529,6 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
       const labelRaw = timelineDurMatch[5];
 
       const task = makeTask(labelRaw, { amount, unit }, uncertain, lineNumber, startDate);
-      if (result.error) return result;
       const taskNode: GanttNode = { kind: 'task', ...task };
       currentContainer().push(taskNode);
       lastTaskNode = taskNode as GanttNode & { kind: 'task' };
@@ -541,7 +546,6 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
       const labelRaw = durMatch[4];
 
       const task = makeTask(labelRaw, { amount, unit }, uncertain, lineNumber);
-      if (result.error) return result;
       const taskNode: GanttNode = { kind: 'task', ...task };
       currentContainer().push(taskNode);
       lastTaskNode = taskNode as GanttNode & { kind: 'task' };
@@ -560,7 +564,6 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
         lineNumber,
         explicitDateMatch[1],
       );
-      if (result.error) return result;
       // Explicit date tasks with no duration are milestones
       const taskNode: GanttNode = { kind: 'task', ...task };
       currentContainer().push(taskNode);
@@ -575,7 +578,8 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
     if (depMatch) {
       // Dependency without a task context is an error
       if (!lastTaskNode) {
-        return fail(lineNumber, `Dependency "-> ${depMatch[1]}" must be indented under a task.`);
+        softError(lineNumber, `Dependency "-> ${depMatch[1]}" must be indented under a task.`);
+        continue;
       }
       // This happens when the dep is at the same indent as the task
       const depParts = depMatch[1].split('|');
@@ -607,7 +611,8 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
 
     // ── Bare label = parse error ──────────────────────────
 
-    return fail(lineNumber, `Expected duration (e.g., "10d: Task"), group brackets (e.g., "[Group]"), or keyword. Got: "${line}"`);
+    softError(lineNumber, `Expected duration (e.g., "10d: Task"), group brackets (e.g., "[Group]"), or keyword. Got: "${line}"`);
+    continue;
   }
 
   // ── Finalize ────────────────────────────────────────────
@@ -641,7 +646,7 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
 
     // Check for reserved keyword
     if (label.toLowerCase() === 'parallel') {
-      fail(ln, `"parallel" is a reserved keyword and cannot be used as a task name.`);
+      softError(ln, `"parallel" is a reserved keyword and cannot be used as a task name.`);
     }
 
     // Parse pipe metadata
@@ -667,7 +672,7 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
     // Reject lag/lead — use offset instead
     if (metadata.lag || metadata.lead) {
       const key = metadata.lag ? 'lag' : 'lead';
-      fail(ln, `Unknown keyword "${key}". Use "offset: ${metadata[key]}" instead.`);
+      softError(ln, `Unknown keyword "${key}". Use "offset: ${metadata[key]}" instead.`);
     }
 
     // Extract task-level offset from metadata

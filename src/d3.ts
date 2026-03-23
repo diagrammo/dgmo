@@ -545,9 +545,9 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
         continue;
       }
 
-      // Timeline marker lines: marker YYYY: Label (color)
+      // Timeline marker lines: marker: YYYY Label (color)
       const markerMatch = line.match(
-        /^marker\s+(\d{4}(?:-\d{2})?(?:-\d{2})?)\s*:\s*(.+?)(?:\s*\(([^)]+)\))?\s*$/
+        /^marker:\s+(\d{4}(?:-\d{2})?(?:-\d{2})?)\s+(.+?)(?:\s*\(([^)]+)\))?\s*$/
       );
       if (markerMatch) {
         const colorAnnotation = markerMatch[3]?.trim() || null;
@@ -6095,10 +6095,8 @@ export async function renderForExport(
 
     const effectivePalette = await resolveExportPalette(theme, palette);
     const ganttParsed = parseGantt(content, effectivePalette);
-    if (ganttParsed.error) return '';
-
     const resolved = calculateSchedule(ganttParsed);
-    if (resolved.error || resolved.tasks.length === 0) return '';
+    if (resolved.tasks.length === 0) return '';
 
     const EXPORT_W = 1200;
     const EXPORT_H = 800;

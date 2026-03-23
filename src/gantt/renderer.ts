@@ -68,7 +68,7 @@ export function renderGantt(
   // Clear previous content
   container.innerHTML = '';
 
-  if (resolved.error || resolved.tasks.length === 0) return;
+  if (resolved.tasks.length === 0) return;
 
   // ── Destructure options ─────────────────────────────────
 
@@ -359,8 +359,9 @@ export function renderGantt(
       const indent = '  '.repeat(group.depth);
       const toggleIcon = isCollapsed ? '►' : '▼';
 
-      // Group label with toggle
-      const groupColor = group.color || palette.textMuted;
+      // Group label with toggle — resolve tag color from group metadata
+      const tagColor = resolveTagColor(group.metadata, resolved.tagGroups, currentActiveGroup, true);
+      const groupColor = (tagColor && tagColor !== '#999999') ? tagColor : (group.color || palette.textMuted);
       const labelG = svg
         .append('g')
         .attr('class', 'gantt-group-label')
@@ -1486,48 +1487,72 @@ function renderErasAndMarkers(
       });
   }
 
-  // Markers: vertical dashed lines
+  // Markers: label → diamond → dashed line (same layout as timeline)
   for (const marker of resolved.markers) {
     const color = marker.color || palette.accent || '#d08770';
     const mx = xScale(parseDateToFractionalYear(marker.date));
     const markerDate = parseDateStringToDate(marker.date);
+    const diamondSize = 5;
+    const labelY = -24;
+    const diamondY = labelY + 14;
 
     const markerG = g.append('g')
-      .attr('class', 'gantt-marker-group');
+      .attr('class', 'gantt-marker-group')
+      .style('cursor', 'pointer');
 
+    // Invisible hit rect for easier clicking/hovering
+    markerG.append('rect')
+      .attr('x', mx - 40)
+      .attr('y', labelY - 12)
+      .attr('width', 80)
+      .attr('height', innerHeight - labelY + 12)
+      .attr('fill', 'transparent')
+      .attr('pointer-events', 'all');
+
+    // Label above diamond
+    markerG.append('text')
+      .attr('class', 'gantt-marker-label')
+      .attr('x', mx)
+      .attr('y', labelY)
+      .attr('text-anchor', 'middle')
+      .attr('font-size', '11px')
+      .attr('font-weight', '600')
+      .attr('fill', color)
+      .text(marker.label);
+
+    // Diamond below label
+    markerG.append('path')
+      .attr('d', `M${mx},${diamondY - diamondSize} l${diamondSize},${diamondSize} l-${diamondSize},${diamondSize} l-${diamondSize},-${diamondSize} Z`)
+      .attr('fill', color)
+      .attr('opacity', 0.9);
+
+    // Dashed line from diamond down
     markerG.append('line')
       .attr('class', 'gantt-marker')
       .attr('x1', mx)
-      .attr('y1', 0)
+      .attr('y1', diamondY + diamondSize)
       .attr('x2', mx)
       .attr('y2', innerHeight)
       .attr('stroke', color)
       .attr('stroke-width', 1.5)
-      .attr('stroke-dasharray', '6 3')
+      .attr('stroke-dasharray', '6 4')
       .attr('opacity', 0.5);
 
-    // Diamond indicator (at top of chart area)
-    markerG.append('polygon')
-      .attr('points', diamondPoints(mx, 6, 8))
-      .attr('fill', color)
-      .attr('opacity', 0.5);
-
-    // Label (inside chart at top)
-    markerG.append('text')
-      .attr('class', 'gantt-marker-label')
-      .attr('x', mx + 8)
-      .attr('y', 10)
-      .attr('font-size', '9px')
-      .attr('fill', color)
-      .attr('opacity', 0.7)
-      .attr('pointer-events', 'none')
-      .text(marker.label);
-
+    // Hide marker visuals on hover — showGanttDateIndicators replaces them
+    const markerLine = markerG.select('.gantt-marker');
+    const markerLabel = markerG.select('.gantt-marker-label');
+    const markerDiamond = markerG.select('path');
     markerG
       .on('mouseenter', () => {
+        markerLine.attr('opacity', 0);
+        markerLabel.attr('opacity', 0);
+        markerDiamond.attr('opacity', 0);
         showGanttDateIndicators(g, xScale, markerDate, null, innerHeight, color);
       })
       .on('mouseleave', () => {
+        markerLine.attr('opacity', 0.5);
+        markerLabel.attr('opacity', 1);
+        markerDiamond.attr('opacity', 0.9);
         hideGanttDateIndicators(g);
       });
   }
