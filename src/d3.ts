@@ -181,7 +181,7 @@ import { getSeriesColors } from './palettes';
 import { mix } from './palettes/color-utils';
 import type { DgmoError } from './diagnostics';
 import { makeDgmoError, formatDgmoError, suggest } from './diagnostics';
-import { collectIndentedValues, extractColor, parsePipeMetadata } from './utils/parsing';
+import { collectIndentedValues, extractColor, parsePipeMetadata, MULTIPLE_PIPE_WARNING } from './utils/parsing';
 import { matchTagBlockHeading, validateTagValues, resolveTagColor } from './utils/tag-groups';
 import type { TagGroup } from './utils/tag-groups';
 import {
@@ -579,7 +579,7 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
         const endDate = addDurationToDate(startDate, amount, unit);
         const segments = durationMatch[5].split('|');
         const metadata = segments.length > 1
-          ? parsePipeMetadata(['', ...segments.slice(1)], timelineAliasMap)
+          ? parsePipeMetadata(['', ...segments.slice(1)], timelineAliasMap, () => warn(lineNumber, MULTIPLE_PIPE_WARNING))
           : {};
         result.timelineEvents.push({
           date: startDate,
@@ -600,7 +600,7 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
       if (rangeMatch) {
         const segments = rangeMatch[4].split('|');
         const metadata = segments.length > 1
-          ? parsePipeMetadata(['', ...segments.slice(1)], timelineAliasMap)
+          ? parsePipeMetadata(['', ...segments.slice(1)], timelineAliasMap, () => warn(lineNumber, MULTIPLE_PIPE_WARNING))
           : {};
         result.timelineEvents.push({
           date: rangeMatch[1],
@@ -621,7 +621,7 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
       if (pointMatch) {
         const segments = pointMatch[2].split('|');
         const metadata = segments.length > 1
-          ? parsePipeMetadata(['', ...segments.slice(1)], timelineAliasMap)
+          ? parsePipeMetadata(['', ...segments.slice(1)], timelineAliasMap, () => warn(lineNumber, MULTIPLE_PIPE_WARNING))
           : {};
         result.timelineEvents.push({
           date: pointMatch[1],

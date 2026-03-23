@@ -11,6 +11,7 @@ import {
   measureIndent,
   extractColor,
   parsePipeMetadata,
+  MULTIPLE_PIPE_WARNING,
   CHART_TYPE_RE,
   TITLE_RE,
   OPTION_RE,
@@ -360,7 +361,7 @@ export function parseSitemap(
     } else if (metadataMatch && indentStack.length === 0) {
       // Could be a node label containing ':'
       if (indent === 0) {
-        const node = parseNodeLabel(trimmed, lineNumber, palette, ++nodeCounter, aliasMap);
+        const node = parseNodeLabel(trimmed, lineNumber, palette, ++nodeCounter, aliasMap, pushWarning);
         attachNode(node, indent, indentStack, result);
         labelToNode.set(node.label.toLowerCase(), node);
       } else {
@@ -368,7 +369,7 @@ export function parseSitemap(
       }
     } else {
       // Node label — possibly with pipe-delimited metadata
-      const node = parseNodeLabel(trimmed, lineNumber, palette, ++nodeCounter, aliasMap);
+      const node = parseNodeLabel(trimmed, lineNumber, palette, ++nodeCounter, aliasMap, pushWarning);
       attachNode(node, indent, indentStack, result);
       labelToNode.set(node.label.toLowerCase(), node);
     }
@@ -430,11 +431,12 @@ function parseNodeLabel(
   palette: PaletteColors | undefined,
   counter: number,
   aliasMap: Map<string, string> = new Map(),
+  warnFn?: (line: number, msg: string) => void,
 ): SitemapNode {
   const segments = trimmed.split('|').map((s) => s.trim());
   const rawLabel = segments[0];
   const { label, color } = extractColor(rawLabel, palette);
-  const metadata = parsePipeMetadata(segments, aliasMap);
+  const metadata = parsePipeMetadata(segments, aliasMap, warnFn ? () => warnFn(lineNumber, MULTIPLE_PIPE_WARNING) : undefined);
 
   return {
     id: `node-${counter}`,

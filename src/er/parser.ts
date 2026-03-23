@@ -1,7 +1,7 @@
 import { resolveColor } from '../colors';
 import type { PaletteColors } from '../palettes';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
-import { measureIndent, extractColor, parsePipeMetadata } from '../utils/parsing';
+import { measureIndent, extractColor, parsePipeMetadata, MULTIPLE_PIPE_WARNING } from '../utils/parsing';
 import { matchTagBlockHeading, validateTagValues } from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
 import type {
@@ -350,8 +350,10 @@ export function parseERDiagram(
       // Parse pipe metadata: TableName(color) | key: value, key2: value2
       const pipeStr = tableDecl[3]?.trim();
       if (pipeStr) {
-        // parsePipeMetadata skips index 0 (name segment), so prepend empty
-        const meta = parsePipeMetadata(['', pipeStr], aliasMap);
+        // Split on additional pipes (treated as commas) and warn if found
+        const pipeSegments = pipeStr.split('|');
+        const meta = parsePipeMetadata(['', ...pipeSegments], aliasMap,
+          () => result.diagnostics.push(makeDgmoError(lineNumber, MULTIPLE_PIPE_WARNING, 'warning')));
         Object.assign(table.metadata, meta);
       }
 

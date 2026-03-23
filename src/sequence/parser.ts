@@ -6,7 +6,7 @@ import { inferParticipantType } from './participant-inference';
 import type { DgmoError } from '../diagnostics';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
 import { parseArrow } from '../utils/arrows';
-import { measureIndent, extractColor, parsePipeMetadata } from '../utils/parsing';
+import { measureIndent, extractColor, parsePipeMetadata, MULTIPLE_PIPE_WARNING } from '../utils/parsing';
 import type { TagGroup } from '../utils/tag-groups';
 import { matchTagBlockHeading, validateTagValues } from '../utils/tag-groups';
 
@@ -237,12 +237,13 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
   const aliasMap = new Map<string, string>();
 
   /** Split pipe metadata from a line: "core | k: v" → { core, meta } */
-  const splitPipe = (text: string): { core: string; meta?: Record<string, string> } => {
+  const splitPipe = (text: string, ln?: number): { core: string; meta?: Record<string, string> } => {
     const idx = text.indexOf('|');
     if (idx < 0) return { core: text };
     const core = text.substring(0, idx).trimEnd();
     const segments = text.substring(idx).split('|');
-    const meta = parsePipeMetadata(segments, aliasMap);
+    const warnFn = ln != null ? () => pushWarning(ln, MULTIPLE_PIPE_WARNING) : undefined;
+    const meta = parsePipeMetadata(segments, aliasMap, warnFn);
     return Object.keys(meta).length > 0 ? { core, meta } : { core };
   };
 
@@ -287,7 +288,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       if (gpipeIdx >= 0) {
         const nameAndColor = groupName.substring(0, gpipeIdx).trimEnd();
         const segments = groupName.substring(gpipeIdx).split('|');
-        const meta = parsePipeMetadata(segments, aliasMap);
+        const meta = parsePipeMetadata(segments, aliasMap, () => pushWarning(lineNumber, MULTIPLE_PIPE_WARNING));
         if (Object.keys(meta).length > 0) groupMeta = meta;
         // Re-extract color from name part
         const colorSuffix = nameAndColor.match(/^(.+?)\(([^)]+)\)$/);
@@ -444,7 +445,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     }
 
     // Parse "Name is a type [aka Alias]" declarations (always top-level)
-    const { core: isACore, meta: isAMeta } = splitPipe(trimmed);
+    const { core: isACore, meta: isAMeta } = splitPipe(trimmed, lineNumber);
     const isAMatch = isACore.match(IS_A_PATTERN);
     if (isAMatch) {
       contentStarted = true;
@@ -491,7 +492,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     }
 
     // Parse standalone "Name position N" (no "is a" type)
-    const { core: posCore, meta: posMeta } = splitPipe(trimmed);
+    const { core: posCore, meta: posMeta } = splitPipe(trimmed, lineNumber);
     const posOnlyMatch = posCore.match(POSITION_ONLY_PATTERN);
     if (posOnlyMatch) {
       contentStarted = true;
@@ -523,7 +524,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
 
     // Colored participant declaration — "Name(color)" at any level
     // Color syntax is deprecated — emit warning and register without color
-    const { core: colorCore, meta: colorMeta } = splitPipe(trimmed);
+    const { core: colorCore, meta: colorMeta } = splitPipe(trimmed, lineNumber);
     const coloredMatch = colorCore.match(COLORED_PARTICIPANT_PATTERN);
     if (coloredMatch && !ARROW_PATTERN.test(colorCore)) {
       const id = coloredMatch[1];
@@ -554,7 +555,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     // Bare participant name — either inside an active group (indented) or top-level declaration
     // Supports pipe metadata: "  API | c: Gateway" or "Tapin2 | l:Park"
     {
-      const { core: bareCore, meta: bareMeta } = splitPipe(trimmed);
+      const { core: bareCore, meta: bareMeta } = splitPipe(trimmed, lineNumber);
       const inGroup = activeGroup && measureIndent(raw) > 0;
       if (/^\S+$/.test(bareCore) && !ARROW_PATTERN.test(bareCore) && (inGroup || !contentStarted || bareMeta)) {
         contentStarted = true;
@@ -600,7 +601,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     }
 
     // Split pipe metadata before arrow parsing (arrows use $ anchor)
-    const { core: arrowCore, meta: arrowMeta } = splitPipe(trimmed);
+    const { core: arrowCore, meta: arrowMeta } = splitPipe(trimmed, lineNumber);
 
     // Parse message lines first — arrows take priority over keywords
     // Reject "async" keyword prefix — use ~> instead

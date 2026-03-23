@@ -11,6 +11,7 @@ import {
   measureIndent,
   extractColor,
   parsePipeMetadata,
+  MULTIPLE_PIPE_WARNING,
   CHART_TYPE_RE,
   TITLE_RE,
   OPTION_RE,
@@ -411,7 +412,7 @@ export function parseC4(
         // Otherwise it's a deployment node (possibly with pipe metadata)
         const segments = trimmed.split('|').map((s) => s.trim());
         const nodeName = segments[0];
-        const metadata = parsePipeMetadata(segments, aliasMap);
+        const metadata = parsePipeMetadata(segments, aliasMap, () => pushError(lineNumber, MULTIPLE_PIPE_WARNING, 'warning'));
         const shape = inferC4Shape(nodeName, metadata.tech ?? metadata.technology);
 
         const dNode: C4DeploymentNode = {
@@ -598,7 +599,7 @@ export function parseC4(
         namePart = namePart.substring(0, isAMatch.index!).trim();
       }
 
-      const metadata = parsePipeMetadata(segments, aliasMap);
+      const metadata = parsePipeMetadata(segments, aliasMap, () => pushError(lineNumber, MULTIPLE_PIPE_WARNING, 'warning'));
 
       // Determine shape: explicit > inference
       const shape =

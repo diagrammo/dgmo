@@ -6,7 +6,7 @@ import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
 import type { DgmoError } from '../diagnostics';
 import type { TagGroup, TagEntry } from '../utils/tag-groups';
 import { matchTagBlockHeading } from '../utils/tag-groups';
-import { measureIndent, extractColor, parsePipeMetadata } from '../utils/parsing';
+import { measureIndent, extractColor, parsePipeMetadata, MULTIPLE_PIPE_WARNING } from '../utils/parsing';
 import { parseOffset } from '../utils/duration';
 import type { PaletteColors } from '../palettes';
 import { resolveColor } from '../colors';
@@ -300,7 +300,7 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
         let offset: Offset | undefined;
 
         if (depParts.length > 1) {
-          const meta = parsePipeMetadata(['', ...depParts.slice(1)], aliasMap);
+          const meta = parsePipeMetadata(['', ...depParts.slice(1)], aliasMap, () => warn(lineNumber, MULTIPLE_PIPE_WARNING));
           if (meta.lag || meta.lead) {
             const key = meta.lag ? 'lag' : 'lead';
             return fail(lineNumber, `Unknown keyword "${key}". Use "offset: ${meta[key]}" instead.`);
@@ -480,11 +480,12 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
       let metadata: Record<string, string> = {};
       let color: string | null = null;
 
+      const pipeWarn = () => warn(lineNumber, MULTIPLE_PIPE_WARNING);
       if (segments.length > 0 && segments[0].trim()) {
         // Check if first segment after brackets is pipe metadata
-        metadata = parsePipeMetadata(['', ...segments], aliasMap);
+        metadata = parsePipeMetadata(['', ...segments], aliasMap, pipeWarn);
       } else if (segments.length > 1) {
-        metadata = parsePipeMetadata(['', ...segments.slice(1)], aliasMap);
+        metadata = parsePipeMetadata(['', ...segments.slice(1)], aliasMap, pipeWarn);
       }
 
       // Extract color from group name if present
@@ -582,7 +583,7 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
       let offset: Offset | undefined;
 
       if (depParts.length > 1) {
-        const meta = parsePipeMetadata(['', ...depParts.slice(1)], aliasMap);
+        const meta = parsePipeMetadata(['', ...depParts.slice(1)], aliasMap, () => warn(lineNumber, MULTIPLE_PIPE_WARNING));
         if (meta.lag || meta.lead) {
           const key = meta.lag ? 'lag' : 'lead';
           warn(lineNumber, `"${key}" is deprecated — use "offset: ${meta[key]}" instead.${key === 'lead' ? ' Negate the value for lead behavior: "offset: -...".' : ''}`);
@@ -645,7 +646,7 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
 
     // Parse pipe metadata
     const metadata = segments.length > 1
-      ? parsePipeMetadata(segments, aliasMap)
+      ? parsePipeMetadata(segments, aliasMap, () => warn(ln, MULTIPLE_PIPE_WARNING))
       : {};
 
     // Extract progress from metadata or shorthand
@@ -654,9 +655,9 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
       progress = parseFloat(metadata.progress);
       delete metadata.progress;
     }
-    // Check for progress shorthand: `| 80%`
-    for (let j = 1; j < segments.length; j++) {
-      const seg = segments[j].trim();
+    // Check for progress shorthand: `| 80%` or `| t:X, 80%`
+    for (const part of segments.slice(1).join(',').split(',')) {
+      const seg = part.trim();
       const progressMatch = seg.match(/^(\d+)%$/);
       if (progressMatch) {
         progress = parseInt(progressMatch[1], 10);

@@ -42,6 +42,20 @@ describe('parsePipeMetadata', () => {
     const m = parsePipeMetadata(['X', 'a: 1, b: 2']);
     expect(m).toEqual({ a: '1', b: '2' });
   });
+  it('treats multiple pipes as commas (backward compat)', () => {
+    const m = parsePipeMetadata(['Name', 'role: Dev', 'loc: NY']);
+    expect(m).toEqual({ role: 'Dev', loc: 'NY' });
+  });
+  it('warns when more than one pipe segment is present', () => {
+    let warned = false;
+    parsePipeMetadata(['Name', 'role: Dev', 'loc: NY'], new Map(), () => { warned = true; });
+    expect(warned).toBe(true);
+  });
+  it('does not warn for single pipe segment', () => {
+    let warned = false;
+    parsePipeMetadata(['Name', 'role: Dev, loc: NY'], new Map(), () => { warned = true; });
+    expect(warned).toBe(false);
+  });
 });
 
 describe('header regexes', () => {

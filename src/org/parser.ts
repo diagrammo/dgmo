@@ -7,6 +7,7 @@ import {
   measureIndent,
   extractColor,
   parsePipeMetadata,
+  MULTIPLE_PIPE_WARNING,
   CHART_TYPE_RE,
   TITLE_RE,
   OPTION_RE,
@@ -280,14 +281,14 @@ export function parseOrg(
       // Otherwise it's an orphan metadata error
       if (indent === 0) {
         // Treat as a node label (e.g., "Dr. Smith: Surgeon" is a valid name)
-        const node = parseNodeLabel(trimmed, indent, lineNumber, palette, ++nodeCounter, aliasMap);
+        const node = parseNodeLabel(trimmed, indent, lineNumber, palette, ++nodeCounter, aliasMap, pushWarning);
         attachNode(node, indent, indentStack, result);
       } else {
         pushError(lineNumber, 'Metadata has no parent node');
       }
     } else {
       // It's a node label — possibly with single-line pipe-delimited metadata
-      const node = parseNodeLabel(trimmed, indent, lineNumber, palette, ++nodeCounter, aliasMap);
+      const node = parseNodeLabel(trimmed, indent, lineNumber, palette, ++nodeCounter, aliasMap, pushWarning);
       attachNode(node, indent, indentStack, result);
     }
   }
@@ -326,15 +327,16 @@ function parseNodeLabel(
   lineNumber: number,
   palette: PaletteColors | undefined,
   counter: number,
-  aliasMap: Map<string, string> = new Map()
+  aliasMap: Map<string, string> = new Map(),
+  warnFn?: (line: number, msg: string) => void,
 ): OrgNode {
-  // Check for single-line compact metadata: "Alice Park | role: Senior | location: NY"
+  // Check for single-line compact metadata: "Alice Park | role: Senior, location: NY"
   const segments = trimmed.split('|').map((s) => s.trim());
 
   let rawLabel = segments[0];
   const { label, color } = extractColor(rawLabel, palette);
 
-  const metadata = parsePipeMetadata(segments, aliasMap);
+  const metadata = parsePipeMetadata(segments, aliasMap, warnFn ? () => warnFn(lineNumber, MULTIPLE_PIPE_WARNING) : undefined);
 
   return {
     id: `node-${counter}`,

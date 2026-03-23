@@ -118,23 +118,34 @@ export function parseSeriesNames(
   return { series, names, nameColors, newIndex };
 }
 
-/** Parse pipe-delimited metadata from segments after the first (name) segment. */
+/** Warning message for multiple pipes on a single line. */
+export const MULTIPLE_PIPE_WARNING =
+  'Use a single "|" to start metadata, then separate items with commas.';
+
+/**
+ * Parse metadata from segments after the first (name) segment.
+ * A single `|` separates the label from metadata; items after the pipe are comma-delimited.
+ * Multiple pipes are treated as commas for backward compatibility but trigger a warning.
+ */
 export function parsePipeMetadata(
   segments: string[],
   aliasMap: Map<string, string> = new Map(),
+  warnMultiplePipes?: () => void,
 ): Record<string, string> {
+  if (segments.length > 2 && warnMultiplePipes) {
+    warnMultiplePipes();
+  }
   const metadata: Record<string, string> = {};
-  for (let j = 1; j < segments.length; j++) {
-    for (const part of segments[j].split(',')) {
-      const trimmedPart = part.trim();
-      if (!trimmedPart) continue;
-      const colonIdx = trimmedPart.indexOf(':');
-      if (colonIdx > 0) {
-        const rawKey = trimmedPart.substring(0, colonIdx).trim().toLowerCase();
-        const key = aliasMap.get(rawKey) ?? rawKey;
-        const value = trimmedPart.substring(colonIdx + 1).trim();
-        metadata[key] = value;
-      }
+  const raw = segments.slice(1).join(',');
+  for (const part of raw.split(',')) {
+    const trimmedPart = part.trim();
+    if (!trimmedPart) continue;
+    const colonIdx = trimmedPart.indexOf(':');
+    if (colonIdx > 0) {
+      const rawKey = trimmedPart.substring(0, colonIdx).trim().toLowerCase();
+      const key = aliasMap.get(rawKey) ?? rawKey;
+      const value = trimmedPart.substring(colonIdx + 1).trim();
+      metadata[key] = value;
     }
   }
   return metadata;
