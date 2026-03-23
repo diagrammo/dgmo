@@ -118,6 +118,7 @@ export function renderGantt(
   const titleHeight = title ? 50 : 20;
   const tagLegendReserve = resolved.tagGroups.length > 0 ? LEGEND_HEIGHT + 8 : 0;
   const topDateLabelReserve = 22; // tick (6) + gap (4) + label height (~12)
+  const CONTENT_TOP_PAD = 16; // breathing room between scale labels and first row
 
   const marginTop = titleHeight + tagLegendReserve + topDateLabelReserve;
 
@@ -125,7 +126,7 @@ export function renderGantt(
   const contentH = isTagMode
     ? totalRows * (BAR_H + ROW_GAP)
     : totalRows * (BAR_H + ROW_GAP) + GROUP_GAP * resolved.groups.length;
-  const innerHeight = contentH;
+  const innerHeight = CONTENT_TOP_PAD + contentH;
   const outerHeight = marginTop + innerHeight + BOTTOM_MARGIN;
 
   const containerWidth = exportDims?.width ?? (container.clientWidth || 800);
@@ -257,7 +258,7 @@ export function renderGantt(
       }
     }
   }
-  let yOffset = 0;
+  let yOffset = CONTENT_TOP_PAD;
 
   for (const row of rows) {
     if (row.type === 'lane-header') {
@@ -507,7 +508,11 @@ export function renderGantt(
           if (onClickItem) onClickItem(task.lineNumber);
         })
         .on('mouseenter', () => {
-          highlightTask(g, svg, task.id);
+          if (rt.isMilestone) {
+            highlightMilestone(g, svg, task.id);
+          } else {
+            highlightTask(g, svg, task.id);
+          }
         })
         .on('mouseleave', () => {
           resetHighlight(g, svg);
@@ -1671,6 +1676,8 @@ function highlightGroup(
   // Fade lane elements
   svg.selectAll<SVGGElement, unknown>('.gantt-lane-header').attr('opacity', FADE_OPACITY);
   g.selectAll<SVGElement, unknown>('.gantt-lane-band, .gantt-lane-accent').attr('opacity', FADE_OPACITY);
+  // Fade markers
+  g.selectAll<SVGElement, unknown>('.gantt-marker-group').attr('opacity', FADE_OPACITY);
 }
 
 function highlightLane(
@@ -1710,6 +1717,8 @@ function highlightLane(
   // Fade group elements (not relevant in lane mode)
   g.selectAll<SVGElement, unknown>('.gantt-group-bar, .gantt-group-summary').attr('opacity', FADE_OPACITY);
   svg.selectAll<SVGGElement, unknown>('.gantt-group-label').attr('opacity', FADE_OPACITY);
+  // Fade markers
+  g.selectAll<SVGElement, unknown>('.gantt-marker-group').attr('opacity', FADE_OPACITY);
 }
 
 function highlightTask(
@@ -1735,6 +1744,8 @@ function highlightTask(
   svg.selectAll<SVGGElement, unknown>('.gantt-lane-header').attr('opacity', FADE_OPACITY);
   g.selectAll<SVGElement, unknown>('.gantt-lane-band, .gantt-lane-accent, .gantt-lane-band-group').attr('opacity', FADE_OPACITY);
   g.selectAll<SVGElement, unknown>('.gantt-dep-arrow, .gantt-dep-arrowhead').attr('opacity', FADE_OPACITY);
+  // Fade markers
+  g.selectAll<SVGElement, unknown>('.gantt-marker-group').attr('opacity', FADE_OPACITY);
 }
 
 function highlightMilestone(
@@ -1760,6 +1771,8 @@ function highlightMilestone(
   svg.selectAll<SVGGElement, unknown>('.gantt-lane-header').attr('opacity', FADE_OPACITY);
   g.selectAll<SVGElement, unknown>('.gantt-lane-band, .gantt-lane-accent, .gantt-lane-band-group').attr('opacity', FADE_OPACITY);
   g.selectAll<SVGElement, unknown>('.gantt-dep-arrow, .gantt-dep-arrowhead').attr('opacity', FADE_OPACITY);
+  // Fade markers
+  g.selectAll<SVGElement, unknown>('.gantt-marker-group').attr('opacity', FADE_OPACITY);
 }
 
 function highlightTaskLabel(
@@ -1790,6 +1803,7 @@ function resetHighlight(
   svg.selectAll<SVGGElement, unknown>('.gantt-lane-header').attr('opacity', 1);
   g.selectAll<SVGElement, unknown>('.gantt-lane-band, .gantt-lane-accent, .gantt-lane-band-group').attr('opacity', 1);
   g.selectAll<SVGElement, unknown>('.gantt-dep-arrow, .gantt-dep-arrowhead').attr('opacity', 0.5);
+  g.selectAll<SVGElement, unknown>('.gantt-marker-group').attr('opacity', 1);
 }
 
 // ── Row Building ────────────────────────────────────────────
