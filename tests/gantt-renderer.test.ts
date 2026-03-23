@@ -60,20 +60,20 @@ tag: Phase alias p
   Test(red) default
 
 era 2024-01 -> 2024-06: Phase 1
-marker 2024-03-01: Kickoff
+marker: 2024-03-01 Kickoff
 
 [Backend]
-  30bd: Database Layer | t: Engineering | p: Build | 80%
-  10bd: Auth Module | t: Engineering | p: Build | 100%
+  30bd: Database Layer | t: Engineering, p: Build, 80%
+  10bd: Auth Module | t: Engineering, p: Build, 100%
     -> API Integration
   parallel
-    5bd: Load Testing | t: QA | p: Test
-    5bd: Security Audit | t: Design | p: Test
+    5bd: Load Testing | t: QA, p: Test
+    5bd: Security Audit | t: Design, p: Test
 
 [Frontend]
-  15bd: Component Library | t: Design | p: Design
-  10bd: API Integration | t: Engineering | p: Build
-  5bd: Polish | t: Design | p: Build | 30%
+  15bd: Component Library | t: Design, p: Design
+  10bd: API Integration | t: Engineering, p: Build
+  5bd: Polish | t: Design, p: Build, 30%
 
 [QA]
   10bd: E2E Testing
@@ -202,7 +202,7 @@ parallel
   });
 
   it('renders marker lines', () => {
-    const input = 'chart: gantt\nstart: 2024-01-15\nmarker 2024-02-01: Kickoff\n30d: Task';
+    const input = 'chart: gantt\nstart: 2024-01-15\nmarker: 2024-02-01 Kickoff\n30d: Task';
     const container = renderFromInput(input);
     const markers = container.querySelectorAll('.gantt-marker');
     expect(markers.length).toBeGreaterThanOrEqual(1);
@@ -334,8 +334,8 @@ tag: Team
 start: 2024-01-15
 tag: Team
   Eng(blue)
-10d: Task A | Team: Eng | 80%
-10d: Task B | Team: Eng | 40%
+10d: Task A | Team: Eng, 80%
+10d: Task B | Team: Eng, 40%
 10d: Task C | Team: Eng`;
     const resolved = resolveFromInput(input);
     const rows = buildTagLaneRowList(resolved, 'Team')!;
