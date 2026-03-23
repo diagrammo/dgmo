@@ -80,7 +80,7 @@ parallel
   });
 
   describe('cycle detection', () => {
-    it('detects circular dependency', () => {
+    it('detects circular dependency and breaks it gracefully', () => {
       const input = `chart: gantt
 start: 2024-01-15
 parallel
@@ -89,7 +89,10 @@ parallel
   10d: B
     -> A`;
       const result = calc(input);
-      expect(result.error).toMatch(/Circular dependency/);
+      expect(result.error).toBeNull();
+      expect(result.diagnostics.some(d => d.message.includes('Circular dependency'))).toBe(true);
+      // Tasks still resolve — cycle-creating dep is dropped
+      expect(result.tasks).toHaveLength(2);
     });
   });
 

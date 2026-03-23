@@ -119,11 +119,8 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
     for (const dep of task.dependencies) {
       const resolved = resolveTaskName(dep.targetName, allTasks);
       if (isResolverError(resolved)) {
-        if (resolved.kind === 'ambiguous') {
-          return fail(dep.lineNumber, `\`-> ${dep.targetName}\` — ${resolved.message}`);
-        } else {
-          return fail(dep.lineNumber, `\`-> ${dep.targetName}\` — ${resolved.message}`);
-        }
+        warn(dep.lineNumber, `\`-> ${dep.targetName}\` — ${resolved.message}`);
+        continue;
       }
 
       // The dependency means: target starts after source
@@ -146,15 +143,34 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
 
   // ── Topological sort with cycle detection ───────────────
 
-  const sortedIds = topologicalSort(taskMap);
+  let sortedIds = topologicalSort(taskMap);
   if (!sortedIds) {
-    // Find cycle for error message
+    // Find cycle, warn, and break it by removing one explicit dep edge
     const cycle = findCycle(taskMap);
     const cycleStr = cycle.map(id => taskMap.get(id)!.task.label).join(' → ');
-    return fail(
+    warn(
       taskMap.get(cycle[0])!.task.lineNumber,
-      `Circular dependency detected: ${cycleStr}`,
+      `Circular dependency detected: ${cycleStr}. The cycle-creating dependency was dropped.`,
     );
+
+    // Remove the last edge in the cycle to break it
+    // (prefer removing explicit -> deps over implicit sequential ones)
+    breakCycle(cycle, taskMap, depOffsetMap);
+
+    // Retry — if still cyclic after breaking, keep breaking until resolved
+    sortedIds = topologicalSort(taskMap);
+    let safety = 10;
+    while (!sortedIds && safety-- > 0) {
+      const nextCycle = findCycle(taskMap);
+      if (nextCycle.length === 0) break;
+      breakCycle(nextCycle, taskMap, depOffsetMap);
+      sortedIds = topologicalSort(taskMap);
+    }
+
+    if (!sortedIds) {
+      // Truly unresolvable — fall back to task insertion order
+      sortedIds = [...taskMap.keys()];
+    }
   }
 
   // ── Forward pass: resolve dates ─────────────────────────
@@ -518,6 +534,30 @@ function findCycle(taskMap: Map<string, TaskNode>): string[] {
 
     onStack.delete(id);
     return null;
+  }
+}
+
+/**
+ * Break a cycle by removing the last edge. The cycle array is [A, B, ..., A]
+ * (starts and ends with the same node). We remove A's predecessor edge to
+ * the penultimate node, which breaks the cycle.
+ */
+function breakCycle(
+  cycle: string[],
+  taskMap: Map<string, TaskNode>,
+  depOffsetMap: Map<string, Offset>,
+): void {
+  if (cycle.length < 3) return; // need at least [A, B, A]
+  // Remove the edge from second-to-last → first (i.e. the edge that closes the cycle)
+  const fromId = cycle[cycle.length - 2];
+  const toId = cycle[0];
+  const toNode = taskMap.get(toId);
+  if (toNode) {
+    const idx = toNode.predecessors.indexOf(fromId);
+    if (idx !== -1) {
+      toNode.predecessors.splice(idx, 1);
+      depOffsetMap.delete(`${fromId}->${toId}`);
+    }
   }
 }
 
