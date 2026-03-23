@@ -14,8 +14,10 @@ tag: Phase alias p
   Foundation(green)
   Growth(orange)
 
-era 2024-01 -> 2024-06: Phase 1
-marker 2024-03-01: Kickoff
+era 2024-01-15 -> 2024-02-15: Investor Review
+era 2024-03-10 -> 2024-03-14: GDC 2024 (purple)
+marker 2024-02-26: Board Meeting
+marker 2024-04-08: Trade Show Demo (orange)
 
 // Independent task with offset — starts 8bd after project start
 10bd: Brand Guidelines | t: Design | p: Foundation | offset: 8bd
