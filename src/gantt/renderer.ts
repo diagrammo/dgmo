@@ -192,6 +192,8 @@ export function renderGantt(
 
   // Track task positions for dependency arrows
   const taskPositions = new Map<string, { x1: number; x2: number; y: number }>();
+  // Track collapsed group bar positions so hidden-task arrows redirect there
+  const groupPositions = new Map<string, { x1: number; x2: number; y: number }>();
   let yOffset = 0;
 
   for (const row of rows) {
@@ -259,6 +261,9 @@ export function renderGantt(
               .attr('fill', groupColor)
               .attr('opacity', 0.5);
           }
+
+          // Track collapsed group position for dependency arrow redirection
+          groupPositions.set(group.name, { x1: gx1, x2: gx1 + barWidth, y: yOffset + BAR_H / 2 });
         } else {
           // Expanded: thin spanning header bar
           g.append('rect')
@@ -353,7 +358,16 @@ export function renderGantt(
           })
           .on('mouseleave', () => {
             if (resolved.options.dependencies) {
-              resetHighlight(g);
+              if (criticalPathActive) {
+                // Restore critical path highlighting after dep hover
+                g.selectAll<SVGGElement, unknown>('.gantt-task').each(function () {
+                  const el = d3Selection.select(this);
+                  el.attr('opacity', el.attr('data-critical-path') === 'true' ? 1 : FADE_OPACITY);
+                });
+                g.selectAll<SVGGElement, unknown>('.gantt-milestone').attr('opacity', FADE_OPACITY);
+              } else {
+                resetHighlight(g);
+              }
             }
           });
 
@@ -497,7 +511,7 @@ export function renderGantt(
   // ── Dependency arrows ───────────────────────────────────
 
   if (resolved.options.dependencies) {
-    renderDependencyArrows(g, resolved, taskPositions, palette, isDark);
+    renderDependencyArrows(g, resolved, taskPositions, groupPositions, collapsedGroups, palette, isDark);
   }
 }
 
@@ -639,6 +653,7 @@ function drawHolidayBand(
   const textLen = label.length * 6 + 8;
   const labelBg = svg.append('rect')
     .attr('class', 'gantt-holiday-hover-bg')
+    .attr('data-line-number', String(lineNumber))
     .attr('x', labelX - textLen / 2)
     .attr('y', headerY - 11)
     .attr('width', textLen)
@@ -650,6 +665,7 @@ function drawHolidayBand(
 
   const labelText = svg.append('text')
     .attr('class', 'gantt-holiday-hover-label')
+    .attr('data-line-number', String(lineNumber))
     .attr('x', labelX)
     .attr('y', headerY)
     .attr('text-anchor', 'middle')
@@ -679,16 +695,37 @@ function drawHolidayBand(
 
 // ── Dependency Arrow Rendering ──────────────────────────────
 
+function findCollapsedGroupPos(
+  rt: ResolvedTask,
+  collapsedGroups: Set<string> | undefined,
+  groupPositions: Map<string, { x1: number; x2: number; y: number }>,
+): { x1: number; x2: number; y: number } | undefined {
+  if (!collapsedGroups) return undefined;
+  // Walk the task's group path and find the first collapsed group with a position
+  for (const groupName of rt.groupPath) {
+    if (collapsedGroups.has(groupName)) {
+      return groupPositions.get(groupName);
+    }
+  }
+  return undefined;
+}
+
 function renderDependencyArrows(
   g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   resolved: ResolvedSchedule,
   taskPositions: Map<string, { x1: number; x2: number; y: number }>,
+  groupPositions: Map<string, { x1: number; x2: number; y: number }>,
+  collapsedGroups: Set<string> | undefined,
   palette: PaletteColors,
   _isDark: boolean,
 ): void {
+  // Deduplicate arrows that collapse to the same source→target position
+  const drawnArrows = new Set<string>();
+
   // Build arrow list from task dependencies
   for (const rt of resolved.tasks) {
-    const sourcePos = taskPositions.get(rt.task.id);
+    const sourcePos = taskPositions.get(rt.task.id)
+      ?? findCollapsedGroupPos(rt, collapsedGroups, groupPositions);
     if (!sourcePos) continue;
 
     for (const dep of rt.task.dependencies) {
@@ -697,8 +734,17 @@ function renderDependencyArrows(
         `${t.groupPath.join('.')}.${t.task.label}`.endsWith(dep.targetName));
       if (!targetTask) continue;
 
-      const targetPos = taskPositions.get(targetTask.task.id);
+      const targetPos = taskPositions.get(targetTask.task.id)
+        ?? findCollapsedGroupPos(targetTask, collapsedGroups, groupPositions);
       if (!targetPos) continue;
+
+      // Skip self-arrows (both source and target collapsed to the same group)
+      if (sourcePos === targetPos) continue;
+
+      // Deduplicate: multiple hidden tasks in the same collapsed group → same arrow
+      const arrowKey = `${sourcePos.x1},${sourcePos.y}->${targetPos.x1},${targetPos.y}`;
+      if (drawnArrows.has(arrowKey)) continue;
+      drawnArrows.add(arrowKey);
 
       // Arrow from source end to target start
       const sx = sourcePos.x2;
@@ -935,10 +981,11 @@ function renderTagLegend(
             svg.selectAll<SVGGElement, unknown>('.gantt-group-label').attr('opacity', FADE_OPACITY);
           })
           .on('mouseleave', () => {
-            chartG.selectAll<SVGGElement, unknown>('.gantt-task, .gantt-milestone').attr('opacity', 1);
-            chartG.selectAll<SVGElement, unknown>('.gantt-group-bar, .gantt-group-summary').attr('opacity', 1);
-            svg.selectAll<SVGTextElement, unknown>('.gantt-task-label').attr('opacity', 1);
-            svg.selectAll<SVGGElement, unknown>('.gantt-group-label').attr('opacity', 1);
+            if (criticalPathActive) {
+              applyCriticalPathHighlight(svg, chartG);
+            } else {
+              resetHighlightAll(svg, chartG);
+            }
           });
 
         ex += LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP + entry.value.length * LEGEND_ENTRY_FONT_W + LEGEND_ENTRY_TRAIL;
