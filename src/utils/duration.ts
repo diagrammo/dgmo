@@ -2,7 +2,7 @@
 // Duration & Business Day Arithmetic
 // ============================================================
 
-import type { Duration, DurationUnit, GanttHolidays, Weekday } from '../gantt/types';
+import type { Duration, DurationUnit, GanttHolidays, Offset, Weekday } from '../gantt/types';
 
 // ── Weekday constants ─────────────────────────────────────
 
@@ -68,15 +68,16 @@ export function addBusinessDays(
   count: number,
   workweek: Weekday[],
   holidaySet: Set<string>,
+  direction: 1 | -1 = 1,
 ): Date {
-  const days = Math.round(count);
-  if (days <= 0) return new Date(startDate);
+  const days = Math.round(Math.abs(count));
+  if (days === 0) return new Date(startDate);
 
   const current = new Date(startDate);
   let remaining = days;
 
   while (remaining > 0) {
-    current.setDate(current.getDate() + 1);
+    current.setDate(current.getDate() + direction);
     if (isWorkday(current, workweek, holidaySet)) {
       remaining--;
     }
@@ -96,60 +97,91 @@ export function addGanttDuration(
   duration: Duration,
   holidays: GanttHolidays,
   holidaySet: Set<string>,
+  direction: 1 | -1 = 1,
 ): Date {
   const { amount, unit } = duration;
 
   switch (unit) {
     case 'bd':
-      return addBusinessDays(startDate, amount, holidays.workweek, holidaySet);
+      return addBusinessDays(startDate, amount, holidays.workweek, holidaySet, direction);
 
     case 'd': {
       const result = new Date(startDate);
-      result.setDate(result.getDate() + Math.round(amount));
+      result.setDate(result.getDate() + Math.round(amount) * direction);
       return result;
     }
 
     case 'w': {
       const result = new Date(startDate);
-      result.setDate(result.getDate() + Math.round(amount * 7));
+      result.setDate(result.getDate() + Math.round(amount * 7) * direction);
       return result;
     }
 
     case 'm': {
       const result = new Date(startDate);
-      const wholeMonths = Math.floor(amount);
-      const fractionalDays = Math.round((amount - wholeMonths) * 30);
-      result.setMonth(result.getMonth() + wholeMonths);
+      const wholeMonths = direction === -1 ? Math.round(amount) : Math.floor(amount);
+      const fractionalDays = direction === -1 ? 0 : Math.round((amount - wholeMonths) * 30);
+      result.setMonth(result.getMonth() + wholeMonths * direction);
       if (fractionalDays > 0) {
-        result.setDate(result.getDate() + fractionalDays);
+        result.setDate(result.getDate() + fractionalDays * direction);
       }
       return result;
     }
 
     case 'q': {
-      // Quarter = 3 months
       const result = new Date(startDate);
       const totalMonths = amount * 3;
-      const wholeMonths = Math.floor(totalMonths);
-      const fractionalDays = Math.round((totalMonths - wholeMonths) * 30);
-      result.setMonth(result.getMonth() + wholeMonths);
+      const wholeMonths = direction === -1 ? Math.round(totalMonths) : Math.floor(totalMonths);
+      const fractionalDays = direction === -1 ? 0 : Math.round((totalMonths - wholeMonths) * 30);
+      result.setMonth(result.getMonth() + wholeMonths * direction);
       if (fractionalDays > 0) {
-        result.setDate(result.getDate() + fractionalDays);
+        result.setDate(result.getDate() + fractionalDays * direction);
       }
       return result;
     }
 
     case 'y': {
       const result = new Date(startDate);
-      const wholeYears = Math.floor(amount);
-      const fractionalMonths = Math.round((amount - wholeYears) * 12);
-      result.setFullYear(result.getFullYear() + wholeYears);
+      const wholeYears = direction === -1 ? Math.round(amount) : Math.floor(amount);
+      const fractionalMonths = direction === -1 ? 0 : Math.round((amount - wholeYears) * 12);
+      result.setFullYear(result.getFullYear() + wholeYears * direction);
       if (fractionalMonths > 0) {
-        result.setMonth(result.getMonth() + fractionalMonths);
+        result.setMonth(result.getMonth() + fractionalMonths * direction);
       }
       return result;
     }
   }
+}
+
+/**
+ * Parse a duration string like "3bd" or "5d".
+ */
+export function parseDuration(s: string): Duration | null {
+  const match = s.trim().match(/^(\d+(?:\.\d+)?)(d|bd|w|m|q|y)$/);
+  if (!match) return null;
+  return { amount: parseFloat(match[1]), unit: match[2] as DurationUnit };
+}
+
+/**
+ * Parse an offset string like "5bd", "-3bd", or "0d".
+ * Returns null if the format is invalid.
+ * Explicit '+' prefix (e.g. "+5bd") returns null — caller should warn.
+ */
+export function parseOffset(value: string): Offset | null {
+  const trimmed = value.trim();
+  let direction: 1 | -1 = 1;
+  let remainder = trimmed;
+
+  if (trimmed.startsWith('-')) {
+    direction = -1;
+    remainder = trimmed.slice(1);
+  } else if (trimmed.startsWith('+')) {
+    return null; // explicit + is not supported
+  }
+
+  const duration = parseDuration(remainder);
+  if (!duration) return null;
+  return { duration, direction };
 }
 
 /**

@@ -212,13 +212,91 @@ describe('gantt parser', () => {
       }
     });
 
-    it('parses -> with lag', () => {
+    it('parses -> with positive offset', () => {
+      const input = 'chart: gantt\n10d: Task A\n  -> Task B | offset: 3bd\n10d: Task B';
+      const result = parseGantt(input, palette);
+      const taskA = result.nodes[0];
+      if (taskA.kind === 'task') {
+        expect(taskA.dependencies[0].offset).toEqual({
+          duration: { amount: 3, unit: 'bd' },
+          direction: 1,
+        });
+      }
+    });
+
+    it('parses -> with negative offset', () => {
+      const input = 'chart: gantt\n10d: Task A\n  -> Task B | offset: -5d\n10d: Task B';
+      const result = parseGantt(input, palette);
+      const taskA = result.nodes[0];
+      if (taskA.kind === 'task') {
+        expect(taskA.dependencies[0].offset).toEqual({
+          duration: { amount: 5, unit: 'd' },
+          direction: -1,
+        });
+      }
+    });
+
+    it('parses -> with zero offset', () => {
+      const input = 'chart: gantt\n10d: Task A\n  -> Task B | offset: 0bd\n10d: Task B';
+      const result = parseGantt(input, palette);
+      const taskA = result.nodes[0];
+      if (taskA.kind === 'task') {
+        expect(taskA.dependencies[0].offset).toEqual({
+          duration: { amount: 0, unit: 'bd' },
+          direction: 1,
+        });
+      }
+    });
+
+    it('warns on invalid dep offset', () => {
+      const input = 'chart: gantt\n10d: Task A\n  -> Task B | offset: abc\n10d: Task B';
+      const result = parseGantt(input, palette);
+      expect(result.diagnostics.some(d => d.message.includes('Invalid offset'))).toBe(true);
+    });
+
+    it('warns on explicit + prefix in dep offset', () => {
+      const input = 'chart: gantt\n10d: Task A\n  -> Task B | offset: +5bd\n10d: Task B';
+      const result = parseGantt(input, palette);
+      expect(result.diagnostics.some(d => d.message.includes('Explicit "+" is not supported'))).toBe(true);
+    });
+
+    it('ignores old lag keyword silently', () => {
       const input = 'chart: gantt\n10d: Task A\n  -> Task B | lag: 3bd\n10d: Task B';
       const result = parseGantt(input, palette);
       const taskA = result.nodes[0];
       if (taskA.kind === 'task') {
-        expect(taskA.dependencies[0].lag).toEqual({ amount: 3, unit: 'bd' });
+        expect(taskA.dependencies[0].offset).toBeUndefined();
       }
+    });
+  });
+
+  describe('task-level offset', () => {
+    it('parses positive task offset', () => {
+      const result = parseGantt('chart: gantt\n10bd: Task | offset: 8bd', palette);
+      const task = result.nodes[0];
+      if (task.kind === 'task') {
+        expect(task.offset).toEqual({
+          duration: { amount: 8, unit: 'bd' },
+          direction: 1,
+        });
+        expect(task.metadata.offset).toBeUndefined(); // removed from metadata
+      }
+    });
+
+    it('parses negative task offset', () => {
+      const result = parseGantt('chart: gantt\n10bd: Task | offset: -3bd', palette);
+      const task = result.nodes[0];
+      if (task.kind === 'task') {
+        expect(task.offset).toEqual({
+          duration: { amount: 3, unit: 'bd' },
+          direction: -1,
+        });
+      }
+    });
+
+    it('warns on invalid task offset', () => {
+      const result = parseGantt('chart: gantt\n10bd: Task | offset: abc', palette);
+      expect(result.diagnostics.some(d => d.message.includes('Invalid offset'))).toBe(true);
     });
   });
 

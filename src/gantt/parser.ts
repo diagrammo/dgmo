@@ -7,6 +7,7 @@ import type { DgmoError } from '../diagnostics';
 import type { TagGroup, TagEntry } from '../utils/tag-groups';
 import { matchTagBlockHeading } from '../utils/tag-groups';
 import { measureIndent, extractColor, parsePipeMetadata } from '../utils/parsing';
+import { parseOffset } from '../utils/duration';
 import type { PaletteColors } from '../palettes';
 import { resolveColor } from '../colors';
 import { getSeriesColors } from '../palettes';
@@ -23,6 +24,7 @@ import type {
   GanttOptions,
   Duration,
   DurationUnit,
+  Offset,
   Weekday,
 } from './types';
 
@@ -295,21 +297,26 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
       if (depMatch) {
         const depParts = depMatch[1].split('|');
         const targetName = depParts[0].trim();
-        let lag: Duration | undefined;
+        let offset: Offset | undefined;
 
         if (depParts.length > 1) {
           const meta = parsePipeMetadata(['', ...depParts.slice(1)], aliasMap);
-          if (meta.lag) {
-            lag = parseDuration(meta.lag) ?? undefined;
-            if (!lag) {
-              warn(lineNumber, `Invalid lag duration: "${meta.lag}". Expected format like "3bd" or "5d".`);
+          if (meta.offset) {
+            const raw = meta.offset;
+            if (raw.trim().startsWith('+')) {
+              warn(lineNumber, `Invalid offset: "${raw}". Explicit "+" is not supported — use "${raw.trim().slice(1)}" instead.`);
+            } else {
+              offset = parseOffset(raw) ?? undefined;
+              if (!offset) {
+                warn(lineNumber, `Invalid offset: "${raw}". Expected format like "3bd", "-5d", or "0bd".`);
+              }
             }
           }
         }
 
         lastTaskNode.dependencies.push({
           targetName,
-          lag,
+          offset,
           lineNumber,
         });
         continue;
@@ -568,19 +575,24 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
       // This happens when the dep is at the same indent as the task
       const depParts = depMatch[1].split('|');
       const targetName = depParts[0].trim();
-      let lag: Duration | undefined;
+      let offset: Offset | undefined;
 
       if (depParts.length > 1) {
         const meta = parsePipeMetadata(['', ...depParts.slice(1)], aliasMap);
-        if (meta.lag) {
-          lag = parseDuration(meta.lag) ?? undefined;
-          if (!lag) {
-            warn(lineNumber, `Invalid lag duration: "${meta.lag}". Expected format like "3bd" or "5d".`);
+        if (meta.offset) {
+          const raw = meta.offset;
+          if (raw.trim().startsWith('+')) {
+            warn(lineNumber, `Invalid offset: "${raw}". Explicit "+" is not supported — use "${raw.trim().slice(1)}" instead.`);
+          } else {
+            offset = parseOffset(raw) ?? undefined;
+            if (!offset) {
+              warn(lineNumber, `Invalid offset: "${raw}". Expected format like "3bd", "-5d", or "0bd".`);
+            }
           }
         }
       }
 
-      lastTaskNode.dependencies.push({ targetName, lag, lineNumber });
+      lastTaskNode.dependencies.push({ targetName, offset, lineNumber });
       continue;
     }
 
@@ -643,6 +655,21 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
       }
     }
 
+    // Extract task-level offset from metadata
+    let taskOffset: Offset | undefined;
+    if (metadata.offset) {
+      const raw = metadata.offset;
+      if (raw.trim().startsWith('+')) {
+        warn(ln, `Invalid offset: "${raw}". Explicit "+" is not supported — use "${raw.trim().slice(1)}" instead.`);
+      } else {
+        taskOffset = parseOffset(raw) ?? undefined;
+        if (!taskOffset) {
+          warn(ln, `Invalid offset: "${raw}". Expected format like "3bd", "-5d", or "0bd".`);
+        }
+      }
+      delete metadata.offset;
+    }
+
     // Inherit metadata from parent groups (tag inheritance)
     const groupPath = currentGroupPath();
     const inheritedMeta: Record<string, string> = {};
@@ -665,20 +692,13 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
       explicitStart,
       uncertain,
       progress,
+      offset: taskOffset,
       dependencies: [],
       metadata: effectiveMetadata,
       lineNumber: ln,
       groupPath,
     };
   }
-}
-
-// ── Utility: parse a duration string like "3bd" or "5d" ───
-
-function parseDuration(s: string): Duration | null {
-  const match = s.trim().match(/^(\d+(?:\.\d+)?)(d|bd|w|m|q|y)$/);
-  if (!match) return null;
-  return { amount: parseFloat(match[1]), unit: match[2] as DurationUnit };
 }
 
 // ── Utility: parse workweek string ────────────────────────

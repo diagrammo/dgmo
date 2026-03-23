@@ -17,11 +17,15 @@ tag: Phase alias p
 era 2024-01 -> 2024-06: Phase 1
 marker 2024-03-01: Kickoff
 
+// Independent task with offset — starts 8bd after project start
+10bd: Brand Guidelines | t: Design | p: Foundation | offset: 8bd
+
 parallel
   [Backend] | t: Engineering
     30bd: Database Layer | p: Foundation | 80%
     10bd?: Auth Module | p: Foundation | 100%
-      -> Frontend.API Integration
+      // Start frontend integration 5bd before Auth finishes (overlap)
+      -> Frontend.API Integration | offset: -5bd
     parallel
       5bd: Load Testing | t: QA | p: Growth
       5bd: Security Audit | t: QA | p: Growth

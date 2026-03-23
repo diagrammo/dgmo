@@ -15,11 +15,16 @@ export interface Duration {
   unit: DurationUnit;
 }
 
+export interface Offset {
+  duration: Duration;
+  direction: 1 | -1;
+}
+
 // ── Parsed Elements ─────────────────────────────────────────
 
 export interface GanttDependency {
   targetName: string; // raw string from `-> X` or `-> Group.X`
-  lag?: Duration;
+  offset?: Offset;
   lineNumber: number;
 }
 
@@ -30,6 +35,7 @@ export interface GanttTask {
   explicitStart?: string; // YYYY-MM-DD from `2024-01-15 -> 30d:` or `2024-01-15:`
   uncertain: boolean;
   progress: number | null; // 0-100 or null
+  offset?: Offset; // task-level offset: shifts start date forward (+) or backward (-)
   dependencies: GanttDependency[];
   metadata: Record<string, string>; // tag values from pipe metadata
   lineNumber: number;

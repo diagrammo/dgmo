@@ -16,10 +16,11 @@ import type {
   GanttNode,
   GanttTask,
   GanttGroup,
+  GanttHolidays,
   ResolvedSchedule,
   ResolvedTask,
   ResolvedGroup,
-  Duration,
+  Offset,
 } from './types';
 import { collectTasks, resolveTaskName, isResolverError } from './resolver';
 import {
@@ -85,9 +86,9 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
     projectStart = new Date(2000, 0, 1);
   }
 
-  // ── Lag storage ──────────────────────────────────────────
+  // ── Dep offset storage ─────────────────────────────────
 
-  const lagMap = new Map<string, Duration | null>();
+  const depOffsetMap = new Map<string, Offset>();
 
   // ── Collect all tasks ───────────────────────────────────
 
@@ -134,9 +135,10 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
           warn(dep.lineNumber, `Redundant dependency: "${dep.targetName}" already follows "${task.label}" sequentially. Did you mean to wrap groups in \`parallel\`?`);
         } else {
           targetNode.predecessors.push(task.id);
-          // Store lag info on the target — we need it during scheduling
-          // We'll store it in a side map since predecessors is just IDs
-          lagMap.set(`${task.id}->${resolved.task.id}`, dep.lag ?? null);
+          // Store dep offset info — we need it during scheduling
+          if (dep.offset) {
+            depOffsetMap.set(`${task.id}->${resolved.task.id}`, dep.offset);
+          }
         }
       }
     }
@@ -161,7 +163,7 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
     const node = taskMap.get(taskId)!;
     const task = node.task;
 
-    // Determine start date: max of all predecessors' end dates (+ lag)
+    // Determine start date: max of all predecessors' end dates (+ dep offset)
     let start: Date;
 
     if (task.explicitStart) {
@@ -171,7 +173,7 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
       // No predecessors: starts at project start
       start = new Date(projectStart);
     } else {
-      // Universal max rule: start = max(all predecessor end dates + lag)
+      // Universal max rule: start = max(all predecessor end dates + dep offset)
       start = new Date(0); // epoch
       for (const predId of node.predecessors) {
         const predNode = taskMap.get(predId)!;
@@ -179,10 +181,10 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
 
         let predEnd = new Date(predNode.endDate);
 
-        // Apply lag if present
-        const lag = lagMap.get(`${predId}->${taskId}`);
-        if (lag) {
-          predEnd = addGanttDuration(predEnd, lag, parsed.holidays, holidaySet);
+        // Apply dep offset if present
+        const depOffset = depOffsetMap.get(`${predId}->${taskId}`);
+        if (depOffset) {
+          predEnd = addGanttDuration(predEnd, depOffset.duration, parsed.holidays, holidaySet, depOffset.direction);
         }
 
         if (predEnd.getTime() > start.getTime()) {
@@ -191,7 +193,19 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
       }
     }
 
-    // If explicit start conflicts with predecessors, warn but honor explicit
+    // Apply task-level offset (shifts start forward or backward)
+    if (task.offset) {
+      start = addGanttDuration(start, task.offset.duration, parsed.holidays, holidaySet, task.offset.direction);
+      if (start.getTime() < projectStart.getTime()) {
+        warn(task.lineNumber, `Negative offset on task '${task.label}' exceeds available range; start clamped to project start.`);
+        start = new Date(projectStart);
+      }
+    } else if (start.getTime() < projectStart.getTime()) {
+      warn(task.lineNumber, `Negative offset on dependency exceeds available range; start of '${task.label}' clamped to project start.`);
+      start = new Date(projectStart);
+    }
+
+    // If explicit start (+ offset) conflicts with predecessors, warn but honor explicit
     if (task.explicitStart && node.predecessors.length > 0) {
       let maxPredEnd = new Date(0);
       for (const predId of node.predecessors) {
@@ -201,7 +215,7 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
         }
       }
       if (start.getTime() < maxPredEnd.getTime()) {
-        warn(task.lineNumber, `Explicit date ${task.explicitStart} overlaps with predecessor ending ${formatDate(maxPredEnd)}. Using explicit date.`);
+        warn(task.lineNumber, `Explicit date ${task.explicitStart}${task.offset ? ' (with offset)' : ''} overlaps with predecessor ending ${formatDate(maxPredEnd)}. Using explicit date.`);
       }
     }
 
@@ -227,7 +241,7 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
 
   // Critical path calculation (if enabled)
   const criticalSet = parsed.options.criticalPath
-    ? computeCriticalPath(sortedIds, taskMap)
+    ? computeCriticalPath(sortedIds, taskMap, depOffsetMap, parsed.holidays, holidaySet)
     : new Set<string>();
 
   for (const taskId of sortedIds) {
@@ -340,16 +354,8 @@ function buildImplicitDeps(
           }
         }
         // After parallel, next sibling depends on ALL branch ends
-        // We'll use a synthetic approach: store all branch ends, and the
-        // next task after the parallel block will depend on all of them
         if (branchLastIds.length > 0) {
-          // Create a temporary "prevTaskId" that represents all branches
-          // The next task will need to depend on all of them
-          // We'll handle this by not setting prevTaskId to a single ID
-          // Instead, we'll track it as a special case
           prevTaskId = null;
-          // For the next sibling, we need it to depend on all branch ends
-          // We'll do this by finding the next sibling and adding all deps
           const nextIdx = children.indexOf(node) + 1;
           if (nextIdx < children.length) {
             const nextFirstId = findFirstTask([children[nextIdx]]);
@@ -369,10 +375,6 @@ function buildImplicitDeps(
     }
   }
 
-  /**
-   * Walk children sequentially: each task depends on the previous.
-   * Returns the last task ID in the sequence.
-   */
   function walkSequential(children: GanttNode[], afterTaskId: string | null): string | null {
     let prevTaskId = afterTaskId;
     for (const node of children) {
@@ -424,13 +426,9 @@ function findLastTask(nodes: GanttNode[]): string | null {
 
 // ── Topological sort ────────────────────────────────────────
 
-/**
- * Kahn's algorithm for topological sort.
- * Returns sorted IDs, or null if a cycle exists.
- */
 function topologicalSort(taskMap: Map<string, TaskNode>): string[] | null {
   const inDegree = new Map<string, number>();
-  const adjacency = new Map<string, string[]>(); // pred → successors
+  const adjacency = new Map<string, string[]>();
 
   for (const [id, node] of taskMap) {
     inDegree.set(id, node.predecessors.length);
@@ -460,10 +458,6 @@ function topologicalSort(taskMap: Map<string, TaskNode>): string[] | null {
   return sorted.length === taskMap.size ? sorted : null;
 }
 
-/**
- * Find a cycle in the dependency graph (for error reporting).
- * Returns the IDs forming the cycle.
- */
 function findCycle(taskMap: Map<string, TaskNode>): string[] {
   const visited = new Set<string>();
   const onStack = new Set<string>();
@@ -475,14 +469,12 @@ function findCycle(taskMap: Map<string, TaskNode>): string[] {
       if (cycle) return cycle;
     }
   }
-  return []; // shouldn't happen if topological sort failed
+  return [];
 
   function dfs(id: string): string[] | null {
     visited.add(id);
     onStack.add(id);
 
-    const node = taskMap.get(id)!;
-    // Build adjacency: successors of id
     const successors: string[] = [];
     for (const [otherId, otherNode] of taskMap) {
       if (otherNode.predecessors.includes(id)) {
@@ -496,14 +488,13 @@ function findCycle(taskMap: Map<string, TaskNode>): string[] {
         const cycle = dfs(succ);
         if (cycle) return cycle;
       } else if (onStack.has(succ)) {
-        // Found cycle — trace back
         const cycle = [succ];
         let current = id;
         while (current !== succ) {
           cycle.push(current);
           current = parent.get(current)!;
         }
-        cycle.push(succ); // close the loop
+        cycle.push(succ);
         return cycle.reverse();
       }
     }
@@ -515,22 +506,18 @@ function findCycle(taskMap: Map<string, TaskNode>): string[] {
 
 // ── Critical path ───────────────────────────────────────────
 
-/**
- * Compute the critical path: the longest chain through the dependency graph.
- * Uses a backward pass to identify tasks with zero slack.
- */
 function computeCriticalPath(
   sortedIds: string[],
   taskMap: Map<string, TaskNode>,
+  depOffsetMap: Map<string, Offset>,
+  holidays: GanttHolidays,
+  holidaySet: Set<string>,
 ): Set<string> {
   if (sortedIds.length === 0) return new Set();
 
-  // Forward pass: earliest start/end (already computed)
-  // Backward pass: latest start/end
   const latestEnd = new Map<string, number>();
   const latestStart = new Map<string, number>();
 
-  // Find project end time
   let projectEnd = 0;
   for (const id of sortedIds) {
     const node = taskMap.get(id)!;
@@ -539,7 +526,6 @@ function computeCriticalPath(
     }
   }
 
-  // Build successor map
   const successors = new Map<string, string[]>();
   for (const [id, node] of taskMap) {
     for (const pred of node.predecessors) {
@@ -556,30 +542,45 @@ function computeCriticalPath(
     const succs = successors.get(id) ?? [];
 
     if (succs.length === 0) {
-      // No successors: latest end = project end
       latestEnd.set(id, projectEnd);
     } else {
-      // Latest end = min of successors' latest starts
-      let minStart = Infinity;
+      let minVal = Infinity;
       for (const succId of succs) {
-        const succLatestStart = latestStart.get(succId);
-        if (succLatestStart !== undefined && succLatestStart < minStart) {
-          minStart = succLatestStart;
+        let succLS = latestStart.get(succId);
+        if (succLS === undefined) continue;
+
+        // Reverse successor's task-level offset
+        const succTask = taskMap.get(succId)!.task;
+        if (succTask.offset) {
+          const reverseDir = (succTask.offset.direction * -1) as 1 | -1;
+          const adjusted = addGanttDuration(new Date(succLS), succTask.offset.duration, holidays, holidaySet, reverseDir);
+          succLS = adjusted.getTime();
+        }
+
+        // Reverse dep offset
+        const depOffset = depOffsetMap.get(`${id}->${succId}`);
+        if (depOffset) {
+          const reverseDir = (depOffset.direction * -1) as 1 | -1;
+          const adjusted = addGanttDuration(new Date(succLS), depOffset.duration, holidays, holidaySet, reverseDir);
+          succLS = adjusted.getTime();
+        }
+
+        if (succLS < minVal) {
+          minVal = succLS;
         }
       }
-      latestEnd.set(id, minStart);
+      latestEnd.set(id, minVal);
     }
 
     const duration = node.endDate!.getTime() - node.startDate!.getTime();
     latestStart.set(id, latestEnd.get(id)! - duration);
   }
 
-  // Critical path = tasks where slack = 0 (latest start == earliest start)
   const critical = new Set<string>();
   for (const id of sortedIds) {
     const node = taskMap.get(id)!;
     const slack = (latestStart.get(id) ?? 0) - node.startDate!.getTime();
-    if (Math.abs(slack) < 86400000) { // within 1 day tolerance
+    if (Math.abs(slack) < 86400000) {
       critical.add(id);
     }
   }
@@ -642,7 +643,6 @@ function buildResolvedGroups(
         depth,
       });
 
-      // Recurse into children
       buildResolvedGroups(node.children, taskMap, groups, depth + 1);
     } else if (node.kind === 'parallel') {
       buildResolvedGroups(node.children, taskMap, groups, depth);

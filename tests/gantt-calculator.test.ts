@@ -174,24 +174,219 @@ holidays
     });
   });
 
-  describe('lag on dependencies', () => {
-    it('applies lag to dependency', () => {
-      const input = `chart: gantt
+  describe('offset', () => {
+    describe('task-level offset', () => {
+      it('no deps, positive — starts after project start', () => {
+        const result = calc('chart: gantt\nstart: 2024-01-15\n10bd: Task | offset: 5bd');
+        expect(result.error).toBeNull();
+        // Jan 15 (Mon) + 5bd = Jan 22 (Mon)
+        expect(fmt(result.tasks[0].startDate)).toBe('2024-01-22');
+      });
+
+      it('no deps, negative — clamped to project start', () => {
+        const result = calc('chart: gantt\nstart: 2024-01-15\n10bd: Task | offset: -3bd');
+        expect(result.error).toBeNull();
+        expect(fmt(result.tasks[0].startDate)).toBe('2024-01-15');
+        expect(result.diagnostics.some(d => d.message.includes('clamped to project start'))).toBe(true);
+      });
+
+      it('no deps, zero — starts at project start', () => {
+        const result = calc('chart: gantt\nstart: 2024-01-15\n10bd: Task | offset: 0bd');
+        expect(result.error).toBeNull();
+        expect(fmt(result.tasks[0].startDate)).toBe('2024-01-15');
+      });
+
+      it('with deps, positive — starts after predecessor + offset', () => {
+        const result = calc('chart: gantt\nstart: 2024-01-15\n10d: First\n5d: Second | offset: 3d');
+        expect(result.error).toBeNull();
+        // First: Jan 15 -> Jan 25. Second starts at Jan 25 + 3d = Jan 28
+        expect(fmt(result.tasks[1].startDate)).toBe('2024-01-28');
+      });
+
+      it('with deps, negative — overlaps predecessor', () => {
+        const result = calc('chart: gantt\nstart: 2024-01-15\n10d: First\n5d: Second | offset: -2d');
+        expect(result.error).toBeNull();
+        // First: Jan 15 -> Jan 25. Second starts at Jan 25 - 2d = Jan 23
+        expect(fmt(result.tasks[1].startDate)).toBe('2024-01-23');
+      });
+    });
+
+    describe('dep-level offset', () => {
+      it('positive offset delays target', () => {
+        const input = `chart: gantt
 start: 2024-01-15
 parallel
   10d: Source
-    -> Target | lag: 3d
+    -> Target | offset: 3d
   10d: Target`;
-      const result = calc(input);
-      expect(result.error).toBeNull();
-      const target = result.tasks.find(t => t.task.label === 'Target');
-      const source = result.tasks.find(t => t.task.label === 'Source');
-      expect(target).toBeDefined();
-      expect(source).toBeDefined();
-      // Target should start 3 days after source ends
-      const diff = target!.startDate.getTime() - source!.endDate.getTime();
-      const threeDaysMs = 3 * 86400000;
-      expect(diff).toBeGreaterThanOrEqual(threeDaysMs - 1000); // allow small rounding
+        const result = calc(input);
+        expect(result.error).toBeNull();
+        const target = result.tasks.find(t => t.task.label === 'Target');
+        const source = result.tasks.find(t => t.task.label === 'Source');
+        expect(target).toBeDefined();
+        expect(source).toBeDefined();
+        const diff = target!.startDate.getTime() - source!.endDate.getTime();
+        const threeDaysMs = 3 * 86400000;
+        expect(diff).toBeGreaterThanOrEqual(threeDaysMs - 1000);
+      });
+
+      it('negative offset creates overlap', () => {
+        const input = `chart: gantt
+start: 2024-01-15
+parallel
+  10d: Source
+    -> Target | offset: -3d
+  10d: Target`;
+        const result = calc(input);
+        expect(result.error).toBeNull();
+        const target = result.tasks.find(t => t.task.label === 'Target');
+        const source = result.tasks.find(t => t.task.label === 'Source');
+        // Target starts 3d before Source ends
+        expect(target!.startDate.getTime()).toBeLessThan(source!.endDate.getTime());
+      });
+
+      it('zero offset has no effect', () => {
+        const input = `chart: gantt
+start: 2024-01-15
+parallel
+  10d: Source
+    -> Target | offset: 0d
+  10d: Target`;
+        const result = calc(input);
+        expect(result.error).toBeNull();
+        const target = result.tasks.find(t => t.task.label === 'Target');
+        const source = result.tasks.find(t => t.task.label === 'Source');
+        expect(fmt(target!.startDate)).toBe(fmt(source!.endDate));
+      });
+    });
+
+    describe('stacking', () => {
+      it('dep offset + task offset are additive', () => {
+        const input = `chart: gantt
+start: 2024-01-15
+parallel
+  10d: Source
+    -> Target | offset: 5d
+  10d: Target | offset: 3d`;
+        const result = calc(input);
+        expect(result.error).toBeNull();
+        const target = result.tasks.find(t => t.task.label === 'Target');
+        const source = result.tasks.find(t => t.task.label === 'Source');
+        // Source ends Jan 25. Dep offset +5d = Jan 30. Task offset +3d = Feb 2
+        const diff = target!.startDate.getTime() - source!.endDate.getTime();
+        const eightDaysMs = 8 * 86400000;
+        expect(diff).toBeGreaterThanOrEqual(eightDaysMs - 1000);
+      });
+    });
+
+    describe('clamping', () => {
+      it('negative dep offset clamped to project start', () => {
+        const input = `chart: gantt
+start: 2024-01-15
+parallel
+  2d: Source
+    -> Target | offset: -10d
+  10d: Target`;
+        const result = calc(input);
+        expect(result.error).toBeNull();
+        const target = result.tasks.find(t => t.task.label === 'Target');
+        // Source ends Jan 17. -10d = Jan 7 — before project start, so clamp to Jan 15
+        expect(fmt(target!.startDate)).toBe('2024-01-15');
+      });
+    });
+
+    describe('parallel block with offset', () => {
+      it('offset task in parallel shifts correctly', () => {
+        const input = `chart: gantt
+start: 2024-01-15
+parallel
+  5d: Normal
+  5d: Offset | offset: 3d`;
+        const result = calc(input);
+        expect(result.error).toBeNull();
+        const normal = result.tasks.find(t => t.task.label === 'Normal');
+        const offset = result.tasks.find(t => t.task.label === 'Offset');
+        expect(fmt(normal!.startDate)).toBe('2024-01-15');
+        // Offset starts at project start + 3d = Jan 18
+        expect(fmt(offset!.startDate)).toBe('2024-01-18');
+      });
+    });
+
+    describe('business days with holidays', () => {
+      it('offset skips holidays', () => {
+        const input = `chart: gantt
+start: 2024-01-15
+holidays
+  2024-01-16: Holiday
+10bd: Task | offset: 2bd`;
+        const result = calc(input);
+        expect(result.error).toBeNull();
+        // Jan 15 (Mon) + 2bd skipping holiday on Jan 16 (Tue):
+        // Day 1: skip Tue (holiday), Wed Jan 17
+        // Day 2: Thu Jan 18
+        expect(fmt(result.tasks[0].startDate)).toBe('2024-01-18');
+      });
+
+      it('negative dep offset with bd skips holidays backward', () => {
+        const input = `chart: gantt
+start: 2024-01-15
+holidays
+  2024-01-24: Holiday
+parallel
+  10d: Source
+    -> Target | offset: -2bd
+  10d: Target`;
+        const result = calc(input);
+        expect(result.error).toBeNull();
+        const target = result.tasks.find(t => t.task.label === 'Target');
+        const source = result.tasks.find(t => t.task.label === 'Source');
+        // Source ends Jan 25. -2bd backward: Jan 24 is holiday (skip), Jan 23 (Thu) = day 1, Jan 22 (Wed) = day 2
+        expect(fmt(target!.startDate)).toBe('2024-01-22');
+      });
+    });
+
+    describe('explicit date with offset', () => {
+      it('offset shifts explicit date forward', () => {
+        const result = calc('chart: gantt\nstart: 2024-01-15\n2024-03-01: Review | offset: 5d');
+        expect(result.error).toBeNull();
+        expect(fmt(result.tasks[0].startDate)).toBe('2024-03-06');
+      });
+    });
+
+    describe('critical path with offset', () => {
+      it('offset shifts task onto critical path', () => {
+        const input = `chart: gantt
+start: 2024-01-15
+critical-path: on
+parallel
+  10d: Short
+  5d: Long | offset: 10d`;
+        const result = calc(input);
+        expect(result.error).toBeNull();
+        const long = result.tasks.find(t => t.task.label === 'Long');
+        // Short: Jan 15 -> Jan 25, Long: Jan 25 -> Jan 30. Long is on critical path.
+        expect(long!.isCriticalPath).toBe(true);
+      });
+    });
+
+    describe('multiple predecessors with mixed offsets', () => {
+      it('max rule applies across predecessors with offsets', () => {
+        const input = `chart: gantt
+start: 2024-01-15
+parallel
+  10d: Fast
+    -> Result | offset: -3d
+  20d: Slow
+    -> Result | offset: 5d
+  10d: Result`;
+        const result = calc(input);
+        expect(result.error).toBeNull();
+        const resultTask = result.tasks.find(t => t.task.label === 'Result');
+        const slow = result.tasks.find(t => t.task.label === 'Slow');
+        // Fast ends Jan 25, -3d = Jan 22. Slow ends Feb 4, +5d = Feb 9.
+        // Max rule: Feb 9
+        expect(resultTask!.startDate.getTime()).toBeGreaterThanOrEqual(slow!.endDate.getTime());
+      });
     });
   });
 
