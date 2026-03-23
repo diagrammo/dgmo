@@ -313,16 +313,33 @@ export function renderGantt(
             .attr('opacity', 0.5);
         }
       } else {
-        // Expanded: subtle background band
+        // Expanded: bar with border (matches task bar style)
+        const bandFill = mix(laneColor, palette.bg, 30);
         g.append('rect')
           .attr('class', 'gantt-lane-band')
           .attr('x', 0)
           .attr('y', yOffset)
           .attr('width', innerWidth)
           .attr('height', BAR_H)
-          .attr('fill', laneColor)
-          .attr('opacity', 0.06)
+          .attr('rx', 4)
+          .attr('fill', bandFill)
+          .attr('stroke', laneColor)
+          .attr('stroke-width', 1)
           .attr('pointer-events', 'none');
+
+        // Aggregate progress fill
+        if (row.aggregateProgress !== null && row.aggregateProgress > 0) {
+          g.append('rect')
+            .attr('class', 'gantt-lane-progress')
+            .attr('x', 0)
+            .attr('y', yOffset)
+            .attr('width', innerWidth * Math.min(row.aggregateProgress / 100, 1))
+            .attr('height', BAR_H)
+            .attr('rx', 4)
+            .attr('fill', laneColor)
+            .attr('opacity', 0.5)
+            .attr('pointer-events', 'none');
+        }
       }
 
       // 4px accent bar on left edge (always)
@@ -332,6 +349,7 @@ export function renderGantt(
         .attr('y', yOffset)
         .attr('width', 4)
         .attr('height', BAR_H)
+        .attr('rx', 2)
         .attr('fill', laneColor)
         .attr('opacity', 1);
 
@@ -405,17 +423,45 @@ export function renderGantt(
           // Track collapsed group position for dependency arrow redirection
           groupPositions.set(group.name, { x1: gx1, x2: gx1 + barWidth, y: yOffset + BAR_H / 2 });
         } else {
-          // Expanded: thin spanning header bar
+          // Expanded: bar with border (matches task bar style)
+          const bandFill = mix(groupColor, palette.bg, 30);
           g.append('rect')
             .attr('class', 'gantt-group-bar')
-            .attr('x', gx1)
-            .attr('y', yOffset + BAR_H / 2 - 2)
-            .attr('width', Math.max(gx2 - gx1, 2))
-            .attr('height', 4)
+            .attr('x', 0)
+            .attr('y', yOffset)
+            .attr('width', innerWidth)
+            .attr('height', BAR_H)
+            .attr('rx', 4)
+            .attr('fill', bandFill)
+            .attr('stroke', groupColor)
+            .attr('stroke-width', 1)
+            .attr('pointer-events', 'none')
+            .attr('data-line-number', String(group.lineNumber));
+
+          // Aggregate progress fill
+          if (group.progress !== null && group.progress > 0) {
+            g.append('rect')
+              .attr('class', 'gantt-group-progress')
+              .attr('x', 0)
+              .attr('y', yOffset)
+              .attr('width', innerWidth * Math.min(group.progress / 100, 1))
+              .attr('height', BAR_H)
+              .attr('rx', 4)
+              .attr('fill', groupColor)
+              .attr('opacity', 0.5)
+              .attr('pointer-events', 'none');
+          }
+
+          // 4px accent bar on left edge
+          g.append('rect')
+            .attr('class', 'gantt-group-accent')
+            .attr('x', group.depth * 14)
+            .attr('y', yOffset)
+            .attr('width', 4)
+            .attr('height', BAR_H)
             .attr('rx', 2)
             .attr('fill', groupColor)
-            .attr('opacity', 0.5)
-            .attr('data-line-number', String(group.lineNumber));
+            .attr('opacity', 1);
         }
       }
 
@@ -425,7 +471,7 @@ export function renderGantt(
       const task = rt.task;
 
       // Task label on the left (left-aligned with indent; flat in tag mode)
-      const taskLabelX = isTagMode ? 20 : 10 + rt.groupPath.length * 14 + 16;
+      const taskLabelX = isTagMode ? 20 : 6 + rt.groupPath.length * 14;
       const taskLabel = svg
         .append('text')
         .attr('class', 'gantt-task-label')
