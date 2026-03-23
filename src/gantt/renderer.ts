@@ -63,6 +63,7 @@ export function renderGantt(
   let currentActiveGroup: string | null = resolved.tagGroups.length > 0
     ? resolved.tagGroups[0].name
     : null;
+  let criticalPathActive = false;
 
   // Compute left margin based on longest label
   const allLabels = [
@@ -123,19 +124,25 @@ export function renderGantt(
 
   // ── Tag legend (interactive) ────────────────────────────
 
+  const hasCriticalPath = resolved.options.criticalPath && resolved.tasks.some(t => t.isCriticalPath);
+
   function drawLegend() {
     svg.selectAll('.gantt-tag-legend-container').remove();
-    if (resolved.tagGroups.length > 0) {
+    if (resolved.tagGroups.length > 0 || hasCriticalPath) {
       const legendY = titleHeight;
       renderTagLegend(
         svg, g, resolved.tagGroups, currentActiveGroup, leftMargin, innerWidth,
-        legendY, palette, isDark,
+        legendY, palette, isDark, hasCriticalPath, criticalPathActive,
         (groupName) => {
           // Toggle active group
           currentActiveGroup = currentActiveGroup?.toLowerCase() === groupName.toLowerCase()
             ? null : groupName;
           drawLegend();
           recolorBars();
+        },
+        () => {
+          criticalPathActive = !criticalPathActive;
+          drawLegend();
         },
       );
     }
@@ -250,7 +257,7 @@ export function renderGantt(
               .attr('height', BAR_H)
               .attr('rx', 4)
               .attr('fill', groupColor)
-              .attr('opacity', 0.3);
+              .attr('opacity', 0.5);
           }
         } else {
           // Expanded: thin spanning header bar
@@ -293,6 +300,9 @@ export function renderGantt(
       // Tag attributes on label for legend hover matching
       for (const [key, value] of Object.entries(rt.effectiveMetadata)) {
         taskLabel.attr(`data-tag-${key}`, value.toLowerCase());
+      }
+      if (rt.isCriticalPath) {
+        taskLabel.attr('data-critical-path', 'true');
       }
 
       // Determine color
@@ -420,23 +430,12 @@ export function renderGantt(
             .attr('height', BAR_H)
             .attr('rx', 4)
             .attr('fill', progressFill)
-            .attr('opacity', 0.3);
+            .attr('opacity', 0.5);
         }
 
-        // Critical path styling
+        // Critical path data attribute (for legend hover highlighting)
         if (rt.isCriticalPath) {
-          taskG
-            .append('rect')
-            .attr('x', x1 - 2)
-            .attr('y', yOffset - 2)
-            .attr('width', barWidth + 4)
-            .attr('height', BAR_H + 4)
-            .attr('rx', 6)
-            .attr('fill', 'none')
-            .attr('stroke', barColor)
-            .attr('stroke-width', 1.5)
-            .attr('stroke-dasharray', '4 2')
-            .attr('opacity', 0.6);
+          taskG.attr('data-critical-path', 'true');
         }
 
 
@@ -743,6 +742,33 @@ function arrowheadPoints(x: number, y: number, size: number, angle: number): str
 
 // ── Tag Legend Rendering ─────────────────────────────────────
 
+function applyCriticalPathHighlight(
+  svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
+  chartG: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
+) {
+  chartG.selectAll<SVGGElement, unknown>('.gantt-task').each(function () {
+    const el = d3Selection.select(this);
+    el.attr('opacity', el.attr('data-critical-path') === 'true' ? 1 : FADE_OPACITY);
+  });
+  chartG.selectAll<SVGElement, unknown>('.gantt-milestone').attr('opacity', FADE_OPACITY);
+  chartG.selectAll<SVGElement, unknown>('.gantt-group-bar, .gantt-group-summary').attr('opacity', FADE_OPACITY);
+  svg.selectAll<SVGTextElement, unknown>('.gantt-task-label').each(function () {
+    const el = d3Selection.select(this);
+    el.attr('opacity', el.attr('data-critical-path') === 'true' ? 1 : FADE_OPACITY);
+  });
+  svg.selectAll<SVGGElement, unknown>('.gantt-group-label').attr('opacity', FADE_OPACITY);
+}
+
+function resetHighlightAll(
+  svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
+  chartG: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
+) {
+  chartG.selectAll<SVGGElement, unknown>('.gantt-task, .gantt-milestone').attr('opacity', 1);
+  chartG.selectAll<SVGElement, unknown>('.gantt-group-bar, .gantt-group-summary').attr('opacity', 1);
+  svg.selectAll<SVGTextElement, unknown>('.gantt-task-label').attr('opacity', 1);
+  svg.selectAll<SVGGElement, unknown>('.gantt-group-label').attr('opacity', 1);
+}
+
 function renderTagLegend(
   svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
   chartG: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
@@ -753,7 +779,10 @@ function renderTagLegend(
   legendY: number,
   palette: PaletteColors,
   isDark: boolean,
+  hasCriticalPath: boolean,
+  criticalPathActive: boolean,
   onToggle?: (groupName: string) => void,
+  onToggleCriticalPath?: () => void,
 ): void {
   const groupBg = isDark
     ? mix(palette.surface, palette.bg, 50)
@@ -782,6 +811,14 @@ function renderTagLegend(
     totalW += groupW;
   }
   totalW += Math.max(0, (visibleGroups.length - 1) * LEGEND_GROUP_GAP);
+
+  // Critical Path pill width
+  const cpLabel = 'Critical Path';
+  const cpPillW = cpLabel.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
+  if (hasCriticalPath) {
+    if (visibleGroups.length > 0) totalW += LEGEND_GROUP_GAP;
+    totalW += cpPillW;
+  }
 
   // Center over chart area (not full container)
   const legendX = chartLeftMargin + (chartInnerWidth - totalW) / 2;
@@ -909,6 +946,55 @@ function renderTagLegend(
     }
 
     cursorX += groupW + LEGEND_GROUP_GAP;
+  }
+
+  // Critical Path pill
+  if (hasCriticalPath) {
+    const cpG = legendRow.append('g')
+      .attr('transform', `translate(${cursorX}, 0)`)
+      .attr('class', 'gantt-legend-critical-path')
+      .style('cursor', 'pointer')
+      .on('click', () => { if (onToggleCriticalPath) onToggleCriticalPath(); });
+
+    cpG.append('rect')
+      .attr('width', cpPillW)
+      .attr('height', LEGEND_HEIGHT)
+      .attr('rx', LEGEND_HEIGHT / 2)
+      .attr('fill', criticalPathActive ? palette.bg : groupBg);
+
+    if (criticalPathActive) {
+      cpG.append('rect')
+        .attr('width', cpPillW)
+        .attr('height', LEGEND_HEIGHT)
+        .attr('rx', LEGEND_HEIGHT / 2)
+        .attr('fill', 'none')
+        .attr('stroke', mix(palette.textMuted, palette.bg, 50))
+        .attr('stroke-width', 0.75);
+    }
+
+    cpG.append('text')
+      .attr('x', cpPillW / 2)
+      .attr('y', LEGEND_HEIGHT / 2 + LEGEND_PILL_FONT_SIZE / 2 - 2)
+      .attr('text-anchor', 'middle')
+      .attr('font-size', `${LEGEND_PILL_FONT_SIZE}px`)
+      .attr('font-weight', '500')
+      .attr('fill', criticalPathActive ? palette.text : palette.textMuted)
+      .text(cpLabel);
+
+    // Apply persistent highlighting when active
+    if (criticalPathActive) {
+      applyCriticalPathHighlight(svg, chartG);
+    }
+
+    cpG
+      .on('mouseenter', () => {
+        applyCriticalPathHighlight(svg, chartG);
+      })
+      .on('mouseleave', () => {
+        if (!criticalPathActive) {
+          resetHighlightAll(svg, chartG);
+        }
+      });
   }
 }
 
@@ -1061,10 +1147,32 @@ function buildRowList(resolved: ResolvedSchedule, collapsedGroups?: Set<string>)
     groupMap.set(g.name, g);
   }
 
+  // Sort tasks by group order so tasks from the same group are contiguous.
+  // resolved.groups is in parse-tree order; use that as the sort key.
+  // Tasks with no group come first, then tasks grouped by their groupPath.
+  const groupOrder = new Map<string, number>();
+  resolved.groups.forEach((g, i) => groupOrder.set(g.name, i));
+
+  const sortedTasks = [...resolved.tasks].sort((a, b) => {
+    const maxLen = Math.max(a.groupPath.length, b.groupPath.length);
+    for (let i = 0; i < maxLen; i++) {
+      const ga = a.groupPath[i];
+      const gb = b.groupPath[i];
+      if (ga === gb) continue;
+      // Task with shorter path (no group at this level) comes first
+      if (ga === undefined) return -1;
+      if (gb === undefined) return 1;
+      const oa = groupOrder.get(ga) ?? 0;
+      const ob = groupOrder.get(gb) ?? 0;
+      if (oa !== ob) return oa - ob;
+    }
+    return 0; // same group — preserve original (topo-sort) order
+  });
+
   // Build a flat display list from the resolved groups and tasks
   // Groups appear before their children. Collapsed groups hide children.
   const seenGroups = new Set<string>();
-  for (const rt of resolved.tasks) {
+  for (const rt of sortedTasks) {
     // Check if any group in this task's path is collapsed
     const isHidden = rt.groupPath.some(g => collapsedGroups?.has(g));
     if (isHidden) {
