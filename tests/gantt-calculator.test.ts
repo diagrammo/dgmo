@@ -403,4 +403,52 @@ critical-path: on
       expect(critical.length).toBeGreaterThanOrEqual(1);
     });
   });
+
+  describe('cascading uncertainty', () => {
+    it('direct uncertain task is uncertain', () => {
+      const result = calc('chart: gantt\nstart: 2024-01-15\n10d?: Task');
+      expect(result.tasks[0].isUncertain).toBe(true);
+    });
+
+    it('certain task with no deps is not uncertain', () => {
+      const result = calc('chart: gantt\nstart: 2024-01-15\n10d: Task');
+      expect(result.tasks[0].isUncertain).toBe(false);
+    });
+
+    it('cascades to sequential successor', () => {
+      const result = calc('chart: gantt\nstart: 2024-01-15\n10d?: A\n5d: B');
+      const b = result.tasks.find(t => t.task.label === 'B');
+      expect(b!.isUncertain).toBe(true);
+    });
+
+    it('cascades transitively', () => {
+      const result = calc('chart: gantt\nstart: 2024-01-15\n10d?: A\n5d: B\n3d: C');
+      const c = result.tasks.find(t => t.task.label === 'C');
+      expect(c!.isUncertain).toBe(true);
+    });
+
+    it('does not cascade across parallel branches', () => {
+      const result = calc(`chart: gantt
+start: 2024-01-15
+parallel
+  10d?: Uncertain Branch
+  10d: Certain Branch`);
+      const certain = result.tasks.find(t => t.task.label === 'Certain Branch');
+      expect(certain!.isUncertain).toBe(false);
+    });
+
+    it('cascades if any predecessor is uncertain', () => {
+      const input = `chart: gantt
+start: 2024-01-15
+parallel
+  10d?: Risky
+    -> Result
+  10d: Safe
+    -> Result
+  5d: Result`;
+      const result = calc(input);
+      const res = result.tasks.find(t => t.task.label === 'Result');
+      expect(res!.isUncertain).toBe(true);
+    });
+  });
 });

@@ -244,6 +244,22 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
     ? computeCriticalPath(sortedIds, taskMap, depOffsetMap, parsed.holidays, holidaySet)
     : new Set<string>();
 
+  // Cascading uncertainty: uncertain if task itself is uncertain OR any predecessor is
+  const uncertainSet = new Set<string>();
+  for (const taskId of sortedIds) {
+    const node = taskMap.get(taskId)!;
+    if (node.task.uncertain) {
+      uncertainSet.add(taskId);
+    } else {
+      for (const predId of node.predecessors) {
+        if (uncertainSet.has(predId)) {
+          uncertainSet.add(taskId);
+          break;
+        }
+      }
+    }
+  }
+
   for (const taskId of sortedIds) {
     const node = taskMap.get(taskId)!;
     result.tasks.push({
@@ -251,6 +267,7 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
       startDate: node.startDate!,
       endDate: node.endDate!,
       isCriticalPath: criticalSet.has(taskId),
+      isUncertain: uncertainSet.has(taskId),
       isMilestone: (node.task.duration?.amount === 0) || (!node.task.duration && !node.task.explicitStart),
       groupPath: node.task.groupPath,
       effectiveMetadata: node.task.metadata,

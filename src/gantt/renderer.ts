@@ -563,7 +563,7 @@ export function renderGantt(
         }
 
         // Uncertainty gradient — fade out the trailing edge unless progress > 80%
-        const showUncertainFade = task.uncertain && (task.progress === null || task.progress <= 80);
+        const showUncertainFade = rt.isUncertain && (task.progress === null || task.progress <= 80);
         let barFill: string = fillColor;
         let barStroke: string = barColor;
         if (showUncertainFade) {

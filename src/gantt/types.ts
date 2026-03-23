@@ -136,6 +136,7 @@ export interface ResolvedTask {
   startDate: Date;
   endDate: Date;
   isCriticalPath: boolean;
+  isUncertain: boolean; // true if task.uncertain OR any predecessor is uncertain
   isMilestone: boolean;
   groupPath: string[];
   effectiveMetadata: Record<string, string>; // merged with inherited tags
