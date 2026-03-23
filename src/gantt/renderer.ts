@@ -261,10 +261,22 @@ export function renderGantt(
   for (const row of rows) {
     if (row.type === 'lane-header') {
       // ── Lane header (tag swimlane mode) ──
-      lanePositions.set(row.laneName, { x1: 0, x2: innerWidth, y: yOffset + BAR_H / 2 });
       const laneColor = row.laneColor === '#999999' ? palette.textMuted : row.laneColor;
       const toggleIcon = row.isCollapsed ? '►' : '▼';
       const labelX = 10;
+
+      // Compute lane bar x range from task dates
+      let lx1 = 0;
+      let lx2 = innerWidth;
+      let laneBarWidth = innerWidth;
+      if (row.laneStartDate && row.laneEndDate) {
+        lx1 = xScale(dateToFractionalYear(row.laneStartDate));
+        lx2 = xScale(dateToFractionalYear(row.laneEndDate));
+        laneBarWidth = Math.max(lx2 - lx1, 2);
+      }
+
+      lanePositions.set(row.laneName, { x1: lx1, x2: lx1 + laneBarWidth, y: yOffset + BAR_H / 2 });
+
       const labelG = svg
         .append('g')
         .attr('class', 'gantt-lane-header')
@@ -287,53 +299,27 @@ export function renderGantt(
         .attr('fill', laneColor)
         .text(toggleIcon + ' ' + row.laneName + (row.aggregateProgress !== null ? ` ${Math.round(row.aggregateProgress)}%` : ''));
 
-      if (row.isCollapsed) {
-        // Collapsed: summary bar with aggregate progress
+      if (laneBarWidth > 0) {
         const barFill = mix(laneColor, palette.bg, 30);
         g.append('rect')
           .attr('class', 'gantt-lane-band')
-          .attr('x', 0)
+          .attr('x', lx1)
           .attr('y', yOffset)
-          .attr('width', innerWidth)
+          .attr('width', laneBarWidth)
           .attr('height', BAR_H)
           .attr('rx', 4)
           .attr('fill', barFill)
           .attr('stroke', laneColor)
-          .attr('stroke-width', 1);
-
-        if (row.aggregateProgress !== null && row.aggregateProgress > 0) {
-          g.append('rect')
-            .attr('class', 'gantt-lane-progress')
-            .attr('x', 0)
-            .attr('y', yOffset)
-            .attr('width', innerWidth * Math.min(row.aggregateProgress / 100, 1))
-            .attr('height', BAR_H)
-            .attr('rx', 4)
-            .attr('fill', laneColor)
-            .attr('opacity', 0.5);
-        }
-      } else {
-        // Expanded: bar with border (matches task bar style)
-        const bandFill = mix(laneColor, palette.bg, 30);
-        g.append('rect')
-          .attr('class', 'gantt-lane-band')
-          .attr('x', 0)
-          .attr('y', yOffset)
-          .attr('width', innerWidth)
-          .attr('height', BAR_H)
-          .attr('rx', 4)
-          .attr('fill', bandFill)
-          .attr('stroke', laneColor)
-          .attr('stroke-width', 1)
-          .attr('pointer-events', 'none');
+          .attr('stroke-width', 2)
+          .attr('pointer-events', row.isCollapsed ? 'auto' : 'none');
 
         // Aggregate progress fill
         if (row.aggregateProgress !== null && row.aggregateProgress > 0) {
           g.append('rect')
             .attr('class', 'gantt-lane-progress')
-            .attr('x', 0)
+            .attr('x', lx1)
             .attr('y', yOffset)
-            .attr('width', innerWidth * Math.min(row.aggregateProgress / 100, 1))
+            .attr('width', laneBarWidth * Math.min(row.aggregateProgress / 100, 1))
             .attr('height', BAR_H)
             .attr('rx', 4)
             .attr('fill', laneColor)
@@ -341,17 +327,6 @@ export function renderGantt(
             .attr('pointer-events', 'none');
         }
       }
-
-      // 4px accent bar on left edge (always)
-      g.append('rect')
-        .attr('class', 'gantt-lane-accent')
-        .attr('x', 0)
-        .attr('y', yOffset)
-        .attr('width', 4)
-        .attr('height', BAR_H)
-        .attr('rx', 2)
-        .attr('fill', laneColor)
-        .attr('opacity', 1);
 
       yOffset += BAR_H + ROW_GAP;
     } else if (row.type === 'group') {
@@ -381,7 +356,7 @@ export function renderGantt(
         .attr('font-size', '11px')
         .attr('font-weight', 'bold')
         .attr('fill', palette.text)
-        .text(toggleIcon + ' ' + group.name);
+        .text(toggleIcon + ' ' + group.name + (group.progress !== null ? ` ${Math.round(group.progress)}%` : ''));
 
       // Group bar
       const gStart = dateToFractionalYear(group.startDate);
@@ -423,18 +398,19 @@ export function renderGantt(
           // Track collapsed group position for dependency arrow redirection
           groupPositions.set(group.name, { x1: gx1, x2: gx1 + barWidth, y: yOffset + BAR_H / 2 });
         } else {
-          // Expanded: bar with border (matches task bar style)
+          // Expanded: bar spanning group date range (matches task bar style)
+          const groupBarWidth = Math.max(gx2 - gx1, 2);
           const bandFill = mix(groupColor, palette.bg, 30);
           g.append('rect')
             .attr('class', 'gantt-group-bar')
-            .attr('x', 0)
+            .attr('x', gx1)
             .attr('y', yOffset)
-            .attr('width', innerWidth)
+            .attr('width', groupBarWidth)
             .attr('height', BAR_H)
             .attr('rx', 4)
             .attr('fill', bandFill)
             .attr('stroke', groupColor)
-            .attr('stroke-width', 1)
+            .attr('stroke-width', 2)
             .attr('pointer-events', 'none')
             .attr('data-line-number', String(group.lineNumber));
 
@@ -442,26 +418,15 @@ export function renderGantt(
           if (group.progress !== null && group.progress > 0) {
             g.append('rect')
               .attr('class', 'gantt-group-progress')
-              .attr('x', 0)
+              .attr('x', gx1)
               .attr('y', yOffset)
-              .attr('width', innerWidth * Math.min(group.progress / 100, 1))
+              .attr('width', groupBarWidth * Math.min(group.progress / 100, 1))
               .attr('height', BAR_H)
               .attr('rx', 4)
               .attr('fill', groupColor)
               .attr('opacity', 0.5)
               .attr('pointer-events', 'none');
           }
-
-          // 4px accent bar on left edge
-          g.append('rect')
-            .attr('class', 'gantt-group-accent')
-            .attr('x', group.depth * 14)
-            .attr('y', yOffset)
-            .attr('width', 4)
-            .attr('height', BAR_H)
-            .attr('rx', 2)
-            .attr('fill', groupColor)
-            .attr('opacity', 1);
         }
       }
 
@@ -1476,7 +1441,7 @@ function resetHighlight(
 
 type GroupRow = { type: 'group'; group: ResolvedGroup };
 type TaskRow = { type: 'task'; task: ResolvedTask };
-type LaneHeaderRow = { type: 'lane-header'; laneName: string; laneColor: string; aggregateProgress: number | null; tagKey: string; isCollapsed: boolean };
+type LaneHeaderRow = { type: 'lane-header'; laneName: string; laneColor: string; aggregateProgress: number | null; tagKey: string; isCollapsed: boolean; laneStartDate: Date | null; laneEndDate: Date | null };
 type Row = GroupRow | TaskRow | LaneHeaderRow;
 
 // Public type aliases (prefixed to avoid collisions in consumer code)
@@ -1597,6 +1562,10 @@ export function buildTagLaneRowList(
       ? progressValues.reduce((a, b) => a + b, 0) / progressValues.length
       : null;
 
+    // Compute lane date range from tasks
+    const laneStartDate = tasks.length > 0 ? new Date(Math.min(...tasks.map(t => t.startDate.getTime()))) : null;
+    const laneEndDate = tasks.length > 0 ? new Date(Math.max(...tasks.map(t => t.endDate.getTime()))) : null;
+
     const isCollapsed = collapsedLanes?.has(entry.value) ?? false;
     rows.push({
       type: 'lane-header',
@@ -1605,6 +1574,8 @@ export function buildTagLaneRowList(
       aggregateProgress,
       tagKey,
       isCollapsed,
+      laneStartDate,
+      laneEndDate,
     });
     if (!isCollapsed) {
       for (const rt of tasks) {
@@ -1623,6 +1594,9 @@ export function buildTagLaneRowList(
       ? progressValues.reduce((a, b) => a + b, 0) / progressValues.length
       : null;
 
+    const noLaneStartDate = unbucketed.length > 0 ? new Date(Math.min(...unbucketed.map(t => t.startDate.getTime()))) : null;
+    const noLaneEndDate = unbucketed.length > 0 ? new Date(Math.max(...unbucketed.map(t => t.endDate.getTime()))) : null;
+
     const noLaneName = `No ${tagGroup.name}`;
     const isCollapsed = collapsedLanes?.has(noLaneName) ?? false;
     rows.push({
@@ -1632,6 +1606,8 @@ export function buildTagLaneRowList(
       aggregateProgress,
       tagKey,
       isCollapsed,
+      laneStartDate: noLaneStartDate,
+      laneEndDate: noLaneEndDate,
     });
     if (!isCollapsed) {
       for (const rt of unbucketed) {
