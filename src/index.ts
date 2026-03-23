@@ -265,7 +265,8 @@ export type { CollapsedSitemapResult } from './sitemap/collapse';
 // ── Gantt Chart ───────────────────────────────────────────
 export { parseGantt } from './gantt/parser';
 export { calculateSchedule } from './gantt/calculator';
-export { renderGantt } from './gantt/renderer';
+export { renderGantt, buildTagLaneRowList } from './gantt/renderer';
+export type { GanttInteractiveOptions, GanttRow, GanttGroupRow, GanttTaskRow, GanttLaneHeaderRow } from './gantt/renderer';
 export { resolveTaskName, collectTasks } from './gantt/resolver';
 export type {
   ParsedGantt,

@@ -22,6 +22,7 @@ import {
   LEGEND_ENTRY_DOT_GAP,
   LEGEND_ENTRY_TRAIL,
   LEGEND_GROUP_GAP,
+  LEGEND_ICON_W,
 } from '../utils/legend-constants';
 import type { PaletteColors } from '../palettes';
 import type { D3ExportDimensions } from '../d3';
@@ -39,6 +40,19 @@ const MIN_LEFT_MARGIN = 120;
 const BOTTOM_MARGIN = 40;
 const RIGHT_MARGIN = 20;
 
+// ── Interactive Options ─────────────────────────────────────
+
+export interface GanttInteractiveOptions {
+  onClickItem?: (lineNumber: number) => void;
+  collapsedGroups?: Set<string>;
+  onToggleGroup?: (groupName: string) => void;
+  currentSwimlaneGroup?: string | null;
+  onSwimlaneChange?: (group: string | null) => void;
+  currentActiveGroup?: string | null;
+  onActiveGroupChange?: (group: string | null) => void;
+  viewMode?: boolean;
+}
+
 // ── Main Renderer ───────────────────────────────────────────
 
 export function renderGantt(
@@ -46,35 +60,53 @@ export function renderGantt(
   resolved: ResolvedSchedule,
   palette: PaletteColors,
   isDark: boolean,
-  onClickItem?: (lineNumber: number) => void,
+  options?: GanttInteractiveOptions,
   exportDims?: D3ExportDimensions,
-  viewMode?: boolean,
-  collapsedGroups?: Set<string>,
-  onToggleGroup?: (groupName: string) => void,
 ): void {
   // Clear previous content
   container.innerHTML = '';
 
   if (resolved.error || resolved.tasks.length === 0) return;
 
+  // ── Destructure options ─────────────────────────────────
+
+  const onClickItem = options?.onClickItem;
+  const collapsedGroups = options?.collapsedGroups;
+  const onToggleGroup = options?.onToggleGroup;
+  const viewMode = options?.viewMode ?? false;
+  const currentSwimlaneGroup = options?.currentSwimlaneGroup ?? null;
+  const onSwimlaneChange = options?.onSwimlaneChange;
+  const onActiveGroupChange = options?.onActiveGroupChange;
+
   // ── Compute layout dimensions ───────────────────────────
 
   const seriesColors = getSeriesColors(palette);
-  let currentActiveGroup: string | null = resolved.tagGroups.length > 0
-    ? resolved.tagGroups[0].name
-    : null;
+  let currentActiveGroup: string | null = options?.currentActiveGroup !== undefined
+    ? options.currentActiveGroup
+    : (resolved.tagGroups.length > 0 ? resolved.tagGroups[0].name : null);
   let criticalPathActive = false;
 
-  // Compute left margin based on longest label
-  const allLabels = [
-    ...resolved.tasks.map(t => t.task.label),
-    ...resolved.groups.map(g => '  '.repeat(g.depth) + g.name),
-  ];
+  // ── Build row list (structural vs tag mode) ─────────────
+
+  const tagRows = currentSwimlaneGroup
+    ? buildTagLaneRowList(resolved, currentSwimlaneGroup)
+    : null;
+  const rows = tagRows ?? buildRowList(resolved, collapsedGroups);
+  const isTagMode = tagRows !== null;
+
+  // Compute left margin based on longest visible label
+  const allLabels = isTagMode
+    ? [
+        ...rows.filter((r): r is LaneHeaderRow => r.type === 'lane-header').map(r => r.laneName),
+        ...rows.filter((r): r is TaskRow => r.type === 'task').map(r => r.task.task.label),
+      ]
+    : [
+        ...resolved.tasks.map(t => t.task.label),
+        ...resolved.groups.map(g => '  '.repeat(g.depth) + g.name),
+      ];
   const maxLabelLen = Math.max(...allLabels.map(l => l.length), 10);
   const leftMargin = Math.max(MIN_LEFT_MARGIN, maxLabelLen * 7 + 30);
 
-  // Compute rows: build a flat list of rows (groups + tasks in order)
-  const rows = buildRowList(resolved, collapsedGroups);
   const totalRows = rows.length;
 
   // Vertical layout — matches timeline pattern (d3.ts:3649-3655)
@@ -86,7 +118,9 @@ export function renderGantt(
   const marginTop = titleHeight + tagLegendReserve + topDateLabelReserve;
 
   // Content area
-  const contentH = totalRows * (BAR_H + ROW_GAP) + GROUP_GAP * resolved.groups.length;
+  const contentH = isTagMode
+    ? totalRows * (BAR_H + ROW_GAP)
+    : totalRows * (BAR_H + ROW_GAP) + GROUP_GAP * resolved.groups.length;
   const innerHeight = contentH;
   const outerHeight = marginTop + innerHeight + BOTTOM_MARGIN;
 
@@ -137,6 +171,7 @@ export function renderGantt(
           // Toggle active group
           currentActiveGroup = currentActiveGroup?.toLowerCase() === groupName.toLowerCase()
             ? null : groupName;
+          if (onActiveGroupChange) onActiveGroupChange(currentActiveGroup);
           drawLegend();
           recolorBars();
         },
@@ -144,6 +179,9 @@ export function renderGantt(
           criticalPathActive = !criticalPathActive;
           drawLegend();
         },
+        currentSwimlaneGroup,
+        onSwimlaneChange,
+        viewMode,
       );
     }
   }
@@ -197,8 +235,51 @@ export function renderGantt(
   let yOffset = 0;
 
   for (const row of rows) {
-    if (row.type === 'group') {
-      const group = row.group!;
+    if (row.type === 'lane-header') {
+      // ── Lane header (tag swimlane mode) ──
+      const labelX = 10;
+      const labelG = svg
+        .append('g')
+        .attr('class', 'gantt-lane-header')
+        .attr(`data-tag-${row.tagKey}`, row.laneName.toLowerCase())
+        .attr('data-lane', row.laneName);
+
+      // Label
+      labelG
+        .append('text')
+        .attr('x', labelX)
+        .attr('y', marginTop + yOffset + BAR_H / 2)
+        .attr('dy', '0.35em')
+        .attr('text-anchor', 'start')
+        .attr('font-size', '11px')
+        .attr('font-weight', 'bold')
+        .attr('fill', row.laneColor === '#999999' ? palette.textMuted : row.laneColor)
+        .text(row.laneName + (row.aggregateProgress !== null ? ` ${Math.round(row.aggregateProgress)}%` : ''));
+
+      // Background band
+      g.append('rect')
+        .attr('class', 'gantt-lane-band')
+        .attr('x', 0)
+        .attr('y', yOffset)
+        .attr('width', innerWidth)
+        .attr('height', BAR_H)
+        .attr('fill', row.laneColor === '#999999' ? palette.textMuted : row.laneColor)
+        .attr('opacity', 0.06)
+        .attr('pointer-events', 'none');
+
+      // 4px accent bar on left edge
+      g.append('rect')
+        .attr('class', 'gantt-lane-accent')
+        .attr('x', 0)
+        .attr('y', yOffset)
+        .attr('width', 4)
+        .attr('height', BAR_H)
+        .attr('fill', row.laneColor === '#999999' ? palette.textMuted : row.laneColor)
+        .attr('opacity', 1);
+
+      yOffset += BAR_H + ROW_GAP;
+    } else if (row.type === 'group') {
+      const group = row.group;
       const isCollapsed = collapsedGroups?.has(group.name) ?? false;
       const indent = '  '.repeat(group.depth);
       const toggleIcon = isCollapsed ? '►' : '▼';
@@ -281,11 +362,11 @@ export function renderGantt(
 
       yOffset += BAR_H + ROW_GAP;
     } else if (row.type === 'task') {
-      const rt = row.task!;
+      const rt = row.task;
       const task = rt.task;
 
-      // Task label on the left (left-aligned with indent)
-      const taskLabelX = 10 + rt.groupPath.length * 14 + 16; // extra offset under group toggle
+      // Task label on the left (left-aligned with indent; flat in tag mode)
+      const taskLabelX = isTagMode ? 20 : 10 + rt.groupPath.length * 14 + 16;
       const taskLabel = svg
         .append('text')
         .attr('class', 'gantt-task-label')
@@ -510,7 +591,7 @@ export function renderGantt(
 
   // ── Dependency arrows ───────────────────────────────────
 
-  if (resolved.options.dependencies) {
+  if (!isTagMode && resolved.options.dependencies) {
     renderDependencyArrows(g, resolved, taskPositions, groupPositions, collapsedGroups, palette, isDark);
   }
 }
@@ -803,6 +884,8 @@ function applyCriticalPathHighlight(
     el.attr('opacity', el.attr('data-critical-path') === 'true' ? 1 : FADE_OPACITY);
   });
   svg.selectAll<SVGGElement, unknown>('.gantt-group-label').attr('opacity', FADE_OPACITY);
+  svg.selectAll<SVGGElement, unknown>('.gantt-lane-header').attr('opacity', FADE_OPACITY);
+  chartG.selectAll<SVGElement, unknown>('.gantt-lane-band, .gantt-lane-accent').attr('opacity', FADE_OPACITY);
 }
 
 function resetHighlightAll(
@@ -813,6 +896,41 @@ function resetHighlightAll(
   chartG.selectAll<SVGElement, unknown>('.gantt-group-bar, .gantt-group-summary').attr('opacity', 1);
   svg.selectAll<SVGTextElement, unknown>('.gantt-task-label').attr('opacity', 1);
   svg.selectAll<SVGGElement, unknown>('.gantt-group-label').attr('opacity', 1);
+  svg.selectAll<SVGGElement, unknown>('.gantt-lane-header').attr('opacity', 1);
+  chartG.selectAll<SVGElement, unknown>('.gantt-lane-band, .gantt-lane-accent').attr('opacity', 1);
+}
+
+// ── Swimlane Icon Helper ─────────────────────────────────────
+
+function drawSwimlaneIcon(
+  parent: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
+  x: number,
+  y: number,
+  isActive: boolean,
+  palette: PaletteColors,
+): d3Selection.Selection<SVGGElement, unknown, null, undefined> {
+  const iconG = parent.append('g')
+    .attr('class', 'gantt-swimlane-icon')
+    .attr('transform', `translate(${x}, ${y})`);
+
+  const color = isActive ? palette.primary : palette.textMuted;
+  const opacity = isActive ? 1 : 0.35;
+  const barWidths = [8, 12, 6];
+  const barH = 2;
+  const gap = 3;
+
+  for (let i = 0; i < barWidths.length; i++) {
+    iconG.append('rect')
+      .attr('x', 0)
+      .attr('y', i * gap)
+      .attr('width', barWidths[i])
+      .attr('height', barH)
+      .attr('rx', 1)
+      .attr('fill', color)
+      .attr('opacity', opacity);
+  }
+
+  return iconG;
 }
 
 function renderTagLegend(
@@ -829,22 +947,35 @@ function renderTagLegend(
   criticalPathActive: boolean,
   onToggle?: (groupName: string) => void,
   onToggleCriticalPath?: () => void,
+  currentSwimlaneGroup?: string | null,
+  onSwimlaneChange?: (group: string | null) => void,
+  legendViewMode?: boolean,
 ): void {
   const groupBg = isDark
     ? mix(palette.surface, palette.bg, 50)
     : mix(palette.surface, palette.bg, 30);
 
-  // When a group is active, only show that group expanded — hide others
-  const visibleGroups = activeGroupName
-    ? tagGroups.filter(g => g.name.toLowerCase() === activeGroupName.toLowerCase())
-    : tagGroups;
+  // Build visible groups: active group expanded + swimlane group as compact pill
+  let visibleGroups: TagGroup[];
+  if (activeGroupName) {
+    const activeGroup = tagGroups.filter(g => g.name.toLowerCase() === activeGroupName.toLowerCase());
+    const swimlaneGroup = currentSwimlaneGroup && currentSwimlaneGroup.toLowerCase() !== activeGroupName.toLowerCase()
+      ? tagGroups.filter(g => g.name.toLowerCase() === currentSwimlaneGroup.toLowerCase())
+      : [];
+    visibleGroups = [...swimlaneGroup, ...activeGroup];
+  } else {
+    visibleGroups = tagGroups;
+  }
 
   // Compute per-group widths
   const groupWidths: number[] = [];
   let totalW = 0;
   for (const group of visibleGroups) {
     const isActive = activeGroupName?.toLowerCase() === group.name.toLowerCase();
-    const pillW = group.name.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
+    const isSwimlane = currentSwimlaneGroup?.toLowerCase() === group.name.toLowerCase();
+    const showIcon = !legendViewMode && tagGroups.length > 0;
+    const iconReserve = showIcon ? LEGEND_ICON_W : 0;
+    const pillW = group.name.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD + iconReserve;
     let groupW = pillW;
     if (isActive) {
       let entriesW = 0;
@@ -852,6 +983,9 @@ function renderTagLegend(
         entriesW += LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP + entry.value.length * LEGEND_ENTRY_FONT_W + LEGEND_ENTRY_TRAIL;
       }
       groupW = LEGEND_CAPSULE_PAD * 2 + pillW + 4 + entriesW;
+    } else if (isSwimlane && !isActive) {
+      // Compact swimlane pill: name + highlighted icon, no entries
+      groupW = pillW;
     }
     groupWidths.push(groupW);
     totalW += groupW;
@@ -878,7 +1012,10 @@ function renderTagLegend(
   for (let i = 0; i < visibleGroups.length; i++) {
     const group = visibleGroups[i];
     const isActive = activeGroupName?.toLowerCase() === group.name.toLowerCase();
-    const pillW = group.name.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
+    const isSwimlane = currentSwimlaneGroup?.toLowerCase() === group.name.toLowerCase();
+    const showIcon = !legendViewMode && tagGroups.length > 0;
+    const iconReserve = showIcon ? LEGEND_ICON_W : 0;
+    const pillW = group.name.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD + iconReserve;
     const pillH = isActive ? LEGEND_HEIGHT - LEGEND_CAPSULE_PAD * 2 : LEGEND_HEIGHT;
     const groupW = groupWidths[i];
 
@@ -923,17 +1060,37 @@ function renderTagLegend(
         .attr('stroke-width', 0.75);
     }
 
-    // Pill text
+    // Pill text (offset to leave room for icon on right)
+    const textW = group.name.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
     gEl.append('text')
-      .attr('x', pillXOff + pillW / 2)
+      .attr('x', pillXOff + textW / 2)
       .attr('y', LEGEND_HEIGHT / 2 + LEGEND_PILL_FONT_SIZE / 2 - 2)
       .attr('text-anchor', 'middle')
       .attr('font-size', `${LEGEND_PILL_FONT_SIZE}px`)
       .attr('font-weight', '500')
-      .attr('fill', isActive ? palette.text : palette.textMuted)
+      .attr('fill', isActive || isSwimlane ? palette.text : palette.textMuted)
       .text(group.name);
 
-    // Entries (when active)
+    // ≡ swimlane icon (after pill name)
+    if (showIcon) {
+      const iconX = pillXOff + textW + 3;
+      const iconY = (LEGEND_HEIGHT - 10) / 2;
+      const iconEl = drawSwimlaneIcon(gEl, iconX, iconY, isSwimlane, palette);
+      iconEl.append('title').text(`Group by ${group.name}`);
+      iconEl
+        .style('cursor', 'pointer')
+        .on('click', (event: Event) => {
+          event.stopPropagation();
+          if (onSwimlaneChange) {
+            onSwimlaneChange(
+              currentSwimlaneGroup?.toLowerCase() === group.name.toLowerCase()
+                ? null : group.name
+            );
+          }
+        });
+    }
+
+    // Entries (when active — expanded color group)
     if (isActive) {
       const tagKey = group.name.toLowerCase();
       let ex = pillXOff + pillW + LEGEND_CAPSULE_PAD + 4;
@@ -961,7 +1118,7 @@ function renderTagLegend(
           .attr('fill', palette.textMuted)
           .text(entry.value);
 
-        // Hover: highlight matching tasks + labels, fade others
+        // Hover: highlight matching tasks + labels + lane headers, fade others
         entryG
           .on('mouseenter', () => {
             chartG.selectAll<SVGGElement, unknown>('.gantt-task').each(function () {
@@ -979,6 +1136,13 @@ function renderTagLegend(
             });
             // Fade group labels
             svg.selectAll<SVGGElement, unknown>('.gantt-group-label').attr('opacity', FADE_OPACITY);
+            // Fade non-matching lane headers + bands + accents
+            svg.selectAll<SVGGElement, unknown>('.gantt-lane-header').each(function () {
+              const el = d3Selection.select(this);
+              const matches = el.attr(`data-tag-${tagKey}`) === entryValue;
+              el.attr('opacity', matches ? 1 : FADE_OPACITY);
+            });
+            chartG.selectAll<SVGElement, unknown>('.gantt-lane-band, .gantt-lane-accent').attr('opacity', FADE_OPACITY);
           })
           .on('mouseleave', () => {
             if (criticalPathActive) {
@@ -1181,11 +1345,13 @@ function resetHighlight(
 
 // ── Row Building ────────────────────────────────────────────
 
-interface Row {
-  type: 'group' | 'task';
-  group?: ResolvedGroup;
-  task?: ResolvedTask;
-}
+type GroupRow = { type: 'group'; group: ResolvedGroup };
+type TaskRow = { type: 'task'; task: ResolvedTask };
+type LaneHeaderRow = { type: 'lane-header'; laneName: string; laneColor: string; aggregateProgress: number | null; tagKey: string };
+type Row = GroupRow | TaskRow | LaneHeaderRow;
+
+// Public type aliases (prefixed to avoid collisions in consumer code)
+export type { GroupRow as GanttGroupRow, TaskRow as GanttTaskRow, LaneHeaderRow as GanttLaneHeaderRow, Row as GanttRow };
 
 function buildRowList(resolved: ResolvedSchedule, collapsedGroups?: Set<string>): Row[] {
   const rows: Row[] = [];
@@ -1249,6 +1415,90 @@ function buildRowList(resolved: ResolvedSchedule, collapsedGroups?: Set<string>)
       }
     }
     rows.push({ type: 'task', task: rt });
+  }
+
+  return rows;
+}
+
+// ── Tag Lane Row Building ──────────────────────────────────
+
+export function buildTagLaneRowList(
+  resolved: ResolvedSchedule,
+  swimlaneGroup: string,
+): Row[] | null {
+  const tagGroup = resolved.tagGroups.find(
+    g => g.name.toLowerCase() === swimlaneGroup.toLowerCase()
+  );
+  if (!tagGroup) return null;
+
+  const tagKey = tagGroup.name.toLowerCase();
+  const rows: Row[] = [];
+
+  // Bucket tasks by tag value
+  const buckets = new Map<string, ResolvedTask[]>();
+  const unbucketed: ResolvedTask[] = [];
+
+  for (const rt of resolved.tasks) {
+    let value = rt.effectiveMetadata[tagKey];
+    if (!value && tagGroup.defaultValue) {
+      value = tagGroup.defaultValue;
+    }
+    if (value) {
+      const key = value.toLowerCase();
+      if (!buckets.has(key)) buckets.set(key, []);
+      buckets.get(key)!.push(rt);
+    } else {
+      unbucketed.push(rt);
+    }
+  }
+
+  // Emit lanes in tag entry declaration order
+  for (const entry of tagGroup.entries) {
+    const entryKey = entry.value.toLowerCase();
+    const tasks = buckets.get(entryKey) ?? [];
+    // Sort tasks within lane by start date
+    tasks.sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
+
+    // Compute aggregate progress
+    const progressValues = tasks
+      .map(t => t.task.progress)
+      .filter((p): p is number => p !== null);
+    const aggregateProgress = progressValues.length > 0
+      ? progressValues.reduce((a, b) => a + b, 0) / progressValues.length
+      : null;
+
+    rows.push({
+      type: 'lane-header',
+      laneName: entry.value,
+      laneColor: entry.color,
+      aggregateProgress,
+      tagKey,
+    });
+    for (const rt of tasks) {
+      rows.push({ type: 'task', task: rt });
+    }
+  }
+
+  // Append unbucketed tasks as "No {GroupName}" lane
+  if (unbucketed.length > 0) {
+    unbucketed.sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
+    const progressValues = unbucketed
+      .map(t => t.task.progress)
+      .filter((p): p is number => p !== null);
+    const aggregateProgress = progressValues.length > 0
+      ? progressValues.reduce((a, b) => a + b, 0) / progressValues.length
+      : null;
+
+    rows.push({
+      type: 'lane-header',
+      laneName: `No ${tagGroup.name}`,
+      laneColor: '#999999',
+      aggregateProgress,
+      tagKey,
+    });
+    for (const rt of unbucketed) {
+      rows.push({ type: 'task', task: rt });
+    }
   }
 
   return rows;

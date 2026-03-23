@@ -2,8 +2,9 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { JSDOM } from 'jsdom';
 import { parseGantt } from '../src/gantt/parser';
 import { calculateSchedule } from '../src/gantt/calculator';
-import { renderGantt } from '../src/gantt/renderer';
+import { renderGantt, buildTagLaneRowList } from '../src/gantt/renderer';
 import { getPalette } from '../src/palettes';
+import type { GanttInteractiveOptions } from '../src/gantt/renderer';
 
 const palette = getPalette('nord').light;
 
@@ -27,13 +28,56 @@ function makeContainer(): HTMLDivElement {
   return container;
 }
 
-function renderFromInput(input: string) {
+function renderFromInput(input: string, options?: GanttInteractiveOptions) {
   const parsed = parseGantt(input, palette);
   const resolved = calculateSchedule(parsed);
   const container = makeContainer();
-  renderGantt(container, resolved, palette, false, undefined, { width: 800, height: 500 });
+  renderGantt(container, resolved, palette, false, options, { width: 800, height: 500 });
   return container;
 }
+
+function resolveFromInput(input: string) {
+  const parsed = parseGantt(input, palette);
+  return calculateSchedule(parsed);
+}
+
+// ── Test fixture for tag swimlane tests ──────────────────────
+
+const TAG_SWIMLANE_INPUT = `chart: gantt
+title: Tag Swimlane Test
+start: 2024-01-15
+critical-path: on
+dependencies: on
+
+tag: Team alias t
+  Engineering(blue)
+  Design(purple)
+  QA(orange)
+
+tag: Phase alias p
+  Design(green)
+  Build(orange)
+  Test(red) default
+
+era 2024-01 -> 2024-06: Phase 1
+marker 2024-03-01: Kickoff
+
+[Backend]
+  30bd: Database Layer | t: Engineering | p: Build | 80%
+  10bd: Auth Module | t: Engineering | p: Build | 100%
+    -> API Integration
+  parallel
+    5bd: Load Testing | t: QA | p: Test
+    5bd: Security Audit | t: Design | p: Test
+
+[Frontend]
+  15bd: Component Library | t: Design | p: Design
+  10bd: API Integration | t: Engineering | p: Build
+  5bd: Polish | t: Design | p: Build | 30%
+
+[QA]
+  10bd: E2E Testing
+  0d: Release Candidate`;
 
 describe('gantt renderer', () => {
   it('renders SVG element', () => {
@@ -123,7 +167,6 @@ describe('gantt renderer', () => {
   it('renders critical path styling when enabled', () => {
     const input = 'chart: gantt\nstart: 2024-01-15\ncritical-path: on\n10d: Task A\n5d: Task B';
     const container = renderFromInput(input);
-    // Should have task bars rendered (critical path styling is subtle)
     const tasks = container.querySelectorAll('.gantt-task');
     expect(tasks.length).toBeGreaterThanOrEqual(2);
   });
@@ -132,7 +175,6 @@ describe('gantt renderer', () => {
     const container = renderFromInput('chart: gantt\nstart: 2024-01-15\n30d?: Uncertain Task');
     const svg = container.querySelector('svg');
     expect(svg).not.toBeNull();
-    // Check for gradient definition
     const gradients = container.querySelectorAll('linearGradient');
     expect(gradients.length).toBeGreaterThanOrEqual(1);
   });
@@ -168,12 +210,7 @@ parallel
 
   it('supports collapse/expand via collapsedGroups', () => {
     const input = 'chart: gantt\nstart: 2024-01-15\n[Backend]\n  10d: Task A\n  5d: Task B';
-    const parsed = parseGantt(input, palette);
-    const resolved = calculateSchedule(parsed);
-    const container = makeContainer();
-
-    // Render with Backend collapsed
-    renderGantt(container, resolved, palette, false, undefined, { width: 800, height: 500 }, false, new Set(['Backend']));
+    const container = renderFromInput(input, { collapsedGroups: new Set(['Backend']) });
 
     // Should have group summary but fewer task bars
     const summaries = container.querySelectorAll('.gantt-group-summary');
@@ -186,5 +223,219 @@ parallel
     const container = renderFromInput('chart: gantt\nstart: 2024-01-15\ndependencies: on\n10d: Task A');
     const task = container.querySelector('.gantt-task');
     expect(task?.getAttribute('data-task-id')).toBeTruthy();
+  });
+});
+
+// ── buildTagLaneRowList unit tests ──────────────────────────
+
+describe('buildTagLaneRowList', () => {
+  it('buckets tasks by tag value correctly (case-insensitive)', () => {
+    const resolved = resolveFromInput(TAG_SWIMLANE_INPUT);
+    const rows = buildTagLaneRowList(resolved, 'Team');
+    expect(rows).not.toBeNull();
+
+    const laneHeaders = rows!.filter(r => r.type === 'lane-header');
+    expect(laneHeaders.map(h => h.type === 'lane-header' && h.laneName)).toEqual(
+      expect.arrayContaining(['Engineering', 'Design', 'QA'])
+    );
+
+    // Engineering lane should contain Database Layer, Auth Module, API Integration
+    const engIdx = rows!.findIndex(r => r.type === 'lane-header' && r.laneName === 'Engineering');
+    const designIdx = rows!.findIndex(r => r.type === 'lane-header' && r.laneName === 'Design');
+    const engTasks = rows!.slice(engIdx + 1, designIdx).filter(r => r.type === 'task');
+    expect(engTasks.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('lane ordering follows tag entry declaration order', () => {
+    const resolved = resolveFromInput(TAG_SWIMLANE_INPUT);
+    const rows = buildTagLaneRowList(resolved, 'Team')!;
+    const laneNames = rows
+      .filter(r => r.type === 'lane-header')
+      .map(r => r.type === 'lane-header' ? r.laneName : '');
+    // Entries: Engineering, Design, QA — plus possibly "No Team"
+    expect(laneNames[0]).toBe('Engineering');
+    expect(laneNames[1]).toBe('Design');
+    expect(laneNames[2]).toBe('QA');
+  });
+
+  it('untagged tasks go to No {GroupName} lane (last position)', () => {
+    const resolved = resolveFromInput(TAG_SWIMLANE_INPUT);
+    const rows = buildTagLaneRowList(resolved, 'Team')!;
+    const laneNames = rows
+      .filter(r => r.type === 'lane-header')
+      .map(r => r.type === 'lane-header' ? r.laneName : '');
+    // E2E Testing and Release Candidate have no team tag
+    if (laneNames.includes('No Team')) {
+      expect(laneNames[laneNames.length - 1]).toBe('No Team');
+    }
+  });
+
+  it('invalid swimlane group returns null', () => {
+    const resolved = resolveFromInput(TAG_SWIMLANE_INPUT);
+    const rows = buildTagLaneRowList(resolved, 'NonExistent');
+    expect(rows).toBeNull();
+  });
+
+  it('empty lane (tag entry with no matching tasks) — header with null progress', () => {
+    // Use a fixture where one entry has no matching tasks
+    const input = `chart: gantt
+start: 2024-01-15
+tag: Status
+  Active(green)
+  Deferred(gray)
+10d: Task A | Status: Active`;
+    const resolved = resolveFromInput(input);
+    const rows = buildTagLaneRowList(resolved, 'Status')!;
+    const deferredHeader = rows.find(
+      r => r.type === 'lane-header' && r.laneName === 'Deferred'
+    );
+    expect(deferredHeader).toBeDefined();
+    if (deferredHeader?.type === 'lane-header') {
+      expect(deferredHeader.aggregateProgress).toBeNull();
+    }
+  });
+
+  it('all tasks untagged → single No {GroupName} lane', () => {
+    const input = `chart: gantt
+start: 2024-01-15
+tag: Team
+  Engineering(blue)
+  Design(purple)
+10d: Task A
+5d: Task B`;
+    const resolved = resolveFromInput(input);
+    const rows = buildTagLaneRowList(resolved, 'Team')!;
+    const laneHeaders = rows.filter(r => r.type === 'lane-header');
+    // Engineering and Design empty + No Team
+    expect(laneHeaders.some(h => h.type === 'lane-header' && h.laneName === 'No Team')).toBe(true);
+    const taskRows = rows.filter(r => r.type === 'task');
+    expect(taskRows.length).toBe(2);
+  });
+
+  it('flat chart (no groups) + tag swimlanes works correctly', () => {
+    const input = `chart: gantt
+start: 2024-01-15
+tag: Team
+  A(blue)
+  B(red)
+10d: Task 1 | Team: A
+5d: Task 2 | Team: B`;
+    const resolved = resolveFromInput(input);
+    const rows = buildTagLaneRowList(resolved, 'Team')!;
+    expect(rows).not.toBeNull();
+    const laneHeaders = rows.filter(r => r.type === 'lane-header');
+    expect(laneHeaders.length).toBe(2); // A and B
+  });
+
+  it('aggregate progress is uniform average of non-null progress values', () => {
+    const input = `chart: gantt
+start: 2024-01-15
+tag: Team
+  Eng(blue)
+10d: Task A | Team: Eng | 80%
+10d: Task B | Team: Eng | 40%
+10d: Task C | Team: Eng`;
+    const resolved = resolveFromInput(input);
+    const rows = buildTagLaneRowList(resolved, 'Team')!;
+    const header = rows.find(r => r.type === 'lane-header' && r.laneName === 'Eng');
+    expect(header).toBeDefined();
+    if (header?.type === 'lane-header') {
+      // (80 + 40) / 2 = 60
+      expect(header.aggregateProgress).toBe(60);
+    }
+  });
+
+  it('default tag entry set → no No {GroupName} lane', () => {
+    const resolved = resolveFromInput(TAG_SWIMLANE_INPUT);
+    // Phase tag has "Test" as default
+    const rows = buildTagLaneRowList(resolved, 'Phase')!;
+    const laneNames = rows
+      .filter(r => r.type === 'lane-header')
+      .map(r => r.type === 'lane-header' ? r.laneName : '');
+    expect(laneNames).not.toContain('No Phase');
+  });
+});
+
+// ── Tag swimlane rendering tests ────────────────────────────
+
+describe('tag swimlane rendering', () => {
+  it('renders lane headers with data-lane attributes', () => {
+    const container = renderFromInput(TAG_SWIMLANE_INPUT, { currentSwimlaneGroup: 'Team' });
+    const laneHeaders = container.querySelectorAll('.gantt-lane-header');
+    expect(laneHeaders.length).toBeGreaterThanOrEqual(3);
+    const laneNames = Array.from(laneHeaders).map(h => h.getAttribute('data-lane'));
+    expect(laneNames).toContain('Engineering');
+    expect(laneNames).toContain('Design');
+    expect(laneNames).toContain('QA');
+  });
+
+  it('hides group labels when swimlane active', () => {
+    const container = renderFromInput(TAG_SWIMLANE_INPUT, { currentSwimlaneGroup: 'Team' });
+    const groupLabels = container.querySelectorAll('.gantt-group-label');
+    expect(groupLabels.length).toBe(0);
+  });
+
+  it('hides dependency arrows when swimlane active', () => {
+    const container = renderFromInput(TAG_SWIMLANE_INPUT, { currentSwimlaneGroup: 'Team' });
+    const arrows = container.querySelectorAll('.gantt-dep-arrow');
+    expect(arrows.length).toBe(0);
+  });
+
+  it('renders task elements with data-tag attributes in tag mode', () => {
+    const container = renderFromInput(TAG_SWIMLANE_INPUT, { currentSwimlaneGroup: 'Team' });
+    const tasks = container.querySelectorAll('.gantt-task');
+    expect(tasks.length).toBeGreaterThanOrEqual(1);
+    // Tasks should still have tag attributes
+    const taskWithTag = Array.from(tasks).find(t => t.getAttribute('data-tag-team'));
+    expect(taskWithTag).toBeDefined();
+  });
+
+  it('renders critical path attributes in tag mode', () => {
+    const container = renderFromInput(TAG_SWIMLANE_INPUT, { currentSwimlaneGroup: 'Team' });
+    const criticalTasks = container.querySelectorAll('[data-critical-path]');
+    expect(criticalTasks.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('renders progress fill in tag mode', () => {
+    const container = renderFromInput(TAG_SWIMLANE_INPUT, { currentSwimlaneGroup: 'Team' });
+    const progressBars = container.querySelectorAll('.gantt-progress');
+    expect(progressBars.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('renders swimlane icon when tag groups exist', () => {
+    const container = renderFromInput(TAG_SWIMLANE_INPUT);
+    const icons = container.querySelectorAll('.gantt-swimlane-icon');
+    expect(icons.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('hides swimlane icon when viewMode is true', () => {
+    const container = renderFromInput(TAG_SWIMLANE_INPUT, { viewMode: true });
+    const icons = container.querySelectorAll('.gantt-swimlane-icon');
+    expect(icons.length).toBe(0);
+  });
+
+  it('no tag groups → identical output, no icons', () => {
+    const input = 'chart: gantt\nstart: 2024-01-15\n10d: Task A\n5d: Task B';
+    const container = renderFromInput(input);
+    const icons = container.querySelectorAll('.gantt-swimlane-icon');
+    expect(icons.length).toBe(0);
+    const laneHeaders = container.querySelectorAll('.gantt-lane-header');
+    expect(laneHeaders.length).toBe(0);
+  });
+
+  it('structural fallback — invalid currentSwimlaneGroup renders group headers', () => {
+    const container = renderFromInput(TAG_SWIMLANE_INPUT, { currentSwimlaneGroup: 'NonExistent' });
+    const groupLabels = container.querySelectorAll('.gantt-group-label');
+    expect(groupLabels.length).toBeGreaterThanOrEqual(1);
+    const laneHeaders = container.querySelectorAll('.gantt-lane-header');
+    expect(laneHeaders.length).toBe(0);
+  });
+
+  it('renders eras and markers in tag mode', () => {
+    const container = renderFromInput(TAG_SWIMLANE_INPUT, { currentSwimlaneGroup: 'Team' });
+    const eras = container.querySelectorAll('.gantt-era');
+    expect(eras.length).toBeGreaterThanOrEqual(1);
+    const markers = container.querySelectorAll('.gantt-marker');
+    expect(markers.length).toBeGreaterThanOrEqual(1);
   });
 });

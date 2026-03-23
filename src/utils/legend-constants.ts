@@ -16,6 +16,7 @@ export const LEGEND_ENTRY_TRAIL = 8;
 export const LEGEND_GROUP_GAP = 12;
 export const LEGEND_EYE_SIZE = 14;
 export const LEGEND_EYE_GAP = 6;
+export const LEGEND_ICON_W = 20;
 
 // Eye icon SVG paths (14×14 viewBox)
 // Present only in org and sitemap legends (metadata visibility toggle)
