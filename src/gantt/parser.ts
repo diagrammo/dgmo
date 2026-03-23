@@ -303,7 +303,7 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
           const meta = parsePipeMetadata(['', ...depParts.slice(1)], aliasMap);
           if (meta.lag || meta.lead) {
             const key = meta.lag ? 'lag' : 'lead';
-            warn(lineNumber, `"${key}" is deprecated — use "offset: ${meta[key]}" instead.${key === 'lead' ? ' Negate the value for lead behavior: "offset: -...".' : ''}`);
+            return fail(lineNumber, `Unknown keyword "${key}". Use "offset: ${meta[key]}" instead.`);
           }
           if (meta.offset) {
             const raw = meta.offset;
@@ -663,12 +663,10 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
       }
     }
 
-    // Deprecation warning for lag/lead on task lines
+    // Reject lag/lead — use offset instead
     if (metadata.lag || metadata.lead) {
       const key = metadata.lag ? 'lag' : 'lead';
-      warn(ln, `"${key}" is deprecated — use "offset: ${metadata[key]}" instead.${key === 'lead' ? ' Negate the value for lead behavior: "offset: -...".' : ''}`);
-      delete metadata.lag;
-      delete metadata.lead;
+      fail(ln, `Unknown keyword "${key}". Use "offset: ${metadata[key]}" instead.`);
     }
 
     // Extract task-level offset from metadata

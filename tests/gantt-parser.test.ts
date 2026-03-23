@@ -260,25 +260,21 @@ describe('gantt parser', () => {
       expect(result.diagnostics.some(d => d.message.includes('Explicit "+" is not supported'))).toBe(true);
     });
 
-    it('warns on deprecated lag keyword', () => {
+    it('rejects lag keyword with error', () => {
       const input = 'chart: gantt\n10d: Task A\n  -> Task B | lag: 3bd\n10d: Task B';
       const result = parseGantt(input, palette);
-      const taskA = result.nodes[0];
-      if (taskA.kind === 'task') {
-        expect(taskA.dependencies[0].offset).toBeUndefined();
-      }
-      expect(result.diagnostics.some(d => d.message.includes('"lag" is deprecated'))).toBe(true);
+      expect(result.error).toMatch(/Unknown keyword "lag"/);
     });
 
-    it('warns on deprecated lead keyword', () => {
+    it('rejects lead keyword with error', () => {
       const input = 'chart: gantt\n10d: Task A\n  -> Task B | lead: 3bd\n10d: Task B';
       const result = parseGantt(input, palette);
-      expect(result.diagnostics.some(d => d.message.includes('"lead" is deprecated'))).toBe(true);
+      expect(result.error).toMatch(/Unknown keyword "lead"/);
     });
 
-    it('warns on deprecated lag on task line', () => {
+    it('rejects lag on task line with error', () => {
       const result = parseGantt('chart: gantt\n10bd: Task | lag: 5bd', palette);
-      expect(result.diagnostics.some(d => d.message.includes('"lag" is deprecated'))).toBe(true);
+      expect(result.error).toMatch(/Unknown keyword "lag"/);
     });
   });
 
