@@ -1851,10 +1851,11 @@ export function buildTagLaneRowList(
     }
   }
 
-  // Emit lanes in tag entry declaration order
+  // Emit lanes in tag entry declaration order (skip empty lanes)
   for (const entry of tagGroup.entries) {
     const entryKey = entry.value.toLowerCase();
     const tasks = buckets.get(entryKey) ?? [];
+    if (tasks.length === 0) continue;
     // Sort tasks within lane by start date
     tasks.sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
 

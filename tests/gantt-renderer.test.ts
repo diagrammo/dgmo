@@ -276,8 +276,8 @@ describe('buildTagLaneRowList', () => {
     expect(rows).toBeNull();
   });
 
-  it('empty lane (tag entry with no matching tasks) — header with null progress', () => {
-    // Use a fixture where one entry has no matching tasks
+  it('empty lane (tag entry with no matching tasks) — skipped entirely', () => {
+    // Tag entries with no tasks should not appear as swimlanes
     const input = `chart: gantt
 start: 2024-01-15
 tag: Status
@@ -289,10 +289,11 @@ tag: Status
     const deferredHeader = rows.find(
       r => r.type === 'lane-header' && r.laneName === 'Deferred'
     );
-    expect(deferredHeader).toBeDefined();
-    if (deferredHeader?.type === 'lane-header') {
-      expect(deferredHeader.aggregateProgress).toBeNull();
-    }
+    expect(deferredHeader).toBeUndefined();
+    const activeHeader = rows.find(
+      r => r.type === 'lane-header' && r.laneName === 'Active'
+    );
+    expect(activeHeader).toBeDefined();
   });
 
   it('all tasks untagged → single No {GroupName} lane', () => {
@@ -306,8 +307,9 @@ tag: Team
     const resolved = resolveFromInput(input);
     const rows = buildTagLaneRowList(resolved, 'Team')!;
     const laneHeaders = rows.filter(r => r.type === 'lane-header');
-    // Engineering and Design empty + No Team
-    expect(laneHeaders.some(h => h.type === 'lane-header' && h.laneName === 'No Team')).toBe(true);
+    // Engineering and Design are empty so skipped — only No Team remains
+    expect(laneHeaders.length).toBe(1);
+    expect(laneHeaders[0].type === 'lane-header' && laneHeaders[0].laneName === 'No Team').toBe(true);
     const taskRows = rows.filter(r => r.type === 'task');
     expect(taskRows.length).toBe(2);
   });
