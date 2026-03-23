@@ -2032,6 +2032,22 @@ function showGanttDateIndicators(
     const endPos = xScale(dateToFractionalYear(endDate));
     const endLabel = formatGanttDate(endDate);
 
+    // When dates are close, push labels apart so they don't overlap.
+    // ~90px is roughly the width of a date label like "Aug 12, 2026" at 10px.
+    const minLabelGap = 90;
+    const gap = endPos - startPos;
+    let startLabelX = startPos;
+    let endLabelX = endPos;
+    let startAnchor = 'middle';
+    let endAnchor = 'middle';
+    if (gap < minLabelGap) {
+      const mid = (startPos + endPos) / 2;
+      startLabelX = mid - minLabelGap / 2;
+      endLabelX = mid + minLabelGap / 2;
+      startAnchor = 'middle';
+      endAnchor = 'middle';
+    }
+
     // End date — dashed vertical line
     g.append('line')
       .attr('class', 'gantt-hover-date')
@@ -2044,12 +2060,20 @@ function showGanttDateIndicators(
       .attr('stroke-dasharray', '4 4')
       .attr('opacity', 0.6);
 
+    // Reposition start labels to avoid overlap
+    g.selectAll<SVGTextElement, unknown>('text.gantt-hover-date').each(function () {
+      const el = d3Selection.select(this);
+      if (el.text() === startLabel) {
+        el.attr('x', startLabelX).attr('text-anchor', startAnchor);
+      }
+    });
+
     // End date — top label
     g.append('text')
       .attr('class', 'gantt-hover-date')
-      .attr('x', endPos)
+      .attr('x', endLabelX)
       .attr('y', -tickLen - 4)
-      .attr('text-anchor', 'middle')
+      .attr('text-anchor', endAnchor)
       .attr('fill', color)
       .attr('font-size', '10px')
       .attr('font-weight', '600')
@@ -2058,9 +2082,9 @@ function showGanttDateIndicators(
     // End date — bottom label
     g.append('text')
       .attr('class', 'gantt-hover-date')
-      .attr('x', endPos)
+      .attr('x', endLabelX)
       .attr('y', innerHeight + tickLen + 12)
-      .attr('text-anchor', 'middle')
+      .attr('text-anchor', endAnchor)
       .attr('fill', color)
       .attr('font-size', '10px')
       .attr('font-weight', '600')
