@@ -347,6 +347,7 @@ export function renderGantt(
         .append('g')
         .attr('class', 'gantt-group-label')
         .attr('data-group', group.name)
+        .attr('data-line-number', String(group.lineNumber))
         .style('cursor', onToggleGroup ? 'pointer' : 'default')
         .on('click', () => {
           if (onToggleGroup) onToggleGroup(group.name);
