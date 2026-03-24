@@ -5816,6 +5816,8 @@ function finalizeSvgExport(
   }
   svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
   svgEl.style.fontFamily = FONT_FAMILY;
+  // Strip elements marked for export exclusion (e.g., inactive legend pills)
+  svgEl.querySelectorAll('[data-export-ignore]').forEach((el) => el.remove());
   const svgHtml = svgEl.outerHTML;
   document.body.removeChild(container);
   if (options?.branding !== false) {

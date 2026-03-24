@@ -674,6 +674,11 @@ export function renderInitiativeStatus(
         .attr('data-legend-group', lg.key)
         .style('cursor', 'pointer');
 
+      // Mark inactive pills so exports can hide them
+      if (!isActive) {
+        gEl.attr('data-export-ignore', 'true');
+      }
+
       if (isActive) {
         // Outer capsule background
         gEl.append('rect')
@@ -724,18 +729,33 @@ export function renderInitiativeStatus(
         // Determine which values are hidden for this group
         const hiddenSet = !lg.isStatus ? hiddenTagValues?.get(lg.key) : undefined;
 
-        let entryX = pillXOff + pillW + 4;
+        // Render each entry in its own <g> with local coordinates,
+        // positioned via transform so we can reflow after measuring.
+        const entryStartX = pillXOff + pillW + 4;
+        const entryData: { g: d3Selection.Selection<SVGGElement, unknown, null, undefined>; textEl: SVGTextElement; estimatedW: number }[] = [];
+        let estimatedX = entryStartX;
+
         for (const entry of lg.entries) {
           const isHidden = hiddenSet?.has(entry.value) ?? false;
+          const estimatedTextW = entry.label.length * LEGEND_ENTRY_FONT_W;
 
           const entryG = gEl.append('g')
             .attr('data-legend-entry', entry.value)
-            .style('cursor', !lg.isStatus ? 'pointer' : 'default');
+            .attr('transform', `translate(${estimatedX}, 0)`)
+            .style('cursor', 'pointer');
+
+          // Transparent hit-area rect
+          const entryW = LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP + estimatedTextW + LEGEND_ENTRY_TRAIL;
+          entryG.append('rect')
+            .attr('x', -2)
+            .attr('y', 0)
+            .attr('width', entryW + 4)
+            .attr('height', LEGEND_HEIGHT)
+            .attr('fill', 'transparent');
 
           if (isHidden) {
-            // Hidden: hollow ring + dimmed text (strikethrough-like)
             entryG.append('circle')
-              .attr('cx', entryX + LEGEND_DOT_R)
+              .attr('cx', LEGEND_DOT_R)
               .attr('cy', LEGEND_HEIGHT / 2)
               .attr('r', LEGEND_DOT_R)
               .attr('fill', 'none')
@@ -743,16 +763,15 @@ export function renderInitiativeStatus(
               .attr('stroke-width', 1.2)
               .attr('opacity', 0.5);
           } else {
-            // Visible: solid dot
             entryG.append('circle')
-              .attr('cx', entryX + LEGEND_DOT_R)
+              .attr('cx', LEGEND_DOT_R)
               .attr('cy', LEGEND_HEIGHT / 2)
               .attr('r', LEGEND_DOT_R)
               .attr('fill', entry.color);
           }
 
-          entryG.append('text')
-            .attr('x', entryX + LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP)
+          const textEl = entryG.append('text')
+            .attr('x', LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP)
             .attr('y', LEGEND_HEIGHT / 2 + LEGEND_ENTRY_FONT_SIZE / 2 - 1)
             .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
             .attr('fill', palette.textMuted)
@@ -761,7 +780,20 @@ export function renderInitiativeStatus(
             .attr('text-decoration', isHidden ? 'line-through' : 'none')
             .text(entry.label);
 
-          entryX += LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP + entry.label.length * LEGEND_ENTRY_FONT_W + LEGEND_ENTRY_TRAIL;
+          entryData.push({ g: entryG, textEl: textEl.node()!, estimatedW: estimatedTextW });
+          estimatedX += LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP + estimatedTextW + LEGEND_ENTRY_TRAIL;
+        }
+
+        // Reflow using measured text widths for even spacing
+        let reflowX = entryStartX;
+        for (const ed of entryData) {
+          const measuredW = ed.textEl.getComputedTextLength?.() ?? 0;
+          const textW = measuredW > 0 ? measuredW : ed.estimatedW;
+          ed.g.attr('transform', `translate(${reflowX}, 0)`);
+          // Update hit-area rect width to match actual width
+          const actualEntryW = LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP + textW + LEGEND_ENTRY_TRAIL;
+          ed.g.select('rect').attr('width', actualEntryW + 4);
+          reflowX += actualEntryW;
         }
       }
 
