@@ -40,6 +40,73 @@ const MIN_LEFT_MARGIN = 120;
 const BOTTOM_MARGIN = 40;
 const RIGHT_MARGIN = 20;
 
+// ── Left-panel visual helpers ───────────────────────────────
+
+const BAND_ACCENT_W = 4;
+const BAND_RADIUS = 4;
+let bandClipCounter = 0;
+
+function renderLabelBand(
+  svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
+  y: number,
+  leftMargin: number,
+  color: string,
+  palette: PaletteColors,
+  cssPrefix: 'group' | 'lane',
+  dataAttr?: { key: string; value: string },
+): void {
+  const bandX = 5;
+  const bandW = leftMargin - 7;
+  const bandY = y - BAR_H / 2;
+  const clipId = `gantt-band-clip-${bandClipCounter++}`;
+
+  // ClipPath matching the tint band shape
+  svg.append('clipPath').attr('id', clipId)
+    .append('rect')
+    .attr('x', bandX).attr('y', bandY)
+    .attr('width', bandW).attr('height', BAR_H)
+    .attr('rx', BAND_RADIUS);
+
+  // Tint band
+  const tint = svg.append('rect')
+    .attr('class', `gantt-${cssPrefix}-band-bg`)
+    .attr('x', bandX)
+    .attr('y', bandY)
+    .attr('width', bandW)
+    .attr('height', BAR_H)
+    .attr('rx', BAND_RADIUS)
+    .attr('fill', mix(color, palette.bg, 20))
+    .style('pointer-events', 'none');
+
+  // Accent strip inside the tint, clipped to the band's rounded shape
+  const accent = svg.append('rect')
+    .attr('class', `gantt-${cssPrefix}-band-accent`)
+    .attr('x', bandX)
+    .attr('y', bandY)
+    .attr('width', BAND_ACCENT_W)
+    .attr('height', BAR_H)
+    .attr('fill', color)
+    .attr('clip-path', `url(#${clipId})`)
+    .style('pointer-events', 'none');
+
+  if (dataAttr) {
+    tint.attr(dataAttr.key, dataAttr.value);
+    accent.attr(dataAttr.key, dataAttr.value);
+  }
+}
+
+function appendTaskIcon(
+  textEl: d3Selection.Selection<SVGTextElement, unknown, null, undefined>,
+  label: string,
+  isMilestone: boolean,
+  iconColor: string,
+  textColor: string,
+): void {
+  const icon = isMilestone ? '◆' : '●';
+  textEl.append('tspan').attr('fill', iconColor).text(icon);
+  textEl.append('tspan').attr('fill', textColor).text(' ' + label);
+}
+
 // ── Interactive Options ─────────────────────────────────────
 
 export interface GanttInteractiveOptions {
@@ -67,6 +134,7 @@ export function renderGantt(
 ): void {
   // Clear previous content
   container.innerHTML = '';
+  bandClipCounter = 0;
 
   if (resolved.tasks.length === 0) return;
 
@@ -98,15 +166,18 @@ export function renderGantt(
   const rows = tagRows ?? buildRowList(resolved, collapsedGroups);
   const isTagMode = tagRows !== null;
 
-  // Compute left margin based on longest visible label
+  // Compute left margin based on longest visible label (include ● /◆  prefix for tasks)
   const allLabels = isTagMode
     ? [
         ...rows.filter((r): r is LaneHeaderRow => r.type === 'lane-header').map(r => r.laneName),
-        ...rows.filter((r): r is TaskRow => r.type === 'task').map(r => r.task.task.label),
+        ...rows.filter((r): r is TaskRow => r.type === 'task').map(r => '● ' + r.task.task.label),
       ]
     : [
-        ...resolved.tasks.map(t => t.task.label),
-        ...resolved.groups.map(g => '  '.repeat(g.depth) + g.name),
+        ...resolved.tasks.map(t => '● ' + t.task.label),
+        ...resolved.groups.map(g => {
+          const px = g.depth <= 2 ? g.depth * 14 : 2 * 14 + (g.depth - 2) * 8;
+          return ' '.repeat(Math.ceil(px / 7)) + g.name;
+        }),
       ];
   const maxLabelLen = Math.max(...allLabels.map(l => l.length), 10);
   const leftMargin = Math.max(MIN_LEFT_MARGIN, maxLabelLen * 7 + 30);
@@ -322,6 +393,7 @@ export function renderGantt(
 
       lanePositions.set(row.laneName, { x1: lx1, x2: lx1 + laneBarWidth, y: yOffset + BAR_H / 2 });
 
+      renderLabelBand(svg, marginTop + yOffset + BAR_H / 2, leftMargin, laneColor, palette, 'lane', { key: 'data-lane', value: row.laneName });
       const labelG = svg
         .append('g')
         .attr('class', 'gantt-lane-header')
@@ -406,6 +478,7 @@ export function renderGantt(
       // Group label with toggle — resolve tag color from group metadata
       const tagColor = resolveTagColor(group.metadata, resolved.tagGroups, currentActiveGroup, true);
       const groupColor = (tagColor && tagColor !== '#999999') ? tagColor : (group.color || palette.textMuted);
+      renderLabelBand(svg, marginTop + yOffset + BAR_H / 2, leftMargin, groupColor, palette, 'group', { key: 'data-group', value: group.name });
       const labelG = svg
         .append('g')
         .attr('class', 'gantt-group-label')
@@ -424,7 +497,8 @@ export function renderGantt(
           hideGanttDateIndicators(g);
         });
 
-      const labelX = 10 + group.depth * 14;
+      const groupIndent = group.depth <= 2 ? group.depth * 14 : 2 * 14 + (group.depth - 2) * 8;
+      const labelX = 10 + groupIndent;
       labelG
         .append('text')
         .attr('x', labelX)
@@ -530,8 +604,13 @@ export function renderGantt(
       const rt = row.task;
       const task = rt.task;
 
+      // Resolve bar color early so icon tspan can use it
+      const barColor = resolveTaskColor(rt, currentActiveGroup, resolved, seriesColors, palette);
+
       // Task label on the left (left-aligned with indent; flat in tag mode)
-      const taskLabelX = isTagMode ? 20 : 6 + rt.groupPath.length * 14;
+      const depth = rt.groupPath.length;
+      const indent = depth <= 2 ? depth * 14 : 2 * 14 + (depth - 2) * 8;
+      const taskLabelX = isTagMode ? 20 : 6 + indent;
       const topGroup = rt.groupPath.length > 0 ? rt.groupPath[0] : null;
       const taskLabel = svg
         .append('text')
@@ -546,7 +625,6 @@ export function renderGantt(
         .attr('data-task-id', task.id)
         .attr('data-group', topGroup)
         .style('cursor', onClickItem ? 'pointer' : 'default')
-        .text(task.label)
         .on('click', () => {
           if (onClickItem) onClickItem(task.lineNumber);
         })
@@ -561,6 +639,8 @@ export function renderGantt(
           resetHighlight(g, svg);
         });
 
+      appendTaskIcon(taskLabel, task.label, rt.isMilestone, barColor, palette.text);
+
       // Tag attributes on label for legend hover matching
       for (const [key, value] of Object.entries(rt.effectiveMetadata)) {
         taskLabel.attr(`data-tag-${key}`, value.toLowerCase());
@@ -568,9 +648,6 @@ export function renderGantt(
       if (rt.isCriticalPath) {
         taskLabel.attr('data-critical-path', 'true');
       }
-
-      // Determine color
-      let barColor = resolveTaskColor(rt, currentActiveGroup, resolved, seriesColors, palette);
 
       if (rt.isMilestone) {
         // Render diamond
@@ -1123,7 +1200,9 @@ function applyCriticalPathHighlight(
     el.attr('opacity', el.attr('data-critical-path') === 'true' ? 1 : FADE_OPACITY);
   });
   svg.selectAll<SVGGElement, unknown>('.gantt-group-label').attr('opacity', FADE_OPACITY);
+  svg.selectAll<SVGElement, unknown>('.gantt-group-band-bg, .gantt-group-band-accent').attr('opacity', FADE_OPACITY);
   svg.selectAll<SVGGElement, unknown>('.gantt-lane-header').attr('opacity', FADE_OPACITY);
+  svg.selectAll<SVGElement, unknown>('.gantt-lane-band-bg, .gantt-lane-band-accent').attr('opacity', FADE_OPACITY);
   chartG.selectAll<SVGElement, unknown>('.gantt-lane-band, .gantt-lane-accent').attr('opacity', FADE_OPACITY);
   // Show critical path arrows at full opacity, fade others
   chartG.selectAll<SVGElement, unknown>('.gantt-dep-arrow, .gantt-dep-arrowhead').each(function () {
@@ -1140,7 +1219,9 @@ function resetHighlightAll(
   chartG.selectAll<SVGElement, unknown>('.gantt-group-bar, .gantt-group-summary').attr('opacity', 1);
   svg.selectAll<SVGTextElement, unknown>('.gantt-task-label').attr('opacity', 1);
   svg.selectAll<SVGGElement, unknown>('.gantt-group-label').attr('opacity', 1);
+  svg.selectAll<SVGElement, unknown>('.gantt-group-band-bg, .gantt-group-band-accent').attr('opacity', 1);
   svg.selectAll<SVGGElement, unknown>('.gantt-lane-header').attr('opacity', 1);
+  svg.selectAll<SVGElement, unknown>('.gantt-lane-band-bg, .gantt-lane-band-accent').attr('opacity', 1);
   chartG.selectAll<SVGElement, unknown>('.gantt-lane-band, .gantt-lane-accent').attr('opacity', 1);
   chartG.selectAll<SVGElement, unknown>('.gantt-dep-arrow, .gantt-dep-arrowhead').attr('opacity', 0.5);
 }
@@ -1751,8 +1832,14 @@ function highlightGroup(
     const el = d3Selection.select(this);
     el.attr('opacity', el.attr('data-group') === groupName ? 1 : FADE_OPACITY);
   });
+  // Fade group bands not matching
+  svg.selectAll<SVGElement, unknown>('.gantt-group-band-bg, .gantt-group-band-accent').each(function () {
+    const el = d3Selection.select(this);
+    el.attr('opacity', el.attr('data-group') === groupName ? 1 : FADE_OPACITY);
+  });
   // Fade lane elements
   svg.selectAll<SVGGElement, unknown>('.gantt-lane-header').attr('opacity', FADE_OPACITY);
+  svg.selectAll<SVGElement, unknown>('.gantt-lane-band-bg, .gantt-lane-band-accent').attr('opacity', FADE_OPACITY);
   g.selectAll<SVGElement, unknown>('.gantt-lane-band, .gantt-lane-accent').attr('opacity', FADE_OPACITY);
   // Fade markers
   g.selectAll<SVGElement, unknown>('.gantt-marker-group').attr('opacity', FADE_OPACITY);
@@ -1792,9 +1879,15 @@ function highlightLane(
     const el = d3Selection.select(this);
     el.attr('opacity', el.attr('data-lane') === laneName ? 1 : FADE_OPACITY);
   });
+  // Fade lane bands not matching
+  svg.selectAll<SVGElement, unknown>('.gantt-lane-band-bg, .gantt-lane-band-accent').each(function () {
+    const el = d3Selection.select(this);
+    el.attr('opacity', el.attr('data-lane') === laneName ? 1 : FADE_OPACITY);
+  });
   // Fade group elements (not relevant in lane mode)
   g.selectAll<SVGElement, unknown>('.gantt-group-bar, .gantt-group-summary').attr('opacity', FADE_OPACITY);
   svg.selectAll<SVGGElement, unknown>('.gantt-group-label').attr('opacity', FADE_OPACITY);
+  svg.selectAll<SVGElement, unknown>('.gantt-group-band-bg, .gantt-group-band-accent').attr('opacity', FADE_OPACITY);
   // Fade markers
   g.selectAll<SVGElement, unknown>('.gantt-marker-group').attr('opacity', FADE_OPACITY);
 }
@@ -1819,7 +1912,9 @@ function highlightTask(
   // Fade group/lane elements
   g.selectAll<SVGElement, unknown>('.gantt-group-bar, .gantt-group-summary').attr('opacity', FADE_OPACITY);
   svg.selectAll<SVGGElement, unknown>('.gantt-group-label').attr('opacity', FADE_OPACITY);
+  svg.selectAll<SVGElement, unknown>('.gantt-group-band-bg, .gantt-group-band-accent').attr('opacity', FADE_OPACITY);
   svg.selectAll<SVGGElement, unknown>('.gantt-lane-header').attr('opacity', FADE_OPACITY);
+  svg.selectAll<SVGElement, unknown>('.gantt-lane-band-bg, .gantt-lane-band-accent').attr('opacity', FADE_OPACITY);
   g.selectAll<SVGElement, unknown>('.gantt-lane-band, .gantt-lane-accent, .gantt-lane-band-group').attr('opacity', FADE_OPACITY);
   g.selectAll<SVGElement, unknown>('.gantt-dep-arrow, .gantt-dep-arrowhead').attr('opacity', FADE_OPACITY);
   // Fade markers
@@ -1846,7 +1941,9 @@ function highlightMilestone(
   // Fade group/lane elements
   g.selectAll<SVGElement, unknown>('.gantt-group-bar, .gantt-group-summary').attr('opacity', FADE_OPACITY);
   svg.selectAll<SVGGElement, unknown>('.gantt-group-label').attr('opacity', FADE_OPACITY);
+  svg.selectAll<SVGElement, unknown>('.gantt-group-band-bg, .gantt-group-band-accent').attr('opacity', FADE_OPACITY);
   svg.selectAll<SVGGElement, unknown>('.gantt-lane-header').attr('opacity', FADE_OPACITY);
+  svg.selectAll<SVGElement, unknown>('.gantt-lane-band-bg, .gantt-lane-band-accent').attr('opacity', FADE_OPACITY);
   g.selectAll<SVGElement, unknown>('.gantt-lane-band, .gantt-lane-accent, .gantt-lane-band-group').attr('opacity', FADE_OPACITY);
   g.selectAll<SVGElement, unknown>('.gantt-dep-arrow, .gantt-dep-arrowhead').attr('opacity', FADE_OPACITY);
   // Fade markers
@@ -1877,8 +1974,10 @@ function resetHighlight(
   g.selectAll<SVGGElement, unknown>('.gantt-task, .gantt-milestone').attr('opacity', 1);
   g.selectAll<SVGElement, unknown>('.gantt-group-bar, .gantt-group-summary').attr('opacity', 1);
   svg.selectAll<SVGGElement, unknown>('.gantt-group-label').attr('opacity', 1);
+  svg.selectAll<SVGElement, unknown>('.gantt-group-band-bg, .gantt-group-band-accent').attr('opacity', 1);
   svg.selectAll<SVGTextElement, unknown>('.gantt-task-label').attr('opacity', 1);
   svg.selectAll<SVGGElement, unknown>('.gantt-lane-header').attr('opacity', 1);
+  svg.selectAll<SVGElement, unknown>('.gantt-lane-band-bg, .gantt-lane-band-accent').attr('opacity', 1);
   g.selectAll<SVGElement, unknown>('.gantt-lane-band, .gantt-lane-accent, .gantt-lane-band-group').attr('opacity', 1);
   g.selectAll<SVGElement, unknown>('.gantt-dep-arrow, .gantt-dep-arrowhead').attr('opacity', 0.5);
   g.selectAll<SVGElement, unknown>('.gantt-marker-group').attr('opacity', 1);

@@ -596,3 +596,118 @@ describe('hover date indicators', () => {
     expect(hoverDates.length).toBeGreaterThanOrEqual(3);
   });
 });
+
+describe('left panel visual enhancements', () => {
+  const groupedInput = `chart: gantt
+start: 2024-01-15
+tag: Team alias t
+  Engineering(blue)
+  Design(purple)
+
+[Backend]
+  10d: Database Layer | t: Engineering
+  5d: Auth Module | t: Engineering
+
+[Frontend]
+  10d: Component Library | t: Design
+  0d: Release Milestone`;
+
+  it('renders group band background and accent rects', () => {
+    const container = renderFromInput(groupedInput);
+    const bgBands = container.querySelectorAll('.gantt-group-band-bg');
+    const accentBands = container.querySelectorAll('.gantt-group-band-accent');
+    expect(bgBands.length).toBe(2); // Backend + Frontend
+    expect(accentBands.length).toBe(2);
+  });
+
+  it('group band rects have pointer-events none', () => {
+    const container = renderFromInput(groupedInput);
+    const bg = container.querySelector('.gantt-group-band-bg') as SVGElement;
+    expect(bg).toBeTruthy();
+    expect(bg.style.pointerEvents).toBe('none');
+  });
+
+  it('group band rects have data-group attribute', () => {
+    const container = renderFromInput(groupedInput);
+    const bgs = container.querySelectorAll('.gantt-group-band-bg');
+    const groups = Array.from(bgs).map(el => el.getAttribute('data-group'));
+    expect(groups).toContain('Backend');
+    expect(groups).toContain('Frontend');
+  });
+
+  it('renders task labels with icon tspan', () => {
+    const container = renderFromInput(groupedInput);
+    const label = container.querySelector('.gantt-task-label');
+    expect(label).toBeTruthy();
+    const tspans = label!.querySelectorAll('tspan');
+    expect(tspans.length).toBe(2);
+    expect(tspans[0].textContent).toBe('●');
+  });
+
+  it('renders milestone labels with diamond icon', () => {
+    const container = renderFromInput(groupedInput);
+    const labels = container.querySelectorAll('.gantt-task-label');
+    const milestoneTspans = Array.from(labels).find(
+      l => l.querySelector('tspan')?.textContent === '◆'
+    );
+    expect(milestoneTspans).toBeTruthy();
+  });
+
+  it('renders lane band in swimlane mode', () => {
+    const container = renderFromInput(TAG_SWIMLANE_INPUT, { currentSwimlaneGroup: 'Team' });
+    const bgBands = container.querySelectorAll('.gantt-lane-band-bg');
+    const accentBands = container.querySelectorAll('.gantt-lane-band-accent');
+    expect(bgBands.length).toBeGreaterThan(0);
+    expect(accentBands.length).toBeGreaterThan(0);
+  });
+
+  it('lane band rects have data-lane attribute', () => {
+    const container = renderFromInput(TAG_SWIMLANE_INPUT, { currentSwimlaneGroup: 'Team' });
+    const bgs = container.querySelectorAll('.gantt-lane-band-bg');
+    const lanes = Array.from(bgs).map(el => el.getAttribute('data-lane'));
+    expect(lanes).toContain('Engineering');
+    expect(lanes).toContain('Design');
+  });
+
+  it('task icons use tspan in swimlane mode too', () => {
+    const container = renderFromInput(TAG_SWIMLANE_INPUT, { currentSwimlaneGroup: 'Team' });
+    const label = container.querySelector('.gantt-task-label');
+    expect(label).toBeTruthy();
+    const tspans = label!.querySelectorAll('tspan');
+    expect(tspans.length).toBe(2);
+    expect(['●', '◆']).toContain(tspans[0].textContent);
+  });
+
+  it('ungrouped flat tasks get dot icon with no bands', () => {
+    const flatInput = `chart: gantt
+start: 2024-01-15
+
+5d: Task A
+5d: Task B`;
+    const container = renderFromInput(flatInput);
+    expect(container.querySelectorAll('.gantt-group-band-bg').length).toBe(0);
+    const label = container.querySelector('.gantt-task-label');
+    const tspans = label!.querySelectorAll('tspan');
+    expect(tspans.length).toBe(2);
+    expect(tspans[0].textContent).toBe('●');
+  });
+
+  it('deep nesting reduces indent step at depth 3+', () => {
+    // Depth 0→2 uses 14px per level; depth 3+ uses 8px per level
+    // At depth 2: 6 + 2*14 = 34
+    // At depth 3: 6 + 2*14 + 1*8 = 42 (not 6 + 3*14 = 48)
+    const deepInput = `chart: gantt
+start: 2024-01-15
+
+[Level0]
+  [Level1]
+    [Level2]
+      5d: Deep Task`;
+    const container = renderFromInput(deepInput);
+    const taskLabel = container.querySelector('.gantt-task-label');
+    expect(taskLabel).toBeTruthy();
+    const x = Number(taskLabel!.getAttribute('x'));
+    // depth=3 → 6 + 2*14 + 1*8 = 42
+    expect(x).toBe(42);
+  });
+});
