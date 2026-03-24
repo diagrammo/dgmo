@@ -53,7 +53,7 @@ const isExtended = isExtendedChartType(chartType); // false
 
 - **`data-chart`**: bar, line, area, pie, doughnut, radar, polar-area, bar-stacked, multi-line, scatter, sankey, chord, function, heatmap, funnel
 - **`visualization`**: slope, wordcloud, arc, timeline, venn, quadrant
-- **`diagram`**: sequence, flowchart, class, er, org, kanban, c4, initiative-status, state, sitemap, infra
+- **`diagram`**: sequence, flowchart, class, er, org, kanban, c4, initiative-status, state, sitemap, infra, gantt
 
 ---
 
@@ -147,6 +147,28 @@ const collapsed = collapseOrgTree(parsed, new Set(['node-id']));
 ```
 
 **Types**: `ParsedOrg`, `OrgNode`, `OrgTagGroup`, `OrgTagEntry`, `CollapsedOrgResult`
+
+#### Gantt Chart
+
+| Function            | Signature                                                            |
+| ------------------- | -------------------------------------------------------------------- |
+| `parseGantt`        | `(content: string, palette?: PaletteColors) => ParsedGantt`         |
+| `calculateSchedule` | `(parsed: ParsedGantt) => ResolvedSchedule`                         |
+
+```ts
+import { parseGantt, calculateSchedule, nordPalette } from '@diagrammo/dgmo';
+
+const parsed = parseGantt(fileContent, nordPalette.light);
+if (parsed.error) console.error(parsed.error);
+
+const schedule = calculateSchedule(parsed);
+// schedule.tasks — resolved tasks with computed start/end dates
+// schedule.diagnostics — warnings (e.g. cycle detection, unresolved deps)
+// schedule.criticalPath — set of task IDs on the critical path
+// schedule.tagGroups, schedule.options
+```
+
+**Types**: `ParsedGantt`, `GanttTask`, `GanttGroup`, `GanttNode`, `GanttDependency`, `GanttOptions`, `GanttMarker`, `GanttEra`, `GanttHolidays`, `ResolvedSchedule`, `GanttInteractiveOptions`
 
 #### Quadrant (Mermaid bridge)
 
@@ -251,6 +273,26 @@ renderOrg(container, parsed, layout, nordPalette.light, false, (line) => {
 ```
 
 **Types**: `OrgLayoutResult`, `OrgLayoutNode`, `OrgLayoutEdge`, `OrgContainerBounds`
+
+#### Gantt Chart Renderer
+
+| Function      | Signature |
+| ------------- | --------- |
+| `renderGantt` | `(container: HTMLDivElement, schedule: ResolvedSchedule, palette: PaletteColors, isDark: boolean, options?: GanttInteractiveOptions) => void` |
+
+```ts
+import { parseGantt, calculateSchedule, renderGantt, nordPalette } from '@diagrammo/dgmo';
+
+const parsed = parseGantt(content, nordPalette.light);
+const schedule = calculateSchedule(parsed);
+const container = document.getElementById('chart') as HTMLDivElement;
+
+renderGantt(container, schedule, nordPalette.light, false, {
+  onClickItem: (lineNumber) => console.log('Clicked line', lineNumber),
+  collapsedGroups: new Set(),
+  onToggleGroup: (groupName) => { /* toggle collapse */ },
+});
+```
 
 #### Export Renderer (SVG string output)
 
@@ -498,6 +540,7 @@ Core parse/render/build functions — these are the main library API:
 - `renderSlopeChart`, `renderArcDiagram`, `renderTimeline`, `renderWordCloud`, `renderVenn`, `renderQuadrant`
 - `renderSequenceDiagram`, `renderForExport`
 - `parseOrg`, `layoutOrg`, `renderOrg`, `renderOrgForExport`, `collapseOrgTree`
+- `parseGantt`, `calculateSchedule`, `renderGantt`
 - `getPalette`, `getAvailablePalettes`, `registerPalette`
 - All `PaletteConfig` definitions
 
