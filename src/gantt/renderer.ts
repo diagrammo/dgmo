@@ -39,6 +39,53 @@ const MILESTONE_SIZE = 10;
 const MIN_LEFT_MARGIN = 120;
 const BOTTOM_MARGIN = 40;
 const RIGHT_MARGIN = 20;
+const CHAR_W = 6.5;          // estimated px per character for bar labels
+const LABEL_PAD = 8;         // inner padding to decide if label fits inside bar
+const LABEL_GAP = 5;         // gap between bar edge and external label
+
+// ── Bar label placement ─────────────────────────────────────
+
+type BarLabelPlacement = {
+  x: number;
+  anchor: 'start' | 'end';
+  fill: string;
+  text: string;
+};
+
+function computeBarLabel(
+  label: string,
+  x1: number,
+  barWidth: number,
+  innerWidth: number,
+  textColor: string,
+): BarLabelPlacement | null {
+  const textWidth = label.length * CHAR_W;
+  const x2 = x1 + barWidth;
+
+  // 1. Inside
+  if (textWidth < barWidth - LABEL_PAD) {
+    return { x: x1 + 6, anchor: 'start', fill: textColor, text: label };
+  }
+
+  // 2. After (right of bar)
+  if (x2 + LABEL_GAP + textWidth <= innerWidth) {
+    return { x: x2 + LABEL_GAP, anchor: 'start', fill: textColor, text: label };
+  }
+
+  // 3. Before (left of bar)
+  if (x1 - LABEL_GAP - textWidth >= 0) {
+    return { x: x1 - LABEL_GAP, anchor: 'end', fill: textColor, text: label };
+  }
+
+  // 4. Truncate to fit before the bar
+  const availWidth = x1 - LABEL_GAP;
+  if (availWidth > CHAR_W * 3) {
+    const maxChars = Math.floor(availWidth / CHAR_W) - 1;
+    return { x: x1 - LABEL_GAP, anchor: 'end', fill: textColor, text: label.slice(0, maxChars) + '\u2026' };
+  }
+
+  return null;
+}
 
 // ── Left-panel visual helpers ───────────────────────────────
 
@@ -461,7 +508,6 @@ export function renderGantt(
             .attr('y', yOffset)
             .attr('width', laneBarWidth * Math.min(row.aggregateProgress / 100, 1))
             .attr('height', BAR_H)
-            .attr('rx', 4)
             .attr('fill', laneColor)
             .attr('opacity', 0.5)
             .attr('pointer-events', 'none');
@@ -550,9 +596,25 @@ export function renderGantt(
               .attr('y', yOffset)
               .attr('width', barWidth * Math.min(group.progress / 100, 1))
               .attr('height', BAR_H)
-              .attr('rx', 4)
               .attr('fill', groupColor)
               .attr('opacity', 0.5);
+          }
+
+          // Bar label (inside → after → before → truncate)
+          const summaryLabel = group.name + (group.progress !== null ? ` ${Math.round(group.progress)}%` : '');
+          const summaryPlacement = computeBarLabel(summaryLabel, gx1, barWidth, innerWidth, palette.text);
+          if (summaryPlacement) {
+            summaryG
+              .append('text')
+              .attr('x', summaryPlacement.x)
+              .attr('y', yOffset + BAR_H / 2)
+              .attr('dy', '0.35em')
+              .attr('font-size', '10px')
+              .attr('font-weight', 'bold')
+              .attr('text-anchor', summaryPlacement.anchor)
+              .attr('fill', summaryPlacement.fill)
+              .attr('pointer-events', 'none')
+              .text(summaryPlacement.text);
           }
 
           // Track collapsed group position for dependency arrow redirection
@@ -592,9 +654,25 @@ export function renderGantt(
               .attr('y', yOffset)
               .attr('width', groupBarWidth * Math.min(group.progress / 100, 1))
               .attr('height', BAR_H)
-              .attr('rx', 4)
               .attr('fill', groupColor)
               .attr('opacity', 0.5);
+          }
+
+          // Bar label (inside → after → before → truncate)
+          const expandedLabel = group.name + (group.progress !== null ? ` ${Math.round(group.progress)}%` : '');
+          const expandedPlacement = computeBarLabel(expandedLabel, gx1, groupBarWidth, innerWidth, palette.text);
+          if (expandedPlacement) {
+            groupBarG
+              .append('text')
+              .attr('x', expandedPlacement.x)
+              .attr('y', yOffset + BAR_H / 2)
+              .attr('dy', '0.35em')
+              .attr('font-size', '10px')
+              .attr('font-weight', 'bold')
+              .attr('text-anchor', expandedPlacement.anchor)
+              .attr('fill', expandedPlacement.fill)
+              .attr('pointer-events', 'none')
+              .text(expandedPlacement.text);
           }
         }
       }
@@ -800,7 +878,6 @@ export function renderGantt(
             .attr('y', yOffset)
             .attr('width', progressWidth)
             .attr('height', BAR_H)
-            .attr('rx', 4)
             .attr('fill', progressFill)
             .attr('opacity', 0.5);
         }
@@ -811,18 +888,19 @@ export function renderGantt(
         }
 
 
-        // Label inside bar (if fits)
-        const textWidth = task.label.length * 6.5;
-        if (textWidth < barWidth - 8) {
+        // Bar label (inside → after → before → truncate)
+        const labelPlacement = computeBarLabel(task.label, x1, barWidth, innerWidth, palette.text);
+        if (labelPlacement) {
           taskG
             .append('text')
-            .attr('x', x1 + 6)
+            .attr('x', labelPlacement.x)
             .attr('y', yOffset + BAR_H / 2)
             .attr('dy', '0.35em')
             .attr('font-size', '10px')
-            .attr('fill', palette.text)
+            .attr('text-anchor', labelPlacement.anchor)
+            .attr('fill', labelPlacement.fill)
             .attr('pointer-events', 'none')
-            .text(task.label);
+            .text(labelPlacement.text);
         }
 
         // Track bar position for arrows
@@ -1355,8 +1433,9 @@ function renderTagLegend(
     totalW += cpPillW;
   }
 
-  // Center over chart area (not full container)
-  const legendX = chartLeftMargin + (chartInnerWidth - totalW) / 2;
+  // Center over full container (matching title centering)
+  const containerWidth = chartLeftMargin + chartInnerWidth + RIGHT_MARGIN;
+  const legendX = (containerWidth - totalW) / 2;
 
   const legendRow = svg.append('g')
     .attr('class', 'gantt-tag-legend-container')
