@@ -582,8 +582,8 @@ describe('hover date indicators', () => {
 
     milestone!.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
     const hoverDates = container.querySelectorAll('.gantt-hover-date');
-    // Single date: 1 line + 2 labels = 3
-    expect(hoverDates.length).toBe(3);
+    // Wrapper <g> + 1 line + 2 labels = 4
+    expect(hoverDates.length).toBe(4);
   });
 
   it('shows indicators on group bar hover', () => {

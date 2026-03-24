@@ -118,9 +118,11 @@ export function renderGantt(
   const titleHeight = title ? 50 : 20;
   const tagLegendReserve = resolved.tagGroups.length > 0 ? LEGEND_HEIGHT + 8 : 0;
   const topDateLabelReserve = 22; // tick (6) + gap (4) + label height (~12)
+  const hasOverheadLabels = resolved.markers.length > 0 || resolved.eras.length > 0;
+  const markerLabelReserve = hasOverheadLabels ? 18 : 0; // markers/eras extend above date labels
   const CONTENT_TOP_PAD = 16; // breathing room between scale labels and first row
 
-  const marginTop = titleHeight + tagLegendReserve + topDateLabelReserve;
+  const marginTop = titleHeight + tagLegendReserve + topDateLabelReserve + markerLabelReserve;
 
   // Content area
   const contentH = isTagMode
@@ -230,7 +232,45 @@ export function renderGantt(
 
   renderWeekendBands(g, resolved, xScale, innerHeight, palette, isDark);
   renderHolidayBands(g, svg, resolved, xScale, innerHeight, palette, isDark, marginTop - 4, leftMargin, onClickItem);
-  renderErasAndMarkers(g, resolved, xScale, innerHeight, palette);
+  renderErasAndMarkers(g, svg, resolved, xScale, innerHeight, palette);
+
+  // ── Today marker (line rendered before rows so it paints behind task bars) ──
+
+  let todayDate: Date | null = null;
+  let todayX = -1;
+  const todayColor = palette.accent || '#e74c3c';
+  if (resolved.options.todayMarker !== 'off') {
+    if (resolved.options.todayMarker === 'on') {
+      todayDate = new Date();
+    } else {
+      todayDate = new Date(resolved.options.todayMarker + 'T00:00:00');
+    }
+    todayX = xScale(dateToFractionalYear(todayDate));
+    if (todayX >= 0 && todayX <= innerWidth) {
+      g.append('line')
+        .attr('class', 'gantt-today')
+        .attr('x1', todayX)
+        .attr('y1', 0)
+        .attr('x2', todayX)
+        .attr('y2', innerHeight + 10)
+        .attr('stroke', todayColor)
+        .attr('stroke-width', 2)
+        .attr('stroke-dasharray', '6 4')
+        .attr('opacity', 0.7)
+        .attr('pointer-events', 'none');
+
+      g.append('text')
+        .attr('class', 'gantt-today')
+        .attr('x', todayX)
+        .attr('y', innerHeight + 24)
+        .attr('text-anchor', 'middle')
+        .attr('font-size', '10px')
+        .attr('fill', todayColor)
+        .attr('opacity', 0.7)
+        .attr('pointer-events', 'none')
+        .text('Today');
+    }
+  }
 
   // ── Render rows ─────────────────────────────────────────
 
@@ -713,38 +753,42 @@ export function renderGantt(
     }
   }
 
-  // ── Today marker ────────────────────────────────────────
+  // ── Today hover overlay (rendered after rows so it receives pointer events) ──
 
-  if (resolved.options.todayMarker !== 'off') {
-    let todayDate: Date;
-    if (resolved.options.todayMarker === 'on') {
-      todayDate = new Date();
-    } else {
-      todayDate = new Date(resolved.options.todayMarker + 'T00:00:00');
-    }
-    const todayX = xScale(dateToFractionalYear(todayDate));
-    if (todayX >= 0 && todayX <= innerWidth) {
-      g.append('line')
-        .attr('class', 'gantt-today')
-        .attr('x1', todayX)
-        .attr('y1', 0)
-        .attr('x2', todayX)
-        .attr('y2', innerHeight + 10)
-        .attr('stroke', palette.accent || '#e74c3c')
-        .attr('stroke-width', 2)
-        .attr('stroke-dasharray', '6 4')
-        .attr('opacity', 0.7);
+  if (todayDate && todayX >= 0 && todayX <= innerWidth) {
+    const todayHoverG = g.append('g')
+      .attr('class', 'gantt-today-hover')
+      .style('cursor', 'pointer');
 
-      g.append('text')
-        .attr('class', 'gantt-today')
-        .attr('x', todayX + 4)
-        .attr('y', innerHeight + 24)
-        .attr('text-anchor', 'start')
-        .attr('font-size', '10px')
-        .attr('fill', palette.accent || '#e74c3c')
-        .attr('opacity', 0.7)
-        .text('Today');
-    }
+    // Invisible wide hit rect for easy hovering
+    todayHoverG.append('rect')
+      .attr('x', todayX - 10)
+      .attr('y', -6)
+      .attr('width', 20)
+      .attr('height', innerHeight + 16)
+      .attr('fill', 'transparent')
+      .attr('pointer-events', 'all');
+
+    const todayDateObj = todayDate;
+    todayHoverG
+      .on('mouseenter', () => {
+        // Fade everything
+        g.selectAll<SVGGElement, unknown>('.gantt-task').attr('opacity', FADE_OPACITY);
+        g.selectAll<SVGElement, unknown>('.gantt-milestone').attr('opacity', FADE_OPACITY);
+        g.selectAll<SVGElement, unknown>('.gantt-group-bar, .gantt-group-summary').attr('opacity', FADE_OPACITY);
+        svg.selectAll<SVGGElement, unknown>('.gantt-group-label').attr('opacity', FADE_OPACITY);
+        svg.selectAll<SVGTextElement, unknown>('.gantt-task-label').attr('opacity', FADE_OPACITY);
+        svg.selectAll<SVGGElement, unknown>('.gantt-lane-header').attr('opacity', FADE_OPACITY);
+        g.selectAll<SVGElement, unknown>('.gantt-lane-band, .gantt-lane-accent, .gantt-lane-band-group').attr('opacity', FADE_OPACITY);
+        g.selectAll<SVGElement, unknown>('.gantt-dep-arrow, .gantt-dep-arrowhead').attr('opacity', FADE_OPACITY);
+        g.selectAll<SVGElement, unknown>('.gantt-era-group').attr('opacity', FADE_OPACITY);
+        g.selectAll<SVGElement, unknown>('.gantt-marker-group').attr('opacity', FADE_OPACITY);
+        showGanttDateIndicators(g, xScale, todayDateObj, null, innerHeight, todayColor);
+      })
+      .on('mouseleave', () => {
+        resetHighlight(g, svg);
+        hideGanttDateIndicators(g);
+      });
   }
 
   // ── Dependency arrows ───────────────────────────────────
@@ -1440,6 +1484,7 @@ const ERA_COLORS = ['#5e81ac', '#a3be8c', '#ebcb8b', '#d08770', '#b48ead'];
 
 function renderErasAndMarkers(
   g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
+  svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
   resolved: ResolvedSchedule,
   xScale: d3Scale.ScaleLinear<number, number>,
   innerHeight: number,
@@ -1470,24 +1515,36 @@ function renderErasAndMarkers(
       .attr('fill', color)
       .attr('opacity', baseEraOpacity);
 
-    // Era label (inside chart at top)
+    // Era label (above date scale, same zone as markers)
     eraG.append('text')
       .attr('class', 'gantt-era-label')
       .attr('x', (sx + ex) / 2)
-      .attr('y', 12)
+      .attr('y', -24)
       .attr('text-anchor', 'middle')
       .attr('font-size', '10px')
       .attr('fill', color)
       .attr('opacity', 0.7)
-      .attr('pointer-events', 'none')
+      .style('cursor', 'pointer')
       .text(era.label);
 
     eraG
       .on('mouseenter', () => {
+        // Fade everything
+        g.selectAll<SVGGElement, unknown>('.gantt-task').attr('opacity', FADE_OPACITY);
+        g.selectAll<SVGElement, unknown>('.gantt-milestone').attr('opacity', FADE_OPACITY);
+        g.selectAll<SVGElement, unknown>('.gantt-group-bar, .gantt-group-summary').attr('opacity', FADE_OPACITY);
+        svg.selectAll<SVGGElement, unknown>('.gantt-group-label').attr('opacity', FADE_OPACITY);
+        svg.selectAll<SVGTextElement, unknown>('.gantt-task-label').attr('opacity', FADE_OPACITY);
+        svg.selectAll<SVGGElement, unknown>('.gantt-lane-header').attr('opacity', FADE_OPACITY);
+        g.selectAll<SVGElement, unknown>('.gantt-lane-band, .gantt-lane-accent, .gantt-lane-band-group').attr('opacity', FADE_OPACITY);
+        g.selectAll<SVGElement, unknown>('.gantt-dep-arrow, .gantt-dep-arrowhead').attr('opacity', FADE_OPACITY);
+        g.selectAll<SVGElement, unknown>('.gantt-marker-group').attr('opacity', FADE_OPACITY);
+        // Highlight this era
         eraRect.attr('opacity', hoverEraOpacity);
         showGanttDateIndicators(g, xScale, eraStartDate, eraEndDate, innerHeight, color);
       })
       .on('mouseleave', () => {
+        resetHighlight(g, svg);
         eraRect.attr('opacity', baseEraOpacity);
         hideGanttDateIndicators(g);
       });
@@ -1544,20 +1601,31 @@ function renderErasAndMarkers(
       .attr('stroke-dasharray', '6 4')
       .attr('opacity', 0.5);
 
-    // Hide marker visuals on hover — showGanttDateIndicators replaces them
+    // Hide marker line/diamond on hover but keep label visible
     const markerLine = markerG.select('.gantt-marker');
-    const markerLabel = markerG.select('.gantt-marker-label');
     const markerDiamond = markerG.select('path');
     markerG
       .on('mouseenter', () => {
-        markerLine.attr('opacity', 0);
-        markerLabel.attr('opacity', 0);
+        // Fade everything
+        g.selectAll<SVGGElement, unknown>('.gantt-task').attr('opacity', FADE_OPACITY);
+        g.selectAll<SVGElement, unknown>('.gantt-milestone').attr('opacity', FADE_OPACITY);
+        g.selectAll<SVGElement, unknown>('.gantt-group-bar, .gantt-group-summary').attr('opacity', FADE_OPACITY);
+        svg.selectAll<SVGGElement, unknown>('.gantt-group-label').attr('opacity', FADE_OPACITY);
+        svg.selectAll<SVGTextElement, unknown>('.gantt-task-label').attr('opacity', FADE_OPACITY);
+        svg.selectAll<SVGGElement, unknown>('.gantt-lane-header').attr('opacity', FADE_OPACITY);
+        g.selectAll<SVGElement, unknown>('.gantt-lane-band, .gantt-lane-accent, .gantt-lane-band-group').attr('opacity', FADE_OPACITY);
+        g.selectAll<SVGElement, unknown>('.gantt-dep-arrow, .gantt-dep-arrowhead').attr('opacity', FADE_OPACITY);
+        g.selectAll<SVGElement, unknown>('.gantt-era-group').attr('opacity', FADE_OPACITY);
+        // Fade other markers but keep this one highlighted
+        g.selectAll<SVGElement, unknown>('.gantt-marker-group').attr('opacity', FADE_OPACITY);
+        markerG.attr('opacity', 1);
+        markerLine.attr('opacity', 0.8);
         markerDiamond.attr('opacity', 0);
-        showGanttDateIndicators(g, xScale, markerDate, null, innerHeight, color);
+        showGanttDateIndicators(g, xScale, markerDate, null, innerHeight, color, { skipStartLine: true });
       })
       .on('mouseleave', () => {
+        resetHighlight(g, svg);
         markerLine.attr('opacity', 0.5);
-        markerLabel.attr('opacity', 1);
         markerDiamond.attr('opacity', 0.9);
         hideGanttDateIndicators(g);
       });
@@ -1581,11 +1649,7 @@ function parseDateStringToDate(s: string): Date {
  * Used for eras and markers which may have partial dates.
  */
 function parseDateToFractionalYear(s: string): number {
-  const parts = s.split('-').map(p => parseInt(p, 10));
-  const year = parts[0];
-  const month = parts.length >= 2 ? parts[1] : 1;
-  const day = parts.length >= 3 ? parts[2] : 1;
-  return year + (month - 1) / 12 + (day - 1) / 365;
+  return dateToFractionalYear(parseDateStringToDate(s));
 }
 
 // ── Dependency Hover Helpers ─────────────────────────────────
@@ -1641,6 +1705,8 @@ function highlightDeps(
     const isRelated = (from && related.has(from)) || (to && related.has(to));
     el.attr('opacity', isRelated ? 0.5 : FADE_OPACITY);
   });
+  // Fade markers
+  g.selectAll<SVGElement, unknown>('.gantt-marker-group').attr('opacity', FADE_OPACITY);
 }
 
 function highlightGroup(
@@ -1804,6 +1870,7 @@ function resetHighlight(
   g.selectAll<SVGElement, unknown>('.gantt-lane-band, .gantt-lane-accent, .gantt-lane-band-group').attr('opacity', 1);
   g.selectAll<SVGElement, unknown>('.gantt-dep-arrow, .gantt-dep-arrowhead').attr('opacity', 0.5);
   g.selectAll<SVGElement, unknown>('.gantt-marker-group').attr('opacity', 1);
+  g.selectAll<SVGElement, unknown>('.gantt-era-group').attr('opacity', 1);
 }
 
 // ── Row Building ────────────────────────────────────────────
@@ -2025,29 +2092,38 @@ function showGanttDateIndicators(
   endDate: Date | null,
   innerHeight: number,
   color: string,
+  options?: { skipStartLine?: boolean },
 ): void {
   // Fade existing scale ticks and today marker
   g.selectAll('.gantt-scale-tick').attr('opacity', 0.05);
   g.selectAll('.gantt-today').attr('opacity', 0.05);
 
+  // Wrap all hover indicators in a group that ignores pointer events,
+  // so they don't steal mouseleave from the element being hovered.
+  const hg = g.append('g')
+    .attr('class', 'gantt-hover-date')
+    .attr('pointer-events', 'none');
+
   const tickLen = 6;
   const startPos = xScale(dateToFractionalYear(startDate));
   const startLabel = formatGanttDate(startDate);
 
-  // Start date — dashed vertical line
-  g.append('line')
-    .attr('class', 'gantt-hover-date')
-    .attr('x1', startPos)
-    .attr('y1', -tickLen)
-    .attr('x2', startPos)
-    .attr('y2', innerHeight)
-    .attr('stroke', color)
-    .attr('stroke-width', 1.5)
-    .attr('stroke-dasharray', '4 4')
-    .attr('opacity', 0.6);
+  // Start date — dashed vertical line (skip when caller already shows its own line)
+  if (!options?.skipStartLine) {
+    hg.append('line')
+      .attr('class', 'gantt-hover-date')
+      .attr('x1', startPos)
+      .attr('y1', -tickLen)
+      .attr('x2', startPos)
+      .attr('y2', innerHeight)
+      .attr('stroke', color)
+      .attr('stroke-width', 1.5)
+      .attr('stroke-dasharray', '4 4')
+      .attr('opacity', 0.6);
+  }
 
   // Start date — top label
-  g.append('text')
+  hg.append('text')
     .attr('class', 'gantt-hover-date')
     .attr('x', startPos)
     .attr('y', -tickLen - 4)
@@ -2058,7 +2134,7 @@ function showGanttDateIndicators(
     .text(startLabel);
 
   // Start date — bottom label
-  g.append('text')
+  hg.append('text')
     .attr('class', 'gantt-hover-date')
     .attr('x', startPos)
     .attr('y', innerHeight + tickLen + 12)
@@ -2089,7 +2165,7 @@ function showGanttDateIndicators(
     }
 
     // End date — dashed vertical line
-    g.append('line')
+    hg.append('line')
       .attr('class', 'gantt-hover-date')
       .attr('x1', endPos)
       .attr('y1', -tickLen)
@@ -2101,7 +2177,7 @@ function showGanttDateIndicators(
       .attr('opacity', 0.6);
 
     // Reposition start labels to avoid overlap
-    g.selectAll<SVGTextElement, unknown>('text.gantt-hover-date').each(function () {
+    hg.selectAll<SVGTextElement, unknown>('text.gantt-hover-date').each(function () {
       const el = d3Selection.select(this);
       if (el.text() === startLabel) {
         el.attr('x', startLabelX).attr('text-anchor', startAnchor);
@@ -2109,7 +2185,7 @@ function showGanttDateIndicators(
     });
 
     // End date — top label
-    g.append('text')
+    hg.append('text')
       .attr('class', 'gantt-hover-date')
       .attr('x', endLabelX)
       .attr('y', -tickLen - 4)
@@ -2120,7 +2196,7 @@ function showGanttDateIndicators(
       .text(endLabel);
 
     // End date — bottom label
-    g.append('text')
+    hg.append('text')
       .attr('class', 'gantt-hover-date')
       .attr('x', endLabelX)
       .attr('y', innerHeight + tickLen + 12)
