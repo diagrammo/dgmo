@@ -107,6 +107,8 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
       dependencies: false,
       sort: 'default',
       defaultSwimlaneGroup: null,
+      optionLineNumbers: {},
+      holidaysLineNumber: null,
     },
     diagnostics,
     error: null,
@@ -351,6 +353,7 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
       inHolidaysBlock = true;
       holidaysBlockIndent = indent;
       inHeaderBlock = false;
+      result.options.holidaysLineNumber = lineNumber;
       continue;
     }
 
@@ -382,6 +385,7 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
         endDate: eraMatch[2],
         label: eraExtracted.label,
         color: eraExtracted.color || null,
+        lineNumber,
       });
       inHeaderBlock = false;
       continue;
@@ -407,6 +411,7 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
     if (optMatch && isKnownOption(optMatch[1].toLowerCase())) {
       const key = optMatch[1].toLowerCase();
       const value = optMatch[2].trim();
+      result.options.optionLineNumbers[key] = lineNumber;
 
       switch (key) {
         case 'start':

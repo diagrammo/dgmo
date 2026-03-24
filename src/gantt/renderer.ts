@@ -173,7 +173,7 @@ export function renderGantt(
       const legendY = titleHeight;
       renderTagLegend(
         svg, g, resolved.tagGroups, currentActiveGroup, leftMargin, innerWidth,
-        legendY, palette, isDark, hasCriticalPath, criticalPathActive,
+        legendY, palette, isDark, hasCriticalPath, criticalPathActive, resolved.options.optionLineNumbers,
         (groupName) => {
           // Toggle active group
           currentActiveGroup = currentActiveGroup?.toLowerCase() === groupName.toLowerCase()
@@ -239,6 +239,7 @@ export function renderGantt(
   let todayDate: Date | null = null;
   let todayX = -1;
   const todayColor = palette.accent || '#e74c3c';
+  const todayMarkerLineNum = resolved.options.optionLineNumbers['today-marker'];
   if (resolved.options.todayMarker !== 'off') {
     if (resolved.options.todayMarker === 'on') {
       todayDate = new Date();
@@ -247,7 +248,7 @@ export function renderGantt(
     }
     todayX = xScale(dateToFractionalYear(todayDate));
     if (todayX >= 0 && todayX <= innerWidth) {
-      g.append('line')
+      const todayLine = g.append('line')
         .attr('class', 'gantt-today')
         .attr('x1', todayX)
         .attr('y1', 0)
@@ -258,8 +259,9 @@ export function renderGantt(
         .attr('stroke-dasharray', '6 4')
         .attr('opacity', 0.7)
         .attr('pointer-events', 'none');
+      if (todayMarkerLineNum) todayLine.attr('data-line-number', String(todayMarkerLineNum));
 
-      g.append('text')
+      const todayLabel = g.append('text')
         .attr('class', 'gantt-today')
         .attr('x', todayX)
         .attr('y', innerHeight + 24)
@@ -269,6 +271,7 @@ export function renderGantt(
         .attr('opacity', 0.7)
         .attr('pointer-events', 'none')
         .text('Today');
+      if (todayMarkerLineNum) todayLabel.attr('data-line-number', String(todayMarkerLineNum));
     }
   }
 
@@ -1073,6 +1076,7 @@ function renderDependencyArrows(
         .attr('class', 'gantt-dep-arrow')
         .attr('data-dep-from', rt.task.id)
         .attr('data-dep-to', targetTask.task.id)
+        .attr('data-line-number', String(dep.lineNumber))
         .attr('data-critical-path', isCpArrow ? 'true' : null)
         .attr('d', path)
         .attr('fill', 'none')
@@ -1087,6 +1091,7 @@ function renderDependencyArrows(
         .attr('class', 'gantt-dep-arrowhead')
         .attr('data-dep-from', rt.task.id)
         .attr('data-dep-to', targetTask.task.id)
+        .attr('data-line-number', String(dep.lineNumber))
         .attr('data-critical-path', isCpArrow ? 'true' : null)
         .attr('points', arrowheadPoints(tx, ty, headSize, angle))
         .attr('fill', arrowColor)
@@ -1185,6 +1190,7 @@ function renderTagLegend(
   isDark: boolean,
   hasCriticalPath: boolean,
   criticalPathActive: boolean,
+  optionLineNumbers: Record<string, number>,
   onToggle?: (groupName: string) => void,
   onToggleCriticalPath?: () => void,
   currentSwimlaneGroup?: string | null,
@@ -1291,6 +1297,7 @@ function renderTagLegend(
       .attr('transform', `translate(${cursorX}, 0)`)
       .attr('class', 'gantt-tag-legend-group')
       .attr('data-tag-group', group.name)
+      .attr('data-line-number', String(group.lineNumber))
       .style('cursor', 'pointer')
       .on('click', () => { if (onToggle) onToggle(group.name); });
 
@@ -1369,6 +1376,7 @@ function renderTagLegend(
         // Wrap dot + label in a <g> for hover targeting
         const entryG = gEl.append('g')
           .attr('class', 'gantt-legend-entry')
+          .attr('data-line-number', String(entry.lineNumber))
           .style('cursor', 'pointer');
 
         // Dot
@@ -1430,11 +1438,13 @@ function renderTagLegend(
 
   // Critical Path pill
   if (hasCriticalPath) {
+    const cpLineNum = optionLineNumbers['critical-path'];
     const cpG = legendRow.append('g')
       .attr('transform', `translate(${cursorX}, 0)`)
       .attr('class', 'gantt-legend-critical-path')
       .style('cursor', 'pointer')
       .on('click', () => { if (onToggleCriticalPath) onToggleCriticalPath(); });
+    if (cpLineNum) cpG.attr('data-line-number', String(cpLineNum));
 
     cpG.append('rect')
       .attr('width', cpPillW)
@@ -1504,7 +1514,8 @@ function renderErasAndMarkers(
     const eraEndDate = parseDateStringToDate(era.endDate);
 
     const eraG = g.append('g')
-      .attr('class', 'gantt-era-group');
+      .attr('class', 'gantt-era-group')
+      .attr('data-line-number', String(era.lineNumber));
 
     const eraRect = eraG.append('rect')
       .attr('class', 'gantt-era')
@@ -1561,6 +1572,7 @@ function renderErasAndMarkers(
 
     const markerG = g.append('g')
       .attr('class', 'gantt-marker-group')
+      .attr('data-line-number', String(marker.lineNumber))
       .style('cursor', 'pointer');
 
     // Invisible hit rect for easier clicking/hovering

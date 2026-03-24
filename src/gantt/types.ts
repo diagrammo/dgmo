@@ -93,6 +93,7 @@ export interface GanttEra {
   endDate: string;
   label: string;
   color: string | null;
+  lineNumber: number;
 }
 
 export interface GanttMarker {
@@ -114,6 +115,9 @@ export interface GanttOptions {
   dependencies: boolean;
   sort: 'default' | 'tag';
   defaultSwimlaneGroup: string | null; // tag group name from `sort: tag:Team`
+  /** Line numbers for option/block keywords — maps key to source line */
+  optionLineNumbers: Record<string, number>;
+  holidaysLineNumber: number | null;
 }
 
 // ── Parsed Result ───────────────────────────────────────────
