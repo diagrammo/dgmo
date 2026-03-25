@@ -40,13 +40,13 @@ const ELEMENT_RE = /^(person|system|container|component)\s+(.+)$/i;
 const IS_A_RE = /\s+is\s+a(?:n)?\s+(\w+)\s*$/i;
 
 /** Matches relationship arrows: `->`, `~>`, `<->`, `<~>` */
-const RELATIONSHIP_RE = /^(<?-?>|<?~?>)\s+(.+)$/;
+const RELATIONSHIP_RE = /^(<?-?>|<?~?>)\s*(.+)$/;
 
 /** Labeled arrow relationships: -label->, ~label~>, <-label->, <~label~> */
-const C4_LABELED_SYNC_RE = /^-(.+)->\s+(.+)$/;
-const C4_LABELED_ASYNC_RE = /^~(.+)~>\s+(.+)$/;
-const C4_LABELED_BIDI_SYNC_RE = /^<-(.+)->\s+(.+)$/;
-const C4_LABELED_BIDI_ASYNC_RE = /^<~(.+)~>\s+(.+)$/;
+const C4_LABELED_SYNC_RE = /^-(.+)->\s*(.+)$/;
+const C4_LABELED_ASYNC_RE = /^~(.+)~>\s*(.+)$/;
+const C4_LABELED_BIDI_SYNC_RE = /^<-(.+)->\s*(.+)$/;
+const C4_LABELED_BIDI_ASYNC_RE = /^<~(.+)~>\s*(.+)$/;
 
 /** Matches section headers: `containers:`, `components:`, `deployment:` */
 const SECTION_HEADER_RE = /^(containers|components|deployment)\s*:\s*$/i;

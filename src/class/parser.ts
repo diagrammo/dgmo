@@ -31,7 +31,7 @@ const CLASS_DECL_RE =
 // ClassName --|> TargetClass : label
 // Arrows: --|>  ..|>  *--  o--  ..>  ->
 const REL_ARROW_RE =
-  /^([A-Z][A-Za-z0-9_]*)\s+(--\|>|\.\.\|>|\*--|o--|\.\.\>|->)\s+([A-Z][A-Za-z0-9_]*)(?:\s*:\s*(.+))?$/;
+  /^([A-Z][A-Za-z0-9_]*)\s+(--\|>|\.\.\|>|\*--|o--|\.\.\>|->)\s*([A-Z][A-Za-z0-9_]*)(?:\s*:\s*(.+))?$/;
 
 // Member line patterns
 const VISIBILITY_RE = /^([+\-#])\s*/;

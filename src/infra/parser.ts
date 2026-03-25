@@ -22,11 +22,11 @@ import { INFRA_BEHAVIOR_KEYS, EDGE_ONLY_KEYS } from './types';
 
 // Connection: -label-> Target  or  -> Target  (with optional | split: N%  and optional x5 fanout)
 const CONNECTION_RE =
-  /^-(?:([^-].*?))?->\s+(.+?)(?:(?:\s*\|\s*|\s+)split\s*:?\s*(\d+)%)?\s*(?:x(\d+))?\s*$/;
+  /^-(?:([^-].*?))?->\s*(.+?)(?:(?:\s*\|\s*|\s+)split\s*:?\s*(\d+)%)?\s*(?:x(\d+))?\s*$/;
 
 // Simple connection shorthand: -> Target (no label, no dash prefix needed for edge)
 const SIMPLE_CONNECTION_RE =
-  /^->\s+(.+?)(?:(?:\s*\|\s*|\s+)split\s*:?\s*(\d+)%)?\s*(?:x(\d+))?\s*$/;
+  /^->\s*(.+?)(?:(?:\s*\|\s*|\s+)split\s*:?\s*(\d+)%)?\s*(?:x(\d+))?\s*$/;
 
 // Group declaration: [Group Name]
 const GROUP_RE = /^\[([^\]]+)\]$/;
