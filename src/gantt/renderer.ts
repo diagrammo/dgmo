@@ -14,15 +14,14 @@ import {
   LEGEND_HEIGHT,
   LEGEND_PILL_PAD,
   LEGEND_PILL_FONT_SIZE,
-  LEGEND_PILL_FONT_W,
   LEGEND_CAPSULE_PAD,
   LEGEND_DOT_R,
   LEGEND_ENTRY_FONT_SIZE,
-  LEGEND_ENTRY_FONT_W,
   LEGEND_ENTRY_DOT_GAP,
   LEGEND_ENTRY_TRAIL,
   LEGEND_GROUP_GAP,
   LEGEND_ICON_W,
+  measureLegendText,
 } from '../utils/legend-constants';
 import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT, TITLE_Y } from '../utils/title-constants';
 import type { PaletteColors } from '../palettes';
@@ -1408,13 +1407,13 @@ function renderTagLegend(
     const isSwimlane = currentSwimlaneGroup?.toLowerCase() === group.name.toLowerCase();
     const showIcon = !legendViewMode && tagGroups.length > 0;
     const iconReserve = showIcon ? LEGEND_ICON_W : 0;
-    const pillW = group.name.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD + iconReserve;
+    const pillW = measureLegendText(group.name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD + iconReserve;
     let groupW = pillW;
     if (isActive) {
       const entries = filteredEntries.get(group.name.toLowerCase()) ?? group.entries;
       let entriesW = 0;
       for (const entry of entries) {
-        entriesW += LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP + entry.value.length * LEGEND_ENTRY_FONT_W + LEGEND_ENTRY_TRAIL;
+        entriesW += LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP + measureLegendText(entry.value, LEGEND_ENTRY_FONT_SIZE) + LEGEND_ENTRY_TRAIL;
       }
       groupW = LEGEND_CAPSULE_PAD * 2 + pillW + 4 + entriesW;
     } else if (isSwimlane && !isActive) {
@@ -1428,7 +1427,7 @@ function renderTagLegend(
 
   // Critical Path pill width
   const cpLabel = 'Critical Path';
-  const cpPillW = cpLabel.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
+  const cpPillW = measureLegendText(cpLabel, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
   if (hasCriticalPath) {
     if (visibleGroups.length > 0) totalW += LEGEND_GROUP_GAP;
     totalW += cpPillW;
@@ -1450,7 +1449,7 @@ function renderTagLegend(
     const isSwimlane = currentSwimlaneGroup?.toLowerCase() === group.name.toLowerCase();
     const showIcon = !legendViewMode && tagGroups.length > 0;
     const iconReserve = showIcon ? LEGEND_ICON_W : 0;
-    const pillW = group.name.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD + iconReserve;
+    const pillW = measureLegendText(group.name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD + iconReserve;
     const pillH = isActive ? LEGEND_HEIGHT - LEGEND_CAPSULE_PAD * 2 : LEGEND_HEIGHT;
     const groupW = groupWidths[i];
 
@@ -1497,7 +1496,7 @@ function renderTagLegend(
     }
 
     // Pill text (offset to leave room for icon on right)
-    const textW = group.name.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
+    const textW = measureLegendText(group.name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
     gEl.append('text')
       .attr('x', pillXOff + textW / 2)
       .attr('y', LEGEND_HEIGHT / 2 + LEGEND_PILL_FONT_SIZE / 2 - 2)
@@ -1590,7 +1589,7 @@ function renderTagLegend(
             }
           });
 
-        ex += LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP + entry.value.length * LEGEND_ENTRY_FONT_W + LEGEND_ENTRY_TRAIL;
+        ex += LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP + measureLegendText(entry.value, LEGEND_ENTRY_FONT_SIZE) + LEGEND_ENTRY_TRAIL;
       }
     }
 

@@ -28,14 +28,13 @@ import {
   LEGEND_HEIGHT,
   LEGEND_PILL_PAD,
   LEGEND_PILL_FONT_SIZE,
-  LEGEND_PILL_FONT_W,
   LEGEND_CAPSULE_PAD,
   LEGEND_DOT_R,
   LEGEND_ENTRY_FONT_SIZE,
-  LEGEND_ENTRY_FONT_W,
   LEGEND_ENTRY_DOT_GAP,
   LEGEND_ENTRY_TRAIL,
   LEGEND_GROUP_GAP,
+  measureLegendText,
 } from '../utils/legend-constants';
 import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT } from '../utils/title-constants';
 
@@ -1590,7 +1589,7 @@ export function renderSequenceDiagram(
       const isActive =
         !!activeTagGroup &&
         tg.name.toLowerCase() === activeTagGroup.toLowerCase();
-      const pillWidth = tg.name.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
+      const pillWidth = measureLegendText(tg.name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
       const entries = tg.entries.map((e) => ({
         value: e.value,
         color: resolveColor(e.color),
@@ -1602,7 +1601,7 @@ export function renderSequenceDiagram(
           entriesWidth +=
             LEGEND_DOT_R * 2 +
             LEGEND_ENTRY_DOT_GAP +
-            entry.value.length * LEGEND_ENTRY_FONT_W +
+            measureLegendText(entry.value, LEGEND_ENTRY_FONT_SIZE) +
             LEGEND_ENTRY_TRAIL;
         }
         totalWidth = LEGEND_CAPSULE_PAD * 2 + pillWidth + 4 + entriesWidth;
@@ -1703,7 +1702,7 @@ export function renderSequenceDiagram(
             .attr('fill', palette.textMuted)
             .text(entry.value);
 
-          entryX = textX + entry.value.length * LEGEND_ENTRY_FONT_W + LEGEND_ENTRY_TRAIL;
+          entryX = textX + measureLegendText(entry.value, LEGEND_ENTRY_FONT_SIZE) + LEGEND_ENTRY_TRAIL;
         }
       }
 

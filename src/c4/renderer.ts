@@ -15,15 +15,14 @@ import { layoutC4Context, layoutC4Containers, layoutC4Components, layoutC4Deploy
 import {
   LEGEND_HEIGHT,
   LEGEND_PILL_FONT_SIZE,
-  LEGEND_PILL_FONT_W,
   LEGEND_PILL_PAD,
   LEGEND_DOT_R,
   LEGEND_ENTRY_FONT_SIZE,
-  LEGEND_ENTRY_FONT_W,
   LEGEND_ENTRY_DOT_GAP,
   LEGEND_ENTRY_TRAIL,
   LEGEND_CAPSULE_PAD,
   LEGEND_GROUP_GAP,
+  measureLegendText,
 } from '../utils/legend-constants';
 import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT } from '../utils/title-constants';
 
@@ -1143,7 +1142,7 @@ function renderLegend(
     ? layout.legend.filter((g) => g.name.toLowerCase() === (activeTagGroup ?? '').toLowerCase())
     : layout.legend;
 
-  const pillWidthOf = (g: C4LegendGroup) => g.name.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
+  const pillWidthOf = (g: C4LegendGroup) => measureLegendText(g.name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
   const effectiveW = (g: C4LegendGroup) => activeTagGroup != null ? g.width : pillWidthOf(g);
 
   // In fixed mode, compute centered x-positions
@@ -1250,7 +1249,7 @@ function renderLegend(
           .attr('fill', palette.textMuted)
           .text(entry.value);
 
-        entryX = textX + entry.value.length * LEGEND_ENTRY_FONT_W + LEGEND_ENTRY_TRAIL;
+        entryX = textX + measureLegendText(entry.value, LEGEND_ENTRY_FONT_SIZE) + LEGEND_ENTRY_TRAIL;
       }
     }
   }

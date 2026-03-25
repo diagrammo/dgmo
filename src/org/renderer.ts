@@ -15,11 +15,9 @@ import {
   LEGEND_HEIGHT,
   LEGEND_PILL_PAD,
   LEGEND_PILL_FONT_SIZE,
-  LEGEND_PILL_FONT_W,
   LEGEND_CAPSULE_PAD,
   LEGEND_DOT_R,
   LEGEND_ENTRY_FONT_SIZE,
-  LEGEND_ENTRY_FONT_W,
   LEGEND_ENTRY_DOT_GAP,
   LEGEND_ENTRY_TRAIL,
   LEGEND_GROUP_GAP,
@@ -27,6 +25,7 @@ import {
   LEGEND_EYE_GAP,
   EYE_OPEN_PATH,
   EYE_CLOSED_PATH,
+  measureLegendText,
 } from '../utils/legend-constants';
 
 // ============================================================
@@ -534,7 +533,7 @@ export function renderOrg(
 
       const pillLabel = group.name;
       const pillWidth =
-        pillLabel.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
+        measureLegendText(pillLabel, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
 
       const gX = fixedPositions?.get(group.name) ?? group.x;
       const gY = fixedPositions ? 0 : group.y;
@@ -656,7 +655,7 @@ export function renderOrg(
             .attr('fill', palette.textMuted)
             .text(entryLabel);
 
-          entryX = textX + entryLabel.length * LEGEND_ENTRY_FONT_W + LEGEND_ENTRY_TRAIL;
+          entryX = textX + measureLegendText(entryLabel, LEGEND_ENTRY_FONT_SIZE) + LEGEND_ENTRY_TRAIL;
         }
       }
     }

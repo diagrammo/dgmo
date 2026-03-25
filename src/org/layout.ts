@@ -5,6 +5,7 @@
 import { hierarchy, tree } from 'd3-hierarchy';
 import type { ParsedOrg, OrgNode, OrgTagGroup } from './parser';
 import { resolveTagColor, injectDefaultTagMetadata } from '../utils/tag-groups';
+import { LEGEND_PILL_FONT_SIZE, LEGEND_ENTRY_FONT_SIZE, measureLegendText } from '../utils/legend-constants';
 
 // ============================================================
 // Types
@@ -101,10 +102,8 @@ const STACK_V_GAP = 20;
 const LEGEND_GAP = 30;
 const LEGEND_HEIGHT = 28;
 const LEGEND_PILL_PAD = 16;
-const LEGEND_PILL_FONT_W = 11 * 0.6;
 const LEGEND_CAPSULE_PAD = 4;
 const LEGEND_DOT_R = 4;
-const LEGEND_ENTRY_FONT_W = 10 * 0.6;
 const LEGEND_ENTRY_DOT_GAP = 4;
 const LEGEND_ENTRY_TRAIL = 8;
 const LEGEND_GROUP_GAP = 12;
@@ -279,7 +278,7 @@ function computeLegendGroups(
     if (visibleEntries.length === 0) continue;
 
     // Pill label shows just the group name (alias is for DSL shorthand only)
-    const pillWidth = group.name.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
+    const pillWidth = measureLegendText(group.name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
     const minPillWidth = pillWidth;
 
     // Capsule: pad + pill + gap + entries + pad
@@ -288,7 +287,7 @@ function computeLegendGroups(
       entriesWidth +=
         LEGEND_DOT_R * 2 +
         LEGEND_ENTRY_DOT_GAP +
-        entry.value.length * LEGEND_ENTRY_FONT_W +
+        measureLegendText(entry.value, LEGEND_ENTRY_FONT_SIZE) +
         LEGEND_ENTRY_TRAIL;
     }
     const eyeSpace = showEyeIcons ? LEGEND_EYE_SIZE + LEGEND_EYE_GAP : 0;

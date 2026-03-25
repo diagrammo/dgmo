@@ -306,7 +306,9 @@ export { renderFlowchart, renderFlowchartForExport } from './graph/flowchart-ren
 // Config Builders (produce framework-specific config objects)
 // ============================================================
 
-export { buildExtendedChartOption, buildSimpleChartOption, renderExtendedChartForExport } from './echarts';
+export { buildExtendedChartOption, buildSimpleChartOption, renderExtendedChartForExport, getExtendedChartLegendGroups, getSimpleChartLegendGroups } from './echarts';
+export { renderLegendSvg, type LegendGroupData } from './utils/legend-svg';
+export { LEGEND_HEIGHT } from './utils/legend-constants';
 export { buildMermaidQuadrant } from './dgmo-mermaid';
 
 // ============================================================

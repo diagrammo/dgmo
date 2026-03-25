@@ -188,14 +188,13 @@ import {
   LEGEND_HEIGHT as TL_LEGEND_HEIGHT,
   LEGEND_PILL_PAD as TL_LEGEND_PILL_PAD,
   LEGEND_PILL_FONT_SIZE as TL_LEGEND_PILL_FONT_SIZE,
-  LEGEND_PILL_FONT_W as TL_LEGEND_PILL_FONT_W,
   LEGEND_CAPSULE_PAD as TL_LEGEND_CAPSULE_PAD,
   LEGEND_DOT_R as TL_LEGEND_DOT_R,
   LEGEND_ENTRY_FONT_SIZE as TL_LEGEND_ENTRY_FONT_SIZE,
-  LEGEND_ENTRY_FONT_W as TL_LEGEND_ENTRY_FONT_W,
   LEGEND_ENTRY_DOT_GAP as TL_LEGEND_ENTRY_DOT_GAP,
   LEGEND_ENTRY_TRAIL as TL_LEGEND_ENTRY_TRAIL,
   LEGEND_GROUP_GAP as TL_LEGEND_GROUP_GAP,
+  measureLegendText,
 } from './utils/legend-constants';
 import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT, TITLE_Y } from './utils/title-constants';
 
@@ -4351,11 +4350,9 @@ export function renderTimeline(
     const LG_HEIGHT = TL_LEGEND_HEIGHT;
     const LG_PILL_PAD = TL_LEGEND_PILL_PAD;
     const LG_PILL_FONT_SIZE = TL_LEGEND_PILL_FONT_SIZE;
-    const LG_PILL_FONT_W = TL_LEGEND_PILL_FONT_W;
     const LG_CAPSULE_PAD = TL_LEGEND_CAPSULE_PAD;
     const LG_DOT_R = TL_LEGEND_DOT_R;
     const LG_ENTRY_FONT_SIZE = TL_LEGEND_ENTRY_FONT_SIZE;
-    const LG_ENTRY_FONT_W = TL_LEGEND_ENTRY_FONT_W;
     const LG_ENTRY_DOT_GAP = TL_LEGEND_ENTRY_DOT_GAP;
     const LG_ENTRY_TRAIL = TL_LEGEND_ENTRY_TRAIL;
     const LG_GROUP_GAP = TL_LEGEND_GROUP_GAP;
@@ -4378,13 +4375,13 @@ export function renderTimeline(
         expandedWidth: number;
       };
       const legendGroups: LegendGroup[] = parsed.timelineTagGroups.map((g) => {
-        const pillW = g.name.length * LG_PILL_FONT_W + LG_PILL_PAD;
+        const pillW = measureLegendText(g.name, LG_PILL_FONT_SIZE) + LG_PILL_PAD;
         // Expanded: pill + icon (unless viewMode) + entries
         const iconSpace = viewMode ? 8 : LG_ICON_W + 4;
         let entryX = LG_CAPSULE_PAD + pillW + iconSpace;
         for (const entry of g.entries) {
           const textX = entryX + LG_DOT_R * 2 + LG_ENTRY_DOT_GAP;
-          entryX = textX + entry.value.length * LG_ENTRY_FONT_W + LG_ENTRY_TRAIL;
+          entryX = textX + measureLegendText(entry.value, LG_ENTRY_FONT_SIZE) + LG_ENTRY_TRAIL;
         }
         return {
           group: g,
@@ -4483,7 +4480,7 @@ export function renderTimeline(
             currentSwimlaneGroup.toLowerCase() === groupKey;
 
           const pillLabel = lg.group.name;
-          const pillWidth = pillLabel.length * LG_PILL_FONT_W + LG_PILL_PAD;
+          const pillWidth = measureLegendText(pillLabel, LG_PILL_FONT_SIZE) + LG_PILL_PAD;
 
           const gEl = legendContainer
             .append('g')
@@ -4620,7 +4617,7 @@ export function renderTimeline(
                 .attr('fill', palette.textMuted)
                 .text(entry.value);
 
-              entryX = textX + entry.value.length * LG_ENTRY_FONT_W + LG_ENTRY_TRAIL;
+              entryX = textX + measureLegendText(entry.value, LG_ENTRY_FONT_SIZE) + LG_ENTRY_TRAIL;
             }
           }
 

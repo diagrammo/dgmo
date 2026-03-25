@@ -2,6 +2,9 @@ import * as echarts from 'echarts';
 import type { EChartsOption } from 'echarts';
 import { FONT_FAMILY } from './fonts';
 import { injectBranding } from './branding';
+import { renderLegendSvg } from './utils/legend-svg';
+import type { LegendGroupData } from './utils/legend-svg';
+import { LEGEND_HEIGHT } from './utils/legend-constants';
 
 // ============================================================
 // Types
@@ -875,6 +878,79 @@ function buildFunctionOption(
 }
 
 /**
+ * Extracts legend group data from standard chart types (multi-line, bar-stacked).
+ * Returns empty array if chart has no multi-series legend.
+ */
+export function getSimpleChartLegendGroups(
+  parsed: ParsedChart,
+  colors: string[],
+): LegendGroupData[] {
+  if (!parsed.seriesNames || parsed.seriesNames.length <= 1) return [];
+  return [{
+    name: 'Series',
+    entries: parsed.seriesNames.map((name, i) => ({
+      value: name,
+      color: parsed.seriesNameColors?.[i] ?? colors[i % colors.length],
+    })),
+  }];
+}
+
+/**
+ * Extracts legend group data from extended chart types.
+ * Supports scatter (categories), chord (nodes), and function (series).
+ */
+export function getExtendedChartLegendGroups(
+  parsed: ParsedExtendedChart,
+  colors: string[],
+): LegendGroupData[] {
+  if (parsed.type === 'scatter') {
+    const points = parsed.scatterPoints ?? [];
+    const categories = [...new Set(points.map((p) => p.category).filter(Boolean))] as string[];
+    if (categories.length === 0) return [];
+    return [{
+      name: 'Group',
+      entries: categories.map((cat, i) => ({
+        value: cat,
+        color: parsed.categoryColors?.[cat] ?? colors[i % colors.length],
+      })),
+    }];
+  }
+
+  if (parsed.type === 'chord') {
+    const nodeSet = new Set<string>();
+    if (parsed.links) {
+      for (const link of parsed.links) {
+        nodeSet.add(link.source);
+        nodeSet.add(link.target);
+      }
+    }
+    const nodes = Array.from(nodeSet);
+    if (nodes.length === 0) return [];
+    return [{
+      name: 'Node',
+      entries: nodes.map((name, i) => ({
+        value: name,
+        color: colors[i % colors.length],
+      })),
+    }];
+  }
+
+  if (parsed.type === 'function') {
+    const fns = parsed.functions ?? [];
+    if (fns.length === 0) return [];
+    return [{
+      name: 'Function',
+      entries: fns.map((fn, i) => ({
+        value: fn.name,
+        color: fn.color ?? colors[i % colors.length],
+      })),
+    }];
+  }
+
+  return [];
+}
+
+/**
  * Builds ECharts option for scatter plots.
  * Auto-detects categories and size from point data:
  * - hasCategories → multi-series with legend (one per category)
@@ -915,13 +991,11 @@ function buildScatterOption(
 
   // Build series based on whether categories are present
   let series;
-  let legendData: string[] | undefined;
 
   if (hasCategories) {
     const categories = [
       ...new Set(points.map((p) => p.category).filter(Boolean)),
     ] as string[];
-    legendData = categories;
 
     series = categories.map((category, catIndex) => {
       const categoryPoints = points.filter((p) => p.category === category);
@@ -1006,17 +1080,10 @@ function buildScatterOption(
     ...CHART_BASE,
     title: titleConfig,
     tooltip,
-    ...(legendData && {
-      legend: {
-        data: legendData,
-        bottom: 10,
-        textStyle: { color: textColor },
-      },
-    }),
     grid: {
       left: parsed.ylabel ? '12%' : '3%',
       right: '4%',
-      bottom: hasCategories ? '15%' : parsed.xlabel ? '10%' : '3%',
+      bottom: parsed.xlabel ? '10%' : '3%',
       top: parsed.title ? '15%' : '5%',
       containLabel: true,
     },
@@ -1993,16 +2060,26 @@ export async function renderExtendedChartForExport(
   const chartType = chartLine?.[1]?.trim().toLowerCase();
 
   let option: EChartsOption;
+  let legendGroups: LegendGroupData[] = [];
+  const colors = getSeriesColors(effectivePalette);
+
   if (chartType && STANDARD_CHART_TYPES.has(chartType)) {
     const parsed = parseChart(content, effectivePalette);
     if (parsed.error) return '';
     option = buildSimpleChartOption(parsed, effectivePalette, isDark, ECHART_EXPORT_WIDTH);
+    legendGroups = getSimpleChartLegendGroups(parsed, colors);
   } else {
     const parsed = parseExtendedChart(content, effectivePalette);
     if (parsed.error) return '';
     option = buildExtendedChartOption(parsed, effectivePalette, isDark);
+    legendGroups = getExtendedChartLegendGroups(parsed, colors);
   }
   if (!option || Object.keys(option).length === 0) return '';
+
+  // When using custom legend, strip ECharts' built-in legend
+  if (legendGroups.length > 0) {
+    option = { ...option, legend: undefined };
+  }
 
   const chart = echarts.init(null, null, {
     renderer: 'svg',
@@ -2023,6 +2100,25 @@ export async function renderExtendedChartForExport(
       /^<svg /,
       `<svg style="${bgStyle}font-family: ${FONT_FAMILY}" `
     );
+
+    // Inject custom legend SVG when present
+    if (legendGroups.length > 0) {
+      const titleHeight = option.title && (option.title as { text?: string }).text ? 40 : 0;
+      const legendY = 8 + titleHeight;
+      // In static export, expand the first group so entries are visible
+      const { svg: legendSvgStr } = renderLegendSvg(legendGroups, {
+        palette: effectivePalette,
+        isDark,
+        containerWidth: ECHART_EXPORT_WIDTH,
+        activeGroup: legendGroups[0].name,
+        className: 'chart-legend',
+      });
+      // Insert legend group right after the opening <svg ...> tag
+      result = result.replace(
+        /(<svg[^>]*>)/,
+        `$1<g transform="translate(0,${legendY})">${legendSvgStr}</g>`,
+      );
+    }
 
     if (options?.branding !== false) {
       const brandColor = theme === 'transparent' ? '#888' : effectivePalette.textMuted;

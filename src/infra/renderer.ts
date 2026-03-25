@@ -18,14 +18,13 @@ import {
   LEGEND_HEIGHT,
   LEGEND_PILL_PAD,
   LEGEND_PILL_FONT_SIZE,
-  LEGEND_PILL_FONT_W,
   LEGEND_CAPSULE_PAD,
   LEGEND_DOT_R,
   LEGEND_ENTRY_FONT_SIZE,
-  LEGEND_ENTRY_FONT_W,
   LEGEND_ENTRY_DOT_GAP,
   LEGEND_ENTRY_TRAIL,
   LEGEND_GROUP_GAP,
+  measureLegendText,
 } from '../utils/legend-constants';
 import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT, TITLE_Y, TITLE_OFFSET } from '../utils/title-constants';
 
@@ -1601,10 +1600,10 @@ export function computeInfraLegendGroups(
       color: r.color,
       key: r.name.toLowerCase().replace(/\s+/g, '-'),
     }));
-    const pillWidth = 'Capabilities'.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
+    const pillWidth = measureLegendText('Capabilities', LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
     let entriesWidth = 0;
     for (const e of entries) {
-      entriesWidth += LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP + e.value.length * LEGEND_ENTRY_FONT_W + LEGEND_ENTRY_TRAIL;
+      entriesWidth += LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP + measureLegendText(e.value, LEGEND_ENTRY_FONT_SIZE) + LEGEND_ENTRY_TRAIL;
     }
     groups.push({
       name: 'Capabilities',
@@ -1628,10 +1627,10 @@ export function computeInfraLegendGroups(
       }
     }
     if (entries.length === 0) continue;
-    const pillWidth = tg.name.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
+    const pillWidth = measureLegendText(tg.name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
     let entriesWidth = 0;
     for (const e of entries) {
-      entriesWidth += LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP + e.value.length * LEGEND_ENTRY_FONT_W + LEGEND_ENTRY_TRAIL;
+      entriesWidth += LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP + measureLegendText(e.value, LEGEND_ENTRY_FONT_SIZE) + LEGEND_ENTRY_TRAIL;
     }
     groups.push({
       name: tg.name,
@@ -1649,13 +1648,13 @@ export function computeInfraLegendGroups(
 /** Compute total width for the playback pill (speed only). */
 function computePlaybackWidth(playback: InfraPlaybackState | undefined): number {
   if (!playback) return 0;
-  const pillWidth = 'Playback'.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
+  const pillWidth = measureLegendText('Playback', LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
   if (!playback.expanded) return pillWidth;
 
   let entriesW = 8; // gap after pill
   entriesW += LEGEND_PILL_FONT_SIZE * 0.8 + 6; // play/pause
   for (const s of playback.speedOptions) {
-    entriesW += `${s}x`.length * LEGEND_ENTRY_FONT_W + SPEED_BADGE_H_PAD * 2 + SPEED_BADGE_GAP;
+    entriesW += measureLegendText(`${s}x`, LEGEND_ENTRY_FONT_SIZE) + SPEED_BADGE_H_PAD * 2 + SPEED_BADGE_GAP;
   }
   return LEGEND_CAPSULE_PAD * 2 + pillWidth + entriesW;
 }
@@ -1697,7 +1696,7 @@ function renderLegend(
       : mix(palette.surface, palette.bg, 30);
 
     const pillLabel = group.name;
-    const pillWidth = pillLabel.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
+    const pillWidth = measureLegendText(pillLabel, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
 
     const gEl = legendG
       .append('g')
@@ -1780,7 +1779,7 @@ function renderLegend(
           .attr('fill', palette.textMuted)
           .text(entry.value);
 
-        entryX = textX + entry.value.length * LEGEND_ENTRY_FONT_W + LEGEND_ENTRY_TRAIL;
+        entryX = textX + measureLegendText(entry.value, LEGEND_ENTRY_FONT_SIZE) + LEGEND_ENTRY_TRAIL;
       }
     }
 
@@ -1795,7 +1794,7 @@ function renderLegend(
       : mix(palette.bg, palette.text, 92);
 
     const pillLabel = 'Playback';
-    const pillWidth = pillLabel.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
+    const pillWidth = measureLegendText(pillLabel, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
     const fullW = computePlaybackWidth(playback);
 
     const pbG = legendG
@@ -1860,7 +1859,7 @@ function renderLegend(
       for (const s of playback.speedOptions) {
         const label = `${s}x`;
         const isActive = playback.speed === s;
-        const slotW = label.length * LEGEND_ENTRY_FONT_W + SPEED_BADGE_H_PAD * 2;
+        const slotW = measureLegendText(label, LEGEND_ENTRY_FONT_SIZE) + SPEED_BADGE_H_PAD * 2;
         const badgeH = LEGEND_ENTRY_FONT_SIZE + SPEED_BADGE_V_PAD * 2;
         const badgeY = (LEGEND_HEIGHT - badgeH) / 2;
 

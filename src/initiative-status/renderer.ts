@@ -10,14 +10,13 @@ import {
   LEGEND_HEIGHT,
   LEGEND_PILL_PAD,
   LEGEND_PILL_FONT_SIZE,
-  LEGEND_PILL_FONT_W,
   LEGEND_CAPSULE_PAD,
   LEGEND_DOT_R,
   LEGEND_ENTRY_FONT_SIZE,
-  LEGEND_ENTRY_FONT_W,
   LEGEND_ENTRY_DOT_GAP,
   LEGEND_ENTRY_TRAIL,
   LEGEND_GROUP_GAP,
+  measureLegendText,
 } from '../utils/legend-constants';
 import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT, TITLE_Y } from '../utils/title-constants';
 import { contrastText, mix } from '../palettes/color-utils';
@@ -115,7 +114,7 @@ const LEGEND_GROUP_NAME = 'Status';
 function legendEntriesWidth(entries: ISLegendEntry[]): number {
   let w = 0;
   for (const e of entries) {
-    w += LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP + e.label.length * LEGEND_ENTRY_FONT_W + LEGEND_ENTRY_TRAIL;
+    w += LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP + measureLegendText(e.label, LEGEND_ENTRY_FONT_SIZE) + LEGEND_ENTRY_TRAIL;
   }
   return w;
 }
@@ -600,7 +599,7 @@ export function renderInitiativeStatus(
         color: statusColor(e.statusKey, palette, isDark),
         value: e.statusKey ?? 'na',
       }));
-      const pillW = LEGEND_GROUP_NAME.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
+      const pillW = measureLegendText(LEGEND_GROUP_NAME, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
       const entrW = legendEntriesWidth(legendEntries);
       legendGroups.push({
         name: LEGEND_GROUP_NAME,
@@ -618,10 +617,10 @@ export function renderInitiativeStatus(
         color: e.color || palette.textMuted,
         value: e.value.toLowerCase(),
       }));
-      const pillW = tg.name.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
+      const pillW = measureLegendText(tg.name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
       let entrW = 0;
       for (const e of entries) {
-        entrW += LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP + e.label.length * LEGEND_ENTRY_FONT_W + LEGEND_ENTRY_TRAIL;
+        entrW += LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP + measureLegendText(e.label, LEGEND_ENTRY_FONT_SIZE) + LEGEND_ENTRY_TRAIL;
       }
       legendGroups.push({
         name: tg.name,
@@ -646,7 +645,7 @@ export function renderInitiativeStatus(
     let totalLegendW = 0;
     for (const lg of visibleLegendGroups) {
       const isActive = lg.isStatus ? isStatusExpanded : (activeKey === lg.key);
-      const pillW = lg.name.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
+      const pillW = measureLegendText(lg.name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
       totalLegendW += isActive ? lg.width : pillW;
       totalLegendW += LEGEND_GROUP_GAP;
     }
@@ -664,7 +663,7 @@ export function renderInitiativeStatus(
 
     for (const lg of visibleLegendGroups) {
       const isActive = lg.isStatus ? isStatusExpanded : (activeKey === lg.key);
-      const pillW = lg.name.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
+      const pillW = measureLegendText(lg.name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
       const pillH = LEGEND_HEIGHT - (isActive ? LEGEND_CAPSULE_PAD * 2 : 0);
       const groupW = isActive ? lg.width : pillW;
 
@@ -738,7 +737,7 @@ export function renderInitiativeStatus(
 
         for (const entry of lg.entries) {
           const isHidden = hiddenSet?.has(entry.value) ?? false;
-          const estimatedTextW = entry.label.length * LEGEND_ENTRY_FONT_W;
+          const estimatedTextW = measureLegendText(entry.label, LEGEND_ENTRY_FONT_SIZE);
 
           const entryG = gEl.append('g')
             .attr('data-legend-entry', entry.value)

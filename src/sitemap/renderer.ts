@@ -16,11 +16,9 @@ import {
   LEGEND_HEIGHT,
   LEGEND_PILL_PAD,
   LEGEND_PILL_FONT_SIZE,
-  LEGEND_PILL_FONT_W,
   LEGEND_CAPSULE_PAD,
   LEGEND_DOT_R,
   LEGEND_ENTRY_FONT_SIZE,
-  LEGEND_ENTRY_FONT_W,
   LEGEND_ENTRY_DOT_GAP,
   LEGEND_ENTRY_TRAIL,
   LEGEND_GROUP_GAP,
@@ -28,6 +26,7 @@ import {
   LEGEND_EYE_GAP,
   EYE_OPEN_PATH,
   EYE_CLOSED_PATH,
+  measureLegendText,
 } from '../utils/legend-constants';
 
 // ============================================================
@@ -592,7 +591,7 @@ function renderLegend(
 
   for (const group of visibleGroups) {
     const isActive = activeTagGroup != null;
-    const pillW = group.name.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
+    const pillW = measureLegendText(group.name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
 
     const gX = fixedPositions?.get(group.name) ?? group.x;
     const gY = fixedPositions ? 0 : group.y;
@@ -705,7 +704,7 @@ function renderLegend(
           .attr('fill', palette.textMuted)
           .text(entry.value);
 
-        entryX = textX + entry.value.length * LEGEND_ENTRY_FONT_W + LEGEND_ENTRY_TRAIL;
+        entryX = textX + measureLegendText(entry.value, LEGEND_ENTRY_FONT_SIZE) + LEGEND_ENTRY_TRAIL;
       }
     }
   }

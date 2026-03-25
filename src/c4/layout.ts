@@ -5,6 +5,7 @@
 import dagre from '@dagrejs/dagre';
 import type { ParsedC4, C4Element, C4Relationship, C4ArrowType, C4Shape, C4DeploymentNode } from './types';
 import type { OrgTagGroup } from '../org/parser';
+import { LEGEND_PILL_FONT_SIZE, LEGEND_ENTRY_FONT_SIZE, measureLegendText } from '../utils/legend-constants';
 
 // ============================================================
 // Types
@@ -94,12 +95,8 @@ const GROUP_BOUNDARY_PAD = 24;
 
 // Legend constants (match org)
 const LEGEND_HEIGHT = 28;
-const LEGEND_PILL_FONT_SIZE = 11;
-const LEGEND_PILL_FONT_W = LEGEND_PILL_FONT_SIZE * 0.6;
 const LEGEND_PILL_PAD = 16;
 const LEGEND_DOT_R = 4;
-const LEGEND_ENTRY_FONT_SIZE = 10;
-const LEGEND_ENTRY_FONT_W = LEGEND_ENTRY_FONT_SIZE * 0.6;
 const LEGEND_ENTRY_DOT_GAP = 4;
 const LEGEND_ENTRY_TRAIL = 8;
 const LEGEND_CAPSULE_PAD = 4;
@@ -672,13 +669,13 @@ function computeLegendGroups(tagGroups: OrgTagGroup[]): C4LegendGroup[] {
     if (entries.length === 0) continue;
 
     // Compute pill width: group name + entries
-    const nameW = group.name.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD * 2;
+    const nameW = measureLegendText(group.name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD * 2;
     let capsuleW = LEGEND_CAPSULE_PAD;
     for (const e of entries) {
       capsuleW +=
         LEGEND_DOT_R * 2 +
         LEGEND_ENTRY_DOT_GAP +
-        e.value.length * LEGEND_ENTRY_FONT_W +
+        measureLegendText(e.value, LEGEND_ENTRY_FONT_SIZE) +
         LEGEND_ENTRY_TRAIL;
     }
     capsuleW += LEGEND_CAPSULE_PAD;

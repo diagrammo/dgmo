@@ -18,6 +18,32 @@ export const LEGEND_EYE_SIZE = 14;
 export const LEGEND_EYE_GAP = 6;
 export const LEGEND_ICON_W = 20;
 
+// ── Proportional text measurement ────────────────────────────
+// Helvetica character width ratios (fraction of fontSize).
+// Replaces the naive `chars * 0.6 * fontSize` estimate with
+// per-character proportional widths for accurate legend sizing.
+// prettier-ignore
+const CHAR_W: Record<string, number> = {
+  ' ':.28,'!': .28,'"': .36,'#': .56,'$': .56,'%': .89,'&': .67,"'":.19,
+  '(':.33,')':.33,'*': .39,'+':.58,',':.28,'-':.33,'.':.28,'/':.28,
+  '0':.56,'1':.56,'2':.56,'3':.56,'4':.56,'5':.56,'6':.56,'7':.56,'8':.56,'9':.56,
+  ':':.28,';':.28,'<':.58,'=':.58,'>':.58,'?':.56,'@':1.02,
+  A:.67,B:.67,C:.72,D:.72,E:.67,F:.61,G:.78,H:.72,I:.28,J:.50,K:.67,L:.56,M:.83,
+  N:.72,O:.78,P:.67,Q:.78,R:.72,S:.67,T:.61,U:.72,V:.67,W:.94,X:.67,Y:.67,Z:.61,
+  a:.56,b:.56,c:.50,d:.56,e:.56,f:.28,g:.56,h:.56,i:.22,j:.22,k:.50,l:.22,m:.83,
+  n:.56,o:.56,p:.56,q:.56,r:.33,s:.50,t:.28,u:.56,v:.50,w:.72,x:.50,y:.50,z:.50,
+};
+const DEFAULT_W = 0.56;
+
+/** Estimate rendered text width using Helvetica proportional character widths. */
+export function measureLegendText(text: string, fontSize: number): number {
+  let w = 0;
+  for (let i = 0; i < text.length; i++) {
+    w += (CHAR_W[text[i]] ?? DEFAULT_W) * fontSize;
+  }
+  return w;
+}
+
 // Eye icon SVG paths (14×14 viewBox)
 // Present only in org and sitemap legends (metadata visibility toggle)
 export const EYE_OPEN_PATH =

@@ -10,13 +10,12 @@ import {
   LEGEND_HEIGHT,
   LEGEND_PILL_PAD,
   LEGEND_PILL_FONT_SIZE,
-  LEGEND_PILL_FONT_W,
   LEGEND_CAPSULE_PAD,
   LEGEND_DOT_R,
   LEGEND_ENTRY_FONT_SIZE,
-  LEGEND_ENTRY_FONT_W,
   LEGEND_ENTRY_DOT_GAP,
   LEGEND_ENTRY_TRAIL,
+  measureLegendText,
 } from '../utils/legend-constants';
 import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT, TITLE_Y } from '../utils/title-constants';
 import type { PaletteColors } from '../palettes';
@@ -98,7 +97,7 @@ const LEGEND_GROUP_NAME = 'Type';
 function legendEntriesWidth(entries: ClassLegendEntry[]): number {
   let w = 0;
   for (const e of entries) {
-    w += LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP + e.label.length * LEGEND_ENTRY_FONT_W + LEGEND_ENTRY_TRAIL;
+    w += LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP + measureLegendText(e.label, LEGEND_ENTRY_FONT_SIZE) + LEGEND_ENTRY_TRAIL;
   }
   return w;
 }
@@ -314,7 +313,7 @@ export function renderClassDiagram(
       ? mix(palette.surface, palette.bg, 50)
       : mix(palette.surface, palette.bg, 30);
 
-    const pillWidth = LEGEND_GROUP_NAME.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
+    const pillWidth = measureLegendText(LEGEND_GROUP_NAME, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
     const pillH = LEGEND_HEIGHT - LEGEND_CAPSULE_PAD * 2;
     const entriesW = legendEntriesWidth(legendEntries);
 
@@ -392,7 +391,7 @@ export function renderClassDiagram(
           .attr('font-family', FONT_FAMILY)
           .text(entry.label);
 
-        entryX += LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP + entry.label.length * LEGEND_ENTRY_FONT_W + LEGEND_ENTRY_TRAIL;
+        entryX += LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP + measureLegendText(entry.label, LEGEND_ENTRY_FONT_SIZE) + LEGEND_ENTRY_TRAIL;
       }
     } else {
       // Collapsed: single muted pill

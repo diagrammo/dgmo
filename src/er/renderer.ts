@@ -13,13 +13,13 @@ import {
   LEGEND_HEIGHT,
   LEGEND_PILL_PAD,
   LEGEND_PILL_FONT_SIZE,
-  LEGEND_PILL_FONT_W,
   LEGEND_CAPSULE_PAD,
   LEGEND_DOT_R,
   LEGEND_ENTRY_FONT_SIZE,
   LEGEND_ENTRY_DOT_GAP,
   LEGEND_ENTRY_TRAIL,
   LEGEND_GROUP_GAP,
+  measureLegendText,
 } from '../utils/legend-constants';
 import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT, TITLE_Y } from '../utils/title-constants';
 import type { ParsedERDiagram, ERConstraint } from './types';
@@ -627,7 +627,7 @@ export function renderERDiagram(
         : mix(palette.surface, palette.bg, 30);
 
       const groupName = 'Role';
-      const pillWidth = groupName.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
+      const pillWidth = measureLegendText(groupName, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
       const pillH = LEGEND_HEIGHT - LEGEND_CAPSULE_PAD * 2;
 
       let totalWidth: number;
