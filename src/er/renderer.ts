@@ -21,6 +21,7 @@ import {
   LEGEND_ENTRY_TRAIL,
   LEGEND_GROUP_GAP,
 } from '../utils/legend-constants';
+import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT, TITLE_Y } from '../utils/title-constants';
 import type { ParsedERDiagram, ERConstraint } from './types';
 import type { ERLayoutResult } from './layout';
 import { parseERDiagram } from './parser';
@@ -286,11 +287,11 @@ export function renderERDiagram(
       .append('text')
       .attr('class', 'chart-title')
       .attr('x', viewW / 2)
-      .attr('y', 30)
+      .attr('y', TITLE_Y)
       .attr('text-anchor', 'middle')
       .attr('fill', palette.text)
-      .attr('font-size', '20px')
-      .attr('font-weight', '700')
+      .attr('font-size', TITLE_FONT_SIZE)
+      .attr('font-weight', TITLE_FONT_WEIGHT)
       .style('cursor', onClickItem && parsed.titleLineNumber ? 'pointer' : 'default')
       .text(parsed.title);
 

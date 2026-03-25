@@ -35,8 +35,8 @@ const CARD_RADIUS = 6;
 const CARD_PADDING_X = 10;
 const CARD_PADDING_Y = 6;
 const CARD_STROKE_WIDTH = 1.5;
+import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT } from '../utils/title-constants';
 const TITLE_HEIGHT = 30;
-const TITLE_FONT_SIZE = 18;
 const COLUMN_HEADER_FONT_SIZE = 13;
 const CARD_TITLE_FONT_SIZE = 12;
 const CARD_META_FONT_SIZE = 10;
@@ -235,7 +235,7 @@ export function renderKanban(
       .attr('x', DIAGRAM_PADDING)
       .attr('y', DIAGRAM_PADDING + TITLE_FONT_SIZE)
       .attr('font-size', TITLE_FONT_SIZE)
-      .attr('font-weight', 'bold')
+      .attr('font-weight', TITLE_FONT_WEIGHT)
       .attr('fill', palette.text)
       .text(parsed.title);
   }

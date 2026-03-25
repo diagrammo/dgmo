@@ -197,6 +197,7 @@ import {
   LEGEND_ENTRY_TRAIL as TL_LEGEND_ENTRY_TRAIL,
   LEGEND_GROUP_GAP as TL_LEGEND_GROUP_GAP,
 } from './utils/legend-constants';
+import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT, TITLE_Y } from './utils/title-constants';
 
 // ============================================================
 // Shared Rendering Helpers
@@ -217,11 +218,11 @@ function renderChartTitle(
   const titleEl = svg.append('text')
     .attr('class', 'chart-title')
     .attr('x', width / 2)
-    .attr('y', 30)
+    .attr('y', TITLE_Y)
     .attr('text-anchor', 'middle')
     .attr('fill', textColor)
-    .attr('font-size', '20px')
-    .attr('font-weight', '700')
+    .attr('font-size', TITLE_FONT_SIZE)
+    .attr('font-weight', TITLE_FONT_WEIGHT)
     .style('cursor', onClickItem && titleLineNumber ? 'pointer' : 'default')
     .text(title);
   if (titleLineNumber) {
@@ -261,45 +262,97 @@ function initD3Chart(
 // ============================================================
 
 /**
- * Converts a date string (YYYY, YYYY-MM, YYYY-MM-DD) to a fractional year number.
+ * Converts a date string (YYYY, YYYY-MM, YYYY-MM-DD, or YYYY-MM-DD HH:MM) to a fractional year number.
  */
 export function parseTimelineDate(s: string): number {
-  const parts = s.split('-').map((p) => parseInt(p, 10));
+  // Split off optional time component
+  const spaceIdx = s.indexOf(' ');
+  let datePart = s;
+  let hour = 0;
+  let minute = 0;
+
+  if (spaceIdx !== -1) {
+    datePart = s.slice(0, spaceIdx);
+    const timePart = s.slice(spaceIdx + 1);
+    const timeParts = timePart.split(':');
+    if (timeParts.length === 2) {
+      hour = parseInt(timeParts[0], 10);
+      minute = parseInt(timeParts[1], 10);
+    }
+  }
+
+  const parts = datePart.split('-').map((p) => parseInt(p, 10));
   const year = parts[0];
   const month = parts.length >= 2 ? parts[1] : 1;
   const day = parts.length >= 3 ? parts[2] : 1;
-  return year + (month - 1) / 12 + (day - 1) / 365;
+  return year + (month - 1) / 12 + (day - 1) / 365 + hour / 8760 + minute / 525600;
+}
+
+/** Convert a fractional year number back to a Date (inverse of parseTimelineDate). */
+function fractionalYearToDate(frac: number): Date {
+  const year = Math.floor(frac);
+  const remainder = frac - year;
+  // Inverse of: (month-1)/12 + (day-1)/365 + hour/8760 + minute/525600
+  const monthFrac = remainder * 12;
+  const month = Math.floor(monthFrac); // 0-based
+  const monthRemainder = remainder - month / 12;
+  const dayFrac = monthRemainder * 365; // fractional day-of-year offset
+  const day = Math.floor(dayFrac) + 1;
+  const dayRemainder = dayFrac - Math.floor(dayFrac);
+  const hourFrac = dayRemainder * 24;
+  const hour = Math.floor(hourFrac);
+  const minute = Math.round((hourFrac - hour) * 60);
+  return new Date(year, month, day, hour, minute);
+}
+
+/** Convert a Date to a fractional year number. */
+function dateToFractionalYear(d: Date): number {
+  return d.getFullYear() + d.getMonth() / 12 + (d.getDate() - 1) / 365
+    + d.getHours() / 8760 + d.getMinutes() / 525600;
 }
 
 /**
  * Adds a duration to a date string and returns the resulting date string.
- * Supports: d (days), w (weeks), m (months), y (years)
+ * Supports: d (days), w (weeks), m (months), y (years), h (hours), min (minutes)
  * Supports decimals up to 2 places (e.g., 1.25y = 1 year 3 months)
- * Preserves the precision of the input date (YYYY, YYYY-MM, or YYYY-MM-DD).
+ * Preserves the precision of the input date (YYYY, YYYY-MM, YYYY-MM-DD, or YYYY-MM-DD HH:MM).
  */
 export function addDurationToDate(
   startDate: string,
   amount: number,
-  unit: 'd' | 'w' | 'm' | 'y'
+  unit: 'd' | 'w' | 'm' | 'y' | 'h' | 'min'
 ): string {
-  const parts = startDate.split('-').map((p) => parseInt(p, 10));
+  // Split off optional time component
+  const spaceIdx = startDate.indexOf(' ');
+  let datePart = startDate;
+  let hour = 0;
+  let minute = 0;
+
+  if (spaceIdx !== -1) {
+    datePart = startDate.slice(0, spaceIdx);
+    const timePart = startDate.slice(spaceIdx + 1);
+    const tp = timePart.split(':');
+    if (tp.length === 2) {
+      hour = parseInt(tp[0], 10);
+      minute = parseInt(tp[1], 10);
+    }
+  }
+
+  const parts = datePart.split('-').map((p) => parseInt(p, 10));
   const year = parts[0];
   const month = parts.length >= 2 ? parts[1] : 1;
   const day = parts.length >= 3 ? parts[2] : 1;
 
-  const date = new Date(year, month - 1, day);
+  const date = new Date(year, month - 1, day, hour, minute);
 
   switch (unit) {
     case 'd':
-      // Round days to nearest integer
       date.setDate(date.getDate() + Math.round(amount));
       break;
     case 'w':
-      // Convert weeks to days, round to nearest integer
       date.setDate(date.getDate() + Math.round(amount * 7));
       break;
     case 'm': {
-      // Add whole months, then remaining days
       const wholeMonths = Math.floor(amount);
       const fractionalDays = Math.round((amount - wholeMonths) * 30);
       date.setMonth(date.getMonth() + wholeMonths);
@@ -309,7 +362,6 @@ export function addDurationToDate(
       break;
     }
     case 'y': {
-      // Add whole years, then remaining months
       const wholeYears = Math.floor(amount);
       const fractionalMonths = Math.round((amount - wholeYears) * 12);
       date.setFullYear(date.getFullYear() + wholeYears);
@@ -318,17 +370,28 @@ export function addDurationToDate(
       }
       break;
     }
+    case 'h':
+      date.setTime(date.getTime() + amount * 3600000);
+      break;
+    case 'min':
+      date.setTime(date.getTime() + amount * 60000);
+      break;
   }
 
   // Preserve original precision
   const endYear = date.getFullYear();
   const endMonth = String(date.getMonth() + 1).padStart(2, '0');
   const endDay = String(date.getDate()).padStart(2, '0');
+  const endHour = String(date.getHours()).padStart(2, '0');
+  const endMinute = String(date.getMinutes()).padStart(2, '0');
+  const hasTime = unit === 'h' || unit === 'min' || spaceIdx !== -1;
 
   if (parts.length === 1) {
     return String(endYear);
   } else if (parts.length === 2) {
     return `${endYear}-${endMonth}`;
+  } else if (hasTime && (date.getHours() !== 0 || date.getMinutes() !== 0)) {
+    return `${endYear}-${endMonth}-${endDay} ${endHour}:${endMinute}`;
   } else {
     return `${endYear}-${endMonth}-${endDay}`;
   }
@@ -530,7 +593,7 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
     // Timeline era lines: era YYYY->YYYY: Label (color)
     if (result.type === 'timeline') {
       const eraMatch = line.match(
-        /^era\s+(\d{4}(?:-\d{2})?(?:-\d{2})?)\s*->\s*(\d{4}(?:-\d{2})?(?:-\d{2})?)\s*:\s*(.+?)(?:\s*\(([^)]+)\))?\s*$/
+        /^era\s+(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s*->\s*(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s*:\s*(.+?)(?:\s*\(([^)]+)\))?\s*$/
       );
       if (eraMatch) {
         const colorAnnotation = eraMatch[4]?.trim() || null;
@@ -547,7 +610,7 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
 
       // Timeline marker lines: marker: YYYY Label (color)
       const markerMatch = line.match(
-        /^marker:\s+(\d{4}(?:-\d{2})?(?:-\d{2})?)\s+(.+?)(?:\s*\(([^)]+)\))?\s*$/
+        /^marker:\s+(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s+(.+?)(?:\s*\(([^)]+)\))?\s*$/
       );
       if (markerMatch) {
         const colorAnnotation = markerMatch[3]?.trim() || null;
@@ -565,17 +628,17 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
 
     // Timeline event lines: duration, range, or point
     if (result.type === 'timeline') {
-      // Duration event: 2026-07-15->30d: description (d=days, w=weeks, m=months, y=years)
+      // Duration event: 2026-07-15->30d: description (d=days, w=weeks, m=months, y=years, h=hours, min=minutes)
       // Supports decimals up to 2 places (e.g., 1.25y = 1 year 3 months)
       // Supports uncertain end with ? suffix (e.g., ->3m?: fades out the last 20%)
       const durationMatch = line.match(
-        /^(\d{4}(?:-\d{2})?(?:-\d{2})?)\s*->\s*(\d+(?:\.\d{1,2})?)([dwmy])(\?)?\s*:\s*(.+)$/
+        /^(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s*->\s*(\d+(?:\.\d{1,2})?)(min|[dwmyh])(\?)?\s*:\s*(.+)$/
       );
       if (durationMatch) {
         const startDate = durationMatch[1];
         const uncertain = durationMatch[4] === '?';
         const amount = parseFloat(durationMatch[2]);
-        const unit = durationMatch[3] as 'd' | 'w' | 'm' | 'y';
+        const unit = durationMatch[3] as 'd' | 'w' | 'm' | 'y' | 'h' | 'min';
         const endDate = addDurationToDate(startDate, amount, unit);
         const segments = durationMatch[5].split('|');
         const metadata = segments.length > 1
@@ -2358,19 +2421,30 @@ const MONTH_ABBR = [
 ];
 
 /**
- * Converts a DSL date string (YYYY, YYYY-MM, YYYY-MM-DD) to a human-readable label.
- *   '1718'       → '1718'
- *   '1718-05'    → 'May 1718'
- *   '1718-05-22' → 'May 22, 1718'
+ * Converts a DSL date string (YYYY, YYYY-MM, YYYY-MM-DD, or YYYY-MM-DD HH:MM) to a human-readable label.
+ *   '1718'              → '1718'
+ *   '1718-05'           → 'May 1718'
+ *   '1718-05-22'        → 'May 22, 1718'
+ *   '2024-06-15 14:30'  → 'Jun 15, 2024 14:30'
  */
 export function formatDateLabel(dateStr: string): string {
-  const parts = dateStr.split('-');
+  // Split off optional time component
+  const spaceIdx = dateStr.indexOf(' ');
+  let datePart = dateStr;
+  let timeSuffix = '';
+
+  if (spaceIdx !== -1) {
+    datePart = dateStr.slice(0, spaceIdx);
+    timeSuffix = ' ' + dateStr.slice(spaceIdx + 1);
+  }
+
+  const parts = datePart.split('-');
   const year = parts[0];
-  if (parts.length === 1) return year;
+  if (parts.length === 1) return year + timeSuffix;
   const month = MONTH_ABBR[parseInt(parts[1], 10) - 1];
-  if (parts.length === 2) return `${month} ${year}`;
+  if (parts.length === 2) return `${month} ${year}${timeSuffix}`;
   const day = parseInt(parts[2], 10);
-  return `${month} ${day}, ${year}`;
+  return `${month} ${day}, ${year}${timeSuffix}`;
 }
 
 /**
@@ -2431,6 +2505,55 @@ export function computeTimeTicks(
           });
         }
       }
+    }
+  } else if (span <= 0.000685) {
+    // Minute ticks for spans ≤ ~6 hours
+    // Adaptive step: >3h → 30min, >1h → 15min, >30min → 10min, else 5min
+    let stepMin = 5;
+    const spanHours = span * 8760;
+    if (spanHours > 3) stepMin = 30;
+    else if (spanHours > 1) stepMin = 15;
+    else if (spanHours > 0.5) stepMin = 10;
+
+    // Iterate from the start hour boundary
+    const startDate = fractionalYearToDate(domainMin);
+    // Round down to nearest step boundary
+    startDate.setMinutes(Math.floor(startDate.getMinutes() / stepMin) * stepMin, 0, 0);
+
+    while (true) {
+      const val = dateToFractionalYear(startDate);
+      if (val > domainMax) break;
+      if (val >= domainMin) {
+        const hh = String(startDate.getHours()).padStart(2, '0');
+        const mm = String(startDate.getMinutes()).padStart(2, '0');
+        ticks.push({ pos: scale(val), label: `${hh}:${mm}` });
+      }
+      startDate.setMinutes(startDate.getMinutes() + stepMin);
+    }
+  } else if (span <= 0.00822) {
+    // Hour ticks for spans ≤ ~3 days
+    // Adaptive step: >2d → 6h, >1d → 3h, >12h → 2h, else 1h
+    let stepHour = 1;
+    const spanHours = span * 8760;
+    if (spanHours > 48) stepHour = 6;
+    else if (spanHours > 24) stepHour = 3;
+    else if (spanHours > 12) stepHour = 2;
+
+    const startDate = fractionalYearToDate(domainMin);
+    // Round down to nearest step boundary
+    startDate.setHours(Math.floor(startDate.getHours() / stepHour) * stepHour, 0, 0, 0);
+
+    while (true) {
+      const val = dateToFractionalYear(startDate);
+      if (val > domainMax) break;
+      if (val >= domainMin) {
+        const mon = MONTH_ABBR[startDate.getMonth()];
+        const d = startDate.getDate();
+        const hh = String(startDate.getHours()).padStart(2, '0');
+        const mm = String(startDate.getMinutes()).padStart(2, '0');
+        ticks.push({ pos: scale(val), label: `${mon} ${d} ${hh}:${mm}` });
+      }
+      startDate.setHours(startDate.getHours() + stepHour);
     }
   } else {
     // Week ticks for spans ≤ ~3 months (1st, 8th, 15th, 22nd of each month)

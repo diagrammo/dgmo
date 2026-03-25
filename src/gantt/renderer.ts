@@ -24,6 +24,7 @@ import {
   LEGEND_GROUP_GAP,
   LEGEND_ICON_W,
 } from '../utils/legend-constants';
+import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT, TITLE_Y } from '../utils/title-constants';
 import type { PaletteColors } from '../palettes';
 import type { D3ExportDimensions } from '../d3';
 import type { ResolvedSchedule, ResolvedTask, ResolvedGroup, Weekday } from './types';
@@ -273,10 +274,10 @@ export function renderGantt(
     svg
       .append('text')
       .attr('x', containerWidth / 2)
-      .attr('y', 30)
+      .attr('y', TITLE_Y)
       .attr('text-anchor', 'middle')
-      .attr('font-size', '20px')
-      .attr('font-weight', '700')
+      .attr('font-size', TITLE_FONT_SIZE)
+      .attr('font-weight', TITLE_FONT_WEIGHT)
       .attr('fill', palette.text)
       .text(title);
   }
@@ -2272,7 +2273,11 @@ function diamondPoints(cx: number, cy: number, size: number): string {
 const MONTH_ABBR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 function formatGanttDate(d: Date): string {
-  return `${MONTH_ABBR[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+  const base = `${MONTH_ABBR[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+  if (d.getHours() === 0 && d.getMinutes() === 0) return base;
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${base} ${hh}:${mm}`;
 }
 
 function showGanttDateIndicators(

@@ -25,6 +25,7 @@ import {
   LEGEND_CAPSULE_PAD,
   LEGEND_GROUP_GAP,
 } from '../utils/legend-constants';
+import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT } from '../utils/title-constants';
 
 // ============================================================
 // Constants
@@ -33,7 +34,6 @@ import {
 const DIAGRAM_PADDING = 20;
 const MAX_SCALE = 3;
 const TITLE_HEIGHT = 30;
-const TITLE_FONT_SIZE = 20;
 const TYPE_FONT_SIZE = 10;
 const NAME_FONT_SIZE = 14;
 const DESC_FONT_SIZE = 11;
@@ -307,8 +307,8 @@ export function renderC4Context(
       .attr('y', 30)
       .attr('text-anchor', 'middle')
       .attr('fill', palette.text)
-      .attr('font-size', `${TITLE_FONT_SIZE}px`)
-      .attr('font-weight', '700')
+      .attr('font-size', TITLE_FONT_SIZE)
+      .attr('font-weight', TITLE_FONT_WEIGHT)
       .style('cursor', onClickItem && parsed.titleLineNumber ? 'pointer' : 'default')
       .text(parsed.title);
 
@@ -1347,8 +1347,8 @@ export function renderC4Containers(
       .attr('y', 30)
       .attr('text-anchor', 'middle')
       .attr('fill', palette.text)
-      .attr('font-size', `${TITLE_FONT_SIZE}px`)
-      .attr('font-weight', '700')
+      .attr('font-size', TITLE_FONT_SIZE)
+      .attr('font-weight', TITLE_FONT_WEIGHT)
       .style('cursor', onClickItem && parsed.titleLineNumber ? 'pointer' : 'default')
       .text(parsed.title);
 

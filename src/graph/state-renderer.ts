@@ -11,6 +11,7 @@ import type { ParsedGraph } from './types';
 import type { LayoutResult, LayoutNode } from './layout';
 import { parseState } from './state-parser';
 import { layoutGraph } from './layout';
+import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT, TITLE_Y } from '../utils/title-constants';
 
 // ============================================================
 // Constants
@@ -154,11 +155,11 @@ export function renderState(
       .append('text')
       .attr('class', 'chart-title')
       .attr('x', width / 2)
-      .attr('y', 30)
+      .attr('y', TITLE_Y)
       .attr('text-anchor', 'middle')
       .attr('fill', palette.text)
-      .attr('font-size', '20px')
-      .attr('font-weight', '700')
+      .attr('font-size', TITLE_FONT_SIZE)
+      .attr('font-weight', TITLE_FONT_WEIGHT)
       .style('cursor', onClickItem && graph.titleLineNumber ? 'pointer' : 'default')
       .text(graph.title);
 

@@ -18,6 +18,7 @@ import {
   LEGEND_ENTRY_DOT_GAP,
   LEGEND_ENTRY_TRAIL,
 } from '../utils/legend-constants';
+import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT, TITLE_Y } from '../utils/title-constants';
 import type { PaletteColors } from '../palettes';
 import { mix } from '../palettes/color-utils';
 import type { ParsedClassDiagram, ClassModifier, RelationshipType } from './types';
@@ -286,11 +287,11 @@ export function renderClassDiagram(
       .append('text')
       .attr('class', 'chart-title')
       .attr('x', width / 2)
-      .attr('y', 30)
+      .attr('y', TITLE_Y)
       .attr('text-anchor', 'middle')
       .attr('fill', palette.text)
-      .attr('font-size', '20px')
-      .attr('font-weight', '700')
+      .attr('font-size', TITLE_FONT_SIZE)
+      .attr('font-weight', TITLE_FONT_WEIGHT)
       .style('cursor', onClickItem && parsed.titleLineNumber ? 'pointer' : 'default')
       .text(parsed.title);
 

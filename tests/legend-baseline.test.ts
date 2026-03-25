@@ -29,7 +29,7 @@ import { renderSitemap } from '../src/sitemap/renderer';
 import { parseInfra } from '../src/infra/parser';
 import { computeInfra } from '../src/infra/compute';
 import { layoutInfra } from '../src/infra/layout';
-import { renderInfra } from '../src/infra/renderer';
+import { renderInfra, type InfraPlaybackState } from '../src/infra/renderer';
 import { parseERDiagram } from '../src/er/parser';
 import { layoutERDiagram } from '../src/er/layout';
 import { renderERDiagram } from '../src/er/renderer';
@@ -246,6 +246,75 @@ edge
     renderInfra(container, layout, palette, false, parsed.title, parsed.titleLineNumber, parsed.tagGroups, null, false, null, null, true);
     const groups = container.querySelectorAll('[data-legend-group]');
     expect(groups.length).toBeGreaterThan(0);
+    document.body.removeChild(container);
+  });
+});
+
+// ── Infra Playback ────────────────────────────────────────────────────────────
+
+describe('Baseline: Infra playback control', () => {
+  const src = `chart: infra
+
+edge
+  rps: 500
+  -> API
+  -> DB`;
+
+  const playback: InfraPlaybackState = {
+    expanded: true,
+    paused: false,
+    speed: 1,
+    speedOptions: [1, 1.5, 2],
+  };
+
+  it('renders playback pill when playback state is provided', () => {
+    const parsed = parseInfra(src);
+    const computed = computeInfra(parsed);
+    const layout = layoutInfra(computed);
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    renderInfra(container, layout, palette, false, null, null, [], null, false, playback, null, true);
+    const pill = container.querySelector('.infra-playback-pill');
+    expect(pill).not.toBeNull();
+    document.body.removeChild(container);
+  });
+
+  it('renders play/pause toggle when expanded', () => {
+    const parsed = parseInfra(src);
+    const computed = computeInfra(parsed);
+    const layout = layoutInfra(computed);
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    renderInfra(container, layout, palette, false, null, null, [], null, false, playback, null, true);
+    const toggle = container.querySelector('[data-playback-action="toggle-pause"]');
+    expect(toggle).not.toBeNull();
+    document.body.removeChild(container);
+  });
+
+  it('renders speed badges when expanded', () => {
+    const parsed = parseInfra(src);
+    const computed = computeInfra(parsed);
+    const layout = layoutInfra(computed);
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    renderInfra(container, layout, palette, false, null, null, [], null, false, playback, null, true);
+    const speedBadges = container.querySelectorAll('[data-playback-action="set-speed"]');
+    expect(speedBadges.length).toBe(3); // 1x, 1.5x, 2x
+    document.body.removeChild(container);
+  });
+
+  it('does not render playback entries when collapsed', () => {
+    const collapsed: InfraPlaybackState = { ...playback, expanded: false };
+    const parsed = parseInfra(src);
+    const computed = computeInfra(parsed);
+    const layout = layoutInfra(computed);
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    renderInfra(container, layout, palette, false, null, null, [], null, false, collapsed, null, true);
+    const pill = container.querySelector('.infra-playback-pill');
+    expect(pill).not.toBeNull();
+    const toggle = container.querySelector('[data-playback-action="toggle-pause"]');
+    expect(toggle).toBeNull();
     document.body.removeChild(container);
   });
 });

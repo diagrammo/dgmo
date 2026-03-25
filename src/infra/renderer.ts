@@ -27,6 +27,7 @@ import {
   LEGEND_ENTRY_TRAIL,
   LEGEND_GROUP_GAP,
 } from '../utils/legend-constants';
+import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT, TITLE_Y, TITLE_OFFSET } from '../utils/title-constants';
 
 // ============================================================
 // Constants
@@ -49,6 +50,9 @@ const COLLAPSE_BAR_HEIGHT = 6;
 const COLLAPSE_BAR_INSET = 0;
 
 const LEGEND_FIXED_GAP = 16; // gap between fixed legend and scaled diagram — local, not shared
+const SPEED_BADGE_H_PAD = 5; // horizontal padding inside active speed badge
+const SPEED_BADGE_V_PAD = 3; // vertical padding inside active speed badge
+const SPEED_BADGE_GAP = 6;   // gap between speed option slots
 
 // Health colors (from UX spec)
 const COLOR_HEALTHY = '#22c55e';
@@ -930,6 +934,7 @@ function renderEdgePaths(
   isDark: boolean,
   animate: boolean,
   direction: 'LR' | 'TB',
+  speedMultiplier: number = 1,
 ) {
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
   const maxRps = Math.max(...edges.map((e) => e.computedRps), 1);
@@ -961,7 +966,8 @@ function renderEdgePaths(
       .attr('stroke-width', strokeW);
 
     if (animate && edge.computedRps > 0) {
-      const dur = flowDuration(edge.computedRps, maxRps);
+      const baseDur = flowDuration(edge.computedRps, maxRps);
+      const dur = speedMultiplier > 0 ? baseDur / speedMultiplier : baseDur;
 
       // Particles traveling along the path — always green (overloaded nodes
       // already have red styling + reject particles to show the problem)
@@ -1490,6 +1496,7 @@ function computeRejectedRps(node: InfraLayoutNode): number {
 function renderRejectParticles(
   svg: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   nodes: InfraLayoutNode[],
+  speedMultiplier: number = 1,
 ) {
   // Compute max rejected RPS across all nodes for scaling
   const rejectMap: { node: InfraLayoutNode; rejected: number }[] = [];
@@ -1504,7 +1511,8 @@ function renderRejectParticles(
   for (const { node, rejected } of rejectMap) {
     const t = Math.min(rejected / maxRejected, 1);
     const count = Math.round(REJECT_COUNT_MIN + t * (REJECT_COUNT_MAX - REJECT_COUNT_MIN));
-    const dur = REJECT_DURATION_MAX - t * (REJECT_DURATION_MAX - REJECT_DURATION_MIN);
+    const baseDur = REJECT_DURATION_MAX - t * (REJECT_DURATION_MAX - REJECT_DURATION_MIN);
+    const dur = speedMultiplier > 0 ? baseDur / speedMultiplier : baseDur;
 
     const nodeBottom = node.y + node.height / 2;
 
@@ -1638,6 +1646,20 @@ export function computeInfraLegendGroups(
   return groups;
 }
 
+/** Compute total width for the playback pill (speed only). */
+function computePlaybackWidth(playback: InfraPlaybackState | undefined): number {
+  if (!playback) return 0;
+  const pillWidth = 'Playback'.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
+  if (!playback.expanded) return pillWidth;
+
+  let entriesW = 8; // gap after pill
+  entriesW += LEGEND_PILL_FONT_SIZE * 0.8 + 6; // play/pause
+  for (const s of playback.speedOptions) {
+    entriesW += `${s}x`.length * LEGEND_ENTRY_FONT_W + SPEED_BADGE_H_PAD * 2 + SPEED_BADGE_GAP;
+  }
+  return LEGEND_CAPSULE_PAD * 2 + pillWidth + entriesW;
+}
+
 function renderLegend(
   rootSvg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
   legendGroups: InfraLegendGroup[],
@@ -1646,8 +1668,9 @@ function renderLegend(
   palette: PaletteColors,
   isDark: boolean,
   activeGroup: string | null,
+  playback?: InfraPlaybackState,
 ) {
-  if (legendGroups.length === 0) return;
+  if (legendGroups.length === 0 && !playback) return;
 
   const legendG = rootSvg.append('g')
     .attr('transform', `translate(0, ${legendY})`);
@@ -1659,8 +1682,11 @@ function renderLegend(
   // Compute centered positions
   const effectiveW = (g: InfraLegendGroup) =>
     activeGroup != null && g.name.toLowerCase() === activeGroup.toLowerCase() ? g.width : g.minifiedWidth;
+  const playbackW = computePlaybackWidth(playback);
+  const trailingGaps = legendGroups.length > 0 && playbackW > 0 ? LEGEND_GROUP_GAP : 0;
   const totalLegendW = legendGroups.reduce((s, g) => s + effectiveW(g), 0)
-    + (legendGroups.length - 1) * LEGEND_GROUP_GAP;
+    + (legendGroups.length - 1) * LEGEND_GROUP_GAP
+    + trailingGaps + playbackW;
   let cursorX = (totalWidth - totalLegendW) / 2;
 
   for (const group of legendGroups) {
@@ -1761,11 +1787,123 @@ function renderLegend(
     cursorX += effectiveW(group) + LEGEND_GROUP_GAP;
   }
 
+  // Playback pill — speed + pause only
+  if (playback) {
+    const isExpanded = playback.expanded;
+    const groupBg = isDark
+      ? mix(palette.bg, palette.text, 85)
+      : mix(palette.bg, palette.text, 92);
+
+    const pillLabel = 'Playback';
+    const pillWidth = pillLabel.length * LEGEND_PILL_FONT_W + LEGEND_PILL_PAD;
+    const fullW = computePlaybackWidth(playback);
+
+    const pbG = legendG
+      .append('g')
+      .attr('transform', `translate(${cursorX}, 0)`)
+      .attr('class', 'infra-legend-group infra-playback-pill')
+      .style('cursor', 'pointer');
+
+    if (isExpanded) {
+      pbG.append('rect')
+        .attr('width', fullW)
+        .attr('height', LEGEND_HEIGHT)
+        .attr('rx', LEGEND_HEIGHT / 2)
+        .attr('fill', groupBg);
+    }
+
+    const pillXOff = isExpanded ? LEGEND_CAPSULE_PAD : 0;
+    const pillYOff = isExpanded ? LEGEND_CAPSULE_PAD : 0;
+    const pillH = LEGEND_HEIGHT - (isExpanded ? LEGEND_CAPSULE_PAD * 2 : 0);
+
+    pbG.append('rect')
+      .attr('x', pillXOff).attr('y', pillYOff)
+      .attr('width', pillWidth).attr('height', pillH)
+      .attr('rx', pillH / 2)
+      .attr('fill', isExpanded ? palette.bg : groupBg);
+
+    if (isExpanded) {
+      pbG.append('rect')
+        .attr('x', pillXOff).attr('y', pillYOff)
+        .attr('width', pillWidth).attr('height', pillH)
+        .attr('rx', pillH / 2)
+        .attr('fill', 'none')
+        .attr('stroke', mix(palette.textMuted, palette.bg, 50))
+        .attr('stroke-width', 0.75);
+    }
+
+    pbG.append('text')
+      .attr('x', pillXOff + pillWidth / 2)
+      .attr('y', LEGEND_HEIGHT / 2 + LEGEND_PILL_FONT_SIZE / 2 - 2)
+      .attr('font-family', FONT_FAMILY)
+      .attr('font-size', LEGEND_PILL_FONT_SIZE)
+      .attr('font-weight', '500')
+      .attr('fill', isExpanded ? palette.text : palette.textMuted)
+      .attr('text-anchor', 'middle')
+      .text(pillLabel);
+
+    if (isExpanded) {
+      let entryX = pillXOff + pillWidth + 8;
+      const entryY = LEGEND_HEIGHT / 2 + LEGEND_ENTRY_FONT_SIZE / 2 - 1;
+
+      const ppLabel = playback.paused ? '▶' : '⏸';
+      pbG.append('text')
+        .attr('x', entryX).attr('y', entryY)
+        .attr('font-family', FONT_FAMILY)
+        .attr('font-size', LEGEND_PILL_FONT_SIZE)
+        .attr('fill', palette.textMuted)
+        .attr('data-playback-action', 'toggle-pause')
+        .style('cursor', 'pointer')
+        .text(ppLabel);
+      entryX += LEGEND_PILL_FONT_SIZE * 0.8 + 6;
+
+      for (const s of playback.speedOptions) {
+        const label = `${s}x`;
+        const isActive = playback.speed === s;
+        const slotW = label.length * LEGEND_ENTRY_FONT_W + SPEED_BADGE_H_PAD * 2;
+        const badgeH = LEGEND_ENTRY_FONT_SIZE + SPEED_BADGE_V_PAD * 2;
+        const badgeY = (LEGEND_HEIGHT - badgeH) / 2;
+
+        const speedG = pbG.append('g')
+          .attr('data-playback-action', 'set-speed')
+          .attr('data-playback-value', String(s))
+          .style('cursor', 'pointer');
+
+        speedG.append('rect')
+          .attr('x', entryX)
+          .attr('y', badgeY)
+          .attr('width', slotW)
+          .attr('height', badgeH)
+          .attr('rx', badgeH / 2)
+          .attr('fill', isActive ? palette.primary : 'transparent');
+
+        speedG.append('text')
+          .attr('x', entryX + slotW / 2).attr('y', entryY)
+          .attr('font-family', FONT_FAMILY)
+          .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
+          .attr('font-weight', isActive ? '600' : '400')
+          .attr('fill', isActive ? palette.bg : palette.textMuted)
+          .attr('text-anchor', 'middle')
+          .text(label);
+        entryX += slotW + SPEED_BADGE_GAP;
+      }
+    }
+
+    cursorX += fullW + LEGEND_GROUP_GAP;
+  }
+
 }
 
 // ============================================================
 // Main render
 // ============================================================
+
+export interface InfraPlaybackState {
+  expanded: boolean;
+  paused: boolean;
+  speed: number;
+  speedOptions: readonly number[];
+}
 
 export function renderInfra(
   container: HTMLDivElement,
@@ -1777,7 +1915,7 @@ export function renderInfra(
   tagGroups?: InfraTagGroup[],
   activeGroup?: string | null,
   animate?: boolean,
-  _playback?: unknown,
+  playback?: InfraPlaybackState | null,
   expandedNodeIds?: Set<string> | null,
   exportMode?: boolean,
   collapsedNodes?: Set<string> | null,
@@ -1787,12 +1925,12 @@ export function renderInfra(
 
   // Build legend groups
   const legendGroups = computeInfraLegendGroups(layout.nodes, tagGroups ?? [], palette, layout.edges);
-  const hasLegend = legendGroups.length > 0;
+  const hasLegend = legendGroups.length > 0 || !!playback;
   // In app mode (not export), legend is rendered as a separate fixed-size SVG
   const fixedLegend = !exportMode && hasLegend;
   const legendOffset = hasLegend && !fixedLegend ? LEGEND_HEIGHT : 0;
 
-  const titleOffset = title ? 40 : 0;
+  const titleOffset = title ? TITLE_OFFSET : 0;
   const totalWidth = layout.width;
   const totalHeight = layout.height + titleOffset + legendOffset;
 
@@ -1800,28 +1938,29 @@ export function renderInfra(
 
   // In app mode with legend + title, render the title as a separate fixed-size SVG
   // so the legend can be inserted between title and diagram.
-  const fixedTitleH = fixedLegend && title ? 40 : 0;
+  const fixedTitleH = fixedLegend && title ? TITLE_OFFSET : 0;
   const diagramViewHeight = fixedLegend
     ? layout.height + (title && !fixedTitleH ? titleOffset : 0) + legendOffset
     : totalHeight;
 
   if (fixedTitleH) {
+    const titleContainerW = container.clientWidth || totalWidth;
     const titleSvg = d3Selection.select(container)
       .append('svg')
       .attr('class', 'infra-title-fixed')
       .attr('width', '100%')
       .attr('height', fixedTitleH)
-      .attr('viewBox', `0 0 ${totalWidth} ${fixedTitleH}`)
+      .attr('viewBox', `0 0 ${titleContainerW} ${fixedTitleH}`)
       .attr('preserveAspectRatio', 'xMidYMid meet')
       .style('display', 'block');
     titleSvg.append('text')
       .attr('class', 'chart-title')
-      .attr('x', totalWidth / 2)
-      .attr('y', 28)
+      .attr('x', titleContainerW / 2)
+      .attr('y', TITLE_Y)
       .attr('text-anchor', 'middle')
       .attr('font-family', FONT_FAMILY)
-      .attr('font-size', 18)
-      .attr('font-weight', '700')
+      .attr('font-size', TITLE_FONT_SIZE)
+      .attr('font-weight', TITLE_FONT_WEIGHT)
       .attr('fill', palette.text)
       .attr('data-line-number', titleLineNumber != null ? titleLineNumber : '')
       .text(title!);
@@ -1890,11 +2029,11 @@ export function renderInfra(
     rootSvg.append('text')
       .attr('class', 'chart-title')
       .attr('x', totalWidth / 2)
-      .attr('y', 28)
+      .attr('y', TITLE_Y)
       .attr('text-anchor', 'middle')
       .attr('font-family', FONT_FAMILY)
-      .attr('font-size', 18)
-      .attr('font-weight', '700')
+      .attr('font-size', TITLE_FONT_SIZE)
+      .attr('font-weight', TITLE_FONT_WEIGHT)
       .attr('fill', palette.text)
       .attr('data-line-number', titleLineNumber != null ? titleLineNumber : '')
       .text(title);
@@ -1902,7 +2041,8 @@ export function renderInfra(
 
   // Render layers: groups (back), edge paths, nodes, reject particles, edge labels (front)
   renderGroups(svg, layout.groups, palette, isDark);
-  renderEdgePaths(svg, layout.edges, layout.nodes, layout.groups, palette, isDark, shouldAnimate, layout.direction);
+  const speedMultiplier = playback?.speed ?? 1;
+  renderEdgePaths(svg, layout.edges, layout.nodes, layout.groups, palette, isDark, shouldAnimate, layout.direction, speedMultiplier);
   const fanoutSourceIds = collectFanoutSourceIds(layout.edges);
   const scaledGroupIds = new Set<string>(
     layout.groups
@@ -1915,7 +2055,7 @@ export function renderInfra(
   );
   renderNodes(svg, layout.nodes, palette, isDark, shouldAnimate, expandedNodeIds, activeGroup, layout.options, collapsedNodes, tagGroups ?? [], fanoutSourceIds, scaledGroupIds);
   if (shouldAnimate) {
-    renderRejectParticles(svg, layout.nodes);
+    renderRejectParticles(svg, layout.nodes, speedMultiplier);
   }
   renderEdgeLabels(svg, layout.edges, layout.nodes, layout.groups, palette, isDark, shouldAnimate, layout.direction);
 
@@ -1933,12 +2073,12 @@ export function renderInfra(
         .attr('preserveAspectRatio', 'xMidYMid meet')
         .style('display', 'block')
         .style('pointer-events', 'none');
-      renderLegend(legendSvg, legendGroups, containerWidth, LEGEND_FIXED_GAP / 2, palette, isDark, activeGroup ?? null);
+      renderLegend(legendSvg, legendGroups, containerWidth, LEGEND_FIXED_GAP / 2, palette, isDark, activeGroup ?? null, playback ?? undefined);
       // Re-enable pointer events on interactive legend elements
       legendSvg.selectAll('.infra-legend-group').style('pointer-events', 'auto');
     } else {
       // Export mode: render legend at top (below title)
-      renderLegend(rootSvg, legendGroups, totalWidth, titleOffset, palette, isDark, activeGroup ?? null);
+      renderLegend(rootSvg, legendGroups, totalWidth, titleOffset, palette, isDark, activeGroup ?? null, playback ?? undefined);
     }
   }
 }

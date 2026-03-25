@@ -36,8 +36,8 @@ import {
 
 const DIAGRAM_PADDING = 20;
 const MAX_SCALE = 3;
+import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT } from '../utils/title-constants';
 const TITLE_HEIGHT = 30;
-const TITLE_FONT_SIZE = 18;
 const LABEL_FONT_SIZE = 13;
 const META_FONT_SIZE = 11;
 const META_LINE_HEIGHT = 16;
@@ -209,7 +209,7 @@ export function renderSitemap(
       .attr('text-anchor', 'middle')
       .attr('fill', palette.text)
       .attr('font-size', TITLE_FONT_SIZE)
-      .attr('font-weight', 'bold')
+      .attr('font-weight', TITLE_FONT_WEIGHT)
       .attr('class', 'sitemap-title chart-title');
 
     if (parsed.titleLineNumber) {
@@ -523,7 +523,7 @@ export function renderSitemap(
       .attr('text-anchor', 'middle')
       .attr('fill', palette.text)
       .attr('font-size', TITLE_FONT_SIZE)
-      .attr('font-weight', 'bold')
+      .attr('font-weight', TITLE_FONT_WEIGHT)
       .attr('class', 'sitemap-title chart-title')
       .style('font-family', FONT_FAMILY);
 

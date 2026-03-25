@@ -37,6 +37,7 @@ import {
   LEGEND_ENTRY_TRAIL,
   LEGEND_GROUP_GAP,
 } from '../utils/legend-constants';
+import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT } from '../utils/title-constants';
 
 // ============================================================
 // Layout Constants
@@ -1560,8 +1561,8 @@ export function renderSequenceDiagram(
       .attr('y', 30)
       .attr('text-anchor', 'middle')
       .attr('fill', palette.text)
-      .attr('font-size', 20)
-      .attr('font-weight', 'bold')
+      .attr('font-size', TITLE_FONT_SIZE)
+      .attr('font-weight', TITLE_FONT_WEIGHT)
       .text(title);
 
     if (parsed.titleLineNumber) {

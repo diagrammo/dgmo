@@ -259,7 +259,7 @@ export type { InfraRole } from './infra/roles';
 export { layoutInfra } from './infra/layout';
 export type { InfraLayoutResult, InfraLayoutNode, InfraLayoutEdge, InfraLayoutGroup } from './infra/layout';
 export { renderInfra, parseAndLayoutInfra, computeInfraLegendGroups } from './infra/renderer';
-export type { InfraLegendGroup } from './infra/renderer';
+export type { InfraLegendGroup, InfraPlaybackState } from './infra/renderer';
 export type { CollapsedSitemapResult } from './sitemap/collapse';
 
 // ── Gantt Chart ───────────────────────────────────────────
