@@ -56,7 +56,7 @@ export interface ISLayoutResult {
   height: number;
 }
 
-const STATUS_PRIORITY: Record<string, number> = { todo: 3, wip: 2, done: 1, na: 0 };
+const STATUS_PRIORITY: Record<string, number> = { todo: 4, blocked: 3, doing: 2, done: 1, na: 0 };
 
 export function rollUpStatus(members: { status: InitiativeStatus }[]): InitiativeStatus {
   let worst: InitiativeStatus = null;

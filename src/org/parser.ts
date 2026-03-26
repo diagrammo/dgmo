@@ -17,11 +17,6 @@ import {
 // Types
 // ============================================================
 
-/** @deprecated Use `TagEntry` from `utils/tag-groups` */
-export type OrgTagEntry = TagEntry;
-/** @deprecated Use `TagGroup` from `utils/tag-groups` */
-export type OrgTagGroup = TagGroup;
-
 export interface OrgNode {
   id: string;
   label: string;
@@ -37,7 +32,7 @@ export interface ParsedOrg {
   title: string | null;
   titleLineNumber: number | null;
   roots: OrgNode[];
-  tagGroups: OrgTagGroup[];
+  tagGroups: TagGroup[];
   options: Record<string, string>;
   diagnostics: DgmoError[];
   error: string | null;
@@ -111,7 +106,7 @@ export function parseOrg(
   let containerCounter = 0;
 
   // Tag group parsing state
-  let currentTagGroup: OrgTagGroup | null = null;
+  let currentTagGroup: TagGroup | null = null;
 
   // Alias map: alias (lowercased) → group name (lowercased)
   const aliasMap = new Map<string, string>();
@@ -174,7 +169,8 @@ export function parseOrg(
         continue;
       }
       if (tagBlockMatch.deprecated) {
-        pushWarning(lineNumber, `'## ${tagBlockMatch.name}' is deprecated for tag groups — use 'tag: ${tagBlockMatch.name}' instead`);
+        pushError(lineNumber, `'## ${tagBlockMatch.name}' is no longer supported — use 'tag: ${tagBlockMatch.name}' instead`);
+        continue;
       }
       currentTagGroup = {
         name: tagBlockMatch.name,

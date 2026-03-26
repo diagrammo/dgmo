@@ -932,7 +932,7 @@ export function renderSequenceDiagram(
     );
     if (tg) {
       for (const entry of tg.entries) {
-        tagValueToColor.set(entry.value.toLowerCase(), resolveColor(entry.color));
+        tagValueToColor.set(entry.value.toLowerCase(), resolveColor(entry.color) ?? entry.color);
       }
     }
   }
@@ -1592,7 +1592,7 @@ export function renderSequenceDiagram(
       const pillWidth = measureLegendText(tg.name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
       const entries = tg.entries.map((e) => ({
         value: e.value,
-        color: resolveColor(e.color),
+        color: resolveColor(e.color) ?? e.color,
       }));
       let totalWidth = pillWidth;
       if (isActive) {

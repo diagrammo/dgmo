@@ -13,13 +13,13 @@ tag: Team alias t
 
 [Identity]
   Auth Service | done, p: Discovery, t: Backend
-  SSO Integration | wip, p: Build, t: Backend
+  SSO Integration | doing, p: Build, t: Backend
     -> Auth Service | done
 
 [Payments]
-  Payment Gateway | wip, p: Build, t: Platform
+  Payment Gateway | doing, p: Build, t: Platform
   Billing UI | todo, p: Build, t: Frontend
-    -> Payment Gateway | wip
+    -> Payment Gateway | doing
 
 [Search]
   Search API | todo, p: Launch, t: Backend

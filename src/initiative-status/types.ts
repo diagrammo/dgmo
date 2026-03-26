@@ -6,9 +6,16 @@ import type { DgmoError } from '../diagnostics';
 import type { ParticipantType } from '../sequence/parser';
 import type { TagGroup } from '../utils/tag-groups';
 
-export type InitiativeStatus = 'done' | 'wip' | 'todo' | 'na' | null;
+export type InitiativeStatus = 'done' | 'doing' | 'blocked' | 'todo' | 'na' | null;
 
-export const VALID_STATUSES: readonly string[] = ['done', 'wip', 'todo', 'na'];
+export const VALID_STATUSES: readonly string[] = ['done', 'doing', 'blocked', 'todo', 'na'];
+
+/** Aliases that map to canonical status values during parsing. */
+export const STATUS_ALIASES: Record<string, string> = {
+  wip: 'doing',
+  paused: 'blocked',
+  waiting: 'blocked',
+};
 
 export interface ISNode {
   label: string;
@@ -31,6 +38,7 @@ export interface ISGroup {
   label: string;
   nodeLabels: string[];
   lineNumber: number;
+  metadata?: Record<string, string>;
 }
 
 export interface ParsedInitiativeStatus {

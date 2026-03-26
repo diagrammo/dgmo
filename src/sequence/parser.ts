@@ -165,8 +165,11 @@ const POSITION_ONLY_PATTERN = /^([^:]+?)\s+position\s+(-?\d+)$/i;
 // Colored participant declaration — e.g. "Tapin2(green)", "API(blue)"
 const COLORED_PARTICIPANT_PATTERN = /^(\S+?)\(([^)]+)\)\s*$/;
 
-// Group heading pattern — "[Backend]", "[API Services(blue)]", "[Backend(#hex)]"
-const GROUP_HEADING_PATTERN = /^\[(.+?)(?:\(([^)]+)\))?\]\s*$/;
+// Group heading pattern — "[Backend]", "[Backend] | t: Product"
+// Group 1: name (no ] or | inside brackets), Group 2: color in parens, Group 3: after-bracket text
+const GROUP_HEADING_PATTERN = /^\[([^\]|]+?)(?:\(([^)]+)\))?\]\s*(.*)$/;
+// Fallback: allows anything inside brackets (used to detect pipe-inside-brackets error)
+const GROUP_HEADING_FALLBACK = /^\[([^\]]+)\]\s*(.*)$/;
 // Legacy ## syntax — detect and emit migration error
 const LEGACY_GROUP_PATTERN = /^##\s+(.+?)(?:\(([^)]+)\))?\s*$/;
 
@@ -276,28 +279,19 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       continue;
     }
 
-    // Parse group heading — [Group Name] or [Group Name(color)] or [Group | k: v]
+    // Parse group heading — [Group Name] or [Group Name] | k: v
     const groupMatch = trimmed.match(GROUP_HEADING_PATTERN);
     if (groupMatch) {
-      let groupName = groupMatch[1].trim();
-      let groupColor = groupMatch[2]?.trim();
+      const groupName = groupMatch[1].trim();
+      const groupColor = groupMatch[2]?.trim();
       let groupMeta: Record<string, string> | undefined;
 
-      // Check for pipe metadata inside brackets
-      const gpipeIdx = groupName.indexOf('|');
-      if (gpipeIdx >= 0) {
-        const nameAndColor = groupName.substring(0, gpipeIdx).trimEnd();
-        const segments = groupName.substring(gpipeIdx).split('|');
+      // Parse pipe metadata AFTER the closing bracket
+      const afterBracket = groupMatch[3]?.trim() || '';
+      if (afterBracket.startsWith('|')) {
+        const segments = afterBracket.split('|');
         const meta = parsePipeMetadata(segments, aliasMap, () => pushWarning(lineNumber, MULTIPLE_PIPE_WARNING));
         if (Object.keys(meta).length > 0) groupMeta = meta;
-        // Re-extract color from name part
-        const colorSuffix = nameAndColor.match(/^(.+?)\(([^)]+)\)$/);
-        if (colorSuffix) {
-          groupName = colorSuffix[1].trim();
-          groupColor = colorSuffix[2].trim();
-        } else {
-          groupName = nameAndColor;
-        }
       }
 
       if (groupColor) {
@@ -312,6 +306,19 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       };
       result.groups.push(activeGroup);
       continue;
+    }
+
+    // Detect pipe-inside-brackets error: [Name | meta] → suggest [Name] | meta
+    if (trimmed.startsWith('[')) {
+      const fallbackMatch = trimmed.match(GROUP_HEADING_FALLBACK);
+      if (fallbackMatch && fallbackMatch[1].includes('|')) {
+        const rawInside = fallbackMatch[1];
+        const pipeIdx = rawInside.indexOf('|');
+        const cleanName = rawInside.substring(0, pipeIdx).trim().replace(/\([^)]*\)$/, '').trim();
+        const metaPart = rawInside.substring(pipeIdx).trim();
+        pushError(lineNumber, `Pipe metadata must go outside brackets — use '[${cleanName}] ${metaPart}' instead of '[${rawInside.trim()}]'`);
+        continue;
+      }
     }
 
     // Reject legacy ## group syntax with migration hint
@@ -529,7 +536,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     if (coloredMatch && !ARROW_PATTERN.test(colorCore)) {
       const id = coloredMatch[1];
       const color = coloredMatch[2].trim();
-      pushWarning(lineNumber, `(${color}) color syntax removed from sequence diagrams — use 'tag:' groups for coloring`);
+      pushError(lineNumber, `'${id}(${color})' syntax is no longer supported — use 'tag:' groups for coloring`);
       contentStarted = true;
       if (!result.participants.some((p) => p.id === id)) {
         result.participants.push({
@@ -935,7 +942,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
   // Warn about empty groups
   for (const group of result.groups) {
     if (group.participantIds.length === 0) {
-      pushWarning(group.lineNumber, `Group "${group.name}" has no participants`);
+      pushWarning(group.lineNumber, `Empty group '${group.name}' — did you mean '== ${group.name} ==' for a section divider?`);
     }
   }
 

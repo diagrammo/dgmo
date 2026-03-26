@@ -171,9 +171,9 @@ User -> AuthSvc`;
 describe('Data attrs: Kanban', () => {
   const src = `chart: kanban
 
-## PRIORITY
-  High(#bf616a)
-  Low(#a3be8c)
+tag: PRIORITY
+  High(red)
+  Low(green)
 
 [To Do]
   Fix bug | priority: High

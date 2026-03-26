@@ -192,6 +192,20 @@ parallel
     expect(arrows.length).toBeGreaterThanOrEqual(1);
   });
 
+  it('renders labeled dependency arrow with text element', () => {
+    const input = `chart: gantt
+start: 2024-01-15
+dependencies: on
+parallel
+  10d: Task A
+    -blocks-> Task B
+  10d: Task B`;
+    const container = renderFromInput(input);
+    const labels = container.querySelectorAll('.gantt-dep-label');
+    expect(labels.length).toBeGreaterThanOrEqual(1);
+    expect(labels[0].textContent).toBe('blocks');
+  });
+
   // ── Phase 3 tests ────────────────────────────────────────
 
   it('renders era backgrounds', () => {

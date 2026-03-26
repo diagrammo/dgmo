@@ -39,6 +39,9 @@ const ELEMENT_RE = /^(person|system|container|component)\s+(.+)$/i;
 /** Matches `is a <shape>` in the element name portion */
 const IS_A_RE = /\s+is\s+a(?:n)?\s+(\w+)\s*$/i;
 
+/** Matches `Name is a <type>` declarations (new preferred syntax) */
+const C4_IS_A_RE = /^([^:]+?)\s+is\s+an?\s+(person|system|container|component|external|database)\b(.*)$/i;
+
 /** Matches relationship arrows: `->`, `~>`, `<->`, `<~>` */
 const RELATIONSHIP_RE = /^(<?-?>|<?~?>)\s*(.+)$/;
 
@@ -315,7 +318,8 @@ export function parseC4(
         continue;
       }
       if (tagBlockMatch.deprecated) {
-        pushError(lineNumber, `'## ${tagBlockMatch.name}' is deprecated for tag groups — use 'tag: ${tagBlockMatch.name}' instead`, 'warning');
+        pushError(lineNumber, `'## ${tagBlockMatch.name}' is no longer supported — use 'tag: ${tagBlockMatch.name}' instead`);
+        continue;
       }
       currentTagGroup = {
         name: tagBlockMatch.name,
@@ -391,7 +395,7 @@ export function parseC4(
       }
 
       // Check for top-level non-deployment content (section ended)
-      if (indent === 0 && ELEMENT_RE.test(trimmed)) {
+      if (indent === 0 && (C4_IS_A_RE.test(trimmed) || ELEMENT_RE.test(trimmed))) {
         inDeployment = false;
         // Fall through to element parsing below
       } else {
@@ -516,6 +520,14 @@ export function parseC4(
         const targetBody = m[2].trim();
         if (!rawLabel) break; // empty label — fall through to plain arrow
 
+        // Reject bidirectional arrows
+        if (arrowType === 'bidirectional' || arrowType === 'bidirectional-async') {
+          const source = findParentElement(indent, stack)?.element.name ?? '?';
+          pushError(lineNumber, `Bidirectional arrows are no longer supported. Replace with two separate arrows:\n  -${rawLabel}-> ${targetBody}\n  ${targetBody} -${rawLabel}-> ${source}`);
+          labeledHandled = true;
+          break;
+        }
+
         // Extract [technology] from end of label
         let label: string | undefined = rawLabel;
         let technology: string | undefined;
@@ -525,8 +537,25 @@ export function parseC4(
           technology = techMatch[1].trim();
         }
 
+        // Extract pipe metadata from target body (e.g. "Database | tech: SQL")
+        let target = targetBody;
+        const pipeIdx = targetBody.indexOf('|');
+        if (pipeIdx !== -1) {
+          target = targetBody.substring(0, pipeIdx).trim();
+          const metaPart = targetBody.substring(pipeIdx + 1).trim();
+          // parsePipeMetadata expects segments split by |; first segment is pre-pipe
+          const meta = parsePipeMetadata(['', metaPart], aliasMap);
+          // tech/technology on pipe overrides [tech] in label
+          if (meta.tech) {
+            technology = meta.tech;
+          }
+          if (meta.technology) {
+            technology = meta.technology;
+          }
+        }
+
         const rel: C4Relationship = {
-          target: targetBody,
+          target,
           label,
           technology,
           arrowType,
@@ -550,8 +579,35 @@ export function parseC4(
     if (relMatch) {
       const arrowType = parseArrowType(relMatch[1]);
       if (arrowType) {
+        // Reject bidirectional arrows
+        if (arrowType === 'bidirectional' || arrowType === 'bidirectional-async') {
+          const arrow = relMatch[1];
+          const target = relMatch[2].trim().split(':')[0].trim();
+          const source = findParentElement(indent, stack)?.element.name ?? '?';
+          pushError(lineNumber, `'${arrow}' bidirectional arrows are no longer supported. Replace with two separate arrows:\n  -> ${target}\n  ${target} -> ${source}`);
+          continue;
+        }
+
+        // Detect colon label syntax: `-> Target : Description [tech]`
+        const bodyRaw = relMatch[2];
+        const colonIdx = bodyRaw.indexOf(':');
+        if (colonIdx > 0) {
+          const target = bodyRaw.substring(0, colonIdx).trim();
+          const desc = bodyRaw.substring(colonIdx + 1).trim();
+          // Extract [tech] if present
+          const techMatch = desc.match(/\[([^\]]+)\]\s*$/);
+          const descPart = techMatch ? desc.substring(0, techMatch.index!).trim() : desc;
+          const techPart = techMatch ? techMatch[1].trim() : null;
+          const arrow = relMatch[1] === '~>' ? '~' : '-';
+          const hint = techPart
+            ? `${arrow}${descPart}${arrow}> ${target} | tech: ${techPart}`
+            : `${arrow}${descPart}${arrow}> ${target}`;
+          pushError(lineNumber, `Colon label syntax is no longer supported. Use '${hint}' instead`);
+          continue;
+        }
+
         const { target, label, technology } = parseRelationshipBody(
-          relMatch[2],
+          bodyRaw,
         );
         const rel: C4Relationship = {
           target,
@@ -573,7 +629,106 @@ export function parseC4(
       }
     }
 
-    // ── Element declarations ────────────────────────────────
+    // ── "Name is a type" declarations (preferred syntax) ────
+    const isATypeMatch = trimmed.match(C4_IS_A_RE);
+    if (isATypeMatch) {
+      let namePart = isATypeMatch[1].trim();
+      const rawType = isATypeMatch[2].toLowerCase();
+      const remainder = isATypeMatch[3];
+
+      // Map external/database to shape overrides with default element type
+      let elementType: C4ElementType;
+      let explicitShape: C4Shape | null = null;
+      if (rawType === 'external') {
+        elementType = 'system';
+        explicitShape = 'external';
+      } else if (rawType === 'database') {
+        elementType = 'container';
+        explicitShape = 'database';
+      } else {
+        elementType = rawType as C4ElementType;
+      }
+
+      // Parse pipe metadata from remainder
+      const remainderTrimmed = remainder.trim();
+      let segments: string[];
+      if (remainderTrimmed.startsWith('|')) {
+        // remainder has pipe metadata: "| tech: PostgreSQL, team: Data"
+        segments = ['', ...remainderTrimmed.substring(1).split('|').map((s) => s.trim())];
+      } else {
+        segments = [remainderTrimmed];
+      }
+
+      // Check for additional `is a <shape>` in the name (e.g., already stripped by C4_IS_A_RE won't happen,
+      // but handle remainder like "is a cylinder" after type)
+      const remainderIsA = remainderTrimmed.match(/^\s*is\s+a(?:n)?\s+(\w+)\s*(.*)$/i);
+      if (remainderIsA) {
+        const shapeName = remainderIsA[1].toLowerCase();
+        if (VALID_SHAPES.has(shapeName)) {
+          explicitShape = shapeName as C4Shape;
+        } else {
+          pushError(
+            lineNumber,
+            `Unknown shape "${remainderIsA[1]}". Valid shapes: ${[...VALID_SHAPES].join(', ')}`,
+          );
+        }
+        // Re-parse remainder after shape
+        const afterShape = remainderIsA[2].trim();
+        if (afterShape.startsWith('|')) {
+          segments = ['', ...afterShape.substring(1).split('|').map((s) => s.trim())];
+        } else {
+          segments = [afterShape];
+        }
+      }
+
+      // Also check for `is a <shape>` within the name part itself
+      const nameIsAMatch = namePart.match(IS_A_RE);
+      if (nameIsAMatch) {
+        const shapeName = nameIsAMatch[1].toLowerCase();
+        if (VALID_SHAPES.has(shapeName)) {
+          explicitShape = shapeName as C4Shape;
+        } else {
+          pushError(
+            lineNumber,
+            `Unknown shape "${nameIsAMatch[1]}". Valid shapes: ${[...VALID_SHAPES].join(', ')}`,
+          );
+        }
+        namePart = namePart.substring(0, nameIsAMatch.index!).trim();
+      }
+
+      const metadata = parsePipeMetadata(segments, aliasMap, () => pushError(lineNumber, MULTIPLE_PIPE_WARNING, 'warning'));
+
+      const shape =
+        explicitShape ??
+        inferC4Shape(namePart, metadata.tech ?? metadata.technology);
+
+      const element: C4Element = {
+        name: namePart,
+        type: elementType,
+        shape,
+        metadata,
+        children: [],
+        groups: [],
+        relationships: [],
+        lineNumber,
+      };
+
+      // Check for duplicate name
+      const existingLine = knownNames.get(namePart.toLowerCase());
+      if (existingLine !== undefined) {
+        pushError(
+          lineNumber,
+          `Duplicate element name "${namePart}" (first defined on line ${existingLine})`,
+        );
+      } else {
+        knownNames.set(namePart.toLowerCase(), lineNumber);
+      }
+
+      attachElement(element, indent, stack, result);
+      continue;
+    }
+
+    // ── Element declarations (deprecated prefix syntax) ─────
     const elementMatch = trimmed.match(ELEMENT_RE);
     if (elementMatch) {
       const elementType = elementMatch[1].toLowerCase() as C4ElementType;
@@ -598,6 +753,12 @@ export function parseC4(
         }
         namePart = namePart.substring(0, isAMatch.index!).trim();
       }
+
+      // Emit deprecation error with migration hint
+      pushError(
+        lineNumber,
+        `'${elementMatch[1]} ${namePart}' prefix syntax is no longer supported — use '${namePart} is a ${elementType}' instead`,
+      );
 
       const metadata = parsePipeMetadata(segments, aliasMap, () => pushError(lineNumber, MULTIPLE_PIPE_WARNING, 'warning'));
 

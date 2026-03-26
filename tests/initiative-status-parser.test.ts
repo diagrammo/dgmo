@@ -63,9 +63,9 @@ describe('parseInitiativeStatus', () => {
     });
 
     it('parses all status values', () => {
-      const input = 'A | done\nB | wip\nC | todo\nD | na';
+      const input = 'A | done\nB | doing\nC | todo\nD | na';
       const result = parseInitiativeStatus(input);
-      expect(result.nodes.map((n) => n.status)).toEqual(['done', 'wip', 'todo', 'na']);
+      expect(result.nodes.map((n) => n.status)).toEqual(['done', 'doing', 'todo', 'na']);
     });
 
     it('warns on duplicate node labels', () => {
@@ -86,7 +86,7 @@ describe('parseInitiativeStatus', () => {
 
     it('status is case-insensitive', () => {
       const result = parseInitiativeStatus('A | Done\nB | WIP\nC | TODO\nD | NA');
-      expect(result.nodes.map((n) => n.status)).toEqual(['done', 'wip', 'todo', 'na']);
+      expect(result.nodes.map((n) => n.status)).toEqual(['done', 'doing', 'todo', 'na']);
       expect(result.diagnostics).toEqual([]);
     });
   });
@@ -103,11 +103,11 @@ describe('parseInitiativeStatus', () => {
     });
 
     it('parses edge without label', () => {
-      const result = parseInitiativeStatus('A | done\nB | done\nA -> B | wip');
+      const result = parseInitiativeStatus('A | done\nB | done\nA -> B | doing');
       expect(result.edges[0].source).toBe('A');
       expect(result.edges[0].target).toBe('B');
       expect(result.edges[0].label).toBeUndefined();
-      expect(result.edges[0].status).toBe('wip');
+      expect(result.edges[0].status).toBe('doing');
     });
 
     it('parses edge without status', () => {
@@ -451,7 +451,7 @@ describe('tag groups', () => {
 
     it('parses status + tags', () => {
       const result = parseNodeMetadata('wip, p: Build, t: Backend', aliasMap);
-      expect(result.status).toBe('wip');
+      expect(result.status).toBe('doing');
       expect(result.metadata).toEqual({ phase: 'Build', team: 'Backend' });
     });
 
@@ -529,8 +529,8 @@ API | done`;
     it('parses default tag value', () => {
       const input = `chart: initiative-status
 tag: Phase alias p
-  Planning(#aaa) default
-  Build(#bbb)
+  Planning(blue) default
+  Build(green)
 
 API | done`;
       const result = parseInitiativeStatus(input);
@@ -558,7 +558,7 @@ tag: Phase alias p
 
 API | wip, p: Build`;
       const result = parseInitiativeStatus(input);
-      expect(result.nodes[0].status).toBe('wip');
+      expect(result.nodes[0].status).toBe('doing');
       expect(result.nodes[0].metadata).toEqual({ phase: 'Build' });
     });
 
@@ -615,7 +615,7 @@ A -> B | done, p: Build`;
     it('edge with status only (backward compat)', () => {
       const input = `A | done\nB | done\nA -> B | wip`;
       const result = parseInitiativeStatus(input);
-      expect(result.edges[0].status).toBe('wip');
+      expect(result.edges[0].status).toBe('doing');
       expect(result.edges[0].metadata).toEqual({});
     });
   });
@@ -624,8 +624,8 @@ A -> B | done, p: Build`;
     it('injects default tag value on untagged nodes', () => {
       const input = `chart: initiative-status
 tag: Phase alias p
-  Planning(#aaa) default
-  Build(#bbb)
+  Planning(blue) default
+  Build(green)
 
 API | done
 DB | done, p: Build`;
@@ -681,5 +681,139 @@ API | done`;
       const result = parseInitiativeStatus(input);
       expect(result.initialHiddenTagValues.size).toBe(0);
     });
+  });
+});
+
+// ============================================================
+// Task 3.4 — Status rework (doing, blocked, aliases)
+// ============================================================
+
+describe('status rework — new statuses and aliases', () => {
+  it('Auth Service | doing → status is "doing"', () => {
+    const result = parseInitiativeStatus('Auth Service | doing');
+    expect(result.nodes[0].status).toBe('doing');
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it('Auth Service | wip → status is "doing" (alias)', () => {
+    const result = parseInitiativeStatus('Auth Service | wip');
+    expect(result.nodes[0].status).toBe('doing');
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it('Auth Service | blocked → status is "blocked"', () => {
+    const result = parseInitiativeStatus('Auth Service | blocked');
+    expect(result.nodes[0].status).toBe('blocked');
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it('Auth Service | paused → status is "blocked" (alias)', () => {
+    const result = parseInitiativeStatus('Auth Service | paused');
+    expect(result.nodes[0].status).toBe('blocked');
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it('Auth Service | waiting → status is "blocked" (alias)', () => {
+    const result = parseInitiativeStatus('Auth Service | waiting');
+    expect(result.nodes[0].status).toBe('blocked');
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it('Auth Service | status: blocked → status is "blocked" (explicit form)', () => {
+    const result = parseInitiativeStatus('Auth Service | status: blocked');
+    expect(result.nodes[0].status).toBe('blocked');
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it('explicit status: doing form', () => {
+    const result = parseInitiativeStatus('Auth Service | status: doing');
+    expect(result.nodes[0].status).toBe('doing');
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it('explicit status: wip resolves alias', () => {
+    const result = parseInitiativeStatus('Auth Service | status: wip');
+    expect(result.nodes[0].status).toBe('doing');
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it('aliases are case-insensitive', () => {
+    const result = parseInitiativeStatus('A | WIP\nB | Paused\nC | WAITING');
+    expect(result.nodes.map((n) => n.status)).toEqual(['doing', 'blocked', 'blocked']);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it('all canonical statuses including new ones', () => {
+    const input = 'A | done\nB | doing\nC | blocked\nD | todo\nE | na';
+    const result = parseInitiativeStatus(input);
+    expect(result.nodes.map((n) => n.status)).toEqual(['done', 'doing', 'blocked', 'todo', 'na']);
+    expect(result.diagnostics).toEqual([]);
+  });
+});
+
+// ============================================================
+// Task 3.5b — Group metadata cascading
+// ============================================================
+
+describe('group metadata cascading', () => {
+  it('child inherits group metadata', () => {
+    const input = `chart: initiative-status
+tag: Phase alias p
+  Build(yellow)
+  Deploy(green)
+
+[Identity] | p: Build
+  Auth Service | done`;
+    const result = parseInitiativeStatus(input);
+    expect(result.nodes[0].label).toBe('Auth Service');
+    expect(result.nodes[0].metadata.phase).toBe('Build');
+  });
+
+  it('child overrides group metadata on conflict', () => {
+    const input = `chart: initiative-status
+tag: Phase alias p
+  Build(yellow)
+  Deploy(green)
+
+[Identity] | p: Build
+  Auth Service | done, p: Deploy`;
+    const result = parseInitiativeStatus(input);
+    expect(result.nodes[0].label).toBe('Auth Service');
+    expect(result.nodes[0].metadata.phase).toBe('Deploy');
+  });
+
+  it('group metadata stored on ISGroup', () => {
+    const input = `[Identity] | p: Build
+  Auth Service | done`;
+    const result = parseInitiativeStatus(input);
+    expect(result.groups[0].metadata).toEqual({ p: 'Build' });
+  });
+
+  it('group without metadata has undefined metadata field', () => {
+    const input = `[Identity]
+  Auth Service | done`;
+    const result = parseInitiativeStatus(input);
+    expect(result.groups[0].metadata).toBeUndefined();
+  });
+
+  it('multiple metadata keys cascade', () => {
+    const input = `chart: initiative-status
+tag: Phase alias p
+  Build(yellow)
+tag: Team alias t
+  Backend(cyan)
+
+[Core] | p: Build, t: Backend
+  API | done
+  DB | done, t: Frontend`;
+    const result = parseInitiativeStatus(input);
+    // API inherits both
+    const api = result.nodes.find((n) => n.label === 'API')!;
+    expect(api.metadata.phase).toBe('Build');
+    expect(api.metadata.team).toBe('Backend');
+    // DB inherits phase but overrides team
+    const db = result.nodes.find((n) => n.label === 'DB')!;
+    expect(db.metadata.phase).toBe('Build');
+    expect(db.metadata.team).toBe('Frontend');
   });
 });

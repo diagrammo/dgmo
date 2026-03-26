@@ -93,3 +93,22 @@ export function parseArrow(
 
   return null;
 }
+
+/**
+ * Match an arrow segment and extract label + async flag.
+ * Handles: `->`, `-label->`, `~>`, `~label~>`.
+ * Returns null if no arrow pattern matched.
+ */
+export function matchArrowLabel(segment: string): { label: string; async: boolean } | null {
+  // Async labeled: ~label~>
+  const asyncLabeled = segment.match(/^~(.+?)~>$/);
+  if (asyncLabeled) return { label: asyncLabeled[1].trim(), async: true };
+  // Async bare: ~>
+  if (segment.trim() === '~>') return { label: '', async: true };
+  // Sync labeled: -label->
+  const syncLabeled = segment.match(/^-(.+?)->$/);
+  if (syncLabeled) return { label: syncLabeled[1].trim(), async: false };
+  // Sync bare: ->
+  if (segment.trim() === '->') return { label: '', async: false };
+  return null;
+}

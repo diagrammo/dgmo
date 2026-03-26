@@ -7,7 +7,7 @@
 // and connections, [Group] containers, tag groups, pipe metadata.
 
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
-import { measureIndent } from '../utils/parsing';
+import { measureIndent, normalizeDirection } from '../utils/parsing';
 import type {
   ParsedInfra,
   InfraNode,
@@ -20,16 +20,33 @@ import { INFRA_BEHAVIOR_KEYS, EDGE_ONLY_KEYS } from './types';
 // Regex patterns
 // ============================================================
 
-// Connection: -label-> Target  or  -> Target  (with optional | split: N%  and optional x5 fanout)
+// Connection: -label-> Target  or  -> Target  (with optional | split: N%  or pipe metadata)
 const CONNECTION_RE =
-  /^-(?:([^-].*?))?->\s*(.+?)(?:(?:\s*\|\s*|\s+)split\s*:?\s*(\d+)%)?\s*(?:x(\d+))?\s*$/;
+  /^-(?:([^-].*?))?->\s*(.+?)(?:(?:\s*\|\s*|\s+)split\s*:?\s*(\d+)%)?\s*$/;
 
 // Simple connection shorthand: -> Target (no label, no dash prefix needed for edge)
 const SIMPLE_CONNECTION_RE =
-  /^->\s*(.+?)(?:(?:\s*\|\s*|\s+)split\s*:?\s*(\d+)%)?\s*(?:x(\d+))?\s*$/;
+  /^->\s*(.+?)(?:(?:\s*\|\s*|\s+)split\s*:?\s*(\d+)%)?\s*$/;
 
-// Group declaration: [Group Name]
-const GROUP_RE = /^\[([^\]]+)\]$/;
+// Async connection: ~label~> Target  or  ~> Target  (with optional | split: N%  or pipe metadata)
+const ASYNC_CONNECTION_RE =
+  /^~(?:([^~].*?))?~>\s*(.+?)(?:(?:\s*\|\s*|\s+)split\s*:?\s*(\d+)%)?\s*$/;
+
+// Async simple connection shorthand: ~> Target
+const ASYNC_SIMPLE_CONNECTION_RE =
+  /^~>\s*(.+?)(?:(?:\s*\|\s*|\s+)split\s*:?\s*(\d+)%)?\s*$/;
+
+// Deprecated xN fanout suffix (e.g. "x5" at end of line)
+const DEPRECATED_FANOUT_RE = /\bx(\d+)\s*$/;
+
+// "is a" type declaration: NodeName is a <type>
+const IS_A_RE = /^(.+?)\s+is\s+an?\s+(database|cache|queue|service|gateway|storage|function|network)\s*$/i;
+
+// Valid node types for "is a" declarations
+const VALID_NODE_TYPES = new Set(['database', 'cache', 'queue', 'service', 'gateway', 'storage', 'function', 'network']);
+
+// Group declaration: [Group Name] with optional pipe metadata
+const GROUP_RE = /^\[([^\]]+)\]\s*(?:\|\s*(.+))?$/;
 
 // Tag group declaration: tag: Name alias x
 const TAG_GROUP_RE = /^tag\s*:\s*(\w[\w\s]*?)(?:\s+alias\s+(\w+))?\s*$/;
@@ -198,13 +215,14 @@ export function parseInfra(content: string): ParsedInfra {
         continue;
       }
 
-      // direction: LR | TB
-      if (/^direction\s*:/i.test(trimmed)) {
-        const dir = trimmed.replace(/^direction\s*:\s*/i, '').trim().toUpperCase();
-        if (dir === 'LR' || dir === 'TB') {
+      // direction: LR | TB  (also accepts orientation: as alias)
+      if (/^(?:direction|orientation)\s*:/i.test(trimmed)) {
+        const raw = trimmed.replace(/^(?:direction|orientation)\s*:\s*/i, '').trim();
+        const dir = normalizeDirection(raw);
+        if (dir) {
           result.direction = dir;
         } else {
-          warn(lineNumber, `Unknown direction '${dir}'. Expected 'LR' or 'TB'.`);
+          warn(lineNumber, `Unknown direction '${raw}'. Expected 'LR', 'TB', 'horizontal', or 'vertical'.`);
         }
         continue;
       }
@@ -245,9 +263,9 @@ export function parseInfra(content: string): ParsedInfra {
         continue;
       }
 
-      // scenario: Name — deprecated, emit warning and skip block
+      // scenario: Name — no longer supported
       if (/^scenario\s*:/i.test(trimmed)) {
-        console.warn('[dgmo warn] scenario syntax is deprecated and will be ignored');
+        setError(lineNumber, `'scenario:' syntax is no longer supported`);
         // Skip indented block
         let si = i + 1;
         while (si < lines.length) {
@@ -276,15 +294,47 @@ export function parseInfra(content: string): ParsedInfra {
         continue;
       }
 
-      // [Group Name]
+      // [Group Name] or [Group Name] | t: Engineering
       const groupMatch = trimmed.match(GROUP_RE);
       if (groupMatch) {
         finishCurrentNode();
         finishCurrentTagGroup();
         const gLabel = groupMatch[1].trim();
         const gId = groupId(gLabel);
-        currentGroup = { id: gId, label: gLabel, lineNumber };
+        const groupMeta = groupMatch[2] ? extractPipeMetadata('|' + groupMatch[2]).tags : undefined;
+        currentGroup = {
+          id: gId,
+          label: gLabel,
+          metadata: groupMeta && Object.keys(groupMeta).length > 0 ? groupMeta : undefined,
+          lineNumber,
+        };
         result.groups.push(currentGroup);
+        continue;
+      }
+
+      // "is a" type declaration: NodeName is a <type>
+      const isaMatch = trimmed.match(IS_A_RE);
+      if (isaMatch) {
+        finishCurrentNode();
+        finishCurrentTagGroup();
+
+        const name = isaMatch[1].trim();
+        const nType = isaMatch[2].toLowerCase();
+        const id = nodeId(name);
+        const isEdge = EDGE_NODE_NAMES.has(id.toLowerCase());
+
+        currentNode = {
+          id,
+          label: name,
+          properties: [],
+          groupId: null,
+          tags: {},
+          isEdge,
+          nodeType: nType,
+          lineNumber,
+        };
+        currentGroup = null;
+        baseIndent = 0;
         continue;
       }
 
@@ -356,13 +406,41 @@ export function parseInfra(content: string): ParsedInfra {
         }
       }
 
+      // "is a" type declaration inside group
+      const isaMatchG = trimmed.match(IS_A_RE);
+      if (isaMatchG) {
+        finishCurrentTagGroup();
+        const name = isaMatchG[1].trim();
+        const nType = isaMatchG[2].toLowerCase();
+        const id = nodeId(name);
+        // Cascade group metadata into node tags (node-level overrides later)
+        const tags: Record<string, string> = currentGroup.metadata ? { ...currentGroup.metadata } : {};
+
+        currentNode = {
+          id,
+          label: name,
+          properties: [],
+          groupId: currentGroup.id,
+          tags,
+          isEdge: false,
+          nodeType: nType,
+          lineNumber,
+        };
+        baseIndent = indent;
+        continue;
+      }
+
       const compMatch = trimmed.match(COMPONENT_RE);
       if (compMatch) {
         finishCurrentTagGroup();
         const name = compMatch[1];
         const rest = compMatch[2] || '';
-        const { tags } = extractPipeMetadata(rest);
+        const { tags: nodeTags } = extractPipeMetadata(rest);
         const id = nodeId(name);
+        // Cascade group metadata into node tags; node-level metadata overrides
+        const tags: Record<string, string> = currentGroup.metadata
+          ? { ...currentGroup.metadata, ...nodeTags }
+          : nodeTags;
 
         currentNode = {
           id,
@@ -380,22 +458,33 @@ export function parseInfra(content: string): ParsedInfra {
 
     // Inside a component block — properties and connections
     if (currentNode && indent > baseIndent) {
-      // Simple connection: -> Target
-      const simpleConn = trimmed.match(SIMPLE_CONNECTION_RE);
-      if (simpleConn) {
-        const targetName = simpleConn[1].trim();
-        const splitStr = simpleConn[2];
-        const fanoutStr = simpleConn[3];
-        const split = splitStr ? parseFloat(splitStr) : null;
-        const fanoutRaw = fanoutStr ? parseInt(fanoutStr, 10) : null;
+      // Detect deprecated xN fanout syntax
+      const deprecatedFanout = trimmed.match(DEPRECATED_FANOUT_RE);
+      if (deprecatedFanout && (trimmed.startsWith('->') || trimmed.startsWith('-') || trimmed.startsWith('~'))) {
+        const n = deprecatedFanout[1];
+        setError(lineNumber, `'x${n}' fanout syntax is no longer supported — use '| fanout: ${n}' instead`);
+        continue;
+      }
+
+      // Async simple connection: ~> Target
+      const asyncSimpleConn = trimmed.match(ASYNC_SIMPLE_CONNECTION_RE);
+      if (asyncSimpleConn) {
+        const targetRaw = asyncSimpleConn[1].trim();
+        const splitStr = asyncSimpleConn[2];
+        const pipeMeta = extractPipeMetadata(targetRaw);
+        const targetName = pipeMeta.clean || targetRaw;
+        const split = splitStr ? parseFloat(splitStr)
+          : pipeMeta.tags.split ? parseFloat(pipeMeta.tags.split) : null;
+        const fanoutRaw = pipeMeta.tags.fanout ? parseInt(pipeMeta.tags.fanout, 10) : null;
         if (fanoutRaw !== null && fanoutRaw < 1) {
-          warn(lineNumber, `Fan-out multiplier must be at least 1 (got x${fanoutRaw}). Ignoring.`);
+          warn(lineNumber, `Fan-out multiplier must be at least 1 (got fanout: ${fanoutRaw}). Ignoring.`);
         }
         const fanout = fanoutRaw !== null && fanoutRaw >= 1 ? fanoutRaw : null;
         result.edges.push({
           sourceId: currentNode.id,
           targetId: nodeId(targetName),
           label: '',
+          async: true,
           split,
           fanout,
           lineNumber,
@@ -403,23 +492,24 @@ export function parseInfra(content: string): ParsedInfra {
         continue;
       }
 
-      // Labeled connection: -label-> Target | split: N%
-      const connMatch = trimmed.match(CONNECTION_RE);
-      if (connMatch) {
-        const label = connMatch[1]?.trim() || '';
-        const targetName = connMatch[2].trim();
-        const splitStr = connMatch[3];
-        const fanoutStr = connMatch[4];
-        const split = splitStr ? parseFloat(splitStr) : null;
-        const fanoutRaw = fanoutStr ? parseInt(fanoutStr, 10) : null;
+      // Async labeled connection: ~label~> Target
+      const asyncConnMatch = trimmed.match(ASYNC_CONNECTION_RE);
+      if (asyncConnMatch) {
+        const label = asyncConnMatch[1]?.trim() || '';
+        const targetRaw = asyncConnMatch[2].trim();
+        const splitStr = asyncConnMatch[3];
+        const pipeMeta = extractPipeMetadata(targetRaw);
+        const targetName = pipeMeta.clean || targetRaw;
+        const split = splitStr ? parseFloat(splitStr)
+          : pipeMeta.tags.split ? parseFloat(pipeMeta.tags.split) : null;
+        const fanoutRaw = pipeMeta.tags.fanout ? parseInt(pipeMeta.tags.fanout, 10) : null;
         if (fanoutRaw !== null && fanoutRaw < 1) {
-          warn(lineNumber, `Fan-out multiplier must be at least 1 (got x${fanoutRaw}). Ignoring.`);
+          warn(lineNumber, `Fan-out multiplier must be at least 1 (got fanout: ${fanoutRaw}). Ignoring.`);
         }
         const fanout = fanoutRaw !== null && fanoutRaw >= 1 ? fanoutRaw : null;
 
-        // Target might be a group ref like [API Pods]
         let targetId: string;
-        const targetGroupMatch = targetName.match(GROUP_RE);
+        const targetGroupMatch = targetName.match(/^\[([^\]]+)\]/);
         if (targetGroupMatch) {
           targetId = groupId(targetGroupMatch[1]);
         } else {
@@ -430,6 +520,72 @@ export function parseInfra(content: string): ParsedInfra {
           sourceId: currentNode.id,
           targetId,
           label,
+          async: true,
+          split,
+          fanout,
+          lineNumber,
+        });
+        continue;
+      }
+
+      // Simple connection: -> Target  or  -> Target | fanout: 5
+      const simpleConn = trimmed.match(SIMPLE_CONNECTION_RE);
+      if (simpleConn) {
+        const targetRaw = simpleConn[1].trim();
+        const splitStr = simpleConn[2];
+        // Parse pipe metadata for fanout/split (and clean target name)
+        const pipeMeta = extractPipeMetadata(targetRaw);
+        const targetName = pipeMeta.clean || targetRaw;
+        const split = splitStr ? parseFloat(splitStr)
+          : pipeMeta.tags.split ? parseFloat(pipeMeta.tags.split) : null;
+        const fanoutRaw = pipeMeta.tags.fanout ? parseInt(pipeMeta.tags.fanout, 10) : null;
+        if (fanoutRaw !== null && fanoutRaw < 1) {
+          warn(lineNumber, `Fan-out multiplier must be at least 1 (got fanout: ${fanoutRaw}). Ignoring.`);
+        }
+        const fanout = fanoutRaw !== null && fanoutRaw >= 1 ? fanoutRaw : null;
+        result.edges.push({
+          sourceId: currentNode.id,
+          targetId: nodeId(targetName),
+          label: '',
+          async: false,
+          split,
+          fanout,
+          lineNumber,
+        });
+        continue;
+      }
+
+      // Labeled connection: -label-> Target | split: N%, fanout: 3
+      const connMatch = trimmed.match(CONNECTION_RE);
+      if (connMatch) {
+        const label = connMatch[1]?.trim() || '';
+        const targetRaw = connMatch[2].trim();
+        const splitStr = connMatch[3];
+        // Parse pipe metadata for fanout/split (and clean target name)
+        const pipeMeta = extractPipeMetadata(targetRaw);
+        const targetName = pipeMeta.clean || targetRaw;
+        const split = splitStr ? parseFloat(splitStr)
+          : pipeMeta.tags.split ? parseFloat(pipeMeta.tags.split) : null;
+        const fanoutRaw = pipeMeta.tags.fanout ? parseInt(pipeMeta.tags.fanout, 10) : null;
+        if (fanoutRaw !== null && fanoutRaw < 1) {
+          warn(lineNumber, `Fan-out multiplier must be at least 1 (got fanout: ${fanoutRaw}). Ignoring.`);
+        }
+        const fanout = fanoutRaw !== null && fanoutRaw >= 1 ? fanoutRaw : null;
+
+        // Target might be a group ref like [API Pods]
+        let targetId: string;
+        const targetGroupMatch = targetName.match(/^\[([^\]]+)\]/);
+        if (targetGroupMatch) {
+          targetId = groupId(targetGroupMatch[1]);
+        } else {
+          targetId = nodeId(targetName);
+        }
+
+        result.edges.push({
+          sourceId: currentNode.id,
+          targetId,
+          label,
+          async: false,
           split,
           fanout,
           lineNumber,
@@ -480,12 +636,38 @@ export function parseInfra(content: string): ParsedInfra {
     // Component inside group (same indent as group children)
     if (currentGroup && indent > 0) {
       finishCurrentNode();
+
+      // "is a" type declaration inside group
+      const isaMatchG2 = trimmed.match(IS_A_RE);
+      if (isaMatchG2) {
+        const name = isaMatchG2[1].trim();
+        const nType = isaMatchG2[2].toLowerCase();
+        const id = nodeId(name);
+        const tags: Record<string, string> = currentGroup.metadata ? { ...currentGroup.metadata } : {};
+
+        currentNode = {
+          id,
+          label: name,
+          properties: [],
+          groupId: currentGroup.id,
+          tags,
+          isEdge: false,
+          nodeType: nType,
+          lineNumber,
+        };
+        baseIndent = indent;
+        continue;
+      }
+
       const compMatch = trimmed.match(COMPONENT_RE);
       if (compMatch) {
         const name = compMatch[1];
         const rest = compMatch[2] || '';
-        const { tags } = extractPipeMetadata(rest);
+        const { tags: nodeTags } = extractPipeMetadata(rest);
         const id = nodeId(name);
+        const tags: Record<string, string> = currentGroup.metadata
+          ? { ...currentGroup.metadata, ...nodeTags }
+          : nodeTags;
 
         currentNode = {
           id,
@@ -607,7 +789,9 @@ export function extractSymbols(docText: string): DiagramSymbols {
       // Indented: skip tag values, connections, and properties; extract grouped components
       if (inTagGroup) continue;
       if (/^->/.test(line)) continue; // simple connection
+      if (/^~>/.test(line)) continue; // async simple connection
       if (/^-[^>]+-?>/.test(line)) continue; // labeled connection
+      if (/^~[^~]+~>/.test(line)) continue; // async labeled connection
       if (/^\w[\w-]*\s*:/.test(line)) continue; // property (key: value)
       const m = COMPONENT_RE.exec(line);
       if (m && !entities.includes(m[1]!)) entities.push(m[1]!);

@@ -1,5 +1,6 @@
 chart: scatter
 title: Startup Funding vs Revenue
+labels: on
 xlabel: Funding ($M)
 ylabel: Annual Revenue ($M)
 

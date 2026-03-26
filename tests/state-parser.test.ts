@@ -43,6 +43,21 @@ describe('parseState', () => {
       const result = parseState('[*] -> Idle');
       expect(result.direction).toBe('TB');
     });
+
+    it('accepts orientation: as alias for direction:', () => {
+      const result = parseState('orientation: LR\n[*] -> Idle');
+      expect(result.direction).toBe('LR');
+    });
+
+    it('normalizes direction: horizontal to LR', () => {
+      const result = parseState('direction: horizontal\n[*] -> Idle');
+      expect(result.direction).toBe('LR');
+    });
+
+    it('normalizes orientation: vertical to TB', () => {
+      const result = parseState('orientation: vertical\n[*] -> Idle');
+      expect(result.direction).toBe('TB');
+    });
   });
 
   // === States ===

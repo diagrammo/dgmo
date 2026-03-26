@@ -55,7 +55,7 @@ export interface ParsedChart {
 import { resolveColor } from './colors';
 import type { PaletteColors } from './palettes';
 import { makeDgmoError, formatDgmoError, suggest } from './diagnostics';
-import { extractColor, parseSeriesNames } from './utils/parsing';
+import { extractColor, normalizeDirection, parseSeriesNames } from './utils/parsing';
 
 // ============================================================
 // Parser
@@ -190,19 +190,23 @@ export function parseChart(
       continue;
     }
 
-    if (key === 'orientation') {
+    if (key === 'orientation' || key === 'direction') {
       // Only bar and bar-stacked support orientation (axis swapping)
       if (result.type === 'bar' || result.type === 'bar-stacked') {
-        const v = value.toLowerCase();
-        if (v === 'horizontal' || v === 'vertical') {
-          result.orientation = v;
+        const vLower = value.toLowerCase();
+        if (vLower === 'horizontal' || vLower === 'vertical') {
+          result.orientation = vLower;
+        } else {
+          const dir = normalizeDirection(value);
+          if (dir === 'LR') result.orientation = 'horizontal';
+          else if (dir === 'TB') result.orientation = 'vertical';
         }
       }
       continue;
     }
 
     if (key === 'color') {
-      result.color = resolveColor(value.trim(), palette);
+      result.color = resolveColor(value.trim(), palette) ?? undefined;
       continue;
     }
 

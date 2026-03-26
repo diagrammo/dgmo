@@ -264,20 +264,76 @@ describe('gantt parser', () => {
       const input = 'chart: gantt\n10d: Task A\n  -> Task B | lag: 3bd\n10d: Task B';
       const result = parseGantt(input, palette);
       expect(result.error).toBeNull();
-      expect(result.diagnostics.some(d => d.severity === 'error' && d.message.includes('Unknown keyword "lag"'))).toBe(true);
+      expect(result.diagnostics.some(d => d.severity === 'error' && d.message.includes('"lag" is no longer supported'))).toBe(true);
     });
 
     it('rejects lead keyword with soft error', () => {
       const input = 'chart: gantt\n10d: Task A\n  -> Task B | lead: 3bd\n10d: Task B';
       const result = parseGantt(input, palette);
       expect(result.error).toBeNull();
-      expect(result.diagnostics.some(d => d.severity === 'error' && d.message.includes('Unknown keyword "lead"'))).toBe(true);
+      expect(result.diagnostics.some(d => d.severity === 'error' && d.message.includes('"lead" is no longer supported'))).toBe(true);
     });
 
     it('rejects lag on task line with soft error', () => {
       const result = parseGantt('chart: gantt\n10bd: Task | lag: 5bd', palette);
       expect(result.error).toBeNull();
-      expect(result.diagnostics.some(d => d.severity === 'error' && d.message.includes('Unknown keyword "lag"'))).toBe(true);
+      expect(result.diagnostics.some(d => d.severity === 'error' && d.message.includes('"lag" is no longer supported'))).toBe(true);
+    });
+
+    it('parses labeled arrow -blocks-> Design', () => {
+      const input = 'chart: gantt\n10d: Task A\n  -blocks-> Design\n10d: Design';
+      const result = parseGantt(input, palette);
+      expect(result.error).toBeNull();
+      const taskA = result.nodes[0];
+      if (taskA.kind === 'task') {
+        expect(taskA.dependencies).toHaveLength(1);
+        expect(taskA.dependencies[0].label).toBe('blocks');
+        expect(taskA.dependencies[0].targetName).toBe('Design');
+      }
+    });
+
+    it('parses -> Design with no label (regression)', () => {
+      const input = 'chart: gantt\n10d: Task A\n  -> Design\n10d: Design';
+      const result = parseGantt(input, palette);
+      expect(result.error).toBeNull();
+      const taskA = result.nodes[0];
+      if (taskA.kind === 'task') {
+        expect(taskA.dependencies).toHaveLength(1);
+        expect(taskA.dependencies[0].label).toBeUndefined();
+        expect(taskA.dependencies[0].targetName).toBe('Design');
+      }
+    });
+
+    it('parses labeled arrow with pipe metadata -depends on-> API | offset: 2d', () => {
+      const input = 'chart: gantt\n10d: Task A\n  -depends on-> API | offset: 2d\n10d: API';
+      const result = parseGantt(input, palette);
+      expect(result.error).toBeNull();
+      const taskA = result.nodes[0];
+      if (taskA.kind === 'task') {
+        expect(taskA.dependencies).toHaveLength(1);
+        expect(taskA.dependencies[0].label).toBe('depends on');
+        expect(taskA.dependencies[0].targetName).toBe('API');
+        expect(taskA.dependencies[0].offset).toEqual({
+          duration: { amount: 2, unit: 'd' },
+          direction: 1,
+        });
+      }
+    });
+
+    it('parses labeled arrow with offset -blocks-> Design | offset: 1w', () => {
+      const input = 'chart: gantt\n10d: Task A\n  -blocks-> Design | offset: 1w\n10d: Design';
+      const result = parseGantt(input, palette);
+      expect(result.error).toBeNull();
+      const taskA = result.nodes[0];
+      if (taskA.kind === 'task') {
+        expect(taskA.dependencies).toHaveLength(1);
+        expect(taskA.dependencies[0].label).toBe('blocks');
+        expect(taskA.dependencies[0].targetName).toBe('Design');
+        expect(taskA.dependencies[0].offset).toEqual({
+          duration: { amount: 1, unit: 'w' },
+          direction: 1,
+        });
+      }
     });
   });
 
@@ -462,6 +518,86 @@ describe('gantt parser', () => {
       expect(result.error).toBeNull();
       expect(result.nodes).toHaveLength(4);
       expect(result.nodes.every(n => n.kind === 'task')).toBe(true);
+    });
+  });
+
+  describe('datetime and sub-day durations', () => {
+    it('parses h duration task', () => {
+      const result = parseGantt('chart: gantt\n2h: Meeting', palette);
+      expect(result.error).toBeNull();
+      const task = result.nodes[0];
+      if (task.kind === 'task') {
+        expect(task.duration).toEqual({ amount: 2, unit: 'h' });
+      }
+    });
+
+    it('parses min duration task', () => {
+      const result = parseGantt('chart: gantt\n90min: Workshop', palette);
+      expect(result.error).toBeNull();
+      const task = result.nodes[0];
+      if (task.kind === 'task') {
+        expect(task.duration).toEqual({ amount: 90, unit: 'min' });
+      }
+    });
+
+    it('parses 1.5h fractional duration', () => {
+      const result = parseGantt('chart: gantt\n1.5h: Session', palette);
+      const task = result.nodes[0];
+      if (task.kind === 'task') {
+        expect(task.duration).toEqual({ amount: 1.5, unit: 'h' });
+      }
+    });
+
+    it('30min is minutes, 30m is months (disambiguation)', () => {
+      const result = parseGantt('chart: gantt\n30min: Meeting\n30m: Phase', palette);
+      expect(result.error).toBeNull();
+      expect(result.nodes).toHaveLength(2);
+      const task1 = result.nodes[0];
+      const task2 = result.nodes[1];
+      if (task1.kind === 'task') expect(task1.duration?.unit).toBe('min');
+      if (task2.kind === 'task') expect(task2.duration?.unit).toBe('m');
+    });
+
+    it('parses start: with datetime', () => {
+      const result = parseGantt('chart: gantt\nstart: 2024-06-15 08:00\n2h: Task', palette);
+      expect(result.options.start).toBe('2024-06-15 08:00');
+    });
+
+    it('parses today-marker with datetime', () => {
+      const result = parseGantt('chart: gantt\ntoday-marker: 2024-06-15 14:00\n2h: Task', palette);
+      expect(result.options.todayMarker).toBe('2024-06-15 14:00');
+    });
+
+    it('parses explicit datetime task', () => {
+      const result = parseGantt('chart: gantt\n2024-06-15 14:30: Keynote', palette);
+      const task = result.nodes[0];
+      if (task.kind === 'task') {
+        expect(task.explicitStart).toBe('2024-06-15 14:30');
+        expect(task.duration).toBeNull();
+      }
+    });
+
+    it('parses timeline-duration with datetime + h unit', () => {
+      const result = parseGantt('chart: gantt\n2024-06-15 14:30 -> 2h: Talk', palette);
+      const task = result.nodes[0];
+      if (task.kind === 'task') {
+        expect(task.explicitStart).toBe('2024-06-15 14:30');
+        expect(task.duration).toEqual({ amount: 2, unit: 'h' });
+      }
+    });
+
+    it('parses era with datetime', () => {
+      const result = parseGantt('chart: gantt\nera 2024-06-15 09:00 -> 2024-06-15 12:00: Morning\n2h: Task', palette);
+      expect(result.eras).toHaveLength(1);
+      expect(result.eras[0].startDate).toBe('2024-06-15 09:00');
+      expect(result.eras[0].endDate).toBe('2024-06-15 12:00');
+    });
+
+    it('parses marker with datetime', () => {
+      const result = parseGantt('chart: gantt\nmarker: 2024-06-15 10:30 Coffee Break\n2h: Task', palette);
+      expect(result.markers).toHaveLength(1);
+      expect(result.markers[0].date).toBe('2024-06-15 10:30');
+      expect(result.markers[0].label).toBe('Coffee Break');
     });
   });
 

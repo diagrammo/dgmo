@@ -1251,6 +1251,38 @@ function renderDependencyArrows(
         .attr('points', arrowheadPoints(tx, ty, headSize, angle))
         .attr('fill', arrowColor)
         .attr('opacity', 0.5);
+
+      // Label at midpoint of the dependency path
+      if (dep.label) {
+        const midX = (sx + tx) / 2;
+        const midY = (sy + ty) / 2;
+        // Background rect for readability
+        const labelEl = g.append('text')
+          .attr('class', 'gantt-dep-label')
+          .attr('data-dep-from', rt.task.id)
+          .attr('data-dep-to', targetTask.task.id)
+          .attr('x', midX)
+          .attr('y', midY - 4)
+          .attr('text-anchor', 'middle')
+          .attr('font-size', 10)
+          .attr('font-family', FONT_FAMILY)
+          .attr('fill', palette.text)
+          .attr('opacity', 0.7)
+          .text(dep.label);
+        // Insert a background rect behind the text for contrast
+        const bbox = (labelEl.node() as SVGTextElement)?.getBBox?.();
+        if (bbox && bbox.width > 0) {
+          g.insert('rect', '.gantt-dep-label:last-of-type')
+            .attr('class', 'gantt-dep-label-bg')
+            .attr('x', bbox.x - 2)
+            .attr('y', bbox.y - 1)
+            .attr('width', bbox.width + 4)
+            .attr('height', bbox.height + 2)
+            .attr('fill', palette.bg)
+            .attr('opacity', 0.8)
+            .attr('rx', 2);
+        }
+      }
     }
   }
 }

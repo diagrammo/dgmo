@@ -30,6 +30,21 @@ describe('parseFlowchart', () => {
       const result = parseFlowchart('(Start) -> (End)');
       expect(result.direction).toBe('TB');
     });
+
+    it('accepts orientation: as alias for direction:', () => {
+      const result = parseFlowchart('chart: flowchart\norientation: horizontal\n(Start) -> (End)');
+      expect(result.direction).toBe('LR');
+    });
+
+    it('normalizes direction: horizontal to LR', () => {
+      const result = parseFlowchart('chart: flowchart\ndirection: horizontal\n(Start) -> (End)');
+      expect(result.direction).toBe('LR');
+    });
+
+    it('normalizes orientation: vertical to TB', () => {
+      const result = parseFlowchart('chart: flowchart\norientation: vertical\n(Start) -> (End)');
+      expect(result.direction).toBe('TB');
+    });
   });
 
   // === AC 12: Comments ===
@@ -125,6 +140,50 @@ describe('parseFlowchart', () => {
       expect(result.edges).toHaveLength(1);
       expect(result.edges[0].label).toBe('yes');
       expect(result.edges[0].color).toBeDefined();
+    });
+  });
+
+  // === Arrow color inference ===
+  describe('arrow color inference', () => {
+    it('-yes-> infers green', () => {
+      const result = parseFlowchart('[A] -yes-> [B]');
+      expect(result.edges[0].color).toBe('green');
+    });
+
+    it('-no-> infers red', () => {
+      const result = parseFlowchart('[A] -no-> [B]');
+      expect(result.edges[0].color).toBe('red');
+    });
+
+    it('-maybe-> infers orange', () => {
+      const result = parseFlowchart('[A] -maybe-> [B]');
+      expect(result.edges[0].color).toBe('orange');
+    });
+
+    it('-YES-> infers green (case-insensitive)', () => {
+      const result = parseFlowchart('[A] -YES-> [B]');
+      expect(result.edges[0].color).toBe('green');
+    });
+
+    it('-yesterday-> does NOT infer color (not exact match)', () => {
+      const result = parseFlowchart('[A] -yesterday-> [B]');
+      expect(result.edges[0].color).toBeUndefined();
+    });
+
+    it('-no(blue)-> uses explicit blue, not inferred red', () => {
+      const result = parseFlowchart('[A] -no(blue)-> [B]');
+      expect(result.edges[0].color).toBeDefined();
+      expect(result.edges[0].color).not.toBe('red');
+    });
+
+    it('-success-> infers green', () => {
+      const result = parseFlowchart('[A] -success-> [B]');
+      expect(result.edges[0].color).toBe('green');
+    });
+
+    it('-error-> infers red', () => {
+      const result = parseFlowchart('[A] -error-> [B]');
+      expect(result.edges[0].color).toBe('red');
     });
   });
 

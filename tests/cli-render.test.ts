@@ -108,9 +108,9 @@ Jane Smith
   Task B`,
 
   c4: `chart: c4
-person Customer
-system Banking
-  -> Customer: Serves`,
+Customer is a person
+Banking is a system
+  -Serves-> Customer`,
 
   'initiative-status': `chart: initiative-status
 title: Test

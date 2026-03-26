@@ -323,6 +323,15 @@ describe('Story 47.1 — syntax cleanup', () => {
       expect(result.sections[0].label).toBe('Phase 2');
     });
   });
+
+  describe('empty group warning', () => {
+    it('suggests section syntax for empty group', () => {
+      const result = parseSequenceDgmo('[EmptyGroup]\nA -> B: hello');
+      const warn = result.diagnostics.find(d => d.severity === 'warning' && d.message.includes('EmptyGroup'));
+      expect(warn).toBeTruthy();
+      expect(warn!.message).toContain('== EmptyGroup ==');
+    });
+  });
 });
 
 // ============================================================
@@ -1131,7 +1140,7 @@ describe('pipe metadata on participants', () => {
     expect(db?.metadata).toBeUndefined();
   });
 
-  it('parses metadata on colored participant (color stripped with warning)', () => {
+  it('parses metadata on colored participant (color stripped with error)', () => {
     const content = [
       'API(blue) | role: Gateway',
       'API -req-> DB',
@@ -1139,8 +1148,8 @@ describe('pipe metadata on participants', () => {
     const result = parseSequenceDgmo(content);
     const api = result.participants.find(p => p.id === 'API');
     expect(api?.metadata).toEqual({ role: 'Gateway' });
-    const warnings = result.diagnostics.filter(d => d.severity === 'warning');
-    expect(warnings.some(w => w.message.includes('(blue)'))).toBe(true);
+    const errors = result.diagnostics.filter(d => d.severity === 'error');
+    expect(errors.some(e => e.message.includes('(blue)'))).toBe(true);
   });
 
   it('parses metadata on bare participant in group', () => {
@@ -1297,19 +1306,43 @@ describe('pipe metadata on messages', () => {
 // Pipe metadata on group headers
 // ============================================================
 describe('pipe metadata on group headers', () => {
-  it('parses metadata on group heading', () => {
+  it('parses metadata outside brackets on group heading', () => {
     const content = [
-      '[Backend | t: Product]',
+      '[Backend] | t: Engineering',
       '  API',
       '',
       'API -req-> DB',
     ].join('\n');
     const result = parseSequenceDgmo(content);
     expect(result.groups[0].name).toBe('Backend');
-    expect(result.groups[0].metadata).toEqual({ t: 'Product' });
+    expect(result.groups[0].metadata).toEqual({ t: 'Engineering' });
   });
 
-  it('parses metadata with color on group heading (color stripped with warning)', () => {
+  it('parses multiple metadata keys outside brackets', () => {
+    const content = [
+      '[Backend] | t: Product, color: blue',
+      '  API',
+      '',
+      'API -req-> DB',
+    ].join('\n');
+    const result = parseSequenceDgmo(content);
+    expect(result.groups[0].name).toBe('Backend');
+    expect(result.groups[0].metadata).toEqual({ t: 'Product', color: 'blue' });
+  });
+
+  it('pipe inside brackets emits error with migration hint', () => {
+    const content = [
+      '[Backend | t: Engineering]',
+      '  API',
+      '',
+      'API -req-> DB',
+    ].join('\n');
+    const result = parseSequenceDgmo(content);
+    expect(result.error).toMatch(/Pipe metadata must go outside brackets/);
+    expect(result.error).toMatch(/\[Backend\] \| t: Engineering/);
+  });
+
+  it('pipe inside brackets with color emits error', () => {
     const content = [
       '[Backend(blue) | t: Product]',
       '  API',
@@ -1317,10 +1350,8 @@ describe('pipe metadata on group headers', () => {
       'API -req-> DB',
     ].join('\n');
     const result = parseSequenceDgmo(content);
-    expect(result.groups[0].name).toBe('Backend');
-    expect(result.groups[0].metadata).toEqual({ t: 'Product' });
-    const warnings = result.diagnostics.filter(d => d.severity === 'warning');
-    expect(warnings.some(w => w.message.includes('(blue)'))).toBe(true);
+    expect(result.error).toMatch(/Pipe metadata must go outside brackets/);
+    expect(result.error).toMatch(/\[Backend\] \| t: Product/);
   });
 
   it('group without pipe has no metadata', () => {
@@ -1332,6 +1363,33 @@ describe('pipe metadata on group headers', () => {
     ].join('\n');
     const result = parseSequenceDgmo(content);
     expect(result.groups[0].metadata).toBeUndefined();
+  });
+
+  it('[Backend(blue)] still emits color deprecation warning', () => {
+    const content = [
+      '[Backend(blue)]',
+      '  API',
+      '',
+      'API -req-> DB',
+    ].join('\n');
+    const result = parseSequenceDgmo(content);
+    expect(result.error).toBeNull();
+    expect(result.groups[0].name).toBe('Backend');
+    const warnings = result.diagnostics.filter(d => d.severity === 'warning');
+    expect(warnings.some(w => w.message.includes('(blue)'))).toBe(true);
+  });
+
+  it('[Backend] | t: Product, color: blue parses both metadata keys', () => {
+    const content = [
+      '[Backend] | t: Product, color: blue',
+      '  API',
+      '',
+      'API -req-> DB',
+    ].join('\n');
+    const result = parseSequenceDgmo(content);
+    expect(result.error).toBeNull();
+    expect(result.groups[0].name).toBe('Backend');
+    expect(result.groups[0].metadata).toEqual({ t: 'Product', color: 'blue' });
   });
 });
 
@@ -1385,6 +1443,15 @@ describe('multi-word participant names', () => {
     const result = parseSequenceDgmo('Auth Server is a service\nAuth Server -ping-> App');
     expect(result.error).toBeNull();
     expect(result.participants.some(p => p.id === 'Auth Server')).toBe(true);
+  });
+
+  it('accepts "is a" and "is an" identically (grammar forgiveness)', () => {
+    const r1 = parseSequenceDgmo('User is a actor\nUser -msg-> App');
+    const r2 = parseSequenceDgmo('User is an actor\nUser -msg-> App');
+    expect(r1.error).toBeNull();
+    expect(r2.error).toBeNull();
+    expect(r1.participants[0].type).toBe('actor');
+    expect(r2.participants[0].type).toBe('actor');
   });
 
   it('parses labeled arrow with multi-word source', () => {

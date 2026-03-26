@@ -17,7 +17,7 @@ Mobile is an actor
 Gateway is a gateway | t: Platform
 Redis is a cache | c: Caching, t: Platform
 
-[Backend | t: Product]
+[Backend] | t: Product
   UserAPI is a service
   OrderAPI is a service
   DB is a database

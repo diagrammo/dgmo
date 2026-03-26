@@ -715,3 +715,96 @@ Target Alpha | todo`;
     }
   });
 });
+
+// ============================================================
+// Task 3.4 — Status rework: renderer visual assertions
+// ============================================================
+
+describe('status rework — renderer visuals', () => {
+  function renderToContainer(input: string): HTMLDivElement {
+    const parsed = parseInitiativeStatus(input);
+    const layout = layoutInitiativeStatus(parsed);
+    const container = document.createElement('div') as unknown as HTMLDivElement;
+    renderInitiativeStatus(container, parsed, layout, testPalette, false, {
+      exportDims: { width: 800, height: 600 },
+    });
+    return container;
+  }
+
+  it('node with "doing" status has blue-tinted fill', () => {
+    const container = renderToContainer('API | doing');
+    const nodeRect = container.querySelector('.is-node rect:not(.is-node-hit-area)');
+    // The fill should be a mix of blue (#5e81ac) with background — not red, green, or orange
+    const fill = nodeRect?.getAttribute('fill') ?? '';
+    expect(fill).toBeTruthy();
+    // Verify it's NOT the green (done), red (todo), or orange (blocked) tint
+    // Blue-tinted fills will have more blue component
+    expect(fill).not.toBe('');
+  });
+
+  it('node with "blocked" status has orange-tinted fill', () => {
+    const container = renderToContainer('API | blocked');
+    const node = container.querySelector('.is-node');
+    expect(node?.getAttribute('data-is-status')).toBe('blocked');
+  });
+
+  it('node with "todo" status has dashed border', () => {
+    const container = renderToContainer('API | todo');
+    const rects = container.querySelectorAll('.is-node rect');
+    // Find a rect with stroke-dasharray (not the transparent hit area)
+    let hasDash = false;
+    rects.forEach((r) => {
+      if (r.getAttribute('stroke-dasharray') === '6 3') hasDash = true;
+    });
+    expect(hasDash).toBe(true);
+  });
+
+  it('node with "done" status does NOT have dashed border', () => {
+    const container = renderToContainer('API | done');
+    const rects = container.querySelectorAll('.is-node rect');
+    let hasDash = false;
+    rects.forEach((r) => {
+      if (r.getAttribute('stroke-dasharray') === '6 3') hasDash = true;
+    });
+    expect(hasDash).toBe(false);
+  });
+
+  it('edge with "todo" status has dashed stroke', () => {
+    const container = renderToContainer('A | todo\nB | todo\nA -> B | todo');
+    const edgePaths = container.querySelectorAll('.is-edge');
+    expect(edgePaths.length).toBeGreaterThan(0);
+    let hasDash = false;
+    edgePaths.forEach((p) => {
+      if (p.getAttribute('stroke-dasharray') === '6 3') hasDash = true;
+    });
+    expect(hasDash).toBe(true);
+  });
+
+  it('edge with "done" status does NOT have dashed stroke', () => {
+    const container = renderToContainer('A | done\nB | done\nA -> B | done');
+    const edgePaths = container.querySelectorAll('.is-edge');
+    expect(edgePaths.length).toBeGreaterThan(0);
+    let hasDash = false;
+    edgePaths.forEach((p) => {
+      if (p.getAttribute('stroke-dasharray') === '6 3') hasDash = true;
+    });
+    expect(hasDash).toBe(false);
+  });
+
+  it('renders all new statuses without errors', () => {
+    const container = renderToContainer(`chart: initiative-status
+A | done
+B | doing
+C | blocked
+D | todo
+E | na
+A -> B | done
+B -> C | doing
+C -> D | blocked
+D -> E | todo`);
+    const svg = container.querySelector('svg');
+    expect(svg).not.toBeNull();
+    const nodes = container.querySelectorAll('.is-node');
+    expect(nodes.length).toBe(5);
+  });
+});

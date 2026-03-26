@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { mix, hexToHSL, hslToHex, tint, shade, relativeLuminance, contrastText } from '../src/palettes/color-utils';
+import { resolveColor } from '../src/colors';
 
 describe('mix', () => {
   it('returns color b at pct=0', () => {
@@ -95,5 +96,21 @@ describe('shade', () => {
 
   it('returns base at amount=1', () => {
     expect(shade('#5e81ac', '#2e3440', 1)).toBe('#2e3440');
+  });
+});
+
+describe('resolveColor', () => {
+  it('rejects 6-digit hex codes', () => {
+    expect(resolveColor('#ff0000')).toBeNull();
+  });
+
+  it('rejects 3-digit hex codes', () => {
+    expect(resolveColor('#abc')).toBeNull();
+  });
+
+  it('resolves named colors to a string', () => {
+    const result = resolveColor('red');
+    expect(result).not.toBeNull();
+    expect(typeof result).toBe('string');
   });
 });

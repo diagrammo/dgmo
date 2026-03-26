@@ -1,0 +1,47 @@
+chart: initiative-status
+title: Platform Modernization — Full Status
+
+tag: Phase alias p
+  Discovery(green) default
+  Build(blue)
+  Launch(orange)
+  Maintenance(purple)
+
+tag: Team alias t
+  Frontend(blue)
+  Backend(green)
+  Platform(teal)
+  Data(purple)
+
+[Identity] | t: Backend
+  Auth Service | done, p: Build
+  SSO Integration | doing, p: Build
+    -> Auth Service | done
+  MFA Rollout | blocked, p: Launch
+    -> SSO Integration | doing
+
+[Payments] | t: Platform
+  Payment Gateway | doing, p: Build
+  Billing UI | todo, p: Build, t: Frontend
+    -> Payment Gateway | doing
+  Invoice API | todo, p: Launch
+    -> Payment Gateway | doing
+    -> Billing UI | todo
+
+[Search] | t: Backend
+  Search API | done, p: Build
+  Search UI | doing, p: Build, t: Frontend
+    -> Search API | done
+  Search Analytics | na, p: Maintenance, t: Data
+
+[Observability] | t: Platform
+  Metrics Pipeline | done, p: Discovery
+  Alert Rules | done, p: Build
+    -> Metrics Pipeline | done
+  Dashboard | doing, p: Build, t: Frontend
+    -> Metrics Pipeline | done
+    -> Alert Rules | done
+
+Auth Service -> Payment Gateway: validates | done
+SSO Integration -> Search API: provides identity | done
+Metrics Pipeline -> Search API: monitors | done

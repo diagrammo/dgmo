@@ -409,7 +409,7 @@ interface PaletteColors {
 
 | Function          | Signature                                                     | Description                              |
 | ----------------- | ------------------------------------------------------------- | ---------------------------------------- |
-| `resolveColor`    | `(color: string, palette?) => string`                         | Resolve color name or hex to CSS color   |
+| `resolveColor`    | `(color: string, palette?) => string \| null`                 | Resolve named color to CSS color (hex codes rejected, returns null for unknown names) |
 | `getSeriesColors` | `(palette: PaletteColors) => string[]`                        | Get 8-color series rotation from palette |
 | `contrastText`    | `(bg: string, lightText: string, darkText: string) => string` | Pick contrast text color (WCAG)          |
 | `hexToHSL`        | `(hex: string) => { h, s, l }`                                | Hex to HSL object                        |
@@ -552,7 +552,7 @@ Useful for advanced consumers:
 - `resolveColor`, `getSeriesColors`, `contrastText`
 - `buildMermaidThemeVars`, `buildThemeCSS`
 - Color utilities: `hexToHSL`, `hslToHex`, `mute`, `tint`, `shade`
-- `looksLikeSequence`, `isSequenceBlock`, `inferParticipantType`
+- `looksLikeSequence`, `looksLikeGantt`, `looksLikeC4`, `isSequenceBlock`, `inferParticipantType`
 
 ### Internal (exported for testing, may change)
 

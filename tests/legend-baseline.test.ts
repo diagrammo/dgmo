@@ -143,9 +143,9 @@ User -> AuthService`;
 describe('Baseline: Kanban legend position', () => {
   const src = `chart: kanban
 
-## Priority
-  High(#bf616a)
-  Low(#a3be8c)
+tag: Priority
+  High(red)
+  Low(green)
 
 [To Do]
   Fix bug | priority: High

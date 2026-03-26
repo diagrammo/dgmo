@@ -2,6 +2,26 @@
 
 DGMO is a text-based diagram markup language. Files use the `.dgmo` extension. Render with the `dgmo` CLI, the Diagrammo desktop app, or the `@diagrammo/dgmo` npm library.
 
+## Migration Guide
+
+Syntax changes introduced in the consistency cleanup. Old forms now produce errors.
+
+| Old Syntax | New Syntax | Chart Types |
+|---|---|---|
+| `## Group` | `tag: Group` | All |
+| `== Column ==` | `[Column]` | Kanban |
+| `person Name` | `Name is a person` | C4 |
+| `-> Target : Desc [tech]` | `-Desc-> Target \| tech: val` | C4 |
+| `A <-> B` | Two lines: `A -> B` + `B -> A` | C4 |
+| `-> Target x5` | `-> Target \| fanout: 5` | Infra |
+| `lag: 5d` / `lead: 3d` | `offset: 5d` / `offset: -3d` | Gantt |
+| `Name(color)` | Use `tag:` groups | Sequence |
+| `scenario:` | (removed) | Infra |
+| `wip` | `doing` (wip still accepted) | Init-status |
+| `#ff0000` hex colors | Named colors only | All |
+
+---
+
 ## Common Patterns
 
 Every `.dgmo` file can start with optional directives, followed by content.
@@ -27,10 +47,9 @@ Append `(colorname)` to labels, nodes, or data points:
 ```
 Port Royal(red): 850
 [Process(blue)]
-person Customer(green)
 ```
 
-Named colors: `red`, `orange`, `yellow`, `green`, `blue`, `purple`, `teal`, `cyan`, `gray`. Palette-specific colors also available.
+Named colors only: `red`, `orange`, `yellow`, `green`, `blue`, `purple`, `teal`, `cyan`, `gray`. Palette-specific colors also available. Hex color codes (e.g. `#ff0000`) are **not** supported — use named colors instead.
 
 ### Palettes and Themes
 
@@ -209,7 +228,7 @@ Bob: 7, 92
 Carol: 2, 70
 ```
 
-Data: `Label: x, y` or `Label: x, y, size` (bubble chart). Group with `## Category(color)` headers.
+Data: `Label: x, y` or `Label: x, y, size` (bubble chart). Group with `tag:` groups.
 
 Options: `labels` (`on`/`off`), `xlabel`, `ylabel`, `sizelabel`.
 
@@ -347,15 +366,16 @@ Data: `word: weight` (higher = larger). Options: `rotate` (`none`/`mixed`/`angle
 chart: arc
 title: Team Collaboration
 
-## Frontend(blue)
-Alice -> Bob: 8
-Alice -> Carol: 5
+tag: Team
+  Frontend(blue)
+  Backend(green)
 
-## Backend(green)
-Dave -> Carol: 10
+Alice -> Bob: 8 | Team: Frontend
+Alice -> Carol: 5 | Team: Frontend
+Dave -> Carol: 10 | Team: Backend
 ```
 
-Data: `Source -> Target: weight`. Group nodes with `## Group(color)` headers.
+Data: `Source -> Target: weight`. Group nodes with `tag:` groups.
 
 Options: `order` (`appearance`/`name`/`group`/`degree`), `orientation`.
 
@@ -403,22 +423,24 @@ Options: `x-axis: low, high`, `y-axis: low, high`. Quadrant labels: `top-right`,
 chart: timeline
 title: Project History
 
+tag: Team
+  Team A(blue)
+  Team B(green)
+
 era 2023->2024: Phase 1
 marker 2023-06: Launch(orange)
 
-## Team A(blue)
-2023-01->2023-06: Planning
-2023-06->2024-01: Development
-2024-02: Release
+2023-01->2023-06: Planning | Team: Team A
+2023-06->2024-01: Development | Team: Team A
+2024-02: Release | Team: Team A
 
-## Team B(green)
-2023-03->2023-09: Research
-2023-09->2024-03?: Implementation
+2023-03->2023-09: Research | Team: Team B
+2023-09->2024-03?: Implementation | Team: Team B
 ```
 
 Date formats: `YYYY`, `YYYY-MM`, `YYYY-MM-DD`. Ranges: `start->end`. Durations: `start->1y`, `start->6m`, `start->2w`, `start->30d`. Uncertain end: append `?` (e.g., `2024-03?`).
 
-Elements: `era start->end: Label(color)`, `marker date: Label(color)`, `## Group(color)` headers.
+Elements: `era start->end: Label(color)`, `marker date: Label(color)`, `tag:` groups for interactive coloring.
 
 Tag groups for interactive coloring and swimlanes:
 
@@ -577,6 +599,14 @@ title: Decision Process
 
 **Arrows**: `-label-> Target`, `-(color)-> Target`, `-label(color)-> Target`
 
+**Inferred arrow colors** — when a label matches a well-known keyword, the arrow color is set automatically:
+
+| Label | Inferred Color |
+|---|---|
+| yes, success, ok, true | green |
+| no, fail, error, false | red |
+| maybe, warning | orange |
+
 Colors on nodes: `[Process(blue)]`
 
 ### state
@@ -594,7 +624,7 @@ chart: state
 title: Order Lifecycle
 direction: LR
 
-## Processing(blue)
+[Processing(blue)]
   Validating -valid-> Approved
   Validating -invalid-> Rejected(red)
 
@@ -622,7 +652,7 @@ Idle
 
 is equivalent to `Idle -start-> Running` and `Idle -configure-> Configuring`.
 
-**Groups**: `## GroupName` or `## GroupName(color)` — groups subsequent indented states visually.
+**Groups**: `[GroupName]` or `[GroupName(color)]` — groups subsequent indented states visually.
 
 **Self-loops**: `Running -retry-> Running` — a state transitioning to itself.
 
@@ -748,10 +778,12 @@ Minimal example:
 ```
 chart: c4
 
-person User
-system MyApp | description: The main application
+User is a person
+MyApp is a system | description: The main application
   -Uses-> User
 ```
+
+Auto-detection: C4 diagrams are auto-detected when `Name is a person/system/container/component` declarations are present — `chart: c4` is optional.
 
 Full example:
 
@@ -763,22 +795,22 @@ tag: Scope alias sc
   Internal(blue) default
   External(gray)
 
-person Customer | description: A customer of the bank
+Customer is a person | description: A customer of the bank
 
-system Internet Banking | description: Online banking portal
-  -Delivers content [HTTPS]-> Customer
-  -Sends emails [SMTP]-> Email
+Internet Banking is a system | description: Online banking portal
+  -Delivers content-> Customer | tech: HTTPS
+  -Sends emails-> Email | tech: SMTP
 
   containers:
-    container Web App | description: SPA, tech: React
-      -API calls [JSON/HTTPS]-> API
+    Web App is a container | description: SPA, tech: React
+      -API calls-> API | tech: JSON/HTTPS
 
-    container API | description: Backend, tech: Node.js
-      -Reads/writes [SQL]-> Database
+    API is a container | description: Backend, tech: Node.js
+      -Reads/writes-> Database | tech: SQL
 
-    container Database | description: Data store, tech: PostgreSQL
+    Database is a container | description: Data store, tech: PostgreSQL
 
-system Email | description: Email delivery, sc: External
+Email is a system | description: Email delivery, sc: External
   ~Sends emails~> Customer
 
 deployment:
@@ -790,18 +822,24 @@ deployment:
     container Database
 ```
 
-**Element types**: `person`, `system`, `container`, `component`
+**Element types** — declared with `Name is a <type>`:
+- `Name is a person` — human actor
+- `Name is a system` — software system
+- `Name is a container` — application/service within a system
+- `Name is a component` — component within a container
+- `Name is a external` — external system
+- `Name is a database` — database element
 
-**Metadata** (pipe-delimited): `element Name | description: text, tech: stack, tagalias: value`
+**Metadata** (pipe-delimited): `Name is a system | description: text, tech: stack, tagalias: value`
 
 **Sections**: `containers:` (inside system), `components:` (inside container), `deployment:`
 
 **Deployment nodes**: `NodeName is a [cloud|database|cache|queue|external]`
 
 **Relationships**:
-- Sync: `-> Target` or `-label [tech]-> Target`
-- Async: `~> Target` or `~label [tech]~> Target`
-- Bidirectional: `<-> Target`, `<~> Target`
+- Sync: `-> Target` or `-label-> Target`
+- Async: `~> Target` or `~label~> Target`
+- With technology metadata: `-label-> Target | tech: HTTPS`
 
 **Tag groups**: See tag group syntax below.
 
@@ -857,11 +895,11 @@ Minimal example:
 ```
 chart: kanban
 
-== To Do ==
+[To Do]
 Task 1
 Task 2
 
-== Done ==
+[Done]
 Task 3
 ```
 
@@ -880,21 +918,23 @@ tag: Owner alias o
   Alice(blue)
   Bob(green)
 
-== Backlog(gray) ==
+[Backlog(gray)]
 Research API options | priority: High, o: Alice
 
-== In Progress [wip: 3](orange) ==
+[In Progress(orange)] | wip: 3
 Build auth module | priority: Critical, o: Bob
   Integrate OAuth2
   Add session management
 
-== Done(green) ==
+[Done(green)]
 Setup CI pipeline | priority: High, o: Alice
 ```
 
-**Columns**: `== Column Name ==`, `== Column Name(color) ==`, `== Column Name [wip: N] ==`
+**Columns**: `[Column Name]`, `[Column Name(color)]`, `[Column Name] | wip: N`
 
 **Cards**: `Card Title | tag: value`. Indented lines below become card details.
+
+**Group metadata cascading**: `[Column Name] | key: value` — pipe metadata on column headers cascades to all cards in the column.
 
 ### initiative-status
 
@@ -904,9 +944,9 @@ Minimal example:
 chart: initiative-status
 
 Auth | done
-  -> UserService | wip
+  -> UserService | doing
   -> NotifyService | todo
-UserService | wip
+UserService | doing
 NotifyService | todo
 ```
 
@@ -917,10 +957,10 @@ chart: initiative-status
 title: Platform Roadmap
 
 Auth | done
-  -depends-> UserService | wip
+  -depends-> UserService | doing
   -feeds-> Dashboard | todo
 Dashboard | todo
-UserService | wip
+UserService | doing
   -calls-> DBLayer | done
 DBLayer | done
 
@@ -929,11 +969,13 @@ DBLayer | done
   EmailProvider | na
 ```
 
-**Status values**: `done`, `wip`, `todo`, `na`
+**Status values**: `done`, `doing`, `blocked`, `todo`, `na`
+
+**Status aliases**: `wip` maps to `doing`; `paused` and `waiting` map to `blocked`. Aliases are accepted in input but the canonical values are preferred.
 
 **Relationships**: `-label-> Target | status` or indented children.
 
-**Groups**: `[Group Name]` for visual grouping.
+**Groups**: `[Group Name]` for visual grouping. `[Group Name] | key: value` — pipe metadata cascades to contained nodes.
 
 ### sitemap
 
@@ -1025,13 +1067,15 @@ Home
 
 **Groups**: `[Group Name]` wraps indented children in a container.
 
-**Arrows**: `-label-> Target`, `-(color)-> Target`, `-label(color)-> Target` — cross-link between any pages.
+**Arrows**: `-label-> Target`, `-(color)-> Target`, `-label(color)-> Target` — cross-link between any pages. Arrow colors are inferred from well-known labels (see flowchart section).
 
 **Metadata**: `Key: Value` lines attach to the parent page (displayed as card rows).
 
 **Tag groups**: `tag: Name` with colored entries — same syntax as org charts.
 
-**Direction**: `direction: TB` (top-to-bottom, default) or `direction: LR` (left-to-right).
+**Direction**: `direction: TB` (top-to-bottom, default) or `direction: LR` (left-to-right). `orientation:` is accepted as an alias for `direction:`.
+
+**Group metadata cascading**: `[Group Name] | key: value` — pipe metadata on group headers cascades to all pages in the group.
 
 **Collapsible groups**: Groups can be collapsed/expanded in the app — arrows to hidden pages re-terminate at the group boundary.
 
@@ -1113,27 +1157,112 @@ StaticServer | t: Platform
 - `cb-error-threshold: N%` — circuit breaker opens when overload exceeds this ratio
 - `cb-latency-threshold-ms: N` — circuit breaker opens when cumulative latency exceeds this
 
-**Connections**: `-> Target` (unlabeled), `-label-> Target` (labeled). Pipe metadata for splits: `-> Target | split: N%`. Fan-out multiplier: `-> Target x5` or `-> Target | split: 50% x5`.
+**Type declarations**: `NodeName is a <type>` — declare a component's infrastructure role:
+- `database`, `cache`, `queue`, `service`, `gateway`, `storage`, `function`, `network`
+- Example: `Redis is a cache`, `SQS is a queue`
 
-**Fan-out**: Append `xN` to a connection to model request multiplication — one inbound request triggers N outbound calls to the target. The target receives `inbound × N` RPS. Fan-out is applied after split: `-> Shards | split: 60% x8` means the target receives `inbound × 0.60 × 8` RPS. Fan-out compounds naturally through multi-hop chains.
+**Connections**:
+- Sync: `-> Target` (unlabeled), `-label-> Target` (labeled)
+- Async: `~> Target` (unlabeled), `~label~> Target` (labeled)
+- Pipe metadata for splits: `-> Target | split: N%`
+- Fan-out multiplier: `-> Target | fanout: 5` or `-> Target | split: 50%, fanout: 5`
+
+**Fan-out**: Use `| fanout: N` metadata to model request multiplication — one inbound request triggers N outbound calls to the target. The target receives `inbound × N` RPS. Fan-out is applied after split: `-> Shards | split: 60%, fanout: 8` means the target receives `inbound × 0.60 × 8` RPS. Fan-out compounds naturally through multi-hop chains.
 
 **Branching**: Multiple outbound connections with `split: N%` metadata. Splits must sum to 100%. Undeclared splits are evenly distributed from the remaining percentage.
 
 **Groups**: `[Group Name]` with indented children — rendered as dashed-border containers. Edges targeting a group route to all children.
 
-**Roles**: Inferred automatically from behavior properties — no type declarations needed. Components with `cache-hit` get a Cache role, `firewall-block` gets Firewall, etc. Roles appear as colored dots on nodes and in the legend.
+**Roles**: Inferred automatically from behavior properties or `is a` type declarations. Components with `cache-hit` get a Cache role, `firewall-block` gets Firewall, etc. Explicit declarations (`Redis is a cache`) set the role directly. Roles appear as colored dots on nodes and in the legend.
 
 **Overload**: When computed rps exceeds `max-rps × instances`, the node turns red. Dynamic scaling (`instances: 1-8`) auto-scales within the range before overloading.
 
-**Direction**: `direction: LR` (left-to-right, default) or `direction: TB` (top-to-bottom).
+**Direction**: `direction: LR` (left-to-right, default) or `direction: TB` (top-to-bottom). `orientation:` is accepted as an alias for `direction:`.
+
+**Group metadata cascading**: `[Group Name] | key: value` — pipe metadata on group headers cascades to all children, providing default tag values for contained nodes.
 
 **Tag groups**: Same syntax as org/kanban/sitemap — `tag: Name alias x` with colored entries.
+
+### gantt
+
+Minimal example:
+
+```
+start: 2024-01-01
+
+10bd: Design
+  -> Implementation
+20bd: Implementation
+  -> Testing
+5bd: Testing
+```
+
+Auto-detection: Gantt charts are auto-detected when duration patterns like `10bd: Task` are present — `chart: gantt` is optional.
+
+Full example:
+
+```
+chart: gantt
+title: Project Schedule
+start: 2024-01-01
+today-marker: on
+
+tag: Team alias t
+  Frontend(blue)
+  Backend(green)
+
+holidays:
+  2024-01-15: MLK Day
+  2024-02-19: Presidents Day
+
+era 2024-01 -> 2024-03: Phase 1(blue)
+marker: 2024-02-15 Sprint Review(orange)
+
+[Design]
+  5bd: UX Research | t: Frontend
+  10bd: Wireframes | t: Frontend
+    -informs-> API Design
+
+[Engineering]
+  15bd: API Design | t: Backend
+    -> Frontend Build | offset: 2bd
+  20bd: Frontend Build | t: Frontend
+  10bd: Integration Testing
+```
+
+**Start date**: `start: YYYY-MM-DD` (required) — project start date for computing all task dates.
+
+**Tasks**: `<duration>: <name>` — duration units: `bd` (business days), `d` (days), `w` (weeks), `m` (months), `q` (quarters), `y` (years), `h` (hours), `min` (minutes).
+
+**Explicit dates**: `YYYY-MM-DD: Task Name` or `YYYY-MM-DD -> 30d: Task Name` (date with duration).
+
+**Uncertain end**: Append `?` to duration (e.g., `10bd?: Task`) — renders with a fading tail.
+
+**Dependencies**: `-label-> Target` or `-> Target` — indented under the source task. The target task starts after the source completes.
+
+**Dependency offsets**: `-> Target | offset: 2bd` — positive offset adds a gap; `-> Target | offset: -3d` — negative offset creates overlap (lead time).
+
+**Labeled dependency arrows**: `-label-> Target` — the label text appears on the rendered arrow.
+
+**Groups**: `[Group Name]` wraps indented tasks in a collapsible section.
+
+**Group metadata cascading**: `[Group Name] | key: value` — pipe metadata cascades to all tasks in the group.
+
+**Eras**: `era YYYY-MM -> YYYY-MM: Label(color)` — background shading bands.
+
+**Markers**: `marker: YYYY-MM-DD Label(color)` — vertical milestone lines.
+
+**Holidays**: `holidays:` block with `YYYY-MM-DD: Name` entries or `YYYY-MM-DD -> YYYY-MM-DD: Name` ranges. Holiday dates skip business-day counting.
+
+**Tag groups**: Same syntax as other diagrams — `tag: Name alias x` with colored entries.
+
+**Options**: `start`, `title`, `today-marker` (`on`/`off`), `sort` (`time`/`group`/`tag`/`tag:GroupName`).
 
 ---
 
 ## Tag Groups
 
-Define reusable metadata categories for org charts, kanban boards, C4 diagrams, sitemaps, and infra charts:
+Define reusable metadata categories for sequence, org, kanban, C4, sitemap, infra, gantt, initiative-status, and timeline diagrams:
 
 ```
 tag: Priority
@@ -1163,10 +1292,16 @@ Assign to elements via pipe metadata: `Element Name | priority: High, t: Fronten
 - `# comment` — wrong. Use `// comment`
 - `async A -> B: msg` — wrong. Use `A ~msg~> B`
 - `parallel else` — not supported. Use separate `parallel` blocks
-- Hex colors in sections `== Foo(#ff0000) ==` — wrong. Use named colors: `== Foo(red) ==`
+- Hex colors `#ff0000` — wrong. Use named colors only: `red`, `green`, `blue`, etc.
 - `->` inside labeled arrows `A -routes to /api-> B` — ambiguous. Rephrase the label
 - Missing `chart:` for ambiguous content — when auto-detection picks the wrong type, add an explicit `chart:` directive
 - `end` keyword in sequence blocks — not needed. Indentation closes blocks
+- `== Column ==` in kanban — removed. Use `[Column]`
+- `person Name` in C4 — removed. Use `Name is a person`
+- `A <-> B` bidirectional arrows — removed. Use two separate lines
+- `-> Target x5` fan-out — removed. Use `-> Target | fanout: 5`
+- `lag: 5d` / `lead: 3d` in gantt — removed. Use `offset: 5d` / `offset: -3d`
+- `Name(color)` in sequence participants — removed. Use `tag:` groups for coloring
 
 ---
 

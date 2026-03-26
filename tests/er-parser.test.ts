@@ -456,7 +456,7 @@ Users 1--* Orders`);
     expect(result.tables).toHaveLength(2);
   });
 
-  it('emits deprecation warning for ## tag group syntax', () => {
+  it('emits error for ## tag group syntax', () => {
     const result = parseERDiagram(`chart: er
 
 ## Domain
@@ -464,8 +464,9 @@ Users 1--* Orders`);
 
 Users | Domain: Billing
   id: int [pk]`);
-    const warnings = result.diagnostics.filter(d => d.message.includes('deprecated'));
-    expect(warnings).toHaveLength(1);
-    expect(warnings[0].message).toContain('tag: Domain');
+    const errors = result.diagnostics.filter(d => d.message.includes('no longer supported'));
+    expect(errors).toHaveLength(1);
+    expect(errors[0].severity).toBe('error');
+    expect(errors[0].message).toContain('tag: Domain');
   });
 });

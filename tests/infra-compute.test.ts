@@ -1788,7 +1788,7 @@ chart: infra
 
 edge
   rps: 100
-  -> B x5
+  -> B | fanout: 5
 
 B
   max-rps: 1000
@@ -1803,7 +1803,7 @@ chart: infra
 
 edge
   rps: 100
-  -> B | split: 50% x5
+  -> B | split: 50%, fanout: 5
   -> C | split: 50%
 
 B
@@ -1822,11 +1822,11 @@ chart: infra
 
 edge
   rps: 100
-  -> A x5
+  -> A | fanout: 5
 
 A
   max-rps: 5000
-  -> B x3
+  -> B | fanout: 3
 
 B
   max-rps: 10000
@@ -1861,7 +1861,7 @@ chart: infra
 
 edge
   rps: 100
-  -> Shards x10
+  -> Shards | fanout: 10
 
 Shards
   max-rps: 5000

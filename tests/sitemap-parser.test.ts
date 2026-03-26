@@ -55,6 +55,16 @@ describe('parseSitemap', () => {
       const result = parseSitemap('chart: sitemap\ndirection: TB\nHome');
       expect(result.direction).toBe('TB');
     });
+
+    it('accepts orientation: as alias for direction:', () => {
+      const result = parseSitemap('chart: sitemap\norientation: horizontal\nHome');
+      expect(result.direction).toBe('LR');
+    });
+
+    it('normalizes direction: vertical to TB', () => {
+      const result = parseSitemap('chart: sitemap\ndirection: vertical\nHome');
+      expect(result.direction).toBe('TB');
+    });
   });
 
   // === Comments ===
@@ -246,6 +256,50 @@ describe('parseSitemap', () => {
     });
   });
 
+  // === Arrow color inference ===
+  describe('arrow color inference', () => {
+    it('-yes-> infers green', () => {
+      const result = parseSitemap('Home\n  -yes-> About\nAbout');
+      expect(result.edges[0].color).toBe('green');
+    });
+
+    it('-no-> infers red', () => {
+      const result = parseSitemap('Home\n  -no-> About\nAbout');
+      expect(result.edges[0].color).toBe('red');
+    });
+
+    it('-maybe-> infers orange', () => {
+      const result = parseSitemap('Home\n  -maybe-> About\nAbout');
+      expect(result.edges[0].color).toBe('orange');
+    });
+
+    it('-YES-> infers green (case-insensitive)', () => {
+      const result = parseSitemap('Home\n  -YES-> About\nAbout');
+      expect(result.edges[0].color).toBe('green');
+    });
+
+    it('-yesterday-> does NOT infer color (not exact match)', () => {
+      const result = parseSitemap('Home\n  -yesterday-> About\nAbout');
+      expect(result.edges[0].color).toBeUndefined();
+    });
+
+    it('-no(blue)-> uses explicit blue, not inferred red', () => {
+      const result = parseSitemap('Home\n  -no(blue)-> About\nAbout');
+      expect(result.edges[0].color).toBeDefined();
+      expect(result.edges[0].color).not.toBe('red');
+    });
+
+    it('-success-> infers green', () => {
+      const result = parseSitemap('Home\n  -success-> About\nAbout');
+      expect(result.edges[0].color).toBe('green');
+    });
+
+    it('-error-> infers red', () => {
+      const result = parseSitemap('Home\n  -error-> About\nAbout');
+      expect(result.edges[0].color).toBe('red');
+    });
+  });
+
   // === Tag groups ===
   describe('tag groups', () => {
     it('parses tag: Name with entries', () => {
@@ -386,6 +440,44 @@ describe('parseSitemap', () => {
         d.message.includes('not found')
       );
       expect(unresolvedErrors).toHaveLength(0);
+    });
+  });
+
+  // === Container metadata cascading ===
+  describe('container metadata cascading', () => {
+    it('child inherits container metadata', () => {
+      const content = [
+        '[Browse] | icon: nav',
+        '  About',
+        '  Contact',
+      ].join('\n');
+      const result = parseSitemap(content);
+      expect(result.error).toBeNull();
+      const browseContainer = result.roots[0];
+      expect(browseContainer.isContainer).toBe(true);
+      expect(browseContainer.metadata).toEqual({ icon: 'nav' });
+      // Children should inherit container metadata
+      expect(browseContainer.children[0].label).toBe('About');
+      expect(browseContainer.children[0].metadata).toEqual({ icon: 'nav' });
+      expect(browseContainer.children[1].label).toBe('Contact');
+      expect(browseContainer.children[1].metadata).toEqual({ icon: 'nav' });
+    });
+
+    it('child metadata overrides container metadata', () => {
+      const content = [
+        '[Browse] | icon: nav',
+        '  About | icon: info',
+        '  Contact',
+      ].join('\n');
+      const result = parseSitemap(content);
+      expect(result.error).toBeNull();
+      const browseContainer = result.roots[0];
+      // About has its own icon, should override
+      expect(browseContainer.children[0].label).toBe('About');
+      expect(browseContainer.children[0].metadata).toEqual({ icon: 'info' });
+      // Contact inherits container metadata
+      expect(browseContainer.children[1].label).toBe('Contact');
+      expect(browseContainer.children[1].metadata).toEqual({ icon: 'nav' });
     });
   });
 });

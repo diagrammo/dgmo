@@ -30,29 +30,29 @@ import type {
 
 // ── Regexes ─────────────────────────────────────────────────
 
-/** Duration task: `30d: Label`, `1.5w: Label`, `10bd?: Label` */
-const DURATION_RE = /^(\d+(?:\.\d+)?)(d|bd|w|m|q|y)(\?)?:\s*(.+)$/;
+/** Duration task: `30d: Label`, `1.5w: Label`, `10bd?: Label`, `2h: Label`, `90min: Label` */
+const DURATION_RE = /^(\d+(?:\.\d+)?)(min|bd|d|w|m|q|y|h)(\?)?:\s*(.+)$/;
 
-/** Explicit date task: `2024-01-15: Label` */
-const EXPLICIT_DATE_RE = /^(\d{4}-\d{2}-\d{2}):\s*(.+)$/;
+/** Explicit date task: `2024-01-15: Label` or `2024-01-15 14:30: Label` */
+const EXPLICIT_DATE_RE = /^(\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2})?):\s*(.+)$/;
 
-/** Timeline migration syntax: `2024-01-15 -> 30d: Label` */
-const TIMELINE_DURATION_RE = /^(\d{4}-\d{2}-\d{2})\s*->\s*(\d+(?:\.\d+)?)(d|bd|w|m|q|y)(\?)?:\s*(.+)$/;
+/** Timeline migration syntax: `2024-01-15 -> 30d: Label` or `2024-01-15 14:30 -> 2h: Label` */
+const TIMELINE_DURATION_RE = /^(\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2})?)\s*->\s*(\d+(?:\.\d+)?)(min|bd|d|w|m|q|y|h)(\?)?:\s*(.+)$/;
 
 /** Group container: `[GroupName]` with optional pipe metadata */
 const GROUP_RE = /^\[(.+?)\]\s*(.*)$/;
 
-/** Dependency: `-> TargetName` with optional pipe metadata */
-const DEPENDENCY_RE = /^->\s*(.+)$/;
+/** Dependency: `-> TargetName` or `-label-> TargetName` with optional pipe metadata */
+const DEPENDENCY_RE = /^(?:-(.+?))?->\s*(.+)$/;
 
 /** Comment line */
 const COMMENT_RE = /^\/\//;
 
-/** Era: `era YYYY[-MM[-DD]] -> YYYY[-MM[-DD]]: Label (color?)` */
-const ERA_RE = /^era\s+(\d{4}(?:-\d{2}(?:-\d{2})?)?)\s*->\s*(\d{4}(?:-\d{2}(?:-\d{2})?)?)\s*:\s*(.+)$/i;
+/** Era: `era YYYY[-MM[-DD[ HH:MM]]] -> YYYY[-MM[-DD[ HH:MM]]]: Label (color?)` */
+const ERA_RE = /^era\s+(\d{4}(?:-\d{2}(?:-\d{2}(?: \d{2}:\d{2})?)?)?)\s*->\s*(\d{4}(?:-\d{2}(?:-\d{2}(?: \d{2}:\d{2})?)?)?)\s*:\s*(.+)$/i;
 
-/** Marker: `marker: YYYY[-MM[-DD]] Label (color?)` */
-const MARKER_RE = /^marker:\s+(\d{4}(?:-\d{2}(?:-\d{2})?)?)\s+(.+)$/i;
+/** Marker: `marker: YYYY[-MM[-DD[ HH:MM]]] Label (color?)` */
+const MARKER_RE = /^marker:\s+(\d{4}(?:-\d{2}(?:-\d{2}(?: \d{2}:\d{2})?)?)?)\s+(.+)$/i;
 
 /** Holiday date: `2024-01-15: Label` */
 const HOLIDAY_DATE_RE = /^(\d{4}-\d{2}-\d{2}):\s*(.+)$/;
@@ -101,7 +101,6 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
       start: null,
       title: null,
       titleLineNumber: null,
-      orientation: 'horizontal',
       todayMarker: 'off',
       criticalPath: false,
       dependencies: false,
@@ -302,7 +301,8 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
       // Dependency under a task
       const depMatch = line.match(DEPENDENCY_RE);
       if (depMatch) {
-        const depParts = depMatch[1].split('|');
+        const label = depMatch[1]?.trim() || undefined;
+        const depParts = depMatch[2].split('|');
         const targetName = depParts[0].trim();
         let offset: Offset | undefined;
 
@@ -310,7 +310,7 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
           const meta = parsePipeMetadata(['', ...depParts.slice(1)], aliasMap, () => warn(lineNumber, MULTIPLE_PIPE_WARNING));
           if (meta.lag || meta.lead) {
             const key = meta.lag ? 'lag' : 'lead';
-            softError(lineNumber, `Unknown keyword "${key}". Use "offset: ${meta[key]}" instead.`);
+            softError(lineNumber, `"${key}" is no longer supported — use "offset: ${meta[key]}" instead.${key === 'lead' ? ' Negate the value for lead behavior: "offset: -...".' : ''}`);
           }
           if (meta.offset) {
             const raw = meta.offset;
@@ -327,6 +327,7 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
 
         lastTaskNode.dependencies.push({
           targetName,
+          label,
           offset,
           lineNumber,
         });
@@ -360,6 +361,10 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
     // Tag block heading
     const tagMatch = matchTagBlockHeading(line);
     if (tagMatch) {
+      if (tagMatch.deprecated) {
+        softError(lineNumber, `'## ${tagMatch.name}' is no longer supported — use 'tag: ${tagMatch.name}' instead`);
+        continue;
+      }
       inTagBlock = true;
       tagBlockIndent = indent;
       inHeaderBlock = false;
@@ -422,16 +427,12 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
           result.options.titleLineNumber = lineNumber;
           break;
         case 'orientation':
-          if (value === 'horizontal' || value === 'vertical') {
-            result.options.orientation = value;
-          } else {
-            warn(lineNumber, `Invalid orientation: "${value}". Expected "horizontal" or "vertical".`);
-          }
+          warn(lineNumber, `'orientation' is not supported for gantt charts`);
           break;
         case 'today-marker':
           if (value === 'on' || value === 'off') {
             result.options.todayMarker = value;
-          } else if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+          } else if (/^\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2})?$/.test(value)) {
             result.options.todayMarker = value;
           } else {
             warn(lineNumber, `Invalid today-marker value: "${value}". Expected "on", "off", or YYYY-MM-DD.`);
@@ -583,11 +584,12 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
     if (depMatch) {
       // Dependency without a task context is an error
       if (!lastTaskNode) {
-        softError(lineNumber, `Dependency "-> ${depMatch[1]}" must be indented under a task.`);
+        softError(lineNumber, `Dependency "-> ${depMatch[2]}" must be indented under a task.`);
         continue;
       }
       // This happens when the dep is at the same indent as the task
-      const depParts = depMatch[1].split('|');
+      const label = depMatch[1]?.trim() || undefined;
+      const depParts = depMatch[2].split('|');
       const targetName = depParts[0].trim();
       let offset: Offset | undefined;
 
@@ -595,7 +597,7 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
         const meta = parsePipeMetadata(['', ...depParts.slice(1)], aliasMap, () => warn(lineNumber, MULTIPLE_PIPE_WARNING));
         if (meta.lag || meta.lead) {
           const key = meta.lag ? 'lag' : 'lead';
-          warn(lineNumber, `"${key}" is deprecated — use "offset: ${meta[key]}" instead.${key === 'lead' ? ' Negate the value for lead behavior: "offset: -...".' : ''}`);
+          softError(lineNumber, `"${key}" is no longer supported — use "offset: ${meta[key]}" instead.${key === 'lead' ? ' Negate the value for lead behavior: "offset: -...".' : ''}`);
         }
         if (meta.offset) {
           const raw = meta.offset;
@@ -610,7 +612,7 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
         }
       }
 
-      lastTaskNode.dependencies.push({ targetName, offset, lineNumber });
+      lastTaskNode.dependencies.push({ targetName, label, offset, lineNumber });
       continue;
     }
 
@@ -677,7 +679,7 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
     // Reject lag/lead — use offset instead
     if (metadata.lag || metadata.lead) {
       const key = metadata.lag ? 'lag' : 'lead';
-      softError(ln, `Unknown keyword "${key}". Use "offset: ${metadata[key]}" instead.`);
+      softError(ln, `"${key}" is no longer supported — use "offset: ${metadata[key]}" instead.${key === 'lead' ? ' Negate the value for lead behavior: "offset: -...".' : ''}`);
     }
 
     // Extract task-level offset from metadata

@@ -66,7 +66,7 @@ describe('sequence: empty group warnings', () => {
     expect(result.error).toBeNull();
     const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
     expect(warnings.some((w) => w.message.includes('Backend'))).toBe(true);
-    expect(warnings.some((w) => w.message.includes('no participants'))).toBe(
+    expect(warnings.some((w) => w.message.includes('== Backend =='))).toBe(
       true
     );
   });
@@ -186,6 +186,21 @@ describe('d3: non-fatal validation warnings', () => {
     const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
     expect(warnings).toHaveLength(1);
     expect(warnings[0].message).toContain('No events found');
+  });
+
+  it('arc: accepts direction: LR as alias for orientation: horizontal', () => {
+    const result = parseVisualization('chart: arc\ndirection: LR\nA -> B');
+    expect(result.orientation).toBe('horizontal');
+  });
+
+  it('arc: accepts direction: TB as orientation: vertical', () => {
+    const result = parseVisualization('chart: arc\ndirection: TB\nA -> B');
+    expect(result.orientation).toBe('vertical');
+  });
+
+  it('timeline: accepts direction: horizontal as orientation', () => {
+    const result = parseVisualization('chart: timeline\ndirection: horizontal\n2024-01: Launch');
+    expect(result.orientation).toBe('horizontal');
   });
 
   it('quadrant: warns about no data points', () => {

@@ -38,7 +38,7 @@ Alice
   // 2. tags: loads tag groups from external file
   // ----------------------------------------------------------
   it('loads tag groups from external tags: file', async () => {
-    const tagsFile = `## Department
+    const tagsFile = `tag: Department
   Engineering (blue)
   Product (green)`;
 
@@ -54,7 +54,7 @@ Alice | department: Engineering`;
 
     const result = await resolveOrgImports(content, '/proj/org.dgmo', reader);
     expect(result.diagnostics).toEqual([]);
-    expect(result.content).toContain('## Department');
+    expect(result.content).toContain('tag: Department');
     expect(result.content).toContain('Engineering (blue)');
     expect(result.content).toContain('Alice | department: Engineering');
     // tags: directive should be stripped
@@ -65,14 +65,14 @@ Alice | department: Engineering`;
   // 3. Inline ## overrides same-name group from tags: file
   // ----------------------------------------------------------
   it('inline tag groups override same-name groups from tags file', async () => {
-    const tagsFile = `## Department
+    const tagsFile = `tag: Department
   Engineering (blue)
   Product (green)`;
 
     const content = `chart: org
 tags: shared-tags.dgmo
 
-## Department
+tag: Department
   Engineering (red)
   Sales (purple)
 
@@ -96,7 +96,7 @@ Alice | department: Engineering`;
     const tagsFile = `chart: org
 title: Other Chart
 
-## Department
+tag: Department
   Engineering (blue)
 
 CEO
@@ -113,7 +113,7 @@ Alice`;
 
     const result = await resolveOrgImports(content, '/proj/org.dgmo', reader);
     expect(result.diagnostics).toEqual([]);
-    expect(result.content).toContain('## Department');
+    expect(result.content).toContain('tag: Department');
     expect(result.content).toContain('Engineering (blue)');
     expect(result.content).toContain('Alice');
     // The non-tag content from the tags file should NOT be included
@@ -269,16 +269,16 @@ Alice
   // 11. Tag group merging: parent inline > tags file > imported
   // ----------------------------------------------------------
   it('merges tag groups with correct precedence', async () => {
-    const tagsFile = `## Department
+    const tagsFile = `tag: Department
   Engineering (blue)
 
-## Location
+tag: Location
   NY (nord-8)`;
 
-    const importedFile = `## Department
+    const importedFile = `tag: Department
   Engineering (green)
 
-## Status
+tag: Status
   Active (yellow)
 
 Alice`;
@@ -286,7 +286,7 @@ Alice`;
     const content = `chart: org
 tags: tags.dgmo
 
-## Department
+tag: Department
   Engineering (red)
 
 CEO
@@ -313,14 +313,14 @@ CEO
   // 12. New groups from imported files added (no conflict)
   // ----------------------------------------------------------
   it('adds new tag groups from imported files', async () => {
-    const importedFile = `## Role
+    const importedFile = `tag: Role
   Manager (orange)
 
 Alice | role: Manager`;
 
     const content = `chart: org
 
-## Department
+tag: Department
   Engineering (blue)
 
 CEO
@@ -332,8 +332,8 @@ CEO
 
     const result = await resolveOrgImports(content, '/proj/org.dgmo', reader);
     expect(result.diagnostics).toEqual([]);
-    expect(result.content).toContain('## Department');
-    expect(result.content).toContain('## Role');
+    expect(result.content).toContain('tag: Department');
+    expect(result.content).toContain('tag: Role');
     expect(result.content).toContain('Manager (orange)');
   });
 
@@ -341,7 +341,7 @@ CEO
   // 13. Imported file with tags: — its tags resolved before merging up
   // ----------------------------------------------------------
   it('resolves tags: in imported files before merging', async () => {
-    const sharedTags = `## Department
+    const sharedTags = `tag: Department
   Engineering (blue)`;
 
     const importedFile = `chart: org
@@ -361,7 +361,7 @@ CEO
 
     const result = await resolveOrgImports(content, '/proj/org.dgmo', reader);
     expect(result.diagnostics).toEqual([]);
-    expect(result.content).toContain('## Department');
+    expect(result.content).toContain('tag: Department');
     expect(result.content).toContain('  Alice | department: Engineering');
   });
 
@@ -482,7 +482,7 @@ Alice
   // 19. Integration: merged output parses correctly with parseOrg()
   // ----------------------------------------------------------
   it('produces output that parses correctly with parseOrg', async () => {
-    const tagsFile = `## Department
+    const tagsFile = `tag: Department
   Engineering (blue)
   Product (green)`;
 
@@ -549,7 +549,7 @@ Alice | department: Engineering`;
   // 21. Mixed syntax: main uses tag:, import uses ##
   // ----------------------------------------------------------
   it('merges tag groups across mixed syntax (tag: and ##)', async () => {
-    const importedFile = `## Role
+    const importedFile = `tag: Role
   Manager (orange)
 
 Alice | role: Manager`;
@@ -569,7 +569,7 @@ CEO
     const result = await resolveOrgImports(content, '/proj/org.dgmo', reader);
     expect(result.diagnostics).toEqual([]);
     expect(result.content).toContain('tag: Department');
-    expect(result.content).toContain('## Role');
+    expect(result.content).toContain('tag: Role');
     expect(result.content).toContain('Manager (orange)');
   });
 
@@ -577,7 +577,7 @@ CEO
   // 22. tag: syntax inline overrides same-name from tags file
   // ----------------------------------------------------------
   it('inline tag: groups override same-name ## groups from tags file', async () => {
-    const tagsFile = `## Department
+    const tagsFile = `tag: Department
   Engineering (blue)
   Product (green)`;
 

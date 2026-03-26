@@ -1141,6 +1141,7 @@ export function computeInfra(
       sourceId: edge.sourceId,
       targetId: edge.targetId,
       label: edge.label,
+      async: edge.async,
       computedRps: rps,
       split: resolvedSplit,
       fanout: edge.fanout,

@@ -170,7 +170,7 @@ describe('Sequence tag-driven recoloring', () => {
       'tag: Concern',
       '  Caching(blue)',
       '',
-      '[Backend | concern: Caching]',
+      '[Backend] | concern: Caching',
       '  API',
       '  DB',
       '',

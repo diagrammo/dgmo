@@ -161,7 +161,7 @@ describe('layoutOrg', () => {
   it('does not color nodes from tag groups (legend only)', () => {
     const content = `chart: org
 
-## Location
+tag: Location
   NY(blue)
   LA(yellow)
 
@@ -334,10 +334,10 @@ Alice
   });
 
   it('renders tag group names with original casing as display labels', () => {
-    const input = `## Title alias t
+    const input = `tag: Title alias t
   CTO(purple)
 
-## Location alias loc
+tag: Location alias loc
   NY(blue)
 
 Sean Curtis| t: CTO, loc: NY`;
@@ -577,7 +577,7 @@ describe('legend rendering', () => {
   it('renders legend in export mode', () => {
     const input = `chart: org
 
-## Location
+tag: Location
   NY(blue)
   LA(yellow)
 
@@ -601,11 +601,11 @@ Alice
   it('shows group names in legend (interactive)', () => {
     const input = `chart: org
 
-## Location
+tag: Location
   NY(blue)
   LA(yellow)
 
-## Status
+tag: Status
   FTE(green)
 
 Alice | location: NY, status: FTE`;
@@ -630,7 +630,7 @@ Alice | location: NY, status: FTE`;
   it('shows entry values with colored indicators (interactive)', () => {
     const input = `chart: org
 
-## Location
+tag: Location
   NY(blue)
   LA(yellow)
 
@@ -660,7 +660,7 @@ Bob | location: LA`;
   it('omits unused tag group values from legend', () => {
     const input = `chart: org
 
-## Location
+tag: Location
   NY(blue)
   LA(yellow)
 
@@ -686,7 +686,7 @@ Alice | location: NY`;
   it('activeTagGroup colors nodes from matching tag entries', () => {
     const input = `chart: org
 
-## Location
+tag: Location
   NY(blue)
   LA(yellow)
 
@@ -709,7 +709,7 @@ Bob
   it('explicit node (color) is not overridden by activeTagGroup', () => {
     const input = `chart: org
 
-## Location
+tag: Location
   NY(blue)
 
 Alice(red)
@@ -727,7 +727,7 @@ Alice(red)
   it('nodes without matching metadata get gray when activeTagGroup set', () => {
     const input = `chart: org
 
-## Location
+tag: Location
   NY(blue)
 
 Alice
@@ -745,7 +745,7 @@ Bob`;
   it('nodes without metadata get default tag group color when activeTagGroup set', () => {
     const input = `chart: org
 
-## Location
+tag: Location
   NY(blue)
   CO(green) default
 
@@ -767,11 +767,11 @@ Bob`;
   it('nodes display default metadata values from tag groups', () => {
     const input = `chart: org
 
-## Location
+tag: Location
   NY(blue)
   CO(green) default
 
-## Status
+tag: Status
   FTE(green) default
   Contractor(orange)
 
@@ -794,7 +794,7 @@ Bob`;
   it('default metadata does not override explicit values', () => {
     const input = `chart: org
 
-## Location
+tag: Location
   NY(blue)
   CO(green) default
 
@@ -810,7 +810,7 @@ Alice
   it('containers do not get default metadata', () => {
     const input = `chart: org
 
-## Status
+tag: Status
   FTE(green) default
 
 [Engineering]
@@ -827,7 +827,7 @@ Alice
   it('containers do not get default tag group color', () => {
     const input = `chart: org
 
-## Location
+tag: Location
   NY(blue)
   CO(green) default
 
@@ -848,7 +848,7 @@ Alice
   it('explicit metadata wins over default tag group value', () => {
     const input = `chart: org
 
-## Location
+tag: Location
   NY(blue)
   CO(green) default
 
@@ -866,11 +866,11 @@ Alice
   it('places legend at top-left', () => {
     const input = `chart: org
 
-## Location
+tag: Location
   NY(blue)
   LA(yellow)
 
-## Status
+tag: Status
   FTE(green)
 
 Alice | location: NY, status: FTE`;
@@ -892,7 +892,7 @@ Alice | location: NY, status: FTE`;
   it('legend adds height and shifts content down', () => {
     const input = `chart: org
 
-## Location
+tag: Location
   NY(blue)
 
 Alice | location: NY
@@ -910,7 +910,7 @@ Alice | location: NY
   it('legend groups have data-legend-group attributes', () => {
     const input = `chart: org
 
-## Location
+tag: Location
   NY(blue)
   LA(yellow)
 
@@ -932,10 +932,10 @@ Alice | location: NY`;
   it('only active legend group rendered when activeTagGroup set', () => {
     const input = `chart: org
 
-## Location
+tag: Location
   NY(blue)
 
-## Status
+tag: Status
   FTE(green)
 
 Alice | location: NY, status: FTE`;
@@ -962,10 +962,10 @@ Alice | location: NY, status: FTE`;
   it('all legend groups rendered minified when no activeTagGroup', () => {
     const input = `chart: org
 
-## Location
+tag: Location
   NY(blue)
 
-## Status
+tag: Status
   FTE(green)
 
 Alice | location: NY, status: FTE`;
@@ -990,7 +990,7 @@ Alice | location: NY, status: FTE`;
   it('active legend group has distinct border styling', () => {
     const input = `chart: org
 
-## Location
+tag: Location
   NY(blue)
   LA(yellow)
 
@@ -1025,11 +1025,11 @@ Alice | location: NY`;
 describe('hiddenAttributes visibility', () => {
   const input = `chart: org
 
-## Location
+tag: Location
   NY(blue)
   LA(yellow)
 
-## Status
+tag: Status
   FTE(green)
 
 Alice
@@ -1068,7 +1068,7 @@ Bob
   it('hidden defaults still exist on orgNode but filtered from layout', () => {
     const inputWithDefaults = `chart: org
 
-## Status
+tag: Status
   FTE(green) default
 
 Alice`;
@@ -1090,7 +1090,7 @@ Alice`;
   it('container metadata is also filtered', () => {
     const containerInput = `chart: org
 
-## Status
+tag: Status
   FTE(green)
 
 [Engineering]
@@ -1159,10 +1159,10 @@ Alice`;
     const exportInput = `chart: org
 hide: location
 
-## Location
+tag: Location
   NY(blue)
 
-## Status
+tag: Status
   FTE(green)
 
 Alice
@@ -1183,11 +1183,11 @@ Alice
 // ============================================================
 
 describe('tag-group-only legend', () => {
-  const tagGroupOnlyInput = `## Rank alias r
+  const tagGroupOnlyInput = `tag: Rank alias r
   Captain(red)
   Sailor(blue) default
 
-## Status
+tag: Status
   Active(green)
   Inactive(gray)`;
 
@@ -1249,7 +1249,7 @@ describe('legend entry hover attributes', () => {
   it('wraps legend entries in g[data-legend-entry]', () => {
     const input = `chart: org
 
-## Location
+tag: Location
   NY(blue)
   LA(yellow)
 
@@ -1279,7 +1279,7 @@ Bob | location: LA`;
   it('each legend entry wraps circle + text', () => {
     const input = `chart: org
 
-## Location
+tag: Location
   NY(blue)
 
 Alice | location: NY`;
@@ -1304,7 +1304,7 @@ Alice | location: NY`;
   it('adds data-tag-* on nodes when activeTagGroup is set', () => {
     const input = `chart: org
 
-## Location
+tag: Location
   NY(blue)
   LA(yellow)
 
@@ -1333,7 +1333,7 @@ Bob
   it('does not add data-tag-* when no activeTagGroup', () => {
     const input = `chart: org
 
-## Location
+tag: Location
   NY(blue)
 
 Alice
@@ -1354,7 +1354,7 @@ Alice
   it('adds data-tag-* on containers when activeTagGroup is set', () => {
     const input = `chart: org
 
-## Status
+tag: Status
   Active(green)
 
 [Engineering]

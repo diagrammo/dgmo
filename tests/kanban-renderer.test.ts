@@ -39,10 +39,10 @@ const palette = getPalette('nord');
 describe('legend entry hover attributes', () => {
   const input = `chart: kanban
 
-## Priority
-  High(#bf616a)
-  Medium(#ebcb8b)
-  Low(#a3be8c)
+tag: Priority
+  High(red)
+  Medium(yellow)
+  Low(green)
 
 [To Do]
   Fix login bug | priority: High

@@ -62,6 +62,7 @@ export interface InfraNode {
   groupId: string | null;
   tags: Record<string, string>; // tagGroup -> tagValue
   isEdge: boolean; // true for the `edge` entry-point component
+  nodeType?: string; // database, cache, queue, service, gateway, storage, function, network
   description?: string;
   lineNumber: number;
 }
@@ -70,6 +71,7 @@ export interface InfraEdge {
   sourceId: string;
   targetId: string;
   label: string;
+  async: boolean;
   split: number | null; // percentage 0-100, or null if not declared
   fanout: number | null; // request multiplier: target receives inbound * (split/100) * fanout RPS
   lineNumber: number;
@@ -82,6 +84,8 @@ export interface InfraGroup {
   instances?: number | string;
   /** Whether this group should be collapsed by default in the source. */
   collapsed?: boolean;
+  /** Pipe metadata on the group header, cascaded to children. */
+  metadata?: Record<string, string>;
   lineNumber: number;
 }
 
@@ -175,6 +179,7 @@ export interface ComputedInfraEdge {
   sourceId: string;
   targetId: string;
   label: string;
+  async: boolean;
   computedRps: number;
   split: number; // resolved split (always 0-100)
   fanout: number | null;

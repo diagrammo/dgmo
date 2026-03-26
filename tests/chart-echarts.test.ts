@@ -89,6 +89,16 @@ describe('buildSimpleChartOption', () => {
     expect(yAxis.type).toBe('category');
   });
 
+  it('accepts direction: LR as alias for orientation: horizontal on bar', () => {
+    const opt = build('chart: bar\ndirection: LR\nA: 10\nB: 20');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const xAxis = (opt as any).xAxis;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const yAxis = (opt as any).yAxis;
+    expect(xAxis.type).toBe('value');
+    expect(yAxis.type).toBe('category');
+  });
+
   // ── Line ─────────────────────────────────────────────────
 
   it('builds line chart with smooth: false and crosshair', () => {

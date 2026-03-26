@@ -11,6 +11,8 @@ import {
   measureIndent,
   extractColor,
   parsePipeMetadata,
+  normalizeDirection,
+  inferArrowColor,
   MULTIPLE_PIPE_WARNING,
   CHART_TYPE_RE,
   TITLE_RE,
@@ -26,7 +28,7 @@ import type {
 // Regexes
 // ============================================================
 
-const CONTAINER_RE = /^\[([^\]]+)\]$/;
+const CONTAINER_RE = /^\[([^\]]+)\]\s*(?:\|\s*(.+))?$/;
 const METADATA_RE = /^([^:]+):\s*(.+)$/;
 
 /**
@@ -54,9 +56,12 @@ function parseArrowLine(
   const arrowMatch = trimmed.match(ARROW_RE);
   if (arrowMatch) {
     const label = arrowMatch[1]?.trim() || undefined;
-    const color = arrowMatch[2]
-      ? resolveColor(arrowMatch[2].trim(), palette)
+    let color = arrowMatch[2]
+      ? resolveColor(arrowMatch[2].trim(), palette) ?? undefined
       : undefined;
+    if (label && !color) {
+      color = inferArrowColor(label);
+    }
     const target = arrowMatch[3].trim();
     return { label, color, target };
   }
@@ -227,10 +232,8 @@ export function parseSitemap(
         continue;
       }
       if (tagBlockMatch.deprecated) {
-        pushWarning(
-          lineNumber,
-          `'## ${tagBlockMatch.name}' is deprecated for tag groups — use 'tag: ${tagBlockMatch.name}' instead`,
-        );
+        pushError(lineNumber, `'## ${tagBlockMatch.name}' is no longer supported — use 'tag: ${tagBlockMatch.name}' instead`);
+        continue;
       }
       currentTagGroup = {
         name: tagBlockMatch.name,
@@ -250,9 +253,9 @@ export function parseSitemap(
       const optMatch = trimmed.match(OPTION_RE);
       if (optMatch) {
         const key = optMatch[1].trim().toLowerCase();
-        if (key === 'direction') {
-          const dir = optMatch[2].trim().toUpperCase();
-          if (dir === 'TB' || dir === 'LR') {
+        if (key === 'direction' || key === 'orientation') {
+          const dir = normalizeDirection(optMatch[2]);
+          if (dir) {
             result.direction = dir as SitemapDirection;
           }
           continue;
@@ -332,11 +335,20 @@ export function parseSitemap(
       const rawLabel = containerMatch[1].trim();
       const { label, color } = extractColor(rawLabel, palette);
 
+      // Parse optional pipe metadata on the container line
+      const pipeStr = containerMatch[2];
+      const containerMetadata: Record<string, string> = {};
+      if (pipeStr) {
+        // Build segments array compatible with parsePipeMetadata (first element is label, rest are pipe parts)
+        const pipeSegments = ['', pipeStr];
+        Object.assign(containerMetadata, parsePipeMetadata(pipeSegments, aliasMap));
+      }
+
       containerCounter++;
       const node: SitemapNode = {
         id: `container-${containerCounter}`,
         label,
-        metadata: {},
+        metadata: containerMetadata,
         children: [],
         parentId: null,
         isContainer: true,
@@ -466,6 +478,10 @@ function attachNode(
   if (indentStack.length > 0) {
     const parent = indentStack[indentStack.length - 1].node;
     node.parentId = parent.id;
+    // Cascade container metadata to child nodes (child overrides on conflict)
+    if (parent.isContainer && Object.keys(parent.metadata).length > 0 && !node.isContainer) {
+      node.metadata = { ...parent.metadata, ...node.metadata };
+    }
     parent.children.push(node);
   } else {
     result.roots.push(node);

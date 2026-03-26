@@ -7,8 +7,8 @@ import type { TagGroup } from '../utils/tag-groups';
 
 // ── Duration ────────────────────────────────────────────────
 
-/** Calendar units: d (days), w (weeks), m (months), q (quarters), y (years). bd = business days. */
-export type DurationUnit = 'd' | 'bd' | 'w' | 'm' | 'q' | 'y';
+/** Calendar units: d (days), w (weeks), m (months), q (quarters), y (years), h (hours), min (minutes). bd = business days. */
+export type DurationUnit = 'd' | 'bd' | 'w' | 'm' | 'q' | 'y' | 'h' | 'min';
 
 export interface Duration {
   amount: number;
@@ -24,6 +24,7 @@ export interface Offset {
 
 export interface GanttDependency {
   targetName: string; // raw string from `-> X` or `-> Group.X`
+  label?: string; // optional label from `-label-> X` syntax
   offset?: Offset;
   lineNumber: number;
 }
@@ -109,7 +110,6 @@ export interface GanttOptions {
   start: string | null; // YYYY[-MM[-DD]] or null for relative timeline
   title: string | null;
   titleLineNumber: number | null;
-  orientation: 'horizontal' | 'vertical';
   todayMarker: 'off' | 'on' | string; // 'on' = current date, string = YYYY-MM-DD
   criticalPath: boolean;
   dependencies: boolean;

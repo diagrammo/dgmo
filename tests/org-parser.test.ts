@@ -257,9 +257,9 @@ describe('parseOrg', () => {
 
   // === Tag groups ===
   describe('tag groups', () => {
-    it('parses ## tag group with entries', () => {
+    it('parses tag: group with entries', () => {
       const result = parseOrg(
-        '## Location\n  NY(blue)\n  LA(yellow)\n\nJane Smith'
+        'tag: Location\n  NY(blue)\n  LA(yellow)\n\nJane Smith'
       );
       expect(result.tagGroups).toHaveLength(1);
       expect(result.tagGroups[0].name).toBe('Location');
@@ -271,7 +271,7 @@ describe('parseOrg', () => {
 
     it('multiple tag groups', () => {
       const result = parseOrg(
-        '## Location\n  NY(blue)\n\n## Status\n  FTE(green)\n  Contractor(orange)\n\nJane'
+        'tag: Location\n  NY(blue)\n\ntag: Status\n  FTE(green)\n  Contractor(orange)\n\nJane'
       );
       expect(result.tagGroups).toHaveLength(2);
       expect(result.tagGroups[0].name).toBe('Location');
@@ -280,24 +280,24 @@ describe('parseOrg', () => {
     });
 
     it('tag group entry stores line number', () => {
-      const result = parseOrg('## Location\n  NY(blue)\n\nJane');
+      const result = parseOrg('tag: Location\n  NY(blue)\n\nJane');
       expect(result.tagGroups[0].lineNumber).toBe(1);
       expect(result.tagGroups[0].entries[0].lineNumber).toBe(2);
     });
 
     it('error on tag group after content', () => {
-      const result = parseOrg('Jane Smith\n## Location\n  NY(blue)');
+      const result = parseOrg('Jane Smith\ntag: Location\n  NY(blue)');
       expect(result.error).toMatch(/Tag groups must appear before org content/);
     });
 
     it('error on tag entry without color', () => {
-      const result = parseOrg('## Location\n  NY\n\nJane');
+      const result = parseOrg('tag: Location\n  NY\n\nJane');
       expect(result.error).toMatch(/Expected 'Value\(color\)' in tag group/);
     });
 
     it('parses default keyword on tag entry', () => {
       const result = parseOrg(
-        '## Location\n  NY(blue)\n  CO(green) default\n\nJane'
+        'tag: Location\n  NY(blue)\n  CO(green) default\n\nJane'
       );
       expect(result.tagGroups).toHaveLength(1);
       expect(result.tagGroups[0].defaultValue).toBe('CO');
@@ -306,7 +306,7 @@ describe('parseOrg', () => {
     });
 
     it('tag group without default has no defaultValue', () => {
-      const result = parseOrg('## Location\n  NY(blue)\n\nJane');
+      const result = parseOrg('tag: Location\n  NY(blue)\n\nJane');
       expect(result.tagGroups[0].defaultValue).toBeUndefined();
     });
   });
@@ -315,7 +315,7 @@ describe('parseOrg', () => {
   describe('tag group aliases', () => {
     it('parses alias from tag group heading', () => {
       const result = parseOrg(
-        '## Location alias loc\n  NY(blue)\n\nJane Smith'
+        'tag: Location alias loc\n  NY(blue)\n\nJane Smith'
       );
       expect(result.tagGroups).toHaveLength(1);
       expect(result.tagGroups[0].name).toBe('Location');
@@ -324,14 +324,14 @@ describe('parseOrg', () => {
     });
 
     it('tag group without alias still works', () => {
-      const result = parseOrg('## Location\n  NY(blue)\n\nJane Smith');
+      const result = parseOrg('tag: Location\n  NY(blue)\n\nJane Smith');
       expect(result.tagGroups[0].name).toBe('Location');
       expect(result.tagGroups[0].alias).toBeUndefined();
     });
 
     it('expands alias in pipe-delimited metadata', () => {
       const result = parseOrg(
-        '## Title alias t\n  CTO(purple)\n\nSean Curtis| t: CTO'
+        'tag: Title alias t\n  CTO(purple)\n\nSean Curtis| t: CTO'
       );
       const sean = result.roots[0];
       expect(sean.metadata).toEqual({ title: 'CTO' });
@@ -339,7 +339,7 @@ describe('parseOrg', () => {
 
     it('expands alias in comma-separated metadata', () => {
       const result = parseOrg(
-        '## Title alias t\n  CTO(purple)\n\n## Location alias loc\n  NY(blue)\n\nSean Curtis| t: CTO, loc: NY'
+        'tag: Title alias t\n  CTO(purple)\n\ntag: Location alias loc\n  NY(blue)\n\nSean Curtis| t: CTO, loc: NY'
       );
       const sean = result.roots[0];
       expect(sean.metadata).toEqual({ title: 'CTO', location: 'NY' });
@@ -347,7 +347,7 @@ describe('parseOrg', () => {
 
     it('expands alias in standalone metadata lines', () => {
       const result = parseOrg(
-        '## Location alias loc\n  NY(blue)\n\nSean Curtis\n  loc: NY'
+        'tag: Location alias loc\n  NY(blue)\n\nSean Curtis\n  loc: NY'
       );
       const sean = result.roots[0];
       expect(sean.metadata).toEqual({ location: 'NY' });
@@ -355,7 +355,7 @@ describe('parseOrg', () => {
 
     it('multiple aliases with pipe separators', () => {
       const result = parseOrg(
-        '## Location alias loc\n  NY(blue)\n  CA(green)\n\n## Status alias st\n  FTE(green)\n\n## Title alias t\n  CTO(purple)\n\nSean Curtis| t: CTO| loc: NY| st: FTE'
+        'tag: Location alias loc\n  NY(blue)\n  CA(green)\n\ntag: Status alias st\n  FTE(green)\n\ntag: Title alias t\n  CTO(purple)\n\nSean Curtis| t: CTO| loc: NY| st: FTE'
       );
       expect(result.tagGroups).toHaveLength(3);
       const sean = result.roots[0];
@@ -368,7 +368,7 @@ describe('parseOrg', () => {
 
     it('multiple aliases with comma separators', () => {
       const result = parseOrg(
-        '## Location alias loc\n  NY(blue)\n  CA(green)\n\n## Status alias st\n  FTE(green)\n\n## Title alias t\n  CTO(purple)\n\nSean Curtis| t: CTO, loc: NY, st: FTE'
+        'tag: Location alias loc\n  NY(blue)\n  CA(green)\n\ntag: Status alias st\n  FTE(green)\n\ntag: Title alias t\n  CTO(purple)\n\nSean Curtis| t: CTO, loc: NY, st: FTE'
       );
       expect(result.tagGroups).toHaveLength(3);
       const sean = result.roots[0];
@@ -381,7 +381,7 @@ describe('parseOrg', () => {
 
     it('alias with color on tag group heading', () => {
       const result = parseOrg(
-        '## Status alias st(red)\n  FTE(green)\n\nJane'
+        'tag: Status alias st(red)\n  FTE(green)\n\nJane'
       );
       expect(result.tagGroups[0].name).toBe('Status');
       expect(result.tagGroups[0].alias).toBe('st');
@@ -389,7 +389,7 @@ describe('parseOrg', () => {
 
     it('non-aliased keys pass through unchanged', () => {
       const result = parseOrg(
-        '## Title alias t\n  CTO(purple)\n\nSean Curtis| t: CTO| role: VP'
+        'tag: Title alias t\n  CTO(purple)\n\nSean Curtis| t: CTO| role: VP'
       );
       const sean = result.roots[0];
       expect(sean.metadata).toEqual({ title: 'CTO', role: 'VP' });
@@ -431,12 +431,13 @@ describe('parseOrg', () => {
       expect(warnings).toHaveLength(0);
     });
 
-    it('emits deprecation warning for ## syntax', () => {
+    it('emits error for ## syntax', () => {
       const result = parseOrg('## Location\n  NY(blue)\n\nJane');
-      const warnings = result.diagnostics.filter(d => d.severity === 'warning');
-      expect(warnings).toHaveLength(1);
-      expect(warnings[0].message).toContain('deprecated');
-      expect(warnings[0].message).toContain("tag: Location");
+      const errors = result.diagnostics.filter(d => d.severity === 'error');
+      expect(errors).toHaveLength(1);
+      expect(errors[0].message).toContain("'## Location' is no longer supported");
+      expect(errors[0].message).toContain("tag: Location");
+      expect(result.error).toBeTruthy();
     });
 
     it('tag: Rank is not swallowed as option key', () => {
@@ -470,7 +471,7 @@ describe('parseOrg', () => {
 
     it('works alongside title and tag groups', () => {
       const result = parseOrg(
-        'chart: org\ntitle: Acme\n\n## Location\n  NY(blue)\n\nJane'
+        'chart: org\ntitle: Acme\n\ntag: Location\n  NY(blue)\n\nJane'
       );
       expect(result.title).toBe('Acme');
       expect(result.options).toEqual({});
@@ -589,12 +590,12 @@ describe('parseOrg', () => {
       const content = `chart: org
 title: Acme Corp
 
-## Location
+tag: Location
   NY(blue)
   LA(yellow)
   CO(green)
 
-## Status
+tag: Status
   FTE(green)
   Contractor(orange)
 
@@ -686,7 +687,7 @@ Jane Smith
   describe('tag-group-only files', () => {
     it('parses tag-group-only input with no error', () => {
       const result = parseOrg(
-        '## Rank alias r\n  Captain(red)\n  Sailor(blue) default\n\n## Status\n  Active(green)\n  Inactive(gray)'
+        'tag: Rank alias r\n  Captain(red)\n  Sailor(blue) default\n\ntag: Status\n  Active(green)\n  Inactive(gray)'
       );
       expect(result.error).toBeNull();
       expect(result.roots).toHaveLength(0);
@@ -695,7 +696,7 @@ Jane Smith
 
     it('preserves alias and default in tag-group-only input', () => {
       const result = parseOrg(
-        '## Rank alias r\n  Captain(red)\n  Sailor(blue) default'
+        'tag: Rank alias r\n  Captain(red)\n  Sailor(blue) default'
       );
       expect(result.tagGroups[0].name).toBe('Rank');
       expect(result.tagGroups[0].alias).toBe('r');

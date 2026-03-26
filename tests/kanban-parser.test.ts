@@ -175,7 +175,7 @@ describe('parseKanban', () => {
   describe('tag groups', () => {
     it('parses tag group with entries', () => {
       const result = parseKanban(
-        'chart: kanban\n## Priority\n  High(red)\n  Low(green)\n\n[To Do]\n  Task 1'
+        'chart: kanban\ntag: Priority\n  High(red)\n  Low(green)\n\n[To Do]\n  Task 1'
       );
       expect(result.tagGroups).toHaveLength(1);
       expect(result.tagGroups[0].name).toBe('Priority');
@@ -186,7 +186,7 @@ describe('parseKanban', () => {
 
     it('parses tag group with alias', () => {
       const result = parseKanban(
-        'chart: kanban\n## Priority alias p\n  High(red)\n  Low(green)\n\n[To Do]\n  Task | p: High'
+        'chart: kanban\ntag: Priority alias p\n  High(red)\n  Low(green)\n\n[To Do]\n  Task | p: High'
       );
       expect(result.tagGroups[0].alias).toBe('p');
       // Alias resolves to group name
@@ -196,14 +196,14 @@ describe('parseKanban', () => {
 
     it('parses tag group with default value', () => {
       const result = parseKanban(
-        'chart: kanban\n## Priority\n  High(red)\n  Low(green) default\n\n[To Do]\n  Task 1'
+        'chart: kanban\ntag: Priority\n  High(red)\n  Low(green) default\n\n[To Do]\n  Task 1'
       );
       expect(result.tagGroups[0].defaultValue).toBe('Low');
     });
 
     it('warns on tag entry without color', () => {
       const result = parseKanban(
-        'chart: kanban\n## Priority\n  High\n\n[To Do]\n  Task 1'
+        'chart: kanban\ntag: Priority\n  High\n\n[To Do]\n  Task 1'
       );
       expect(result.diagnostics.some((d) => d.message.includes("Expected 'Value(color)'"))).toBe(true);
     });
@@ -250,13 +250,14 @@ describe('parseKanban', () => {
       expect(warnings).toHaveLength(0);
     });
 
-    it('emits deprecation warning for ## syntax', () => {
+    it('emits error for ## syntax', () => {
       const result = parseKanban(
         'chart: kanban\n## Priority\n  High(red)\n\n[To Do]\n  Task 1'
       );
-      const warnings = result.diagnostics.filter(d => d.message.includes('deprecated'));
-      expect(warnings).toHaveLength(1);
-      expect(warnings[0].message).toContain("tag: Priority");
+      const errors = result.diagnostics.filter(d => d.message.includes('no longer supported'));
+      expect(errors).toHaveLength(1);
+      expect(errors[0].severity).toBe('error');
+      expect(errors[0].message).toContain("tag: Priority");
     });
   });
 
@@ -288,13 +289,50 @@ describe('parseKanban', () => {
 
     it('warns on unknown tag value', () => {
       const result = parseKanban(
-        'chart: kanban\n## Priority\n  High(red)\n  Low(green)\n\n[To Do]\n  Task | priority: Medium'
+        'chart: kanban\ntag: Priority\n  High(red)\n  Low(green)\n\n[To Do]\n  Task | priority: Medium'
       );
       expect(
         result.diagnostics.some((d) =>
           d.message.includes('Unknown tag value "Medium"')
         )
       ).toBe(true);
+    });
+  });
+
+  // === Column metadata cascading ===
+  describe('column metadata cascading', () => {
+    it('card inherits column metadata', () => {
+      const result = parseKanban(
+        'chart: kanban\n[Backlog] | t: Sprint1\n  Fix bug\n  Add feature'
+      );
+      expect(result.error).toBeNull();
+      expect(result.columns[0].metadata).toEqual({ t: 'Sprint1' });
+      expect(result.columns[0].cards[0].title).toBe('Fix bug');
+      expect(result.columns[0].cards[0].tags).toEqual({ t: 'Sprint1' });
+      expect(result.columns[0].cards[1].title).toBe('Add feature');
+      expect(result.columns[0].cards[1].tags).toEqual({ t: 'Sprint1' });
+    });
+
+    it('card metadata overrides column metadata', () => {
+      const result = parseKanban(
+        'chart: kanban\n[Backlog] | t: Sprint1\n  Fix bug | t: Sprint2\n  Add feature'
+      );
+      expect(result.error).toBeNull();
+      // Fix bug has its own t: Sprint2, should override
+      expect(result.columns[0].cards[0].tags).toEqual({ t: 'Sprint2' });
+      // Add feature inherits column's t: Sprint1
+      expect(result.columns[0].cards[1].tags).toEqual({ t: 'Sprint1' });
+    });
+
+    it('wip is not cascaded to cards', () => {
+      const result = parseKanban(
+        'chart: kanban\n[In Progress] | wip: 2, t: Sprint1\n  Task A'
+      );
+      expect(result.error).toBeNull();
+      expect(result.columns[0].wipLimit).toBe(2);
+      // wip should not appear in card tags, but t should
+      expect(result.columns[0].cards[0].tags).toEqual({ t: 'Sprint1' });
+      expect(result.columns[0].cards[0].tags.wip).toBeUndefined();
     });
   });
 
@@ -314,12 +352,12 @@ describe('parseKanban', () => {
       const input = `chart: kanban
 title: Sprint 12
 
-## Priority
+tag: Priority
   High(red)
   Medium(yellow)
   Low(green) default
 
-## Assignee alias a
+tag: Assignee alias a
   Alice(blue)
   Bob(purple)
 
@@ -545,7 +583,7 @@ describe('computeCardArchive', () => {
   it('archives card with tag metadata', () => {
     const tagBoard = `chart: kanban
 
-## Priority
+tag: Priority
   High(red)
   Low(green) default
 

@@ -25,7 +25,7 @@ const parsed = makeParsed({
   nodes: [
     { label: 'A', status: 'done', shape: 'default', lineNumber: 1 },
     { label: 'B', status: 'todo', shape: 'default', lineNumber: 2 },
-    { label: 'C', status: 'wip',  shape: 'default', lineNumber: 3 },
+    { label: 'C', status: 'doing',  shape: 'default', lineNumber: 3 },
     { label: 'D', status: 'done', shape: 'default', lineNumber: 4 },
     { label: 'E', status: 'done', shape: 'default', lineNumber: 5 },
   ],
@@ -135,7 +135,7 @@ describe('collapseInitiativeStatus', () => {
       nodes: [
         { label: 'A', status: 'done', shape: 'default', lineNumber: 1 },
         { label: 'B', status: 'todo', shape: 'default', lineNumber: 2 },
-        { label: 'C', status: 'wip',  shape: 'default', lineNumber: 3 },
+        { label: 'C', status: 'doing',  shape: 'default', lineNumber: 3 },
         { label: 'Ext', status: null, shape: 'default', lineNumber: 4 },
       ],
       edges: [
@@ -157,7 +157,7 @@ describe('collapseInitiativeStatus', () => {
     const p = makeParsed({
       nodes: [
         { label: 'B', status: 'todo', shape: 'default', lineNumber: 2 },
-        { label: 'C', status: 'wip',  shape: 'default', lineNumber: 3 },
+        { label: 'C', status: 'doing',  shape: 'default', lineNumber: 3 },
         { label: 'Ext', status: null, shape: 'default', lineNumber: 4 },
       ],
       edges: [
@@ -184,12 +184,12 @@ describe('collapseInitiativeStatus', () => {
   it('collapsedGroupStatuses: worst-case = wip for group with wip+done children', () => {
     const p = makeParsed({
       nodes: [
-        { label: 'A', status: 'wip',  shape: 'default', lineNumber: 1 },
+        { label: 'A', status: 'doing',  shape: 'default', lineNumber: 1 },
         { label: 'B', status: 'done', shape: 'default', lineNumber: 2 },
       ],
       groups: [{ label: 'G', nodeLabels: ['A', 'B'], lineNumber: 10 }],
     });
     const result = collapseInitiativeStatus(p, new Set(['G']));
-    expect(result.collapsedGroupStatuses.get('G')).toBe('wip');
+    expect(result.collapsedGroupStatuses.get('G')).toBe('doing');
   });
 });

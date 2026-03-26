@@ -3,7 +3,8 @@
 // ============================================================
 
 import { hierarchy, tree } from 'd3-hierarchy';
-import type { ParsedOrg, OrgNode, OrgTagGroup } from './parser';
+import type { ParsedOrg, OrgNode } from './parser';
+import type { TagGroup } from '../utils/tag-groups';
 import { resolveTagColor, injectDefaultTagMetadata } from '../utils/tag-groups';
 import { LEGEND_PILL_FONT_SIZE, LEGEND_ENTRY_FONT_SIZE, measureLegendText } from '../utils/legend-constants';
 
@@ -166,7 +167,7 @@ function computeCardHeight(meta: Record<string, string>): number {
 
 function resolveNodeColor(
   node: OrgNode,
-  tagGroups: OrgTagGroup[],
+  tagGroups: TagGroup[],
   activeGroupName: string | null
 ): string | undefined {
   // Explicit inline (color) always wins — handled before tag resolution
@@ -261,7 +262,7 @@ function centerHeavyChildren(node: TreeNode): void {
 // ============================================================
 
 function computeLegendGroups(
-  tagGroups: OrgTagGroup[],
+  tagGroups: TagGroup[],
   showEyeIcons: boolean,
   usedValuesByGroup?: Map<string, Set<string>>
 ): OrgLegendGroup[] {
@@ -319,7 +320,7 @@ function computeLegendGroups(
  */
 function injectDefaultMetadata(
   roots: OrgNode[],
-  tagGroups: OrgTagGroup[]
+  tagGroups: TagGroup[]
 ): void {
   // Flatten all nodes (recursive) for the shared utility
   const allNodes: OrgNode[] = [];

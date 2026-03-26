@@ -4,7 +4,7 @@
 
 import dagre from '@dagrejs/dagre';
 import type { ParsedC4, C4Element, C4Relationship, C4ArrowType, C4Shape, C4DeploymentNode } from './types';
-import type { OrgTagGroup } from '../org/parser';
+import type { TagGroup } from '../utils/tag-groups';
 import { LEGEND_PILL_FONT_SIZE, LEGEND_ENTRY_FONT_SIZE, measureLegendText } from '../utils/legend-constants';
 
 // ============================================================
@@ -527,7 +527,7 @@ export function rollUpContextRelationships(parsed: ParsedC4): ContextRelationshi
 
 function resolveNodeColor(
   el: C4Element,
-  tagGroups: OrgTagGroup[],
+  tagGroups: TagGroup[],
   activeGroupName: string | null,
   ancestors?: C4Element[]
 ): string | undefined {
@@ -658,7 +658,7 @@ export function computeC4NodeDimensions(
 // Legend Helpers
 // ============================================================
 
-function computeLegendGroups(tagGroups: OrgTagGroup[]): C4LegendGroup[] {
+function computeLegendGroups(tagGroups: TagGroup[]): C4LegendGroup[] {
   const result: C4LegendGroup[] = [];
 
   for (const group of tagGroups) {

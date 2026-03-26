@@ -31,7 +31,7 @@ export function extractColor(
   const colorName = m[1].trim();
   return {
     label: label.substring(0, m.index!).trim(),
-    color: resolveColor(colorName, palette),
+    color: resolveColor(colorName, palette) ?? undefined,
   };
 }
 
@@ -116,6 +116,34 @@ export function parseSeriesNames(
     series = names[0];
   }
   return { series, names, nameColors, newIndex };
+}
+
+/**
+ * Normalize a direction/orientation value to canonical form ('LR' | 'TB').
+ * Accepts 'lr', 'tb', 'horizontal', 'vertical' (case-insensitive).
+ * Returns null if the value is not recognized.
+ */
+export function normalizeDirection(value: string): 'LR' | 'TB' | null {
+  const v = value.trim().toLowerCase();
+  if (v === 'lr' || v === 'horizontal') return 'LR';
+  if (v === 'tb' || v === 'vertical') return 'TB';
+  return null;
+}
+
+/**
+ * Infer arrow color from label text.
+ * Returns a named palette color or undefined if no inference applies.
+ * Case-insensitive, exact match only (not prefix/substring).
+ */
+export function inferArrowColor(label: string): string | undefined {
+  const lower = label.toLowerCase();
+  // Green: positive/affirmative
+  if (lower === 'yes' || lower === 'success' || lower === 'ok' || lower === 'true') return 'green';
+  // Red: negative/failure
+  if (lower === 'no' || lower === 'fail' || lower === 'error' || lower === 'false') return 'red';
+  // Orange: uncertain/warning
+  if (lower === 'maybe' || lower === 'warning') return 'orange';
+  return undefined;
 }
 
 /** Warning message for multiple pipes on a single line. */

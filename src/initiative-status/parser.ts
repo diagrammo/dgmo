@@ -11,7 +11,7 @@ import type {
   ISGroup,
   InitiativeStatus,
 } from './types';
-import { VALID_STATUSES } from './types';
+import { VALID_STATUSES, STATUS_ALIASES } from './types';
 import { inferParticipantType } from '../sequence/participant-inference';
 import { matchTagBlockHeading, injectDefaultTagMetadata, validateTagValues } from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
@@ -36,7 +36,7 @@ export function looksLikeInitiativeStatus(content: string): boolean {
     if (trimmed.match(/^chart\s*:/i)) continue;
     if (trimmed.match(/^title\s*:/i)) continue;
     if (trimmed.includes('->')) hasArrow = true;
-    if (/\|\s*(done|wip|todo|na)\s*$/i.test(trimmed)) hasStatus = true;
+    if (/\|\s*(done|doing|wip|blocked|paused|waiting|todo|na)\s*$/i.test(trimmed)) hasStatus = true;
     // Indented arrow is a strong signal — only initiative-status uses this
     const isIndented = line.length > 0 && line !== trimmed && /^\s/.test(line);
     if (isIndented && (trimmed.startsWith('->') || /^-[^>].*->/.test(trimmed))) hasIndentedArrow = true;
@@ -80,18 +80,36 @@ export function parseNodeMetadata(
       // key: value pair
       const rawKey = trimmed.slice(0, colonIdx).trim().toLowerCase();
       const value = trimmed.slice(colonIdx + 1).trim();
-      // Resolve alias to group name
-      const resolvedKey = aliasMap.get(rawKey) ?? rawKey;
-      metadata[resolvedKey] = value;
+
+      // Handle explicit `status: keyword` form
+      if (rawKey === 'status') {
+        hadStatusWord = true;
+        const lower = value.toLowerCase();
+        const canonical = STATUS_ALIASES[lower] ?? lower;
+        if (VALID_STATUSES.includes(canonical)) {
+          status = canonical as InitiativeStatus;
+        } else if (lineNum !== undefined && diagnostics) {
+          const allKnown = [...VALID_STATUSES, ...Object.keys(STATUS_ALIASES)];
+          const hint = suggest(lower, allKnown);
+          const msg = `Unknown status "${value}"${hint ? `. ${hint}` : ''}`;
+          diagnostics.push(makeDgmoError(lineNum, msg, 'warning'));
+        }
+      } else {
+        // Resolve alias to group name
+        const resolvedKey = aliasMap.get(rawKey) ?? rawKey;
+        metadata[resolvedKey] = value;
+      }
     } else {
-      // Bare word — check if it's a status keyword
+      // Bare word — check if it's a status keyword (or alias)
       hadStatusWord = true;
       const lower = trimmed.toLowerCase();
-      if (VALID_STATUSES.includes(lower)) {
-        status = lower as InitiativeStatus;
+      const canonical = STATUS_ALIASES[lower] ?? lower;
+      if (VALID_STATUSES.includes(canonical)) {
+        status = canonical as InitiativeStatus;
       } else if (lineNum !== undefined && diagnostics) {
         // Unknown bare word — likely a status typo, emit warning
-        const hint = suggest(lower, VALID_STATUSES);
+        const allKnown = [...VALID_STATUSES, ...Object.keys(STATUS_ALIASES)];
+        const hint = suggest(lower, allKnown);
         const msg = `Unknown status "${trimmed}"${hint ? `. ${hint}` : ''}`;
         diagnostics.push(makeDgmoError(lineNum, msg, 'warning'));
       }
@@ -108,10 +126,12 @@ export function parseNodeMetadata(
 function parseStatus(raw: string, line: number, diagnostics: DgmoError[]): InitiativeStatus {
   const trimmed = raw.trim().toLowerCase();
   if (!trimmed) return 'na';
-  if (VALID_STATUSES.includes(trimmed)) return trimmed as InitiativeStatus;
+  const canonical = STATUS_ALIASES[trimmed] ?? trimmed;
+  if (VALID_STATUSES.includes(canonical)) return canonical as InitiativeStatus;
 
   // Unknown status — emit warning with suggestion
-  const hint = suggest(trimmed, VALID_STATUSES);
+  const allKnown = [...VALID_STATUSES, ...Object.keys(STATUS_ALIASES)];
+  const hint = suggest(trimmed, allKnown);
   const msg = `Unknown status "${raw.trim()}"${hint ? `. ${hint}` : ''}`;
   diagnostics.push(makeDgmoError(line, msg, 'warning'));
   return null;
@@ -216,7 +236,10 @@ export function parseInitiativeStatus(content: string): ParsedInitiativeStatus {
         continue;
       }
       if (tagBlockMatch.deprecated) {
-        pushWarning(lineNum, `'## ${tagBlockMatch.name}' is deprecated for tag groups — use 'tag: ${tagBlockMatch.name}' instead`);
+        result.diagnostics.push(
+          makeDgmoError(lineNum, `'## ${tagBlockMatch.name}' is no longer supported — use 'tag: ${tagBlockMatch.name}' instead`)
+        );
+        continue;
       }
       currentTagGroup = {
         name: tagBlockMatch.name,
@@ -254,8 +277,8 @@ export function parseInitiativeStatus(content: string): ParsedInitiativeStatus {
       currentTagGroup = null;
     }
 
-    // Group header: [Group Name]
-    const groupMatch = trimmed.match(/^\[(.+)\]\s*$/);
+    // Group header: [Group Name] or [Group Name] | metadata
+    const groupMatch = trimmed.match(/^\[(.+?)\]\s*(?:\|\s*(.+))?$/);
     if (groupMatch) {
       contentStarted = true;
       currentTagGroup = null;
@@ -263,7 +286,26 @@ export function parseInitiativeStatus(content: string): ParsedInitiativeStatus {
       if (currentGroup) {
         result.groups.push(currentGroup);
       }
-      currentGroup = { label: groupMatch[1], nodeLabels: [], lineNumber: lineNum };
+      const groupMeta: Record<string, string> = {};
+      if (groupMatch[2]) {
+        // Parse pipe metadata for group (only key:value pairs, no status)
+        const items = groupMatch[2].split(',');
+        for (const item of items) {
+          const ci = item.indexOf(':');
+          if (ci >= 0) {
+            const rawKey = item.slice(0, ci).trim().toLowerCase();
+            const value = item.slice(ci + 1).trim();
+            const resolvedKey = aliasMap.get(rawKey) ?? rawKey;
+            groupMeta[resolvedKey] = value;
+          }
+        }
+      }
+      currentGroup = {
+        label: groupMatch[1],
+        nodeLabels: [],
+        lineNumber: lineNum,
+        metadata: Object.keys(groupMeta).length > 0 ? groupMeta : undefined,
+      };
       continue;
     }
 
@@ -306,6 +348,14 @@ export function parseInitiativeStatus(content: string): ParsedInitiativeStatus {
         );
       } else {
         nodeLabels.add(node.label);
+      }
+      // Cascade group metadata into node (group provides defaults, node overrides)
+      if (currentGroup && isIndented && currentGroup.metadata) {
+        for (const [key, val] of Object.entries(currentGroup.metadata)) {
+          if (!(key in node.metadata)) {
+            node.metadata[key] = val;
+          }
+        }
       }
       result.nodes.push(node);
       // Add to current group if indented

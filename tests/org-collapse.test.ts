@@ -200,7 +200,7 @@ Alice
     const content = `chart: org
 title: My Org
 
-## Location
+tag: Location
   NY(blue)
 
 Alice

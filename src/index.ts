@@ -139,8 +139,6 @@ export { parseOrg } from './org/parser';
 export type {
   ParsedOrg,
   OrgNode,
-  OrgTagGroup,
-  OrgTagEntry,
 } from './org/parser';
 
 export { layoutOrg } from './org/layout';
@@ -306,7 +304,8 @@ export { renderFlowchart, renderFlowchartForExport } from './graph/flowchart-ren
 // Config Builders (produce framework-specific config objects)
 // ============================================================
 
-export { buildExtendedChartOption, buildSimpleChartOption, renderExtendedChartForExport, getExtendedChartLegendGroups, getSimpleChartLegendGroups } from './echarts';
+export { buildExtendedChartOption, buildSimpleChartOption, renderExtendedChartForExport, getExtendedChartLegendGroups, getSimpleChartLegendGroups, computeScatterLabelGraphics } from './echarts';
+export type { ScatterLabelPoint } from './echarts';
 export { renderLegendSvg, type LegendGroupData } from './utils/legend-svg';
 export { LEGEND_HEIGHT } from './utils/legend-constants';
 export { buildMermaidQuadrant } from './dgmo-mermaid';

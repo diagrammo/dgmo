@@ -139,7 +139,7 @@ describe('sequence: multiple recoverable errors', () => {
 // ============================================================
 
 describe('org: multiple recoverable errors', () => {
-  it('collects tag group errors and continues parsing', () => {
+  it('collects deprecated ## syntax errors and continues parsing', () => {
     const content = [
       'chart: org',
       '## Department',
@@ -154,11 +154,12 @@ describe('org: multiple recoverable errors', () => {
 
     const result = parseOrg(content);
     const errors = result.diagnostics.filter((d) => d.severity === 'error');
-    // Both tag group entries missing color should produce errors
-    expect(errors).toHaveLength(2);
-    expect(errors[0].message).toContain('Value(color)');
-    // Nodes still parsed
-    expect(result.roots).toHaveLength(2);
+    // ## syntax now produces a fatal error and skips the tag group
+    expect(errors).toHaveLength(1);
+    expect(errors[0].message).toContain("'## Department' is no longer supported");
+    expect(errors[0].message).toContain("tag: Department");
+    // Nodes still parsed (Engineering + Sales leak as roots since tag group was skipped)
+    expect(result.roots).toHaveLength(4);
   });
 
   it('collects metadata-without-parent error and continues', () => {

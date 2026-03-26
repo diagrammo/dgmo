@@ -5,6 +5,7 @@ import { matchTagBlockHeading } from '../utils/tag-groups';
 import {
   measureIndent,
   extractColor,
+  parsePipeMetadata,
   CHART_TYPE_RE,
   TITLE_RE,
   OPTION_RE,
@@ -130,7 +131,8 @@ export function parseKanban(
       const tagBlockMatch = matchTagBlockHeading(trimmed);
       if (tagBlockMatch) {
         if (tagBlockMatch.deprecated) {
-          warn(lineNumber, `'## ${tagBlockMatch.name}' is deprecated for tag groups — use 'tag: ${tagBlockMatch.name}' instead`);
+          result.diagnostics.push(makeDgmoError(lineNumber, `'## ${tagBlockMatch.name}' is no longer supported — use 'tag: ${tagBlockMatch.name}' instead`));
+          continue;
         }
         currentTagGroup = {
           name: tagBlockMatch.name,
@@ -196,7 +198,7 @@ export function parseKanban(
     if (LEGACY_COLUMN_RE.test(trimmed)) {
       const legacyMatch = trimmed.match(LEGACY_COLUMN_RE)!;
       const name = legacyMatch[1].replace(/\s*\(.*\)\s*$/, '').trim();
-      warn(lineNumber, `'== ${name} ==' is no longer supported. Use '[${name}]' instead`);
+      result.diagnostics.push(makeDgmoError(lineNumber, `'== ${name} ==' is no longer supported. Use '[${name}]' instead`));
       continue;
     }
 
@@ -221,16 +223,22 @@ export function parseKanban(
       columnCounter++;
       const colName = columnMatch[1].trim();
       const colColor = columnMatch[2]
-        ? resolveColor(columnMatch[2].trim(), palette)
+        ? resolveColor(columnMatch[2].trim(), palette) ?? undefined
         : undefined;
 
-      // Parse WIP limit from pipe metadata (e.g., "| wip: 3")
+      // Parse pipe metadata (e.g., "| wip: 3, t: Sprint1")
       let wipLimit: number | undefined;
+      const columnMetadata: Record<string, string> = {};
       const pipeStr = columnMatch[3];
       if (pipeStr) {
-        const wipMatch = pipeStr.match(/\bwip\s*:\s*(\d+)\b/i);
-        if (wipMatch) {
-          wipLimit = parseInt(wipMatch[1], 10);
+        const pipeSegments = ['', pipeStr];
+        Object.assign(columnMetadata, parsePipeMetadata(pipeSegments, aliasMap));
+        // Extract wip from metadata
+        if (columnMetadata.wip) {
+          const wipVal = parseInt(columnMetadata.wip, 10);
+          if (!isNaN(wipVal)) {
+            wipLimit = wipVal;
+          }
         }
       }
 
@@ -241,6 +249,7 @@ export function parseKanban(
         color: colColor,
         cards: [],
         lineNumber,
+        metadata: columnMetadata,
       };
       result.columns.push(currentColumn);
       continue;
@@ -274,6 +283,16 @@ export function parseKanban(
         aliasMap,
         palette
       );
+      // Cascade column metadata to card tags (card overrides on conflict)
+      // Exclude 'wip' from cascading — it's a column-level property, not a card tag
+      if (currentColumn.metadata) {
+        for (const [key, value] of Object.entries(currentColumn.metadata)) {
+          if (key === 'wip') continue;
+          if (!(key in card.tags)) {
+            card.tags[key] = value;
+          }
+        }
+      }
       cardBaseIndent = indent;
       currentCard = card;
       currentColumn.cards.push(card);

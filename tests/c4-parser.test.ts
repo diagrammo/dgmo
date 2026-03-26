@@ -5,19 +5,19 @@ describe('parseC4', () => {
   // === Chart type ===
   describe('chart type', () => {
     it('accepts chart: c4', () => {
-      const result = parseC4('chart: c4\nperson Alice');
+      const result = parseC4('chart: c4\nAlice is a person');
       expect(result.error).toBeNull();
       expect(result.diagnostics).toEqual([]);
     });
 
     it('rejects wrong chart type', () => {
-      const result = parseC4('chart: org\nperson Alice');
+      const result = parseC4('chart: org\nAlice is a person');
       expect(result.error).toMatch(/Expected chart type "c4"/);
       expect(result.diagnostics[0].severity).toBe('error');
     });
 
     it('requires explicit chart: c4 header', () => {
-      const result = parseC4('person Alice');
+      const result = parseC4('Alice is a person');
       expect(result.error).toMatch(/Missing "chart: c4" header/);
     });
 
@@ -30,13 +30,13 @@ describe('parseC4', () => {
   // === Title ===
   describe('title', () => {
     it('parses title', () => {
-      const result = parseC4('chart: c4\ntitle: Banking System\nperson Alice');
+      const result = parseC4('chart: c4\ntitle: Banking System\nAlice is a person');
       expect(result.title).toBe('Banking System');
       expect(result.titleLineNumber).toBe(2);
     });
 
     it('no title returns null', () => {
-      const result = parseC4('chart: c4\nperson Alice');
+      const result = parseC4('chart: c4\nAlice is a person');
       expect(result.title).toBeNull();
     });
   });
@@ -44,36 +44,36 @@ describe('parseC4', () => {
   // === Comments ===
   describe('comments', () => {
     it('ignores // comments', () => {
-      const result = parseC4('chart: c4\n// a comment\nperson Alice');
+      const result = parseC4('chart: c4\n// a comment\nAlice is a person');
       expect(result.error).toBeNull();
       expect(result.elements).toHaveLength(1);
     });
 
     it('ignores comments between elements', () => {
       const result = parseC4(
-        'chart: c4\nperson Alice\n// comment\nsystem Banking',
+        'chart: c4\nAlice is a person\n// comment\nBanking is a system',
       );
       expect(result.elements).toHaveLength(2);
     });
   });
 
-  // === Element types ===
+  // === Element types (is a syntax) ===
   describe('element types', () => {
     it('parses person', () => {
-      const result = parseC4('chart: c4\nperson Customer');
+      const result = parseC4('chart: c4\nCustomer is a person');
       expect(result.elements).toHaveLength(1);
       expect(result.elements[0].name).toBe('Customer');
       expect(result.elements[0].type).toBe('person');
     });
 
     it('parses system', () => {
-      const result = parseC4('chart: c4\nsystem Banking');
+      const result = parseC4('chart: c4\nBanking is a system');
       expect(result.elements[0].type).toBe('system');
     });
 
     it('parses container', () => {
       const result = parseC4(
-        'chart: c4\nsystem Banking\n  containers:\n    container API',
+        'chart: c4\nBanking is a system\n  containers:\n    API is a container',
       );
       const api = result.elements[0].children[0];
       expect(api.type).toBe('container');
@@ -82,7 +82,7 @@ describe('parseC4', () => {
 
     it('parses component', () => {
       const result = parseC4(
-        'chart: c4\nsystem Banking\n  containers:\n    container API\n      components:\n        component Auth',
+        'chart: c4\nBanking is a system\n  containers:\n    API is a container\n      components:\n        Auth is a component',
       );
       const auth = result.elements[0].children[0].children[0];
       expect(auth.type).toBe('component');
@@ -90,50 +90,65 @@ describe('parseC4', () => {
     });
 
     it('is case insensitive for keywords', () => {
-      const result = parseC4('chart: c4\nPerson Alice\nSYSTEM Banking');
+      const result = parseC4('chart: c4\nAlice is a Person\nBanking is a SYSTEM');
       expect(result.elements).toHaveLength(2);
       expect(result.elements[0].type).toBe('person');
       expect(result.elements[1].type).toBe('system');
+    });
+
+    it('parses external as system with external shape', () => {
+      const result = parseC4('chart: c4\nStripe is an external');
+      expect(result.elements[0].type).toBe('system');
+      expect(result.elements[0].shape).toBe('external');
+      expect(result.elements[0].name).toBe('Stripe');
+    });
+
+    it('parses database as container with database shape', () => {
+      const result = parseC4('chart: c4\nPostgreSQL is a database | tech: PostgreSQL');
+      expect(result.elements[0].type).toBe('container');
+      expect(result.elements[0].shape).toBe('database');
+      expect(result.elements[0].name).toBe('PostgreSQL');
+      expect(result.elements[0].metadata.tech).toBe('PostgreSQL');
+    });
+
+    it('handles "is an" grammar for external', () => {
+      const result = parseC4('chart: c4\nAPI Gateway is an external');
+      expect(result.elements[0].type).toBe('system');
+      expect(result.elements[0].shape).toBe('external');
+      expect(result.elements[0].name).toBe('API Gateway');
     });
   });
 
   // === Shape override ===
   describe('shape override', () => {
-    it('parses "is a database"', () => {
+    it('parses system with "is a" shape after type', () => {
       const result = parseC4(
-        'chart: c4\nsystem Banking\n  containers:\n    container UserDB is a database',
+        'chart: c4\nBanking is a system\n  containers:\n    UserDB is a container is a database',
       );
       const db = result.elements[0].children[0];
       expect(db.shape).toBe('database');
       expect(db.name).toBe('UserDB');
     });
 
-    it('parses "is a cache"', () => {
+    it('parses "is a cache" shape via container type', () => {
       const result = parseC4(
-        'chart: c4\nsystem Banking\n  containers:\n    container SessionStore is a cache',
+        'chart: c4\nBanking is a system\n  containers:\n    SessionStore is a container is a cache',
       );
       expect(result.elements[0].children[0].shape).toBe('cache');
     });
 
-    it('parses "is an external"', () => {
-      const result = parseC4(
-        'chart: c4\nsystem Stripe is an external',
-      );
-      expect(result.elements[0].shape).toBe('external');
-    });
-
     it('errors on unknown shape', () => {
       const result = parseC4(
-        'chart: c4\ncontainer Foo is a widget',
+        'chart: c4\nFoo is a container is a widget',
       );
       expect(result.diagnostics.some((d) => d.message.includes('Unknown shape'))).toBe(
         true,
       );
     });
 
-    it('strips "is a" from element name', () => {
+    it('strips "is a" shape from element name', () => {
       const result = parseC4(
-        'chart: c4\nsystem Banking\n  containers:\n    container Cache is a cache | tech: Redis',
+        'chart: c4\nBanking is a system\n  containers:\n    Cache is a container is a cache | tech: Redis',
       );
       const el = result.elements[0].children[0];
       expect(el.name).toBe('Cache');
@@ -146,35 +161,35 @@ describe('parseC4', () => {
   describe('shape inference', () => {
     it('infers database from PostgreSQL tech', () => {
       const result = parseC4(
-        'chart: c4\nsystem Banking\n  containers:\n    container Data | tech: PostgreSQL',
+        'chart: c4\nBanking is a system\n  containers:\n    Data is a container | tech: PostgreSQL',
       );
       expect(result.elements[0].children[0].shape).toBe('database');
     });
 
     it('infers cache from Redis tech', () => {
       const result = parseC4(
-        'chart: c4\nsystem Banking\n  containers:\n    container Sessions | tech: Redis',
+        'chart: c4\nBanking is a system\n  containers:\n    Sessions is a container | tech: Redis',
       );
       expect(result.elements[0].children[0].shape).toBe('cache');
     });
 
     it('infers queue from Kafka tech', () => {
       const result = parseC4(
-        'chart: c4\nsystem Banking\n  containers:\n    container Events | tech: Kafka',
+        'chart: c4\nBanking is a system\n  containers:\n    Events is a container | tech: Kafka',
       );
       expect(result.elements[0].children[0].shape).toBe('queue');
     });
 
     it('infers database from name containing DB', () => {
       const result = parseC4(
-        'chart: c4\nsystem Banking\n  containers:\n    container UserDB',
+        'chart: c4\nBanking is a system\n  containers:\n    UserDB is a container',
       );
       expect(result.elements[0].children[0].shape).toBe('database');
     });
 
     it('defaults to default shape when no inference matches', () => {
       const result = parseC4(
-        'chart: c4\nsystem Banking\n  containers:\n    container API',
+        'chart: c4\nBanking is a system\n  containers:\n    API is a container',
       );
       expect(result.elements[0].children[0].shape).toBe('default');
     });
@@ -184,7 +199,7 @@ describe('parseC4', () => {
   describe('metadata', () => {
     it('parses pipe syntax', () => {
       const result = parseC4(
-        'chart: c4\nsystem Banking | tech: Node.js, team: Platform',
+        'chart: c4\nBanking is a system | tech: Node.js, team: Platform',
       );
       expect(result.elements[0].metadata).toEqual({
         tech: 'Node.js',
@@ -194,7 +209,7 @@ describe('parseC4', () => {
 
     it('parses indented metadata', () => {
       const result = parseC4(
-        'chart: c4\nsystem Banking\n  description: Core banking system\n  tech: Java',
+        'chart: c4\nBanking is a system\n  description: Core banking system\n  tech: Java',
       );
       expect(result.elements[0].metadata.description).toBe(
         'Core banking system',
@@ -204,7 +219,7 @@ describe('parseC4', () => {
 
     it('parses mixed pipe and indented metadata', () => {
       const result = parseC4(
-        'chart: c4\nsystem Banking | tech: Java\n  description: Core banking',
+        'chart: c4\nBanking is a system | tech: Java\n  description: Core banking',
       );
       const el = result.elements[0];
       expect(el.metadata.tech).toBe('Java');
@@ -213,7 +228,7 @@ describe('parseC4', () => {
 
     it('resolves tag group aliases in metadata', () => {
       const result = parseC4(
-        'chart: c4\n## Technology alias tech\n  React(blue)\n\nsystem Banking | tech: Node.js',
+        'chart: c4\ntag: Technology alias tech\n  React(blue)\n\nBanking is a system | tech: Node.js',
       );
       expect(result.elements[0].metadata.technology).toBe('Node.js');
     });
@@ -223,7 +238,7 @@ describe('parseC4', () => {
   describe('relationships', () => {
     it('parses sync relationship ->', () => {
       const result = parseC4(
-        'chart: c4\nperson Customer\nsystem Banking\n  -> Customer: Serves',
+        'chart: c4\nCustomer is a person\nBanking is a system\n  -Serves-> Customer',
       );
       const rels = result.elements[1].relationships;
       expect(rels).toHaveLength(1);
@@ -234,32 +249,50 @@ describe('parseC4', () => {
 
     it('parses async relationship ~>', () => {
       const result = parseC4(
-        'chart: c4\nsystem Banking\nsystem Email\n  ~> Banking: Sends notifications',
+        'chart: c4\nBanking is a system\nEmail is a system\n  ~Sends notifications~> Banking',
       );
       expect(result.elements[1].relationships[0].arrowType).toBe('async');
     });
 
-    it('parses bidirectional <->', () => {
+    it('emits error for deprecated bidirectional <->', () => {
       const result = parseC4(
-        'chart: c4\nsystem A\nsystem B\n  <-> A: Syncs data',
+        'chart: c4\nA is a system\nB is a system\n  <-> A',
       );
-      expect(result.elements[1].relationships[0].arrowType).toBe(
-        'bidirectional',
-      );
+      expect(result.diagnostics.some((d) =>
+        d.severity === 'error' && d.message.includes('<->'),
+      )).toBe(true);
     });
 
-    it('parses bidirectional async <~>', () => {
+    it('emits error for deprecated bidirectional async <~>', () => {
       const result = parseC4(
-        'chart: c4\nsystem A\nsystem B\n  <~> A: Events',
+        'chart: c4\nA is a system\nB is a system\n  <~> A',
       );
-      expect(result.elements[1].relationships[0].arrowType).toBe(
-        'bidirectional-async',
-      );
+      expect(result.diagnostics.some((d) =>
+        d.severity === 'error' && d.message.includes('<~>'),
+      )).toBe(true);
     });
 
-    it('parses technology annotation [tech]', () => {
+    it('emits error for deprecated <-label-> syntax', () => {
       const result = parseC4(
-        'chart: c4\nsystem A\nsystem B\n  -> A: Calls [JSON/HTTPS]',
+        'chart: c4\nA is a system\nB is a system\n  <-Syncs data-> A',
+      );
+      expect(result.diagnostics.some((d) =>
+        d.severity === 'error' && d.message.includes('Bidirectional arrows are no longer supported'),
+      )).toBe(true);
+    });
+
+    it('emits error for deprecated colon label syntax -> Target: Label [tech]', () => {
+      const result = parseC4(
+        'chart: c4\nA is a system\nB is a system\n  -> A: Calls [JSON/HTTPS]',
+      );
+      expect(result.diagnostics.some((d) =>
+        d.severity === 'error' && d.message.includes(':'),
+      )).toBe(true);
+    });
+
+    it('parses technology annotation via pipe metadata', () => {
+      const result = parseC4(
+        'chart: c4\nA is a system\nB is a system\n  -Calls-> A | tech: JSON/HTTPS',
       );
       const rel = result.elements[1].relationships[0];
       expect(rel.technology).toBe('JSON/HTTPS');
@@ -268,7 +301,7 @@ describe('parseC4', () => {
 
     it('parses relationship with target only (no label)', () => {
       const result = parseC4(
-        'chart: c4\nsystem A\nsystem B\n  -> A',
+        'chart: c4\nA is a system\nB is a system\n  -> A',
       );
       const rel = result.elements[1].relationships[0];
       expect(rel.target).toBe('A');
@@ -280,7 +313,7 @@ describe('parseC4', () => {
   describe('section headers', () => {
     it('parses containers: as structural marker', () => {
       const result = parseC4(
-        'chart: c4\nsystem Banking\n  containers:\n    container API\n    container DB',
+        'chart: c4\nBanking is a system\n  containers:\n    API is a container\n    DB is a container',
       );
       expect(result.elements[0].sectionHeader).toBe('containers');
       expect(result.elements[0].children).toHaveLength(2);
@@ -290,12 +323,12 @@ describe('parseC4', () => {
       const result = parseC4(
         [
           'chart: c4',
-          'system Banking',
+          'Banking is a system',
           '  containers:',
-          '    container API',
+          '    API is a container',
           '      components:',
-          '        component Auth',
-          '        component Accounts',
+          '        Auth is a component',
+          '        Accounts is a component',
         ].join('\n'),
       );
       const api = result.elements[0].children[0];
@@ -307,11 +340,11 @@ describe('parseC4', () => {
       const result = parseC4(
         [
           'chart: c4',
-          'system Banking',
+          'Banking is a system',
           '  containers:',
-          '    container API',
+          '    API is a container',
           '      components:',
-          '        component Auth',
+          '        Auth is a component',
         ].join('\n'),
       );
       // containers: is on line 3
@@ -328,13 +361,13 @@ describe('parseC4', () => {
       const result = parseC4(
         [
           'chart: c4',
-          'system Banking',
+          'Banking is a system',
           '  containers:',
           '    [Frontend]',
-          '      container WebApp',
-          '      container MobileApp',
+          '      WebApp is a container',
+          '      MobileApp is a container',
           '    [Backend]',
-          '      container API',
+          '      API is a container',
         ].join('\n'),
       );
       const banking = result.elements[0];
@@ -352,10 +385,10 @@ describe('parseC4', () => {
       const result = parseC4(
         [
           'chart: c4',
-          'system Banking',
+          'Banking is a system',
           '  containers:',
-          '    container API',
-          '    container DB',
+          '    API is a container',
+          '    DB is a container',
           'deployment:',
           '  AWS us-east-1',
           '    ECS Cluster',
@@ -377,9 +410,9 @@ describe('parseC4', () => {
       const result = parseC4(
         [
           'chart: c4',
-          'system Banking',
+          'Banking is a system',
           '  containers:',
-          '    container API',
+          '    API is a container',
           'deployment:',
           '  AWS us-east-1 | team: Platform',
         ].join('\n'),
@@ -394,9 +427,9 @@ describe('parseC4', () => {
       const result = parseC4(
         [
           'chart: c4',
-          'system Banking',
+          'Banking is a system',
           '  containers:',
-          '    container API',
+          '    API is a container',
           '      import: auth-classes.dgmo',
         ].join('\n'),
       );
@@ -412,11 +445,11 @@ describe('parseC4', () => {
       const result = parseC4(
         [
           'chart: c4',
-          '## Technology alias tech',
+          'tag: Technology alias tech',
           '  React(blue)',
           '  Node.js(green)',
           '',
-          'person Alice',
+          'Alice is a person',
         ].join('\n'),
       );
       expect(result.tagGroups).toHaveLength(1);
@@ -429,11 +462,11 @@ describe('parseC4', () => {
       const result = parseC4(
         [
           'chart: c4',
-          '## Team alias t',
+          'tag: Team alias t',
           '  Platform(blue) default',
           '  Payments(orange)',
           '',
-          'person Alice',
+          'Alice is a person',
         ].join('\n'),
       );
       expect(result.tagGroups[0].defaultValue).toBe('Platform');
@@ -443,8 +476,8 @@ describe('parseC4', () => {
       const result = parseC4(
         [
           'chart: c4',
-          'person Alice',
-          '## Team alias t',
+          'Alice is a person',
+          'tag: Team alias t',
           '  Platform(blue)',
         ].join('\n'),
       );
@@ -455,10 +488,10 @@ describe('parseC4', () => {
       const result = parseC4(
         [
           'chart: c4',
-          '## Team alias t',
+          'tag: Team alias t',
           '  Platform(blue)',
           '',
-          'system Banking | t: Platform',
+          'Banking is a system | t: Platform',
         ].join('\n'),
       );
       // 't' should be resolved to 'team'
@@ -470,7 +503,7 @@ describe('parseC4', () => {
   describe('tag: block syntax', () => {
     it('parses tag: heading with entries', () => {
       const result = parseC4(
-        ['chart: c4', 'tag: Technology alias tech', '  React(blue)', '  Node.js(green)', '', 'person Alice'].join('\n'),
+        ['chart: c4', 'tag: Technology alias tech', '  React(blue)', '  Node.js(green)', '', 'Alice is a person'].join('\n'),
       );
       expect(result.tagGroups).toHaveLength(1);
       expect(result.tagGroups[0].name).toBe('Technology');
@@ -480,38 +513,39 @@ describe('parseC4', () => {
 
     it('parses tag: with default entry', () => {
       const result = parseC4(
-        ['chart: c4', 'tag: Team alias t', '  Platform(blue) default', '  Payments(orange)', '', 'person Alice'].join('\n'),
+        ['chart: c4', 'tag: Team alias t', '  Platform(blue) default', '  Payments(orange)', '', 'Alice is a person'].join('\n'),
       );
       expect(result.tagGroups[0].defaultValue).toBe('Platform');
     });
 
     it('is case-insensitive', () => {
       const result = parseC4(
-        ['chart: c4', 'Tag: Team', '  Platform(blue)', '', 'person Alice'].join('\n'),
+        ['chart: c4', 'Tag: Team', '  Platform(blue)', '', 'Alice is a person'].join('\n'),
       );
       expect(result.tagGroups[0].name).toBe('Team');
     });
 
     it('does not emit deprecation warning for tag: syntax', () => {
       const result = parseC4(
-        ['chart: c4', 'tag: Team', '  Platform(blue)', '', 'person Alice'].join('\n'),
+        ['chart: c4', 'tag: Team', '  Platform(blue)', '', 'Alice is a person'].join('\n'),
       );
       const warnings = result.diagnostics.filter(d => d.message.includes('deprecated'));
       expect(warnings).toHaveLength(0);
     });
 
-    it('emits deprecation warning for ## syntax', () => {
+    it('emits error for ## syntax', () => {
       const result = parseC4(
-        ['chart: c4', '## Team', '  Platform(blue)', '', 'person Alice'].join('\n'),
+        ['chart: c4', '## Team', '  Platform(blue)', '', 'Alice is a person'].join('\n'),
       );
-      const warnings = result.diagnostics.filter(d => d.message.includes('deprecated'));
-      expect(warnings).toHaveLength(1);
-      expect(warnings[0].message).toContain("tag: Team");
+      const errors = result.diagnostics.filter(d => d.message.includes('no longer supported'));
+      expect(errors).toHaveLength(1);
+      expect(errors[0].severity).toBe('error');
+      expect(errors[0].message).toContain("tag: Team");
     });
 
     it('resolves alias in pipe metadata with tag: syntax', () => {
       const result = parseC4(
-        ['chart: c4', 'tag: Team alias t', '  Platform(blue)', '', 'system Banking | t: Platform'].join('\n'),
+        ['chart: c4', 'tag: Team alias t', '  Platform(blue)', '', 'Banking is a system | t: Platform'].join('\n'),
       );
       expect(result.elements[0].metadata.team).toBe('Platform');
     });
@@ -523,13 +557,13 @@ describe('parseC4', () => {
       const result = parseC4(
         [
           'chart: c4',
-          'system Banking',
+          'Banking is a system',
           '  containers:',
-          '    container API',
+          '    API is a container',
           '      components:',
-          '        component Auth',
-          '        component Payments',
-          '    container DB is a database',
+          '        Auth is a component',
+          '        Payments is a component',
+          '    DB is a container is a database',
         ].join('\n'),
       );
       expect(result.elements).toHaveLength(1);
@@ -545,9 +579,9 @@ describe('parseC4', () => {
       const result = parseC4(
         [
           'chart: c4',
-          'person Customer',
-          'system Banking',
-          'system Email',
+          'Customer is a person',
+          'Banking is a system',
+          'Email is a system',
         ].join('\n'),
       );
       expect(result.elements).toHaveLength(3);
@@ -558,7 +592,7 @@ describe('parseC4', () => {
   describe('line numbers', () => {
     it('tracks line numbers on elements', () => {
       const result = parseC4(
-        'chart: c4\nperson Alice\nsystem Banking',
+        'chart: c4\nAlice is a person\nBanking is a system',
       );
       expect(result.elements[0].lineNumber).toBe(2);
       expect(result.elements[1].lineNumber).toBe(3);
@@ -566,14 +600,14 @@ describe('parseC4', () => {
 
     it('tracks line numbers on relationships', () => {
       const result = parseC4(
-        'chart: c4\nsystem A\n  -> B: calls',
+        'chart: c4\nA is a system\n  -calls-> B',
       );
       expect(result.elements[0].relationships[0].lineNumber).toBe(3);
     });
 
     it('tracks line numbers on tag groups', () => {
       const result = parseC4(
-        'chart: c4\n## Team\n  Platform(blue)\n\nperson Alice',
+        'chart: c4\ntag: Team\n  Platform(blue)\n\nAlice is a person',
       );
       expect(result.tagGroups[0].lineNumber).toBe(2);
       expect(result.tagGroups[0].entries[0].lineNumber).toBe(3);
@@ -584,7 +618,7 @@ describe('parseC4', () => {
   describe('errors', () => {
     it('reports duplicate element names', () => {
       const result = parseC4(
-        'chart: c4\nsystem Banking\nsystem Banking',
+        'chart: c4\nBanking is a system\nBanking is a system',
       );
       expect(
         result.diagnostics.some((d) => d.message.includes('Duplicate element name')),
@@ -600,7 +634,7 @@ describe('parseC4', () => {
 
     it('warns about unresolved relationship targets', () => {
       const result = parseC4(
-        'chart: c4\nsystem Banking\n  -> NonExistent: calls',
+        'chart: c4\nBanking is a system\n  -calls-> NonExistent',
       );
       const warning = result.diagnostics.find((d) =>
         d.message.includes('not found'),
@@ -613,7 +647,7 @@ describe('parseC4', () => {
       const result = parseC4(
         [
           'chart: c4',
-          'system Banking',
+          'Banking is a system',
           'deployment:',
           '  AWS',
           '    container NonExistent',
@@ -631,7 +665,7 @@ describe('parseC4', () => {
   describe('options', () => {
     it('parses header options', () => {
       const result = parseC4(
-        'chart: c4\nlayout: left-right\nperson Alice',
+        'chart: c4\nlayout: left-right\nAlice is a person',
       );
       expect(result.options.layout).toBe('left-right');
     });
@@ -644,73 +678,73 @@ describe('parseC4', () => {
         'chart: c4',
         'title: Internet Banking System',
         '',
-        '## Technology alias tech',
+        'tag: Technology alias tech',
         '  React(blue)',
         '  Node.js(green)',
         '  PostgreSQL(purple)',
         '  Redis(red)',
         '',
-        '## Team alias t',
+        'tag: Team alias t',
         '  Platform(blue) default',
         '  Payments(orange)',
         '',
-        '## Scope alias sc',
+        'tag: Scope alias sc',
         '  Internal(blue) default',
         '  External(gray)',
         '',
-        'person Customer',
+        'Customer is a person',
         '  description: A customer of the bank',
-        '  -> Internet Banking: Views accounts, makes payments',
+        '  -Views accounts, makes payments-> Internet Banking',
         '',
-        'system Internet Banking',
+        'Internet Banking is a system',
         '  description: Allows customers to view accounts and make payments',
         '',
         '  containers:',
         '    [Frontend]',
-        '      container Web App | tech: React, t: Platform',
+        '      Web App is a container | tech: React, t: Platform',
         '        description: Delivers the SPA',
-        '        -> API: Makes calls to [JSON/HTTPS]',
+        '        -Makes calls to-> API | tech: JSON/HTTPS',
         '',
-        '      container Mobile App | tech: React Native, t: Platform',
+        '      Mobile App is a container | tech: React Native, t: Platform',
         '        description: iOS and Android client',
-        '        -> API: Makes calls to [JSON/HTTPS]',
+        '        -Makes calls to-> API | tech: JSON/HTTPS',
         '',
         '    [Backend]',
-        '      container API | tech: Node.js, t: Platform',
+        '      API is a container | tech: Node.js, t: Platform',
         '        description: JSON/HTTPS API',
-        '        -> Database: Reads/writes [SQL/TCP]',
-        '        -> Cache: Reads/writes [TCP]',
-        '        ~> Email System: Sends notifications [SMTP]',
-        '        -> Mainframe: Gets account info [XML/HTTPS]',
+        '        -Reads/writes-> Database | tech: SQL/TCP',
+        '        -Reads/writes-> Cache | tech: TCP',
+        '        ~Sends notifications~> Email System | tech: SMTP',
+        '        -Gets account info-> Mainframe | tech: XML/HTTPS',
         '',
         '        components:',
-        '          component Auth Controller | tech: Express',
+        '          Auth Controller is a component | tech: Express',
         '            description: Handles authentication',
         '            import: auth-classes.dgmo',
-        '            -> User Repository: Reads users',
+        '            -Reads users-> User Repository',
         '',
-        '          component Accounts Controller | tech: Express',
+        '          Accounts Controller is a component | tech: Express',
         '            description: Provides account information',
-        '            -> Accounts Repository: Reads accounts',
+        '            -Reads accounts-> Accounts Repository',
         '',
-        '      container Worker | tech: Node.js, t: Payments',
+        '      Worker is a container | tech: Node.js, t: Payments',
         '        description: Async job processor',
-        '        ~> Event Bus: Consumes events [AMQP]',
+        '        ~Consumes events~> Event Bus | tech: AMQP',
         '',
-        '    container Database | tech: PostgreSQL, t: Payments',
+        '    Database is a container | tech: PostgreSQL, t: Payments',
         '      description: Account data store',
         '',
-        '    container Cache is a cache | tech: Redis, t: Platform',
+        '    Cache is a container is a cache | tech: Redis, t: Platform',
         '      description: Session and rate-limit cache',
         '',
-        '    container Event Bus | tech: RabbitMQ, t: Platform',
+        '    Event Bus is a container | tech: RabbitMQ, t: Platform',
         '      description: Async event backbone',
         '',
-        'system Email System | sc: External',
+        'Email System is a system | sc: External',
         '  description: Sendgrid email service',
-        '  -> Customer: Sends emails to',
+        '  -Sends emails to-> Customer',
         '',
-        'system Mainframe | sc: External',
+        'Mainframe is a system | sc: External',
         '  description: Core banking system',
         '',
         'deployment:',
@@ -809,7 +843,7 @@ describe('parseC4', () => {
   describe('labeled arrow syntax', () => {
     it('-label-> produces sync relationship', () => {
       const result = parseC4(`chart: c4
-system API
+API is a system
   -Makes calls-> Backend`);
       expect(result.error).toBeNull();
       const rels = result.elements[0].relationships;
@@ -823,7 +857,7 @@ system API
 
     it('~label~> produces async relationship', () => {
       const result = parseC4(`chart: c4
-system API
+API is a system
   ~Sends events~> Queue`);
       expect(result.error).toBeNull();
       const rels = result.elements[0].relationships;
@@ -835,37 +869,27 @@ system API
       });
     });
 
-    it('<-label-> produces bidirectional relationship', () => {
+    it('<-label-> emits deprecation error with replacement hint', () => {
       const result = parseC4(`chart: c4
-system API
+API is a system
   <-Syncs data-> Database`);
-      expect(result.error).toBeNull();
-      const rels = result.elements[0].relationships;
-      expect(rels).toHaveLength(1);
-      expect(rels[0]).toMatchObject({
-        target: 'Database',
-        label: 'Syncs data',
-        arrowType: 'bidirectional',
-      });
+      expect(result.diagnostics.some((d) =>
+        d.severity === 'error' && d.message.includes('Bidirectional arrows are no longer supported'),
+      )).toBe(true);
     });
 
-    it('<~label~> produces bidirectional-async relationship', () => {
+    it('<~label~> emits deprecation error with replacement hint', () => {
       const result = parseC4(`chart: c4
-system API
+API is a system
   <~heartbeat~> Monitor`);
-      expect(result.error).toBeNull();
-      const rels = result.elements[0].relationships;
-      expect(rels).toHaveLength(1);
-      expect(rels[0]).toMatchObject({
-        target: 'Monitor',
-        label: 'heartbeat',
-        arrowType: 'bidirectional-async',
-      });
+      expect(result.diagnostics.some((d) =>
+        d.severity === 'error' && d.message.includes('Bidirectional arrows are no longer supported'),
+      )).toBe(true);
     });
 
     it('technology annotation in labeled arrow', () => {
       const result = parseC4(`chart: c4
-system WebApp
+WebApp is a system
   -Makes calls [JSON/HTTPS]-> API`);
       expect(result.error).toBeNull();
       const rels = result.elements[0].relationships;
@@ -878,16 +902,158 @@ system WebApp
       });
     });
 
-    it('both syntax forms coexist in same diagram', () => {
+    it('labeled and bare arrows coexist in same diagram', () => {
       const result = parseC4(`chart: c4
-system API
+API is a system
   -Calls-> Backend
-  -> Database: Reads data`);
+  -> Database`);
       expect(result.error).toBeNull();
       const rels = result.elements[0].relationships;
       expect(rels).toHaveLength(2);
       expect(rels[0]).toMatchObject({ label: 'Calls', arrowType: 'sync' });
-      expect(rels[1]).toMatchObject({ label: 'Reads data', arrowType: 'sync' });
+      expect(rels[1]).toMatchObject({ target: 'Database', arrowType: 'sync' });
+    });
+  });
+
+  // ============================================================
+  // Deprecated prefix syntax
+  // ============================================================
+  describe('deprecated prefix syntax', () => {
+    it('person Name emits deprecation error', () => {
+      const result = parseC4('chart: c4\nperson Auth Service');
+      expect(result.diagnostics.some((d) =>
+        d.message.includes("'person Auth Service' prefix syntax is no longer supported") &&
+        d.message.includes("'Auth Service is a person' instead"),
+      )).toBe(true);
+      // Still parses the element (graceful degradation)
+      expect(result.elements).toHaveLength(1);
+      expect(result.elements[0].name).toBe('Auth Service');
+      expect(result.elements[0].type).toBe('person');
+    });
+
+    it('system Name emits deprecation error', () => {
+      const result = parseC4('chart: c4\nsystem Database');
+      expect(result.diagnostics.some((d) =>
+        d.message.includes("prefix syntax is no longer supported") &&
+        d.message.includes("'Database is a system' instead"),
+      )).toBe(true);
+      expect(result.elements).toHaveLength(1);
+    });
+
+    it('container Name emits deprecation error', () => {
+      const result = parseC4(
+        'chart: c4\nBanking is a system\n  containers:\n    container API',
+      );
+      expect(result.diagnostics.some((d) =>
+        d.message.includes("'container API' prefix syntax is no longer supported") &&
+        d.message.includes("'API is a container' instead"),
+      )).toBe(true);
+    });
+
+    it('component Name emits deprecation error', () => {
+      const result = parseC4(
+        'chart: c4\nBanking is a system\n  containers:\n    API is a container\n      components:\n        component Auth',
+      );
+      expect(result.diagnostics.some((d) =>
+        d.message.includes("'component Auth' prefix syntax is no longer supported") &&
+        d.message.includes("'Auth is a component' instead"),
+      )).toBe(true);
+    });
+  });
+
+  // ============================================================
+  // "Name is a type" declaration syntax
+  // ============================================================
+  describe('"Name is a type" declarations', () => {
+    it('Auth Service is a system', () => {
+      const result = parseC4('chart: c4\nAuth Service is a system');
+      expect(result.error).toBeNull();
+      expect(result.elements).toHaveLength(1);
+      expect(result.elements[0].name).toBe('Auth Service');
+      expect(result.elements[0].type).toBe('system');
+    });
+
+    it('PostgreSQL is a database with pipe metadata', () => {
+      const result = parseC4('chart: c4\nPostgreSQL is a database | tech: PostgreSQL');
+      expect(result.error).toBeNull();
+      expect(result.elements).toHaveLength(1);
+      expect(result.elements[0].name).toBe('PostgreSQL');
+      expect(result.elements[0].type).toBe('container');
+      expect(result.elements[0].shape).toBe('database');
+      expect(result.elements[0].metadata.tech).toBe('PostgreSQL');
+    });
+
+    it('API Gateway is an external (grammar forgiveness)', () => {
+      const result = parseC4('chart: c4\nAPI Gateway is an external');
+      expect(result.error).toBeNull();
+      expect(result.elements).toHaveLength(1);
+      expect(result.elements[0].name).toBe('API Gateway');
+      expect(result.elements[0].type).toBe('system');
+      expect(result.elements[0].shape).toBe('external');
+    });
+
+    it('MyApp is a system is a cylinder reports unknown shape', () => {
+      const result = parseC4('chart: c4\nMyApp is a system is a cylinder');
+      // 'cylinder' is not a valid shape, should report error
+      expect(result.diagnostics.some((d) => d.message.includes('Unknown shape "cylinder"'))).toBe(true);
+      // Element still created
+      expect(result.elements).toHaveLength(1);
+      expect(result.elements[0].name).toBe('MyApp');
+      expect(result.elements[0].type).toBe('system');
+    });
+
+    it('accepts "is a" and "is an" identically (grammar forgiveness)', () => {
+      const r1 = parseC4('chart: c4\nGateway is a system');
+      const r2 = parseC4('chart: c4\nGateway is an system');
+      expect(r1.error).toBeNull();
+      expect(r2.error).toBeNull();
+      expect(r1.elements[0].type).toBe('system');
+      expect(r2.elements[0].type).toBe('system');
+    });
+
+    it('MyApp is a system is a cache applies shape override', () => {
+      const result = parseC4('chart: c4\nMyApp is a system is a cache');
+      expect(result.error).toBeNull();
+      expect(result.elements).toHaveLength(1);
+      expect(result.elements[0].name).toBe('MyApp');
+      expect(result.elements[0].type).toBe('system');
+      expect(result.elements[0].shape).toBe('cache');
+    });
+
+    it('works with indented metadata', () => {
+      const result = parseC4(
+        'chart: c4\nAuth Service is a system\n  description: Handles auth\n  tech: Node.js',
+      );
+      expect(result.error).toBeNull();
+      expect(result.elements[0].metadata.description).toBe('Handles auth');
+      expect(result.elements[0].metadata.tech).toBe('Node.js');
+    });
+
+    it('works with relationships', () => {
+      const result = parseC4(
+        'chart: c4\nAlice is a person\nBanking is a system\n  -Serves-> Alice',
+      );
+      expect(result.error).toBeNull();
+      expect(result.elements[1].relationships).toHaveLength(1);
+      expect(result.elements[1].relationships[0].target).toBe('Alice');
+    });
+
+    it('works nested under containers:', () => {
+      const result = parseC4(
+        [
+          'chart: c4',
+          'Banking is a system',
+          '  containers:',
+          '    API is a container | tech: Node.js',
+          '    Cache is a container is a cache | tech: Redis',
+        ].join('\n'),
+      );
+      expect(result.error).toBeNull();
+      expect(result.elements[0].children).toHaveLength(2);
+      expect(result.elements[0].children[0].name).toBe('API');
+      expect(result.elements[0].children[0].metadata.tech).toBe('Node.js');
+      expect(result.elements[0].children[1].name).toBe('Cache');
+      expect(result.elements[0].children[1].shape).toBe('cache');
     });
   });
 });

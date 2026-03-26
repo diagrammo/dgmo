@@ -183,9 +183,9 @@ User -> AuthService`;
 describe('Placement: Kanban legend at bottom', () => {
   const src = `chart: kanban
 
-## Priority
-  High(#bf616a)
-  Low(#a3be8c)
+tag: Priority
+  High(red)
+  Low(green)
 
 [To Do]
   Fix bug | priority: High

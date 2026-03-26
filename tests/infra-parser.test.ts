@@ -31,6 +31,21 @@ direction: LR
       expect(result.diagnostics[0].severity).toBe('warning');
     });
 
+    it('accepts orientation: as alias for direction:', () => {
+      const result = parseInfra('chart: infra\norientation: vertical');
+      expect(result.direction).toBe('TB');
+    });
+
+    it('normalizes direction: horizontal to LR', () => {
+      const result = parseInfra('chart: infra\ndirection: horizontal');
+      expect(result.direction).toBe('LR');
+    });
+
+    it('normalizes orientation: LR to LR', () => {
+      const result = parseInfra('chart: infra\norientation: LR');
+      expect(result.direction).toBe('LR');
+    });
+
     it('errors on wrong chart type', () => {
       const result = parseInfra('chart: sequence');
       expect(result.error).toContain("Expected chart type 'infra'");
@@ -593,27 +608,28 @@ CDN
     });
   });
 
-  describe('fanout multiplier', () => {
-    it('parses simple connection with fanout and no split', () => {
+  describe('fanout multiplier (pipe metadata)', () => {
+    it('parses simple connection with fanout via pipe metadata', () => {
       const result = parseInfra(`
 chart: infra
 
 edge
   rps: 100
-  -> API x5
+  -> API | fanout: 5
 `);
       expect(result.edges).toHaveLength(1);
       expect(result.edges[0].fanout).toBe(5);
       expect(result.edges[0].split).toBeNull();
+      expect(result.edges[0].targetId).toBe('API');
     });
 
-    it('parses connection with both split and fanout', () => {
+    it('parses connection with both split and fanout in pipe metadata', () => {
       const result = parseInfra(`
 chart: infra
 
 edge
   rps: 100
-  -> B | split: 50% x3
+  -> B | split: 50%, fanout: 3
   -> C | split: 50%
 `);
       const edgeB = result.edges.find((e) => e.targetId === 'B')!;
@@ -624,17 +640,18 @@ edge
       expect(edgeC.fanout).toBeNull();
     });
 
-    it('parses labeled connection with fanout', () => {
+    it('parses labeled connection with fanout via pipe metadata', () => {
       const result = parseInfra(`
 chart: infra
 
 edge
   rps: 100
-  -query-> Shards x10
+  -query-> Shards | fanout: 10
 `);
       expect(result.edges).toHaveLength(1);
       expect(result.edges[0].label).toBe('query');
       expect(result.edges[0].fanout).toBe(10);
+      expect(result.edges[0].targetId).toBe('Shards');
     });
 
     it('parses connection without fanout — fanout is null (regression)', () => {
@@ -647,6 +664,30 @@ edge
 `);
       expect(result.edges).toHaveLength(1);
       expect(result.edges[0].fanout).toBeNull();
+    });
+
+    it('emits error for deprecated x5 fanout syntax on simple connection', () => {
+      const result = parseInfra(`
+chart: infra
+
+edge
+  rps: 100
+  -> Database x5
+`);
+      expect(result.error).toContain("'x5' fanout syntax is no longer supported");
+      expect(result.error).toContain("| fanout: 5");
+    });
+
+    it('emits error for deprecated xN fanout syntax on labeled connection', () => {
+      const result = parseInfra(`
+chart: infra
+
+edge
+  rps: 100
+  -query-> Shards x10
+`);
+      expect(result.error).toContain("'x10' fanout syntax is no longer supported");
+      expect(result.error).toContain("| fanout: 10");
     });
   });
 
@@ -889,6 +930,210 @@ API
       expect(result.options['slo-p90-latency-ms']).toBe('200');
       expect(result.options['slo-warning-margin']).toBe('5%');
       expect(result.diagnostics).toHaveLength(0);
+    });
+  });
+
+  describe('async arrows (Task 3.1)', () => {
+    it('parses ~> as async edge', () => {
+      const result = parseInfra(`
+chart: infra
+
+API
+  ~> Database
+`);
+      expect(result.edges).toHaveLength(1);
+      expect(result.edges[0].async).toBe(true);
+      expect(result.edges[0].label).toBe('');
+      expect(result.edges[0].targetId).toBe('Database');
+    });
+
+    it('parses ~label~> as async labeled edge', () => {
+      const result = parseInfra(`
+chart: infra
+
+OrderService
+  ~emit order~> EventBus
+`);
+      expect(result.edges).toHaveLength(1);
+      expect(result.edges[0].async).toBe(true);
+      expect(result.edges[0].label).toBe('emit order');
+      expect(result.edges[0].targetId).toBe('EventBus');
+    });
+
+    it('parses -> as sync edge (regression)', () => {
+      const result = parseInfra(`
+chart: infra
+
+API
+  -> Database
+`);
+      expect(result.edges).toHaveLength(1);
+      expect(result.edges[0].async).toBe(false);
+      expect(result.edges[0].label).toBe('');
+    });
+
+    it('parses -label-> as sync labeled edge (regression)', () => {
+      const result = parseInfra(`
+chart: infra
+
+ALB
+  -/api-> API
+`);
+      expect(result.edges).toHaveLength(1);
+      expect(result.edges[0].async).toBe(false);
+      expect(result.edges[0].label).toBe('/api');
+    });
+
+    it('async edge with split metadata', () => {
+      const result = parseInfra(`
+chart: infra
+
+API
+  ~> QueueA | split: 60%
+  ~> QueueB | split: 40%
+`);
+      expect(result.edges).toHaveLength(2);
+      expect(result.edges[0].async).toBe(true);
+      expect(result.edges[0].split).toBe(60);
+      expect(result.edges[1].async).toBe(true);
+      expect(result.edges[1].split).toBe(40);
+    });
+  });
+
+  describe('is-a type declarations (Task 3.2)', () => {
+    it('parses "is a cache"', () => {
+      const result = parseInfra(`
+chart: infra
+
+Redis is a cache
+`);
+      expect(result.nodes).toHaveLength(1);
+      expect(result.nodes[0].id).toBe('Redis');
+      expect(result.nodes[0].label).toBe('Redis');
+      expect(result.nodes[0].nodeType).toBe('cache');
+    });
+
+    it('parses "is a database"', () => {
+      const result = parseInfra(`
+chart: infra
+
+PostgreSQL is a database
+`);
+      expect(result.nodes).toHaveLength(1);
+      expect(result.nodes[0].nodeType).toBe('database');
+    });
+
+    it('accepts "is an" for grammar forgiveness', () => {
+      const result = parseInfra(`
+chart: infra
+
+ApiGateway is an gateway
+`);
+      expect(result.nodes).toHaveLength(1);
+      expect(result.nodes[0].nodeType).toBe('gateway');
+    });
+
+    it('node without is-a has undefined nodeType', () => {
+      const result = parseInfra(`
+chart: infra
+
+AppServer
+`);
+      expect(result.nodes).toHaveLength(1);
+      expect(result.nodes[0].nodeType).toBeUndefined();
+    });
+
+    it('is-a node with connections works', () => {
+      const result = parseInfra(`
+chart: infra
+
+API
+  -> Redis
+
+Redis is a cache
+  latency-ms: 2
+`);
+      expect(result.edges).toHaveLength(1);
+      expect(result.edges[0].targetId).toBe('Redis');
+      const redis = result.nodes.find(n => n.id === 'Redis');
+      expect(redis).toBeDefined();
+      expect(redis!.nodeType).toBe('cache');
+      expect(redis!.properties).toHaveLength(1);
+    });
+
+    it('is-a inside group', () => {
+      const result = parseInfra(`
+chart: infra
+
+[Backend]
+  Redis is a cache
+`);
+      const redis = result.nodes.find(n => n.id === 'Redis');
+      expect(redis).toBeDefined();
+      expect(redis!.nodeType).toBe('cache');
+      expect(redis!.groupId).toBe('[Backend]');
+    });
+  });
+
+  describe('group metadata cascading (Task 3.5a)', () => {
+    it('cascades group metadata to children', () => {
+      const result = parseInfra(`
+chart: infra
+
+[Backend] | t: Engineering
+  OrderAPI
+`);
+      const node = result.nodes.find(n => n.id === 'OrderAPI');
+      expect(node).toBeDefined();
+      expect(node!.tags.t).toBe('Engineering');
+    });
+
+    it('node-level metadata overrides group metadata', () => {
+      const result = parseInfra(`
+chart: infra
+
+[Backend] | t: Engineering
+  OrderAPI | t: Platform
+`);
+      const node = result.nodes.find(n => n.id === 'OrderAPI');
+      expect(node).toBeDefined();
+      expect(node!.tags.t).toBe('Platform');
+    });
+
+    it('group without metadata does not add tags to children (regression)', () => {
+      const result = parseInfra(`
+chart: infra
+
+[Backend]
+  OrderAPI
+`);
+      const node = result.nodes.find(n => n.id === 'OrderAPI');
+      expect(node).toBeDefined();
+      expect(Object.keys(node!.tags)).toHaveLength(0);
+    });
+
+    it('group metadata with multiple keys', () => {
+      const result = parseInfra(`
+chart: infra
+
+[Backend] | t: Engineering, env: Prod
+  OrderAPI
+`);
+      const node = result.nodes.find(n => n.id === 'OrderAPI');
+      expect(node).toBeDefined();
+      expect(node!.tags.t).toBe('Engineering');
+      expect(node!.tags.env).toBe('Prod');
+    });
+
+    it('group metadata stored on group object', () => {
+      const result = parseInfra(`
+chart: infra
+
+[Backend] | t: Engineering
+  OrderAPI
+`);
+      expect(result.groups).toHaveLength(1);
+      expect(result.groups[0].metadata).toEqual({ t: 'Engineering' });
     });
   });
 });

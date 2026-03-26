@@ -206,7 +206,8 @@ export function parseERDiagram(
       if (tagBlockMatch) {
         if (tagBlockMatch.deprecated) {
           result.diagnostics.push(makeDgmoError(lineNumber,
-            `'## ${tagBlockMatch.name}' is deprecated for tag groups — use 'tag: ${tagBlockMatch.name}' instead`, 'warning'));
+            `'## ${tagBlockMatch.name}' is no longer supported — use 'tag: ${tagBlockMatch.name}' instead`));
+          continue;
         }
         currentTagGroup = {
           name: tagBlockMatch.name,

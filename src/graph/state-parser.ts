@@ -1,7 +1,7 @@
 import { resolveColor } from '../colors';
 import type { PaletteColors } from '../palettes';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
-import { measureIndent, extractColor } from '../utils/parsing';
+import { measureIndent, extractColor, normalizeDirection } from '../utils/parsing';
 import type {
   ParsedGraph,
   GraphNode,
@@ -95,11 +95,11 @@ interface ArrowInfo {
 function parseArrowToken(token: string, palette?: PaletteColors): ArrowInfo {
   if (token === '->') return {};
   const colorOnly = token.match(/^-\(([^)]+)\)->$/);
-  if (colorOnly) return { color: resolveColor(colorOnly[1].trim(), palette) };
+  if (colorOnly) return { color: resolveColor(colorOnly[1].trim(), palette) ?? undefined };
   const m = token.match(/^-(.+?)(?:\(([^)]+)\))?->$/);
   if (m) {
     const label = m[1]?.trim() || undefined;
-    const color = m[2] ? resolveColor(m[2].trim(), palette) : undefined;
+    const color = m[2] ? resolveColor(m[2].trim(), palette) ?? undefined : undefined;
     return { label, color };
   }
   return {};
@@ -261,9 +261,9 @@ export function parseState(
         continue;
       }
 
-      if (key === 'direction') {
-        const dir = value.toUpperCase() as GraphDirection;
-        if (dir === 'TB' || dir === 'LR') {
+      if (key === 'direction' || key === 'orientation') {
+        const dir = normalizeDirection(value);
+        if (dir) {
           result.direction = dir;
         }
         continue;

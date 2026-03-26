@@ -21,6 +21,7 @@ export interface KanbanColumn {
   name: string;
   wipLimit?: number;
   color?: string;
+  metadata?: Record<string, string>;
   cards: KanbanCard[];
   lineNumber: number;
 }

@@ -49,7 +49,10 @@ export const colorNames: Record<string, string> = {
 export function resolveColor(
   color: string,
   palette?: { colors: Record<string, string> }
-): string {
+): string | null {
+  // Reject hex color codes — only named colors are supported
+  if (color.startsWith('#')) return null;
+
   const lower = color.toLowerCase();
 
   if (palette) {

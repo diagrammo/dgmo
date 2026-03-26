@@ -47,6 +47,7 @@ export interface InfraLayoutEdge {
   sourceId: string;
   targetId: string;
   label: string;
+  async: boolean;
   computedRps: number;
   split: number;
   fanout: number | null;
@@ -575,6 +576,7 @@ export function layoutInfra(computed: ComputedInfraModel, expandedNodeIds?: Set<
         sourceId: edge.sourceId,
         targetId: edge.targetId,
         label: edge.label,
+        async: edge.async,
         computedRps: edge.computedRps,
         split: edge.split,
         fanout: edge.fanout,
@@ -587,6 +589,7 @@ export function layoutInfra(computed: ComputedInfraModel, expandedNodeIds?: Set<
         sourceId: edge.sourceId,
         targetId: edge.targetId,
         label: edge.label,
+        async: edge.async,
         computedRps: edge.computedRps,
         split: edge.split,
         fanout: edge.fanout,

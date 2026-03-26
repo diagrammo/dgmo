@@ -55,11 +55,12 @@ const COLLAPSE_BAR_HEIGHT = 6;
 
 function statusColor(status: InitiativeStatus, palette: PaletteColors, isDark: boolean): string {
   switch (status) {
-    case 'done': return palette.colors.green;
-    case 'wip':  return palette.colors.yellow;
-    case 'todo': return palette.colors.red;
-    case 'na':   return isDark ? palette.colors.gray : '#2e3440';
-    default:     return palette.textMuted;
+    case 'done':    return palette.colors.green;
+    case 'doing':   return palette.colors.blue;
+    case 'blocked': return palette.colors.orange;
+    case 'todo':    return palette.colors.red;
+    case 'na':      return isDark ? palette.colors.gray : '#2e3440';
+    default:        return palette.textMuted;
   }
 }
 
@@ -91,13 +92,14 @@ interface ISLegendEntry {
 }
 
 const IS_STATUS_LABELS: Record<string, string> = {
-  done: 'Done',
-  wip:  'In Progress',
-  todo: 'To Do',
-  na:   'N/A',
+  done:    'Done',
+  doing:   'In Progress',
+  blocked: 'Blocked',
+  todo:    'To Do',
+  na:      'N/A',
 };
 
-const IS_STATUS_ORDER: InitiativeStatus[] = ['todo', 'wip', 'done', 'na'];
+const IS_STATUS_ORDER: InitiativeStatus[] = ['todo', 'blocked', 'doing', 'done', 'na'];
 
 function collectStatuses(parsed: ParsedInitiativeStatus): ISLegendEntry[] {
   const present = new Set<string>();
@@ -1024,7 +1026,7 @@ export function renderInitiativeStatus(
         .attr('stroke', 'transparent')
         .attr('stroke-width', Math.max(6, Math.round(16 / (edge.parallelCount ?? 1))));
 
-      edgeG
+      const edgePath = edgeG
         .append('path')
         .attr('d', pathD)
         .attr('fill', 'none')
@@ -1032,6 +1034,11 @@ export function renderInitiativeStatus(
         .attr('stroke-width', EDGE_STROKE_WIDTH)
         .attr('marker-end', `url(#${markerId})`)
         .attr('class', 'is-edge');
+
+      // Dashed stroke for 'todo' edges
+      if (edge.status === 'todo') {
+        edgePath.attr('stroke-dasharray', '6 3');
+      }
     }
 
     // Edge label placed on its own path
@@ -1103,6 +1110,18 @@ export function renderInitiativeStatus(
     const fill = nodeFill(node.status, palette, isDark);
     const stroke = nodeStroke(node.status, palette, isDark);
     renderNodeShape(nodeG, node.shape, node.width, node.height, fill, stroke);
+
+    // Apply dashed border for 'todo' status
+    if (node.status === 'todo') {
+      nodeG.selectAll('rect, ellipse, polygon, circle')
+        .each(function () {
+          const el = d3Selection.select(this);
+          // Only dash stroked elements (not fills or transparent hit areas)
+          if (el.attr('stroke') && el.attr('stroke') !== 'none' && el.attr('stroke') !== 'transparent') {
+            el.attr('stroke-dasharray', '6 3');
+          }
+        });
+    }
 
     const textColor = contrastText(fill, '#eceff4', '#2e3440');
 

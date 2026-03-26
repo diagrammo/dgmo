@@ -19,6 +19,50 @@ import { parseInfra } from './infra/parser';
 import { parseGantt } from './gantt/parser';
 import type { DgmoError } from './diagnostics';
 
+// ============================================================
+// Content-based chart type inference helpers
+// ============================================================
+
+/** Gantt duration patterns: `10bd:`, `1.5w:`, `5d:`, `2025-01-01:` */
+const GANTT_DURATION_RE = /^\d+(?:\.\d+)?(?:min|bd|d|w|m|q|y|h)(?:\?)?\s*:/;
+const GANTT_DATE_RE = /^\d{4}-\d{2}-\d{2}(?:\s\d{2}:\d{2})?\s*:/;
+
+/**
+ * Returns true if content looks like a gantt chart.
+ * Detects duration patterns like `10bd: Task` or `5d: Task`.
+ */
+export function looksLikeGantt(content: string): boolean {
+  const lines = content.split('\n');
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('//')) continue;
+    if (GANTT_DURATION_RE.test(trimmed) || GANTT_DATE_RE.test(trimmed)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** C4 `Name is a person/system/container/component` pattern */
+const C4_TYPE_RE = /\bis\s+an?\s+(person|system|container|component)\b/i;
+
+/**
+ * Returns true if content looks like a C4 diagram.
+ * Detects `Name is a person/system/container/component` declarations.
+ * Does NOT match bare words like `container` at line start.
+ */
+export function looksLikeC4(content: string): boolean {
+  const lines = content.split('\n');
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('//')) continue;
+    if (C4_TYPE_RE.test(trimmed)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /**
  * Extracts the `chart:` type value from raw file content.
  * Falls back to inference when no explicit `chart:` line is found
@@ -37,6 +81,7 @@ export function parseDgmoChartType(content: string): string | null {
 
   // Infer chart type from content patterns (sequence before flowchart —
   // both use `->` but sequence uses bare names while flowchart uses shape delimiters)
+  // C4 must come AFTER sequence (both use `is a` but with different type nouns)
   if (looksLikeSequence(content)) return 'sequence';
   if (looksLikeFlowchart(content)) return 'flowchart';
   if (looksLikeClassDiagram(content)) return 'class';
@@ -45,6 +90,8 @@ export function parseDgmoChartType(content: string): string | null {
   if (looksLikeState(content)) return 'state';
   if (looksLikeSitemap(content)) return 'sitemap';
   if (looksLikeOrg(content)) return 'org';
+  if (looksLikeC4(content)) return 'c4';
+  if (looksLikeGantt(content)) return 'gantt';
 
   return null;
 }

@@ -181,7 +181,7 @@ import { getSeriesColors } from './palettes';
 import { mix } from './palettes/color-utils';
 import type { DgmoError } from './diagnostics';
 import { makeDgmoError, formatDgmoError, suggest } from './diagnostics';
-import { collectIndentedValues, extractColor, parsePipeMetadata, MULTIPLE_PIPE_WARNING } from './utils/parsing';
+import { collectIndentedValues, extractColor, normalizeDirection, parsePipeMetadata, MULTIPLE_PIPE_WARNING } from './utils/parsing';
 import { matchTagBlockHeading, validateTagValues, resolveTagColor } from './utils/tag-groups';
 import type { TagGroup } from './utils/tag-groups';
 import {
@@ -726,7 +726,9 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
         let color: string | null = null;
         if (colorName) {
           const resolved = resolveColor(colorName, palette);
-          if (resolved.startsWith('#')) {
+          if (resolved === null) {
+            warn(lineNumber, `Hex colors are not supported — use named colors (blue, red, green, etc.)`);
+          } else if (resolved.startsWith('#')) {
             color = resolved;
           } else {
             warn(lineNumber, `Unknown color "${colorName}" on set "${name}". Using auto-assigned color.`);
@@ -871,15 +873,18 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
         continue;
       }
 
-      if (key === 'orientation') {
+      if (key === 'orientation' || key === 'direction') {
         // Only arc and timeline support orientation
         if (result.type === 'arc' || result.type === 'timeline') {
-          const v = line
-            .substring(colonIndex + 1)
-            .trim()
-            .toLowerCase();
-          if (v === 'horizontal' || v === 'vertical') {
-            result.orientation = v;
+          const raw = line.substring(colonIndex + 1).trim();
+          // Accept horizontal/vertical directly, or LR/TB via normalizeDirection
+          const vLower = raw.toLowerCase();
+          if (vLower === 'horizontal' || vLower === 'vertical') {
+            result.orientation = vLower;
+          } else {
+            const dir = normalizeDirection(raw);
+            if (dir === 'LR') result.orientation = 'horizontal';
+            else if (dir === 'TB') result.orientation = 'vertical';
           }
         }
         continue;

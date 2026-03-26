@@ -1,0 +1,15 @@
+chart: flowchart
+title: Order Processing Pipeline
+direction: LR
+
+(Receive Order) -> [Validate Input] -> <Valid?>
+  -yes-> [Check Inventory] -> <In Stock?>
+    -yes-> [[Process Payment]] -> <Payment OK?>
+      -yes-> [Ship Order] -> /Send Confirmation/ -> (Complete)
+      -no-> [Retry Payment] -> <Retries Left?>
+        -yes-> [[Process Payment]]
+        -no-> [Cancel Order] -> /Notify Customer/ -> (Failed)
+    -no-> /Notify Backorder/ -> <Accept Wait?>
+      -yes-> [Queue Order] -> [Check Inventory]
+      -no-> [Refund] -> (Cancelled)
+  -no-> [Log Validation Error~] -> /Show Error/ -> (Rejected)

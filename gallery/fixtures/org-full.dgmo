@@ -1,13 +1,13 @@
 chart: org
 title: Acme Corp
 
-## Location
+tag: Location
   NY(blue)
   LA(yellow)
   CO(green)
   Remote(purple)
 
-## Status
+tag: Status
   FTE(green)
   Contractor(orange)
 

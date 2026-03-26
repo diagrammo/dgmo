@@ -958,11 +958,14 @@ function renderEdgePaths(
       .attr('class', 'infra-edge')
       .attr('data-line-number', edge.lineNumber);
 
-    edgeG.append('path')
+    const edgePath = edgeG.append('path')
       .attr('d', pathD)
       .attr('fill', 'none')
       .attr('stroke', color)
       .attr('stroke-width', strokeW);
+    if (edge.async) {
+      edgePath.attr('stroke-dasharray', '6 4');
+    }
 
     if (animate && edge.computedRps > 0) {
       const baseDur = flowDuration(edge.computedRps, maxRps);
@@ -1621,7 +1624,7 @@ export function computeInfraLegendGroups(
       if (tv.color) {
         entries.push({
           value: tv.name,
-          color: resolveColor(tv.color, palette),
+          color: resolveColor(tv.color, palette) ?? tv.color,
           key: tv.name.toLowerCase(),
         });
       }

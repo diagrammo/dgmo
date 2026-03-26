@@ -52,11 +52,11 @@ const palette = getPalette('nord');
 describe('rollUpContextRelationships', () => {
   it('rolls up container→system relationships to system-to-system', () => {
     const input = `chart: c4
-system Banking
+Banking is a system
   containers:
-  container WebApp
-    -> Customer: Serves
-person Customer`;
+  WebApp is a container
+    -Serves-> Customer
+Customer is a person`;
     const parsed = parseC4(input, palette.light);
     const rels = rollUpContextRelationships(parsed);
 
@@ -67,11 +67,11 @@ person Customer`;
 
   it('skips internal relationships (same system)', () => {
     const input = `chart: c4
-system Banking
+Banking is a system
   containers:
-  container WebApp
-    -> API: calls
-  container API`;
+  WebApp is a container
+    -calls-> API
+  API is a container`;
     const parsed = parseC4(input, palette.light);
     const rels = rollUpContextRelationships(parsed);
 
@@ -80,13 +80,13 @@ system Banking
 
   it('deduplicates rolled-up relationships', () => {
     const input = `chart: c4
-system Banking
+Banking is a system
   containers:
-  container WebApp
-    -> Customer: Serves
-  container MobileApp
-    -> Customer: Serves mobile
-person Customer`;
+  WebApp is a container
+    -Serves-> Customer
+  MobileApp is a container
+    -Serves mobile-> Customer
+Customer is a person`;
     const parsed = parseC4(input, palette.light);
     const rels = rollUpContextRelationships(parsed);
 
@@ -98,12 +98,12 @@ person Customer`;
 
   it('explicit system-level rels override rolled-up ones', () => {
     const input = `chart: c4
-system Banking
-  -> Customer: Main relationship
+Banking is a system
+  -Main relationship-> Customer
   containers:
-  container WebApp
-    -> Customer: Inner call
-person Customer`;
+  WebApp is a container
+    -Inner call-> Customer
+Customer is a person`;
     const parsed = parseC4(input, palette.light);
     const rels = rollUpContextRelationships(parsed);
 
@@ -113,11 +113,11 @@ person Customer`;
 
   it('preserves arrow type through roll-up', () => {
     const input = `chart: c4
-system Banking
+Banking is a system
   containers:
-  container WebApp
-    ~> Customer: Async notification
-person Customer`;
+  WebApp is a container
+    ~Async notification~> Customer
+Customer is a person`;
     const parsed = parseC4(input, palette.light);
     const rels = rollUpContextRelationships(parsed);
 
@@ -125,16 +125,16 @@ person Customer`;
     expect(rels[0].arrowType).toBe('async');
   });
 
-  it('handles bidirectional arrows', () => {
+  it('handles sync arrows in roll-up', () => {
     const input = `chart: c4
-system Banking
-  <-> Payment: Syncs
-system Payment`;
+Banking is a system
+  -Syncs-> Payment
+Payment is a system`;
     const parsed = parseC4(input, palette.light);
     const rels = rollUpContextRelationships(parsed);
 
     expect(rels.length).toBe(1);
-    expect(rels[0].arrowType).toBe('bidirectional');
+    expect(rels[0].arrowType).toBe('sync');
   });
 });
 
@@ -145,7 +145,7 @@ system Payment`;
 describe('computeC4NodeDimensions', () => {
   it('computes positive dimensions for a basic element', () => {
     const input = `chart: c4
-system Banking`;
+Banking is a system`;
     const parsed = parseC4(input, palette.light);
     const el = parsed.elements[0];
     const dims = computeC4NodeDimensions(el);
@@ -156,9 +156,9 @@ system Banking`;
 
   it('accounts for description in height', () => {
     const noDesc = `chart: c4
-system Banking`;
+Banking is a system`;
     const withDesc = `chart: c4
-system Banking | description: Handles all banking operations for customers`;
+Banking is a system | description: Handles all banking operations for customers`;
 
     const parsedNoDesc = parseC4(noDesc, palette.light);
     const parsedWithDesc = parseC4(withDesc, palette.light);
@@ -177,10 +177,10 @@ system Banking | description: Handles all banking operations for customers`;
 describe('layoutC4Context', () => {
   it('filters to person and system elements only', () => {
     const input = `chart: c4
-person Customer
-system Banking
+Customer is a person
+Banking is a system
   containers:
-  container WebApp`;
+  WebApp is a container`;
     const parsed = parseC4(input, palette.light);
     const layout = layoutC4Context(parsed);
 
@@ -191,9 +191,9 @@ system Banking
 
   it('computes positive dimensions', () => {
     const input = `chart: c4
-person Customer
-system Banking
-  -> Customer: Serves`;
+Customer is a person
+Banking is a system
+  -Serves-> Customer`;
     const parsed = parseC4(input, palette.light);
     const layout = layoutC4Context(parsed);
 
@@ -215,9 +215,9 @@ system Banking
 
   it('produces edges for valid relationships', () => {
     const input = `chart: c4
-person Customer
-system Banking
-  -> Customer: Serves`;
+Customer is a person
+Banking is a system
+  -Serves-> Customer`;
     const parsed = parseC4(input, palette.light);
     const layout = layoutC4Context(parsed);
 
@@ -229,8 +229,8 @@ system Banking
 
   it('carries lineNumber on nodes', () => {
     const input = `chart: c4
-person Customer
-system Banking`;
+Customer is a person
+Banking is a system`;
     const parsed = parseC4(input, palette.light);
     const layout = layoutC4Context(parsed);
 
@@ -247,9 +247,9 @@ system Banking`;
 describe('renderC4Context', () => {
   const basicInput = `chart: c4
 title: System Context
-person Customer
-system Banking
-  -> Customer: Serves`;
+Customer is a person
+Banking is a system
+  -Serves-> Customer`;
 
   it('produces SVG with cards and edges', () => {
     const parsed = parseC4(basicInput, palette.light);
@@ -301,9 +301,9 @@ system Banking
 
   it('uses dashed stroke for async edges', () => {
     const input = `chart: c4
-person Customer
-system Notifications
-  ~> Customer: Sends email`;
+Customer is a person
+Notifications is a system
+  ~Sends email~> Customer`;
     const parsed = parseC4(input, palette.light);
     const layout = layoutC4Context(parsed);
 
@@ -324,7 +324,7 @@ system Notifications
 
   it('renders person icon for person nodes', () => {
     const input = `chart: c4
-person Customer`;
+Customer is a person`;
     const parsed = parseC4(input, palette.light);
     const layout = layoutC4Context(parsed);
 
@@ -372,9 +372,9 @@ person Customer`;
 
 describe('renderC4ContextForExport', () => {
   const basicInput = `chart: c4
-person Customer
-system Banking
-  -> Customer: Serves`;
+Customer is a person
+Banking is a system
+  -Serves-> Customer`;
 
   const allPalettes = getAvailablePalettes();
 
@@ -410,26 +410,26 @@ system Banking
 const containerInput = `chart: c4
 title: Container View
 
-## Technology alias tech
+tag: Technology alias tech
   React(blue)
   Node.js(green)
   PostgreSQL(purple)
   Redis(red)
 
-person Customer
-system Banking | description: Internet banking system
-  -> Customer: Serves
+Customer is a person
+Banking is a system | description: Internet banking system
+  -Serves-> Customer
   containers:
-    container WebApp | tech: React, description: SPA frontend
-      -> API: Calls [JSON/HTTPS]
-      -> Customer: Serves UI to [HTTPS]
-    container API | tech: Node.js, description: REST API backend
-      -> Database: Reads/writes [SQL]
-      ~> Cache: Sessions [TCP]
-    container Database is a database | tech: PostgreSQL, description: User data
-    container Cache is a cache | tech: Redis, description: Session store
-system Email | description: Email delivery service
-  ~> Customer: Sends emails to`;
+    WebApp is a container | tech: React, description: SPA frontend
+      -Calls-> API | tech: JSON/HTTPS
+      -Serves UI to-> Customer | tech: HTTPS
+    API is a container | tech: Node.js, description: REST API backend
+      -Reads/writes-> Database | tech: SQL
+      ~Sessions~> Cache | tech: TCP
+    Database is a container is a database | tech: PostgreSQL, description: User data
+    Cache is a container is a cache | tech: Redis, description: Session store
+Email is a system | description: Email delivery service
+  ~Sends emails to~> Customer`;
 
 describe('layoutC4Containers', () => {
   it('renders all containers for a system', () => {
@@ -506,7 +506,7 @@ describe('layoutC4Containers', () => {
 
   it('returns empty result for system with no containers', () => {
     const input = `chart: c4
-system Simple | description: No containers`;
+Simple is a system | description: No containers`;
     const parsed = parseC4(input, palette.light);
     const layout = layoutC4Containers(parsed, 'Simple');
 
@@ -708,9 +708,9 @@ describe('renderC4ContainersForExport', () => {
 describe('computeC4NodeDimensions with technology', () => {
   it('accounts for technology in height when showTechnology is true', () => {
     const input = `chart: c4
-system Banking
+Banking is a system
   containers:
-  container API | tech: Node.js, description: REST API`;
+  API is a container | tech: Node.js, description: REST API`;
 
     const parsed = parseC4(input, palette.light);
     const container = parsed.elements[0].children[0];
@@ -735,9 +735,9 @@ system Banking
 describe('is a shape override in container layout', () => {
   it('renders is-a shape override correctly', () => {
     const input = `chart: c4
-system Platform
+Platform is a system
   containers:
-  container MessageBus is a queue | description: Event backbone`;
+  MessageBus is a container is a queue | description: Event backbone`;
 
     const parsed = parseC4(input, palette.light);
     const layout = layoutC4Containers(parsed, 'Platform');
@@ -755,11 +755,11 @@ system Platform
 describe('reverse relationship discovery', () => {
   it('includes external systems that target containers', () => {
     const input = `chart: c4
-system Banking
+Banking is a system
   containers:
-  container API | description: Backend
-system Monitoring | description: Watches services
-  -> API: Health checks`;
+  API is a container | description: Backend
+Monitoring is a system | description: Watches services
+  -Health checks-> API`;
 
     const parsed = parseC4(input, palette.light);
     const layout = layoutC4Containers(parsed, 'Banking');
@@ -778,13 +778,13 @@ system Monitoring | description: Watches services
 describe('containers in groups', () => {
   it('collects containers from groups', () => {
     const input = `chart: c4
-system Analytics
+Analytics is a system
   containers:
     [Frontend]
-      container Dashboard | description: SPA
-      container Admin | description: Admin panel
+      Dashboard is a container | description: SPA
+      Admin is a container | description: Admin panel
     [Backend]
-      container API | description: REST API`;
+      API is a container | description: REST API`;
 
     const parsed = parseC4(input, palette.light);
     const layout = layoutC4Containers(parsed, 'Analytics');
@@ -800,26 +800,26 @@ system Analytics
 const componentInput = `chart: c4
 title: Component View
 
-## Technology alias tech
+tag: Technology alias tech
   Spring(green)
   React(blue)
   PostgreSQL(purple)
 
-person Customer
-system Ride Platform | description: Ride-sharing platform
+Customer is a person
+Ride Platform is a system | description: Ride-sharing platform
   containers:
-    container Ride Service | tech: Spring, description: Core ride logic
+    Ride Service is a container | tech: Spring, description: Core ride logic
       components:
-        component Ride Controller | tech: Spring, description: REST endpoints
-          -> Ride Manager: Delegates to
-          -> Customer: Sends ride status [WebSocket]
-        component Ride Manager | description: Business logic
-          -> Ride Repository: Reads/writes rides
-        component Ride Repository is a database | tech: PostgreSQL, description: Ride data access
-    container API Gateway | tech: Spring, description: Edge proxy
-      -> Ride Controller: Routes requests [HTTPS]
-system Payments | description: Payment processing
-  -> Ride Manager: Charges rider`;
+        Ride Controller is a component | tech: Spring, description: REST endpoints
+          -Delegates to-> Ride Manager
+          -Sends ride status-> Customer | tech: WebSocket
+        Ride Manager is a component | description: Business logic
+          -Reads/writes rides-> Ride Repository
+        Ride Repository is a component is a database | tech: PostgreSQL, description: Ride data access
+    API Gateway is a container | tech: Spring, description: Edge proxy
+      -Routes requests-> Ride Controller | tech: HTTPS
+Payments is a system | description: Payment processing
+  -Charges rider-> Ride Manager`;
 
 describe('layoutC4Components', () => {
   it('renders all components for a container', () => {
@@ -924,9 +924,9 @@ describe('layoutC4Components', () => {
 
   it('returns empty result for container with no components', () => {
     const input = `chart: c4
-system Platform
+Platform is a system
   containers:
-    container Simple | description: No components`;
+    Simple is a container | description: No components`;
     const parsed = parseC4(input, palette.light);
     const layout = layoutC4Components(parsed, 'Platform', 'Simple');
     expect(layout.nodes.length).toBe(0);
@@ -1063,17 +1063,17 @@ describe('renderC4ComponentsForExport', () => {
 
 const groupedContainerInput = `chart: c4
 title: Grouped Containers
-system Analytics | description: Analytics platform
+Analytics is a system | description: Analytics platform
   containers:
     [Frontend]
-      container Dashboard | description: SPA
-      container Admin | description: Admin panel
+      Dashboard is a container | description: SPA
+      Admin is a container | description: Admin panel
     [Backend]
-      container API | description: REST API
-      container Worker | description: Background jobs
-        -> API: Calls
-person User
-  -> Dashboard: Uses`;
+      API is a container | description: REST API
+      Worker is a container | description: Background jobs
+        -Calls-> API
+User is a person
+  -Uses-> Dashboard`;
 
 describe('group boundaries in container layout', () => {
   it('produces groupBoundaries with correct labels and typeLabel', () => {
@@ -1164,15 +1164,15 @@ describe('group boundaries in container layout', () => {
 });
 
 const groupedComponentInput = `chart: c4
-system Platform | description: Platform
+Platform is a system | description: Platform
   containers:
-    container Service | description: Main service
+    Service is a container | description: Main service
       components:
         [Controllers]
-          component UserCtrl | description: User endpoints
-          component OrderCtrl | description: Order endpoints
+          UserCtrl is a component | description: User endpoints
+          OrderCtrl is a component | description: Order endpoints
         [Repositories]
-          component UserRepo is a database | description: User data
+          UserRepo is a component is a database | description: User data
 `;
 
 describe('group boundaries in component layout', () => {

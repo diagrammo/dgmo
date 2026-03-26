@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { parseInfra } from '../src/infra/parser';
 import { computeInfra } from '../src/infra/compute';
 import { layoutInfra } from '../src/infra/layout';
@@ -382,8 +382,7 @@ CDN
     expect(motionCount).toBeGreaterThan(2);
   });
 
-  it('emits deprecation warning for scenario blocks (scenarios removed)', () => {
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  it('emits error for scenario blocks (scenarios removed)', () => {
     const parsed = parseInfra(`chart: infra
 edge
   rps: 1000
@@ -397,17 +396,12 @@ scenario: peak
     rps: 10000
   API
     instances: 8`);
-    expect(parsed.error).toBeNull();
-    // Scenario data is no longer parsed — nodes are unaffected
-    expect(parsed.nodes).toHaveLength(2);
-    expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('scenario syntax is deprecated'),
-    );
-    warnSpy.mockRestore();
+    expect(parsed.error).toContain('scenario:');
+    expect(parsed.error).toContain('no longer supported');
+    expect(parsed.diagnostics.some(d => d.severity === 'error' && d.message.includes('no longer supported'))).toBe(true);
   });
 
-  it('compute uses base values when scenario syntax present (deprecated)', () => {
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  it('compute uses base values when scenario syntax present (rejected with error)', () => {
     const parsed = parseInfra(`chart: infra
 edge
   rps: 1000
@@ -421,14 +415,14 @@ scenario: peak
     rps: 10000
   API
     instances: 8`);
-    expect(parsed.error).toBeNull();
+    // scenario: now produces a hard error
+    expect(parsed.error).toContain('no longer supported');
 
     // Scenarios are ignored — base values always used
     const result = computeInfra(parsed);
     const apiNode = result.nodes.find((n) => n.id === 'API')!;
     expect(apiNode.computedRps).toBe(1000);
     expect(apiNode.computedInstances).toBe(3);
-    warnSpy.mockRestore();
   });
 
   it('instance overrides affect overload detection', () => {
@@ -586,5 +580,31 @@ API`);
       propertyOverrides: { CDN: { 'cache-hit': 30 } },
     });
     expect(withOverride.nodes.find((n) => n.id === 'API')!.computedRps).toBe(7000);
+  });
+
+  it('renders async edge with stroke-dasharray', () => {
+    const svg = renderToSvg(`chart: infra
+edge
+  rps: 100
+  -> API
+API
+  ~> EventBus`);
+    // The async edge (API -> EventBus) should have stroke-dasharray
+    expect(svg).toContain('stroke-dasharray="6 4"');
+  });
+
+  it('does not render stroke-dasharray on sync edges', () => {
+    const svg = renderToSvg(`chart: infra
+edge
+  rps: 100
+  -> API
+API
+  -> Database`);
+    // Sync edges should not have stroke-dasharray="6 4" on edge paths
+    // (note: other elements may use dasharray for animations, so check specifically edge paths)
+    const edgePaths = svg.match(/<path[^>]*class="[^"]*"[^>]*>/g) ?? [];
+    // None of the simple edge paths should have dasharray
+    // Just verify no 6 4 pattern on the main edge path strokes
+    expect(svg).not.toMatch(/stroke-dasharray="6 4"/);
   });
 });
