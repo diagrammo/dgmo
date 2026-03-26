@@ -950,6 +950,232 @@ export function getExtendedChartLegendGroups(
   return [];
 }
 
+// ---------------------------------------------------------------------------
+// Scatter label collision avoidance — greedy placement algorithm
+// ---------------------------------------------------------------------------
+
+interface LabelRect { x: number; y: number; w: number; h: number }
+interface PointCircle { cx: number; cy: number; r: number }
+
+/** Axis-aligned bounding box overlap test. @internal exported for testing */
+export function rectsOverlap(a: LabelRect, b: LabelRect): boolean {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+/** Rect vs circle overlap using nearest-point-on-rect distance check. @internal exported for testing */
+export function rectCircleOverlap(rect: LabelRect, circle: PointCircle): boolean {
+  const nearestX = Math.max(rect.x, Math.min(circle.cx, rect.x + rect.w));
+  const nearestY = Math.max(rect.y, Math.min(circle.cy, rect.y + rect.h));
+  const dx = nearestX - circle.cx;
+  const dy = nearestY - circle.cy;
+  return dx * dx + dy * dy < circle.r * circle.r;
+}
+
+export interface ScatterLabelPoint {
+  name: string;
+  px: number;
+  py: number;
+  color: string;
+  size?: number; // per-point symbol size (for bubble charts)
+}
+
+/**
+ * Greedy label placement for scatter charts.
+ * Returns ECharts `graphic` elements (text + background rects + optional connector lines).
+ * Pure function — no ECharts instance dependency.
+ *
+ * @param bg - chart background color, used for label background rects that mask connector lines
+ */
+export function computeScatterLabelGraphics(
+  points: ScatterLabelPoint[],
+  chartBounds: { top: number; bottom: number },
+  fontSize: number,
+  symbolSize: number,
+  bg?: string
+): Record<string, unknown>[] {
+  const labelHeight = fontSize + 4;
+  const stepSize = labelHeight + 2;
+
+  // Build collision circles for ALL points (per-point size for bubble charts)
+  const pointCircles: PointCircle[] = points.map((p) => ({
+    cx: p.px,
+    cy: p.py,
+    r: (p.size ?? symbolSize) / 2,
+  }));
+
+  const placedLabels: LabelRect[] = [];
+  const elements: Record<string, unknown>[] = [];
+
+  for (let i = 0; i < points.length; i++) {
+    const pt = points[i];
+    const ptSize = pt.size ?? symbolSize;
+    const minGap = ptSize / 2 + 4;
+    const labelWidth = pt.name.length * fontSize * 0.6 + 8;
+    const labelX = pt.px - labelWidth / 2; // centered horizontally
+
+    // Try both directions, pick whichever keeps the label closest to the point
+    let bestLabelY = 0;
+    let bestOffset = Infinity;
+    let placed = false;
+
+    for (const dir of [-1, 1]) {
+      for (let offset = minGap; ; offset += stepSize) {
+        const labelY =
+          dir === -1
+            ? pt.py - offset - labelHeight // above: label bottom edge is offset above point center
+            : pt.py + offset; // below: label top edge is offset below point center
+
+        // Check chart bounds
+        if (labelY < chartBounds.top || labelY + labelHeight > chartBounds.bottom) break;
+
+        const candidate: LabelRect = { x: labelX, y: labelY, w: labelWidth, h: labelHeight };
+
+        // Check collisions with all placed labels
+        let collision = false;
+        for (const pl of placedLabels) {
+          if (rectsOverlap(candidate, pl)) {
+            collision = true;
+            break;
+          }
+        }
+
+        // Check collisions with all point circles
+        if (!collision) {
+          for (const circle of pointCircles) {
+            if (rectCircleOverlap(candidate, circle)) {
+              collision = true;
+              break;
+            }
+          }
+        }
+
+        if (!collision) {
+          // Found closest slot in this direction — keep if it beats the other
+          if (offset < bestOffset) {
+            bestOffset = offset;
+            bestLabelY = labelY;
+          }
+          placed = true;
+          break; // best for this direction found, try the other
+        }
+      }
+    }
+
+    // Fallback: try above first, then below — prefer whichever is within bounds
+    if (!placed) {
+      const aboveY = pt.py - minGap - labelHeight;
+      const belowY = pt.py + minGap;
+      if (aboveY >= chartBounds.top) {
+        bestLabelY = aboveY;
+      } else if (belowY + labelHeight <= chartBounds.bottom) {
+        bestLabelY = belowY;
+      } else {
+        bestLabelY = aboveY; // last resort — may clip
+      }
+    }
+
+    const labelRect: LabelRect = { x: labelX, y: bestLabelY, w: labelWidth, h: labelHeight };
+    placedLabels.push(labelRect);
+
+    const textY = bestLabelY + labelHeight / 2;
+
+    // Connector line (z=1, rendered below labels)
+    const isAbove = bestLabelY + labelHeight <= pt.py;
+    const pointEdge = isAbove ? pt.py - ptSize / 2 : pt.py + ptSize / 2;
+    const labelEdge = isAbove ? bestLabelY + labelHeight : bestLabelY;
+    const gap = Math.abs(pointEdge - labelEdge);
+
+    if (gap > 4) {
+      elements.push({
+        type: 'line',
+        id: `scatter-line-${i}`,
+        z: 1,
+        shape: {
+          x1: pt.px,
+          y1: pointEdge,
+          x2: pt.px,
+          y2: labelEdge,
+        },
+        style: {
+          stroke: pt.color,
+          lineWidth: 1,
+        },
+        silent: true,
+      });
+    }
+
+    // Background rect (z=2, masks connector lines behind label text)
+    if (bg) {
+      const bgPad = 2;
+      elements.push({
+        type: 'rect',
+        id: `scatter-bg-${i}`,
+        z: 2,
+        shape: {
+          x: labelX - bgPad,
+          y: bestLabelY - bgPad,
+          width: labelWidth + bgPad * 2,
+          height: labelHeight + bgPad * 2,
+        },
+        style: { fill: bg },
+        silent: true,
+      });
+    }
+
+    // Text element (z=3, rendered on top)
+    elements.push({
+      type: 'text',
+      id: `scatter-label-${i}`,
+      z: 3,
+      x: pt.px,
+      y: textY,
+      style: {
+        text: pt.name,
+        fill: pt.color,
+        fontSize,
+        fontFamily: FONT_FAMILY,
+        textAlign: 'center',
+        textVerticalAlign: 'middle',
+      },
+      silent: true,
+    });
+  }
+
+  return elements;
+}
+
+/**
+ * Convert data coordinates to pixel coordinates using linear interpolation.
+ * For SSR path where chart instance is not available for convertToPixel.
+ */
+function dataToPixel(
+  dataX: number,
+  dataY: number,
+  xMin: number,
+  xMax: number,
+  yMin: number,
+  yMax: number,
+  gridLeftPct: number,
+  gridRightPct: number,
+  gridTopPct: number,
+  gridBottomPct: number,
+  chartWidth: number,
+  chartHeight: number
+): { px: number; py: number } {
+  // containLabel: true shrinks the plot area — apply conservative 30px inset
+  const inset = 30;
+  const gridLeftPx = gridLeftPct * chartWidth / 100 + inset;
+  const gridRightPx = chartWidth - gridRightPct * chartWidth / 100 - inset;
+  const gridTopPx = gridTopPct * chartHeight / 100 + inset;
+  const gridBottomPx = chartHeight - gridBottomPct * chartHeight / 100 - inset;
+  const plotWidth = gridRightPx - gridLeftPx;
+  const plotHeight = gridBottomPx - gridTopPx;
+
+  const px = gridLeftPx + ((dataX - xMin) / (xMax - xMin)) * plotWidth;
+  const py = gridTopPx + ((yMax - dataY) / (yMax - yMin)) * plotHeight;
+  return { px, py };
+}
+
 /**
  * Builds ECharts option for scatter plots.
  * Auto-detects categories and size from point data:
@@ -973,12 +1199,16 @@ function buildScatterOption(
   const hasCategories = points.some((p) => p.category !== undefined);
   const hasSize = points.some((p) => p.size !== undefined);
 
+  const showLabels = parsed.showLabels ?? false;
+  const labelFontSize = 11;
+
+  // When showLabels is on, we render labels ourselves via graphic — disable ECharts labels
   const labelConfig = {
-    show: parsed.showLabels ?? false,
+    show: false,
     formatter: '{b}',
     position: 'top' as const,
     color: textColor,
-    fontSize: 11,
+    fontSize: labelFontSize,
   };
 
   const emphasisConfig = {
@@ -1076,15 +1306,71 @@ function buildScatterOption(
   const xPad = (xMax - xMin) * 0.1 || 1;
   const yPad = (yMax - yMin) * 0.1 || 1;
 
+  const axisXMin = Math.floor(xMin - xPad);
+  const axisXMax = Math.ceil(xMax + xPad);
+  const axisYMin = Math.floor(yMin - yPad);
+  const axisYMax = Math.ceil(yMax + yPad);
+
+  const gridLeft = parsed.ylabel ? 12 : 3;
+  const gridRight = 4;
+  const gridBottom = parsed.xlabel ? 10 : 3;
+  const gridTop = parsed.title ? 15 : 5;
+
+  // Compute custom label graphics for SSR when labels are enabled
+  let graphic: Record<string, unknown>[] | undefined;
+  if (showLabels && points.length > 0) {
+    // Collect label points with resolved colors
+    const labelPoints: ScatterLabelPoint[] = [];
+    if (hasCategories) {
+      const categories = [
+        ...new Set(points.map((p) => p.category).filter(Boolean)),
+      ] as string[];
+      for (let idx = 0; idx < points.length; idx++) {
+        const pt = points[idx];
+        const catIndex = pt.category ? categories.indexOf(pt.category) : -1;
+        const catColor = pt.category
+          ? (parsed.categoryColors?.[pt.category] ?? colors[catIndex % colors.length])
+          : colors[idx % colors.length];
+        const color = pt.color ?? catColor;
+        const { px, py } = dataToPixel(
+          pt.x, pt.y, axisXMin, axisXMax, axisYMin, axisYMax,
+          gridLeft, gridRight, gridTop, gridBottom,
+          ECHART_EXPORT_WIDTH, ECHART_EXPORT_HEIGHT
+        );
+        labelPoints.push({ name: pt.name, px, py, color, size: pt.size });
+      }
+    } else {
+      points.forEach((pt, index) => {
+        const color = pt.color ?? colors[index % colors.length];
+        const { px, py } = dataToPixel(
+          pt.x, pt.y, axisXMin, axisXMax, axisYMin, axisYMax,
+          gridLeft, gridRight, gridTop, gridBottom,
+          ECHART_EXPORT_WIDTH, ECHART_EXPORT_HEIGHT
+        );
+        labelPoints.push({ name: pt.name, px, py, color, size: pt.size });
+      });
+    }
+
+    const chartBoundsTop = gridTop * ECHART_EXPORT_HEIGHT / 100;
+    const chartBoundsBottom = ECHART_EXPORT_HEIGHT - gridBottom * ECHART_EXPORT_HEIGHT / 100;
+    graphic = computeScatterLabelGraphics(
+      labelPoints,
+      { top: chartBoundsTop, bottom: chartBoundsBottom },
+      labelFontSize,
+      defaultSize,
+      bg
+    );
+  }
+
   return {
     ...CHART_BASE,
     title: titleConfig,
     tooltip,
     grid: {
-      left: parsed.ylabel ? '12%' : '3%',
-      right: '4%',
-      bottom: parsed.xlabel ? '10%' : '3%',
-      top: parsed.title ? '15%' : '5%',
+      left: `${gridLeft}%`,
+      right: `${gridRight}%`,
+      bottom: `${gridBottom}%`,
+      top: `${gridTop}%`,
       containLabel: true,
     },
     xAxis: {
@@ -1096,8 +1382,8 @@ function buildScatterOption(
         color: textColor,
         fontSize: 18,
       },
-      min: Math.floor(xMin - xPad),
-      max: Math.ceil(xMax + xPad),
+      min: axisXMin,
+      max: axisXMax,
       axisLine: {
         lineStyle: { color: axisLineColor },
       },
@@ -1121,8 +1407,8 @@ function buildScatterOption(
         color: textColor,
         fontSize: 18,
       },
-      min: Math.floor(yMin - yPad),
-      max: Math.ceil(yMax + yPad),
+      min: axisYMin,
+      max: axisYMax,
       axisLine: {
         lineStyle: { color: axisLineColor },
       },
@@ -1138,6 +1424,7 @@ function buildScatterOption(
       },
     },
     series,
+    ...(graphic && { graphic }),
   };
 }
 
@@ -2106,10 +2393,16 @@ export async function renderExtendedChartForExport(
       const titleHeight = option.title && (option.title as { text?: string }).text ? 40 : 0;
       const legendY = 8 + titleHeight;
       // In static export, expand the first group so entries are visible
+      // Extract grid offsets for plot-area-centered legend
+      const grid = option.grid as Record<string, unknown> | undefined;
+      const gridLeftPct = grid?.left ? parseFloat(String(grid.left)) : undefined;
+      const gridRightPct = grid?.right ? parseFloat(String(grid.right)) : undefined;
       const { svg: legendSvgStr } = renderLegendSvg(legendGroups, {
         palette: effectivePalette,
         isDark,
         containerWidth: ECHART_EXPORT_WIDTH,
+        gridLeftPct,
+        gridRightPct,
         activeGroup: legendGroups[0].name,
         className: 'chart-legend',
       });

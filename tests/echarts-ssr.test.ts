@@ -111,3 +111,59 @@ describe('renderExtendedChartForExport', () => {
     expect(svg).toContain('</svg>');
   });
 });
+
+// ============================================================
+// Scatter label collision avoidance (SSR integration)
+// ============================================================
+
+const SCATTER_LABELS_INPUT = `chart: scatter
+title: Test Labels
+labels: on
+xlabel: X
+ylabel: Y
+A: 1, 2
+B: 3, 4
+C: 5, 6`;
+
+const SCATTER_DENSE_INPUT = `chart: scatter
+title: Dense Cluster
+labels: on
+P1: 5, 5
+P2: 5.1, 5
+P3: 5.2, 5
+P4: 4.9, 5
+P5: 5, 5.1
+P6: 5.1, 5.1
+P7: 4.9, 4.9
+P8: 5.2, 4.9`;
+
+describe('scatter label SSR integration', () => {
+  it('renders scatter with labels: on — SVG contains point names as text', async () => {
+    const svg = await renderExtendedChartForExport(SCATTER_LABELS_INPUT, 'light');
+    expect(svg).toContain('<svg');
+    expect(svg).toContain('A');
+    expect(svg).toContain('B');
+    expect(svg).toContain('C');
+  });
+
+  it('renders dense cluster with all 8 point names visible', async () => {
+    const svg = await renderExtendedChartForExport(SCATTER_DENSE_INPUT, 'light');
+    expect(svg).toContain('<svg');
+    for (let i = 1; i <= 8; i++) {
+      expect(svg).toContain(`P${i}`);
+    }
+  });
+
+  it('produces deterministic label positions', async () => {
+    // ECharts SSR auto-increments internal CSS class names (zrN-cls-M),
+    // so full SVG string identity isn't possible across calls.
+    // Instead, verify label text elements are identical.
+    const svg1 = await renderExtendedChartForExport(SCATTER_LABELS_INPUT, 'light');
+    const svg2 = await renderExtendedChartForExport(SCATTER_LABELS_INPUT, 'light');
+    // Extract all <text> elements (our labels + axis labels)
+    const textPattern = /<text[^>]*>.*?<\/text>/g;
+    const texts1 = svg1.match(textPattern) ?? [];
+    const texts2 = svg2.match(textPattern) ?? [];
+    expect(texts1).toEqual(texts2);
+  });
+});

@@ -30,6 +30,10 @@ export interface LegendRenderOptions {
   palette: { bg: string; surface: string; text: string; textMuted: string };
   isDark: boolean;
   containerWidth: number;
+  /** Grid left offset as percentage (e.g. 12 for '12%'). Centers legend over plot area. */
+  gridLeftPct?: number;
+  /** Grid right offset as percentage (e.g. 4 for '4%'). Centers legend over plot area. */
+  gridRightPct?: number;
   activeGroup?: string | null;
   className?: string;
 }
@@ -37,6 +41,8 @@ export interface LegendRenderOptions {
 export interface LegendRenderResult {
   svg: string;
   height: number;
+  /** Natural content width (px). Callers can use this for CSS-based centering. */
+  width: number;
 }
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -69,7 +75,7 @@ export function renderLegendSvg(
   groups: LegendGroupData[],
   options: LegendRenderOptions,
 ): LegendRenderResult {
-  if (groups.length === 0) return { svg: '', height: 0 };
+  if (groups.length === 0) return { svg: '', height: 0, width: 0 };
 
   const { palette, isDark, containerWidth, activeGroup, className } = options;
   const groupBg = isDark
@@ -86,10 +92,15 @@ export function renderLegendSvg(
       return { group: g, isActive, pillWidth: pw, totalWidth: tw };
     });
 
-  if (items.length === 0) return { svg: '', height: 0 };
+  if (items.length === 0) return { svg: '', height: 0, width: 0 };
 
   const totalWidth = items.reduce((s, it) => s + it.totalWidth, 0) + (items.length - 1) * LEGEND_GROUP_GAP;
-  let x = Math.max(0, (containerWidth - totalWidth) / 2);
+
+  // Center over the plot area when grid offsets are provided, otherwise full container
+  const plotLeft = options.gridLeftPct ? (containerWidth * options.gridLeftPct) / 100 : 0;
+  const plotRight = options.gridRightPct ? containerWidth - (containerWidth * options.gridRightPct) / 100 : containerWidth;
+  const plotWidth = plotRight - plotLeft;
+  let x = Math.max(0, plotLeft + (plotWidth - totalWidth) / 2);
 
   const parts: string[] = [];
   const pillH = LEGEND_HEIGHT - LEGEND_CAPSULE_PAD * 2;
@@ -152,5 +163,5 @@ export function renderLegendSvg(
   const activeAttr = activeGroup ? ` data-legend-active="${esc(activeGroup.toLowerCase())}"` : '';
   const svg = `<g${classAttr}${activeAttr}>${parts.join('')}</g>`;
 
-  return { svg, height: LEGEND_HEIGHT };
+  return { svg, height: LEGEND_HEIGHT, width: totalWidth };
 }
