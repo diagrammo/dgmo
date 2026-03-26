@@ -80,7 +80,7 @@ describe('renderSitemap', () => {
   });
 
   it('renders title', () => {
-    const { container } = renderToContainer('chart: sitemap\ntitle: My Site\nHome');
+    const { container } = renderToContainer('sitemap My Site\nHome');
     const title = container.querySelector('.sitemap-title');
     expect(title).not.toBeNull();
     expect(title!.textContent).toBe('My Site');

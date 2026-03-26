@@ -4,27 +4,24 @@ import { parseClassDiagram, looksLikeClassDiagram } from '../src/class/parser';
 describe('parseClassDiagram', () => {
   // === Metadata ===
   describe('metadata', () => {
-    it('parses chart: class', () => {
-      const result = parseClassDiagram('chart: class\nAnimal\n  name: string');
+    it('parses bare class keyword on first line', () => {
+      const result = parseClassDiagram('class\nAnimal\n  name: string');
       expect(result.type).toBe('class');
       expect(result.error).toBeNull();
       expect(result.diagnostics).toEqual([]);
     });
 
-    it('rejects wrong chart type', () => {
-      const result = parseClassDiagram('chart: flowchart\nAnimal\n  name: string');
-      expect(result.error).toContain('Expected chart type "class"');
-      // diagnostics
-      expect(result.diagnostics).toHaveLength(1);
-      expect(result.diagnostics[0].message).toMatch(/Expected chart type "class"/);
-      expect(result.diagnostics[0].severity).toBe('error');
-      expect(result.diagnostics[0].line).toBeGreaterThanOrEqual(0);
+    it('parses class keyword with title on first line', () => {
+      const result = parseClassDiagram('class My Classes\nAnimal\n  name: string');
+      expect(result.type).toBe('class');
+      expect(result.title).toBe('My Classes');
+      expect(result.titleLineNumber).toBe(1);
+      expect(result.error).toBeNull();
     });
 
-    it('parses title', () => {
-      const result = parseClassDiagram('chart: class\ntitle: My Classes\nAnimal\n  name: string');
-      expect(result.title).toBe('My Classes');
-      expect(result.titleLineNumber).toBe(2);
+    it('parses space-separated options', () => {
+      const result = parseClassDiagram('class\ncolor off\nAnimal\n  name: string');
+      expect(result.options['color']).toBe('off');
     });
   });
 
@@ -46,19 +43,22 @@ describe('parseClassDiagram', () => {
       expect(result.classes[0].modifier).toBeUndefined();
     });
 
-    it('parses abstract class', () => {
-      const result = parseClassDiagram('Animal [abstract]\n  name: string');
+    it('parses abstract class with bare keyword', () => {
+      const result = parseClassDiagram('abstract Animal\n  name: string');
       expect(result.classes[0].modifier).toBe('abstract');
+      expect(result.classes[0].name).toBe('Animal');
     });
 
-    it('parses interface', () => {
-      const result = parseClassDiagram('Drawable [interface]\n  draw(): void');
+    it('parses interface with bare keyword', () => {
+      const result = parseClassDiagram('interface Drawable\n  draw(): void');
       expect(result.classes[0].modifier).toBe('interface');
+      expect(result.classes[0].name).toBe('Drawable');
     });
 
-    it('parses enum', () => {
-      const result = parseClassDiagram('Color [enum]\n  Red\n  Green\n  Blue');
+    it('parses enum with bare keyword', () => {
+      const result = parseClassDiagram('enum Color\n  Red\n  Green\n  Blue');
       expect(result.classes[0].modifier).toBe('enum');
+      expect(result.classes[0].name).toBe('Color');
       expect(result.classes[0].members).toHaveLength(3);
     });
 
@@ -67,15 +67,15 @@ describe('parseClassDiagram', () => {
       expect(result.classes[0].color).toBeDefined();
     });
 
-    it('parses class with modifier and color', () => {
-      const result = parseClassDiagram('Animal [abstract] (blue)\n  name: string');
+    it('parses class with bare modifier and color', () => {
+      const result = parseClassDiagram('abstract Animal (blue)\n  name: string');
       expect(result.classes[0].modifier).toBe('abstract');
       expect(result.classes[0].color).toBeDefined();
     });
 
     it('tracks line numbers', () => {
-      const result = parseClassDiagram('chart: class\ntitle: Test\n\nAnimal\n  name: string');
-      expect(result.classes[0].lineNumber).toBe(4);
+      const result = parseClassDiagram('class Test\n\nAnimal\n  name: string');
+      expect(result.classes[0].lineNumber).toBe(3);
     });
 
     it('handles empty class (no members)', () => {
@@ -173,7 +173,7 @@ describe('parseClassDiagram', () => {
   // === Enum values ===
   describe('enum values', () => {
     it('parses enum values as plain text', () => {
-      const result = parseClassDiagram('Status [enum]\n  Active\n  Inactive\n  Pending');
+      const result = parseClassDiagram('enum Status\n  Active\n  Inactive\n  Pending');
       const members = result.classes[0].members;
       expect(members).toHaveLength(3);
       expect(members[0].name).toBe('Active');
@@ -198,7 +198,7 @@ describe('parseClassDiagram', () => {
     });
 
     it('parses implements in class declaration', () => {
-      const result = parseClassDiagram('Drawable [interface]\n  draw(): void\n\nCircle implements Drawable\n  - radius: number');
+      const result = parseClassDiagram('interface Drawable\n  draw(): void\n\nCircle implements Drawable\n  - radius: number');
       expect(result.relationships).toHaveLength(1);
       expect(result.relationships[0].type).toBe('implements');
       expect(result.relationships[0].source).toBe('circle');
@@ -212,7 +212,7 @@ describe('parseClassDiagram', () => {
     });
 
     it('extends with modifier', () => {
-      const result = parseClassDiagram('Shape [abstract]\n  + area(): number\n\nCircle extends Shape\n  - radius: number');
+      const result = parseClassDiagram('abstract Shape\n  + area(): number\n\nCircle extends Shape\n  - radius: number');
       expect(result.relationships[0].type).toBe('extends');
       expect(result.relationships[0].source).toBe('circle');
       expect(result.relationships[0].target).toBe('shape');
@@ -264,8 +264,8 @@ describe('parseClassDiagram', () => {
       expect(result.relationships[0].type).toBe('associates');
     });
 
-    it('parses arrow with label', () => {
-      const result = parseClassDiagram('Dog --|> Animal : inherits');
+    it('parses arrow with space-separated label', () => {
+      const result = parseClassDiagram('Dog --|> Animal inherits');
       expect(result.relationships[0].label).toBe('inherits');
     });
   });
@@ -316,16 +316,16 @@ describe('parseClassDiagram', () => {
 });
 
 describe('looksLikeClassDiagram', () => {
-  it('detects class with modifier', () => {
-    expect(looksLikeClassDiagram('Animal [abstract]\n  name: string')).toBe(true);
+  it('detects bare abstract keyword', () => {
+    expect(looksLikeClassDiagram('abstract Animal\n  name: string')).toBe(true);
   });
 
-  it('detects interface modifier', () => {
-    expect(looksLikeClassDiagram('Drawable [interface]\n  draw(): void')).toBe(true);
+  it('detects bare interface keyword', () => {
+    expect(looksLikeClassDiagram('interface Drawable\n  draw(): void')).toBe(true);
   });
 
-  it('detects enum modifier', () => {
-    expect(looksLikeClassDiagram('Color [enum]\n  Red\n  Green')).toBe(true);
+  it('detects bare enum keyword', () => {
+    expect(looksLikeClassDiagram('enum Color\n  Red\n  Green')).toBe(true);
   });
 
   it('detects inline extends with members', () => {

@@ -428,9 +428,9 @@ describe('Story 47.2 — Parser tolerance', () => {
 // ============================================================
 describe('Story 47.3 — parser validation', () => {
   describe('headers-before-content', () => {
-    it('title before first message parses normally', () => {
+    it('title on first line parses normally', () => {
       const result = parseSequenceDgmo(
-        'chart: sequence\ntitle: Auth Flow\nA -login-> B'
+        'sequence Auth Flow\nA -login-> B'
       );
       expect(result.error).toBeNull();
       expect(result.title).toBe('Auth Flow');
@@ -438,49 +438,33 @@ describe('Story 47.3 — parser validation', () => {
 
     it('options before first message parse normally', () => {
       const result = parseSequenceDgmo(
-        'chart: sequence\nactivations: off\nA -login-> B'
+        'sequence\nno-activations\nA -login-> B'
       );
       expect(result.error).toBeNull();
       expect(result.options.activations).toBe('off');
     });
 
-    it('title after a message produces error', () => {
-      const result = parseSequenceDgmo(
-        'chart: sequence\nA -login-> B\ntitle: Too Late'
-      );
-      expect(result.error).toMatch(
-        /Line 3.*Options like 'title: Too Late' must appear before/
-      );
-    });
-
     it('option after a section produces error', () => {
       const result = parseSequenceDgmo(
-        'chart: sequence\n== Auth\nactivations: off\nA -login-> B'
+        'sequence\n== Auth\nno-activations\nA -login-> B'
       );
       expect(result.error).toMatch(
-        /Line 3.*Options like 'activations: off' must appear before/
+        /Line 3.*must appear before/
       );
     });
 
     it('option after a participant declaration produces error', () => {
       const result = parseSequenceDgmo(
-        'chart: sequence\nAPI is a service\nactivations: off\nAPI -query-> DB'
+        'sequence\nAPI is a service\nno-activations\nAPI -query-> DB'
       );
       expect(result.error).toMatch(/Line 3.*must appear before/);
     });
 
     it('option after a group produces error', () => {
       const result = parseSequenceDgmo(
-        'chart: sequence\n[Backend]\n  API\nactivations: off\nAPI -query-> DB'
+        'sequence\n[Backend]\n  API\nno-activations\nAPI -query-> DB'
       );
       expect(result.error).toMatch(/Line 4.*must appear before/);
-    });
-
-    it('chart: sequence is always allowed', () => {
-      const result = parseSequenceDgmo(
-        'title: Flow\nchart: sequence\nA -msg-> B'
-      );
-      expect(result.error).toBeNull();
     });
   });
 
@@ -726,7 +710,7 @@ describe('Story 47.4 — else if support', () => {
 describe('Story 47.5 — note syntax', () => {
   describe('single-line note with default position', () => {
     it('parses note after a message', () => {
-      const content = ['A -login-> B', 'note: Rate limited'].join('\n');
+      const content = ['A -login-> B', 'note Rate limited'].join('\n');
       const result = parseSequenceDgmo(content);
       expect(result.error).toBeNull();
       expect(result.elements).toHaveLength(2);
@@ -741,7 +725,7 @@ describe('Story 47.5 — note syntax', () => {
       const content = [
         'A -step1-> B',
         'B -step2-> C',
-        'note: about step2',
+        'note about step2',
       ].join('\n');
       const result = parseSequenceDgmo(content);
       expect(result.error).toBeNull();
@@ -754,7 +738,7 @@ describe('Story 47.5 — note syntax', () => {
     it('parses note right of <participant>', () => {
       const content = [
         'A -login-> B',
-        'note right of B: Validates JWT',
+        'note right of B Validates JWT',
       ].join('\n');
       const result = parseSequenceDgmo(content);
       expect(result.error).toBeNull();
@@ -767,7 +751,7 @@ describe('Story 47.5 — note syntax', () => {
     it('parses note left of <participant>', () => {
       const content = [
         'A -login-> B',
-        'note left of A: Shows spinner',
+        'note left of A Shows spinner',
       ].join('\n');
       const result = parseSequenceDgmo(content);
       expect(result.error).toBeNull();
@@ -779,7 +763,7 @@ describe('Story 47.5 — note syntax', () => {
     it('position is case-insensitive', () => {
       const content = [
         'A -login-> B',
-        'Note Right Of B: case test',
+        'Note Right Of B case test',
       ].join('\n');
       const result = parseSequenceDgmo(content);
       expect(result.error).toBeNull();
@@ -834,11 +818,11 @@ describe('Story 47.5 — note syntax', () => {
       expect(result.messages).toHaveLength(2);
     });
 
-    it('parses multi-line note with trailing colon', () => {
+    it('parses multi-line note with bare note keyword', () => {
       const content = [
-        'chart: sequence',
+        'sequence',
         'A -login-> B',
-        'note:',
+        'note',
         '  - [this](http://example.com)',
         '  - _that_ is a bullet list',
         '  - and the **other**',
@@ -853,10 +837,10 @@ describe('Story 47.5 — note syntax', () => {
       expect(note.participantId).toBe('A');
     });
 
-    it('parses multi-line note with "note right of X:" form', () => {
+    it('parses multi-line note with "note right of X" form', () => {
       const content = [
         'A -login-> B',
-        'note right of B:',
+        'note right of B',
         '  First line',
         '  Second line',
       ].join('\n');
@@ -885,7 +869,7 @@ describe('Story 47.5 — note syntax', () => {
       const content = [
         'if authenticated',
         '  A -proceed-> B',
-        '  note: Success path',
+        '  note Success path',
       ].join('\n');
       const result = parseSequenceDgmo(content);
       expect(result.error).toBeNull();
@@ -900,7 +884,7 @@ describe('Story 47.5 — note syntax', () => {
       const content = [
         'loop 3 times',
         '  A -attempt-> B',
-        '  note left of B: Retry logic',
+        '  note left of B Retry logic',
       ].join('\n');
       const result = parseSequenceDgmo(content);
       expect(result.error).toBeNull();
@@ -914,8 +898,8 @@ describe('Story 47.5 — note syntax', () => {
   describe('tolerance — incomplete notes are skipped', () => {
     it('note with no preceding message is skipped', () => {
       const orphanContent = [
-        'chart: sequence',
-        'note: orphan note',
+        'sequence',
+        'note orphan note',
         'A -hello-> B',
       ].join('\n');
       const result = parseSequenceDgmo(orphanContent);
@@ -927,7 +911,7 @@ describe('Story 47.5 — note syntax', () => {
     it('note referencing unknown participant is skipped', () => {
       const content = [
         'A -login-> B',
-        'note right of Z: unknown',
+        'note right of Z unknown',
       ].join('\n');
       const result = parseSequenceDgmo(content);
       expect(result.error).toBeNull();
@@ -936,7 +920,7 @@ describe('Story 47.5 — note syntax', () => {
     });
 
     it('default note with no preceding message in multi-line form is skipped', () => {
-      const content = ['chart: sequence', 'note', '  body text', 'A -hello-> B'].join('\n');
+      const content = ['sequence', 'note', '  body text', 'A -hello-> B'].join('\n');
       const result = parseSequenceDgmo(content);
       expect(result.error).toBeNull();
       expect(result.messages).toHaveLength(1);
@@ -944,7 +928,7 @@ describe('Story 47.5 — note syntax', () => {
 
     it('bare "note" keyword mid-diagram is skipped', () => {
       const content = [
-        'chart: sequence',
+        'sequence',
         'Captain -Battle stations!-> Quartermaster',
         'Quartermaster -Load cannons-> GunCrew',
         'note',
@@ -960,9 +944,9 @@ describe('Story 47.5 — note syntax', () => {
     it('messages after notes parse correctly', () => {
       const content = [
         'A -step1-> B',
-        'note: annotation',
+        'note annotation',
         'B -step2-> C',
-        'note right of C: another',
+        'note right of C another',
         'C -step3-> A',
       ].join('\n');
       const result = parseSequenceDgmo(content);
@@ -973,7 +957,7 @@ describe('Story 47.5 — note syntax', () => {
     });
 
     it('note does not appear in messages array', () => {
-      const content = ['A -msg-> B', 'note: text'].join('\n');
+      const content = ['A -msg-> B', 'note text'].join('\n');
       const result = parseSequenceDgmo(content);
       expect(result.messages).toHaveLength(1);
       expect(result.elements).toHaveLength(2);
@@ -984,7 +968,7 @@ describe('Story 47.5 — note syntax', () => {
     it('notes do not affect render step count', () => {
       const content = [
         'A -step1-> B',
-        'note: annotation',
+        'note annotation',
         'B -step2-> C',
       ].join('\n');
       const parsed = parseSequenceDgmo(content);
@@ -1030,7 +1014,7 @@ describe('looksLikeSequence with new arrows', () => {
 describe('tag group declarations', () => {
   it('parses a single tag group with entries', () => {
     const content = [
-      'tag: Concern alias c',
+      'tag Concern alias c',
       '  Caching(blue)',
       '  Auth(green)',
       '',
@@ -1048,10 +1032,10 @@ describe('tag group declarations', () => {
 
   it('parses multiple tag groups', () => {
     const content = [
-      'tag: Concern alias c',
+      'tag Concern alias c',
       '  Caching(blue)',
       '  Auth(green)',
-      'tag: Team alias t',
+      'tag Team alias t',
       '  Platform(purple)',
       '  Product(orange)',
       '',
@@ -1064,10 +1048,10 @@ describe('tag group declarations', () => {
     expect(result.tagGroups[1].name).toBe('Team');
   });
 
-  it('parses default keyword on tag entry', () => {
+  it('first tag entry is the default', () => {
     const content = [
-      'tag: Role',
-      '  Gateway(blue) default',
+      'tag Role',
+      '  Gateway(blue)',
       '  Service(green)',
       '',
       'A -req-> B',
@@ -1078,7 +1062,7 @@ describe('tag group declarations', () => {
 
   it('registers aliases in aliasMap', () => {
     const content = [
-      'tag: Concern alias c',
+      'tag Concern alias c',
       '  Caching(blue)',
       '',
       'A -req-> B | c: Caching',
@@ -1091,7 +1075,7 @@ describe('tag group declarations', () => {
   it('errors when tag group appears after content', () => {
     const content = [
       'A -req-> B',
-      'tag: Concern',
+      'tag Concern',
       '  Caching(blue)',
     ].join('\n');
     const result = parseSequenceDgmo(content);
@@ -1100,7 +1084,7 @@ describe('tag group declarations', () => {
 
   it('errors on entry without color', () => {
     const content = [
-      'tag: Concern',
+      'tag Concern',
       '  Caching',
       '',
       'A -req-> B',
@@ -1167,9 +1151,9 @@ describe('pipe metadata on participants', () => {
 
   it('parses metadata on bare top-level participant', () => {
     const content = [
-      'tag: Location alias l',
+      'tag Location alias l',
       '  Park(red)',
-      '  Cloud(blue) default',
+      '  Cloud(blue)',
       '',
       'Tapin2 | l:Park',
       '',
@@ -1182,9 +1166,9 @@ describe('pipe metadata on participants', () => {
 
   it('parses metadata on bare top-level participant after groups', () => {
     const content = [
-      'tag: Location alias l',
+      'tag Location alias l',
       '  Park(red)',
-      '  Cloud(blue) default',
+      '  Cloud(blue)',
       '',
       '[Backend]',
       '  API',
@@ -1225,7 +1209,7 @@ describe('pipe metadata on participants', () => {
 
   it('resolves alias in participant metadata', () => {
     const content = [
-      'tag: Concern alias c',
+      'tag Concern alias c',
       '  Caching(blue)',
       '',
       'API is a gateway | c: Caching',
@@ -1286,7 +1270,7 @@ describe('pipe metadata on messages', () => {
 
   it('resolves alias in message metadata', () => {
     const content = [
-      'tag: Concern alias c',
+      'tag Concern alias c',
       '  Caching(blue)',
       '',
       'A -req-> B | c: Caching',
@@ -1399,7 +1383,7 @@ describe('pipe metadata on group headers', () => {
 describe('tag validation on sequence diagrams', () => {
   it('warns on unknown tag value in message', () => {
     const content = [
-      'tag: Concern',
+      'tag Concern',
       '  Caching(blue)',
       '  Auth(green)',
       '',
@@ -1412,7 +1396,7 @@ describe('tag validation on sequence diagrams', () => {
 
   it('no warning for valid tag value', () => {
     const content = [
-      'tag: Concern',
+      'tag Concern',
       '  Caching(blue)',
       '',
       'A -req-> B | concern: Caching',
@@ -1424,7 +1408,7 @@ describe('tag validation on sequence diagrams', () => {
 
   it('warns on unknown value with did-you-mean', () => {
     const content = [
-      'tag: Concern',
+      'tag Concern',
       '  Caching(blue)',
       '',
       'A -req-> B | concern: Cachng',
@@ -1496,7 +1480,7 @@ describe('multi-word participant names', () => {
   });
 
   it('parses note right of with multi-word participant', () => {
-    const result = parseSequenceDgmo('Auth Server -ping-> App\nnote right of Auth Server: some note text');
+    const result = parseSequenceDgmo('Auth Server -ping-> App\nnote right of Auth Server some note text');
     expect(result.error).toBeNull();
     const notes = result.elements.filter(e => 'kind' in e && e.kind === 'note');
     expect(notes).toHaveLength(1);
@@ -1506,8 +1490,7 @@ describe('multi-word participant names', () => {
 
   it('renders full OAuth-style diagram without errors', () => {
     const diagram = [
-      'chart: sequence',
-      'title: OAuth 2.0 — Authorization Code Flow',
+      'sequence OAuth 2.0 — Authorization Code Flow',
       '',
       'User is an actor',
       'App is a service',

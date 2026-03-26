@@ -37,9 +37,9 @@ const palette = getPalette('nord');
 // ============================================================
 
 describe('legend entry hover attributes', () => {
-  const input = `chart: kanban
+  const input = `kanban
 
-tag: Priority
+tag Priority
   High(red)
   Medium(yellow)
   Low(green)

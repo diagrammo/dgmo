@@ -1,56 +1,55 @@
-chart: infra
-title: Global E-Commerce Infrastructure — Stress Test
-direction: LR
+infra Global E-Commerce Infrastructure — Stress Test
+direction LR
 
-tag: Team alias t
+tag Team t
   Edge(green)
   Backend(blue)
   Platform(teal)
   Data(purple)
   ML(orange)
 
-tag: Region alias r
-  US(blue) default
+tag Region r
+  US(blue)
   EU(green)
   APAC(orange)
 
 // ── Edge Layer ──────────────────────────────────────────────
 
 edge
-  rps: 50000
+  rps 50000
   -> GlobalLB
 
 GlobalLB is a gateway | t: Edge
-  description: Global load balancer — GeoDNS routing
+  description Global load balancer — GeoDNS routing
   -> CloudFrontUS | split: 40%
   -> CloudFrontEU | split: 35%
   -> CloudFrontAPAC | split: 25%
 
 CloudFrontUS is a network | t: Edge, r: US
-  description: CDN PoP — US East
-  cache-hit: 82%
+  description CDN PoP — US East
+  cache-hit 82%
   -> WAF_US
 
 CloudFrontEU is a network | t: Edge, r: EU
-  description: CDN PoP — Frankfurt
-  cache-hit: 78%
+  description CDN PoP — Frankfurt
+  cache-hit 78%
   -> WAF_EU
 
 CloudFrontAPAC is a network | t: Edge, r: APAC
-  description: CDN PoP — Tokyo
-  cache-hit: 75%
+  description CDN PoP — Tokyo
+  cache-hit 75%
   -> WAF_APAC
 
 WAF_US is a gateway | t: Edge, r: US
-  firewall-block: 6%
+  firewall-block 6%
   -> RegionalLB_US
 
 WAF_EU is a gateway | t: Edge, r: EU
-  firewall-block: 8%
+  firewall-block 8%
   -> RegionalLB_EU
 
 WAF_APAC is a gateway | t: Edge, r: APAC
-  firewall-block: 7%
+  firewall-block 7%
   -> RegionalLB_APAC
 
 // ── Regional Load Balancers ─────────────────────────────────
@@ -74,65 +73,65 @@ RegionalLB_APAC is a gateway | t: Platform, r: APAC
 
 [US API Cluster] | t: Backend, r: US
   UserAPI_US is a service
-    description: User profile and authentication
-    instances: 6
-    max-rps: 1200
-    latency-ms: 25
+    description User profile and authentication
+    instances 6
+    max-rps 1200
+    latency-ms 25
     -> Redis_US | fanout: 3
     -> PostgreSQL_US
   CatalogAPI_US is a service
-    description: Product catalog and pricing
-    instances: 4
-    max-rps: 800
-    latency-ms: 15
+    description Product catalog and pricing
+    instances 4
+    max-rps 800
+    latency-ms 15
     -> Redis_US
     -> PostgreSQL_US
 
 [US Commerce Cluster] | t: Backend, r: US
   OrderSvc_US is a service
-    description: Order orchestration
-    instances: 4
-    max-rps: 600
-    latency-ms: 80
+    description Order orchestration
+    instances 4
+    max-rps 600
+    latency-ms 80
     -> PostgreSQL_US
     ~order.placed~> Kafka_US
   PaymentSvc_US is a service
-    description: Payment processing (Stripe)
-    instances: 3
-    max-rps: 400
-    latency-ms: 200
+    description Payment processing (Stripe)
+    instances 3
+    max-rps 400
+    latency-ms 200
 
 SearchProxy_US is a service | t: Backend, r: US
-  instances: 2
+  instances 2
   -> Elasticsearch_US
 
 // ── EU API Cluster ──────────────────────────────────────────
 
 [EU API Cluster] | t: Backend, r: EU
   UserAPI_EU is a service
-    instances: 4
-    max-rps: 800
-    latency-ms: 30
+    instances 4
+    max-rps 800
+    latency-ms 30
     -> Redis_EU | fanout: 2
     -> PostgreSQL_EU
   CatalogAPI_EU is a service
-    instances: 3
-    max-rps: 600
-    latency-ms: 18
+    instances 3
+    max-rps 600
+    latency-ms 18
     -> Redis_EU
     -> PostgreSQL_EU
 
 [EU Commerce Cluster] | t: Backend, r: EU
   OrderSvc_EU is a service
-    instances: 3
-    max-rps: 500
-    latency-ms: 85
+    instances 3
+    max-rps 500
+    latency-ms 85
     -> PostgreSQL_EU
     ~order.placed~> Kafka_EU
   PaymentSvc_EU is a service
-    instances: 2
-    max-rps: 300
-    latency-ms: 220
+    instances 2
+    max-rps 300
+    latency-ms 220
 
 SearchProxy_EU is a service | t: Backend, r: EU
   -> Elasticsearch_EU
@@ -141,29 +140,29 @@ SearchProxy_EU is a service | t: Backend, r: EU
 
 [APAC API Cluster] | t: Backend, r: APAC
   UserAPI_APAC is a service
-    instances: 3
-    max-rps: 600
-    latency-ms: 35
+    instances 3
+    max-rps 600
+    latency-ms 35
     -> Redis_APAC | fanout: 2
     -> PostgreSQL_APAC
   CatalogAPI_APAC is a service
-    instances: 2
-    max-rps: 500
-    latency-ms: 20
+    instances 2
+    max-rps 500
+    latency-ms 20
     -> Redis_APAC
     -> PostgreSQL_APAC
 
 [APAC Commerce Cluster] | t: Backend, r: APAC
   OrderSvc_APAC is a service
-    instances: 2
-    max-rps: 400
-    latency-ms: 90
+    instances 2
+    max-rps 400
+    latency-ms 90
     -> PostgreSQL_APAC
     ~order.placed~> Kafka_APAC
   PaymentSvc_APAC is a service
-    instances: 2
-    max-rps: 250
-    latency-ms: 240
+    instances 2
+    max-rps 250
+    latency-ms 240
 
 SearchProxy_APAC is a service | t: Backend, r: APAC
   -> Elasticsearch_APAC
@@ -171,39 +170,39 @@ SearchProxy_APAC is a service | t: Backend, r: APAC
 // ── Data Stores (per region) ────────────────────────────────
 
 Redis_US is a cache | t: Data, r: US
-  description: Session + query cache
-  latency-ms: 1
+  description Session + query cache
+  latency-ms 1
 
 PostgreSQL_US is a database | t: Data, r: US
-  description: Primary relational store
-  latency-ms: 5
+  description Primary relational store
+  latency-ms 5
 
 Elasticsearch_US is a database | t: Data, r: US
-  description: Full-text search index
-  latency-ms: 12
+  description Full-text search index
+  latency-ms 12
 
 Redis_EU is a cache | t: Data, r: EU
-  latency-ms: 1
+  latency-ms 1
 
 PostgreSQL_EU is a database | t: Data, r: EU
-  latency-ms: 6
+  latency-ms 6
 
 Elasticsearch_EU is a database | t: Data, r: EU
-  latency-ms: 14
+  latency-ms 14
 
 Redis_APAC is a cache | t: Data, r: APAC
-  latency-ms: 2
+  latency-ms 2
 
 PostgreSQL_APAC is a database | t: Data, r: APAC
-  latency-ms: 8
+  latency-ms 8
 
 Elasticsearch_APAC is a database | t: Data, r: APAC
-  latency-ms: 15
+  latency-ms 15
 
 // ── Event Bus + Async Consumers ─────────────────────────────
 
 Kafka_US is a queue | t: Platform, r: US
-  description: Regional Kafka cluster
+  description Regional Kafka cluster
   ~notifications~> NotifySvc
   ~analytics~> AnalyticsPipeline
   ~inventory~> InventorySvc
@@ -217,18 +216,18 @@ Kafka_APAC is a queue | t: Platform, r: APAC
   ~analytics~> AnalyticsPipeline
 
 NotifySvc is a service | t: Backend
-  description: Email/SMS/push dispatcher
-  instances: 3
+  description Email/SMS/push dispatcher
+  instances 3
 
 AnalyticsPipeline is a service | t: ML
-  description: Real-time analytics and ML feature pipeline
-  instances: 2
+  description Real-time analytics and ML feature pipeline
+  instances 2
   -> ClickHouse
 
 InventorySvc is a service | t: Backend
-  description: Inventory reconciliation
-  instances: 2
+  description Inventory reconciliation
+  instances 2
   -> PostgreSQL_US
 
 ClickHouse is a database | t: Data
-  description: OLAP analytics store
+  description OLAP analytics store

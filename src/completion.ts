@@ -10,6 +10,7 @@ import { extractSymbols as extractErSymbols } from './er/parser';
 import { extractSymbols as extractFlowchartSymbols } from './graph/flowchart-parser';
 import { extractSymbols as extractInfraSymbols } from './infra/parser';
 import { extractSymbols as extractClassSymbols } from './class/parser';
+import { parseFirstLine } from './utils/parsing';
 
 // ChartType is just a string — alias here for documentation clarity.
 export type ChartType = string;
@@ -33,14 +34,16 @@ export function registerExtractor(kind: ChartType, fn: ExtractFn): void {
  * Returns null if the chart type is unknown or has no registered extractor.
  */
 export function extractDiagramSymbols(docText: string): DiagramSymbols | null {
-  // Parse chartType from first `chart:` line — lightweight, no full parser.
+  // Parse chartType from first line — supports bare type name and old `chart:` syntax.
   let chartType: string | null = null;
   for (const line of docText.split('\n')) {
-    const m = line.match(/^\s*chart\s*:\s*(.+)/i);
-    if (m) {
-      chartType = m[1]!.trim().toLowerCase();
-      break;
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('//')) continue;
+    const result = parseFirstLine(trimmed);
+    if (result) {
+      chartType = result.chartType;
     }
+    break; // only check the first non-empty, non-comment line
   }
   if (!chartType) return null;
   const fn = registry.get(chartType);

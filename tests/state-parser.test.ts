@@ -4,38 +4,38 @@ import { parseState, looksLikeState } from '../src/graph/state-parser';
 describe('parseState', () => {
   // === Metadata ===
   describe('metadata', () => {
-    it('parses chart: state', () => {
-      const result = parseState('chart: state\n[*] -> Idle');
+    it('parses state first line', () => {
+      const result = parseState('state\n[*] -> Idle');
       expect(result.type).toBe('state');
       expect(result.error).toBeNull();
       expect(result.diagnostics).toEqual([]);
     });
 
     it('rejects wrong chart type', () => {
-      const result = parseState('chart: flowchart\n[*] -> Idle');
+      const result = parseState('flowchart\n[*] -> Idle');
       expect(result.error).toBeDefined();
       expect(result.diagnostics).toHaveLength(1);
       expect(result.diagnostics[0].message).toContain('Expected chart type "state"');
     });
 
     it('suggests correct type on typo', () => {
-      const result = parseState('chart: sttae\n[*] -> Idle');
+      const result = parseState('sttae\n[*] -> Idle');
       expect(result.error).toBeDefined();
       expect(result.diagnostics[0].message).toMatch(/state/);
     });
 
-    it('parses title', () => {
-      const result = parseState('title: My States\n[*] -> Idle');
+    it('parses title from first line', () => {
+      const result = parseState('state My States\n[*] -> Idle');
       expect(result.title).toBe('My States');
     });
 
-    it('parses direction: TB', () => {
-      const result = parseState('direction: TB\n[*] -> Idle');
+    it('parses direction TB', () => {
+      const result = parseState('direction TB\n[*] -> Idle');
       expect(result.direction).toBe('TB');
     });
 
-    it('parses direction: LR', () => {
-      const result = parseState('direction: LR\n[*] -> Idle');
+    it('parses direction LR', () => {
+      const result = parseState('direction LR\n[*] -> Idle');
       expect(result.direction).toBe('LR');
     });
 
@@ -44,18 +44,18 @@ describe('parseState', () => {
       expect(result.direction).toBe('TB');
     });
 
-    it('accepts orientation: as alias for direction:', () => {
-      const result = parseState('orientation: LR\n[*] -> Idle');
+    it('accepts orientation as alias for direction', () => {
+      const result = parseState('orientation LR\n[*] -> Idle');
       expect(result.direction).toBe('LR');
     });
 
-    it('normalizes direction: horizontal to LR', () => {
-      const result = parseState('direction: horizontal\n[*] -> Idle');
+    it('normalizes direction horizontal to LR', () => {
+      const result = parseState('direction horizontal\n[*] -> Idle');
       expect(result.direction).toBe('LR');
     });
 
-    it('normalizes orientation: vertical to TB', () => {
-      const result = parseState('orientation: vertical\n[*] -> Idle');
+    it('normalizes orientation vertical to TB', () => {
+      const result = parseState('orientation vertical\n[*] -> Idle');
       expect(result.direction).toBe('TB');
     });
   });
@@ -246,13 +246,13 @@ describe('parseState', () => {
 
   // === Options ===
   describe('options', () => {
-    it('parses color: off', () => {
-      const result = parseState('color: off\n[*] -> Idle');
+    it('parses color off', () => {
+      const result = parseState('color off\n[*] -> Idle');
       expect(result.options.color).toBe('off');
     });
 
     it('parses custom options', () => {
-      const result = parseState('foo: bar\n[*] -> Idle');
+      const result = parseState('foo bar\n[*] -> Idle');
       expect(result.options.foo).toBe('bar');
     });
   });
@@ -260,20 +260,20 @@ describe('parseState', () => {
   // === Line numbers ===
   describe('line numbers', () => {
     it('tracks line numbers on nodes', () => {
-      const input = 'chart: state\ntitle: Test\n\nIdle -> Active';
+      const input = 'state Test\n\nIdle -> Active';
       const result = parseState(input);
-      expect(result.nodes[0].lineNumber).toBe(4);
-      expect(result.nodes[1].lineNumber).toBe(4);
+      expect(result.nodes[0].lineNumber).toBe(3);
+      expect(result.nodes[1].lineNumber).toBe(3);
     });
 
     it('tracks line numbers on edges', () => {
-      const input = 'chart: state\n\nA -> B';
+      const input = 'state\n\nA -> B';
       const result = parseState(input);
       expect(result.edges[0].lineNumber).toBe(3);
     });
 
     it('tracks title line number', () => {
-      const result = parseState('title: My Diagram\n[*] -> Idle');
+      const result = parseState('state My Diagram\n[*] -> Idle');
       expect(result.titleLineNumber).toBe(1);
     });
   });
@@ -281,7 +281,7 @@ describe('parseState', () => {
   // === Errors ===
   describe('errors', () => {
     it('error on empty content', () => {
-      const result = parseState('chart: state\n');
+      const result = parseState('state\n');
       expect(result.error).toBeDefined();
       expect(result.diagnostics).toHaveLength(1);
       expect(result.diagnostics[0].severity).toBe('error');
@@ -309,9 +309,8 @@ describe('parseState', () => {
   describe('comprehensive example', () => {
     it('parses a full state diagram', () => {
       const input = [
-        'chart: state',
-        'title: Order Lifecycle',
-        'direction: LR',
+        'state Order Lifecycle',
+        'direction LR',
         '',
         '[Processing](blue)',
         '  Validating -valid-> Approved',

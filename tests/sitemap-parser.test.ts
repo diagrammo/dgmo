@@ -4,21 +4,21 @@ import { parseSitemap, looksLikeSitemap } from '../src/sitemap/parser';
 describe('parseSitemap', () => {
   // === Chart type ===
   describe('chart type', () => {
-    it('accepts chart: sitemap', () => {
-      const result = parseSitemap('chart: sitemap\nHome');
+    it('accepts sitemap first line', () => {
+      const result = parseSitemap('sitemap\nHome');
       expect(result.error).toBeNull();
       expect(result.diagnostics).toEqual([]);
       expect(result.roots).toHaveLength(1);
     });
 
     it('rejects wrong chart type', () => {
-      const result = parseSitemap('chart: flowchart\nHome');
+      const result = parseSitemap('flowchart\nHome');
       expect(result.error).toMatch(/Expected chart type "sitemap"/);
       expect(result.diagnostics).toHaveLength(1);
       expect(result.diagnostics[0].severity).toBe('error');
     });
 
-    it('works without explicit chart: header', () => {
+    it('works without explicit chart header', () => {
       const result = parseSitemap('Home');
       expect(result.error).toBeNull();
       expect(result.roots).toHaveLength(1);
@@ -27,14 +27,14 @@ describe('parseSitemap', () => {
 
   // === Title ===
   describe('title', () => {
-    it('parses title', () => {
-      const result = parseSitemap('chart: sitemap\ntitle: My Website\nHome');
+    it('parses title from first line', () => {
+      const result = parseSitemap('sitemap My Website\nHome');
       expect(result.title).toBe('My Website');
-      expect(result.titleLineNumber).toBe(2);
+      expect(result.titleLineNumber).toBe(1);
     });
 
     it('no title returns null', () => {
-      const result = parseSitemap('chart: sitemap\nHome');
+      const result = parseSitemap('sitemap\nHome');
       expect(result.title).toBeNull();
     });
   });
@@ -46,23 +46,23 @@ describe('parseSitemap', () => {
       expect(result.direction).toBe('TB');
     });
 
-    it('parses direction: LR', () => {
-      const result = parseSitemap('chart: sitemap\ndirection: LR\nHome');
+    it('parses direction LR', () => {
+      const result = parseSitemap('sitemap\ndirection LR\nHome');
       expect(result.direction).toBe('LR');
     });
 
-    it('parses direction: TB', () => {
-      const result = parseSitemap('chart: sitemap\ndirection: TB\nHome');
+    it('parses direction TB', () => {
+      const result = parseSitemap('sitemap\ndirection TB\nHome');
       expect(result.direction).toBe('TB');
     });
 
-    it('accepts orientation: as alias for direction:', () => {
-      const result = parseSitemap('chart: sitemap\norientation: horizontal\nHome');
+    it('accepts orientation as alias for direction', () => {
+      const result = parseSitemap('sitemap\norientation horizontal\nHome');
       expect(result.direction).toBe('LR');
     });
 
-    it('normalizes direction: vertical to TB', () => {
-      const result = parseSitemap('chart: sitemap\ndirection: vertical\nHome');
+    it('normalizes direction vertical to TB', () => {
+      const result = parseSitemap('sitemap\ndirection vertical\nHome');
       expect(result.direction).toBe('TB');
     });
   });
@@ -89,7 +89,7 @@ describe('parseSitemap', () => {
     });
 
     it('returns error for no pages', () => {
-      const result = parseSitemap('chart: sitemap');
+      const result = parseSitemap('sitemap');
       expect(result.error).toMatch(/No pages found/);
     });
   });
@@ -304,7 +304,7 @@ describe('parseSitemap', () => {
   describe('tag groups', () => {
     it('parses tag: Name with entries', () => {
       const content = [
-        'chart: sitemap',
+        'sitemap',
         'tag: Auth',
         '  Public(green)',
         '  Required(blue)',
@@ -367,7 +367,7 @@ describe('parseSitemap', () => {
   // === Options ===
   describe('options', () => {
     it('parses generic options', () => {
-      const result = parseSitemap('chart: sitemap\nsome-option: value\nHome');
+      const result = parseSitemap('sitemap\nsome-option value\nHome');
       expect(result.options['some-option']).toBe('value');
     });
   });
@@ -376,9 +376,8 @@ describe('parseSitemap', () => {
   describe('full sample', () => {
     it('parses baseball tickets sample structure', () => {
       const content = [
-        'chart: sitemap',
-        'title: Grand Slam Tickets',
-        'direction: TB',
+        'sitemap Grand Slam Tickets',
+        'direction TB',
         '',
         'tag: Auth',
         '  Public(green)',

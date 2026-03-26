@@ -1,5 +1,4 @@
-chart: flowchart
-title: Retry Logic
+flowchart Retry Logic
 
 (Start) -> [Initialize] -> [Attempt Request] -> <Success?>
   -yes-> [Process Response] -> (Done)

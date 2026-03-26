@@ -94,7 +94,8 @@ import { parseChart } from './chart';
 import type { ParsedChart, ChartEra } from './chart';
 import { makeDgmoError, formatDgmoError, suggest } from './diagnostics';
 import { resolveColor } from './colors';
-import { collectIndentedValues, extractColor, measureIndent, parseSeriesNames } from './utils/parsing';
+import { collectIndentedValues, extractColor, measureIndent, normalizeGroupedNumber, parseFirstLine, parseSeriesNames } from './utils/parsing';
+import { parseDataRowValues } from './chart';
 
 // ============================================================
 // Shared Constants
@@ -108,18 +109,50 @@ const CHART_BORDER_WIDTH = 2;
 // Parser
 // ============================================================
 
+const VALID_EXTENDED_TYPES = new Set<ExtendedChartType>([
+  'sankey', 'chord', 'function', 'scatter', 'heatmap', 'funnel',
+]);
+
+/** Known option keywords for the extended chart parser. */
+const KNOWN_EXTENDED_OPTIONS = new Set([
+  'chart', 'title', 'series', 'xlabel', 'ylabel', 'sizelabel', 'labels',
+  'columns', 'rows', 'x',
+]);
+
+/**
+ * Parse a scatter data row: "Name x, y[, size]" or "Name(color) x, y[, size]"
+ * Returns a ParsedScatterPoint or null if the line doesn't match.
+ */
+function parseScatterRow(
+  line: string,
+  palette: PaletteColors | undefined,
+  currentCategory: string,
+  lineNumber: number,
+): ParsedScatterPoint | null {
+  const dataRow = parseDataRowValues(line);
+  if (!dataRow || dataRow.values.length < 2) return null;
+  const { label: rawLabel, color: pointColor } = extractColor(dataRow.label, palette);
+  return {
+    name: rawLabel,
+    x: dataRow.values[0],
+    y: dataRow.values[1],
+    size: dataRow.values[2] !== undefined ? dataRow.values[2] : undefined,
+    ...(pointColor && { color: pointColor }),
+    ...(currentCategory !== 'Default' && { category: currentCategory }),
+    lineNumber,
+  };
+}
+
 /**
  * Parses extended chart content into a structured object.
  *
- * Format:
+ * Format (colon-free):
  * ```
- * chart: bar
- * title: My Chart
- * series: Revenue
+ * scatter My Chart
+ * xlabel Weight
  *
- * Jan: 120
- * Feb: 200
- * Mar: 150
+ * Alice 165, 60
+ * Bob 180, 85
  * ```
  */
 export function parseExtendedChart(
@@ -139,6 +172,7 @@ export function parseExtendedChart(
 
   // Sankey indentation state: stack of source nodes by indent level
   const sankeyStack: { name: string; indent: number }[] = [];
+  let firstLineParsed = false;
 
   for (let i = 0; i < lines.length; i++) {
     const trimmed = lines[i].trim();
@@ -157,6 +191,45 @@ export function parseExtendedChart(
     // Skip comments
     if (trimmed.startsWith('//')) continue;
 
+    // First non-empty, non-comment line: chart type + optional title
+    if (!firstLineParsed) {
+      firstLineParsed = true;
+      const firstLine = parseFirstLine(trimmed);
+      if (firstLine) {
+        const chartType = firstLine.chartType.toLowerCase() as ExtendedChartType;
+        if (VALID_EXTENDED_TYPES.has(chartType)) {
+          result.type = chartType;
+          if (firstLine.title) {
+            result.title = firstLine.title;
+            result.titleLineNumber = lineNumber;
+          }
+          continue;
+        } else {
+          const validTypes = [...VALID_EXTENDED_TYPES];
+          let msg = `Unsupported chart type: ${firstLine.chartType}. Supported types: ${validTypes.join(', ')}.`;
+          const hint = suggest(chartType, validTypes);
+          if (hint) msg += ` ${hint}`;
+          const diag = makeDgmoError(lineNumber, msg);
+          result.diagnostics.push(diag);
+          result.error = formatDgmoError(diag);
+          return result;
+        }
+      }
+      // If the first line is a single word (no spaces, no colon, no numbers),
+      // treat it as an unrecognized chart type rather than falling through
+      if (!trimmed.includes(' ') && !trimmed.includes(':') && !/\d/.test(trimmed)) {
+        const validTypes = [...VALID_EXTENDED_TYPES];
+        let msg = `Unsupported chart type: ${trimmed}. Supported types: ${validTypes.join(', ')}.`;
+        const hint = suggest(trimmed.toLowerCase(), validTypes);
+        if (hint) msg += ` ${hint}`;
+        const diag = makeDgmoError(lineNumber, msg);
+        result.diagnostics.push(diag);
+        result.error = formatDgmoError(diag);
+        return result;
+      }
+      // Fall through — first line might be a data row or option
+    }
+
     // [Category] container header with optional color: [Category Name] or [Category Name](color)
     const categoryMatch = trimmed.match(/^\[(.+?)\](?:\s*\(([^)]+)\))?\s*$/);
     if (categoryMatch) {
@@ -170,130 +243,8 @@ export function parseExtendedChart(
       continue;
     }
 
-    // Parse key: value pairs
-    const colonIndex = trimmed.indexOf(':');
-
-    // Sankey: bare label (no colon) at any indent = source node for indented children
-    if (result.type === 'sankey' && colonIndex === -1) {
-      const indent = measureIndent(lines[i]);
-      while (sankeyStack.length && sankeyStack.at(-1)!.indent >= indent) {
-        sankeyStack.pop();
-      }
-      const { label: nodeName, color: nodeColor } = extractColor(trimmed, palette);
-      if (nodeColor) {
-        if (!result.nodeColors) result.nodeColors = {};
-        result.nodeColors[nodeName] = nodeColor;
-      }
-      sankeyStack.push({ name: nodeName, indent });
-      continue;
-    }
-
-    if (colonIndex === -1) continue;
-
-    const key = trimmed.substring(0, colonIndex).trim().toLowerCase();
-    const value = trimmed.substring(colonIndex + 1).trim();
-
-    // Handle metadata
-    if (key === 'chart') {
-      const chartType = value.toLowerCase();
-      if (
-        chartType === 'sankey' ||
-        chartType === 'chord' ||
-        chartType === 'function' ||
-        chartType === 'scatter' ||
-        chartType === 'heatmap' ||
-        chartType === 'funnel'
-      ) {
-        result.type = chartType;
-      } else {
-        const validTypes = ['scatter', 'sankey', 'chord', 'function', 'heatmap', 'funnel'];
-        let msg = `Unsupported chart type: ${value}. Supported types: ${validTypes.join(', ')}.`;
-        const hint = suggest(chartType, validTypes);
-        if (hint) msg += ` ${hint}`;
-        const diag = makeDgmoError(lineNumber, msg);
-        result.diagnostics.push(diag);
-        result.error = formatDgmoError(diag);
-        return result;
-      }
-      continue;
-    }
-
-    if (key === 'title') {
-      result.title = value;
-      result.titleLineNumber = lineNumber;
-      continue;
-    }
-
-    if (key === 'series') {
-      const parsed = parseSeriesNames(value, lines, i, palette);
-      i = parsed.newIndex;
-      result.series = parsed.series;
-      if (parsed.names.length > 1) {
-        result.seriesNames = parsed.names;
-      }
-      if (parsed.nameColors.some(Boolean)) result.seriesNameColors = parsed.nameColors;
-      continue;
-    }
-
-    // Axis labels
-    if (key === 'xlabel') {
-      result.xlabel = value;
-      continue;
-    }
-
-    if (key === 'ylabel') {
-      result.ylabel = value;
-      continue;
-    }
-
-    if (key === 'sizelabel') {
-      result.sizelabel = value;
-      continue;
-    }
-
-    if (key === 'labels') {
-      result.showLabels =
-        value.toLowerCase() === 'on' || value.toLowerCase() === 'true';
-      continue;
-    }
-
-    // Heatmap columns and rows headers
-    if (key === 'columns') {
-      if (value) {
-        result.columns = value.split(',').map((s) => s.trim());
-      } else {
-        const collected = collectIndentedValues(lines, i);
-        i = collected.newIndex;
-        result.columns = collected.values;
-      }
-      continue;
-    }
-
-    if (key === 'rows') {
-      if (value) {
-        result.rows = value.split(',').map((s) => s.trim());
-      } else {
-        const collected = collectIndentedValues(lines, i);
-        i = collected.newIndex;
-        result.rows = collected.values;
-      }
-      continue;
-    }
-
-    // Check for x range: "x: min to max"
-    if (key === 'x') {
-      const rangeMatch = value.match(/^(-?[\d.]+)\s+to\s+(-?[\d.]+)$/);
-      if (rangeMatch) {
-        result.xRange = {
-          min: parseFloat(rangeMatch[1]),
-          max: parseFloat(rangeMatch[2]),
-        };
-      }
-      continue;
-    }
-
-    // Check for Sankey arrow syntax: Source (color) -> Target (color): Value (color)
-    const arrowMatch = trimmed.match(/^(.+?)\s*->\s*(.+?):\s*(\d+(?:\.\d+)?)\s*(?:\(([^)]+)\))?\s*$/);
+    // Sankey/chord arrow syntax: Source (color) -> Target (color) Value (color)
+    const arrowMatch = trimmed.match(/^(.+?)\s*->\s*(.+?)\s+(\d+(?:\.\d+)?)\s*(?:\(([^)]+)\))?\s*$/);
     if (arrowMatch) {
       const [, rawSource, rawTarget, val, rawLinkColor] = arrowMatch;
       const { label: source, color: sourceColor } = extractColor(rawSource.trim(), palette);
@@ -315,88 +266,211 @@ export function parseExtendedChart(
       continue;
     }
 
-    // Sankey: indented "Target: Value" under a source node on the indent stack
-    if (result.type === 'sankey' && sankeyStack.length > 0) {
+    // Sankey: bare label (no numeric value) at any indent = source node for indented children
+    if (result.type === 'sankey') {
       const indent = measureIndent(lines[i]);
-      if (indent > 0) {
+      // Sankey indented child: "  Target value (color)" under a source on the stack
+      if (indent > 0 && sankeyStack.length > 0) {
         // Pop entries at same or deeper indent to find the parent
         while (sankeyStack.length && sankeyStack.at(-1)!.indent >= indent) {
           sankeyStack.pop();
         }
         if (sankeyStack.length > 0) {
-          const source = sankeyStack.at(-1)!.name;
-          const { label: target, color: targetColor } = extractColor(trimmed.substring(0, colonIndex).trim(), palette);
-          if (targetColor) {
-            if (!result.nodeColors) result.nodeColors = {};
-            result.nodeColors[target] = targetColor;
-          }
-          // Parse value with optional trailing (color) for link color
-          const valColorMatch = value.match(/^(\d+(?:\.\d+)?)\s*(?:\(([^)]+)\))?\s*$/);
-          const val = valColorMatch ? parseFloat(valColorMatch[1]) : NaN;
-          const linkColor = valColorMatch?.[2] ? resolveColor(valColorMatch[2].trim(), palette) : undefined;
-          if (!isNaN(val)) {
+          // Parse "TargetName value (linkColor)" or "TargetName(nodeColor) value (linkColor)"
+          // Strip trailing (color) annotation before parseDataRowValues — it can't handle it
+          const valColorMatch = trimmed.match(/(\d+(?:\.\d+)?)\s*\(([^)]+)\)\s*$/);
+          const strippedLine = valColorMatch ? trimmed.replace(/\s*\([^)]+\)\s*$/, '') : trimmed;
+          const dataRow = parseDataRowValues(strippedLine);
+          if (dataRow && dataRow.values.length === 1) {
+            const source = sankeyStack.at(-1)!.name;
+            const linkColor = valColorMatch?.[2] ? resolveColor(valColorMatch[2].trim(), palette) : undefined;
+            const { label: target, color: targetColor } = extractColor(dataRow.label, palette);
+            if (targetColor) {
+              if (!result.nodeColors) result.nodeColors = {};
+              result.nodeColors[target] = targetColor;
+            }
             if (!result.links) result.links = [];
-            result.links.push({ source, target, value: val, ...(linkColor && { color: linkColor }), lineNumber });
-            // Push target as potential source for deeper nesting
+            result.links.push({ source, target, value: dataRow.values[0], ...(linkColor && { color: linkColor }), lineNumber });
             sankeyStack.push({ name: target, indent });
             continue;
           }
         }
       }
+
+      // Bare label at indent 0 (or any indent without a value) = new source node
+      const spaceIdx = trimmed.indexOf(' ');
+      const hasNumericSuffix = spaceIdx >= 0 && !isNaN(parseFloat(trimmed.substring(trimmed.lastIndexOf(' ') + 1)));
+      if (!hasNumericSuffix) {
+        while (sankeyStack.length && sankeyStack.at(-1)!.indent >= indent) {
+          sankeyStack.pop();
+        }
+        const { label: nodeName, color: nodeColor } = extractColor(trimmed, palette);
+        if (nodeColor) {
+          if (!result.nodeColors) result.nodeColors = {};
+          result.nodeColors[nodeName] = nodeColor;
+        }
+        sankeyStack.push({ name: nodeName, indent });
+        continue;
+      }
     }
 
-    // For function charts, treat non-numeric values as function expressions
-    if (result.type === 'function') {
-      const { label: fnName, color: fnColor } = extractColor(trimmed.substring(0, colonIndex).trim(), palette);
-      if (!result.functions) result.functions = [];
-      result.functions.push({
-        name: fnName,
-        expression: value,
-        ...(fnColor && { color: fnColor }),
-        lineNumber,
-      });
+    // Extract first token to check for known options
+    const spaceIdx = trimmed.indexOf(' ');
+    const firstToken = (spaceIdx >= 0 ? trimmed.substring(0, spaceIdx) : trimmed).toLowerCase();
+
+    // Known option with a value
+    if (KNOWN_EXTENDED_OPTIONS.has(firstToken) && spaceIdx >= 0) {
+      const value = trimmed.substring(spaceIdx + 1).trim();
+
+      if (firstToken === 'chart') {
+        const chartType = value.toLowerCase() as ExtendedChartType;
+        if (VALID_EXTENDED_TYPES.has(chartType)) {
+          result.type = chartType;
+        } else {
+          const validTypes = [...VALID_EXTENDED_TYPES];
+          let msg = `Unsupported chart type: ${value}. Supported types: ${validTypes.join(', ')}.`;
+          const hint = suggest(chartType, validTypes);
+          if (hint) msg += ` ${hint}`;
+          const diag = makeDgmoError(lineNumber, msg);
+          result.diagnostics.push(diag);
+          result.error = formatDgmoError(diag);
+          return result;
+        }
+        continue;
+      }
+
+      if (firstToken === 'title') {
+        result.title = value;
+        result.titleLineNumber = lineNumber;
+        continue;
+      }
+
+      if (firstToken === 'series') {
+        const parsed = parseSeriesNames(value, lines, i, palette);
+        i = parsed.newIndex;
+        result.series = parsed.series;
+        if (parsed.names.length > 1) {
+          result.seriesNames = parsed.names;
+        }
+        if (parsed.nameColors.some(Boolean)) result.seriesNameColors = parsed.nameColors;
+        continue;
+      }
+
+      if (firstToken === 'xlabel') { result.xlabel = value; continue; }
+      if (firstToken === 'ylabel') { result.ylabel = value; continue; }
+      if (firstToken === 'sizelabel') { result.sizelabel = value; continue; }
+
+      if (firstToken === 'labels') {
+        result.showLabels = value.toLowerCase() === 'on' || value.toLowerCase() === 'true';
+        continue;
+      }
+
+      if (firstToken === 'columns') {
+        if (value) {
+          result.columns = value.split(',').map((s) => s.trim());
+        } else {
+          const collected = collectIndentedValues(lines, i);
+          i = collected.newIndex;
+          result.columns = collected.values;
+        }
+        continue;
+      }
+
+      if (firstToken === 'rows') {
+        if (value) {
+          result.rows = value.split(',').map((s) => s.trim());
+        } else {
+          const collected = collectIndentedValues(lines, i);
+          i = collected.newIndex;
+          result.rows = collected.values;
+        }
+        continue;
+      }
+
+      if (firstToken === 'x') {
+        const rangeMatch = value.match(/^(-?[\d.]+)\s+to\s+(-?[\d.]+)$/);
+        if (rangeMatch) {
+          result.xRange = {
+            min: parseFloat(rangeMatch[1]),
+            max: parseFloat(rangeMatch[2]),
+          };
+        }
+        continue;
+      }
+    }
+
+    // Bare keyword options (no value)
+    if (firstToken === 'series' && spaceIdx === -1) {
+      const parsed = parseSeriesNames('', lines, i, palette);
+      i = parsed.newIndex;
+      result.series = parsed.series;
+      if (parsed.names.length > 1) {
+        result.seriesNames = parsed.names;
+      }
+      if (parsed.nameColors.some(Boolean)) result.seriesNameColors = parsed.nameColors;
       continue;
     }
 
-    // For scatter charts, parse "Name: x, y" or "Name: x, y, size"
-    if (result.type === 'scatter') {
-      const scatterMatch = value.match(
-        /^(-?[\d.]+)\s*,\s*(-?[\d.]+)(?:\s*,\s*(-?[\d.]+))?$/
-      );
-      if (scatterMatch) {
-        const { label: scatterName, color: scatterColor } = extractColor(trimmed.substring(0, colonIndex).trim(), palette);
-        if (!result.scatterPoints) result.scatterPoints = [];
-        result.scatterPoints.push({
-          name: scatterName,
-          x: parseFloat(scatterMatch[1]),
-          y: parseFloat(scatterMatch[2]),
-          size: scatterMatch[3] ? parseFloat(scatterMatch[3]) : undefined,
-          ...(scatterColor && { color: scatterColor }),
-          ...(currentCategory !== 'Default' && { category: currentCategory }),
+    if (firstToken === 'columns' && spaceIdx === -1) {
+      const collected = collectIndentedValues(lines, i);
+      i = collected.newIndex;
+      result.columns = collected.values;
+      continue;
+    }
+
+    if (firstToken === 'rows' && spaceIdx === -1) {
+      const collected = collectIndentedValues(lines, i);
+      i = collected.newIndex;
+      result.rows = collected.values;
+      continue;
+    }
+
+    // Function chart: "name expression" where name may contain parens like f(x)
+    // Must use colon to separate name from expression since both can contain spaces
+    if (result.type === 'function') {
+      const colonIndex = trimmed.indexOf(':');
+      if (colonIndex >= 0) {
+        const { label: fnName, color: fnColor } = extractColor(trimmed.substring(0, colonIndex).trim(), palette);
+        const fnValue = trimmed.substring(colonIndex + 1).trim();
+        if (!result.functions) result.functions = [];
+        result.functions.push({
+          name: fnName,
+          expression: fnValue,
+          ...(fnColor && { color: fnColor }),
           lineNumber,
         });
+        continue;
       }
-      continue;
     }
 
-    // For heatmap, parse "RowLabel: val1, val2, val3, ..."
+    // Scatter chart: "Name x, y" or "Name x, y, size"
+    if (result.type === 'scatter') {
+      // Parse from right: trailing comma-separated numbers are x, y [, size]
+      const scatterData = parseScatterRow(trimmed, palette, currentCategory, lineNumber);
+      if (scatterData) {
+        if (!result.scatterPoints) result.scatterPoints = [];
+        result.scatterPoints.push(scatterData);
+        continue;
+      }
+    }
+
+    // Heatmap data row: "RowLabel val1, val2, val3, ..."
     if (result.type === 'heatmap') {
-      const values = value.split(',').map((v) => parseFloat(v.trim()));
-      if (values.length > 0 && values.every((v) => !isNaN(v))) {
-        const originalKey = trimmed.substring(0, colonIndex).trim();
+      const dataRow = parseDataRowValues(trimmed);
+      if (dataRow && dataRow.values.length > 0) {
         if (!result.heatmapRows) result.heatmapRows = [];
-        result.heatmapRows.push({ label: originalKey, values, lineNumber });
+        result.heatmapRows.push({ label: dataRow.label, values: dataRow.values, lineNumber });
+        continue;
       }
-      continue;
     }
 
-    // Otherwise treat as data point (label: value)
-    const numValue = parseFloat(value);
-    if (!isNaN(numValue)) {
-      const { label: rawLabel, color: pointColor } = extractColor(trimmed.substring(0, colonIndex).trim(), palette);
+    // Funnel / generic data point: "Label value"
+    const dataRow = parseDataRowValues(trimmed);
+    if (dataRow && dataRow.values.length === 1) {
+      const { label: rawLabel, color: pointColor } = extractColor(dataRow.label, palette);
       result.data.push({
         label: rawLabel,
-        value: numValue,
+        value: dataRow.values[0],
         ...(pointColor && { color: pointColor }),
         lineNumber,
       });
@@ -1903,7 +1977,7 @@ function buildMarkArea(
           xAxis: era.start,
           itemStyle: { color, opacity: 0.15 },
           label: {
-            show: bandSlots >= 3,
+            show: bandSlots >= 2,
             position: 'insideTop',
             fontSize: 11,
             color: textColor,
@@ -2343,14 +2417,24 @@ export async function renderExtendedChartForExport(
     palette ?? (isDark ? getPalette('nord').dark : getPalette('nord').light);
 
   // Detect chart type to dispatch to the right parser/builder
-  const chartLine = content.match(/^chart\s*:\s*(.+)/im);
-  const chartType = chartLine?.[1]?.trim().toLowerCase();
+  // Find first non-empty, non-comment line and use parseFirstLine for new-style detection
+  let chartType: string | undefined;
+  for (const rawLine of content.split('\n')) {
+    const t = rawLine.trim();
+    if (!t || t.startsWith('//')) continue;
+    const fl = parseFirstLine(t);
+    if (fl) chartType = fl.chartType.toLowerCase();
+    break;
+  }
+
+  // No recognised chart type on the first line → nothing to render
+  if (!chartType) return '';
 
   let option: EChartsOption;
   let legendGroups: LegendGroupData[] = [];
   const colors = getSeriesColors(effectivePalette);
 
-  if (chartType && STANDARD_CHART_TYPES.has(chartType)) {
+  if (STANDARD_CHART_TYPES.has(chartType)) {
     const parsed = parseChart(content, effectivePalette);
     if (parsed.error) return '';
     option = buildSimpleChartOption(parsed, effectivePalette, isDark, ECHART_EXPORT_WIDTH);

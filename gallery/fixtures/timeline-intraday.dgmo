@@ -1,0 +1,15 @@
+chart: gantt
+title: Conference Day 1
+start: 2024-06-15 08:00
+
+30min: Registration
+1.5h: Opening Keynote
+15min: Break
+parallel
+  1h: Track A - Workshop
+  1h: Track B - Panel
+30min: Lunch
+2h: Afternoon Sessions
+
+marker: 2024-06-15 12:30 Lunch
+era 2024-06-15 08:00 -> 2024-06-15 09:30: Morning Block

@@ -36,8 +36,16 @@ export interface ResolveImportsResult {
 const MAX_DEPTH = 10;
 const IMPORT_RE = /^(\s+)import:\s+(.+\.dgmo)\s*$/i;
 const TAGS_RE = /^tags:\s+(.+\.dgmo)\s*$/i;
-const HEADER_RE = /^(chart|title)\s*:/i;
-const OPTION_RE = /^[a-z][a-z0-9-]*\s*:/i;
+/** Matches new-style first line: `org ...` or old `chart: ...` or `title: ...` */
+const HEADER_RE = /^(org|kanban|chart\s*:|title\s*:)/i;
+/**
+ * Known option keys that can appear in org chart headers (space-separated).
+ * Only these are stripped from imported files — avoids eating content like "Alice Chen".
+ */
+const KNOWN_HEADER_OPTIONS = new Set([
+  'direction', 'sub-node-label', 'hide', 'show-sub-node-count',
+  'color-off',
+]);
 
 // ============================================================
 // Path Helpers (pure string ops — no Node `path` dependency)
@@ -157,11 +165,10 @@ function parseFileHeader(lines: string[]): ParsedHeader {
         continue;
       }
 
-      // Other option-like header lines (non-indented key: value)
-      if (OPTION_RE.test(trimmed) && !isTagBlockHeading(trimmed) && !lines[i].match(/^\s/)) {
-        // Check it's not a content line (node with metadata)
-        const key = trimmed.split(':')[0].trim().toLowerCase();
-        if (key !== 'chart' && key !== 'title' && !trimmed.includes('|')) {
+      // Known option header lines (space-separated `key value` or bare boolean)
+      if (!lines[i].match(/^\s/) && !isTagBlockHeading(trimmed) && !trimmed.includes('|')) {
+        const firstToken = trimmed.split(/\s/)[0].toLowerCase();
+        if (KNOWN_HEADER_OPTIONS.has(firstToken)) {
           continue;
         }
       }
@@ -470,10 +477,10 @@ function findBodyStart(lines: string[]): number {
     if (HEADER_RE.test(trimmed)) continue;
     if (TAGS_RE.test(trimmed)) continue;
 
-    // Option-like lines (non-indented key: value before content)
-    if (OPTION_RE.test(trimmed) && !isTagBlockHeading(trimmed) && !lines[i].match(/^\s/) && !trimmed.includes('|')) {
-      const key = trimmed.split(':')[0].trim().toLowerCase();
-      if (key !== 'chart' && key !== 'title') {
+    // Known option lines (space-separated `key value` or bare boolean before content)
+    if (!lines[i].match(/^\s/) && !trimmed.includes('|') && !isTagBlockHeading(trimmed)) {
+      const firstToken = trimmed.split(/\s/)[0].toLowerCase();
+      if (KNOWN_HEADER_OPTIONS.has(firstToken)) {
         continue;
       }
     }

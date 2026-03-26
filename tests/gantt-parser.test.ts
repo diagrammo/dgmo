@@ -6,57 +6,62 @@ const palette = getPalette('nord').light;
 
 describe('gantt parser', () => {
   describe('chart type', () => {
-    it('accepts chart: gantt', () => {
-      const result = parseGantt('chart: gantt\n10d: Task A', palette);
+    it('accepts gantt on first line', () => {
+      const result = parseGantt('gantt\n10d Task A', palette);
       expect(result.error).toBeNull();
     });
 
-    it('rejects chart: timeline', () => {
-      const result = parseGantt('chart: timeline\n10d: Task A', palette);
+    it('rejects timeline on first line', () => {
+      const result = parseGantt('timeline\n10d Task A', palette);
       expect(result.error).toMatch(/Expected chart type "gantt"/);
     });
   });
 
   describe('options', () => {
     it('parses start date', () => {
-      const result = parseGantt('chart: gantt\nstart: 2024-01-15\n10d: Task', palette);
+      const result = parseGantt('gantt\nstart 2024-01-15\n10d Task', palette);
       expect(result.options.start).toBe('2024-01-15');
     });
 
     it('parses title', () => {
-      const result = parseGantt('chart: gantt\ntitle: My Plan\n10d: Task', palette);
+      const result = parseGantt('gantt\ntitle My Plan\n10d Task', palette);
       expect(result.options.title).toBe('My Plan');
     });
 
-    it('parses today-marker: on', () => {
-      const result = parseGantt('chart: gantt\ntoday-marker: on\n10d: Task', palette);
+    it('parses today-marker bare keyword', () => {
+      const result = parseGantt('gantt\ntoday-marker\n10d Task', palette);
       expect(result.options.todayMarker).toBe('on');
     });
 
     it('parses today-marker with pinned date', () => {
-      const result = parseGantt('chart: gantt\ntoday-marker: 2024-03-15\n10d: Task', palette);
+      const result = parseGantt('gantt\ntoday-marker 2024-03-15\n10d Task', palette);
       expect(result.options.todayMarker).toBe('2024-03-15');
     });
 
-    it('parses critical-path: on', () => {
-      const result = parseGantt('chart: gantt\ncritical-path: on\n10d: Task', palette);
+    it('parses critical-path bare keyword', () => {
+      const result = parseGantt('gantt\ncritical-path\n10d Task', palette);
       expect(result.options.criticalPath).toBe(true);
     });
 
-    it('parses dependencies: on', () => {
-      const result = parseGantt('chart: gantt\ndependencies: on\n10d: Task', palette);
+    it('parses no-dependencies to disable', () => {
+      const result = parseGantt('gantt\nno-dependencies\n10d Task', palette);
+      expect(result.options.dependencies).toBe(false);
+    });
+
+    it('defaults dependencies to true', () => {
+      const result = parseGantt('gantt\n10d Task', palette);
       expect(result.options.dependencies).toBe(true);
     });
 
     it('defaults start to null (relative timeline)', () => {
-      const result = parseGantt('chart: gantt\n10d: Task', palette);
+      const result = parseGantt('gantt\n10d Task', palette);
       expect(result.options.start).toBeNull();
     });
   });
 
   describe('duration tasks', () => {
     it('parses basic duration task', () => {
-      const result = parseGantt('chart: gantt\n10d: Task A', palette);
+      const result = parseGantt('gantt\n10d Task A', palette);
       expect(result.error).toBeNull();
       expect(result.nodes).toHaveLength(1);
       const task = result.nodes[0];
@@ -69,7 +74,7 @@ describe('gantt parser', () => {
     });
 
     it('parses all duration units', () => {
-      const input = 'chart: gantt\n10d: Days\n5bd: Business\n2w: Weeks\n3m: Months\n1q: Quarter\n0.5y: HalfYear';
+      const input = 'gantt\n10d Days\n5bd Business\n2w Weeks\n3m Months\n1q Quarter\n0.5y HalfYear';
       const result = parseGantt(input, palette);
       expect(result.error).toBeNull();
       expect(result.nodes).toHaveLength(6);
@@ -79,7 +84,7 @@ describe('gantt parser', () => {
     });
 
     it('parses decimal durations', () => {
-      const result = parseGantt('chart: gantt\n1.5w: Task', palette);
+      const result = parseGantt('gantt\n1.5w Task', palette);
       const task = result.nodes[0];
       if (task.kind === 'task') {
         expect(task.duration).toEqual({ amount: 1.5, unit: 'w' });
@@ -87,7 +92,7 @@ describe('gantt parser', () => {
     });
 
     it('parses uncertain duration', () => {
-      const result = parseGantt('chart: gantt\n30d?: Task', palette);
+      const result = parseGantt('gantt\n30d? Task', palette);
       const task = result.nodes[0];
       if (task.kind === 'task') {
         expect(task.uncertain).toBe(true);
@@ -96,7 +101,7 @@ describe('gantt parser', () => {
     });
 
     it('parses milestone (0d)', () => {
-      const result = parseGantt('chart: gantt\n0d: Milestone', palette);
+      const result = parseGantt('gantt\n0d Milestone', palette);
       const task = result.nodes[0];
       if (task.kind === 'task') {
         expect(task.duration).toEqual({ amount: 0, unit: 'd' });
@@ -106,7 +111,7 @@ describe('gantt parser', () => {
 
   describe('explicit dates', () => {
     it('parses explicit date task', () => {
-      const result = parseGantt('chart: gantt\n2024-02-15: Design Review', palette);
+      const result = parseGantt('gantt\n2024-02-15 Design Review', palette);
       expect(result.error).toBeNull();
       const task = result.nodes[0];
       if (task.kind === 'task') {
@@ -117,7 +122,7 @@ describe('gantt parser', () => {
     });
 
     it('parses timeline migration syntax', () => {
-      const result = parseGantt('chart: gantt\n2024-01-15 -> 30d: Task', palette);
+      const result = parseGantt('gantt\n2024-01-15 -> 30d Task', palette);
       const task = result.nodes[0];
       if (task.kind === 'task') {
         expect(task.explicitStart).toBe('2024-01-15');
@@ -128,7 +133,7 @@ describe('gantt parser', () => {
 
   describe('groups', () => {
     it('parses basic group', () => {
-      const result = parseGantt('chart: gantt\n[Backend]\n  10d: Task', palette);
+      const result = parseGantt('gantt\n[Backend]\n  10d Task', palette);
       expect(result.error).toBeNull();
       expect(result.nodes).toHaveLength(1);
       const group = result.nodes[0];
@@ -140,7 +145,7 @@ describe('gantt parser', () => {
     });
 
     it('parses group with pipe metadata', () => {
-      const input = 'chart: gantt\ntag: Team alias t\n  Engineering(blue)\n[Backend] | t: Engineering\n  10d: Task';
+      const input = 'gantt\ntag Team alias t\n  Engineering(blue)\n[Backend] | t: Engineering\n  10d Task';
       const result = parseGantt(input, palette);
       expect(result.error).toBeNull();
       const group = result.nodes[0];
@@ -150,7 +155,7 @@ describe('gantt parser', () => {
     });
 
     it('parses nested groups', () => {
-      const input = 'chart: gantt\n[Backend]\n  [API]\n    10d: Task';
+      const input = 'gantt\n[Backend]\n  [API]\n    10d Task';
       const result = parseGantt(input, palette);
       expect(result.error).toBeNull();
       const outer = result.nodes[0];
@@ -163,11 +168,23 @@ describe('gantt parser', () => {
         }
       }
     });
+
+    it('parses # Group alternate syntax', () => {
+      const result = parseGantt('gantt\n# Backend\n  10d Task', palette);
+      expect(result.error).toBeNull();
+      expect(result.nodes).toHaveLength(1);
+      const group = result.nodes[0];
+      expect(group.kind).toBe('group');
+      if (group.kind === 'group') {
+        expect(group.name).toBe('Backend');
+        expect(group.children).toHaveLength(1);
+      }
+    });
   });
 
   describe('parallel blocks', () => {
     it('parses parallel block', () => {
-      const input = 'chart: gantt\nparallel\n  5d: Task A\n  3d: Task B';
+      const input = 'gantt\nparallel\n  5d Task A\n  3d Task B';
       const result = parseGantt(input, palette);
       expect(result.error).toBeNull();
       expect(result.nodes).toHaveLength(1);
@@ -179,7 +196,7 @@ describe('gantt parser', () => {
     });
 
     it('parses parallel with groups inside', () => {
-      const input = 'chart: gantt\nparallel\n  [Backend]\n    10d: Task A\n  [Frontend]\n    5d: Task B';
+      const input = 'gantt\nparallel\n  [Backend]\n    10d Task A\n  [Frontend]\n    5d Task B';
       const result = parseGantt(input, palette);
       expect(result.error).toBeNull();
       const par = result.nodes[0];
@@ -193,7 +210,7 @@ describe('gantt parser', () => {
 
   describe('dependencies', () => {
     it('parses -> dependency under task', () => {
-      const input = 'chart: gantt\n10d: Task A\n  -> Task B\n10d: Task B';
+      const input = 'gantt\n10d Task A\n  -> Task B\n10d Task B';
       const result = parseGantt(input, palette);
       expect(result.error).toBeNull();
       const taskA = result.nodes[0];
@@ -204,7 +221,7 @@ describe('gantt parser', () => {
     });
 
     it('parses -> with dot notation', () => {
-      const input = 'chart: gantt\n10d: Task A\n  -> Backend.Deploy\n10d: Deploy';
+      const input = 'gantt\n10d Task A\n  -> Backend.Deploy\n10d Deploy';
       const result = parseGantt(input, palette);
       const taskA = result.nodes[0];
       if (taskA.kind === 'task') {
@@ -213,7 +230,7 @@ describe('gantt parser', () => {
     });
 
     it('parses -> with positive offset', () => {
-      const input = 'chart: gantt\n10d: Task A\n  -> Task B | offset: 3bd\n10d: Task B';
+      const input = 'gantt\n10d Task A\n  -> Task B | offset: 3bd\n10d Task B';
       const result = parseGantt(input, palette);
       const taskA = result.nodes[0];
       if (taskA.kind === 'task') {
@@ -225,7 +242,7 @@ describe('gantt parser', () => {
     });
 
     it('parses -> with negative offset', () => {
-      const input = 'chart: gantt\n10d: Task A\n  -> Task B | offset: -5d\n10d: Task B';
+      const input = 'gantt\n10d Task A\n  -> Task B | offset: -5d\n10d Task B';
       const result = parseGantt(input, palette);
       const taskA = result.nodes[0];
       if (taskA.kind === 'task') {
@@ -237,7 +254,7 @@ describe('gantt parser', () => {
     });
 
     it('parses -> with zero offset', () => {
-      const input = 'chart: gantt\n10d: Task A\n  -> Task B | offset: 0bd\n10d: Task B';
+      const input = 'gantt\n10d Task A\n  -> Task B | offset: 0bd\n10d Task B';
       const result = parseGantt(input, palette);
       const taskA = result.nodes[0];
       if (taskA.kind === 'task') {
@@ -249,39 +266,39 @@ describe('gantt parser', () => {
     });
 
     it('warns on invalid dep offset', () => {
-      const input = 'chart: gantt\n10d: Task A\n  -> Task B | offset: abc\n10d: Task B';
+      const input = 'gantt\n10d Task A\n  -> Task B | offset: abc\n10d Task B';
       const result = parseGantt(input, palette);
       expect(result.diagnostics.some(d => d.message.includes('Invalid offset'))).toBe(true);
     });
 
     it('warns on explicit + prefix in dep offset', () => {
-      const input = 'chart: gantt\n10d: Task A\n  -> Task B | offset: +5bd\n10d: Task B';
+      const input = 'gantt\n10d Task A\n  -> Task B | offset: +5bd\n10d Task B';
       const result = parseGantt(input, palette);
       expect(result.diagnostics.some(d => d.message.includes('Explicit "+" is not supported'))).toBe(true);
     });
 
     it('rejects lag keyword with soft error', () => {
-      const input = 'chart: gantt\n10d: Task A\n  -> Task B | lag: 3bd\n10d: Task B';
+      const input = 'gantt\n10d Task A\n  -> Task B | lag: 3bd\n10d Task B';
       const result = parseGantt(input, palette);
       expect(result.error).toBeNull();
       expect(result.diagnostics.some(d => d.severity === 'error' && d.message.includes('"lag" is no longer supported'))).toBe(true);
     });
 
     it('rejects lead keyword with soft error', () => {
-      const input = 'chart: gantt\n10d: Task A\n  -> Task B | lead: 3bd\n10d: Task B';
+      const input = 'gantt\n10d Task A\n  -> Task B | lead: 3bd\n10d Task B';
       const result = parseGantt(input, palette);
       expect(result.error).toBeNull();
       expect(result.diagnostics.some(d => d.severity === 'error' && d.message.includes('"lead" is no longer supported'))).toBe(true);
     });
 
     it('rejects lag on task line with soft error', () => {
-      const result = parseGantt('chart: gantt\n10bd: Task | lag: 5bd', palette);
+      const result = parseGantt('gantt\n10bd Task | lag: 5bd', palette);
       expect(result.error).toBeNull();
       expect(result.diagnostics.some(d => d.severity === 'error' && d.message.includes('"lag" is no longer supported'))).toBe(true);
     });
 
     it('parses labeled arrow -blocks-> Design', () => {
-      const input = 'chart: gantt\n10d: Task A\n  -blocks-> Design\n10d: Design';
+      const input = 'gantt\n10d Task A\n  -blocks-> Design\n10d Design';
       const result = parseGantt(input, palette);
       expect(result.error).toBeNull();
       const taskA = result.nodes[0];
@@ -293,7 +310,7 @@ describe('gantt parser', () => {
     });
 
     it('parses -> Design with no label (regression)', () => {
-      const input = 'chart: gantt\n10d: Task A\n  -> Design\n10d: Design';
+      const input = 'gantt\n10d Task A\n  -> Design\n10d Design';
       const result = parseGantt(input, palette);
       expect(result.error).toBeNull();
       const taskA = result.nodes[0];
@@ -305,7 +322,7 @@ describe('gantt parser', () => {
     });
 
     it('parses labeled arrow with pipe metadata -depends on-> API | offset: 2d', () => {
-      const input = 'chart: gantt\n10d: Task A\n  -depends on-> API | offset: 2d\n10d: API';
+      const input = 'gantt\n10d Task A\n  -depends on-> API | offset: 2d\n10d API';
       const result = parseGantt(input, palette);
       expect(result.error).toBeNull();
       const taskA = result.nodes[0];
@@ -321,7 +338,7 @@ describe('gantt parser', () => {
     });
 
     it('parses labeled arrow with offset -blocks-> Design | offset: 1w', () => {
-      const input = 'chart: gantt\n10d: Task A\n  -blocks-> Design | offset: 1w\n10d: Design';
+      const input = 'gantt\n10d Task A\n  -blocks-> Design | offset: 1w\n10d Design';
       const result = parseGantt(input, palette);
       expect(result.error).toBeNull();
       const taskA = result.nodes[0];
@@ -339,7 +356,7 @@ describe('gantt parser', () => {
 
   describe('task-level offset', () => {
     it('parses positive task offset', () => {
-      const result = parseGantt('chart: gantt\n10bd: Task | offset: 8bd', palette);
+      const result = parseGantt('gantt\n10bd Task | offset: 8bd', palette);
       const task = result.nodes[0];
       if (task.kind === 'task') {
         expect(task.offset).toEqual({
@@ -351,7 +368,7 @@ describe('gantt parser', () => {
     });
 
     it('parses negative task offset', () => {
-      const result = parseGantt('chart: gantt\n10bd: Task | offset: -3bd', palette);
+      const result = parseGantt('gantt\n10bd Task | offset: -3bd', palette);
       const task = result.nodes[0];
       if (task.kind === 'task') {
         expect(task.offset).toEqual({
@@ -362,14 +379,14 @@ describe('gantt parser', () => {
     });
 
     it('warns on invalid task offset', () => {
-      const result = parseGantt('chart: gantt\n10bd: Task | offset: abc', palette);
+      const result = parseGantt('gantt\n10bd Task | offset: abc', palette);
       expect(result.diagnostics.some(d => d.message.includes('Invalid offset'))).toBe(true);
     });
   });
 
   describe('comments', () => {
     it('parses comment under task', () => {
-      const input = 'chart: gantt\n10d: Task A\n  // This is a comment';
+      const input = 'gantt\n10d Task A\n  // This is a comment';
       const result = parseGantt(input, palette);
       const task = result.nodes[0];
       if (task.kind === 'task') {
@@ -378,7 +395,7 @@ describe('gantt parser', () => {
     });
 
     it('accumulates multi-line comments', () => {
-      const input = 'chart: gantt\n10d: Task A\n  // Line 1\n  // Line 2';
+      const input = 'gantt\n10d Task A\n  // Line 1\n  // Line 2';
       const result = parseGantt(input, palette);
       const task = result.nodes[0];
       if (task.kind === 'task') {
@@ -387,7 +404,7 @@ describe('gantt parser', () => {
     });
 
     it('ignores top-level comments', () => {
-      const input = 'chart: gantt\n// Top comment\n10d: Task A';
+      const input = 'gantt\n// Top comment\n10d Task A';
       const result = parseGantt(input, palette);
       expect(result.error).toBeNull();
       expect(result.nodes).toHaveLength(1);
@@ -396,7 +413,7 @@ describe('gantt parser', () => {
 
   describe('progress', () => {
     it('parses progress shorthand', () => {
-      const result = parseGantt('chart: gantt\n10d: Task | 80%', palette);
+      const result = parseGantt('gantt\n10d Task | 80%', palette);
       const task = result.nodes[0];
       if (task.kind === 'task') {
         expect(task.progress).toBe(80);
@@ -404,7 +421,7 @@ describe('gantt parser', () => {
     });
 
     it('parses progress: key', () => {
-      const result = parseGantt('chart: gantt\n10d: Task | progress: 50', palette);
+      const result = parseGantt('gantt\n10d Task | progress: 50', palette);
       const task = result.nodes[0];
       if (task.kind === 'task') {
         expect(task.progress).toBe(50);
@@ -414,7 +431,7 @@ describe('gantt parser', () => {
 
   describe('tag groups', () => {
     it('parses tag block with entries', () => {
-      const input = 'chart: gantt\ntag: Team alias t\n  Engineering(blue)\n  Design(purple)\n10d: Task | t: Engineering';
+      const input = 'gantt\ntag Team alias t\n  Engineering(blue)\n  Design(purple)\n10d Task | t: Engineering';
       const result = parseGantt(input, palette);
       expect(result.tagGroups).toHaveLength(1);
       expect(result.tagGroups[0].name).toBe('Team');
@@ -422,8 +439,14 @@ describe('gantt parser', () => {
       expect(result.tagGroups[0].entries).toHaveLength(2);
     });
 
+    it('first entry is default', () => {
+      const input = 'gantt\ntag Team alias t\n  Engineering(blue)\n  Design(purple)\n10d Task';
+      const result = parseGantt(input, palette);
+      expect(result.tagGroups[0].defaultValue).toBe('Engineering');
+    });
+
     it('tag inheritance from parent group', () => {
-      const input = 'chart: gantt\ntag: Team alias t\n  Engineering(blue)\n[Backend] | t: Engineering\n  10d: Task';
+      const input = 'gantt\ntag Team alias t\n  Engineering(blue)\n[Backend] | t: Engineering\n  10d Task';
       const result = parseGantt(input, palette);
       const group = result.nodes[0];
       if (group.kind === 'group') {
@@ -435,7 +458,7 @@ describe('gantt parser', () => {
     });
 
     it('child overrides inherited tag', () => {
-      const input = 'chart: gantt\ntag: Team alias t\n  Engineering(blue)\n  QA(orange)\n[Backend] | t: Engineering\n  10d: Task | t: QA';
+      const input = 'gantt\ntag Team alias t\n  Engineering(blue)\n  QA(orange)\n[Backend] | t: Engineering\n  10d Task | t: QA';
       const result = parseGantt(input, palette);
       const group = result.nodes[0];
       if (group.kind === 'group') {
@@ -447,9 +470,9 @@ describe('gantt parser', () => {
     });
   });
 
-  describe('holidays block', () => {
+  describe('holiday block', () => {
     it('parses holiday dates', () => {
-      const input = 'chart: gantt\nholidays\n  2024-01-01: New Year\n  2024-12-25: Christmas\n10d: Task';
+      const input = 'gantt\nholiday\n  2024-01-01 New Year\n  2024-12-25 Christmas\n10d Task';
       const result = parseGantt(input, palette);
       expect(result.holidays.dates).toHaveLength(2);
       expect(result.holidays.dates[0].date).toBe('2024-01-01');
@@ -457,7 +480,7 @@ describe('gantt parser', () => {
     });
 
     it('parses holiday ranges', () => {
-      const input = 'chart: gantt\nholidays\n  2024-12-24 -> 2024-12-31: Winter Break\n10d: Task';
+      const input = 'gantt\nholiday\n  2024-12-24 -> 2024-12-31 Winter Break\n10d Task';
       const result = parseGantt(input, palette);
       expect(result.holidays.ranges).toHaveLength(1);
       expect(result.holidays.ranges[0].startDate).toBe('2024-12-24');
@@ -465,20 +488,28 @@ describe('gantt parser', () => {
     });
 
     it('parses workweek override', () => {
-      const input = 'chart: gantt\nholidays\n  workweek: sun-thu\n10d: Task';
+      const input = 'gantt\nholiday\n  workweek sun-thu\n10d Task';
       const result = parseGantt(input, palette);
       expect(result.holidays.workweek).toEqual(['sun', 'mon', 'tue', 'wed', 'thu']);
     });
 
     it('default workweek is mon-fri', () => {
-      const result = parseGantt('chart: gantt\n10d: Task', palette);
+      const result = parseGantt('gantt\n10d Task', palette);
       expect(result.holidays.workweek).toEqual(['mon', 'tue', 'wed', 'thu', 'fri']);
+    });
+
+    it('parses single-line holiday', () => {
+      const input = 'gantt\nholiday 2024-12-25 Christmas\n10d Task';
+      const result = parseGantt(input, palette);
+      expect(result.holidays.dates).toHaveLength(1);
+      expect(result.holidays.dates[0].date).toBe('2024-12-25');
+      expect(result.holidays.dates[0].label).toBe('Christmas');
     });
   });
 
   describe('eras and markers', () => {
     it('parses era', () => {
-      const input = 'chart: gantt\nera 2024-01 -> 2024-06: Phase 1\n10d: Task';
+      const input = 'gantt\nera 2024-01 -> 2024-06 Phase 1\n10d Task';
       const result = parseGantt(input, palette);
       expect(result.eras).toHaveLength(1);
       expect(result.eras[0].startDate).toBe('2024-01');
@@ -487,7 +518,7 @@ describe('gantt parser', () => {
     });
 
     it('parses marker', () => {
-      const input = 'chart: gantt\nmarker: 2024-03-01 Kickoff\n10d: Task';
+      const input = 'gantt\nmarker 2024-03-01 Kickoff\n10d Task';
       const result = parseGantt(input, palette);
       expect(result.markers).toHaveLength(1);
       expect(result.markers[0].date).toBe('2024-03-01');
@@ -497,14 +528,14 @@ describe('gantt parser', () => {
 
   describe('validation errors', () => {
     it('reports bare labels as soft error and continues parsing', () => {
-      const result = parseGantt('chart: gantt\nSome Text\n10d: Valid Task', palette);
+      const result = parseGantt('gantt\nSome Text\n10d Valid Task', palette);
       expect(result.error).toBeNull();
       expect(result.diagnostics.some(d => d.severity === 'error' && d.message.includes('Expected duration'))).toBe(true);
       expect(result.nodes).toHaveLength(1); // Valid Task still parsed
     });
 
     it('reports parallel as reserved keyword and continues', () => {
-      const result = parseGantt('chart: gantt\n10d: parallel\n10d: Next Task', palette);
+      const result = parseGantt('gantt\n10d parallel\n10d Next Task', palette);
       expect(result.error).toBeNull();
       expect(result.diagnostics.some(d => d.severity === 'error' && d.message.includes('reserved keyword'))).toBe(true);
       expect(result.nodes).toHaveLength(2); // both tasks still parsed
@@ -513,7 +544,7 @@ describe('gantt parser', () => {
 
   describe('flat task list (no groups)', () => {
     it('accepts flat sequential tasks', () => {
-      const input = 'chart: gantt\n14d: Research\n7d: Design\n3d: Testing\n0d: Ship';
+      const input = 'gantt\n14d Research\n7d Design\n3d Testing\n0d Ship';
       const result = parseGantt(input, palette);
       expect(result.error).toBeNull();
       expect(result.nodes).toHaveLength(4);
@@ -523,7 +554,7 @@ describe('gantt parser', () => {
 
   describe('datetime and sub-day durations', () => {
     it('parses h duration task', () => {
-      const result = parseGantt('chart: gantt\n2h: Meeting', palette);
+      const result = parseGantt('gantt\n2h Meeting', palette);
       expect(result.error).toBeNull();
       const task = result.nodes[0];
       if (task.kind === 'task') {
@@ -532,7 +563,7 @@ describe('gantt parser', () => {
     });
 
     it('parses min duration task', () => {
-      const result = parseGantt('chart: gantt\n90min: Workshop', palette);
+      const result = parseGantt('gantt\n90min Workshop', palette);
       expect(result.error).toBeNull();
       const task = result.nodes[0];
       if (task.kind === 'task') {
@@ -541,7 +572,7 @@ describe('gantt parser', () => {
     });
 
     it('parses 1.5h fractional duration', () => {
-      const result = parseGantt('chart: gantt\n1.5h: Session', palette);
+      const result = parseGantt('gantt\n1.5h Session', palette);
       const task = result.nodes[0];
       if (task.kind === 'task') {
         expect(task.duration).toEqual({ amount: 1.5, unit: 'h' });
@@ -549,7 +580,7 @@ describe('gantt parser', () => {
     });
 
     it('30min is minutes, 30m is months (disambiguation)', () => {
-      const result = parseGantt('chart: gantt\n30min: Meeting\n30m: Phase', palette);
+      const result = parseGantt('gantt\n30min Meeting\n30m Phase', palette);
       expect(result.error).toBeNull();
       expect(result.nodes).toHaveLength(2);
       const task1 = result.nodes[0];
@@ -558,18 +589,18 @@ describe('gantt parser', () => {
       if (task2.kind === 'task') expect(task2.duration?.unit).toBe('m');
     });
 
-    it('parses start: with datetime', () => {
-      const result = parseGantt('chart: gantt\nstart: 2024-06-15 08:00\n2h: Task', palette);
+    it('parses start with datetime', () => {
+      const result = parseGantt('gantt\nstart 2024-06-15 08:00\n2h Task', palette);
       expect(result.options.start).toBe('2024-06-15 08:00');
     });
 
     it('parses today-marker with datetime', () => {
-      const result = parseGantt('chart: gantt\ntoday-marker: 2024-06-15 14:00\n2h: Task', palette);
+      const result = parseGantt('gantt\ntoday-marker 2024-06-15 14:00\n2h Task', palette);
       expect(result.options.todayMarker).toBe('2024-06-15 14:00');
     });
 
     it('parses explicit datetime task', () => {
-      const result = parseGantt('chart: gantt\n2024-06-15 14:30: Keynote', palette);
+      const result = parseGantt('gantt\n2024-06-15 14:30 Keynote', palette);
       const task = result.nodes[0];
       if (task.kind === 'task') {
         expect(task.explicitStart).toBe('2024-06-15 14:30');
@@ -578,7 +609,7 @@ describe('gantt parser', () => {
     });
 
     it('parses timeline-duration with datetime + h unit', () => {
-      const result = parseGantt('chart: gantt\n2024-06-15 14:30 -> 2h: Talk', palette);
+      const result = parseGantt('gantt\n2024-06-15 14:30 -> 2h Talk', palette);
       const task = result.nodes[0];
       if (task.kind === 'task') {
         expect(task.explicitStart).toBe('2024-06-15 14:30');
@@ -587,31 +618,31 @@ describe('gantt parser', () => {
     });
 
     it('parses era with datetime', () => {
-      const result = parseGantt('chart: gantt\nera 2024-06-15 09:00 -> 2024-06-15 12:00: Morning\n2h: Task', palette);
+      const result = parseGantt('gantt\nera 2024-06-15 09:00 -> 2024-06-15 12:00 Morning\n2h Task', palette);
       expect(result.eras).toHaveLength(1);
       expect(result.eras[0].startDate).toBe('2024-06-15 09:00');
       expect(result.eras[0].endDate).toBe('2024-06-15 12:00');
     });
 
     it('parses marker with datetime', () => {
-      const result = parseGantt('chart: gantt\nmarker: 2024-06-15 10:30 Coffee Break\n2h: Task', palette);
+      const result = parseGantt('gantt\nmarker 2024-06-15 10:30 Coffee Break\n2h Task', palette);
       expect(result.markers).toHaveLength(1);
       expect(result.markers[0].date).toBe('2024-06-15 10:30');
       expect(result.markers[0].label).toBe('Coffee Break');
     });
   });
 
-  describe('sort: tag directive', () => {
-    it('parses sort: tag', () => {
-      const input = 'chart: gantt\nsort: tag\ntag: Team\n  Eng(blue)\nstart: 2024-01-15\n10d: Task';
+  describe('sort tag directive', () => {
+    it('parses sort tag', () => {
+      const input = 'gantt\nsort tag\ntag Team\n  Eng(blue)\nstart 2024-01-15\n10d Task';
       const result = parseGantt(input, palette);
       expect(result.error).toBeNull();
       expect(result.options.sort).toBe('tag');
       expect(result.options.defaultSwimlaneGroup).toBeNull();
     });
 
-    it('parses sort: tag:Team', () => {
-      const input = 'chart: gantt\nsort: tag:Team\ntag: Team\n  Eng(blue)\nstart: 2024-01-15\n10d: Task';
+    it('parses sort tag:Team', () => {
+      const input = 'gantt\nsort tag:Team\ntag Team\n  Eng(blue)\nstart 2024-01-15\n10d Task';
       const result = parseGantt(input, palette);
       expect(result.error).toBeNull();
       expect(result.options.sort).toBe('tag');
@@ -619,14 +650,14 @@ describe('gantt parser', () => {
     });
 
     it('warns and falls back when no tag groups defined', () => {
-      const input = 'chart: gantt\nsort: tag\nstart: 2024-01-15\n10d: Task';
+      const input = 'gantt\nsort tag\nstart 2024-01-15\n10d Task';
       const result = parseGantt(input, palette);
       expect(result.options.sort).toBe('default');
-      expect(result.diagnostics.some(d => d.message.includes('sort: tag has no effect'))).toBe(true);
+      expect(result.diagnostics.some(d => d.message.includes('sort tag has no effect'))).toBe(true);
     });
 
     it('warns on invalid sort value', () => {
-      const input = 'chart: gantt\nsort: date\nstart: 2024-01-15\n10d: Task';
+      const input = 'gantt\nsort date\nstart 2024-01-15\n10d Task';
       const result = parseGantt(input, palette);
       expect(result.diagnostics.some(d => d.message.includes('Invalid sort value'))).toBe(true);
     });

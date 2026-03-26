@@ -7,6 +7,20 @@
 import { resolveColor } from '../colors';
 import type { PaletteColors } from '../palettes';
 
+// ── All known chart types ────────────────────────────────────
+/** Complete set of recognized chart type identifiers. */
+export const ALL_CHART_TYPES = new Set([
+  // data charts
+  'bar', 'line', 'pie', 'doughnut', 'area', 'polar-area', 'radar',
+  'bar-stacked', 'multi-line', 'scatter', 'sankey', 'chord', 'function',
+  'heatmap', 'funnel',
+  // visualizations
+  'slope', 'wordcloud', 'arc', 'timeline', 'venn', 'quadrant',
+  // diagrams
+  'sequence', 'flowchart', 'class', 'er', 'org', 'kanban', 'c4',
+  'initiative-status', 'state', 'sitemap', 'infra', 'gantt',
+]);
+
 /** Measure leading whitespace of a line, normalizing tabs to 4 spaces. */
 export function measureIndent(line: string): number {
   let indent = 0;
@@ -35,14 +49,205 @@ export function extractColor(
   };
 }
 
-/** Matches `chart: <type>` header lines. */
+/** @deprecated Matches `chart: <type>` header lines. Remove after all parsers migrate. */
 export const CHART_TYPE_RE = /^chart\s*:\s*(.+)/i;
 
-/** Matches `title: <text>` header lines. */
+/** @deprecated Matches `title: <text>` header lines. Remove after all parsers migrate. */
 export const TITLE_RE = /^title\s*:\s*(.+)/i;
 
-/** Matches `option: value` header lines. */
+/** @deprecated Matches `option: value` header lines. Remove after all parsers migrate. */
 export const OPTION_RE = /^([a-z][a-z0-9-]*)\s*:\s*(.+)$/i;
+
+/** Matches `option value` header lines (space-separated, no colon). */
+export const OPTION_NOCOLON_RE = /^([a-z][a-z0-9-]*)\s+(.+)$/i;
+
+/** Matches `# GroupName` lines — alternate group notation. */
+export const GROUP_HASH_RE = /^#\s+(.+)$/;
+
+/** Matches `## ...` lines — parse error with helpful hint. */
+export const DOUBLE_HASH_RE = /^##\s/;
+
+// ── New shared utilities ─────────────────────────────────────
+
+/**
+ * Parse the first non-empty, non-comment line to extract chart type and optional title.
+ * The first token is matched against `ALL_CHART_TYPES`; the remainder is the title.
+ *
+ * Returns `null` if the first token is not a recognized chart type.
+ */
+export function parseFirstLine(
+  line: string,
+): { chartType: string; title: string | undefined } | null {
+  const trimmed = line.trim();
+  if (!trimmed || trimmed.startsWith('//')) return null;
+
+  // Try old-style `chart: type` first (for transition)
+  const oldMatch = trimmed.match(CHART_TYPE_RE);
+  if (oldMatch) {
+    const parts = oldMatch[1].trim();
+    // Could be `chart: gantt My Title` — first token is type
+    const spaceIdx = parts.indexOf(' ');
+    if (spaceIdx === -1) {
+      const ct = parts.toLowerCase();
+      return ALL_CHART_TYPES.has(ct) ? { chartType: ct, title: undefined } : null;
+    }
+    const ct = parts.substring(0, spaceIdx).toLowerCase();
+    if (ALL_CHART_TYPES.has(ct)) {
+      return { chartType: ct, title: parts.substring(spaceIdx + 1).trim() || undefined };
+    }
+    return null;
+  }
+
+  // New-style: first token is chart type, rest is title
+  const spaceIdx = trimmed.indexOf(' ');
+  if (spaceIdx === -1) {
+    const ct = trimmed.toLowerCase();
+    return ALL_CHART_TYPES.has(ct) ? { chartType: ct, title: undefined } : null;
+  }
+  const firstToken = trimmed.substring(0, spaceIdx).toLowerCase();
+  if (!ALL_CHART_TYPES.has(firstToken)) return null;
+  return { chartType: firstToken, title: trimmed.substring(spaceIdx + 1).trim() || undefined };
+}
+
+/** Result of `prescanOptions()` — options collected from a two-pass scan. */
+export interface PrescanResult {
+  /** Key-value options, e.g., `direction LR` → `{ direction: 'LR' }` */
+  options: Record<string, string>;
+  /** Presence-based boolean options, e.g., `critical-path` → Set('critical-path') */
+  booleans: Set<string>;
+  /** Negated booleans, e.g., `no-dependencies` → Set('dependencies') */
+  negated: Set<string>;
+}
+
+/**
+ * Pre-scan all lines to collect options that can appear anywhere in the file.
+ *
+ * For each non-indented, non-comment line:
+ * - If the first token is a known option key and the line has more tokens → key-value option
+ * - If the first token is a known boolean key (bare keyword) → boolean enabled
+ * - If the first token starts with `no-` and the rest is a known boolean → negated
+ *
+ * Comment handling: full comment lines (`// ...`) are skipped. Inline comments
+ * are stripped before extraction (`direction LR // override` → option `direction: LR`).
+ *
+ * @param lines All lines of the document
+ * @param knownOptions Set of recognized option key names (e.g., `direction`, `start`, `notation`)
+ * @param knownBooleans Set of recognized boolean option names (e.g., `critical-path`, `animate`)
+ */
+export function prescanOptions(
+  lines: string[],
+  knownOptions: Set<string>,
+  knownBooleans: Set<string> = new Set(),
+): PrescanResult {
+  const options: Record<string, string> = {};
+  const booleans = new Set<string>();
+  const negated = new Set<string>();
+
+  for (const raw of lines) {
+    // Skip indented lines — these are content, not top-level options
+    if (raw.length > 0 && (raw[0] === ' ' || raw[0] === '\t')) continue;
+
+    const trimmed = raw.trim();
+    if (!trimmed || trimmed.startsWith('//')) continue;
+
+    // Strip inline comments
+    const commentIdx = trimmed.indexOf(' //');
+    const effective = commentIdx >= 0 ? trimmed.substring(0, commentIdx).trim() : trimmed;
+    if (!effective) continue;
+
+    // Extract first token
+    const spaceIdx = effective.indexOf(' ');
+    const firstToken = (spaceIdx === -1 ? effective : effective.substring(0, spaceIdx)).toLowerCase();
+
+    // Check for bare boolean (presence = on)
+    if (spaceIdx === -1 && knownBooleans.has(firstToken)) {
+      booleans.add(firstToken);
+      continue;
+    }
+
+    // Check for negated boolean: `no-X` where X is a known boolean
+    if (spaceIdx === -1 && firstToken.startsWith('no-')) {
+      const base = firstToken.substring(3);
+      if (knownBooleans.has(base)) {
+        negated.add(base);
+        continue;
+      }
+    }
+
+    // Check for boolean with a value (e.g., `today-marker 2026-03-26`) —
+    // must come before pure key-value check so booleans flag is also set
+    if (spaceIdx !== -1 && knownBooleans.has(firstToken)) {
+      booleans.add(firstToken);
+      options[firstToken] = effective.substring(spaceIdx + 1).trim();
+      continue;
+    }
+
+    // Check for key-value option
+    if (spaceIdx !== -1 && knownOptions.has(firstToken)) {
+      options[firstToken] = effective.substring(spaceIdx + 1).trim();
+      continue;
+    }
+  }
+
+  return { options, booleans, negated };
+}
+
+/**
+ * Normalize a comma-grouped number string to a plain integer string.
+ * Validates the strict pattern: leftmost group 1-3 digits, then groups of exactly 3.
+ *
+ * Examples: `1,087` → `'1087'`, `1,250,000` → `'1250000'`
+ * Returns `null` if the string is not a valid comma-grouped number.
+ */
+export function normalizeGroupedNumber(token: string): string | null {
+  if (!/^\d{1,3}(,\d{3})+$/.test(token)) return null;
+  return token.replace(/,/g, '');
+}
+
+/**
+ * Strip surrounding quotes (`"` or `'`) from a token.
+ * Returns the unquoted content, or the original string if not quoted.
+ */
+export function stripQuotes(token: string): string {
+  if (token.length >= 2) {
+    if ((token[0] === '"' && token[token.length - 1] === '"') ||
+        (token[0] === "'" && token[token.length - 1] === "'")) {
+      return token.substring(1, token.length - 1);
+    }
+  }
+  return token;
+}
+
+/**
+ * Quote-aware tokenizer — splits a string by whitespace but keeps quoted
+ * substrings (`"double"` or `'single'`) as single tokens.
+ * Quotes are preserved in the output tokens — call `stripQuotes()` to remove them.
+ */
+export function tokenizeQuoteAware(input: string): string[] {
+  const tokens: string[] = [];
+  let i = 0;
+  while (i < input.length) {
+    // Skip whitespace
+    if (input[i] === ' ' || input[i] === '\t') { i++; continue; }
+
+    // Quoted token
+    if (input[i] === '"' || input[i] === "'") {
+      const quote = input[i];
+      const start = i;
+      i++; // skip opening quote
+      while (i < input.length && input[i] !== quote) i++;
+      if (i < input.length) i++; // skip closing quote
+      tokens.push(input.substring(start, i));
+      continue;
+    }
+
+    // Unquoted token
+    const start = i;
+    while (i < input.length && input[i] !== ' ' && input[i] !== '\t') i++;
+    tokens.push(input.substring(start, i));
+  }
+  return tokens;
+}
 
 /**
  * Collect indented continuation lines as individual values.

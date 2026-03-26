@@ -35,7 +35,7 @@ beforeAll(() => {
 
 describe('flowchart routing', () => {
   it('parseDgmoChartType returns flowchart for explicit header', () => {
-    expect(parseDgmoChartType('chart: flowchart\n(Start) -> (End)')).toBe('flowchart');
+    expect(parseDgmoChartType('flowchart\n(Start) -> (End)')).toBe('flowchart');
   });
 
   it('parseDgmoChartType prefers sequence for content with arrows', () => {
@@ -62,7 +62,7 @@ describe('flowchart routing', () => {
 describe('flowchart renderForExport', () => {
   it('renders flowchart to non-empty SVG', async () => {
     const svg = await renderForExport(
-      'chart: flowchart\n(Start) -> [Process] -> (End)',
+      'flowchart\n(Start) -> [Process] -> (End)',
       'light'
     );
     expect(svg).toBeTruthy();
@@ -72,7 +72,7 @@ describe('flowchart renderForExport', () => {
 
   it('renders flowchart with dark theme', async () => {
     const svg = await renderForExport(
-      'chart: flowchart\n(Start) -> (End)',
+      'flowchart\n(Start) -> (End)',
       'dark'
     );
     expect(svg).toBeTruthy();
@@ -81,7 +81,7 @@ describe('flowchart renderForExport', () => {
 
   it('renders flowchart with transparent theme', async () => {
     const svg = await renderForExport(
-      'chart: flowchart\n(Start) -> (End)',
+      'flowchart\n(Start) -> (End)',
       'transparent'
     );
     expect(svg).toBeTruthy();
@@ -91,7 +91,7 @@ describe('flowchart renderForExport', () => {
 
   it('returns empty string for malformed flowchart content', async () => {
     const svg = await renderForExport(
-      'chart: flowchart\n// only comments\n',
+      'flowchart\n// only comments\n',
       'light'
     );
     expect(svg).toBe('');
@@ -99,7 +99,7 @@ describe('flowchart renderForExport', () => {
 
   it('renders flowchart with all shape types', async () => {
     const content = [
-      'chart: flowchart',
+      'flowchart',
       '(Start) -> [Process] -> <Decision?>',
       '  -yes-> /Input/ -> [[Subroutine]] -> [Report~]',
       '  -no-> (End)',

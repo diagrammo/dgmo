@@ -171,7 +171,7 @@ describe('renderState', () => {
 
   describe('title rendering', () => {
     it('renders title text element', () => {
-      const container = renderToContainer('title: My States\nIdle -> Active');
+      const container = renderToContainer('state My States\nIdle -> Active');
       const titles = container.querySelectorAll('text.chart-title');
       expect(titles.length).toBe(1);
       expect(titles[0].textContent).toBe('My States');
@@ -179,7 +179,7 @@ describe('renderState', () => {
     });
 
     it('adds data-line-number to title', () => {
-      const container = renderToContainer('title: Test\n[*] -> Idle');
+      const container = renderToContainer('state Test\n[*] -> Idle');
       const title = container.querySelector('text.chart-title');
       expect(title).toBeTruthy();
       expect(title!.getAttribute('data-line-number')).toBe('1');
@@ -225,7 +225,7 @@ describe('renderState', () => {
     });
 
     it('renderStateForExport returns empty on parse error', () => {
-      const svg = renderStateForExport('chart: state\n', 'light', testPalette);
+      const svg = renderStateForExport('state\n', 'light', testPalette);
       expect(svg).toBe('');
     });
 

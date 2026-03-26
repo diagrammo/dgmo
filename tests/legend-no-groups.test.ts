@@ -69,10 +69,10 @@ Bob <-ok- Alice`;
 
 describe('No-groups: C4', () => {
   it('renders no legend elements when no tag groups defined', () => {
-    const src = `chart: c4
-person User
-system API
-User -> API`;
+    const src = `c4
+User is a person
+API is a system
+  -> User`;
     const parsed = parseC4(src, palette);
     const layout = layoutC4Context(parsed);
     const container = document.createElement('div');
@@ -89,7 +89,7 @@ User -> API`;
 
 describe('No-groups: Kanban', () => {
   it('renders no legend elements when no tag groups defined', () => {
-    const src = `chart: kanban
+    const src = `kanban
 [To Do]
   Fix bug
   Write tests`;
@@ -106,7 +106,7 @@ describe('No-groups: Kanban', () => {
 
 describe('No-groups: Org', () => {
   it('renders no legend elements when no tag groups defined', () => {
-    const src = `chart: org
+    const src = `org
 CEO
   VP Sales
   VP Engineering`;
@@ -126,7 +126,7 @@ CEO
 
 describe('No-groups: Sitemap', () => {
   it('renders no legend elements when no tag groups defined', () => {
-    const src = `chart: sitemap
+    const src = `sitemap
 Home
   About
   Blog`;
@@ -146,9 +146,9 @@ Home
 
 describe('No-groups: Infra', () => {
   it('renders no legend elements when no tag groups defined', () => {
-    const src = `chart: infra
+    const src = `infra
 edge
-  rps: 1000
+  rps 1000
   -> API
   -> DB`;
     const parsed = parseInfra(src);

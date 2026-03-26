@@ -23,8 +23,7 @@ describe('resolveOrgImports', () => {
   // 1. No-op: no imports, no tags
   // ----------------------------------------------------------
   it('passes through content unchanged when no imports or tags', async () => {
-    const content = `chart: org
-title: Simple
+    const content = `org Simple
 
 Alice
   Bob`;
@@ -38,12 +37,11 @@ Alice
   // 2. tags: loads tag groups from external file
   // ----------------------------------------------------------
   it('loads tag groups from external tags: file', async () => {
-    const tagsFile = `tag: Department
+    const tagsFile = `tag Department
   Engineering (blue)
   Product (green)`;
 
-    const content = `chart: org
-title: Test
+    const content = `org Test
 tags: shared-tags.dgmo
 
 Alice | department: Engineering`;
@@ -54,7 +52,7 @@ Alice | department: Engineering`;
 
     const result = await resolveOrgImports(content, '/proj/org.dgmo', reader);
     expect(result.diagnostics).toEqual([]);
-    expect(result.content).toContain('tag: Department');
+    expect(result.content).toContain('tag Department');
     expect(result.content).toContain('Engineering (blue)');
     expect(result.content).toContain('Alice | department: Engineering');
     // tags: directive should be stripped
@@ -62,17 +60,17 @@ Alice | department: Engineering`;
   });
 
   // ----------------------------------------------------------
-  // 3. Inline ## overrides same-name group from tags: file
+  // 3. Inline tag groups override same-name from tags: file
   // ----------------------------------------------------------
   it('inline tag groups override same-name groups from tags file', async () => {
-    const tagsFile = `tag: Department
+    const tagsFile = `tag Department
   Engineering (blue)
   Product (green)`;
 
-    const content = `chart: org
+    const content = `org
 tags: shared-tags.dgmo
 
-tag: Department
+tag Department
   Engineering (red)
   Sales (purple)
 
@@ -90,19 +88,18 @@ Alice | department: Engineering`;
   });
 
   // ----------------------------------------------------------
-  // 4. tags: file with non-tag content — only ## blocks extracted
+  // 4. tags: file with non-tag content — only tag blocks extracted
   // ----------------------------------------------------------
   it('extracts only tag groups from a tags file that has other content', async () => {
-    const tagsFile = `chart: org
-title: Other Chart
+    const tagsFile = `org Other Chart
 
-tag: Department
+tag Department
   Engineering (blue)
 
 CEO
   CTO`;
 
-    const content = `chart: org
+    const content = `org
 tags: other.dgmo
 
 Alice`;
@@ -113,7 +110,7 @@ Alice`;
 
     const result = await resolveOrgImports(content, '/proj/org.dgmo', reader);
     expect(result.diagnostics).toEqual([]);
-    expect(result.content).toContain('tag: Department');
+    expect(result.content).toContain('tag Department');
     expect(result.content).toContain('Engineering (blue)');
     expect(result.content).toContain('Alice');
     // The non-tag content from the tags file should NOT be included
@@ -125,7 +122,7 @@ Alice`;
   // 5. tags: file not found → diagnostic, proceeds without
   // ----------------------------------------------------------
   it('produces diagnostic when tags file not found', async () => {
-    const content = `chart: org
+    const content = `org
 tags: missing.dgmo
 
 Alice`;
@@ -140,13 +137,12 @@ Alice`;
   // 6. Single import grafts content at correct indentation
   // ----------------------------------------------------------
   it('grafts imported content at correct indentation', async () => {
-    const teamFile = `chart: org
-title: Platform Team
+    const teamFile = `org Platform Team
 
 Alice Chen | role: Staff Eng
 Bob Rivera | role: Senior Eng`;
 
-    const content = `chart: org
+    const content = `org
 
 CEO
   CTO
@@ -171,7 +167,7 @@ CEO
     const team1 = `Alice`;
     const team2 = `Bob`;
 
-    const content = `chart: org
+    const content = `org
 
 CEO
   import: team1.dgmo
@@ -194,7 +190,7 @@ CEO
   it('handles imports mixed with regular children', async () => {
     const teamFile = `Charlie`;
 
-    const content = `chart: org
+    const content = `org
 
 CEO
   Alice
@@ -213,16 +209,15 @@ CEO
   });
 
   // ----------------------------------------------------------
-  // 9. Imported file's chart:, title:, tags:, options stripped
+  // 9. Imported file's header directives stripped
   // ----------------------------------------------------------
   it('strips header directives from imported files', async () => {
-    const teamFile = `chart: org
-title: Platform Team
-hide: role
+    const teamFile = `org Platform Team
+hide role
 
 Alice Chen | role: Staff Eng`;
 
-    const content = `chart: org
+    const content = `org
 
 CEO
   import: team.dgmo`;
@@ -235,9 +230,9 @@ CEO
     expect(result.diagnostics).toEqual([]);
     expect(result.content).toContain('  Alice Chen | role: Staff Eng');
     // Header lines from imported file should be stripped
-    expect(result.content).not.toMatch(/^\s*title: Platform Team/m);
-    // chart: org from parent is fine
-    expect(result.content).toMatch(/^chart: org/m);
+    expect(result.content).not.toMatch(/Platform Team/m);
+    // org from parent is fine
+    expect(result.content).toMatch(/^org$/m);
   });
 
   // ----------------------------------------------------------
@@ -249,7 +244,7 @@ CEO
     const fileB = `Bob
   import: c.dgmo`;
 
-    const content = `chart: org
+    const content = `org
 
 Alice
   import: b.dgmo`;
@@ -269,24 +264,24 @@ Alice
   // 11. Tag group merging: parent inline > tags file > imported
   // ----------------------------------------------------------
   it('merges tag groups with correct precedence', async () => {
-    const tagsFile = `tag: Department
+    const tagsFile = `tag Department
   Engineering (blue)
 
-tag: Location
+tag Location
   NY (nord-8)`;
 
-    const importedFile = `tag: Department
+    const importedFile = `tag Department
   Engineering (green)
 
-tag: Status
+tag Status
   Active (yellow)
 
 Alice`;
 
-    const content = `chart: org
+    const content = `org
 tags: tags.dgmo
 
-tag: Department
+tag Department
   Engineering (red)
 
 CEO
@@ -313,14 +308,14 @@ CEO
   // 12. New groups from imported files added (no conflict)
   // ----------------------------------------------------------
   it('adds new tag groups from imported files', async () => {
-    const importedFile = `tag: Role
+    const importedFile = `tag Role
   Manager (orange)
 
 Alice | role: Manager`;
 
-    const content = `chart: org
+    const content = `org
 
-tag: Department
+tag Department
   Engineering (blue)
 
 CEO
@@ -332,8 +327,8 @@ CEO
 
     const result = await resolveOrgImports(content, '/proj/org.dgmo', reader);
     expect(result.diagnostics).toEqual([]);
-    expect(result.content).toContain('tag: Department');
-    expect(result.content).toContain('tag: Role');
+    expect(result.content).toContain('tag Department');
+    expect(result.content).toContain('tag Role');
     expect(result.content).toContain('Manager (orange)');
   });
 
@@ -341,15 +336,15 @@ CEO
   // 13. Imported file with tags: — its tags resolved before merging up
   // ----------------------------------------------------------
   it('resolves tags: in imported files before merging', async () => {
-    const sharedTags = `tag: Department
+    const sharedTags = `tag Department
   Engineering (blue)`;
 
-    const importedFile = `chart: org
+    const importedFile = `org
 tags: ../shared-tags.dgmo
 
 Alice | department: Engineering`;
 
-    const content = `chart: org
+    const content = `org
 
 CEO
   import: teams/eng.dgmo`;
@@ -361,7 +356,7 @@ CEO
 
     const result = await resolveOrgImports(content, '/proj/org.dgmo', reader);
     expect(result.diagnostics).toEqual([]);
-    expect(result.content).toContain('tag: Department');
+    expect(result.content).toContain('tag Department');
     expect(result.content).toContain('  Alice | department: Engineering');
   });
 
@@ -372,7 +367,7 @@ CEO
     const fileB = `Bob
   import: a.dgmo`;
 
-    const content = `chart: org
+    const content = `org
 
 Alice
   import: b.dgmo`;
@@ -397,7 +392,7 @@ Alice
     const fileC = `Carol
   import: d.dgmo`;
 
-    const content = `chart: org
+    const content = `org
 
 Alice
   import: b.dgmo
@@ -422,7 +417,7 @@ Alice
   // 16. File not found → diagnostic, rest renders
   // ----------------------------------------------------------
   it('produces diagnostic for missing import, continues rendering', async () => {
-    const content = `chart: org
+    const content = `org
 
 CEO
   import: missing.dgmo
@@ -438,7 +433,7 @@ CEO
   // 17. Empty imported file → no content added
   // ----------------------------------------------------------
   it('handles empty imported files gracefully', async () => {
-    const content = `chart: org
+    const content = `org
 
 CEO
   import: empty.dgmo
@@ -461,7 +456,7 @@ CEO
     const siblingFile = `Charlie`;
     const parentFile = `Dave`;
 
-    const content = `chart: org
+    const content = `org
 
 Alice
   import: ./sibling.dgmo
@@ -482,7 +477,7 @@ Alice
   // 19. Integration: merged output parses correctly with parseOrg()
   // ----------------------------------------------------------
   it('produces output that parses correctly with parseOrg', async () => {
-    const tagsFile = `tag: Department
+    const tagsFile = `tag Department
   Engineering (blue)
   Product (green)`;
 
@@ -490,8 +485,7 @@ Alice
   Alice Chen | department: Engineering
   Bob Rivera | department: Engineering`;
 
-    const content = `chart: org
-title: Acme Corp
+    const content = `org Acme Corp
 tags: company-tags.dgmo
 
 CEO | department: Engineering
@@ -522,15 +516,14 @@ CEO | department: Engineering
   });
 
   // ----------------------------------------------------------
-  // 20. tag: syntax in tags: file
+  // 20. tag syntax in tags: file
   // ----------------------------------------------------------
-  it('loads tag groups from tags: file using tag: syntax', async () => {
-    const tagsFile = `tag: Department
+  it('loads tag groups from tags: file using tag syntax', async () => {
+    const tagsFile = `tag Department
   Engineering (blue)
   Product (green)`;
 
-    const content = `chart: org
-title: Test
+    const content = `org Test
 tags: shared-tags.dgmo
 
 Alice | department: Engineering`;
@@ -541,22 +534,22 @@ Alice | department: Engineering`;
 
     const result = await resolveOrgImports(content, '/proj/org.dgmo', reader);
     expect(result.diagnostics).toEqual([]);
-    expect(result.content).toContain('tag: Department');
+    expect(result.content).toContain('tag Department');
     expect(result.content).toContain('Engineering (blue)');
   });
 
   // ----------------------------------------------------------
-  // 21. Mixed syntax: main uses tag:, import uses ##
+  // 21. Merges tag groups across files
   // ----------------------------------------------------------
-  it('merges tag groups across mixed syntax (tag: and ##)', async () => {
-    const importedFile = `tag: Role
+  it('merges tag groups across imported files', async () => {
+    const importedFile = `tag Role
   Manager (orange)
 
 Alice | role: Manager`;
 
-    const content = `chart: org
+    const content = `org
 
-tag: Department
+tag Department
   Engineering (blue)
 
 CEO
@@ -568,23 +561,23 @@ CEO
 
     const result = await resolveOrgImports(content, '/proj/org.dgmo', reader);
     expect(result.diagnostics).toEqual([]);
-    expect(result.content).toContain('tag: Department');
-    expect(result.content).toContain('tag: Role');
+    expect(result.content).toContain('tag Department');
+    expect(result.content).toContain('tag Role');
     expect(result.content).toContain('Manager (orange)');
   });
 
   // ----------------------------------------------------------
-  // 22. tag: syntax inline overrides same-name from tags file
+  // 22. Inline tag groups override same-name from tags file
   // ----------------------------------------------------------
-  it('inline tag: groups override same-name ## groups from tags file', async () => {
-    const tagsFile = `tag: Department
+  it('inline tag groups override same-name groups from tags file', async () => {
+    const tagsFile = `tag Department
   Engineering (blue)
   Product (green)`;
 
-    const content = `chart: org
+    const content = `org
 tags: shared-tags.dgmo
 
-tag: Department
+tag Department
   Engineering (red)
   Sales (purple)
 
@@ -604,8 +597,7 @@ Alice | department: Engineering`;
   // 23. importSourceMap: non-imported lines have null
   // ----------------------------------------------------------
   it('importSourceMap is null for non-imported lines', async () => {
-    const content = `chart: org
-title: Simple
+    const content = `org Simple
 
 Alice
   Bob`;
@@ -621,13 +613,11 @@ Alice
   // 24. importSourceMap: imported lines point to source file + line
   // ----------------------------------------------------------
   it('importSourceMap points to source file and line for imported content', async () => {
-    const teamFile = `chart: org
-title: Platform Team
-
+    const teamFile = `org Platform Team
 Alice Chen
 Bob Rivera`;
 
-    const content = `chart: org
+    const content = `org
 
 CEO
   import: team.dgmo`;
@@ -652,11 +642,11 @@ CEO
 
     expect(aliceSource).not.toBeNull();
     expect(aliceSource!.filePath).toBe('/proj/team.dgmo');
-    expect(aliceSource!.sourceLine).toBe(4); // "Alice Chen" is line 4 in team.dgmo
+    expect(aliceSource!.sourceLine).toBe(2); // "Alice Chen" is line 2 in team.dgmo
 
     expect(bobSource).not.toBeNull();
     expect(bobSource!.filePath).toBe('/proj/team.dgmo');
-    expect(bobSource!.sourceLine).toBe(5); // "Bob Rivera" is line 5 in team.dgmo
+    expect(bobSource!.sourceLine).toBe(3); // "Bob Rivera" is line 3 in team.dgmo
   });
 
   // ----------------------------------------------------------
@@ -668,7 +658,7 @@ CEO
     const fileB = `Bob
   import: c.dgmo`;
 
-    const content = `chart: org
+    const content = `org
 
 Alice
   import: b.dgmo`;
@@ -698,7 +688,7 @@ Alice
   it('importSourceMap is null for non-imported lines when imports exist', async () => {
     const teamFile = `Alice`;
 
-    const content = `chart: org
+    const content = `org
 
 CEO
   import: team.dgmo
@@ -726,16 +716,15 @@ CEO
   });
 
   // ----------------------------------------------------------
-  // Regression: title line with trailing whitespace must be preserved
+  // Regression: title on first line with trailing whitespace
   // ----------------------------------------------------------
-  it('preserves title: line that has trailing whitespace', async () => {
-    const tagsFile = `tag: Status alias s\n  Active(green)\n  Inactive(gray)\n`;
-    const content = `chart: org\ntitle: My Org \nsub-node-label: Reports\ntags: tags.dgmo\n\nAlice\n  Bob\n`;
+  it('preserves title from first line with trailing whitespace', async () => {
+    const tagsFile = `tag Status s\n  Active(green)\n  Inactive(gray)\n`;
+    const content = `org My Org \nsub-node-label Reports\ntags: tags.dgmo\n\nAlice\n  Bob\n`;
 
     const reader = mockReader({ '/proj/tags.dgmo': tagsFile });
     const result = await resolveOrgImports(content, '/proj/org.dgmo', reader);
     expect(result.diagnostics).toEqual([]);
-    expect(result.content).toContain('title: My Org');
 
     const parsed = parseOrg(result.content);
     expect(parsed.title).toBe('My Org');

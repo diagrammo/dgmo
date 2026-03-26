@@ -3,11 +3,10 @@ import { parseInfra } from '../src/infra/parser';
 
 describe('infra parser', () => {
   describe('chart declaration (FR1)', () => {
-    it('parses chart: infra with title and direction', () => {
+    it('parses infra with title and direction', () => {
       const result = parseInfra(`
-chart: infra
-title: Production Traffic Flow
-direction: LR
+infra Production Traffic Flow
+direction LR
 `);
       expect(result.type).toBe('infra');
       expect(result.title).toBe('Production Traffic Flow');
@@ -16,33 +15,33 @@ direction: LR
     });
 
     it('defaults direction to LR', () => {
-      const result = parseInfra('chart: infra');
+      const result = parseInfra('infra');
       expect(result.direction).toBe('LR');
     });
 
     it('supports TB direction', () => {
-      const result = parseInfra('chart: infra\ndirection: TB');
+      const result = parseInfra('infra\ndirection TB');
       expect(result.direction).toBe('TB');
     });
 
     it('warns on unknown direction', () => {
-      const result = parseInfra('chart: infra\ndirection: RL');
+      const result = parseInfra('infra\ndirection RL');
       expect(result.diagnostics).toHaveLength(1);
       expect(result.diagnostics[0].severity).toBe('warning');
     });
 
-    it('accepts orientation: as alias for direction:', () => {
-      const result = parseInfra('chart: infra\norientation: vertical');
+    it('accepts orientation as alias for direction', () => {
+      const result = parseInfra('infra\norientation vertical');
       expect(result.direction).toBe('TB');
     });
 
-    it('normalizes direction: horizontal to LR', () => {
-      const result = parseInfra('chart: infra\ndirection: horizontal');
+    it('normalizes direction horizontal to LR', () => {
+      const result = parseInfra('infra\ndirection horizontal');
       expect(result.direction).toBe('LR');
     });
 
-    it('normalizes orientation: LR to LR', () => {
-      const result = parseInfra('chart: infra\norientation: LR');
+    it('normalizes orientation LR to LR', () => {
+      const result = parseInfra('infra\norientation LR');
       expect(result.direction).toBe('LR');
     });
 
@@ -55,10 +54,10 @@ direction: LR
   describe('component blocks (FR2)', () => {
     it('parses a simple component', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 CloudFront
-  cache-hit: 80%
+  cache-hit 80%
 `);
       expect(result.nodes).toHaveLength(1);
       expect(result.nodes[0].id).toBe('CloudFront');
@@ -70,13 +69,13 @@ CloudFront
 
     it('parses multiple components', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 CloudFront
-  cache-hit: 80%
+  cache-hit 80%
 
 WAF
-  firewall-block: 5%
+  firewall-block 5%
 `);
       expect(result.nodes).toHaveLength(2);
       expect(result.nodes[0].id).toBe('CloudFront');
@@ -87,10 +86,10 @@ WAF
   describe('edge component (FR6)', () => {
     it('parses edge with rps', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 edge
-  rps: 10000
+  rps 10000
   -> CloudFront
 `);
       const edgeNode = result.nodes.find((n) => n.isEdge);
@@ -101,10 +100,10 @@ edge
 
     it('warns when rps is used on non-edge component', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 CloudFront
-  rps: 5000
+  rps 5000
 `);
       const warn = result.diagnostics.find((d) =>
         d.message.includes('only valid on the entry point'),
@@ -116,14 +115,14 @@ CloudFront
   describe('connections (FR4)', () => {
     it('parses simple connection', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 edge
-  rps: 10000
+  rps 10000
   -> CloudFront
 
 CloudFront
-  cache-hit: 80%
+  cache-hit 80%
 `);
       expect(result.edges).toHaveLength(1);
       expect(result.edges[0].sourceId).toBe('edge');
@@ -133,7 +132,7 @@ CloudFront
 
     it('parses labeled connection', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 ALB
   -/api-> APIServer | split: 60%
@@ -149,14 +148,14 @@ ALB
 
     it('parses connection to group target', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 ALB
   -/api-> [API Pods] | split: 100%
 
 [API Pods]
   APIServer
-    instances: 3
+    instances 3
 `);
       expect(result.edges[0].targetId).toBe('[API Pods]');
     });
@@ -165,11 +164,11 @@ ALB
   describe('behavior properties (FR3)', () => {
     it('parses percentage values', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 CDN
-  cache-hit: 80%
-  uptime: 99.99%
+  cache-hit 80%
+  uptime 99.99%
 `);
       const cdn = result.nodes[0];
       expect(cdn.properties[0].value).toBe(80);
@@ -178,13 +177,13 @@ CDN
 
     it('parses numeric values', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 API
-  latency-ms: 45
-  max-rps: 500
-  instances: 3
-  ratelimit-rps: 1000
+  latency-ms 45
+  max-rps 500
+  instances 3
+  ratelimit-rps 1000
 `);
       const api = result.nodes[0];
       expect(api.properties.find((p) => p.key === 'latency-ms')!.value).toBe(45);
@@ -194,10 +193,10 @@ API
 
     it('parses range values as string', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 API
-  instances: 1-8
+  instances 1-8
 `);
       // Range is stored as string since it contains a dash
       expect(result.nodes[0].properties[0].value).toBe('1-8');
@@ -205,10 +204,10 @@ API
 
     it('warns on unknown property key', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 API
-  unknown-prop: 42
+  unknown-prop 42
 `);
       expect(result.diagnostics).toHaveLength(1);
       expect(result.diagnostics[0].message).toContain("Unknown property 'unknown-prop'");
@@ -216,10 +215,10 @@ API
 
     it('suggests close matches for typos', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 CDN
-  cache-hti: 80%
+  cache-hti 80%
 `);
       const diag = result.diagnostics[0];
       expect(diag.message).toContain("Did you mean 'cache-hit'");
@@ -229,12 +228,12 @@ CDN
   describe('[Group] containers (FR5)', () => {
     it('parses groups with child components', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 [API Pods]
   APIServer
-    instances: 3
-    max-rps: 500
+    instances 3
+    max-rps 500
 `);
       expect(result.groups).toHaveLength(1);
       expect(result.groups[0].label).toBe('API Pods');
@@ -247,13 +246,13 @@ chart: infra
 
     it('parses multiple components in a group', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 [Backend Services]
   APIServer
-    max-rps: 500
+    max-rps 500
   WorkerService
-    max-rps: 200
+    max-rps 200
 `);
       expect(result.groups).toHaveLength(1);
       expect(result.nodes).toHaveLength(2);
@@ -265,10 +264,10 @@ chart: infra
   describe('[Group] properties (Epic 76)', () => {
     it('parses group instances as number', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 [PVO]
-  instances: 5
+  instances 5
 
   PVONginx
     -> PVO
@@ -282,10 +281,10 @@ chart: infra
 
     it('parses group instances as range', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 [Backend]
-  instances: 2-8
+  instances 2-8
 
   APIServer
 `);
@@ -294,11 +293,11 @@ chart: infra
 
     it('parses group collapsed property', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 [PVO]
-  collapsed: true
-  instances: 3
+  collapsed true
+  instances 3
 
   PVONginx
   PVO
@@ -310,7 +309,7 @@ chart: infra
 
     it('groups without properties work as before', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 [MPV]
   MPVNginx
@@ -325,9 +324,9 @@ chart: infra
   describe('tag groups (FR7)', () => {
     it('parses tag group with alias and values', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
-tag: Team alias t
+tag Team t
   Backend(blue)
   Platform(teal)
   Commerce(orange)
@@ -342,9 +341,9 @@ tag: Team alias t
 
     it('parses tag group without alias', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
-tag: Environment
+tag Environment
   Production
   Staging
 `);
@@ -357,13 +356,13 @@ tag: Environment
   describe('pipe metadata on components', () => {
     it('parses tag assignments via pipe metadata', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
-tag: Team alias t
+tag Team t
   Backend(blue)
 
 CloudFront | t: Backend
-  cache-hit: 80%
+  cache-hit 80%
 `);
       const node = result.nodes.find((n) => n.id === 'CloudFront');
       expect(node!.tags).toEqual({ t: 'Backend' });
@@ -373,25 +372,24 @@ CloudFront | t: Backend
   describe('canonical example', () => {
     it('parses the full brainstorming example', () => {
       const result = parseInfra(`
-chart: infra
-title: Production Traffic Flow
-direction: LR
+infra Production Traffic Flow
+direction LR
 
-tag: Team alias t
+tag Team t
   Backend(blue)
   Platform(teal)
   Commerce(orange)
 
 edge
-  rps: 10000
+  rps 10000
   -> CloudFront
 
 CloudFront | t: Platform
-  cache-hit: 80%
+  cache-hit 80%
   -> CloudArmor
 
 CloudArmor | t: Platform
-  firewall-block: 5%
+  firewall-block 5%
   -> ALB
 
 ALB | t: Platform
@@ -401,13 +399,13 @@ ALB | t: Platform
 
 [API Pods]
   APIServer | t: Backend
-    instances: 3
-    max-rps: 500
+    instances 3
+    max-rps 500
 
 [Commerce Pods]
   PurchaseMS | t: Commerce
-    instances: 1-8
-    max-rps: 300
+    instances 1-8
+    max-rps 300
 
 StaticServer | t: Platform
 `);
@@ -460,12 +458,12 @@ StaticServer | t: Platform
   describe('serverless properties (Epic 77)', () => {
     it('parses concurrency, duration-ms, cold-start-ms as numeric values', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 ProcessOrder
-  concurrency: 1000
-  duration-ms: 200
-  cold-start-ms: 250
+  concurrency 1000
+  duration-ms 200
+  cold-start-ms 250
   -> DB
 `);
       expect(result.error).toBeNull();
@@ -481,11 +479,11 @@ ProcessOrder
 
     it('emits diagnostic when concurrency used with instances', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 Lambda
-  concurrency: 1000
-  instances: 3
+  concurrency 1000
+  instances 3
 `);
       const warnings = result.diagnostics.filter((d) => d.message.includes('mutually exclusive'));
       expect(warnings).toHaveLength(1);
@@ -496,11 +494,11 @@ Lambda
 
     it('emits diagnostic when concurrency used with max-rps', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 Lambda
-  concurrency: 500
-  max-rps: 2000
+  concurrency 500
+  max-rps 2000
 `);
       const warnings = result.diagnostics.filter((d) => d.message.includes('mutually exclusive'));
       expect(warnings).toHaveLength(1);
@@ -509,12 +507,12 @@ Lambda
 
     it('emits diagnostic mentioning both when concurrency used with instances and max-rps', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 Lambda
-  concurrency: 500
-  instances: 2
-  max-rps: 1000
+  concurrency 500
+  instances 2
+  max-rps 1000
 `);
       const warnings = result.diagnostics.filter((d) => d.message.includes('mutually exclusive'));
       expect(warnings).toHaveLength(1);
@@ -524,11 +522,11 @@ Lambda
 
     it('no diagnostic when concurrency used alone', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 Lambda
-  concurrency: 1000
-  duration-ms: 200
+  concurrency 1000
+  duration-ms 200
 `);
       const warnings = result.diagnostics.filter((d) => d.message.includes('mutually exclusive'));
       expect(warnings).toHaveLength(0);
@@ -538,13 +536,13 @@ Lambda
   describe('queue properties (Epic 78)', () => {
     it('parses buffer, drain-rate, retention-hours, partitions as numeric values', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 OrderQueue
-  buffer: 100000
-  drain-rate: 500
-  retention-hours: 72
-  partitions: 6
+  buffer 100000
+  drain-rate 500
+  retention-hours 72
+  partitions 6
   -> OrderProcessor
 `);
       expect(result.error).toBeNull();
@@ -560,11 +558,11 @@ OrderQueue
 
     it('emits diagnostic when buffer used with max-rps', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 Queue
-  buffer: 100000
-  max-rps: 5000
+  buffer 100000
+  max-rps 5000
 `);
       const warnings = result.diagnostics.filter((d) => d.message.includes('capacity models'));
       expect(warnings).toHaveLength(1);
@@ -573,11 +571,11 @@ Queue
 
     it('no diagnostic when buffer used alone', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 Queue
-  buffer: 50000
-  drain-rate: 1000
+  buffer 50000
+  drain-rate 1000
 `);
       const warnings = result.diagnostics.filter((d) => d.message.includes('capacity models'));
       expect(warnings).toHaveLength(0);
@@ -587,22 +585,20 @@ Queue
   describe('comments and blank lines', () => {
     it('skips comments', () => {
       const result = parseInfra(`
-chart: infra
-// This is a comment
-title: Test
+infra Test
 `);
       expect(result.title).toBe('Test');
     });
 
     it('handles blank lines between components', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 edge
-  rps: 1000
+  rps 1000
 
 CDN
-  cache-hit: 80%
+  cache-hit 80%
 `);
       expect(result.nodes).toHaveLength(2);
     });
@@ -611,10 +607,10 @@ CDN
   describe('fanout multiplier (pipe metadata)', () => {
     it('parses simple connection with fanout via pipe metadata', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 edge
-  rps: 100
+  rps 100
   -> API | fanout: 5
 `);
       expect(result.edges).toHaveLength(1);
@@ -625,10 +621,10 @@ edge
 
     it('parses connection with both split and fanout in pipe metadata', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 edge
-  rps: 100
+  rps 100
   -> B | split: 50%, fanout: 3
   -> C | split: 50%
 `);
@@ -642,10 +638,10 @@ edge
 
     it('parses labeled connection with fanout via pipe metadata', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 edge
-  rps: 100
+  rps 100
   -query-> Shards | fanout: 10
 `);
       expect(result.edges).toHaveLength(1);
@@ -656,10 +652,10 @@ edge
 
     it('parses connection without fanout — fanout is null (regression)', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 edge
-  rps: 100
+  rps 100
   -> API
 `);
       expect(result.edges).toHaveLength(1);
@@ -668,10 +664,10 @@ edge
 
     it('emits error for deprecated x5 fanout syntax on simple connection', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 edge
-  rps: 100
+  rps 100
   -> Database x5
 `);
       expect(result.error).toContain("'x5' fanout syntax is no longer supported");
@@ -680,10 +676,10 @@ edge
 
     it('emits error for deprecated xN fanout syntax on labeled connection', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 edge
-  rps: 100
+  rps 100
   -query-> Shards x10
 `);
       expect(result.error).toContain("'x10' fanout syntax is no longer supported");
@@ -693,14 +689,14 @@ edge
 
   describe('line numbers', () => {
     it('tracks line numbers on nodes and edges', () => {
-      const result = parseInfra(`chart: infra
+      const result = parseInfra(`infra
 
 edge
-  rps: 1000
+  rps 1000
   -> CDN
 
 CDN
-  cache-hit: 80%`);
+  cache-hit 80%`);
       const edgeNode = result.nodes.find((n) => n.isEdge);
       expect(edgeNode!.lineNumber).toBe(3);
       expect(edgeNode!.properties[0].lineNumber).toBe(4);
@@ -714,13 +710,13 @@ CDN
   describe('hyphenated node names', () => {
     it('parses node declarations with hyphens', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 api-gateway
-  max-rps: 1000
+  max-rps 1000
 
 my-service-v2
-  latency-ms: 10
+  latency-ms 10
 `);
       expect(result.error).toBeNull();
       const gw = result.nodes.find((n) => n.id === 'api-gateway');
@@ -733,18 +729,18 @@ my-service-v2
 
     it('resolves connections to hyphenated node names', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 edge
-  rps: 1000
+  rps 1000
   -> api-gateway
 
 api-gateway
-  max-rps: 5000
+  max-rps 5000
   -> auth-service
 
 auth-service
-  max-rps: 2000
+  max-rps 2000
 `);
       expect(result.error).toBeNull();
       expect(result.edges).toHaveLength(2);
@@ -755,14 +751,14 @@ auth-service
 
     it('parses labeled connections to hyphenated node names', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 edge
-  rps: 100
+  rps 100
   -query-> search-service
 
 search-service
-  max-rps: 5000
+  max-rps 5000
 `);
       expect(result.error).toBeNull();
       expect(result.edges[0].label).toBe('query');
@@ -771,16 +767,16 @@ search-service
 
     it('parses hyphenated node names inside a group', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 [Shards]
-  instances: 3
+  instances 3
 
   shard-primary
-    max-rps: 5000
+    max-rps 5000
 
   shard-replica
-    max-rps: 5000
+    max-rps 5000
 `);
       expect(result.error).toBeNull();
       const primary = result.nodes.find((n) => n.id === 'shard-primary');
@@ -795,9 +791,9 @@ chart: infra
   describe('description field', () => {
     it('parses description on a node', () => {
       const result = parseInfra(`
-chart: infra
+infra
 APIServer
-  description: Handles all REST API calls
+  description Handles all REST API calls
 `);
       expect(result.nodes[0].description).toBe('Handles all REST API calls');
       expect(result.nodes[0].properties).toHaveLength(0);
@@ -805,19 +801,19 @@ APIServer
 
     it('description with colon in value', () => {
       const result = parseInfra(`
-chart: infra
+infra
 AuthService
-  description: Handles auth: JWT and sessions
+  description Handles auth: JWT and sessions
 `);
       expect(result.nodes[0].description).toBe('Handles auth: JWT and sessions');
     });
 
     it('description does not go into properties array', () => {
       const result = parseInfra(`
-chart: infra
+infra
 APIServer
-  description: My service
-  max-rps: 500
+  description My service
+  max-rps 500
 `);
       expect(result.nodes[0].description).toBe('My service');
       expect(result.nodes[0].properties).toHaveLength(1);
@@ -826,10 +822,10 @@ APIServer
 
     it('description on edge node is silently ignored', () => {
       const result = parseInfra(`
-chart: infra
+infra
 edge
-  rps: 1000
-  description: This is the edge
+  rps 1000
+  description This is the edge
   -> APIServer
 `);
       const edgeNode = result.nodes.find((n) => n.isEdge);
@@ -839,9 +835,9 @@ edge
 
     it('no unknown-property warning for description', () => {
       const result = parseInfra(`
-chart: infra
+infra
 MyService
-  description: Does things
+  description Does things
 `);
       expect(result.diagnostics).toHaveLength(0);
     });
@@ -850,8 +846,8 @@ MyService
   describe('SLO chart-level options', () => {
     it('parses slo-availability as chart option', () => {
       const result = parseInfra(`
-chart: infra
-slo-availability: 99.9%
+infra
+slo-availability 99.9%
 `);
       expect(result.options['slo-availability']).toBe('99.9%');
       expect(result.error).toBeNull();
@@ -859,8 +855,8 @@ slo-availability: 99.9%
 
     it('parses slo-p90-latency-ms as chart option', () => {
       const result = parseInfra(`
-chart: infra
-slo-p90-latency-ms: 200
+infra
+slo-p90-latency-ms 200
 `);
       expect(result.options['slo-p90-latency-ms']).toBe('200');
       expect(result.error).toBeNull();
@@ -868,8 +864,8 @@ slo-p90-latency-ms: 200
 
     it('parses slo-warning-margin as chart option', () => {
       const result = parseInfra(`
-chart: infra
-slo-warning-margin: 10%
+infra
+slo-warning-margin 10%
 `);
       expect(result.options['slo-warning-margin']).toBe('10%');
       expect(result.error).toBeNull();
@@ -877,9 +873,9 @@ slo-warning-margin: 10%
 
     it('parses per-node slo-availability into node properties', () => {
       const result = parseInfra(`
-chart: infra
+infra
 API
-  slo-availability: 99%
+  slo-availability 99%
 `);
       const apiNode = result.nodes.find((n) => n.id === 'API');
       const sloProp = apiNode?.properties.find((p) => p.key === 'slo-availability');
@@ -890,41 +886,41 @@ API
 
     it('no unknown-property warning for per-node slo-availability', () => {
       const result = parseInfra(`
-chart: infra
+infra
 API
-  slo-availability: 99%
+  slo-availability 99%
 `);
       expect(result.diagnostics).toHaveLength(0);
     });
 
     it('no unknown-property warning for per-node slo-p90-latency-ms', () => {
       const result = parseInfra(`
-chart: infra
+infra
 API
-  slo-p90-latency-ms: 200
+  slo-p90-latency-ms 200
 `);
       expect(result.diagnostics).toHaveLength(0);
     });
 
     it('no unknown-property warning for per-node slo-warning-margin', () => {
       const result = parseInfra(`
-chart: infra
+infra
 API
-  slo-warning-margin: 10%
+  slo-warning-margin 10%
 `);
       expect(result.diagnostics).toHaveLength(0);
     });
 
     it('all three SLO keys coexist without warnings', () => {
       const result = parseInfra(`
-chart: infra
-slo-availability: 99%
-slo-p90-latency-ms: 200
-slo-warning-margin: 5%
+infra
+slo-availability 99%
+slo-p90-latency-ms 200
+slo-warning-margin 5%
 
 API
-  max-rps: 1000
-  slo-availability: 95%
+  max-rps 1000
+  slo-availability 95%
 `);
       expect(result.options['slo-availability']).toBe('99%');
       expect(result.options['slo-p90-latency-ms']).toBe('200');
@@ -936,7 +932,7 @@ API
   describe('async arrows (Task 3.1)', () => {
     it('parses ~> as async edge', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 API
   ~> Database
@@ -949,7 +945,7 @@ API
 
     it('parses ~label~> as async labeled edge', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 OrderService
   ~emit order~> EventBus
@@ -962,7 +958,7 @@ OrderService
 
     it('parses -> as sync edge (regression)', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 API
   -> Database
@@ -974,7 +970,7 @@ API
 
     it('parses -label-> as sync labeled edge (regression)', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 ALB
   -/api-> API
@@ -986,7 +982,7 @@ ALB
 
     it('async edge with split metadata', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 API
   ~> QueueA | split: 60%
@@ -1003,7 +999,7 @@ API
   describe('is-a type declarations (Task 3.2)', () => {
     it('parses "is a cache"', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 Redis is a cache
 `);
@@ -1015,7 +1011,7 @@ Redis is a cache
 
     it('parses "is a database"', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 PostgreSQL is a database
 `);
@@ -1025,7 +1021,7 @@ PostgreSQL is a database
 
     it('accepts "is an" for grammar forgiveness', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 ApiGateway is an gateway
 `);
@@ -1035,7 +1031,7 @@ ApiGateway is an gateway
 
     it('node without is-a has undefined nodeType', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 AppServer
 `);
@@ -1045,13 +1041,13 @@ AppServer
 
     it('is-a node with connections works', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 API
   -> Redis
 
 Redis is a cache
-  latency-ms: 2
+  latency-ms 2
 `);
       expect(result.edges).toHaveLength(1);
       expect(result.edges[0].targetId).toBe('Redis');
@@ -1063,7 +1059,7 @@ Redis is a cache
 
     it('is-a inside group', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 [Backend]
   Redis is a cache
@@ -1078,7 +1074,7 @@ chart: infra
   describe('group metadata cascading (Task 3.5a)', () => {
     it('cascades group metadata to children', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 [Backend] | t: Engineering
   OrderAPI
@@ -1090,7 +1086,7 @@ chart: infra
 
     it('node-level metadata overrides group metadata', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 [Backend] | t: Engineering
   OrderAPI | t: Platform
@@ -1102,7 +1098,7 @@ chart: infra
 
     it('group without metadata does not add tags to children (regression)', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 [Backend]
   OrderAPI
@@ -1114,7 +1110,7 @@ chart: infra
 
     it('group metadata with multiple keys', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 [Backend] | t: Engineering, env: Prod
   OrderAPI
@@ -1127,7 +1123,7 @@ chart: infra
 
     it('group metadata stored on group object', () => {
       const result = parseInfra(`
-chart: infra
+infra
 
 [Backend] | t: Engineering
   OrderAPI

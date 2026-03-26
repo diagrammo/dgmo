@@ -377,7 +377,7 @@ export function layoutOrg(
 
   // Build tree structure
   const subNodeLabel = parsed.options['sub-node-label'] ?? undefined;
-  const showSubNodeCount = parsed.options['show-sub-node-count']?.toLowerCase() === 'yes';
+  const showSubNodeCount = ['yes', 'on'].includes(parsed.options['show-sub-node-count']?.toLowerCase() ?? '');
   const treeNodes = buildTreeNodes(parsed.roots, hiddenCounts, hiddenAttributes, subNodeLabel, showSubNodeCount);
 
   // Single root or virtual root for multiple roots

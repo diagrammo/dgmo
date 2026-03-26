@@ -1,7 +1,7 @@
 import { resolveColor } from '../colors';
 import type { PaletteColors } from '../palettes';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
-import { measureIndent, extractColor, parsePipeMetadata, MULTIPLE_PIPE_WARNING } from '../utils/parsing';
+import { measureIndent, extractColor, parsePipeMetadata, parseFirstLine, OPTION_NOCOLON_RE } from '../utils/parsing';
 import { matchTagBlockHeading, validateTagValues } from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
 import type {
@@ -27,8 +27,10 @@ function tableId(name: string): string {
 // Allows lowercase, uppercase, underscores, digits — must start with letter or underscore
 const TABLE_DECL_RE = /^([a-zA-Z_]\w*)(?:\s*\(([^)]+)\))?(?:\s*\|(.+))?$/;
 
-// Column: name: type [constraints]  or  name [constraints]  or  name: type  or  name
-const COLUMN_RE = /^(\w+)(?:\s*:\s*(\w[\w()]*(?:\s*\[\])?))?(?:\s+\[([^\]]+)\])?\s*$/;
+// Column: name [type] [constraints...]  — space-separated, no colon, no brackets
+// First token is always the name. Second token is the type if it's not a constraint keyword.
+// Remaining tokens are constraint keywords (pk, fk, unique, nullable).
+// Handled programmatically, not with a single regex.
 
 // Indented relationship: 1-* target  or  1-label-* target
 const INDENT_REL_RE = /^([1*?])-(?:(.+)-)?([1*?])\s+([a-zA-Z_]\w*)\s*$/;
@@ -40,6 +42,9 @@ const CONSTRAINT_MAP: Record<string, ERConstraint> = {
   unique: 'unique',
   nullable: 'nullable',
 };
+
+// Known options (space-separated, no colon)
+const KNOWN_OPTIONS = new Set(['notation']);
 
 // ============================================================
 // Cardinality parsing
@@ -56,17 +61,17 @@ function parseCardSide(token: string): ERCardinality | null {
 /**
  * Try to parse a relationship line with symbolic cardinality.
  *
- * Supported form:
- *   tableName 1--* tableName : label
- *   tableName 1-* tableName : label
- *   tableName ?--1 tableName : label
+ * Supported form (no colon before label):
+ *   tableName 1--* tableName label
+ *   tableName 1-* tableName label
+ *   tableName ?--1 tableName
  */
 const REL_SYMBOLIC_RE =
-  /^([a-zA-Z_]\w*)\s+([1*?])\s*-{1,2}\s*([1*?])\s+([a-zA-Z_]\w*)(?:\s*:\s*(.+))?$/;
+  /^([a-zA-Z_]\w*)\s+([1*?])\s*-{1,2}\s*([1*?])\s+([a-zA-Z_]\w*)(?:\s+(.+))?$/;
 
 /** Detects keyword cardinality forms to emit helpful error */
 const REL_KEYWORD_RE =
-  /^([a-zA-Z_]\w*)\s+(one|many|zero)[- ]to[- ](one|many|zero)\s+([a-zA-Z_]\w*)(?:\s*:\s*(.+))?$/i;
+  /^([a-zA-Z_]\w*)\s+(one|many|zero)[- ]to[- ](one|many|zero)\s+([a-zA-Z_]\w*)(?:\s+(.+))?$/i;
 
 const KEYWORD_TO_SYMBOL: Record<string, string> = {
   one: '1',
@@ -117,17 +122,39 @@ function parseRelationship(
 }
 
 // ============================================================
-// Constraint parser
+// Column parser (space-separated: name [type] [constraints...])
 // ============================================================
 
-function parseConstraints(raw: string): ERConstraint[] {
-  const parts = raw.split(',').map((s) => s.trim().toLowerCase());
-  const result: ERConstraint[] = [];
-  for (const part of parts) {
-    const c = CONSTRAINT_MAP[part];
-    if (c) result.push(c);
+function parseColumn(trimmed: string): {
+  name: string;
+  type?: string;
+  constraints: ERConstraint[];
+} | null {
+  const tokens = trimmed.split(/\s+/);
+  if (tokens.length === 0) return null;
+
+  // First token must look like a column name (word chars)
+  const name = tokens[0];
+  if (!/^\w+$/.test(name)) return null;
+
+  const constraints: ERConstraint[] = [];
+  let type: string | undefined;
+
+  for (let i = 1; i < tokens.length; i++) {
+    const lower = tokens[i].toLowerCase();
+    const constraint = CONSTRAINT_MAP[lower];
+    if (constraint) {
+      constraints.push(constraint);
+    } else if (type === undefined) {
+      // First non-constraint token after name is the type
+      type = tokens[i];
+    } else {
+      // Unknown token after type — not a valid column line
+      return null;
+    }
   }
-  return result;
+
+  return { name, type, constraints };
 }
 
 // ============================================================
@@ -167,6 +194,7 @@ export function parseERDiagram(
   let contentStarted = false;
   let currentTagGroup: TagGroup | null = null;
   const aliasMap = new Map<string, string>();
+  let firstLineParsed = false;
 
   function getOrCreateTable(name: string, lineNumber: number): ERTable {
     const id = tableId(name);
@@ -200,7 +228,22 @@ export function parseERDiagram(
     // Skip comments
     if (trimmed.startsWith('//')) continue;
 
-    // Tag group heading — `tag: Name` or deprecated `## Name`
+    // First line: chart type + optional title
+    if (!firstLineParsed && indent === 0) {
+      const firstLineResult = parseFirstLine(trimmed);
+      if (firstLineResult && firstLineResult.chartType === 'er') {
+        firstLineParsed = true;
+        if (firstLineResult.title) {
+          result.title = firstLineResult.title;
+          result.titleLineNumber = lineNumber;
+        }
+        continue;
+      }
+      // Not an explicit `er` first line — that's OK, treat as implicit
+      firstLineParsed = true;
+    }
+
+    // Tag group heading — `tag Name` or deprecated `## Name`
     if (!contentStarted && indent === 0) {
       const tagBlockMatch = matchTagBlockHeading(trimmed);
       if (tagBlockMatch) {
@@ -223,19 +266,16 @@ export function parseERDiagram(
       }
     }
 
-    // Tag group entries (indented under tag: heading)
+    // Tag group entries (indented under tag heading)
     if (currentTagGroup && !contentStarted && indent > 0) {
-      const isDefault = /\bdefault\s*$/.test(trimmed);
-      const entryText = isDefault
-        ? trimmed.replace(/\s+default\s*$/, '').trim()
-        : trimmed;
-      const { label, color } = extractColor(entryText, palette);
+      const { label, color } = extractColor(trimmed, palette);
       if (!color) {
         result.diagnostics.push(makeDgmoError(lineNumber,
           `Expected 'Value(color)' in tag group '${currentTagGroup.name}'`, 'warning'));
         continue;
       }
-      if (isDefault) {
+      // First entry becomes the default
+      if (currentTagGroup.entries.length === 0) {
         currentTagGroup.defaultValue = label;
       }
       currentTagGroup.entries.push({ value: label, color, lineNumber });
@@ -247,36 +287,17 @@ export function parseERDiagram(
       currentTagGroup = null;
     }
 
-    // Metadata directives (before content)
-    if (!contentStarted && indent === 0 && /^[a-z][a-z0-9-]*\s*:/i.test(trimmed)) {
-      const colonIdx = trimmed.indexOf(':');
-      const key = trimmed.substring(0, colonIdx).trim().toLowerCase();
-      const value = trimmed.substring(colonIdx + 1).trim();
-
-      if (key === 'chart') {
-        if (value.toLowerCase() !== 'er') {
-          const allTypes = ['er', 'class', 'flowchart', 'sequence', 'org', 'bar', 'line', 'pie', 'scatter', 'sankey', 'venn', 'timeline', 'arc', 'slope'];
-          let msg = `Expected chart type "er", got "${value}"`;
-          const hint = suggest(value.toLowerCase(), allTypes);
-          if (hint) msg += `. ${hint}`;
-          return fail(lineNumber, msg);
+    // Options (space-separated, no colon) — before content
+    if (!contentStarted && indent === 0) {
+      const optMatch = trimmed.match(OPTION_NOCOLON_RE);
+      if (optMatch) {
+        const key = optMatch[1].toLowerCase();
+        const value = optMatch[2].trim();
+        if (KNOWN_OPTIONS.has(key)) {
+          result.options[key] = value.toLowerCase();
+          continue;
         }
-        continue;
       }
-
-      if (key === 'title') {
-        result.title = value;
-        result.titleLineNumber = lineNumber;
-        continue;
-      }
-
-      if (key === 'notation') {
-        result.options.notation = value.toLowerCase();
-        continue;
-      }
-
-      // Unknown single-word keys are metadata — skip
-      if (!/\s/.test(key)) continue;
     }
 
     // Indented lines = columns or relationships of current table
@@ -300,17 +321,12 @@ export function parseERDiagram(
         continue;
       }
 
-      const colMatch = trimmed.match(COLUMN_RE);
-      if (colMatch) {
-        const colName = colMatch[1];
-        const colType = colMatch[2]?.trim();
-        const constraintRaw = colMatch[3];
-        const constraints = constraintRaw ? parseConstraints(constraintRaw) : [];
-
+      const colResult = parseColumn(trimmed);
+      if (colResult) {
         currentTable.columns.push({
-          name: colName,
-          ...(colType && { type: colType }),
-          constraints,
+          name: colResult.name,
+          ...(colResult.type && { type: colResult.type }),
+          constraints: colResult.constraints,
           lineNumber,
         });
       }
@@ -351,10 +367,8 @@ export function parseERDiagram(
       // Parse pipe metadata: TableName(color) | key: value, key2: value2
       const pipeStr = tableDecl[3]?.trim();
       if (pipeStr) {
-        // Split on additional pipes (treated as commas) and warn if found
         const pipeSegments = pipeStr.split('|');
-        const meta = parsePipeMetadata(['', ...pipeSegments], aliasMap,
-          () => result.diagnostics.push(makeDgmoError(lineNumber, MULTIPLE_PIPE_WARNING, 'warning')));
+        const meta = parsePipeMetadata(['', ...pipeSegments], aliasMap);
         Object.assign(table.metadata, meta);
       }
 
@@ -416,9 +430,12 @@ export function parseERDiagram(
 // Detection helper
 // ============================================================
 
+// Column detection for looksLikeERDiagram: space-separated with constraint keywords
+const CONSTRAINT_KEYWORD_RE = /\b(pk|fk)\b/i;
+
 /**
- * Detect if content looks like an ER diagram without explicit `chart: er`.
- * Looks for indented lines with [pk] or [fk] constraint patterns.
+ * Detect if content looks like an ER diagram without explicit `er` first line.
+ * Looks for indented lines with pk or fk constraint keywords.
  */
 export function looksLikeERDiagram(content: string): boolean {
   const lines = content.split('\n');
@@ -431,14 +448,14 @@ export function looksLikeERDiagram(content: string): boolean {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('//')) continue;
 
-    // Skip metadata
-    if (/^(chart|title|notation)\s*:/i.test(trimmed)) continue;
+    // Skip metadata (both old colon and new space-separated)
+    if (/^(er|notation)\s/i.test(trimmed) || /^er$/i.test(trimmed)) continue;
 
     const indent = measureIndent(line);
 
     if (indent > 0) {
-      // Indented line with [pk] or [fk] is strong ER signal
-      if (/\[(pk|fk)\]/i.test(trimmed)) {
+      // Indented line with pk or fk is strong ER signal
+      if (CONSTRAINT_KEYWORD_RE.test(trimmed)) {
         hasConstraint = true;
       }
       // Indented relationship is a strong ER signal
@@ -457,7 +474,7 @@ export function looksLikeERDiagram(content: string): boolean {
     }
   }
 
-  // [pk]/[fk] constraint is a strong enough signal
+  // pk/fk constraint is a strong enough signal
   if (hasConstraint && hasTableDecl) return true;
 
   // Relationship with table declarations is sufficient
@@ -481,8 +498,8 @@ export function extractSymbols(docText: string): DiagramSymbols {
   let inMetadata = true;
   for (const rawLine of docText.split('\n')) {
     const line = rawLine.trim();
-    if (inMetadata && /^chart\s*:/i.test(line)) continue;
-    if (inMetadata && /^[a-z-]+\s*:/i.test(line)) continue; // metadata key
+    if (inMetadata && /^er(\s|$)/i.test(line)) continue;
+    if (inMetadata && OPTION_NOCOLON_RE.test(line)) continue; // option line
     inMetadata = false;
     if (line.length === 0) continue;
     if (/^\s/.test(rawLine)) continue; // indented = column definition, not table

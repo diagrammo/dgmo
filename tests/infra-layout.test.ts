@@ -13,14 +13,14 @@ function layout(source: string) {
 describe('infra layout engine', () => {
   it('produces positioned nodes for a simple chain', () => {
     const result = layout(`
-chart: infra
+infra
 
 edge
-  rps: 1000
+  rps 1000
   -> API
 
 API
-  latency-ms: 10
+  latency-ms 10
 `);
     expect(result.nodes).toHaveLength(2);
     expect(result.edges).toHaveLength(1);
@@ -37,18 +37,18 @@ API
 
   it('produces edge waypoints', () => {
     const result = layout(`
-chart: infra
+infra
 
 edge
-  rps: 1000
+  rps 1000
   -> CDN
 
 CDN
-  cache-hit: 80%
+  cache-hit 80%
   -> API
 
 API
-  latency-ms: 10
+  latency-ms 10
 `);
     expect(result.edges).toHaveLength(2);
     for (const edge of result.edges) {
@@ -58,17 +58,17 @@ API
 
   it('computes group bounding boxes', () => {
     const result = layout(`
-chart: infra
+infra
 
 edge
-  rps: 6000
+  rps 6000
   -> [Backend]
 
 [Backend]
   API1
-    max-rps: 3000
+    max-rps 3000
   API2
-    max-rps: 3000
+    max-rps 3000
 `);
     expect(result.groups).toHaveLength(1);
     const group = result.groups[0];
@@ -92,7 +92,7 @@ edge
   });
 
   it('handles empty model gracefully', () => {
-    const parsed = parseInfra('chart: infra\n');
+    const parsed = parseInfra('infra\n');
     const computed = computeInfra(parsed);
     const result = layoutInfra(computed);
     expect(result.nodes).toHaveLength(0);
@@ -103,15 +103,15 @@ edge
 
   it('respects TB direction', () => {
     const result = layout(`
-chart: infra
-direction: TB
+infra
+direction TB
 
 edge
-  rps: 1000
+  rps 1000
   -> API
 
 API
-  latency-ms: 10
+  latency-ms 10
 `);
     // In TB layout, nodes should be stacked vertically
     const edgeNode = result.nodes.find((n) => n.id === 'edge')!;
@@ -121,14 +121,14 @@ API
 
   it('preserves line numbers on layout nodes', () => {
     const result = layout(`
-chart: infra
+infra
 
 edge
-  rps: 1000
+  rps 1000
   -> API
 
 API
-  latency-ms: 10
+  latency-ms 10
 `);
     for (const node of result.nodes) {
       expect(node.lineNumber).toBeGreaterThan(0);
@@ -140,49 +140,49 @@ API
 
   it('no two groups overlap after layout with multi-group diagram', () => {
     const result = layout(`
-chart: infra
+infra
 
 edge
-  rps: 10000
+  rps 10000
   -> [GroupA]
   -> [GroupB]
   -> [GroupC]
 
 [GroupA]
-  instances: 3
+  instances 3
   A1
-    max-rps: 3000
-    latency-ms: 10
+    max-rps 3000
+    latency-ms 10
   A2
-    max-rps: 3000
-    latency-ms: 20
+    max-rps 3000
+    latency-ms 20
   A3
-    max-rps: 3000
-    latency-ms: 30
+    max-rps 3000
+    latency-ms 30
 
 [GroupB]
-  instances: 2
+  instances 2
   B1
-    max-rps: 5000
-    latency-ms: 15
+    max-rps 5000
+    latency-ms 15
   B2
-    max-rps: 5000
-    latency-ms: 25
+    max-rps 5000
+    latency-ms 25
 
 [GroupC]
-  instances: 4
+  instances 4
   C1
-    max-rps: 2000
-    latency-ms: 5
+    max-rps 2000
+    latency-ms 5
   C2
-    max-rps: 2000
-    latency-ms: 10
+    max-rps 2000
+    latency-ms 10
   C3
-    max-rps: 2000
-    latency-ms: 15
+    max-rps 2000
+    latency-ms 15
   C4
-    max-rps: 2000
-    latency-ms: 20
+    max-rps 2000
+    latency-ms 20
 `);
     expect(result.groups).toHaveLength(3);
     const { groups } = result;
@@ -381,22 +381,22 @@ describe('fixEdgeWaypoints()', () => {
 describe('scaled group layout data', () => {
   it('child nodes carry groupId matching the scaled group, and group preserves instances', () => {
     const result = layout(`
-chart: infra
+infra
 
 edge
-  rps: 1000
+  rps 1000
   -> [Shards]
 
 [Shards]
-  instances: 3
+  instances 3
 
   ShardA
-    max-rps: 5000
-    latency-ms: 2
+    max-rps 5000
+    latency-ms 2
 
   ShardB
-    max-rps: 5000
-    latency-ms: 2
+    max-rps 5000
+    latency-ms 2
 `);
 
     const group = result.groups.find((g) => g.id === '[Shards]');
@@ -413,15 +413,15 @@ edge
 
   it('nodes outside a group have groupId null', () => {
     const result = layout(`
-chart: infra
+infra
 
 edge
-  rps: 1000
+  rps 1000
   -> API
 
 API
-  max-rps: 5000
-  instances: 2
+  max-rps 5000
+  instances 2
 `);
 
     const api = result.nodes.find((n) => n.id === 'API');
@@ -432,15 +432,15 @@ API
   describe('description field layout', () => {
     it('selected node with description is taller than without', () => {
       const content = `
-chart: infra
+infra
 edge
-  rps: 1000
+  rps 1000
   -> MyService
 MyService
-  max-rps: 500
-  description: Handles all REST API calls for the mobile app
+  max-rps 500
+  description Handles all REST API calls for the mobile app
 `;
-      const contentNoDesc = content.replace('  description: Handles all REST API calls for the mobile app\n', '');
+      const contentNoDesc = content.replace('  description Handles all REST API calls for the mobile app\n', '');
       const layoutWith = layoutInfra(computeInfra(parseInfra(content)), new Set(['MyService']));
       const layoutWithout = layoutInfra(computeInfra(parseInfra(contentNoDesc)), new Set(['MyService']));
       const nodeWith = layoutWith.nodes.find((n) => n.id === 'MyService')!;
@@ -450,15 +450,15 @@ MyService
 
     it('unselected node with description has same height as without', () => {
       const content = `
-chart: infra
+infra
 edge
-  rps: 1000
+  rps 1000
   -> MyService
 MyService
-  max-rps: 500
-  description: Handles all REST API calls for the mobile app
+  max-rps 500
+  description Handles all REST API calls for the mobile app
 `;
-      const contentNoDesc = content.replace('  description: Handles all REST API calls for the mobile app\n', '');
+      const contentNoDesc = content.replace('  description Handles all REST API calls for the mobile app\n', '');
       const layoutWith = layoutInfra(computeInfra(parseInfra(content)), null);
       const layoutWithout = layoutInfra(computeInfra(parseInfra(contentNoDesc)), null);
       const nodeWith = layoutWith.nodes.find((n) => n.id === 'MyService')!;
@@ -469,12 +469,12 @@ MyService
     it('selected node with description and no other content uses no-content early return height', () => {
       // AC7: NODE_HEADER_HEIGHT(28) + META_LINE_HEIGHT(14) + NODE_PAD_BOTTOM(10) = 52
       const result = layoutInfra(computeInfra(parseInfra(`
-chart: infra
+infra
 edge
-  rps: 0
+  rps 0
   -> Lonely
 Lonely
-  description: Only a description here
+  description Only a description here
 `)), new Set(['Lonely']));
       const node = result.nodes.find((n) => n.id === 'Lonely')!;
       expect(node.height).toBe(28 + 14 + 10); // NODE_HEADER_HEIGHT + META_LINE_HEIGHT + NODE_PAD_BOTTOM
@@ -484,12 +484,12 @@ Lonely
       // AC5: description width = length * META_CHAR_WIDTH(6) + PADDING_X(24)
       const longDesc = 'A'.repeat(40); // 40 * 6 + 24 = 264px
       const result = layoutInfra(computeInfra(parseInfra(`
-chart: infra
+infra
 edge
-  rps: 1000
+  rps 1000
   -> MyService
 MyService
-  description: ${longDesc}
+  description ${longDesc}
 `)), new Set(['MyService']));
       const node = result.nodes.find((n) => n.id === 'MyService')!;
       expect(node.width).toBeGreaterThanOrEqual(40 * 6 + 24); // description drives width
@@ -500,13 +500,13 @@ MyService
 describe('collapsed p90 row', () => {
   it('collapsed node with latency has fewer rows than expanded (1 vs 3)', () => {
     const src = `
-chart: infra
+infra
 edge
-  rps: 1000
+  rps 1000
   -> API
 API
-  latency-ms: 50
-  max-rps: 500
+  latency-ms 50
+  max-rps 500
 `;
     const collapsed = layoutInfra(computeInfra(parseInfra(src)), null);
     const expanded = layoutInfra(computeInfra(parseInfra(src)), new Set(['API']));
@@ -522,12 +522,12 @@ API
   it('collapsed and expanded have identical height when latency-ms is 0', () => {
     // AC6: no latency row when p90=0 — guard prevents rendering
     const src = `
-chart: infra
+infra
 edge
-  rps: 1000
+  rps 1000
   -> API
 API
-  max-rps: 500
+  max-rps 500
 `;
     const collapsed = layoutInfra(computeInfra(parseInfra(src)), null);
     const expanded = layoutInfra(computeInfra(parseInfra(src)), new Set(['API']));
@@ -537,7 +537,7 @@ API
     expect(nodeC.height).toBeLessThanOrEqual(nodeE.height);
     // Expanded shows declared props (max-rps); collapsed does not — height may differ for props, not for latency
     // Key assertion: no additional latency row in collapsed
-    const collapsedWithLatency = layoutInfra(computeInfra(parseInfra(src + '  latency-ms: 50\n')), null);
+    const collapsedWithLatency = layoutInfra(computeInfra(parseInfra(src + '  latency-ms 50\n')), null);
     const apiWithLatency = collapsedWithLatency.nodes.find((n) => n.id === 'API')!;
     // With latency-ms=50, collapsed is exactly 1 META_LINE_HEIGHT taller (the p90 row)
     expect(apiWithLatency.height - nodeC.height).toBe(14); // 1 × META_LINE_HEIGHT
@@ -547,13 +547,13 @@ API
     // p90 and p99 are both 3 chars — verify the key set produces the same maxKeyLen
     // The meaningful check: layout is stable across the p99→p90 key rename
     const src = `
-chart: infra
+infra
 edge
-  rps: 1000
+  rps 1000
   -> API
 API
-  latency-ms: 200
-  max-rps: 500
+  latency-ms 200
+  max-rps 500
 `;
     const collapsedResult = layoutInfra(computeInfra(parseInfra(src)), null);
     const expandedResult = layoutInfra(computeInfra(parseInfra(src)), new Set(['API']));
@@ -579,21 +579,21 @@ API
     //
     // If MIN_NODE_WIDTH, META_CHAR_WIDTH, or PADDING_X change, re-validate these numbers.
     const base = (sloLine = '') => `
-chart: infra
+infra
 ${sloLine}
 edge
-  rps: 1000
+  rps 1000
   -> SVC
 SVC
-  uptime: 90
-  max-rps: 5000
+  uptime 90
+  max-rps 5000
   -> API
 API
-  latency-ms: 520
-  max-rps: 5000
+  latency-ms 520
+  max-rps 5000
 `;
     const noSloResult = layoutInfra(computeInfra(parseInfra(base())));
-    const withSloResult = layoutInfra(computeInfra(parseInfra(base('slo-p90-latency-ms: 200'))));
+    const withSloResult = layoutInfra(computeInfra(parseInfra(base('slo-p90-latency-ms 200'))));
     const noSloApi = noSloResult.nodes.find((n) => n.id === 'API')!;
     const withSloApi = withSloResult.nodes.find((n) => n.id === 'API')!;
     // Node with SLO must be wider to accommodate "520ms / 200ms" vs "520ms"

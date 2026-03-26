@@ -43,51 +43,50 @@ function resolveFromInput(input: string) {
 
 // ── Test fixture for tag swimlane tests ──────────────────────
 
-const TAG_SWIMLANE_INPUT = `chart: gantt
-title: Tag Swimlane Test
-start: 2024-01-15
-critical-path: on
-dependencies: on
+const TAG_SWIMLANE_INPUT = `gantt
+title Tag Swimlane Test
+start 2024-01-15
+critical-path
 
-tag: Team alias t
+tag Team alias t
   Engineering(blue)
   Design(purple)
   QA(orange)
 
-tag: Phase alias p
+tag Phase alias p
   Design(green)
   Build(orange)
-  Test(red) default
+  Test(red)
 
-era 2024-01 -> 2024-06: Phase 1
-marker: 2024-03-01 Kickoff
+era 2024-01 -> 2024-06 Phase 1
+marker 2024-03-01 Kickoff
 
 [Backend]
-  30bd: Database Layer | t: Engineering, p: Build, 80%
-  10bd: Auth Module | t: Engineering, p: Build, 100%
+  30bd Database Layer | t: Engineering, p: Build, 80%
+  10bd Auth Module | t: Engineering, p: Build, 100%
     -> API Integration
   parallel
-    5bd: Load Testing | t: QA, p: Test
-    5bd: Security Audit | t: Design, p: Test
+    5bd Load Testing | t: QA, p: Test
+    5bd Security Audit | t: Design, p: Test
 
 [Frontend]
-  15bd: Component Library | t: Design, p: Design
-  10bd: API Integration | t: Engineering, p: Build
-  5bd: Polish | t: Design, p: Build, 30%
+  15bd Component Library | t: Design, p: Design
+  10bd API Integration | t: Engineering, p: Build
+  5bd Polish | t: Design, p: Build, 30%
 
 [QA]
-  10bd: E2E Testing
-  0d: Release Candidate`;
+  10bd E2E Testing
+  0d Release Candidate`;
 
 describe('gantt renderer', () => {
   it('renders SVG element', () => {
-    const container = renderFromInput('chart: gantt\nstart: 2024-01-15\n10d: Task A\n5d: Task B');
+    const container = renderFromInput('gantt\nstart 2024-01-15\n10d Task A\n5d Task B');
     const svg = container.querySelector('svg');
     expect(svg).not.toBeNull();
   });
 
   it('renders task bars with data-line-number', () => {
-    const container = renderFromInput('chart: gantt\nstart: 2024-01-15\n10d: Task A\n5d: Task B');
+    const container = renderFromInput('gantt\nstart 2024-01-15\n10d Task A\n5d Task B');
     const tasks = container.querySelectorAll('.gantt-task');
     expect(tasks.length).toBeGreaterThanOrEqual(2);
     // Each task group should have a data-line-number
@@ -97,38 +96,38 @@ describe('gantt renderer', () => {
   });
 
   it('renders milestone diamonds', () => {
-    const container = renderFromInput('chart: gantt\nstart: 2024-01-15\n10d: Work\n0d: Done');
+    const container = renderFromInput('gantt\nstart 2024-01-15\n10d Work\n0d Done');
     const milestones = container.querySelectorAll('.gantt-milestone');
     expect(milestones.length).toBeGreaterThanOrEqual(1);
   });
 
   it('renders group labels', () => {
-    const container = renderFromInput('chart: gantt\nstart: 2024-01-15\n[Backend]\n  10d: Task');
+    const container = renderFromInput('gantt\nstart 2024-01-15\n[Backend]\n  10d Task');
     const labels = container.querySelectorAll('.gantt-group-label');
     expect(labels.length).toBeGreaterThanOrEqual(1);
     expect(labels[0].textContent).toContain('Backend');
   });
 
   it('renders title when present', () => {
-    const container = renderFromInput('chart: gantt\ntitle: My Plan\nstart: 2024-01-15\n10d: Task');
+    const container = renderFromInput('gantt\ntitle My Plan\nstart 2024-01-15\n10d Task');
     const texts = Array.from(container.querySelectorAll('text'));
     expect(texts.some(t => t.textContent === 'My Plan')).toBe(true);
   });
 
   it('renders today marker when enabled', () => {
-    const container = renderFromInput('chart: gantt\nstart: 2024-01-15\ntoday-marker: 2024-01-20\n10d: Task');
+    const container = renderFromInput('gantt\nstart 2024-01-15\ntoday-marker 2024-01-20\n10d Task');
     const todayLine = container.querySelector('.gantt-today');
     expect(todayLine).not.toBeNull();
   });
 
   it('renders scale ticks', () => {
-    const container = renderFromInput('chart: gantt\nstart: 2024-01-15\n30d: Long Task');
+    const container = renderFromInput('gantt\nstart 2024-01-15\n30d Long Task');
     const ticks = container.querySelectorAll('.gantt-scale-tick');
     expect(ticks.length).toBeGreaterThan(0);
   });
 
   it('does not render when there is an error', () => {
-    const parsed = parseGantt('chart: timeline\n10d: Task', palette);
+    const parsed = parseGantt('timeline\n10d Task', palette);
     const resolved = calculateSchedule(parsed);
     const container = makeContainer();
     renderGantt(container, resolved, palette, false);
@@ -136,7 +135,7 @@ describe('gantt renderer', () => {
   });
 
   it('sets data-tag attributes on task elements', () => {
-    const input = 'chart: gantt\ntag: Team alias t\n  Engineering(blue)\nstart: 2024-01-15\n10d: Task | t: Engineering';
+    const input = 'gantt\ntag Team alias t\n  Engineering(blue)\nstart 2024-01-15\n10d Task | t: Engineering';
     const container = renderFromInput(input);
     const task = container.querySelector('.gantt-task');
     expect(task).not.toBeNull();
@@ -146,33 +145,33 @@ describe('gantt renderer', () => {
   // ── Phase 2 tests ────────────────────────────────────────
 
   it('renders weekend bands', () => {
-    const container = renderFromInput('chart: gantt\nstart: 2024-01-15\n14d: Two Weeks');
+    const container = renderFromInput('gantt\nstart 2024-01-15\n14d Two Weeks');
     const weekendBands = container.querySelectorAll('.gantt-weekend-band');
     expect(weekendBands.length).toBeGreaterThanOrEqual(1);
   });
 
   it('renders holiday bands for named holidays', () => {
-    const input = 'chart: gantt\nstart: 2024-01-15\nholidays\n  2024-01-20: Special Day\n14d: Task';
+    const input = 'gantt\nstart 2024-01-15\nholiday\n  2024-01-20 Special Day\n14d Task';
     const container = renderFromInput(input);
     const holidayBands = container.querySelectorAll('.gantt-holiday-band');
     expect(holidayBands.length).toBeGreaterThanOrEqual(1);
   });
 
   it('renders progress fill on bar', () => {
-    const container = renderFromInput('chart: gantt\nstart: 2024-01-15\n10d: Task | 60%');
+    const container = renderFromInput('gantt\nstart 2024-01-15\n10d Task | 60%');
     const progressFill = container.querySelector('.gantt-progress');
     expect(progressFill).not.toBeNull();
   });
 
   it('renders critical path styling when enabled', () => {
-    const input = 'chart: gantt\nstart: 2024-01-15\ncritical-path: on\n10d: Task A\n5d: Task B';
+    const input = 'gantt\nstart 2024-01-15\ncritical-path\n10d Task A\n5d Task B';
     const container = renderFromInput(input);
     const tasks = container.querySelectorAll('.gantt-task');
     expect(tasks.length).toBeGreaterThanOrEqual(2);
   });
 
   it('renders uncertain gradient', () => {
-    const container = renderFromInput('chart: gantt\nstart: 2024-01-15\n30d?: Uncertain Task');
+    const container = renderFromInput('gantt\nstart 2024-01-15\n30d? Uncertain Task');
     const svg = container.querySelector('svg');
     expect(svg).not.toBeNull();
     const gradients = container.querySelectorAll('linearGradient');
@@ -180,26 +179,24 @@ describe('gantt renderer', () => {
   });
 
   it('renders dependency arrows when enabled', () => {
-    const input = `chart: gantt
-start: 2024-01-15
-dependencies: on
+    const input = `gantt
+start 2024-01-15
 parallel
-  10d: Task A
+  10d Task A
     -> Task B
-  10d: Task B`;
+  10d Task B`;
     const container = renderFromInput(input);
     const arrows = container.querySelectorAll('.gantt-dep-arrow');
     expect(arrows.length).toBeGreaterThanOrEqual(1);
   });
 
   it('renders labeled dependency arrow with text element', () => {
-    const input = `chart: gantt
-start: 2024-01-15
-dependencies: on
+    const input = `gantt
+start 2024-01-15
 parallel
-  10d: Task A
+  10d Task A
     -blocks-> Task B
-  10d: Task B`;
+  10d Task B`;
     const container = renderFromInput(input);
     const labels = container.querySelectorAll('.gantt-dep-label');
     expect(labels.length).toBeGreaterThanOrEqual(1);
@@ -209,21 +206,21 @@ parallel
   // ── Phase 3 tests ────────────────────────────────────────
 
   it('renders era backgrounds', () => {
-    const input = 'chart: gantt\nstart: 2024-01-15\nera 2024-01 -> 2024-06: Phase 1\n30d: Task';
+    const input = 'gantt\nstart 2024-01-15\nera 2024-01 -> 2024-06 Phase 1\n30d Task';
     const container = renderFromInput(input);
     const eras = container.querySelectorAll('.gantt-era');
     expect(eras.length).toBeGreaterThanOrEqual(1);
   });
 
   it('renders marker lines', () => {
-    const input = 'chart: gantt\nstart: 2024-01-15\nmarker: 2024-02-01 Kickoff\n30d: Task';
+    const input = 'gantt\nstart 2024-01-15\nmarker 2024-02-01 Kickoff\n30d Task';
     const container = renderFromInput(input);
     const markers = container.querySelectorAll('.gantt-marker');
     expect(markers.length).toBeGreaterThanOrEqual(1);
   });
 
   it('supports collapse/expand via collapsedGroups', () => {
-    const input = 'chart: gantt\nstart: 2024-01-15\n[Backend]\n  10d: Task A\n  5d: Task B';
+    const input = 'gantt\nstart 2024-01-15\n[Backend]\n  10d Task A\n  5d Task B';
     const container = renderFromInput(input, { collapsedGroups: new Set(['Backend']) });
 
     // Should have group summary but fewer task bars
@@ -234,7 +231,7 @@ parallel
   });
 
   it('renders task-id data attribute for hover', () => {
-    const container = renderFromInput('chart: gantt\nstart: 2024-01-15\ndependencies: on\n10d: Task A');
+    const container = renderFromInput('gantt\nstart 2024-01-15\n10d Task A');
     const task = container.querySelector('.gantt-task');
     expect(task?.getAttribute('data-task-id')).toBeTruthy();
   });
@@ -292,12 +289,12 @@ describe('buildTagLaneRowList', () => {
 
   it('empty lane (tag entry with no matching tasks) — skipped entirely', () => {
     // Tag entries with no tasks should not appear as swimlanes
-    const input = `chart: gantt
-start: 2024-01-15
-tag: Status
+    const input = `gantt
+start 2024-01-15
+tag Status
   Active(green)
   Deferred(gray)
-10d: Task A | Status: Active`;
+10d Task A | Status: Active`;
     const resolved = resolveFromInput(input);
     const rows = buildTagLaneRowList(resolved, 'Status')!;
     const deferredHeader = rows.find(
@@ -310,32 +307,32 @@ tag: Status
     expect(activeHeader).toBeDefined();
   });
 
-  it('all tasks untagged → single No {GroupName} lane', () => {
-    const input = `chart: gantt
-start: 2024-01-15
-tag: Team
+  it('all tasks untagged → default tag value applied (first entry)', () => {
+    const input = `gantt
+start 2024-01-15
+tag Team
   Engineering(blue)
   Design(purple)
-10d: Task A
-5d: Task B`;
+10d Task A
+5d Task B`;
     const resolved = resolveFromInput(input);
     const rows = buildTagLaneRowList(resolved, 'Team')!;
     const laneHeaders = rows.filter(r => r.type === 'lane-header');
-    // Engineering and Design are empty so skipped — only No Team remains
+    // First tag entry (Engineering) is the default — all untagged tasks go there
     expect(laneHeaders.length).toBe(1);
-    expect(laneHeaders[0].type === 'lane-header' && laneHeaders[0].laneName === 'No Team').toBe(true);
+    expect(laneHeaders[0].type === 'lane-header' && laneHeaders[0].laneName === 'Engineering').toBe(true);
     const taskRows = rows.filter(r => r.type === 'task');
     expect(taskRows.length).toBe(2);
   });
 
   it('flat chart (no groups) + tag swimlanes works correctly', () => {
-    const input = `chart: gantt
-start: 2024-01-15
-tag: Team
+    const input = `gantt
+start 2024-01-15
+tag Team
   A(blue)
   B(red)
-10d: Task 1 | Team: A
-5d: Task 2 | Team: B`;
+10d Task 1 | Team: A
+5d Task 2 | Team: B`;
     const resolved = resolveFromInput(input);
     const rows = buildTagLaneRowList(resolved, 'Team')!;
     expect(rows).not.toBeNull();
@@ -344,13 +341,13 @@ tag: Team
   });
 
   it('aggregate progress is duration-weighted across all tasks (missing progress = 0%)', () => {
-    const input = `chart: gantt
-start: 2024-01-15
-tag: Team
+    const input = `gantt
+start 2024-01-15
+tag Team
   Eng(blue)
-10d: Task A | Team: Eng, 80%
-10d: Task B | Team: Eng, 40%
-10d: Task C | Team: Eng`;
+10d Task A | Team: Eng, 80%
+10d Task B | Team: Eng, 40%
+10d Task C | Team: Eng`;
     const resolved = resolveFromInput(input);
     const rows = buildTagLaneRowList(resolved, 'Team')!;
     const header = rows.find(r => r.type === 'lane-header' && r.laneName === 'Eng');
@@ -431,7 +428,7 @@ describe('tag swimlane rendering', () => {
   });
 
   it('no tag groups → identical output, no icons', () => {
-    const input = 'chart: gantt\nstart: 2024-01-15\n10d: Task A\n5d: Task B';
+    const input = 'gantt\nstart 2024-01-15\n10d Task A\n5d Task B';
     const container = renderFromInput(input);
     const icons = container.querySelectorAll('.gantt-swimlane-icon');
     expect(icons.length).toBe(0);
@@ -529,7 +526,7 @@ describe('dependency arrows in tag mode', () => {
   });
 
   it('no arrows when dependencies off', () => {
-    const input = TAG_SWIMLANE_INPUT.replace('dependencies: on', 'dependencies: off');
+    const input = TAG_SWIMLANE_INPUT.replace('critical-path', 'critical-path\nno-dependencies');
     const container = renderFromInput(input, { currentSwimlaneGroup: 'Team' });
     const arrows = container.querySelectorAll('.gantt-dep-arrow');
     expect(arrows.length).toBe(0);
@@ -537,16 +534,15 @@ describe('dependency arrows in tag mode', () => {
 
   it('collapsed lane redirects arrows to lane header position', () => {
     // Cross-lane dep: Task A (Alpha) -> Task B (Beta) — collapsing Beta redirects target
-    const input = `chart: gantt
-start: 2024-01-15
-dependencies: on
-tag: Lane
+    const input = `gantt
+start 2024-01-15
+tag Lane
   Alpha(blue)
   Beta(red)
 parallel
-  10d: Task A | Lane: Alpha
+  10d Task A | Lane: Alpha
     -> Task B
-  10d: Task B | Lane: Beta`;
+  10d Task B | Lane: Beta`;
     const container = renderFromInput(input, {
       currentSwimlaneGroup: 'Lane',
       collapsedLanes: new Set(['Beta']),
@@ -566,7 +562,7 @@ parallel
 
 describe('hover date indicators', () => {
   it('shows dashed lines and date labels on task bar hover', () => {
-    const container = renderFromInput('chart: gantt\nstart: 2024-01-15\n10d: Task A');
+    const container = renderFromInput('gantt\nstart 2024-01-15\n10d Task A');
     const task = container.querySelector('.gantt-task');
     expect(task).toBeTruthy();
 
@@ -590,7 +586,7 @@ describe('hover date indicators', () => {
   });
 
   it('shows single indicator line on milestone hover', () => {
-    const container = renderFromInput('chart: gantt\nstart: 2024-01-15\n0d: Milestone A');
+    const container = renderFromInput('gantt\nstart 2024-01-15\n0d Milestone A');
     const milestone = container.querySelector('.gantt-milestone');
     expect(milestone).toBeTruthy();
 
@@ -601,7 +597,7 @@ describe('hover date indicators', () => {
   });
 
   it('shows indicators on group bar hover', () => {
-    const container = renderFromInput('chart: gantt\nstart: 2024-01-15\n\n[Backend]\n  5d: Task A\n  5d: Task B');
+    const container = renderFromInput('gantt\nstart 2024-01-15\n\n[Backend]\n  5d Task A\n  5d Task B');
     const groupBar = container.querySelector('.gantt-group-bar');
     expect(groupBar).toBeTruthy();
 
@@ -612,19 +608,19 @@ describe('hover date indicators', () => {
 });
 
 describe('left panel visual enhancements', () => {
-  const groupedInput = `chart: gantt
-start: 2024-01-15
-tag: Team alias t
+  const groupedInput = `gantt
+start 2024-01-15
+tag Team alias t
   Engineering(blue)
   Design(purple)
 
 [Backend]
-  10d: Database Layer | t: Engineering
-  5d: Auth Module | t: Engineering
+  10d Database Layer | t: Engineering
+  5d Auth Module | t: Engineering
 
 [Frontend]
-  10d: Component Library | t: Design
-  0d: Release Milestone`;
+  10d Component Library | t: Design
+  0d Release Milestone`;
 
   it('renders group band background and accent rects', () => {
     const container = renderFromInput(groupedInput);
@@ -693,11 +689,11 @@ tag: Team alias t
   });
 
   it('ungrouped flat tasks get dot icon with no bands', () => {
-    const flatInput = `chart: gantt
-start: 2024-01-15
+    const flatInput = `gantt
+start 2024-01-15
 
-5d: Task A
-5d: Task B`;
+5d Task A
+5d Task B`;
     const container = renderFromInput(flatInput);
     expect(container.querySelectorAll('.gantt-group-band-bg').length).toBe(0);
     const label = container.querySelector('.gantt-task-label');
@@ -710,13 +706,13 @@ start: 2024-01-15
     // Depth 0→2 uses 14px per level; depth 3+ uses 8px per level
     // At depth 2: 6 + 2*14 = 34
     // At depth 3: 6 + 2*14 + 1*8 = 42 (not 6 + 3*14 = 48)
-    const deepInput = `chart: gantt
-start: 2024-01-15
+    const deepInput = `gantt
+start 2024-01-15
 
 [Level0]
   [Level1]
     [Level2]
-      5d: Deep Task`;
+      5d Deep Task`;
     const container = renderFromInput(deepInput);
     const taskLabel = container.querySelector('.gantt-task-label');
     expect(taskLabel).toBeTruthy();

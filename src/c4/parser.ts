@@ -12,9 +12,8 @@ import {
   extractColor,
   parsePipeMetadata,
   MULTIPLE_PIPE_WARNING,
-  CHART_TYPE_RE,
-  TITLE_RE,
-  OPTION_RE,
+  parseFirstLine,
+  OPTION_NOCOLON_RE,
 } from '../utils/parsing';
 import type {
   ParsedC4,
@@ -51,14 +50,14 @@ const C4_LABELED_ASYNC_RE = /^~(.+)~>\s*(.+)$/;
 const C4_LABELED_BIDI_SYNC_RE = /^<-(.+)->\s*(.+)$/;
 const C4_LABELED_BIDI_ASYNC_RE = /^<~(.+)~>\s*(.+)$/;
 
-/** Matches section headers: `containers:`, `components:`, `deployment:` */
-const SECTION_HEADER_RE = /^(containers|components|deployment)\s*:\s*$/i;
+/** Matches section headers: `containers`, `components`, `deployment` (bare keyword) */
+const SECTION_HEADER_RE = /^(containers|components|deployment)\s*$/i;
 
 /** Matches `container X` references inside deployment nodes */
 const CONTAINER_REF_RE = /^container\s+(.+)$/i;
 
-/** Matches indented metadata: `key: value` */
-const METADATA_RE = /^([^:]+):\s*(.+)$/;
+/** Matches indented metadata: `key value` (space-separated, no colon) */
+const METADATA_RE = /^([a-z][a-z0-9-]*)\s+(.+)$/i;
 
 // ============================================================
 // Helpers
@@ -79,6 +78,12 @@ const VALID_SHAPES = new Set<string>([
   'queue',
   'cloud',
   'external',
+]);
+
+/** Known top-level option keys for C4 diagrams. */
+const KNOWN_C4_OPTIONS = new Set<string>([
+  'layout',
+  'direction',
 ]);
 
 const ALL_CHART_TYPES = [
@@ -144,35 +149,6 @@ function parseArrowType(arrow: string): C4ArrowType | null {
     default:
       return null;
   }
-}
-
-/** Parse relationship label and optional [technology] annotation. */
-function parseRelationshipBody(
-  body: string,
-): { target: string; label?: string; technology?: string } {
-  // Format: `Target: label [tech]` or `Target: label` or `Target`
-  const colonIdx = body.indexOf(':');
-  let target: string;
-  let rest: string;
-
-  if (colonIdx > 0) {
-    target = body.substring(0, colonIdx).trim();
-    rest = body.substring(colonIdx + 1).trim();
-  } else {
-    target = body.trim();
-    rest = '';
-  }
-
-  if (!rest) return { target };
-
-  // Extract [technology] from end of rest
-  const techMatch = rest.match(/\[([^\]]+)\]\s*$/);
-  if (techMatch) {
-    const label = rest.substring(0, techMatch.index!).trim() || undefined;
-    return { target, label, technology: techMatch[1].trim() };
-  }
-
-  return { target, label: rest };
 }
 
 
@@ -283,28 +259,21 @@ export function parseC4(
 
     // --- Header phase ---
 
-    // chart: type
-    if (!contentStarted) {
-      const chartMatch = trimmed.match(CHART_TYPE_RE);
-      if (chartMatch) {
-        const chartType = chartMatch[1].trim().toLowerCase();
-        if (chartType !== 'c4') {
-          let msg = `Expected chart type "c4", got "${chartType}"`;
-          const hint = suggest(chartType, ALL_CHART_TYPES);
+    // First line: `c4` or `c4 My Title`
+    if (!contentStarted && !sawChartType) {
+      const firstLine = parseFirstLine(trimmed);
+      if (firstLine) {
+        if (firstLine.chartType !== 'c4') {
+          let msg = `Expected chart type "c4", got "${firstLine.chartType}"`;
+          const hint = suggest(firstLine.chartType, ALL_CHART_TYPES);
           if (hint) msg += `. ${hint}`;
           return fail(lineNumber, msg);
         }
         sawChartType = true;
-        continue;
-      }
-    }
-
-    // title: value
-    if (!contentStarted) {
-      const titleMatch = trimmed.match(TITLE_RE);
-      if (titleMatch) {
-        result.title = titleMatch[1].trim();
-        result.titleLineNumber = lineNumber;
+        if (firstLine.title) {
+          result.title = firstLine.title;
+          result.titleLineNumber = lineNumber;
+        }
         continue;
       }
     }
@@ -334,27 +303,23 @@ export function parseC4(
       continue;
     }
 
-    // Generic header options
+    // Generic header options (space-separated: `key value`)
     if (!contentStarted && !currentTagGroup && measureIndent(line) === 0) {
-      const optMatch = trimmed.match(OPTION_RE);
+      const optMatch = trimmed.match(OPTION_NOCOLON_RE);
       if (optMatch) {
         const key = optMatch[1].trim().toLowerCase();
-        if (key !== 'chart' && key !== 'title') {
+        if (KNOWN_C4_OPTIONS.has(key)) {
           result.options[key] = optMatch[2].trim();
           continue;
         }
       }
     }
 
-    // Tag group entries
+    // Tag group entries — first entry is the default (no `default` keyword)
     if (currentTagGroup && !contentStarted) {
       const indent = measureIndent(line);
       if (indent > 0) {
-        const isDefault = /\bdefault\s*$/.test(trimmed);
-        const entryText = isDefault
-          ? trimmed.replace(/\s+default\s*$/, '').trim()
-          : trimmed;
-        const { label, color } = extractColor(entryText, palette);
+        const { label, color } = extractColor(trimmed, palette);
         if (!color) {
           pushError(
             lineNumber,
@@ -362,7 +327,8 @@ export function parseC4(
           );
           continue;
         }
-        if (isDefault) {
+        // First entry becomes the default
+        if (currentTagGroup.entries.length === 0) {
           currentTagGroup.defaultValue = label;
         }
         currentTagGroup.entries.push({
@@ -380,7 +346,7 @@ export function parseC4(
     currentTagGroup = null;
 
     if (!sawChartType) {
-      return fail(lineNumber, 'Missing "chart: c4" header');
+      return fail(lineNumber, 'Missing "c4" header');
     }
 
     const indent = measureIndent(line);
@@ -448,7 +414,7 @@ export function parseC4(
         continue;
       }
 
-      // containers: / components: must be inside an element
+      // containers / components must be inside an element
       const parentEntry = findParentElement(indent, stack);
       if (parentEntry) {
         parentEntry.element.sectionHeader =
@@ -463,7 +429,7 @@ export function parseC4(
       } else {
         pushError(
           lineNumber,
-          `"${sectionType}:" must be inside an element`,
+          `"${sectionType}" must be inside an element`,
         );
       }
       continue;
@@ -574,7 +540,7 @@ export function parseC4(
       if (labeledHandled) continue;
     }
 
-    // ── Relationships ───────────────────────────────────────
+    // ── Relationships (plain arrows: ->, ~>) ─────────────────
     const relMatch = trimmed.match(RELATIONSHIP_RE);
     if (relMatch) {
       const arrowType = parseArrowType(relMatch[1]);
@@ -582,37 +548,16 @@ export function parseC4(
         // Reject bidirectional arrows
         if (arrowType === 'bidirectional' || arrowType === 'bidirectional-async') {
           const arrow = relMatch[1];
-          const target = relMatch[2].trim().split(':')[0].trim();
+          const target = relMatch[2].trim();
           const source = findParentElement(indent, stack)?.element.name ?? '?';
           pushError(lineNumber, `'${arrow}' bidirectional arrows are no longer supported. Replace with two separate arrows:\n  -> ${target}\n  ${target} -> ${source}`);
           continue;
         }
 
-        // Detect colon label syntax: `-> Target : Description [tech]`
-        const bodyRaw = relMatch[2];
-        const colonIdx = bodyRaw.indexOf(':');
-        if (colonIdx > 0) {
-          const target = bodyRaw.substring(0, colonIdx).trim();
-          const desc = bodyRaw.substring(colonIdx + 1).trim();
-          // Extract [tech] if present
-          const techMatch = desc.match(/\[([^\]]+)\]\s*$/);
-          const descPart = techMatch ? desc.substring(0, techMatch.index!).trim() : desc;
-          const techPart = techMatch ? techMatch[1].trim() : null;
-          const arrow = relMatch[1] === '~>' ? '~' : '-';
-          const hint = techPart
-            ? `${arrow}${descPart}${arrow}> ${target} | tech: ${techPart}`
-            : `${arrow}${descPart}${arrow}> ${target}`;
-          pushError(lineNumber, `Colon label syntax is no longer supported. Use '${hint}' instead`);
-          continue;
-        }
-
-        const { target, label, technology } = parseRelationshipBody(
-          bodyRaw,
-        );
+        // Plain arrow: entire body is the target (no colon label, no technology)
+        const target = relMatch[2].trim();
         const rel: C4Relationship = {
           target,
-          label,
-          technology,
           arrowType,
           lineNumber,
         };

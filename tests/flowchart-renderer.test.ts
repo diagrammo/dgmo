@@ -163,7 +163,7 @@ describe('renderFlowchart', () => {
 
   describe('title rendering', () => {
     it('renders title text element', () => {
-      const container = renderToContainer('title: My Flow\n(Start) -> (End)');
+      const container = renderToContainer('flowchart My Flow\n(Start) -> (End)');
       const titles = container.querySelectorAll('text.chart-title');
       expect(titles.length).toBe(1);
       expect(titles[0].textContent).toBe('My Flow');
@@ -240,7 +240,7 @@ describe('renderFlowchart', () => {
     });
 
     it('renderFlowchartForExport returns empty on parse error', () => {
-      const svg = renderFlowchartForExport('chart: flowchart\n', 'light', testPalette);
+      const svg = renderFlowchartForExport('flowchart\n', 'light', testPalette);
       expect(svg).toBe('');
     });
 

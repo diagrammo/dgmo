@@ -1,5 +1,4 @@
-chart: state
-title: Order Lifecycle
+state Order Lifecycle
 
 [*] -> Pending
 

@@ -81,7 +81,7 @@ function getViewboxHeight(container: Element): number | null {
 describe('Baseline: Sequence legend position', () => {
   const src = `chart: sequence
 
-tag: Team
+tag Team
   Frontend(blue)
   Backend(red)
 
@@ -108,16 +108,16 @@ Bob <-response- Alice`;
 // ── C4 ────────────────────────────────────────────────────────────────────────
 
 describe('Baseline: C4 legend position', () => {
-  const src = `chart: c4
+  const src = `c4
 
-tag: Domain
+tag Domain
   Auth(blue)
   Payments(green)
 
-person User
-system AuthService | domain: Auth
-system PaymentsService | domain: Payments
-User -> AuthService`;
+User is a person
+AuthService is a system | domain: Auth
+  -> User
+PaymentsService is a system | domain: Payments`;
 
   it('renders legend as fixed overlay at SVG bottom', () => {
     const parsed = parseC4(src, palette);
@@ -141,9 +141,9 @@ User -> AuthService`;
 // ── Kanban ────────────────────────────────────────────────────────────────────
 
 describe('Baseline: Kanban legend position', () => {
-  const src = `chart: kanban
+  const src = `kanban
 
-tag: Priority
+tag Priority
   High(red)
   Low(green)
 
@@ -166,9 +166,9 @@ tag: Priority
 // ── Org ───────────────────────────────────────────────────────────────────────
 
 describe('Baseline: Org legend position', () => {
-  const src = `chart: org
+  const src = `org
 
-tag: Region
+tag Region
   North(blue)
   South(green)
 
@@ -196,9 +196,9 @@ CEO
 // ── Sitemap ───────────────────────────────────────────────────────────────────
 
 describe('Baseline: Sitemap legend position', () => {
-  const src = `chart: sitemap
+  const src = `sitemap
 
-tag: Section
+tag Section
   Docs(blue)
   Blog(green)
 
@@ -226,14 +226,14 @@ Home
 // ── Infra ─────────────────────────────────────────────────────────────────────
 
 describe('Baseline: Infra legend position', () => {
-  const src = `chart: infra
+  const src = `infra
 
-tag: Team
+tag Team
   Platform(blue)
   App(green)
 
 edge
-  rps: 1000
+  rps 1000
   -> API | team: App
   -> DB | team: Platform`;
 
@@ -253,10 +253,10 @@ edge
 // ── Infra Playback ────────────────────────────────────────────────────────────
 
 describe('Baseline: Infra playback control', () => {
-  const src = `chart: infra
+  const src = `infra
 
 edge
-  rps: 500
+  rps 500
   -> API
   -> DB`;
 
@@ -324,7 +324,7 @@ edge
 describe('Baseline: ER legend position', () => {
   const src = `chart: er
 
-tag: Domain
+tag Domain
   Auth(blue)
   Core(green)
 
@@ -352,7 +352,7 @@ Order {
 describe('Baseline: Timeline legend position', () => {
   const src = `chart: timeline
 
-tag: Status
+tag Status
   Done(green)
   Active(blue)
 

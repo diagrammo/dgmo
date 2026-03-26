@@ -39,112 +39,110 @@ beforeAll(() => {
 // ============================================================
 
 const D3_INPUTS: Record<string, string> = {
-  sequence: `chart: sequence
+  sequence: `sequence
 A -hello-> B
 B -world-> A`,
 
-  slope: `chart: slope
+  slope: `slope
 Before, After
 Alpha: 10, 20
 Beta: 30, 15`,
 
-  wordcloud: `chart: wordcloud
-hello: 100
-world: 80
-test: 60
-data: 40`,
+  wordcloud: `wordcloud
+hello 100
+world 80
+test 60
+data 40`,
 
-  arc: `chart: arc
+  arc: `arc
 A -> B: 5
 B -> C: 3
 C -> A: 2`,
 
-  timeline: `chart: timeline
-2020-01: Project Start
-2020-06: Phase 1 Complete
-2021-01: Launch`,
+  timeline: `timeline
+2020-01 Project Start
+2020-06 Phase 1 Complete
+2021-01 Launch`,
 
-  venn: `chart: venn
+  venn: `venn
 Apples
 Oranges
 Apples + Oranges: Cider`,
 
-  quadrant: `chart: quadrant
-xlabel: Effort
-ylabel: Impact
+  quadrant: `quadrant
+xlabel Effort
+ylabel Impact
 High Impact, Low Effort: 20, 80
 Low Impact, High Effort: 80, 20`,
 
-  flowchart: `chart: flowchart
+  flowchart: `flowchart
 (Start) -> [Process] -> <Check?>
   -yes-> (End)
   -no-> [Retry] -> (Start)`,
 
-  class: `chart: class
+  class: `class
 Animal
-  name: string
+  name string
   speak(): void
 Dog --|> Animal`,
 
-  er: `chart: er
+  er: `er
 users
-  id: int [pk]
-  name: varchar
+  id int pk
+  name varchar
 posts
-  id: int [pk]
-  author_id: int [fk]
+  id int pk
+  author_id int fk
 users 1--* posts`,
 
-  org: `chart: org
+  org: `org
 Jane Smith
-  role: CEO
+  role CEO
   Alex Chen
-    role: CTO`,
+    role CTO`,
 
-  kanban: `chart: kanban
+  kanban: `kanban
 [To Do]
   Task A
 [Done]
   Task B`,
 
-  c4: `chart: c4
+  c4: `c4
 Customer is a person
 Banking is a system
   -Serves-> Customer`,
 
-  'initiative-status': `chart: initiative-status
-title: Test
+  'initiative-status': `initiative-status Test
 Mobile | done
 Back End | wip
 Mobile -> Back End: getUser | done`,
 
-  state: `chart: state
+  state: `state
 [*] -> Idle
 Idle -click-> Active
 Active -> [*]`,
 
-  sitemap: `chart: sitemap
-title: Test Site
+  sitemap: `sitemap Test Site
 Home
   -go-> About
 [Pages]
   About`,
 
-  infra: `chart: infra
+  infra: `infra
 
 edge
-  rps: 1000
+  rps 1000
   -> API
 
 API
-  latency-ms: 10`,
+  latency-ms 10`,
 
-  gantt: `chart: gantt
-start: 2024-01-15
-14d: Research
-7d: Design
-3d: Testing
-0d: Ship`,
+  gantt: `gantt
+start 2024-01-15
+14d Research
+7d Design
+3d Testing
+0d Ship`,
 };
 
 // All D3 types now render in JSDOM via explicit dimensions (Epic 41)
@@ -155,80 +153,80 @@ const D3_TYPES = ['sequence', 'slope', 'arc', 'timeline', 'venn', 'quadrant', 'f
 const D3_CANVAS_TYPES = ['wordcloud'];
 
 const ECHART_INPUTS: Record<string, string> = {
-  scatter: `chart: scatter
-A: 1, 2
-B: 3, 4
-C: 5, 6`,
+  scatter: `scatter
+A 1, 2
+B 3, 4
+C 5, 6`,
 
-  sankey: `chart: sankey
-A -> B: 10
-B -> C: 5
-A -> C: 3`,
+  sankey: `sankey
+A -> B 10
+B -> C 5
+A -> C 3`,
 
-  chord: `chart: chord
-A -> B: 10
-B -> C: 5
-C -> A: 3`,
+  chord: `chord
+A -> B 10
+B -> C 5
+C -> A 3`,
 
-  function: `chart: function
-x: -5 to 5
+  function: `function
+x -5 to 5
 f(x): x^2`,
 
-  heatmap: `chart: heatmap
-columns: Mon, Tue, Wed
-Morning: 10, 20, 30
-Afternoon: 40, 50, 60`,
+  heatmap: `heatmap
+columns Mon, Tue, Wed
+Morning 10, 20, 30
+Afternoon 40, 50, 60`,
 
-  funnel: `chart: funnel
-Visitors: 1000
-Signups: 500
-Paid: 100`,
+  funnel: `funnel
+Visitors 1000
+Signups 500
+Paid 100`,
 
   // Chart.js types (now rendered via ECharts)
-  bar: `chart: bar
-A: 10
-B: 20
-C: 30`,
+  bar: `bar
+A 10
+B 20
+C 30`,
 
-  line: `chart: line
-A: 10
-B: 20
-C: 30`,
+  line: `line
+A 10
+B 20
+C 30`,
 
-  'multi-line': `chart: multi-line
-series: X, Y
-A: 10, 20
-B: 30, 40`,
+  'multi-line': `multi-line
+series X, Y
+A 10, 20
+B 30, 40`,
 
-  area: `chart: area
-A: 10
-B: 20
-C: 30`,
+  area: `area
+A 10
+B 20
+C 30`,
 
-  pie: `chart: pie
-A: 10
-B: 20
-C: 30`,
+  pie: `pie
+A 10
+B 20
+C 30`,
 
-  doughnut: `chart: doughnut
-A: 10
-B: 20
-C: 30`,
+  doughnut: `doughnut
+A 10
+B 20
+C 30`,
 
-  radar: `chart: radar
-Speed: 80
-Power: 60
-Defense: 90`,
+  radar: `radar
+Speed 80
+Power 60
+Defense 90`,
 
-  'polar-area': `chart: polar-area
-A: 10
-B: 20
-C: 30`,
+  'polar-area': `polar-area
+A 10
+B 20
+C 30`,
 
-  'bar-stacked': `chart: bar-stacked
-series: X, Y
-A: 10, 20
-B: 30, 40`,
+  'bar-stacked': `bar-stacked
+series X, Y
+A 10, 20
+B 30, 40`,
 };
 
 // ============================================================
@@ -303,9 +301,9 @@ describe('CLI chart type coverage', () => {
   });
 
   it('parseDgmoChartType extracts chart type from content', () => {
-    expect(parseDgmoChartType('chart: scatter\nA: 1, 2')).toBe('scatter');
-    expect(parseDgmoChartType('chart: sankey\nA -> B: 10')).toBe('sankey');
-    expect(parseDgmoChartType('chart: sequence\nA -hi-> B')).toBe('sequence');
+    expect(parseDgmoChartType('scatter\nA 1, 2')).toBe('scatter');
+    expect(parseDgmoChartType('sankey\nA -> B 10')).toBe('sankey');
+    expect(parseDgmoChartType('sequence\nA -hi-> B')).toBe('sequence');
   });
 
   it('getRenderCategory maps types to categories', () => {

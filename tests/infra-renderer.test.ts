@@ -20,9 +20,9 @@ function renderToSvg(content: string, theme: 'light' | 'dark' = 'light', selecte
 
 describe('infra renderer', () => {
   it('renders basic nodes and edges', () => {
-    const svg = renderToSvg(`chart: infra
+    const svg = renderToSvg(`infra
 edge
-  rps: 1000
+  rps 1000
   -> CDN
 CDN
   -> API`);
@@ -33,18 +33,17 @@ CDN
   });
 
   it('renders title', () => {
-    const svg = renderToSvg(`chart: infra
-title: My Infra
+    const svg = renderToSvg(`infra My Infra
 edge
-  rps: 100
+  rps 100
   -> A`);
     expect(svg).toContain('My Infra');
   });
 
   it('renders RPS as key-value in nodes', () => {
-    const svg = renderToSvg(`chart: infra
+    const svg = renderToSvg(`infra
 edge
-  rps: 1000
+  rps 1000
   -> CDN
 CDN
   -> API`);
@@ -54,14 +53,14 @@ CDN
 
   it('renders metrics (latency, instances) as key-value rows', () => {
     // Declared properties only shown when node is selected
-    const svg = renderToSvg(`chart: infra
+    const svg = renderToSvg(`infra
 edge
-  rps: 500
+  rps 500
   -> API
 API
-  instances: 3
-  max-rps: 200
-  latency-ms: 45`, 'light', 'API');
+  instances 3
+  max-rps 200
+  latency-ms 45`, 'light', 'API');
     // Key-value style: "latency: " then "45ms"
     expect(svg).toContain('latency: ');
     expect(svg).toContain('>45ms<');
@@ -70,27 +69,27 @@ API
   });
 
   it('renders overloaded nodes with red stroke', () => {
-    const svg = renderToSvg(`chart: infra
+    const svg = renderToSvg(`infra
 edge
-  rps: 5000
+  rps 5000
   -> API
 API
-  instances: 1
-  max-rps: 100`);
+  instances 1
+  max-rps 100`);
     // Overloaded nodes should have the red overload color
     expect(svg).toContain('#ef4444');
   });
 
   it('renders CB threshold as key-value row', () => {
     // Declared properties only shown when node is selected
-    const svg = renderToSvg(`chart: infra
+    const svg = renderToSvg(`infra
 edge
-  rps: 5000
+  rps 5000
   -> API
 API
-  instances: 1
-  max-rps: 100
-  cb-error-threshold: 50%`, 'light', 'API');
+  instances 1
+  max-rps 100
+  cb-error-threshold 50%`, 'light', 'API');
     // CB threshold shown as key-value row
     expect(svg).toContain('CB error threshold: ');
     expect(svg).toContain('>50%<');
@@ -100,13 +99,13 @@ API
   });
 
   it('renders ratelimit-rps and cb-latency-threshold-ms with correct labels', () => {
-    const svg = renderToSvg(`chart: infra
+    const svg = renderToSvg(`infra
 edge
-  rps: 5000
+  rps 5000
   -> API
 API
-  ratelimit-rps: 1000
-  cb-latency-threshold-ms: 200`, 'light', 'API');
+  ratelimit-rps 1000
+  cb-latency-threshold-ms 200`, 'light', 'API');
     expect(svg).toContain('rate limit RPS: ');
     expect(svg).toContain('CB latency threshold: ');
     expect(svg).not.toContain('rate limit: ');
@@ -114,12 +113,12 @@ API
   });
 
   it('renders Capabilities legend pill; dots only when active', () => {
-    const content = `chart: infra
+    const content = `infra
 edge
-  rps: 1000
+  rps 1000
   -> CDN
 CDN
-  cache-hit: 80%
+  cache-hit 80%
   -> API`;
     // Without active group — pill shows but no dots
     const svg = renderToSvg(content);
@@ -141,12 +140,12 @@ CDN
   });
 
   it('renders tag legend as collapsed pill', () => {
-    const svg = renderToSvg(`chart: infra
-tag: Team alias t
+    const svg = renderToSvg(`infra
+tag Team t
   Backend(blue)
 
 edge
-  rps: 100
+  rps 100
   -> API
 API | t: Backend`);
     // Should have collapsed "Team" pill (not expanded entries)
@@ -155,40 +154,40 @@ API | t: Backend`);
   });
 
   it('renders groups with filled background', () => {
-    const svg = renderToSvg(`chart: infra
+    const svg = renderToSvg(`infra
 edge
-  rps: 1000
+  rps 1000
   -> [Pool]
 
 [Pool]
   Server
-    max-rps: 500`);
+    max-rps 500`);
     expect(svg).toContain('infra-group');
     expect(svg).toContain('stroke-opacity="0.35"');
     expect(svg).toContain('Pool');
   });
 
   it('renders edges without arrowheads', () => {
-    const svg = renderToSvg(`chart: infra
+    const svg = renderToSvg(`infra
 edge
-  rps: 100
+  rps 100
   -> A`);
     expect(svg).not.toContain('<marker');
     expect(svg).not.toContain('marker-end');
   });
 
   it('renders in dark theme', () => {
-    const svg = renderToSvg(`chart: infra
+    const svg = renderToSvg(`infra
 edge
-  rps: 100
+  rps 100
   -> A`, 'dark');
     expect(svg).toContain('<svg');
   });
 
   it('renders split labels on edges', () => {
-    const svg = renderToSvg(`chart: infra
+    const svg = renderToSvg(`infra
 edge
-  rps: 1000
+  rps 1000
   -> LB
 LB
   -/api-> API | split: 60%
@@ -198,9 +197,9 @@ LB
   });
 
   it('sets data-line-number on nodes and groups', () => {
-    const svg = renderToSvg(`chart: infra
+    const svg = renderToSvg(`infra
 edge
-  rps: 100
+  rps 100
   -> [G]
 [G]
   A`);
@@ -208,9 +207,9 @@ edge
   });
 
   it('renders particle animation when animate is true', () => {
-    const parsed = parseInfra(`chart: infra
+    const parsed = parseInfra(`infra
 edge
-  rps: 1000
+  rps 1000
   -> CDN
 CDN
   -> API`);
@@ -227,9 +226,9 @@ CDN
   });
 
   it('omits animation when animate is false', () => {
-    const svg = renderToSvg(`chart: infra
+    const svg = renderToSvg(`infra
 edge
-  rps: 1000
+  rps 1000
   -> CDN
 CDN
   -> API`);
@@ -237,23 +236,23 @@ CDN
     expect(svg).not.toContain('@keyframes');
   });
 
-  it('respects animate: off option', () => {
-    const parsed = parseInfra(`chart: infra
-animate: off
+  it('respects no-animate option', () => {
+    const parsed = parseInfra(`infra
+no-animate
 edge
-  rps: 1000
+  rps 1000
   -> A`);
     expect(parsed.options.animate).toBe('off');
   });
 
   it('colors edges red when target is overloaded', () => {
-    const parsed = parseInfra(`chart: infra
+    const parsed = parseInfra(`infra
 edge
-  rps: 5000
+  rps 5000
   -> API
 API
-  instances: 1
-  max-rps: 100`);
+  instances 1
+  max-rps 100`);
     expect(parsed.error).toBeNull();
     const computed = computeInfra(parsed);
     const layout = layoutInfra(computed);
@@ -265,13 +264,13 @@ API
   });
 
   it('adds overload pulse class to overloaded nodes when animated', () => {
-    const parsed = parseInfra(`chart: infra
+    const parsed = parseInfra(`infra
 edge
-  rps: 5000
+  rps 5000
   -> API
 API
-  instances: 1
-  max-rps: 100`);
+  instances 1
+  max-rps 100`);
     expect(parsed.error).toBeNull();
     const computed = computeInfra(parsed);
     const layout = layoutInfra(computed);
@@ -284,13 +283,13 @@ API
   });
 
   it('adds warning pulse class to near-capacity nodes when animated', () => {
-    const parsed = parseInfra(`chart: infra
+    const parsed = parseInfra(`infra
 edge
-  rps: 800
+  rps 800
   -> API
 API
-  instances: 1
-  max-rps: 1000`);
+  instances 1
+  max-rps 1000`);
     expect(parsed.error).toBeNull();
     const computed = computeInfra(parsed);
     const layout = layoutInfra(computed);
@@ -302,14 +301,14 @@ API
   });
 
   it('adds CB open animation class when circuit breaker is open', () => {
-    const parsed = parseInfra(`chart: infra
+    const parsed = parseInfra(`infra
 edge
-  rps: 5000
+  rps 5000
   -> API
 API
-  instances: 1
-  max-rps: 100
-  cb-error-threshold: 50%`);
+  instances 1
+  max-rps 100
+  cb-error-threshold 50%`);
     expect(parsed.error).toBeNull();
     const computed = computeInfra(parsed);
     const layout = layoutInfra(computed);
@@ -321,14 +320,14 @@ API
   });
 
   it('renders CB state row as inverted pill when CB is open', () => {
-    const parsed = parseInfra(`chart: infra
+    const parsed = parseInfra(`infra
 edge
-  rps: 5000
+  rps 5000
   -> API
 API
-  instances: 1
-  max-rps: 100
-  cb-error-threshold: 50%`);
+  instances 1
+  max-rps 100
+  cb-error-threshold 50%`);
     expect(parsed.error).toBeNull();
     const computed = computeInfra(parsed);
     const layout = layoutInfra(computed);
@@ -344,13 +343,13 @@ API
   });
 
   it('renders low availability as inverted pill', () => {
-    const parsed = parseInfra(`chart: infra
+    const parsed = parseInfra(`infra
 edge
-  rps: 5000
+  rps 5000
   -> API
 API
-  instances: 1
-  max-rps: 100`);
+  instances 1
+  max-rps 100`);
     expect(parsed.error).toBeNull();
     const computed = computeInfra(parsed);
     const layout = layoutInfra(computed);
@@ -364,9 +363,9 @@ API
   });
 
   it('uses more particles for higher RPS edges', () => {
-    const parsed = parseInfra(`chart: infra
+    const parsed = parseInfra(`infra
 edge
-  rps: 10000
+  rps 10000
   -> CDN
 CDN
   -> API`);
@@ -383,38 +382,38 @@ CDN
   });
 
   it('emits error for scenario blocks (scenarios removed)', () => {
-    const parsed = parseInfra(`chart: infra
+    const parsed = parseInfra(`infra
 edge
-  rps: 1000
+  rps 1000
   -> API
 API
-  instances: 3
-  max-rps: 500
+  instances 3
+  max-rps 500
 
 scenario: peak
   edge
-    rps: 10000
+    rps 10000
   API
-    instances: 8`);
+    instances 8`);
     expect(parsed.error).toContain('scenario:');
     expect(parsed.error).toContain('no longer supported');
     expect(parsed.diagnostics.some(d => d.severity === 'error' && d.message.includes('no longer supported'))).toBe(true);
   });
 
   it('compute uses base values when scenario syntax present (rejected with error)', () => {
-    const parsed = parseInfra(`chart: infra
+    const parsed = parseInfra(`infra
 edge
-  rps: 1000
+  rps 1000
   -> API
 API
-  instances: 3
-  max-rps: 500
+  instances 3
+  max-rps 500
 
 scenario: peak
   edge
-    rps: 10000
+    rps 10000
   API
-    instances: 8`);
+    instances 8`);
     // scenario: now produces a hard error
     expect(parsed.error).toContain('no longer supported');
 
@@ -426,13 +425,13 @@ scenario: peak
   });
 
   it('instance overrides affect overload detection', () => {
-    const parsed = parseInfra(`chart: infra
+    const parsed = parseInfra(`infra
 edge
-  rps: 5000
+  rps 5000
   -> API
 API
-  instances: 10
-  max-rps: 500`);
+  instances 10
+  max-rps 500`);
     expect(parsed.error).toBeNull();
 
     // Base: 10 instances * 500 = 5000 capacity, not overloaded
@@ -445,15 +444,15 @@ API
   });
 
   it('property overrides change downstream rps', () => {
-    const parsed = parseInfra(`chart: infra
+    const parsed = parseInfra(`infra
 edge
-  rps: 10000
+  rps 10000
   -> CDN
 CDN
-  cache-hit: 80%
+  cache-hit 80%
   -> API
 API
-  max-rps: 5000`);
+  max-rps 5000`);
     expect(parsed.error).toBeNull();
 
     // Base: CDN cache-hit 80% → 2000 rps reach API
@@ -477,12 +476,12 @@ API
   });
 
   it('property overrides for ratelimit-rps cap downstream traffic', () => {
-    const parsed = parseInfra(`chart: infra
+    const parsed = parseInfra(`infra
 edge
-  rps: 10000
+  rps 10000
   -> Gateway
 Gateway
-  ratelimit-rps: 5000
+  ratelimit-rps 5000
   -> API
 API`);
     expect(parsed.error).toBeNull();
@@ -500,14 +499,14 @@ API`);
 
   it('renders serverless node with instances row and property rows', () => {
     // Select Lambda to show declared properties (duration, cold start)
-    const svg = renderToSvg(`chart: infra
+    const svg = renderToSvg(`infra
 edge
-  rps: 3000
+  rps 3000
   -> Lambda
 Lambda
-  concurrency: 1000
-  duration-ms: 200
-  cold-start-ms: 250`, 'light', 'Lambda');
+  concurrency 1000
+  duration-ms 200
+  cold-start-ms 250`, 'light', 'Lambda');
     expect(svg).toContain('Lambda');
     // Computed instances row: 600 / 1,000 (3000 rps × 200ms / 1000 = 600 demand vs 1000 concurrency)
     expect(svg).toContain('instances');
@@ -524,18 +523,18 @@ Lambda
 
   it('renders queue node with buffer, drain, lag, and overflow rows', () => {
     // Select Queue to show declared properties (buffer, drain, retention, partitions)
-    const svg = renderToSvg(`chart: infra
+    const svg = renderToSvg(`infra
 edge
-  rps: 2000
+  rps 2000
   -> Queue
 Queue
-  buffer: 100000
-  drain-rate: 500
-  retention-hours: 72
-  partitions: 6
+  buffer 100000
+  drain-rate 500
+  retention-hours 72
+  partitions 6
   -> Processor
 Processor
-  max-rps: 1000`, 'light', 'Queue');
+  max-rps 1000`, 'light', 'Queue');
     expect(svg).toContain('Queue');
     // Buffer formatted as 100k
     expect(svg).toContain('100k');
@@ -548,25 +547,25 @@ Processor
   });
 
   it('renders serverless node with RPS showing capacity denominator', () => {
-    const svg = renderToSvg(`chart: infra
+    const svg = renderToSvg(`infra
 edge
-  rps: 3000
+  rps 3000
   -> Lambda
 Lambda
-  concurrency: 1000
-  duration-ms: 200`);
+  concurrency 1000
+  duration-ms 200`);
     // Should show "3.0k / 5.0k" (RPS / effective capacity)
     expect(svg).toContain('3.0k');
     expect(svg).toContain('5.0k');
   });
 
   it('property overrides affect compute (cache-hit passthrough)', () => {
-    const parsed = parseInfra(`chart: infra
+    const parsed = parseInfra(`infra
 edge
-  rps: 10000
+  rps 10000
   -> CDN
 CDN
-  cache-hit: 80%
+  cache-hit 80%
   -> API
 API`);
     expect(parsed.error).toBeNull();
@@ -583,9 +582,9 @@ API`);
   });
 
   it('renders async edge with stroke-dasharray', () => {
-    const svg = renderToSvg(`chart: infra
+    const svg = renderToSvg(`infra
 edge
-  rps: 100
+  rps 100
   -> API
 API
   ~> EventBus`);
@@ -594,9 +593,9 @@ API
   });
 
   it('does not render stroke-dasharray on sync edges', () => {
-    const svg = renderToSvg(`chart: infra
+    const svg = renderToSvg(`infra
 edge
-  rps: 100
+  rps 100
   -> API
 API
   -> Database`);

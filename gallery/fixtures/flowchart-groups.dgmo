@@ -1,6 +1,5 @@
-chart: flowchart
-title: Microservice Architecture
-direction: LR
+flowchart Microservice Architecture
+direction LR
 
 /Request/ -> [Auth Check] -> <Authorized?>
 

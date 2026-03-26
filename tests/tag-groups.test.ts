@@ -2,8 +2,10 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   TAG_BLOCK_RE,
   GROUP_HEADING_RE,
+  TAG_BLOCK_NOCOLON_RE,
   isTagBlockHeading,
   matchTagBlockHeading,
+  parseTagDeclaration,
   resolveTagColor,
   validateTagValues,
   injectDefaultTagMetadata,
@@ -141,6 +143,151 @@ describe('matchTagBlockHeading', () => {
     // tag: syntax is checked first — this line only matches tag:
     const result = matchTagBlockHeading('tag: Rank alias r');
     expect(result!.deprecated).toBe(false);
+  });
+});
+
+// ============================================================
+// New no-colon syntax: parseTagDeclaration
+// ============================================================
+
+describe('TAG_BLOCK_NOCOLON_RE', () => {
+  it('matches tag keyword with space', () => {
+    expect(TAG_BLOCK_NOCOLON_RE.test('tag Priority')).toBe(true);
+    expect(TAG_BLOCK_NOCOLON_RE.test('Tag Priority')).toBe(true);
+    expect(TAG_BLOCK_NOCOLON_RE.test('TAG Priority')).toBe(true);
+  });
+  it('does not match tag: (with colon)', () => {
+    expect(TAG_BLOCK_NOCOLON_RE.test('tag: Priority')).toBe(false);
+  });
+  it('does not match tags (with s)', () => {
+    expect(TAG_BLOCK_NOCOLON_RE.test('tags val')).toBe(false);
+  });
+});
+
+describe('parseTagDeclaration', () => {
+  it('parses simple tag name', () => {
+    const r = parseTagDeclaration('tag Priority');
+    expect(r).toEqual({
+      name: 'Priority',
+      alias: undefined,
+      colorHint: undefined,
+      deprecated: false,
+      inlineValues: undefined,
+    });
+  });
+
+  it('infers alias from trailing 1-4 lowercase token', () => {
+    const r = parseTagDeclaration('tag Priority p');
+    expect(r?.name).toBe('Priority');
+    expect(r?.alias).toBe('p');
+  });
+
+  it('infers multi-char alias', () => {
+    const r = parseTagDeclaration('tag Engineering eng');
+    expect(r?.name).toBe('Engineering');
+    expect(r?.alias).toBe('eng');
+  });
+
+  it('does not infer alias from 5+ char token', () => {
+    const r = parseTagDeclaration('tag Priority level');
+    // 'level' is 5 chars — not an alias
+    expect(r?.name).toBe('Priority level');
+    expect(r?.alias).toBeUndefined();
+  });
+
+  it('does not infer alias from uppercase token', () => {
+    const r = parseTagDeclaration('tag Priority High');
+    // 'High' has uppercase — not an alias
+    expect(r?.name).toBe('Priority High');
+    expect(r?.alias).toBeUndefined();
+  });
+
+  it('parses quoted tag name', () => {
+    const r = parseTagDeclaration('tag "Marketing mktg"');
+    expect(r?.name).toBe('Marketing mktg');
+    expect(r?.alias).toBeUndefined();
+  });
+
+  it('parses quoted tag name with alias', () => {
+    const r = parseTagDeclaration('tag "A Team" at');
+    expect(r?.name).toBe('A Team');
+    expect(r?.alias).toBe('at');
+  });
+
+  it('parses single-line values', () => {
+    const r = parseTagDeclaration('tag Priority p High(red), Low(blue)');
+    expect(r?.name).toBe('Priority');
+    expect(r?.alias).toBe('p');
+    expect(r?.inlineValues).toEqual(['High(red)', 'Low(blue)']);
+  });
+
+  it('parses single-line values with multi-word name', () => {
+    const r = parseTagDeclaration('tag Risk Level lo High(red), Low(blue)');
+    expect(r?.name).toBe('Risk Level');
+    expect(r?.alias).toBe('lo');
+    expect(r?.inlineValues).toEqual(['High(red)', 'Low(blue)']);
+  });
+
+  it('parses tag with color hint on name', () => {
+    const r = parseTagDeclaration('tag Location(blue)');
+    expect(r?.name).toBe('Location');
+    expect(r?.colorHint).toBe('blue');
+  });
+
+  it('parses values without alias', () => {
+    const r = parseTagDeclaration('tag Phase Planning(blue), Execution(green), Review(purple)');
+    expect(r?.name).toBe('Phase');
+    expect(r?.alias).toBeUndefined();
+    // 'Planning(blue)' starts inline values due to `(`
+    expect(r?.inlineValues).toEqual(['Planning(blue)', 'Execution(green)', 'Review(purple)']);
+  });
+
+  it('returns null for non-tag lines', () => {
+    expect(parseTagDeclaration('title My Title')).toBeNull();
+    expect(parseTagDeclaration('direction LR')).toBeNull();
+    expect(parseTagDeclaration('')).toBeNull();
+  });
+
+  it('returns null for tag: (colon syntax)', () => {
+    expect(parseTagDeclaration('tag: Priority')).toBeNull();
+  });
+
+  it('returns null for bare tag keyword', () => {
+    expect(parseTagDeclaration('tag')).toBeNull();
+    expect(parseTagDeclaration('tag ')).toBeNull();
+  });
+});
+
+describe('matchTagBlockHeading (new syntax)', () => {
+  it('matches new no-colon syntax via matchTagBlockHeading', () => {
+    const r = matchTagBlockHeading('tag Priority p');
+    expect(r?.name).toBe('Priority');
+    expect(r?.alias).toBe('p');
+    expect(r?.deprecated).toBe(false);
+  });
+
+  it('still matches old colon syntax', () => {
+    const r = matchTagBlockHeading('tag: Location alias loc');
+    expect(r?.name).toBe('Location');
+    expect(r?.alias).toBe('loc');
+  });
+
+  it('still matches legacy ## syntax', () => {
+    const r = matchTagBlockHeading('## Location');
+    expect(r?.name).toBe('Location');
+    expect(r?.deprecated).toBe(true);
+  });
+});
+
+describe('isTagBlockHeading (new syntax)', () => {
+  it('returns true for new no-colon syntax', () => {
+    expect(isTagBlockHeading('tag Priority')).toBe(true);
+    expect(isTagBlockHeading('tag Priority p High(red), Low(blue)')).toBe(true);
+  });
+
+  it('still returns true for old syntaxes', () => {
+    expect(isTagBlockHeading('tag: Priority')).toBe(true);
+    expect(isTagBlockHeading('## Priority')).toBe(true);
   });
 });
 

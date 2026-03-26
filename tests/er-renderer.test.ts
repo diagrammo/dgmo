@@ -56,20 +56,19 @@ const testPalette: PaletteColors = {
   },
 };
 
-const SAMPLE_ER = `chart: er
-title: Blog Platform
+const SAMPLE_ER = `er Blog Platform
 
 users
-  id: int [pk]
-  name: varchar
-  email: varchar [unique]
+  id int pk
+  name varchar
+  email varchar unique
 
 posts
-  id: int [pk]
-  author_id: int [fk]
-  title: varchar
+  id int pk
+  author_id int fk
+  title varchar
 
-users 1--* posts: writes`;
+users 1--* posts writes`;
 
 function renderToContainer(content: string, isDark = false): HTMLDivElement {
   const parsed = parseERDiagram(content, testPalette);
@@ -150,7 +149,7 @@ describe('renderERDiagram', () => {
     });
 
     it('renders labels notation when specified', () => {
-      const content = `chart: er\nnotation: labels\nusers\n  id: int [pk]\n\nposts\n  id: int [pk]\n\nusers 1--* posts`;
+      const content = `er\nnotation labels\nusers\n  id int pk\n\nposts\n  id int pk\n\nusers 1--* posts`;
       const container = renderToContainer(content);
       const edgeGroup = container.querySelector('.er-edge-group');
       // Labels mode draws text elements instead of lines for cardinality
@@ -172,7 +171,7 @@ describe('renderERDiagram', () => {
     it('renders title with data-line-number', () => {
       const container = renderToContainer(SAMPLE_ER);
       const title = container.querySelector('.chart-title');
-      expect(title?.getAttribute('data-line-number')).toBe('2');
+      expect(title?.getAttribute('data-line-number')).toBe('1');
       document.body.removeChild(container);
     });
   });
@@ -188,17 +187,17 @@ describe('renderERDiagram', () => {
   });
 
   describe('tag groups', () => {
-    const ER_WITH_TAGS = `chart: er
+    const ER_WITH_TAGS = `er
 
-tag: Domain alias d
+tag Domain d
   Billing(blue)
   Shipping(green)
 
 Users | d: Billing
-  id: int [pk]
+  id int pk
 
 Orders | d: Shipping
-  id: int [pk]`;
+  id int pk`;
 
     it('sets data-tag-* attributes when activeTagGroup is set', () => {
       const parsed = parseERDiagram(ER_WITH_TAGS, testPalette);
@@ -244,7 +243,7 @@ Orders | d: Shipping
     });
 
     it('no legend when no tag groups', () => {
-      const parsed = parseERDiagram('users\n  id: int [pk]', testPalette);
+      const parsed = parseERDiagram('users\n  id int pk', testPalette);
       const layout = layoutERDiagram(parsed);
       const container = document.createElement('div');
       container.style.width = '800px';
@@ -258,35 +257,35 @@ Orders | d: Shipping
   });
 
   describe('semantic entity coloring', () => {
-    const PLAIN_ER = `chart: er
+    const PLAIN_ER = `er
 
 users
-  id: int [pk]
-  name: varchar
+  id int pk
+  name varchar
 
 posts
-  id: int [pk]
-  author_id: int [fk]
-  title: varchar
+  id int pk
+  author_id int fk
+  title varchar
 
-users 1--* posts: writes`;
+users 1--* posts writes`;
 
-    const ER_WITH_TAGS = `chart: er
+    const ER_WITH_TAGS = `er
 
-tag: Domain alias d
+tag Domain d
   Billing(blue)
 
 users | d: Billing
-  id: int [pk]`;
+  id int pk`;
 
-    const ER_WITH_EXPLICIT_COLOR = `chart: er
+    const ER_WITH_EXPLICIT_COLOR = `er
 
 users(blue)
-  id: int [pk]
+  id int pk
 
 posts
-  id: int [pk]
-  author_id: int [fk]`;
+  id int pk
+  author_id int fk`;
 
     function renderWithDims(content: string, isDark = false): HTMLDivElement {
       const parsed = parseERDiagram(content, testPalette);
@@ -372,17 +371,17 @@ posts
     });
 
     it('junction table gets red stroke on its rect', () => {
-      const junctionER = `chart: er
+      const junctionER = `er
 
 orders
-  id: int [pk]
+  id int pk
 
 products
-  id: int [pk]
+  id int pk
 
 order_items
-  order_id: int [fk]
-  product_id: int [fk]
+  order_id int fk
+  product_id int fk
 
 orders 1--* order_items
 products 1--* order_items`;

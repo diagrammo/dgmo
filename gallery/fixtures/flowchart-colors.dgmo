@@ -1,5 +1,4 @@
-chart: flowchart
-title: Color Demo
+flowchart Color Demo
 
 (Start(green)) -> [Parse Input] -> <Valid?(blue)>
   -yes(green)-> [Process(teal)] -> (Success(green))

@@ -16,8 +16,7 @@ const colors = getSeriesColors(palette);
 
 describe('getExtendedChartLegendGroups', () => {
   it('extracts scatter categories with original casing', () => {
-    const content = `chart: scatter
-title: Test
+    const content = `scatter Test
 
 [SaaS](blue)
   A: 1, 2
@@ -35,7 +34,7 @@ title: Test
   });
 
   it('returns empty for scatter without categories', () => {
-    const content = `chart: scatter
+    const content = `scatter
 A: 1, 2
 B: 3, 4`;
     const parsed = parseExtendedChart(content, palette);
@@ -44,8 +43,8 @@ B: 3, 4`;
   });
 
   it('extracts function names with original casing', () => {
-    const content = `chart: function
-x: -5 to 5
+    const content = `function
+x -5 to 5
 f(x) (blue): sin(x)
 g(x) (red): cos(x)`;
     const parsed = parseExtendedChart(content, palette);
@@ -57,11 +56,10 @@ g(x) (red): cos(x)`;
   });
 
   it('extracts chord node names', () => {
-    const content = `chart: chord
-title: Test
+    const content = `chord Test
 
-Engineering -> Design: 5
-Design -> Product: 3`;
+Engineering -> Design 5
+Design -> Product 3`;
     const parsed = parseExtendedChart(content, palette);
     const groups = getExtendedChartLegendGroups(parsed, colors);
     expect(groups).toHaveLength(1);
@@ -72,8 +70,8 @@ Design -> Product: 3`;
   });
 
   it('returns empty for heatmap (no legend)', () => {
-    const content = `chart: heatmap
-columns: A, B
+    const content = `heatmap
+columns A, B
 Row1: 1, 2`;
     const parsed = parseExtendedChart(content, palette);
     const groups = getExtendedChartLegendGroups(parsed, colors);
@@ -83,8 +81,8 @@ Row1: 1, 2`;
 
 describe('getSimpleChartLegendGroups', () => {
   it('extracts multi-line series names', () => {
-    const content = `chart: line
-series: Revenue, Cost
+    const content = `line
+series Revenue, Cost
 
 Q1: 10, 5
 Q2: 20, 8`;
@@ -96,7 +94,7 @@ Q2: 20, 8`;
   });
 
   it('returns empty for single-series charts', () => {
-    const content = `chart: bar
+    const content = `bar
 Apples: 10
 Oranges: 20`;
     const parsed = parseChart(content, palette);

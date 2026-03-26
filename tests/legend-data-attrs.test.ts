@@ -76,7 +76,7 @@ function assertNoLegendActive(container: Element): void {
 describe('Data attrs: Sequence', () => {
   const src = `chart: sequence
 
-tag: REGION
+tag REGION
   North(blue)
   South(red)
 
@@ -118,16 +118,16 @@ Alice -hello-> Bob`;
 // ── C4 ────────────────────────────────────────────────────────────────────────
 
 describe('Data attrs: C4', () => {
-  const src = `chart: c4
+  const src = `c4
 
-tag: DOMAIN
+tag DOMAIN
   Auth(blue)
   Core(green)
 
-person User
-system AuthSvc | domain: Auth
-system CoreSvc | domain: Core
-User -> AuthSvc`;
+User is a person
+AuthSvc is a system | domain: Auth
+  -> User
+CoreSvc is a system | domain: Core`;
 
   it('has lowercase data-legend-group and data-legend-entry', () => {
     const parsed = parseC4(src, palette);
@@ -169,9 +169,9 @@ User -> AuthSvc`;
 // ── Kanban ────────────────────────────────────────────────────────────────────
 
 describe('Data attrs: Kanban', () => {
-  const src = `chart: kanban
+  const src = `kanban
 
-tag: PRIORITY
+tag PRIORITY
   High(red)
   Low(green)
 
@@ -211,9 +211,9 @@ tag: PRIORITY
 // Org data-legend-active is only set in app mode (fixedLegend = !exportDims)
 
 describe('Data attrs: Org', () => {
-  const src = `chart: org
+  const src = `org
 
-tag: REGION
+tag REGION
   North(blue)
   South(green)
 
@@ -263,9 +263,9 @@ CEO
 // Sitemap data-legend-active is only set in app mode (fixedLegend = !exportDims)
 
 describe('Data attrs: Sitemap', () => {
-  const src = `chart: sitemap
+  const src = `sitemap
 
-tag: SECTION
+tag SECTION
   Docs(blue)
   Blog(green)
 
@@ -314,14 +314,14 @@ Home
 // ── Infra ─────────────────────────────────────────────────────────────────────
 
 describe('Data attrs: Infra', () => {
-  const src = `chart: infra
+  const src = `infra
 
-tag: TEAM
+tag TEAM
   Platform(blue)
   App(green)
 
 edge
-  rps: 1000
+  rps 1000
   -> API | team: App
   -> DB | team: Platform`;
 
@@ -376,7 +376,7 @@ edge
 describe('Data attrs: ER', () => {
   const src = `chart: er
 
-tag: DOMAIN
+tag DOMAIN
   Auth(blue)
   Core(green)
 
@@ -423,7 +423,7 @@ Order {
 describe('Data attrs: Timeline', () => {
   const src = `chart: timeline
 
-tag: STATUS
+tag STATUS
   Done(green)
   Active(blue)
 

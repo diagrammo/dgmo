@@ -1,6 +1,5 @@
-chart: sitemap
-title: Grand Slam Tickets
-direction: TB
+sitemap Grand Slam Tickets
+direction TB
 
 tag: Auth
   Public(green)

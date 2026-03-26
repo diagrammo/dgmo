@@ -6,8 +6,8 @@ function makeParsed(input: string) {
   return parseInitiativeStatus(input);
 }
 
-const FIXTURE = `chart: initiative-status
-tag: Phase alias p
+const FIXTURE = `initiative-status
+tag Phase p
   Discovery(blue)
   Build(yellow)
   Launch(green)
@@ -67,14 +67,16 @@ describe('filterInitiativeStatusByTags', () => {
     expect(result.groups.map((g) => g.label)).toContain('Payments');
   });
 
-  it('keeps untagged nodes visible', () => {
-    const input = `chart: initiative-status
-tag: Phase alias p
+  it('keeps untagged nodes visible when hidden value is NOT the default', () => {
+    const input = `initiative-status
+tag Phase p
+  Planning(blue)
   Build(yellow)
 
 API | done, p: Build
 Untagged | done`;
     const parsed = makeParsed(input);
+    // Hide Build — Untagged gets default "Planning" (first value), so it stays visible
     const hidden = new Map([['phase', new Set(['build'])]]);
     const result = filterInitiativeStatusByTags(parsed, hidden);
     expect(result.nodes.map((n) => n.label)).toContain('Untagged');
@@ -82,11 +84,11 @@ Untagged | done`;
   });
 
   it('handles multiple hidden values across multiple groups', () => {
-    const input = `chart: initiative-status
-tag: Phase alias p
+    const input = `initiative-status
+tag Phase p
   Build(yellow)
   Launch(green)
-tag: Team alias t
+tag Team t
   Frontend(purple)
   Backend(cyan)
 
@@ -109,8 +111,8 @@ D | done, p: Launch, t: Backend`;
   });
 
   it('returns empty arrays when all nodes hidden', () => {
-    const input = `chart: initiative-status
-tag: Phase alias p
+    const input = `initiative-status
+tag Phase p
   Build(yellow)
 
 A | done, p: Build
@@ -150,8 +152,8 @@ A -> B | done`;
   });
 
   it('case-insensitive value matching', () => {
-    const input = `chart: initiative-status
-tag: Phase alias p
+    const input = `initiative-status
+tag Phase p
   Build(yellow)
 
 API | done, p: Build`;

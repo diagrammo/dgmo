@@ -1,7 +1,7 @@
 import { resolveColor } from '../colors';
 import type { PaletteColors } from '../palettes';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
-import { measureIndent } from '../utils/parsing';
+import { measureIndent, parseFirstLine, OPTION_NOCOLON_RE } from '../utils/parsing';
 import type {
   ParsedClassDiagram,
   ClassNode,
@@ -23,15 +23,19 @@ function classId(name: string): string {
 // Regex patterns
 // ============================================================
 
-// Class declaration: ClassName [extends|implements ParentClass] [modifier] (color)
+// Class declaration: [modifier] ClassName [extends|implements ParentClass] (color)
+// Supports both:
+//   New: `abstract Animal` or `interface Serializable`
+//   Old: `Animal [abstract]` (bracketed suffix, kept for transition)
 const CLASS_DECL_RE =
-  /^([A-Z][A-Za-z0-9_]*)(?:\s+(extends|implements)\s+([A-Z][A-Za-z0-9_]*))?(?:\s+\[(abstract|interface|enum)\])?(?:\s+\(([^)]+)\))?\s*$/;
+  /^(?:(abstract|interface|enum)\s+)?([A-Z][A-Za-z0-9_]*)(?:\s+(extends|implements)\s+([A-Z][A-Za-z0-9_]*))?(?:\s+\[(abstract|interface|enum)\])?(?:\s+\(([^)]+)\))?\s*$/;
 
 // Relationship — arrow syntax:
-// ClassName --|> TargetClass : label
+// ClassName --|> TargetClass label  (new: space-separated)
+// ClassName --|> TargetClass : label  (old: colon-separated, kept for transition)
 // Arrows: --|>  ..|>  *--  o--  ..>  ->
 const REL_ARROW_RE =
-  /^([A-Z][A-Za-z0-9_]*)\s+(--\|>|\.\.\|>|\*--|o--|\.\.\>|->)\s*([A-Z][A-Za-z0-9_]*)(?:\s*:\s*(.+))?$/;
+  /^([A-Z][A-Za-z0-9_]*)\s+(--\|>|\.\.\|>|\*--|o--|\.\.\>|->)\s*([A-Z][A-Za-z0-9_]*)(?:\s+:?\s*(.+))?$/;
 
 // Member line patterns
 const VISIBILITY_RE = /^([+\-#])\s*/;
@@ -195,34 +199,30 @@ export function parseClassDiagram(
     // Skip comments
     if (trimmed.startsWith('//')) continue;
 
-    // Metadata directives (before content) — only simple keys (no spaces)
-    if (!contentStarted && indent === 0 && /^[a-z][a-z0-9-]*\s*:/i.test(trimmed)) {
-      const colonIdx = trimmed.indexOf(':');
-      const key = trimmed.substring(0, colonIdx).trim().toLowerCase();
-      const value = trimmed.substring(colonIdx + 1).trim();
-
-      // Only recognize known metadata keys
-      if (key === 'chart') {
-        if (value.toLowerCase() !== 'class') {
-          const allTypes = ['class', 'flowchart', 'sequence', 'er', 'org', 'bar', 'line', 'pie', 'scatter', 'sankey', 'venn', 'timeline', 'arc', 'slope'];
-          let msg = `Expected chart type "class", got "${value}"`;
-          const hint = suggest(value.toLowerCase(), allTypes);
-          if (hint) msg += `. ${hint}`;
-          return fail(lineNumber, msg);
+    // First line: bare chart type + optional title (new syntax)
+    if (!contentStarted && indent === 0 && i === 0) {
+      const firstLine = parseFirstLine(trimmed);
+      if (firstLine && firstLine.chartType === 'class') {
+        if (firstLine.title) {
+          result.title = firstLine.title;
+          result.titleLineNumber = lineNumber;
         }
         continue;
       }
+    }
 
-      if (key === 'title') {
-        result.title = value;
-        result.titleLineNumber = lineNumber;
-        continue;
-      }
-
-      // Store diagram-level options (e.g., color: off)
-      if (!/\s/.test(key)) {
-        result.options[key] = value;
-        continue;
+    // Space-separated options before content (new syntax): `color off`
+    // Only match lines starting with a lowercase token (options), not uppercase (class names)
+    if (!contentStarted && indent === 0 && /^[a-z]/.test(trimmed)) {
+      const optMatch = trimmed.match(OPTION_NOCOLON_RE);
+      if (optMatch) {
+        const key = optMatch[1].toLowerCase();
+        const value = optMatch[2].trim();
+        // Don't swallow lines that look like class modifier keywords
+        if (key !== 'abstract' && key !== 'interface' && key !== 'enum') {
+          result.options[key] = value;
+          continue;
+        }
       }
     }
 
@@ -268,11 +268,13 @@ export function parseClassDiagram(
     // Try class declaration
     const classDecl = trimmed.match(CLASS_DECL_RE);
     if (classDecl) {
-      const name = classDecl[1];
-      const relKeyword = classDecl[2] as 'extends' | 'implements' | undefined;
-      const parentName = classDecl[3];
-      const modifier = classDecl[4] as ClassModifier | undefined;
-      const colorName = classDecl[5]?.trim();
+      const prefixModifier = classDecl[1] as ClassModifier | undefined;
+      const name = classDecl[2];
+      const relKeyword = classDecl[3] as 'extends' | 'implements' | undefined;
+      const parentName = classDecl[4];
+      const bracketModifier = classDecl[5] as ClassModifier | undefined;
+      const modifier = prefixModifier ?? bracketModifier;
+      const colorName = classDecl[6]?.trim();
       const color = colorName ? resolveColor(colorName, palette) : undefined;
 
       const node = getOrCreateClass(name, lineNumber);
@@ -344,11 +346,18 @@ export function looksLikeClassDiagram(content: string): boolean {
 
     // Skip metadata
     if (/^(chart|title)\s*:/i.test(trimmed)) continue;
+    // Skip new-style first line (bare chart type)
+    if (/^class(\s|$)/i.test(trimmed)) continue;
 
     const indent = measureIndent(line);
 
     if (indent === 0) {
-      // Check for modifier pattern: ClassName [abstract|interface|enum]
+      // Check for bare modifier keyword: `abstract ClassName`, `interface ClassName`, `enum ClassName`
+      if (/^(abstract|interface|enum)\s+[A-Z][A-Za-z0-9_]*/i.test(trimmed)) {
+        hasModifier = true;
+        hasClassDecl = true;
+      }
+      // Check for old modifier pattern: ClassName [abstract|interface|enum]
       if (/^[A-Z][A-Za-z0-9_]*\s+\[(abstract|interface|enum)\]/i.test(trimmed)) {
         hasModifier = true;
         hasClassDecl = true;
@@ -399,11 +408,19 @@ export function extractSymbols(docText: string): DiagramSymbols {
   let inMetadata = true;
   for (const rawLine of docText.split('\n')) {
     const line = rawLine.trim();
-    if (inMetadata && /^[a-z-]+\s*:/i.test(line)) continue;
+    // Skip old-style colon metadata and new-style first line / space-separated options
+    if (inMetadata && (/^[a-z-]+\s*:/i.test(line) || /^class(\s|$)/i.test(line))) continue;
+    if (inMetadata && /^[a-z]/.test(line) && OPTION_NOCOLON_RE.test(line)) {
+      const key = line.match(OPTION_NOCOLON_RE)![1].toLowerCase();
+      if (key !== 'abstract' && key !== 'interface' && key !== 'enum') continue;
+    }
     inMetadata = false;
     if (line.length === 0 || /^\s/.test(rawLine)) continue;
     const m = CLASS_DECL_RE.exec(line);
-    if (m && !entities.includes(m[1]!)) entities.push(m[1]!);
+    if (m) {
+      const name = m[2]!; // group 2 is the class name in the new regex
+      if (!entities.includes(name)) entities.push(name);
+    }
   }
   return {
     kind: 'class',

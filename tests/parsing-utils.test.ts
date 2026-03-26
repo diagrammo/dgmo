@@ -6,7 +6,16 @@ import {
   CHART_TYPE_RE,
   TITLE_RE,
   OPTION_RE,
+  OPTION_NOCOLON_RE,
   COLOR_SUFFIX_RE,
+  GROUP_HASH_RE,
+  DOUBLE_HASH_RE,
+  ALL_CHART_TYPES,
+  parseFirstLine,
+  prescanOptions,
+  normalizeGroupedNumber,
+  stripQuotes,
+  tokenizeQuoteAware,
 } from '../src/utils/parsing';
 
 describe('measureIndent', () => {
@@ -72,5 +81,263 @@ describe('header regexes', () => {
   });
   it('COLOR_SUFFIX_RE matches trailing parens', () => {
     expect('Label (blue)'.match(COLOR_SUFFIX_RE)?.[1]).toBe('blue');
+  });
+});
+
+// ── New syntax utilities ─────────────────────────────────────
+
+describe('ALL_CHART_TYPES', () => {
+  it('contains all expected chart types', () => {
+    expect(ALL_CHART_TYPES.has('gantt')).toBe(true);
+    expect(ALL_CHART_TYPES.has('sequence')).toBe(true);
+    expect(ALL_CHART_TYPES.has('bar')).toBe(true);
+    expect(ALL_CHART_TYPES.has('scatter')).toBe(true);
+    expect(ALL_CHART_TYPES.has('initiative-status')).toBe(true);
+    expect(ALL_CHART_TYPES.has('unknown')).toBe(false);
+  });
+});
+
+describe('OPTION_NOCOLON_RE', () => {
+  it('matches space-separated key value', () => {
+    const m = 'direction LR'.match(OPTION_NOCOLON_RE);
+    expect(m?.[1]).toBe('direction');
+    expect(m?.[2]).toBe('LR');
+  });
+  it('matches hyphenated keys', () => {
+    const m = 'sub-node-label Team'.match(OPTION_NOCOLON_RE);
+    expect(m?.[1]).toBe('sub-node-label');
+    expect(m?.[2]).toBe('Team');
+  });
+  it('does not match bare keywords (no value)', () => {
+    expect('critical-path'.match(OPTION_NOCOLON_RE)).toBeNull();
+  });
+  it('does not match lines starting with numbers', () => {
+    expect('10bd Database Schema'.match(OPTION_NOCOLON_RE)).toBeNull();
+  });
+});
+
+describe('GROUP_HASH_RE', () => {
+  it('matches # GroupName', () => {
+    const m = '# Backend Services'.match(GROUP_HASH_RE);
+    expect(m?.[1]).toBe('Backend Services');
+  });
+  it('does not match bare #', () => {
+    expect('#'.match(GROUP_HASH_RE)).toBeNull();
+  });
+  it('does not match ## (double hash)', () => {
+    expect('## Section'.match(GROUP_HASH_RE)).toBeNull();
+  });
+});
+
+describe('DOUBLE_HASH_RE', () => {
+  it('matches ## with text', () => {
+    expect(DOUBLE_HASH_RE.test('## Section')).toBe(true);
+  });
+  it('does not match single #', () => {
+    expect(DOUBLE_HASH_RE.test('# Section')).toBe(false);
+  });
+});
+
+describe('parseFirstLine', () => {
+  it('extracts chart type and title from new syntax', () => {
+    const r = parseFirstLine('gantt Product Launch 2026');
+    expect(r).toEqual({ chartType: 'gantt', title: 'Product Launch 2026' });
+  });
+
+  it('extracts chart type without title', () => {
+    const r = parseFirstLine('sequence');
+    expect(r).toEqual({ chartType: 'sequence', title: undefined });
+  });
+
+  it('handles case-insensitive chart types', () => {
+    const r = parseFirstLine('Gantt My Title');
+    expect(r).toEqual({ chartType: 'gantt', title: 'My Title' });
+  });
+
+  it('handles hyphenated chart types', () => {
+    const r = parseFirstLine('initiative-status Dashboard');
+    expect(r).toEqual({ chartType: 'initiative-status', title: 'Dashboard' });
+  });
+
+  it('returns null for unknown first token', () => {
+    expect(parseFirstLine('unknown thing')).toBeNull();
+  });
+
+  it('returns null for empty/comment lines', () => {
+    expect(parseFirstLine('')).toBeNull();
+    expect(parseFirstLine('   ')).toBeNull();
+    expect(parseFirstLine('// comment')).toBeNull();
+  });
+
+  it('still recognizes old chart: type syntax', () => {
+    const r = parseFirstLine('chart: gantt');
+    expect(r).toEqual({ chartType: 'gantt', title: undefined });
+  });
+
+  it('handles old chart: type with title fallback', () => {
+    // Old syntax didn't put titles on the chart: line, but handle gracefully
+    const r = parseFirstLine('chart: bar');
+    expect(r).toEqual({ chartType: 'bar', title: undefined });
+  });
+
+  it('extracts multi-line chart type', () => {
+    expect(parseFirstLine('multi-line')).toEqual({ chartType: 'multi-line', title: undefined });
+  });
+
+  it('extracts bar-stacked with title', () => {
+    expect(parseFirstLine('bar-stacked Revenue by Quarter')).toEqual({
+      chartType: 'bar-stacked',
+      title: 'Revenue by Quarter',
+    });
+  });
+});
+
+describe('prescanOptions', () => {
+  const knownOptions = new Set(['direction', 'start', 'notation', 'sort', 'today-marker']);
+  const knownBooleans = new Set(['critical-path', 'dependencies', 'animate', 'today-marker']);
+
+  it('collects key-value options from non-indented lines', () => {
+    const lines = [
+      'gantt Product Launch',
+      'direction LR',
+      'start 2026-04-01',
+      '',
+      '  10bd Database Schema',
+    ];
+    const result = prescanOptions(lines, knownOptions, knownBooleans);
+    expect(result.options).toEqual({ direction: 'LR', start: '2026-04-01' });
+  });
+
+  it('collects presence-based booleans', () => {
+    const lines = ['gantt', 'critical-path', '10bd Task'];
+    const result = prescanOptions(lines, knownOptions, knownBooleans);
+    expect(result.booleans.has('critical-path')).toBe(true);
+  });
+
+  it('collects negated booleans', () => {
+    const lines = ['gantt', 'no-dependencies', '10bd Task'];
+    const result = prescanOptions(lines, knownOptions, knownBooleans);
+    expect(result.negated.has('dependencies')).toBe(true);
+  });
+
+  it('skips comment lines', () => {
+    const lines = ['gantt', '// direction LR', 'start 2026-01-01'];
+    const result = prescanOptions(lines, knownOptions, knownBooleans);
+    expect(result.options.direction).toBeUndefined();
+    expect(result.options.start).toBe('2026-01-01');
+  });
+
+  it('strips inline comments from option values', () => {
+    const lines = ['direction LR // override default'];
+    const result = prescanOptions(lines, knownOptions, knownBooleans);
+    expect(result.options.direction).toBe('LR');
+  });
+
+  it('skips indented lines', () => {
+    const lines = ['gantt', '  direction LR'];
+    const result = prescanOptions(lines, knownOptions, knownBooleans);
+    expect(result.options.direction).toBeUndefined();
+  });
+
+  it('handles boolean with value (e.g., today-marker 2026-03-26)', () => {
+    const lines = ['today-marker 2026-03-26'];
+    const result = prescanOptions(lines, knownOptions, knownBooleans);
+    expect(result.booleans.has('today-marker')).toBe(true);
+    expect(result.options['today-marker']).toBe('2026-03-26');
+  });
+
+  it('options can appear anywhere in the file', () => {
+    const lines = [
+      'gantt Title',
+      '',
+      '# Planning',
+      '  10bd Task A',
+      '',
+      'direction LR',
+      '',
+      '# Development',
+      '  20bd Task B',
+    ];
+    const result = prescanOptions(lines, knownOptions, knownBooleans);
+    expect(result.options.direction).toBe('LR');
+  });
+
+  it('ignores unknown bare keywords', () => {
+    const lines = ['gantt', 'unknown-thing'];
+    const result = prescanOptions(lines, knownOptions, knownBooleans);
+    expect(result.booleans.size).toBe(0);
+    expect(result.negated.size).toBe(0);
+  });
+});
+
+describe('normalizeGroupedNumber', () => {
+  it('normalizes valid grouped numbers', () => {
+    expect(normalizeGroupedNumber('1,087')).toBe('1087');
+    expect(normalizeGroupedNumber('1,250,000')).toBe('1250000');
+    expect(normalizeGroupedNumber('10,000')).toBe('10000');
+    expect(normalizeGroupedNumber('100,000,000')).toBe('100000000');
+  });
+
+  it('returns null for non-grouped numbers', () => {
+    expect(normalizeGroupedNumber('1087')).toBeNull();
+    expect(normalizeGroupedNumber('100')).toBeNull();
+  });
+
+  it('returns null for invalid grouping', () => {
+    expect(normalizeGroupedNumber('1,08,7')).toBeNull();
+    expect(normalizeGroupedNumber('1,0877')).toBeNull();
+    expect(normalizeGroupedNumber(',087')).toBeNull();
+    expect(normalizeGroupedNumber('1,')).toBeNull();
+  });
+
+  it('handles edge cases', () => {
+    expect(normalizeGroupedNumber('')).toBeNull();
+    expect(normalizeGroupedNumber('abc')).toBeNull();
+    expect(normalizeGroupedNumber('1,000')).toBe('1000');
+  });
+});
+
+describe('stripQuotes', () => {
+  it('strips double quotes', () => {
+    expect(stripQuotes('"hello"')).toBe('hello');
+  });
+  it('strips single quotes', () => {
+    expect(stripQuotes("'hello'")).toBe('hello');
+  });
+  it('does not strip mismatched quotes', () => {
+    expect(stripQuotes('"hello\'')).toBe('"hello\'');
+  });
+  it('returns original for unquoted strings', () => {
+    expect(stripQuotes('hello')).toBe('hello');
+  });
+  it('handles empty quoted string', () => {
+    expect(stripQuotes('""')).toBe('');
+  });
+  it('handles single-char string (not quoted)', () => {
+    expect(stripQuotes('"')).toBe('"');
+  });
+});
+
+describe('tokenizeQuoteAware', () => {
+  it('splits simple whitespace-separated tokens', () => {
+    expect(tokenizeQuoteAware('tag Priority p')).toEqual(['tag', 'Priority', 'p']);
+  });
+  it('keeps double-quoted substrings as single token', () => {
+    expect(tokenizeQuoteAware('tag "Marketing mktg" p')).toEqual(['tag', '"Marketing mktg"', 'p']);
+  });
+  it('keeps single-quoted substrings as single token', () => {
+    expect(tokenizeQuoteAware("tag 'Risk Level' lo")).toEqual(['tag', "'Risk Level'", 'lo']);
+  });
+  it('handles mixed quotes', () => {
+    expect(tokenizeQuoteAware('"A Team" at')).toEqual(['"A Team"', 'at']);
+  });
+  it('handles empty input', () => {
+    expect(tokenizeQuoteAware('')).toEqual([]);
+  });
+  it('handles only whitespace', () => {
+    expect(tokenizeQuoteAware('   ')).toEqual([]);
+  });
+  it('handles unclosed quote (takes rest of string)', () => {
+    expect(tokenizeQuoteAware('"unclosed string')).toEqual(['"unclosed string']);
   });
 });

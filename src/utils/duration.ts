@@ -150,6 +150,18 @@ export function addGanttDuration(
       }
       return result;
     }
+
+    case 'h': {
+      const result = new Date(startDate);
+      result.setTime(result.getTime() + amount * 3600000 * direction);
+      return result;
+    }
+
+    case 'min': {
+      const result = new Date(startDate);
+      result.setTime(result.getTime() + amount * 60000 * direction);
+      return result;
+    }
   }
 }
 
@@ -157,7 +169,7 @@ export function addGanttDuration(
  * Parse a duration string like "3bd" or "5d".
  */
 export function parseDuration(s: string): Duration | null {
-  const match = s.trim().match(/^(\d+(?:\.\d+)?)(d|bd|w|m|q|y)$/);
+  const match = s.trim().match(/^(\d+(?:\.\d+)?)(min|bd|d|w|m|q|y|h)$/);
   if (!match) return null;
   return { amount: parseFloat(match[1]), unit: match[2] as DurationUnit };
 }
@@ -185,22 +197,46 @@ export function parseOffset(value: string): Offset | null {
 }
 
 /**
- * Parse a date string (YYYY-MM-DD, YYYY-MM, or YYYY) into a Date object.
- * Always returns midnight local time on the first available day.
+ * Parse a date string (YYYY-MM-DD, YYYY-MM, YYYY, or YYYY-MM-DD HH:MM) into a Date object.
+ * Returns midnight local time unless HH:MM is specified.
  */
 export function parseGanttDate(s: string): Date {
-  const parts = s.split('-').map(p => parseInt(p, 10));
+  // Split on space to detect optional time component
+  const spaceIdx = s.indexOf(' ');
+  let datePart = s;
+  let hour = 0;
+  let minute = 0;
+
+  if (spaceIdx !== -1) {
+    datePart = s.slice(0, spaceIdx);
+    const timePart = s.slice(spaceIdx + 1);
+    const timeParts = timePart.split(':');
+    if (timeParts.length === 2) {
+      const h = parseInt(timeParts[0], 10);
+      const m = parseInt(timeParts[1], 10);
+      if (h >= 0 && h <= 23 && m >= 0 && m <= 59) {
+        hour = h;
+        minute = m;
+      }
+    }
+  }
+
+  const parts = datePart.split('-').map(p => parseInt(p, 10));
   const year = parts[0];
   const month = parts.length >= 2 ? parts[1] - 1 : 0; // JS months are 0-based
   const day = parts.length >= 3 ? parts[2] : 1;
-  return new Date(year, month, day);
+  return new Date(year, month, day, hour, minute);
 }
 
 /**
- * Format a Date as YYYY-MM-DD string.
+ * Format a Date as YYYY-MM-DD string, or YYYY-MM-DD HH:MM if time is non-midnight.
  */
 export function formatGanttDate(date: Date): string {
-  return formatDateKey(date);
+  const dateStr = formatDateKey(date);
+  const h = date.getHours();
+  const m = date.getMinutes();
+  if (h === 0 && m === 0) return dateStr;
+  return `${dateStr} ${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
 /**

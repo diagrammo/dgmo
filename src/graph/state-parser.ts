@@ -1,7 +1,14 @@
 import { resolveColor } from '../colors';
 import type { PaletteColors } from '../palettes';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
-import { measureIndent, extractColor, normalizeDirection } from '../utils/parsing';
+import {
+  measureIndent,
+  extractColor,
+  normalizeDirection,
+  parseFirstLine,
+  OPTION_NOCOLON_RE,
+  ALL_CHART_TYPES,
+} from '../utils/parsing';
 import type {
   ParsedGraph,
   GraphNode,
@@ -168,6 +175,7 @@ export function parseState(
   let groupIndent = -1;
   const groups: GraphGroup[] = [];
   let contentStarted = false;
+  let firstLineParsed = false;
 
   function getOrCreateNode(ref: NodeRef, lineNumber: number): GraphNode {
     const existing = nodeMap.get(ref.id);
@@ -217,6 +225,26 @@ export function parseState(
     if (!trimmed) continue;
     if (trimmed.startsWith('//')) continue;
 
+    // First line: try parseFirstLine for `state [Title]`
+    if (!firstLineParsed && !contentStarted) {
+      const firstLineResult = parseFirstLine(trimmed);
+      if (firstLineResult) {
+        firstLineParsed = true;
+        if (firstLineResult.chartType !== 'state') {
+          const allTypes = Array.from(ALL_CHART_TYPES);
+          let msg = `Expected chart type "state", got "${firstLineResult.chartType}"`;
+          const hint = suggest(firstLineResult.chartType, allTypes);
+          if (hint) msg += `. ${hint}`;
+          return fail(lineNumber, msg);
+        }
+        if (firstLineResult.title) {
+          result.title = firstLineResult.title;
+          result.titleLineNumber = lineNumber;
+        }
+        continue;
+      }
+    }
+
     // Group brackets: [Name] or [Name](color)
     const groupMatch = trimmed.match(GROUP_BRACKET_RE);
     if (groupMatch && groupMatch[1].trim() !== '*') {
@@ -238,39 +266,30 @@ export function parseState(
       continue;
     }
 
-    // Metadata directives (before content)
-    if (!contentStarted && trimmed.includes(':') && !trimmed.includes('->')) {
-      const colonIdx = trimmed.indexOf(':');
-      const key = trimmed.substring(0, colonIdx).trim().toLowerCase();
-      const value = trimmed.substring(colonIdx + 1).trim();
+    // Options (space-separated, before content)
+    if (!contentStarted) {
+      const optMatch = trimmed.match(OPTION_NOCOLON_RE);
+      if (optMatch && !trimmed.includes('->')) {
+        const key = optMatch[1].toLowerCase();
+        const value = optMatch[2].trim();
 
-      if (key === 'chart') {
-        if (value.toLowerCase() !== 'state') {
-          const allTypes = ['state', 'flowchart', 'sequence', 'class', 'er', 'org', 'bar', 'line', 'pie', 'scatter', 'sankey', 'venn', 'timeline', 'arc', 'slope'];
-          let msg = `Expected chart type "state", got "${value}"`;
-          const hint = suggest(value.toLowerCase(), allTypes);
-          if (hint) msg += `. ${hint}`;
-          return fail(lineNumber, msg);
+        if (key === 'direction' || key === 'orientation') {
+          const dir = normalizeDirection(value);
+          if (dir) {
+            result.direction = dir;
+          }
+          continue;
         }
-        continue;
-      }
 
-      if (key === 'title') {
-        result.title = value;
-        result.titleLineNumber = lineNumber;
-        continue;
-      }
-
-      if (key === 'direction' || key === 'orientation') {
-        const dir = normalizeDirection(value);
-        if (dir) {
-          result.direction = dir;
+        // Boolean: no-color = color off
+        if (key === 'no-color') {
+          result.options['color'] = 'off';
+          continue;
         }
+
+        result.options[key] = value;
         continue;
       }
-
-      result.options[key] = value;
-      continue;
     }
 
     // Content line — nodes and edges

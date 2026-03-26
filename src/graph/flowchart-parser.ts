@@ -1,11 +1,22 @@
 import { resolveColor } from '../colors';
 import type { PaletteColors } from '../palettes';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
-import { measureIndent, extractColor, normalizeDirection, inferArrowColor } from '../utils/parsing';
+import {
+  measureIndent,
+  extractColor,
+  normalizeDirection,
+  inferArrowColor,
+  parseFirstLine,
+  OPTION_NOCOLON_RE,
+  GROUP_HASH_RE,
+  DOUBLE_HASH_RE,
+  ALL_CHART_TYPES,
+} from '../utils/parsing';
 import type {
   ParsedGraph,
   GraphNode,
   GraphEdge,
+  GraphGroup,
   GraphShape,
   GraphDirection,
 } from './types';
@@ -193,9 +204,8 @@ function parseArrowToken(token: string, palette?: PaletteColors): ArrowInfo {
 }
 
 // ============================================================
-// Legacy group heading (deprecated — emit error)
+// Group heading support
 // ============================================================
-const LEGACY_GROUP_RE = /^##\s+/;
 
 // ============================================================
 // Main parser
@@ -226,6 +236,12 @@ export function parseFlowchart(
   const nodeMap = new Map<string, GraphNode>();
   const indentStack: { nodeId: string; indent: number }[] = [];
   let contentStarted = false;
+  let firstLineParsed = false;
+
+  // Group support
+  let currentGroup: GraphGroup | null = null;
+  let groupIndent = -1;
+  const groups: GraphGroup[] = [];
 
   function getOrCreateNode(ref: NodeRef, lineNumber: number): GraphNode {
     const existing = nodeMap.get(ref.id);
@@ -237,9 +253,14 @@ export function parseFlowchart(
       shape: ref.shape,
       lineNumber,
       ...(ref.color && { color: ref.color }),
+      ...(currentGroup && { group: currentGroup.id }),
     };
     nodeMap.set(ref.id, node);
     result.nodes.push(node);
+
+    if (currentGroup && !currentGroup.nodeIds.includes(ref.id)) {
+      currentGroup.nodeIds.push(ref.id);
+    }
 
     return node;
   }
@@ -377,53 +398,88 @@ export function parseFlowchart(
     // Skip comments
     if (trimmed.startsWith('//')) continue;
 
-    // Legacy ## group headings — no longer supported
-    if (LEGACY_GROUP_RE.test(trimmed)) {
+    // First line: try parseFirstLine for `flowchart [Title]`
+    if (!firstLineParsed && !contentStarted) {
+      const firstLineResult = parseFirstLine(trimmed);
+      if (firstLineResult) {
+        firstLineParsed = true;
+        if (firstLineResult.chartType !== 'flowchart') {
+          const allTypes = Array.from(ALL_CHART_TYPES);
+          let msg = `Expected chart type "flowchart", got "${firstLineResult.chartType}"`;
+          const hint = suggest(firstLineResult.chartType, allTypes);
+          if (hint) msg += `. ${hint}`;
+          return fail(lineNumber, msg);
+        }
+        if (firstLineResult.title) {
+          result.title = firstLineResult.title;
+          result.titleLineNumber = lineNumber;
+        }
+        continue;
+      }
+    }
+
+    // ## group headings — emit helpful error
+    if (DOUBLE_HASH_RE.test(trimmed)) {
       result.diagnostics.push(
-        makeDgmoError(lineNumber, '## group syntax is not supported in flowcharts. Remove the ## line.', 'error')
+        makeDgmoError(lineNumber, 'Use `#` for groups \u2014 nesting is done with indentation.', 'error')
       );
       continue;
     }
 
-    // Metadata directives (before content)
-    if (!contentStarted && trimmed.includes(':') && !trimmed.includes('->')) {
-      const colonIdx = trimmed.indexOf(':');
-      const key = trimmed.substring(0, colonIdx).trim().toLowerCase();
-      const value = trimmed.substring(colonIdx + 1).trim();
-
-      if (key === 'chart') {
-        if (value.toLowerCase() !== 'flowchart') {
-          const allTypes = ['flowchart', 'sequence', 'class', 'er', 'org', 'bar', 'line', 'pie', 'scatter', 'sankey', 'venn', 'timeline', 'arc', 'slope'];
-          let msg = `Expected chart type "flowchart", got "${value}"`;
-          const hint = suggest(value.toLowerCase(), allTypes);
-          if (hint) msg += `. ${hint}`;
-          return fail(lineNumber, msg);
-        }
-        continue;
-      }
-
-      if (key === 'title') {
-        result.title = value;
-        result.titleLineNumber = lineNumber;
-        continue;
-      }
-
-      if (key === 'direction' || key === 'orientation') {
-        const dir = normalizeDirection(value);
-        if (dir) {
-          result.direction = dir;
-        }
-        continue;
-      }
-
-      // Store other options (e.g., color: off)
-      result.options[key] = value;
+    // # GroupName — alternate group notation
+    const hashGroupMatch = trimmed.match(GROUP_HASH_RE);
+    if (hashGroupMatch) {
+      const { label, color } = extractColor(hashGroupMatch[1].trim(), palette);
+      currentGroup = {
+        id: `group:${label.toLowerCase()}`,
+        label,
+        nodeIds: [],
+        lineNumber,
+        ...(color && { color }),
+      };
+      groupIndent = indent;
+      groups.push(currentGroup);
       continue;
+    }
+
+    // Options (space-separated, before content)
+    if (!contentStarted) {
+      const optMatch = trimmed.match(OPTION_NOCOLON_RE);
+      if (optMatch && !trimmed.includes('->')) {
+        const key = optMatch[1].toLowerCase();
+        const value = optMatch[2].trim();
+
+        if (key === 'direction' || key === 'orientation') {
+          const dir = normalizeDirection(value);
+          if (dir) {
+            result.direction = dir;
+          }
+          continue;
+        }
+
+        // Boolean: no-color = color off
+        if (key === 'no-color') {
+          result.options['color'] = 'off';
+          continue;
+        }
+
+        // Store other options (e.g., color off)
+        result.options[key] = value;
+        continue;
+      }
+    }
+
+    // Close current group when indent returns to or below the group level
+    if (currentGroup && indent <= groupIndent) {
+      currentGroup = null;
+      groupIndent = -1;
     }
 
     // Content line (nodes and edges)
     processContentLine(trimmed, lineNumber, indent);
   }
+
+  if (groups.length > 0) result.groups = groups;
 
   // Validation: no nodes found
   if (result.nodes.length === 0 && !result.error) {
@@ -500,7 +556,8 @@ export function extractSymbols(docText: string): DiagramSymbols {
   let inMetadata = true;
   for (const rawLine of docText.split('\n')) {
     const line = rawLine.trim();
-    if (inMetadata && /^[a-z-]+\s*:/i.test(line)) continue;
+    // Skip old-style colon metadata and new-style space-separated options
+    if (inMetadata && (/^[a-z-]+\s*:/i.test(line) || /^[a-z-]+\s+\S/i.test(line))) continue;
     inMetadata = false;
     if (line.length === 0 || /^\s/.test(rawLine)) continue;
     const m = NODE_ID_RE.exec(line);

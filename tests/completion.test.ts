@@ -12,7 +12,7 @@ import { extractSymbols as extractClassSymbols } from '../src/class/parser';
 
 describe('extractDiagramSymbols', () => {
   it('returns null for unknown chart type', () => {
-    const doc = 'chart: kanban\nTodo\n  - Task 1\n';
+    const doc = 'kanban\nTodo\n  - Task 1\n';
     expect(extractDiagramSymbols(doc)).toBeNull();
   });
 
@@ -29,14 +29,14 @@ describe('extractDiagramSymbols', () => {
   });
 
   it('dispatches to flowchart extractor for chart: flowchart', () => {
-    const doc = 'chart: flowchart\nStart(Begin)\n';
+    const doc = 'flowchart\nStart(Begin)\n';
     const result = extractDiagramSymbols(doc);
     expect(result).not.toBeNull();
     expect(result!.kind).toBe('flowchart');
   });
 
   it('dispatches to infra extractor for chart: infra', () => {
-    const doc = 'chart: infra\nAPI\nCache\n';
+    const doc = 'infra\nAPI\nCache\n';
     const result = extractDiagramSymbols(doc);
     expect(result).not.toBeNull();
     expect(result!.kind).toBe('infra');
@@ -140,7 +140,7 @@ describe('ER extractSymbols', () => {
 describe('Flowchart extractSymbols', () => {
   it('extracts node IDs from shape declarations', () => {
     const doc = [
-      'chart: flowchart',
+      'flowchart',
       'Start(Begin)',
       'Login[Login Form]',
       'Dashboard[Dashboard]',
@@ -153,24 +153,24 @@ describe('Flowchart extractSymbols', () => {
   });
 
   it('deduplicates node IDs appearing multiple times', () => {
-    const doc = 'chart: flowchart\nLogin[Login Form]\nLogin -> Dashboard\n';
+    const doc = 'flowchart\nLogin[Login Form]\nLogin -> Dashboard\n';
     const result = extractFlowchartSymbols(doc);
     const loginCount = result.entities.filter((e) => e === 'Login').length;
     expect(loginCount).toBe(1);
   });
 
   it('returns empty entities for empty data section', () => {
-    const doc = 'chart: flowchart\ntitle: Empty\n';
+    const doc = 'flowchart\n';
     expect(extractFlowchartSymbols(doc).entities).toEqual([]);
   });
 
   it('does not include metadata keys in entities', () => {
-    const doc = 'chart: flowchart\ntitle: My Flow\nStart(Start)\n';
+    const doc = 'flowchart My Flow\nStart(Start)\n';
     expect(extractFlowchartSymbols(doc).entities).not.toContain('title');
   });
 
   it('handles 100-node fixture under 10ms', () => {
-    const lines = ['chart: flowchart'];
+    const lines = ['flowchart'];
     for (let i = 0; i < 100; i++) {
       lines.push(`Node${i}[Node ${i}]`);
     }
@@ -190,9 +190,9 @@ describe('Flowchart extractSymbols', () => {
 describe('Infra extractSymbols', () => {
   it('extracts component names', () => {
     const doc = [
-      'chart: infra',
+      'infra',
       'API',
-      '  rps: 1000',
+      '  rps 1000',
       'Cache',
       'Database',
     ].join('\n');
@@ -204,7 +204,7 @@ describe('Infra extractSymbols', () => {
   });
 
   it('excludes group headers', () => {
-    const doc = 'chart: infra\n[Backend]\nAPI\nCache\n';
+    const doc = 'infra\n[Backend]\nAPI\nCache\n';
     expect(extractInfraSymbols(doc).entities).not.toContain('[Backend]');
     expect(extractInfraSymbols(doc).entities).toContain('API');
     expect(extractInfraSymbols(doc).entities).toContain('Cache');
@@ -212,7 +212,7 @@ describe('Infra extractSymbols', () => {
 
   it('excludes indented connection lines', () => {
     // Connections are indented under their source component
-    const doc = 'chart: infra\nAPI\n  -> Cache\n  -query-> Database\n';
+    const doc = 'infra\nAPI\n  -> Cache\n  -query-> Database\n';
     const entities = extractInfraSymbols(doc).entities;
     expect(entities).toContain('API');
     expect(entities).not.toContain('Cache'); // target-only, no declaration
@@ -220,7 +220,7 @@ describe('Infra extractSymbols', () => {
   });
 
   it('excludes tag declarations and tag values', () => {
-    const doc = 'chart: infra\ntag: Role alias r\n  Backend\n  Frontend\nAPI\n';
+    const doc = 'infra\ntag Role r\n  Backend\n  Frontend\nAPI\n';
     const entities = extractInfraSymbols(doc).entities;
     expect(entities).not.toContain('tag');
     expect(entities).not.toContain('Backend'); // tag value, not a component
@@ -229,13 +229,13 @@ describe('Infra extractSymbols', () => {
   });
 
   it('excludes indented properties', () => {
-    const doc = 'chart: infra\nAPI\n  rps: 1000\n  latency: 50ms\nCache\n';
+    const doc = 'infra\nAPI\n  rps 1000\n  latency-ms 50\nCache\n';
     const entities = extractInfraSymbols(doc).entities;
     expect(entities).toEqual(['API', 'Cache']);
   });
 
   it('extracts components inside group blocks', () => {
-    const doc = 'chart: infra\n[Backend]\n  API\n  Cache\nDatabase\n';
+    const doc = 'infra\n[Backend]\n  API\n  Cache\nDatabase\n';
     const entities = extractInfraSymbols(doc).entities;
     expect(entities).not.toContain('[Backend]');
     expect(entities).toContain('API');
@@ -244,24 +244,24 @@ describe('Infra extractSymbols', () => {
   });
 
   it('handles hyphenated component names', () => {
-    const doc = 'chart: infra\napi-gateway\nauth-service\n';
+    const doc = 'infra\napi-gateway\nauth-service\n';
     expect(extractInfraSymbols(doc).entities).toEqual(['api-gateway', 'auth-service']);
   });
 
   it('strips pipe metadata from component names', () => {
-    const doc = 'chart: infra\nAPI | t: Backend\nCache | env: prod\n';
+    const doc = 'infra\nAPI | t: Backend\nCache | env: prod\n';
     expect(extractInfraSymbols(doc).entities).toEqual(['API', 'Cache']);
   });
 
   it('returns empty entities for empty data section', () => {
-    expect(extractInfraSymbols('chart: infra\n').entities).toEqual([]);
+    expect(extractInfraSymbols('infra\n').entities).toEqual([]);
   });
 
   it('handles 100-node fixture under 10ms', () => {
-    const lines = ['chart: infra'];
+    const lines = ['infra'];
     for (let i = 0; i < 100; i++) {
       lines.push(`Service${i}`);
-      lines.push(`  rps: 100`);
+      lines.push(`  rps 100`);
     }
     const doc = lines.join('\n');
     const start = Date.now();

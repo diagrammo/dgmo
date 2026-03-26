@@ -181,7 +181,7 @@ import { getSeriesColors } from './palettes';
 import { mix } from './palettes/color-utils';
 import type { DgmoError } from './diagnostics';
 import { makeDgmoError, formatDgmoError, suggest } from './diagnostics';
-import { collectIndentedValues, extractColor, normalizeDirection, parsePipeMetadata, MULTIPLE_PIPE_WARNING } from './utils/parsing';
+import { collectIndentedValues, extractColor, normalizeDirection, parseFirstLine, parsePipeMetadata, MULTIPLE_PIPE_WARNING } from './utils/parsing';
 import { matchTagBlockHeading, validateTagValues, resolveTagColor } from './utils/tag-groups';
 import type { TagGroup } from './utils/tag-groups';
 import {
@@ -463,6 +463,8 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
   let currentTimelineGroup: string | null = null;
   let currentTimelineTagGroup: TagGroup | null = null;
   const timelineAliasMap = new Map<string, string>();
+  const VALID_D3_TYPES = new Set(['slope', 'wordcloud', 'arc', 'timeline', 'venn', 'quadrant', 'sequence']);
+  let firstLineParsed = false;
 
   for (let i = 0; i < lines.length; i++) {
     const rawLine = lines[i];
@@ -472,6 +474,24 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
 
     // Skip empty lines
     if (!line) continue;
+
+    // Skip comments
+    if (line.startsWith('//')) continue;
+
+    // First non-empty, non-comment line: chart type + optional title
+    if (!firstLineParsed) {
+      firstLineParsed = true;
+      const firstLineResult = parseFirstLine(line);
+      if (firstLineResult && VALID_D3_TYPES.has(firstLineResult.chartType)) {
+        result.type = firstLineResult.chartType as ParsedVisualization['type'];
+        if (firstLineResult.title) {
+          result.title = firstLineResult.title;
+          result.titleLineNumber = lineNumber;
+        }
+        continue;
+      }
+      // Not a bare chart type — fall through to normal parsing
+    }
 
     // Timeline tag group heading: `tag: Name [alias X]`
     if (result.type === 'timeline' && indent === 0) {
@@ -547,11 +567,6 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
     if (indent === 0) {
       currentArcGroup = null;
       currentTimelineGroup = null;
-    }
-
-    // Skip comments
-    if (line.startsWith('//')) {
-      continue;
     }
 
     // Arc link line: source -> target(color): weight
@@ -631,7 +646,7 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
       // Supports decimals up to 2 places (e.g., 1.25y = 1 year 3 months)
       // Supports uncertain end with ? suffix (e.g., ->3m?: fades out the last 20%)
       const durationMatch = line.match(
-        /^(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s*->\s*(\d+(?:\.\d{1,2})?)(min|[dwmyh])(\?)?\s*:\s*(.+)$/
+        /^(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s*->\s*(\d+(?:\.\d{1,2})?)(min|[dwmyh])(\?)?(?:\s*:\s*|\s+)(.+)$/
       );
       if (durationMatch) {
         const startDate = durationMatch[1];
@@ -655,9 +670,9 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
         continue;
       }
 
-      // Range event: 1655->1667: description (supports uncertain end: 1655->1667?)
+      // Range event: 1655->1667 description (supports uncertain end: 1655->1667?)
       const rangeMatch = line.match(
-        /^(\d{4}(?:-\d{2})?(?:-\d{2})?)\s*->\s*(\d{4}(?:-\d{2})?(?:-\d{2})?)(\?)?\s*:\s*(.+)$/
+        /^(\d{4}(?:-\d{2})?(?:-\d{2})?)\s*->\s*(\d{4}(?:-\d{2})?(?:-\d{2})?)(\?)?(?:\s*:\s*|\s+)(.+)$/
       );
       if (rangeMatch) {
         const segments = rangeMatch[4].split('|');
@@ -676,9 +691,9 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
         continue;
       }
 
-      // Point event: 1718: description
+      // Point event: 1718 description (or legacy 1718: description)
       const pointMatch = line.match(
-        /^(\d{4}(?:-\d{2})?(?:-\d{2})?)\s*:\s*(.+)$/
+        /^(\d{4}(?:-\d{2})?(?:-\d{2})?)(?:\s*:\s*|\s+)(.+)$/
       );
       if (pointMatch) {
         const segments = pointMatch[2].split('|');
@@ -829,7 +844,102 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
       }
     }
 
-    // Check for metadata lines
+    // ── Space-separated options (no colon) ──────────────────
+    const spaceIdx = line.indexOf(' ');
+    if (spaceIdx >= 0) {
+      const firstToken = line.substring(0, spaceIdx).toLowerCase();
+      const restValue = line.substring(spaceIdx + 1).trim();
+
+      if (firstToken === 'chart' && VALID_D3_TYPES.has(restValue.toLowerCase())) {
+        result.type = restValue.toLowerCase() as ParsedVisualization['type'];
+        continue;
+      }
+
+      if (firstToken === 'title') {
+        result.title = restValue;
+        result.titleLineNumber = lineNumber;
+        if (result.type === 'quadrant') {
+          result.quadrantTitleLineNumber = lineNumber;
+        }
+        continue;
+      }
+
+      if (firstToken === 'orientation' || firstToken === 'direction') {
+        if (result.type === 'arc' || result.type === 'timeline') {
+          const vLower = restValue.toLowerCase();
+          if (vLower === 'horizontal' || vLower === 'vertical') {
+            result.orientation = vLower;
+          } else {
+            const dir = normalizeDirection(restValue);
+            if (dir === 'LR') result.orientation = 'horizontal';
+            else if (dir === 'TB') result.orientation = 'vertical';
+          }
+        }
+        continue;
+      }
+
+      if (firstToken === 'order') {
+        const v = restValue.toLowerCase();
+        if (v === 'name' || v === 'group' || v === 'degree') {
+          result.arcOrder = v;
+        }
+        continue;
+      }
+
+      if (firstToken === 'sort') {
+        const vLower = restValue.toLowerCase();
+        if (vLower === 'time' || vLower === 'group') {
+          result.timelineSort = vLower;
+        } else if (vLower === 'tag' || vLower.startsWith('tag:')) {
+          result.timelineSort = 'tag';
+          if (vLower.startsWith('tag:')) {
+            const groupRef = restValue.substring(4).trim();
+            if (groupRef) {
+              result.timelineDefaultSwimlaneTG = groupRef;
+            }
+          }
+        }
+        continue;
+      }
+
+      if (firstToken === 'swimlanes') {
+        const v = restValue.toLowerCase();
+        if (v === 'on') result.timelineSwimlanes = true;
+        else if (v === 'off') result.timelineSwimlanes = false;
+        continue;
+      }
+
+      if (firstToken === 'rotate') {
+        const v = restValue.toLowerCase();
+        if (v === 'none' || v === 'mixed' || v === 'angled') {
+          result.cloudOptions.rotate = v;
+        }
+        continue;
+      }
+
+      if (firstToken === 'max') {
+        const v = parseInt(restValue, 10);
+        if (!isNaN(v) && v > 0) {
+          result.cloudOptions.max = v;
+        }
+        continue;
+      }
+
+      if (firstToken === 'size') {
+        const parts = restValue.split(',').map((s) => parseInt(s.trim(), 10));
+        if (
+          parts.length === 2 &&
+          parts.every((n) => !isNaN(n) && n > 0) &&
+          parts[0] < parts[1]
+        ) {
+          result.cloudOptions.minSize = parts[0];
+          result.cloudOptions.maxSize = parts[1];
+        }
+        continue;
+      }
+    }
+
+    // ── Colon-separated metadata / options (legacy + data lines) ──
     const colonIndex = line.indexOf(':');
 
     if (colonIndex !== -1) {
@@ -844,18 +954,10 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
           .substring(colonIndex + 1)
           .trim()
           .toLowerCase();
-        if (
-          value === 'slope' ||
-          value === 'wordcloud' ||
-          value === 'arc' ||
-          value === 'timeline' ||
-          value === 'venn' ||
-          value === 'quadrant' ||
-          value === 'sequence'
-        ) {
-          result.type = value;
+        if (VALID_D3_TYPES.has(value)) {
+          result.type = value as ParsedVisualization['type'];
         } else {
-          const validD3Types = ['slope', 'wordcloud', 'arc', 'timeline', 'venn', 'quadrant', 'sequence'];
+          const validD3Types = [...VALID_D3_TYPES];
           let msg = `Unsupported chart type: ${value}. Supported types: ${validD3Types.join(', ')}`;
           const hint = suggest(value, validD3Types);
           if (hint) msg += `. ${hint}`;
@@ -1039,7 +1141,12 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
 
   // Validation
   if (!result.type) {
-    return fail(1, 'Missing required "chart:" line (e.g., "chart: slope")');
+    const validD3Types = [...VALID_D3_TYPES];
+    const firstNonEmpty = lines.find(l => l.trim() && !l.trim().startsWith('//'))?.trim() ?? '';
+    const hint = suggest(firstNonEmpty.split(/\s/)[0].toLowerCase(), validD3Types);
+    let msg = `Unsupported chart type: "${firstNonEmpty.split(/\s/)[0]}". Supported types: ${validD3Types.join(', ')}`;
+    if (hint) msg += `. ${hint}`;
+    return fail(1, msg);
   }
 
   // Sequence diagrams are parsed by their own dedicated parser

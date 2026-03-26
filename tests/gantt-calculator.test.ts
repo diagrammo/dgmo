@@ -17,7 +17,7 @@ function fmt(d: Date): string {
 describe('gantt calculator', () => {
   describe('sequential tasks', () => {
     it('chains sequential tasks', () => {
-      const result = calc('chart: gantt\nstart: 2024-01-15\n10d: Task A\n5d: Task B');
+      const result = calc('gantt\nstart 2024-01-15\n10d Task A\n5d Task B');
       expect(result.error).toBeNull();
       expect(result.tasks).toHaveLength(2);
 
@@ -28,7 +28,7 @@ describe('gantt calculator', () => {
     });
 
     it('handles milestone at end', () => {
-      const result = calc('chart: gantt\nstart: 2024-01-15\n10d: Work\n0d: Done');
+      const result = calc('gantt\nstart 2024-01-15\n10d Work\n0d Done');
       expect(result.tasks).toHaveLength(2);
       expect(result.tasks[1].isMilestone).toBe(true);
       expect(fmt(result.tasks[1].startDate)).toBe(fmt(result.tasks[1].endDate));
@@ -37,7 +37,7 @@ describe('gantt calculator', () => {
 
   describe('parallel blocks', () => {
     it('parallel children start at same time', () => {
-      const result = calc('chart: gantt\nstart: 2024-01-15\nparallel\n  5d: X\n  3d: Y');
+      const result = calc('gantt\nstart 2024-01-15\nparallel\n  5d X\n  3d Y');
       expect(result.error).toBeNull();
       expect(result.tasks).toHaveLength(2);
       expect(fmt(result.tasks[0].startDate)).toBe('2024-01-15');
@@ -45,7 +45,7 @@ describe('gantt calculator', () => {
     });
 
     it('task after parallel starts at max end', () => {
-      const result = calc('chart: gantt\nstart: 2024-01-15\nparallel\n  5d: X\n  3d: Y\n2d: After');
+      const result = calc('gantt\nstart 2024-01-15\nparallel\n  5d X\n  3d Y\n2d After');
       expect(result.error).toBeNull();
       expect(result.tasks).toHaveLength(3);
       // After should start at max(X end, Y end) = X end = Jan 20
@@ -55,15 +55,15 @@ describe('gantt calculator', () => {
 
   describe('cross-branch dependencies', () => {
     it('-> dependency delays target start', () => {
-      const input = `chart: gantt
-start: 2024-01-15
+      const input = `gantt
+start 2024-01-15
 parallel
   [Backend]
-    10d: API
+    10d API
       -> Frontend.Integration
   [Frontend]
-    5d: Setup
-    5d: Integration`;
+    5d Setup
+    5d Integration`;
       const result = calc(input);
       expect(result.error).toBeNull();
 
@@ -81,12 +81,12 @@ parallel
 
   describe('cycle detection', () => {
     it('detects circular dependency and breaks it gracefully', () => {
-      const input = `chart: gantt
-start: 2024-01-15
+      const input = `gantt
+start 2024-01-15
 parallel
-  10d: A
+  10d A
     -> B
-  10d: B
+  10d B
     -> A`;
       const result = calc(input);
       expect(result.error).toBeNull();
@@ -98,7 +98,7 @@ parallel
 
   describe('business days', () => {
     it('10bd starting Monday Jan 15 ends Fri Jan 26', () => {
-      const result = calc('chart: gantt\nstart: 2024-01-15\n10bd: Task');
+      const result = calc('gantt\nstart 2024-01-15\n10bd Task');
       expect(result.error).toBeNull();
       // Jan 15 = Monday
       // 10bd = skip 2 weekends (4 days)
@@ -111,7 +111,7 @@ parallel
 
   describe('explicit date anchors', () => {
     it('uses explicit date as start', () => {
-      const result = calc('chart: gantt\nstart: 2024-01-15\n2024-02-15: Milestone');
+      const result = calc('gantt\nstart 2024-01-15\n2024-02-15 Milestone');
       expect(result.error).toBeNull();
       expect(fmt(result.tasks[0].startDate)).toBe('2024-02-15');
     });
@@ -119,14 +119,14 @@ parallel
 
   describe('groups', () => {
     it('builds resolved groups with date ranges', () => {
-      const result = calc('chart: gantt\nstart: 2024-01-15\n[Backend]\n  10d: Task A\n  5d: Task B');
+      const result = calc('gantt\nstart 2024-01-15\n[Backend]\n  10d Task A\n  5d Task B');
       expect(result.groups).toHaveLength(1);
       expect(result.groups[0].name).toBe('Backend');
       expect(fmt(result.groups[0].startDate)).toBe('2024-01-15');
     });
 
     it('computes aggregate progress', () => {
-      const result = calc('chart: gantt\nstart: 2024-01-15\n[Backend]\n  10d: Task A | 100%\n  10d: Task B | 50%');
+      const result = calc('gantt\nstart 2024-01-15\n[Backend]\n  10d Task A | 100%\n  10d Task B | 50%');
       expect(result.groups[0].progress).not.toBeNull();
       // Duration-weighted: (100 * dur + 50 * dur) / (dur + dur) = 75
       expect(result.groups[0].progress).toBe(75);
@@ -135,7 +135,7 @@ parallel
 
   describe('missing parallel warning', () => {
     it('warns when 2+ top-level groups without parallel', () => {
-      const input = 'chart: gantt\nstart: 2024-01-15\n[A]\n  5d: Task 1\n[B]\n  5d: Task 2';
+      const input = 'gantt\nstart 2024-01-15\n[A]\n  5d Task 1\n[B]\n  5d Task 2';
       const result = calc(input);
       const warnings = result.diagnostics.filter(d => d.severity === 'warning');
       expect(warnings.some(w => w.message.includes('sequential'))).toBe(true);
@@ -144,7 +144,7 @@ parallel
 
   describe('empty chart', () => {
     it('returns empty result with no tasks', () => {
-      const result = calc('chart: gantt\nstart: 2024-01-15');
+      const result = calc('gantt\nstart 2024-01-15');
       expect(result.error).toBeNull();
       expect(result.tasks).toHaveLength(0);
     });
@@ -152,7 +152,7 @@ parallel
 
   describe('relative timeline', () => {
     it('works without start date', () => {
-      const result = calc('chart: gantt\n10d: Task A\n5d: Task B');
+      const result = calc('gantt\n10d Task A\n5d Task B');
       expect(result.error).toBeNull();
       expect(result.tasks).toHaveLength(2);
       // Should still have sequential ordering
@@ -164,11 +164,11 @@ parallel
 
   describe('holidays affect bd tasks', () => {
     it('skips declared holidays', () => {
-      const input = `chart: gantt
-start: 2024-01-15
-holidays
-  2024-01-16: Holiday
-5bd: Task`;
+      const input = `gantt
+start 2024-01-15
+holiday
+  2024-01-16 Holiday
+5bd Task`;
       const result = calc(input);
       expect(result.error).toBeNull();
       // Jan 15 (Mon) start, holiday on Jan 16 (Tue)
@@ -180,34 +180,34 @@ holidays
   describe('offset', () => {
     describe('task-level offset', () => {
       it('no deps, positive — starts after project start', () => {
-        const result = calc('chart: gantt\nstart: 2024-01-15\n10bd: Task | offset: 5bd');
+        const result = calc('gantt\nstart 2024-01-15\n10bd Task | offset: 5bd');
         expect(result.error).toBeNull();
         // Jan 15 (Mon) + 5bd = Jan 22 (Mon)
         expect(fmt(result.tasks[0].startDate)).toBe('2024-01-22');
       });
 
       it('no deps, negative — clamped to project start', () => {
-        const result = calc('chart: gantt\nstart: 2024-01-15\n10bd: Task | offset: -3bd');
+        const result = calc('gantt\nstart 2024-01-15\n10bd Task | offset: -3bd');
         expect(result.error).toBeNull();
         expect(fmt(result.tasks[0].startDate)).toBe('2024-01-15');
         expect(result.diagnostics.some(d => d.message.includes('clamped to project start'))).toBe(true);
       });
 
       it('no deps, zero — starts at project start', () => {
-        const result = calc('chart: gantt\nstart: 2024-01-15\n10bd: Task | offset: 0bd');
+        const result = calc('gantt\nstart 2024-01-15\n10bd Task | offset: 0bd');
         expect(result.error).toBeNull();
         expect(fmt(result.tasks[0].startDate)).toBe('2024-01-15');
       });
 
       it('with deps, positive — starts after predecessor + offset', () => {
-        const result = calc('chart: gantt\nstart: 2024-01-15\n10d: First\n5d: Second | offset: 3d');
+        const result = calc('gantt\nstart 2024-01-15\n10d First\n5d Second | offset: 3d');
         expect(result.error).toBeNull();
         // First: Jan 15 -> Jan 25. Second starts at Jan 25 + 3d = Jan 28
         expect(fmt(result.tasks[1].startDate)).toBe('2024-01-28');
       });
 
       it('with deps, negative — overlaps predecessor', () => {
-        const result = calc('chart: gantt\nstart: 2024-01-15\n10d: First\n5d: Second | offset: -2d');
+        const result = calc('gantt\nstart 2024-01-15\n10d First\n5d Second | offset: -2d');
         expect(result.error).toBeNull();
         // First: Jan 15 -> Jan 25. Second starts at Jan 25 - 2d = Jan 23
         expect(fmt(result.tasks[1].startDate)).toBe('2024-01-23');
@@ -216,12 +216,12 @@ holidays
 
     describe('dep-level offset', () => {
       it('positive offset delays target', () => {
-        const input = `chart: gantt
-start: 2024-01-15
+        const input = `gantt
+start 2024-01-15
 parallel
-  10d: Source
+  10d Source
     -> Target | offset: 3d
-  10d: Target`;
+  10d Target`;
         const result = calc(input);
         expect(result.error).toBeNull();
         const target = result.tasks.find(t => t.task.label === 'Target');
@@ -234,12 +234,12 @@ parallel
       });
 
       it('negative offset creates overlap', () => {
-        const input = `chart: gantt
-start: 2024-01-15
+        const input = `gantt
+start 2024-01-15
 parallel
-  10d: Source
+  10d Source
     -> Target | offset: -3d
-  10d: Target`;
+  10d Target`;
         const result = calc(input);
         expect(result.error).toBeNull();
         const target = result.tasks.find(t => t.task.label === 'Target');
@@ -249,12 +249,12 @@ parallel
       });
 
       it('zero offset has no effect', () => {
-        const input = `chart: gantt
-start: 2024-01-15
+        const input = `gantt
+start 2024-01-15
 parallel
-  10d: Source
+  10d Source
     -> Target | offset: 0d
-  10d: Target`;
+  10d Target`;
         const result = calc(input);
         expect(result.error).toBeNull();
         const target = result.tasks.find(t => t.task.label === 'Target');
@@ -265,12 +265,12 @@ parallel
 
     describe('stacking', () => {
       it('dep offset + task offset are additive', () => {
-        const input = `chart: gantt
-start: 2024-01-15
+        const input = `gantt
+start 2024-01-15
 parallel
-  10d: Source
+  10d Source
     -> Target | offset: 5d
-  10d: Target | offset: 3d`;
+  10d Target | offset: 3d`;
         const result = calc(input);
         expect(result.error).toBeNull();
         const target = result.tasks.find(t => t.task.label === 'Target');
@@ -284,12 +284,12 @@ parallel
 
     describe('clamping', () => {
       it('negative dep offset clamped to project start', () => {
-        const input = `chart: gantt
-start: 2024-01-15
+        const input = `gantt
+start 2024-01-15
 parallel
-  2d: Source
+  2d Source
     -> Target | offset: -10d
-  10d: Target`;
+  10d Target`;
         const result = calc(input);
         expect(result.error).toBeNull();
         const target = result.tasks.find(t => t.task.label === 'Target');
@@ -300,11 +300,11 @@ parallel
 
     describe('parallel block with offset', () => {
       it('offset task in parallel shifts correctly', () => {
-        const input = `chart: gantt
-start: 2024-01-15
+        const input = `gantt
+start 2024-01-15
 parallel
-  5d: Normal
-  5d: Offset | offset: 3d`;
+  5d Normal
+  5d Offset | offset: 3d`;
         const result = calc(input);
         expect(result.error).toBeNull();
         const normal = result.tasks.find(t => t.task.label === 'Normal');
@@ -317,11 +317,11 @@ parallel
 
     describe('business days with holidays', () => {
       it('offset skips holidays', () => {
-        const input = `chart: gantt
-start: 2024-01-15
-holidays
-  2024-01-16: Holiday
-10bd: Task | offset: 2bd`;
+        const input = `gantt
+start 2024-01-15
+holiday
+  2024-01-16 Holiday
+10bd Task | offset: 2bd`;
         const result = calc(input);
         expect(result.error).toBeNull();
         // Jan 15 (Mon) + 2bd skipping holiday on Jan 16 (Tue):
@@ -331,14 +331,14 @@ holidays
       });
 
       it('negative dep offset with bd skips holidays backward', () => {
-        const input = `chart: gantt
-start: 2024-01-15
-holidays
-  2024-01-24: Holiday
+        const input = `gantt
+start 2024-01-15
+holiday
+  2024-01-24 Holiday
 parallel
-  10d: Source
+  10d Source
     -> Target | offset: -2bd
-  10d: Target`;
+  10d Target`;
         const result = calc(input);
         expect(result.error).toBeNull();
         const target = result.tasks.find(t => t.task.label === 'Target');
@@ -350,7 +350,7 @@ parallel
 
     describe('explicit date with offset', () => {
       it('offset shifts explicit date forward', () => {
-        const result = calc('chart: gantt\nstart: 2024-01-15\n2024-03-01: Review | offset: 5d');
+        const result = calc('gantt\nstart 2024-01-15\n2024-03-01 Review | offset: 5d');
         expect(result.error).toBeNull();
         expect(fmt(result.tasks[0].startDate)).toBe('2024-03-06');
       });
@@ -358,12 +358,12 @@ parallel
 
     describe('critical path with offset', () => {
       it('offset shifts task onto critical path', () => {
-        const input = `chart: gantt
-start: 2024-01-15
-critical-path: on
+        const input = `gantt
+start 2024-01-15
+critical-path
 parallel
-  10d: Short
-  5d: Long | offset: 10d`;
+  10d Short
+  5d Long | offset: 10d`;
         const result = calc(input);
         expect(result.error).toBeNull();
         const long = result.tasks.find(t => t.task.label === 'Long');
@@ -374,14 +374,14 @@ parallel
 
     describe('multiple predecessors with mixed offsets', () => {
       it('max rule applies across predecessors with offsets', () => {
-        const input = `chart: gantt
-start: 2024-01-15
+        const input = `gantt
+start 2024-01-15
 parallel
-  10d: Fast
+  10d Fast
     -> Result | offset: -3d
-  20d: Slow
+  20d Slow
     -> Result | offset: 5d
-  10d: Result`;
+  10d Result`;
         const result = calc(input);
         expect(result.error).toBeNull();
         const resultTask = result.tasks.find(t => t.task.label === 'Result');
@@ -395,11 +395,11 @@ parallel
 
   describe('critical path identification', () => {
     it('marks tasks on critical path', () => {
-      const result = calc(`chart: gantt
-start: 2024-01-15
-critical-path: on
-10d: Long Task
-5d: Short Follow-up`);
+      const result = calc(`gantt
+start 2024-01-15
+critical-path
+10d Long Task
+5d Short Follow-up`);
       expect(result.error).toBeNull();
       // In a simple sequential chain, all tasks are on the critical path
       const critical = result.tasks.filter(t => t.isCriticalPath);
@@ -409,46 +409,46 @@ critical-path: on
 
   describe('cascading uncertainty', () => {
     it('direct uncertain task is uncertain', () => {
-      const result = calc('chart: gantt\nstart: 2024-01-15\n10d?: Task');
+      const result = calc('gantt\nstart 2024-01-15\n10d? Task');
       expect(result.tasks[0].isUncertain).toBe(true);
     });
 
     it('certain task with no deps is not uncertain', () => {
-      const result = calc('chart: gantt\nstart: 2024-01-15\n10d: Task');
+      const result = calc('gantt\nstart 2024-01-15\n10d Task');
       expect(result.tasks[0].isUncertain).toBe(false);
     });
 
     it('cascades to sequential successor', () => {
-      const result = calc('chart: gantt\nstart: 2024-01-15\n10d?: A\n5d: B');
+      const result = calc('gantt\nstart 2024-01-15\n10d? A\n5d B');
       const b = result.tasks.find(t => t.task.label === 'B');
       expect(b!.isUncertain).toBe(true);
     });
 
     it('cascades transitively', () => {
-      const result = calc('chart: gantt\nstart: 2024-01-15\n10d?: A\n5d: B\n3d: C');
+      const result = calc('gantt\nstart 2024-01-15\n10d? A\n5d B\n3d C');
       const c = result.tasks.find(t => t.task.label === 'C');
       expect(c!.isUncertain).toBe(true);
     });
 
     it('does not cascade across parallel branches', () => {
-      const result = calc(`chart: gantt
-start: 2024-01-15
+      const result = calc(`gantt
+start 2024-01-15
 parallel
-  10d?: Uncertain Branch
-  10d: Certain Branch`);
+  10d? Uncertain Branch
+  10d Certain Branch`);
       const certain = result.tasks.find(t => t.task.label === 'Certain Branch');
       expect(certain!.isUncertain).toBe(false);
     });
 
     it('cascades if any predecessor is uncertain', () => {
-      const input = `chart: gantt
-start: 2024-01-15
+      const input = `gantt
+start 2024-01-15
 parallel
-  10d?: Risky
+  10d? Risky
     -> Result
-  10d: Safe
+  10d Safe
     -> Result
-  5d: Result`;
+  5d Result`;
       const result = calc(input);
       const res = result.tasks.find(t => t.task.label === 'Result');
       expect(res!.isUncertain).toBe(true);

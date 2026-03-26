@@ -2,12 +2,13 @@
 // Infra Chart Parser
 // ============================================================
 //
-// Parses `chart: infra` syntax into a structured InfraModel.
+// Parses `infra [Title]` syntax into a structured InfraModel.
 // Handles: chart metadata, component blocks with indented properties
-// and connections, [Group] containers, tag groups, pipe metadata.
+// and connections, [Group] / # Group containers, tag groups, pipe metadata.
 
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
-import { measureIndent, normalizeDirection } from '../utils/parsing';
+import { measureIndent, normalizeDirection, parseFirstLine, GROUP_HASH_RE, OPTION_NOCOLON_RE } from '../utils/parsing';
+import { matchTagBlockHeading } from '../utils/tag-groups';
 import type {
   ParsedInfra,
   InfraNode,
@@ -48,11 +49,9 @@ const VALID_NODE_TYPES = new Set(['database', 'cache', 'queue', 'service', 'gate
 // Group declaration: [Group Name] with optional pipe metadata
 const GROUP_RE = /^\[([^\]]+)\]\s*(?:\|\s*(.+))?$/;
 
-// Tag group declaration: tag: Name alias x
-const TAG_GROUP_RE = /^tag\s*:\s*(\w[\w\s]*?)(?:\s+alias\s+(\w+))?\s*$/;
-
-// Tag value: Name  or  Name(color)  or  Name(color) default
-const TAG_VALUE_RE = /^(\w[\w\s]*?)(?:\(([^)]+)\))?(\s+default)?\s*$/;
+// Tag value: Name  or  Name(color)
+// Note: `default` keyword removed — first value is the default.
+const TAG_VALUE_RE = /^(\w[\w\s]*?)(?:\(([^)]+)\))?\s*$/;
 
 // Component line: ComponentName  or  ComponentName | t: Backend | env: Prod
 // Allows hyphens in names (e.g. api-gateway, my-service-v2) — but not at the start.
@@ -61,8 +60,8 @@ const COMPONENT_RE = /^([a-zA-Z_][\w-]*)(.*)$/;
 // Pipe metadata: | key: value  or  | k1: v1, k2: v2  (comma-separated)
 const PIPE_META_RE = /[|,]\s*(\w+)\s*:\s*([^|,]+)/g;
 
-// Property: key: value
-const PROPERTY_RE = /^([\w-]+)\s*:\s*(.+)$/;
+// Property: key value (space-separated, no colon)
+const PROPERTY_RE = /^([\w-]+)\s+(.+)$/;
 
 // Percentage value: 80% or 99.99%
 const PERCENT_RE = /^([\d.]+)%$/;
@@ -72,6 +71,12 @@ const RANGE_RE = /^(\d+)-(\d+)$/;
 
 // Node names that act as the traffic entry point (edge node)
 const EDGE_NODE_NAMES = new Set(['edge', 'internet']);
+
+// Known top-level option keys (space-separated, no colon)
+const TOP_LEVEL_OPTIONS = new Set([
+  'slo-availability', 'slo-p90-latency-ms', 'slo-warning-margin',
+  'default-latency-ms', 'default-uptime', 'default-rps',
+]);
 
 // ============================================================
 // Helpers
@@ -199,25 +204,23 @@ export function parseInfra(content: string): ParsedInfra {
         finishCurrentNode();
       }
 
-      // chart: infra
-      if (/^chart\s*:/i.test(trimmed)) {
-        const val = trimmed.replace(/^chart\s*:\s*/i, '').trim().toLowerCase();
-        if (val !== 'infra') {
-          setError(lineNumber, `Expected chart type 'infra', got '${val}'`);
+      // First line: `infra [Title]` or legacy `chart: infra`
+      const firstLineResult = parseFirstLine(trimmed);
+      if (firstLineResult) {
+        if (firstLineResult.chartType !== 'infra') {
+          setError(lineNumber, `Expected chart type 'infra', got '${firstLineResult.chartType}'`);
+        }
+        if (firstLineResult.title) {
+          result.title = firstLineResult.title;
+          result.titleLineNumber = lineNumber;
         }
         continue;
       }
 
-      // title: ...
-      if (/^title\s*:/i.test(trimmed)) {
-        result.title = trimmed.replace(/^title\s*:\s*/i, '').trim();
-        result.titleLineNumber = lineNumber;
-        continue;
-      }
-
-      // direction: LR | TB  (also accepts orientation: as alias)
-      if (/^(?:direction|orientation)\s*:/i.test(trimmed)) {
-        const raw = trimmed.replace(/^(?:direction|orientation)\s*:\s*/i, '').trim();
+      // direction LR | TB  (also accepts orientation as alias)
+      // Supports both `direction LR` (new) and `direction: LR` (legacy)
+      if (/^(?:direction|orientation)\s/i.test(trimmed)) {
+        const raw = trimmed.replace(/^(?:direction|orientation)\s+/i, '').trim();
         const dir = normalizeDirection(raw);
         if (dir) {
           result.direction = dir;
@@ -227,39 +230,20 @@ export function parseInfra(content: string): ParsedInfra {
         continue;
       }
 
-      // animate: on | off
-      if (/^animate\s*:/i.test(trimmed)) {
-        result.options.animate = trimmed.replace(/^animate\s*:\s*/i, '').trim().toLowerCase();
+      // animate (default ON) / no-animate
+      if (trimmed === 'animate') {
+        result.options.animate = 'on';
+        continue;
+      }
+      if (trimmed === 'no-animate') {
+        result.options.animate = 'off';
         continue;
       }
 
-      // default-latency-ms: <number>
-      if (/^default-latency-ms\s*:/i.test(trimmed)) {
-        result.options['default-latency-ms'] = trimmed.replace(/^default-latency-ms\s*:\s*/i, '').trim();
-        continue;
-      }
-
-      // default-uptime: <number>
-      if (/^default-uptime\s*:/i.test(trimmed)) {
-        result.options['default-uptime'] = trimmed.replace(/^default-uptime\s*:\s*/i, '').trim();
-        continue;
-      }
-
-      // slo-availability: <percentage e.g. 99.9%>
-      if (/^slo-availability\s*:/i.test(trimmed)) {
-        result.options['slo-availability'] = trimmed.replace(/^slo-availability\s*:\s*/i, '').trim();
-        continue;
-      }
-
-      // slo-p90-latency-ms: <number>
-      if (/^slo-p90-latency-ms\s*:/i.test(trimmed)) {
-        result.options['slo-p90-latency-ms'] = trimmed.replace(/^slo-p90-latency-ms\s*:\s*/i, '').trim();
-        continue;
-      }
-
-      // slo-warning-margin: <percentage e.g. 5%>
-      if (/^slo-warning-margin\s*:/i.test(trimmed)) {
-        result.options['slo-warning-margin'] = trimmed.replace(/^slo-warning-margin\s*:\s*/i, '').trim();
+      // Top-level options: `key value` (space-separated, no colon)
+      const optMatch = trimmed.match(OPTION_NOCOLON_RE);
+      if (optMatch && TOP_LEVEL_OPTIONS.has(optMatch[1].toLowerCase())) {
+        result.options[optMatch[1].toLowerCase()] = optMatch[2].trim();
         continue;
       }
 
@@ -280,17 +264,34 @@ export function parseInfra(content: string): ParsedInfra {
         continue;
       }
 
-      // tag: GroupName alias x
-      const tagMatch = trimmed.match(TAG_GROUP_RE);
+      // Tag group: `tag Name [alias]` (via shared matchTagBlockHeading)
+      const tagMatch = matchTagBlockHeading(trimmed);
       if (tagMatch) {
         finishCurrentNode();
         finishCurrentTagGroup();
         currentTagGroup = {
-          name: tagMatch[1].trim(),
-          alias: tagMatch[2] ?? null,
+          name: tagMatch.name,
+          alias: tagMatch.alias ?? null,
           values: [],
           lineNumber,
         };
+        continue;
+      }
+
+      // # GroupName (alternate group notation)
+      const hashGroupMatch = trimmed.match(GROUP_HASH_RE);
+      if (hashGroupMatch) {
+        finishCurrentNode();
+        finishCurrentTagGroup();
+        const gLabel = hashGroupMatch[1].trim();
+        const gId = groupId(gLabel);
+        currentGroup = {
+          id: gId,
+          label: gLabel,
+          metadata: undefined,
+          lineNumber,
+        };
+        result.groups.push(currentGroup);
         continue;
       }
 
@@ -367,7 +368,7 @@ export function parseInfra(content: string): ParsedInfra {
 
     // ---- Indented lines ----
 
-    // Tag value inside tag group
+    // Tag value inside tag group — first value is the default
     if (currentTagGroup && indent > 0) {
       const tvMatch = trimmed.match(TAG_VALUE_RE);
       if (tvMatch) {
@@ -376,7 +377,8 @@ export function parseInfra(content: string): ParsedInfra {
           name: valueName,
           color: tvMatch[2]?.trim(),
         });
-        if (tvMatch[3]) {
+        // First value is the default
+        if (currentTagGroup.values.length === 1) {
           currentTagGroup.defaultValue = valueName;
         }
         continue;
@@ -593,8 +595,8 @@ export function parseInfra(content: string): ParsedInfra {
         continue;
       }
 
-      // Empty description: (no value) — silently skip rather than emitting "Unexpected line"
-      if (/^description\s*:\s*$/i.test(trimmed)) continue;
+      // Empty description (no value) — silently skip rather than emitting "Unexpected line"
+      if (/^description\s*:?\s*$/i.test(trimmed)) continue;
 
       // Property: key: value
       const propMatch = trimmed.match(PROPERTY_RE);
@@ -772,17 +774,27 @@ export function extractSymbols(docText: string): DiagramSymbols {
     const indented = /^\s/.test(rawLine);
 
     // Metadata phase: skip until first non-metadata root-level line.
-    // All lines (including indented) are skipped while inMetadata = true.
+    // Metadata includes: `infra [Title]`, `chart: type`, `direction X`, `slo-*`, etc.
     if (inMetadata) {
-      if (!indented && !/^[a-z-]+\s*:/i.test(line)) inMetadata = false;
-      else continue;
+      if (!indented) {
+        // Recognize new-style bare options (`key value`) and old-style (`key: value`)
+        const firstLine = parseFirstLine(line);
+        if (firstLine) continue; // chart type line
+        if (/^(?:direction|orientation|animate|no-animate|slo-|default-)/i.test(line)) continue;
+        if (/^[a-z-]+\s*:/i.test(line)) continue; // legacy colon options
+        inMetadata = false;
+      } else {
+        continue;
+      }
     }
 
     if (!indented) {
       // Root-level: tag group declaration, group header, or component
-      if (/^tag\s*:/i.test(line)) { inTagGroup = true; continue; }
+      if (/^tag\s/i.test(line)) { inTagGroup = true; continue; }
+      if (/^tag\s*:/i.test(line)) { inTagGroup = true; continue; } // legacy
       inTagGroup = false;
-      if (/^\[/.test(line)) continue; // group header
+      if (/^\[/.test(line)) continue; // [Group] header
+      if (/^#\s/.test(line)) continue; // # Group header
       const m = COMPONENT_RE.exec(line);
       if (m && !entities.includes(m[1]!)) entities.push(m[1]!);
     } else {
@@ -792,7 +804,10 @@ export function extractSymbols(docText: string): DiagramSymbols {
       if (/^~>/.test(line)) continue; // async simple connection
       if (/^-[^>]+-?>/.test(line)) continue; // labeled connection
       if (/^~[^~]+~>/.test(line)) continue; // async labeled connection
-      if (/^\w[\w-]*\s*:/.test(line)) continue; // property (key: value)
+      if (/^\w[\w-]*\s*:/.test(line)) continue; // property (key: value) legacy
+      // New-style property: first token is a known behavior/property key
+      const firstToken = line.split(/\s/)[0].toLowerCase();
+      if ((INFRA_BEHAVIOR_KEYS.has(firstToken) || EDGE_ONLY_KEYS.has(firstToken) || firstToken === 'description' || firstToken === 'instances' || firstToken === 'collapsed') && /\s/.test(line)) continue;
       const m = COMPONENT_RE.exec(line);
       if (m && !entities.includes(m[1]!)) entities.push(m[1]!);
     }

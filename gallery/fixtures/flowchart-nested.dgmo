@@ -1,5 +1,4 @@
-chart: flowchart
-title: Authentication Flow
+flowchart Authentication Flow
 
 (Start) -> <Authenticated?>
   -yes-> <Authorized?>

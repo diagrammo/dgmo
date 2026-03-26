@@ -1,5 +1,4 @@
-chart: flowchart
-title: Decision Flow
+flowchart Decision Flow
 
 (Start) -> /Get Input/ -> <Valid?>
   -yes-> [Process Data] -> (Done)

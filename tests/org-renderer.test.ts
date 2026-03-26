@@ -41,7 +41,7 @@ const palette = getPalette('nord');
 
 describe('layoutOrg', () => {
   it('positions a single root node', () => {
-    const parsed = parseOrg('chart: org\nAlice');
+    const parsed = parseOrg('org\nAlice');
     const layout = layoutOrg(parsed);
 
     expect(layout.nodes).toHaveLength(1);
@@ -54,7 +54,7 @@ describe('layoutOrg', () => {
   });
 
   it('arranges parent-child in separate rows', () => {
-    const parsed = parseOrg('chart: org\nAlice\n  Bob');
+    const parsed = parseOrg('org\nAlice\n  Bob');
     const layout = layoutOrg(parsed);
 
     expect(layout.nodes).toHaveLength(2);
@@ -64,7 +64,7 @@ describe('layoutOrg', () => {
   });
 
   it('creates elbow edges between parent and child', () => {
-    const parsed = parseOrg('chart: org\nAlice\n  Bob');
+    const parsed = parseOrg('org\nAlice\n  Bob');
     const layout = layoutOrg(parsed);
 
     expect(layout.edges).toHaveLength(1);
@@ -77,7 +77,7 @@ describe('layoutOrg', () => {
   });
 
   it('uses bus pattern for multiple children (no overlapping edges)', () => {
-    const parsed = parseOrg('chart: org\nAlice\n  Bob\n  Carol\n  Dave');
+    const parsed = parseOrg('org\nAlice\n  Bob\n  Carol\n  Dave');
     const layout = layoutOrg(parsed);
 
     // Bus pattern: 1 trunk + 1 horizontal bus + 3 drops = 5 edges
@@ -106,7 +106,7 @@ describe('layoutOrg', () => {
 
   it('centers parent exactly between direct children', () => {
     const parsed = parseOrg(
-      'chart: org\nAlice\n  Bob\n  Carol\n  Dave\n  Eve'
+      'org\nAlice\n  Bob\n  Carol\n  Dave\n  Eve'
     );
     const layout = layoutOrg(parsed);
 
@@ -124,7 +124,7 @@ describe('layoutOrg', () => {
   });
 
   it('handles multiple roots with virtual root', () => {
-    const parsed = parseOrg('chart: org\nAlice\nBob');
+    const parsed = parseOrg('org\nAlice\nBob');
     const layout = layoutOrg(parsed);
 
     expect(layout.nodes).toHaveLength(2);
@@ -138,7 +138,7 @@ describe('layoutOrg', () => {
 
   it('computes card width from label and metadata', () => {
     const parsed = parseOrg(
-      'chart: org\nAlice Park | role: Senior Software Engineer'
+      'org\nAlice Park | role: Senior Software Engineer'
     );
     const layout = layoutOrg(parsed);
 
@@ -149,7 +149,7 @@ describe('layoutOrg', () => {
 
   it('computes card height from metadata count', () => {
     const parsed = parseOrg(
-      'chart: org\nAlice\n  role: Engineer\n  location: NY'
+      'org\nAlice\n  role: Engineer\n  location: NY'
     );
     const layout = layoutOrg(parsed);
 
@@ -159,9 +159,9 @@ describe('layoutOrg', () => {
   });
 
   it('does not color nodes from tag groups (legend only)', () => {
-    const content = `chart: org
+    const content = `org
 
-tag: Location
+tag Location
   NY(blue)
   LA(yellow)
 
@@ -180,7 +180,7 @@ Bob
   });
 
   it('resolves explicit node colors', () => {
-    const content = `chart: org
+    const content = `org
 Alice(red)
 Bob`;
     const parsed = parseOrg(content, palette.light);
@@ -194,7 +194,7 @@ Bob`;
 
   it('computes container bounds for containers with children', () => {
     const parsed = parseOrg(
-      'chart: org\n[Engineering]\n  Alice\n  Bob'
+      'org\n[Engineering]\n  Alice\n  Bob'
     );
     const layout = layoutOrg(parsed);
 
@@ -211,7 +211,7 @@ Bob`;
   });
 
   it('creates container bounds for childless containers', () => {
-    const parsed = parseOrg('chart: org\n[Empty Team]');
+    const parsed = parseOrg('org\n[Empty Team]');
     const layout = layoutOrg(parsed);
 
     expect(layout.containers).toHaveLength(1);
@@ -235,7 +235,7 @@ Bob`;
   });
 
   it('returns empty result for empty input', () => {
-    const parsed = parseOrg('chart: org');
+    const parsed = parseOrg('org');
     const layout = layoutOrg(parsed);
     expect(layout.nodes).toHaveLength(0);
     expect(layout.edges).toHaveLength(0);
@@ -244,7 +244,7 @@ Bob`;
 
   it('places heaviest subtrees in center positions', () => {
     const parsed = parseOrg(
-      'chart: org\n' +
+      'org\n' +
         'Boss\n' +
         '  Alice\n' +
         '  Bob\n' +
@@ -264,7 +264,7 @@ Bob`;
   });
 
   it('produces positive width and height', () => {
-    const parsed = parseOrg('chart: org\nAlice\n  Bob\n  Carol');
+    const parsed = parseOrg('org\nAlice\n  Bob\n  Carol');
     const layout = layoutOrg(parsed);
     expect(layout.width).toBeGreaterThan(0);
     expect(layout.height).toBeGreaterThan(0);
@@ -276,8 +276,7 @@ Bob`;
 // ============================================================
 
 describe('renderOrgForExport', () => {
-  const basicInput = `chart: org
-title: Test Org
+  const basicInput = `org Test Org
 
 Alice
   role: CEO
@@ -308,7 +307,7 @@ Alice
   });
 
   it('renders containers with children as background boxes', () => {
-    const input = `chart: org
+    const input = `org
 Alice
   [Platform Team]
     Bob`;
@@ -319,7 +318,7 @@ Alice
   });
 
   it('renders childless containers as container boxes', () => {
-    const input = `chart: org
+    const input = `org
 Alice
   [Empty Team]`;
     const svg = renderOrgForExport(input, 'light', palette.light);
@@ -334,10 +333,10 @@ Alice
   });
 
   it('renders tag group names with original casing as display labels', () => {
-    const input = `tag: Title alias t
+    const input = `tag Title t
   CTO(purple)
 
-tag: Location alias loc
+tag Location loc
   NY(blue)
 
 Sean Curtis| t: CTO, loc: NY`;
@@ -371,7 +370,7 @@ Sean Curtis| t: CTO, loc: NY`;
 
 describe('collapse attributes in rendered SVG', () => {
   it('adds data-node-toggle on nodes with children', () => {
-    const content = `chart: org
+    const content = `org
 Alice
   Bob
   Carol`;
@@ -394,7 +393,7 @@ Alice
   });
 
   it('does not add data-node-toggle on leaf nodes', () => {
-    const content = `chart: org\nAlice`;
+    const content = `org\nAlice`;
     const parsed = parseOrg(content, palette.light);
     const layout = layoutOrg(parsed);
 
@@ -409,7 +408,7 @@ Alice
   });
 
   it('renders collapsed accent bar (not metadata row)', () => {
-    const content = `chart: org
+    const content = `org
 Alice
   Bob
   Carol`;
@@ -436,8 +435,8 @@ Alice
   });
 
   it('collapsed nodes use hiddenCount instead of custom sub-node-label metadata', () => {
-    const content = `chart: org
-sub-node-label: Direct Reports
+    const content = `org
+sub-node-label Direct Reports
 Alice
   Bob
   Carol`;
@@ -456,10 +455,10 @@ Alice
     expect(alice.hiddenCount).toBe(2);
   });
 
-  it('shows sub-node count on all nodes when show-sub-node-count: yes', () => {
-    const content = `chart: org
-show-sub-node-count: yes
-sub-node-label: Reports
+  it('shows sub-node count on all nodes when show-sub-node-count', () => {
+    const content = `org
+show-sub-node-count yes
+sub-node-label Reports
 Alice
   Bob
     Charlie
@@ -480,9 +479,9 @@ Alice
   });
 
   it('sub-node count includes collapsed descendants for expanded nodes only', () => {
-    const content = `chart: org
-show-sub-node-count: yes
-sub-node-label: Reports
+    const content = `org
+show-sub-node-count yes
+sub-node-label Reports
 Alice
   Bob
     Charlie
@@ -507,7 +506,7 @@ Alice
   });
 
   it('adds data-node-toggle on containers with children', () => {
-    const content = `chart: org
+    const content = `org
 [Engineering]
   Alice
   Bob`;
@@ -527,7 +526,7 @@ Alice
 
   it('collapsed node with container-only children retains data-node-toggle', () => {
     // Reproduces the Anne Bonny scenario: a node whose only children are containers
-    const content = `chart: org
+    const content = `org
 Boss
   Manager
     [Team A]
@@ -575,9 +574,9 @@ Boss
 
 describe('legend rendering', () => {
   it('renders legend in export mode', () => {
-    const input = `chart: org
+    const input = `org
 
-tag: Location
+tag Location
   NY(blue)
   LA(yellow)
 
@@ -591,7 +590,7 @@ Bob
   });
 
   it('does not render legend when no tag groups defined', () => {
-    const input = `chart: org
+    const input = `org
 Alice
   Bob`;
     const svg = renderOrgForExport(input, 'light', palette.light);
@@ -599,13 +598,13 @@ Alice
   });
 
   it('shows group names in legend (interactive)', () => {
-    const input = `chart: org
+    const input = `org
 
-tag: Location
+tag Location
   NY(blue)
   LA(yellow)
 
-tag: Status
+tag Status
   FTE(green)
 
 Alice | location: NY, status: FTE`;
@@ -628,9 +627,9 @@ Alice | location: NY, status: FTE`;
   });
 
   it('shows entry values with colored indicators (interactive)', () => {
-    const input = `chart: org
+    const input = `org
 
-tag: Location
+tag Location
   NY(blue)
   LA(yellow)
 
@@ -658,9 +657,9 @@ Bob | location: LA`;
   });
 
   it('omits unused tag group values from legend', () => {
-    const input = `chart: org
+    const input = `org
 
-tag: Location
+tag Location
   NY(blue)
   LA(yellow)
 
@@ -684,9 +683,9 @@ Alice | location: NY`;
   });
 
   it('activeTagGroup colors nodes from matching tag entries', () => {
-    const input = `chart: org
+    const input = `org
 
-tag: Location
+tag Location
   NY(blue)
   LA(yellow)
 
@@ -707,9 +706,9 @@ Bob
   });
 
   it('explicit node (color) is not overridden by activeTagGroup', () => {
-    const input = `chart: org
+    const input = `org
 
-tag: Location
+tag Location
   NY(blue)
 
 Alice(red)
@@ -724,10 +723,10 @@ Alice(red)
     expect(alice.color).toBe(parsed.roots[0].color);
   });
 
-  it('nodes without matching metadata get gray when activeTagGroup set', () => {
-    const input = `chart: org
+  it('nodes without explicit metadata get default (first entry) tag color when activeTagGroup set', () => {
+    const input = `org
 
-tag: Location
+tag Location
   NY(blue)
 
 Alice
@@ -738,16 +737,17 @@ Bob`;
 
     const alice = layout.nodes.find((n) => n.label === 'Alice')!;
     const bob = layout.nodes.find((n) => n.label === 'Bob')!;
+    // Both get NY's color — Alice explicitly, Bob via first-entry default
     expect(alice.color).toBeTruthy();
-    expect(bob.color).toBe('#999999');
+    expect(bob.color).toBe(alice.color);
   });
 
   it('nodes without metadata get default tag group color when activeTagGroup set', () => {
-    const input = `chart: org
+    const input = `org
 
-tag: Location
+tag Location
+  CO(green)
   NY(blue)
-  CO(green) default
 
 Alice
   location: NY
@@ -765,14 +765,14 @@ Bob`;
   });
 
   it('nodes display default metadata values from tag groups', () => {
-    const input = `chart: org
+    const input = `org
 
-tag: Location
+tag Location
+  CO(green)
   NY(blue)
-  CO(green) default
 
-tag: Status
-  FTE(green) default
+tag Status
+  FTE(green)
   Contractor(orange)
 
 Alice
@@ -792,11 +792,11 @@ Bob`;
   });
 
   it('default metadata does not override explicit values', () => {
-    const input = `chart: org
+    const input = `org
 
-tag: Location
+tag Location
+  CO(green)
   NY(blue)
-  CO(green) default
 
 Alice
   location: NY`;
@@ -808,10 +808,10 @@ Alice
   });
 
   it('containers do not get default metadata', () => {
-    const input = `chart: org
+    const input = `org
 
-tag: Status
-  FTE(green) default
+tag Status
+  FTE(green)
 
 [Engineering]
   Alice`;
@@ -825,11 +825,11 @@ tag: Status
   });
 
   it('containers do not get default tag group color', () => {
-    const input = `chart: org
+    const input = `org
 
-tag: Location
+tag Location
+  CO(green)
   NY(blue)
-  CO(green) default
 
 [Engineering]
   Alice
@@ -846,11 +846,11 @@ tag: Location
   });
 
   it('explicit metadata wins over default tag group value', () => {
-    const input = `chart: org
+    const input = `org
 
-tag: Location
+tag Location
+  CO(green)
   NY(blue)
-  CO(green) default
 
 Alice
   location: NY`;
@@ -864,13 +864,13 @@ Alice
   });
 
   it('places legend at top-left', () => {
-    const input = `chart: org
+    const input = `org
 
-tag: Location
+tag Location
   NY(blue)
   LA(yellow)
 
-tag: Status
+tag Status
   FTE(green)
 
 Alice | location: NY, status: FTE`;
@@ -890,9 +890,9 @@ Alice | location: NY, status: FTE`;
   });
 
   it('legend adds height and shifts content down', () => {
-    const input = `chart: org
+    const input = `org
 
-tag: Location
+tag Location
   NY(blue)
 
 Alice | location: NY
@@ -908,9 +908,9 @@ Alice | location: NY
   });
 
   it('legend groups have data-legend-group attributes', () => {
-    const input = `chart: org
+    const input = `org
 
-tag: Location
+tag Location
   NY(blue)
   LA(yellow)
 
@@ -930,12 +930,12 @@ Alice | location: NY`;
   });
 
   it('only active legend group rendered when activeTagGroup set', () => {
-    const input = `chart: org
+    const input = `org
 
-tag: Location
+tag Location
   NY(blue)
 
-tag: Status
+tag Status
   FTE(green)
 
 Alice | location: NY, status: FTE`;
@@ -960,12 +960,12 @@ Alice | location: NY, status: FTE`;
   });
 
   it('all legend groups rendered minified when no activeTagGroup', () => {
-    const input = `chart: org
+    const input = `org
 
-tag: Location
+tag Location
   NY(blue)
 
-tag: Status
+tag Status
   FTE(green)
 
 Alice | location: NY, status: FTE`;
@@ -988,9 +988,9 @@ Alice | location: NY, status: FTE`;
   });
 
   it('active legend group has distinct border styling', () => {
-    const input = `chart: org
+    const input = `org
 
-tag: Location
+tag Location
   NY(blue)
   LA(yellow)
 
@@ -1023,13 +1023,13 @@ Alice | location: NY`;
 // ============================================================
 
 describe('hiddenAttributes visibility', () => {
-  const input = `chart: org
+  const input = `org
 
-tag: Location
+tag Location
   NY(blue)
   LA(yellow)
 
-tag: Status
+tag Status
   FTE(green)
 
 Alice
@@ -1066,10 +1066,10 @@ Bob
   });
 
   it('hidden defaults still exist on orgNode but filtered from layout', () => {
-    const inputWithDefaults = `chart: org
+    const inputWithDefaults = `org
 
-tag: Status
-  FTE(green) default
+tag Status
+  FTE(green)
 
 Alice`;
     const parsed = parseOrg(inputWithDefaults, palette.light);
@@ -1088,9 +1088,9 @@ Alice`;
   });
 
   it('container metadata is also filtered', () => {
-    const containerInput = `chart: org
+    const containerInput = `org
 
-tag: Status
+tag Status
   FTE(green)
 
 [Engineering]
@@ -1156,13 +1156,13 @@ tag: Status
   });
 
   it('export respects DSL hide option', () => {
-    const exportInput = `chart: org
-hide: location
+    const exportInput = `org
+hide location
 
-tag: Location
+tag Location
   NY(blue)
 
-tag: Status
+tag Status
   FTE(green)
 
 Alice
@@ -1183,11 +1183,11 @@ Alice
 // ============================================================
 
 describe('tag-group-only legend', () => {
-  const tagGroupOnlyInput = `tag: Rank alias r
+  const tagGroupOnlyInput = `tag Rank r
   Captain(red)
-  Sailor(blue) default
+  Sailor(blue)
 
-tag: Status
+tag Status
   Active(green)
   Inactive(gray)`;
 
@@ -1247,9 +1247,9 @@ tag: Status
 
 describe('legend entry hover attributes', () => {
   it('wraps legend entries in g[data-legend-entry]', () => {
-    const input = `chart: org
+    const input = `org
 
-tag: Location
+tag Location
   NY(blue)
   LA(yellow)
 
@@ -1277,9 +1277,9 @@ Bob | location: LA`;
   });
 
   it('each legend entry wraps circle + text', () => {
-    const input = `chart: org
+    const input = `org
 
-tag: Location
+tag Location
   NY(blue)
 
 Alice | location: NY`;
@@ -1302,9 +1302,9 @@ Alice | location: NY`;
   });
 
   it('adds data-tag-* on nodes when activeTagGroup is set', () => {
-    const input = `chart: org
+    const input = `org
 
-tag: Location
+tag Location
   NY(blue)
   LA(yellow)
 
@@ -1331,9 +1331,9 @@ Bob
   });
 
   it('does not add data-tag-* when no activeTagGroup', () => {
-    const input = `chart: org
+    const input = `org
 
-tag: Location
+tag Location
   NY(blue)
 
 Alice
@@ -1352,9 +1352,9 @@ Alice
   });
 
   it('adds data-tag-* on containers when activeTagGroup is set', () => {
-    const input = `chart: org
+    const input = `org
 
-tag: Status
+tag Status
   Active(green)
 
 [Engineering]

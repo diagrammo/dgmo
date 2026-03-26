@@ -5,6 +5,9 @@ import {
   buildHolidaySet,
   isWorkday,
   formatDateKey,
+  parseDuration,
+  parseGanttDate,
+  formatGanttDate,
 } from '../src/utils/duration';
 import type { GanttHolidays } from '../src/gantt/types';
 
@@ -143,5 +146,94 @@ describe('addGanttDuration', () => {
     // Jan 18 = Thursday. 1bd = next Sun (skips Fri, Sat)
     const result = addGanttDuration(makeDate(2024, 1, 18), { amount: 1, unit: 'bd' }, customHolidays, new Set());
     expect(fmt(result)).toBe('2024-01-21'); // Sunday
+  });
+
+  it('hours (h) — 2h from 08:00 = 10:00', () => {
+    const start = new Date(2024, 5, 15, 8, 0); // June 15, 08:00
+    const result = addGanttDuration(start, { amount: 2, unit: 'h' }, DEFAULT_HOLIDAYS, new Set<string>());
+    expect(result.getHours()).toBe(10);
+    expect(result.getMinutes()).toBe(0);
+    expect(fmt(result)).toBe('2024-06-15');
+  });
+
+  it('minutes (min) — 90min from 08:00 = 09:30', () => {
+    const start = new Date(2024, 5, 15, 8, 0);
+    const result = addGanttDuration(start, { amount: 90, unit: 'min' }, DEFAULT_HOLIDAYS, new Set<string>());
+    expect(result.getHours()).toBe(9);
+    expect(result.getMinutes()).toBe(30);
+  });
+
+  it('fractional hours (1.5h) = 90 minutes', () => {
+    const start = new Date(2024, 5, 15, 8, 0);
+    const result = addGanttDuration(start, { amount: 1.5, unit: 'h' }, DEFAULT_HOLIDAYS, new Set<string>());
+    expect(result.getHours()).toBe(9);
+    expect(result.getMinutes()).toBe(30);
+  });
+
+  it('25h rolls over to next day', () => {
+    const start = new Date(2024, 0, 15, 8, 0); // Jan 15, 08:00
+    const result = addGanttDuration(start, { amount: 25, unit: 'h' }, DEFAULT_HOLIDAYS, new Set<string>());
+    expect(fmt(result)).toBe('2024-01-16');
+    expect(result.getHours()).toBe(9);
+    expect(result.getMinutes()).toBe(0);
+  });
+});
+
+describe('parseDuration — hours and minutes', () => {
+  it('parses 2h', () => {
+    expect(parseDuration('2h')).toEqual({ amount: 2, unit: 'h' });
+  });
+
+  it('parses 90min', () => {
+    expect(parseDuration('90min')).toEqual({ amount: 90, unit: 'min' });
+  });
+
+  it('parses 1.5h', () => {
+    expect(parseDuration('1.5h')).toEqual({ amount: 1.5, unit: 'h' });
+  });
+
+  it('30m is months, not minutes', () => {
+    expect(parseDuration('30m')).toEqual({ amount: 30, unit: 'm' });
+  });
+
+  it('0.5min is valid', () => {
+    expect(parseDuration('0.5min')).toEqual({ amount: 0.5, unit: 'min' });
+  });
+});
+
+describe('parseGanttDate — datetime support', () => {
+  it('parses YYYY-MM-DD HH:MM', () => {
+    const d = parseGanttDate('2024-06-15 14:30');
+    expect(d.getFullYear()).toBe(2024);
+    expect(d.getMonth()).toBe(5); // June is 0-based
+    expect(d.getDate()).toBe(15);
+    expect(d.getHours()).toBe(14);
+    expect(d.getMinutes()).toBe(30);
+  });
+
+  it('parses YYYY-MM-DD as midnight (backward compat)', () => {
+    const d = parseGanttDate('2024-06-15');
+    expect(d.getHours()).toBe(0);
+    expect(d.getMinutes()).toBe(0);
+  });
+
+  it('midnight datetime equals date-only', () => {
+    const dateOnly = parseGanttDate('2024-01-15');
+    const withTime = parseGanttDate('2024-01-15 00:00');
+    expect(dateOnly.getTime()).toBe(withTime.getTime());
+  });
+});
+
+describe('formatGanttDate — datetime support', () => {
+  it('returns YYYY-MM-DD for midnight', () => {
+    expect(formatGanttDate(new Date(2024, 5, 15))).toBe('2024-06-15');
+  });
+
+  it('returns YYYY-MM-DD HH:MM for non-midnight', () => {
+    expect(formatGanttDate(new Date(2024, 5, 15, 14, 30))).toBe('2024-06-15 14:30');
+  });
+
+  it('returns date-only when hours and minutes are both 0', () => {
+    expect(formatGanttDate(new Date(2024, 5, 15, 0, 0))).toBe('2024-06-15');
   });
 });

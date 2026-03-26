@@ -5,37 +5,39 @@ import { computeCardMove, computeCardArchive, isArchiveColumn } from '../src/kan
 describe('parseKanban', () => {
   // === Chart type ===
   describe('chart type', () => {
-    it('accepts chart: kanban', () => {
-      const result = parseKanban('chart: kanban\n[To Do]\n  Task 1');
+    it('accepts kanban on first line', () => {
+      const result = parseKanban('kanban\n[To Do]\n  Task 1');
       expect(result.error).toBeNull();
       expect(result.columns).toHaveLength(1);
     });
 
     it('rejects wrong chart type', () => {
-      const result = parseKanban('chart: flowchart\n[To Do]\n  Task 1');
+      const result = parseKanban('flowchart\n[To Do]\n  Task 1');
       expect(result.error).toMatch(/Expected chart type "kanban"/);
       expect(result.diagnostics).toHaveLength(1);
       expect(result.diagnostics[0].severity).toBe('error');
     });
 
-    it('suggests similar chart types', () => {
-      const result = parseKanban('chart: kanbam\n[To Do]\n  Task 1');
-      expect(result.error).toMatch(/Did you mean 'kanban'/);
+    it('misspelled chart type falls through to content parsing', () => {
+      // With space-separated syntax, unrecognized first tokens aren't chart types
+      const result = parseKanban('kanbam\n[To Do]\n  Task 1');
+      // kanbam isn't recognized as a chart type, so it's ignored and columns parse normally
+      expect(result.columns).toHaveLength(1);
     });
   });
 
   // === Title ===
   describe('title', () => {
-    it('parses title', () => {
+    it('parses title from first line', () => {
       const result = parseKanban(
-        'chart: kanban\ntitle: Sprint 12\n[To Do]\n  Task 1'
+        'kanban Sprint 12\n[To Do]\n  Task 1'
       );
       expect(result.title).toBe('Sprint 12');
-      expect(result.titleLineNumber).toBe(2);
+      expect(result.titleLineNumber).toBe(1);
     });
 
     it('no title returns undefined', () => {
-      const result = parseKanban('chart: kanban\n[To Do]\n  Task 1');
+      const result = parseKanban('kanban\n[To Do]\n  Task 1');
       expect(result.title).toBeUndefined();
     });
   });
@@ -44,7 +46,7 @@ describe('parseKanban', () => {
   describe('comments', () => {
     it('ignores // comments', () => {
       const result = parseKanban(
-        'chart: kanban\n// comment\n[To Do]\n  Task 1'
+        'kanban\n// comment\n[To Do]\n  Task 1'
       );
       expect(result.error).toBeNull();
       expect(result.columns).toHaveLength(1);
@@ -54,7 +56,7 @@ describe('parseKanban', () => {
   // === Columns ===
   describe('columns', () => {
     it('parses single column', () => {
-      const result = parseKanban('chart: kanban\n[To Do]\n  Task 1');
+      const result = parseKanban('kanban\n[To Do]\n  Task 1');
       expect(result.columns).toHaveLength(1);
       expect(result.columns[0].name).toBe('To Do');
       expect(result.columns[0].id).toBe('col-1');
@@ -62,7 +64,7 @@ describe('parseKanban', () => {
 
     it('parses multiple columns', () => {
       const result = parseKanban(
-        'chart: kanban\n[To Do]\n  Task 1\n[In Progress]\n  Task 2\n[Done]\n  Task 3'
+        'kanban\n[To Do]\n  Task 1\n[In Progress]\n  Task 2\n[Done]\n  Task 3'
       );
       expect(result.columns).toHaveLength(3);
       expect(result.columns[0].name).toBe('To Do');
@@ -72,26 +74,26 @@ describe('parseKanban', () => {
 
     it('parses WIP limit', () => {
       const result = parseKanban(
-        'chart: kanban\n[In Progress] | wip: 3\n  Task 1'
+        'kanban\n[In Progress] | wip: 3\n  Task 1'
       );
       expect(result.columns[0].wipLimit).toBe(3);
     });
 
     it('column without WIP limit has undefined wipLimit', () => {
-      const result = parseKanban('chart: kanban\n[To Do]\n  Task 1');
+      const result = parseKanban('kanban\n[To Do]\n  Task 1');
       expect(result.columns[0].wipLimit).toBeUndefined();
     });
 
     it('empty column has no cards', () => {
       const result = parseKanban(
-        'chart: kanban\n[To Do]\n[Done]\n  Task 1'
+        'kanban\n[To Do]\n[Done]\n  Task 1'
       );
       expect(result.columns[0].cards).toHaveLength(0);
       expect(result.columns[1].cards).toHaveLength(1);
     });
 
     it('errors when no columns defined', () => {
-      const result = parseKanban('chart: kanban\ntitle: Test');
+      const result = parseKanban('kanban Test');
       expect(result.error).toMatch(/No columns found/);
     });
   });
@@ -99,7 +101,7 @@ describe('parseKanban', () => {
   // === Cards ===
   describe('cards', () => {
     it('parses basic card', () => {
-      const result = parseKanban('chart: kanban\n[To Do]\n  Build login');
+      const result = parseKanban('kanban\n[To Do]\n  Build login');
       const card = result.columns[0].cards[0];
       expect(card.title).toBe('Build login');
       expect(card.id).toBe('card-1');
@@ -109,7 +111,7 @@ describe('parseKanban', () => {
 
     it('parses card with tags', () => {
       const result = parseKanban(
-        'chart: kanban\n[To Do]\n  Build login | priority: High, assignee: Alice'
+        'kanban\n[To Do]\n  Build login | priority: High, assignee: Alice'
       );
       const card = result.columns[0].cards[0];
       expect(card.title).toBe('Build login');
@@ -118,7 +120,7 @@ describe('parseKanban', () => {
 
     it('parses card with color suffix', () => {
       const result = parseKanban(
-        'chart: kanban\n[To Do]\n  Urgent task(red)'
+        'kanban\n[To Do]\n  Urgent task(red)'
       );
       const card = result.columns[0].cards[0];
       expect(card.title).toBe('Urgent task');
@@ -127,7 +129,7 @@ describe('parseKanban', () => {
 
     it('parses column with color suffix', () => {
       const result = parseKanban(
-        'chart: kanban\n[Done](green)\n  Task 1'
+        'kanban\n[Done](green)\n  Task 1'
       );
       expect(result.columns[0].name).toBe('Done');
       expect(result.columns[0].color).toBeDefined();
@@ -135,7 +137,7 @@ describe('parseKanban', () => {
 
     it('parses column with color and wip limit', () => {
       const result = parseKanban(
-        'chart: kanban\n[In Progress](blue) | wip: 3\n  Task 1'
+        'kanban\n[In Progress](blue) | wip: 3\n  Task 1'
       );
       expect(result.columns[0].name).toBe('In Progress');
       expect(result.columns[0].color).toBeDefined();
@@ -144,7 +146,7 @@ describe('parseKanban', () => {
 
     it('parses card with detail lines', () => {
       const result = parseKanban(
-        'chart: kanban\n[To Do]\n  Build login\n    OAuth support\n    Needs design review'
+        'kanban\n[To Do]\n  Build login\n    OAuth support\n    Needs design review'
       );
       const card = result.columns[0].cards[0];
       expect(card.details).toEqual([
@@ -157,7 +159,7 @@ describe('parseKanban', () => {
 
     it('parses multiple cards in a column', () => {
       const result = parseKanban(
-        'chart: kanban\n[To Do]\n  Task A\n  Task B\n  Task C'
+        'kanban\n[To Do]\n  Task A\n  Task B\n  Task C'
       );
       expect(result.columns[0].cards).toHaveLength(3);
       expect(result.columns[0].cards[0].title).toBe('Task A');
@@ -166,7 +168,7 @@ describe('parseKanban', () => {
     });
 
     it('card with no tags has empty tags object', () => {
-      const result = parseKanban('chart: kanban\n[To Do]\n  Simple task');
+      const result = parseKanban('kanban\n[To Do]\n  Simple task');
       expect(result.columns[0].cards[0].tags).toEqual({});
     });
   });
@@ -175,7 +177,7 @@ describe('parseKanban', () => {
   describe('tag groups', () => {
     it('parses tag group with entries', () => {
       const result = parseKanban(
-        'chart: kanban\ntag: Priority\n  High(red)\n  Low(green)\n\n[To Do]\n  Task 1'
+        'kanban\ntag Priority\n  High(red)\n  Low(green)\n\n[To Do]\n  Task 1'
       );
       expect(result.tagGroups).toHaveLength(1);
       expect(result.tagGroups[0].name).toBe('Priority');
@@ -186,7 +188,7 @@ describe('parseKanban', () => {
 
     it('parses tag group with alias', () => {
       const result = parseKanban(
-        'chart: kanban\ntag: Priority alias p\n  High(red)\n  Low(green)\n\n[To Do]\n  Task | p: High'
+        'kanban\ntag Priority p\n  High(red)\n  Low(green)\n\n[To Do]\n  Task | p: High'
       );
       expect(result.tagGroups[0].alias).toBe('p');
       // Alias resolves to group name
@@ -194,57 +196,57 @@ describe('parseKanban', () => {
       expect(card.tags).toEqual({ priority: 'High' });
     });
 
-    it('parses tag group with default value', () => {
+    it('first entry is default', () => {
       const result = parseKanban(
-        'chart: kanban\ntag: Priority\n  High(red)\n  Low(green) default\n\n[To Do]\n  Task 1'
+        'kanban\ntag Priority\n  Low(green)\n  High(red)\n\n[To Do]\n  Task 1'
       );
       expect(result.tagGroups[0].defaultValue).toBe('Low');
     });
 
     it('warns on tag entry without color', () => {
       const result = parseKanban(
-        'chart: kanban\ntag: Priority\n  High\n\n[To Do]\n  Task 1'
+        'kanban\ntag Priority\n  High\n\n[To Do]\n  Task 1'
       );
       expect(result.diagnostics.some((d) => d.message.includes("Expected 'Value(color)'"))).toBe(true);
     });
   });
 
-  // === tag: block syntax ===
-  describe('tag: block syntax', () => {
-    it('parses tag: heading with entries', () => {
+  // === tag block syntax ===
+  describe('tag block syntax', () => {
+    it('parses tag heading with entries', () => {
       const result = parseKanban(
-        'chart: kanban\ntag: Priority\n  High(red)\n  Low(green)\n\n[To Do]\n  Task 1'
+        'kanban\ntag Priority\n  High(red)\n  Low(green)\n\n[To Do]\n  Task 1'
       );
       expect(result.tagGroups).toHaveLength(1);
       expect(result.tagGroups[0].name).toBe('Priority');
       expect(result.tagGroups[0].entries).toHaveLength(2);
     });
 
-    it('parses tag: with alias', () => {
+    it('parses tag with alias', () => {
       const result = parseKanban(
-        'chart: kanban\ntag: Priority alias p\n  High(red)\n  Low(green)\n\n[To Do]\n  Task | p: High'
+        'kanban\ntag Priority p\n  High(red)\n  Low(green)\n\n[To Do]\n  Task | p: High'
       );
       expect(result.tagGroups[0].alias).toBe('p');
       expect(result.columns[0].cards[0].tags).toEqual({ priority: 'High' });
     });
 
-    it('parses tag: with default value', () => {
+    it('first entry is default', () => {
       const result = parseKanban(
-        'chart: kanban\ntag: Priority\n  High(red)\n  Low(green) default\n\n[To Do]\n  Task 1'
+        'kanban\ntag Priority\n  Low(green)\n  High(red)\n\n[To Do]\n  Task 1'
       );
       expect(result.tagGroups[0].defaultValue).toBe('Low');
     });
 
     it('is case-insensitive', () => {
       const result = parseKanban(
-        'chart: kanban\nTag: Priority\n  High(red)\n\n[To Do]\n  Task 1'
+        'kanban\nTag Priority\n  High(red)\n\n[To Do]\n  Task 1'
       );
       expect(result.tagGroups[0].name).toBe('Priority');
     });
 
-    it('does not emit deprecation warning for tag: syntax', () => {
+    it('does not emit deprecation warning for tag syntax', () => {
       const result = parseKanban(
-        'chart: kanban\ntag: Priority\n  High(red)\n\n[To Do]\n  Task 1'
+        'kanban\ntag Priority\n  High(red)\n\n[To Do]\n  Task 1'
       );
       const warnings = result.diagnostics.filter(d => d.message.includes('deprecated'));
       expect(warnings).toHaveLength(0);
@@ -252,7 +254,7 @@ describe('parseKanban', () => {
 
     it('emits error for ## syntax', () => {
       const result = parseKanban(
-        'chart: kanban\n## Priority\n  High(red)\n\n[To Do]\n  Task 1'
+        'kanban\n## Priority\n  High(red)\n\n[To Do]\n  Task 1'
       );
       const errors = result.diagnostics.filter(d => d.message.includes('no longer supported'));
       expect(errors).toHaveLength(1);
@@ -265,7 +267,7 @@ describe('parseKanban', () => {
   describe('legacy syntax', () => {
     it('warns on == Column == syntax', () => {
       const result = parseKanban(
-        'chart: kanban\n[Valid]\n  Task 1\n== Legacy =='
+        'kanban\n[Valid]\n  Task 1\n== Legacy =='
       );
       const warnings = result.diagnostics.filter(d => d.message.includes('no longer supported'));
       expect(warnings).toHaveLength(1);
@@ -277,7 +279,7 @@ describe('parseKanban', () => {
   describe('warnings', () => {
     it('warns when WIP limit exceeded', () => {
       const result = parseKanban(
-        'chart: kanban\n[WIP] | wip: 1\n  Task A\n  Task B'
+        'kanban\n[WIP] | wip: 1\n  Task A\n  Task B'
       );
       expect(
         result.diagnostics.some((d) =>
@@ -289,7 +291,7 @@ describe('parseKanban', () => {
 
     it('warns on unknown tag value', () => {
       const result = parseKanban(
-        'chart: kanban\ntag: Priority\n  High(red)\n  Low(green)\n\n[To Do]\n  Task | priority: Medium'
+        'kanban\ntag Priority\n  High(red)\n  Low(green)\n\n[To Do]\n  Task | priority: Medium'
       );
       expect(
         result.diagnostics.some((d) =>
@@ -303,7 +305,7 @@ describe('parseKanban', () => {
   describe('column metadata cascading', () => {
     it('card inherits column metadata', () => {
       const result = parseKanban(
-        'chart: kanban\n[Backlog] | t: Sprint1\n  Fix bug\n  Add feature'
+        'kanban\n[Backlog] | t: Sprint1\n  Fix bug\n  Add feature'
       );
       expect(result.error).toBeNull();
       expect(result.columns[0].metadata).toEqual({ t: 'Sprint1' });
@@ -315,7 +317,7 @@ describe('parseKanban', () => {
 
     it('card metadata overrides column metadata', () => {
       const result = parseKanban(
-        'chart: kanban\n[Backlog] | t: Sprint1\n  Fix bug | t: Sprint2\n  Add feature'
+        'kanban\n[Backlog] | t: Sprint1\n  Fix bug | t: Sprint2\n  Add feature'
       );
       expect(result.error).toBeNull();
       // Fix bug has its own t: Sprint2, should override
@@ -326,7 +328,7 @@ describe('parseKanban', () => {
 
     it('wip is not cascaded to cards', () => {
       const result = parseKanban(
-        'chart: kanban\n[In Progress] | wip: 2, t: Sprint1\n  Task A'
+        'kanban\n[In Progress] | wip: 2, t: Sprint1\n  Task A'
       );
       expect(result.error).toBeNull();
       expect(result.columns[0].wipLimit).toBe(2);
@@ -340,7 +342,7 @@ describe('parseKanban', () => {
   describe('options', () => {
     it('parses generic options', () => {
       const result = parseKanban(
-        'chart: kanban\ntitle: Test\ncolor-off: yes\n[To Do]\n  Task 1'
+        'kanban Test\ncolor-off yes\n[To Do]\n  Task 1'
       );
       expect(result.options['color-off']).toBe('yes');
     });
@@ -349,15 +351,14 @@ describe('parseKanban', () => {
   // === Full example ===
   describe('full example', () => {
     it('parses the sprint board example', () => {
-      const input = `chart: kanban
-title: Sprint 12
+      const input = `kanban Sprint 12
 
-tag: Priority
+tag Priority
   High(red)
   Medium(yellow)
-  Low(green) default
+  Low(green)
 
-tag: Assignee alias a
+tag Assignee a
   Alice(blue)
   Bob(purple)
 
@@ -406,7 +407,7 @@ tag: Assignee alias a
 // ============================================================
 
 describe('computeCardMove', () => {
-  const basicBoard = `chart: kanban
+  const basicBoard = `kanban
 
 [To Do]
   Task A
@@ -471,7 +472,7 @@ describe('computeCardMove', () => {
   });
 
   it('moves card to empty column', () => {
-    const emptyColBoard = `chart: kanban
+    const emptyColBoard = `kanban
 
 [To Do]
   Task A
@@ -524,7 +525,7 @@ describe('computeCardMove', () => {
 // ============================================================
 
 describe('computeCardArchive', () => {
-  const board = `chart: kanban
+  const board = `kanban
 
 [To Do]
   Task A
@@ -558,7 +559,7 @@ describe('computeCardArchive', () => {
   });
 
   it('appends to existing Archive section', () => {
-    const boardWithArchive = `chart: kanban
+    const boardWithArchive = `kanban
 
 [To Do]
   Task A
@@ -581,11 +582,11 @@ describe('computeCardArchive', () => {
   });
 
   it('archives card with tag metadata', () => {
-    const tagBoard = `chart: kanban
+    const tagBoard = `kanban
 
-tag: Priority
+tag Priority
   High(red)
-  Low(green) default
+  Low(green)
 
 [In Progress]
   Build login | priority: High

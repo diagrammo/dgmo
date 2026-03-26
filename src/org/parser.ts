@@ -8,9 +8,8 @@ import {
   extractColor,
   parsePipeMetadata,
   MULTIPLE_PIPE_WARNING,
-  CHART_TYPE_RE,
-  TITLE_RE,
-  OPTION_RE,
+  parseFirstLine,
+  OPTION_NOCOLON_RE,
 } from '../utils/parsing';
 
 // ============================================================
@@ -44,6 +43,15 @@ export interface ParsedOrg {
 
 const CONTAINER_RE = /^\[([^\]]+)\]$/;
 const METADATA_RE = /^([^:]+):\s*(.+)$/;
+
+/** Known org chart options (key-value). */
+const KNOWN_OPTIONS = new Set([
+  'direction', 'sub-node-label', 'hide', 'show-sub-node-count',
+]);
+/** Known org chart boolean options (bare keyword = on). */
+const KNOWN_BOOLEANS = new Set([
+  'show-sub-node-count',
+]);
 
 // ============================================================
 // Inference
@@ -134,28 +142,21 @@ export function parseOrg(
 
     // --- Header phase ---
 
-    // chart: type
+    // Extract chart type + title from first line (e.g. `org My Org Chart`)
     if (!contentStarted) {
-      const chartMatch = trimmed.match(CHART_TYPE_RE);
-      if (chartMatch) {
-        const chartType = chartMatch[1].trim().toLowerCase();
-        if (chartType !== 'org') {
+      const firstLine = parseFirstLine(trimmed);
+      if (firstLine) {
+        if (firstLine.chartType !== 'org') {
           const allTypes = ['org', 'class', 'flowchart', 'sequence', 'er', 'bar', 'line', 'pie', 'scatter', 'sankey', 'venn', 'timeline', 'arc', 'slope'];
-          let msg = `Expected chart type "org", got "${chartType}"`;
-          const hint = suggest(chartType, allTypes);
+          let msg = `Expected chart type "org", got "${firstLine.chartType}"`;
+          const hint = suggest(firstLine.chartType, allTypes);
           if (hint) msg += `. ${hint}`;
           return fail(lineNumber, msg);
         }
-        continue;
-      }
-    }
-
-    // title: value
-    if (!contentStarted) {
-      const titleMatch = trimmed.match(TITLE_RE);
-      if (titleMatch) {
-        result.title = titleMatch[1].trim();
-        result.titleLineNumber = lineNumber;
+        if (firstLine.title) {
+          result.title = firstLine.title;
+          result.titleLineNumber = lineNumber;
+        }
         continue;
       }
     }
@@ -185,34 +186,36 @@ export function parseOrg(
       continue;
     }
 
-    // Generic header options (key: value lines before content/tag groups)
-    // Only match non-indented lines with simple hyphenated keys
+    // Generic header options (space-separated: `key value` or bare boolean `key`)
+    // Only match non-indented lines with known option keys
     if (!contentStarted && !currentTagGroup && measureIndent(line) === 0) {
-      const optMatch = trimmed.match(OPTION_RE);
+      const optMatch = trimmed.match(OPTION_NOCOLON_RE);
       if (optMatch) {
         const key = optMatch[1].trim().toLowerCase();
-        if (key !== 'chart' && key !== 'title') {
+        if (KNOWN_OPTIONS.has(key)) {
           result.options[key] = optMatch[2].trim();
           continue;
         }
       }
+      // Bare boolean option (single keyword, no value)
+      if (KNOWN_BOOLEANS.has(trimmed.toLowerCase())) {
+        result.options[trimmed.toLowerCase()] = 'on';
+        continue;
+      }
     }
 
-    // Tag group entries (indented Value(color) [default] under ## heading)
+    // Tag group entries (indented Value(color) under tag heading)
+    // First entry is implicitly the default.
     if (currentTagGroup && !contentStarted) {
       const indent = measureIndent(line);
       if (indent > 0) {
-        // Strip trailing `default` keyword before extracting color
-        const isDefault = /\bdefault\s*$/.test(trimmed);
-        const entryText = isDefault
-          ? trimmed.replace(/\s+default\s*$/, '').trim()
-          : trimmed;
-        const { label, color } = extractColor(entryText, palette);
+        const { label, color } = extractColor(trimmed, palette);
         if (!color) {
           pushError(lineNumber, `Expected 'Value(color)' in tag group '${currentTagGroup.name}'`);
           continue;
         }
-        if (isDefault) {
+        // First entry is the default
+        if (currentTagGroup.entries.length === 0) {
           currentTagGroup.defaultValue = label;
         }
         currentTagGroup.entries.push({

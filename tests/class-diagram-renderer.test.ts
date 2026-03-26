@@ -189,7 +189,7 @@ describe('renderClassDiagram', () => {
 
   describe('title', () => {
     it('renders title when present', () => {
-      const container = renderToContainer('chart: class\ntitle: My Diagram\nAnimal\n  name: string');
+      const container = renderToContainer('class My Diagram\nAnimal\n  name: string');
       const title = container.querySelector('.chart-title');
       expect(title).toBeTruthy();
       expect(title?.textContent).toBe('My Diagram');
@@ -197,9 +197,9 @@ describe('renderClassDiagram', () => {
     });
 
     it('renders title with data-line-number', () => {
-      const container = renderToContainer('chart: class\ntitle: My Diagram\nAnimal\n  name: string');
+      const container = renderToContainer('class My Diagram\nAnimal\n  name: string');
       const title = container.querySelector('.chart-title');
-      expect(title?.getAttribute('data-line-number')).toBe('2');
+      expect(title?.getAttribute('data-line-number')).toBe('1');
       document.body.removeChild(container);
     });
   });
@@ -246,9 +246,9 @@ describe('renderClassDiagram', () => {
       document.body.removeChild(container);
     });
 
-    it('does not render legend when color: off', () => {
+    it('does not render legend when color off', () => {
       const container = renderToContainer(
-        'color: off\nDrawable [interface]\n  draw(): void\n\nShape [abstract]\n  area(): number'
+        'color off\ninterface Drawable\n  draw(): void\n\nabstract Shape\n  area(): number'
       );
       const legend = container.querySelector('.cd-legend');
       expect(legend).toBeNull();

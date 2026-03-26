@@ -6,9 +6,8 @@ import {
   measureIndent,
   extractColor,
   parsePipeMetadata,
-  CHART_TYPE_RE,
-  TITLE_RE,
-  OPTION_RE,
+  parseFirstLine,
+  OPTION_NOCOLON_RE,
 } from '../utils/parsing';
 import type {
   ParsedKanban,
@@ -25,6 +24,14 @@ import type {
 const COLUMN_RE = /^\[(.+?)\](?:\s*\(([^)]+)\))?\s*(?:\|\s*(.+))?$/;
 // Legacy delimiter
 const LEGACY_COLUMN_RE = /^==\s+(.+?)\s*(?:\[wip:\s*(\d+)\])?\s*==$/;
+
+/** Known kanban options (key-value). */
+const KNOWN_OPTIONS = new Set([
+  'color-off', 'hide',
+]);
+/** Known kanban boolean options (bare keyword = on). */
+const KNOWN_BOOLEANS = new Set<string>([
+]);
 
 // ============================================================
 // Parser
@@ -89,12 +96,11 @@ export function parseKanban(
 
     // --- Header phase ---
 
-    // chart: type
+    // Extract chart type + title from first line (e.g. `kanban Sprint 12`)
     if (!contentStarted && !currentTagGroup) {
-      const chartMatch = trimmed.match(CHART_TYPE_RE);
-      if (chartMatch) {
-        const chartType = chartMatch[1].trim().toLowerCase();
-        if (chartType !== 'kanban') {
+      const firstLine = parseFirstLine(trimmed);
+      if (firstLine) {
+        if (firstLine.chartType !== 'kanban') {
           const allTypes = [
             'kanban',
             'org',
@@ -106,21 +112,15 @@ export function parseKanban(
             'line',
             'pie',
           ];
-          let msg = `Expected chart type "kanban", got "${chartType}"`;
-          const hint = suggest(chartType, allTypes);
+          let msg = `Expected chart type "kanban", got "${firstLine.chartType}"`;
+          const hint = suggest(firstLine.chartType, allTypes);
           if (hint) msg += `. ${hint}`;
           return fail(lineNumber, msg);
         }
-        continue;
-      }
-    }
-
-    // title: value
-    if (!contentStarted && !currentTagGroup) {
-      const titleMatch = trimmed.match(TITLE_RE);
-      if (titleMatch) {
-        result.title = titleMatch[1].trim();
-        result.titleLineNumber = lineNumber;
+        if (firstLine.title) {
+          result.title = firstLine.title;
+          result.titleLineNumber = lineNumber;
+        }
         continue;
       }
     }
@@ -148,27 +148,30 @@ export function parseKanban(
       }
     }
 
-    // Generic header options (key: value before content/tag groups)
+    // Generic header options (space-separated: `key value` or bare boolean `key`)
+    // Only match known option keys to avoid swallowing content lines
     if (!contentStarted && !currentTagGroup && measureIndent(line) === 0) {
-      const optMatch = trimmed.match(OPTION_RE);
+      const optMatch = trimmed.match(OPTION_NOCOLON_RE);
       if (optMatch && !COLUMN_RE.test(trimmed)) {
         const key = optMatch[1].trim().toLowerCase();
-        if (key !== 'chart' && key !== 'title') {
+        if (KNOWN_OPTIONS.has(key)) {
           result.options[key] = optMatch[2].trim();
           continue;
         }
       }
+      // Bare boolean option (single keyword, no value)
+      if (KNOWN_BOOLEANS.has(trimmed.toLowerCase()) && !COLUMN_RE.test(trimmed)) {
+        result.options[trimmed.toLowerCase()] = 'on';
+        continue;
+      }
     }
 
-    // Tag group entries (indented Value(color) [default] under tag: heading)
+    // Tag group entries (indented Value(color) under tag heading)
+    // First entry is implicitly the default.
     if (currentTagGroup && !contentStarted) {
       const indent = measureIndent(line);
       if (indent > 0) {
-        const isDefault = /\bdefault\s*$/.test(trimmed);
-        const entryText = isDefault
-          ? trimmed.replace(/\s+default\s*$/, '').trim()
-          : trimmed;
-        const { label, color } = extractColor(entryText, palette);
+        const { label, color } = extractColor(trimmed, palette);
         if (!color) {
           warn(
             lineNumber,
@@ -176,7 +179,8 @@ export function parseKanban(
           );
           continue;
         }
-        if (isDefault) {
+        // First entry is the default
+        if (currentTagGroup.entries.length === 0) {
           currentTagGroup.defaultValue = label;
         }
         currentTagGroup.entries.push({

@@ -1,11 +1,46 @@
 import { describe, it, expect } from 'vitest';
 import { parseDgmoChartType, looksLikeGantt, looksLikeC4 } from '../src/dgmo-router';
 
+describe('parseDgmoChartType — explicit declaration', () => {
+  it('recognizes bare chart type on first line (new syntax)', () => {
+    expect(parseDgmoChartType('gantt\n10bd Task')).toBe('gantt');
+    expect(parseDgmoChartType('sequence\nA -> B')).toBe('sequence');
+    expect(parseDgmoChartType('bar\nQ1 150')).toBe('bar');
+    expect(parseDgmoChartType('initiative-status\nFoo | done')).toBe('initiative-status');
+  });
+
+  it('recognizes chart type with title (new syntax)', () => {
+    expect(parseDgmoChartType('gantt Product Launch 2026\n10bd Task')).toBe('gantt');
+    expect(parseDgmoChartType('sequence My Flow\nA -> B')).toBe('sequence');
+  });
+
+  it('still recognizes old chart: syntax', () => {
+    expect(parseDgmoChartType('chart: gantt\n10bd: Task A')).toBe('gantt');
+    expect(parseDgmoChartType('chart: sequence')).toBe('sequence');
+    expect(parseDgmoChartType('chart: bar')).toBe('bar');
+  });
+
+  it('skips leading comments', () => {
+    expect(parseDgmoChartType('// comment\ngantt\n10bd Task')).toBe('gantt');
+    expect(parseDgmoChartType('// comment\nchart: sequence')).toBe('sequence');
+  });
+
+  it('is case-insensitive', () => {
+    expect(parseDgmoChartType('Gantt\n10bd Task')).toBe('gantt');
+    expect(parseDgmoChartType('SEQUENCE\nA -> B')).toBe('sequence');
+  });
+});
+
 describe('parseDgmoChartType inference', () => {
   // === Gantt inference ===
   describe('gantt', () => {
-    it('detects gantt from duration patterns', () => {
+    it('detects gantt from duration patterns (old colon syntax)', () => {
       const content = '10bd: Task A\n5d: Task B';
+      expect(parseDgmoChartType(content)).toBe('gantt');
+    });
+
+    it('detects gantt from duration patterns (new syntax)', () => {
+      const content = '10bd Task A\n5d Task B';
       expect(parseDgmoChartType(content)).toBe('gantt');
     });
 
@@ -14,8 +49,13 @@ describe('parseDgmoChartType inference', () => {
       expect(parseDgmoChartType(content)).toBe('gantt');
     });
 
-    it('detects gantt from date patterns', () => {
+    it('detects gantt from date patterns (old syntax)', () => {
       const content = '2025-01-15: Launch\n2025-02-01: Review';
+      expect(parseDgmoChartType(content)).toBe('gantt');
+    });
+
+    it('detects gantt from date patterns (new syntax)', () => {
+      const content = '2025-01-15 Launch\n2025-02-01 Review';
       expect(parseDgmoChartType(content)).toBe('gantt');
     });
   });
@@ -47,16 +87,27 @@ describe('parseDgmoChartType inference', () => {
 });
 
 describe('looksLikeGantt', () => {
-  it('returns true for duration lines', () => {
+  it('returns true for duration lines (old colon syntax)', () => {
     expect(looksLikeGantt('10bd: Task A')).toBe(true);
     expect(looksLikeGantt('5d: Task B')).toBe(true);
     expect(looksLikeGantt('1.5w: Design')).toBe(true);
     expect(looksLikeGantt('2h: Meeting')).toBe(true);
   });
 
-  it('returns true for date lines', () => {
+  it('returns true for duration lines (new syntax)', () => {
+    expect(looksLikeGantt('10bd Task A')).toBe(true);
+    expect(looksLikeGantt('5d Task B')).toBe(true);
+    expect(looksLikeGantt('1.5w Design')).toBe(true);
+    expect(looksLikeGantt('2h Meeting')).toBe(true);
+  });
+
+  it('returns true for date lines (old syntax)', () => {
     expect(looksLikeGantt('2025-01-15: Launch')).toBe(true);
     expect(looksLikeGantt('2025-01-15 14:00: Meeting')).toBe(true);
+  });
+
+  it('returns true for date lines (new syntax)', () => {
+    expect(looksLikeGantt('2025-01-15 Launch')).toBe(true);
   });
 
   it('returns false for non-gantt content', () => {

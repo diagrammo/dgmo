@@ -8,7 +8,7 @@ import { collapseOrgTree } from '../src/org/collapse';
 
 describe('collapseOrgTree', () => {
   it('returns identical result for empty collapsed set', () => {
-    const parsed = parseOrg('chart: org\nAlice\n  Bob\n  Carol');
+    const parsed = parseOrg('org\nAlice\n  Bob\n  Carol');
     const { parsed: result, hiddenCounts } = collapseOrgTree(
       parsed,
       new Set()
@@ -20,7 +20,7 @@ describe('collapseOrgTree', () => {
   });
 
   it('collapses node with 2 children → hiddenCount = 2', () => {
-    const parsed = parseOrg('chart: org\nAlice\n  Bob\n  Carol');
+    const parsed = parseOrg('org\nAlice\n  Bob\n  Carol');
     const aliceId = parsed.roots[0].id;
 
     const { parsed: result, hiddenCounts } = collapseOrgTree(
@@ -33,7 +33,7 @@ describe('collapseOrgTree', () => {
   });
 
   it('collapses node with nested descendants → counts all nodes', () => {
-    const content = `chart: org
+    const content = `org
 Alice
   Bob
     Charlie
@@ -49,7 +49,7 @@ Alice
   });
 
   it('collapses intermediate node → only counts its subtree', () => {
-    const content = `chart: org
+    const content = `org
 Alice
   Bob
     Charlie
@@ -74,7 +74,7 @@ Alice
   });
 
   it('collapses container → hides children', () => {
-    const content = `chart: org
+    const content = `org
 [Engineering]
   Alice
   Bob`;
@@ -91,7 +91,7 @@ Alice
   });
 
   it('handles multiple collapsed nodes independently', () => {
-    const content = `chart: org
+    const content = `org
 Alice
   Bob
     Charlie
@@ -113,7 +113,7 @@ Alice
   });
 
   it('does not mutate original ParsedOrg', () => {
-    const parsed = parseOrg('chart: org\nAlice\n  Bob\n  Carol');
+    const parsed = parseOrg('org\nAlice\n  Bob\n  Carol');
     const aliceId = parsed.roots[0].id;
 
     collapseOrgTree(parsed, new Set([aliceId]));
@@ -125,7 +125,7 @@ Alice
   });
 
   it('leaf node in collapsed set → no-op', () => {
-    const parsed = parseOrg('chart: org\nAlice\n  Bob');
+    const parsed = parseOrg('org\nAlice\n  Bob');
     const bobId = parsed.roots[0].children[0].id;
 
     const { parsed: result, hiddenCounts } = collapseOrgTree(
@@ -141,7 +141,7 @@ Alice
   });
 
   it('preserves non-collapsed subtrees', () => {
-    const content = `chart: org
+    const content = `org
 Alice
   Bob
     Charlie
@@ -160,7 +160,7 @@ Alice
   });
 
   it('excludes containers from hidden count', () => {
-    const content = `chart: org
+    const content = `org
 Alice
   [Platform Team]
     Bob
@@ -176,7 +176,7 @@ Alice
   });
 
   it('nested collapse: parent counts all descendants from original tree', () => {
-    const content = `chart: org
+    const content = `org
 Alice
   Bob
     Charlie
@@ -197,10 +197,9 @@ Alice
   });
 
   it('preserves ParsedOrg metadata fields', () => {
-    const content = `chart: org
-title: My Org
+    const content = `org My Org
 
-tag: Location
+tag Location
   NY(blue)
 
 Alice
@@ -212,7 +211,7 @@ Alice
     const { parsed: result } = collapseOrgTree(parsed, new Set([aliceId]));
 
     expect(result.title).toBe('My Org');
-    expect(result.titleLineNumber).toBe(2);
+    expect(result.titleLineNumber).toBe(1);
     expect(result.tagGroups).toHaveLength(1);
     expect(result.error).toBeNull();
   });

@@ -50,7 +50,7 @@ describe('suggest()', () => {
 describe('sequence: multiple recoverable errors', () => {
   it('collects color deprecation warnings across group + section, continues parsing', () => {
     const content = [
-      'chart: sequence',
+      'sequence',
       '[Backend(#ff0000)]',
       '  API',
       '== Phase(#00ff00) ==',
@@ -69,7 +69,7 @@ describe('sequence: multiple recoverable errors', () => {
 
   it('collects # comment error and continues parsing', () => {
     const content = [
-      'chart: sequence',
+      'sequence',
       '# this is wrong',
       'User -request-> API',
     ].join('\n');
@@ -84,7 +84,7 @@ describe('sequence: multiple recoverable errors', () => {
 
   it('collects duplicate group membership and continues', () => {
     const content = [
-      'chart: sequence',
+      'sequence',
       '[Frontend]',
       '  User',
       '',
@@ -104,9 +104,9 @@ describe('sequence: multiple recoverable errors', () => {
 
   it('collects options-after-content error and continues', () => {
     const content = [
-      'chart: sequence',
+      'sequence',
       'User -request-> API',
-      'activations: off',
+      'no-activations',
       'API -query-> DB',
     ].join('\n');
 
@@ -120,7 +120,7 @@ describe('sequence: multiple recoverable errors', () => {
 
   it('collects async prefix error and continues', () => {
     const content = [
-      'chart: sequence',
+      'sequence',
       'async User -request-> API',
       'API -query-> DB',
     ].join('\n');
@@ -141,7 +141,7 @@ describe('sequence: multiple recoverable errors', () => {
 describe('org: multiple recoverable errors', () => {
   it('collects deprecated ## syntax errors and continues parsing', () => {
     const content = [
-      'chart: org',
+      'org',
       '## Department',
       '  Engineering',
       '  Sales',
@@ -164,7 +164,7 @@ describe('org: multiple recoverable errors', () => {
 
   it('collects metadata-without-parent error and continues', () => {
     const content = [
-      'chart: org',
+      'org',
       '    role: Engineer',
       'Alice',
     ].join('\n');
@@ -184,20 +184,20 @@ describe('org: multiple recoverable errors', () => {
 
 describe('chart type suggestions in error messages', () => {
   it('suggests correct chart type for misspellings', () => {
-    const result = parseChart('chart: bra\nFoo: 1');
+    const result = parseChart('bra\nFoo: 1');
     expect(result.error).toBeDefined();
     expect(result.error).toContain('bar');
     expect(result.diagnostics[0].message).toContain("Did you mean 'bar'?");
   });
 
   it('suggests echart type for misspellings', () => {
-    const result = parseExtendedChart('chart: scater\nA: 1, 2');
+    const result = parseExtendedChart('scater\nA: 1, 2');
     expect(result.error).toBeDefined();
     expect(result.diagnostics[0].message).toContain("Did you mean 'scatter'?");
   });
 
   it('suggests d3 type for misspellings', () => {
-    const result = parseVisualization('chart: slop\nA, B\nX: 1, 2');
+    const result = parseVisualization('slop\nA, B\nX: 1, 2');
     expect(result.error).toBeDefined();
     expect(result.diagnostics[0].message).toContain("Did you mean 'slope'?");
   });
@@ -210,7 +210,7 @@ describe('chart type suggestions in error messages', () => {
 describe('venn: recoverable overlap errors', () => {
   it('collects unknown set reference and skips bad overlap', () => {
     const content = [
-      'chart: venn',
+      'venn',
       'Math',
       'Science',
       'Math + Typo: Shared',
@@ -234,34 +234,34 @@ describe('venn: recoverable overlap errors', () => {
 
 describe('parseDgmo()', () => {
   it('returns diagnostics for sequence diagrams', () => {
-    const { diagnostics } = parseDgmo('chart: sequence\n# bad comment\nA -msg-> B');
+    const { diagnostics } = parseDgmo('sequence\n# bad comment\nA -msg-> B');
     const errors = diagnostics.filter((d) => d.severity === 'error');
     expect(errors.length).toBeGreaterThanOrEqual(1);
     expect(errors[0].message).toContain('Use //');
   });
 
   it('returns diagnostics for chart type errors', () => {
-    const { diagnostics } = parseDgmo('chart: bra\nFoo: 1');
+    const { diagnostics } = parseDgmo('bra\nFoo: 1');
     const errors = diagnostics.filter((d) => d.severity === 'error');
     expect(errors.length).toBeGreaterThanOrEqual(1);
     expect(errors[0].message).toContain('Unsupported chart type');
   });
 
   it('returns empty diagnostics for valid input', () => {
-    const { diagnostics } = parseDgmo('chart: bar\nFoo: 1\nBar: 2');
+    const { diagnostics } = parseDgmo('bar\nFoo: 1\nBar: 2');
     const errors = diagnostics.filter((d) => d.severity === 'error');
     expect(errors).toHaveLength(0);
   });
 
   it('returns diagnostics for org errors', () => {
-    const { diagnostics } = parseDgmo('chart: org\n    role: Engineer\nAlice');
+    const { diagnostics } = parseDgmo('org\n    role: Engineer\nAlice');
     const errors = diagnostics.filter((d) => d.severity === 'error');
     expect(errors).toHaveLength(1);
     expect(errors[0].message).toContain('parent node');
   });
 
   it('returns warnings for missing data', () => {
-    const { diagnostics } = parseDgmo('chart: bar');
+    const { diagnostics } = parseDgmo('bar');
     const warnings = diagnostics.filter((d) => d.severity === 'warning');
     expect(warnings.length).toBeGreaterThanOrEqual(1);
   });

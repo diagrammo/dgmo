@@ -1,5 +1,4 @@
-chart: initiative-status
-title: Operation Blackbeard
+initiative-status Operation Blackbeard
 
 Captain | na
   -issueOrders-> CrewApp | na

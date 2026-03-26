@@ -51,9 +51,9 @@ const palette = getPalette('nord');
 
 describe('rollUpContextRelationships', () => {
   it('rolls up container→system relationships to system-to-system', () => {
-    const input = `chart: c4
+    const input = `c4
 Banking is a system
-  containers:
+  containers
   WebApp is a container
     -Serves-> Customer
 Customer is a person`;
@@ -66,9 +66,9 @@ Customer is a person`;
   });
 
   it('skips internal relationships (same system)', () => {
-    const input = `chart: c4
+    const input = `c4
 Banking is a system
-  containers:
+  containers
   WebApp is a container
     -calls-> API
   API is a container`;
@@ -79,9 +79,9 @@ Banking is a system
   });
 
   it('deduplicates rolled-up relationships', () => {
-    const input = `chart: c4
+    const input = `c4
 Banking is a system
-  containers:
+  containers
   WebApp is a container
     -Serves-> Customer
   MobileApp is a container
@@ -97,10 +97,10 @@ Customer is a person`;
   });
 
   it('explicit system-level rels override rolled-up ones', () => {
-    const input = `chart: c4
+    const input = `c4
 Banking is a system
   -Main relationship-> Customer
-  containers:
+  containers
   WebApp is a container
     -Inner call-> Customer
 Customer is a person`;
@@ -112,9 +112,9 @@ Customer is a person`;
   });
 
   it('preserves arrow type through roll-up', () => {
-    const input = `chart: c4
+    const input = `c4
 Banking is a system
-  containers:
+  containers
   WebApp is a container
     ~Async notification~> Customer
 Customer is a person`;
@@ -126,7 +126,7 @@ Customer is a person`;
   });
 
   it('handles sync arrows in roll-up', () => {
-    const input = `chart: c4
+    const input = `c4
 Banking is a system
   -Syncs-> Payment
 Payment is a system`;
@@ -144,7 +144,7 @@ Payment is a system`;
 
 describe('computeC4NodeDimensions', () => {
   it('computes positive dimensions for a basic element', () => {
-    const input = `chart: c4
+    const input = `c4
 Banking is a system`;
     const parsed = parseC4(input, palette.light);
     const el = parsed.elements[0];
@@ -155,9 +155,9 @@ Banking is a system`;
   });
 
   it('accounts for description in height', () => {
-    const noDesc = `chart: c4
+    const noDesc = `c4
 Banking is a system`;
-    const withDesc = `chart: c4
+    const withDesc = `c4
 Banking is a system | description: Handles all banking operations for customers`;
 
     const parsedNoDesc = parseC4(noDesc, palette.light);
@@ -176,10 +176,10 @@ Banking is a system | description: Handles all banking operations for customers`
 
 describe('layoutC4Context', () => {
   it('filters to person and system elements only', () => {
-    const input = `chart: c4
+    const input = `c4
 Customer is a person
 Banking is a system
-  containers:
+  containers
   WebApp is a container`;
     const parsed = parseC4(input, palette.light);
     const layout = layoutC4Context(parsed);
@@ -190,7 +190,7 @@ Banking is a system
   });
 
   it('computes positive dimensions', () => {
-    const input = `chart: c4
+    const input = `c4
 Customer is a person
 Banking is a system
   -Serves-> Customer`;
@@ -203,7 +203,7 @@ Banking is a system
   });
 
   it('handles empty input', () => {
-    const input = `chart: c4`;
+    const input = `c4`;
     const parsed = parseC4(input, palette.light);
     const layout = layoutC4Context(parsed);
 
@@ -214,7 +214,7 @@ Banking is a system
   });
 
   it('produces edges for valid relationships', () => {
-    const input = `chart: c4
+    const input = `c4
 Customer is a person
 Banking is a system
   -Serves-> Customer`;
@@ -228,7 +228,7 @@ Banking is a system
   });
 
   it('carries lineNumber on nodes', () => {
-    const input = `chart: c4
+    const input = `c4
 Customer is a person
 Banking is a system`;
     const parsed = parseC4(input, palette.light);
@@ -245,8 +245,7 @@ Banking is a system`;
 // ============================================================
 
 describe('renderC4Context', () => {
-  const basicInput = `chart: c4
-title: System Context
+  const basicInput = `c4 System Context
 Customer is a person
 Banking is a system
   -Serves-> Customer`;
@@ -300,7 +299,7 @@ Banking is a system
   });
 
   it('uses dashed stroke for async edges', () => {
-    const input = `chart: c4
+    const input = `c4
 Customer is a person
 Notifications is a system
   ~Sends email~> Customer`;
@@ -323,7 +322,7 @@ Notifications is a system
   });
 
   it('renders person icon for person nodes', () => {
-    const input = `chart: c4
+    const input = `c4
 Customer is a person`;
     const parsed = parseC4(input, palette.light);
     const layout = layoutC4Context(parsed);
@@ -371,7 +370,7 @@ Customer is a person`;
 // ============================================================
 
 describe('renderC4ContextForExport', () => {
-  const basicInput = `chart: c4
+  const basicInput = `c4
 Customer is a person
 Banking is a system
   -Serves-> Customer`;
@@ -393,7 +392,7 @@ Banking is a system
   }
 
   it('returns empty string for empty input', () => {
-    const svg = renderC4ContextForExport('chart: c4', 'light', palette.light);
+    const svg = renderC4ContextForExport('c4', 'light', palette.light);
     expect(svg).toBe('');
   });
 
@@ -407,10 +406,9 @@ Banking is a system
 // layoutC4Containers
 // ============================================================
 
-const containerInput = `chart: c4
-title: Container View
+const containerInput = `c4 Container View
 
-tag: Technology alias tech
+tag Technology alias tech
   React(blue)
   Node.js(green)
   PostgreSQL(purple)
@@ -419,7 +417,7 @@ tag: Technology alias tech
 Customer is a person
 Banking is a system | description: Internet banking system
   -Serves-> Customer
-  containers:
+  containers
     WebApp is a container | tech: React, description: SPA frontend
       -Calls-> API | tech: JSON/HTTPS
       -Serves UI to-> Customer | tech: HTTPS
@@ -505,7 +503,7 @@ describe('layoutC4Containers', () => {
   });
 
   it('returns empty result for system with no containers', () => {
-    const input = `chart: c4
+    const input = `c4
 Simple is a system | description: No containers`;
     const parsed = parseC4(input, palette.light);
     const layout = layoutC4Containers(parsed, 'Simple');
@@ -707,9 +705,9 @@ describe('renderC4ContainersForExport', () => {
 
 describe('computeC4NodeDimensions with technology', () => {
   it('accounts for technology in height when showTechnology is true', () => {
-    const input = `chart: c4
+    const input = `c4
 Banking is a system
-  containers:
+  containers
   API is a container | tech: Node.js, description: REST API`;
 
     const parsed = parseC4(input, palette.light);
@@ -734,9 +732,9 @@ Banking is a system
 
 describe('is a shape override in container layout', () => {
   it('renders is-a shape override correctly', () => {
-    const input = `chart: c4
+    const input = `c4
 Platform is a system
-  containers:
+  containers
   MessageBus is a container is a queue | description: Event backbone`;
 
     const parsed = parseC4(input, palette.light);
@@ -754,9 +752,9 @@ Platform is a system
 
 describe('reverse relationship discovery', () => {
   it('includes external systems that target containers', () => {
-    const input = `chart: c4
+    const input = `c4
 Banking is a system
-  containers:
+  containers
   API is a container | description: Backend
 Monitoring is a system | description: Watches services
   -Health checks-> API`;
@@ -777,9 +775,9 @@ Monitoring is a system | description: Watches services
 
 describe('containers in groups', () => {
   it('collects containers from groups', () => {
-    const input = `chart: c4
+    const input = `c4
 Analytics is a system
-  containers:
+  containers
     [Frontend]
       Dashboard is a container | description: SPA
       Admin is a container | description: Admin panel
@@ -797,19 +795,18 @@ Analytics is a system
 // Component-Level Tests
 // ============================================================
 
-const componentInput = `chart: c4
-title: Component View
+const componentInput = `c4 Component View
 
-tag: Technology alias tech
+tag Technology alias tech
   Spring(green)
   React(blue)
   PostgreSQL(purple)
 
 Customer is a person
 Ride Platform is a system | description: Ride-sharing platform
-  containers:
+  containers
     Ride Service is a container | tech: Spring, description: Core ride logic
-      components:
+      components
         Ride Controller is a component | tech: Spring, description: REST endpoints
           -Delegates to-> Ride Manager
           -Sends ride status-> Customer | tech: WebSocket
@@ -923,9 +920,9 @@ describe('layoutC4Components', () => {
   });
 
   it('returns empty result for container with no components', () => {
-    const input = `chart: c4
+    const input = `c4
 Platform is a system
-  containers:
+  containers
     Simple is a container | description: No components`;
     const parsed = parseC4(input, palette.light);
     const layout = layoutC4Components(parsed, 'Platform', 'Simple');
@@ -1061,10 +1058,9 @@ describe('renderC4ComponentsForExport', () => {
 // Group Boundaries
 // ============================================================
 
-const groupedContainerInput = `chart: c4
-title: Grouped Containers
+const groupedContainerInput = `c4 Grouped Containers
 Analytics is a system | description: Analytics platform
-  containers:
+  containers
     [Frontend]
       Dashboard is a container | description: SPA
       Admin is a container | description: Admin panel
@@ -1163,11 +1159,11 @@ describe('group boundaries in container layout', () => {
   });
 });
 
-const groupedComponentInput = `chart: c4
+const groupedComponentInput = `c4
 Platform is a system | description: Platform
-  containers:
+  containers
     Service is a container | description: Main service
-      components:
+      components
         [Controllers]
           UserCtrl is a component | description: User endpoints
           OrderCtrl is a component | description: Order endpoints

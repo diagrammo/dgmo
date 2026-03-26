@@ -1,14 +1,13 @@
-chart: initiative-status
-title: Enterprise Platform Modernization — Stress Test
+initiative-status Enterprise Platform Modernization — Stress Test
 
-tag: Phase alias p
+tag Phase p
+  Maintenance(purple)
   Discovery(green)
   Design(blue)
   Build(orange)
   Launch(red)
-  Maintenance(purple) default
 
-tag: Team alias t
+tag Team t
   Frontend(blue)
   Backend(green)
   Platform(teal)
@@ -16,10 +15,10 @@ tag: Team alias t
   Security(red)
   DevOps(orange)
 
-tag: Priority alias pri
+tag Priority pri
+  P2(blue)
   P0(red)
   P1(orange)
-  P2(blue) default
 
 // ── Identity & Access ───────────────────────────────────────
 

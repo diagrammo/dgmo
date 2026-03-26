@@ -6,7 +6,7 @@ import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
 import type { DgmoError } from '../diagnostics';
 import type { TagGroup, TagEntry } from '../utils/tag-groups';
 import { matchTagBlockHeading } from '../utils/tag-groups';
-import { measureIndent, extractColor, parsePipeMetadata, MULTIPLE_PIPE_WARNING } from '../utils/parsing';
+import { measureIndent, extractColor, parsePipeMetadata, MULTIPLE_PIPE_WARNING, parseFirstLine, prescanOptions, GROUP_HASH_RE } from '../utils/parsing';
 import { parseOffset } from '../utils/duration';
 import type { PaletteColors } from '../palettes';
 import { resolveColor } from '../colors';
@@ -30,14 +30,14 @@ import type {
 
 // ── Regexes ─────────────────────────────────────────────────
 
-/** Duration task: `30d: Label`, `1.5w: Label`, `10bd?: Label`, `2h: Label`, `90min: Label` */
-const DURATION_RE = /^(\d+(?:\.\d+)?)(min|bd|d|w|m|q|y|h)(\?)?:\s*(.+)$/;
+/** Duration task: `30d Label`, `1.5w Label`, `10bd? Label`, `2h Label`, `90min Label` */
+const DURATION_RE = /^(\d+(?:\.\d+)?)(min|bd|d|w|m|q|y|h)(\?)?\s+(.+)$/;
 
-/** Explicit date task: `2024-01-15: Label` or `2024-01-15 14:30: Label` */
-const EXPLICIT_DATE_RE = /^(\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2})?):\s*(.+)$/;
+/** Explicit date task: `2024-01-15 Label` or `2024-01-15 14:30 Label` */
+const EXPLICIT_DATE_RE = /^(\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2})?)\s+(.+)$/;
 
-/** Timeline migration syntax: `2024-01-15 -> 30d: Label` or `2024-01-15 14:30 -> 2h: Label` */
-const TIMELINE_DURATION_RE = /^(\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2})?)\s*->\s*(\d+(?:\.\d+)?)(min|bd|d|w|m|q|y|h)(\?)?:\s*(.+)$/;
+/** Timeline migration syntax: `2024-01-15 -> 30d Label` or `2024-01-15 14:30 -> 2h Label` */
+const TIMELINE_DURATION_RE = /^(\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2})?)\s*->\s*(\d+(?:\.\d+)?)(min|bd|d|w|m|q|y|h)(\?)?\s+(.+)$/;
 
 /** Group container: `[GroupName]` with optional pipe metadata */
 const GROUP_RE = /^\[(.+?)\]\s*(.*)$/;
@@ -48,26 +48,20 @@ const DEPENDENCY_RE = /^(?:-(.+?))?->\s*(.+)$/;
 /** Comment line */
 const COMMENT_RE = /^\/\//;
 
-/** Era: `era YYYY[-MM[-DD[ HH:MM]]] -> YYYY[-MM[-DD[ HH:MM]]]: Label (color?)` */
-const ERA_RE = /^era\s+(\d{4}(?:-\d{2}(?:-\d{2}(?: \d{2}:\d{2})?)?)?)\s*->\s*(\d{4}(?:-\d{2}(?:-\d{2}(?: \d{2}:\d{2})?)?)?)\s*:\s*(.+)$/i;
+/** Era: `era YYYY[-MM[-DD[ HH:MM]]] -> YYYY[-MM[-DD[ HH:MM]]] Label (color?)` */
+const ERA_RE = /^era\s+(\d{4}(?:-\d{2}(?:-\d{2}(?: \d{2}:\d{2})?)?)?)\s*->\s*(\d{4}(?:-\d{2}(?:-\d{2}(?: \d{2}:\d{2})?)?)?)\s+(.+)$/i;
 
-/** Marker: `marker: YYYY[-MM[-DD[ HH:MM]]] Label (color?)` */
-const MARKER_RE = /^marker:\s+(\d{4}(?:-\d{2}(?:-\d{2}(?: \d{2}:\d{2})?)?)?)\s+(.+)$/i;
+/** Marker: `marker YYYY[-MM[-DD[ HH:MM]]] Label (color?)` */
+const MARKER_RE = /^marker\s+(\d{4}(?:-\d{2}(?:-\d{2}(?: \d{2}:\d{2})?)?)?)\s+(.+)$/i;
 
-/** Holiday date: `2024-01-15: Label` */
-const HOLIDAY_DATE_RE = /^(\d{4}-\d{2}-\d{2}):\s*(.+)$/;
+/** Holiday date: `2024-01-15 Label` */
+const HOLIDAY_DATE_RE = /^(\d{4}-\d{2}-\d{2})\s+(.+)$/;
 
-/** Holiday range: `2024-12-24 -> 2024-12-31: Label` */
-const HOLIDAY_RANGE_RE = /^(\d{4}-\d{2}-\d{2})\s*->\s*(\d{4}-\d{2}-\d{2}):\s*(.+)$/;
+/** Holiday range: `2024-12-24 -> 2024-12-31 Label` */
+const HOLIDAY_RANGE_RE = /^(\d{4}-\d{2}-\d{2})\s*->\s*(\d{4}-\d{2}-\d{2})\s+(.+)$/;
 
-/** Workweek override: `workweek: sun-thu` */
-const WORKWEEK_RE = /^workweek:\s*(.+)$/i;
-
-/** chart: gantt */
-const CHART_TYPE_RE = /^chart\s*:\s*(.+)/i;
-
-/** Option lines */
-const OPTION_RE = /^([a-z][a-z0-9-]*)\s*:\s*(.+)$/i;
+/** Workweek override: `workweek sun-thu` */
+const WORKWEEK_RE = /^workweek\s+(.+)$/i;
 
 // Valid weekday names
 const WEEKDAY_MAP: Record<string, Weekday> = {
@@ -103,7 +97,7 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
       titleLineNumber: null,
       todayMarker: 'off',
       criticalPath: false,
-      dependencies: false,
+      dependencies: true,
       sort: 'default',
       defaultSwimlaneGroup: null,
       optionLineNumbers: {},
@@ -192,14 +186,19 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
 
     // ── Chart type ────────────────────────────────────────
 
-    const chartTypeMatch = line.match(CHART_TYPE_RE);
-    if (chartTypeMatch) {
-      const type = chartTypeMatch[1].trim().toLowerCase();
-      if (type !== 'gantt') {
-        return fail(lineNumber, `Expected chart type "gantt", got "${type}"`);
+    if (!seenChartType) {
+      const firstLineResult = parseFirstLine(line);
+      if (firstLineResult) {
+        if (firstLineResult.chartType !== 'gantt') {
+          return fail(lineNumber, `Expected chart type "gantt", got "${firstLineResult.chartType}"`);
+        }
+        seenChartType = true;
+        if (firstLineResult.title) {
+          result.options.title = firstLineResult.title;
+          result.options.titleLineNumber = lineNumber;
+        }
+        continue;
       }
-      seenChartType = true;
-      continue;
     }
 
     // ── Holidays block ────────────────────────────────────
@@ -260,22 +259,18 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
         currentTagGroup = null;
         // fall through to process this line normally
       } else {
-        // Parse tag entry: `Value(color)` or `Value` with optional `default` suffix
+        // Parse tag entry: `Value(color)` or `Value`
+        // First entry is the default (no `default` keyword needed)
         if (COMMENT_RE.test(line)) continue;
-        let entryLine = line;
-        let isDefault = false;
-        if (entryLine.endsWith(' default') || entryLine.endsWith('\tdefault')) {
-          isDefault = true;
-          entryLine = entryLine.replace(/\s+default$/, '').trim();
-        }
-        const extracted = extractColor(entryLine, palette);
+        const extracted = extractColor(line, palette);
         const color = extracted.color || seriesColors[currentTagGroup.entries.length % seriesColors.length] || '#888888';
+        const isFirstEntry = currentTagGroup.entries.length === 0;
         currentTagGroup.entries.push({
           value: extracted.label,
           color,
           lineNumber,
         });
-        if (isDefault) {
+        if (isFirstEntry) {
           currentTagGroup.defaultValue = extracted.label;
         }
         continue;
@@ -350,7 +345,7 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
 
     // ── Header options ────────────────────────────────────
 
-    if (line.toLowerCase() === 'holidays') {
+    if (line.toLowerCase() === 'holiday' || line.toLowerCase() === 'holidays') {
       inHolidaysBlock = true;
       holidaysBlockIndent = indent;
       inHeaderBlock = false;
@@ -358,11 +353,24 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
       continue;
     }
 
+    // Single-line holiday: `holiday 2024-12-25 Christmas`
+    const holidayInlineMatch = line.match(/^holiday\s+(\d{4}-\d{2}-\d{2})\s+(.+)$/i);
+    if (holidayInlineMatch) {
+      result.holidays.dates.push({
+        date: holidayInlineMatch[1],
+        label: holidayInlineMatch[2].trim(),
+        lineNumber,
+      });
+      result.options.holidaysLineNumber ??= lineNumber;
+      inHeaderBlock = false;
+      continue;
+    }
+
     // Tag block heading
     const tagMatch = matchTagBlockHeading(line);
     if (tagMatch) {
       if (tagMatch.deprecated) {
-        softError(lineNumber, `'## ${tagMatch.name}' is no longer supported — use 'tag: ${tagMatch.name}' instead`);
+        softError(lineNumber, `'## ${tagMatch.name}' is no longer supported — use 'tag ${tagMatch.name}' instead`);
         continue;
       }
       inTagBlock = true;
@@ -411,11 +419,49 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
       continue;
     }
 
-    // Options (start, title, orientation, etc.)
-    const optMatch = line.match(OPTION_RE);
-    if (optMatch && isKnownOption(optMatch[1].toLowerCase())) {
-      const key = optMatch[1].toLowerCase();
-      const value = optMatch[2].trim();
+    // Options — space-separated: `start 2024-04-01`, `title My Plan`
+    // Boolean options: bare keyword = on, `no-X` = off
+    const optNoColonMatch = line.match(/^([a-z][a-z0-9-]*)\s+(.+)$/i);
+    const bareKeyword = line.match(/^([a-z][a-z0-9-]*)$/i);
+
+    // Bare boolean keywords
+    if (bareKeyword && KNOWN_BOOLEANS.has(bareKeyword[1].toLowerCase())) {
+      const key = bareKeyword[1].toLowerCase();
+      result.options.optionLineNumbers[key] = lineNumber;
+      switch (key) {
+        case 'critical-path':
+          result.options.criticalPath = true;
+          break;
+        case 'today-marker':
+          result.options.todayMarker = 'on';
+          break;
+      }
+      continue;
+    }
+
+    // Negated booleans: `no-dependencies`, `no-critical-path`
+    if (bareKeyword && bareKeyword[1].toLowerCase().startsWith('no-')) {
+      const base = bareKeyword[1].toLowerCase().substring(3);
+      if (KNOWN_BOOLEANS.has(base)) {
+        result.options.optionLineNumbers[base] = lineNumber;
+        switch (base) {
+          case 'dependencies':
+            result.options.dependencies = false;
+            break;
+          case 'critical-path':
+            result.options.criticalPath = false;
+            break;
+          case 'today-marker':
+            result.options.todayMarker = 'off';
+            break;
+        }
+        continue;
+      }
+    }
+
+    if (optNoColonMatch && isKnownOption(optNoColonMatch[1].toLowerCase())) {
+      const key = optNoColonMatch[1].toLowerCase();
+      const value = optNoColonMatch[2].trim();
       result.options.optionLineNumbers[key] = lineNumber;
 
       switch (key) {
@@ -430,19 +476,18 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
           warn(lineNumber, `'orientation' is not supported for gantt charts`);
           break;
         case 'today-marker':
-          if (value === 'on' || value === 'off') {
-            result.options.todayMarker = value;
-          } else if (/^\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2})?$/.test(value)) {
+          if (/^\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2})?$/.test(value)) {
             result.options.todayMarker = value;
           } else {
-            warn(lineNumber, `Invalid today-marker value: "${value}". Expected "on", "off", or YYYY-MM-DD.`);
+            warn(lineNumber, `Invalid today-marker value: "${value}". Expected YYYY-MM-DD.`);
           }
           break;
         case 'critical-path':
-          result.options.criticalPath = value === 'on';
+          result.options.criticalPath = true;
           break;
         case 'dependencies':
-          result.options.dependencies = value === 'on';
+          // Boolean with value — but `dependencies` is now default ON, so only `no-dependencies` turns it off
+          result.options.dependencies = true;
           break;
         case 'sort':
           if (value === 'tag' || value.startsWith('tag:')) {
@@ -460,6 +505,29 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
     }
 
     inHeaderBlock = false;
+
+    // ── `# Group` alternate syntax ──────────────────────────
+
+    const hashGroupMatch = line.match(GROUP_HASH_RE);
+    if (hashGroupMatch) {
+      const nameExtracted = extractColor(hashGroupMatch[1], palette);
+      const group: GanttGroup = {
+        name: nameExtracted.label,
+        color: nameExtracted.color || null,
+        metadata: {},
+        lineNumber,
+        children: [],
+      };
+      const groupNode: GanttNode = { kind: 'group', ...group };
+      currentContainer().push(groupNode);
+      blockStack.push({
+        node: groupNode as GanttGroup,
+        indent,
+        containerType: 'group',
+      });
+      lastTaskNode = null;
+      continue;
+    }
 
     // ── Parallel block ────────────────────────────────────
 
@@ -618,7 +686,7 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
 
     // ── Bare label = parse error ──────────────────────────
 
-    softError(lineNumber, `Expected duration (e.g., "10d: Task"), group brackets (e.g., "[Group]"), or keyword. Got: "${line}"`);
+    softError(lineNumber, `Expected duration (e.g., "10d Task"), group brackets (e.g., "[Group]"), or keyword. Got: "${line}"`);
     continue;
   }
 
@@ -633,7 +701,7 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
 
   // Validate sort: tag requires tag groups
   if (result.options.sort === 'tag' && result.tagGroups.length === 0) {
-    warn(0, 'sort: tag has no effect — no tag groups defined.');
+    warn(0, 'sort tag has no effect — no tag groups defined.');
     result.options.sort = 'default';
   }
 
@@ -767,6 +835,11 @@ function parseWorkweek(s: string): Weekday[] | null {
 const KNOWN_OPTIONS = new Set([
   'start', 'title', 'orientation', 'today-marker',
   'critical-path', 'dependencies', 'chart', 'sort',
+]);
+
+/** Boolean options that can appear as bare keywords or with `no-` prefix. */
+const KNOWN_BOOLEANS = new Set([
+  'critical-path', 'today-marker', 'dependencies',
 ]);
 
 function isKnownOption(key: string): boolean {

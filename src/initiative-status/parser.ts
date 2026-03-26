@@ -15,7 +15,7 @@ import { VALID_STATUSES, STATUS_ALIASES } from './types';
 import { inferParticipantType } from '../sequence/participant-inference';
 import { matchTagBlockHeading, injectDefaultTagMetadata, validateTagValues } from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
-import { extractColor } from '../utils/parsing';
+import { extractColor, parseFirstLine, ALL_CHART_TYPES, OPTION_NOCOLON_RE } from '../utils/parsing';
 
 // ============================================================
 // Heuristic — does this content look like an initiative-status diagram?
@@ -35,6 +35,8 @@ export function looksLikeInitiativeStatus(content: string): boolean {
     if (!trimmed || trimmed.startsWith('//')) continue;
     if (trimmed.match(/^chart\s*:/i)) continue;
     if (trimmed.match(/^title\s*:/i)) continue;
+    // Skip new-style first line (bare chart type name)
+    if (parseFirstLine(trimmed)) continue;
     if (trimmed.includes('->')) hasArrow = true;
     if (/\|\s*(done|doing|wip|blocked|paused|waiting|todo|na)\s*$/i.test(trimmed)) hasStatus = true;
     // Indented arrow is a strong signal — only initiative-status uses this
@@ -185,36 +187,32 @@ export function parseInitiativeStatus(content: string): ParsedInitiativeStatus {
     // Skip blanks and comments
     if (!trimmed || trimmed.startsWith('//')) continue;
 
-    // chart: header
-    const chartMatch = trimmed.match(/^chart\s*:\s*(.+)/i);
-    if (chartMatch) {
-      const chartType = chartMatch[1].trim().toLowerCase();
-      if (chartType !== 'initiative-status') {
-        const diag = makeDgmoError(lineNum, `Expected chart type "initiative-status", got "${chartType}"`);
+    // First line: chart type + optional title (new syntax: `initiative-status My Dashboard`)
+    const firstLineResult = parseFirstLine(trimmed);
+    if (firstLineResult && !contentStarted) {
+      if (firstLineResult.chartType !== 'initiative-status') {
+        const diag = makeDgmoError(lineNum, `Expected chart type "initiative-status", got "${firstLineResult.chartType}"`);
         result.diagnostics.push(diag);
         result.error = formatDgmoError(diag);
         return result;
       }
+      if (firstLineResult.title) {
+        result.title = firstLineResult.title;
+        result.titleLineNumber = lineNum;
+      }
       continue;
     }
 
-    // title: header
-    const titleMatch = trimmed.match(/^title\s*:\s*(.+)/i);
-    if (titleMatch) {
-      result.title = titleMatch[1].trim();
-      result.titleLineNumber = lineNum;
-      continue;
-    }
-
-    // hide: directive — parse before tag blocks and content
-    const hideMatch = trimmed.match(/^hide\s*:\s*(.+)/i);
-    if (hideMatch) {
+    // hide directive (no colon): `hide phase Planning, phase Review`
+    const hideMatch = trimmed.match(/^hide\s+(.+)/i);
+    if (hideMatch && !trimmed.match(/^hide\s*\|/)) {
+      // Parse comma-separated tag-value pairs: `phase Planning, phase Review`
       const pairs = hideMatch[1].split(',');
       for (const pair of pairs) {
-        const colonIdx = pair.indexOf(':');
-        if (colonIdx >= 0) {
-          const groupKey = pair.slice(0, colonIdx).trim().toLowerCase();
-          const value = pair.slice(colonIdx + 1).trim().toLowerCase();
+        const tokens = pair.trim().split(/\s+/);
+        if (tokens.length >= 2) {
+          const groupKey = tokens[0].toLowerCase();
+          const value = tokens.slice(1).join(' ').toLowerCase();
           if (groupKey && value) {
             if (!result.initialHiddenTagValues.has(groupKey)) {
               result.initialHiddenTagValues.set(groupKey, new Set());
@@ -224,6 +222,20 @@ export function parseInitiativeStatus(content: string): ParsedInitiativeStatus {
         }
       }
       continue;
+    }
+
+    // Options (space-separated, non-indented): `active-tag Priority`
+    if (!contentStarted && measureIndent(raw) === 0) {
+      const optMatch = trimmed.match(OPTION_NOCOLON_RE);
+      if (optMatch) {
+        const key = optMatch[1].toLowerCase();
+        const value = optMatch[2].trim();
+        // Only recognize known option keys (not node content)
+        if (key === 'active-tag' || key === 'sort') {
+          result.options[key] = value;
+          continue;
+        }
+      }
     }
 
     // Tag group heading — must be checked BEFORE group/node/edge matching
@@ -237,7 +249,7 @@ export function parseInitiativeStatus(content: string): ParsedInitiativeStatus {
       }
       if (tagBlockMatch.deprecated) {
         result.diagnostics.push(
-          makeDgmoError(lineNum, `'## ${tagBlockMatch.name}' is no longer supported — use 'tag: ${tagBlockMatch.name}' instead`)
+          makeDgmoError(lineNum, `'## ${tagBlockMatch.name}' is no longer supported — use 'tag ${tagBlockMatch.name}' instead`)
         );
         continue;
       }
@@ -250,27 +262,39 @@ export function parseInitiativeStatus(content: string): ParsedInitiativeStatus {
       if (tagBlockMatch.alias) {
         aliasMap.set(tagBlockMatch.alias.toLowerCase(), tagBlockMatch.name.toLowerCase());
       }
+      // Handle inline values from single-line tag declaration
+      if (tagBlockMatch.inlineValues) {
+        for (const rawVal of tagBlockMatch.inlineValues) {
+          const { label, color } = extractColor(rawVal);
+          currentTagGroup.entries.push({
+            value: label,
+            color: color ?? '',
+            lineNumber: lineNum,
+          });
+        }
+        // First entry is the default
+        if (currentTagGroup.entries.length > 0) {
+          currentTagGroup.defaultValue = currentTagGroup.entries[0].value;
+        }
+      }
       result.tagGroups.push(currentTagGroup);
       continue;
     }
 
-    // Tag group entries (indented Value(color) [default] under tag heading)
+    // Tag group entries (indented Value(color) under tag heading — first value is the default)
     if (currentTagGroup && !contentStarted) {
       const indent = measureIndent(raw);
       if (indent > 0) {
-        const isDefault = /\bdefault\s*$/i.test(trimmed);
-        const entryText = isDefault
-          ? trimmed.replace(/\s+default\s*$/i, '').trim()
-          : trimmed;
-        const { label, color } = extractColor(entryText);
-        if (isDefault) {
-          currentTagGroup.defaultValue = label;
-        }
+        const { label, color } = extractColor(trimmed);
         currentTagGroup.entries.push({
           value: label,
           color: color ?? '',
           lineNumber: lineNum,
         });
+        // First entry is the default
+        if (currentTagGroup.entries.length === 1) {
+          currentTagGroup.defaultValue = label;
+        }
         continue;
       }
       // Non-indented line after tag group — close and fall through

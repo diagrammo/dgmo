@@ -17,15 +17,17 @@ import { looksLikeInitiativeStatus, parseInitiativeStatus } from './initiative-s
 import { looksLikeSitemap, parseSitemap } from './sitemap/parser';
 import { parseInfra } from './infra/parser';
 import { parseGantt } from './gantt/parser';
+import { ALL_CHART_TYPES, parseFirstLine } from './utils/parsing';
 import type { DgmoError } from './diagnostics';
 
 // ============================================================
 // Content-based chart type inference helpers
 // ============================================================
 
-/** Gantt duration patterns: `10bd:`, `1.5w:`, `5d:`, `2025-01-01:` */
-const GANTT_DURATION_RE = /^\d+(?:\.\d+)?(?:min|bd|d|w|m|q|y|h)(?:\?)?\s*:/;
-const GANTT_DATE_RE = /^\d{4}-\d{2}-\d{2}(?:\s\d{2}:\d{2})?\s*:/;
+/** Gantt duration patterns: `10bd Task` or `10bd: Task` (with or without colon) */
+const GANTT_DURATION_RE = /^\d+(?:\.\d+)?(?:min|bd|d|w|m|q|y|h)(?:\?)?\s*:?\s+/;
+/** Gantt date patterns: `2025-01-01 Task` or `2025-01-01: Task` (with or without colon) */
+const GANTT_DATE_RE = /^\d{4}-\d{2}-\d{2}(?:\s\d{2}:\d{2})?\s*:?\s+/;
 
 /**
  * Returns true if content looks like a gantt chart.
@@ -64,19 +66,25 @@ export function looksLikeC4(content: string): boolean {
 }
 
 /**
- * Extracts the `chart:` type value from raw file content.
- * Falls back to inference when no explicit `chart:` line is found
- * (e.g. content containing `->` is inferred as `sequence`).
+ * Extracts the chart type from raw file content.
+ * First tries the first non-empty, non-comment line as a bare chart type name
+ * (e.g., `gantt Product Launch`). Falls back to old `chart: type` syntax.
+ * Falls back to inference when no explicit chart type is found.
  */
 export function parseDgmoChartType(content: string): string | null {
   const lines = content.split('\n');
+
+  // Find first non-empty, non-comment line
   for (const line of lines) {
     const trimmed = line.trim();
-    // Skip empty lines and comments
-    if (!trimmed || trimmed.startsWith('//'))
-      continue;
-    const match = trimmed.match(/^chart\s*:\s*(.+)/i);
-    if (match) return match[1].trim().toLowerCase();
+    if (!trimmed || trimmed.startsWith('//')) continue;
+
+    // Try new first-line detection (bare chart type name)
+    const firstLineResult = parseFirstLine(trimmed);
+    if (firstLineResult) return firstLineResult.chartType;
+
+    // Not a chart type on the first line — stop looking for explicit declaration
+    break;
   }
 
   // Infer chart type from content patterns (sequence before flowchart —

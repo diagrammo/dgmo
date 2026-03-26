@@ -10,7 +10,7 @@ function layout(content: string) {
 
 describe('layoutSitemap', () => {
   it('returns empty for empty input', () => {
-    const parsed = parseSitemap('chart: sitemap');
+    const parsed = parseSitemap('sitemap');
     const result = layoutSitemap(parsed);
     expect(result.nodes).toHaveLength(0);
     expect(result.width).toBe(0);
@@ -66,8 +66,8 @@ describe('layoutSitemap', () => {
   });
 
   it('handles TB and LR directions', () => {
-    const tb = layout('chart: sitemap\ndirection: TB\nHome\nAbout');
-    const lr = layout('chart: sitemap\ndirection: LR\nHome\nAbout');
+    const tb = layout('sitemap\ndirection TB\nHome\nAbout');
+    const lr = layout('sitemap\ndirection LR\nHome\nAbout');
 
     // Both should produce valid layouts
     expect(tb.layout.nodes).toHaveLength(2);
@@ -117,9 +117,8 @@ describe('layoutSitemap', () => {
 
   it('handles full baseball tickets sample without overlap', () => {
     const content = [
-      'chart: sitemap',
-      'title: Grand Slam Tickets',
-      'direction: TB',
+      'sitemap Grand Slam Tickets',
+      'direction TB',
       '',
       'tag: Auth',
       '  Public(green)',

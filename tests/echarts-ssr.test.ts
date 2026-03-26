@@ -2,41 +2,35 @@ import { describe, it, expect } from 'vitest';
 import { renderExtendedChartForExport } from '../src/echarts';
 
 // Minimal valid inputs for each ECharts chart type
-const SCATTER_INPUT = `chart: scatter
-title: Test Scatter
-A: 1, 2
-B: 3, 4
-C: 5, 6`;
+const SCATTER_INPUT = `scatter Test Scatter
+A 1, 2
+B 3, 4
+C 5, 6`;
 
-const SANKEY_INPUT = `chart: sankey
-title: Test Sankey
-A -> B: 10
-B -> C: 5
-A -> C: 3`;
+const SANKEY_INPUT = `sankey Test Sankey
+A -> B 10
+B -> C 5
+A -> C 3`;
 
-const CHORD_INPUT = `chart: chord
-title: Test Chord
-A -> B: 10
-B -> C: 5
-C -> A: 3`;
+const CHORD_INPUT = `chord Test Chord
+A -> B 10
+B -> C 5
+C -> A 3`;
 
-const FUNCTION_INPUT = `chart: function
-title: Test Function
-x: -5 to 5
-f(x): x^2
-g(x): sin(x)`;
+const FUNCTION_INPUT = `function Test Function
+x -5 to 5
+f(x) x^2
+g(x) sin(x)`;
 
-const HEATMAP_INPUT = `chart: heatmap
-title: Test Heatmap
-columns: Mon, Tue, Wed
-Morning: 10, 20, 30
-Afternoon: 40, 50, 60`;
+const HEATMAP_INPUT = `heatmap Test Heatmap
+columns Mon, Tue, Wed
+Morning 10, 20, 30
+Afternoon 40, 50, 60`;
 
-const FUNNEL_INPUT = `chart: funnel
-title: Test Funnel
-Visitors: 1000
-Signups: 500
-Paid: 100`;
+const FUNNEL_INPUT = `funnel Test Funnel
+Visitors 1000
+Signups 500
+Paid 100`;
 
 describe('renderExtendedChartForExport', () => {
   it('renders scatter chart to SVG', async () => {
@@ -76,13 +70,15 @@ describe('renderExtendedChartForExport', () => {
   });
 
   it('returns SVG with warning for empty scatter input', async () => {
-    const svg = await renderExtendedChartForExport('chart: scatter\n', 'light');
+    const svg = await renderExtendedChartForExport('scatter\n', 'light');
     // No data is now a warning, not a fatal error — diagram renders empty
     expect(svg).toContain('<svg');
   });
 
   it('returns empty string for unsupported chart type', async () => {
-    const svg = await renderExtendedChartForExport('chart: unknown\nA: 1', 'light');
+    // With new colon-free syntax, an unrecognized first token falls through
+    // to the standard chart parser which produces an empty result
+    const svg = await renderExtendedChartForExport('unknown\nA 1', 'light');
     expect(svg).toBe('');
   });
 
@@ -116,26 +112,24 @@ describe('renderExtendedChartForExport', () => {
 // Scatter label collision avoidance (SSR integration)
 // ============================================================
 
-const SCATTER_LABELS_INPUT = `chart: scatter
-title: Test Labels
-labels: on
-xlabel: X
-ylabel: Y
-A: 1, 2
-B: 3, 4
-C: 5, 6`;
+const SCATTER_LABELS_INPUT = `scatter Test Labels
+labels on
+xlabel X
+ylabel Y
+A 1, 2
+B 3, 4
+C 5, 6`;
 
-const SCATTER_DENSE_INPUT = `chart: scatter
-title: Dense Cluster
-labels: on
-P1: 5, 5
-P2: 5.1, 5
-P3: 5.2, 5
-P4: 4.9, 5
-P5: 5, 5.1
-P6: 5.1, 5.1
-P7: 4.9, 4.9
-P8: 5.2, 4.9`;
+const SCATTER_DENSE_INPUT = `scatter Dense Cluster
+labels on
+P1 5, 5
+P2 5.1, 5
+P3 5.2, 5
+P4 4.9, 5
+P5 5, 5.1
+P6 5.1, 5.1
+P7 4.9, 4.9
+P8 5.2, 4.9`;
 
 describe('scatter label SSR integration', () => {
   it('renders scatter with labels: on — SVG contains point names as text', async () => {

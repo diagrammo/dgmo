@@ -6,9 +6,15 @@ import { inferParticipantType } from './participant-inference';
 import type { DgmoError } from '../diagnostics';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
 import { parseArrow } from '../utils/arrows';
-import { measureIndent, extractColor, parsePipeMetadata, MULTIPLE_PIPE_WARNING } from '../utils/parsing';
+import { measureIndent, extractColor, parsePipeMetadata, MULTIPLE_PIPE_WARNING, parseFirstLine, OPTION_NOCOLON_RE } from '../utils/parsing';
 import type { TagGroup } from '../utils/tag-groups';
 import { matchTagBlockHeading, validateTagValues } from '../utils/tag-groups';
+
+/** Known sequence-diagram options that take a value (space-separated). */
+const KNOWN_SEQ_OPTIONS = new Set(['active-tag']);
+
+/** Known sequence-diagram boolean options (bare keyword or `no-` prefix). */
+const KNOWN_SEQ_BOOLEANS = new Set(['activations', 'collapse-notes']);
 
 /**
  * Participant types that can be declared via "Name is a type" syntax.
@@ -179,10 +185,169 @@ const SECTION_PATTERN = /^==\s+(.+?)(?:\s*==)?\s*$/;
 // Arrow pattern for sequence inference — detects any arrow form
 const ARROW_PATTERN = /\S+\s*(?:<-\S+-|<~\S+~|-\S+->|~\S+~>|->|~>|<-|<~)\s*\S+/;
 
-// Note patterns — "note: text", "note right of Auth Server: text"
-// Participant names may contain spaces; the colon acts as the delimiter.
-const NOTE_SINGLE = /^note(?:\s+(right|left)\s+of\s+(.+?))?\s*:\s*(.+)$/i;
-const NOTE_MULTI = /^note(?:\s+(right|left)\s+of\s+(.+?))?\s*:?\s*$/i;
+// Note patterns — colon-free syntax
+// Single-line: "note text", "note left text", "note right of X text", "note left X text"
+// Multi-line:  "note", "note right", "note right of X", "note left X" (body indented below)
+// Also supports legacy colon syntax: "note: text", "note right of X: text"
+//
+// The colon-free positioned form requires participant resolution — the parser
+// already has participant collection infrastructure, so we match the general
+// structure here and resolve participant vs text in the parsing logic.
+const NOTE_SINGLE_COLON = /^note(?:\s+(right|left)(?:\s+(?:of\s+)?(.+?))?)?\s*:\s*(.+)$/i;
+const NOTE_BARE = /^note\s+(.+)$/i;
+const NOTE_MULTI = /^note(?:\s+(right|left)(?:\s+(?:of\s+)?(.+?))?)?\s*:?\s*$/i;
+
+/** Result of parseNoteLine — indicates what the parser should do. */
+type NoteParseResult =
+  | { kind: 'single'; position: 'right' | 'left'; participantId: string; text: string }
+  | { kind: 'multi-head'; position: 'right' | 'left'; participantId: string }
+  | { kind: 'skip' }
+  | null; // not a note line at all
+
+/**
+ * Parse a note line, resolving participant names from the known participants list.
+ *
+ * Supports:
+ * - `note: text` / `note text` — default position (right), last msg sender
+ * - `note left of X: text` / `note left of X text` / `note left X text`
+ * - `note right:` / `note right` — multi-line head
+ * - `note right of X:` / `note right of X` / `note left X` — multi-line head
+ * - Quoted participant: `note left "Auth Service" text`
+ */
+function parseNoteLine(
+  trimmed: string,
+  participants: SequenceParticipant[],
+  lastMsgFrom: string | null,
+): NoteParseResult {
+  const lower = trimmed.toLowerCase();
+  if (!lower.startsWith('note')) return null;
+  // Must be exactly "note" or "note " — not "notebook" etc.
+  if (trimmed.length > 4 && trimmed[4] !== ' ' && trimmed[4] !== ':') return null;
+
+  // 1. Try legacy colon-based syntax first
+  const colonMatch = trimmed.match(NOTE_SINGLE_COLON);
+  if (colonMatch) {
+    const position = (colonMatch[1]?.toLowerCase() as 'right' | 'left') || 'right';
+    let participantId = colonMatch[2] || null;
+    if (!participantId) {
+      if (!lastMsgFrom) return { kind: 'skip' };
+      participantId = lastMsgFrom;
+    }
+    if (!participants.some((p) => p.id === participantId)) return { kind: 'skip' };
+    return { kind: 'single', position, participantId, text: colonMatch[3].trim() };
+  }
+
+  // 2. Try multi-line head (no text after note): `note`, `note right`, `note right of X`, `note left X`
+  // NOTE: NOTE_MULTI's (.+?) can greedily capture "participant text" as one group.
+  // Only trust this match if the captured participant actually exists. Otherwise, fall
+  // through to the bare-note handler which does proper participant-aware splitting.
+  const multiMatch = trimmed.match(NOTE_MULTI);
+  if (multiMatch) {
+    const position = (multiMatch[1]?.toLowerCase() as 'right' | 'left') || 'right';
+    let participantId = multiMatch[2] || null;
+    if (!participantId) {
+      if (!lastMsgFrom) return { kind: 'skip' };
+      participantId = lastMsgFrom;
+    }
+    if (participants.some((p) => p.id === participantId)) {
+      return { kind: 'multi-head', position, participantId };
+    }
+    // Participant not found — fall through to bare-note handler for proper resolution
+  }
+
+  // 3. Bare note (colon-free): `note text` or `note left [of] X text`
+  const bareMatch = trimmed.match(NOTE_BARE);
+  if (bareMatch) {
+    const rest = bareMatch[1].trim();
+    const restLower = rest.toLowerCase();
+
+    // Check for positioned note: `note left/right ...`
+    if (restLower.startsWith('left') || restLower.startsWith('right')) {
+      const posWord = restLower.startsWith('left') ? 'left' : 'right';
+      const position = posWord as 'right' | 'left';
+      let afterPos = rest.substring(posWord.length).trim();
+
+      // Strip optional `of` keyword — track whether it was present
+      let hadOf = false;
+      if (afterPos.toLowerCase().startsWith('of ')) {
+        afterPos = afterPos.substring(3).trim();
+        hadOf = true;
+      }
+
+      if (!afterPos) {
+        // Just `note left` or `note right` — multi-line head
+        if (!lastMsgFrom) return { kind: 'skip' };
+        if (!participants.some((p) => p.id === lastMsgFrom)) return { kind: 'skip' };
+        return { kind: 'multi-head', position, participantId: lastMsgFrom };
+      }
+
+      // Try to match a known participant at the start of afterPos
+      const resolved = resolveParticipantAndText(afterPos, participants);
+      if (resolved) {
+        if (resolved.text) {
+          return { kind: 'single', position, participantId: resolved.participantId, text: resolved.text };
+        } else {
+          // No text after participant — multi-line head
+          return { kind: 'multi-head', position, participantId: resolved.participantId };
+        }
+      }
+
+      // No known participant matched.
+      // If `of` was explicit (`note right of Z ...`), the user intended a specific
+      // participant — skip when it doesn't exist rather than defaulting.
+      if (hadOf) return { kind: 'skip' };
+
+      // Without `of`, treat remaining text as note content on the last-msg sender
+      if (!lastMsgFrom) return { kind: 'skip' };
+      if (!participants.some((p) => p.id === lastMsgFrom)) return { kind: 'skip' };
+      return { kind: 'single', position, participantId: lastMsgFrom, text: afterPos };
+    }
+
+    // Plain `note text` — default position, last msg sender
+    if (!lastMsgFrom) return { kind: 'skip' };
+    if (!participants.some((p) => p.id === lastMsgFrom)) return { kind: 'skip' };
+    return { kind: 'single', position: 'right', participantId: lastMsgFrom, text: rest };
+  }
+
+  return null;
+}
+
+/**
+ * Try to match a known participant name at the start of a string.
+ * Returns the matched participant and remaining text, or null if no match.
+ * Tries longest match first (multi-word participant names).
+ */
+function resolveParticipantAndText(
+  input: string,
+  participants: SequenceParticipant[],
+): { participantId: string; text: string } | null {
+  // Handle quoted participant: `"Auth Service" text`
+  if (input.startsWith('"') || input.startsWith("'")) {
+    const quote = input[0];
+    const endQuote = input.indexOf(quote, 1);
+    if (endQuote > 0) {
+      const name = input.substring(1, endQuote);
+      if (participants.some((p) => p.id === name)) {
+        const text = input.substring(endQuote + 1).trim();
+        return { participantId: name, text };
+      }
+    }
+    return null;
+  }
+
+  // Sort participants by name length (longest first) for greedy matching
+  const sorted = [...participants].sort((a, b) => b.id.length - a.id.length);
+  for (const p of sorted) {
+    if (input.startsWith(p.id)) {
+      const remaining = input.substring(p.id.length);
+      // Must be followed by whitespace, end of string, or nothing
+      if (remaining === '' || remaining[0] === ' ' || remaining[0] === '\t') {
+        return { participantId: p.id, text: remaining.trim() };
+      }
+    }
+  }
+  return null;
+}
 
 /**
  * Parse a .dgmo file with `chart: sequence` into a structured representation.
@@ -228,6 +393,23 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
   const lines = content.split('\n');
   let hasExplicitChart = false;
   let contentStarted = false;
+  let firstLineIndex = -1; // line index of the `sequence [Title]` first line (to skip in main loop)
+
+  // Handle first non-empty, non-comment line for `sequence Title` syntax
+  for (let fi = 0; fi < lines.length; fi++) {
+    const fl = lines[fi].trim();
+    if (!fl || fl.startsWith('//')) continue;
+    const parsed = parseFirstLine(fl);
+    if (parsed && parsed.chartType === 'sequence') {
+      hasExplicitChart = true;
+      firstLineIndex = fi;
+      if (parsed.title) {
+        result.title = parsed.title;
+        result.titleLineNumber = fi + 1;
+      }
+    }
+    break;
+  }
 
   // Group parsing state — tracks the active [Group] heading
   let activeGroup: SequenceGroup | null = null;
@@ -278,6 +460,9 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       currentTagGroup = null;
       continue;
     }
+
+    // Skip first line already handled as `sequence [Title]`
+    if (i === firstLineIndex) continue;
 
     // Parse group heading — [Group Name] or [Group Name] | k: v
     const groupMatch = trimmed.match(GROUP_HEADING_PATTERN);
@@ -366,18 +551,16 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       continue;
     }
 
-    // Tag group entries (indented Value(color) [default] under tag: heading)
+    // Tag group entries (indented Value(color) under tag heading)
+    // First entry is automatically the default (no `default` keyword needed)
     if (currentTagGroup && !contentStarted && measureIndent(raw) > 0) {
-      const isDefault = /\bdefault\s*$/.test(trimmed);
-      const entryText = isDefault
-        ? trimmed.replace(/\s+default\s*$/, '').trim()
-        : trimmed;
-      const { label, color } = extractColor(entryText);
+      const { label, color } = extractColor(trimmed);
       if (!color) {
         pushError(lineNumber, `Expected 'Value(color)' in tag group '${currentTagGroup.name}'`);
         continue;
       }
-      if (isDefault) {
+      // First entry is the default
+      if (currentTagGroup.entries.length === 0) {
         currentTagGroup.defaultValue = label;
       }
       currentTagGroup.entries.push({ value: label, color, lineNumber });
@@ -448,6 +631,37 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       // Store other options
       result.options[key] = value;
       continue;
+      }
+    }
+
+    // Parse space-separated options (no colon): `activations off`, `no-activations`, `active-tag Priority`
+    {
+      const optLower = trimmed.toLowerCase();
+      // Negated boolean: `no-activations` → options.activations = 'off'
+      if (optLower.startsWith('no-')) {
+        const base = optLower.substring(3);
+        if (KNOWN_SEQ_BOOLEANS.has(base)) {
+          if (contentStarted) {
+            pushError(lineNumber, `Options like '${trimmed}' must appear before the first message or declaration`);
+            continue;
+          }
+          result.options[base] = 'off';
+          continue;
+        }
+      }
+      // Key-value option: `active-tag Priority`
+      const spaceMatch = trimmed.match(OPTION_NOCOLON_RE);
+      if (spaceMatch) {
+        const optKey = spaceMatch[1].toLowerCase();
+        const optVal = spaceMatch[2].trim();
+        if (KNOWN_SEQ_OPTIONS.has(optKey) || KNOWN_SEQ_BOOLEANS.has(optKey)) {
+          if (contentStarted) {
+            pushError(lineNumber, `Options like '${trimmed}' must appear before the first message or declaration`);
+            continue;
+          }
+          result.options[optKey] = optVal;
+          continue;
+        }
       }
     }
 
@@ -835,66 +1049,54 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       continue;
     }
 
-    // Parse single-line note — "note: text" or "note right of API: text"
-    const noteSingleMatch = trimmed.match(NOTE_SINGLE);
-    if (noteSingleMatch) {
-      const notePosition =
-        (noteSingleMatch[1]?.toLowerCase() as 'right' | 'left') || 'right';
-      let noteParticipant = noteSingleMatch[2] || null;
-      if (!noteParticipant) {
-        if (!lastMsgFrom) continue; // incomplete — skip during live typing
-        noteParticipant = lastMsgFrom;
+    // ---- Note parsing (colon-free + legacy colon syntax) ----
+    // Strategy:
+    // 1. Try colon-based syntax: `note right of X: text` (legacy, still supported)
+    // 2. Try bare note: `note text` — position defaults, text is everything after `note`
+    // 3. For positioned: `note left [of] X text` — needs participant lookup to split name vs text
+    // 4. Multi-line: `note`, `note right`, `note right [of] X` (body indented below)
+    {
+      const noteParsed = parseNoteLine(trimmed, result.participants, lastMsgFrom);
+      if (noteParsed) {
+        if (noteParsed.kind === 'single') {
+          const note: SequenceNote = {
+            kind: 'note',
+            text: noteParsed.text,
+            position: noteParsed.position,
+            participantId: noteParsed.participantId,
+            lineNumber,
+            endLineNumber: lineNumber,
+          };
+          currentContainer().push(note);
+          continue;
+        }
+        if (noteParsed.kind === 'multi-head') {
+          // Collect indented body lines
+          const noteLines: string[] = [];
+          while (i + 1 < lines.length) {
+            const nextRaw = lines[i + 1];
+            const nextTrimmed = nextRaw.trim();
+            if (!nextTrimmed) break;
+            const nextIndent = measureIndent(nextRaw);
+            if (nextIndent <= indent) break;
+            noteLines.push(nextTrimmed);
+            i++;
+          }
+          if (noteLines.length === 0) continue; // no body yet — skip during live typing
+          const note: SequenceNote = {
+            kind: 'note',
+            text: noteLines.join('\n'),
+            position: noteParsed.position,
+            participantId: noteParsed.participantId,
+            lineNumber,
+            endLineNumber: i + 1, // i has advanced past the body lines (1-based)
+          };
+          currentContainer().push(note);
+          continue;
+        }
+        // 'skip' — note was incomplete (no preceding message, unknown participant)
+        continue;
       }
-      if (!result.participants.some((p) => p.id === noteParticipant)) {
-        continue; // unknown participant — skip during live typing
-      }
-      const note: SequenceNote = {
-        kind: 'note',
-        text: noteSingleMatch[3].trim(),
-        position: notePosition,
-        participantId: noteParticipant,
-        lineNumber,
-        endLineNumber: lineNumber,
-      };
-      currentContainer().push(note);
-      continue;
-    }
-
-    // Parse multi-line note — "note" or "note right of API" (no colon, body indented below)
-    const noteMultiMatch = trimmed.match(NOTE_MULTI);
-    if (noteMultiMatch) {
-      const notePosition =
-        (noteMultiMatch[1]?.toLowerCase() as 'right' | 'left') || 'right';
-      let noteParticipant = noteMultiMatch[2] || null;
-      if (!noteParticipant) {
-        if (!lastMsgFrom) continue; // incomplete — skip during live typing
-        noteParticipant = lastMsgFrom;
-      }
-      if (!result.participants.some((p) => p.id === noteParticipant)) {
-        continue; // unknown participant — skip during live typing
-      }
-      // Collect indented body lines
-      const noteLines: string[] = [];
-      while (i + 1 < lines.length) {
-        const nextRaw = lines[i + 1];
-        const nextTrimmed = nextRaw.trim();
-        if (!nextTrimmed) break;
-        const nextIndent = measureIndent(nextRaw);
-        if (nextIndent <= indent) break;
-        noteLines.push(nextTrimmed);
-        i++;
-      }
-      if (noteLines.length === 0) continue; // no body yet — skip during live typing
-      const note: SequenceNote = {
-        kind: 'note',
-        text: noteLines.join('\n'),
-        position: notePosition,
-        participantId: noteParticipant,
-        lineNumber,
-        endLineNumber: i + 1, // i has advanced past the body lines (1-based)
-      };
-      currentContainer().push(note);
-      continue;
     }
   }
 
@@ -903,7 +1105,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     // Check if raw content has arrow patterns for inference
     const hasArrows = lines.some((line) => ARROW_PATTERN.test(line.trim()));
     if (!hasArrows) {
-      return fail(1, 'No "chart: sequence" header and no sequence content detected');
+      return fail(1, 'No "sequence" header and no sequence content detected');
     }
   }
 

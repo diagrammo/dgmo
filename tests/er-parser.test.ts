@@ -4,31 +4,22 @@ import { parseERDiagram, looksLikeERDiagram } from '../src/er/parser';
 describe('parseERDiagram', () => {
   // === Metadata ===
   describe('metadata', () => {
-    it('parses chart: er', () => {
-      const result = parseERDiagram('chart: er\nusers\n  id: int [pk]');
+    it('parses er on first line', () => {
+      const result = parseERDiagram('er\nusers\n  id int pk');
       expect(result.type).toBe('er');
       expect(result.error).toBeNull();
       expect(result.diagnostics).toEqual([]);
     });
 
-    it('rejects wrong chart type', () => {
-      const result = parseERDiagram('chart: flowchart\nusers\n  id: int [pk]');
-      expect(result.error).toContain('Expected chart type "er"');
-      // diagnostics
-      expect(result.diagnostics).toHaveLength(1);
-      expect(result.diagnostics[0].message).toMatch(/Expected chart type "er"/);
-      expect(result.diagnostics[0].severity).toBe('error');
-      expect(result.diagnostics[0].line).toBeGreaterThanOrEqual(0);
-    });
-
-    it('parses title', () => {
-      const result = parseERDiagram('chart: er\ntitle: Blog Platform\nusers\n  id: int [pk]');
+    it('parses er with title on first line', () => {
+      const result = parseERDiagram('er Blog Platform\nusers\n  id int pk');
+      expect(result.type).toBe('er');
       expect(result.title).toBe('Blog Platform');
-      expect(result.titleLineNumber).toBe(2);
+      expect(result.error).toBeNull();
     });
 
-    it('parses notation option', () => {
-      const result = parseERDiagram('chart: er\nnotation: labels\nusers\n  id: int [pk]');
+    it('parses notation option (no colon)', () => {
+      const result = parseERDiagram('er\nnotation labels\nusers\n  id int pk');
       expect(result.options.notation).toBe('labels');
     });
   });
@@ -36,7 +27,7 @@ describe('parseERDiagram', () => {
   // === Comments ===
   describe('comments', () => {
     it('ignores // comments', () => {
-      const result = parseERDiagram('// this is a comment\nusers\n  id: int [pk]');
+      const result = parseERDiagram('// this is a comment\nusers\n  id int pk');
       expect(result.error).toBeNull();
       expect(result.tables).toHaveLength(1);
     });
@@ -45,25 +36,25 @@ describe('parseERDiagram', () => {
   // === Table declarations ===
   describe('table declarations', () => {
     it('parses simple table', () => {
-      const result = parseERDiagram('users\n  id: int [pk]');
+      const result = parseERDiagram('users\n  id int pk');
       expect(result.tables).toHaveLength(1);
       expect(result.tables[0].name).toBe('users');
       expect(result.tables[0].id).toBe('users');
     });
 
     it('parses table with color', () => {
-      const result = parseERDiagram('users (red)\n  id: int [pk]');
+      const result = parseERDiagram('users (red)\n  id int pk');
       expect(result.tables[0].color).toBeDefined();
     });
 
     it('parses table with underscore name', () => {
-      const result = parseERDiagram('user_roles\n  id: int [pk]');
+      const result = parseERDiagram('user_roles\n  id int pk');
       expect(result.tables[0].name).toBe('user_roles');
     });
 
     it('tracks line numbers', () => {
-      const result = parseERDiagram('chart: er\ntitle: Test\n\nusers\n  id: int [pk]');
-      expect(result.tables[0].lineNumber).toBe(4);
+      const result = parseERDiagram('er Test\n\nusers\n  id int pk');
+      expect(result.tables[0].lineNumber).toBe(3);
     });
 
     it('handles table with no columns', () => {
@@ -76,7 +67,7 @@ describe('parseERDiagram', () => {
   // === Columns ===
   describe('columns', () => {
     it('parses column with name and type', () => {
-      const result = parseERDiagram('users\n  name: varchar');
+      const result = parseERDiagram('users\n  name varchar');
       const col = result.tables[0].columns[0];
       expect(col.name).toBe('name');
       expect(col.type).toBe('varchar');
@@ -91,44 +82,44 @@ describe('parseERDiagram', () => {
     });
 
     it('parses column with pk constraint', () => {
-      const result = parseERDiagram('users\n  id: int [pk]');
+      const result = parseERDiagram('users\n  id int pk');
       const col = result.tables[0].columns[0];
       expect(col.constraints).toContain('pk');
     });
 
     it('parses column with fk constraint', () => {
-      const result = parseERDiagram('posts\n  author_id: int [fk]');
+      const result = parseERDiagram('posts\n  author_id int fk');
       const col = result.tables[0].columns[0];
       expect(col.constraints).toContain('fk');
     });
 
     it('parses column with unique constraint', () => {
-      const result = parseERDiagram('users\n  email: varchar [unique]');
+      const result = parseERDiagram('users\n  email varchar unique');
       const col = result.tables[0].columns[0];
       expect(col.constraints).toContain('unique');
     });
 
     it('parses column with nullable constraint', () => {
-      const result = parseERDiagram('users\n  bio: text [nullable]');
+      const result = parseERDiagram('users\n  bio text nullable');
       const col = result.tables[0].columns[0];
       expect(col.constraints).toContain('nullable');
     });
 
     it('parses column with multiple constraints', () => {
-      const result = parseERDiagram('users\n  id: int [pk, unique]');
+      const result = parseERDiagram('users\n  id int pk unique');
       const col = result.tables[0].columns[0];
       expect(col.constraints).toContain('pk');
       expect(col.constraints).toContain('unique');
     });
 
     it('tracks column line numbers', () => {
-      const result = parseERDiagram('users\n  id: int [pk]\n  name: varchar');
+      const result = parseERDiagram('users\n  id int pk\n  name varchar');
       expect(result.tables[0].columns[0].lineNumber).toBe(2);
       expect(result.tables[0].columns[1].lineNumber).toBe(3);
     });
 
     it('parses multiple columns', () => {
-      const result = parseERDiagram('users\n  id: int [pk]\n  name: varchar\n  email: varchar [unique]');
+      const result = parseERDiagram('users\n  id int pk\n  name varchar\n  email varchar unique');
       expect(result.tables[0].columns).toHaveLength(3);
     });
   });
@@ -137,32 +128,32 @@ describe('parseERDiagram', () => {
   describe('relationships', () => {
     describe('symbolic cardinality', () => {
       it('parses 1--* (one-to-many)', () => {
-        const result = parseERDiagram('users\n  id: int [pk]\n\nposts\n  id: int [pk]\n\nusers 1--* posts');
+        const result = parseERDiagram('users\n  id int pk\n\nposts\n  id int pk\n\nusers 1--* posts');
         expect(result.relationships).toHaveLength(1);
         expect(result.relationships[0].cardinality.from).toBe('1');
         expect(result.relationships[0].cardinality.to).toBe('*');
       });
 
       it('parses 1-* (one-to-many, single dash)', () => {
-        const result = parseERDiagram('users\n  id: int [pk]\n\nposts\n  id: int [pk]\n\nusers 1-* posts');
+        const result = parseERDiagram('users\n  id int pk\n\nposts\n  id int pk\n\nusers 1-* posts');
         expect(result.relationships[0].cardinality.from).toBe('1');
         expect(result.relationships[0].cardinality.to).toBe('*');
       });
 
       it('parses ?--1 (zero-or-one to one)', () => {
-        const result = parseERDiagram('users\n  id: int [pk]\n\nprofiles\n  id: int [pk]\n\nusers ?--1 profiles');
+        const result = parseERDiagram('users\n  id int pk\n\nprofiles\n  id int pk\n\nusers ?--1 profiles');
         expect(result.relationships[0].cardinality.from).toBe('?');
         expect(result.relationships[0].cardinality.to).toBe('1');
       });
 
       it('parses 1--1 (one-to-one)', () => {
-        const result = parseERDiagram('users\n  id: int [pk]\n\nprofiles\n  id: int [pk]\n\nusers 1--1 profiles');
+        const result = parseERDiagram('users\n  id int pk\n\nprofiles\n  id int pk\n\nusers 1--1 profiles');
         expect(result.relationships[0].cardinality.from).toBe('1');
         expect(result.relationships[0].cardinality.to).toBe('1');
       });
 
       it('parses *--* (many-to-many)', () => {
-        const result = parseERDiagram('students\n  id: int [pk]\n\ncourses\n  id: int [pk]\n\nstudents *--* courses');
+        const result = parseERDiagram('students\n  id int pk\n\ncourses\n  id int pk\n\nstudents *--* courses');
         expect(result.relationships[0].cardinality.from).toBe('*');
         expect(result.relationships[0].cardinality.to).toBe('*');
       });
@@ -170,20 +161,20 @@ describe('parseERDiagram', () => {
 
     describe('keyword cardinality (rejected with helpful error)', () => {
       it('rejects one-to-many with symbolic suggestion', () => {
-        const result = parseERDiagram('users\n  id: int [pk]\n\nposts\n  id: int [pk]\n\nusers one-to-many posts');
+        const result = parseERDiagram('users\n  id int pk\n\nposts\n  id int pk\n\nusers one-to-many posts');
         expect(result.error).toBeTruthy();
         expect(result.diagnostics[0].message).toContain('1--*');
         expect(result.relationships).toHaveLength(0);
       });
 
       it('rejects many-to-one with symbolic suggestion', () => {
-        const result = parseERDiagram('posts\n  id: int [pk]\n\nusers\n  id: int [pk]\n\nposts many-to-one users');
+        const result = parseERDiagram('posts\n  id int pk\n\nusers\n  id int pk\n\nposts many-to-one users');
         expect(result.error).toBeTruthy();
         expect(result.diagnostics[0].message).toContain('*--1');
       });
 
       it('rejects one-to-one with symbolic suggestion', () => {
-        const result = parseERDiagram('users\n  id: int [pk]\n\nprofiles\n  id: int [pk]\n\nusers one-to-one profiles');
+        const result = parseERDiagram('users\n  id int pk\n\nprofiles\n  id int pk\n\nusers one-to-one profiles');
         expect(result.error).toBeTruthy();
         expect(result.diagnostics[0].message).toContain('1--1');
       });
@@ -191,22 +182,22 @@ describe('parseERDiagram', () => {
 
     describe('natural cardinality (rejected)', () => {
       it('rejects one to many with symbolic suggestion', () => {
-        const result = parseERDiagram('users\n  id: int [pk]\n\nposts\n  id: int [pk]\n\nusers one to many posts');
+        const result = parseERDiagram('users\n  id int pk\n\nposts\n  id int pk\n\nusers one to many posts');
         expect(result.error).toBeTruthy();
         expect(result.diagnostics[0].message).toContain('1--*');
       });
     });
 
     describe('relationship labels', () => {
-      it('parses symbolic with label', () => {
-        const result = parseERDiagram('users\n  id: int [pk]\n\nposts\n  id: int [pk]\n\nusers 1--* posts: writes');
+      it('parses symbolic with label (no colon)', () => {
+        const result = parseERDiagram('users\n  id int pk\n\nposts\n  id int pk\n\nusers 1--* posts writes');
         expect(result.relationships[0].label).toBe('writes');
       });
     });
 
     describe('self-referencing relationships', () => {
       it('allows relationship to same table', () => {
-        const result = parseERDiagram('employees\n  id: int [pk]\n  manager_id: int [fk]\n\nemployees 1--* employees: manages');
+        const result = parseERDiagram('employees\n  id int pk\n  manager_id int fk\n\nemployees 1--* employees manages');
         expect(result.relationships).toHaveLength(1);
         expect(result.relationships[0].source).toBe('employees');
         expect(result.relationships[0].target).toBe('employees');
@@ -221,7 +212,7 @@ describe('parseERDiagram', () => {
     });
 
     it('tracks relationship line numbers', () => {
-      const result = parseERDiagram('users\n  id: int [pk]\n\nposts\n  id: int [pk]\n\nusers 1--* posts');
+      const result = parseERDiagram('users\n  id int pk\n\nposts\n  id int pk\n\nusers 1--* posts');
       expect(result.relationships[0].lineNumber).toBe(7);
     });
   });
@@ -229,7 +220,7 @@ describe('parseERDiagram', () => {
   // === Indented relationships ===
   describe('indented relationships', () => {
     it('parses basic indented 1-* relationship', () => {
-      const result = parseERDiagram('users\n  id: int [pk]\n  1-* posts');
+      const result = parseERDiagram('users\n  id int pk\n  1-* posts');
       expect(result.relationships).toHaveLength(1);
       expect(result.relationships[0].source).toBe('users');
       expect(result.relationships[0].target).toBe('posts');
@@ -247,7 +238,7 @@ describe('parseERDiagram', () => {
     });
 
     it('mixes columns and indented relationships', () => {
-      const result = parseERDiagram('users\n  id: int [pk]\n  name: varchar\n  1-* posts\n  1-writes-* comments');
+      const result = parseERDiagram('users\n  id int pk\n  name varchar\n  1-* posts\n  1-writes-* comments');
       expect(result.tables[0].columns).toHaveLength(2);
       expect(result.relationships).toHaveLength(2);
       expect(result.relationships[0].target).toBe('posts');
@@ -264,7 +255,7 @@ describe('parseERDiagram', () => {
         ['?-1 t5', '?', '1'],
         ['1-? t6', '1', '?'],
       ] as const;
-      const lines = ['src\n  id: int [pk]', ...combos.map(([line]) => `  ${line}`)].join('\n');
+      const lines = ['src\n  id int pk', ...combos.map(([line]) => `  ${line}`)].join('\n');
       const result = parseERDiagram(lines);
       expect(result.relationships).toHaveLength(6);
       combos.forEach(([, from, to], i) => {
@@ -280,7 +271,7 @@ describe('parseERDiagram', () => {
     });
 
     it('supports self-referencing relationship', () => {
-      const result = parseERDiagram('employees\n  id: int [pk]\n  1-manages-* employees');
+      const result = parseERDiagram('employees\n  id int pk\n  1-manages-* employees');
       expect(result.relationships).toHaveLength(1);
       expect(result.relationships[0].source).toBe('employees');
       expect(result.relationships[0].target).toBe('employees');
@@ -295,7 +286,7 @@ describe('parseERDiagram', () => {
     });
 
     it('tracks line numbers for indented relationships', () => {
-      const result = parseERDiagram('users\n  id: int [pk]\n  1-* posts');
+      const result = parseERDiagram('users\n  id int pk\n  1-* posts');
       expect(result.relationships[0].lineNumber).toBe(3);
     });
   });
@@ -303,7 +294,7 @@ describe('parseERDiagram', () => {
   // === Edge cases ===
   describe('edge cases', () => {
     it('handles multiple tables', () => {
-      const result = parseERDiagram('users\n  id: int [pk]\n\nposts\n  id: int [pk]\n\ncomments\n  id: int [pk]');
+      const result = parseERDiagram('users\n  id int pk\n\nposts\n  id int pk\n\ncomments\n  id int pk');
       expect(result.tables).toHaveLength(3);
     });
 
@@ -325,16 +316,16 @@ describe('parseERDiagram', () => {
 });
 
 describe('looksLikeERDiagram', () => {
-  it('detects tables with [pk] constraints', () => {
-    expect(looksLikeERDiagram('users\n  id: int [pk]\n  name: varchar')).toBe(true);
+  it('detects tables with pk constraints', () => {
+    expect(looksLikeERDiagram('users\n  id int pk\n  name varchar')).toBe(true);
   });
 
-  it('detects tables with [fk] constraints', () => {
-    expect(looksLikeERDiagram('posts\n  author_id: int [fk]')).toBe(true);
+  it('detects tables with fk constraints', () => {
+    expect(looksLikeERDiagram('posts\n  author_id int fk')).toBe(true);
   });
 
   it('detects indented relationships', () => {
-    expect(looksLikeERDiagram('users\n  id: int [pk]\n  1-* posts')).toBe(true);
+    expect(looksLikeERDiagram('users\n  id int pk\n  1-* posts')).toBe(true);
   });
 
   it('detects indented relationships with table decl (no constraints)', () => {
@@ -363,15 +354,15 @@ describe('looksLikeERDiagram', () => {
 // ============================================================
 
 describe('tag groups', () => {
-  it('parses tag: blocks with entries', () => {
-    const result = parseERDiagram(`chart: er
+  it('parses tag blocks with entries', () => {
+    const result = parseERDiagram(`er
 
-tag: Domain alias d
+tag Domain d
   Billing(blue)
   Shipping(green)
 
 Users | d: Billing
-  id: int [pk]`);
+  id int pk`);
     expect(result.tagGroups).toHaveLength(1);
     expect(result.tagGroups[0].name).toBe('Domain');
     expect(result.tagGroups[0].alias).toBe('d');
@@ -381,74 +372,74 @@ Users | d: Billing
   });
 
   it('parses pipe metadata on table declarations', () => {
-    const result = parseERDiagram(`chart: er
+    const result = parseERDiagram(`er
 
-tag: Domain alias d
+tag Domain d
   Billing(blue)
 
 Users | d: Billing
-  id: int [pk]`);
+  id int pk`);
     expect(result.tables[0].metadata).toEqual({ domain: 'Billing' });
   });
 
   it('resolves alias in pipe metadata', () => {
-    const result = parseERDiagram(`chart: er
+    const result = parseERDiagram(`er
 
-tag: Domain alias d
+tag Domain d
   Billing(blue)
 
 Orders | d: Billing
-  id: int [pk]`);
+  id int pk`);
     // Alias 'd' resolves to 'domain'
     expect(result.tables[0].metadata).toEqual({ domain: 'Billing' });
   });
 
-  it('injects default tag values', () => {
-    const result = parseERDiagram(`chart: er
+  it('injects default tag values (first entry is default)', () => {
+    const result = parseERDiagram(`er
 
-tag: Domain
+tag Domain
+  Core(gray)
   Billing(blue)
-  Core(gray) default
 
 Users
-  id: int [pk]`);
-    // Users has no explicit Domain tag, so it should get the default
+  id int pk`);
+    // Users has no explicit Domain tag, so it should get the default (first entry)
     expect(result.tables[0].metadata.domain).toBe('Core');
   });
 
   it('warns on unknown tag values', () => {
-    const result = parseERDiagram(`chart: er
+    const result = parseERDiagram(`er
 
-tag: Domain
+tag Domain
   Billing(blue)
   Shipping(green)
 
 Users | Domain: Unknown
-  id: int [pk]`);
+  id int pk`);
     const warnings = result.diagnostics.filter(d => d.message.includes("Unknown value 'Unknown'"));
     expect(warnings).toHaveLength(1);
   });
 
   it('preserves explicit table color alongside metadata', () => {
-    const result = parseERDiagram(`chart: er
+    const result = parseERDiagram(`er
 
-tag: Domain
+tag Domain
   Billing(blue)
 
 Users(red) | Domain: Billing
-  id: int [pk]`);
+  id int pk`);
     expect(result.tables[0].color).toBeDefined();
     expect(result.tables[0].metadata.domain).toBe('Billing');
   });
 
   it('existing ER without tags still works', () => {
-    const result = parseERDiagram(`chart: er
+    const result = parseERDiagram(`er
 Users
-  id: int [pk]
-  email: varchar [unique]
+  id int pk
+  email varchar unique
 
 Orders
-  id: int [pk]
+  id int pk
 
 Users 1--* Orders`);
     expect(result.error).toBeNull();
@@ -457,13 +448,13 @@ Users 1--* Orders`);
   });
 
   it('emits error for ## tag group syntax', () => {
-    const result = parseERDiagram(`chart: er
+    const result = parseERDiagram(`er
 
 ## Domain
   Billing(blue)
 
 Users | Domain: Billing
-  id: int [pk]`);
+  id int pk`);
     const errors = result.diagnostics.filter(d => d.message.includes('no longer supported'));
     expect(errors).toHaveLength(1);
     expect(errors[0].severity).toBe('error');

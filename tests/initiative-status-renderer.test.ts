@@ -56,8 +56,7 @@ const testPalette: PaletteColors = {
   },
 };
 
-const SAMPLE = `chart: initiative-status
-title: Project Phoenix
+const SAMPLE = `initiative-status Project Phoenix
 
 Mobile | done
 Back End | wip
@@ -66,8 +65,7 @@ Database | done
 Mobile -> Back End: getUser | done
 Back End -> Database: query | done`;
 
-const SAMPLE_WITH_GROUPS = `chart: initiative-status
-title: Grouped
+const SAMPLE_WITH_GROUPS = `initiative-status Grouped
 
 User | na
 Mobile | done
@@ -98,7 +96,7 @@ describe('layoutInitiativeStatus', () => {
   });
 
   it('handles empty diagram', () => {
-    const parsed = parseInitiativeStatus('chart: initiative-status');
+    const parsed = parseInitiativeStatus('initiative-status');
     const layout = layoutInitiativeStatus(parsed);
     expect(layout.nodes).toHaveLength(0);
     expect(layout.edges).toHaveLength(0);
@@ -114,7 +112,7 @@ describe('layoutInitiativeStatus', () => {
     expect(group.label).toBe('External');
     expect(group.width).toBeGreaterThan(0);
     expect(group.height).toBeGreaterThan(0);
-    expect(group.lineNumber).toBe(7);
+    expect(group.lineNumber).toBe(6);
   });
 
   it('rolls up group status from children (worst wins)', () => {
@@ -154,7 +152,7 @@ describe('layoutInitiativeStatus', () => {
 
   it('routes back-edge via bottom arc (arrowhead at tgt bottom-center, not left side)', () => {
     // Bar→Foo is a back-edge: Bar is at rank 1 (higher X), Foo at rank 0 (lower X) in LR layout
-    const parsed = parseInitiativeStatus(`chart: initiative-status
+    const parsed = parseInitiativeStatus(`initiative-status
 Foo | wip
   -> Bar | wip
 Bar | done
@@ -184,7 +182,7 @@ Bar | done
     // Root→A→B is a 3-rank chain. B→A is a geometric back-edge (B.x > A.x in LR layout).
     // Linear chain nodes share the same Y so routeBelow fires (both at avgNodeY, not above it).
     // The test asserts the universal property: control point exits node bounds regardless of direction.
-    const parsed = parseInitiativeStatus(`chart: initiative-status
+    const parsed = parseInitiativeStatus(`initiative-status
 Root | done
   -> A | done
 A | done
@@ -214,7 +212,7 @@ B | wip
   it('routes Y-displaced forward edge via bottom-exit elbow (4 points)', () => {
     // Fan from Src to 4 targets forces dagre to spread them vertically.
     // At least one target will be > NODESEP (80px) below Src → triggers isBottomExit.
-    const parsed = parseInitiativeStatus(`chart: initiative-status
+    const parsed = parseInitiativeStatus(`initiative-status
 Src | wip
   -> A | done
   -> B | wip
@@ -250,7 +248,7 @@ D | todo`);
   it('routes Y-displaced forward edge via top-exit elbow (4 points, isTopExit)', () => {
     // 5 sources fan into Target. Grid places Target at median row (2). Sources at rows 0–4.
     // Bottom sources (rows 3,4) are >NODESEP above Target (row 2) → triggers isTopExit for row 0 edge.
-    const parsed = parseInitiativeStatus(`chart: initiative-status
+    const parsed = parseInitiativeStatus(`initiative-status
 A | done
   -> Target | done
 B | wip
@@ -288,7 +286,7 @@ Target | done`);
   it('all forward-edge routing branches produce monotone-increasing X', () => {
     // Hub fans to 4 targets — with NODESEP=80 and 4 targets, extremes are ~120px above/below Hub,
     // exercising isTopExit (A above), isBottomExit (D below), and 4-point elbow (B, C near center).
-    const parsed = parseInitiativeStatus(`chart: initiative-status
+    const parsed = parseInitiativeStatus(`initiative-status
 Hub | wip
   -> Right | done
   -> A | done
@@ -313,8 +311,7 @@ C | wip`);
   it('lays out Operation Blackbeard fixture without errors or undefined points', () => {
     // Smoke test for the full Blackbeard diagram (mirrors tests/fixtures/initiative-status-blackbeard.dgmo).
     // Validates port-routing logic on a realistic multi-rank diagram with groups and back-edges.
-    const content = `chart: initiative-status
-title: Operation Blackbeard
+    const content = `initiative-status Operation Blackbeard
 
 Captain | na
   -issueOrders-> CrewApp | na
@@ -468,7 +465,7 @@ describe('renderInitiativeStatus', () => {
 
     const groups = container.querySelectorAll('.is-group');
     expect(groups.length).toBe(1);
-    expect(groups[0].getAttribute('data-line-number')).toBe('7');
+    expect(groups[0].getAttribute('data-line-number')).toBe('6');
 
     const label = container.querySelector('.is-group-label');
     expect(label).not.toBeNull();
@@ -476,7 +473,7 @@ describe('renderInitiativeStatus', () => {
   });
 
   it('spreads parallel edges with Y offset on interior control points', () => {
-    const parsed = parseInitiativeStatus(`chart: initiative-status
+    const parsed = parseInitiativeStatus(`initiative-status
 Foo | wip
   -A-> Bar | wip
   -B-> Bar | wip
@@ -496,7 +493,7 @@ Bar | wip`);
   it('leaves single edges unaffected (parallelCount=1, no interior offset)', () => {
     // This fixture has only two nodes with no intermediate ranks, so dagre always
     // uses the 4-point elbow path — interior points are at src.y (offset=0).
-    const parsed = parseInitiativeStatus(`chart: initiative-status
+    const parsed = parseInitiativeStatus(`initiative-status
 Foo | wip
   -> Bar | wip
 Bar | wip`);
@@ -508,7 +505,7 @@ Bar | wip`);
 
   it('narrows hit-area stroke-width for parallel edges and keeps full 16px for single edges', () => {
     // 2 parallel edges → stroke-width = max(6, round(16/2)) = 8
-    const parsed2 = parseInitiativeStatus(`chart: initiative-status
+    const parsed2 = parseInitiativeStatus(`initiative-status
 Foo | wip
   -A-> Bar | wip
   -B-> Bar | wip
@@ -523,7 +520,7 @@ Bar | wip`);
     }
 
     // Single edge → stroke-width = max(6, round(16/1)) = 16
-    const parsed1 = parseInitiativeStatus(`chart: initiative-status
+    const parsed1 = parseInitiativeStatus(`initiative-status
 Foo | wip
   -> Bar | wip
 Bar | wip`);
@@ -539,7 +536,7 @@ Bar | wip`);
     // 7 authored edges → only 5 rendered (MAX_PARALLEL_EDGES cap)
     // effectiveSpacing for 5 edges: min(16, 48/(5-1)) = min(16, 12) = 12
     const lines = Array.from({ length: 7 }, (_, i) => `  -E${i}-> Bar | wip`).join('\n');
-    const parsed = parseInitiativeStatus(`chart: initiative-status\nFoo | wip\n${lines}\nBar | wip`);
+    const parsed = parseInitiativeStatus(`initiative-status\nFoo | wip\n${lines}\nBar | wip`);
     const layout = layoutInitiativeStatus(parsed);
     // Capped at 5 rendered edges
     expect(layout.edges).toHaveLength(5);
@@ -574,7 +571,7 @@ Bar | wip`);
 describe('grid quantization', () => {
   it('aligns linear chain on same grid row', () => {
     // A→B→C — all nodes should share the same Y
-    const parsed = parseInitiativeStatus(`chart: initiative-status
+    const parsed = parseInitiativeStatus(`initiative-status
 A | done
   -> B | wip
 B | wip
@@ -587,7 +584,7 @@ C | todo`);
 
   it('places fan-out targets on sequential grid rows with at least one sharing source row', () => {
     // A→B, A→C, A→D — targets in same column on sequential rows
-    const parsed = parseInitiativeStatus(`chart: initiative-status
+    const parsed = parseInitiativeStatus(`initiative-status
 A | done
   -> B | wip
   -> C | wip
@@ -609,7 +606,7 @@ D | todo`);
 
   it('places fan-in target at median of upstream rows', () => {
     // A→C, B→C where A and B are in the same column
-    const parsed = parseInitiativeStatus(`chart: initiative-status
+    const parsed = parseInitiativeStatus(`initiative-status
 A | done
   -> C | wip
 B | wip
@@ -625,7 +622,7 @@ C | wip`);
   });
 
   it('handles disconnected nodes without collision', () => {
-    const parsed = parseInitiativeStatus(`chart: initiative-status
+    const parsed = parseInitiativeStatus(`initiative-status
 A | done
 B | wip`);
     const layout = layoutInitiativeStatus(parsed);
@@ -659,7 +656,7 @@ B | wip`);
   });
 
   it('ensures all Y coordinates are non-negative with margin', () => {
-    const parsed = parseInitiativeStatus(`chart: initiative-status
+    const parsed = parseInitiativeStatus(`initiative-status
 A | done
   -> B | wip
 B | wip`);
@@ -670,7 +667,7 @@ B | wip`);
   });
 
   it('Y positions are on grid (multiples of 80 plus offset)', () => {
-    const parsed = parseInitiativeStatus(`chart: initiative-status
+    const parsed = parseInitiativeStatus(`initiative-status
 A | done
   -> C | wip
 B | wip
@@ -689,8 +686,7 @@ D | todo`);
   });
 
   it('Blackbeard fixture renders without errors', () => {
-    const fixture = `chart: initiative-status
-title: Operation Blackbeard
+    const fixture = `initiative-status Operation Blackbeard
 Supply Lines | done
   -> Base Camp | wip
   -> Forward Ops | todo
@@ -792,7 +788,7 @@ describe('status rework — renderer visuals', () => {
   });
 
   it('renders all new statuses without errors', () => {
-    const container = renderToContainer(`chart: initiative-status
+    const container = renderToContainer(`initiative-status
 A | done
 B | doing
 C | blocked

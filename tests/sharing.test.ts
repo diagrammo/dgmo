@@ -111,7 +111,7 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
 
   describe('view state (activeTagGroup)', () => {
     it('round-trips with activeTagGroup', () => {
-      const dsl = 'chart: org\nCEO\n  VP Engineering';
+      const dsl = 'org\nCEO\n  VP Engineering';
       const result = encodeDiagramUrl(dsl, {
         viewState: { activeTagGroup: 'Location' },
       });
@@ -124,7 +124,7 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
     });
 
     it('URL-encodes unsafe characters in tag name', () => {
-      const dsl = 'chart: org\nCEO';
+      const dsl = 'org\nCEO';
       const result = encodeDiagramUrl(dsl, {
         viewState: { activeTagGroup: 'Team & Role' },
       });
@@ -136,19 +136,19 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
     });
 
     it('omits tag param when activeTagGroup is undefined', () => {
-      const result = encodeDiagramUrl('chart: org\nCEO', { viewState: {} });
+      const result = encodeDiagramUrl('org\nCEO', { viewState: {} });
       if (result.error) throw new Error('unexpected error');
       expect(result.url).not.toContain('&tag=');
     });
 
     it('omits tag param when viewState is not provided', () => {
-      const result = encodeDiagramUrl('chart: org\nCEO');
+      const result = encodeDiagramUrl('org\nCEO');
       if (result.error) throw new Error('unexpected error');
       expect(result.url).not.toContain('&tag=');
     });
 
     it('returns empty viewState when no tag param present', () => {
-      const result = encodeDiagramUrl('chart: org\nCEO');
+      const result = encodeDiagramUrl('org\nCEO');
       if (result.error) throw new Error('unexpected error');
       const query = new URL(result.url).search;
       const decoded = decodeDiagramUrl(query);
@@ -222,7 +222,7 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
     });
 
     it('round-trips palette + theme + activeTagGroup together', () => {
-      const dsl = 'chart: org\nCEO';
+      const dsl = 'org\nCEO';
       const result = encodeDiagramUrl(dsl, {
         viewState: { palette: 'catppuccin', theme: 'light', activeTagGroup: 'Team' },
       });

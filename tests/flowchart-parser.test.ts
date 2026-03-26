@@ -4,25 +4,25 @@ import { parseFlowchart, looksLikeFlowchart } from '../src/graph/flowchart-parse
 describe('parseFlowchart', () => {
   // === AC 11: Metadata ===
   describe('metadata', () => {
-    it('parses chart: flowchart', () => {
-      const result = parseFlowchart('chart: flowchart\n(Start) -> (End)');
+    it('parses flowchart first line', () => {
+      const result = parseFlowchart('flowchart\n(Start) -> (End)');
       expect(result.type).toBe('flowchart');
       expect(result.error).toBeNull();
       expect(result.diagnostics).toEqual([]);
     });
 
-    it('parses title', () => {
-      const result = parseFlowchart('chart: flowchart\ntitle: My Flow\n(Start) -> (End)');
+    it('parses title from first line', () => {
+      const result = parseFlowchart('flowchart My Flow\n(Start) -> (End)');
       expect(result.title).toBe('My Flow');
     });
 
-    it('parses direction: TB', () => {
-      const result = parseFlowchart('chart: flowchart\ndirection: TB\n(Start) -> (End)');
+    it('parses direction TB', () => {
+      const result = parseFlowchart('flowchart\ndirection TB\n(Start) -> (End)');
       expect(result.direction).toBe('TB');
     });
 
-    it('parses direction: LR', () => {
-      const result = parseFlowchart('chart: flowchart\ndirection: LR\n(Start) -> (End)');
+    it('parses direction LR', () => {
+      const result = parseFlowchart('flowchart\ndirection LR\n(Start) -> (End)');
       expect(result.direction).toBe('LR');
     });
 
@@ -31,18 +31,18 @@ describe('parseFlowchart', () => {
       expect(result.direction).toBe('TB');
     });
 
-    it('accepts orientation: as alias for direction:', () => {
-      const result = parseFlowchart('chart: flowchart\norientation: horizontal\n(Start) -> (End)');
+    it('accepts orientation as alias for direction', () => {
+      const result = parseFlowchart('flowchart\norientation horizontal\n(Start) -> (End)');
       expect(result.direction).toBe('LR');
     });
 
-    it('normalizes direction: horizontal to LR', () => {
-      const result = parseFlowchart('chart: flowchart\ndirection: horizontal\n(Start) -> (End)');
+    it('normalizes direction horizontal to LR', () => {
+      const result = parseFlowchart('flowchart\ndirection horizontal\n(Start) -> (End)');
       expect(result.direction).toBe('LR');
     });
 
-    it('normalizes orientation: vertical to TB', () => {
-      const result = parseFlowchart('chart: flowchart\norientation: vertical\n(Start) -> (End)');
+    it('normalizes orientation vertical to TB', () => {
+      const result = parseFlowchart('flowchart\norientation vertical\n(Start) -> (End)');
       expect(result.direction).toBe('TB');
     });
   });
@@ -266,15 +266,41 @@ describe('parseFlowchart', () => {
     });
   });
 
-  // === AC 9: Groups (removed — ## no longer supported) ===
+  // === AC 9: Groups ===
   describe('groups', () => {
     it('## emits an error diagnostic', () => {
       const input = '## API(blue)\n  [Auth] -> [Route]';
       const result = parseFlowchart(input);
       expect(result.groups).toBeUndefined();
-      const groupError = result.diagnostics.find((d) => d.message.includes('## group syntax'));
+      const groupError = result.diagnostics.find((d) => d.message.includes('Use `#` for groups'));
       expect(groupError).toBeDefined();
       expect(groupError!.severity).toBe('error');
+    });
+
+    it('# GroupName creates a group with indented members', () => {
+      const input = '# API\n  [Auth] -> [Route]';
+      const result = parseFlowchart(input);
+      expect(result.error).toBeNull();
+      expect(result.groups).toHaveLength(1);
+      expect(result.groups![0].label).toBe('API');
+      expect(result.groups![0].nodeIds).toContain(result.nodes[0].id);
+      expect(result.groups![0].nodeIds).toContain(result.nodes[1].id);
+    });
+
+    it('# GroupName(color) creates a group with color', () => {
+      const input = '# API(blue)\n  [Auth] -> [Route]';
+      const result = parseFlowchart(input);
+      expect(result.error).toBeNull();
+      expect(result.groups).toHaveLength(1);
+      expect(result.groups![0].label).toBe('API');
+      expect(result.groups![0].color).toBeDefined();
+    });
+
+    it('outdent closes the group', () => {
+      const input = '# API\n  [Auth] -> [Route]\n[Outside]';
+      const result = parseFlowchart(input);
+      expect(result.groups).toHaveLength(1);
+      expect(result.groups![0].nodeIds).not.toContain(result.nodes.find(n => n.label === 'Outside')!.id);
     });
   });
 
@@ -314,19 +340,19 @@ describe('parseFlowchart', () => {
   // === AC 13: Line numbers ===
   describe('line numbers', () => {
     it('tracks line numbers on nodes and edges', () => {
-      const input = 'chart: flowchart\ntitle: Test\n\n[A] -> [B]';
+      const input = 'flowchart Test\n\n[A] -> [B]';
       const result = parseFlowchart(input);
-      // Line 4 has [A] -> [B]
-      expect(result.nodes[0].lineNumber).toBe(4);
-      expect(result.nodes[1].lineNumber).toBe(4);
-      expect(result.edges[0].lineNumber).toBe(4);
+      // Line 3 has [A] -> [B]
+      expect(result.nodes[0].lineNumber).toBe(3);
+      expect(result.nodes[1].lineNumber).toBe(3);
+      expect(result.edges[0].lineNumber).toBe(3);
     });
   });
 
   // === AC 14: Error handling ===
   describe('errors', () => {
     it('error on empty content (no nodes)', () => {
-      const result = parseFlowchart('chart: flowchart\n');
+      const result = parseFlowchart('flowchart\n');
       expect(result.error).toBeDefined();
       // diagnostics
       expect(result.diagnostics).toHaveLength(1);
@@ -349,9 +375,8 @@ describe('parseFlowchart', () => {
   describe('comprehensive example', () => {
     it('parses the CI/CD pipeline example', () => {
       const input = [
-        'chart: flowchart',
-        'title: CI/CD Pipeline',
-        'direction: LR',
+        'flowchart CI/CD Pipeline',
+        'direction LR',
         '',
         '(Push to Repo) -> [[Run Linter]] -> <Lint Pass?>',
         '  -yes-> [[Run Tests]]',

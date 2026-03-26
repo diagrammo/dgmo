@@ -4,24 +4,24 @@ import { computeInfra } from '../src/infra/compute';
 import { serializeScenario } from '../src/infra/serialize';
 
 const BASE = `
-chart: infra
+infra
 
 edge
-  rps: 10000
+  rps 10000
   -> CDN
 
 CDN
-  cache-hit: 80%
+  cache-hit 80%
   -> API
 
 API
-  max-rps: 2000
-  instances: 3
-  latency-ms: 50
+  max-rps 2000
+  instances 3
+  latency-ms 50
   -> DB
 
 DB
-  max-rps: 5000
+  max-rps 5000
 `;
 
 function parse(source = BASE) {
@@ -125,16 +125,16 @@ describe('serializeScenario', () => {
 
   it('serializes queue property overrides', () => {
     const source = `
-chart: infra
+infra
 edge
-  rps: 1000
+  rps 1000
   -> MQ
 MQ
-  buffer: 100000
-  drain-rate: 500
+  buffer 100000
+  drain-rate 500
   -> Proc
 Proc
-  max-rps: 500
+  max-rps 500
 `;
     const parsed = parse(source);
     const result = serializeScenario('burst', parsed, {
@@ -147,13 +147,13 @@ Proc
 
   it('serializes serverless property overrides', () => {
     const source = `
-chart: infra
+infra
 edge
-  rps: 1000
+  rps 1000
   -> Lambda
 Lambda
-  concurrency: 500
-  duration-ms: 200
+  concurrency 500
+  duration-ms 200
 `;
     const parsed = parse(source);
     const result = serializeScenario('scale', parsed, {

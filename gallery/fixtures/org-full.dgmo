@@ -1,13 +1,12 @@
-chart: org
-title: Acme Corp
+org Acme Corp
 
-tag: Location
+tag Location
   NY(blue)
   LA(yellow)
   CO(green)
   Remote(purple)
 
-tag: Status
+tag Status
   FTE(green)
   Contractor(orange)
 

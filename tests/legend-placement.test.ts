@@ -86,7 +86,7 @@ function getSvgHeight(container: Element): number | null {
 describe('Placement: Sequence legend at top', () => {
   const src = `chart: sequence
 
-tag: Team
+tag Team
   Frontend(blue)
   Backend(red)
 
@@ -145,16 +145,16 @@ Bob <-response- Alice`;
 // ── C4 ────────────────────────────────────────────────────────────────────────
 
 describe('Placement: C4 legend below diagram nodes', () => {
-  const src = `chart: c4
+  const src = `c4
 
-tag: Domain
+tag Domain
   Auth(blue)
   Payments(green)
 
-person User
-system AuthService | domain: Auth
-system PaymentsService | domain: Payments
-User -> AuthService`;
+User is a person
+AuthService is a system | domain: Auth
+PaymentsService is a system | domain: Payments
+  -> User`;
 
   it('legend groups exist and layout y-coord is positive', () => {
     const parsed = parseC4(src, palette);
@@ -181,9 +181,9 @@ User -> AuthService`;
 // ── Kanban ────────────────────────────────────────────────────────────────────
 
 describe('Placement: Kanban legend at bottom', () => {
-  const src = `chart: kanban
+  const src = `kanban
 
-tag: Priority
+tag Priority
   High(red)
   Low(green)
 
@@ -216,9 +216,9 @@ tag: Priority
 // ── Org ───────────────────────────────────────────────────────────────────────
 
 describe('Placement: Org legend at top (app mode)', () => {
-  const src = `chart: org
+  const src = `org
 
-tag: Region
+tag Region
   North(blue)
   South(green)
 
@@ -249,9 +249,9 @@ CEO
 // ── Sitemap ───────────────────────────────────────────────────────────────────
 
 describe('Placement: Sitemap legend at top (app mode)', () => {
-  const src = `chart: sitemap
+  const src = `sitemap
 
-tag: Section
+tag Section
   Docs(blue)
   Blog(green)
 
@@ -282,14 +282,14 @@ Home
 // ── Infra ─────────────────────────────────────────────────────────────────────
 
 describe('Placement: Infra legend at top (export mode)', () => {
-  const src = `chart: infra
+  const src = `infra
 
-tag: Team
+tag Team
   Platform(blue)
   App(green)
 
 edge
-  rps: 1000
+  rps 1000
   -> API | team: App
   -> DB | team: Platform`;
 
@@ -328,7 +328,7 @@ edge
 describe('Placement: ER legend at top', () => {
   const src = `chart: er
 
-tag: Domain
+tag Domain
   Auth(blue)
   Core(green)
 
@@ -365,7 +365,7 @@ Order {
 describe('Placement: Timeline legend at top', () => {
   const src = `chart: timeline
 
-tag: Status
+tag Status
   Done(green)
   Active(blue)
 

@@ -4,24 +4,24 @@ import { parseInitiativeStatus, looksLikeInitiativeStatus, parseNodeMetadata } f
 describe('parseInitiativeStatus', () => {
   // === Metadata ===
   describe('metadata', () => {
-    it('parses chart: initiative-status', () => {
-      const result = parseInitiativeStatus('chart: initiative-status\nMobile | done');
+    it('parses bare initiative-status on first line', () => {
+      const result = parseInitiativeStatus('initiative-status\nMobile | done');
       expect(result.type).toBe('initiative-status');
       expect(result.error).toBeNull();
       expect(result.diagnostics).toEqual([]);
     });
 
     it('rejects wrong chart type', () => {
-      const result = parseInitiativeStatus('chart: flowchart\nMobile | done');
+      const result = parseInitiativeStatus('flowchart\nMobile | done');
       expect(result.error).toContain('Expected chart type "initiative-status"');
       expect(result.diagnostics).toHaveLength(1);
       expect(result.diagnostics[0].severity).toBe('error');
     });
 
-    it('parses title', () => {
-      const result = parseInitiativeStatus('chart: initiative-status\ntitle: Project Phoenix\nMobile | done');
+    it('parses title on first line', () => {
+      const result = parseInitiativeStatus('initiative-status Project Phoenix\nMobile | done');
       expect(result.title).toBe('Project Phoenix');
-      expect(result.titleLineNumber).toBe(2);
+      expect(result.titleLineNumber).toBe(1);
     });
   });
 
@@ -143,8 +143,7 @@ describe('parseInitiativeStatus', () => {
   // === Groups ===
   describe('groups', () => {
     it('parses a group with indented children', () => {
-      const input = `chart: initiative-status
-title: Test
+      const input = `initiative-status Test
 User | na
 [External]
   Identity Service | na
@@ -263,8 +262,7 @@ B | wip`;
     });
 
     it('parses Operation Blackbeard example', () => {
-      const input = `chart: initiative-status
-title: Operation Blackbeard
+      const input = `initiative-status Operation Blackbeard
 
 Captain
   -> CrewApp: issueOrders
@@ -312,8 +310,7 @@ CargoService | wip
   // === Full diagram ===
   describe('full diagram', () => {
     it('parses the example from the plan', () => {
-      const input = `chart: initiative-status
-title: Project Phoenix
+      const input = `initiative-status Project Phoenix
 
 Mobile | done
 Web Front End | todo
@@ -344,8 +341,7 @@ Web Front End -> Back End: API | todo`;
     });
 
     it('parses diagram with groups', () => {
-      const input = `chart: initiative-status
-title: Project Phoenix
+      const input = `initiative-status Project Phoenix
 
 User | na
 Mobile | done
@@ -482,8 +478,8 @@ describe('tag groups', () => {
 
   describe('tag block declarations', () => {
     it('parses tag block with alias and colored entries', () => {
-      const input = `chart: initiative-status
-tag: Phase alias p
+      const input = `initiative-status
+tag Phase p
   Discovery(blue)
   Build(yellow)
   Launch(green)
@@ -500,10 +496,10 @@ API | wip, p: Build`;
     });
 
     it('parses multiple tag groups', () => {
-      const input = `chart: initiative-status
-tag: Phase alias p
+      const input = `initiative-status
+tag Phase p
   Build(yellow)
-tag: Team alias t
+tag Team t
   Frontend(purple)
   Backend(cyan)
 
@@ -516,8 +512,8 @@ API | done`;
     });
 
     it('parses tag entries without color', () => {
-      const input = `chart: initiative-status
-tag: Phase
+      const input = `initiative-status
+tag Phase
   Build
   Launch
 
@@ -526,10 +522,10 @@ API | done`;
       expect(result.tagGroups[0].entries[0]).toMatchObject({ value: 'Build', color: '' });
     });
 
-    it('parses default tag value', () => {
-      const input = `chart: initiative-status
-tag: Phase alias p
-  Planning(blue) default
+    it('first tag value is the default', () => {
+      const input = `initiative-status
+tag Phase p
+  Planning(blue)
   Build(green)
 
 API | done`;
@@ -538,9 +534,9 @@ API | done`;
     });
 
     it('emits error when tag block appears after content', () => {
-      const input = `chart: initiative-status
+      const input = `initiative-status
 API | done
-tag: Phase
+tag Phase
   Build(yellow)`;
       const result = parseInitiativeStatus(input);
       const errors = result.diagnostics.filter(d => d.severity === 'error');
@@ -552,8 +548,8 @@ tag: Phase
 
   describe('node pipe metadata with tags', () => {
     it('parses node with status + tag metadata', () => {
-      const input = `chart: initiative-status
-tag: Phase alias p
+      const input = `initiative-status
+tag Phase p
   Build(yellow)
 
 API | wip, p: Build`;
@@ -563,8 +559,8 @@ API | wip, p: Build`;
     });
 
     it('parses node with tags only — status defaults to na', () => {
-      const input = `chart: initiative-status
-tag: Phase alias p
+      const input = `initiative-status
+tag Phase p
   Build(yellow)
 
 API | p: Build`;
@@ -574,8 +570,8 @@ API | p: Build`;
     });
 
     it('handles flexible order: tags before status', () => {
-      const input = `chart: initiative-status
-tag: Phase alias p
+      const input = `initiative-status
+tag Phase p
   Build(yellow)
 
 API | p: Build, done`;
@@ -600,8 +596,8 @@ API | p: Build, done`;
 
   describe('edge pipe metadata with tags', () => {
     it('parses edge with status + tags', () => {
-      const input = `chart: initiative-status
-tag: Phase alias p
+      const input = `initiative-status
+tag Phase p
   Build(yellow)
 
 A | done
@@ -622,15 +618,15 @@ A -> B | done, p: Build`;
 
   describe('default tag values', () => {
     it('injects default tag value on untagged nodes', () => {
-      const input = `chart: initiative-status
-tag: Phase alias p
-  Planning(blue) default
+      const input = `initiative-status
+tag Phase p
+  Planning(blue)
   Build(green)
 
 API | done
 DB | done, p: Build`;
       const result = parseInitiativeStatus(input);
-      // API has no phase tag → gets default "Planning"
+      // API has no phase tag → gets default (first value = "Planning")
       expect(result.nodes[0].metadata.phase).toBe('Planning');
       // DB has explicit phase → keeps "Build"
       expect(result.nodes[1].metadata.phase).toBe('Build');
@@ -639,8 +635,8 @@ DB | done, p: Build`;
 
   describe('tag validation warnings', () => {
     it('warns on unknown tag values with did-you-mean', () => {
-      const input = `chart: initiative-status
-tag: Phase alias p
+      const input = `initiative-status
+tag Phase p
   Build(yellow)
   Launch(green)
 
@@ -652,10 +648,10 @@ API | done, p: Buidl`;
     });
   });
 
-  describe('hide: DSL directive', () => {
-    it('parses hide: with single group:value pair', () => {
-      const input = `chart: initiative-status
-hide: phase:Phase3
+  describe('hide directive', () => {
+    it('parses hide with single tag-value pair', () => {
+      const input = `initiative-status
+hide phase Phase3
 
 API | done`;
       const result = parseInitiativeStatus(input);
@@ -663,9 +659,9 @@ API | done`;
       expect(result.initialHiddenTagValues.get('phase')!.has('phase3')).toBe(true);
     });
 
-    it('parses hide: with multiple group:value pairs', () => {
-      const input = `chart: initiative-status
-hide: phase:Phase3, team:Frontend
+    it('parses hide with multiple comma-separated pairs', () => {
+      const input = `initiative-status
+hide phase Phase3, team Frontend
 
 API | done`;
       const result = parseInitiativeStatus(input);
@@ -673,12 +669,13 @@ API | done`;
       expect(result.initialHiddenTagValues.get('team')!.has('frontend')).toBe(true);
     });
 
-    it('ignores malformed hide entries without colon', () => {
-      const input = `chart: initiative-status
-hide: nocolon
+    it('ignores malformed hide entries (single word — no tag-value pair)', () => {
+      const input = `initiative-status
+hide nocolon
 
 API | done`;
       const result = parseInitiativeStatus(input);
+      // 'nocolon' is a single word — not a valid tag-value pair
       expect(result.initialHiddenTagValues.size).toBe(0);
     });
   });
@@ -757,8 +754,8 @@ describe('status rework — new statuses and aliases', () => {
 
 describe('group metadata cascading', () => {
   it('child inherits group metadata', () => {
-    const input = `chart: initiative-status
-tag: Phase alias p
+    const input = `initiative-status
+tag Phase p
   Build(yellow)
   Deploy(green)
 
@@ -770,8 +767,8 @@ tag: Phase alias p
   });
 
   it('child overrides group metadata on conflict', () => {
-    const input = `chart: initiative-status
-tag: Phase alias p
+    const input = `initiative-status
+tag Phase p
   Build(yellow)
   Deploy(green)
 
@@ -797,10 +794,10 @@ tag: Phase alias p
   });
 
   it('multiple metadata keys cascade', () => {
-    const input = `chart: initiative-status
-tag: Phase alias p
+    const input = `initiative-status
+tag Phase p
   Build(yellow)
-tag: Team alias t
+tag Team t
   Backend(cyan)
 
 [Core] | p: Build, t: Backend

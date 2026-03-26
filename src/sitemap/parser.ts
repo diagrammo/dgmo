@@ -17,6 +17,9 @@ import {
   CHART_TYPE_RE,
   TITLE_RE,
   OPTION_RE,
+  parseFirstLine,
+  OPTION_NOCOLON_RE,
+  ALL_CHART_TYPES,
 } from '../utils/parsing';
 import type {
   SitemapNode,
@@ -29,6 +32,7 @@ import type {
 // ============================================================
 
 const CONTAINER_RE = /^\[([^\]]+)\]\s*(?:\|\s*(.+))?$/;
+/** Metadata on content nodes: `key: value` (colon-separated, used in content phase) */
 const METADATA_RE = /^([^:]+):\s*(.+)$/;
 
 /**
@@ -154,6 +158,7 @@ export function parseSitemap(
   let contentStarted = false;
   let nodeCounter = 0;
   let containerCounter = 0;
+  let firstLineParsed = false;
 
   // Tag group parsing state
   let currentTagGroup: TagGroup | null = null;
@@ -194,32 +199,22 @@ export function parseSitemap(
 
     // --- Header phase ---
 
-    // chart: type
-    if (!contentStarted) {
-      const chartMatch = trimmed.match(CHART_TYPE_RE);
-      if (chartMatch) {
-        const chartType = chartMatch[1].trim().toLowerCase();
-        if (chartType !== 'sitemap') {
-          const allTypes = [
-            'sitemap', 'org', 'class', 'flowchart', 'sequence', 'er',
-            'bar', 'line', 'pie', 'scatter', 'sankey', 'venn', 'timeline',
-            'arc', 'slope', 'kanban', 'c4', 'initiative-status', 'state',
-          ];
-          let msg = `Expected chart type "sitemap", got "${chartType}"`;
-          const hint = suggest(chartType, allTypes);
+    // First line: try parseFirstLine for `sitemap [Title]`
+    if (!firstLineParsed && !contentStarted) {
+      const firstLineResult = parseFirstLine(trimmed);
+      if (firstLineResult) {
+        firstLineParsed = true;
+        if (firstLineResult.chartType !== 'sitemap') {
+          const allTypes = Array.from(ALL_CHART_TYPES);
+          let msg = `Expected chart type "sitemap", got "${firstLineResult.chartType}"`;
+          const hint = suggest(firstLineResult.chartType, allTypes);
           if (hint) msg += `. ${hint}`;
           return fail(lineNumber, msg);
         }
-        continue;
-      }
-    }
-
-    // title: value
-    if (!contentStarted) {
-      const titleMatch = trimmed.match(TITLE_RE);
-      if (titleMatch) {
-        result.title = titleMatch[1].trim();
-        result.titleLineNumber = lineNumber;
+        if (firstLineResult.title) {
+          result.title = firstLineResult.title;
+          result.titleLineNumber = lineNumber;
+        }
         continue;
       }
     }
@@ -248,9 +243,11 @@ export function parseSitemap(
       continue;
     }
 
-    // Generic header options (before content/tag groups)
-    if (!contentStarted && !currentTagGroup && measureIndent(line) === 0) {
-      const optMatch = trimmed.match(OPTION_RE);
+    // Generic header options (space-separated, before content/tag groups)
+    // Skip lines with `|` (pipe metadata) or `->` (arrows) — those are content
+    if (!contentStarted && !currentTagGroup && measureIndent(line) === 0
+        && !trimmed.includes('|') && !trimmed.includes('->')) {
+      const optMatch = trimmed.match(OPTION_NOCOLON_RE);
       if (optMatch) {
         const key = optMatch[1].trim().toLowerCase();
         if (key === 'direction' || key === 'orientation') {
@@ -260,10 +257,8 @@ export function parseSitemap(
           }
           continue;
         }
-        if (key !== 'chart' && key !== 'title') {
-          result.options[key] = optMatch[2].trim();
-          continue;
-        }
+        result.options[key] = optMatch[2].trim();
+        continue;
       }
     }
 
@@ -271,11 +266,7 @@ export function parseSitemap(
     if (currentTagGroup && !contentStarted) {
       const indent = measureIndent(line);
       if (indent > 0) {
-        const isDefault = /\bdefault\s*$/.test(trimmed);
-        const entryText = isDefault
-          ? trimmed.replace(/\s+default\s*$/, '').trim()
-          : trimmed;
-        const { label, color } = extractColor(entryText, palette);
+        const { label, color } = extractColor(trimmed, palette);
         if (!color) {
           pushError(
             lineNumber,
@@ -283,14 +274,15 @@ export function parseSitemap(
           );
           continue;
         }
-        if (isDefault) {
-          currentTagGroup.defaultValue = label;
-        }
         currentTagGroup.entries.push({
           value: label,
           color,
           lineNumber,
         });
+        // First entry is the default
+        if (currentTagGroup.entries.length === 1) {
+          currentTagGroup.defaultValue = label;
+        }
         continue;
       }
       // Non-indented line after tag group — fall through to content
