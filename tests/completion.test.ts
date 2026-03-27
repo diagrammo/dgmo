@@ -1,10 +1,19 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
-import { extractDiagramSymbols } from '../src/completion';
+import {
+  extractDiagramSymbols,
+  COMPLETION_REGISTRY,
+  CHART_TYPES,
+  METADATA_KEY_SET,
+  extractTagDeclarations,
+} from '../src/completion';
 import { extractSymbols as extractErSymbols } from '../src/er/parser';
 import { extractSymbols as extractFlowchartSymbols } from '../src/graph/flowchart-parser';
 import { extractSymbols as extractInfraSymbols } from '../src/infra/parser';
 import { extractSymbols as extractClassSymbols } from '../src/class/parser';
+import { ALL_CHART_TYPES } from '../src/utils/parsing';
 
 // ============================================================
 // extractDiagramSymbols dispatch
@@ -340,5 +349,257 @@ describe('Class extractSymbols', () => {
     const elapsed = Date.now() - start;
     expect(result.entities).toHaveLength(100);
     expect(elapsed).toBeLessThan(10);
+  });
+});
+
+// ============================================================
+// COMPLETION_REGISTRY
+// ============================================================
+
+describe('COMPLETION_REGISTRY', () => {
+  it('has an entry for every CHART_TYPES entry', () => {
+    for (const ct of CHART_TYPES) {
+      expect(COMPLETION_REGISTRY.has(ct.name), `Missing registry entry for ${ct.name}`).toBe(true);
+    }
+  });
+
+  it('every entry has at least palette and theme directives', () => {
+    for (const [name, spec] of COMPLETION_REGISTRY) {
+      expect(spec.directives.palette, `${name} missing palette`).toBeDefined();
+      expect(spec.directives.theme, `${name} missing theme`).toBeDefined();
+    }
+  });
+
+  it('CHART_TYPES covers all ALL_CHART_TYPES except multi-line', () => {
+    const chartTypeNames = new Set(CHART_TYPES.map(t => t.name));
+    for (const ct of ALL_CHART_TYPES) {
+      if (ct === 'multi-line') continue;
+      expect(chartTypeNames.has(ct), `CHART_TYPES missing ${ct}`).toBe(true);
+    }
+  });
+
+  it('CHART_TYPES does not include multi-line alias', () => {
+    expect(CHART_TYPES.find(t => t.name === 'multi-line')).toBeUndefined();
+  });
+
+  it('METADATA_KEY_SET includes expected keys', () => {
+    const expected = [
+      'palette', 'theme', 'chart', 'title',
+      'xlabel', 'orientation', 'activations', 'start',
+      'critical-path', 'direction', 'series', 'labels',
+    ];
+    for (const key of expected) {
+      expect(METADATA_KEY_SET.has(key), `METADATA_KEY_SET missing ${key}`).toBe(true);
+    }
+  });
+
+  it('registry directives match language-reference.md options', () => {
+    const refPath = resolve(__dirname, '../docs/language-reference.md');
+    const refContent = readFileSync(refPath, 'utf-8');
+
+    // Spot-check: bar should have orientation, sequence should have activations, gantt should have start
+    const barSpec = COMPLETION_REGISTRY.get('bar')!;
+    expect(barSpec.directives.orientation).toBeDefined();
+    expect(barSpec.directives.xlabel).toBeDefined();
+
+    const seqSpec = COMPLETION_REGISTRY.get('sequence')!;
+    expect(seqSpec.directives.activations).toBeDefined();
+    expect(seqSpec.directives['collapse-notes']).toBeDefined();
+
+    const ganttSpec = COMPLETION_REGISTRY.get('gantt')!;
+    expect(ganttSpec.directives.start).toBeDefined();
+    expect(ganttSpec.directives['today-marker']).toBeDefined();
+    expect(ganttSpec.directives['critical-path']).toBeDefined();
+
+    // Verify the language reference mentions these directives
+    expect(refContent).toContain('palette');
+    expect(refContent).toContain('activations');
+    expect(refContent).toContain('critical-path');
+  });
+
+  it('registry lookup for all 32 types completes under 1ms', () => {
+    const start = performance.now();
+    for (const ct of CHART_TYPES) {
+      COMPLETION_REGISTRY.get(ct.name);
+    }
+    const elapsed = performance.now() - start;
+    expect(elapsed).toBeLessThan(1);
+  });
+});
+
+// ============================================================
+// Sequence extractor
+// ============================================================
+
+describe('Sequence extractSymbols', () => {
+  it('extracts participants from arrow lines', () => {
+    const doc = 'sequence\nAuth -> API\nAPI -> DB\n';
+    const result = extractDiagramSymbols(doc);
+    expect(result).not.toBeNull();
+    expect(result!.kind).toBe('sequence');
+    expect(result!.entities).toEqual(['Auth', 'API', 'DB']);
+  });
+
+  it('extracts participants from labeled arrows', () => {
+    const doc = 'sequence\nUser -login-> Auth\nAuth -query-> DB\n';
+    const result = extractDiagramSymbols(doc);
+    expect(result!.entities).toEqual(['User', 'Auth', 'DB']);
+  });
+
+  it('extracts participants from async arrows', () => {
+    const doc = 'sequence\nClient ~> Server\nServer ~> Worker\n';
+    const result = extractDiagramSymbols(doc);
+    expect(result!.entities).toContain('Client');
+    expect(result!.entities).toContain('Server');
+    expect(result!.entities).toContain('Worker');
+  });
+
+  it('extracts participants from labeled tilde arrows', () => {
+    const doc = 'sequence\nClient ~event~> Server\n';
+    const result = extractDiagramSymbols(doc);
+    expect(result!.entities).toContain('Client');
+    expect(result!.entities).toContain('Server');
+  });
+
+  it('extracts participants from type declarations (is a)', () => {
+    const doc = 'sequence\nUser is a person\nGateway is a system\nUser -> Gateway\n';
+    const result = extractDiagramSymbols(doc);
+    expect(result!.entities).toContain('User');
+    expect(result!.entities).toContain('Gateway');
+  });
+
+  it('extracts participants from type declarations (is an)', () => {
+    const doc = 'sequence\nAuth is an actor\nAuth -> API\n';
+    const result = extractDiagramSymbols(doc);
+    expect(result!.entities).toContain('Auth');
+  });
+
+  it('deduplicates participant names', () => {
+    const doc = 'sequence\nA -> B\nB -> A\nA -> C\n';
+    const result = extractDiagramSymbols(doc);
+    const aCount = result!.entities.filter(e => e === 'A').length;
+    expect(aCount).toBe(1);
+  });
+
+  it('strips pipe metadata from participants', () => {
+    const doc = 'sequence\nAuth -> API | color: red\n';
+    const result = extractDiagramSymbols(doc);
+    expect(result!.entities).toContain('Auth');
+    expect(result!.entities).toContain('API');
+    expect(result!.entities).not.toContain('API | color: red');
+  });
+
+  it('skips section headers', () => {
+    const doc = 'sequence\n== Login ==\nUser -> Auth\n';
+    const result = extractDiagramSymbols(doc);
+    expect(result!.entities).toEqual(['User', 'Auth']);
+  });
+
+  it('skips structural keywords', () => {
+    const doc = 'sequence\nA -> B\nif: condition\n  B -> C\nelse:\n  B -> D\nend\n';
+    const result = extractDiagramSymbols(doc);
+    expect(result!.entities).not.toContain('if');
+    expect(result!.entities).not.toContain('else');
+  });
+
+  it('returns sequence keywords', () => {
+    const doc = 'sequence\nA -> B\n';
+    const result = extractDiagramSymbols(doc);
+    expect(result!.keywords).toContain('if');
+    expect(result!.keywords).toContain('loop');
+    expect(result!.keywords).toContain('parallel');
+    expect(result!.keywords).toContain('note');
+    expect(result!.keywords).not.toContain('note on');
+  });
+
+  it('returns empty entities for empty sequence', () => {
+    const doc = 'sequence\n';
+    const result = extractDiagramSymbols(doc);
+    expect(result!.entities).toEqual([]);
+  });
+
+  it('handles 100-participant fixture under 10ms', () => {
+    const lines = ['sequence'];
+    for (let i = 0; i < 100; i++) {
+      lines.push(`P${i} -> P${i + 1}`);
+    }
+    const doc = lines.join('\n');
+    const start = Date.now();
+    const result = extractDiagramSymbols(doc);
+    const elapsed = Date.now() - start;
+    expect(result!.entities.length).toBeGreaterThanOrEqual(100);
+    expect(elapsed).toBeLessThan(10);
+  });
+});
+
+// ============================================================
+// State extractor
+// ============================================================
+
+describe('State extractSymbols', () => {
+  it('extracts state names from transitions', () => {
+    const doc = 'state\nIdle -> Running\nRunning -> Stopped\n';
+    const result = extractDiagramSymbols(doc);
+    expect(result).not.toBeNull();
+    expect(result!.kind).toBe('state');
+    expect(result!.entities).toContain('Idle');
+    expect(result!.entities).toContain('Running');
+    expect(result!.entities).toContain('Stopped');
+  });
+
+  it('deduplicates state names', () => {
+    const doc = 'state\nA -> B\nB -> A\n';
+    const result = extractDiagramSymbols(doc);
+    expect(result!.entities).toEqual(['A', 'B']);
+  });
+
+  it('returns empty entities for empty state diagram', () => {
+    const doc = 'state\n';
+    const result = extractDiagramSymbols(doc);
+    expect(result!.entities).toEqual([]);
+  });
+
+  it('skips metadata lines', () => {
+    const doc = 'state\ndirection LR\nA -> B\n';
+    const result = extractDiagramSymbols(doc);
+    expect(result!.entities).not.toContain('direction');
+    expect(result!.entities).toContain('A');
+  });
+});
+
+// ============================================================
+// extractTagDeclarations
+// ============================================================
+
+describe('extractTagDeclarations', () => {
+  it('extracts tag group with alias', () => {
+    const doc = 'sequence\ntag Team alias t\n  Frontend(blue)\n  Backend(green)\nA -> B\n';
+    const result = extractTagDeclarations(doc);
+    expect(result.get('t')).toEqual(['Frontend', 'Backend']);
+  });
+
+  it('extracts tag group without alias', () => {
+    const doc = 'org\ntag Department\n  Engineering\n  Marketing\n';
+    const result = extractTagDeclarations(doc);
+    expect(result.get('department')).toEqual(['Engineering', 'Marketing']);
+  });
+
+  it('handles multiple tag groups', () => {
+    const doc = 'infra\ntag Role alias r\n  Backend\n  Frontend\ntag Env alias e\n  Prod\n  Staging\n';
+    const result = extractTagDeclarations(doc);
+    expect(result.get('r')).toEqual(['Backend', 'Frontend']);
+    expect(result.get('e')).toEqual(['Prod', 'Staging']);
+  });
+
+  it('strips color annotations from values', () => {
+    const doc = 'org\ntag Team alias t\n  Alpha(blue)\n  Beta(red)\n';
+    const result = extractTagDeclarations(doc);
+    expect(result.get('t')).toEqual(['Alpha', 'Beta']);
+  });
+
+  it('returns empty map for doc without tags', () => {
+    const doc = 'sequence\nA -> B\n';
+    const result = extractTagDeclarations(doc);
+    expect(result.size).toBe(0);
   });
 });

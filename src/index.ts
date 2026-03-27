@@ -396,8 +396,14 @@ export type {
 export {
   registerExtractor,
   extractDiagramSymbols,
+  COMPLETION_REGISTRY,
+  CHART_TYPES,
+  METADATA_KEY_SET,
+  extractTagDeclarations,
 } from './completion';
-export type { DiagramSymbols, ExtractFn } from './completion';
+export type { DiagramSymbols, ExtractFn, DirectiveSpec, DirectiveValueSpec } from './completion';
+
+export { parseFirstLine, ALL_CHART_TYPES } from './utils/parsing';
 
 // ============================================================
 // Branding

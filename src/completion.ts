@@ -1,7 +1,12 @@
 /**
- * Diagram symbol extraction API.
+ * Diagram symbol extraction API + completion registry.
  *
- * Provides DiagramSymbols interface + extractDiagramSymbols() dispatch.
+ * Provides:
+ * - DiagramSymbols interface + extractDiagramSymbols() dispatch
+ * - COMPLETION_REGISTRY: chart-type → directives map (for editor autocomplete)
+ * - CHART_TYPES: array of { name, description } for chart type completion
+ * - METADATA_KEY_SET: derived set of all known directive keys
+ *
  * Each diagram type registers its own extractor via registerExtractor().
  * All built-in extractors are registered at module init below.
  */
@@ -10,7 +15,11 @@ import { extractSymbols as extractErSymbols } from './er/parser';
 import { extractSymbols as extractFlowchartSymbols } from './graph/flowchart-parser';
 import { extractSymbols as extractInfraSymbols } from './infra/parser';
 import { extractSymbols as extractClassSymbols } from './class/parser';
-import { parseFirstLine } from './utils/parsing';
+import { parseFirstLine, ALL_CHART_TYPES } from './utils/parsing';
+
+// ============================================================
+// Symbol extraction
+// ============================================================
 
 // ChartType is just a string — alias here for documentation clarity.
 export type ChartType = string;
@@ -23,10 +32,10 @@ export interface DiagramSymbols {
 
 export type ExtractFn = (docText: string) => DiagramSymbols;
 
-const registry = new Map<ChartType, ExtractFn>();
+const extractorRegistry = new Map<ChartType, ExtractFn>();
 
 export function registerExtractor(kind: ChartType, fn: ExtractFn): void {
-  registry.set(kind, fn);
+  extractorRegistry.set(kind, fn);
 }
 
 /**
@@ -46,9 +55,376 @@ export function extractDiagramSymbols(docText: string): DiagramSymbols | null {
     break; // only check the first non-empty, non-comment line
   }
   if (!chartType) return null;
-  const fn = registry.get(chartType);
+  const fn = extractorRegistry.get(chartType);
   if (!fn) return null;
   return fn(docText);
+}
+
+// ============================================================
+// Completion registry
+// ============================================================
+
+/** Specification for a single directive: description + optional enumerated values. */
+export interface DirectiveValueSpec {
+  description: string;
+  values?: string[];
+}
+
+/** Specification for a chart type's directives. */
+export interface DirectiveSpec {
+  directives: Record<string, DirectiveValueSpec>;
+}
+
+// Global directives applied to every chart type
+const GLOBAL_DIRECTIVES: Record<string, DirectiveValueSpec> = {
+  palette: {
+    description: 'Color palette name',
+    values: ['nord', 'solarized', 'catppuccin', 'rose-pine', 'gruvbox', 'tokyo-night', 'one-dark', 'bold', 'dracula', 'monokai'],
+  },
+  theme: {
+    description: 'Color theme',
+    values: ['light', 'dark', 'transparent'],
+  },
+};
+
+function withGlobals(directives: Record<string, DirectiveValueSpec> = {}): DirectiveSpec {
+  return { directives: { ...GLOBAL_DIRECTIVES, ...directives } };
+}
+
+/** Chart-type → directive specifications. Every chart type has at least palette + theme. */
+export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
+  // ── Data charts ──────────────────────────────────────────
+  ['bar', withGlobals({
+    series: { description: 'Series name(s)' },
+    xlabel: { description: 'X-axis label' },
+    ylabel: { description: 'Y-axis label' },
+    orientation: { description: 'Layout direction', values: ['horizontal', 'vertical'] },
+    labels: { description: 'Label format', values: ['name', 'value', 'percent', 'full'] },
+    color: { description: 'Bar color override' },
+  })],
+  ['line', withGlobals({
+    series: { description: 'Series name(s)' },
+    xlabel: { description: 'X-axis label' },
+    ylabel: { description: 'Y-axis label' },
+    labels: { description: 'Label format', values: ['name', 'value', 'percent', 'full'] },
+  })],
+  ['pie', withGlobals({
+    labels: { description: 'Label format', values: ['name', 'value', 'percent', 'full'] },
+  })],
+  ['doughnut', withGlobals({
+    labels: { description: 'Label format', values: ['name', 'value', 'percent', 'full'] },
+  })],
+  ['area', withGlobals({
+    series: { description: 'Series name(s)' },
+    xlabel: { description: 'X-axis label' },
+    ylabel: { description: 'Y-axis label' },
+    labels: { description: 'Label format', values: ['name', 'value', 'percent', 'full'] },
+  })],
+  ['polar-area', withGlobals({
+    labels: { description: 'Label format', values: ['name', 'value', 'percent', 'full'] },
+  })],
+  ['radar', withGlobals()],
+  ['bar-stacked', withGlobals({
+    series: { description: 'Series name(s) (required)' },
+    xlabel: { description: 'X-axis label' },
+    ylabel: { description: 'Y-axis label' },
+    orientation: { description: 'Layout direction', values: ['horizontal', 'vertical'] },
+  })],
+
+  // ── Extended charts ──────────────────────────────────────
+  ['scatter', withGlobals({
+    labels: { description: 'Show labels', values: ['on', 'off'] },
+    xlabel: { description: 'X-axis label' },
+    ylabel: { description: 'Y-axis label' },
+    sizelabel: { description: 'Size axis label' },
+  })],
+  ['heatmap', withGlobals({
+    columns: { description: 'Column labels (required)' },
+  })],
+  ['sankey', withGlobals()],
+  ['chord', withGlobals()],
+  ['funnel', withGlobals()],
+  ['function', withGlobals({
+    x: { description: 'X-axis range (start to end)' },
+    xlabel: { description: 'X-axis label' },
+    ylabel: { description: 'Y-axis label' },
+  })],
+
+  // ── Visualizations ───────────────────────────────────────
+  ['slope', withGlobals({
+    orientation: { description: 'Layout direction', values: ['horizontal', 'vertical'] },
+  })],
+  ['wordcloud', withGlobals({
+    rotate: { description: 'Word rotation', values: ['none', 'mixed', 'angled'] },
+    max: { description: 'Maximum word count' },
+    size: { description: 'Font size range (min, max)' },
+  })],
+  ['arc', withGlobals({
+    order: { description: 'Node ordering', values: ['appearance', 'name', 'group', 'degree'] },
+    orientation: { description: 'Layout direction' },
+  })],
+  ['timeline', withGlobals({
+    scale: { description: 'Show time scale', values: ['on', 'off'] },
+    sort: { description: 'Sort order', values: ['time', 'group', 'tag'] },
+    swimlanes: { description: 'Show swimlanes', values: ['on', 'off'] },
+  })],
+  ['venn', withGlobals({
+    values: { description: 'Show values', values: ['on', 'off'] },
+  })],
+  ['quadrant', withGlobals({
+    'x-axis': { description: 'X-axis labels (low, high)' },
+    'y-axis': { description: 'Y-axis labels (low, high)' },
+  })],
+
+  // ── Diagrams ─────────────────────────────────────────────
+  ['sequence', withGlobals({
+    activations: { description: 'Show activation bars', values: ['on', 'off'] },
+    'collapse-notes': { description: 'Collapse note blocks', values: ['yes', 'no'] },
+    'active-tag': { description: 'Active tag group name' },
+  })],
+  ['flowchart', withGlobals()],
+  ['class', withGlobals()],
+  ['er', withGlobals()],
+  ['org', withGlobals({
+    'sub-node-label': { description: 'Label for sub-nodes' },
+    'show-sub-node-count': { description: 'Show sub-node counts' },
+  })],
+  ['kanban', withGlobals()],
+  ['c4', withGlobals()],
+  ['initiative-status', withGlobals()],
+  ['state', withGlobals({
+    direction: { description: 'Layout direction', values: ['TB', 'LR'] },
+    color: { description: 'Color mode', values: ['off'] },
+  })],
+  ['sitemap', withGlobals({
+    direction: { description: 'Layout direction', values: ['TB', 'LR'] },
+  })],
+  ['infra', withGlobals({
+    direction: { description: 'Layout direction', values: ['LR', 'TB'] },
+  })],
+  ['gantt', withGlobals({
+    start: { description: 'Project start date (YYYY-MM-DD)' },
+    'today-marker': { description: 'Today marker', values: ['on', 'off'] },
+    sort: { description: 'Sort order', values: ['time', 'group', 'tag'] },
+    'critical-path': { description: 'Show critical path' },
+    dependencies: { description: 'Show dependencies' },
+  })],
+]);
+
+// ============================================================
+// Chart types array (for chart type completion popup)
+// ============================================================
+
+const CHART_TYPE_DESCRIPTIONS: Record<string, string> = {
+  // Data charts
+  bar: 'Bar chart',
+  line: 'Line chart',
+  pie: 'Pie chart',
+  doughnut: 'Doughnut chart',
+  area: 'Area chart',
+  'polar-area': 'Polar area chart',
+  radar: 'Radar chart',
+  'bar-stacked': 'Stacked bar chart',
+  // Extended charts
+  scatter: 'Scatter plot',
+  heatmap: 'Heatmap',
+  sankey: 'Sankey flow diagram',
+  chord: 'Chord diagram',
+  funnel: 'Funnel chart',
+  function: 'Mathematical function plot',
+  // Visualizations
+  slope: 'Slope chart',
+  wordcloud: 'Word cloud',
+  arc: 'Arc diagram',
+  timeline: 'Timeline',
+  venn: 'Venn diagram',
+  quadrant: 'Quadrant chart',
+  // Diagrams
+  sequence: 'Sequence diagram',
+  flowchart: 'Flowchart',
+  class: 'Class diagram',
+  er: 'Entity-relationship diagram',
+  org: 'Organization chart',
+  kanban: 'Kanban board',
+  c4: 'C4 architecture diagram',
+  'initiative-status': 'Initiative status diagram',
+  state: 'State diagram',
+  sitemap: 'Sitemap diagram',
+  infra: 'Infrastructure diagram',
+  gantt: 'Gantt chart',
+};
+
+/** All chart types with descriptions, for chart type autocomplete. Excludes `multi-line` alias. */
+export const CHART_TYPES: ReadonlyArray<{ name: string; description: string }> = [...ALL_CHART_TYPES]
+  .filter(t => t !== 'multi-line')
+  .map(name => ({
+    name,
+    description: CHART_TYPE_DESCRIPTIONS[name] ?? name,
+  }));
+
+// ============================================================
+// Derived metadata key set
+// ============================================================
+
+/** All known directive keys, derived from COMPLETION_REGISTRY. Includes implicit keys. */
+export const METADATA_KEY_SET: ReadonlySet<string> = new Set([
+  'chart', 'title', // implicit directives recognized as metadata
+  ...[...COMPLETION_REGISTRY.values()].flatMap(spec => Object.keys(spec.directives)),
+]);
+
+// ============================================================
+// Sequence extractor
+// ============================================================
+
+const SEQ_ARROW_RE = /^(\S+)\s+(->|-[^>\s]*->|~>|~[^>\s]*~>)\s+(\S+)/;
+const SEQ_IS_A_RE = /^(\S+)\s+is\s+an?\s+/i;
+const SEQ_SECTION_RE = /^==/;
+const SEQ_STRUCTURAL_RE = /^(if|else|loop|parallel|end)\b/i;
+
+function extractSequenceSymbols(docText: string): DiagramSymbols {
+  const lines = docText.split('\n');
+  const entities: string[] = [];
+  let pastFirstLine = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('//')) continue;
+
+    // Skip first line (chart type)
+    if (!pastFirstLine) {
+      pastFirstLine = true;
+      continue;
+    }
+
+    // Skip metadata lines
+    const firstToken = trimmed.split(/\s+/)[0].toLowerCase();
+    if (METADATA_KEY_SET.has(firstToken)) continue;
+
+    // Skip sections, structural keywords
+    if (SEQ_SECTION_RE.test(trimmed)) continue;
+    if (SEQ_STRUCTURAL_RE.test(trimmed)) continue;
+
+    // Arrow lines: A -> B, A -label-> B, A ~> B
+    const arrowMatch = trimmed.match(SEQ_ARROW_RE);
+    if (arrowMatch) {
+      const src = arrowMatch[1].split('|')[0].trim();
+      const dst = arrowMatch[3].split('|')[0].trim();
+      if (src && !entities.includes(src)) entities.push(src);
+      if (dst && !entities.includes(dst)) entities.push(dst);
+      continue;
+    }
+
+    // Type declarations: A is a person, A is an actor
+    const isAMatch = trimmed.match(SEQ_IS_A_RE);
+    if (isAMatch) {
+      const name = isAMatch[1].split('|')[0].trim();
+      if (name && !entities.includes(name)) entities.push(name);
+      continue;
+    }
+  }
+
+  return {
+    kind: 'sequence',
+    entities,
+    keywords: ['if', 'else', 'loop', 'parallel', 'note'],
+  };
+}
+
+// ============================================================
+// State extractor
+// ============================================================
+
+const STATE_ARROW_RE = /^(\S+)\s+->\s+(\S+)/;
+
+function extractStateSymbols(docText: string): DiagramSymbols {
+  const lines = docText.split('\n');
+  const entities: string[] = [];
+  let pastFirstLine = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('//')) continue;
+
+    if (!pastFirstLine) {
+      pastFirstLine = true;
+      continue;
+    }
+
+    // Skip metadata lines
+    const firstToken = trimmed.split(/\s+/)[0].toLowerCase();
+    if (METADATA_KEY_SET.has(firstToken)) continue;
+
+    const arrowMatch = trimmed.match(STATE_ARROW_RE);
+    if (arrowMatch) {
+      const src = arrowMatch[1].split('|')[0].trim();
+      const dst = arrowMatch[2].split('|')[0].trim();
+      if (src && !entities.includes(src)) entities.push(src);
+      if (dst && !entities.includes(dst)) entities.push(dst);
+    }
+  }
+
+  return { kind: 'state', entities, keywords: [] };
+}
+
+// ============================================================
+// Tag declaration extraction
+// ============================================================
+
+const TAG_DECL_RE = /^tag\s+(\S+)(?:\s+alias\s+(\S+))?/i;
+
+/**
+ * Extract tag declarations from document text.
+ * Returns a map of alias (or full name) → array of tag values.
+ */
+export function extractTagDeclarations(docText: string): Map<string, string[]> {
+  const result = new Map<string, string[]>();
+  const lines = docText.split('\n');
+  let currentAlias: string | null = null;
+  let currentValues: string[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    const trimmed = raw.trim();
+
+    // Check for tag declaration
+    const tagMatch = trimmed.match(TAG_DECL_RE);
+    if (tagMatch) {
+      // Save previous tag group
+      if (currentAlias !== null) {
+        result.set(currentAlias, currentValues);
+      }
+      const name = tagMatch[1];
+      const alias = tagMatch[2] ?? name;
+      currentAlias = alias.toLowerCase();
+      currentValues = [];
+      continue;
+    }
+
+    // Collect indented tag values
+    if (currentAlias !== null && raw.length > 0 && (raw[0] === ' ' || raw[0] === '\t')) {
+      if (trimmed && !trimmed.startsWith('//')) {
+        // Strip color annotation: Frontend(blue) → Frontend
+        const colorIdx = trimmed.indexOf('(');
+        const value = colorIdx > 0 ? trimmed.substring(0, colorIdx).trim() : trimmed;
+        if (value) currentValues.push(value);
+      }
+      continue;
+    }
+
+    // Non-indented non-tag line ends the current tag block
+    if (currentAlias !== null && trimmed) {
+      result.set(currentAlias, currentValues);
+      currentAlias = null;
+      currentValues = [];
+    }
+  }
+
+  // Save last tag group
+  if (currentAlias !== null) {
+    result.set(currentAlias, currentValues);
+  }
+
+  return result;
 }
 
 // ============================================================
@@ -59,3 +435,5 @@ registerExtractor('er', extractErSymbols);
 registerExtractor('flowchart', extractFlowchartSymbols);
 registerExtractor('infra', extractInfraSymbols);
 registerExtractor('class', extractClassSymbols);
+registerExtractor('sequence', extractSequenceSymbols);
+registerExtractor('state', extractStateSymbols);
