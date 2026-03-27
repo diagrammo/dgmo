@@ -35,8 +35,11 @@ export interface ParsedChart {
   title?: string;
   titleLineNumber?: number;
   series?: string;
+  seriesLineNumber?: number;
   xlabel?: string;
+  xlabelLineNumber?: number;
   ylabel?: string;
+  ylabelLineNumber?: number;
   seriesNames?: string[];
   seriesNameColors?: (string | undefined)[];
   orientation?: 'horizontal' | 'vertical';
@@ -215,11 +218,13 @@ export function parseChart(
 
       if (firstToken === 'xlabel') {
         result.xlabel = value;
+        result.xlabelLineNumber = lineNumber;
         continue;
       }
 
       if (firstToken === 'ylabel') {
         result.ylabel = value;
+        result.ylabelLineNumber = lineNumber;
         continue;
       }
 
@@ -260,6 +265,7 @@ export function parseChart(
         const parsed = parseSeriesNames(value, lines, i, palette);
         i = parsed.newIndex;
         result.series = parsed.series;
+        result.seriesLineNumber = lineNumber;
         if (parsed.names.length > 1) {
           result.seriesNames = parsed.names;
         }
@@ -273,6 +279,7 @@ export function parseChart(
       const parsed = parseSeriesNames('', lines, i, palette);
       i = parsed.newIndex;
       result.series = parsed.series;
+      result.seriesLineNumber = lineNumber;
       if (parsed.names.length > 1) {
         result.seriesNames = parsed.names;
       }

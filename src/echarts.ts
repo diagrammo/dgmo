@@ -63,6 +63,7 @@ export interface ParsedExtendedChart {
   title?: string;
   titleLineNumber?: number;
   series?: string;
+  seriesLineNumber?: number;
   seriesNames?: string[];
   seriesNameColors?: (string | undefined)[];
   data: ExtendedChartDataPoint[];
@@ -74,7 +75,9 @@ export interface ParsedExtendedChart {
   rows?: string[];
   xRange?: { min: number; max: number };
   xlabel?: string;
+  xlabelLineNumber?: number;
   ylabel?: string;
+  ylabelLineNumber?: number;
   sizelabel?: string;
   showLabels?: boolean;
   categoryColors?: Record<string, string>;
@@ -357,6 +360,7 @@ export function parseExtendedChart(
         const parsed = parseSeriesNames(value, lines, i, palette);
         i = parsed.newIndex;
         result.series = parsed.series;
+        result.seriesLineNumber = lineNumber;
         if (parsed.names.length > 1) {
           result.seriesNames = parsed.names;
         }
@@ -364,8 +368,8 @@ export function parseExtendedChart(
         continue;
       }
 
-      if (firstToken === 'xlabel') { result.xlabel = value; continue; }
-      if (firstToken === 'ylabel') { result.ylabel = value; continue; }
+      if (firstToken === 'xlabel') { result.xlabel = value; result.xlabelLineNumber = lineNumber; continue; }
+      if (firstToken === 'ylabel') { result.ylabel = value; result.ylabelLineNumber = lineNumber; continue; }
       if (firstToken === 'sizelabel') { result.sizelabel = value; continue; }
 
       if (firstToken === 'labels') {
@@ -412,6 +416,7 @@ export function parseExtendedChart(
       const parsed = parseSeriesNames('', lines, i, palette);
       i = parsed.newIndex;
       result.series = parsed.series;
+      result.seriesLineNumber = lineNumber;
       if (parsed.names.length > 1) {
         result.seriesNames = parsed.names;
       }
