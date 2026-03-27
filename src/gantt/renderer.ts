@@ -258,8 +258,8 @@ export function renderGantt(
     .select(container)
     .append('svg')
     .attr('viewBox', `0 0 ${containerWidth} ${outerHeight}`)
-    .attr('width', containerWidth)
-    .attr('height', outerHeight)
+    .attr('width', exportDims ? containerWidth : '100%')
+    .attr('preserveAspectRatio', 'xMidYMin meet')
     .attr('font-family', FONT_FAMILY)
     .style('overflow', 'visible');
 

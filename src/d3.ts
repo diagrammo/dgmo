@@ -3353,8 +3353,9 @@ export function renderTimeline(
       const svg = d3Selection
         .select(container)
         .append('svg')
-        .attr('width', width)
-        .attr('height', height)
+        .attr('viewBox', `0 0 ${width} ${height}`)
+        .attr('width', exportDims ? width : '100%')
+        .attr('preserveAspectRatio', 'xMidYMin meet')
         .style('background', bgColor);
 
       const g = svg
@@ -3602,8 +3603,9 @@ export function renderTimeline(
       const svg = d3Selection
         .select(container)
         .append('svg')
-        .attr('width', width)
-        .attr('height', height)
+        .attr('viewBox', `0 0 ${width} ${height}`)
+        .attr('width', exportDims ? width : '100%')
+        .attr('preserveAspectRatio', 'xMidYMin meet')
         .style('background', bgColor);
 
       const g = svg
