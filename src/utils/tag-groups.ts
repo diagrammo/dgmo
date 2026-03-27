@@ -252,15 +252,23 @@ export function validateTagValues(
         (e) => e.value.toLowerCase() === value.toLowerCase()
       );
       if (!match) {
-        const defined = group.entries.map((e) => e.value);
-        let msg = `Unknown value '${value}' for tag group '${group.name}'`;
-        const hint = suggestFn?.(value, defined);
-        if (hint) {
-          msg += `. ${hint}`;
-        } else {
-          msg += ` — defined values: ${defined.join(', ')}`;
+        // Suppress warning if the value is a prefix of any valid entry —
+        // the user is likely still typing (live parse during editing).
+        const valueLower = value.toLowerCase();
+        const isPrefix = group.entries.some(
+          (e) => e.value.toLowerCase().startsWith(valueLower)
+        );
+        if (!isPrefix) {
+          const defined = group.entries.map((e) => e.value);
+          let msg = `Unknown value '${value}' for tag group '${group.name}'`;
+          const hint = suggestFn?.(value, defined);
+          if (hint) {
+            msg += `. ${hint}`;
+          } else {
+            msg += ` — defined values: ${defined.join(', ')}`;
+          }
+          pushWarning(entity.lineNumber, msg);
         }
-        pushWarning(entity.lineNumber, msg);
       }
     }
   }
