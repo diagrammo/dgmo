@@ -377,8 +377,10 @@ export function parseDataRowValues(
   for (let i = 0; i < segments.length; i++) {
     const seg = segments[i].trim();
     // Check if this segment is a continuation of a grouped number
-    // A continuation looks like exactly 3 digits and follows a segment ending in digits
-    if (i > 0 && /^\d{3}$/.test(seg)) {
+    // A continuation looks like exactly 3 digits and follows a segment ending in digits.
+    // Grouped numbers have NO space around the comma (e.g., "1,087"), so skip if
+    // the raw segment has leading whitespace (e.g., ", 350" is a value separator).
+    if (i > 0 && /^\d{3}$/.test(seg) && !/^\s/.test(segments[i])) {
       const prevSeg = normalized[normalized.length - 1].trimEnd();
       // Check if previous segment ends with a number (1-3 digits at the end of the last token)
       if (/\d{1,3}$/.test(prevSeg)) {

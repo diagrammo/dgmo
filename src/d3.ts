@@ -604,10 +604,10 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
       }
     }
 
-    // Timeline era lines: era YYYY->YYYY: Label (color)
+    // Timeline era lines: era YYYY->YYYY Label (color)
     if (result.type === 'timeline') {
       const eraMatch = line.match(
-        /^era\s+(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s*->\s*(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s*:\s*(.+?)(?:\s*\(([^)]+)\))?\s*$/
+        /^era\s+(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s*->\s*(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s*:?\s+(.+?)(?:\s*\(([^)]+)\))?\s*$/
       );
       if (eraMatch) {
         const colorAnnotation = eraMatch[4]?.trim() || null;
@@ -622,9 +622,9 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
         continue;
       }
 
-      // Timeline marker lines: marker: YYYY Label (color)
+      // Timeline marker lines: marker YYYY Label (color)
       const markerMatch = line.match(
-        /^marker:\s+(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s+(.+?)(?:\s*\(([^)]+)\))?\s*$/
+        /^marker:?\s+(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s+(.+?)(?:\s*\(([^)]+)\))?\s*$/
       );
       if (markerMatch) {
         const colorAnnotation = markerMatch[3]?.trim() || null;
