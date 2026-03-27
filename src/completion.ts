@@ -307,6 +307,7 @@ export const PIPE_METADATA = new Map<string, {
 }>([
   ['infra', {
     node: {
+      description: { description: 'Node description text' },
       instances: { description: 'Instance count or auto-scaling range (N-M)' },
       'latency-ms': { description: 'Per-request latency in milliseconds' },
       'max-rps': { description: 'Max requests per second per instance' },
