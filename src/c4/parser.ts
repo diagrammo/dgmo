@@ -747,7 +747,7 @@ export function parseC4(
       if (parentEntry) {
         const rawKey = metadataMatch[1].trim().toLowerCase();
 
-        // Special case: `import: file.dgmo`
+        // Special case: `import file.dgmo`
         if (rawKey === 'import') {
           parentEntry.element.importPath = metadataMatch[2].trim();
           continue;

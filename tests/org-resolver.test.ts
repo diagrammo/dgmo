@@ -34,15 +34,15 @@ Alice
   });
 
   // ----------------------------------------------------------
-  // 2. tags: loads tag groups from external file
+  // 2. tags loads tag groups from external file
   // ----------------------------------------------------------
-  it('loads tag groups from external tags: file', async () => {
+  it('loads tag groups from external tags file', async () => {
     const tagsFile = `tag Department
   Engineering (blue)
   Product (green)`;
 
     const content = `org Test
-tags: shared-tags.dgmo
+tags shared-tags.dgmo
 
 Alice | department: Engineering`;
 
@@ -55,12 +55,12 @@ Alice | department: Engineering`;
     expect(result.content).toContain('tag Department');
     expect(result.content).toContain('Engineering (blue)');
     expect(result.content).toContain('Alice | department: Engineering');
-    // tags: directive should be stripped
-    expect(result.content).not.toMatch(/^tags:/m);
+    // tags directive should be stripped
+    expect(result.content).not.toMatch(/^tags\s+\S+\.dgmo/m);
   });
 
   // ----------------------------------------------------------
-  // 3. Inline tag groups override same-name from tags: file
+  // 3. Inline tag groups override same-name from tags file
   // ----------------------------------------------------------
   it('inline tag groups override same-name groups from tags file', async () => {
     const tagsFile = `tag Department
@@ -68,7 +68,7 @@ Alice | department: Engineering`;
   Product (green)`;
 
     const content = `org
-tags: shared-tags.dgmo
+tags shared-tags.dgmo
 
 tag Department
   Engineering (red)
@@ -88,7 +88,7 @@ Alice | department: Engineering`;
   });
 
   // ----------------------------------------------------------
-  // 4. tags: file with non-tag content — only tag blocks extracted
+  // 4. tags file with non-tag content — only tag blocks extracted
   // ----------------------------------------------------------
   it('extracts only tag groups from a tags file that has other content', async () => {
     const tagsFile = `org Other Chart
@@ -100,7 +100,7 @@ CEO
   CTO`;
 
     const content = `org
-tags: other.dgmo
+tags other.dgmo
 
 Alice`;
 
@@ -119,11 +119,11 @@ Alice`;
   });
 
   // ----------------------------------------------------------
-  // 5. tags: file not found → diagnostic, proceeds without
+  // 5. tags file not found → diagnostic, proceeds without
   // ----------------------------------------------------------
   it('produces diagnostic when tags file not found', async () => {
     const content = `org
-tags: missing.dgmo
+tags missing.dgmo
 
 Alice`;
 
@@ -146,7 +146,7 @@ Bob Rivera | role: Senior Eng`;
 
 CEO
   CTO
-    import: teams/platform.dgmo`;
+    import teams/platform.dgmo`;
 
     const reader = mockReader({
       '/proj/teams/platform.dgmo': teamFile,
@@ -157,7 +157,7 @@ CEO
     // Content should be re-indented under CTO
     expect(result.content).toContain('    Alice Chen | role: Staff Eng');
     expect(result.content).toContain('    Bob Rivera | role: Senior Eng');
-    expect(result.content).not.toContain('import:');
+    expect(result.content).not.toMatch(/import\s+\S+\.dgmo/);
   });
 
   // ----------------------------------------------------------
@@ -170,8 +170,8 @@ CEO
     const content = `org
 
 CEO
-  import: team1.dgmo
-  import: team2.dgmo`;
+  import team1.dgmo
+  import team2.dgmo`;
 
     const reader = mockReader({
       '/proj/team1.dgmo': team1,
@@ -194,7 +194,7 @@ CEO
 
 CEO
   Alice
-  import: team.dgmo
+  import team.dgmo
   Bob`;
 
     const reader = mockReader({
@@ -220,7 +220,7 @@ Alice Chen | role: Staff Eng`;
     const content = `org
 
 CEO
-  import: team.dgmo`;
+  import team.dgmo`;
 
     const reader = mockReader({
       '/proj/team.dgmo': teamFile,
@@ -242,12 +242,12 @@ CEO
     const fileC = `Charlie`;
 
     const fileB = `Bob
-  import: c.dgmo`;
+  import c.dgmo`;
 
     const content = `org
 
 Alice
-  import: b.dgmo`;
+  import b.dgmo`;
 
     const reader = mockReader({
       '/proj/b.dgmo': fileB,
@@ -279,13 +279,13 @@ tag Status
 Alice`;
 
     const content = `org
-tags: tags.dgmo
+tags tags.dgmo
 
 tag Department
   Engineering (red)
 
 CEO
-  import: imported.dgmo`;
+  import imported.dgmo`;
 
     const reader = mockReader({
       '/proj/tags.dgmo': tagsFile,
@@ -319,7 +319,7 @@ tag Department
   Engineering (blue)
 
 CEO
-  import: team.dgmo`;
+  import team.dgmo`;
 
     const reader = mockReader({
       '/proj/team.dgmo': importedFile,
@@ -333,21 +333,21 @@ CEO
   });
 
   // ----------------------------------------------------------
-  // 13. Imported file with tags: — its tags resolved before merging up
+  // 13. Imported file with tags — its tags resolved before merging up
   // ----------------------------------------------------------
-  it('resolves tags: in imported files before merging', async () => {
+  it('resolves tags in imported files before merging', async () => {
     const sharedTags = `tag Department
   Engineering (blue)`;
 
     const importedFile = `org
-tags: ../shared-tags.dgmo
+tags ../shared-tags.dgmo
 
 Alice | department: Engineering`;
 
     const content = `org
 
 CEO
-  import: teams/eng.dgmo`;
+  import teams/eng.dgmo`;
 
     const reader = mockReader({
       '/proj/shared-tags.dgmo': sharedTags,
@@ -365,12 +365,12 @@ CEO
   // ----------------------------------------------------------
   it('detects circular imports', async () => {
     const fileB = `Bob
-  import: a.dgmo`;
+  import a.dgmo`;
 
     const content = `org
 
 Alice
-  import: b.dgmo`;
+  import b.dgmo`;
 
     const reader = mockReader({
       '/proj/a.dgmo': content,
@@ -388,15 +388,15 @@ Alice
   it('allows diamond imports (not a cycle)', async () => {
     const fileD = `Dave`;
     const fileB = `Bob
-  import: d.dgmo`;
+  import d.dgmo`;
     const fileC = `Carol
-  import: d.dgmo`;
+  import d.dgmo`;
 
     const content = `org
 
 Alice
-  import: b.dgmo
-  import: c.dgmo`;
+  import b.dgmo
+  import c.dgmo`;
 
     const reader = mockReader({
       '/proj/b.dgmo': fileB,
@@ -420,7 +420,7 @@ Alice
     const content = `org
 
 CEO
-  import: missing.dgmo
+  import missing.dgmo
   Alice`;
 
     const result = await resolveOrgImports(content, '/proj/org.dgmo', mockReader({}));
@@ -436,7 +436,7 @@ CEO
     const content = `org
 
 CEO
-  import: empty.dgmo
+  import empty.dgmo
   Alice`;
 
     const reader = mockReader({
@@ -446,7 +446,7 @@ CEO
     const result = await resolveOrgImports(content, '/proj/org.dgmo', reader);
     expect(result.diagnostics).toEqual([]);
     expect(result.content).toContain('Alice');
-    expect(result.content).not.toContain('import:');
+    expect(result.content).not.toMatch(/import\s+\S+\.dgmo/);
   });
 
   // ----------------------------------------------------------
@@ -459,8 +459,8 @@ CEO
     const content = `org
 
 Alice
-  import: ./sibling.dgmo
-  import: ../parent.dgmo`;
+  import ./sibling.dgmo
+  import ../parent.dgmo`;
 
     const reader = mockReader({
       '/proj/sub/sibling.dgmo': siblingFile,
@@ -486,11 +486,11 @@ Alice
   Bob Rivera | department: Engineering`;
 
     const content = `org Acme Corp
-tags: company-tags.dgmo
+tags company-tags.dgmo
 
 CEO | department: Engineering
   CTO | department: Engineering
-    import: teams/platform.dgmo
+    import teams/platform.dgmo
   VP Product | department: Product`;
 
     const reader = mockReader({
@@ -516,15 +516,15 @@ CEO | department: Engineering
   });
 
   // ----------------------------------------------------------
-  // 20. tag syntax in tags: file
+  // 20. tag syntax in tags file
   // ----------------------------------------------------------
-  it('loads tag groups from tags: file using tag syntax', async () => {
+  it('loads tag groups from tags file using tag syntax', async () => {
     const tagsFile = `tag Department
   Engineering (blue)
   Product (green)`;
 
     const content = `org Test
-tags: shared-tags.dgmo
+tags shared-tags.dgmo
 
 Alice | department: Engineering`;
 
@@ -553,7 +553,7 @@ tag Department
   Engineering (blue)
 
 CEO
-  import: team.dgmo`;
+  import team.dgmo`;
 
     const reader = mockReader({
       '/proj/team.dgmo': importedFile,
@@ -575,7 +575,7 @@ CEO
   Product (green)`;
 
     const content = `org
-tags: shared-tags.dgmo
+tags shared-tags.dgmo
 
 tag Department
   Engineering (red)
@@ -620,7 +620,7 @@ Bob Rivera`;
     const content = `org
 
 CEO
-  import: team.dgmo`;
+  import team.dgmo`;
 
     const reader = mockReader({
       '/proj/team.dgmo': teamFile,
@@ -656,12 +656,12 @@ CEO
     const fileC = `Charlie`;
 
     const fileB = `Bob
-  import: c.dgmo`;
+  import c.dgmo`;
 
     const content = `org
 
 Alice
-  import: b.dgmo`;
+  import b.dgmo`;
 
     const reader = mockReader({
       '/proj/b.dgmo': fileB,
@@ -691,7 +691,7 @@ Alice
     const content = `org
 
 CEO
-  import: team.dgmo
+  import team.dgmo
   Bob`;
 
     const reader = mockReader({
@@ -716,11 +716,37 @@ CEO
   });
 
   // ----------------------------------------------------------
+  // Backward compat: colon syntax still works
+  // ----------------------------------------------------------
+  it('still accepts tags: and import: with colon for backward compat', async () => {
+    const tagsFile = `tag Department
+  Engineering (blue)`;
+
+    const content = `org Test
+tags: shared-tags.dgmo
+
+CEO
+  import: team.dgmo`;
+
+    const teamFile = `Alice`;
+
+    const reader = mockReader({
+      '/proj/shared-tags.dgmo': tagsFile,
+      '/proj/team.dgmo': teamFile,
+    });
+
+    const result = await resolveOrgImports(content, '/proj/org.dgmo', reader);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.content).toContain('tag Department');
+    expect(result.content).toContain('  Alice');
+  });
+
+  // ----------------------------------------------------------
   // Regression: title on first line with trailing whitespace
   // ----------------------------------------------------------
   it('preserves title from first line with trailing whitespace', async () => {
     const tagsFile = `tag Status s\n  Active(green)\n  Inactive(gray)\n`;
-    const content = `org My Org \nsub-node-label Reports\ntags: tags.dgmo\n\nAlice\n  Bob\n`;
+    const content = `org My Org \nsub-node-label Reports\ntags tags.dgmo\n\nAlice\n  Bob\n`;
 
     const reader = mockReader({ '/proj/tags.dgmo': tagsFile });
     const result = await resolveOrgImports(content, '/proj/org.dgmo', reader);

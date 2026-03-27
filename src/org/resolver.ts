@@ -34,8 +34,8 @@ export interface ResolveImportsResult {
 // ============================================================
 
 const MAX_DEPTH = 10;
-const IMPORT_RE = /^(\s+)import:\s+(.+\.dgmo)\s*$/i;
-const TAGS_RE = /^tags:\s+(.+\.dgmo)\s*$/i;
+const IMPORT_RE = /^(\s+)import:?\s+(.+\.dgmo)\s*$/i;
+const TAGS_RE = /^tags:?\s+(.+\.dgmo)\s*$/i;
 /** Matches new-style first line: `org ...` or old `chart: ...` or `title: ...` */
 const HEADER_RE = /^(org|kanban|chart\s*:|title\s*:)/i;
 /**
@@ -124,7 +124,7 @@ interface ParsedHeader {
 
 /**
  * Separate an imported file into header (stripped) and content body.
- * Also extracts tag groups and tags: directive for merging.
+ * Also extracts tag groups and tags directive for merging.
  */
 function parseFileHeader(lines: string[]): ParsedHeader {
   const tagGroups = extractTagGroups(lines);
@@ -188,7 +188,7 @@ function parseFileHeader(lines: string[]): ParsedHeader {
 // ============================================================
 
 /**
- * Pre-processes org chart content, resolving `tags:` and `import:` directives.
+ * Pre-processes org chart content, resolving `tags` and `import` directives.
  *
  * @param content   - Raw .dgmo file content
  * @param filePath  - Absolute path of the file (for relative path resolution)
@@ -227,7 +227,7 @@ async function resolveFile(
   const bodyStartIndex = findBodyStart(lines);
 
   // Collect header lines (chart:, title:, options, tags:)
-  let tagsLineNumber = 0; // 1-based line number of the tags: directive
+  let tagsLineNumber = 0; // 1-based line number of the tags directive
   for (let i = 0; i < bodyStartIndex; i++) {
     const trimmed = lines[i].trim();
     if (trimmed === '' || trimmed.startsWith('//')) {
@@ -247,7 +247,7 @@ async function resolveFile(
     headerLines.push({ text: lines[i], originalLine: i + 1 });
   }
 
-  // ---- Step 2: Resolve tags: directive ----
+  // ---- Step 2: Resolve tags directive ----
   let tagsFileGroups: TagGroupBlock[] = [];
   if (tagsDirective) {
     const tagsPath = resolvePath(filePath, tagsDirective);
@@ -262,7 +262,7 @@ async function resolveFile(
     }
   }
 
-  // ---- Step 3: Resolve import: directives in body ----
+  // ---- Step 3: Resolve import directives in body ----
   const bodyLines = lines.slice(bodyStartIndex);
   const resolvedBodyLines: { text: string; originalLine: number | null; importSource: ImportSource | null }[] = [];
   const importedTagGroups: TagGroupBlock[] = [];
@@ -388,7 +388,7 @@ async function resolveFile(
   const lineMap: (number | null)[] = [null];
   const importSourceMap: (ImportSource | null)[] = [null];
 
-  // Header lines (chart:, title:, options — no tags: or tag groups)
+  // Header lines (chart:, title:, options — no tags or tag groups)
   for (const entry of headerLines) {
     outputLines.push(entry.text);
     lineMap.push(entry.originalLine);

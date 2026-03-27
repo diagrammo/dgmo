@@ -985,7 +985,7 @@ async function main(): Promise<void> {
   // eslint-disable-next-line no-control-regex
   content = content.replace(/\x1b\[[0-9;]*m/g, '');
 
-  // Resolve org chart imports (tags: and import: directives)
+  // Resolve org chart imports (tags and import directives)
   if (opts.input && parseDgmoChartType(content) === 'org') {
     const inputPath = resolve(opts.input);
     const resolved = await resolveOrgImports(
