@@ -2181,6 +2181,7 @@ function buildPieOption(
   tooltipTheme: Record<string, unknown>,
   isDoughnut: boolean
 ): EChartsOption {
+  const HIDE_AXES = { xAxis: { show: false }, yAxis: { show: false } };
   const data = parsed.data.map((d, i) => {
     const stroke = d.color ?? colors[i % colors.length];
     return {
@@ -2192,6 +2193,7 @@ function buildPieOption(
 
   return {
     ...CHART_BASE,
+    ...HIDE_AXES,
     title: titleConfig,
     tooltip: {
       trigger: 'item',
@@ -2239,6 +2241,8 @@ function buildRadarOption(
   return {
     ...CHART_BASE,
     title: titleConfig,
+    xAxis: { show: false },
+    yAxis: { show: false },
     tooltip: {
       trigger: 'item',
       ...tooltipTheme,
@@ -2307,6 +2311,8 @@ function buildPolarAreaOption(
   return {
     ...CHART_BASE,
     title: titleConfig,
+    xAxis: { show: false },
+    yAxis: { show: false },
     tooltip: {
       trigger: 'item',
       ...tooltipTheme,
