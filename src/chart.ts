@@ -25,6 +25,7 @@ export interface ChartEra {
   end: string;          // exact category label, e.g. "'81"
   label: string;        // display name, e.g. "Carter"
   color: string | null; // resolved CSS color, or null → palette default
+  lineNumber: number;
 }
 
 import type { DgmoError } from './diagnostics';
@@ -101,6 +102,7 @@ export function parseChart(
 ): ParsedChart {
   const lines = content.split('\n');
   const parsedEras: ChartEra[] = [];
+  const rawEras: { start: string; afterArrow: string; color: string | null; lineNumber: number }[] = [];
   const result: ParsedChart = {
     type: 'bar',
     data: [],
@@ -166,26 +168,20 @@ export function parseChart(
       // Fall through — first line might be a data row or option
     }
 
-    // Era line: era '77 -> '81 Carter (blue) — colon-free
+    // Era line: era Day 1 -> Day 3 Rough Seas (blue) — colon-free
     const eraMatch = trimmed.match(/^era\s+(.+?)\s*->\s*(.+?)(?:\s*\(([^)]+)\))?\s*$/);
     if (eraMatch) {
-      // Split the "end label" part: everything after -> is "endPart label (color)"
-      // We need to separate the end marker from the era label.
-      // The regex captured: group1=start, group2=everything between -> and optional (color), group3=color
-      // group2 might be "B Phase 1" — we need to split: first token = end, rest = label
+      // Store start and raw afterArrow — resolved against data labels after parsing
       const afterArrow = eraMatch[2].trim();
       const spaceIdx = afterArrow.indexOf(' ');
       if (spaceIdx >= 0) {
-        const end = afterArrow.substring(0, spaceIdx).trim();
-        const label = afterArrow.substring(spaceIdx + 1).trim();
-        parsedEras.push({
+        rawEras.push({
           start: eraMatch[1].trim(),
-          end,
-          label,
+          afterArrow,
           color: eraMatch[3] ? resolveColor(eraMatch[3].trim(), palette) : null,
+          lineNumber,
         });
       }
-      // If no space (e.g., just "era A -> B") — skip malformed era
       continue;
     }
 
@@ -299,6 +295,31 @@ export function parseChart(
         lineNumber,
       });
     }
+  }
+
+  // Resolve raw eras against known data labels (longest-prefix match for multi-word labels)
+  const knownLabels = new Set(result.data.map((d) => d.label));
+  for (const raw of rawEras) {
+    // Find the longest prefix of afterArrow that matches a known label
+    const words = raw.afterArrow.split(' ');
+    let end = '';
+    let label = '';
+    let matched = false;
+    for (let w = words.length - 1; w >= 1; w--) {
+      const candidateEnd = words.slice(0, w).join(' ');
+      if (knownLabels.has(candidateEnd)) {
+        end = candidateEnd;
+        label = words.slice(w).join(' ');
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) {
+      // Fallback: first token = end, rest = label
+      end = words[0];
+      label = words.slice(1).join(' ');
+    }
+    parsedEras.push({ start: raw.start, end, label, color: raw.color, lineNumber: raw.lineNumber });
   }
 
   // Eras are only valid for line, multi-line (aliased to 'line'), and area chart types

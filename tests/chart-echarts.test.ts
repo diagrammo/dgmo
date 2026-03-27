@@ -334,6 +334,7 @@ describe('Era parsing', () => {
       end: "'81",
       label: 'Carter',
       color: palette.colors.blue,
+      lineNumber: 2,
     });
   });
 

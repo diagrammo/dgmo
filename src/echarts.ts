@@ -78,6 +78,7 @@ export interface ParsedExtendedChart {
   sizelabel?: string;
   showLabels?: boolean;
   categoryColors?: Record<string, string>;
+  categoryLineNumbers?: Record<string, number>;
   nodeColors?: Record<string, string>;
   diagnostics: DgmoError[];
   error: string | null;
@@ -239,6 +240,8 @@ export function parseExtendedChart(
         if (!result.categoryColors) result.categoryColors = {};
         result.categoryColors[catName] = catColor;
       }
+      if (!result.categoryLineNumbers) result.categoryLineNumbers = {};
+      result.categoryLineNumbers[catName] = lineNumber;
       currentCategory = catName;
       continue;
     }
@@ -1949,7 +1952,7 @@ function buildBarOption(
 // Targets ~5 visible labels — conservative enough to prevent ECharts stagger.
 function buildIntervalStep(labels: string[]): number {
   const count = labels.length;
-  if (count <= 6) return 0; // show all
+  if (count <= 12) return 0; // show all
   const snapSteps = [1, 2, 5, 10, 25, 50, 100];
   const raw = Math.ceil(count / 5); // target ~5 visible labels
   const N = [...snapSteps].reverse().find((s) => s <= raw) ?? 1; // snap down

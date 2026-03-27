@@ -88,6 +88,7 @@ export interface TimelineEra {
   endDate: string;
   label: string;
   color: string | null;
+  lineNumber: number;
 }
 
 export interface TimelineMarker {
@@ -618,6 +619,7 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
           color: colorAnnotation
             ? resolveColor(colorAnnotation, palette)
             : null,
+          lineNumber,
         });
         continue;
       }
@@ -2329,6 +2331,7 @@ function renderEras(
     const eraG = g
       .append('g')
       .attr('class', 'tl-era')
+      .attr('data-line-number', String(era.lineNumber))
       .attr('data-era-start', String(startVal))
       .attr('data-era-end', String(endVal))
       .style('cursor', 'pointer')
