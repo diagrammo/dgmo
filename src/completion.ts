@@ -466,6 +466,7 @@ const TAG_DECL_SHORT_RE = /^tag\s+(\S+)\s+([a-z]{1,4})(?:\s|$)/;
 /**
  * Extract tag declarations from document text.
  * Returns a map of alias (or full name) → array of tag values.
+ * Keys preserve original case for display; use case-insensitive lookup.
  */
 export function extractTagDeclarations(docText: string): Map<string, string[]> {
   const result = new Map<string, string[]>();
@@ -486,7 +487,7 @@ export function extractTagDeclarations(docText: string): Map<string, string[]> {
       }
       const name = tagMatch[1];
       const alias = tagMatch[2] ?? name;
-      currentAlias = alias.toLowerCase();
+      currentAlias = alias;
       currentValues = [];
       continue;
     }
@@ -495,7 +496,7 @@ export function extractTagDeclarations(docText: string): Map<string, string[]> {
       if (currentAlias !== null) {
         result.set(currentAlias, currentValues);
       }
-      currentAlias = trimmed.match(/^tag\s+(\S+)/i)![1].toLowerCase();
+      currentAlias = trimmed.match(/^tag\s+(\S+)/i)![1];
       currentValues = [];
       continue;
     }

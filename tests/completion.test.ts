@@ -600,10 +600,10 @@ describe('extractTagDeclarations', () => {
     expect(result.get('tg')).toEqual(['TG1', 'TG2']);
   });
 
-  it('extracts tag group without alias', () => {
+  it('extracts tag group without alias (preserves original case)', () => {
     const doc = 'org\ntag Department\n  Engineering\n  Marketing\n';
     const result = extractTagDeclarations(doc);
-    expect(result.get('department')).toEqual(['Engineering', 'Marketing']);
+    expect(result.get('Department')).toEqual(['Engineering', 'Marketing']);
   });
 
   it('handles multiple tag groups', () => {
