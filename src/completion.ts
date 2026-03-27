@@ -530,6 +530,266 @@ export function extractTagDeclarations(docText: string): Map<string, string[]> {
 }
 
 // ============================================================
+// Sitemap extractor
+// ============================================================
+
+const SITEMAP_CONTAINER_RE = /^\[([^\]]+)\]/;
+const SITEMAP_ARROW_RE = /^-.*->\s*(.+)$/;
+const SITEMAP_BARE_ARROW_RE = /^->\s*(.+)$/;
+const SITEMAP_METADATA_RE = /^([^:]+):\s*(.+)$/;
+
+function extractSitemapSymbols(docText: string): DiagramSymbols {
+  const lines = docText.split('\n');
+  const entities: string[] = [];
+  let pastFirstLine = false;
+  let inTagBlock = false;
+  let lastNodeIndent = -1;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('//')) continue;
+
+    if (!pastFirstLine) {
+      pastFirstLine = true;
+      continue;
+    }
+
+    // Skip metadata lines
+    const firstToken = trimmed.split(/\s+/)[0].toLowerCase();
+    if (METADATA_KEY_SET.has(firstToken)) continue;
+
+    // Track tag blocks
+    if (/^tag\s+/i.test(trimmed)) { inTagBlock = true; continue; }
+    const indent = line.search(/\S/);
+    if (inTagBlock) {
+      if (indent > 0) continue;
+      inTagBlock = false;
+    }
+
+    // Containers: [GroupName]
+    const containerMatch = trimmed.match(SITEMAP_CONTAINER_RE);
+    if (containerMatch) {
+      const name = containerMatch[1].split('|')[0].trim();
+      if (name && !entities.includes(name)) entities.push(name);
+      lastNodeIndent = indent;
+      continue;
+    }
+
+    // Arrows: -> Target or -label-> Target
+    const bareArrow = trimmed.match(SITEMAP_BARE_ARROW_RE);
+    const labeledArrow = !bareArrow ? trimmed.match(SITEMAP_ARROW_RE) : null;
+    if (bareArrow || labeledArrow) {
+      const target = (bareArrow?.[1] ?? labeledArrow?.[1] ?? '').split('|')[0].trim();
+      if (target && !entities.includes(target)) entities.push(target);
+      continue;
+    }
+
+    // Indented metadata under a node (key: value) — skip
+    if (indent > 0 && lastNodeIndent >= 0 && indent > lastNodeIndent && SITEMAP_METADATA_RE.test(trimmed)) {
+      continue;
+    }
+
+    // Page label (anything else that's not special)
+    const label = trimmed.split('|')[0].trim();
+    if (label) {
+      if (!entities.includes(label)) entities.push(label);
+      lastNodeIndent = indent;
+    }
+  }
+
+  return { kind: 'sitemap', entities, keywords: [] };
+}
+
+// ============================================================
+// C4 extractor
+// ============================================================
+
+const C4_ELEMENT_RE = /^(person|system|container|component)\s+(.+)$/i;
+const C4_IS_A_RE = /^(.+?)\s+is\s+an?\s+(person|system|container|component|external|database)\b/i;
+const C4_ARROW_RE = /^(\S+)\s+(?:->|-[^>\s]*->|~>|~[^>\s]*~>|<->|<-[^>\s]*->|<~>|<~[^>\s]*~>)\s+(\S+)/;
+const C4_SECTION_RE = /^(containers|components|deployment)\s*$/i;
+
+function extractC4Symbols(docText: string): DiagramSymbols {
+  const lines = docText.split('\n');
+  const entities: string[] = [];
+  let pastFirstLine = false;
+  let inTagBlock = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('//')) continue;
+
+    if (!pastFirstLine) {
+      pastFirstLine = true;
+      continue;
+    }
+
+    const firstToken = trimmed.split(/\s+/)[0].toLowerCase();
+    if (METADATA_KEY_SET.has(firstToken)) continue;
+
+    if (/^tag\s+/i.test(trimmed)) { inTagBlock = true; continue; }
+    const indent = line.search(/\S/);
+    if (inTagBlock) {
+      if (indent > 0) continue;
+      inTagBlock = false;
+    }
+
+    // Skip section headers
+    if (C4_SECTION_RE.test(trimmed)) continue;
+
+    // Element declaration: person Name, system Name, etc.
+    const elemMatch = trimmed.match(C4_ELEMENT_RE);
+    if (elemMatch) {
+      const name = elemMatch[2].split('|')[0].trim();
+      if (name && !entities.includes(name)) entities.push(name);
+      continue;
+    }
+
+    // Is-a declaration: Name is a person
+    const isAMatch = trimmed.match(C4_IS_A_RE);
+    if (isAMatch) {
+      const name = isAMatch[1].split('|')[0].trim();
+      if (name && !entities.includes(name)) entities.push(name);
+      continue;
+    }
+
+    // Arrow lines: Source -> Target, Source ~> Target, etc.
+    const arrowMatch = trimmed.match(C4_ARROW_RE);
+    if (arrowMatch) {
+      const src = arrowMatch[1].split('|')[0].trim();
+      const dst = arrowMatch[2].split('|')[0].trim();
+      if (src && !entities.includes(src)) entities.push(src);
+      if (dst && !entities.includes(dst)) entities.push(dst);
+      continue;
+    }
+  }
+
+  return { kind: 'c4', entities, keywords: ['containers', 'components', 'deployment'] };
+}
+
+// ============================================================
+// Gantt extractor
+// ============================================================
+
+const GANTT_DURATION_RE = /^(\d+(?:\.\d+)?)(min|bd|d|w|m|q|y|h)\??\s+(.+)$/;
+const GANTT_DATE_RE = /^(\d{4}-\d{2}-\d{2}(?:\s\d{2}:\d{2})?)\s+(.+)$/;
+const GANTT_GROUP_RE = /^\[(.+?)\]/;
+const GANTT_STRUCTURAL_RE = /^(era|marker|holidays|workweek|parallel)\b/i;
+
+function extractGanttSymbols(docText: string): DiagramSymbols {
+  const lines = docText.split('\n');
+  const entities: string[] = [];
+  let pastFirstLine = false;
+  let inTagBlock = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('//')) continue;
+
+    if (!pastFirstLine) {
+      pastFirstLine = true;
+      continue;
+    }
+
+    const firstToken = trimmed.split(/\s+/)[0].toLowerCase();
+    if (METADATA_KEY_SET.has(firstToken)) continue;
+
+    if (/^tag\s+/i.test(trimmed)) { inTagBlock = true; continue; }
+    const indent = line.search(/\S/);
+    if (inTagBlock) {
+      if (indent > 0) continue;
+      inTagBlock = false;
+    }
+
+    // Skip structural keywords
+    if (GANTT_STRUCTURAL_RE.test(trimmed)) continue;
+
+    // Groups: [GroupName]
+    const groupMatch = trimmed.match(GANTT_GROUP_RE);
+    if (groupMatch) {
+      const name = groupMatch[1].trim();
+      if (name && !entities.includes(name)) entities.push(name);
+      continue;
+    }
+
+    // Tasks by duration: 30d Task Name | metadata
+    const durMatch = trimmed.match(GANTT_DURATION_RE);
+    if (durMatch) {
+      // Strip pipe metadata and dependency arrows from task name
+      let taskName = durMatch[3].split('|')[0].trim();
+      // Remove trailing dependency: "Task Name -> Other" → "Task Name"
+      const arrowIdx = taskName.indexOf('->');
+      if (arrowIdx > 0) taskName = taskName.substring(0, arrowIdx).replace(/-[^>]*$/, '').trim();
+      if (taskName && !entities.includes(taskName)) entities.push(taskName);
+      continue;
+    }
+
+    // Tasks by date: 2024-01-15 Task Name
+    const dateMatch = trimmed.match(GANTT_DATE_RE);
+    if (dateMatch) {
+      let taskName = dateMatch[2].split('|')[0].trim();
+      const arrowIdx = taskName.indexOf('->');
+      if (arrowIdx > 0) taskName = taskName.substring(0, arrowIdx).replace(/-[^>]*$/, '').trim();
+      if (taskName && !entities.includes(taskName)) entities.push(taskName);
+      continue;
+    }
+  }
+
+  return { kind: 'gantt', entities, keywords: [] };
+}
+
+// ============================================================
+// Initiative-status extractor
+// ============================================================
+
+const IS_ARROW_RE = /^(\S+)\s+(?:-.*)?->\s+(\S+)/;
+
+function extractInitiativeStatusSymbols(docText: string): DiagramSymbols {
+  const lines = docText.split('\n');
+  const entities: string[] = [];
+  let pastFirstLine = false;
+  let inTagBlock = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('//')) continue;
+
+    if (!pastFirstLine) {
+      pastFirstLine = true;
+      continue;
+    }
+
+    const firstToken = trimmed.split(/\s+/)[0].toLowerCase();
+    if (METADATA_KEY_SET.has(firstToken)) continue;
+
+    if (/^tag\s+/i.test(trimmed)) { inTagBlock = true; continue; }
+    const indent = line.search(/\S/);
+    if (inTagBlock) {
+      if (indent > 0) continue;
+      inTagBlock = false;
+    }
+
+    // Edge lines: Source -> Target or Source -label-> Target
+    const arrowMatch = trimmed.match(IS_ARROW_RE);
+    if (arrowMatch) {
+      const src = arrowMatch[1].split('|')[0].trim();
+      const dst = arrowMatch[2].split('|')[0].trim();
+      if (src && !entities.includes(src)) entities.push(src);
+      if (dst && !entities.includes(dst)) entities.push(dst);
+      continue;
+    }
+
+    // Node lines: Label | status or just Label (at root indent)
+    if (indent === 0) {
+      const label = trimmed.split('|')[0].trim();
+      if (label && !entities.includes(label)) entities.push(label);
+    }
+  }
+
+  return { kind: 'initiative-status', entities, keywords: [] };
+}
+
+// ============================================================
 // Register built-in extractors
 // ============================================================
 
@@ -539,3 +799,7 @@ registerExtractor('infra', extractInfraSymbols);
 registerExtractor('class', extractClassSymbols);
 registerExtractor('sequence', extractSequenceSymbols);
 registerExtractor('state', extractStateSymbols);
+registerExtractor('sitemap', extractSitemapSymbols);
+registerExtractor('c4', extractC4Symbols);
+registerExtractor('gantt', extractGanttSymbols);
+registerExtractor('initiative-status', extractInitiativeStatusSymbols);
