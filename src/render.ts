@@ -57,7 +57,7 @@ export async function render(
 ): Promise<string> {
   const theme = options?.theme ?? 'light';
   const paletteName = options?.palette ?? 'nord';
-  const branding = options?.branding ?? true;
+  const branding = options?.branding ?? false;
 
   const paletteColors = getPalette(paletteName)[theme === 'dark' ? 'dark' : 'light'];
 
