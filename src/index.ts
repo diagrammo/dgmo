@@ -399,9 +399,11 @@ export {
   COMPLETION_REGISTRY,
   CHART_TYPES,
   METADATA_KEY_SET,
+  ENTITY_TYPES,
+  PIPE_METADATA,
   extractTagDeclarations,
 } from './completion';
-export type { DiagramSymbols, ExtractFn, DirectiveSpec, DirectiveValueSpec } from './completion';
+export type { DiagramSymbols, ExtractFn, DirectiveSpec, DirectiveValueSpec, PipeKeySpec } from './completion';
 
 export { parseFirstLine, ALL_CHART_TYPES } from './utils/parsing';
 

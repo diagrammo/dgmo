@@ -201,6 +201,12 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   })],
   ['infra', withGlobals({
     direction: { description: 'Layout direction', values: ['LR', 'TB'] },
+    'default-latency-ms': { description: 'Default latency for all nodes' },
+    'default-uptime': { description: 'Default uptime for all nodes' },
+    'default-rps': { description: 'Default RPS capacity for all nodes' },
+    'slo-availability': { description: 'SLO availability target (0-1)' },
+    'slo-p90-latency-ms': { description: 'SLO p90 latency target in ms' },
+    'slo-warning-margin': { description: 'SLO warning margin percentage' },
   })],
   ['gantt', withGlobals({
     start: { description: 'Project start date (YYYY-MM-DD)' },
@@ -261,6 +267,87 @@ export const CHART_TYPES: ReadonlyArray<{ name: string; description: string }> =
     name,
     description: CHART_TYPE_DESCRIPTIONS[name] ?? name,
   }));
+
+// ============================================================
+// Entity types for `is a` declarations
+// ============================================================
+
+/**
+ * Entity types for `Name is a <type>` declarations, keyed by chart type.
+ * Values are sourced from parser constants (VALID_PARTICIPANT_TYPES,
+ * VALID_NODE_TYPES, C4_IS_A_RE).
+ */
+export const ENTITY_TYPES = new Map<string, string[]>([
+  ['sequence', ['service', 'database', 'actor', 'queue', 'cache', 'gateway', 'external', 'networking', 'frontend']],
+  ['infra', ['database', 'cache', 'queue', 'service', 'gateway', 'storage', 'function', 'network']],
+  ['c4', ['person', 'system', 'container', 'component', 'external', 'database']],
+]);
+
+// ============================================================
+// Pipe metadata for inline `| key value` on data lines
+// ============================================================
+
+/** Specification for a single pipe metadata key. */
+export interface PipeKeySpec {
+  description: string;
+  values?: string[];
+}
+
+/**
+ * Pipe metadata keys for inline `| key value` on data lines.
+ * Keyed by chart type → { node: ..., edge: ... }.
+ *
+ * IMPORTANT: NEVER add 'sequence' here. The `|` character in sequence
+ * diagrams separates display names from identifiers and tag metadata.
+ * Adding sequence would trigger false pipe-metadata completions on every `|`.
+ */
+export const PIPE_METADATA = new Map<string, {
+  node: Record<string, PipeKeySpec>;
+  edge: Record<string, PipeKeySpec>;
+}>([
+  ['infra', {
+    node: {
+      instances: { description: 'Instance count or auto-scaling range (N-M)' },
+      'latency-ms': { description: 'Per-request latency in milliseconds' },
+      'max-rps': { description: 'Max requests per second per instance' },
+      'cache-hit': { description: 'Cache hit percentage (0-100)' },
+      'firewall-block': { description: 'Traffic blocked percentage' },
+      'ratelimit-rps': { description: 'Max RPS allowed through' },
+      'cb-error-threshold': { description: 'Circuit breaker error threshold %' },
+      'cb-latency-threshold-ms': { description: 'Circuit breaker latency threshold' },
+      uptime: { description: 'Component availability (0-1)' },
+      concurrency: { description: 'Concurrent request limit' },
+      'duration-ms': { description: 'Processing duration' },
+      'cold-start-ms': { description: 'Function cold-start time' },
+      buffer: { description: 'Queue/buffer capacity' },
+      'drain-rate': { description: 'Queue drain rate' },
+      'retention-hours': { description: 'Data retention period' },
+      partitions: { description: 'Queue/stream partition count' },
+      'slo-availability': { description: 'Node availability target (0-1)' },
+      'slo-p90-latency-ms': { description: 'Node p90 latency target' },
+      'slo-warning-margin': { description: 'Node SLO warning margin' },
+    },
+    edge: {
+      split: { description: 'Traffic split percentage (e.g., 60%)' },
+      fanout: { description: 'Fanout multiplier (integer >= 1)' },
+    },
+  }],
+  ['c4', {
+    node: {
+      description: { description: 'Element description' },
+      tech: { description: 'Technology stack' },
+      technology: { description: 'Technology stack (alias for tech)' },
+    },
+    edge: {},
+  }],
+  ['gantt', {
+    node: {},
+    edge: {
+      // Gantt "edge" = dependency arrow (TaskA -> TaskB | offset 2bd)
+      offset: { description: 'Dependency offset (e.g., 2bd, -1w)' },
+    },
+  }],
+]);
 
 // ============================================================
 // Derived metadata key set

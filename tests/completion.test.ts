@@ -7,6 +7,8 @@ import {
   COMPLETION_REGISTRY,
   CHART_TYPES,
   METADATA_KEY_SET,
+  ENTITY_TYPES,
+  PIPE_METADATA,
   extractTagDeclarations,
 } from '../src/completion';
 import { extractSymbols as extractErSymbols } from '../src/er/parser';
@@ -417,6 +419,19 @@ describe('COMPLETION_REGISTRY', () => {
     expect(refContent).toContain('critical-path');
   });
 
+  it('infra registry includes top-level default directives', () => {
+    const infraSpec = COMPLETION_REGISTRY.get('infra')!;
+    const expected = [
+      'default-latency-ms', 'default-uptime', 'default-rps',
+      'slo-availability', 'slo-p90-latency-ms', 'slo-warning-margin',
+    ];
+    for (const key of expected) {
+      expect(infraSpec.directives[key], `infra missing directive ${key}`).toBeDefined();
+    }
+    // direction should still be present
+    expect(infraSpec.directives.direction).toBeDefined();
+  });
+
   it('registry lookup for all 32 types completes under 1ms', () => {
     const start = performance.now();
     for (const ct of CHART_TYPES) {
@@ -601,5 +616,90 @@ describe('extractTagDeclarations', () => {
     const doc = 'sequence\nA -> B\n';
     const result = extractTagDeclarations(doc);
     expect(result.size).toBe(0);
+  });
+});
+
+// ============================================================
+// ENTITY_TYPES
+// ============================================================
+
+describe('ENTITY_TYPES', () => {
+  it('has correct sequence participant types', () => {
+    const types = ENTITY_TYPES.get('sequence');
+    expect(types).toBeDefined();
+    expect(types).toContain('service');
+    expect(types).toContain('database');
+    expect(types).toContain('actor');
+    expect(types).toContain('frontend');
+    expect(types).toHaveLength(9);
+  });
+
+  it('has correct infra node types', () => {
+    const types = ENTITY_TYPES.get('infra');
+    expect(types).toBeDefined();
+    expect(types).toContain('database');
+    expect(types).toContain('cache');
+    expect(types).toContain('function');
+    expect(types).toContain('network');
+    expect(types).toHaveLength(8);
+  });
+
+  it('has correct C4 types', () => {
+    const types = ENTITY_TYPES.get('c4');
+    expect(types).toBeDefined();
+    expect(types).toContain('person');
+    expect(types).toContain('system');
+    expect(types).toContain('external');
+    expect(types).toContain('database');
+    expect(types).toHaveLength(6);
+  });
+
+  it('does not have entries for chart types without is-a support', () => {
+    expect(ENTITY_TYPES.has('bar')).toBe(false);
+    expect(ENTITY_TYPES.has('state')).toBe(false);
+    expect(ENTITY_TYPES.has('er')).toBe(false);
+  });
+});
+
+// ============================================================
+// PIPE_METADATA
+// ============================================================
+
+describe('PIPE_METADATA', () => {
+  it('has infra entry with node and edge properties', () => {
+    const infra = PIPE_METADATA.get('infra');
+    expect(infra).toBeDefined();
+    expect(infra!.node.instances).toBeDefined();
+    expect(infra!.node['latency-ms']).toBeDefined();
+    expect(infra!.node['max-rps']).toBeDefined();
+    expect(infra!.node['cache-hit']).toBeDefined();
+    expect(infra!.node.uptime).toBeDefined();
+    expect(infra!.node.concurrency).toBeDefined();
+    // SLO keys in node set
+    expect(infra!.node['slo-availability']).toBeDefined();
+    expect(infra!.node['slo-p90-latency-ms']).toBeDefined();
+    // Edge keys
+    expect(infra!.edge.split).toBeDefined();
+    expect(infra!.edge.fanout).toBeDefined();
+    // rps should NOT be in edge set
+    expect(infra!.edge).not.toHaveProperty('rps');
+  });
+
+  it('has c4 entry with description/tech node keys', () => {
+    const c4 = PIPE_METADATA.get('c4');
+    expect(c4).toBeDefined();
+    expect(c4!.node.description).toBeDefined();
+    expect(c4!.node.tech).toBeDefined();
+    expect(c4!.node.technology).toBeDefined();
+  });
+
+  it('has gantt entry with offset edge key', () => {
+    const gantt = PIPE_METADATA.get('gantt');
+    expect(gantt).toBeDefined();
+    expect(gantt!.edge.offset).toBeDefined();
+  });
+
+  it('does NOT have sequence entry (| is tag separator)', () => {
+    expect(PIPE_METADATA.has('sequence')).toBe(false);
   });
 });
