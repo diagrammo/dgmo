@@ -30,6 +30,7 @@ export interface ParsedSankeyLink {
   target: string;
   value: number;
   color?: string;
+  directed?: boolean;
   lineNumber: number;
 }
 
@@ -255,10 +256,10 @@ export function parseExtendedChart(
       continue;
     }
 
-    // Sankey/chord arrow syntax: Source (color) -> Target (color) Value (color)
-    const arrowMatch = trimmed.match(/^(.+?)\s*->\s*(.+?)\s+(\d+(?:\.\d+)?)\s*(?:\(([^)]+)\))?\s*$/);
+    // Sankey/chord link syntax: Source -> Target Value (directed) or Source -- Target Value (undirected)
+    const arrowMatch = trimmed.match(/^(.+?)\s*(->|--)\s*(.+?)\s+(\d+(?:\.\d+)?)\s*(?:\(([^)]+)\))?\s*$/);
     if (arrowMatch) {
-      const [, rawSource, rawTarget, val, rawLinkColor] = arrowMatch;
+      const [, rawSource, arrow, rawTarget, val, rawLinkColor] = arrowMatch;
       const { label: source, color: sourceColor } = extractColor(rawSource.trim(), palette);
       const { label: target, color: targetColor } = extractColor(rawTarget.trim(), palette);
       if (sourceColor || targetColor) {
@@ -273,6 +274,7 @@ export function parseExtendedChart(
         target,
         value: parseFloat(val),
         ...(linkColor && { color: linkColor }),
+        directed: arrow === '->',
         lineNumber,
       });
       continue;
@@ -677,6 +679,8 @@ function buildSankeyOption(
   return {
     ...CHART_BASE,
     title: titleConfig,
+    xAxis: { show: false },
+    yAxis: { show: false },
     tooltip: {
       show: false,
       ...tooltipTheme,
@@ -774,13 +778,8 @@ function buildChordOption(
         return '';
       },
     },
-    legend: {
-      data: nodeNames,
-      bottom: 10,
-      textStyle: {
-        color: textColor,
-      },
-    },
+    xAxis: { show: false },
+    yAxis: { show: false },
     series: [
       {
         type: 'graph',
@@ -800,17 +799,35 @@ function buildChordOption(
             color: textColor,
           },
         })),
-        links: (parsed.links ?? []).map((link) => ({
-          source: link.source,
-          target: link.target,
-          value: link.value,
-          lineStyle: {
-            width: Math.max(1, Math.min(link.value / 20, 10)),
-            color: colors[nodeNames.indexOf(link.source) % colors.length],
-            curveness: 0.3,
-            opacity: 0.6,
-          },
-        })),
+        links: (() => {
+          const allLinks = parsed.links ?? [];
+          // Detect opposing link pairs to offset curvatures
+          const pairKeys = new Set<string>();
+          for (const l of allLinks) {
+            const rev = allLinks.find((r) => r.source === l.target && r.target === l.source && r !== l);
+            if (rev) pairKeys.add(`${l.source}\0${l.target}`);
+          }
+          return allLinks.map((link) => {
+            const hasOpposite = pairKeys.has(`${link.source}\0${link.target}`);
+            // Offset curvature for opposing pairs: one curves more, the other less
+            const baseCurve = 0.3;
+            const curveness = hasOpposite
+              ? (link.source < link.target ? baseCurve + 0.15 : baseCurve - 0.15)
+              : baseCurve;
+            return {
+              source: link.source,
+              target: link.target,
+              value: link.value,
+              ...(link.directed && { symbol: ['none', 'arrow'], symbolSize: [0, 10] }),
+              lineStyle: {
+                width: Math.max(1, Math.min(link.value / 20, 10)),
+                color: colors[nodeNames.indexOf(link.source) % colors.length],
+                curveness,
+                opacity: 0.6,
+              },
+            };
+          });
+        })(),
         roam: true,
         label: {
           position: 'right',
@@ -1002,25 +1019,6 @@ export function getExtendedChartLegendGroups(
       entries: categories.map((cat, i) => ({
         value: cat,
         color: parsed.categoryColors?.[cat] ?? colors[i % colors.length],
-      })),
-    }];
-  }
-
-  if (parsed.type === 'chord') {
-    const nodeSet = new Set<string>();
-    if (parsed.links) {
-      for (const link of parsed.links) {
-        nodeSet.add(link.source);
-        nodeSet.add(link.target);
-      }
-    }
-    const nodes = Array.from(nodeSet);
-    if (nodes.length === 0) return [];
-    return [{
-      name: 'Node',
-      entries: nodes.map((name, i) => ({
-        value: name,
-        color: colors[i % colors.length],
       })),
     }];
   }
@@ -1692,6 +1690,8 @@ function buildFunnelOption(
   return {
     ...CHART_BASE,
     title: titleConfig,
+    xAxis: { show: false },
+    yAxis: { show: false },
     tooltip: {
       trigger: 'item',
       ...tooltipTheme,

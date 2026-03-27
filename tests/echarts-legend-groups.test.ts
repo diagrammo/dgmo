@@ -55,18 +55,14 @@ g(x) (red): cos(x)`;
     expect(groups[0].entries[1].value).toBe('g(x)');
   });
 
-  it('extracts chord node names', () => {
+  it('returns empty for chord (no legend)', () => {
     const content = `chord Test
 
 Engineering -> Design 5
 Design -> Product 3`;
     const parsed = parseExtendedChart(content, palette);
     const groups = getExtendedChartLegendGroups(parsed, colors);
-    expect(groups).toHaveLength(1);
-    expect(groups[0].name).toBe('Node');
-    expect(groups[0].entries.map((e) => e.value)).toEqual(
-      expect.arrayContaining(['Engineering', 'Design', 'Product']),
-    );
+    expect(groups).toHaveLength(0);
   });
 
   it('returns empty for heatmap (no legend)', () => {
