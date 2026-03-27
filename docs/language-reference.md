@@ -8,31 +8,51 @@ Syntax changes introduced in the consistency cleanup. Old forms now produce erro
 
 | Old Syntax | New Syntax | Chart Types |
 |---|---|---|
-| `## Group` | `tag: Group` | All |
+| `chart: TYPE` + `title: Text` | `TYPE Text` (single first line) | All |
+| `chart: TYPE` (alone) | `TYPE` | All |
+| `directive: value` | `directive value` (no colon) | All |
+| `Label: value` (ECharts data) | `Label value` | bar, line, pie, etc. |
+| `era YYYY->YYYY: Label` | `era YYYY->YYYY Label` | line, timeline, gantt |
+| `marker YYYY: Label` | `marker YYYY Label` | timeline, gantt |
+| `## Group` | `tag Group` | All |
 | `== Column ==` | `[Column]` | Kanban |
 | `person Name` | `Name is a person` | C4 |
 | `-> Target : Desc [tech]` | `-Desc-> Target \| tech: val` | C4 |
 | `A <-> B` | Two lines: `A -> B` + `B -> A` | C4 |
 | `-> Target x5` | `-> Target \| fanout: 5` | Infra |
 | `lag: 5d` / `lead: 3d` | `offset: 5d` / `offset: -3d` | Gantt |
-| `Name(color)` | Use `tag:` groups | Sequence |
+| `Name(color)` | Use `tag` groups | Sequence |
 | `scenario:` | (removed) | Infra |
 | `wip` | `doing` (wip still accepted) | Init-status |
 | `#ff0000` hex colors | Named colors only | All |
+| `show-sub-node-count: yes` | `show-sub-node-count` (flag) | Org |
+| `import: path` | `import path` | Org |
+| `tags: path` | `tags path` | Org |
 
 ---
 
 ## Common Patterns
 
-Every `.dgmo` file can start with optional directives, followed by content.
+Every `.dgmo` file starts with a chart type keyword as the first line, optionally followed by a title. Directives follow on subsequent lines.
+
+### First Line
+
+```
+bar Revenue by Region
+```
+
+The chart type keyword (`bar`, `sequence`, `gantt`, etc.) is the first token. Everything after it on the same line becomes the title. If the content is unambiguous, the chart type is auto-detected and can be omitted.
 
 ### Directives
 
 ```
-chart: bar              // explicit chart type (optional — auto-detected)
-title: My Diagram       // diagram title
-palette: nord           // color palette
+palette nord
+theme dark
+xlabel Category
+ylabel Count
 ```
+
+Directives are `keyword value` (no colon). They appear after the first line, before data.
 
 ### Comments
 
@@ -45,7 +65,7 @@ palette: nord           // color palette
 Append `(colorname)` to labels, nodes, or data points:
 
 ```
-Port Royal(red): 850
+Port Royal(red) 850
 [Process(blue)]
 ```
 
@@ -65,14 +85,14 @@ Text fields support: `*italic*`, `**bold**`, `` `code` ``, `[link text](url)`. B
 
 ### Multi-line Values
 
-Properties that accept comma-separated lists (`series`, `columns`, `rows`, `x-axis`, `y-axis`) also accept an indented multi-line format. Leave the value after the colon empty and list each value on its own indented line:
+Properties that accept comma-separated lists (`series`, `columns`, `rows`, `x-axis`, `y-axis`) also accept an indented multi-line format. Leave the value empty and list each value on its own indented line:
 
 ```
 // Single-line (still works)
-series: Rum, Spices, Silk, Gold
+series Rum, Spices, Silk, Gold
 
 // Multi-line equivalent
-series:
+series
   Rum
   Spices
   Silk
@@ -82,17 +102,17 @@ series:
 Multi-line blocks support blank lines and `//` comments within the block. Trailing commas on values are stripped for convenience.
 
 ```
-series:
+series
   Rum (red)
   Spices (green)
   // gold last
   Gold (yellow)
 ```
 
-Works with `columns:` and `rows:` in heatmaps:
+Works with `columns` and `rows` in heatmaps:
 
 ```
-columns:
+columns
   January
   February
   March
@@ -104,56 +124,66 @@ columns:
 
 ### bar
 
+**Syntax:** `bar [Title]`
+
+**Options:** `series`, `xlabel`, `ylabel`, `orientation` (`horizontal`/`vertical`), `labels` (`name`/`value`/`percent`/`full`), `color`
+
+**Data format:** `Label value` — one row per category
+
+**Example:**
+
 ```
-chart: bar
-title: Revenue by Region
-series: Revenue
+bar Revenue by Region
+series Revenue
 
-North: 850
-South: 620
-East: 1100
-West: 430
+North 850
+South 620
+East 1100
+West 430
 ```
 
-Options: `series`, `xlabel`, `ylabel`, `orientation` (`horizontal`/`vertical`), `labels` (`name`/`value`/`percent`/`full`), `color`.
-
-Colors per item: `North(red): 850`
+Colors per item: `North(red) 850`
 
 ### line
 
+**Syntax:** `line [Title]` or `multi-line [Title]`
+
+**Options:** `series`, `xlabel`, `ylabel`, `labels`
+
+**Data format:** `Label value` (single series) or `Label v1, v2, v3` (multi-series matching `series` list)
+
+**Example:**
+
 ```
-title: Quarterly Performance
-series: Sales(red), Costs(blue)
+line Quarterly Performance
+series Sales(red), Costs(blue)
 
-Q1: 100, 50
-Q2: 120, 55
-Q3: 110, 60
-Q4: 130, 58
+Q1 100, 50
+Q2 120, 55
+Q3 110, 60
+Q4 130, 58
 ```
 
-Multi-series: comma-separated values matching the `series` list. Single series omits `series` directive. Also works as `chart: multi-line`.
-
-Options: `series`, `xlabel`, `ylabel`, `labels`.
+Multi-series: comma-separated values matching the `series` list. Single series omits `series` directive. Also works as `multi-line`.
 
 **Era bands** — annotate named time periods with background shading:
 
 ```
-chart: line
-title: U.S. Strategic Petroleum Reserve
-ylabel: Million Barrels
+line U.S. Strategic Petroleum Reserve
+ylabel Million Barrels
 
-era '81 -> '89: Reagan (red)
-era '89 -> '93: Bush (red)
-era '93 -> '01: Clinton (blue)
+era '81 -> '89 Reagan (red)
+era '89 -> '93 Bush (red)
+era '93 -> '01 Clinton (blue)
 
-'81: 230
-'85: 493
-'89: 580
-'93: 587
-'01: 550
+'81 230
+'85 493
+'89 580
+'93 587
+'01 550
 ```
 
-Syntax: `era <start> -> <end>: <label> [(<color>)]`
+Syntax: `era <start> -> <end> <label> [(<color>)]`
 
 - `start` and `end` must exactly match category labels in the data
 - Color is optional; defaults to the palette's blue
@@ -163,116 +193,180 @@ Syntax: `era <start> -> <end>: <label> [(<color>)]`
 
 ### area
 
+**Syntax:** `area [Title]`
+
+**Options:** same as `line`, including era bands
+
+**Data format:** same as `line`
+
 Same syntax as `line`, including era bands. Renders as a filled area chart.
 
 ### pie
 
-```
-chart: pie
-title: Market Share
-labels: percent
+**Syntax:** `pie [Title]`
 
-Company A: 40
-Company B: 35
-Company C: 25
-```
+**Options:** `labels` (`name`/`value`/`percent`/`full`)
 
-Options: `labels` (`name`/`value`/`percent`/`full`).
+**Data format:** `Label value`
+
+**Example:**
+
+```
+pie Market Share
+labels percent
+
+Company A 40
+Company B 35
+Company C 25
+```
 
 ### doughnut
+
+**Syntax:** `doughnut [Title]`
+
+**Options:** same as `pie`
+
+**Data format:** same as `pie`
 
 Same syntax as `pie`. Renders as a doughnut (ring) chart.
 
 ### polar-area
 
+**Syntax:** `polar-area [Title]`
+
+**Options:** same as `pie`
+
+**Data format:** same as `pie`
+
 Same syntax as `pie`. Renders as a polar area (rose) chart.
 
 ### radar
 
-```
-chart: radar
-title: Team Skills
+**Syntax:** `radar [Title]`
 
-Frontend: 85
-Backend: 70
-DevOps: 60
-Design: 90
-Testing: 75
+**Options:** (none)
+
+**Data format:** `Label value`
+
+**Example:**
+
+```
+radar Team Skills
+
+Frontend 85
+Backend 70
+DevOps 60
+Design 90
+Testing 75
 ```
 
 ### bar-stacked
 
-```
-chart: bar-stacked
-title: Budget Allocation
-series: Engineering, Marketing, Sales
+**Syntax:** `bar-stacked [Title]`
 
-Q1: 100, 50, 30
-Q2: 110, 55, 35
-Q3: 105, 60, 40
-```
+**Options:** `series` (required), `xlabel`, `ylabel`, `orientation`
 
-Options: `series` (required), `xlabel`, `ylabel`, `orientation`.
+**Data format:** `Label v1, v2, v3` — comma-separated values matching the `series` list
+
+**Example:**
+
+```
+bar-stacked Budget Allocation
+series Engineering, Marketing, Sales
+
+Q1 100, 50, 30
+Q2 110, 55, 35
+Q3 105, 60, 40
+```
 
 ### scatter
 
+**Syntax:** `scatter [Title]`
+
+**Options:** `labels` (`on`/`off`), `xlabel`, `ylabel`, `sizelabel`
+
+**Data format:** `Label x, y` or `Label x, y, size` (bubble chart). Group with `[GroupName]` blocks.
+
+**Example:**
+
 ```
-chart: scatter
-title: Performance Metrics
-labels: on
-xlabel: Experience (years)
-ylabel: Output
+scatter Performance Metrics
+labels on
+xlabel Experience (years)
+ylabel Output
 
-Alice: 3, 85
-Bob: 7, 92
-Carol: 2, 70
+Alice 3, 85
+Bob 7, 92
+Carol 2, 70
 ```
 
-Data: `Label: x, y` or `Label: x, y, size` (bubble chart). Group with `tag:` groups.
+Tag groups (`[GroupName](color)`) create colored clusters:
 
-Options: `labels` (`on`/`off`), `xlabel`, `ylabel`, `sizelabel`.
+```
+scatter Startup Funding vs Revenue
+labels on
+xlabel Funding ($M)
+ylabel Annual Revenue ($M)
+
+[SaaS](blue)
+  Acme Cloud 12, 8.5
+  DataSync 5.2, 3.1
+
+[Fintech](green)
+  PayFlow 45, 32
+  LendTech 18, 12.5
+```
 
 ### heatmap
 
-```
-chart: heatmap
-title: Activity by Month
-columns: Jan, Feb, Mar, Apr, May, Jun
+**Syntax:** `heatmap [Title]`
 
-Team A: 5, 4, 5, 3, 4, 5
-Team B: 2, 3, 2, 4, 3, 2
-Team C: 3, 2, 1, 2, 3, 4
-```
+**Options:** `columns` (required)
 
-Options: `columns` (required).
+**Data format:** `Row Label v1, v2, v3` — comma-separated values matching the `columns` list
+
+**Example:**
+
+```
+heatmap Activity by Month
+columns Jan, Feb, Mar, Apr, May, Jun
+
+Team A 5, 4, 5, 3, 4, 5
+Team B 2, 3, 2, 4, 3, 2
+Team C 3, 2, 1, 2, 3, 4
+```
 
 ### sankey
+
+**Syntax:** `sankey [Title]`
+
+**Options:** (none)
+
+**Data format:** Arrow syntax (`Source -> Target value`) or indentation syntax (`Target value` indented under parent)
 
 **Arrow syntax:**
 
 ```
-chart: sankey
-title: Resource Flow
+sankey Resource Flow
 
-Source A -> Processing: 300
-Source B -> Processing: 200
-Processing -> Output X: 350
-Processing -> Output Y: 150
+Source A -> Processing 300
+Source B -> Processing 200
+Processing -> Output X 350
+Processing -> Output Y 150
 ```
 
 **Indentation syntax:**
 
 ```
-chart: sankey
-title: Resource Flow
+sankey Resource Flow
 
 Source A
-  Processing: 300
+  Processing 300
 Source B
-  Processing: 200
+  Processing 200
 Processing
-  Output X: 350
-  Output Y: 150
+  Output X 350
+  Output Y 150
 ```
 
 Both syntaxes can be mixed in the same diagram.
@@ -281,190 +375,255 @@ Both syntaxes can be mixed in the same diagram.
 
 ```
 Revenue (green)
-  Costs (red): 600
-  Profit (blue): 400
+  Costs (red) 600
+  Profit (blue) 400
 
 // or with arrows
-Revenue (green) -> Costs (red): 600
+Revenue (green) -> Costs (red) 600
 ```
 
 **Link colors** — `(color)` after the value:
 
 ```
 Revenue
-  Costs: 600 (orange)
+  Costs 600 (orange)
 
 // or with arrows
-Revenue -> Costs: 600 (orange)
+Revenue -> Costs 600 (orange)
 ```
 
 ### chord
 
+**Syntax:** `chord [Title]`
+
+**Options:** (none)
+
+**Data format:** same as `sankey` (arrow syntax)
+
 Same syntax as `sankey`. Renders as a circular chord diagram.
+
+**Example:**
+
+```
+chord Inter-Department Collaboration
+
+Engineering -> Design 85
+Engineering -> Product 72
+Design -> Marketing 45
+Product -> Sales 42
+```
 
 ### funnel
 
-```
-chart: funnel
-title: Conversion Pipeline
+**Syntax:** `funnel [Title]`
 
-Visitors: 1000
-Signups: 500
-Trials: 200
-Customers: 100
+**Options:** (none)
+
+**Data format:** `Label value`
+
+**Example:**
+
+```
+funnel Conversion Pipeline
+
+Visitors 1000
+Signups 500
+Trials 200
+Customers 100
 ```
 
 ### function
 
-```
-chart: function
-title: Trajectories
-xlabel: Distance (m)
-ylabel: Height (m)
-x: 0 to 250
+**Syntax:** `function [Title]`
 
-Low(blue): -0.001*x^2 + 0.27*x
-High(red): -0.003*x^2 + 0.75*x
-```
+**Options:** `x` (required, `start to end`), `xlabel`, `ylabel`
 
-Options: `x: start to end` (required), `xlabel`, `ylabel`.
+**Data format:** `Name (color) expression` — math expressions using `x`
+
+**Example:**
+
+```
+function Mathematical Functions
+xlabel x
+ylabel f(x)
+
+x -6 to 6
+f(x) (blue) sin(x)
+g(x) (red) x^2 / 10
+h(x) (green) cos(x) * 2
+```
 
 Expressions support: `+`, `-`, `*`, `/`, `^`, `sin`, `cos`, `sqrt`, `abs`, `log`, `exp`, `pi`, `e`.
 
 ### slope
 
+**Syntax:** `slope [Title]`
+
+**Options:** `orientation` (`horizontal`/`vertical`)
+
+**Data format:** First data line defines period labels. Subsequent lines: `Item (color) v1, v2, ...`
+
+**Example:**
+
 ```
-chart: slope
-title: Before vs After
+slope Programming Language Popularity
 
-Period A, Period B
-
-Item 1: 40, 80
-Item 2: 30, 50
-Item 3: 60, 40
+2020, 2022, 2025
+Python (blue) 3, 1, 1
+JavaScript (yellow) 1, 2, 2
+TypeScript (cyan) 7, 4, 3
+Rust (orange) 18, 12, 5
 ```
-
-First data line defines the two period labels. Options: `orientation` (`horizontal`/`vertical`).
 
 ### wordcloud
 
-```
-chart: wordcloud
-title: Top Terms
+**Syntax:** `wordcloud [Title]`
 
-kubernetes: 95
-docker: 80
-terraform: 65
-ansible: 50
-```
+**Options:** `rotate` (`none`/`mixed`/`angled`), `max` (word limit), `size` (`min, max` font range)
 
-Data: `word: weight` (higher = larger). Options: `rotate` (`none`/`mixed`/`angled`), `max` (word limit), `size: min, max` (font range).
+**Data format:** `word weight` (higher = larger)
+
+**Example:**
+
+```
+wordcloud Top Terms
+
+kubernetes 95
+docker 80
+terraform 65
+ansible 50
+```
 
 ### arc
 
+**Syntax:** `arc [Title]`
+
+**Options:** `order:` (`appearance`/`name`/`group`/`degree`), `orientation`
+
+**Data format:** `Source -> Target weight`. Group nodes with `[GroupName]` blocks.
+
+**Example:**
+
 ```
-chart: arc
-title: Team Collaboration
+arc Team Collaboration
+order: group
 
-tag: Team
-  Frontend(blue)
-  Backend(green)
+[Frontend]
+  WebApp -> API Gateway 5
+  MobileApp -> API Gateway 3
 
-Alice -> Bob: 8 | Team: Frontend
-Alice -> Carol: 5 | Team: Frontend
-Dave -> Carol: 10 | Team: Backend
+[Core Services]
+  API Gateway -> AuthService 4
+  API Gateway -> UserService 5
 ```
-
-Data: `Source -> Target: weight`. Group nodes with `tag:` groups.
-
-Options: `order` (`appearance`/`name`/`group`/`degree`), `orientation`.
 
 ### venn
 
+**Syntax:** `venn [Title]`
+
+**Options:** `values` (`on`/`off`)
+
+**Data format:** Sets: `id(color) alias shortname`. Overlaps: `id1 + id2 Label`.
+
+**Example:**
+
 ```
-chart: venn
-title: Skill Overlap
+venn Skill Overlap
 
-dev(blue): 120 "Development"
-ops(green): 100 "Operations"
-sec(red): 80 "Security"
+Frontend(blue) alias fe
+Backend(green) alias be
+DevOps(orange) alias de
 
-dev & ops: 35 "DevOps"
-ops & sec: 40 "SecOps"
-dev & sec: 30 "DevSec"
-dev & ops & sec: 10 "DevSecOps"
+fe + be Web Systems
+be + de Platform Ops
+fe + de Dev Tools
+fe + be + de Full Stack
 ```
-
-Sets: `id(color): size "label"`. Overlaps: `id1 & id2: size "label"`. Options: `values` (`on`/`off`).
 
 ### quadrant
 
+**Syntax:** `quadrant [Title]`
+
+**Options:** `x-axis` (`low label, high label`), `y-axis` (`low label, high label`)
+
+**Data format:** Quadrant labels: `top-right Label`, `top-left Label`, etc. Data points: `Label (color) x, y` where x,y are 0-1.
+
+**Example:**
+
 ```
-chart: quadrant
-title: Priority Matrix
-x-axis: Low Impact, High Impact
-y-axis: Low Effort, High Effort
+quadrant Priority Matrix
+x-axis Low Impact, High Impact
+y-axis Low Effort, High Effort
 
-top-right: Quick Wins(green)
-top-left: Big Bets(yellow)
-bottom-left: Skip(red)
-bottom-right: Reconsider(gray)
+top-right Quick Wins(green)
+top-left Big Bets(yellow)
+bottom-left Skip(red)
+bottom-right Reconsider(gray)
 
-Task A: 0.9, 0.8
-Task B: 0.2, 0.3
-Task C: 0.7, 0.4
+Task A 0.9, 0.8
+Task B 0.2, 0.3
+Task C 0.7, 0.4
 ```
-
-Options: `x-axis: low, high`, `y-axis: low, high`. Quadrant labels: `top-right`, `top-left`, `bottom-left`, `bottom-right`. Data: `Label: x, y` where x,y are 0–1.
 
 ### timeline
 
-```
-chart: timeline
-title: Project History
+**Syntax:** `timeline [Title]`
 
-tag: Team
+**Options:** `scale` (`on`/`off`), `sort` (`time`/`group`/`tag`/`tag:GroupName`), `swimlanes` (`on`/`off`)
+
+**Data format:** Ranges: `start->end Label | tag: Value`. Points: `date Label | tag: Value`.
+
+**Example:**
+
+```
+timeline Project History
+
+tag Team
   Team A(blue)
   Team B(green)
 
-era 2023->2024: Phase 1
-marker 2023-06: Launch(orange)
+era 2023->2024 Phase 1
+marker 2023-06 Launch(orange)
 
-2023-01->2023-06: Planning | Team: Team A
-2023-06->2024-01: Development | Team: Team A
-2024-02: Release | Team: Team A
+2023-01->2023-06 Planning | Team: Team A
+2023-06->2024-01 Development | Team: Team A
+2024-02 Release | Team: Team A
 
-2023-03->2023-09: Research | Team: Team B
-2023-09->2024-03?: Implementation | Team: Team B
+2023-03->2023-09 Research | Team: Team B
+2023-09->2024-03? Implementation | Team: Team B
 ```
 
 Date formats: `YYYY`, `YYYY-MM`, `YYYY-MM-DD`. Ranges: `start->end`. Durations: `start->1y`, `start->6m`, `start->2w`, `start->30d`. Uncertain end: append `?` (e.g., `2024-03?`).
 
-Elements: `era start->end: Label(color)`, `marker date: Label(color)`, `tag:` groups for interactive coloring.
+Elements: `era start->end Label(color)`, `marker date Label(color)`, `tag` groups for interactive coloring.
 
 Tag groups for interactive coloring and swimlanes:
 
 ```
-chart: timeline
-sort: tag:Team
+timeline Sprint Plan
+sort tag:Team
 
-tag: Team
+tag Team
   Engineering(blue)
   Design(green)
 
-2024-01->2024-06: Build API | Team: Engineering
-2024-03->2024-05: UX Review | Team: Design
+2024-01->2024-06 Build API | Team: Engineering
+2024-03->2024-05 UX Review | Team: Design
 ```
 
-Options: `scale` (`on`/`off`), `sort` (`time`/`group`/`tag`/`tag:GroupName`), `swimlanes` (`on`/`off`).
-
-Tag groups add interactive color and swimlane controls. `sort: tag` uses the first tag group for swimlanes; `sort: tag:GroupName` specifies which group (aliases work: `sort: tag:p` resolves to `sort: tag:Pirate`).
+Tag groups add interactive color and swimlane controls. `sort tag` uses the first tag group for swimlanes; `sort tag:GroupName` specifies which group (aliases work: `sort tag:p` resolves to `sort tag:Pirate`).
 
 ---
 
 ## Diagram Types
 
 ### sequence
+
+**Syntax:** `sequence [Title]`
+
+**Options:** `activations` (`on`/`off`), `collapse-notes` (`yes`/`no`), `active-tag GroupName`
+
+**Data format:** Messages between participants with arrow syntax
 
 Minimal example:
 
@@ -478,8 +637,7 @@ API -token-> User
 Full example:
 
 ```
-chart: sequence
-title: Authentication Flow
+sequence Authentication Flow
 
 // participant declarations (optional)
 User is an actor
@@ -490,7 +648,7 @@ NotifyQueue is a queue aka Notifications
 User -Login request-> API
 API -Find user by email-> DB
 DB -user record-> API
-note on DB:
+note on DB
   Indexed lookup on email column
 
 if credentials valid
@@ -523,26 +681,24 @@ API -200 OK-> User
 - `parallel label` ...
 
 **Notes**:
-- `note: text` — standalone
-- `note on Participant: text` — anchored
-- Multi-line: indent continuation lines under `note:`
+- `note text` — standalone
+- `note on Participant` followed by indented text — anchored
+- Multi-line: indent continuation lines under `note`
 
 **Sections**: `== Section Title ==`
 
 **Groups**: `[Group Name]` or `[Group Name | key: value]` — visual grouping box around participants
 
-**Options**: `activations: off`, `collapse-notes: no`, `active-tag: GroupName`
-
 **Tag groups** — define color-coded metadata dimensions for interactive recoloring:
 
 ```
-tag: Concern alias c
+tag Concern alias c
   Caching(blue)
   Auth(green)
   BusinessLogic(purple) default
 ```
 
-- `tag: Name` declares a tag group; `alias x` adds a shorthand
+- `tag Name` declares a tag group; `alias x` adds a shorthand
 - Each entry: `Value(color)` — named color for that value
 - `default` on an entry applies it to untagged elements when the group is active
 
@@ -571,6 +727,12 @@ User -login-> API | concern: Auth
 
 ### flowchart
 
+**Syntax:** `flowchart [Title]`
+
+**Options:** (none beyond `palette`, `theme`)
+
+**Data format:** Node chains with arrow connections
+
 Minimal example:
 
 ```
@@ -580,8 +742,7 @@ Minimal example:
 Full example:
 
 ```
-chart: flowchart
-title: Decision Process
+flowchart Decision Process
 
 (Start) -> <Valid Input?>
   -yes-> [Process Data] -> [[Run Subroutine]]
@@ -611,6 +772,12 @@ Colors on nodes: `[Process(blue)]`
 
 ### state
 
+**Syntax:** `state [Title]`
+
+**Options:** `direction` (`TB` or `LR`), `color` (`off` for monochrome)
+
+**Data format:** States connected by transitions
+
 Minimal example:
 
 ```
@@ -620,9 +787,8 @@ Minimal example:
 Full example:
 
 ```
-chart: state
-title: Order Lifecycle
-direction: LR
+state Order Lifecycle
+direction LR
 
 [Processing(blue)]
   Validating -valid-> Approved
@@ -656,9 +822,13 @@ is equivalent to `Idle -start-> Running` and `Idle -configure-> Configuring`.
 
 **Self-loops**: `Running -retry-> Running` — a state transitioning to itself.
 
-**Options**: `direction` (`TB` or `LR`), `title`, `color: off` (monochrome mode).
-
 ### class
+
+**Syntax:** `class [Title]`
+
+**Options:** (none beyond `palette`, `theme`)
+
+**Data format:** Class declarations with indented members
 
 Minimal example:
 
@@ -677,8 +847,7 @@ Cat extends Animal
 Full example:
 
 ```
-chart: class
-title: Type Hierarchy
+class Type Hierarchy
 
 Printable [interface]
   + print(): void
@@ -717,6 +886,12 @@ Shape *-- Circle : contains
 
 ### er
 
+**Syntax:** `er [Title]`
+
+**Options:** (none beyond `palette`, `theme`)
+
+**Data format:** Entity declarations with indented columns and relationships
+
 Minimal example:
 
 ```
@@ -733,8 +908,7 @@ posts
 Full example:
 
 ```
-chart: er
-title: Blog Schema
+er Blog Schema
 
 users
   id: int [pk]
@@ -773,25 +947,30 @@ Columns and relationships can be mixed under the same table. The parser distingu
 
 ### c4
 
+**Syntax:** `c4 [Title]`
+
+**Options:** (none beyond `palette`, `theme`)
+
+**Data format:** Element declarations with `Name is a type`, relationships with arrows
+
 Minimal example:
 
 ```
-chart: c4
+c4
 
 User is a person
 MyApp is a system | description: The main application
   -Uses-> User
 ```
 
-Auto-detection: C4 diagrams are auto-detected when `Name is a person/system/container/component` declarations are present — `chart: c4` is optional.
+Auto-detection: C4 diagrams are auto-detected when `Name is a person/system/container/component` declarations are present — `c4` is optional.
 
 Full example:
 
 ```
-chart: c4
-title: Banking System
+c4 Banking System
 
-tag: Scope alias sc
+tag Scope alias sc
   Internal(blue) default
   External(gray)
 
@@ -801,7 +980,7 @@ Internet Banking is a system | description: Online banking portal
   -Delivers content-> Customer | tech: HTTPS
   -Sends emails-> Email | tech: SMTP
 
-  containers:
+  containers
     Web App is a container | description: SPA, tech: React
       -API calls-> API | tech: JSON/HTTPS
 
@@ -813,7 +992,7 @@ Internet Banking is a system | description: Online banking portal
 Email is a system | description: Email delivery, sc: External
   ~Sends emails~> Customer
 
-deployment:
+deployment
   Vercel is a cloud
     container Web App
   Railway
@@ -832,7 +1011,7 @@ deployment:
 
 **Metadata** (pipe-delimited): `Name is a system | description: text, tech: stack, tagalias: value`
 
-**Sections**: `containers:` (inside system), `components:` (inside container), `deployment:`
+**Sections**: `containers` (inside system), `components` (inside container), `deployment`
 
 **Deployment nodes**: `NodeName is a [cloud|database|cache|queue|external]`
 
@@ -845,10 +1024,16 @@ deployment:
 
 ### org
 
+**Syntax:** `org [Title]`
+
+**Options:** `sub-node-label`, `show-sub-node-count` (flag, no value needed)
+
+**Data format:** Hierarchy via indentation
+
 Minimal example:
 
 ```
-chart: org
+org
 
 CEO
   VP Engineering
@@ -859,12 +1044,11 @@ CEO
 Full example:
 
 ```
-chart: org
-title: Engineering Org
-sub-node-label: Reports
-show-sub-node-count: yes
+org Engineering Org
+sub-node-label Reports
+show-sub-node-count
 
-tag: Level alias lv
+tag Level alias lv
   Director(red)
   Manager(blue)
   IC(green) default
@@ -884,16 +1068,20 @@ Hierarchy via indentation. `[Group Name]` creates collapsible sub-groups.
 
 **Metadata**: `Name | tagalias: value, tag2: value2`
 
-Options: `sub-node-label`, `show-sub-node-count` (`yes`/`no`).
-
-**Imports**: `import: path/to/file.dgmo` (indented under a parent node), `tags: path/to/tags.dgmo` (top-level).
+**Imports**: `import path/to/file.dgmo` (indented under a parent node), `tags path/to/tags.dgmo` (top-level).
 
 ### kanban
+
+**Syntax:** `kanban [Title]`
+
+**Options:** (none beyond `palette`, `theme`)
+
+**Data format:** `[Column]` headers with card items below
 
 Minimal example:
 
 ```
-chart: kanban
+kanban
 
 [To Do]
 Task 1
@@ -906,15 +1094,14 @@ Task 3
 Full example:
 
 ```
-chart: kanban
-title: Sprint Board
+kanban Sprint Board
 
-tag: Priority
+tag Priority
   Critical(red)
   High(orange)
   Low(green) default
 
-tag: Owner alias o
+tag Owner alias o
   Alice(blue)
   Bob(green)
 
@@ -938,10 +1125,16 @@ Setup CI pipeline | priority: High, o: Alice
 
 ### initiative-status
 
+**Syntax:** `initiative-status [Title]`
+
+**Options:** (none beyond `palette`, `theme`)
+
+**Data format:** Nodes with status, connected by dependency arrows
+
 Minimal example:
 
 ```
-chart: initiative-status
+initiative-status
 
 Auth | done
   -> UserService | doing
@@ -953,8 +1146,7 @@ NotifyService | todo
 Full example:
 
 ```
-chart: initiative-status
-title: Platform Roadmap
+initiative-status Platform Roadmap
 
 Auth | done
   -depends-> UserService | doing
@@ -979,10 +1171,16 @@ DBLayer | done
 
 ### sitemap
 
+**Syntax:** `sitemap [Title]`
+
+**Options:** `direction` (`TB` or `LR`), `orientation` (alias for `direction`)
+
+**Data format:** Page labels with arrows and metadata
+
 Minimal example:
 
 ```
-chart: sitemap
+sitemap
 
 Home
   -about-> About
@@ -998,16 +1196,15 @@ Home
 Full example:
 
 ```
-chart: sitemap
-title: SaaS Platform
-direction: TB
+sitemap SaaS Platform
+direction TB
 
-tag: Auth
+tag Auth
   Public(green)
   Required(blue)
   Admin(red)
 
-tag: Type
+tag Type
   Landing(purple)
   Form(orange)
   Content(cyan)
@@ -1071,9 +1268,9 @@ Home
 
 **Metadata**: `Key: Value` lines attach to the parent page (displayed as card rows).
 
-**Tag groups**: `tag: Name` with colored entries — same syntax as org charts.
+**Tag groups**: `tag Name` with colored entries — same syntax as org charts.
 
-**Direction**: `direction: TB` (top-to-bottom, default) or `direction: LR` (left-to-right). `orientation:` is accepted as an alias for `direction:`.
+**Direction**: `direction TB` (top-to-bottom, default) or `direction LR` (left-to-right). `orientation` is accepted as an alias for `direction`.
 
 **Group metadata cascading**: `[Group Name] | key: value` — pipe metadata on group headers cascades to all pages in the group.
 
@@ -1081,10 +1278,16 @@ Home
 
 ### infra
 
+**Syntax:** `infra [Title]`
+
+**Options:** `direction` (`LR` or `TB`), `orientation` (alias for `direction`)
+
+**Data format:** Component declarations with indented properties and connections
+
 Minimal example:
 
 ```
-chart: infra
+infra
 
 edge
   rps: 1000
@@ -1103,11 +1306,10 @@ API
 Full example:
 
 ```
-chart: infra
-title: Production Traffic Flow
-direction: LR
+infra Production Traffic Flow
+direction LR
 
-tag: Team alias t
+tag Team alias t
   Backend(blue)
   Platform(teal)
 
@@ -1167,7 +1369,7 @@ StaticServer | t: Platform
 - Pipe metadata for splits: `-> Target | split: N%`
 - Fan-out multiplier: `-> Target | fanout: 5` or `-> Target | split: 50%, fanout: 5`
 
-**Fan-out**: Use `| fanout: N` metadata to model request multiplication — one inbound request triggers N outbound calls to the target. The target receives `inbound × N` RPS. Fan-out is applied after split: `-> Shards | split: 60%, fanout: 8` means the target receives `inbound × 0.60 × 8` RPS. Fan-out compounds naturally through multi-hop chains.
+**Fan-out**: Use `| fanout: N` metadata to model request multiplication — one inbound request triggers N outbound calls to the target. The target receives `inbound x N` RPS. Fan-out is applied after split: `-> Shards | split: 60%, fanout: 8` means the target receives `inbound x 0.60 x 8` RPS. Fan-out compounds naturally through multi-hop chains.
 
 **Branching**: Multiple outbound connections with `split: N%` metadata. Splits must sum to 100%. Undeclared splits are evenly distributed from the remaining percentage.
 
@@ -1175,68 +1377,71 @@ StaticServer | t: Platform
 
 **Roles**: Inferred automatically from behavior properties or `is a` type declarations. Components with `cache-hit` get a Cache role, `firewall-block` gets Firewall, etc. Explicit declarations (`Redis is a cache`) set the role directly. Roles appear as colored dots on nodes and in the legend.
 
-**Overload**: When computed rps exceeds `max-rps × instances`, the node turns red. Dynamic scaling (`instances: 1-8`) auto-scales within the range before overloading.
-
-**Direction**: `direction: LR` (left-to-right, default) or `direction: TB` (top-to-bottom). `orientation:` is accepted as an alias for `direction:`.
+**Overload**: When computed rps exceeds `max-rps x instances`, the node turns red. Dynamic scaling (`instances: 1-8`) auto-scales within the range before overloading.
 
 **Group metadata cascading**: `[Group Name] | key: value` — pipe metadata on group headers cascades to all children, providing default tag values for contained nodes.
 
-**Tag groups**: Same syntax as org/kanban/sitemap — `tag: Name alias x` with colored entries.
+**Tag groups**: Same syntax as org/kanban/sitemap — `tag Name alias x` with colored entries.
 
 ### gantt
+
+**Syntax:** `gantt [Title]`
+
+**Options:** `start` (required, `YYYY-MM-DD`), `today-marker` (`on`/`off` or `YYYY-MM-DD`), `sort` (`time`/`group`/`tag`/`tag:GroupName`), `critical-path`, `dependencies`
+
+**Data format:** `duration Task Name` — tasks with optional dependency arrows
 
 Minimal example:
 
 ```
-start: 2024-01-01
+start 2024-01-01
 
-10bd: Design
+10bd Design
   -> Implementation
-20bd: Implementation
+20bd Implementation
   -> Testing
-5bd: Testing
+5bd Testing
 ```
 
-Auto-detection: Gantt charts are auto-detected when duration patterns like `10bd: Task` are present — `chart: gantt` is optional.
+Auto-detection: Gantt charts are auto-detected when duration patterns like `10bd Design` are present — `gantt` is optional.
 
 Full example:
 
 ```
-chart: gantt
-title: Project Schedule
-start: 2024-01-01
-today-marker: on
+gantt Project Schedule
+start 2024-01-01
+today-marker on
 
-tag: Team alias t
+tag Team alias t
   Frontend(blue)
   Backend(green)
 
-holidays:
+holidays
   2024-01-15: MLK Day
   2024-02-19: Presidents Day
 
-era 2024-01 -> 2024-03: Phase 1(blue)
-marker: 2024-02-15 Sprint Review(orange)
+era 2024-01 -> 2024-03 Phase 1(blue)
+marker 2024-02-15 Sprint Review(orange)
 
 [Design]
-  5bd: UX Research | t: Frontend
-  10bd: Wireframes | t: Frontend
+  5bd UX Research | t: Frontend
+  10bd Wireframes | t: Frontend
     -informs-> API Design
 
 [Engineering]
-  15bd: API Design | t: Backend
+  15bd API Design | t: Backend
     -> Frontend Build | offset: 2bd
-  20bd: Frontend Build | t: Frontend
-  10bd: Integration Testing
+  20bd Frontend Build | t: Frontend
+  10bd Integration Testing
 ```
 
-**Start date**: `start: YYYY-MM-DD` (required) — project start date for computing all task dates.
+**Start date**: `start YYYY-MM-DD` (required) — project start date for computing all task dates.
 
-**Tasks**: `<duration>: <name>` — duration units: `bd` (business days), `d` (days), `w` (weeks), `m` (months), `q` (quarters), `y` (years), `h` (hours), `min` (minutes).
+**Tasks**: `<duration> <name>` — duration units: `bd` (business days), `d` (days), `w` (weeks), `m` (months), `q` (quarters), `y` (years), `h` (hours), `min` (minutes).
 
-**Explicit dates**: `YYYY-MM-DD: Task Name` or `YYYY-MM-DD -> 30d: Task Name` (date with duration).
+**Explicit dates**: `YYYY-MM-DD Task Name` or `YYYY-MM-DD -> 30d Task Name` (date with duration).
 
-**Uncertain end**: Append `?` to duration (e.g., `10bd?: Task`) — renders with a fading tail.
+**Uncertain end**: Append `?` to duration (e.g., `10bd? Task`) — renders with a fading tail.
 
 **Dependencies**: `-label-> Target` or `-> Target` — indented under the source task. The target task starts after the source completes.
 
@@ -1248,15 +1453,13 @@ marker: 2024-02-15 Sprint Review(orange)
 
 **Group metadata cascading**: `[Group Name] | key: value` — pipe metadata cascades to all tasks in the group.
 
-**Eras**: `era YYYY-MM -> YYYY-MM: Label(color)` — background shading bands.
+**Eras**: `era YYYY-MM -> YYYY-MM Label(color)` — background shading bands.
 
-**Markers**: `marker: YYYY-MM-DD Label(color)` — vertical milestone lines.
+**Markers**: `marker YYYY-MM-DD Label(color)` — vertical milestone lines.
 
-**Holidays**: `holidays:` block with `YYYY-MM-DD: Name` entries or `YYYY-MM-DD -> YYYY-MM-DD: Name` ranges. Holiday dates skip business-day counting.
+**Holidays**: `holidays` block with `YYYY-MM-DD: Name` entries or `YYYY-MM-DD -> YYYY-MM-DD: Name` ranges. Holiday dates skip business-day counting.
 
-**Tag groups**: Same syntax as other diagrams — `tag: Name alias x` with colored entries.
-
-**Options**: `start`, `title`, `today-marker` (`on`/`off`), `sort` (`time`/`group`/`tag`/`tag:GroupName`).
+**Tag groups**: Same syntax as other diagrams — `tag Name alias x` with colored entries.
 
 ---
 
@@ -1265,18 +1468,18 @@ marker: 2024-02-15 Sprint Review(orange)
 Define reusable metadata categories for sequence, org, kanban, C4, sitemap, infra, gantt, initiative-status, and timeline diagrams:
 
 ```
-tag: Priority
+tag Priority
   Critical(red)
   High(orange)
   Medium(yellow)
   Low(green) default
 
-tag: Team alias t
+tag Team alias t
   Frontend(blue)
   Backend(green)
 ```
 
-- `tag:` keyword (case-insensitive)
+- `tag` keyword (case-insensitive)
 - Optional `alias` for shorthand in metadata: `| t: Frontend`
 - `default` keyword marks the fallback value
 - Indented entries with `Value(color)`
@@ -1290,18 +1493,20 @@ Assign to elements via pipe metadata: `Element Name | priority: High, t: Fronten
 **Common mistakes to avoid:**
 
 - `# comment` — wrong. Use `// comment`
+- `chart: bar` + `title: Revenue` — wrong. Use `bar Revenue` (single first line)
+- `Label: value` in ECharts data — wrong. Use `Label value` (no colon)
 - `async A -> B: msg` — wrong. Use `A ~msg~> B`
 - `parallel else` — not supported. Use separate `parallel` blocks
 - Hex colors `#ff0000` — wrong. Use named colors only: `red`, `green`, `blue`, etc.
 - `->` inside labeled arrows `A -routes to /api-> B` — ambiguous. Rephrase the label
-- Missing `chart:` for ambiguous content — when auto-detection picks the wrong type, add an explicit `chart:` directive
+- Missing chart type for ambiguous content — when auto-detection picks the wrong type, add an explicit chart type keyword
 - `end` keyword in sequence blocks — not needed. Indentation closes blocks
 - `== Column ==` in kanban — removed. Use `[Column]`
 - `person Name` in C4 — removed. Use `Name is a person`
 - `A <-> B` bidirectional arrows — removed. Use two separate lines
 - `-> Target x5` fan-out — removed. Use `-> Target | fanout: 5`
 - `lag: 5d` / `lead: 3d` in gantt — removed. Use `offset: 5d` / `offset: -3d`
-- `Name(color)` in sequence participants — removed. Use `tag:` groups for coloring
+- `Name(color)` in sequence participants — removed. Use `tag` groups for coloring
 
 ---
 
