@@ -1,32 +1,31 @@
-chart: sankey
-title: Website Traffic Flow
+sankey Website Traffic Flow
 
 // Source channels — colored by type
 Organic Search (green)
-  Landing Page: 450
+  Landing Page 450
 Paid Ads (orange)
-  Landing Page: 280
+  Landing Page 280
 Social Media (blue)
-  Landing Page: 180
+  Landing Page 180
 Email (purple)
-  Landing Page: 120
+  Landing Page 120
 Direct (teal)
-  Landing Page: 90
+  Landing Page 90
 
 // Engagement & Conversion
 Landing Page
-  Sign Up: 340
-  Browse Products: 520
-  Bounce: 260 (red)
+  Sign Up 340
+  Browse Products 520
+  Bounce 260 (red)
 
 Sign Up
-  Free Trial: 240
-  Paid Plan: 100
+  Free Trial 240
+  Paid Plan 100
 
 Browse Products
-  Add to Cart: 310
-  Exit: 210 (red)
+  Add to Cart 310
+  Exit 210 (red)
 
 Add to Cart
-  Purchase (green): 220
-  Abandon: 90 (red)
+  Purchase (green) 220
+  Abandon 90 (red)

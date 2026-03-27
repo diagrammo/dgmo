@@ -34,8 +34,7 @@ When the `dgmo` MCP server is configured, use these tools directly:
 
 ### Sequence diagram
 ```
-chart: sequence
-title: Auth Flow
+sequence Auth Flow
 
 User -Login-> API
 API -Find user-> DB
@@ -48,8 +47,7 @@ DB -user-> API
 
 ### Flowchart
 ```
-chart: flowchart
-title: Process
+flowchart Process
 
 (Start) -> <Valid?>
   -yes-> [Process] -> (Done)
@@ -58,19 +56,17 @@ title: Process
 
 ### Bar chart
 ```
-chart: bar
-title: Revenue
-series: USD
+bar Revenue
+series USD
 
-North: 850
-South: 620
-East: 1100
+North 850
+South 620
+East 1100
 ```
 
 ### ER diagram
 ```
-chart: er
-title: Schema
+er Schema
 
 users
   id: int [pk]
@@ -85,7 +81,7 @@ users 1--* posts : writes
 
 ### Org chart
 ```
-chart: org
+org
 
 CEO
   VP Engineering
@@ -96,8 +92,8 @@ CEO
 
 ### Infra chart
 ```
-chart: infra
-direction: LR
+infra
+direction LR
 
 edge
   rps: 10000
@@ -123,11 +119,10 @@ bar, line, multi-line, area, pie, doughnut, radar, polar-area, bar-stacked, scat
 
 ## Common patterns
 
-- `chart: type` — explicit chart type (auto-detected if unambiguous)
-- `title: text` — diagram title
+- `type` — chart type as first line, optionally followed by title: `bar Revenue`
 - `// comment` — only `//` comments (not `#`)
-- `(colorname)` — inline colors: `Label(red): 100`
-- `series: A(red), B(blue)` — multi-series with colors
+- `(colorname)` — inline colors: `Label(red) 100`
+- `series A(red), B(blue)` — multi-series with colors
 
 ## Rendering via CLI
 
@@ -142,7 +137,7 @@ dgmo file.dgmo --json              # structured JSON output
 - Don't use `#` for comments — use `//`
 - Don't use `end` to close sequence blocks — indentation closes them
 - Don't use hex colors in section headers — use named colors
-- Don't forget `chart:` directive when content is ambiguous
+- Don't forget chart type on the first line when content is ambiguous
 - Sequence arrows: `->` (sync), `~>` (async) — always left-to-right
 
 Full reference: call `get_language_reference` MCP tool or visit diagrammo.app/docs

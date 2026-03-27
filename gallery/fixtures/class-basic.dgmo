@@ -1,5 +1,4 @@
-chart: class
-title: Animal Hierarchy
+class Animal Hierarchy
 
 Animal
   name: string

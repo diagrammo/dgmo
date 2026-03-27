@@ -1,5 +1,4 @@
-chart: sequence
-title: E-Commerce Checkout
+sequence E-Commerce Checkout
 
 User is an actor
 App is a frontend

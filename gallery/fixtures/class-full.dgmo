@@ -1,5 +1,4 @@
-chart: class
-title: Design Patterns
+class Design Patterns
 
 Drawable [interface]
   + draw(): void

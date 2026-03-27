@@ -1,12 +1,11 @@
-chart: c4
-title: Internet Banking System
+c4 Internet Banking System
 
 Customer is a person
   description: A customer of the bank
 
 Banking is a system
   description: Core internet banking system
-  containers:
+  containers
     WebApp is a container | tech: React
     API is a container | tech: Node.js
     DB is a container is a database | tech: PostgreSQL

@@ -112,7 +112,7 @@ dgmo diagram.dgmo --theme dark --palette catppuccin
 
 ## How it works
 
-Every `.dgmo` file is plain text with a `chart: <type>` header followed by metadata and data. The library parses each chart type and gives you either:
+Every `.dgmo` file is plain text with a `<type>` header line (optionally followed by a title) and then metadata and data. The library parses each chart type and gives you either:
 
 - A **config object** you render yourself
 - A **rendered SVG** directly
@@ -134,15 +134,14 @@ import * as echarts from 'echarts';
 const colors = getPalette('nord').light;
 
 const content = `
-chart: bar
-title: Revenue by Quarter
-xlabel: Quarter
-ylabel: Revenue ($M)
+bar Revenue by Quarter
+xlabel Quarter
+ylabel Revenue ($M)
 
-Q1: 12
-Q2: 19
-Q3: 15
-Q4: 22
+Q1 12
+Q2 19
+Q3 15
+Q4 22
 `;
 
 const parsed = parseChart(content, colors);
@@ -159,15 +158,14 @@ import * as echarts from 'echarts';
 const colors = getPalette('nord').light;
 
 const content = `
-chart: sankey
-title: Energy Flow
+sankey Energy Flow
 
 Coal (orange)
-  Electricity: 50
+  Electricity 50
 Gas (blue)
-  Electricity: 30
-Electricity -> Industry: 45
-Electricity -> Homes: 35
+  Electricity 30
+Electricity -> Industry 45
+Electricity -> Homes 35
 `;
 
 const parsed = parseExtendedChart(content);
@@ -183,12 +181,11 @@ import { parseVisualization, renderTimeline, getPalette } from '@diagrammo/dgmo'
 const colors = getPalette('nord').light;
 
 const content = `
-chart: timeline
-title: Project Milestones
+timeline Project Milestones
 
-2024-01: Kickoff
-2024-03 -> 2024-06: Development
-2024-07: Launch
+2024-01 Kickoff
+2024-03 -> 2024-06 Development
+2024-07 Launch
 `;
 
 const parsed = parseVisualization(content, colors);
@@ -205,7 +202,7 @@ import { parseSequenceDgmo, renderSequenceDiagram, getPalette } from '@diagrammo
 const colors = getPalette('nord').light;
 
 const content = `
-title: Login Flow
+sequence Login Flow
 
 User -login(email, pass)-> AuthService
   AuthService -findByEmail(email)-> UserDB
@@ -235,8 +232,8 @@ renderSequenceDiagram(container, parsed, colors, false, (lineNum) => {
 - `[GroupName]` — participant grouping
 - `Name is a database` — explicit type declaration
 - `Name position 0` — explicit ordering
-- `activations: off` — disable activation bars
-- `tag: Name` + `Value(color)` entries — color-coded metadata dimensions with interactive legend
+- `activations off` — disable activation bars
+- `tag Name` + `Value(color)` entries — color-coded metadata dimensions with interactive legend
 - `| key: value` — attach tag metadata to participants, messages, or groups
 
 **Participant type inference** — 104 rules map names to shapes automatically:
@@ -262,8 +259,7 @@ import { parseFlowchart, layoutGraph, renderFlowchart, getPalette } from '@diagr
 const colors = getPalette('nord').dark;
 
 const content = `
-chart: flowchart
-title: Decision Flow
+flowchart Decision Flow
 
 (Start) -> /Get Input/ -> <Valid?>
   -yes-> [Process Data] -> (Done)
@@ -285,8 +281,7 @@ import { parseERDiagram, layoutERDiagram, renderERDiagram, getPalette } from '@d
 const colors = getPalette('nord').light;
 
 const content = `
-chart: er
-title: Blog Platform
+er Blog Platform
 
 users
   id: int [pk]
@@ -308,9 +303,8 @@ renderERDiagram(container, parsed, layout, colors, false);
 
 **ER diagram syntax:**
 
-- `chart: er` — chart type header
-- `title: Text` — optional title
-- `notation: labels` — use text labels instead of crow's foot markers
+- `er` — chart type (first line), optionally followed by title: `er Blog Platform`
+- `notation labels` — use text labels instead of crow's foot markers
 - Table declaration: unindented name (e.g. `users`, `order_items`)
 - Column: indented `name: type [constraints]`
 - Constraints: `[pk]`, `[fk]`, `[unique]`, `[nullable]`, or combined `[pk, unique]`
@@ -330,10 +324,9 @@ import { parseOrg, renderOrg, getPalette } from '@diagrammo/dgmo';
 const colors = getPalette('nord').light;
 
 const content = `
-chart: org
-title: Engineering
+org Engineering
 
-tag: Location
+tag Location
   NY(blue)
   SF(green)
 
@@ -354,8 +347,7 @@ renderOrg(container, parsed, colors, false);
 
 **Org chart syntax:**
 
-- `chart: org` — chart type header (required)
-- `title: Text` — optional title
+- `org` — chart type (first line), optionally followed by title: `org Engineering`
 - Indentation defines parent-child hierarchy (2 or 4 spaces, consistent within file)
 - Multiple root nodes supported (e.g., co-CEOs at top level)
 
@@ -389,25 +381,25 @@ Containers can nest and carry their own metadata (key: value pairs). Children ar
 **Tag groups** — define color coding for metadata values. Must appear before org content:
 
 ```
-tag: Location alias l
+tag Location alias l
   NY(blue)
   SF(green)
   Remote(purple) default
 ```
 
-- `tag: GroupName` starts a tag group; `alias` provides a shorthand for metadata keys
+- `tag GroupName` starts a tag group; `alias` provides a shorthand for metadata keys
 - `Value(color)` maps a metadata value to a color
 - `default` marks the fallback value for nodes without that metadata
 - Nodes whose metadata matches a tag group value get color-coded automatically
-- `##` syntax is deprecated but still accepted — use `tag:` for new diagrams
+- `##` syntax is deprecated but still accepted — use `tag` for new diagrams
 
 **Options:**
 
 | Option | Description |
 |--------|-------------|
-| `title: Text` | Chart title |
-| `sub-node-label: Text` | Label for child count badges (e.g., "Crew", "Reports") |
-| `show-sub-node-count: yes` | Show descendant count on nodes |
+| `org Title Text` | Chart title (on first line after chart type) |
+| `sub-node-label Text` | Label for child count badges (e.g., "Crew", "Reports") |
+| `show-sub-node-count` | Show descendant count on nodes |
 
 **Comments:**
 
@@ -433,42 +425,41 @@ if (isExtendedChartType(chartType)) {
 }
 ```
 
-Content with `->` arrows and no `chart:` header is automatically detected as a sequence diagram.
+Content with `->` arrows and no chart type header is automatically detected as a sequence diagram.
 
 ## .dgmo file format
 
 Plain text. Lines starting with `#` or `//` are comments. Empty lines are ignored.
 
 ```
-chart: <type>
-title: Optional Title
-xlabel: X Axis
-ylabel: Y Axis
-series: Series1, Series2
-orientation: horizontal
+<type> Optional Title
+xlabel X Axis
+ylabel Y Axis
+series Series1, Series2
+orientation horizontal
 
 # Multi-line values (alternative to comma-separated)
-series:
+series
   Series1
   Series2
 
 # Data section
-Label: value
-Label (color): value
-Label: value1, value2
+Label value
+Label (color) value
+Label value1, value2
 
 # Connections (sankey, chord, arc)
-Source -> Target: weight
-Source (color) -> Target (color): weight (linkcolor)
+Source -> Target weight
+Source (color) -> Target (color) weight (linkcolor)
 
 # Indentation syntax (sankey)
 Source (color)
-  Target (color): weight (linkcolor)
+  Target (color) weight (linkcolor)
 
 # Groups
 ## Category Name
-  Item1: value
-  Item2: value
+  Item1 value
+  Item2 value
 ```
 
 Colors can be specified inline as named colors (`red`, `blue`, `teal`, etc.) or hex values (`#ff6b6b`). They resolve against the active palette.

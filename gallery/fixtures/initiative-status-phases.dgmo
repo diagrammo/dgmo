@@ -1,12 +1,11 @@
-chart: initiative-status
-title: Platform Migration
+initiative-status Platform Migration
 
-tag: Phase alias p
+tag Phase alias p
   Discovery default
   Build
   Launch
 
-tag: Team alias t
+tag Team alias t
   Frontend
   Backend
   Platform

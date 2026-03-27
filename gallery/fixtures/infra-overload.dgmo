@@ -1,6 +1,5 @@
-chart: infra
-title: Microservice Overload Demo
-direction: TB
+infra Microservice Overload Demo
+direction TB
 
 edge
   rps: 8000

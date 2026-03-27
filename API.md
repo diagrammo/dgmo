@@ -37,7 +37,7 @@ Determine the render category for a given `.dgmo` chart type.
 
 | Function              | Signature                                        | Description                                          |
 | --------------------- | ------------------------------------------------ | ---------------------------------------------------- |
-| `parseDgmoChartType`  | `(content: string) => string \| null`            | Extract `chart:` type from file content              |
+| `parseDgmoChartType`  | `(content: string) => string \| null`            | Extract chart type from file content                 |
 | `getRenderCategory`   | `(chartType: string) => RenderCategory \| null`  | Map chart type to its render category                |
 | `isExtendedChartType` | `(chartType: string) => boolean`                 | True for extended chart types (scatter, sankey, etc.) |
 
@@ -442,10 +442,10 @@ import {
   getPalette,
 } from '@diagrammo/dgmo';
 
-const content = `chart: slope
+const content = `slope
 period: Before, After
-Alice: 3, 7
-Bob: 8, 4`;
+Alice 3, 7
+Bob 8, 4`;
 
 const palette = getPalette('nord');
 const colors = palette.light;
@@ -463,11 +463,10 @@ renderSlopeChart(container, parsed, colors, false);
 import { parseChart, buildSimpleChartOption, getPalette } from '@diagrammo/dgmo';
 import * as echarts from 'echarts';
 
-const content = `chart: bar
-title: Sales
-Q1: 100
-Q2: 150
-Q3: 200`;
+const content = `bar Sales
+Q1 100
+Q2 150
+Q3 200`;
 
 const { light } = getPalette('catppuccin');
 const parsed = parseChart(content, light);

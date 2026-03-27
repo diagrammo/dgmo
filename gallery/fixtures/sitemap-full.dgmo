@@ -1,12 +1,12 @@
 sitemap Grand Slam Tickets
 direction TB
 
-tag: Auth
+tag Auth
   Public(green)
   Required(blue)
   Admin(red)
 
-tag: Type
+tag Type
   Landing(purple)
   Form(orange)
   Content(cyan)

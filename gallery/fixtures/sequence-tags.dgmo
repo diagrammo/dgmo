@@ -1,14 +1,13 @@
-chart: sequence
-title: API Gateway — Infrastructure Concerns
-active-tag: Concern
+sequence API Gateway — Infrastructure Concerns
+active-tag Concern
 
-tag: Concern alias c
+tag Concern alias c
   Caching(blue)
   Auth(green)
   RateLimiting(orange)
   BusinessLogic(purple) default
 
-tag: Team alias t
+tag Team alias t
   Platform(teal)
   Product(orange)
   Security(red)

@@ -1,13 +1,12 @@
-chart: infra
-title: E-Commerce Platform — Full Infrastructure
-direction: LR
+infra E-Commerce Platform — Full Infrastructure
+direction LR
 
-tag: Team alias t
+tag Team alias t
   Backend(blue)
   Platform(teal)
   Data(purple)
 
-tag: Tier alias r
+tag Tier alias r
   Edge(green)
   Core(blue)
   Storage(orange)

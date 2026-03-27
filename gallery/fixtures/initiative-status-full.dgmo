@@ -1,13 +1,12 @@
-chart: initiative-status
-title: Platform Modernization — Full Status
+initiative-status Platform Modernization — Full Status
 
-tag: Phase alias p
+tag Phase alias p
   Discovery(green) default
   Build(blue)
   Launch(orange)
   Maintenance(purple)
 
-tag: Team alias t
+tag Team alias t
   Frontend(blue)
   Backend(green)
   Platform(teal)

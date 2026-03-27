@@ -1,8 +1,7 @@
-chart: infra
-title: Production Traffic Flow
-direction: LR
+infra Production Traffic Flow
+direction LR
 
-tag: Team alias t
+tag Team alias t
   Backend(blue)
   Platform(teal)
 

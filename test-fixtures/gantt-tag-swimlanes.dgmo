@@ -1,21 +1,20 @@
-chart: gantt
-title: Tag Swimlane Test
-start: 2024-01-15
-critical-path: on
-dependencies: on
+gantt Tag Swimlane Test
+start 2024-01-15
+critical-path on
+dependencies on
 
-tag: Team alias t
+tag Team alias t
   Engineering(blue)
   Design(purple)
   QA(orange)
 
-tag: Phase alias p
+tag Phase alias p
   Design(green)
   Build(orange)
   Test(red) default
 
-era 2024-01 -> 2024-06: Phase 1
-marker 2024-03-01: Kickoff
+era 2024-01 -> 2024-06 Phase 1
+marker 2024-03-01 Kickoff
 
 [Backend]
   30bd: Database Layer | t: Engineering, p: Build, 80%

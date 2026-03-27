@@ -1,13 +1,12 @@
-chart: c4
-title: Online Bookstore — C4 Architecture
+c4 Online Bookstore — C4 Architecture
 
-tag: Technology alias tech
+tag Technology alias tech
   React(blue)
   Node(green)
   Python(orange)
   PostgreSQL(purple)
 
-tag: Team alias t
+tag Team alias t
   Frontend(blue)
   Backend(green)
   Platform(teal)
@@ -21,10 +20,10 @@ Admin is a person | t: Backend
 
 Bookstore is a system | t: Backend
   description: Core e-commerce platform for book sales
-  containers:
+  containers
     WebApp is a container | tech: React, t: Frontend
       description: Single-page storefront application
-      components:
+      components
         Catalog is a component
         Cart is a component
         Checkout is a component

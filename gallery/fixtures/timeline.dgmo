@@ -1,33 +1,32 @@
-chart: timeline
-title: Product Roadmap 2024-2025
-sort: tag:Team
+timeline Product Roadmap 2024-2025
+sort tag:Team
 
-tag: Team alias t
+tag Team alias t
   Engineering(blue)
   Design(purple)
   Product(green)
 
-era 2024-01 -> 2024-06: Phase 1 - Foundation
-era 2024-07 -> 2024-12: Phase 2 - Growth
-era 2025-01 -> 2025-06: Phase 3 - Scale
+era 2024-01 -> 2024-06 Phase 1 - Foundation
+era 2024-07 -> 2024-12 Phase 2 - Growth
+era 2025-01 -> 2025-06 Phase 3 - Scale
 
-marker: 2024-03 Beta Launch
-marker: 2024-09 GA Release
-marker: 2025-01 Series A
+marker 2024-03 Beta Launch
+marker 2024-09 GA Release
+marker 2025-01 Series A
 
-2024-01->2024-03: Core API Development | t: Engineering
-2024-02->2024-05: Auth & Permissions | t: Engineering
-2024-04->2024-07: Real-time Features | t: Engineering
-2024-08->2024-11: Performance Optimization | t: Engineering
-2025-01->2025-04: Multi-region Deploy | t: Engineering
+2024-01->2024-03 Core API Development | t: Engineering
+2024-02->2024-05 Auth & Permissions | t: Engineering
+2024-04->2024-07 Real-time Features | t: Engineering
+2024-08->2024-11 Performance Optimization | t: Engineering
+2025-01->2025-04 Multi-region Deploy | t: Engineering
 
-2024-01->2024-02: Design System v1 | t: Design
-2024-03->2024-05: User Research | t: Design
-2024-06->2024-08: Design System v2 | t: Design
-2024-09->2024-11: Accessibility Audit | t: Design
-2025-02->2025-05: Mobile Redesign | t: Design
+2024-01->2024-02 Design System v1 | t: Design
+2024-03->2024-05 User Research | t: Design
+2024-06->2024-08 Design System v2 | t: Design
+2024-09->2024-11 Accessibility Audit | t: Design
+2025-02->2025-05 Mobile Redesign | t: Design
 
-2024-02: Competitor Analysis | t: Product
-2024-06: User Survey | t: Product
-2024-10: Pricing Strategy | t: Product
-2025-01->2025-03: Enterprise Features | t: Product
+2024-02 Competitor Analysis | t: Product
+2024-06 User Survey | t: Product
+2024-10 Pricing Strategy | t: Product
+2025-01->2025-03 Enterprise Features | t: Product

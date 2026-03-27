@@ -1,50 +1,49 @@
-chart: gantt
-title: Product Launch Plan — Full
-start: 2024-01-15
-today-marker: 2024-03-01
-critical-path: on
-dependencies: on
+gantt Product Launch Plan — Full
+start 2024-01-15
+today-marker 2024-03-01
+critical-path
+dependencies
 
-tag: Team alias t
+tag Team alias t
   Engineering(blue)
   Design(purple)
   QA(orange)
   Marketing(green)
 
-tag: Phase alias p
+tag Phase alias p
   Foundation(green)
   Growth(orange)
   Launch(red)
 
-era 2024-01-15 -> 2024-02-15: Investor Review
-era 2024-03-10 -> 2024-03-14: GDC 2024 (purple)
-marker: 2024-02-26 Board Meeting
-marker: 2024-04-08 Trade Show Demo (orange)
+era 2024-01-15 -> 2024-02-15 Investor Review
+era 2024-03-10 -> 2024-03-14 GDC 2024 (purple)
+marker 2024-02-26 Board Meeting
+marker 2024-04-08 Trade Show Demo (orange)
 
 // Independent task with offset — starts 8bd after project start
-10bd: Brand Guidelines | t: Design, p: Foundation, offset: 8bd
+10bd Brand Guidelines | t: Design, p: Foundation, offset: 8bd
 
 parallel
   [Backend] | t: Engineering
-    30bd: Database Layer | p: Foundation, 80%
-    10bd?: Auth Module | p: Foundation, 100%
+    30bd Database Layer | p: Foundation, 80%
+    10bd? Auth Module | p: Foundation, 100%
       -blocks-> Frontend.API Integration | offset: -5bd
     parallel
-      5bd: Load Testing | t: QA, p: Growth
-      5bd: Security Audit | t: QA, p: Growth
+      5bd Load Testing | t: QA, p: Growth
+      5bd Security Audit | t: QA, p: Growth
 
   [Frontend] | t: Design
-    15bd: Component Library | p: Foundation
-    10bd: API Integration | t: Engineering, p: Growth
-    5bd: Polish | p: Growth, 30%
+    15bd Component Library | p: Foundation
+    10bd API Integration | t: Engineering, p: Growth
+    5bd Polish | p: Growth, 30%
 
 [Marketing] | t: Marketing
-  10bd: Landing Page | p: Growth
-  5bd: Press Kit | p: Launch
+  10bd Landing Page | p: Growth
+  5bd Press Kit | p: Launch
     -needs-> Landing Page
 
 [Integration] | t: QA
-  10bd: E2E Testing | p: Launch
+  10bd E2E Testing | p: Launch
     -depends on-> Backend.Auth Module
   // Final validation before release
-  0d: Release Candidate | p: Launch
+  0d Release Candidate | p: Launch

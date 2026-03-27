@@ -1,11 +1,10 @@
-chart: venn
-title: Full-Stack Developer Skills
+venn Full-Stack Developer Skills
 
 Frontend(blue) alias fe
 Backend(green) alias be
 DevOps(orange) alias de
 
-fe + be: Web Systems
-be + de: Platform Ops
-fe + de: Dev Tools
-fe + be + de: Full Stack
+fe + be Web Systems
+be + de Platform Ops
+fe + de Dev Tools
+fe + be + de Full Stack
