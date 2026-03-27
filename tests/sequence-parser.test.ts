@@ -104,6 +104,40 @@ describe('labeled call arrows', () => {
     const result = parseSequenceDgmo('Frontend -fetch-> Backend');
     expect(result.participants.map((p) => p.id)).toEqual(['Frontend', 'Backend']);
   });
+
+  describe('whitespace is optional around labeled arrows', () => {
+    it('no spaces: User-login->API', () => {
+      const result = parseSequenceDgmo('User-login->API');
+      expect(result.error).toBeNull();
+      expect(result.messages[0]).toMatchObject({ from: 'User', to: 'API', label: 'login' });
+    });
+
+    it('no leading space: User-login-> API', () => {
+      const result = parseSequenceDgmo('User-login-> API');
+      expect(result.error).toBeNull();
+      expect(result.messages[0]).toMatchObject({ from: 'User', to: 'API', label: 'login' });
+    });
+
+    it('async no spaces: API~event~>Queue', () => {
+      const result = parseSequenceDgmo('API~event~>Queue');
+      expect(result.error).toBeNull();
+      expect(result.messages[0]).toMatchObject({ from: 'API', to: 'Queue', label: 'event', async: true });
+    });
+  });
+
+  describe('dashes in labels', () => {
+    it('hyphenated label: A -pre-process-> B', () => {
+      const result = parseSequenceDgmo('A -pre-process-> B');
+      expect(result.error).toBeNull();
+      expect(result.messages[0]).toMatchObject({ from: 'A', to: 'B', label: 'pre-process' });
+    });
+
+    it('hyphenated to name: A -call-> my-api', () => {
+      const result = parseSequenceDgmo('A -call-> my-api');
+      expect(result.error).toBeNull();
+      expect(result.messages[0]).toMatchObject({ from: 'A', to: 'my-api', label: 'call' });
+    });
+  });
 });
 
 // ============================================================
@@ -161,6 +195,17 @@ describe('bare arrows', () => {
   it('A -> B with no spaces', () => {
     const result = parseSequenceDgmo('A->B');
     expect(result.messages[0]).toMatchObject({ from: 'A', to: 'B', label: '' });
+  });
+
+  it('A~>B with no spaces', () => {
+    const result = parseSequenceDgmo('A~>B');
+    expect(result.messages[0]).toMatchObject({ from: 'A', to: 'B', label: '', async: true });
+  });
+
+  it('hyphenated target with bare arrow: A -> my-svc', () => {
+    const result = parseSequenceDgmo('A -> my-svc');
+    expect(result.error).toBeNull();
+    expect(result.messages[0]).toMatchObject({ from: 'A', to: 'my-svc', label: '' });
   });
 });
 

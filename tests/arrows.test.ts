@@ -99,6 +99,52 @@ describe('parseArrow — labeled arrow utility', () => {
     });
   });
 
+  // ---- Whitespace flexibility around arrows ----
+  describe('whitespace is optional around arrows', () => {
+    it('no spaces: A-login->B', () => {
+      const r = parseArrow('A-login->B');
+      expect(r).toEqual({ from: 'A', to: 'B', label: 'login', async: false });
+    });
+
+    it('no leading space: A-login-> B', () => {
+      const r = parseArrow('A-login-> B');
+      expect(r).toEqual({ from: 'A', to: 'B', label: 'login', async: false });
+    });
+
+    it('async no spaces: API~event~>Queue', () => {
+      const r = parseArrow('API~event~>Queue');
+      expect(r).toEqual({ from: 'API', to: 'Queue', label: 'event', async: true });
+    });
+
+    it('async mixed spacing: API~event~> Queue', () => {
+      const r = parseArrow('API~event~> Queue');
+      expect(r).toEqual({ from: 'API', to: 'Queue', label: 'event', async: true });
+    });
+  });
+
+  // ---- Dashes in labels ----
+  describe('dashes in labels', () => {
+    it('label with inner dashes: A -pre-process-> B', () => {
+      const r = parseArrow('A -pre-process-> B');
+      expect(r).toEqual({ from: 'A', to: 'B', label: 'pre-process', async: false });
+    });
+
+    it('multi-word hyphenated label', () => {
+      const r = parseArrow('Client -re-auth token-> Server');
+      expect(r).toEqual({ from: 'Client', to: 'Server', label: 're-auth token', async: false });
+    });
+
+    it('hyphenated to name: A -call-> my-api', () => {
+      const r = parseArrow('A -call-> my-api');
+      expect(r).toEqual({ from: 'A', to: 'my-api', label: 'call', async: false });
+    });
+
+    it('async hyphenated label: A ~re-sync~> B', () => {
+      const r = parseArrow('A ~re-sync~> B');
+      expect(r).toEqual({ from: 'A', to: 'B', label: 're-sync', async: true });
+    });
+  });
+
   // ---- Not a labeled arrow → null ----
   describe('returns null for non-labeled arrows', () => {
     it('plain sync arrow', () => {

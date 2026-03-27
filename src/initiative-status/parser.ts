@@ -469,7 +469,7 @@ function parseEdgeLine(
   // or:     <source> -<label>-> <target> [| <status>]
 
   // Check for labeled arrow form: SOURCE -LABEL-> TARGET [| status]
-  const labeledMatch = trimmed.match(/^(\S+)\s+-(.+)->\s*(.+)$/);
+  const labeledMatch = trimmed.match(/^(\S+)\s*-(.+)->\s*(.+)$/);
   if (labeledMatch) {
     const source = labeledMatch[1];
     const label = labeledMatch[2].trim();

@@ -909,8 +909,8 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     }
 
     // ---- Deprecated bare return arrows: A <- B, A <~ B ----
-    const bareReturnSync = arrowCore.match(/^(.+?)\s+<-\s+(.+)$/);
-    const bareReturnAsync = arrowCore.match(/^(.+?)\s+<~\s+(.+)$/);
+    const bareReturnSync = arrowCore.match(/^(.+?)\s*<-\s*(.+)$/);
+    const bareReturnAsync = arrowCore.match(/^(.+?)\s*<~\s*(.+)$/);
     const bareReturn = bareReturnSync || bareReturnAsync;
     if (bareReturn) {
       const to = bareReturn[1];

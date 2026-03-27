@@ -427,6 +427,24 @@ describe('parseInitiativeStatus — labeled arrows', () => {
     expect(result.edges[0].label).toBe('go');
     expect(result.edges[1].label).toBe('next');
   });
+
+  it('no space before labeled arrow: A-go-> B', () => {
+    const result = parseInitiativeStatus('A | todo\nB | todo\nA-go-> B');
+    expect(result.edges).toHaveLength(1);
+    expect(result.edges[0]).toMatchObject({ source: 'A', target: 'B', label: 'go' });
+  });
+
+  it('no spaces around labeled arrow: A-go->B', () => {
+    const result = parseInitiativeStatus('A | todo\nB | todo\nA-go->B');
+    expect(result.edges).toHaveLength(1);
+    expect(result.edges[0]).toMatchObject({ source: 'A', target: 'B', label: 'go' });
+  });
+
+  it('no spaces around plain arrow: A->B', () => {
+    const result = parseInitiativeStatus('A | todo\nB | todo\nA->B');
+    expect(result.edges).toHaveLength(1);
+    expect(result.edges[0]).toMatchObject({ source: 'A', target: 'B' });
+  });
 });
 
 // ============================================================

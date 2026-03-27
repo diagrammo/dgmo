@@ -268,6 +268,32 @@ describe('parseClassDiagram', () => {
       const result = parseClassDiagram('Dog --|> Animal inherits');
       expect(result.relationships[0].label).toBe('inherits');
     });
+
+    it('no space before arrow: Dog--|> Animal', () => {
+      const result = parseClassDiagram('Dog--|> Animal');
+      expect(result.relationships).toHaveLength(1);
+      expect(result.relationships[0].type).toBe('extends');
+      expect(result.relationships[0].source).toBe('dog');
+      expect(result.relationships[0].target).toBe('animal');
+    });
+
+    it('no spaces around arrow: Dog--|>Animal', () => {
+      const result = parseClassDiagram('Dog--|>Animal');
+      expect(result.relationships).toHaveLength(1);
+      expect(result.relationships[0].type).toBe('extends');
+    });
+
+    it('no space before ->: Student->Course', () => {
+      const result = parseClassDiagram('Student->Course');
+      expect(result.relationships).toHaveLength(1);
+      expect(result.relationships[0].type).toBe('associates');
+    });
+
+    it('no space before ..>: Controller..>Service', () => {
+      const result = parseClassDiagram('Controller..>Service');
+      expect(result.relationships).toHaveLength(1);
+      expect(result.relationships[0].type).toBe('depends');
+    });
   });
 
   // === Relationship line numbers ===
