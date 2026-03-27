@@ -593,6 +593,13 @@ describe('extractTagDeclarations', () => {
     expect(result.get('t')).toEqual(['Frontend', 'Backend']);
   });
 
+  it('extracts tag group with shorthand alias (no alias keyword)', () => {
+    const doc = 'gantt\ntag Team t\n  Rebels(red)\n  Sharks(orange)\ntag TopGoal tg\n  TG1(red)\n  TG2(green)\n';
+    const result = extractTagDeclarations(doc);
+    expect(result.get('t')).toEqual(['Rebels', 'Sharks']);
+    expect(result.get('tg')).toEqual(['TG1', 'TG2']);
+  });
+
   it('extracts tag group without alias', () => {
     const doc = 'org\ntag Department\n  Engineering\n  Marketing\n';
     const result = extractTagDeclarations(doc);

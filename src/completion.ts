@@ -457,7 +457,11 @@ function extractStateSymbols(docText: string): DiagramSymbols {
 // Tag declaration extraction
 // ============================================================
 
-const TAG_DECL_RE = /^tag\s+(\S+)(?:\s+alias\s+(\S+))?/i;
+// Matches tag declarations in both forms:
+// - `tag Name alias x` (explicit alias keyword)
+// - `tag Name x` (shorthand: 1-4 lowercase chars = alias, matching parser's isAliasToken)
+const TAG_DECL_EXPLICIT_RE = /^tag\s+(\S+)\s+alias\s+(\S+)/i;
+const TAG_DECL_SHORT_RE = /^tag\s+(\S+)\s+([a-z]{1,4})(?:\s|$)/;
 
 /**
  * Extract tag declarations from document text.
@@ -473,8 +477,8 @@ export function extractTagDeclarations(docText: string): Map<string, string[]> {
     const raw = lines[i];
     const trimmed = raw.trim();
 
-    // Check for tag declaration
-    const tagMatch = trimmed.match(TAG_DECL_RE);
+    // Check for tag declaration — try explicit `alias` keyword first, then shorthand
+    const tagMatch = trimmed.match(TAG_DECL_EXPLICIT_RE) ?? trimmed.match(TAG_DECL_SHORT_RE);
     if (tagMatch) {
       // Save previous tag group
       if (currentAlias !== null) {
@@ -483,6 +487,15 @@ export function extractTagDeclarations(docText: string): Map<string, string[]> {
       const name = tagMatch[1];
       const alias = tagMatch[2] ?? name;
       currentAlias = alias.toLowerCase();
+      currentValues = [];
+      continue;
+    }
+    // Also match bare `tag Name` (no alias) — fall through with name as key
+    if (/^tag\s+(\S+)\s*$/i.test(trimmed)) {
+      if (currentAlias !== null) {
+        result.set(currentAlias, currentValues);
+      }
+      currentAlias = trimmed.match(/^tag\s+(\S+)/i)![1].toLowerCase();
       currentValues = [];
       continue;
     }
