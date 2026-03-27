@@ -103,6 +103,11 @@ import { parseDataRowValues } from './chart';
 // ============================================================
 
 const EMPHASIS_SELF = { focus: 'self' as const, blurScope: 'global' as const };
+const EMPHASIS_LINE = {
+  ...EMPHASIS_SELF,
+  scale: 2.5,
+  itemStyle: { borderWidth: 2, borderColor: '#fff', shadowBlur: 8, shadowColor: 'rgba(0,0,0,0.4)' },
+};
 const CHART_BASE: Pick<EChartsOption, 'backgroundColor' | 'animation'> = { backgroundColor: 'transparent', animation: false };
 const CHART_BORDER_WIDTH = 2;
 
@@ -2032,7 +2037,7 @@ function buildLineOption(
         symbolSize: 8,
         lineStyle: { color: lineColor, width: 3 },
         itemStyle: { color: lineColor },
-        emphasis: EMPHASIS_SELF,
+        emphasis: EMPHASIS_LINE,
         ...(markArea && { markArea }),
       },
     ],
@@ -2073,7 +2078,7 @@ function buildMultiLineOption(
       symbolSize: 8,
       lineStyle: { color, width: 3 },
       itemStyle: { color },
-      emphasis: EMPHASIS_SELF,
+      emphasis: EMPHASIS_LINE,
       ...(idx === 0 && markArea && { markArea }),
     };
   });
@@ -2139,7 +2144,7 @@ function buildAreaOption(
         lineStyle: { color: lineColor, width: 3 },
         itemStyle: { color: lineColor },
         areaStyle: { opacity: 0.25 },
-        emphasis: EMPHASIS_SELF,
+        emphasis: EMPHASIS_LINE,
         ...(markArea && { markArea }),
       },
     ],
