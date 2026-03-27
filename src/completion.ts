@@ -210,7 +210,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   })],
   ['gantt', withGlobals({
     start: { description: 'Project start date (YYYY-MM-DD)' },
-    'today-marker': { description: 'Today marker', values: ['on', 'off'] },
+    'today-marker': { description: 'Today marker (bare = on, or YYYY-MM-DD date)' },
     sort: { description: 'Sort order', values: ['time', 'group', 'tag'] },
     'critical-path': { description: 'Show critical path' },
     dependencies: { description: 'Show dependencies' },
