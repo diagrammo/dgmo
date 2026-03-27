@@ -262,8 +262,9 @@ export function tokenizeQuoteAware(input: string): string[] {
 export function collectIndentedValues(
   lines: string[],
   startIndex: number,
-): { values: string[]; newIndex: number } {
+): { values: string[]; lineNumbers: number[]; newIndex: number } {
   const values: string[] = [];
+  const lineNumbers: number[] = [];
   let j = startIndex + 1;
   for (; j < lines.length; j++) {
     const raw = lines[j];
@@ -276,8 +277,9 @@ export function collectIndentedValues(
     if (raw[0] !== ' ' && raw[0] !== '\t') break;
     // Strip trailing comma and collect
     values.push(trimmed.replace(/,\s*$/, ''));
+    lineNumbers.push(j + 1); // 1-based
   }
-  return { values, newIndex: j - 1 };
+  return { values, lineNumbers, newIndex: j - 1 };
 }
 
 /**
@@ -296,18 +298,23 @@ export function parseSeriesNames(
   series: string;
   names: string[];
   nameColors: (string | undefined)[];
+  nameLineNumbers: number[];
   newIndex: number;
 } {
   let rawNames: string[];
   let series: string;
   let newIndex = lineIndex;
+  let nameLineNumbers: number[] = [];
   if (value) {
     series = value;
     rawNames = value.split(',').map((s) => s.trim()).filter(Boolean);
+    // Inline series names all share the same line number
+    nameLineNumbers = rawNames.map(() => lineIndex + 1);
   } else {
     const collected = collectIndentedValues(lines, lineIndex);
     newIndex = collected.newIndex;
     rawNames = collected.values;
+    nameLineNumbers = collected.lineNumbers;
     series = rawNames.join(', ');
   }
   const names: string[] = [];
@@ -320,7 +327,7 @@ export function parseSeriesNames(
   if (names.length === 1) {
     series = names[0];
   }
-  return { series, names, nameColors, newIndex };
+  return { series, names, nameColors, nameLineNumbers, newIndex };
 }
 
 /**

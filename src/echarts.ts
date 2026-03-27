@@ -65,6 +65,7 @@ export interface ParsedExtendedChart {
   series?: string;
   seriesLineNumber?: number;
   seriesNames?: string[];
+  seriesNameLineNumbers?: number[];
   seriesNameColors?: (string | undefined)[];
   data: ExtendedChartDataPoint[];
   links?: ParsedSankeyLink[];
@@ -363,6 +364,7 @@ export function parseExtendedChart(
         result.seriesLineNumber = lineNumber;
         if (parsed.names.length > 1) {
           result.seriesNames = parsed.names;
+          result.seriesNameLineNumbers = parsed.nameLineNumbers;
         }
         if (parsed.nameColors.some(Boolean)) result.seriesNameColors = parsed.nameColors;
         continue;
@@ -419,6 +421,7 @@ export function parseExtendedChart(
       result.seriesLineNumber = lineNumber;
       if (parsed.names.length > 1) {
         result.seriesNames = parsed.names;
+        result.seriesNameLineNumbers = parsed.nameLineNumbers;
       }
       if (parsed.nameColors.some(Boolean)) result.seriesNameColors = parsed.nameColors;
       continue;

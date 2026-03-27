@@ -41,6 +41,7 @@ export interface ParsedChart {
   ylabel?: string;
   ylabelLineNumber?: number;
   seriesNames?: string[];
+  seriesNameLineNumbers?: number[];
   seriesNameColors?: (string | undefined)[];
   orientation?: 'horizontal' | 'vertical';
   color?: string;
@@ -268,6 +269,7 @@ export function parseChart(
         result.seriesLineNumber = lineNumber;
         if (parsed.names.length > 1) {
           result.seriesNames = parsed.names;
+          result.seriesNameLineNumbers = parsed.nameLineNumbers;
         }
         if (parsed.nameColors.some(Boolean)) result.seriesNameColors = parsed.nameColors;
         continue;
@@ -282,6 +284,7 @@ export function parseChart(
       result.seriesLineNumber = lineNumber;
       if (parsed.names.length > 1) {
         result.seriesNames = parsed.names;
+        result.seriesNameLineNumbers = parsed.nameLineNumbers;
       }
       if (parsed.nameColors.some(Boolean)) result.seriesNameColors = parsed.nameColors;
       continue;
