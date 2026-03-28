@@ -305,17 +305,7 @@ export function parseSeriesNames(
   return { series, names, nameColors, nameLineNumbers, newIndex };
 }
 
-/**
- * Normalize a direction/orientation value to canonical form ('LR' | 'TB').
- * Accepts 'lr', 'tb', 'horizontal', 'vertical' (case-insensitive).
- * Returns null if the value is not recognized.
- */
-export function normalizeDirection(value: string): 'LR' | 'TB' | null {
-  const v = value.trim().toLowerCase();
-  if (v === 'lr' || v === 'horizontal') return 'LR';
-  if (v === 'tb' || v === 'vertical') return 'TB';
-  return null;
-}
+
 
 /**
  * Infer arrow color from label text.
