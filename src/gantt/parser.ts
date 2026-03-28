@@ -6,7 +6,7 @@ import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
 import type { DgmoError } from '../diagnostics';
 import type { TagGroup, TagEntry } from '../utils/tag-groups';
 import { matchTagBlockHeading } from '../utils/tag-groups';
-import { measureIndent, extractColor, parsePipeMetadata, MULTIPLE_PIPE_WARNING, parseFirstLine, prescanOptions, GROUP_HASH_RE } from '../utils/parsing';
+import { measureIndent, extractColor, parsePipeMetadata, MULTIPLE_PIPE_ERROR, parseFirstLine, prescanOptions } from '../utils/parsing';
 import { parseOffset } from '../utils/duration';
 import type { PaletteColors } from '../palettes';
 import { resolveColor } from '../colors';
@@ -37,7 +37,7 @@ const DURATION_RE = /^(\d+(?:\.\d+)?)(min|bd|d|w|m|q|y|h)(\?)?\s+(.+)$/;
 const EXPLICIT_DATE_RE = /^(\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2})?)\s+(.+)$/;
 
 /** Timeline migration syntax: `2024-01-15 -> 30d Label` or `2024-01-15 14:30 -> 2h Label` */
-const TIMELINE_DURATION_RE = /^(\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2})?)\s*->\s*(\d+(?:\.\d+)?)(min|bd|d|w|m|q|y|h)(\?)?\s+(.+)$/;
+const TIMELINE_DURATION_RE = /^(\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2})?)\s*(?:->|\u2013>)\s*(\d+(?:\.\d+)?)(min|bd|d|w|m|q|y|h)(\?)?\s+(.+)$/;
 
 /** Group container: `[GroupName]` with optional pipe metadata */
 const GROUP_RE = /^\[(.+?)\]\s*(.*)$/;
@@ -49,7 +49,7 @@ const DEPENDENCY_RE = /^(?:-(.+?))?->\s*(.+)$/;
 const COMMENT_RE = /^\/\//;
 
 /** Era: `era YYYY[-MM[-DD[ HH:MM]]] -> YYYY[-MM[-DD[ HH:MM]]] Label (color?)` */
-const ERA_RE = /^era\s+(\d{4}(?:-\d{2}(?:-\d{2}(?: \d{2}:\d{2})?)?)?)\s*->\s*(\d{4}(?:-\d{2}(?:-\d{2}(?: \d{2}:\d{2})?)?)?)\s+(.+)$/i;
+const ERA_RE = /^era\s+(\d{4}(?:-\d{2}(?:-\d{2}(?: \d{2}:\d{2})?)?)?)\s*(?:->|\u2013>)\s*(\d{4}(?:-\d{2}(?:-\d{2}(?: \d{2}:\d{2})?)?)?)\s+(.+)$/i;
 
 /** Marker: `marker YYYY[-MM[-DD[ HH:MM]]] Label (color?)` */
 const MARKER_RE = /^marker\s+(\d{4}(?:-\d{2}(?:-\d{2}(?: \d{2}:\d{2})?)?)?)\s+(.+)$/i;
@@ -58,10 +58,16 @@ const MARKER_RE = /^marker\s+(\d{4}(?:-\d{2}(?:-\d{2}(?: \d{2}:\d{2})?)?)?)\s+(.
 const HOLIDAY_DATE_RE = /^(\d{4}-\d{2}-\d{2})\s+(.+)$/;
 
 /** Holiday range: `2024-12-24 -> 2024-12-31 Label` */
-const HOLIDAY_RANGE_RE = /^(\d{4}-\d{2}-\d{2})\s*->\s*(\d{4}-\d{2}-\d{2})\s+(.+)$/;
+const HOLIDAY_RANGE_RE = /^(\d{4}-\d{2}-\d{2})\s*(?:->|\u2013>)\s*(\d{4}-\d{2}-\d{2})\s+(.+)$/;
 
 /** Workweek override: `workweek sun-thu` */
 const WORKWEEK_RE = /^workweek\s+(.+)$/i;
+
+/** Era entry (inside era block, no `era` prefix): `YYYY[-MM[-DD[ HH:MM]]] -> YYYY[-MM[-DD[ HH:MM]]] Label` */
+const ERA_ENTRY_RE = /^(\d{4}(?:-\d{2}(?:-\d{2}(?: \d{2}:\d{2})?)?)?)\s*(?:->|\u2013>)\s*(\d{4}(?:-\d{2}(?:-\d{2}(?: \d{2}:\d{2})?)?)?)\s+(.+)$/;
+
+/** Marker entry (inside marker block, no `marker` prefix): `YYYY[-MM[-DD[ HH:MM]]] Label` */
+const MARKER_ENTRY_RE = /^(\d{4}(?:-\d{2}(?:-\d{2}(?: \d{2}:\d{2})?)?)?)\s+(.+)$/;
 
 // Valid weekday names
 const WEEKDAY_MAP: Record<string, Weekday> = {
@@ -156,6 +162,10 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
   let inTagBlock = false;
   let currentTagGroup: TagGroup | null = null;
   let tagBlockIndent = 0;
+  let inEraBlock = false;
+  let eraBlockIndent = 0;
+  let inMarkerBlock = false;
+  let markerBlockIndent = 0;
   let lastTaskNode: (GanttNode & { kind: 'task' }) | null = null;
   let taskIdCounter = 0;
   const seriesColors = palette ? getSeriesColors(palette) : [];
@@ -170,9 +180,15 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
 
     // Skip empty lines
     if (!line) {
-      // Empty line ends holidays/tag blocks only if at root indent
+      // Empty line ends holidays/tag/era/marker blocks only if at root indent
       if (inHolidaysBlock && indent <= holidaysBlockIndent) {
         inHolidaysBlock = false;
+      }
+      if (inEraBlock && indent <= eraBlockIndent) {
+        inEraBlock = false;
+      }
+      if (inMarkerBlock && indent <= markerBlockIndent) {
+        inMarkerBlock = false;
       }
       if (inTagBlock && indent <= tagBlockIndent) {
         inTagBlock = false;
@@ -249,6 +265,57 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
       }
     }
 
+    // ── Era block entries ─────────────────────────────────
+
+    if (inEraBlock) {
+      if (indent <= eraBlockIndent) {
+        inEraBlock = false;
+        // fall through to process this line normally
+      } else {
+        if (COMMENT_RE.test(line)) continue;
+        const eraEntryMatch = line.match(ERA_ENTRY_RE);
+        if (eraEntryMatch) {
+          const eraLabelRaw = eraEntryMatch[3].trim();
+          const eraExtracted = extractColor(eraLabelRaw, palette);
+          result.eras.push({
+            startDate: eraEntryMatch[1],
+            endDate: eraEntryMatch[2],
+            label: eraExtracted.label,
+            color: eraExtracted.color || null,
+            lineNumber,
+          });
+        } else {
+          warn(lineNumber, `Unrecognized era entry: "${line}"`);
+        }
+        continue;
+      }
+    }
+
+    // ── Marker block entries ─────────────────────────────
+
+    if (inMarkerBlock) {
+      if (indent <= markerBlockIndent) {
+        inMarkerBlock = false;
+        // fall through to process this line normally
+      } else {
+        if (COMMENT_RE.test(line)) continue;
+        const markerEntryMatch = line.match(MARKER_ENTRY_RE);
+        if (markerEntryMatch) {
+          const markerLabelRaw = markerEntryMatch[2].trim();
+          const markerExtracted = extractColor(markerLabelRaw, palette);
+          result.markers.push({
+            date: markerEntryMatch[1],
+            label: markerExtracted.label,
+            color: markerExtracted.color || null,
+            lineNumber,
+          });
+        } else {
+          warn(lineNumber, `Unrecognized marker entry: "${line}"`);
+        }
+        continue;
+      }
+    }
+
     // ── Tag block entries ─────────────────────────────────
 
     if (inTagBlock && currentTagGroup) {
@@ -302,7 +369,7 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
         let offset: Offset | undefined;
 
         if (depParts.length > 1) {
-          const meta = parsePipeMetadata(['', ...depParts.slice(1)], aliasMap, () => warn(lineNumber, MULTIPLE_PIPE_WARNING));
+          const meta = parsePipeMetadata(['', ...depParts.slice(1)], aliasMap, () => warn(lineNumber, MULTIPLE_PIPE_ERROR));
           if (meta.lag || meta.lead) {
             const key = meta.lag ? 'lag' : 'lead';
             softError(lineNumber, `"${key}" is no longer supported — use "offset: ${meta[key]}" instead.${key === 'lead' ? ' Negate the value for lead behavior: "offset: -...".' : ''}`);
@@ -369,10 +436,6 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
     // Tag block heading
     const tagMatch = matchTagBlockHeading(line);
     if (tagMatch) {
-      if (tagMatch.deprecated) {
-        softError(lineNumber, `'## ${tagMatch.name}' is no longer supported — use 'tag ${tagMatch.name}' instead`);
-        continue;
-      }
       inTagBlock = true;
       tagBlockIndent = indent;
       inHeaderBlock = false;
@@ -388,7 +451,28 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
       continue;
     }
 
-    // Era
+    // Top-level workweek (outside holiday block)
+    const topWorkweekMatch = line.match(WORKWEEK_RE);
+    if (topWorkweekMatch) {
+      const days = parseWorkweek(topWorkweekMatch[1].trim());
+      if (days) {
+        result.holidays.workweek = days;
+      } else {
+        warn(lineNumber, `Invalid workweek format: "${topWorkweekMatch[1]}". Use day range like "sun-thu" or comma-separated days.`);
+      }
+      inHeaderBlock = false;
+      continue;
+    }
+
+    // Era block: bare `era` keyword starts a block
+    if (line.toLowerCase() === 'era') {
+      inEraBlock = true;
+      eraBlockIndent = indent;
+      inHeaderBlock = false;
+      continue;
+    }
+
+    // Era (inline)
     const eraMatch = line.match(ERA_RE);
     if (eraMatch) {
       const eraLabelRaw = eraMatch[3].trim();
@@ -404,7 +488,15 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
       continue;
     }
 
-    // Marker
+    // Marker block: bare `marker` keyword starts a block
+    if (line.toLowerCase() === 'marker') {
+      inMarkerBlock = true;
+      markerBlockIndent = indent;
+      inHeaderBlock = false;
+      continue;
+    }
+
+    // Marker (inline)
     const markerMatch = line.match(MARKER_RE);
     if (markerMatch) {
       const markerLabelRaw = markerMatch[2].trim();
@@ -472,9 +564,6 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
           result.options.title = value;
           result.options.titleLineNumber = lineNumber;
           break;
-        case 'orientation':
-          warn(lineNumber, `'orientation' is not supported for gantt charts`);
-          break;
         case 'today-marker':
           if (/^\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2})?$/.test(value)) {
             result.options.todayMarker = value;
@@ -506,28 +595,7 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
 
     inHeaderBlock = false;
 
-    // ── `# Group` alternate syntax ──────────────────────────
 
-    const hashGroupMatch = line.match(GROUP_HASH_RE);
-    if (hashGroupMatch) {
-      const nameExtracted = extractColor(hashGroupMatch[1], palette);
-      const group: GanttGroup = {
-        name: nameExtracted.label,
-        color: nameExtracted.color || null,
-        metadata: {},
-        lineNumber,
-        children: [],
-      };
-      const groupNode: GanttNode = { kind: 'group', ...group };
-      currentContainer().push(groupNode);
-      blockStack.push({
-        node: groupNode as GanttGroup,
-        indent,
-        containerType: 'group',
-      });
-      lastTaskNode = null;
-      continue;
-    }
 
     // ── Parallel block ────────────────────────────────────
 
@@ -560,7 +628,7 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
       let metadata: Record<string, string> = {};
       let color: string | null = null;
 
-      const pipeWarn = () => warn(lineNumber, MULTIPLE_PIPE_WARNING);
+      const pipeWarn = () => warn(lineNumber, MULTIPLE_PIPE_ERROR);
       if (segments.length > 0 && segments[0].trim()) {
         // Check if first segment after brackets is pipe metadata
         metadata = parsePipeMetadata(['', ...segments], aliasMap, pipeWarn);
@@ -662,7 +730,7 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
       let offset: Offset | undefined;
 
       if (depParts.length > 1) {
-        const meta = parsePipeMetadata(['', ...depParts.slice(1)], aliasMap, () => warn(lineNumber, MULTIPLE_PIPE_WARNING));
+        const meta = parsePipeMetadata(['', ...depParts.slice(1)], aliasMap, () => warn(lineNumber, MULTIPLE_PIPE_ERROR));
         if (meta.lag || meta.lead) {
           const key = meta.lag ? 'lag' : 'lead';
           softError(lineNumber, `"${key}" is no longer supported — use "offset: ${meta[key]}" instead.${key === 'lead' ? ' Negate the value for lead behavior: "offset: -...".' : ''}`);
@@ -726,7 +794,7 @@ export function parseGantt(content: string, palette?: PaletteColors): ParsedGant
 
     // Parse pipe metadata
     const metadata = segments.length > 1
-      ? parsePipeMetadata(segments, aliasMap, () => warn(ln, MULTIPLE_PIPE_WARNING))
+      ? parsePipeMetadata(segments, aliasMap, () => warn(ln, MULTIPLE_PIPE_ERROR))
       : {};
 
     // Extract progress from metadata or shorthand
@@ -833,7 +901,7 @@ function parseWorkweek(s: string): Weekday[] | null {
 // ── Known option keys ─────────────────────────────────────
 
 const KNOWN_OPTIONS = new Set([
-  'start', 'title', 'orientation', 'today-marker',
+  'start', 'title', 'today-marker',
   'critical-path', 'dependencies', 'chart', 'sort',
 ]);
 

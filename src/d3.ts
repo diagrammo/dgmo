@@ -182,7 +182,7 @@ import { getSeriesColors } from './palettes';
 import { mix } from './palettes/color-utils';
 import type { DgmoError } from './diagnostics';
 import { makeDgmoError, formatDgmoError, suggest } from './diagnostics';
-import { collectIndentedValues, extractColor, normalizeDirection, parseFirstLine, parsePipeMetadata, MULTIPLE_PIPE_WARNING } from './utils/parsing';
+import { collectIndentedValues, extractColor, parseFirstLine, parsePipeMetadata, MULTIPLE_PIPE_ERROR } from './utils/parsing';
 import { matchTagBlockHeading, validateTagValues, resolveTagColor } from './utils/tag-groups';
 import type { TagGroup } from './utils/tag-groups';
 import {
@@ -463,6 +463,10 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
   let currentArcGroup: string | null = null;
   let currentTimelineGroup: string | null = null;
   let currentTimelineTagGroup: TagGroup | null = null;
+  let inTimelineEraBlock = false;
+  let timelineEraBlockIndent = 0;
+  let inTimelineMarkerBlock = false;
+  let timelineMarkerBlockIndent = 0;
   const timelineAliasMap = new Map<string, string>();
   const VALID_D3_TYPES = new Set(['slope', 'wordcloud', 'arc', 'timeline', 'venn', 'quadrant', 'sequence']);
   let firstLineParsed = false;
@@ -494,14 +498,10 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
       // Not a bare chart type — fall through to normal parsing
     }
 
-    // Timeline tag group heading: `tag: Name [alias X]`
+    // Timeline tag group heading: `tag Name [alias X]`
     if (result.type === 'timeline' && indent === 0) {
       const tagBlockMatch = matchTagBlockHeading(line);
       if (tagBlockMatch) {
-        if (tagBlockMatch.deprecated) {
-          result.diagnostics.push(makeDgmoError(lineNumber,
-            `'## ${tagBlockMatch.name}' is deprecated for tag groups — use 'tag: ${tagBlockMatch.name}' instead`, 'warning'));
-        }
         currentTimelineTagGroup = {
           name: tagBlockMatch.name,
           alias: tagBlockMatch.alias,
@@ -605,10 +605,80 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
       }
     }
 
-    // Timeline era lines: era YYYY->YYYY Label (color)
+    // Timeline era block entries (indented under bare `era`)
+    if (result.type === 'timeline' && inTimelineEraBlock) {
+      if (indent <= timelineEraBlockIndent) {
+        inTimelineEraBlock = false;
+        // fall through to process this line normally
+      } else {
+        if (line.startsWith('//')) continue;
+        const eraEntryMatch = line.match(
+          /^(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s*(?:->|\u2013>)\s*(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s*:?\s+(.+?)(?:\s*\(([^)]+)\))?\s*$/
+        );
+        if (eraEntryMatch) {
+          const colorAnnotation = eraEntryMatch[4]?.trim() || null;
+          result.timelineEras.push({
+            startDate: eraEntryMatch[1],
+            endDate: eraEntryMatch[2],
+            label: eraEntryMatch[3].trim(),
+            color: colorAnnotation
+              ? resolveColor(colorAnnotation, palette)
+              : null,
+            lineNumber,
+          });
+        } else {
+          warn(lineNumber, `Unrecognized era entry: "${line}"`);
+        }
+        continue;
+      }
+    }
+
+    // Timeline marker block entries (indented under bare `marker`)
+    if (result.type === 'timeline' && inTimelineMarkerBlock) {
+      if (indent <= timelineMarkerBlockIndent) {
+        inTimelineMarkerBlock = false;
+        // fall through to process this line normally
+      } else {
+        if (line.startsWith('//')) continue;
+        const markerEntryMatch = line.match(
+          /^(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s+(.+?)(?:\s*\(([^)]+)\))?\s*$/
+        );
+        if (markerEntryMatch) {
+          const colorAnnotation = markerEntryMatch[3]?.trim() || null;
+          result.timelineMarkers.push({
+            date: markerEntryMatch[1],
+            label: markerEntryMatch[2].trim(),
+            color: colorAnnotation
+              ? resolveColor(colorAnnotation, palette)
+              : null,
+            lineNumber,
+          });
+        } else {
+          warn(lineNumber, `Unrecognized marker entry: "${line}"`);
+        }
+        continue;
+      }
+    }
+
+    // Timeline era/marker block starters and inline forms
     if (result.type === 'timeline') {
+      // Bare `era` keyword starts a block
+      if (line.toLowerCase() === 'era') {
+        inTimelineEraBlock = true;
+        timelineEraBlockIndent = indent;
+        continue;
+      }
+
+      // Bare `marker` keyword starts a block
+      if (line.toLowerCase() === 'marker') {
+        inTimelineMarkerBlock = true;
+        timelineMarkerBlockIndent = indent;
+        continue;
+      }
+
+      // Timeline era lines (inline): era YYYY->YYYY Label (color)
       const eraMatch = line.match(
-        /^era\s+(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s*->\s*(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s*:?\s+(.+?)(?:\s*\(([^)]+)\))?\s*$/
+        /^era\s+(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s*(?:->|\u2013>)\s*(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s*:?\s+(.+?)(?:\s*\(([^)]+)\))?\s*$/
       );
       if (eraMatch) {
         const colorAnnotation = eraMatch[4]?.trim() || null;
@@ -624,7 +694,7 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
         continue;
       }
 
-      // Timeline marker lines: marker YYYY Label (color)
+      // Timeline marker lines (inline): marker YYYY Label (color)
       const markerMatch = line.match(
         /^marker:?\s+(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s+(.+?)(?:\s*\(([^)]+)\))?\s*$/
       );
@@ -647,8 +717,9 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
       // Duration event: 2026-07-15->30d: description (d=days, w=weeks, m=months, y=years, h=hours, min=minutes)
       // Supports decimals up to 2 places (e.g., 1.25y = 1 year 3 months)
       // Supports uncertain end with ? suffix (e.g., ->3m?: fades out the last 20%)
+      // Accepts both -> (hyphen) and –> (en-dash U+2013)
       const durationMatch = line.match(
-        /^(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s*->\s*(\d+(?:\.\d{1,2})?)(min|[dwmyh])(\?)?(?:\s*:\s*|\s+)(.+)$/
+        /^(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s*(?:->|\u2013>)\s*(\d+(?:\.\d{1,2})?)(min|[dwmyh])(\?)?(?:\s*:\s*|\s+)(.+)$/
       );
       if (durationMatch) {
         const startDate = durationMatch[1];
@@ -658,7 +729,7 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
         const endDate = addDurationToDate(startDate, amount, unit);
         const segments = durationMatch[5].split('|');
         const metadata = segments.length > 1
-          ? parsePipeMetadata(['', ...segments.slice(1)], timelineAliasMap, () => warn(lineNumber, MULTIPLE_PIPE_WARNING))
+          ? parsePipeMetadata(['', ...segments.slice(1)], timelineAliasMap, () => warn(lineNumber, MULTIPLE_PIPE_ERROR))
           : {};
         result.timelineEvents.push({
           date: startDate,
@@ -673,13 +744,15 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
       }
 
       // Range event: 1655->1667 description (supports uncertain end: 1655->1667?)
+      // Also supports YYYY-MM-DD HH:MM in both start and end dates
+      // Accepts both -> (hyphen) and –> (en-dash U+2013)
       const rangeMatch = line.match(
-        /^(\d{4}(?:-\d{2})?(?:-\d{2})?)\s*->\s*(\d{4}(?:-\d{2})?(?:-\d{2})?)(\?)?(?:\s*:\s*|\s+)(.+)$/
+        /^(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s*(?:->|\u2013>)\s*(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)(\?)?(?:\s*:\s*|\s+)(.+)$/
       );
       if (rangeMatch) {
         const segments = rangeMatch[4].split('|');
         const metadata = segments.length > 1
-          ? parsePipeMetadata(['', ...segments.slice(1)], timelineAliasMap, () => warn(lineNumber, MULTIPLE_PIPE_WARNING))
+          ? parsePipeMetadata(['', ...segments.slice(1)], timelineAliasMap, () => warn(lineNumber, MULTIPLE_PIPE_ERROR))
           : {};
         result.timelineEvents.push({
           date: rangeMatch[1],
@@ -700,7 +773,7 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
       if (pointMatch) {
         const segments = pointMatch[2].split('|');
         const metadata = segments.length > 1
-          ? parsePipeMetadata(['', ...segments.slice(1)], timelineAliasMap, () => warn(lineNumber, MULTIPLE_PIPE_WARNING))
+          ? parsePipeMetadata(['', ...segments.slice(1)], timelineAliasMap, () => warn(lineNumber, MULTIPLE_PIPE_ERROR))
           : {};
         result.timelineEvents.push({
           date: pointMatch[1],
@@ -716,20 +789,52 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
 
     // Venn diagram DSL
     if (result.type === 'venn') {
-      // Intersection line: "A + B: Label" / "A + B" / "A + B + C: Label"
+      // Intersection line: "A + B Label" / "A + B" / "A + B + C Label"
+      // Also accepts deprecated colon syntax: "A + B: Label"
       if (/\+/.test(line)) {
-        const colonIdx = line.indexOf(':');
-        let setsPart: string;
-        let label: string | null;
-        if (colonIdx >= 0) {
-          setsPart = line.substring(0, colonIdx).trim();
-          label = line.substring(colonIdx + 1).trim() || null;
-        } else {
-          setsPart = line.trim();
-          label = null;
+        // Build lookup of known set names and aliases for label extraction
+        const knownSetRefs = new Set<string>();
+        for (const s of result.vennSets) {
+          knownSetRefs.add(s.name.toLowerCase());
+          if (s.alias) knownSetRefs.add(s.alias.toLowerCase());
         }
-        const rawSets = setsPart.split('+').map((s) => s.trim()).filter(Boolean);
-        if (rawSets.length >= 2) {
+
+        const segments = line.split('+').map((s) => s.trim()).filter(Boolean);
+        if (segments.length >= 2) {
+          // All segments except the last are pure set references
+          const rawSets = segments.slice(0, -1);
+          const lastSeg = segments[segments.length - 1];
+
+          // For the last segment, extract set reference and optional label.
+          // Support deprecated colon: "SetRef: Label"
+          const colonIdx = lastSeg.indexOf(':');
+          let lastSetRef: string;
+          let label: string | null;
+          if (colonIdx >= 0) {
+            lastSetRef = lastSeg.substring(0, colonIdx).trim();
+            label = lastSeg.substring(colonIdx + 1).trim() || null;
+          } else {
+            // No colon — find where the set reference ends and label begins.
+            // Try progressively shorter prefixes against known set names/aliases.
+            const words = lastSeg.split(/\s+/);
+            let matchLen = 0;
+            for (let w = words.length; w >= 1; w--) {
+              const candidate = words.slice(0, w).join(' ');
+              if (knownSetRefs.has(candidate.toLowerCase())) {
+                matchLen = w;
+                break;
+              }
+            }
+            if (matchLen > 0) {
+              lastSetRef = words.slice(0, matchLen).join(' ');
+              label = words.length > matchLen ? words.slice(matchLen).join(' ') : null;
+            } else {
+              // No known set matched — assume first word is the set ref, rest is label
+              lastSetRef = words[0];
+              label = words.length > 1 ? words.slice(1).join(' ') : null;
+            }
+          }
+          rawSets.push(lastSetRef);
           result.vennOverlaps.push({ sets: rawSets, label, lineNumber });
           continue;
         }
@@ -866,48 +971,11 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
         continue;
       }
 
-      if (firstToken === 'orientation' || firstToken === 'direction') {
-        if (result.type === 'arc' || result.type === 'timeline') {
-          const vLower = restValue.toLowerCase();
-          if (vLower === 'horizontal' || vLower === 'vertical') {
-            result.orientation = vLower;
-          } else {
-            const dir = normalizeDirection(restValue);
-            if (dir === 'LR') result.orientation = 'horizontal';
-            else if (dir === 'TB') result.orientation = 'vertical';
-          }
-        }
-        continue;
-      }
-
       if (firstToken === 'order') {
         const v = restValue.toLowerCase();
         if (v === 'name' || v === 'group' || v === 'degree') {
           result.arcOrder = v;
         }
-        continue;
-      }
-
-      if (firstToken === 'sort') {
-        const vLower = restValue.toLowerCase();
-        if (vLower === 'time' || vLower === 'group') {
-          result.timelineSort = vLower;
-        } else if (vLower === 'tag' || vLower.startsWith('tag:')) {
-          result.timelineSort = 'tag';
-          if (vLower.startsWith('tag:')) {
-            const groupRef = restValue.substring(4).trim();
-            if (groupRef) {
-              result.timelineDefaultSwimlaneTG = groupRef;
-            }
-          }
-        }
-        continue;
-      }
-
-      if (firstToken === 'swimlanes') {
-        const v = restValue.toLowerCase();
-        if (v === 'on') result.timelineSwimlanes = true;
-        else if (v === 'off') result.timelineSwimlanes = false;
         continue;
       }
 
@@ -951,45 +1019,11 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
       // Check for color annotation in raw key: "Label(color)"
       const colorMatch = rawKey.match(/^(.+?)\(([^)]+)\)\s*$/);
 
-      if (key === 'chart') {
-        const value = line
-          .substring(colonIndex + 1)
-          .trim()
-          .toLowerCase();
-        if (VALID_D3_TYPES.has(value)) {
-          result.type = value as ParsedVisualization['type'];
-        } else {
-          const validD3Types = [...VALID_D3_TYPES];
-          let msg = `Unsupported chart type: ${value}. Supported types: ${validD3Types.join(', ')}`;
-          const hint = suggest(value, validD3Types);
-          if (hint) msg += `. ${hint}`;
-          return fail(lineNumber, msg);
-        }
-        continue;
-      }
-
       if (key === 'title') {
         result.title = line.substring(colonIndex + 1).trim();
         result.titleLineNumber = lineNumber;
         if (result.type === 'quadrant') {
           result.quadrantTitleLineNumber = lineNumber;
-        }
-        continue;
-      }
-
-      if (key === 'orientation' || key === 'direction') {
-        // Only arc and timeline support orientation
-        if (result.type === 'arc' || result.type === 'timeline') {
-          const raw = line.substring(colonIndex + 1).trim();
-          // Accept horizontal/vertical directly, or LR/TB via normalizeDirection
-          const vLower = raw.toLowerCase();
-          if (vLower === 'horizontal' || vLower === 'vertical') {
-            result.orientation = vLower;
-          } else {
-            const dir = normalizeDirection(raw);
-            if (dir === 'LR') result.orientation = 'horizontal';
-            else if (dir === 'TB') result.orientation = 'vertical';
-          }
         }
         continue;
       }
@@ -1001,39 +1035,6 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
           .toLowerCase();
         if (v === 'name' || v === 'group' || v === 'degree') {
           result.arcOrder = v;
-        }
-        continue;
-      }
-
-      if (key === 'sort') {
-        const v = line
-          .substring(colonIndex + 1)
-          .trim();
-        const vLower = v.toLowerCase();
-        if (vLower === 'time' || vLower === 'group') {
-          result.timelineSort = vLower;
-        } else if (vLower === 'tag' || vLower.startsWith('tag:')) {
-          result.timelineSort = 'tag';
-          if (vLower.startsWith('tag:')) {
-            // Extract group name (preserving original case for display)
-            const groupRef = v.substring(4).trim();
-            if (groupRef) {
-              result.timelineDefaultSwimlaneTG = groupRef;
-            }
-          }
-        }
-        continue;
-      }
-
-      if (key === 'swimlanes') {
-        const v = line
-          .substring(colonIndex + 1)
-          .trim()
-          .toLowerCase();
-        if (v === 'on') {
-          result.timelineSwimlanes = true;
-        } else if (v === 'off') {
-          result.timelineSwimlanes = false;
         }
         continue;
       }
@@ -1092,22 +1093,16 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
       }
 
       if (allNumeric && numericValues.length > 0) {
-        // For wordcloud, single numeric value = word weight
-        if (result.type === 'wordcloud' && numericValues.length === 1) {
-          result.words.push({
-            text: labelPart,
-            weight: numericValues[0],
-            lineNumber,
-          });
-        } else {
+        // Wordcloud does not use colon data format — skip to freeform handling
+        if (result.type !== 'wordcloud') {
           result.data.push({
             label: labelPart,
             values: numericValues,
             color: colorPart,
             lineNumber,
           });
+          continue;
         }
-        continue;
       }
     }
 
@@ -1171,7 +1166,7 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
       result.words = tokenizeFreeformText(freeformLines.join(' '));
     }
     if (result.words.length === 0) {
-      warn(1, 'No words found. Add words as "word: weight", one per line, or paste freeform text');
+      warn(1, 'No words found. Add words as "word weight" (space-separated), one per line, or paste freeform text');
     }
     // Apply max word limit (words are already sorted by weight desc for freeform)
     if (
@@ -1223,29 +1218,6 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
             event.metadata[key] = group.defaultValue;
           }
         }
-      }
-    }
-
-    // Resolve sort: tag default swimlane group
-    if (result.timelineSort === 'tag') {
-      if (result.timelineTagGroups.length === 0) {
-        warn(1, '"sort: tag" requires at least one tag group definition');
-        result.timelineSort = 'time';
-      } else if (result.timelineDefaultSwimlaneTG) {
-        // Resolve alias → full group name
-        const ref = result.timelineDefaultSwimlaneTG.toLowerCase();
-        const match = result.timelineTagGroups.find(
-          (g) => g.name.toLowerCase() === ref || g.alias?.toLowerCase() === ref
-        );
-        if (match) {
-          result.timelineDefaultSwimlaneTG = match.name;
-        } else {
-          warn(1, `"sort: tag:${result.timelineDefaultSwimlaneTG}" — no tag group matches "${result.timelineDefaultSwimlaneTG}"`);
-          result.timelineDefaultSwimlaneTG = result.timelineTagGroups[0].name;
-        }
-      } else {
-        // Default to first tag group
-        result.timelineDefaultSwimlaneTG = result.timelineTagGroups[0].name;
       }
     }
 
@@ -2571,6 +2543,26 @@ export function formatDateLabel(dateStr: string): string {
 }
 
 /**
+ * Formats a boundary label for the time axis.
+ * When both boundaries fall on the same calendar day and have a time component,
+ * returns just the time (e.g. "12:15") to avoid collisions with regular ticks.
+ * Otherwise falls back to the full formatDateLabel.
+ */
+function formatBoundaryLabel(dateStr: string, otherDateStr: string): string {
+  const spaceIdx = dateStr.indexOf(' ');
+  const otherSpaceIdx = otherDateStr.indexOf(' ');
+  // Both must have time components and share the same date portion
+  if (spaceIdx !== -1 && otherSpaceIdx !== -1) {
+    const datePart = dateStr.slice(0, spaceIdx);
+    const otherDatePart = otherDateStr.slice(0, otherSpaceIdx);
+    if (datePart === otherDatePart) {
+      return dateStr.slice(spaceIdx + 1); // just "HH:MM"
+    }
+  }
+  return formatDateLabel(dateStr);
+}
+
+/**
  * Computes adaptive tick marks for a timeline scale.
  * - Multi-year spans → year ticks
  * - Within ~1 year → month ticks
@@ -2662,6 +2654,9 @@ export function computeTimeTicks(
     else if (spanHours > 24) stepHour = 3;
     else if (spanHours > 12) stepHour = 2;
 
+    // For single-day spans, just show HH:MM without the date prefix
+    const singleDay = spanHours <= 24;
+
     const startDate = fractionalYearToDate(domainMin);
     // Round down to nearest step boundary
     startDate.setHours(Math.floor(startDate.getHours() / stepHour) * stepHour, 0, 0, 0);
@@ -2670,11 +2665,15 @@ export function computeTimeTicks(
       const val = dateToFractionalYear(startDate);
       if (val > domainMax) break;
       if (val >= domainMin) {
-        const mon = MONTH_ABBR[startDate.getMonth()];
-        const d = startDate.getDate();
         const hh = String(startDate.getHours()).padStart(2, '0');
         const mm = String(startDate.getMinutes()).padStart(2, '0');
-        ticks.push({ pos: scale(val), label: `${mon} ${d} ${hh}:${mm}` });
+        if (singleDay) {
+          ticks.push({ pos: scale(val), label: `${hh}:${mm}` });
+        } else {
+          const mon = MONTH_ABBR[startDate.getMonth()];
+          const d = startDate.getDate();
+          ticks.push({ pos: scale(val), label: `${mon} ${d} ${hh}:${mm}` });
+        }
       }
       startDate.setHours(startDate.getHours() + stepHour);
     }
@@ -3409,8 +3408,8 @@ export function renderTimeline(
           textColor,
           minDate,
           maxDate,
-          formatDateLabel(earliestStartDateStr),
-          formatDateLabel(latestEndDateStr)
+          formatBoundaryLabel(earliestStartDateStr, latestEndDateStr),
+          formatBoundaryLabel(latestEndDateStr, earliestStartDateStr)
         );
       }
 
@@ -3659,8 +3658,8 @@ export function renderTimeline(
           textColor,
           minDate,
           maxDate,
-          formatDateLabel(earliestStartDateStr),
-          formatDateLabel(latestEndDateStr)
+          formatBoundaryLabel(earliestStartDateStr, latestEndDateStr),
+          formatBoundaryLabel(latestEndDateStr, earliestStartDateStr)
         );
       }
 
@@ -3960,8 +3959,8 @@ export function renderTimeline(
         textColor,
         minDate,
         maxDate,
-        formatDateLabel(earliestStartDateStr),
-        formatDateLabel(latestEndDateStr)
+        formatBoundaryLabel(earliestStartDateStr, latestEndDateStr),
+        formatBoundaryLabel(latestEndDateStr, earliestStartDateStr)
       );
     }
 
@@ -4261,8 +4260,8 @@ export function renderTimeline(
         textColor,
         minDate,
         maxDate,
-        formatDateLabel(earliestStartDateStr),
-        formatDateLabel(latestEndDateStr)
+        formatBoundaryLabel(earliestStartDateStr, latestEndDateStr),
+        formatBoundaryLabel(latestEndDateStr, earliestStartDateStr)
       );
     }
 
