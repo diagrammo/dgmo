@@ -432,8 +432,8 @@ describe('2. Rejected syntax', () => {
       palette
     );
     // "direction TB" is stored as an option but doesn't change the direction field
-    // The boolean form "direction-tb" is needed
-    expect(r.direction).toBe('LR');
+    // The boolean form "direction-lr" is needed to override the TB default
+    expect(r.direction).toBe('TB');
   });
 
   it('orientation horizontal (space form) is not the boolean form for bar charts', () => {
@@ -511,12 +511,12 @@ describe('3. Boolean options', () => {
     expect(r.direction).toBe('TB');
   });
 
-  it('direction-tb sets direction to TB in flowchart', () => {
+  it('direction-lr sets direction to LR in flowchart', () => {
     const r = parseFlowchart(
-      'flowchart Test\ndirection-tb\n\n(Start) -> [End]',
+      'flowchart Test\ndirection-lr\n\n(Start) -> [End]',
       palette
     );
-    expect(r.direction).toBe('TB');
+    expect(r.direction).toBe('LR');
   });
 
   it('direction-tb sets direction to TB in state', () => {

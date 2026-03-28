@@ -420,7 +420,7 @@ Bracket syntax only.
 
 ### 4.6 Options
 
-- `direction-tb` (boolean; default is LR)
+- `direction-lr` (boolean; default is TB)
 - `orientation-vertical` (boolean; default is horizontal)
 
 ---

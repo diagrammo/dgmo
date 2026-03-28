@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { parseFlowchart, looksLikeFlowchart } from '../src/graph/flowchart-parser';
+import {
+  parseFlowchart,
+  looksLikeFlowchart,
+} from '../src/graph/flowchart-parser';
 
 describe('parseFlowchart', () => {
   // === AC 11: Metadata ===
@@ -16,14 +19,16 @@ describe('parseFlowchart', () => {
       expect(result.title).toBe('My Flow');
     });
 
-    it('parses direction-tb', () => {
-      const result = parseFlowchart('flowchart\ndirection-tb\n(Start) -> (End)');
-      expect(result.direction).toBe('TB');
+    it('parses direction-lr', () => {
+      const result = parseFlowchart(
+        'flowchart\ndirection-lr\n(Start) -> (End)'
+      );
+      expect(result.direction).toBe('LR');
     });
 
-    it('defaults to LR when no direction specified', () => {
+    it('defaults to TB when no direction specified', () => {
       const result = parseFlowchart('(Start) -> (End)');
-      expect(result.direction).toBe('LR');
+      expect(result.direction).toBe('TB');
     });
   });
 
@@ -177,9 +182,14 @@ describe('parseFlowchart', () => {
       const decision = result.nodes.find((n) => n.shape === 'decision')!;
       expect(decision).toBeDefined();
 
-      const edgesFromDecision = result.edges.filter((e) => e.source === decision.id);
+      const edgesFromDecision = result.edges.filter(
+        (e) => e.source === decision.id
+      );
       expect(edgesFromDecision).toHaveLength(2);
-      expect(edgesFromDecision.map((e) => e.label).sort()).toEqual(['no', 'yes']);
+      expect(edgesFromDecision.map((e) => e.label).sort()).toEqual([
+        'no',
+        'yes',
+      ]);
     });
   });
 
@@ -226,7 +236,9 @@ describe('parseFlowchart', () => {
       const mergeNodes = result.nodes.filter((n) => n.label === 'Merge');
       expect(mergeNodes).toHaveLength(1);
 
-      const edgesToMerge = result.edges.filter((e) => e.target === mergeNodes[0].id);
+      const edgesToMerge = result.edges.filter(
+        (e) => e.target === mergeNodes[0].id
+      );
       expect(edgesToMerge).toHaveLength(2);
     });
   });
@@ -234,18 +246,20 @@ describe('parseFlowchart', () => {
   // === AC 8: Back-edges (loops) ===
   describe('back-edges', () => {
     it('referencing earlier node creates loop edge', () => {
-      const input = '(Start) -> /Get Input/ -> <Valid?>\n  -yes-> [Process] -> (End)\n  -no-> /Get Input/';
+      const input =
+        '(Start) -> /Get Input/ -> <Valid?>\n  -yes-> [Process] -> (End)\n  -no-> /Get Input/';
       const result = parseFlowchart(input);
       expect(result.error).toBeNull();
 
       const inputNodes = result.nodes.filter((n) => n.label === 'Get Input');
       expect(inputNodes).toHaveLength(1); // convergence: single node
 
-      const backEdges = result.edges.filter((e) => e.target === inputNodes[0].id);
+      const backEdges = result.edges.filter(
+        (e) => e.target === inputNodes[0].id
+      );
       expect(backEdges.length).toBeGreaterThanOrEqual(2); // from Start and from the -no-> branch
     });
   });
-
 
   // === AC 10: Node colors ===
   describe('node colors', () => {
@@ -337,7 +351,7 @@ describe('parseFlowchart', () => {
       const result = parseFlowchart(input);
       expect(result.error).toBeNull();
       expect(result.title).toBe('CI/CD Pipeline');
-      expect(result.direction).toBe('LR');
+      expect(result.direction).toBe('TB');
       expect(result.groups).toBeUndefined();
       expect(result.nodes.length).toBeGreaterThanOrEqual(10);
       expect(result.edges.length).toBeGreaterThanOrEqual(8);

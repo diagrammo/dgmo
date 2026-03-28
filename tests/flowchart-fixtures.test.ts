@@ -28,7 +28,10 @@ describe('flowchart fixtures', () => {
   }
 
   it('flowchart-basic has linear structure', () => {
-    const content = readFileSync(resolve(FIXTURE_DIR, 'flowchart-basic.dgmo'), 'utf-8');
+    const content = readFileSync(
+      resolve(FIXTURE_DIR, 'flowchart-basic.dgmo'),
+      'utf-8'
+    );
     const result = parseFlowchart(content);
     expect(result.title).toBe('Basic Flow');
     expect(result.nodes).toHaveLength(5); // Start, Step 1, Step 2, Step 3, End
@@ -36,7 +39,10 @@ describe('flowchart fixtures', () => {
   });
 
   it('flowchart-decision has branching with labeled edges', () => {
-    const content = readFileSync(resolve(FIXTURE_DIR, 'flowchart-decision.dgmo'), 'utf-8');
+    const content = readFileSync(
+      resolve(FIXTURE_DIR, 'flowchart-decision.dgmo'),
+      'utf-8'
+    );
     const result = parseFlowchart(content);
     const labeledEdges = result.edges.filter((e) => e.label);
     expect(labeledEdges.length).toBeGreaterThanOrEqual(2);
@@ -45,7 +51,10 @@ describe('flowchart fixtures', () => {
   });
 
   it('flowchart-nested has multi-level decisions with convergence', () => {
-    const content = readFileSync(resolve(FIXTURE_DIR, 'flowchart-nested.dgmo'), 'utf-8');
+    const content = readFileSync(
+      resolve(FIXTURE_DIR, 'flowchart-nested.dgmo'),
+      'utf-8'
+    );
     const result = parseFlowchart(content);
     const decisions = result.nodes.filter((n) => n.shape === 'decision');
     expect(decisions.length).toBeGreaterThanOrEqual(2);
@@ -57,7 +66,10 @@ describe('flowchart fixtures', () => {
   });
 
   it('flowchart-shapes has all 6 shape types', () => {
-    const content = readFileSync(resolve(FIXTURE_DIR, 'flowchart-shapes.dgmo'), 'utf-8');
+    const content = readFileSync(
+      resolve(FIXTURE_DIR, 'flowchart-shapes.dgmo'),
+      'utf-8'
+    );
     const result = parseFlowchart(content);
     const shapes = new Set(result.nodes.map((n) => n.shape));
     expect(shapes.has('terminal')).toBe(true);
@@ -70,28 +82,39 @@ describe('flowchart fixtures', () => {
   });
 
   it('flowchart-groups parses without groups (## removed)', () => {
-    const content = readFileSync(resolve(FIXTURE_DIR, 'flowchart-groups.dgmo'), 'utf-8');
+    const content = readFileSync(
+      resolve(FIXTURE_DIR, 'flowchart-groups.dgmo'),
+      'utf-8'
+    );
     const result = parseFlowchart(content);
     expect(result.groups).toBeUndefined();
-    expect(result.direction).toBe('LR');
+    expect(result.direction).toBe('TB');
     expect(result.nodes.length).toBeGreaterThan(0);
   });
 
   it('flowchart-loop has back-edges', () => {
-    const content = readFileSync(resolve(FIXTURE_DIR, 'flowchart-loop.dgmo'), 'utf-8');
+    const content = readFileSync(
+      resolve(FIXTURE_DIR, 'flowchart-loop.dgmo'),
+      'utf-8'
+    );
     const result = parseFlowchart(content);
     // [Wait & Backoff] -> [Attempt Request] creates a back-edge
     const attemptNode = result.nodes.find((n) => n.label === 'Attempt Request');
     expect(attemptNode).toBeDefined();
-    const edgesToAttempt = result.edges.filter((e) => e.target === attemptNode!.id);
+    const edgesToAttempt = result.edges.filter(
+      (e) => e.target === attemptNode!.id
+    );
     expect(edgesToAttempt.length).toBeGreaterThanOrEqual(2); // from Initialize and from Wait & Backoff
   });
 
   it('flowchart-complex has labeled edges and multiple shapes', () => {
-    const content = readFileSync(resolve(FIXTURE_DIR, 'flowchart-complex.dgmo'), 'utf-8');
+    const content = readFileSync(
+      resolve(FIXTURE_DIR, 'flowchart-complex.dgmo'),
+      'utf-8'
+    );
     const result = parseFlowchart(content);
     expect(result.groups).toBeUndefined();
-    expect(result.direction).toBe('LR');
+    expect(result.direction).toBe('TB');
     expect(result.title).toBe('CI/CD Pipeline');
     // Multiple shape types
     const shapes = new Set(result.nodes.map((n) => n.shape));
@@ -104,7 +127,10 @@ describe('flowchart fixtures', () => {
   });
 
   it('flowchart-colors has nodes and edges with custom colors', () => {
-    const content = readFileSync(resolve(FIXTURE_DIR, 'flowchart-colors.dgmo'), 'utf-8');
+    const content = readFileSync(
+      resolve(FIXTURE_DIR, 'flowchart-colors.dgmo'),
+      'utf-8'
+    );
     const result = parseFlowchart(content);
     const coloredNodes = result.nodes.filter((n) => n.color);
     expect(coloredNodes.length).toBeGreaterThanOrEqual(4);

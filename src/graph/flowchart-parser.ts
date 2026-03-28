@@ -222,7 +222,7 @@ export function parseFlowchart(
   const lines = content.split('\n');
   const result: ParsedGraph = {
     type: 'flowchart',
-    direction: 'LR',
+    direction: 'TB',
     nodes: [],
     edges: [],
     options: {},
@@ -414,9 +414,9 @@ export function parseFlowchart(
 
     // Options (space-separated, before content)
     if (!contentStarted) {
-      // Bare boolean: direction-tb
-      if (/^direction-tb$/i.test(trimmed)) {
-        result.direction = 'TB';
+      // Bare boolean: direction-lr
+      if (/^direction-lr$/i.test(trimmed)) {
+        result.direction = 'LR';
         continue;
       }
 

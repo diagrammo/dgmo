@@ -111,8 +111,8 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     'bar',
     withGlobals({
       series: { description: 'Series name(s)' },
-      xlabel: { description: 'X-axis label' },
-      ylabel: { description: 'Y-axis label' },
+      'x-label': { description: 'X-axis label' },
+      'y-label': { description: 'Y-axis label' },
       'orientation-horizontal': { description: 'Switch to horizontal bars' },
       color: { description: 'Bar color override' },
     }),
@@ -121,8 +121,8 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     'line',
     withGlobals({
       series: { description: 'Series name(s)' },
-      xlabel: { description: 'X-axis label' },
-      ylabel: { description: 'Y-axis label' },
+      'x-label': { description: 'X-axis label' },
+      'y-label': { description: 'Y-axis label' },
     }),
   ],
   [
@@ -145,8 +145,8 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     'area',
     withGlobals({
       series: { description: 'Series name(s)' },
-      xlabel: { description: 'X-axis label' },
-      ylabel: { description: 'Y-axis label' },
+      'x-label': { description: 'X-axis label' },
+      'y-label': { description: 'Y-axis label' },
     }),
   ],
   [
@@ -162,8 +162,8 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     'bar-stacked',
     withGlobals({
       series: { description: 'Series name(s) (required)' },
-      xlabel: { description: 'X-axis label' },
-      ylabel: { description: 'Y-axis label' },
+      'x-label': { description: 'X-axis label' },
+      'y-label': { description: 'Y-axis label' },
       'orientation-horizontal': { description: 'Switch to horizontal bars' },
     }),
   ],
@@ -173,9 +173,9 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     'scatter',
     withGlobals({
       'no-labels': { description: 'Hide point labels' },
-      xlabel: { description: 'X-axis label' },
-      ylabel: { description: 'Y-axis label' },
-      sizelabel: { description: 'Size axis label' },
+      'x-label': { description: 'X-axis label' },
+      'y-label': { description: 'Y-axis label' },
+      'size-label': { description: 'Size axis label' },
     }),
   ],
   [
@@ -191,8 +191,8 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     'function',
     withGlobals({
       x: { description: 'X-axis range (start to end)' },
-      xlabel: { description: 'X-axis label' },
-      ylabel: { description: 'Y-axis label' },
+      'x-label': { description: 'X-axis label' },
+      'y-label': { description: 'Y-axis label' },
       shade: { description: 'Fill area below curves with translucent color' },
     }),
   ],
@@ -224,8 +224,8 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'quadrant',
     withGlobals({
-      'x-axis': { description: 'X-axis labels (low, high)' },
-      'y-axis': { description: 'Y-axis labels (low, high)' },
+      'x-label': { description: 'X-axis labels (low, high)' },
+      'y-label': { description: 'Y-axis labels (low, high)' },
     }),
   ],
 
@@ -247,7 +247,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'flowchart',
     withGlobals({
-      'direction-tb': { description: 'Switch to top-to-bottom layout' },
+      'direction-lr': { description: 'Switch to left-to-right layout' },
     }),
   ],
   [
