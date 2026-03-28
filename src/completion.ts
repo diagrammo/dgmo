@@ -79,7 +79,18 @@ export interface DirectiveSpec {
 const GLOBAL_DIRECTIVES: Record<string, DirectiveValueSpec> = {
   palette: {
     description: 'Color palette name',
-    values: ['nord', 'solarized', 'catppuccin', 'rose-pine', 'gruvbox', 'tokyo-night', 'one-dark', 'bold', 'dracula', 'monokai'],
+    values: [
+      'nord',
+      'solarized',
+      'catppuccin',
+      'rose-pine',
+      'gruvbox',
+      'tokyo-night',
+      'one-dark',
+      'bold',
+      'dracula',
+      'monokai',
+    ],
   },
   theme: {
     description: 'Color theme',
@@ -87,139 +98,221 @@ const GLOBAL_DIRECTIVES: Record<string, DirectiveValueSpec> = {
   },
 };
 
-function withGlobals(directives: Record<string, DirectiveValueSpec> = {}): DirectiveSpec {
+function withGlobals(
+  directives: Record<string, DirectiveValueSpec> = {}
+): DirectiveSpec {
   return { directives: { ...GLOBAL_DIRECTIVES, ...directives } };
 }
 
 /** Chart-type → directive specifications. Every chart type has at least palette + theme. */
 export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   // ── Data charts ──────────────────────────────────────────
-  ['bar', withGlobals({
-    series: { description: 'Series name(s)' },
-    xlabel: { description: 'X-axis label' },
-    ylabel: { description: 'Y-axis label' },
-    'orientation-horizontal': { description: 'Switch to horizontal bars' },
-    color: { description: 'Bar color override' },
-  })],
-  ['line', withGlobals({
-    series: { description: 'Series name(s)' },
-    xlabel: { description: 'X-axis label' },
-    ylabel: { description: 'Y-axis label' },
-  })],
-  ['pie', withGlobals({
-    'no-label-name': { description: 'Hide name from segment labels' },
-    'no-label-value': { description: 'Hide value from segment labels' },
-    'no-label-percent': { description: 'Hide percent from segment labels' },
-  })],
-  ['doughnut', withGlobals({
-    'no-label-name': { description: 'Hide name from segment labels' },
-    'no-label-value': { description: 'Hide value from segment labels' },
-    'no-label-percent': { description: 'Hide percent from segment labels' },
-  })],
-  ['area', withGlobals({
-    series: { description: 'Series name(s)' },
-    xlabel: { description: 'X-axis label' },
-    ylabel: { description: 'Y-axis label' },
-  })],
-  ['polar-area', withGlobals({
-    'no-label-name': { description: 'Hide name from segment labels' },
-    'no-label-value': { description: 'Hide value from segment labels' },
-    'no-label-percent': { description: 'Hide percent from segment labels' },
-  })],
+  [
+    'bar',
+    withGlobals({
+      series: { description: 'Series name(s)' },
+      xlabel: { description: 'X-axis label' },
+      ylabel: { description: 'Y-axis label' },
+      'orientation-horizontal': { description: 'Switch to horizontal bars' },
+      color: { description: 'Bar color override' },
+    }),
+  ],
+  [
+    'line',
+    withGlobals({
+      series: { description: 'Series name(s)' },
+      xlabel: { description: 'X-axis label' },
+      ylabel: { description: 'Y-axis label' },
+    }),
+  ],
+  [
+    'pie',
+    withGlobals({
+      'no-label-name': { description: 'Hide name from segment labels' },
+      'no-label-value': { description: 'Hide value from segment labels' },
+      'no-label-percent': { description: 'Hide percent from segment labels' },
+    }),
+  ],
+  [
+    'doughnut',
+    withGlobals({
+      'no-label-name': { description: 'Hide name from segment labels' },
+      'no-label-value': { description: 'Hide value from segment labels' },
+      'no-label-percent': { description: 'Hide percent from segment labels' },
+    }),
+  ],
+  [
+    'area',
+    withGlobals({
+      series: { description: 'Series name(s)' },
+      xlabel: { description: 'X-axis label' },
+      ylabel: { description: 'Y-axis label' },
+    }),
+  ],
+  [
+    'polar-area',
+    withGlobals({
+      'no-label-name': { description: 'Hide name from segment labels' },
+      'no-label-value': { description: 'Hide value from segment labels' },
+      'no-label-percent': { description: 'Hide percent from segment labels' },
+    }),
+  ],
   ['radar', withGlobals()],
-  ['bar-stacked', withGlobals({
-    series: { description: 'Series name(s) (required)' },
-    xlabel: { description: 'X-axis label' },
-    ylabel: { description: 'Y-axis label' },
-    'orientation-horizontal': { description: 'Switch to horizontal bars' },
-  })],
+  [
+    'bar-stacked',
+    withGlobals({
+      series: { description: 'Series name(s) (required)' },
+      xlabel: { description: 'X-axis label' },
+      ylabel: { description: 'Y-axis label' },
+      'orientation-horizontal': { description: 'Switch to horizontal bars' },
+    }),
+  ],
 
   // ── Extended charts ──────────────────────────────────────
-  ['scatter', withGlobals({
-    'no-labels': { description: 'Hide point labels' },
-    xlabel: { description: 'X-axis label' },
-    ylabel: { description: 'Y-axis label' },
-    sizelabel: { description: 'Size axis label' },
-  })],
-  ['heatmap', withGlobals({
-    columns: { description: 'Column labels (required)' },
-  })],
+  [
+    'scatter',
+    withGlobals({
+      'no-labels': { description: 'Hide point labels' },
+      xlabel: { description: 'X-axis label' },
+      ylabel: { description: 'Y-axis label' },
+      sizelabel: { description: 'Size axis label' },
+    }),
+  ],
+  [
+    'heatmap',
+    withGlobals({
+      columns: { description: 'Column labels (required)' },
+    }),
+  ],
   ['sankey', withGlobals()],
   ['chord', withGlobals()],
   ['funnel', withGlobals()],
-  ['function', withGlobals({
-    x: { description: 'X-axis range (start to end)' },
-    xlabel: { description: 'X-axis label' },
-    ylabel: { description: 'Y-axis label' },
-    shade: { description: 'Fill area below curves with translucent color' },
-  })],
+  [
+    'function',
+    withGlobals({
+      x: { description: 'X-axis range (start to end)' },
+      xlabel: { description: 'X-axis label' },
+      ylabel: { description: 'Y-axis label' },
+      shade: { description: 'Fill area below curves with translucent color' },
+    }),
+  ],
 
   // ── Visualizations ───────────────────────────────────────
-  ['slope', withGlobals({
-    'orientation-vertical': { description: 'Switch to vertical layout' },
-  })],
-  ['wordcloud', withGlobals({
-    rotate: { description: 'Word rotation', values: ['none', 'mixed', 'angled'] },
-    max: { description: 'Maximum word count' },
-    size: { description: 'Font size range (min, max)' },
-  })],
-  ['arc', withGlobals({
-    order: { description: 'Node ordering', values: ['appearance', 'name', 'group', 'degree'] },
-  })],
+  ['slope', withGlobals()],
+  [
+    'wordcloud',
+    withGlobals({
+      rotate: {
+        description: 'Word rotation',
+        values: ['none', 'mixed', 'angled'],
+      },
+      max: { description: 'Maximum word count' },
+      size: { description: 'Font size range (min, max)' },
+    }),
+  ],
+  [
+    'arc',
+    withGlobals({
+      order: {
+        description: 'Node ordering',
+        values: ['appearance', 'name', 'group', 'degree'],
+      },
+    }),
+  ],
   ['timeline', withGlobals()],
-  ['venn', withGlobals({
-    values: { description: 'Show values', values: ['on', 'off'] },
-  })],
-  ['quadrant', withGlobals({
-    'x-axis': { description: 'X-axis labels (low, high)' },
-    'y-axis': { description: 'Y-axis labels (low, high)' },
-  })],
+  ['venn', withGlobals()],
+  [
+    'quadrant',
+    withGlobals({
+      'x-axis': { description: 'X-axis labels (low, high)' },
+      'y-axis': { description: 'Y-axis labels (low, high)' },
+    }),
+  ],
 
   // ── Diagrams ─────────────────────────────────────────────
-  ['sequence', withGlobals({
-    activations: { description: 'Show activation bars', values: ['on', 'off'] },
-    'collapse-notes': { description: 'Collapse note blocks', values: ['yes', 'no'] },
-    'active-tag': { description: 'Active tag group name' },
-  })],
-  ['flowchart', withGlobals({
-    'direction-tb': { description: 'Switch to top-to-bottom layout' },
-  })],
-  ['class', withGlobals({
-    'no-auto-color': { description: 'Disable automatic modifier-based coloring' },
-  })],
+  [
+    'sequence',
+    withGlobals({
+      activations: {
+        description: 'Show activation bars',
+        values: ['on', 'off'],
+      },
+      'collapse-notes': {
+        description: 'Collapse note blocks',
+        values: ['yes', 'no'],
+      },
+      'active-tag': { description: 'Active tag group name' },
+    }),
+  ],
+  [
+    'flowchart',
+    withGlobals({
+      'direction-tb': { description: 'Switch to top-to-bottom layout' },
+    }),
+  ],
+  [
+    'class',
+    withGlobals({
+      'no-auto-color': {
+        description: 'Disable automatic modifier-based coloring',
+      },
+    }),
+  ],
   ['er', withGlobals()],
-  ['org', withGlobals({
-    'sub-node-label': { description: 'Label for sub-nodes' },
-    'show-sub-node-count': { description: 'Show sub-node counts' },
-  })],
-  ['kanban', withGlobals({
-    'no-auto-color': { description: 'Disable automatic card coloring' },
-  })],
+  [
+    'org',
+    withGlobals({
+      'sub-node-label': { description: 'Label for sub-nodes' },
+      'show-sub-node-count': { description: 'Show sub-node counts' },
+    }),
+  ],
+  [
+    'kanban',
+    withGlobals({
+      'no-auto-color': { description: 'Disable automatic card coloring' },
+    }),
+  ],
   ['c4', withGlobals()],
   ['initiative-status', withGlobals()],
-  ['state', withGlobals({
-    'direction-tb': { description: 'Switch to top-to-bottom layout' },
-    color: { description: 'Color mode', values: ['off'] },
-  })],
-  ['sitemap', withGlobals({
-    'direction-tb': { description: 'Switch to top-to-bottom layout' },
-  })],
-  ['infra', withGlobals({
-    'direction-tb': { description: 'Switch to top-to-bottom layout' },
-    'default-latency-ms': { description: 'Default latency for all nodes' },
-    'default-uptime': { description: 'Default uptime for all nodes' },
-    'default-rps': { description: 'Default RPS capacity for all nodes' },
-    'slo-availability': { description: 'SLO availability target (0-1)' },
-    'slo-p90-latency-ms': { description: 'SLO p90 latency target in ms' },
-    'slo-warning-margin': { description: 'SLO warning margin percentage' },
-  })],
-  ['gantt', withGlobals({
-    start: { description: 'Project start date (YYYY-MM-DD)' },
-    'today-marker': { description: 'Today marker (bare = on, or YYYY-MM-DD date)' },
-    sort: { description: 'Sort order', values: ['time', 'group', 'tag'] },
-    'critical-path': { description: 'Show critical path' },
-    dependencies: { description: 'Show dependencies' },
-  })],
+  [
+    'state',
+    withGlobals({
+      'direction-tb': { description: 'Switch to top-to-bottom layout' },
+      color: { description: 'Color mode', values: ['off'] },
+    }),
+  ],
+  [
+    'sitemap',
+    withGlobals({
+      'direction-tb': { description: 'Switch to top-to-bottom layout' },
+    }),
+  ],
+  [
+    'infra',
+    withGlobals({
+      'direction-tb': { description: 'Switch to top-to-bottom layout' },
+      animate: { description: 'Enable traffic animation' },
+      'no-animate': { description: 'Disable traffic animation' },
+      'default-latency-ms': { description: 'Default latency for all nodes' },
+      'default-uptime': { description: 'Default uptime for all nodes' },
+      'default-rps': { description: 'Default RPS capacity for all nodes' },
+      'slo-availability': { description: 'SLO availability target (0-1)' },
+      'slo-p90-latency-ms': { description: 'SLO p90 latency target in ms' },
+      'slo-warning-margin': { description: 'SLO warning margin percentage' },
+    }),
+  ],
+  [
+    'gantt',
+    withGlobals({
+      start: { description: 'Project start date (YYYY-MM-DD)' },
+      'today-marker': {
+        description: 'Today marker (bare = on, or YYYY-MM-DD date)',
+      },
+      sort: { description: 'Sort order', values: ['time', 'group', 'tag'] },
+      'critical-path': { description: 'Show critical path' },
+      dependencies: { description: 'Show dependencies' },
+    }),
+  ],
 ]);
 
 // ============================================================
@@ -266,12 +359,13 @@ const CHART_TYPE_DESCRIPTIONS: Record<string, string> = {
 };
 
 /** All chart types with descriptions, for chart type autocomplete. Excludes `multi-line` alias. */
-export const CHART_TYPES: ReadonlyArray<{ name: string; description: string }> = [...ALL_CHART_TYPES]
-  .filter(t => t !== 'multi-line')
-  .map(name => ({
-    name,
-    description: CHART_TYPE_DESCRIPTIONS[name] ?? name,
-  }));
+export const CHART_TYPES: ReadonlyArray<{ name: string; description: string }> =
+  [...ALL_CHART_TYPES]
+    .filter((t) => t !== 'multi-line')
+    .map((name) => ({
+      name,
+      description: CHART_TYPE_DESCRIPTIONS[name] ?? name,
+    }));
 
 // ============================================================
 // Entity types for `is a` declarations
@@ -283,8 +377,24 @@ export const CHART_TYPES: ReadonlyArray<{ name: string; description: string }> =
  * C4_IS_A_RE).
  */
 export const ENTITY_TYPES = new Map<string, string[]>([
-  ['sequence', ['service', 'database', 'actor', 'queue', 'cache', 'gateway', 'external', 'networking', 'frontend']],
-  ['c4', ['person', 'system', 'container', 'component', 'external', 'database']],
+  [
+    'sequence',
+    [
+      'service',
+      'database',
+      'actor',
+      'queue',
+      'cache',
+      'gateway',
+      'external',
+      'networking',
+      'frontend',
+    ],
+  ],
+  [
+    'c4',
+    ['person', 'system', 'container', 'component', 'external', 'database'],
+  ],
 ]);
 
 // ============================================================
@@ -305,53 +415,96 @@ export interface PipeKeySpec {
  * diagrams separates display names from identifiers and tag metadata.
  * Adding sequence would trigger false pipe-metadata completions on every `|`.
  */
-export const PIPE_METADATA = new Map<string, {
-  node: Record<string, PipeKeySpec>;
-  edge: Record<string, PipeKeySpec>;
-}>([
-  ['infra', {
-    node: {
-      description: { description: 'Node description text' },
-      instances: { description: 'Instance count or auto-scaling range (N-M)' },
-      'latency-ms': { description: 'Per-request latency in milliseconds' },
-      'max-rps': { description: 'Max requests per second per instance' },
-      'cache-hit': { description: 'Cache hit percentage (0-100)' },
-      'firewall-block': { description: 'Traffic blocked percentage' },
-      'ratelimit-rps': { description: 'Max RPS allowed through' },
-      'cb-error-threshold': { description: 'Circuit breaker error threshold %' },
-      'cb-latency-threshold-ms': { description: 'Circuit breaker latency threshold' },
-      uptime: { description: 'Component availability (0-1)' },
-      concurrency: { description: 'Concurrent request limit' },
-      'duration-ms': { description: 'Processing duration' },
-      'cold-start-ms': { description: 'Function cold-start time' },
-      buffer: { description: 'Queue/buffer capacity' },
-      'drain-rate': { description: 'Queue drain rate' },
-      'retention-hours': { description: 'Data retention period' },
-      partitions: { description: 'Queue/stream partition count' },
-      'slo-availability': { description: 'Node availability target (0-1)' },
-      'slo-p90-latency-ms': { description: 'Node p90 latency target' },
-      'slo-warning-margin': { description: 'Node SLO warning margin' },
+export const PIPE_METADATA = new Map<
+  string,
+  {
+    node: Record<string, PipeKeySpec>;
+    edge: Record<string, PipeKeySpec>;
+  }
+>([
+  [
+    'infra',
+    {
+      node: {
+        description: { description: 'Node description text' },
+        instances: {
+          description: 'Instance count or auto-scaling range (N-M)',
+        },
+        'latency-ms': { description: 'Per-request latency in milliseconds' },
+        'max-rps': { description: 'Max requests per second per instance' },
+        'cache-hit': { description: 'Cache hit percentage (0-100)' },
+        'firewall-block': { description: 'Traffic blocked percentage' },
+        'ratelimit-rps': { description: 'Max RPS allowed through' },
+        'cb-error-threshold': {
+          description: 'Circuit breaker error threshold %',
+        },
+        'cb-latency-threshold-ms': {
+          description: 'Circuit breaker latency threshold',
+        },
+        uptime: { description: 'Component availability (0-1)' },
+        concurrency: { description: 'Concurrent request limit' },
+        'duration-ms': { description: 'Processing duration' },
+        'cold-start-ms': { description: 'Function cold-start time' },
+        buffer: { description: 'Queue/buffer capacity' },
+        'drain-rate': { description: 'Queue drain rate' },
+        'retention-hours': { description: 'Data retention period' },
+        partitions: { description: 'Queue/stream partition count' },
+        'slo-availability': { description: 'Node availability target (0-1)' },
+        'slo-p90-latency-ms': { description: 'Node p90 latency target' },
+        'slo-warning-margin': { description: 'Node SLO warning margin' },
+      },
+      edge: {
+        split: { description: 'Traffic split percentage (e.g., 60%)' },
+        fanout: { description: 'Fanout multiplier (integer >= 1)' },
+      },
     },
-    edge: {
-      split: { description: 'Traffic split percentage (e.g., 60%)' },
-      fanout: { description: 'Fanout multiplier (integer >= 1)' },
+  ],
+  [
+    'c4',
+    {
+      node: {
+        description: { description: 'Element description' },
+        tech: { description: 'Technology stack' },
+        technology: { description: 'Technology stack (alias for tech)' },
+      },
+      edge: {},
     },
-  }],
-  ['c4', {
-    node: {
-      description: { description: 'Element description' },
-      tech: { description: 'Technology stack' },
-      technology: { description: 'Technology stack (alias for tech)' },
+  ],
+  [
+    'gantt',
+    {
+      node: {},
+      edge: {
+        // Gantt "edge" = dependency arrow (TaskA -> TaskB | offset 2bd)
+        offset: { description: 'Dependency offset (e.g., 2bd, -1w)' },
+      },
     },
-    edge: {},
-  }],
-  ['gantt', {
-    node: {},
-    edge: {
-      // Gantt "edge" = dependency arrow (TaskA -> TaskB | offset 2bd)
-      offset: { description: 'Dependency offset (e.g., 2bd, -1w)' },
+  ],
+  [
+    'initiative-status',
+    {
+      node: {
+        done: { description: 'Completed' },
+        doing: { description: 'In progress' },
+        todo: { description: 'Not started' },
+        blocked: { description: 'Blocked' },
+        na: { description: 'Not applicable' },
+        wip: { description: 'Work in progress (alias for doing)' },
+        paused: { description: 'Paused (alias for blocked)' },
+        waiting: { description: 'Waiting (alias for blocked)' },
+      },
+      edge: {
+        done: { description: 'Completed' },
+        doing: { description: 'In progress' },
+        todo: { description: 'Not started' },
+        blocked: { description: 'Blocked' },
+        na: { description: 'Not applicable' },
+        wip: { description: 'Work in progress (alias for doing)' },
+        paused: { description: 'Paused (alias for blocked)' },
+        waiting: { description: 'Waiting (alias for blocked)' },
+      },
     },
-  }],
+  ],
 ]);
 
 // ============================================================
@@ -360,8 +513,11 @@ export const PIPE_METADATA = new Map<string, {
 
 /** All known directive keys, derived from COMPLETION_REGISTRY. Includes implicit keys. */
 export const METADATA_KEY_SET: ReadonlySet<string> = new Set([
-  'chart', 'title', // implicit directives recognized as metadata
-  ...[...COMPLETION_REGISTRY.values()].flatMap(spec => Object.keys(spec.directives)),
+  'chart',
+  'title', // implicit directives recognized as metadata
+  ...[...COMPLETION_REGISTRY.values()].flatMap((spec) =>
+    Object.keys(spec.directives)
+  ),
 ]);
 
 // ============================================================
@@ -484,7 +640,8 @@ export function extractTagDeclarations(docText: string): Map<string, string[]> {
     const trimmed = raw.trim();
 
     // Check for tag declaration — try explicit `alias` keyword first, then shorthand
-    const tagMatch = trimmed.match(TAG_DECL_EXPLICIT_RE) ?? trimmed.match(TAG_DECL_SHORT_RE);
+    const tagMatch =
+      trimmed.match(TAG_DECL_EXPLICIT_RE) ?? trimmed.match(TAG_DECL_SHORT_RE);
     if (tagMatch) {
       // Save previous tag group
       if (currentAlias !== null) {
@@ -507,11 +664,16 @@ export function extractTagDeclarations(docText: string): Map<string, string[]> {
     }
 
     // Collect indented tag values
-    if (currentAlias !== null && raw.length > 0 && (raw[0] === ' ' || raw[0] === '\t')) {
+    if (
+      currentAlias !== null &&
+      raw.length > 0 &&
+      (raw[0] === ' ' || raw[0] === '\t')
+    ) {
       if (trimmed && !trimmed.startsWith('//')) {
         // Strip color annotation: Frontend(blue) → Frontend
         const colorIdx = trimmed.indexOf('(');
-        const value = colorIdx > 0 ? trimmed.substring(0, colorIdx).trim() : trimmed;
+        const value =
+          colorIdx > 0 ? trimmed.substring(0, colorIdx).trim() : trimmed;
         if (value) currentValues.push(value);
       }
       continue;
@@ -563,7 +725,10 @@ function extractSitemapSymbols(docText: string): DiagramSymbols {
     if (METADATA_KEY_SET.has(firstToken)) continue;
 
     // Track tag blocks
-    if (/^tag\s+/i.test(trimmed)) { inTagBlock = true; continue; }
+    if (/^tag\s+/i.test(trimmed)) {
+      inTagBlock = true;
+      continue;
+    }
     const indent = line.search(/\S/);
     if (inTagBlock) {
       if (indent > 0) continue;
@@ -583,13 +748,20 @@ function extractSitemapSymbols(docText: string): DiagramSymbols {
     const bareArrow = trimmed.match(SITEMAP_BARE_ARROW_RE);
     const labeledArrow = !bareArrow ? trimmed.match(SITEMAP_ARROW_RE) : null;
     if (bareArrow || labeledArrow) {
-      const target = (bareArrow?.[1] ?? labeledArrow?.[1] ?? '').split('|')[0].trim();
+      const target = (bareArrow?.[1] ?? labeledArrow?.[1] ?? '')
+        .split('|')[0]
+        .trim();
       if (target && !entities.includes(target)) entities.push(target);
       continue;
     }
 
     // Indented metadata under a node (key: value) — skip
-    if (indent > 0 && lastNodeIndent >= 0 && indent > lastNodeIndent && SITEMAP_METADATA_RE.test(trimmed)) {
+    if (
+      indent > 0 &&
+      lastNodeIndent >= 0 &&
+      indent > lastNodeIndent &&
+      SITEMAP_METADATA_RE.test(trimmed)
+    ) {
       continue;
     }
 
@@ -609,8 +781,10 @@ function extractSitemapSymbols(docText: string): DiagramSymbols {
 // ============================================================
 
 const C4_ELEMENT_RE = /^(person|system|container|component)\s+(.+)$/i;
-const C4_IS_A_RE = /^(.+?)\s+is\s+an?\s+(person|system|container|component|external|database)\b/i;
-const C4_ARROW_RE = /^(\S+)\s+(?:->|-[^>\s]*->|~>|~[^>\s]*~>|<->|<-[^>\s]*->|<~>|<~[^>\s]*~>)\s+(\S+)/;
+const C4_IS_A_RE =
+  /^(.+?)\s+is\s+an?\s+(person|system|container|component|external|database)\b/i;
+const C4_ARROW_RE =
+  /^(\S+)\s+(?:->|-[^>\s]*->|~>|~[^>\s]*~>|<->|<-[^>\s]*->|<~>|<~[^>\s]*~>)\s+(\S+)/;
 const C4_SECTION_RE = /^(containers|components|deployment)\s*$/i;
 
 function extractC4Symbols(docText: string): DiagramSymbols {
@@ -631,7 +805,10 @@ function extractC4Symbols(docText: string): DiagramSymbols {
     const firstToken = trimmed.split(/\s+/)[0].toLowerCase();
     if (METADATA_KEY_SET.has(firstToken)) continue;
 
-    if (/^tag\s+/i.test(trimmed)) { inTagBlock = true; continue; }
+    if (/^tag\s+/i.test(trimmed)) {
+      inTagBlock = true;
+      continue;
+    }
     const indent = line.search(/\S/);
     if (inTagBlock) {
       if (indent > 0) continue;
@@ -668,7 +845,11 @@ function extractC4Symbols(docText: string): DiagramSymbols {
     }
   }
 
-  return { kind: 'c4', entities, keywords: ['containers', 'components', 'deployment'] };
+  return {
+    kind: 'c4',
+    entities,
+    keywords: ['containers', 'components', 'deployment'],
+  };
 }
 
 // ============================================================
@@ -678,7 +859,7 @@ function extractC4Symbols(docText: string): DiagramSymbols {
 const GANTT_DURATION_RE = /^(\d+(?:\.\d+)?)(min|bd|d|w|m|q|y|h)\??\s+(.+)$/;
 const GANTT_DATE_RE = /^(\d{4}-\d{2}-\d{2}(?:\s\d{2}:\d{2})?)\s+(.+)$/;
 const GANTT_GROUP_RE = /^\[(.+?)\]/;
-const GANTT_STRUCTURAL_RE = /^(era|marker|holidays|workweek|parallel)\b/i;
+const GANTT_STRUCTURAL_RE = /^(era|marker|holiday|workweek|parallel)\b/i;
 
 function extractGanttSymbols(docText: string): DiagramSymbols {
   const lines = docText.split('\n');
@@ -698,7 +879,10 @@ function extractGanttSymbols(docText: string): DiagramSymbols {
     const firstToken = trimmed.split(/\s+/)[0].toLowerCase();
     if (METADATA_KEY_SET.has(firstToken)) continue;
 
-    if (/^tag\s+/i.test(trimmed)) { inTagBlock = true; continue; }
+    if (/^tag\s+/i.test(trimmed)) {
+      inTagBlock = true;
+      continue;
+    }
     const indent = line.search(/\S/);
     if (inTagBlock) {
       if (indent > 0) continue;
@@ -723,7 +907,11 @@ function extractGanttSymbols(docText: string): DiagramSymbols {
       let taskName = durMatch[3].split('|')[0].trim();
       // Remove trailing dependency: "Task Name -> Other" → "Task Name"
       const arrowIdx = taskName.indexOf('->');
-      if (arrowIdx > 0) taskName = taskName.substring(0, arrowIdx).replace(/-[^>]*$/, '').trim();
+      if (arrowIdx > 0)
+        taskName = taskName
+          .substring(0, arrowIdx)
+          .replace(/-[^>]*$/, '')
+          .trim();
       if (taskName && !entities.includes(taskName)) entities.push(taskName);
       continue;
     }
@@ -733,7 +921,11 @@ function extractGanttSymbols(docText: string): DiagramSymbols {
     if (dateMatch) {
       let taskName = dateMatch[2].split('|')[0].trim();
       const arrowIdx = taskName.indexOf('->');
-      if (arrowIdx > 0) taskName = taskName.substring(0, arrowIdx).replace(/-[^>]*$/, '').trim();
+      if (arrowIdx > 0)
+        taskName = taskName
+          .substring(0, arrowIdx)
+          .replace(/-[^>]*$/, '')
+          .trim();
       if (taskName && !entities.includes(taskName)) entities.push(taskName);
       continue;
     }
@@ -766,7 +958,10 @@ function extractInitiativeStatusSymbols(docText: string): DiagramSymbols {
     const firstToken = trimmed.split(/\s+/)[0].toLowerCase();
     if (METADATA_KEY_SET.has(firstToken)) continue;
 
-    if (/^tag\s+/i.test(trimmed)) { inTagBlock = true; continue; }
+    if (/^tag\s+/i.test(trimmed)) {
+      inTagBlock = true;
+      continue;
+    }
     const indent = line.search(/\S/);
     if (inTagBlock) {
       if (indent > 0) continue;
