@@ -1401,7 +1401,7 @@ function buildScatterOption(
 
   const gridLeft = parsed.ylabel ? 12 : 3;
   const gridRight = 4;
-  const gridBottom = parsed.xlabel ? 10 : 3;
+  const gridBottom = hasCategories ? 15 : parsed.xlabel ? 10 : 3;
   const gridTop = parsed.title ? 15 : 5;
 
   // Compute custom label graphics for SSR when labels are enabled
@@ -1450,9 +1450,18 @@ function buildScatterOption(
     );
   }
 
+  // Build legend for categorized scatter charts
+  const categories = hasCategories
+    ? [...new Set(points.map((p) => p.category).filter(Boolean))] as string[]
+    : [];
+  const legendConfig = categories.length > 0
+    ? { data: categories, bottom: 10, textStyle: { color: textColor } }
+    : undefined;
+
   return {
     ...CHART_BASE,
     title: titleConfig,
+    ...(legendConfig && { legend: legendConfig }),
     tooltip,
     grid: {
       left: `${gridLeft}%`,
