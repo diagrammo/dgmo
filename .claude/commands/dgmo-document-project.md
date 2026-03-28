@@ -1,4 +1,4 @@
-# /document-project — Generate Diagrams for a Codebase
+# /dgmo-document-project — Generate Diagrams for a Codebase
 
 You are generating a suite of DGMO diagrams that document the user's project. Your goal is to read the codebase, understand its architecture, and produce 3–6 diagrams that capture how the system works.
 
