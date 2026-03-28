@@ -1168,19 +1168,19 @@ navigation 88
 - Data: space-separated only (`word value`)
 - Options: `rotate none|mixed|angled`, `max N`, `size min max`
 
-### 16.3 Arc Diagrams (Colon Before Weight)
+### 16.3 Arc Diagrams
 
 ```
 arc Pirate Alliances
 
 [Caribbean](red)
-  Blackbeard -> Bonnet: 8
-  Blackbeard -> Vane: 5
+  Blackbeard -> Bonnet 8
+  Blackbeard -> Vane 5
 
 order group
 ```
 
-- Link: `Source -> Target: weight` — colon before optional weight
+- Link: `Source -> Target weight` — space before optional weight
 - Options: `order appearance|name|group|degree`
 
 ### 16.4 Venn Diagrams
@@ -1199,25 +1199,25 @@ sw + nav + lead Legendary Pirates
 - Set declaration: `Name(color) alias X`
 - Intersections: `Set1 + Set2 Label` — label follows the last set reference (no colon)
 
-### 16.5 Quadrant Diagrams (Colon REQUIRED)
+### 16.5 Quadrant Diagrams
 
 ```
 quadrant Crew Assessment
-x-axis: Low Skill, High Skill
-y-axis: Low Loyalty, High Loyalty
+x-axis Low Skill, High Skill
+y-axis Low Loyalty, High Loyalty
 
-top-right: Promote (green)
-top-left: Train (yellow)
-bottom-left: Maroon (red)
-bottom-right: Watch Closely (purple)
+top-right Promote (green)
+top-left Train (yellow)
+bottom-left Maroon (red)
+bottom-right Watch Closely (purple)
 
-Quartermaster: 0.9 0.95
-Navigator: 0.85 0.8
+Quartermaster 0.9, 0.95
+Navigator 0.85, 0.8
 ```
 
-- Axis labels: `x-axis: Low, High` — colon required
-- Position labels: `top-right: Label` — colon required
-- Data points: `Label: x y` — colon required, commas between values optional
+- Axis labels: `x-axis Low, High` — space-separated
+- Position labels: `top-right Label` — space-separated
+- Data points: `Label x, y` — space-separated, comma between coordinates
 - Thousands commas supported in values
 
 ---
@@ -1235,10 +1235,6 @@ Navigator: 0.85 0.8
 | Class method returns | class | `+ sail(): void` |
 | Function expressions | function | `f(x): x^2 + 1` |
 | Slope data rows | slope | `Blackbeard: 40 4` |
-| Quadrant axes | quadrant | `x-axis: Low, High` |
-| Quadrant positions | quadrant | `top-right: Promote` |
-| Quadrant data points | quadrant | `Quartermaster: 0.9 0.8` |
-| Arc link weight | arc | `Source -> Target: 8` |
 | Hide tag values | initiative-status | `hide phase:Planning` |
 
 ### Colons OPTIONAL

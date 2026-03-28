@@ -1,5 +1,5 @@
 arc Microservice Dependencies
-order: group
+order group
 
 [Frontend]
   WebApp -> API Gateway 5

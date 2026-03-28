@@ -639,10 +639,10 @@ export function parseVisualization(
       currentTimelineGroup = null;
     }
 
-    // Arc link line: source -> target(color): weight
+    // Arc link line: source -> target(color) weight
     if (result.type === 'arc') {
       const linkMatch = line.match(
-        /^(.+?)\s*->\s*(.+?)(?:\(([^)]+)\))?\s*(?::\s*(\d+(?:\.\d+)?))?$/
+        /^(.+?)\s*->\s*(.+?)(?:\(([^)]+)\))?\s*(?:\s+(\d+(?:\.\d+)?))?$/
       );
       if (linkMatch) {
         const source = linkMatch[1].trim();
@@ -962,8 +962,8 @@ export function parseVisualization(
 
     // Quadrant-specific parsing
     if (result.type === 'quadrant') {
-      // x-axis: Low, High  — or indented multi-line
-      const xAxisMatch = line.match(/^x-axis\s*:\s*(.*)/i);
+      // x-axis Low, High  — or indented multi-line
+      const xAxisMatch = line.match(/^x-axis\s+(.*)/i);
       if (xAxisMatch) {
         const val = xAxisMatch[1].trim();
         let parts: string[];
@@ -981,8 +981,8 @@ export function parseVisualization(
         continue;
       }
 
-      // y-axis: Low, High  — or indented multi-line
-      const yAxisMatch = line.match(/^y-axis\s*:\s*(.*)/i);
+      // y-axis Low, High  — or indented multi-line
+      const yAxisMatch = line.match(/^y-axis\s+(.*)/i);
       if (yAxisMatch) {
         const val = yAxisMatch[1].trim();
         let parts: string[];
@@ -1000,9 +1000,9 @@ export function parseVisualization(
         continue;
       }
 
-      // Quadrant position labels: top-right: Label (color)
+      // Quadrant position labels: top-right Label (color)
       const quadrantLabelRe =
-        /^(top-right|top-left|bottom-left|bottom-right)\s*:\s*(.+)/i;
+        /^(top-right|top-left|bottom-left|bottom-right)\s+(.+)/i;
       const quadrantMatch = line.match(quadrantLabelRe);
       if (quadrantMatch) {
         const position = quadrantMatch[1].toLowerCase();
@@ -1024,9 +1024,9 @@ export function parseVisualization(
         continue;
       }
 
-      // Data points: Label: x, y
+      // Data points: Label x, y
       const pointMatch = line.match(
-        /^(.+?):\s*([0-9]*\.?[0-9]+)\s*,\s*([0-9]*\.?[0-9]+)\s*$/
+        /^(.+?)\s+([0-9]*\.?[0-9]+)\s*,\s*([0-9]*\.?[0-9]+)\s*$/
       );
       if (pointMatch) {
         const label = pointMatch[1].trim();
@@ -1298,7 +1298,7 @@ export function parseVisualization(
     if (result.links.length === 0) {
       warn(
         1,
-        'No links found. Add links as "Source -> Target: weight" (e.g., "Alice -> Bob: 5")'
+        'No links found. Add links as "Source -> Target weight" (e.g., "Alice -> Bob 5")'
       );
     }
     // Validate arc ordering vs groups
@@ -1306,7 +1306,7 @@ export function parseVisualization(
       if (result.arcOrder === 'name' || result.arcOrder === 'degree') {
         warn(
           1,
-          `Cannot use "order: ${result.arcOrder}" with [Group] headers. Use "order: group" or remove group headers.`
+          `Cannot use "order ${result.arcOrder}" with [Group] headers. Use "order group" or remove group headers.`
         );
         result.arcOrder = 'group';
       }
@@ -1403,7 +1403,7 @@ export function parseVisualization(
     if (result.quadrantPoints.length === 0) {
       warn(
         1,
-        'No data points found. Add points as "Label: x, y" (e.g., "Item A: 0.5, 0.7")'
+        'No data points found. Add points as "Label x, y" (e.g., "Item A 0.5, 0.7")'
       );
     }
     return result;

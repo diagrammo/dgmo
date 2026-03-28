@@ -39,11 +39,11 @@ export interface ParsedQuadrant {
 // Parser
 // ============================================================
 
-/** Regex for quadrant label lines: `top-right: Promote (green)` */
+/** Regex for quadrant label lines: `top-right Promote (green)` */
 const QUADRANT_LABEL_RE = /^(.+?)(?:\s*\(([^)]+)\))?\s*$/;
 
-/** Regex for data point lines: `Label: 0.9, 0.5` */
-const DATA_POINT_RE = /^(.+?):\s*([0-9]*\.?[0-9]+)\s*,\s*([0-9]*\.?[0-9]+)\s*$/;
+/** Regex for data point lines: `Label 0.9, 0.5` */
+const DATA_POINT_RE = /^(.+?)\s+([0-9]*\.?[0-9]+)\s*,\s*([0-9]*\.?[0-9]+)\s*$/;
 
 const QUADRANT_POSITIONS = new Set([
   'top-right',
@@ -87,16 +87,16 @@ export function parseQuadrant(content: string): ParsedQuadrant {
     // Skip the chart: directive (already consumed by router)
     if (/^chart\s*:/i.test(line)) continue;
 
-    // title: <text>
-    const titleMatch = line.match(/^title\s*:\s*(.+)/i);
+    // title <text>
+    const titleMatch = line.match(/^title\s+(.+)/i);
     if (titleMatch) {
       result.title = titleMatch[1].trim();
       result.titleLineNumber = lineNumber;
       continue;
     }
 
-    // x-axis: Low, High
-    const xMatch = line.match(/^x-axis\s*:\s*(.+)/i);
+    // x-axis Low, High
+    const xMatch = line.match(/^x-axis\s+(.+)/i);
     if (xMatch) {
       const parts = xMatch[1].split(',').map((s) => s.trim());
       if (parts.length >= 2) {
@@ -106,8 +106,8 @@ export function parseQuadrant(content: string): ParsedQuadrant {
       continue;
     }
 
-    // y-axis: Low, High
-    const yMatch = line.match(/^y-axis\s*:\s*(.+)/i);
+    // y-axis Low, High
+    const yMatch = line.match(/^y-axis\s+(.+)/i);
     if (yMatch) {
       const parts = yMatch[1].split(',').map((s) => s.trim());
       if (parts.length >= 2) {
@@ -117,9 +117,9 @@ export function parseQuadrant(content: string): ParsedQuadrant {
       continue;
     }
 
-    // Quadrant position labels: top-right: Label (color)
+    // Quadrant position labels: top-right Label (color)
     const posMatch = line.match(
-      /^(top-right|top-left|bottom-left|bottom-right)\s*:\s*(.+)/i
+      /^(top-right|top-left|bottom-left|bottom-right)\s+(.+)/i
     );
     if (posMatch) {
       const position = posMatch[1].toLowerCase();
@@ -140,7 +140,7 @@ export function parseQuadrant(content: string): ParsedQuadrant {
       continue;
     }
 
-    // Data points: Label: x, y
+    // Data points: Label x, y
     const pointMatch = line.match(DATA_POINT_RE);
     if (pointMatch) {
       // Make sure this isn't a quadrant position keyword
@@ -158,7 +158,10 @@ export function parseQuadrant(content: string): ParsedQuadrant {
   }
 
   if (result.points.length === 0) {
-    const diag = makeDgmoError(1, 'No data points found. Add lines like: Label: 0.5, 0.7');
+    const diag = makeDgmoError(
+      1,
+      'No data points found. Add lines like: Label 0.5, 0.7'
+    );
     result.diagnostics.push(diag);
     result.error = formatDgmoError(diag);
   }

@@ -55,9 +55,9 @@ test 60
 data 40`,
 
   arc: `arc
-A -> B: 5
-B -> C: 3
-C -> A: 2`,
+A -> B 5
+B -> C 3
+C -> A 2`,
 
   timeline: `timeline
 2020-01 Project Start
@@ -72,8 +72,8 @@ Apples + Oranges: Cider`,
   quadrant: `quadrant
 xlabel Effort
 ylabel Impact
-High Impact, Low Effort: 20, 80
-Low Impact, High Effort: 80, 20`,
+High Impact, Low Effort 20, 80
+Low Impact, High Effort 80, 20`,
 
   flowchart: `flowchart
 (Start) -> [Process] -> <Check?>
@@ -147,7 +147,23 @@ start 2024-01-15
 };
 
 // All D3 types now render in JSDOM via explicit dimensions (Epic 41)
-const D3_TYPES = ['sequence', 'slope', 'arc', 'timeline', 'venn', 'quadrant', 'flowchart', 'org', 'kanban', 'c4', 'initiative-status', 'state', 'sitemap', 'infra', 'gantt'];
+const D3_TYPES = [
+  'sequence',
+  'slope',
+  'arc',
+  'timeline',
+  'venn',
+  'quadrant',
+  'flowchart',
+  'org',
+  'kanban',
+  'c4',
+  'initiative-status',
+  'state',
+  'sitemap',
+  'infra',
+  'gantt',
+];
 
 // Wordcloud requires HTMLCanvasElement.getContext('2d') for d3-cloud text measurement —
 // not available in JSDOM without the `canvas` npm package.
