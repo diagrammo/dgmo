@@ -1,7 +1,11 @@
 import { resolveColor } from '../colors';
 import type { PaletteColors } from '../palettes';
-import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
-import { measureIndent, parseFirstLine, OPTION_NOCOLON_RE } from '../utils/parsing';
+import { makeDgmoError, formatDgmoError } from '../diagnostics';
+import {
+  measureIndent,
+  parseFirstLine,
+  OPTION_NOCOLON_RE,
+} from '../utils/parsing';
 import type {
   ParsedClassDiagram,
   ClassNode,
@@ -35,11 +39,11 @@ const CLASS_DECL_RE =
 //   --|> TargetClass : label  (colon-separated, kept for transition)
 // Arrows: --|>  ..|>  *--  o--  ..>  ->
 const INDENT_REL_ARROW_RE =
-  /^(--\|>|\.\.\|>|\*--|o--|\.\.\>|->)\s*([A-Z][A-Za-z0-9_]*)(?:\s+:?\s*(.+))?$/;
+  /^(--\|>|\.\.\|>|\*--|o--|\.\.>|->)\s*([A-Z][A-Za-z0-9_]*)(?:\s+:?\s*(.+))?$/;
 
 // Legacy top-level relationship regex (used only for detection/rejection)
 const REL_ARROW_RE =
-  /^([A-Z][A-Za-z0-9_]*)\s*(--\|>|\.\.\|>|\*--|o--|\.\.\>|->)\s*([A-Z][A-Za-z0-9_]*)(?:\s+:?\s*(.+))?$/;
+  /^([A-Z][A-Za-z0-9_]*)\s*(--\|>|\.\.\|>|\*--|o--|\.\.>|->)\s*([A-Z][A-Za-z0-9_]*)(?:\s+:?\s*(.+))?$/;
 
 // Member line patterns
 const VISIBILITY_RE = /^([+\-#])\s*/;
@@ -160,7 +164,8 @@ export function parseClassDiagram(
     error: null,
   };
 
-  const fail = (line: number, message: string): ParsedClassDiagram => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _fail = (line: number, message: string): ParsedClassDiagram => {
     const diag = makeDgmoError(line, message);
     result.diagnostics.push(diag);
     result.error = formatDgmoError(diag);
@@ -281,8 +286,8 @@ export function parseClassDiagram(
         makeDgmoError(
           lineNumber,
           `Relationship "${sourceName} ${arrow} ${targetName}" must be indented under the source class "${sourceName}"`,
-          'warning',
-        ),
+          'warning'
+        )
       );
       continue;
     }
@@ -323,13 +328,20 @@ export function parseClassDiagram(
 
   // Validation
   if (result.classes.length === 0 && !result.error) {
-    const diag = makeDgmoError(1, 'No classes found. Add class declarations like "ClassName" or "ClassName [interface]".');
+    const diag = makeDgmoError(
+      1,
+      'No classes found. Add class declarations like "ClassName" or "ClassName [interface]".'
+    );
     result.diagnostics.push(diag);
     result.error = formatDgmoError(diag);
   }
 
   // Warn about isolated classes (not in any relationship)
-  if (result.classes.length >= 2 && result.relationships.length >= 1 && !result.error) {
+  if (
+    result.classes.length >= 2 &&
+    result.relationships.length >= 1 &&
+    !result.error
+  ) {
     const connectedIds = new Set<string>();
     for (const rel of result.relationships) {
       connectedIds.add(rel.source);
@@ -337,7 +349,13 @@ export function parseClassDiagram(
     }
     for (const cls of result.classes) {
       if (!connectedIds.has(cls.id)) {
-        result.diagnostics.push(makeDgmoError(cls.lineNumber, `Class "${cls.name}" is not connected to any other class`, 'warning'));
+        result.diagnostics.push(
+          makeDgmoError(
+            cls.lineNumber,
+            `Class "${cls.name}" is not connected to any other class`,
+            'warning'
+          )
+        );
       }
     }
   }
@@ -380,7 +398,9 @@ export function looksLikeClassDiagram(content: string): boolean {
         hasClassDecl = true;
       }
       // Check for old modifier pattern: ClassName [abstract|interface|enum]
-      if (/^[A-Z][A-Za-z0-9_]*\s+\[(abstract|interface|enum)\]/i.test(trimmed)) {
+      if (
+        /^[A-Z][A-Za-z0-9_]*\s+\[(abstract|interface|enum)\]/i.test(trimmed)
+      ) {
         hasModifier = true;
         hasClassDecl = true;
       }
@@ -435,7 +455,11 @@ export function extractSymbols(docText: string): DiagramSymbols {
   for (const rawLine of docText.split('\n')) {
     const line = rawLine.trim();
     // Skip old-style colon metadata and new-style first line / space-separated options
-    if (inMetadata && (/^[a-z-]+\s*:/i.test(line) || /^class(\s|$)/i.test(line))) continue;
+    if (
+      inMetadata &&
+      (/^[a-z-]+\s*:/i.test(line) || /^class(\s|$)/i.test(line))
+    )
+      continue;
     if (inMetadata && line.toLowerCase() === 'no-auto-color') continue;
     if (inMetadata && /^[a-z]/.test(line) && OPTION_NOCOLON_RE.test(line)) {
       const key = line.match(OPTION_NOCOLON_RE)![1].toLowerCase();

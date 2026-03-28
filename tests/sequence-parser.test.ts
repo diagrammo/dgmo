@@ -26,12 +26,16 @@ describe('old syntax produces errors', () => {
 
   it('<-> gives error', () => {
     const result = parseSequenceDgmo('A -setup-> B\nA <-> B');
-    expect(result.error).toMatch(/Bidirectional arrows are no longer supported/);
+    expect(result.error).toMatch(
+      /Bidirectional arrows are no longer supported/
+    );
   });
 
   it('<~> gives error', () => {
     const result = parseSequenceDgmo('A -setup-> B\nA <~> B');
-    expect(result.error).toMatch(/Bidirectional arrows are no longer supported/);
+    expect(result.error).toMatch(
+      /Bidirectional arrows are no longer supported/
+    );
   });
 
   it('<-label-> gives error', () => {
@@ -102,26 +106,42 @@ describe('labeled call arrows', () => {
 
   it('auto-registers participants', () => {
     const result = parseSequenceDgmo('Frontend -fetch-> Backend');
-    expect(result.participants.map((p) => p.id)).toEqual(['Frontend', 'Backend']);
+    expect(result.participants.map((p) => p.id)).toEqual([
+      'Frontend',
+      'Backend',
+    ]);
   });
 
   describe('whitespace is optional around labeled arrows', () => {
     it('no spaces: User-login->API', () => {
       const result = parseSequenceDgmo('User-login->API');
       expect(result.error).toBeNull();
-      expect(result.messages[0]).toMatchObject({ from: 'User', to: 'API', label: 'login' });
+      expect(result.messages[0]).toMatchObject({
+        from: 'User',
+        to: 'API',
+        label: 'login',
+      });
     });
 
     it('no leading space: User-login-> API', () => {
       const result = parseSequenceDgmo('User-login-> API');
       expect(result.error).toBeNull();
-      expect(result.messages[0]).toMatchObject({ from: 'User', to: 'API', label: 'login' });
+      expect(result.messages[0]).toMatchObject({
+        from: 'User',
+        to: 'API',
+        label: 'login',
+      });
     });
 
     it('async no spaces: API~event~>Queue', () => {
       const result = parseSequenceDgmo('API~event~>Queue');
       expect(result.error).toBeNull();
-      expect(result.messages[0]).toMatchObject({ from: 'API', to: 'Queue', label: 'event', async: true });
+      expect(result.messages[0]).toMatchObject({
+        from: 'API',
+        to: 'Queue',
+        label: 'event',
+        async: true,
+      });
     });
   });
 
@@ -129,13 +149,21 @@ describe('labeled call arrows', () => {
     it('hyphenated label: A -pre-process-> B', () => {
       const result = parseSequenceDgmo('A -pre-process-> B');
       expect(result.error).toBeNull();
-      expect(result.messages[0]).toMatchObject({ from: 'A', to: 'B', label: 'pre-process' });
+      expect(result.messages[0]).toMatchObject({
+        from: 'A',
+        to: 'B',
+        label: 'pre-process',
+      });
     });
 
     it('hyphenated to name: A -call-> my-api', () => {
       const result = parseSequenceDgmo('A -call-> my-api');
       expect(result.error).toBeNull();
-      expect(result.messages[0]).toMatchObject({ from: 'A', to: 'my-api', label: 'call' });
+      expect(result.messages[0]).toMatchObject({
+        from: 'A',
+        to: 'my-api',
+        label: 'call',
+      });
     });
   });
 });
@@ -199,13 +227,22 @@ describe('bare arrows', () => {
 
   it('A~>B with no spaces', () => {
     const result = parseSequenceDgmo('A~>B');
-    expect(result.messages[0]).toMatchObject({ from: 'A', to: 'B', label: '', async: true });
+    expect(result.messages[0]).toMatchObject({
+      from: 'A',
+      to: 'B',
+      label: '',
+      async: true,
+    });
   });
 
   it('hyphenated target with bare arrow: A -> my-svc', () => {
     const result = parseSequenceDgmo('A -> my-svc');
     expect(result.error).toBeNull();
-    expect(result.messages[0]).toMatchObject({ from: 'A', to: 'my-svc', label: '' });
+    expect(result.messages[0]).toMatchObject({
+      from: 'A',
+      to: 'my-svc',
+      label: '',
+    });
   });
 });
 
@@ -218,10 +255,30 @@ describe('render integration', () => {
     const steps = buildRenderSequence(parsed.messages);
     // B -response-> A is a nested call (B calls A back), with auto-returns
     expect(steps).toHaveLength(4);
-    expect(steps[0]).toMatchObject({ type: 'call', from: 'A', to: 'B', label: 'request' });
-    expect(steps[1]).toMatchObject({ type: 'call', from: 'B', to: 'A', label: 'response' });
-    expect(steps[2]).toMatchObject({ type: 'return', from: 'A', to: 'B', label: '' });
-    expect(steps[3]).toMatchObject({ type: 'return', from: 'B', to: 'A', label: '' });
+    expect(steps[0]).toMatchObject({
+      type: 'call',
+      from: 'A',
+      to: 'B',
+      label: 'request',
+    });
+    expect(steps[1]).toMatchObject({
+      type: 'call',
+      from: 'B',
+      to: 'A',
+      label: 'response',
+    });
+    expect(steps[2]).toMatchObject({
+      type: 'return',
+      from: 'A',
+      to: 'B',
+      label: '',
+    });
+    expect(steps[3]).toMatchObject({
+      type: 'return',
+      from: 'B',
+      to: 'A',
+      label: '',
+    });
   });
 
   it('call without explicit return produces auto-return', () => {
@@ -229,19 +286,30 @@ describe('render integration', () => {
     const steps = buildRenderSequence(parsed.messages);
     expect(steps).toHaveLength(2);
     expect(steps[0]).toMatchObject({ type: 'call', from: 'A', to: 'B' });
-    expect(steps[1]).toMatchObject({ type: 'return', from: 'B', to: 'A', label: '' });
+    expect(steps[1]).toMatchObject({
+      type: 'return',
+      from: 'B',
+      to: 'A',
+      label: '',
+    });
   });
 
   it('forward-only multi-step flow', () => {
-    const parsed = parseSequenceDgmo([
-      'Client -login-> Server',
-      '  Server -query-> DB',
-      '  DB -rows-> Server',
-      'Server -token-> Client',
-    ].join('\n'));
+    const parsed = parseSequenceDgmo(
+      [
+        'Client -login-> Server',
+        '  Server -query-> DB',
+        '  DB -rows-> Server',
+        'Server -token-> Client',
+      ].join('\n')
+    );
     const steps = buildRenderSequence(parsed.messages);
     expect(steps.length).toBeGreaterThanOrEqual(4);
-    expect(steps[0]).toMatchObject({ type: 'call', from: 'Client', to: 'Server' });
+    expect(steps[0]).toMatchObject({
+      type: 'call',
+      from: 'Client',
+      to: 'Server',
+    });
   });
 
   it('async messages produce no activations', () => {
@@ -304,9 +372,7 @@ describe('Story 47.1 — syntax cleanup', () => {
   describe('# comment syntax removed', () => {
     it('rejects # as comment', () => {
       const result = parseSequenceDgmo('A -msg-> B\n# this is a comment');
-      expect(result.error).toMatch(
-        /Line 2.*Use \/\/ for comments/
-      );
+      expect(result.error).toMatch(/Line 2.*Use \/\/ for comments/);
       expect(result.diagnostics).toHaveLength(1);
       expect(result.diagnostics[0].message).toMatch(/Use \/\/ for comments/);
       expect(result.diagnostics[0].severity).toBe('error');
@@ -335,18 +401,24 @@ describe('Story 47.1 — syntax cleanup', () => {
         '[Backend(#ff6b6b)]\n  API\nAPI -query-> DB'
       );
       expect(result.error).toBeNull();
-      const warnings = result.diagnostics.filter(d => d.severity === 'warning');
-      expect(warnings.some(w => w.message.includes('color syntax removed'))).toBe(true);
+      const warnings = result.diagnostics.filter(
+        (d) => d.severity === 'warning'
+      );
+      expect(
+        warnings.some((w) => w.message.includes('color syntax removed'))
+      ).toBe(true);
       expect(result.groups[0].name).toBe('Backend');
     });
 
     it('warns on hex color in section divider', () => {
-      const result = parseSequenceDgmo(
-        'A -msg-> B\n== Phase 2(#abc123) =='
-      );
+      const result = parseSequenceDgmo('A -msg-> B\n== Phase 2(#abc123) ==');
       expect(result.error).toBeNull();
-      const warnings = result.diagnostics.filter(d => d.severity === 'warning');
-      expect(warnings.some(w => w.message.includes('color syntax removed'))).toBe(true);
+      const warnings = result.diagnostics.filter(
+        (d) => d.severity === 'warning'
+      );
+      expect(
+        warnings.some((w) => w.message.includes('color syntax removed'))
+      ).toBe(true);
       expect(result.sections[0].label).toBe('Phase 2');
     });
 
@@ -355,16 +427,20 @@ describe('Story 47.1 — syntax cleanup', () => {
         '[Backend(blue)]\n  API\nAPI -query-> DB'
       );
       expect(result.error).toBeNull();
-      const warnings = result.diagnostics.filter(d => d.severity === 'warning');
-      expect(warnings.some(w => w.message.includes('(blue)'))).toBe(true);
+      const warnings = result.diagnostics.filter(
+        (d) => d.severity === 'warning'
+      );
+      expect(warnings.some((w) => w.message.includes('(blue)'))).toBe(true);
       expect(result.groups[0].name).toBe('Backend');
     });
 
     it('warns on named color in section (no longer stored)', () => {
       const result = parseSequenceDgmo('A -msg-> B\n== Phase 2(teal) ==');
       expect(result.error).toBeNull();
-      const warnings = result.diagnostics.filter(d => d.severity === 'warning');
-      expect(warnings.some(w => w.message.includes('(teal)'))).toBe(true);
+      const warnings = result.diagnostics.filter(
+        (d) => d.severity === 'warning'
+      );
+      expect(warnings.some((w) => w.message.includes('(teal)'))).toBe(true);
       expect(result.sections[0].label).toBe('Phase 2');
     });
   });
@@ -372,7 +448,9 @@ describe('Story 47.1 — syntax cleanup', () => {
   describe('empty group warning', () => {
     it('suggests section syntax for empty group', () => {
       const result = parseSequenceDgmo('[EmptyGroup]\nA -> B: hello');
-      const warn = result.diagnostics.find(d => d.severity === 'warning' && d.message.includes('EmptyGroup'));
+      const warn = result.diagnostics.find(
+        (d) => d.severity === 'warning' && d.message.includes('EmptyGroup')
+      );
       expect(warn).toBeTruthy();
       expect(warn!.message).toContain('== EmptyGroup ==');
     });
@@ -385,9 +463,7 @@ describe('Story 47.1 — syntax cleanup', () => {
 describe('Story 47.2 — Parser tolerance', () => {
   describe('multi-word group names', () => {
     it('two-word group name', () => {
-      const result = parseSequenceDgmo(
-        '[Order Service]\n  API\n\nA -msg-> B'
-      );
+      const result = parseSequenceDgmo('[Order Service]\n  API\n\nA -msg-> B');
       expect(result.error).toBeNull();
       expect(result.groups).toHaveLength(1);
       expect(result.groups[0].name).toBe('Order Service');
@@ -399,22 +475,20 @@ describe('Story 47.2 — Parser tolerance', () => {
       );
       expect(result.error).toBeNull();
       expect(result.groups[0].name).toBe('Payment Gateway');
-      const warnings = result.diagnostics.filter(d => d.severity === 'warning');
-      expect(warnings.some(w => w.message.includes('(blue)'))).toBe(true);
+      const warnings = result.diagnostics.filter(
+        (d) => d.severity === 'warning'
+      );
+      expect(warnings.some((w) => w.message.includes('(blue)'))).toBe(true);
     });
 
     it('single-word group still works', () => {
-      const result = parseSequenceDgmo(
-        '[Backend]\n  API\n\nA -msg-> B'
-      );
+      const result = parseSequenceDgmo('[Backend]\n  API\n\nA -msg-> B');
       expect(result.error).toBeNull();
       expect(result.groups[0].name).toBe('Backend');
     });
 
     it('trailing spaces in group name are trimmed', () => {
-      const result = parseSequenceDgmo(
-        '[Backend]   \n  API\n\nA -msg-> B'
-      );
+      const result = parseSequenceDgmo('[Backend]   \n  API\n\nA -msg-> B');
       expect(result.error).toBeNull();
       expect(result.groups[0].name).toBe('Backend');
     });
@@ -438,16 +512,20 @@ describe('Story 47.2 — Parser tolerance', () => {
       const result = parseSequenceDgmo('A -msg-> B\n== Critical(red)');
       expect(result.error).toBeNull();
       expect(result.sections[0].label).toBe('Critical');
-      const warnings = result.diagnostics.filter(d => d.severity === 'warning');
-      expect(warnings.some(w => w.message.includes('(red)'))).toBe(true);
+      const warnings = result.diagnostics.filter(
+        (d) => d.severity === 'warning'
+      );
+      expect(warnings.some((w) => w.message.includes('(red)'))).toBe(true);
     });
 
     it('section with trailing == and color emits warning', () => {
       const result = parseSequenceDgmo('A -msg-> B\n== Critical(red) ==');
       expect(result.error).toBeNull();
       expect(result.sections[0].label).toBe('Critical');
-      const warnings = result.diagnostics.filter(d => d.severity === 'warning');
-      expect(warnings.some(w => w.message.includes('(red)'))).toBe(true);
+      const warnings = result.diagnostics.filter(
+        (d) => d.severity === 'warning'
+      );
+      expect(warnings.some((w) => w.message.includes('(red)'))).toBe(true);
     });
   });
 
@@ -474,9 +552,7 @@ describe('Story 47.2 — Parser tolerance', () => {
 describe('Story 47.3 — parser validation', () => {
   describe('headers-before-content', () => {
     it('title on first line parses normally', () => {
-      const result = parseSequenceDgmo(
-        'sequence Auth Flow\nA -login-> B'
-      );
+      const result = parseSequenceDgmo('sequence Auth Flow\nA -login-> B');
       expect(result.error).toBeNull();
       expect(result.title).toBe('Auth Flow');
     });
@@ -493,9 +569,7 @@ describe('Story 47.3 — parser validation', () => {
       const result = parseSequenceDgmo(
         'sequence\n== Auth\nno-activations\nA -login-> B'
       );
-      expect(result.error).toMatch(
-        /Line 3.*must appear before/
-      );
+      expect(result.error).toMatch(/Line 3.*must appear before/);
     });
 
     it('option after a participant declaration produces error', () => {
@@ -560,16 +634,12 @@ describe('Story 47.3 — parser validation', () => {
     });
 
     it('## group heading produces migration error', () => {
-      const result = parseSequenceDgmo(
-        '## Backend\n  API\nAPI -query-> DB'
-      );
+      const result = parseSequenceDgmo('## Backend\n  API\nAPI -query-> DB');
       expect(result.error).toMatch(/no longer supported.*\[Backend\]/);
     });
 
     it('[Group] heading does not error', () => {
-      const result = parseSequenceDgmo(
-        '[Backend]\n  API\nAPI -query-> DB'
-      );
+      const result = parseSequenceDgmo('[Backend]\n  API\nAPI -query-> DB');
       expect(result.error).toBeNull();
     });
   });
@@ -767,11 +837,9 @@ describe('Story 47.5 — note syntax', () => {
     });
 
     it('default position uses last message sender', () => {
-      const content = [
-        'A -step1-> B',
-        'B -step2-> C',
-        'note about step2',
-      ].join('\n');
+      const content = ['A -step1-> B', 'B -step2-> C', 'note about step2'].join(
+        '\n'
+      );
       const result = parseSequenceDgmo(content);
       expect(result.error).toBeNull();
       const note = result.elements[2] as SequenceNote;
@@ -781,10 +849,9 @@ describe('Story 47.5 — note syntax', () => {
 
   describe('single-line note with explicit position', () => {
     it('parses note right of <participant>', () => {
-      const content = [
-        'A -login-> B',
-        'note right of B Validates JWT',
-      ].join('\n');
+      const content = ['A -login-> B', 'note right of B Validates JWT'].join(
+        '\n'
+      );
       const result = parseSequenceDgmo(content);
       expect(result.error).toBeNull();
       const note = result.elements[1] as SequenceNote;
@@ -794,10 +861,9 @@ describe('Story 47.5 — note syntax', () => {
     });
 
     it('parses note left of <participant>', () => {
-      const content = [
-        'A -login-> B',
-        'note left of A Shows spinner',
-      ].join('\n');
+      const content = ['A -login-> B', 'note left of A Shows spinner'].join(
+        '\n'
+      );
       const result = parseSequenceDgmo(content);
       expect(result.error).toBeNull();
       const note = result.elements[1] as SequenceNote;
@@ -806,10 +872,7 @@ describe('Story 47.5 — note syntax', () => {
     });
 
     it('position is case-insensitive', () => {
-      const content = [
-        'A -login-> B',
-        'Note Right Of B case test',
-      ].join('\n');
+      const content = ['A -login-> B', 'Note Right Of B case test'].join('\n');
       const result = parseSequenceDgmo(content);
       expect(result.error).toBeNull();
       const note = result.elements[1] as SequenceNote;
@@ -898,11 +961,9 @@ describe('Story 47.5 — note syntax', () => {
     });
 
     it('skips empty multi-line note gracefully', () => {
-      const content = [
-        'A -login-> B',
-        'note right of B',
-        'B -next-> C',
-      ].join('\n');
+      const content = ['A -login-> B', 'note right of B', 'B -next-> C'].join(
+        '\n'
+      );
       const result = parseSequenceDgmo(content);
       expect(result.error).toBeNull();
       expect(result.messages).toHaveLength(2);
@@ -954,10 +1015,7 @@ describe('Story 47.5 — note syntax', () => {
     });
 
     it('note referencing unknown participant is skipped', () => {
-      const content = [
-        'A -login-> B',
-        'note right of Z unknown',
-      ].join('\n');
+      const content = ['A -login-> B', 'note right of Z unknown'].join('\n');
       const result = parseSequenceDgmo(content);
       expect(result.error).toBeNull();
       expect(result.messages).toHaveLength(1);
@@ -965,7 +1023,9 @@ describe('Story 47.5 — note syntax', () => {
     });
 
     it('default note with no preceding message in multi-line form is skipped', () => {
-      const content = ['sequence', 'note', '  body text', 'A -hello-> B'].join('\n');
+      const content = ['sequence', 'note', '  body text', 'A -hello-> B'].join(
+        '\n'
+      );
       const result = parseSequenceDgmo(content);
       expect(result.error).toBeNull();
       expect(result.messages).toHaveLength(1);
@@ -1011,11 +1071,9 @@ describe('Story 47.5 — note syntax', () => {
 
   describe('render integration with notes', () => {
     it('notes do not affect render step count', () => {
-      const content = [
-        'A -step1-> B',
-        'note annotation',
-        'B -step2-> C',
-      ].join('\n');
+      const content = ['A -step1-> B', 'note annotation', 'B -step2-> C'].join(
+        '\n'
+      );
       const parsed = parseSequenceDgmo(content);
       const steps = buildRenderSequence(parsed.messages);
       // 2 calls + 2 returns = 4 steps
@@ -1029,9 +1087,7 @@ describe('Story 47.5 — note syntax', () => {
 // ============================================================
 describe('looksLikeSequence with new arrows', () => {
   it('detects -label->', () => {
-    expect(
-      parseSequenceDgmo('User -login-> API').messages
-    ).toHaveLength(1);
+    expect(parseSequenceDgmo('User -login-> API').messages).toHaveLength(1);
   });
 
   it('<-label- produces error, not message', () => {
@@ -1041,9 +1097,7 @@ describe('looksLikeSequence with new arrows', () => {
   });
 
   it('detects bare ->', () => {
-    expect(
-      parseSequenceDgmo('A -> B').messages
-    ).toHaveLength(1);
+    expect(parseSequenceDgmo('A -> B').messages).toHaveLength(1);
   });
 
   it('bare <- produces error, not message', () => {
@@ -1118,33 +1172,27 @@ describe('tag group declarations', () => {
   });
 
   it('errors when tag group appears after content', () => {
-    const content = [
-      'A -req-> B',
-      'tag Concern',
-      '  Caching(blue)',
-    ].join('\n');
+    const content = ['A -req-> B', 'tag Concern', '  Caching(blue)'].join('\n');
     const result = parseSequenceDgmo(content);
-    expect(result.diagnostics.some(d => d.message.includes('before sequence content'))).toBe(true);
+    expect(
+      result.diagnostics.some((d) =>
+        d.message.includes('before sequence content')
+      )
+    ).toBe(true);
   });
 
   it('errors on entry without color', () => {
-    const content = [
-      'tag Concern',
-      '  Caching',
-      '',
-      'A -req-> B',
-    ].join('\n');
+    const content = ['tag Concern', '  Caching', '', 'A -req-> B'].join('\n');
     const result = parseSequenceDgmo(content);
-    expect(result.diagnostics.some(d => d.message.includes("Expected 'Value(color)'"))).toBe(true);
+    expect(
+      result.diagnostics.some((d) =>
+        d.message.includes("Expected 'Value(color)'")
+      )
+    ).toBe(true);
   });
 
   it('does not treat ## as tag group in sequence diagrams', () => {
-    const content = [
-      '## Backend',
-      '  API',
-      '',
-      'A -req-> B',
-    ].join('\n');
+    const content = ['## Backend', '  API', '', 'A -req-> B'].join('\n');
     const result = parseSequenceDgmo(content);
     // ## in sequence is a legacy group syntax error, not a tag group
     expect(result.tagGroups).toHaveLength(0);
@@ -1163,22 +1211,19 @@ describe('pipe metadata on participants', () => {
     ].join('\n');
     const result = parseSequenceDgmo(content);
     expect(result.error).toBeNull();
-    const api = result.participants.find(p => p.id === 'API');
+    const api = result.participants.find((p) => p.id === 'API');
     expect(api?.metadata).toEqual({ role: 'Gateway', team: 'Platform' });
-    const db = result.participants.find(p => p.id === 'DB');
+    const db = result.participants.find((p) => p.id === 'DB');
     expect(db?.metadata).toBeUndefined();
   });
 
   it('parses metadata on colored participant (color stripped with error)', () => {
-    const content = [
-      'API(blue) | role: Gateway',
-      'API -req-> DB',
-    ].join('\n');
+    const content = ['API(blue) | role: Gateway', 'API -req-> DB'].join('\n');
     const result = parseSequenceDgmo(content);
-    const api = result.participants.find(p => p.id === 'API');
+    const api = result.participants.find((p) => p.id === 'API');
     expect(api?.metadata).toEqual({ role: 'Gateway' });
-    const errors = result.diagnostics.filter(d => d.severity === 'error');
-    expect(errors.some(e => e.message.includes('(blue)'))).toBe(true);
+    const errors = result.diagnostics.filter((d) => d.severity === 'error');
+    expect(errors.some((e) => e.message.includes('(blue)'))).toBe(true);
   });
 
   it('parses metadata on bare participant in group', () => {
@@ -1189,7 +1234,7 @@ describe('pipe metadata on participants', () => {
       'API -req-> DB',
     ].join('\n');
     const result = parseSequenceDgmo(content);
-    const api = result.participants.find(p => p.id === 'API');
+    const api = result.participants.find((p) => p.id === 'API');
     expect(api?.metadata).toEqual({ role: 'Gateway' });
     expect(result.groups[0].participantIds).toContain('API');
   });
@@ -1205,7 +1250,7 @@ describe('pipe metadata on participants', () => {
       'User -push-> Tapin2',
     ].join('\n');
     const result = parseSequenceDgmo(content);
-    const tapin = result.participants.find(p => p.id === 'Tapin2');
+    const tapin = result.participants.find((p) => p.id === 'Tapin2');
     expect(tapin?.metadata).toEqual({ location: 'Park' });
   });
 
@@ -1223,31 +1268,26 @@ describe('pipe metadata on participants', () => {
       'User -push-> Tapin2',
     ].join('\n');
     const result = parseSequenceDgmo(content);
-    const tapin = result.participants.find(p => p.id === 'Tapin2');
+    const tapin = result.participants.find((p) => p.id === 'Tapin2');
     expect(tapin?.metadata).toEqual({ location: 'Park' });
     // Should not be added to the Backend group
     expect(result.groups[0].participantIds).not.toContain('Tapin2');
   });
 
   it('parses bare top-level participant without metadata', () => {
-    const content = [
-      'MyService',
-      '',
-      'User -call-> MyService',
-    ].join('\n');
+    const content = ['MyService', '', 'User -call-> MyService'].join('\n');
     const result = parseSequenceDgmo(content);
-    const svc = result.participants.find(p => p.id === 'MyService');
+    const svc = result.participants.find((p) => p.id === 'MyService');
     expect(svc).toBeDefined();
     expect(svc?.metadata).toBeUndefined();
   });
 
   it('parses metadata on position declaration', () => {
-    const content = [
-      'DB position -1 | role: Storage',
-      'API -req-> DB',
-    ].join('\n');
+    const content = ['DB position -1 | role: Storage', 'API -req-> DB'].join(
+      '\n'
+    );
     const result = parseSequenceDgmo(content);
-    const db = result.participants.find(p => p.id === 'DB');
+    const db = result.participants.find((p) => p.id === 'DB');
     expect(db?.position).toBe(-1);
     expect(db?.metadata).toEqual({ role: 'Storage' });
   });
@@ -1261,7 +1301,7 @@ describe('pipe metadata on participants', () => {
       'API -req-> DB',
     ].join('\n');
     const result = parseSequenceDgmo(content);
-    const api = result.participants.find(p => p.id === 'API');
+    const api = result.participants.find((p) => p.id === 'API');
     expect(api?.metadata).toEqual({ concern: 'Caching' });
   });
 });
@@ -1304,7 +1344,10 @@ describe('pipe metadata on messages', () => {
   it('parses multiple metadata keys', () => {
     const content = 'A -req-> B | c: Caching, t: Platform';
     const result = parseSequenceDgmo(content);
-    expect(result.messages[0].metadata).toEqual({ c: 'Caching', t: 'Platform' });
+    expect(result.messages[0].metadata).toEqual({
+      c: 'Caching',
+      t: 'Platform',
+    });
   });
 
   it('errors on multiple pipe-separated metadata', () => {
@@ -1386,28 +1429,20 @@ describe('pipe metadata on group headers', () => {
   });
 
   it('group without pipe has no metadata', () => {
-    const content = [
-      '[Backend]',
-      '  API',
-      '',
-      'API -req-> DB',
-    ].join('\n');
+    const content = ['[Backend]', '  API', '', 'API -req-> DB'].join('\n');
     const result = parseSequenceDgmo(content);
     expect(result.groups[0].metadata).toBeUndefined();
   });
 
   it('[Backend(blue)] still emits color deprecation warning', () => {
-    const content = [
-      '[Backend(blue)]',
-      '  API',
-      '',
-      'API -req-> DB',
-    ].join('\n');
+    const content = ['[Backend(blue)]', '  API', '', 'API -req-> DB'].join(
+      '\n'
+    );
     const result = parseSequenceDgmo(content);
     expect(result.error).toBeNull();
     expect(result.groups[0].name).toBe('Backend');
-    const warnings = result.diagnostics.filter(d => d.severity === 'warning');
-    expect(warnings.some(w => w.message.includes('(blue)'))).toBe(true);
+    const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
+    expect(warnings.some((w) => w.message.includes('(blue)'))).toBe(true);
   });
 
   it('[Backend] | t: Product, color: blue parses both metadata keys', () => {
@@ -1437,8 +1472,10 @@ describe('tag validation on sequence diagrams', () => {
       'A -req-> B | concern: Typo',
     ].join('\n');
     const result = parseSequenceDgmo(content);
-    const warnings = result.diagnostics.filter(d => d.severity === 'warning');
-    expect(warnings.some(w => w.message.includes("Unknown value 'Typo'"))).toBe(true);
+    const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
+    expect(
+      warnings.some((w) => w.message.includes("Unknown value 'Typo'"))
+    ).toBe(true);
   });
 
   it('no warning for valid tag value', () => {
@@ -1449,7 +1486,7 @@ describe('tag validation on sequence diagrams', () => {
       'A -req-> B | concern: Caching',
     ].join('\n');
     const result = parseSequenceDgmo(content);
-    const warnings = result.diagnostics.filter(d => d.severity === 'warning');
+    const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
     expect(warnings).toHaveLength(0);
   });
 
@@ -1461,7 +1498,7 @@ describe('tag validation on sequence diagrams', () => {
       'A -req-> B | concern: Cachng',
     ].join('\n');
     const result = parseSequenceDgmo(content);
-    const warnings = result.diagnostics.filter(d => d.severity === 'warning');
+    const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
     expect(warnings.length).toBeGreaterThan(0);
     // Should contain either a did-you-mean or list of defined values
     expect(warnings[0].message).toMatch(/Caching/);
@@ -1471,9 +1508,11 @@ describe('tag validation on sequence diagrams', () => {
 // ============================================================
 describe('multi-word participant names', () => {
   it('declares a participant with spaces using is-a syntax', () => {
-    const result = parseSequenceDgmo('Auth Server is a service\nAuth Server -ping-> App');
+    const result = parseSequenceDgmo(
+      'Auth Server is a service\nAuth Server -ping-> App'
+    );
     expect(result.error).toBeNull();
-    expect(result.participants.some(p => p.id === 'Auth Server')).toBe(true);
+    expect(result.participants.some((p) => p.id === 'Auth Server')).toBe(true);
   });
 
   it('accepts "is a" and "is an" identically (grammar forgiveness)', () => {
@@ -1495,7 +1534,9 @@ describe('multi-word participant names', () => {
   });
 
   it('parses labeled arrow with multi-word target', () => {
-    const result = parseSequenceDgmo('App -Redirect to /authorize-> Auth Server');
+    const result = parseSequenceDgmo(
+      'App -Redirect to /authorize-> Auth Server'
+    );
     expect(result.error).toBeNull();
     expect(result.messages).toHaveLength(1);
     expect(result.messages[0].from).toBe('App');
@@ -1504,7 +1545,9 @@ describe('multi-word participant names', () => {
   });
 
   it('parses labeled arrow with multi-word source and target', () => {
-    const result = parseSequenceDgmo('Auth Server -Token valid + claims-> Resource Server');
+    const result = parseSequenceDgmo(
+      'Auth Server -Token valid + claims-> Resource Server'
+    );
     expect(result.error).toBeNull();
     expect(result.messages).toHaveLength(1);
     expect(result.messages[0].from).toBe('Auth Server');
@@ -1521,18 +1564,24 @@ describe('multi-word participant names', () => {
   });
 
   it('parses message with special chars: slashes, parens, quotes', () => {
-    const result = parseSequenceDgmo('App -POST /token (code, client_secret)-> Auth Server');
+    const result = parseSequenceDgmo(
+      'App -POST /token (code, client_secret)-> Auth Server'
+    );
     expect(result.error).toBeNull();
     expect(result.messages[0].label).toBe('POST /token (code, client_secret)');
   });
 
   it('parses note right of with multi-word participant', () => {
-    const result = parseSequenceDgmo('Auth Server -ping-> App\nnote right of Auth Server some note text');
+    const result = parseSequenceDgmo(
+      'Auth Server -ping-> App\nnote right of Auth Server some note text'
+    );
     expect(result.error).toBeNull();
-    const notes = result.elements.filter(e => 'kind' in e && e.kind === 'note');
+    const notes = result.elements.filter(
+      (e) => 'kind' in e && e.kind === 'note'
+    );
     expect(notes).toHaveLength(1);
-    expect((notes[0] as any).participantId).toBe('Auth Server');
-    expect((notes[0] as any).text).toBe('some note text');
+    expect((notes[0] as SequenceNote).participantId).toBe('Auth Server');
+    expect((notes[0] as SequenceNote).text).toBe('some note text');
   });
 
   it('renders full OAuth-style diagram without errors', () => {

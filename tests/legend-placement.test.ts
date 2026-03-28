@@ -45,11 +45,26 @@ import { parseVisualization, renderTimeline } from '../src/d3';
 beforeAll(() => {
   const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>');
   const win = dom.window;
-  Object.defineProperty(globalThis, 'document', { value: win.document, configurable: true });
-  Object.defineProperty(globalThis, 'window', { value: win, configurable: true });
-  Object.defineProperty(globalThis, 'navigator', { value: win.navigator, configurable: true });
-  Object.defineProperty(globalThis, 'HTMLElement', { value: win.HTMLElement, configurable: true });
-  Object.defineProperty(globalThis, 'SVGElement', { value: win.SVGElement, configurable: true });
+  Object.defineProperty(globalThis, 'document', {
+    value: win.document,
+    configurable: true,
+  });
+  Object.defineProperty(globalThis, 'window', {
+    value: win,
+    configurable: true,
+  });
+  Object.defineProperty(globalThis, 'navigator', {
+    value: win.navigator,
+    configurable: true,
+  });
+  Object.defineProperty(globalThis, 'HTMLElement', {
+    value: win.HTMLElement,
+    configurable: true,
+  });
+  Object.defineProperty(globalThis, 'SVGElement', {
+    value: win.SVGElement,
+    configurable: true,
+  });
 });
 
 const palette = getPalette('nord').light;
@@ -74,12 +89,6 @@ function getViewboxHeight(container: Element): number | null {
 }
 
 /** Get SVG height attribute */
-function getSvgHeight(container: Element): number | null {
-  const svg = container.querySelector('svg');
-  if (!svg) return null;
-  const h = svg.getAttribute('height');
-  return h ? parseFloat(h) : null;
-}
 
 // ── Sequence ──────────────────────────────────────────────────────────────────
 
@@ -99,7 +108,9 @@ Bob <-response- Alice`;
     const parsed = parseSequenceDgmo(src);
     const container = document.createElement('div');
     document.body.appendChild(container);
-    renderSequenceDiagram(container, parsed, palette, false, undefined, { exportWidth: 800 });
+    renderSequenceDiagram(container, parsed, palette, false, undefined, {
+      exportWidth: 800,
+    });
 
     const svgHeight = getViewboxHeight(container);
     expect(svgHeight).not.toBeNull();
@@ -118,7 +129,9 @@ Bob <-response- Alice`;
     const parsed = parseSequenceDgmo(src);
     const container = document.createElement('div');
     document.body.appendChild(container);
-    renderSequenceDiagram(container, parsed, palette, false, undefined, { exportWidth: 800 });
+    renderSequenceDiagram(container, parsed, palette, false, undefined, {
+      exportWidth: 800,
+    });
 
     const svgHeight = getViewboxHeight(container);
     expect(svgHeight).not.toBeNull();
@@ -133,7 +146,14 @@ Bob <-response- Alice`;
     const parsedNoTags = parseSequenceDgmo(srcNoTags);
     const containerNoTags = document.createElement('div');
     document.body.appendChild(containerNoTags);
-    renderSequenceDiagram(containerNoTags, parsedNoTags, palette, false, undefined, { exportWidth: 800 });
+    renderSequenceDiagram(
+      containerNoTags,
+      parsedNoTags,
+      palette,
+      false,
+      undefined,
+      { exportWidth: 800 }
+    );
     const noTagsHeight = getViewboxHeight(containerNoTags);
 
     expect(svgHeight!).toBeGreaterThan(noTagsHeight! ?? 0);
@@ -195,7 +215,15 @@ tag Priority
     const parsed = parseKanban(src, palette);
     const container = document.createElement('div');
     document.body.appendChild(container);
-    renderKanban(container, parsed, palette, false, undefined, undefined, undefined);
+    renderKanban(
+      container,
+      parsed,
+      palette,
+      false,
+      undefined,
+      undefined,
+      undefined
+    );
 
     // Kanban data-legend-group is on a <rect> with `y` attribute (not transform)
     const legendRect = container.querySelector('[data-legend-group]');
@@ -300,9 +328,18 @@ edge
     const container = document.createElement('div');
     document.body.appendChild(container);
     renderInfra(
-      container, layout, palette, false,
-      parsed.title, parsed.titleLineNumber,
-      parsed.tagGroups, null, false, null, null, true
+      container,
+      layout,
+      palette,
+      false,
+      parsed.title,
+      parsed.titleLineNumber,
+      parsed.tagGroups,
+      null,
+      false,
+      null,
+      null,
+      true
     );
 
     // In export mode, legend is inside the main SVG (not fixed SVG)
@@ -377,7 +414,10 @@ tag Status
     const container = document.createElement('div');
     document.body.appendChild(container);
     const svgHeight = 400;
-    renderTimeline(container, parsed, palette, false, undefined, { width: 800, height: svgHeight });
+    renderTimeline(container, parsed, palette, false, undefined, {
+      width: 800,
+      height: svgHeight,
+    });
 
     const legendGroup = container.querySelector('[data-legend-group]');
     expect(legendGroup).not.toBeNull();

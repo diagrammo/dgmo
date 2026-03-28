@@ -39,7 +39,8 @@ const ELEMENT_RE = /^(person|system|container|component)\s+(.+)$/i;
 const IS_A_RE = /\s+is\s+a(?:n)?\s+(\w+)\s*$/i;
 
 /** Matches `Name is a <type>` declarations (new preferred syntax) */
-const C4_IS_A_RE = /^([^:]+?)\s+is\s+an?\s+(person|system|container|component|external|database)\b(.*)$/i;
+const C4_IS_A_RE =
+  /^([^:]+?)\s+is\s+an?\s+(person|system|container|component|external|database)\b(.*)$/i;
 
 /** Matches relationship arrows: `->`, `~>`, `<->`, `<~>` */
 const RELATIONSHIP_RE = /^(<?-?>|<?~?>)\s*(.+)$/;
@@ -63,7 +64,6 @@ const METADATA_RE = /^([a-z][a-z0-9-]*):\s+(.+)$/i;
 // Helpers
 // ============================================================
 
-
 const VALID_ELEMENT_TYPES = new Set<string>([
   'person',
   'system',
@@ -81,14 +81,10 @@ const VALID_SHAPES = new Set<string>([
 ]);
 
 /** Known top-level option keys for C4 diagrams. */
-const KNOWN_C4_OPTIONS = new Set<string>([
-  'layout',
-]);
+const KNOWN_C4_OPTIONS = new Set<string>(['layout']);
 
 /** Known C4 boolean options (bare keyword = on). */
-const KNOWN_C4_BOOLEANS = new Set<string>([
-  'direction-tb',
-]);
+const KNOWN_C4_BOOLEANS = new Set<string>(['direction-tb']);
 
 const ALL_CHART_TYPES = [
   'c4',
@@ -110,9 +106,7 @@ const ALL_CHART_TYPES = [
 ];
 
 /** Map from ParticipantType inference → C4Shape */
-function participantTypeToC4Shape(
-  pType: string,
-): C4Shape {
+function participantTypeToC4Shape(pType: string): C4Shape {
   switch (pType) {
     case 'database':
       return 'database';
@@ -155,7 +149,6 @@ function parseArrowType(arrow: string): C4ArrowType | null {
   }
 }
 
-
 // ============================================================
 // Stack entry types
 // ============================================================
@@ -196,10 +189,7 @@ type StackEntry =
 // Parser
 // ============================================================
 
-export function parseC4(
-  content: string,
-  palette?: PaletteColors,
-): ParsedC4 {
+export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
   const result: ParsedC4 = {
     title: null,
     titleLineNumber: null,
@@ -212,10 +202,15 @@ export function parseC4(
     error: null,
   };
 
-  const pushError = (line: number, message: string, severity: 'error' | 'warning' = 'error'): void => {
+  const pushError = (
+    line: number,
+    message: string,
+    severity: 'error' | 'warning' = 'error'
+  ): void => {
     const diag = makeDgmoError(line, message, severity);
     result.diagnostics.push(diag);
-    if (!result.error && severity === 'error') result.error = formatDgmoError(diag);
+    if (!result.error && severity === 'error')
+      result.error = formatDgmoError(diag);
   };
 
   const fail = (line: number, message: string): ParsedC4 => {
@@ -297,7 +292,10 @@ export function parseC4(
         lineNumber,
       };
       if (tagBlockMatch.alias) {
-        aliasMap.set(tagBlockMatch.alias.toLowerCase(), tagBlockMatch.name.toLowerCase());
+        aliasMap.set(
+          tagBlockMatch.alias.toLowerCase(),
+          tagBlockMatch.name.toLowerCase()
+        );
       }
       result.tagGroups.push(currentTagGroup);
       continue;
@@ -329,7 +327,7 @@ export function parseC4(
         if (!color) {
           pushError(
             lineNumber,
-            `Expected 'Value(color)' in tag group '${currentTagGroup.name}'`,
+            `Expected 'Value(color)' in tag group '${currentTagGroup.name}'`
           );
           continue;
         }
@@ -344,7 +342,7 @@ export function parseC4(
         });
         continue;
       }
-      currentTagGroup = null;
+      currentTagGroup = null; // eslint-disable-line no-useless-assignment
     }
 
     // --- Content phase ---
@@ -367,7 +365,10 @@ export function parseC4(
       }
 
       // Check for top-level non-deployment content (section ended)
-      if (indent === 0 && (C4_IS_A_RE.test(trimmed) || ELEMENT_RE.test(trimmed))) {
+      if (
+        indent === 0 &&
+        (C4_IS_A_RE.test(trimmed) || ELEMENT_RE.test(trimmed))
+      ) {
         inDeployment = false;
         // Fall through to element parsing below
       } else {
@@ -377,10 +378,13 @@ export function parseC4(
           const refName = refMatch[1].trim();
           if (deployStack.length > 0) {
             deployStack[deployStack.length - 1].node.containerRefs.push(
-              refName,
+              refName
             );
           } else {
-            pushError(lineNumber, `"container ${refName}" must be inside a deployment node`);
+            pushError(
+              lineNumber,
+              `"container ${refName}" must be inside a deployment node`
+            );
           }
           continue;
         }
@@ -388,8 +392,13 @@ export function parseC4(
         // Otherwise it's a deployment node (possibly with pipe metadata)
         const segments = trimmed.split('|').map((s) => s.trim());
         const nodeName = segments[0];
-        const metadata = parsePipeMetadata(segments, aliasMap, () => pushError(lineNumber, MULTIPLE_PIPE_ERROR));
-        const shape = inferC4Shape(nodeName, metadata.tech ?? metadata.technology);
+        const metadata = parsePipeMetadata(segments, aliasMap, () =>
+          pushError(lineNumber, MULTIPLE_PIPE_ERROR)
+        );
+        const shape = inferC4Shape(
+          nodeName,
+          metadata.tech ?? metadata.technology
+        );
 
         const dNode: C4DeploymentNode = {
           name: nodeName,
@@ -423,8 +432,9 @@ export function parseC4(
       // containers / components must be inside an element
       const parentEntry = findParentElement(indent, stack);
       if (parentEntry) {
-        parentEntry.element.sectionHeader =
-          sectionType as 'containers' | 'components';
+        parentEntry.element.sectionHeader = sectionType as
+          | 'containers'
+          | 'components';
         parentEntry.element.sectionHeaderLineNumber = lineNumber;
         stack.push({
           kind: 'section',
@@ -433,10 +443,7 @@ export function parseC4(
           indent,
         });
       } else {
-        pushError(
-          lineNumber,
-          `"${sectionType}" must be inside an element`,
-        );
+        pushError(lineNumber, `"${sectionType}" must be inside an element`);
       }
       continue;
     }
@@ -493,9 +500,15 @@ export function parseC4(
         if (!rawLabel) break; // empty label — fall through to plain arrow
 
         // Reject bidirectional arrows
-        if (arrowType === 'bidirectional' || arrowType === 'bidirectional-async') {
+        if (
+          arrowType === 'bidirectional' ||
+          arrowType === 'bidirectional-async'
+        ) {
           const source = findParentElement(indent, stack)?.element.name ?? '?';
-          pushError(lineNumber, `Bidirectional arrows are no longer supported. Replace with two separate arrows:\n  -${rawLabel}-> ${targetBody}\n  ${targetBody} -${rawLabel}-> ${source}`);
+          pushError(
+            lineNumber,
+            `Bidirectional arrows are no longer supported. Replace with two separate arrows:\n  -${rawLabel}-> ${targetBody}\n  ${targetBody} -${rawLabel}-> ${source}`
+          );
           labeledHandled = true;
           break;
         }
@@ -552,11 +565,17 @@ export function parseC4(
       const arrowType = parseArrowType(relMatch[1]);
       if (arrowType) {
         // Reject bidirectional arrows
-        if (arrowType === 'bidirectional' || arrowType === 'bidirectional-async') {
+        if (
+          arrowType === 'bidirectional' ||
+          arrowType === 'bidirectional-async'
+        ) {
           const arrow = relMatch[1];
           const target = relMatch[2].trim();
           const source = findParentElement(indent, stack)?.element.name ?? '?';
-          pushError(lineNumber, `'${arrow}' bidirectional arrows are no longer supported. Replace with two separate arrows:\n  -> ${target}\n  ${target} -> ${source}`);
+          pushError(
+            lineNumber,
+            `'${arrow}' bidirectional arrows are no longer supported. Replace with two separate arrows:\n  -> ${target}\n  ${target} -> ${source}`
+          );
           continue;
         }
 
@@ -605,14 +624,22 @@ export function parseC4(
       let segments: string[];
       if (remainderTrimmed.startsWith('|')) {
         // remainder has pipe metadata: "| tech: PostgreSQL, team: Data"
-        segments = ['', ...remainderTrimmed.substring(1).split('|').map((s) => s.trim())];
+        segments = [
+          '',
+          ...remainderTrimmed
+            .substring(1)
+            .split('|')
+            .map((s) => s.trim()),
+        ];
       } else {
         segments = [remainderTrimmed];
       }
 
       // Check for additional `is a <shape>` in the name (e.g., already stripped by C4_IS_A_RE won't happen,
       // but handle remainder like "is a cylinder" after type)
-      const remainderIsA = remainderTrimmed.match(/^\s*is\s+a(?:n)?\s+(\w+)\s*(.*)$/i);
+      const remainderIsA = remainderTrimmed.match(
+        /^\s*is\s+a(?:n)?\s+(\w+)\s*(.*)$/i
+      );
       if (remainderIsA) {
         const shapeName = remainderIsA[1].toLowerCase();
         if (VALID_SHAPES.has(shapeName)) {
@@ -620,13 +647,19 @@ export function parseC4(
         } else {
           pushError(
             lineNumber,
-            `Unknown shape "${remainderIsA[1]}". Valid shapes: ${[...VALID_SHAPES].join(', ')}`,
+            `Unknown shape "${remainderIsA[1]}". Valid shapes: ${[...VALID_SHAPES].join(', ')}`
           );
         }
         // Re-parse remainder after shape
         const afterShape = remainderIsA[2].trim();
         if (afterShape.startsWith('|')) {
-          segments = ['', ...afterShape.substring(1).split('|').map((s) => s.trim())];
+          segments = [
+            '',
+            ...afterShape
+              .substring(1)
+              .split('|')
+              .map((s) => s.trim()),
+          ];
         } else {
           segments = [afterShape];
         }
@@ -641,13 +674,15 @@ export function parseC4(
         } else {
           pushError(
             lineNumber,
-            `Unknown shape "${nameIsAMatch[1]}". Valid shapes: ${[...VALID_SHAPES].join(', ')}`,
+            `Unknown shape "${nameIsAMatch[1]}". Valid shapes: ${[...VALID_SHAPES].join(', ')}`
           );
         }
         namePart = namePart.substring(0, nameIsAMatch.index!).trim();
       }
 
-      const metadata = parsePipeMetadata(segments, aliasMap, () => pushError(lineNumber, MULTIPLE_PIPE_ERROR));
+      const metadata = parsePipeMetadata(segments, aliasMap, () =>
+        pushError(lineNumber, MULTIPLE_PIPE_ERROR)
+      );
 
       const shape =
         explicitShape ??
@@ -669,7 +704,7 @@ export function parseC4(
       if (existingLine !== undefined) {
         pushError(
           lineNumber,
-          `Duplicate element name "${namePart}" (first defined on line ${existingLine})`,
+          `Duplicate element name "${namePart}" (first defined on line ${existingLine})`
         );
       } else {
         knownNames.set(namePart.toLowerCase(), lineNumber);
@@ -683,7 +718,7 @@ export function parseC4(
     const elementMatch = trimmed.match(ELEMENT_RE);
     if (elementMatch) {
       const elementType = elementMatch[1].toLowerCase() as C4ElementType;
-      let nameAndRest = elementMatch[2];
+      const nameAndRest = elementMatch[2];
 
       // Split on pipe for inline metadata
       const segments = nameAndRest.split('|').map((s) => s.trim());
@@ -699,7 +734,7 @@ export function parseC4(
         } else {
           pushError(
             lineNumber,
-            `Unknown shape "${isAMatch[1]}". Valid shapes: ${[...VALID_SHAPES].join(', ')}`,
+            `Unknown shape "${isAMatch[1]}". Valid shapes: ${[...VALID_SHAPES].join(', ')}`
           );
         }
         namePart = namePart.substring(0, isAMatch.index!).trim();
@@ -708,10 +743,12 @@ export function parseC4(
       // Emit deprecation error with migration hint
       pushError(
         lineNumber,
-        `'${elementMatch[1]} ${namePart}' prefix syntax is no longer supported — use '${namePart} is a ${elementType}' instead`,
+        `'${elementMatch[1]} ${namePart}' prefix syntax is no longer supported — use '${namePart} is a ${elementType}' instead`
       );
 
-      const metadata = parsePipeMetadata(segments, aliasMap, () => pushError(lineNumber, MULTIPLE_PIPE_ERROR));
+      const metadata = parsePipeMetadata(segments, aliasMap, () =>
+        pushError(lineNumber, MULTIPLE_PIPE_ERROR)
+      );
 
       // Determine shape: explicit > inference
       const shape =
@@ -734,7 +771,7 @@ export function parseC4(
       if (existingLine !== undefined) {
         pushError(
           lineNumber,
-          `Duplicate element name "${namePart}" (first defined on line ${existingLine})`,
+          `Duplicate element name "${namePart}" (first defined on line ${existingLine})`
         );
       } else {
         knownNames.set(namePart.toLowerCase(), lineNumber);
@@ -798,7 +835,7 @@ export function parseC4(
 /** Find the nearest parent element entry on the stack at shallower indent. */
 function findParentElement(
   indent: number,
-  stack: StackEntry[],
+  stack: StackEntry[]
 ): ElementStackEntry | null {
   for (let i = stack.length - 1; i >= 0; i--) {
     const entry = stack[i];
@@ -824,7 +861,7 @@ function attachElement(
   element: C4Element,
   indent: number,
   stack: StackEntry[],
-  result: ParsedC4,
+  result: ParsedC4
 ): void {
   // Find the immediate context: group, section, or parent element
   let attached = false;
@@ -866,7 +903,11 @@ function attachElement(
 function validateRelationshipTargets(
   result: ParsedC4,
   knownNames: Map<string, number>,
-  pushWarning: (line: number, message: string, severity?: 'error' | 'warning') => void,
+  pushWarning: (
+    line: number,
+    message: string,
+    severity?: 'error' | 'warning'
+  ) => void
 ): void {
   function walkRels(elements: C4Element[]) {
     for (const el of elements) {
@@ -875,7 +916,7 @@ function validateRelationshipTargets(
           pushWarning(
             rel.lineNumber,
             `Relationship target "${rel.target}" not found`,
-            'warning',
+            'warning'
           );
         }
       }
@@ -893,7 +934,7 @@ function validateRelationshipTargets(
       pushWarning(
         rel.lineNumber,
         `Relationship target "${rel.target}" not found`,
-        'warning',
+        'warning'
       );
     }
   }
@@ -902,7 +943,11 @@ function validateRelationshipTargets(
 function validateDeploymentRefs(
   result: ParsedC4,
   knownNames: Map<string, number>,
-  pushWarning: (line: number, message: string, severity?: 'error' | 'warning') => void,
+  pushWarning: (
+    line: number,
+    message: string,
+    severity?: 'error' | 'warning'
+  ) => void
 ): void {
   function walkDeploy(nodes: C4DeploymentNode[]) {
     for (const node of nodes) {
@@ -911,7 +956,7 @@ function validateDeploymentRefs(
           pushWarning(
             node.lineNumber,
             `Deployment reference "container ${ref}" not found`,
-            'warning',
+            'warning'
           );
         }
       }

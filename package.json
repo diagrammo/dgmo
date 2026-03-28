@@ -47,6 +47,8 @@
     "format:check": "prettier --check src/",
     "check:duplication": "jscpd ./src",
     "check:deadcode": "knip",
+    "check:spelling": "cspell \"src/**/*.ts\" \"tests/**/*.ts\"",
+    "check:size": "pnpm build && du -sh dist/ && echo '---' && ls -lh dist/*.js dist/*.cjs",
     "postinstall": "node -e \"console.log('\\n💡 Claude Code user? Run: dgmo --install-claude-skill\\n')\"",
     "prepare": "husky"
   },
@@ -74,6 +76,7 @@
     "@types/d3-selection": "^3.0.11",
     "@types/d3-shape": "^3.1.7",
     "@types/jsdom": "^28.0.0",
+    "cspell": "^9.7.0",
     "eslint": "^10.1.0",
     "husky": "^9.1.7",
     "jscpd": "^4.0.8",

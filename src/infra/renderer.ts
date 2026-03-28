@@ -9,8 +9,18 @@ import type { PaletteColors } from '../palettes';
 import { mix } from '../palettes/color-utils';
 import type { InfraTagGroup } from './types';
 import { resolveColor } from '../colors';
-import type { InfraLayoutResult, InfraLayoutNode, InfraLayoutEdge, InfraLayoutGroup } from './layout';
-import { inferRoles, collectDiagramRoles, collectFanoutSourceIds, FANOUT_ROLE } from './roles';
+import type {
+  InfraLayoutResult,
+  InfraLayoutNode,
+  InfraLayoutEdge,
+  InfraLayoutGroup,
+} from './layout';
+import {
+  inferRoles,
+  collectDiagramRoles,
+  collectFanoutSourceIds,
+  FANOUT_ROLE,
+} from './roles';
 import { parseInfra } from './parser';
 import { computeInfra } from './compute';
 import { layoutInfra } from './layout';
@@ -26,7 +36,12 @@ import {
   LEGEND_GROUP_GAP,
   measureLegendText,
 } from '../utils/legend-constants';
-import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT, TITLE_Y, TITLE_OFFSET } from '../utils/title-constants';
+import {
+  TITLE_FONT_SIZE,
+  TITLE_FONT_WEIGHT,
+  TITLE_Y,
+  TITLE_OFFSET,
+} from '../utils/title-constants';
 
 // ============================================================
 // Constants
@@ -51,7 +66,7 @@ const COLLAPSE_BAR_INSET = 0;
 const LEGEND_FIXED_GAP = 16; // gap between fixed legend and scaled diagram — local, not shared
 const SPEED_BADGE_H_PAD = 5; // horizontal padding inside active speed badge
 const SPEED_BADGE_V_PAD = 3; // vertical padding inside active speed badge
-const SPEED_BADGE_GAP = 6;   // gap between speed option slots
+const SPEED_BADGE_GAP = 6; // gap between speed option slots
 
 // Health colors (from UX spec)
 const COLOR_HEALTHY = '#22c55e';
@@ -60,24 +75,39 @@ const COLOR_OVERLOADED = '#ef4444';
 /** SLO thresholds resolved for a single node (chart-level + per-node override). */
 interface NodeSlo {
   availThreshold: number | null; // fraction e.g. 0.999
-  latencyP90: number | null;     // ms e.g. 200
-  warningMargin: number;         // fraction e.g. 0.05
+  latencyP90: number | null; // ms e.g. 200
+  warningMargin: number; // fraction e.g. 0.05
 }
 
 /** Resolve effective SLO for a node: per-node properties take precedence over chart-level options.
  *  Returns null if neither availThreshold nor latencyP90 is declared. */
-function resolveNodeSlo(node: InfraLayoutNode, diagramOptions: Record<string, string>): NodeSlo | null {
+function resolveNodeSlo(
+  node: InfraLayoutNode,
+  diagramOptions: Record<string, string>
+): NodeSlo | null {
   const nodeProp = (key: string) => node.properties.find((p) => p.key === key);
 
-  const availRaw = nodeProp('slo-availability')?.value ?? diagramOptions['slo-availability'];
-  const latencyRaw = nodeProp('slo-p90-latency-ms')?.value ?? diagramOptions['slo-p90-latency-ms'];
-  const marginRaw = nodeProp('slo-warning-margin')?.value ?? diagramOptions['slo-warning-margin'];
+  const availRaw =
+    nodeProp('slo-availability')?.value ?? diagramOptions['slo-availability'];
+  const latencyRaw =
+    nodeProp('slo-p90-latency-ms')?.value ??
+    diagramOptions['slo-p90-latency-ms'];
+  const marginRaw =
+    nodeProp('slo-warning-margin')?.value ??
+    diagramOptions['slo-warning-margin'];
 
-  const availParsed = availRaw != null ? parseFloat(String(availRaw).replace('%', '')) / 100 : NaN;
+  const availParsed =
+    availRaw != null
+      ? parseFloat(String(availRaw).replace('%', '')) / 100
+      : NaN;
   const availThreshold = !isNaN(availParsed) ? availParsed : null;
-  const latencyParsed = latencyRaw != null ? parseFloat(String(latencyRaw)) : NaN;
+  const latencyParsed =
+    latencyRaw != null ? parseFloat(String(latencyRaw)) : NaN;
   const latencyP90 = !isNaN(latencyParsed) ? latencyParsed : null;
-  const marginParsed = marginRaw != null ? parseFloat(String(marginRaw).replace('%', '')) / 100 : NaN;
+  const marginParsed =
+    marginRaw != null
+      ? parseFloat(String(marginRaw).replace('%', '')) / 100
+      : NaN;
   const warningMargin = !isNaN(marginParsed) ? marginParsed : 0.05;
 
   if (availThreshold == null && latencyP90 == null) return null;
@@ -103,19 +133,19 @@ interface ComputedRow {
 }
 
 // Animation constants
-const FLOW_SPEED_MIN = 2.5;       // seconds at max RPS
-const FLOW_SPEED_MAX = 6;         // seconds at min RPS
-const PARTICLE_R = 5;             // particle circle radius
-const PARTICLE_COUNT_MIN = 1;     // min particles per edge
-const PARTICLE_COUNT_MAX = 4;     // max particles per edge (at max RPS)
-const NODE_PULSE_SPEED = 1.5;     // seconds for warning pulse
-const NODE_PULSE_OVERLOAD = 0.7;  // seconds for overload pulse
+const FLOW_SPEED_MIN = 2.5; // seconds at max RPS
+const FLOW_SPEED_MAX = 6; // seconds at min RPS
+const PARTICLE_R = 5; // particle circle radius
+const PARTICLE_COUNT_MIN = 1; // min particles per edge
+const PARTICLE_COUNT_MAX = 4; // max particles per edge (at max RPS)
+const NODE_PULSE_SPEED = 1.5; // seconds for warning pulse
+const NODE_PULSE_OVERLOAD = 0.7; // seconds for overload pulse
 
 // Reject particle constants
 const REJECT_PARTICLE_R = PARTICLE_R;
-const REJECT_DROP_DISTANCE = 30;  // px downward travel
-const REJECT_DURATION_MIN = 1.5;  // seconds per drop at max reject
-const REJECT_DURATION_MAX = 3;    // seconds per drop at min reject
+const REJECT_DROP_DISTANCE = 30; // px downward travel
+const REJECT_DURATION_MIN = 1.5; // seconds per drop at max reject
+const REJECT_DURATION_MAX = 3; // seconds per drop at min reject
 const REJECT_COUNT_MIN = 1;
 const REJECT_COUNT_MAX = 3;
 
@@ -129,7 +159,10 @@ type Pt = { x: number; y: number };
  *  2-point paths use curveBumpX/Y (nice S-curve).
  *  Multi-point obstacle-avoiding paths use CatmullRom for a smooth fit. */
 function buildPathD(pts: Pt[], direction: 'LR' | 'TB'): string {
-  const gen = d3Shape.line<Pt>().x((d) => d.x).y((d) => d.y);
+  const gen = d3Shape
+    .line<Pt>()
+    .x((d) => d.x)
+    .y((d) => d.y);
   if (pts.length <= 2) {
     gen.curve(direction === 'TB' ? d3Shape.curveBumpY : d3Shape.curveBumpX);
   } else {
@@ -153,7 +186,7 @@ type Rect = { x: number; y: number; width: number; height: number };
 function computePortPts(
   edges: InfraLayoutEdge[],
   nodeMap: Map<string, InfraLayoutNode>,
-  direction: 'LR' | 'TB',
+  direction: 'LR' | 'TB'
 ): { srcPts: Map<string, Pt>; tgtPts: Map<string, Pt> } {
   const srcPts = new Map<string, Pt>();
   const tgtPts = new Map<string, Pt>();
@@ -173,22 +206,28 @@ function computePortPts(
     if (!source) continue;
     const sorted = es
       .map((e) => ({ e, t: nodeMap.get(e.targetId) }))
-      .filter((x): x is { e: InfraLayoutEdge; t: InfraLayoutNode } => x.t != null)
+      .filter(
+        (x): x is { e: InfraLayoutEdge; t: InfraLayoutNode } => x.t != null
+      )
       .sort((a, b) => (direction === 'LR' ? a.t.y - b.t.y : a.t.x - b.t.x));
     const n = sorted.length;
     for (let i = 0; i < n; i++) {
-      const frac = n === 1 ? 0.5 : PAD + (1 - 2 * PAD) * i / (n - 1);
+      const frac = n === 1 ? 0.5 : PAD + ((1 - 2 * PAD) * i) / (n - 1);
       const { e, t } = sorted[i];
       const isBackward = direction === 'LR' ? t.x < source.x : t.y < source.y;
       if (direction === 'LR') {
         srcPts.set(`${e.sourceId}:${e.targetId}`, {
-          x: isBackward ? source.x - source.width / 2 : source.x + source.width / 2,
+          x: isBackward
+            ? source.x - source.width / 2
+            : source.x + source.width / 2,
           y: source.y - source.height / 2 + frac * source.height,
         });
       } else {
         srcPts.set(`${e.sourceId}:${e.targetId}`, {
           x: source.x - source.width / 2 + frac * source.width,
-          y: isBackward ? source.y - source.height / 2 : source.y + source.height / 2,
+          y: isBackward
+            ? source.y - source.height / 2
+            : source.y + source.height / 2,
         });
       }
     }
@@ -206,22 +245,28 @@ function computePortPts(
     if (!target) continue;
     const sorted = es
       .map((e) => ({ e, s: nodeMap.get(e.sourceId) }))
-      .filter((x): x is { e: InfraLayoutEdge; s: InfraLayoutNode } => x.s != null)
+      .filter(
+        (x): x is { e: InfraLayoutEdge; s: InfraLayoutNode } => x.s != null
+      )
       .sort((a, b) => (direction === 'LR' ? a.s.y - b.s.y : a.s.x - b.s.x));
     const n = sorted.length;
     for (let i = 0; i < n; i++) {
-      const frac = n === 1 ? 0.5 : PAD + (1 - 2 * PAD) * i / (n - 1);
+      const frac = n === 1 ? 0.5 : PAD + ((1 - 2 * PAD) * i) / (n - 1);
       const { e, s } = sorted[i];
       const isBackward = direction === 'LR' ? target.x < s.x : target.y < s.y;
       if (direction === 'LR') {
         tgtPts.set(`${e.sourceId}:${e.targetId}`, {
-          x: isBackward ? target.x + target.width / 2 : target.x - target.width / 2,
+          x: isBackward
+            ? target.x + target.width / 2
+            : target.x - target.width / 2,
           y: target.y - target.height / 2 + frac * target.height,
         });
       } else {
         tgtPts.set(`${e.sourceId}:${e.targetId}`, {
           x: target.x - target.width / 2 + frac * target.width,
-          y: isBackward ? target.y + target.height / 2 : target.y - target.height / 2,
+          y: isBackward
+            ? target.y + target.height / 2
+            : target.y - target.height / 2,
         });
       }
     }
@@ -239,12 +284,14 @@ function computePortPts(
 function findRoutingLane(
   blocking: Rect[],
   targetY: number,
-  margin: number,
+  margin: number
 ): number {
   // Use a small slop for merging so closely-spaced (but distinct) groups
   // stay as separate intervals and the gap between them can be threaded.
   const MERGE_SLOP = 4;
-  const sorted = [...blocking].sort((a, b) => (a.y + a.height / 2) - (b.y + b.height / 2));
+  const sorted = [...blocking].sort(
+    (a, b) => a.y + a.height / 2 - (b.y + b.height / 2)
+  );
   const merged: [number, number][] = [];
   for (const r of sorted) {
     const lo = r.y - MERGE_SLOP;
@@ -261,25 +308,30 @@ function findRoutingLane(
   // MIN_GAP: allow narrow gaps (edge is ~1.5px, so even 10px clearance is fine).
   const MIN_GAP = 10;
   const candidates: number[] = [
-    merged[0][0] - margin,                      // above all blocking rects
-    merged[merged.length - 1][1] + margin,      // below all blocking rects
+    merged[0][0] - margin, // above all blocking rects
+    merged[merged.length - 1][1] + margin, // below all blocking rects
   ];
   for (let i = 0; i < merged.length - 1; i++) {
     const gapLo = merged[i][1];
     const gapHi = merged[i + 1][0];
     if (gapHi - gapLo >= MIN_GAP) {
-      candidates.push((gapLo + gapHi) / 2);    // thread through the gap
+      candidates.push((gapLo + gapHi) / 2); // thread through the gap
     }
   }
 
   // Return the candidate closest to targetY (tightest arc)
-  return candidates.reduce((best, c) =>
-    Math.abs(c - targetY) < Math.abs(best - targetY) ? c : best,
-    candidates[0]);
+  return candidates.reduce(
+    (best, c) => (Math.abs(c - targetY) < Math.abs(best - targetY) ? c : best),
+    candidates[0]
+  );
 }
 
 /** Check whether segment p1→p2 passes through (or has an endpoint inside) the rectangle. */
-function segmentIntersectsRect(p1: Pt, p2: Pt, rect: { x: number; y: number; width: number; height: number }): boolean {
+function segmentIntersectsRect(
+  p1: Pt,
+  p2: Pt,
+  rect: { x: number; y: number; width: number; height: number }
+): boolean {
   const { x: rx, y: ry, width: rw, height: rh } = rect;
   const rr = rx + rw;
   const rb = ry + rh;
@@ -290,21 +342,26 @@ function segmentIntersectsRect(p1: Pt, p2: Pt, rect: { x: number; y: number; wid
   if (Math.max(p1.x, p2.x) < rx || Math.min(p1.x, p2.x) > rr) return false;
   if (Math.max(p1.y, p2.y) < ry || Math.min(p1.y, p2.y) > rb) return false;
   // Cross product sign helper (z-component of cross product)
-  const cross = (o: Pt, a: Pt, b: Pt) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+  const cross = (o: Pt, a: Pt, b: Pt) =>
+    (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
   // Does segment p1p2 cross segment a→b?
   const crosses = (a: Pt, b: Pt) => {
     const d1 = cross(a, b, p1);
     const d2 = cross(a, b, p2);
     const d3 = cross(p1, p2, a);
     const d4 = cross(p1, p2, b);
-    return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
-           ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0));
+    return (
+      ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
+      ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))
+    );
   };
   const tl: Pt = { x: rx, y: ry };
   const tr: Pt = { x: rr, y: ry };
   const br: Pt = { x: rr, y: rb };
   const bl: Pt = { x: rx, y: rb };
-  return crosses(tl, tr) || crosses(tr, br) || crosses(br, bl) || crosses(bl, tl);
+  return (
+    crosses(tl, tr) || crosses(tr, br) || crosses(br, bl) || crosses(bl, tl)
+  );
 }
 
 /** Check whether the curveBumpX/Y S-curve from sc to tc intersects rect.
@@ -315,21 +372,30 @@ function segmentIntersectsRect(p1: Pt, p2: Pt, rect: { x: number; y: number; wid
  *    sc → (midX, sc.y) → (midX, tc.y) → tc
  *
  *  curveBumpY (TB) mirrors this on the other axis. */
-function curveIntersectsRect(sc: Pt, tc: Pt, rect: Rect, direction: 'LR' | 'TB'): boolean {
+function curveIntersectsRect(
+  sc: Pt,
+  tc: Pt,
+  rect: Rect,
+  direction: 'LR' | 'TB'
+): boolean {
   if (direction === 'LR') {
     const midX = (sc.x + tc.x) / 2;
     const m1: Pt = { x: midX, y: sc.y };
     const m2: Pt = { x: midX, y: tc.y };
-    return segmentIntersectsRect(sc, m1, rect)
-        || segmentIntersectsRect(m1, m2, rect)
-        || segmentIntersectsRect(m2, tc, rect);
+    return (
+      segmentIntersectsRect(sc, m1, rect) ||
+      segmentIntersectsRect(m1, m2, rect) ||
+      segmentIntersectsRect(m2, tc, rect)
+    );
   } else {
     const midY = (sc.y + tc.y) / 2;
     const m1: Pt = { x: sc.x, y: midY };
     const m2: Pt = { x: tc.x, y: midY };
-    return segmentIntersectsRect(sc, m1, rect)
-        || segmentIntersectsRect(m1, m2, rect)
-        || segmentIntersectsRect(m2, tc, rect);
+    return (
+      segmentIntersectsRect(sc, m1, rect) ||
+      segmentIntersectsRect(m1, m2, rect) ||
+      segmentIntersectsRect(m2, tc, rect)
+    );
   }
 }
 
@@ -348,7 +414,7 @@ function edgeWaypoints(
   direction: 'LR' | 'TB',
   margin = 30,
   srcExitPt?: Pt, // port-ordered exit point on source border
-  tgtEnterPt?: Pt, // port-ordered enter point on target border
+  tgtEnterPt?: Pt // port-ordered enter point on target border
 ): Pt[] {
   const sc: Pt = { x: source.x, y: source.y };
   const tc: Pt = { x: target.x, y: target.y };
@@ -370,13 +436,20 @@ function edgeWaypoints(
         const nLeft = n.x - n.width / 2;
         const nRight = n.x + n.width / 2;
         if (nRight < tc.x - margin || nLeft > sc.x + margin) continue;
-        xBandObs.push({ x: nLeft, y: n.y - n.height / 2, width: n.width, height: n.height });
+        xBandObs.push({
+          x: nLeft,
+          y: n.y - n.height / 2,
+          width: n.width,
+          height: n.height,
+        });
       }
-      const midY   = (sc.y + tc.y) / 2;
-      const routeY = xBandObs.length > 0 ? findRoutingLane(xBandObs, midY, margin) : midY;
-      const exitBorder: Pt = srcExitPt ?? nodeBorderPoint(source, { x: sc.x, y: routeY });
-      const exitPt   : Pt = { x: exitBorder.x, y: routeY };
-      const enterPt  : Pt = { x: tc.x, y: routeY };
+      const midY = (sc.y + tc.y) / 2;
+      const routeY =
+        xBandObs.length > 0 ? findRoutingLane(xBandObs, midY, margin) : midY;
+      const exitBorder: Pt =
+        srcExitPt ?? nodeBorderPoint(source, { x: sc.x, y: routeY });
+      const exitPt: Pt = { x: exitBorder.x, y: routeY };
+      const enterPt: Pt = { x: tc.x, y: routeY };
       const tp = tgtEnterPt ?? nodeBorderPoint(target, enterPt);
       return srcExitPt
         ? [srcExitPt, exitPt, enterPt, tp]
@@ -393,14 +466,25 @@ function edgeWaypoints(
         const nTop = n.y - n.height / 2;
         const nBot = n.y + n.height / 2;
         if (nBot < tc.y - margin || nTop > sc.y + margin) continue;
-        yBandObs.push({ x: n.x - n.width / 2, y: nTop, width: n.width, height: n.height });
+        yBandObs.push({
+          x: n.x - n.width / 2,
+          y: nTop,
+          width: n.width,
+          height: n.height,
+        });
       }
       // Rotate axes so findRoutingLane (which works in Y) resolves an X lane
-      const rotated = yBandObs.map((r) => ({ x: r.y, y: r.x, width: r.height, height: r.width }));
-      const midX    = (sc.x + tc.x) / 2;
-      const routeX  = rotated.length > 0 ? findRoutingLane(rotated, midX, margin) : midX;
-      const exitPt  : Pt = srcExitPt ?? { x: routeX, y: sc.y };
-      const enterPt : Pt = { x: routeX, y: tc.y };
+      const rotated = yBandObs.map((r) => ({
+        x: r.y,
+        y: r.x,
+        width: r.height,
+        height: r.width,
+      }));
+      const midX = (sc.x + tc.x) / 2;
+      const routeX =
+        rotated.length > 0 ? findRoutingLane(rotated, midX, margin) : midX;
+      const exitPt: Pt = srcExitPt ?? { x: routeX, y: sc.y };
+      const enterPt: Pt = { x: routeX, y: tc.y };
       return [
         srcExitPt ?? nodeBorderPoint(source, exitPt),
         exitPt,
@@ -411,7 +495,8 @@ function edgeWaypoints(
   }
 
   // ── Forward edge: obstacle avoidance (groups + individual nodes) ─────────
-  const blocking: { x: number; y: number; width: number; height: number }[] = [];
+  const blocking: { x: number; y: number; width: number; height: number }[] =
+    [];
   const blockingGroupIds = new Set<string>();
 
   // Use actual path endpoints (port-ordered) for more accurate blocking detection.
@@ -433,10 +518,19 @@ function edgeWaypoints(
   for (const n of nodes) {
     if (n.id === source.id || n.id === target.id) continue;
     // Skip nodes in source/target groups (routing around the group handles them)
-    if (n.groupId && (n.groupId === source.groupId || n.groupId === target.groupId)) continue;
+    if (
+      n.groupId &&
+      (n.groupId === source.groupId || n.groupId === target.groupId)
+    )
+      continue;
     // Skip nodes inside a group whose bounding box is already blocking
     if (n.groupId && blockingGroupIds.has(n.groupId)) continue;
-    const nodeRect: Rect = { x: n.x - n.width / 2, y: n.y - n.height / 2, width: n.width, height: n.height };
+    const nodeRect: Rect = {
+      x: n.x - n.width / 2,
+      y: n.y - n.height / 2,
+      width: n.width,
+      height: n.height,
+    };
     if (curveIntersectsRect(pathSrc, pathTgt, nodeRect, direction)) {
       blocking.push(nodeRect);
     }
@@ -449,17 +543,19 @@ function edgeWaypoints(
     return [sp, tp];
   }
 
-  const obsLeft  = Math.min(...blocking.map((o) => o.x));
+  const obsLeft = Math.min(...blocking.map((o) => o.x));
   const obsRight = Math.max(...blocking.map((o) => o.x + o.width));
 
   const routeY = findRoutingLane(blocking, tc.y, margin);
 
   // Clamp exit/enter X to [sc.x, tc.x] for LR so the path never reverses
   // direction when an obstacle's bounding box extends past source or target.
-  const exitX  = direction === 'LR' ? Math.max(sc.x, obsLeft  - margin) : obsLeft  - margin;
-  const enterX = direction === 'LR' ? Math.min(tc.x, obsRight + margin) : obsRight + margin;
-  const exitPt  : Pt = { x: exitX,  y: routeY };
-  const enterPt : Pt = { x: enterX, y: routeY };
+  const exitX =
+    direction === 'LR' ? Math.max(sc.x, obsLeft - margin) : obsLeft - margin;
+  const enterX =
+    direction === 'LR' ? Math.min(tc.x, obsRight + margin) : obsRight + margin;
+  const exitPt: Pt = { x: exitX, y: routeY };
+  const enterPt: Pt = { x: enterX, y: routeY };
 
   const tp = tgtEnterPt ?? nodeBorderPoint(target, enterPt);
 
@@ -473,7 +569,7 @@ function edgeWaypoints(
 /** Compute the point on a node's border closest to an external target point. */
 function nodeBorderPoint(
   node: InfraLayoutNode,
-  target: { x: number; y: number },
+  target: { x: number; y: number }
 ): { x: number; y: number } {
   const hw = node.width / 2;
   const hh = node.height / 2;
@@ -500,7 +596,9 @@ function flowDuration(rps: number, maxRps: number): number {
 function particleCount(rps: number, maxRps: number): number {
   if (maxRps <= 0) return PARTICLE_COUNT_MIN;
   const t = Math.min(rps / maxRps, 1);
-  return Math.round(PARTICLE_COUNT_MIN + t * (PARTICLE_COUNT_MAX - PARTICLE_COUNT_MIN));
+  return Math.round(
+    PARTICLE_COUNT_MIN + t * (PARTICLE_COUNT_MAX - PARTICLE_COUNT_MIN)
+  );
 }
 
 /** Determine if a node is in warning state (>70% capacity but not overloaded). */
@@ -532,18 +630,18 @@ const PROP_DISPLAY: Record<string, string> = {
   'firewall-block': 'firewall block',
   'ratelimit-rps': 'rate limit RPS',
   'latency-ms': 'latency',
-  'uptime': 'uptime',
-  'instances': 'instances',
+  uptime: 'uptime',
+  instances: 'instances',
   'max-rps': 'max RPS',
   'cb-error-threshold': 'CB error threshold',
   'cb-latency-threshold-ms': 'CB latency threshold',
-  'concurrency': 'concurrency',
+  concurrency: 'concurrency',
   'duration-ms': 'duration',
   'cold-start-ms': 'cold start',
-  'buffer': 'buffer',
+  buffer: 'buffer',
   'drain-rate': 'drain rate',
   'retention-hours': 'retention',
-  'partitions': 'partitions',
+  partitions: 'partitions',
 };
 
 const DESC_MAX_CHARS = 120;
@@ -558,10 +656,20 @@ function truncateDesc(text: string): string {
 const RPS_FORMAT_KEYS = new Set(['max-rps', 'ratelimit-rps']);
 
 /** Keys whose values are milliseconds and should show the "ms" suffix. */
-const MS_FORMAT_KEYS = new Set(['latency-ms', 'cb-latency-threshold-ms', 'duration-ms', 'cold-start-ms']);
+const MS_FORMAT_KEYS = new Set([
+  'latency-ms',
+  'cb-latency-threshold-ms',
+  'duration-ms',
+  'cold-start-ms',
+]);
 
 /** Keys whose values are percentages and should show the "%" suffix. */
-const PCT_FORMAT_KEYS = new Set(['cache-hit', 'firewall-block', 'uptime', 'cb-error-threshold']);
+const PCT_FORMAT_KEYS = new Set([
+  'cache-hit',
+  'firewall-block',
+  'uptime',
+  'cb-error-threshold',
+]);
 
 /** Compute SLO color for a p90 latency value against the configured threshold.
  *  Callers must guard slo.latencyP90 != null before calling. */
@@ -569,11 +677,19 @@ function sloLatencyColor(p90: number, slo: NodeSlo): string {
   const t = slo.latencyP90 ?? 0;
   if (t === 0) return COLOR_HEALTHY; // no meaningful threshold — treat as healthy
   const m = slo.warningMargin;
-  return p90 > t ? COLOR_OVERLOADED : p90 > t * (1 - m) ? COLOR_WARNING : COLOR_HEALTHY;
+  return p90 > t
+    ? COLOR_OVERLOADED
+    : p90 > t * (1 - m)
+      ? COLOR_WARNING
+      : COLOR_HEALTHY;
 }
 
 /** Computed metric rows (latency percentiles, uptime, availability, CB state) shown after declared props. */
-function getComputedRows(node: InfraLayoutNode, expanded: boolean, slo?: NodeSlo | null): ComputedRow[] {
+function getComputedRows(
+  node: InfraLayoutNode,
+  expanded: boolean,
+  slo?: NodeSlo | null
+): ComputedRow[] {
   const rows: ComputedRow[] = [];
 
   // Serverless instances: demand vs concurrency limit
@@ -581,10 +697,12 @@ function getComputedRows(node: InfraLayoutNode, expanded: boolean, slo?: NodeSlo
     const concurrency = getNodeNumProp(node, 'concurrency', 0);
     const demand = node.computedConcurrentInvocations;
     const ratio = concurrency > 0 ? demand / concurrency : 0;
-    const color = ratio > 1 ? COLOR_OVERLOADED : ratio > 0.7 ? COLOR_WARNING : undefined;
-    const value = concurrency > 0
-      ? `${formatCount(demand)} / ${formatCount(concurrency)}`
-      : `${formatCount(demand)}`;
+    const color =
+      ratio > 1 ? COLOR_OVERLOADED : ratio > 0.7 ? COLOR_WARNING : undefined;
+    const value =
+      concurrency > 0
+        ? `${formatCount(demand)} / ${formatCount(concurrency)}`
+        : `${formatCount(demand)}`;
     rows.push({ key: 'instances', value, color, inverted: color != null });
   }
 
@@ -594,10 +712,16 @@ function getComputedRows(node: InfraLayoutNode, expanded: boolean, slo?: NodeSlo
       rows.push({ key: 'p50', value: formatMsShort(p.p50) });
       if (slo?.latencyP90 != null) {
         const color = sloLatencyColor(p.p90, slo);
-        const p90Value = color !== COLOR_HEALTHY
-          ? `${formatMsShort(p.p90)} / ${formatMsShort(slo.latencyP90!)}`
-          : formatMsShort(p.p90);
-        rows.push({ key: 'p90', value: p90Value, color, inverted: color !== COLOR_HEALTHY });
+        const p90Value =
+          color !== COLOR_HEALTHY
+            ? `${formatMsShort(p.p90)} / ${formatMsShort(slo.latencyP90!)}`
+            : formatMsShort(p.p90);
+        rows.push({
+          key: 'p90',
+          value: p90Value,
+          color,
+          inverted: color !== COLOR_HEALTHY,
+        });
       } else {
         rows.push({ key: 'p90', value: formatMsShort(p.p90) });
       }
@@ -606,10 +730,16 @@ function getComputedRows(node: InfraLayoutNode, expanded: boolean, slo?: NodeSlo
       // Collapsed: show p90 (with SLO color if configured) instead of p99
       if (slo?.latencyP90 != null) {
         const color = sloLatencyColor(p.p90, slo);
-        const p90Value = color !== COLOR_HEALTHY
-          ? `${formatMsShort(p.p90)} / ${formatMsShort(slo.latencyP90!)}`
-          : formatMsShort(p.p90);
-        rows.push({ key: 'p90', value: p90Value, color, inverted: color !== COLOR_HEALTHY });
+        const p90Value =
+          color !== COLOR_HEALTHY
+            ? `${formatMsShort(p.p90)} / ${formatMsShort(slo.latencyP90!)}`
+            : formatMsShort(p.p90);
+        rows.push({
+          key: 'p90',
+          value: p90Value,
+          color,
+          inverted: color !== COLOR_HEALTHY,
+        });
       } else {
         rows.push({ key: 'p90', value: formatMsShort(p.p90) });
       }
@@ -623,7 +753,10 @@ function getComputedRows(node: InfraLayoutNode, expanded: boolean, slo?: NodeSlo
     const declaredVal = declaredUptime ? Number(declaredUptime.value) / 100 : 1;
     const differs = Math.abs(node.computedUptime - declaredVal) > 0.000001;
     if (differs || node.isEdge) {
-      rows.push({ key: 'eff. uptime', value: formatUptimeShort(node.computedUptime) });
+      rows.push({
+        key: 'eff. uptime',
+        value: formatUptimeShort(node.computedUptime),
+      });
     }
   }
   if (node.computedAvailability < 1) {
@@ -632,27 +765,45 @@ function getComputedRows(node: InfraLayoutNode, expanded: boolean, slo?: NodeSlo
       const t = slo.availThreshold;
       const m = slo.warningMargin;
       if (node.computedAvailability < t) color = COLOR_OVERLOADED;
-      else if (node.computedAvailability < Math.min(1, t + m)) color = COLOR_WARNING;
+      else if (node.computedAvailability < Math.min(1, t + m))
+        color = COLOR_WARNING;
       else color = COLOR_HEALTHY;
     } else {
-      color = node.computedAvailability < 0.95 ? COLOR_OVERLOADED
-        : node.computedAvailability < 0.99 ? COLOR_WARNING
-        : undefined;
+      color =
+        node.computedAvailability < 0.95
+          ? COLOR_OVERLOADED
+          : node.computedAvailability < 0.99
+            ? COLOR_WARNING
+            : undefined;
     }
-    rows.push({ key: 'availability', value: formatUptimeShort(node.computedAvailability), color, inverted: color != null && color !== COLOR_HEALTHY });
+    rows.push({
+      key: 'availability',
+      value: formatUptimeShort(node.computedAvailability),
+      color,
+      inverted: color != null && color !== COLOR_HEALTHY,
+    });
   }
   // Circuit breaker state — show when a CB is configured and open
   if (node.computedCbState === 'open') {
-    rows.push({ key: 'CB', value: 'OPEN', color: COLOR_OVERLOADED, inverted: true });
+    rows.push({
+      key: 'CB',
+      value: 'OPEN',
+      color: COLOR_OVERLOADED,
+      inverted: true,
+    });
   }
   // Queue computed rows: lag and overflow
   if (node.queueMetrics) {
     const { fillRate, timeToOverflow } = node.queueMetrics;
     if (fillRate > 0) {
-      rows.push({ key: 'lag', value: `${formatCount(Math.round(fillRate))} msg/s` });
+      rows.push({
+        key: 'lag',
+        value: `${formatCount(Math.round(fillRate))} msg/s`,
+      });
     }
     if (fillRate > 0 && timeToOverflow < Infinity) {
-      const overflowColor = timeToOverflow < 60 ? COLOR_OVERLOADED : COLOR_WARNING;
+      const overflowColor =
+        timeToOverflow < 60 ? COLOR_OVERLOADED : COLOR_WARNING;
       rows.push({
         key: 'overflow',
         value: `~${Math.round(timeToOverflow)}s`,
@@ -665,7 +816,8 @@ function getComputedRows(node: InfraLayoutNode, expanded: boolean, slo?: NodeSlo
 }
 
 function formatCount(n: number): string {
-  if (n >= 1000000) return `${(n / 1000000).toFixed(n % 1000000 === 0 ? 0 : 1)}M`;
+  if (n >= 1000000)
+    return `${(n / 1000000).toFixed(n % 1000000 === 0 ? 0 : 1)}M`;
   if (n >= 1000) return `${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}k`;
   return String(n);
 }
@@ -684,7 +836,11 @@ function formatUptimeShort(fraction: number): string {
 }
 
 /** Properties shown as key-value rows inside the node card. */
-function getDisplayProps(node: InfraLayoutNode, expanded: boolean, diagramOptions?: Record<string, string>): { key: string; displayKey: string; value: string }[] {
+function getDisplayProps(
+  node: InfraLayoutNode,
+  expanded: boolean,
+  diagramOptions?: Record<string, string>
+): { key: string; displayKey: string; value: string }[] {
   if (node.isEdge) return [];
   const rows: { key: string; displayKey: string; value: string }[] = [];
   for (const p of node.properties) {
@@ -697,23 +853,53 @@ function getDisplayProps(node: InfraLayoutNode, expanded: boolean, diagramOption
     if (p.key === 'concurrency' && !expanded) continue;
     // Format values with appropriate units
     if (RPS_FORMAT_KEYS.has(p.key)) {
-      const num = typeof p.value === 'number' ? p.value : parseFloat(String(p.value));
-      rows.push({ key: p.key, displayKey, value: isNaN(num) ? String(p.value) : formatRpsShort(num) });
+      const num =
+        typeof p.value === 'number' ? p.value : parseFloat(String(p.value));
+      rows.push({
+        key: p.key,
+        displayKey,
+        value: isNaN(num) ? String(p.value) : formatRpsShort(num),
+      });
     } else if (MS_FORMAT_KEYS.has(p.key)) {
-      const num = typeof p.value === 'number' ? p.value : parseFloat(String(p.value));
-      rows.push({ key: p.key, displayKey, value: isNaN(num) ? String(p.value) : formatMsShort(num) });
+      const num =
+        typeof p.value === 'number' ? p.value : parseFloat(String(p.value));
+      rows.push({
+        key: p.key,
+        displayKey,
+        value: isNaN(num) ? String(p.value) : formatMsShort(num),
+      });
     } else if (PCT_FORMAT_KEYS.has(p.key)) {
-      const num = typeof p.value === 'number' ? p.value : parseFloat(String(p.value));
-      rows.push({ key: p.key, displayKey, value: isNaN(num) ? String(p.value) : `${num}%` });
+      const num =
+        typeof p.value === 'number' ? p.value : parseFloat(String(p.value));
+      rows.push({
+        key: p.key,
+        displayKey,
+        value: isNaN(num) ? String(p.value) : `${num}%`,
+      });
     } else if (p.key === 'buffer') {
-      const num = typeof p.value === 'number' ? p.value : parseFloat(String(p.value));
-      rows.push({ key: p.key, displayKey, value: isNaN(num) ? String(p.value) : formatCount(num) });
+      const num =
+        typeof p.value === 'number' ? p.value : parseFloat(String(p.value));
+      rows.push({
+        key: p.key,
+        displayKey,
+        value: isNaN(num) ? String(p.value) : formatCount(num),
+      });
     } else if (p.key === 'drain-rate') {
-      const num = typeof p.value === 'number' ? p.value : parseFloat(String(p.value));
-      rows.push({ key: p.key, displayKey, value: isNaN(num) ? String(p.value) : `${formatRpsShort(num)}/s` });
+      const num =
+        typeof p.value === 'number' ? p.value : parseFloat(String(p.value));
+      rows.push({
+        key: p.key,
+        displayKey,
+        value: isNaN(num) ? String(p.value) : `${formatRpsShort(num)}/s`,
+      });
     } else if (p.key === 'retention-hours') {
-      const num = typeof p.value === 'number' ? p.value : parseFloat(String(p.value));
-      rows.push({ key: p.key, displayKey, value: isNaN(num) ? String(p.value) : `${num}h` });
+      const num =
+        typeof p.value === 'number' ? p.value : parseFloat(String(p.value));
+      rows.push({
+        key: p.key,
+        displayKey,
+        value: isNaN(num) ? String(p.value) : `${num}h`,
+      });
     } else {
       rows.push({ key: p.key, displayKey, value: String(p.value) });
     }
@@ -722,19 +908,30 @@ function getDisplayProps(node: InfraLayoutNode, expanded: boolean, diagramOption
   if (diagramOptions) {
     const hasLatency = node.properties.some((p) => p.key === 'latency-ms');
     const hasUptime = node.properties.some((p) => p.key === 'uptime');
-    const isServerlessNode = node.properties.some((p) => p.key === 'concurrency');
-    const defaultLatency = parseFloat(diagramOptions['default-latency-ms'] ?? '') || 0;
-    const defaultUptime = parseFloat(diagramOptions['default-uptime'] ?? '') || 0;
+    const isServerlessNode = node.properties.some(
+      (p) => p.key === 'concurrency'
+    );
+    const defaultLatency =
+      parseFloat(diagramOptions['default-latency-ms'] ?? '') || 0;
+    const defaultUptime =
+      parseFloat(diagramOptions['default-uptime'] ?? '') || 0;
     if (!hasLatency && !isServerlessNode && defaultLatency > 0) {
-      rows.push({ key: 'latency-ms', displayKey: 'latency', value: formatMsShort(defaultLatency) });
+      rows.push({
+        key: 'latency-ms',
+        displayKey: 'latency',
+        value: formatMsShort(defaultLatency),
+      });
     }
     if (!hasUptime && defaultUptime > 0 && defaultUptime < 100) {
-      rows.push({ key: 'uptime', displayKey: 'uptime', value: `${defaultUptime}%` });
+      rows.push({
+        key: 'uptime',
+        displayKey: 'uptime',
+        value: `${defaultUptime}%`,
+      });
     }
   }
   return rows;
 }
-
 
 /** RPS value without "rps" suffix — for key-value rows where the key already says "RPS". */
 function formatRpsShort(rps: number): string {
@@ -746,7 +943,7 @@ function formatRpsShort(rps: number): string {
  *  Returns 'overloaded' (red), 'warning' (yellow), 'healthy' (green), or 'normal'. */
 function worstNodeSeverity(
   node: InfraLayoutNode,
-  slo?: NodeSlo | null,
+  slo?: NodeSlo | null
 ): 'overloaded' | 'warning' | 'healthy' | 'normal' {
   let worst: 'overloaded' | 'warning' | 'normal' = 'normal';
   const upgrade = (s: 'overloaded' | 'warning') => {
@@ -810,10 +1007,14 @@ function worstNodeSeverity(
 
   // Healthy: SLO declared AND all checks are in the green zone
   if (worst === 'normal' && slo != null) {
-    const availGreen = slo.availThreshold == null ||
-      node.computedAvailability >= Math.min(1, slo.availThreshold + slo.warningMargin);
-    const latencyGreen = slo.latencyP90 == null ||
-      node.computedLatencyPercentiles.p90 <= slo.latencyP90 * (1 - slo.warningMargin);
+    const availGreen =
+      slo.availThreshold == null ||
+      node.computedAvailability >=
+        Math.min(1, slo.availThreshold + slo.warningMargin);
+    const latencyGreen =
+      slo.latencyP90 == null ||
+      node.computedLatencyPercentiles.p90 <=
+        slo.latencyP90 * (1 - slo.warningMargin);
     if (availGreen && latencyGreen) return 'healthy';
   }
 
@@ -824,7 +1025,7 @@ function nodeColor(
   _node: InfraLayoutNode,
   palette: PaletteColors,
   isDark: boolean,
-  severity: ReturnType<typeof worstNodeSeverity>,
+  severity: ReturnType<typeof worstNodeSeverity>
 ): {
   fill: string;
   stroke: string;
@@ -852,8 +1053,12 @@ function nodeColor(
     };
   }
   return {
-    fill: isDark ? mix(palette.bg, palette.text, 90) : mix(palette.bg, palette.text, 95),
-    stroke: isDark ? mix(palette.text, palette.bg, 60) : mix(palette.text, palette.bg, 40),
+    fill: isDark
+      ? mix(palette.bg, palette.text, 90)
+      : mix(palette.bg, palette.text, 95),
+    stroke: isDark
+      ? mix(palette.text, palette.bg, 60)
+      : mix(palette.text, palette.bg, 40),
     textFill: palette.text,
   };
 }
@@ -874,10 +1079,11 @@ function renderGroups(
   svg: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   groups: InfraLayoutGroup[],
   palette: PaletteColors,
-  isDark: boolean,
+  _isDark: boolean
 ) {
   for (const group of groups) {
-    const g = svg.append('g')
+    const g = svg
+      .append('g')
       .attr('class', 'infra-group')
       .attr('data-line-number', group.lineNumber)
       .attr('data-node-toggle', group.id)
@@ -909,8 +1115,12 @@ function renderGroups(
       .text(group.label);
 
     // Group instances badge (top-right, like node instance badges)
-    const gi = typeof group.instances === 'number' ? group.instances :
-      typeof group.instances === 'string' ? parseInt(String(group.instances), 10) || 0 : 0;
+    const gi =
+      typeof group.instances === 'number'
+        ? group.instances
+        : typeof group.instances === 'string'
+          ? parseInt(String(group.instances), 10) || 0
+          : 0;
     if (gi > 1) {
       g.append('text')
         .attr('x', group.x + group.width - 8)
@@ -933,7 +1143,7 @@ function renderEdgePaths(
   isDark: boolean,
   animate: boolean,
   direction: 'LR' | 'TB',
-  speedMultiplier: number = 1,
+  speedMultiplier: number = 1
 ) {
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
   const maxRps = Math.max(...edges.map((e) => e.computedRps), 1);
@@ -950,15 +1160,23 @@ function renderEdgePaths(
     if (!sourceNode || !targetNode) continue;
     const key = `${edge.sourceId}:${edge.targetId}`;
     const pts = edgeWaypoints(
-      sourceNode, targetNode, groups, nodes, direction, 30,
-      srcPts.get(key), tgtPts.get(key),
+      sourceNode,
+      targetNode,
+      groups,
+      nodes,
+      direction,
+      30,
+      srcPts.get(key),
+      tgtPts.get(key)
     );
     const pathD = buildPathD(pts, direction);
-    const edgeG = svg.append('g')
+    const edgeG = svg
+      .append('g')
       .attr('class', 'infra-edge')
       .attr('data-line-number', edge.lineNumber);
 
-    const edgePath = edgeG.append('path')
+    const edgePath = edgeG
+      .append('path')
       .attr('d', pathD)
       .attr('fill', 'none')
       .attr('stroke', color)
@@ -978,13 +1196,15 @@ function renderEdgePaths(
 
       for (let i = 0; i < count; i++) {
         const delay = (dur / count) * i;
-        const circle = edgeG.append('circle')
+        const circle = edgeG
+          .append('circle')
           .attr('r', PARTICLE_R)
           .attr('fill', particleColor)
           .attr('opacity', 0.85);
 
         // Use SMIL <animateMotion> for path-following
-        circle.append('animateMotion')
+        circle
+          .append('animateMotion')
           .attr('dur', `${dur}s`)
           .attr('repeatCount', 'indefinite')
           .attr('begin', `${delay}s`)
@@ -1002,7 +1222,7 @@ function renderEdgeLabels(
   palette: PaletteColors,
   isDark: boolean,
   animate: boolean,
-  direction: 'LR' | 'TB',
+  direction: 'LR' | 'TB'
 ) {
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
   const { srcPts, tgtPts } = computePortPts(edges, nodeMap, direction);
@@ -1016,15 +1236,20 @@ function renderEdgeLabels(
 
     const key = `${edge.sourceId}:${edge.targetId}`;
     const wps = edgeWaypoints(
-      sourceNode, targetNode, groups, nodes, direction, 30,
-      srcPts.get(key), tgtPts.get(key),
+      sourceNode,
+      targetNode,
+      groups,
+      nodes,
+      direction,
+      30,
+      srcPts.get(key),
+      tgtPts.get(key)
     );
     // Label midpoint: middle waypoint of the routed path
     const midPt = wps[Math.floor(wps.length / 2)];
     const labelText = edge.label;
 
-    const g = svg.append('g')
-      .attr('class', animate ? 'infra-edge-label' : '');
+    const g = svg.append('g').attr('class', animate ? 'infra-edge-label' : '');
 
     // Background rect for readability
     const textWidth = labelText.length * 6.5 + 8;
@@ -1063,14 +1288,18 @@ function resolveActiveTagStroke(
   node: InfraLayoutNode,
   activeGroup: string,
   tagGroups: InfraTagGroup[],
-  palette: PaletteColors,
+  palette: PaletteColors
 ): string | null {
-  const tg = tagGroups.find((t) => t.name.toLowerCase() === activeGroup.toLowerCase());
+  const tg = tagGroups.find(
+    (t) => t.name.toLowerCase() === activeGroup.toLowerCase()
+  );
   if (!tg) return null;
   const tagKey = (tg.alias ?? tg.name).toLowerCase();
   const tagVal = node.tags[tagKey];
   if (!tagVal) return null;
-  const tv = tg.values.find((v) => v.name.toLowerCase() === tagVal.toLowerCase());
+  const tv = tg.values.find(
+    (v) => v.name.toLowerCase() === tagVal.toLowerCase()
+  );
   if (!tv?.color) return null;
   return resolveColor(tv.color, palette);
 }
@@ -1087,18 +1316,28 @@ function renderNodes(
   collapsedNodes?: Set<string> | null,
   tagGroups?: InfraTagGroup[],
   fanoutSourceIds?: Set<string>,
-  scaledGroupIds?: Set<string>,
+  scaledGroupIds?: Set<string>
 ) {
   const mutedColor = palette.textMuted;
 
   for (const node of nodes) {
-    const slo = (!node.isEdge && diagramOptions) ? resolveNodeSlo(node, diagramOptions) : null;
+    const slo =
+      !node.isEdge && diagramOptions
+        ? resolveNodeSlo(node, diagramOptions)
+        : null;
     const severity = worstNodeSeverity(node, slo);
-    let { fill, stroke, textFill } = nodeColor(node, palette, isDark, severity);
+    const nodeColors = nodeColor(node, palette, isDark, severity);
+    const textFill = nodeColors.textFill;
+    let { fill, stroke } = nodeColors;
 
     // When a tag legend is active, override border color with tag color
     if (activeGroup && tagGroups && !node.isEdge) {
-      const tagStroke = resolveActiveTagStroke(node, activeGroup, tagGroups, palette);
+      const tagStroke = resolveActiveTagStroke(
+        node,
+        activeGroup,
+        tagGroups,
+        palette
+      );
       if (tagStroke) {
         stroke = tagStroke;
         fill = mix(palette.bg, tagStroke, isDark ? 88 : 94);
@@ -1112,7 +1351,8 @@ function renderNodes(
       else if (severity === 'overloaded') cls += ' infra-node-overload';
       else if (severity === 'warning') cls += ' infra-node-warning';
     }
-    const g = svg.append('g')
+    const g = svg
+      .append('g')
       .attr('class', cls)
       .attr('data-line-number', node.lineNumber)
       .attr('data-infra-node', node.id)
@@ -1133,7 +1373,10 @@ function renderNodes(
     if (!node.isEdge) {
       const roles = inferRoles(node.properties);
       for (const role of roles) {
-        g.attr(`data-role-${role.name.toLowerCase().replace(/\s+/g, '-')}`, 'true');
+        g.attr(
+          `data-role-${role.name.toLowerCase().replace(/\s+/g, '-')}`,
+          'true'
+        );
       }
       if (fanoutSourceIds?.has(node.id)) {
         g.attr('data-role-fan-out', 'true');
@@ -1143,7 +1386,8 @@ function renderNodes(
     const x = node.x - node.width / 2;
     const y = node.y - node.height / 2;
     const isCollapsedGroup = node.id.startsWith('[');
-    const strokeWidth = severity !== 'normal' ? OVERLOAD_STROKE_WIDTH : NODE_STROKE_WIDTH;
+    const strokeWidth =
+      severity !== 'normal' ? OVERLOAD_STROKE_WIDTH : NODE_STROKE_WIDTH;
 
     // Node rect
     g.append('rect')
@@ -1187,13 +1431,21 @@ function renderNodes(
       const expanded = expandedNodeIds?.has(node.id) ?? false;
 
       // Description subtitle — shown below label only when node is selected
-      const descH = (expanded && node.description && !node.isEdge) ? META_LINE_HEIGHT : 0;
+      const descH =
+        expanded && node.description && !node.isEdge ? META_LINE_HEIGHT : 0;
       if (descH > 0 && node.description) {
         const descTruncated = truncateDesc(node.description);
         const isTruncated = descTruncated !== node.description;
-        const textEl = g.append('text')
+        const textEl = g
+          .append('text')
           .attr('x', node.x)
-          .attr('y', y + NODE_HEADER_HEIGHT + META_LINE_HEIGHT / 2 + META_FONT_SIZE * 0.35)
+          .attr(
+            'y',
+            y +
+              NODE_HEADER_HEIGHT +
+              META_LINE_HEIGHT / 2 +
+              META_FONT_SIZE * 0.35
+          )
           .attr('text-anchor', 'middle')
           .attr('font-family', FONT_FAMILY)
           .attr('font-size', META_FONT_SIZE)
@@ -1203,9 +1455,15 @@ function renderNodes(
       }
 
       // Declared properties only shown when node is selected (expanded)
-      const displayProps = (!node.isEdge && expanded) ? getDisplayProps(node, expanded, diagramOptions) : [];
+      const displayProps =
+        !node.isEdge && expanded
+          ? getDisplayProps(node, expanded, diagramOptions)
+          : [];
       const computedRows = getComputedRows(node, expanded, slo);
-      const hasContent = displayProps.length > 0 || computedRows.length > 0 || node.computedRps > 0;
+      const hasContent =
+        displayProps.length > 0 ||
+        computedRows.length > 0 ||
+        node.computedRps > 0;
 
       if (hasContent) {
         // Separator line between header and body
@@ -1229,13 +1487,18 @@ function renderNodes(
         const nodeRateLimit = getNodeNumProp(node, 'ratelimit-rps', 0);
         const nodeConcurrency = getNodeNumProp(node, 'concurrency', 0);
         const nodeDurationMs = getNodeNumProp(node, 'duration-ms', 100);
-        const serverlessCap = nodeConcurrency > 0 ? nodeConcurrency / (nodeDurationMs / 1000) : 0;
-        const effectiveCap = serverlessCap > 0 ? serverlessCap
-          : nodeMaxRps > 0 && nodeRateLimit > 0
-          ? Math.min(nodeMaxRps * node.computedInstances, nodeRateLimit)
-          : nodeMaxRps > 0 ? nodeMaxRps * node.computedInstances
-          : nodeRateLimit > 0 ? nodeRateLimit
-          : 0;
+        const serverlessCap =
+          nodeConcurrency > 0 ? nodeConcurrency / (nodeDurationMs / 1000) : 0;
+        const effectiveCap =
+          serverlessCap > 0
+            ? serverlessCap
+            : nodeMaxRps > 0 && nodeRateLimit > 0
+              ? Math.min(nodeMaxRps * node.computedInstances, nodeRateLimit)
+              : nodeMaxRps > 0
+                ? nodeMaxRps * node.computedInstances
+                : nodeRateLimit > 0
+                  ? nodeRateLimit
+                  : 0;
 
         // --- Computed section: RPS + computed metrics ---
         if (node.computedRps > 0) {
@@ -1251,25 +1514,41 @@ function renderNodes(
             else if (preRl > nodeRateLimit * 0.8) rlSeverity = 'warning';
           }
           const rpsSeverity: 'overloaded' | 'warning' | 'normal' =
-            node.overloaded ? 'overloaded'
-            : rlSeverity === 'overloaded' ? 'overloaded'
-            : node.rateLimited ? 'warning'
-            : isWarning(node) ? 'warning'
-            : rlSeverity === 'warning' ? 'warning'
-            : 'normal';
-          const rpsColor = rpsSeverity === 'overloaded' ? COLOR_OVERLOADED : rpsSeverity === 'warning' ? COLOR_WARNING : mutedColor;
+            node.overloaded
+              ? 'overloaded'
+              : rlSeverity === 'overloaded'
+                ? 'overloaded'
+                : node.rateLimited
+                  ? 'warning'
+                  : isWarning(node)
+                    ? 'warning'
+                    : rlSeverity === 'warning'
+                      ? 'warning'
+                      : 'normal';
+          const rpsColor =
+            rpsSeverity === 'overloaded'
+              ? COLOR_OVERLOADED
+              : rpsSeverity === 'warning'
+                ? COLOR_WARNING
+                : mutedColor;
           const rpsInverted = rpsSeverity !== 'normal';
-          const rpsText = effectiveCap > 0 && !node.isEdge
-            ? `${formatRpsShort(node.computedRps)} / ${formatRpsShort(effectiveCap)}`
-            : formatRpsShort(node.computedRps);
+          const rpsText =
+            effectiveCap > 0 && !node.isEdge
+              ? `${formatRpsShort(node.computedRps)} / ${formatRpsShort(effectiveCap)}`
+              : formatRpsShort(node.computedRps);
           computedSection.push({
-            key: 'RPS', value: rpsText, valueFill: rpsColor, fontWeight: '500',
-            inverted: rpsInverted, invertedBg: rpsInverted ? rpsColor : undefined,
+            key: 'RPS',
+            value: rpsText,
+            valueFill: rpsColor,
+            fontWeight: '500',
+            inverted: rpsInverted,
+            invertedBg: rpsInverted ? rpsColor : undefined,
           });
         }
         for (const cr of computedRows) {
           computedSection.push({
-            key: cr.key, value: cr.value,
+            key: cr.key,
+            value: cr.value,
             valueFill: cr.color ?? mutedColor,
             fontWeight: 'normal',
             inverted: cr.inverted,
@@ -1282,16 +1561,34 @@ function renderNodes(
           let propColor = textFill;
           let inverted = false;
           let invertedBg: string | undefined;
-          if (prop.key === 'ratelimit-rps' && nodeRateLimit > 0 && node.computedRps > 0) {
+          if (
+            prop.key === 'ratelimit-rps' &&
+            nodeRateLimit > 0 &&
+            node.computedRps > 0
+          ) {
             let preRl = node.computedRps;
             const ch = getNodeNumProp(node, 'cache-hit', 0);
             if (ch > 0) preRl *= (100 - ch) / 100;
             const fw = getNodeNumProp(node, 'firewall-block', 0);
             if (fw > 0) preRl *= (100 - fw) / 100;
-            if (preRl > nodeRateLimit) { propColor = COLOR_OVERLOADED; inverted = true; invertedBg = COLOR_OVERLOADED; }
-            else if (preRl > nodeRateLimit * 0.8) { propColor = COLOR_WARNING; inverted = true; invertedBg = COLOR_WARNING; }
+            if (preRl > nodeRateLimit) {
+              propColor = COLOR_OVERLOADED;
+              inverted = true;
+              invertedBg = COLOR_OVERLOADED;
+            } else if (preRl > nodeRateLimit * 0.8) {
+              propColor = COLOR_WARNING;
+              inverted = true;
+              invertedBg = COLOR_WARNING;
+            }
           }
-          declaredSection.push({ key: prop.displayKey, value: prop.value, valueFill: propColor, fontWeight: 'normal', inverted, invertedBg });
+          declaredSection.push({
+            key: prop.displayKey,
+            value: prop.value,
+            valueFill: propColor,
+            fontWeight: 'normal',
+            inverted,
+            invertedBg,
+          });
         }
 
         const rows = [...computedSection, ...declaredSection];
@@ -1301,7 +1598,8 @@ function renderNodes(
         const valueX = x + 10 + (maxKeyLen + 2) * (META_FONT_SIZE * 0.6);
 
         let rowY = sepY + NODE_SEPARATOR_GAP + META_FONT_SIZE;
-        const needsSectionSep = computedSection.length > 0 && declaredSection.length > 0;
+        const needsSectionSep =
+          computedSection.length > 0 && declaredSection.length > 0;
         let rowIdx = 0;
         for (const row of rows) {
           // Draw separator line between computed and declared sections
@@ -1380,8 +1678,14 @@ function renderNodes(
       // Instance badge — clickable for interactive adjustment (not for edge or serverless nodes)
       // Serverless nodes show instances in a computed row instead (demand / concurrency).
       // Nodes inside a scaled group suppress their badge — the group header already shows Nx.
-      const inScaledGroup = node.groupId != null && (scaledGroupIds?.has(node.groupId) ?? false);
-      if (!node.isEdge && node.computedConcurrentInvocations === 0 && node.computedInstances > 1 && !inScaledGroup) {
+      const inScaledGroup =
+        node.groupId != null && (scaledGroupIds?.has(node.groupId) ?? false);
+      if (
+        !node.isEdge &&
+        node.computedConcurrentInvocations === 0 &&
+        node.computedInstances > 1 &&
+        !inScaledGroup
+      ) {
         const badgeText = `${node.computedInstances}x`;
         g.append('text')
           .attr('x', x + node.width - 6)
@@ -1396,7 +1700,8 @@ function renderNodes(
       }
 
       // Role badge dots — only shown when Capabilities legend is expanded
-      const showDots = activeGroup != null && activeGroup.toLowerCase() === 'capabilities';
+      const showDots =
+        activeGroup != null && activeGroup.toLowerCase() === 'capabilities';
       const roles = showDots && !node.isEdge ? inferRoles(node.properties) : [];
       if (roles.length > 0) {
         // Move dots up above the collapse bar for collapsed groups
@@ -1417,10 +1722,13 @@ function renderNodes(
       // Collapse bar at bottom of collapsed group nodes (accent stripe, clipped to card)
       if (isCollapsedGroup) {
         const clipId = `clip-${node.id.replace(/[[\]\s]/g, '')}`;
-        g.append('clipPath').attr('id', clipId)
+        g.append('clipPath')
+          .attr('id', clipId)
           .append('rect')
-          .attr('x', x).attr('y', y)
-          .attr('width', node.width).attr('height', node.height)
+          .attr('x', x)
+          .attr('y', y)
+          .attr('width', node.width)
+          .attr('height', node.height)
           .attr('rx', NODE_BORDER_RADIUS);
         g.append('rect')
           .attr('x', x + COLLAPSE_BAR_INSET)
@@ -1440,7 +1748,11 @@ function renderNodes(
 // ============================================================
 
 /** Get a numeric property from an InfraLayoutNode. */
-function getNodeNumProp(node: InfraLayoutNode, key: string, fallback: number): number {
+function getNodeNumProp(
+  node: InfraLayoutNode,
+  key: string,
+  fallback: number
+): number {
   const prop = node.properties.find((p) => p.key === key);
   if (!prop) return fallback;
   if (typeof prop.value === 'number') return prop.value;
@@ -1498,7 +1810,7 @@ function computeRejectedRps(node: InfraLayoutNode): number {
 function renderRejectParticles(
   svg: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   nodes: InfraLayoutNode[],
-  speedMultiplier: number = 1,
+  speedMultiplier: number = 1
 ) {
   // Compute max rejected RPS across all nodes for scaling
   const rejectMap: { node: InfraLayoutNode; rejected: number }[] = [];
@@ -1512,8 +1824,11 @@ function renderRejectParticles(
 
   for (const { node, rejected } of rejectMap) {
     const t = Math.min(rejected / maxRejected, 1);
-    const count = Math.round(REJECT_COUNT_MIN + t * (REJECT_COUNT_MAX - REJECT_COUNT_MIN));
-    const baseDur = REJECT_DURATION_MAX - t * (REJECT_DURATION_MAX - REJECT_DURATION_MIN);
+    const count = Math.round(
+      REJECT_COUNT_MIN + t * (REJECT_COUNT_MAX - REJECT_COUNT_MIN)
+    );
+    const baseDur =
+      REJECT_DURATION_MAX - t * (REJECT_DURATION_MAX - REJECT_DURATION_MIN);
     const dur = speedMultiplier > 0 ? baseDur / speedMultiplier : baseDur;
 
     const nodeBottom = node.y + node.height / 2;
@@ -1522,19 +1837,24 @@ function renderRejectParticles(
       const delay = (dur / count) * i;
       // Spread particles horizontally around the node center
       const spread = node.width * 0.3;
-      const startX = node.x + (count > 1 ? -spread / 2 + spread * (i / (count - 1)) : 0);
+      const startX =
+        node.x + (count > 1 ? -spread / 2 + spread * (i / (count - 1)) : 0);
       const startY = nodeBottom;
       const endY = nodeBottom + REJECT_DROP_DISTANCE;
 
-      const rejectColor = node.overloaded || node.childHealthState === 'overloaded'
-        ? COLOR_OVERLOADED : COLOR_WARNING;
-      const circle = svg.append('circle')
+      const rejectColor =
+        node.overloaded || node.childHealthState === 'overloaded'
+          ? COLOR_OVERLOADED
+          : COLOR_WARNING;
+      const circle = svg
+        .append('circle')
         .attr('r', REJECT_PARTICLE_R)
         .attr('fill', rejectColor)
         .attr('opacity', 0);
 
       // Drop straight down from node bottom
-      circle.append('animate')
+      circle
+        .append('animate')
         .attr('attributeName', 'cy')
         .attr('from', startY)
         .attr('to', endY)
@@ -1542,7 +1862,8 @@ function renderRejectParticles(
         .attr('repeatCount', 'indefinite')
         .attr('begin', `${delay}s`);
 
-      circle.append('animate')
+      circle
+        .append('animate')
         .attr('attributeName', 'cx')
         .attr('from', startX)
         .attr('to', startX)
@@ -1551,7 +1872,8 @@ function renderRejectParticles(
         .attr('begin', `${delay}s`);
 
       // Fade: appear quickly, then fade out
-      circle.append('animate')
+      circle
+        .append('animate')
         .attr('attributeName', 'opacity')
         .attr('values', '0;0.8;0.6;0')
         .attr('keyTimes', '0;0.1;0.5;1')
@@ -1588,12 +1910,14 @@ export function computeInfraLegendGroups(
   nodes: InfraLayoutNode[],
   tagGroups: InfraTagGroup[],
   palette: PaletteColors,
-  edges?: InfraLayoutEdge[],
+  edges?: InfraLayoutEdge[]
 ): InfraLegendGroup[] {
   const groups: InfraLegendGroup[] = [];
 
   // Capabilities group (from inferred roles + fanout edges)
-  const roles = collectDiagramRoles(nodes.filter((n) => !n.isEdge).map((n) => n.properties));
+  const roles = collectDiagramRoles(
+    nodes.filter((n) => !n.isEdge).map((n) => n.properties)
+  );
   if (edges && collectFanoutSourceIds(edges).size > 0) {
     roles.push(FANOUT_ROLE);
   }
@@ -1603,10 +1927,16 @@ export function computeInfraLegendGroups(
       color: r.color,
       key: r.name.toLowerCase().replace(/\s+/g, '-'),
     }));
-    const pillWidth = measureLegendText('Capabilities', LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
+    const pillWidth =
+      measureLegendText('Capabilities', LEGEND_PILL_FONT_SIZE) +
+      LEGEND_PILL_PAD;
     let entriesWidth = 0;
     for (const e of entries) {
-      entriesWidth += LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP + measureLegendText(e.value, LEGEND_ENTRY_FONT_SIZE) + LEGEND_ENTRY_TRAIL;
+      entriesWidth +=
+        LEGEND_DOT_R * 2 +
+        LEGEND_ENTRY_DOT_GAP +
+        measureLegendText(e.value, LEGEND_ENTRY_FONT_SIZE) +
+        LEGEND_ENTRY_TRAIL;
     }
     groups.push({
       name: 'Capabilities',
@@ -1630,10 +1960,15 @@ export function computeInfraLegendGroups(
       }
     }
     if (entries.length === 0) continue;
-    const pillWidth = measureLegendText(tg.name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
+    const pillWidth =
+      measureLegendText(tg.name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
     let entriesWidth = 0;
     for (const e of entries) {
-      entriesWidth += LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP + measureLegendText(e.value, LEGEND_ENTRY_FONT_SIZE) + LEGEND_ENTRY_TRAIL;
+      entriesWidth +=
+        LEGEND_DOT_R * 2 +
+        LEGEND_ENTRY_DOT_GAP +
+        measureLegendText(e.value, LEGEND_ENTRY_FONT_SIZE) +
+        LEGEND_ENTRY_TRAIL;
     }
     groups.push({
       name: tg.name,
@@ -1649,15 +1984,21 @@ export function computeInfraLegendGroups(
 }
 
 /** Compute total width for the playback pill (speed only). */
-function computePlaybackWidth(playback: InfraPlaybackState | undefined): number {
+function computePlaybackWidth(
+  playback: InfraPlaybackState | undefined
+): number {
   if (!playback) return 0;
-  const pillWidth = measureLegendText('Playback', LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
+  const pillWidth =
+    measureLegendText('Playback', LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
   if (!playback.expanded) return pillWidth;
 
   let entriesW = 8; // gap after pill
   entriesW += LEGEND_PILL_FONT_SIZE * 0.8 + 6; // play/pause
   for (const s of playback.speedOptions) {
-    entriesW += measureLegendText(`${s}x`, LEGEND_ENTRY_FONT_SIZE) + SPEED_BADGE_H_PAD * 2 + SPEED_BADGE_GAP;
+    entriesW +=
+      measureLegendText(`${s}x`, LEGEND_ENTRY_FONT_SIZE) +
+      SPEED_BADGE_H_PAD * 2 +
+      SPEED_BADGE_GAP;
   }
   return LEGEND_CAPSULE_PAD * 2 + pillWidth + entriesW;
 }
@@ -1670,11 +2011,12 @@ function renderLegend(
   palette: PaletteColors,
   isDark: boolean,
   activeGroup: string | null,
-  playback?: InfraPlaybackState,
+  playback?: InfraPlaybackState
 ) {
   if (legendGroups.length === 0 && !playback) return;
 
-  const legendG = rootSvg.append('g')
+  const legendG = rootSvg
+    .append('g')
     .attr('transform', `translate(0, ${legendY})`);
 
   if (activeGroup) {
@@ -1683,23 +2025,31 @@ function renderLegend(
 
   // Compute centered positions
   const effectiveW = (g: InfraLegendGroup) =>
-    activeGroup != null && g.name.toLowerCase() === activeGroup.toLowerCase() ? g.width : g.minifiedWidth;
+    activeGroup != null && g.name.toLowerCase() === activeGroup.toLowerCase()
+      ? g.width
+      : g.minifiedWidth;
   const playbackW = computePlaybackWidth(playback);
-  const trailingGaps = legendGroups.length > 0 && playbackW > 0 ? LEGEND_GROUP_GAP : 0;
-  const totalLegendW = legendGroups.reduce((s, g) => s + effectiveW(g), 0)
-    + (legendGroups.length - 1) * LEGEND_GROUP_GAP
-    + trailingGaps + playbackW;
+  const trailingGaps =
+    legendGroups.length > 0 && playbackW > 0 ? LEGEND_GROUP_GAP : 0;
+  const totalLegendW =
+    legendGroups.reduce((s, g) => s + effectiveW(g), 0) +
+    (legendGroups.length - 1) * LEGEND_GROUP_GAP +
+    trailingGaps +
+    playbackW;
   let cursorX = (totalWidth - totalLegendW) / 2;
 
   for (const group of legendGroups) {
-    const isActive = activeGroup != null && group.name.toLowerCase() === activeGroup.toLowerCase();
+    const isActive =
+      activeGroup != null &&
+      group.name.toLowerCase() === activeGroup.toLowerCase();
 
     const groupBg = isDark
       ? mix(palette.surface, palette.bg, 50)
       : mix(palette.surface, palette.bg, 30);
 
     const pillLabel = group.name;
-    const pillWidth = measureLegendText(pillLabel, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
+    const pillWidth =
+      measureLegendText(pillLabel, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
 
     const gEl = legendG
       .append('g')
@@ -1710,7 +2060,8 @@ function renderLegend(
 
     // Outer capsule background (active only)
     if (isActive) {
-      gEl.append('rect')
+      gEl
+        .append('rect')
         .attr('width', group.width)
         .attr('height', LEGEND_HEIGHT)
         .attr('rx', LEGEND_HEIGHT / 2)
@@ -1722,7 +2073,8 @@ function renderLegend(
     const pillH = LEGEND_HEIGHT - (isActive ? LEGEND_CAPSULE_PAD * 2 : 0);
 
     // Pill background
-    gEl.append('rect')
+    gEl
+      .append('rect')
       .attr('x', pillXOff)
       .attr('y', pillYOff)
       .attr('width', pillWidth)
@@ -1732,7 +2084,8 @@ function renderLegend(
 
     // Active pill border
     if (isActive) {
-      gEl.append('rect')
+      gEl
+        .append('rect')
         .attr('x', pillXOff)
         .attr('y', pillYOff)
         .attr('width', pillWidth)
@@ -1744,7 +2097,8 @@ function renderLegend(
     }
 
     // Pill text
-    gEl.append('text')
+    gEl
+      .append('text')
       .attr('x', pillXOff + pillWidth / 2)
       .attr('y', LEGEND_HEIGHT / 2 + LEGEND_PILL_FONT_SIZE / 2 - 2)
       .attr('font-family', FONT_FAMILY)
@@ -1764,17 +2118,22 @@ function renderLegend(
           .attr('data-legend-entry', entry.key.toLowerCase())
           .attr('data-legend-color', entry.color)
           .attr('data-legend-type', group.type)
-          .attr('data-legend-tag-group', group.type === 'tag' ? (group.tagKey ?? '') : null)
+          .attr(
+            'data-legend-tag-group',
+            group.type === 'tag' ? (group.tagKey ?? '') : null
+          )
           .style('cursor', 'pointer');
 
-        entryG.append('circle')
+        entryG
+          .append('circle')
           .attr('cx', entryX + LEGEND_DOT_R)
           .attr('cy', LEGEND_HEIGHT / 2)
           .attr('r', LEGEND_DOT_R)
           .attr('fill', entry.color);
 
         const textX = entryX + LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP;
-        entryG.append('text')
+        entryG
+          .append('text')
           .attr('x', textX)
           .attr('y', LEGEND_HEIGHT / 2 + LEGEND_ENTRY_FONT_SIZE / 2 - 1)
           .attr('font-family', FONT_FAMILY)
@@ -1782,7 +2141,10 @@ function renderLegend(
           .attr('fill', palette.textMuted)
           .text(entry.value);
 
-        entryX = textX + measureLegendText(entry.value, LEGEND_ENTRY_FONT_SIZE) + LEGEND_ENTRY_TRAIL;
+        entryX =
+          textX +
+          measureLegendText(entry.value, LEGEND_ENTRY_FONT_SIZE) +
+          LEGEND_ENTRY_TRAIL;
       }
     }
 
@@ -1797,7 +2159,8 @@ function renderLegend(
       : mix(palette.bg, palette.text, 92);
 
     const pillLabel = 'Playback';
-    const pillWidth = measureLegendText(pillLabel, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
+    const pillWidth =
+      measureLegendText(pillLabel, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
     const fullW = computePlaybackWidth(playback);
 
     const pbG = legendG
@@ -1807,7 +2170,8 @@ function renderLegend(
       .style('cursor', 'pointer');
 
     if (isExpanded) {
-      pbG.append('rect')
+      pbG
+        .append('rect')
         .attr('width', fullW)
         .attr('height', LEGEND_HEIGHT)
         .attr('rx', LEGEND_HEIGHT / 2)
@@ -1818,23 +2182,30 @@ function renderLegend(
     const pillYOff = isExpanded ? LEGEND_CAPSULE_PAD : 0;
     const pillH = LEGEND_HEIGHT - (isExpanded ? LEGEND_CAPSULE_PAD * 2 : 0);
 
-    pbG.append('rect')
-      .attr('x', pillXOff).attr('y', pillYOff)
-      .attr('width', pillWidth).attr('height', pillH)
+    pbG
+      .append('rect')
+      .attr('x', pillXOff)
+      .attr('y', pillYOff)
+      .attr('width', pillWidth)
+      .attr('height', pillH)
       .attr('rx', pillH / 2)
       .attr('fill', isExpanded ? palette.bg : groupBg);
 
     if (isExpanded) {
-      pbG.append('rect')
-        .attr('x', pillXOff).attr('y', pillYOff)
-        .attr('width', pillWidth).attr('height', pillH)
+      pbG
+        .append('rect')
+        .attr('x', pillXOff)
+        .attr('y', pillYOff)
+        .attr('width', pillWidth)
+        .attr('height', pillH)
         .attr('rx', pillH / 2)
         .attr('fill', 'none')
         .attr('stroke', mix(palette.textMuted, palette.bg, 50))
         .attr('stroke-width', 0.75);
     }
 
-    pbG.append('text')
+    pbG
+      .append('text')
       .attr('x', pillXOff + pillWidth / 2)
       .attr('y', LEGEND_HEIGHT / 2 + LEGEND_PILL_FONT_SIZE / 2 - 2)
       .attr('font-family', FONT_FAMILY)
@@ -1849,8 +2220,10 @@ function renderLegend(
       const entryY = LEGEND_HEIGHT / 2 + LEGEND_ENTRY_FONT_SIZE / 2 - 1;
 
       const ppLabel = playback.paused ? '▶' : '⏸';
-      pbG.append('text')
-        .attr('x', entryX).attr('y', entryY)
+      pbG
+        .append('text')
+        .attr('x', entryX)
+        .attr('y', entryY)
         .attr('font-family', FONT_FAMILY)
         .attr('font-size', LEGEND_PILL_FONT_SIZE)
         .attr('fill', palette.textMuted)
@@ -1862,16 +2235,20 @@ function renderLegend(
       for (const s of playback.speedOptions) {
         const label = `${s}x`;
         const isActive = playback.speed === s;
-        const slotW = measureLegendText(label, LEGEND_ENTRY_FONT_SIZE) + SPEED_BADGE_H_PAD * 2;
+        const slotW =
+          measureLegendText(label, LEGEND_ENTRY_FONT_SIZE) +
+          SPEED_BADGE_H_PAD * 2;
         const badgeH = LEGEND_ENTRY_FONT_SIZE + SPEED_BADGE_V_PAD * 2;
         const badgeY = (LEGEND_HEIGHT - badgeH) / 2;
 
-        const speedG = pbG.append('g')
+        const speedG = pbG
+          .append('g')
           .attr('data-playback-action', 'set-speed')
           .attr('data-playback-value', String(s))
           .style('cursor', 'pointer');
 
-        speedG.append('rect')
+        speedG
+          .append('rect')
           .attr('x', entryX)
           .attr('y', badgeY)
           .attr('width', slotW)
@@ -1879,8 +2256,10 @@ function renderLegend(
           .attr('rx', badgeH / 2)
           .attr('fill', isActive ? palette.primary : 'transparent');
 
-        speedG.append('text')
-          .attr('x', entryX + slotW / 2).attr('y', entryY)
+        speedG
+          .append('text')
+          .attr('x', entryX + slotW / 2)
+          .attr('y', entryY)
           .attr('font-family', FONT_FAMILY)
           .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
           .attr('font-weight', isActive ? '600' : '400')
@@ -1891,9 +2270,8 @@ function renderLegend(
       }
     }
 
-    cursorX += fullW + LEGEND_GROUP_GAP;
+    cursorX += fullW + LEGEND_GROUP_GAP; // eslint-disable-line no-useless-assignment
   }
-
 }
 
 // ============================================================
@@ -1920,13 +2298,18 @@ export function renderInfra(
   playback?: InfraPlaybackState | null,
   expandedNodeIds?: Set<string> | null,
   exportMode?: boolean,
-  collapsedNodes?: Set<string> | null,
+  collapsedNodes?: Set<string> | null
 ) {
   // Clear previous render (preserve tooltips if any)
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
 
   // Build legend groups
-  const legendGroups = computeInfraLegendGroups(layout.nodes, tagGroups ?? [], palette, layout.edges);
+  const legendGroups = computeInfraLegendGroups(
+    layout.nodes,
+    tagGroups ?? [],
+    palette,
+    layout.edges
+  );
   const hasLegend = legendGroups.length > 0 || !!playback;
   // In app mode (not export), legend is rendered as a separate fixed-size SVG
   const fixedLegend = !exportMode && hasLegend;
@@ -1947,7 +2330,8 @@ export function renderInfra(
 
   if (fixedTitleH) {
     const titleContainerW = container.clientWidth || totalWidth;
-    const titleSvg = d3Selection.select(container)
+    const titleSvg = d3Selection
+      .select(container)
       .append('svg')
       .attr('class', 'infra-title-fixed')
       .attr('width', '100%')
@@ -1955,7 +2339,8 @@ export function renderInfra(
       .attr('viewBox', `0 0 ${titleContainerW} ${fixedTitleH}`)
       .attr('preserveAspectRatio', 'xMidYMid meet')
       .style('display', 'block');
-    titleSvg.append('text')
+    titleSvg
+      .append('text')
       .attr('class', 'chart-title')
       .attr('x', titleContainerW / 2)
       .attr('y', TITLE_Y)
@@ -1968,12 +2353,17 @@ export function renderInfra(
       .text(title!);
   }
 
-  const fixedOverheadH = (fixedLegend ? LEGEND_HEIGHT + LEGEND_FIXED_GAP : 0) + fixedTitleH;
-  const rootSvg = d3Selection.select(container)
+  const fixedOverheadH =
+    (fixedLegend ? LEGEND_HEIGHT + LEGEND_FIXED_GAP : 0) + fixedTitleH;
+  const rootSvg = d3Selection
+    .select(container)
     .append('svg')
     .attr('xmlns', 'http://www.w3.org/2000/svg')
     .attr('width', '100%')
-    .attr('height', fixedOverheadH > 0 ? `calc(100% - ${fixedOverheadH}px)` : '100%')
+    .attr(
+      'height',
+      fixedOverheadH > 0 ? `calc(100% - ${fixedOverheadH}px)` : '100%'
+    )
     .attr('viewBox', `0 0 ${totalWidth} ${diagramViewHeight}`)
     .attr('preserveAspectRatio', 'xMidYMid meet');
 
@@ -2023,12 +2413,14 @@ export function renderInfra(
 
   // Content group offset: skip title space (unless title was extracted to fixed SVG)
   const contentTitleOffset = fixedTitleH ? 0 : titleOffset;
-  const svg = rootSvg.append('g')
+  const svg = rootSvg
+    .append('g')
     .attr('transform', `translate(0, ${contentTitleOffset + legendOffset})`);
 
   // Title (inside rootSvg when not using fixed title)
   if (title && !fixedTitleH) {
-    rootSvg.append('text')
+    rootSvg
+      .append('text')
       .attr('class', 'chart-title')
       .attr('x', totalWidth / 2)
       .attr('y', TITLE_Y)
@@ -2044,43 +2436,103 @@ export function renderInfra(
   // Render layers: groups (back), edge paths, nodes, reject particles, edge labels (front)
   renderGroups(svg, layout.groups, palette, isDark);
   const speedMultiplier = playback?.speed ?? 1;
-  renderEdgePaths(svg, layout.edges, layout.nodes, layout.groups, palette, isDark, shouldAnimate, layout.direction, speedMultiplier);
+  renderEdgePaths(
+    svg,
+    layout.edges,
+    layout.nodes,
+    layout.groups,
+    palette,
+    isDark,
+    shouldAnimate,
+    layout.direction,
+    speedMultiplier
+  );
   const fanoutSourceIds = collectFanoutSourceIds(layout.edges);
   const scaledGroupIds = new Set<string>(
     layout.groups
       .filter((g) => {
-        const gi = typeof g.instances === 'number' ? g.instances
-          : typeof g.instances === 'string' ? parseInt(String(g.instances), 10) || 0 : 0;
+        const gi =
+          typeof g.instances === 'number'
+            ? g.instances
+            : typeof g.instances === 'string'
+              ? parseInt(String(g.instances), 10) || 0
+              : 0;
         return gi > 1;
       })
       .map((g) => g.id)
   );
-  renderNodes(svg, layout.nodes, palette, isDark, shouldAnimate, expandedNodeIds, activeGroup, layout.options, collapsedNodes, tagGroups ?? [], fanoutSourceIds, scaledGroupIds);
+  renderNodes(
+    svg,
+    layout.nodes,
+    palette,
+    isDark,
+    shouldAnimate,
+    expandedNodeIds,
+    activeGroup,
+    layout.options,
+    collapsedNodes,
+    tagGroups ?? [],
+    fanoutSourceIds,
+    scaledGroupIds
+  );
   if (shouldAnimate) {
     renderRejectParticles(svg, layout.nodes, speedMultiplier);
   }
-  renderEdgeLabels(svg, layout.edges, layout.nodes, layout.groups, palette, isDark, shouldAnimate, layout.direction);
+  renderEdgeLabels(
+    svg,
+    layout.edges,
+    layout.nodes,
+    layout.groups,
+    palette,
+    isDark,
+    shouldAnimate,
+    layout.direction
+  );
 
   // Legend at top
   if (hasLegend) {
     if (fixedLegend) {
       // Render legend in a separate SVG that stays at fixed pixel size, inserted between title and diagram
       const containerWidth = container.clientWidth || totalWidth;
-      const legendSvg = d3Selection.select(container)
+      const legendSvg = d3Selection
+        .select(container)
         .insert('svg', 'svg:last-of-type')
         .attr('class', 'infra-legend-fixed')
         .attr('width', '100%')
         .attr('height', LEGEND_HEIGHT + LEGEND_FIXED_GAP)
-        .attr('viewBox', `0 0 ${containerWidth} ${LEGEND_HEIGHT + LEGEND_FIXED_GAP}`)
+        .attr(
+          'viewBox',
+          `0 0 ${containerWidth} ${LEGEND_HEIGHT + LEGEND_FIXED_GAP}`
+        )
         .attr('preserveAspectRatio', 'xMidYMid meet')
         .style('display', 'block')
         .style('pointer-events', 'none');
-      renderLegend(legendSvg, legendGroups, containerWidth, LEGEND_FIXED_GAP / 2, palette, isDark, activeGroup ?? null, playback ?? undefined);
+      renderLegend(
+        legendSvg,
+        legendGroups,
+        containerWidth,
+        LEGEND_FIXED_GAP / 2,
+        palette,
+        isDark,
+        activeGroup ?? null,
+        playback ?? undefined
+      );
       // Re-enable pointer events on interactive legend elements
-      legendSvg.selectAll('.infra-legend-group').style('pointer-events', 'auto');
+      legendSvg
+        .selectAll('.infra-legend-group')
+        .style('pointer-events', 'auto');
     } else {
       // Export mode: render legend at top (below title)
-      renderLegend(rootSvg, legendGroups, totalWidth, titleOffset, palette, isDark, activeGroup ?? null, playback ?? undefined);
+      renderLegend(
+        rootSvg,
+        legendGroups,
+        totalWidth,
+        titleOffset,
+        palette,
+        isDark,
+        activeGroup ?? null,
+        playback ?? undefined
+      );
     }
   }
 }

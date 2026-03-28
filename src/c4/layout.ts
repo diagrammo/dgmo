@@ -3,9 +3,20 @@
 // ============================================================
 
 import dagre from '@dagrejs/dagre';
-import type { ParsedC4, C4Element, C4Relationship, C4ArrowType, C4Shape, C4DeploymentNode } from './types';
+import type {
+  ParsedC4,
+  C4Element,
+  C4Relationship,
+  C4ArrowType,
+  C4Shape,
+  C4DeploymentNode,
+} from './types';
 import type { TagGroup } from '../utils/tag-groups';
-import { LEGEND_PILL_FONT_SIZE, LEGEND_ENTRY_FONT_SIZE, measureLegendText } from '../utils/legend-constants';
+import {
+  LEGEND_PILL_FONT_SIZE,
+  LEGEND_ENTRY_FONT_SIZE,
+  measureLegendText,
+} from '../utils/legend-constants';
 
 // ============================================================
 // Types
@@ -141,7 +152,10 @@ function computeEdgePenalty(
     const tx = nodePositions.get(edge.target);
     if (sx == null || tx == null) continue;
     const dist = Math.abs(sx - tx);
-    const weight = Math.min(degrees.get(edge.source) ?? 1, degrees.get(edge.target) ?? 1);
+    const weight = Math.min(
+      degrees.get(edge.source) ?? 1,
+      degrees.get(edge.target) ?? 1
+    );
     penalty += dist * weight;
   }
 
@@ -216,7 +230,12 @@ function reduceCrossings(
   const nodeGeometry = new Map<string, NodeGeometry>();
   for (const name of g.nodes()) {
     const pos = g.node(name);
-    if (pos) nodeGeometry.set(name, { y: pos.y, width: pos.width, height: pos.height });
+    if (pos)
+      nodeGeometry.set(name, {
+        y: pos.y,
+        width: pos.width,
+        height: pos.height,
+      });
   }
 
   // Group nodes by rank
@@ -265,7 +284,9 @@ function reduceCrossings(
       if (partition.length < 2) continue;
 
       // Collect the x-slots for this partition (sorted)
-      const xSlots = partition.map((name) => g.node(name).x).sort((a, b) => a - b);
+      const xSlots = partition
+        .map((name) => g.node(name).x)
+        .sort((a, b) => a - b);
 
       // Build position map snapshot
       const basePositions = new Map<string, number>();
@@ -275,7 +296,12 @@ function reduceCrossings(
       }
 
       // Current penalty
-      const currentPenalty = computeEdgePenalty(edgeList, basePositions, degrees, nodeGeometry);
+      const currentPenalty = computeEdgePenalty(
+        edgeList,
+        basePositions,
+        degrees,
+        nodeGeometry
+      );
 
       // Try permutations (feasible for partition sizes ≤ 8)
       let bestPerm = [...partition];
@@ -288,7 +314,12 @@ function reduceCrossings(
           for (let i = 0; i < perm.length; i++) {
             testPositions.set(perm[i]!, xSlots[i]!);
           }
-          const penalty = computeEdgePenalty(edgeList, testPositions, degrees, nodeGeometry);
+          const penalty = computeEdgePenalty(
+            edgeList,
+            testPositions,
+            degrees,
+            nodeGeometry
+          );
           if (penalty < bestPenalty) {
             bestPenalty = penalty;
             bestPerm = [...perm];
@@ -307,14 +338,27 @@ function reduceCrossings(
             for (let k = 0; k < workingOrder.length; k++) {
               testPositions.set(workingOrder[k]!, xSlots[k]!);
             }
-            const before = computeEdgePenalty(edgeList, testPositions, degrees, nodeGeometry);
+            const before = computeEdgePenalty(
+              edgeList,
+              testPositions,
+              degrees,
+              nodeGeometry
+            );
 
-            [workingOrder[i], workingOrder[i + 1]] = [workingOrder[i + 1]!, workingOrder[i]!];
+            [workingOrder[i], workingOrder[i + 1]] = [
+              workingOrder[i + 1]!,
+              workingOrder[i]!,
+            ];
             const testPositions2 = new Map(basePositions);
             for (let k = 0; k < workingOrder.length; k++) {
               testPositions2.set(workingOrder[k]!, xSlots[k]!);
             }
-            const after = computeEdgePenalty(edgeList, testPositions2, degrees, nodeGeometry);
+            const after = computeEdgePenalty(
+              edgeList,
+              testPositions2,
+              degrees,
+              nodeGeometry
+            );
 
             if (after < before) {
               improved = true;
@@ -323,7 +367,10 @@ function reduceCrossings(
                 bestPerm = [...workingOrder];
               }
             } else {
-              [workingOrder[i], workingOrder[i + 1]] = [workingOrder[i + 1]!, workingOrder[i]!];
+              [workingOrder[i], workingOrder[i + 1]] = [
+                workingOrder[i + 1]!,
+                workingOrder[i]!,
+              ];
             }
           }
         }
@@ -438,7 +485,7 @@ function buildOwnershipMap(elements: C4Element[]): Map<string, string> {
  */
 function collectAllRelationships(
   elements: C4Element[],
-  ownerMap: Map<string, string>
+  _ownerMap: Map<string, string>
 ): { sourceName: string; rel: C4Relationship }[] {
   const result: { sourceName: string; rel: C4Relationship }[] = [];
 
@@ -469,7 +516,9 @@ function collectAllRelationships(
  * - Deduplicates: same source→target pair keeps only one (first seen).
  * - Explicit system-level relationships override rolled-up ones.
  */
-export function rollUpContextRelationships(parsed: ParsedC4): ContextRelationship[] {
+export function rollUpContextRelationships(
+  parsed: ParsedC4
+): ContextRelationship[] {
   const ownerMap = buildOwnershipMap(parsed.elements);
   const allRels = collectAllRelationships(parsed.elements, ownerMap);
 
@@ -581,7 +630,12 @@ function wrapText(text: string, maxWidth: number, charWidth: number): string[] {
 }
 
 /** Keys to exclude from the below-divider metadata display. */
-const META_EXCLUDE_KEYS = new Set(['description', 'tech', 'technology', 'is a']);
+const META_EXCLUDE_KEYS = new Set([
+  'description',
+  'tech',
+  'technology',
+  'is a',
+]);
 
 /** Collect displayable metadata entries for a container card. */
 export function collectCardMetadata(
@@ -629,7 +683,9 @@ export function computeC4NodeDimensions(
       // Widen card if metadata rows need more space
       const maxMetaWidth = Math.max(
         ...metaEntries.map(
-          (e) => (e.key.length + 2 + e.value.length) * META_CHAR_WIDTH + CARD_H_PAD * 2
+          (e) =>
+            (e.key.length + 2 + e.value.length) * META_CHAR_WIDTH +
+            CARD_H_PAD * 2
         )
       );
       if (maxMetaWidth > width) width = Math.min(MAX_NODE_WIDTH, maxMetaWidth);
@@ -669,7 +725,9 @@ function computeLegendGroups(tagGroups: TagGroup[]): C4LegendGroup[] {
     if (entries.length === 0) continue;
 
     // Compute pill width: group name + entries
-    const nameW = measureLegendText(group.name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD * 2;
+    const nameW =
+      measureLegendText(group.name, LEGEND_PILL_FONT_SIZE) +
+      LEGEND_PILL_PAD * 2;
     let capsuleW = LEGEND_CAPSULE_PAD;
     for (const e of entries) {
       capsuleW +=
@@ -738,7 +796,14 @@ export function layoutC4Context(
   );
 
   if (contextElements.length === 0) {
-    return { nodes: [], edges: [], legend: [], groupBoundaries: [], width: 0, height: 0 };
+    return {
+      nodes: [],
+      edges: [],
+      legend: [],
+      groupBoundaries: [],
+      width: 0,
+      height: 0,
+    };
   }
 
   // Roll up relationships
@@ -768,7 +833,10 @@ export function layoutC4Context(
   // Add edges — only between known nodes
   const validRels: ContextRelationship[] = [];
   for (const rel of contextRels) {
-    if (nameToElement.has(rel.sourceName) && nameToElement.has(rel.targetName)) {
+    if (
+      nameToElement.has(rel.sourceName) &&
+      nameToElement.has(rel.targetName)
+    ) {
       validRels.push(rel);
       g.setEdge(rel.sourceName, rel.targetName, { label: rel.label ?? '' });
     }
@@ -786,7 +854,11 @@ export function layoutC4Context(
   // Extract positioned nodes
   const nodes: C4LayoutNode[] = contextElements.map((el) => {
     const pos = g.node(el.name);
-    const color = resolveNodeColor(el, parsed.tagGroups, activeTagGroup ?? null);
+    const color = resolveNodeColor(
+      el,
+      parsed.tagGroups,
+      activeTagGroup ?? null
+    );
     const hasContainers =
       el.children.some((c) => c.type === 'container') ||
       el.groups.some((g) => g.children.some((c) => c.type === 'container'));
@@ -822,7 +894,10 @@ export function layoutC4Context(
   });
 
   // Compute bounding box of all content (nodes + edge points)
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  let minX = Infinity,
+    minY = Infinity,
+    maxX = -Infinity,
+    maxY = -Infinity;
   for (const node of nodes) {
     const left = node.x - node.width / 2;
     const top = node.y - node.height / 2;
@@ -880,7 +955,14 @@ export function layoutC4Context(
     if (legendBottom > totalHeight) totalHeight = legendBottom;
   }
 
-  return { nodes, edges, legend: legendGroups, groupBoundaries: [], width: totalWidth, height: totalHeight };
+  return {
+    nodes,
+    edges,
+    legend: legendGroups,
+    groupBoundaries: [],
+    width: totalWidth,
+    height: totalHeight,
+  };
 }
 
 // ============================================================
@@ -901,7 +983,14 @@ export function layoutC4Containers(
     (el) => el.name.toLowerCase() === systemName.toLowerCase()
   );
   if (!system) {
-    return { nodes: [], edges: [], legend: [], groupBoundaries: [], width: 0, height: 0 };
+    return {
+      nodes: [],
+      edges: [],
+      legend: [],
+      groupBoundaries: [],
+      width: 0,
+      height: 0,
+    };
   }
 
   // Collect all containers: direct children + group children
@@ -916,7 +1005,14 @@ export function layoutC4Containers(
   }
 
   if (containers.length === 0) {
-    return { nodes: [], edges: [], legend: [], groupBoundaries: [], width: 0, height: 0 };
+    return {
+      nodes: [],
+      edges: [],
+      legend: [],
+      groupBoundaries: [],
+      width: 0,
+      height: 0,
+    };
   }
 
   const containerNames = new Set(containers.map((c) => c.name.toLowerCase()));
@@ -962,11 +1058,17 @@ export function layoutC4Containers(
   }
 
   // Build element-to-group mapping for compound graph
-  const elementToGroup = new Map<string, { name: string; lineNumber: number }>();
+  const elementToGroup = new Map<
+    string,
+    { name: string; lineNumber: number }
+  >();
   for (const group of system.groups) {
     for (const child of group.children) {
       if (child.type === 'container') {
-        elementToGroup.set(child.name, { name: group.name, lineNumber: group.lineNumber });
+        elementToGroup.set(child.name, {
+          name: group.name,
+          lineNumber: group.lineNumber,
+        });
       }
     }
   }
@@ -1075,7 +1177,10 @@ export function layoutC4Containers(
 
   // Add edges to dagre
   for (const rel of containerRels) {
-    if (nameToElement.has(rel.sourceName) && nameToElement.has(rel.targetName)) {
+    if (
+      nameToElement.has(rel.sourceName) &&
+      nameToElement.has(rel.targetName)
+    ) {
       g.setEdge(rel.sourceName, rel.targetName, { label: rel.label ?? '' });
     }
   }
@@ -1090,7 +1195,10 @@ export function layoutC4Containers(
   reduceCrossings(
     g,
     containerRels
-      .filter((r) => nameToElement.has(r.sourceName) && nameToElement.has(r.targetName))
+      .filter(
+        (r) =>
+          nameToElement.has(r.sourceName) && nameToElement.has(r.targetName)
+      )
       .map((r) => ({ source: r.sourceName, target: r.targetName })),
     nodeGroupMap
   );
@@ -1099,7 +1207,11 @@ export function layoutC4Containers(
   const nodes: C4LayoutNode[] = [];
   for (const el of containers) {
     const pos = g.node(el.name);
-    const color = resolveNodeColor(el, parsed.tagGroups, activeTagGroup ?? null);
+    const color = resolveNodeColor(
+      el,
+      parsed.tagGroups,
+      activeTagGroup ?? null
+    );
     const tech = el.metadata['tech'] ?? el.metadata['technology'];
     const hasComponents =
       el.children.some((c) => c.type === 'component') ||
@@ -1125,7 +1237,11 @@ export function layoutC4Containers(
 
   for (const el of externals) {
     const pos = g.node(el.name);
-    const color = resolveNodeColor(el, parsed.tagGroups, activeTagGroup ?? null);
+    const color = resolveNodeColor(
+      el,
+      parsed.tagGroups,
+      activeTagGroup ?? null
+    );
     nodes.push({
       id: el.name,
       name: el.name,
@@ -1143,7 +1259,10 @@ export function layoutC4Containers(
 
   // Extract edges
   const edges: C4LayoutEdge[] = containerRels
-    .filter((rel) => nameToElement.has(rel.sourceName) && nameToElement.has(rel.targetName))
+    .filter(
+      (rel) =>
+        nameToElement.has(rel.sourceName) && nameToElement.has(rel.targetName)
+    )
     .map((rel) => {
       const edgeData = g.edge(rel.sourceName, rel.targetName);
       return {
@@ -1159,7 +1278,10 @@ export function layoutC4Containers(
 
   // Compute boundary box from container nodes only
   const containerNodes = nodes.filter((n) => n.type === 'container');
-  let bMinX = Infinity, bMinY = Infinity, bMaxX = -Infinity, bMaxY = -Infinity;
+  let bMinX = Infinity,
+    bMinY = Infinity,
+    bMaxX = -Infinity,
+    bMaxY = -Infinity;
   for (const n of containerNodes) {
     const left = n.x - n.width / 2;
     const top = n.y - n.height / 2;
@@ -1177,15 +1299,18 @@ export function layoutC4Containers(
     lineNumber: system.lineNumber,
     x: bMinX - BOUNDARY_PAD,
     y: bMinY - BOUNDARY_PAD,
-    width: (bMaxX - bMinX) + BOUNDARY_PAD * 2,
-    height: (bMaxY - bMinY) + BOUNDARY_PAD * 2,
+    width: bMaxX - bMinX + BOUNDARY_PAD * 2,
+    height: bMaxY - bMinY + BOUNDARY_PAD * 2,
   };
 
   // Compute group boundaries from member node positions
   const groupBoundaries: C4LayoutBoundary[] = [];
   if (hasGroups) {
     const nodeMap = new Map(containerNodes.map((n) => [n.name, n]));
-    const seenGroups = new Map<string, { lineNumber: number; members: C4LayoutNode[] }>();
+    const seenGroups = new Map<
+      string,
+      { lineNumber: number; members: C4LayoutNode[] }
+    >();
     for (const [elName, grp] of elementToGroup) {
       const node = nodeMap.get(elName);
       if (!node) continue;
@@ -1196,7 +1321,10 @@ export function layoutC4Containers(
     }
     for (const [groupName, { lineNumber, members }] of seenGroups) {
       if (members.length === 0) continue;
-      let gMinX = Infinity, gMinY = Infinity, gMaxX = -Infinity, gMaxY = -Infinity;
+      let gMinX = Infinity,
+        gMinY = Infinity,
+        gMaxX = -Infinity,
+        gMaxY = -Infinity;
       for (const m of members) {
         const left = m.x - m.width / 2;
         const top = m.y - m.height / 2;
@@ -1213,14 +1341,17 @@ export function layoutC4Containers(
         lineNumber,
         x: gMinX - GROUP_BOUNDARY_PAD,
         y: gMinY - GROUP_BOUNDARY_PAD,
-        width: (gMaxX - gMinX) + GROUP_BOUNDARY_PAD * 2,
-        height: (gMaxY - gMinY) + GROUP_BOUNDARY_PAD * 2,
+        width: gMaxX - gMinX + GROUP_BOUNDARY_PAD * 2,
+        height: gMaxY - gMinY + GROUP_BOUNDARY_PAD * 2,
       });
     }
   }
 
   // Compute bounding box of all content (nodes + boundary + group boundaries + edge points)
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  let minX = Infinity,
+    minY = Infinity,
+    maxX = -Infinity,
+    maxY = -Infinity;
   for (const node of nodes) {
     const left = node.x - node.width / 2;
     const top = node.y - node.height / 2;
@@ -1290,7 +1421,15 @@ export function layoutC4Containers(
     if (legendBottom > totalHeight) totalHeight = legendBottom;
   }
 
-  return { nodes, edges, legend: legendGroups, boundary, groupBoundaries, width: totalWidth, height: totalHeight };
+  return {
+    nodes,
+    edges,
+    legend: legendGroups,
+    boundary,
+    groupBoundaries,
+    width: totalWidth,
+    height: totalHeight,
+  };
 }
 
 // ============================================================
@@ -1312,13 +1451,23 @@ export function layoutC4Components(
     (el) => el.name.toLowerCase() === systemName.toLowerCase()
   );
   if (!system) {
-    return { nodes: [], edges: [], legend: [], groupBoundaries: [], width: 0, height: 0 };
+    return {
+      nodes: [],
+      edges: [],
+      legend: [],
+      groupBoundaries: [],
+      width: 0,
+      height: 0,
+    };
   }
 
   // Find the container within the system (direct children + group children)
   let targetContainer: C4Element | undefined;
   for (const child of system.children) {
-    if (child.type === 'container' && child.name.toLowerCase() === containerName.toLowerCase()) {
+    if (
+      child.type === 'container' &&
+      child.name.toLowerCase() === containerName.toLowerCase()
+    ) {
       targetContainer = child;
       break;
     }
@@ -1326,7 +1475,10 @@ export function layoutC4Components(
   if (!targetContainer) {
     for (const group of system.groups) {
       for (const child of group.children) {
-        if (child.type === 'container' && child.name.toLowerCase() === containerName.toLowerCase()) {
+        if (
+          child.type === 'container' &&
+          child.name.toLowerCase() === containerName.toLowerCase()
+        ) {
           targetContainer = child;
           break;
         }
@@ -1335,7 +1487,14 @@ export function layoutC4Components(
     }
   }
   if (!targetContainer) {
-    return { nodes: [], edges: [], legend: [], groupBoundaries: [], width: 0, height: 0 };
+    return {
+      nodes: [],
+      edges: [],
+      legend: [],
+      groupBoundaries: [],
+      width: 0,
+      height: 0,
+    };
   }
 
   // Collect all components: direct children + group children
@@ -1350,7 +1509,14 @@ export function layoutC4Components(
   }
 
   if (components.length === 0) {
-    return { nodes: [], edges: [], legend: [], groupBoundaries: [], width: 0, height: 0 };
+    return {
+      nodes: [],
+      edges: [],
+      legend: [],
+      groupBoundaries: [],
+      width: 0,
+      height: 0,
+    };
   }
 
   const componentNames = new Set(components.map((c) => c.name.toLowerCase()));
@@ -1400,7 +1566,8 @@ export function layoutC4Components(
       // otherwise roll up to system ancestor
       const sourceAncestor = ownerMap.get(sourceName) ?? sourceName;
       // If source is inside the same container, skip
-      if (sourceAncestor.toLowerCase() === targetContainer.name.toLowerCase()) continue;
+      if (sourceAncestor.toLowerCase() === targetContainer.name.toLowerCase())
+        continue;
       if (sourceAncestor.toLowerCase() === system.name.toLowerCase()) {
         // Source is in same system — try to resolve to container level
         const sourceLower = sourceName.toLowerCase();
@@ -1423,11 +1590,17 @@ export function layoutC4Components(
   }
 
   // Build element-to-group mapping for compound graph
-  const elementToGroup = new Map<string, { name: string; lineNumber: number }>();
+  const elementToGroup = new Map<
+    string,
+    { name: string; lineNumber: number }
+  >();
   for (const group of targetContainer.groups) {
     for (const child of group.children) {
       if (child.type === 'component') {
-        elementToGroup.set(child.name, { name: group.name, lineNumber: group.lineNumber });
+        elementToGroup.set(child.name, {
+          name: group.name,
+          lineNumber: group.lineNumber,
+        });
       }
     }
   }
@@ -1509,7 +1682,8 @@ export function layoutC4Components(
     if (!componentNames.has(rel.target.toLowerCase())) continue;
 
     const sourceAncestor = ownerMap.get(sourceName) ?? sourceName;
-    if (sourceAncestor.toLowerCase() === targetContainer.name.toLowerCase()) continue;
+    if (sourceAncestor.toLowerCase() === targetContainer.name.toLowerCase())
+      continue;
 
     // Resolve source to the external element we added
     let resolvedSource: string | undefined;
@@ -1545,7 +1719,10 @@ export function layoutC4Components(
 
   // Add edges to dagre
   for (const rel of componentRels) {
-    if (nameToElement.has(rel.sourceName) && nameToElement.has(rel.targetName)) {
+    if (
+      nameToElement.has(rel.sourceName) &&
+      nameToElement.has(rel.targetName)
+    ) {
       g.setEdge(rel.sourceName, rel.targetName, { label: rel.label ?? '' });
     }
   }
@@ -1560,7 +1737,10 @@ export function layoutC4Components(
   reduceCrossings(
     g,
     componentRels
-      .filter((r) => nameToElement.has(r.sourceName) && nameToElement.has(r.targetName))
+      .filter(
+        (r) =>
+          nameToElement.has(r.sourceName) && nameToElement.has(r.targetName)
+      )
       .map((r) => ({ source: r.sourceName, target: r.targetName })),
     nodeGroupMap
   );
@@ -1572,7 +1752,12 @@ export function layoutC4Components(
   const nodes: C4LayoutNode[] = [];
   for (const el of components) {
     const pos = g.node(el.name);
-    const color = resolveNodeColor(el, parsed.tagGroups, activeTagGroup ?? null, ancestors);
+    const color = resolveNodeColor(
+      el,
+      parsed.tagGroups,
+      activeTagGroup ?? null,
+      ancestors
+    );
     const tech = el.metadata['tech'] ?? el.metadata['technology'];
     const hasComponents =
       el.children.some((c) => c.type === 'component') ||
@@ -1598,7 +1783,11 @@ export function layoutC4Components(
 
   for (const el of externals) {
     const pos = g.node(el.name);
-    const color = resolveNodeColor(el, parsed.tagGroups, activeTagGroup ?? null);
+    const color = resolveNodeColor(
+      el,
+      parsed.tagGroups,
+      activeTagGroup ?? null
+    );
     nodes.push({
       id: el.name,
       name: el.name,
@@ -1616,7 +1805,10 @@ export function layoutC4Components(
 
   // Extract edges
   const edges: C4LayoutEdge[] = componentRels
-    .filter((rel) => nameToElement.has(rel.sourceName) && nameToElement.has(rel.targetName))
+    .filter(
+      (rel) =>
+        nameToElement.has(rel.sourceName) && nameToElement.has(rel.targetName)
+    )
     .map((rel) => {
       const edgeData = g.edge(rel.sourceName, rel.targetName);
       return {
@@ -1632,7 +1824,10 @@ export function layoutC4Components(
 
   // Compute boundary box from component nodes only
   const componentNodes = nodes.filter((n) => n.type === 'component');
-  let bMinX = Infinity, bMinY = Infinity, bMaxX = -Infinity, bMaxY = -Infinity;
+  let bMinX = Infinity,
+    bMinY = Infinity,
+    bMaxX = -Infinity,
+    bMaxY = -Infinity;
   for (const n of componentNodes) {
     const left = n.x - n.width / 2;
     const top = n.y - n.height / 2;
@@ -1650,15 +1845,18 @@ export function layoutC4Components(
     lineNumber: targetContainer.lineNumber,
     x: bMinX - BOUNDARY_PAD,
     y: bMinY - BOUNDARY_PAD,
-    width: (bMaxX - bMinX) + BOUNDARY_PAD * 2,
-    height: (bMaxY - bMinY) + BOUNDARY_PAD * 2,
+    width: bMaxX - bMinX + BOUNDARY_PAD * 2,
+    height: bMaxY - bMinY + BOUNDARY_PAD * 2,
   };
 
   // Compute group boundaries from member node positions
   const groupBoundaries: C4LayoutBoundary[] = [];
   if (hasGroups) {
     const nodeMap = new Map(componentNodes.map((n) => [n.name, n]));
-    const seenGroups = new Map<string, { lineNumber: number; members: C4LayoutNode[] }>();
+    const seenGroups = new Map<
+      string,
+      { lineNumber: number; members: C4LayoutNode[] }
+    >();
     for (const [elName, grp] of elementToGroup) {
       const node = nodeMap.get(elName);
       if (!node) continue;
@@ -1669,7 +1867,10 @@ export function layoutC4Components(
     }
     for (const [groupName, { lineNumber, members }] of seenGroups) {
       if (members.length === 0) continue;
-      let gMinX = Infinity, gMinY = Infinity, gMaxX = -Infinity, gMaxY = -Infinity;
+      let gMinX = Infinity,
+        gMinY = Infinity,
+        gMaxX = -Infinity,
+        gMaxY = -Infinity;
       for (const m of members) {
         const left = m.x - m.width / 2;
         const top = m.y - m.height / 2;
@@ -1686,14 +1887,17 @@ export function layoutC4Components(
         lineNumber,
         x: gMinX - GROUP_BOUNDARY_PAD,
         y: gMinY - GROUP_BOUNDARY_PAD,
-        width: (gMaxX - gMinX) + GROUP_BOUNDARY_PAD * 2,
-        height: (gMaxY - gMinY) + GROUP_BOUNDARY_PAD * 2,
+        width: gMaxX - gMinX + GROUP_BOUNDARY_PAD * 2,
+        height: gMaxY - gMinY + GROUP_BOUNDARY_PAD * 2,
       });
     }
   }
 
   // Compute bounding box of all content (nodes + boundary + group boundaries + edge points)
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  let minX = Infinity,
+    minY = Infinity,
+    maxX = -Infinity,
+    maxY = -Infinity;
   for (const node of nodes) {
     const left = node.x - node.width / 2;
     const top = node.y - node.height / 2;
@@ -1746,7 +1950,6 @@ export function layoutC4Components(
   let totalWidth = maxX - minX + MARGIN * 2;
   let totalHeight = maxY - minY + MARGIN * 2;
 
-
   const legendGroups = computeLegendGroups(parsed.tagGroups);
 
   // Position legend below diagram
@@ -1764,7 +1967,15 @@ export function layoutC4Components(
     if (legendBottom > totalHeight) totalHeight = legendBottom;
   }
 
-  return { nodes, edges, legend: legendGroups, boundary, groupBoundaries, width: totalWidth, height: totalHeight };
+  return {
+    nodes,
+    edges,
+    legend: legendGroups,
+    boundary,
+    groupBoundaries,
+    width: totalWidth,
+    height: totalHeight,
+  };
 }
 
 // ============================================================
@@ -1775,15 +1986,20 @@ export function layoutC4Components(
  * Resolve a container reference name to its C4Element by walking the parsed
  * element tree. Matches container names case-insensitively.
  */
-function resolveContainerRef(parsed: ParsedC4, refName: string): C4Element | undefined {
+function resolveContainerRef(
+  parsed: ParsedC4,
+  refName: string
+): C4Element | undefined {
   const lower = refName.toLowerCase();
   for (const el of parsed.elements) {
     for (const child of el.children) {
-      if (child.type === 'container' && child.name.toLowerCase() === lower) return child;
+      if (child.type === 'container' && child.name.toLowerCase() === lower)
+        return child;
     }
     for (const group of el.groups) {
       for (const child of group.children) {
-        if (child.type === 'container' && child.name.toLowerCase() === lower) return child;
+        if (child.type === 'container' && child.name.toLowerCase() === lower)
+          return child;
       }
     }
   }
@@ -1808,7 +2024,7 @@ function collectDeploymentRefs(
   parentId: string | null,
   refs: DeploymentRefEntry[],
   infraIds: Map<string, C4DeploymentNode>,
-  infraParents: Map<string, string | null>,
+  infraParents: Map<string, string | null>
 ): void {
   for (const node of nodes) {
     const infraId = `__infra_${node.name}`;
@@ -1818,11 +2034,23 @@ function collectDeploymentRefs(
     for (const ref of node.containerRefs) {
       const el = resolveContainerRef(parsed, ref);
       if (el) {
-        refs.push({ refName: ref, element: el, infraId, deployLineNumber: node.lineNumber });
+        refs.push({
+          refName: ref,
+          element: el,
+          infraId,
+          deployLineNumber: node.lineNumber,
+        });
       }
     }
 
-    collectDeploymentRefs(node.children, parsed, infraId, refs, infraIds, infraParents);
+    collectDeploymentRefs(
+      node.children,
+      parsed,
+      infraId,
+      refs,
+      infraIds,
+      infraParents
+    );
   }
 }
 
@@ -1835,20 +2063,41 @@ function collectDeploymentRefs(
  */
 export function layoutC4Deployment(
   parsed: ParsedC4,
-  activeTagGroup?: string | null,
+  activeTagGroup?: string | null
 ): C4LayoutResult {
   if (parsed.deployment.length === 0) {
-    return { nodes: [], edges: [], legend: [], groupBoundaries: [], width: 0, height: 0 };
+    return {
+      nodes: [],
+      edges: [],
+      legend: [],
+      groupBoundaries: [],
+      width: 0,
+      height: 0,
+    };
   }
 
   // Collect all refs and infra node info
   const refs: DeploymentRefEntry[] = [];
   const infraIds = new Map<string, C4DeploymentNode>();
   const infraParents = new Map<string, string | null>();
-  collectDeploymentRefs(parsed.deployment, parsed, null, refs, infraIds, infraParents);
+  collectDeploymentRefs(
+    parsed.deployment,
+    parsed,
+    null,
+    refs,
+    infraIds,
+    infraParents
+  );
 
   if (refs.length === 0) {
-    return { nodes: [], edges: [], legend: [], groupBoundaries: [], width: 0, height: 0 };
+    return {
+      nodes: [],
+      edges: [],
+      legend: [],
+      groupBoundaries: [],
+      width: 0,
+      height: 0,
+    };
   }
 
   // Deduplicate refs by element name (a container can appear in multiple infra
@@ -1927,7 +2176,10 @@ export function layoutC4Deployment(
 
   // Add edges to dagre
   for (const rel of deployRels) {
-    if (nameToElement.has(rel.sourceName) && nameToElement.has(rel.targetName)) {
+    if (
+      nameToElement.has(rel.sourceName) &&
+      nameToElement.has(rel.targetName)
+    ) {
       g.setEdge(rel.sourceName, rel.targetName, { label: rel.label ?? '' });
     }
   }
@@ -1941,16 +2193,23 @@ export function layoutC4Deployment(
   reduceCrossings(
     g,
     deployRels
-      .filter((r) => nameToElement.has(r.sourceName) && nameToElement.has(r.targetName))
+      .filter(
+        (r) =>
+          nameToElement.has(r.sourceName) && nameToElement.has(r.targetName)
+      )
       .map((r) => ({ source: r.sourceName, target: r.targetName })),
-    nodeInfraMap,
+    nodeInfraMap
   );
 
   // Extract positioned nodes
   const nodes: C4LayoutNode[] = [];
   for (const r of refEntries) {
     const pos = g.node(r.element.name);
-    const color = resolveNodeColor(r.element, parsed.tagGroups, activeTagGroup ?? null);
+    const color = resolveNodeColor(
+      r.element,
+      parsed.tagGroups,
+      activeTagGroup ?? null
+    );
     const tech = r.element.metadata['tech'] ?? r.element.metadata['technology'];
     nodes.push({
       id: r.element.name,
@@ -1971,7 +2230,10 @@ export function layoutC4Deployment(
 
   // Extract edges
   const edges: C4LayoutEdge[] = deployRels
-    .filter((rel) => nameToElement.has(rel.sourceName) && nameToElement.has(rel.targetName))
+    .filter(
+      (rel) =>
+        nameToElement.has(rel.sourceName) && nameToElement.has(rel.targetName)
+    )
     .map((rel) => {
       const edgeData = g.edge(rel.sourceName, rel.targetName);
       return {
@@ -1999,12 +2261,20 @@ export function layoutC4Deployment(
   }
 
   // Compute boundaries bottom-up: leaf infra nodes first, then parents.
-  const infraBounds = new Map<string, { x: number; y: number; width: number; height: number }>();
+  const infraBounds = new Map<
+    string,
+    { x: number; y: number; width: number; height: number }
+  >();
 
-  function computeInfraBounds(infraId: string): { x: number; y: number; width: number; height: number } | null {
+  function computeInfraBounds(
+    infraId: string
+  ): { x: number; y: number; width: number; height: number } | null {
     if (infraBounds.has(infraId)) return infraBounds.get(infraId)!;
 
-    let bMinX = Infinity, bMinY = Infinity, bMaxX = -Infinity, bMaxY = -Infinity;
+    let bMinX = Infinity,
+      bMinY = Infinity,
+      bMaxX = -Infinity,
+      bMaxY = -Infinity;
     let hasContent = false;
 
     // Direct container ref members
@@ -2029,8 +2299,10 @@ export function layoutC4Deployment(
           hasContent = true;
           if (childBounds.x < bMinX) bMinX = childBounds.x;
           if (childBounds.y < bMinY) bMinY = childBounds.y;
-          if (childBounds.x + childBounds.width > bMaxX) bMaxX = childBounds.x + childBounds.width;
-          if (childBounds.y + childBounds.height > bMaxY) bMaxY = childBounds.y + childBounds.height;
+          if (childBounds.x + childBounds.width > bMaxX)
+            bMaxX = childBounds.x + childBounds.width;
+          if (childBounds.y + childBounds.height > bMaxY)
+            bMaxY = childBounds.y + childBounds.height;
         }
       }
     }
@@ -2040,8 +2312,8 @@ export function layoutC4Deployment(
     const bounds = {
       x: bMinX - BOUNDARY_PAD,
       y: bMinY - BOUNDARY_PAD,
-      width: (bMaxX - bMinX) + BOUNDARY_PAD * 2,
-      height: (bMaxY - bMinY) + BOUNDARY_PAD * 2,
+      width: bMaxX - bMinX + BOUNDARY_PAD * 2,
+      height: bMaxY - bMinY + BOUNDARY_PAD * 2,
     };
     infraBounds.set(infraId, bounds);
     return bounds;
@@ -2062,10 +2334,13 @@ export function layoutC4Deployment(
   }
 
   // Sort boundaries so outermost (largest area) are first — rendered bottom to top
-  groupBoundaries.sort((a, b) => (b.width * b.height) - (a.width * a.height));
+  groupBoundaries.sort((a, b) => b.width * b.height - a.width * a.height);
 
   // Compute total bounding box
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  let minX = Infinity,
+    minY = Infinity,
+    maxX = -Infinity,
+    maxY = -Infinity;
   for (const node of nodes) {
     const left = node.x - node.width / 2;
     const top = node.y - node.height / 2;
@@ -2128,5 +2403,12 @@ export function layoutC4Deployment(
     if (legendBottom > totalHeight) totalHeight = legendBottom;
   }
 
-  return { nodes, edges, legend: legendGroups, groupBoundaries, width: totalWidth, height: totalHeight };
+  return {
+    nodes,
+    edges,
+    legend: legendGroups,
+    groupBoundaries,
+    width: totalWidth,
+    height: totalHeight,
+  };
 }

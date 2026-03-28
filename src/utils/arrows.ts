@@ -34,7 +34,7 @@ const ARROW_CHARS = ['->', '~>'];
  *  - `null` if not a labeled arrow (caller should fall through to bare patterns)
  */
 export function parseArrow(
-  line: string,
+  line: string
 ): ParsedArrow | { error: string } | null {
   // Check bidi patterns first — return error
   if (BIDI_SYNC_RE.test(line) || BIDI_ASYNC_RE.test(line)) {
@@ -47,8 +47,7 @@ export function parseArrow(
   // Check deprecated return arrow patterns — return error
   if (RETURN_SYNC_LABELED_RE.test(line) || RETURN_ASYNC_LABELED_RE.test(line)) {
     const m =
-      line.match(RETURN_SYNC_LABELED_RE) ??
-      line.match(RETURN_ASYNC_LABELED_RE);
+      line.match(RETURN_SYNC_LABELED_RE) ?? line.match(RETURN_ASYNC_LABELED_RE);
     const from = m![3];
     const to = m![1];
     const label = m![2].trim();
@@ -91,24 +90,5 @@ export function parseArrow(
     };
   }
 
-  return null;
-}
-
-/**
- * Match an arrow segment and extract label + async flag.
- * Handles: `->`, `-label->`, `~>`, `~label~>`.
- * Returns null if no arrow pattern matched.
- */
-export function matchArrowLabel(segment: string): { label: string; async: boolean } | null {
-  // Async labeled: ~label~>
-  const asyncLabeled = segment.match(/^~(.+?)~>$/);
-  if (asyncLabeled) return { label: asyncLabeled[1].trim(), async: true };
-  // Async bare: ~>
-  if (segment.trim() === '~>') return { label: '', async: true };
-  // Sync labeled: -label->
-  const syncLabeled = segment.match(/^-(.+?)->$/);
-  if (syncLabeled) return { label: syncLabeled[1].trim(), async: false };
-  // Sync bare: ->
-  if (segment.trim() === '->') return { label: '', async: false };
   return null;
 }

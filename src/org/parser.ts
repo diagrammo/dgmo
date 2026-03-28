@@ -1,8 +1,12 @@
 import type { PaletteColors } from '../palettes';
 import type { DgmoError } from '../diagnostics';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
-import type { TagGroup, TagEntry } from '../utils/tag-groups';
-import { isTagBlockHeading, matchTagBlockHeading, validateTagValues } from '../utils/tag-groups';
+import type { TagGroup } from '../utils/tag-groups';
+import {
+  isTagBlockHeading,
+  matchTagBlockHeading,
+  validateTagValues,
+} from '../utils/tag-groups';
 import {
   measureIndent,
   extractColor,
@@ -46,13 +50,12 @@ const METADATA_RE = /^([^:]+):\s*(.+)$/;
 
 /** Known org chart options (key-value). */
 const KNOWN_OPTIONS = new Set([
-  'sub-node-label', 'hide', 'show-sub-node-count',
+  'sub-node-label',
+  'hide',
+  'show-sub-node-count',
 ]);
 /** Known org chart boolean options (bare keyword = on). */
-const KNOWN_BOOLEANS = new Set([
-  'show-sub-node-count',
-  'direction-tb',
-]);
+const KNOWN_BOOLEANS = new Set(['show-sub-node-count', 'direction-tb']);
 
 // ============================================================
 // Inference
@@ -72,10 +75,7 @@ export function looksLikeOrg(content: string): boolean {
 // Parser
 // ============================================================
 
-export function parseOrg(
-  content: string,
-  palette?: PaletteColors
-): ParsedOrg {
+export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
   const result: ParsedOrg = {
     title: null,
     titleLineNumber: null,
@@ -148,7 +148,22 @@ export function parseOrg(
       const firstLine = parseFirstLine(trimmed);
       if (firstLine) {
         if (firstLine.chartType !== 'org') {
-          const allTypes = ['org', 'class', 'flowchart', 'sequence', 'er', 'bar', 'line', 'pie', 'scatter', 'sankey', 'venn', 'timeline', 'arc', 'slope'];
+          const allTypes = [
+            'org',
+            'class',
+            'flowchart',
+            'sequence',
+            'er',
+            'bar',
+            'line',
+            'pie',
+            'scatter',
+            'sankey',
+            'venn',
+            'timeline',
+            'arc',
+            'slope',
+          ];
           let msg = `Expected chart type "org", got "${firstLine.chartType}"`;
           const hint = suggest(firstLine.chartType, allTypes);
           if (hint) msg += `. ${hint}`;
@@ -177,7 +192,10 @@ export function parseOrg(
         lineNumber,
       };
       if (tagBlockMatch.alias) {
-        aliasMap.set(tagBlockMatch.alias.toLowerCase(), tagBlockMatch.name.toLowerCase());
+        aliasMap.set(
+          tagBlockMatch.alias.toLowerCase(),
+          tagBlockMatch.name.toLowerCase()
+        );
       }
       result.tagGroups.push(currentTagGroup);
       continue;
@@ -208,7 +226,10 @@ export function parseOrg(
       if (indent > 0) {
         const { label, color } = extractColor(trimmed, palette);
         if (!color) {
-          pushError(lineNumber, `Expected 'Value(color)' in tag group '${currentTagGroup.name}'`);
+          pushError(
+            lineNumber,
+            `Expected 'Value(color)' in tag group '${currentTagGroup.name}'`
+          );
           continue;
         }
         // First entry is the default
@@ -223,7 +244,7 @@ export function parseOrg(
         continue;
       }
       // Non-indented line after tag group — fall through to content parsing
-      currentTagGroup = null;
+      currentTagGroup = null; // eslint-disable-line no-useless-assignment
     }
 
     // --- Org content phase ---
@@ -238,7 +259,9 @@ export function parseOrg(
     // Check for metadata syntax: key: value
     // Lines containing '|' are pipe-delimited nodes (e.g. "Alice | role: Engineer"),
     // not metadata — skip the metadata regex for them.
-    const metadataMatch = trimmed.includes('|') ? null : trimmed.match(METADATA_RE);
+    const metadataMatch = trimmed.includes('|')
+      ? null
+      : trimmed.match(METADATA_RE);
 
     if (containerMatch) {
       // It's a container node
@@ -277,14 +300,30 @@ export function parseOrg(
       // Otherwise it's an orphan metadata error
       if (indent === 0) {
         // Treat as a node label (e.g., "Dr. Smith: Surgeon" is a valid name)
-        const node = parseNodeLabel(trimmed, indent, lineNumber, palette, ++nodeCounter, aliasMap, pushWarning);
+        const node = parseNodeLabel(
+          trimmed,
+          indent,
+          lineNumber,
+          palette,
+          ++nodeCounter,
+          aliasMap,
+          pushWarning
+        );
         attachNode(node, indent, indentStack, result);
       } else {
         pushError(lineNumber, 'Metadata has no parent node');
       }
     } else {
       // It's a node label — possibly with single-line pipe-delimited metadata
-      const node = parseNodeLabel(trimmed, indent, lineNumber, palette, ++nodeCounter, aliasMap, pushWarning);
+      const node = parseNodeLabel(
+        trimmed,
+        indent,
+        lineNumber,
+        palette,
+        ++nodeCounter,
+        aliasMap,
+        pushWarning
+      );
       attachNode(node, indent, indentStack, result);
     }
   }
@@ -304,7 +343,11 @@ export function parseOrg(
     validateTagValues(allNodes, result.tagGroups, pushWarning, suggest);
   }
 
-  if (result.roots.length === 0 && result.tagGroups.length === 0 && !result.error) {
+  if (
+    result.roots.length === 0 &&
+    result.tagGroups.length === 0 &&
+    !result.error
+  ) {
     const diag = makeDgmoError(1, 'No nodes found in org chart');
     result.diagnostics.push(diag);
     result.error = formatDgmoError(diag);
@@ -324,15 +367,19 @@ function parseNodeLabel(
   palette: PaletteColors | undefined,
   counter: number,
   aliasMap: Map<string, string> = new Map(),
-  warnFn?: (line: number, msg: string) => void,
+  warnFn?: (line: number, msg: string) => void
 ): OrgNode {
   // Check for single-line compact metadata: "Alice Park | role: Senior, location: NY"
   const segments = trimmed.split('|').map((s) => s.trim());
 
-  let rawLabel = segments[0];
+  const rawLabel = segments[0];
   const { label, color } = extractColor(rawLabel, palette);
 
-  const metadata = parsePipeMetadata(segments, aliasMap, warnFn ? () => warnFn(lineNumber, MULTIPLE_PIPE_ERROR) : undefined);
+  const metadata = parsePipeMetadata(
+    segments,
+    aliasMap,
+    warnFn ? () => warnFn(lineNumber, MULTIPLE_PIPE_ERROR) : undefined
+  );
 
   return {
     id: `node-${counter}`,

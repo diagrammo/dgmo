@@ -1,7 +1,13 @@
 import { resolveColor } from '../colors';
 import type { PaletteColors } from '../palettes';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
-import { measureIndent, extractColor, parsePipeMetadata, parseFirstLine, OPTION_NOCOLON_RE } from '../utils/parsing';
+import {
+  measureIndent,
+  extractColor,
+  parsePipeMetadata,
+  parseFirstLine,
+  OPTION_NOCOLON_RE,
+} from '../utils/parsing';
 import { matchTagBlockHeading, validateTagValues } from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
 import type {
@@ -82,7 +88,7 @@ const KEYWORD_TO_SYMBOL: Record<string, string> = {
 function parseRelationship(
   trimmed: string,
   lineNumber: number,
-  pushError: (line: number, message: string) => void,
+  pushError: (line: number, message: string) => void
 ): {
   source: string;
   target: string;
@@ -113,7 +119,7 @@ function parseRelationship(
     const toSym = KEYWORD_TO_SYMBOL[kw[3].toLowerCase()] ?? kw[3];
     pushError(
       lineNumber,
-      `Use symbolic cardinality (1--*, ?--1, *--*) instead of "${kw[2]}-to-${kw[3]}". Example: ${kw[1]} ${fromSym}--${toSym} ${kw[4]}`,
+      `Use symbolic cardinality (1--*, ?--1, *--*) instead of "${kw[2]}-to-${kw[3]}". Example: ${kw[1]} ${fromSym}--${toSym} ${kw[4]}`
     );
     return null;
   }
@@ -176,7 +182,8 @@ export function parseERDiagram(
     error: null,
   };
 
-  const fail = (line: number, message: string): ParsedERDiagram => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _fail = (line: number, message: string): ParsedERDiagram => {
     const diag = makeDgmoError(line, message);
     result.diagnostics.push(diag);
     result.error = formatDgmoError(diag);
@@ -254,7 +261,10 @@ export function parseERDiagram(
           lineNumber,
         };
         if (tagBlockMatch.alias) {
-          aliasMap.set(tagBlockMatch.alias.toLowerCase(), tagBlockMatch.name.toLowerCase());
+          aliasMap.set(
+            tagBlockMatch.alias.toLowerCase(),
+            tagBlockMatch.name.toLowerCase()
+          );
         }
         result.tagGroups.push(currentTagGroup);
         continue;
@@ -265,8 +275,13 @@ export function parseERDiagram(
     if (currentTagGroup && !contentStarted && indent > 0) {
       const { label, color } = extractColor(trimmed, palette);
       if (!color) {
-        result.diagnostics.push(makeDgmoError(lineNumber,
-          `Expected 'Value(color)' in tag group '${currentTagGroup.name}'`, 'warning'));
+        result.diagnostics.push(
+          makeDgmoError(
+            lineNumber,
+            `Expected 'Value(color)' in tag group '${currentTagGroup.name}'`,
+            'warning'
+          )
+        );
         continue;
       }
       // First entry becomes the default
@@ -339,8 +354,8 @@ export function parseERDiagram(
         makeDgmoError(
           lineNumber,
           `Relationship "${rel.source} → ${rel.target}" must be indented under the source table "${rel.source}"`,
-          'warning',
-        ),
+          'warning'
+        )
       );
       continue;
     }
@@ -371,7 +386,10 @@ export function parseERDiagram(
 
   // Validation
   if (result.tables.length === 0 && !result.error) {
-    const diag = makeDgmoError(1, 'No tables found. Add table declarations like "users" or "orders (blue)".');
+    const diag = makeDgmoError(
+      1,
+      'No tables found. Add table declarations like "users" or "orders (blue)".'
+    );
     result.diagnostics.push(diag);
     result.error = formatDgmoError(diag);
   }
@@ -385,8 +403,9 @@ export function parseERDiagram(
     validateTagValues(
       tagEntities,
       result.tagGroups,
-      (line, msg) => result.diagnostics.push(makeDgmoError(line, msg, 'warning')),
-      suggest,
+      (line, msg) =>
+        result.diagnostics.push(makeDgmoError(line, msg, 'warning')),
+      suggest
     );
 
     // Inject defaults for tables without explicit tags
@@ -402,7 +421,11 @@ export function parseERDiagram(
   }
 
   // Warn about isolated tables (not in any relationship)
-  if (result.tables.length >= 2 && result.relationships.length >= 1 && !result.error) {
+  if (
+    result.tables.length >= 2 &&
+    result.relationships.length >= 1 &&
+    !result.error
+  ) {
     const connectedIds = new Set<string>();
     for (const rel of result.relationships) {
       connectedIds.add(rel.source);
@@ -410,7 +433,13 @@ export function parseERDiagram(
     }
     for (const table of result.tables) {
       if (!connectedIds.has(table.id)) {
-        result.diagnostics.push(makeDgmoError(table.lineNumber, `Table "${table.name}" is not connected to any other table`, 'warning'));
+        result.diagnostics.push(
+          makeDgmoError(
+            table.lineNumber,
+            `Table "${table.name}" is not connected to any other table`,
+            'warning'
+          )
+        );
       }
     }
   }

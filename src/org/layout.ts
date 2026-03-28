@@ -6,7 +6,11 @@ import { hierarchy, tree } from 'd3-hierarchy';
 import type { ParsedOrg, OrgNode } from './parser';
 import type { TagGroup } from '../utils/tag-groups';
 import { resolveTagColor, injectDefaultTagMetadata } from '../utils/tag-groups';
-import { LEGEND_PILL_FONT_SIZE, LEGEND_ENTRY_FONT_SIZE, measureLegendText } from '../utils/legend-constants';
+import {
+  LEGEND_PILL_FONT_SIZE,
+  LEGEND_ENTRY_FONT_SIZE,
+  measureLegendText,
+} from '../utils/legend-constants';
 
 // ============================================================
 // Types
@@ -98,9 +102,7 @@ const CONTAINER_LABEL_HEIGHT = 28;
 const CONTAINER_META_LINE_HEIGHT = 16;
 const STACK_V_GAP = 20;
 
-
 // Legend (kanban-style pills)
-const LEGEND_GAP = 30;
 const LEGEND_HEIGHT = 28;
 const LEGEND_PILL_PAD = 16;
 const LEGEND_CAPSULE_PAD = 4;
@@ -116,10 +118,14 @@ const LEGEND_EYE_GAP = 6;
 // ============================================================
 
 /** Count all non-container descendants recursively, including hidden (collapsed) ones. */
-function countDescendantNodes(node: OrgNode, hiddenCounts?: Map<string, number>): number {
+function countDescendantNodes(
+  node: OrgNode,
+  hiddenCounts?: Map<string, number>
+): number {
   let count = 0;
   for (const child of node.children) {
-    count += (child.isContainer ? 0 : 1) + countDescendantNodes(child, hiddenCounts);
+    count +=
+      (child.isContainer ? 0 : 1) + countDescendantNodes(child, hiddenCounts);
     const hc = hiddenCounts?.get(child.id);
     if (hc) count += hc;
   }
@@ -152,13 +158,18 @@ function computeCardWidth(label: string, meta: Record<string, string>): number {
     if (lineChars > maxChars) maxChars = lineChars;
   }
 
-  return Math.max(MIN_CARD_WIDTH, Math.ceil(maxChars * CHAR_WIDTH) + CARD_H_PAD * 2);
+  return Math.max(
+    MIN_CARD_WIDTH,
+    Math.ceil(maxChars * CHAR_WIDTH) + CARD_H_PAD * 2
+  );
 }
 
 function computeCardHeight(meta: Record<string, string>): number {
   const metaCount = Object.keys(meta).length;
   if (metaCount === 0) return HEADER_HEIGHT + CARD_V_PAD;
-  return HEADER_HEIGHT + SEPARATOR_GAP + metaCount * META_LINE_HEIGHT + CARD_V_PAD;
+  return (
+    HEADER_HEIGHT + SEPARATOR_GAP + metaCount * META_LINE_HEIGHT + CARD_V_PAD
+  );
 }
 
 // ============================================================
@@ -172,7 +183,12 @@ function resolveNodeColor(
 ): string | undefined {
   // Explicit inline (color) always wins — handled before tag resolution
   if (node.color) return node.color;
-  return resolveTagColor(node.metadata, tagGroups, activeGroupName, node.isContainer);
+  return resolveTagColor(
+    node.metadata,
+    tagGroups,
+    activeGroupName,
+    node.isContainer
+  );
 }
 
 // ============================================================
@@ -204,7 +220,13 @@ function buildTreeNodes(
     }
     return {
       orgNode,
-      children: buildTreeNodes(orgNode.children, hiddenCounts, hiddenAttributes, subNodeLabel, showSubNodeCount),
+      children: buildTreeNodes(
+        orgNode.children,
+        hiddenCounts,
+        hiddenAttributes,
+        subNodeLabel,
+        showSubNodeCount
+      ),
       width: computeCardWidth(orgNode.label, meta),
       height: computeCardHeight(meta),
     };
@@ -279,7 +301,8 @@ function computeLegendGroups(
     if (visibleEntries.length === 0) continue;
 
     // Pill label shows just the group name (alias is for DSL shorthand only)
-    const pillWidth = measureLegendText(group.name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
+    const pillWidth =
+      measureLegendText(group.name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
     const minPillWidth = pillWidth;
 
     // Capsule: pad + pill + gap + entries + pad
@@ -318,10 +341,7 @@ function computeLegendGroups(
  * Inject default tag group values into non-container node metadata.
  * Delegates to shared `injectDefaultTagMetadata` with org-specific skip logic.
  */
-function injectDefaultMetadata(
-  roots: OrgNode[],
-  tagGroups: TagGroup[]
-): void {
+function injectDefaultMetadata(roots: OrgNode[], tagGroups: TagGroup[]): void {
   // Flatten all nodes (recursive) for the shared utility
   const allNodes: OrgNode[] = [];
   const collect = (node: OrgNode) => {
@@ -349,7 +369,14 @@ export function layoutOrg(
     const showEyeIcons = hiddenAttributes !== undefined;
     const legendGroups = computeLegendGroups(parsed.tagGroups, showEyeIcons);
     if (legendGroups.length === 0) {
-      return { nodes: [], edges: [], containers: [], legend: [], width: 0, height: 0 };
+      return {
+        nodes: [],
+        edges: [],
+        containers: [],
+        legend: [],
+        width: 0,
+        height: 0,
+      };
     }
 
     // Legend-only mode: stack groups vertically, all expanded
@@ -377,8 +404,16 @@ export function layoutOrg(
 
   // Build tree structure
   const subNodeLabel = parsed.options['sub-node-label'] ?? undefined;
-  const showSubNodeCount = ['yes', 'on'].includes(parsed.options['show-sub-node-count']?.toLowerCase() ?? '');
-  const treeNodes = buildTreeNodes(parsed.roots, hiddenCounts, hiddenAttributes, subNodeLabel, showSubNodeCount);
+  const showSubNodeCount = ['yes', 'on'].includes(
+    parsed.options['show-sub-node-count']?.toLowerCase() ?? ''
+  );
+  const treeNodes = buildTreeNodes(
+    parsed.roots,
+    hiddenCounts,
+    hiddenAttributes,
+    subNodeLabel,
+    showSubNodeCount
+  );
 
   // Single root or virtual root for multiple roots
   let root: TreeNode;
@@ -492,9 +527,9 @@ export function layoutOrg(
   // Y positions so each level's gap is based on the actual max height at that
   // level rather than the global max.
   {
-    const descendants = h.descendants().filter(
-      (d) => d.data.orgNode.id !== '__virtual_root__'
-    );
+    const descendants = h
+      .descendants()
+      .filter((d) => d.data.orgNode.id !== '__virtual_root__');
 
     // Collect max actual card height per depth level.
     // Exclude __stack_ placeholders — their aggregate height (multiple
@@ -597,7 +632,7 @@ export function layoutOrg(
   // D3 uses uniform nodeSize so narrow stacks get the same gap as wide
   // subtrees. Process bottom-up so inner subtrees are compact first.
   {
-    type HNode = (typeof h);
+    type HNode = typeof h;
     const subtreeExtent = (node: HNode): { minX: number; maxX: number } => {
       // Start with this node's own card/header bounds
       let min = node.x! - node.data.width / 2;
@@ -652,8 +687,7 @@ export function layoutOrg(
         positions[i] = prevRight + H_GAP - extents[i].relLeft;
       }
 
-      const newCenter =
-        (positions[0] + positions[positions.length - 1]) / 2;
+      const newCenter = (positions[0] + positions[positions.length - 1]) / 2;
       const centerShift = currentCenter - newCenter;
 
       for (let i = 0; i < children.length; i++) {
@@ -761,7 +795,11 @@ export function layoutOrg(
   for (const ec of expandedChildren) {
     const hc = hiddenCounts?.get(ec.orgNode.id);
     const meta = filterMetadata(ec.orgNode.metadata, hiddenAttributes);
-    if (!ec.orgNode.isContainer && showSubNodeCount && !(hc != null && hc > 0)) {
+    if (
+      !ec.orgNode.isContainer &&
+      showSubNodeCount &&
+      !(hc != null && hc > 0)
+    ) {
       const count = countDescendantNodes(ec.orgNode, hiddenCounts);
       if (count > 0) meta[subNodeKey] = String(count);
     }
@@ -771,13 +809,18 @@ export function layoutOrg(
       metadata: meta,
       isContainer: ec.orgNode.isContainer,
       lineNumber: ec.orgNode.lineNumber,
-      color: resolveNodeColor(ec.orgNode, parsed.tagGroups, activeTagGroup ?? null),
+      color: resolveNodeColor(
+        ec.orgNode,
+        parsed.tagGroups,
+        activeTagGroup ?? null
+      ),
       x: ec.cx + offsetX,
       y: ec.cy + offsetY,
       width: ec.width,
       height: ec.height,
       hiddenCount: hc,
-      hasChildren: (ec.orgNode.children.length > 0 || (hc != null && hc > 0)) || undefined,
+      hasChildren:
+        ec.orgNode.children.length > 0 || (hc != null && hc > 0) || undefined,
     });
   }
 
@@ -813,13 +856,20 @@ export function layoutOrg(
       metadata: nodeMeta,
       isContainer: orgNode.isContainer,
       lineNumber: orgNode.lineNumber,
-      color: resolveNodeColor(orgNode, parsed.tagGroups, activeTagGroup ?? null),
+      color: resolveNodeColor(
+        orgNode,
+        parsed.tagGroups,
+        activeTagGroup ?? null
+      ),
       x,
       y,
       width: w,
       height: ht,
       hiddenCount: hc,
-      hasChildren: (d.children != null && d.children.length > 0) || (hc != null && hc > 0) || undefined,
+      hasChildren:
+        (d.children != null && d.children.length > 0) ||
+        (hc != null && hc > 0) ||
+        undefined,
     });
 
     // Collect children per parent for bus-style edge generation
@@ -912,11 +962,12 @@ export function layoutOrg(
 
   // Compute container bounds from d3 hierarchy (bottom-up so inner
   // container boxes are available when computing outer containers)
-  const allContainerNodes = h.descendants().filter(
-    (d) =>
-      d.data.orgNode.id !== '__virtual_root__' &&
-      d.data.orgNode.isContainer
-  );
+  const allContainerNodes = h
+    .descendants()
+    .filter(
+      (d) =>
+        d.data.orgNode.id !== '__virtual_root__' && d.data.orgNode.isContainer
+    );
 
   // Map from node ID to computed visual bounds (offset-space)
   const containerBoundsMap = new Map<
@@ -938,7 +989,10 @@ export function layoutOrg(
     const labelHeight =
       CONTAINER_LABEL_HEIGHT + metaCount * CONTAINER_META_LINE_HEIGHT;
     const boxWidth = d.data.width;
-    const boxHeight = Math.max(labelHeight + CONTAINER_PAD_BOTTOM, EMPTY_CONTAINER_MIN_HEIGHT);
+    const boxHeight = Math.max(
+      labelHeight + CONTAINER_PAD_BOTTOM,
+      EMPTY_CONTAINER_MIN_HEIGHT
+    );
     const boxX = cx - boxWidth / 2;
     const boxY = cy;
 
@@ -955,7 +1009,11 @@ export function layoutOrg(
       nodeId: d.data.orgNode.id,
       label: d.data.orgNode.label,
       lineNumber: d.data.orgNode.lineNumber,
-      color: resolveNodeColor(d.data.orgNode, parsed.tagGroups, activeTagGroup ?? null),
+      color: resolveNodeColor(
+        d.data.orgNode,
+        parsed.tagGroups,
+        activeTagGroup ?? null
+      ),
       metadata: cMeta,
       x: boxX,
       y: boxY,
@@ -975,7 +1033,7 @@ export function layoutOrg(
 
   for (const d of containerCandidates) {
     // Collect all descendants (not just direct children)
-    const allDesc: typeof d[] = [];
+    const allDesc: (typeof d)[] = [];
     const collectDesc = (node: typeof d) => {
       if (node.children) {
         for (const child of node.children) {
@@ -1044,9 +1102,7 @@ export function layoutOrg(
     const finalBoxWidth = Math.max(contentWidth, d.data.width);
     // Center the box if the label is wider than the content
     const centeredBoxX =
-      finalBoxWidth > contentWidth
-        ? containerX - finalBoxWidth / 2
-        : boxX;
+      finalBoxWidth > contentWidth ? containerX - finalBoxWidth / 2 : boxX;
 
     // Store bounds for parent containers to reference
     containerBoundsMap.set(d.data.orgNode.id, {
@@ -1062,7 +1118,11 @@ export function layoutOrg(
       nodeId: d.data.orgNode.id,
       label: d.data.orgNode.label,
       lineNumber: d.data.orgNode.lineNumber,
-      color: resolveNodeColor(d.data.orgNode, parsed.tagGroups, activeTagGroup ?? null),
+      color: resolveNodeColor(
+        d.data.orgNode,
+        parsed.tagGroups,
+        activeTagGroup ?? null
+      ),
       metadata: cMeta2,
       x: centeredBoxX,
       y: boxY,
@@ -1111,16 +1171,23 @@ export function layoutOrg(
 
   // Compute legend for tag groups
   const showEyeIcons = hiddenAttributes !== undefined;
-  const legendGroups = computeLegendGroups(parsed.tagGroups, showEyeIcons, usedValuesByGroup);
+  const legendGroups = computeLegendGroups(
+    parsed.tagGroups,
+    showEyeIcons,
+    usedValuesByGroup
+  );
   let finalWidth = totalWidth;
   let finalHeight = totalHeight;
 
   // When a tag group is active, only that group is laid out (full size).
   // When none is active, all groups are laid out minified — unless
   // expandAllLegend is set (export mode), which shows all groups expanded.
-  const visibleGroups = activeTagGroup != null
-    ? legendGroups.filter((g) => g.name.toLowerCase() === activeTagGroup.toLowerCase())
-    : legendGroups;
+  const visibleGroups =
+    activeTagGroup != null
+      ? legendGroups.filter(
+          (g) => g.name.toLowerCase() === activeTagGroup.toLowerCase()
+        )
+      : legendGroups;
   const allExpanded = expandAllLegend && activeTagGroup == null;
   const effectiveW = (g: OrgLegendGroup) =>
     activeTagGroup != null || allExpanded ? g.width : g.minifiedWidth;

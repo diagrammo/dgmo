@@ -159,11 +159,17 @@ describe('parseTagDeclaration', () => {
   });
 
   it('parses values without alias', () => {
-    const r = parseTagDeclaration('tag Phase Planning(blue), Execution(green), Review(purple)');
+    const r = parseTagDeclaration(
+      'tag Phase Planning(blue), Execution(green), Review(purple)'
+    );
     expect(r?.name).toBe('Phase');
     expect(r?.alias).toBeUndefined();
     // 'Planning(blue)' starts inline values due to `(`
-    expect(r?.inlineValues).toEqual(['Planning(blue)', 'Execution(green)', 'Review(purple)']);
+    expect(r?.inlineValues).toEqual([
+      'Planning(blue)',
+      'Execution(green)',
+      'Review(purple)',
+    ]);
   });
 
   it('returns null for non-tag lines', () => {
@@ -240,15 +246,21 @@ describe('resolveTagColor', () => {
   });
 
   it('returns undefined when active group does not exist', () => {
-    expect(resolveTagColor({ role: 'Engineer' }, groups, 'Nonexistent')).toBeUndefined();
+    expect(
+      resolveTagColor({ role: 'Engineer' }, groups, 'Nonexistent')
+    ).toBeUndefined();
   });
 
   it('returns matching entry color', () => {
-    expect(resolveTagColor({ role: 'Engineer' }, groups, 'Role')).toBe('#5e81ac');
+    expect(resolveTagColor({ role: 'Engineer' }, groups, 'Role')).toBe(
+      '#5e81ac'
+    );
   });
 
   it('is case-insensitive for group name and value', () => {
-    expect(resolveTagColor({ role: 'manager' }, groups, 'role')).toBe('#a3be8c');
+    expect(resolveTagColor({ role: 'manager' }, groups, 'role')).toBe(
+      '#a3be8c'
+    );
   });
 
   it('returns default value color when metadata key is missing', () => {
@@ -260,7 +272,9 @@ describe('resolveTagColor', () => {
   });
 
   it('returns #999999 for unknown metadata value', () => {
-    expect(resolveTagColor({ location: 'London' }, groups, 'Location')).toBe('#999999');
+    expect(resolveTagColor({ location: 'London' }, groups, 'Location')).toBe(
+      '#999999'
+    );
   });
 
   it('skips default for containers', () => {
@@ -268,7 +282,9 @@ describe('resolveTagColor', () => {
   });
 
   it('still uses explicit metadata on containers', () => {
-    expect(resolveTagColor({ role: 'Manager' }, groups, 'Role', true)).toBe('#a3be8c');
+    expect(resolveTagColor({ role: 'Manager' }, groups, 'Role', true)).toBe(
+      '#a3be8c'
+    );
   });
 });
 
@@ -293,7 +309,7 @@ describe('validateTagValues', () => {
     validateTagValues(
       [{ metadata: { role: 'Engineer' }, lineNumber: 10 }],
       groups,
-      warn,
+      warn
     );
     expect(warn).not.toHaveBeenCalled();
   });
@@ -303,7 +319,7 @@ describe('validateTagValues', () => {
     validateTagValues(
       [{ metadata: { role: 'Intern' }, lineNumber: 10 }],
       groups,
-      warn,
+      warn
     );
     expect(warn).toHaveBeenCalledOnce();
     expect(warn.mock.calls[0][0]).toBe(10);
@@ -318,7 +334,7 @@ describe('validateTagValues', () => {
       [{ metadata: { role: 'Enginere' }, lineNumber: 5 }],
       groups,
       warn,
-      suggest,
+      suggest
     );
     expect(suggest).toHaveBeenCalledWith('Enginere', ['Engineer', 'Manager']);
     expect(warn.mock.calls[0][1]).toContain('Did you mean "Engineer"?');
@@ -331,7 +347,7 @@ describe('validateTagValues', () => {
       [{ metadata: { role: 'Intern' }, lineNumber: 5 }],
       groups,
       warn,
-      suggest,
+      suggest
     );
     expect(warn.mock.calls[0][1]).toContain('Engineer, Manager');
   });
@@ -341,7 +357,7 @@ describe('validateTagValues', () => {
     validateTagValues(
       [{ metadata: { team: 'Platform' }, lineNumber: 5 }],
       groups,
-      warn,
+      warn
     );
     expect(warn).not.toHaveBeenCalled();
   });
@@ -351,7 +367,7 @@ describe('validateTagValues', () => {
     validateTagValues(
       [{ metadata: { role: 'Engineer' }, lineNumber: 5 }],
       [],
-      warn,
+      warn
     );
     expect(warn).not.toHaveBeenCalled();
   });
@@ -365,17 +381,13 @@ describe('injectDefaultTagMetadata', () => {
   const groups: TagGroup[] = [
     {
       name: 'Role',
-      entries: [
-        { value: 'Engineer', color: '#5e81ac', lineNumber: 3 },
-      ],
+      entries: [{ value: 'Engineer', color: '#5e81ac', lineNumber: 3 }],
       defaultValue: 'Engineer',
       lineNumber: 2,
     },
     {
       name: 'Location',
-      entries: [
-        { value: 'NY', color: '#bf616a', lineNumber: 7 },
-      ],
+      entries: [{ value: 'NY', color: '#bf616a', lineNumber: 7 }],
       lineNumber: 6,
       // no defaultValue
     },
@@ -398,14 +410,24 @@ describe('injectDefaultTagMetadata', () => {
       { metadata: {}, isContainer: true },
       { metadata: {}, isContainer: false },
     ];
-    injectDefaultTagMetadata(entities, groups, (e) => (e as any).isContainer);
+    injectDefaultTagMetadata(
+      entities,
+      groups,
+      (e) =>
+        (e as { metadata: Record<string, string>; isContainer: boolean })
+          .isContainer
+    );
     expect(entities[0].metadata).toEqual({});
     expect(entities[1].metadata).toEqual({ role: 'Engineer' });
   });
 
   it('does nothing when no groups have defaults', () => {
     const noDefaults: TagGroup[] = [
-      { name: 'Location', entries: [{ value: 'NY', color: '#bf616a', lineNumber: 7 }], lineNumber: 6 },
+      {
+        name: 'Location',
+        entries: [{ value: 'NY', color: '#bf616a', lineNumber: 7 }],
+        lineNumber: 6,
+      },
     ];
     const entities = [{ metadata: {} }];
     injectDefaultTagMetadata(entities, noDefaults);

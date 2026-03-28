@@ -6,7 +6,11 @@ import type { PaletteColors } from '../palettes';
 import { resolveColor } from '../colors';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
 import type { TagGroup } from '../utils/tag-groups';
-import { isTagBlockHeading, matchTagBlockHeading, validateTagValues } from '../utils/tag-groups';
+import {
+  isTagBlockHeading,
+  matchTagBlockHeading,
+  validateTagValues,
+} from '../utils/tag-groups';
 import {
   measureIndent,
   extractColor,
@@ -14,16 +18,11 @@ import {
   inferArrowColor,
   MULTIPLE_PIPE_ERROR,
   TITLE_RE,
-  OPTION_RE,
   parseFirstLine,
   OPTION_NOCOLON_RE,
   ALL_CHART_TYPES,
 } from '../utils/parsing';
-import type {
-  SitemapNode,
-  SitemapDirection,
-  ParsedSitemap,
-} from './types';
+import type { SitemapNode, ParsedSitemap } from './types';
 
 // ============================================================
 // Regexes
@@ -46,7 +45,7 @@ const BARE_ARROW_RE = /^->\s*(.+)$/;
 
 function parseArrowLine(
   trimmed: string,
-  palette?: PaletteColors,
+  palette?: PaletteColors
 ): { label?: string; color?: string; target: string } | null {
   // Bare arrow: -> Target
   const bareMatch = trimmed.match(BARE_ARROW_RE);
@@ -59,7 +58,7 @@ function parseArrowLine(
   if (arrowMatch) {
     const label = arrowMatch[1]?.trim() || undefined;
     let color = arrowMatch[2]
-      ? resolveColor(arrowMatch[2].trim(), palette) ?? undefined
+      ? (resolveColor(arrowMatch[2].trim(), palette) ?? undefined)
       : undefined;
     if (label && !color) {
       color = inferArrowColor(label);
@@ -106,7 +105,7 @@ export function looksLikeSitemap(content: string): boolean {
   // Exclude flowchart: flowchart arrows connect shaped nodes like (X) -> [Y]
   // Sitemap arrows are indented under a parent node, target is plain text
   const hasFlowchartShapes =
-    /[\])][ \t]*-.*->/.test(content) || /->[ \t]*[\[(<\/]/.test(content);
+    /[\])][ \t]*-.*->/.test(content) || /->[ \t]*[[(</]/.test(content);
 
   return !hasFlowchartShapes;
 }
@@ -117,7 +116,7 @@ export function looksLikeSitemap(content: string): boolean {
 
 export function parseSitemap(
   content: string,
-  palette?: PaletteColors,
+  palette?: PaletteColors
 ): ParsedSitemap {
   const result: ParsedSitemap = {
     title: null,
@@ -231,7 +230,10 @@ export function parseSitemap(
         lineNumber,
       };
       if (tagBlockMatch.alias) {
-        aliasMap.set(tagBlockMatch.alias.toLowerCase(), tagBlockMatch.name.toLowerCase());
+        aliasMap.set(
+          tagBlockMatch.alias.toLowerCase(),
+          tagBlockMatch.name.toLowerCase()
+        );
       }
       result.tagGroups.push(currentTagGroup);
       continue;
@@ -239,8 +241,13 @@ export function parseSitemap(
 
     // Generic header options (space-separated, before content/tag groups)
     // Skip lines with `|` (pipe metadata) or `->` (arrows) — those are content
-    if (!contentStarted && !currentTagGroup && measureIndent(line) === 0
-        && !trimmed.includes('|') && !trimmed.includes('->')) {
+    if (
+      !contentStarted &&
+      !currentTagGroup &&
+      measureIndent(line) === 0 &&
+      !trimmed.includes('|') &&
+      !trimmed.includes('->')
+    ) {
       // Bare boolean: direction-tb
       if (/^direction-tb$/i.test(trimmed)) {
         result.direction = 'TB';
@@ -263,7 +270,7 @@ export function parseSitemap(
         if (!color) {
           pushError(
             lineNumber,
-            `Expected 'Value(color)' in tag group '${currentTagGroup.name}'`,
+            `Expected 'Value(color)' in tag group '${currentTagGroup.name}'`
           );
           continue;
         }
@@ -279,7 +286,7 @@ export function parseSitemap(
         continue;
       }
       // Non-indented line after tag group — fall through to content
-      currentTagGroup = null;
+      currentTagGroup = null; // eslint-disable-line no-useless-assignment
     }
 
     // --- Content phase ---
@@ -313,8 +320,9 @@ export function parseSitemap(
     const containerMatch = trimmed.match(CONTAINER_RE);
 
     // Check for metadata syntax: key: value
-    const metadataMatch =
-      trimmed.includes('|') ? null : trimmed.match(METADATA_RE);
+    const metadataMatch = trimmed.includes('|')
+      ? null
+      : trimmed.match(METADATA_RE);
 
     if (containerMatch) {
       const rawLabel = containerMatch[1].trim();
@@ -326,7 +334,10 @@ export function parseSitemap(
       if (pipeStr) {
         // Build segments array compatible with parsePipeMetadata (first element is label, rest are pipe parts)
         const pipeSegments = ['', pipeStr];
-        Object.assign(containerMetadata, parsePipeMetadata(pipeSegments, aliasMap));
+        Object.assign(
+          containerMetadata,
+          parsePipeMetadata(pipeSegments, aliasMap)
+        );
       }
 
       containerCounter++;
@@ -358,7 +369,14 @@ export function parseSitemap(
     } else if (metadataMatch && indentStack.length === 0) {
       // Could be a node label containing ':'
       if (indent === 0) {
-        const node = parseNodeLabel(trimmed, lineNumber, palette, ++nodeCounter, aliasMap, pushWarning);
+        const node = parseNodeLabel(
+          trimmed,
+          lineNumber,
+          palette,
+          ++nodeCounter,
+          aliasMap,
+          pushWarning
+        );
         attachNode(node, indent, indentStack, result);
         labelToNode.set(node.label.toLowerCase(), node);
       } else {
@@ -366,7 +384,14 @@ export function parseSitemap(
       }
     } else {
       // Node label — possibly with pipe-delimited metadata
-      const node = parseNodeLabel(trimmed, lineNumber, palette, ++nodeCounter, aliasMap, pushWarning);
+      const node = parseNodeLabel(
+        trimmed,
+        lineNumber,
+        palette,
+        ++nodeCounter,
+        aliasMap,
+        pushWarning
+      );
       attachNode(node, indent, indentStack, result);
       labelToNode.set(node.label.toLowerCase(), node);
     }
@@ -409,7 +434,11 @@ export function parseSitemap(
     validateTagValues(allNodes, result.tagGroups, pushWarning, suggest);
   }
 
-  if (result.roots.length === 0 && result.tagGroups.length === 0 && !result.error) {
+  if (
+    result.roots.length === 0 &&
+    result.tagGroups.length === 0 &&
+    !result.error
+  ) {
     const diag = makeDgmoError(1, 'No pages found in sitemap');
     result.diagnostics.push(diag);
     result.error = formatDgmoError(diag);
@@ -428,12 +457,16 @@ function parseNodeLabel(
   palette: PaletteColors | undefined,
   counter: number,
   aliasMap: Map<string, string> = new Map(),
-  warnFn?: (line: number, msg: string) => void,
+  warnFn?: (line: number, msg: string) => void
 ): SitemapNode {
   const segments = trimmed.split('|').map((s) => s.trim());
   const rawLabel = segments[0];
   const { label, color } = extractColor(rawLabel, palette);
-  const metadata = parsePipeMetadata(segments, aliasMap, warnFn ? () => warnFn(lineNumber, MULTIPLE_PIPE_ERROR) : undefined);
+  const metadata = parsePipeMetadata(
+    segments,
+    aliasMap,
+    warnFn ? () => warnFn(lineNumber, MULTIPLE_PIPE_ERROR) : undefined
+  );
 
   return {
     id: `node-${counter}`,
@@ -451,7 +484,7 @@ function attachNode(
   node: SitemapNode,
   indent: number,
   indentStack: { node: SitemapNode; indent: number }[],
-  result: ParsedSitemap,
+  result: ParsedSitemap
 ): void {
   // Pop stack entries with indent >= current indent
   while (indentStack.length > 0) {
@@ -464,7 +497,11 @@ function attachNode(
     const parent = indentStack[indentStack.length - 1].node;
     node.parentId = parent.id;
     // Cascade container metadata to child nodes (child overrides on conflict)
-    if (parent.isContainer && Object.keys(parent.metadata).length > 0 && !node.isContainer) {
+    if (
+      parent.isContainer &&
+      Object.keys(parent.metadata).length > 0 &&
+      !node.isContainer
+    ) {
       node.metadata = { ...parent.metadata, ...node.metadata };
     }
     parent.children.push(node);
@@ -477,7 +514,7 @@ function attachNode(
 
 function findParentNode(
   indent: number,
-  indentStack: { node: SitemapNode; indent: number }[],
+  indentStack: { node: SitemapNode; indent: number }[]
 ): SitemapNode | null {
   for (let i = indentStack.length - 1; i >= 0; i--) {
     if (indentStack[i].indent < indent) {

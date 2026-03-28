@@ -21,9 +21,9 @@ export interface ChartDataPoint {
 }
 
 export interface ChartEra {
-  start: string;        // exact category label, e.g. "'77"
-  end: string;          // exact category label, e.g. "'81"
-  label: string;        // display name, e.g. "Carter"
+  start: string; // exact category label, e.g. "'77"
+  end: string; // exact category label, e.g. "'81"
+  label: string; // display name, e.g. "Carter"
   color: string | null; // resolved CSS color, or null → palette default
   lineNumber: number;
 }
@@ -62,7 +62,11 @@ export interface ParsedChart {
 import { resolveColor } from './colors';
 import type { PaletteColors } from './palettes';
 import { makeDgmoError, formatDgmoError, suggest } from './diagnostics';
-import { extractColor, normalizeGroupedNumber, parseFirstLine, parseSeriesNames } from './utils/parsing';
+import {
+  extractColor,
+  parseFirstLine,
+  parseSeriesNames,
+} from './utils/parsing';
 
 // ============================================================
 // Parser
@@ -85,15 +89,20 @@ const TYPE_ALIASES: Record<string, ChartType> = {
 
 /** Known option keywords for the simple chart parser. */
 const KNOWN_OPTIONS = new Set([
-  'chart', 'title', 'series', 'xlabel', 'ylabel', 'label',
-  'no-label-name', 'no-label-value', 'no-label-percent',
+  'chart',
+  'title',
+  'series',
+  'xlabel',
+  'ylabel',
+  'label',
+  'no-label-name',
+  'no-label-value',
+  'no-label-percent',
   'color',
 ]);
 
 /** Known boolean options for the simple chart parser. */
-const KNOWN_BOOLEANS = new Set([
-  'orientation-horizontal',
-]);
+const KNOWN_BOOLEANS = new Set(['orientation-horizontal']);
 
 /**
  * Parses the simple chart text format into a structured object.
@@ -114,7 +123,12 @@ export function parseChart(
 ): ParsedChart {
   const lines = content.split('\n');
   const parsedEras: ChartEra[] = [];
-  const rawEras: { start: string; afterArrow: string; color: string | null; lineNumber: number }[] = [];
+  const rawEras: {
+    start: string;
+    afterArrow: string;
+    color: string | null;
+    lineNumber: number;
+  }[] = [];
   const result: ParsedChart = {
     type: 'bar',
     data: [],
@@ -141,7 +155,12 @@ export function parseChart(
 
     // Reject legacy ## section headers
     if (/^#{2,}\s+/.test(trimmed)) {
-      result.diagnostics.push(makeDgmoError(lineNumber, `'${trimmed}' — ## syntax is no longer supported. Use [Group] containers instead`));
+      result.diagnostics.push(
+        makeDgmoError(
+          lineNumber,
+          `'${trimmed}' — ## syntax is no longer supported. Use [Group] containers instead`
+        )
+      );
       continue;
     }
 
@@ -171,7 +190,11 @@ export function parseChart(
       }
       // If the first line is a single word (no spaces, no colon, no numbers),
       // treat it as an unrecognized chart type rather than falling through
-      if (!trimmed.includes(' ') && !trimmed.includes(':') && !/\d/.test(trimmed)) {
+      if (
+        !trimmed.includes(' ') &&
+        !trimmed.includes(':') &&
+        !/\d/.test(trimmed)
+      ) {
         let msg = `Unsupported chart type: ${trimmed}. Supported types: ${[...VALID_TYPES].join(', ')}.`;
         const hint = suggest(trimmed.toLowerCase(), [...VALID_TYPES]);
         if (hint) msg += ` ${hint}`;
@@ -181,7 +204,9 @@ export function parseChart(
     }
 
     // Era line: era Day 1 -> Day 3 Rough Seas (blue) — colon-free
-    const eraMatch = trimmed.match(/^era\s+(.+?)\s*->\s*(.+?)(?:\s*\(([^)]+)\))?\s*$/);
+    const eraMatch = trimmed.match(
+      /^era\s+(.+?)\s*->\s*(.+?)(?:\s*\(([^)]+)\))?\s*$/
+    );
     if (eraMatch) {
       // Store start and raw afterArrow — resolved against data labels after parsing
       const afterArrow = eraMatch[2].trim();
@@ -199,7 +224,9 @@ export function parseChart(
 
     // Extract first token to check for known options
     const spaceIdx = trimmed.indexOf(' ');
-    const firstToken = (spaceIdx >= 0 ? trimmed.substring(0, spaceIdx) : trimmed).toLowerCase();
+    const firstToken = (
+      spaceIdx >= 0 ? trimmed.substring(0, spaceIdx) : trimmed
+    ).toLowerCase();
 
     // Bare boolean options (e.g. orientation-horizontal)
     if (KNOWN_BOOLEANS.has(firstToken) && spaceIdx < 0) {
@@ -264,15 +291,25 @@ export function parseChart(
           result.seriesNames = parsed.names;
           result.seriesNameLineNumbers = parsed.nameLineNumbers;
         }
-        if (parsed.nameColors.some(Boolean)) result.seriesNameColors = parsed.nameColors;
+        if (parsed.nameColors.some(Boolean))
+          result.seriesNameColors = parsed.nameColors;
         continue;
       }
     }
 
     // Bare boolean options: no-label-name, no-label-value, no-label-percent
-    if (firstToken === 'no-label-name') { result.noLabelName = true; continue; }
-    if (firstToken === 'no-label-value') { result.noLabelValue = true; continue; }
-    if (firstToken === 'no-label-percent') { result.noLabelPercent = true; continue; }
+    if (firstToken === 'no-label-name') {
+      result.noLabelName = true;
+      continue;
+    }
+    if (firstToken === 'no-label-value') {
+      result.noLabelValue = true;
+      continue;
+    }
+    if (firstToken === 'no-label-percent') {
+      result.noLabelPercent = true;
+      continue;
+    }
 
     // Bare "series" keyword with no value — collect indented names
     if (firstToken === 'series' && spaceIdx === -1) {
@@ -284,7 +321,8 @@ export function parseChart(
         result.seriesNames = parsed.names;
         result.seriesNameLineNumbers = parsed.nameLineNumbers;
       }
-      if (parsed.nameColors.some(Boolean)) result.seriesNameColors = parsed.nameColors;
+      if (parsed.nameColors.some(Boolean))
+        result.seriesNameColors = parsed.nameColors;
       continue;
     }
 
@@ -295,7 +333,10 @@ export function parseChart(
     const multiValue = (result.seriesNames?.length ?? 0) >= 2;
     const dataValues = parseDataRowValues(trimmed, { multiValue });
     if (dataValues) {
-      const { label: rawLabel, color: pointColor } = extractColor(dataValues.label, palette);
+      const { label: rawLabel, color: pointColor } = extractColor(
+        dataValues.label,
+        palette
+      );
       const [first, ...rest] = dataValues.values;
       result.data.push({
         label: rawLabel,
@@ -329,7 +370,13 @@ export function parseChart(
       end = words[0];
       label = words.slice(1).join(' ');
     }
-    parsedEras.push({ start: raw.start, end, label, color: raw.color, lineNumber: raw.lineNumber });
+    parsedEras.push({
+      start: raw.start,
+      end,
+      label,
+      color: raw.color,
+      lineNumber: raw.lineNumber,
+    });
   }
 
   // Eras are only valid for line, multi-line (aliased to 'line'), and area chart types
@@ -353,7 +400,10 @@ export function parseChart(
   }
 
   if (!result.error && result.type === 'bar-stacked' && !result.seriesNames) {
-    setChartError(1, 'Chart type "bar-stacked" requires multiple series names. Use: series Name1, Name2, Name3');
+    setChartError(
+      1,
+      'Chart type "bar-stacked" requires multiple series names. Use: series Name1, Name2, Name3'
+    );
   }
 
   if (!result.error && result.seriesNames) {
@@ -361,7 +411,10 @@ export function parseChart(
     for (const dp of result.data) {
       const actualCount = 1 + (dp.extraValues?.length ?? 0);
       if (actualCount !== expectedCount) {
-        warn(dp.lineNumber, `Data point "${dp.label}" has ${actualCount} value(s), but ${expectedCount} series defined. Each row must have ${expectedCount} values.`);
+        warn(
+          dp.lineNumber,
+          `Data point "${dp.label}" has ${actualCount} value(s), but ${expectedCount} series defined. Each row must have ${expectedCount} values.`
+        );
       }
     }
     // Filter out mismatched data points so renderers get clean data
@@ -395,7 +448,7 @@ export function parseChart(
  */
 export function parseDataRowValues(
   line: string,
-  options?: { multiValue?: boolean },
+  options?: { multiValue?: boolean }
 ): { label: string; values: number[] } | null {
   // First, normalize comma-grouped numbers: replace patterns like "1,087" with "1087"
   // We need to be careful: commas also separate multi-values.
@@ -423,7 +476,6 @@ export function parseDataRowValues(
         const prevMatch = prevSeg.match(/(\d{1,3})$/);
         if (prevMatch) {
           // Tentatively merge and validate
-          const mergedTail = prevMatch[1] + ',' + seg;
           // Build full token by looking at what's left in normalized
           // Simple approach: just merge
           normalized[normalized.length - 1] = prevSeg + seg;
@@ -465,7 +517,11 @@ export function parseDataRowValues(
       const lastSpaceIdx = firstPart.lastIndexOf(' ');
       if (lastSpaceIdx >= 0) {
         const possibleFirstVal = firstPart.substring(lastSpaceIdx + 1).trim();
-        if (possibleFirstVal && !isNaN(parseFloat(possibleFirstVal)) && isFinite(Number(possibleFirstVal))) {
+        if (
+          possibleFirstVal &&
+          !isNaN(parseFloat(possibleFirstVal)) &&
+          isFinite(Number(possibleFirstVal))
+        ) {
           const label = firstPart.substring(0, lastSpaceIdx).trim();
           if (label) {
             const values = [parseFloat(possibleFirstVal)];

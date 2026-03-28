@@ -13,11 +13,14 @@ import { parseVisualization } from './d3';
 import { parseOrg, looksLikeOrg } from './org/parser';
 import { parseKanban } from './kanban/parser';
 import { parseC4 } from './c4/parser';
-import { looksLikeInitiativeStatus, parseInitiativeStatus } from './initiative-status/parser';
+import {
+  looksLikeInitiativeStatus,
+  parseInitiativeStatus,
+} from './initiative-status/parser';
 import { looksLikeSitemap, parseSitemap } from './sitemap/parser';
 import { parseInfra } from './infra/parser';
 import { parseGantt } from './gantt/parser';
-import { ALL_CHART_TYPES, parseFirstLine } from './utils/parsing';
+import { parseFirstLine } from './utils/parsing';
 import type { DgmoError } from './diagnostics';
 
 // ============================================================
@@ -112,19 +115,51 @@ export function parseDgmoChartType(content: string): string | null {
 export type RenderCategory = 'data-chart' | 'visualization' | 'diagram';
 
 const DATA_CHART_TYPES = new Set([
-  'bar', 'line', 'pie', 'doughnut', 'area', 'polar-area', 'radar',
-  'bar-stacked', 'multi-line', 'scatter', 'sankey', 'chord', 'function',
-  'heatmap', 'funnel',
+  'bar',
+  'line',
+  'pie',
+  'doughnut',
+  'area',
+  'polar-area',
+  'radar',
+  'bar-stacked',
+  'multi-line',
+  'scatter',
+  'sankey',
+  'chord',
+  'function',
+  'heatmap',
+  'funnel',
 ]);
 const VISUALIZATION_TYPES = new Set([
-  'slope', 'wordcloud', 'arc', 'timeline', 'venn', 'quadrant',
+  'slope',
+  'wordcloud',
+  'arc',
+  'timeline',
+  'venn',
+  'quadrant',
 ]);
 const DIAGRAM_TYPES = new Set([
-  'sequence', 'flowchart', 'class', 'er', 'org', 'kanban', 'c4',
-  'initiative-status', 'state', 'sitemap', 'infra', 'gantt',
+  'sequence',
+  'flowchart',
+  'class',
+  'er',
+  'org',
+  'kanban',
+  'c4',
+  'initiative-status',
+  'state',
+  'sitemap',
+  'infra',
+  'gantt',
 ]);
 const EXTENDED_CHART_TYPES = new Set([
-  'scatter', 'sankey', 'chord', 'function', 'heatmap', 'funnel',
+  'scatter',
+  'sankey',
+  'chord',
+  'function',
+  'heatmap',
+  'funnel',
 ]);
 
 /**
@@ -150,8 +185,15 @@ export function isExtendedChartType(chartType: string): boolean {
 
 /** Standard chart types parsed by parseChart (then rendered via ECharts). Internal use. */
 const STANDARD_CHART_TYPES = new Set([
-  'bar', 'line', 'multi-line', 'area', 'pie', 'doughnut',
-  'radar', 'polar-area', 'bar-stacked',
+  'bar',
+  'line',
+  'multi-line',
+  'area',
+  'pie',
+  'doughnut',
+  'radar',
+  'polar-area',
+  'bar-stacked',
 ]);
 
 /**
@@ -159,20 +201,24 @@ const STANDARD_CHART_TYPES = new Set([
  * Useful for CLI enumeration and autocomplete.
  */
 export function getAllChartTypes(): string[] {
-  return [
-    ...DATA_CHART_TYPES,
-    ...VISUALIZATION_TYPES,
-    ...DIAGRAM_TYPES,
-  ];
+  return [...DATA_CHART_TYPES, ...VISUALIZATION_TYPES, ...DIAGRAM_TYPES];
 }
 
 // ECharts-native types parsed by parseExtendedChart
 const ECHART_TYPES = new Set([
-  'scatter', 'sankey', 'chord', 'function', 'heatmap', 'funnel',
+  'scatter',
+  'sankey',
+  'chord',
+  'function',
+  'heatmap',
+  'funnel',
 ]);
 
 /** Map chart type strings to their parse function (content → { diagnostics }). */
-const PARSE_DISPATCH = new Map<string, (content: string) => { diagnostics: DgmoError[] }>([
+const PARSE_DISPATCH = new Map<
+  string,
+  (content: string) => { diagnostics: DgmoError[] }
+>([
   ['sequence', (c) => parseSequenceDgmo(c)],
   ['flowchart', (c) => parseFlowchart(c)],
   ['class', (c) => parseClassDiagram(c)],

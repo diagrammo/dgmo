@@ -2,7 +2,6 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { JSDOM } from 'jsdom';
 import { parseOrg } from '../src/org/parser';
 import { layoutOrg } from '../src/org/layout';
-import type { OrgLayoutResult } from '../src/org/layout';
 import { renderOrgForExport, renderOrg } from '../src/org/renderer';
 import { collapseOrgTree } from '../src/org/collapse';
 import { getPalette } from '../src/palettes';
@@ -105,9 +104,7 @@ describe('layoutOrg', () => {
   });
 
   it('centers parent exactly between direct children', () => {
-    const parsed = parseOrg(
-      'org\nAlice\n  Bob\n  Carol\n  Dave\n  Eve'
-    );
+    const parsed = parseOrg('org\nAlice\n  Bob\n  Carol\n  Dave\n  Eve');
     const layout = layoutOrg(parsed);
 
     const alice = layout.nodes.find((n) => n.label === 'Alice')!;
@@ -137,9 +134,7 @@ describe('layoutOrg', () => {
   });
 
   it('computes card width from label and metadata', () => {
-    const parsed = parseOrg(
-      'org\nAlice Park | role: Senior Software Engineer'
-    );
+    const parsed = parseOrg('org\nAlice Park | role: Senior Software Engineer');
     const layout = layoutOrg(parsed);
 
     const node = layout.nodes[0];
@@ -148,9 +143,7 @@ describe('layoutOrg', () => {
   });
 
   it('computes card height from metadata count', () => {
-    const parsed = parseOrg(
-      'org\nAlice\n  role: Engineer\n  location: NY'
-    );
+    const parsed = parseOrg('org\nAlice\n  role: Engineer\n  location: NY');
     const layout = layoutOrg(parsed);
 
     const node = layout.nodes[0];
@@ -193,9 +186,7 @@ Bob`;
   });
 
   it('computes container bounds for containers with children', () => {
-    const parsed = parseOrg(
-      'org\n[Engineering]\n  Alice\n  Bob'
-    );
+    const parsed = parseOrg('org\n[Engineering]\n  Alice\n  Bob');
     const layout = layoutOrg(parsed);
 
     expect(layout.containers).toHaveLength(1);
@@ -644,8 +635,14 @@ Bob | location: LA`;
     Object.defineProperty(container, 'clientHeight', { value: 600 });
 
     renderOrg(
-      container, parsed, layout, palette.light, false,
-      undefined, undefined, 'location'
+      container,
+      parsed,
+      layout,
+      palette.light,
+      false,
+      undefined,
+      undefined,
+      'location'
     );
     const svg = container.innerHTML;
 
@@ -672,8 +669,14 @@ Alice | location: NY`;
     Object.defineProperty(container, 'clientHeight', { value: 600 });
 
     renderOrg(
-      container, parsed, layout, palette.light, false,
-      undefined, undefined, 'location'
+      container,
+      parsed,
+      layout,
+      palette.light,
+      false,
+      undefined,
+      undefined,
+      'location'
     );
     const svg = container.innerHTML;
 
@@ -859,7 +862,7 @@ Alice
 
     const alice = layout.nodes.find((n) => n.label === 'Alice')!;
     // Alice explicitly has NY, not the default CO
-    const nyEntry = parsed.tagGroups[0].entries.find(e => e.value === 'NY')!;
+    const nyEntry = parsed.tagGroups[0].entries.find((e) => e.value === 'NY')!;
     expect(alice.color).toBe(nyEntry.color);
   });
 
@@ -947,8 +950,14 @@ Alice | location: NY, status: FTE`;
     Object.defineProperty(container, 'clientHeight', { value: 600 });
 
     renderOrg(
-      container, parsed, layout, palette.light, false,
-      undefined, undefined, 'location'
+      container,
+      parsed,
+      layout,
+      palette.light,
+      false,
+      undefined,
+      undefined,
+      'location'
     );
 
     const legendGroups = container.querySelectorAll('[data-legend-group]');
@@ -956,7 +965,9 @@ Alice | location: NY, status: FTE`;
     expect(legendGroups[0].getAttribute('data-legend-group')).toBe('location');
 
     // Active group has entry dots (full rendering)
-    expect(legendGroups[0].querySelectorAll('circle').length).toBeGreaterThan(0);
+    expect(legendGroups[0].querySelectorAll('circle').length).toBeGreaterThan(
+      0
+    );
   });
 
   it('all legend groups rendered minified when no activeTagGroup', () => {
@@ -1003,11 +1014,19 @@ Alice | location: NY`;
     Object.defineProperty(container, 'clientHeight', { value: 600 });
 
     renderOrg(
-      container, parsed, layout, palette.light, false,
-      undefined, undefined, 'location'
+      container,
+      parsed,
+      layout,
+      palette.light,
+      false,
+      undefined,
+      undefined,
+      'location'
     );
 
-    const legendGroup = container.querySelector('[data-legend-group="location"]');
+    const legendGroup = container.querySelector(
+      '[data-legend-group="location"]'
+    );
     expect(legendGroup).toBeTruthy();
     // Active group renders as capsule: outer rounded rect + inner pill + pill border
     const rects = legendGroup!.querySelectorAll('rect');
@@ -1042,7 +1061,12 @@ Bob
   it('cards shrink when attributes are hidden', () => {
     const parsed = parseOrg(input, palette.light);
     const fullLayout = layoutOrg(parsed);
-    const hiddenLayout = layoutOrg(parsed, undefined, undefined, new Set(['location']));
+    const hiddenLayout = layoutOrg(
+      parsed,
+      undefined,
+      undefined,
+      new Set(['location'])
+    );
 
     const aliceFull = fullLayout.nodes.find((n) => n.label === 'Alice')!;
     const aliceHidden = hiddenLayout.nodes.find((n) => n.label === 'Alice')!;
@@ -1073,12 +1097,7 @@ tag Status
 
 Alice`;
     const parsed = parseOrg(inputWithDefaults, palette.light);
-    const layout = layoutOrg(
-      parsed,
-      undefined,
-      undefined,
-      new Set(['status'])
-    );
+    const layout = layoutOrg(parsed, undefined, undefined, new Set(['status']));
 
     // The orgNode still has the default injected
     expect(parsed.roots[0].metadata['status']).toBe('FTE');
@@ -1097,12 +1116,7 @@ tag Status
   status: FTE
   Alice`;
     const parsed = parseOrg(containerInput, palette.light);
-    const layout = layoutOrg(
-      parsed,
-      undefined,
-      undefined,
-      new Set(['status'])
-    );
+    const layout = layoutOrg(parsed, undefined, undefined, new Set(['status']));
 
     const eng = layout.containers.find((c) => c.label === 'Engineering')!;
     expect(eng.metadata['status']).toBeUndefined();
@@ -1117,12 +1131,21 @@ tag Status
     Object.defineProperty(container, 'clientHeight', { value: 600 });
 
     renderOrg(
-      container, parsed, layout, palette.light, false,
-      undefined, undefined, 'location', new Set()
+      container,
+      parsed,
+      layout,
+      palette.light,
+      false,
+      undefined,
+      undefined,
+      'location',
+      new Set()
     );
 
     // Active legend group should have entry dots
-    const legendGroup = container.querySelector('[data-legend-group="location"]');
+    const legendGroup = container.querySelector(
+      '[data-legend-group="location"]'
+    );
     expect(legendGroup).toBeTruthy();
     const dots = legendGroup!.querySelectorAll('circle');
     expect(dots.length).toBeGreaterThanOrEqual(1);
@@ -1263,8 +1286,14 @@ Bob | location: LA`;
     Object.defineProperty(container, 'clientHeight', { value: 600 });
 
     renderOrg(
-      container, parsed, layout, palette.light, false,
-      undefined, undefined, 'location'
+      container,
+      parsed,
+      layout,
+      palette.light,
+      false,
+      undefined,
+      undefined,
+      'location'
     );
 
     const entries = container.querySelectorAll('[data-legend-entry]');
@@ -1291,8 +1320,14 @@ Alice | location: NY`;
     Object.defineProperty(container, 'clientHeight', { value: 600 });
 
     renderOrg(
-      container, parsed, layout, palette.light, false,
-      undefined, undefined, 'location'
+      container,
+      parsed,
+      layout,
+      palette.light,
+      false,
+      undefined,
+      undefined,
+      'location'
     );
 
     const entry = container.querySelector('[data-legend-entry="ny"]');
@@ -1320,8 +1355,14 @@ Bob
     Object.defineProperty(container, 'clientHeight', { value: 600 });
 
     renderOrg(
-      container, parsed, layout, palette.light, false,
-      undefined, undefined, 'location'
+      container,
+      parsed,
+      layout,
+      palette.light,
+      false,
+      undefined,
+      undefined,
+      'location'
     );
 
     const alice = container.querySelector('.org-node[data-tag-location="ny"]');
@@ -1368,11 +1409,19 @@ tag Status
     Object.defineProperty(container, 'clientHeight', { value: 600 });
 
     renderOrg(
-      container, parsed, layout, palette.light, false,
-      undefined, undefined, 'status'
+      container,
+      parsed,
+      layout,
+      palette.light,
+      false,
+      undefined,
+      undefined,
+      'status'
     );
 
-    const eng = container.querySelector('.org-container[data-tag-status="active"]');
+    const eng = container.querySelector(
+      '.org-container[data-tag-status="active"]'
+    );
     expect(eng).toBeTruthy();
   });
 });

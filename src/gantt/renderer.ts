@@ -9,7 +9,6 @@ import { getSeriesColors } from '../palettes';
 import { mix } from '../palettes/color-utils';
 import { resolveTagColor } from '../utils/tag-groups';
 import { computeTimeTicks } from '../d3';
-import { buildHolidaySet, formatDateKey } from '../utils/duration';
 import {
   LEGEND_HEIGHT,
   LEGEND_PILL_PAD,
@@ -23,10 +22,19 @@ import {
   LEGEND_ICON_W,
   measureLegendText,
 } from '../utils/legend-constants';
-import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT, TITLE_Y } from '../utils/title-constants';
+import {
+  TITLE_FONT_SIZE,
+  TITLE_FONT_WEIGHT,
+  TITLE_Y,
+} from '../utils/title-constants';
 import type { PaletteColors } from '../palettes';
 import type { D3ExportDimensions } from '../d3';
-import type { ResolvedSchedule, ResolvedTask, ResolvedGroup, Weekday } from './types';
+import type {
+  ResolvedSchedule,
+  ResolvedTask,
+  ResolvedGroup,
+  Weekday,
+} from './types';
 import type { TagGroup, TagEntry } from '../utils/tag-groups';
 
 // ── Constants ───────────────────────────────────────────────
@@ -34,14 +42,13 @@ import type { TagGroup, TagEntry } from '../utils/tag-groups';
 const BAR_H = 22;
 const ROW_GAP = 6;
 const GROUP_GAP = 14;
-const GROUP_LABEL_GAP = 8;
 const MILESTONE_SIZE = 10;
 const MIN_LEFT_MARGIN = 120;
 const BOTTOM_MARGIN = 40;
 const RIGHT_MARGIN = 20;
-const CHAR_W = 6.5;          // estimated px per character for bar labels
-const LABEL_PAD = 8;         // inner padding to decide if label fits inside bar
-const LABEL_GAP = 5;         // gap between bar edge and external label
+const CHAR_W = 6.5; // estimated px per character for bar labels
+const LABEL_PAD = 8; // inner padding to decide if label fits inside bar
+const LABEL_GAP = 5; // gap between bar edge and external label
 
 // ── Bar label placement ─────────────────────────────────────
 
@@ -57,7 +64,7 @@ function computeBarLabel(
   x1: number,
   barWidth: number,
   innerWidth: number,
-  textColor: string,
+  textColor: string
 ): BarLabelPlacement | null {
   const textWidth = label.length * CHAR_W;
   const x2 = x1 + barWidth;
@@ -81,7 +88,12 @@ function computeBarLabel(
   const availWidth = x1 - LABEL_GAP;
   if (availWidth > CHAR_W * 3) {
     const maxChars = Math.floor(availWidth / CHAR_W) - 1;
-    return { x: x1 - LABEL_GAP, anchor: 'end', fill: textColor, text: label.slice(0, maxChars) + '\u2026' };
+    return {
+      x: x1 - LABEL_GAP,
+      anchor: 'end',
+      fill: textColor,
+      text: label.slice(0, maxChars) + '\u2026',
+    };
   }
 
   return null;
@@ -100,7 +112,7 @@ function renderLabelBand(
   color: string,
   palette: PaletteColors,
   cssPrefix: 'group' | 'lane',
-  dataAttr?: { key: string; value: string },
+  dataAttr?: { key: string; value: string }
 ): void {
   const bandX = 5;
   const bandW = leftMargin - 7;
@@ -108,14 +120,19 @@ function renderLabelBand(
   const clipId = `gantt-band-clip-${bandClipCounter++}`;
 
   // ClipPath matching the tint band shape
-  svg.append('clipPath').attr('id', clipId)
+  svg
+    .append('clipPath')
+    .attr('id', clipId)
     .append('rect')
-    .attr('x', bandX).attr('y', bandY)
-    .attr('width', bandW).attr('height', BAR_H)
+    .attr('x', bandX)
+    .attr('y', bandY)
+    .attr('width', bandW)
+    .attr('height', BAR_H)
     .attr('rx', BAND_RADIUS);
 
   // Tint band
-  const tint = svg.append('rect')
+  const tint = svg
+    .append('rect')
     .attr('class', `gantt-${cssPrefix}-band-bg`)
     .attr('x', bandX)
     .attr('y', bandY)
@@ -126,7 +143,8 @@ function renderLabelBand(
     .style('pointer-events', 'none');
 
   // Accent strip inside the tint, clipped to the band's rounded shape
-  const accent = svg.append('rect')
+  const accent = svg
+    .append('rect')
     .attr('class', `gantt-${cssPrefix}-band-accent`)
     .attr('x', bandX)
     .attr('y', bandY)
@@ -147,11 +165,14 @@ function appendTaskIcon(
   label: string,
   isMilestone: boolean,
   iconColor: string,
-  textColor: string,
+  textColor: string
 ): void {
   const icon = isMilestone ? '◆' : '●';
   textEl.append('tspan').attr('fill', iconColor).text(icon);
-  textEl.append('tspan').attr('fill', textColor).text(' ' + label);
+  textEl
+    .append('tspan')
+    .attr('fill', textColor)
+    .text(' ' + label);
 }
 
 // ── Interactive Options ─────────────────────────────────────
@@ -177,7 +198,7 @@ export function renderGantt(
   palette: PaletteColors,
   isDark: boolean,
   options?: GanttInteractiveOptions,
-  exportDims?: D3ExportDimensions,
+  exportDims?: D3ExportDimensions
 ): void {
   // Clear previous content
   container.innerHTML = '';
@@ -200,9 +221,12 @@ export function renderGantt(
   // ── Compute layout dimensions ───────────────────────────
 
   const seriesColors = getSeriesColors(palette);
-  let currentActiveGroup: string | null = options?.currentActiveGroup !== undefined
-    ? options.currentActiveGroup
-    : (resolved.tagGroups.length > 0 ? resolved.tagGroups[0].name : null);
+  let currentActiveGroup: string | null =
+    options?.currentActiveGroup !== undefined
+      ? options.currentActiveGroup
+      : resolved.tagGroups.length > 0
+        ? resolved.tagGroups[0].name
+        : null;
   let criticalPathActive = false;
 
   // ── Build row list (structural vs tag mode) ─────────────
@@ -216,17 +240,21 @@ export function renderGantt(
   // Compute left margin based on longest visible label (include ● /◆  prefix for tasks)
   const allLabels = isTagMode
     ? [
-        ...rows.filter((r): r is LaneHeaderRow => r.type === 'lane-header').map(r => r.laneName),
-        ...rows.filter((r): r is TaskRow => r.type === 'task').map(r => '● ' + r.task.task.label),
+        ...rows
+          .filter((r): r is LaneHeaderRow => r.type === 'lane-header')
+          .map((r) => r.laneName),
+        ...rows
+          .filter((r): r is TaskRow => r.type === 'task')
+          .map((r) => '● ' + r.task.task.label),
       ]
     : [
-        ...resolved.tasks.map(t => '● ' + t.task.label),
-        ...resolved.groups.map(g => {
+        ...resolved.tasks.map((t) => '● ' + t.task.label),
+        ...resolved.groups.map((g) => {
           const px = g.depth <= 2 ? g.depth * 14 : 2 * 14 + (g.depth - 2) * 8;
           return ' '.repeat(Math.ceil(px / 7)) + g.name;
         }),
       ];
-  const maxLabelLen = Math.max(...allLabels.map(l => l.length), 10);
+  const maxLabelLen = Math.max(...allLabels.map((l) => l.length), 10);
   const leftMargin = Math.max(MIN_LEFT_MARGIN, maxLabelLen * 7 + 30);
 
   const totalRows = rows.length;
@@ -234,13 +262,16 @@ export function renderGantt(
   // Vertical layout — matches timeline pattern (d3.ts:3649-3655)
   const title = resolved.options.title;
   const titleHeight = title ? 50 : 20;
-  const tagLegendReserve = resolved.tagGroups.length > 0 ? LEGEND_HEIGHT + 8 : 0;
+  const tagLegendReserve =
+    resolved.tagGroups.length > 0 ? LEGEND_HEIGHT + 8 : 0;
   const topDateLabelReserve = 22; // tick (6) + gap (4) + label height (~12)
-  const hasOverheadLabels = resolved.markers.length > 0 || resolved.eras.length > 0;
+  const hasOverheadLabels =
+    resolved.markers.length > 0 || resolved.eras.length > 0;
   const markerLabelReserve = hasOverheadLabels ? 18 : 0; // markers/eras extend above date labels
   const CONTENT_TOP_PAD = 16; // breathing room between scale labels and first row
 
-  const marginTop = titleHeight + tagLegendReserve + topDateLabelReserve + markerLabelReserve;
+  const marginTop =
+    titleHeight + tagLegendReserve + topDateLabelReserve + markerLabelReserve;
 
   // Content area
   const contentH = isTagMode
@@ -283,19 +314,33 @@ export function renderGantt(
 
   // ── Tag legend (interactive) ────────────────────────────
 
-  const hasCriticalPath = resolved.options.criticalPath && resolved.tasks.some(t => t.isCriticalPath);
+  const hasCriticalPath =
+    resolved.options.criticalPath &&
+    resolved.tasks.some((t) => t.isCriticalPath);
 
   function drawLegend() {
     svg.selectAll('.gantt-tag-legend-container').remove();
     if (resolved.tagGroups.length > 0 || hasCriticalPath) {
       const legendY = titleHeight;
       renderTagLegend(
-        svg, g, resolved.tagGroups, currentActiveGroup, leftMargin, innerWidth,
-        legendY, palette, isDark, hasCriticalPath, criticalPathActive, resolved.options.optionLineNumbers,
+        svg,
+        g,
+        resolved.tagGroups,
+        currentActiveGroup,
+        leftMargin,
+        innerWidth,
+        legendY,
+        palette,
+        isDark,
+        hasCriticalPath,
+        criticalPathActive,
+        resolved.options.optionLineNumbers,
         (groupName) => {
           // Toggle active group
-          currentActiveGroup = currentActiveGroup?.toLowerCase() === groupName.toLowerCase()
-            ? null : groupName;
+          currentActiveGroup =
+            currentActiveGroup?.toLowerCase() === groupName.toLowerCase()
+              ? null
+              : groupName;
           if (onActiveGroupChange) onActiveGroupChange(currentActiveGroup);
           drawLegend();
           recolorBars();
@@ -307,7 +352,7 @@ export function renderGantt(
         currentSwimlaneGroup,
         onSwimlaneChange,
         viewMode,
-        resolved.tasks,
+        resolved.tasks
       );
     }
   }
@@ -316,9 +361,15 @@ export function renderGantt(
     g.selectAll<SVGGElement, unknown>('.gantt-task').each(function () {
       const el = d3Selection.select(this);
       const taskId = el.attr('data-task-id');
-      const rt = resolved.tasks.find(t => t.task.id === taskId);
+      const rt = resolved.tasks.find((t) => t.task.id === taskId);
       if (!rt) return;
-      const color = resolveTaskColor(rt, currentActiveGroup, resolved, seriesColors, palette);
+      const color = resolveTaskColor(
+        rt,
+        currentActiveGroup,
+        resolved,
+        seriesColors,
+        palette
+      );
       const fillColor = mix(color, palette.bg, 30);
       el.select('rect').attr('fill', fillColor).attr('stroke', color);
     });
@@ -349,7 +400,18 @@ export function renderGantt(
   // ── Weekend + holiday bands ─────────────────────────────
 
   renderWeekendBands(g, resolved, xScale, innerHeight, palette, isDark);
-  renderHolidayBands(g, svg, resolved, xScale, innerHeight, palette, isDark, marginTop - 4, leftMargin, onClickItem);
+  renderHolidayBands(
+    g,
+    svg,
+    resolved,
+    xScale,
+    innerHeight,
+    palette,
+    isDark,
+    marginTop - 4,
+    leftMargin,
+    onClickItem
+  );
   renderErasAndMarkers(g, svg, resolved, xScale, innerHeight, palette);
 
   // ── Today marker (line rendered before rows so it paints behind task bars) ──
@@ -366,7 +428,8 @@ export function renderGantt(
     }
     todayX = xScale(dateToFractionalYear(todayDate));
     if (todayX >= 0 && todayX <= innerWidth) {
-      const todayLine = g.append('line')
+      const todayLine = g
+        .append('line')
         .attr('class', 'gantt-today')
         .attr('x1', todayX)
         .attr('y1', 0)
@@ -377,9 +440,11 @@ export function renderGantt(
         .attr('stroke-dasharray', '6 4')
         .attr('opacity', 0.7)
         .attr('pointer-events', 'none');
-      if (todayMarkerLineNum) todayLine.attr('data-line-number', String(todayMarkerLineNum));
+      if (todayMarkerLineNum)
+        todayLine.attr('data-line-number', String(todayMarkerLineNum));
 
-      const todayLabel = g.append('text')
+      const todayLabel = g
+        .append('text')
         .attr('class', 'gantt-today')
         .attr('x', todayX)
         .attr('y', innerHeight + 24)
@@ -389,23 +454,33 @@ export function renderGantt(
         .attr('opacity', 0.7)
         .attr('pointer-events', 'none')
         .text('Today');
-      if (todayMarkerLineNum) todayLabel.attr('data-line-number', String(todayMarkerLineNum));
+      if (todayMarkerLineNum)
+        todayLabel.attr('data-line-number', String(todayMarkerLineNum));
     }
   }
 
   // ── Render rows ─────────────────────────────────────────
 
   // Track task positions for dependency arrows
-  const taskPositions = new Map<string, { x1: number; x2: number; y: number }>();
+  const taskPositions = new Map<
+    string,
+    { x1: number; x2: number; y: number }
+  >();
   // Track collapsed group bar positions so hidden-task arrows redirect there
-  const groupPositions = new Map<string, { x1: number; x2: number; y: number }>();
+  const groupPositions = new Map<
+    string,
+    { x1: number; x2: number; y: number }
+  >();
   // Track lane header positions for collapsed lane arrow redirection (tag mode)
-  const lanePositions = new Map<string, { x1: number; x2: number; y: number }>();
+  const lanePositions = new Map<
+    string,
+    { x1: number; x2: number; y: number }
+  >();
   // Map task ID → lane name for collapsed lane lookup (tag mode)
   const taskLaneMap = new Map<string, string>();
   if (isTagMode && currentSwimlaneGroup) {
     const tagGroup = resolved.tagGroups.find(
-      tg => tg.name.toLowerCase() === currentSwimlaneGroup.toLowerCase()
+      (tg) => tg.name.toLowerCase() === currentSwimlaneGroup.toLowerCase()
     );
     if (tagGroup) {
       const tagKey = tagGroup.name.toLowerCase();
@@ -413,7 +488,9 @@ export function renderGantt(
         let value = rt.effectiveMetadata[tagKey];
         if (!value && tagGroup.defaultValue) value = tagGroup.defaultValue;
         if (value) {
-          const entry = tagGroup.entries.find(e => e.value.toLowerCase() === value!.toLowerCase());
+          const entry = tagGroup.entries.find(
+            (e) => e.value.toLowerCase() === value!.toLowerCase()
+          );
           if (entry) taskLaneMap.set(rt.task.id, entry.value);
         }
       }
@@ -424,13 +501,14 @@ export function renderGantt(
   for (const row of rows) {
     if (row.type === 'lane-header') {
       // ── Lane header (tag swimlane mode) ──
-      const laneColor = row.laneColor === '#999999' ? palette.textMuted : row.laneColor;
+      const laneColor =
+        row.laneColor === '#999999' ? palette.textMuted : row.laneColor;
       const toggleIcon = row.isCollapsed ? '►' : '▼';
       const labelX = 10;
 
       // Compute lane bar x range from task dates
       let lx1 = 0;
-      let lx2 = innerWidth;
+      let lx2 = innerWidth; // eslint-disable-line no-useless-assignment
       let laneBarWidth = innerWidth;
       if (row.laneStartDate && row.laneEndDate) {
         lx1 = xScale(dateToFractionalYear(row.laneStartDate));
@@ -438,9 +516,21 @@ export function renderGantt(
         laneBarWidth = Math.max(lx2 - lx1, 2);
       }
 
-      lanePositions.set(row.laneName, { x1: lx1, x2: lx1 + laneBarWidth, y: yOffset + BAR_H / 2 });
+      lanePositions.set(row.laneName, {
+        x1: lx1,
+        x2: lx1 + laneBarWidth,
+        y: yOffset + BAR_H / 2,
+      });
 
-      renderLabelBand(svg, marginTop + yOffset + BAR_H / 2, leftMargin, laneColor, palette, 'lane', { key: 'data-lane', value: row.laneName });
+      renderLabelBand(
+        svg,
+        marginTop + yOffset + BAR_H / 2,
+        leftMargin,
+        laneColor,
+        palette,
+        'lane',
+        { key: 'data-lane', value: row.laneName }
+      );
       const labelG = svg
         .append('g')
         .attr('class', 'gantt-lane-header')
@@ -453,7 +543,14 @@ export function renderGantt(
         .on('mouseenter', () => {
           highlightLane(g, svg, row.tagKey, row.laneName);
           if (row.laneStartDate && row.laneEndDate) {
-            showGanttDateIndicators(g, xScale, row.laneStartDate, row.laneEndDate, innerHeight, laneColor);
+            showGanttDateIndicators(
+              g,
+              xScale,
+              row.laneStartDate,
+              row.laneEndDate,
+              innerHeight,
+              laneColor
+            );
           }
         })
         .on('mouseleave', () => {
@@ -471,17 +568,32 @@ export function renderGantt(
         .attr('font-size', '11px')
         .attr('font-weight', 'bold')
         .attr('fill', laneColor)
-        .text(toggleIcon + ' ' + row.laneName + (row.aggregateProgress !== null ? ` ${Math.round(row.aggregateProgress)}%` : ''));
+        .text(
+          toggleIcon +
+            ' ' +
+            row.laneName +
+            (row.aggregateProgress !== null
+              ? ` ${Math.round(row.aggregateProgress)}%`
+              : '')
+        );
 
       if (laneBarWidth > 0) {
         const barFill = mix(laneColor, palette.bg, 30);
-        const laneBandG = g.append('g')
+        const laneBandG = g
+          .append('g')
           .attr('class', 'gantt-lane-band-group')
           .attr('data-lane', row.laneName)
           .on('mouseenter', () => {
             highlightLane(g, svg, row.tagKey, row.laneName);
             if (row.laneStartDate && row.laneEndDate) {
-              showGanttDateIndicators(g, xScale, row.laneStartDate, row.laneEndDate, innerHeight, laneColor);
+              showGanttDateIndicators(
+                g,
+                xScale,
+                row.laneStartDate,
+                row.laneEndDate,
+                innerHeight,
+                laneColor
+              );
             }
           })
           .on('mouseleave', () => {
@@ -489,7 +601,8 @@ export function renderGantt(
             hideGanttDateIndicators(g);
           });
 
-        laneBandG.append('rect')
+        laneBandG
+          .append('rect')
           .attr('class', 'gantt-lane-band')
           .attr('x', lx1)
           .attr('y', yOffset)
@@ -502,11 +615,15 @@ export function renderGantt(
 
         // Aggregate progress fill
         if (row.aggregateProgress !== null && row.aggregateProgress > 0) {
-          laneBandG.append('rect')
+          laneBandG
+            .append('rect')
             .attr('class', 'gantt-lane-progress')
             .attr('x', lx1)
             .attr('y', yOffset)
-            .attr('width', laneBarWidth * Math.min(row.aggregateProgress / 100, 1))
+            .attr(
+              'width',
+              laneBarWidth * Math.min(row.aggregateProgress / 100, 1)
+            )
             .attr('height', BAR_H)
             .attr('fill', laneColor)
             .attr('opacity', 0.5)
@@ -518,13 +635,28 @@ export function renderGantt(
     } else if (row.type === 'group') {
       const group = row.group;
       const isCollapsed = collapsedGroups?.has(group.name) ?? false;
-      const indent = '  '.repeat(group.depth);
       const toggleIcon = isCollapsed ? '►' : '▼';
 
       // Group label with toggle — resolve tag color from group metadata
-      const tagColor = resolveTagColor(group.metadata, resolved.tagGroups, currentActiveGroup, true);
-      const groupColor = (tagColor && tagColor !== '#999999') ? tagColor : (group.color || palette.textMuted);
-      renderLabelBand(svg, marginTop + yOffset + BAR_H / 2, leftMargin, groupColor, palette, 'group', { key: 'data-group', value: group.name });
+      const tagColor = resolveTagColor(
+        group.metadata,
+        resolved.tagGroups,
+        currentActiveGroup,
+        true
+      );
+      const groupColor =
+        tagColor && tagColor !== '#999999'
+          ? tagColor
+          : group.color || palette.textMuted;
+      renderLabelBand(
+        svg,
+        marginTop + yOffset + BAR_H / 2,
+        leftMargin,
+        groupColor,
+        palette,
+        'group',
+        { key: 'data-group', value: group.name }
+      );
       const labelG = svg
         .append('g')
         .attr('class', 'gantt-group-label')
@@ -536,14 +668,22 @@ export function renderGantt(
         })
         .on('mouseenter', () => {
           highlightGroup(g, svg, group.name);
-          showGanttDateIndicators(g, xScale, group.startDate, group.endDate, innerHeight, groupColor);
+          showGanttDateIndicators(
+            g,
+            xScale,
+            group.startDate,
+            group.endDate,
+            innerHeight,
+            groupColor
+          );
         })
         .on('mouseleave', () => {
           resetHighlight(g, svg);
           hideGanttDateIndicators(g);
         });
 
-      const groupIndent = group.depth <= 2 ? group.depth * 14 : 2 * 14 + (group.depth - 2) * 8;
+      const groupIndent =
+        group.depth <= 2 ? group.depth * 14 : 2 * 14 + (group.depth - 2) * 8;
       const labelX = 10 + groupIndent;
       labelG
         .append('text')
@@ -554,7 +694,12 @@ export function renderGantt(
         .attr('font-size', '11px')
         .attr('font-weight', 'bold')
         .attr('fill', palette.text)
-        .text(toggleIcon + ' ' + group.name + (group.progress !== null ? ` ${Math.round(group.progress)}%` : ''));
+        .text(
+          toggleIcon +
+            ' ' +
+            group.name +
+            (group.progress !== null ? ` ${Math.round(group.progress)}%` : '')
+        );
 
       // Group bar
       const gStart = dateToFractionalYear(group.startDate);
@@ -566,20 +711,29 @@ export function renderGantt(
         if (isCollapsed) {
           // Summary bar (full height, shows aggregate progress)
           const barWidth = Math.max(gx2 - gx1, 2);
-          const summaryG = g.append('g')
+          const summaryG = g
+            .append('g')
             .attr('class', 'gantt-group-summary')
             .attr('data-group', group.name)
             .attr('data-line-number', String(group.lineNumber))
             .on('mouseenter', () => {
               highlightGroup(g, svg, group.name);
-              showGanttDateIndicators(g, xScale, group.startDate, group.endDate, innerHeight, groupColor);
+              showGanttDateIndicators(
+                g,
+                xScale,
+                group.startDate,
+                group.endDate,
+                innerHeight,
+                groupColor
+              );
             })
             .on('mouseleave', () => {
               resetHighlight(g, svg);
               hideGanttDateIndicators(g);
             });
 
-          summaryG.append('rect')
+          summaryG
+            .append('rect')
             .attr('x', gx1)
             .attr('y', yOffset)
             .attr('width', barWidth)
@@ -591,7 +745,8 @@ export function renderGantt(
 
           // Aggregate progress fill
           if (group.progress !== null && group.progress > 0) {
-            summaryG.append('rect')
+            summaryG
+              .append('rect')
               .attr('x', gx1)
               .attr('y', yOffset)
               .attr('width', barWidth * Math.min(group.progress / 100, 1))
@@ -601,8 +756,16 @@ export function renderGantt(
           }
 
           // Bar label (inside → after → before → truncate)
-          const summaryLabel = group.name + (group.progress !== null ? ` ${Math.round(group.progress)}%` : '');
-          const summaryPlacement = computeBarLabel(summaryLabel, gx1, barWidth, innerWidth, palette.text);
+          const summaryLabel =
+            group.name +
+            (group.progress !== null ? ` ${Math.round(group.progress)}%` : '');
+          const summaryPlacement = computeBarLabel(
+            summaryLabel,
+            gx1,
+            barWidth,
+            innerWidth,
+            palette.text
+          );
           if (summaryPlacement) {
             summaryG
               .append('text')
@@ -618,25 +781,38 @@ export function renderGantt(
           }
 
           // Track collapsed group position for dependency arrow redirection
-          groupPositions.set(group.name, { x1: gx1, x2: gx1 + barWidth, y: yOffset + BAR_H / 2 });
+          groupPositions.set(group.name, {
+            x1: gx1,
+            x2: gx1 + barWidth,
+            y: yOffset + BAR_H / 2,
+          });
         } else {
           // Expanded: bar spanning group date range (matches task bar style)
           const groupBarWidth = Math.max(gx2 - gx1, 2);
           const bandFill = mix(groupColor, palette.bg, 30);
-          const groupBarG = g.append('g')
+          const groupBarG = g
+            .append('g')
             .attr('class', 'gantt-group-bar')
             .attr('data-group', group.name)
             .attr('data-line-number', String(group.lineNumber))
             .on('mouseenter', () => {
               highlightGroup(g, svg, group.name);
-              showGanttDateIndicators(g, xScale, group.startDate, group.endDate, innerHeight, groupColor);
+              showGanttDateIndicators(
+                g,
+                xScale,
+                group.startDate,
+                group.endDate,
+                innerHeight,
+                groupColor
+              );
             })
             .on('mouseleave', () => {
               resetHighlight(g, svg);
               hideGanttDateIndicators(g);
             });
 
-          groupBarG.append('rect')
+          groupBarG
+            .append('rect')
             .attr('x', gx1)
             .attr('y', yOffset)
             .attr('width', groupBarWidth)
@@ -648,7 +824,8 @@ export function renderGantt(
 
           // Aggregate progress fill
           if (group.progress !== null && group.progress > 0) {
-            groupBarG.append('rect')
+            groupBarG
+              .append('rect')
               .attr('class', 'gantt-group-progress')
               .attr('x', gx1)
               .attr('y', yOffset)
@@ -659,8 +836,16 @@ export function renderGantt(
           }
 
           // Bar label (inside → after → before → truncate)
-          const expandedLabel = group.name + (group.progress !== null ? ` ${Math.round(group.progress)}%` : '');
-          const expandedPlacement = computeBarLabel(expandedLabel, gx1, groupBarWidth, innerWidth, palette.text);
+          const expandedLabel =
+            group.name +
+            (group.progress !== null ? ` ${Math.round(group.progress)}%` : '');
+          const expandedPlacement = computeBarLabel(
+            expandedLabel,
+            gx1,
+            groupBarWidth,
+            innerWidth,
+            palette.text
+          );
           if (expandedPlacement) {
             groupBarG
               .append('text')
@@ -683,7 +868,13 @@ export function renderGantt(
       const task = rt.task;
 
       // Resolve bar color early so icon tspan can use it
-      const barColor = resolveTaskColor(rt, currentActiveGroup, resolved, seriesColors, palette);
+      const barColor = resolveTaskColor(
+        rt,
+        currentActiveGroup,
+        resolved,
+        seriesColors,
+        palette
+      );
 
       // Task label on the left (left-aligned with indent; flat in tag mode)
       const depth = rt.groupPath.length;
@@ -717,7 +908,13 @@ export function renderGantt(
           resetHighlight(g, svg);
         });
 
-      appendTaskIcon(taskLabel, task.label, rt.isMilestone, barColor, palette.text);
+      appendTaskIcon(
+        taskLabel,
+        task.label,
+        rt.isMilestone,
+        barColor,
+        palette.text
+      );
 
       // Tag attributes on label for legend hover matching
       for (const [key, value] of Object.entries(rt.effectiveMetadata)) {
@@ -747,7 +944,14 @@ export function renderGantt(
           })
           .on('mouseenter', () => {
             highlightMilestone(g, svg, task.id);
-            showGanttDateIndicators(g, xScale, rt.startDate, null, innerHeight, barColor);
+            showGanttDateIndicators(
+              g,
+              xScale,
+              rt.startDate,
+              null,
+              innerHeight,
+              barColor
+            );
             // Show label next to diamond
             g.append('text')
               .attr('class', 'gantt-milestone-hover-label')
@@ -778,7 +982,8 @@ export function renderGantt(
 
         const fillColor = mix(barColor, palette.bg, 30);
 
-        const taskG = g.append('g')
+        const taskG = g
+          .append('g')
           .attr('class', 'gantt-task')
           .attr('data-line-number', String(task.lineNumber))
           .attr('data-task-name', task.label)
@@ -793,7 +998,14 @@ export function renderGantt(
               highlightDeps(g, svg, task.id, resolved);
             }
             highlightTaskLabel(svg, task.lineNumber);
-            showGanttDateIndicators(g, xScale, rt.startDate, rt.endDate, innerHeight, barColor);
+            showGanttDateIndicators(
+              g,
+              xScale,
+              rt.startDate,
+              rt.endDate,
+              innerHeight,
+              barColor
+            );
           })
           .on('mouseleave', () => {
             if (resolved.options.dependencies) {
@@ -813,7 +1025,8 @@ export function renderGantt(
         }
 
         // Uncertainty gradient — fade out the trailing edge unless progress > 80%
-        const showUncertainFade = rt.isUncertain && (task.progress === null || task.progress <= 80);
+        const showUncertainFade =
+          rt.isUncertain && (task.progress === null || task.progress <= 80);
         let barFill: string = fillColor;
         let barStroke: string = barColor;
         if (showUncertainFade) {
@@ -822,20 +1035,52 @@ export function renderGantt(
             : svg.select<SVGDefsElement>('defs');
 
           const fillGradId = `gantt-uncertain-fill-${task.id}`;
-          const fillGrad = defs.append('linearGradient')
+          const fillGrad = defs
+            .append('linearGradient')
             .attr('id', fillGradId)
-            .attr('x1', '0').attr('x2', '1').attr('y1', '0').attr('y2', '0');
-          fillGrad.append('stop').attr('offset', '0%').attr('stop-color', fillColor).attr('stop-opacity', 1);
-          fillGrad.append('stop').attr('offset', '50%').attr('stop-color', fillColor).attr('stop-opacity', 1);
-          fillGrad.append('stop').attr('offset', '100%').attr('stop-color', fillColor).attr('stop-opacity', 0);
+            .attr('x1', '0')
+            .attr('x2', '1')
+            .attr('y1', '0')
+            .attr('y2', '0');
+          fillGrad
+            .append('stop')
+            .attr('offset', '0%')
+            .attr('stop-color', fillColor)
+            .attr('stop-opacity', 1);
+          fillGrad
+            .append('stop')
+            .attr('offset', '50%')
+            .attr('stop-color', fillColor)
+            .attr('stop-opacity', 1);
+          fillGrad
+            .append('stop')
+            .attr('offset', '100%')
+            .attr('stop-color', fillColor)
+            .attr('stop-opacity', 0);
 
           const strokeGradId = `gantt-uncertain-stroke-${task.id}`;
-          const strokeGrad = defs.append('linearGradient')
+          const strokeGrad = defs
+            .append('linearGradient')
             .attr('id', strokeGradId)
-            .attr('x1', '0').attr('x2', '1').attr('y1', '0').attr('y2', '0');
-          strokeGrad.append('stop').attr('offset', '0%').attr('stop-color', barColor).attr('stop-opacity', 1);
-          strokeGrad.append('stop').attr('offset', '50%').attr('stop-color', barColor).attr('stop-opacity', 1);
-          strokeGrad.append('stop').attr('offset', '100%').attr('stop-color', barColor).attr('stop-opacity', 0);
+            .attr('x1', '0')
+            .attr('x2', '1')
+            .attr('y1', '0')
+            .attr('y2', '0');
+          strokeGrad
+            .append('stop')
+            .attr('offset', '0%')
+            .attr('stop-color', barColor)
+            .attr('stop-opacity', 1);
+          strokeGrad
+            .append('stop')
+            .attr('offset', '50%')
+            .attr('stop-color', barColor)
+            .attr('stop-opacity', 1);
+          strokeGrad
+            .append('stop')
+            .attr('offset', '100%')
+            .attr('stop-color', barColor)
+            .attr('stop-opacity', 0);
 
           barFill = `url(#${fillGradId})`;
           barStroke = `url(#${strokeGradId})`;
@@ -863,12 +1108,28 @@ export function renderGantt(
             const fadeStart = Math.min(50 * ratio, 100);
             const defs = svg.select<SVGDefsElement>('defs');
             const progGradId = `gantt-uncertain-progress-${task.id}`;
-            const progGrad = defs.append('linearGradient')
+            const progGrad = defs
+              .append('linearGradient')
               .attr('id', progGradId)
-              .attr('x1', '0').attr('x2', '1').attr('y1', '0').attr('y2', '0');
-            progGrad.append('stop').attr('offset', '0%').attr('stop-color', barColor).attr('stop-opacity', 1);
-            progGrad.append('stop').attr('offset', `${fadeStart}%`).attr('stop-color', barColor).attr('stop-opacity', 1);
-            progGrad.append('stop').attr('offset', '100%').attr('stop-color', barColor).attr('stop-opacity', 0);
+              .attr('x1', '0')
+              .attr('x2', '1')
+              .attr('y1', '0')
+              .attr('y2', '0');
+            progGrad
+              .append('stop')
+              .attr('offset', '0%')
+              .attr('stop-color', barColor)
+              .attr('stop-opacity', 1);
+            progGrad
+              .append('stop')
+              .attr('offset', `${fadeStart}%`)
+              .attr('stop-color', barColor)
+              .attr('stop-opacity', 1);
+            progGrad
+              .append('stop')
+              .attr('offset', '100%')
+              .attr('stop-color', barColor)
+              .attr('stop-opacity', 0);
             progressFill = `url(#${progGradId})`;
           }
           taskG
@@ -887,9 +1148,14 @@ export function renderGantt(
           taskG.attr('data-critical-path', 'true');
         }
 
-
         // Bar label (inside → after → before → truncate)
-        const labelPlacement = computeBarLabel(task.label, x1, barWidth, innerWidth, palette.text);
+        const labelPlacement = computeBarLabel(
+          task.label,
+          x1,
+          barWidth,
+          innerWidth,
+          palette.text
+        );
         if (labelPlacement) {
           taskG
             .append('text')
@@ -904,7 +1170,11 @@ export function renderGantt(
         }
 
         // Track bar position for arrows
-        taskPositions.set(task.id, { x1, x2: x1 + barWidth, y: yOffset + BAR_H / 2 });
+        taskPositions.set(task.id, {
+          x1,
+          x2: x1 + barWidth,
+          y: yOffset + BAR_H / 2,
+        });
       }
 
       yOffset += BAR_H + ROW_GAP;
@@ -914,12 +1184,14 @@ export function renderGantt(
   // ── Today hover overlay (rendered after rows so it receives pointer events) ──
 
   if (todayDate && todayX >= 0 && todayX <= innerWidth) {
-    const todayHoverG = g.append('g')
+    const todayHoverG = g
+      .append('g')
       .attr('class', 'gantt-today-hover')
       .style('cursor', 'pointer');
 
     // Invisible wide hit rect for easy hovering
-    todayHoverG.append('rect')
+    todayHoverG
+      .append('rect')
       .attr('x', todayX - 10)
       .attr('y', -6)
       .attr('width', 20)
@@ -931,17 +1203,48 @@ export function renderGantt(
     todayHoverG
       .on('mouseenter', () => {
         // Fade everything
-        g.selectAll<SVGGElement, unknown>('.gantt-task').attr('opacity', FADE_OPACITY);
-        g.selectAll<SVGElement, unknown>('.gantt-milestone').attr('opacity', FADE_OPACITY);
-        g.selectAll<SVGElement, unknown>('.gantt-group-bar, .gantt-group-summary').attr('opacity', FADE_OPACITY);
-        svg.selectAll<SVGGElement, unknown>('.gantt-group-label').attr('opacity', FADE_OPACITY);
-        svg.selectAll<SVGTextElement, unknown>('.gantt-task-label').attr('opacity', FADE_OPACITY);
-        svg.selectAll<SVGGElement, unknown>('.gantt-lane-header').attr('opacity', FADE_OPACITY);
-        g.selectAll<SVGElement, unknown>('.gantt-lane-band, .gantt-lane-accent, .gantt-lane-band-group').attr('opacity', FADE_OPACITY);
-        g.selectAll<SVGElement, unknown>('.gantt-dep-arrow, .gantt-dep-arrowhead').attr('opacity', FADE_OPACITY);
-        g.selectAll<SVGElement, unknown>('.gantt-era-group').attr('opacity', FADE_OPACITY);
-        g.selectAll<SVGElement, unknown>('.gantt-marker-group').attr('opacity', FADE_OPACITY);
-        showGanttDateIndicators(g, xScale, todayDateObj, null, innerHeight, todayColor);
+        g.selectAll<SVGGElement, unknown>('.gantt-task').attr(
+          'opacity',
+          FADE_OPACITY
+        );
+        g.selectAll<SVGElement, unknown>('.gantt-milestone').attr(
+          'opacity',
+          FADE_OPACITY
+        );
+        g.selectAll<SVGElement, unknown>(
+          '.gantt-group-bar, .gantt-group-summary'
+        ).attr('opacity', FADE_OPACITY);
+        svg
+          .selectAll<SVGGElement, unknown>('.gantt-group-label')
+          .attr('opacity', FADE_OPACITY);
+        svg
+          .selectAll<SVGTextElement, unknown>('.gantt-task-label')
+          .attr('opacity', FADE_OPACITY);
+        svg
+          .selectAll<SVGGElement, unknown>('.gantt-lane-header')
+          .attr('opacity', FADE_OPACITY);
+        g.selectAll<SVGElement, unknown>(
+          '.gantt-lane-band, .gantt-lane-accent, .gantt-lane-band-group'
+        ).attr('opacity', FADE_OPACITY);
+        g.selectAll<SVGElement, unknown>(
+          '.gantt-dep-arrow, .gantt-dep-arrowhead'
+        ).attr('opacity', FADE_OPACITY);
+        g.selectAll<SVGElement, unknown>('.gantt-era-group').attr(
+          'opacity',
+          FADE_OPACITY
+        );
+        g.selectAll<SVGElement, unknown>('.gantt-marker-group').attr(
+          'opacity',
+          FADE_OPACITY
+        );
+        showGanttDateIndicators(
+          g,
+          xScale,
+          todayDateObj,
+          null,
+          innerHeight,
+          todayColor
+        );
       })
       .on('mouseleave', () => {
         resetHighlight(g, svg);
@@ -952,13 +1255,33 @@ export function renderGantt(
   // ── Dependency arrows ───────────────────────────────────
 
   if (resolved.options.dependencies) {
-    renderDependencyArrows(g, resolved, taskPositions, groupPositions, collapsedGroups, palette, isDark, isTagMode, lanePositions, collapsedLanes, taskLaneMap);
+    renderDependencyArrows(
+      g,
+      resolved,
+      taskPositions,
+      groupPositions,
+      collapsedGroups,
+      palette,
+      isDark,
+      isTagMode,
+      lanePositions,
+      collapsedLanes,
+      taskLaneMap
+    );
   }
 }
 
 // ── Weekend Band Rendering ──────────────────────────────────
 
-const JS_DAY_TO_WEEKDAY: Weekday[] = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+const JS_DAY_TO_WEEKDAY: Weekday[] = [
+  'sun',
+  'mon',
+  'tue',
+  'wed',
+  'thu',
+  'fri',
+  'sat',
+];
 
 function renderWeekendBands(
   g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
@@ -966,7 +1289,7 @@ function renderWeekendBands(
   xScale: d3Scale.ScaleLinear<number, number>,
   innerHeight: number,
   palette: PaletteColors,
-  isDark: boolean,
+  isDark: boolean
 ): void {
   const workweek = new Set(resolved.holidays.workweek);
   const start = new Date(resolved.startDate);
@@ -985,14 +1308,34 @@ function renderWeekendBands(
       bandStart = new Date(current);
     } else if (!isWeekend && bandStart) {
       // Draw band from bandStart to current
-      drawBand(g, xScale, bandStart, current, innerHeight, palette, isDark, 'gantt-weekend-band', 0.04);
+      drawBand(
+        g,
+        xScale,
+        bandStart,
+        current,
+        innerHeight,
+        palette,
+        isDark,
+        'gantt-weekend-band',
+        0.04
+      );
       bandStart = null;
     }
     current.setDate(current.getDate() + 1);
   }
   // Close any trailing band
   if (bandStart) {
-    drawBand(g, xScale, bandStart, current, innerHeight, palette, isDark, 'gantt-weekend-band', 0.04);
+    drawBand(
+      g,
+      xScale,
+      bandStart,
+      current,
+      innerHeight,
+      palette,
+      isDark,
+      'gantt-weekend-band',
+      0.04
+    );
   }
 }
 
@@ -1008,20 +1351,48 @@ function renderHolidayBands(
   isDark: boolean,
   headerY: number,
   chartLeftMargin: number,
-  onClickItem?: (lineNumber: number) => void,
+  onClickItem?: (lineNumber: number) => void
 ): void {
   for (const h of resolved.holidays.dates) {
     const start = new Date(h.date + 'T00:00:00');
     const end = new Date(start);
     end.setDate(end.getDate() + 1);
-    drawHolidayBand(g, svg, xScale, start, end, innerHeight, palette, isDark, h.label, h.lineNumber, headerY, chartLeftMargin, onClickItem);
+    drawHolidayBand(
+      g,
+      svg,
+      xScale,
+      start,
+      end,
+      innerHeight,
+      palette,
+      isDark,
+      h.label,
+      h.lineNumber,
+      headerY,
+      chartLeftMargin,
+      onClickItem
+    );
   }
 
   for (const r of resolved.holidays.ranges) {
     const start = new Date(r.startDate + 'T00:00:00');
     const end = new Date(r.endDate + 'T00:00:00');
     end.setDate(end.getDate() + 1);
-    drawHolidayBand(g, svg, xScale, start, end, innerHeight, palette, isDark, r.label, r.lineNumber, headerY, chartLeftMargin, onClickItem);
+    drawHolidayBand(
+      g,
+      svg,
+      xScale,
+      start,
+      end,
+      innerHeight,
+      palette,
+      isDark,
+      r.label,
+      r.lineNumber,
+      headerY,
+      chartLeftMargin,
+      onClickItem
+    );
   }
 }
 
@@ -1034,7 +1405,7 @@ function drawBand(
   palette: PaletteColors,
   _isDark: boolean,
   className: string,
-  opacity: number,
+  opacity: number
 ): void {
   const x1 = xScale(dateToFractionalYear(start));
   const x2 = xScale(dateToFractionalYear(end));
@@ -1064,7 +1435,7 @@ function drawHolidayBand(
   lineNumber: number,
   headerY: number,
   chartLeftMargin: number,
-  onClickItem?: (lineNumber: number) => void,
+  onClickItem?: (lineNumber: number) => void
 ): void {
   const x1 = xScale(dateToFractionalYear(start));
   const x2 = xScale(dateToFractionalYear(end));
@@ -1074,13 +1445,15 @@ function drawHolidayBand(
   const baseOpacity = 0.08;
   const hoverOpacity = 0.18;
 
-  const bandG = g.append('g')
+  const bandG = g
+    .append('g')
     .attr('class', 'gantt-holiday-band')
     .attr('data-line-number', String(lineNumber))
     .style('cursor', onClickItem ? 'pointer' : 'default');
 
   // Band rect
-  const bandRect = bandG.append('rect')
+  const bandRect = bandG
+    .append('rect')
     .attr('x', x1)
     .attr('y', 0)
     .attr('width', bandW)
@@ -1092,7 +1465,8 @@ function drawHolidayBand(
   // Background rect to mask date labels underneath
   const labelX = chartLeftMargin + x1 + bandW / 2;
   const textLen = label.length * 6 + 8;
-  const labelBg = svg.append('rect')
+  const labelBg = svg
+    .append('rect')
     .attr('class', 'gantt-holiday-hover-bg')
     .attr('data-line-number', String(lineNumber))
     .attr('x', labelX - textLen / 2)
@@ -1104,7 +1478,8 @@ function drawHolidayBand(
     .attr('opacity', 0)
     .attr('pointer-events', 'none');
 
-  const labelText = svg.append('text')
+  const labelText = svg
+    .append('text')
     .attr('class', 'gantt-holiday-hover-label')
     .attr('data-line-number', String(lineNumber))
     .attr('x', labelX)
@@ -1141,7 +1516,7 @@ function drawHolidayBand(
 function findCollapsedGroupPos(
   rt: ResolvedTask,
   collapsedGroups: Set<string> | undefined,
-  groupPositions: Map<string, { x1: number; x2: number; y: number }>,
+  groupPositions: Map<string, { x1: number; x2: number; y: number }>
 ): { x1: number; x2: number; y: number } | undefined {
   if (!collapsedGroups) return undefined;
   // Walk the task's group path and find the first collapsed group with a position
@@ -1157,7 +1532,7 @@ function findCollapsedLanePos(
   rt: ResolvedTask,
   collapsedLanes: Set<string> | undefined,
   taskLaneMap: Map<string, string>,
-  lanePositions: Map<string, { x1: number; x2: number; y: number }>,
+  lanePositions: Map<string, { x1: number; x2: number; y: number }>
 ): { x1: number; x2: number; y: number } | undefined {
   if (!collapsedLanes) return undefined;
   const laneName = taskLaneMap.get(rt.task.id);
@@ -1178,28 +1553,38 @@ function renderDependencyArrows(
   isTagMode: boolean,
   lanePositions: Map<string, { x1: number; x2: number; y: number }>,
   collapsedLanes: Set<string> | undefined,
-  taskLaneMap: Map<string, string>,
+  taskLaneMap: Map<string, string>
 ): void {
   // Deduplicate arrows that collapse to the same source→target position
   const drawnArrows = new Set<string>();
 
   // Build arrow list from task dependencies
   for (const rt of resolved.tasks) {
-    const sourcePos = taskPositions.get(rt.task.id)
-      ?? (isTagMode
+    const sourcePos =
+      taskPositions.get(rt.task.id) ??
+      (isTagMode
         ? findCollapsedLanePos(rt, collapsedLanes, taskLaneMap, lanePositions)
         : findCollapsedGroupPos(rt, collapsedGroups, groupPositions));
     if (!sourcePos) continue;
 
     for (const dep of rt.task.dependencies) {
       // Find target task
-      const targetTask = resolved.tasks.find(t => t.task.label === dep.targetName ||
-        `${t.groupPath.join('.')}.${t.task.label}`.endsWith(dep.targetName));
+      const targetTask = resolved.tasks.find(
+        (t) =>
+          t.task.label === dep.targetName ||
+          `${t.groupPath.join('.')}.${t.task.label}`.endsWith(dep.targetName)
+      );
       if (!targetTask) continue;
 
-      const targetPos = taskPositions.get(targetTask.task.id)
-        ?? (isTagMode
-          ? findCollapsedLanePos(targetTask, collapsedLanes, taskLaneMap, lanePositions)
+      const targetPos =
+        taskPositions.get(targetTask.task.id) ??
+        (isTagMode
+          ? findCollapsedLanePos(
+              targetTask,
+              collapsedLanes,
+              taskLaneMap,
+              lanePositions
+            )
           : findCollapsedGroupPos(targetTask, collapsedGroups, groupPositions));
       if (!targetPos) continue;
 
@@ -1257,7 +1642,8 @@ function renderDependencyArrows(
         const midX = (sx + tx) / 2;
         const midY = (sy + ty) / 2;
         // Background rect for readability
-        const labelEl = g.append('text')
+        const labelEl = g
+          .append('text')
           .attr('class', 'gantt-dep-label')
           .attr('data-dep-from', rt.task.id)
           .attr('data-dep-to', targetTask.task.id)
@@ -1287,7 +1673,12 @@ function renderDependencyArrows(
   }
 }
 
-function arrowheadPoints(x: number, y: number, size: number, angle: number): string {
+function arrowheadPoints(
+  x: number,
+  y: number,
+  size: number,
+  angle: number
+): string {
   const a1 = angle + Math.PI * 0.8;
   const a2 = angle - Math.PI * 0.8;
   return `${x},${y} ${x + size * Math.cos(a1)},${y + size * Math.sin(a1)} ${x + size * Math.cos(a2)},${y + size * Math.sin(a2)}`;
@@ -1297,43 +1688,94 @@ function arrowheadPoints(x: number, y: number, size: number, angle: number): str
 
 function applyCriticalPathHighlight(
   svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
-  chartG: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
+  chartG: d3Selection.Selection<SVGGElement, unknown, null, undefined>
 ) {
   chartG.selectAll<SVGGElement, unknown>('.gantt-task').each(function () {
     const el = d3Selection.select(this);
-    el.attr('opacity', el.attr('data-critical-path') === 'true' ? 1 : FADE_OPACITY);
+    el.attr(
+      'opacity',
+      el.attr('data-critical-path') === 'true' ? 1 : FADE_OPACITY
+    );
   });
-  chartG.selectAll<SVGElement, unknown>('.gantt-milestone').attr('opacity', FADE_OPACITY);
-  chartG.selectAll<SVGElement, unknown>('.gantt-group-bar, .gantt-group-summary').attr('opacity', FADE_OPACITY);
+  chartG
+    .selectAll<SVGElement, unknown>('.gantt-milestone')
+    .attr('opacity', FADE_OPACITY);
+  chartG
+    .selectAll<SVGElement, unknown>('.gantt-group-bar, .gantt-group-summary')
+    .attr('opacity', FADE_OPACITY);
   svg.selectAll<SVGTextElement, unknown>('.gantt-task-label').each(function () {
     const el = d3Selection.select(this);
-    el.attr('opacity', el.attr('data-critical-path') === 'true' ? 1 : FADE_OPACITY);
+    el.attr(
+      'opacity',
+      el.attr('data-critical-path') === 'true' ? 1 : FADE_OPACITY
+    );
   });
-  svg.selectAll<SVGGElement, unknown>('.gantt-group-label').attr('opacity', FADE_OPACITY);
-  svg.selectAll<SVGElement, unknown>('.gantt-group-band-bg, .gantt-group-band-accent').attr('opacity', FADE_OPACITY);
-  svg.selectAll<SVGGElement, unknown>('.gantt-lane-header').attr('opacity', FADE_OPACITY);
-  svg.selectAll<SVGElement, unknown>('.gantt-lane-band-bg, .gantt-lane-band-accent').attr('opacity', FADE_OPACITY);
-  chartG.selectAll<SVGElement, unknown>('.gantt-lane-band, .gantt-lane-accent').attr('opacity', FADE_OPACITY);
+  svg
+    .selectAll<SVGGElement, unknown>('.gantt-group-label')
+    .attr('opacity', FADE_OPACITY);
+  svg
+    .selectAll<
+      SVGElement,
+      unknown
+    >('.gantt-group-band-bg, .gantt-group-band-accent')
+    .attr('opacity', FADE_OPACITY);
+  svg
+    .selectAll<SVGGElement, unknown>('.gantt-lane-header')
+    .attr('opacity', FADE_OPACITY);
+  svg
+    .selectAll<
+      SVGElement,
+      unknown
+    >('.gantt-lane-band-bg, .gantt-lane-band-accent')
+    .attr('opacity', FADE_OPACITY);
+  chartG
+    .selectAll<SVGElement, unknown>('.gantt-lane-band, .gantt-lane-accent')
+    .attr('opacity', FADE_OPACITY);
   // Show critical path arrows at full opacity, fade others
-  chartG.selectAll<SVGElement, unknown>('.gantt-dep-arrow, .gantt-dep-arrowhead').each(function () {
-    const el = d3Selection.select(this);
-    el.attr('opacity', el.attr('data-critical-path') === 'true' ? 0.7 : FADE_OPACITY);
-  });
+  chartG
+    .selectAll<SVGElement, unknown>('.gantt-dep-arrow, .gantt-dep-arrowhead')
+    .each(function () {
+      const el = d3Selection.select(this);
+      el.attr(
+        'opacity',
+        el.attr('data-critical-path') === 'true' ? 0.7 : FADE_OPACITY
+      );
+    });
 }
 
 function resetHighlightAll(
   svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
-  chartG: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
+  chartG: d3Selection.Selection<SVGGElement, unknown, null, undefined>
 ) {
-  chartG.selectAll<SVGGElement, unknown>('.gantt-task, .gantt-milestone').attr('opacity', 1);
-  chartG.selectAll<SVGElement, unknown>('.gantt-group-bar, .gantt-group-summary').attr('opacity', 1);
-  svg.selectAll<SVGTextElement, unknown>('.gantt-task-label').attr('opacity', 1);
+  chartG
+    .selectAll<SVGGElement, unknown>('.gantt-task, .gantt-milestone')
+    .attr('opacity', 1);
+  chartG
+    .selectAll<SVGElement, unknown>('.gantt-group-bar, .gantt-group-summary')
+    .attr('opacity', 1);
+  svg
+    .selectAll<SVGTextElement, unknown>('.gantt-task-label')
+    .attr('opacity', 1);
   svg.selectAll<SVGGElement, unknown>('.gantt-group-label').attr('opacity', 1);
-  svg.selectAll<SVGElement, unknown>('.gantt-group-band-bg, .gantt-group-band-accent').attr('opacity', 1);
+  svg
+    .selectAll<
+      SVGElement,
+      unknown
+    >('.gantt-group-band-bg, .gantt-group-band-accent')
+    .attr('opacity', 1);
   svg.selectAll<SVGGElement, unknown>('.gantt-lane-header').attr('opacity', 1);
-  svg.selectAll<SVGElement, unknown>('.gantt-lane-band-bg, .gantt-lane-band-accent').attr('opacity', 1);
-  chartG.selectAll<SVGElement, unknown>('.gantt-lane-band, .gantt-lane-accent').attr('opacity', 1);
-  chartG.selectAll<SVGElement, unknown>('.gantt-dep-arrow, .gantt-dep-arrowhead').attr('opacity', 0.5);
+  svg
+    .selectAll<
+      SVGElement,
+      unknown
+    >('.gantt-lane-band-bg, .gantt-lane-band-accent')
+    .attr('opacity', 1);
+  chartG
+    .selectAll<SVGElement, unknown>('.gantt-lane-band, .gantt-lane-accent')
+    .attr('opacity', 1);
+  chartG
+    .selectAll<SVGElement, unknown>('.gantt-dep-arrow, .gantt-dep-arrowhead')
+    .attr('opacity', 0.5);
 }
 
 // ── Swimlane Icon Helper ─────────────────────────────────────
@@ -1343,9 +1785,10 @@ function drawSwimlaneIcon(
   x: number,
   y: number,
   isActive: boolean,
-  palette: PaletteColors,
+  palette: PaletteColors
 ): d3Selection.Selection<SVGGElement, unknown, null, undefined> {
-  const iconG = parent.append('g')
+  const iconG = parent
+    .append('g')
     .attr('class', 'gantt-swimlane-icon')
     .attr('transform', `translate(${x}, ${y})`);
 
@@ -1356,7 +1799,8 @@ function drawSwimlaneIcon(
   const gap = 3;
 
   for (let i = 0; i < barWidths.length; i++) {
-    iconG.append('rect')
+    iconG
+      .append('rect')
       .attr('x', 0)
       .attr('y', i * gap)
       .attr('width', barWidths[i])
@@ -1387,7 +1831,7 @@ function renderTagLegend(
   currentSwimlaneGroup?: string | null,
   onSwimlaneChange?: (group: string | null) => void,
   legendViewMode?: boolean,
-  resolvedTasks?: ResolvedTask[],
+  resolvedTasks?: ResolvedTask[]
 ): void {
   const groupBg = isDark
     ? mix(palette.surface, palette.bg, 50)
@@ -1396,10 +1840,16 @@ function renderTagLegend(
   // Build visible groups: active group expanded + swimlane group as compact pill
   let visibleGroups: TagGroup[];
   if (activeGroupName) {
-    const activeGroup = tagGroups.filter(g => g.name.toLowerCase() === activeGroupName.toLowerCase());
-    const swimlaneGroup = currentSwimlaneGroup && currentSwimlaneGroup.toLowerCase() !== activeGroupName.toLowerCase()
-      ? tagGroups.filter(g => g.name.toLowerCase() === currentSwimlaneGroup.toLowerCase())
-      : [];
+    const activeGroup = tagGroups.filter(
+      (g) => g.name.toLowerCase() === activeGroupName.toLowerCase()
+    );
+    const swimlaneGroup =
+      currentSwimlaneGroup &&
+      currentSwimlaneGroup.toLowerCase() !== activeGroupName.toLowerCase()
+        ? tagGroups.filter(
+            (g) => g.name.toLowerCase() === currentSwimlaneGroup.toLowerCase()
+          )
+        : [];
     visibleGroups = [...swimlaneGroup, ...activeGroup];
   } else {
     visibleGroups = tagGroups;
@@ -1425,7 +1875,10 @@ function renderTagLegend(
     const key = group.name.toLowerCase();
     const used = usedValues.get(key);
     if (used && used.size > 0) {
-      filteredEntries.set(key, group.entries.filter(e => used.has(e.value.toLowerCase())));
+      filteredEntries.set(
+        key,
+        group.entries.filter((e) => used.has(e.value.toLowerCase()))
+      );
     } else {
       filteredEntries.set(key, group.entries);
     }
@@ -1435,17 +1888,27 @@ function renderTagLegend(
   const groupWidths: number[] = [];
   let totalW = 0;
   for (const group of visibleGroups) {
-    const isActive = activeGroupName?.toLowerCase() === group.name.toLowerCase();
-    const isSwimlane = currentSwimlaneGroup?.toLowerCase() === group.name.toLowerCase();
+    const isActive =
+      activeGroupName?.toLowerCase() === group.name.toLowerCase();
+    const isSwimlane =
+      currentSwimlaneGroup?.toLowerCase() === group.name.toLowerCase();
     const showIcon = !legendViewMode && tagGroups.length > 0;
     const iconReserve = showIcon ? LEGEND_ICON_W : 0;
-    const pillW = measureLegendText(group.name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD + iconReserve;
+    const pillW =
+      measureLegendText(group.name, LEGEND_PILL_FONT_SIZE) +
+      LEGEND_PILL_PAD +
+      iconReserve;
     let groupW = pillW;
     if (isActive) {
-      const entries = filteredEntries.get(group.name.toLowerCase()) ?? group.entries;
+      const entries =
+        filteredEntries.get(group.name.toLowerCase()) ?? group.entries;
       let entriesW = 0;
       for (const entry of entries) {
-        entriesW += LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP + measureLegendText(entry.value, LEGEND_ENTRY_FONT_SIZE) + LEGEND_ENTRY_TRAIL;
+        entriesW +=
+          LEGEND_DOT_R * 2 +
+          LEGEND_ENTRY_DOT_GAP +
+          measureLegendText(entry.value, LEGEND_ENTRY_FONT_SIZE) +
+          LEGEND_ENTRY_TRAIL;
       }
       groupW = LEGEND_CAPSULE_PAD * 2 + pillW + 4 + entriesW;
     } else if (isSwimlane && !isActive) {
@@ -1459,7 +1922,8 @@ function renderTagLegend(
 
   // Critical Path pill width
   const cpLabel = 'Critical Path';
-  const cpPillW = measureLegendText(cpLabel, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
+  const cpPillW =
+    measureLegendText(cpLabel, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
   if (hasCriticalPath) {
     if (visibleGroups.length > 0) totalW += LEGEND_GROUP_GAP;
     totalW += cpPillW;
@@ -1469,7 +1933,8 @@ function renderTagLegend(
   const containerWidth = chartLeftMargin + chartInnerWidth + RIGHT_MARGIN;
   const legendX = (containerWidth - totalW) / 2;
 
-  const legendRow = svg.append('g')
+  const legendRow = svg
+    .append('g')
     .attr('class', 'gantt-tag-legend-container')
     .attr('transform', `translate(${legendX}, ${legendY})`);
 
@@ -1477,25 +1942,36 @@ function renderTagLegend(
 
   for (let i = 0; i < visibleGroups.length; i++) {
     const group = visibleGroups[i];
-    const isActive = activeGroupName?.toLowerCase() === group.name.toLowerCase();
-    const isSwimlane = currentSwimlaneGroup?.toLowerCase() === group.name.toLowerCase();
+    const isActive =
+      activeGroupName?.toLowerCase() === group.name.toLowerCase();
+    const isSwimlane =
+      currentSwimlaneGroup?.toLowerCase() === group.name.toLowerCase();
     const showIcon = !legendViewMode && tagGroups.length > 0;
     const iconReserve = showIcon ? LEGEND_ICON_W : 0;
-    const pillW = measureLegendText(group.name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD + iconReserve;
-    const pillH = isActive ? LEGEND_HEIGHT - LEGEND_CAPSULE_PAD * 2 : LEGEND_HEIGHT;
+    const pillW =
+      measureLegendText(group.name, LEGEND_PILL_FONT_SIZE) +
+      LEGEND_PILL_PAD +
+      iconReserve;
+    const pillH = isActive
+      ? LEGEND_HEIGHT - LEGEND_CAPSULE_PAD * 2
+      : LEGEND_HEIGHT;
     const groupW = groupWidths[i];
 
-    const gEl = legendRow.append('g')
+    const gEl = legendRow
+      .append('g')
       .attr('transform', `translate(${cursorX}, 0)`)
       .attr('class', 'gantt-tag-legend-group')
       .attr('data-tag-group', group.name)
       .attr('data-line-number', String(group.lineNumber))
       .style('cursor', 'pointer')
-      .on('click', () => { if (onToggle) onToggle(group.name); });
+      .on('click', () => {
+        if (onToggle) onToggle(group.name);
+      });
 
     if (isActive) {
       // Outer capsule background
-      gEl.append('rect')
+      gEl
+        .append('rect')
         .attr('width', groupW)
         .attr('height', LEGEND_HEIGHT)
         .attr('rx', LEGEND_HEIGHT / 2)
@@ -1506,7 +1982,8 @@ function renderTagLegend(
     const pillYOff = isActive ? LEGEND_CAPSULE_PAD : 0;
 
     // Pill background
-    gEl.append('rect')
+    gEl
+      .append('rect')
       .attr('x', pillXOff)
       .attr('y', pillYOff)
       .attr('width', pillW)
@@ -1516,7 +1993,8 @@ function renderTagLegend(
 
     // Active pill border
     if (isActive) {
-      gEl.append('rect')
+      gEl
+        .append('rect')
         .attr('x', pillXOff)
         .attr('y', pillYOff)
         .attr('width', pillW)
@@ -1528,8 +2006,10 @@ function renderTagLegend(
     }
 
     // Pill text (offset to leave room for icon on right)
-    const textW = measureLegendText(group.name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
-    gEl.append('text')
+    const textW =
+      measureLegendText(group.name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
+    gEl
+      .append('text')
       .attr('x', pillXOff + textW / 2)
       .attr('y', LEGEND_HEIGHT / 2 + LEGEND_PILL_FONT_SIZE / 2 - 2)
       .attr('text-anchor', 'middle')
@@ -1544,17 +2024,16 @@ function renderTagLegend(
       const iconY = (LEGEND_HEIGHT - 10) / 2;
       const iconEl = drawSwimlaneIcon(gEl, iconX, iconY, isSwimlane, palette);
       iconEl.append('title').text(`Group by ${group.name}`);
-      iconEl
-        .style('cursor', 'pointer')
-        .on('click', (event: Event) => {
-          event.stopPropagation();
-          if (onSwimlaneChange) {
-            onSwimlaneChange(
-              currentSwimlaneGroup?.toLowerCase() === group.name.toLowerCase()
-                ? null : group.name
-            );
-          }
-        });
+      iconEl.style('cursor', 'pointer').on('click', (event: Event) => {
+        event.stopPropagation();
+        if (onSwimlaneChange) {
+          onSwimlaneChange(
+            currentSwimlaneGroup?.toLowerCase() === group.name.toLowerCase()
+              ? null
+              : group.name
+          );
+        }
+      });
     }
 
     // Entries (when active — expanded color group, only used values)
@@ -1566,20 +2045,23 @@ function renderTagLegend(
         const entryValue = entry.value.toLowerCase();
 
         // Wrap dot + label in a <g> for hover targeting
-        const entryG = gEl.append('g')
+        const entryG = gEl
+          .append('g')
           .attr('class', 'gantt-legend-entry')
           .attr('data-line-number', String(entry.lineNumber))
           .style('cursor', 'pointer');
 
         // Dot
-        entryG.append('circle')
+        entryG
+          .append('circle')
           .attr('cx', ex + LEGEND_DOT_R)
           .attr('cy', LEGEND_HEIGHT / 2)
           .attr('r', LEGEND_DOT_R)
           .attr('fill', entry.color);
 
         // Label
-        entryG.append('text')
+        entryG
+          .append('text')
           .attr('x', ex + LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP)
           .attr('y', LEGEND_HEIGHT / 2 + LEGEND_ENTRY_FONT_SIZE / 2 - 2)
           .attr('text-anchor', 'start')
@@ -1590,28 +2072,48 @@ function renderTagLegend(
         // Hover: highlight matching tasks + labels + lane headers, fade others
         entryG
           .on('mouseenter', () => {
-            chartG.selectAll<SVGGElement, unknown>('.gantt-task').each(function () {
-              const el = d3Selection.select(this);
-              const matches = el.attr(`data-tag-${tagKey}`) === entryValue;
-              el.attr('opacity', matches ? 1 : FADE_OPACITY);
-            });
-            chartG.selectAll<SVGElement, unknown>('.gantt-milestone').attr('opacity', FADE_OPACITY);
-            chartG.selectAll<SVGElement, unknown>('.gantt-group-bar, .gantt-group-summary').attr('opacity', FADE_OPACITY);
+            chartG
+              .selectAll<SVGGElement, unknown>('.gantt-task')
+              .each(function () {
+                const el = d3Selection.select(this);
+                const matches = el.attr(`data-tag-${tagKey}`) === entryValue;
+                el.attr('opacity', matches ? 1 : FADE_OPACITY);
+              });
+            chartG
+              .selectAll<SVGElement, unknown>('.gantt-milestone')
+              .attr('opacity', FADE_OPACITY);
+            chartG
+              .selectAll<
+                SVGElement,
+                unknown
+              >('.gantt-group-bar, .gantt-group-summary')
+              .attr('opacity', FADE_OPACITY);
             // Fade left-side task labels
-            svg.selectAll<SVGTextElement, unknown>('.gantt-task-label').each(function () {
-              const el = d3Selection.select(this);
-              const matches = el.attr(`data-tag-${tagKey}`) === entryValue;
-              el.attr('opacity', matches ? 1 : FADE_OPACITY);
-            });
+            svg
+              .selectAll<SVGTextElement, unknown>('.gantt-task-label')
+              .each(function () {
+                const el = d3Selection.select(this);
+                const matches = el.attr(`data-tag-${tagKey}`) === entryValue;
+                el.attr('opacity', matches ? 1 : FADE_OPACITY);
+              });
             // Fade group labels
-            svg.selectAll<SVGGElement, unknown>('.gantt-group-label').attr('opacity', FADE_OPACITY);
+            svg
+              .selectAll<SVGGElement, unknown>('.gantt-group-label')
+              .attr('opacity', FADE_OPACITY);
             // Fade non-matching lane headers + bands + accents
-            svg.selectAll<SVGGElement, unknown>('.gantt-lane-header').each(function () {
-              const el = d3Selection.select(this);
-              const matches = el.attr(`data-tag-${tagKey}`) === entryValue;
-              el.attr('opacity', matches ? 1 : FADE_OPACITY);
-            });
-            chartG.selectAll<SVGElement, unknown>('.gantt-lane-band, .gantt-lane-accent').attr('opacity', FADE_OPACITY);
+            svg
+              .selectAll<SVGGElement, unknown>('.gantt-lane-header')
+              .each(function () {
+                const el = d3Selection.select(this);
+                const matches = el.attr(`data-tag-${tagKey}`) === entryValue;
+                el.attr('opacity', matches ? 1 : FADE_OPACITY);
+              });
+            chartG
+              .selectAll<
+                SVGElement,
+                unknown
+              >('.gantt-lane-band, .gantt-lane-accent')
+              .attr('opacity', FADE_OPACITY);
           })
           .on('mouseleave', () => {
             if (criticalPathActive) {
@@ -1621,7 +2123,11 @@ function renderTagLegend(
             }
           });
 
-        ex += LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP + measureLegendText(entry.value, LEGEND_ENTRY_FONT_SIZE) + LEGEND_ENTRY_TRAIL;
+        ex +=
+          LEGEND_DOT_R * 2 +
+          LEGEND_ENTRY_DOT_GAP +
+          measureLegendText(entry.value, LEGEND_ENTRY_FONT_SIZE) +
+          LEGEND_ENTRY_TRAIL;
       }
     }
 
@@ -1631,21 +2137,26 @@ function renderTagLegend(
   // Critical Path pill
   if (hasCriticalPath) {
     const cpLineNum = optionLineNumbers['critical-path'];
-    const cpG = legendRow.append('g')
+    const cpG = legendRow
+      .append('g')
       .attr('transform', `translate(${cursorX}, 0)`)
       .attr('class', 'gantt-legend-critical-path')
       .style('cursor', 'pointer')
-      .on('click', () => { if (onToggleCriticalPath) onToggleCriticalPath(); });
+      .on('click', () => {
+        if (onToggleCriticalPath) onToggleCriticalPath();
+      });
     if (cpLineNum) cpG.attr('data-line-number', String(cpLineNum));
 
-    cpG.append('rect')
+    cpG
+      .append('rect')
       .attr('width', cpPillW)
       .attr('height', LEGEND_HEIGHT)
       .attr('rx', LEGEND_HEIGHT / 2)
       .attr('fill', criticalPathActive ? palette.bg : groupBg);
 
     if (criticalPathActive) {
-      cpG.append('rect')
+      cpG
+        .append('rect')
         .attr('width', cpPillW)
         .attr('height', LEGEND_HEIGHT)
         .attr('rx', LEGEND_HEIGHT / 2)
@@ -1654,7 +2165,8 @@ function renderTagLegend(
         .attr('stroke-width', 0.75);
     }
 
-    cpG.append('text')
+    cpG
+      .append('text')
       .attr('x', cpPillW / 2)
       .attr('y', LEGEND_HEIGHT / 2 + LEGEND_PILL_FONT_SIZE / 2 - 2)
       .attr('text-anchor', 'middle')
@@ -1690,7 +2202,7 @@ function renderErasAndMarkers(
   resolved: ResolvedSchedule,
   xScale: d3Scale.ScaleLinear<number, number>,
   innerHeight: number,
-  palette: PaletteColors,
+  palette: PaletteColors
 ): void {
   // Eras: semi-transparent background bands
   for (let i = 0; i < resolved.eras.length; i++) {
@@ -1705,11 +2217,13 @@ function renderErasAndMarkers(
     const eraStartDate = parseDateStringToDate(era.startDate);
     const eraEndDate = parseDateStringToDate(era.endDate);
 
-    const eraG = g.append('g')
+    const eraG = g
+      .append('g')
       .attr('class', 'gantt-era-group')
       .attr('data-line-number', String(era.lineNumber));
 
-    const eraRect = eraG.append('rect')
+    const eraRect = eraG
+      .append('rect')
       .attr('class', 'gantt-era')
       .attr('x', sx)
       .attr('y', 0)
@@ -1719,7 +2233,8 @@ function renderErasAndMarkers(
       .attr('opacity', baseEraOpacity);
 
     // Era label (above date scale, same zone as markers)
-    eraG.append('text')
+    eraG
+      .append('text')
       .attr('class', 'gantt-era-label')
       .attr('x', (sx + ex) / 2)
       .attr('y', -24)
@@ -1733,18 +2248,46 @@ function renderErasAndMarkers(
     eraG
       .on('mouseenter', () => {
         // Fade everything
-        g.selectAll<SVGGElement, unknown>('.gantt-task').attr('opacity', FADE_OPACITY);
-        g.selectAll<SVGElement, unknown>('.gantt-milestone').attr('opacity', FADE_OPACITY);
-        g.selectAll<SVGElement, unknown>('.gantt-group-bar, .gantt-group-summary').attr('opacity', FADE_OPACITY);
-        svg.selectAll<SVGGElement, unknown>('.gantt-group-label').attr('opacity', FADE_OPACITY);
-        svg.selectAll<SVGTextElement, unknown>('.gantt-task-label').attr('opacity', FADE_OPACITY);
-        svg.selectAll<SVGGElement, unknown>('.gantt-lane-header').attr('opacity', FADE_OPACITY);
-        g.selectAll<SVGElement, unknown>('.gantt-lane-band, .gantt-lane-accent, .gantt-lane-band-group').attr('opacity', FADE_OPACITY);
-        g.selectAll<SVGElement, unknown>('.gantt-dep-arrow, .gantt-dep-arrowhead').attr('opacity', FADE_OPACITY);
-        g.selectAll<SVGElement, unknown>('.gantt-marker-group').attr('opacity', FADE_OPACITY);
+        g.selectAll<SVGGElement, unknown>('.gantt-task').attr(
+          'opacity',
+          FADE_OPACITY
+        );
+        g.selectAll<SVGElement, unknown>('.gantt-milestone').attr(
+          'opacity',
+          FADE_OPACITY
+        );
+        g.selectAll<SVGElement, unknown>(
+          '.gantt-group-bar, .gantt-group-summary'
+        ).attr('opacity', FADE_OPACITY);
+        svg
+          .selectAll<SVGGElement, unknown>('.gantt-group-label')
+          .attr('opacity', FADE_OPACITY);
+        svg
+          .selectAll<SVGTextElement, unknown>('.gantt-task-label')
+          .attr('opacity', FADE_OPACITY);
+        svg
+          .selectAll<SVGGElement, unknown>('.gantt-lane-header')
+          .attr('opacity', FADE_OPACITY);
+        g.selectAll<SVGElement, unknown>(
+          '.gantt-lane-band, .gantt-lane-accent, .gantt-lane-band-group'
+        ).attr('opacity', FADE_OPACITY);
+        g.selectAll<SVGElement, unknown>(
+          '.gantt-dep-arrow, .gantt-dep-arrowhead'
+        ).attr('opacity', FADE_OPACITY);
+        g.selectAll<SVGElement, unknown>('.gantt-marker-group').attr(
+          'opacity',
+          FADE_OPACITY
+        );
         // Highlight this era
         eraRect.attr('opacity', hoverEraOpacity);
-        showGanttDateIndicators(g, xScale, eraStartDate, eraEndDate, innerHeight, color);
+        showGanttDateIndicators(
+          g,
+          xScale,
+          eraStartDate,
+          eraEndDate,
+          innerHeight,
+          color
+        );
       })
       .on('mouseleave', () => {
         resetHighlight(g, svg);
@@ -1762,13 +2305,15 @@ function renderErasAndMarkers(
     const labelY = -24;
     const diamondY = labelY + 14;
 
-    const markerG = g.append('g')
+    const markerG = g
+      .append('g')
       .attr('class', 'gantt-marker-group')
       .attr('data-line-number', String(marker.lineNumber))
       .style('cursor', 'pointer');
 
     // Invisible hit rect for easier clicking/hovering
-    markerG.append('rect')
+    markerG
+      .append('rect')
       .attr('x', mx - 40)
       .attr('y', labelY - 12)
       .attr('width', 80)
@@ -1777,7 +2322,8 @@ function renderErasAndMarkers(
       .attr('pointer-events', 'all');
 
     // Label above diamond
-    markerG.append('text')
+    markerG
+      .append('text')
       .attr('class', 'gantt-marker-label')
       .attr('x', mx)
       .attr('y', labelY)
@@ -1788,13 +2334,18 @@ function renderErasAndMarkers(
       .text(marker.label);
 
     // Diamond below label
-    markerG.append('path')
-      .attr('d', `M${mx},${diamondY - diamondSize} l${diamondSize},${diamondSize} l-${diamondSize},${diamondSize} l-${diamondSize},-${diamondSize} Z`)
+    markerG
+      .append('path')
+      .attr(
+        'd',
+        `M${mx},${diamondY - diamondSize} l${diamondSize},${diamondSize} l-${diamondSize},${diamondSize} l-${diamondSize},-${diamondSize} Z`
+      )
       .attr('fill', color)
       .attr('opacity', 0.9);
 
     // Dashed line from diamond down
-    markerG.append('line')
+    markerG
+      .append('line')
       .attr('class', 'gantt-marker')
       .attr('x1', mx)
       .attr('y1', diamondY + diamondSize)
@@ -1811,21 +2362,53 @@ function renderErasAndMarkers(
     markerG
       .on('mouseenter', () => {
         // Fade everything
-        g.selectAll<SVGGElement, unknown>('.gantt-task').attr('opacity', FADE_OPACITY);
-        g.selectAll<SVGElement, unknown>('.gantt-milestone').attr('opacity', FADE_OPACITY);
-        g.selectAll<SVGElement, unknown>('.gantt-group-bar, .gantt-group-summary').attr('opacity', FADE_OPACITY);
-        svg.selectAll<SVGGElement, unknown>('.gantt-group-label').attr('opacity', FADE_OPACITY);
-        svg.selectAll<SVGTextElement, unknown>('.gantt-task-label').attr('opacity', FADE_OPACITY);
-        svg.selectAll<SVGGElement, unknown>('.gantt-lane-header').attr('opacity', FADE_OPACITY);
-        g.selectAll<SVGElement, unknown>('.gantt-lane-band, .gantt-lane-accent, .gantt-lane-band-group').attr('opacity', FADE_OPACITY);
-        g.selectAll<SVGElement, unknown>('.gantt-dep-arrow, .gantt-dep-arrowhead').attr('opacity', FADE_OPACITY);
-        g.selectAll<SVGElement, unknown>('.gantt-era-group').attr('opacity', FADE_OPACITY);
+        g.selectAll<SVGGElement, unknown>('.gantt-task').attr(
+          'opacity',
+          FADE_OPACITY
+        );
+        g.selectAll<SVGElement, unknown>('.gantt-milestone').attr(
+          'opacity',
+          FADE_OPACITY
+        );
+        g.selectAll<SVGElement, unknown>(
+          '.gantt-group-bar, .gantt-group-summary'
+        ).attr('opacity', FADE_OPACITY);
+        svg
+          .selectAll<SVGGElement, unknown>('.gantt-group-label')
+          .attr('opacity', FADE_OPACITY);
+        svg
+          .selectAll<SVGTextElement, unknown>('.gantt-task-label')
+          .attr('opacity', FADE_OPACITY);
+        svg
+          .selectAll<SVGGElement, unknown>('.gantt-lane-header')
+          .attr('opacity', FADE_OPACITY);
+        g.selectAll<SVGElement, unknown>(
+          '.gantt-lane-band, .gantt-lane-accent, .gantt-lane-band-group'
+        ).attr('opacity', FADE_OPACITY);
+        g.selectAll<SVGElement, unknown>(
+          '.gantt-dep-arrow, .gantt-dep-arrowhead'
+        ).attr('opacity', FADE_OPACITY);
+        g.selectAll<SVGElement, unknown>('.gantt-era-group').attr(
+          'opacity',
+          FADE_OPACITY
+        );
         // Fade other markers but keep this one highlighted
-        g.selectAll<SVGElement, unknown>('.gantt-marker-group').attr('opacity', FADE_OPACITY);
+        g.selectAll<SVGElement, unknown>('.gantt-marker-group').attr(
+          'opacity',
+          FADE_OPACITY
+        );
         markerG.attr('opacity', 1);
         markerLine.attr('opacity', 0.8);
         markerDiamond.attr('opacity', 0);
-        showGanttDateIndicators(g, xScale, markerDate, null, innerHeight, color, { skipStartLine: true });
+        showGanttDateIndicators(
+          g,
+          xScale,
+          markerDate,
+          null,
+          innerHeight,
+          color,
+          { skipStartLine: true }
+        );
       })
       .on('mouseleave', () => {
         resetHighlight(g, svg);
@@ -1841,7 +2424,7 @@ function renderErasAndMarkers(
  * Used for eras and markers which store dates as strings.
  */
 function parseDateStringToDate(s: string): Date {
-  const parts = s.split('-').map(p => parseInt(p, 10));
+  const parts = s.split('-').map((p) => parseInt(p, 10));
   const year = parts[0];
   const month = parts.length >= 2 ? parts[1] - 1 : 0;
   const day = parts.length >= 3 ? parts[2] : 1;
@@ -1864,28 +2447,34 @@ function highlightDeps(
   g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
   taskId: string,
-  resolved: ResolvedSchedule,
+  resolved: ResolvedSchedule
 ): void {
   // Find immediate predecessors and successors
   const related = new Set<string>([taskId]);
-  const task = resolved.tasks.find(t => t.task.id === taskId);
+  const task = resolved.tasks.find((t) => t.task.id === taskId);
   if (!task) return;
 
   // Predecessors: tasks whose deps point to this task
   for (const rt of resolved.tasks) {
     for (const dep of rt.task.dependencies) {
       // Check if this dep points to our task
-      if (dep.targetName === task.task.label ||
-          `${task.groupPath.join('.')}.${task.task.label}`.endsWith(dep.targetName)) {
+      if (
+        dep.targetName === task.task.label ||
+        `${task.groupPath.join('.')}.${task.task.label}`.endsWith(
+          dep.targetName
+        )
+      ) {
         related.add(rt.task.id);
       }
     }
   }
   // Successors: tasks this task has deps pointing to
   for (const dep of task.task.dependencies) {
-    const target = resolved.tasks.find(t =>
-      t.task.label === dep.targetName ||
-      `${t.groupPath.join('.')}.${t.task.label}`.endsWith(dep.targetName));
+    const target = resolved.tasks.find(
+      (t) =>
+        t.task.label === dep.targetName ||
+        `${t.groupPath.join('.')}.${t.task.label}`.endsWith(dep.targetName)
+    );
     if (target) related.add(target.task.id);
   }
 
@@ -1895,14 +2484,28 @@ function highlightDeps(
     const id = el.attr('data-task-id');
     el.attr('opacity', id && related.has(id) ? 1 : FADE_OPACITY);
   });
-  g.selectAll<SVGGElement, unknown>('.gantt-milestone').attr('opacity', FADE_OPACITY);
-  g.selectAll<SVGElement, unknown>('.gantt-group-bar, .gantt-group-summary').attr('opacity', FADE_OPACITY);
-  svg.selectAll<SVGGElement, unknown>('.gantt-group-label').attr('opacity', FADE_OPACITY);
-  svg.selectAll<SVGGElement, unknown>('.gantt-lane-header').attr('opacity', FADE_OPACITY);
-  g.selectAll<SVGElement, unknown>('.gantt-lane-band, .gantt-lane-accent').attr('opacity', FADE_OPACITY);
+  g.selectAll<SVGGElement, unknown>('.gantt-milestone').attr(
+    'opacity',
+    FADE_OPACITY
+  );
+  g.selectAll<SVGElement, unknown>(
+    '.gantt-group-bar, .gantt-group-summary'
+  ).attr('opacity', FADE_OPACITY);
+  svg
+    .selectAll<SVGGElement, unknown>('.gantt-group-label')
+    .attr('opacity', FADE_OPACITY);
+  svg
+    .selectAll<SVGGElement, unknown>('.gantt-lane-header')
+    .attr('opacity', FADE_OPACITY);
+  g.selectAll<SVGElement, unknown>('.gantt-lane-band, .gantt-lane-accent').attr(
+    'opacity',
+    FADE_OPACITY
+  );
 
   // Fade dependency arrows not connected to related tasks
-  g.selectAll<SVGElement, unknown>('.gantt-dep-arrow, .gantt-dep-arrowhead').each(function () {
+  g.selectAll<SVGElement, unknown>(
+    '.gantt-dep-arrow, .gantt-dep-arrowhead'
+  ).each(function () {
     const el = d3Selection.select(this);
     const from = el.attr('data-dep-from');
     const to = el.attr('data-dep-to');
@@ -1910,13 +2513,16 @@ function highlightDeps(
     el.attr('opacity', isRelated ? 0.5 : FADE_OPACITY);
   });
   // Fade markers
-  g.selectAll<SVGElement, unknown>('.gantt-marker-group').attr('opacity', FADE_OPACITY);
+  g.selectAll<SVGElement, unknown>('.gantt-marker-group').attr(
+    'opacity',
+    FADE_OPACITY
+  );
 }
 
 function highlightGroup(
   g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
-  groupName: string,
+  groupName: string
 ): void {
   // Fade tasks not in this group
   g.selectAll<SVGGElement, unknown>('.gantt-task').each(function () {
@@ -1929,7 +2535,9 @@ function highlightGroup(
     el.attr('opacity', el.attr('data-group') === groupName ? 1 : FADE_OPACITY);
   });
   // Fade other group bars
-  g.selectAll<SVGElement, unknown>('.gantt-group-bar, .gantt-group-summary').each(function () {
+  g.selectAll<SVGElement, unknown>(
+    '.gantt-group-bar, .gantt-group-summary'
+  ).each(function () {
     const el = d3Selection.select(this);
     el.attr('opacity', el.attr('data-group') === groupName ? 1 : FADE_OPACITY);
   });
@@ -1944,23 +2552,44 @@ function highlightGroup(
     el.attr('opacity', el.attr('data-group') === groupName ? 1 : FADE_OPACITY);
   });
   // Fade group bands not matching
-  svg.selectAll<SVGElement, unknown>('.gantt-group-band-bg, .gantt-group-band-accent').each(function () {
-    const el = d3Selection.select(this);
-    el.attr('opacity', el.attr('data-group') === groupName ? 1 : FADE_OPACITY);
-  });
+  svg
+    .selectAll<
+      SVGElement,
+      unknown
+    >('.gantt-group-band-bg, .gantt-group-band-accent')
+    .each(function () {
+      const el = d3Selection.select(this);
+      el.attr(
+        'opacity',
+        el.attr('data-group') === groupName ? 1 : FADE_OPACITY
+      );
+    });
   // Fade lane elements
-  svg.selectAll<SVGGElement, unknown>('.gantt-lane-header').attr('opacity', FADE_OPACITY);
-  svg.selectAll<SVGElement, unknown>('.gantt-lane-band-bg, .gantt-lane-band-accent').attr('opacity', FADE_OPACITY);
-  g.selectAll<SVGElement, unknown>('.gantt-lane-band, .gantt-lane-accent').attr('opacity', FADE_OPACITY);
+  svg
+    .selectAll<SVGGElement, unknown>('.gantt-lane-header')
+    .attr('opacity', FADE_OPACITY);
+  svg
+    .selectAll<
+      SVGElement,
+      unknown
+    >('.gantt-lane-band-bg, .gantt-lane-band-accent')
+    .attr('opacity', FADE_OPACITY);
+  g.selectAll<SVGElement, unknown>('.gantt-lane-band, .gantt-lane-accent').attr(
+    'opacity',
+    FADE_OPACITY
+  );
   // Fade markers
-  g.selectAll<SVGElement, unknown>('.gantt-marker-group').attr('opacity', FADE_OPACITY);
+  g.selectAll<SVGElement, unknown>('.gantt-marker-group').attr(
+    'opacity',
+    FADE_OPACITY
+  );
 }
 
 function highlightLane(
   g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
   tagKey: string,
-  laneName: string,
+  laneName: string
 ): void {
   const tagAttr = `data-tag-${tagKey}`;
   const laneValue = laneName.toLowerCase();
@@ -1991,22 +2620,39 @@ function highlightLane(
     el.attr('opacity', el.attr('data-lane') === laneName ? 1 : FADE_OPACITY);
   });
   // Fade lane bands not matching
-  svg.selectAll<SVGElement, unknown>('.gantt-lane-band-bg, .gantt-lane-band-accent').each(function () {
-    const el = d3Selection.select(this);
-    el.attr('opacity', el.attr('data-lane') === laneName ? 1 : FADE_OPACITY);
-  });
+  svg
+    .selectAll<
+      SVGElement,
+      unknown
+    >('.gantt-lane-band-bg, .gantt-lane-band-accent')
+    .each(function () {
+      const el = d3Selection.select(this);
+      el.attr('opacity', el.attr('data-lane') === laneName ? 1 : FADE_OPACITY);
+    });
   // Fade group elements (not relevant in lane mode)
-  g.selectAll<SVGElement, unknown>('.gantt-group-bar, .gantt-group-summary').attr('opacity', FADE_OPACITY);
-  svg.selectAll<SVGGElement, unknown>('.gantt-group-label').attr('opacity', FADE_OPACITY);
-  svg.selectAll<SVGElement, unknown>('.gantt-group-band-bg, .gantt-group-band-accent').attr('opacity', FADE_OPACITY);
+  g.selectAll<SVGElement, unknown>(
+    '.gantt-group-bar, .gantt-group-summary'
+  ).attr('opacity', FADE_OPACITY);
+  svg
+    .selectAll<SVGGElement, unknown>('.gantt-group-label')
+    .attr('opacity', FADE_OPACITY);
+  svg
+    .selectAll<
+      SVGElement,
+      unknown
+    >('.gantt-group-band-bg, .gantt-group-band-accent')
+    .attr('opacity', FADE_OPACITY);
   // Fade markers
-  g.selectAll<SVGElement, unknown>('.gantt-marker-group').attr('opacity', FADE_OPACITY);
+  g.selectAll<SVGElement, unknown>('.gantt-marker-group').attr(
+    'opacity',
+    FADE_OPACITY
+  );
 }
 
 function highlightTask(
   g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
-  taskId: string,
+  taskId: string
 ): void {
   // Fade tasks not matching
   g.selectAll<SVGGElement, unknown>('.gantt-task').each(function () {
@@ -2014,31 +2660,60 @@ function highlightTask(
     el.attr('opacity', el.attr('data-task-id') === taskId ? 1 : FADE_OPACITY);
   });
   // Fade milestones not matching
-  g.selectAll<SVGElement, unknown>('.gantt-milestone').attr('opacity', FADE_OPACITY);
+  g.selectAll<SVGElement, unknown>('.gantt-milestone').attr(
+    'opacity',
+    FADE_OPACITY
+  );
   // Fade task labels not matching
   svg.selectAll<SVGTextElement, unknown>('.gantt-task-label').each(function () {
     const el = d3Selection.select(this);
     el.attr('opacity', el.attr('data-task-id') === taskId ? 1 : FADE_OPACITY);
   });
   // Fade group/lane elements
-  g.selectAll<SVGElement, unknown>('.gantt-group-bar, .gantt-group-summary').attr('opacity', FADE_OPACITY);
-  svg.selectAll<SVGGElement, unknown>('.gantt-group-label').attr('opacity', FADE_OPACITY);
-  svg.selectAll<SVGElement, unknown>('.gantt-group-band-bg, .gantt-group-band-accent').attr('opacity', FADE_OPACITY);
-  svg.selectAll<SVGGElement, unknown>('.gantt-lane-header').attr('opacity', FADE_OPACITY);
-  svg.selectAll<SVGElement, unknown>('.gantt-lane-band-bg, .gantt-lane-band-accent').attr('opacity', FADE_OPACITY);
-  g.selectAll<SVGElement, unknown>('.gantt-lane-band, .gantt-lane-accent, .gantt-lane-band-group').attr('opacity', FADE_OPACITY);
-  g.selectAll<SVGElement, unknown>('.gantt-dep-arrow, .gantt-dep-arrowhead').attr('opacity', FADE_OPACITY);
+  g.selectAll<SVGElement, unknown>(
+    '.gantt-group-bar, .gantt-group-summary'
+  ).attr('opacity', FADE_OPACITY);
+  svg
+    .selectAll<SVGGElement, unknown>('.gantt-group-label')
+    .attr('opacity', FADE_OPACITY);
+  svg
+    .selectAll<
+      SVGElement,
+      unknown
+    >('.gantt-group-band-bg, .gantt-group-band-accent')
+    .attr('opacity', FADE_OPACITY);
+  svg
+    .selectAll<SVGGElement, unknown>('.gantt-lane-header')
+    .attr('opacity', FADE_OPACITY);
+  svg
+    .selectAll<
+      SVGElement,
+      unknown
+    >('.gantt-lane-band-bg, .gantt-lane-band-accent')
+    .attr('opacity', FADE_OPACITY);
+  g.selectAll<SVGElement, unknown>(
+    '.gantt-lane-band, .gantt-lane-accent, .gantt-lane-band-group'
+  ).attr('opacity', FADE_OPACITY);
+  g.selectAll<SVGElement, unknown>(
+    '.gantt-dep-arrow, .gantt-dep-arrowhead'
+  ).attr('opacity', FADE_OPACITY);
   // Fade markers
-  g.selectAll<SVGElement, unknown>('.gantt-marker-group').attr('opacity', FADE_OPACITY);
+  g.selectAll<SVGElement, unknown>('.gantt-marker-group').attr(
+    'opacity',
+    FADE_OPACITY
+  );
 }
 
 function highlightMilestone(
   g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
-  taskId: string,
+  taskId: string
 ): void {
   // Fade tasks
-  g.selectAll<SVGGElement, unknown>('.gantt-task').attr('opacity', FADE_OPACITY);
+  g.selectAll<SVGGElement, unknown>('.gantt-task').attr(
+    'opacity',
+    FADE_OPACITY
+  );
   // Fade milestones not matching
   g.selectAll<SVGElement, unknown>('.gantt-milestone').each(function () {
     const el = d3Selection.select(this);
@@ -2050,20 +2725,43 @@ function highlightMilestone(
     el.attr('opacity', el.attr('data-task-id') === taskId ? 1 : FADE_OPACITY);
   });
   // Fade group/lane elements
-  g.selectAll<SVGElement, unknown>('.gantt-group-bar, .gantt-group-summary').attr('opacity', FADE_OPACITY);
-  svg.selectAll<SVGGElement, unknown>('.gantt-group-label').attr('opacity', FADE_OPACITY);
-  svg.selectAll<SVGElement, unknown>('.gantt-group-band-bg, .gantt-group-band-accent').attr('opacity', FADE_OPACITY);
-  svg.selectAll<SVGGElement, unknown>('.gantt-lane-header').attr('opacity', FADE_OPACITY);
-  svg.selectAll<SVGElement, unknown>('.gantt-lane-band-bg, .gantt-lane-band-accent').attr('opacity', FADE_OPACITY);
-  g.selectAll<SVGElement, unknown>('.gantt-lane-band, .gantt-lane-accent, .gantt-lane-band-group').attr('opacity', FADE_OPACITY);
-  g.selectAll<SVGElement, unknown>('.gantt-dep-arrow, .gantt-dep-arrowhead').attr('opacity', FADE_OPACITY);
+  g.selectAll<SVGElement, unknown>(
+    '.gantt-group-bar, .gantt-group-summary'
+  ).attr('opacity', FADE_OPACITY);
+  svg
+    .selectAll<SVGGElement, unknown>('.gantt-group-label')
+    .attr('opacity', FADE_OPACITY);
+  svg
+    .selectAll<
+      SVGElement,
+      unknown
+    >('.gantt-group-band-bg, .gantt-group-band-accent')
+    .attr('opacity', FADE_OPACITY);
+  svg
+    .selectAll<SVGGElement, unknown>('.gantt-lane-header')
+    .attr('opacity', FADE_OPACITY);
+  svg
+    .selectAll<
+      SVGElement,
+      unknown
+    >('.gantt-lane-band-bg, .gantt-lane-band-accent')
+    .attr('opacity', FADE_OPACITY);
+  g.selectAll<SVGElement, unknown>(
+    '.gantt-lane-band, .gantt-lane-accent, .gantt-lane-band-group'
+  ).attr('opacity', FADE_OPACITY);
+  g.selectAll<SVGElement, unknown>(
+    '.gantt-dep-arrow, .gantt-dep-arrowhead'
+  ).attr('opacity', FADE_OPACITY);
   // Fade markers
-  g.selectAll<SVGElement, unknown>('.gantt-marker-group').attr('opacity', FADE_OPACITY);
+  g.selectAll<SVGElement, unknown>('.gantt-marker-group').attr(
+    'opacity',
+    FADE_OPACITY
+  );
 }
 
 function highlightTaskLabel(
   svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
-  lineNumber: number,
+  lineNumber: number
 ): void {
   const ln = String(lineNumber);
   svg.selectAll<SVGTextElement, unknown>('.gantt-task-label').each(function () {
@@ -2073,24 +2771,47 @@ function highlightTaskLabel(
 }
 
 function resetTaskLabels(
-  svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
+  svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>
 ): void {
-  svg.selectAll<SVGTextElement, unknown>('.gantt-task-label').attr('opacity', 1);
+  svg
+    .selectAll<SVGTextElement, unknown>('.gantt-task-label')
+    .attr('opacity', 1);
 }
 
 function resetHighlight(
   g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
-  svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
+  svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>
 ): void {
-  g.selectAll<SVGGElement, unknown>('.gantt-task, .gantt-milestone').attr('opacity', 1);
-  g.selectAll<SVGElement, unknown>('.gantt-group-bar, .gantt-group-summary').attr('opacity', 1);
+  g.selectAll<SVGGElement, unknown>('.gantt-task, .gantt-milestone').attr(
+    'opacity',
+    1
+  );
+  g.selectAll<SVGElement, unknown>(
+    '.gantt-group-bar, .gantt-group-summary'
+  ).attr('opacity', 1);
   svg.selectAll<SVGGElement, unknown>('.gantt-group-label').attr('opacity', 1);
-  svg.selectAll<SVGElement, unknown>('.gantt-group-band-bg, .gantt-group-band-accent').attr('opacity', 1);
-  svg.selectAll<SVGTextElement, unknown>('.gantt-task-label').attr('opacity', 1);
+  svg
+    .selectAll<
+      SVGElement,
+      unknown
+    >('.gantt-group-band-bg, .gantt-group-band-accent')
+    .attr('opacity', 1);
+  svg
+    .selectAll<SVGTextElement, unknown>('.gantt-task-label')
+    .attr('opacity', 1);
   svg.selectAll<SVGGElement, unknown>('.gantt-lane-header').attr('opacity', 1);
-  svg.selectAll<SVGElement, unknown>('.gantt-lane-band-bg, .gantt-lane-band-accent').attr('opacity', 1);
-  g.selectAll<SVGElement, unknown>('.gantt-lane-band, .gantt-lane-accent, .gantt-lane-band-group').attr('opacity', 1);
-  g.selectAll<SVGElement, unknown>('.gantt-dep-arrow, .gantt-dep-arrowhead').attr('opacity', 0.5);
+  svg
+    .selectAll<
+      SVGElement,
+      unknown
+    >('.gantt-lane-band-bg, .gantt-lane-band-accent')
+    .attr('opacity', 1);
+  g.selectAll<SVGElement, unknown>(
+    '.gantt-lane-band, .gantt-lane-accent, .gantt-lane-band-group'
+  ).attr('opacity', 1);
+  g.selectAll<SVGElement, unknown>(
+    '.gantt-dep-arrow, .gantt-dep-arrowhead'
+  ).attr('opacity', 0.5);
   g.selectAll<SVGElement, unknown>('.gantt-marker-group').attr('opacity', 1);
   g.selectAll<SVGElement, unknown>('.gantt-era-group').attr('opacity', 1);
 }
@@ -2099,13 +2820,30 @@ function resetHighlight(
 
 type GroupRow = { type: 'group'; group: ResolvedGroup };
 type TaskRow = { type: 'task'; task: ResolvedTask };
-type LaneHeaderRow = { type: 'lane-header'; laneName: string; laneColor: string; aggregateProgress: number | null; tagKey: string; isCollapsed: boolean; laneStartDate: Date | null; laneEndDate: Date | null };
+type LaneHeaderRow = {
+  type: 'lane-header';
+  laneName: string;
+  laneColor: string;
+  aggregateProgress: number | null;
+  tagKey: string;
+  isCollapsed: boolean;
+  laneStartDate: Date | null;
+  laneEndDate: Date | null;
+};
 type Row = GroupRow | TaskRow | LaneHeaderRow;
 
 // Public type aliases (prefixed to avoid collisions in consumer code)
-export type { GroupRow as GanttGroupRow, TaskRow as GanttTaskRow, LaneHeaderRow as GanttLaneHeaderRow, Row as GanttRow };
+export type {
+  GroupRow as GanttGroupRow,
+  TaskRow as GanttTaskRow,
+  LaneHeaderRow as GanttLaneHeaderRow,
+  Row as GanttRow,
+};
 
-function buildRowList(resolved: ResolvedSchedule, collapsedGroups?: Set<string>): Row[] {
+function buildRowList(
+  resolved: ResolvedSchedule,
+  collapsedGroups?: Set<string>
+): Row[] {
   const rows: Row[] = [];
   const groupMap = new Map<string, ResolvedGroup>();
   for (const g of resolved.groups) {
@@ -2139,7 +2877,7 @@ function buildRowList(resolved: ResolvedSchedule, collapsedGroups?: Set<string>)
   const seenGroups = new Set<string>();
   for (const rt of sortedTasks) {
     // Check if any group in this task's path is collapsed
-    const isHidden = rt.groupPath.some(g => collapsedGroups?.has(g));
+    const isHidden = rt.groupPath.some((g) => collapsedGroups?.has(g));
     if (isHidden) {
       // Still insert collapsed group headers if not seen
       for (const groupName of rt.groupPath) {
@@ -2177,10 +2915,10 @@ function buildRowList(resolved: ResolvedSchedule, collapsedGroups?: Set<string>)
 export function buildTagLaneRowList(
   resolved: ResolvedSchedule,
   swimlaneGroup: string,
-  collapsedLanes?: Set<string>,
+  collapsedLanes?: Set<string>
 ): Row[] | null {
   const tagGroup = resolved.tagGroups.find(
-    g => g.name.toLowerCase() === swimlaneGroup.toLowerCase()
+    (g) => g.name.toLowerCase() === swimlaneGroup.toLowerCase()
   );
   if (!tagGroup) return null;
 
@@ -2217,8 +2955,14 @@ export function buildTagLaneRowList(
     const aggregateProgress = durationWeightedProgress(tasks);
 
     // Compute lane date range from tasks
-    const laneStartDate = tasks.length > 0 ? new Date(Math.min(...tasks.map(t => t.startDate.getTime()))) : null;
-    const laneEndDate = tasks.length > 0 ? new Date(Math.max(...tasks.map(t => t.endDate.getTime()))) : null;
+    const laneStartDate =
+      tasks.length > 0
+        ? new Date(Math.min(...tasks.map((t) => t.startDate.getTime())))
+        : null;
+    const laneEndDate =
+      tasks.length > 0
+        ? new Date(Math.max(...tasks.map((t) => t.endDate.getTime())))
+        : null;
 
     const isCollapsed = collapsedLanes?.has(entry.value) ?? false;
     rows.push({
@@ -2243,8 +2987,14 @@ export function buildTagLaneRowList(
     unbucketed.sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
     const aggregateProgress = durationWeightedProgress(unbucketed);
 
-    const noLaneStartDate = unbucketed.length > 0 ? new Date(Math.min(...unbucketed.map(t => t.startDate.getTime()))) : null;
-    const noLaneEndDate = unbucketed.length > 0 ? new Date(Math.max(...unbucketed.map(t => t.endDate.getTime()))) : null;
+    const noLaneStartDate =
+      unbucketed.length > 0
+        ? new Date(Math.min(...unbucketed.map((t) => t.startDate.getTime())))
+        : null;
+    const noLaneEndDate =
+      unbucketed.length > 0
+        ? new Date(Math.max(...unbucketed.map((t) => t.endDate.getTime())))
+        : null;
 
     const noLaneName = `No ${tagGroup.name}`;
     const isCollapsed = collapsedLanes?.has(noLaneName) ?? false;
@@ -2283,14 +3033,18 @@ function durationWeightedProgress(tasks: ResolvedTask[]): number | null {
       hasProgress = true;
     }
   }
-  return hasProgress && totalDuration > 0 ? totalProgress / totalDuration : null;
+  return hasProgress && totalDuration > 0
+    ? totalProgress / totalDuration
+    : null;
 }
 
 function dateToFractionalYear(d: Date): number {
   const y = d.getFullYear();
   const startOfYear = new Date(y, 0, 1);
   const endOfYear = new Date(y + 1, 0, 1);
-  const fraction = (d.getTime() - startOfYear.getTime()) / (endOfYear.getTime() - startOfYear.getTime());
+  const fraction =
+    (d.getTime() - startOfYear.getTime()) /
+    (endOfYear.getTime() - startOfYear.getTime());
   return y + fraction;
 }
 
@@ -2301,7 +3055,20 @@ function diamondPoints(cx: number, cy: number, size: number): string {
 
 // ── Hover Date Indicators ───────────────────────────────────
 
-const MONTH_ABBR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const MONTH_ABBR = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
 
 function formatGanttDate(d: Date): string {
   const base = `${MONTH_ABBR[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
@@ -2318,7 +3085,7 @@ function showGanttDateIndicators(
   endDate: Date | null,
   innerHeight: number,
   color: string,
-  options?: { skipStartLine?: boolean },
+  options?: { skipStartLine?: boolean }
 ): void {
   // Fade existing scale ticks and today marker
   g.selectAll('.gantt-scale-tick').attr('opacity', 0.05);
@@ -2326,7 +3093,8 @@ function showGanttDateIndicators(
 
   // Wrap all hover indicators in a group that ignores pointer events,
   // so they don't steal mouseleave from the element being hovered.
-  const hg = g.append('g')
+  const hg = g
+    .append('g')
     .attr('class', 'gantt-hover-date')
     .attr('pointer-events', 'none');
 
@@ -2403,12 +3171,14 @@ function showGanttDateIndicators(
       .attr('opacity', 0.6);
 
     // Reposition start labels to avoid overlap
-    hg.selectAll<SVGTextElement, unknown>('text.gantt-hover-date').each(function () {
-      const el = d3Selection.select(this);
-      if (el.text() === startLabel) {
-        el.attr('x', startLabelX).attr('text-anchor', startAnchor);
+    hg.selectAll<SVGTextElement, unknown>('text.gantt-hover-date').each(
+      function () {
+        const el = d3Selection.select(this);
+        if (el.text() === startLabel) {
+          el.attr('x', startLabelX).attr('text-anchor', startAnchor);
+        }
       }
-    });
+    );
 
     // End date — top label
     hg.append('text')
@@ -2435,7 +3205,7 @@ function showGanttDateIndicators(
 }
 
 function hideGanttDateIndicators(
-  g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
+  g: d3Selection.Selection<SVGGElement, unknown, null, undefined>
 ): void {
   g.selectAll('.gantt-hover-date').remove();
   // Restore scale tick opacity
@@ -2453,20 +3223,20 @@ function resolveTaskColor(
   activeTagGroup: string | null,
   resolved: ResolvedSchedule,
   seriesColors: string[],
-  palette: PaletteColors,
+  palette: PaletteColors
 ): string {
   // Try tag-based coloring first
   const tagColor = resolveTagColor(
     rt.effectiveMetadata,
     resolved.tagGroups,
-    activeTagGroup,
+    activeTagGroup
   );
   if (tagColor && tagColor !== '#999999') return tagColor;
 
   // Fall back to group-based coloring
   if (rt.groupPath.length > 0) {
     const topGroup = rt.groupPath[0];
-    const groupIdx = resolved.groups.findIndex(g => g.name === topGroup);
+    const groupIdx = resolved.groups.findIndex((g) => g.name === topGroup);
     if (groupIdx >= 0) {
       const group = resolved.groups[groupIdx];
       if (group.color) return group.color;
@@ -2483,7 +3253,7 @@ function renderTimeScaleHorizontal(
   scale: d3Scale.ScaleLinear<number, number>,
   innerWidth: number,
   innerHeight: number,
-  textColor: string,
+  textColor: string
 ): void {
   const [domainMin, domainMax] = scale.domain();
   const ticks = computeTimeTicks(domainMin, domainMax, scale);

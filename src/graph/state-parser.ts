@@ -8,12 +8,7 @@ import {
   OPTION_NOCOLON_RE,
   ALL_CHART_TYPES,
 } from '../utils/parsing';
-import type {
-  ParsedGraph,
-  GraphNode,
-  GraphGroup,
-  GraphDirection,
-} from './types';
+import type { ParsedGraph, GraphNode, GraphGroup } from './types';
 
 // ============================================================
 // Constants
@@ -36,7 +31,12 @@ const GROUP_BRACKET_RE = /^\[([^\]]+)\](?:\(([^)]+)\))?\s*$/;
  */
 function splitArrows(line: string): string[] {
   const segments: string[] = [];
-  const arrowPositions: { start: number; end: number; label?: string; color?: string }[] = [];
+  const arrowPositions: {
+    start: number;
+    end: number;
+    label?: string;
+    color?: string;
+  }[] = [];
 
   let searchFrom = 0;
   while (searchFrom < line.length) {
@@ -52,9 +52,13 @@ function splitArrows(line: string): string[] {
       while (scanBack > 0 && line[scanBack] !== '-') {
         scanBack--;
       }
-      if (line[scanBack] === '-' && (scanBack === 0 || /\s/.test(line[scanBack - 1]))) {
+      if (
+        line[scanBack] === '-' &&
+        (scanBack === 0 || /\s/.test(line[scanBack - 1]))
+      ) {
         let arrowContent = line.substring(scanBack + 1, idx);
-        if (arrowContent.endsWith('-')) arrowContent = arrowContent.slice(0, -1);
+        if (arrowContent.endsWith('-'))
+          arrowContent = arrowContent.slice(0, -1);
         const colorMatch = arrowContent.match(/\(([^)]+)\)\s*$/);
         if (colorMatch) {
           color = colorMatch[1].trim();
@@ -81,7 +85,8 @@ function splitArrows(line: string): string[] {
     if (beforeText || i === 0) segments.push(beforeText);
 
     let arrowToken = '->';
-    if (arrow.label && arrow.color) arrowToken = `-${arrow.label}(${arrow.color})->`;
+    if (arrow.label && arrow.color)
+      arrowToken = `-${arrow.label}(${arrow.color})->`;
     else if (arrow.label) arrowToken = `-${arrow.label}->`;
     else if (arrow.color) arrowToken = `-(${arrow.color})->`;
     segments.push(arrowToken);
@@ -101,11 +106,14 @@ interface ArrowInfo {
 function parseArrowToken(token: string, palette?: PaletteColors): ArrowInfo {
   if (token === '->') return {};
   const colorOnly = token.match(/^-\(([^)]+)\)->$/);
-  if (colorOnly) return { color: resolveColor(colorOnly[1].trim(), palette) ?? undefined };
+  if (colorOnly)
+    return { color: resolveColor(colorOnly[1].trim(), palette) ?? undefined };
   const m = token.match(/^-(.+?)(?:\(([^)]+)\))?->$/);
   if (m) {
     const label = m[1]?.trim() || undefined;
-    const color = m[2] ? resolveColor(m[2].trim(), palette) ?? undefined : undefined;
+    const color = m[2]
+      ? (resolveColor(m[2].trim(), palette) ?? undefined)
+      : undefined;
     return { label, color };
   }
   return {};
@@ -122,13 +130,20 @@ interface NodeRef {
   color?: string;
 }
 
-function parseStateNodeRef(text: string, palette?: PaletteColors): NodeRef | null {
+function parseStateNodeRef(
+  text: string,
+  palette?: PaletteColors
+): NodeRef | null {
   const t = text.trim();
   if (!t) return null;
 
   // Pseudostate: [*]
   if (t === '[*]') {
-    return { id: PSEUDOSTATE_ID, label: PSEUDOSTATE_LABEL, shape: 'pseudostate' };
+    return {
+      id: PSEUDOSTATE_ID,
+      label: PSEUDOSTATE_LABEL,
+      shape: 'pseudostate',
+    };
   }
 
   // State: bare text with optional (color) suffix
@@ -350,7 +365,13 @@ export function parseState(
         // Use explicit source if available, else implicit from indent
         const sourceId = lastNodeId ?? implicitSourceId;
         if (sourceId) {
-          addEdge(sourceId, node.id, lineNumber, pendingArrow.label, pendingArrow.color);
+          addEdge(
+            sourceId,
+            node.id,
+            lineNumber,
+            pendingArrow.label,
+            pendingArrow.color
+          );
         }
         pendingArrow = null;
       }
@@ -367,7 +388,10 @@ export function parseState(
 
   // Validation: no nodes found
   if (result.nodes.length === 0 && !result.error) {
-    const diag = makeDgmoError(1, 'No states found. Add state transitions like: Idle -> Active');
+    const diag = makeDgmoError(
+      1,
+      'No states found. Add state transitions like: Idle -> Active'
+    );
     result.diagnostics.push(diag);
     result.error = formatDgmoError(diag);
   }
@@ -381,7 +405,13 @@ export function parseState(
     }
     for (const node of result.nodes) {
       if (!connectedIds.has(node.id)) {
-        result.diagnostics.push(makeDgmoError(node.lineNumber, `State "${node.label}" is not connected to any other state`, 'warning'));
+        result.diagnostics.push(
+          makeDgmoError(
+            node.lineNumber,
+            `State "${node.label}" is not connected to any other state`,
+            'warning'
+          )
+        );
       }
     }
   }

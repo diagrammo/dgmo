@@ -18,7 +18,6 @@ import type {
   GanttGroup,
   GanttHolidays,
   ResolvedSchedule,
-  ResolvedTask,
   ResolvedGroup,
   Offset,
 } from './types';
@@ -27,7 +26,6 @@ import {
   addGanttDuration,
   buildHolidaySet,
   parseGanttDate,
-  daysBetween,
 } from '../utils/duration';
 
 // ── Internal types ──────────────────────────────────────────
@@ -65,7 +63,8 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
     diagnostics.push(makeDgmoError(line, message, 'warning'));
   };
 
-  const fail = (line: number, message: string): ResolvedSchedule => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _fail = (line: number, message: string): ResolvedSchedule => {
     const diag = makeDgmoError(line, message);
     diagnostics.push(diag);
     result.error = formatDgmoError(diag);
@@ -115,7 +114,8 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
   // ── Resolve explicit -> dependencies ────────────────────
 
   for (const task of allTasks) {
-    const node = taskMap.get(task.id)!;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const _node = taskMap.get(task.id)!;
     for (const dep of task.dependencies) {
       const resolved = resolveTaskName(dep.targetName, allTasks);
       if (isResolverError(resolved)) {
@@ -129,7 +129,10 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
       if (targetNode) {
         // Check for redundant dependency (already a sequential predecessor)
         if (targetNode.predecessors.includes(task.id)) {
-          warn(dep.lineNumber, `Redundant dependency: "${dep.targetName}" already follows "${task.label}" sequentially. Did you mean to wrap groups in \`parallel\`?`);
+          warn(
+            dep.lineNumber,
+            `Redundant dependency: "${dep.targetName}" already follows "${task.label}" sequentially. Did you mean to wrap groups in \`parallel\`?`
+          );
         } else {
           targetNode.predecessors.push(task.id);
           // Store dep offset info — we need it during scheduling
@@ -147,10 +150,10 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
   if (!sortedIds) {
     // Find cycle, warn, and break it by removing one explicit dep edge
     const cycle = findCycle(taskMap);
-    const cycleStr = cycle.map(id => taskMap.get(id)!.task.label).join(' → ');
+    const cycleStr = cycle.map((id) => taskMap.get(id)!.task.label).join(' → ');
     warn(
       taskMap.get(cycle[0])!.task.lineNumber,
-      `Circular dependency detected: ${cycleStr}. The cycle-creating dependency was dropped.`,
+      `Circular dependency detected: ${cycleStr}. The cycle-creating dependency was dropped.`
     );
 
     // Remove the last edge in the cycle to break it
@@ -200,7 +203,13 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
         // Apply dep offset if present
         const depOffset = depOffsetMap.get(`${predId}->${taskId}`);
         if (depOffset) {
-          predEnd = addGanttDuration(predEnd, depOffset.duration, parsed.holidays, holidaySet, depOffset.direction);
+          predEnd = addGanttDuration(
+            predEnd,
+            depOffset.duration,
+            parsed.holidays,
+            holidaySet,
+            depOffset.direction
+          );
         }
 
         if (predEnd.getTime() > start.getTime()) {
@@ -211,13 +220,25 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
 
     // Apply task-level offset (shifts start forward or backward)
     if (task.offset) {
-      start = addGanttDuration(start, task.offset.duration, parsed.holidays, holidaySet, task.offset.direction);
+      start = addGanttDuration(
+        start,
+        task.offset.duration,
+        parsed.holidays,
+        holidaySet,
+        task.offset.direction
+      );
       if (start.getTime() < projectStart.getTime()) {
-        warn(task.lineNumber, `Negative offset on task '${task.label}' exceeds available range; start clamped to project start.`);
+        warn(
+          task.lineNumber,
+          `Negative offset on task '${task.label}' exceeds available range; start clamped to project start.`
+        );
         start = new Date(projectStart);
       }
     } else if (start.getTime() < projectStart.getTime()) {
-      warn(task.lineNumber, `Negative offset on dependency exceeds available range; start of '${task.label}' clamped to project start.`);
+      warn(
+        task.lineNumber,
+        `Negative offset on dependency exceeds available range; start of '${task.label}' clamped to project start.`
+      );
       start = new Date(projectStart);
     }
 
@@ -226,12 +247,18 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
       let maxPredEnd = new Date(0);
       for (const predId of node.predecessors) {
         const predNode = taskMap.get(predId)!;
-        if (predNode.endDate && predNode.endDate.getTime() > maxPredEnd.getTime()) {
+        if (
+          predNode.endDate &&
+          predNode.endDate.getTime() > maxPredEnd.getTime()
+        ) {
           maxPredEnd = predNode.endDate;
         }
       }
       if (start.getTime() < maxPredEnd.getTime()) {
-        warn(task.lineNumber, `Explicit date ${task.explicitStart}${task.offset ? ' (with offset)' : ''} overlaps with predecessor ending ${formatDate(maxPredEnd)}. Using explicit date.`);
+        warn(
+          task.lineNumber,
+          `Explicit date ${task.explicitStart}${task.offset ? ' (with offset)' : ''} overlaps with predecessor ending ${formatDate(maxPredEnd)}. Using explicit date.`
+        );
       }
     }
 
@@ -242,7 +269,12 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
         // Milestone: zero duration, end = start
         end = new Date(start);
       } else {
-        end = addGanttDuration(start, task.duration, parsed.holidays, holidaySet);
+        end = addGanttDuration(
+          start,
+          task.duration,
+          parsed.holidays,
+          holidaySet
+        );
       }
     } else {
       // Explicit date task with no duration = milestone at that date
@@ -257,7 +289,13 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
 
   // Critical path calculation (if enabled)
   const criticalSet = parsed.options.criticalPath
-    ? computeCriticalPath(sortedIds, taskMap, depOffsetMap, parsed.holidays, holidaySet)
+    ? computeCriticalPath(
+        sortedIds,
+        taskMap,
+        depOffsetMap,
+        parsed.holidays,
+        holidaySet
+      )
     : new Set<string>();
 
   // Cascading uncertainty: uncertain if task itself is uncertain OR any predecessor is
@@ -284,7 +322,9 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
       endDate: node.endDate!,
       isCriticalPath: criticalSet.has(taskId),
       isUncertain: uncertainSet.has(taskId),
-      isMilestone: (node.task.duration?.amount === 0) || (!node.task.duration && !node.task.explicitStart),
+      isMilestone:
+        node.task.duration?.amount === 0 ||
+        (!node.task.duration && !node.task.explicitStart),
       groupPath: node.task.groupPath,
       effectiveMetadata: node.task.metadata,
     });
@@ -310,12 +350,14 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
   // ── Warnings ────────────────────────────────────────────
 
   // Missing parallel warning: 2+ top-level groups without parallel wrapper
-  const topLevelGroups = parsed.nodes.filter(n => n.kind === 'group');
+  const topLevelGroups = parsed.nodes.filter((n) => n.kind === 'group');
   if (topLevelGroups.length >= 2) {
-    const names = topLevelGroups.map(g => (g as GanttGroup & { kind: 'group' }).name);
+    const names = topLevelGroups.map(
+      (g) => (g as GanttGroup & { kind: 'group' }).name
+    );
     warn(
       topLevelGroups[0].lineNumber,
-      `${names.join(' and ')} are sequential. Wrap in \`parallel\` if they should run concurrently.`,
+      `${names.join(' and ')} are sequential. Wrap in \`parallel\` if they should run concurrently.`
     );
   }
 
@@ -332,7 +374,7 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
  */
 function buildImplicitDeps(
   nodes: GanttNode[],
-  taskMap: Map<string, TaskNode>,
+  taskMap: Map<string, TaskNode>
 ): void {
   walkChildren(nodes, null);
 
@@ -408,7 +450,10 @@ function buildImplicitDeps(
     }
   }
 
-  function walkSequential(children: GanttNode[], afterTaskId: string | null): string | null {
+  function walkSequential(
+    children: GanttNode[],
+    afterTaskId: string | null
+  ): string | null {
     let prevTaskId = afterTaskId;
     for (const node of children) {
       if (node.kind === 'task') {
@@ -545,7 +590,7 @@ function findCycle(taskMap: Map<string, TaskNode>): string[] {
 function breakCycle(
   cycle: string[],
   taskMap: Map<string, TaskNode>,
-  depOffsetMap: Map<string, Offset>,
+  depOffsetMap: Map<string, Offset>
 ): void {
   if (cycle.length < 3) return; // need at least [A, B, A]
   // Remove the edge from second-to-last → first (i.e. the edge that closes the cycle)
@@ -568,7 +613,7 @@ function computeCriticalPath(
   taskMap: Map<string, TaskNode>,
   depOffsetMap: Map<string, Offset>,
   holidays: GanttHolidays,
-  holidaySet: Set<string>,
+  holidaySet: Set<string>
 ): Set<string> {
   if (sortedIds.length === 0) return new Set();
 
@@ -610,7 +655,13 @@ function computeCriticalPath(
         const succTask = taskMap.get(succId)!.task;
         if (succTask.offset) {
           const reverseDir = (succTask.offset.direction * -1) as 1 | -1;
-          const adjusted = addGanttDuration(new Date(succLS), succTask.offset.duration, holidays, holidaySet, reverseDir);
+          const adjusted = addGanttDuration(
+            new Date(succLS),
+            succTask.offset.duration,
+            holidays,
+            holidaySet,
+            reverseDir
+          );
           succLS = adjusted.getTime();
         }
 
@@ -618,7 +669,13 @@ function computeCriticalPath(
         const depOffset = depOffsetMap.get(`${id}->${succId}`);
         if (depOffset) {
           const reverseDir = (depOffset.direction * -1) as 1 | -1;
-          const adjusted = addGanttDuration(new Date(succLS), depOffset.duration, holidays, holidaySet, reverseDir);
+          const adjusted = addGanttDuration(
+            new Date(succLS),
+            depOffset.duration,
+            holidays,
+            holidaySet,
+            reverseDir
+          );
           succLS = adjusted.getTime();
         }
 
@@ -651,7 +708,7 @@ function buildResolvedGroups(
   nodes: GanttNode[],
   taskMap: Map<string, TaskNode>,
   groups: ResolvedGroup[],
-  depth: number,
+  depth: number
 ): void {
   for (const node of nodes) {
     if (node.kind === 'group') {
@@ -679,8 +736,10 @@ function buildResolvedGroups(
       for (const task of childTasks) {
         const resolved = taskMap.get(task.id);
         if (!resolved?.startDate || !resolved?.endDate) continue;
-        if (resolved.startDate.getTime() < minStart) minStart = resolved.startDate.getTime();
-        if (resolved.endDate.getTime() > maxEnd) maxEnd = resolved.endDate.getTime();
+        if (resolved.startDate.getTime() < minStart)
+          minStart = resolved.startDate.getTime();
+        if (resolved.endDate.getTime() > maxEnd)
+          maxEnd = resolved.endDate.getTime();
         const dur = resolved.endDate.getTime() - resolved.startDate.getTime();
         totalDuration += dur;
         if (task.progress !== null) {
@@ -695,7 +754,10 @@ function buildResolvedGroups(
         metadata: node.metadata,
         startDate: new Date(minStart === Infinity ? 0 : minStart),
         endDate: new Date(maxEnd === -Infinity ? 0 : maxEnd),
-        progress: hasProgress && totalDuration > 0 ? totalProgress / totalDuration : null,
+        progress:
+          hasProgress && totalDuration > 0
+            ? totalProgress / totalDuration
+            : null,
         lineNumber: node.lineNumber,
         depth,
       });

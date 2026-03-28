@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { homedir } from 'node:os';
@@ -47,7 +48,8 @@ const CHART_TYPE_DESCRIPTIONS: Record<string, string> = {
   org: 'Org chart — hierarchical tree structures',
   kanban: 'Kanban board — task/workflow columns',
   c4: 'C4 diagram — system architecture (context, container, component, deployment)',
-  'initiative-status': 'Initiative status — project roadmap with dependency tracking',
+  'initiative-status':
+    'Initiative status — project roadmap with dependency tracking',
   infra: 'Infra chart — infrastructure traffic flow with rps computation',
 };
 
@@ -554,7 +556,11 @@ function parseArgs(argv: string[]): {
     installClaudeSkill: false,
     installClaudeCodeIntegration: false,
     installCodexIntegration: false,
-    c4Level: 'context' as 'context' | 'containers' | 'components' | 'deployment',
+    c4Level: 'context' as
+      | 'context'
+      | 'containers'
+      | 'components'
+      | 'deployment',
     c4System: undefined as string | undefined,
     c4Container: undefined as string | undefined,
     tagGroup: undefined as string | undefined,
@@ -597,7 +603,12 @@ function parseArgs(argv: string[]): {
       i++;
     } else if (arg === '--c4-level') {
       const val = args[++i];
-      if (val !== 'context' && val !== 'containers' && val !== 'components' && val !== 'deployment') {
+      if (
+        val !== 'context' &&
+        val !== 'containers' &&
+        val !== 'components' &&
+        val !== 'deployment'
+      ) {
         console.error(
           `Error: Invalid C4 level "${val}". Valid levels: context, containers, components, deployment`
         );
@@ -745,8 +756,14 @@ async function main(): Promise<void> {
 
     function ask(prompt: string): Promise<string> {
       return new Promise((resolve) => {
-        const rl = createInterface({ input: process.stdin, output: process.stdout });
-        rl.question(prompt, (answer) => { rl.close(); resolve(answer); });
+        const rl = createInterface({
+          input: process.stdin,
+          output: process.stdout,
+        });
+        rl.question(prompt, (answer) => {
+          rl.close();
+          resolve(answer);
+        });
       });
     }
 
@@ -756,7 +773,9 @@ async function main(): Promise<void> {
     const skillExists = existsSync(skillPath);
     let installSkill = true;
     if (skillExists) {
-      const ans = await ask('~/.claude/commands/dgmo.md already exists. Overwrite? [y/N] ');
+      const ans = await ask(
+        '~/.claude/commands/dgmo.md already exists. Overwrite? [y/N] '
+      );
       installSkill = ans.toLowerCase() === 'y' || ans.toLowerCase() === 'yes';
     }
     if (installSkill) {
@@ -769,16 +788,26 @@ async function main(): Promise<void> {
 
     // --- Step 2: Check / install dgmo-mcp binary ---
     let dgmoMcpInstalled = false;
-    try { execSync('which dgmo-mcp', { stdio: 'pipe' }); dgmoMcpInstalled = true; } catch { /* not found */ }
+    try {
+      execSync('which dgmo-mcp', { stdio: 'pipe' });
+      dgmoMcpInstalled = true;
+    } catch {
+      /* not found */
+    }
     if (!dgmoMcpInstalled) {
-      const ans = await ask('\ndgmo-mcp not found. Install @diagrammo/dgmo-mcp globally now? [Y/n] ');
-      const yes = ans === '' || ans.toLowerCase() === 'y' || ans.toLowerCase() === 'yes';
+      const ans = await ask(
+        '\ndgmo-mcp not found. Install @diagrammo/dgmo-mcp globally now? [Y/n] '
+      );
+      const yes =
+        ans === '' || ans.toLowerCase() === 'y' || ans.toLowerCase() === 'yes';
       if (yes) {
         console.log('Installing @diagrammo/dgmo-mcp...');
         execSync('npm install -g @diagrammo/dgmo-mcp', { stdio: 'inherit' });
         console.log('✓ @diagrammo/dgmo-mcp installed');
       } else {
-        console.log('  Skipped. Install later with: npm install -g @diagrammo/dgmo-mcp');
+        console.log(
+          '  Skipped. Install later with: npm install -g @diagrammo/dgmo-mcp'
+        );
       }
     } else {
       console.log('✓ dgmo-mcp already installed');
@@ -787,7 +816,9 @@ async function main(): Promise<void> {
     // --- Step 3: Configure MCP server ---
     console.log('\nWhere should the MCP server be configured?');
     console.log('  1) This project only — write .mcp.json here [default]');
-    console.log('  2) Globally — add to ~/.claude/settings.json (works in all projects)');
+    console.log(
+      '  2) Globally — add to ~/.claude/settings.json (works in all projects)'
+    );
     const scopeAns = await ask('\nChoice [1]: ');
     const useGlobal = scopeAns.trim() === '2';
     const mcpEntry = { command: 'dgmo-mcp' };
@@ -796,24 +827,40 @@ async function main(): Promise<void> {
       const settingsPath = join(claudeDir, 'settings.json');
       let settings: Record<string, unknown> = {};
       if (existsSync(settingsPath)) {
-        try { settings = JSON.parse(readFileSync(settingsPath, 'utf-8')); } catch { /* use empty */ }
+        try {
+          settings = JSON.parse(readFileSync(settingsPath, 'utf-8'));
+        } catch {
+          /* use empty */
+        }
       }
-      const mcpServers = (settings.mcpServers as Record<string, unknown> | undefined) ?? {};
+      const mcpServers =
+        (settings.mcpServers as Record<string, unknown> | undefined) ?? {};
       mcpServers['dgmo'] = mcpEntry;
       settings.mcpServers = mcpServers;
-      writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n', 'utf-8');
+      writeFileSync(
+        settingsPath,
+        JSON.stringify(settings, null, 2) + '\n',
+        'utf-8'
+      );
       console.log('✓ MCP server added to ~/.claude/settings.json');
     } else {
       const mcpPath = join(process.cwd(), '.mcp.json');
       let mcp: Record<string, unknown> = {};
       if (existsSync(mcpPath)) {
-        try { mcp = JSON.parse(readFileSync(mcpPath, 'utf-8')); } catch { /* use empty */ }
+        try {
+          mcp = JSON.parse(readFileSync(mcpPath, 'utf-8'));
+        } catch {
+          /* use empty */
+        }
       }
-      const mcpServers = (mcp.mcpServers as Record<string, unknown> | undefined) ?? {};
+      const mcpServers =
+        (mcp.mcpServers as Record<string, unknown> | undefined) ?? {};
       mcpServers['dgmo'] = mcpEntry;
       mcp.mcpServers = mcpServers;
       writeFileSync(mcpPath, JSON.stringify(mcp, null, 2) + '\n', 'utf-8');
-      console.log(`✓ MCP server configured: ${join(process.cwd(), '.mcp.json')}`);
+      console.log(
+        `✓ MCP server configured: ${join(process.cwd(), '.mcp.json')}`
+      );
     }
 
     console.log('\nRestart Claude Code to activate the MCP server.');
@@ -835,12 +882,17 @@ async function main(): Promise<void> {
       ? `~/.claude/commands/dgmo.md already exists. Overwrite? [y/N] `
       : `Install dgmo Claude Code skill to ~/.claude/commands/dgmo.md? [Y/n] `;
     await new Promise<void>((done) => {
-      const rl = createInterface({ input: process.stdin, output: process.stdout });
+      const rl = createInterface({
+        input: process.stdin,
+        output: process.stdout,
+      });
       rl.question(prompt, (answer) => {
         rl.close();
         const yes = alreadyExists
           ? answer.toLowerCase() === 'y' || answer.toLowerCase() === 'yes'
-          : answer === '' || answer.toLowerCase() === 'y' || answer.toLowerCase() === 'yes';
+          : answer === '' ||
+            answer.toLowerCase() === 'y' ||
+            answer.toLowerCase() === 'yes';
         if (!yes) {
           console.error('Aborted.');
           process.exit(0);
@@ -859,23 +911,41 @@ async function main(): Promise<void> {
 
   if (opts.installCodexIntegration) {
     // Validate Codex CLI is installed
-    try { execSync('which codex', { stdio: 'pipe' }); } catch {
-      console.error('codex not found. Install Codex CLI first: https://openai.com/codex');
+    try {
+      execSync('which codex', { stdio: 'pipe' });
+    } catch {
+      console.error(
+        'codex not found. Install Codex CLI first: https://openai.com/codex'
+      );
       process.exit(1);
     }
 
     const ask = (prompt: string): Promise<string> =>
       new Promise((resolve) => {
-        const rl = createInterface({ input: process.stdin, output: process.stdout });
-        rl.question(prompt, (answer) => { rl.close(); resolve(answer); });
+        const rl = createInterface({
+          input: process.stdin,
+          output: process.stdout,
+        });
+        rl.question(prompt, (answer) => {
+          rl.close();
+          resolve(answer);
+        });
       });
 
     // Check / install dgmo-mcp binary
     let dgmoMcpInstalled = false;
-    try { execSync('which dgmo-mcp', { stdio: 'pipe' }); dgmoMcpInstalled = true; } catch { /* not found */ }
+    try {
+      execSync('which dgmo-mcp', { stdio: 'pipe' });
+      dgmoMcpInstalled = true;
+    } catch {
+      /* not found */
+    }
     if (!dgmoMcpInstalled) {
-      const ans = await ask('\ndgmo-mcp not found. Install @diagrammo/dgmo-mcp globally now? [Y/n] ');
-      const yes = ans === '' || ans.toLowerCase() === 'y' || ans.toLowerCase() === 'yes';
+      const ans = await ask(
+        '\ndgmo-mcp not found. Install @diagrammo/dgmo-mcp globally now? [Y/n] '
+      );
+      const yes =
+        ans === '' || ans.toLowerCase() === 'y' || ans.toLowerCase() === 'yes';
       if (yes) {
         console.log('Installing @diagrammo/dgmo-mcp...');
         try {
@@ -886,7 +956,9 @@ async function main(): Promise<void> {
           console.error('Try manually: npm install -g @diagrammo/dgmo-mcp');
         }
       } else {
-        console.log('  Skipped. Install later with: npm install -g @diagrammo/dgmo-mcp');
+        console.log(
+          '  Skipped. Install later with: npm install -g @diagrammo/dgmo-mcp'
+        );
       }
     } else {
       console.log('✓ dgmo-mcp already installed');
@@ -894,11 +966,21 @@ async function main(): Promise<void> {
 
     // Configure MCP server
     console.log('\nWhere should the MCP server be configured?');
-    console.log('  1) This project only — write .codex/config.toml here [default]');
-    console.log('  2) Globally — add to ~/.codex/config.toml (works in all projects)');
+    console.log(
+      '  1) This project only — write .codex/config.toml here [default]'
+    );
+    console.log(
+      '  2) Globally — add to ~/.codex/config.toml (works in all projects)'
+    );
     const scopeAns = await ask('\nChoice [1]: ');
-    if (scopeAns.trim() !== '' && scopeAns.trim() !== '1' && scopeAns.trim() !== '2') {
-      console.log(`  Unrecognized input "${scopeAns.trim()}", defaulting to option 1.`);
+    if (
+      scopeAns.trim() !== '' &&
+      scopeAns.trim() !== '1' &&
+      scopeAns.trim() !== '2'
+    ) {
+      console.log(
+        `  Unrecognized input "${scopeAns.trim()}", defaulting to option 1.`
+      );
     }
     const useGlobal = scopeAns.trim() === '2';
     const tomlEntry = '[mcp_servers.dgmo]\ncommand = ["dgmo-mcp"]\n';
@@ -906,7 +988,9 @@ async function main(): Promise<void> {
     if (useGlobal) {
       const configPath = join(homedir(), '.codex', 'config.toml');
       mkdirSync(join(homedir(), '.codex'), { recursive: true });
-      const existing = existsSync(configPath) ? readFileSync(configPath, 'utf-8') : '';
+      const existing = existsSync(configPath)
+        ? readFileSync(configPath, 'utf-8')
+        : '';
       if (existing.includes('[mcp_servers.dgmo]')) {
         console.log('✓ MCP server already configured in ~/.codex/config.toml');
       } else {
@@ -918,7 +1002,9 @@ async function main(): Promise<void> {
       const codexDir = join(process.cwd(), '.codex');
       const configPath = join(codexDir, 'config.toml');
       mkdirSync(codexDir, { recursive: true });
-      const existing = existsSync(configPath) ? readFileSync(configPath, 'utf-8') : '';
+      const existing = existsSync(configPath)
+        ? readFileSync(configPath, 'utf-8')
+        : '';
       if (existing.includes('[mcp_servers.dgmo]')) {
         console.log(`✓ MCP server already configured in .codex/config.toml`);
       } else {
@@ -983,10 +1069,8 @@ async function main(): Promise<void> {
   // Resolve org chart imports (tags and import directives)
   if (opts.input && parseDgmoChartType(content) === 'org') {
     const inputPath = resolve(opts.input);
-    const resolved = await resolveOrgImports(
-      content,
-      inputPath,
-      (p) => readFileSync(p, 'utf-8'),
+    const resolved = await resolveOrgImports(content, inputPath, (p) =>
+      readFileSync(p, 'utf-8')
     );
     for (const diag of resolved.diagnostics) {
       console.error(formatDgmoError(diag));
@@ -1008,12 +1092,18 @@ async function main(): Promise<void> {
   // Helper for JSON error output
   function exitWithJsonError(error: string, line?: number): never {
     if (opts.json) {
-      process.stdout.write(JSON.stringify({
-        success: false,
-        error,
-        ...(line != null ? { line } : {}),
-        ...(chartType ? { chartType } : {}),
-      }, null, 2) + '\n');
+      process.stdout.write(
+        JSON.stringify(
+          {
+            success: false,
+            error,
+            ...(line != null ? { line } : {}),
+            ...(chartType ? { chartType } : {}),
+          },
+          null,
+          2
+        ) + '\n'
+      );
     } else {
       console.error(error);
     }
@@ -1046,18 +1136,26 @@ async function main(): Promise<void> {
     }
 
     if (opts.json) {
-      process.stdout.write(JSON.stringify({
-        success: true,
-        url: result.url,
-        ...(chartType ? { chartType } : {}),
-      }, null, 2) + '\n');
+      process.stdout.write(
+        JSON.stringify(
+          {
+            success: true,
+            url: result.url,
+            ...(chartType ? { chartType } : {}),
+          },
+          null,
+          2
+        ) + '\n'
+      );
     } else {
       process.stdout.write(result.url + '\n');
     }
     return;
   }
 
-  const paletteColors = getPalette(opts.palette)[opts.theme === 'dark' ? 'dark' : 'light'];
+  const paletteColors = getPalette(opts.palette)[
+    opts.theme === 'dark' ? 'dark' : 'light'
+  ];
 
   // Word clouds require Canvas APIs (HTMLCanvasElement.getContext('2d'))
   // which are unavailable in Node.js — check before attempting render.
@@ -1084,10 +1182,7 @@ async function main(): Promise<void> {
   if (errors.length > 0) {
     if (opts.json) {
       const firstError = errors[0];
-      exitWithJsonError(
-        formatDgmoError(firstError),
-        firstError.line,
-      );
+      exitWithJsonError(formatDgmoError(firstError), firstError.line);
     }
     for (const e of errors) {
       console.error(`\u2716 ${formatDgmoError(e)}`);
@@ -1096,14 +1191,20 @@ async function main(): Promise<void> {
 
   // Validate C4 options
   if (opts.c4Level === 'containers' && !opts.c4System) {
-    exitWithJsonError('Error: --c4-system is required when --c4-level is containers');
+    exitWithJsonError(
+      'Error: --c4-system is required when --c4-level is containers'
+    );
   }
   if (opts.c4Level === 'components') {
     if (!opts.c4System) {
-      exitWithJsonError('Error: --c4-system is required when --c4-level is components');
+      exitWithJsonError(
+        'Error: --c4-system is required when --c4-level is components'
+      );
     }
     if (!opts.c4Container) {
-      exitWithJsonError('Error: --c4-container is required when --c4-level is components');
+      exitWithJsonError(
+        'Error: --c4-container is required when --c4-level is components'
+      );
     }
   }
 
@@ -1143,11 +1244,17 @@ async function main(): Promise<void> {
       outputPath = resolve(`${inputBasename}.png`);
       writeFileSync(outputPath, svgToPng(svg, pngBg));
     }
-    process.stdout.write(JSON.stringify({
-      success: true,
-      ...(outputPath ? { output: outputPath } : {}),
-      ...(chartType ? { chartType } : {}),
-    }, null, 2) + '\n');
+    process.stdout.write(
+      JSON.stringify(
+        {
+          success: true,
+          ...(outputPath ? { output: outputPath } : {}),
+          ...(chartType ? { chartType } : {}),
+        },
+        null,
+        2
+      ) + '\n'
+    );
   } else if (opts.output) {
     // Explicit output path
     const outputPath = resolve(opts.output);

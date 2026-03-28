@@ -4,7 +4,6 @@ import {
   computeReceiverInheritance,
   resolveSequenceTags,
 } from '../src/sequence/tag-resolution';
-import type { ResolvedTagMap } from '../src/sequence/tag-resolution';
 import type {
   ParsedSequenceDgmo,
   SequenceParticipant,
@@ -20,7 +19,7 @@ import type { TagGroup } from '../src/utils/tag-groups';
 function makeParticipant(
   id: string,
   metadata?: Record<string, string>,
-  lineNumber = 1,
+  lineNumber = 1
 ): SequenceParticipant {
   return { id, label: id, type: 'default', lineNumber, metadata };
 }
@@ -29,7 +28,7 @@ function makeMessage(
   from: string,
   to: string,
   lineNumber: number,
-  metadata?: Record<string, string>,
+  metadata?: Record<string, string>
 ): SequenceMessage {
   return { from, to, label: 'msg', lineNumber, metadata };
 }
@@ -38,7 +37,7 @@ function makeGroup(
   name: string,
   participantIds: string[],
   metadata?: Record<string, string>,
-  lineNumber = 1,
+  lineNumber = 1
 ): SequenceGroup {
   return { name, participantIds, lineNumber, metadata };
 }
@@ -46,7 +45,7 @@ function makeGroup(
 function makeTagGroup(
   name: string,
   entries: Array<{ value: string; color: string }>,
-  defaultValue?: string,
+  defaultValue?: string
 ): TagGroup {
   return {
     name,
@@ -56,7 +55,9 @@ function makeTagGroup(
   };
 }
 
-function makeParsed(overrides: Partial<ParsedSequenceDgmo> = {}): ParsedSequenceDgmo {
+function makeParsed(
+  overrides: Partial<ParsedSequenceDgmo> = {}
+): ParsedSequenceDgmo {
   return {
     title: null,
     titleLineNumber: null,
@@ -83,7 +84,9 @@ describe('propagateGroupTags()', () => {
       ['API', {}],
       ['DB', {}],
     ]);
-    const groups = [makeGroup('Backend', ['API', 'DB'], { concern: 'Product' })];
+    const groups = [
+      makeGroup('Backend', ['API', 'DB'], { concern: 'Product' }),
+    ];
 
     propagateGroupTags(participantMeta, groups);
 
@@ -96,7 +99,9 @@ describe('propagateGroupTags()', () => {
       ['API', { concern: 'Platform' }],
       ['DB', {}],
     ]);
-    const groups = [makeGroup('Backend', ['API', 'DB'], { concern: 'Product' })];
+    const groups = [
+      makeGroup('Backend', ['API', 'DB'], { concern: 'Product' }),
+    ];
 
     propagateGroupTags(participantMeta, groups);
 
@@ -105,7 +110,9 @@ describe('propagateGroupTags()', () => {
   });
 
   it('skips groups without metadata', () => {
-    const participantMeta = new Map<string, Record<string, string>>([['API', {}]]);
+    const participantMeta = new Map<string, Record<string, string>>([
+      ['API', {}],
+    ]);
     const groups = [makeGroup('Backend', ['API'])]; // no metadata
 
     propagateGroupTags(participantMeta, groups);
@@ -114,8 +121,12 @@ describe('propagateGroupTags()', () => {
   });
 
   it('skips participants not in the meta map', () => {
-    const participantMeta = new Map<string, Record<string, string>>([['API', {}]]);
-    const groups = [makeGroup('Backend', ['API', 'Unknown'], { concern: 'Product' })];
+    const participantMeta = new Map<string, Record<string, string>>([
+      ['API', {}],
+    ]);
+    const groups = [
+      makeGroup('Backend', ['API', 'Unknown'], { concern: 'Product' }),
+    ];
 
     propagateGroupTags(participantMeta, groups);
 
@@ -124,12 +135,19 @@ describe('propagateGroupTags()', () => {
   });
 
   it('propagates multiple metadata keys', () => {
-    const participantMeta = new Map<string, Record<string, string>>([['API', {}]]);
-    const groups = [makeGroup('Backend', ['API'], { concern: 'Product', team: 'Alpha' })];
+    const participantMeta = new Map<string, Record<string, string>>([
+      ['API', {}],
+    ]);
+    const groups = [
+      makeGroup('Backend', ['API'], { concern: 'Product', team: 'Alpha' }),
+    ];
 
     propagateGroupTags(participantMeta, groups);
 
-    expect(participantMeta.get('API')).toEqual({ concern: 'Product', team: 'Alpha' });
+    expect(participantMeta.get('API')).toEqual({
+      concern: 'Product',
+      team: 'Alpha',
+    });
   });
 });
 
@@ -146,7 +164,12 @@ describe('computeReceiverInheritance()', () => {
       ['DB', {}],
     ]);
 
-    const result = computeReceiverInheritance(participants, messages, 'concern', participantMeta);
+    const result = computeReceiverInheritance(
+      participants,
+      messages,
+      'concern',
+      participantMeta
+    );
 
     expect(result.get('DB')).toBe('Caching');
     expect(result.has('API')).toBe(false);
@@ -168,7 +191,12 @@ describe('computeReceiverInheritance()', () => {
       ['DB', {}],
     ]);
 
-    const result = computeReceiverInheritance(participants, messages, 'concern', participantMeta);
+    const result = computeReceiverInheritance(
+      participants,
+      messages,
+      'concern',
+      participantMeta
+    );
 
     expect(result.get('DB')).toBe('Caching');
   });
@@ -189,7 +217,12 @@ describe('computeReceiverInheritance()', () => {
       ['DB', {}],
     ]);
 
-    const result = computeReceiverInheritance(participants, messages, 'concern', participantMeta);
+    const result = computeReceiverInheritance(
+      participants,
+      messages,
+      'concern',
+      participantMeta
+    );
 
     expect(result.has('DB')).toBe(false);
   });
@@ -202,7 +235,12 @@ describe('computeReceiverInheritance()', () => {
       ['DB', { concern: 'Persistence' }],
     ]);
 
-    const result = computeReceiverInheritance(participants, messages, 'concern', participantMeta);
+    const result = computeReceiverInheritance(
+      participants,
+      messages,
+      'concern',
+      participantMeta
+    );
 
     expect(result.has('DB')).toBe(false);
   });
@@ -218,7 +256,12 @@ describe('computeReceiverInheritance()', () => {
       ['DB', {}],
     ]);
 
-    const result = computeReceiverInheritance(participants, messages, 'concern', participantMeta);
+    const result = computeReceiverInheritance(
+      participants,
+      messages,
+      'concern',
+      participantMeta
+    );
 
     expect(result.has('DB')).toBe(false);
   });
@@ -226,9 +269,16 @@ describe('computeReceiverInheritance()', () => {
   it('handles self-call — participant inherits from own tagged message', () => {
     const participants = [makeParticipant('API')];
     const messages = [makeMessage('API', 'API', 10, { concern: 'Caching' })];
-    const participantMeta = new Map<string, Record<string, string>>([['API', {}]]);
+    const participantMeta = new Map<string, Record<string, string>>([
+      ['API', {}],
+    ]);
 
-    const result = computeReceiverInheritance(participants, messages, 'concern', participantMeta);
+    const result = computeReceiverInheritance(
+      participants,
+      messages,
+      'concern',
+      participantMeta
+    );
 
     expect(result.get('API')).toBe('Caching');
   });
@@ -243,7 +293,9 @@ describe('resolveSequenceTags()', () => {
     const parsed = makeParsed({
       participants: [makeParticipant('A'), makeParticipant('B')],
       messages: [makeMessage('A', 'B', 10)],
-      tagGroups: [makeTagGroup('concern', [{ value: 'Caching', color: 'blue' }])],
+      tagGroups: [
+        makeTagGroup('concern', [{ value: 'Caching', color: 'blue' }]),
+      ],
     });
 
     const result = resolveSequenceTags(parsed, 'nonexistent');
@@ -260,7 +312,9 @@ describe('resolveSequenceTags()', () => {
         makeParticipant('DB'),
       ],
       messages: [],
-      tagGroups: [makeTagGroup('concern', [{ value: 'Caching', color: 'blue' }])],
+      tagGroups: [
+        makeTagGroup('concern', [{ value: 'Caching', color: 'blue' }]),
+      ],
     });
 
     const result = resolveSequenceTags(parsed, 'concern');
@@ -273,7 +327,9 @@ describe('resolveSequenceTags()', () => {
     const parsed = makeParsed({
       participants: [makeParticipant('A'), makeParticipant('B')],
       messages: [makeMessage('A', 'B', 10, { concern: 'Caching' })],
-      tagGroups: [makeTagGroup('concern', [{ value: 'Caching', color: 'blue' }])],
+      tagGroups: [
+        makeTagGroup('concern', [{ value: 'Caching', color: 'blue' }]),
+      ],
     });
 
     const result = resolveSequenceTags(parsed, 'concern');
@@ -286,7 +342,9 @@ describe('resolveSequenceTags()', () => {
       participants: [makeParticipant('API'), makeParticipant('DB')],
       messages: [],
       groups: [makeGroup('Backend', ['API', 'DB'], { concern: 'Product' })],
-      tagGroups: [makeTagGroup('concern', [{ value: 'Product', color: 'teal' }])],
+      tagGroups: [
+        makeTagGroup('concern', [{ value: 'Product', color: 'teal' }]),
+      ],
     });
 
     const result = resolveSequenceTags(parsed, 'concern');
@@ -321,7 +379,9 @@ describe('resolveSequenceTags()', () => {
     const parsed = makeParsed({
       participants: [makeParticipant('API'), makeParticipant('DB')],
       messages: [makeMessage('API', 'DB', 10, { concern: 'Caching' })],
-      tagGroups: [makeTagGroup('concern', [{ value: 'Caching', color: 'blue' }])],
+      tagGroups: [
+        makeTagGroup('concern', [{ value: 'Caching', color: 'blue' }]),
+      ],
     });
 
     const result = resolveSequenceTags(parsed, 'concern');
@@ -363,7 +423,7 @@ describe('resolveSequenceTags()', () => {
             { value: 'Caching', color: 'blue' },
             { value: 'Other', color: 'gray' },
           ],
-          'Other', // default
+          'Other' // default
         ),
       ],
     });
@@ -386,7 +446,7 @@ describe('resolveSequenceTags()', () => {
             { value: 'Caching', color: 'blue' },
             { value: 'Other', color: 'gray' },
           ],
-          'Other', // default
+          'Other' // default
         ),
       ],
     });
@@ -423,7 +483,7 @@ describe('resolveSequenceTags()', () => {
             { value: 'Caching', color: 'blue' },
             { value: 'Fallback', color: 'gray' },
           ],
-          'Fallback',
+          'Fallback'
         ),
       ],
     });
@@ -460,7 +520,9 @@ describe('resolveSequenceTags()', () => {
     const parsed = makeParsed({
       participants: [makeParticipant('API')],
       messages: [makeMessage('API', 'API', 10, { concern: 'Caching' })],
-      tagGroups: [makeTagGroup('concern', [{ value: 'Caching', color: 'blue' }])],
+      tagGroups: [
+        makeTagGroup('concern', [{ value: 'Caching', color: 'blue' }]),
+      ],
     });
 
     const result = resolveSequenceTags(parsed, 'concern');
@@ -491,7 +553,9 @@ describe('resolveSequenceTags()', () => {
     const parsed = makeParsed({
       participants: [makeParticipant('API', { concern: 'Caching' })],
       messages: [],
-      tagGroups: [makeTagGroup('Concern', [{ value: 'Caching', color: 'blue' }])],
+      tagGroups: [
+        makeTagGroup('Concern', [{ value: 'Caching', color: 'blue' }]),
+      ],
     });
 
     const result = resolveSequenceTags(parsed, 'concern');
@@ -504,7 +568,9 @@ describe('resolveSequenceTags()', () => {
       participants: [makeParticipant('API')],
       messages: [],
       groups: [makeGroup('Backend', ['API'])], // no metadata
-      tagGroups: [makeTagGroup('concern', [{ value: 'Caching', color: 'blue' }])],
+      tagGroups: [
+        makeTagGroup('concern', [{ value: 'Caching', color: 'blue' }]),
+      ],
     });
 
     const result = resolveSequenceTags(parsed, 'concern');
@@ -517,7 +583,9 @@ describe('resolveSequenceTags()', () => {
     const parsed = makeParsed({
       participants: [participant],
       messages: [makeMessage('X', 'API', 10, { concern: 'Caching' })],
-      tagGroups: [makeTagGroup('concern', [{ value: 'Caching', color: 'blue' }])],
+      tagGroups: [
+        makeTagGroup('concern', [{ value: 'Caching', color: 'blue' }]),
+      ],
     });
 
     resolveSequenceTags(parsed, 'concern');
@@ -530,9 +598,7 @@ describe('resolveSequenceTags()', () => {
     const parsed = makeParsed({
       participants: [makeParticipant('API')], // metadata is undefined
       messages: [],
-      tagGroups: [
-        makeTagGroup('concern', [{ value: 'X', color: 'red' }], 'X'),
-      ],
+      tagGroups: [makeTagGroup('concern', [{ value: 'X', color: 'red' }], 'X')],
     });
 
     const result = resolveSequenceTags(parsed, 'concern');
@@ -613,7 +679,7 @@ describe('resolveSequenceTags()', () => {
             { value: 'Caching', color: 'blue' },
             { value: 'Other', color: 'gray' },
           ],
-          'Other',
+          'Other'
         ),
       ],
     });

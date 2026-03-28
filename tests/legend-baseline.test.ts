@@ -11,7 +11,6 @@
  */
 import { describe, it, expect, beforeAll } from 'vitest';
 import { JSDOM } from 'jsdom';
-import { LEGEND_HEIGHT } from '../src/utils/legend-constants';
 import { getPalette } from '../src/palettes';
 import { parseSequenceDgmo } from '../src/sequence/parser';
 import { renderSequenceDiagram } from '../src/sequence/renderer';
@@ -38,11 +37,26 @@ import { parseVisualization, renderTimeline } from '../src/d3';
 beforeAll(() => {
   const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>');
   const win = dom.window;
-  Object.defineProperty(globalThis, 'document', { value: win.document, configurable: true });
-  Object.defineProperty(globalThis, 'window', { value: win, configurable: true });
-  Object.defineProperty(globalThis, 'navigator', { value: win.navigator, configurable: true });
-  Object.defineProperty(globalThis, 'HTMLElement', { value: win.HTMLElement, configurable: true });
-  Object.defineProperty(globalThis, 'SVGElement', { value: win.SVGElement, configurable: true });
+  Object.defineProperty(globalThis, 'document', {
+    value: win.document,
+    configurable: true,
+  });
+  Object.defineProperty(globalThis, 'window', {
+    value: win,
+    configurable: true,
+  });
+  Object.defineProperty(globalThis, 'navigator', {
+    value: win.navigator,
+    configurable: true,
+  });
+  Object.defineProperty(globalThis, 'HTMLElement', {
+    value: win.HTMLElement,
+    configurable: true,
+  });
+  Object.defineProperty(globalThis, 'SVGElement', {
+    value: win.SVGElement,
+    configurable: true,
+  });
 });
 
 const palette = getPalette('nord').light;
@@ -94,7 +108,9 @@ Bob <-response- Alice`;
     const parsed = parseSequenceDgmo(src);
     const container = document.createElement('div');
     document.body.appendChild(container);
-    renderSequenceDiagram(container, parsed, palette, false, undefined, { exportWidth: 800 });
+    renderSequenceDiagram(container, parsed, palette, false, undefined, {
+      exportWidth: 800,
+    });
     const ys = collectLegendYs(container);
     expect(ys.length).toBeGreaterThan(0);
     // Legend is at top — y should be in the top portion of the SVG
@@ -155,7 +171,15 @@ tag Priority
     const parsed = parseKanban(src, palette);
     const container = document.createElement('div');
     document.body.appendChild(container);
-    renderKanban(container, parsed, palette, false, undefined, undefined, undefined);
+    renderKanban(
+      container,
+      parsed,
+      palette,
+      false,
+      undefined,
+      undefined,
+      undefined
+    );
     // Legend pill rects use data-legend-group
     const groups = container.querySelectorAll('[data-legend-group]');
     expect(groups.length).toBeGreaterThan(0);
@@ -243,7 +267,20 @@ edge
     const layout = layoutInfra(computed);
     const container = document.createElement('div');
     document.body.appendChild(container);
-    renderInfra(container, layout, palette, false, parsed.title, parsed.titleLineNumber, parsed.tagGroups, null, false, null, null, true);
+    renderInfra(
+      container,
+      layout,
+      palette,
+      false,
+      parsed.title,
+      parsed.titleLineNumber,
+      parsed.tagGroups,
+      null,
+      false,
+      null,
+      null,
+      true
+    );
     const groups = container.querySelectorAll('[data-legend-group]');
     expect(groups.length).toBeGreaterThan(0);
     document.body.removeChild(container);
@@ -273,7 +310,20 @@ edge
     const layout = layoutInfra(computed);
     const container = document.createElement('div');
     document.body.appendChild(container);
-    renderInfra(container, layout, palette, false, null, null, [], null, false, playback, null, true);
+    renderInfra(
+      container,
+      layout,
+      palette,
+      false,
+      null,
+      null,
+      [],
+      null,
+      false,
+      playback,
+      null,
+      true
+    );
     const pill = container.querySelector('.infra-playback-pill');
     expect(pill).not.toBeNull();
     document.body.removeChild(container);
@@ -285,8 +335,23 @@ edge
     const layout = layoutInfra(computed);
     const container = document.createElement('div');
     document.body.appendChild(container);
-    renderInfra(container, layout, palette, false, null, null, [], null, false, playback, null, true);
-    const toggle = container.querySelector('[data-playback-action="toggle-pause"]');
+    renderInfra(
+      container,
+      layout,
+      palette,
+      false,
+      null,
+      null,
+      [],
+      null,
+      false,
+      playback,
+      null,
+      true
+    );
+    const toggle = container.querySelector(
+      '[data-playback-action="toggle-pause"]'
+    );
     expect(toggle).not.toBeNull();
     document.body.removeChild(container);
   });
@@ -297,8 +362,23 @@ edge
     const layout = layoutInfra(computed);
     const container = document.createElement('div');
     document.body.appendChild(container);
-    renderInfra(container, layout, palette, false, null, null, [], null, false, playback, null, true);
-    const speedBadges = container.querySelectorAll('[data-playback-action="set-speed"]');
+    renderInfra(
+      container,
+      layout,
+      palette,
+      false,
+      null,
+      null,
+      [],
+      null,
+      false,
+      playback,
+      null,
+      true
+    );
+    const speedBadges = container.querySelectorAll(
+      '[data-playback-action="set-speed"]'
+    );
     expect(speedBadges.length).toBe(3); // 1x, 1.5x, 2x
     document.body.removeChild(container);
   });
@@ -310,10 +390,25 @@ edge
     const layout = layoutInfra(computed);
     const container = document.createElement('div');
     document.body.appendChild(container);
-    renderInfra(container, layout, palette, false, null, null, [], null, false, collapsed, null, true);
+    renderInfra(
+      container,
+      layout,
+      palette,
+      false,
+      null,
+      null,
+      [],
+      null,
+      false,
+      collapsed,
+      null,
+      true
+    );
     const pill = container.querySelector('.infra-playback-pill');
     expect(pill).not.toBeNull();
-    const toggle = container.querySelector('[data-playback-action="toggle-pause"]');
+    const toggle = container.querySelector(
+      '[data-playback-action="toggle-pause"]'
+    );
     expect(toggle).toBeNull();
     document.body.removeChild(container);
   });
@@ -340,7 +435,10 @@ Order {
     const layout = layoutERDiagram(parsed);
     const container = document.createElement('div');
     document.body.appendChild(container);
-    renderERDiagram(container, parsed, layout, palette, false, undefined, { width: 800, height: 600 });
+    renderERDiagram(container, parsed, layout, palette, false, undefined, {
+      width: 800,
+      height: 600,
+    });
     const groups = container.querySelectorAll('[data-legend-group]');
     expect(groups.length).toBeGreaterThan(0);
     document.body.removeChild(container);
@@ -363,7 +461,10 @@ tag Status
     const parsed = parseVisualization(src, palette);
     const container = document.createElement('div');
     document.body.appendChild(container);
-    renderTimeline(container, parsed, palette, false, undefined, { width: 800, height: 400 });
+    renderTimeline(container, parsed, palette, false, undefined, {
+      width: 800,
+      height: 400,
+    });
     // Timeline tag legend uses data-legend-group
     const groups = container.querySelectorAll('[data-legend-group]');
     expect(groups.length).toBeGreaterThan(0);

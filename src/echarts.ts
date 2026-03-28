@@ -4,7 +4,6 @@ import { FONT_FAMILY } from './fonts';
 import { injectBranding } from './branding';
 import { renderLegendSvg } from './utils/legend-svg';
 import type { LegendGroupData } from './utils/legend-svg';
-import { LEGEND_HEIGHT } from './utils/legend-constants';
 
 // ============================================================
 // Types
@@ -101,7 +100,13 @@ import { parseChart } from './chart';
 import type { ParsedChart, ChartEra } from './chart';
 import { makeDgmoError, formatDgmoError, suggest } from './diagnostics';
 import { resolveColor } from './colors';
-import { collectIndentedValues, extractColor, measureIndent, normalizeGroupedNumber, parseFirstLine, parseSeriesNames } from './utils/parsing';
+import {
+  collectIndentedValues,
+  extractColor,
+  measureIndent,
+  parseFirstLine,
+  parseSeriesNames,
+} from './utils/parsing';
 import { parseDataRowValues } from './chart';
 
 // ============================================================
@@ -112,9 +117,17 @@ const EMPHASIS_SELF = { focus: 'self' as const, blurScope: 'global' as const };
 const EMPHASIS_LINE = {
   ...EMPHASIS_SELF,
   scale: 2.5,
-  itemStyle: { borderWidth: 2, borderColor: '#fff', shadowBlur: 8, shadowColor: 'rgba(0,0,0,0.4)' },
+  itemStyle: {
+    borderWidth: 2,
+    borderColor: '#fff',
+    shadowBlur: 8,
+    shadowColor: 'rgba(0,0,0,0.4)',
+  },
 };
-const CHART_BASE: Pick<EChartsOption, 'backgroundColor' | 'animation'> = { backgroundColor: 'transparent', animation: false };
+const CHART_BASE: Pick<EChartsOption, 'backgroundColor' | 'animation'> = {
+  backgroundColor: 'transparent',
+  animation: false,
+};
 const CHART_BORDER_WIDTH = 2;
 
 // ============================================================
@@ -122,13 +135,26 @@ const CHART_BORDER_WIDTH = 2;
 // ============================================================
 
 const VALID_EXTENDED_TYPES = new Set<ExtendedChartType>([
-  'sankey', 'chord', 'function', 'scatter', 'heatmap', 'funnel',
+  'sankey',
+  'chord',
+  'function',
+  'scatter',
+  'heatmap',
+  'funnel',
 ]);
 
 /** Known option keywords for the extended chart parser. */
 const KNOWN_EXTENDED_OPTIONS = new Set([
-  'chart', 'title', 'series', 'xlabel', 'ylabel', 'sizelabel',
-  'no-labels', 'columns', 'rows', 'x',
+  'chart',
+  'title',
+  'series',
+  'xlabel',
+  'ylabel',
+  'sizelabel',
+  'no-labels',
+  'columns',
+  'rows',
+  'x',
 ]);
 
 /**
@@ -139,11 +165,14 @@ function parseScatterRow(
   line: string,
   palette: PaletteColors | undefined,
   currentCategory: string,
-  lineNumber: number,
+  lineNumber: number
 ): ParsedScatterPoint | null {
   const dataRow = parseDataRowValues(line, { multiValue: true });
   if (!dataRow || dataRow.values.length < 2) return null;
-  const { label: rawLabel, color: pointColor } = extractColor(dataRow.label, palette);
+  const { label: rawLabel, color: pointColor } = extractColor(
+    dataRow.label,
+    palette
+  );
   return {
     name: rawLabel,
     x: dataRow.values[0],
@@ -195,8 +224,16 @@ export function parseExtendedChart(
 
     // Reject legacy ## category syntax
     if (/^#{2,}\s+/.test(trimmed)) {
-      const name = trimmed.replace(/^#{2,}\s+/, '').replace(/\s*\([^)]*\)\s*$/, '').trim();
-      result.diagnostics.push(makeDgmoError(lineNumber, `'## ${name}' is no longer supported. Use '[${name}]' instead`));
+      const name = trimmed
+        .replace(/^#{2,}\s+/, '')
+        .replace(/\s*\([^)]*\)\s*$/, '')
+        .trim();
+      result.diagnostics.push(
+        makeDgmoError(
+          lineNumber,
+          `'## ${name}' is no longer supported. Use '[${name}]' instead`
+        )
+      );
       continue;
     }
 
@@ -208,7 +245,8 @@ export function parseExtendedChart(
       firstLineParsed = true;
       const firstLine = parseFirstLine(trimmed);
       if (firstLine) {
-        const chartType = firstLine.chartType.toLowerCase() as ExtendedChartType;
+        const chartType =
+          firstLine.chartType.toLowerCase() as ExtendedChartType;
         if (VALID_EXTENDED_TYPES.has(chartType)) {
           result.type = chartType;
           if (firstLine.title) {
@@ -229,7 +267,11 @@ export function parseExtendedChart(
       }
       // If the first line is a single word (no spaces, no colon, no numbers),
       // treat it as an unrecognized chart type rather than falling through
-      if (!trimmed.includes(' ') && !trimmed.includes(':') && !/\d/.test(trimmed)) {
+      if (
+        !trimmed.includes(' ') &&
+        !trimmed.includes(':') &&
+        !/\d/.test(trimmed)
+      ) {
         const validTypes = [...VALID_EXTENDED_TYPES];
         let msg = `Unsupported chart type: ${trimmed}. Supported types: ${validTypes.join(', ')}.`;
         const hint = suggest(trimmed.toLowerCase(), validTypes);
@@ -246,7 +288,9 @@ export function parseExtendedChart(
     const categoryMatch = trimmed.match(/^\[(.+?)\](?:\s*\(([^)]+)\))?\s*$/);
     if (categoryMatch) {
       const catName = categoryMatch[1].trim();
-      const catColor = categoryMatch[2] ? resolveColor(categoryMatch[2].trim(), palette) : null;
+      const catColor = categoryMatch[2]
+        ? resolveColor(categoryMatch[2].trim(), palette)
+        : null;
       if (catColor) {
         if (!result.categoryColors) result.categoryColors = {};
         result.categoryColors[catName] = catColor;
@@ -258,17 +302,27 @@ export function parseExtendedChart(
     }
 
     // Sankey/chord link syntax: Source -> Target Value (directed) or Source -- Target Value (undirected)
-    const arrowMatch = trimmed.match(/^(.+?)\s*(->|--)\s*(.+?)\s+(\d+(?:\.\d+)?)\s*(?:\(([^)]+)\))?\s*$/);
+    const arrowMatch = trimmed.match(
+      /^(.+?)\s*(->|--)\s*(.+?)\s+(\d+(?:\.\d+)?)\s*(?:\(([^)]+)\))?\s*$/
+    );
     if (arrowMatch) {
       const [, rawSource, arrow, rawTarget, val, rawLinkColor] = arrowMatch;
-      const { label: source, color: sourceColor } = extractColor(rawSource.trim(), palette);
-      const { label: target, color: targetColor } = extractColor(rawTarget.trim(), palette);
+      const { label: source, color: sourceColor } = extractColor(
+        rawSource.trim(),
+        palette
+      );
+      const { label: target, color: targetColor } = extractColor(
+        rawTarget.trim(),
+        palette
+      );
       if (sourceColor || targetColor) {
         if (!result.nodeColors) result.nodeColors = {};
         if (sourceColor) result.nodeColors[source] = sourceColor;
         if (targetColor) result.nodeColors[target] = targetColor;
       }
-      const linkColor = rawLinkColor ? resolveColor(rawLinkColor.trim(), palette) : undefined;
+      const linkColor = rawLinkColor
+        ? resolveColor(rawLinkColor.trim(), palette)
+        : undefined;
       if (!result.links) result.links = [];
       result.links.push({
         source,
@@ -293,19 +347,34 @@ export function parseExtendedChart(
         if (sankeyStack.length > 0) {
           // Parse "TargetName value (linkColor)" or "TargetName(nodeColor) value (linkColor)"
           // Strip trailing (color) annotation before parseDataRowValues — it can't handle it
-          const valColorMatch = trimmed.match(/(\d+(?:\.\d+)?)\s*\(([^)]+)\)\s*$/);
-          const strippedLine = valColorMatch ? trimmed.replace(/\s*\([^)]+\)\s*$/, '') : trimmed;
+          const valColorMatch = trimmed.match(
+            /(\d+(?:\.\d+)?)\s*\(([^)]+)\)\s*$/
+          );
+          const strippedLine = valColorMatch
+            ? trimmed.replace(/\s*\([^)]+\)\s*$/, '')
+            : trimmed;
           const dataRow = parseDataRowValues(strippedLine);
           if (dataRow && dataRow.values.length === 1) {
             const source = sankeyStack.at(-1)!.name;
-            const linkColor = valColorMatch?.[2] ? resolveColor(valColorMatch[2].trim(), palette) : undefined;
-            const { label: target, color: targetColor } = extractColor(dataRow.label, palette);
+            const linkColor = valColorMatch?.[2]
+              ? resolveColor(valColorMatch[2].trim(), palette)
+              : undefined;
+            const { label: target, color: targetColor } = extractColor(
+              dataRow.label,
+              palette
+            );
             if (targetColor) {
               if (!result.nodeColors) result.nodeColors = {};
               result.nodeColors[target] = targetColor;
             }
             if (!result.links) result.links = [];
-            result.links.push({ source, target, value: dataRow.values[0], ...(linkColor && { color: linkColor }), lineNumber });
+            result.links.push({
+              source,
+              target,
+              value: dataRow.values[0],
+              ...(linkColor && { color: linkColor }),
+              lineNumber,
+            });
             sankeyStack.push({ name: target, indent });
             continue;
           }
@@ -314,12 +383,17 @@ export function parseExtendedChart(
 
       // Bare label at indent 0 (or any indent without a value) = new source node
       const spaceIdx = trimmed.indexOf(' ');
-      const hasNumericSuffix = spaceIdx >= 0 && !isNaN(parseFloat(trimmed.substring(trimmed.lastIndexOf(' ') + 1)));
+      const hasNumericSuffix =
+        spaceIdx >= 0 &&
+        !isNaN(parseFloat(trimmed.substring(trimmed.lastIndexOf(' ') + 1)));
       if (!hasNumericSuffix) {
         while (sankeyStack.length && sankeyStack.at(-1)!.indent >= indent) {
           sankeyStack.pop();
         }
-        const { label: nodeName, color: nodeColor } = extractColor(trimmed, palette);
+        const { label: nodeName, color: nodeColor } = extractColor(
+          trimmed,
+          palette
+        );
         if (nodeColor) {
           if (!result.nodeColors) result.nodeColors = {};
           result.nodeColors[nodeName] = nodeColor;
@@ -331,7 +405,9 @@ export function parseExtendedChart(
 
     // Extract first token to check for known options
     const spaceIdx = trimmed.indexOf(' ');
-    const firstToken = (spaceIdx >= 0 ? trimmed.substring(0, spaceIdx) : trimmed).toLowerCase();
+    const firstToken = (
+      spaceIdx >= 0 ? trimmed.substring(0, spaceIdx) : trimmed
+    ).toLowerCase();
 
     // Known option with a value
     if (KNOWN_EXTENDED_OPTIONS.has(firstToken) && spaceIdx >= 0) {
@@ -369,13 +445,25 @@ export function parseExtendedChart(
           result.seriesNames = parsed.names;
           result.seriesNameLineNumbers = parsed.nameLineNumbers;
         }
-        if (parsed.nameColors.some(Boolean)) result.seriesNameColors = parsed.nameColors;
+        if (parsed.nameColors.some(Boolean))
+          result.seriesNameColors = parsed.nameColors;
         continue;
       }
 
-      if (firstToken === 'xlabel') { result.xlabel = value; result.xlabelLineNumber = lineNumber; continue; }
-      if (firstToken === 'ylabel') { result.ylabel = value; result.ylabelLineNumber = lineNumber; continue; }
-      if (firstToken === 'sizelabel') { result.sizelabel = value; continue; }
+      if (firstToken === 'xlabel') {
+        result.xlabel = value;
+        result.xlabelLineNumber = lineNumber;
+        continue;
+      }
+      if (firstToken === 'ylabel') {
+        result.ylabel = value;
+        result.ylabelLineNumber = lineNumber;
+        continue;
+      }
+      if (firstToken === 'sizelabel') {
+        result.sizelabel = value;
+        continue;
+      }
 
       if (firstToken === 'columns') {
         if (value) {
@@ -416,8 +504,14 @@ export function parseExtendedChart(
     }
 
     // Bare boolean options
-    if (firstToken === 'no-labels') { result.showLabels = false; continue; }
-    if (firstToken === 'shade') { result.shade = true; continue; }
+    if (firstToken === 'no-labels') {
+      result.showLabels = false;
+      continue;
+    }
+    if (firstToken === 'shade') {
+      result.shade = true;
+      continue;
+    }
 
     // Bare keyword options (no value)
     if (firstToken === 'series' && spaceIdx === -1) {
@@ -429,7 +523,8 @@ export function parseExtendedChart(
         result.seriesNames = parsed.names;
         result.seriesNameLineNumbers = parsed.nameLineNumbers;
       }
-      if (parsed.nameColors.some(Boolean)) result.seriesNameColors = parsed.nameColors;
+      if (parsed.nameColors.some(Boolean))
+        result.seriesNameColors = parsed.nameColors;
       continue;
     }
 
@@ -452,7 +547,10 @@ export function parseExtendedChart(
     if (result.type === 'function') {
       const colonIndex = trimmed.indexOf(':');
       if (colonIndex >= 0) {
-        const { label: fnName, color: fnColor } = extractColor(trimmed.substring(0, colonIndex).trim(), palette);
+        const { label: fnName, color: fnColor } = extractColor(
+          trimmed.substring(0, colonIndex).trim(),
+          palette
+        );
         const fnValue = trimmed.substring(colonIndex + 1).trim();
         if (!result.functions) result.functions = [];
         result.functions.push({
@@ -468,7 +566,12 @@ export function parseExtendedChart(
     // Scatter chart: "Name x, y" or "Name x, y, size"
     if (result.type === 'scatter') {
       // Parse from right: trailing comma-separated numbers are x, y [, size]
-      const scatterData = parseScatterRow(trimmed, palette, currentCategory, lineNumber);
+      const scatterData = parseScatterRow(
+        trimmed,
+        palette,
+        currentCategory,
+        lineNumber
+      );
       if (scatterData) {
         if (!result.scatterPoints) result.scatterPoints = [];
         result.scatterPoints.push(scatterData);
@@ -481,7 +584,11 @@ export function parseExtendedChart(
       const dataRow = parseDataRowValues(trimmed, { multiValue: true });
       if (dataRow && dataRow.values.length > 0) {
         if (!result.heatmapRows) result.heatmapRows = [];
-        result.heatmapRows.push({ label: dataRow.label, values: dataRow.values, lineNumber });
+        result.heatmapRows.push({
+          label: dataRow.label,
+          values: dataRow.values,
+          lineNumber,
+        });
         continue;
       }
     }
@@ -489,7 +596,10 @@ export function parseExtendedChart(
     // Funnel / generic data point: "Label value"
     const dataRow = parseDataRowValues(trimmed);
     if (dataRow && dataRow.values.length === 1) {
-      const { label: rawLabel, color: pointColor } = extractColor(dataRow.label, palette);
+      const { label: rawLabel, color: pointColor } = extractColor(
+        dataRow.label,
+        palette
+      );
       result.data.push({
         label: rawLabel,
         value: dataRow.values[0],
@@ -514,21 +624,33 @@ export function parseExtendedChart(
       }
     } else if (result.type === 'function') {
       if (!result.functions || result.functions.length === 0) {
-        warn(1, 'No functions found. Add functions in format: Name: expression');
+        warn(
+          1,
+          'No functions found. Add functions in format: Name: expression'
+        );
       }
       if (!result.xRange) {
         result.xRange = { min: -10, max: 10 }; // Default range
       }
     } else if (result.type === 'scatter') {
       if (!result.scatterPoints || result.scatterPoints.length === 0) {
-        warn(1, 'No scatter points found. Add points in format: Name: x, y or Name: x, y, size');
+        warn(
+          1,
+          'No scatter points found. Add points in format: Name: x, y or Name: x, y, size'
+        );
       }
     } else if (result.type === 'heatmap') {
       if (!result.heatmapRows || result.heatmapRows.length === 0) {
-        warn(1, 'No heatmap data found. Add data in format: RowLabel: val1, val2, val3');
+        warn(
+          1,
+          'No heatmap data found. Add data in format: RowLabel: val1, val2, val3'
+        );
       }
       if (!result.columns || result.columns.length === 0) {
-        warn(1, 'No columns defined. Add columns in format: columns: Col1, Col2, Col3');
+        warn(
+          1,
+          'No columns defined. Add columns in format: columns: Col1, Col2, Col3'
+        );
       }
     } else if (result.type === 'funnel') {
       if (result.data.length === 0) {
@@ -547,15 +669,43 @@ export function parseExtendedChart(
 /**
  * Computes the shared set of theme-derived variables used by all chart option builders.
  */
-function buildChartCommons(parsed: { title?: string; error?: string | null }, palette: PaletteColors, isDark: boolean) {
+function buildChartCommons(
+  parsed: { title?: string; error?: string | null },
+  palette: PaletteColors,
+  isDark: boolean
+) {
   const textColor = palette.text;
   const axisLineColor = palette.border;
   const splitLineColor = palette.border;
   const gridOpacity = isDark ? 0.7 : 0.55;
   const colors = getSeriesColors(palette);
-  const titleConfig = parsed.title ? { text: parsed.title, left: 'center' as const, top: 8, textStyle: { color: textColor, fontSize: 20, fontWeight: 'bold' as const, fontFamily: FONT_FAMILY } } : undefined;
-  const tooltipTheme = { backgroundColor: palette.surface, borderColor: palette.border, textStyle: { color: palette.text } };
-  return { textColor, axisLineColor, splitLineColor, gridOpacity, colors, titleConfig, tooltipTheme };
+  const titleConfig = parsed.title
+    ? {
+        text: parsed.title,
+        left: 'center' as const,
+        top: 8,
+        textStyle: {
+          color: textColor,
+          fontSize: 20,
+          fontWeight: 'bold' as const,
+          fontFamily: FONT_FAMILY,
+        },
+      }
+    : undefined;
+  const tooltipTheme = {
+    backgroundColor: palette.surface,
+    borderColor: palette.border,
+    textStyle: { color: palette.text },
+  };
+  return {
+    textColor,
+    axisLineColor,
+    splitLineColor,
+    gridOpacity,
+    colors,
+    titleConfig,
+    tooltipTheme,
+  };
 }
 
 /**
@@ -573,7 +723,14 @@ export function buildExtendedChartOption(
     return {};
   }
 
-  const { textColor, axisLineColor, gridOpacity, colors, titleConfig, tooltipTheme } = buildChartCommons(parsed, palette, isDark);
+  const {
+    textColor,
+    axisLineColor,
+    gridOpacity,
+    colors,
+    titleConfig,
+    tooltipTheme,
+  } = buildChartCommons(parsed, palette, isDark);
 
   // Sankey chart has different structure
   if (parsed.type === 'sankey') {
@@ -700,7 +857,7 @@ function buildSankeyOption(
         nodeGap: 12,
         nodeWidth: 20,
         data: nodes,
-        links: (parsed.links ?? []).map(link => ({
+        links: (parsed.links ?? []).map((link) => ({
           source: link.source,
           target: link.target,
           value: link.value,
@@ -762,7 +919,11 @@ function buildChordOption(
     const stroke = colors[index % colors.length];
     return {
       name,
-      itemStyle: { color: mix(stroke, bg, 30), borderColor: stroke, borderWidth: CHART_BORDER_WIDTH },
+      itemStyle: {
+        color: mix(stroke, bg, 30),
+        borderColor: stroke,
+        borderWidth: CHART_BORDER_WIDTH,
+      },
     };
   });
 
@@ -808,7 +969,9 @@ function buildChordOption(
           // Detect opposing link pairs to offset curvatures
           const pairKeys = new Set<string>();
           for (const l of allLinks) {
-            const rev = allLinks.find((r) => r.source === l.target && r.target === l.source && r !== l);
+            const rev = allLinks.find(
+              (r) => r.source === l.target && r.target === l.source && r !== l
+            );
             if (rev) pairKeys.add(`${l.source}\0${l.target}`);
           }
           return allLinks.map((link) => {
@@ -816,13 +979,18 @@ function buildChordOption(
             // Offset curvature for opposing pairs: one curves more, the other less
             const baseCurve = 0.3;
             const curveness = hasOpposite
-              ? (link.source < link.target ? baseCurve + 0.15 : baseCurve - 0.15)
+              ? link.source < link.target
+                ? baseCurve + 0.15
+                : baseCurve - 0.15
               : baseCurve;
             return {
               source: link.source,
               target: link.target,
               value: link.value,
-              ...(link.directed && { symbol: ['none', 'arrow'], symbolSize: [0, 10] }),
+              ...(link.directed && {
+                symbol: ['none', 'arrow'],
+                symbolSize: [0, 10],
+              }),
               lineStyle: {
                 width: Math.max(1, Math.min(link.value / 20, 10)),
                 color: colors[nodeNames.indexOf(link.source) % colors.length],
@@ -1000,16 +1168,18 @@ function buildFunctionOption(
  */
 export function getSimpleChartLegendGroups(
   parsed: ParsedChart,
-  colors: string[],
+  colors: string[]
 ): LegendGroupData[] {
   if (!parsed.seriesNames || parsed.seriesNames.length <= 1) return [];
-  return [{
-    name: 'Series',
-    entries: parsed.seriesNames.map((name, i) => ({
-      value: name,
-      color: parsed.seriesNameColors?.[i] ?? colors[i % colors.length],
-    })),
-  }];
+  return [
+    {
+      name: 'Series',
+      entries: parsed.seriesNames.map((name, i) => ({
+        value: name,
+        color: parsed.seriesNameColors?.[i] ?? colors[i % colors.length],
+      })),
+    },
+  ];
 }
 
 /**
@@ -1018,31 +1188,37 @@ export function getSimpleChartLegendGroups(
  */
 export function getExtendedChartLegendGroups(
   parsed: ParsedExtendedChart,
-  colors: string[],
+  colors: string[]
 ): LegendGroupData[] {
   if (parsed.type === 'scatter') {
     const points = parsed.scatterPoints ?? [];
-    const categories = [...new Set(points.map((p) => p.category).filter(Boolean))] as string[];
+    const categories = [
+      ...new Set(points.map((p) => p.category).filter(Boolean)),
+    ] as string[];
     if (categories.length === 0) return [];
-    return [{
-      name: 'Group',
-      entries: categories.map((cat, i) => ({
-        value: cat,
-        color: parsed.categoryColors?.[cat] ?? colors[i % colors.length],
-      })),
-    }];
+    return [
+      {
+        name: 'Group',
+        entries: categories.map((cat, i) => ({
+          value: cat,
+          color: parsed.categoryColors?.[cat] ?? colors[i % colors.length],
+        })),
+      },
+    ];
   }
 
   if (parsed.type === 'function') {
     const fns = parsed.functions ?? [];
     if (fns.length === 0) return [];
-    return [{
-      name: 'Function',
-      entries: fns.map((fn, i) => ({
-        value: fn.name,
-        color: fn.color ?? colors[i % colors.length],
-      })),
-    }];
+    return [
+      {
+        name: 'Function',
+        entries: fns.map((fn, i) => ({
+          value: fn.name,
+          color: fn.color ?? colors[i % colors.length],
+        })),
+      },
+    ];
   }
 
   return [];
@@ -1052,16 +1228,30 @@ export function getExtendedChartLegendGroups(
 // Scatter label collision avoidance — greedy placement algorithm
 // ---------------------------------------------------------------------------
 
-interface LabelRect { x: number; y: number; w: number; h: number }
-interface PointCircle { cx: number; cy: number; r: number }
+interface LabelRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+interface PointCircle {
+  cx: number;
+  cy: number;
+  r: number;
+}
 
 /** Axis-aligned bounding box overlap test. @internal exported for testing */
 export function rectsOverlap(a: LabelRect, b: LabelRect): boolean {
-  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+  return (
+    a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y
+  );
 }
 
 /** Rect vs circle overlap using nearest-point-on-rect distance check. @internal exported for testing */
-export function rectCircleOverlap(rect: LabelRect, circle: PointCircle): boolean {
+export function rectCircleOverlap(
+  rect: LabelRect,
+  circle: PointCircle
+): boolean {
   const nearestX = Math.max(rect.x, Math.min(circle.cx, rect.x + rect.w));
   const nearestY = Math.max(rect.y, Math.min(circle.cy, rect.y + rect.h));
   const dx = nearestX - circle.cx;
@@ -1124,9 +1314,18 @@ export function computeScatterLabelGraphics(
             : pt.py + offset; // below: label top edge is offset below point center
 
         // Check chart bounds
-        if (labelY < chartBounds.top || labelY + labelHeight > chartBounds.bottom) break;
+        if (
+          labelY < chartBounds.top ||
+          labelY + labelHeight > chartBounds.bottom
+        )
+          break;
 
-        const candidate: LabelRect = { x: labelX, y: labelY, w: labelWidth, h: labelHeight };
+        const candidate: LabelRect = {
+          x: labelX,
+          y: labelY,
+          w: labelWidth,
+          h: labelHeight,
+        };
 
         // Check collisions with all placed labels
         let collision = false;
@@ -1172,7 +1371,12 @@ export function computeScatterLabelGraphics(
       }
     }
 
-    const labelRect: LabelRect = { x: labelX, y: bestLabelY, w: labelWidth, h: labelHeight };
+    const labelRect: LabelRect = {
+      x: labelX,
+      y: bestLabelY,
+      w: labelWidth,
+      h: labelHeight,
+    };
     placedLabels.push(labelRect);
 
     const textY = bestLabelY + labelHeight / 2;
@@ -1262,10 +1466,11 @@ function dataToPixel(
 ): { px: number; py: number } {
   // containLabel: true shrinks the plot area — apply conservative 30px inset
   const inset = 30;
-  const gridLeftPx = gridLeftPct * chartWidth / 100 + inset;
-  const gridRightPx = chartWidth - gridRightPct * chartWidth / 100 - inset;
-  const gridTopPx = gridTopPct * chartHeight / 100 + inset;
-  const gridBottomPx = chartHeight - gridBottomPct * chartHeight / 100 - inset;
+  const gridLeftPx = (gridLeftPct * chartWidth) / 100 + inset;
+  const gridRightPx = chartWidth - (gridRightPct * chartWidth) / 100 - inset;
+  const gridTopPx = (gridTopPct * chartHeight) / 100 + inset;
+  const gridBottomPx =
+    chartHeight - (gridBottomPct * chartHeight) / 100 - inset;
   const plotWidth = gridRightPx - gridLeftPx;
   const plotHeight = gridBottomPx - gridTopPx;
 
@@ -1334,7 +1539,11 @@ function buildScatterOption(
         name: p.name,
         value: hasSize ? [p.x, p.y, p.size ?? 0] : [p.x, p.y],
         ...(p.color && {
-          itemStyle: { color: mix(p.color, bg, 30), borderColor: p.color, borderWidth: CHART_BORDER_WIDTH },
+          itemStyle: {
+            color: mix(p.color, bg, 30),
+            borderColor: p.color,
+            borderWidth: CHART_BORDER_WIDTH,
+          },
         }),
       }));
 
@@ -1345,7 +1554,11 @@ function buildScatterOption(
         ...(hasSize
           ? { symbolSize: (val: number[]) => val[2] }
           : { symbolSize: defaultSize }),
-        itemStyle: { color: mix(catColor, bg, 30), borderColor: catColor, borderWidth: CHART_BORDER_WIDTH },
+        itemStyle: {
+          color: mix(catColor, bg, 30),
+          borderColor: catColor,
+          borderWidth: CHART_BORDER_WIDTH,
+        },
         label: labelConfig,
         emphasis: emphasisConfig,
       };
@@ -1360,7 +1573,11 @@ function buildScatterOption(
         ...(hasSize
           ? { symbolSize: p.size ?? defaultSize }
           : { symbolSize: defaultSize }),
-        itemStyle: { color: mix(stroke, bg, 30), borderColor: stroke, borderWidth: CHART_BORDER_WIDTH },
+        itemStyle: {
+          color: mix(stroke, bg, 30),
+          borderColor: stroke,
+          borderWidth: CHART_BORDER_WIDTH,
+        },
       };
     });
 
@@ -1427,13 +1644,23 @@ function buildScatterOption(
         const pt = points[idx];
         const catIndex = pt.category ? categories.indexOf(pt.category) : -1;
         const catColor = pt.category
-          ? (parsed.categoryColors?.[pt.category] ?? colors[catIndex % colors.length])
+          ? (parsed.categoryColors?.[pt.category] ??
+            colors[catIndex % colors.length])
           : colors[idx % colors.length];
         const color = pt.color ?? catColor;
         const { px, py } = dataToPixel(
-          pt.x, pt.y, axisXMin, axisXMax, axisYMin, axisYMax,
-          gridLeft, gridRight, gridTop, gridBottom,
-          ECHART_EXPORT_WIDTH, ECHART_EXPORT_HEIGHT
+          pt.x,
+          pt.y,
+          axisXMin,
+          axisXMax,
+          axisYMin,
+          axisYMax,
+          gridLeft,
+          gridRight,
+          gridTop,
+          gridBottom,
+          ECHART_EXPORT_WIDTH,
+          ECHART_EXPORT_HEIGHT
         );
         labelPoints.push({ name: pt.name, px, py, color, size: pt.size });
       }
@@ -1441,16 +1668,26 @@ function buildScatterOption(
       points.forEach((pt, index) => {
         const color = pt.color ?? colors[index % colors.length];
         const { px, py } = dataToPixel(
-          pt.x, pt.y, axisXMin, axisXMax, axisYMin, axisYMax,
-          gridLeft, gridRight, gridTop, gridBottom,
-          ECHART_EXPORT_WIDTH, ECHART_EXPORT_HEIGHT
+          pt.x,
+          pt.y,
+          axisXMin,
+          axisXMax,
+          axisYMin,
+          axisYMax,
+          gridLeft,
+          gridRight,
+          gridTop,
+          gridBottom,
+          ECHART_EXPORT_WIDTH,
+          ECHART_EXPORT_HEIGHT
         );
         labelPoints.push({ name: pt.name, px, py, color, size: pt.size });
       });
     }
 
-    const chartBoundsTop = gridTop * ECHART_EXPORT_HEIGHT / 100;
-    const chartBoundsBottom = ECHART_EXPORT_HEIGHT - gridBottom * ECHART_EXPORT_HEIGHT / 100;
+    const chartBoundsTop = (gridTop * ECHART_EXPORT_HEIGHT) / 100;
+    const chartBoundsBottom =
+      ECHART_EXPORT_HEIGHT - (gridBottom * ECHART_EXPORT_HEIGHT) / 100;
     graphic = computeScatterLabelGraphics(
       labelPoints,
       { top: chartBoundsTop, bottom: chartBoundsBottom },
@@ -1462,11 +1699,12 @@ function buildScatterOption(
 
   // Build legend for categorized scatter charts
   const categories = hasCategories
-    ? [...new Set(points.map((p) => p.category).filter(Boolean))] as string[]
+    ? ([...new Set(points.map((p) => p.category).filter(Boolean))] as string[])
     : [];
-  const legendConfig = categories.length > 0
-    ? { data: categories, bottom: 10, textStyle: { color: textColor } }
-    : undefined;
+  const legendConfig =
+    categories.length > 0
+      ? { data: categories, bottom: 10, textStyle: { color: textColor } }
+      : undefined;
 
   return {
     ...CHART_BASE,
@@ -1823,7 +2061,10 @@ function makeGridAxis(
     const maxLabelLen = Math.max(...data.map((l) => l.length));
     const count = data.length;
     // When interval skips labels, base sizing on visible count (≈ count / step)
-    const step = intervalOverride != null && intervalOverride > 0 ? intervalOverride + 1 : 1;
+    const step =
+      intervalOverride != null && intervalOverride > 0
+        ? intervalOverride + 1
+        : 1;
     const visibleCount = Math.ceil(count / step);
     // Reduce font size based on density and label length
     if (visibleCount > 10 || maxLabelLen > 20) catFontSize = 10;
@@ -1832,7 +2073,11 @@ function makeGridAxis(
 
     // Constrain labels to their allotted slot width so ECharts wraps instead of hiding.
     // Skip when interval > 0 — visible labels are spread out and need no constraint.
-    if ((intervalOverride == null || intervalOverride === 0) && chartWidthHint && count > 0) {
+    if (
+      (intervalOverride == null || intervalOverride === 0) &&
+      chartWidthHint &&
+      count > 0
+    ) {
       const availPerLabel = Math.floor((chartWidthHint * 0.85) / count);
       catLabelExtras = {
         width: availPerLabel,
@@ -1864,7 +2109,11 @@ function makeGridAxis(
       name: label,
       nameLocation: 'middle',
       nameGap: nameGapOverride ?? defaultGap,
-      nameTextStyle: { color: textColor, fontSize: 18, fontFamily: FONT_FAMILY },
+      nameTextStyle: {
+        color: textColor,
+        fontSize: 18,
+        fontFamily: FONT_FAMILY,
+      },
     }),
   };
 }
@@ -1882,35 +2131,132 @@ export function buildSimpleChartOption(
 ): EChartsOption {
   if (parsed.error) return {};
 
-  const { textColor, axisLineColor, splitLineColor, gridOpacity, colors, titleConfig, tooltipTheme } = buildChartCommons(parsed, palette, isDark);
+  const {
+    textColor,
+    axisLineColor,
+    splitLineColor,
+    gridOpacity,
+    colors,
+    titleConfig,
+    tooltipTheme,
+  } = buildChartCommons(parsed, palette, isDark);
   const bg = isDark ? palette.surface : palette.bg;
 
   switch (parsed.type) {
     case 'bar':
-      return buildBarOption(parsed, textColor, axisLineColor, splitLineColor, gridOpacity, colors, bg, titleConfig, tooltipTheme, chartWidth);
+      return buildBarOption(
+        parsed,
+        textColor,
+        axisLineColor,
+        splitLineColor,
+        gridOpacity,
+        colors,
+        bg,
+        titleConfig,
+        tooltipTheme,
+        chartWidth
+      );
     case 'bar-stacked':
-      return buildBarStackedOption(parsed, textColor, axisLineColor, splitLineColor, gridOpacity, colors, bg, titleConfig, tooltipTheme, chartWidth);
+      return buildBarStackedOption(
+        parsed,
+        textColor,
+        axisLineColor,
+        splitLineColor,
+        gridOpacity,
+        colors,
+        bg,
+        titleConfig,
+        tooltipTheme,
+        chartWidth
+      );
     case 'line':
       return parsed.seriesNames
-        ? buildMultiLineOption(parsed, palette, textColor, axisLineColor, splitLineColor, gridOpacity, colors, titleConfig, tooltipTheme, chartWidth)
-        : buildLineOption(parsed, palette, textColor, axisLineColor, splitLineColor, gridOpacity, titleConfig, tooltipTheme, chartWidth);
+        ? buildMultiLineOption(
+            parsed,
+            palette,
+            textColor,
+            axisLineColor,
+            splitLineColor,
+            gridOpacity,
+            colors,
+            titleConfig,
+            tooltipTheme,
+            chartWidth
+          )
+        : buildLineOption(
+            parsed,
+            palette,
+            textColor,
+            axisLineColor,
+            splitLineColor,
+            gridOpacity,
+            titleConfig,
+            tooltipTheme,
+            chartWidth
+          );
     case 'area':
-      return buildAreaOption(parsed, palette, textColor, axisLineColor, splitLineColor, gridOpacity, titleConfig, tooltipTheme, chartWidth);
+      return buildAreaOption(
+        parsed,
+        palette,
+        textColor,
+        axisLineColor,
+        splitLineColor,
+        gridOpacity,
+        titleConfig,
+        tooltipTheme,
+        chartWidth
+      );
     case 'pie':
-      return buildPieOption(parsed, textColor, getSegmentColors(palette, parsed.data.length), bg, titleConfig, tooltipTheme, false);
+      return buildPieOption(
+        parsed,
+        textColor,
+        getSegmentColors(palette, parsed.data.length),
+        bg,
+        titleConfig,
+        tooltipTheme,
+        false
+      );
     case 'doughnut':
-      return buildPieOption(parsed, textColor, getSegmentColors(palette, parsed.data.length), bg, titleConfig, tooltipTheme, true);
+      return buildPieOption(
+        parsed,
+        textColor,
+        getSegmentColors(palette, parsed.data.length),
+        bg,
+        titleConfig,
+        tooltipTheme,
+        true
+      );
     case 'radar':
-      return buildRadarOption(parsed, palette, isDark, textColor, gridOpacity, titleConfig, tooltipTheme);
+      return buildRadarOption(
+        parsed,
+        palette,
+        isDark,
+        textColor,
+        gridOpacity,
+        titleConfig,
+        tooltipTheme
+      );
     case 'polar-area':
-      return buildPolarAreaOption(parsed, textColor, getSegmentColors(palette, parsed.data.length), bg, titleConfig, tooltipTheme);
+      return buildPolarAreaOption(
+        parsed,
+        textColor,
+        getSegmentColors(palette, parsed.data.length),
+        bg,
+        titleConfig,
+        tooltipTheme
+      );
   }
 }
 
 /**
  * Builds a standard chart grid object with consistent spacing rules.
  */
-function makeChartGrid(options: { xLabel?: string; yLabel?: string; hasTitle: boolean; hasLegend?: boolean }): Record<string, unknown> {
+function makeChartGrid(options: {
+  xLabel?: string;
+  yLabel?: string;
+  hasTitle: boolean;
+  hasLegend?: boolean;
+}): Record<string, unknown> {
   return {
     left: options.yLabel ? '12%' : '3%',
     right: '4%',
@@ -1941,17 +2287,39 @@ function buildBarOption(
     const stroke = d.color ?? colors[i % colors.length];
     return {
       value: d.value,
-      itemStyle: { color: mix(stroke, bg, 30), borderColor: stroke, borderWidth: CHART_BORDER_WIDTH },
+      itemStyle: {
+        color: mix(stroke, bg, 30),
+        borderColor: stroke,
+        borderWidth: CHART_BORDER_WIDTH,
+      },
     };
   });
 
   // When category labels are on the y-axis (horizontal bars), they can be wide —
   // compute a nameGap that clears the longest label so the ylabel doesn't overlap.
-  const hCatGap = isHorizontal && yLabel
-    ? Math.max(40, Math.max(...labels.map((l) => l.length)) * 8 + 16)
-    : undefined;
-  const categoryAxis = makeGridAxis('category', textColor, axisLineColor, splitLineColor, gridOpacity, isHorizontal ? yLabel : xLabel, labels, hCatGap, !isHorizontal ? chartWidth : undefined);
-  const valueAxis = makeGridAxis('value', textColor, axisLineColor, splitLineColor, gridOpacity, isHorizontal ? xLabel : yLabel);
+  const hCatGap =
+    isHorizontal && yLabel
+      ? Math.max(40, Math.max(...labels.map((l) => l.length)) * 8 + 16)
+      : undefined;
+  const categoryAxis = makeGridAxis(
+    'category',
+    textColor,
+    axisLineColor,
+    splitLineColor,
+    gridOpacity,
+    isHorizontal ? yLabel : xLabel,
+    labels,
+    hCatGap,
+    !isHorizontal ? chartWidth : undefined
+  );
+  const valueAxis = makeGridAxis(
+    'value',
+    textColor,
+    axisLineColor,
+    splitLineColor,
+    gridOpacity,
+    isHorizontal ? xLabel : yLabel
+  );
 
   // xAxis is always the bottom axis, yAxis is always the left axis in ECharts
 
@@ -1999,7 +2367,8 @@ function buildMarkArea(
     data: eras.map((era) => {
       const startIdx = labels.indexOf(era.start);
       const endIdx = labels.indexOf(era.end);
-      const bandSlots = startIdx >= 0 && endIdx >= 0 ? endIdx - startIdx : Infinity;
+      const bandSlots =
+        startIdx >= 0 && endIdx >= 0 ? endIdx - startIdx : Infinity;
       const color = era.color ?? defaultColor;
       return [
         {
@@ -2033,7 +2402,8 @@ function buildLineOption(
   chartWidth?: number
 ): EChartsOption {
   const { xLabel, yLabel } = resolveAxisLabels(parsed);
-  const lineColor = parsed.color ?? parsed.seriesNameColors?.[0] ?? palette.primary;
+  const lineColor =
+    parsed.color ?? parsed.seriesNameColors?.[0] ?? palette.primary;
   const labels = parsed.data.map((d) => d.label);
   const values = parsed.data.map((d) => d.value);
   const eras = parsed.eras ?? [];
@@ -2049,8 +2419,26 @@ function buildLineOption(
       axisPointer: { type: 'line' },
     },
     grid: makeChartGrid({ xLabel, yLabel, hasTitle: !!parsed.title }),
-    xAxis: makeGridAxis('category', textColor, axisLineColor, splitLineColor, gridOpacity, xLabel, labels, undefined, chartWidth, interval),
-    yAxis: makeGridAxis('value', textColor, axisLineColor, splitLineColor, gridOpacity, yLabel),
+    xAxis: makeGridAxis(
+      'category',
+      textColor,
+      axisLineColor,
+      splitLineColor,
+      gridOpacity,
+      xLabel,
+      labels,
+      undefined,
+      chartWidth,
+      interval
+    ),
+    yAxis: makeGridAxis(
+      'value',
+      textColor,
+      axisLineColor,
+      splitLineColor,
+      gridOpacity,
+      yLabel
+    ),
     series: [
       {
         type: 'line',
@@ -2118,9 +2506,32 @@ function buildMultiLineOption(
       bottom: 10,
       textStyle: { color: textColor },
     },
-    grid: makeChartGrid({ xLabel, yLabel, hasTitle: !!parsed.title, hasLegend: true }),
-    xAxis: makeGridAxis('category', textColor, axisLineColor, splitLineColor, gridOpacity, xLabel, labels, undefined, chartWidth, interval),
-    yAxis: makeGridAxis('value', textColor, axisLineColor, splitLineColor, gridOpacity, yLabel),
+    grid: makeChartGrid({
+      xLabel,
+      yLabel,
+      hasTitle: !!parsed.title,
+      hasLegend: true,
+    }),
+    xAxis: makeGridAxis(
+      'category',
+      textColor,
+      axisLineColor,
+      splitLineColor,
+      gridOpacity,
+      xLabel,
+      labels,
+      undefined,
+      chartWidth,
+      interval
+    ),
+    yAxis: makeGridAxis(
+      'value',
+      textColor,
+      axisLineColor,
+      splitLineColor,
+      gridOpacity,
+      yLabel
+    ),
     series,
   };
 }
@@ -2139,7 +2550,8 @@ function buildAreaOption(
   chartWidth?: number
 ): EChartsOption {
   const { xLabel, yLabel } = resolveAxisLabels(parsed);
-  const lineColor = parsed.color ?? parsed.seriesNameColors?.[0] ?? palette.primary;
+  const lineColor =
+    parsed.color ?? parsed.seriesNameColors?.[0] ?? palette.primary;
   const labels = parsed.data.map((d) => d.label);
   const values = parsed.data.map((d) => d.value);
   const eras = parsed.eras ?? [];
@@ -2155,8 +2567,26 @@ function buildAreaOption(
       axisPointer: { type: 'line' },
     },
     grid: makeChartGrid({ xLabel, yLabel, hasTitle: !!parsed.title }),
-    xAxis: makeGridAxis('category', textColor, axisLineColor, splitLineColor, gridOpacity, xLabel, labels, undefined, chartWidth, interval),
-    yAxis: makeGridAxis('value', textColor, axisLineColor, splitLineColor, gridOpacity, yLabel),
+    xAxis: makeGridAxis(
+      'category',
+      textColor,
+      axisLineColor,
+      splitLineColor,
+      gridOpacity,
+      xLabel,
+      labels,
+      undefined,
+      chartWidth,
+      interval
+    ),
+    yAxis: makeGridAxis(
+      'value',
+      textColor,
+      axisLineColor,
+      splitLineColor,
+      gridOpacity,
+      yLabel
+    ),
     series: [
       {
         type: 'line',
@@ -2211,7 +2641,11 @@ function buildPieOption(
     return {
       name: d.label,
       value: d.value,
-      itemStyle: { color: mix(stroke, bg, 30), borderColor: stroke, borderWidth: CHART_BORDER_WIDTH },
+      itemStyle: {
+        color: mix(stroke, bg, 30),
+        borderColor: stroke,
+        borderWidth: CHART_BORDER_WIDTH,
+      },
     };
   });
 
@@ -2253,7 +2687,8 @@ function buildRadarOption(
   tooltipTheme: Record<string, unknown>
 ): EChartsOption {
   const bg = isDark ? palette.surface : palette.bg;
-  const radarColor = parsed.color ?? parsed.seriesNameColors?.[0] ?? palette.primary;
+  const radarColor =
+    parsed.color ?? parsed.seriesNameColors?.[0] ?? palette.primary;
   const values = parsed.data.map((d) => d.value);
   const maxValue = Math.max(...values) * 1.15;
 
@@ -2328,7 +2763,11 @@ function buildPolarAreaOption(
     return {
       name: d.label,
       value: d.value,
-      itemStyle: { color: mix(stroke, bg, 30), borderColor: stroke, borderWidth: CHART_BORDER_WIDTH },
+      itemStyle: {
+        color: mix(stroke, bg, 30),
+        borderColor: stroke,
+        borderWidth: CHART_BORDER_WIDTH,
+      },
     };
   });
 
@@ -2389,7 +2828,11 @@ function buildBarStackedOption(
       type: 'bar' as const,
       stack: 'total',
       data,
-      itemStyle: { color: mix(color, bg, 30), borderColor: color, borderWidth: CHART_BORDER_WIDTH },
+      itemStyle: {
+        color: mix(color, bg, 30),
+        borderColor: color,
+        borderWidth: CHART_BORDER_WIDTH,
+      },
       label: {
         show: true,
         position: 'inside' as const,
@@ -2403,14 +2846,34 @@ function buildBarStackedOption(
     };
   });
 
-  const hCatGap = isHorizontal && yLabel
-    ? Math.max(40, Math.max(...labels.map((l) => l.length)) * 8 + 16)
-    : undefined;
-  const categoryAxis = makeGridAxis('category', textColor, axisLineColor, splitLineColor, gridOpacity, isHorizontal ? yLabel : xLabel, labels, hCatGap, !isHorizontal ? chartWidth : undefined);
+  const hCatGap =
+    isHorizontal && yLabel
+      ? Math.max(40, Math.max(...labels.map((l) => l.length)) * 8 + 16)
+      : undefined;
+  const categoryAxis = makeGridAxis(
+    'category',
+    textColor,
+    axisLineColor,
+    splitLineColor,
+    gridOpacity,
+    isHorizontal ? yLabel : xLabel,
+    labels,
+    hCatGap,
+    !isHorizontal ? chartWidth : undefined
+  );
   // For horizontal bars with a legend, use a smaller nameGap so the xlabel
   // stays close to the axis ticks rather than drifting toward the legend.
   const hValueGap = isHorizontal && xLabel ? 40 : undefined;
-  const valueAxis = makeGridAxis('value', textColor, axisLineColor, splitLineColor, gridOpacity, isHorizontal ? xLabel : yLabel, undefined, hValueGap);
+  const valueAxis = makeGridAxis(
+    'value',
+    textColor,
+    axisLineColor,
+    splitLineColor,
+    gridOpacity,
+    isHorizontal ? xLabel : yLabel,
+    undefined,
+    hValueGap
+  );
 
   return {
     ...CHART_BASE,
@@ -2420,7 +2883,12 @@ function buildBarStackedOption(
       bottom: 10,
       textStyle: { color: textColor },
     },
-    grid: makeChartGrid({ xLabel, yLabel, hasTitle: !!parsed.title, hasLegend: true }),
+    grid: makeChartGrid({
+      xLabel,
+      yLabel,
+      hasTitle: !!parsed.title,
+      hasLegend: true,
+    }),
     xAxis: isHorizontal ? valueAxis : categoryAxis,
     yAxis: isHorizontal ? categoryAxis : valueAxis,
     series,
@@ -2436,8 +2904,15 @@ const ECHART_EXPORT_HEIGHT = 800;
 
 // Standard chart types handled by buildSimpleChartOption (via parseChart)
 const STANDARD_CHART_TYPES = new Set([
-  'bar', 'line', 'multi-line', 'area', 'pie', 'doughnut',
-  'radar', 'polar-area', 'bar-stacked',
+  'bar',
+  'line',
+  'multi-line',
+  'area',
+  'pie',
+  'doughnut',
+  'radar',
+  'polar-area',
+  'bar-stacked',
 ]);
 
 /**
@@ -2472,13 +2947,18 @@ export async function renderExtendedChartForExport(
   if (!chartType) return '';
 
   let option: EChartsOption;
-  let legendGroups: LegendGroupData[] = [];
+  let legendGroups: LegendGroupData[] = []; // eslint-disable-line no-useless-assignment
   const colors = getSeriesColors(effectivePalette);
 
   if (STANDARD_CHART_TYPES.has(chartType)) {
     const parsed = parseChart(content, effectivePalette);
     if (parsed.error) return '';
-    option = buildSimpleChartOption(parsed, effectivePalette, isDark, ECHART_EXPORT_WIDTH);
+    option = buildSimpleChartOption(
+      parsed,
+      effectivePalette,
+      isDark,
+      ECHART_EXPORT_WIDTH
+    );
     legendGroups = getSimpleChartLegendGroups(parsed, colors);
   } else {
     const parsed = parseExtendedChart(content, effectivePalette);
@@ -2507,7 +2987,8 @@ export async function renderExtendedChartForExport(
 
     // The SSR output already includes xmlns, width, height, and viewBox.
     // Inject font-family and background on the root <svg> element.
-    const bgStyle = theme !== 'transparent' ? `background: ${effectivePalette.bg}; ` : '';
+    const bgStyle =
+      theme !== 'transparent' ? `background: ${effectivePalette.bg}; ` : '';
     let result = svgString.replace(
       /^<svg /,
       `<svg style="${bgStyle}font-family: ${FONT_FAMILY}" `
@@ -2515,13 +2996,18 @@ export async function renderExtendedChartForExport(
 
     // Inject custom legend SVG when present
     if (legendGroups.length > 0) {
-      const titleHeight = option.title && (option.title as { text?: string }).text ? 40 : 0;
+      const titleHeight =
+        option.title && (option.title as { text?: string }).text ? 40 : 0;
       const legendY = 8 + titleHeight;
       // In static export, expand the first group so entries are visible
       // Extract grid offsets for plot-area-centered legend
       const grid = option.grid as Record<string, unknown> | undefined;
-      const gridLeftPct = grid?.left ? parseFloat(String(grid.left)) : undefined;
-      const gridRightPct = grid?.right ? parseFloat(String(grid.right)) : undefined;
+      const gridLeftPct = grid?.left
+        ? parseFloat(String(grid.left))
+        : undefined;
+      const gridRightPct = grid?.right
+        ? parseFloat(String(grid.right))
+        : undefined;
       const { svg: legendSvgStr } = renderLegendSvg(legendGroups, {
         palette: effectivePalette,
         isDark,
@@ -2534,12 +3020,13 @@ export async function renderExtendedChartForExport(
       // Insert legend group right after the opening <svg ...> tag
       result = result.replace(
         /(<svg[^>]*>)/,
-        `$1<g transform="translate(0,${legendY})">${legendSvgStr}</g>`,
+        `$1<g transform="translate(0,${legendY})">${legendSvgStr}</g>`
       );
     }
 
     if (options?.branding !== false) {
-      const brandColor = theme === 'transparent' ? '#888' : effectivePalette.textMuted;
+      const brandColor =
+        theme === 'transparent' ? '#888' : effectivePalette.textMuted;
       result = injectBranding(result, brandColor);
     }
 

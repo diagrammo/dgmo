@@ -13,9 +13,17 @@ import type {
 } from './types';
 import { VALID_STATUSES, STATUS_ALIASES } from './types';
 import { inferParticipantType } from '../sequence/participant-inference';
-import { matchTagBlockHeading, injectDefaultTagMetadata, validateTagValues } from '../utils/tag-groups';
+import {
+  matchTagBlockHeading,
+  injectDefaultTagMetadata,
+  validateTagValues,
+} from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
-import { extractColor, parseFirstLine, ALL_CHART_TYPES, OPTION_NOCOLON_RE } from '../utils/parsing';
+import {
+  extractColor,
+  parseFirstLine,
+  OPTION_NOCOLON_RE,
+} from '../utils/parsing';
 
 // ============================================================
 // Heuristic — does this content look like an initiative-status diagram?
@@ -38,10 +46,14 @@ export function looksLikeInitiativeStatus(content: string): boolean {
     // Skip new-style first line (bare chart type name)
     if (parseFirstLine(trimmed)) continue;
     if (trimmed.includes('->')) hasArrow = true;
-    if (/\|\s*(done|doing|wip|blocked|paused|waiting|todo|na)\s*$/i.test(trimmed)) hasStatus = true;
+    if (
+      /\|\s*(done|doing|wip|blocked|paused|waiting|todo|na)\s*$/i.test(trimmed)
+    )
+      hasStatus = true;
     // Indented arrow is a strong signal — only initiative-status uses this
     const isIndented = line.length > 0 && line !== trimmed && /^\s/.test(line);
-    if (isIndented && (trimmed.startsWith('->') || /^-[^>].*->/.test(trimmed))) hasIndentedArrow = true;
+    if (isIndented && (trimmed.startsWith('->') || /^-[^>].*->/.test(trimmed)))
+      hasIndentedArrow = true;
     if (hasArrow && hasStatus) return true;
   }
   return hasIndentedArrow;
@@ -67,7 +79,11 @@ export function parseNodeMetadata(
   aliasMap: Map<string, string>,
   lineNum?: number,
   diagnostics?: DgmoError[]
-): { status: InitiativeStatus; metadata: Record<string, string>; hadStatusWord: boolean } {
+): {
+  status: InitiativeStatus;
+  metadata: Record<string, string>;
+  hadStatusWord: boolean;
+} {
   const metadata: Record<string, string> = {};
   let status: InitiativeStatus = null;
   let hadStatusWord = false;
@@ -125,7 +141,12 @@ export function parseNodeMetadata(
 // Parser
 // ============================================================
 
-function parseStatus(raw: string, line: number, diagnostics: DgmoError[]): InitiativeStatus {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function _parseStatus(
+  raw: string,
+  line: number,
+  diagnostics: DgmoError[]
+): InitiativeStatus {
   const trimmed = raw.trim().toLowerCase();
   if (!trimmed) return 'na';
   const canonical = STATUS_ALIASES[trimmed] ?? trimmed;
@@ -191,7 +212,10 @@ export function parseInitiativeStatus(content: string): ParsedInitiativeStatus {
     const firstLineResult = parseFirstLine(trimmed);
     if (firstLineResult && !contentStarted) {
       if (firstLineResult.chartType !== 'initiative-status') {
-        const diag = makeDgmoError(lineNum, `Expected chart type "initiative-status", got "${firstLineResult.chartType}"`);
+        const diag = makeDgmoError(
+          lineNum,
+          `Expected chart type "initiative-status", got "${firstLineResult.chartType}"`
+        );
         result.diagnostics.push(diag);
         result.error = formatDgmoError(diag);
         return result;
@@ -212,7 +236,10 @@ export function parseInitiativeStatus(content: string): ParsedInitiativeStatus {
         const colonIdx = pair.indexOf(':');
         if (colonIdx > 0) {
           const groupKey = pair.substring(0, colonIdx).trim().toLowerCase();
-          const value = pair.substring(colonIdx + 1).trim().toLowerCase();
+          const value = pair
+            .substring(colonIdx + 1)
+            .trim()
+            .toLowerCase();
           if (groupKey && value) {
             if (!result.initialHiddenTagValues.has(groupKey)) {
               result.initialHiddenTagValues.set(groupKey, new Set());
@@ -243,7 +270,11 @@ export function parseInitiativeStatus(content: string): ParsedInitiativeStatus {
     if (tagBlockMatch) {
       if (contentStarted) {
         result.diagnostics.push(
-          makeDgmoError(lineNum, 'Tag groups must appear before diagram content', 'error')
+          makeDgmoError(
+            lineNum,
+            'Tag groups must appear before diagram content',
+            'error'
+          )
         );
         continue;
       }
@@ -254,7 +285,10 @@ export function parseInitiativeStatus(content: string): ParsedInitiativeStatus {
         lineNumber: lineNum,
       };
       if (tagBlockMatch.alias) {
-        aliasMap.set(tagBlockMatch.alias.toLowerCase(), tagBlockMatch.name.toLowerCase());
+        aliasMap.set(
+          tagBlockMatch.alias.toLowerCase(),
+          tagBlockMatch.name.toLowerCase()
+        );
       }
       // Handle inline values from single-line tag declaration
       if (tagBlockMatch.inlineValues) {
@@ -292,7 +326,7 @@ export function parseInitiativeStatus(content: string): ParsedInitiativeStatus {
         continue;
       }
       // Non-indented line after tag group — close and fall through
-      currentTagGroup = null;
+      currentTagGroup = null; // eslint-disable-line no-useless-assignment
     }
 
     // Group header: [Group Name] or [Group Name] | metadata
@@ -343,13 +377,22 @@ export function parseInitiativeStatus(content: string): ParsedInitiativeStatus {
       if (trimmed.startsWith('->') || /^-[^>].*->/.test(trimmed)) {
         if (!lastNodeLabel) {
           result.diagnostics.push(
-            makeDgmoError(lineNum, 'Indented edge has no preceding node to use as source', 'warning')
+            makeDgmoError(
+              lineNum,
+              'Indented edge has no preceding node to use as source',
+              'warning'
+            )
           );
           continue;
         }
         edgeText = `${lastNodeLabel} ${trimmed}`;
       }
-      const edge = parseEdgeLine(edgeText, lineNum, aliasMap, result.diagnostics);
+      const edge = parseEdgeLine(
+        edgeText,
+        lineNum,
+        aliasMap,
+        result.diagnostics
+      );
       if (edge) result.edges.push(edge);
       continue;
     }
@@ -392,20 +435,40 @@ export function parseInitiativeStatus(content: string): ParsedInitiativeStatus {
   for (const edge of result.edges) {
     if (!nodeLabels.has(edge.source)) {
       result.diagnostics.push(
-        makeDgmoError(edge.lineNumber, `Edge source "${edge.source}" is not a declared node`, 'warning')
+        makeDgmoError(
+          edge.lineNumber,
+          `Edge source "${edge.source}" is not a declared node`,
+          'warning'
+        )
       );
       // Auto-create an implicit node
       if (!result.nodes.some((n) => n.label === edge.source)) {
-        result.nodes.push({ label: edge.source, status: 'na', shape: inferParticipantType(edge.source), lineNumber: edge.lineNumber, metadata: {} });
+        result.nodes.push({
+          label: edge.source,
+          status: 'na',
+          shape: inferParticipantType(edge.source),
+          lineNumber: edge.lineNumber,
+          metadata: {},
+        });
         nodeLabels.add(edge.source);
       }
     }
     if (!nodeLabels.has(edge.target)) {
       result.diagnostics.push(
-        makeDgmoError(edge.lineNumber, `Edge target "${edge.target}" is not a declared node`, 'warning')
+        makeDgmoError(
+          edge.lineNumber,
+          `Edge target "${edge.target}" is not a declared node`,
+          'warning'
+        )
       );
       if (!result.nodes.some((n) => n.label === edge.target)) {
-        result.nodes.push({ label: edge.target, status: 'na', shape: inferParticipantType(edge.target), lineNumber: edge.lineNumber, metadata: {} });
+        result.nodes.push({
+          label: edge.target,
+          status: 'na',
+          shape: inferParticipantType(edge.target),
+          lineNumber: edge.lineNumber,
+          metadata: {},
+        });
         nodeLabels.add(edge.target);
       }
     }
@@ -437,7 +500,12 @@ function parseNodeLine(
     const label = trimmed.slice(0, pipeIdx).trim();
     const metaSegment = trimmed.slice(pipeIdx + 1).trim();
     if (!label) return null;
-    const { status, metadata, hadStatusWord } = parseNodeMetadata(metaSegment, aliasMap, lineNum, diagnostics);
+    const { status, metadata, hadStatusWord } = parseNodeMetadata(
+      metaSegment,
+      aliasMap,
+      lineNum,
+      diagnostics
+    );
     return {
       label,
       // Unknown status bare word → keep null; no bare word at all → default 'na'
@@ -447,7 +515,13 @@ function parseNodeLine(
       metadata,
     };
   }
-  return { label: trimmed, status: 'na', shape: inferParticipantType(trimmed), lineNumber: lineNum, metadata: {} };
+  return {
+    label: trimmed,
+    status: 'na',
+    shape: inferParticipantType(trimmed),
+    lineNumber: lineNum,
+    metadata: {},
+  };
 }
 
 function parseEdgeLine(
@@ -475,8 +549,15 @@ function parseEdgeLine(
       const pipeIdx = targetRest.indexOf('|');
       if (pipeIdx >= 0) {
         const metaSegment = targetRest.slice(pipeIdx + 1).trim();
-        const parsed = parseNodeMetadata(metaSegment, aliasMap, lineNum, diagnostics);
-        status = parsed.hadStatusWord ? (parsed.status ?? null) : (parsed.status ?? 'na');
+        const parsed = parseNodeMetadata(
+          metaSegment,
+          aliasMap,
+          lineNum,
+          diagnostics
+        );
+        status = parsed.hadStatusWord
+          ? (parsed.status ?? null)
+          : (parsed.status ?? 'na');
         metadata = parsed.metadata;
         targetRest = targetRest.slice(0, pipeIdx).trim();
       }
@@ -499,7 +580,9 @@ function parseEdgeLine(
   let rest = trimmed.slice(arrowIdx + 2).trim();
 
   if (!source || !rest) {
-    diagnostics.push(makeDgmoError(lineNum, 'Edge is missing source or target'));
+    diagnostics.push(
+      makeDgmoError(lineNum, 'Edge is missing source or target')
+    );
     return null;
   }
 
@@ -509,8 +592,15 @@ function parseEdgeLine(
   const pipeIdx = rest.indexOf('|');
   if (pipeIdx >= 0) {
     const metaSegment = rest.slice(pipeIdx + 1).trim();
-    const parsed = parseNodeMetadata(metaSegment, aliasMap, lineNum, diagnostics);
-    status = parsed.hadStatusWord ? (parsed.status ?? null) : (parsed.status ?? 'na');
+    const parsed = parseNodeMetadata(
+      metaSegment,
+      aliasMap,
+      lineNum,
+      diagnostics
+    );
+    status = parsed.hadStatusWord
+      ? (parsed.status ?? null)
+      : (parsed.status ?? 'na');
     metadata = parsed.metadata;
     rest = rest.slice(0, pipeIdx).trim();
   }

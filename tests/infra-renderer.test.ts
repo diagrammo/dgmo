@@ -5,16 +5,34 @@ import { layoutInfra } from '../src/infra/layout';
 import { renderInfra } from '../src/infra/renderer';
 import { getPalette } from '../src/palettes';
 
-function renderToSvg(content: string, theme: 'light' | 'dark' = 'light', selectedNodeId?: string): string {
+function renderToSvg(
+  content: string,
+  theme: 'light' | 'dark' = 'light',
+  selectedNodeId?: string
+): string {
   const parsed = parseInfra(content);
   expect(parsed.error).toBeNull();
   const computed = computeInfra(parsed);
-  const expandedNodeIds = selectedNodeId ? new Set([selectedNodeId]) : undefined;
+  const expandedNodeIds = selectedNodeId
+    ? new Set([selectedNodeId])
+    : undefined;
   const layout = layoutInfra(computed, expandedNodeIds);
   const paletteConfig = getPalette('nord');
   const palette = theme === 'dark' ? paletteConfig.dark : paletteConfig.light;
   const container = document.createElement('div');
-  renderInfra(container, layout, palette, theme === 'dark', parsed.title, parsed.titleLineNumber, parsed.tagGroups, null, false, null, expandedNodeIds ?? null);
+  renderInfra(
+    container,
+    layout,
+    palette,
+    theme === 'dark',
+    parsed.title,
+    parsed.titleLineNumber,
+    parsed.tagGroups,
+    null,
+    false,
+    null,
+    expandedNodeIds ?? null
+  );
   return container.innerHTML;
 }
 
@@ -53,14 +71,18 @@ CDN
 
   it('renders metrics (latency, instances) as key-value rows', () => {
     // Declared properties only shown when node is selected
-    const svg = renderToSvg(`infra
+    const svg = renderToSvg(
+      `infra
 edge
   rps 500
   -> API
 API
   instances 3
   max-rps 200
-  latency-ms 45`, 'light', 'API');
+  latency-ms 45`,
+      'light',
+      'API'
+    );
     // Key-value style: "latency: " then "45ms"
     expect(svg).toContain('latency: ');
     expect(svg).toContain('>45ms<');
@@ -82,14 +104,18 @@ API
 
   it('renders CB threshold as key-value row', () => {
     // Declared properties only shown when node is selected
-    const svg = renderToSvg(`infra
+    const svg = renderToSvg(
+      `infra
 edge
   rps 5000
   -> API
 API
   instances 1
   max-rps 100
-  cb-error-threshold 50%`, 'light', 'API');
+  cb-error-threshold 50%`,
+      'light',
+      'API'
+    );
     // CB threshold shown as key-value row
     expect(svg).toContain('CB error threshold: ');
     expect(svg).toContain('>50%<');
@@ -99,13 +125,17 @@ API
   });
 
   it('renders ratelimit-rps and cb-latency-threshold-ms with correct labels', () => {
-    const svg = renderToSvg(`infra
+    const svg = renderToSvg(
+      `infra
 edge
   rps 5000
   -> API
 API
   ratelimit-rps 1000
-  cb-latency-threshold-ms 200`, 'light', 'API');
+  cb-latency-threshold-ms 200`,
+      'light',
+      'API'
+    );
     expect(svg).toContain('rate limit RPS: ');
     expect(svg).toContain('CB latency threshold: ');
     expect(svg).not.toContain('rate limit: ');
@@ -134,7 +164,17 @@ CDN
     const paletteConfig = getPalette('nord');
     const palette = paletteConfig.light;
     const container = document.createElement('div');
-    renderInfra(container, layout, palette, false, parsed.title, parsed.titleLineNumber, parsed.tagGroups, 'Capabilities', false);
+    renderInfra(
+      container,
+      layout,
+      palette,
+      false,
+      parsed.title,
+      parsed.titleLineNumber,
+      parsed.tagGroups,
+      'Capabilities',
+      false
+    );
     const activeSvg = container.innerHTML;
     expect(activeSvg).toContain('<circle');
   });
@@ -177,10 +217,13 @@ edge
   });
 
   it('renders in dark theme', () => {
-    const svg = renderToSvg(`infra
+    const svg = renderToSvg(
+      `infra
 edge
   rps 100
-  -> A`, 'dark');
+  -> A`,
+      'dark'
+    );
     expect(svg).toContain('<svg');
   });
 
@@ -218,7 +261,17 @@ CDN
     const layout = layoutInfra(computed);
     const palette = getPalette('nord').light;
     const container = document.createElement('div');
-    renderInfra(container, layout, palette, false, null, null, undefined, null, true);
+    renderInfra(
+      container,
+      layout,
+      palette,
+      false,
+      null,
+      null,
+      undefined,
+      null,
+      true
+    );
     const svg = container.innerHTML;
     expect(svg).toContain('animateMotion');
     expect(svg).toContain('<circle');
@@ -258,7 +311,17 @@ API
     const layout = layoutInfra(computed);
     const palette = getPalette('nord').light;
     const container = document.createElement('div');
-    renderInfra(container, layout, palette, false, null, null, undefined, null, true);
+    renderInfra(
+      container,
+      layout,
+      palette,
+      false,
+      null,
+      null,
+      undefined,
+      null,
+      true
+    );
     const svg = container.innerHTML;
     expect(svg).toContain('#ef4444');
   });
@@ -276,7 +339,17 @@ API
     const layout = layoutInfra(computed);
     const palette = getPalette('nord').light;
     const container = document.createElement('div');
-    renderInfra(container, layout, palette, false, null, null, undefined, null, true);
+    renderInfra(
+      container,
+      layout,
+      palette,
+      false,
+      null,
+      null,
+      undefined,
+      null,
+      true
+    );
     const svg = container.innerHTML;
     expect(svg).toContain('infra-node-overload');
     expect(svg).toContain('infra-pulse-overload');
@@ -295,7 +368,17 @@ API
     const layout = layoutInfra(computed);
     const palette = getPalette('nord').light;
     const container = document.createElement('div');
-    renderInfra(container, layout, palette, false, null, null, undefined, null, true);
+    renderInfra(
+      container,
+      layout,
+      palette,
+      false,
+      null,
+      null,
+      undefined,
+      null,
+      true
+    );
     const svg = container.innerHTML;
     expect(svg).toContain('infra-node-warning');
   });
@@ -314,7 +397,17 @@ API
     const layout = layoutInfra(computed);
     const palette = getPalette('nord').light;
     const container = document.createElement('div');
-    renderInfra(container, layout, palette, false, null, null, undefined, null, true);
+    renderInfra(
+      container,
+      layout,
+      palette,
+      false,
+      null,
+      null,
+      undefined,
+      null,
+      true
+    );
     const svg = container.innerHTML;
     expect(svg).toContain('infra-node-cb-open');
   });
@@ -333,7 +426,17 @@ API
     const layout = layoutInfra(computed);
     const palette = getPalette('nord').light;
     const container = document.createElement('div');
-    renderInfra(container, layout, palette, false, null, null, undefined, null, false);
+    renderInfra(
+      container,
+      layout,
+      palette,
+      false,
+      null,
+      null,
+      undefined,
+      null,
+      false
+    );
     const svg = container.innerHTML;
     // Should show CB key and OPEN value as inverted pill with palette text on red background
     expect(svg).toContain('CB: ');
@@ -355,7 +458,17 @@ API
     const layout = layoutInfra(computed);
     const palette = getPalette('nord').light;
     const container = document.createElement('div');
-    renderInfra(container, layout, palette, false, null, null, undefined, null, false);
+    renderInfra(
+      container,
+      layout,
+      palette,
+      false,
+      null,
+      null,
+      undefined,
+      null,
+      false
+    );
     const svg = container.innerHTML;
     // Availability < 95% should render as inverted pill with palette text color
     expect(svg).toContain('availability:');
@@ -374,7 +487,17 @@ CDN
     const layout = layoutInfra(computed);
     const palette = getPalette('nord').light;
     const container = document.createElement('div');
-    renderInfra(container, layout, palette, false, null, null, undefined, null, true);
+    renderInfra(
+      container,
+      layout,
+      palette,
+      false,
+      null,
+      null,
+      undefined,
+      null,
+      true
+    );
     const svg = container.innerHTML;
     // Should have multiple animateMotion elements (particles)
     const motionCount = (svg.match(/animateMotion/g) || []).length;
@@ -456,14 +579,18 @@ API`);
 
   it('renders serverless node with instances row and property rows', () => {
     // Select Lambda to show declared properties (duration, cold start)
-    const svg = renderToSvg(`infra
+    const svg = renderToSvg(
+      `infra
 edge
   rps 3000
   -> Lambda
 Lambda
   concurrency 1000
   duration-ms 200
-  cold-start-ms 250`, 'light', 'Lambda');
+  cold-start-ms 250`,
+      'light',
+      'Lambda'
+    );
     expect(svg).toContain('Lambda');
     // Computed instances row: 600 / 1,000 (3000 rps × 200ms / 1000 = 600 demand vs 1000 concurrency)
     expect(svg).toContain('instances');
@@ -480,7 +607,8 @@ Lambda
 
   it('renders queue node with buffer, drain, lag, and overflow rows', () => {
     // Select Queue to show declared properties (buffer, drain, retention, partitions)
-    const svg = renderToSvg(`infra
+    const svg = renderToSvg(
+      `infra
 edge
   rps 2000
   -> Queue
@@ -491,7 +619,10 @@ Queue
   partitions 6
   -> Processor
 Processor
-  max-rps 1000`, 'light', 'Queue');
+  max-rps 1000`,
+      'light',
+      'Queue'
+    );
     expect(svg).toContain('Queue');
     // Buffer formatted as 100k
     expect(svg).toContain('100k');
@@ -535,7 +666,9 @@ API`);
     const withOverride = computeInfra(parsed, {
       propertyOverrides: { CDN: { 'cache-hit': 30 } },
     });
-    expect(withOverride.nodes.find((n) => n.id === 'API')!.computedRps).toBe(7000);
+    expect(withOverride.nodes.find((n) => n.id === 'API')!.computedRps).toBe(
+      7000
+    );
   });
 
   it('renders async edge with stroke-dasharray', () => {
@@ -558,7 +691,6 @@ API
   -> Database`);
     // Sync edges should not have stroke-dasharray="6 4" on edge paths
     // (note: other elements may use dasharray for animations, so check specifically edge paths)
-    const edgePaths = svg.match(/<path[^>]*class="[^"]*"[^>]*>/g) ?? [];
     // None of the simple edge paths should have dasharray
     // Just verify no 6 4 pattern on the main edge path strokes
     expect(svg).not.toMatch(/stroke-dasharray="6 4"/);

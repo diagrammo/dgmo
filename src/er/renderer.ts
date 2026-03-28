@@ -21,12 +21,21 @@ import {
   LEGEND_GROUP_GAP,
   measureLegendText,
 } from '../utils/legend-constants';
-import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT, TITLE_Y } from '../utils/title-constants';
+import {
+  TITLE_FONT_SIZE,
+  TITLE_FONT_WEIGHT,
+  TITLE_Y,
+} from '../utils/title-constants';
 import type { ParsedERDiagram, ERConstraint } from './types';
 import type { ERLayoutResult } from './layout';
 import { parseERDiagram } from './parser';
 import { layoutERDiagram } from './layout';
-import { classifyEREntities, ROLE_COLORS, ROLE_LABELS, ROLE_ORDER } from './classify';
+import {
+  classifyEREntities,
+  ROLE_COLORS,
+  ROLE_LABELS,
+  ROLE_ORDER,
+} from './classify';
 import type { EntityRole } from './classify';
 
 // ============================================================
@@ -50,10 +59,14 @@ const MEMBER_PADDING_X = 10;
 
 function constraintIcon(constraint: ERConstraint): string {
   switch (constraint) {
-    case 'pk': return '\u2666'; // ♦
-    case 'fk': return '\u2192'; // →
-    case 'unique': return '\u25C6'; // ◆
-    case 'nullable': return '\u25CB'; // ○
+    case 'pk':
+      return '\u2666'; // ♦
+    case 'fk':
+      return '\u2192'; // →
+    case 'unique':
+      return '\u25C6'; // ◆
+    case 'nullable':
+      return '\u25CB'; // ○
   }
 }
 
@@ -61,7 +74,8 @@ function constraintIcon(constraint: ERConstraint): string {
 // Edge path generator
 // ============================================================
 
-const lineGenerator = d3Shape.line<{ x: number; y: number }>()
+const lineGenerator = d3Shape
+  .line<{ x: number; y: number }>()
   .x((d) => d.x)
   .y((d) => d.y)
   .curve(d3Shape.curveBasis);
@@ -114,7 +128,8 @@ function drawCardinality(
     const offset = 15;
     const bx = point.x - ux * offset;
     const by = point.y - uy * offset;
-    const labelText = cardinality === '1' ? '1' : cardinality === '*' ? '*' : '0..1';
+    const labelText =
+      cardinality === '1' ? '1' : cardinality === '*' ? '*' : '0..1';
     g.append('text')
       .attr('x', bx + px * 12)
       .attr('y', by + py * 12)
@@ -128,7 +143,7 @@ function drawCardinality(
 
   // Crow's foot notation
   const barOffset = 14; // how far back from the entity the bar sits
-  const spread = 9;     // half-width of the perpendicular bar / prong span
+  const spread = 9; // half-width of the perpendicular bar / prong span
 
   if (cardinality === '1') {
     // Single perpendicular bar
@@ -145,7 +160,7 @@ function drawCardinality(
     // Crow's foot: three prongs fan out FROM a point on the line
     // TOWARD the entity — the fork opens at the entity side.
     const forkOrigin = 18; // distance back from entity where prongs originate
-    const forkEnd = 5;     // distance from entity where prongs terminate
+    const forkEnd = 5; // distance from entity where prongs terminate
 
     // Origin point (on the line, away from entity)
     const ox = point.x - ux * forkOrigin;
@@ -241,7 +256,8 @@ export function renderERDiagram(
   // size at render time, which eliminates the stagger caused by reading clientWidth/
   // clientHeight before the container has stabilized.
   const naturalW = diagramW + DIAGRAM_PADDING * 2;
-  const naturalH = diagramH + titleHeight + legendReserveH + DIAGRAM_PADDING * 2;
+  const naturalH =
+    diagramH + titleHeight + legendReserveH + DIAGRAM_PADDING * 2;
 
   // For export: scale the natural layout to fit the requested pixel dimensions.
   // For live preview: render at natural scale (scale=1) and let the SVG viewBox
@@ -292,7 +308,10 @@ export function renderERDiagram(
       .attr('fill', palette.text)
       .attr('font-size', TITLE_FONT_SIZE)
       .attr('font-weight', TITLE_FONT_WEIGHT)
-      .style('cursor', onClickItem && parsed.titleLineNumber ? 'pointer' : 'default')
+      .style(
+        'cursor',
+        onClickItem && parsed.titleLineNumber ? 'pointer' : 'default'
+      )
       .text(parsed.title);
 
     if (parsed.titleLineNumber) {
@@ -300,8 +319,12 @@ export function renderERDiagram(
       if (onClickItem) {
         titleEl
           .on('click', () => onClickItem(parsed.titleLineNumber!))
-          .on('mouseenter', function () { d3Selection.select(this).attr('opacity', 0.7); })
-          .on('mouseleave', function () { d3Selection.select(this).attr('opacity', 1); });
+          .on('mouseenter', function () {
+            d3Selection.select(this).attr('opacity', 0.7);
+          })
+          .on('mouseleave', function () {
+            d3Selection.select(this).attr('opacity', 1);
+          });
       }
     }
   }
@@ -321,7 +344,8 @@ export function renderERDiagram(
     ? classifyEREntities(parsed.tables, parsed.relationships)
     : null;
   // semanticColorsActive defaults to true; false = legend collapsed, neutral color applied
-  const semanticActive = semanticRoles !== null && (semanticColorsActive ?? true);
+  const semanticActive =
+    semanticRoles !== null && (semanticColorsActive ?? true);
 
   // ── Edges (behind nodes) ──
   const useLabels = parsed.options.notation === 'labels';
@@ -376,7 +400,8 @@ export function renderERDiagram(
       const bgW = labelLen * 7 + 8;
       const bgH = 16;
 
-      edgeG.append('rect')
+      edgeG
+        .append('rect')
         .attr('x', midPt.x - bgW / 2)
         .attr('y', midPt.y - bgH / 2 - 1)
         .attr('width', bgW)
@@ -386,7 +411,8 @@ export function renderERDiagram(
         .attr('opacity', 0.85)
         .attr('class', 'er-edge-label-bg');
 
-      edgeG.append('text')
+      edgeG
+        .append('text')
         .attr('x', midPt.x)
         .attr('y', midPt.y + 4)
         .attr('text-anchor', 'middle')
@@ -400,13 +426,23 @@ export function renderERDiagram(
   // ── Nodes (top layer) ──
   for (let ni = 0; ni < layout.nodes.length; ni++) {
     const node = layout.nodes[ni];
-    const tagColor = resolveTagColor(node.metadata, parsed.tagGroups, activeTagGroup ?? null);
+    const tagColor = resolveTagColor(
+      node.metadata,
+      parsed.tagGroups,
+      activeTagGroup ?? null
+    );
     const semanticColor = semanticActive
-      ? palette.colors[ROLE_COLORS[semanticRoles!.get(node.id) ?? 'unclassified']]
+      ? palette.colors[
+          ROLE_COLORS[semanticRoles!.get(node.id) ?? 'unclassified']
+        ]
       : semanticRoles
-        ? palette.primary  // neutral color when legend is collapsed
+        ? palette.primary // neutral color when legend is collapsed
         : undefined;
-    const nodeColor = node.color ?? tagColor ?? semanticColor ?? seriesColors[ni % seriesColors.length];
+    const nodeColor =
+      node.color ??
+      tagColor ??
+      semanticColor ??
+      seriesColors[ni % seriesColors.length];
 
     const nodeG = contentG
       .append('g')
@@ -442,7 +478,8 @@ export function renderERDiagram(
     const stroke = nodeColor;
 
     // Outer rectangle
-    nodeG.append('rect')
+    nodeG
+      .append('rect')
       .attr('x', -w / 2)
       .attr('y', -h / 2)
       .attr('width', w)
@@ -457,7 +494,8 @@ export function renderERDiagram(
     let yPos = -h / 2;
     const headerCenterY = yPos + node.headerHeight / 2;
 
-    nodeG.append('text')
+    nodeG
+      .append('text')
       .attr('x', 0)
       .attr('y', headerCenterY)
       .attr('text-anchor', 'middle')
@@ -472,7 +510,8 @@ export function renderERDiagram(
     // Columns compartment
     if (node.columns.length > 0) {
       // Separator line
-      nodeG.append('line')
+      nodeG
+        .append('line')
         .attr('x1', -w / 2)
         .attr('y1', yPos)
         .attr('x2', w / 2)
@@ -487,7 +526,8 @@ export function renderERDiagram(
         const iconX = -w / 2 + MEMBER_PADDING_X;
         const primaryConstraint = col.constraints[0];
         if (primaryConstraint) {
-          nodeG.append('text')
+          nodeG
+            .append('text')
             .attr('x', iconX)
             .attr('y', memberY + MEMBER_LINE_HEIGHT / 2)
             .attr('dominant-baseline', 'central')
@@ -501,7 +541,8 @@ export function renderERDiagram(
         let colText = col.name;
         if (col.type) colText += `: ${col.type}`;
 
-        nodeG.append('text')
+        nodeG
+          .append('text')
           .attr('x', textX)
           .attr('y', memberY + MEMBER_LINE_HEIGHT / 2)
           .attr('dominant-baseline', 'central')
@@ -520,22 +561,23 @@ export function renderERDiagram(
     const LEGEND_PILL_RX = Math.floor(LEGEND_PILL_H / 2);
     const LEGEND_GAP = 8;
 
-    const legendG = svg.append('g')
-      .attr('class', 'er-tag-legend');
+    const legendG = svg.append('g').attr('class', 'er-tag-legend');
 
     if (activeTagGroup) {
       legendG.attr('data-legend-active', activeTagGroup.toLowerCase());
     }
 
     let legendX = DIAGRAM_PADDING;
-    let legendY = DIAGRAM_PADDING + titleHeight;
+    const legendY = DIAGRAM_PADDING + titleHeight;
 
     for (const group of parsed.tagGroups) {
-      const groupG = legendG.append('g')
+      const groupG = legendG
+        .append('g')
         .attr('data-legend-group', group.name.toLowerCase());
 
       // Group label
-      const labelText = groupG.append('text')
+      const labelText = groupG
+        .append('text')
         .attr('x', legendX)
         .attr('y', legendY + LEGEND_PILL_H / 2)
         .attr('dominant-baseline', 'central')
@@ -544,37 +586,47 @@ export function renderERDiagram(
         .attr('font-family', FONT_FAMILY)
         .text(`${group.name}:`);
 
-      const labelWidth = (labelText.node()?.getComputedTextLength?.() ?? group.name.length * 7) + 6;
+      const labelWidth =
+        (labelText.node()?.getComputedTextLength?.() ?? group.name.length * 7) +
+        6;
       legendX += labelWidth;
 
       // Entries
       for (const entry of group.entries) {
-        const pillG = groupG.append('g')
+        const pillG = groupG
+          .append('g')
           .attr('data-legend-entry', entry.value.toLowerCase())
           .style('cursor', 'pointer');
 
         // Estimate text width
-        const tmpText = legendG.append('text')
+        const tmpText = legendG
+          .append('text')
           .attr('font-size', LEGEND_PILL_FONT_SIZE)
           .attr('font-family', FONT_FAMILY)
           .text(entry.value);
-        const textW = tmpText.node()?.getComputedTextLength?.() ?? entry.value.length * 7;
+        const textW =
+          tmpText.node()?.getComputedTextLength?.() ?? entry.value.length * 7;
         tmpText.remove();
 
         const pillW = textW + LEGEND_PILL_PAD * 2;
 
-        pillG.append('rect')
+        pillG
+          .append('rect')
           .attr('x', legendX)
           .attr('y', legendY)
           .attr('width', pillW)
           .attr('height', LEGEND_PILL_H)
           .attr('rx', LEGEND_PILL_RX)
           .attr('ry', LEGEND_PILL_RX)
-          .attr('fill', mix(entry.color, isDark ? palette.surface : palette.bg, 25))
+          .attr(
+            'fill',
+            mix(entry.color, isDark ? palette.surface : palette.bg, 25)
+          )
           .attr('stroke', entry.color)
           .attr('stroke-width', 1);
 
-        pillG.append('text')
+        pillG
+          .append('text')
           .attr('x', legendX + pillW / 2)
           .attr('y', legendY + LEGEND_PILL_H / 2)
           .attr('text-anchor', 'middle')
@@ -607,19 +659,25 @@ export function renderERDiagram(
       // Measure actual text widths for consistent spacing regardless of character mix.
       // Falls back to a character-count estimate in jsdom/test environments.
       const measureLabelW = (text: string, fontSize: number): number => {
-        const dummy = svg.append('text')
+        const dummy = svg
+          .append('text')
           .attr('font-size', fontSize)
           .attr('font-family', FONT_FAMILY)
           .attr('visibility', 'hidden')
           .text(text);
-        const measured = (dummy.node() as SVGTextElement | null)?.getComputedTextLength?.() ?? 0;
+        const measured =
+          (dummy.node() as SVGTextElement | null)?.getComputedTextLength?.() ??
+          0;
         dummy.remove();
         return measured > 0 ? measured : text.length * fontSize * 0.6;
       };
 
       const labelWidths = new Map<EntityRole, number>();
       for (const role of presentRoles) {
-        labelWidths.set(role, measureLabelW(ROLE_LABELS[role], LEGEND_ENTRY_FONT_SIZE));
+        labelWidths.set(
+          role,
+          measureLabelW(ROLE_LABELS[role], LEGEND_ENTRY_FONT_SIZE)
+        );
       }
 
       const groupBg = isDark
@@ -627,7 +685,8 @@ export function renderERDiagram(
         : mix(palette.surface, palette.bg, 30);
 
       const groupName = 'Role';
-      const pillWidth = measureLegendText(groupName, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
+      const pillWidth =
+        measureLegendText(groupName, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
       const pillH = LEGEND_HEIGHT - LEGEND_CAPSULE_PAD * 2;
 
       let totalWidth: number;
@@ -640,7 +699,11 @@ export function renderERDiagram(
             labelWidths.get(role)! +
             LEGEND_ENTRY_TRAIL;
         }
-        totalWidth = LEGEND_CAPSULE_PAD * 2 + pillWidth + LEGEND_ENTRY_TRAIL + entriesWidth;
+        totalWidth =
+          LEGEND_CAPSULE_PAD * 2 +
+          pillWidth +
+          LEGEND_ENTRY_TRAIL +
+          entriesWidth;
       } else {
         totalWidth = pillWidth;
       }
@@ -764,7 +827,8 @@ export function renderERDiagramForExport(
 
   const container = document.createElement('div');
   const exportWidth = layout.width + DIAGRAM_PADDING * 2;
-  const exportHeight = layout.height + DIAGRAM_PADDING * 2 + (parsed.title ? 40 : 0);
+  const exportHeight =
+    layout.height + DIAGRAM_PADDING * 2 + (parsed.title ? 40 : 0);
   container.style.width = `${exportWidth}px`;
   container.style.height = `${exportHeight}px`;
   container.style.position = 'absolute';
@@ -772,15 +836,10 @@ export function renderERDiagramForExport(
   document.body.appendChild(container);
 
   try {
-    renderERDiagram(
-      container,
-      parsed,
-      layout,
-      palette,
-      isDark,
-      undefined,
-      { width: exportWidth, height: exportHeight }
-    );
+    renderERDiagram(container, parsed, layout, palette, isDark, undefined, {
+      width: exportWidth,
+      height: exportHeight,
+    });
 
     const svgEl = container.querySelector('svg');
     if (!svgEl) return '';

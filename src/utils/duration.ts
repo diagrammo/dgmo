@@ -2,12 +2,26 @@
 // Duration & Business Day Arithmetic
 // ============================================================
 
-import type { Duration, DurationUnit, GanttHolidays, Offset, Weekday } from '../gantt/types';
+import type {
+  Duration,
+  DurationUnit,
+  GanttHolidays,
+  Offset,
+  Weekday,
+} from '../gantt/types';
 
 // ── Weekday constants ─────────────────────────────────────
 
 /** JS Date.getDay() → Weekday mapping (0=Sun, 1=Mon, ..., 6=Sat) */
-const JS_DAY_TO_WEEKDAY: Weekday[] = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+const JS_DAY_TO_WEEKDAY: Weekday[] = [
+  'sun',
+  'mon',
+  'tue',
+  'wed',
+  'thu',
+  'fri',
+  'sat',
+];
 
 /**
  * Check if a date is a workday (not a weekend and not a holiday).
@@ -15,7 +29,7 @@ const JS_DAY_TO_WEEKDAY: Weekday[] = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 
 export function isWorkday(
   date: Date,
   workweek: Weekday[],
-  holidaySet: Set<string>,
+  holidaySet: Set<string>
 ): boolean {
   const dayName = JS_DAY_TO_WEEKDAY[date.getDay()];
   if (!workweek.includes(dayName)) return false;
@@ -68,7 +82,7 @@ export function addBusinessDays(
   count: number,
   workweek: Weekday[],
   holidaySet: Set<string>,
-  direction: 1 | -1 = 1,
+  direction: 1 | -1 = 1
 ): Date {
   const days = Math.round(Math.abs(count));
   if (days === 0) return new Date(startDate);
@@ -97,13 +111,19 @@ export function addGanttDuration(
   duration: Duration,
   holidays: GanttHolidays,
   holidaySet: Set<string>,
-  direction: 1 | -1 = 1,
+  direction: 1 | -1 = 1
 ): Date {
   const { amount, unit } = duration;
 
   switch (unit) {
     case 'bd':
-      return addBusinessDays(startDate, amount, holidays.workweek, holidaySet, direction);
+      return addBusinessDays(
+        startDate,
+        amount,
+        holidays.workweek,
+        holidaySet,
+        direction
+      );
 
     case 'd': {
       const result = new Date(startDate);
@@ -119,8 +139,10 @@ export function addGanttDuration(
 
     case 'm': {
       const result = new Date(startDate);
-      const wholeMonths = direction === -1 ? Math.round(amount) : Math.floor(amount);
-      const fractionalDays = direction === -1 ? 0 : Math.round((amount - wholeMonths) * 30);
+      const wholeMonths =
+        direction === -1 ? Math.round(amount) : Math.floor(amount);
+      const fractionalDays =
+        direction === -1 ? 0 : Math.round((amount - wholeMonths) * 30);
       result.setMonth(result.getMonth() + wholeMonths * direction);
       if (fractionalDays > 0) {
         result.setDate(result.getDate() + fractionalDays * direction);
@@ -131,8 +153,10 @@ export function addGanttDuration(
     case 'q': {
       const result = new Date(startDate);
       const totalMonths = amount * 3;
-      const wholeMonths = direction === -1 ? Math.round(totalMonths) : Math.floor(totalMonths);
-      const fractionalDays = direction === -1 ? 0 : Math.round((totalMonths - wholeMonths) * 30);
+      const wholeMonths =
+        direction === -1 ? Math.round(totalMonths) : Math.floor(totalMonths);
+      const fractionalDays =
+        direction === -1 ? 0 : Math.round((totalMonths - wholeMonths) * 30);
       result.setMonth(result.getMonth() + wholeMonths * direction);
       if (fractionalDays > 0) {
         result.setDate(result.getDate() + fractionalDays * direction);
@@ -142,8 +166,10 @@ export function addGanttDuration(
 
     case 'y': {
       const result = new Date(startDate);
-      const wholeYears = direction === -1 ? Math.round(amount) : Math.floor(amount);
-      const fractionalMonths = direction === -1 ? 0 : Math.round((amount - wholeYears) * 12);
+      const wholeYears =
+        direction === -1 ? Math.round(amount) : Math.floor(amount);
+      const fractionalMonths =
+        direction === -1 ? 0 : Math.round((amount - wholeYears) * 12);
       result.setFullYear(result.getFullYear() + wholeYears * direction);
       if (fractionalMonths > 0) {
         result.setMonth(result.getMonth() + fractionalMonths * direction);
@@ -221,7 +247,7 @@ export function parseGanttDate(s: string): Date {
     }
   }
 
-  const parts = datePart.split('-').map(p => parseInt(p, 10));
+  const parts = datePart.split('-').map((p) => parseInt(p, 10));
   const year = parts[0];
   const month = parts.length >= 2 ? parts[1] - 1 : 0; // JS months are 0-based
   const day = parts.length >= 3 ? parts[2] : 1;
@@ -237,12 +263,4 @@ export function formatGanttDate(date: Date): string {
   const m = date.getMinutes();
   if (h === 0 && m === 0) return dateStr;
   return `${dateStr} ${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-}
-
-/**
- * Calculate the difference in calendar days between two dates.
- */
-export function daysBetween(a: Date, b: Date): number {
-  const msPerDay = 86400000;
-  return Math.round((b.getTime() - a.getTime()) / msPerDay);
 }

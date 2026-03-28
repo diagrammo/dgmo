@@ -9,13 +9,7 @@ import {
   OPTION_NOCOLON_RE,
   ALL_CHART_TYPES,
 } from '../utils/parsing';
-import type {
-  ParsedGraph,
-  GraphNode,
-  GraphEdge,
-  GraphShape,
-  GraphDirection,
-} from './types';
+import type { ParsedGraph, GraphNode, GraphEdge, GraphShape } from './types';
 
 // ============================================================
 // Helpers
@@ -36,10 +30,7 @@ interface NodeRef {
  * Try to parse a node reference from a text fragment.
  * Order matters: subroutine & document before process.
  */
-function parseNodeRef(
-  text: string,
-  palette?: PaletteColors
-): NodeRef | null {
+function parseNodeRef(text: string, palette?: PaletteColors): NodeRef | null {
   const t = text.trim();
   if (!t) return null;
 
@@ -47,7 +38,12 @@ function parseNodeRef(
   let m = t.match(/^\[\[([^\]]+)\]\]$/);
   if (m) {
     const { label, color } = extractColor(m[1].trim(), palette);
-    return { id: nodeId('subroutine', label), label, shape: 'subroutine', color };
+    return {
+      id: nodeId('subroutine', label),
+      label,
+      shape: 'subroutine',
+      color,
+    };
   }
 
   // Document: [Label~]
@@ -99,7 +95,12 @@ function splitArrows(line: string): string[] {
   const segments: string[] = [];
   let lastIndex = 0;
   // Simpler approach: find all `->` positions, then determine if there's a label prefix
-  const arrowPositions: { start: number; end: number; label?: string; color?: string }[] = [];
+  const arrowPositions: {
+    start: number;
+    end: number;
+    label?: string;
+    color?: string;
+  }[] = [];
 
   // Find all -> occurrences
   let searchFrom = 0;
@@ -124,10 +125,14 @@ function splitArrows(line: string): string[] {
         scanBack--;
       }
       // Check if this `-` could be the start of the arrow
-      if (line[scanBack] === '-' && (scanBack === 0 || /\s/.test(line[scanBack - 1]))) {
+      if (
+        line[scanBack] === '-' &&
+        (scanBack === 0 || /\s/.test(line[scanBack - 1]))
+      ) {
         // Content between opening `-` and `->` (strip trailing `-` that is part of `->`)
         let arrowContent = line.substring(scanBack + 1, idx);
-        if (arrowContent.endsWith('-')) arrowContent = arrowContent.slice(0, -1);
+        if (arrowContent.endsWith('-'))
+          arrowContent = arrowContent.slice(0, -1);
         // Parse label and color from arrow content
         const colorMatch = arrowContent.match(/\(([^)]+)\)\s*$/);
         if (colorMatch) {
@@ -159,7 +164,8 @@ function splitArrows(line: string): string[] {
     }
     // Arrow marker
     let arrowToken = '->';
-    if (arrow.label && arrow.color) arrowToken = `-${arrow.label}(${arrow.color})->`;
+    if (arrow.label && arrow.color)
+      arrowToken = `-${arrow.label}(${arrow.color})->`;
     else if (arrow.label) arrowToken = `-${arrow.label}->`;
     else if (arrow.color) arrowToken = `-(${arrow.color})->`;
     segments.push(arrowToken);
@@ -190,7 +196,9 @@ function parseArrowToken(token: string, palette?: PaletteColors): ArrowInfo {
   const m = token.match(/^-(.+?)(?:\(([^)]+)\))?->$/);
   if (m) {
     const label = m[1]?.trim() || undefined;
-    let color = m[2] ? resolveColor(m[2].trim(), palette) ?? undefined : undefined;
+    let color = m[2]
+      ? (resolveColor(m[2].trim(), palette) ?? undefined)
+      : undefined;
     if (label && !color) {
       color = inferArrowColor(label);
     }
@@ -435,7 +443,10 @@ export function parseFlowchart(
 
   // Validation: no nodes found
   if (result.nodes.length === 0 && !result.error) {
-    const diag = makeDgmoError(1, 'No nodes found. Add flowchart content with shape syntax like [Process] or (Start).');
+    const diag = makeDgmoError(
+      1,
+      'No nodes found. Add flowchart content with shape syntax like [Process] or (Start).'
+    );
     result.diagnostics.push(diag);
     result.error = formatDgmoError(diag);
   }
@@ -449,7 +460,13 @@ export function parseFlowchart(
     }
     for (const node of result.nodes) {
       if (!connectedIds.has(node.id)) {
-        result.diagnostics.push(makeDgmoError(node.lineNumber, `Node "${node.label}" is not connected to any other node`, 'warning'));
+        result.diagnostics.push(
+          makeDgmoError(
+            node.lineNumber,
+            `Node "${node.label}" is not connected to any other node`,
+            'warning'
+          )
+        );
       }
     }
   }
@@ -485,7 +502,7 @@ export function looksLikeFlowchart(content: string): boolean {
   // Look for patterns like `[X] ->` or `-> [X]` or `(X) ->` etc.
   const shapeNearArrow =
     /[\])][ \t]*-.*->/.test(content) || // shape ] or ) followed by arrow
-    /->[ \t]*[\[(<\/]/.test(content); // arrow followed by shape opener
+    /->[ \t]*[[(</]/.test(content); // arrow followed by shape opener
 
   return shapeNearArrow;
 }
@@ -509,7 +526,11 @@ export function extractSymbols(docText: string): DiagramSymbols {
   for (const rawLine of docText.split('\n')) {
     const line = rawLine.trim();
     // Skip old-style colon metadata and new-style space-separated options
-    if (inMetadata && (/^[a-z-]+\s*:/i.test(line) || /^[a-z-]+\s+\S/i.test(line))) continue;
+    if (
+      inMetadata &&
+      (/^[a-z-]+\s*:/i.test(line) || /^[a-z-]+\s+\S/i.test(line))
+    )
+      continue;
     inMetadata = false;
     if (line.length === 0 || /^\s/.test(rawLine)) continue;
     const m = NODE_ID_RE.exec(line);

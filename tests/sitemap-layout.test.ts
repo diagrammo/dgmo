@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import { parseSitemap } from '../src/sitemap/parser';
-import { collapseSitemapTree } from '../src/sitemap/collapse';
 import { layoutSitemap } from '../src/sitemap/layout';
 
 function layout(content: string) {
@@ -55,11 +54,7 @@ describe('layoutSitemap', () => {
   });
 
   it('routes edges between nodes', () => {
-    const content = [
-      'Home',
-      '  -go-> About',
-      'About',
-    ].join('\n');
+    const content = ['Home', '  -go-> About', 'About'].join('\n');
     const { layout: result } = layout(content);
     expect(result.edges).toHaveLength(1);
     expect(result.edges[0].points.length).toBeGreaterThanOrEqual(2);
@@ -91,12 +86,9 @@ describe('layoutSitemap', () => {
   });
 
   it('handles nested containers', () => {
-    const content = [
-      '[Outer]',
-      '  [Inner]',
-      '    Page A',
-      '  Page B',
-    ].join('\n');
+    const content = ['[Outer]', '  [Inner]', '    Page A', '  Page B'].join(
+      '\n'
+    );
     const { layout: result } = layout(content);
     expect(result.containers).toHaveLength(2);
     expect(result.nodes).toHaveLength(2);
@@ -198,7 +190,7 @@ describe('layoutSitemap', () => {
     const hiddenCounts = new Map<string, number>();
     // Find Account's container ID
     const accountContainer = parsed.roots.find(
-      (r) => r.isContainer && r.label === 'Account',
+      (r) => r.isContainer && r.label === 'Account'
     );
     if (accountContainer) {
       hiddenCounts.set(accountContainer.id, 2);
@@ -225,7 +217,9 @@ describe('layoutSitemap', () => {
 
     // Edges to collapsed containers should be present
     const edgesToAccount = result.edges.filter(
-      (e) => e.targetId === accountContainer!.id || e.sourceId === accountContainer!.id,
+      (e) =>
+        e.targetId === accountContainer!.id ||
+        e.sourceId === accountContainer!.id
     );
     expect(edgesToAccount.length).toBeGreaterThanOrEqual(1);
   });

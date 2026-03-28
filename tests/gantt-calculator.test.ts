@@ -45,7 +45,9 @@ describe('gantt calculator', () => {
     });
 
     it('task after parallel starts at max end', () => {
-      const result = calc('gantt\nstart 2024-01-15\nparallel\n  5d X\n  3d Y\n2d After');
+      const result = calc(
+        'gantt\nstart 2024-01-15\nparallel\n  5d X\n  3d Y\n2d After'
+      );
       expect(result.error).toBeNull();
       expect(result.tasks).toHaveLength(3);
       // After should start at max(X end, Y end) = X end = Jan 20
@@ -67,8 +69,10 @@ parallel
       const result = calc(input);
       expect(result.error).toBeNull();
 
-      const integration = result.tasks.find(t => t.task.label === 'Integration');
-      const api = result.tasks.find(t => t.task.label === 'API');
+      const integration = result.tasks.find(
+        (t) => t.task.label === 'Integration'
+      );
+      const api = result.tasks.find((t) => t.task.label === 'API');
       expect(integration).toBeDefined();
       expect(api).toBeDefined();
 
@@ -90,7 +94,11 @@ parallel
     -> A`;
       const result = calc(input);
       expect(result.error).toBeNull();
-      expect(result.diagnostics.some(d => d.message.includes('Circular dependency'))).toBe(true);
+      expect(
+        result.diagnostics.some((d) =>
+          d.message.includes('Circular dependency')
+        )
+      ).toBe(true);
       // Tasks still resolve — cycle-creating dep is dropped
       expect(result.tasks).toHaveLength(2);
     });
@@ -119,14 +127,18 @@ parallel
 
   describe('groups', () => {
     it('builds resolved groups with date ranges', () => {
-      const result = calc('gantt\nstart 2024-01-15\n[Backend]\n  10d Task A\n  5d Task B');
+      const result = calc(
+        'gantt\nstart 2024-01-15\n[Backend]\n  10d Task A\n  5d Task B'
+      );
       expect(result.groups).toHaveLength(1);
       expect(result.groups[0].name).toBe('Backend');
       expect(fmt(result.groups[0].startDate)).toBe('2024-01-15');
     });
 
     it('computes aggregate progress', () => {
-      const result = calc('gantt\nstart 2024-01-15\n[Backend]\n  10d Task A | 100%\n  10d Task B | 50%');
+      const result = calc(
+        'gantt\nstart 2024-01-15\n[Backend]\n  10d Task A | 100%\n  10d Task B | 50%'
+      );
       expect(result.groups[0].progress).not.toBeNull();
       // Duration-weighted: (100 * dur + 50 * dur) / (dur + dur) = 75
       expect(result.groups[0].progress).toBe(75);
@@ -135,10 +147,13 @@ parallel
 
   describe('missing parallel warning', () => {
     it('warns when 2+ top-level groups without parallel', () => {
-      const input = 'gantt\nstart 2024-01-15\n[A]\n  5d Task 1\n[B]\n  5d Task 2';
+      const input =
+        'gantt\nstart 2024-01-15\n[A]\n  5d Task 1\n[B]\n  5d Task 2';
       const result = calc(input);
-      const warnings = result.diagnostics.filter(d => d.severity === 'warning');
-      expect(warnings.some(w => w.message.includes('sequential'))).toBe(true);
+      const warnings = result.diagnostics.filter(
+        (d) => d.severity === 'warning'
+      );
+      expect(warnings.some((w) => w.message.includes('sequential'))).toBe(true);
     });
   });
 
@@ -156,7 +171,9 @@ parallel
       expect(result.error).toBeNull();
       expect(result.tasks).toHaveLength(2);
       // Should still have sequential ordering
-      expect(result.tasks[1].startDate.getTime()).toBeGreaterThanOrEqual(result.tasks[0].endDate.getTime());
+      expect(result.tasks[1].startDate.getTime()).toBeGreaterThanOrEqual(
+        result.tasks[0].endDate.getTime()
+      );
     });
   });
 
@@ -187,10 +204,16 @@ holiday
       });
 
       it('no deps, negative — clamped to project start', () => {
-        const result = calc('gantt\nstart 2024-01-15\n10bd Task | offset: -3bd');
+        const result = calc(
+          'gantt\nstart 2024-01-15\n10bd Task | offset: -3bd'
+        );
         expect(result.error).toBeNull();
         expect(fmt(result.tasks[0].startDate)).toBe('2024-01-15');
-        expect(result.diagnostics.some(d => d.message.includes('clamped to project start'))).toBe(true);
+        expect(
+          result.diagnostics.some((d) =>
+            d.message.includes('clamped to project start')
+          )
+        ).toBe(true);
       });
 
       it('no deps, zero — starts at project start', () => {
@@ -200,14 +223,18 @@ holiday
       });
 
       it('with deps, positive — starts after predecessor + offset', () => {
-        const result = calc('gantt\nstart 2024-01-15\n10d First\n5d Second | offset: 3d');
+        const result = calc(
+          'gantt\nstart 2024-01-15\n10d First\n5d Second | offset: 3d'
+        );
         expect(result.error).toBeNull();
         // First: Jan 15 -> Jan 25. Second starts at Jan 25 + 3d = Jan 28
         expect(fmt(result.tasks[1].startDate)).toBe('2024-01-28');
       });
 
       it('with deps, negative — overlaps predecessor', () => {
-        const result = calc('gantt\nstart 2024-01-15\n10d First\n5d Second | offset: -2d');
+        const result = calc(
+          'gantt\nstart 2024-01-15\n10d First\n5d Second | offset: -2d'
+        );
         expect(result.error).toBeNull();
         // First: Jan 15 -> Jan 25. Second starts at Jan 25 - 2d = Jan 23
         expect(fmt(result.tasks[1].startDate)).toBe('2024-01-23');
@@ -224,8 +251,8 @@ parallel
   10d Target`;
         const result = calc(input);
         expect(result.error).toBeNull();
-        const target = result.tasks.find(t => t.task.label === 'Target');
-        const source = result.tasks.find(t => t.task.label === 'Source');
+        const target = result.tasks.find((t) => t.task.label === 'Target');
+        const source = result.tasks.find((t) => t.task.label === 'Source');
         expect(target).toBeDefined();
         expect(source).toBeDefined();
         const diff = target!.startDate.getTime() - source!.endDate.getTime();
@@ -242,10 +269,12 @@ parallel
   10d Target`;
         const result = calc(input);
         expect(result.error).toBeNull();
-        const target = result.tasks.find(t => t.task.label === 'Target');
-        const source = result.tasks.find(t => t.task.label === 'Source');
+        const target = result.tasks.find((t) => t.task.label === 'Target');
+        const source = result.tasks.find((t) => t.task.label === 'Source');
         // Target starts 3d before Source ends
-        expect(target!.startDate.getTime()).toBeLessThan(source!.endDate.getTime());
+        expect(target!.startDate.getTime()).toBeLessThan(
+          source!.endDate.getTime()
+        );
       });
 
       it('zero offset has no effect', () => {
@@ -257,8 +286,8 @@ parallel
   10d Target`;
         const result = calc(input);
         expect(result.error).toBeNull();
-        const target = result.tasks.find(t => t.task.label === 'Target');
-        const source = result.tasks.find(t => t.task.label === 'Source');
+        const target = result.tasks.find((t) => t.task.label === 'Target');
+        const source = result.tasks.find((t) => t.task.label === 'Source');
         expect(fmt(target!.startDate)).toBe(fmt(source!.endDate));
       });
     });
@@ -273,8 +302,8 @@ parallel
   10d Target | offset: 3d`;
         const result = calc(input);
         expect(result.error).toBeNull();
-        const target = result.tasks.find(t => t.task.label === 'Target');
-        const source = result.tasks.find(t => t.task.label === 'Source');
+        const target = result.tasks.find((t) => t.task.label === 'Target');
+        const source = result.tasks.find((t) => t.task.label === 'Source');
         // Source ends Jan 25. Dep offset +5d = Jan 30. Task offset +3d = Feb 2
         const diff = target!.startDate.getTime() - source!.endDate.getTime();
         const eightDaysMs = 8 * 86400000;
@@ -292,7 +321,7 @@ parallel
   10d Target`;
         const result = calc(input);
         expect(result.error).toBeNull();
-        const target = result.tasks.find(t => t.task.label === 'Target');
+        const target = result.tasks.find((t) => t.task.label === 'Target');
         // Source ends Jan 17. -10d = Jan 7 — before project start, so clamp to Jan 15
         expect(fmt(target!.startDate)).toBe('2024-01-15');
       });
@@ -307,8 +336,8 @@ parallel
   5d Offset | offset: 3d`;
         const result = calc(input);
         expect(result.error).toBeNull();
-        const normal = result.tasks.find(t => t.task.label === 'Normal');
-        const offset = result.tasks.find(t => t.task.label === 'Offset');
+        const normal = result.tasks.find((t) => t.task.label === 'Normal');
+        const offset = result.tasks.find((t) => t.task.label === 'Offset');
         expect(fmt(normal!.startDate)).toBe('2024-01-15');
         // Offset starts at project start + 3d = Jan 18
         expect(fmt(offset!.startDate)).toBe('2024-01-18');
@@ -341,8 +370,7 @@ parallel
   10d Target`;
         const result = calc(input);
         expect(result.error).toBeNull();
-        const target = result.tasks.find(t => t.task.label === 'Target');
-        const source = result.tasks.find(t => t.task.label === 'Source');
+        const target = result.tasks.find((t) => t.task.label === 'Target');
         // Source ends Jan 25. -2bd backward: Jan 24 is holiday (skip), Jan 23 (Thu) = day 1, Jan 22 (Wed) = day 2
         expect(fmt(target!.startDate)).toBe('2024-01-22');
       });
@@ -350,7 +378,9 @@ parallel
 
     describe('explicit date with offset', () => {
       it('offset shifts explicit date forward', () => {
-        const result = calc('gantt\nstart 2024-01-15\n2024-03-01 Review | offset: 5d');
+        const result = calc(
+          'gantt\nstart 2024-01-15\n2024-03-01 Review | offset: 5d'
+        );
         expect(result.error).toBeNull();
         expect(fmt(result.tasks[0].startDate)).toBe('2024-03-06');
       });
@@ -366,7 +396,7 @@ parallel
   5d Long | offset: 10d`;
         const result = calc(input);
         expect(result.error).toBeNull();
-        const long = result.tasks.find(t => t.task.label === 'Long');
+        const long = result.tasks.find((t) => t.task.label === 'Long');
         // Short: Jan 15 -> Jan 25, Long: Jan 25 -> Jan 30. Long is on critical path.
         expect(long!.isCriticalPath).toBe(true);
       });
@@ -384,11 +414,13 @@ parallel
   10d Result`;
         const result = calc(input);
         expect(result.error).toBeNull();
-        const resultTask = result.tasks.find(t => t.task.label === 'Result');
-        const slow = result.tasks.find(t => t.task.label === 'Slow');
+        const resultTask = result.tasks.find((t) => t.task.label === 'Result');
+        const slow = result.tasks.find((t) => t.task.label === 'Slow');
         // Fast ends Jan 25, -3d = Jan 22. Slow ends Feb 4, +5d = Feb 9.
         // Max rule: Feb 9
-        expect(resultTask!.startDate.getTime()).toBeGreaterThanOrEqual(slow!.endDate.getTime());
+        expect(resultTask!.startDate.getTime()).toBeGreaterThanOrEqual(
+          slow!.endDate.getTime()
+        );
       });
     });
   });
@@ -402,7 +434,7 @@ critical-path
 5d Short Follow-up`);
       expect(result.error).toBeNull();
       // In a simple sequential chain, all tasks are on the critical path
-      const critical = result.tasks.filter(t => t.isCriticalPath);
+      const critical = result.tasks.filter((t) => t.isCriticalPath);
       expect(critical.length).toBeGreaterThanOrEqual(1);
     });
   });
@@ -420,13 +452,13 @@ critical-path
 
     it('cascades to sequential successor', () => {
       const result = calc('gantt\nstart 2024-01-15\n10d? A\n5d B');
-      const b = result.tasks.find(t => t.task.label === 'B');
+      const b = result.tasks.find((t) => t.task.label === 'B');
       expect(b!.isUncertain).toBe(true);
     });
 
     it('cascades transitively', () => {
       const result = calc('gantt\nstart 2024-01-15\n10d? A\n5d B\n3d C');
-      const c = result.tasks.find(t => t.task.label === 'C');
+      const c = result.tasks.find((t) => t.task.label === 'C');
       expect(c!.isUncertain).toBe(true);
     });
 
@@ -436,7 +468,9 @@ start 2024-01-15
 parallel
   10d? Uncertain Branch
   10d Certain Branch`);
-      const certain = result.tasks.find(t => t.task.label === 'Certain Branch');
+      const certain = result.tasks.find(
+        (t) => t.task.label === 'Certain Branch'
+      );
       expect(certain!.isUncertain).toBe(false);
     });
 
@@ -450,7 +484,7 @@ parallel
     -> Result
   5d Result`;
       const result = calc(input);
-      const res = result.tasks.find(t => t.task.label === 'Result');
+      const res = result.tasks.find((t) => t.task.label === 'Result');
       expect(res!.isUncertain).toBe(true);
     });
   });

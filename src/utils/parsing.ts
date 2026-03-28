@@ -11,14 +11,41 @@ import type { PaletteColors } from '../palettes';
 /** Complete set of recognized chart type identifiers. */
 export const ALL_CHART_TYPES = new Set([
   // data charts
-  'bar', 'line', 'pie', 'doughnut', 'area', 'polar-area', 'radar',
-  'bar-stacked', 'multi-line', 'scatter', 'sankey', 'chord', 'function',
-  'heatmap', 'funnel',
+  'bar',
+  'line',
+  'pie',
+  'doughnut',
+  'area',
+  'polar-area',
+  'radar',
+  'bar-stacked',
+  'multi-line',
+  'scatter',
+  'sankey',
+  'chord',
+  'function',
+  'heatmap',
+  'funnel',
   // visualizations
-  'slope', 'wordcloud', 'arc', 'timeline', 'venn', 'quadrant',
+  'slope',
+  'wordcloud',
+  'arc',
+  'timeline',
+  'venn',
+  'quadrant',
   // diagrams
-  'sequence', 'flowchart', 'class', 'er', 'org', 'kanban', 'c4',
-  'initiative-status', 'state', 'sitemap', 'infra', 'gantt',
+  'sequence',
+  'flowchart',
+  'class',
+  'er',
+  'org',
+  'kanban',
+  'c4',
+  'initiative-status',
+  'state',
+  'sitemap',
+  'infra',
+  'gantt',
 ]);
 
 /** Measure leading whitespace of a line, normalizing tabs to 4 spaces. */
@@ -38,7 +65,7 @@ export const COLOR_SUFFIX_RE = /\(([^)]+)\)\s*$/;
 /** Extract an optional trailing color suffix from a label, resolving via palette. */
 export function extractColor(
   label: string,
-  palette?: PaletteColors,
+  palette?: PaletteColors
 ): { label: string; color?: string } {
   const m = label.match(COLOR_SUFFIX_RE);
   if (!m) return { label };
@@ -58,7 +85,6 @@ export const OPTION_RE = /^([a-z][a-z0-9-]*)\s*:\s*(.+)$/i;
 /** Matches `option value` header lines (space-separated, no colon). */
 export const OPTION_NOCOLON_RE = /^([a-z][a-z0-9-]*)\s+(.+)$/i;
 
-
 // ── New shared utilities ─────────────────────────────────────
 
 /**
@@ -68,7 +94,7 @@ export const OPTION_NOCOLON_RE = /^([a-z][a-z0-9-]*)\s+(.+)$/i;
  * Returns `null` if the first token is not a recognized chart type.
  */
 export function parseFirstLine(
-  line: string,
+  line: string
 ): { chartType: string; title: string | undefined } | null {
   const trimmed = line.trim();
   if (!trimmed || trimmed.startsWith('//')) return null;
@@ -81,7 +107,10 @@ export function parseFirstLine(
   }
   const firstToken = trimmed.substring(0, spaceIdx).toLowerCase();
   if (!ALL_CHART_TYPES.has(firstToken)) return null;
-  return { chartType: firstToken, title: trimmed.substring(spaceIdx + 1).trim() || undefined };
+  return {
+    chartType: firstToken,
+    title: trimmed.substring(spaceIdx + 1).trim() || undefined,
+  };
 }
 
 /** Result of `prescanOptions()` — options collected from a two-pass scan. */
@@ -112,7 +141,7 @@ export interface PrescanResult {
 export function prescanOptions(
   lines: string[],
   knownOptions: Set<string>,
-  knownBooleans: Set<string> = new Set(),
+  knownBooleans: Set<string> = new Set()
 ): PrescanResult {
   const options: Record<string, string> = {};
   const booleans = new Set<string>();
@@ -127,12 +156,15 @@ export function prescanOptions(
 
     // Strip inline comments
     const commentIdx = trimmed.indexOf(' //');
-    const effective = commentIdx >= 0 ? trimmed.substring(0, commentIdx).trim() : trimmed;
+    const effective =
+      commentIdx >= 0 ? trimmed.substring(0, commentIdx).trim() : trimmed;
     if (!effective) continue;
 
     // Extract first token
     const spaceIdx = effective.indexOf(' ');
-    const firstToken = (spaceIdx === -1 ? effective : effective.substring(0, spaceIdx)).toLowerCase();
+    const firstToken = (
+      spaceIdx === -1 ? effective : effective.substring(0, spaceIdx)
+    ).toLowerCase();
 
     // Check for bare boolean (presence = on)
     if (spaceIdx === -1 && knownBooleans.has(firstToken)) {
@@ -185,8 +217,10 @@ export function normalizeGroupedNumber(token: string): string | null {
  */
 export function stripQuotes(token: string): string {
   if (token.length >= 2) {
-    if ((token[0] === '"' && token[token.length - 1] === '"') ||
-        (token[0] === "'" && token[token.length - 1] === "'")) {
+    if (
+      (token[0] === '"' && token[token.length - 1] === '"') ||
+      (token[0] === "'" && token[token.length - 1] === "'")
+    ) {
       return token.substring(1, token.length - 1);
     }
   }
@@ -203,7 +237,10 @@ export function tokenizeQuoteAware(input: string): string[] {
   let i = 0;
   while (i < input.length) {
     // Skip whitespace
-    if (input[i] === ' ' || input[i] === '\t') { i++; continue; }
+    if (input[i] === ' ' || input[i] === '\t') {
+      i++;
+      continue;
+    }
 
     // Quoted token
     if (input[i] === '"' || input[i] === "'") {
@@ -236,7 +273,7 @@ export function tokenizeQuoteAware(input: string): string[] {
  */
 export function collectIndentedValues(
   lines: string[],
-  startIndex: number,
+  startIndex: number
 ): { values: string[]; lineNumbers: number[]; newIndex: number } {
   const values: string[] = [];
   const lineNumbers: number[] = [];
@@ -268,7 +305,7 @@ export function parseSeriesNames(
   value: string,
   lines: string[],
   lineIndex: number,
-  palette?: PaletteColors,
+  palette?: PaletteColors
 ): {
   series: string;
   names: string[];
@@ -279,10 +316,13 @@ export function parseSeriesNames(
   let rawNames: string[];
   let series: string;
   let newIndex = lineIndex;
-  let nameLineNumbers: number[] = [];
+  let nameLineNumbers: number[] = []; // eslint-disable-line no-useless-assignment
   if (value) {
     series = value;
-    rawNames = value.split(',').map((s) => s.trim()).filter(Boolean);
+    rawNames = value
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
     // Inline series names all share the same line number
     nameLineNumbers = rawNames.map(() => lineIndex + 1);
   } else {
@@ -305,8 +345,6 @@ export function parseSeriesNames(
   return { series, names, nameColors, nameLineNumbers, newIndex };
 }
 
-
-
 /**
  * Infer arrow color from label text.
  * Returns a named palette color or undefined if no inference applies.
@@ -315,9 +353,21 @@ export function parseSeriesNames(
 export function inferArrowColor(label: string): string | undefined {
   const lower = label.toLowerCase();
   // Green: positive/affirmative
-  if (lower === 'yes' || lower === 'success' || lower === 'ok' || lower === 'true') return 'green';
+  if (
+    lower === 'yes' ||
+    lower === 'success' ||
+    lower === 'ok' ||
+    lower === 'true'
+  )
+    return 'green';
   // Red: negative/failure
-  if (lower === 'no' || lower === 'fail' || lower === 'error' || lower === 'false') return 'red';
+  if (
+    lower === 'no' ||
+    lower === 'fail' ||
+    lower === 'error' ||
+    lower === 'false'
+  )
+    return 'red';
   // Orange: uncertain/warning
   if (lower === 'maybe' || lower === 'warning') return 'orange';
   return undefined;
@@ -335,7 +385,7 @@ export const MULTIPLE_PIPE_ERROR =
 export function parsePipeMetadata(
   segments: string[],
   aliasMap: Map<string, string> = new Map(),
-  errorMultiplePipes?: () => void,
+  errorMultiplePipes?: () => void
 ): Record<string, string> {
   if (segments.length > 2) {
     if (errorMultiplePipes) errorMultiplePipes();

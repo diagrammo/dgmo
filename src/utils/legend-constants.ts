@@ -6,11 +6,9 @@
 export const LEGEND_HEIGHT = 28;
 export const LEGEND_PILL_PAD = 16;
 export const LEGEND_PILL_FONT_SIZE = 11;
-export const LEGEND_PILL_FONT_W = LEGEND_PILL_FONT_SIZE * 0.6;
 export const LEGEND_CAPSULE_PAD = 4;
 export const LEGEND_DOT_R = 4;
 export const LEGEND_ENTRY_FONT_SIZE = 10;
-export const LEGEND_ENTRY_FONT_W = LEGEND_ENTRY_FONT_SIZE * 0.6;
 export const LEGEND_ENTRY_DOT_GAP = 4;
 export const LEGEND_ENTRY_TRAIL = 8;
 export const LEGEND_GROUP_GAP = 12;

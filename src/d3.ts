@@ -182,8 +182,18 @@ import { getSeriesColors } from './palettes';
 import { mix } from './palettes/color-utils';
 import type { DgmoError } from './diagnostics';
 import { makeDgmoError, formatDgmoError, suggest } from './diagnostics';
-import { collectIndentedValues, extractColor, parseFirstLine, parsePipeMetadata, MULTIPLE_PIPE_ERROR } from './utils/parsing';
-import { matchTagBlockHeading, validateTagValues, resolveTagColor } from './utils/tag-groups';
+import {
+  collectIndentedValues,
+  extractColor,
+  parseFirstLine,
+  parsePipeMetadata,
+  MULTIPLE_PIPE_ERROR,
+} from './utils/parsing';
+import {
+  matchTagBlockHeading,
+  validateTagValues,
+  resolveTagColor,
+} from './utils/tag-groups';
 import type { TagGroup } from './utils/tag-groups';
 import {
   LEGEND_HEIGHT as TL_LEGEND_HEIGHT,
@@ -197,7 +207,11 @@ import {
   LEGEND_GROUP_GAP as TL_LEGEND_GROUP_GAP,
   measureLegendText,
 } from './utils/legend-constants';
-import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT, TITLE_Y } from './utils/title-constants';
+import {
+  TITLE_FONT_SIZE,
+  TITLE_FONT_WEIGHT,
+  TITLE_Y,
+} from './utils/title-constants';
 
 // ============================================================
 // Shared Rendering Helpers
@@ -215,7 +229,8 @@ function renderChartTitle(
   onClickItem?: (lineNumber: number) => void
 ): void {
   if (!title) return;
-  const titleEl = svg.append('text')
+  const titleEl = svg
+    .append('text')
     .attr('class', 'chart-title')
     .attr('x', width / 2)
     .attr('y', TITLE_Y)
@@ -230,8 +245,12 @@ function renderChartTitle(
     if (onClickItem) {
       titleEl
         .on('click', () => onClickItem(titleLineNumber))
-        .on('mouseenter', function () { d3Selection.select(this).attr('opacity', 0.7); })
-        .on('mouseleave', function () { d3Selection.select(this).attr('opacity', 1); });
+        .on('mouseenter', function () {
+          d3Selection.select(this).attr('opacity', 0.7);
+        })
+        .on('mouseleave', function () {
+          d3Selection.select(this).attr('opacity', 1);
+        });
     }
   }
 }
@@ -244,7 +263,15 @@ function initD3Chart(
   container: HTMLDivElement,
   palette: PaletteColors,
   exportDims?: D3ExportDimensions
-): { svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>; width: number; height: number; textColor: string; mutedColor: string; bgColor: string; colors: string[] } | null {
+): {
+  svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>;
+  width: number;
+  height: number;
+  textColor: string;
+  mutedColor: string;
+  bgColor: string;
+  colors: string[];
+} | null {
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
   const width = exportDims?.width ?? container.clientWidth;
   const height = exportDims?.height ?? container.clientHeight;
@@ -253,7 +280,12 @@ function initD3Chart(
   const mutedColor = palette.border;
   const bgColor = palette.bg;
   const colors = getSeriesColors(palette);
-  const svg = d3Selection.select(container).append('svg').attr('width', width).attr('height', height).style('background', bgColor);
+  const svg = d3Selection
+    .select(container)
+    .append('svg')
+    .attr('width', width)
+    .attr('height', height)
+    .style('background', bgColor);
   return { svg, width, height, textColor, mutedColor, bgColor, colors };
 }
 
@@ -285,7 +317,9 @@ export function parseTimelineDate(s: string): number {
   const year = parts[0];
   const month = parts.length >= 2 ? parts[1] : 1;
   const day = parts.length >= 3 ? parts[2] : 1;
-  return year + (month - 1) / 12 + (day - 1) / 365 + hour / 8760 + minute / 525600;
+  return (
+    year + (month - 1) / 12 + (day - 1) / 365 + hour / 8760 + minute / 525600
+  );
 }
 
 /** Convert a fractional year number back to a Date (inverse of parseTimelineDate). */
@@ -307,8 +341,13 @@ function fractionalYearToDate(frac: number): Date {
 
 /** Convert a Date to a fractional year number. */
 function dateToFractionalYear(d: Date): number {
-  return d.getFullYear() + d.getMonth() / 12 + (d.getDate() - 1) / 365
-    + d.getHours() / 8760 + d.getMinutes() / 525600;
+  return (
+    d.getFullYear() +
+    d.getMonth() / 12 +
+    (d.getDate() - 1) / 365 +
+    d.getHours() / 8760 +
+    d.getMinutes() / 525600
+  );
 }
 
 /**
@@ -404,7 +443,10 @@ export function addDurationToDate(
 /**
  * Parses D3 chart text format into structured data.
  */
-export function parseVisualization(content: string, palette?: PaletteColors): ParsedVisualization {
+export function parseVisualization(
+  content: string,
+  palette?: PaletteColors
+): ParsedVisualization {
   const result: ParsedVisualization = {
     type: null,
     title: null,
@@ -468,7 +510,15 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
   let inTimelineMarkerBlock = false;
   let timelineMarkerBlockIndent = 0;
   const timelineAliasMap = new Map<string, string>();
-  const VALID_D3_TYPES = new Set(['slope', 'wordcloud', 'arc', 'timeline', 'venn', 'quadrant', 'sequence']);
+  const VALID_D3_TYPES = new Set([
+    'slope',
+    'wordcloud',
+    'arc',
+    'timeline',
+    'venn',
+    'quadrant',
+    'sequence',
+  ]);
   let firstLineParsed = false;
 
   for (let i = 0; i < lines.length; i++) {
@@ -509,7 +559,10 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
           lineNumber,
         };
         if (tagBlockMatch.alias) {
-          timelineAliasMap.set(tagBlockMatch.alias.toLowerCase(), tagBlockMatch.name.toLowerCase());
+          timelineAliasMap.set(
+            tagBlockMatch.alias.toLowerCase(),
+            tagBlockMatch.name.toLowerCase()
+          );
         }
         result.timelineTagGroups.push(currentTimelineTagGroup);
         continue;
@@ -526,7 +579,11 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
       const { label, color } = extractColor(entryText, palette);
       if (color) {
         if (isDefault) currentTimelineTagGroup.defaultValue = label;
-        currentTimelineTagGroup.entries.push({ value: label, color, lineNumber });
+        currentTimelineTagGroup.entries.push({
+          value: label,
+          color,
+          lineNumber,
+        });
         continue;
       }
     }
@@ -558,9 +615,21 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
     }
 
     // Reject legacy ## group syntax
-    if (/^#{2,}\s+/.test(line) && (result.type === 'arc' || result.type === 'timeline')) {
-      const name = line.replace(/^#{2,}\s+/, '').replace(/\s*\([^)]*\)\s*$/, '').trim();
-      result.diagnostics.push(makeDgmoError(lineNumber, `'## ${name}' is no longer supported. Use '[${name}]' instead`, 'warning'));
+    if (
+      /^#{2,}\s+/.test(line) &&
+      (result.type === 'arc' || result.type === 'timeline')
+    ) {
+      const name = line
+        .replace(/^#{2,}\s+/, '')
+        .replace(/\s*\([^)]*\)\s*$/, '')
+        .trim();
+      result.diagnostics.push(
+        makeDgmoError(
+          lineNumber,
+          `'## ${name}' is no longer supported. Use '[${name}]' instead`,
+          'warning'
+        )
+      );
       continue;
     }
 
@@ -728,9 +797,14 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
         const unit = durationMatch[3] as 'd' | 'w' | 'm' | 'y' | 'h' | 'min';
         const endDate = addDurationToDate(startDate, amount, unit);
         const segments = durationMatch[5].split('|');
-        const metadata = segments.length > 1
-          ? parsePipeMetadata(['', ...segments.slice(1)], timelineAliasMap, () => warn(lineNumber, MULTIPLE_PIPE_ERROR))
-          : {};
+        const metadata =
+          segments.length > 1
+            ? parsePipeMetadata(
+                ['', ...segments.slice(1)],
+                timelineAliasMap,
+                () => warn(lineNumber, MULTIPLE_PIPE_ERROR)
+              )
+            : {};
         result.timelineEvents.push({
           date: startDate,
           endDate,
@@ -751,9 +825,14 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
       );
       if (rangeMatch) {
         const segments = rangeMatch[4].split('|');
-        const metadata = segments.length > 1
-          ? parsePipeMetadata(['', ...segments.slice(1)], timelineAliasMap, () => warn(lineNumber, MULTIPLE_PIPE_ERROR))
-          : {};
+        const metadata =
+          segments.length > 1
+            ? parsePipeMetadata(
+                ['', ...segments.slice(1)],
+                timelineAliasMap,
+                () => warn(lineNumber, MULTIPLE_PIPE_ERROR)
+              )
+            : {};
         result.timelineEvents.push({
           date: rangeMatch[1],
           endDate: rangeMatch[2],
@@ -772,9 +851,14 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
       );
       if (pointMatch) {
         const segments = pointMatch[2].split('|');
-        const metadata = segments.length > 1
-          ? parsePipeMetadata(['', ...segments.slice(1)], timelineAliasMap, () => warn(lineNumber, MULTIPLE_PIPE_ERROR))
-          : {};
+        const metadata =
+          segments.length > 1
+            ? parsePipeMetadata(
+                ['', ...segments.slice(1)],
+                timelineAliasMap,
+                () => warn(lineNumber, MULTIPLE_PIPE_ERROR)
+              )
+            : {};
         result.timelineEvents.push({
           date: pointMatch[1],
           endDate: null,
@@ -799,7 +883,10 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
           if (s.alias) knownSetRefs.add(s.alias.toLowerCase());
         }
 
-        const segments = line.split('+').map((s) => s.trim()).filter(Boolean);
+        const segments = line
+          .split('+')
+          .map((s) => s.trim())
+          .filter(Boolean);
         if (segments.length >= 2) {
           // All segments except the last are pure set references
           const rawSets = segments.slice(0, -1);
@@ -827,7 +914,10 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
             }
             if (matchLen > 0) {
               lastSetRef = words.slice(0, matchLen).join(' ');
-              label = words.length > matchLen ? words.slice(matchLen).join(' ') : null;
+              label =
+                words.length > matchLen
+                  ? words.slice(matchLen).join(' ')
+                  : null;
             } else {
               // No known set matched — assume first word is the set ref, rest is label
               lastSetRef = words[0];
@@ -841,7 +931,9 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
       }
 
       // Set declaration: "Name(color) alias x" / "Name alias x" / "Name(color)" / "Name"
-      const setDeclMatch = line.match(/^([^(:]+?)(?:\(([^)]+)\))?(?:\s+alias\s+(\S+))?\s*$/i);
+      const setDeclMatch = line.match(
+        /^([^(:]+?)(?:\(([^)]+)\))?(?:\s+alias\s+(\S+))?\s*$/i
+      );
       if (setDeclMatch) {
         const name = setDeclMatch[1].trim();
         const colorName = setDeclMatch[2]?.trim() ?? null;
@@ -849,11 +941,17 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
         if (colorName) {
           const resolved = resolveColor(colorName, palette);
           if (resolved === null) {
-            warn(lineNumber, `Hex colors are not supported — use named colors (blue, red, green, etc.)`);
+            warn(
+              lineNumber,
+              `Hex colors are not supported — use named colors (blue, red, green, etc.)`
+            );
           } else if (resolved.startsWith('#')) {
             color = resolved;
           } else {
-            warn(lineNumber, `Unknown color "${colorName}" on set "${name}". Using auto-assigned color.`);
+            warn(
+              lineNumber,
+              `Unknown color "${colorName}" on set "${name}". Using auto-assigned color.`
+            );
           }
         }
         const alias = setDeclMatch[3]?.trim() ?? null;
@@ -957,7 +1055,10 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
       const firstToken = line.substring(0, spaceIdx).toLowerCase();
       const restValue = line.substring(spaceIdx + 1).trim();
 
-      if (firstToken === 'chart' && VALID_D3_TYPES.has(restValue.toLowerCase())) {
+      if (
+        firstToken === 'chart' &&
+        VALID_D3_TYPES.has(restValue.toLowerCase())
+      ) {
         result.type = restValue.toLowerCase() as ParsedVisualization['type'];
         continue;
       }
@@ -1114,9 +1215,14 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
       } else if (colonIndex === -1) {
         // Try "word weight" or "multi-word-label weight" space-separated format
         const lastSpace = line.lastIndexOf(' ');
-        const maybeWeight = lastSpace >= 0 ? parseFloat(line.substring(lastSpace + 1)) : NaN;
+        const maybeWeight =
+          lastSpace >= 0 ? parseFloat(line.substring(lastSpace + 1)) : NaN;
         if (lastSpace >= 0 && !isNaN(maybeWeight) && maybeWeight > 0) {
-          result.words.push({ text: line.substring(0, lastSpace).trim(), weight: maybeWeight, lineNumber });
+          result.words.push({
+            text: line.substring(0, lastSpace).trim(),
+            weight: maybeWeight,
+            lineNumber,
+          });
         } else {
           freeformLines.push(line);
         }
@@ -1148,8 +1254,12 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
   // Validation
   if (!result.type) {
     const validD3Types = [...VALID_D3_TYPES];
-    const firstNonEmpty = lines.find(l => l.trim() && !l.trim().startsWith('//'))?.trim() ?? '';
-    const hint = suggest(firstNonEmpty.split(/\s/)[0].toLowerCase(), validD3Types);
+    const firstNonEmpty =
+      lines.find((l) => l.trim() && !l.trim().startsWith('//'))?.trim() ?? '';
+    const hint = suggest(
+      firstNonEmpty.split(/\s/)[0].toLowerCase(),
+      validD3Types
+    );
     let msg = `Unsupported chart type: "${firstNonEmpty.split(/\s/)[0]}". Supported types: ${validD3Types.join(', ')}`;
     if (hint) msg += `. ${hint}`;
     return fail(1, msg);
@@ -1166,7 +1276,10 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
       result.words = tokenizeFreeformText(freeformLines.join(' '));
     }
     if (result.words.length === 0) {
-      warn(1, 'No words found. Add words as "word weight" (space-separated), one per line, or paste freeform text');
+      warn(
+        1,
+        'No words found. Add words as "word weight" (space-separated), one per line, or paste freeform text'
+      );
     }
     // Apply max word limit (words are already sorted by weight desc for freeform)
     if (
@@ -1183,12 +1296,18 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
 
   if (result.type === 'arc') {
     if (result.links.length === 0) {
-      warn(1, 'No links found. Add links as "Source -> Target: weight" (e.g., "Alice -> Bob: 5")');
+      warn(
+        1,
+        'No links found. Add links as "Source -> Target: weight" (e.g., "Alice -> Bob: 5")'
+      );
     }
     // Validate arc ordering vs groups
     if (result.arcNodeGroups.length > 0) {
       if (result.arcOrder === 'name' || result.arcOrder === 'degree') {
-        warn(1, `Cannot use "order: ${result.arcOrder}" with [Group] headers. Use "order: group" or remove group headers.`);
+        warn(
+          1,
+          `Cannot use "order: ${result.arcOrder}" with [Group] headers. Use "order: group" or remove group headers.`
+        );
         result.arcOrder = 'group';
       }
       if (result.arcOrder === 'appearance') {
@@ -1200,15 +1319,19 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
 
   if (result.type === 'timeline') {
     if (result.timelineEvents.length === 0) {
-      warn(1, 'No events found. Add events as "YYYY: description" or "YYYY->YYYY: description"');
+      warn(
+        1,
+        'No events found. Add events as "YYYY: description" or "YYYY->YYYY: description"'
+      );
     }
     // Validate tag values and inject defaults
     if (result.timelineTagGroups.length > 0) {
       validateTagValues(
         result.timelineEvents,
         result.timelineTagGroups,
-        (line, msg) => result.diagnostics.push(makeDgmoError(line, msg, 'warning')),
-        suggest,
+        (line, msg) =>
+          result.diagnostics.push(makeDgmoError(line, msg, 'warning')),
+        suggest
       );
       for (const group of result.timelineTagGroups) {
         if (!group.defaultValue) continue;
@@ -1226,7 +1349,10 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
 
   if (result.type === 'venn') {
     if (result.vennSets.length < 2) {
-      return fail(1, 'At least 2 sets are required. Add set names (e.g., "Apples", "Oranges")');
+      return fail(
+        1,
+        'At least 2 sets are required. Add set names (e.g., "Apples", "Oranges")'
+      );
     }
     if (result.vennSets.length > 3) {
       return fail(1, 'Venn diagrams support 2–3 sets');
@@ -1240,7 +1366,9 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
       if (s.alias) aliasLower.set(s.alias.toLowerCase(), s.name);
     }
     const resolveSetRef = (ref: string): string | null =>
-      setNameLower.get(ref.toLowerCase()) ?? aliasLower.get(ref.toLowerCase()) ?? null;
+      setNameLower.get(ref.toLowerCase()) ??
+      aliasLower.get(ref.toLowerCase()) ??
+      null;
 
     // Resolve intersection set references; drop invalid ones with a diagnostic
     const validOverlaps: VennOverlap[] = [];
@@ -1250,8 +1378,16 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
       for (const ref of ov.sets) {
         const resolved = resolveSetRef(ref);
         if (!resolved) {
-          result.diagnostics.push(makeDgmoError(ov.lineNumber, `Intersection references unknown set or alias "${ref}"`));
-          if (!result.error) result.error = formatDgmoError(result.diagnostics[result.diagnostics.length - 1]);
+          result.diagnostics.push(
+            makeDgmoError(
+              ov.lineNumber,
+              `Intersection references unknown set or alias "${ref}"`
+            )
+          );
+          if (!result.error)
+            result.error = formatDgmoError(
+              result.diagnostics[result.diagnostics.length - 1]
+            );
           valid = false;
           break;
         }
@@ -1265,24 +1401,36 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
 
   if (result.type === 'quadrant') {
     if (result.quadrantPoints.length === 0) {
-      warn(1, 'No data points found. Add points as "Label: x, y" (e.g., "Item A: 0.5, 0.7")');
+      warn(
+        1,
+        'No data points found. Add points as "Label: x, y" (e.g., "Item A: 0.5, 0.7")'
+      );
     }
     return result;
   }
 
   // Slope chart validation
   if (result.periods.length < 2) {
-    return fail(1, 'Missing or invalid periods line. Provide at least 2 comma-separated period labels (e.g., "2020, 2024")');
+    return fail(
+      1,
+      'Missing or invalid periods line. Provide at least 2 comma-separated period labels (e.g., "2020, 2024")'
+    );
   }
 
   if (result.data.length === 0) {
-    warn(1, 'No data lines found. Add data as "Label: value1, value2" (e.g., "Apple: 25, 35")');
+    warn(
+      1,
+      'No data lines found. Add data as "Label: value1, value2" (e.g., "Apple: 25, 35")'
+    );
   }
 
   // Validate value counts match period count — warn and skip mismatched items
   for (const item of result.data) {
     if (item.values.length !== result.periods.length) {
-      warn(item.lineNumber, `Data item "${item.label}" has ${item.values.length} value(s) but ${result.periods.length} period(s) are defined`);
+      warn(
+        item.lineNumber,
+        `Data item "${item.label}" has ${item.values.length} value(s) but ${result.periods.length} period(s) are defined`
+      );
     }
   }
   result.data = result.data.filter(
@@ -1523,7 +1671,14 @@ export function renderSlopeChart(
   const tooltip = createTooltip(container, palette, isDark);
 
   // Title
-  renderChartTitle(svg, title, parsed.titleLineNumber, width, textColor, onClickItem);
+  renderChartTitle(
+    svg,
+    title,
+    parsed.titleLineNumber,
+    width,
+    textColor,
+    onClickItem
+  );
 
   // Period column headers
   for (const period of periods) {
@@ -1592,13 +1747,23 @@ export function renderSlopeChart(
       wrappedLines = lines;
     }
     const lineHeight = SLOPE_LABEL_FONT_SIZE * 1.2;
-    const labelHeight = labelLineCount === 1
-      ? SLOPE_LABEL_FONT_SIZE
-      : labelLineCount * lineHeight;
+    const labelHeight =
+      labelLineCount === 1
+        ? SLOPE_LABEL_FONT_SIZE
+        : labelLineCount * lineHeight;
 
     return {
-      item, idx, color, firstVal, lastVal, tipHtml,
-      lastX, labelText, maxChars, wrappedLines, labelHeight,
+      item,
+      idx,
+      color,
+      firstVal,
+      lastVal,
+      tipHtml,
+      lastX,
+      labelText,
+      maxChars,
+      wrappedLines,
+      labelHeight,
     };
   });
 
@@ -1610,7 +1775,10 @@ export function renderSlopeChart(
       naturalY: yScale(item.values[pi]),
       height: leftLabelHeight,
     }));
-    leftLabelCollisions.set(pi, resolveVerticalCollisions(entries, 4, innerHeight));
+    leftLabelCollisions.set(
+      pi,
+      resolveVerticalCollisions(entries, 4, innerHeight)
+    );
   }
 
   // --- Resolve right-side label collisions ---
@@ -1618,7 +1786,11 @@ export function renderSlopeChart(
     naturalY: yScale(si.lastVal),
     height: Math.max(si.labelHeight, SLOPE_LABEL_FONT_SIZE * 1.4),
   }));
-  const rightAdjustedY = resolveVerticalCollisions(rightEntries, 4, innerHeight);
+  const rightAdjustedY = resolveVerticalCollisions(
+    rightEntries,
+    4,
+    innerHeight
+  );
 
   // Render each data series
   data.forEach((item, idx) => {
@@ -1632,7 +1804,8 @@ export function renderSlopeChart(
       .attr('data-line-number', String(item.lineNumber));
 
     // Line
-    seriesG.append('path')
+    seriesG
+      .append('path')
       .datum(item.values)
       .attr('fill', 'none')
       .attr('stroke', color)
@@ -1640,7 +1813,8 @@ export function renderSlopeChart(
       .attr('d', lineGen);
 
     // Invisible wider path for easier hover targeting
-    seriesG.append('path')
+    seriesG
+      .append('path')
       .datum(item.values)
       .attr('fill', 'none')
       .attr('stroke', 'transparent')
@@ -1664,7 +1838,8 @@ export function renderSlopeChart(
       const y = yScale(val);
 
       // Point circle
-      seriesG.append('circle')
+      seriesG
+        .append('circle')
         .attr('cx', x)
         .attr('cy', y)
         .attr('r', 4)
@@ -1688,7 +1863,8 @@ export function renderSlopeChart(
       const isLast = i === periods.length - 1;
       if (!isLast) {
         const adjustedY = leftLabelCollisions.get(i)![idx];
-        seriesG.append('text')
+        seriesG
+          .append('text')
           .attr('x', isFirst ? x - 10 : x)
           .attr('y', adjustedY)
           .attr('dy', '0.35em')
@@ -1920,7 +2096,14 @@ export function renderArcDiagram(
     .attr('transform', `translate(${margin.left},${margin.top})`);
 
   // Title
-  renderChartTitle(svg, title, parsed.titleLineNumber, width, textColor, onClickItem);
+  renderChartTitle(
+    svg,
+    title,
+    parsed.titleLineNumber,
+    width,
+    textColor,
+    onClickItem
+  );
 
   // Build adjacency map for hover interactions
   const neighbors = new Map<string, Set<string>>();
@@ -2097,13 +2280,18 @@ export function renderArcDiagram(
       const y = yScale(node)!;
       const nodeColor = nodeColorMap.get(node) ?? textColor;
       // Find the first link involving this node (for line number and click target)
-      const nodeLink = links.find((l) => l.source === node || l.target === node);
+      const nodeLink = links.find(
+        (l) => l.source === node || l.target === node
+      );
 
       const nodeG = g
         .append('g')
         .attr('class', 'arc-node')
         .attr('data-node', node)
-        .attr('data-line-number', nodeLink?.lineNumber ? String(nodeLink.lineNumber) : null)
+        .attr(
+          'data-line-number',
+          nodeLink?.lineNumber ? String(nodeLink.lineNumber) : null
+        )
         .style('cursor', 'pointer')
         .on('mouseenter', () => handleMouseEnter(node))
         .on('mouseleave', handleMouseLeave)
@@ -2232,13 +2420,18 @@ export function renderArcDiagram(
       const x = xScale(node)!;
       const nodeColor = nodeColorMap.get(node) ?? textColor;
       // Find the first link involving this node (for line number and click target)
-      const nodeLink = links.find((l) => l.source === node || l.target === node);
+      const nodeLink = links.find(
+        (l) => l.source === node || l.target === node
+      );
 
       const nodeG = g
         .append('g')
         .attr('class', 'arc-node')
         .attr('data-node', node)
-        .attr('data-line-number', nodeLink?.lineNumber ? String(nodeLink.lineNumber) : null)
+        .attr(
+          'data-line-number',
+          nodeLink?.lineNumber ? String(nodeLink.lineNumber) : null
+        )
         .style('cursor', 'pointer')
         .on('mouseenter', () => handleMouseEnter(node))
         .on('mouseleave', handleMouseLeave)
@@ -2633,7 +2826,11 @@ export function computeTimeTicks(
     // Iterate from the start hour boundary
     const startDate = fractionalYearToDate(domainMin);
     // Round down to nearest step boundary
-    startDate.setMinutes(Math.floor(startDate.getMinutes() / stepMin) * stepMin, 0, 0);
+    startDate.setMinutes(
+      Math.floor(startDate.getMinutes() / stepMin) * stepMin,
+      0,
+      0
+    );
 
     while (true) {
       const val = dateToFractionalYear(startDate);
@@ -2659,7 +2856,12 @@ export function computeTimeTicks(
 
     const startDate = fractionalYearToDate(domainMin);
     // Round down to nearest step boundary
-    startDate.setHours(Math.floor(startDate.getHours() / stepHour) * stepHour, 0, 0, 0);
+    startDate.setHours(
+      Math.floor(startDate.getHours() / stepHour) * stepHour,
+      0,
+      0,
+      0
+    );
 
     while (true) {
       const val = dateToFractionalYear(startDate);
@@ -3072,7 +3274,10 @@ export function renderTimeline(
   exportDims?: D3ExportDimensions,
   activeTagGroup?: string | null,
   swimlaneTagGroup?: string | null,
-  onTagStateChange?: (activeTagGroup: string | null, swimlaneTagGroup: string | null) => void,
+  onTagStateChange?: (
+    activeTagGroup: string | null,
+    swimlaneTagGroup: string | null
+  ) => void,
   viewMode?: boolean
 ): void {
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
@@ -3091,7 +3296,11 @@ export function renderTimeline(
   if (timelineEvents.length === 0) return;
 
   // When sort: tag is set and no explicit swimlane param, use the default
-  if (swimlaneTagGroup == null && timelineSort === 'tag' && parsed.timelineDefaultSwimlaneTG) {
+  if (
+    swimlaneTagGroup == null &&
+    timelineSort === 'tag' &&
+    parsed.timelineDefaultSwimlaneTG
+  ) {
     swimlaneTagGroup = parsed.timelineDefaultSwimlaneTG;
   }
 
@@ -3143,12 +3352,8 @@ export function renderTimeline(
 
       // Order lanes by earliest event date
       const laneEntries = [...buckets.entries()].sort((a, b) => {
-        const aMin = Math.min(
-          ...a[1].map((e) => parseTimelineDate(e.date))
-        );
-        const bMin = Math.min(
-          ...b[1].map((e) => parseTimelineDate(e.date))
-        );
+        const aMin = Math.min(...a[1].map((e) => parseTimelineDate(e.date)));
+        const bMin = Math.min(...b[1].map((e) => parseTimelineDate(e.date)));
         return aMin - bMin;
       });
 
@@ -3170,7 +3375,11 @@ export function renderTimeline(
   function eventColor(ev: TimelineEvent): string {
     // Tag color takes priority when a tag group is active
     if (effectiveColorTG) {
-      const tagColor = resolveTagColor(ev.metadata, parsed.timelineTagGroups, effectiveColorTG);
+      const tagColor = resolveTagColor(
+        ev.metadata,
+        parsed.timelineTagGroups,
+        effectiveColorTG
+      );
       if (tagColor) return tagColor;
     }
     if (ev.group && groupColorMap.has(ev.group)) {
@@ -3281,16 +3490,23 @@ export function renderTimeline(
       el.attr('opacity', val === tagValue ? 1 : FADE_OPACITY);
     });
     g.selectAll<SVGGElement, unknown>('.tl-legend-item, .tl-lane-header').attr(
-      'opacity', FADE_OPACITY
+      'opacity',
+      FADE_OPACITY
     );
-    g.selectAll<SVGGElement, unknown>('.tl-marker').attr('opacity', FADE_OPACITY);
+    g.selectAll<SVGGElement, unknown>('.tl-marker').attr(
+      'opacity',
+      FADE_OPACITY
+    );
     // Fade legend entry dots/labels that don't match (keep group pill visible)
     g.selectAll<SVGGElement, unknown>('.tl-tag-legend-entry').each(function () {
       const el = d3Selection.select(this);
       const entryValue = el.attr('data-legend-entry');
       if (entryValue === '__group__') return; // keep group pill at full opacity
       const entryGroup = el.attr('data-tag-group');
-      el.attr('opacity', entryGroup === tagKey && entryValue === tagValue ? 1 : FADE_OPACITY);
+      el.attr(
+        'opacity',
+        entryGroup === tagKey && entryValue === tagValue ? 1 : FADE_OPACITY
+      );
     });
   }
 
@@ -3311,7 +3527,8 @@ export function renderTimeline(
   // VERTICAL orientation (time flows top→bottom)
   // ================================================================
   if (isVertical) {
-    const useGroupedVertical = tagLanes != null ||
+    const useGroupedVertical =
+      tagLanes != null ||
       (timelineSort === 'group' && timelineGroups.length > 0);
     if (useGroupedVertical) {
       // === GROUPED: one column/lane per group, vertical ===
@@ -3370,7 +3587,14 @@ export function renderTimeline(
         .append('g')
         .attr('transform', `translate(${margin.left},${margin.top})`);
 
-      renderChartTitle(svg, title, parsed.titleLineNumber, width, textColor, onClickItem);
+      renderChartTitle(
+        svg,
+        title,
+        parsed.titleLineNumber,
+        width,
+        textColor,
+        onClickItem
+      );
 
       renderEras(
         g,
@@ -3620,7 +3844,14 @@ export function renderTimeline(
         .append('g')
         .attr('transform', `translate(${margin.left},${margin.top})`);
 
-      renderChartTitle(svg, title, parsed.titleLineNumber, width, textColor, onClickItem);
+      renderChartTitle(
+        svg,
+        title,
+        parsed.titleLineNumber,
+        width,
+        textColor,
+        onClickItem
+      );
 
       renderEras(
         g,
@@ -3746,8 +3977,7 @@ export function renderTimeline(
           if (ev.uncertain) {
             const gradientId = `uncertain-v-${ev.lineNumber}`;
             const strokeGradientId = `uncertain-v-s-${ev.lineNumber}`;
-            const defs =
-              svg.select('defs').node() || svg.append('defs').node();
+            const defs = svg.select('defs').node() || svg.append('defs').node();
             const defsEl = d3Selection.select(defs as Element);
             defsEl
               .append('linearGradient')
@@ -3861,8 +4091,8 @@ export function renderTimeline(
   const BAR_H = 22; // range bar thickness (tall enough for text inside)
   const GROUP_GAP = 12; // vertical gap between group swim-lanes
 
-  const useGroupedHorizontal = tagLanes != null ||
-    (timelineSort === 'group' && timelineGroups.length > 0);
+  const useGroupedHorizontal =
+    tagLanes != null || (timelineSort === 'group' && timelineGroups.length > 0);
   if (useGroupedHorizontal) {
     // === GROUPED: swim-lanes stacked vertically, events on own rows ===
     let lanes: Lane[];
@@ -3895,7 +4125,11 @@ export function renderTimeline(
     // Group-sorted doesn't need legend space (group names shown on left)
     const baseTopMargin = title ? 50 : 20;
     const margin = {
-      top: baseTopMargin + (timelineScale ? 40 : 0) + markerMargin + tagLegendReserve,
+      top:
+        baseTopMargin +
+        (timelineScale ? 40 : 0) +
+        markerMargin +
+        tagLegendReserve,
       right: 40,
       bottom: 40 + scaleMargin,
       left: dynamicLeftMargin,
@@ -3921,7 +4155,14 @@ export function renderTimeline(
       .append('g')
       .attr('transform', `translate(${margin.left},${margin.top})`);
 
-    renderChartTitle(svg, title, parsed.titleLineNumber, width, textColor, onClickItem);
+    renderChartTitle(
+      svg,
+      title,
+      parsed.titleLineNumber,
+      width,
+      textColor,
+      onClickItem
+    );
 
     renderEras(
       g,
@@ -4222,7 +4463,14 @@ export function renderTimeline(
       .append('g')
       .attr('transform', `translate(${margin.left},${margin.top})`);
 
-    renderChartTitle(svg, title, parsed.titleLineNumber, width, textColor, onClickItem);
+    renderChartTitle(
+      svg,
+      title,
+      parsed.titleLineNumber,
+      width,
+      textColor,
+      onClickItem
+    );
 
     renderEras(
       g,
@@ -4500,13 +4748,17 @@ export function renderTimeline(
         expandedWidth: number;
       };
       const legendGroups: LegendGroup[] = parsed.timelineTagGroups.map((g) => {
-        const pillW = measureLegendText(g.name, LG_PILL_FONT_SIZE) + LG_PILL_PAD;
+        const pillW =
+          measureLegendText(g.name, LG_PILL_FONT_SIZE) + LG_PILL_PAD;
         // Expanded: pill + icon (unless viewMode) + entries
         const iconSpace = viewMode ? 8 : LG_ICON_W + 4;
         let entryX = LG_CAPSULE_PAD + pillW + iconSpace;
         for (const entry of g.entries) {
           const textX = entryX + LG_DOT_R * 2 + LG_ENTRY_DOT_GAP;
-          entryX = textX + measureLegendText(entry.value, LG_ENTRY_FONT_SIZE) + LG_ENTRY_TRAIL;
+          entryX =
+            textX +
+            measureLegendText(entry.value, LG_ENTRY_FONT_SIZE) +
+            LG_ENTRY_TRAIL;
         }
         return {
           group: g,
@@ -4526,7 +4778,8 @@ export function renderTimeline(
         y: number,
         isSwimActive: boolean
       ) {
-        const iconG = parent.append('g')
+        const iconG = parent
+          .append('g')
           .attr('class', 'tl-swimlane-icon')
           .attr('transform', `translate(${x}, ${y})`)
           .style('cursor', 'pointer');
@@ -4539,7 +4792,8 @@ export function renderTimeline(
           { y: 8, w: 6 },
         ];
         for (const bar of bars) {
-          iconG.append('rect')
+          iconG
+            .append('rect')
             .attr('x', 0)
             .attr('y', bar.y)
             .attr('width', bar.w)
@@ -4554,8 +4808,16 @@ export function renderTimeline(
       /** Full re-render with updated swimlane state */
       function relayout() {
         renderTimeline(
-          container, parsed, palette, isDark, onClickItem, exportDims,
-          currentActiveGroup, currentSwimlaneGroup, onTagStateChange, viewMode
+          container,
+          parsed,
+          palette,
+          isDark,
+          onClickItem,
+          exportDims,
+          currentActiveGroup,
+          currentSwimlaneGroup,
+          onTagStateChange,
+          viewMode
         );
       }
 
@@ -4565,7 +4827,8 @@ export function renderTimeline(
         mainSvg.selectAll('.tl-tag-legend-container').remove();
 
         // Effective color source: explicit color group > swimlane group
-        const effectiveColorKey = (currentActiveGroup ?? currentSwimlaneGroup)?.toLowerCase() ?? null;
+        const effectiveColorKey =
+          (currentActiveGroup ?? currentSwimlaneGroup)?.toLowerCase() ?? null;
 
         // In view mode, only show the color-driving tag group (expanded, non-interactive).
         // Skip the swimlane group if it's separate from the color group (lane headers already label it).
@@ -4580,32 +4843,43 @@ export function renderTimeline(
         if (visibleGroups.length === 0) return;
 
         // Compute total width and center horizontally in SVG
-        const totalW = visibleGroups.reduce((s, lg) => {
-          const isActive = viewMode ||
-            (currentActiveGroup != null &&
-              lg.group.name.toLowerCase() === currentActiveGroup.toLowerCase());
-          return s + (isActive ? lg.expandedWidth : lg.minifiedWidth);
-        }, 0) + (visibleGroups.length - 1) * LG_GROUP_GAP;
+        const totalW =
+          visibleGroups.reduce((s, lg) => {
+            const isActive =
+              viewMode ||
+              (currentActiveGroup != null &&
+                lg.group.name.toLowerCase() ===
+                  currentActiveGroup.toLowerCase());
+            return s + (isActive ? lg.expandedWidth : lg.minifiedWidth);
+          }, 0) +
+          (visibleGroups.length - 1) * LG_GROUP_GAP;
 
         let cx = (width - totalW) / 2;
 
         // Legend container for data-legend-active attribute
-        const legendContainer = mainSvg.append('g')
+        const legendContainer = mainSvg
+          .append('g')
           .attr('class', 'tl-tag-legend-container');
         if (currentActiveGroup) {
-          legendContainer.attr('data-legend-active', currentActiveGroup.toLowerCase());
+          legendContainer.attr(
+            'data-legend-active',
+            currentActiveGroup.toLowerCase()
+          );
         }
 
         for (const lg of visibleGroups) {
           const groupKey = lg.group.name.toLowerCase();
-          const isActive = viewMode ||
+          const isActive =
+            viewMode ||
             (currentActiveGroup != null &&
               currentActiveGroup.toLowerCase() === groupKey);
-          const isSwimActive = currentSwimlaneGroup != null &&
+          const isSwimActive =
+            currentSwimlaneGroup != null &&
             currentSwimlaneGroup.toLowerCase() === groupKey;
 
           const pillLabel = lg.group.name;
-          const pillWidth = measureLegendText(pillLabel, LG_PILL_FONT_SIZE) + LG_PILL_PAD;
+          const pillWidth =
+            measureLegendText(pillLabel, LG_PILL_FONT_SIZE) + LG_PILL_PAD;
 
           const gEl = legendContainer
             .append('g')
@@ -4616,19 +4890,19 @@ export function renderTimeline(
             .attr('data-legend-entry', '__group__');
 
           if (!viewMode) {
-            gEl
-              .style('cursor', 'pointer')
-              .on('click', () => {
-                currentActiveGroup = currentActiveGroup === groupKey ? null : groupKey;
-                drawLegend();
-                recolorEvents();
-                onTagStateChange?.(currentActiveGroup, currentSwimlaneGroup);
-              });
+            gEl.style('cursor', 'pointer').on('click', () => {
+              currentActiveGroup =
+                currentActiveGroup === groupKey ? null : groupKey;
+              drawLegend();
+              recolorEvents();
+              onTagStateChange?.(currentActiveGroup, currentSwimlaneGroup);
+            });
           }
 
           // Outer capsule background (active only)
           if (isActive) {
-            gEl.append('rect')
+            gEl
+              .append('rect')
               .attr('width', lg.expandedWidth)
               .attr('height', LG_HEIGHT)
               .attr('rx', LG_HEIGHT / 2)
@@ -4640,7 +4914,8 @@ export function renderTimeline(
           const pillH = LG_HEIGHT - (isActive ? LG_CAPSULE_PAD * 2 : 0);
 
           // Pill background
-          gEl.append('rect')
+          gEl
+            .append('rect')
             .attr('x', pillXOff)
             .attr('y', pillYOff)
             .attr('width', pillWidth)
@@ -4650,7 +4925,8 @@ export function renderTimeline(
 
           // Active pill border
           if (isActive) {
-            gEl.append('rect')
+            gEl
+              .append('rect')
               .attr('x', pillXOff)
               .attr('y', pillYOff)
               .attr('width', pillWidth)
@@ -4662,7 +4938,8 @@ export function renderTimeline(
           }
 
           // Pill text
-          gEl.append('text')
+          gEl
+            .append('text')
             .attr('x', pillXOff + pillWidth / 2)
             .attr('y', LG_HEIGHT / 2 + LG_PILL_FONT_SIZE / 2 - 2)
             .attr('font-size', LG_PILL_FONT_SIZE)
@@ -4684,7 +4961,8 @@ export function renderTimeline(
                 .attr('data-swimlane-toggle', groupKey)
                 .on('click', (event: MouseEvent) => {
                   event.stopPropagation();
-                  currentSwimlaneGroup = currentSwimlaneGroup === groupKey ? null : groupKey;
+                  currentSwimlaneGroup =
+                    currentSwimlaneGroup === groupKey ? null : groupKey;
                   onTagStateChange?.(currentActiveGroup, currentSwimlaneGroup);
                   relayout();
                 });
@@ -4697,7 +4975,8 @@ export function renderTimeline(
               const tagKey = lg.group.name.toLowerCase();
               const tagVal = entry.value.toLowerCase();
 
-              const entryG = gEl.append('g')
+              const entryG = gEl
+                .append('g')
                 .attr('class', 'tl-tag-legend-entry')
                 .attr('data-tag-group', tagKey)
                 .attr('data-legend-entry', tagVal);
@@ -4708,18 +4987,24 @@ export function renderTimeline(
                   .on('mouseenter', (event: MouseEvent) => {
                     event.stopPropagation();
                     fadeToTagValue(mainG, tagKey, tagVal);
-                    mainSvg.selectAll<SVGGElement, unknown>('.tl-tag-legend-entry').each(function () {
-                      const el = d3Selection.select(this);
-                      const ev = el.attr('data-legend-entry');
-                      if (ev === '__group__') return;
-                      const eg = el.attr('data-tag-group');
-                      el.attr('opacity', eg === tagKey && ev === tagVal ? 1 : FADE_OPACITY);
-                    });
+                    mainSvg
+                      .selectAll<SVGGElement, unknown>('.tl-tag-legend-entry')
+                      .each(function () {
+                        const el = d3Selection.select(this);
+                        const ev = el.attr('data-legend-entry');
+                        if (ev === '__group__') return;
+                        const eg = el.attr('data-tag-group');
+                        el.attr(
+                          'opacity',
+                          eg === tagKey && ev === tagVal ? 1 : FADE_OPACITY
+                        );
+                      });
                   })
                   .on('mouseleave', (event: MouseEvent) => {
                     event.stopPropagation();
                     fadeReset(mainG);
-                    mainSvg.selectAll<SVGGElement, unknown>('.tl-tag-legend-entry')
+                    mainSvg
+                      .selectAll<SVGGElement, unknown>('.tl-tag-legend-entry')
                       .attr('opacity', 1);
                   })
                   .on('click', (event: MouseEvent) => {
@@ -4727,14 +5012,16 @@ export function renderTimeline(
                   });
               }
 
-              entryG.append('circle')
+              entryG
+                .append('circle')
                 .attr('cx', entryX + LG_DOT_R)
                 .attr('cy', LG_HEIGHT / 2)
                 .attr('r', LG_DOT_R)
                 .attr('fill', entry.color);
 
               const textX = entryX + LG_DOT_R * 2 + LG_ENTRY_DOT_GAP;
-              entryG.append('text')
+              entryG
+                .append('text')
                 .attr('x', textX)
                 .attr('y', LG_HEIGHT / 2 + LG_ENTRY_FONT_SIZE / 2 - 1)
                 .attr('font-size', LG_ENTRY_FONT_SIZE)
@@ -4742,7 +5029,10 @@ export function renderTimeline(
                 .attr('fill', palette.textMuted)
                 .text(entry.value);
 
-              entryX = textX + measureLegendText(entry.value, LG_ENTRY_FONT_SIZE) + LG_ENTRY_TRAIL;
+              entryX =
+                textX +
+                measureLegendText(entry.value, LG_ENTRY_FONT_SIZE) +
+                LG_ENTRY_TRAIL;
             }
           }
 
@@ -4767,16 +5057,27 @@ export function renderTimeline(
           let color: string;
           if (colorTG) {
             const tagColor = resolveTagColor(
-              ev.metadata, parsed.timelineTagGroups, colorTG
+              ev.metadata,
+              parsed.timelineTagGroups,
+              colorTG
             );
-            color = tagColor ?? (ev.group && groupColorMap.has(ev.group)
-              ? groupColorMap.get(ev.group)! : textColor);
+            color =
+              tagColor ??
+              (ev.group && groupColorMap.has(ev.group)
+                ? groupColorMap.get(ev.group)!
+                : textColor);
           } else {
-            color = ev.group && groupColorMap.has(ev.group)
-              ? groupColorMap.get(ev.group)! : textColor;
+            color =
+              ev.group && groupColorMap.has(ev.group)
+                ? groupColorMap.get(ev.group)!
+                : textColor;
           }
-          el.selectAll('rect').attr('fill', mix(color, bg, 30)).attr('stroke', color);
-          el.selectAll('circle:not(.tl-event-point-outline)').attr('fill', mix(color, bg, 30)).attr('stroke', color);
+          el.selectAll('rect')
+            .attr('fill', mix(color, bg, 30))
+            .attr('stroke', color);
+          el.selectAll('circle:not(.tl-event-point-outline)')
+            .attr('fill', mix(color, bg, 30))
+            .attr('stroke', color);
         });
       }
 
@@ -4833,7 +5134,14 @@ export function renderWordCloud(
 
   const rotateFn = getRotateFn(cloudOptions.rotate);
 
-  renderChartTitle(svg, title, parsed.titleLineNumber, width, textColor, onClickItem);
+  renderChartTitle(
+    svg,
+    title,
+    parsed.titleLineNumber,
+    width,
+    textColor,
+    onClickItem
+  );
 
   const g = svg
     .append('g')
@@ -5140,7 +5448,8 @@ export function renderVenn(
   const labelTextPad = 4;
 
   for (let i = 0; i < n; i++) {
-    const estimatedWidth = vennSets[i].name.length * 8.5 + stubLen + edgePad + labelTextPad;
+    const estimatedWidth =
+      vennSets[i].name.length * 8.5 + stubLen + edgePad + labelTextPad;
     const dx = rawCircles[i].x - clusterCx;
     const dy = rawCircles[i].y - clusterCy;
     if (Math.abs(dx) >= Math.abs(dy)) {
@@ -5167,13 +5476,27 @@ export function renderVenn(
   const scaledR = circles[0].r;
 
   // Suppress WebKit focus ring on interactive SVG elements
-  svg.append('style').text('circle:focus, circle:focus-visible { outline: none !important; }');
+  svg
+    .append('style')
+    .text('circle:focus, circle:focus-visible { outline: none !important; }');
 
   // Title
-  renderChartTitle(svg, title, parsed.titleLineNumber, width, textColor, onClickItem);
+  renderChartTitle(
+    svg,
+    title,
+    parsed.titleLineNumber,
+    width,
+    textColor,
+    onClickItem
+  );
 
   // ── Semi-transparent filled circles (non-interactive) ──
-  const circleEls: d3Selection.Selection<SVGCircleElement, unknown, null, undefined>[] = [];
+  const circleEls: d3Selection.Selection<
+    SVGCircleElement,
+    unknown,
+    null,
+    undefined
+  >[] = [];
   const circleGroup = svg.append('g');
   circles.forEach((c, i) => {
     const el = circleGroup
@@ -5200,10 +5523,13 @@ export function renderVenn(
 
   // Individual circle clipPaths
   circles.forEach((c, i) => {
-    defs.append('clipPath')
+    defs
+      .append('clipPath')
       .attr('id', `vcp-${i}`)
       .append('circle')
-      .attr('cx', c.x).attr('cy', c.y).attr('r', c.r);
+      .attr('cx', c.x)
+      .attr('cy', c.y)
+      .attr('r', c.r);
   });
 
   // All region index-sets: exclusive then intersection subsets
@@ -5215,57 +5541,79 @@ export function renderVenn(
   }
 
   const overlayGroup = svg.append('g').style('pointer-events', 'none');
-  const overlayEls = new Map<string, d3Selection.Selection<SVGRectElement, unknown, null, undefined>>();
+  const overlayEls = new Map<
+    string,
+    d3Selection.Selection<SVGRectElement, unknown, null, undefined>
+  >();
 
   for (const idxs of regionIdxSets) {
     const key = idxs.join('-');
-    const excluded = Array.from({ length: n }, (_, j) => j).filter(j => !idxs.includes(j));
+    const excluded = Array.from({ length: n }, (_, j) => j).filter(
+      (j) => !idxs.includes(j)
+    );
 
     // Build nested clipPath for intersection of all idxs
     let clipId = `vcp-${idxs[0]}`;
     for (let k = 1; k < idxs.length; k++) {
       const nestedId = `vcp-n-${idxs.slice(0, k + 1).join('-')}`;
       const ci = idxs[k];
-      defs.append('clipPath')
+      defs
+        .append('clipPath')
         .attr('id', nestedId)
         .append('circle')
-        .attr('cx', circles[ci].x).attr('cy', circles[ci].y).attr('r', circles[ci].r)
+        .attr('cx', circles[ci].x)
+        .attr('cy', circles[ci].y)
+        .attr('r', circles[ci].r)
         .attr('clip-path', `url(#${clipId})`);
       clipId = nestedId;
     }
 
     // Determine line number for this region (for editor sync)
-    let regionLineNumber: number | null = null;
+    let regionLineNumber: number | null = null; // eslint-disable-line no-useless-assignment
     if (idxs.length === 1) {
       regionLineNumber = vennSets[idxs[0]].lineNumber;
     } else {
-      const sortedNames = idxs.map(i => vennSets[i].name).sort();
+      const sortedNames = idxs.map((i) => vennSets[i].name).sort();
       const ov = vennOverlaps.find(
-        (o) => o.sets.length === sortedNames.length && o.sets.every((s, k) => s === sortedNames[k])
+        (o) =>
+          o.sets.length === sortedNames.length &&
+          o.sets.every((s, k) => s === sortedNames[k])
       );
       regionLineNumber = ov?.lineNumber ?? null;
     }
 
-    const el = overlayGroup.append('rect')
-      .attr('x', 0).attr('y', 0)
-      .attr('width', width).attr('height', height)
+    const el = overlayGroup
+      .append('rect')
+      .attr('x', 0)
+      .attr('y', 0)
+      .attr('width', width)
+      .attr('height', height)
       .attr('fill', 'white')
       .attr('fill-opacity', 0)
       .attr('class', 'venn-region-overlay')
-      .attr('data-line-number', regionLineNumber != null ? String(regionLineNumber) : '0')
+      .attr(
+        'data-line-number',
+        regionLineNumber != null ? String(regionLineNumber) : '0'
+      )
       .attr('clip-path', `url(#${clipId})`);
 
     if (excluded.length > 0) {
       // Mask subtracts excluded circles so only the exact region shape highlights
       const maskId = `vvm-${key}`;
       const mask = defs.append('mask').attr('id', maskId);
-      mask.append('rect')
-        .attr('x', 0).attr('y', 0)
-        .attr('width', width).attr('height', height)
+      mask
+        .append('rect')
+        .attr('x', 0)
+        .attr('y', 0)
+        .attr('width', width)
+        .attr('height', height)
         .attr('fill', 'white');
       for (const j of excluded) {
-        mask.append('circle')
-          .attr('cx', circles[j].x).attr('cy', circles[j].y).attr('r', circles[j].r)
+        mask
+          .append('circle')
+          .attr('cx', circles[j].x)
+          .attr('cy', circles[j].y)
+          .attr('r', circles[j].r)
           .attr('fill', 'black');
       }
       el.attr('mask', `url(#${maskId})`);
@@ -5276,10 +5624,12 @@ export function renderVenn(
 
   const showRegionOverlay = (idxs: number[]) => {
     const key = [...idxs].sort((a, b) => a - b).join('-');
-    overlayEls.forEach((el, k) => el.attr('fill-opacity', k === key ? 0 : 0.55));
+    overlayEls.forEach((el, k) =>
+      el.attr('fill-opacity', k === key ? 0 : 0.55)
+    );
   };
   const hideAllOverlays = () => {
-    overlayEls.forEach(el => el.attr('fill-opacity', 0));
+    overlayEls.forEach((el) => el.attr('fill-opacity', 0));
   };
 
   // ── Labels ──
@@ -5288,7 +5638,9 @@ export function renderVenn(
 
   function exclusiveHSpan(px: number, py: number, ci: number): number {
     const dy = py - circles[ci].y;
-    const halfChord = Math.sqrt(Math.max(0, circles[ci].r * circles[ci].r - dy * dy));
+    const halfChord = Math.sqrt(
+      Math.max(0, circles[ci].r * circles[ci].r - dy * dy)
+    );
     let left = circles[ci].x - halfChord;
     let right = circles[ci].x + halfChord;
     for (let j = 0; j < n; j++) {
@@ -5319,11 +5671,14 @@ export function renderVenn(
     const centroid = regionCentroid(circles, inside);
 
     const availW = exclusiveHSpan(centroid.x, centroid.y, i);
-    const fitFont = Math.min(MAX_FONT, Math.max(MIN_FONT,
-      (availW - INTERNAL_PAD * 2) / (text.length * CH_RATIO)));
+    const fitFont = Math.min(
+      MAX_FONT,
+      Math.max(MIN_FONT, (availW - INTERNAL_PAD * 2) / (text.length * CH_RATIO))
+    );
     const estTextW = text.length * CH_RATIO * fitFont;
 
-    const fitsInside = estTextW + INTERNAL_PAD * 2 < availW &&
+    const fitsInside =
+      estTextW + INTERNAL_PAD * 2 < availW &&
       pointInCircle({ x: centroid.x, y: centroid.y - fitFont / 2 }, c) &&
       pointInCircle({ x: centroid.x, y: centroid.y + fitFont / 2 }, c);
 
@@ -5342,7 +5697,13 @@ export function renderVenn(
       let dx = c.x - gcx;
       let dy = c.y - gcy;
       const mag = Math.sqrt(dx * dx + dy * dy);
-      if (mag < 1e-6) { dx = 1; dy = 0; } else { dx /= mag; dy /= mag; }
+      if (mag < 1e-6) {
+        dx = 1;
+        dy = 0;
+      } else {
+        dx /= mag;
+        dy /= mag;
+      }
 
       const exitX = c.x + dx * c.r;
       const exitY = c.y + dy * c.r;
@@ -5353,8 +5714,10 @@ export function renderVenn(
 
       labelGroup
         .append('line')
-        .attr('x1', edgeX).attr('y1', edgeY)
-        .attr('x2', stubEndX).attr('y2', stubEndY)
+        .attr('x1', edgeX)
+        .attr('y1', edgeY)
+        .attr('x2', stubEndX)
+        .attr('y2', stubEndY)
         .attr('stroke', textColor)
         .attr('stroke-width', 1);
 
@@ -5381,7 +5744,8 @@ export function renderVenn(
 
   // ── Overlap labels (inline at region centroid) ──
   function overlapHSpan(py: number, idxs: number[]): number {
-    let left = -Infinity, right = Infinity;
+    let left = -Infinity,
+      right = Infinity;
     for (const ci of idxs) {
       const dy = py - circles[ci].y;
       if (Math.abs(dy) >= circles[ci].r) return 0;
@@ -5411,8 +5775,13 @@ export function renderVenn(
     const inside = circles.map((_, j) => idxs.includes(j));
     const centroid = regionCentroid(circles, inside);
     const availW = overlapHSpan(centroid.y, idxs);
-    const fitFont = Math.min(MAX_FONT, Math.max(MIN_FONT,
-      (availW - INTERNAL_PAD * 2) / (ov.label.length * CH_RATIO)));
+    const fitFont = Math.min(
+      MAX_FONT,
+      Math.max(
+        MIN_FONT,
+        (availW - INTERNAL_PAD * 2) / (ov.label.length * CH_RATIO)
+      )
+    );
     labelGroup
       .append('text')
       .attr('x', centroid.x)
@@ -5441,11 +5810,16 @@ export function renderVenn(
       .attr('data-line-number', String(vennSets[i].lineNumber))
       .style('cursor', onClickItem ? 'pointer' : 'default')
       .style('outline', 'none')
-      .on('mouseenter', () => { showRegionOverlay([i]); })
-      .on('mouseleave', () => { hideAllOverlays(); })
+      .on('mouseenter', () => {
+        showRegionOverlay([i]);
+      })
+      .on('mouseleave', () => {
+        hideAllOverlays();
+      })
       .on('click', function () {
         (this as SVGElement).blur?.();
-        if (onClickItem && vennSets[i].lineNumber) onClickItem(vennSets[i].lineNumber);
+        if (onClickItem && vennSets[i].lineNumber)
+          onClickItem(vennSets[i].lineNumber);
       });
   });
 
@@ -5454,14 +5828,23 @@ export function renderVenn(
 
   const subsets: { idxs: number[]; sets: string[] }[] = [];
   if (n === 2) {
-    subsets.push({ idxs: [0, 1], sets: [vennSets[0].name, vennSets[1].name].sort() });
+    subsets.push({
+      idxs: [0, 1],
+      sets: [vennSets[0].name, vennSets[1].name].sort(),
+    });
   } else {
     for (let a = 0; a < n; a++) {
       for (let b = a + 1; b < n; b++) {
-        subsets.push({ idxs: [a, b], sets: [vennSets[a].name, vennSets[b].name].sort() });
+        subsets.push({
+          idxs: [a, b],
+          sets: [vennSets[a].name, vennSets[b].name].sort(),
+        });
       }
     }
-    subsets.push({ idxs: [0, 1, 2], sets: [vennSets[0].name, vennSets[1].name, vennSets[2].name].sort() });
+    subsets.push({
+      idxs: [0, 1, 2],
+      sets: [vennSets[0].name, vennSets[1].name, vennSets[2].name].sort(),
+    });
   }
 
   for (const subset of subsets) {
@@ -5469,7 +5852,8 @@ export function renderVenn(
     const inside = circles.map((_, j) => idxs.includes(j));
     const centroid = regionCentroid(circles, inside);
     const declaredOv = vennOverlaps.find(
-      (ov) => ov.sets.length === sets.length && ov.sets.every((s, k) => s === sets[k])
+      (ov) =>
+        ov.sets.length === sets.length && ov.sets.every((s, k) => s === sets[k])
     );
     hoverGroup
       .append('circle')
@@ -5482,8 +5866,12 @@ export function renderVenn(
       .attr('data-line-number', declaredOv ? String(declaredOv.lineNumber) : '')
       .style('cursor', onClickItem && declaredOv ? 'pointer' : 'default')
       .style('outline', 'none')
-      .on('mouseenter', () => { showRegionOverlay(idxs); })
-      .on('mouseleave', () => { hideAllOverlays(); })
+      .on('mouseenter', () => {
+        showRegionOverlay(idxs);
+      })
+      .on('mouseleave', () => {
+        hideAllOverlays();
+      })
       .on('click', function () {
         (this as SVGElement).blur?.();
         if (onClickItem && declaredOv) onClickItem(declaredOv.lineNumber);
@@ -5542,7 +5930,12 @@ export function renderQuadrant(
   // Margins
   const hasXAxis = !!quadrantXAxis;
   const hasYAxis = !!quadrantYAxis;
-  const margin = { top: title ? 60 : 30, right: 30, bottom: hasXAxis ? 70 : 40, left: hasYAxis ? 80 : 40 };
+  const margin = {
+    top: title ? 60 : 30,
+    right: 30,
+    bottom: hasXAxis ? 70 : 40,
+    left: hasYAxis ? 80 : 40,
+  };
   const chartWidth = width - margin.left - margin.right;
   const chartHeight = height - margin.top - margin.bottom;
 
@@ -5554,7 +5947,14 @@ export function renderQuadrant(
   const tooltip = createTooltip(container, palette, isDark);
 
   // Title
-  renderChartTitle(svg, title, quadrantTitleLineNumber, width, textColor, onClickItem);
+  renderChartTitle(
+    svg,
+    title,
+    quadrantTitleLineNumber,
+    width,
+    textColor,
+    onClickItem
+  );
 
   // Chart group (translated by margins)
   const chartG = svg
@@ -5565,12 +5965,21 @@ export function renderQuadrant(
   const mixHex = (a: string, b: string, pct: number): string => {
     const parse = (h: string) => {
       const r = h.replace('#', '');
-      const f = r.length === 3 ? r[0]+r[0]+r[1]+r[1]+r[2]+r[2] : r;
-      return [parseInt(f.substring(0,2),16), parseInt(f.substring(2,4),16), parseInt(f.substring(4,6),16)];
+      const f = r.length === 3 ? r[0] + r[0] + r[1] + r[1] + r[2] + r[2] : r;
+      return [
+        parseInt(f.substring(0, 2), 16),
+        parseInt(f.substring(2, 4), 16),
+        parseInt(f.substring(4, 6), 16),
+      ];
     };
-    const [ar,ag,ab] = parse(a), [br,bg,bb] = parse(b), t = pct/100;
-    const c = (x: number, y: number) => Math.round(x*t + y*(1-t)).toString(16).padStart(2,'0');
-    return `#${c(ar,br)}${c(ag,bg)}${c(ab,bb)}`;
+    const [ar, ag, ab] = parse(a),
+      [br, bg, bb] = parse(b),
+      t = pct / 100;
+    const c = (x: number, y: number) =>
+      Math.round(x * t + y * (1 - t))
+        .toString(16)
+        .padStart(2, '0');
+    return `#${c(ar, br)}${c(ag, bg)}${c(ab, bb)}`;
   };
 
   const bg = isDark ? palette.surface : palette.bg;
@@ -5687,7 +6096,11 @@ export function renderQuadrant(
     fontSize: number;
   }
 
-  const quadrantLabelLayout = (text: string, qw: number, qh: number): QuadrantLabelLayout => {
+  const quadrantLabelLayout = (
+    text: string,
+    qw: number,
+    qh: number
+  ): QuadrantLabelLayout => {
     const availW = qw - LABEL_PAD;
     const availH = qh - LABEL_PAD;
     const words = text.split(/\s+/);
@@ -5695,7 +6108,10 @@ export function renderQuadrant(
     // Try single line first
     if (estTextWidth(text, LABEL_MAX_FONT) <= availW) {
       const fs = Math.min(LABEL_MAX_FONT, availH);
-      return { lines: [text], fontSize: Math.max(LABEL_MIN_FONT, Math.round(fs)) };
+      return {
+        lines: [text],
+        fontSize: Math.max(LABEL_MIN_FONT, Math.round(fs)),
+      };
     }
 
     // Try wrapping into 2+ lines: greedily pack words so each line fits availW
@@ -5742,7 +6158,10 @@ export function renderQuadrant(
   const qh = chartHeight / 2;
   const quadrantDefsWithLabel = quadrantDefs.filter((d) => d.label !== null);
   const labelLayouts = new Map(
-    quadrantDefsWithLabel.map((d) => [d.label!.text, quadrantLabelLayout(d.label!.text, qw, qh)])
+    quadrantDefsWithLabel.map((d) => [
+      d.label!.text,
+      quadrantLabelLayout(d.label!.text, qw, qh),
+    ])
   );
 
   const quadrantLabelTexts = chartG
@@ -5807,7 +6226,10 @@ export function renderQuadrant(
       .attr('text-anchor', 'middle')
       .attr('fill', textColor)
       .attr('font-size', '18px')
-      .attr('data-line-number', quadrantXAxisLineNumber ? String(quadrantXAxisLineNumber) : null)
+      .attr(
+        'data-line-number',
+        quadrantXAxisLineNumber ? String(quadrantXAxisLineNumber) : null
+      )
       .style(
         'cursor',
         onClickItem && quadrantXAxisLineNumber ? 'pointer' : 'default'
@@ -5823,7 +6245,10 @@ export function renderQuadrant(
       .attr('text-anchor', 'middle')
       .attr('fill', textColor)
       .attr('font-size', '18px')
-      .attr('data-line-number', quadrantXAxisLineNumber ? String(quadrantXAxisLineNumber) : null)
+      .attr(
+        'data-line-number',
+        quadrantXAxisLineNumber ? String(quadrantXAxisLineNumber) : null
+      )
       .style(
         'cursor',
         onClickItem && quadrantXAxisLineNumber ? 'pointer' : 'default'
@@ -5859,7 +6284,10 @@ export function renderQuadrant(
       .attr('fill', textColor)
       .attr('font-size', '18px')
       .attr('transform', `rotate(-90, 22, ${yMidBottom})`)
-      .attr('data-line-number', quadrantYAxisLineNumber ? String(quadrantYAxisLineNumber) : null)
+      .attr(
+        'data-line-number',
+        quadrantYAxisLineNumber ? String(quadrantYAxisLineNumber) : null
+      )
       .style(
         'cursor',
         onClickItem && quadrantYAxisLineNumber ? 'pointer' : 'default'
@@ -5876,7 +6304,10 @@ export function renderQuadrant(
       .attr('fill', textColor)
       .attr('font-size', '18px')
       .attr('transform', `rotate(-90, 22, ${yMidTop})`)
-      .attr('data-line-number', quadrantYAxisLineNumber ? String(quadrantYAxisLineNumber) : null)
+      .attr(
+        'data-line-number',
+        quadrantYAxisLineNumber ? String(quadrantYAxisLineNumber) : null
+      )
       .style(
         'cursor',
         onClickItem && quadrantYAxisLineNumber ? 'pointer' : 'default'
@@ -5935,7 +6366,9 @@ export function renderQuadrant(
     const pointColor =
       quadDef?.label?.color ?? defaultColors[quadDef?.colorIdx ?? 0];
 
-    const pointG = pointsG.append('g').attr('class', 'point-group')
+    const pointG = pointsG
+      .append('g')
+      .attr('class', 'point-group')
       .attr('data-line-number', String(point.lineNumber));
 
     // Circle with white fill and colored border for visibility on opaque quadrants
@@ -6024,7 +6457,10 @@ const EXPORT_HEIGHT = 800;
 /**
  * Resolves the palette for export, falling back to Nord light/dark.
  */
-async function resolveExportPalette(theme: string, palette?: PaletteColors): Promise<PaletteColors> {
+async function resolveExportPalette(
+  theme: string,
+  palette?: PaletteColors
+): Promise<PaletteColors> {
   if (palette) return palette;
   const { getPalette } = await import('./palettes');
   return theme === 'dark' ? getPalette('nord').dark : getPalette('nord').light;
@@ -6086,7 +6522,13 @@ export async function renderForExport(
     hiddenAttributes?: Set<string>;
     swimlaneTagGroup?: string | null;
   },
-  options?: { branding?: boolean; c4Level?: 'context' | 'containers' | 'components' | 'deployment'; c4System?: string; c4Container?: string; tagGroup?: string }
+  options?: {
+    branding?: boolean;
+    c4Level?: 'context' | 'containers' | 'components' | 'deployment';
+    c4System?: string;
+    c4Container?: string;
+    tagGroup?: string;
+  }
 ): Promise<string> {
   // Flowchart and org chart use their own parser pipelines — intercept before parseVisualization()
   const { parseDgmoChartType } = await import('./dgmo-router');
@@ -6106,7 +6548,8 @@ export async function renderForExport(
 
     // Apply interactive collapse state when provided
     const collapsedNodes = orgExportState?.collapsedNodes;
-    const activeTagGroup = orgExportState?.activeTagGroup ?? options?.tagGroup ?? null;
+    const activeTagGroup =
+      orgExportState?.activeTagGroup ?? options?.tagGroup ?? null;
     const hiddenAttributes = orgExportState?.hiddenAttributes;
 
     const { parsed: effectiveParsed, hiddenCounts } =
@@ -6128,7 +6571,17 @@ export async function renderForExport(
     const exportHeight = orgLayout.height + PADDING * 2 + titleOffset;
     const container = createExportContainer(exportWidth, exportHeight);
 
-    renderOrg(container, effectiveParsed, orgLayout, effectivePalette, isDark, undefined, { width: exportWidth, height: exportHeight }, activeTagGroup, hiddenAttributes);
+    renderOrg(
+      container,
+      effectiveParsed,
+      orgLayout,
+      effectivePalette,
+      isDark,
+      undefined,
+      { width: exportWidth, height: exportHeight },
+      activeTagGroup,
+      hiddenAttributes
+    );
     return finalizeSvgExport(container, theme, effectivePalette, options);
   }
 
@@ -6146,7 +6599,8 @@ export async function renderForExport(
 
     // Apply interactive collapse state when provided
     const collapsedNodes = orgExportState?.collapsedNodes;
-    const activeTagGroup = orgExportState?.activeTagGroup ?? options?.tagGroup ?? null;
+    const activeTagGroup =
+      orgExportState?.activeTagGroup ?? options?.tagGroup ?? null;
     const hiddenAttributes = orgExportState?.hiddenAttributes;
 
     const { parsed: effectiveParsed, hiddenCounts } =
@@ -6159,7 +6613,7 @@ export async function renderForExport(
       hiddenCounts.size > 0 ? hiddenCounts : undefined,
       activeTagGroup,
       hiddenAttributes,
-      true,
+      true
     );
 
     const PADDING = 20;
@@ -6168,7 +6622,17 @@ export async function renderForExport(
     const exportHeight = sitemapLayout.height + PADDING * 2 + titleOffset;
     const container = createExportContainer(exportWidth, exportHeight);
 
-    renderSitemap(container, effectiveParsed, sitemapLayout, effectivePalette, isDark, undefined, { width: exportWidth, height: exportHeight }, activeTagGroup, hiddenAttributes);
+    renderSitemap(
+      container,
+      effectiveParsed,
+      sitemapLayout,
+      effectivePalette,
+      isDark,
+      undefined,
+      { width: exportWidth, height: exportHeight },
+      activeTagGroup,
+      hiddenAttributes
+    );
     return finalizeSvgExport(container, theme, effectivePalette, options);
   }
 
@@ -6186,7 +6650,15 @@ export async function renderForExport(
     container.style.left = '-9999px';
     document.body.appendChild(container);
 
-    renderKanban(container, kanbanParsed, effectivePalette, theme === 'dark', undefined, undefined, options?.tagGroup);
+    renderKanban(
+      container,
+      kanbanParsed,
+      effectivePalette,
+      theme === 'dark',
+      undefined,
+      undefined,
+      options?.tagGroup
+    );
     return finalizeSvgExport(container, theme, effectivePalette, options);
   }
 
@@ -6206,7 +6678,15 @@ export async function renderForExport(
     const exportHeight = classLayout.height + PADDING * 2 + titleOffset;
     const container = createExportContainer(exportWidth, exportHeight);
 
-    renderClassDiagram(container, classParsed, classLayout, effectivePalette, theme === 'dark', undefined, { width: exportWidth, height: exportHeight });
+    renderClassDiagram(
+      container,
+      classParsed,
+      classLayout,
+      effectivePalette,
+      theme === 'dark',
+      undefined,
+      { width: exportWidth, height: exportHeight }
+    );
     return finalizeSvgExport(container, theme, effectivePalette, options);
   }
 
@@ -6226,14 +6706,26 @@ export async function renderForExport(
     const exportHeight = erLayout.height + PADDING * 2 + titleOffset;
     const container = createExportContainer(exportWidth, exportHeight);
 
-    renderERDiagram(container, erParsed, erLayout, effectivePalette, theme === 'dark', undefined, { width: exportWidth, height: exportHeight }, options?.tagGroup);
+    renderERDiagram(
+      container,
+      erParsed,
+      erLayout,
+      effectivePalette,
+      theme === 'dark',
+      undefined,
+      { width: exportWidth, height: exportHeight },
+      options?.tagGroup
+    );
     return finalizeSvgExport(container, theme, effectivePalette, options);
   }
 
   if (detectedType === 'initiative-status') {
-    const { parseInitiativeStatus } = await import('./initiative-status/parser');
-    const { layoutInitiativeStatus } = await import('./initiative-status/layout');
-    const { renderInitiativeStatus } = await import('./initiative-status/renderer');
+    const { parseInitiativeStatus } =
+      await import('./initiative-status/parser');
+    const { layoutInitiativeStatus } =
+      await import('./initiative-status/layout');
+    const { renderInitiativeStatus } =
+      await import('./initiative-status/renderer');
 
     const effectivePalette = await resolveExportPalette(theme, palette);
     const isParsed = parseInitiativeStatus(content);
@@ -6246,14 +6738,27 @@ export async function renderForExport(
     const exportHeight = isLayout.height + PADDING * 2 + titleOffset;
     const container = createExportContainer(exportWidth, exportHeight);
 
-    renderInitiativeStatus(container, isParsed, isLayout, effectivePalette, theme === 'dark', { exportDims: { width: exportWidth, height: exportHeight } });
+    renderInitiativeStatus(
+      container,
+      isParsed,
+      isLayout,
+      effectivePalette,
+      theme === 'dark',
+      { exportDims: { width: exportWidth, height: exportHeight } }
+    );
     return finalizeSvgExport(container, theme, effectivePalette, options);
   }
 
   if (detectedType === 'c4') {
     const { parseC4 } = await import('./c4/parser');
-    const { layoutC4Context, layoutC4Containers, layoutC4Components, layoutC4Deployment } = await import('./c4/layout');
-    const { renderC4Context, renderC4Containers } = await import('./c4/renderer');
+    const {
+      layoutC4Context,
+      layoutC4Containers,
+      layoutC4Components,
+      layoutC4Deployment,
+    } = await import('./c4/layout');
+    const { renderC4Context, renderC4Containers } =
+      await import('./c4/renderer');
 
     const effectivePalette = await resolveExportPalette(theme, palette);
     const c4Parsed = parseC4(content, effectivePalette);
@@ -6264,13 +6769,14 @@ export async function renderForExport(
     const c4System = options?.c4System;
     const c4Container = options?.c4Container;
 
-    const c4Layout = c4Level === 'deployment'
-      ? layoutC4Deployment(c4Parsed)
-      : c4Level === 'components' && c4System && c4Container
-        ? layoutC4Components(c4Parsed, c4System, c4Container)
-        : c4Level === 'containers' && c4System
-          ? layoutC4Containers(c4Parsed, c4System)
-          : layoutC4Context(c4Parsed);
+    const c4Layout =
+      c4Level === 'deployment'
+        ? layoutC4Deployment(c4Parsed)
+        : c4Level === 'components' && c4System && c4Container
+          ? layoutC4Components(c4Parsed, c4System, c4Container)
+          : c4Level === 'containers' && c4System
+            ? layoutC4Containers(c4Parsed, c4System)
+            : layoutC4Context(c4Parsed);
 
     if (c4Layout.nodes.length === 0) return '';
 
@@ -6280,11 +6786,23 @@ export async function renderForExport(
     const exportHeight = c4Layout.height + PADDING * 2 + titleOffset;
     const container = createExportContainer(exportWidth, exportHeight);
 
-    const renderFn = c4Level === 'deployment' || (c4Level === 'components' && c4System && c4Container) || (c4Level === 'containers' && c4System)
-      ? renderC4Containers
-      : renderC4Context;
+    const renderFn =
+      c4Level === 'deployment' ||
+      (c4Level === 'components' && c4System && c4Container) ||
+      (c4Level === 'containers' && c4System)
+        ? renderC4Containers
+        : renderC4Context;
 
-    renderFn(container, c4Parsed, c4Layout, effectivePalette, theme === 'dark', undefined, { width: exportWidth, height: exportHeight }, options?.tagGroup);
+    renderFn(
+      container,
+      c4Parsed,
+      c4Layout,
+      effectivePalette,
+      theme === 'dark',
+      undefined,
+      { width: exportWidth, height: exportHeight },
+      options?.tagGroup
+    );
     return finalizeSvgExport(container, theme, effectivePalette, options);
   }
 
@@ -6300,7 +6818,15 @@ export async function renderForExport(
     const layout = layoutGraph(fcParsed);
     const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
 
-    renderFlowchart(container, fcParsed, layout, effectivePalette, theme === 'dark', undefined, { width: EXPORT_WIDTH, height: EXPORT_HEIGHT });
+    renderFlowchart(
+      container,
+      fcParsed,
+      layout,
+      effectivePalette,
+      theme === 'dark',
+      undefined,
+      { width: EXPORT_WIDTH, height: EXPORT_HEIGHT }
+    );
     return finalizeSvgExport(container, theme, effectivePalette, options);
   }
 
@@ -6308,7 +6834,8 @@ export async function renderForExport(
     const { parseInfra } = await import('./infra/parser');
     const { computeInfra } = await import('./infra/compute');
     const { layoutInfra } = await import('./infra/layout');
-    const { renderInfra, computeInfraLegendGroups } = await import('./infra/renderer');
+    const { renderInfra, computeInfraLegendGroups } =
+      await import('./infra/renderer');
 
     const effectivePalette = await resolveExportPalette(theme, palette);
     const infraParsed = parseInfra(content);
@@ -6319,13 +6846,30 @@ export async function renderForExport(
     const activeTagGroup = options?.tagGroup ?? null;
 
     const titleOffset = infraParsed.title ? 40 : 0;
-    const legendGroups = computeInfraLegendGroups(infraLayout.nodes, infraParsed.tagGroups, effectivePalette);
+    const legendGroups = computeInfraLegendGroups(
+      infraLayout.nodes,
+      infraParsed.tagGroups,
+      effectivePalette
+    );
     const legendOffset = legendGroups.length > 0 ? 28 : 0;
     const exportWidth = infraLayout.width;
     const exportHeight = infraLayout.height + titleOffset + legendOffset;
     const container = createExportContainer(exportWidth, exportHeight);
 
-    renderInfra(container, infraLayout, effectivePalette, theme === 'dark', infraParsed.title, infraParsed.titleLineNumber, infraParsed.tagGroups, activeTagGroup, false, null, null, true);
+    renderInfra(
+      container,
+      infraLayout,
+      effectivePalette,
+      theme === 'dark',
+      infraParsed.title,
+      infraParsed.titleLineNumber,
+      infraParsed.tagGroups,
+      activeTagGroup,
+      false,
+      null,
+      null,
+      true
+    );
     // Restore explicit pixel dimensions for resvg (renderer uses 100%/viewBox for app scaling)
     const infraSvg = container.querySelector('svg');
     if (infraSvg) {
@@ -6349,7 +6893,14 @@ export async function renderForExport(
     const EXPORT_H = 800;
     const container = createExportContainer(EXPORT_W, EXPORT_H);
 
-    renderGantt(container, resolved, effectivePalette, theme === 'dark', undefined, { width: EXPORT_W, height: EXPORT_H });
+    renderGantt(
+      container,
+      resolved,
+      effectivePalette,
+      theme === 'dark',
+      undefined,
+      { width: EXPORT_W, height: EXPORT_H }
+    );
     return finalizeSvgExport(container, theme, effectivePalette, options);
   }
 
@@ -6365,7 +6916,15 @@ export async function renderForExport(
     const layout = layoutGraph(stateParsed);
     const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
 
-    renderState(container, stateParsed, layout, effectivePalette, theme === 'dark', undefined, { width: EXPORT_WIDTH, height: EXPORT_HEIGHT });
+    renderState(
+      container,
+      stateParsed,
+      layout,
+      effectivePalette,
+      theme === 'dark',
+      undefined,
+      { width: EXPORT_WIDTH, height: EXPORT_HEIGHT }
+    );
     return finalizeSvgExport(container, theme, effectivePalette, options);
   }
 
@@ -6391,30 +6950,75 @@ export async function renderForExport(
   const effectivePalette = await resolveExportPalette(theme, palette);
   const isDark = theme === 'dark';
   const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
-  const dims: D3ExportDimensions = { width: EXPORT_WIDTH, height: EXPORT_HEIGHT };
+  const dims: D3ExportDimensions = {
+    width: EXPORT_WIDTH,
+    height: EXPORT_HEIGHT,
+  };
 
   if (parsed.type === 'sequence') {
     const { parseSequenceDgmo } = await import('./sequence/parser');
     const { renderSequenceDiagram } = await import('./sequence/renderer');
     const seqParsed = parseSequenceDgmo(content);
     if (seqParsed.error || seqParsed.participants.length === 0) return '';
-    renderSequenceDiagram(container, seqParsed, effectivePalette, isDark, undefined, {
-      exportWidth: EXPORT_WIDTH,
-      activeTagGroup: options?.tagGroup,
-    });
+    renderSequenceDiagram(
+      container,
+      seqParsed,
+      effectivePalette,
+      isDark,
+      undefined,
+      {
+        exportWidth: EXPORT_WIDTH,
+        activeTagGroup: options?.tagGroup,
+      }
+    );
   } else if (parsed.type === 'wordcloud') {
-    await renderWordCloudAsync(container, parsed, effectivePalette, isDark, dims);
+    await renderWordCloudAsync(
+      container,
+      parsed,
+      effectivePalette,
+      isDark,
+      dims
+    );
   } else if (parsed.type === 'arc') {
-    renderArcDiagram(container, parsed, effectivePalette, isDark, undefined, dims);
+    renderArcDiagram(
+      container,
+      parsed,
+      effectivePalette,
+      isDark,
+      undefined,
+      dims
+    );
   } else if (parsed.type === 'timeline') {
-    renderTimeline(container, parsed, effectivePalette, isDark, undefined, dims,
-      orgExportState?.activeTagGroup ?? options?.tagGroup, orgExportState?.swimlaneTagGroup);
+    renderTimeline(
+      container,
+      parsed,
+      effectivePalette,
+      isDark,
+      undefined,
+      dims,
+      orgExportState?.activeTagGroup ?? options?.tagGroup,
+      orgExportState?.swimlaneTagGroup
+    );
   } else if (parsed.type === 'venn') {
     renderVenn(container, parsed, effectivePalette, isDark, undefined, dims);
   } else if (parsed.type === 'quadrant') {
-    renderQuadrant(container, parsed, effectivePalette, isDark, undefined, dims);
+    renderQuadrant(
+      container,
+      parsed,
+      effectivePalette,
+      isDark,
+      undefined,
+      dims
+    );
   } else {
-    renderSlopeChart(container, parsed, effectivePalette, isDark, undefined, dims);
+    renderSlopeChart(
+      container,
+      parsed,
+      effectivePalette,
+      isDark,
+      undefined,
+      dims
+    );
   }
 
   return finalizeSvgExport(container, theme, effectivePalette, options);
