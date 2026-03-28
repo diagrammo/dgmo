@@ -13,18 +13,13 @@ When the user asks for a diagram, visualization, or chart, generate a `.dgmo` fi
 
 ### Sequence diagram
 ```
-chart: sequence
-title: Auth Flow
+sequence Auth Flow
 
-tag: Concern alias c
+tag Concern alias c
   Auth(green)
   Data(blue)
 
-User is an actor
-API is a service | c: Auth
-DB is a database | c: Data
-
-User -Login-> API
+User -Login-> API | c: Auth
 API -Find user-> DB | c: Data
 DB -user-> API
   if valid
@@ -35,8 +30,7 @@ DB -user-> API
 
 ### Flowchart
 ```
-chart: flowchart
-title: Process
+flowchart Process
 
 (Start) -> <Valid?>
   -yes-> [Process] -> (Done)
@@ -45,34 +39,32 @@ title: Process
 
 ### Bar chart
 ```
-chart: bar
-title: Revenue
-series: USD
+bar Revenue
+series USD
 
-North: 850
-South: 620
-East: 1100
+North 850
+South 620
+East 1100
 ```
 
 ### ER diagram
 ```
-chart: er
-title: Schema
+er Schema
 
 users
-  id: int [pk]
-  email: varchar [unique]
+  id int [pk]
+  email varchar [unique]
 
 posts
-  id: int [pk]
-  user_id: int [fk]
+  id int [pk]
+  user_id int [fk]
 
 users 1--* posts : writes
 ```
 
 ### Org chart
 ```
-chart: org
+org
 
 CEO
   VP Engineering
@@ -83,25 +75,24 @@ CEO
 
 ### C4 architecture
 ```
-chart: c4
-title: System
+c4 System
 
-person User
-system App | description: Main application
-  -Uses-> User
+Web App is a container | description: SPA, tech: React
+  -Uses-> API
+User is a person
+  -Browses-> Web App
 ```
 
-## Infra chart
+### Infra chart
 ```
-chart: infra
-direction: LR
+infra
 
 edge
-  rps: 10000
+  rps 10000
   -> CDN
 
 CDN
-  cache-hit: 80%
+  cache-hit 80%
   -> LB
 
 LB
@@ -109,25 +100,25 @@ LB
   -/web-> Web | split: 30%
 
 API
-  instances: 3
-  max-rps: 500
-  latency-ms: 45
+  instances 3
+  max-rps 500
+  latency-ms 45
 ```
 
-Properties: `cache-hit`, `firewall-block`, `ratelimit-rps`, `bot-filter`, `max-rps`, `instances` (N or N-M), `latency-ms`, `cb-error-threshold`. Groups: `[Name]` with children. Roles are inferred from behavior.
+Properties: `cache-hit`, `firewall-block`, `ratelimit-rps`, `max-rps`, `instances` (N or N-M), `latency-ms`, `cb-error-threshold`. Groups: `[Name]` with children. Roles are inferred from behavior.
 
 ## All 32 chart types
 
-bar, line, multi-line, area, pie, doughnut, radar, polar-area, bar-stacked, scatter, sankey, chord, function, heatmap, funnel, slope, wordcloud, arc, timeline, venn, quadrant, sequence, flowchart, state, class, er, org, kanban, c4, initiative-status, sitemap, infra
+bar, line, multi-line, area, pie, doughnut, radar, polar-area, bar-stacked, scatter, sankey, chord, function, heatmap, funnel, slope, wordcloud, arc, timeline, venn, quadrant, sequence, flowchart, state, class, er, org, kanban, c4, initiative-status, sitemap, infra, gantt
 
 ## Common patterns
 
-- `chart: type` — explicit chart type (auto-detected if unambiguous)
-- `title: text` — diagram title
+- `TYPE Title` — first line declares chart type and optional title (no colon)
+- `directive value` — directives are space-separated (no colon)
 - `// comment` — only `//` comments (not `#`)
-- `(colorname)` — inline colors: `Label(red): 100`
-- `series: A(red), B(blue)` — multi-series with colors
-- `tag: Group alias g` — tag groups for metadata
+- `(colorname)` — inline colors: `Label(red) 100`
+- `series A(red), B(blue)` — multi-series with colors
+- `tag Group alias g` — tag groups for metadata
 
 ## Rendering
 
@@ -144,7 +135,7 @@ Install: `brew install diagrammo/dgmo/dgmo` or `npm install -g @diagrammo/dgmo`
 - Don't use `#` for comments — use `//`
 - Don't use `end` to close sequence blocks — indentation closes them
 - Don't use hex colors in section headers — use named colors
-- Don't forget `chart:` directive when content is ambiguous
+- Don't use colons in chart type, title, directives, or data rows — use spaces
 - Sequence arrows: `->` (sync), `~>` (async) — always left-to-right
 
 Full reference: `docs/language-reference.md`

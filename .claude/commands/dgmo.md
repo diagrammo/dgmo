@@ -141,37 +141,31 @@ Key options:
 | `initiative-status` | Project roadmap with dependency tracking |
 | `sitemap` | Website / app navigation structure |
 | `infra` | Infrastructure traffic flow with rps computation |
+| `gantt` | Project scheduling with dependencies |
 
 ## Key Syntax Patterns
 
 ### Common to all diagrams
 
 ```
-chart: sequence        // explicit type (optional — auto-detected)
-title: My Diagram
-palette: catppuccin    // override palette
+sequence Auth Flow     // first line: chart type + optional title
+palette catppuccin     // directives are space-separated (no colon)
 
 // This is a comment (only // syntax — not #)
 ```
 
-Inline colors on most elements: append `(colorname)` — e.g. `North(red): 850`, `[Process(blue)]`.
+Inline colors on most elements: append `(colorname)` — e.g. `North(red) 850`, `[Process(blue)]`.
 Named colors: `red`, `orange`, `yellow`, `green`, `blue`, `purple`, `teal`, `cyan`, `gray`.
 
 ### sequence (most commonly used)
 
 ```
-chart: sequence
-title: Auth Flow
-
-// Participants auto-inferred, or declare explicitly:
-User is an actor
-API is a service
-DB is a database
+sequence Auth Flow
 
 User -Login-> API
 API -Find user-> DB
 DB -user record-> API
-note:
+note
   Indexed lookup on email column
 
 if credentials valid
@@ -181,16 +175,17 @@ else
 
 == Logout ==
 
-note: session cleanup
+note session cleanup
 User -Logout-> API
 API -Delete session-> DB
 ```
 
 - Sync: `A -label-> B` · Async: `A ~label~> B` · Unlabeled: `A -> B`
 - Blocks: `if` / `else`, `loop`, `parallel` — closed by indentation (no `end` keyword)
-- Notes: place `note: text` after a message — it naturally associates with that position. Prefer this over `note on Participant:` anchoring; it's more compact and reads better.
-  - Single-line: `note: text`
-  - Multi-line: `note:` then indent continuation lines beneath it
+- Notes: place `note text` after a message — it naturally associates with that position.
+  - Single-line: `note text`
+  - Multi-line: `note` then indent continuation lines beneath it
+  - Anchored: `note right of API` then indent continuation lines
 - Sections: `== Title ==`
 - Groups: `[Group Name]` with indented participants
 
@@ -208,34 +203,34 @@ Shapes: `(oval)` `[rect]` `<diamond>` `/parallelogram/` `[[subroutine]]` `[docum
 
 ```
 // bar
-title: Revenue by Region
-series: Revenue
-North: 850
-South: 620
+bar Revenue by Region
+series Revenue
+North 850
+South 620
 
 // line (multi-series)
-series: Sales(red), Costs(blue)
-Q1: 100, 50
-Q2: 120, 55
+series Sales(red), Costs(blue)
+Q1 100, 50
+Q2 120, 55
 
 // pie
-chart: pie
-labels: percent
-Company A: 40
-Company B: 35
+pie Market Share
+labels percent
+Company A 40
+Company B 35
 ```
 
 ### er
 
 ```
 users
-  id: int [pk]
-  email: varchar [unique]
+  id int [pk]
+  email varchar [unique]
   1-writes-* posts
 
 posts
-  id: int [pk]
-  author_id: int [fk]
+  id int [pk]
+  author_id int [fk]
 ```
 
 ### org
@@ -253,19 +248,20 @@ CEO
 ### infra
 
 ```
-chart: infra
+infra
+
 edge
-  rps: 10000
+  rps 10000
   -> CDN
 
 CDN
-  cache-hit: 80%
+  cache-hit 80%
   -> API
 
 API
-  instances: 3
-  max-rps: 500
-  latency-ms: 45
+  instances 3
+  max-rps 500
+  latency-ms 45
 ```
 
 ## Anti-Patterns
@@ -278,11 +274,12 @@ parallel else      ❌  not supported — use separate parallel blocks
 == Foo(#ff0000) == ❌  hex colors not supported — use named colors: == Foo(red) ==
 A -routes to /api-> B  ❌  -> inside a label is ambiguous — rephrase the label
 end                ❌  not needed — indentation closes blocks in sequence diagrams
-note on API: text  ⚠️  prefer plain `note: text` after a message — anchoring to a participant is rarely needed
-note: line1\nline2  ❌  multi-line notes use indented continuation, not \n:
-                        note:
-                          line1
-                          line2
+chart: sequence    ❌  use `sequence Title` as the first line (no colon)
+title: My Diagram  ❌  title goes on the first line after chart type
+series: A, B       ❌  use `series A, B` (no colon)
+Label: 100         ❌  use `Label 100` (no colon in data rows)
+tag: Group         ❌  use `tag Group` (no colon)
+note: text         ❌  use `note text` (no colon)
 ```
 
 ## Tips
@@ -290,5 +287,5 @@ note: line1\nline2  ❌  multi-line notes use indented continuation, not \n:
 - Default theme: `dark`, default palette: `nord` (nord dark mode) — use these unless the user requests otherwise.
 - Stdin mode for quick renders: `echo "..." | dgmo -o out.png`
 - For C4, `--c4-level` drills from context → containers → components → deployment.
-- When auto-detection picks the wrong chart type, add an explicit `chart:` directive.
+- When auto-detection picks the wrong chart type, add an explicit type as the first word on the first line.
 - `mcp__dgmo__preview_diagram` accepts multiple diagrams at once — useful for showing variants side by side.
