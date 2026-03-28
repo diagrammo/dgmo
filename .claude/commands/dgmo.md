@@ -58,6 +58,18 @@ Then proceed with the user's original request using CLI fallback (see "Other out
 
 > **Note for future users:** To set up in one step from the terminal before starting a Claude Code session, run `dgmo --install-claude-code-integration`. It handles everything: installs `@diagrammo/dgmo-mcp`, writes the skill, and configures the MCP server.
 
+## Project Awareness
+
+At the start of a session (or when the user first invokes `/dgmo`), scan for existing `.dgmo` files:
+
+```bash
+find . -name '*.dgmo' -not -path '*/node_modules/*' -not -path '*/.git/*' 2>/dev/null | head -20
+```
+
+If you find any, mention them briefly: "I see N diagrams in your project (e.g. `diagrams/auth-flow.dgmo`, `diagrams/er-schema.dgmo`). I can edit any of these or create new ones."
+
+Don't block on this — if no files found, just proceed.
+
 ## Getting Syntax Help
 
 **Always use the MCP tool first** if it's available in this session:
@@ -69,18 +81,88 @@ mcp__dgmo__get_language_reference("sequence") // specific chart type
 
 This is the authoritative, always-up-to-date syntax reference. Use it before guessing syntax.
 
+For **examples** of real diagrams, call `mcp__dgmo__get_examples("<type>")` — these are curated gallery fixtures that show idiomatic DGMO patterns. Use them as few-shot references when generating.
+
 ## Your Workflow
 
 **Primary goal: get the user seeing a visualization as fast as possible.**
 
-When the user asks you to create or edit a diagram:
+### Creating a new diagram
 
-1. **Get syntax** — call `mcp__dgmo__get_language_reference("<type>")` if you're unsure of the syntax.
-2. **Write the `.dgmo` content** — compose the markup.
-3. **Open in browser immediately** — call `mcp__dgmo__preview_diagram([{dgmo, title}])` without asking. This is always the right default. The browser preview includes the dgmo source collapsed at the bottom and a dark/light toggle.
-4. **Save the source file** (if working in a project) — write it to `<name>.dgmo` so the user has an editable copy.
+1. **Pick the right chart type** — don't ask the user. Use these heuristics:
+   - "show our API" / "how does X work" → `sequence`
+   - "architecture" / "system overview" → `c4`
+   - "database" / "schema" / "models" → `er`
+   - "infrastructure" / "deployment" / "traffic" → `infra`
+   - "process" / "decision" / "flow" → `flowchart`
+   - "states" / "lifecycle" / "transitions" → `state`
+   - "org" / "team" / "hierarchy" → `org`
+   - "roadmap" / "project status" → `initiative-status` or `gantt`
+   - "compare" / "metrics" / "data" → `bar`, `line`, `pie`, etc.
+   - If genuinely ambiguous, suggest your best guess with a one-line rationale.
+2. **Get syntax + examples** — call `mcp__dgmo__get_language_reference("<type>")` and `mcp__dgmo__get_examples("<type>")`.
+3. **Write the `.dgmo` content** — compose the markup.
+4. **Validate first** — call `mcp__dgmo__validate_diagram(dgmo)` to catch syntax errors before rendering. If errors come back, fix them and validate again.
+5. **Open in browser** — call `mcp__dgmo__preview_diagram([{dgmo, title}])` without asking. This is always the right default.
+6. **Save the source file** (if working in a project) — write it to `<name>.dgmo` so the user has an editable copy.
 
 Do not ask the user how they want to view the diagram. Just open it. They can ask for other formats if they want.
+
+### Editing an existing diagram
+
+When the user asks to modify a `.dgmo` file or says "update this diagram":
+
+1. **Read the file** — use the Read tool to get the current content.
+2. **Understand it** — identify the chart type, key elements, and structure.
+3. **Make the change** — edit the file using the Edit tool. Preserve the user's style and organization.
+4. **Validate** — call `mcp__dgmo__validate_diagram(dgmo)` on the updated content.
+5. **Preview** — call `mcp__dgmo__preview_diagram` so the user sees the result immediately.
+
+Keep the diff minimal — don't rewrite the whole file when adding one element.
+
+### Diagramming from code
+
+When the user says "diagram this", "diagram this file", or "show me how X works":
+
+1. **Read the relevant source code** — the file, function, or module they're pointing at.
+2. **Choose the best diagram type** based on what the code does:
+   - API handler / controller → `sequence` showing the request flow
+   - Database models / ORM entities → `er` showing relationships
+   - State machine / status enum → `state` showing transitions
+   - Module imports / service dependencies → `c4` or `flowchart`
+   - Infrastructure config (Docker, k8s, terraform) → `infra`
+3. **Extract real names** — use actual function names, service names, model names from the code.
+4. **Generate, validate, preview** — same as creating a new diagram.
+
+### Error recovery
+
+When `validate_diagram` or `render_diagram` returns errors:
+
+1. **Read the error messages** — they include line numbers and descriptions.
+2. **Fix the specific issues** — don't regenerate from scratch unless there are many errors.
+3. **Validate again** — loop until clean.
+4. **Then render** — only call `preview_diagram` or `render_diagram` after validation passes.
+
+Common fixes:
+- "Unknown directive" → check spelling, remove colons from directives
+- "Expected number" → data rows use spaces not colons: `Label 100` not `Label: 100`
+- Duplicate name → parentheses strip color from display name; `App (TS)` and `App (Rust)` both become `App`
+
+### Side-by-side variants
+
+When the user asks to compare layouts, themes, or approaches:
+
+```
+mcp__dgmo__preview_diagram([
+  { title: "Option A — Detailed", dgmo: "..." },
+  { title: "Option B — Simplified", dgmo: "..." }
+])
+```
+
+This opens a single page with both diagrams. Use this for:
+- Light vs dark theme comparisons
+- Different levels of detail
+- Alternative structures for the same data
 
 ### Other output options (only when explicitly requested)
 
@@ -92,6 +174,39 @@ Do not ask the user how they want to view the diagram. Just open it. They can as
 | **Save as SVG** | `mcp__dgmo__render_diagram(dgmo, format:"svg", theme:"dark", palette:"nord")` returns SVG text — write it to the desired path. Or CLI: `dgmo file.dgmo -o out.svg --theme dark --palette nord` |
 | **Shareable URL** | `mcp__dgmo__share_diagram(dgmo)` → returns a URL; immediately run `open <url>` — do NOT just display the URL |
 | **Copy markup to clipboard** | Run `echo '<dgmo markup>' \| pbcopy` |
+
+### Embedding diagrams in docs
+
+When the user wants a diagram in a README, PR description, or markdown file:
+
+1. **Generate a share URL** — `mcp__dgmo__share_diagram(dgmo)` returns a `diagrammo.app` URL.
+2. **Render a PNG** — `mcp__dgmo__render_diagram(dgmo, format:"png", theme:"light", palette:"nord")` returns a temp path.
+3. **Insert into markdown** — either:
+   - Copy the PNG to the project (e.g. `docs/images/auth-flow.png`) and reference it: `![Auth Flow](docs/images/auth-flow.png)`
+   - Use the share URL directly: `![Auth Flow](https://diagrammo.app/d#...)`
+4. **For PRs** — prefer share URLs (no binary file to commit). For README/docs — prefer committed PNGs (they work offline).
+
+Always generate both light and dark variants if the doc will be viewed in both modes, or use `theme:"transparent"` for universal backgrounds.
+
+### Batch rendering
+
+When the user asks to render all diagrams in a directory:
+
+```bash
+for f in diagrams/*.dgmo; do dgmo "$f" -o "${f%.dgmo}.png" --theme dark --palette nord; done
+```
+
+Or for SVG: replace `.png` with `.svg` in the output.
+
+### Share link to clipboard
+
+After generating a share link, always copy it to the clipboard automatically:
+
+```bash
+echo '<url>' | pbcopy
+```
+
+Then tell the user it's been copied.
 
 ## CLI Reference
 
@@ -284,8 +399,11 @@ note: text         ❌  use `note text` (no colon)
 
 ## Tips
 
-- Default theme: `dark`, default palette: `nord` (nord dark mode) — use these unless the user requests otherwise.
+- Default theme: `dark`, default palette: `nord` — use these unless the user requests otherwise.
+- Always validate before rendering — `validate_diagram` is much faster than a failed render.
+- Always call `get_examples` before generating an unfamiliar chart type — real examples beat guessing.
 - Stdin mode for quick renders: `echo "..." | dgmo -o out.png`
 - For C4, `--c4-level` drills from context → containers → components → deployment.
 - When auto-detection picks the wrong chart type, add an explicit type as the first word on the first line.
 - `mcp__dgmo__preview_diagram` accepts multiple diagrams at once — useful for showing variants side by side.
+- When the user says "diagram this" while looking at code, read the code first and pick the chart type yourself — don't ask.
