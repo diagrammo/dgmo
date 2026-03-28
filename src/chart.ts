@@ -92,7 +92,7 @@ const KNOWN_OPTIONS = new Set([
 
 /** Known boolean options for the simple chart parser. */
 const KNOWN_BOOLEANS = new Set([
-  'orientation-vertical',
+  'orientation-horizontal',
 ]);
 
 /**
@@ -201,10 +201,10 @@ export function parseChart(
     const spaceIdx = trimmed.indexOf(' ');
     const firstToken = (spaceIdx >= 0 ? trimmed.substring(0, spaceIdx) : trimmed).toLowerCase();
 
-    // Bare boolean options (e.g. orientation-vertical)
+    // Bare boolean options (e.g. orientation-horizontal)
     if (KNOWN_BOOLEANS.has(firstToken) && spaceIdx < 0) {
-      if (firstToken === 'orientation-vertical') {
-        result.orientation = 'vertical';
+      if (firstToken === 'orientation-horizontal') {
+        result.orientation = 'horizontal';
       }
       continue;
     }

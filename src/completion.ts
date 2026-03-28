@@ -98,7 +98,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     series: { description: 'Series name(s)' },
     xlabel: { description: 'X-axis label' },
     ylabel: { description: 'Y-axis label' },
-    'orientation-vertical': { description: 'Switch to vertical bars' },
+    'orientation-horizontal': { description: 'Switch to horizontal bars' },
     color: { description: 'Bar color override' },
   })],
   ['line', withGlobals({
@@ -131,7 +131,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     series: { description: 'Series name(s) (required)' },
     xlabel: { description: 'X-axis label' },
     ylabel: { description: 'Y-axis label' },
-    'orientation-vertical': { description: 'Switch to vertical bars' },
+    'orientation-horizontal': { description: 'Switch to horizontal bars' },
   })],
 
   // ── Extended charts ──────────────────────────────────────

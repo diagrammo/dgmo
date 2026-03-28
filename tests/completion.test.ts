@@ -387,7 +387,7 @@ describe('COMPLETION_REGISTRY', () => {
   it('METADATA_KEY_SET includes expected keys', () => {
     const expected = [
       'palette', 'theme', 'chart', 'title',
-      'xlabel', 'orientation-vertical', 'activations', 'start',
+      'xlabel', 'orientation-horizontal', 'activations', 'start',
       'critical-path', 'direction-tb', 'series',
       'no-label-name', 'no-label-value', 'no-label-percent', 'no-labels',
     ];
@@ -400,9 +400,9 @@ describe('COMPLETION_REGISTRY', () => {
     const refPath = resolve(__dirname, '../docs/language-reference.md');
     const refContent = readFileSync(refPath, 'utf-8');
 
-    // Spot-check: bar should have orientation-vertical, sequence should have activations, gantt should have start
+    // Spot-check: bar should have orientation-horizontal, sequence should have activations, gantt should have start
     const barSpec = COMPLETION_REGISTRY.get('bar')!;
-    expect(barSpec.directives['orientation-vertical']).toBeDefined();
+    expect(barSpec.directives['orientation-horizontal']).toBeDefined();
     expect(barSpec.directives.xlabel).toBeDefined();
 
     const seqSpec = COMPLETION_REGISTRY.get('sequence')!;

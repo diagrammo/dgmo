@@ -1792,7 +1792,7 @@ function resolveAxisLabels(parsed: ParsedChart): {
   xLabel?: string;
   yLabel?: string;
 } {
-  const isHorizontal = parsed.orientation !== 'vertical';
+  const isHorizontal = parsed.orientation === 'horizontal';
   return {
     xLabel: parsed.xlabel ?? (isHorizontal ? parsed.label : undefined),
     yLabel: parsed.ylabel ?? (isHorizontal ? undefined : parsed.label),
@@ -1935,7 +1935,7 @@ function buildBarOption(
   chartWidth?: number
 ): EChartsOption {
   const { xLabel, yLabel } = resolveAxisLabels(parsed);
-  const isHorizontal = parsed.orientation !== 'vertical';
+  const isHorizontal = parsed.orientation === 'horizontal';
   const labels = parsed.data.map((d) => d.label);
   const data = parsed.data.map((d, i) => {
     const stroke = d.color ?? colors[i % colors.length];
@@ -2375,7 +2375,7 @@ function buildBarStackedOption(
   chartWidth?: number
 ): EChartsOption {
   const { xLabel, yLabel } = resolveAxisLabels(parsed);
-  const isHorizontal = parsed.orientation !== 'vertical';
+  const isHorizontal = parsed.orientation === 'horizontal';
   const seriesNames = parsed.seriesNames ?? [];
   const labels = parsed.data.map((d) => d.label);
 

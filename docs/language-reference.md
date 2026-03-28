@@ -126,7 +126,7 @@ columns
 
 **Syntax:** `bar [Title]`
 
-**Options:** `series`, `xlabel`, `ylabel`, `orientation-vertical`, `no-label-name`, `no-label-value`, `no-label-percent`, `color`
+**Options:** `series`, `xlabel`, `ylabel`, `orientation-horizontal`, `no-label-name`, `no-label-value`, `no-label-percent`, `color`
 
 **Data format:** `Label value` — one row per category
 
@@ -264,7 +264,7 @@ Testing 75
 
 **Syntax:** `bar-stacked [Title]`
 
-**Options:** `series` (required), `xlabel`, `ylabel`, `orientation-vertical`
+**Options:** `series` (required), `xlabel`, `ylabel`, `orientation-horizontal`
 
 **Data format:** `Label v1, v2, v3` — comma-separated values matching the `series` list
 

@@ -78,26 +78,26 @@ describe('buildSimpleChartOption', () => {
     expect((opt.title as { text: string }).text).toBe('Sales');
   });
 
-  it('defaults to horizontal bars', () => {
+  it('defaults to vertical bars', () => {
     const opt = build('bar\nA 10\nB 20');
-    // Default is horizontal: xAxis=value, yAxis=category
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const xAxis = (opt as any).xAxis;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const yAxis = (opt as any).yAxis;
-    expect(xAxis.type).toBe('value');
-    expect(yAxis.type).toBe('category');
-  });
-
-  it('orientation-vertical switches to vertical bars', () => {
-    const opt = build('bar\norientation-vertical\nA 10\nB 20');
-    // orientation-vertical: xAxis=category, yAxis=value
+    // Default is vertical: xAxis=category, yAxis=value
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const xAxis = (opt as any).xAxis;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const yAxis = (opt as any).yAxis;
     expect(xAxis.type).toBe('category');
     expect(yAxis.type).toBe('value');
+  });
+
+  it('orientation-horizontal switches to horizontal bars', () => {
+    const opt = build('bar\norientation-horizontal\nA 10\nB 20');
+    // orientation-horizontal: xAxis=value, yAxis=category
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const xAxis = (opt as any).xAxis;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const yAxis = (opt as any).yAxis;
+    expect(xAxis.type).toBe('value');
+    expect(yAxis.type).toBe('category');
   });
 
   // ── Line ─────────────────────────────────────────────────
@@ -234,16 +234,16 @@ describe('buildSimpleChartOption', () => {
     expect((opt as any).legend).toBeDefined();
   });
 
-  it('orientation-vertical switches bar-stacked to vertical', () => {
+  it('orientation-horizontal switches bar-stacked to horizontal', () => {
     const opt = build(
-      'bar-stacked\norientation-vertical\nseries A, B\nQ1 10, 20\nQ2 30, 40'
+      'bar-stacked\norientation-horizontal\nseries A, B\nQ1 10, 20\nQ2 30, 40'
     );
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const xAxis = (opt as any).xAxis;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const yAxis = (opt as any).yAxis;
-    expect(xAxis.type).toBe('category');
-    expect(yAxis.type).toBe('value');
+    expect(xAxis.type).toBe('value');
+    expect(yAxis.type).toBe('category');
   });
 });
 
