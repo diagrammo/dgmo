@@ -1939,11 +1939,6 @@ function buildBarOption(
   return {
     ...CHART_BASE,
     title: titleConfig,
-    tooltip: {
-      trigger: 'axis',
-      ...tooltipTheme,
-      axisPointer: { type: 'shadow' },
-    },
     grid: makeChartGrid({ xLabel, yLabel, hasTitle: !!parsed.title }),
     xAxis: isHorizontal ? valueAxis : categoryAxis,
     yAxis: isHorizontal ? categoryAxis : valueAxis,
@@ -2391,11 +2386,6 @@ function buildBarStackedOption(
   return {
     ...CHART_BASE,
     title: titleConfig,
-    tooltip: {
-      trigger: 'axis',
-      ...tooltipTheme,
-      axisPointer: { type: 'shadow' },
-    },
     legend: {
       data: seriesNames,
       bottom: 10,

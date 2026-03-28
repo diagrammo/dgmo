@@ -1116,8 +1116,17 @@ export function parseVisualization(content: string, palette?: PaletteColors): Pa
       if (colonIndex === -1 && !line.includes(' ')) {
         // Single bare word — structured mode
         result.words.push({ text: line, weight: 10, lineNumber });
+      } else if (colonIndex === -1) {
+        // Try "word weight" or "multi-word-label weight" space-separated format
+        const lastSpace = line.lastIndexOf(' ');
+        const maybeWeight = lastSpace >= 0 ? parseFloat(line.substring(lastSpace + 1)) : NaN;
+        if (lastSpace >= 0 && !isNaN(maybeWeight) && maybeWeight > 0) {
+          result.words.push({ text: line.substring(0, lastSpace).trim(), weight: maybeWeight, lineNumber });
+        } else {
+          freeformLines.push(line);
+        }
       } else {
-        // Multi-word line or non-numeric colon line — freeform text
+        // Non-numeric colon line — freeform text
         freeformLines.push(line);
       }
       continue;
@@ -4820,7 +4829,7 @@ export function renderWordCloud(
 
   const fontSize = (weight: number): number => {
     const t = (weight - minWeight) / range;
-    return minSize + t * (maxSize - minSize);
+    return minSize + Math.sqrt(t) * (maxSize - minSize);
   };
 
   const rotateFn = getRotateFn(cloudOptions.rotate);
@@ -4837,7 +4846,7 @@ export function renderWordCloud(
   cloud<WordCloudWord & cloud.Word>()
     .size([width, cloudHeight])
     .words(words.map((w) => ({ ...w, size: fontSize(w.weight) })))
-    .padding(4)
+    .padding(2)
     .rotate(rotateFn)
     .fontSize((d) => d.size!)
     .font(FONT_FAMILY)
@@ -4912,7 +4921,7 @@ function renderWordCloudAsync(
 
     const fontSize = (weight: number): number => {
       const t = (weight - minWeight) / range;
-      return minSize + t * (maxSize - minSize);
+      return minSize + Math.sqrt(t) * (maxSize - minSize);
     };
 
     const rotateFn = getRotateFn(cloudOptions.rotate);
@@ -4936,7 +4945,7 @@ function renderWordCloudAsync(
     cloud<WordCloudWord & cloud.Word>()
       .size([width, cloudHeight])
       .words(words.map((w) => ({ ...w, size: fontSize(w.weight) })))
-      .padding(4)
+      .padding(2)
       .rotate(rotateFn)
       .fontSize((d) => d.size!)
       .font(FONT_FAMILY)
