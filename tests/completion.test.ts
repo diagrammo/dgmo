@@ -32,7 +32,7 @@ describe('extractDiagramSymbols', () => {
   });
 
   it('dispatches to ER extractor for chart: er', () => {
-    const doc = 'chart: er\nUsers\nOrders\n';
+    const doc = 'er\nUsers\nOrders\n';
     const result = extractDiagramSymbols(doc);
     expect(result).not.toBeNull();
     expect(result!.kind).toBe('er');
@@ -54,7 +54,7 @@ describe('extractDiagramSymbols', () => {
   });
 
   it('dispatches to class extractor for chart: class', () => {
-    const doc = 'chart: class\nUser\nOrder\n';
+    const doc = 'class\nUser\nOrder\n';
     const result = extractDiagramSymbols(doc);
     expect(result).not.toBeNull();
     expect(result!.kind).toBe('class');
@@ -68,7 +68,7 @@ describe('extractDiagramSymbols', () => {
 describe('ER extractSymbols', () => {
   it('extracts table names from standard declarations', () => {
     const doc = [
-      'chart: er',
+      'er',
       'title: Shop',
       'Users',
       '  id: int [pk]',
@@ -82,27 +82,27 @@ describe('ER extractSymbols', () => {
   });
 
   it('strips color annotations from entity names', () => {
-    const doc = 'chart: er\nUsers(blue)\nOrders(red)\n';
+    const doc = 'er\nUsers(blue)\nOrders(red)\n';
     expect(extractErSymbols(doc).entities).toEqual(['Users', 'Orders']);
   });
 
   it('strips pipe metadata from entity names', () => {
-    const doc = 'chart: er\nOrders | status: active\nUsers | env: prod\n';
+    const doc = 'er\n\nOrders | status: active\nUsers | env: prod\n';
     expect(extractErSymbols(doc).entities).toEqual(['Orders', 'Users']);
   });
 
   it('excludes indented lines (column definitions)', () => {
-    const doc = 'chart: er\nUsers\n  id: int [pk]\n  name: varchar\nOrders\n';
+    const doc = 'er\nUsers\n  id: int [pk]\n  name: varchar\nOrders\n';
     expect(extractErSymbols(doc).entities).toEqual(['Users', 'Orders']);
   });
 
   it('excludes relationship lines', () => {
-    const doc = 'chart: er\nUsers\nOrders\nUsers 1--* Orders : places\n';
+    const doc = 'er\nUsers\nOrders\nUsers 1--* Orders : places\n';
     expect(extractErSymbols(doc).entities).toEqual(['Users', 'Orders']);
   });
 
   it('returns empty entities for empty data section', () => {
-    const doc = 'chart: er\ntitle: Empty\n';
+    const doc = 'er\ntitle: Empty\n';
     const result = extractErSymbols(doc);
     expect(result.entities).toEqual([]);
     expect(result.keywords).toContain('pk');
@@ -110,12 +110,12 @@ describe('ER extractSymbols', () => {
   });
 
   it('returns ER keywords', () => {
-    const result = extractErSymbols('chart: er\n');
+    const result = extractErSymbols('er\n');
     expect(result.keywords).toEqual(['pk', 'fk', 'unique', 'nullable', '1', '*', '?']);
   });
 
   it('handles 100-entity fixture under 10ms', () => {
-    const lines = ['chart: er'];
+    const lines = ['er'];
     for (let i = 0; i < 100; i++) {
       lines.push(`Table${i}`);
       lines.push(`  id: int [pk]`);
@@ -130,7 +130,7 @@ describe('ER extractSymbols', () => {
   });
 
   it('cross-validation: entity list matches TABLE_DECL_RE recognition', () => {
-    const doc = 'chart: er\nUsers\nOrders\n  amount: decimal\n';
+    const doc = 'er\nUsers\nOrders\n  amount: decimal\n';
     const result = extractErSymbols(doc);
     // Users and Orders are root-level; 'amount' is indented
     expect(result.entities).toContain('Users');
@@ -139,7 +139,7 @@ describe('ER extractSymbols', () => {
   });
 
   it('does not include metadata keys in entities', () => {
-    const doc = 'chart: er\ntitle: My ER\npalette: nord\nUsers\n';
+    const doc = 'er\ntitle: My ER\npalette: nord\nUsers\n';
     expect(extractErSymbols(doc).entities).toEqual(['Users']);
   });
 });
@@ -290,7 +290,7 @@ describe('Infra extractSymbols', () => {
 describe('Class extractSymbols', () => {
   it('extracts class names', () => {
     const doc = [
-      'chart: class',
+      'class',
       'User',
       '  + id: int',
       '  + name: string',
@@ -304,7 +304,7 @@ describe('Class extractSymbols', () => {
   });
 
   it('excludes lowercase lines (relationship arrows, metadata)', () => {
-    const doc = 'chart: class\nUser\nOrder\nUser --|> BaseEntity\n';
+    const doc = 'class\nUser\nOrder\nUser --|> BaseEntity\n';
     // --|> lines match CLASS_DECL_RE? Let me check: no, because `User --|> BaseEntity`
     // doesn't start with uppercase followed by class pattern end. Actually it starts
     // with 'User' which IS uppercase - let's verify the actual regex handles this.
@@ -316,12 +316,12 @@ describe('Class extractSymbols', () => {
   });
 
   it('excludes indented lines (class members)', () => {
-    const doc = 'chart: class\nUser\n  + id: int\n  - password: string\n';
+    const doc = 'class\nUser\n  + id: int\n  - password: string\n';
     expect(extractClassSymbols(doc).entities).toEqual(['User']);
   });
 
   it('does not include keywords in entities', () => {
-    const doc = 'chart: class\nUser [abstract]\nOrder\n';
+    const doc = 'class\nUser [abstract]\nOrder\n';
     // CLASS_DECL_RE matches 'User [abstract]' → entity 'User'
     const entities = extractClassSymbols(doc).entities;
     expect(entities).toContain('User');
@@ -329,18 +329,18 @@ describe('Class extractSymbols', () => {
   });
 
   it('returns class keywords', () => {
-    const result = extractClassSymbols('chart: class\n');
+    const result = extractClassSymbols('class\n');
     expect(result.keywords).toContain('extends');
     expect(result.keywords).toContain('implements');
     expect(result.keywords).toContain('abstract');
   });
 
   it('returns empty entities for empty data section', () => {
-    expect(extractClassSymbols('chart: class\n').entities).toEqual([]);
+    expect(extractClassSymbols('class\n').entities).toEqual([]);
   });
 
   it('handles 100-class fixture under 10ms', () => {
-    const lines = ['chart: class'];
+    const lines = ['class'];
     for (let i = 0; i < 100; i++) {
       lines.push(`Class${i}`);
       lines.push(`  + id: int`);
@@ -387,8 +387,9 @@ describe('COMPLETION_REGISTRY', () => {
   it('METADATA_KEY_SET includes expected keys', () => {
     const expected = [
       'palette', 'theme', 'chart', 'title',
-      'xlabel', 'orientation', 'activations', 'start',
-      'critical-path', 'direction', 'series', 'labels',
+      'xlabel', 'orientation-vertical', 'activations', 'start',
+      'critical-path', 'direction-tb', 'series',
+      'no-label-name', 'no-label-value', 'no-label-percent', 'no-labels',
     ];
     for (const key of expected) {
       expect(METADATA_KEY_SET.has(key), `METADATA_KEY_SET missing ${key}`).toBe(true);
@@ -399,9 +400,9 @@ describe('COMPLETION_REGISTRY', () => {
     const refPath = resolve(__dirname, '../docs/language-reference.md');
     const refContent = readFileSync(refPath, 'utf-8');
 
-    // Spot-check: bar should have orientation, sequence should have activations, gantt should have start
+    // Spot-check: bar should have orientation-vertical, sequence should have activations, gantt should have start
     const barSpec = COMPLETION_REGISTRY.get('bar')!;
-    expect(barSpec.directives.orientation).toBeDefined();
+    expect(barSpec.directives['orientation-vertical']).toBeDefined();
     expect(barSpec.directives.xlabel).toBeDefined();
 
     const seqSpec = COMPLETION_REGISTRY.get('sequence')!;
@@ -428,8 +429,8 @@ describe('COMPLETION_REGISTRY', () => {
     for (const key of expected) {
       expect(infraSpec.directives[key], `infra missing directive ${key}`).toBeDefined();
     }
-    // direction should still be present
-    expect(infraSpec.directives.direction).toBeDefined();
+    // direction-tb should still be present
+    expect(infraSpec.directives['direction-tb']).toBeDefined();
   });
 
   it('registry lookup for all 32 types completes under 1ms', () => {
@@ -575,7 +576,7 @@ describe('State extractSymbols', () => {
   });
 
   it('skips metadata lines', () => {
-    const doc = 'state\ndirection LR\nA -> B\n';
+    const doc = 'state\ndirection-tb\nA -> B\n';
     const result = extractDiagramSymbols(doc);
     expect(result!.entities).not.toContain('direction');
     expect(result!.entities).toContain('A');
@@ -639,16 +640,6 @@ describe('ENTITY_TYPES', () => {
     expect(types).toContain('actor');
     expect(types).toContain('frontend');
     expect(types).toHaveLength(9);
-  });
-
-  it('has correct infra node types', () => {
-    const types = ENTITY_TYPES.get('infra');
-    expect(types).toBeDefined();
-    expect(types).toContain('database');
-    expect(types).toContain('cache');
-    expect(types).toContain('function');
-    expect(types).toContain('network');
-    expect(types).toHaveLength(8);
   });
 
   it('has correct C4 types', () => {

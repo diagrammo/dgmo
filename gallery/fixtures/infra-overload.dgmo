@@ -1,5 +1,5 @@
 infra Microservice Overload Demo
-direction TB
+direction-tb
 
 edge
   rps: 8000

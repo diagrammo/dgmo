@@ -126,7 +126,7 @@ columns
 
 **Syntax:** `bar [Title]`
 
-**Options:** `series`, `xlabel`, `ylabel`, `orientation` (`horizontal`/`vertical`), `labels` (`name`/`value`/`percent`/`full`), `color`
+**Options:** `series`, `xlabel`, `ylabel`, `orientation-vertical`, `no-label-name`, `no-label-value`, `no-label-percent`, `color`
 
 **Data format:** `Label value` — one row per category
 
@@ -148,7 +148,7 @@ Colors per item: `North(red) 850`
 
 **Syntax:** `line [Title]` or `multi-line [Title]`
 
-**Options:** `series`, `xlabel`, `ylabel`, `labels`
+**Options:** `series`, `xlabel`, `ylabel`, `no-label-name`, `no-label-value`, `no-label-percent`
 
 **Data format:** `Label value` (single series) or `Label v1, v2, v3` (multi-series matching `series` list)
 
@@ -205,7 +205,7 @@ Same syntax as `line`, including era bands. Renders as a filled area chart.
 
 **Syntax:** `pie [Title]`
 
-**Options:** `labels` (`name`/`value`/`percent`/`full`)
+**Options:** `no-label-name`, `no-label-value`, `no-label-percent`
 
 **Data format:** `Label value`
 
@@ -213,7 +213,7 @@ Same syntax as `line`, including era bands. Renders as a filled area chart.
 
 ```
 pie Market Share
-labels percent
+no-label-name
 
 Company A 40
 Company B 35
@@ -264,7 +264,7 @@ Testing 75
 
 **Syntax:** `bar-stacked [Title]`
 
-**Options:** `series` (required), `xlabel`, `ylabel`, `orientation`
+**Options:** `series` (required), `xlabel`, `ylabel`, `orientation-vertical`
 
 **Data format:** `Label v1, v2, v3` — comma-separated values matching the `series` list
 
@@ -283,7 +283,7 @@ Q3 105, 60, 40
 
 **Syntax:** `scatter [Title]`
 
-**Options:** `labels` (`on`/`off`), `xlabel`, `ylabel`, `sizelabel`
+**Options:** `no-labels` (labels are on by default), `xlabel`, `ylabel`, `sizelabel`
 
 **Data format:** `Label x, y` or `Label x, y, size` (bubble chart). Group with `[GroupName]` blocks.
 
@@ -291,7 +291,6 @@ Q3 105, 60, 40
 
 ```
 scatter Performance Metrics
-labels on
 xlabel Experience (years)
 ylabel Output
 
@@ -304,7 +303,6 @@ Tag groups (`[GroupName](color)`) create colored clusters:
 
 ```
 scatter Startup Funding vs Revenue
-labels on
 xlabel Funding ($M)
 ylabel Annual Revenue ($M)
 
@@ -436,9 +434,9 @@ Customers 100
 
 **Syntax:** `function [Title]`
 
-**Options:** `x` (required, `start to end`), `xlabel`, `ylabel`
+**Options:** `x` (required, `start to end`), `xlabel`, `ylabel`, `shade` (boolean; shades area below curves)
 
-**Data format:** `Name (color) expression` — math expressions using `x`
+**Data format:** `Name(color): expression` — colon required between name and expression
 
 **Example:**
 
@@ -448,9 +446,9 @@ xlabel x
 ylabel f(x)
 
 x -6 to 6
-f(x) (blue) sin(x)
-g(x) (red) x^2 / 10
-h(x) (green) cos(x) * 2
+f(x)(blue): sin(x)
+g(x)(red): x^2 / 10
+h(x)(green): cos(x) * 2
 ```
 
 Expressions support: `+`, `-`, `*`, `/`, `^`, `sin`, `cos`, `sqrt`, `abs`, `log`, `exp`, `pi`, `e`.
@@ -459,20 +457,20 @@ Expressions support: `+`, `-`, `*`, `/`, `^`, `sin`, `cos`, `sqrt`, `abs`, `log`
 
 **Syntax:** `slope [Title]`
 
-**Options:** `orientation` (`horizontal`/`vertical`)
+**Options:** `orientation-vertical`
 
-**Data format:** First data line defines period labels. Subsequent lines: `Item (color) v1, v2, ...`
+**Data format:** First data line defines period labels. Subsequent lines: `Label: value1 value2` — colon required
 
 **Example:**
 
 ```
 slope Programming Language Popularity
 
-2020, 2022, 2025
-Python (blue) 3, 1, 1
-JavaScript (yellow) 1, 2, 2
-TypeScript (cyan) 7, 4, 3
-Rust (orange) 18, 12, 5
+2020 2022 2025
+Python(blue): 3 1 1
+JavaScript(yellow): 1 2 2
+TypeScript(cyan): 7 4 3
+Rust(orange): 18 12 5
 ```
 
 ### wordcloud
@@ -498,30 +496,30 @@ ansible 50
 
 **Syntax:** `arc [Title]`
 
-**Options:** `order:` (`appearance`/`name`/`group`/`degree`), `orientation`
+**Options:** `order` (`appearance`/`name`/`group`/`degree`), `orientation-vertical`
 
-**Data format:** `Source -> Target weight`. Group nodes with `[GroupName]` blocks.
+**Data format:** `Source -> Target: weight` — colon before optional weight. Group nodes with `[GroupName]` blocks.
 
 **Example:**
 
 ```
 arc Team Collaboration
-order: group
+order group
 
 [Frontend]
-  WebApp -> API Gateway 5
-  MobileApp -> API Gateway 3
+  WebApp -> API Gateway: 5
+  MobileApp -> API Gateway: 3
 
 [Core Services]
-  API Gateway -> AuthService 4
-  API Gateway -> UserService 5
+  API Gateway -> AuthService: 4
+  API Gateway -> UserService: 5
 ```
 
 ### venn
 
 **Syntax:** `venn [Title]`
 
-**Options:** `values` (`on`/`off`)
+**Options:** (none beyond `palette`, `theme`)
 
 **Data format:** Sets: `id(color) alias shortname`. Overlaps: `id1 + id2 Label`.
 
@@ -544,32 +542,32 @@ fe + be + de Full Stack
 
 **Syntax:** `quadrant [Title]`
 
-**Options:** `x-axis` (`low label, high label`), `y-axis` (`low label, high label`)
+**Options:** `x-axis:` (`low label, high label`), `y-axis:` (`low label, high label`) — colons required
 
-**Data format:** Quadrant labels: `top-right Label`, `top-left Label`, etc. Data points: `Label (color) x, y` where x,y are 0-1.
+**Data format:** Quadrant labels: `top-right: Label`, `top-left: Label`, etc. Data points: `Label: x y` — colons required.
 
 **Example:**
 
 ```
 quadrant Priority Matrix
-x-axis Low Impact, High Impact
-y-axis Low Effort, High Effort
+x-axis: Low Impact, High Impact
+y-axis: Low Effort, High Effort
 
-top-right Quick Wins(green)
-top-left Big Bets(yellow)
-bottom-left Skip(red)
-bottom-right Reconsider(gray)
+top-right: Quick Wins(green)
+top-left: Big Bets(yellow)
+bottom-left: Skip(red)
+bottom-right: Reconsider(gray)
 
-Task A 0.9, 0.8
-Task B 0.2, 0.3
-Task C 0.7, 0.4
+Task A: 0.9 0.8
+Task B: 0.2 0.3
+Task C: 0.7 0.4
 ```
 
 ### timeline
 
 **Syntax:** `timeline [Title]`
 
-**Options:** `scale` (`on`/`off`), `sort` (`time`/`group`/`tag`/`tag:GroupName`), `swimlanes` (`on`/`off`)
+**Options:** `sort` (`time`/`group`/`tag`/`tag:GroupName`)
 
 **Data format:** Ranges: `start->end Label | tag: Value`. Points: `date Label | tag: Value`.
 
@@ -621,7 +619,7 @@ Tag groups add interactive color and swimlane controls. `sort tag` uses the firs
 
 **Syntax:** `sequence [Title]`
 
-**Options:** `activations` (`on`/`off`), `collapse-notes` (`yes`/`no`), `active-tag GroupName`
+**Options:** `activations` / `no-activations`, `collapse-notes` / `no-collapse-notes`, `active-tag GroupName`
 
 **Data format:** Messages between participants with arrow syntax
 
@@ -774,7 +772,7 @@ Colors on nodes: `[Process(blue)]`
 
 **Syntax:** `state [Title]`
 
-**Options:** `direction` (`TB` or `LR`), `color` (`off` for monochrome)
+**Options:** `direction-tb`, `color` (`off` for monochrome)
 
 **Data format:** States connected by transitions
 
@@ -788,7 +786,6 @@ Full example:
 
 ```
 state Order Lifecycle
-direction LR
 
 [Processing(blue)]
   Validating -valid-> Approved
@@ -896,13 +893,13 @@ Minimal example:
 
 ```
 users
-  id: int [pk]
-  name: varchar
+  id int pk
+  name varchar
   1-* posts
 
 posts
-  id: int [pk]
-  user_id: int [fk]
+  id int pk
+  user_id int fk
 ```
 
 Full example:
@@ -911,26 +908,26 @@ Full example:
 er Blog Schema
 
 users
-  id: int [pk]
-  email: varchar [unique]
-  name: varchar
+  id int pk
+  email varchar unique
+  name varchar
   1-writes-* posts
   ?-moderates-* categories
 
 posts
-  id: int [pk]
-  title: varchar
-  body: text
-  author_id: int [fk]
-  category_id: int [fk, nullable]
+  id int pk
+  title varchar
+  body text
+  author_id int fk
+  category_id int fk nullable
 
 categories
-  id: int [pk]
-  name: varchar [unique]
+  id int pk
+  name varchar unique
   1-* posts
 ```
 
-**Columns**: `name: type [constraints]`. Constraints: `pk`, `fk`, `unique`, `nullable`. Multiple: `[fk, nullable]`.
+**Columns**: `name type [constraints]` (space-separated, no colon). Constraints: `pk`, `fk`, `unique`, `nullable`.
 
 **Relationships** — indented under the source table (preferred):
 - `1-* target` — one-to-many
@@ -1173,7 +1170,7 @@ DBLayer | done
 
 **Syntax:** `sitemap [Title]`
 
-**Options:** `direction` (`TB` or `LR`), `orientation` (alias for `direction`)
+**Options:** `direction-tb`
 
 **Data format:** Page labels with arrows and metadata
 
@@ -1197,7 +1194,7 @@ Full example:
 
 ```
 sitemap SaaS Platform
-direction TB
+direction-tb
 
 tag Auth
   Public(green)
@@ -1270,7 +1267,7 @@ Home
 
 **Tag groups**: `tag Name` with colored entries — same syntax as org charts.
 
-**Direction**: `direction TB` (top-to-bottom, default) or `direction LR` (left-to-right). `orientation` is accepted as an alias for `direction`.
+**Direction**: Default is left-to-right (LR). Add `direction-tb` to switch to top-to-bottom.
 
 **Group metadata cascading**: `[Group Name] | key: value` — pipe metadata on group headers cascades to all pages in the group.
 
@@ -1280,7 +1277,7 @@ Home
 
 **Syntax:** `infra [Title]`
 
-**Options:** `direction` (`LR` or `TB`), `orientation` (alias for `direction`)
+**Options:** `direction-tb`
 
 **Data format:** Component declarations with indented properties and connections
 
@@ -1290,39 +1287,38 @@ Minimal example:
 infra
 
 edge
-  rps: 1000
+  rps 1000
   -> CDN
 
 CDN
-  cache-hit: 80%
+  cache-hit 80%
   -> API
 
 API
-  instances: 2
-  max-rps: 400
-  latency-ms: 30
+  instances 2
+  max-rps 400
+  latency-ms 30
 ```
 
 Full example:
 
 ```
 infra Production Traffic Flow
-direction LR
 
 tag Team alias t
   Backend(blue)
   Platform(teal)
 
 edge
-  rps: 10000
+  rps 10000
   -> CloudFront
 
 CloudFront | t: Platform
-  cache-hit: 80%
+  cache-hit 80%
   -> CloudArmor
 
 CloudArmor | t: Platform
-  firewall-block: 5%
+  firewall-block 5%
   -> ALB
 
 ALB | t: Platform
@@ -1332,32 +1328,32 @@ ALB | t: Platform
 
 [API Pods]
   APIServer | t: Backend
-    instances: 3
-    max-rps: 500
-    latency-ms: 45
-    cb-error-threshold: 50%
+    instances 3
+    max-rps 500
+    latency-ms 45
+    cb-error-threshold 50%
 
 [Commerce Pods]
   PurchaseMS
-    instances: 1-8
-    max-rps: 300
-    latency-ms: 120
+    instances 1-8
+    max-rps 300
+    latency-ms 120
 
 StaticServer | t: Platform
-  latency-ms: 5
+  latency-ms 5
 ```
 
-**Entry point**: The `edge` block declares the external traffic source with `rps:` (requests per second). All downstream rps are computed automatically.
+**Entry point**: The `edge` block declares the external traffic source with `rps N` (requests per second). All downstream rps are computed automatically.
 
-**Components**: Bare labels at indent 0 define infrastructure components. Properties are indented below:
-- `cache-hit: N%` — percentage of traffic served from cache (reduces downstream flow)
-- `firewall-block: N%` — percentage of traffic blocked (reduces downstream flow)
-- `ratelimit-rps: N` — maximum rps allowed through (excess dropped)
-- `max-rps: N` — maximum rps capacity per instance
-- `instances: N` or `instances: N-M` — fixed or auto-scaling instance count
-- `latency-ms: N` — per-request latency in milliseconds
-- `cb-error-threshold: N%` — circuit breaker opens when overload exceeds this ratio
-- `cb-latency-threshold-ms: N` — circuit breaker opens when cumulative latency exceeds this
+**Components**: Bare labels at indent 0 define infrastructure components. Properties are indented below (space-separated, no colon):
+- `cache-hit N%` — percentage of traffic served from cache (reduces downstream flow)
+- `firewall-block N%` — percentage of traffic blocked (reduces downstream flow)
+- `ratelimit-rps N` — maximum rps allowed through (excess dropped)
+- `max-rps N` — maximum rps capacity per instance
+- `instances N` or `instances N-M` — fixed or auto-scaling instance count
+- `latency-ms N` — per-request latency in milliseconds
+- `cb-error-threshold N%` — circuit breaker opens when overload exceeds this ratio
+- `cb-latency-threshold-ms N` — circuit breaker opens when cumulative latency exceeds this
 
 **Type declarations**: `NodeName is a <type>` — declare a component's infrastructure role:
 - `database`, `cache`, `queue`, `service`, `gateway`, `storage`, `function`, `network`
@@ -1377,7 +1373,7 @@ StaticServer | t: Platform
 
 **Roles**: Inferred automatically from behavior properties or `is a` type declarations. Components with `cache-hit` get a Cache role, `firewall-block` gets Firewall, etc. Explicit declarations (`Redis is a cache`) set the role directly. Roles appear as colored dots on nodes and in the legend.
 
-**Overload**: When computed rps exceeds `max-rps x instances`, the node turns red. Dynamic scaling (`instances: 1-8`) auto-scales within the range before overloading.
+**Overload**: When computed rps exceeds `max-rps x instances`, the node turns red. Dynamic scaling (`instances 1-8`) auto-scales within the range before overloading.
 
 **Group metadata cascading**: `[Group Name] | key: value` — pipe metadata on group headers cascades to all children, providing default tag values for contained nodes.
 
@@ -1387,7 +1383,7 @@ StaticServer | t: Platform
 
 **Syntax:** `gantt [Title]`
 
-**Options:** `start` (required, `YYYY-MM-DD`), `today-marker` (`on`/`off` or `YYYY-MM-DD`), `sort` (`time`/`group`/`tag`/`tag:GroupName`), `critical-path`, `dependencies`
+**Options:** `start` (required, `YYYY-MM-DD`), `today-marker` (boolean, or `today-marker YYYY-MM-DD`), `sort` (`time`/`group`/`tag`/`tag:GroupName`), `critical-path`, `no-dependencies`
 
 **Data format:** `duration Task Name` — tasks with optional dependency arrows
 
@@ -1410,15 +1406,15 @@ Full example:
 ```
 gantt Project Schedule
 start 2024-01-01
-today-marker on
+today-marker
 
 tag Team alias t
   Frontend(blue)
   Backend(green)
 
-holidays
-  2024-01-15: MLK Day
-  2024-02-19: Presidents Day
+holiday
+  2024-01-15 MLK Day
+  2024-02-19 Presidents Day
 
 era 2024-01 -> 2024-03 Phase 1(blue)
 marker 2024-02-15 Sprint Review(orange)
@@ -1457,7 +1453,7 @@ marker 2024-02-15 Sprint Review(orange)
 
 **Markers**: `marker YYYY-MM-DD Label(color)` — vertical milestone lines.
 
-**Holidays**: `holidays` block with `YYYY-MM-DD: Name` entries or `YYYY-MM-DD -> YYYY-MM-DD: Name` ranges. Holiday dates skip business-day counting.
+**Holidays**: `holiday` block with `YYYY-MM-DD Name` entries or `YYYY-MM-DD -> YYYY-MM-DD Name` ranges. Holiday dates skip business-day counting.
 
 **Tag groups**: Same syntax as other diagrams — `tag Name alias x` with colored entries.
 

@@ -26,24 +26,14 @@ export interface TagBlockMatch {
   name: string;
   alias: string | undefined;
   colorHint: string | undefined;
-  /** true when the heading used `## …` (deprecated) */
-  deprecated: boolean;
   /** Inline tag values parsed from single-line form (e.g., `tag Priority p High(red), Low(blue)`) */
   inlineValues?: string[];
 }
 
 // ── Regexes ─────────────────────────────────────────────────
 
-/** @deprecated Old syntax: `tag: GroupName [alias X] [(color)]` — remove after migration. */
-export const TAG_BLOCK_RE =
-  /^tag:\s+(.+?)(?:\s+alias\s+(\w+))?(?:\s*\(([^)]+)\))?\s*$/i;
-
-/** New canonical syntax: line starting with `tag` keyword (no colon). */
+/** Canonical syntax: line starting with `tag` keyword (no colon). */
 export const TAG_BLOCK_NOCOLON_RE = /^tag\s+/i;
-
-/** @deprecated Legacy syntax: `## GroupName [alias X] [(color)]` */
-export const GROUP_HEADING_RE =
-  /^##\s+(.+?)(?:\s+alias\s+(\w+))?(?:\s*\(([^)]+)\))?\s*$/;
 
 // ── Alias Inference ─────────────────────────────────────────
 
@@ -54,9 +44,9 @@ function isAliasToken(token: string): boolean {
 
 // ── Matchers ────────────────────────────────────────────────
 
-/** Returns true if `trimmed` is a tag block heading in any syntax. */
+/** Returns true if `trimmed` is a tag block heading. */
 export function isTagBlockHeading(trimmed: string): boolean {
-  return TAG_BLOCK_NOCOLON_RE.test(trimmed) || TAG_BLOCK_RE.test(trimmed) || GROUP_HEADING_RE.test(trimmed);
+  return TAG_BLOCK_NOCOLON_RE.test(trimmed);
 }
 
 /**
@@ -173,7 +163,6 @@ export function parseTagDeclaration(line: string): TagBlockMatch | null {
     name,
     alias,
     colorHint,
-    deprecated: false,
     inlineValues: inlineValues && inlineValues.length > 0 ? inlineValues : undefined,
   };
 }
@@ -310,31 +299,5 @@ export function injectDefaultTagMetadata(
 // ── Matchers ────────────────────────────────────────────────
 
 export function matchTagBlockHeading(trimmed: string): TagBlockMatch | null {
-  // Try new no-colon syntax first: `tag Name [alias] [Values...]`
-  const nocolonResult = parseTagDeclaration(trimmed);
-  if (nocolonResult) return nocolonResult;
-
-  // Try old colon syntax: `tag: GroupName [alias X] [(color)]`
-  const tagMatch = trimmed.match(TAG_BLOCK_RE);
-  if (tagMatch) {
-    return {
-      name: tagMatch[1].trim(),
-      alias: tagMatch[2] || undefined,
-      colorHint: tagMatch[3] || undefined,
-      deprecated: false,
-    };
-  }
-
-  // Fall back to legacy ## syntax
-  const groupMatch = trimmed.match(GROUP_HEADING_RE);
-  if (groupMatch) {
-    return {
-      name: groupMatch[1].trim(),
-      alias: groupMatch[2] || undefined,
-      colorHint: groupMatch[3] || undefined,
-      deprecated: true,
-    };
-  }
-
-  return null;
+  return parseTagDeclaration(trimmed);
 }

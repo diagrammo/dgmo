@@ -26,38 +26,38 @@ describe('Pie / Doughnut / Polar-Area configurable labels', () => {
     expect(labelFormatter(opt)).toBe('{b} — {c} ({d}%)');
   });
 
-  it('pie labels name shows name only', () => {
-    const opt = build('pie\nlabels name' + data);
+  it('pie no-label-value no-label-percent shows name only', () => {
+    const opt = build('pie\nno-label-value\nno-label-percent' + data);
     expect(labelFormatter(opt)).toBe('{b}');
   });
 
-  it('pie labels value shows name and value', () => {
-    const opt = build('pie\nlabels value' + data);
+  it('pie no-label-percent shows name and value', () => {
+    const opt = build('pie\nno-label-percent' + data);
     expect(labelFormatter(opt)).toBe('{b} — {c}');
   });
 
-  it('pie labels percent shows name and percent', () => {
-    const opt = build('pie\nlabels percent' + data);
+  it('pie no-label-value shows name and percent', () => {
+    const opt = build('pie\nno-label-value' + data);
     expect(labelFormatter(opt)).toBe('{b} — {d}%');
   });
 
-  it('pie labels full shows full format', () => {
-    const opt = build('pie\nlabels full' + data);
+  it('pie with all labels shows full format', () => {
+    const opt = build('pie' + data);
     expect(labelFormatter(opt)).toBe('{b} — {c} ({d}%)');
   });
 
   // ── Doughnut ───────────────────────────────────────────────
 
-  it('doughnut labels name', () => {
-    const opt = build('doughnut\nlabels name' + data);
+  it('doughnut no-label-value no-label-percent shows name only', () => {
+    const opt = build('doughnut\nno-label-value\nno-label-percent' + data);
     expect(labelFormatter(opt)).toBe('{b}');
   });
 
   // ── Polar-Area ─────────────────────────────────────────────
 
-  it('polar-area labels percent', () => {
-    const opt = build('polar-area\nlabels percent' + data);
-    expect(labelFormatter(opt)).toBe('{b} — {d}%');
+  it('polar-area no-label-name no-label-value shows percent only', () => {
+    const opt = build('polar-area\nno-label-name\nno-label-value' + data);
+    expect(labelFormatter(opt)).toBe('{d}%');
   });
 
   it('polar-area defaults to full format', () => {
@@ -67,13 +67,17 @@ describe('Pie / Doughnut / Polar-Area configurable labels', () => {
 
   // ── Parser ─────────────────────────────────────────────────
 
-  it('parseChart stores labels field', () => {
-    const parsed = parseChart('pie\nlabels name\nA 10', palette);
-    expect(parsed.labels).toBe('name');
+  it('parseChart stores no-label flags', () => {
+    const parsed = parseChart('pie\nno-label-name\nno-label-value\nA 10', palette);
+    expect(parsed.noLabelName).toBe(true);
+    expect(parsed.noLabelValue).toBe(true);
+    expect(parsed.noLabelPercent).toBeUndefined();
   });
 
-  it('parseChart ignores invalid labels value', () => {
-    const parsed = parseChart('pie\nlabels invalid\nA 10', palette);
-    expect(parsed.labels).toBeUndefined();
+  it('parseChart defaults all labels visible', () => {
+    const parsed = parseChart('pie\nA 10', palette);
+    expect(parsed.noLabelName).toBeUndefined();
+    expect(parsed.noLabelValue).toBeUndefined();
+    expect(parsed.noLabelPercent).toBeUndefined();
   });
 });

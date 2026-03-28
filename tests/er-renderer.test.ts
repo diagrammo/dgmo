@@ -62,13 +62,12 @@ users
   id int pk
   name varchar
   email varchar unique
+  1-writes-* posts
 
 posts
   id int pk
   author_id int fk
-  title varchar
-
-users 1--* posts writes`;
+  title varchar`;
 
 function renderToContainer(content: string, isDark = false): HTMLDivElement {
   const parsed = parseERDiagram(content, testPalette);
@@ -149,7 +148,7 @@ describe('renderERDiagram', () => {
     });
 
     it('renders labels notation when specified', () => {
-      const content = `er\nnotation labels\nusers\n  id int pk\n\nposts\n  id int pk\n\nusers 1--* posts`;
+      const content = `er\nnotation labels\nusers\n  id int pk\n  1-* posts\n\nposts\n  id int pk`;
       const container = renderToContainer(content);
       const edgeGroup = container.querySelector('.er-edge-group');
       // Labels mode draws text elements instead of lines for cardinality
@@ -262,13 +261,12 @@ Orders | d: Shipping
 users
   id int pk
   name varchar
+  1-writes-* posts
 
 posts
   id int pk
   author_id int fk
-  title varchar
-
-users 1--* posts writes`;
+  title varchar`;
 
     const ER_WITH_TAGS = `er
 
@@ -375,16 +373,15 @@ posts
 
 orders
   id int pk
+  1-* order_items
 
 products
   id int pk
+  1-* order_items
 
 order_items
   order_id int fk
-  product_id int fk
-
-orders 1--* order_items
-products 1--* order_items`;
+  product_id int fk`;
 
       const container = renderWithDims(junctionER);
       // order_items: 2 FK / 2 cols = 1.0 ratio → junction → red

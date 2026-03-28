@@ -252,14 +252,11 @@ describe('parseKanban', () => {
       expect(warnings).toHaveLength(0);
     });
 
-    it('emits error for ## syntax', () => {
+    it('ignores ## syntax (no longer recognized as tag heading)', () => {
       const result = parseKanban(
         'kanban\n## Priority\n  High(red)\n\n[To Do]\n  Task 1'
       );
-      const errors = result.diagnostics.filter(d => d.message.includes('no longer supported'));
-      expect(errors).toHaveLength(1);
-      expect(errors[0].severity).toBe('error');
-      expect(errors[0].message).toContain("tag: Priority");
+      expect(result.tagGroups).toHaveLength(0);
     });
   });
 
@@ -340,11 +337,11 @@ describe('parseKanban', () => {
 
   // === Options ===
   describe('options', () => {
-    it('parses generic options', () => {
+    it('parses no-auto-color boolean option', () => {
       const result = parseKanban(
-        'kanban Test\ncolor-off yes\n[To Do]\n  Task 1'
+        'kanban Test\nno-auto-color\n[To Do]\n  Task 1'
       );
-      expect(result.options['color-off']).toBe('yes');
+      expect(result.options['no-auto-color']).toBe('on');
     });
   });
 

@@ -1,5 +1,4 @@
 infra Production Traffic Flow
-direction LR
 
 tag Team alias t
   Backend(blue)

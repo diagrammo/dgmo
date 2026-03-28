@@ -199,7 +199,7 @@ Key options:
 ### Common to all diagrams
 
 \`\`\`
-chart: sequence        // explicit type (optional — auto-detected)
+sequence               // explicit type (optional — auto-detected)
 title: My Diagram
 palette: catppuccin    // override palette
 
@@ -372,8 +372,7 @@ When the \`dgmo\` MCP server is configured, use these tools directly:
 
 ### Sequence diagram
 \`\`\`
-chart: sequence
-title: Auth Flow
+sequence Auth Flow
 
 User -Login-> API
 API -Find user-> DB
@@ -386,8 +385,7 @@ DB -user-> API
 
 ### Flowchart
 \`\`\`
-chart: flowchart
-title: Process
+flowchart Process
 
 (Start) -> <Valid?>
   -yes-> [Process] -> (Done)
@@ -396,8 +394,7 @@ title: Process
 
 ### Bar chart
 \`\`\`
-chart: bar
-title: Revenue
+bar Revenue
 series: USD
 
 North: 850
@@ -407,8 +404,7 @@ East: 1100
 
 ### ER diagram
 \`\`\`
-chart: er
-title: Schema
+er Schema
 
 users
   id: int [pk]
@@ -423,7 +419,7 @@ users 1--* posts : writes
 
 ### Org chart
 \`\`\`
-chart: org
+org
 
 CEO
   VP Engineering
@@ -434,8 +430,7 @@ CEO
 
 ### Infra chart
 \`\`\`
-chart: infra
-direction: LR
+infra
 
 edge
   rps: 10000
@@ -461,7 +456,7 @@ bar, line, multi-line, area, pie, doughnut, radar, polar-area, bar-stacked, scat
 
 ## Common patterns
 
-- \`chart: type\` — explicit chart type (auto-detected if unambiguous)
+- First line: chart type keyword (e.g. \`sequence\`, \`flowchart\`, \`bar\`) — auto-detected if unambiguous
 - \`title: text\` — diagram title
 - \`// comment\` — only \`//\` comments (not \`#\`)
 - \`(colorname)\` — inline colors: \`Label(red): 100\`
@@ -480,7 +475,7 @@ dgmo file.dgmo --json              # structured JSON output
 - Don't use \`#\` for comments — use \`//\`
 - Don't use \`end\` to close sequence blocks — indentation closes them
 - Don't use hex colors in section headers — use named colors
-- Don't forget \`chart:\` directive when content is ambiguous
+- Start the file with the chart type keyword when content is ambiguous
 - Sequence arrows: \`->\` (sync), \`~>\` (async) — always left-to-right
 
 Full reference: call \`get_language_reference\` MCP tool or visit diagrammo.app/docs
@@ -686,8 +681,8 @@ function noInput(): never {
   writeFileSync(
     samplePath,
     [
-      'chart: sequence',
-      'activations: off',
+      'sequence',
+      'activations off',
       '',
       'Client -POST /login-> API',
       '  API -validate credentials-> Auth',

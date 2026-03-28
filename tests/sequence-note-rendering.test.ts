@@ -53,14 +53,14 @@ function renderToSvg(
 
 describe('Sequence diagram note rendering', () => {
   it('renders a basic note without error', () => {
-    const svg = renderToSvg('A -hello-> B\nnote right of A: annotation');
+    const svg = renderToSvg('A -hello-> B\nnote right of A annotation');
     expect(svg).not.toBeNull();
     const notes = svg!.querySelectorAll('.note');
     expect(notes.length).toBe(1);
   });
 
   it('trailing note is included in SVG viewport', () => {
-    const svg = renderToSvg('A -hello-> B\nnote right of A: trailing note');
+    const svg = renderToSvg('A -hello-> B\nnote right of A trailing note');
     expect(svg).not.toBeNull();
 
     const noteBox = svg!.querySelector('.note-box');
@@ -83,7 +83,7 @@ describe('Sequence diagram note rendering', () => {
 
   it('consecutive notes get distinct Y positions', () => {
     const svg = renderToSvg(
-      'A -hello-> B\nnote right of A: first note\nnote right of A: second note'
+      'A -hello-> B\nnote right of A first note\nnote right of A second note'
     );
     expect(svg).not.toBeNull();
 
@@ -107,7 +107,7 @@ describe('Sequence diagram note rendering', () => {
     const svg = renderToSvg(
       [
         'A -hello-> B',
-        'note right of A: my note',
+        'note right of A my note',
         '== Phase 2 ==',
         'A -world-> B',
       ].join('\n')
@@ -141,7 +141,7 @@ describe('Sequence diagram note rendering', () => {
         'A -setup-> B',
         'if condition',
         '  A -action-> B',
-        '  note right of A: inside block',
+        '  note right of A inside block',
         'A -done-> B',
       ].join('\n')
     );
@@ -155,9 +155,9 @@ describe('Sequence diagram note rendering', () => {
     const svg = renderToSvg(
       [
         'A -hello-> B',
-        'note right of A: first',
-        'note right of A: second',
-        'note right of A: third',
+        'note right of A first',
+        'note right of A second',
+        'note right of A third',
       ].join('\n')
     );
     expect(svg).not.toBeNull();
@@ -184,7 +184,7 @@ describe('Sequence diagram note rendering', () => {
         'A -hello-> B',
         '== Section ==',
         'A -world-> B',
-        'note right of A: trailing after section',
+        'note right of A trailing after section',
       ].join('\n')
     );
     expect(svg).not.toBeNull();
@@ -204,7 +204,7 @@ describe('Sequence diagram note rendering', () => {
 
 describe('Collapsed note rendering', () => {
   it('renders collapsed notes when expandedNoteLines is empty set', () => {
-    const svg = renderToSvg('A -hello-> B\nnote right of A: annotation', {
+    const svg = renderToSvg('A -hello-> B\nnote right of A annotation', {
       expandedNoteLines: new Set(),
     });
     expect(svg).not.toBeNull();
@@ -218,12 +218,12 @@ describe('Collapsed note rendering', () => {
   });
 
   it('renders expanded notes when note lineNumber is in expandedNoteLines', () => {
-    const parsed = parseSequenceDgmo('A -hello-> B\nnote right of A: annotation');
+    const parsed = parseSequenceDgmo('A -hello-> B\nnote right of A annotation');
     const noteLineNumber = parsed.elements
       .filter((el): el is import('../src/sequence/parser').SequenceNote => 'kind' in el && el.kind === 'note')
       .map((n) => n.lineNumber)[0];
 
-    const svg = renderToSvg('A -hello-> B\nnote right of A: annotation', {
+    const svg = renderToSvg('A -hello-> B\nnote right of A annotation', {
       expandedNoteLines: new Set([noteLineNumber]),
     });
     expect(svg).not.toBeNull();
@@ -234,7 +234,7 @@ describe('Collapsed note rendering', () => {
   });
 
   it('collapsed notes are shorter than expanded notes', () => {
-    const input = 'A -hello-> B\nnote right of A: this is a longer annotation text';
+    const input = 'A -hello-> B\nnote right of A this is a longer annotation text';
 
     // Expanded (default, no expandedNoteLines)
     const svgExpanded = renderToSvg(input);
@@ -256,8 +256,8 @@ describe('Collapsed note rendering', () => {
   it('mixed expanded/collapsed notes render correctly', () => {
     const input = [
       'A -hello-> B',
-      'note right of A: first note',
-      'note right of A: second note',
+      'note right of A first note',
+      'note right of A second note',
     ].join('\n');
     const parsed = parseSequenceDgmo(input);
     const noteLines = parsed.elements
@@ -281,7 +281,7 @@ describe('Collapsed note rendering', () => {
     const input = [
       'collapse-notes: no',
       'A -hello-> B',
-      'note right of A: annotation',
+      'note right of A annotation',
     ].join('\n');
     // Even with empty expandedNoteLines, note should be expanded
     const svg = renderToSvg(input, { expandedNoteLines: new Set() });
@@ -292,7 +292,7 @@ describe('Collapsed note rendering', () => {
   });
 
   it('undefined expandedNoteLines renders all notes expanded (CLI default)', () => {
-    const svg = renderToSvg('A -hello-> B\nnote right of A: annotation');
+    const svg = renderToSvg('A -hello-> B\nnote right of A annotation');
     expect(svg).not.toBeNull();
     const notes = svg!.querySelectorAll('.note');
     expect(notes.length).toBe(1);
@@ -304,9 +304,9 @@ describe('buildNoteMessageMap', () => {
   it('maps notes to their preceding message lines', () => {
     const parsed = parseSequenceDgmo([
       'A -hello-> B',
-      'note right of A: annotation',
+      'note right of A annotation',
       'A -world-> B',
-      'note right of B: second annotation',
+      'note right of B second annotation',
     ].join('\n'));
 
     const map = buildNoteMessageMap(parsed.elements);
@@ -325,7 +325,7 @@ describe('buildNoteMessageMap', () => {
       'A -setup-> B',
       'if condition',
       '  A -action-> B',
-      '  note right of A: inside block',
+      '  note right of A inside block',
       'A -done-> B',
     ].join('\n'));
 

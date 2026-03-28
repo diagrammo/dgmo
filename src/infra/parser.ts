@@ -4,10 +4,10 @@
 //
 // Parses `infra [Title]` syntax into a structured InfraModel.
 // Handles: chart metadata, component blocks with indented properties
-// and connections, [Group] / # Group containers, tag groups, pipe metadata.
+// and connections, [Group] containers, tag groups, pipe metadata.
 
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
-import { measureIndent, normalizeDirection, parseFirstLine, GROUP_HASH_RE, OPTION_NOCOLON_RE } from '../utils/parsing';
+import { measureIndent, parseFirstLine, OPTION_NOCOLON_RE } from '../utils/parsing';
 import { matchTagBlockHeading } from '../utils/tag-groups';
 import type {
   ParsedInfra,
@@ -39,12 +39,6 @@ const ASYNC_SIMPLE_CONNECTION_RE =
 
 // Deprecated xN fanout suffix (e.g. "x5" at end of line)
 const DEPRECATED_FANOUT_RE = /\bx(\d+)\s*$/;
-
-// "is a" type declaration: NodeName is a <type>
-const IS_A_RE = /^(.+?)\s+is\s+an?\s+(database|cache|queue|service|gateway|storage|function|network)\s*$/i;
-
-// Valid node types for "is a" declarations
-const VALID_NODE_TYPES = new Set(['database', 'cache', 'queue', 'service', 'gateway', 'storage', 'function', 'network']);
 
 // Group declaration: [Group Name] with optional pipe metadata
 const GROUP_RE = /^\[([^\]]+)\]\s*(?:\|\s*(.+))?$/;
@@ -217,16 +211,9 @@ export function parseInfra(content: string): ParsedInfra {
         continue;
       }
 
-      // direction LR | TB  (also accepts orientation as alias)
-      // Supports both `direction LR` (new) and `direction: LR` (legacy)
-      if (/^(?:direction|orientation)\s/i.test(trimmed)) {
-        const raw = trimmed.replace(/^(?:direction|orientation)\s+/i, '').trim();
-        const dir = normalizeDirection(raw);
-        if (dir) {
-          result.direction = dir;
-        } else {
-          warn(lineNumber, `Unknown direction '${raw}'. Expected 'LR', 'TB', 'horizontal', or 'vertical'.`);
-        }
+      // direction-tb — bare boolean to switch to top-to-bottom (default is LR)
+      if (/^direction-tb$/i.test(trimmed)) {
+        result.direction = 'TB';
         continue;
       }
 
@@ -247,23 +234,6 @@ export function parseInfra(content: string): ParsedInfra {
         continue;
       }
 
-      // scenario: Name — no longer supported
-      if (/^scenario\s*:/i.test(trimmed)) {
-        setError(lineNumber, `'scenario:' syntax is no longer supported`);
-        // Skip indented block
-        let si = i + 1;
-        while (si < lines.length) {
-          const sLine = lines[si];
-          const sTrimmed = sLine.trim();
-          if (!sTrimmed || sTrimmed.startsWith('#')) { si++; continue; }
-          const sIndent = sLine.length - sLine.trimStart().length;
-          if (sIndent === 0) break;
-          si++;
-        }
-        i = si - 1;
-        continue;
-      }
-
       // Tag group: `tag Name [alias]` (via shared matchTagBlockHeading)
       const tagMatch = matchTagBlockHeading(trimmed);
       if (tagMatch) {
@@ -275,23 +245,6 @@ export function parseInfra(content: string): ParsedInfra {
           values: [],
           lineNumber,
         };
-        continue;
-      }
-
-      // # GroupName (alternate group notation)
-      const hashGroupMatch = trimmed.match(GROUP_HASH_RE);
-      if (hashGroupMatch) {
-        finishCurrentNode();
-        finishCurrentTagGroup();
-        const gLabel = hashGroupMatch[1].trim();
-        const gId = groupId(gLabel);
-        currentGroup = {
-          id: gId,
-          label: gLabel,
-          metadata: undefined,
-          lineNumber,
-        };
-        result.groups.push(currentGroup);
         continue;
       }
 
@@ -310,32 +263,6 @@ export function parseInfra(content: string): ParsedInfra {
           lineNumber,
         };
         result.groups.push(currentGroup);
-        continue;
-      }
-
-      // "is a" type declaration: NodeName is a <type>
-      const isaMatch = trimmed.match(IS_A_RE);
-      if (isaMatch) {
-        finishCurrentNode();
-        finishCurrentTagGroup();
-
-        const name = isaMatch[1].trim();
-        const nType = isaMatch[2].toLowerCase();
-        const id = nodeId(name);
-        const isEdge = EDGE_NODE_NAMES.has(id.toLowerCase());
-
-        currentNode = {
-          id,
-          label: name,
-          properties: [],
-          groupId: null,
-          tags: {},
-          isEdge,
-          nodeType: nType,
-          lineNumber,
-        };
-        currentGroup = null;
-        baseIndent = 0;
         continue;
       }
 
@@ -406,30 +333,6 @@ export function parseInfra(content: string): ParsedInfra {
           currentGroup.collapsed = val.toLowerCase() === 'true';
           continue;
         }
-      }
-
-      // "is a" type declaration inside group
-      const isaMatchG = trimmed.match(IS_A_RE);
-      if (isaMatchG) {
-        finishCurrentTagGroup();
-        const name = isaMatchG[1].trim();
-        const nType = isaMatchG[2].toLowerCase();
-        const id = nodeId(name);
-        // Cascade group metadata into node tags (node-level overrides later)
-        const tags: Record<string, string> = currentGroup.metadata ? { ...currentGroup.metadata } : {};
-
-        currentNode = {
-          id,
-          label: name,
-          properties: [],
-          groupId: currentGroup.id,
-          tags,
-          isEdge: false,
-          nodeType: nType,
-          lineNumber,
-        };
-        baseIndent = indent;
-        continue;
       }
 
       const compMatch = trimmed.match(COMPONENT_RE);
@@ -639,28 +542,6 @@ export function parseInfra(content: string): ParsedInfra {
     if (currentGroup && indent > 0) {
       finishCurrentNode();
 
-      // "is a" type declaration inside group
-      const isaMatchG2 = trimmed.match(IS_A_RE);
-      if (isaMatchG2) {
-        const name = isaMatchG2[1].trim();
-        const nType = isaMatchG2[2].toLowerCase();
-        const id = nodeId(name);
-        const tags: Record<string, string> = currentGroup.metadata ? { ...currentGroup.metadata } : {};
-
-        currentNode = {
-          id,
-          label: name,
-          properties: [],
-          groupId: currentGroup.id,
-          tags,
-          isEdge: false,
-          nodeType: nType,
-          lineNumber,
-        };
-        baseIndent = indent;
-        continue;
-      }
-
       const compMatch = trimmed.match(COMPONENT_RE);
       if (compMatch) {
         const name = compMatch[1];
@@ -780,7 +661,7 @@ export function extractSymbols(docText: string): DiagramSymbols {
         // Recognize new-style bare options (`key value`) and old-style (`key: value`)
         const firstLine = parseFirstLine(line);
         if (firstLine) continue; // chart type line
-        if (/^(?:direction|orientation|animate|no-animate|slo-|default-)/i.test(line)) continue;
+        if (/^(?:direction-tb|animate|no-animate|slo-|default-)/i.test(line)) continue;
         if (/^[a-z-]+\s*:/i.test(line)) continue; // legacy colon options
         inMetadata = false;
       } else {
@@ -794,7 +675,6 @@ export function extractSymbols(docText: string): DiagramSymbols {
       if (/^tag\s*:/i.test(line)) { inTagGroup = true; continue; } // legacy
       inTagGroup = false;
       if (/^\[/.test(line)) continue; // [Group] header
-      if (/^#\s/.test(line)) continue; // # Group header
       const m = COMPONENT_RE.exec(line);
       if (m && !entities.includes(m[1]!)) entities.push(m[1]!);
     } else {

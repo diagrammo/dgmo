@@ -49,9 +49,6 @@ export function extractColor(
   };
 }
 
-/** @deprecated Matches `chart: <type>` header lines. Remove after all parsers migrate. */
-export const CHART_TYPE_RE = /^chart\s*:\s*(.+)/i;
-
 /** @deprecated Matches `title: <text>` header lines. Remove after all parsers migrate. */
 export const TITLE_RE = /^title\s*:\s*(.+)/i;
 
@@ -61,11 +58,6 @@ export const OPTION_RE = /^([a-z][a-z0-9-]*)\s*:\s*(.+)$/i;
 /** Matches `option value` header lines (space-separated, no colon). */
 export const OPTION_NOCOLON_RE = /^([a-z][a-z0-9-]*)\s+(.+)$/i;
 
-/** Matches `# GroupName` lines — alternate group notation. */
-export const GROUP_HASH_RE = /^#\s+(.+)$/;
-
-/** Matches `## ...` lines — parse error with helpful hint. */
-export const DOUBLE_HASH_RE = /^##\s/;
 
 // ── New shared utilities ─────────────────────────────────────
 
@@ -81,24 +73,7 @@ export function parseFirstLine(
   const trimmed = line.trim();
   if (!trimmed || trimmed.startsWith('//')) return null;
 
-  // Try old-style `chart: type` first (for transition)
-  const oldMatch = trimmed.match(CHART_TYPE_RE);
-  if (oldMatch) {
-    const parts = oldMatch[1].trim();
-    // Could be `chart: gantt My Title` — first token is type
-    const spaceIdx = parts.indexOf(' ');
-    if (spaceIdx === -1) {
-      const ct = parts.toLowerCase();
-      return ALL_CHART_TYPES.has(ct) ? { chartType: ct, title: undefined } : null;
-    }
-    const ct = parts.substring(0, spaceIdx).toLowerCase();
-    if (ALL_CHART_TYPES.has(ct)) {
-      return { chartType: ct, title: parts.substring(spaceIdx + 1).trim() || undefined };
-    }
-    return null;
-  }
-
-  // New-style: first token is chart type, rest is title
+  // First token is chart type, rest is title
   const spaceIdx = trimmed.indexOf(' ');
   if (spaceIdx === -1) {
     const ct = trimmed.toLowerCase();
@@ -358,22 +333,23 @@ export function inferArrowColor(label: string): string | undefined {
   return undefined;
 }
 
-/** Warning message for multiple pipes on a single line. */
-export const MULTIPLE_PIPE_WARNING =
+/** Error message for multiple pipes on a single line. */
+export const MULTIPLE_PIPE_ERROR =
   'Use a single "|" to start metadata, then separate items with commas.';
 
 /**
  * Parse metadata from segments after the first (name) segment.
  * A single `|` separates the label from metadata; items after the pipe are comma-delimited.
- * Multiple pipes are treated as commas for backward compatibility but trigger a warning.
+ * Multiple pipes produce an error.
  */
 export function parsePipeMetadata(
   segments: string[],
   aliasMap: Map<string, string> = new Map(),
-  warnMultiplePipes?: () => void,
+  errorMultiplePipes?: () => void,
 ): Record<string, string> {
-  if (segments.length > 2 && warnMultiplePipes) {
-    warnMultiplePipes();
+  if (segments.length > 2) {
+    if (errorMultiplePipes) errorMultiplePipes();
+    return {};
   }
   const metadata: Record<string, string> = {};
   const raw = segments.slice(1).join(',');

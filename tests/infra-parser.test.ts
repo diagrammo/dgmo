@@ -3,10 +3,9 @@ import { parseInfra } from '../src/infra/parser';
 
 describe('infra parser', () => {
   describe('chart declaration (FR1)', () => {
-    it('parses infra with title and direction', () => {
+    it('parses infra with title', () => {
       const result = parseInfra(`
 infra Production Traffic Flow
-direction LR
 `);
       expect(result.type).toBe('infra');
       expect(result.title).toBe('Production Traffic Flow');
@@ -19,34 +18,13 @@ direction LR
       expect(result.direction).toBe('LR');
     });
 
-    it('supports TB direction', () => {
-      const result = parseInfra('infra\ndirection TB');
+    it('supports direction-tb', () => {
+      const result = parseInfra('infra\ndirection-tb');
       expect(result.direction).toBe('TB');
-    });
-
-    it('warns on unknown direction', () => {
-      const result = parseInfra('infra\ndirection RL');
-      expect(result.diagnostics).toHaveLength(1);
-      expect(result.diagnostics[0].severity).toBe('warning');
-    });
-
-    it('accepts orientation as alias for direction', () => {
-      const result = parseInfra('infra\norientation vertical');
-      expect(result.direction).toBe('TB');
-    });
-
-    it('normalizes direction horizontal to LR', () => {
-      const result = parseInfra('infra\ndirection horizontal');
-      expect(result.direction).toBe('LR');
-    });
-
-    it('normalizes orientation LR to LR', () => {
-      const result = parseInfra('infra\norientation LR');
-      expect(result.direction).toBe('LR');
     });
 
     it('errors on wrong chart type', () => {
-      const result = parseInfra('chart: sequence');
+      const result = parseInfra('sequence');
       expect(result.error).toContain("Expected chart type 'infra'");
     });
   });
@@ -373,7 +351,6 @@ CloudFront | t: Backend
     it('parses the full brainstorming example', () => {
       const result = parseInfra(`
 infra Production Traffic Flow
-direction LR
 
 tag Team t
   Backend(blue)
@@ -993,81 +970,6 @@ API
       expect(result.edges[0].split).toBe(60);
       expect(result.edges[1].async).toBe(true);
       expect(result.edges[1].split).toBe(40);
-    });
-  });
-
-  describe('is-a type declarations (Task 3.2)', () => {
-    it('parses "is a cache"', () => {
-      const result = parseInfra(`
-infra
-
-Redis is a cache
-`);
-      expect(result.nodes).toHaveLength(1);
-      expect(result.nodes[0].id).toBe('Redis');
-      expect(result.nodes[0].label).toBe('Redis');
-      expect(result.nodes[0].nodeType).toBe('cache');
-    });
-
-    it('parses "is a database"', () => {
-      const result = parseInfra(`
-infra
-
-PostgreSQL is a database
-`);
-      expect(result.nodes).toHaveLength(1);
-      expect(result.nodes[0].nodeType).toBe('database');
-    });
-
-    it('accepts "is an" for grammar forgiveness', () => {
-      const result = parseInfra(`
-infra
-
-ApiGateway is an gateway
-`);
-      expect(result.nodes).toHaveLength(1);
-      expect(result.nodes[0].nodeType).toBe('gateway');
-    });
-
-    it('node without is-a has undefined nodeType', () => {
-      const result = parseInfra(`
-infra
-
-AppServer
-`);
-      expect(result.nodes).toHaveLength(1);
-      expect(result.nodes[0].nodeType).toBeUndefined();
-    });
-
-    it('is-a node with connections works', () => {
-      const result = parseInfra(`
-infra
-
-API
-  -> Redis
-
-Redis is a cache
-  latency-ms 2
-`);
-      expect(result.edges).toHaveLength(1);
-      expect(result.edges[0].targetId).toBe('Redis');
-      const redis = result.nodes.find(n => n.id === 'Redis');
-      expect(redis).toBeDefined();
-      expect(redis!.nodeType).toBe('cache');
-      expect(redis!.properties).toHaveLength(1);
-    });
-
-    it('is-a inside group', () => {
-      const result = parseInfra(`
-infra
-
-[Backend]
-  Redis is a cache
-`);
-      const redis = result.nodes.find(n => n.id === 'Redis');
-      expect(redis).toBeDefined();
-      expect(redis!.nodeType).toBe('cache');
-      expect(redis!.groupId).toBe('[Backend]');
     });
   });
 

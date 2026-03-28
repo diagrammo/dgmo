@@ -1307,10 +1307,12 @@ describe('pipe metadata on messages', () => {
     expect(result.messages[0].metadata).toEqual({ c: 'Caching', t: 'Platform' });
   });
 
-  it('parses multiple pipe-separated metadata', () => {
+  it('errors on multiple pipe-separated metadata', () => {
     const content = 'A -req-> B | c: Caching | t: Platform';
     const result = parseSequenceDgmo(content);
-    expect(result.messages[0].metadata).toEqual({ c: 'Caching', t: 'Platform' });
+    const errors = result.diagnostics.filter((d) => d.severity === 'error');
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0].message).toContain('single "|"');
   });
 
   it('resolves alias in message metadata', () => {

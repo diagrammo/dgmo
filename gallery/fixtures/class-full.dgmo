@@ -31,12 +31,13 @@ Canvas
   + addShape(s: Shape): void
   + clear(): void
   count: number {static}
+  *-- Shape : contains
+  ..> Logger : uses
 
 Logger
   - instance: Logger {static}
   + log(msg: string): void
   + getInstance(): Logger {static}
 
-Canvas *-- Shape : contains
-Canvas ..> Logger : uses
-Circle -> Color : has fill
+Circle
+  -> Color : has fill

@@ -82,6 +82,7 @@ export interface ParsedExtendedChart {
   ylabelLineNumber?: number;
   sizelabel?: string;
   showLabels?: boolean;
+  shade?: boolean;
   categoryColors?: Record<string, string>;
   categoryLineNumbers?: Record<string, number>;
   nodeColors?: Record<string, string>;
@@ -126,8 +127,8 @@ const VALID_EXTENDED_TYPES = new Set<ExtendedChartType>([
 
 /** Known option keywords for the extended chart parser. */
 const KNOWN_EXTENDED_OPTIONS = new Set([
-  'chart', 'title', 'series', 'xlabel', 'ylabel', 'sizelabel', 'labels',
-  'columns', 'rows', 'x',
+  'chart', 'title', 'series', 'xlabel', 'ylabel', 'sizelabel',
+  'no-labels', 'columns', 'rows', 'x',
 ]);
 
 /**
@@ -140,7 +141,7 @@ function parseScatterRow(
   currentCategory: string,
   lineNumber: number,
 ): ParsedScatterPoint | null {
-  const dataRow = parseDataRowValues(line);
+  const dataRow = parseDataRowValues(line, { multiValue: true });
   if (!dataRow || dataRow.values.length < 2) return null;
   const { label: rawLabel, color: pointColor } = extractColor(dataRow.label, palette);
   return {
@@ -376,14 +377,11 @@ export function parseExtendedChart(
       if (firstToken === 'ylabel') { result.ylabel = value; result.ylabelLineNumber = lineNumber; continue; }
       if (firstToken === 'sizelabel') { result.sizelabel = value; continue; }
 
-      if (firstToken === 'labels') {
-        result.showLabels = value.toLowerCase() === 'on' || value.toLowerCase() === 'true';
-        continue;
-      }
-
       if (firstToken === 'columns') {
         if (value) {
-          result.columns = value.split(',').map((s) => s.trim());
+          result.columns = value.includes(',')
+            ? value.split(',').map((s) => s.trim())
+            : value.split(/\s+/);
         } else {
           const collected = collectIndentedValues(lines, i);
           i = collected.newIndex;
@@ -394,7 +392,9 @@ export function parseExtendedChart(
 
       if (firstToken === 'rows') {
         if (value) {
-          result.rows = value.split(',').map((s) => s.trim());
+          result.rows = value.includes(',')
+            ? value.split(',').map((s) => s.trim())
+            : value.split(/\s+/);
         } else {
           const collected = collectIndentedValues(lines, i);
           i = collected.newIndex;
@@ -414,6 +414,10 @@ export function parseExtendedChart(
         continue;
       }
     }
+
+    // Bare boolean options
+    if (firstToken === 'no-labels') { result.showLabels = false; continue; }
+    if (firstToken === 'shade') { result.shade = true; continue; }
 
     // Bare keyword options (no value)
     if (firstToken === 'series' && spaceIdx === -1) {
@@ -472,9 +476,9 @@ export function parseExtendedChart(
       }
     }
 
-    // Heatmap data row: "RowLabel val1, val2, val3, ..."
+    // Heatmap data row: "RowLabel val1, val2, val3, ..." or "RowLabel val1 val2 val3"
     if (result.type === 'heatmap') {
-      const dataRow = parseDataRowValues(trimmed);
+      const dataRow = parseDataRowValues(trimmed, { multiValue: true });
       if (dataRow && dataRow.values.length > 0) {
         if (!result.heatmapRows) result.heatmapRows = [];
         result.heatmapRows.push({ label: dataRow.label, values: dataRow.values, lineNumber });
@@ -918,6 +922,12 @@ function buildFunctionOption(
       itemStyle: {
         color: fnColor,
       },
+      ...(parsed.shade && {
+        areaStyle: {
+          color: fnColor,
+          opacity: 0.15,
+        },
+      }),
       emphasis: EMPHASIS_SELF,
     };
   });
@@ -1287,7 +1297,7 @@ function buildScatterOption(
   const hasCategories = points.some((p) => p.category !== undefined);
   const hasSize = points.some((p) => p.size !== undefined);
 
-  const showLabels = parsed.showLabels ?? false;
+  const showLabels = parsed.showLabels ?? true;
   const labelFontSize = 11;
 
   // When showLabels is on, we render labels ourselves via graphic — disable ECharts labels
@@ -1782,7 +1792,7 @@ function resolveAxisLabels(parsed: ParsedChart): {
   xLabel?: string;
   yLabel?: string;
 } {
-  const isHorizontal = parsed.orientation === 'horizontal';
+  const isHorizontal = parsed.orientation !== 'vertical';
   return {
     xLabel: parsed.xlabel ?? (isHorizontal ? parsed.label : undefined),
     yLabel: parsed.ylabel ?? (isHorizontal ? undefined : parsed.label),
@@ -1925,7 +1935,7 @@ function buildBarOption(
   chartWidth?: number
 ): EChartsOption {
   const { xLabel, yLabel } = resolveAxisLabels(parsed);
-  const isHorizontal = parsed.orientation === 'horizontal';
+  const isHorizontal = parsed.orientation !== 'vertical';
   const labels = parsed.data.map((d) => d.label);
   const data = parsed.data.map((d, i) => {
     const stroke = d.color ?? colors[i % colors.length];
@@ -2165,13 +2175,23 @@ function buildAreaOption(
 
 // ── Segment label formatter ──────────────────────────────────
 
-function segmentLabelFormatter(mode: ParsedChart['labels']): string {
-  switch (mode) {
-    case 'name':    return '{b}';
-    case 'value':   return '{b} — {c}';
-    case 'percent': return '{b} — {d}%';
-    default:        return '{b} — {c} ({d}%)';
-  }
+function segmentLabelFormatter(parsed: ParsedChart): string {
+  const showName = !parsed.noLabelName;
+  const showValue = !parsed.noLabelValue;
+  const showPercent = !parsed.noLabelPercent;
+
+  const parts: string[] = [];
+  if (showName) parts.push('{b}');
+  if (showValue) parts.push('{c}');
+  if (showPercent) parts.push('{d}%');
+
+  if (parts.length === 0) return '{b}'; // fallback: always show name
+  if (parts.length === 1) return parts[0];
+
+  // Name is joined with " — ", value+percent are grouped with parens when all three
+  if (showName && showValue && showPercent) return '{b} — {c} ({d}%)';
+  if (showName) return '{b} — ' + parts.slice(1).join(' ');
+  return parts.join(' ');
 }
 
 // ── Pie / Doughnut ───────────────────────────────────────────
@@ -2210,7 +2230,7 @@ function buildPieOption(
         data,
         label: {
           position: 'outside',
-          formatter: segmentLabelFormatter(parsed.labels),
+          formatter: segmentLabelFormatter(parsed),
           color: textColor,
           fontFamily: FONT_FAMILY,
         },
@@ -2329,7 +2349,7 @@ function buildPolarAreaOption(
         data,
         label: {
           position: 'outside',
-          formatter: segmentLabelFormatter(parsed.labels),
+          formatter: segmentLabelFormatter(parsed),
           color: textColor,
           fontFamily: FONT_FAMILY,
         },
@@ -2355,7 +2375,7 @@ function buildBarStackedOption(
   chartWidth?: number
 ): EChartsOption {
   const { xLabel, yLabel } = resolveAxisLabels(parsed);
-  const isHorizontal = parsed.orientation === 'horizontal';
+  const isHorizontal = parsed.orientation !== 'vertical';
   const seriesNames = parsed.seriesNames ?? [];
   const labels = parsed.data.map((d) => d.label);
 

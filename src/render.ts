@@ -36,8 +36,7 @@ async function ensureDom(): Promise<void> {
  * ```ts
  * import { render } from '@diagrammo/dgmo';
  *
- * const svg = await render(`chart: pie
- * title: Languages
+ * const svg = await render(`pie Languages
  * TypeScript: 45
  * Python: 30
  * Rust: 25`);

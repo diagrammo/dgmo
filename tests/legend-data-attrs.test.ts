@@ -74,7 +74,7 @@ function assertNoLegendActive(container: Element): void {
 // ── Sequence ──────────────────────────────────────────────────────────────────
 
 describe('Data attrs: Sequence', () => {
-  const src = `chart: sequence
+  const src = `sequence
 
 tag REGION
   North(blue)
@@ -374,7 +374,7 @@ edge
 // ── ER ────────────────────────────────────────────────────────────────────────
 
 describe('Data attrs: ER', () => {
-  const src = `chart: er
+  const src = `er
 
 tag DOMAIN
   Auth(blue)
@@ -421,7 +421,7 @@ Order {
 // ── Timeline ──────────────────────────────────────────────────────────────────
 
 describe('Data attrs: Timeline', () => {
-  const src = `chart: timeline
+  const src = `timeline
 
 tag STATUS
   Done(green)

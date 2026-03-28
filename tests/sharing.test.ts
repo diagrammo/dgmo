@@ -3,11 +3,11 @@ import { encodeDiagramUrl, decodeDiagramUrl } from '../src/sharing';
 
 describe('encodeDiagramUrl / decodeDiagramUrl', () => {
   const samples = [
-    { name: 'pie chart', dsl: 'chart: pie\nA: 10\nB: 20\nC: 30' },
-    { name: 'sequence diagram', dsl: 'chart: sequence\nA -hello-> B\nB -world-> A' },
-    { name: 'bar chart', dsl: 'chart: bar\nApples: 40\nOranges: 25\nBananas: 60' },
-    { name: 'unicode content', dsl: 'chart: pie\n日本語: 10\nEmoji 🎉: 20\nÜmlaut: 30' },
-    { name: 'long lines', dsl: 'chart: sequence\n' + 'A -' + 'x'.repeat(500) + '-> B' },
+    { name: 'pie chart', dsl: 'pie\nA: 10\nB: 20\nC: 30' },
+    { name: 'sequence diagram', dsl: 'sequence\nA -hello-> B\nB -world-> A' },
+    { name: 'bar chart', dsl: 'bar\nApples: 40\nOranges: 25\nBananas: 60' },
+    { name: 'unicode content', dsl: 'pie\n日本語: 10\nEmoji 🎉: 20\nÜmlaut: 30' },
+    { name: 'long lines', dsl: 'sequence\n' + 'A -' + 'x'.repeat(500) + '-> B' },
     { name: 'empty DSL', dsl: '' },
   ];
 
@@ -23,13 +23,13 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
   }
 
   it('uses the default base URL with both query and hash', () => {
-    const result = encodeDiagramUrl('chart: pie\nA: 10');
+    const result = encodeDiagramUrl('pie\nA: 10');
     if (result.error) throw new Error('unexpected error');
     expect(result.url).toMatch(/^https:\/\/diagrammo\.app\/view\?dgmo=.+#dgmo=/);
   });
 
   it('accepts a custom base URL', () => {
-    const result = encodeDiagramUrl('chart: pie\nA: 10', {
+    const result = encodeDiagramUrl('pie\nA: 10', {
       baseUrl: 'https://example.com/playground',
     });
     if (result.error) throw new Error('unexpected error');
@@ -37,10 +37,10 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
   });
 
   it('decodes from hash when query is stripped', () => {
-    const result = encodeDiagramUrl('chart: pie\nA: 10');
+    const result = encodeDiagramUrl('pie\nA: 10');
     if (result.error) throw new Error('unexpected error');
     const hash = new URL(result.url).hash;
-    expect(decodeDiagramUrl(hash).dsl).toBe('chart: pie\nA: 10');
+    expect(decodeDiagramUrl(hash).dsl).toBe('pie\nA: 10');
   });
 
   describe('size limit enforcement', () => {
@@ -48,7 +48,7 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
       // Generate a large payload that compresses to > 8 KB
       // Random-ish data compresses poorly — use unique lines
       const lines = Array.from({ length: 2000 }, (_, i) => `item_${i}_${Math.random()}: ${i}`);
-      const largeDsl = 'chart: bar\n' + lines.join('\n');
+      const largeDsl = 'bar\n' + lines.join('\n');
 
       const result = encodeDiagramUrl(largeDsl);
       expect(result.error).toBe('too-large');
@@ -61,32 +61,32 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
 
   describe('decodeDiagramUrl edge cases', () => {
     it('handles query with ? prefix', () => {
-      const result = encodeDiagramUrl('chart: pie\nA: 10');
+      const result = encodeDiagramUrl('pie\nA: 10');
       if (result.error) throw new Error('unexpected error');
       const query = new URL(result.url).search; // includes ?
-      expect(decodeDiagramUrl(query).dsl).toBe('chart: pie\nA: 10');
+      expect(decodeDiagramUrl(query).dsl).toBe('pie\nA: 10');
     });
 
     it('handles query without ? prefix', () => {
-      const result = encodeDiagramUrl('chart: pie\nA: 10');
+      const result = encodeDiagramUrl('pie\nA: 10');
       if (result.error) throw new Error('unexpected error');
       const query = new URL(result.url).search.slice(1); // strip ?
-      expect(decodeDiagramUrl(query).dsl).toBe('chart: pie\nA: 10');
+      expect(decodeDiagramUrl(query).dsl).toBe('pie\nA: 10');
     });
 
     it('handles bare payload (no dgmo= prefix)', () => {
-      const result = encodeDiagramUrl('chart: pie\nA: 10');
+      const result = encodeDiagramUrl('pie\nA: 10');
       if (result.error) throw new Error('unexpected error');
       const payload = new URL(result.url).search.replace('?dgmo=', '');
-      expect(decodeDiagramUrl(payload).dsl).toBe('chart: pie\nA: 10');
+      expect(decodeDiagramUrl(payload).dsl).toBe('pie\nA: 10');
     });
 
     it('backwards compat: handles hash with # prefix', () => {
-      const result = encodeDiagramUrl('chart: pie\nA: 10');
+      const result = encodeDiagramUrl('pie\nA: 10');
       if (result.error) throw new Error('unexpected error');
       // Simulate old-style URL with hash fragment
       const query = new URL(result.url).search.slice(1); // dgmo=...
-      expect(decodeDiagramUrl(`#${query}`).dsl).toBe('chart: pie\nA: 10');
+      expect(decodeDiagramUrl(`#${query}`).dsl).toBe('pie\nA: 10');
     });
 
     it('returns empty dsl for invalid payload', () => {
@@ -165,7 +165,7 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
 
   describe('view state (swimlaneTagGroup)', () => {
     it('round-trips with swimlaneTagGroup', () => {
-      const dsl = 'chart: timeline\n1716->1717: Event | p: Blackbeard';
+      const dsl = 'timeline\n1716->1717: Event | p: Blackbeard';
       const result = encodeDiagramUrl(dsl, {
         viewState: { swimlaneTagGroup: 'Pirate' },
       });
@@ -178,7 +178,7 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
     });
 
     it('round-trips with both activeTagGroup and swimlaneTagGroup', () => {
-      const dsl = 'chart: timeline\n1716->1717: Event';
+      const dsl = 'timeline\n1716->1717: Event';
       const result = encodeDiagramUrl(dsl, {
         viewState: { activeTagGroup: 'Outcome', swimlaneTagGroup: 'Pirate' },
       });
@@ -192,7 +192,7 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
     });
 
     it('omits swim param when swimlaneTagGroup is undefined', () => {
-      const result = encodeDiagramUrl('chart: timeline\n1716: Event', {
+      const result = encodeDiagramUrl('timeline\n1716: Event', {
         viewState: { activeTagGroup: 'Pirate' },
       });
       if (result.error) throw new Error('unexpected error');
@@ -202,7 +202,7 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
 
   describe('view state (palette + theme)', () => {
     it('round-trips palette: catppuccin', () => {
-      const dsl = 'chart: pie\nA: 10';
+      const dsl = 'pie\nA: 10';
       const result = encodeDiagramUrl(dsl, { viewState: { palette: 'catppuccin' } });
       if (result.error) throw new Error('unexpected error');
       expect(result.url).toContain('&pal=catppuccin');
@@ -212,7 +212,7 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
     });
 
     it('round-trips theme: light', () => {
-      const dsl = 'chart: pie\nA: 10';
+      const dsl = 'pie\nA: 10';
       const result = encodeDiagramUrl(dsl, { viewState: { theme: 'light' } });
       if (result.error) throw new Error('unexpected error');
       expect(result.url).toContain('&th=light');
@@ -238,20 +238,20 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
     });
 
     it('omits &pal= when palette is nord (default)', () => {
-      const result = encodeDiagramUrl('chart: pie\nA: 10', { viewState: { palette: 'nord' } });
+      const result = encodeDiagramUrl('pie\nA: 10', { viewState: { palette: 'nord' } });
       if (result.error) throw new Error('unexpected error');
       expect(result.url).not.toContain('&pal=');
     });
 
     it('omits &th= when theme is dark (default)', () => {
-      const result = encodeDiagramUrl('chart: pie\nA: 10', { viewState: { theme: 'dark' } });
+      const result = encodeDiagramUrl('pie\nA: 10', { viewState: { theme: 'dark' } });
       if (result.error) throw new Error('unexpected error');
       expect(result.url).not.toContain('&th=');
     });
 
     it('ignores unknown &th= values — transparent → viewState.theme undefined', () => {
       // Manually craft a URL with an invalid th value
-      const result = encodeDiagramUrl('chart: pie\nA: 10');
+      const result = encodeDiagramUrl('pie\nA: 10');
       if (result.error) throw new Error('unexpected error');
       const query = new URL(result.url).search.replace('?', '') + '&th=transparent';
       const decoded = decodeDiagramUrl(query);
@@ -259,7 +259,7 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
     });
 
     it('URL without &pal= → viewState.palette is undefined (not nord)', () => {
-      const result = encodeDiagramUrl('chart: pie\nA: 10');
+      const result = encodeDiagramUrl('pie\nA: 10');
       if (result.error) throw new Error('unexpected error');
       const query = new URL(result.url).search;
       const decoded = decodeDiagramUrl(query);
@@ -269,7 +269,7 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
 
   describe('view state (collapsedLanes)', () => {
     it('round-trips collapsedLanes', () => {
-      const dsl = 'chart: gantt\nstart: 2024-01-15\n10d: Task';
+      const dsl = 'gantt\nstart: 2024-01-15\n10d: Task';
       const result = encodeDiagramUrl(dsl, {
         viewState: { collapsedLanes: ['Engineering', 'QA'] },
       });
@@ -281,7 +281,7 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
     });
 
     it('omits cl param when collapsedLanes is empty', () => {
-      const result = encodeDiagramUrl('chart: gantt\nstart: 2024-01-15\n10d: Task', {
+      const result = encodeDiagramUrl('gantt\nstart: 2024-01-15\n10d: Task', {
         viewState: { collapsedLanes: [] },
       });
       if (result.error) throw new Error('unexpected error');

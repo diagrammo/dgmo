@@ -1,5 +1,4 @@
 flowchart CI/CD Pipeline
-direction LR
 
 (Push to Repo) -> [[Run Linter]] -> <Lint Pass?>
   -yes-> [[Run Tests]]

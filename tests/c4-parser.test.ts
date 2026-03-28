@@ -209,7 +209,7 @@ describe('parseC4', () => {
 
     it('parses indented metadata', () => {
       const result = parseC4(
-        'c4\nBanking is a system\n  description Core banking system\n  tech Java',
+        'c4\nBanking is a system\n  description: Core banking system\n  tech: Java',
       );
       expect(result.elements[0].metadata.description).toBe(
         'Core banking system',
@@ -219,7 +219,7 @@ describe('parseC4', () => {
 
     it('parses mixed pipe and indented metadata', () => {
       const result = parseC4(
-        'c4\nBanking is a system | tech: Java\n  description Core banking',
+        'c4\nBanking is a system | tech: Java\n  description: Core banking',
       );
       const el = result.elements[0];
       expect(el.metadata.tech).toBe('Java');
@@ -431,7 +431,7 @@ describe('parseC4', () => {
           'Banking is a system',
           '  containers',
           '    API is a container',
-          '      import auth-classes.dgmo',
+          '      import: auth-classes.dgmo',
         ].join('\n'),
       );
       expect(result.elements[0].children[0].importPath).toBe(
@@ -534,13 +534,11 @@ describe('parseC4', () => {
       expect(warnings).toHaveLength(0);
     });
 
-    it('emits error for ## syntax', () => {
+    it('ignores ## syntax (no longer recognized as tag heading)', () => {
       const result = parseC4(
         ['c4', '## Team', '  Platform(blue)', '', 'Alice is a person'].join('\n'),
       );
-      const errors = result.diagnostics.filter(d => d.message.includes('no longer supported'));
-      expect(errors).toHaveLength(1);
-      expect(errors[0].severity).toBe('error');
+      expect(result.tagGroups).toHaveLength(0);
     });
 
     it('resolves alias in pipe metadata with tag syntax', () => {
@@ -692,25 +690,25 @@ describe('parseC4', () => {
         '  External(gray)',
         '',
         'Customer is a person',
-        '  description A customer of the bank',
+        '  description: A customer of the bank',
         '  -Views accounts, makes payments-> Internet Banking',
         '',
         'Internet Banking is a system',
-        '  description Allows customers to view accounts and make payments',
+        '  description: Allows customers to view accounts and make payments',
         '',
         '  containers',
         '    [Frontend]',
         '      Web App is a container | tech: React, t: Platform',
-        '        description Delivers the SPA',
+        '        description: Delivers the SPA',
         '        -Makes calls to-> API | tech: JSON/HTTPS',
         '',
         '      Mobile App is a container | tech: React Native, t: Platform',
-        '        description iOS and Android client',
+        '        description: iOS and Android client',
         '        -Makes calls to-> API | tech: JSON/HTTPS',
         '',
         '    [Backend]',
         '      API is a container | tech: Node.js, t: Platform',
-        '        description JSON/HTTPS API',
+        '        description: JSON/HTTPS API',
         '        -Reads/writes-> Database | tech: SQL/TCP',
         '        -Reads/writes-> Cache | tech: TCP',
         '        ~Sends notifications~> Email System | tech: SMTP',
@@ -718,33 +716,33 @@ describe('parseC4', () => {
         '',
         '        components',
         '          Auth Controller is a component | tech: Express',
-        '            description Handles authentication',
-        '            import auth-classes.dgmo',
+        '            description: Handles authentication',
+        '            import: auth-classes.dgmo',
         '            -Reads users-> User Repository',
         '',
         '          Accounts Controller is a component | tech: Express',
-        '            description Provides account information',
+        '            description: Provides account information',
         '            -Reads accounts-> Accounts Repository',
         '',
         '      Worker is a container | tech: Node.js, t: Payments',
-        '        description Async job processor',
+        '        description: Async job processor',
         '        ~Consumes events~> Event Bus | tech: AMQP',
         '',
         '    Database is a container | tech: PostgreSQL, t: Payments',
-        '      description Account data store',
+        '      description: Account data store',
         '',
         '    Cache is a container is a cache | tech: Redis, t: Platform',
-        '      description Session and rate-limit cache',
+        '      description: Session and rate-limit cache',
         '',
         '    Event Bus is a container | tech: RabbitMQ, t: Platform',
-        '      description Async event backbone',
+        '      description: Async event backbone',
         '',
         'Email System is a system | sc: External',
-        '  description Sendgrid email service',
+        '  description: Sendgrid email service',
         '  -Sends emails to-> Customer',
         '',
         'Mainframe is a system | sc: External',
-        '  description Core banking system',
+        '  description: Core banking system',
         '',
         'deployment',
         '  AWS us-east-1 | t: Platform',
@@ -1021,7 +1019,7 @@ API is a system
 
     it('works with indented metadata', () => {
       const result = parseC4(
-        'c4\nAuth Service is a system\n  description Handles auth\n  tech Node.js',
+        'c4\nAuth Service is a system\n  description: Handles auth\n  tech: Node.js',
       );
       expect(result.error).toBeNull();
       expect(result.elements[0].metadata.description).toBe('Handles auth');

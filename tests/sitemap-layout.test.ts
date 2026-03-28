@@ -66,8 +66,8 @@ describe('layoutSitemap', () => {
   });
 
   it('handles TB and LR directions', () => {
-    const tb = layout('sitemap\ndirection TB\nHome\nAbout');
-    const lr = layout('sitemap\ndirection LR\nHome\nAbout');
+    const tb = layout('sitemap\ndirection-tb\nHome\nAbout');
+    const lr = layout('sitemap\nHome\nAbout');
 
     // Both should produce valid layouts
     expect(tb.layout.nodes).toHaveLength(2);
@@ -78,7 +78,7 @@ describe('layoutSitemap', () => {
 
   it('computes legend for tag groups', () => {
     const content = [
-      'tag: Auth',
+      'tag Auth',
       '  Public(green)',
       '  Required(blue)',
       '',
@@ -118,9 +118,9 @@ describe('layoutSitemap', () => {
   it('handles full baseball tickets sample without overlap', () => {
     const content = [
       'sitemap Grand Slam Tickets',
-      'direction TB',
+      'direction-tb',
       '',
-      'tag: Auth',
+      'tag Auth',
       '  Public(green)',
       '  Required(blue)',
       '',

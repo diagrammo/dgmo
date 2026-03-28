@@ -84,7 +84,7 @@ function getSvgHeight(container: Element): number | null {
 // ── Sequence ──────────────────────────────────────────────────────────────────
 
 describe('Placement: Sequence legend at top', () => {
-  const src = `chart: sequence
+  const src = `sequence
 
 tag Team
   Frontend(blue)
@@ -127,7 +127,7 @@ Bob <-response- Alice`;
     expect(svgHeight!).toBeGreaterThan(LEGEND_HEIGHT);
 
     // Render without tag groups to get bare content height
-    const srcNoTags = `chart: sequence
+    const srcNoTags = `sequence
 Alice -request-> Bob
 Bob <-response- Alice`;
     const parsedNoTags = parseSequenceDgmo(srcNoTags);
@@ -326,7 +326,7 @@ edge
 // ── ER ────────────────────────────────────────────────────────────────────────
 
 describe('Placement: ER legend at top', () => {
-  const src = `chart: er
+  const src = `er
 
 tag Domain
   Auth(blue)
@@ -363,7 +363,7 @@ Order {
 // ── Timeline ──────────────────────────────────────────────────────────────────
 
 describe('Placement: Timeline legend at top', () => {
-  const src = `chart: timeline
+  const src = `timeline
 
 tag Status
   Done(green)

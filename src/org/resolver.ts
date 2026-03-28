@@ -36,14 +36,14 @@ export interface ResolveImportsResult {
 const MAX_DEPTH = 10;
 const IMPORT_RE = /^(\s+)import:?\s+(.+\.dgmo)\s*$/i;
 const TAGS_RE = /^tags:?\s+(.+\.dgmo)\s*$/i;
-/** Matches new-style first line: `org ...` or old `chart: ...` or `title: ...` */
-const HEADER_RE = /^(org|kanban|chart\s*:|title\s*:)/i;
+/** Matches new-style first line: `org ...` or `kanban ...` or `title: ...` */
+const HEADER_RE = /^(org|kanban|title\s*:)/i;
 /**
  * Known option keys that can appear in org chart headers (space-separated).
  * Only these are stripped from imported files — avoids eating content like "Alice Chen".
  */
 const KNOWN_HEADER_OPTIONS = new Set([
-  'direction', 'sub-node-label', 'hide', 'show-sub-node-count',
+  'direction-tb', 'sub-node-label', 'hide', 'show-sub-node-count',
   'color-off',
 ]);
 

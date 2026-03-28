@@ -43,7 +43,7 @@ export function registerExtractor(kind: ChartType, fn: ExtractFn): void {
  * Returns null if the chart type is unknown or has no registered extractor.
  */
 export function extractDiagramSymbols(docText: string): DiagramSymbols | null {
-  // Parse chartType from first line — supports bare type name and old `chart:` syntax.
+  // Parse chartType from first line — bare type name.
   let chartType: string | null = null;
   for (const line of docText.split('\n')) {
     const trimmed = line.trim();
@@ -98,42 +98,45 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     series: { description: 'Series name(s)' },
     xlabel: { description: 'X-axis label' },
     ylabel: { description: 'Y-axis label' },
-    orientation: { description: 'Layout direction', values: ['horizontal', 'vertical'] },
-    labels: { description: 'Label format', values: ['name', 'value', 'percent', 'full'] },
+    'orientation-vertical': { description: 'Switch to vertical bars' },
     color: { description: 'Bar color override' },
   })],
   ['line', withGlobals({
     series: { description: 'Series name(s)' },
     xlabel: { description: 'X-axis label' },
     ylabel: { description: 'Y-axis label' },
-    labels: { description: 'Label format', values: ['name', 'value', 'percent', 'full'] },
   })],
   ['pie', withGlobals({
-    labels: { description: 'Label format', values: ['name', 'value', 'percent', 'full'] },
+    'no-label-name': { description: 'Hide name from segment labels' },
+    'no-label-value': { description: 'Hide value from segment labels' },
+    'no-label-percent': { description: 'Hide percent from segment labels' },
   })],
   ['doughnut', withGlobals({
-    labels: { description: 'Label format', values: ['name', 'value', 'percent', 'full'] },
+    'no-label-name': { description: 'Hide name from segment labels' },
+    'no-label-value': { description: 'Hide value from segment labels' },
+    'no-label-percent': { description: 'Hide percent from segment labels' },
   })],
   ['area', withGlobals({
     series: { description: 'Series name(s)' },
     xlabel: { description: 'X-axis label' },
     ylabel: { description: 'Y-axis label' },
-    labels: { description: 'Label format', values: ['name', 'value', 'percent', 'full'] },
   })],
   ['polar-area', withGlobals({
-    labels: { description: 'Label format', values: ['name', 'value', 'percent', 'full'] },
+    'no-label-name': { description: 'Hide name from segment labels' },
+    'no-label-value': { description: 'Hide value from segment labels' },
+    'no-label-percent': { description: 'Hide percent from segment labels' },
   })],
   ['radar', withGlobals()],
   ['bar-stacked', withGlobals({
     series: { description: 'Series name(s) (required)' },
     xlabel: { description: 'X-axis label' },
     ylabel: { description: 'Y-axis label' },
-    orientation: { description: 'Layout direction', values: ['horizontal', 'vertical'] },
+    'orientation-vertical': { description: 'Switch to vertical bars' },
   })],
 
   // ── Extended charts ──────────────────────────────────────
   ['scatter', withGlobals({
-    labels: { description: 'Show labels', values: ['on', 'off'] },
+    'no-labels': { description: 'Hide point labels' },
     xlabel: { description: 'X-axis label' },
     ylabel: { description: 'Y-axis label' },
     sizelabel: { description: 'Size axis label' },
@@ -148,11 +151,12 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     x: { description: 'X-axis range (start to end)' },
     xlabel: { description: 'X-axis label' },
     ylabel: { description: 'Y-axis label' },
+    shade: { description: 'Fill area below curves with translucent color' },
   })],
 
   // ── Visualizations ───────────────────────────────────────
   ['slope', withGlobals({
-    orientation: { description: 'Layout direction', values: ['horizontal', 'vertical'] },
+    'orientation-vertical': { description: 'Switch to vertical layout' },
   })],
   ['wordcloud', withGlobals({
     rotate: { description: 'Word rotation', values: ['none', 'mixed', 'angled'] },
@@ -161,13 +165,8 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   })],
   ['arc', withGlobals({
     order: { description: 'Node ordering', values: ['appearance', 'name', 'group', 'degree'] },
-    orientation: { description: 'Layout direction' },
   })],
-  ['timeline', withGlobals({
-    scale: { description: 'Show time scale', values: ['on', 'off'] },
-    sort: { description: 'Sort order', values: ['time', 'group', 'tag'] },
-    swimlanes: { description: 'Show swimlanes', values: ['on', 'off'] },
-  })],
+  ['timeline', withGlobals()],
   ['venn', withGlobals({
     values: { description: 'Show values', values: ['on', 'off'] },
   })],
@@ -182,25 +181,31 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     'collapse-notes': { description: 'Collapse note blocks', values: ['yes', 'no'] },
     'active-tag': { description: 'Active tag group name' },
   })],
-  ['flowchart', withGlobals()],
-  ['class', withGlobals()],
+  ['flowchart', withGlobals({
+    'direction-tb': { description: 'Switch to top-to-bottom layout' },
+  })],
+  ['class', withGlobals({
+    'no-auto-color': { description: 'Disable automatic modifier-based coloring' },
+  })],
   ['er', withGlobals()],
   ['org', withGlobals({
     'sub-node-label': { description: 'Label for sub-nodes' },
     'show-sub-node-count': { description: 'Show sub-node counts' },
   })],
-  ['kanban', withGlobals()],
+  ['kanban', withGlobals({
+    'no-auto-color': { description: 'Disable automatic card coloring' },
+  })],
   ['c4', withGlobals()],
   ['initiative-status', withGlobals()],
   ['state', withGlobals({
-    direction: { description: 'Layout direction', values: ['TB', 'LR'] },
+    'direction-tb': { description: 'Switch to top-to-bottom layout' },
     color: { description: 'Color mode', values: ['off'] },
   })],
   ['sitemap', withGlobals({
-    direction: { description: 'Layout direction', values: ['TB', 'LR'] },
+    'direction-tb': { description: 'Switch to top-to-bottom layout' },
   })],
   ['infra', withGlobals({
-    direction: { description: 'Layout direction', values: ['LR', 'TB'] },
+    'direction-tb': { description: 'Switch to top-to-bottom layout' },
     'default-latency-ms': { description: 'Default latency for all nodes' },
     'default-uptime': { description: 'Default uptime for all nodes' },
     'default-rps': { description: 'Default RPS capacity for all nodes' },
@@ -275,11 +280,10 @@ export const CHART_TYPES: ReadonlyArray<{ name: string; description: string }> =
 /**
  * Entity types for `Name is a <type>` declarations, keyed by chart type.
  * Values are sourced from parser constants (VALID_PARTICIPANT_TYPES,
- * VALID_NODE_TYPES, C4_IS_A_RE).
+ * C4_IS_A_RE).
  */
 export const ENTITY_TYPES = new Map<string, string[]>([
   ['sequence', ['service', 'database', 'actor', 'queue', 'cache', 'gateway', 'external', 'networking', 'frontend']],
-  ['infra', ['database', 'cache', 'queue', 'service', 'gateway', 'storage', 'function', 'network']],
   ['c4', ['person', 'system', 'container', 'component', 'external', 'database']],
 ]);
 

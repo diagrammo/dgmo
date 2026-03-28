@@ -53,7 +53,7 @@ function assertNoLegend(container: Element): void {
 
 describe('No-groups: Sequence', () => {
   it('renders no legend elements when no tag groups defined', () => {
-    const src = `chart: sequence
+    const src = `sequence
 Alice -hello-> Bob
 Bob <-ok- Alice`;
     const parsed = parseSequenceDgmo(src);
@@ -170,7 +170,7 @@ edge
 
 describe('No-groups: ER', () => {
   it('renders no legend elements when no tag groups defined', () => {
-    const src = `chart: er
+    const src = `er
 User {
   id int PK
 }
@@ -191,7 +191,7 @@ Order {
 
 describe('No-groups: Timeline', () => {
   it('renders no legend elements when no tag groups defined', () => {
-    const src = `chart: timeline
+    const src = `timeline
 2024-01-01 -> 2024-06-01: Feature A
 2024-03-01 -> 2024-12-01: Feature B`;
     const parsed = parseVisualization(src, palette);

@@ -1,7 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
-  TAG_BLOCK_RE,
-  GROUP_HEADING_RE,
   TAG_BLOCK_NOCOLON_RE,
   isTagBlockHeading,
   matchTagBlockHeading,
@@ -12,76 +10,21 @@ import {
 } from '../src/utils/tag-groups';
 import type { TagGroup } from '../src/utils/tag-groups';
 
-describe('TAG_BLOCK_RE', () => {
-  it('matches simple tag: heading', () => {
-    const m = 'tag: Location'.match(TAG_BLOCK_RE);
-    expect(m).not.toBeNull();
-    expect(m![1]).toBe('Location');
-  });
-
-  it('matches tag: with alias', () => {
-    const m = 'tag: Location alias loc'.match(TAG_BLOCK_RE);
-    expect(m![1]).toBe('Location');
-    expect(m![2]).toBe('loc');
-  });
-
-  it('matches tag: with color hint', () => {
-    const m = 'tag: Location(blue)'.match(TAG_BLOCK_RE);
-    expect(m![1]).toBe('Location');
-    expect(m![3]).toBe('blue');
-  });
-
-  it('matches tag: with alias and color hint', () => {
-    const m = 'tag: Location alias loc(blue)'.match(TAG_BLOCK_RE);
-    expect(m![1]).toBe('Location');
-    expect(m![2]).toBe('loc');
-    expect(m![3]).toBe('blue');
-  });
-
-  it('is case-insensitive', () => {
-    expect('Tag: Rank'.match(TAG_BLOCK_RE)).not.toBeNull();
-    expect('TAG: Rank'.match(TAG_BLOCK_RE)).not.toBeNull();
-    expect('tAg: Rank'.match(TAG_BLOCK_RE)).not.toBeNull();
-  });
-
-  it('does not match tags: (with s — different directive)', () => {
-    expect('tags: file.dgmo'.match(TAG_BLOCK_RE)).toBeNull();
-  });
-
-  it('does not match non-tag lines', () => {
-    expect('title: My Chart'.match(TAG_BLOCK_RE)).toBeNull();
-    expect('## Location'.match(TAG_BLOCK_RE)).toBeNull();
-  });
-});
-
-describe('GROUP_HEADING_RE', () => {
-  it('matches ## heading', () => {
-    const m = '## Location'.match(GROUP_HEADING_RE);
-    expect(m).not.toBeNull();
-    expect(m![1]).toBe('Location');
-  });
-
-  it('matches ## with alias', () => {
-    const m = '## Location alias loc'.match(GROUP_HEADING_RE);
-    expect(m![1]).toBe('Location');
-    expect(m![2]).toBe('loc');
-  });
-
-  it('does not match tag: syntax', () => {
-    expect('tag: Location'.match(GROUP_HEADING_RE)).toBeNull();
-  });
-});
-
 describe('isTagBlockHeading', () => {
-  it('returns true for tag: syntax', () => {
-    expect(isTagBlockHeading('tag: Location')).toBe(true);
-    expect(isTagBlockHeading('Tag: Location alias loc')).toBe(true);
-    expect(isTagBlockHeading('TAG: Rank(blue)')).toBe(true);
+  it('returns true for tag syntax (no colon)', () => {
+    expect(isTagBlockHeading('tag Location')).toBe(true);
+    expect(isTagBlockHeading('Tag Location alias loc')).toBe(true);
+    expect(isTagBlockHeading('TAG Rank(blue)')).toBe(true);
   });
 
-  it('returns true for ## syntax', () => {
-    expect(isTagBlockHeading('## Location')).toBe(true);
-    expect(isTagBlockHeading('## Location alias loc')).toBe(true);
+  it('returns false for tag: syntax (deprecated)', () => {
+    expect(isTagBlockHeading('tag: Location')).toBe(false);
+    expect(isTagBlockHeading('Tag: Location alias loc')).toBe(false);
+  });
+
+  it('returns false for ## syntax (deprecated)', () => {
+    expect(isTagBlockHeading('## Location')).toBe(false);
+    expect(isTagBlockHeading('## Location alias loc')).toBe(false);
   });
 
   it('returns false for other lines', () => {
@@ -93,56 +36,38 @@ describe('isTagBlockHeading', () => {
 });
 
 describe('matchTagBlockHeading', () => {
-  it('parses tag: heading as non-deprecated', () => {
-    const result = matchTagBlockHeading('tag: Location');
+  it('parses tag heading (no colon)', () => {
+    const result = matchTagBlockHeading('tag Location');
     expect(result).toEqual({
       name: 'Location',
       alias: undefined,
       colorHint: undefined,
-      deprecated: false,
+      inlineValues: undefined,
     });
   });
 
-  it('parses Tag: (mixed case) as non-deprecated', () => {
-    const result = matchTagBlockHeading('Tag: Rank alias r');
+  it('parses Tag (mixed case)', () => {
+    const result = matchTagBlockHeading('Tag Rank r');
     expect(result).toEqual({
       name: 'Rank',
       alias: 'r',
       colorHint: undefined,
-      deprecated: false,
+      inlineValues: undefined,
     });
   });
 
-  it('parses ## heading as deprecated', () => {
-    const result = matchTagBlockHeading('## Location');
-    expect(result).toEqual({
-      name: 'Location',
-      alias: undefined,
-      colorHint: undefined,
-      deprecated: true,
-    });
+  it('returns null for tag: syntax (deprecated)', () => {
+    expect(matchTagBlockHeading('tag: Location')).toBeNull();
   });
 
-  it('parses ## with alias and color as deprecated', () => {
-    const result = matchTagBlockHeading('## Location alias loc(blue)');
-    expect(result).toEqual({
-      name: 'Location',
-      alias: 'loc',
-      colorHint: 'blue',
-      deprecated: true,
-    });
+  it('returns null for ## syntax (deprecated)', () => {
+    expect(matchTagBlockHeading('## Location')).toBeNull();
   });
 
   it('returns null for non-matching lines', () => {
     expect(matchTagBlockHeading('title: My Chart')).toBeNull();
     expect(matchTagBlockHeading('Hello World')).toBeNull();
     expect(matchTagBlockHeading('')).toBeNull();
-  });
-
-  it('prefers tag: syntax over ## when both would match', () => {
-    // tag: syntax is checked first — this line only matches tag:
-    const result = matchTagBlockHeading('tag: Rank alias r');
-    expect(result!.deprecated).toBe(false);
   });
 });
 
@@ -171,7 +96,6 @@ describe('parseTagDeclaration', () => {
       name: 'Priority',
       alias: undefined,
       colorHint: undefined,
-      deprecated: false,
       inlineValues: undefined,
     });
   });
@@ -244,7 +168,7 @@ describe('parseTagDeclaration', () => {
 
   it('returns null for non-tag lines', () => {
     expect(parseTagDeclaration('title My Title')).toBeNull();
-    expect(parseTagDeclaration('direction LR')).toBeNull();
+    expect(parseTagDeclaration('direction-tb')).toBeNull();
     expect(parseTagDeclaration('')).toBeNull();
   });
 
@@ -258,36 +182,31 @@ describe('parseTagDeclaration', () => {
   });
 });
 
-describe('matchTagBlockHeading (new syntax)', () => {
-  it('matches new no-colon syntax via matchTagBlockHeading', () => {
+describe('matchTagBlockHeading (via parseTagDeclaration)', () => {
+  it('matches no-colon syntax via matchTagBlockHeading', () => {
     const r = matchTagBlockHeading('tag Priority p');
     expect(r?.name).toBe('Priority');
     expect(r?.alias).toBe('p');
-    expect(r?.deprecated).toBe(false);
   });
 
-  it('still matches old colon syntax', () => {
-    const r = matchTagBlockHeading('tag: Location alias loc');
-    expect(r?.name).toBe('Location');
-    expect(r?.alias).toBe('loc');
+  it('rejects old colon syntax', () => {
+    expect(matchTagBlockHeading('tag: Location alias loc')).toBeNull();
   });
 
-  it('still matches legacy ## syntax', () => {
-    const r = matchTagBlockHeading('## Location');
-    expect(r?.name).toBe('Location');
-    expect(r?.deprecated).toBe(true);
+  it('rejects legacy ## syntax', () => {
+    expect(matchTagBlockHeading('## Location')).toBeNull();
   });
 });
 
-describe('isTagBlockHeading (new syntax)', () => {
-  it('returns true for new no-colon syntax', () => {
+describe('isTagBlockHeading (no-colon only)', () => {
+  it('returns true for no-colon syntax', () => {
     expect(isTagBlockHeading('tag Priority')).toBe(true);
     expect(isTagBlockHeading('tag Priority p High(red), Low(blue)')).toBe(true);
   });
 
-  it('still returns true for old syntaxes', () => {
-    expect(isTagBlockHeading('tag: Priority')).toBe(true);
-    expect(isTagBlockHeading('## Priority')).toBe(true);
+  it('returns false for old syntaxes', () => {
+    expect(isTagBlockHeading('tag: Priority')).toBe(false);
+    expect(isTagBlockHeading('## Priority')).toBe(false);
   });
 });
 

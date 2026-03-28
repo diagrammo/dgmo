@@ -27,10 +27,11 @@ const LEGACY_COLUMN_RE = /^==\s+(.+?)\s*(?:\[wip:\s*(\d+)\])?\s*==$/;
 
 /** Known kanban options (key-value). */
 const KNOWN_OPTIONS = new Set([
-  'color-off', 'hide',
+  'hide',
 ]);
 /** Known kanban boolean options (bare keyword = on). */
 const KNOWN_BOOLEANS = new Set<string>([
+  'no-auto-color',
 ]);
 
 // ============================================================
@@ -125,15 +126,11 @@ export function parseKanban(
       }
     }
 
-    // Tag group heading — `tag: Name` (new) or `## Name` (deprecated)
-    // Must be checked BEFORE OPTION_RE to prevent `tag: Rank` being swallowed as option
+    // Tag group heading — `tag Name`
+    // Must be checked BEFORE OPTION_RE to prevent `tag Rank` being swallowed as option
     if (!contentStarted) {
       const tagBlockMatch = matchTagBlockHeading(trimmed);
       if (tagBlockMatch) {
-        if (tagBlockMatch.deprecated) {
-          result.diagnostics.push(makeDgmoError(lineNumber, `'## ${tagBlockMatch.name}' is no longer supported — use 'tag: ${tagBlockMatch.name}' instead`));
-          continue;
-        }
         currentTagGroup = {
           name: tagBlockMatch.name,
           alias: tagBlockMatch.alias,

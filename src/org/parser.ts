@@ -7,7 +7,7 @@ import {
   measureIndent,
   extractColor,
   parsePipeMetadata,
-  MULTIPLE_PIPE_WARNING,
+  MULTIPLE_PIPE_ERROR,
   parseFirstLine,
   OPTION_NOCOLON_RE,
 } from '../utils/parsing';
@@ -46,18 +46,19 @@ const METADATA_RE = /^([^:]+):\s*(.+)$/;
 
 /** Known org chart options (key-value). */
 const KNOWN_OPTIONS = new Set([
-  'direction', 'sub-node-label', 'hide', 'show-sub-node-count',
+  'sub-node-label', 'hide', 'show-sub-node-count',
 ]);
 /** Known org chart boolean options (bare keyword = on). */
 const KNOWN_BOOLEANS = new Set([
   'show-sub-node-count',
+  'direction-tb',
 ]);
 
 // ============================================================
 // Inference
 // ============================================================
 
-/** Returns true if content contains tag group headings (`tag: …` or `## …`), suggesting an org chart. */
+/** Returns true if content contains tag group headings (`tag …`), suggesting an org chart. */
 export function looksLikeOrg(content: string): boolean {
   for (const line of content.split('\n')) {
     const trimmed = line.trim();
@@ -167,10 +168,6 @@ export function parseOrg(
     if (tagBlockMatch) {
       if (contentStarted) {
         pushError(lineNumber, 'Tag groups must appear before org content');
-        continue;
-      }
-      if (tagBlockMatch.deprecated) {
-        pushError(lineNumber, `'## ${tagBlockMatch.name}' is no longer supported — use 'tag: ${tagBlockMatch.name}' instead`);
         continue;
       }
       currentTagGroup = {
@@ -335,7 +332,7 @@ function parseNodeLabel(
   let rawLabel = segments[0];
   const { label, color } = extractColor(rawLabel, palette);
 
-  const metadata = parsePipeMetadata(segments, aliasMap, warnFn ? () => warnFn(lineNumber, MULTIPLE_PIPE_WARNING) : undefined);
+  const metadata = parsePipeMetadata(segments, aliasMap, warnFn ? () => warnFn(lineNumber, MULTIPLE_PIPE_ERROR) : undefined);
 
   return {
     id: `node-${counter}`,

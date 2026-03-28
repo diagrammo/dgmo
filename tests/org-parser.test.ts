@@ -153,7 +153,7 @@ describe('parseOrg', () => {
   // === Single-line compact metadata ===
   describe('single-line compact metadata', () => {
     it('parses pipe-delimited metadata', () => {
-      const result = parseOrg('Alice Park | role: Senior | location: NY');
+      const result = parseOrg('Alice Park | role: Senior, location: NY');
       const alice = result.roots[0];
       expect(alice.label).toBe('Alice Park');
       expect(alice.metadata).toEqual({ role: 'Senior', location: 'NY' });
@@ -220,7 +220,7 @@ describe('parseOrg', () => {
 
     it('container with pipe-delimited children', () => {
       const result = parseOrg(
-        '[Platform Team]\n  goal: Core infra\n  Alice Park | role: Senior Engineer | location: NY\n  Bob Torres | role: Junior Engineer | location: CO'
+        '[Platform Team]\n  goal: Core infra\n  Alice Park | role: Senior Engineer, location: NY\n  Bob Torres | role: Junior Engineer, location: CO'
       );
       const team = result.roots[0];
       expect(team.metadata).toEqual({ goal: 'Core infra' });
@@ -353,9 +353,9 @@ describe('parseOrg', () => {
       expect(sean.metadata).toEqual({ location: 'NY' });
     });
 
-    it('multiple aliases with pipe separators', () => {
+    it('multiple aliases with comma separators in single pipe', () => {
       const result = parseOrg(
-        'tag Location loc\n  NY(blue)\n  CA(green)\n\ntag Status st\n  FTE(green)\n\ntag Title t\n  CTO(purple)\n\nSean Curtis| t: CTO| loc: NY| st: FTE'
+        'tag Location loc\n  NY(blue)\n  CA(green)\n\ntag Status st\n  FTE(green)\n\ntag Title t\n  CTO(purple)\n\nSean Curtis | t: CTO, loc: NY, st: FTE'
       );
       expect(result.tagGroups).toHaveLength(3);
       const sean = result.roots[0];
@@ -389,7 +389,7 @@ describe('parseOrg', () => {
 
     it('non-aliased keys pass through unchanged', () => {
       const result = parseOrg(
-        'tag Title t\n  CTO(purple)\n\nSean Curtis| t: CTO| role: VP'
+        'tag Title t\n  CTO(purple)\n\nSean Curtis | t: CTO, role: VP'
       );
       const sean = result.roots[0];
       expect(sean.metadata).toEqual({ title: 'CTO', role: 'VP' });
@@ -431,13 +431,9 @@ describe('parseOrg', () => {
       expect(warnings).toHaveLength(0);
     });
 
-    it('emits error for ## syntax', () => {
+    it('ignores ## syntax (no longer recognized as tag heading)', () => {
       const result = parseOrg('## Location\n  NY(blue)\n\nJane');
-      const errors = result.diagnostics.filter(d => d.severity === 'error');
-      expect(errors).toHaveLength(1);
-      expect(errors[0].message).toContain("'## Location' is no longer supported");
-      expect(errors[0].message).toContain("tag: Location");
-      expect(result.error).toBeTruthy();
+      expect(result.tagGroups).toHaveLength(0);
     });
 
     it('tag Rank is not swallowed as option key', () => {
@@ -455,8 +451,8 @@ describe('parseOrg', () => {
     it('looksLikeOrg recognizes tag syntax', () => {
       expect(looksLikeOrg('tag Rank\n  Captain(red)\n\nJane')).toBe(true);
       expect(looksLikeOrg('Tag Rank\n  Captain(red)\n\nJane')).toBe(true);
-      // Still recognizes ##
-      expect(looksLikeOrg('## Rank\n  Captain(red)\n\nJane')).toBe(true);
+      // ## is no longer recognized
+      expect(looksLikeOrg('## Rank\n  Captain(red)\n\nJane')).toBe(false);
       // Non-tag content
       expect(looksLikeOrg('org\nJane')).toBe(false);
     });
@@ -479,9 +475,9 @@ describe('parseOrg', () => {
       expect(result.roots).toHaveLength(1);
     });
 
-    it('parses known options', () => {
-      const result = parseOrg('org\ndirection LR\n\nJane');
-      expect(result.options).toEqual({ direction: 'LR' });
+    it('parses direction-tb boolean option', () => {
+      const result = parseOrg('org\ndirection-tb\n\nJane');
+      expect(result.options).toEqual({ 'direction-tb': 'on' });
     });
 
     it('parses hide option with comma-separated keys', () => {

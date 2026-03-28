@@ -3,7 +3,7 @@ import { render } from '../src/render';
 
 describe('render()', () => {
   it('renders a pie chart with default options', async () => {
-    const svg = await render(`chart: pie
+    const svg = await render(`pie
 A: 10
 B: 20
 C: 30`);
@@ -12,7 +12,7 @@ C: 30`);
   });
 
   it('renders a sequence diagram with default options', async () => {
-    const svg = await render(`chart: sequence
+    const svg = await render(`sequence
 A -hello-> B
 B -world-> A`);
     expect(svg).toContain('<svg');
@@ -21,7 +21,7 @@ B -world-> A`);
 
   it('renders with dark theme', async () => {
     const svg = await render(
-      `chart: bar
+      `bar
 A: 10
 B: 20`,
       { theme: 'dark' },
@@ -32,7 +32,7 @@ B: 20`,
 
   it('renders with catppuccin palette', async () => {
     const svg = await render(
-      `chart: pie
+      `pie
 A: 10
 B: 20`,
       { palette: 'catppuccin' },

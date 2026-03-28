@@ -54,9 +54,9 @@ function renderToSvg(
 }
 
 const tagDiagram = [
-  'chart: sequence',
+  'sequence',
   '',
-  'tag: Concern',
+  'tag Concern',
   '  Caching(blue)',
   '  Auth(red)',
   '',
@@ -165,9 +165,9 @@ describe('Sequence tag-driven recoloring', () => {
 
   it('colors group boxes by tag metadata', () => {
     const input = [
-      'chart: sequence',
+      'sequence',
       '',
-      'tag: Concern',
+      'tag Concern',
       '  Caching(blue)',
       '',
       '[Backend] | concern: Caching',
@@ -189,9 +189,9 @@ describe('Sequence tag-driven recoloring', () => {
 
   it('leaves untagged group boxes with default colors', () => {
     const input = [
-      'chart: sequence',
+      'sequence',
       '',
-      'tag: Concern',
+      'tag Concern',
       '  Caching(blue)',
       '',
       '[Backend]',
@@ -216,9 +216,9 @@ describe('Sequence tag-driven recoloring', () => {
 
   it('participant inherits color from incoming tagged message', () => {
     const input = [
-      'chart: sequence',
+      'sequence',
       '',
-      'tag: Concern',
+      'tag Concern',
       '  Caching(blue)',
       '',
       'API',
@@ -251,13 +251,13 @@ describe('Sequence tag-driven recoloring', () => {
 // ============================================================
 
 const multiGroupDiagram = [
-  'chart: sequence',
+  'sequence',
   '',
-  'tag: Concern',
+  'tag Concern',
   '  Caching(blue)',
   '  Auth(red)',
   '',
-  'tag: Team',
+  'tag Team',
   '  Alpha(purple)',
   '  Beta(orange)',
   '',
@@ -310,7 +310,7 @@ describe('Sequence legend rendering', () => {
 
   it('renders no legend when no tag groups exist', () => {
     const input = [
-      'chart: sequence',
+      'sequence',
       'API -query-> DB',
     ].join('\n');
     const svg = renderToSvg(input);
@@ -321,11 +321,11 @@ describe('Sequence legend rendering', () => {
   it('skips tag groups with no entries', () => {
     // Tag group declared but no entries — should not appear in legend
     const input = [
-      'chart: sequence',
+      'sequence',
       '',
-      'tag: Empty',
+      'tag Empty',
       '',
-      'tag: Concern',
+      'tag Concern',
       '  Caching(blue)',
       '',
       'API -query-> DB',
@@ -339,10 +339,10 @@ describe('Sequence legend rendering', () => {
 
   it('supports active-tag option from diagram markup', () => {
     const input = [
-      'chart: sequence',
+      'sequence',
       'active-tag: Concern',
       '',
-      'tag: Concern',
+      'tag Concern',
       '  Caching(blue)',
       '',
       'API is a service | concern: Caching',

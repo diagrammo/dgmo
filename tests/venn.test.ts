@@ -19,7 +19,7 @@ const nordLight = getPalette('nord').light;
 
 describe('Venn parser — 2-set minimal', () => {
   it('parses two sets with names only', () => {
-    const result = parseVisualization(`chart: venn
+    const result = parseVisualization(`venn
 Apples
 Oranges`, nordLight);
     expect(result.vennSets).toHaveLength(2);
@@ -31,10 +31,10 @@ Oranges`, nordLight);
   });
 
   it('parses an optional intersection line', () => {
-    const result = parseVisualization(`chart: venn
+    const result = parseVisualization(`venn
 Apples
 Oranges
-Apples + Oranges: Cider`, nordLight);
+Apples + Oranges Cider`, nordLight);
     expect(result.vennOverlaps).toHaveLength(1);
     expect(result.vennOverlaps[0].sets).toEqual(['Apples', 'Oranges']);
     expect(result.vennOverlaps[0].label).toBe('Cider');
@@ -43,13 +43,13 @@ Apples + Oranges: Cider`, nordLight);
 
 describe('Venn parser — 3-set with aliases and colors', () => {
   it('parses aliases and resolves intersection references by alias', () => {
-    const result = parseVisualization(`chart: venn
+    const result = parseVisualization(`venn
 Frontend(blue) alias fe
 Backend(green) alias be
 DevOps(orange) alias de
-fe + be: Web Systems
-be + de: Platform Ops
-fe + be + de: Full Stack`, nordLight);
+fe + be Web Systems
+be + de Platform Ops
+fe + be + de Full Stack`, nordLight);
     expect(result.error).toBeNull();
     expect(result.vennSets).toHaveLength(3);
     expect(result.vennSets[0].alias).toBe('fe');
@@ -61,7 +61,7 @@ fe + be + de: Full Stack`, nordLight);
   });
 
   it('parses intersections with no label', () => {
-    const result = parseVisualization(`chart: venn
+    const result = parseVisualization(`venn
 A
 B
 C
@@ -73,7 +73,7 @@ A + B`, nordLight);
 
 describe('Venn parser — named color resolution and fallback', () => {
   it('resolves known palette colors to hex', () => {
-    const result = parseVisualization(`chart: venn
+    const result = parseVisualization(`venn
 Alpha(blue)
 Beta(green)`, nordLight);
     expect(result.vennSets[0].color).toMatch(/^#/);
@@ -82,7 +82,7 @@ Beta(green)`, nordLight);
   });
 
   it('emits a warning and falls back to null for unknown color names', () => {
-    const result = parseVisualization(`chart: venn
+    const result = parseVisualization(`venn
 Alpha(magenta)
 Beta`, nordLight);
     expect(result.vennSets[0].color).toBeNull();
@@ -92,7 +92,7 @@ Beta`, nordLight);
 
 describe('Venn parser — validation errors', () => {
   it('emits error for > 3 sets', () => {
-    const result = parseVisualization(`chart: venn
+    const result = parseVisualization(`venn
 A
 B
 C
@@ -115,11 +115,11 @@ function makeContainer(): HTMLDivElement {
 
 describe('Venn renderer — circles and labels', () => {
   it('renders circles and set name labels into SVG', () => {
-    const parsed = parseVisualization(`chart: venn
+    const parsed = parseVisualization(`venn
 title: Test
 Apples
 Oranges
-Apples + Oranges: Cider`, nordLight);
+Apples + Oranges Cider`, nordLight);
     const container = makeContainer();
     renderVenn(container, parsed, nordLight, false);
     const svg = container.querySelector('svg');
@@ -136,7 +136,7 @@ Apples + Oranges: Cider`, nordLight);
 
 describe('Venn renderer — hover targets for all regions', () => {
   it('creates hover targets for exclusive and intersection regions', () => {
-    const parsed = parseVisualization(`chart: venn
+    const parsed = parseVisualization(`venn
 Alpha
 Beta
 Gamma`, nordLight);
@@ -150,7 +150,7 @@ Gamma`, nordLight);
   });
 
   it('creates hover targets for 2-set diagram including overlap region', () => {
-    const parsed = parseVisualization(`chart: venn
+    const parsed = parseVisualization(`venn
 A
 B`, nordLight);
     const container = makeContainer();

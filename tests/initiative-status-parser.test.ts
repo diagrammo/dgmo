@@ -667,9 +667,9 @@ API | done, p: Buidl`;
   });
 
   describe('hide directive', () => {
-    it('parses hide with single tag-value pair', () => {
+    it('parses hide with single tag:value pair', () => {
       const input = `initiative-status
-hide phase Phase3
+hide phase:Phase3
 
 API | done`;
       const result = parseInitiativeStatus(input);
@@ -679,7 +679,7 @@ API | done`;
 
     it('parses hide with multiple comma-separated pairs', () => {
       const input = `initiative-status
-hide phase Phase3, team Frontend
+hide phase:Phase3, team:Frontend
 
 API | done`;
       const result = parseInitiativeStatus(input);
@@ -687,13 +687,13 @@ API | done`;
       expect(result.initialHiddenTagValues.get('team')!.has('frontend')).toBe(true);
     });
 
-    it('ignores malformed hide entries (single word — no tag-value pair)', () => {
+    it('ignores malformed hide entries (no colon)', () => {
       const input = `initiative-status
 hide nocolon
 
 API | done`;
       const result = parseInitiativeStatus(input);
-      // 'nocolon' is a single word — not a valid tag-value pair
+      // 'nocolon' has no colon — not a valid tag:value pair
       expect(result.initialHiddenTagValues.size).toBe(0);
     });
   });

@@ -3,13 +3,10 @@ import {
   measureIndent,
   extractColor,
   parsePipeMetadata,
-  CHART_TYPE_RE,
   TITLE_RE,
   OPTION_RE,
   OPTION_NOCOLON_RE,
   COLOR_SUFFIX_RE,
-  GROUP_HASH_RE,
-  DOUBLE_HASH_RE,
   ALL_CHART_TYPES,
   parseFirstLine,
   prescanOptions,
@@ -38,8 +35,8 @@ describe('extractColor', () => {
 });
 
 describe('parsePipeMetadata', () => {
-  it('parses key:value pairs from pipe segments', () => {
-    const m = parsePipeMetadata(['Name', 'role: Dev', 'loc: NY']);
+  it('parses key:value pairs from single pipe segment', () => {
+    const m = parsePipeMetadata(['Name', 'role: Dev, loc: NY']);
     expect(m).toEqual({ role: 'Dev', loc: 'NY' });
   });
   it('applies aliasMap', () => {
@@ -51,26 +48,20 @@ describe('parsePipeMetadata', () => {
     const m = parsePipeMetadata(['X', 'a: 1, b: 2']);
     expect(m).toEqual({ a: '1', b: '2' });
   });
-  it('treats multiple pipes as commas (backward compat)', () => {
-    const m = parsePipeMetadata(['Name', 'role: Dev', 'loc: NY']);
-    expect(m).toEqual({ role: 'Dev', loc: 'NY' });
+  it('errors when more than one pipe segment is present', () => {
+    let errored = false;
+    const m = parsePipeMetadata(['Name', 'role: Dev', 'loc: NY'], new Map(), () => { errored = true; });
+    expect(errored).toBe(true);
+    expect(m).toEqual({});
   });
-  it('warns when more than one pipe segment is present', () => {
-    let warned = false;
-    parsePipeMetadata(['Name', 'role: Dev', 'loc: NY'], new Map(), () => { warned = true; });
-    expect(warned).toBe(true);
-  });
-  it('does not warn for single pipe segment', () => {
-    let warned = false;
-    parsePipeMetadata(['Name', 'role: Dev, loc: NY'], new Map(), () => { warned = true; });
-    expect(warned).toBe(false);
+  it('does not error for single pipe segment', () => {
+    let errored = false;
+    parsePipeMetadata(['Name', 'role: Dev, loc: NY'], new Map(), () => { errored = true; });
+    expect(errored).toBe(false);
   });
 });
 
 describe('header regexes', () => {
-  it('CHART_TYPE_RE matches chart headers', () => {
-    expect('chart: org'.match(CHART_TYPE_RE)?.[1]).toBe('org');
-  });
   it('TITLE_RE matches title headers', () => {
     expect('title: My Title'.match(TITLE_RE)?.[1]).toBe('My Title');
   });
@@ -116,28 +107,6 @@ describe('OPTION_NOCOLON_RE', () => {
   });
 });
 
-describe('GROUP_HASH_RE', () => {
-  it('matches # GroupName', () => {
-    const m = '# Backend Services'.match(GROUP_HASH_RE);
-    expect(m?.[1]).toBe('Backend Services');
-  });
-  it('does not match bare #', () => {
-    expect('#'.match(GROUP_HASH_RE)).toBeNull();
-  });
-  it('does not match ## (double hash)', () => {
-    expect('## Section'.match(GROUP_HASH_RE)).toBeNull();
-  });
-});
-
-describe('DOUBLE_HASH_RE', () => {
-  it('matches ## with text', () => {
-    expect(DOUBLE_HASH_RE.test('## Section')).toBe(true);
-  });
-  it('does not match single #', () => {
-    expect(DOUBLE_HASH_RE.test('# Section')).toBe(false);
-  });
-});
-
 describe('parseFirstLine', () => {
   it('extracts chart type and title from new syntax', () => {
     const r = parseFirstLine('gantt Product Launch 2026');
@@ -169,15 +138,9 @@ describe('parseFirstLine', () => {
     expect(parseFirstLine('// comment')).toBeNull();
   });
 
-  it('still recognizes old chart: type syntax', () => {
-    const r = parseFirstLine('chart: gantt');
-    expect(r).toEqual({ chartType: 'gantt', title: undefined });
-  });
-
-  it('handles old chart: type with title fallback', () => {
-    // Old syntax didn't put titles on the chart: line, but handle gracefully
-    const r = parseFirstLine('chart: bar');
-    expect(r).toEqual({ chartType: 'bar', title: undefined });
+  it('returns null for old chart: syntax (no longer supported)', () => {
+    expect(parseFirstLine('chart: gantt')).toBeNull();
+    expect(parseFirstLine('chart: bar')).toBeNull();
   });
 
   it('extracts multi-line chart type', () => {
@@ -250,12 +213,12 @@ describe('prescanOptions', () => {
     const lines = [
       'gantt Title',
       '',
-      '# Planning',
+      '[Planning]',
       '  10bd Task A',
       '',
       'direction LR',
       '',
-      '# Development',
+      '[Development]',
       '  20bd Task B',
     ];
     const result = prescanOptions(lines, knownOptions, knownBooleans);

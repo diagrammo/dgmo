@@ -43,26 +43,11 @@ describe('parseSitemap', () => {
   describe('direction', () => {
     it('defaults to TB', () => {
       const result = parseSitemap('Home');
-      expect(result.direction).toBe('TB');
-    });
-
-    it('parses direction LR', () => {
-      const result = parseSitemap('sitemap\ndirection LR\nHome');
       expect(result.direction).toBe('LR');
     });
 
-    it('parses direction TB', () => {
-      const result = parseSitemap('sitemap\ndirection TB\nHome');
-      expect(result.direction).toBe('TB');
-    });
-
-    it('accepts orientation as alias for direction', () => {
-      const result = parseSitemap('sitemap\norientation horizontal\nHome');
-      expect(result.direction).toBe('LR');
-    });
-
-    it('normalizes direction vertical to TB', () => {
-      const result = parseSitemap('sitemap\ndirection vertical\nHome');
+    it('parses direction-tb', () => {
+      const result = parseSitemap('sitemap\ndirection-tb\nHome');
       expect(result.direction).toBe('TB');
     });
   });
@@ -302,10 +287,10 @@ describe('parseSitemap', () => {
 
   // === Tag groups ===
   describe('tag groups', () => {
-    it('parses tag: Name with entries', () => {
+    it('parses tag Name with entries', () => {
       const content = [
         'sitemap',
-        'tag: Auth',
+        'tag Auth',
         '  Public(green)',
         '  Required(blue)',
         '',
@@ -320,7 +305,7 @@ describe('parseSitemap', () => {
 
     it('validates tag values', () => {
       const content = [
-        'tag: Auth',
+        'tag Auth',
         '  Public(green)',
         '',
         'Home',
@@ -333,7 +318,7 @@ describe('parseSitemap', () => {
     });
 
     it('tag group after content produces error', () => {
-      const content = 'Home\ntag: Auth\n  Public(green)';
+      const content = 'Home\ntag Auth\n  Public(green)';
       const result = parseSitemap(content);
       expect(result.diagnostics.some(d =>
         d.message.includes('Tag groups must appear before')
@@ -342,7 +327,7 @@ describe('parseSitemap', () => {
 
     it('tag group with alias', () => {
       const content = [
-        'tag: Authorization alias auth',
+        'tag Authorization alias auth',
         '  Public(green)',
         '',
         'Home',
@@ -377,9 +362,9 @@ describe('parseSitemap', () => {
     it('parses baseball tickets sample structure', () => {
       const content = [
         'sitemap Grand Slam Tickets',
-        'direction TB',
+        'direction-tb',
         '',
-        'tag: Auth',
+        'tag Auth',
         '  Public(green)',
         '  Required(blue)',
         '',

@@ -113,7 +113,6 @@ describe('renderExtendedChartForExport', () => {
 // ============================================================
 
 const SCATTER_LABELS_INPUT = `scatter Test Labels
-labels on
 xlabel X
 ylabel Y
 A 1, 2
@@ -121,7 +120,6 @@ B 3, 4
 C 5, 6`;
 
 const SCATTER_DENSE_INPUT = `scatter Dense Cluster
-labels on
 P1 5, 5
 P2 5.1, 5
 P3 5.2, 5

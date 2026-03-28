@@ -4,19 +4,15 @@ import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
 import {
   measureIndent,
   extractColor,
-  normalizeDirection,
   inferArrowColor,
   parseFirstLine,
   OPTION_NOCOLON_RE,
-  GROUP_HASH_RE,
-  DOUBLE_HASH_RE,
   ALL_CHART_TYPES,
 } from '../utils/parsing';
 import type {
   ParsedGraph,
   GraphNode,
   GraphEdge,
-  GraphGroup,
   GraphShape,
   GraphDirection,
 } from './types';
@@ -218,7 +214,7 @@ export function parseFlowchart(
   const lines = content.split('\n');
   const result: ParsedGraph = {
     type: 'flowchart',
-    direction: 'TB',
+    direction: 'LR',
     nodes: [],
     edges: [],
     options: {},
@@ -238,11 +234,6 @@ export function parseFlowchart(
   let contentStarted = false;
   let firstLineParsed = false;
 
-  // Group support
-  let currentGroup: GraphGroup | null = null;
-  let groupIndent = -1;
-  const groups: GraphGroup[] = [];
-
   function getOrCreateNode(ref: NodeRef, lineNumber: number): GraphNode {
     const existing = nodeMap.get(ref.id);
     if (existing) return existing;
@@ -253,14 +244,9 @@ export function parseFlowchart(
       shape: ref.shape,
       lineNumber,
       ...(ref.color && { color: ref.color }),
-      ...(currentGroup && { group: currentGroup.id }),
     };
     nodeMap.set(ref.id, node);
     result.nodes.push(node);
-
-    if (currentGroup && !currentGroup.nodeIds.includes(ref.id)) {
-      currentGroup.nodeIds.push(ref.id);
-    }
 
     return node;
   }
@@ -418,44 +404,18 @@ export function parseFlowchart(
       }
     }
 
-    // ## group headings — emit helpful error
-    if (DOUBLE_HASH_RE.test(trimmed)) {
-      result.diagnostics.push(
-        makeDgmoError(lineNumber, 'Use `#` for groups \u2014 nesting is done with indentation.', 'error')
-      );
-      continue;
-    }
-
-    // # GroupName — alternate group notation
-    const hashGroupMatch = trimmed.match(GROUP_HASH_RE);
-    if (hashGroupMatch) {
-      const { label, color } = extractColor(hashGroupMatch[1].trim(), palette);
-      currentGroup = {
-        id: `group:${label.toLowerCase()}`,
-        label,
-        nodeIds: [],
-        lineNumber,
-        ...(color && { color }),
-      };
-      groupIndent = indent;
-      groups.push(currentGroup);
-      continue;
-    }
-
     // Options (space-separated, before content)
     if (!contentStarted) {
+      // Bare boolean: direction-tb
+      if (/^direction-tb$/i.test(trimmed)) {
+        result.direction = 'TB';
+        continue;
+      }
+
       const optMatch = trimmed.match(OPTION_NOCOLON_RE);
       if (optMatch && !trimmed.includes('->')) {
         const key = optMatch[1].toLowerCase();
         const value = optMatch[2].trim();
-
-        if (key === 'direction' || key === 'orientation') {
-          const dir = normalizeDirection(value);
-          if (dir) {
-            result.direction = dir;
-          }
-          continue;
-        }
 
         // Boolean: no-color = color off
         if (key === 'no-color') {
@@ -469,17 +429,9 @@ export function parseFlowchart(
       }
     }
 
-    // Close current group when indent returns to or below the group level
-    if (currentGroup && indent <= groupIndent) {
-      currentGroup = null;
-      groupIndent = -1;
-    }
-
     // Content line (nodes and edges)
     processContentLine(trimmed, lineNumber, indent);
   }
-
-  if (groups.length > 0) result.groups = groups;
 
   // Validation: no nodes found
   if (result.nodes.length === 0 && !result.error) {

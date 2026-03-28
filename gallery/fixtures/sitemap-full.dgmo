@@ -1,5 +1,5 @@
 sitemap Grand Slam Tickets
-direction TB
+direction-tb
 
 tag Auth
   Public(green)

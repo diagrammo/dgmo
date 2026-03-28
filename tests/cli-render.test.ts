@@ -84,16 +84,17 @@ Low Impact, High Effort: 80, 20`,
 Animal
   name string
   speak(): void
-Dog --|> Animal`,
+Dog
+  --|> Animal`,
 
   er: `er
 users
   id int pk
   name varchar
+  1-* posts
 posts
   id int pk
-  author_id int fk
-users 1--* posts`,
+  author_id int fk`,
 
   org: `org
 Jane Smith

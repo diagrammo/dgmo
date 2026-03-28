@@ -169,17 +169,6 @@ describe('gantt parser', () => {
       }
     });
 
-    it('parses # Group alternate syntax', () => {
-      const result = parseGantt('gantt\n# Backend\n  10d Task', palette);
-      expect(result.error).toBeNull();
-      expect(result.nodes).toHaveLength(1);
-      const group = result.nodes[0];
-      expect(group.kind).toBe('group');
-      if (group.kind === 'group') {
-        expect(group.name).toBe('Backend');
-        expect(group.children).toHaveLength(1);
-      }
-    });
   });
 
   describe('parallel blocks', () => {
@@ -523,6 +512,80 @@ describe('gantt parser', () => {
       expect(result.markers).toHaveLength(1);
       expect(result.markers[0].date).toBe('2024-03-01');
       expect(result.markers[0].label).toBe('Kickoff');
+    });
+  });
+
+  describe('top-level workweek', () => {
+    it('parses workweek at top level (outside holiday block)', () => {
+      const input = 'gantt\nworkweek sun-thu\n10d Task';
+      const result = parseGantt(input, palette);
+      expect(result.holidays.workweek).toEqual(['sun', 'mon', 'tue', 'wed', 'thu']);
+    });
+
+    it('workweek inside holiday block still works', () => {
+      const input = 'gantt\nholiday\n  workweek sun-thu\n10d Task';
+      const result = parseGantt(input, palette);
+      expect(result.holidays.workweek).toEqual(['sun', 'mon', 'tue', 'wed', 'thu']);
+    });
+
+    it('warns on invalid top-level workweek', () => {
+      const input = 'gantt\nworkweek bogus\n10d Task';
+      const result = parseGantt(input, palette);
+      expect(result.diagnostics.some(d => d.message.includes('Invalid workweek'))).toBe(true);
+    });
+  });
+
+  describe('era block form', () => {
+    it('parses bare era keyword with indented entries', () => {
+      const input = 'gantt\nera\n  2024-01 -> 2024-06 Phase 1\n  2024-06 -> 2024-12 Phase 2\n10d Task';
+      const result = parseGantt(input, palette);
+      expect(result.eras).toHaveLength(2);
+      expect(result.eras[0].startDate).toBe('2024-01');
+      expect(result.eras[0].endDate).toBe('2024-06');
+      expect(result.eras[0].label).toBe('Phase 1');
+      expect(result.eras[1].startDate).toBe('2024-06');
+      expect(result.eras[1].endDate).toBe('2024-12');
+      expect(result.eras[1].label).toBe('Phase 2');
+    });
+
+    it('parses era block entry with color', () => {
+      const input = 'gantt\nera\n  2024-01 -> 2024-06 Sprint (blue)\n10d Task';
+      const result = parseGantt(input, palette);
+      expect(result.eras).toHaveLength(1);
+      expect(result.eras[0].label).toBe('Sprint');
+      expect(result.eras[0].color).not.toBeNull();
+    });
+
+    it('inline era still works alongside block form', () => {
+      const input = 'gantt\nera 2024-01 -> 2024-06 Phase 1\nera\n  2024-06 -> 2024-12 Phase 2\n10d Task';
+      const result = parseGantt(input, palette);
+      expect(result.eras).toHaveLength(2);
+    });
+  });
+
+  describe('marker block form', () => {
+    it('parses bare marker keyword with indented entries', () => {
+      const input = 'gantt\nmarker\n  2024-03-01 Kickoff\n  2024-06-15 Release\n10d Task';
+      const result = parseGantt(input, palette);
+      expect(result.markers).toHaveLength(2);
+      expect(result.markers[0].date).toBe('2024-03-01');
+      expect(result.markers[0].label).toBe('Kickoff');
+      expect(result.markers[1].date).toBe('2024-06-15');
+      expect(result.markers[1].label).toBe('Release');
+    });
+
+    it('parses marker block entry with color', () => {
+      const input = 'gantt\nmarker\n  2024-03-01 Launch (green)\n10d Task';
+      const result = parseGantt(input, palette);
+      expect(result.markers).toHaveLength(1);
+      expect(result.markers[0].label).toBe('Launch');
+      expect(result.markers[0].color).not.toBeNull();
+    });
+
+    it('inline marker still works alongside block form', () => {
+      const input = 'gantt\nmarker 2024-03-01 Kickoff\nmarker\n  2024-06-15 Release\n10d Task';
+      const result = parseGantt(input, palette);
+      expect(result.markers).toHaveLength(2);
     });
   });
 

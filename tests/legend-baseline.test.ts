@@ -79,7 +79,7 @@ function getViewboxHeight(container: Element): number | null {
 // ── Sequence ──────────────────────────────────────────────────────────────────
 
 describe('Baseline: Sequence legend position', () => {
-  const src = `chart: sequence
+  const src = `sequence
 
 tag Team
   Frontend(blue)
@@ -322,7 +322,7 @@ edge
 // ── ER ────────────────────────────────────────────────────────────────────────
 
 describe('Baseline: ER legend position', () => {
-  const src = `chart: er
+  const src = `er
 
 tag Domain
   Auth(blue)
@@ -350,7 +350,7 @@ Order {
 // ── Timeline ──────────────────────────────────────────────────────────────────
 
 describe('Baseline: Timeline legend position', () => {
-  const src = `chart: timeline
+  const src = `timeline
 
 tag Status
   Done(green)

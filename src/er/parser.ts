@@ -243,15 +243,10 @@ export function parseERDiagram(
       firstLineParsed = true;
     }
 
-    // Tag group heading — `tag Name` or deprecated `## Name`
+    // Tag group heading — `tag Name`
     if (!contentStarted && indent === 0) {
       const tagBlockMatch = matchTagBlockHeading(trimmed);
       if (tagBlockMatch) {
-        if (tagBlockMatch.deprecated) {
-          result.diagnostics.push(makeDgmoError(lineNumber,
-            `'## ${tagBlockMatch.name}' is no longer supported — use 'tag: ${tagBlockMatch.name}' instead`));
-          continue;
-        }
         currentTagGroup = {
           name: tagBlockMatch.name,
           alias: tagBlockMatch.alias,
@@ -337,19 +332,16 @@ export function parseERDiagram(
     currentTable = null;
     contentStarted = true;
 
-    // Try relationship
+    // Reject top-level relationships — must be indented under source table
     const rel = parseRelationship(trimmed, lineNumber, pushError);
     if (rel) {
-      getOrCreateTable(rel.source, lineNumber);
-      getOrCreateTable(rel.target, lineNumber);
-
-      result.relationships.push({
-        source: tableId(rel.source),
-        target: tableId(rel.target),
-        cardinality: { from: rel.from, to: rel.to },
-        ...(rel.label && { label: rel.label }),
-        lineNumber,
-      });
+      result.diagnostics.push(
+        makeDgmoError(
+          lineNumber,
+          `Relationship "${rel.source} → ${rel.target}" must be indented under the source table "${rel.source}"`,
+          'warning',
+        ),
+      );
       continue;
     }
 

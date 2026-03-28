@@ -6,7 +6,7 @@ import { inferParticipantType } from './participant-inference';
 import type { DgmoError } from '../diagnostics';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
 import { parseArrow } from '../utils/arrows';
-import { measureIndent, extractColor, parsePipeMetadata, MULTIPLE_PIPE_WARNING, parseFirstLine, OPTION_NOCOLON_RE } from '../utils/parsing';
+import { measureIndent, extractColor, parsePipeMetadata, MULTIPLE_PIPE_ERROR, parseFirstLine, OPTION_NOCOLON_RE } from '../utils/parsing';
 import type { TagGroup } from '../utils/tag-groups';
 import { matchTagBlockHeading, validateTagValues } from '../utils/tag-groups';
 
@@ -185,17 +185,15 @@ const SECTION_PATTERN = /^==\s+(.+?)(?:\s*==)?\s*$/;
 // Arrow pattern for sequence inference — detects any arrow form
 const ARROW_PATTERN = /\S+\s*(?:<-\S+-|<~\S+~|-\S+->|~\S+~>|->|~>|<-|<~)\s*\S+/;
 
-// Note patterns — colon-free syntax
+// Note patterns — colon-free syntax only
 // Single-line: "note text", "note left text", "note right of X text", "note left X text"
 // Multi-line:  "note", "note right", "note right of X", "note left X" (body indented below)
-// Also supports legacy colon syntax: "note: text", "note right of X: text"
 //
 // The colon-free positioned form requires participant resolution — the parser
 // already has participant collection infrastructure, so we match the general
 // structure here and resolve participant vs text in the parsing logic.
-const NOTE_SINGLE_COLON = /^note(?:\s+(right|left)(?:\s+(?:of\s+)?(.+?))?)?\s*:\s*(.+)$/i;
 const NOTE_BARE = /^note\s+(.+)$/i;
-const NOTE_MULTI = /^note(?:\s+(right|left)(?:\s+(?:of\s+)?(.+?))?)?\s*:?\s*$/i;
+const NOTE_MULTI = /^note(?:\s+(right|left)(?:\s+(?:of\s+)?(.+?))?)?\s*$/i;
 
 /** Result of parseNoteLine — indicates what the parser should do. */
 type NoteParseResult =
@@ -208,10 +206,10 @@ type NoteParseResult =
  * Parse a note line, resolving participant names from the known participants list.
  *
  * Supports:
- * - `note: text` / `note text` — default position (right), last msg sender
- * - `note left of X: text` / `note left of X text` / `note left X text`
- * - `note right:` / `note right` — multi-line head
- * - `note right of X:` / `note right of X` / `note left X` — multi-line head
+ * - `note text` — default position (right), last msg sender
+ * - `note left of X text` / `note left X text`
+ * - `note right` — multi-line head
+ * - `note right of X` / `note left X` — multi-line head
  * - Quoted participant: `note left "Auth Service" text`
  */
 function parseNoteLine(
@@ -222,25 +220,12 @@ function parseNoteLine(
   const lower = trimmed.toLowerCase();
   if (!lower.startsWith('note')) return null;
   // Must be exactly "note" or "note " — not "notebook" etc.
-  if (trimmed.length > 4 && trimmed[4] !== ' ' && trimmed[4] !== ':') return null;
+  if (trimmed.length > 4 && trimmed[4] !== ' ') return null;
 
-  // 1. Try legacy colon-based syntax first
-  const colonMatch = trimmed.match(NOTE_SINGLE_COLON);
-  if (colonMatch) {
-    const position = (colonMatch[1]?.toLowerCase() as 'right' | 'left') || 'right';
-    let participantId = colonMatch[2] || null;
-    if (!participantId) {
-      if (!lastMsgFrom) return { kind: 'skip' };
-      participantId = lastMsgFrom;
-    }
-    if (!participants.some((p) => p.id === participantId)) return { kind: 'skip' };
-    return { kind: 'single', position, participantId, text: colonMatch[3].trim() };
-  }
-
-  // 2. Try multi-line head (no text after note): `note`, `note right`, `note right of X`, `note left X`
+  // 1. Try multi-line head (no text after note): `note`, `note right`, `note right of X`, `note left X`
   // NOTE: NOTE_MULTI's (.+?) can greedily capture "participant text" as one group.
-  // Only trust this match if the captured participant actually exists. Otherwise, fall
-  // through to the bare-note handler which does proper participant-aware splitting.
+  // Only trust this match if the captured participant actually exists. Otherwise,
+  // fall through to the bare-note handler which does proper participant-aware splitting.
   const multiMatch = trimmed.match(NOTE_MULTI);
   if (multiMatch) {
     const position = (multiMatch[1]?.toLowerCase() as 'right' | 'left') || 'right';
@@ -255,7 +240,7 @@ function parseNoteLine(
     // Participant not found — fall through to bare-note handler for proper resolution
   }
 
-  // 3. Bare note (colon-free): `note text` or `note left [of] X text`
+  // 2. Bare note: `note text` or `note left [of] X text`
   const bareMatch = trimmed.match(NOTE_BARE);
   if (bareMatch) {
     const rest = bareMatch[1].trim();
@@ -427,7 +412,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     if (idx < 0) return { core: text };
     const core = text.substring(0, idx).trimEnd();
     const segments = text.substring(idx).split('|');
-    const warnFn = ln != null ? () => pushWarning(ln, MULTIPLE_PIPE_WARNING) : undefined;
+    const warnFn = ln != null ? () => pushError(ln, MULTIPLE_PIPE_ERROR) : undefined;
     const meta = parsePipeMetadata(segments, aliasMap, warnFn);
     return Object.keys(meta).length > 0 ? { core, meta } : { core };
   };
@@ -475,7 +460,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       const afterBracket = groupMatch[3]?.trim() || '';
       if (afterBracket.startsWith('|')) {
         const segments = afterBracket.split('|');
-        const meta = parsePipeMetadata(segments, aliasMap, () => pushWarning(lineNumber, MULTIPLE_PIPE_WARNING));
+        const meta = parsePipeMetadata(segments, aliasMap, () => pushError(lineNumber, MULTIPLE_PIPE_ERROR));
         if (Object.keys(meta).length > 0) groupMeta = meta;
       }
 
@@ -531,9 +516,9 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     }
 
     // ---- Tag group handling ----
-    // Tag block heading: "tag: Name [alias X]"
+    // Tag block heading: "tag Name [alias X]"
     const tagBlockMatch = matchTagBlockHeading(trimmed);
-    if (tagBlockMatch && !tagBlockMatch.deprecated) {
+    if (tagBlockMatch) {
       if (contentStarted) {
         pushError(lineNumber, 'Tag groups must appear before sequence content');
         continue;
@@ -608,14 +593,6 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       } else {
       const value = trimmed.substring(colonIndex + 1).trim();
 
-      if (key === 'chart') {
-        hasExplicitChart = true;
-        if (value.toLowerCase() !== 'sequence') {
-          return fail(lineNumber, `Expected chart type "sequence", got "${value}"`);
-        }
-        continue;
-      }
-
       // Enforce headers-before-content
       if (contentStarted) {
         pushError(lineNumber, `Options like '${key}: ${value}' must appear before the first message or declaration`);
@@ -666,8 +643,9 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     }
 
     // Parse "Name is a type [aka Alias]" declarations (always top-level)
+    // Skip lines starting with 'note' — handled by note parsing below
     const { core: isACore, meta: isAMeta } = splitPipe(trimmed, lineNumber);
-    const isAMatch = isACore.match(IS_A_PATTERN);
+    const isAMatch = !/^note(\s|$)/i.test(trimmed) ? isACore.match(IS_A_PATTERN) : null;
     if (isAMatch) {
       contentStarted = true;
       const id = isAMatch[1];
@@ -1049,12 +1027,11 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       continue;
     }
 
-    // ---- Note parsing (colon-free + legacy colon syntax) ----
+    // ---- Note parsing (space-separated only) ----
     // Strategy:
-    // 1. Try colon-based syntax: `note right of X: text` (legacy, still supported)
-    // 2. Try bare note: `note text` — position defaults, text is everything after `note`
-    // 3. For positioned: `note left [of] X text` — needs participant lookup to split name vs text
-    // 4. Multi-line: `note`, `note right`, `note right [of] X` (body indented below)
+    // 1. Try bare note: `note text` — position defaults, text is everything after `note`
+    // 2. For positioned: `note left [of] X text` — needs participant lookup to split name vs text
+    // 3. Multi-line: `note`, `note right`, `note right [of] X` (body indented below)
     {
       const noteParsed = parseNoteLine(trimmed, result.participants, lastMsgFrom);
       if (noteParsed) {

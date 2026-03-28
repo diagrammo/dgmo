@@ -16,34 +16,14 @@ describe('parseFlowchart', () => {
       expect(result.title).toBe('My Flow');
     });
 
-    it('parses direction TB', () => {
-      const result = parseFlowchart('flowchart\ndirection TB\n(Start) -> (End)');
+    it('parses direction-tb', () => {
+      const result = parseFlowchart('flowchart\ndirection-tb\n(Start) -> (End)');
       expect(result.direction).toBe('TB');
     });
 
-    it('parses direction LR', () => {
-      const result = parseFlowchart('flowchart\ndirection LR\n(Start) -> (End)');
-      expect(result.direction).toBe('LR');
-    });
-
-    it('defaults to TB when no direction specified', () => {
+    it('defaults to LR when no direction specified', () => {
       const result = parseFlowchart('(Start) -> (End)');
-      expect(result.direction).toBe('TB');
-    });
-
-    it('accepts orientation as alias for direction', () => {
-      const result = parseFlowchart('flowchart\norientation horizontal\n(Start) -> (End)');
       expect(result.direction).toBe('LR');
-    });
-
-    it('normalizes direction horizontal to LR', () => {
-      const result = parseFlowchart('flowchart\ndirection horizontal\n(Start) -> (End)');
-      expect(result.direction).toBe('LR');
-    });
-
-    it('normalizes orientation vertical to TB', () => {
-      const result = parseFlowchart('flowchart\norientation vertical\n(Start) -> (End)');
-      expect(result.direction).toBe('TB');
     });
   });
 
@@ -266,43 +246,6 @@ describe('parseFlowchart', () => {
     });
   });
 
-  // === AC 9: Groups ===
-  describe('groups', () => {
-    it('## emits an error diagnostic', () => {
-      const input = '## API(blue)\n  [Auth] -> [Route]';
-      const result = parseFlowchart(input);
-      expect(result.groups).toBeUndefined();
-      const groupError = result.diagnostics.find((d) => d.message.includes('Use `#` for groups'));
-      expect(groupError).toBeDefined();
-      expect(groupError!.severity).toBe('error');
-    });
-
-    it('# GroupName creates a group with indented members', () => {
-      const input = '# API\n  [Auth] -> [Route]';
-      const result = parseFlowchart(input);
-      expect(result.error).toBeNull();
-      expect(result.groups).toHaveLength(1);
-      expect(result.groups![0].label).toBe('API');
-      expect(result.groups![0].nodeIds).toContain(result.nodes[0].id);
-      expect(result.groups![0].nodeIds).toContain(result.nodes[1].id);
-    });
-
-    it('# GroupName(color) creates a group with color', () => {
-      const input = '# API(blue)\n  [Auth] -> [Route]';
-      const result = parseFlowchart(input);
-      expect(result.error).toBeNull();
-      expect(result.groups).toHaveLength(1);
-      expect(result.groups![0].label).toBe('API');
-      expect(result.groups![0].color).toBeDefined();
-    });
-
-    it('outdent closes the group', () => {
-      const input = '# API\n  [Auth] -> [Route]\n[Outside]';
-      const result = parseFlowchart(input);
-      expect(result.groups).toHaveLength(1);
-      expect(result.groups![0].nodeIds).not.toContain(result.nodes.find(n => n.label === 'Outside')!.id);
-    });
-  });
 
   // === AC 10: Node colors ===
   describe('node colors', () => {
@@ -376,7 +319,7 @@ describe('parseFlowchart', () => {
     it('parses the CI/CD pipeline example', () => {
       const input = [
         'flowchart CI/CD Pipeline',
-        'direction LR',
+        '',
         '',
         '(Push to Repo) -> [[Run Linter]] -> <Lint Pass?>',
         '  -yes-> [[Run Tests]]',

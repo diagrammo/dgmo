@@ -134,14 +134,14 @@ describe('renderClassDiagram', () => {
     });
 
     it('renders dashed edges for implements', () => {
-      const container = renderToContainer('Drawable [interface]\n  draw(): void\n\nCircle ..|> Drawable');
+      const container = renderToContainer('Drawable [interface]\n  draw(): void\n\nCircle\n  ..|> Drawable');
       const edgePath = container.querySelector('.cd-edge');
       expect(edgePath?.getAttribute('stroke-dasharray')).toBe('6 3');
       document.body.removeChild(container);
     });
 
     it('renders solid edges for extends', () => {
-      const container = renderToContainer('Animal\n  name: string\n\nDog --|> Animal');
+      const container = renderToContainer('Animal\n  name: string\n\nDog\n  --|> Animal');
       const edgePath = container.querySelector('.cd-edge');
       expect(edgePath?.getAttribute('stroke-dasharray')).toBeNull();
       document.body.removeChild(container);
@@ -246,9 +246,9 @@ describe('renderClassDiagram', () => {
       document.body.removeChild(container);
     });
 
-    it('does not render legend when color off', () => {
+    it('does not render legend when no-auto-color', () => {
       const container = renderToContainer(
-        'color off\ninterface Drawable\n  draw(): void\n\nabstract Shape\n  area(): number'
+        'no-auto-color\ninterface Drawable\n  draw(): void\n\nabstract Shape\n  area(): number'
       );
       const legend = container.querySelector('.cd-legend');
       expect(legend).toBeNull();

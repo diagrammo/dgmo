@@ -1,5 +1,4 @@
 flowchart Order Processing Pipeline
-direction LR
 
 (Receive Order) -> [Validate Input] -> <Valid?>
   -yes-> [Check Inventory] -> <In Stock?>

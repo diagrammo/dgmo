@@ -19,9 +19,9 @@ describe('parseClassDiagram', () => {
       expect(result.error).toBeNull();
     });
 
-    it('parses space-separated options', () => {
-      const result = parseClassDiagram('class\ncolor off\nAnimal\n  name: string');
-      expect(result.options['color']).toBe('off');
+    it('parses no-auto-color boolean option', () => {
+      const result = parseClassDiagram('class\nno-auto-color\nAnimal\n  name: string');
+      expect(result.options['no-auto-color']).toBe('on');
     });
   });
 
@@ -232,67 +232,87 @@ describe('parseClassDiagram', () => {
     });
   });
 
-  // === Relationships — arrow syntax ===
-  describe('relationships (arrows)', () => {
+  // === Relationships — indented arrow syntax ===
+  describe('relationships (indented arrows)', () => {
     it('parses --|> (extends)', () => {
-      const result = parseClassDiagram('Dog --|> Animal');
-      expect(result.relationships[0].type).toBe('extends');
-    });
-
-    it('parses ..|> (implements)', () => {
-      const result = parseClassDiagram('Circle ..|> Drawable');
-      expect(result.relationships[0].type).toBe('implements');
-    });
-
-    it('parses *-- (composition)', () => {
-      const result = parseClassDiagram('Car *-- Engine');
-      expect(result.relationships[0].type).toBe('composes');
-    });
-
-    it('parses o-- (aggregation)', () => {
-      const result = parseClassDiagram('Library o-- Book');
-      expect(result.relationships[0].type).toBe('aggregates');
-    });
-
-    it('parses ..> (dependency)', () => {
-      const result = parseClassDiagram('Controller ..> Service');
-      expect(result.relationships[0].type).toBe('depends');
-    });
-
-    it('parses -> (association)', () => {
-      const result = parseClassDiagram('Student -> Course');
-      expect(result.relationships[0].type).toBe('associates');
-    });
-
-    it('parses arrow with space-separated label', () => {
-      const result = parseClassDiagram('Dog --|> Animal inherits');
-      expect(result.relationships[0].label).toBe('inherits');
-    });
-
-    it('no space before arrow: Dog--|> Animal', () => {
-      const result = parseClassDiagram('Dog--|> Animal');
-      expect(result.relationships).toHaveLength(1);
+      const result = parseClassDiagram('Dog\n  --|> Animal');
       expect(result.relationships[0].type).toBe('extends');
       expect(result.relationships[0].source).toBe('dog');
       expect(result.relationships[0].target).toBe('animal');
     });
 
-    it('no spaces around arrow: Dog--|>Animal', () => {
-      const result = parseClassDiagram('Dog--|>Animal');
-      expect(result.relationships).toHaveLength(1);
-      expect(result.relationships[0].type).toBe('extends');
+    it('parses ..|> (implements)', () => {
+      const result = parseClassDiagram('Circle\n  ..|> Drawable');
+      expect(result.relationships[0].type).toBe('implements');
     });
 
-    it('no space before ->: Student->Course', () => {
-      const result = parseClassDiagram('Student->Course');
-      expect(result.relationships).toHaveLength(1);
+    it('parses *-- (composition)', () => {
+      const result = parseClassDiagram('Car\n  *-- Engine');
+      expect(result.relationships[0].type).toBe('composes');
+    });
+
+    it('parses o-- (aggregation)', () => {
+      const result = parseClassDiagram('Library\n  o-- Book');
+      expect(result.relationships[0].type).toBe('aggregates');
+    });
+
+    it('parses ..> (dependency)', () => {
+      const result = parseClassDiagram('Controller\n  ..> Service');
+      expect(result.relationships[0].type).toBe('depends');
+    });
+
+    it('parses -> (association)', () => {
+      const result = parseClassDiagram('Student\n  -> Course');
       expect(result.relationships[0].type).toBe('associates');
     });
 
-    it('no space before ..>: Controller..>Service', () => {
-      const result = parseClassDiagram('Controller..>Service');
-      expect(result.relationships).toHaveLength(1);
-      expect(result.relationships[0].type).toBe('depends');
+    it('parses arrow with space-separated label', () => {
+      const result = parseClassDiagram('Dog\n  --|> Animal inherits');
+      expect(result.relationships[0].label).toBe('inherits');
+    });
+
+    it('parses arrow with colon-separated label', () => {
+      const result = parseClassDiagram('Canvas\n  *-- Shape : contains');
+      expect(result.relationships[0].type).toBe('composes');
+      expect(result.relationships[0].label).toBe('contains');
+    });
+
+    it('source is the current class', () => {
+      const result = parseClassDiagram('Canvas\n  - shapes: Shape[]\n  *-- Shape');
+      expect(result.relationships[0].source).toBe('canvas');
+      expect(result.relationships[0].target).toBe('shape');
+    });
+
+    it('multiple relationships under one class', () => {
+      const result = parseClassDiagram('Canvas\n  *-- Shape\n  ..> Logger');
+      expect(result.relationships).toHaveLength(2);
+      expect(result.relationships[0].source).toBe('canvas');
+      expect(result.relationships[1].source).toBe('canvas');
+    });
+
+    it('auto-creates target class', () => {
+      const result = parseClassDiagram('Dog\n  --|> Animal');
+      expect(result.classes.map(c => c.name).sort()).toEqual(['Animal', 'Dog']);
+    });
+  });
+
+  // === Top-level relationships rejected ===
+  describe('top-level relationships rejected', () => {
+    it('rejects top-level --|> with warning', () => {
+      const result = parseClassDiagram('Dog --|> Animal');
+      expect(result.relationships).toHaveLength(0);
+      expect(result.diagnostics.some(d => d.message.includes('must be indented'))).toBe(true);
+    });
+
+    it('rejects top-level *-- with warning', () => {
+      const result = parseClassDiagram('Car *-- Engine');
+      expect(result.relationships).toHaveLength(0);
+      expect(result.diagnostics.some(d => d.message.includes('must be indented'))).toBe(true);
+    });
+
+    it('rejects top-level -> with warning', () => {
+      const result = parseClassDiagram('Student -> Course');
+      expect(result.relationships).toHaveLength(0);
     });
   });
 
@@ -304,8 +324,8 @@ describe('parseClassDiagram', () => {
     });
 
     it('tracks arrow relationship line number', () => {
-      const result = parseClassDiagram('Animal\n  name: string\n\nDog\n  breed: string\n\nDog --|> Animal');
-      expect(result.relationships[0].lineNumber).toBe(7);
+      const result = parseClassDiagram('Animal\n  name: string\n\nDog\n  breed: string\n  --|> Animal');
+      expect(result.relationships[0].lineNumber).toBe(6);
     });
   });
 
@@ -358,8 +378,8 @@ describe('looksLikeClassDiagram', () => {
     expect(looksLikeClassDiagram('Animal\n  name: string\n\nDog extends Animal\n  breed: string')).toBe(true);
   });
 
-  it('detects relationship arrows with members', () => {
-    expect(looksLikeClassDiagram('Animal\n  name: string\nDog --|> Animal')).toBe(true);
+  it('detects indented relationship arrows with members', () => {
+    expect(looksLikeClassDiagram('Animal\n  name: string\nDog\n  --|> Animal')).toBe(true);
   });
 
   it('does not false-positive on flowcharts', () => {

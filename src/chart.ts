@@ -46,7 +46,9 @@ export interface ParsedChart {
   orientation?: 'horizontal' | 'vertical';
   color?: string;
   label?: string;
-  labels?: 'name' | 'value' | 'percent' | 'full';
+  noLabelName?: boolean;
+  noLabelValue?: boolean;
+  noLabelPercent?: boolean;
   data: ChartDataPoint[];
   eras?: ChartEra[];
   diagnostics: DgmoError[];
@@ -60,7 +62,7 @@ export interface ParsedChart {
 import { resolveColor } from './colors';
 import type { PaletteColors } from './palettes';
 import { makeDgmoError, formatDgmoError, suggest } from './diagnostics';
-import { extractColor, normalizeDirection, normalizeGroupedNumber, parseFirstLine, parseSeriesNames } from './utils/parsing';
+import { extractColor, normalizeGroupedNumber, parseFirstLine, parseSeriesNames } from './utils/parsing';
 
 // ============================================================
 // Parser
@@ -83,8 +85,14 @@ const TYPE_ALIASES: Record<string, ChartType> = {
 
 /** Known option keywords for the simple chart parser. */
 const KNOWN_OPTIONS = new Set([
-  'chart', 'title', 'series', 'xlabel', 'ylabel', 'label', 'labels',
-  'orientation', 'direction', 'color',
+  'chart', 'title', 'series', 'xlabel', 'ylabel', 'label',
+  'no-label-name', 'no-label-value', 'no-label-percent',
+  'color',
+]);
+
+/** Known boolean options for the simple chart parser. */
+const KNOWN_BOOLEANS = new Set([
+  'orientation-vertical',
 ]);
 
 /**
@@ -193,6 +201,14 @@ export function parseChart(
     const spaceIdx = trimmed.indexOf(' ');
     const firstToken = (spaceIdx >= 0 ? trimmed.substring(0, spaceIdx) : trimmed).toLowerCase();
 
+    // Bare boolean options (e.g. orientation-vertical)
+    if (KNOWN_BOOLEANS.has(firstToken) && spaceIdx < 0) {
+      if (firstToken === 'orientation-vertical') {
+        result.orientation = 'vertical';
+      }
+      continue;
+    }
+
     // Known option with a value
     if (KNOWN_OPTIONS.has(firstToken) && spaceIdx >= 0) {
       const value = trimmed.substring(spaceIdx + 1).trim();
@@ -234,29 +250,6 @@ export function parseChart(
         continue;
       }
 
-      if (firstToken === 'labels') {
-        const v = value.toLowerCase();
-        if (v === 'name' || v === 'value' || v === 'percent' || v === 'full') {
-          result.labels = v;
-        }
-        continue;
-      }
-
-      if (firstToken === 'orientation' || firstToken === 'direction') {
-        // Only bar and bar-stacked support orientation (axis swapping)
-        if (result.type === 'bar' || result.type === 'bar-stacked') {
-          const vLower = value.toLowerCase();
-          if (vLower === 'horizontal' || vLower === 'vertical') {
-            result.orientation = vLower;
-          } else {
-            const dir = normalizeDirection(value);
-            if (dir === 'LR') result.orientation = 'horizontal';
-            else if (dir === 'TB') result.orientation = 'vertical';
-          }
-        }
-        continue;
-      }
-
       if (firstToken === 'color') {
         result.color = resolveColor(value.trim(), palette) ?? undefined;
         continue;
@@ -276,6 +269,11 @@ export function parseChart(
       }
     }
 
+    // Bare boolean options: no-label-name, no-label-value, no-label-percent
+    if (firstToken === 'no-label-name') { result.noLabelName = true; continue; }
+    if (firstToken === 'no-label-value') { result.noLabelValue = true; continue; }
+    if (firstToken === 'no-label-percent') { result.noLabelPercent = true; continue; }
+
     // Bare "series" keyword with no value — collect indented names
     if (firstToken === 'series' && spaceIdx === -1) {
       const parsed = parseSeriesNames('', lines, i, palette);
@@ -292,8 +290,10 @@ export function parseChart(
 
     // Data row: parse from the right — rightmost numeric token(s) = value(s), everything left = label
     // Supports comma-separated multi-values: "Jan 100, 200, 300"
+    // Supports space-separated multi-values when series are defined: "Jan 100 200 300"
     // Supports comma-grouped numbers: "Revenue 1,200, 1,500" → [1200, 1500]
-    const dataValues = parseDataRowValues(trimmed);
+    const multiValue = (result.seriesNames?.length ?? 0) >= 2;
+    const dataValues = parseDataRowValues(trimmed, { multiValue });
     if (dataValues) {
       const { label: rawLabel, color: pointColor } = extractColor(dataValues.label, palette);
       const [first, ...rest] = dataValues.values;
@@ -361,7 +361,7 @@ export function parseChart(
     for (const dp of result.data) {
       const actualCount = 1 + (dp.extraValues?.length ?? 0);
       if (actualCount !== expectedCount) {
-        warn(dp.lineNumber, `Data point "${dp.label}" has ${actualCount} value(s), but ${expectedCount} series defined. Each row must have ${expectedCount} comma-separated values.`);
+        warn(dp.lineNumber, `Data point "${dp.label}" has ${actualCount} value(s), but ${expectedCount} series defined. Each row must have ${expectedCount} values.`);
       }
     }
     // Filter out mismatched data points so renderers get clean data
@@ -380,20 +380,22 @@ export function parseChart(
 
 /**
  * Parse a data row line: everything before the last numeric token(s) is the label,
- * numeric tokens at the end are the values. Supports comma-separated multi-values
- * and comma-grouped numbers (e.g., "1,087").
+ * numeric tokens at the end are the values. Supports comma-separated multi-values,
+ * space-separated multi-values, and comma-grouped numbers (e.g., "1,087").
  *
  * Examples:
- *   "Jan 120"           → { label: "Jan", values: [120] }
- *   "North America 250" → { label: "North America", values: [250] }
- *   "Region 5 300"      → { label: "Region 5", values: [300] }
- *   "Q1 10, 20, 30"     → { label: "Q1", values: [10, 20, 30] }
- *   "Revenue 1,200"     → { label: "Revenue", values: [1200] }
+ *   "Jan 120"             → { label: "Jan", values: [120] }
+ *   "North America 250"   → { label: "North America", values: [250] }
+ *   "Q1 10, 20, 30"       → { label: "Q1", values: [10, 20, 30] }
+ *   "Q1 10 20 30"         → { label: "Q1", values: [10, 20, 30] }
+ *   "Revenue 1,200"       → { label: "Revenue", values: [1200] }
+ *   "Revenue 3,984,078.65"→ { label: "Revenue", values: [3984078.65] }
  *
  * Returns null if the line has no numeric value at the end.
  */
 export function parseDataRowValues(
   line: string,
+  options?: { multiValue?: boolean },
 ): { label: string; values: number[] } | null {
   // First, normalize comma-grouped numbers: replace patterns like "1,087" with "1087"
   // We need to be careful: commas also separate multi-values.
@@ -407,11 +409,12 @@ export function parseDataRowValues(
   const normalized: string[] = [];
   for (let i = 0; i < segments.length; i++) {
     const seg = segments[i].trim();
-    // Check if this segment is a continuation of a grouped number
-    // A continuation looks like exactly 3 digits and follows a segment ending in digits.
+    // Check if this segment is a continuation of a grouped number.
+    // A continuation starts with exactly 3 digits (possibly followed by a decimal like ".65")
+    // and follows a segment ending in digits.
     // Grouped numbers have NO space around the comma (e.g., "1,087"), so skip if
     // the raw segment has leading whitespace (e.g., ", 350" is a value separator).
-    if (i > 0 && /^\d{3}$/.test(seg) && !/^\s/.test(segments[i])) {
+    if (i > 0 && /^\d{3}(\.\d+)?$/.test(seg) && !/^\s/.test(segments[i])) {
       const prevSeg = normalized[normalized.length - 1].trimEnd();
       // Check if previous segment ends with a number (1-3 digits at the end of the last token)
       if (/\d{1,3}$/.test(prevSeg)) {
@@ -476,16 +479,35 @@ export function parseDataRowValues(
     }
   }
 
-  // No commas or comma parsing didn't work — split by spaces from right
-  // Last space-separated token that is numeric = the value
-  const lastSpaceIdx = rebuilt.lastIndexOf(' ');
-  if (lastSpaceIdx < 0) return null;
+  // No commas or comma parsing didn't work — split by spaces from right.
+  // When multiValue is enabled, walk backward collecting consecutive numeric tokens.
+  // Otherwise (default), take only the last token — preserving labels that contain
+  // numbers (e.g., "Region 5 300" → label "Region 5", value 300).
+  const tokens = rebuilt.split(/\s+/);
+  if (tokens.length < 2) return null;
 
-  const possibleValue = rebuilt.substring(lastSpaceIdx + 1).trim();
-  const num = parseFloat(possibleValue);
-  if (isNaN(num) || !isFinite(Number(possibleValue))) return null;
+  if (options?.multiValue) {
+    const values: number[] = [];
+    let idx = tokens.length - 1;
+    while (idx >= 1) {
+      const tok = tokens[idx];
+      const num = parseFloat(tok);
+      if (isNaN(num) || !isFinite(Number(tok))) break;
+      values.unshift(num);
+      idx--;
+    }
+    if (values.length === 0) return null;
+    const label = tokens.slice(0, idx + 1).join(' ');
+    if (!label) return null;
+    return { label, values };
+  }
 
-  const label = rebuilt.substring(0, lastSpaceIdx).trim();
+  // Single-value mode: only the last space-separated token
+  const lastToken = tokens[tokens.length - 1];
+  const num = parseFloat(lastToken);
+  if (isNaN(num) || !isFinite(Number(lastToken))) return null;
+
+  const label = tokens.slice(0, -1).join(' ');
   if (!label) return null;
 
   return { label, values: [num] };

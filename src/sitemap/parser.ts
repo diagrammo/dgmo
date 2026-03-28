@@ -11,10 +11,8 @@ import {
   measureIndent,
   extractColor,
   parsePipeMetadata,
-  normalizeDirection,
   inferArrowColor,
-  MULTIPLE_PIPE_WARNING,
-  CHART_TYPE_RE,
+  MULTIPLE_PIPE_ERROR,
   TITLE_RE,
   OPTION_RE,
   parseFirstLine,
@@ -92,7 +90,7 @@ export function looksLikeSitemap(content: string): boolean {
     if (!trimmed || trimmed.startsWith('//')) continue;
 
     // Skip header lines
-    if (CHART_TYPE_RE.test(trimmed) || TITLE_RE.test(trimmed)) continue;
+    if (parseFirstLine(trimmed) || TITLE_RE.test(trimmed)) continue;
     if (isTagBlockHeading(trimmed)) continue;
 
     if (/^-.*->\s*.+/.test(trimmed) || /^->\s*.+/.test(trimmed)) {
@@ -124,7 +122,7 @@ export function parseSitemap(
   const result: ParsedSitemap = {
     title: null,
     titleLineNumber: null,
-    direction: 'TB',
+    direction: 'LR',
     roots: [],
     edges: [],
     tagGroups: [],
@@ -226,10 +224,6 @@ export function parseSitemap(
         pushError(lineNumber, 'Tag groups must appear before sitemap content');
         continue;
       }
-      if (tagBlockMatch.deprecated) {
-        pushError(lineNumber, `'## ${tagBlockMatch.name}' is no longer supported — use 'tag: ${tagBlockMatch.name}' instead`);
-        continue;
-      }
       currentTagGroup = {
         name: tagBlockMatch.name,
         alias: tagBlockMatch.alias,
@@ -247,16 +241,15 @@ export function parseSitemap(
     // Skip lines with `|` (pipe metadata) or `->` (arrows) — those are content
     if (!contentStarted && !currentTagGroup && measureIndent(line) === 0
         && !trimmed.includes('|') && !trimmed.includes('->')) {
+      // Bare boolean: direction-tb
+      if (/^direction-tb$/i.test(trimmed)) {
+        result.direction = 'TB';
+        continue;
+      }
+
       const optMatch = trimmed.match(OPTION_NOCOLON_RE);
       if (optMatch) {
         const key = optMatch[1].trim().toLowerCase();
-        if (key === 'direction' || key === 'orientation') {
-          const dir = normalizeDirection(optMatch[2]);
-          if (dir) {
-            result.direction = dir as SitemapDirection;
-          }
-          continue;
-        }
         result.options[key] = optMatch[2].trim();
         continue;
       }
@@ -440,7 +433,7 @@ function parseNodeLabel(
   const segments = trimmed.split('|').map((s) => s.trim());
   const rawLabel = segments[0];
   const { label, color } = extractColor(rawLabel, palette);
-  const metadata = parsePipeMetadata(segments, aliasMap, warnFn ? () => warnFn(lineNumber, MULTIPLE_PIPE_WARNING) : undefined);
+  const metadata = parsePipeMetadata(segments, aliasMap, warnFn ? () => warnFn(lineNumber, MULTIPLE_PIPE_ERROR) : undefined);
 
   return {
     id: `node-${counter}`,

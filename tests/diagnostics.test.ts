@@ -139,7 +139,7 @@ describe('sequence: multiple recoverable errors', () => {
 // ============================================================
 
 describe('org: multiple recoverable errors', () => {
-  it('collects deprecated ## syntax errors and continues parsing', () => {
+  it('ignores ## syntax (no longer recognized as tag heading)', () => {
     const content = [
       'org',
       '## Department',
@@ -153,13 +153,10 @@ describe('org: multiple recoverable errors', () => {
     ].join('\n');
 
     const result = parseOrg(content);
-    const errors = result.diagnostics.filter((d) => d.severity === 'error');
-    // ## syntax now produces a fatal error and skips the tag group
-    expect(errors).toHaveLength(1);
-    expect(errors[0].message).toContain("'## Department' is no longer supported");
-    expect(errors[0].message).toContain("tag: Department");
-    // Nodes still parsed (Engineering + Sales leak as roots since tag group was skipped)
-    expect(result.roots).toHaveLength(4);
+    // ## is not recognized as a tag heading — no tag groups created
+    expect(result.tagGroups).toHaveLength(0);
+    // All lines become org nodes (## Department, Engineering, Sales, Alice, Bob become roots/children)
+    expect(result.roots.length).toBeGreaterThanOrEqual(2);
   });
 
   it('collects metadata-without-parent error and continues', () => {

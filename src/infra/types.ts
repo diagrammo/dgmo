@@ -62,7 +62,6 @@ export interface InfraNode {
   groupId: string | null;
   tags: Record<string, string>; // tagGroup -> tagValue
   isEdge: boolean; // true for the `edge` entry-point component
-  nodeType?: string; // database, cache, queue, service, gateway, storage, function, network
   description?: string;
   lineNumber: number;
 }

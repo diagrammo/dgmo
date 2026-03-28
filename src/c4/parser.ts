@@ -11,7 +11,7 @@ import {
   measureIndent,
   extractColor,
   parsePipeMetadata,
-  MULTIPLE_PIPE_WARNING,
+  MULTIPLE_PIPE_ERROR,
   parseFirstLine,
   OPTION_NOCOLON_RE,
 } from '../utils/parsing';
@@ -56,8 +56,8 @@ const SECTION_HEADER_RE = /^(containers|components|deployment)\s*$/i;
 /** Matches `container X` references inside deployment nodes */
 const CONTAINER_REF_RE = /^container\s+(.+)$/i;
 
-/** Matches indented metadata: `key value` (space-separated, no colon) */
-const METADATA_RE = /^([a-z][a-z0-9-]*)\s+(.+)$/i;
+/** Matches indented metadata: `key: value` (colon-separated) */
+const METADATA_RE = /^([a-z][a-z0-9-]*):\s+(.+)$/i;
 
 // ============================================================
 // Helpers
@@ -83,7 +83,11 @@ const VALID_SHAPES = new Set<string>([
 /** Known top-level option keys for C4 diagrams. */
 const KNOWN_C4_OPTIONS = new Set<string>([
   'layout',
-  'direction',
+]);
+
+/** Known C4 boolean options (bare keyword = on). */
+const KNOWN_C4_BOOLEANS = new Set<string>([
+  'direction-tb',
 ]);
 
 const ALL_CHART_TYPES = [
@@ -286,10 +290,6 @@ export function parseC4(
         pushError(lineNumber, 'Tag groups must appear before content');
         continue;
       }
-      if (tagBlockMatch.deprecated) {
-        pushError(lineNumber, `'## ${tagBlockMatch.name}' is no longer supported — use 'tag: ${tagBlockMatch.name}' instead`);
-        continue;
-      }
       currentTagGroup = {
         name: tagBlockMatch.name,
         alias: tagBlockMatch.alias,
@@ -303,8 +303,14 @@ export function parseC4(
       continue;
     }
 
-    // Generic header options (space-separated: `key value`)
+    // Generic header options (space-separated: `key value` or bare boolean)
     if (!contentStarted && !currentTagGroup && measureIndent(line) === 0) {
+      // Bare boolean options
+      if (KNOWN_C4_BOOLEANS.has(trimmed.toLowerCase())) {
+        result.options[trimmed.toLowerCase()] = 'on';
+        continue;
+      }
+
       const optMatch = trimmed.match(OPTION_NOCOLON_RE);
       if (optMatch) {
         const key = optMatch[1].trim().toLowerCase();
@@ -382,7 +388,7 @@ export function parseC4(
         // Otherwise it's a deployment node (possibly with pipe metadata)
         const segments = trimmed.split('|').map((s) => s.trim());
         const nodeName = segments[0];
-        const metadata = parsePipeMetadata(segments, aliasMap, () => pushError(lineNumber, MULTIPLE_PIPE_WARNING, 'warning'));
+        const metadata = parsePipeMetadata(segments, aliasMap, () => pushError(lineNumber, MULTIPLE_PIPE_ERROR));
         const shape = inferC4Shape(nodeName, metadata.tech ?? metadata.technology);
 
         const dNode: C4DeploymentNode = {
@@ -641,7 +647,7 @@ export function parseC4(
         namePart = namePart.substring(0, nameIsAMatch.index!).trim();
       }
 
-      const metadata = parsePipeMetadata(segments, aliasMap, () => pushError(lineNumber, MULTIPLE_PIPE_WARNING, 'warning'));
+      const metadata = parsePipeMetadata(segments, aliasMap, () => pushError(lineNumber, MULTIPLE_PIPE_ERROR));
 
       const shape =
         explicitShape ??
@@ -705,7 +711,7 @@ export function parseC4(
         `'${elementMatch[1]} ${namePart}' prefix syntax is no longer supported — use '${namePart} is a ${elementType}' instead`,
       );
 
-      const metadata = parsePipeMetadata(segments, aliasMap, () => pushError(lineNumber, MULTIPLE_PIPE_WARNING, 'warning'));
+      const metadata = parsePipeMetadata(segments, aliasMap, () => pushError(lineNumber, MULTIPLE_PIPE_ERROR));
 
       // Determine shape: explicit > inference
       const shape =
@@ -747,7 +753,7 @@ export function parseC4(
       if (parentEntry) {
         const rawKey = metadataMatch[1].trim().toLowerCase();
 
-        // Special case: `import file.dgmo`
+        // Special case: `import: file.dgmo`
         if (rawKey === 'import') {
           parentEntry.element.importPath = metadataMatch[2].trim();
           continue;

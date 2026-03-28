@@ -381,49 +381,6 @@ CDN
     expect(motionCount).toBeGreaterThan(2);
   });
 
-  it('emits error for scenario blocks (scenarios removed)', () => {
-    const parsed = parseInfra(`infra
-edge
-  rps 1000
-  -> API
-API
-  instances 3
-  max-rps 500
-
-scenario: peak
-  edge
-    rps 10000
-  API
-    instances 8`);
-    expect(parsed.error).toContain('scenario:');
-    expect(parsed.error).toContain('no longer supported');
-    expect(parsed.diagnostics.some(d => d.severity === 'error' && d.message.includes('no longer supported'))).toBe(true);
-  });
-
-  it('compute uses base values when scenario syntax present (rejected with error)', () => {
-    const parsed = parseInfra(`infra
-edge
-  rps 1000
-  -> API
-API
-  instances 3
-  max-rps 500
-
-scenario: peak
-  edge
-    rps 10000
-  API
-    instances 8`);
-    // scenario: now produces a hard error
-    expect(parsed.error).toContain('no longer supported');
-
-    // Scenarios are ignored — base values always used
-    const result = computeInfra(parsed);
-    const apiNode = result.nodes.find((n) => n.id === 'API')!;
-    expect(apiNode.computedRps).toBe(1000);
-    expect(apiNode.computedInstances).toBe(3);
-  });
-
   it('instance overrides affect overload detection', () => {
     const parsed = parseInfra(`infra
 edge

@@ -104,7 +104,7 @@ edge
   it('respects TB direction', () => {
     const result = layout(`
 infra
-direction TB
+direction-tb
 
 edge
   rps 1000

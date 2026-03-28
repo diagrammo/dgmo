@@ -14,15 +14,17 @@ describe('parseDgmoChartType — explicit declaration', () => {
     expect(parseDgmoChartType('sequence My Flow\nA -> B')).toBe('sequence');
   });
 
-  it('still recognizes old chart: syntax', () => {
+  it('no longer recognizes old chart: syntax on first line', () => {
+    // chart: gantt is not recognized as explicit type, but gantt is inferred from content
     expect(parseDgmoChartType('chart: gantt\n10bd: Task A')).toBe('gantt');
-    expect(parseDgmoChartType('chart: sequence')).toBe('sequence');
-    expect(parseDgmoChartType('chart: bar')).toBe('bar');
+    // These have no inferable content, so null
+    expect(parseDgmoChartType('chart: sequence')).toBeNull();
+    expect(parseDgmoChartType('chart: bar')).toBeNull();
   });
 
   it('skips leading comments', () => {
     expect(parseDgmoChartType('// comment\ngantt\n10bd Task')).toBe('gantt');
-    expect(parseDgmoChartType('// comment\nchart: sequence')).toBe('sequence');
+    expect(parseDgmoChartType('// comment\nsequence')).toBe('sequence');
   });
 
   it('is case-insensitive', () => {

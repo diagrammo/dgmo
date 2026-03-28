@@ -68,7 +68,7 @@ export function looksLikeC4(content: string): boolean {
 /**
  * Extracts the chart type from raw file content.
  * First tries the first non-empty, non-comment line as a bare chart type name
- * (e.g., `gantt Product Launch`). Falls back to old `chart: type` syntax.
+ * (e.g., `gantt Product Launch`).
  * Falls back to inference when no explicit chart type is found.
  */
 export function parseDgmoChartType(content: string): string | null {

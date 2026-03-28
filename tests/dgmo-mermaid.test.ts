@@ -5,7 +5,7 @@ import { parseQuadrant, buildMermaidQuadrant } from '../src/dgmo-mermaid';
 // parseQuadrant()
 // ============================================================
 
-const FULL_QUADRANT = `chart: quadrant
+const FULL_QUADRANT = `quadrant
 title: Priority Matrix
 x-axis: Low Effort, High Effort
 y-axis: Low Value, High Value
@@ -78,7 +78,7 @@ describe('parseQuadrant()', () => {
   });
 
   it('skips the chart directive line', () => {
-    const result = parseQuadrant('chart: quadrant\nA: 0.5, 0.5');
+    const result = parseQuadrant('quadrant\nA: 0.5, 0.5');
     expect(result.title).toBeNull();
     expect(result.points).toHaveLength(1);
   });

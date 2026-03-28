@@ -82,7 +82,7 @@ const CLASS_TYPE_MAP: Record<string, ClassLegendEntry> = {
 const CLASS_TYPE_ORDER = ['class', 'abstract', 'interface', 'enum'];
 
 function collectClassTypes(parsed: ParsedClassDiagram): ClassLegendEntry[] {
-  if (parsed.options?.color === 'off') return [];
+  if (parsed.options?.['no-auto-color']) return [];
 
   const present = new Set<string>();
   for (const c of parsed.classes) {
@@ -500,7 +500,7 @@ export function renderClassDiagram(
 
     const w = node.width;
     const h = node.height;
-    const colorOff = parsed.options?.color === 'off';
+    const colorOff = !!parsed.options?.['no-auto-color'];
     // When legend is collapsed, use neutral color for nodes without explicit color
     const neutralize = hasLegend && !isLegendExpanded && !node.color;
     const effectiveColor = neutralize ? palette.primary : node.color;

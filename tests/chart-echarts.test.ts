@@ -78,9 +78,9 @@ describe('buildSimpleChartOption', () => {
     expect((opt.title as { text: string }).text).toBe('Sales');
   });
 
-  it('swaps axes for horizontal bar', () => {
-    const opt = build('bar\norientation horizontal\nA 10\nB 20');
-    // xAxis should be value, yAxis should be category
+  it('defaults to horizontal bars', () => {
+    const opt = build('bar\nA 10\nB 20');
+    // Default is horizontal: xAxis=value, yAxis=category
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const xAxis = (opt as any).xAxis;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -89,14 +89,15 @@ describe('buildSimpleChartOption', () => {
     expect(yAxis.type).toBe('category');
   });
 
-  it('accepts direction: LR as alias for orientation: horizontal on bar', () => {
-    const opt = build('bar\ndirection LR\nA 10\nB 20');
+  it('orientation-vertical switches to vertical bars', () => {
+    const opt = build('bar\norientation-vertical\nA 10\nB 20');
+    // orientation-vertical: xAxis=category, yAxis=value
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const xAxis = (opt as any).xAxis;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const yAxis = (opt as any).yAxis;
-    expect(xAxis.type).toBe('value');
-    expect(yAxis.type).toBe('category');
+    expect(xAxis.type).toBe('category');
+    expect(yAxis.type).toBe('value');
   });
 
   // ── Line ─────────────────────────────────────────────────
@@ -233,16 +234,16 @@ describe('buildSimpleChartOption', () => {
     expect((opt as any).legend).toBeDefined();
   });
 
-  it('swaps axes for horizontal bar-stacked', () => {
+  it('orientation-vertical switches bar-stacked to vertical', () => {
     const opt = build(
-      'bar-stacked\norientation horizontal\nseries A, B\nQ1 10, 20\nQ2 30, 40'
+      'bar-stacked\norientation-vertical\nseries A, B\nQ1 10, 20\nQ2 30, 40'
     );
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const xAxis = (opt as any).xAxis;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const yAxis = (opt as any).yAxis;
-    expect(xAxis.type).toBe('value');
-    expect(yAxis.type).toBe('category');
+    expect(xAxis.type).toBe('category');
+    expect(yAxis.type).toBe('value');
   });
 });
 
@@ -927,5 +928,107 @@ describe('buildSankeyOption — color annotations', () => {
     const linkAC = s.links.find((l: { source: string; target: string }) => l.source === 'A' && l.target === 'C');
     expect(linkAB.lineStyle).toEqual({ color: '#d08770' });
     expect(linkAC.lineStyle).toBeUndefined();
+  });
+});
+
+// ── Space-delimited data rows ────────────────────────────────
+
+describe('parseDataRowValues — space-delimited multi-values', () => {
+  it('single value (no series) preserves label with embedded number', () => {
+    const parsed = parseChart('bar\nRegion 5 300', palette);
+    expect(parsed.data).toHaveLength(1);
+    expect(parsed.data[0].label).toBe('Region 5');
+    expect(parsed.data[0].value).toBe(300);
+    expect(parsed.data[0].extraValues).toBeUndefined();
+  });
+
+  it('space-delimited multi-values work when series are defined', () => {
+    const input = 'bar-stacked\nseries X, Y, Z\nQ1 10 20 30\nQ2 40 50 60';
+    const parsed = parseChart(input, palette);
+    expect(parsed.data).toHaveLength(2);
+    expect(parsed.data[0].label).toBe('Q1');
+    expect(parsed.data[0].value).toBe(10);
+    expect(parsed.data[0].extraValues).toEqual([20, 30]);
+    expect(parsed.data[1].label).toBe('Q2');
+    expect(parsed.data[1].value).toBe(40);
+    expect(parsed.data[1].extraValues).toEqual([50, 60]);
+  });
+
+  it('comma-separated multi-values still work', () => {
+    const input = 'bar-stacked\nseries X, Y\nQ1 10, 20\nQ2 30, 40';
+    const parsed = parseChart(input, palette);
+    expect(parsed.data).toHaveLength(2);
+    expect(parsed.data[0].value).toBe(10);
+    expect(parsed.data[0].extraValues).toEqual([20]);
+  });
+
+  it('thousands commas in numbers are handled', () => {
+    const parsed = parseChart('bar\nRevenue 3,984,078', palette);
+    expect(parsed.data).toHaveLength(1);
+    expect(parsed.data[0].label).toBe('Revenue');
+    expect(parsed.data[0].value).toBe(3984078);
+  });
+
+  it('thousands commas with decimals are handled', () => {
+    const parsed = parseChart('bar\nRevenue 3,984,078.65', palette);
+    expect(parsed.data).toHaveLength(1);
+    expect(parsed.data[0].label).toBe('Revenue');
+    expect(parsed.data[0].value).toBeCloseTo(3984078.65);
+  });
+
+  it('heatmap accepts space-delimited values', () => {
+    const input = 'heatmap\ncolumns A B C\nRow1 1 2 3\nRow2 4 5 6';
+    const parsed = parseExtendedChart(input, palette);
+    expect(parsed.columns).toEqual(['A', 'B', 'C']);
+    expect(parsed.heatmapRows).toHaveLength(2);
+    expect(parsed.heatmapRows![0].values).toEqual([1, 2, 3]);
+    expect(parsed.heatmapRows![1].values).toEqual([4, 5, 6]);
+  });
+
+  it('scatter accepts space-delimited x y values', () => {
+    const input = 'scatter\nAlice 165 60\nBob 180 85';
+    const parsed = parseExtendedChart(input, palette);
+    expect(parsed.scatterPoints).toHaveLength(2);
+    expect(parsed.scatterPoints![0]).toMatchObject({ name: 'Alice', x: 165, y: 60 });
+    expect(parsed.scatterPoints![1]).toMatchObject({ name: 'Bob', x: 180, y: 85 });
+  });
+});
+
+// ── Function chart shade option ──────────────────────────────
+
+describe('function chart — shade option', () => {
+  it('shade option is parsed as boolean', () => {
+    const input = 'function\nshade\nx -5 to 5\nf(x): x^2';
+    const parsed = parseExtendedChart(input, palette);
+    expect(parsed.shade).toBe(true);
+  });
+
+  it('shade is undefined when not specified', () => {
+    const input = 'function\nx -5 to 5\nf(x): x^2';
+    const parsed = parseExtendedChart(input, palette);
+    expect(parsed.shade).toBeUndefined();
+  });
+
+  it('shade adds areaStyle to each function series', () => {
+    const input = 'function\nshade\nx -5 to 5\nf(x): x^2';
+    const parsed = parseExtendedChart(input, palette);
+    const opt = buildExtendedChartOption(parsed, palette, false);
+    const s = series(opt);
+    expect(s.length).toBeGreaterThan(0);
+    for (const fn of s) {
+      expect(fn.areaStyle).toBeDefined();
+      expect(fn.areaStyle.opacity).toBe(0.15);
+    }
+  });
+
+  it('no areaStyle without shade', () => {
+    const input = 'function\nx -5 to 5\nf(x): x^2';
+    const parsed = parseExtendedChart(input, palette);
+    const opt = buildExtendedChartOption(parsed, palette, false);
+    const s = series(opt);
+    expect(s.length).toBeGreaterThan(0);
+    for (const fn of s) {
+      expect(fn.areaStyle).toBeUndefined();
+    }
   });
 });

@@ -30,10 +30,14 @@ function classId(name: string): string {
 const CLASS_DECL_RE =
   /^(?:(abstract|interface|enum)\s+)?([A-Z][A-Za-z0-9_]*)(?:\s+(extends|implements)\s+([A-Z][A-Za-z0-9_]*))?(?:\s+\[(abstract|interface|enum)\])?(?:\s+\(([^)]+)\))?\s*$/;
 
-// Relationship — arrow syntax:
-// ClassName --|> TargetClass label  (new: space-separated)
-// ClassName --|> TargetClass : label  (old: colon-separated, kept for transition)
+// Relationship — arrow syntax (indented under source class):
+//   --|> TargetClass label  (space-separated)
+//   --|> TargetClass : label  (colon-separated, kept for transition)
 // Arrows: --|>  ..|>  *--  o--  ..>  ->
+const INDENT_REL_ARROW_RE =
+  /^(--\|>|\.\.\|>|\*--|o--|\.\.\>|->)\s*([A-Z][A-Za-z0-9_]*)(?:\s+:?\s*(.+))?$/;
+
+// Legacy top-level relationship regex (used only for detection/rejection)
 const REL_ARROW_RE =
   /^([A-Z][A-Za-z0-9_]*)\s*(--\|>|\.\.\|>|\*--|o--|\.\.\>|->)\s*([A-Z][A-Za-z0-9_]*)(?:\s+:?\s*(.+))?$/;
 
@@ -211,9 +215,14 @@ export function parseClassDiagram(
       }
     }
 
-    // Space-separated options before content (new syntax): `color off`
+    // Space-separated options before content (new syntax): `no-auto-color`
     // Only match lines starting with a lowercase token (options), not uppercase (class names)
     if (!contentStarted && indent === 0 && /^[a-z]/.test(trimmed)) {
+      // Bare boolean option (single keyword, no value)
+      if (trimmed.toLowerCase() === 'no-auto-color') {
+        result.options['no-auto-color'] = 'on';
+        continue;
+      }
       const optMatch = trimmed.match(OPTION_NOCOLON_RE);
       if (optMatch) {
         const key = optMatch[1].toLowerCase();
@@ -226,8 +235,27 @@ export function parseClassDiagram(
       }
     }
 
-    // Indented lines = members of current class
+    // Indented lines = relationships or members of current class
     if (indent > 0 && currentClass) {
+      // Try indented relationship arrow: --|> TargetClass [label]
+      const indentRel = trimmed.match(INDENT_REL_ARROW_RE);
+      if (indentRel) {
+        const arrow = indentRel[1];
+        const targetName = indentRel[2];
+        const label = indentRel[3]?.trim();
+
+        getOrCreateClass(targetName, lineNumber);
+
+        result.relationships.push({
+          source: currentClass.id,
+          target: classId(targetName),
+          type: ARROW_TO_TYPE[arrow],
+          ...(label && { label }),
+          lineNumber,
+        });
+        continue;
+      }
+
       const member = parseMember(
         trimmed,
         lineNumber,
@@ -243,25 +271,19 @@ export function parseClassDiagram(
     currentClass = null;
     contentStarted = true;
 
-    // Try relationship — arrow syntax
+    // Reject top-level relationship arrows — must be indented under source class
     const relArrow = trimmed.match(REL_ARROW_RE);
     if (relArrow) {
       const sourceName = relArrow[1];
       const arrow = relArrow[2];
       const targetName = relArrow[3];
-      const label = relArrow[4]?.trim();
-
-      // Ensure both classes exist
-      getOrCreateClass(sourceName, lineNumber);
-      getOrCreateClass(targetName, lineNumber);
-
-      result.relationships.push({
-        source: classId(sourceName),
-        target: classId(targetName),
-        type: ARROW_TO_TYPE[arrow],
-        ...(label && { label }),
-        lineNumber,
-      });
+      result.diagnostics.push(
+        makeDgmoError(
+          lineNumber,
+          `Relationship "${sourceName} ${arrow} ${targetName}" must be indented under the source class "${sourceName}"`,
+          'warning',
+        ),
+      );
       continue;
     }
 
@@ -380,6 +402,10 @@ export function looksLikeClassDiagram(content: string): boolean {
       if (/^[+\-#]?\s*\w+.*[:(]/.test(trimmed)) {
         hasIndentedMember = true;
       }
+      // Indented relationship arrows
+      if (INDENT_REL_ARROW_RE.test(trimmed)) {
+        hasRelationship = true;
+      }
     }
   }
 
@@ -410,6 +436,7 @@ export function extractSymbols(docText: string): DiagramSymbols {
     const line = rawLine.trim();
     // Skip old-style colon metadata and new-style first line / space-separated options
     if (inMetadata && (/^[a-z-]+\s*:/i.test(line) || /^class(\s|$)/i.test(line))) continue;
+    if (inMetadata && line.toLowerCase() === 'no-auto-color') continue;
     if (inMetadata && /^[a-z]/.test(line) && OPTION_NOCOLON_RE.test(line)) {
       const key = line.match(OPTION_NOCOLON_RE)![1].toLowerCase();
       if (key !== 'abstract' && key !== 'interface' && key !== 'enum') continue;

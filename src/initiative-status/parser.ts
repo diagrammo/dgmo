@@ -203,16 +203,16 @@ export function parseInitiativeStatus(content: string): ParsedInitiativeStatus {
       continue;
     }
 
-    // hide directive (no colon): `hide phase Planning, phase Review`
+    // hide directive (colon syntax): `hide phase:Planning, phase:Review`
     const hideMatch = trimmed.match(/^hide\s+(.+)/i);
     if (hideMatch && !trimmed.match(/^hide\s*\|/)) {
-      // Parse comma-separated tag-value pairs: `phase Planning, phase Review`
+      // Parse comma-separated tag:value pairs: `phase:Planning, phase:Review`
       const pairs = hideMatch[1].split(',');
       for (const pair of pairs) {
-        const tokens = pair.trim().split(/\s+/);
-        if (tokens.length >= 2) {
-          const groupKey = tokens[0].toLowerCase();
-          const value = tokens.slice(1).join(' ').toLowerCase();
+        const colonIdx = pair.indexOf(':');
+        if (colonIdx > 0) {
+          const groupKey = pair.substring(0, colonIdx).trim().toLowerCase();
+          const value = pair.substring(colonIdx + 1).trim().toLowerCase();
           if (groupKey && value) {
             if (!result.initialHiddenTagValues.has(groupKey)) {
               result.initialHiddenTagValues.set(groupKey, new Set());
@@ -231,7 +231,7 @@ export function parseInitiativeStatus(content: string): ParsedInitiativeStatus {
         const key = optMatch[1].toLowerCase();
         const value = optMatch[2].trim();
         // Only recognize known option keys (not node content)
-        if (key === 'active-tag' || key === 'sort') {
+        if (key === 'active-tag') {
           result.options[key] = value;
           continue;
         }
@@ -244,12 +244,6 @@ export function parseInitiativeStatus(content: string): ParsedInitiativeStatus {
       if (contentStarted) {
         result.diagnostics.push(
           makeDgmoError(lineNum, 'Tag groups must appear before diagram content', 'error')
-        );
-        continue;
-      }
-      if (tagBlockMatch.deprecated) {
-        result.diagnostics.push(
-          makeDgmoError(lineNum, `'## ${tagBlockMatch.name}' is no longer supported — use 'tag ${tagBlockMatch.name}' instead`)
         );
         continue;
       }

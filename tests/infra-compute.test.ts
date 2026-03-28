@@ -344,7 +344,6 @@ LB
     it('computes the full brainstorming example correctly', () => {
       const result = compute(`
 infra Production Traffic Flow
-direction LR
 
 tag Team t
   Backend(blue)

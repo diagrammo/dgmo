@@ -139,7 +139,7 @@ describe('class: isolated class warnings', () => {
 describe('er: isolated table warnings', () => {
   it('warns about table not in any relationship', () => {
     const result = parseERDiagram(
-      'er\nusers\norders\nusers 1--* orders\norphan'
+      'er\nusers\n  id int pk\n  1-* orders\norders\n  id int pk\norphan'
     );
     expect(result.error).toBeNull();
     const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
@@ -149,7 +149,7 @@ describe('er: isolated table warnings', () => {
 
   it('does not warn when all tables connected', () => {
     const result = parseERDiagram(
-      'er\nusers\norders\nusers 1--* orders'
+      'er\nusers\n  1-* orders\norders'
     );
     expect(result.error).toBeNull();
     expect(
@@ -181,26 +181,11 @@ describe('d3: non-fatal validation warnings', () => {
   });
 
   it('timeline: warns about no events', () => {
-    const result = parseVisualization('chart: timeline');
+    const result = parseVisualization('timeline');
     expect(result.error).toBeNull();
     const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
     expect(warnings).toHaveLength(1);
     expect(warnings[0].message).toContain('No events found');
-  });
-
-  it('arc: accepts direction LR as alias for orientation: horizontal', () => {
-    const result = parseVisualization('arc\ndirection LR\nA -> B');
-    expect(result.orientation).toBe('horizontal');
-  });
-
-  it('arc: accepts direction TB as orientation: vertical', () => {
-    const result = parseVisualization('arc\ndirection TB\nA -> B');
-    expect(result.orientation).toBe('vertical');
-  });
-
-  it('timeline: accepts direction horizontal as orientation', () => {
-    const result = parseVisualization('timeline\ndirection horizontal\n2024-01 Launch');
-    expect(result.orientation).toBe('horizontal');
   });
 
   it('quadrant: warns about no data points', () => {
@@ -293,7 +278,7 @@ describe('echarts: non-fatal validation warnings', () => {
 // Chart: validation warnings (non-fatal)
 // ============================================================
 
-describe('chart: non-fatal validation warnings', () => {
+describe('non-fatal validation warnings', () => {
   it('warns about no data points', () => {
     const result = parseChart('bar');
     expect(result.error).toBeNull();
@@ -353,7 +338,7 @@ describe('line number fixes', () => {
     expect(result.diagnostics[0].line).toBe(1);
   });
 
-  it('chart: unsupported chart type has correct line', () => {
+  it('unsupported chart type has correct line', () => {
     const result = parseChart('bogus');
     expect(result.error).toBeDefined();
     expect(result.diagnostics[0].line).toBe(1);
@@ -453,110 +438,72 @@ tag Team
   });
 });
 
-describe('timeline sort: tag directive', () => {
-  it('parses sort: tag and defaults swimlane to first tag group', () => {
+describe('timeline era block form', () => {
+  it('parses bare era keyword with indented entries', () => {
     const result = parseVisualization(`timeline
-sort tag
-
-tag Pirate alias p
-  Blackbeard(red)
-  Roberts(blue)
-
-1716 Event | p: Blackbeard`);
-    expect(result.timelineSort).toBe('tag');
-    expect(result.timelineDefaultSwimlaneTG).toBe('Pirate');
+era
+  2024-01 -> 2024-06 Phase 1
+  2024-06 -> 2024-12 Phase 2
+2025-01 Event`);
+    expect(result.timelineEras).toHaveLength(2);
+    expect(result.timelineEras[0].startDate).toBe('2024-01');
+    expect(result.timelineEras[0].endDate).toBe('2024-06');
+    expect(result.timelineEras[0].label).toBe('Phase 1');
+    expect(result.timelineEras[1].startDate).toBe('2024-06');
+    expect(result.timelineEras[1].label).toBe('Phase 2');
   });
 
-  it('parses sort tag:GroupName with explicit group', () => {
+  it('parses era block entry with color', () => {
     const result = parseVisualization(`timeline
-sort tag:Outcome
-
-tag Pirate alias p
-  Blackbeard(red)
-
-tag Outcome alias o
-  Victory(green)
-  Defeat(red)
-
-1716 Event | p: Blackbeard, o: Victory`);
-    expect(result.timelineSort).toBe('tag');
-    expect(result.timelineDefaultSwimlaneTG).toBe('Outcome');
+era
+  2024-01 -> 2024-06 Sprint (blue)
+2025-01 Event`);
+    expect(result.timelineEras).toHaveLength(1);
+    expect(result.timelineEras[0].label).toBe('Sprint');
+    expect(result.timelineEras[0].color).not.toBeNull();
   });
 
-  it('resolves alias in sort tag:alias', () => {
+  it('inline era still works alongside block form', () => {
     const result = parseVisualization(`timeline
-sort tag:p
-
-tag Pirate alias p
-  Blackbeard(red)
-  Roberts(blue)
-
-1716 Event | p: Blackbeard`);
-    expect(result.timelineSort).toBe('tag');
-    expect(result.timelineDefaultSwimlaneTG).toBe('Pirate');
-  });
-
-  it('warns and falls back to first group when alias not found', () => {
-    const result = parseVisualization(`timeline
-sort tag:nonexistent
-
-tag Pirate alias p
-  Blackbeard(red)
-
-tag Outcome alias o
-  Victory(green)
-
-1716 Event | p: Blackbeard`);
-    expect(result.timelineSort).toBe('tag');
-    expect(result.timelineDefaultSwimlaneTG).toBe('Pirate');
-    const warnings = result.diagnostics.filter((d) =>
-      d.message.includes('no tag group matches')
-    );
-    expect(warnings).toHaveLength(1);
-  });
-
-  it('falls back to sort: time when no tag groups defined', () => {
-    const result = parseVisualization(`timeline
-sort tag
-
-[Q1]
-  2026-01 Some task`);
-    expect(result.timelineSort).toBe('time');
-    const warnings = result.diagnostics.filter((d) =>
-      d.message.includes('requires at least one tag group')
-    );
-    expect(warnings).toHaveLength(1);
-  });
-
-  it('case-insensitive alias resolution', () => {
-    const result = parseVisualization(`timeline
-sort tag:P
-
-tag Pirate alias p
-  Blackbeard(red)
-
-1716 Event | p: Blackbeard`);
-    expect(result.timelineSort).toBe('tag');
-    expect(result.timelineDefaultSwimlaneTG).toBe('Pirate');
-  });
-
-  it('preserves sort: time (default)', () => {
-    const result = parseVisualization(`timeline
-
-tag Pirate alias p
-  Blackbeard(red)
-
-1716 Event | p: Blackbeard`);
-    expect(result.timelineSort).toBe('time');
-    expect(result.timelineDefaultSwimlaneTG).toBeUndefined();
-  });
-
-  it('preserves sort group', () => {
-    const result = parseVisualization(`timeline
-sort group
-
-[Engineering]
-  2026-01 Task A`);
-    expect(result.timelineSort).toBe('group');
+era 2024-01 -> 2024-06 Phase 1
+era
+  2024-06 -> 2024-12 Phase 2
+2025-01 Event`);
+    expect(result.timelineEras).toHaveLength(2);
   });
 });
+
+describe('timeline marker block form', () => {
+  it('parses bare marker keyword with indented entries', () => {
+    const result = parseVisualization(`timeline
+marker
+  2024-03-01 Kickoff
+  2024-06-15 Release
+2025-01 Event`);
+    expect(result.timelineMarkers).toHaveLength(2);
+    expect(result.timelineMarkers[0].date).toBe('2024-03-01');
+    expect(result.timelineMarkers[0].label).toBe('Kickoff');
+    expect(result.timelineMarkers[1].date).toBe('2024-06-15');
+    expect(result.timelineMarkers[1].label).toBe('Release');
+  });
+
+  it('parses marker block entry with color', () => {
+    const result = parseVisualization(`timeline
+marker
+  2024-03-01 Launch (green)
+2025-01 Event`);
+    expect(result.timelineMarkers).toHaveLength(1);
+    expect(result.timelineMarkers[0].label).toBe('Launch');
+    expect(result.timelineMarkers[0].color).not.toBeNull();
+  });
+
+  it('inline marker still works alongside block form', () => {
+    const result = parseVisualization(`timeline
+marker 2024-03-01 Kickoff
+marker
+  2024-06-15 Release
+2025-01 Event`);
+    expect(result.timelineMarkers).toHaveLength(2);
+  });
+});
+

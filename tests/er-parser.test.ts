@@ -124,96 +124,25 @@ describe('parseERDiagram', () => {
     });
   });
 
-  // === Relationships ===
-  describe('relationships', () => {
-    describe('symbolic cardinality', () => {
-      it('parses 1--* (one-to-many)', () => {
-        const result = parseERDiagram('users\n  id int pk\n\nposts\n  id int pk\n\nusers 1--* posts');
-        expect(result.relationships).toHaveLength(1);
-        expect(result.relationships[0].cardinality.from).toBe('1');
-        expect(result.relationships[0].cardinality.to).toBe('*');
-      });
-
-      it('parses 1-* (one-to-many, single dash)', () => {
-        const result = parseERDiagram('users\n  id int pk\n\nposts\n  id int pk\n\nusers 1-* posts');
-        expect(result.relationships[0].cardinality.from).toBe('1');
-        expect(result.relationships[0].cardinality.to).toBe('*');
-      });
-
-      it('parses ?--1 (zero-or-one to one)', () => {
-        const result = parseERDiagram('users\n  id int pk\n\nprofiles\n  id int pk\n\nusers ?--1 profiles');
-        expect(result.relationships[0].cardinality.from).toBe('?');
-        expect(result.relationships[0].cardinality.to).toBe('1');
-      });
-
-      it('parses 1--1 (one-to-one)', () => {
-        const result = parseERDiagram('users\n  id int pk\n\nprofiles\n  id int pk\n\nusers 1--1 profiles');
-        expect(result.relationships[0].cardinality.from).toBe('1');
-        expect(result.relationships[0].cardinality.to).toBe('1');
-      });
-
-      it('parses *--* (many-to-many)', () => {
-        const result = parseERDiagram('students\n  id int pk\n\ncourses\n  id int pk\n\nstudents *--* courses');
-        expect(result.relationships[0].cardinality.from).toBe('*');
-        expect(result.relationships[0].cardinality.to).toBe('*');
-      });
-    });
-
-    describe('keyword cardinality (rejected with helpful error)', () => {
-      it('rejects one-to-many with symbolic suggestion', () => {
-        const result = parseERDiagram('users\n  id int pk\n\nposts\n  id int pk\n\nusers one-to-many posts');
-        expect(result.error).toBeTruthy();
-        expect(result.diagnostics[0].message).toContain('1--*');
-        expect(result.relationships).toHaveLength(0);
-      });
-
-      it('rejects many-to-one with symbolic suggestion', () => {
-        const result = parseERDiagram('posts\n  id int pk\n\nusers\n  id int pk\n\nposts many-to-one users');
-        expect(result.error).toBeTruthy();
-        expect(result.diagnostics[0].message).toContain('*--1');
-      });
-
-      it('rejects one-to-one with symbolic suggestion', () => {
-        const result = parseERDiagram('users\n  id int pk\n\nprofiles\n  id int pk\n\nusers one-to-one profiles');
-        expect(result.error).toBeTruthy();
-        expect(result.diagnostics[0].message).toContain('1--1');
-      });
-    });
-
-    describe('natural cardinality (rejected)', () => {
-      it('rejects one to many with symbolic suggestion', () => {
-        const result = parseERDiagram('users\n  id int pk\n\nposts\n  id int pk\n\nusers one to many posts');
-        expect(result.error).toBeTruthy();
-        expect(result.diagnostics[0].message).toContain('1--*');
-      });
-    });
-
-    describe('relationship labels', () => {
-      it('parses symbolic with label (no colon)', () => {
-        const result = parseERDiagram('users\n  id int pk\n\nposts\n  id int pk\n\nusers 1--* posts writes');
-        expect(result.relationships[0].label).toBe('writes');
-      });
-    });
-
-    describe('self-referencing relationships', () => {
-      it('allows relationship to same table', () => {
-        const result = parseERDiagram('employees\n  id int pk\n  manager_id int fk\n\nemployees 1--* employees manages');
-        expect(result.relationships).toHaveLength(1);
-        expect(result.relationships[0].source).toBe('employees');
-        expect(result.relationships[0].target).toBe('employees');
-      });
-    });
-
-    describe('auto-creates tables from relationships', () => {
-      it('creates tables referenced in relationships', () => {
-        const result = parseERDiagram('users 1--* posts');
-        expect(result.tables).toHaveLength(2);
-      });
-    });
-
-    it('tracks relationship line numbers', () => {
+  // === Top-level relationships (rejected) ===
+  describe('top-level relationships (rejected)', () => {
+    it('rejects top-level symbolic relationship with warning', () => {
       const result = parseERDiagram('users\n  id int pk\n\nposts\n  id int pk\n\nusers 1--* posts');
-      expect(result.relationships[0].lineNumber).toBe(7);
+      expect(result.relationships).toHaveLength(0);
+      expect(result.diagnostics.some(d => d.message.includes('must be indented'))).toBe(true);
+    });
+
+    it('rejects keyword cardinality with symbolic suggestion', () => {
+      const result = parseERDiagram('users\n  id int pk\n\nposts\n  id int pk\n\nusers one-to-many posts');
+      expect(result.error).toBeTruthy();
+      expect(result.diagnostics[0].message).toContain('1--*');
+      expect(result.relationships).toHaveLength(0);
+    });
+
+    it('rejects natural cardinality with symbolic suggestion', () => {
+      const result = parseERDiagram('users\n  id int pk\n\nposts\n  id int pk\n\nusers one to many posts');
+      expect(result.error).toBeTruthy();
+      expect(result.diagnostics[0].message).toContain('1--*');
     });
   });
 
@@ -276,13 +205,6 @@ describe('parseERDiagram', () => {
       expect(result.relationships[0].source).toBe('employees');
       expect(result.relationships[0].target).toBe('employees');
       expect(result.relationships[0].label).toBe('manages');
-    });
-
-    it('backward compat — flat syntax still works', () => {
-      const result = parseERDiagram('users 1--* posts');
-      expect(result.relationships).toHaveLength(1);
-      expect(result.relationships[0].source).toBe('users');
-      expect(result.relationships[0].target).toBe('posts');
     });
 
     it('tracks line numbers for indented relationships', () => {
@@ -437,17 +359,16 @@ Users(red) | Domain: Billing
 Users
   id int pk
   email varchar unique
+  1-* Orders
 
 Orders
-  id int pk
-
-Users 1--* Orders`);
+  id int pk`);
     expect(result.error).toBeNull();
     expect(result.tagGroups).toHaveLength(0);
     expect(result.tables).toHaveLength(2);
   });
 
-  it('emits error for ## tag group syntax', () => {
+  it('ignores ## syntax (no longer recognized as tag heading)', () => {
     const result = parseERDiagram(`er
 
 ## Domain
@@ -455,9 +376,6 @@ Users 1--* Orders`);
 
 Users | Domain: Billing
   id int pk`);
-    const errors = result.diagnostics.filter(d => d.message.includes('no longer supported'));
-    expect(errors).toHaveLength(1);
-    expect(errors[0].severity).toBe('error');
-    expect(errors[0].message).toContain('tag: Domain');
+    expect(result.tagGroups).toHaveLength(0);
   });
 });

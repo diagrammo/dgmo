@@ -4,7 +4,6 @@ import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
 import {
   measureIndent,
   extractColor,
-  normalizeDirection,
   parseFirstLine,
   OPTION_NOCOLON_RE,
   ALL_CHART_TYPES,
@@ -154,7 +153,7 @@ export function parseState(
   const lines = content.split('\n');
   const result: ParsedGraph = {
     type: 'state',
-    direction: 'TB',
+    direction: 'LR',
     nodes: [],
     edges: [],
     options: {},
@@ -268,18 +267,16 @@ export function parseState(
 
     // Options (space-separated, before content)
     if (!contentStarted) {
+      // Bare boolean: direction-tb
+      if (/^direction-tb$/i.test(trimmed)) {
+        result.direction = 'TB';
+        continue;
+      }
+
       const optMatch = trimmed.match(OPTION_NOCOLON_RE);
       if (optMatch && !trimmed.includes('->')) {
         const key = optMatch[1].toLowerCase();
         const value = optMatch[2].trim();
-
-        if (key === 'direction' || key === 'orientation') {
-          const dir = normalizeDirection(value);
-          if (dir) {
-            result.direction = dir;
-          }
-          continue;
-        }
 
         // Boolean: no-color = color off
         if (key === 'no-color') {
