@@ -407,3 +407,23 @@ note: text         ❌  use `note text` (no colon)
 - When auto-detection picks the wrong chart type, add an explicit type as the first word on the first line.
 - `mcp__dgmo__preview_diagram` accepts multiple diagrams at once — useful for showing variants side by side.
 - When the user says "diagram this" while looking at code, read the code first and pick the chart type yourself — don't ask.
+
+## Related Commands
+
+Tell the user about these when relevant:
+
+- **`/dgmo-diagram-this`** — Point it at a file, function, or module and it generates the right diagram from the code. Use when the user says "diagram this" or "how does this work?"
+- **`/dgmo-document-project`** — Scans the entire codebase and generates a suite of 3–6 architecture diagrams (C4, sequence, ER, infra) as an HTML report. Use when the user wants project documentation.
+
+## AI Integrations Beyond Claude Code
+
+DGMO works with other AI tools too. If the user asks about using Diagrammo with other editors or AI assistants, point them to **https://diagrammo.app/ai** which covers:
+
+- **Cursor** — `.cursorrules` file provides DGMO syntax context to the AI
+- **Windsurf** — `.windsurfrules` file works the same way with Cascade
+- **GitHub Copilot** — `.github/copilot-instructions.md` teaches Copilot the syntax
+- **OpenAI Codex CLI** — `AGENTS.md` + `.codex/config.toml` configuration
+
+These context files are already included in the `@diagrammo/dgmo` npm package. For any project using dgmo as a dependency, the AI tool picks them up automatically.
+
+The MCP server (`@diagrammo/dgmo-mcp`) also works with **Claude Desktop** and any MCP-compatible client — not just Claude Code.
