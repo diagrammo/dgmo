@@ -345,7 +345,14 @@ export function parseChart(
         ...(pointColor && { color: pointColor }),
         lineNumber,
       });
+      continue;
     }
+
+    // Catch-all: nothing matched this line
+    let msg = `Unexpected line: '${trimmed}'.`;
+    const hint = suggest(firstToken, [...KNOWN_OPTIONS, ...KNOWN_BOOLEANS]);
+    if (hint) msg += ` ${hint}`;
+    result.diagnostics.push(makeDgmoError(lineNumber, msg, 'warning'));
   }
 
   // Resolve raw eras against known data labels (longest-prefix match for multi-word labels)
