@@ -94,7 +94,10 @@ describe('renderExtendedChartForExport', () => {
   });
 
   it('renders with transparent theme', async () => {
-    const svg = await renderExtendedChartForExport(SCATTER_INPUT, 'transparent');
+    const svg = await renderExtendedChartForExport(
+      SCATTER_INPUT,
+      'transparent'
+    );
     expect(svg).toContain('<svg');
     expect(svg).toContain('</svg>');
   });
@@ -102,7 +105,11 @@ describe('renderExtendedChartForExport', () => {
   it('renders with explicit palette', async () => {
     const { getPalette } = await import('../src/palettes');
     const palette = getPalette('solarized').light;
-    const svg = await renderExtendedChartForExport(SCATTER_INPUT, 'light', palette);
+    const svg = await renderExtendedChartForExport(
+      SCATTER_INPUT,
+      'light',
+      palette
+    );
     expect(svg).toContain('<svg');
     expect(svg).toContain('</svg>');
   });
@@ -113,8 +120,8 @@ describe('renderExtendedChartForExport', () => {
 // ============================================================
 
 const SCATTER_LABELS_INPUT = `scatter Test Labels
-xlabel X
-ylabel Y
+x-label X
+y-label Y
 A 1, 2
 B 3, 4
 C 5, 6`;
@@ -131,7 +138,10 @@ P8 5.2, 4.9`;
 
 describe('scatter label SSR integration', () => {
   it('renders scatter with labels: on — SVG contains point names as text', async () => {
-    const svg = await renderExtendedChartForExport(SCATTER_LABELS_INPUT, 'light');
+    const svg = await renderExtendedChartForExport(
+      SCATTER_LABELS_INPUT,
+      'light'
+    );
     expect(svg).toContain('<svg');
     expect(svg).toContain('A');
     expect(svg).toContain('B');
@@ -139,7 +149,10 @@ describe('scatter label SSR integration', () => {
   });
 
   it('renders dense cluster with all 8 point names visible', async () => {
-    const svg = await renderExtendedChartForExport(SCATTER_DENSE_INPUT, 'light');
+    const svg = await renderExtendedChartForExport(
+      SCATTER_DENSE_INPUT,
+      'light'
+    );
     expect(svg).toContain('<svg');
     for (let i = 1; i <= 8; i++) {
       expect(svg).toContain(`P${i}`);
@@ -150,8 +163,14 @@ describe('scatter label SSR integration', () => {
     // ECharts SSR auto-increments internal CSS class names (zrN-cls-M),
     // so full SVG string identity isn't possible across calls.
     // Instead, verify label text elements are identical.
-    const svg1 = await renderExtendedChartForExport(SCATTER_LABELS_INPUT, 'light');
-    const svg2 = await renderExtendedChartForExport(SCATTER_LABELS_INPUT, 'light');
+    const svg1 = await renderExtendedChartForExport(
+      SCATTER_LABELS_INPUT,
+      'light'
+    );
+    const svg2 = await renderExtendedChartForExport(
+      SCATTER_LABELS_INPUT,
+      'light'
+    );
     // Extract all <text> elements (our labels + axis labels)
     const textPattern = /<text[^>]*>.*?<\/text>/g;
     const texts1 = svg1.match(textPattern) ?? [];

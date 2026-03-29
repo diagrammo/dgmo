@@ -92,8 +92,8 @@ const KNOWN_OPTIONS = new Set([
   'chart',
   'title',
   'series',
-  'xlabel',
-  'ylabel',
+  'x-label',
+  'y-label',
   'label',
   'no-label-name',
   'no-label-value',
@@ -260,13 +260,13 @@ export function parseChart(
         continue;
       }
 
-      if (firstToken === 'xlabel') {
+      if (firstToken === 'x-label') {
         result.xlabel = value;
         result.xlabelLineNumber = lineNumber;
         continue;
       }
 
-      if (firstToken === 'ylabel') {
+      if (firstToken === 'y-label') {
         result.ylabel = value;
         result.ylabelLineNumber = lineNumber;
         continue;

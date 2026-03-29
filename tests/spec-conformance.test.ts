@@ -223,7 +223,7 @@ describe('1. Valid syntax', () => {
 
     it('quadrant diagram', () => {
       const r = parseVisualization(
-        'quadrant Assessment\nx-axis Low Skill, High Skill\ny-axis Low Loyalty, High Loyalty\n\ntop-right Promote\nbottom-left Avoid\n\nAlice 0.9, 0.95\nBob 0.3, 0.2',
+        'quadrant Assessment\nx-label Low Skill, High Skill\ny-label Low Loyalty, High Loyalty\n\ntop-right Promote\nbottom-left Avoid\n\nAlice 0.9, 0.95\nBob 0.3, 0.2',
         palette
       );
       expect(hasNoErrors(r)).toBe(true);

@@ -111,7 +111,15 @@ describe('ER extractSymbols', () => {
 
   it('returns ER keywords', () => {
     const result = extractErSymbols('er\n');
-    expect(result.keywords).toEqual(['pk', 'fk', 'unique', 'nullable', '1', '*', '?']);
+    expect(result.keywords).toEqual([
+      'pk',
+      'fk',
+      'unique',
+      'nullable',
+      '1',
+      '*',
+      '?',
+    ]);
   });
 
   it('handles 100-entity fixture under 10ms', () => {
@@ -200,13 +208,7 @@ describe('Flowchart extractSymbols', () => {
 
 describe('Infra extractSymbols', () => {
   it('extracts component names', () => {
-    const doc = [
-      'infra',
-      'API',
-      '  rps 1000',
-      'Cache',
-      'Database',
-    ].join('\n');
+    const doc = ['infra', 'API', '  rps 1000', 'Cache', 'Database'].join('\n');
     const result = extractInfraSymbols(doc);
     expect(result.kind).toBe('infra');
     expect(result.entities).toContain('API');
@@ -256,7 +258,10 @@ describe('Infra extractSymbols', () => {
 
   it('handles hyphenated component names', () => {
     const doc = 'infra\napi-gateway\nauth-service\n';
-    expect(extractInfraSymbols(doc).entities).toEqual(['api-gateway', 'auth-service']);
+    expect(extractInfraSymbols(doc).entities).toEqual([
+      'api-gateway',
+      'auth-service',
+    ]);
   });
 
   it('strips pipe metadata from component names', () => {
@@ -361,7 +366,10 @@ describe('Class extractSymbols', () => {
 describe('COMPLETION_REGISTRY', () => {
   it('has an entry for every CHART_TYPES entry', () => {
     for (const ct of CHART_TYPES) {
-      expect(COMPLETION_REGISTRY.has(ct.name), `Missing registry entry for ${ct.name}`).toBe(true);
+      expect(
+        COMPLETION_REGISTRY.has(ct.name),
+        `Missing registry entry for ${ct.name}`
+      ).toBe(true);
     }
   });
 
@@ -373,7 +381,7 @@ describe('COMPLETION_REGISTRY', () => {
   });
 
   it('CHART_TYPES covers all ALL_CHART_TYPES except multi-line', () => {
-    const chartTypeNames = new Set(CHART_TYPES.map(t => t.name));
+    const chartTypeNames = new Set(CHART_TYPES.map((t) => t.name));
     for (const ct of ALL_CHART_TYPES) {
       if (ct === 'multi-line') continue;
       expect(chartTypeNames.has(ct), `CHART_TYPES missing ${ct}`).toBe(true);
@@ -381,18 +389,31 @@ describe('COMPLETION_REGISTRY', () => {
   });
 
   it('CHART_TYPES does not include multi-line alias', () => {
-    expect(CHART_TYPES.find(t => t.name === 'multi-line')).toBeUndefined();
+    expect(CHART_TYPES.find((t) => t.name === 'multi-line')).toBeUndefined();
   });
 
   it('METADATA_KEY_SET includes expected keys', () => {
     const expected = [
-      'palette', 'theme', 'chart', 'title',
-      'xlabel', 'orientation-horizontal', 'activations', 'start',
-      'critical-path', 'direction-tb', 'series',
-      'no-label-name', 'no-label-value', 'no-label-percent', 'no-labels',
+      'palette',
+      'theme',
+      'chart',
+      'title',
+      'x-label',
+      'orientation-horizontal',
+      'activations',
+      'start',
+      'critical-path',
+      'direction-tb',
+      'series',
+      'no-label-name',
+      'no-label-value',
+      'no-label-percent',
+      'no-labels',
     ];
     for (const key of expected) {
-      expect(METADATA_KEY_SET.has(key), `METADATA_KEY_SET missing ${key}`).toBe(true);
+      expect(METADATA_KEY_SET.has(key), `METADATA_KEY_SET missing ${key}`).toBe(
+        true
+      );
     }
   });
 
@@ -403,7 +424,7 @@ describe('COMPLETION_REGISTRY', () => {
     // Spot-check: bar should have orientation-horizontal, sequence should have activations, gantt should have start
     const barSpec = COMPLETION_REGISTRY.get('bar')!;
     expect(barSpec.directives['orientation-horizontal']).toBeDefined();
-    expect(barSpec.directives.xlabel).toBeDefined();
+    expect(barSpec.directives['x-label']).toBeDefined();
 
     const seqSpec = COMPLETION_REGISTRY.get('sequence')!;
     expect(seqSpec.directives.activations).toBeDefined();
@@ -423,11 +444,18 @@ describe('COMPLETION_REGISTRY', () => {
   it('infra registry includes top-level default directives', () => {
     const infraSpec = COMPLETION_REGISTRY.get('infra')!;
     const expected = [
-      'default-latency-ms', 'default-uptime', 'default-rps',
-      'slo-availability', 'slo-p90-latency-ms', 'slo-warning-margin',
+      'default-latency-ms',
+      'default-uptime',
+      'default-rps',
+      'slo-availability',
+      'slo-p90-latency-ms',
+      'slo-warning-margin',
     ];
     for (const key of expected) {
-      expect(infraSpec.directives[key], `infra missing directive ${key}`).toBeDefined();
+      expect(
+        infraSpec.directives[key],
+        `infra missing directive ${key}`
+      ).toBeDefined();
     }
     // direction-tb should still be present
     expect(infraSpec.directives['direction-tb']).toBeDefined();
@@ -478,7 +506,8 @@ describe('Sequence extractSymbols', () => {
   });
 
   it('extracts participants from type declarations (is a)', () => {
-    const doc = 'sequence\nUser is a person\nGateway is a system\nUser -> Gateway\n';
+    const doc =
+      'sequence\nUser is a person\nGateway is a system\nUser -> Gateway\n';
     const result = extractDiagramSymbols(doc);
     expect(result!.entities).toContain('User');
     expect(result!.entities).toContain('Gateway');
@@ -493,7 +522,7 @@ describe('Sequence extractSymbols', () => {
   it('deduplicates participant names', () => {
     const doc = 'sequence\nA -> B\nB -> A\nA -> C\n';
     const result = extractDiagramSymbols(doc);
-    const aCount = result!.entities.filter(e => e === 'A').length;
+    const aCount = result!.entities.filter((e) => e === 'A').length;
     expect(aCount).toBe(1);
   });
 
@@ -512,7 +541,8 @@ describe('Sequence extractSymbols', () => {
   });
 
   it('skips structural keywords', () => {
-    const doc = 'sequence\nA -> B\nif: condition\n  B -> C\nelse:\n  B -> D\nend\n';
+    const doc =
+      'sequence\nA -> B\nif: condition\n  B -> C\nelse:\n  B -> D\nend\n';
     const result = extractDiagramSymbols(doc);
     expect(result!.entities).not.toContain('if');
     expect(result!.entities).not.toContain('else');
@@ -589,13 +619,15 @@ describe('State extractSymbols', () => {
 
 describe('extractTagDeclarations', () => {
   it('extracts tag group with alias', () => {
-    const doc = 'sequence\ntag Team alias t\n  Frontend(blue)\n  Backend(green)\nA -> B\n';
+    const doc =
+      'sequence\ntag Team alias t\n  Frontend(blue)\n  Backend(green)\nA -> B\n';
     const result = extractTagDeclarations(doc);
     expect(result.get('t')).toEqual(['Frontend', 'Backend']);
   });
 
   it('extracts tag group with shorthand alias (no alias keyword)', () => {
-    const doc = 'gantt\ntag Team t\n  Rebels(red)\n  Sharks(orange)\ntag TopGoal tg\n  TG1(red)\n  TG2(green)\n';
+    const doc =
+      'gantt\ntag Team t\n  Rebels(red)\n  Sharks(orange)\ntag TopGoal tg\n  TG1(red)\n  TG2(green)\n';
     const result = extractTagDeclarations(doc);
     expect(result.get('t')).toEqual(['Rebels', 'Sharks']);
     expect(result.get('tg')).toEqual(['TG1', 'TG2']);
@@ -608,7 +640,8 @@ describe('extractTagDeclarations', () => {
   });
 
   it('handles multiple tag groups', () => {
-    const doc = 'infra\ntag Role alias r\n  Backend\n  Frontend\ntag Env alias e\n  Prod\n  Staging\n';
+    const doc =
+      'infra\ntag Role alias r\n  Backend\n  Frontend\ntag Env alias e\n  Prod\n  Staging\n';
     const result = extractTagDeclarations(doc);
     expect(result.get('r')).toEqual(['Backend', 'Frontend']);
     expect(result.get('e')).toEqual(['Prod', 'Staging']);

@@ -1,6 +1,6 @@
 multi-line Quarterly Revenue vs Operating Cost
-xlabel Quarter
-ylabel Amount ($M)
+x-label Quarter
+y-label Amount ($M)
 
 series Revenue (blue), Operating Cost (red), Net Profit (green)
 Q1 2023 4.2, 3.1, 1.1

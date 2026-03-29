@@ -28,6 +28,11 @@ Syntax changes introduced in the consistency cleanup. Old forms now produce erro
 | `show-sub-node-count: yes` | `show-sub-node-count` (flag) | Org |
 | `import: path` | `import path` | Org |
 | `tags: path` | `tags path` | Org |
+| `xlabel` | `x-label` | Data charts, function |
+| `ylabel` | `y-label` | Data charts, function |
+| `sizelabel` | `size-label` | Scatter/bubble |
+| `x-axis` | `x-label` | Quadrant |
+| `y-axis` | `y-label` | Quadrant |
 
 ---
 
@@ -1018,8 +1023,8 @@ Commas between values are optional. Thousands commas are supported (`3,984,078.6
 **Options (space-separated, NO colon):**
 ```
 title My Chart
-xlabel X Label
-ylabel Y Label
+x-label X Label
+y-label Y Label
 orientation-horizontal
 stacked
 ```
@@ -1056,9 +1061,9 @@ Commas between values are optional. Thousands commas supported.
 
 **Options:**
 ```
-xlabel Weight
-ylabel Height
-sizelabel Crew
+x-label Weight
+y-label Height
+size-label Crew
 no-labels
 ```
 
@@ -1084,8 +1089,8 @@ Commas between values are optional. Thousands commas supported.
 
 ```
 function Trajectories
-xlabel Distance
-ylabel Height
+x-label Distance
+y-label Height
 x 0 to 250
 
 15 degrees(blue): -0.001*x^2 + 0.27*x
@@ -1203,8 +1208,8 @@ sw + nav + lead Legendary Pirates
 
 ```
 quadrant Crew Assessment
-x-axis Low Skill, High Skill
-y-axis Low Loyalty, High Loyalty
+x-label Low Skill, High Skill
+y-label Low Loyalty, High Loyalty
 
 top-right Promote (green)
 top-left Train (yellow)
@@ -1215,7 +1220,7 @@ Quartermaster 0.9, 0.95
 Navigator 0.85, 0.8
 ```
 
-- Axis labels: `x-axis Low, High` — space-separated
+- Axis labels: `x-label Low, High` — space-separated
 - Position labels: `top-right Label` — space-separated
 - Data points: `Label x, y` — space-separated, comma between coordinates
 - Thousands commas supported in values
@@ -1266,7 +1271,7 @@ Navigator 0.85, 0.8
 
 **Colons appear in two contexts:**
 1. **Value assignment** — `key: value` in pipe metadata, indented tag/metadata assignment (org, c4), and hide directives
-2. **Type/expression separation** — where labels can contain spaces and a delimiter is needed (function expressions, slope data, quadrant data, arc weights, class members)
+2. **Type/expression separation** — where labels can contain spaces and a delimiter is needed (function expressions, slope data, class members)
 
 **Exception**: Known-schema properties (infra node properties, ER columns) remain space-separated even though they are indented. The colon rule applies to open-ended metadata, not fixed property schemas.
 

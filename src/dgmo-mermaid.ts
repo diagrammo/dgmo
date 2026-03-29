@@ -95,8 +95,8 @@ export function parseQuadrant(content: string): ParsedQuadrant {
       continue;
     }
 
-    // x-axis Low, High
-    const xMatch = line.match(/^x-axis\s+(.+)/i);
+    // x-label Low, High
+    const xMatch = line.match(/^x-label\s+(.+)/i);
     if (xMatch) {
       const parts = xMatch[1].split(',').map((s) => s.trim());
       if (parts.length >= 2) {
@@ -106,8 +106,8 @@ export function parseQuadrant(content: string): ParsedQuadrant {
       continue;
     }
 
-    // y-axis Low, High
-    const yMatch = line.match(/^y-axis\s+(.+)/i);
+    // y-label Low, High
+    const yMatch = line.match(/^y-label\s+(.+)/i);
     if (yMatch) {
       const parts = yMatch[1].split(',').map((s) => s.trim());
       if (parts.length >= 2) {

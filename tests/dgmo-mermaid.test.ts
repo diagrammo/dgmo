@@ -7,8 +7,8 @@ import { parseQuadrant, buildMermaidQuadrant } from '../src/dgmo-mermaid';
 
 const FULL_QUADRANT = `quadrant
 title Priority Matrix
-x-axis Low Effort, High Effort
-y-axis Low Value, High Value
+x-label Low Effort, High Effort
+y-label Low Value, High Value
 top-right Promote (green)
 top-left Consider
 bottom-left Ignore
@@ -128,7 +128,7 @@ describe('buildMermaidQuadrant()', () => {
 
   it('includes axis syntax', () => {
     const output = buildFromSource(
-      'x-axis Low, High\ny-axis Bad, Good\nA 0.5, 0.5'
+      'x-label Low, High\ny-label Bad, Good\nA 0.5, 0.5'
     );
     expect(output).toContain('    x-axis Low --> High');
     expect(output).toContain('    y-axis Bad --> Good');

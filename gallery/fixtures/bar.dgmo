@@ -1,6 +1,6 @@
 bar Monthly Revenue by Product Line
-xlabel Product
-ylabel Revenue ($K)
+x-label Product
+y-label Revenue ($K)
 
 Enterprise 245
 Professional 182

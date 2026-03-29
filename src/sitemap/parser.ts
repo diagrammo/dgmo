@@ -17,7 +17,6 @@ import {
   parsePipeMetadata,
   inferArrowColor,
   MULTIPLE_PIPE_ERROR,
-  TITLE_RE,
   parseFirstLine,
   OPTION_NOCOLON_RE,
   ALL_CHART_TYPES,
@@ -89,7 +88,7 @@ export function looksLikeSitemap(content: string): boolean {
     if (!trimmed || trimmed.startsWith('//')) continue;
 
     // Skip header lines
-    if (parseFirstLine(trimmed) || TITLE_RE.test(trimmed)) continue;
+    if (parseFirstLine(trimmed)) continue;
     if (isTagBlockHeading(trimmed)) continue;
 
     if (/^-.*->\s*.+/.test(trimmed) || /^->\s*.+/.test(trimmed)) {

@@ -148,9 +148,9 @@ const KNOWN_EXTENDED_OPTIONS = new Set([
   'chart',
   'title',
   'series',
-  'xlabel',
-  'ylabel',
-  'sizelabel',
+  'x-label',
+  'y-label',
+  'size-label',
   'no-labels',
   'columns',
   'rows',
@@ -450,17 +450,17 @@ export function parseExtendedChart(
         continue;
       }
 
-      if (firstToken === 'xlabel') {
+      if (firstToken === 'x-label') {
         result.xlabel = value;
         result.xlabelLineNumber = lineNumber;
         continue;
       }
-      if (firstToken === 'ylabel') {
+      if (firstToken === 'y-label') {
         result.ylabel = value;
         result.ylabelLineNumber = lineNumber;
         continue;
       }
-      if (firstToken === 'sizelabel') {
+      if (firstToken === 'size-label') {
         result.sizelabel = value;
         continue;
       }
@@ -606,7 +606,13 @@ export function parseExtendedChart(
         ...(pointColor && { color: pointColor }),
         lineNumber,
       });
+      continue;
     }
+
+    // Catch-all: nothing matched this line
+    result.diagnostics.push(
+      makeDgmoError(lineNumber, `Unexpected line: '${trimmed}'.`, 'warning')
+    );
   }
 
   const warn = (line: number, message: string): void => {

@@ -76,12 +76,6 @@ export function extractColor(
   };
 }
 
-/** @deprecated Matches `title: <text>` header lines. Remove after all parsers migrate. */
-export const TITLE_RE = /^title\s*:\s*(.+)/i;
-
-/** @deprecated Matches `option: value` header lines. Remove after all parsers migrate. */
-export const OPTION_RE = /^([a-z][a-z0-9-]*)\s*:\s*(.+)$/i;
-
 /** Matches `option value` header lines (space-separated, no colon). */
 export const OPTION_NOCOLON_RE = /^([a-z][a-z0-9-]*)\s+(.+)$/i;
 

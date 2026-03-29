@@ -1,6 +1,6 @@
 line Daily Active Users (Q1 2025)
-xlabel Week
-ylabel Users (thousands)
+x-label Week
+y-label Users (thousands)
 
 era Week 1 -> Week 6 Phase 1 (blue)
 era Week 6 -> Week 12 Phase 2 (green)

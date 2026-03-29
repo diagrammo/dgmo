@@ -27,14 +27,14 @@ import type { DgmoError } from './diagnostics';
 // Content-based chart type inference helpers
 // ============================================================
 
-/** Gantt duration patterns: `10bd Task` or `10bd: Task` (with or without colon) */
-const GANTT_DURATION_RE = /^\d+(?:\.\d+)?(?:min|bd|d|w|m|q|y|h)(?:\?)?\s*:?\s+/;
-/** Gantt date patterns: `2025-01-01 Task` or `2025-01-01: Task` (with or without colon) */
-const GANTT_DATE_RE = /^\d{4}-\d{2}-\d{2}(?:\s\d{2}:\d{2})?\s*:?\s+/;
+/** Gantt duration patterns: `10bd Task` */
+const GANTT_DURATION_RE = /^\d+(?:\.\d+)?(?:min|bd|d|w|m|q|y|h)(?:\?)?\s+/;
+/** Gantt date patterns: `2025-01-01 Task` */
+const GANTT_DATE_RE = /^\d{4}-\d{2}-\d{2}(?:\s\d{2}:\d{2})?\s+/;
 
 /**
  * Returns true if content looks like a gantt chart.
- * Detects duration patterns like `10bd: Task` or `5d: Task`.
+ * Detects duration patterns like `10bd Task` or `5d Task`.
  */
 export function looksLikeGantt(content: string): boolean {
   const lines = content.split('\n');

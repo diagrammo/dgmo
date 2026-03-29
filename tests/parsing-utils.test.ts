@@ -3,8 +3,6 @@ import {
   measureIndent,
   extractColor,
   parsePipeMetadata,
-  TITLE_RE,
-  OPTION_RE,
   OPTION_NOCOLON_RE,
   COLOR_SUFFIX_RE,
   ALL_CHART_TYPES,
@@ -50,26 +48,26 @@ describe('parsePipeMetadata', () => {
   });
   it('errors when more than one pipe segment is present', () => {
     let errored = false;
-    const m = parsePipeMetadata(['Name', 'role: Dev', 'loc: NY'], new Map(), () => { errored = true; });
+    const m = parsePipeMetadata(
+      ['Name', 'role: Dev', 'loc: NY'],
+      new Map(),
+      () => {
+        errored = true;
+      }
+    );
     expect(errored).toBe(true);
     expect(m).toEqual({});
   });
   it('does not error for single pipe segment', () => {
     let errored = false;
-    parsePipeMetadata(['Name', 'role: Dev, loc: NY'], new Map(), () => { errored = true; });
+    parsePipeMetadata(['Name', 'role: Dev, loc: NY'], new Map(), () => {
+      errored = true;
+    });
     expect(errored).toBe(false);
   });
 });
 
 describe('header regexes', () => {
-  it('TITLE_RE matches title headers', () => {
-    expect('title: My Title'.match(TITLE_RE)?.[1]).toBe('My Title');
-  });
-  it('OPTION_RE matches option headers', () => {
-    const m = 'direction: lr'.match(OPTION_RE);
-    expect(m?.[1]).toBe('direction');
-    expect(m?.[2]).toBe('lr');
-  });
   it('COLOR_SUFFIX_RE matches trailing parens', () => {
     expect('Label (blue)'.match(COLOR_SUFFIX_RE)?.[1]).toBe('blue');
   });
@@ -144,7 +142,10 @@ describe('parseFirstLine', () => {
   });
 
   it('extracts multi-line chart type', () => {
-    expect(parseFirstLine('multi-line')).toEqual({ chartType: 'multi-line', title: undefined });
+    expect(parseFirstLine('multi-line')).toEqual({
+      chartType: 'multi-line',
+      title: undefined,
+    });
   });
 
   it('extracts bar-stacked with title', () => {
@@ -156,8 +157,19 @@ describe('parseFirstLine', () => {
 });
 
 describe('prescanOptions', () => {
-  const knownOptions = new Set(['direction', 'start', 'notation', 'sort', 'today-marker']);
-  const knownBooleans = new Set(['critical-path', 'dependencies', 'animate', 'today-marker']);
+  const knownOptions = new Set([
+    'direction',
+    'start',
+    'notation',
+    'sort',
+    'today-marker',
+  ]);
+  const knownBooleans = new Set([
+    'critical-path',
+    'dependencies',
+    'animate',
+    'today-marker',
+  ]);
 
   it('collects key-value options from non-indented lines', () => {
     const lines = [
@@ -283,13 +295,25 @@ describe('stripQuotes', () => {
 
 describe('tokenizeQuoteAware', () => {
   it('splits simple whitespace-separated tokens', () => {
-    expect(tokenizeQuoteAware('tag Priority p')).toEqual(['tag', 'Priority', 'p']);
+    expect(tokenizeQuoteAware('tag Priority p')).toEqual([
+      'tag',
+      'Priority',
+      'p',
+    ]);
   });
   it('keeps double-quoted substrings as single token', () => {
-    expect(tokenizeQuoteAware('tag "Marketing mktg" p')).toEqual(['tag', '"Marketing mktg"', 'p']);
+    expect(tokenizeQuoteAware('tag "Marketing mktg" p')).toEqual([
+      'tag',
+      '"Marketing mktg"',
+      'p',
+    ]);
   });
   it('keeps single-quoted substrings as single token', () => {
-    expect(tokenizeQuoteAware("tag 'Risk Level' lo")).toEqual(['tag', "'Risk Level'", 'lo']);
+    expect(tokenizeQuoteAware("tag 'Risk Level' lo")).toEqual([
+      'tag',
+      "'Risk Level'",
+      'lo',
+    ]);
   });
   it('handles mixed quotes', () => {
     expect(tokenizeQuoteAware('"A Team" at')).toEqual(['"A Team"', 'at']);
@@ -301,6 +325,8 @@ describe('tokenizeQuoteAware', () => {
     expect(tokenizeQuoteAware('   ')).toEqual([]);
   });
   it('handles unclosed quote (takes rest of string)', () => {
-    expect(tokenizeQuoteAware('"unclosed string')).toEqual(['"unclosed string']);
+    expect(tokenizeQuoteAware('"unclosed string')).toEqual([
+      '"unclosed string',
+    ]);
   });
 });

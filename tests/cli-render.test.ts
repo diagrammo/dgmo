@@ -67,11 +67,11 @@ C -> A 2`,
   venn: `venn
 Apples
 Oranges
-Apples + Oranges: Cider`,
+Apples + Oranges Cider`,
 
   quadrant: `quadrant
-xlabel Effort
-ylabel Impact
+x-label Effort
+y-label Impact
 High Impact, Low Effort 20, 80
 Low Impact, High Effort 80, 20`,
 

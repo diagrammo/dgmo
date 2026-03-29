@@ -328,7 +328,10 @@ describe('collectIndentedValues', () => {
 
 describe('Era parsing', () => {
   it('parses era with color', () => {
-    const parsed = parseChart("line\nera '77 -> '81 Carter (blue)\n'77 7\n'81 108", palette);
+    const parsed = parseChart(
+      "line\nera '77 -> '81 Carter (blue)\n'77 7\n'81 108",
+      palette
+    );
     expect(parsed.eras).toHaveLength(1);
     expect(parsed.eras![0]).toEqual({
       start: "'77",
@@ -340,29 +343,41 @@ describe('Era parsing', () => {
   });
 
   it('parses era without color → color is null', () => {
-    const parsed = parseChart("line\nera '81 -> '89 Reagan\n'81 230\n'89 580", palette);
+    const parsed = parseChart(
+      "line\nera '81 -> '89 Reagan\n'81 230\n'89 580",
+      palette
+    );
     expect(parsed.eras![0].color).toBeNull();
   });
 
   it('ignores malformed era line (missing ->)', () => {
-    const parsed = parseChart("line\nera '77 '81 Carter\n'77 7\n'81 108", palette);
+    const parsed = parseChart(
+      "line\nera '77 '81 Carter\n'77 7\n'81 108",
+      palette
+    );
     expect(parsed.eras).toHaveLength(0);
     expect(parsed.error).toBeNull();
   });
 
   it('clears eras for bar chart', () => {
-    const parsed = parseChart("bar\nera '77 -> '81 Carter\nA 10\nB 20", palette);
+    const parsed = parseChart(
+      "bar\nera '77 -> '81 Carter\nA 10\nB 20",
+      palette
+    );
     expect(parsed.eras == null || parsed.eras.length === 0).toBe(true);
   });
 
   it('parses apostrophe labels cleanly', () => {
-    const parsed = parseChart("line\nera '93 -> '01 Clinton (blue)\n'93 587\n'01 550", palette);
+    const parsed = parseChart(
+      "line\nera '93 -> '01 Clinton (blue)\n'93 587\n'01 550",
+      palette
+    );
     expect(parsed.eras![0].start).toBe("'93");
     expect(parsed.eras![0].end).toBe("'01");
   });
 
   it('parses multiple eras in order', () => {
-    const input = "line\nera A -> B Phase 1\nera B -> C Phase 2\nA 1\nB 2\nC 3";
+    const input = 'line\nera A -> B Phase 1\nera B -> C Phase 2\nA 1\nB 2\nC 3';
     const parsed = parseChart(input, palette);
     expect(parsed.eras).toHaveLength(2);
     expect(parsed.eras![0].label).toBe('Phase 1');
@@ -370,13 +385,16 @@ describe('Era parsing', () => {
   });
 
   it('collects eras even when era line appears after first line', () => {
-    const input = "line\nera A -> B Early\nA 1\nB 2";
+    const input = 'line\nera A -> B Early\nA 1\nB 2';
     const parsed = parseChart(input, palette);
     expect(parsed.eras).toHaveLength(1);
   });
 
   it('parses area chart eras correctly', () => {
-    const parsed = parseChart("area\nera A -> B Phase 1\nA 1\nB 2\nC 3", palette);
+    const parsed = parseChart(
+      'area\nera A -> B Phase 1\nA 1\nB 2\nC 3',
+      palette
+    );
     expect(parsed.eras).toHaveLength(1);
   });
 });
@@ -395,7 +413,7 @@ describe('Era bands — line chart', () => {
   }
 
   it('markArea.data has correct xAxis strings', () => {
-    const opt = buildLine("line\nera A -> C Phase\nA 1\nB 2\nC 3");
+    const opt = buildLine('line\nera A -> C Phase\nA 1\nB 2\nC 3');
     const ma = firstSeries(opt).markArea;
     expect(ma).toBeDefined();
     expect(ma.data[0][0].xAxis).toBe('A');
@@ -403,20 +421,20 @@ describe('Era bands — line chart', () => {
   });
 
   it('null color era uses palette.colors.blue as default', () => {
-    const opt = buildLine("line\nera A -> C Phase\nA 1\nB 2\nC 3");
+    const opt = buildLine('line\nera A -> C Phase\nA 1\nB 2\nC 3');
     const ma = firstSeries(opt).markArea;
     expect(ma.data[0][0].itemStyle.color).toBe(palette.colors.blue);
   });
 
   it('band < 3 slots → label show: false', () => {
     // A -> B is 1 slot (endIdx - startIdx = 1)
-    const opt = buildLine("line\nera A -> B Tiny\nA 1\nB 2\nC 3");
+    const opt = buildLine('line\nera A -> B Tiny\nA 1\nB 2\nC 3');
     const ma = firstSeries(opt).markArea;
     expect(ma.data[0][0].label.show).toBe(false);
   });
 
   it('band ≥ 3 slots → label show: true, position insideTop', () => {
-    const opt = buildLine("line\nera A -> D Wide\nA 1\nB 2\nC 3\nD 4\nE 5");
+    const opt = buildLine('line\nera A -> D Wide\nA 1\nB 2\nC 3\nD 4\nE 5');
     const ma = firstSeries(opt).markArea;
     expect(ma.data[0][0].label.show).toBe(true);
     expect(ma.data[0][0].label.position).toBe('insideTop');
@@ -424,18 +442,20 @@ describe('Era bands — line chart', () => {
   });
 
   it('no eras → no markArea on series', () => {
-    const opt = buildLine("line\nA 1\nB 2\nC 3");
+    const opt = buildLine('line\nA 1\nB 2\nC 3');
     expect(firstSeries(opt).markArea).toBeUndefined();
   });
 
   it('axisLabel.interval is a number for all label counts', () => {
     // ≤8 labels → interval: 0 (show all)
-    const opt8 = buildLine("line\nA 1\nB 2\nC 3");
+    const opt8 = buildLine('line\nA 1\nB 2\nC 3');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((opt8.xAxis as any).axisLabel.interval).toBe(0);
 
     // >8 labels → interval: N-1 (integer step, no staggering)
-    const manyLabels = Array.from({ length: 10 }, (_, i) => `L${i} ${i}`).join('\n');
+    const manyLabels = Array.from({ length: 10 }, (_, i) => `L${i} ${i}`).join(
+      '\n'
+    );
     const opt10 = buildLine(`line\nera L0 -> L5 Phase\n${manyLabels}`);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect(typeof (opt10.xAxis as any).axisLabel.interval).toBe('number');
@@ -443,21 +463,24 @@ describe('Era bands — line chart', () => {
 
   it('axisLabel.interval uses clean snap step (era boundaries not pinned)', () => {
     // 20 labels → raw=ceil(20/5)=4 → snap down to N=2 → interval: 1 (show every 2nd)
-    const manyLabels = Array.from({ length: 20 }, (_, i) => `Y${i} ${i}`).join('\n');
+    const manyLabels = Array.from({ length: 20 }, (_, i) => `Y${i} ${i}`).join(
+      '\n'
+    );
     const opt = buildLine(`line\nera Y3 -> Y15 Era\n${manyLabels}`);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect((opt.xAxis as any).axisLabel.interval).toBe(1);
   });
 
   it('area chart: markArea present alongside areaStyle', () => {
-    const opt = buildLine("area\nera A -> D Phase\nA 1\nB 2\nC 3\nD 4\nE 5");
+    const opt = buildLine('area\nera A -> D Phase\nA 1\nB 2\nC 3\nD 4\nE 5');
     const s = firstSeries(opt);
     expect(s.areaStyle).toBeDefined();
     expect(s.markArea).toBeDefined();
   });
 
   it('multi-line: only first series gets markArea', () => {
-    const input = "multi-line\nseries X, Y\nera A -> C Phase\nA 1, 2\nB 3, 4\nC 5, 6";
+    const input =
+      'multi-line\nseries X, Y\nera A -> C Phase\nA 1, 2\nB 3, 4\nC 5, 6';
     const parsed = parseChart(input, palette);
     const opt = buildSimpleChartOption(parsed, palette, false);
     const allSeries = series(opt) as unknown[];
@@ -468,13 +491,17 @@ describe('Era bands — line chart', () => {
   });
 
   it('two overlapping eras: both in markArea.data, no crash', () => {
-    const opt = buildLine("line\nera A -> C First\nera B -> D Second\nA 1\nB 2\nC 3\nD 4");
+    const opt = buildLine(
+      'line\nera A -> C First\nera B -> D Second\nA 1\nB 2\nC 3\nD 4'
+    );
     const ma = firstSeries(opt).markArea;
     expect(ma.data).toHaveLength(2);
   });
 
   it('area chart with 20+ data points: interval is a number > 0', () => {
-    const manyLabels = Array.from({ length: 25 }, (_, i) => `M${i} ${i}`).join('\n');
+    const manyLabels = Array.from({ length: 25 }, (_, i) => `M${i} ${i}`).join(
+      '\n'
+    );
     const opt = buildLine(`area\nera M0 -> M10 Phase\n${manyLabels}`);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const iv = (opt.xAxis as any).axisLabel.interval;
@@ -483,7 +510,10 @@ describe('Era bands — line chart', () => {
   });
 
   it('multi-line with 20+ data points: interval is a number > 0', () => {
-    const manyLabels = Array.from({ length: 25 }, (_, i) => `M${i} ${i}, ${i + 1}`).join('\n');
+    const manyLabels = Array.from(
+      { length: 25 },
+      (_, i) => `M${i} ${i}, ${i + 1}`
+    ).join('\n');
     const input = `multi-line\nseries A, B\nera M0 -> M10 Phase\n${manyLabels}`;
     const parsed = parseChart(input, palette);
     const opt = buildSimpleChartOption(parsed, palette, false);
@@ -495,7 +525,7 @@ describe('Era bands — line chart', () => {
 
   it('spr-eras smoke test: first series has markArea with 9 entries', () => {
     const sprContent = `line U.S. Strategic Petroleum Reserve
-ylabel Million Barrels
+y-label Million Barrels
 
 era '77 -> '81 Carter (blue)
 era '81 -> '89 Reagan (red)
@@ -669,10 +699,7 @@ describe('parseExtendedChart — multi-line columns/rows', () => {
 
 describe('renderExtendedChartForExport — standard chart types', () => {
   it('renders a bar chart to SVG via the parseChart→ECharts pipeline', async () => {
-    const svg = await renderExtendedChartForExport(
-      'bar\nA 10\nB 20',
-      'light'
-    );
+    const svg = await renderExtendedChartForExport('bar\nA 10\nB 20', 'light');
     expect(svg).toContain('<svg');
   });
 
@@ -689,17 +716,21 @@ describe('renderExtendedChartForExport — standard chart types', () => {
 
 describe('parseExtendedChart — sankey indentation syntax', () => {
   it('basic indentation: source with indented targets produces correct links', () => {
-    const input = [
-      'sankey',
-      '',
-      'Revenue',
-      '  Costs 600',
-      '  Profit 400',
-    ].join('\n');
+    const input = ['sankey', '', 'Revenue', '  Costs 600', '  Profit 400'].join(
+      '\n'
+    );
     const parsed = parseExtendedChart(input, palette);
     expect(parsed.links).toHaveLength(2);
-    expect(parsed.links![0]).toMatchObject({ source: 'Revenue', target: 'Costs', value: 600 });
-    expect(parsed.links![1]).toMatchObject({ source: 'Revenue', target: 'Profit', value: 400 });
+    expect(parsed.links![0]).toMatchObject({
+      source: 'Revenue',
+      target: 'Costs',
+      value: 600,
+    });
+    expect(parsed.links![1]).toMatchObject({
+      source: 'Revenue',
+      target: 'Profit',
+      value: 400,
+    });
   });
 
   it('deep nesting: 3-level nesting produces correct parent→child links', () => {
@@ -719,16 +750,48 @@ describe('parseExtendedChart — sankey indentation syntax', () => {
     const parsed = parseExtendedChart(input, palette);
     expect(parsed.links).toHaveLength(8);
     // Level 1: Revenue → children
-    expect(parsed.links![0]).toMatchObject({ source: 'Revenue', target: 'Operating Costs', value: 400 });
-    expect(parsed.links![4]).toMatchObject({ source: 'Revenue', target: 'Salaries', value: 300 });
-    expect(parsed.links![7]).toMatchObject({ source: 'Revenue', target: 'Profit', value: 300 });
+    expect(parsed.links![0]).toMatchObject({
+      source: 'Revenue',
+      target: 'Operating Costs',
+      value: 400,
+    });
+    expect(parsed.links![4]).toMatchObject({
+      source: 'Revenue',
+      target: 'Salaries',
+      value: 300,
+    });
+    expect(parsed.links![7]).toMatchObject({
+      source: 'Revenue',
+      target: 'Profit',
+      value: 300,
+    });
     // Level 2: Operating Costs → children
-    expect(parsed.links![1]).toMatchObject({ source: 'Operating Costs', target: 'Rent', value: 150 });
-    expect(parsed.links![2]).toMatchObject({ source: 'Operating Costs', target: 'Utilities', value: 100 });
-    expect(parsed.links![3]).toMatchObject({ source: 'Operating Costs', target: 'Supplies', value: 150 });
+    expect(parsed.links![1]).toMatchObject({
+      source: 'Operating Costs',
+      target: 'Rent',
+      value: 150,
+    });
+    expect(parsed.links![2]).toMatchObject({
+      source: 'Operating Costs',
+      target: 'Utilities',
+      value: 100,
+    });
+    expect(parsed.links![3]).toMatchObject({
+      source: 'Operating Costs',
+      target: 'Supplies',
+      value: 150,
+    });
     // Level 2: Salaries → children
-    expect(parsed.links![5]).toMatchObject({ source: 'Salaries', target: 'Engineering', value: 180 });
-    expect(parsed.links![6]).toMatchObject({ source: 'Salaries', target: 'Sales', value: 120 });
+    expect(parsed.links![5]).toMatchObject({
+      source: 'Salaries',
+      target: 'Engineering',
+      value: 180,
+    });
+    expect(parsed.links![6]).toMatchObject({
+      source: 'Salaries',
+      target: 'Sales',
+      value: 120,
+    });
   });
 
   it('multiple source groups: two bare labels each with children', () => {
@@ -744,10 +807,26 @@ describe('parseExtendedChart — sankey indentation syntax', () => {
     ].join('\n');
     const parsed = parseExtendedChart(input, palette);
     expect(parsed.links).toHaveLength(4);
-    expect(parsed.links![0]).toMatchObject({ source: 'Source A', target: 'Target 1', value: 100 });
-    expect(parsed.links![1]).toMatchObject({ source: 'Source A', target: 'Target 2', value: 200 });
-    expect(parsed.links![2]).toMatchObject({ source: 'Source B', target: 'Target 3', value: 300 });
-    expect(parsed.links![3]).toMatchObject({ source: 'Source B', target: 'Target 4', value: 400 });
+    expect(parsed.links![0]).toMatchObject({
+      source: 'Source A',
+      target: 'Target 1',
+      value: 100,
+    });
+    expect(parsed.links![1]).toMatchObject({
+      source: 'Source A',
+      target: 'Target 2',
+      value: 200,
+    });
+    expect(parsed.links![2]).toMatchObject({
+      source: 'Source B',
+      target: 'Target 3',
+      value: 300,
+    });
+    expect(parsed.links![3]).toMatchObject({
+      source: 'Source B',
+      target: 'Target 4',
+      value: 400,
+    });
   });
 
   it('mixed syntax: flat arrows + indented groups coexist', () => {
@@ -764,24 +843,44 @@ describe('parseExtendedChart — sankey indentation syntax', () => {
     ].join('\n');
     const parsed = parseExtendedChart(input, palette);
     expect(parsed.links).toHaveLength(3);
-    expect(parsed.links![0]).toMatchObject({ source: 'External', target: 'Revenue', value: 1000 });
-    expect(parsed.links![1]).toMatchObject({ source: 'Revenue', target: 'Costs', value: 600 });
-    expect(parsed.links![2]).toMatchObject({ source: 'Revenue', target: 'Profit', value: 400 });
+    expect(parsed.links![0]).toMatchObject({
+      source: 'External',
+      target: 'Revenue',
+      value: 1000,
+    });
+    expect(parsed.links![1]).toMatchObject({
+      source: 'Revenue',
+      target: 'Costs',
+      value: 600,
+    });
+    expect(parsed.links![2]).toMatchObject({
+      source: 'Revenue',
+      target: 'Profit',
+      value: 400,
+    });
   });
 
   it('backward compat: flat-only sankey still parses identically', () => {
-    const input = [
-      'sankey',
-      '',
-      'A -> B 100',
-      'A -> C 200',
-      'B -> D 50',
-    ].join('\n');
+    const input = ['sankey', '', 'A -> B 100', 'A -> C 200', 'B -> D 50'].join(
+      '\n'
+    );
     const parsed = parseExtendedChart(input, palette);
     expect(parsed.links).toHaveLength(3);
-    expect(parsed.links![0]).toMatchObject({ source: 'A', target: 'B', value: 100 });
-    expect(parsed.links![1]).toMatchObject({ source: 'A', target: 'C', value: 200 });
-    expect(parsed.links![2]).toMatchObject({ source: 'B', target: 'D', value: 50 });
+    expect(parsed.links![0]).toMatchObject({
+      source: 'A',
+      target: 'B',
+      value: 100,
+    });
+    expect(parsed.links![1]).toMatchObject({
+      source: 'A',
+      target: 'C',
+      value: 200,
+    });
+    expect(parsed.links![2]).toMatchObject({
+      source: 'B',
+      target: 'D',
+      value: 50,
+    });
   });
 
   it('comments and blank lines inside indented group do not break it', () => {
@@ -798,9 +897,21 @@ describe('parseExtendedChart — sankey indentation syntax', () => {
     ].join('\n');
     const parsed = parseExtendedChart(input, palette);
     expect(parsed.links).toHaveLength(3);
-    expect(parsed.links![0]).toMatchObject({ source: 'Revenue', target: 'Operating Costs', value: 400 });
-    expect(parsed.links![1]).toMatchObject({ source: 'Revenue', target: 'Salaries', value: 300 });
-    expect(parsed.links![2]).toMatchObject({ source: 'Revenue', target: 'Profit', value: 300 });
+    expect(parsed.links![0]).toMatchObject({
+      source: 'Revenue',
+      target: 'Operating Costs',
+      value: 400,
+    });
+    expect(parsed.links![1]).toMatchObject({
+      source: 'Revenue',
+      target: 'Salaries',
+      value: 300,
+    });
+    expect(parsed.links![2]).toMatchObject({
+      source: 'Revenue',
+      target: 'Profit',
+      value: 300,
+    });
   });
 });
 
@@ -839,11 +950,7 @@ describe('parseExtendedChart — sankey color annotations', () => {
   });
 
   it('node colors via arrow syntax', () => {
-    const input = [
-      'sankey',
-      '',
-      'A (blue) -> B (red) 100',
-    ].join('\n');
+    const input = ['sankey', '', 'A (blue) -> B (red) 100'].join('\n');
     const parsed = parseExtendedChart(input, palette);
     expect(parsed.nodeColors!['A']).toBe('#5e81ac');
     expect(parsed.nodeColors!['B']).toBe('#bf616a');
@@ -852,35 +959,21 @@ describe('parseExtendedChart — sankey color annotations', () => {
   });
 
   it('link color via indentation syntax', () => {
-    const input = [
-      'sankey',
-      '',
-      'Revenue',
-      '  Costs 600 (orange)',
-    ].join('\n');
+    const input = ['sankey', '', 'Revenue', '  Costs 600 (orange)'].join('\n');
     const parsed = parseExtendedChart(input, palette);
     expect(parsed.links![0].color).toBe('#d08770');
     expect(parsed.links![0].value).toBe(600);
   });
 
   it('link color via arrow syntax', () => {
-    const input = [
-      'sankey',
-      '',
-      'A -> B 100 (purple)',
-    ].join('\n');
+    const input = ['sankey', '', 'A -> B 100 (purple)'].join('\n');
     const parsed = parseExtendedChart(input, palette);
     expect(parsed.links![0].color).toBe('#b48ead');
     expect(parsed.links![0].value).toBe(100);
   });
 
   it('uncolored sankey still works (backward compat)', () => {
-    const input = [
-      'sankey',
-      '',
-      'A -> B 100',
-      'B -> C 50',
-    ].join('\n');
+    const input = ['sankey', '', 'A -> B 100', 'B -> C 50'].join('\n');
     const parsed = parseExtendedChart(input, palette);
     expect(parsed.nodeColors).toBeUndefined();
     expect(parsed.links![0].color).toBeUndefined();
@@ -897,12 +990,9 @@ describe('buildSankeyOption — color annotations', () => {
   }
 
   it('uses nodeColors for node itemStyle.color', () => {
-    const input = [
-      'sankey',
-      '',
-      'A (green) -> B (red) 100',
-      'B -> C 50',
-    ].join('\n');
+    const input = ['sankey', '', 'A (green) -> B (red) 100', 'B -> C 50'].join(
+      '\n'
+    );
     const opt = buildSankey(input);
     const s = series(opt)[0];
     const nodeA = s.data.find((n: { name: string }) => n.name === 'A');
@@ -916,16 +1006,17 @@ describe('buildSankeyOption — color annotations', () => {
   });
 
   it('applies lineStyle.color on colored links', () => {
-    const input = [
-      'sankey',
-      '',
-      'A -> B 100 (orange)',
-      'A -> C 50',
-    ].join('\n');
+    const input = ['sankey', '', 'A -> B 100 (orange)', 'A -> C 50'].join('\n');
     const opt = buildSankey(input);
     const s = series(opt)[0];
-    const linkAB = s.links.find((l: { source: string; target: string }) => l.source === 'A' && l.target === 'B');
-    const linkAC = s.links.find((l: { source: string; target: string }) => l.source === 'A' && l.target === 'C');
+    const linkAB = s.links.find(
+      (l: { source: string; target: string }) =>
+        l.source === 'A' && l.target === 'B'
+    );
+    const linkAC = s.links.find(
+      (l: { source: string; target: string }) =>
+        l.source === 'A' && l.target === 'C'
+    );
     expect(linkAB.lineStyle).toEqual({ color: '#d08770' });
     expect(linkAC.lineStyle).toBeUndefined();
   });
@@ -989,8 +1080,16 @@ describe('parseDataRowValues — space-delimited multi-values', () => {
     const input = 'scatter\nAlice 165 60\nBob 180 85';
     const parsed = parseExtendedChart(input, palette);
     expect(parsed.scatterPoints).toHaveLength(2);
-    expect(parsed.scatterPoints![0]).toMatchObject({ name: 'Alice', x: 165, y: 60 });
-    expect(parsed.scatterPoints![1]).toMatchObject({ name: 'Bob', x: 180, y: 85 });
+    expect(parsed.scatterPoints![0]).toMatchObject({
+      name: 'Alice',
+      x: 165,
+      y: 60,
+    });
+    expect(parsed.scatterPoints![1]).toMatchObject({
+      name: 'Bob',
+      x: 180,
+      y: 85,
+    });
   });
 });
 

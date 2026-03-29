@@ -12,7 +12,16 @@ import { parseVisualization } from '../src/d3';
 // ============================================================
 
 describe('suggest()', () => {
-  const chartTypes = ['bar', 'line', 'pie', 'doughnut', 'area', 'radar', 'polar-area', 'bar-stacked'];
+  const chartTypes = [
+    'bar',
+    'line',
+    'pie',
+    'doughnut',
+    'area',
+    'radar',
+    'polar-area',
+    'bar-stacked',
+  ];
 
   it('suggests close match for common typos', () => {
     expect(suggest('ber', chartTypes)).toBe("Did you mean 'bar'?");
@@ -37,7 +46,14 @@ describe('suggest()', () => {
   });
 
   it('suggests for echarts types', () => {
-    const ecTypes = ['scatter', 'sankey', 'chord', 'function', 'heatmap', 'funnel'];
+    const ecTypes = [
+      'scatter',
+      'sankey',
+      'chord',
+      'function',
+      'heatmap',
+      'funnel',
+    ];
     expect(suggest('scater', ecTypes)).toBe("Did you mean 'scatter'?");
     expect(suggest('snakey', ecTypes)).toBe("Did you mean 'sankey'?");
   });
@@ -68,11 +84,9 @@ describe('sequence: multiple recoverable errors', () => {
   });
 
   it('collects # comment error and continues parsing', () => {
-    const content = [
-      'sequence',
-      '# this is wrong',
-      'User -request-> API',
-    ].join('\n');
+    const content = ['sequence', '# this is wrong', 'User -request-> API'].join(
+      '\n'
+    );
 
     const result = parseSequenceDgmo(content);
     const errors = result.diagnostics.filter((d) => d.severity === 'error');
@@ -160,11 +174,7 @@ describe('org: multiple recoverable errors', () => {
   });
 
   it('collects metadata-without-parent error and continues', () => {
-    const content = [
-      'org',
-      '    role: Engineer',
-      'Alice',
-    ].join('\n');
+    const content = ['org', '    role: Engineer', 'Alice'].join('\n');
 
     const result = parseOrg(content);
     const errors = result.diagnostics.filter((d) => d.severity === 'error');
@@ -196,7 +206,7 @@ describe('chart type suggestions in error messages', () => {
   it('suggests d3 type for misspellings', () => {
     const result = parseVisualization('slop\nA, B\nX: 1, 2');
     expect(result.error).toBeDefined();
-    expect(result.diagnostics[0].message).toContain("Did you mean 'slope'?");
+    expect(result.error).toContain("Did you mean 'slope'?");
   });
 });
 
@@ -210,8 +220,8 @@ describe('venn: recoverable overlap errors', () => {
       'venn',
       'Math',
       'Science',
-      'Math + Typo: Shared',
-      'Math + Science: Both',
+      'Math + Typo Shared',
+      'Math + Science Both',
     ].join('\n');
 
     const result = parseVisualization(content);

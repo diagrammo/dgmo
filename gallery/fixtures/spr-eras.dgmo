@@ -1,5 +1,5 @@
 line U.S. Strategic Petroleum Reserve
-ylabel Million Barrels
+y-label Million Barrels
 
 era '77 -> '81 Carter (blue)
 era '81 -> '89 Reagan (red)

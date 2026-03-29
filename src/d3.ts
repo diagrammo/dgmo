@@ -682,7 +682,7 @@ export function parseVisualization(
       } else {
         if (line.startsWith('//')) continue;
         const eraEntryMatch = line.match(
-          /^(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s*(?:->|\u2013>)\s*(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s*:?\s+(.+?)(?:\s*\(([^)]+)\))?\s*$/
+          /^(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s*(?:->|\u2013>)\s*(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s+(.+?)(?:\s*\(([^)]+)\))?\s*$/
         );
         if (eraEntryMatch) {
           const colorAnnotation = eraEntryMatch[4]?.trim() || null;
@@ -747,7 +747,7 @@ export function parseVisualization(
 
       // Timeline era lines (inline): era YYYY->YYYY Label (color)
       const eraMatch = line.match(
-        /^era\s+(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s*(?:->|\u2013>)\s*(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s*:?\s+(.+?)(?:\s*\(([^)]+)\))?\s*$/
+        /^era\s+(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s*(?:->|\u2013>)\s*(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s+(.+?)(?:\s*\(([^)]+)\))?\s*$/
       );
       if (eraMatch) {
         const colorAnnotation = eraMatch[4]?.trim() || null;
@@ -765,7 +765,7 @@ export function parseVisualization(
 
       // Timeline marker lines (inline): marker YYYY Label (color)
       const markerMatch = line.match(
-        /^marker:?\s+(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s+(.+?)(?:\s*\(([^)]+)\))?\s*$/
+        /^marker\s+(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s+(.+?)(?:\s*\(([^)]+)\))?\s*$/
       );
       if (markerMatch) {
         const colorAnnotation = markerMatch[3]?.trim() || null;
@@ -788,7 +788,7 @@ export function parseVisualization(
       // Supports uncertain end with ? suffix (e.g., ->3m?: fades out the last 20%)
       // Accepts both -> (hyphen) and –> (en-dash U+2013)
       const durationMatch = line.match(
-        /^(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s*(?:->|\u2013>)\s*(\d+(?:\.\d{1,2})?)(min|[dwmyh])(\?)?(?:\s*:\s*|\s+)(.+)$/
+        /^(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s*(?:->|\u2013>)\s*(\d+(?:\.\d{1,2})?)(min|[dwmyh])(\?)?\s+(.+)$/
       );
       if (durationMatch) {
         const startDate = durationMatch[1];
@@ -821,7 +821,7 @@ export function parseVisualization(
       // Also supports YYYY-MM-DD HH:MM in both start and end dates
       // Accepts both -> (hyphen) and –> (en-dash U+2013)
       const rangeMatch = line.match(
-        /^(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s*(?:->|\u2013>)\s*(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)(\?)?(?:\s*:\s*|\s+)(.+)$/
+        /^(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s*(?:->|\u2013>)\s*(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)(\?)?\s+(.+)$/
       );
       if (rangeMatch) {
         const segments = rangeMatch[4].split('|');
@@ -845,10 +845,8 @@ export function parseVisualization(
         continue;
       }
 
-      // Point event: 1718 description (or legacy 1718: description)
-      const pointMatch = line.match(
-        /^(\d{4}(?:-\d{2})?(?:-\d{2})?)(?:\s*:\s*|\s+)(.+)$/
-      );
+      // Point event: 1718 description
+      const pointMatch = line.match(/^(\d{4}(?:-\d{2})?(?:-\d{2})?)\s+(.+)$/);
       if (pointMatch) {
         const segments = pointMatch[2].split('|');
         const metadata =
@@ -893,36 +891,27 @@ export function parseVisualization(
           const lastSeg = segments[segments.length - 1];
 
           // For the last segment, extract set reference and optional label.
-          // Support deprecated colon: "SetRef: Label"
-          const colonIdx = lastSeg.indexOf(':');
+          // Find where the set reference ends and label begins.
+          // Try progressively shorter prefixes against known set names/aliases.
+          const words = lastSeg.split(/\s+/);
+          let matchLen = 0;
+          for (let w = words.length; w >= 1; w--) {
+            const candidate = words.slice(0, w).join(' ');
+            if (knownSetRefs.has(candidate.toLowerCase())) {
+              matchLen = w;
+              break;
+            }
+          }
           let lastSetRef: string;
           let label: string | null;
-          if (colonIdx >= 0) {
-            lastSetRef = lastSeg.substring(0, colonIdx).trim();
-            label = lastSeg.substring(colonIdx + 1).trim() || null;
+          if (matchLen > 0) {
+            lastSetRef = words.slice(0, matchLen).join(' ');
+            label =
+              words.length > matchLen ? words.slice(matchLen).join(' ') : null;
           } else {
-            // No colon — find where the set reference ends and label begins.
-            // Try progressively shorter prefixes against known set names/aliases.
-            const words = lastSeg.split(/\s+/);
-            let matchLen = 0;
-            for (let w = words.length; w >= 1; w--) {
-              const candidate = words.slice(0, w).join(' ');
-              if (knownSetRefs.has(candidate.toLowerCase())) {
-                matchLen = w;
-                break;
-              }
-            }
-            if (matchLen > 0) {
-              lastSetRef = words.slice(0, matchLen).join(' ');
-              label =
-                words.length > matchLen
-                  ? words.slice(matchLen).join(' ')
-                  : null;
-            } else {
-              // No known set matched — assume first word is the set ref, rest is label
-              lastSetRef = words[0];
-              label = words.length > 1 ? words.slice(1).join(' ') : null;
-            }
+            // No known set matched — assume first word is the set ref, rest is label
+            lastSetRef = words[0];
+            label = words.length > 1 ? words.slice(1).join(' ') : null;
           }
           rawSets.push(lastSetRef);
           result.vennOverlaps.push({ sets: rawSets, label, lineNumber });
@@ -962,8 +951,8 @@ export function parseVisualization(
 
     // Quadrant-specific parsing
     if (result.type === 'quadrant') {
-      // x-axis Low, High  — or indented multi-line
-      const xAxisMatch = line.match(/^x-axis\s+(.*)/i);
+      // x-label Low, High  — or indented multi-line
+      const xAxisMatch = line.match(/^x-label\s+(.*)/i);
       if (xAxisMatch) {
         const val = xAxisMatch[1].trim();
         let parts: string[];
@@ -981,8 +970,8 @@ export function parseVisualization(
         continue;
       }
 
-      // y-axis Low, High  — or indented multi-line
-      const yAxisMatch = line.match(/^y-axis\s+(.*)/i);
+      // y-label Low, High  — or indented multi-line
+      const yAxisMatch = line.match(/^y-label\s+(.*)/i);
       if (yAxisMatch) {
         const val = yAxisMatch[1].trim();
         let parts: string[];
@@ -1248,6 +1237,12 @@ export function parseVisualization(
         result.periods = periods;
         continue;
       }
+    }
+
+    // Catch-all: nothing matched this line
+    // Skip on first line — chart type suggestion is handled post-loop
+    if (firstLineParsed) {
+      warn(lineNumber, `Unexpected line: '${line}'.`);
     }
   }
 

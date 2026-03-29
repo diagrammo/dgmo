@@ -142,8 +142,8 @@ const colors = getPalette('nord').light;
 
 const content = `
 bar Revenue by Quarter
-xlabel Quarter
-ylabel Revenue ($M)
+x-label Quarter
+y-label Revenue ($M)
 
 Q1 12
 Q2 19
@@ -440,8 +440,8 @@ Plain text. Lines starting with `#` or `//` are comments. Empty lines are ignore
 
 ```
 <type> Optional Title
-xlabel X Axis
-ylabel Y Axis
+x-label X Axis
+y-label Y Axis
 series Series1, Series2
 orientation horizontal
 

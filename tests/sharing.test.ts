@@ -6,8 +6,14 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
     { name: 'pie chart', dsl: 'pie\nA: 10\nB: 20\nC: 30' },
     { name: 'sequence diagram', dsl: 'sequence\nA -hello-> B\nB -world-> A' },
     { name: 'bar chart', dsl: 'bar\nApples: 40\nOranges: 25\nBananas: 60' },
-    { name: 'unicode content', dsl: 'pie\n日本語: 10\nEmoji 🎉: 20\nÜmlaut: 30' },
-    { name: 'long lines', dsl: 'sequence\n' + 'A -' + 'x'.repeat(500) + '-> B' },
+    {
+      name: 'unicode content',
+      dsl: 'pie\n日本語: 10\nEmoji 🎉: 20\nÜmlaut: 30',
+    },
+    {
+      name: 'long lines',
+      dsl: 'sequence\n' + 'A -' + 'x'.repeat(500) + '-> B',
+    },
     { name: 'empty DSL', dsl: '' },
   ];
 
@@ -25,7 +31,9 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
   it('uses the default base URL with both query and hash', () => {
     const result = encodeDiagramUrl('pie\nA: 10');
     if (result.error) throw new Error('unexpected error');
-    expect(result.url).toMatch(/^https:\/\/diagrammo\.app\/view\?dgmo=.+#dgmo=/);
+    expect(result.url).toMatch(
+      /^https:\/\/diagrammo\.app\/view\?dgmo=.+#dgmo=/
+    );
   });
 
   it('accepts a custom base URL', () => {
@@ -33,7 +41,9 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
       baseUrl: 'https://example.com/playground',
     });
     if (result.error) throw new Error('unexpected error');
-    expect(result.url).toMatch(/^https:\/\/example\.com\/playground\?dgmo=.+#dgmo=/);
+    expect(result.url).toMatch(
+      /^https:\/\/example\.com\/playground\?dgmo=.+#dgmo=/
+    );
   });
 
   it('decodes from hash when query is stripped', () => {
@@ -47,7 +57,10 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
     it('rejects payloads exceeding 8 KB compressed', () => {
       // Generate a large payload that compresses to > 8 KB
       // Random-ish data compresses poorly — use unique lines
-      const lines = Array.from({ length: 2000 }, (_, i) => `item_${i}_${Math.random()}: ${i}`);
+      const lines = Array.from(
+        { length: 2000 },
+        (_, i) => `item_${i}_${Math.random()}: ${i}`
+      );
       const largeDsl = 'bar\n' + lines.join('\n');
 
       const result = encodeDiagramUrl(largeDsl);
@@ -165,7 +178,7 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
 
   describe('view state (swimlaneTagGroup)', () => {
     it('round-trips with swimlaneTagGroup', () => {
-      const dsl = 'timeline\n1716->1717: Event | p: Blackbeard';
+      const dsl = 'timeline\n1716->1717 Event | p: Blackbeard';
       const result = encodeDiagramUrl(dsl, {
         viewState: { swimlaneTagGroup: 'Pirate' },
       });
@@ -178,7 +191,7 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
     });
 
     it('round-trips with both activeTagGroup and swimlaneTagGroup', () => {
-      const dsl = 'timeline\n1716->1717: Event';
+      const dsl = 'timeline\n1716->1717 Event';
       const result = encodeDiagramUrl(dsl, {
         viewState: { activeTagGroup: 'Outcome', swimlaneTagGroup: 'Pirate' },
       });
@@ -192,7 +205,7 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
     });
 
     it('omits swim param when swimlaneTagGroup is undefined', () => {
-      const result = encodeDiagramUrl('timeline\n1716: Event', {
+      const result = encodeDiagramUrl('timeline\n1716 Event', {
         viewState: { activeTagGroup: 'Pirate' },
       });
       if (result.error) throw new Error('unexpected error');
@@ -203,7 +216,9 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
   describe('view state (palette + theme)', () => {
     it('round-trips palette: catppuccin', () => {
       const dsl = 'pie\nA: 10';
-      const result = encodeDiagramUrl(dsl, { viewState: { palette: 'catppuccin' } });
+      const result = encodeDiagramUrl(dsl, {
+        viewState: { palette: 'catppuccin' },
+      });
       if (result.error) throw new Error('unexpected error');
       expect(result.url).toContain('&pal=catppuccin');
       const query = new URL(result.url).search;
@@ -224,7 +239,11 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
     it('round-trips palette + theme + activeTagGroup together', () => {
       const dsl = 'org\nCEO';
       const result = encodeDiagramUrl(dsl, {
-        viewState: { palette: 'catppuccin', theme: 'light', activeTagGroup: 'Team' },
+        viewState: {
+          palette: 'catppuccin',
+          theme: 'light',
+          activeTagGroup: 'Team',
+        },
       });
       if (result.error) throw new Error('unexpected error');
       expect(result.url).toContain('&pal=catppuccin');
@@ -238,13 +257,17 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
     });
 
     it('omits &pal= when palette is nord (default)', () => {
-      const result = encodeDiagramUrl('pie\nA: 10', { viewState: { palette: 'nord' } });
+      const result = encodeDiagramUrl('pie\nA: 10', {
+        viewState: { palette: 'nord' },
+      });
       if (result.error) throw new Error('unexpected error');
       expect(result.url).not.toContain('&pal=');
     });
 
     it('omits &th= when theme is dark (default)', () => {
-      const result = encodeDiagramUrl('pie\nA: 10', { viewState: { theme: 'dark' } });
+      const result = encodeDiagramUrl('pie\nA: 10', {
+        viewState: { theme: 'dark' },
+      });
       if (result.error) throw new Error('unexpected error');
       expect(result.url).not.toContain('&th=');
     });
@@ -253,7 +276,8 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
       // Manually craft a URL with an invalid th value
       const result = encodeDiagramUrl('pie\nA: 10');
       if (result.error) throw new Error('unexpected error');
-      const query = new URL(result.url).search.replace('?', '') + '&th=transparent';
+      const query =
+        new URL(result.url).search.replace('?', '') + '&th=transparent';
       const decoded = decodeDiagramUrl(query);
       expect(decoded.viewState.theme).toBeUndefined();
     });
@@ -269,7 +293,7 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
 
   describe('view state (collapsedLanes)', () => {
     it('round-trips collapsedLanes', () => {
-      const dsl = 'gantt\nstart: 2024-01-15\n10d: Task';
+      const dsl = 'gantt\nstart 2024-01-15\n10d Task';
       const result = encodeDiagramUrl(dsl, {
         viewState: { collapsedLanes: ['Engineering', 'QA'] },
       });
@@ -281,7 +305,7 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
     });
 
     it('omits cl param when collapsedLanes is empty', () => {
-      const result = encodeDiagramUrl('gantt\nstart: 2024-01-15\n10d: Task', {
+      const result = encodeDiagramUrl('gantt\nstart 2024-01-15\n10d Task', {
         viewState: { collapsedLanes: [] },
       });
       if (result.error) throw new Error('unexpected error');

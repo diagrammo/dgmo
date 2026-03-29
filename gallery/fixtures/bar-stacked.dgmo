@@ -1,6 +1,6 @@
 bar-stacked Support Tickets by Priority
-xlabel Month
-ylabel Tickets
+x-label Month
+y-label Tickets
 
 series Critical (red), High (orange), Medium (yellow), Low (green), Info (blue)
 January 8, 24, 45, 62, 31
