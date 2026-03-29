@@ -146,6 +146,19 @@ export const DIRECTIVE_KEYWORDS = new Set([
   'direction-lr',
   // Initiative-status
   'contains',
+  // Data chart metadata
+  'title',
+  'series',
+  'orientation',
+  'x-label',
+  'y-label',
+  'size-label',
+  'columns',
+  'rows',
+  'labels',
+  'rotate',
+  'scale',
+  'values',
 ]);
 
 /** Control flow keywords — structural blocks. */
