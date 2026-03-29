@@ -65,6 +65,7 @@ export default defineConfig([
       '@lezer/common',
       '@codemirror/language',
       '@codemirror/state',
+      '@codemirror/view',
     ],
   },
   {
