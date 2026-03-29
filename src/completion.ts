@@ -524,7 +524,7 @@ export const METADATA_KEY_SET: ReadonlySet<string> = new Set([
 // Sequence extractor
 // ============================================================
 
-const SEQ_ARROW_RE = /^(\S+)\s+(->|-[^>\s]*->|~>|~[^>\s]*~>)\s+(\S+)/;
+const SEQ_ARROW_RE = /^(\S+)\s+(->|-.*->|~>|~.*~>)\s+(\S+)/;
 const SEQ_IS_A_RE = /^(\S+)\s+is\s+an?\s+/i;
 const SEQ_SECTION_RE = /^==/;
 const SEQ_STRUCTURAL_RE = /^(if|else|loop|parallel|end)\b/i;
@@ -784,7 +784,7 @@ const C4_ELEMENT_RE = /^(person|system|container|component)\s+(.+)$/i;
 const C4_IS_A_RE =
   /^(.+?)\s+is\s+an?\s+(person|system|container|component|external|database)\b/i;
 const C4_ARROW_RE =
-  /^(\S+)\s+(?:->|-[^>\s]*->|~>|~[^>\s]*~>|<->|<-[^>\s]*->|<~>|<~[^>\s]*~>)\s+(\S+)/;
+  /^(\S+)\s+(?:->|-.*->|~>|~.*~>|<->|<-.*->|<~>|<~.*~>)\s+(\S+)/;
 const C4_SECTION_RE = /^(containers|components|deployment)\s*$/i;
 
 function extractC4Symbols(docText: string): DiagramSymbols {
