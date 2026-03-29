@@ -51,7 +51,7 @@ contentPart {
   OpenAngle { "<" }
   CloseAngle { ">" }
 
-  Identifier { $[a-zA-Z_] ($[a-zA-Z0-9_./&?=@#!'+] | "-" $[a-zA-Z0-9_./&?=@#!'+])* }
+  Identifier { $[a-zA-Z_] ($[a-zA-Z0-9_./&?=@#!'+] | "-" $[a-zA-Z_./&?=@#!'+])* }
 
   Punct { ![$[ \t\n] }
 
