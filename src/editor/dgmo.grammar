@@ -4,7 +4,7 @@ ContentLine { contentPart+ newline }
 
 contentPart {
   SyncArrow | AsyncArrow |
-  Percentage | Number |
+  Duration | DateLiteral | Percentage | Number |
   SectionMarker |
   Url |
   OpenBracket | CloseBracket | OpenParen | CloseParen | OpenAngle | CloseAngle |
@@ -27,6 +27,8 @@ contentPart {
   SyncArrow { "->" }
   AsyncArrow { "~>" }
 
+  Duration { $[0-9]+ ("." $[0-9]+)? ("min" | "bd" | "h" | "d" | "w" | "m" | "q" | "y") "?"? }
+  DateLiteral { $[0-9] $[0-9] $[0-9] $[0-9] "-" $[0-9] $[0-9] ("-" $[0-9] $[0-9])? }
   Percentage { $[0-9]+ ("." $[0-9]+)? "%" }
   Number { $[0-9]+ ("." $[0-9]+)? }
 
@@ -55,7 +57,7 @@ contentPart {
 
   @precedence {
     Comment, SyncArrow, AsyncArrow,
-    Percentage, Number, SectionMarker, Url, ColorAnnotation,
+    Duration, DateLiteral, Percentage, Number, SectionMarker, Url, ColorAnnotation,
     Pipe, Colon, Comma, Plus, Dash, Tilde, Star, Question,
     OpenBracket, CloseBracket, OpenParen, CloseParen, OpenAngle, CloseAngle,
     Identifier, Punct

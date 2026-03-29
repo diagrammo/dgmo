@@ -11,6 +11,8 @@ export const dgmoHighlighting: NodePropSource = styleTags({
   ModifierKeyword: t.modifier,
   SyncArrow: t.operator,
   AsyncArrow: t.operator,
+  Duration: t.number,
+  DateLiteral: t.number,
   Number: t.number,
   Percentage: t.number,
   SectionMarker: t.heading,
