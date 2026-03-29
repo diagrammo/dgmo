@@ -26,13 +26,9 @@ const COLUMN_RE = /^\[(.+?)\](?:\s*\(([^)]+)\))?\s*(?:\|\s*(.+))?$/;
 const LEGACY_COLUMN_RE = /^==\s+(.+?)\s*(?:\[wip:\s*(\d+)\])?\s*==$/;
 
 /** Known kanban options (key-value). */
-const KNOWN_OPTIONS = new Set([
-  'hide',
-]);
+const KNOWN_OPTIONS = new Set(['hide']);
 /** Known kanban boolean options (bare keyword = on). */
-const KNOWN_BOOLEANS = new Set<string>([
-  'no-auto-color',
-]);
+const KNOWN_BOOLEANS = new Set<string>(['no-auto-color']);
 
 // ============================================================
 // Parser
@@ -138,7 +134,10 @@ export function parseKanban(
           lineNumber,
         };
         if (tagBlockMatch.alias) {
-          aliasMap.set(tagBlockMatch.alias.toLowerCase(), tagBlockMatch.name.toLowerCase());
+          aliasMap.set(
+            tagBlockMatch.alias.toLowerCase(),
+            tagBlockMatch.name.toLowerCase()
+          );
         }
         result.tagGroups.push(currentTagGroup);
         continue;
@@ -157,7 +156,10 @@ export function parseKanban(
         }
       }
       // Bare boolean option (single keyword, no value)
-      if (KNOWN_BOOLEANS.has(trimmed.toLowerCase()) && !COLUMN_RE.test(trimmed)) {
+      if (
+        KNOWN_BOOLEANS.has(trimmed.toLowerCase()) &&
+        !COLUMN_RE.test(trimmed)
+      ) {
         result.options[trimmed.toLowerCase()] = 'on';
         continue;
       }
@@ -199,7 +201,12 @@ export function parseKanban(
     if (LEGACY_COLUMN_RE.test(trimmed)) {
       const legacyMatch = trimmed.match(LEGACY_COLUMN_RE)!;
       const name = legacyMatch[1].replace(/\s*\(.*\)\s*$/, '').trim();
-      result.diagnostics.push(makeDgmoError(lineNumber, `'== ${name} ==' is no longer supported. Use '[${name}]' instead`));
+      result.diagnostics.push(
+        makeDgmoError(
+          lineNumber,
+          `'== ${name} ==' is no longer supported. Use '[${name}]' instead`
+        )
+      );
       continue;
     }
 
@@ -224,7 +231,7 @@ export function parseKanban(
       columnCounter++;
       const colName = columnMatch[1].trim();
       const colColor = columnMatch[2]
-        ? resolveColor(columnMatch[2].trim(), palette) ?? undefined
+        ? (resolveColor(columnMatch[2].trim(), palette) ?? undefined)
         : undefined;
 
       // Parse pipe metadata (e.g., "| wip: 3, t: Sprint1")
@@ -233,7 +240,10 @@ export function parseKanban(
       const pipeStr = columnMatch[3];
       if (pipeStr) {
         const pipeSegments = ['', pipeStr];
-        Object.assign(columnMetadata, parsePipeMetadata(pipeSegments, aliasMap));
+        Object.assign(
+          columnMetadata,
+          parsePipeMetadata(pipeSegments, aliasMap)
+        );
         // Extract wip from metadata
         if (columnMetadata.wip) {
           const wipVal = parseInt(columnMetadata.wip, 10);
@@ -300,8 +310,8 @@ export function parseKanban(
       continue;
     }
 
-    // Un-indented non-column line in content phase — could be stray text
-    // For permissiveness, skip silently
+    // Un-indented non-column line in content phase — stray text
+    warn(lineNumber, `Unexpected line: '${trimmed}'.`);
   }
 
   // Finalize last card's endLineNumber
@@ -329,7 +339,8 @@ export function parseKanban(
   for (const col of result.columns) {
     for (const card of col.cards) {
       for (const [tagKey, tagValue] of Object.entries(card.tags)) {
-        const groupKey = aliasMap.get(tagKey.toLowerCase()) ?? tagKey.toLowerCase();
+        const groupKey =
+          aliasMap.get(tagKey.toLowerCase()) ?? tagKey.toLowerCase();
         const validValues = tagValueSets.get(groupKey);
         if (validValues && !validValues.has(tagValue.toLowerCase())) {
           const entries = result.tagGroups

@@ -7,7 +7,11 @@
 // and connections, [Group] containers, tag groups, pipe metadata.
 
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
-import { measureIndent, parseFirstLine, OPTION_NOCOLON_RE } from '../utils/parsing';
+import {
+  measureIndent,
+  parseFirstLine,
+  OPTION_NOCOLON_RE,
+} from '../utils/parsing';
 import { matchTagBlockHeading } from '../utils/tag-groups';
 import type {
   ParsedInfra,
@@ -21,21 +25,17 @@ import { INFRA_BEHAVIOR_KEYS, EDGE_ONLY_KEYS } from './types';
 // Regex patterns
 // ============================================================
 
-// Connection: -label-> Target  or  -> Target  (with optional | split: N%  or pipe metadata)
-const CONNECTION_RE =
-  /^-(?:([^-].*?))?->\s*(.+?)(?:(?:\s*\|\s*|\s+)split\s*:?\s*(\d+)%)?\s*$/;
+// Connection: -label-> Target  or  -> Target  (pipe metadata handled by extractPipeMetadata)
+const CONNECTION_RE = /^-(?:([^-].*?))?->\s*(.+?)\s*$/;
 
 // Simple connection shorthand: -> Target (no label, no dash prefix needed for edge)
-const SIMPLE_CONNECTION_RE =
-  /^->\s*(.+?)(?:(?:\s*\|\s*|\s+)split\s*:?\s*(\d+)%)?\s*$/;
+const SIMPLE_CONNECTION_RE = /^->\s*(.+?)\s*$/;
 
-// Async connection: ~label~> Target  or  ~> Target  (with optional | split: N%  or pipe metadata)
-const ASYNC_CONNECTION_RE =
-  /^~(?:([^~].*?))?~>\s*(.+?)(?:(?:\s*\|\s*|\s+)split\s*:?\s*(\d+)%)?\s*$/;
+// Async connection: ~label~> Target  or  ~> Target
+const ASYNC_CONNECTION_RE = /^~(?:([^~].*?))?~>\s*(.+?)\s*$/;
 
 // Async simple connection shorthand: ~> Target
-const ASYNC_SIMPLE_CONNECTION_RE =
-  /^~>\s*(.+?)(?:(?:\s*\|\s*|\s+)split\s*:?\s*(\d+)%)?\s*$/;
+const ASYNC_SIMPLE_CONNECTION_RE = /^~>\s*(.+?)\s*$/;
 
 // Deprecated xN fanout suffix (e.g. "x5" at end of line)
 const DEPRECATED_FANOUT_RE = /\bx(\d+)\s*$/;
@@ -68,8 +68,12 @@ const EDGE_NODE_NAMES = new Set(['edge', 'internet']);
 
 // Known top-level option keys (space-separated, no colon)
 const TOP_LEVEL_OPTIONS = new Set([
-  'slo-availability', 'slo-p90-latency-ms', 'slo-warning-margin',
-  'default-latency-ms', 'default-uptime', 'default-rps',
+  'slo-availability',
+  'slo-p90-latency-ms',
+  'slo-warning-margin',
+  'default-latency-ms',
+  'default-uptime',
+  'default-rps',
 ]);
 
 // ============================================================
@@ -94,9 +98,10 @@ function parsePropertyValue(raw: string): string | number {
   return raw.trim();
 }
 
-function extractPipeMetadata(
-  rest: string,
-): { tags: Record<string, string>; clean: string } {
+function extractPipeMetadata(rest: string): {
+  tags: Record<string, string>;
+  clean: string;
+} {
   const tags: Record<string, string> = {};
   let clean = rest;
   let match: RegExpExecArray | null;
@@ -106,6 +111,30 @@ function extractPipeMetadata(
     clean = clean.replace(match[0], '');
   }
   return { tags, clean: clean.trim() };
+}
+
+// Detect unparsed pipe metadata left in a target name after extractPipeMetadata.
+// Common case: `split 100%` without a colon isn't picked up by PIPE_META_RE.
+const UNPARSED_SPLIT_RE = /\bsplit\s+(\d+)%/;
+
+function warnUnparsedPipeMeta(
+  targetName: string,
+  lineNumber: number,
+  warnFn: (line: number, message: string) => void
+): void {
+  if (!targetName.includes('|')) return;
+  const splitMatch = targetName.match(UNPARSED_SPLIT_RE);
+  if (splitMatch) {
+    warnFn(
+      lineNumber,
+      `'split ${splitMatch[1]}%' needs a colon — use 'split: ${splitMatch[1]}%'`
+    );
+  } else {
+    warnFn(
+      lineNumber,
+      `Unparsed pipe metadata in target — pipe values use 'key: value' syntax`
+    );
+  }
 }
 
 // ============================================================
@@ -150,20 +179,26 @@ export function parseInfra(content: string): ParsedInfra {
     if (currentNode && !nodeMap.has(currentNode.id)) {
       // Validate mutual exclusion: concurrency vs instances/max-rps
       const keys = new Set(currentNode.properties.map((p) => p.key));
-      if (keys.has('concurrency') && (keys.has('instances') || keys.has('max-rps'))) {
-        const conflicting = [keys.has('instances') ? 'instances' : '', keys.has('max-rps') ? 'max-rps' : '']
+      if (
+        keys.has('concurrency') &&
+        (keys.has('instances') || keys.has('max-rps'))
+      ) {
+        const conflicting = [
+          keys.has('instances') ? 'instances' : '',
+          keys.has('max-rps') ? 'max-rps' : '',
+        ]
           .filter(Boolean)
           .join(', ');
         warn(
           currentNode.lineNumber,
-          `'concurrency' (serverless) is mutually exclusive with ${conflicting}. Serverless nodes scale via concurrency, not instances.`,
+          `'concurrency' (serverless) is mutually exclusive with ${conflicting}. Serverless nodes scale via concurrency, not instances.`
         );
       }
       // Validate mutual exclusion: buffer (queue) vs max-rps (service)
       if (keys.has('buffer') && keys.has('max-rps')) {
         warn(
           currentNode.lineNumber,
-          `'buffer' (queue) and 'max-rps' (service) represent different capacity models. A queue buffers messages; a service processes them.`,
+          `'buffer' (queue) and 'max-rps' (service) represent different capacity models. A queue buffers messages; a service processes them.`
         );
       }
       nodeMap.set(currentNode.id, currentNode);
@@ -202,7 +237,10 @@ export function parseInfra(content: string): ParsedInfra {
       const firstLineResult = parseFirstLine(trimmed);
       if (firstLineResult) {
         if (firstLineResult.chartType !== 'infra') {
-          setError(lineNumber, `Expected chart type 'infra', got '${firstLineResult.chartType}'`);
+          setError(
+            lineNumber,
+            `Expected chart type 'infra', got '${firstLineResult.chartType}'`
+          );
         }
         if (firstLineResult.title) {
           result.title = firstLineResult.title;
@@ -255,11 +293,16 @@ export function parseInfra(content: string): ParsedInfra {
         finishCurrentTagGroup();
         const gLabel = groupMatch[1].trim();
         const gId = groupId(gLabel);
-        const groupMeta = groupMatch[2] ? extractPipeMetadata('|' + groupMatch[2]).tags : undefined;
+        const groupMeta = groupMatch[2]
+          ? extractPipeMetadata('|' + groupMatch[2]).tags
+          : undefined;
         currentGroup = {
           id: gId,
           label: gLabel,
-          metadata: groupMeta && Object.keys(groupMeta).length > 0 ? groupMeta : undefined,
+          metadata:
+            groupMeta && Object.keys(groupMeta).length > 0
+              ? groupMeta
+              : undefined,
           lineNumber,
         };
         result.groups.push(currentGroup);
@@ -310,6 +353,11 @@ export function parseInfra(content: string): ParsedInfra {
         }
         continue;
       }
+      warn(
+        lineNumber,
+        `Invalid tag value '${trimmed}' in tag group '${currentTagGroup.name}'.`
+      );
+      continue;
     }
 
     // Inside a [Group] but no current node — group properties or component declaration
@@ -333,6 +381,8 @@ export function parseInfra(content: string): ParsedInfra {
           currentGroup.collapsed = val.toLowerCase() === 'true';
           continue;
         }
+        // Fall through to component matching — could be a component name
+        // that happens to match PROPERTY_RE (e.g., "MyService v2")
       }
 
       const compMatch = trimmed.match(COMPONENT_RE);
@@ -365,9 +415,17 @@ export function parseInfra(content: string): ParsedInfra {
     if (currentNode && indent > baseIndent) {
       // Detect deprecated xN fanout syntax
       const deprecatedFanout = trimmed.match(DEPRECATED_FANOUT_RE);
-      if (deprecatedFanout && (trimmed.startsWith('->') || trimmed.startsWith('-') || trimmed.startsWith('~'))) {
+      if (
+        deprecatedFanout &&
+        (trimmed.startsWith('->') ||
+          trimmed.startsWith('-') ||
+          trimmed.startsWith('~'))
+      ) {
         const n = deprecatedFanout[1];
-        setError(lineNumber, `'x${n}' fanout syntax is no longer supported — use '| fanout: ${n}' instead`);
+        setError(
+          lineNumber,
+          `'x${n}' fanout syntax is no longer supported — use '| fanout: ${n}' instead`
+        );
         continue;
       }
 
@@ -375,14 +433,20 @@ export function parseInfra(content: string): ParsedInfra {
       const asyncSimpleConn = trimmed.match(ASYNC_SIMPLE_CONNECTION_RE);
       if (asyncSimpleConn) {
         const targetRaw = asyncSimpleConn[1].trim();
-        const splitStr = asyncSimpleConn[2];
         const pipeMeta = extractPipeMetadata(targetRaw);
         const targetName = pipeMeta.clean || targetRaw;
-        const split = splitStr ? parseFloat(splitStr)
-          : pipeMeta.tags.split ? parseFloat(pipeMeta.tags.split) : null;
-        const fanoutRaw = pipeMeta.tags.fanout ? parseInt(pipeMeta.tags.fanout, 10) : null;
+        warnUnparsedPipeMeta(targetName, lineNumber, warn);
+        const split = pipeMeta.tags.split
+          ? parseFloat(pipeMeta.tags.split)
+          : null;
+        const fanoutRaw = pipeMeta.tags.fanout
+          ? parseInt(pipeMeta.tags.fanout, 10)
+          : null;
         if (fanoutRaw !== null && fanoutRaw < 1) {
-          warn(lineNumber, `Fan-out multiplier must be at least 1 (got fanout: ${fanoutRaw}). Ignoring.`);
+          warn(
+            lineNumber,
+            `Fan-out multiplier must be at least 1 (got fanout: ${fanoutRaw}). Ignoring.`
+          );
         }
         const fanout = fanoutRaw !== null && fanoutRaw >= 1 ? fanoutRaw : null;
         result.edges.push({
@@ -402,14 +466,20 @@ export function parseInfra(content: string): ParsedInfra {
       if (asyncConnMatch) {
         const label = asyncConnMatch[1]?.trim() || '';
         const targetRaw = asyncConnMatch[2].trim();
-        const splitStr = asyncConnMatch[3];
         const pipeMeta = extractPipeMetadata(targetRaw);
         const targetName = pipeMeta.clean || targetRaw;
-        const split = splitStr ? parseFloat(splitStr)
-          : pipeMeta.tags.split ? parseFloat(pipeMeta.tags.split) : null;
-        const fanoutRaw = pipeMeta.tags.fanout ? parseInt(pipeMeta.tags.fanout, 10) : null;
+        warnUnparsedPipeMeta(targetName, lineNumber, warn);
+        const split = pipeMeta.tags.split
+          ? parseFloat(pipeMeta.tags.split)
+          : null;
+        const fanoutRaw = pipeMeta.tags.fanout
+          ? parseInt(pipeMeta.tags.fanout, 10)
+          : null;
         if (fanoutRaw !== null && fanoutRaw < 1) {
-          warn(lineNumber, `Fan-out multiplier must be at least 1 (got fanout: ${fanoutRaw}). Ignoring.`);
+          warn(
+            lineNumber,
+            `Fan-out multiplier must be at least 1 (got fanout: ${fanoutRaw}). Ignoring.`
+          );
         }
         const fanout = fanoutRaw !== null && fanoutRaw >= 1 ? fanoutRaw : null;
 
@@ -437,15 +507,20 @@ export function parseInfra(content: string): ParsedInfra {
       const simpleConn = trimmed.match(SIMPLE_CONNECTION_RE);
       if (simpleConn) {
         const targetRaw = simpleConn[1].trim();
-        const splitStr = simpleConn[2];
-        // Parse pipe metadata for fanout/split (and clean target name)
         const pipeMeta = extractPipeMetadata(targetRaw);
         const targetName = pipeMeta.clean || targetRaw;
-        const split = splitStr ? parseFloat(splitStr)
-          : pipeMeta.tags.split ? parseFloat(pipeMeta.tags.split) : null;
-        const fanoutRaw = pipeMeta.tags.fanout ? parseInt(pipeMeta.tags.fanout, 10) : null;
+        warnUnparsedPipeMeta(targetName, lineNumber, warn);
+        const split = pipeMeta.tags.split
+          ? parseFloat(pipeMeta.tags.split)
+          : null;
+        const fanoutRaw = pipeMeta.tags.fanout
+          ? parseInt(pipeMeta.tags.fanout, 10)
+          : null;
         if (fanoutRaw !== null && fanoutRaw < 1) {
-          warn(lineNumber, `Fan-out multiplier must be at least 1 (got fanout: ${fanoutRaw}). Ignoring.`);
+          warn(
+            lineNumber,
+            `Fan-out multiplier must be at least 1 (got fanout: ${fanoutRaw}). Ignoring.`
+          );
         }
         const fanout = fanoutRaw !== null && fanoutRaw >= 1 ? fanoutRaw : null;
         result.edges.push({
@@ -465,15 +540,20 @@ export function parseInfra(content: string): ParsedInfra {
       if (connMatch) {
         const label = connMatch[1]?.trim() || '';
         const targetRaw = connMatch[2].trim();
-        const splitStr = connMatch[3];
-        // Parse pipe metadata for fanout/split (and clean target name)
         const pipeMeta = extractPipeMetadata(targetRaw);
         const targetName = pipeMeta.clean || targetRaw;
-        const split = splitStr ? parseFloat(splitStr)
-          : pipeMeta.tags.split ? parseFloat(pipeMeta.tags.split) : null;
-        const fanoutRaw = pipeMeta.tags.fanout ? parseInt(pipeMeta.tags.fanout, 10) : null;
+        warnUnparsedPipeMeta(targetName, lineNumber, warn);
+        const split = pipeMeta.tags.split
+          ? parseFloat(pipeMeta.tags.split)
+          : null;
+        const fanoutRaw = pipeMeta.tags.fanout
+          ? parseInt(pipeMeta.tags.fanout, 10)
+          : null;
         if (fanoutRaw !== null && fanoutRaw < 1) {
-          warn(lineNumber, `Fan-out multiplier must be at least 1 (got fanout: ${fanoutRaw}). Ignoring.`);
+          warn(
+            lineNumber,
+            `Fan-out multiplier must be at least 1 (got fanout: ${fanoutRaw}). Ignoring.`
+          );
         }
         const fanout = fanoutRaw !== null && fanoutRaw >= 1 ? fanoutRaw : null;
 
@@ -525,7 +605,10 @@ export function parseInfra(content: string): ParsedInfra {
 
         // Validate edge-only keys
         if (EDGE_ONLY_KEYS.has(key) && !currentNode.isEdge) {
-          warn(lineNumber, `Property '${key}' is only valid on the entry point (Edge/Internet).`);
+          warn(
+            lineNumber,
+            `Property '${key}' is only valid on the entry point (Edge/Internet).`
+          );
         }
 
         const value = parsePropertyValue(rawVal);
@@ -534,7 +617,10 @@ export function parseInfra(content: string): ParsedInfra {
       }
 
       // Unknown indented line
-      warn(lineNumber, `Unexpected line inside component '${currentNode.label}'.`);
+      warn(
+        lineNumber,
+        `Unexpected line inside component '${currentNode.label}'.`
+      );
       continue;
     }
 
@@ -592,6 +678,9 @@ export function parseInfra(content: string): ParsedInfra {
         continue;
       }
     }
+
+    // Catch-all: nothing matched this line
+    warn(lineNumber, `Unexpected line: '${trimmed}'.`);
   }
 
   // Flush last open blocks
@@ -661,7 +750,8 @@ export function extractSymbols(docText: string): DiagramSymbols {
         // Recognize new-style bare options (`key value`) and old-style (`key: value`)
         const firstLine = parseFirstLine(line);
         if (firstLine) continue; // chart type line
-        if (/^(?:direction-tb|animate|no-animate|slo-|default-)/i.test(line)) continue;
+        if (/^(?:direction-tb|animate|no-animate|slo-|default-)/i.test(line))
+          continue;
         if (/^[a-z-]+\s*:/i.test(line)) continue; // legacy colon options
         inMetadata = false;
       } else {
@@ -671,8 +761,14 @@ export function extractSymbols(docText: string): DiagramSymbols {
 
     if (!indented) {
       // Root-level: tag group declaration, group header, or component
-      if (/^tag\s/i.test(line)) { inTagGroup = true; continue; }
-      if (/^tag\s*:/i.test(line)) { inTagGroup = true; continue; } // legacy
+      if (/^tag\s/i.test(line)) {
+        inTagGroup = true;
+        continue;
+      }
+      if (/^tag\s*:/i.test(line)) {
+        inTagGroup = true;
+        continue;
+      } // legacy
       inTagGroup = false;
       if (/^\[/.test(line)) continue; // [Group] header
       const m = COMPONENT_RE.exec(line);
@@ -687,7 +783,15 @@ export function extractSymbols(docText: string): DiagramSymbols {
       if (/^\w[\w-]*\s*:/.test(line)) continue; // property (key: value) legacy
       // New-style property: first token is a known behavior/property key
       const firstToken = line.split(/\s/)[0].toLowerCase();
-      if ((INFRA_BEHAVIOR_KEYS.has(firstToken) || EDGE_ONLY_KEYS.has(firstToken) || firstToken === 'description' || firstToken === 'instances' || firstToken === 'collapsed') && /\s/.test(line)) continue;
+      if (
+        (INFRA_BEHAVIOR_KEYS.has(firstToken) ||
+          EDGE_ONLY_KEYS.has(firstToken) ||
+          firstToken === 'description' ||
+          firstToken === 'instances' ||
+          firstToken === 'collapsed') &&
+        /\s/.test(line)
+      )
+        continue;
       const m = COMPONENT_RE.exec(line);
       if (m && !entities.includes(m[1]!)) entities.push(m[1]!);
     }

@@ -324,6 +324,11 @@ export function parseClassDiagram(
       currentClass = node;
       continue;
     }
+
+    // Catch-all: nothing matched this line
+    result.diagnostics.push(
+      makeDgmoError(lineNumber, `Unexpected line: '${trimmed}'.`, 'warning')
+    );
   }
 
   // Validation

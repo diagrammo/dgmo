@@ -6,7 +6,14 @@ import { inferParticipantType } from './participant-inference';
 import type { DgmoError } from '../diagnostics';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
 import { parseArrow } from '../utils/arrows';
-import { measureIndent, extractColor, parsePipeMetadata, MULTIPLE_PIPE_ERROR, parseFirstLine, OPTION_NOCOLON_RE } from '../utils/parsing';
+import {
+  measureIndent,
+  extractColor,
+  parsePipeMetadata,
+  MULTIPLE_PIPE_ERROR,
+  parseFirstLine,
+  OPTION_NOCOLON_RE,
+} from '../utils/parsing';
 import type { TagGroup } from '../utils/tag-groups';
 import { matchTagBlockHeading, validateTagValues } from '../utils/tag-groups';
 
@@ -197,7 +204,12 @@ const NOTE_MULTI = /^note(?:\s+(right|left)(?:\s+(?:of\s+)?(.+?))?)?\s*$/i;
 
 /** Result of parseNoteLine — indicates what the parser should do. */
 type NoteParseResult =
-  | { kind: 'single'; position: 'right' | 'left'; participantId: string; text: string }
+  | {
+      kind: 'single';
+      position: 'right' | 'left';
+      participantId: string;
+      text: string;
+    }
   | { kind: 'multi-head'; position: 'right' | 'left'; participantId: string }
   | { kind: 'skip' }
   | null; // not a note line at all
@@ -215,7 +227,7 @@ type NoteParseResult =
 function parseNoteLine(
   trimmed: string,
   participants: SequenceParticipant[],
-  lastMsgFrom: string | null,
+  lastMsgFrom: string | null
 ): NoteParseResult {
   const lower = trimmed.toLowerCase();
   if (!lower.startsWith('note')) return null;
@@ -228,7 +240,8 @@ function parseNoteLine(
   // fall through to the bare-note handler which does proper participant-aware splitting.
   const multiMatch = trimmed.match(NOTE_MULTI);
   if (multiMatch) {
-    const position = (multiMatch[1]?.toLowerCase() as 'right' | 'left') || 'right';
+    const position =
+      (multiMatch[1]?.toLowerCase() as 'right' | 'left') || 'right';
     let participantId = multiMatch[2] || null;
     if (!participantId) {
       if (!lastMsgFrom) return { kind: 'skip' };
@@ -262,7 +275,8 @@ function parseNoteLine(
       if (!afterPos) {
         // Just `note left` or `note right` — multi-line head
         if (!lastMsgFrom) return { kind: 'skip' };
-        if (!participants.some((p) => p.id === lastMsgFrom)) return { kind: 'skip' };
+        if (!participants.some((p) => p.id === lastMsgFrom))
+          return { kind: 'skip' };
         return { kind: 'multi-head', position, participantId: lastMsgFrom };
       }
 
@@ -270,10 +284,19 @@ function parseNoteLine(
       const resolved = resolveParticipantAndText(afterPos, participants);
       if (resolved) {
         if (resolved.text) {
-          return { kind: 'single', position, participantId: resolved.participantId, text: resolved.text };
+          return {
+            kind: 'single',
+            position,
+            participantId: resolved.participantId,
+            text: resolved.text,
+          };
         } else {
           // No text after participant — multi-line head
-          return { kind: 'multi-head', position, participantId: resolved.participantId };
+          return {
+            kind: 'multi-head',
+            position,
+            participantId: resolved.participantId,
+          };
         }
       }
 
@@ -284,14 +307,26 @@ function parseNoteLine(
 
       // Without `of`, treat remaining text as note content on the last-msg sender
       if (!lastMsgFrom) return { kind: 'skip' };
-      if (!participants.some((p) => p.id === lastMsgFrom)) return { kind: 'skip' };
-      return { kind: 'single', position, participantId: lastMsgFrom, text: afterPos };
+      if (!participants.some((p) => p.id === lastMsgFrom))
+        return { kind: 'skip' };
+      return {
+        kind: 'single',
+        position,
+        participantId: lastMsgFrom,
+        text: afterPos,
+      };
     }
 
     // Plain `note text` — default position, last msg sender
     if (!lastMsgFrom) return { kind: 'skip' };
-    if (!participants.some((p) => p.id === lastMsgFrom)) return { kind: 'skip' };
-    return { kind: 'single', position: 'right', participantId: lastMsgFrom, text: rest };
+    if (!participants.some((p) => p.id === lastMsgFrom))
+      return { kind: 'skip' };
+    return {
+      kind: 'single',
+      position: 'right',
+      participantId: lastMsgFrom,
+      text: rest,
+    };
   }
 
   return null;
@@ -304,7 +339,7 @@ function parseNoteLine(
  */
 function resolveParticipantAndText(
   input: string,
-  participants: SequenceParticipant[],
+  participants: SequenceParticipant[]
 ): { participantId: string; text: string } | null {
   // Handle quoted participant: `"Auth Service" text`
   if (input.startsWith('"') || input.startsWith("'")) {
@@ -407,12 +442,16 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
   const aliasMap = new Map<string, string>();
 
   /** Split pipe metadata from a line: "core | k: v" → { core, meta } */
-  const splitPipe = (text: string, ln?: number): { core: string; meta?: Record<string, string> } => {
+  const splitPipe = (
+    text: string,
+    ln?: number
+  ): { core: string; meta?: Record<string, string> } => {
     const idx = text.indexOf('|');
     if (idx < 0) return { core: text };
     const core = text.substring(0, idx).trimEnd();
     const segments = text.substring(idx).split('|');
-    const warnFn = ln != null ? () => pushError(ln, MULTIPLE_PIPE_ERROR) : undefined;
+    const warnFn =
+      ln != null ? () => pushError(ln, MULTIPLE_PIPE_ERROR) : undefined;
     const meta = parsePipeMetadata(segments, aliasMap, warnFn);
     return Object.keys(meta).length > 0 ? { core, meta } : { core };
   };
@@ -460,12 +499,17 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       const afterBracket = groupMatch[3]?.trim() || '';
       if (afterBracket.startsWith('|')) {
         const segments = afterBracket.split('|');
-        const meta = parsePipeMetadata(segments, aliasMap, () => pushError(lineNumber, MULTIPLE_PIPE_ERROR));
+        const meta = parsePipeMetadata(segments, aliasMap, () =>
+          pushError(lineNumber, MULTIPLE_PIPE_ERROR)
+        );
         if (Object.keys(meta).length > 0) groupMeta = meta;
       }
 
       if (groupColor) {
-        pushWarning(lineNumber, `(${groupColor}) color syntax removed from sequence diagrams — use 'tag:' groups for coloring`);
+        pushWarning(
+          lineNumber,
+          `(${groupColor}) color syntax removed from sequence diagrams — use 'tag:' groups for coloring`
+        );
       }
       contentStarted = true;
       activeGroup = {
@@ -484,9 +528,16 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       if (fallbackMatch && fallbackMatch[1].includes('|')) {
         const rawInside = fallbackMatch[1];
         const pipeIdx = rawInside.indexOf('|');
-        const cleanName = rawInside.substring(0, pipeIdx).trim().replace(/\([^)]*\)$/, '').trim();
+        const cleanName = rawInside
+          .substring(0, pipeIdx)
+          .trim()
+          .replace(/\([^)]*\)$/, '')
+          .trim();
         const metaPart = rawInside.substring(pipeIdx).trim();
-        pushError(lineNumber, `Pipe metadata must go outside brackets — use '[${cleanName}] ${metaPart}' instead of '[${rawInside.trim()}]'`);
+        pushError(
+          lineNumber,
+          `Pipe metadata must go outside brackets — use '[${cleanName}] ${metaPart}' instead of '[${rawInside.trim()}]'`
+        );
         continue;
       }
     }
@@ -497,7 +548,10 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       const name = legacyMatch[1].trim();
       const color = legacyMatch[2]?.trim();
       const suggestion = color ? `[${name}(${color})]` : `[${name}]`;
-      pushError(lineNumber, `'## ${name}' group syntax is no longer supported. Use '${suggestion}' instead`);
+      pushError(
+        lineNumber,
+        `'## ${name}' group syntax is no longer supported. Use '${suggestion}' instead`
+      );
       continue;
     }
 
@@ -530,7 +584,10 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
         lineNumber,
       };
       if (tagBlockMatch.alias) {
-        aliasMap.set(tagBlockMatch.alias.toLowerCase(), tagBlockMatch.name.toLowerCase());
+        aliasMap.set(
+          tagBlockMatch.alias.toLowerCase(),
+          tagBlockMatch.name.toLowerCase()
+        );
       }
       result.tagGroups.push(currentTagGroup);
       continue;
@@ -541,7 +598,10 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     if (currentTagGroup && !contentStarted && measureIndent(raw) > 0) {
       const { label, color } = extractColor(trimmed);
       if (!color) {
-        pushError(lineNumber, `Expected 'Value(color)' in tag group '${currentTagGroup.name}'`);
+        pushError(
+          lineNumber,
+          `Expected 'Value(color)' in tag group '${currentTagGroup.name}'`
+        );
         continue;
       }
       // First entry is the default
@@ -570,7 +630,10 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       const labelRaw = sectionMatch[1].trim();
       const colorMatch = labelRaw.match(/^(.+?)\(([^)]+)\)$/);
       if (colorMatch) {
-        pushWarning(lineNumber, `(${colorMatch[2].trim()}) color syntax removed from sequence diagrams — use 'tag:' groups for coloring`);
+        pushWarning(
+          lineNumber,
+          `(${colorMatch[2].trim()}) color syntax removed from sequence diagrams — use 'tag:' groups for coloring`
+        );
       }
       contentStarted = true;
       const section: SequenceSection = {
@@ -586,28 +649,38 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     // Parse header key: value lines (always top-level)
     // Skip 'note' lines — parsed in the indent-aware section below
     const colonIndex = trimmed.indexOf(':');
-    if (colonIndex > 0 && !trimmed.includes('->') && !trimmed.includes('~>') && !trimmed.includes('<-') && !trimmed.includes('<~') && !trimmed.includes('|')) {
+    if (
+      colonIndex > 0 &&
+      !trimmed.includes('->') &&
+      !trimmed.includes('~>') &&
+      !trimmed.includes('<-') &&
+      !trimmed.includes('<~') &&
+      !trimmed.includes('|')
+    ) {
       const key = trimmed.substring(0, colonIndex).trim().toLowerCase();
       if (key === 'note' || key.startsWith('note ')) {
         // Fall through to indent-aware note parsing below
       } else {
-      const value = trimmed.substring(colonIndex + 1).trim();
+        const value = trimmed.substring(colonIndex + 1).trim();
 
-      // Enforce headers-before-content
-      if (contentStarted) {
-        pushError(lineNumber, `Options like '${key}: ${value}' must appear before the first message or declaration`);
+        // Enforce headers-before-content
+        if (contentStarted) {
+          pushError(
+            lineNumber,
+            `Options like '${key}: ${value}' must appear before the first message or declaration`
+          );
+          continue;
+        }
+
+        if (key === 'title') {
+          result.title = value;
+          result.titleLineNumber = lineNumber;
+          continue;
+        }
+
+        // Store other options
+        result.options[key] = value;
         continue;
-      }
-
-      if (key === 'title') {
-        result.title = value;
-        result.titleLineNumber = lineNumber;
-        continue;
-      }
-
-      // Store other options
-      result.options[key] = value;
-      continue;
       }
     }
 
@@ -619,7 +692,10 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
         const base = optLower.substring(3);
         if (KNOWN_SEQ_BOOLEANS.has(base)) {
           if (contentStarted) {
-            pushError(lineNumber, `Options like '${trimmed}' must appear before the first message or declaration`);
+            pushError(
+              lineNumber,
+              `Options like '${trimmed}' must appear before the first message or declaration`
+            );
             continue;
           }
           result.options[base] = 'off';
@@ -633,7 +709,10 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
         const optVal = spaceMatch[2].trim();
         if (KNOWN_SEQ_OPTIONS.has(optKey) || KNOWN_SEQ_BOOLEANS.has(optKey)) {
           if (contentStarted) {
-            pushError(lineNumber, `Options like '${trimmed}' must appear before the first message or declaration`);
+            pushError(
+              lineNumber,
+              `Options like '${trimmed}' must appear before the first message or declaration`
+            );
             continue;
           }
           result.options[optKey] = optVal;
@@ -645,7 +724,9 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     // Parse "Name is a type [aka Alias]" declarations (always top-level)
     // Skip lines starting with 'note' — handled by note parsing below
     const { core: isACore, meta: isAMeta } = splitPipe(trimmed, lineNumber);
-    const isAMatch = !/^note(\s|$)/i.test(trimmed) ? isACore.match(IS_A_PATTERN) : null;
+    const isAMatch = !/^note(\s|$)/i.test(trimmed)
+      ? isACore.match(IS_A_PATTERN)
+      : null;
     if (isAMatch) {
       contentStarted = true;
       const id = isAMatch[1];
@@ -681,7 +762,10 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       if (activeGroup && !activeGroup.participantIds.includes(id)) {
         const existingGroup = participantGroupMap.get(id);
         if (existingGroup) {
-          pushError(lineNumber, `Participant '${id}' is already in group '${existingGroup}' — participants can only belong to one group`);
+          pushError(
+            lineNumber,
+            `Participant '${id}' is already in group '${existingGroup}' — participants can only belong to one group`
+          );
         } else {
           activeGroup.participantIds.push(id);
           participantGroupMap.set(id, activeGroup.name);
@@ -712,7 +796,10 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       if (activeGroup && !activeGroup.participantIds.includes(id)) {
         const existingGroup = participantGroupMap.get(id);
         if (existingGroup) {
-          pushError(lineNumber, `Participant '${id}' is already in group '${existingGroup}' — participants can only belong to one group`);
+          pushError(
+            lineNumber,
+            `Participant '${id}' is already in group '${existingGroup}' — participants can only belong to one group`
+          );
         } else {
           activeGroup.participantIds.push(id);
           participantGroupMap.set(id, activeGroup.name);
@@ -728,7 +815,10 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     if (coloredMatch && !ARROW_PATTERN.test(colorCore)) {
       const id = coloredMatch[1];
       const color = coloredMatch[2].trim();
-      pushError(lineNumber, `'${id}(${color})' syntax is no longer supported — use 'tag:' groups for coloring`);
+      pushError(
+        lineNumber,
+        `'${id}(${color})' syntax is no longer supported — use 'tag:' groups for coloring`
+      );
       contentStarted = true;
       if (!result.participants.some((p) => p.id === id)) {
         result.participants.push({
@@ -742,7 +832,10 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       if (activeGroup && !activeGroup.participantIds.includes(id)) {
         const existingGroup = participantGroupMap.get(id);
         if (existingGroup) {
-          pushError(lineNumber, `Participant '${id}' is already in group '${existingGroup}' — participants can only belong to one group`);
+          pushError(
+            lineNumber,
+            `Participant '${id}' is already in group '${existingGroup}' — participants can only belong to one group`
+          );
         } else {
           activeGroup.participantIds.push(id);
           participantGroupMap.set(id, activeGroup.name);
@@ -756,7 +849,11 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     {
       const { core: bareCore, meta: bareMeta } = splitPipe(trimmed, lineNumber);
       const inGroup = activeGroup && measureIndent(raw) > 0;
-      if (/^\S+$/.test(bareCore) && !ARROW_PATTERN.test(bareCore) && (inGroup || !contentStarted || bareMeta)) {
+      if (
+        /^\S+$/.test(bareCore) &&
+        !ARROW_PATTERN.test(bareCore) &&
+        (inGroup || !contentStarted || bareMeta)
+      ) {
         contentStarted = true;
         const id = bareCore;
         if (!result.participants.some((p) => p.id === id)) {
@@ -771,7 +868,10 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
         if (activeGroup && !activeGroup.participantIds.includes(id)) {
           const existingGroup = participantGroupMap.get(id);
           if (existingGroup) {
-            pushError(lineNumber, `Participant '${id}' is already in group '${existingGroup}' — participants can only belong to one group`);
+            pushError(
+              lineNumber,
+              `Participant '${id}' is already in group '${existingGroup}' — participants can only belong to one group`
+            );
           } else {
             activeGroup.participantIds.push(id);
             participantGroupMap.set(id, activeGroup.name);
@@ -875,9 +975,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     }
 
     // ---- Error: plain bidirectional arrows (A <-> B, A <~> B) ----
-    const bidiPlainMatch = arrowCore.match(
-      /^(.+?)\s*(?:<->|<~>)\s*(.+)/
-    );
+    const bidiPlainMatch = arrowCore.match(/^(.+?)\s*(?:<->|<~>)\s*(.+)/);
     if (bidiPlainMatch) {
       pushError(
         lineNumber,
@@ -994,14 +1092,23 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     // Parse 'else if <label>' keyword (must come before bare 'else')
     const elseIfMatch = trimmed.match(/^else\s+if\s+(.+)$/i);
     if (elseIfMatch) {
-      if (blockStack.length > 0 && blockStack[blockStack.length - 1].indent === indent) {
+      if (
+        blockStack.length > 0 &&
+        blockStack[blockStack.length - 1].indent === indent
+      ) {
         const top = blockStack[blockStack.length - 1];
         if (top.block.type === 'parallel') {
-          pushError(lineNumber, "parallel blocks don't support else if — list all concurrent messages directly inside the block");
+          pushError(
+            lineNumber,
+            "parallel blocks don't support else if — list all concurrent messages directly inside the block"
+          );
           continue;
         }
         if (top.block.type === 'if') {
-          const branch: ElseIfBranch = { label: elseIfMatch[1].trim(), children: [] };
+          const branch: ElseIfBranch = {
+            label: elseIfMatch[1].trim(),
+            children: [],
+          };
           if (!top.block.elseIfBranches) top.block.elseIfBranches = [];
           top.block.elseIfBranches.push(branch);
           top.activeElseIfBranch = branch;
@@ -1013,10 +1120,16 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
 
     // Parse 'else' keyword (only applies to 'if' blocks)
     if (trimmed.toLowerCase() === 'else') {
-      if (blockStack.length > 0 && blockStack[blockStack.length - 1].indent === indent) {
+      if (
+        blockStack.length > 0 &&
+        blockStack[blockStack.length - 1].indent === indent
+      ) {
         const top = blockStack[blockStack.length - 1];
         if (top.block.type === 'parallel') {
-          pushError(lineNumber, "parallel blocks don't support else — list all concurrent messages directly inside the block");
+          pushError(
+            lineNumber,
+            "parallel blocks don't support else — list all concurrent messages directly inside the block"
+          );
           continue;
         }
         if (top.block.type === 'if') {
@@ -1033,7 +1146,11 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     // 2. For positioned: `note left [of] X text` — needs participant lookup to split name vs text
     // 3. Multi-line: `note`, `note right`, `note right [of] X` (body indented below)
     {
-      const noteParsed = parseNoteLine(trimmed, result.participants, lastMsgFrom);
+      const noteParsed = parseNoteLine(
+        trimmed,
+        result.participants,
+        lastMsgFrom
+      );
       if (noteParsed) {
         if (noteParsed.kind === 'single') {
           const note: SequenceNote = {
@@ -1075,6 +1192,9 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
         continue;
       }
     }
+
+    // Catch-all: nothing matched this line
+    pushWarning(lineNumber, `Unexpected line: '${trimmed}'.`);
   }
 
   // Validate: if no explicit chart line, check for arrow-based inference
@@ -1113,7 +1233,10 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
 
     for (const p of result.participants) {
       if (!usedIds.has(p.id)) {
-        pushWarning(p.lineNumber, `Participant "${p.label}" is declared but never used in any message or note`);
+        pushWarning(
+          p.lineNumber,
+          `Participant "${p.label}" is declared but never used in any message or note`
+        );
       }
     }
   }
@@ -1121,21 +1244,30 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
   // Warn about empty groups
   for (const group of result.groups) {
     if (group.participantIds.length === 0) {
-      pushWarning(group.lineNumber, `Empty group '${group.name}' — did you mean '== ${group.name} ==' for a section divider?`);
+      pushWarning(
+        group.lineNumber,
+        `Empty group '${group.name}' — did you mean '== ${group.name} ==' for a section divider?`
+      );
     }
   }
 
   // Validate tag group values on participants and messages
   if (result.tagGroups.length > 0) {
-    const entities: Array<{ metadata: Record<string, string>; lineNumber: number }> = [];
+    const entities: Array<{
+      metadata: Record<string, string>;
+      lineNumber: number;
+    }> = [];
     for (const p of result.participants) {
-      if (p.metadata) entities.push({ metadata: p.metadata, lineNumber: p.lineNumber });
+      if (p.metadata)
+        entities.push({ metadata: p.metadata, lineNumber: p.lineNumber });
     }
     for (const m of result.messages) {
-      if (m.metadata) entities.push({ metadata: m.metadata, lineNumber: m.lineNumber });
+      if (m.metadata)
+        entities.push({ metadata: m.metadata, lineNumber: m.lineNumber });
     }
     for (const g of result.groups) {
-      if (g.metadata) entities.push({ metadata: g.metadata, lineNumber: g.lineNumber });
+      if (g.metadata)
+        entities.push({ metadata: g.metadata, lineNumber: g.lineNumber });
     }
     validateTagValues(entities, result.tagGroups, pushWarning, suggest);
   }

@@ -401,28 +401,32 @@ export function parseInitiativeStatus(content: string): ParsedInitiativeStatus {
     contentStarted = true;
     currentTagGroup = null;
     const node = parseNodeLine(trimmed, lineNum, aliasMap, result.diagnostics);
-    if (node) {
-      lastNodeLabel = node.label;
-      if (nodeLabels.has(node.label)) {
-        result.diagnostics.push(
-          makeDgmoError(lineNum, `Duplicate node "${node.label}"`, 'warning')
-        );
-      } else {
-        nodeLabels.add(node.label);
-      }
-      // Cascade group metadata into node (group provides defaults, node overrides)
-      if (currentGroup && isIndented && currentGroup.metadata) {
-        for (const [key, val] of Object.entries(currentGroup.metadata)) {
-          if (!(key in node.metadata)) {
-            node.metadata[key] = val;
-          }
+    if (!node) {
+      result.diagnostics.push(
+        makeDgmoError(lineNum, `Unexpected line: '${trimmed}'.`, 'warning')
+      );
+      continue;
+    }
+    lastNodeLabel = node.label;
+    if (nodeLabels.has(node.label)) {
+      result.diagnostics.push(
+        makeDgmoError(lineNum, `Duplicate node "${node.label}"`, 'warning')
+      );
+    } else {
+      nodeLabels.add(node.label);
+    }
+    // Cascade group metadata into node (group provides defaults, node overrides)
+    if (currentGroup && isIndented && currentGroup.metadata) {
+      for (const [key, val] of Object.entries(currentGroup.metadata)) {
+        if (!(key in node.metadata)) {
+          node.metadata[key] = val;
         }
       }
-      result.nodes.push(node);
-      // Add to current group if indented
-      if (currentGroup && isIndented) {
-        currentGroup.nodeLabels.push(node.label);
-      }
+    }
+    result.nodes.push(node);
+    // Add to current group if indented
+    if (currentGroup && isIndented) {
+      currentGroup.nodeLabels.push(node.label);
     }
   }
 
