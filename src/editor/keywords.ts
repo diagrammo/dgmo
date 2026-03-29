@@ -1,0 +1,194 @@
+/** All supported DGMO chart types. */
+export const CHART_TYPES = new Set([
+  // Diagram types
+  'sequence',
+  'flowchart',
+  'class',
+  'er',
+  'org',
+  'kanban',
+  'c4',
+  'initiative-status',
+  'state',
+  'sitemap',
+  'infra',
+  'gantt',
+  // Data chart types
+  'bar',
+  'line',
+  'pie',
+  'doughnut',
+  'area',
+  'polar-area',
+  'radar',
+  'bar-stacked',
+  'multi-line',
+  'scatter',
+  'sankey',
+  'chord',
+  'function',
+  'heatmap',
+  'funnel',
+  // Visualization types
+  'slope',
+  'wordcloud',
+  'arc',
+  'timeline',
+  'venn',
+  'quadrant',
+]);
+
+/** Metadata keys recognized across chart types. */
+export const METADATA_KEYS = new Set([
+  'title',
+  'series',
+  'orientation',
+  'xlabel',
+  'ylabel',
+  'sizelabel',
+  'x',
+  'columns',
+  'rows',
+  'labels',
+  'rotate',
+  'max',
+  'size',
+  'order',
+  'sort',
+  'scale',
+  'values',
+  'notation',
+  'x-axis',
+  'y-axis',
+  'top-right',
+  'top-left',
+  'bottom-right',
+  'bottom-left',
+]);
+
+/** Tag declaration keyword. */
+export const TAG_KEYWORD = 'tag';
+
+/** Directive keywords — commands that configure chart behavior. */
+export const DIRECTIVE_KEYWORDS = new Set([
+  // Gantt
+  'start',
+  'era',
+  'marker',
+  'holiday',
+  'workweek',
+  'today-marker',
+  'critical-path',
+  'no-dependencies',
+  'sort',
+  // Tags
+  'tags',
+  'import',
+  'active-tag',
+  'hide',
+  // ER
+  'notation',
+  // Class
+  'extends',
+  'implements',
+  'abstract',
+  'interface',
+  'enum',
+  // C4
+  'containers',
+  'components',
+  'deployment',
+  // Infra directives
+  'sub-node-label',
+  'show-sub-node-count',
+  'no-auto-color',
+  // Infra node properties
+  'description',
+  'instances',
+  'max-rps',
+  'latency-ms',
+  'uptime',
+  'firewall-block',
+  'ratelimit-rps',
+  'cb-error-threshold',
+  'cb-latency-threshold-ms',
+  'buffer',
+  'drain-rate',
+  'retention-hours',
+  'partitions',
+  'split',
+  'slo-p90-latency-ms',
+  'slo-availability',
+  'cache-hit',
+  'concurrency',
+  'duration-ms',
+  'cold-start-ms',
+  'rps',
+  // Sequence
+  'activations',
+  'no-activations',
+  'collapse-notes',
+  'no-collapse-notes',
+  // Data charts
+  'stacked',
+  'no-label-name',
+  'no-label-value',
+  'no-label-percent',
+  // Quadrant
+  'x-axis',
+  'y-axis',
+  'top-right',
+  'top-left',
+  'bottom-right',
+  'bottom-left',
+  // Layout
+  'direction-tb',
+  'direction-lr',
+  // Initiative-status
+  'contains',
+]);
+
+/** Control flow keywords — structural blocks. */
+export const CONTROL_KEYWORDS = new Set([
+  'if',
+  'else',
+  'loop',
+  'parallel',
+  'note',
+]);
+
+/** Status keywords — initiative-status, kanban. */
+export const STATUS_KEYWORDS = new Set([
+  'na',
+  'todo',
+  'wip',
+  'done',
+  'blocked',
+  'in-progress',
+  'backlog',
+  'ready',
+]);
+
+/** Modifier keywords — adjust declarations. */
+export const MODIFIER_KEYWORDS = new Set([
+  'alias',
+  'aka',
+  'position',
+  'is',
+  'a',
+  'default',
+  // ER column modifiers
+  'pk',
+  'fk',
+  'nullable',
+  'unique',
+  // ER data types
+  'int',
+  'varchar',
+  'text',
+  'boolean',
+  'date',
+  'timestamp',
+  'float',
+  'decimal',
+]);

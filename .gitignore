@@ -3,3 +3,5 @@ dist/
 *.tsbuildinfo
 .DS_Store
 gallery/output/
+src/editor/dgmo.grammar.js
+src/editor/dgmo.grammar.terms.js

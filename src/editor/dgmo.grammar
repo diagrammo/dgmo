@@ -1,0 +1,67 @@
+@top Document { (newline | Comment | ContentLine)* }
+
+ContentLine { contentPart+ newline }
+
+contentPart {
+  SyncArrow | AsyncArrow |
+  Percentage | Number |
+  SectionMarker |
+  Url |
+  OpenBracket | CloseBracket | OpenParen | CloseParen | OpenAngle | CloseAngle |
+  ColorAnnotation |
+  Pipe | Colon | Comma | Plus | Dash | Tilde | Star | Question |
+  ChartType |
+  TagKeyword | DirectiveKeyword | ControlKeyword | ModifierKeyword |
+  Identifier |
+  Punct
+}
+
+@skip { spaces }
+
+@tokens {
+  spaces { $[ \t]+ }
+  newline { "\n" }
+
+  Comment { "//" ![\n]* }
+
+  SyncArrow { "->" }
+  AsyncArrow { "~>" }
+
+  Percentage { $[0-9]+ ("." $[0-9]+)? "%" }
+  Number { $[0-9]+ ("." $[0-9]+)? }
+
+  SectionMarker { "==" }
+  Url { "http" "s"? "://" ![ \t\n|,)\]>]+ }
+  ColorAnnotation { "(" $[a-z\-]+ ")" }
+
+  Pipe { "|" }
+  Colon { ":" }
+  Comma { "," }
+  Plus { "+" }
+  Dash { "-" }
+  Tilde { "~" }
+  Star { "*" }
+  Question { "?" }
+  OpenBracket { "[" }
+  CloseBracket { "]" }
+  OpenParen { "(" }
+  CloseParen { ")" }
+  OpenAngle { "<" }
+  CloseAngle { ">" }
+
+  Identifier { $[a-zA-Z_] ($[a-zA-Z0-9_./&?=@#!'+] | "-" $[a-zA-Z0-9_./&?=@#!'+])* }
+
+  Punct { ![$[ \t\n] }
+
+  @precedence {
+    Comment, SyncArrow, AsyncArrow,
+    Percentage, Number, SectionMarker, Url, ColorAnnotation,
+    Pipe, Colon, Comma, Plus, Dash, Tilde, Star, Question,
+    OpenBracket, CloseBracket, OpenParen, CloseParen, OpenAngle, CloseAngle,
+    Identifier, Punct
+  }
+}
+
+@external specialize {Identifier} specializeKeyword from "./tokens" {
+  ChartType, TagKeyword, DirectiveKeyword, ControlKeyword, ModifierKeyword
+}

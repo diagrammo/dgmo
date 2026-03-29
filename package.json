@@ -20,6 +20,16 @@
         "types": "./dist/index.d.cts",
         "default": "./dist/index.cjs"
       }
+    },
+    "./editor": {
+      "import": {
+        "types": "./dist/editor.d.ts",
+        "default": "./dist/editor.js"
+      },
+      "require": {
+        "types": "./dist/editor.d.cts",
+        "default": "./dist/editor.cjs"
+      }
     }
   },
   "files": [
@@ -35,6 +45,7 @@
   ],
   "sideEffects": false,
   "scripts": {
+    "prebuild": "rm -rf dist && lezer-generator src/editor/dgmo.grammar -o src/editor/dgmo.grammar.js",
     "build": "tsup",
     "typecheck": "tsc --noEmit",
     "dev": "tsup --watch",
@@ -68,7 +79,10 @@
     "jsdom": "^28.1.0"
   },
   "devDependencies": {
+    "@codemirror/language": "^6.12.3",
+    "@codemirror/state": "^6.6.0",
     "@eslint/js": "^10.0.1",
+    "@lezer/generator": "^1.8.0",
     "@types/d3-array": "^3.2.1",
     "@types/d3-cloud": "^1.2.9",
     "@types/d3-hierarchy": "^3.1.7",
@@ -93,5 +107,19 @@
       "eslint --fix",
       "prettier --write"
     ]
+  },
+  "peerDependencies": {
+    "@codemirror/language": "^6.12.3",
+    "@codemirror/state": "^6.6.0",
+    "@lezer/common": "^1.5.1",
+    "@lezer/highlight": "^1.2.3",
+    "@lezer/lr": "^1.4.8"
+  },
+  "peerDependenciesMeta": {
+    "@codemirror/language": { "optional": true },
+    "@codemirror/state": { "optional": true },
+    "@lezer/common": { "optional": true },
+    "@lezer/highlight": { "optional": true },
+    "@lezer/lr": { "optional": true }
   }
 }

@@ -10,7 +10,7 @@ const fixJsdomXhrWorker: Plugin = {
     build.onLoad({ filter: /XMLHttpRequest-impl\.js$/ }, async (args) => {
       const contents = (await readFile(args.path, 'utf8')).replace(
         'require.resolve("./xhr-sync-worker.js")',
-        'null',
+        'null'
       );
       return { contents, loader: 'js' };
     });
@@ -22,20 +22,23 @@ const inlineJsdomStylesheet: Plugin = {
   name: 'inline-jsdom-stylesheet',
   setup(build) {
     build.onLoad(
-      { filter: /jsdom[\\/]lib[\\/]jsdom[\\/]living[\\/]helpers[\\/]style-rules\.js$/ },
+      {
+        filter:
+          /jsdom[\\/]lib[\\/]jsdom[\\/]living[\\/]helpers[\\/]style-rules\.js$/,
+      },
       async (args) => {
         const cssPath = resolve(
           dirname(args.path),
-          '../../browser/default-stylesheet.css',
+          '../../browser/default-stylesheet.css'
         );
         const css = await readFile(cssPath, 'utf8');
         let contents = await readFile(args.path, 'utf8');
         contents = contents.replace(
           /const defaultStyleSheet = fs\.readFileSync\(\s*path\.resolve\(__dirname,\s*"\.\.\/\.\.\/browser\/default-stylesheet\.css"\),\s*\{\s*encoding:\s*"utf-8"\s*\}\s*\);/,
-          `const defaultStyleSheet = ${JSON.stringify(css)};`,
+          `const defaultStyleSheet = ${JSON.stringify(css)};`
         );
         return { contents, loader: 'js' };
-      },
+      }
     );
   },
 };
@@ -46,10 +49,23 @@ export default defineConfig([
     format: ['esm', 'cjs'],
     dts: true,
     sourcemap: true,
-    clean: true,
     splitting: false,
     external: ['jsdom'],
     esbuildPlugins: [fixJsdomXhrWorker],
+  },
+  {
+    entry: { editor: 'src/editor/index.ts' },
+    format: ['esm', 'cjs'],
+    dts: true,
+    sourcemap: true,
+    splitting: false,
+    external: [
+      '@lezer/lr',
+      '@lezer/highlight',
+      '@lezer/common',
+      '@codemirror/language',
+      '@codemirror/state',
+    ],
   },
   {
     entry: ['src/cli.ts'],
