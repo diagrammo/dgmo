@@ -330,8 +330,12 @@ export function parseChart(
     // Supports comma-separated multi-values: "Jan 100, 200, 300"
     // Supports space-separated multi-values when series are defined: "Jan 100 200 300"
     // Supports comma-grouped numbers: "Revenue 1,200, 1,500" → [1200, 1500]
-    const multiValue = (result.seriesNames?.length ?? 0) >= 2;
-    const dataValues = parseDataRowValues(trimmed, { multiValue });
+    const seriesCount = result.seriesNames?.length ?? 0;
+    const multiValue = seriesCount >= 2;
+    const dataValues = parseDataRowValues(trimmed, {
+      multiValue,
+      expectedValues: multiValue ? seriesCount : undefined,
+    });
     if (dataValues) {
       const { label: rawLabel, color: pointColor } = extractColor(
         dataValues.label,
@@ -455,7 +459,7 @@ export function parseChart(
  */
 export function parseDataRowValues(
   line: string,
-  options?: { multiValue?: boolean }
+  options?: { multiValue?: boolean; expectedValues?: number }
 ): { label: string; values: number[] } | null {
   // First, normalize comma-grouped numbers: replace patterns like "1,087" with "1087"
   // We need to be careful: commas also separate multi-values.
@@ -550,9 +554,10 @@ export function parseDataRowValues(
   if (tokens.length < 2) return null;
 
   if (options?.multiValue) {
+    const limit = options.expectedValues ?? Infinity;
     const values: number[] = [];
     let idx = tokens.length - 1;
-    while (idx >= 1) {
+    while (idx >= 1 && values.length < limit) {
       const tok = tokens[idx];
       const num = parseFloat(tok);
       if (isNaN(num) || !isFinite(Number(tok))) break;

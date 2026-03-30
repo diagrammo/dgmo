@@ -1045,6 +1045,19 @@ describe('parseDataRowValues — space-delimited multi-values', () => {
     expect(parsed.data[1].extraValues).toEqual([50, 60]);
   });
 
+  it('labels with numbers are preserved when series count is known', () => {
+    const input =
+      'bar-stacked\nseries Rum, Spices, Silk, Gold\nVoyage 1 40 20 10 30\nVoyage 2 25 35 20 20';
+    const parsed = parseChart(input, palette);
+    expect(parsed.data).toHaveLength(2);
+    expect(parsed.data[0].label).toBe('Voyage 1');
+    expect(parsed.data[0].value).toBe(40);
+    expect(parsed.data[0].extraValues).toEqual([20, 10, 30]);
+    expect(parsed.data[1].label).toBe('Voyage 2');
+    expect(parsed.data[1].value).toBe(25);
+    expect(parsed.data[1].extraValues).toEqual([35, 20, 20]);
+  });
+
   it('comma-separated multi-values still work', () => {
     const input = 'bar-stacked\nseries X, Y\nQ1 10, 20\nQ2 30, 40';
     const parsed = parseChart(input, palette);
