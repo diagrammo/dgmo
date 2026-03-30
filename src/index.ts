@@ -27,13 +27,8 @@ export type { RenderCategory } from './dgmo-router';
 // Parsers
 // ============================================================
 
-export { parseChart } from './chart';
-export type {
-  ParsedChart,
-  ChartType,
-  ChartDataPoint,
-  ChartEra,
-} from './chart';
+export { parseChart, parseDataRowValues } from './chart';
+export type { ParsedChart, ChartType, ChartDataPoint, ChartEra } from './chart';
 
 export { parseExtendedChart } from './echarts';
 export type { ParsedExtendedChart, ExtendedChartType } from './echarts';
@@ -46,7 +41,13 @@ export {
   computeTimeTicks,
   formatDateLabel,
 } from './d3';
-export type { ParsedVisualization, VisualizationType, D3ExportDimensions, ArcLink, ArcNodeGroup } from './d3';
+export type {
+  ParsedVisualization,
+  VisualizationType,
+  D3ExportDimensions,
+  ArcLink,
+  ArcNodeGroup,
+} from './d3';
 
 export {
   parseSequenceDgmo,
@@ -99,7 +100,10 @@ export type {
   ClassLayoutEdge,
 } from './class/layout';
 
-export { renderClassDiagram, renderClassDiagramForExport } from './class/renderer';
+export {
+  renderClassDiagram,
+  renderClassDiagramForExport,
+} from './class/renderer';
 
 export { parseERDiagram, looksLikeERDiagram } from './er/parser';
 
@@ -113,11 +117,7 @@ export type {
 } from './er/types';
 
 export { layoutERDiagram } from './er/layout';
-export type {
-  ERLayoutResult,
-  ERLayoutNode,
-  ERLayoutEdge,
-} from './er/layout';
+export type { ERLayoutResult, ERLayoutNode, ERLayoutEdge } from './er/layout';
 
 export { renderERDiagram, renderERDiagramForExport } from './er/renderer';
 
@@ -136,10 +136,7 @@ export { parseInlineMarkdown, truncateBareUrl } from './utils/inline-markdown';
 export type { InlineSpan } from './utils/inline-markdown';
 
 export { parseOrg } from './org/parser';
-export type {
-  ParsedOrg,
-  OrgNode,
-} from './org/parser';
+export type { ParsedOrg, OrgNode } from './org/parser';
 
 export { layoutOrg } from './org/layout';
 export type {
@@ -159,7 +156,11 @@ export type {
   KanbanTagGroup,
   KanbanTagEntry,
 } from './kanban/types';
-export { computeCardMove, computeCardArchive, isArchiveColumn } from './kanban/mutations';
+export {
+  computeCardMove,
+  computeCardArchive,
+  isArchiveColumn,
+} from './kanban/mutations';
 export { renderKanban, renderKanbanForExport } from './kanban/renderer';
 
 export { parseC4 } from './c4/parser';
@@ -176,7 +177,13 @@ export type {
   C4TagEntry,
 } from './c4/types';
 
-export { layoutC4Context, layoutC4Containers, layoutC4Components, layoutC4Deployment, rollUpContextRelationships } from './c4/layout';
+export {
+  layoutC4Context,
+  layoutC4Containers,
+  layoutC4Components,
+  layoutC4Deployment,
+  rollUpContextRelationships,
+} from './c4/layout';
 export type {
   C4LayoutResult,
   C4LayoutNode,
@@ -197,7 +204,10 @@ export {
   renderC4DeploymentForExport,
 } from './c4/renderer';
 
-export { parseInitiativeStatus, looksLikeInitiativeStatus } from './initiative-status/parser';
+export {
+  parseInitiativeStatus,
+  looksLikeInitiativeStatus,
+} from './initiative-status/parser';
 export type {
   ParsedInitiativeStatus,
   ISNode,
@@ -214,7 +224,10 @@ export type {
   ISLayoutGroup,
 } from './initiative-status/layout';
 
-export { renderInitiativeStatus, renderInitiativeStatusForExport } from './initiative-status/renderer';
+export {
+  renderInitiativeStatus,
+  renderInitiativeStatusForExport,
+} from './initiative-status/renderer';
 export type { ISRenderOptions } from './initiative-status/renderer';
 
 export { collapseInitiativeStatus } from './initiative-status/collapse';
@@ -247,16 +260,42 @@ export { collapseSitemapTree } from './sitemap/collapse';
 
 // ── Infra Chart ────────────────────────────────────────────
 export { parseInfra } from './infra/parser';
-export type { ParsedInfra, InfraNode, InfraEdge, InfraGroup, InfraTagGroup, InfraProperty, InfraDiagnostic, InfraComputeParams, InfraBehaviorKey } from './infra/types';
+export type {
+  ParsedInfra,
+  InfraNode,
+  InfraEdge,
+  InfraGroup,
+  InfraTagGroup,
+  InfraProperty,
+  InfraDiagnostic,
+  InfraComputeParams,
+  InfraBehaviorKey,
+} from './infra/types';
 export { INFRA_BEHAVIOR_KEYS } from './infra/types';
 export { computeInfra } from './infra/compute';
-export type { ComputedInfraModel, ComputedInfraNode, ComputedInfraEdge, InfraLatencyPercentiles, InfraAvailabilityPercentiles, InfraCbState } from './infra/types';
+export type {
+  ComputedInfraModel,
+  ComputedInfraNode,
+  ComputedInfraEdge,
+  InfraLatencyPercentiles,
+  InfraAvailabilityPercentiles,
+  InfraCbState,
+} from './infra/types';
 export { validateInfra, validateComputed } from './infra/validation';
 export { inferRoles, collectDiagramRoles } from './infra/roles';
 export type { InfraRole } from './infra/roles';
 export { layoutInfra } from './infra/layout';
-export type { InfraLayoutResult, InfraLayoutNode, InfraLayoutEdge, InfraLayoutGroup } from './infra/layout';
-export { renderInfra, parseAndLayoutInfra, computeInfraLegendGroups } from './infra/renderer';
+export type {
+  InfraLayoutResult,
+  InfraLayoutNode,
+  InfraLayoutEdge,
+  InfraLayoutGroup,
+} from './infra/layout';
+export {
+  renderInfra,
+  parseAndLayoutInfra,
+  computeInfraLegendGroups,
+} from './infra/renderer';
 export type { InfraLegendGroup, InfraPlaybackState } from './infra/renderer';
 export type { CollapsedSitemapResult } from './sitemap/collapse';
 
@@ -264,7 +303,13 @@ export type { CollapsedSitemapResult } from './sitemap/collapse';
 export { parseGantt } from './gantt/parser';
 export { calculateSchedule } from './gantt/calculator';
 export { renderGantt, buildTagLaneRowList } from './gantt/renderer';
-export type { GanttInteractiveOptions, GanttRow, GanttGroupRow, GanttTaskRow, GanttLaneHeaderRow } from './gantt/renderer';
+export type {
+  GanttInteractiveOptions,
+  GanttRow,
+  GanttGroupRow,
+  GanttTaskRow,
+  GanttLaneHeaderRow,
+} from './gantt/renderer';
 export { resolveTaskName, collectTasks } from './gantt/resolver';
 export type {
   ParsedGantt,
@@ -288,7 +333,11 @@ export { collapseOrgTree } from './org/collapse';
 export type { CollapsedOrgResult } from './org/collapse';
 
 export { resolveOrgImports } from './org/resolver';
-export type { ReadFileFn, ResolveImportsResult, ImportSource } from './org/resolver';
+export type {
+  ReadFileFn,
+  ResolveImportsResult,
+  ImportSource,
+} from './org/resolver';
 
 export { layoutGraph } from './graph/layout';
 export type {
@@ -298,13 +347,23 @@ export type {
   LayoutGroup,
 } from './graph/layout';
 
-export { renderFlowchart, renderFlowchartForExport } from './graph/flowchart-renderer';
+export {
+  renderFlowchart,
+  renderFlowchartForExport,
+} from './graph/flowchart-renderer';
 
 // ============================================================
 // Config Builders (produce framework-specific config objects)
 // ============================================================
 
-export { buildExtendedChartOption, buildSimpleChartOption, renderExtendedChartForExport, getExtendedChartLegendGroups, getSimpleChartLegendGroups, computeScatterLabelGraphics } from './echarts';
+export {
+  buildExtendedChartOption,
+  buildSimpleChartOption,
+  renderExtendedChartForExport,
+  getExtendedChartLegendGroups,
+  getSimpleChartLegendGroups,
+  computeScatterLabelGraphics,
+} from './echarts';
 export type { ScatterLabelPoint } from './echarts';
 export { renderLegendSvg, type LegendGroupData } from './utils/legend-svg';
 export { LEGEND_HEIGHT } from './utils/legend-constants';
@@ -403,7 +462,13 @@ export {
   PIPE_METADATA,
   extractTagDeclarations,
 } from './completion';
-export type { DiagramSymbols, ExtractFn, DirectiveSpec, DirectiveValueSpec, PipeKeySpec } from './completion';
+export type {
+  DiagramSymbols,
+  ExtractFn,
+  DirectiveSpec,
+  DirectiveValueSpec,
+  PipeKeySpec,
+} from './completion';
 
 export { parseFirstLine, ALL_CHART_TYPES } from './utils/parsing';
 
