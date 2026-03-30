@@ -2632,6 +2632,33 @@ function segmentLabelFormatter(parsed: ParsedChart): string {
 
 // ── Pie / Doughnut ───────────────────────────────────────────
 
+/**
+ * Compute pie label config: shrink radius and font when labels are long
+ * so nothing gets truncated or wrapped.
+ */
+function pieLabelLayout(parsed: ParsedChart): {
+  outerRadius: number;
+  fontSize: number;
+} {
+  const formatter = segmentLabelFormatter(parsed);
+  const total = parsed.data.reduce((s, d) => s + d.value, 0);
+  const maxLen = parsed.data.reduce((mx, d) => {
+    const label = formatter
+      .replace('{b}', d.label)
+      .replace('{c}', String(d.value))
+      .replace('{d}', total > 0 ? ((d.value / total) * 100).toFixed(2) : '0');
+    return Math.max(mx, label.length);
+  }, 0);
+
+  // Shrink radius and font for longer labels so they fit without truncation.
+  // The chart renders in containers of varying width (800px in-app to 1200px CLI),
+  // so we need enough margin for labels at the smallest reasonable container.
+  if (maxLen > 30) return { outerRadius: 38, fontSize: 11 };
+  if (maxLen > 24) return { outerRadius: 45, fontSize: 12 };
+  if (maxLen > 18) return { outerRadius: 55, fontSize: 13 };
+  return { outerRadius: 70, fontSize: 14 };
+}
+
 function buildPieOption(
   parsed: ParsedChart,
   textColor: string,
@@ -2655,6 +2682,8 @@ function buildPieOption(
     };
   });
 
+  const { outerRadius, fontSize } = pieLabelLayout(parsed);
+
   return {
     ...CHART_BASE,
     ...HIDE_AXES,
@@ -2666,13 +2695,16 @@ function buildPieOption(
     series: [
       {
         type: 'pie',
-        radius: isDoughnut ? ['40%', '70%'] : ['0%', '70%'],
+        radius: isDoughnut
+          ? [`${Math.round(outerRadius * 0.57)}%`, `${outerRadius}%`]
+          : ['0%', `${outerRadius}%`],
         data,
         label: {
           position: 'outside',
           formatter: segmentLabelFormatter(parsed),
           color: textColor,
           fontFamily: FONT_FAMILY,
+          fontSize,
         },
         labelLine: { show: true },
         emphasis: EMPHASIS_SELF,
@@ -2790,13 +2822,17 @@ function buildPolarAreaOption(
       {
         type: 'pie',
         roseType: 'radius',
-        radius: ['10%', '70%'],
+        radius: (() => {
+          const { outerRadius } = pieLabelLayout(parsed);
+          return [`${Math.round(outerRadius * 0.14)}%`, `${outerRadius}%`];
+        })(),
         data,
         label: {
           position: 'outside',
           formatter: segmentLabelFormatter(parsed),
           color: textColor,
           fontFamily: FONT_FAMILY,
+          fontSize: pieLabelLayout(parsed).fontSize,
         },
         labelLine: { show: true },
         emphasis: EMPHASIS_SELF,
