@@ -13,6 +13,7 @@ export const CHART_TYPES = new Set([
   'sitemap',
   'infra',
   'gantt',
+  'boxes-and-lines',
   // Data chart types
   'bar',
   'line',
@@ -86,6 +87,8 @@ export const DIRECTIVE_KEYWORDS = new Set([
   'import',
   'active-tag',
   'hide',
+  'mode',
+  'direction',
   // ER
   'notation',
   // Class

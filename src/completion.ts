@@ -1008,6 +1008,61 @@ function extractInitiativeStatusSymbols(docText: string): DiagramSymbols {
 }
 
 // ============================================================
+// Boxes-and-lines extractor
+// ============================================================
+
+const BL_ARROW_RE = /^(\S+)\s+(?:-.*)?(?:->|<->)\s+(\S+)/;
+
+function extractBoxesAndLinesSymbols(docText: string): DiagramSymbols {
+  const lines = docText.split('\n');
+  const entities: string[] = [];
+  let pastFirstLine = false;
+  let inTagBlock = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('//')) continue;
+
+    if (!pastFirstLine) {
+      pastFirstLine = true;
+      continue;
+    }
+
+    const firstToken = trimmed.split(/\s+/)[0].toLowerCase();
+    if (METADATA_KEY_SET.has(firstToken)) continue;
+
+    if (/^tag\s+/i.test(trimmed)) {
+      inTagBlock = true;
+      continue;
+    }
+    const indent = line.search(/\S/);
+    if (inTagBlock) {
+      if (indent > 0) continue;
+      inTagBlock = false;
+    }
+
+    // Skip groups
+    if (/^\[.+?\]/.test(trimmed)) continue;
+
+    // Edge lines
+    const arrowMatch = trimmed.match(BL_ARROW_RE);
+    if (arrowMatch) {
+      const src = arrowMatch[1].split('|')[0].trim();
+      const dst = arrowMatch[2].split('|')[0].trim();
+      if (src && !entities.includes(src)) entities.push(src);
+      if (dst && !entities.includes(dst)) entities.push(dst);
+      continue;
+    }
+
+    // Node lines
+    const label = trimmed.split('|')[0].split('[')[0].trim();
+    if (label && !entities.includes(label)) entities.push(label);
+  }
+
+  return { kind: 'boxes-and-lines', entities, keywords: [] };
+}
+
+// ============================================================
 // Register built-in extractors
 // ============================================================
 
@@ -1021,3 +1076,4 @@ registerExtractor('sitemap', extractSitemapSymbols);
 registerExtractor('c4', extractC4Symbols);
 registerExtractor('gantt', extractGanttSymbols);
 registerExtractor('initiative-status', extractInitiativeStatusSymbols);
+registerExtractor('boxes-and-lines', extractBoxesAndLinesSymbols);

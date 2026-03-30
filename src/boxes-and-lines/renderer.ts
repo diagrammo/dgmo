@@ -1260,10 +1260,16 @@ function renderLegend(
     const isActiveGroup = activeGroup?.toLowerCase() === tg.name.toLowerCase();
     if (!isActiveGroup && activeGroup) continue;
 
+    const groupG = legendG
+      .append('g')
+      .attr('class', 'bl-legend-group')
+      .attr('data-legend-group', tg.name.toLowerCase())
+      .style('cursor', 'pointer');
+
     // Group name pill
     const nameW =
       measureLegendText(tg.name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
-    legendG
+    groupG
       .append('rect')
       .attr('x', x)
       .attr('y', (LEGEND_HEIGHT - 20) / 2)
@@ -1277,7 +1283,7 @@ function renderLegend(
       .attr('stroke', palette.border)
       .attr('stroke-width', 1);
 
-    legendG
+    groupG
       .append('text')
       .attr('x', x + nameW / 2)
       .attr('y', LEGEND_HEIGHT / 2 + 1)
@@ -1285,6 +1291,7 @@ function renderLegend(
       .attr('dominant-baseline', 'central')
       .attr('font-size', LEGEND_PILL_FONT_SIZE)
       .attr('fill', palette.text)
+      .attr('pointer-events', 'none')
       .text(tg.name);
 
     x += nameW + 6;
@@ -1294,20 +1301,26 @@ function renderLegend(
       const entryColor = entry.color || palette.textMuted;
       const ew = measureLegendText(entry.value, LEGEND_ENTRY_FONT_SIZE);
 
-      legendG
+      const entryG = groupG
+        .append('g')
+        .attr('data-legend-entry', entry.value)
+        .style('cursor', 'pointer');
+
+      entryG
         .append('circle')
         .attr('cx', x + LEGEND_DOT_R)
         .attr('cy', LEGEND_HEIGHT / 2)
         .attr('r', LEGEND_DOT_R)
         .attr('fill', entryColor);
 
-      legendG
+      entryG
         .append('text')
         .attr('x', x + LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP)
         .attr('y', LEGEND_HEIGHT / 2 + 1)
         .attr('dominant-baseline', 'central')
         .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
         .attr('fill', palette.text)
+        .attr('pointer-events', 'none')
         .text(entry.value);
 
       x += LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP + ew + LEGEND_ENTRY_TRAIL;
