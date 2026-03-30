@@ -1014,9 +1014,9 @@ export function parseVisualization(
         continue;
       }
 
-      // Data points: Label x, y
+      // Data points: Label x, y  OR  Label x y
       const pointMatch = line.match(
-        /^(.+?)\s+([0-9]*\.?[0-9]+)\s*,\s*([0-9]*\.?[0-9]+)\s*$/
+        /^(.+?)\s+([0-9]*\.?[0-9]+)\s*[,\s]\s*([0-9]*\.?[0-9]+)\s*$/
       );
       if (pointMatch) {
         const label = pointMatch[1].trim();
