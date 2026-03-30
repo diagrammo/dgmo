@@ -859,6 +859,7 @@ export interface BLRenderOptions {
   exportDims?: { width?: number; height?: number };
   activeTagGroup?: string | null;
   hiddenTagValues?: Map<string, Set<string>>;
+  renderModeOverride?: 'rectangles' | 'shapes';
 }
 
 export function renderBoxesAndLines(
@@ -869,9 +870,16 @@ export function renderBoxesAndLines(
   isDark: boolean,
   options?: BLRenderOptions
 ): void {
-  const { onClickItem, exportDims, activeTagGroup, hiddenTagValues } =
-    options ?? {};
+  const {
+    onClickItem,
+    exportDims,
+    activeTagGroup,
+    hiddenTagValues,
+    renderModeOverride,
+  } = options ?? {};
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
+
+  const effectiveRenderMode = renderModeOverride ?? parsed.renderMode;
 
   const width = exportDims?.width ?? container.clientWidth;
   const height = exportDims?.height ?? container.clientHeight;
@@ -1105,7 +1113,7 @@ export function renderBoxesAndLines(
       nodeG.on('click', () => onClickItem(node.lineNumber));
     }
 
-    if (parsed.renderMode === 'shapes') {
+    if (effectiveRenderMode === 'shapes') {
       // Shape mode — full shape, label only
       renderNodeShape(
         nodeG as unknown as D3G,
@@ -1191,7 +1199,16 @@ export function renderBoxesAndLines(
 
   // ── Render legend ──────────────────────────────────────
   if (parsed.tagGroups.length > 0) {
-    renderLegend(svg, parsed, palette, isDark, activeGroup, width, titleOffset);
+    renderLegend(
+      svg,
+      parsed,
+      palette,
+      isDark,
+      activeGroup,
+      width,
+      titleOffset,
+      effectiveRenderMode
+    );
   }
 }
 
@@ -1204,7 +1221,8 @@ function renderLegend(
   isDark: boolean,
   activeGroup: string | null,
   svgWidth: number,
-  titleOffset: number
+  titleOffset: number,
+  effectiveRenderMode: 'rectangles' | 'shapes'
 ): void {
   const legendY = titleOffset + 4;
   const legendG = svg.append('g').attr('transform', `translate(0,${legendY})`);
@@ -1218,7 +1236,7 @@ function renderLegend(
   ];
 
   for (const m of modes) {
-    const isActive = parsed.renderMode === m.mode;
+    const isActive = effectiveRenderMode === m.mode;
     const tw = measureLegendText(m.label, LEGEND_PILL_FONT_SIZE);
     const pillW = tw + LEGEND_PILL_PAD;
 

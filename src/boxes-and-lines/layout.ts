@@ -107,8 +107,10 @@ function computeNodeSize(
 // ── Main layout ────────────────────────────────────────────
 
 export function layoutBoxesAndLines(
-  parsed: ParsedBoxesAndLines
+  parsed: ParsedBoxesAndLines,
+  renderModeOverride?: 'rectangles' | 'shapes'
 ): BLLayoutResult {
+  const effectiveRenderMode = renderModeOverride ?? parsed.renderMode;
   const g = new dagre.graphlib.Graph({ compound: true, multigraph: true });
   g.setGraph({
     rankdir: parsed.direction,
@@ -146,7 +148,7 @@ export function layoutBoxesAndLines(
 
   // Add nodes
   for (const node of parsed.nodes) {
-    const size = computeNodeSize(node, parsed.renderMode);
+    const size = computeNodeSize(node, effectiveRenderMode);
     g.setNode(node.label, {
       label: node.label,
       width: size.width,
