@@ -51,10 +51,11 @@ Syntax changes introduced in the consistency cleanup. Old forms now produce erro
 11. [Initiative-Status Diagrams](#11-initiative-status-diagrams)
 12. [Sitemap Diagrams](#12-sitemap-diagrams)
 13. [Gantt Charts](#13-gantt-charts)
-14. [Timeline Diagrams](#14-timeline-diagrams)
-15. [Data Charts](#15-data-charts)
-16. [Visualizations](#16-visualizations)
-17. [Colon Usage Summary](#17-colon-usage-summary)
+14. [Boxes and Lines Diagrams](#14-boxes-and-lines-diagrams)
+15. [Timeline Diagrams](#15-timeline-diagrams)
+16. [Data Charts](#16-data-charts)
+17. [Visualizations](#17-visualizations)
+18. [Colon Usage Summary](#18-colon-usage-summary)
 
 ---
 
@@ -95,7 +96,7 @@ tag GroupName [alias X]
 - First entry is default unless another is marked `default`
 - Must appear before diagram content
 
-**Diagram types that support tags**: sequence, infra, org, c4, er, kanban, gantt, initiative-status, sitemap, timeline
+**Diagram types that support tags**: sequence, infra, org, c4, er, kanban, gantt, initiative-status, sitemap, timeline, boxes-and-lines
 
 ### 1.4 Pipe Metadata
 
@@ -925,15 +926,86 @@ parallel
 
 ---
 
-## 14. Timeline Diagrams
+## 14. Boxes and Lines Diagrams
 
 ### 14.1 Declaration
+
+```
+boxes-and-lines [Title]
+```
+
+Requires explicit first line — no heuristic detection. Default layout direction is left-to-right.
+
+### 14.2 Nodes
+
+```
+NodeLabel
+NodeLabel | key: value, key2: value2
+NodeLabel | description: Some text here
+NodeLabel [type]
+NodeLabel [type] | key: value
+```
+
+Nodes are created explicitly or implicitly (when referenced in edges). Shape is inferred from the name unless overridden with `[type]`.
+
+Valid types: `service`, `database`, `actor`, `queue`, `cache`, `gateway`, `external`, `networking`, `frontend`, `default`.
+
+### 14.3 Edges
+
+```
+Source -> Target
+Source -> Target | key: value
+Source -label-> Target
+Source <-> Target
+Source <-label-> Target
+```
+
+Indented shorthand (source from preceding node):
+```
+API | description: Main gateway
+  -routes-> UserService
+  -routes-> ProductService
+```
+
+### 14.4 Groups
+
+```
+[Group Name]
+  indented nodes...
+```
+
+Nested groups (max depth 2):
+```
+[AWS]
+  [us-east-1]
+    API
+    DB
+```
+
+Group metadata cascades to children. Group-to-group edges:
+```
+[Region A] -> [Region B]
+[Region A] -VPN-> [Region B]
+```
+
+### 14.5 Options
+
+- `direction TB` — top-to-bottom layout (default: `LR`)
+- `mode shapes` — render as inferred shapes (default: `rectangles`)
+- `active-tag GroupName`
+- `hide team:Backend` (colon syntax for tag:value)
+
+---
+
+## 15. Timeline Diagrams
+
+### 15.1 Declaration
 
 ```
 timeline [Title]
 ```
 
-### 14.2 Events
+### 15.2 Events
 
 **Point event:**
 ```
@@ -958,7 +1030,7 @@ timeline [Title]
 Date formats: `YYYY`, `YYYY-MM`, `YYYY-MM-DD`, `YYYY-MM-DD HH:MM`
 Duration units: `min`, `h`, `d`, `w`, `m`, `y`
 
-### 14.3 Eras
+### 15.3 Eras
 
 **Flat form:**
 ```
@@ -972,7 +1044,7 @@ era
   1718 -> 1720 Woodes Rogers Era (orange)
 ```
 
-### 14.4 Markers
+### 15.4 Markers
 
 **Flat form:**
 ```
@@ -986,7 +1058,7 @@ marker
   1720-01 End of Golden Age (red)
 ```
 
-### 14.5 Groups
+### 15.5 Groups
 
 ```
 [Royal Navy]
@@ -995,9 +1067,9 @@ marker
 
 ---
 
-## 15. Data Charts
+## 16. Data Charts
 
-### 15.1 Simple Charts (bar, line, pie, doughnut, area, polar-area, radar, bar-stacked)
+### 16.1 Simple Charts (bar, line, pie, doughnut, area, polar-area, radar, bar-stacked)
 
 **Declaration:** `bar [Title]`, `line [Title]`, etc.
 
@@ -1043,7 +1115,7 @@ stacked
 era Day 1 -> Day 3 Rough Seas (red)
 ```
 
-### 15.2 Scatter / Bubble Charts
+### 16.2 Scatter / Bubble Charts
 
 **Data rows (space-separated, NO colon):**
 ```
@@ -1069,7 +1141,7 @@ no-labels
 
 Labels are on by default. Use `no-labels` to hide point names.
 
-### 15.3 Heatmap
+### 16.3 Heatmap
 
 **Columns:**
 ```
@@ -1085,7 +1157,7 @@ RowLabel 5 4 3
 
 Commas between values are optional. Thousands commas supported.
 
-### 15.4 Function Charts (Colon REQUIRED)
+### 16.4 Function Charts (Colon REQUIRED)
 
 ```
 function Trajectories
@@ -1102,7 +1174,7 @@ The colon between name and expression is **required** — both sides can contain
 **Options:**
 - `shade` (boolean; off by default, shades area below curves when enabled)
 
-### 15.5 Sankey Charts
+### 16.5 Sankey Charts
 
 **Tree structure (indented, space-separated):**
 ```
@@ -1119,7 +1191,7 @@ Source -- Target 2000
 
 `->` = directed, `--` = undirected. Thousands commas supported in values.
 
-### 15.6 Chord Charts
+### 16.6 Chord Charts
 
 ```
 Blackbeard -- Bonnet 150        // undirected
@@ -1128,7 +1200,7 @@ Roberts -> Rackham 20           // directed
 
 Thousands commas supported in values.
 
-### 15.7 Funnel Charts
+### 16.7 Funnel Charts
 
 **Data rows (space-separated, NO colon):**
 ```
@@ -1141,9 +1213,9 @@ Thousands commas supported.
 
 ---
 
-## 16. Visualizations
+## 17. Visualizations
 
-### 16.1 Slope Charts
+### 17.1 Slope Charts
 
 ```
 slope Fleet Strength
@@ -1165,7 +1237,7 @@ Roberts 12 52
 - Color annotations: `Label (color) value1 value2`
 - Minimum 2 periods required
 
-### 16.2 Wordcloud
+### 17.2 Wordcloud
 
 ```
 wordcloud Pirate Skills
@@ -1180,7 +1252,7 @@ navigation 88
 - Data: space-separated only (`word value`)
 - Options: `rotate none|mixed|angled`, `max N`, `size min max`
 
-### 16.3 Arc Diagrams
+### 17.3 Arc Diagrams
 
 ```
 arc Pirate Alliances
@@ -1195,7 +1267,7 @@ order group
 - Link: `Source -> Target weight` — space before optional weight
 - Options: `order appearance|name|group|degree`
 
-### 16.4 Venn Diagrams
+### 17.4 Venn Diagrams
 
 ```
 venn Skill Overlap
@@ -1211,7 +1283,7 @@ sw + nav + lead Legendary Pirates
 - Set declaration: `Name(color) alias X`
 - Intersections: `Set1 + Set2 Label` — label follows the last set reference (no colon)
 
-### 16.5 Quadrant Diagrams
+### 17.5 Quadrant Diagrams
 
 ```
 quadrant Crew Assessment
@@ -1234,7 +1306,7 @@ Navigator 0.85, 0.8
 
 ---
 
-## 17. Colon Usage Summary
+## 18. Colon Usage Summary
 
 ### Constructs Where Colons Are REQUIRED
 
