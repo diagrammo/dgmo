@@ -1143,20 +1143,27 @@ Thousands commas supported.
 
 ## 16. Visualizations
 
-### 16.1 Slope Charts (Colon REQUIRED for data)
+### 16.1 Slope Charts
 
 ```
 slope Fleet Strength
 
-1715 1725
+period 1715 1725
 
-Blackbeard: 40 4
-Roberts: 12 52
+Blackbeard 40 4
+Roberts 12 52
 ```
 
-- Period labels on their own line, commas optional
-- Data rows: `Label: value1 value2` — colon required, commas between values optional
-- Thousands commas supported in values
+- Period directive required: `period Label1 Label2` (one-line) or indented block for multi-token labels:
+  ```
+  period
+    Before COVID
+    After COVID
+  ```
+- Data rows: `Label value1 value2` — space-separated, no colons, no commas between values
+- Thousands commas within values supported (e.g., `1,000`)
+- Color annotations: `Label (color) value1 value2`
+- Minimum 2 periods required
 
 ### 16.2 Wordcloud
 
@@ -1239,7 +1246,6 @@ Navigator 0.85, 0.8
 | Class field types | class | `+ name: string` |
 | Class method returns | class | `+ sail(): void` |
 | Function expressions | function | `f(x): x^2 + 1` |
-| Slope data rows | slope | `Blackbeard: 40 4` |
 | Hide tag values | initiative-status | `hide phase:Planning` |
 
 ### Colons OPTIONAL
@@ -1265,13 +1271,15 @@ Navigator 0.85, 0.8
 | Section dividers | sequence | `== Phase ==` |
 | Comments | all | `// comment` |
 | Wordcloud data | wordcloud | `swordsmanship 95` |
+| Slope data rows | slope | `Blackbeard 40 4` |
+| Slope period directive | slope | `period 1715 1725` |
 | Venn intersections | venn | `sw + nav Sea Raiders` |
 
 ### The Rule
 
 **Colons appear in two contexts:**
 1. **Value assignment** — `key: value` in pipe metadata, indented tag/metadata assignment (org, c4), and hide directives
-2. **Type/expression separation** — where labels can contain spaces and a delimiter is needed (function expressions, slope data, class members)
+2. **Type/expression separation** — where labels can contain spaces and a delimiter is needed (function expressions, class members)
 
 **Exception**: Known-schema properties (infra node properties, ER columns) remain space-separated even though they are indented. The colon rule applies to open-ended metadata, not fixed property schemas.
 

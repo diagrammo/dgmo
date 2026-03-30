@@ -134,6 +134,8 @@ export const DIRECTIVE_KEYWORDS = new Set([
   'no-label-name',
   'no-label-value',
   'no-label-percent',
+  // Slope
+  'period',
   // Quadrant
   'x-axis',
   'y-axis',

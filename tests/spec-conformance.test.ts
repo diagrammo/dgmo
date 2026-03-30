@@ -186,11 +186,140 @@ describe('1. Valid syntax', () => {
   describe('visualizations (parseVisualization)', () => {
     it('slope chart', () => {
       const r = parseVisualization(
-        'slope Fleet Strength\n\n1715, 1725\n\nBlackbeard: 40 4\nRoberts: 12 52',
+        'slope Fleet Strength\n\nperiod 1715 1725\n\nBlackbeard 40 4\nRoberts 12 52',
         palette
       );
       expect(hasNoErrors(r)).toBe(true);
       expect(r.type).toBe('slope');
+      expect(r.periods).toEqual(['1715', '1725']);
+      expect(r.data).toHaveLength(2);
+      expect(r.data[0]).toMatchObject({ label: 'Blackbeard', values: [40, 4] });
+      expect(r.data[1]).toMatchObject({ label: 'Roberts', values: [12, 52] });
+    });
+
+    it('slope: period one-liner', () => {
+      const r = parseVisualization(
+        'slope\nperiod 2020 2025\nRevenue 100 200',
+        palette
+      );
+      expect(hasNoErrors(r)).toBe(true);
+      expect(r.periods).toEqual(['2020', '2025']);
+      expect(r.data[0]).toMatchObject({ label: 'Revenue', values: [100, 200] });
+    });
+
+    it('slope: indented period block', () => {
+      const r = parseVisualization(
+        'slope\nperiod\n  Before COVID\n  After COVID\nRevenue 100 200',
+        palette
+      );
+      expect(hasNoErrors(r)).toBe(true);
+      expect(r.periods).toEqual(['Before COVID', 'After COVID']);
+      expect(r.data[0]).toMatchObject({ label: 'Revenue', values: [100, 200] });
+    });
+
+    it('slope: numeric-containing labels', () => {
+      const r = parseVisualization(
+        'slope\nperiod 2020 2025\nRoute 66 100 200',
+        palette
+      );
+      expect(hasNoErrors(r)).toBe(true);
+      expect(r.data[0]).toMatchObject({
+        label: 'Route 66',
+        values: [100, 200],
+      });
+    });
+
+    it('slope: color annotations', () => {
+      const r = parseVisualization(
+        'slope\nperiod 2020 2022 2025\nPython (blue) 3 1 1',
+        palette
+      );
+      expect(hasNoErrors(r)).toBe(true);
+      expect(r.data[0].label).toBe('Python');
+      expect(r.data[0].color).not.toBeNull();
+      expect(r.data[0].values).toEqual([3, 1, 1]);
+    });
+
+    it('slope: thousands commas in values', () => {
+      const r = parseVisualization(
+        'slope\nperiod 2020 2025\nApple 1,000 2,500',
+        palette
+      );
+      expect(hasNoErrors(r)).toBe(true);
+      expect(r.data[0]).toMatchObject({ label: 'Apple', values: [1000, 2500] });
+    });
+
+    it('slope: negative and decimal values', () => {
+      const r = parseVisualization(
+        'slope\nperiod 2020 2025\nProfit -50 3.5',
+        palette
+      );
+      expect(hasNoErrors(r)).toBe(true);
+      expect(r.data[0]).toMatchObject({ label: 'Profit', values: [-50, 3.5] });
+    });
+
+    it('slope: old colon syntax errors', () => {
+      const r = parseVisualization(
+        'slope\nperiod 2020 2025\nBlackbeard: 40 4',
+        palette
+      );
+      expect(r.error).not.toBeNull();
+      expect(r.diagnostics[0].message).toContain(
+        'Colons are no longer used in slope data rows'
+      );
+    });
+
+    it('slope: old comma-separated values error', () => {
+      const r = parseVisualization(
+        'slope\nperiod 2020 2025\nBlackbeard: 40, 4',
+        palette
+      );
+      expect(r.error).not.toBeNull();
+      expect(r.diagnostics[0].message).toContain('Colons are no longer used');
+    });
+
+    it('slope: bare period line errors', () => {
+      const r = parseVisualization(
+        'slope\n1715, 1725\nBlackbeard 40 4',
+        palette
+      );
+      expect(r.error).not.toBeNull();
+      expect(r.diagnostics[0].message).toContain('period');
+    });
+
+    it('slope: single period errors', () => {
+      const r = parseVisualization('slope\nperiod 2020', palette);
+      expect(r.error).not.toBeNull();
+      expect(r.diagnostics[0].message).toContain('minimum 2 periods');
+    });
+
+    it('slope: too few numeric values', () => {
+      const r = parseVisualization(
+        'slope\nperiod 2020 2025\nRevenue abc',
+        palette
+      );
+      expect(r.error).toBeNull();
+      const warnings = r.diagnostics.filter((d) => d.severity === 'warning');
+      expect(warnings.length).toBeGreaterThan(0);
+      expect(warnings[0].message).toContain('numeric value');
+    });
+
+    it('slope: period block with blank line then data', () => {
+      const r = parseVisualization(
+        'slope\nperiod\n  Before COVID\n  After COVID\n\nRevenue 100 200',
+        palette
+      );
+      expect(hasNoErrors(r)).toBe(true);
+      expect(r.periods).toEqual(['Before COVID', 'After COVID']);
+      expect(r.data[0]).toMatchObject({ label: 'Revenue', values: [100, 200] });
+    });
+
+    it('slope: empty label after extraction', () => {
+      const r = parseVisualization('slope\nperiod 2020 2025\n100 200', palette);
+      expect(r.error).toBeNull();
+      const warnings = r.diagnostics.filter((d) => d.severity === 'warning');
+      expect(warnings.length).toBeGreaterThan(0);
+      expect(warnings[0].message).toContain('no label');
     });
 
     it('wordcloud', () => {

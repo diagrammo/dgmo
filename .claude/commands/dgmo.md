@@ -379,6 +379,23 @@ API
   latency-ms 45
 ```
 
+### slope
+
+```
+slope Fleet Strength
+
+period 1715 1725
+
+Blackbeard 40 4
+Roberts 12 52
+Anne Bonny (red) 8 15
+```
+
+- `period` directive required before data rows (one-line or indented block for multi-token labels)
+- Data rows: `Label value1 value2` — space-separated, no colons
+- Right-scan: parser takes numeric values from the right, everything left is the label
+- Color annotations: `Label (color) value1 value2`
+
 ## Anti-Patterns
 
 ```

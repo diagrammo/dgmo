@@ -78,9 +78,7 @@ describe('sequence: empty group warnings', () => {
 
 describe('flowchart: orphaned node warnings', () => {
   it('warns about node not connected to any edge', () => {
-    const result = parseFlowchart(
-      'flowchart\n[Start] -> [Process]\n[Orphan]'
-    );
+    const result = parseFlowchart('flowchart\n[Start] -> [Process]\n[Orphan]');
     expect(result.error).toBeNull();
     const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
     expect(warnings).toHaveLength(1);
@@ -88,9 +86,7 @@ describe('flowchart: orphaned node warnings', () => {
   });
 
   it('does not warn when all nodes connected', () => {
-    const result = parseFlowchart(
-      'flowchart\n[Start] -> [Process] -> [End]'
-    );
+    const result = parseFlowchart('flowchart\n[Start] -> [Process] -> [End]');
     expect(result.error).toBeNull();
     expect(
       result.diagnostics.filter((d) => d.severity === 'warning')
@@ -122,9 +118,7 @@ describe('class: isolated class warnings', () => {
   });
 
   it('does not warn when all classes connected', () => {
-    const result = parseClassDiagram(
-      'class\nAnimal\nDog extends Animal'
-    );
+    const result = parseClassDiagram('class\nAnimal\nDog extends Animal');
     expect(result.error).toBeNull();
     expect(
       result.diagnostics.filter((d) => d.severity === 'warning')
@@ -148,9 +142,7 @@ describe('er: isolated table warnings', () => {
   });
 
   it('does not warn when all tables connected', () => {
-    const result = parseERDiagram(
-      'er\nusers\n  1-* orders\norders'
-    );
+    const result = parseERDiagram('er\nusers\n  1-* orders\norders');
     expect(result.error).toBeNull();
     expect(
       result.diagnostics.filter((d) => d.severity === 'warning')
@@ -197,7 +189,7 @@ describe('d3: non-fatal validation warnings', () => {
   });
 
   it('slope: warns about no data lines', () => {
-    const result = parseVisualization('slope\n2020, 2024');
+    const result = parseVisualization('slope\nperiod 2020 2024');
     expect(result.error).toBeNull();
     const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
     expect(warnings).toHaveLength(1);
@@ -205,12 +197,14 @@ describe('d3: non-fatal validation warnings', () => {
   });
 
   it('slope: warns about value count mismatch and filters data', () => {
-    const result = parseVisualization('slope\n2020, 2024\nApple: 25\nBanana: 10, 20');
+    const result = parseVisualization(
+      'slope\nperiod 2020 2024\nApple 25\nBanana 10 20'
+    );
     expect(result.error).toBeNull();
     const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
     expect(warnings).toHaveLength(1);
-    expect(warnings[0].message).toContain('Apple');
-    // Mismatched items filtered out
+    expect(warnings[0].message).toContain('numeric value');
+    // Mismatched items skipped during right-scan
     expect(result.data).toHaveLength(1);
     expect(result.data[0].label).toBe('Banana');
   });
@@ -289,9 +283,7 @@ describe('non-fatal validation warnings', () => {
   });
 
   it('warns about series count mismatch and filters data', () => {
-    const result = parseChart(
-      'line\nseries A, B\nX 1\nY 10, 20'
-    );
+    const result = parseChart('line\nseries A, B\nX 1\nY 10, 20');
     expect(result.error).toBeNull();
     const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
     expect(warnings).toHaveLength(1);
@@ -421,7 +413,9 @@ tag Team
 
 [Q1]
   2026-01 Task | Team: Unknown`);
-    const warnings = result.diagnostics.filter(d => d.message.includes("Unknown value 'Unknown'"));
+    const warnings = result.diagnostics.filter((d) =>
+      d.message.includes("Unknown value 'Unknown'")
+    );
     expect(warnings).toHaveLength(1);
   });
 
@@ -506,4 +500,3 @@ marker
     expect(result.timelineMarkers).toHaveLength(2);
   });
 });
-

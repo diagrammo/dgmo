@@ -443,9 +443,9 @@ import {
 } from '@diagrammo/dgmo';
 
 const content = `slope
-period: Before, After
-Alice 3, 7
-Bob 8, 4`;
+period Before After
+Alice 3 7
+Bob 8 4`;
 
 const palette = getPalette('nord');
 const colors = palette.light;

@@ -509,6 +509,7 @@ export function parseVisualization(
   let timelineEraBlockIndent = 0;
   let inTimelineMarkerBlock = false;
   let timelineMarkerBlockIndent = 0;
+  let inSlopePeriodBlock = false;
   const timelineAliasMap = new Map<string, string>();
   const VALID_D3_TYPES = new Set([
     'slope',
@@ -1099,6 +1100,164 @@ export function parseVisualization(
       }
     }
 
+    // ── Slope chart: period directive + right-scan data rows ──
+    if (result.type === 'slope') {
+      // Period block: indented lines inside `period` block
+      // (blank lines are pre-filtered at loop top, so only non-indented lines close the block)
+      if (inSlopePeriodBlock) {
+        if (indent > 0) {
+          result.periods.push(line);
+          continue;
+        }
+        // Non-indented line → close block, fall through to process normally
+        inSlopePeriodBlock = false;
+      }
+
+      // Period directive: `period Label1 Label2` or bare `period` (block open)
+      // Only accept before data rows start (F4: prevent keyword shadowing labels)
+      if (result.data.length === 0) {
+        const periodMatch = line.match(/^period\b(.*)$/i);
+        if (periodMatch) {
+          if (result.periods.length > 0 && !inSlopePeriodBlock) {
+            // F5: warn on duplicate period directives
+            warn(
+              lineNumber,
+              `Duplicate 'period' directive — periods are already defined`
+            );
+          }
+          const rest = periodMatch[1].trim();
+          if (rest) {
+            // One-line: `period 1715 1725`
+            const periodLabels = rest.split(/\s+/);
+            result.periods.push(...periodLabels);
+          } else {
+            // Block open: bare `period`
+            inSlopePeriodBlock = true;
+          }
+          continue;
+        }
+      }
+
+      // Migration error: bare period line (old syntax — comma-separated, no keyword)
+      // F1: Only fire when ALL comma-separated tokens are short (≤20 chars) and non-empty
+      if (
+        result.periods.length === 0 &&
+        line.includes(',') &&
+        !line.includes(':')
+      ) {
+        const tokens = line
+          .split(',')
+          .map((t) => t.trim())
+          .filter(Boolean);
+        const looksLikePeriods =
+          tokens.length >= 2 && tokens.every((t) => t.length <= 20);
+        if (looksLikePeriods) {
+          return fail(
+            lineNumber,
+            `Period lines require the 'period' keyword — use 'period ${tokens.join(' ')}'`
+          );
+        }
+      }
+
+      // Migration error: old colon syntax in data rows
+      // F2: Only fire when content after colon is predominantly numeric (old "Label: val1, val2" pattern)
+      if (line.includes(':')) {
+        const colonPos = line.indexOf(':');
+        const afterColon = line.substring(colonPos + 1).trim();
+        const numericTokens = afterColon
+          .split(/[,\s]+/)
+          .filter((v) => /^-?\d/.test(v));
+        // Only trigger if most tokens after the colon are numeric (old data pattern)
+        if (numericTokens.length >= 1) {
+          const allTokens = afterColon.split(/[,\s]+/).filter(Boolean);
+          if (numericTokens.length >= allTokens.length * 0.5) {
+            const label = line.substring(0, colonPos).trim();
+            return fail(
+              lineNumber,
+              `Colons are no longer used in slope data rows — use '${label} ${numericTokens.join(' ')}'`
+            );
+          }
+        }
+      }
+
+      // Right-scan data row parsing (requires periods to be known)
+      if (result.periods.length >= 2) {
+        const P = result.periods.length;
+        const tokens = line.split(/\s+/);
+        const values: number[] = [];
+
+        // Scan from right, capped at P values
+        let rightIdx = tokens.length - 1;
+        while (rightIdx >= 0 && values.length < P) {
+          const raw = tokens[rightIdx].replace(/,/g, '');
+          const num = parseFloat(raw);
+          if (!isNaN(num) && /^-?\d/.test(raw)) {
+            values.unshift(num);
+            rightIdx--;
+          } else {
+            break;
+          }
+        }
+
+        if (values.length < P) {
+          warn(
+            lineNumber,
+            `Data row has ${values.length} numeric value(s) but ${P} period(s) are defined — expected ${P} values`
+          );
+          continue;
+        }
+
+        // Remaining left tokens = label
+        const labelTokens = tokens.slice(0, rightIdx + 1);
+        const joinedLabel = labelTokens.join(' ');
+
+        if (!joinedLabel) {
+          warn(
+            lineNumber,
+            `Data row has no label — add a label before the numeric values`
+          );
+          continue;
+        }
+
+        // Color annotation: `Label (color)` → extract color
+        const colorMatch = joinedLabel.match(/^(.+?)\(([^)]+)\)\s*$/);
+        const labelPart = colorMatch ? colorMatch[1].trim() : joinedLabel;
+        const colorPart = colorMatch
+          ? resolveColor(colorMatch[2].trim(), palette)
+          : null;
+
+        if (!labelPart) {
+          warn(
+            lineNumber,
+            `Data row has no label — add a label before the numeric values`
+          );
+          continue;
+        }
+
+        // F3: Warn on purely numeric labels — likely a mistake
+        if (/^\d[\d,.]*$/.test(labelPart)) {
+          warn(
+            lineNumber,
+            `Label '${labelPart}' looks numeric — this may indicate too many values or a missing label`
+          );
+        }
+
+        result.data.push({
+          label: labelPart,
+          values,
+          color: colorPart,
+          lineNumber,
+        });
+        continue;
+      }
+
+      // If we get here in a slope chart, it's an unrecognized line
+      if (firstLineParsed) {
+        warn(lineNumber, `Unexpected line: '${line}'.`);
+      }
+      continue;
+    }
+
     // ── Colon-separated metadata / options (legacy + data lines) ──
     const colonIndex = line.indexOf(':');
 
@@ -1220,23 +1379,6 @@ export function parseVisualization(
         freeformLines.push(line);
       }
       continue;
-    }
-
-    // Period line: comma-separated labels with no colon before first comma
-    // e.g., "2020, 2024" or "Q1 2023, Q2 2023, Q3 2023"
-    if (
-      result.periods.length === 0 &&
-      line.includes(',') &&
-      !line.includes(':')
-    ) {
-      const periods = line
-        .split(',')
-        .map((p) => p.trim())
-        .filter(Boolean);
-      if (periods.length >= 2) {
-        result.periods = periods;
-        continue;
-      }
     }
 
     // Catch-all: nothing matched this line
@@ -1408,14 +1550,14 @@ export function parseVisualization(
   if (result.periods.length < 2) {
     return fail(
       1,
-      'Missing or invalid periods line. Provide at least 2 comma-separated period labels (e.g., "2020, 2024")'
+      "Missing 'period' directive. Add 'period 2020 2024' before data rows (minimum 2 periods required)"
     );
   }
 
   if (result.data.length === 0) {
     warn(
       1,
-      'No data lines found. Add data as "Label: value1, value2" (e.g., "Apple: 25, 35")'
+      "No data lines found. Add data as 'Label value1 value2' (e.g., 'Blackbeard 40 4')"
     );
   }
 

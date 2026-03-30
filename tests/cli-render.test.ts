@@ -44,9 +44,9 @@ A -hello-> B
 B -world-> A`,
 
   slope: `slope
-Before, After
-Alpha: 10, 20
-Beta: 30, 15`,
+period Before After
+Alpha 10 20
+Beta 30 15`,
 
   wordcloud: `wordcloud
 hello 100
