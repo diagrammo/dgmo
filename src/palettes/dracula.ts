@@ -6,7 +6,7 @@ import { registerPalette } from './registry';
 // https://draculatheme.com/contribute
 // ============================================================
 
-const draculaPalette: PaletteConfig = {
+export const draculaPalette: PaletteConfig = {
   id: 'dracula',
   name: 'Dracula',
   light: {

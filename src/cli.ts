@@ -486,6 +486,7 @@ Full reference: call \`get_language_reference\` MCP tool or visit diagrammo.app/
 function printHelp(): void {
   console.log(`Usage: dgmo <input> [options]
        cat input.dgmo | dgmo [options]
+       dgmo cat <file>     Display file with syntax highlighting
 
 Render a .dgmo file to PNG (default) or SVG.
 
@@ -534,6 +535,8 @@ function parseArgs(argv: string[]): {
   copy: boolean;
   json: boolean;
   chartTypes: boolean;
+  cat: boolean;
+  noColor: boolean;
   installClaudeSkill: boolean;
   installClaudeCodeIntegration: boolean;
   installCodexIntegration: boolean;
@@ -553,6 +556,8 @@ function parseArgs(argv: string[]): {
     copy: false,
     json: false,
     chartTypes: false,
+    cat: false,
+    noColor: false,
     installClaudeSkill: false,
     installClaudeCodeIntegration: false,
     installCodexIntegration: false,
@@ -572,7 +577,13 @@ function parseArgs(argv: string[]): {
   while (i < args.length) {
     const arg = args[i];
 
-    if (arg === '--help' || arg === '-h') {
+    if (arg === 'cat' && !result.cat && !result.input) {
+      result.cat = true;
+      i++;
+    } else if (arg === '--no-color') {
+      result.noColor = true;
+      i++;
+    } else if (arg === '--help' || arg === '-h') {
       result.help = true;
       i++;
     } else if (arg === '--version' || arg === '-v') {
@@ -743,6 +754,37 @@ async function main(): Promise<void> {
         console.log(desc ? `${id} — ${desc.split(' — ')[1]}` : id);
       }
     }
+    return;
+  }
+
+  if (opts.cat) {
+    const useColor =
+      !opts.noColor && !process.env.NO_COLOR && process.stdout.isTTY === true;
+
+    let catContent: string;
+    if (opts.input && opts.input !== '-') {
+      const inputPath = resolve(opts.input);
+      try {
+        catContent = readFileSync(inputPath, 'utf-8');
+      } catch {
+        console.error(`Error: Cannot read file "${inputPath}"`);
+        process.exit(1);
+      }
+    } else {
+      // Read from stdin
+      try {
+        catContent = readFileSync(0, 'utf-8');
+      } catch {
+        console.error('Error: No input file specified');
+        console.error('Usage: dgmo cat <file>');
+        process.exit(1);
+      }
+    }
+
+    const { highlightDgmo, renderAnsi } =
+      await import('./editor/highlight-api');
+    const tokens = highlightDgmo(catContent);
+    process.stdout.write(renderAnsi(tokens, useColor));
     return;
   }
 

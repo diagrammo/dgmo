@@ -1,0 +1,388 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`highlightDgmo — snapshots > snapshot: bar.dgmo 1`] = `
+[
+  {
+    "role": "chartType",
+    "text": "bar",
+  },
+  {
+    "role": "default",
+    "text": " ",
+  },
+  {
+    "role": "default",
+    "text": "Monthly",
+  },
+  {
+    "role": "default",
+    "text": " ",
+  },
+  {
+    "role": "default",
+    "text": "Revenue",
+  },
+  {
+    "role": "default",
+    "text": " ",
+  },
+  {
+    "role": "default",
+    "text": "by",
+  },
+  {
+    "role": "default",
+    "text": " ",
+  },
+  {
+    "role": "default",
+    "text": "Product",
+  },
+  {
+    "role": "default",
+    "text": " ",
+  },
+  {
+    "role": "default",
+    "text": "Line",
+  },
+  {
+    "role": "default",
+    "text": "
+",
+  },
+  {
+    "role": "keyword",
+    "text": "x-label",
+  },
+  {
+    "role": "default",
+    "text": " ",
+  },
+  {
+    "role": "default",
+    "text": "Product",
+  },
+  {
+    "role": "default",
+    "text": "
+",
+  },
+  {
+    "role": "keyword",
+    "text": "y-label",
+  },
+  {
+    "role": "default",
+    "text": " ",
+  },
+  {
+    "role": "default",
+    "text": "Revenue",
+  },
+  {
+    "role": "default",
+    "text": " ",
+  },
+  {
+    "role": "bracket",
+    "text": "(",
+  },
+  {
+    "role": "default",
+    "text": "$",
+  },
+  {
+    "role": "default",
+    "text": "K",
+  },
+  {
+    "role": "bracket",
+    "text": ")",
+  },
+  {
+    "role": "default",
+    "text": "
+
+",
+  },
+  {
+    "role": "default",
+    "text": "Enterprise",
+  },
+  {
+    "role": "default",
+    "text": " ",
+  },
+  {
+    "role": "number",
+    "text": "245",
+  },
+  {
+    "role": "default",
+    "text": "
+",
+  },
+  {
+    "role": "default",
+    "text": "Professional",
+  },
+  {
+    "role": "default",
+    "text": " ",
+  },
+  {
+    "role": "number",
+    "text": "182",
+  },
+  {
+    "role": "default",
+    "text": "
+",
+  },
+  {
+    "role": "default",
+    "text": "Starter",
+  },
+  {
+    "role": "default",
+    "text": " ",
+  },
+  {
+    "role": "number",
+    "text": "97",
+  },
+  {
+    "role": "default",
+    "text": "
+",
+  },
+  {
+    "role": "default",
+    "text": "Free",
+  },
+  {
+    "role": "default",
+    "text": " ",
+  },
+  {
+    "role": "default",
+    "text": "Trial",
+  },
+  {
+    "role": "default",
+    "text": " ",
+  },
+  {
+    "role": "number",
+    "text": "43",
+  },
+  {
+    "role": "default",
+    "text": "
+",
+  },
+  {
+    "role": "default",
+    "text": "Add-ons",
+  },
+  {
+    "role": "default",
+    "text": " ",
+  },
+  {
+    "role": "number",
+    "text": "61",
+  },
+  {
+    "role": "default",
+    "text": "
+",
+  },
+  {
+    "role": "default",
+    "text": "Consulting",
+  },
+  {
+    "role": "default",
+    "text": " ",
+  },
+  {
+    "role": "number",
+    "text": "128",
+  },
+  {
+    "role": "default",
+    "text": "
+",
+  },
+]
+`;
+
+exports[`highlightDgmo — snapshots > snapshot: flowchart-basic.dgmo 1`] = `
+[
+  {
+    "role": "chartType",
+    "text": "flowchart",
+  },
+  {
+    "role": "default",
+    "text": " ",
+  },
+  {
+    "role": "default",
+    "text": "Basic",
+  },
+  {
+    "role": "default",
+    "text": " ",
+  },
+  {
+    "role": "default",
+    "text": "Flow",
+  },
+  {
+    "role": "default",
+    "text": "
+
+",
+  },
+  {
+    "role": "bracket",
+    "text": "(",
+  },
+  {
+    "role": "default",
+    "text": "Start",
+  },
+  {
+    "role": "bracket",
+    "text": ")",
+  },
+  {
+    "role": "default",
+    "text": " ",
+  },
+  {
+    "role": "operator",
+    "text": "->",
+  },
+  {
+    "role": "default",
+    "text": " ",
+  },
+  {
+    "role": "bracket",
+    "text": "[",
+  },
+  {
+    "role": "default",
+    "text": "Step",
+  },
+  {
+    "role": "default",
+    "text": " ",
+  },
+  {
+    "role": "number",
+    "text": "1",
+  },
+  {
+    "role": "bracket",
+    "text": "]",
+  },
+  {
+    "role": "default",
+    "text": " ",
+  },
+  {
+    "role": "operator",
+    "text": "->",
+  },
+  {
+    "role": "default",
+    "text": " ",
+  },
+  {
+    "role": "bracket",
+    "text": "[",
+  },
+  {
+    "role": "default",
+    "text": "Step",
+  },
+  {
+    "role": "default",
+    "text": " ",
+  },
+  {
+    "role": "number",
+    "text": "2",
+  },
+  {
+    "role": "bracket",
+    "text": "]",
+  },
+  {
+    "role": "default",
+    "text": " ",
+  },
+  {
+    "role": "operator",
+    "text": "->",
+  },
+  {
+    "role": "default",
+    "text": " ",
+  },
+  {
+    "role": "bracket",
+    "text": "[",
+  },
+  {
+    "role": "default",
+    "text": "Step",
+  },
+  {
+    "role": "default",
+    "text": " ",
+  },
+  {
+    "role": "number",
+    "text": "3",
+  },
+  {
+    "role": "bracket",
+    "text": "]",
+  },
+  {
+    "role": "default",
+    "text": " ",
+  },
+  {
+    "role": "operator",
+    "text": "->",
+  },
+  {
+    "role": "default",
+    "text": " ",
+  },
+  {
+    "role": "bracket",
+    "text": "(",
+  },
+  {
+    "role": "default",
+    "text": "End",
+  },
+  {
+    "role": "bracket",
+    "text": ")",
+  },
+  {
+    "role": "default",
+    "text": "
+",
+  },
+]
+`;

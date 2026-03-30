@@ -6,7 +6,7 @@ import { registerPalette } from './registry';
 // Based on Monokai / Monokai Pro color scheme
 // ============================================================
 
-const monokaiPalette: PaletteConfig = {
+export const monokaiPalette: PaletteConfig = {
   id: 'monokai',
   name: 'Monokai',
   light: {

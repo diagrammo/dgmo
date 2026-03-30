@@ -69,6 +69,14 @@ export default defineConfig([
     ],
   },
   {
+    entry: { highlight: 'src/editor/highlight-api.ts' },
+    format: ['esm', 'cjs'],
+    dts: true,
+    sourcemap: true,
+    splitting: false,
+    // Inline Lezer so consumers have zero peer deps
+  },
+  {
     entry: ['src/cli.ts'],
     format: ['cjs'],
     dts: false,

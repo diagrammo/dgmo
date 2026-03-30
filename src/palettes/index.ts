@@ -32,9 +32,8 @@ export { rosePinePalette } from './rose-pine';
 export { solarizedPalette } from './solarized';
 export { tokyoNightPalette } from './tokyo-night';
 
-// Side-effect imports — register palettes without re-exporting
-import './dracula';
-import './monokai';
+export { draculaPalette } from './dracula';
+export { monokaiPalette } from './monokai';
 
 // Re-export Mermaid bridge
 export { buildMermaidThemeVars, buildThemeCSS } from './mermaid-bridge';
