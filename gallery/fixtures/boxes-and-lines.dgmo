@@ -1,0 +1,65 @@
+boxes-and-lines E-Commerce Platform
+
+tag Team t Backend(blue), Frontend(green), Platform(purple)
+tag Priority p High(red), Medium(orange), Low(gray)
+
+active-tag Team
+hide priority:Low
+
+direction LR
+mode rectangles
+
+// --- Services ---
+API Gateway [gateway] | t: Backend, description: Main entry point for all requests
+  -routes-> UserService
+  -routes-> ProductService
+  -routes-> OrderService
+
+UserService | t: Backend, description: Handles auth and profiles
+  -reads-> UserDB
+  -checks-> SessionCache
+
+ProductService | t: Frontend, description: Product catalog and search
+  -queries-> ProductDB
+  -invalidates-> ProductCache
+
+OrderService | t: Backend, description: Order processing pipeline
+  -writes-> OrderDB
+  -publishes-> OrderQueue
+
+// --- Data Stores ---
+UserDB [database] | t: Platform
+ProductDB [database] | t: Platform
+OrderDB [database] | t: Platform
+SessionCache [cache] | t: Platform
+ProductCache [cache] | t: Platform
+OrderQueue [queue] | t: Platform
+
+// --- External ---
+PaymentGateway [external] | t: Backend, description: Stripe integration
+OrderService -charges-> PaymentGateway
+
+// --- Consumer ---
+WebApp [frontend] | t: Frontend
+WebApp -> API Gateway
+
+Admin [actor] | t: Backend
+Admin -> API Gateway
+
+// --- Groups ---
+[AWS us-east-1]
+  [Compute]
+    API Gateway
+    UserService
+    ProductService
+    OrderService
+  [Data]
+    UserDB
+    ProductDB
+    OrderDB
+
+// --- Group edge ---
+OrderQueue -> PaymentGateway
+
+// --- Bidirectional ---
+SessionCache <-syncs-> ProductCache | p: Medium

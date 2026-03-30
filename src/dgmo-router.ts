@@ -20,6 +20,7 @@ import {
 import { looksLikeSitemap, parseSitemap } from './sitemap/parser';
 import { parseInfra } from './infra/parser';
 import { parseGantt } from './gantt/parser';
+import { parseBoxesAndLines } from './boxes-and-lines/parser';
 import { parseFirstLine } from './utils/parsing';
 import type { DgmoError } from './diagnostics';
 
@@ -152,6 +153,7 @@ const DIAGRAM_TYPES = new Set([
   'sitemap',
   'infra',
   'gantt',
+  'boxes-and-lines',
 ]);
 const EXTENDED_CHART_TYPES = new Set([
   'scatter',
@@ -231,6 +233,7 @@ const PARSE_DISPATCH = new Map<
   ['sitemap', (c) => parseSitemap(c)],
   ['infra', (c) => parseInfra(c)],
   ['gantt', (c) => parseGantt(c)],
+  ['boxes-and-lines', (c) => parseBoxesAndLines(c)],
 ]);
 
 /**

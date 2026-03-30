@@ -46,6 +46,7 @@ export const ALL_CHART_TYPES = new Set([
   'sitemap',
   'infra',
   'gantt',
+  'boxes-and-lines',
 ]);
 
 /** Measure leading whitespace of a line, normalizing tabs to 4 spaces. */

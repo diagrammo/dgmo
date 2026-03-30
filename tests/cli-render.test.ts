@@ -144,6 +144,10 @@ start 2024-01-15
 7d Design
 3d Testing
 0d Ship`,
+
+  'boxes-and-lines': `boxes-and-lines System
+API -> Database
+API -> Cache`,
 };
 
 // All D3 types now render in JSDOM via explicit dimensions (Epic 41)

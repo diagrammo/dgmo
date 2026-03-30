@@ -313,6 +313,15 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       dependencies: { description: 'Show dependencies' },
     }),
   ],
+  [
+    'boxes-and-lines',
+    withGlobals({
+      direction: { description: 'Layout direction', values: ['LR', 'TB'] },
+      mode: { description: 'Render mode', values: ['rectangles', 'shapes'] },
+      'active-tag': { description: 'Active tag group name' },
+      hide: { description: 'Hide tag:value pairs' },
+    }),
+  ],
 ]);
 
 // ============================================================
@@ -356,6 +365,7 @@ const CHART_TYPE_DESCRIPTIONS: Record<string, string> = {
   sitemap: 'Sitemap diagram',
   infra: 'Infrastructure diagram',
   gantt: 'Gantt chart',
+  'boxes-and-lines': 'Boxes and lines diagram',
 };
 
 /** All chart types with descriptions, for chart type autocomplete. Excludes `multi-line` alias. */
@@ -503,6 +513,15 @@ export const PIPE_METADATA = new Map<
         paused: { description: 'Paused (alias for blocked)' },
         waiting: { description: 'Waiting (alias for blocked)' },
       },
+    },
+  ],
+  [
+    'boxes-and-lines',
+    {
+      node: {
+        description: { description: 'Node description text' },
+      },
+      edge: {},
     },
   ],
 ]);

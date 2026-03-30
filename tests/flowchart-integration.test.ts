@@ -54,8 +54,8 @@ describe('flowchart routing', () => {
     expect(getAllChartTypes()).toContain('flowchart');
   });
 
-  it('chart type count is 33', () => {
-    expect(getAllChartTypes().length).toBe(33);
+  it('chart type count is 34', () => {
+    expect(getAllChartTypes().length).toBe(34);
   });
 });
 
@@ -71,10 +71,7 @@ describe('flowchart renderForExport', () => {
   });
 
   it('renders flowchart with dark theme', async () => {
-    const svg = await renderForExport(
-      'flowchart\n(Start) -> (End)',
-      'dark'
-    );
+    const svg = await renderForExport('flowchart\n(Start) -> (End)', 'dark');
     expect(svg).toBeTruthy();
     expect(svg).toContain('<svg');
   });
@@ -90,10 +87,7 @@ describe('flowchart renderForExport', () => {
   });
 
   it('returns empty string for malformed flowchart content', async () => {
-    const svg = await renderForExport(
-      'flowchart\n// only comments\n',
-      'light'
-    );
+    const svg = await renderForExport('flowchart\n// only comments\n', 'light');
     expect(svg).toBe('');
   });
 

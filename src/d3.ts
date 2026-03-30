@@ -6856,6 +6856,34 @@ export async function renderForExport(
     return finalizeSvgExport(container, theme, effectivePalette, options);
   }
 
+  if (detectedType === 'boxes-and-lines') {
+    const { parseBoxesAndLines } = await import('./boxes-and-lines/parser');
+    const { layoutBoxesAndLines } = await import('./boxes-and-lines/layout');
+    const { renderBoxesAndLinesForExport } =
+      await import('./boxes-and-lines/renderer');
+
+    const effectivePalette = await resolveExportPalette(theme, palette);
+    const blParsed = parseBoxesAndLines(content);
+    if (blParsed.error || blParsed.nodes.length === 0) return '';
+
+    const blLayout = layoutBoxesAndLines(blParsed);
+    const PADDING = 20;
+    const titleOffset = blParsed.title ? 40 : 0;
+    const exportWidth = blLayout.width + PADDING * 2;
+    const exportHeight = blLayout.height + PADDING * 2 + titleOffset;
+    const container = createExportContainer(exportWidth, exportHeight);
+
+    renderBoxesAndLinesForExport(
+      container,
+      blParsed,
+      blLayout,
+      effectivePalette,
+      theme === 'dark',
+      { exportDims: { width: exportWidth, height: exportHeight } }
+    );
+    return finalizeSvgExport(container, theme, effectivePalette, options);
+  }
+
   if (detectedType === 'initiative-status') {
     const { parseInitiativeStatus } =
       await import('./initiative-status/parser');

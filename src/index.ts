@@ -204,6 +204,26 @@ export {
   renderC4DeploymentForExport,
 } from './c4/renderer';
 
+export { parseBoxesAndLines } from './boxes-and-lines/parser';
+export type {
+  ParsedBoxesAndLines,
+  BLNode,
+  BLEdge,
+  BLGroup,
+  BLRenderMode,
+} from './boxes-and-lines/types';
+export { layoutBoxesAndLines } from './boxes-and-lines/layout';
+export type {
+  BLLayoutResult,
+  BLLayoutNode,
+  BLLayoutEdge,
+  BLLayoutGroup,
+} from './boxes-and-lines/layout';
+export {
+  renderBoxesAndLines,
+  renderBoxesAndLinesForExport,
+} from './boxes-and-lines/renderer';
+
 export {
   parseInitiativeStatus,
   looksLikeInitiativeStatus,
