@@ -1346,6 +1346,51 @@ function renderLegend(
 
     x += LEGEND_GROUP_GAP;
   }
+
+  // Shape key — when in shapes mode, show shape-to-type mapping
+  if (effectiveRenderMode === 'shapes') {
+    x += LEGEND_GROUP_GAP;
+    const shapeEntries: Array<{ label: string; shape: ParticipantType }> = [
+      { label: 'Service', shape: 'service' },
+      { label: 'Database', shape: 'database' },
+      { label: 'Queue', shape: 'queue' },
+      { label: 'Cache', shape: 'cache' },
+      { label: 'Gateway', shape: 'gateway' },
+      { label: 'Network', shape: 'networking' },
+      { label: 'Frontend', shape: 'frontend' },
+      { label: 'External', shape: 'external' },
+      { label: 'Actor', shape: 'actor' },
+    ];
+
+    // Only show shapes that are actually used in the diagram
+    const usedShapes = new Set(
+      parsed.nodes.map((n) => n.shapeOverride ?? n.shape)
+    );
+
+    for (const entry of shapeEntries) {
+      if (!usedShapes.has(entry.shape)) continue;
+      const ew = measureLegendText(entry.label, LEGEND_ENTRY_FONT_SIZE);
+
+      renderMiniBadge(
+        legendG as unknown as D3G,
+        entry.shape,
+        x + BADGE_SIZE / 2,
+        LEGEND_HEIGHT / 2,
+        palette.textMuted
+      );
+
+      legendG
+        .append('text')
+        .attr('x', x + BADGE_SIZE + 4)
+        .attr('y', LEGEND_HEIGHT / 2 + 1)
+        .attr('dominant-baseline', 'central')
+        .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
+        .attr('fill', palette.textMuted)
+        .text(entry.label);
+
+      x += BADGE_SIZE + 4 + ew + LEGEND_ENTRY_TRAIL;
+    }
+  }
 }
 
 // ── Export helper ──────────────────────────────────────────
