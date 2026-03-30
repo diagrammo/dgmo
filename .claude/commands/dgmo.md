@@ -396,6 +396,256 @@ Anne Bonny (red) 8 15
 - Right-scan: parser takes numeric values from the right, everything left is the label
 - Color annotations: `Label (color) value1 value2`
 
+### timeline
+
+```
+timeline Product Roadmap
+sort tag:Team
+
+tag Team alias t
+  Engineering(blue)
+  Design(purple)
+
+era 2024-01 -> 2024-06 Phase 1
+marker 2024-03 Beta Launch
+
+2024-01->2024-03 Core API | t: Engineering
+2024-02->2024-05 UX Research | t: Design
+2024-06 GA Release | t: Engineering
+```
+
+- Dates: `YYYY`, `YYYY-MM`, `YYYY-MM-DD`. Ranges: `start->end`. Durations: `start->6m`, `->2w`, `->30d`
+- Uncertain end: `2024-03?`. Point events: single date, no range
+- `era start -> end Label` — background band. `marker date Label` — vertical line
+- `## Group(color)` headers for manual grouping, or `tag` + `sort tag:Name` for swimlanes
+- Pipe metadata: `| tagalias: Value`
+
+### gantt
+
+```
+gantt Sprint Plan
+start 2024-01-15
+today-marker 2024-03-01
+critical-path
+dependencies
+
+10bd Design | 80%
+parallel
+  [Backend]
+    15bd API Layer
+    5bd? Auth Module
+      -> Frontend.Integration | offset: -3bd
+  [Frontend]
+    10bd Components
+    5bd Integration
+5bd QA Testing
+0d Release
+```
+
+- `start YYYY-MM-DD` — project start date (required)
+- Duration: `10bd Task Name` (business days). Uncertain: `5bd?`. Milestone: `0d`
+- `parallel` block for concurrent tracks. `[Group]` for named sections
+- Progress: `| 80%` or trailing `80%`
+- Dependencies: `-> Target.Task` or `-blocks-> Target.Task`. `offset: -3bd` for overlap
+- `today-marker`, `critical-path`, `dependencies` — top-level directives
+- Tags + eras + markers same as timeline
+
+### c4
+
+```
+c4 Banking System
+
+Customer is a person
+  description: A customer of the bank
+
+Banking is a system
+  description: Online banking portal
+  containers
+    WebApp is a container | tech: React
+    API is a container | tech: Node.js
+    DB is a container is a database | tech: PostgreSQL
+
+Email is a system
+  description: External email service
+
+Customer -Uses-> Banking
+Banking -Sends emails [SMTP]-> Email
+```
+
+- Elements: `Name is a person|system|container|component`
+- Metadata (pipe-delimited): `| description: text, tech: stack`
+- Indented `description:` also works (no pipe needed)
+- Sections: `containers` (inside system), `components` (inside container), `deployment`
+- Deployment: `NodeName is a cloud|database|cache|queue`
+- Arrows: sync `-label [tech]->`, async `~label [tech]~>`, bidirectional `<->`, `<~>`
+
+### class
+
+```
+class Type Hierarchy
+
+Drawable [interface]
+  + draw(): void
+
+Shape implements Drawable [abstract]
+  # x: number
+  + area(): number
+  count: number {static}
+
+Circle extends Shape
+  - radius: number
+
+Color [enum]
+  Red
+  Green
+  Blue
+
+Canvas
+  *-- Shape : contains
+  ..> Logger : uses
+```
+
+- Modifiers: `[abstract]`, `[interface]`, `[enum]`
+- Inheritance: `Child extends Parent`, `Child implements Interface`
+- Visibility: `+` public, `#` protected, `-` private. Static: `{static}`
+- Relationships: `A *-- B` (composition), `A o-- B` (aggregation), `A --|> B` (inheritance), `A ..|> B` (implementation), `A ..> B` (dependency), `A -> B` (association)
+- Optional label: `A *-- B : description`
+
+### initiative-status
+
+```
+initiative-status Q2 Roadmap
+
+[Identity]
+  Auth Service | done
+  SSO Integration | doing
+    -> Auth Service | done
+  MFA Rollout | blocked
+    -> SSO Integration | doing
+
+[Payments]
+  Payment Gateway | doing
+  Billing UI | todo
+    -> Payment Gateway | doing
+
+Auth Service -> Payment Gateway: validates | done
+```
+
+- Status values: `done`, `doing`, `todo`, `blocked`, `na`
+- Dependencies: `-> Target | status` (indented) or `Source -> Target: label | status`
+- Groups: `[Group Name]` with indented items
+- Tags supported for phase/team coloring
+
+### venn
+
+```
+venn Full-Stack Skills
+
+Frontend(blue) alias fe
+Backend(green) alias be
+DevOps(orange) alias de
+
+fe + be Web Systems
+be + de Platform Ops
+fe + be + de Full Stack
+```
+
+- Sets: `Name(color) alias id` — declares a circle
+- Overlaps: `id + id Label` — names the intersection region
+- Option: `values on` to show sizes. Sized form: `id(color): 120 "Label"`
+
+### quadrant
+
+```
+quadrant Feature Priorities
+
+x-label Low Effort, High Effort
+y-label Low Impact, High Impact
+
+top-left Quick Wins(green)
+top-right Major Projects
+bottom-left Fill-ins
+bottom-right Avoid(red)
+
+Dark Mode (blue) 0.25, 0.85
+API v2 0.8, 0.9
+Fix Typos 0.1, 0.15
+```
+
+- Axis labels: `x-label Low, High` and `y-label Low, High`
+- Quadrant labels: `top-left`, `top-right`, `bottom-left`, `bottom-right`
+- Data: `Label (color) x, y` where x,y are 0–1
+
+### sankey / chord
+
+```
+// sankey — flow diagram
+sankey Budget Allocation
+
+Revenue (green)
+  Costs: 600
+  Profit (blue): 400
+
+// arrow syntax also works
+Revenue -> Marketing: 200
+
+// chord — same syntax, circular layout
+chord Team Collaboration
+Engineering -> Design 85
+Design -> Product 68
+```
+
+- Indented syntax: parent → child with `Target: weight`
+- Arrow syntax: `Source -> Target: weight` (sankey) or `Source -> Target weight` (chord)
+- Node colors: `Name (color)`. Link colors: `Target: 600 (red)`
+
+### state
+
+```
+state Order Lifecycle
+direction LR
+
+[*] -> Pending -submit-> Validating
+
+Validating
+  -approved-> Processing
+  -rejected-> Cancelled(red)
+
+## Fulfillment(blue)
+  Processing -ship-> Shipped
+  Shipped -delivered-> Done
+
+Cancelled -> [*]
+Done -> [*]
+```
+
+- `[*]` — start/end pseudostate (filled circle)
+- Transitions: `A -> B`, `A -label-> B`, `A -(color)-> B`
+- Chains: `A -> B -> C` on one line
+- Indented transitions use parent as source
+- Groups: `## GroupName(color)` with indented states
+- Options: `direction LR` (left-right) or `TB` (top-bottom, default)
+
+### scatter
+
+```
+scatter Funding vs Revenue
+x-label Funding ($M)
+y-label Revenue ($M)
+
+[SaaS](blue)
+  Acme 12, 8.5
+  DataSync 5.2, 3.1
+
+[Fintech](green)
+  PayFlow 45, 32
+  LendTech 18, 12.5
+```
+
+- Data: `Label x, y` or `Label x, y, size` (bubble chart)
+- Groups: `[Category](color)` headers
+- Options: `labels on`, `xlabel`, `ylabel`, `sizelabel`
+
 ## Anti-Patterns
 
 ```
