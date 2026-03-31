@@ -224,6 +224,9 @@ export {
   renderBoxesAndLinesForExport,
 } from './boxes-and-lines/renderer';
 
+export { collapseBoxesAndLines } from './boxes-and-lines/collapse';
+export type { BLCollapseResult } from './boxes-and-lines/collapse';
+
 export {
   parseInitiativeStatus,
   looksLikeInitiativeStatus,

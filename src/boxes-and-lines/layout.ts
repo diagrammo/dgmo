@@ -54,6 +54,8 @@ export interface BLLayoutGroup {
   height: number;
   depth: number;
   parentGroup?: string;
+  collapsed: boolean;
+  childCount?: number;
 }
 
 export interface BLLayoutResult {
@@ -108,7 +110,11 @@ function computeNodeSize(
 
 export function layoutBoxesAndLines(
   parsed: ParsedBoxesAndLines,
-  renderModeOverride?: 'rectangles' | 'shapes'
+  renderModeOverride?: 'rectangles' | 'shapes',
+  collapseInfo?: {
+    collapsedChildCounts: Map<string, number>;
+    originalGroups: import('./types').BLGroup[];
+  }
 ): BLLayoutResult {
   const effectiveRenderMode = renderModeOverride ?? parsed.renderMode;
   const g = new dagre.graphlib.Graph({ compound: true, multigraph: true });
@@ -130,7 +136,27 @@ export function layoutBoxesAndLines(
     groupMap.set(group.label, { depth, parentGroup: group.parentGroup });
   }
 
-  // Add group nodes as compound parents
+  // Determine which groups are collapsed
+  const collapsedGroupLabels = new Set<string>();
+  if (collapseInfo) {
+    for (const og of collapseInfo.originalGroups) {
+      if (!parsed.groups.some((g) => g.label === og.label)) {
+        collapsedGroupLabels.add(og.label);
+      }
+    }
+  }
+
+  // Add collapsed groups as regular nodes (they act as edge endpoints)
+  for (const label of collapsedGroupLabels) {
+    const gid = `__group_${label}`;
+    const childCount = collapseInfo?.collapsedChildCounts.get(label) ?? 0;
+    const labelW = textWidth(label, NODE_FONT_SIZE) + 24;
+    const countW = textWidth(`${childCount} items`, 11) + 16;
+    const w = Math.max(MIN_NODE_WIDTH, Math.max(labelW, countW));
+    g.setNode(gid, { label, width: w, height: 50 });
+  }
+
+  // Add expanded group nodes as compound parents
   for (const group of parsed.groups) {
     const gid = `__group_${group.label}`;
     g.setNode(gid, {
@@ -193,7 +219,7 @@ export function layoutBoxesAndLines(
     });
   }
 
-  // Extract group positions
+  // Extract group positions (expanded)
   const layoutGroups: BLLayoutGroup[] = [];
   for (const group of parsed.groups) {
     const gid = `__group_${group.label}`;
@@ -208,6 +234,26 @@ export function layoutBoxesAndLines(
       height: dagreNode.height,
       depth: gm?.depth ?? 0,
       parentGroup: group.parentGroup,
+      collapsed: false,
+    });
+  }
+
+  // Extract collapsed group positions
+  for (const label of collapsedGroupLabels) {
+    const gid = `__group_${label}`;
+    const dagreNode = g.node(gid);
+    if (!dagreNode) continue;
+    const og = collapseInfo?.originalGroups.find((g) => g.label === label);
+    layoutGroups.push({
+      label,
+      x: dagreNode.x,
+      y: dagreNode.y,
+      width: dagreNode.width,
+      height: dagreNode.height,
+      depth: 0,
+      parentGroup: og?.parentGroup,
+      collapsed: true,
+      childCount: collapseInfo?.collapsedChildCounts.get(label) ?? 0,
     });
   }
 

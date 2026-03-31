@@ -962,28 +962,100 @@ export function renderBoxesAndLines(
     const gx = group.x - group.width / 2;
     const gy = group.y - group.height / 2;
 
-    const groupG = diagramG.append('g').attr('class', 'bl-group');
-    groupG
-      .append('rect')
-      .attr('x', gx)
-      .attr('y', gy)
-      .attr('width', group.width)
-      .attr('height', group.height)
-      .attr('rx', GROUP_RX)
-      .attr('ry', GROUP_RX)
-      .attr('fill', mix(palette.surface, palette.bg, 50))
-      .attr('stroke', palette.border)
-      .attr('stroke-width', 1);
+    const groupG = diagramG
+      .append('g')
+      .attr(
+        'class',
+        group.collapsed ? 'bl-group bl-group-collapsed' : 'bl-group'
+      )
+      .attr('data-group-toggle', group.label)
+      .style('cursor', 'pointer');
 
-    groupG
-      .append('text')
-      .attr('class', 'bl-group-label')
-      .attr('x', gx + 8)
-      .attr('y', gy + 16)
-      .attr('font-size', GROUP_LABEL_FONT_SIZE)
-      .attr('font-weight', '600')
-      .attr('fill', palette.textMuted)
-      .text(group.label);
+    if (group.collapsed) {
+      // Collapsed: compact box with label + child count + colored bar
+      groupG
+        .append('rect')
+        .attr('x', gx)
+        .attr('y', gy)
+        .attr('width', group.width)
+        .attr('height', group.height)
+        .attr('rx', NODE_RX)
+        .attr('ry', NODE_RX)
+        .attr('fill', isDark ? palette.surface : palette.bg)
+        .attr('stroke', palette.textMuted)
+        .attr('stroke-width', NODE_STROKE_WIDTH);
+
+      // Expand indicator bar at bottom
+      const barH = 6;
+      groupG
+        .append('rect')
+        .attr('x', gx)
+        .attr('y', gy + group.height - barH)
+        .attr('width', group.width)
+        .attr('height', barH)
+        .attr('rx', 0)
+        .attr('ry', 0)
+        .attr('fill', palette.primary)
+        .attr('opacity', 0.6);
+      // Clip bottom corners
+      groupG
+        .append('rect')
+        .attr('x', gx)
+        .attr('y', gy + group.height - NODE_RX)
+        .attr('width', group.width)
+        .attr('height', NODE_RX)
+        .attr('rx', NODE_RX)
+        .attr('ry', NODE_RX)
+        .attr('fill', isDark ? palette.surface : palette.bg)
+        .attr('stroke', 'none')
+        .attr('clip-path', `inset(${NODE_RX}px 0 0 0)`);
+
+      // Label
+      groupG
+        .append('text')
+        .attr('x', group.x)
+        .attr('y', group.y - 6)
+        .attr('text-anchor', 'middle')
+        .attr('font-size', NODE_FONT_SIZE)
+        .attr('font-weight', '600')
+        .attr('fill', palette.text)
+        .text(group.label);
+
+      // Child count
+      if (group.childCount) {
+        groupG
+          .append('text')
+          .attr('x', group.x)
+          .attr('y', group.y + 10)
+          .attr('text-anchor', 'middle')
+          .attr('font-size', DESC_FONT_SIZE)
+          .attr('fill', palette.textMuted)
+          .text(`${group.childCount} items`);
+      }
+    } else {
+      // Expanded: background container with label
+      groupG
+        .append('rect')
+        .attr('x', gx)
+        .attr('y', gy)
+        .attr('width', group.width)
+        .attr('height', group.height)
+        .attr('rx', GROUP_RX)
+        .attr('ry', GROUP_RX)
+        .attr('fill', mix(palette.surface, palette.bg, 50))
+        .attr('stroke', palette.border)
+        .attr('stroke-width', 1);
+
+      groupG
+        .append('text')
+        .attr('class', 'bl-group-label')
+        .attr('x', gx + 8)
+        .attr('y', gy + 16)
+        .attr('font-size', GROUP_LABEL_FONT_SIZE)
+        .attr('font-weight', '600')
+        .attr('fill', palette.textMuted)
+        .text(group.label);
+    }
   }
 
   // ── Render edges ───────────────────────────────────────
