@@ -1277,7 +1277,8 @@ export function renderBoxesAndLines(
             : node.description;
         const descEl = nodeG
           .append('text')
-          .attr('x', x + NODE_TEXT_PADDING)
+          .attr('x', 0)
+          .attr('text-anchor', 'middle')
           .attr(
             'y',
             sepY +
