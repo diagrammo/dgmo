@@ -1225,10 +1225,9 @@ export function renderBoxesAndLines(
           .text(fitted.lines[li]);
       }
     } else {
-      // Rectangle mode — infra-style card: header + separator + body
+      // Rectangle mode — consistent-height card
       const x = -ln.width / 2;
       const y = -ln.height / 2;
-      const hasBody = !!node.description;
 
       // Background rect
       nodeG
@@ -1243,42 +1242,20 @@ export function renderBoxesAndLines(
         .attr('stroke', colors.stroke)
         .attr('stroke-width', NODE_STROKE_WIDTH);
 
-      // Header: label centered in NODE_HEADER_HEIGHT zone
-      const headerCenterY = y + NODE_HEADER_HEIGHT / 2 + NODE_FONT_SIZE * 0.35;
-      const fitted = fitTextToNode(
-        node.label,
-        ln.width - 24,
-        NODE_HEADER_HEIGHT
-      );
-      for (let li = 0; li < fitted.lines.length; li++) {
+      if (node.description) {
+        // Header + separator + description
+        const headerCenterY =
+          y + NODE_HEADER_HEIGHT / 2 + NODE_FONT_SIZE * 0.35;
         nodeG
           .append('text')
           .attr('x', 0)
-          .attr(
-            'y',
-            headerCenterY +
-              (li - (fitted.lines.length - 1) / 2) * fitted.fontSize * 1.3
-          )
+          .attr('y', headerCenterY)
           .attr('text-anchor', 'middle')
-          .attr('font-size', fitted.fontSize)
+          .attr('font-size', NODE_FONT_SIZE)
           .attr('font-weight', '600')
           .attr('fill', colors.text)
-          .text(fitted.lines[li]);
-      }
+          .text(node.label);
 
-      // Mini-shape badge in top-right of header
-      if (effectiveShape !== 'default' && effectiveShape !== 'service') {
-        renderMiniBadge(
-          nodeG as unknown as D3G,
-          effectiveShape,
-          ln.width / 2 - BADGE_SIZE / 2 - 4,
-          y + NODE_HEADER_HEIGHT / 2,
-          colors.stroke
-        );
-      }
-
-      // Separator line + body (description)
-      if (hasBody) {
         const sepY = y + NODE_HEADER_HEIGHT;
         nodeG
           .append('line')
@@ -1290,28 +1267,57 @@ export function renderBoxesAndLines(
           .attr('stroke-opacity', 0.3)
           .attr('stroke-width', 1);
 
-        if (node.description) {
-          const desc =
-            node.description.length > 40
-              ? node.description.slice(0, 39) + '\u2026'
-              : node.description;
-          const descEl = nodeG
-            .append('text')
-            .attr('x', x + NODE_TEXT_PADDING)
-            .attr(
-              'y',
-              sepY +
-                META_LINE_HEIGHT / 2 +
-                META_FONT_SIZE * 0.35 +
-                NODE_SEPARATOR_GAP
-            )
-            .attr('font-size', META_FONT_SIZE)
-            .attr('fill', palette.textMuted)
-            .text(desc);
-          if (desc !== node.description) {
-            descEl.append('title').text(node.description);
-          }
+        const maxChars = Math.floor(
+          (ln.width - NODE_TEXT_PADDING * 2) /
+            (META_FONT_SIZE * CHAR_WIDTH_RATIO)
+        );
+        const desc =
+          node.description.length > maxChars
+            ? node.description.slice(0, maxChars - 1) + '\u2026'
+            : node.description;
+        const descEl = nodeG
+          .append('text')
+          .attr('x', x + NODE_TEXT_PADDING)
+          .attr(
+            'y',
+            sepY +
+              META_LINE_HEIGHT / 2 +
+              META_FONT_SIZE * 0.35 +
+              NODE_SEPARATOR_GAP
+          )
+          .attr('font-size', META_FONT_SIZE)
+          .attr('fill', palette.textMuted)
+          .text(desc);
+        if (desc !== node.description) {
+          descEl.append('title').text(node.description);
         }
+      } else {
+        // Label centered vertically
+        const fitted = fitTextToNode(node.label, ln.width - 24, ln.height);
+        const totalH = fitted.lines.length * fitted.fontSize * 1.3;
+        const startY = -totalH / 2 + fitted.fontSize * 0.4;
+        for (let li = 0; li < fitted.lines.length; li++) {
+          nodeG
+            .append('text')
+            .attr('x', 0)
+            .attr('y', startY + li * fitted.fontSize * 1.3)
+            .attr('text-anchor', 'middle')
+            .attr('font-size', fitted.fontSize)
+            .attr('font-weight', '600')
+            .attr('fill', colors.text)
+            .text(fitted.lines[li]);
+        }
+      }
+
+      // Mini-shape badge in top-right
+      if (effectiveShape !== 'default' && effectiveShape !== 'service') {
+        renderMiniBadge(
+          nodeG as unknown as D3G,
+          effectiveShape,
+          ln.width / 2 - BADGE_SIZE / 2 - 4,
+          y + BADGE_SIZE / 2 + 4,
+          colors.stroke
+        );
       }
     }
   }

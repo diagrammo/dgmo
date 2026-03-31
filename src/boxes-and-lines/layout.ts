@@ -86,27 +86,13 @@ function computeNodeSize(
     return { width: w, height: SHAPE_NODE_HEIGHT };
   }
 
-  // Rectangle mode — infra-style card: header (28px) + optional body
-  const NODE_HEADER_H = 28;
-  const META_FONT = 10;
-  const META_LINE_H = 14;
-  const NODE_PAD_BOT = 10;
-  const SEPARATOR_GAP = 4;
+  // Rectangle mode — fixed dimensions for consistent layout
+  const RECT_NODE_WIDTH = 140;
+  const RECT_NODE_HEIGHT = 50;
 
-  const labelW = textWidth(node.label, NODE_FONT_SIZE) + 40; // badge space
-  let maxTextW = labelW;
-  let bodyH = 0;
-
-  if (node.description) {
-    const descW = textWidth(node.description.slice(0, 40), META_FONT) + 24;
-    maxTextW = Math.max(maxTextW, descW);
-    bodyH = SEPARATOR_GAP + META_LINE_H;
-  }
-
-  const width = Math.max(MIN_NODE_WIDTH, maxTextW);
-  const height =
-    NODE_HEADER_H + (bodyH > 0 ? bodyH + NODE_PAD_BOT : NODE_PAD_BOT);
-  return { width, height };
+  const labelW = textWidth(node.label, NODE_FONT_SIZE) + 40;
+  const width = Math.max(RECT_NODE_WIDTH, labelW);
+  return { width, height: RECT_NODE_HEIGHT };
 }
 
 // ── Main layout ────────────────────────────────────────────
