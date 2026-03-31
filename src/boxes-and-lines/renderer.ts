@@ -1197,7 +1197,8 @@ export function renderBoxesAndLines(
       .attr('transform', `translate(${ln.x},${ln.y})`)
       .attr('data-line-number', node.lineNumber)
       .attr('data-node-id', node.label)
-      .style('cursor', onClickItem ? 'pointer' : 'default');
+      .style('cursor', onClickItem ? 'pointer' : 'default')
+      .style('--bl-node-stroke', colors.stroke);
 
     // Add tag metadata as data attributes for legend hover dimming
     for (const [key, val] of Object.entries(node.metadata)) {
