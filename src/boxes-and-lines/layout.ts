@@ -156,14 +156,14 @@ export function layoutBoxesAndLines(
     if (!absorbed) collapsedGroupLabels.add(label);
   }
 
-  // Add collapsed groups as regular nodes (they act as edge endpoints)
+  // Add collapsed groups as regular nodes — same dimensions as normal nodes
+  const RECT_NODE_WIDTH = 140;
+  const RECT_NODE_HEIGHT = 50;
   for (const label of collapsedGroupLabels) {
     const gid = `__group_${label}`;
-    const childCount = collapseInfo?.collapsedChildCounts.get(label) ?? 0;
     const labelW = textWidth(label, NODE_FONT_SIZE) + 24;
-    const countW = textWidth(`${childCount} items`, 11) + 16;
-    const w = Math.max(MIN_NODE_WIDTH, Math.max(labelW, countW));
-    g.setNode(gid, { label, width: w, height: 50 });
+    const w = Math.max(RECT_NODE_WIDTH, labelW);
+    g.setNode(gid, { label, width: w, height: RECT_NODE_HEIGHT });
   }
 
   // Add expanded group nodes as compound parents

@@ -36,7 +36,6 @@ const NODE_FONT_SIZE = 13;
 const MIN_NODE_FONT_SIZE = 9;
 const META_FONT_SIZE = 10;
 const META_LINE_HEIGHT = 14;
-const DESC_FONT_SIZE = 11;
 const EDGE_LABEL_FONT_SIZE = 11;
 const EDGE_STROKE_WIDTH = 1.5;
 const NODE_STROKE_WIDTH = 1.5;
@@ -1014,28 +1013,16 @@ export function renderBoxesAndLines(
         .attr('clip-path', `url(#${clipId})`)
         .attr('class', 'bl-collapse-bar');
 
-      // Label (centered, offset up slightly to account for bar)
+      // Label centered vertically
       groupG
         .append('text')
         .attr('x', group.x)
-        .attr('y', group.y - (group.childCount ? 2 : 0))
+        .attr('y', group.y + NODE_FONT_SIZE * 0.35)
         .attr('text-anchor', 'middle')
         .attr('font-size', NODE_FONT_SIZE)
         .attr('font-weight', '600')
         .attr('fill', palette.text)
         .text(group.label);
-
-      // Child count below label
-      if (group.childCount) {
-        groupG
-          .append('text')
-          .attr('x', group.x)
-          .attr('y', group.y + NODE_FONT_SIZE)
-          .attr('text-anchor', 'middle')
-          .attr('font-size', DESC_FONT_SIZE)
-          .attr('fill', palette.textMuted)
-          .text(`+${group.childCount}`);
-      }
     } else {
       // Expanded: background container with label
       groupG
