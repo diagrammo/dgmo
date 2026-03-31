@@ -39,6 +39,7 @@ const EDGE_LABEL_FONT_SIZE = 11;
 const EDGE_STROKE_WIDTH = 2;
 const NODE_STROKE_WIDTH = 2;
 const NODE_RX = 8;
+const COLLAPSE_BAR_HEIGHT = 6;
 const ARROWHEAD_W = 5;
 const ARROWHEAD_H = 4;
 const CHAR_WIDTH_RATIO = 0.6;
@@ -972,12 +973,10 @@ export function renderBoxesAndLines(
       .style('cursor', 'pointer');
 
     if (group.collapsed) {
-      // Collapsed: dashed rounded rect with label + child count
-      const fillColor = mix(
-        palette.border,
-        isDark ? palette.bg : palette.surface,
-        30
-      );
+      // Collapsed: solid rounded rect matching node style + 6px collapse bar
+      const fillColor = isDark ? palette.surface : palette.bg;
+      const strokeColor = palette.border;
+
       groupG
         .append('rect')
         .attr('x', gx)
@@ -987,23 +986,52 @@ export function renderBoxesAndLines(
         .attr('rx', NODE_RX)
         .attr('ry', NODE_RX)
         .attr('fill', fillColor)
-        .attr('stroke', palette.border)
-        .attr('stroke-width', NODE_STROKE_WIDTH)
-        .attr('stroke-dasharray', '6 3');
+        .attr('stroke', strokeColor)
+        .attr('stroke-width', NODE_STROKE_WIDTH);
 
-      // Label
-      const labelText = group.childCount
-        ? `${group.label} (${group.childCount})`
-        : group.label;
+      // 6px collapse bar at bottom (clipped to rounded corners)
+      const clipId = `bl-clip-${group.label.replace(/[[\]\s]/g, '')}`;
+      groupG
+        .append('clipPath')
+        .attr('id', clipId)
+        .append('rect')
+        .attr('x', gx)
+        .attr('y', gy)
+        .attr('width', group.width)
+        .attr('height', group.height)
+        .attr('rx', NODE_RX);
+      groupG
+        .append('rect')
+        .attr('x', gx)
+        .attr('y', gy + group.height - COLLAPSE_BAR_HEIGHT)
+        .attr('width', group.width)
+        .attr('height', COLLAPSE_BAR_HEIGHT)
+        .attr('fill', strokeColor)
+        .attr('clip-path', `url(#${clipId})`)
+        .attr('class', 'bl-collapse-bar');
+
+      // Label (centered, offset up slightly to account for bar)
       groupG
         .append('text')
         .attr('x', group.x)
-        .attr('y', group.y + NODE_FONT_SIZE * 0.35)
+        .attr('y', group.y - (group.childCount ? 2 : 0))
         .attr('text-anchor', 'middle')
         .attr('font-size', NODE_FONT_SIZE)
         .attr('font-weight', '600')
-        .attr('fill', contrastText(fillColor, '#eceff4', '#2e3440'))
-        .text(labelText);
+        .attr('fill', palette.text)
+        .text(group.label);
+
+      // Child count below label
+      if (group.childCount) {
+        groupG
+          .append('text')
+          .attr('x', group.x)
+          .attr('y', group.y + NODE_FONT_SIZE)
+          .attr('text-anchor', 'middle')
+          .attr('font-size', DESC_FONT_SIZE)
+          .attr('fill', palette.textMuted)
+          .text(`+${group.childCount}`);
+      }
     } else {
       // Expanded: background container with label
       groupG
