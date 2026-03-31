@@ -14,9 +14,9 @@ import type {
 const NODESEP = 60;
 const RANKSEP = 100;
 const MARGIN = 40;
-const CONTAINER_PAD_X = 24;
-const CONTAINER_PAD_TOP = 36;
-const CONTAINER_PAD_BOTTOM = 20;
+const CONTAINER_PAD_X = 30;
+const CONTAINER_PAD_TOP = 40;
+const CONTAINER_PAD_BOTTOM = 24;
 const CHAR_WIDTH_RATIO = 0.6;
 const NODE_FONT_SIZE = 13;
 const MIN_NODE_WIDTH = 100;

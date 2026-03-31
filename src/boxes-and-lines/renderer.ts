@@ -48,8 +48,7 @@ const ARROWHEAD_H = 4;
 const CHAR_WIDTH_RATIO = 0.6;
 const NODE_TEXT_PADDING = 12;
 const SERVICE_RX = 10;
-const GROUP_LABEL_FONT_SIZE = 11;
-const GROUP_RX = 6;
+const GROUP_RX = 8;
 const BADGE_SIZE = 16;
 
 type D3G = d3Selection.Selection<SVGGElement, unknown, null, undefined>;
@@ -1033,18 +1032,19 @@ export function renderBoxesAndLines(
         .attr('height', group.height)
         .attr('rx', GROUP_RX)
         .attr('ry', GROUP_RX)
-        .attr('fill', mix(palette.surface, palette.bg, 50))
-        .attr('stroke', palette.border)
-        .attr('stroke-width', 1);
+        .attr('fill', mix(palette.surface, palette.bg, 40))
+        .attr('stroke', palette.textMuted)
+        .attr('stroke-width', 1)
+        .attr('stroke-opacity', 0.35);
 
       groupG
         .append('text')
         .attr('class', 'bl-group-label')
-        .attr('x', gx + 8)
-        .attr('y', gy + 16)
-        .attr('font-size', GROUP_LABEL_FONT_SIZE)
-        .attr('font-weight', '600')
-        .attr('fill', palette.textMuted)
+        .attr('x', gx + 12)
+        .attr('y', gy + 18)
+        .attr('font-size', 13)
+        .attr('font-weight', 'bold')
+        .attr('fill', palette.text)
         .text(group.label);
     }
   }
