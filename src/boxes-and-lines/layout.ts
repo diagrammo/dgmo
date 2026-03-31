@@ -19,10 +19,7 @@ const CONTAINER_PAD_TOP = 36;
 const CONTAINER_PAD_BOTTOM = 20;
 const CHAR_WIDTH_RATIO = 0.6;
 const NODE_FONT_SIZE = 13;
-const DESC_FONT_SIZE = 11;
 const MIN_NODE_WIDTH = 100;
-const RECT_NODE_HEIGHT_BASE = 40;
-const RECT_LINE_HEIGHT = 18;
 const SHAPE_NODE_HEIGHT = 60;
 const MAX_PARALLEL_EDGES = 5;
 const PARALLEL_SPACING = 12;
@@ -89,25 +86,26 @@ function computeNodeSize(
     return { width: w, height: SHAPE_NODE_HEIGHT };
   }
 
-  // Rectangle mode — account for label + description + tag line
-  let lines = 1; // label
-  const labelW = textWidth(node.label, NODE_FONT_SIZE) + 24;
+  // Rectangle mode — infra-style card: header (28px) + optional body
+  const NODE_HEADER_H = 28;
+  const META_FONT = 10;
+  const META_LINE_H = 14;
+  const NODE_PAD_BOT = 10;
+  const SEPARATOR_GAP = 4;
+
+  const labelW = textWidth(node.label, NODE_FONT_SIZE) + 40; // badge space
   let maxTextW = labelW;
+  let bodyH = 0;
 
   if (node.description) {
-    lines++;
-    const descW = textWidth(node.description.slice(0, 35), DESC_FONT_SIZE) + 24;
+    const descW = textWidth(node.description.slice(0, 40), META_FONT) + 24;
     maxTextW = Math.max(maxTextW, descW);
-  }
-
-  // Count metadata lines for active tag display
-  const metaKeys = Object.keys(node.metadata);
-  if (metaKeys.length > 0) {
-    lines++;
+    bodyH = SEPARATOR_GAP + META_LINE_H;
   }
 
   const width = Math.max(MIN_NODE_WIDTH, maxTextW);
-  const height = RECT_NODE_HEIGHT_BASE + (lines - 1) * RECT_LINE_HEIGHT;
+  const height =
+    NODE_HEADER_H + (bodyH > 0 ? bodyH + NODE_PAD_BOT : NODE_PAD_BOT);
   return { width, height };
 }
 

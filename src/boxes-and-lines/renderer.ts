@@ -30,15 +30,19 @@ import type { ParsedBoxesAndLines, BLNode } from './types';
 import type { ParticipantType } from '../sequence/parser';
 import type { BLLayoutResult, BLLayoutNode, BLLayoutEdge } from './layout';
 
-// ── Constants ──────────────────────────────────────────────
+// ── Constants (aligned with infra pattern) ─────────────────
 const DIAGRAM_PADDING = 20;
 const NODE_FONT_SIZE = 13;
 const MIN_NODE_FONT_SIZE = 9;
+const META_FONT_SIZE = 10;
+const META_LINE_HEIGHT = 14;
 const DESC_FONT_SIZE = 11;
 const EDGE_LABEL_FONT_SIZE = 11;
-const EDGE_STROKE_WIDTH = 2;
-const NODE_STROKE_WIDTH = 2;
+const EDGE_STROKE_WIDTH = 1.5;
+const NODE_STROKE_WIDTH = 1.5;
 const NODE_RX = 8;
+const NODE_HEADER_HEIGHT = 28;
+const NODE_SEPARATOR_GAP = 4;
 const COLLAPSE_BAR_HEIGHT = 6;
 const ARROWHEAD_W = 5;
 const ARROWHEAD_H = 4;
@@ -756,9 +760,9 @@ function nodeColors(
     const text = contrastText(fill, '#eceff4', '#2e3440');
     return { fill, stroke, text };
   }
-  // Untagged fallback
-  const fill = isDark ? palette.surface : palette.bg;
-  const stroke = palette.textMuted;
+  // Untagged fallback (matches infra node styling)
+  const fill = mix(palette.bg, palette.text, isDark ? 90 : 95);
+  const stroke = mix(palette.text, palette.bg, isDark ? 60 : 40);
   const text = palette.text;
   return { fill, stroke, text };
 }
@@ -1221,58 +1225,93 @@ export function renderBoxesAndLines(
           .text(fitted.lines[li]);
       }
     } else {
-      // Rectangle mode — rounded rect, label + description + tag badge
-      renderShapeRect(
-        nodeG as unknown as D3G,
-        ln.width,
-        ln.height,
-        colors.fill,
-        colors.stroke
+      // Rectangle mode — infra-style card: header + separator + body
+      const x = -ln.width / 2;
+      const y = -ln.height / 2;
+      const hasBody = !!node.description;
+
+      // Background rect
+      nodeG
+        .append('rect')
+        .attr('x', x)
+        .attr('y', y)
+        .attr('width', ln.width)
+        .attr('height', ln.height)
+        .attr('rx', NODE_RX)
+        .attr('ry', NODE_RX)
+        .attr('fill', colors.fill)
+        .attr('stroke', colors.stroke)
+        .attr('stroke-width', NODE_STROKE_WIDTH);
+
+      // Header: label centered in NODE_HEADER_HEIGHT zone
+      const headerCenterY = y + NODE_HEADER_HEIGHT / 2 + NODE_FONT_SIZE * 0.35;
+      const fitted = fitTextToNode(
+        node.label,
+        ln.width - 24,
+        NODE_HEADER_HEIGHT
       );
-
-      let textY = -ln.height / 2 + NODE_TEXT_PADDING + NODE_FONT_SIZE * 0.4;
-
-      // Label (bold)
-      const fitted = fitTextToNode(node.label, ln.width, ln.height * 0.6);
       for (let li = 0; li < fitted.lines.length; li++) {
         nodeG
           .append('text')
           .attr('x', 0)
-          .attr('y', textY + li * fitted.fontSize * 1.3)
+          .attr(
+            'y',
+            headerCenterY +
+              (li - (fitted.lines.length - 1) / 2) * fitted.fontSize * 1.3
+          )
           .attr('text-anchor', 'middle')
           .attr('font-size', fitted.fontSize)
           .attr('font-weight', '600')
           .attr('fill', colors.text)
           .text(fitted.lines[li]);
       }
-      textY += fitted.lines.length * fitted.fontSize * 1.3 + 2;
 
-      // Description (muted, truncated)
-      if (node.description) {
-        const desc =
-          node.description.length > 35
-            ? node.description.slice(0, 34) + '\u2026'
-            : node.description;
-        nodeG
-          .append('text')
-          .attr('x', 0)
-          .attr('y', textY)
-          .attr('text-anchor', 'middle')
-          .attr('font-size', DESC_FONT_SIZE)
-          .attr('fill', palette.textMuted)
-          .text(desc);
-        textY += DESC_FONT_SIZE * 1.3 + 2; // eslint-disable-line no-useless-assignment
-      }
-
-      // Mini-shape badge in top-right corner
+      // Mini-shape badge in top-right of header
       if (effectiveShape !== 'default' && effectiveShape !== 'service') {
         renderMiniBadge(
           nodeG as unknown as D3G,
           effectiveShape,
           ln.width / 2 - BADGE_SIZE / 2 - 4,
-          -ln.height / 2 + BADGE_SIZE / 2 + 4,
+          y + NODE_HEADER_HEIGHT / 2,
           colors.stroke
         );
+      }
+
+      // Separator line + body (description)
+      if (hasBody) {
+        const sepY = y + NODE_HEADER_HEIGHT;
+        nodeG
+          .append('line')
+          .attr('x1', x)
+          .attr('y1', sepY)
+          .attr('x2', x + ln.width)
+          .attr('y2', sepY)
+          .attr('stroke', colors.stroke)
+          .attr('stroke-opacity', 0.3)
+          .attr('stroke-width', 1);
+
+        if (node.description) {
+          const desc =
+            node.description.length > 40
+              ? node.description.slice(0, 39) + '\u2026'
+              : node.description;
+          const descEl = nodeG
+            .append('text')
+            .attr('x', x + NODE_TEXT_PADDING)
+            .attr(
+              'y',
+              sepY +
+                META_LINE_HEIGHT / 2 +
+                META_FONT_SIZE * 0.35 +
+                NODE_SEPARATOR_GAP
+            )
+            .attr('font-size', META_FONT_SIZE)
+            .attr('fill', palette.textMuted)
+            .text(desc);
+          if (desc !== node.description) {
+            descEl.append('title').text(node.description);
+          }
+        }
       }
     }
   }
