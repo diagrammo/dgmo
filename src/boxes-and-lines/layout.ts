@@ -3,7 +3,12 @@
 // ============================================================
 
 import dagre from '@dagrejs/dagre';
-import type { ParsedBoxesAndLines, BLNode, BLRenderMode } from './types';
+import type {
+  ParsedBoxesAndLines,
+  BLNode,
+  BLGroup,
+  BLRenderMode,
+} from './types';
 
 // ── Constants ──────────────────────────────────────────────
 const NODESEP = 60;
@@ -136,14 +141,35 @@ export function layoutBoxesAndLines(
     groupMap.set(group.label, { depth, parentGroup: group.parentGroup });
   }
 
-  // Determine which groups are collapsed
-  const collapsedGroupLabels = new Set<string>();
+  // Determine which groups are collapsed — but only top-level ones.
+  // Sub-groups absorbed by a collapsed parent don't get their own node.
+  const allRemovedLabels = new Set<string>();
   if (collapseInfo) {
     for (const og of collapseInfo.originalGroups) {
       if (!parsed.groups.some((g) => g.label === og.label)) {
-        collapsedGroupLabels.add(og.label);
+        allRemovedLabels.add(og.label);
       }
     }
+  }
+  // A collapsed group is "top-level" if none of its ancestors are also collapsed
+  const originalGroupMap = new Map<string, BLGroup>();
+  if (collapseInfo) {
+    for (const og of collapseInfo.originalGroups) {
+      originalGroupMap.set(og.label, og);
+    }
+  }
+  const collapsedGroupLabels = new Set<string>();
+  for (const label of allRemovedLabels) {
+    let absorbed = false;
+    let current = originalGroupMap.get(label);
+    while (current?.parentGroup) {
+      if (allRemovedLabels.has(current.parentGroup)) {
+        absorbed = true;
+        break;
+      }
+      current = originalGroupMap.get(current.parentGroup);
+    }
+    if (!absorbed) collapsedGroupLabels.add(label);
   }
 
   // Add collapsed groups as regular nodes (they act as edge endpoints)
