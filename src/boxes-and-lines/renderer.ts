@@ -1017,8 +1017,9 @@ export function renderBoxesAndLines(
         .append('text')
         .attr('class', 'bl-group-label')
         .attr('x', group.x)
-        .attr('y', group.y + GROUP_LABEL_FONT_SIZE * 0.35)
+        .attr('y', group.y)
         .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'central')
         .attr('font-family', FONT_FAMILY)
         .attr('font-size', GROUP_LABEL_FONT_SIZE)
         .attr('font-weight', '600')
@@ -1246,19 +1247,20 @@ export function renderBoxesAndLines(
         .attr('stroke', colors.stroke)
         .attr('stroke-width', NODE_STROKE_WIDTH);
 
-      // All text centered vertically in node
+      // All text centered vertically using dominant-baseline: central
       if (node.description) {
-        // Label + description stacked, centered as a unit
-        const gap = 4;
-        const totalH = NODE_FONT_SIZE + gap + META_FONT_SIZE;
-        const labelY = -totalH / 2 + NODE_FONT_SIZE * 0.35;
-        const descY = labelY + NODE_FONT_SIZE + gap;
+        const lineH = NODE_FONT_SIZE * 1.3;
+        const gap = 2;
+        const totalH = lineH + gap + META_FONT_SIZE;
+        const labelY = -totalH / 2 + lineH / 2;
+        const descY = labelY + lineH / 2 + gap + META_FONT_SIZE / 2;
 
         nodeG
           .append('text')
           .attr('x', 0)
           .attr('y', labelY)
           .attr('text-anchor', 'middle')
+          .attr('dominant-baseline', 'central')
           .attr('font-size', NODE_FONT_SIZE)
           .attr('font-weight', '600')
           .attr('fill', colors.text)
@@ -1277,6 +1279,7 @@ export function renderBoxesAndLines(
           .attr('x', 0)
           .attr('y', descY)
           .attr('text-anchor', 'middle')
+          .attr('dominant-baseline', 'central')
           .attr('font-size', META_FONT_SIZE)
           .attr('fill', palette.textMuted)
           .text(desc);
@@ -1284,16 +1287,16 @@ export function renderBoxesAndLines(
           descEl.append('title').text(node.description);
         }
       } else {
-        // Label centered
         const fitted = fitTextToNode(node.label, ln.width - 16, ln.height);
-        const totalH = fitted.lines.length * fitted.fontSize * 1.3;
-        const startY = -totalH / 2 + fitted.fontSize * 0.4;
+        const lineH = fitted.fontSize * 1.3;
+        const totalH = fitted.lines.length * lineH;
         for (let li = 0; li < fitted.lines.length; li++) {
           nodeG
             .append('text')
             .attr('x', 0)
-            .attr('y', startY + li * fitted.fontSize * 1.3)
+            .attr('y', -totalH / 2 + lineH / 2 + li * lineH)
             .attr('text-anchor', 'middle')
+            .attr('dominant-baseline', 'central')
             .attr('font-size', fitted.fontSize)
             .attr('font-weight', '600')
             .attr('fill', colors.text)
