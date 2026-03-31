@@ -1,40 +1,6 @@
-# DGMO Language Reference
+# DGMO Language Specification
 
-DGMO is a text-based diagram markup language. Files use the `.dgmo` extension. Render with the `dgmo` CLI, the Diagrammo desktop app, or the `@diagrammo/dgmo` npm library.
-
-## Migration Guide
-
-Syntax changes introduced in the consistency cleanup. Old forms now produce errors.
-
-| Old Syntax | New Syntax | Chart Types |
-|---|---|---|
-| `chart: TYPE` + `title: Text` | `TYPE Text` (single first line) | All |
-| `chart: TYPE` (alone) | `TYPE` | All |
-| `directive: value` | `directive value` (no colon) | All |
-| `Label: value` (ECharts data) | `Label value` | bar, line, pie, etc. |
-| `era YYYY->YYYY: Label` | `era YYYY->YYYY Label` | line, timeline, gantt |
-| `marker YYYY: Label` | `marker YYYY Label` | timeline, gantt |
-| `## Group` | `tag Group` | All |
-| `== Column ==` | `[Column]` | Kanban |
-| `person Name` | `Name is a person` | C4 |
-| `-> Target : Desc [tech]` | `-Desc-> Target \| tech: val` | C4 |
-| `A <-> B` | Two lines: `A -> B` + `B -> A` | C4 |
-| `-> Target x5` | `-> Target \| fanout: 5` | Infra |
-| `lag: 5d` / `lead: 3d` | `offset: 5d` / `offset: -3d` | Gantt |
-| `Name(color)` | Use `tag` groups | Sequence |
-| `scenario:` | (removed) | Infra |
-| `wip` | `doing` (wip still accepted) | Init-status |
-| `#ff0000` hex colors | Named colors only | All |
-| `show-sub-node-count: yes` | `show-sub-node-count` (flag) | Org |
-| `import: path` | `import path` | Org |
-| `tags: path` | `tags path` | Org |
-| `xlabel` | `x-label` | Data charts, function |
-| `ylabel` | `y-label` | Data charts, function |
-| `sizelabel` | `size-label` | Scatter/bubble |
-| `x-axis` | `x-label` | Quadrant |
-| `y-axis` | `y-label` | Quadrant |
-
----
+> **Authoritative reference** for the DGMO diagram language. This document describes what is valid syntax. If it is not in this document, it is not valid DGMO.
 
 ## Table of Contents
 
@@ -48,14 +14,13 @@ Syntax changes introduced in the consistency cleanup. Old forms now produce erro
 8. [Entity-Relationship Diagrams](#8-entity-relationship-diagrams)
 9. [Class Diagrams](#9-class-diagrams)
 10. [Kanban Boards](#10-kanban-boards)
-11. [Initiative-Status Diagrams](#11-initiative-status-diagrams)
-12. [Sitemap Diagrams](#12-sitemap-diagrams)
-13. [Gantt Charts](#13-gantt-charts)
-14. [Boxes and Lines Diagrams](#14-boxes-and-lines-diagrams)
-15. [Timeline Diagrams](#15-timeline-diagrams)
-16. [Data Charts](#16-data-charts)
-17. [Visualizations](#17-visualizations)
-18. [Colon Usage Summary](#18-colon-usage-summary)
+11. [Sitemap Diagrams](#11-sitemap-diagrams)
+12. [Gantt Charts](#12-gantt-charts)
+13. [Boxes and Lines Diagrams](#13-boxes-and-lines-diagrams)
+14. [Timeline Diagrams](#14-timeline-diagrams)
+15. [Data Charts](#15-data-charts)
+16. [Visualizations](#16-visualizations)
+17. [Colon Usage Summary](#17-colon-usage-summary)
 
 ---
 
@@ -96,7 +61,7 @@ tag GroupName [alias X]
 - First entry is default unless another is marked `default`
 - Must appear before diagram content
 
-**Diagram types that support tags**: sequence, infra, org, c4, er, kanban, gantt, initiative-status, sitemap, timeline, boxes-and-lines
+**Diagram types that support tags**: sequence, infra, org, c4, er, kanban, gantt, sitemap, timeline, boxes-and-lines
 
 ### 1.4 Pipe Metadata
 
@@ -638,7 +603,7 @@ abstract Vessel
 interface Serializable
 Ship extends Vessel
 Galleon implements Serializable
-ShipType enum
+enum ShipType
 ```
 
 ### 9.3 Members (Indented, Colon for Types)
@@ -661,7 +626,7 @@ Visibility: `+` public, `-` private, `#` protected
 
 **Enum values:**
 ```
-ShipType enum
+enum ShipType
   Galleon
   Sloop
 ```
@@ -725,72 +690,15 @@ kanban [Title]
 
 ---
 
-## 11. Initiative-Status Diagrams
+## 11. Sitemap Diagrams
 
 ### 11.1 Declaration
-
-```
-initiative-status [Title]
-```
-
-### 11.2 Nodes
-
-```
-NodeLabel | status, key: value
-NodeLabel | done, t: Team1
-```
-
-Status values and equivalences:
-
-| User writes | Canonical | Display |
-|------------|-----------|---------|
-| `done` | `done` | Done |
-| `doing` | `doing` | In Progress |
-| `wip` | `doing` | In Progress |
-| `blocked` | `blocked` | Blocked |
-| `paused` | `blocked` | Blocked |
-| `waiting` | `blocked` | Blocked |
-| `todo` | `todo` | To Do |
-| `na` | `na` | N/A |
-| (omitted) | `na` | N/A |
-
-### 11.3 Edges
-
-```
-Source -> Target
-Source -label-> Target
-Source -> Target | status
-```
-
-Indented shorthand (source from preceding node):
-```
-Captain | t: Bridge
-  -issueOrders-> CrewApp | na
-```
-
-### 11.4 Groups
-
-```
-[Group Name]
-  indented nodes...
-```
-
-### 11.5 Options
-
-- `active-tag GroupName`
-- `hide phase:Planning, phase:Review` (colon syntax for tag:value)
-
----
-
-## 12. Sitemap Diagrams
-
-### 12.1 Declaration
 
 ```
 sitemap [Title]
 ```
 
-### 12.2 Pages (Indentation = Hierarchy)
+### 11.2 Pages (Indentation = Hierarchy)
 
 ```
 Home
@@ -800,7 +708,7 @@ Home
   Blog
 ```
 
-### 12.3 Arrows
+### 11.3 Arrows
 
 ```
 Home
@@ -808,28 +716,28 @@ Home
   -login-> Login
 ```
 
-### 12.4 Containers
+### 11.4 Containers
 
 ```
 [Marketing]
   Pricing | Auth: Public
 ```
 
-### 12.5 Options
+### 11.5 Options
 
 - `direction-tb` (boolean; default is LR)
 
 ---
 
-## 13. Gantt Charts
+## 12. Gantt Charts
 
-### 13.1 Declaration
+### 12.1 Declaration
 
 ```
 gantt [Title]
 ```
 
-### 13.2 Options (Space-Separated, NO Colon)
+### 12.2 Options (Space-Separated, NO Colon)
 
 ```
 start 2026-03-15
@@ -840,7 +748,7 @@ no-dependencies
 sort tag:Team
 ```
 
-### 13.3 Holidays
+### 12.3 Holidays
 
 ```
 holiday
@@ -848,7 +756,7 @@ holiday
   2024-05-27 -> 2024-05-29 Memorial Weekend
 ```
 
-### 13.4 Workweek
+### 12.4 Workweek
 
 ```
 workweek mon-fri
@@ -857,7 +765,7 @@ workweek sun-thu
 
 Top-level directive (not nested under `holiday`).
 
-### 13.5 Eras
+### 12.5 Eras
 
 **Flat form:**
 ```
@@ -871,7 +779,7 @@ era
   2026-06-01 -> 2026-06-05 Sprint Review (blue)
 ```
 
-### 13.6 Markers
+### 12.6 Markers
 
 **Flat form:**
 ```
@@ -885,7 +793,7 @@ marker
   2026-06-15 Release (green)
 ```
 
-### 13.7 Groups (Swimlanes)
+### 12.7 Groups (Swimlanes)
 
 ```
 [Backend] | t: Engineering
@@ -893,7 +801,7 @@ marker
 
 Bracket syntax only.
 
-### 13.8 Tasks
+### 12.8 Tasks
 
 ```
 20bd Database Schema | p: Foundation, 100%
@@ -906,7 +814,7 @@ Duration units: `min`, `h`, `d`, `bd` (business days), `w`, `m`, `q`, `y`
 Uncertain: `10bd?` (trailing `?`)
 Progress: `| 80%` in pipe metadata
 
-### 13.9 Dependencies (Indented Under Tasks)
+### 12.9 Dependencies (Indented Under Tasks)
 
 ```
 10bd API Integration
@@ -914,7 +822,7 @@ Progress: `| 80%` in pipe metadata
   -> Launch Day | offset: 10bd
 ```
 
-### 13.10 Parallel Block
+### 12.10 Parallel Block
 
 ```
 parallel
@@ -926,31 +834,29 @@ parallel
 
 ---
 
-## 14. Boxes and Lines Diagrams
+## 13. Boxes and Lines Diagrams
 
-### 14.1 Declaration
+### 13.1 Declaration
 
 ```
 boxes-and-lines [Title]
 ```
 
-Requires explicit first line — no heuristic detection. Default layout direction is left-to-right.
+Requires explicit first line — no heuristic detection. Default direction is left-to-right.
 
-### 14.2 Nodes
+### 13.2 Nodes
 
 ```
 NodeLabel
 NodeLabel | key: value, key2: value2
 NodeLabel | description: Some text here
-NodeLabel [type]
-NodeLabel [type] | key: value
 ```
 
-Nodes are created explicitly or implicitly (when referenced in edges). Shape is inferred from the name unless overridden with `[type]`.
+Nodes are created explicitly or implicitly (when referenced in edges). All nodes render as uniform rounded rectangles.
 
-Valid types: `service`, `database`, `actor`, `queue`, `cache`, `gateway`, `external`, `networking`, `frontend`, `default`.
+The `description` key is extracted as a dedicated field and not stored in metadata.
 
-### 14.3 Edges
+### 13.3 Edges
 
 ```
 Source -> Target
@@ -967,10 +873,18 @@ API | description: Main gateway
   -routes-> ProductService
 ```
 
-### 14.4 Groups
+Pipe metadata on edges:
+```
+A -reads-> DB | frequency: High
+```
+
+### 13.4 Groups
 
 ```
 [Group Name]
+  indented nodes...
+
+[Group Name] | key: value
   indented nodes...
 ```
 
@@ -982,30 +896,36 @@ Nested groups (max depth 2):
     DB
 ```
 
-Group metadata cascades to children. Group-to-group edges:
+Group metadata cascades to children (node metadata overrides). Nodes already declared above can be referenced inside groups to assign membership.
+
+### 13.5 Group-to-Group Edges
+
 ```
 [Region A] -> [Region B]
+[Region A] <-> [Region B]
 [Region A] -VPN-> [Region B]
 ```
 
-### 14.5 Options
+### 13.6 Directives
 
 - `direction TB` — top-to-bottom layout (default: `LR`)
-- `mode shapes` — render as inferred shapes (default: `rectangles`)
-- `active-tag GroupName`
-- `hide team:Backend` (colon syntax for tag:value)
+
+### 13.7 Options
+
+- `active-tag GroupName` — set active tag group for coloring
+- `hide team:Backend, team:Frontend` — hide nodes with matching tag values (colon syntax for tag:value)
 
 ---
 
-## 15. Timeline Diagrams
+## 14. Timeline Diagrams
 
-### 15.1 Declaration
+### 14.1 Declaration
 
 ```
 timeline [Title]
 ```
 
-### 15.2 Events
+### 14.2 Events
 
 **Point event:**
 ```
@@ -1030,7 +950,7 @@ timeline [Title]
 Date formats: `YYYY`, `YYYY-MM`, `YYYY-MM-DD`, `YYYY-MM-DD HH:MM`
 Duration units: `min`, `h`, `d`, `w`, `m`, `y`
 
-### 15.3 Eras
+### 14.3 Eras
 
 **Flat form:**
 ```
@@ -1044,7 +964,7 @@ era
   1718 -> 1720 Woodes Rogers Era (orange)
 ```
 
-### 15.4 Markers
+### 14.4 Markers
 
 **Flat form:**
 ```
@@ -1058,7 +978,7 @@ marker
   1720-01 End of Golden Age (red)
 ```
 
-### 15.5 Groups
+### 14.5 Groups
 
 ```
 [Royal Navy]
@@ -1067,9 +987,9 @@ marker
 
 ---
 
-## 16. Data Charts
+## 15. Data Charts
 
-### 16.1 Simple Charts (bar, line, pie, doughnut, area, polar-area, radar, bar-stacked)
+### 15.1 Simple Charts (bar, line, pie, doughnut, area, polar-area, radar, bar-stacked)
 
 **Declaration:** `bar [Title]`, `line [Title]`, etc.
 
@@ -1115,7 +1035,7 @@ stacked
 era Day 1 -> Day 3 Rough Seas (red)
 ```
 
-### 16.2 Scatter / Bubble Charts
+### 15.2 Scatter / Bubble Charts
 
 **Data rows (space-separated, NO colon):**
 ```
@@ -1141,7 +1061,7 @@ no-labels
 
 Labels are on by default. Use `no-labels` to hide point names.
 
-### 16.3 Heatmap
+### 15.3 Heatmap
 
 **Columns:**
 ```
@@ -1157,7 +1077,7 @@ RowLabel 5 4 3
 
 Commas between values are optional. Thousands commas supported.
 
-### 16.4 Function Charts (Colon REQUIRED)
+### 15.4 Function Charts (Colon REQUIRED)
 
 ```
 function Trajectories
@@ -1174,7 +1094,7 @@ The colon between name and expression is **required** — both sides can contain
 **Options:**
 - `shade` (boolean; off by default, shades area below curves when enabled)
 
-### 16.5 Sankey Charts
+### 15.5 Sankey Charts
 
 **Tree structure (indented, space-separated):**
 ```
@@ -1191,7 +1111,7 @@ Source -- Target 2000
 
 `->` = directed, `--` = undirected. Thousands commas supported in values.
 
-### 16.6 Chord Charts
+### 15.6 Chord Charts
 
 ```
 Blackbeard -- Bonnet 150        // undirected
@@ -1200,7 +1120,7 @@ Roberts -> Rackham 20           // directed
 
 Thousands commas supported in values.
 
-### 16.7 Funnel Charts
+### 15.7 Funnel Charts
 
 **Data rows (space-separated, NO colon):**
 ```
@@ -1213,9 +1133,9 @@ Thousands commas supported.
 
 ---
 
-## 17. Visualizations
+## 16. Visualizations
 
-### 17.1 Slope Charts
+### 16.1 Slope Charts
 
 ```
 slope Fleet Strength
@@ -1237,7 +1157,7 @@ Roberts 12 52
 - Color annotations: `Label (color) value1 value2`
 - Minimum 2 periods required
 
-### 17.2 Wordcloud
+### 16.2 Wordcloud
 
 ```
 wordcloud Pirate Skills
@@ -1252,7 +1172,7 @@ navigation 88
 - Data: space-separated only (`word value`)
 - Options: `rotate none|mixed|angled`, `max N`, `size min max`
 
-### 17.3 Arc Diagrams
+### 16.3 Arc Diagrams
 
 ```
 arc Pirate Alliances
@@ -1267,7 +1187,7 @@ order group
 - Link: `Source -> Target weight` — space before optional weight
 - Options: `order appearance|name|group|degree`
 
-### 17.4 Venn Diagrams
+### 16.4 Venn Diagrams
 
 ```
 venn Skill Overlap
@@ -1283,7 +1203,7 @@ sw + nav + lead Legendary Pirates
 - Set declaration: `Name(color) alias X`
 - Intersections: `Set1 + Set2 Label` — label follows the last set reference (no colon)
 
-### 17.5 Quadrant Diagrams
+### 16.5 Quadrant Diagrams
 
 ```
 quadrant Crew Assessment
@@ -1295,18 +1215,17 @@ top-left Train (yellow)
 bottom-left Maroon (red)
 bottom-right Watch Closely (purple)
 
-Quartermaster 0.9, 0.95
-Navigator 0.85, 0.8
+Quartermaster 0.9 0.95
+Navigator 0.85 0.8
 ```
 
-- Axis labels: `x-label Low, High` — space-separated
+- Axis labels: `x-label Low, High` — comma-separated
 - Position labels: `top-right Label` — space-separated
-- Data points: `Label x, y` — space-separated, comma between coordinates
-- Thousands commas supported in values
+- Data points: `Label x y` or `Label x, y` — comma or space between coordinates
 
 ---
 
-## 18. Colon Usage Summary
+## 17. Colon Usage Summary
 
 ### Constructs Where Colons Are REQUIRED
 
@@ -1318,7 +1237,7 @@ Navigator 0.85, 0.8
 | Class field types | class | `+ name: string` |
 | Class method returns | class | `+ sail(): void` |
 | Function expressions | function | `f(x): x^2 + 1` |
-| Hide tag values | initiative-status | `hide phase:Planning` |
+| Hide tag values | boxes-and-lines | `hide phase:Planning` |
 
 ### Colons OPTIONAL
 

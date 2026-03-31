@@ -1,7 +1,10 @@
 import type { PaletteColors } from '../palettes';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
 import { resolveColor } from '../colors';
-import { matchTagBlockHeading } from '../utils/tag-groups';
+import {
+  matchTagBlockHeading,
+  stripDefaultModifier,
+} from '../utils/tag-groups';
 import {
   measureIndent,
   extractColor,
@@ -166,11 +169,12 @@ export function parseKanban(
     }
 
     // Tag group entries (indented Value(color) under tag heading)
-    // First entry is implicitly the default.
+    // First entry is the default unless another is marked `default`
     if (currentTagGroup && !contentStarted) {
       const indent = measureIndent(line);
       if (indent > 0) {
-        const { label, color } = extractColor(trimmed, palette);
+        const { text: cleanEntry, isDefault } = stripDefaultModifier(trimmed);
+        const { label, color } = extractColor(cleanEntry, palette);
         if (!color) {
           warn(
             lineNumber,
@@ -178,8 +182,9 @@ export function parseKanban(
           );
           continue;
         }
-        // First entry is the default
-        if (currentTagGroup.entries.length === 0) {
+        if (isDefault) {
+          currentTagGroup.defaultValue = label;
+        } else if (currentTagGroup.entries.length === 0) {
           currentTagGroup.defaultValue = label;
         }
         currentTagGroup.entries.push({

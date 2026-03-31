@@ -113,9 +113,9 @@ API
   latency-ms: 45
 ```
 
-## All 34 chart types
+## All 33 chart types
 
-bar, line, multi-line, area, pie, doughnut, radar, polar-area, bar-stacked, scatter, sankey, chord, function, heatmap, funnel, slope, wordcloud, arc, timeline, venn, quadrant, sequence, flowchart, state, class, er, org, kanban, c4, initiative-status, sitemap, infra, gantt, boxes-and-lines
+bar, line, multi-line, area, pie, doughnut, radar, polar-area, bar-stacked, scatter, sankey, chord, function, heatmap, funnel, slope, wordcloud, arc, timeline, venn, quadrant, sequence, flowchart, state, class, er, org, kanban, c4, sitemap, infra, gantt, boxes-and-lines
 
 ### Boxes and lines
 ```

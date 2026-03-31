@@ -1,9 +1,0 @@
-initiative-status Q2 Platform Roadmap
-
-Auth Service | done
-Payment Gateway | doing
-  -> Auth Service | done
-Search API | todo
-  -> Auth Service | done
-Billing UI | blocked
-  -> Payment Gateway | doing

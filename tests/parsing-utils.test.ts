@@ -81,7 +81,6 @@ describe('ALL_CHART_TYPES', () => {
     expect(ALL_CHART_TYPES.has('sequence')).toBe(true);
     expect(ALL_CHART_TYPES.has('bar')).toBe(true);
     expect(ALL_CHART_TYPES.has('scatter')).toBe(true);
-    expect(ALL_CHART_TYPES.has('initiative-status')).toBe(true);
     expect(ALL_CHART_TYPES.has('unknown')).toBe(false);
   });
 });
@@ -122,8 +121,8 @@ describe('parseFirstLine', () => {
   });
 
   it('handles hyphenated chart types', () => {
-    const r = parseFirstLine('initiative-status Dashboard');
-    expect(r).toEqual({ chartType: 'initiative-status', title: 'Dashboard' });
+    const r = parseFirstLine('boxes-and-lines Dashboard');
+    expect(r).toEqual({ chartType: 'boxes-and-lines', title: 'Dashboard' });
   });
 
   it('returns null for unknown first token', () => {

@@ -12,7 +12,10 @@ import {
   parseFirstLine,
   OPTION_NOCOLON_RE,
 } from '../utils/parsing';
-import { matchTagBlockHeading } from '../utils/tag-groups';
+import {
+  matchTagBlockHeading,
+  stripDefaultModifier,
+} from '../utils/tag-groups';
 import type {
   ParsedInfra,
   InfraNode,
@@ -338,17 +341,19 @@ export function parseInfra(content: string): ParsedInfra {
 
     // ---- Indented lines ----
 
-    // Tag value inside tag group — first value is the default
+    // Tag value inside tag group — first value is the default unless another is marked `default`
     if (currentTagGroup && indent > 0) {
-      const tvMatch = trimmed.match(TAG_VALUE_RE);
+      const { text: cleanEntry, isDefault } = stripDefaultModifier(trimmed);
+      const tvMatch = cleanEntry.match(TAG_VALUE_RE);
       if (tvMatch) {
         const valueName = tvMatch[1].trim();
         currentTagGroup.values.push({
           name: valueName,
           color: tvMatch[2]?.trim(),
         });
-        // First value is the default
-        if (currentTagGroup.values.length === 1) {
+        if (isDefault) {
+          currentTagGroup.defaultValue = valueName;
+        } else if (currentTagGroup.values.length === 1) {
           currentTagGroup.defaultValue = valueName;
         }
         continue;

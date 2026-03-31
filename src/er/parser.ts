@@ -8,7 +8,11 @@ import {
   parseFirstLine,
   OPTION_NOCOLON_RE,
 } from '../utils/parsing';
-import { matchTagBlockHeading, validateTagValues } from '../utils/tag-groups';
+import {
+  matchTagBlockHeading,
+  validateTagValues,
+  stripDefaultModifier,
+} from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
 import type {
   ParsedERDiagram,
@@ -273,7 +277,8 @@ export function parseERDiagram(
 
     // Tag group entries (indented under tag heading)
     if (currentTagGroup && !contentStarted && indent > 0) {
-      const { label, color } = extractColor(trimmed, palette);
+      const { text: cleanEntry, isDefault } = stripDefaultModifier(trimmed);
+      const { label, color } = extractColor(cleanEntry, palette);
       if (!color) {
         result.diagnostics.push(
           makeDgmoError(
@@ -284,8 +289,9 @@ export function parseERDiagram(
         );
         continue;
       }
-      // First entry becomes the default
-      if (currentTagGroup.entries.length === 0) {
+      if (isDefault) {
+        currentTagGroup.defaultValue = label;
+      } else if (currentTagGroup.entries.length === 0) {
         currentTagGroup.defaultValue = label;
       }
       currentTagGroup.entries.push({ value: label, color, lineNumber });

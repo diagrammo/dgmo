@@ -273,7 +273,6 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     }),
   ],
   ['c4', withGlobals()],
-  ['initiative-status', withGlobals()],
   [
     'state',
     withGlobals({
@@ -359,7 +358,6 @@ const CHART_TYPE_DESCRIPTIONS: Record<string, string> = {
   org: 'Organization chart',
   kanban: 'Kanban board',
   c4: 'C4 architecture diagram',
-  'initiative-status': 'Initiative status diagram',
   state: 'State diagram',
   sitemap: 'Sitemap diagram',
   infra: 'Infrastructure diagram',
@@ -486,31 +484,6 @@ export const PIPE_METADATA = new Map<
       edge: {
         // Gantt "edge" = dependency arrow (TaskA -> TaskB | offset 2bd)
         offset: { description: 'Dependency offset (e.g., 2bd, -1w)' },
-      },
-    },
-  ],
-  [
-    'initiative-status',
-    {
-      node: {
-        done: { description: 'Completed' },
-        doing: { description: 'In progress' },
-        todo: { description: 'Not started' },
-        blocked: { description: 'Blocked' },
-        na: { description: 'Not applicable' },
-        wip: { description: 'Work in progress (alias for doing)' },
-        paused: { description: 'Paused (alias for blocked)' },
-        waiting: { description: 'Waiting (alias for blocked)' },
-      },
-      edge: {
-        done: { description: 'Completed' },
-        doing: { description: 'In progress' },
-        todo: { description: 'Not started' },
-        blocked: { description: 'Blocked' },
-        na: { description: 'Not applicable' },
-        wip: { description: 'Work in progress (alias for doing)' },
-        paused: { description: 'Paused (alias for blocked)' },
-        waiting: { description: 'Waiting (alias for blocked)' },
       },
     },
   ],
@@ -953,60 +926,6 @@ function extractGanttSymbols(docText: string): DiagramSymbols {
 }
 
 // ============================================================
-// Initiative-status extractor
-// ============================================================
-
-const IS_ARROW_RE = /^(\S+)\s+(?:-.*)?->\s+(\S+)/;
-
-function extractInitiativeStatusSymbols(docText: string): DiagramSymbols {
-  const lines = docText.split('\n');
-  const entities: string[] = [];
-  let pastFirstLine = false;
-  let inTagBlock = false;
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('//')) continue;
-
-    if (!pastFirstLine) {
-      pastFirstLine = true;
-      continue;
-    }
-
-    const firstToken = trimmed.split(/\s+/)[0].toLowerCase();
-    if (METADATA_KEY_SET.has(firstToken)) continue;
-
-    if (/^tag\s+/i.test(trimmed)) {
-      inTagBlock = true;
-      continue;
-    }
-    const indent = line.search(/\S/);
-    if (inTagBlock) {
-      if (indent > 0) continue;
-      inTagBlock = false;
-    }
-
-    // Edge lines: Source -> Target or Source -label-> Target
-    const arrowMatch = trimmed.match(IS_ARROW_RE);
-    if (arrowMatch) {
-      const src = arrowMatch[1].split('|')[0].trim();
-      const dst = arrowMatch[2].split('|')[0].trim();
-      if (src && !entities.includes(src)) entities.push(src);
-      if (dst && !entities.includes(dst)) entities.push(dst);
-      continue;
-    }
-
-    // Node lines: Label | status or just Label (at root indent)
-    if (indent === 0) {
-      const label = trimmed.split('|')[0].trim();
-      if (label && !entities.includes(label)) entities.push(label);
-    }
-  }
-
-  return { kind: 'initiative-status', entities, keywords: [] };
-}
-
-// ============================================================
 // Boxes-and-lines extractor
 // ============================================================
 
@@ -1074,5 +993,4 @@ registerExtractor('state', extractStateSymbols);
 registerExtractor('sitemap', extractSitemapSymbols);
 registerExtractor('c4', extractC4Symbols);
 registerExtractor('gantt', extractGanttSymbols);
-registerExtractor('initiative-status', extractInitiativeStatusSymbols);
 registerExtractor('boxes-and-lines', extractBoxesAndLinesSymbols);

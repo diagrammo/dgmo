@@ -41,7 +41,6 @@ export const ALL_CHART_TYPES = new Set([
   'org',
   'kanban',
   'c4',
-  'initiative-status',
   'state',
   'sitemap',
   'infra',

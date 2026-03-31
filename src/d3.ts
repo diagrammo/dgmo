@@ -193,6 +193,7 @@ import {
   matchTagBlockHeading,
   validateTagValues,
   resolveTagColor,
+  stripDefaultModifier,
 } from './utils/tag-groups';
 import type { TagGroup } from './utils/tag-groups';
 import {
@@ -570,16 +571,16 @@ export function parseVisualization(
       }
     }
 
-    // Timeline tag group entries (indented under tag: heading)
+    // Timeline tag group entries (indented under tag heading)
     if (currentTimelineTagGroup && indent > 0) {
-      const trimmedEntry = line;
-      const isDefault = /\bdefault\s*$/.test(trimmedEntry);
-      const entryText = isDefault
-        ? trimmedEntry.replace(/\s+default\s*$/, '').trim()
-        : trimmedEntry;
+      const { text: entryText, isDefault } = stripDefaultModifier(line);
       const { label, color } = extractColor(entryText, palette);
       if (color) {
-        if (isDefault) currentTimelineTagGroup.defaultValue = label;
+        if (isDefault) {
+          currentTimelineTagGroup.defaultValue = label;
+        } else if (currentTimelineTagGroup.entries.length === 0) {
+          currentTimelineTagGroup.defaultValue = label;
+        }
         currentTimelineTagGroup.entries.push({
           value: label,
           color,
@@ -6877,36 +6878,6 @@ export async function renderForExport(
       container,
       blParsed,
       blLayout,
-      effectivePalette,
-      theme === 'dark',
-      { exportDims: { width: exportWidth, height: exportHeight } }
-    );
-    return finalizeSvgExport(container, theme, effectivePalette, options);
-  }
-
-  if (detectedType === 'initiative-status') {
-    const { parseInitiativeStatus } =
-      await import('./initiative-status/parser');
-    const { layoutInitiativeStatus } =
-      await import('./initiative-status/layout');
-    const { renderInitiativeStatus } =
-      await import('./initiative-status/renderer');
-
-    const effectivePalette = await resolveExportPalette(theme, palette);
-    const isParsed = parseInitiativeStatus(content);
-    if (isParsed.error || isParsed.nodes.length === 0) return '';
-
-    const isLayout = layoutInitiativeStatus(isParsed);
-    const PADDING = 20;
-    const titleOffset = isParsed.title ? 40 : 0;
-    const exportWidth = isLayout.width + PADDING * 2;
-    const exportHeight = isLayout.height + PADDING * 2 + titleOffset;
-    const container = createExportContainer(exportWidth, exportHeight);
-
-    renderInitiativeStatus(
-      container,
-      isParsed,
-      isLayout,
       effectivePalette,
       theme === 'dark',
       { exportDims: { width: exportWidth, height: exportHeight } }

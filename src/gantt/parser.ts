@@ -5,7 +5,10 @@
 import { makeDgmoError, formatDgmoError } from '../diagnostics';
 import type { DgmoError } from '../diagnostics';
 import type { TagGroup } from '../utils/tag-groups';
-import { matchTagBlockHeading } from '../utils/tag-groups';
+import {
+  matchTagBlockHeading,
+  stripDefaultModifier,
+} from '../utils/tag-groups';
 import {
   measureIndent,
   extractColor,
@@ -357,9 +360,10 @@ export function parseGantt(
         // fall through to process this line normally
       } else {
         // Parse tag entry: `Value(color)` or `Value`
-        // First entry is the default (no `default` keyword needed)
+        // First entry is the default unless another is marked `default`
         if (COMMENT_RE.test(line)) continue;
-        const extracted = extractColor(line, palette);
+        const { text: cleanEntry, isDefault } = stripDefaultModifier(line);
+        const extracted = extractColor(cleanEntry, palette);
         const color =
           extracted.color ||
           seriesColors[currentTagGroup.entries.length % seriesColors.length] ||
@@ -370,7 +374,9 @@ export function parseGantt(
           color,
           lineNumber,
         });
-        if (isFirstEntry) {
+        if (isDefault) {
+          currentTagGroup.defaultValue = extracted.label;
+        } else if (isFirstEntry) {
           currentTagGroup.defaultValue = extracted.label;
         }
         continue;

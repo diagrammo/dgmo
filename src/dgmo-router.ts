@@ -13,10 +13,6 @@ import { parseVisualization } from './d3';
 import { parseOrg, looksLikeOrg } from './org/parser';
 import { parseKanban } from './kanban/parser';
 import { parseC4 } from './c4/parser';
-import {
-  looksLikeInitiativeStatus,
-  parseInitiativeStatus,
-} from './initiative-status/parser';
 import { looksLikeSitemap, parseSitemap } from './sitemap/parser';
 import { parseInfra } from './infra/parser';
 import { parseGantt } from './gantt/parser';
@@ -98,7 +94,6 @@ export function parseDgmoChartType(content: string): string | null {
   if (looksLikeFlowchart(content)) return 'flowchart';
   if (looksLikeClassDiagram(content)) return 'class';
   if (looksLikeERDiagram(content)) return 'er';
-  if (looksLikeInitiativeStatus(content)) return 'initiative-status';
   if (looksLikeState(content)) return 'state';
   if (looksLikeSitemap(content)) return 'sitemap';
   if (looksLikeOrg(content)) return 'org';
@@ -148,7 +143,6 @@ const DIAGRAM_TYPES = new Set([
   'org',
   'kanban',
   'c4',
-  'initiative-status',
   'state',
   'sitemap',
   'infra',
@@ -228,7 +222,6 @@ const PARSE_DISPATCH = new Map<
   ['org', (c) => parseOrg(c)],
   ['kanban', (c) => parseKanban(c)],
   ['c4', (c) => parseC4(c)],
-  ['initiative-status', (c) => parseInitiativeStatus(c)],
   ['state', (c) => parseState(c)],
   ['sitemap', (c) => parseSitemap(c)],
   ['infra', (c) => parseInfra(c)],

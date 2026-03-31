@@ -15,7 +15,11 @@ import {
   OPTION_NOCOLON_RE,
 } from '../utils/parsing';
 import type { TagGroup } from '../utils/tag-groups';
-import { matchTagBlockHeading, validateTagValues } from '../utils/tag-groups';
+import {
+  matchTagBlockHeading,
+  validateTagValues,
+  stripDefaultModifier,
+} from '../utils/tag-groups';
 
 /** Known sequence-diagram options that take a value (space-separated). */
 const KNOWN_SEQ_OPTIONS = new Set(['active-tag']);
@@ -594,9 +598,10 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     }
 
     // Tag group entries (indented Value(color) under tag heading)
-    // First entry is automatically the default (no `default` keyword needed)
+    // First entry is the default unless another is marked `default`
     if (currentTagGroup && !contentStarted && measureIndent(raw) > 0) {
-      const { label, color } = extractColor(trimmed);
+      const { text: cleanEntry, isDefault } = stripDefaultModifier(trimmed);
+      const { label, color } = extractColor(cleanEntry);
       if (!color) {
         pushError(
           lineNumber,
@@ -604,8 +609,9 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
         );
         continue;
       }
-      // First entry is the default
-      if (currentTagGroup.entries.length === 0) {
+      if (isDefault) {
+        currentTagGroup.defaultValue = label;
+      } else if (currentTagGroup.entries.length === 0) {
         currentTagGroup.defaultValue = label;
       }
       currentTagGroup.entries.push({ value: label, color, lineNumber });

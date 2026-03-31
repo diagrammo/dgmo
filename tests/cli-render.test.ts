@@ -113,11 +113,6 @@ Customer is a person
 Banking is a system
   -Serves-> Customer`,
 
-  'initiative-status': `initiative-status Test
-Mobile | done
-Back End | wip
-Mobile -> Back End: getUser | done`,
-
   state: `state
 [*] -> Idle
 Idle -click-> Active
@@ -162,7 +157,6 @@ const D3_TYPES = [
   'org',
   'kanban',
   'c4',
-  'initiative-status',
   'state',
   'sitemap',
   'infra',

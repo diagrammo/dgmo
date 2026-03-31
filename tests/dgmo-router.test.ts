@@ -10,9 +10,6 @@ describe('parseDgmoChartType — explicit declaration', () => {
     expect(parseDgmoChartType('gantt\n10bd Task')).toBe('gantt');
     expect(parseDgmoChartType('sequence\nA -> B')).toBe('sequence');
     expect(parseDgmoChartType('bar\nQ1 150')).toBe('bar');
-    expect(parseDgmoChartType('initiative-status\nFoo | done')).toBe(
-      'initiative-status'
-    );
   });
 
   it('recognizes chart type with title (new syntax)', () => {

@@ -108,7 +108,6 @@ dgmo diagram.dgmo --theme dark --palette catppuccin
 | `state` | State machine diagrams |
 | `infra` | Infrastructure capacity and latency diagrams |
 | `kanban` | Kanban boards |
-| `initiative-status` | Initiative status and dependency graphs |
 | `sitemap` | Site structure and navigation maps |
 
 ### Other

@@ -10,6 +10,7 @@ import {
   isTagBlockHeading,
   matchTagBlockHeading,
   validateTagValues,
+  stripDefaultModifier,
 } from '../utils/tag-groups';
 import {
   measureIndent,
@@ -261,11 +262,13 @@ export function parseSitemap(
       }
     }
 
-    // Tag group entries (indented Value(color) under tag: heading)
+    // Tag group entries (indented Value(color) under tag heading)
+    // First entry is the default unless another is marked `default`
     if (currentTagGroup && !contentStarted) {
       const indent = measureIndent(line);
       if (indent > 0) {
-        const { label, color } = extractColor(trimmed, palette);
+        const { text: cleanEntry, isDefault } = stripDefaultModifier(trimmed);
+        const { label, color } = extractColor(cleanEntry, palette);
         if (!color) {
           pushError(
             lineNumber,
@@ -278,8 +281,9 @@ export function parseSitemap(
           color,
           lineNumber,
         });
-        // First entry is the default
-        if (currentTagGroup.entries.length === 1) {
+        if (isDefault) {
+          currentTagGroup.defaultValue = label;
+        } else if (currentTagGroup.entries.length === 1) {
           currentTagGroup.defaultValue = label;
         }
         continue;

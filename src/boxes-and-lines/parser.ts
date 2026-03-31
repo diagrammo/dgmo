@@ -9,6 +9,7 @@ import {
   matchTagBlockHeading,
   injectDefaultTagMetadata,
   validateTagValues,
+  stripDefaultModifier,
 } from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
 import {
@@ -240,14 +241,19 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
       }
       if (tagBlockMatch.inlineValues) {
         for (const rawVal of tagBlockMatch.inlineValues) {
-          const { label, color } = extractColor(rawVal);
+          const { text: cleanVal, isDefault } = stripDefaultModifier(rawVal);
+          const { label, color } = extractColor(cleanVal);
           currentTagGroup.entries.push({
             value: label,
             color: color ?? '',
             lineNumber: lineNum,
           });
+          if (isDefault) currentTagGroup.defaultValue = label;
         }
-        if (currentTagGroup.entries.length > 0) {
+        if (
+          !currentTagGroup.defaultValue &&
+          currentTagGroup.entries.length > 0
+        ) {
           currentTagGroup.defaultValue = currentTagGroup.entries[0].value;
         }
       }
@@ -257,13 +263,16 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
 
     // Tag group entries (indented under tag heading)
     if (currentTagGroup && !contentStarted && indent > 0) {
-      const { label, color } = extractColor(trimmed);
+      const { text: cleanEntry, isDefault } = stripDefaultModifier(trimmed);
+      const { label, color } = extractColor(cleanEntry);
       currentTagGroup.entries.push({
         value: label,
         color: color ?? '',
         lineNumber: lineNum,
       });
-      if (currentTagGroup.entries.length === 1) {
+      if (isDefault) {
+        currentTagGroup.defaultValue = label;
+      } else if (currentTagGroup.entries.length === 1) {
         currentTagGroup.defaultValue = label;
       }
       continue;

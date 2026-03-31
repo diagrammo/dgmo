@@ -298,7 +298,7 @@ export function renderGantt(
     .append('g')
     .attr('transform', `translate(${leftMargin}, ${marginTop})`);
 
-  // ── Title (y=30, consistent with timeline/initiative-status) ──
+  // ── Title (y=30, consistent with timeline) ──
 
   if (title) {
     svg

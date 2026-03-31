@@ -16,7 +16,7 @@ export interface TagGroup {
   name: string;
   alias?: string;
   entries: TagEntry[];
-  /** First value in the tag declaration is the default (nodes without metadata get this) */
+  /** Default value for nodes without explicit metadata. First entry unless another is marked `default`. */
   defaultValue?: string;
   lineNumber: number;
 }
@@ -28,6 +28,26 @@ export interface TagBlockMatch {
   colorHint: string | undefined;
   /** Inline tag values parsed from single-line form (e.g., `tag Priority p High(red), Low(blue)`) */
   inlineValues?: string[];
+}
+
+// ── Default Modifier ────────────────────────────────────────
+
+/**
+ * Strip trailing `default` keyword from a tag entry string.
+ * Returns the cleaned text and whether the keyword was present.
+ *
+ * Examples:
+ *   "NA(gray) default" → { text: "NA(gray)", isDefault: true }
+ *   "Done(green)"      → { text: "Done(green)", isDefault: false }
+ */
+export function stripDefaultModifier(text: string): {
+  text: string;
+  isDefault: boolean;
+} {
+  if (/\bdefault\s*$/.test(text)) {
+    return { text: text.replace(/\s+default\s*$/, '').trim(), isDefault: true };
+  }
+  return { text, isDefault: false };
 }
 
 // ── Regexes ─────────────────────────────────────────────────
@@ -89,10 +109,15 @@ export function parseTagDeclaration(line: string): TagBlockMatch | null {
     // BEFORE any value tokens (values have `(color)` suffixes or appear after we see a comma).
 
     // First check for explicit `alias` keyword: `tag Name alias X`
-    const aliasKeywordIdx = tokens.findIndex((t, i) => i > 0 && t.toLowerCase() === 'alias');
+    const aliasKeywordIdx = tokens.findIndex(
+      (t, i) => i > 0 && t.toLowerCase() === 'alias'
+    );
     if (aliasKeywordIdx > 0 && aliasKeywordIdx + 1 < tokens.length) {
       // Everything before `alias` is the name, the token after `alias` is the alias
-      name = tokens.slice(0, aliasKeywordIdx).map(t => stripQuotes(t)).join(' ');
+      name = tokens
+        .slice(0, aliasKeywordIdx)
+        .map((t) => stripQuotes(t))
+        .join(' ');
       alias = tokens[aliasKeywordIdx + 1];
       restStartIdx = aliasKeywordIdx + 2;
     } else {
@@ -103,7 +128,11 @@ export function parseTagDeclaration(line: string): TagBlockMatch | null {
 
       if (tokens.length === 1) {
         // Just `tag Name` — no alias, no values
-      } else if (tokens.length === 2 && isAliasToken(tokens[1]) && !commaInRemaining) {
+      } else if (
+        tokens.length === 2 &&
+        isAliasToken(tokens[1]) &&
+        !commaInRemaining
+      ) {
         // `tag Priority p` — alias only, no values
         alias = tokens[1];
         restStartIdx = 2;
@@ -130,11 +159,17 @@ export function parseTagDeclaration(line: string): TagBlockMatch | null {
           if (valueStart > 1 && isAliasToken(tokens[valueStart - 1])) {
             alias = tokens[valueStart - 1];
             // Name is everything from token[0] to token[valueStart-2]
-            name = tokens.slice(0, valueStart - 1).map(t => stripQuotes(t)).join(' ');
+            name = tokens
+              .slice(0, valueStart - 1)
+              .map((t) => stripQuotes(t))
+              .join(' ');
             restStartIdx = valueStart;
           } else {
             // No alias — name is everything before values
-            name = tokens.slice(0, valueStart).map(t => stripQuotes(t)).join(' ');
+            name = tokens
+              .slice(0, valueStart)
+              .map((t) => stripQuotes(t))
+              .join(' ');
             restStartIdx = valueStart;
           }
         }
@@ -146,7 +181,10 @@ export function parseTagDeclaration(line: string): TagBlockMatch | null {
   if (restStartIdx < tokens.length) {
     // Rejoin and split by comma for inline values
     const valueStr = tokens.slice(restStartIdx).join(' ');
-    inlineValues = valueStr.split(',').map(v => v.trim()).filter(Boolean);
+    inlineValues = valueStr
+      .split(',')
+      .map((v) => v.trim())
+      .filter(Boolean);
   }
 
   // Check for trailing color hint on name (without inline values)
@@ -163,7 +201,8 @@ export function parseTagDeclaration(line: string): TagBlockMatch | null {
     name,
     alias,
     colorHint,
-    inlineValues: inlineValues && inlineValues.length > 0 ? inlineValues : undefined,
+    inlineValues:
+      inlineValues && inlineValues.length > 0 ? inlineValues : undefined,
   };
 }
 
@@ -204,9 +243,8 @@ export function resolveTagColor(
   if (!metaValue) return '#999999';
 
   return (
-    group.entries.find(
-      (e) => e.value.toLowerCase() === metaValue.toLowerCase()
-    )?.color ?? '#999999'
+    group.entries.find((e) => e.value.toLowerCase() === metaValue.toLowerCase())
+      ?.color ?? '#999999'
   );
 }
 
@@ -223,7 +261,10 @@ export function resolveTagColor(
  * @param suggestFn Optional did-you-mean suggestion function
  */
 export function validateTagValues(
-  entities: ReadonlyArray<{ metadata: Record<string, string>; lineNumber: number }>,
+  entities: ReadonlyArray<{
+    metadata: Record<string, string>;
+    lineNumber: number;
+  }>,
   tagGroups: ReadonlyArray<TagGroup>,
   pushWarning: (lineNumber: number, message: string) => void,
   suggestFn?: (input: string, candidates: readonly string[]) => string | null
@@ -244,8 +285,8 @@ export function validateTagValues(
         // Suppress warning if the value is a prefix of any valid entry —
         // the user is likely still typing (live parse during editing).
         const valueLower = value.toLowerCase();
-        const isPrefix = group.entries.some(
-          (e) => e.value.toLowerCase().startsWith(valueLower)
+        const isPrefix = group.entries.some((e) =>
+          e.value.toLowerCase().startsWith(valueLower)
         );
         if (!isPrefix) {
           const defined = group.entries.map((e) => e.value);
@@ -281,7 +322,10 @@ export function injectDefaultTagMetadata(
   const defaults: { key: string; value: string }[] = [];
   for (const group of tagGroups) {
     if (group.defaultValue) {
-      defaults.push({ key: group.name.toLowerCase(), value: group.defaultValue });
+      defaults.push({
+        key: group.name.toLowerCase(),
+        value: group.defaultValue,
+      });
     }
   }
   if (defaults.length === 0) return;

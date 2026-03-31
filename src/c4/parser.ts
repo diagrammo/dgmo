@@ -5,7 +5,10 @@
 import type { PaletteColors } from '../palettes';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
 import type { TagGroup } from '../utils/tag-groups';
-import { matchTagBlockHeading } from '../utils/tag-groups';
+import {
+  matchTagBlockHeading,
+  stripDefaultModifier,
+} from '../utils/tag-groups';
 import { inferParticipantType } from '../sequence/participant-inference';
 import {
   measureIndent,
@@ -319,11 +322,12 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
       }
     }
 
-    // Tag group entries — first entry is the default (no `default` keyword)
+    // Tag group entries — first entry is the default unless another is marked `default`
     if (currentTagGroup && !contentStarted) {
       const indent = measureIndent(line);
       if (indent > 0) {
-        const { label, color } = extractColor(trimmed, palette);
+        const { text: cleanEntry, isDefault } = stripDefaultModifier(trimmed);
+        const { label, color } = extractColor(cleanEntry, palette);
         if (!color) {
           pushError(
             lineNumber,
@@ -331,8 +335,9 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
           );
           continue;
         }
-        // First entry becomes the default
-        if (currentTagGroup.entries.length === 0) {
+        if (isDefault) {
+          currentTagGroup.defaultValue = label;
+        } else if (currentTagGroup.entries.length === 0) {
           currentTagGroup.defaultValue = label;
         }
         currentTagGroup.entries.push({

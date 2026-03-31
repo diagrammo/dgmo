@@ -53,7 +53,7 @@ const isExtended = isExtendedChartType(chartType); // false
 
 - **`data-chart`**: bar, line, area, pie, doughnut, radar, polar-area, bar-stacked, multi-line, scatter, sankey, chord, function, heatmap, funnel
 - **`visualization`**: slope, wordcloud, arc, timeline, venn, quadrant
-- **`diagram`**: sequence, flowchart, class, er, org, kanban, c4, initiative-status, state, sitemap, infra, gantt, boxes-and-lines
+- **`diagram`**: sequence, flowchart, class, er, org, kanban, c4, state, sitemap, infra, gantt, boxes-and-lines
 
 ---
 

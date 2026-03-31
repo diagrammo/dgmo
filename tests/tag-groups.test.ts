@@ -7,8 +7,50 @@ import {
   resolveTagColor,
   validateTagValues,
   injectDefaultTagMetadata,
+  stripDefaultModifier,
 } from '../src/utils/tag-groups';
 import type { TagGroup } from '../src/utils/tag-groups';
+
+// ============================================================
+// stripDefaultModifier
+// ============================================================
+
+describe('stripDefaultModifier', () => {
+  it('strips trailing default keyword', () => {
+    expect(stripDefaultModifier('NA(gray) default')).toEqual({
+      text: 'NA(gray)',
+      isDefault: true,
+    });
+  });
+
+  it('handles default with extra trailing whitespace', () => {
+    expect(stripDefaultModifier('NA(gray) default  ')).toEqual({
+      text: 'NA(gray)',
+      isDefault: true,
+    });
+  });
+
+  it('returns original text when no default keyword', () => {
+    expect(stripDefaultModifier('Done(green)')).toEqual({
+      text: 'Done(green)',
+      isDefault: false,
+    });
+  });
+
+  it('does not match default in the middle of a string', () => {
+    expect(stripDefaultModifier('default(blue)')).toEqual({
+      text: 'default(blue)',
+      isDefault: false,
+    });
+  });
+
+  it('matches bare default at end without color', () => {
+    expect(stripDefaultModifier('NA default')).toEqual({
+      text: 'NA',
+      isDefault: true,
+    });
+  });
+});
 
 describe('isTagBlockHeading', () => {
   it('returns true for tag syntax (no colon)', () => {

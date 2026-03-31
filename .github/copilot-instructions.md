@@ -125,9 +125,9 @@ API Gateway | t: Backend
 
 Nodes: implicit from edges or explicit with `| metadata`. Edges: `A -label-> B`, `A <-label-> B` (bidi). Groups: `[Name]` with indented children (max 2 levels). Tags: `tag Name alias values`, `active-tag`, `hide`. Options: `direction LR|TB`.
 
-## All 34 chart types
+## All 33 chart types
 
-bar, line, multi-line, area, pie, doughnut, radar, polar-area, bar-stacked, scatter, sankey, chord, function, heatmap, funnel, slope, wordcloud, arc, timeline, venn, quadrant, sequence, flowchart, state, class, er, org, kanban, c4, initiative-status, sitemap, infra, gantt, boxes-and-lines
+bar, line, multi-line, area, pie, doughnut, radar, polar-area, bar-stacked, scatter, sankey, chord, function, heatmap, funnel, slope, wordcloud, arc, timeline, venn, quadrant, sequence, flowchart, state, class, er, org, kanban, c4, sitemap, infra, gantt, boxes-and-lines
 
 ## Common patterns
 

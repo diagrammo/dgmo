@@ -8,7 +8,6 @@ export const CHART_TYPES = new Set([
   'org',
   'kanban',
   'c4',
-  'initiative-status',
   'state',
   'sitemap',
   'infra',
@@ -149,8 +148,6 @@ export const DIRECTIVE_KEYWORDS = new Set([
   // Layout
   'direction-tb',
   'direction-lr',
-  // Initiative-status
-  'contains',
   // Data chart metadata
   'title',
   'series',
@@ -175,7 +172,7 @@ export const CONTROL_KEYWORDS = new Set([
   'note',
 ]);
 
-/** Status keywords — initiative-status, kanban. */
+/** Status keywords — kanban. */
 export const STATUS_KEYWORDS = new Set([
   'na',
   'todo',

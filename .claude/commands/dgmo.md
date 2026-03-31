@@ -97,7 +97,7 @@ For **examples** of real diagrams, call `mcp__dgmo__get_examples("<type>")` — 
    - "process" / "decision" / "flow" → `flowchart`
    - "states" / "lifecycle" / "transitions" → `state`
    - "org" / "team" / "hierarchy" → `org`
-   - "roadmap" / "project status" → `initiative-status` or `gantt`
+   - "roadmap" / "project status" → `gantt`
    - "boxes" / "nodes and edges" / "general diagram" → `boxes-and-lines`
    - "compare" / "metrics" / "data" → `bar`, `line`, `pie`, etc.
    - If genuinely ambiguous, suggest your best guess with a one-line rationale.
@@ -254,7 +254,6 @@ Key options:
 | `org` | Hierarchical tree structures |
 | `kanban` | Task / workflow columns |
 | `c4` | System architecture (context → container → component → deployment) |
-| `initiative-status` | Project roadmap with dependency tracking |
 | `sitemap` | Website / app navigation structure |
 | `infra` | Infrastructure traffic flow with rps computation |
 | `gantt` | Project scheduling with dependencies |
@@ -512,31 +511,6 @@ Canvas
 - Visibility: `+` public, `#` protected, `-` private. Static: `{static}`
 - Relationships: `A *-- B` (composition), `A o-- B` (aggregation), `A --|> B` (inheritance), `A ..|> B` (implementation), `A ..> B` (dependency), `A -> B` (association)
 - Optional label: `A *-- B : description`
-
-### initiative-status
-
-```
-initiative-status Q2 Roadmap
-
-[Identity]
-  Auth Service | done
-  SSO Integration | doing
-    -> Auth Service | done
-  MFA Rollout | blocked
-    -> SSO Integration | doing
-
-[Payments]
-  Payment Gateway | doing
-  Billing UI | todo
-    -> Payment Gateway | doing
-
-Auth Service -> Payment Gateway: validates | done
-```
-
-- Status values: `done`, `doing`, `todo`, `blocked`, `na`
-- Dependencies: `-> Target | status` (indented) or `Source -> Target: label | status`
-- Groups: `[Group Name]` with indented items
-- Tags supported for phase/team coloring
 
 ### venn
 

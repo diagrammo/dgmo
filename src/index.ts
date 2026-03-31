@@ -226,37 +226,6 @@ export {
 export { collapseBoxesAndLines } from './boxes-and-lines/collapse';
 export type { BLCollapseResult } from './boxes-and-lines/collapse';
 
-export {
-  parseInitiativeStatus,
-  looksLikeInitiativeStatus,
-} from './initiative-status/parser';
-export type {
-  ParsedInitiativeStatus,
-  ISNode,
-  ISEdge,
-  ISGroup,
-  InitiativeStatus,
-} from './initiative-status/types';
-
-export { layoutInitiativeStatus } from './initiative-status/layout';
-export type {
-  ISLayoutResult,
-  ISLayoutNode,
-  ISLayoutEdge,
-  ISLayoutGroup,
-} from './initiative-status/layout';
-
-export {
-  renderInitiativeStatus,
-  renderInitiativeStatusForExport,
-} from './initiative-status/renderer';
-export type { ISRenderOptions } from './initiative-status/renderer';
-
-export { collapseInitiativeStatus } from './initiative-status/collapse';
-export type { CollapseResult } from './initiative-status/collapse';
-
-export { filterInitiativeStatusByTags } from './initiative-status/filter';
-
 export { parseSitemap, looksLikeSitemap } from './sitemap/parser';
 
 export type {

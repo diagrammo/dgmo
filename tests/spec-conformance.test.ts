@@ -18,7 +18,6 @@ import {
   parseERDiagram,
   parseClassDiagram,
   parseKanban,
-  parseInitiativeStatus,
   parseSitemap,
   parseGantt,
 } from '../src/index';
@@ -462,16 +461,6 @@ describe('1. Valid syntax', () => {
       );
       expect(hasNoErrors(r)).toBe(true);
       expect(r.columns.length).toBe(3);
-    });
-  });
-
-  describe('initiative-status (parseInitiativeStatus)', () => {
-    it('minimal initiative-status diagram', () => {
-      const r = parseInitiativeStatus(
-        'initiative-status Roadmap\n\nAuth | done\nPayments | doing\nAuth -> Payments'
-      );
-      expect(hasNoErrors(r)).toBe(true);
-      expect(r.nodes.length).toBeGreaterThanOrEqual(2);
     });
   });
 
