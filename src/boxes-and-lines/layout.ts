@@ -17,9 +17,6 @@ const MARGIN = 40;
 const CONTAINER_PAD_X = 30;
 const CONTAINER_PAD_TOP = 40;
 const CONTAINER_PAD_BOTTOM = 24;
-const CHAR_WIDTH_RATIO = 0.6;
-const NODE_FONT_SIZE = 13;
-const MIN_NODE_WIDTH = 100;
 const SHAPE_NODE_HEIGHT = 60;
 const MAX_PARALLEL_EDGES = 5;
 const PARALLEL_SPACING = 12;
@@ -40,6 +37,7 @@ export interface BLLayoutEdge {
   target: string;
   label?: string;
   bidirectional: boolean;
+  lineNumber: number;
   points: { x: number; y: number }[];
   labelX?: number;
   labelY?: number;
@@ -50,6 +48,7 @@ export interface BLLayoutEdge {
 
 export interface BLLayoutGroup {
   label: string;
+  lineNumber: number;
   x: number;
   y: number;
   width: number;
@@ -70,29 +69,23 @@ export interface BLLayoutResult {
 
 // ── Node sizing ────────────────────────────────────────────
 
-function textWidth(text: string, fontSize: number): number {
-  return text.length * fontSize * CHAR_WIDTH_RATIO;
-}
-
 function computeNodeSize(
   node: BLNode,
   renderMode: BLRenderMode
 ): { width: number; height: number } {
   if (renderMode === 'shapes') {
-    const w = Math.max(
-      MIN_NODE_WIDTH,
-      textWidth(node.label, NODE_FONT_SIZE) + 24
-    );
-    return { width: w, height: SHAPE_NODE_HEIGHT };
+    const PHI_S = 1.618;
+    const SH = SHAPE_NODE_HEIGHT;
+    const SW = Math.round(SH * PHI_S);
+    return { width: SW, height: SH };
   }
 
-  // Rectangle mode — fixed dimensions for consistent layout
-  const RECT_NODE_WIDTH = 140;
-  const RECT_NODE_HEIGHT = 50;
+  // Rectangle mode — golden ratio (φ ≈ 1.618), uniform size
+  const PHI = 1.618;
+  const NODE_HEIGHT = 60;
+  const NODE_WIDTH = Math.round(NODE_HEIGHT * PHI); // ≈ 97
 
-  const labelW = textWidth(node.label, NODE_FONT_SIZE) + 40;
-  const width = Math.max(RECT_NODE_WIDTH, labelW);
-  return { width, height: RECT_NODE_HEIGHT };
+  return { width: NODE_WIDTH, height: NODE_HEIGHT };
 }
 
 // ── Main layout ────────────────────────────────────────────
@@ -156,14 +149,13 @@ export function layoutBoxesAndLines(
     if (!absorbed) collapsedGroupLabels.add(label);
   }
 
-  // Add collapsed groups as regular nodes — same dimensions as normal nodes
-  const RECT_NODE_WIDTH = 140;
-  const RECT_NODE_HEIGHT = 50;
+  // Add collapsed groups as regular nodes — same golden-ratio dimensions
+  const PHI = 1.618;
+  const COLLAPSED_H = 60;
+  const COLLAPSED_W = Math.round(COLLAPSED_H * PHI);
   for (const label of collapsedGroupLabels) {
     const gid = `__group_${label}`;
-    const labelW = textWidth(label, NODE_FONT_SIZE) + 24;
-    const w = Math.max(RECT_NODE_WIDTH, labelW);
-    g.setNode(gid, { label, width: w, height: RECT_NODE_HEIGHT });
+    g.setNode(gid, { label, width: COLLAPSED_W, height: COLLAPSED_H });
   }
 
   // Add expanded group nodes as compound parents
@@ -238,6 +230,7 @@ export function layoutBoxesAndLines(
     const gm = groupMap.get(group.label);
     layoutGroups.push({
       label: group.label,
+      lineNumber: group.lineNumber,
       x: dagreNode.x,
       y: dagreNode.y,
       width: dagreNode.width,
@@ -256,6 +249,7 @@ export function layoutBoxesAndLines(
     const og = collapseInfo?.originalGroups.find((g) => g.label === label);
     layoutGroups.push({
       label,
+      lineNumber: og?.lineNumber ?? 0,
       x: dagreNode.x,
       y: dagreNode.y,
       width: dagreNode.width,
@@ -324,6 +318,7 @@ export function layoutBoxesAndLines(
       target: edge.target,
       label: edge.label,
       bidirectional: edge.bidirectional,
+      lineNumber: edge.lineNumber,
       points,
       labelX,
       labelY,
