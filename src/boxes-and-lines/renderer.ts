@@ -962,7 +962,7 @@ export function renderBoxesAndLines(
     const gx = group.x - group.width / 2;
     const gy = group.y - group.height / 2;
 
-    const groupG = diagramG.append('g');
+    const groupG = diagramG.append('g').attr('class', 'bl-group');
     groupG
       .append('rect')
       .attr('x', gx)
@@ -977,6 +977,7 @@ export function renderBoxesAndLines(
 
     groupG
       .append('text')
+      .attr('class', 'bl-group-label')
       .attr('x', gx + 8)
       .attr('y', gy + 16)
       .attr('font-size', GROUP_LABEL_FONT_SIZE)
@@ -1019,6 +1020,7 @@ export function renderBoxesAndLines(
     const markerId = `bl-arrow-${color.replace('#', '')}`;
     const path = diagramG
       .append('path')
+      .attr('class', 'bl-edge')
       .attr(
         'd',
         (parsed.direction === 'TB' ? lineGeneratorTB : lineGeneratorLR)(
@@ -1105,9 +1107,15 @@ export function renderBoxesAndLines(
 
     const nodeG = diagramG
       .append('g')
+      .attr('class', 'bl-node')
       .attr('transform', `translate(${ln.x},${ln.y})`)
       .attr('data-line-number', node.lineNumber)
       .style('cursor', onClickItem ? 'pointer' : 'default');
+
+    // Add tag metadata as data attributes for legend hover dimming
+    for (const [key, val] of Object.entries(node.metadata)) {
+      nodeG.attr(`data-tag-${key}`, val.toLowerCase());
+    }
 
     if (onClickItem) {
       nodeG.on('click', () => onClickItem(node.lineNumber));
