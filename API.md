@@ -53,7 +53,7 @@ const isExtended = isExtendedChartType(chartType); // false
 
 - **`data-chart`**: bar, line, area, pie, doughnut, radar, polar-area, bar-stacked, multi-line, scatter, sankey, chord, function, heatmap, funnel
 - **`visualization`**: slope, wordcloud, arc, timeline, venn, quadrant
-- **`diagram`**: sequence, flowchart, class, er, org, kanban, c4, initiative-status, state, sitemap, infra, gantt
+- **`diagram`**: sequence, flowchart, class, er, org, kanban, c4, initiative-status, state, sitemap, infra, gantt, boxes-and-lines
 
 ---
 
@@ -169,6 +169,30 @@ const schedule = calculateSchedule(parsed);
 ```
 
 **Types**: `ParsedGantt`, `GanttTask`, `GanttGroup`, `GanttNode`, `GanttDependency`, `GanttOptions`, `GanttMarker`, `GanttEra`, `GanttHolidays`, `ResolvedSchedule`, `GanttInteractiveOptions`
+
+#### Boxes and Lines
+
+| Function                 | Signature                                                                              |
+| ------------------------ | -------------------------------------------------------------------------------------- |
+| `parseBoxesAndLines`     | `(content: string) => ParsedBoxesAndLines`                                             |
+| `layoutBoxesAndLines`    | `(parsed: ParsedBoxesAndLines, hiddenTagValues?: Set<string>) => BLLayoutResult`       |
+| `collapseBoxesAndLines`  | `(parsed: ParsedBoxesAndLines, hiddenValues: Set<string>) => BLCollapseResult`         |
+
+```ts
+import { parseBoxesAndLines, layoutBoxesAndLines } from '@diagrammo/dgmo';
+
+const parsed = parseBoxesAndLines(fileContent);
+// parsed.title, parsed.nodes, parsed.edges, parsed.groups, parsed.tagGroups
+// parsed.options — { direction, activeTag, hide, mode }
+
+const layout = layoutBoxesAndLines(parsed);
+// layout.nodes — positioned BLLayoutNode[]
+// layout.edges — routed BLLayoutEdge[]
+// layout.groups — BLLayoutGroup[] with bounding boxes
+// layout.width, layout.height
+```
+
+**Types**: `ParsedBoxesAndLines`, `BLNode`, `BLEdge`, `BLGroup`, `BLLayoutResult`, `BLLayoutNode`, `BLLayoutEdge`, `BLLayoutGroup`, `BLCollapseResult`
 
 #### Quadrant (Mermaid bridge)
 
@@ -291,6 +315,30 @@ renderGantt(container, schedule, nordPalette.light, false, {
   onClickItem: (lineNumber) => console.log('Clicked line', lineNumber),
   collapsedGroups: new Set(),
   onToggleGroup: (groupName) => { /* toggle collapse */ },
+});
+```
+
+#### Boxes and Lines Renderer
+
+| Function                          | Signature |
+| --------------------------------- | --------- |
+| `renderBoxesAndLines`             | `(container: HTMLDivElement, parsed: ParsedBoxesAndLines, layout: BLLayoutResult, palette: PaletteColors, isDark: boolean, onClickItem?: (lineNumber: number) => void) => void` |
+| `renderBoxesAndLinesForExport`    | `(content: string, theme: 'light' \| 'dark' \| 'transparent', palette: PaletteColors) => string` |
+
+```ts
+import {
+  parseBoxesAndLines,
+  layoutBoxesAndLines,
+  renderBoxesAndLines,
+  nordPalette,
+} from '@diagrammo/dgmo';
+
+const parsed = parseBoxesAndLines(content);
+const layout = layoutBoxesAndLines(parsed);
+const container = document.getElementById('chart') as HTMLDivElement;
+
+renderBoxesAndLines(container, parsed, layout, nordPalette.light, false, (line) => {
+  console.log('Clicked node from line', line);
 });
 ```
 
@@ -540,6 +588,7 @@ Core parse/render/build functions — these are the main library API:
 - `renderSequenceDiagram`, `renderForExport`
 - `parseOrg`, `layoutOrg`, `renderOrg`, `renderOrgForExport`, `collapseOrgTree`
 - `parseGantt`, `calculateSchedule`, `renderGantt`
+- `parseBoxesAndLines`, `layoutBoxesAndLines`, `renderBoxesAndLines`, `renderBoxesAndLinesForExport`, `collapseBoxesAndLines`
 - `getPalette`, `getAvailablePalettes`, `registerPalette`
 - All `PaletteConfig` definitions
 

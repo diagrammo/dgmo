@@ -19,7 +19,7 @@ When the `dgmo` MCP server is configured, use these tools directly:
 - `render_diagram` — renders to PNG or SVG, returns file path
 - `share_diagram` — creates a shareable diagrammo.app URL
 - `open_in_app` — opens diagram in Diagrammo desktop app (macOS)
-- `list_chart_types` — lists all 32 supported chart types with descriptions
+- `list_chart_types` — lists all 34 supported chart types with descriptions
 - `get_language_reference` — fetches full syntax for any chart type (call this before generating an unfamiliar chart type)
 - `generate_report` — renders multiple diagrams into an HTML report with table of contents
 
@@ -113,9 +113,29 @@ API
   latency-ms: 45
 ```
 
-## All 32 chart types
+## All 34 chart types
 
-bar, line, multi-line, area, pie, doughnut, radar, polar-area, bar-stacked, scatter, sankey, chord, function, heatmap, funnel, slope, wordcloud, arc, timeline, venn, quadrant, sequence, flowchart, state, class, er, org, kanban, c4, initiative-status, sitemap, infra
+bar, line, multi-line, area, pie, doughnut, radar, polar-area, bar-stacked, scatter, sankey, chord, function, heatmap, funnel, slope, wordcloud, arc, timeline, venn, quadrant, sequence, flowchart, state, class, er, org, kanban, c4, initiative-status, sitemap, infra, gantt, boxes-and-lines
+
+### Boxes and lines
+```
+boxes-and-lines Architecture
+
+tag Team t Backend(blue), Frontend(green)
+active-tag Team
+direction LR
+
+API Gateway | t: Backend
+  -routes-> AuthService
+  -queries-> DB
+
+AuthService | t: Backend
+DB | t: Backend
+
+[Cloud]
+  API Gateway
+  AuthService
+```
 
 ## Common patterns
 

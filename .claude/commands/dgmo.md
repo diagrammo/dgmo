@@ -98,6 +98,7 @@ For **examples** of real diagrams, call `mcp__dgmo__get_examples("<type>")` — 
    - "states" / "lifecycle" / "transitions" → `state`
    - "org" / "team" / "hierarchy" → `org`
    - "roadmap" / "project status" → `initiative-status` or `gantt`
+   - "boxes" / "nodes and edges" / "general diagram" → `boxes-and-lines`
    - "compare" / "metrics" / "data" → `bar`, `line`, `pie`, etc.
    - If genuinely ambiguous, suggest your best guess with a one-line rationale.
 2. **Get syntax + examples** — call `mcp__dgmo__get_language_reference("<type>")` and `mcp__dgmo__get_examples("<type>")`.
@@ -257,6 +258,7 @@ Key options:
 | `sitemap` | Website / app navigation structure |
 | `infra` | Infrastructure traffic flow with rps computation |
 | `gantt` | Project scheduling with dependencies |
+| `boxes-and-lines` | General-purpose node-edge diagrams with groups and tags |
 
 ## Key Syntax Patterns
 
@@ -645,6 +647,37 @@ y-label Revenue ($M)
 - Data: `Label x, y` or `Label x, y, size` (bubble chart)
 - Groups: `[Category](color)` headers
 - Options: `labels on`, `xlabel`, `ylabel`, `sizelabel`
+
+### boxes-and-lines
+
+```
+boxes-and-lines Architecture
+
+tag Team t Backend(blue), Frontend(green), Platform(purple)
+active-tag Team
+direction LR
+
+API Gateway | t: Backend
+  -routes-> AuthService
+  -queries-> DB
+
+AuthService | t: Backend
+DB | t: Platform
+
+[Cloud]
+  API Gateway
+  AuthService
+
+Redis <-syncs-> DB | t: Platform
+```
+
+- Nodes: explicit `Name | metadata` or implicit from edges
+- Edges: `A -label-> B` (directed), `A <-label-> B` (bidirectional)
+- Indented edges use parent as source: `Parent` then `  -label-> Target`
+- Groups: `[Name]` with indented children (max 2 levels deep)
+- Tags: `tag Name alias Value1(color), Value2(color)` + `active-tag Name` + `hide alias:value`
+- Options: `direction LR` (left-right) or `TB` (top-bottom, default)
+- Shape inference: names containing DB/database → cylinder, Cache/Redis → diamond, Queue → hexagon, etc.
 
 ## Anti-Patterns
 

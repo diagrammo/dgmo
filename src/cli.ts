@@ -48,9 +48,9 @@ const CHART_TYPE_DESCRIPTIONS: Record<string, string> = {
   org: 'Org chart — hierarchical tree structures',
   kanban: 'Kanban board — task/workflow columns',
   c4: 'C4 diagram — system architecture (context, container, component, deployment)',
-  'initiative-status':
-    'Initiative status — project roadmap with dependency tracking',
   infra: 'Infra chart — infrastructure traffic flow with rps computation',
+  'boxes-and-lines':
+    'Boxes and lines — general-purpose node-edge diagrams with groups and tags',
 };
 
 const CLAUDE_SKILL_CONTENT = `# dgmo — Diagrammo Diagram Assistant
@@ -192,9 +192,10 @@ Key options:
 | \`org\` | Hierarchical tree structures |
 | \`kanban\` | Task / workflow columns |
 | \`c4\` | System architecture (context → container → component → deployment) |
-| \`initiative-status\` | Project roadmap with dependency tracking |
 | \`sitemap\` | Website / app navigation structure |
 | \`infra\` | Infrastructure traffic flow with rps computation |
+| \`gantt\` | Project scheduling with dependencies |
+| \`boxes-and-lines\` | General-purpose node-edge diagrams with groups and tags |
 
 ## Key Syntax Patterns
 
@@ -452,9 +453,9 @@ API
   latency-ms: 45
 \`\`\`
 
-## All 32 chart types
+## All 31 chart types
 
-bar, line, multi-line, area, pie, doughnut, radar, polar-area, bar-stacked, scatter, sankey, chord, function, heatmap, funnel, slope, wordcloud, arc, timeline, venn, quadrant, sequence, flowchart, state, class, er, org, kanban, c4, initiative-status, sitemap, infra
+bar, line, multi-line, area, pie, doughnut, radar, polar-area, bar-stacked, scatter, sankey, chord, function, heatmap, funnel, slope, wordcloud, arc, timeline, venn, quadrant, sequence, flowchart, state, class, er, org, kanban, c4, sitemap, infra
 
 ## Common patterns
 
