@@ -4,7 +4,10 @@
 
 import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
-import { runInExportContainer, extractExportSvg } from '../utils/export-container';
+import {
+  runInExportContainer,
+  extractExportSvg,
+} from '../utils/export-container';
 import type { PaletteColors } from '../palettes';
 import { mix } from '../palettes/color-utils';
 import type { ParsedOrg } from './parser';
@@ -170,7 +173,9 @@ export function renderOrg(
   if (parsed.title) {
     const titleParent = fixedTitle ? svg : mainG;
     const titleX = fixedTitle ? width / 2 : diagramW / 2;
-    const titleY = fixedTitle ? DIAGRAM_PADDING + TITLE_FONT_SIZE : TITLE_FONT_SIZE;
+    const titleY = fixedTitle
+      ? DIAGRAM_PADDING + TITLE_FONT_SIZE
+      : TITLE_FONT_SIZE;
     const titleEl = titleParent
       .append('text')
       .attr('x', titleX)
@@ -235,10 +240,7 @@ export function renderOrg(
       cG.attr('data-node-toggle', c.nodeId)
         .attr('tabindex', '0')
         .attr('role', 'button')
-        .attr(
-          'aria-expanded',
-          String(!c.hiddenCount)
-        )
+        .attr('aria-expanded', String(!c.hiddenCount))
         .attr('aria-label', c.label);
     }
 
@@ -266,7 +268,10 @@ export function renderOrg(
     // Container label (bold, at top)
     cG.append('text')
       .attr('x', c.width / 2)
-      .attr('y', CONTAINER_HEADER_HEIGHT / 2 + CONTAINER_LABEL_FONT_SIZE / 2 - 2)
+      .attr(
+        'y',
+        CONTAINER_HEADER_HEIGHT / 2 + CONTAINER_LABEL_FONT_SIZE / 2 - 2
+      )
       .attr('text-anchor', 'middle')
       .attr('fill', palette.text)
       .attr('font-size', CONTAINER_LABEL_FONT_SIZE)
@@ -277,7 +282,9 @@ export function renderOrg(
     const metaEntries = Object.entries(c.metadata);
     if (metaEntries.length > 0) {
       // Compute max key width so values align vertically
-      const metaDisplayKeys = metaEntries.map(([k]) => displayNames.get(k) ?? k);
+      const metaDisplayKeys = metaEntries.map(
+        ([k]) => displayNames.get(k) ?? k
+      );
       const maxKeyLen = Math.max(...metaDisplayKeys.map((k) => k.length));
       const valueX = 10 + (maxKeyLen + 2) * (CONTAINER_META_FONT_SIZE * 0.6);
 
@@ -306,9 +313,11 @@ export function renderOrg(
     // Collapsed accent bar (interactive only), clipped to card shape
     if (!exportDims && c.hiddenCount && c.hiddenCount > 0) {
       const clipId = `clip-${c.nodeId}`;
-      cG.append('clipPath').attr('id', clipId)
+      cG.append('clipPath')
+        .attr('id', clipId)
         .append('rect')
-        .attr('width', c.width).attr('height', c.height)
+        .attr('width', c.width)
+        .attr('height', c.height)
         .attr('rx', CONTAINER_RADIUS);
       cG.append('rect')
         .attr('x', COLLAPSE_BAR_INSET)
@@ -319,7 +328,6 @@ export function renderOrg(
         .attr('clip-path', `url(#${clipId})`)
         .attr('class', 'org-collapse-bar');
     }
-
   }
 
   // Render edges
@@ -350,10 +358,7 @@ export function renderOrg(
 
     const nodeG = contentG
       .append('g')
-      .attr(
-        'transform',
-        `translate(${node.x - node.width / 2}, ${node.y})`
-      )
+      .attr('transform', `translate(${node.x - node.width / 2}, ${node.y})`)
       .attr('class', 'org-node')
       .attr('data-line-number', String(node.lineNumber)) as GSelection;
 
@@ -428,7 +433,9 @@ export function renderOrg(
         .attr('stroke-width', 1);
 
       // Metadata rows — compute max key width so values align vertically
-      const metaDisplayKeys = metaEntries.map(([k]) => displayNames.get(k) ?? k);
+      const metaDisplayKeys = metaEntries.map(
+        ([k]) => displayNames.get(k) ?? k
+      );
       const maxKeyLen = Math.max(...metaDisplayKeys.map((k) => k.length));
       const valueX = 10 + (maxKeyLen + 2) * (META_FONT_SIZE * 0.6);
 
@@ -461,9 +468,12 @@ export function renderOrg(
     // Collapsed accent bar (interactive only), clipped to card shape
     if (!exportDims && node.hiddenCount && node.hiddenCount > 0) {
       const clipId = `clip-${node.id}`;
-      nodeG.append('clipPath').attr('id', clipId)
+      nodeG
+        .append('clipPath')
+        .attr('id', clipId)
         .append('rect')
-        .attr('width', node.width).attr('height', node.height)
+        .attr('width', node.width)
+        .attr('height', node.height)
         .attr('rx', CARD_RADIUS);
       nodeG
         .append('rect')
@@ -475,7 +485,6 @@ export function renderOrg(
         .attr('clip-path', `url(#${clipId})`)
         .attr('class', 'org-collapse-bar');
     }
-
   }
 
   // Render legend — kanban-style pills.
@@ -494,7 +503,7 @@ export function renderOrg(
     let fixedPositions: Map<string, number> | undefined;
     if (fixedLegend && visibleGroups.length > 0) {
       fixedPositions = new Map();
-      const effectiveW = (g: typeof visibleGroups[0]) =>
+      const effectiveW = (g: (typeof visibleGroups)[0]) =>
         activeTagGroup != null ? g.width : g.minifiedWidth;
       const totalW =
         visibleGroups.reduce((s, g) => s + effectiveW(g), 0) +
@@ -511,10 +520,7 @@ export function renderOrg(
       ? svg
           .append('g')
           .attr('class', 'org-legend-fixed')
-          .attr(
-            'transform',
-            `translate(0, ${DIAGRAM_PADDING + titleReserve})`
-          )
+          .attr('transform', `translate(0, ${DIAGRAM_PADDING + titleReserve})`)
       : contentG;
     const legendParent = legendParentBase;
     if (fixedLegend && activeTagGroup) {
@@ -556,8 +562,8 @@ export function renderOrg(
       }
 
       const pillXOff = isActive ? LEGEND_CAPSULE_PAD : 0;
-      const pillYOff = isActive ? LEGEND_CAPSULE_PAD : 0;
-      const pillH = LEGEND_HEIGHT - (isActive ? LEGEND_CAPSULE_PAD * 2 : 0);
+      const pillYOff = LEGEND_CAPSULE_PAD;
+      const pillH = LEGEND_HEIGHT - LEGEND_CAPSULE_PAD * 2;
 
       // Pill background
       gEl
@@ -610,7 +616,8 @@ export function renderOrg(
           .attr('opacity', isHidden ? 0.4 : 0.7);
 
         // Transparent hit area for easier clicking
-        eyeG.append('rect')
+        eyeG
+          .append('rect')
           .attr('x', eyeX - hitPad)
           .attr('y', eyeY - hitPad)
           .attr('width', LEGEND_EYE_SIZE + hitPad * 2)
@@ -618,7 +625,8 @@ export function renderOrg(
           .attr('fill', 'transparent')
           .attr('pointer-events', 'all');
 
-        eyeG.append('path')
+        eyeG
+          .append('path')
           .attr('d', isHidden ? EYE_CLOSED_PATH : EYE_OPEN_PATH)
           .attr('transform', `translate(${eyeX}, ${eyeY})`)
           .attr('fill', 'none')
@@ -655,7 +663,10 @@ export function renderOrg(
             .attr('fill', palette.textMuted)
             .text(entryLabel);
 
-          entryX = textX + measureLegendText(entryLabel, LEGEND_ENTRY_FONT_SIZE) + LEGEND_ENTRY_TRAIL;
+          entryX =
+            textX +
+            measureLegendText(entryLabel, LEGEND_ENTRY_FONT_SIZE) +
+            LEGEND_ENTRY_TRAIL;
         }
       }
     }

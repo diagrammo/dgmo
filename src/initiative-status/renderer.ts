@@ -5,7 +5,10 @@
 import * as d3Selection from 'd3-selection';
 import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
-import { runInExportContainer, extractExportSvg } from '../utils/export-container';
+import {
+  runInExportContainer,
+  extractExportSvg,
+} from '../utils/export-container';
 import {
   LEGEND_HEIGHT,
   LEGEND_PILL_PAD,
@@ -18,7 +21,11 @@ import {
   LEGEND_GROUP_GAP,
   measureLegendText,
 } from '../utils/legend-constants';
-import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT, TITLE_Y } from '../utils/title-constants';
+import {
+  TITLE_FONT_SIZE,
+  TITLE_FONT_WEIGHT,
+  TITLE_Y,
+} from '../utils/title-constants';
 import { contrastText, mix } from '../palettes/color-utils';
 import type { TagGroup } from '../utils/tag-groups';
 import type { PaletteColors } from '../palettes';
@@ -53,32 +60,58 @@ const COLLAPSE_BAR_HEIGHT = 6;
 // Color helpers
 // ============================================================
 
-function statusColor(status: InitiativeStatus, palette: PaletteColors, isDark: boolean): string {
+function statusColor(
+  status: InitiativeStatus,
+  palette: PaletteColors,
+  isDark: boolean
+): string {
   switch (status) {
-    case 'done':    return palette.colors.green;
-    case 'doing':   return palette.colors.blue;
-    case 'blocked': return palette.colors.orange;
-    case 'todo':    return palette.colors.red;
-    case 'na':      return isDark ? palette.colors.gray : '#2e3440';
-    default:        return palette.textMuted;
+    case 'done':
+      return palette.colors.green;
+    case 'doing':
+      return palette.colors.blue;
+    case 'blocked':
+      return palette.colors.orange;
+    case 'todo':
+      return palette.colors.red;
+    case 'na':
+      return isDark ? palette.colors.gray : '#2e3440';
+    default:
+      return palette.textMuted;
   }
 }
 
-function nodeFill(status: InitiativeStatus, palette: PaletteColors, isDark: boolean): string {
+function nodeFill(
+  status: InitiativeStatus,
+  palette: PaletteColors,
+  isDark: boolean
+): string {
   const color = statusColor(status, palette, isDark);
   return mix(color, isDark ? palette.surface : palette.bg, 30);
 }
 
-function nodeStroke(status: InitiativeStatus, palette: PaletteColors, isDark: boolean): string {
+function nodeStroke(
+  status: InitiativeStatus,
+  palette: PaletteColors,
+  isDark: boolean
+): string {
   return statusColor(status, palette, isDark);
 }
 
-function nodeTextColor(status: InitiativeStatus, palette: PaletteColors, isDark: boolean): string {
+function nodeTextColor(
+  status: InitiativeStatus,
+  palette: PaletteColors,
+  isDark: boolean
+): string {
   const fill = nodeFill(status, palette, isDark);
   return contrastText(fill, '#eceff4', '#2e3440');
 }
 
-function edgeStrokeColor(status: InitiativeStatus, palette: PaletteColors, isDark: boolean): string {
+function edgeStrokeColor(
+  status: InitiativeStatus,
+  palette: PaletteColors,
+  isDark: boolean
+): string {
   return statusColor(status, palette, isDark);
 }
 
@@ -92,23 +125,29 @@ interface ISLegendEntry {
 }
 
 const IS_STATUS_LABELS: Record<string, string> = {
-  done:    'Done',
-  doing:   'In Progress',
+  done: 'Done',
+  doing: 'In Progress',
   blocked: 'Blocked',
-  todo:    'To Do',
-  na:      'N/A',
+  todo: 'To Do',
+  na: 'N/A',
 };
 
-const IS_STATUS_ORDER: InitiativeStatus[] = ['todo', 'blocked', 'doing', 'done', 'na'];
+const IS_STATUS_ORDER: InitiativeStatus[] = [
+  'todo',
+  'blocked',
+  'doing',
+  'done',
+  'na',
+];
 
 function collectStatuses(parsed: ParsedInitiativeStatus): ISLegendEntry[] {
   const present = new Set<string>();
   for (const n of parsed.nodes) {
     if (n.status) present.add(n.status);
   }
-  return IS_STATUS_ORDER
-    .filter((s) => s !== null && present.has(s))
-    .map((s) => ({ label: IS_STATUS_LABELS[s!], statusKey: s }));
+  return IS_STATUS_ORDER.filter((s) => s !== null && present.has(s)).map(
+    (s) => ({ label: IS_STATUS_LABELS[s!], statusKey: s })
+  );
 }
 
 const LEGEND_GROUP_NAME = 'Status';
@@ -116,7 +155,11 @@ const LEGEND_GROUP_NAME = 'Status';
 function legendEntriesWidth(entries: ISLegendEntry[]): number {
   let w = 0;
   for (const e of entries) {
-    w += LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP + measureLegendText(e.label, LEGEND_ENTRY_FONT_SIZE) + LEGEND_ENTRY_TRAIL;
+    w +=
+      LEGEND_DOT_R * 2 +
+      LEGEND_ENTRY_DOT_GAP +
+      measureLegendText(e.label, LEGEND_ENTRY_FONT_SIZE) +
+      LEGEND_ENTRY_TRAIL;
   }
   return w;
 }
@@ -128,7 +171,8 @@ function legendEntriesWidth(entries: ISLegendEntry[]): number {
 // curveMonotoneX: interpolates through all control points and guarantees no
 // Y-overshoot between consecutive points.  Works for both our 4-point elbows
 // (adjacent-rank) and dagre's fixed waypoints (multi-rank).
-const lineGenerator = d3Shape.line<{ x: number; y: number }>()
+const lineGenerator = d3Shape
+  .line<{ x: number; y: number }>()
   .x((d) => d.x)
   .y((d) => d.y)
   .curve(d3Shape.curveMonotoneX);
@@ -151,10 +195,16 @@ function splitCamelCase(word: string): string[] {
     const curr = word[i];
     const next = i + 1 < word.length ? word[i + 1] : '';
     // aB → split before B (lowercase → uppercase)
-    const lowerToUpper = prev >= 'a' && prev <= 'z' && curr >= 'A' && curr <= 'Z';
+    const lowerToUpper =
+      prev >= 'a' && prev <= 'z' && curr >= 'A' && curr <= 'Z';
     // ABc → split before B when followed by lowercase (end of uppercase run)
     const upperRunEnd =
-      prev >= 'A' && prev <= 'Z' && curr >= 'A' && curr <= 'Z' && next >= 'a' && next <= 'z';
+      prev >= 'A' &&
+      prev <= 'Z' &&
+      curr >= 'A' &&
+      curr <= 'Z' &&
+      next >= 'a' &&
+      next <= 'z';
     if (lowerToUpper || upperRunEnd) {
       parts.push(word.slice(start, i));
       start = i;
@@ -169,12 +219,20 @@ interface FittedText {
   fontSize: number;
 }
 
-function fitTextToNode(label: string, nodeWidth: number, nodeHeight: number): FittedText {
+function fitTextToNode(
+  label: string,
+  nodeWidth: number,
+  nodeHeight: number
+): FittedText {
   const maxTextWidth = nodeWidth - NODE_TEXT_PADDING * 2;
   const lineHeight = 1.3;
 
   // Try at full font size first, then shrink
-  for (let fontSize = NODE_FONT_SIZE; fontSize >= MIN_NODE_FONT_SIZE; fontSize--) {
+  for (
+    let fontSize = NODE_FONT_SIZE;
+    fontSize >= MIN_NODE_FONT_SIZE;
+    fontSize--
+  ) {
     const charWidth = fontSize * CHAR_WIDTH_RATIO;
     const maxCharsPerLine = Math.floor(maxTextWidth / charWidth);
     const maxLines = Math.floor((nodeHeight - 8) / (fontSize * lineHeight));
@@ -203,7 +261,10 @@ function fitTextToNode(label: string, nodeWidth: number, nodeHeight: number): Fi
     if (current) lines.push(current);
 
     // If all lines fit, check each line width
-    if (lines.length <= maxLines && lines.every((l) => l.length <= maxCharsPerLine)) {
+    if (
+      lines.length <= maxLines &&
+      lines.every((l) => l.length <= maxCharsPerLine)
+    ) {
       return { lines, fontSize };
     }
 
@@ -230,7 +291,10 @@ function fitTextToNode(label: string, nodeWidth: number, nodeHeight: number): Fi
     }
     if (camelCurrent) camelLines.push(camelCurrent);
 
-    if (camelLines.length <= maxLines && camelLines.every((l) => l.length <= maxCharsPerLine)) {
+    if (
+      camelLines.length <= maxLines &&
+      camelLines.every((l) => l.length <= maxCharsPerLine)
+    ) {
       return { lines: camelLines, fontSize };
     }
 
@@ -257,7 +321,8 @@ function fitTextToNode(label: string, nodeWidth: number, nodeHeight: number): Fi
   // Last resort: smallest font, truncate with ellipsis
   const charWidth = MIN_NODE_FONT_SIZE * CHAR_WIDTH_RATIO;
   const maxChars = Math.floor((nodeWidth - NODE_TEXT_PADDING * 2) / charWidth);
-  const truncated = label.length > maxChars ? label.slice(0, maxChars - 1) + '\u2026' : label;
+  const truncated =
+    label.length > maxChars ? label.slice(0, maxChars - 1) + '\u2026' : label;
   return { lines: [truncated], fontSize: MIN_NODE_FONT_SIZE };
 }
 
@@ -268,21 +333,43 @@ function fitTextToNode(label: string, nodeWidth: number, nodeHeight: number): Fi
 type D3G = d3Selection.Selection<SVGGElement, unknown, null, undefined>;
 
 /** Default rectangle */
-function renderShapeRect(g: D3G, w: number, h: number, f: string, s: string): void {
+function renderShapeRect(
+  g: D3G,
+  w: number,
+  h: number,
+  f: string,
+  s: string
+): void {
   g.append('rect')
-    .attr('x', -w / 2).attr('y', -h / 2)
-    .attr('width', w).attr('height', h)
-    .attr('rx', NODE_RX).attr('ry', NODE_RX)
-    .attr('fill', f).attr('stroke', s).attr('stroke-width', NODE_STROKE_WIDTH);
+    .attr('x', -w / 2)
+    .attr('y', -h / 2)
+    .attr('width', w)
+    .attr('height', h)
+    .attr('rx', NODE_RX)
+    .attr('ry', NODE_RX)
+    .attr('fill', f)
+    .attr('stroke', s)
+    .attr('stroke-width', NODE_STROKE_WIDTH);
 }
 
 /** Service — more rounded rectangle */
-function renderShapeService(g: D3G, w: number, h: number, f: string, s: string): void {
+function renderShapeService(
+  g: D3G,
+  w: number,
+  h: number,
+  f: string,
+  s: string
+): void {
   g.append('rect')
-    .attr('x', -w / 2).attr('y', -h / 2)
-    .attr('width', w).attr('height', h)
-    .attr('rx', SERVICE_RX).attr('ry', SERVICE_RX)
-    .attr('fill', f).attr('stroke', s).attr('stroke-width', NODE_STROKE_WIDTH);
+    .attr('x', -w / 2)
+    .attr('y', -h / 2)
+    .attr('width', w)
+    .attr('height', h)
+    .attr('rx', SERVICE_RX)
+    .attr('ry', SERVICE_RX)
+    .attr('fill', f)
+    .attr('stroke', s)
+    .attr('stroke-width', NODE_STROKE_WIDTH);
 }
 
 /** Actor — stick figure (no fill box) */
@@ -300,102 +387,216 @@ function renderShapeActor(g: D3G, w: number, h: number, s: string): void {
   const sw = 2.5;
 
   g.append('circle')
-    .attr('cx', 0).attr('cy', headY).attr('r', headR)
-    .attr('fill', 'none').attr('stroke', s).attr('stroke-width', sw);
+    .attr('cx', 0)
+    .attr('cy', headY)
+    .attr('r', headR)
+    .attr('fill', 'none')
+    .attr('stroke', s)
+    .attr('stroke-width', sw);
   g.append('line')
-    .attr('x1', 0).attr('y1', bodyTopY).attr('x2', 0).attr('y2', bodyBottomY)
-    .attr('stroke', s).attr('stroke-width', sw);
+    .attr('x1', 0)
+    .attr('y1', bodyTopY)
+    .attr('x2', 0)
+    .attr('y2', bodyBottomY)
+    .attr('stroke', s)
+    .attr('stroke-width', sw);
   g.append('line')
-    .attr('x1', -armSpan).attr('y1', bodyTopY + 4).attr('x2', armSpan).attr('y2', bodyTopY + 4)
-    .attr('stroke', s).attr('stroke-width', sw);
+    .attr('x1', -armSpan)
+    .attr('y1', bodyTopY + 4)
+    .attr('x2', armSpan)
+    .attr('y2', bodyTopY + 4)
+    .attr('stroke', s)
+    .attr('stroke-width', sw);
   g.append('line')
-    .attr('x1', 0).attr('y1', bodyBottomY).attr('x2', -legSpan).attr('y2', legY)
-    .attr('stroke', s).attr('stroke-width', sw);
+    .attr('x1', 0)
+    .attr('y1', bodyBottomY)
+    .attr('x2', -legSpan)
+    .attr('y2', legY)
+    .attr('stroke', s)
+    .attr('stroke-width', sw);
   g.append('line')
-    .attr('x1', 0).attr('y1', bodyBottomY).attr('x2', legSpan).attr('y2', legY)
-    .attr('stroke', s).attr('stroke-width', sw);
+    .attr('x1', 0)
+    .attr('y1', bodyBottomY)
+    .attr('x2', legSpan)
+    .attr('y2', legY)
+    .attr('stroke', s)
+    .attr('stroke-width', sw);
 }
 
 /** Database — vertical cylinder */
-function renderShapeDatabase(g: D3G, w: number, h: number, f: string, s: string): void {
+function renderShapeDatabase(
+  g: D3G,
+  w: number,
+  h: number,
+  f: string,
+  s: string
+): void {
   const ry = 7;
   const topY = -h / 2 + ry;
   const bodyH = h - ry * 2;
 
   // Bottom ellipse
   g.append('ellipse')
-    .attr('cx', 0).attr('cy', topY + bodyH).attr('rx', w / 2).attr('ry', ry)
-    .attr('fill', f).attr('stroke', s).attr('stroke-width', NODE_STROKE_WIDTH);
+    .attr('cx', 0)
+    .attr('cy', topY + bodyH)
+    .attr('rx', w / 2)
+    .attr('ry', ry)
+    .attr('fill', f)
+    .attr('stroke', s)
+    .attr('stroke-width', NODE_STROKE_WIDTH);
   // Body (covers bottom ellipse top arc)
   g.append('rect')
-    .attr('x', -w / 2).attr('y', topY).attr('width', w).attr('height', bodyH)
-    .attr('fill', f).attr('stroke', 'none');
+    .attr('x', -w / 2)
+    .attr('y', topY)
+    .attr('width', w)
+    .attr('height', bodyH)
+    .attr('fill', f)
+    .attr('stroke', 'none');
   // Side lines
   g.append('line')
-    .attr('x1', -w / 2).attr('y1', topY).attr('x2', -w / 2).attr('y2', topY + bodyH)
-    .attr('stroke', s).attr('stroke-width', NODE_STROKE_WIDTH);
+    .attr('x1', -w / 2)
+    .attr('y1', topY)
+    .attr('x2', -w / 2)
+    .attr('y2', topY + bodyH)
+    .attr('stroke', s)
+    .attr('stroke-width', NODE_STROKE_WIDTH);
   g.append('line')
-    .attr('x1', w / 2).attr('y1', topY).attr('x2', w / 2).attr('y2', topY + bodyH)
-    .attr('stroke', s).attr('stroke-width', NODE_STROKE_WIDTH);
+    .attr('x1', w / 2)
+    .attr('y1', topY)
+    .attr('x2', w / 2)
+    .attr('y2', topY + bodyH)
+    .attr('stroke', s)
+    .attr('stroke-width', NODE_STROKE_WIDTH);
   // Top ellipse cap
   g.append('ellipse')
-    .attr('cx', 0).attr('cy', topY).attr('rx', w / 2).attr('ry', ry)
-    .attr('fill', f).attr('stroke', s).attr('stroke-width', NODE_STROKE_WIDTH);
+    .attr('cx', 0)
+    .attr('cy', topY)
+    .attr('rx', w / 2)
+    .attr('ry', ry)
+    .attr('fill', f)
+    .attr('stroke', s)
+    .attr('stroke-width', NODE_STROKE_WIDTH);
 }
 
 /** Queue — horizontal cylinder (pipe) */
-function renderShapeQueue(g: D3G, w: number, h: number, f: string, s: string): void {
+function renderShapeQueue(
+  g: D3G,
+  w: number,
+  h: number,
+  f: string,
+  s: string
+): void {
   const rx = 10;
   const leftX = -w / 2 + rx;
   const bodyW = w - rx * 2;
 
   // Right ellipse (back)
   g.append('ellipse')
-    .attr('cx', leftX + bodyW).attr('cy', 0).attr('rx', rx).attr('ry', h / 2)
-    .attr('fill', f).attr('stroke', s).attr('stroke-width', NODE_STROKE_WIDTH);
+    .attr('cx', leftX + bodyW)
+    .attr('cy', 0)
+    .attr('rx', rx)
+    .attr('ry', h / 2)
+    .attr('fill', f)
+    .attr('stroke', s)
+    .attr('stroke-width', NODE_STROKE_WIDTH);
   // Body
   g.append('rect')
-    .attr('x', leftX).attr('y', -h / 2).attr('width', bodyW).attr('height', h)
-    .attr('fill', f).attr('stroke', 'none');
+    .attr('x', leftX)
+    .attr('y', -h / 2)
+    .attr('width', bodyW)
+    .attr('height', h)
+    .attr('fill', f)
+    .attr('stroke', 'none');
   // Top and bottom lines
   g.append('line')
-    .attr('x1', leftX).attr('y1', -h / 2).attr('x2', leftX + bodyW).attr('y2', -h / 2)
-    .attr('stroke', s).attr('stroke-width', NODE_STROKE_WIDTH);
+    .attr('x1', leftX)
+    .attr('y1', -h / 2)
+    .attr('x2', leftX + bodyW)
+    .attr('y2', -h / 2)
+    .attr('stroke', s)
+    .attr('stroke-width', NODE_STROKE_WIDTH);
   g.append('line')
-    .attr('x1', leftX).attr('y1', h / 2).attr('x2', leftX + bodyW).attr('y2', h / 2)
-    .attr('stroke', s).attr('stroke-width', NODE_STROKE_WIDTH);
+    .attr('x1', leftX)
+    .attr('y1', h / 2)
+    .attr('x2', leftX + bodyW)
+    .attr('y2', h / 2)
+    .attr('stroke', s)
+    .attr('stroke-width', NODE_STROKE_WIDTH);
   // Left ellipse (front)
   g.append('ellipse')
-    .attr('cx', leftX).attr('cy', 0).attr('rx', rx).attr('ry', h / 2)
-    .attr('fill', f).attr('stroke', s).attr('stroke-width', NODE_STROKE_WIDTH);
+    .attr('cx', leftX)
+    .attr('cy', 0)
+    .attr('rx', rx)
+    .attr('ry', h / 2)
+    .attr('fill', f)
+    .attr('stroke', s)
+    .attr('stroke-width', NODE_STROKE_WIDTH);
 }
 
 /** Cache — dashed cylinder */
-function renderShapeCache(g: D3G, w: number, h: number, f: string, s: string): void {
+function renderShapeCache(
+  g: D3G,
+  w: number,
+  h: number,
+  f: string,
+  s: string
+): void {
   const ry = 7;
   const topY = -h / 2 + ry;
   const bodyH = h - ry * 2;
   const dash = '4 3';
 
   g.append('ellipse')
-    .attr('cx', 0).attr('cy', topY + bodyH).attr('rx', w / 2).attr('ry', ry)
-    .attr('fill', f).attr('stroke', s).attr('stroke-width', NODE_STROKE_WIDTH).attr('stroke-dasharray', dash);
+    .attr('cx', 0)
+    .attr('cy', topY + bodyH)
+    .attr('rx', w / 2)
+    .attr('ry', ry)
+    .attr('fill', f)
+    .attr('stroke', s)
+    .attr('stroke-width', NODE_STROKE_WIDTH)
+    .attr('stroke-dasharray', dash);
   g.append('rect')
-    .attr('x', -w / 2).attr('y', topY).attr('width', w).attr('height', bodyH)
-    .attr('fill', f).attr('stroke', 'none');
+    .attr('x', -w / 2)
+    .attr('y', topY)
+    .attr('width', w)
+    .attr('height', bodyH)
+    .attr('fill', f)
+    .attr('stroke', 'none');
   g.append('line')
-    .attr('x1', -w / 2).attr('y1', topY).attr('x2', -w / 2).attr('y2', topY + bodyH)
-    .attr('stroke', s).attr('stroke-width', NODE_STROKE_WIDTH).attr('stroke-dasharray', dash);
+    .attr('x1', -w / 2)
+    .attr('y1', topY)
+    .attr('x2', -w / 2)
+    .attr('y2', topY + bodyH)
+    .attr('stroke', s)
+    .attr('stroke-width', NODE_STROKE_WIDTH)
+    .attr('stroke-dasharray', dash);
   g.append('line')
-    .attr('x1', w / 2).attr('y1', topY).attr('x2', w / 2).attr('y2', topY + bodyH)
-    .attr('stroke', s).attr('stroke-width', NODE_STROKE_WIDTH).attr('stroke-dasharray', dash);
+    .attr('x1', w / 2)
+    .attr('y1', topY)
+    .attr('x2', w / 2)
+    .attr('y2', topY + bodyH)
+    .attr('stroke', s)
+    .attr('stroke-width', NODE_STROKE_WIDTH)
+    .attr('stroke-dasharray', dash);
   g.append('ellipse')
-    .attr('cx', 0).attr('cy', topY).attr('rx', w / 2).attr('ry', ry)
-    .attr('fill', f).attr('stroke', s).attr('stroke-width', NODE_STROKE_WIDTH).attr('stroke-dasharray', dash);
+    .attr('cx', 0)
+    .attr('cy', topY)
+    .attr('rx', w / 2)
+    .attr('ry', ry)
+    .attr('fill', f)
+    .attr('stroke', s)
+    .attr('stroke-width', NODE_STROKE_WIDTH)
+    .attr('stroke-dasharray', dash);
 }
 
 /** Networking — hexagon */
-function renderShapeNetworking(g: D3G, w: number, h: number, f: string, s: string): void {
+function renderShapeNetworking(
+  g: D3G,
+  w: number,
+  h: number,
+  f: string,
+  s: string
+): void {
   const inset = 16;
   const points = [
     `${-w / 2 + inset},${-h / 2}`,
@@ -407,34 +608,67 @@ function renderShapeNetworking(g: D3G, w: number, h: number, f: string, s: strin
   ].join(' ');
   g.append('polygon')
     .attr('points', points)
-    .attr('fill', f).attr('stroke', s).attr('stroke-width', NODE_STROKE_WIDTH);
+    .attr('fill', f)
+    .attr('stroke', s)
+    .attr('stroke-width', NODE_STROKE_WIDTH);
 }
 
 /** Frontend — monitor with stand */
-function renderShapeFrontend(g: D3G, w: number, h: number, f: string, s: string): void {
+function renderShapeFrontend(
+  g: D3G,
+  w: number,
+  h: number,
+  f: string,
+  s: string
+): void {
   const screenH = h - 10;
   // Screen
   g.append('rect')
-    .attr('x', -w / 2).attr('y', -h / 2).attr('width', w).attr('height', screenH)
-    .attr('rx', 3).attr('ry', 3)
-    .attr('fill', f).attr('stroke', s).attr('stroke-width', NODE_STROKE_WIDTH);
+    .attr('x', -w / 2)
+    .attr('y', -h / 2)
+    .attr('width', w)
+    .attr('height', screenH)
+    .attr('rx', 3)
+    .attr('ry', 3)
+    .attr('fill', f)
+    .attr('stroke', s)
+    .attr('stroke-width', NODE_STROKE_WIDTH);
   // Stand
   g.append('line')
-    .attr('x1', 0).attr('y1', -h / 2 + screenH).attr('x2', 0).attr('y2', h / 2 - 2)
-    .attr('stroke', s).attr('stroke-width', NODE_STROKE_WIDTH);
+    .attr('x1', 0)
+    .attr('y1', -h / 2 + screenH)
+    .attr('x2', 0)
+    .attr('y2', h / 2 - 2)
+    .attr('stroke', s)
+    .attr('stroke-width', NODE_STROKE_WIDTH);
   // Base
   g.append('line')
-    .attr('x1', -14).attr('y1', h / 2 - 2).attr('x2', 14).attr('y2', h / 2 - 2)
-    .attr('stroke', s).attr('stroke-width', NODE_STROKE_WIDTH);
+    .attr('x1', -14)
+    .attr('y1', h / 2 - 2)
+    .attr('x2', 14)
+    .attr('y2', h / 2 - 2)
+    .attr('stroke', s)
+    .attr('stroke-width', NODE_STROKE_WIDTH);
 }
 
 /** External — dashed rectangle */
-function renderShapeExternal(g: D3G, w: number, h: number, f: string, s: string): void {
+function renderShapeExternal(
+  g: D3G,
+  w: number,
+  h: number,
+  f: string,
+  s: string
+): void {
   g.append('rect')
-    .attr('x', -w / 2).attr('y', -h / 2)
-    .attr('width', w).attr('height', h)
-    .attr('rx', NODE_RX).attr('ry', NODE_RX)
-    .attr('fill', f).attr('stroke', s).attr('stroke-width', NODE_STROKE_WIDTH)
+    .attr('x', -w / 2)
+    .attr('y', -h / 2)
+    .attr('width', w)
+    .attr('height', h)
+    .attr('rx', NODE_RX)
+    .attr('ry', NODE_RX)
+    .attr('fill', f)
+    .attr('stroke', s)
+    .attr('stroke-width', NODE_STROKE_WIDTH)
     .attr('stroke-dasharray', '6 3');
 }
 
@@ -448,15 +682,33 @@ function renderNodeShape(
   strokeColor: string
 ): void {
   switch (shape) {
-    case 'actor':      renderShapeActor(g, w, h, strokeColor); break;
-    case 'database':   renderShapeDatabase(g, w, h, fillColor, strokeColor); break;
-    case 'queue':      renderShapeQueue(g, w, h, fillColor, strokeColor); break;
-    case 'cache':      renderShapeCache(g, w, h, fillColor, strokeColor); break;
-    case 'networking': renderShapeNetworking(g, w, h, fillColor, strokeColor); break;
-    case 'frontend':   renderShapeFrontend(g, w, h, fillColor, strokeColor); break;
-    case 'external':   renderShapeExternal(g, w, h, fillColor, strokeColor); break;
-    case 'service':    renderShapeService(g, w, h, fillColor, strokeColor); break;
-    default:           renderShapeRect(g, w, h, fillColor, strokeColor); break;
+    case 'actor':
+      renderShapeActor(g, w, h, strokeColor);
+      break;
+    case 'database':
+      renderShapeDatabase(g, w, h, fillColor, strokeColor);
+      break;
+    case 'queue':
+      renderShapeQueue(g, w, h, fillColor, strokeColor);
+      break;
+    case 'cache':
+      renderShapeCache(g, w, h, fillColor, strokeColor);
+      break;
+    case 'networking':
+      renderShapeNetworking(g, w, h, fillColor, strokeColor);
+      break;
+    case 'frontend':
+      renderShapeFrontend(g, w, h, fillColor, strokeColor);
+      break;
+    case 'external':
+      renderShapeExternal(g, w, h, fillColor, strokeColor);
+      break;
+    case 'service':
+      renderShapeService(g, w, h, fillColor, strokeColor);
+      break;
+    default:
+      renderShapeRect(g, w, h, fillColor, strokeColor);
+      break;
   }
 }
 
@@ -505,7 +757,8 @@ export function renderInitiativeStatus(
 
   const titleHeight = parsed.title ? 40 : 0;
   const LEGEND_FIXED_GAP = 8;
-  const legendReserve = (hasLegend || hasTagGroups) ? LEGEND_HEIGHT + LEGEND_FIXED_GAP : 0;
+  const legendReserve =
+    hasLegend || hasTagGroups ? LEGEND_HEIGHT + LEGEND_FIXED_GAP : 0;
 
   // Scale to fit
   const diagramW = layout.width;
@@ -563,7 +816,10 @@ export function renderInitiativeStatus(
       .attr('fill', palette.text)
       .attr('font-size', TITLE_FONT_SIZE)
       .attr('font-weight', TITLE_FONT_WEIGHT)
-      .style('cursor', onClickItem && parsed.titleLineNumber ? 'pointer' : 'default')
+      .style(
+        'cursor',
+        onClickItem && parsed.titleLineNumber ? 'pointer' : 'default'
+      )
       .text(parsed.title);
 
     if (parsed.titleLineNumber) {
@@ -571,8 +827,12 @@ export function renderInitiativeStatus(
       if (onClickItem) {
         titleEl
           .on('click', () => onClickItem(parsed.titleLineNumber!))
-          .on('mouseenter', function () { d3Selection.select(this).attr('opacity', 0.7); })
-          .on('mouseleave', function () { d3Selection.select(this).attr('opacity', 1); });
+          .on('mouseenter', function () {
+            d3Selection.select(this).attr('opacity', 0.7);
+          })
+          .on('mouseleave', function () {
+            d3Selection.select(this).attr('opacity', 1);
+          });
       }
     }
   }
@@ -601,7 +861,9 @@ export function renderInitiativeStatus(
         color: statusColor(e.statusKey, palette, isDark),
         value: e.statusKey ?? 'na',
       }));
-      const pillW = measureLegendText(LEGEND_GROUP_NAME, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
+      const pillW =
+        measureLegendText(LEGEND_GROUP_NAME, LEGEND_PILL_FONT_SIZE) +
+        LEGEND_PILL_PAD;
       const entrW = legendEntriesWidth(legendEntries);
       legendGroups.push({
         name: LEGEND_GROUP_NAME,
@@ -619,10 +881,15 @@ export function renderInitiativeStatus(
         color: e.color || palette.textMuted,
         value: e.value.toLowerCase(),
       }));
-      const pillW = measureLegendText(tg.name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
+      const pillW =
+        measureLegendText(tg.name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
       let entrW = 0;
       for (const e of entries) {
-        entrW += LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP + measureLegendText(e.label, LEGEND_ENTRY_FONT_SIZE) + LEGEND_ENTRY_TRAIL;
+        entrW +=
+          LEGEND_DOT_R * 2 +
+          LEGEND_ENTRY_DOT_GAP +
+          measureLegendText(e.label, LEGEND_ENTRY_FONT_SIZE) +
+          LEGEND_ENTRY_TRAIL;
       }
       legendGroups.push({
         name: tg.name,
@@ -639,15 +906,17 @@ export function renderInitiativeStatus(
 
     // When a tag group is active, only show that group (mutual exclusion).
     // When no tag group is active, show all pills (Status expanded + tag pills minified).
-    const visibleLegendGroups = activeKey !== null
-      ? legendGroups.filter((lg) => !lg.isStatus && lg.key === activeKey)
-      : legendGroups;
+    const visibleLegendGroups =
+      activeKey !== null
+        ? legendGroups.filter((lg) => !lg.isStatus && lg.key === activeKey)
+        : legendGroups;
 
     // Compute total legend width
     let totalLegendW = 0;
     for (const lg of visibleLegendGroups) {
-      const isActive = lg.isStatus ? isStatusExpanded : (activeKey === lg.key);
-      const pillW = measureLegendText(lg.name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
+      const isActive = lg.isStatus ? isStatusExpanded : activeKey === lg.key;
+      const pillW =
+        measureLegendText(lg.name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
       totalLegendW += isActive ? lg.width : pillW;
       totalLegendW += LEGEND_GROUP_GAP;
     }
@@ -664,9 +933,10 @@ export function renderInitiativeStatus(
     let cursorX = 0;
 
     for (const lg of visibleLegendGroups) {
-      const isActive = lg.isStatus ? isStatusExpanded : (activeKey === lg.key);
-      const pillW = measureLegendText(lg.name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
-      const pillH = LEGEND_HEIGHT - (isActive ? LEGEND_CAPSULE_PAD * 2 : 0);
+      const isActive = lg.isStatus ? isStatusExpanded : activeKey === lg.key;
+      const pillW =
+        measureLegendText(lg.name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
+      const pillH = LEGEND_HEIGHT - LEGEND_CAPSULE_PAD * 2;
       const groupW = isActive ? lg.width : pillW;
 
       const gEl = legendRow
@@ -683,7 +953,8 @@ export function renderInitiativeStatus(
 
       if (isActive) {
         // Outer capsule background
-        gEl.append('rect')
+        gEl
+          .append('rect')
           .attr('width', groupW)
           .attr('height', LEGEND_HEIGHT)
           .attr('rx', LEGEND_HEIGHT / 2)
@@ -691,10 +962,11 @@ export function renderInitiativeStatus(
       }
 
       const pillXOff = isActive ? LEGEND_CAPSULE_PAD : 0;
-      const pillYOff = isActive ? LEGEND_CAPSULE_PAD : 0;
+      const pillYOff = LEGEND_CAPSULE_PAD;
 
       // Pill background
-      gEl.append('rect')
+      gEl
+        .append('rect')
         .attr('x', pillXOff)
         .attr('y', pillYOff)
         .attr('width', pillW)
@@ -704,7 +976,8 @@ export function renderInitiativeStatus(
 
       // Active pill border
       if (isActive) {
-        gEl.append('rect')
+        gEl
+          .append('rect')
           .attr('x', pillXOff)
           .attr('y', pillYOff)
           .attr('width', pillW)
@@ -716,7 +989,8 @@ export function renderInitiativeStatus(
       }
 
       // Pill text
-      gEl.append('text')
+      gEl
+        .append('text')
         .attr('x', pillXOff + pillW / 2)
         .attr('y', LEGEND_HEIGHT / 2 + LEGEND_PILL_FONT_SIZE / 2 - 2)
         .attr('font-size', LEGEND_PILL_FONT_SIZE)
@@ -729,26 +1003,41 @@ export function renderInitiativeStatus(
       // Entries inside capsule (active only)
       if (isActive) {
         // Determine which values are hidden for this group
-        const hiddenSet = !lg.isStatus ? hiddenTagValues?.get(lg.key) : undefined;
+        const hiddenSet = !lg.isStatus
+          ? hiddenTagValues?.get(lg.key)
+          : undefined;
 
         // Render each entry in its own <g> with local coordinates,
         // positioned via transform so we can reflow after measuring.
         const entryStartX = pillXOff + pillW + 4;
-        const entryData: { g: d3Selection.Selection<SVGGElement, unknown, null, undefined>; textEl: SVGTextElement; estimatedW: number }[] = [];
+        const entryData: {
+          g: d3Selection.Selection<SVGGElement, unknown, null, undefined>;
+          textEl: SVGTextElement;
+          estimatedW: number;
+        }[] = [];
         let estimatedX = entryStartX;
 
         for (const entry of lg.entries) {
           const isHidden = hiddenSet?.has(entry.value) ?? false;
-          const estimatedTextW = measureLegendText(entry.label, LEGEND_ENTRY_FONT_SIZE);
+          const estimatedTextW = measureLegendText(
+            entry.label,
+            LEGEND_ENTRY_FONT_SIZE
+          );
 
-          const entryG = gEl.append('g')
+          const entryG = gEl
+            .append('g')
             .attr('data-legend-entry', entry.value)
             .attr('transform', `translate(${estimatedX}, 0)`)
             .style('cursor', 'pointer');
 
           // Transparent hit-area rect
-          const entryW = LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP + estimatedTextW + LEGEND_ENTRY_TRAIL;
-          entryG.append('rect')
+          const entryW =
+            LEGEND_DOT_R * 2 +
+            LEGEND_ENTRY_DOT_GAP +
+            estimatedTextW +
+            LEGEND_ENTRY_TRAIL;
+          entryG
+            .append('rect')
             .attr('x', -2)
             .attr('y', 0)
             .attr('width', entryW + 4)
@@ -756,7 +1045,8 @@ export function renderInitiativeStatus(
             .attr('fill', 'transparent');
 
           if (isHidden) {
-            entryG.append('circle')
+            entryG
+              .append('circle')
               .attr('cx', LEGEND_DOT_R)
               .attr('cy', LEGEND_HEIGHT / 2)
               .attr('r', LEGEND_DOT_R)
@@ -765,14 +1055,16 @@ export function renderInitiativeStatus(
               .attr('stroke-width', 1.2)
               .attr('opacity', 0.5);
           } else {
-            entryG.append('circle')
+            entryG
+              .append('circle')
               .attr('cx', LEGEND_DOT_R)
               .attr('cy', LEGEND_HEIGHT / 2)
               .attr('r', LEGEND_DOT_R)
               .attr('fill', entry.color);
           }
 
-          const textEl = entryG.append('text')
+          const textEl = entryG
+            .append('text')
             .attr('x', LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP)
             .attr('y', LEGEND_HEIGHT / 2 + LEGEND_ENTRY_FONT_SIZE / 2 - 1)
             .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
@@ -782,8 +1074,16 @@ export function renderInitiativeStatus(
             .attr('text-decoration', isHidden ? 'line-through' : 'none')
             .text(entry.label);
 
-          entryData.push({ g: entryG, textEl: textEl.node()!, estimatedW: estimatedTextW });
-          estimatedX += LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP + estimatedTextW + LEGEND_ENTRY_TRAIL;
+          entryData.push({
+            g: entryG,
+            textEl: textEl.node()!,
+            estimatedW: estimatedTextW,
+          });
+          estimatedX +=
+            LEGEND_DOT_R * 2 +
+            LEGEND_ENTRY_DOT_GAP +
+            estimatedTextW +
+            LEGEND_ENTRY_TRAIL;
         }
 
         // Reflow using measured text widths for even spacing
@@ -793,7 +1093,11 @@ export function renderInitiativeStatus(
           const textW = measuredW > 0 ? measuredW : ed.estimatedW;
           ed.g.attr('transform', `translate(${reflowX}, 0)`);
           // Update hit-area rect width to match actual width
-          const actualEntryW = LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP + textW + LEGEND_ENTRY_TRAIL;
+          const actualEntryW =
+            LEGEND_DOT_R * 2 +
+            LEGEND_ENTRY_DOT_GAP +
+            textW +
+            LEGEND_ENTRY_TRAIL;
           ed.g.select('rect').attr('width', actualEntryW + 4);
           reflowX += actualEntryW;
         }
@@ -801,7 +1105,6 @@ export function renderInitiativeStatus(
 
       cursorX += groupW + LEGEND_GROUP_GAP;
     }
-
   }
 
   // Content group
@@ -924,23 +1227,31 @@ export function renderInitiativeStatus(
         .style('cursor', 'pointer');
 
       // Clip path for drill-bar rounded corners
-      groupG.append('clipPath').attr('id', clipId)
+      groupG
+        .append('clipPath')
+        .attr('id', clipId)
         .append('rect')
-        .attr('x', group.x).attr('y', group.y)
-        .attr('width', group.width).attr('height', group.height)
+        .attr('x', group.x)
+        .attr('y', group.y)
+        .attr('width', group.width)
+        .attr('height', group.height)
         .attr('rx', NODE_RX);
 
       // Main box
-      groupG.append('rect')
-        .attr('x', group.x).attr('y', group.y)
-        .attr('width', group.width).attr('height', group.height)
+      groupG
+        .append('rect')
+        .attr('x', group.x)
+        .attr('y', group.y)
+        .attr('width', group.width)
+        .attr('height', group.height)
         .attr('rx', NODE_RX)
         .attr('fill', fillCol)
         .attr('stroke', strokeCol)
         .attr('stroke-width', NODE_STROKE_WIDTH);
 
       // Drill-bar (6px bottom stripe, clipped to rounded corners)
-      groupG.append('rect')
+      groupG
+        .append('rect')
         .attr('x', group.x)
         .attr('y', group.y + group.height - COLLAPSE_BAR_HEIGHT)
         .attr('width', group.width)
@@ -950,7 +1261,8 @@ export function renderInitiativeStatus(
         .attr('class', 'is-collapse-bar');
 
       // Label centered (above drill-bar)
-      groupG.append('text')
+      groupG
+        .append('text')
         .attr('x', group.x + group.width / 2)
         .attr('y', group.y + group.height / 2 - COLLAPSE_BAR_HEIGHT / 2)
         .attr('text-anchor', 'middle')
@@ -960,14 +1272,14 @@ export function renderInitiativeStatus(
         .attr('font-weight', 'bold')
         .attr('font-family', FONT_FAMILY)
         .text(group.label);
-
     } else {
       // ── Expanded: neutral background (no status color bleed) ──
       if (group.width === 0 && group.height === 0) continue;
       const gx = group.x - GROUP_EXTRA_PADDING;
       const gy = group.y - GROUP_EXTRA_PADDING - GROUP_LABEL_FONT_SIZE - 4;
       const gw = group.width + GROUP_EXTRA_PADDING * 2;
-      const gh = group.height + GROUP_EXTRA_PADDING * 2 + GROUP_LABEL_FONT_SIZE + 4;
+      const gh =
+        group.height + GROUP_EXTRA_PADDING * 2 + GROUP_LABEL_FONT_SIZE + 4;
 
       const fillColor = isDark ? palette.surface : palette.bg;
       const strokeColor = palette.textMuted;
@@ -1000,7 +1312,6 @@ export function renderInitiativeStatus(
         .attr('opacity', 0.7)
         .attr('class', 'is-group-label')
         .text(group.label);
-
     }
   }
 
@@ -1024,7 +1335,10 @@ export function renderInitiativeStatus(
         .attr('d', pathD)
         .attr('fill', 'none')
         .attr('stroke', 'transparent')
-        .attr('stroke-width', Math.max(6, Math.round(16 / (edge.parallelCount ?? 1))));
+        .attr(
+          'stroke-width',
+          Math.max(6, Math.round(16 / (edge.parallelCount ?? 1)))
+        );
 
       const edgePath = edgeG
         .append('path')
@@ -1113,14 +1427,17 @@ export function renderInitiativeStatus(
 
     // Apply dashed border for 'todo' status
     if (node.status === 'todo') {
-      nodeG.selectAll('rect, ellipse, polygon, circle')
-        .each(function () {
-          const el = d3Selection.select(this);
-          // Only dash stroked elements (not fills or transparent hit areas)
-          if (el.attr('stroke') && el.attr('stroke') !== 'none' && el.attr('stroke') !== 'transparent') {
-            el.attr('stroke-dasharray', '6 3');
-          }
-        });
+      nodeG.selectAll('rect, ellipse, polygon, circle').each(function () {
+        const el = d3Selection.select(this);
+        // Only dash stroked elements (not fills or transparent hit areas)
+        if (
+          el.attr('stroke') &&
+          el.attr('stroke') !== 'none' &&
+          el.attr('stroke') !== 'transparent'
+        ) {
+          el.attr('stroke-dasharray', '6 3');
+        }
+      });
     }
 
     const textColor = contrastText(fill, '#eceff4', '#2e3440');
@@ -1180,20 +1497,17 @@ export function renderInitiativeStatusForExport(
 
   const legendEntries = collectStatuses(parsed);
   const EXPORT_LEGEND_GAP = 8;
-  const legendReserve = legendEntries.length > 1 ? LEGEND_HEIGHT + EXPORT_LEGEND_GAP : 0;
+  const legendReserve =
+    legendEntries.length > 1 ? LEGEND_HEIGHT + EXPORT_LEGEND_GAP : 0;
   const titleOffset = parsed.title ? 40 : 0;
   const exportWidth = layout.width + DIAGRAM_PADDING * 2;
-  const exportHeight = layout.height + DIAGRAM_PADDING * 2 + titleOffset + legendReserve;
+  const exportHeight =
+    layout.height + DIAGRAM_PADDING * 2 + titleOffset + legendReserve;
 
   return runInExportContainer(exportWidth, exportHeight, (container) => {
-    renderInitiativeStatus(
-      container,
-      parsed,
-      layout,
-      palette,
-      isDark,
-      { exportDims: { width: exportWidth, height: exportHeight } }
-    );
+    renderInitiativeStatus(container, parsed, layout, palette, isDark, {
+      exportDims: { width: exportWidth, height: exportHeight },
+    });
     return extractExportSvg(container, theme);
   });
 }

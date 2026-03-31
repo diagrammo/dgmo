@@ -39,7 +39,6 @@ describe('boxes-and-lines parser', () => {
       const result = parseBoxesAndLines('boxes-and-lines\nAPI');
       expect(result.nodes).toHaveLength(1);
       expect(result.nodes[0].label).toBe('API');
-      expect(result.nodes[0].shape).toBe('service');
     });
 
     it('warns on duplicate nodes', () => {
@@ -54,12 +53,10 @@ describe('boxes-and-lines parser', () => {
     it('creates nodes from edge references', () => {
       const result = parseBoxesAndLines('boxes-and-lines\nAPI -> ProductionDB');
       expect(result.nodes).toHaveLength(2);
-      expect(result.nodes.find((n) => n.label === 'API')?.shape).toBe(
-        'service'
-      );
-      expect(result.nodes.find((n) => n.label === 'ProductionDB')?.shape).toBe(
-        'database'
-      );
+      expect(result.nodes.find((n) => n.label === 'API')).toBeDefined();
+      expect(
+        result.nodes.find((n) => n.label === 'ProductionDB')
+      ).toBeDefined();
       expect(result.edges).toHaveLength(1);
     });
   });
@@ -80,35 +77,6 @@ describe('boxes-and-lines parser', () => {
       expect(result.nodes[0].description).toBe('Main API gateway');
       // description should NOT be in metadata
       expect(result.nodes[0].metadata.description).toBeUndefined();
-    });
-  });
-
-  describe('explicit type override', () => {
-    it('parses [type] override', () => {
-      const result = parseBoxesAndLines('boxes-and-lines\nMyNode [database]');
-      expect(result.nodes[0].label).toBe('MyNode');
-      expect(result.nodes[0].shapeOverride).toBe('database');
-    });
-
-    it('preserves inferred shape alongside override', () => {
-      const result = parseBoxesAndLines('boxes-and-lines\nMyNode [database]');
-      // shape is inferred, shapeOverride is explicit
-      expect(result.nodes[0].shape).toBeDefined();
-      expect(result.nodes[0].shapeOverride).toBe('database');
-    });
-
-    it('ignores invalid type', () => {
-      const result = parseBoxesAndLines('boxes-and-lines\nMyNode [foobar]');
-      expect(result.nodes[0].shapeOverride).toBeUndefined();
-    });
-
-    it('parses type override with pipe metadata', () => {
-      const result = parseBoxesAndLines(
-        'boxes-and-lines\nAPI [database] | team: Backend'
-      );
-      expect(result.nodes[0].label).toBe('API');
-      expect(result.nodes[0].shapeOverride).toBe('database');
-      expect(result.nodes[0].metadata.team).toBe('Backend');
     });
   });
 
@@ -221,23 +189,9 @@ describe('boxes-and-lines parser', () => {
   });
 
   describe('nested groups', () => {
-    it('parses 2-level nesting', () => {
+    it('warns on 2-level nesting (nesting not supported)', () => {
       const result = parseBoxesAndLines(
         'boxes-and-lines\n[AWS]\n  [us-east-1]\n    API\n    DB'
-      );
-      expect(result.groups).toHaveLength(2);
-      const inner = result.groups.find((g) => g.label === 'us-east-1');
-      const outer = result.groups.find((g) => g.label === 'AWS');
-      expect(inner?.parentGroup).toBe('AWS');
-      expect(inner?.children).toContain('API');
-      expect(inner?.children).toContain('DB');
-      // Outer group should have inner group ID as child
-      expect(outer?.children).toContain('__group_us-east-1');
-    });
-
-    it('warns on 3-level nesting', () => {
-      const result = parseBoxesAndLines(
-        'boxes-and-lines\n[A]\n  [B]\n    [C]\n      Node'
       );
       expect(
         result.diagnostics.some((d) => d.message.includes('maximum depth'))
@@ -319,16 +273,6 @@ describe('boxes-and-lines parser', () => {
     it('defaults to LR', () => {
       const result = parseBoxesAndLines('boxes-and-lines\nA -> B');
       expect(result.direction).toBe('LR');
-    });
-
-    it('parses mode shapes', () => {
-      const result = parseBoxesAndLines('boxes-and-lines\nmode shapes\nA -> B');
-      expect(result.renderMode).toBe('shapes');
-    });
-
-    it('defaults to rectangles', () => {
-      const result = parseBoxesAndLines('boxes-and-lines\nA -> B');
-      expect(result.renderMode).toBe('rectangles');
     });
 
     it('parses active-tag', () => {

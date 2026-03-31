@@ -317,7 +317,6 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     'boxes-and-lines',
     withGlobals({
       direction: { description: 'Layout direction', values: ['LR', 'TB'] },
-      mode: { description: 'Render mode', values: ['rectangles', 'shapes'] },
       'active-tag': { description: 'Active tag group name' },
       hide: { description: 'Hide tag:value pairs' },
     }),

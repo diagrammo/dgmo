@@ -62,11 +62,11 @@ const NOTE_FONT_SIZE = 10;
 const NOTE_LINE_H = 14;
 const NOTE_GAP = 15;
 const NOTE_CHAR_W = 6;
-const NOTE_CHARS_PER_LINE = Math.floor((NOTE_MAX_W - NOTE_PAD_H * 2 - NOTE_FOLD) / NOTE_CHAR_W);
+const NOTE_CHARS_PER_LINE = Math.floor(
+  (NOTE_MAX_W - NOTE_PAD_H * 2 - NOTE_FOLD) / NOTE_CHAR_W
+);
 const COLLAPSED_NOTE_H = 20;
 const COLLAPSED_NOTE_W = 40;
-
-
 
 function wrapTextLines(text: string, maxChars: number): string[] {
   const rawLines = text.split('\n');
@@ -97,7 +97,9 @@ function wrapTextLines(text: string, maxChars: number): string[] {
  * Approximate max chars based on font-size 13 (~7.5px per char average).
  */
 const LABEL_CHAR_WIDTH = 7.5;
-const LABEL_MAX_CHARS = Math.floor((PARTICIPANT_BOX_WIDTH - 10) / LABEL_CHAR_WIDTH); // ~14 chars
+const LABEL_MAX_CHARS = Math.floor(
+  (PARTICIPANT_BOX_WIDTH - 10) / LABEL_CHAR_WIDTH
+); // ~14 chars
 
 function splitParticipantLabel(label: string): string[] {
   if (label.length <= LABEL_MAX_CHARS) return [label];
@@ -114,7 +116,8 @@ function splitParticipantLabel(label: string): string[] {
   }
 
   // Split on camelCase boundaries: "UserLookupCloudFx" → ["User", "Lookup", "Cloud", "Fx"]
-  const camelParts = label.replace(/([a-z])([A-Z])/g, '$1\x00$2')
+  const camelParts = label
+    .replace(/([a-z])([A-Z])/g, '$1\x00$2')
     .replace(/([A-Z]+)([A-Z][a-z])/g, '$1\x00$2')
     .split('\x00');
   if (camelParts.length > 1) {
@@ -142,13 +145,18 @@ function wrapLabelWords(words: string[]): string[] {
 }
 
 // Shared fill/stroke helpers — accept optional color override for per-participant coloring
-const fill = (palette: PaletteColors, isDark: boolean, color?: string): string =>
+const fill = (
+  palette: PaletteColors,
+  isDark: boolean,
+  color?: string
+): string =>
   color
     ? mix(color, isDark ? palette.surface : palette.bg, isDark ? 30 : 40)
     : isDark
       ? mix(palette.overlay, palette.surface, 50)
       : mix(palette.bg, palette.surface, 50);
-const stroke = (palette: PaletteColors, color?: string): string => color || palette.border;
+const stroke = (palette: PaletteColors, color?: string): string =>
+  color || palette.border;
 const SW = 1.5;
 const W = PARTICIPANT_BOX_WIDTH;
 const H = PARTICIPANT_BOX_HEIGHT;
@@ -904,11 +912,14 @@ export function renderSequenceDiagram(
   const { title, messages, elements, groups, options: parsedOptions } = parsed;
   const collapsedSections = options?.collapsedSections;
   const expandedNoteLines = options?.expandedNoteLines;
-  const collapseNotesDisabled = parsedOptions['collapse-notes']?.toLowerCase() === 'no';
+  const collapseNotesDisabled =
+    parsedOptions['collapse-notes']?.toLowerCase() === 'no';
   // A note is expanded if: expandedNoteLines is undefined (CLI/export),
   // collapse-notes: no is set, or the note's lineNumber is in the set.
   const isNoteExpanded = (note: SequenceNote): boolean =>
-    expandedNoteLines === undefined || collapseNotesDisabled || expandedNoteLines.has(note.lineNumber);
+    expandedNoteLines === undefined ||
+    collapseNotesDisabled ||
+    expandedNoteLines.has(note.lineNumber);
   const participants = applyPositionOverrides(
     applyGroupOrdering(parsed.participants, groups, messages)
   );
@@ -928,11 +939,14 @@ export function renderSequenceDiagram(
   if (activeTagGroup) {
     tagMap = resolveSequenceTags(parsed, activeTagGroup);
     const tg = parsed.tagGroups.find(
-      (g) => g.name.toLowerCase() === activeTagGroup.toLowerCase(),
+      (g) => g.name.toLowerCase() === activeTagGroup.toLowerCase()
     );
     if (tg) {
       for (const entry of tg.entries) {
-        tagValueToColor.set(entry.value.toLowerCase(), resolveColor(entry.color) ?? entry.color);
+        tagValueToColor.set(
+          entry.value.toLowerCase(),
+          resolveColor(entry.color) ?? entry.color
+        );
       }
     }
   }
@@ -962,9 +976,7 @@ export function renderSequenceDiagram(
       : allRenderSteps;
   // Drop unlabeled returns — they add visual noise without conveying information.
   // Labeled returns (explicit <- value) are kept.
-  renderSteps = renderSteps.filter(
-    (s) => s.type === 'call' || s.label
-  );
+  renderSteps = renderSteps.filter((s) => s.type === 'call' || s.label);
   const activations = activationsOff ? [] : computeActivations(renderSteps);
   const stepSpacing = 35;
 
@@ -1034,7 +1046,7 @@ export function renderSequenceDiagram(
   };
 
   // Section layout constants
-  const SECTION_TOP_PAD = 35;   // space above section divider line (matches stepSpacing)
+  const SECTION_TOP_PAD = 35; // space above section divider line (matches stepSpacing)
   const SECTION_BOTTOM_PAD = 45; // space below section divider line before next content
 
   // Block spacing via extraBeforeMsg (sections handled separately below)
@@ -1282,11 +1294,16 @@ export function renderSequenceDiagram(
   // Compute cumulative Y positions for each step, with section dividers as stable anchors
   const titleOffset = title ? TITLE_HEIGHT : 0;
   const LEGEND_FIXED_GAP = 8;
-  const legendTopSpace = parsed.tagGroups.length > 0 ? LEGEND_HEIGHT + LEGEND_FIXED_GAP : 0;
+  const legendTopSpace =
+    parsed.tagGroups.length > 0 ? LEGEND_HEIGHT + LEGEND_FIXED_GAP : 0;
   const groupOffset =
     groups.length > 0 ? GROUP_PADDING_TOP + GROUP_LABEL_SIZE : 0;
   const participantStartY =
-    TOP_MARGIN + titleOffset + legendTopSpace + PARTICIPANT_Y_OFFSET + groupOffset;
+    TOP_MARGIN +
+    titleOffset +
+    legendTopSpace +
+    PARTICIPANT_Y_OFFSET +
+    groupOffset;
   const lifelineStartY0 = participantStartY + PARTICIPANT_BOX_HEIGHT;
   const hasActors = participants.some((p) => p.type === 'actor');
   const messageStartOffset = MESSAGE_START_OFFSET + (hasActors ? 20 : 0);
@@ -1339,7 +1356,10 @@ export function renderSequenceDiagram(
           const si = findAssociatedLastStep(el);
           if (si < 0) continue;
           // Check if there's a preceding note that we should stack below
-          const prevNote = i > 0 && isSequenceNote(els[i - 1]) ? (els[i - 1] as SequenceNote) : null;
+          const prevNote =
+            i > 0 && isSequenceNote(els[i - 1])
+              ? (els[i - 1] as SequenceNote)
+              : null;
           const prevNoteY = prevNote ? noteYMap.get(prevNote) : undefined;
           let noteTopY: number;
           if (prevNoteY !== undefined && prevNote) {
@@ -1378,8 +1398,13 @@ export function renderSequenceDiagram(
         )
       : layoutEndY;
   for (const [note, noteTopY] of noteYMap) {
-    const noteH = isNoteExpanded(note) ? computeNoteHeight(note.text) : COLLAPSED_NOTE_H;
-    contentBottomY = Math.max(contentBottomY, noteTopY + noteH + NOTE_TRAILING_GAP);
+    const noteH = isNoteExpanded(note)
+      ? computeNoteHeight(note.text)
+      : COLLAPSED_NOTE_H;
+    contentBottomY = Math.max(
+      contentBottomY,
+      noteTopY + noteH + NOTE_TRAILING_GAP
+    );
   }
   const messageAreaHeight = contentBottomY - lifelineStartY0;
   const lifelineLength = messageAreaHeight + LIFELINE_TAIL;
@@ -1394,7 +1419,8 @@ export function renderSequenceDiagram(
     40;
   const totalHeight = contentHeight;
 
-  const containerWidth = options?.exportWidth ?? container.getBoundingClientRect().width;
+  const containerWidth =
+    options?.exportWidth ?? container.getBoundingClientRect().width;
   const svgWidth = Math.max(totalWidth, containerWidth);
 
   // Center the diagram horizontally
@@ -1528,7 +1554,7 @@ export function renderSequenceDiagram(
   // Helper: resolve marker ref for tag-colored arrows
   const coloredMarker = (
     type: 'call' | 'async' | 'return',
-    tagColor?: string,
+    tagColor?: string
   ): string => {
     if (tagColor) {
       const hex = tagColor.replace('#', '');
@@ -1578,7 +1604,7 @@ export function renderSequenceDiagram(
 
     // Pre-compute pill/capsule widths for centering
     const legendItems: Array<{
-      group: typeof parsed.tagGroups[0];
+      group: (typeof parsed.tagGroups)[0];
       isActive: boolean;
       pillWidth: number;
       totalWidth: number;
@@ -1589,7 +1615,8 @@ export function renderSequenceDiagram(
       const isActive =
         !!activeTagGroup &&
         tg.name.toLowerCase() === activeTagGroup.toLowerCase();
-      const pillWidth = measureLegendText(tg.name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
+      const pillWidth =
+        measureLegendText(tg.name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
       const entries = tg.entries.map((e) => ({
         value: e.value,
         color: resolveColor(e.color) ?? e.color,
@@ -1639,8 +1666,8 @@ export function renderSequenceDiagram(
       }
 
       const pillXOff = item.isActive ? LEGEND_CAPSULE_PAD : 0;
-      const pillYOff = item.isActive ? LEGEND_CAPSULE_PAD : 0;
-      const pillH = LEGEND_HEIGHT - (item.isActive ? LEGEND_CAPSULE_PAD * 2 : 0);
+      const pillYOff = LEGEND_CAPSULE_PAD;
+      const pillH = LEGEND_HEIGHT - LEGEND_CAPSULE_PAD * 2;
 
       // Pill background
       gEl
@@ -1702,7 +1729,10 @@ export function renderSequenceDiagram(
             .attr('fill', palette.textMuted)
             .text(entry.value);
 
-          entryX = textX + measureLegendText(entry.value, LEGEND_ENTRY_FONT_SIZE) + LEGEND_ENTRY_TRAIL;
+          entryX =
+            textX +
+            measureLegendText(entry.value, LEGEND_ENTRY_FONT_SIZE) +
+            LEGEND_ENTRY_TRAIL;
         }
       }
 
@@ -1732,7 +1762,11 @@ export function renderSequenceDiagram(
     const groupTagValue = tagKey && group.metadata?.[tagKey];
     const groupTagColor = getTagColor(groupTagValue || undefined);
     const fillColor = groupTagColor
-      ? mix(groupTagColor, isDark ? palette.surface : palette.bg, isDark ? 15 : 20)
+      ? mix(
+          groupTagColor,
+          isDark ? palette.surface : palette.bg,
+          isDark ? 15 : 20
+        )
       : isDark
         ? palette.surface
         : palette.bg;
@@ -1778,7 +1812,16 @@ export function renderSequenceDiagram(
       tagKey && pTagValue
         ? { key: tagKey, value: pTagValue.toLowerCase() }
         : undefined;
-    renderParticipant(svg, participant, cx, cy, palette, isDark, pTagColor, pTagAttr);
+    renderParticipant(
+      svg,
+      participant,
+      cx,
+      cy,
+      palette,
+      isDark,
+      pTagColor,
+      pTagAttr
+    );
 
     // Render lifeline
     const lifelineEl = svg
@@ -2031,7 +2074,11 @@ export function renderSequenceDiagram(
       .attr('height', y2 - y1)
       .attr('fill', isDark ? palette.surface : palette.bg);
 
-    const actFill = mix(actBaseColor, isDark ? palette.surface : palette.bg, isDark ? 15 : 30);
+    const actFill = mix(
+      actBaseColor,
+      isDark ? palette.surface : palette.bg,
+      isDark ? 15 : 30
+    );
     const actRect = svg
       .append('rect')
       .attr('x', x)
@@ -2143,8 +2190,12 @@ export function renderSequenceDiagram(
     const bandX = sectionLineX1 - 10;
     const bandWidth = sectionLineX2 - sectionLineX1 + 20;
     const bandOpacity = isCollapsed
-      ? (isDark ? 0.35 : 0.25)
-      : (isDark ? 0.1 : 0.08);
+      ? isDark
+        ? 0.35
+        : 0.25
+      : isDark
+        ? 0.1
+        : 0.08;
     sectionG
       .append('rect')
       .attr('x', bandX)
@@ -2230,14 +2281,18 @@ export function renderSequenceDiagram(
         const x = arrowEdgeX(step.from, i, 'right');
 
         // Hit area for self-call
-        svg.append('rect')
+        svg
+          .append('rect')
           .attr('x', x)
           .attr('y', y - 5)
           .attr('width', SELF_CALL_WIDTH)
           .attr('height', SELF_CALL_HEIGHT + 10)
           .attr('fill', 'transparent')
           .attr('class', 'message-hit-area')
-          .attr('data-line-number', String(messages[step.messageIndex].lineNumber))
+          .attr(
+            'data-line-number',
+            String(messages[step.messageIndex].lineNumber)
+          )
           .attr('data-msg-index', String(step.messageIndex))
           .attr('data-step-index', String(i));
 
@@ -2291,14 +2346,18 @@ export function renderSequenceDiagram(
         const x2 = arrowEdgeX(step.to, i, goingRight ? 'left' : 'right');
 
         // Hit area for call arrow
-        svg.append('rect')
+        svg
+          .append('rect')
           .attr('x', Math.min(x1, x2))
           .attr('y', y - HIT_H / 2)
           .attr('width', Math.abs(x2 - x1))
           .attr('height', HIT_H)
           .attr('fill', 'transparent')
           .attr('class', 'message-hit-area')
-          .attr('data-line-number', String(messages[step.messageIndex].lineNumber))
+          .attr(
+            'data-line-number',
+            String(messages[step.messageIndex].lineNumber)
+          )
           .attr('data-msg-index', String(step.messageIndex))
           .attr('data-step-index', String(i));
 
@@ -2361,14 +2420,18 @@ export function renderSequenceDiagram(
       const returnColor = msgTagColor || palette.textMuted;
 
       // Hit area for return arrow
-      svg.append('rect')
+      svg
+        .append('rect')
         .attr('x', Math.min(x1, x2))
         .attr('y', y - HIT_H / 2)
         .attr('width', Math.abs(x2 - x1))
         .attr('height', HIT_H)
         .attr('fill', 'transparent')
         .attr('class', 'message-hit-area')
-        .attr('data-line-number', String(messages[step.messageIndex].lineNumber))
+        .attr(
+          'data-line-number',
+          String(messages[step.messageIndex].lineNumber)
+        )
         .attr('data-msg-index', String(step.messageIndex))
         .attr('data-step-index', String(i));
 
@@ -2494,8 +2557,7 @@ export function renderSequenceDiagram(
 
           // Render text with inline markdown
           wrappedLines.forEach((line, li) => {
-            const textY =
-              noteTopY + NOTE_PAD_V + (li + 1) * NOTE_LINE_H - 3;
+            const textY = noteTopY + NOTE_PAD_V + (li + 1) * NOTE_LINE_H - 3;
             const isBullet = line.startsWith('- ');
             const bulletIndent = isBullet ? 10 : 0;
             const displayLine = isBullet ? line.slice(2) : line;
@@ -2602,7 +2664,9 @@ export function renderSequenceDiagram(
  * associated message (the last message before the note in document order).
  * Used by the app to expand notes when cursor is on the associated message.
  */
-export function buildNoteMessageMap(elements: SequenceElement[]): Map<number, number> {
+export function buildNoteMessageMap(
+  elements: SequenceElement[]
+): Map<number, number> {
   const map = new Map<number, number>();
   let lastMessageLine = -1;
 
@@ -2639,7 +2703,7 @@ function renderParticipant(
   palette: PaletteColors,
   isDark: boolean,
   color?: string,
-  tagAttr?: { key: string; value: string },
+  tagAttr?: { key: string; value: string }
 ): void {
   const g = svg
     .append('g')
@@ -2691,7 +2755,8 @@ function renderParticipant(
   const labelLines = splitParticipantLabel(participant.label);
   const fontSize = 13;
   const lineHeight = fontSize + 2;
-  const textEl = g.append('text')
+  const textEl = g
+    .append('text')
     .attr('x', 0)
     .attr('text-anchor', 'middle')
     .attr('fill', palette.text)
@@ -2700,7 +2765,10 @@ function renderParticipant(
 
   if (labelLines.length === 1) {
     textEl
-      .attr('y', isActor ? PARTICIPANT_BOX_HEIGHT + 14 : PARTICIPANT_BOX_HEIGHT / 2 + 5)
+      .attr(
+        'y',
+        isActor ? PARTICIPANT_BOX_HEIGHT + 14 : PARTICIPANT_BOX_HEIGHT / 2 + 5
+      )
       .text(participant.label);
   } else {
     // Multi-line: vertically center the lines within the box (or below for actors)
@@ -2710,7 +2778,8 @@ function renderParticipant(
       : PARTICIPANT_BOX_HEIGHT / 2 + 5 - (totalHeight - lineHeight) / 2;
 
     labelLines.forEach((line, i) => {
-      textEl.append('tspan')
+      textEl
+        .append('tspan')
         .attr('x', 0)
         .attr('dy', i === 0 ? `${baseY}px` : `${lineHeight}px`)
         .text(line);

@@ -8,10 +8,7 @@ import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
 import { mix } from '../palettes/color-utils';
 import type { ParsedSitemap } from './types';
-import type {
-  SitemapLayoutResult,
-  SitemapLegendGroup,
-} from './layout';
+import type { SitemapLayoutResult, SitemapLegendGroup } from './layout';
 import {
   LEGEND_HEIGHT,
   LEGEND_PILL_PAD,
@@ -63,7 +60,11 @@ const LEGEND_FIXED_GAP = 8; // gap between fixed legend and scaled diagram — l
 // Color helpers
 // ============================================================
 
-function nodeFill(palette: PaletteColors, isDark: boolean, nodeColor?: string): string {
+function nodeFill(
+  palette: PaletteColors,
+  isDark: boolean,
+  nodeColor?: string
+): string {
   const color = nodeColor ?? palette.primary;
   return mix(color, isDark ? palette.surface : palette.bg, 25);
 }
@@ -72,7 +73,11 @@ function nodeStroke(_palette: PaletteColors, nodeColor?: string): string {
   return nodeColor ?? _palette.primary;
 }
 
-function containerFill(palette: PaletteColors, isDark: boolean, nodeColor?: string): string {
+function containerFill(
+  palette: PaletteColors,
+  isDark: boolean,
+  nodeColor?: string
+): string {
   if (nodeColor) {
     return mix(nodeColor, isDark ? palette.surface : palette.bg, 10);
   }
@@ -87,7 +92,8 @@ function containerStroke(palette: PaletteColors, nodeColor?: string): string {
 // Curve generator
 // ============================================================
 
-const lineGenerator = d3Shape.line<{ x: number; y: number }>()
+const lineGenerator = d3Shape
+  .line<{ x: number; y: number }>()
   .x((d) => d.x)
   .y((d) => d.y)
   .curve(d3Shape.curveBasis);
@@ -107,7 +113,7 @@ export function renderSitemap(
   onClickItem?: (lineNumber: number) => void,
   exportDims?: { width?: number; height?: number },
   activeTagGroup?: string | null,
-  hiddenAttributes?: Set<string>,
+  hiddenAttributes?: Set<string>
 ): void {
   // Clear existing content
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
@@ -139,7 +145,8 @@ export function renderSitemap(
     // Remove the legend space from diagram height — legend is rendered separately
     diagramH -= layoutLegendShift;
   }
-  const availH = height - DIAGRAM_PADDING * 2 - fixedReserveTop - fixedReserveBottom;
+  const availH =
+    height - DIAGRAM_PADDING * 2 - fixedReserveTop - fixedReserveBottom;
   const scaleX = (width - DIAGRAM_PADDING * 2) / diagramW;
   const scaleY = availH / diagramH;
   const scale = Math.min(MAX_SCALE, scaleX, scaleY);
@@ -236,7 +243,10 @@ export function renderSitemap(
   for (const group of parsed.tagGroups) {
     displayNames.set(group.name.toLowerCase(), group.name);
     for (const entry of group.entries) {
-      tagColors.set(`${group.name.toLowerCase()}:${entry.value.toLowerCase()}`, entry.color);
+      tagColors.set(
+        `${group.name.toLowerCase()}:${entry.value.toLowerCase()}`,
+        entry.color
+      );
     }
   }
 
@@ -257,7 +267,9 @@ export function renderSitemap(
     }
 
     if (onClickItem) {
-      cG.style('cursor', 'pointer').on('click', () => onClickItem(c.lineNumber));
+      cG.style('cursor', 'pointer').on('click', () =>
+        onClickItem(c.lineNumber)
+      );
     }
 
     // Tag metadata for legend hover dimming
@@ -284,7 +296,10 @@ export function renderSitemap(
     // Container label
     cG.append('text')
       .attr('x', c.width / 2)
-      .attr('y', CONTAINER_HEADER_HEIGHT / 2 + CONTAINER_LABEL_FONT_SIZE / 2 - 2)
+      .attr(
+        'y',
+        CONTAINER_HEADER_HEIGHT / 2 + CONTAINER_LABEL_FONT_SIZE / 2 - 2
+      )
       .attr('text-anchor', 'middle')
       .attr('fill', palette.text)
       .attr('font-size', CONTAINER_LABEL_FONT_SIZE)
@@ -294,7 +309,9 @@ export function renderSitemap(
     // Container metadata
     const metaEntries = Object.entries(c.metadata);
     if (metaEntries.length > 0) {
-      const metaDisplayKeys = metaEntries.map(([k]) => displayNames.get(k) ?? k);
+      const metaDisplayKeys = metaEntries.map(
+        ([k]) => displayNames.get(k) ?? k
+      );
       const maxKeyLen = Math.max(...metaDisplayKeys.map((k) => k.length));
       const valueX = 10 + (maxKeyLen + 2) * (CONTAINER_META_FONT_SIZE * 0.6);
       const metaStartY = CONTAINER_HEADER_HEIGHT + CONTAINER_META_FONT_SIZE - 2;
@@ -303,7 +320,8 @@ export function renderSitemap(
         const [key, value] = metaEntries[i];
         const displayKey = metaDisplayKeys[i];
         const rowY = metaStartY + i * CONTAINER_META_LINE_HEIGHT;
-        const valColor = tagColors.get(`${key}:${value.toLowerCase()}`) ?? palette.text;
+        const valColor =
+          tagColors.get(`${key}:${value.toLowerCase()}`) ?? palette.text;
 
         cG.append('text')
           .attr('x', 10)
@@ -324,9 +342,11 @@ export function renderSitemap(
     // Collapsed accent bar
     if (!exportDims && c.hiddenCount && c.hiddenCount > 0) {
       const clipId = `clip-${c.nodeId}`;
-      cG.append('clipPath').attr('id', clipId)
+      cG.append('clipPath')
+        .attr('id', clipId)
         .append('rect')
-        .attr('width', c.width).attr('height', c.height)
+        .attr('width', c.width)
+        .attr('height', c.height)
         .attr('rx', CONTAINER_RADIUS);
       cG.append('rect')
         .attr('y', c.height - COLLAPSE_BAR_HEIGHT)
@@ -410,14 +430,17 @@ export function renderSitemap(
       .attr('data-line-number', String(node.lineNumber)) as GSelection;
 
     if (node.hasChildren) {
-      nodeG.attr('data-node-toggle', node.id)
+      nodeG
+        .attr('data-node-toggle', node.id)
         .attr('tabindex', '0')
         .attr('role', 'button')
         .attr('aria-expanded', String(!node.hiddenCount));
     }
 
     if (onClickItem) {
-      nodeG.style('cursor', 'pointer').on('click', () => onClickItem(node.lineNumber));
+      nodeG
+        .style('cursor', 'pointer')
+        .on('click', () => onClickItem(node.lineNumber));
     }
 
     // Tag metadata for legend hover dimming
@@ -431,7 +454,8 @@ export function renderSitemap(
     const stroke = nodeStroke(palette, node.color);
 
     // Card background
-    nodeG.append('rect')
+    nodeG
+      .append('rect')
       .attr('x', 0)
       .attr('y', 0)
       .attr('width', node.width)
@@ -442,7 +466,8 @@ export function renderSitemap(
       .attr('stroke-width', NODE_STROKE_WIDTH);
 
     // Label
-    nodeG.append('text')
+    nodeG
+      .append('text')
       .attr('x', node.width / 2)
       .attr('y', HEADER_HEIGHT / 2 + LABEL_FONT_SIZE / 2 - 2)
       .attr('text-anchor', 'middle')
@@ -455,7 +480,8 @@ export function renderSitemap(
     const metaEntries = Object.entries(node.metadata);
     if (metaEntries.length > 0) {
       // Separator line
-      nodeG.append('line')
+      nodeG
+        .append('line')
         .attr('x1', 0)
         .attr('y1', HEADER_HEIGHT)
         .attr('x2', node.width)
@@ -463,24 +489,30 @@ export function renderSitemap(
         .attr('stroke', stroke)
         .attr('stroke-opacity', 0.3);
 
-      const metaDisplayKeys = metaEntries.map(([k]) => displayNames.get(k) ?? k);
+      const metaDisplayKeys = metaEntries.map(
+        ([k]) => displayNames.get(k) ?? k
+      );
       const maxKeyLen = Math.max(...metaDisplayKeys.map((k) => k.length));
       const valueX = 10 + (maxKeyLen + 2) * (META_FONT_SIZE * 0.6);
 
       for (let i = 0; i < metaEntries.length; i++) {
         const [key, value] = metaEntries[i];
         const displayKey = metaDisplayKeys[i];
-        const rowY = HEADER_HEIGHT + SEPARATOR_GAP + (i + 1) * META_LINE_HEIGHT - 4;
-        const valColor = tagColors.get(`${key}:${value.toLowerCase()}`) ?? palette.text;
+        const rowY =
+          HEADER_HEIGHT + SEPARATOR_GAP + (i + 1) * META_LINE_HEIGHT - 4;
+        const valColor =
+          tagColors.get(`${key}:${value.toLowerCase()}`) ?? palette.text;
 
-        nodeG.append('text')
+        nodeG
+          .append('text')
           .attr('x', 10)
           .attr('y', rowY)
           .attr('fill', palette.textMuted)
           .attr('font-size', META_FONT_SIZE)
           .text(`${displayKey}:`);
 
-        nodeG.append('text')
+        nodeG
+          .append('text')
           .attr('x', valueX)
           .attr('y', rowY)
           .attr('fill', valColor)
@@ -492,11 +524,15 @@ export function renderSitemap(
     // Collapsed accent bar
     if (!exportDims && node.hiddenCount && node.hiddenCount > 0) {
       const clipId = `clip-${node.id}`;
-      nodeG.append('clipPath').attr('id', clipId)
+      nodeG
+        .append('clipPath')
+        .attr('id', clipId)
         .append('rect')
-        .attr('width', node.width).attr('height', node.height)
+        .attr('width', node.width)
+        .attr('height', node.height)
         .attr('rx', CARD_RADIUS);
-      nodeG.append('rect')
+      nodeG
+        .append('rect')
         .attr('y', node.height - COLLAPSE_BAR_HEIGHT)
         .attr('width', node.width)
         .attr('height', COLLAPSE_BAR_HEIGHT)
@@ -509,7 +545,15 @@ export function renderSitemap(
   // --- Render legend ---
   if (exportDims && hasLegend) {
     // Export mode: render inside the scaled content group
-    renderLegend(contentG, layout.legend, palette, isDark, activeTagGroup, undefined, hiddenAttributes);
+    renderLegend(
+      contentG,
+      layout.legend,
+      palette,
+      isDark,
+      activeTagGroup,
+      undefined,
+      hiddenAttributes
+    );
   }
 
   // --- Fixed title + legend (appended AFTER mainG so they paint on top
@@ -546,7 +590,15 @@ export function renderSitemap(
     if (activeTagGroup) {
       legendParent.attr('data-legend-active', activeTagGroup.toLowerCase());
     }
-    renderLegend(legendParent, layout.legend, palette, isDark, activeTagGroup, width, hiddenAttributes);
+    renderLegend(
+      legendParent,
+      layout.legend,
+      palette,
+      isDark,
+      activeTagGroup,
+      width,
+      hiddenAttributes
+    );
   }
 }
 
@@ -561,13 +613,16 @@ function renderLegend(
   isDark: boolean,
   activeTagGroup?: string | null,
   fixedWidth?: number,
-  hiddenAttributes?: Set<string>,
+  hiddenAttributes?: Set<string>
 ): void {
   if (legendGroups.length === 0) return;
 
-  const visibleGroups = activeTagGroup != null
-    ? legendGroups.filter((g) => g.name.toLowerCase() === activeTagGroup.toLowerCase())
-    : legendGroups;
+  const visibleGroups =
+    activeTagGroup != null
+      ? legendGroups.filter(
+          (g) => g.name.toLowerCase() === activeTagGroup.toLowerCase()
+        )
+      : legendGroups;
 
   const groupBg = isDark
     ? mix(palette.surface, palette.bg, 50)
@@ -591,7 +646,8 @@ function renderLegend(
 
   for (const group of visibleGroups) {
     const isActive = activeTagGroup != null;
-    const pillW = measureLegendText(group.name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
+    const pillW =
+      measureLegendText(group.name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
 
     const gX = fixedPositions?.get(group.name) ?? group.x;
     const gY = fixedPositions ? 0 : group.y;
@@ -605,7 +661,8 @@ function renderLegend(
 
     // Outer capsule background (active/expanded only)
     if (isActive) {
-      legendG.append('rect')
+      legendG
+        .append('rect')
         .attr('width', group.width)
         .attr('height', LEGEND_HEIGHT)
         .attr('rx', LEGEND_HEIGHT / 2)
@@ -613,11 +670,12 @@ function renderLegend(
     }
 
     const pillXOff = isActive ? LEGEND_CAPSULE_PAD : 0;
-    const pillYOff = isActive ? LEGEND_CAPSULE_PAD : 0;
-    const pillH = LEGEND_HEIGHT - (isActive ? LEGEND_CAPSULE_PAD * 2 : 0);
+    const pillYOff = LEGEND_CAPSULE_PAD;
+    const pillH = LEGEND_HEIGHT - LEGEND_CAPSULE_PAD * 2;
 
     // Pill background
-    legendG.append('rect')
+    legendG
+      .append('rect')
       .attr('x', pillXOff)
       .attr('y', pillYOff)
       .attr('width', pillW)
@@ -627,7 +685,8 @@ function renderLegend(
 
     // Active pill border
     if (isActive) {
-      legendG.append('rect')
+      legendG
+        .append('rect')
         .attr('x', pillXOff)
         .attr('y', pillYOff)
         .attr('width', pillW)
@@ -639,7 +698,8 @@ function renderLegend(
     }
 
     // Pill text
-    legendG.append('text')
+    legendG
+      .append('text')
       .attr('x', pillXOff + pillW / 2)
       .attr('y', LEGEND_HEIGHT / 2 + LEGEND_PILL_FONT_SIZE / 2 - 2)
       .attr('font-size', LEGEND_PILL_FONT_SIZE)
@@ -656,14 +716,16 @@ function renderLegend(
       const eyeY = (LEGEND_HEIGHT - LEGEND_EYE_SIZE) / 2;
       const hitPad = 6;
 
-      const eyeG = legendG.append('g')
+      const eyeG = legendG
+        .append('g')
         .attr('class', 'sitemap-legend-eye')
         .attr('data-legend-visibility', groupKey)
         .style('cursor', 'pointer')
         .attr('opacity', isHidden ? 0.4 : 0.7);
 
       // Transparent hit area for easier clicking
-      eyeG.append('rect')
+      eyeG
+        .append('rect')
         .attr('x', eyeX - hitPad)
         .attr('y', eyeY - hitPad)
         .attr('width', LEGEND_EYE_SIZE + hitPad * 2)
@@ -671,7 +733,8 @@ function renderLegend(
         .attr('fill', 'transparent')
         .attr('pointer-events', 'all');
 
-      eyeG.append('path')
+      eyeG
+        .append('path')
         .attr('d', isHidden ? EYE_CLOSED_PATH : EYE_OPEN_PATH)
         .attr('transform', `translate(${eyeX}, ${eyeY})`)
         .attr('fill', 'none')
@@ -683,28 +746,35 @@ function renderLegend(
 
     // Entries (active/expanded only)
     if (isActive) {
-      const eyeShift = fixedWidth != null ? LEGEND_EYE_SIZE + LEGEND_EYE_GAP : 0;
+      const eyeShift =
+        fixedWidth != null ? LEGEND_EYE_SIZE + LEGEND_EYE_GAP : 0;
       let entryX = pillXOff + pillW + 4 + eyeShift;
       for (const entry of group.entries) {
-        const entryG = legendG.append('g')
+        const entryG = legendG
+          .append('g')
           .attr('data-legend-entry', entry.value.toLowerCase())
           .style('cursor', 'pointer');
 
-        entryG.append('circle')
+        entryG
+          .append('circle')
           .attr('cx', entryX + LEGEND_DOT_R)
           .attr('cy', LEGEND_HEIGHT / 2)
           .attr('r', LEGEND_DOT_R)
           .attr('fill', entry.color);
 
         const textX = entryX + LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP;
-        entryG.append('text')
+        entryG
+          .append('text')
           .attr('x', textX)
           .attr('y', LEGEND_HEIGHT / 2 + LEGEND_ENTRY_FONT_SIZE / 2 - 1)
           .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
           .attr('fill', palette.textMuted)
           .text(entry.value);
 
-        entryX = textX + measureLegendText(entry.value, LEGEND_ENTRY_FONT_SIZE) + LEGEND_ENTRY_TRAIL;
+        entryX =
+          textX +
+          measureLegendText(entry.value, LEGEND_ENTRY_FONT_SIZE) +
+          LEGEND_ENTRY_TRAIL;
       }
     }
   }
@@ -717,7 +787,7 @@ function renderLegend(
 export async function renderSitemapForExport(
   content: string,
   theme: 'light' | 'dark' | 'transparent',
-  palette?: PaletteColors,
+  palette?: PaletteColors
 ): Promise<string> {
   const { parseSitemap } = await import('./parser');
   const { layoutSitemap } = await import('./layout');
@@ -725,7 +795,8 @@ export async function renderSitemapForExport(
   const { injectBranding } = await import('../branding');
 
   const isDark = theme === 'dark';
-  const effectivePalette = palette ?? (isDark ? getPalette('nord').dark : getPalette('nord').light);
+  const effectivePalette =
+    palette ?? (isDark ? getPalette('nord').dark : getPalette('nord').light);
 
   const parsed = parseSitemap(content, effectivePalette);
   if (parsed.error || parsed.roots.length === 0) return '';
@@ -744,10 +815,18 @@ export async function renderSitemapForExport(
   container.style.left = '-9999px';
   document.body.appendChild(container);
 
-  renderSitemap(container, parsed, sitemapLayout, effectivePalette, isDark, undefined, {
-    width: exportWidth,
-    height: exportHeight,
-  });
+  renderSitemap(
+    container,
+    parsed,
+    sitemapLayout,
+    effectivePalette,
+    isDark,
+    undefined,
+    {
+      width: exportWidth,
+      height: exportHeight,
+    }
+  );
 
   const svgEl = container.querySelector('svg');
   if (!svgEl) {
@@ -766,6 +845,7 @@ export async function renderSitemapForExport(
   const svgHtml = svgEl.outerHTML;
   document.body.removeChild(container);
 
-  const brandColor = theme === 'transparent' ? '#888' : effectivePalette.textMuted;
+  const brandColor =
+    theme === 'transparent' ? '#888' : effectivePalette.textMuted;
   return injectBranding(svgHtml, brandColor);
 }

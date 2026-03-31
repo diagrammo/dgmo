@@ -7,7 +7,12 @@ import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
 import { mix } from '../palettes/color-utils';
 import { renderInlineText } from '../utils/inline-markdown';
-import type { ParsedKanban, KanbanColumn, KanbanCard, KanbanTagGroup } from './types';
+import type {
+  ParsedKanban,
+  KanbanColumn,
+  KanbanCard,
+  KanbanTagGroup,
+} from './types';
 import { parseKanban } from './parser';
 import { isArchiveColumn } from './mutations';
 import {
@@ -141,13 +146,18 @@ function computeLayout(
       const metaCount = tagMeta.length + card.details.length;
       const metaHeight =
         metaCount > 0
-          ? CARD_SEPARATOR_GAP + 1 + CARD_PADDING_Y + metaCount * CARD_META_LINE_HEIGHT
+          ? CARD_SEPARATOR_GAP +
+            1 +
+            CARD_PADDING_Y +
+            metaCount * CARD_META_LINE_HEIGHT
           : 0;
       const cardHeight = CARD_HEADER_HEIGHT + CARD_PADDING_Y + metaHeight;
 
       // Account for meta label widths
       for (const m of tagMeta) {
-        const metaW = (m.label.length + 2 + m.value.length) * CARD_META_FONT_SIZE * 0.6 + CARD_PADDING_X * 2;
+        const metaW =
+          (m.label.length + 2 + m.value.length) * CARD_META_FONT_SIZE * 0.6 +
+          CARD_PADDING_X * 2;
         maxCardTextWidth = Math.max(maxCardTextWidth, metaW);
       }
 
@@ -162,7 +172,10 @@ function computeLayout(
       cardY += cardHeight + CARD_GAP;
     }
 
-    const colWidth = Math.max(COLUMN_MIN_WIDTH, maxCardTextWidth + COLUMN_PADDING * 2);
+    const colWidth = Math.max(
+      COLUMN_MIN_WIDTH,
+      maxCardTextWidth + COLUMN_PADDING * 2
+    );
 
     // Set card widths
     for (const cl of cardLayouts) {
@@ -269,7 +282,11 @@ export function renderKanban(
       if (isActive) {
         capsuleContentWidth += 4; // gap after pill
         for (const entry of group.entries) {
-          capsuleContentWidth += LEGEND_DOT_R * 2 + 4 + entry.value.length * LEGEND_ENTRY_FONT_SIZE * 0.6 + 8;
+          capsuleContentWidth +=
+            LEGEND_DOT_R * 2 +
+            4 +
+            entry.value.length * LEGEND_ENTRY_FONT_SIZE * 0.6 +
+            8;
         }
       }
       const capsuleWidth = capsuleContentWidth + capsulePad * 2;
@@ -293,10 +310,10 @@ export function renderKanban(
       legendContainer
         .append('rect')
         .attr('x', pillX)
-        .attr('y', legendY + (isActive ? capsulePad : 0))
+        .attr('y', legendY + capsulePad)
         .attr('width', pillWidth)
-        .attr('height', LEGEND_HEIGHT - (isActive ? capsulePad * 2 : 0))
-        .attr('rx', (LEGEND_HEIGHT - (isActive ? capsulePad * 2 : 0)) / 2)
+        .attr('height', LEGEND_HEIGHT - capsulePad * 2)
+        .attr('rx', (LEGEND_HEIGHT - capsulePad * 2) / 2)
         .attr('fill', pillBg)
         .attr('class', 'kanban-legend-group')
         .attr('data-legend-group', group.name.toLowerCase());
@@ -345,12 +362,16 @@ export function renderKanban(
           entryG
             .append('text')
             .attr('x', entryTextX)
-            .attr('y', legendY + LEGEND_HEIGHT / 2 + LEGEND_ENTRY_FONT_SIZE / 2 - 1)
+            .attr(
+              'y',
+              legendY + LEGEND_HEIGHT / 2 + LEGEND_ENTRY_FONT_SIZE / 2 - 1
+            )
             .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
             .attr('fill', palette.textMuted)
             .text(entry.value);
 
-          entryX = entryTextX + entry.value.length * LEGEND_ENTRY_FONT_SIZE * 0.6 + 8;
+          entryX =
+            entryTextX + entry.value.length * LEGEND_ENTRY_FONT_SIZE * 0.6 + 8;
         }
         legendX += capsuleWidth + 12;
       } else {
@@ -423,10 +444,7 @@ export function renderKanban(
         .attr('x', colLayout.x + COLUMN_PADDING + nameWidth + 8)
         .attr(
           'y',
-          colLayout.y +
-            COLUMN_HEADER_HEIGHT / 2 +
-            WIP_FONT_SIZE / 2 -
-            1
+          colLayout.y + COLUMN_HEADER_HEIGHT / 2 + WIP_FONT_SIZE / 2 - 1
         )
         .attr('font-size', WIP_FONT_SIZE)
         .attr('fill', wipExceeded ? palette.colors.red : palette.textMuted)
@@ -437,7 +455,11 @@ export function renderKanban(
     // Cards
     for (const cardLayout of colLayout.cardLayouts) {
       const card = cardLayout.card;
-      const resolvedColor = resolveCardTagColor(card, parsed.tagGroups, activeTagGroup ?? null);
+      const resolvedColor = resolveCardTagColor(
+        card,
+        parsed.tagGroups,
+        activeTagGroup ?? null
+      );
       const tagMeta = resolveCardTagMeta(card, parsed.tagGroups);
       const hasMeta = tagMeta.length > 0 || card.details.length > 0;
 
@@ -481,7 +503,8 @@ export function renderKanban(
         .attr('stroke-width', CARD_STROKE_WIDTH);
 
       // Card title (inline markdown)
-      const titleEl = cg.append('text')
+      const titleEl = cg
+        .append('text')
         .attr('x', cx + CARD_PADDING_X)
         .attr('y', cy + CARD_PADDING_Y + CARD_TITLE_FONT_SIZE)
         .attr('font-size', CARD_TITLE_FONT_SIZE)
@@ -513,7 +536,8 @@ export function renderKanban(
             .attr('fill', palette.textMuted)
             .text(`${meta.label}: `);
 
-          const labelWidth = (meta.label.length + 2) * CARD_META_FONT_SIZE * 0.6;
+          const labelWidth =
+            (meta.label.length + 2) * CARD_META_FONT_SIZE * 0.6;
           cg.append('text')
             .attr('x', cx + CARD_PADDING_X + labelWidth)
             .attr('y', metaY)
@@ -526,7 +550,8 @@ export function renderKanban(
 
         // Detail lines (inline markdown)
         for (const detail of card.details) {
-          const detailEl = cg.append('text')
+          const detailEl = cg
+            .append('text')
             .attr('x', cx + CARD_PADDING_X)
             .attr('y', metaY)
             .attr('font-size', CARD_META_FONT_SIZE)

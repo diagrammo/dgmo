@@ -7,10 +7,9 @@ active-tag Team
 hide priority:Low
 
 direction LR
-mode rectangles
 
 // --- Services ---
-API Gateway [gateway] | t: Backend, description: Main entry point for all requests
+API Gateway | t: Backend, description: Main entry point for all requests
   -routes-> UserService
   -routes-> ProductService
   -routes-> OrderService
@@ -28,22 +27,22 @@ OrderService | t: Backend, description: Order processing pipeline
   -publishes-> OrderQueue
 
 // --- Data Stores ---
-UserDB [database] | t: Platform
-ProductDB [database] | t: Platform
-OrderDB [database] | t: Platform
-SessionCache [cache] | t: Platform
-ProductCache [cache] | t: Platform
-OrderQueue [queue] | t: Platform
+UserDB | t: Platform
+ProductDB | t: Platform
+OrderDB | t: Platform
+SessionCache | t: Platform
+ProductCache | t: Platform
+OrderQueue | t: Platform
 
 // --- External ---
-PaymentGateway [external] | t: Backend, description: Stripe integration
+PaymentGateway | t: Backend, description: Stripe integration
 OrderService -charges-> PaymentGateway
 
 // --- Consumer ---
-WebApp [frontend] | t: Frontend
+WebApp | t: Frontend
 WebApp -> API Gateway
 
-Admin [actor] | t: Backend
+Admin | t: Backend
 Admin -> API Gateway
 
 // --- Groups ---

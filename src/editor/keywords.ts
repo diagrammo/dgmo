@@ -193,21 +193,6 @@ export const MODIFIER_KEYWORDS = new Set([
   'aka',
   'position',
   'default',
-  // Sequence participant types
-  'actor',
-  'service',
-  'database',
-  'queue',
-  'cache',
-  'gateway',
-  'external',
-  'networking',
-  'frontend',
-  // C4 element types
-  'system',
-  'person',
-  'container',
-  'component',
   // ER column modifiers
   'pk',
   'fk',

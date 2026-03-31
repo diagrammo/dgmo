@@ -3,12 +3,7 @@
 // ============================================================
 
 import dagre from '@dagrejs/dagre';
-import type {
-  ParsedBoxesAndLines,
-  BLNode,
-  BLGroup,
-  BLRenderMode,
-} from './types';
+import type { ParsedBoxesAndLines, BLNode } from './types';
 
 // ── Constants ──────────────────────────────────────────────
 const NODESEP = 60;
@@ -17,7 +12,6 @@ const MARGIN = 40;
 const CONTAINER_PAD_X = 30;
 const CONTAINER_PAD_TOP = 40;
 const CONTAINER_PAD_BOTTOM = 24;
-const SHAPE_NODE_HEIGHT = 60;
 const MAX_PARALLEL_EDGES = 5;
 const PARALLEL_SPACING = 12;
 const PARALLEL_EDGE_MARGIN = 10;
@@ -53,8 +47,6 @@ export interface BLLayoutGroup {
   y: number;
   width: number;
   height: number;
-  depth: number;
-  parentGroup?: string;
   collapsed: boolean;
   childCount?: number;
 }
@@ -69,18 +61,8 @@ export interface BLLayoutResult {
 
 // ── Node sizing ────────────────────────────────────────────
 
-function computeNodeSize(
-  node: BLNode,
-  renderMode: BLRenderMode
-): { width: number; height: number } {
-  if (renderMode === 'shapes') {
-    const PHI_S = 1.618;
-    const SH = SHAPE_NODE_HEIGHT;
-    const SW = Math.round(SH * PHI_S);
-    return { width: SW, height: SH };
-  }
-
-  // Rectangle mode — golden ratio (φ ≈ 1.618), uniform size
+function computeNodeSize(_node: BLNode): { width: number; height: number } {
+  // Golden ratio (φ ≈ 1.618), uniform size
   const PHI = 1.618;
   const NODE_HEIGHT = 60;
   const NODE_WIDTH = Math.round(NODE_HEIGHT * PHI); // ≈ 97
@@ -92,13 +74,11 @@ function computeNodeSize(
 
 export function layoutBoxesAndLines(
   parsed: ParsedBoxesAndLines,
-  renderModeOverride?: 'rectangles' | 'shapes',
   collapseInfo?: {
     collapsedChildCounts: Map<string, number>;
     originalGroups: import('./types').BLGroup[];
   }
 ): BLLayoutResult {
-  const effectiveRenderMode = renderModeOverride ?? parsed.renderMode;
   const g = new dagre.graphlib.Graph({ compound: true, multigraph: true });
   g.setGraph({
     rankdir: parsed.direction,
@@ -109,44 +89,14 @@ export function layoutBoxesAndLines(
   });
   g.setDefaultEdgeLabel(() => ({}));
 
-  // Build group lookup
-  const groupMap = new Map<string, { depth: number; parentGroup?: string }>();
-  for (const group of parsed.groups) {
-    const depth = group.parentGroup
-      ? (groupMap.get(group.parentGroup)?.depth ?? 0) + 1
-      : 0;
-    groupMap.set(group.label, { depth, parentGroup: group.parentGroup });
-  }
-
-  // Determine which groups are collapsed — but only top-level ones.
-  // Sub-groups absorbed by a collapsed parent don't get their own node.
-  const allRemovedLabels = new Set<string>();
+  // Determine which groups are collapsed
+  const collapsedGroupLabels = new Set<string>();
   if (collapseInfo) {
     for (const og of collapseInfo.originalGroups) {
       if (!parsed.groups.some((g) => g.label === og.label)) {
-        allRemovedLabels.add(og.label);
+        collapsedGroupLabels.add(og.label);
       }
     }
-  }
-  // A collapsed group is "top-level" if none of its ancestors are also collapsed
-  const originalGroupMap = new Map<string, BLGroup>();
-  if (collapseInfo) {
-    for (const og of collapseInfo.originalGroups) {
-      originalGroupMap.set(og.label, og);
-    }
-  }
-  const collapsedGroupLabels = new Set<string>();
-  for (const label of allRemovedLabels) {
-    let absorbed = false;
-    let current = originalGroupMap.get(label);
-    while (current?.parentGroup) {
-      if (allRemovedLabels.has(current.parentGroup)) {
-        absorbed = true;
-        break;
-      }
-      current = originalGroupMap.get(current.parentGroup);
-    }
-    if (!absorbed) collapsedGroupLabels.add(label);
   }
 
   // Add collapsed groups as regular nodes — same golden-ratio dimensions
@@ -168,15 +118,11 @@ export function layoutBoxesAndLines(
       paddingTop: CONTAINER_PAD_TOP,
       paddingBottom: CONTAINER_PAD_BOTTOM,
     });
-    // Set parent for nested groups
-    if (group.parentGroup) {
-      g.setParent(gid, `__group_${group.parentGroup}`);
-    }
   }
 
   // Add nodes
   for (const node of parsed.nodes) {
-    const size = computeNodeSize(node, effectiveRenderMode);
+    const size = computeNodeSize(node);
     g.setNode(node.label, {
       label: node.label,
       width: size.width,
@@ -194,14 +140,25 @@ export function layoutBoxesAndLines(
     }
   }
 
-  // Add edges
+  // Build set of expanded compound parent IDs (dagre can't handle edges
+  // directly on compound parents — they have no rank of their own)
+  const expandedGroupIds = new Set<string>();
+  for (const group of parsed.groups) {
+    expandedGroupIds.add(`__group_${group.label}`);
+  }
+
+  // Add edges — skip edges where either endpoint is an expanded compound parent
+  const deferredEdgeIndices: number[] = [];
   for (let i = 0; i < parsed.edges.length; i++) {
     const edge = parsed.edges[i];
     const src = edge.source;
     const tgt = edge.target;
-    if (g.hasNode(src) && g.hasNode(tgt)) {
-      g.setEdge(src, tgt, { label: edge.label ?? '', minlen: 1 }, `e${i}`);
+    if (!g.hasNode(src) || !g.hasNode(tgt)) continue;
+    if (expandedGroupIds.has(src) || expandedGroupIds.has(tgt)) {
+      deferredEdgeIndices.push(i);
+      continue;
     }
+    g.setEdge(src, tgt, { label: edge.label ?? '', minlen: 1 }, `e${i}`);
   }
 
   // Run dagre layout
@@ -227,7 +184,6 @@ export function layoutBoxesAndLines(
     const gid = `__group_${group.label}`;
     const dagreNode = g.node(gid);
     if (!dagreNode) continue;
-    const gm = groupMap.get(group.label);
     layoutGroups.push({
       label: group.label,
       lineNumber: group.lineNumber,
@@ -235,8 +191,6 @@ export function layoutBoxesAndLines(
       y: dagreNode.y,
       width: dagreNode.width,
       height: dagreNode.height,
-      depth: gm?.depth ?? 0,
-      parentGroup: group.parentGroup,
       collapsed: false,
     });
   }
@@ -254,8 +208,6 @@ export function layoutBoxesAndLines(
       y: dagreNode.y,
       width: dagreNode.width,
       height: dagreNode.height,
-      depth: 0,
-      parentGroup: og?.parentGroup,
       collapsed: true,
       childCount: collapseInfo?.collapsedChildCounts.get(label) ?? 0,
     });
@@ -286,7 +238,7 @@ export function layoutBoxesAndLines(
     if (capped.length < 2) continue;
     const effectiveSpacing = Math.min(
       PARALLEL_SPACING,
-      (SHAPE_NODE_HEIGHT - PARALLEL_EDGE_MARGIN) / (capped.length - 1)
+      (60 - PARALLEL_EDGE_MARGIN) / (capped.length - 1)
     );
     for (let j = 0; j < capped.length; j++) {
       edgeYOffsets[capped[j]] =
@@ -296,13 +248,30 @@ export function layoutBoxesAndLines(
   }
 
   // Extract edge points
+  const deferredSet = new Set(deferredEdgeIndices);
   const layoutEdges: BLLayoutEdge[] = [];
   for (let i = 0; i < parsed.edges.length; i++) {
     const edge = parsed.edges[i];
     if (edgeParallelCounts[i] === 0) continue;
 
-    const dagreEdge = g.edge(edge.source, edge.target, `e${i}`);
-    const points: { x: number; y: number }[] = dagreEdge?.points ?? [];
+    let points: { x: number; y: number }[];
+
+    if (deferredSet.has(i)) {
+      // Deferred edge (compound parent endpoint) — compute points from node positions
+      const srcNode = g.node(edge.source);
+      const tgtNode = g.node(edge.target);
+      if (!srcNode || !tgtNode) continue;
+      const midX = (srcNode.x + tgtNode.x) / 2;
+      const midY = (srcNode.y + tgtNode.y) / 2;
+      points = [
+        { x: srcNode.x, y: srcNode.y },
+        { x: midX, y: midY },
+        { x: tgtNode.x, y: tgtNode.y },
+      ];
+    } else {
+      const dagreEdge = g.edge(edge.source, edge.target, `e${i}`);
+      points = dagreEdge?.points ?? [];
+    }
 
     // Compute label position at midpoint
     let labelX: number | undefined;

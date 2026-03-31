@@ -1952,9 +1952,7 @@ function renderTagLegend(
       measureLegendText(group.name, LEGEND_PILL_FONT_SIZE) +
       LEGEND_PILL_PAD +
       iconReserve;
-    const pillH = isActive
-      ? LEGEND_HEIGHT - LEGEND_CAPSULE_PAD * 2
-      : LEGEND_HEIGHT;
+    const pillH = LEGEND_HEIGHT - LEGEND_CAPSULE_PAD * 2;
     const groupW = groupWidths[i];
 
     const gEl = legendRow
@@ -1979,7 +1977,7 @@ function renderTagLegend(
     }
 
     const pillXOff = isActive ? LEGEND_CAPSULE_PAD : 0;
-    const pillYOff = isActive ? LEGEND_CAPSULE_PAD : 0;
+    const pillYOff = LEGEND_CAPSULE_PAD;
 
     // Pill background
     gEl

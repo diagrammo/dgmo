@@ -2069,8 +2069,8 @@ function renderLegend(
     }
 
     const pillXOff = isActive ? LEGEND_CAPSULE_PAD : 0;
-    const pillYOff = isActive ? LEGEND_CAPSULE_PAD : 0;
-    const pillH = LEGEND_HEIGHT - (isActive ? LEGEND_CAPSULE_PAD * 2 : 0);
+    const pillYOff = LEGEND_CAPSULE_PAD;
+    const pillH = LEGEND_HEIGHT - LEGEND_CAPSULE_PAD * 2;
 
     // Pill background
     gEl

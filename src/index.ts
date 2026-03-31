@@ -210,7 +210,6 @@ export type {
   BLNode,
   BLEdge,
   BLGroup,
-  BLRenderMode,
 } from './boxes-and-lines/types';
 export { layoutBoxesAndLines } from './boxes-and-lines/layout';
 export type {

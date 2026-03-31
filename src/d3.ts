@@ -5047,8 +5047,8 @@ export function renderTimeline(
           }
 
           const pillXOff = isActive ? LG_CAPSULE_PAD : 0;
-          const pillYOff = isActive ? LG_CAPSULE_PAD : 0;
-          const pillH = LG_HEIGHT - (isActive ? LG_CAPSULE_PAD * 2 : 0);
+          const pillYOff = LG_CAPSULE_PAD;
+          const pillH = LG_HEIGHT - LG_CAPSULE_PAD * 2;
 
           // Pill background
           gEl

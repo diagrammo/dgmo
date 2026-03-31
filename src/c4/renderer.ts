@@ -11,7 +11,13 @@ import { renderInlineText } from '../utils/inline-markdown';
 import type { ParsedC4 } from './types';
 import type { C4LayoutResult, C4LayoutEdge, C4LegendGroup } from './layout';
 import { parseC4 } from './parser';
-import { layoutC4Context, layoutC4Containers, layoutC4Components, layoutC4Deployment, collectCardMetadata } from './layout';
+import {
+  layoutC4Context,
+  layoutC4Containers,
+  layoutC4Components,
+  layoutC4Deployment,
+  collectCardMetadata,
+} from './layout';
 import {
   LEGEND_HEIGHT,
   LEGEND_PILL_FONT_SIZE,
@@ -81,10 +87,14 @@ function typeColor(
 ): string {
   if (nodeColor) return nodeColor;
   switch (type) {
-    case 'person': return palette.colors.blue;
-    case 'container': return palette.colors.purple;
-    case 'component': return palette.colors.green;
-    default: return palette.colors.teal;
+    case 'person':
+      return palette.colors.blue;
+    case 'container':
+      return palette.colors.purple;
+    case 'component':
+      return palette.colors.green;
+    default:
+      return palette.colors.teal;
   }
 }
 
@@ -247,7 +257,9 @@ export function renderC4Context(
   const fixedLegend = !exportDims && hasLegend;
   const legendLayoutSpace = C4_LAYOUT_MARGIN + LEGEND_HEIGHT;
   const legendReserveH = fixedLegend ? LEGEND_HEIGHT + LEGEND_FIXED_GAP : 0;
-  const diagramH = fixedLegend ? layout.height - legendLayoutSpace : layout.height;
+  const diagramH = fixedLegend
+    ? layout.height - legendLayoutSpace
+    : layout.height;
   const availH = height - titleHeight - legendReserveH;
   const scaleX = (width - DIAGRAM_PADDING * 2) / diagramW;
   const scaleY = (availH - DIAGRAM_PADDING * 2) / diagramH;
@@ -308,7 +320,10 @@ export function renderC4Context(
       .attr('fill', palette.text)
       .attr('font-size', TITLE_FONT_SIZE)
       .attr('font-weight', TITLE_FONT_WEIGHT)
-      .style('cursor', onClickItem && parsed.titleLineNumber ? 'pointer' : 'default')
+      .style(
+        'cursor',
+        onClickItem && parsed.titleLineNumber ? 'pointer' : 'default'
+      )
       .text(parsed.title);
 
     if (parsed.titleLineNumber) {
@@ -415,7 +430,7 @@ export function renderC4Context(
         edgeG
           .append('text')
           .attr('x', midPt.x)
-          .attr('y', (labelText ? textY + 18 : textY + 4))
+          .attr('y', labelText ? textY + 18 : textY + 4)
           .attr('text-anchor', 'middle')
           .attr('fill', edgeColor)
           .attr('font-size', TECH_FONT_SIZE)
@@ -444,7 +459,8 @@ export function renderC4Context(
         // Fall back to the group's defaultValue so hover-dimming works for
         // nodes that inherit the default (e.g. sc: Internal default).
         const tagGroup = parsed.tagGroups.find(
-          (g) => g.name.toLowerCase() === tagKey || g.alias?.toLowerCase() === tagKey
+          (g) =>
+            g.name.toLowerCase() === tagKey || g.alias?.toLowerCase() === tagKey
         );
         if (tagGroup?.defaultValue) {
           nodeG.attr(`data-tag-${tagKey}`, tagGroup.defaultValue.toLowerCase());
@@ -573,12 +589,17 @@ export function renderC4Context(
     // Drillable accent bar — solid bar at bottom of card, clipped to rounded corners
     if (node.drillable) {
       const clipId = `clip-drill-${node.id.replace(/\s+/g, '-')}`;
-      nodeG.append('clipPath').attr('id', clipId)
+      nodeG
+        .append('clipPath')
+        .attr('id', clipId)
         .append('rect')
-        .attr('x', -w / 2).attr('y', -h / 2)
-        .attr('width', w).attr('height', h)
+        .attr('x', -w / 2)
+        .attr('y', -h / 2)
+        .attr('width', w)
+        .attr('height', h)
         .attr('rx', CARD_RADIUS);
-      nodeG.append('rect')
+      nodeG
+        .append('rect')
         .attr('x', -w / 2)
         .attr('y', h / 2 - DRILL_BAR_HEIGHT)
         .attr('width', w)
@@ -594,14 +615,22 @@ export function renderC4Context(
     // App mode: fixed overlay at SVG top so it's always readable regardless of scale.
     // Export mode: render inside scaled contentG at layout coordinates.
     const legendParent = fixedLegend
-      ? svg.append('g')
+      ? svg
+          .append('g')
           .attr('class', 'c4-legend-fixed')
           .attr('transform', `translate(0, ${DIAGRAM_PADDING + titleHeight})`)
       : contentG.append('g').attr('class', 'c4-legend');
     if (activeTagGroup) {
       legendParent.attr('data-legend-active', activeTagGroup.toLowerCase());
     }
-    renderLegend(legendParent as GSelection, layout, palette, isDark, activeTagGroup, fixedLegend ? width : null);
+    renderLegend(
+      legendParent as GSelection,
+      layout,
+      palette,
+      isDark,
+      activeTagGroup,
+      fixedLegend ? width : null
+    );
   }
 }
 
@@ -938,8 +967,14 @@ function pointToPolylineDist(
 
 /** Check if a rect overlaps another rect. */
 function rectsOverlap(
-  ax: number, ay: number, aw: number, ah: number,
-  bx: number, by: number, bw: number, bh: number,
+  ax: number,
+  ay: number,
+  aw: number,
+  ah: number,
+  bx: number,
+  by: number,
+  bw: number,
+  bh: number,
   pad: number
 ): boolean {
   return !(
@@ -1006,7 +1041,7 @@ function placeEdgeLabels(
   const placedRects: { x: number; y: number; w: number; h: number }[] = [];
 
   // Bias samples toward target end (50–90%) where edges have diverged
-  const SAMPLES = [0.40, 0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90];
+  const SAMPLES = [0.4, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9];
 
   // Pre-compute candidate positions for each label
   const candidates = labels.map((lbl) => {
@@ -1021,7 +1056,8 @@ function placeEdgeLabels(
   order.sort((a, b) => {
     const midA = interpolateAlongPath(allPaths[labels[a]!.edgeIdx]!, 0.5);
     const midB = interpolateAlongPath(allPaths[labels[b]!.edgeIdx]!, 0.5);
-    let nearA = 0, nearB = 0;
+    let nearA = 0,
+      nearB = 0;
     for (let e = 0; e < allPaths.length; e++) {
       if (e === labels[a]!.edgeIdx) continue;
       if (pointToPolylineDist(midA, allPaths[e]!) < 100) nearA++;
@@ -1055,7 +1091,19 @@ function placeEdgeLabels(
       // Penalty for overlapping already-placed labels
       let labelOverlapPenalty = 0;
       for (const placed of placedRects) {
-        if (rectsOverlap(pt.x, pt.y, lbl.bgW, lbl.bgH, placed.x, placed.y, placed.w, placed.h, 6)) {
+        if (
+          rectsOverlap(
+            pt.x,
+            pt.y,
+            lbl.bgW,
+            lbl.bgH,
+            placed.x,
+            placed.y,
+            placed.w,
+            placed.h,
+            6
+          )
+        ) {
           labelOverlapPenalty += 200;
         }
       }
@@ -1063,7 +1111,19 @@ function placeEdgeLabels(
       // Penalty for overlapping boundary/obstacle rects (e.g. boundary labels)
       if (obstacleRects) {
         for (const obs of obstacleRects) {
-          if (rectsOverlap(pt.x, pt.y, lbl.bgW, lbl.bgH, obs.x + obs.w / 2, obs.y + obs.h / 2, obs.w, obs.h, 6)) {
+          if (
+            rectsOverlap(
+              pt.x,
+              pt.y,
+              lbl.bgW,
+              lbl.bgH,
+              obs.x + obs.w / 2,
+              obs.y + obs.h / 2,
+              obs.w,
+              obs.h,
+              6
+            )
+          ) {
             labelOverlapPenalty += 200;
           }
         }
@@ -1087,31 +1147,87 @@ function placeEdgeLabels(
       const nx = -tan.y / tLen;
       const ny = tan.x / tLen;
       const offsetDist = lbl.bgH / 2 + 4;
-      const sideA = { x: bestPt.x + nx * offsetDist, y: bestPt.y + ny * offsetDist };
-      const sideB = { x: bestPt.x - nx * offsetDist, y: bestPt.y - ny * offsetDist };
+      const sideA = {
+        x: bestPt.x + nx * offsetDist,
+        y: bestPt.y + ny * offsetDist,
+      };
+      const sideB = {
+        x: bestPt.x - nx * offsetDist,
+        y: bestPt.y - ny * offsetDist,
+      };
 
       // Score each side: clearance from other edges + overlap with placed labels
-      let scoreA = Infinity, scoreB = Infinity;
+      let scoreA = Infinity,
+        scoreB = Infinity;
       for (let e = 0; e < allPaths.length; e++) {
         if (e === ownEdgeIdx) continue;
         scoreA = Math.min(scoreA, pointToPolylineDist(sideA, allPaths[e]!));
         scoreB = Math.min(scoreB, pointToPolylineDist(sideB, allPaths[e]!));
       }
       for (const placed of placedRects) {
-        if (rectsOverlap(sideA.x, sideA.y, lbl.bgW, lbl.bgH, placed.x, placed.y, placed.w, placed.h, 6)) {
+        if (
+          rectsOverlap(
+            sideA.x,
+            sideA.y,
+            lbl.bgW,
+            lbl.bgH,
+            placed.x,
+            placed.y,
+            placed.w,
+            placed.h,
+            6
+          )
+        ) {
           scoreA -= 200;
         }
-        if (rectsOverlap(sideB.x, sideB.y, lbl.bgW, lbl.bgH, placed.x, placed.y, placed.w, placed.h, 6)) {
+        if (
+          rectsOverlap(
+            sideB.x,
+            sideB.y,
+            lbl.bgW,
+            lbl.bgH,
+            placed.x,
+            placed.y,
+            placed.w,
+            placed.h,
+            6
+          )
+        ) {
           scoreB -= 200;
         }
       }
       if (obstacleRects) {
         for (const obs of obstacleRects) {
-          const cx = obs.x + obs.w / 2, cy = obs.y + obs.h / 2;
-          if (rectsOverlap(sideA.x, sideA.y, lbl.bgW, lbl.bgH, cx, cy, obs.w, obs.h, 6)) {
+          const cx = obs.x + obs.w / 2,
+            cy = obs.y + obs.h / 2;
+          if (
+            rectsOverlap(
+              sideA.x,
+              sideA.y,
+              lbl.bgW,
+              lbl.bgH,
+              cx,
+              cy,
+              obs.w,
+              obs.h,
+              6
+            )
+          ) {
             scoreA -= 200;
           }
-          if (rectsOverlap(sideB.x, sideB.y, lbl.bgW, lbl.bgH, cx, cy, obs.w, obs.h, 6)) {
+          if (
+            rectsOverlap(
+              sideB.x,
+              sideB.y,
+              lbl.bgW,
+              lbl.bgH,
+              cx,
+              cy,
+              obs.w,
+              obs.h,
+              6
+            )
+          ) {
             scoreB -= 200;
           }
         }
@@ -1138,19 +1254,25 @@ function renderLegend(
   /** When set, center groups horizontally across this width (fixed overlay mode). */
   fixedWidth?: number | null
 ): void {
-  const visibleGroups = activeTagGroup != null
-    ? layout.legend.filter((g) => g.name.toLowerCase() === (activeTagGroup ?? '').toLowerCase())
-    : layout.legend;
+  const visibleGroups =
+    activeTagGroup != null
+      ? layout.legend.filter(
+          (g) => g.name.toLowerCase() === (activeTagGroup ?? '').toLowerCase()
+        )
+      : layout.legend;
 
-  const pillWidthOf = (g: C4LegendGroup) => measureLegendText(g.name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
-  const effectiveW = (g: C4LegendGroup) => activeTagGroup != null ? g.width : pillWidthOf(g);
+  const pillWidthOf = (g: C4LegendGroup) =>
+    measureLegendText(g.name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
+  const effectiveW = (g: C4LegendGroup) =>
+    activeTagGroup != null ? g.width : pillWidthOf(g);
 
   // In fixed mode, compute centered x-positions
   let fixedPositions: Map<string, number> | null = null;
   if (fixedWidth != null && visibleGroups.length > 0) {
     fixedPositions = new Map();
-    const totalW = visibleGroups.reduce((s, g) => s + effectiveW(g), 0)
-      + (visibleGroups.length - 1) * LEGEND_GROUP_GAP;
+    const totalW =
+      visibleGroups.reduce((s, g) => s + effectiveW(g), 0) +
+      (visibleGroups.length - 1) * LEGEND_GROUP_GAP;
     let cx = Math.max(DIAGRAM_PADDING, (fixedWidth - totalW) / 2);
     for (const g of visibleGroups) {
       fixedPositions.set(g.name, cx);
@@ -1190,8 +1312,8 @@ function renderLegend(
     }
 
     const pillX = isActive ? LEGEND_CAPSULE_PAD : 0;
-    const pillY = isActive ? LEGEND_CAPSULE_PAD : 0;
-    const pillH = LEGEND_HEIGHT - (isActive ? LEGEND_CAPSULE_PAD * 2 : 0);
+    const pillY = LEGEND_CAPSULE_PAD;
+    const pillH = LEGEND_HEIGHT - LEGEND_CAPSULE_PAD * 2;
 
     gEl
       .append('rect')
@@ -1249,7 +1371,10 @@ function renderLegend(
           .attr('fill', palette.textMuted)
           .text(entry.value);
 
-        entryX = textX + measureLegendText(entry.value, LEGEND_ENTRY_FONT_SIZE) + LEGEND_ENTRY_TRAIL;
+        entryX =
+          textX +
+          measureLegendText(entry.value, LEGEND_ENTRY_FONT_SIZE) +
+          LEGEND_ENTRY_TRAIL;
       }
     }
   }
@@ -1289,7 +1414,9 @@ export function renderC4Containers(
   const fixedLegend = !exportDims && hasLegend;
   const legendLayoutSpace = C4_LAYOUT_MARGIN + LEGEND_HEIGHT;
   const legendReserveH = fixedLegend ? LEGEND_HEIGHT + LEGEND_FIXED_GAP : 0;
-  const diagramH = fixedLegend ? layout.height - legendLayoutSpace : layout.height;
+  const diagramH = fixedLegend
+    ? layout.height - legendLayoutSpace
+    : layout.height;
   const availH = height - titleHeight - legendReserveH;
   const scaleX = (width - DIAGRAM_PADDING * 2) / diagramW;
   const scaleY = (availH - DIAGRAM_PADDING * 2) / diagramH;
@@ -1348,7 +1475,10 @@ export function renderC4Containers(
       .attr('fill', palette.text)
       .attr('font-size', TITLE_FONT_SIZE)
       .attr('font-weight', TITLE_FONT_WEIGHT)
-      .style('cursor', onClickItem && parsed.titleLineNumber ? 'pointer' : 'default')
+      .style(
+        'cursor',
+        onClickItem && parsed.titleLineNumber ? 'pointer' : 'default'
+      )
       .text(parsed.title);
 
     if (parsed.titleLineNumber) {
@@ -1453,7 +1583,12 @@ export function renderC4Containers(
   }
 
   // ── Collect boundary label rects as obstacles for edge label placement ──
-  const boundaryLabelObstacles: { x: number; y: number; w: number; h: number }[] = [];
+  const boundaryLabelObstacles: {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+  }[] = [];
   if (layout.boundary) {
     const b = layout.boundary;
     const labelText = `${b.label} \u2014 ${b.typeLabel}`;
@@ -1468,7 +1603,13 @@ export function renderC4Containers(
   }
 
   // ── Edges (behind nodes) ──
-  renderEdges(contentG as GSelection, layout.edges, palette, onClickItem, boundaryLabelObstacles);
+  renderEdges(
+    contentG as GSelection,
+    layout.edges,
+    palette,
+    onClickItem,
+    boundaryLabelObstacles
+  );
 
   // ── Nodes ──
   for (const node of layout.nodes) {
@@ -1488,7 +1629,8 @@ export function renderC4Containers(
         // Fall back to the group's defaultValue so hover-dimming works for
         // nodes that inherit the default (e.g. sc: Internal default).
         const tagGroup = parsed.tagGroups.find(
-          (g) => g.name.toLowerCase() === tagKey || g.alias?.toLowerCase() === tagKey
+          (g) =>
+            g.name.toLowerCase() === tagKey || g.alias?.toLowerCase() === tagKey
         );
         if (tagGroup?.defaultValue) {
           nodeG.attr(`data-tag-${tagKey}`, tagGroup.defaultValue.toLowerCase());
@@ -1519,7 +1661,14 @@ export function renderC4Containers(
 
     // Card background — shape-specific
     if (shape === 'database' || shape === 'cache') {
-      drawCylinderCard(nodeG as GSelection, w, h, fill, stroke, shape === 'cache');
+      drawCylinderCard(
+        nodeG as GSelection,
+        w,
+        h,
+        fill,
+        stroke,
+        shape === 'cache'
+      );
     } else {
       drawCardRect(nodeG as GSelection, w, h, fill, stroke, isExternalShape);
     }
@@ -1557,7 +1706,12 @@ export function renderC4Containers(
       const iconCx = -totalWidth / 2 + PERSON_ICON_W / 2;
       const textX = iconCx + PERSON_ICON_W / 2 + gap;
 
-      drawPersonIcon(nodeG as GSelection, iconCx, yPos + NAME_FONT_SIZE / 2 - 2, stroke);
+      drawPersonIcon(
+        nodeG as GSelection,
+        iconCx,
+        yPos + NAME_FONT_SIZE / 2 - 2,
+        stroke
+      );
 
       nodeG
         .append('text')
@@ -1688,12 +1842,17 @@ export function renderC4Containers(
     // Drillable accent bar — solid bar at bottom of card, clipped to rounded corners
     if (node.drillable) {
       const clipId = `clip-drill-${node.id.replace(/\s+/g, '-')}`;
-      nodeG.append('clipPath').attr('id', clipId)
+      nodeG
+        .append('clipPath')
+        .attr('id', clipId)
         .append('rect')
-        .attr('x', -w / 2).attr('y', -h / 2)
-        .attr('width', w).attr('height', h)
+        .attr('x', -w / 2)
+        .attr('y', -h / 2)
+        .attr('width', w)
+        .attr('height', h)
         .attr('rx', CARD_RADIUS);
-      nodeG.append('rect')
+      nodeG
+        .append('rect')
         .attr('x', -w / 2)
         .attr('y', h / 2 - DRILL_BAR_HEIGHT)
         .attr('width', w)
@@ -1709,14 +1868,22 @@ export function renderC4Containers(
     // App mode: fixed overlay at SVG top so it's always readable regardless of scale.
     // Export mode: render inside scaled contentG at layout coordinates.
     const legendParent = fixedLegend
-      ? svg.append('g')
+      ? svg
+          .append('g')
           .attr('class', 'c4-legend-fixed')
           .attr('transform', `translate(0, ${DIAGRAM_PADDING + titleHeight})`)
       : contentG.append('g').attr('class', 'c4-legend');
     if (activeTagGroup) {
       legendParent.attr('data-legend-active', activeTagGroup.toLowerCase());
     }
-    renderLegend(legendParent as GSelection, layout, palette, isDark, activeTagGroup, fixedLegend ? width : null);
+    renderLegend(
+      legendParent as GSelection,
+      layout,
+      palette,
+      isDark,
+      activeTagGroup,
+      fixedLegend ? width : null
+    );
   }
 }
 
@@ -1841,9 +2008,18 @@ export function renderC4Deployment(
   isDark: boolean,
   onClickItem?: (lineNumber: number) => void,
   exportDims?: { width?: number; height?: number },
-  activeTagGroup?: string | null,
+  activeTagGroup?: string | null
 ): void {
-  renderC4Containers(container, parsed, layout, palette, isDark, onClickItem, exportDims, activeTagGroup);
+  renderC4Containers(
+    container,
+    parsed,
+    layout,
+    palette,
+    isDark,
+    onClickItem,
+    exportDims,
+    activeTagGroup
+  );
 }
 
 /**
@@ -1852,7 +2028,7 @@ export function renderC4Deployment(
 export function renderC4DeploymentForExport(
   content: string,
   theme: 'light' | 'dark' | 'transparent',
-  palette: PaletteColors,
+  palette: PaletteColors
 ): string {
   const parsed = parseC4(content, palette);
   if (parsed.error || parsed.deployment.length === 0) return '';

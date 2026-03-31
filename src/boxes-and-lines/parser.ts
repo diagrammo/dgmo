@@ -4,15 +4,7 @@
 
 import { makeDgmoError, suggest } from '../diagnostics';
 import type { DgmoError } from '../diagnostics';
-import type {
-  ParsedBoxesAndLines,
-  BLNode,
-  BLEdge,
-  BLGroup,
-  BLRenderMode,
-} from './types';
-import { inferParticipantType } from '../sequence/participant-inference';
-import type { ParticipantType } from '../sequence/parser';
+import type { ParsedBoxesAndLines, BLNode, BLEdge, BLGroup } from './types';
 import {
   matchTagBlockHeading,
   injectDefaultTagMetadata,
@@ -25,21 +17,7 @@ import {
   OPTION_NOCOLON_RE,
 } from '../utils/parsing';
 
-// Valid participant types for explicit override
-const VALID_TYPES: ReadonlySet<string> = new Set([
-  'service',
-  'database',
-  'actor',
-  'queue',
-  'cache',
-  'gateway',
-  'external',
-  'networking',
-  'frontend',
-  'default',
-]);
-
-const MAX_GROUP_DEPTH = 2;
+const MAX_GROUP_DEPTH = 1;
 
 /** Boxes-and-lines requires explicit first line — no heuristic detection. */
 export function looksLikeBoxesAndLines(_content: string): boolean {
@@ -106,7 +84,6 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
     tagGroups: [],
     options: {},
     initialHiddenTagValues: new Map(),
-    renderMode: 'rectangles',
     direction: 'LR',
     diagnostics: [],
     error: null,
@@ -155,7 +132,6 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
     if (!nodeLabels.has(label)) {
       result.nodes.push({
         label,
-        shape: inferParticipantType(label),
         lineNumber: lineNum,
         metadata: {},
       });
@@ -197,13 +173,6 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
       const dirMatch = trimmed.match(/^direction\s+(TB|LR)$/i);
       if (dirMatch) {
         result.direction = dirMatch[1].toUpperCase() as 'LR' | 'TB';
-        continue;
-      }
-
-      // mode shapes / mode rectangles
-      const modeMatch = trimmed.match(/^mode\s+(shapes|rectangles)$/i);
-      if (modeMatch) {
-        result.renderMode = modeMatch[1].toLowerCase() as BLRenderMode;
         continue;
       }
 
@@ -406,19 +375,12 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
         }
       }
 
-      const parentState = currentGroupState();
       const group: BLGroup = {
         label,
         children: [],
-        parentGroup: parentState?.group.label,
         lineNumber: lineNum,
         metadata: groupMeta,
       };
-
-      // Add this group as a child of the parent group
-      if (parentState) {
-        parentState.group.children.push(groupId(label));
-      }
 
       groupLabels.add(label);
       groupStack.push({ group, indent, depth: currentDepth });
@@ -534,9 +496,7 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
 /**
  * Parse a node line. Supports:
  * - `Label`
- * - `Label [type]`
  * - `Label | key: value, key2: value2`
- * - `Label [type] | key: value`
  */
 function parseNodeLine(
   trimmed: string,
@@ -544,45 +504,27 @@ function parseNodeLine(
   aliasMap: Map<string, string>,
   _diagnostics: DgmoError[]
 ): BLNode | null {
-  let label: string;
-  let shapeOverride: ParticipantType | undefined;
   let metadata: Record<string, string> = {};
   let description: string | undefined;
 
   // Split on pipe for metadata
   const pipeIdx = trimmed.indexOf('|');
-  let nameSection: string;
+  let label: string;
 
   if (pipeIdx >= 0) {
-    nameSection = trimmed.slice(0, pipeIdx).trim();
+    label = trimmed.slice(0, pipeIdx).trim();
     const metaSegment = trimmed.slice(pipeIdx + 1).trim();
     const parsed = parsePipeMetadata(metaSegment, aliasMap);
     metadata = parsed.metadata;
     description = parsed.description;
   } else {
-    nameSection = trimmed;
-  }
-
-  if (!nameSection) return null;
-
-  // Check for explicit type override: `Label [type]`
-  const typeMatch = nameSection.match(/^(.+?)\s+\[(\w+)\]$/);
-  if (typeMatch) {
-    label = typeMatch[1].trim();
-    const requestedType = typeMatch[2].toLowerCase();
-    if (VALID_TYPES.has(requestedType)) {
-      shapeOverride = requestedType as ParticipantType;
-    }
-  } else {
-    label = nameSection;
+    label = trimmed;
   }
 
   if (!label) return null;
 
   return {
     label,
-    shape: inferParticipantType(label),
-    shapeOverride,
     lineNumber: lineNum,
     metadata,
     description,

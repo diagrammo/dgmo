@@ -27,7 +27,6 @@ import { resolveTagColor } from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
 import type { PaletteColors } from '../palettes';
 import type { ParsedBoxesAndLines, BLNode } from './types';
-import type { ParticipantType } from '../sequence/parser';
 import type { BLLayoutResult, BLLayoutNode, BLLayoutEdge } from './layout';
 
 // ── Constants (aligned with infra pattern) ─────────────────
@@ -44,10 +43,8 @@ const ARROWHEAD_W = 5;
 const ARROWHEAD_H = 4;
 const CHAR_WIDTH_RATIO = 0.6;
 const NODE_TEXT_PADDING = 12;
-const SERVICE_RX = 10;
 const GROUP_RX = 8;
 const GROUP_LABEL_FONT_SIZE = 14;
-const BADGE_SIZE = 16;
 
 type D3G = d3Selection.Selection<SVGGElement, unknown, null, undefined>;
 type D3Svg = d3Selection.Selection<SVGSVGElement, unknown, null, undefined>;
@@ -177,569 +174,6 @@ function fitTextToNode(
   return { lines: [truncated], fontSize: MIN_NODE_FONT_SIZE };
 }
 
-// ── Shape renderers ────────────────────────────────────────
-
-function renderShapeRect(
-  g: D3G,
-  w: number,
-  h: number,
-  f: string,
-  s: string
-): void {
-  g.append('rect')
-    .attr('x', -w / 2)
-    .attr('y', -h / 2)
-    .attr('width', w)
-    .attr('height', h)
-    .attr('rx', NODE_RX)
-    .attr('ry', NODE_RX)
-    .attr('fill', f)
-    .attr('stroke', s)
-    .attr('stroke-width', NODE_STROKE_WIDTH);
-}
-
-function renderShapeService(
-  g: D3G,
-  w: number,
-  h: number,
-  f: string,
-  s: string
-): void {
-  g.append('rect')
-    .attr('x', -w / 2)
-    .attr('y', -h / 2)
-    .attr('width', w)
-    .attr('height', h)
-    .attr('rx', SERVICE_RX)
-    .attr('ry', SERVICE_RX)
-    .attr('fill', f)
-    .attr('stroke', s)
-    .attr('stroke-width', NODE_STROKE_WIDTH);
-}
-
-function renderShapeActor(g: D3G, w: number, h: number, s: string): void {
-  const figH = h * 0.65;
-  const topY = -h / 2;
-  const headR = Math.min(figH * 0.22, w * 0.12);
-  const headY = topY + headR + 2;
-  const bodyTopY = headY + headR + 1;
-  const bodyBottomY = topY + figH * 0.75;
-  const legY = topY + figH;
-  const armSpan = Math.min(16, w * 0.18);
-  const legSpan = Math.min(12, w * 0.14);
-  const sw = 2.5;
-
-  g.append('circle')
-    .attr('cx', 0)
-    .attr('cy', headY)
-    .attr('r', headR)
-    .attr('fill', 'none')
-    .attr('stroke', s)
-    .attr('stroke-width', sw);
-  g.append('line')
-    .attr('x1', 0)
-    .attr('y1', bodyTopY)
-    .attr('x2', 0)
-    .attr('y2', bodyBottomY)
-    .attr('stroke', s)
-    .attr('stroke-width', sw);
-  g.append('line')
-    .attr('x1', -armSpan)
-    .attr('y1', bodyTopY + 4)
-    .attr('x2', armSpan)
-    .attr('y2', bodyTopY + 4)
-    .attr('stroke', s)
-    .attr('stroke-width', sw);
-  g.append('line')
-    .attr('x1', 0)
-    .attr('y1', bodyBottomY)
-    .attr('x2', -legSpan)
-    .attr('y2', legY)
-    .attr('stroke', s)
-    .attr('stroke-width', sw);
-  g.append('line')
-    .attr('x1', 0)
-    .attr('y1', bodyBottomY)
-    .attr('x2', legSpan)
-    .attr('y2', legY)
-    .attr('stroke', s)
-    .attr('stroke-width', sw);
-}
-
-function renderShapeDatabase(
-  g: D3G,
-  w: number,
-  h: number,
-  f: string,
-  s: string
-): void {
-  const ry = 7;
-  const topY = -h / 2 + ry;
-  const bodyH = h - ry * 2;
-  g.append('ellipse')
-    .attr('cx', 0)
-    .attr('cy', topY + bodyH)
-    .attr('rx', w / 2)
-    .attr('ry', ry)
-    .attr('fill', f)
-    .attr('stroke', s)
-    .attr('stroke-width', NODE_STROKE_WIDTH);
-  g.append('rect')
-    .attr('x', -w / 2)
-    .attr('y', topY)
-    .attr('width', w)
-    .attr('height', bodyH)
-    .attr('fill', f)
-    .attr('stroke', 'none');
-  g.append('line')
-    .attr('x1', -w / 2)
-    .attr('y1', topY)
-    .attr('x2', -w / 2)
-    .attr('y2', topY + bodyH)
-    .attr('stroke', s)
-    .attr('stroke-width', NODE_STROKE_WIDTH);
-  g.append('line')
-    .attr('x1', w / 2)
-    .attr('y1', topY)
-    .attr('x2', w / 2)
-    .attr('y2', topY + bodyH)
-    .attr('stroke', s)
-    .attr('stroke-width', NODE_STROKE_WIDTH);
-  g.append('ellipse')
-    .attr('cx', 0)
-    .attr('cy', topY)
-    .attr('rx', w / 2)
-    .attr('ry', ry)
-    .attr('fill', f)
-    .attr('stroke', s)
-    .attr('stroke-width', NODE_STROKE_WIDTH);
-}
-
-function renderShapeQueue(
-  g: D3G,
-  w: number,
-  h: number,
-  f: string,
-  s: string
-): void {
-  const rx = 10;
-  const leftX = -w / 2 + rx;
-  const bodyW = w - rx * 2;
-  g.append('ellipse')
-    .attr('cx', leftX + bodyW)
-    .attr('cy', 0)
-    .attr('rx', rx)
-    .attr('ry', h / 2)
-    .attr('fill', f)
-    .attr('stroke', s)
-    .attr('stroke-width', NODE_STROKE_WIDTH);
-  g.append('rect')
-    .attr('x', leftX)
-    .attr('y', -h / 2)
-    .attr('width', bodyW)
-    .attr('height', h)
-    .attr('fill', f)
-    .attr('stroke', 'none');
-  g.append('line')
-    .attr('x1', leftX)
-    .attr('y1', -h / 2)
-    .attr('x2', leftX + bodyW)
-    .attr('y2', -h / 2)
-    .attr('stroke', s)
-    .attr('stroke-width', NODE_STROKE_WIDTH);
-  g.append('line')
-    .attr('x1', leftX)
-    .attr('y1', h / 2)
-    .attr('x2', leftX + bodyW)
-    .attr('y2', h / 2)
-    .attr('stroke', s)
-    .attr('stroke-width', NODE_STROKE_WIDTH);
-  g.append('ellipse')
-    .attr('cx', leftX)
-    .attr('cy', 0)
-    .attr('rx', rx)
-    .attr('ry', h / 2)
-    .attr('fill', f)
-    .attr('stroke', s)
-    .attr('stroke-width', NODE_STROKE_WIDTH);
-}
-
-function renderShapeCache(
-  g: D3G,
-  w: number,
-  h: number,
-  f: string,
-  s: string
-): void {
-  const ry = 7;
-  const topY = -h / 2 + ry;
-  const bodyH = h - ry * 2;
-  const dash = '4 3';
-  g.append('ellipse')
-    .attr('cx', 0)
-    .attr('cy', topY + bodyH)
-    .attr('rx', w / 2)
-    .attr('ry', ry)
-    .attr('fill', f)
-    .attr('stroke', s)
-    .attr('stroke-width', NODE_STROKE_WIDTH)
-    .attr('stroke-dasharray', dash);
-  g.append('rect')
-    .attr('x', -w / 2)
-    .attr('y', topY)
-    .attr('width', w)
-    .attr('height', bodyH)
-    .attr('fill', f)
-    .attr('stroke', 'none');
-  g.append('line')
-    .attr('x1', -w / 2)
-    .attr('y1', topY)
-    .attr('x2', -w / 2)
-    .attr('y2', topY + bodyH)
-    .attr('stroke', s)
-    .attr('stroke-width', NODE_STROKE_WIDTH)
-    .attr('stroke-dasharray', dash);
-  g.append('line')
-    .attr('x1', w / 2)
-    .attr('y1', topY)
-    .attr('x2', w / 2)
-    .attr('y2', topY + bodyH)
-    .attr('stroke', s)
-    .attr('stroke-width', NODE_STROKE_WIDTH)
-    .attr('stroke-dasharray', dash);
-  g.append('ellipse')
-    .attr('cx', 0)
-    .attr('cy', topY)
-    .attr('rx', w / 2)
-    .attr('ry', ry)
-    .attr('fill', f)
-    .attr('stroke', s)
-    .attr('stroke-width', NODE_STROKE_WIDTH)
-    .attr('stroke-dasharray', dash);
-}
-
-function renderShapeNetworking(
-  g: D3G,
-  w: number,
-  h: number,
-  f: string,
-  s: string
-): void {
-  const inset = 16;
-  const points = [
-    `${-w / 2 + inset},${-h / 2}`,
-    `${w / 2 - inset},${-h / 2}`,
-    `${w / 2},0`,
-    `${w / 2 - inset},${h / 2}`,
-    `${-w / 2 + inset},${h / 2}`,
-    `${-w / 2},0`,
-  ].join(' ');
-  g.append('polygon')
-    .attr('points', points)
-    .attr('fill', f)
-    .attr('stroke', s)
-    .attr('stroke-width', NODE_STROKE_WIDTH);
-}
-
-function renderShapeFrontend(
-  g: D3G,
-  w: number,
-  h: number,
-  f: string,
-  s: string
-): void {
-  const screenH = h - 10;
-  g.append('rect')
-    .attr('x', -w / 2)
-    .attr('y', -h / 2)
-    .attr('width', w)
-    .attr('height', screenH)
-    .attr('rx', 3)
-    .attr('ry', 3)
-    .attr('fill', f)
-    .attr('stroke', s)
-    .attr('stroke-width', NODE_STROKE_WIDTH);
-  g.append('line')
-    .attr('x1', 0)
-    .attr('y1', -h / 2 + screenH)
-    .attr('x2', 0)
-    .attr('y2', h / 2 - 2)
-    .attr('stroke', s)
-    .attr('stroke-width', NODE_STROKE_WIDTH);
-  g.append('line')
-    .attr('x1', -14)
-    .attr('y1', h / 2 - 2)
-    .attr('x2', 14)
-    .attr('y2', h / 2 - 2)
-    .attr('stroke', s)
-    .attr('stroke-width', NODE_STROKE_WIDTH);
-}
-
-/** Gateway — diamond */
-function renderShapeGateway(
-  g: D3G,
-  w: number,
-  h: number,
-  f: string,
-  s: string
-): void {
-  const points = `0,${-h / 2} ${w / 2},0 0,${h / 2} ${-w / 2},0`;
-  g.append('polygon')
-    .attr('points', points)
-    .attr('fill', f)
-    .attr('stroke', s)
-    .attr('stroke-width', NODE_STROKE_WIDTH);
-}
-
-function renderShapeExternal(
-  g: D3G,
-  w: number,
-  h: number,
-  f: string,
-  s: string
-): void {
-  g.append('rect')
-    .attr('x', -w / 2)
-    .attr('y', -h / 2)
-    .attr('width', w)
-    .attr('height', h)
-    .attr('rx', NODE_RX)
-    .attr('ry', NODE_RX)
-    .attr('fill', f)
-    .attr('stroke', s)
-    .attr('stroke-width', NODE_STROKE_WIDTH)
-    .attr('stroke-dasharray', '6 3');
-}
-
-function renderNodeShape(
-  g: D3G,
-  shape: ParticipantType,
-  w: number,
-  h: number,
-  fillColor: string,
-  strokeColor: string
-): void {
-  switch (shape) {
-    case 'actor':
-      renderShapeActor(g, w, h, strokeColor);
-      break;
-    case 'database':
-      renderShapeDatabase(g, w, h, fillColor, strokeColor);
-      break;
-    case 'queue':
-      renderShapeQueue(g, w, h, fillColor, strokeColor);
-      break;
-    case 'cache':
-      renderShapeCache(g, w, h, fillColor, strokeColor);
-      break;
-    case 'networking':
-      renderShapeNetworking(g, w, h, fillColor, strokeColor);
-      break;
-    case 'frontend':
-      renderShapeFrontend(g, w, h, fillColor, strokeColor);
-      break;
-    case 'external':
-      renderShapeExternal(g, w, h, fillColor, strokeColor);
-      break;
-    case 'gateway':
-      renderShapeGateway(g, w, h, fillColor, strokeColor);
-      break;
-    case 'service':
-      renderShapeService(g, w, h, fillColor, strokeColor);
-      break;
-    default:
-      renderShapeRect(g, w, h, fillColor, strokeColor);
-      break;
-  }
-}
-
-// ── Mini-shape badge paths ─────────────────────────────────
-
-function renderMiniBadge(
-  g: D3G,
-  shape: ParticipantType,
-  x: number,
-  y: number,
-  color: string
-): void {
-  const s = BADGE_SIZE;
-  const badge = g.append('g').attr('transform', `translate(${x},${y})`);
-
-  switch (shape) {
-    case 'database': {
-      // Mini cylinder
-      const ry = 2;
-      badge
-        .append('ellipse')
-        .attr('cx', 0)
-        .attr('cy', -s / 4)
-        .attr('rx', s / 3)
-        .attr('ry', ry)
-        .attr('fill', 'none')
-        .attr('stroke', color)
-        .attr('stroke-width', 1.2);
-      badge
-        .append('rect')
-        .attr('x', -s / 3)
-        .attr('y', -s / 4)
-        .attr('width', (s * 2) / 3)
-        .attr('height', s / 2)
-        .attr('fill', 'none')
-        .attr('stroke', 'none');
-      badge
-        .append('line')
-        .attr('x1', -s / 3)
-        .attr('y1', -s / 4)
-        .attr('x2', -s / 3)
-        .attr('y2', s / 4)
-        .attr('stroke', color)
-        .attr('stroke-width', 1.2);
-      badge
-        .append('line')
-        .attr('x1', s / 3)
-        .attr('y1', -s / 4)
-        .attr('x2', s / 3)
-        .attr('y2', s / 4)
-        .attr('stroke', color)
-        .attr('stroke-width', 1.2);
-      badge
-        .append('ellipse')
-        .attr('cx', 0)
-        .attr('cy', s / 4)
-        .attr('rx', s / 3)
-        .attr('ry', ry)
-        .attr('fill', 'none')
-        .attr('stroke', color)
-        .attr('stroke-width', 1.2);
-      break;
-    }
-    case 'queue': {
-      // Mini horizontal pipe
-      badge
-        .append('rect')
-        .attr('x', -s / 3)
-        .attr('y', -s / 4)
-        .attr('width', (s * 2) / 3)
-        .attr('height', s / 2)
-        .attr('rx', s / 4)
-        .attr('fill', 'none')
-        .attr('stroke', color)
-        .attr('stroke-width', 1.2);
-      break;
-    }
-    case 'networking': {
-      // Mini hexagon
-      const r = s / 3;
-      const pts = Array.from({ length: 6 }, (_, i) => {
-        const a = (Math.PI / 3) * i - Math.PI / 2;
-        return `${r * Math.cos(a)},${r * Math.sin(a)}`;
-      }).join(' ');
-      badge
-        .append('polygon')
-        .attr('points', pts)
-        .attr('fill', 'none')
-        .attr('stroke', color)
-        .attr('stroke-width', 1.2);
-      break;
-    }
-    case 'frontend': {
-      // Mini monitor
-      badge
-        .append('rect')
-        .attr('x', -s / 3)
-        .attr('y', -s / 3)
-        .attr('width', (s * 2) / 3)
-        .attr('height', s / 2)
-        .attr('rx', 1)
-        .attr('fill', 'none')
-        .attr('stroke', color)
-        .attr('stroke-width', 1.2);
-      badge
-        .append('line')
-        .attr('x1', 0)
-        .attr('y1', s / 6)
-        .attr('x2', 0)
-        .attr('y2', s / 3)
-        .attr('stroke', color)
-        .attr('stroke-width', 1.2);
-      break;
-    }
-    case 'actor': {
-      // Mini stick figure
-      badge
-        .append('circle')
-        .attr('cx', 0)
-        .attr('cy', -s / 4)
-        .attr('r', s / 6)
-        .attr('fill', 'none')
-        .attr('stroke', color)
-        .attr('stroke-width', 1.2);
-      badge
-        .append('line')
-        .attr('x1', 0)
-        .attr('y1', -s / 12)
-        .attr('x2', 0)
-        .attr('y2', s / 6)
-        .attr('stroke', color)
-        .attr('stroke-width', 1.2);
-      break;
-    }
-    case 'cache': {
-      // Mini dashed cylinder
-      badge
-        .append('ellipse')
-        .attr('cx', 0)
-        .attr('cy', 0)
-        .attr('rx', s / 3)
-        .attr('ry', s / 4)
-        .attr('fill', 'none')
-        .attr('stroke', color)
-        .attr('stroke-width', 1.2)
-        .attr('stroke-dasharray', '2 1');
-      break;
-    }
-    case 'external': {
-      // Mini dashed rect
-      badge
-        .append('rect')
-        .attr('x', -s / 3)
-        .attr('y', -s / 4)
-        .attr('width', (s * 2) / 3)
-        .attr('height', s / 2)
-        .attr('rx', 2)
-        .attr('fill', 'none')
-        .attr('stroke', color)
-        .attr('stroke-width', 1.2)
-        .attr('stroke-dasharray', '2 1');
-      break;
-    }
-    case 'gateway': {
-      // Mini diamond
-      const r = s / 3;
-      badge
-        .append('polygon')
-        .attr('points', `0,${-r} ${r},0 0,${r} ${-r},0`)
-        .attr('fill', 'none')
-        .attr('stroke', color)
-        .attr('stroke-width', 1.2);
-      break;
-    }
-    default:
-      // service / default — mini rounded rect
-      badge
-        .append('rect')
-        .attr('x', -s / 4)
-        .attr('y', -s / 5)
-        .attr('width', s / 2)
-        .attr('height', (s * 2) / 5)
-        .attr('rx', 2)
-        .attr('fill', 'none')
-        .attr('stroke', color)
-        .attr('stroke-width', 1.2);
-      break;
-  }
-}
-
 // ── Color helpers ──────────────────────────────────────────
 
 function nodeColors(
@@ -866,7 +300,6 @@ export interface BLRenderOptions {
   exportDims?: { width?: number; height?: number };
   activeTagGroup?: string | null;
   hiddenTagValues?: Map<string, Set<string>>;
-  renderModeOverride?: 'rectangles' | 'shapes';
 }
 
 export function renderBoxesAndLines(
@@ -877,16 +310,9 @@ export function renderBoxesAndLines(
   isDark: boolean,
   options?: BLRenderOptions
 ): void {
-  const {
-    onClickItem,
-    exportDims,
-    activeTagGroup,
-    hiddenTagValues,
-    renderModeOverride,
-  } = options ?? {};
+  const { onClickItem, exportDims, activeTagGroup, hiddenTagValues } =
+    options ?? {};
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
-
-  const effectiveRenderMode = renderModeOverride ?? parsed.renderMode;
 
   const width = exportDims?.width ?? container.clientWidth;
   const height = exportDims?.height ?? container.clientHeight;
@@ -964,8 +390,7 @@ export function renderBoxesAndLines(
   ensureArrowMarkers(defs, arrowColors);
 
   // ── Render groups (bottom layer) ───────────────────────
-  const sortedGroups = [...layout.groups].sort((a, b) => a.depth - b.depth);
-  for (const group of sortedGroups) {
+  for (const group of layout.groups) {
     const gx = group.x - group.width / 2;
     const gy = group.y - group.height / 2;
 
@@ -1189,7 +614,6 @@ export function renderBoxesAndLines(
       palette,
       isDark
     );
-    const effectiveShape = node.shapeOverride ?? node.shape;
 
     const nodeG = diagramG
       .append('g')
@@ -1202,33 +626,77 @@ export function renderBoxesAndLines(
 
     // Add tag metadata as data attributes for legend hover dimming
     for (const [key, val] of Object.entries(node.metadata)) {
-      nodeG.attr(`data-tag-${key}`, val.toLowerCase());
+      nodeG.attr(`data-tag-${key.toLowerCase()}`, val.toLowerCase());
     }
 
     if (onClickItem) {
       nodeG.on('click', () => onClickItem(node.lineNumber));
     }
 
-    if (effectiveRenderMode === 'shapes') {
-      // Shape mode — full shape, label only
-      renderNodeShape(
-        nodeG as unknown as D3G,
-        effectiveShape,
-        ln.width,
-        ln.height,
-        colors.fill,
-        colors.stroke
+    // Rectangle card
+    const x = -ln.width / 2;
+    const y = -ln.height / 2;
+
+    // Background rect
+    nodeG
+      .append('rect')
+      .attr('x', x)
+      .attr('y', y)
+      .attr('width', ln.width)
+      .attr('height', ln.height)
+      .attr('rx', NODE_RX)
+      .attr('ry', NODE_RX)
+      .attr('fill', colors.fill)
+      .attr('stroke', colors.stroke)
+      .attr('stroke-width', NODE_STROKE_WIDTH);
+
+    // All text centered vertically using dominant-baseline: central
+    if (node.description) {
+      const lineH = NODE_FONT_SIZE * 1.3;
+      const gap = 2;
+      const totalH = lineH + gap + META_FONT_SIZE;
+      const labelY = -totalH / 2 + lineH / 2;
+      const descY = labelY + lineH / 2 + gap + META_FONT_SIZE / 2;
+
+      nodeG
+        .append('text')
+        .attr('x', 0)
+        .attr('y', labelY)
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'central')
+        .attr('font-size', NODE_FONT_SIZE)
+        .attr('font-weight', '600')
+        .attr('fill', colors.text)
+        .text(node.label);
+
+      const maxChars = Math.floor(
+        (ln.width - NODE_TEXT_PADDING * 2) / (META_FONT_SIZE * CHAR_WIDTH_RATIO)
       );
-
-      const fitted = fitTextToNode(node.label, ln.width, ln.height);
-      const totalTextH = fitted.lines.length * fitted.fontSize * 1.3;
-      const startY = -totalTextH / 2 + fitted.fontSize * 0.4;
-
+      const desc =
+        node.description.length > maxChars
+          ? node.description.slice(0, maxChars - 1) + '\u2026'
+          : node.description;
+      const descEl = nodeG
+        .append('text')
+        .attr('x', 0)
+        .attr('y', descY)
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'central')
+        .attr('font-size', META_FONT_SIZE)
+        .attr('fill', palette.textMuted)
+        .text(desc);
+      if (desc !== node.description) {
+        descEl.append('title').text(node.description);
+      }
+    } else {
+      const fitted = fitTextToNode(node.label, ln.width - 16, ln.height);
+      const lineH = fitted.fontSize * 1.3;
+      const totalH = fitted.lines.length * lineH;
       for (let li = 0; li < fitted.lines.length; li++) {
         nodeG
           .append('text')
           .attr('x', 0)
-          .attr('y', startY + li * fitted.fontSize * 1.3)
+          .attr('y', -totalH / 2 + lineH / 2 + li * lineH)
           .attr('text-anchor', 'middle')
           .attr('dominant-baseline', 'central')
           .attr('font-size', fitted.fontSize)
@@ -1236,106 +704,12 @@ export function renderBoxesAndLines(
           .attr('fill', colors.text)
           .text(fitted.lines[li]);
       }
-    } else {
-      // Rectangle mode — consistent-height card
-      const x = -ln.width / 2;
-      const y = -ln.height / 2;
-
-      // Background rect
-      nodeG
-        .append('rect')
-        .attr('x', x)
-        .attr('y', y)
-        .attr('width', ln.width)
-        .attr('height', ln.height)
-        .attr('rx', NODE_RX)
-        .attr('ry', NODE_RX)
-        .attr('fill', colors.fill)
-        .attr('stroke', colors.stroke)
-        .attr('stroke-width', NODE_STROKE_WIDTH);
-
-      // All text centered vertically using dominant-baseline: central
-      if (node.description) {
-        const lineH = NODE_FONT_SIZE * 1.3;
-        const gap = 2;
-        const totalH = lineH + gap + META_FONT_SIZE;
-        const labelY = -totalH / 2 + lineH / 2;
-        const descY = labelY + lineH / 2 + gap + META_FONT_SIZE / 2;
-
-        nodeG
-          .append('text')
-          .attr('x', 0)
-          .attr('y', labelY)
-          .attr('text-anchor', 'middle')
-          .attr('dominant-baseline', 'central')
-          .attr('font-size', NODE_FONT_SIZE)
-          .attr('font-weight', '600')
-          .attr('fill', colors.text)
-          .text(node.label);
-
-        const maxChars = Math.floor(
-          (ln.width - NODE_TEXT_PADDING * 2) /
-            (META_FONT_SIZE * CHAR_WIDTH_RATIO)
-        );
-        const desc =
-          node.description.length > maxChars
-            ? node.description.slice(0, maxChars - 1) + '\u2026'
-            : node.description;
-        const descEl = nodeG
-          .append('text')
-          .attr('x', 0)
-          .attr('y', descY)
-          .attr('text-anchor', 'middle')
-          .attr('dominant-baseline', 'central')
-          .attr('font-size', META_FONT_SIZE)
-          .attr('fill', palette.textMuted)
-          .text(desc);
-        if (desc !== node.description) {
-          descEl.append('title').text(node.description);
-        }
-      } else {
-        const fitted = fitTextToNode(node.label, ln.width - 16, ln.height);
-        const lineH = fitted.fontSize * 1.3;
-        const totalH = fitted.lines.length * lineH;
-        for (let li = 0; li < fitted.lines.length; li++) {
-          nodeG
-            .append('text')
-            .attr('x', 0)
-            .attr('y', -totalH / 2 + lineH / 2 + li * lineH)
-            .attr('text-anchor', 'middle')
-            .attr('dominant-baseline', 'central')
-            .attr('font-size', fitted.fontSize)
-            .attr('font-weight', '600')
-            .attr('fill', colors.text)
-            .text(fitted.lines[li]);
-        }
-      }
-
-      // Mini-shape badge in top-right
-      if (effectiveShape !== 'default' && effectiveShape !== 'service') {
-        renderMiniBadge(
-          nodeG as unknown as D3G,
-          effectiveShape,
-          ln.width / 2 - BADGE_SIZE / 2 - 4,
-          y + BADGE_SIZE / 2 + 4,
-          colors.stroke
-        );
-      }
     }
   }
 
   // ── Render legend ──────────────────────────────────────
   if (parsed.tagGroups.length > 0) {
-    renderLegend(
-      svg,
-      parsed,
-      palette,
-      isDark,
-      activeGroup,
-      width,
-      titleOffset,
-      effectiveRenderMode
-    );
+    renderLegend(svg, parsed, palette, isDark, activeGroup, width, titleOffset);
   }
 }
 
@@ -1348,62 +722,43 @@ function renderLegend(
   isDark: boolean,
   activeGroup: string | null,
   svgWidth: number,
-  titleOffset: number,
-  effectiveRenderMode: 'rectangles' | 'shapes'
+  titleOffset: number
 ): void {
-  const legendY = titleOffset + 4;
-  const legendG = svg.append('g').attr('transform', `translate(0,${legendY})`);
+  const groupBg = isDark
+    ? mix(palette.surface, palette.bg, 50)
+    : mix(palette.surface, palette.bg, 30);
+  const pillBorder = mix(palette.textMuted, palette.bg, 50);
 
-  let x = LEGEND_CAPSULE_PAD;
-
-  // Mode toggle pills
-  const modes: Array<{ label: string; mode: 'rectangles' | 'shapes' }> = [
-    { label: 'Rectangles', mode: 'rectangles' },
-    { label: 'Shapes', mode: 'shapes' },
-  ];
-
-  for (const m of modes) {
-    const isActive = effectiveRenderMode === m.mode;
-    const tw = measureLegendText(m.label, LEGEND_PILL_FONT_SIZE);
-    const pillW = tw + LEGEND_PILL_PAD;
-
-    legendG
-      .append('rect')
-      .attr('x', x)
-      .attr('y', (LEGEND_HEIGHT - 20) / 2)
-      .attr('width', pillW)
-      .attr('height', 20)
-      .attr('rx', 10)
-      .attr('fill', isActive ? palette.primary : 'none')
-      .attr('stroke', isActive ? 'none' : palette.border)
-      .attr('stroke-width', 1)
-      .attr('data-section-toggle', `mode-${m.mode}`);
-
-    legendG
-      .append('text')
-      .attr('x', x + pillW / 2)
-      .attr('y', LEGEND_HEIGHT / 2 + 1)
-      .attr('text-anchor', 'middle')
-      .attr('dominant-baseline', 'central')
-      .attr('font-size', LEGEND_PILL_FONT_SIZE)
-      .attr(
-        'fill',
-        isActive
-          ? contrastText(palette.primary, '#eceff4', '#2e3440')
-          : palette.textMuted
-      )
-      .attr('pointer-events', 'none')
-      .text(m.label);
-
-    x += pillW + 4;
+  // ── Pre-compute total legend width for centering ──
+  let totalW = 0;
+  for (const tg of parsed.tagGroups) {
+    const isActive = activeGroup?.toLowerCase() === tg.name.toLowerCase();
+    totalW +=
+      measureLegendText(tg.name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
+    if (isActive) {
+      totalW += 6;
+      for (const entry of tg.entries) {
+        totalW +=
+          LEGEND_DOT_R * 2 +
+          LEGEND_ENTRY_DOT_GAP +
+          measureLegendText(entry.value, LEGEND_ENTRY_FONT_SIZE) +
+          LEGEND_ENTRY_TRAIL;
+      }
+    }
+    totalW += LEGEND_GROUP_GAP;
   }
 
-  x += LEGEND_GROUP_GAP;
+  const legendX = Math.max(LEGEND_CAPSULE_PAD, (svgWidth - totalW) / 2);
+  const legendY = titleOffset + 4;
+  const legendG = svg
+    .append('g')
+    .attr('transform', `translate(${legendX},${legendY})`);
 
-  // Tag group entries
+  let x = 0;
+
+  // ── Tag group pills (collapsed when inactive, expanded when active) ──
   for (const tg of parsed.tagGroups) {
     const isActiveGroup = activeGroup?.toLowerCase() === tg.name.toLowerCase();
-    if (!isActiveGroup && activeGroup) continue;
 
     const groupG = legendG
       .append('g')
@@ -1414,109 +769,66 @@ function renderLegend(
     // Group name pill
     const nameW =
       measureLegendText(tg.name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
-    groupG
+    const tagPill = groupG
       .append('rect')
       .attr('x', x)
-      .attr('y', (LEGEND_HEIGHT - 20) / 2)
+      .attr('y', 0)
       .attr('width', nameW)
-      .attr('height', 20)
-      .attr('rx', 10)
-      .attr(
-        'fill',
-        isActiveGroup ? mix(palette.primary, palette.bg, 80) : 'none'
-      )
-      .attr('stroke', palette.border)
-      .attr('stroke-width', 1);
+      .attr('height', LEGEND_HEIGHT)
+      .attr('rx', LEGEND_HEIGHT / 2)
+      .attr('fill', groupBg);
+
+    if (isActiveGroup) {
+      tagPill.attr('stroke', pillBorder).attr('stroke-width', 0.75);
+    }
 
     groupG
       .append('text')
       .attr('x', x + nameW / 2)
-      .attr('y', LEGEND_HEIGHT / 2 + 1)
+      .attr('y', LEGEND_HEIGHT / 2)
       .attr('text-anchor', 'middle')
       .attr('dominant-baseline', 'central')
       .attr('font-size', LEGEND_PILL_FONT_SIZE)
-      .attr('fill', palette.text)
+      .attr('font-weight', 500)
+      .attr('fill', isActiveGroup ? palette.text : palette.textMuted)
       .attr('pointer-events', 'none')
       .text(tg.name);
 
-    x += nameW + 6;
+    x += nameW;
 
-    // Entries with colored dots
-    for (const entry of tg.entries) {
-      const entryColor = entry.color || palette.textMuted;
-      const ew = measureLegendText(entry.value, LEGEND_ENTRY_FONT_SIZE);
+    // Entries — only rendered when this group is active
+    if (isActiveGroup) {
+      x += 6;
+      for (const entry of tg.entries) {
+        const entryColor = entry.color || palette.textMuted;
+        const ew = measureLegendText(entry.value, LEGEND_ENTRY_FONT_SIZE);
 
-      const entryG = groupG
-        .append('g')
-        .attr('data-legend-entry', entry.value)
-        .style('cursor', 'pointer');
+        const entryG = groupG
+          .append('g')
+          .attr('data-legend-entry', entry.value.toLowerCase())
+          .style('cursor', 'pointer');
 
-      entryG
-        .append('circle')
-        .attr('cx', x + LEGEND_DOT_R)
-        .attr('cy', LEGEND_HEIGHT / 2)
-        .attr('r', LEGEND_DOT_R)
-        .attr('fill', entryColor);
+        entryG
+          .append('circle')
+          .attr('cx', x + LEGEND_DOT_R)
+          .attr('cy', LEGEND_HEIGHT / 2)
+          .attr('r', LEGEND_DOT_R)
+          .attr('fill', entryColor);
 
-      entryG
-        .append('text')
-        .attr('x', x + LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP)
-        .attr('y', LEGEND_HEIGHT / 2 + 1)
-        .attr('dominant-baseline', 'central')
-        .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
-        .attr('fill', palette.text)
-        .attr('pointer-events', 'none')
-        .text(entry.value);
+        entryG
+          .append('text')
+          .attr('x', x + LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP)
+          .attr('y', LEGEND_HEIGHT / 2)
+          .attr('dominant-baseline', 'central')
+          .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
+          .attr('fill', palette.textMuted)
+          .text(entry.value);
 
-      x += LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP + ew + LEGEND_ENTRY_TRAIL;
+        x += LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP + ew + LEGEND_ENTRY_TRAIL;
+      }
     }
 
     x += LEGEND_GROUP_GAP;
-  }
-
-  // Shape key — when in shapes mode, show shape-to-type mapping
-  if (effectiveRenderMode === 'shapes') {
-    x += LEGEND_GROUP_GAP;
-    const shapeEntries: Array<{ label: string; shape: ParticipantType }> = [
-      { label: 'Service', shape: 'service' },
-      { label: 'Database', shape: 'database' },
-      { label: 'Queue', shape: 'queue' },
-      { label: 'Cache', shape: 'cache' },
-      { label: 'Gateway', shape: 'gateway' },
-      { label: 'Network', shape: 'networking' },
-      { label: 'Frontend', shape: 'frontend' },
-      { label: 'External', shape: 'external' },
-      { label: 'Actor', shape: 'actor' },
-    ];
-
-    // Only show shapes that are actually used in the diagram
-    const usedShapes = new Set(
-      parsed.nodes.map((n) => n.shapeOverride ?? n.shape)
-    );
-
-    for (const entry of shapeEntries) {
-      if (!usedShapes.has(entry.shape)) continue;
-      const ew = measureLegendText(entry.label, LEGEND_ENTRY_FONT_SIZE);
-
-      renderMiniBadge(
-        legendG as unknown as D3G,
-        entry.shape,
-        x + BADGE_SIZE / 2,
-        LEGEND_HEIGHT / 2,
-        palette.textMuted
-      );
-
-      legendG
-        .append('text')
-        .attr('x', x + BADGE_SIZE + 4)
-        .attr('y', LEGEND_HEIGHT / 2 + 1)
-        .attr('dominant-baseline', 'central')
-        .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
-        .attr('fill', palette.textMuted)
-        .text(entry.label);
-
-      x += BADGE_SIZE + 4 + ew + LEGEND_ENTRY_TRAIL;
-    }
   }
 }
 
