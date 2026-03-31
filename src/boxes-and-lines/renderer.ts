@@ -35,13 +35,10 @@ const DIAGRAM_PADDING = 20;
 const NODE_FONT_SIZE = 13;
 const MIN_NODE_FONT_SIZE = 9;
 const META_FONT_SIZE = 10;
-const META_LINE_HEIGHT = 14;
 const EDGE_LABEL_FONT_SIZE = 11;
 const EDGE_STROKE_WIDTH = 1.5;
 const NODE_STROKE_WIDTH = 1.5;
 const NODE_RX = 8;
-const NODE_HEADER_HEIGHT = 28;
-const NODE_SEPARATOR_GAP = 4;
 const COLLAPSE_BAR_HEIGHT = 4;
 const ARROWHEAD_W = 5;
 const ARROWHEAD_H = 4;
@@ -49,6 +46,7 @@ const CHAR_WIDTH_RATIO = 0.6;
 const NODE_TEXT_PADDING = 12;
 const SERVICE_RX = 10;
 const GROUP_RX = 8;
+const GROUP_LABEL_FONT_SIZE = 14;
 const BADGE_SIZE = 16;
 
 type D3G = d3Selection.Selection<SVGGElement, unknown, null, undefined>;
@@ -971,6 +969,8 @@ export function renderBoxesAndLines(
         'class',
         group.collapsed ? 'bl-group bl-group-collapsed' : 'bl-group'
       )
+      .attr('data-line-number', String(group.lineNumber))
+      .attr('data-node-id', group.label)
       .attr('data-group-toggle', group.label)
       .style('cursor', 'pointer');
 
@@ -1015,10 +1015,12 @@ export function renderBoxesAndLines(
       // Label centered vertically
       groupG
         .append('text')
+        .attr('class', 'bl-group-label')
         .attr('x', group.x)
-        .attr('y', group.y + NODE_FONT_SIZE * 0.35)
+        .attr('y', group.y + GROUP_LABEL_FONT_SIZE * 0.35)
         .attr('text-anchor', 'middle')
-        .attr('font-size', NODE_FONT_SIZE)
+        .attr('font-family', FONT_FAMILY)
+        .attr('font-size', GROUP_LABEL_FONT_SIZE)
         .attr('font-weight', '600')
         .attr('fill', palette.text)
         .text(group.label);
@@ -1040,10 +1042,12 @@ export function renderBoxesAndLines(
       groupG
         .append('text')
         .attr('class', 'bl-group-label')
-        .attr('x', gx + 12)
+        .attr('x', gx + group.width / 2)
         .attr('y', gy + 18)
-        .attr('font-size', 13)
-        .attr('font-weight', 'bold')
+        .attr('text-anchor', 'middle')
+        .attr('font-family', FONT_FAMILY)
+        .attr('font-size', GROUP_LABEL_FONT_SIZE)
+        .attr('font-weight', '600')
         .attr('fill', palette.text)
         .text(group.label);
     }
@@ -1058,6 +1062,9 @@ export function renderBoxesAndLines(
     height: number;
     idx: number;
   }[] = [];
+
+  // Store edge group elements for label pass
+  const edgeGroups = new Map<number, D3G>();
 
   for (let i = 0; i < layout.edges.length; i++) {
     const le = layout.edges[i];
@@ -1080,8 +1087,14 @@ export function renderBoxesAndLines(
     const points = le.points.map((p) => ({ x: p.x, y: p.y + le.yOffset }));
     if (points.length < 2) continue;
 
+    const edgeG = diagramG
+      .append('g')
+      .attr('class', 'bl-edge-group')
+      .attr('data-line-number', String(le.lineNumber));
+    edgeGroups.set(i, edgeG as unknown as D3G);
+
     const markerId = `bl-arrow-${color.replace('#', '')}`;
-    const path = diagramG
+    const path = edgeG
       .append('path')
       .attr('class', 'bl-edge')
       .attr(
@@ -1116,12 +1129,15 @@ export function renderBoxesAndLines(
   // Resolve overlaps
   resolveEdgeLabelOverlaps(labelPositions);
 
-  // Render edge labels
+  // Render edge labels into their edge groups
   for (const lp of labelPositions) {
     const le = layout.edges[lp.idx];
     if (!le.label) continue;
 
-    diagramG
+    const edgeG = edgeGroups.get(lp.idx);
+    const target = edgeG ?? diagramG;
+
+    target
       .append('rect')
       .attr('x', lp.x - lp.width / 2)
       .attr('y', lp.y - lp.height / 2)
@@ -1131,7 +1147,7 @@ export function renderBoxesAndLines(
       .attr('fill', palette.bg)
       .attr('opacity', 0.85);
 
-    diagramG
+    target
       .append('text')
       .attr('x', lp.x)
       .attr('y', lp.y + EDGE_LABEL_FONT_SIZE / 3)
@@ -1173,6 +1189,7 @@ export function renderBoxesAndLines(
       .attr('class', 'bl-node')
       .attr('transform', `translate(${ln.x},${ln.y})`)
       .attr('data-line-number', node.lineNumber)
+      .attr('data-node-id', node.label)
       .style('cursor', onClickItem ? 'pointer' : 'default');
 
     // Add tag metadata as data attributes for legend hover dimming
@@ -1229,30 +1246,23 @@ export function renderBoxesAndLines(
         .attr('stroke', colors.stroke)
         .attr('stroke-width', NODE_STROKE_WIDTH);
 
+      // All text centered vertically in node
       if (node.description) {
-        // Header + separator + description
-        const headerCenterY =
-          y + NODE_HEADER_HEIGHT / 2 + NODE_FONT_SIZE * 0.35;
+        // Label + description stacked, centered as a unit
+        const gap = 4;
+        const totalH = NODE_FONT_SIZE + gap + META_FONT_SIZE;
+        const labelY = -totalH / 2 + NODE_FONT_SIZE * 0.35;
+        const descY = labelY + NODE_FONT_SIZE + gap;
+
         nodeG
           .append('text')
           .attr('x', 0)
-          .attr('y', headerCenterY)
+          .attr('y', labelY)
           .attr('text-anchor', 'middle')
           .attr('font-size', NODE_FONT_SIZE)
           .attr('font-weight', '600')
           .attr('fill', colors.text)
           .text(node.label);
-
-        const sepY = y + NODE_HEADER_HEIGHT;
-        nodeG
-          .append('line')
-          .attr('x1', x)
-          .attr('y1', sepY)
-          .attr('x2', x + ln.width)
-          .attr('y2', sepY)
-          .attr('stroke', colors.stroke)
-          .attr('stroke-opacity', 0.3)
-          .attr('stroke-width', 1);
 
         const maxChars = Math.floor(
           (ln.width - NODE_TEXT_PADDING * 2) /
@@ -1265,14 +1275,8 @@ export function renderBoxesAndLines(
         const descEl = nodeG
           .append('text')
           .attr('x', 0)
+          .attr('y', descY)
           .attr('text-anchor', 'middle')
-          .attr(
-            'y',
-            sepY +
-              META_LINE_HEIGHT / 2 +
-              META_FONT_SIZE * 0.35 +
-              NODE_SEPARATOR_GAP
-          )
           .attr('font-size', META_FONT_SIZE)
           .attr('fill', palette.textMuted)
           .text(desc);
@@ -1280,8 +1284,8 @@ export function renderBoxesAndLines(
           descEl.append('title').text(node.description);
         }
       } else {
-        // Label centered vertically
-        const fitted = fitTextToNode(node.label, ln.width - 24, ln.height);
+        // Label centered
+        const fitted = fitTextToNode(node.label, ln.width - 16, ln.height);
         const totalH = fitted.lines.length * fitted.fontSize * 1.3;
         const startY = -totalH / 2 + fitted.fontSize * 0.4;
         for (let li = 0; li < fitted.lines.length; li++) {
