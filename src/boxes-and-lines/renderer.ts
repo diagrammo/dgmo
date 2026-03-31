@@ -769,8 +769,14 @@ function edgeColor(
   activeGroupName: string | null,
   palette: PaletteColors
 ): string {
-  const tagColor = resolveTagColor(edge.metadata, tagGroups, activeGroupName);
-  return tagColor ?? palette.textMuted;
+  // Only color edges that have explicit tag metadata — otherwise neutral
+  const hasTagMeta =
+    Object.keys(edge.metadata).length > 0 && activeGroupName != null;
+  if (hasTagMeta) {
+    const tagColor = resolveTagColor(edge.metadata, tagGroups, activeGroupName);
+    if (tagColor) return tagColor;
+  }
+  return palette.textMuted;
 }
 
 // ── Arrowhead markers ──────────────────────────────────────
