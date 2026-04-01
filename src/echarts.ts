@@ -125,9 +125,13 @@ const EMPHASIS_SERIES = {
 };
 const BLUR_DIM = { itemStyle: { opacity: 0.15 }, lineStyle: { opacity: 0.15 } };
 const EMPHASIS_LINE = { ...EMPHASIS_SELF };
-const CHART_BASE: Pick<EChartsOption, 'backgroundColor' | 'animation'> = {
+const CHART_BASE: Pick<
+  EChartsOption,
+  'backgroundColor' | 'animation' | 'tooltip'
+> = {
   backgroundColor: 'transparent',
   animation: false,
+  tooltip: { show: false },
 };
 const CHART_BORDER_WIDTH = 2;
 
@@ -699,11 +703,6 @@ function buildChartCommons(
         },
       }
     : undefined;
-  const tooltipTheme = {
-    backgroundColor: palette.surface,
-    borderColor: palette.border,
-    textStyle: { color: palette.text },
-  };
   return {
     textColor,
     axisLineColor,
@@ -711,7 +710,6 @@ function buildChartCommons(
     gridOpacity,
     colors,
     titleConfig,
-    tooltipTheme,
   };
 }
 
@@ -730,37 +728,18 @@ export function buildExtendedChartOption(
     return {};
   }
 
-  const {
-    textColor,
-    axisLineColor,
-    gridOpacity,
-    colors,
-    titleConfig,
-    tooltipTheme,
-  } = buildChartCommons(parsed, palette, isDark);
+  const { textColor, axisLineColor, gridOpacity, colors, titleConfig } =
+    buildChartCommons(parsed, palette, isDark);
 
   // Sankey chart has different structure
   if (parsed.type === 'sankey') {
-    return buildSankeyOption(
-      parsed,
-      textColor,
-      colors,
-      titleConfig,
-      tooltipTheme
-    );
+    return buildSankeyOption(parsed, textColor, colors, titleConfig);
   }
 
   // Chord diagram
   if (parsed.type === 'chord') {
     const bg = isDark ? palette.surface : palette.bg;
-    return buildChordOption(
-      parsed,
-      textColor,
-      colors,
-      bg,
-      titleConfig,
-      tooltipTheme
-    );
+    return buildChordOption(parsed, textColor, colors, bg, titleConfig);
   }
 
   // Function plot
@@ -772,8 +751,7 @@ export function buildExtendedChartOption(
       axisLineColor,
       gridOpacity,
       colors,
-      titleConfig,
-      tooltipTheme
+      titleConfig
     );
   }
 
@@ -788,22 +766,14 @@ export function buildExtendedChartOption(
       gridOpacity,
       colors,
       bg,
-      titleConfig,
-      tooltipTheme
+      titleConfig
     );
   }
 
   // Funnel chart
   if (parsed.type === 'funnel') {
     const bg = isDark ? palette.surface : palette.bg;
-    return buildFunnelOption(
-      parsed,
-      textColor,
-      colors,
-      bg,
-      titleConfig,
-      tooltipTheme
-    );
+    return buildFunnelOption(parsed, textColor, colors, bg, titleConfig);
   }
 
   // Heatmap
@@ -813,8 +783,7 @@ export function buildExtendedChartOption(
     isDark,
     textColor,
     axisLineColor,
-    titleConfig,
-    tooltipTheme
+    titleConfig
   );
 }
 
@@ -825,8 +794,7 @@ function buildSankeyOption(
   parsed: ParsedExtendedChart,
   textColor: string,
   colors: string[],
-  titleConfig: EChartsOption['title'],
-  tooltipTheme: Record<string, unknown>
+  titleConfig: EChartsOption['title']
 ): EChartsOption {
   // Extract unique nodes from links
   const nodeSet = new Set<string>();
@@ -849,10 +817,6 @@ function buildSankeyOption(
     title: titleConfig,
     xAxis: { show: false },
     yAxis: { show: false },
-    tooltip: {
-      show: false,
-      ...tooltipTheme,
-    },
     series: [
       {
         type: 'sankey',
@@ -893,8 +857,7 @@ function buildChordOption(
   textColor: string,
   colors: string[],
   bg: string,
-  titleConfig: EChartsOption['title'],
-  tooltipTheme: Record<string, unknown>
+  titleConfig: EChartsOption['title']
 ): EChartsOption {
   // Extract unique nodes from links
   const nodeSet = new Set<string>();
@@ -939,19 +902,6 @@ function buildChordOption(
   return {
     ...CHART_BASE,
     title: titleConfig,
-    tooltip: {
-      trigger: 'item',
-      ...tooltipTheme,
-      formatter: (params: unknown) => {
-        const p = params as {
-          data?: { source: string; target: string; value: number };
-        };
-        if (p.data && p.data.source && p.data.target) {
-          return `${p.data.source} → ${p.data.target}: ${p.data.value}`;
-        }
-        return '';
-      },
-    },
     xAxis: { show: false },
     yAxis: { show: false },
     series: [
@@ -1067,8 +1017,7 @@ function buildFunctionOption(
   axisLineColor: string,
   gridOpacity: number,
   colors: string[],
-  titleConfig: EChartsOption['title'],
-  tooltipTheme: Record<string, unknown>
+  titleConfig: EChartsOption['title']
 ): EChartsOption {
   const xRange = parsed.xRange ?? { min: -10, max: 10 };
   const samples = 200;
@@ -1115,13 +1064,6 @@ function buildFunctionOption(
   return {
     ...CHART_BASE,
     title: titleConfig,
-    tooltip: {
-      trigger: 'axis',
-      ...tooltipTheme,
-      axisPointer: {
-        type: 'cross',
-      },
-    },
     legend: {
       data: (parsed.functions ?? []).map((fn) => fn.name),
       bottom: 10,
@@ -1505,8 +1447,7 @@ function buildScatterOption(
   gridOpacity: number,
   colors: string[],
   bg: string,
-  titleConfig: EChartsOption['title'],
-  tooltipTheme: Record<string, unknown>
+  titleConfig: EChartsOption['title']
 ): EChartsOption {
   const points = parsed.scatterPoints ?? [];
   const defaultSize = 15;
@@ -1602,26 +1543,6 @@ function buildScatterOption(
       },
     ];
   }
-
-  // Tooltip adapts to available data
-  const tooltip = {
-    trigger: 'item' as const,
-    ...tooltipTheme,
-    formatter: (params: unknown) => {
-      const p = params as {
-        seriesName: string;
-        name: string;
-        value: number[];
-      };
-      const xLabel = parsed.xlabel || 'x';
-      const yLabel = parsed.ylabel || 'y';
-      let html = `<strong>${p.name}</strong>`;
-      if (hasCategories) html += `<br/>${p.seriesName}`;
-      html += `<br/>${xLabel}: ${p.value[0]}<br/>${yLabel}: ${p.value[1]}`;
-      if (hasSize) html += `<br/>${parsed.sizelabel || 'size'}: ${p.value[2]}`;
-      return html;
-    },
-  };
 
   // Auto-fit axes to data range with ~10% padding
   const xValues = points.map((p) => p.x);
@@ -1722,7 +1643,6 @@ function buildScatterOption(
     ...CHART_BASE,
     title: titleConfig,
     ...(legendConfig && { legend: legendConfig }),
-    tooltip,
     grid: {
       left: `${gridLeft}%`,
       right: `${gridRight}%`,
@@ -1794,8 +1714,7 @@ function buildHeatmapOption(
   isDark: boolean,
   textColor: string,
   axisLineColor: string,
-  titleConfig: EChartsOption['title'],
-  tooltipTheme: Record<string, unknown>
+  titleConfig: EChartsOption['title']
 ): EChartsOption {
   const bg = isDark ? palette.surface : palette.bg;
   const heatmapRows = parsed.heatmapRows ?? [];
@@ -1818,16 +1737,6 @@ function buildHeatmapOption(
   return {
     ...CHART_BASE,
     title: titleConfig,
-    tooltip: {
-      trigger: 'item',
-      ...tooltipTheme,
-      formatter: (params: unknown) => {
-        const p = params as { data: [number, number, number] };
-        const colName = columns[p.data[0]] ?? p.data[0];
-        const rowName = rowLabels[p.data[1]] ?? p.data[1];
-        return `${rowName} / ${colName}: <strong>${p.data[2]}</strong>`;
-      },
-    },
     grid: {
       left: '3%',
       right: '10%',
@@ -1913,12 +1822,10 @@ function buildFunnelOption(
   textColor: string,
   colors: string[],
   bg: string,
-  titleConfig: EChartsOption['title'],
-  tooltipTheme: Record<string, unknown>
+  titleConfig: EChartsOption['title']
 ): EChartsOption {
   // Sort data descending by value for funnel ordering
   const sorted = [...parsed.data].sort((a, b) => b.value - a.value);
-  const topValue = sorted.length > 0 ? sorted[0].value : 1;
 
   const data = sorted.map((d) => {
     const stroke = d.color ?? colors[parsed.data.indexOf(d) % colors.length];
@@ -1958,25 +1865,6 @@ function buildFunnelOption(
     title: titleConfig,
     xAxis: { show: false },
     yAxis: { show: false },
-    tooltip: {
-      trigger: 'item',
-      ...tooltipTheme,
-      formatter: (params: unknown) => {
-        const p = params as { name: string; value: number; dataIndex: number };
-        const val = p.value;
-        const prev = prevValueMap.get(p.name) ?? val;
-        const isFirst = p.dataIndex === 0;
-        if (isFirst) return '';
-        const parts: string[] = [];
-        const stepDrop = ((1 - val / prev) * 100).toFixed(1);
-        parts.push(`Step drop-off: ${stepDrop}%`);
-        if (topValue > 0) {
-          const totalDrop = ((1 - val / topValue) * 100).toFixed(1);
-          parts.push(`Overall drop-off: ${totalDrop}%`);
-        }
-        return parts.join('<br/>');
-      },
-    },
     series: [
       {
         type: 'funnel',
@@ -2145,7 +2033,6 @@ export function buildSimpleChartOption(
     gridOpacity,
     colors,
     titleConfig,
-    tooltipTheme,
   } = buildChartCommons(parsed, palette, isDark);
   const bg = isDark ? palette.surface : palette.bg;
 
@@ -2160,7 +2047,6 @@ export function buildSimpleChartOption(
         colors,
         bg,
         titleConfig,
-        tooltipTheme,
         chartWidth
       );
     case 'bar-stacked':
@@ -2173,7 +2059,6 @@ export function buildSimpleChartOption(
         colors,
         bg,
         titleConfig,
-        tooltipTheme,
         chartWidth
       );
     case 'line':
@@ -2187,7 +2072,6 @@ export function buildSimpleChartOption(
             gridOpacity,
             colors,
             titleConfig,
-            tooltipTheme,
             chartWidth
           )
         : buildLineOption(
@@ -2198,7 +2082,6 @@ export function buildSimpleChartOption(
             splitLineColor,
             gridOpacity,
             titleConfig,
-            tooltipTheme,
             chartWidth
           );
     case 'area':
@@ -2210,7 +2093,6 @@ export function buildSimpleChartOption(
         splitLineColor,
         gridOpacity,
         titleConfig,
-        tooltipTheme,
         chartWidth
       );
     case 'pie':
@@ -2220,7 +2102,6 @@ export function buildSimpleChartOption(
         getSegmentColors(palette, parsed.data.length),
         bg,
         titleConfig,
-        tooltipTheme,
         false
       );
     case 'doughnut':
@@ -2230,7 +2111,6 @@ export function buildSimpleChartOption(
         getSegmentColors(palette, parsed.data.length),
         bg,
         titleConfig,
-        tooltipTheme,
         true
       );
     case 'radar':
@@ -2240,8 +2120,7 @@ export function buildSimpleChartOption(
         isDark,
         textColor,
         gridOpacity,
-        titleConfig,
-        tooltipTheme
+        titleConfig
       );
     case 'polar-area':
       return buildPolarAreaOption(
@@ -2249,8 +2128,7 @@ export function buildSimpleChartOption(
         textColor,
         getSegmentColors(palette, parsed.data.length),
         bg,
-        titleConfig,
-        tooltipTheme
+        titleConfig
       );
   }
 }
@@ -2303,7 +2181,6 @@ function buildBarOption(
   colors: string[],
   bg: string,
   titleConfig: EChartsOption['title'],
-  tooltipTheme: Record<string, unknown>,
   chartWidth?: number
 ): EChartsOption {
   const { xLabel, yLabel } = resolveAxisLabels(parsed);
@@ -2404,7 +2281,7 @@ function buildMarkArea(
   if (eras.length === 0) return undefined;
   return {
     silent: false,
-    tooltip: { show: true },
+    tooltip: { show: false },
     data: eras.map((era) => {
       const startIdx = labels.indexOf(era.start);
       const endIdx = labels.indexOf(era.end);
@@ -2439,7 +2316,6 @@ function buildLineOption(
   splitLineColor: string,
   gridOpacity: number,
   titleConfig: EChartsOption['title'],
-  tooltipTheme: Record<string, unknown>,
   chartWidth?: number
 ): EChartsOption {
   const { xLabel, yLabel } = resolveAxisLabels(parsed);
@@ -2454,11 +2330,6 @@ function buildLineOption(
   return {
     ...CHART_BASE,
     title: titleConfig,
-    tooltip: {
-      trigger: 'axis',
-      ...tooltipTheme,
-      axisPointer: { type: 'line' },
-    },
     grid: makeChartGrid({ xLabel, yLabel, hasTitle: !!parsed.title }),
     xAxis: makeGridAxis(
       'category',
@@ -2507,7 +2378,6 @@ function buildMultiLineOption(
   gridOpacity: number,
   colors: string[],
   titleConfig: EChartsOption['title'],
-  tooltipTheme: Record<string, unknown>,
   chartWidth?: number
 ): EChartsOption {
   const { xLabel, yLabel } = resolveAxisLabels(parsed);
@@ -2539,11 +2409,6 @@ function buildMultiLineOption(
   return {
     ...CHART_BASE,
     title: titleConfig,
-    tooltip: {
-      trigger: 'axis',
-      ...tooltipTheme,
-      axisPointer: { type: 'line' },
-    },
     legend: {
       data: seriesNames,
       bottom: 10,
@@ -2589,7 +2454,6 @@ function buildAreaOption(
   splitLineColor: string,
   gridOpacity: number,
   titleConfig: EChartsOption['title'],
-  tooltipTheme: Record<string, unknown>,
   chartWidth?: number
 ): EChartsOption {
   const { xLabel, yLabel } = resolveAxisLabels(parsed);
@@ -2604,11 +2468,6 @@ function buildAreaOption(
   return {
     ...CHART_BASE,
     title: titleConfig,
-    tooltip: {
-      trigger: 'axis',
-      ...tooltipTheme,
-      axisPointer: { type: 'line' },
-    },
     grid: makeChartGrid({ xLabel, yLabel, hasTitle: !!parsed.title }),
     xAxis: makeGridAxis(
       'category',
@@ -2703,7 +2562,6 @@ function buildPieOption(
   colors: string[],
   bg: string,
   titleConfig: EChartsOption['title'],
-  tooltipTheme: Record<string, unknown>,
   isDoughnut: boolean
 ): EChartsOption {
   const HIDE_AXES = { xAxis: { show: false }, yAxis: { show: false } };
@@ -2726,10 +2584,6 @@ function buildPieOption(
     ...CHART_BASE,
     ...HIDE_AXES,
     title: titleConfig,
-    tooltip: {
-      trigger: 'item',
-      ...tooltipTheme,
-    },
     series: [
       {
         type: 'pie',
@@ -2760,8 +2614,7 @@ function buildRadarOption(
   isDark: boolean,
   textColor: string,
   gridOpacity: number,
-  titleConfig: EChartsOption['title'],
-  tooltipTheme: Record<string, unknown>
+  titleConfig: EChartsOption['title']
 ): EChartsOption {
   const bg = isDark ? palette.surface : palette.bg;
   const radarColor =
@@ -2779,10 +2632,6 @@ function buildRadarOption(
     title: titleConfig,
     xAxis: { show: false },
     yAxis: { show: false },
-    tooltip: {
-      trigger: 'item',
-      ...tooltipTheme,
-    },
     radar: {
       indicator,
       axisName: {
@@ -2833,8 +2682,7 @@ function buildPolarAreaOption(
   textColor: string,
   colors: string[],
   bg: string,
-  titleConfig: EChartsOption['title'],
-  tooltipTheme: Record<string, unknown>
+  titleConfig: EChartsOption['title']
 ): EChartsOption {
   const data = parsed.data.map((d, i) => {
     const stroke = d.color ?? colors[i % colors.length];
@@ -2854,10 +2702,6 @@ function buildPolarAreaOption(
     title: titleConfig,
     xAxis: { show: false },
     yAxis: { show: false },
-    tooltip: {
-      trigger: 'item',
-      ...tooltipTheme,
-    },
     series: [
       {
         type: 'pie',
@@ -2893,7 +2737,6 @@ function buildBarStackedOption(
   colors: string[],
   bg: string,
   titleConfig: EChartsOption['title'],
-  tooltipTheme: Record<string, unknown>,
   chartWidth?: number
 ): EChartsOption {
   const { xLabel, yLabel } = resolveAxisLabels(parsed);

@@ -102,17 +102,16 @@ describe('buildSimpleChartOption', () => {
 
   // ── Line ─────────────────────────────────────────────────
 
-  it('builds line chart with smooth: false and crosshair', () => {
+  it('builds line chart with smooth: false and no tooltip', () => {
     const opt = build('line\nA 10\nB 20');
     const s = series(opt);
     expect(s).toHaveLength(1);
     expect(s[0].type).toBe('line');
     expect(s[0].smooth).toBe(false);
     expect(s[0].symbolSize).toBe(8);
-    // axisPointer should be line type
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const tooltip = (opt as any).tooltip;
-    expect(tooltip.axisPointer.type).toBe('line');
+    expect(tooltip.show).toBe(false);
   });
 
   it('uses single color from parsed.color', () => {
