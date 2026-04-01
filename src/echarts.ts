@@ -118,6 +118,11 @@ const EMPHASIS_SELF = {
   blurScope: 'global' as const,
   itemStyle: { opacity: 1 },
 };
+const EMPHASIS_SERIES = {
+  focus: 'series' as const,
+  blurScope: 'global' as const,
+  itemStyle: { opacity: 1 },
+};
 const BLUR_DIM = { itemStyle: { opacity: 0.15 }, lineStyle: { opacity: 0.15 } };
 const EMPHASIS_LINE = { ...EMPHASIS_SELF };
 const CHART_BASE: Pick<EChartsOption, 'backgroundColor' | 'animation'> = {
@@ -2920,7 +2925,7 @@ function buildBarStackedOption(
         fontWeight: 'bold' as const,
         fontFamily: FONT_FAMILY,
       },
-      emphasis: EMPHASIS_SELF,
+      emphasis: EMPHASIS_SERIES,
       blur: BLUR_DIM,
     };
   });
