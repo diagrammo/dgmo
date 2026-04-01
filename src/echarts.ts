@@ -113,17 +113,13 @@ import { parseDataRowValues } from './chart';
 // Shared Constants
 // ============================================================
 
-const EMPHASIS_SELF = { focus: 'self' as const, blurScope: 'global' as const };
-const EMPHASIS_LINE = {
-  ...EMPHASIS_SELF,
-  scale: 2.5,
-  itemStyle: {
-    borderWidth: 2,
-    borderColor: '#fff',
-    shadowBlur: 8,
-    shadowColor: 'rgba(0,0,0,0.4)',
-  },
+const EMPHASIS_SELF = {
+  focus: 'self' as const,
+  blurScope: 'global' as const,
+  itemStyle: { opacity: 1 },
 };
+const BLUR_DIM = { itemStyle: { opacity: 0.15 }, lineStyle: { opacity: 0.15 } };
+const EMPHASIS_LINE = { ...EMPHASIS_SELF };
 const CHART_BASE: Pick<EChartsOption, 'backgroundColor' | 'animation'> = {
   backgroundColor: 'transparent',
   animation: false,
@@ -858,7 +854,9 @@ function buildSankeyOption(
         emphasis: {
           focus: 'adjacency',
           blurScope: 'global' as const,
+          itemStyle: { opacity: 1 },
         },
+        blur: BLUR_DIM,
         nodeAlign: 'left',
         nodeGap: 12,
         nodeWidth: 20,
@@ -1013,11 +1011,13 @@ function buildChordOption(
         },
         emphasis: {
           focus: 'adjacency',
+          itemStyle: { opacity: 1 },
           lineStyle: {
             width: 5,
             opacity: 1,
           },
         },
+        blur: BLUR_DIM,
       },
     ],
   };
@@ -1103,6 +1103,7 @@ function buildFunctionOption(
         },
       }),
       emphasis: EMPHASIS_SELF,
+      blur: BLUR_DIM,
     };
   });
 
@@ -1522,11 +1523,9 @@ function buildScatterOption(
 
   const emphasisConfig = {
     focus: 'self' as const,
-    itemStyle: {
-      shadowBlur: 10,
-      shadowColor: 'rgba(0, 0, 0, 0.3)',
-    },
+    itemStyle: { opacity: 1 },
   };
+  const blurConfig = BLUR_DIM;
 
   // Build series based on whether categories are present
   let series;
@@ -1567,6 +1566,7 @@ function buildScatterOption(
         },
         label: labelConfig,
         emphasis: emphasisConfig,
+        blur: blurConfig,
       };
     });
   } else {
@@ -1593,6 +1593,7 @@ function buildScatterOption(
         data,
         label: labelConfig,
         emphasis: emphasisConfig,
+        blur: blurConfig,
       },
     ];
   }
@@ -1892,11 +1893,8 @@ function buildHeatmapOption(
         },
         emphasis: {
           ...EMPHASIS_SELF,
-          itemStyle: {
-            shadowBlur: 10,
-            shadowColor: 'rgba(0, 0, 0, 0.5)',
-          },
         },
+        blur: BLUR_DIM,
       },
     ],
   };
@@ -1992,10 +1990,8 @@ function buildFunnelOption(
         },
         emphasis: {
           ...EMPHASIS_SELF,
-          label: {
-            fontSize: 15,
-          },
         },
+        blur: BLUR_DIM,
         data,
       },
       {
@@ -2340,6 +2336,7 @@ function buildBarOption(
         type: 'bar',
         data,
         emphasis: EMPHASIS_SELF,
+        blur: BLUR_DIM,
       },
     ],
   };
@@ -2454,6 +2451,7 @@ function buildLineOption(
         lineStyle: { color: lineColor, width: 3 },
         itemStyle: { color: lineColor },
         emphasis: EMPHASIS_LINE,
+        blur: BLUR_DIM,
         ...(markArea && { markArea }),
       },
     ],
@@ -2495,6 +2493,7 @@ function buildMultiLineOption(
       lineStyle: { color, width: 3 },
       itemStyle: { color },
       emphasis: EMPHASIS_LINE,
+      blur: BLUR_DIM,
       ...(idx === 0 && markArea && { markArea }),
     };
   });
@@ -2603,6 +2602,7 @@ function buildAreaOption(
         itemStyle: { color: lineColor },
         areaStyle: { opacity: 0.25 },
         emphasis: EMPHASIS_LINE,
+        blur: BLUR_DIM,
         ...(markArea && { markArea }),
       },
     ],
@@ -2708,6 +2708,7 @@ function buildPieOption(
         },
         labelLine: { show: true },
         emphasis: EMPHASIS_SELF,
+        blur: BLUR_DIM,
       },
     ],
   };
@@ -2781,6 +2782,7 @@ function buildRadarOption(
           },
         ],
         emphasis: EMPHASIS_SELF,
+        blur: BLUR_DIM,
       },
     ],
   };
@@ -2836,6 +2838,7 @@ function buildPolarAreaOption(
         },
         labelLine: { show: true },
         emphasis: EMPHASIS_SELF,
+        blur: BLUR_DIM,
       },
     ],
   };
@@ -2885,6 +2888,7 @@ function buildBarStackedOption(
         fontFamily: FONT_FAMILY,
       },
       emphasis: EMPHASIS_SELF,
+      blur: BLUR_DIM,
     };
   });
 
