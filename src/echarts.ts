@@ -2258,14 +2258,33 @@ function makeChartGrid(options: {
   yLabel?: string;
   hasTitle: boolean;
   hasLegend?: boolean;
+  isHorizontal?: boolean;
 }): Record<string, unknown> {
+  const left = options.yLabel ? '12%' : '3%';
   return {
-    left: options.yLabel ? '12%' : '3%',
+    left,
     right: '4%',
     bottom: options.hasLegend ? '15%' : options.xLabel ? '10%' : '3%',
     top: options.hasTitle ? '15%' : '5%',
     containLabel: true,
   };
+}
+
+/** Wrap a label string at word boundaries to fit within `maxChars` per line. */
+function wrapLabel(text: string, maxChars: number): string {
+  const words = text.split(' ');
+  const lines: string[] = [];
+  let current = '';
+  for (const word of words) {
+    if (current && current.length + 1 + word.length > maxChars) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = current ? current + ' ' + word : word;
+    }
+  }
+  if (current) lines.push(current);
+  return lines.join('\n');
 }
 
 // ── Bar ──────────────────────────────────────────────────────
@@ -2297,12 +2316,16 @@ function buildBarOption(
     };
   });
 
-  // When category labels are on the y-axis (horizontal bars), they can be wide —
-  // compute a nameGap that clears the longest label so the ylabel doesn't overlap.
+  // For horizontal bars, wrap long category labels at word boundaries so they
+  // don't consume too much horizontal space on the y-axis.
+  const catLabels = isHorizontal ? labels.map((l) => wrapLabel(l, 12)) : labels;
+
+  // Compute the max visible line width after wrapping for nameGap calculation.
+  const maxVisibleLen = Math.max(
+    ...catLabels.map((l) => Math.max(...l.split('\n').map((seg) => seg.length)))
+  );
   const hCatGap =
-    isHorizontal && yLabel
-      ? Math.max(40, Math.max(...labels.map((l) => l.length)) * 8 + 16)
-      : undefined;
+    isHorizontal && yLabel ? Math.max(40, maxVisibleLen * 8 + 16) : undefined;
   const categoryAxis = makeGridAxis(
     'category',
     textColor,
@@ -2310,17 +2333,22 @@ function buildBarOption(
     splitLineColor,
     gridOpacity,
     isHorizontal ? yLabel : xLabel,
-    labels,
+    catLabels,
     hCatGap,
     !isHorizontal ? chartWidth : undefined
   );
+  // For horizontal bars, the xlabel sits on the value axis (bottom).
+  // Use a moderate nameGap so it doesn't drift.
+  const hValueGap = isHorizontal && xLabel ? 40 : undefined;
   const valueAxis = makeGridAxis(
     'value',
     textColor,
     axisLineColor,
     splitLineColor,
     gridOpacity,
-    isHorizontal ? xLabel : yLabel
+    isHorizontal ? xLabel : yLabel,
+    undefined,
+    hValueGap
   );
 
   // xAxis is always the bottom axis, yAxis is always the left axis in ECharts
@@ -2328,9 +2356,14 @@ function buildBarOption(
   return {
     ...CHART_BASE,
     title: titleConfig,
-    grid: makeChartGrid({ xLabel, yLabel, hasTitle: !!parsed.title }),
+    grid: makeChartGrid({
+      xLabel,
+      yLabel,
+      hasTitle: !!parsed.title,
+      isHorizontal,
+    }),
     xAxis: isHorizontal ? valueAxis : categoryAxis,
-    yAxis: isHorizontal ? categoryAxis : valueAxis,
+    yAxis: isHorizontal ? { ...categoryAxis, inverse: true } : valueAxis,
     series: [
       {
         type: 'bar',
@@ -2936,7 +2969,7 @@ function buildBarStackedOption(
       hasLegend: true,
     }),
     xAxis: isHorizontal ? valueAxis : categoryAxis,
-    yAxis: isHorizontal ? categoryAxis : valueAxis,
+    yAxis: isHorizontal ? { ...categoryAxis, inverse: true } : valueAxis,
     series,
   };
 }
