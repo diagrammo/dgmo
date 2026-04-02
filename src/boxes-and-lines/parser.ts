@@ -94,6 +94,7 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
   const nodeLabels = new Set<string>();
   const groupLabels = new Set<string>();
   let lastNodeLabel: string | null = null;
+  let lastSourceIsGroup = false;
 
   // Group stack for nesting
   interface GroupState {
@@ -393,6 +394,8 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
 
       groupLabels.add(label);
       groupStack.push({ group, indent, depth: currentDepth });
+      lastNodeLabel = label;
+      lastSourceIsGroup = true;
       continue;
     }
 
@@ -414,7 +417,10 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
           );
           continue;
         }
-        edgeText = `${lastNodeLabel} ${trimmed}`;
+        const sourcePrefix = lastSourceIsGroup
+          ? `[${lastNodeLabel}]`
+          : lastNodeLabel;
+        edgeText = `${sourcePrefix} ${trimmed}`;
       }
 
       const edge = parseEdgeLine(
@@ -442,6 +448,7 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
       continue;
     }
     lastNodeLabel = node.label;
+    lastSourceIsGroup = false;
 
     const gs = currentGroupState();
     const isGroupChild = gs && indent > gs.indent;
@@ -478,16 +485,47 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
     result.groups.push(gs.group);
   }
 
-  // Implicit node creation for edge endpoints
+  // Validate group references and implicitly create node endpoints
+  const validEdges: BLEdge[] = [];
   for (const edge of result.edges) {
-    // Skip group references
-    if (!edge.source.startsWith('__group_')) {
+    let valid = true;
+
+    // Check group references exist
+    if (edge.source.startsWith('__group_')) {
+      const label = edge.source.slice('__group_'.length);
+      const found = [...groupLabels].some(
+        (g) => g.toLowerCase() === label.toLowerCase()
+      );
+      if (!found) {
+        result.diagnostics.push(
+          makeDgmoError(edge.lineNumber, `Group '[${label}]' not found`)
+        );
+        valid = false;
+      }
+    } else {
       ensureNode(edge.source, edge.lineNumber);
     }
-    if (!edge.target.startsWith('__group_')) {
+
+    if (edge.target.startsWith('__group_')) {
+      const label = edge.target.slice('__group_'.length);
+      const found = [...groupLabels].some(
+        (g) => g.toLowerCase() === label.toLowerCase()
+      );
+      if (!found) {
+        result.diagnostics.push(
+          makeDgmoError(edge.lineNumber, `Group '[${label}]' not found`)
+        );
+        valid = false;
+      }
+    } else {
       ensureNode(edge.target, edge.lineNumber);
     }
+
+    if (valid) {
+      validEdges.push(edge);
+    }
   }
+  result.edges = validEdges;
 
   // Post-parse: inject default tag metadata and validate tag values
   if (result.tagGroups.length > 0) {
@@ -540,6 +578,12 @@ function parseNodeLine(
   };
 }
 
+/** Convert `[Group Name]` to `__group_Group Name`, or return as-is for plain nodes */
+function resolveEndpoint(name: string): string {
+  const m = name.match(/^\[(.+)\]$/);
+  return m ? groupId(m[1].trim()) : name;
+}
+
 /**
  * Parse an edge line. Supports:
  * - `Source -> Target`
@@ -548,6 +592,8 @@ function parseNodeLine(
  * - `Source <-> Target`
  * - `Source <-label-> Target`
  * - `Source -label-> Target | key: value`
+ *
+ * `[Group Name]` in source or target position is resolved to `__group_Group Name`.
  */
 function parseEdgeLine(
   trimmed: string,
@@ -558,7 +604,7 @@ function parseEdgeLine(
   // Check for bidirectional labeled: `Source <-label-> Target`
   const biLabeledMatch = trimmed.match(/^(.+?)\s*<-(.+)->\s*(.+)$/);
   if (biLabeledMatch) {
-    const source = biLabeledMatch[1].trim();
+    const source = resolveEndpoint(biLabeledMatch[1].trim());
     const label = biLabeledMatch[2].trim();
     let rest = biLabeledMatch[3].trim();
 
@@ -582,7 +628,7 @@ function parseEdgeLine(
 
     return {
       source,
-      target: rest,
+      target: resolveEndpoint(rest),
       label: label || undefined,
       bidirectional: true,
       lineNumber: lineNum,
@@ -593,7 +639,7 @@ function parseEdgeLine(
   // Check for bidirectional plain: `Source <-> Target`
   const biIdx = trimmed.indexOf('<->');
   if (biIdx >= 0) {
-    const source = trimmed.slice(0, biIdx).trim();
+    const source = resolveEndpoint(trimmed.slice(0, biIdx).trim());
     let rest = trimmed.slice(biIdx + 3).trim();
 
     let metadata: Record<string, string> = {};
@@ -616,7 +662,7 @@ function parseEdgeLine(
 
     return {
       source,
-      target: rest,
+      target: resolveEndpoint(rest),
       bidirectional: true,
       lineNumber: lineNum,
       metadata,
@@ -626,7 +672,7 @@ function parseEdgeLine(
   // Check for labeled arrow: `Source -label-> Target`
   const labeledMatch = trimmed.match(/^(.+?)\s+-(.+)->\s*(.+)$/);
   if (labeledMatch) {
-    const source = labeledMatch[1].trim();
+    const source = resolveEndpoint(labeledMatch[1].trim());
     const label = labeledMatch[2].trim();
     let rest = labeledMatch[3].trim();
 
@@ -651,7 +697,7 @@ function parseEdgeLine(
 
       return {
         source,
-        target: rest,
+        target: resolveEndpoint(rest),
         label,
         bidirectional: false,
         lineNumber: lineNum,
@@ -664,7 +710,7 @@ function parseEdgeLine(
   const arrowIdx = trimmed.indexOf('->');
   if (arrowIdx < 0) return null;
 
-  const source = trimmed.slice(0, arrowIdx).trim();
+  const source = resolveEndpoint(trimmed.slice(0, arrowIdx).trim());
   let rest = trimmed.slice(arrowIdx + 2).trim();
 
   if (!source || !rest) {
@@ -689,7 +735,7 @@ function parseEdgeLine(
 
   return {
     source,
-    target: rest,
+    target: resolveEndpoint(rest),
     bidirectional: false,
     lineNumber: lineNum,
     metadata,

@@ -46,11 +46,21 @@ const BARE_ARROW_RE = /^->\s*(.+)$/;
 function parseArrowLine(
   trimmed: string,
   palette?: PaletteColors
-): { label?: string; color?: string; target: string } | null {
+): {
+  label?: string;
+  color?: string;
+  target: string;
+  targetIsGroup: boolean;
+} | null {
   // Bare arrow: -> Target
   const bareMatch = trimmed.match(BARE_ARROW_RE);
   if (bareMatch) {
-    return { target: bareMatch[1].trim() };
+    const rawTarget = bareMatch[1].trim();
+    const groupMatch = rawTarget.match(/^\[(.+)\]$/);
+    return {
+      target: groupMatch ? groupMatch[1].trim() : rawTarget,
+      targetIsGroup: !!groupMatch,
+    };
   }
 
   // Labeled/colored arrow: -label(color)-> Target
@@ -63,8 +73,14 @@ function parseArrowLine(
     if (label && !color) {
       color = inferArrowColor(label);
     }
-    const target = arrowMatch[3].trim();
-    return { label, color, target };
+    const rawTarget = arrowMatch[3].trim();
+    const groupMatch = rawTarget.match(/^\[(.+)\]$/);
+    return {
+      label,
+      color,
+      target: groupMatch ? groupMatch[1].trim() : rawTarget,
+      targetIsGroup: !!groupMatch,
+    };
   }
 
   return null;
@@ -169,10 +185,14 @@ export function parseSitemap(
   // Map label (lowercased) -> node for arrow target resolution
   const labelToNode = new Map<string, SitemapNode>();
 
+  // Map label (lowercased) -> container for group-targeted arrow resolution
+  const labelToContainer = new Map<string, SitemapNode>();
+
   // Deferred arrows: { sourceNode, arrow info, lineNumber }
   const deferredArrows: {
     sourceNode: SitemapNode;
     targetLabel: string;
+    targetIsGroup: boolean;
     label?: string;
     color?: string;
     lineNumber: number;
@@ -311,6 +331,7 @@ export function parseSitemap(
         deferredArrows.push({
           sourceNode: source,
           targetLabel: arrowInfo.target,
+          targetIsGroup: arrowInfo.targetIsGroup,
           label: arrowInfo.label,
           color: arrowInfo.color,
           lineNumber,
@@ -356,7 +377,8 @@ export function parseSitemap(
       };
 
       attachNode(node, indent, indentStack, result);
-      // Don't register containers in labelToNode — arrows target pages, not containers
+      // Register in labelToContainer for group-targeted arrows (-> [Group])
+      labelToContainer.set(label.toLowerCase(), node);
     } else if (metadataMatch && indentStack.length > 0) {
       // Metadata line — attach to parent
       const rawKey = metadataMatch[1].trim().toLowerCase();
@@ -403,25 +425,44 @@ export function parseSitemap(
   // --- Post-parse: resolve arrow targets ---
   for (const arrow of deferredArrows) {
     const targetKey = arrow.targetLabel.toLowerCase();
-    const targetNode = labelToNode.get(targetKey);
 
-    if (!targetNode) {
-      // Try suggestion
-      const allLabels = Array.from(labelToNode.keys());
-      let msg = `Arrow target "${arrow.targetLabel}" not found`;
-      const hint = suggest(targetKey, allLabels);
-      if (hint) msg += `. ${hint}`;
-      pushError(arrow.lineNumber, msg);
-      continue;
+    if (arrow.targetIsGroup) {
+      // Group target: look up in labelToContainer
+      const targetContainer = labelToContainer.get(targetKey);
+      if (!targetContainer) {
+        const allLabels = Array.from(labelToContainer.keys());
+        let msg = `Group '[${arrow.targetLabel}]' not found`;
+        const hint = suggest(targetKey, allLabels);
+        if (hint) msg += `. ${hint}`;
+        pushError(arrow.lineNumber, msg);
+        continue;
+      }
+      result.edges.push({
+        sourceId: arrow.sourceNode.id,
+        targetId: targetContainer.id,
+        label: arrow.label,
+        color: arrow.color,
+        lineNumber: arrow.lineNumber,
+      });
+    } else {
+      // Node target: look up in labelToNode (existing behavior)
+      const targetNode = labelToNode.get(targetKey);
+      if (!targetNode) {
+        const allLabels = Array.from(labelToNode.keys());
+        let msg = `Arrow target "${arrow.targetLabel}" not found`;
+        const hint = suggest(targetKey, allLabels);
+        if (hint) msg += `. ${hint}`;
+        pushError(arrow.lineNumber, msg);
+        continue;
+      }
+      result.edges.push({
+        sourceId: arrow.sourceNode.id,
+        targetId: targetNode.id,
+        label: arrow.label,
+        color: arrow.color,
+        lineNumber: arrow.lineNumber,
+      });
     }
-
-    result.edges.push({
-      sourceId: arrow.sourceNode.id,
-      targetId: targetNode.id,
-      label: arrow.label,
-      color: arrow.color,
-      lineNumber: arrow.lineNumber,
-    });
   }
 
   // Validate tag group values on all nodes

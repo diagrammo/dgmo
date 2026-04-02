@@ -98,6 +98,12 @@ const lineGenerator = d3Shape
   .y((d) => d.y)
   .curve(d3Shape.curveBasis);
 
+const lineGeneratorLinear = d3Shape
+  .line<{ x: number; y: number }>()
+  .x((d) => d.x)
+  .y((d) => d.y)
+  .curve(d3Shape.curveLinear);
+
 // ============================================================
 // Main Renderer
 // ============================================================
@@ -380,7 +386,8 @@ export function renderSitemap(
       ? `sm-arrow-${edge.color.replace('#', '')}`
       : 'sm-arrow';
 
-    const pathD = lineGenerator(edge.points);
+    const gen = edge.deferred ? lineGeneratorLinear : lineGenerator;
+    const pathD = gen(edge.points);
     if (pathD) {
       edgeG
         .append('path')

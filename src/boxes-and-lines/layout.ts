@@ -5,6 +5,31 @@
 import dagre from '@dagrejs/dagre';
 import type { ParsedBoxesAndLines, BLNode } from './types';
 
+/**
+ * Clip a point at (cx, cy) to the border of a rectangle centered at (cx, cy)
+ * with given width/height, along the direction toward (tx, ty).
+ * Returns the intersection point on the rectangle border.
+ */
+function clipToRectBorder(
+  cx: number,
+  cy: number,
+  w: number,
+  h: number,
+  tx: number,
+  ty: number
+): { x: number; y: number } {
+  const dx = tx - cx;
+  const dy = ty - cy;
+  if (dx === 0 && dy === 0) return { x: cx, y: cy };
+  const hw = w / 2;
+  const hh = h / 2;
+  // Scale factor to reach the border along the direction (dx, dy)
+  const sx = dx !== 0 ? hw / Math.abs(dx) : Infinity;
+  const sy = dy !== 0 ? hh / Math.abs(dy) : Infinity;
+  const s = Math.min(sx, sy);
+  return { x: cx + dx * s, y: cy + dy * s };
+}
+
 // ── Constants ──────────────────────────────────────────────
 const NODESEP = 60;
 const RANKSEP = 100;
@@ -38,6 +63,8 @@ export interface BLLayoutEdge {
   yOffset: number;
   parallelCount: number;
   metadata: Record<string, string>;
+  /** True for edges deferred from dagre (group endpoints) — use linear curve */
+  deferred?: boolean;
 }
 
 export interface BLLayoutGroup {
@@ -257,17 +284,29 @@ export function layoutBoxesAndLines(
     let points: { x: number; y: number }[];
 
     if (deferredSet.has(i)) {
-      // Deferred edge (compound parent endpoint) — compute points from node positions
+      // Deferred edge (compound parent endpoint) — compute points clipped to border
       const srcNode = g.node(edge.source);
       const tgtNode = g.node(edge.target);
       if (!srcNode || !tgtNode) continue;
-      const midX = (srcNode.x + tgtNode.x) / 2;
-      const midY = (srcNode.y + tgtNode.y) / 2;
-      points = [
-        { x: srcNode.x, y: srcNode.y },
-        { x: midX, y: midY },
-        { x: tgtNode.x, y: tgtNode.y },
-      ];
+      const srcPt = clipToRectBorder(
+        srcNode.x,
+        srcNode.y,
+        srcNode.width,
+        srcNode.height,
+        tgtNode.x,
+        tgtNode.y
+      );
+      const tgtPt = clipToRectBorder(
+        tgtNode.x,
+        tgtNode.y,
+        tgtNode.width,
+        tgtNode.height,
+        srcNode.x,
+        srcNode.y
+      );
+      const midX = (srcPt.x + tgtPt.x) / 2;
+      const midY = (srcPt.y + tgtPt.y) / 2;
+      points = [srcPt, { x: midX, y: midY }, tgtPt];
     } else {
       const dagreEdge = g.edge(edge.source, edge.target, `e${i}`);
       points = dagreEdge?.points ?? [];
@@ -294,6 +333,7 @@ export function layoutBoxesAndLines(
       yOffset: edgeYOffsets[i],
       parallelCount: edgeParallelCounts[i],
       metadata: edge.metadata,
+      deferred: deferredSet.has(i) || undefined,
     });
   }
 

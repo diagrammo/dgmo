@@ -223,4 +223,26 @@ describe('layoutSitemap', () => {
     );
     expect(edgesToAccount.length).toBeGreaterThanOrEqual(1);
   });
+
+  it('deferred edges to expanded containers produce valid point arrays', () => {
+    const content = [
+      'Home',
+      '  -> [Browse]',
+      '[Browse]',
+      '  Shop',
+      '  Detail',
+    ].join('\n');
+    const parsed = parseSitemap(content);
+    const result = layoutSitemap(parsed);
+
+    // Edge from Home to expanded [Browse] should be deferred and have 3-point path
+    expect(result.edges).toHaveLength(1);
+    expect(result.edges[0].points).toHaveLength(3);
+    for (const p of result.edges[0].points) {
+      expect(typeof p.x).toBe('number');
+      expect(typeof p.y).toBe('number');
+      expect(Number.isFinite(p.x)).toBe(true);
+      expect(Number.isFinite(p.y)).toBe(true);
+    }
+  });
 });

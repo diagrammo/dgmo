@@ -62,6 +62,12 @@ const lineGeneratorTB = d3Shape
   .y((d) => d.y)
   .curve(d3Shape.curveMonotoneY);
 
+const lineGeneratorLinear = d3Shape
+  .line<{ x: number; y: number }>()
+  .x((d) => d.x)
+  .y((d) => d.y)
+  .curve(d3Shape.curveLinear);
+
 // ── Text fitting ───────────────────────────────────────────
 
 function splitCamelCase(word: string): string[] {
@@ -526,15 +532,15 @@ export function renderBoxesAndLines(
     edgeGroups.set(i, edgeG as unknown as D3G);
 
     const markerId = `bl-arrow-${color.replace('#', '')}`;
+    const gen = le.deferred
+      ? lineGeneratorLinear
+      : parsed.direction === 'TB'
+        ? lineGeneratorTB
+        : lineGeneratorLR;
     const path = edgeG
       .append('path')
       .attr('class', 'bl-edge')
-      .attr(
-        'd',
-        (parsed.direction === 'TB' ? lineGeneratorTB : lineGeneratorLR)(
-          points
-        ) ?? ''
-      )
+      .attr('d', gen(points) ?? '')
       .attr('fill', 'none')
       .attr('stroke', color)
       .attr('stroke-width', EDGE_STROKE_WIDTH)

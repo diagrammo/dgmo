@@ -190,10 +190,13 @@ describe('parseSitemap', () => {
 
     it('arrow target not found produces error with suggestion', () => {
       const result = parseSitemap('Home\n  -go-> Abot\nAbout');
-      expect(result.diagnostics.some(d =>
-        d.message.includes('Arrow target "Abot" not found') &&
-        d.message.includes('Did you mean')
-      )).toBe(true);
+      expect(
+        result.diagnostics.some(
+          (d) =>
+            d.message.includes('Arrow target "Abot" not found') &&
+            d.message.includes('Did you mean')
+        )
+      ).toBe(true);
     });
 
     it('arrow target resolution is case-insensitive', () => {
@@ -204,13 +207,17 @@ describe('parseSitemap', () => {
 
     it('arrow with no source produces error', () => {
       const result = parseSitemap('-go-> About\nAbout');
-      expect(result.diagnostics.some(d =>
-        d.message.includes('Arrow has no source')
-      )).toBe(true);
+      expect(
+        result.diagnostics.some((d) =>
+          d.message.includes('Arrow has no source')
+        )
+      ).toBe(true);
     });
 
     it('multiple arrows from same node', () => {
-      const result = parseSitemap('Home\n  -a-> About\n  -b-> Blog\nAbout\nBlog');
+      const result = parseSitemap(
+        'Home\n  -a-> About\n  -b-> Blog\nAbout\nBlog'
+      );
       expect(result.edges).toHaveLength(2);
       expect(result.edges[0].sourceId).toBe(result.edges[1].sourceId);
     });
@@ -312,17 +319,23 @@ describe('parseSitemap', () => {
         '  Auth: Secret',
       ].join('\n');
       const result = parseSitemap(content);
-      expect(result.diagnostics.some(d =>
-        d.severity === 'warning' && d.message.includes("Unknown value 'Secret'")
-      )).toBe(true);
+      expect(
+        result.diagnostics.some(
+          (d) =>
+            d.severity === 'warning' &&
+            d.message.includes("Unknown value 'Secret'")
+        )
+      ).toBe(true);
     });
 
     it('tag group after content produces error', () => {
       const content = 'Home\ntag Auth\n  Public(green)';
       const result = parseSitemap(content);
-      expect(result.diagnostics.some(d =>
-        d.message.includes('Tag groups must appear before')
-      )).toBe(true);
+      expect(
+        result.diagnostics.some((d) =>
+          d.message.includes('Tag groups must appear before')
+        )
+      ).toBe(true);
     });
 
     it('tag group with alias', () => {
@@ -420,21 +433,138 @@ describe('parseSitemap', () => {
 
       // All edges should resolve
       expect(result.edges.length).toBeGreaterThanOrEqual(7);
-      const unresolvedErrors = result.diagnostics.filter(d =>
+      const unresolvedErrors = result.diagnostics.filter((d) =>
         d.message.includes('not found')
       );
       expect(unresolvedErrors).toHaveLength(0);
     });
   });
 
+  // === Group-targeted arrows ===
+  describe('group-targeted arrows', () => {
+    it('node -> [group]: arrow targets container', () => {
+      const content = [
+        'Home',
+        '  -> [Port Market]',
+        '[Port Market]',
+        '  Shop',
+      ].join('\n');
+      const result = parseSitemap(content);
+      expect(result.edges).toHaveLength(1);
+      const home = result.roots[0];
+      const container = result.roots[1];
+      expect(container.isContainer).toBe(true);
+      expect(result.edges[0].sourceId).toBe(home.id);
+      expect(result.edges[0].targetId).toBe(container.id);
+    });
+
+    it('[group] -> node: arrow indented under container targets a page', () => {
+      const content = ['[Port Market]', '  Shop', '  -> Home', 'Home'].join(
+        '\n'
+      );
+      const result = parseSitemap(content);
+      expect(result.edges).toHaveLength(1);
+      const container = result.roots[0];
+      expect(container.isContainer).toBe(true);
+      expect(result.edges[0].sourceId).toBe(container.id);
+    });
+
+    it('[group] -> [group]: arrow between containers', () => {
+      const content = [
+        '[Port Market]',
+        '  Shop',
+        '  -> [Warehouse]',
+        '[Warehouse]',
+        '  Storage',
+      ].join('\n');
+      const result = parseSitemap(content);
+      expect(result.edges).toHaveLength(1);
+      const portMarket = result.roots[0];
+      const warehouse = result.roots[1];
+      expect(result.edges[0].sourceId).toBe(portMarket.id);
+      expect(result.edges[0].targetId).toBe(warehouse.id);
+    });
+
+    it('labeled arrow: -shop-> [Container]', () => {
+      const content = [
+        'Home',
+        '  -shop-> [Port Market]',
+        '[Port Market]',
+        '  Shop',
+      ].join('\n');
+      const result = parseSitemap(content);
+      expect(result.edges).toHaveLength(1);
+      expect(result.edges[0].label).toBe('shop');
+      expect(result.edges[0].targetId).toBe(result.roots[1].id);
+    });
+
+    it('error: -> [Nonexistent] produces group-specific error', () => {
+      const content = ['Home', '  -> [Nonexistent]'].join('\n');
+      const result = parseSitemap(content);
+      expect(result.edges).toHaveLength(0);
+      expect(
+        result.diagnostics.some((d) =>
+          d.message.includes("Group '[Nonexistent]' not found")
+        )
+      ).toBe(true);
+    });
+
+    it('same-name collision: node "Foo" and [Foo] resolve separately', () => {
+      const content = [
+        'Home',
+        '  -> Foo',
+        '  -> [Foo]',
+        'Foo',
+        '[Foo]',
+        '  Bar',
+      ].join('\n');
+      const result = parseSitemap(content);
+      expect(result.edges).toHaveLength(2);
+      // First edge targets the node
+      const fooNode = result.roots[1];
+      expect(fooNode.label).toBe('Foo');
+      expect(fooNode.isContainer).toBe(false);
+      expect(result.edges[0].targetId).toBe(fooNode.id);
+      // Second edge targets the container
+      const fooContainer = result.roots[2];
+      expect(fooContainer.label).toBe('Foo');
+      expect(fooContainer.isContainer).toBe(true);
+      expect(result.edges[1].targetId).toBe(fooContainer.id);
+    });
+
+    it('labeled and colored arrow: -shop(red)-> [Container]', () => {
+      const content = [
+        'Home',
+        '  -shop(red)-> [Port Market]',
+        '[Port Market]',
+        '  Shop',
+      ].join('\n');
+      const result = parseSitemap(content);
+      expect(result.edges).toHaveLength(1);
+      expect(result.edges[0].label).toBe('shop');
+      expect(result.edges[0].color).toBeDefined();
+      expect(result.edges[0].targetId).toBe(result.roots[1].id);
+    });
+
+    it('group target resolution is case-insensitive', () => {
+      const content = [
+        'Home',
+        '  -> [port market]',
+        '[Port Market]',
+        '  Shop',
+      ].join('\n');
+      const result = parseSitemap(content);
+      expect(result.edges).toHaveLength(1);
+      expect(result.edges[0].targetId).toBe(result.roots[1].id);
+    });
+  });
+
   // === Container metadata cascading ===
   describe('container metadata cascading', () => {
     it('child inherits container metadata', () => {
-      const content = [
-        '[Browse] | icon: nav',
-        '  About',
-        '  Contact',
-      ].join('\n');
+      const content = ['[Browse] | icon: nav', '  About', '  Contact'].join(
+        '\n'
+      );
       const result = parseSitemap(content);
       expect(result.error).toBeNull();
       const browseContainer = result.roots[0];

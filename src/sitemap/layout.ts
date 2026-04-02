@@ -6,7 +6,11 @@ import dagre from '@dagrejs/dagre';
 import type { ParsedSitemap, SitemapNode } from './types';
 import type { TagGroup } from '../utils/tag-groups';
 import { resolveTagColor, injectDefaultTagMetadata } from '../utils/tag-groups';
-import { LEGEND_PILL_FONT_SIZE, LEGEND_ENTRY_FONT_SIZE, measureLegendText } from '../utils/legend-constants';
+import {
+  LEGEND_PILL_FONT_SIZE,
+  LEGEND_ENTRY_FONT_SIZE,
+  measureLegendText,
+} from '../utils/legend-constants';
 
 // ============================================================
 // Types
@@ -38,6 +42,8 @@ export interface SitemapLayoutEdge {
   label?: string;
   color?: string;
   lineNumber: number;
+  /** True for edges deferred from dagre (container endpoints) — use linear curve */
+  deferred?: boolean;
 }
 
 export interface SitemapContainerBounds {
@@ -85,6 +91,29 @@ export interface SitemapLayoutResult {
   height: number;
 }
 
+/**
+ * Clip a point at (cx, cy) to the border of a rectangle centered at (cx, cy)
+ * with given width/height, along the direction toward (tx, ty).
+ */
+function clipToRectBorder(
+  cx: number,
+  cy: number,
+  w: number,
+  h: number,
+  tx: number,
+  ty: number
+): { x: number; y: number } {
+  const dx = tx - cx;
+  const dy = ty - cy;
+  if (dx === 0 && dy === 0) return { x: cx, y: cy };
+  const hw = w / 2;
+  const hh = h / 2;
+  const sx = dx !== 0 ? hw / Math.abs(dx) : Infinity;
+  const sy = dy !== 0 ? hh / Math.abs(dy) : Infinity;
+  const s = Math.min(sx, sy);
+  return { x: cx + dx * s, y: cy + dy * s };
+}
+
 // ============================================================
 // Constants
 // ============================================================
@@ -120,7 +149,7 @@ const LEGEND_EYE_GAP = 6;
 
 function filterMetadata(
   metadata: Record<string, string>,
-  hiddenAttributes?: Set<string>,
+  hiddenAttributes?: Set<string>
 ): Record<string, string> {
   if (!hiddenAttributes || hiddenAttributes.size === 0) return metadata;
   const filtered: Record<string, string> = {};
@@ -138,22 +167,32 @@ function computeCardWidth(label: string, meta: Record<string, string>): number {
     const lineChars = key.length + 2 + value.length;
     if (lineChars > maxChars) maxChars = lineChars;
   }
-  return Math.max(MIN_CARD_WIDTH, Math.ceil(maxChars * CHAR_WIDTH) + CARD_H_PAD * 2);
+  return Math.max(
+    MIN_CARD_WIDTH,
+    Math.ceil(maxChars * CHAR_WIDTH) + CARD_H_PAD * 2
+  );
 }
 
 function computeCardHeight(meta: Record<string, string>): number {
   const metaCount = Object.keys(meta).length;
   if (metaCount === 0) return HEADER_HEIGHT + CARD_V_PAD;
-  return HEADER_HEIGHT + SEPARATOR_GAP + metaCount * META_LINE_HEIGHT + CARD_V_PAD;
+  return (
+    HEADER_HEIGHT + SEPARATOR_GAP + metaCount * META_LINE_HEIGHT + CARD_V_PAD
+  );
 }
 
 function resolveNodeColor(
   node: SitemapNode,
   tagGroups: TagGroup[],
-  activeGroupName: string | null,
+  activeGroupName: string | null
 ): string | undefined {
   if (node.color) return node.color;
-  return resolveTagColor(node.metadata, tagGroups, activeGroupName, node.isContainer);
+  return resolveTagColor(
+    node.metadata,
+    tagGroups,
+    activeGroupName,
+    node.isContainer
+  );
 }
 
 const OVERLAP_GAP = 20;
@@ -164,7 +203,7 @@ const OVERLAP_GAP = 20;
 
 function computeLegendGroups(
   tagGroups: TagGroup[],
-  usedValuesByGroup?: Map<string, Set<string>>,
+  usedValuesByGroup?: Map<string, Set<string>>
 ): SitemapLegendGroup[] {
   const groups: SitemapLegendGroup[] = [];
 
@@ -177,7 +216,8 @@ function computeLegendGroups(
       : group.entries;
     if (visibleEntries.length === 0) continue;
 
-    const pillWidth = measureLegendText(group.name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
+    const pillWidth =
+      measureLegendText(group.name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
     const minPillWidth = pillWidth;
 
     let entriesWidth = 0;
@@ -189,7 +229,8 @@ function computeLegendGroups(
         LEGEND_ENTRY_TRAIL;
     }
     const eyeSpace = LEGEND_EYE_SIZE + LEGEND_EYE_GAP;
-    const capsuleWidth = LEGEND_CAPSULE_PAD * 2 + pillWidth + 4 + eyeSpace + entriesWidth;
+    const capsuleWidth =
+      LEGEND_CAPSULE_PAD * 2 + pillWidth + 4 + eyeSpace + entriesWidth;
 
     groups.push({
       name: group.name,
@@ -229,25 +270,36 @@ function flattenNodes(
   parentPageId: string | null,
   hiddenCounts: Map<string, number> | undefined,
   hiddenAttributes: Set<string> | undefined,
-  result: FlatNode[],
+  result: FlatNode[]
 ): void {
   for (const node of nodes) {
     const meta = filterMetadata(node.metadata, hiddenAttributes);
     if (node.isContainer) {
       // Container gets added as a flat entry (not added to dagre — bounds computed post-hoc)
       const metaCount = Object.keys(meta).length;
-      const labelHeight = CONTAINER_LABEL_HEIGHT + metaCount * CONTAINER_META_LINE_HEIGHT;
+      const labelHeight =
+        CONTAINER_LABEL_HEIGHT + metaCount * CONTAINER_META_LINE_HEIGHT;
       result.push({
         sitemapNode: node,
         parentContainerId,
         parentPageId,
         meta,
         fullMeta: { ...node.metadata },
-        width: Math.max(MIN_CARD_WIDTH, node.label.length * CHAR_WIDTH + CARD_H_PAD * 2),
+        width: Math.max(
+          MIN_CARD_WIDTH,
+          node.label.length * CHAR_WIDTH + CARD_H_PAD * 2
+        ),
         height: labelHeight + CONTAINER_PAD_BOTTOM,
       });
       // Recurse into children — container becomes parent container, parentPageId stays the same
-      flattenNodes(node.children, node.id, parentPageId, hiddenCounts, hiddenAttributes, result);
+      flattenNodes(
+        node.children,
+        node.id,
+        parentPageId,
+        hiddenCounts,
+        hiddenAttributes,
+        result
+      );
     } else {
       result.push({
         sitemapNode: node,
@@ -260,7 +312,14 @@ function flattenNodes(
       });
       // Pages can have children too (nested pages) — this page becomes the parentPageId
       if (node.children.length > 0) {
-        flattenNodes(node.children, parentContainerId, node.id, hiddenCounts, hiddenAttributes, result);
+        flattenNodes(
+          node.children,
+          parentContainerId,
+          node.id,
+          hiddenCounts,
+          hiddenAttributes,
+          result
+        );
       }
     }
   }
@@ -275,10 +334,17 @@ export function layoutSitemap(
   hiddenCounts?: Map<string, number>,
   activeTagGroup?: string | null,
   hiddenAttributes?: Set<string>,
-  expandAllLegend?: boolean,
+  expandAllLegend?: boolean
 ): SitemapLayoutResult {
   if (parsed.roots.length === 0) {
-    return { nodes: [], edges: [], containers: [], legend: [], width: 0, height: 0 };
+    return {
+      nodes: [],
+      edges: [],
+      containers: [],
+      legend: [],
+      width: 0,
+      height: 0,
+    };
   }
 
   // Inject default tag metadata
@@ -288,11 +354,22 @@ export function layoutSitemap(
     for (const child of node.children) collect(child);
   };
   for (const root of parsed.roots) collect(root);
-  injectDefaultTagMetadata(allNodes, parsed.tagGroups, (e) => (e as SitemapNode).isContainer);
+  injectDefaultTagMetadata(
+    allNodes,
+    parsed.tagGroups,
+    (e) => (e as SitemapNode).isContainer
+  );
 
   // Flatten hierarchy
   const flatNodes: FlatNode[] = [];
-  flattenNodes(parsed.roots, null, null, hiddenCounts, hiddenAttributes, flatNodes);
+  flattenNodes(
+    parsed.roots,
+    null,
+    null,
+    hiddenCounts,
+    hiddenAttributes,
+    flatNodes
+  );
 
   // Build nodeMap for lookups
   const nodeMap = new Map<string, FlatNode>();
@@ -325,7 +402,7 @@ export function layoutSitemap(
       containerIds.add(flat.sitemapNode.id);
       // A container is "collapsed" if it has no children at all in the flat list
       const hasAnyChild = flatNodes.some(
-        (f) => f.parentContainerId === flat.sitemapNode.id,
+        (f) => f.parentContainerId === flat.sitemapNode.id
       );
       if (!hasAnyChild) {
         collapsedContainerIds.add(flat.sitemapNode.id);
@@ -367,20 +444,44 @@ export function layoutSitemap(
 
   // Set parent relationships — dagre compound nesting keeps nodes grouped
   for (const flat of flatNodes) {
-    if (flat.parentContainerId && !collapsedContainerIds.has(flat.parentContainerId)) {
+    if (
+      flat.parentContainerId &&
+      !collapsedContainerIds.has(flat.parentContainerId)
+    ) {
       g.setParent(flat.sitemapNode.id, flat.parentContainerId);
     }
   }
 
-  // Add user edges (named for multigraph — each edge gets unique routing)
+  // Build set of expanded (non-collapsed) container IDs — dagre can't route
+  // edges to compound parents (they have no rank of their own)
+  const expandedContainerIds = new Set<string>();
+  for (const cid of containerIds) {
+    if (!collapsedContainerIds.has(cid)) {
+      expandedContainerIds.add(cid);
+    }
+  }
+
+  // Add user edges — defer edges touching expanded containers
+  const deferredEdgeIndices: number[] = [];
   for (let i = 0; i < parsed.edges.length; i++) {
     const edge = parsed.edges[i];
-    if (g.hasNode(edge.sourceId) && g.hasNode(edge.targetId)) {
-      g.setEdge(edge.sourceId, edge.targetId, {
+    if (!g.hasNode(edge.sourceId) || !g.hasNode(edge.targetId)) continue;
+    if (
+      expandedContainerIds.has(edge.sourceId) ||
+      expandedContainerIds.has(edge.targetId)
+    ) {
+      deferredEdgeIndices.push(i);
+      continue;
+    }
+    g.setEdge(
+      edge.sourceId,
+      edge.targetId,
+      {
         label: edge.label ?? '',
         minlen: 1,
-      }, `e${i}`);
-    }
+      },
+      `e${i}`
+    );
   }
 
   // Run dagre layout
@@ -412,7 +513,7 @@ export function layoutSitemap(
       height: pos.height,
       hiddenCount: hc,
       hasChildren:
-        (node.children.length > 0 || (hc != null && hc > 0)) || undefined,
+        node.children.length > 0 || (hc != null && hc > 0) || undefined,
     });
   }
 
@@ -424,7 +525,8 @@ export function layoutSitemap(
     const pos = g.node(node.id);
     const hc = hiddenCounts?.get(node.id);
     const metaCount = Object.keys(flat.meta).length;
-    const labelHeight = CONTAINER_LABEL_HEIGHT + metaCount * CONTAINER_META_LINE_HEIGHT;
+    const labelHeight =
+      CONTAINER_LABEL_HEIGHT + metaCount * CONTAINER_META_LINE_HEIGHT;
 
     if (pos) {
       layoutContainers.push({
@@ -441,7 +543,7 @@ export function layoutSitemap(
         labelHeight,
         hiddenCount: hc,
         hasChildren:
-          (node.children.length > 0 || (hc != null && hc > 0)) || undefined,
+          node.children.length > 0 || (hc != null && hc > 0) || undefined,
       });
     } else {
       // Fallback
@@ -459,26 +561,62 @@ export function layoutSitemap(
         labelHeight,
         hiddenCount: hc,
         hasChildren:
-          (node.children.length > 0 || (hc != null && hc > 0)) || undefined,
+          node.children.length > 0 || (hc != null && hc > 0) || undefined,
       });
     }
   }
 
-  // Edge waypoints from dagre (named edges for multigraph)
+  // Edge waypoints from dagre (named edges for multigraph) + deferred edges
+  const deferredSet = new Set(deferredEdgeIndices);
   const layoutEdges: SitemapLayoutEdge[] = [];
   for (let i = 0; i < parsed.edges.length; i++) {
     const edge = parsed.edges[i];
     if (!g.hasNode(edge.sourceId) || !g.hasNode(edge.targetId)) continue;
-    const edgeData = g.edge({ v: edge.sourceId, w: edge.targetId, name: `e${i}` });
-    if (!edgeData) continue;
+
+    let points: { x: number; y: number }[];
+
+    if (deferredSet.has(i)) {
+      // Deferred edge (expanded container endpoint) — clip to border
+      const srcNode = g.node(edge.sourceId);
+      const tgtNode = g.node(edge.targetId);
+      if (!srcNode || !tgtNode) continue;
+      const srcPt = clipToRectBorder(
+        srcNode.x,
+        srcNode.y,
+        srcNode.width,
+        srcNode.height,
+        tgtNode.x,
+        tgtNode.y
+      );
+      const tgtPt = clipToRectBorder(
+        tgtNode.x,
+        tgtNode.y,
+        tgtNode.width,
+        tgtNode.height,
+        srcNode.x,
+        srcNode.y
+      );
+      const midX = (srcPt.x + tgtPt.x) / 2;
+      const midY = (srcPt.y + tgtPt.y) / 2;
+      points = [srcPt, { x: midX, y: midY }, tgtPt];
+    } else {
+      const edgeData = g.edge({
+        v: edge.sourceId,
+        w: edge.targetId,
+        name: `e${i}`,
+      });
+      if (!edgeData) continue;
+      points = edgeData.points ?? [];
+    }
 
     layoutEdges.push({
       sourceId: edge.sourceId,
       targetId: edge.targetId,
-      points: edgeData.points ?? [],
+      points,
       label: edge.label,
       color: edge.color,
       lineNumber: edge.lineNumber,
+      deferred: deferredSet.has(i) || undefined,
     });
   }
 
@@ -509,7 +647,8 @@ export function layoutSitemap(
     }
 
     // Main component = component containing the first root page
-    const firstRootPage = flatNodes.find((f) => !f.sitemapNode.isContainer)?.sitemapNode.id;
+    const firstRootPage = flatNodes.find((f) => !f.sitemapNode.isContainer)
+      ?.sitemapNode.id;
     const mainRoot = firstRootPage ? ufFind(firstRootPage) : null;
 
     // Collect isolated node IDs (not in main component)
@@ -528,7 +667,7 @@ export function layoutSitemap(
         continue;
       }
       const members = flatNodes.filter(
-        (f) => !f.sitemapNode.isContainer && f.parentContainerId === cid,
+        (f) => !f.sitemapNode.isContainer && f.parentContainerId === cid
       );
       if (
         members.length > 0 &&
@@ -677,9 +816,12 @@ export function layoutSitemap(
   // Legend
   const legendGroups = computeLegendGroups(parsed.tagGroups, usedValuesByGroup);
 
-  const visibleGroups = activeTagGroup != null
-    ? legendGroups.filter((g) => g.name.toLowerCase() === activeTagGroup.toLowerCase())
-    : legendGroups;
+  const visibleGroups =
+    activeTagGroup != null
+      ? legendGroups.filter(
+          (g) => g.name.toLowerCase() === activeTagGroup.toLowerCase()
+        )
+      : legendGroups;
   const allExpanded = expandAllLegend && activeTagGroup == null;
   const effectiveW = (g: SitemapLegendGroup) =>
     activeTagGroup != null || allExpanded ? g.width : g.minifiedWidth;

@@ -3,6 +3,7 @@ import {
   parseBoxesAndLines,
   looksLikeBoxesAndLines,
 } from '../src/boxes-and-lines/parser';
+import { collapseBoxesAndLines } from '../src/boxes-and-lines/collapse';
 
 describe('boxes-and-lines parser', () => {
   describe('heuristic detection', () => {
@@ -359,6 +360,164 @@ describe('boxes-and-lines parser', () => {
       const result = parseBoxesAndLines('boxes-and-lines\nA ->');
       expect(
         result.diagnostics.some((d) => d.message.includes('missing'))
+      ).toBe(true);
+    });
+  });
+
+  describe('indented group-targeted arrows', () => {
+    it('node -> [group]: indented arrow targets group', () => {
+      const content = [
+        'boxes-and-lines',
+        '[Backend]',
+        '  DB',
+        'API',
+        '  -> [Backend]',
+      ].join('\n');
+      const result = parseBoxesAndLines(content);
+      expect(
+        result.edges.some(
+          (e) => e.source === 'API' && e.target === '__group_Backend'
+        )
+      ).toBe(true);
+    });
+
+    it('[group] -> node: indented arrow directly under group targets node', () => {
+      const content = [
+        'boxes-and-lines',
+        '[Backend]',
+        '  -> API',
+        '  DB',
+        'API',
+      ].join('\n');
+      const result = parseBoxesAndLines(content);
+      expect(
+        result.edges.some(
+          (e) => e.source === '__group_Backend' && e.target === 'API'
+        )
+      ).toBe(true);
+    });
+
+    it('[group] -> [group]: indented arrow directly under group to group', () => {
+      const content = [
+        'boxes-and-lines',
+        '[Backend]',
+        '  -> [Frontend]',
+        '  DB',
+        '[Frontend]',
+        '  UI',
+      ].join('\n');
+      const result = parseBoxesAndLines(content);
+      expect(
+        result.edges.some(
+          (e) =>
+            e.source === '__group_Backend' && e.target === '__group_Frontend'
+        )
+      ).toBe(true);
+    });
+
+    it('labeled indented arrow: -data-> [Group]', () => {
+      const content = [
+        'boxes-and-lines',
+        'API',
+        '  -data-> [Backend]',
+        '[Backend]',
+        '  DB',
+      ].join('\n');
+      const result = parseBoxesAndLines(content);
+      const edge = result.edges.find((e) => e.target === '__group_Backend');
+      expect(edge).toBeDefined();
+      expect(edge!.label).toBe('data');
+      expect(edge!.source).toBe('API');
+    });
+
+    it('error: -> [Nonexistent] produces group-specific error', () => {
+      const content = ['boxes-and-lines', 'API', '  -> [Nonexistent]'].join(
+        '\n'
+      );
+      const result = parseBoxesAndLines(content);
+      expect(
+        result.diagnostics.some((d) =>
+          d.message.includes("Group '[Nonexistent]' not found")
+        )
+      ).toBe(true);
+      // No phantom node created
+      expect(result.nodes.every((n) => !n.label.includes('Nonexistent'))).toBe(
+        true
+      );
+    });
+
+    it('no implicit node created for [Group] targets', () => {
+      const content = [
+        'boxes-and-lines',
+        '[Backend]',
+        '  DB',
+        'API',
+        '  -> [Backend]',
+      ].join('\n');
+      const result = parseBoxesAndLines(content);
+      // Should not have a node named "[Backend]" or "Backend" (only DB and API)
+      expect(result.nodes.map((n) => n.label).sort()).toEqual(['API', 'DB']);
+    });
+
+    it('top-level node -> [Group] via full syntax', () => {
+      const content = [
+        'boxes-and-lines',
+        '[Backend]',
+        '  DB',
+        'API -> [Backend]',
+      ].join('\n');
+      const result = parseBoxesAndLines(content);
+      expect(
+        result.edges.some(
+          (e) => e.source === 'API' && e.target === '__group_Backend'
+        )
+      ).toBe(true);
+    });
+  });
+
+  describe('collapse with group-targeted edges', () => {
+    it('node outside group -> [Group], group collapsed: edge routes to collapsed group', () => {
+      const content = [
+        'boxes-and-lines',
+        'API',
+        '  -> [Backend]',
+        '[Backend]',
+        '  DB',
+        '  Cache',
+      ].join('\n');
+      const parsed = parseBoxesAndLines(content);
+      const { parsed: result } = collapseBoxesAndLines(
+        parsed,
+        new Set(['Backend'])
+      );
+      // Edge target is already __group_Backend, so it stays the same after collapse
+      expect(
+        result.edges.some(
+          (e) => e.source === 'API' && e.target === '__group_Backend'
+        )
+      ).toBe(true);
+    });
+
+    it('node inside collapsed group -> [OtherGroup]: source reroutes to own group', () => {
+      const content = [
+        'boxes-and-lines',
+        '[Frontend]',
+        '  UI',
+        '  UI -> [Backend]',
+        '[Backend]',
+        '  DB',
+      ].join('\n');
+      const parsed = parseBoxesAndLines(content);
+      const { parsed: result } = collapseBoxesAndLines(
+        parsed,
+        new Set(['Frontend'])
+      );
+      // UI reroutes to __group_Frontend; target stays __group_Backend
+      expect(
+        result.edges.some(
+          (e) =>
+            e.source === '__group_Frontend' && e.target === '__group_Backend'
+        )
       ).toBe(true);
     });
   });
