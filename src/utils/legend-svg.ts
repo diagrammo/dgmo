@@ -2,8 +2,12 @@
 // Shared legend SVG string generator
 // Produces SVG <g> elements matching the standard legend style
 // used across all diagram types (capsule pills with colored dots).
+//
+// New config-based API: renderLegendSvgFromConfig()
+// Legacy API: renderLegendSvg() — unchanged, used by ECharts
 // ============================================================
 
+import type { LegendConfig, LegendState, LegendPalette } from './legend-types';
 import {
   LEGEND_HEIGHT,
   LEGEND_PILL_PAD,
@@ -188,4 +192,26 @@ export function renderLegendSvg(
   const svg = `<g${classAttr}${activeAttr}>${parts.join('')}</g>`;
 
   return { svg, height: LEGEND_HEIGHT, width: totalWidth };
+}
+
+// ── Config-based API ────────────────────────────────────────
+
+export function renderLegendSvgFromConfig(
+  config: LegendConfig,
+  state: LegendState,
+  palette: LegendPalette & { isDark: boolean },
+  containerWidth: number
+): LegendRenderResult {
+  // Delegate to existing renderer with adapted parameters
+  return renderLegendSvg(config.groups, {
+    palette: {
+      bg: palette.bg,
+      surface: palette.surface,
+      text: palette.text,
+      textMuted: palette.textMuted,
+    },
+    isDark: palette.isDark,
+    containerWidth,
+    activeGroup: state.activeGroup,
+  });
 }

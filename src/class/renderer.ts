@@ -5,22 +5,25 @@
 import * as d3Selection from 'd3-selection';
 import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
-import { runInExportContainer, extractExportSvg } from '../utils/export-container';
 import {
-  LEGEND_HEIGHT,
-  LEGEND_PILL_PAD,
-  LEGEND_PILL_FONT_SIZE,
-  LEGEND_CAPSULE_PAD,
-  LEGEND_DOT_R,
-  LEGEND_ENTRY_FONT_SIZE,
-  LEGEND_ENTRY_DOT_GAP,
-  LEGEND_ENTRY_TRAIL,
-  measureLegendText,
-} from '../utils/legend-constants';
-import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT, TITLE_Y } from '../utils/title-constants';
+  runInExportContainer,
+  extractExportSvg,
+} from '../utils/export-container';
+import { LEGEND_HEIGHT } from '../utils/legend-constants';
+import { renderLegendD3 } from '../utils/legend-d3';
+import type { LegendConfig, LegendState } from '../utils/legend-types';
+import {
+  TITLE_FONT_SIZE,
+  TITLE_FONT_WEIGHT,
+  TITLE_Y,
+} from '../utils/title-constants';
 import type { PaletteColors } from '../palettes';
 import { mix } from '../palettes/color-utils';
-import type { ParsedClassDiagram, ClassModifier, RelationshipType } from './types';
+import type {
+  ParsedClassDiagram,
+  ClassModifier,
+  RelationshipType,
+} from './types';
 import type { ClassLayoutResult } from './layout';
 import { parseClassDiagram } from './parser';
 import { layoutClassDiagram } from './layout';
@@ -44,22 +47,41 @@ const MEMBER_PADDING_X = 10;
 // Color helpers
 // ============================================================
 
-function modifierColor(modifier: ClassModifier | undefined, palette: PaletteColors, colorOff?: boolean): string {
+function modifierColor(
+  modifier: ClassModifier | undefined,
+  palette: PaletteColors,
+  colorOff?: boolean
+): string {
   if (colorOff) return palette.textMuted;
   switch (modifier) {
-    case 'interface':  return palette.colors.blue;
-    case 'abstract':   return palette.colors.purple;
-    case 'enum':       return palette.colors.yellow;
-    default:           return palette.colors.teal;
+    case 'interface':
+      return palette.colors.blue;
+    case 'abstract':
+      return palette.colors.purple;
+    case 'enum':
+      return palette.colors.yellow;
+    default:
+      return palette.colors.teal;
   }
 }
 
-function nodeFill(palette: PaletteColors, isDark: boolean, modifier: ClassModifier | undefined, nodeColor?: string, colorOff?: boolean): string {
+function nodeFill(
+  palette: PaletteColors,
+  isDark: boolean,
+  modifier: ClassModifier | undefined,
+  nodeColor?: string,
+  colorOff?: boolean
+): string {
   const color = nodeColor ?? modifierColor(modifier, palette, colorOff);
   return mix(color, isDark ? palette.surface : palette.bg, 25);
 }
 
-function nodeStroke(palette: PaletteColors, modifier: ClassModifier | undefined, nodeColor?: string, colorOff?: boolean): string {
+function nodeStroke(
+  palette: PaletteColors,
+  modifier: ClassModifier | undefined,
+  nodeColor?: string,
+  colorOff?: boolean
+): string {
   return nodeColor ?? modifierColor(modifier, palette, colorOff);
 }
 
@@ -73,10 +95,10 @@ interface ClassLegendEntry {
 }
 
 const CLASS_TYPE_MAP: Record<string, ClassLegendEntry> = {
-  class:     { label: 'Class',     colorKey: 'teal' },
-  abstract:  { label: 'Abstract',  colorKey: 'purple' },
+  class: { label: 'Class', colorKey: 'teal' },
+  abstract: { label: 'Abstract', colorKey: 'purple' },
   interface: { label: 'Interface', colorKey: 'blue' },
-  enum:      { label: 'Enum',      colorKey: 'yellow' },
+  enum: { label: 'Enum', colorKey: 'yellow' },
 };
 
 const CLASS_TYPE_ORDER = ['class', 'abstract', 'interface', 'enum'];
@@ -89,18 +111,14 @@ function collectClassTypes(parsed: ParsedClassDiagram): ClassLegendEntry[] {
     if (c.color) continue; // explicit color override — skip
     present.add(c.modifier ?? 'class');
   }
-  return CLASS_TYPE_ORDER.filter((k) => present.has(k)).map((k) => CLASS_TYPE_MAP[k]);
+  return CLASS_TYPE_ORDER.filter((k) => present.has(k)).map(
+    (k) => CLASS_TYPE_MAP[k]
+  );
 }
 
 const LEGEND_GROUP_NAME = 'Type';
 
-function legendEntriesWidth(entries: ClassLegendEntry[]): number {
-  let w = 0;
-  for (const e of entries) {
-    w += LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP + measureLegendText(e.label, LEGEND_ENTRY_FONT_SIZE) + LEGEND_ENTRY_TRAIL;
-  }
-  return w;
-}
+// legendEntriesWidth removed — centralized legend handles sizing
 
 function classTypeKey(modifier: ClassModifier | undefined): string {
   return modifier ?? 'class';
@@ -112,9 +130,12 @@ function classTypeKey(modifier: ClassModifier | undefined): string {
 
 function visibilitySymbol(vis: 'public' | 'private' | 'protected'): string {
   switch (vis) {
-    case 'public':    return '+';
-    case 'private':   return '-';
-    case 'protected': return '#';
+    case 'public':
+      return '+';
+    case 'private':
+      return '-';
+    case 'protected':
+      return '#';
   }
 }
 
@@ -122,7 +143,8 @@ function visibilitySymbol(vis: 'public' | 'private' | 'protected'): string {
 // Edge path generator
 // ============================================================
 
-const lineGenerator = d3Shape.line<{ x: number; y: number }>()
+const lineGenerator = d3Shape
+  .line<{ x: number; y: number }>()
   .x((d) => d.x)
   .y((d) => d.y)
   .curve(d3Shape.curveBasis);
@@ -137,12 +159,18 @@ function isDashedEdge(type: RelationshipType): boolean {
 
 function markerIdForType(type: RelationshipType): string {
   switch (type) {
-    case 'extends':     return 'cd-arrow-inherit';
-    case 'implements':  return 'cd-arrow-implement';
-    case 'composes':    return 'cd-arrow-compose';
-    case 'aggregates':  return 'cd-arrow-aggregate';
-    case 'depends':     return 'cd-arrow-depend';
-    case 'associates':  return 'cd-arrow-assoc';
+    case 'extends':
+      return 'cd-arrow-inherit';
+    case 'implements':
+      return 'cd-arrow-implement';
+    case 'composes':
+      return 'cd-arrow-compose';
+    case 'aggregates':
+      return 'cd-arrow-aggregate';
+    case 'depends':
+      return 'cd-arrow-depend';
+    case 'associates':
+      return 'cd-arrow-assoc';
   }
 }
 
@@ -198,14 +226,17 @@ export function renderClassDiagram(
   // ── Marker defs ──
   const defs = svg.append('defs');
   const AW = 12; // arrowhead width
-  const AH = 8;  // arrowhead height
+  const AH = 8; // arrowhead height
 
   // Filled triangle (inheritance) — filled with stroke color
-  defs.append('marker')
+  defs
+    .append('marker')
     .attr('id', 'cd-arrow-inherit')
     .attr('viewBox', `0 0 ${AW} ${AH}`)
-    .attr('refX', AW).attr('refY', AH / 2)
-    .attr('markerWidth', AW).attr('markerHeight', AH)
+    .attr('refX', AW)
+    .attr('refY', AH / 2)
+    .attr('markerWidth', AW)
+    .attr('markerHeight', AH)
     .attr('orient', 'auto')
     .append('polygon')
     .attr('points', `0,0 ${AW},${AH / 2} 0,${AH}`)
@@ -214,11 +245,14 @@ export function renderClassDiagram(
     .attr('stroke-width', 1);
 
   // Hollow triangle (implementation) — white/bg fill
-  defs.append('marker')
+  defs
+    .append('marker')
     .attr('id', 'cd-arrow-implement')
     .attr('viewBox', `0 0 ${AW} ${AH}`)
-    .attr('refX', AW).attr('refY', AH / 2)
-    .attr('markerWidth', AW).attr('markerHeight', AH)
+    .attr('refX', AW)
+    .attr('refY', AH / 2)
+    .attr('markerWidth', AW)
+    .attr('markerHeight', AH)
     .attr('orient', 'auto')
     .append('polygon')
     .attr('points', `0,0 ${AW},${AH / 2} 0,${AH}`)
@@ -229,11 +263,14 @@ export function renderClassDiagram(
   // Filled diamond (composition) — at source end
   const DW = 12;
   const DH = 8;
-  defs.append('marker')
+  defs
+    .append('marker')
     .attr('id', 'cd-arrow-compose')
     .attr('viewBox', `0 0 ${DW} ${DH}`)
-    .attr('refX', 0).attr('refY', DH / 2)
-    .attr('markerWidth', DW).attr('markerHeight', DH)
+    .attr('refX', 0)
+    .attr('refY', DH / 2)
+    .attr('markerWidth', DW)
+    .attr('markerHeight', DH)
     .attr('orient', 'auto')
     .append('polygon')
     .attr('points', `${DW / 2},0 ${DW},${DH / 2} ${DW / 2},${DH} 0,${DH / 2}`)
@@ -242,11 +279,14 @@ export function renderClassDiagram(
     .attr('stroke-width', 1);
 
   // Hollow diamond (aggregation) — at source end
-  defs.append('marker')
+  defs
+    .append('marker')
     .attr('id', 'cd-arrow-aggregate')
     .attr('viewBox', `0 0 ${DW} ${DH}`)
-    .attr('refX', 0).attr('refY', DH / 2)
-    .attr('markerWidth', DW).attr('markerHeight', DH)
+    .attr('refX', 0)
+    .attr('refY', DH / 2)
+    .attr('markerWidth', DW)
+    .attr('markerHeight', DH)
     .attr('orient', 'auto')
     .append('polygon')
     .attr('points', `${DW / 2},0 ${DW},${DH / 2} ${DW / 2},${DH} 0,${DH / 2}`)
@@ -255,11 +295,14 @@ export function renderClassDiagram(
     .attr('stroke-width', 1);
 
   // Open arrowhead (dependency)
-  defs.append('marker')
+  defs
+    .append('marker')
     .attr('id', 'cd-arrow-depend')
     .attr('viewBox', `0 0 ${AW} ${AH}`)
-    .attr('refX', AW).attr('refY', AH / 2)
-    .attr('markerWidth', AW).attr('markerHeight', AH)
+    .attr('refX', AW)
+    .attr('refY', AH / 2)
+    .attr('markerWidth', AW)
+    .attr('markerHeight', AH)
     .attr('orient', 'auto')
     .append('polyline')
     .attr('points', `0,0 ${AW},${AH / 2} 0,${AH}`)
@@ -268,11 +311,14 @@ export function renderClassDiagram(
     .attr('stroke-width', 1.5);
 
   // Open arrowhead (association)
-  defs.append('marker')
+  defs
+    .append('marker')
     .attr('id', 'cd-arrow-assoc')
     .attr('viewBox', `0 0 ${AW} ${AH}`)
-    .attr('refX', AW).attr('refY', AH / 2)
-    .attr('markerWidth', AW).attr('markerHeight', AH)
+    .attr('refX', AW)
+    .attr('refY', AH / 2)
+    .attr('markerWidth', AW)
+    .attr('markerHeight', AH)
     .attr('orient', 'auto')
     .append('polyline')
     .attr('points', `0,0 ${AW},${AH / 2} 0,${AH}`)
@@ -291,7 +337,10 @@ export function renderClassDiagram(
       .attr('fill', palette.text)
       .attr('font-size', TITLE_FONT_SIZE)
       .attr('font-weight', TITLE_FONT_WEIGHT)
-      .style('cursor', onClickItem && parsed.titleLineNumber ? 'pointer' : 'default')
+      .style(
+        'cursor',
+        onClickItem && parsed.titleLineNumber ? 'pointer' : 'default'
+      )
       .text(parsed.title);
 
     if (parsed.titleLineNumber) {
@@ -299,8 +348,12 @@ export function renderClassDiagram(
       if (onClickItem) {
         titleEl
           .on('click', () => onClickItem(parsed.titleLineNumber!))
-          .on('mouseenter', function () { d3Selection.select(this).attr('opacity', 0.7); })
-          .on('mouseleave', function () { d3Selection.select(this).attr('opacity', 1); });
+          .on('mouseenter', function () {
+            d3Selection.select(this).attr('opacity', 0.7);
+          })
+          .on('mouseleave', function () {
+            d3Selection.select(this).attr('opacity', 1);
+          });
       }
     }
   }
@@ -309,108 +362,36 @@ export function renderClassDiagram(
   // legendActive: true = expanded (default), false = collapsed pill only
   const isLegendExpanded = legendActive !== false;
   if (hasLegend) {
-    const groupBg = isDark
-      ? mix(palette.surface, palette.bg, 50)
-      : mix(palette.surface, palette.bg, 30);
-
-    const pillWidth = measureLegendText(LEGEND_GROUP_NAME, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
-    const pillH = LEGEND_HEIGHT - LEGEND_CAPSULE_PAD * 2;
-    const entriesW = legendEntriesWidth(legendEntries);
-
-    const totalW = isLegendExpanded
-      ? LEGEND_CAPSULE_PAD * 2 + pillWidth + LEGEND_ENTRY_TRAIL + entriesW
-      : pillWidth;
-
-    const legendX = (width - totalW) / 2;
-    const legendY = titleHeight;
-
+    const legendGroups = [
+      {
+        name: LEGEND_GROUP_NAME,
+        entries: legendEntries.map((entry) => ({
+          value: entry.label,
+          color: palette.colors[entry.colorKey],
+        })),
+      },
+    ];
+    const legendConfig: LegendConfig = {
+      groups: legendGroups,
+      position: { placement: 'top-center', titleRelation: 'below-title' },
+      mode: 'fixed',
+    };
+    const legendState: LegendState = {
+      activeGroup: isLegendExpanded ? LEGEND_GROUP_NAME : null,
+    };
     const legendG = svg
       .append('g')
       .attr('class', 'cd-legend')
-      .attr('data-legend-group', 'type')
-      .attr('transform', `translate(${legendX}, ${legendY})`)
-      .style('cursor', 'pointer');
-
-    if (isLegendExpanded) {
-      // Outer capsule
-      legendG.append('rect')
-        .attr('width', totalW)
-        .attr('height', LEGEND_HEIGHT)
-        .attr('rx', LEGEND_HEIGHT / 2)
-        .attr('fill', groupBg);
-
-      // Inner pill
-      legendG.append('rect')
-        .attr('x', LEGEND_CAPSULE_PAD)
-        .attr('y', LEGEND_CAPSULE_PAD)
-        .attr('width', pillWidth)
-        .attr('height', pillH)
-        .attr('rx', pillH / 2)
-        .attr('fill', palette.bg);
-
-      legendG.append('rect')
-        .attr('x', LEGEND_CAPSULE_PAD)
-        .attr('y', LEGEND_CAPSULE_PAD)
-        .attr('width', pillWidth)
-        .attr('height', pillH)
-        .attr('rx', pillH / 2)
-        .attr('fill', 'none')
-        .attr('stroke', mix(palette.textMuted, palette.bg, 50))
-        .attr('stroke-width', 0.75);
-
-      legendG.append('text')
-        .attr('x', LEGEND_CAPSULE_PAD + pillWidth / 2)
-        .attr('y', LEGEND_HEIGHT / 2 + LEGEND_PILL_FONT_SIZE / 2 - 2)
-        .attr('font-size', LEGEND_PILL_FONT_SIZE)
-        .attr('font-weight', '500')
-        .attr('fill', palette.text)
-        .attr('text-anchor', 'middle')
-        .attr('font-family', FONT_FAMILY)
-        .text(LEGEND_GROUP_NAME);
-
-      // Entries
-      let entryX = LEGEND_CAPSULE_PAD + pillWidth + LEGEND_ENTRY_TRAIL;
-      for (const entry of legendEntries) {
-        const color = palette.colors[entry.colorKey];
-        const typeKey = CLASS_TYPE_ORDER.find((k) => CLASS_TYPE_MAP[k] === entry)!;
-
-        const entryG = legendG.append('g')
-          .attr('data-legend-entry', typeKey);
-
-        entryG.append('circle')
-          .attr('cx', entryX + LEGEND_DOT_R)
-          .attr('cy', LEGEND_HEIGHT / 2)
-          .attr('r', LEGEND_DOT_R)
-          .attr('fill', color);
-
-        entryG.append('text')
-          .attr('x', entryX + LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP)
-          .attr('y', LEGEND_HEIGHT / 2 + LEGEND_ENTRY_FONT_SIZE / 2 - 1)
-          .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
-          .attr('fill', palette.textMuted)
-          .attr('font-family', FONT_FAMILY)
-          .text(entry.label);
-
-        entryX += LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP + measureLegendText(entry.label, LEGEND_ENTRY_FONT_SIZE) + LEGEND_ENTRY_TRAIL;
-      }
-    } else {
-      // Collapsed: single muted pill
-      legendG.append('rect')
-        .attr('width', pillWidth)
-        .attr('height', LEGEND_HEIGHT)
-        .attr('rx', LEGEND_HEIGHT / 2)
-        .attr('fill', groupBg);
-
-      legendG.append('text')
-        .attr('x', pillWidth / 2)
-        .attr('y', LEGEND_HEIGHT / 2 + LEGEND_PILL_FONT_SIZE / 2 - 2)
-        .attr('font-size', LEGEND_PILL_FONT_SIZE)
-        .attr('font-weight', '500')
-        .attr('fill', palette.textMuted)
-        .attr('text-anchor', 'middle')
-        .attr('font-family', FONT_FAMILY)
-        .text(LEGEND_GROUP_NAME);
-    }
+      .attr('transform', `translate(0,${titleHeight})`);
+    renderLegendD3(
+      legendG,
+      legendConfig,
+      legendState,
+      palette,
+      isDark,
+      undefined,
+      width
+    );
   }
 
   // ── Content group ──
@@ -461,7 +442,8 @@ export function renderClassDiagram(
       const bgW = labelLen * 7 + 8;
       const bgH = 16;
 
-      edgeG.append('rect')
+      edgeG
+        .append('rect')
         .attr('x', midPt.x - bgW / 2)
         .attr('y', midPt.y - bgH / 2 - 1)
         .attr('width', bgW)
@@ -471,7 +453,8 @@ export function renderClassDiagram(
         .attr('opacity', 0.85)
         .attr('class', 'cd-edge-label-bg');
 
-      edgeG.append('text')
+      edgeG
+        .append('text')
         .attr('x', midPt.x)
         .attr('y', midPt.y + 4)
         .attr('text-anchor', 'middle')
@@ -504,11 +487,18 @@ export function renderClassDiagram(
     // When legend is collapsed, use neutral color for nodes without explicit color
     const neutralize = hasLegend && !isLegendExpanded && !node.color;
     const effectiveColor = neutralize ? palette.primary : node.color;
-    const fill = nodeFill(palette, isDark, node.modifier, effectiveColor, colorOff);
+    const fill = nodeFill(
+      palette,
+      isDark,
+      node.modifier,
+      effectiveColor,
+      colorOff
+    );
     const stroke = nodeStroke(palette, node.modifier, effectiveColor, colorOff);
 
     // Outer rectangle
-    nodeG.append('rect')
+    nodeG
+      .append('rect')
       .attr('x', -w / 2)
       .attr('y', -h / 2)
       .attr('width', w)
@@ -526,7 +516,8 @@ export function renderClassDiagram(
     // Modifier badge <<interface>> etc.
     if (node.modifier) {
       const badgeText = `\u00AB${node.modifier}\u00BB`; // « »
-      nodeG.append('text')
+      nodeG
+        .append('text')
         .attr('x', 0)
         .attr('y', headerCenterY - 6)
         .attr('text-anchor', 'middle')
@@ -537,7 +528,8 @@ export function renderClassDiagram(
         .text(badgeText);
 
       // Class name below badge
-      nodeG.append('text')
+      nodeG
+        .append('text')
         .attr('x', 0)
         .attr('y', headerCenterY + 10)
         .attr('text-anchor', 'middle')
@@ -549,7 +541,8 @@ export function renderClassDiagram(
         .text(node.name);
     } else {
       // Just class name centered
-      nodeG.append('text')
+      nodeG
+        .append('text')
         .attr('x', 0)
         .attr('y', headerCenterY)
         .attr('text-anchor', 'middle')
@@ -569,7 +562,8 @@ export function renderClassDiagram(
     if (isEnum) {
       // Enum: single values compartment
       // Separator
-      nodeG.append('line')
+      nodeG
+        .append('line')
         .attr('x1', -w / 2)
         .attr('y1', yPos)
         .attr('x2', w / 2)
@@ -580,7 +574,8 @@ export function renderClassDiagram(
 
       let memberY = yPos + COMPARTMENT_PADDING_Y;
       for (const member of node.members) {
-        nodeG.append('text')
+        nodeG
+          .append('text')
           .attr('x', -w / 2 + MEMBER_PADDING_X)
           .attr('y', memberY + MEMBER_LINE_HEIGHT / 2)
           .attr('dominant-baseline', 'central')
@@ -593,7 +588,8 @@ export function renderClassDiagram(
       // UML 3-compartment layout: always show both separators
 
       // Fields separator
-      nodeG.append('line')
+      nodeG
+        .append('line')
         .attr('x1', -w / 2)
         .attr('y1', yPos)
         .attr('x2', w / 2)
@@ -609,7 +605,8 @@ export function renderClassDiagram(
           let text = `${vis} ${field.name}`;
           if (field.type) text += `: ${field.type}`;
 
-          const textEl = nodeG.append('text')
+          const textEl = nodeG
+            .append('text')
             .attr('x', -w / 2 + MEMBER_PADDING_X)
             .attr('y', memberY + MEMBER_LINE_HEIGHT / 2)
             .attr('dominant-baseline', 'central')
@@ -627,7 +624,8 @@ export function renderClassDiagram(
       yPos += node.fieldsHeight;
 
       // Methods separator
-      nodeG.append('line')
+      nodeG
+        .append('line')
         .attr('x1', -w / 2)
         .attr('y1', yPos)
         .attr('x2', w / 2)
@@ -643,7 +641,8 @@ export function renderClassDiagram(
           let text = `${vis} ${method.name}(${method.params ?? ''})`;
           if (method.type) text += `: ${method.type}`;
 
-          const textEl = nodeG.append('text')
+          const textEl = nodeG
+            .append('text')
             .attr('x', -w / 2 + MEMBER_PADDING_X)
             .attr('y', memberY + MEMBER_LINE_HEIGHT / 2)
             .attr('dominant-baseline', 'central')
@@ -679,20 +678,20 @@ export function renderClassDiagramForExport(
 
   const legendEntries = collectClassTypes(parsed);
   const EXPORT_LEGEND_GAP = 8;
-  const legendReserve = legendEntries.length > 1 ? LEGEND_HEIGHT + EXPORT_LEGEND_GAP : 0;
+  const legendReserve =
+    legendEntries.length > 1 ? LEGEND_HEIGHT + EXPORT_LEGEND_GAP : 0;
   const exportWidth = layout.width + DIAGRAM_PADDING * 2;
-  const exportHeight = layout.height + DIAGRAM_PADDING * 2 + (parsed.title ? 40 : 0) + legendReserve;
+  const exportHeight =
+    layout.height +
+    DIAGRAM_PADDING * 2 +
+    (parsed.title ? 40 : 0) +
+    legendReserve;
 
   return runInExportContainer(exportWidth, exportHeight, (container) => {
-    renderClassDiagram(
-      container,
-      parsed,
-      layout,
-      palette,
-      isDark,
-      undefined,
-      { width: exportWidth, height: exportHeight }
-    );
+    renderClassDiagram(container, parsed, layout, palette, isDark, undefined, {
+      width: exportWidth,
+      height: exportHeight,
+    });
     return extractExportSvg(container, theme);
   });
 }

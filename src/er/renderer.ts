@@ -9,18 +9,9 @@ import type { PaletteColors } from '../palettes';
 import { mix } from '../palettes/color-utils';
 import { getSeriesColors } from '../palettes';
 import { resolveTagColor } from '../utils/tag-groups';
-import {
-  LEGEND_HEIGHT,
-  LEGEND_PILL_PAD,
-  LEGEND_PILL_FONT_SIZE,
-  LEGEND_CAPSULE_PAD,
-  LEGEND_DOT_R,
-  LEGEND_ENTRY_FONT_SIZE,
-  LEGEND_ENTRY_DOT_GAP,
-  LEGEND_ENTRY_TRAIL,
-  LEGEND_GROUP_GAP,
-  measureLegendText,
-} from '../utils/legend-constants';
+import { LEGEND_HEIGHT } from '../utils/legend-constants';
+import { renderLegendD3 } from '../utils/legend-d3';
+import type { LegendConfig, LegendState } from '../utils/legend-types';
 import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
@@ -557,96 +548,30 @@ export function renderERDiagram(
 
   // ── Tag Legend ──
   if (parsed.tagGroups.length > 0) {
-    const LEGEND_PILL_H = LEGEND_HEIGHT - 6;
-    const LEGEND_PILL_RX = Math.floor(LEGEND_PILL_H / 2);
-    const LEGEND_GAP = 8;
-
-    const legendG = svg.append('g').attr('class', 'er-tag-legend');
-
-    if (activeTagGroup) {
-      legendG.attr('data-legend-active', activeTagGroup.toLowerCase());
-    }
-
-    let legendX = DIAGRAM_PADDING;
     const legendY = DIAGRAM_PADDING + titleHeight;
-
-    for (const group of parsed.tagGroups) {
-      const groupG = legendG
-        .append('g')
-        .attr('data-legend-group', group.name.toLowerCase());
-
-      // Group label
-      const labelText = groupG
-        .append('text')
-        .attr('x', legendX)
-        .attr('y', legendY + LEGEND_PILL_H / 2)
-        .attr('dominant-baseline', 'central')
-        .attr('fill', palette.textMuted)
-        .attr('font-size', LEGEND_PILL_FONT_SIZE)
-        .attr('font-family', FONT_FAMILY)
-        .text(`${group.name}:`);
-
-      const labelWidth =
-        (labelText.node()?.getComputedTextLength?.() ?? group.name.length * 7) +
-        6;
-      legendX += labelWidth;
-
-      // Entries
-      for (const entry of group.entries) {
-        const pillG = groupG
-          .append('g')
-          .attr('data-legend-entry', entry.value.toLowerCase())
-          .style('cursor', 'pointer');
-
-        // Estimate text width
-        const tmpText = legendG
-          .append('text')
-          .attr('font-size', LEGEND_PILL_FONT_SIZE)
-          .attr('font-family', FONT_FAMILY)
-          .text(entry.value);
-        const textW =
-          tmpText.node()?.getComputedTextLength?.() ?? entry.value.length * 7;
-        tmpText.remove();
-
-        const pillW = textW + LEGEND_PILL_PAD * 2;
-
-        pillG
-          .append('rect')
-          .attr('x', legendX)
-          .attr('y', legendY)
-          .attr('width', pillW)
-          .attr('height', LEGEND_PILL_H)
-          .attr('rx', LEGEND_PILL_RX)
-          .attr('ry', LEGEND_PILL_RX)
-          .attr(
-            'fill',
-            mix(entry.color, isDark ? palette.surface : palette.bg, 25)
-          )
-          .attr('stroke', entry.color)
-          .attr('stroke-width', 1);
-
-        pillG
-          .append('text')
-          .attr('x', legendX + pillW / 2)
-          .attr('y', legendY + LEGEND_PILL_H / 2)
-          .attr('text-anchor', 'middle')
-          .attr('dominant-baseline', 'central')
-          .attr('fill', palette.text)
-          .attr('font-size', LEGEND_PILL_FONT_SIZE)
-          .attr('font-family', FONT_FAMILY)
-          .text(entry.value);
-
-        legendX += pillW + LEGEND_GAP;
-      }
-
-      legendX += LEGEND_GROUP_GAP;
-    }
+    const legendConfig: LegendConfig = {
+      groups: parsed.tagGroups,
+      position: { placement: 'top-center', titleRelation: 'below-title' },
+      mode: 'fixed',
+    };
+    const legendState: LegendState = { activeGroup: activeTagGroup ?? null };
+    const legendG = svg
+      .append('g')
+      .attr('class', 'er-tag-legend')
+      .attr('transform', `translate(0,${legendY})`);
+    renderLegendD3(
+      legendG,
+      legendConfig,
+      legendState,
+      palette,
+      isDark,
+      undefined,
+      viewW
+    );
+    legendG.selectAll('[data-legend-group]').classed('er-legend-group', true);
   }
 
   // ── Semantic Legend ──
-  // Rendered when semantic role detection is enabled (no tag groups, no explicit colors).
-  // Follows the sequence-legend pattern: one clickable "Role" group pill that expands
-  // to show colored-dot entries. Clicking toggles semanticColorsActive on/off.
   if (semanticRoles) {
     const presentRoles = ROLE_ORDER.filter((role) => {
       for (const r of semanticRoles.values()) {
@@ -656,156 +581,38 @@ export function renderERDiagram(
     });
 
     if (presentRoles.length > 0) {
-      // Measure actual text widths for consistent spacing regardless of character mix.
-      // Falls back to a character-count estimate in jsdom/test environments.
-      const measureLabelW = (text: string, fontSize: number): number => {
-        const dummy = svg
-          .append('text')
-          .attr('font-size', fontSize)
-          .attr('font-family', FONT_FAMILY)
-          .attr('visibility', 'hidden')
-          .text(text);
-        const measured =
-          (dummy.node() as SVGTextElement | null)?.getComputedTextLength?.() ??
-          0;
-        dummy.remove();
-        return measured > 0 ? measured : text.length * fontSize * 0.6;
-      };
-
-      const labelWidths = new Map<EntityRole, number>();
-      for (const role of presentRoles) {
-        labelWidths.set(
-          role,
-          measureLabelW(ROLE_LABELS[role], LEGEND_ENTRY_FONT_SIZE)
-        );
-      }
-
-      const groupBg = isDark
-        ? mix(palette.surface, palette.bg, 50)
-        : mix(palette.surface, palette.bg, 30);
-
-      const groupName = 'Role';
-      const pillWidth =
-        measureLegendText(groupName, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
-      const pillH = LEGEND_HEIGHT - LEGEND_CAPSULE_PAD * 2;
-
-      let totalWidth: number;
-      let entriesWidth = 0;
-      if (semanticActive) {
-        for (const role of presentRoles) {
-          entriesWidth +=
-            LEGEND_DOT_R * 2 +
-            LEGEND_ENTRY_DOT_GAP +
-            labelWidths.get(role)! +
-            LEGEND_ENTRY_TRAIL;
-        }
-        totalWidth =
-          LEGEND_CAPSULE_PAD * 2 +
-          pillWidth +
-          LEGEND_ENTRY_TRAIL +
-          entriesWidth;
-      } else {
-        totalWidth = pillWidth;
-      }
-
-      const legendX = (viewW - totalWidth) / 2;
       const legendY = DIAGRAM_PADDING + titleHeight;
-
-      const semanticLegendG = svg
+      const semanticGroups = [
+        {
+          name: 'Role',
+          entries: presentRoles.map((role) => ({
+            value: ROLE_LABELS[role],
+            color: palette.colors[ROLE_COLORS[role]],
+          })),
+        },
+      ];
+      const legendConfig: LegendConfig = {
+        groups: semanticGroups,
+        position: { placement: 'top-center', titleRelation: 'below-title' },
+        mode: 'fixed',
+      };
+      const legendState: LegendState = {
+        activeGroup: semanticActive ? 'Role' : null,
+      };
+      const legendG = svg
         .append('g')
         .attr('class', 'er-semantic-legend')
-        .attr('data-legend-group', 'role')
-        .attr('transform', `translate(${legendX}, ${legendY})`)
-        .style('cursor', 'pointer');
-
-      if (semanticActive) {
-        // ── Expanded: outer capsule + inner pill + dot entries ──
-        semanticLegendG
-          .append('rect')
-          .attr('width', totalWidth)
-          .attr('height', LEGEND_HEIGHT)
-          .attr('rx', LEGEND_HEIGHT / 2)
-          .attr('fill', groupBg);
-
-        semanticLegendG
-          .append('rect')
-          .attr('x', LEGEND_CAPSULE_PAD)
-          .attr('y', LEGEND_CAPSULE_PAD)
-          .attr('width', pillWidth)
-          .attr('height', pillH)
-          .attr('rx', pillH / 2)
-          .attr('fill', palette.bg);
-
-        semanticLegendG
-          .append('rect')
-          .attr('x', LEGEND_CAPSULE_PAD)
-          .attr('y', LEGEND_CAPSULE_PAD)
-          .attr('width', pillWidth)
-          .attr('height', pillH)
-          .attr('rx', pillH / 2)
-          .attr('fill', 'none')
-          .attr('stroke', mix(palette.textMuted, palette.bg, 50))
-          .attr('stroke-width', 0.75);
-
-        semanticLegendG
-          .append('text')
-          .attr('x', LEGEND_CAPSULE_PAD + pillWidth / 2)
-          .attr('y', LEGEND_HEIGHT / 2 + LEGEND_PILL_FONT_SIZE / 2 - 2)
-          .attr('font-size', LEGEND_PILL_FONT_SIZE)
-          .attr('font-weight', '500')
-          .attr('fill', palette.text)
-          .attr('text-anchor', 'middle')
-          .attr('font-family', FONT_FAMILY)
-          .text(groupName);
-
-        let entryX = LEGEND_CAPSULE_PAD + pillWidth + LEGEND_ENTRY_TRAIL;
-        for (const role of presentRoles) {
-          const label = ROLE_LABELS[role];
-          const roleColor = palette.colors[ROLE_COLORS[role]];
-
-          const entryG = semanticLegendG
-            .append('g')
-            .attr('data-legend-entry', role);
-
-          entryG
-            .append('circle')
-            .attr('cx', entryX + LEGEND_DOT_R)
-            .attr('cy', LEGEND_HEIGHT / 2)
-            .attr('r', LEGEND_DOT_R)
-            .attr('fill', roleColor);
-
-          const textX = entryX + LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP;
-          entryG
-            .append('text')
-            .attr('x', textX)
-            .attr('y', LEGEND_HEIGHT / 2 + LEGEND_ENTRY_FONT_SIZE / 2 - 1)
-            .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
-            .attr('fill', palette.textMuted)
-            .attr('font-family', FONT_FAMILY)
-            .text(label);
-
-          entryX = textX + labelWidths.get(role)! + LEGEND_ENTRY_TRAIL;
-        }
-      } else {
-        // ── Collapsed: single muted pill, no entries ──
-        semanticLegendG
-          .append('rect')
-          .attr('width', pillWidth)
-          .attr('height', LEGEND_HEIGHT)
-          .attr('rx', LEGEND_HEIGHT / 2)
-          .attr('fill', groupBg);
-
-        semanticLegendG
-          .append('text')
-          .attr('x', pillWidth / 2)
-          .attr('y', LEGEND_HEIGHT / 2 + LEGEND_PILL_FONT_SIZE / 2 - 2)
-          .attr('font-size', LEGEND_PILL_FONT_SIZE)
-          .attr('font-weight', '500')
-          .attr('fill', palette.textMuted)
-          .attr('text-anchor', 'middle')
-          .attr('font-family', FONT_FAMILY)
-          .text(groupName);
-      }
+        .attr('transform', `translate(0,${legendY})`);
+      renderLegendD3(
+        legendG,
+        legendConfig,
+        legendState,
+        palette,
+        isDark,
+        undefined,
+        viewW
+      );
+      legendG.selectAll('[data-legend-group]').classed('er-legend-group', true);
     }
   }
 }

@@ -22,6 +22,12 @@ import {
   LEGEND_ICON_W,
   measureLegendText,
 } from '../utils/legend-constants';
+import { renderLegendD3 } from '../utils/legend-d3';
+import type {
+  LegendConfig,
+  LegendState,
+  LegendCallbacks,
+} from '../utils/legend-types';
 import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
@@ -1893,7 +1899,7 @@ function renderTagLegend(
     const isSwimlane =
       currentSwimlaneGroup?.toLowerCase() === group.name.toLowerCase();
     const showIcon = !legendViewMode && tagGroups.length > 0;
-    const iconReserve = showIcon ? LEGEND_ICON_W : 0;
+    const iconReserve = showIcon && isActive ? LEGEND_ICON_W : 0;
     const pillW =
       measureLegendText(group.name, LEGEND_PILL_FONT_SIZE) +
       LEGEND_PILL_PAD +
@@ -1940,196 +1946,148 @@ function renderTagLegend(
 
   let cursorX = 0;
 
-  for (let i = 0; i < visibleGroups.length; i++) {
-    const group = visibleGroups[i];
-    const isActive =
-      activeGroupName?.toLowerCase() === group.name.toLowerCase();
-    const isSwimlane =
-      currentSwimlaneGroup?.toLowerCase() === group.name.toLowerCase();
+  // Render tag groups via centralized legend system
+  if (visibleGroups.length > 0) {
     const showIcon = !legendViewMode && tagGroups.length > 0;
     const iconReserve = showIcon ? LEGEND_ICON_W : 0;
-    const pillW =
-      measureLegendText(group.name, LEGEND_PILL_FONT_SIZE) +
-      LEGEND_PILL_PAD +
-      iconReserve;
-    const pillH = LEGEND_HEIGHT - LEGEND_CAPSULE_PAD * 2;
-    const groupW = groupWidths[i];
 
-    const gEl = legendRow
-      .append('g')
-      .attr('transform', `translate(${cursorX}, 0)`)
-      .attr('class', 'gantt-tag-legend-group')
-      .attr('data-tag-group', group.name)
-      .attr('data-line-number', String(group.lineNumber))
-      .style('cursor', 'pointer')
-      .on('click', () => {
-        if (onToggle) onToggle(group.name);
-      });
+    // Build groups with filtered entries
+    const legendGroups = visibleGroups.map((g) => {
+      const key = g.name.toLowerCase();
+      const entries = filteredEntries.get(key) ?? g.entries;
+      return {
+        name: g.name,
+        entries: entries.map((e) => ({ value: e.value, color: e.color })),
+      };
+    });
 
-    if (isActive) {
-      // Outer capsule background
-      gEl
-        .append('rect')
-        .attr('width', groupW)
-        .attr('height', LEGEND_HEIGHT)
-        .attr('rx', LEGEND_HEIGHT / 2)
-        .attr('fill', groupBg);
-    }
+    const legendConfig: LegendConfig = {
+      groups: legendGroups,
+      position: {
+        placement: 'top-center' as const,
+        titleRelation: 'below-title' as const,
+      },
+      mode: 'fixed' as const,
+      capsulePillAddonWidth: iconReserve,
+    };
+    const legendState: LegendState = { activeGroup: activeGroupName };
 
-    const pillXOff = isActive ? LEGEND_CAPSULE_PAD : 0;
-    const pillYOff = LEGEND_CAPSULE_PAD;
+    const tagGroupsW =
+      visibleGroups.reduce((s, _, i) => s + groupWidths[i], 0) +
+      Math.max(0, (visibleGroups.length - 1) * LEGEND_GROUP_GAP);
+    const tagGroupG = legendRow.append('g');
 
-    // Pill background
-    gEl
-      .append('rect')
-      .attr('x', pillXOff)
-      .attr('y', pillYOff)
-      .attr('width', pillW)
-      .attr('height', pillH)
-      .attr('rx', pillH / 2)
-      .attr('fill', isActive ? palette.bg : groupBg);
-
-    // Active pill border
-    if (isActive) {
-      gEl
-        .append('rect')
-        .attr('x', pillXOff)
-        .attr('y', pillYOff)
-        .attr('width', pillW)
-        .attr('height', pillH)
-        .attr('rx', pillH / 2)
-        .attr('fill', 'none')
-        .attr('stroke', mix(palette.textMuted, palette.bg, 50))
-        .attr('stroke-width', 0.75);
-    }
-
-    // Pill text (offset to leave room for icon on right)
-    const textW =
-      measureLegendText(group.name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
-    gEl
-      .append('text')
-      .attr('x', pillXOff + textW / 2)
-      .attr('y', LEGEND_HEIGHT / 2 + LEGEND_PILL_FONT_SIZE / 2 - 2)
-      .attr('text-anchor', 'middle')
-      .attr('font-size', `${LEGEND_PILL_FONT_SIZE}px`)
-      .attr('font-weight', '500')
-      .attr('fill', isActive || isSwimlane ? palette.text : palette.textMuted)
-      .text(group.name);
-
-    // ≡ swimlane icon (after pill name)
-    if (showIcon) {
-      const iconX = pillXOff + textW + 3;
-      const iconY = (LEGEND_HEIGHT - 10) / 2;
-      const iconEl = drawSwimlaneIcon(gEl, iconX, iconY, isSwimlane, palette);
-      iconEl.append('title').text(`Group by ${group.name}`);
-      iconEl.style('cursor', 'pointer').on('click', (event: Event) => {
-        event.stopPropagation();
-        if (onSwimlaneChange) {
-          onSwimlaneChange(
-            currentSwimlaneGroup?.toLowerCase() === group.name.toLowerCase()
-              ? null
-              : group.name
-          );
+    const legendCallbacks: LegendCallbacks = {
+      onGroupToggle: onToggle,
+      onEntryHover: (groupName, entryValue) => {
+        const tagKey = groupName.toLowerCase();
+        if (entryValue) {
+          const ev = entryValue.toLowerCase();
+          chartG
+            .selectAll<SVGGElement, unknown>('.gantt-task')
+            .each(function () {
+              const el = d3Selection.select(this);
+              el.attr(
+                'opacity',
+                el.attr(`data-tag-${tagKey}`) === ev ? 1 : FADE_OPACITY
+              );
+            });
+          chartG
+            .selectAll<SVGElement, unknown>('.gantt-milestone')
+            .attr('opacity', FADE_OPACITY);
+          chartG
+            .selectAll<
+              SVGElement,
+              unknown
+            >('.gantt-group-bar, .gantt-group-summary')
+            .attr('opacity', FADE_OPACITY);
+          svg
+            .selectAll<SVGTextElement, unknown>('.gantt-task-label')
+            .each(function () {
+              const el = d3Selection.select(this);
+              el.attr(
+                'opacity',
+                el.attr(`data-tag-${tagKey}`) === ev ? 1 : FADE_OPACITY
+              );
+            });
+          svg
+            .selectAll<SVGGElement, unknown>('.gantt-group-label')
+            .attr('opacity', FADE_OPACITY);
+          svg
+            .selectAll<SVGGElement, unknown>('.gantt-lane-header')
+            .each(function () {
+              const el = d3Selection.select(this);
+              el.attr(
+                'opacity',
+                el.attr(`data-tag-${tagKey}`) === ev ? 1 : FADE_OPACITY
+              );
+            });
+          chartG
+            .selectAll<
+              SVGElement,
+              unknown
+            >('.gantt-lane-band, .gantt-lane-accent')
+            .attr('opacity', FADE_OPACITY);
+        } else {
+          if (criticalPathActive) {
+            applyCriticalPathHighlight(svg, chartG);
+          } else {
+            resetHighlightAll(svg, chartG);
+          }
         }
-      });
-    }
-
-    // Entries (when active — expanded color group, only used values)
-    if (isActive) {
-      const tagKey = group.name.toLowerCase();
-      const entries = filteredEntries.get(tagKey) ?? group.entries;
-      let ex = pillXOff + pillW + LEGEND_CAPSULE_PAD + 4;
-      for (const entry of entries) {
-        const entryValue = entry.value.toLowerCase();
-
-        // Wrap dot + label in a <g> for hover targeting
-        const entryG = gEl
-          .append('g')
-          .attr('class', 'gantt-legend-entry')
-          .attr('data-line-number', String(entry.lineNumber))
-          .style('cursor', 'pointer');
-
-        // Dot
-        entryG
-          .append('circle')
-          .attr('cx', ex + LEGEND_DOT_R)
-          .attr('cy', LEGEND_HEIGHT / 2)
-          .attr('r', LEGEND_DOT_R)
-          .attr('fill', entry.color);
-
-        // Label
-        entryG
-          .append('text')
-          .attr('x', ex + LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP)
-          .attr('y', LEGEND_HEIGHT / 2 + LEGEND_ENTRY_FONT_SIZE / 2 - 2)
-          .attr('text-anchor', 'start')
-          .attr('font-size', `${LEGEND_ENTRY_FONT_SIZE}px`)
-          .attr('fill', palette.textMuted)
-          .text(entry.value);
-
-        // Hover: highlight matching tasks + labels + lane headers, fade others
-        entryG
-          .on('mouseenter', () => {
-            chartG
-              .selectAll<SVGGElement, unknown>('.gantt-task')
-              .each(function () {
-                const el = d3Selection.select(this);
-                const matches = el.attr(`data-tag-${tagKey}`) === entryValue;
-                el.attr('opacity', matches ? 1 : FADE_OPACITY);
-              });
-            chartG
-              .selectAll<SVGElement, unknown>('.gantt-milestone')
-              .attr('opacity', FADE_OPACITY);
-            chartG
-              .selectAll<
-                SVGElement,
-                unknown
-              >('.gantt-group-bar, .gantt-group-summary')
-              .attr('opacity', FADE_OPACITY);
-            // Fade left-side task labels
-            svg
-              .selectAll<SVGTextElement, unknown>('.gantt-task-label')
-              .each(function () {
-                const el = d3Selection.select(this);
-                const matches = el.attr(`data-tag-${tagKey}`) === entryValue;
-                el.attr('opacity', matches ? 1 : FADE_OPACITY);
-              });
-            // Fade group labels
-            svg
-              .selectAll<SVGGElement, unknown>('.gantt-group-label')
-              .attr('opacity', FADE_OPACITY);
-            // Fade non-matching lane headers + bands + accents
-            svg
-              .selectAll<SVGGElement, unknown>('.gantt-lane-header')
-              .each(function () {
-                const el = d3Selection.select(this);
-                const matches = el.attr(`data-tag-${tagKey}`) === entryValue;
-                el.attr('opacity', matches ? 1 : FADE_OPACITY);
-              });
-            chartG
-              .selectAll<
-                SVGElement,
-                unknown
-              >('.gantt-lane-band, .gantt-lane-accent')
-              .attr('opacity', FADE_OPACITY);
-          })
-          .on('mouseleave', () => {
-            if (criticalPathActive) {
-              applyCriticalPathHighlight(svg, chartG);
-            } else {
-              resetHighlightAll(svg, chartG);
+      },
+      onGroupRendered: (groupName, groupEl, _isActive) => {
+        // Add swimlane icon and data attributes
+        const group = visibleGroups.find((g) => g.name === groupName);
+        if (group) {
+          groupEl
+            .attr('data-tag-group', group.name)
+            .attr('data-line-number', String(group.lineNumber));
+        }
+        if (showIcon && _isActive) {
+          const isSwimlane =
+            currentSwimlaneGroup?.toLowerCase() === groupName.toLowerCase();
+          const textW =
+            measureLegendText(groupName, LEGEND_PILL_FONT_SIZE) +
+            LEGEND_PILL_PAD;
+          const pillXOff = LEGEND_CAPSULE_PAD;
+          const iconX = pillXOff + textW + 3;
+          const iconY = (LEGEND_HEIGHT - 10) / 2;
+          const iconEl = drawSwimlaneIcon(
+            groupEl,
+            iconX,
+            iconY,
+            isSwimlane,
+            palette
+          );
+          iconEl.append('title').text(`Group by ${groupName}`);
+          iconEl.style('cursor', 'pointer').on('click', (event: Event) => {
+            event.stopPropagation();
+            if (onSwimlaneChange) {
+              onSwimlaneChange(
+                currentSwimlaneGroup?.toLowerCase() === groupName.toLowerCase()
+                  ? null
+                  : groupName
+              );
             }
           });
+        }
+      },
+    };
 
-        ex +=
-          LEGEND_DOT_R * 2 +
-          LEGEND_ENTRY_DOT_GAP +
-          measureLegendText(entry.value, LEGEND_ENTRY_FONT_SIZE) +
-          LEGEND_ENTRY_TRAIL;
-      }
+    renderLegendD3(
+      tagGroupG,
+      legendConfig,
+      legendState,
+      palette,
+      isDark,
+      legendCallbacks,
+      tagGroupsW
+    );
+
+    for (let i = 0; i < visibleGroups.length; i++) {
+      cursorX += groupWidths[i] + LEGEND_GROUP_GAP;
     }
-
-    cursorX += groupW + LEGEND_GROUP_GAP;
   }
 
   // Critical Path pill

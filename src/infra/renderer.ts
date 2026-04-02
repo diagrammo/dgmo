@@ -33,9 +33,10 @@ import {
   LEGEND_ENTRY_FONT_SIZE,
   LEGEND_ENTRY_DOT_GAP,
   LEGEND_ENTRY_TRAIL,
-  LEGEND_GROUP_GAP,
   measureLegendText,
 } from '../utils/legend-constants';
+import { renderLegendD3 } from '../utils/legend-d3';
+import type { LegendConfig, LegendState } from '../utils/legend-types';
 import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
@@ -1983,26 +1984,6 @@ export function computeInfraLegendGroups(
   return groups;
 }
 
-/** Compute total width for the playback pill (speed only). */
-function computePlaybackWidth(
-  playback: InfraPlaybackState | undefined
-): number {
-  if (!playback) return 0;
-  const pillWidth =
-    measureLegendText('Playback', LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
-  if (!playback.expanded) return pillWidth;
-
-  let entriesW = 8; // gap after pill
-  entriesW += LEGEND_PILL_FONT_SIZE * 0.8 + 6; // play/pause
-  for (const s of playback.speedOptions) {
-    entriesW +=
-      measureLegendText(`${s}x`, LEGEND_ENTRY_FONT_SIZE) +
-      SPEED_BADGE_H_PAD * 2 +
-      SPEED_BADGE_GAP;
-  }
-  return LEGEND_CAPSULE_PAD * 2 + pillWidth + entriesW;
-}
-
 function renderLegend(
   rootSvg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
   legendGroups: InfraLegendGroup[],
@@ -2023,254 +2004,120 @@ function renderLegend(
     legendG.attr('data-legend-active', activeGroup.toLowerCase());
   }
 
-  // Compute centered positions
-  const effectiveW = (g: InfraLegendGroup) =>
-    activeGroup != null && g.name.toLowerCase() === activeGroup.toLowerCase()
-      ? g.width
-      : g.minifiedWidth;
-  const playbackW = computePlaybackWidth(playback);
-  const trailingGaps =
-    legendGroups.length > 0 && playbackW > 0 ? LEGEND_GROUP_GAP : 0;
-  const totalLegendW =
-    legendGroups.reduce((s, g) => s + effectiveW(g), 0) +
-    (legendGroups.length - 1) * LEGEND_GROUP_GAP +
-    trailingGaps +
-    playbackW;
-  let cursorX = (totalWidth - totalLegendW) / 2;
+  // Build all groups including Playback as a regular group for consistent rendering
+  const allGroups = legendGroups.map((g) => ({
+    name: g.name,
+    entries: g.entries.map((e) => ({ value: e.value, color: e.color })),
+  }));
+  // Add Playback as a group with empty entries (collapsed pill) or dummy entries (expanded)
+  if (playback) {
+    allGroups.push({ name: 'Playback', entries: [] });
+  }
 
+  const legendConfig: LegendConfig = {
+    groups: allGroups,
+    position: { placement: 'top-center', titleRelation: 'below-title' },
+    mode: 'fixed',
+    showEmptyGroups: true,
+  };
+  const legendState: LegendState = { activeGroup };
+  renderLegendD3(
+    legendG,
+    legendConfig,
+    legendState,
+    palette,
+    isDark,
+    undefined,
+    totalWidth
+  );
+
+  // Add infra-specific classes and data attributes for app interactivity
+  legendG.selectAll('[data-legend-group]').classed('infra-legend-group', true);
   for (const group of legendGroups) {
-    const isActive =
-      activeGroup != null &&
-      group.name.toLowerCase() === activeGroup.toLowerCase();
-
-    const groupBg = isDark
-      ? mix(palette.surface, palette.bg, 50)
-      : mix(palette.surface, palette.bg, 30);
-
-    const pillLabel = group.name;
-    const pillWidth =
-      measureLegendText(pillLabel, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
-
-    const gEl = legendG
-      .append('g')
-      .attr('transform', `translate(${cursorX}, 0)`)
-      .attr('class', 'infra-legend-group')
-      .attr('data-legend-group', group.name.toLowerCase())
-      .style('cursor', 'pointer');
-
-    // Outer capsule background (active only)
-    if (isActive) {
-      gEl
-        .append('rect')
-        .attr('width', group.width)
-        .attr('height', LEGEND_HEIGHT)
-        .attr('rx', LEGEND_HEIGHT / 2)
-        .attr('fill', groupBg);
-    }
-
-    const pillXOff = isActive ? LEGEND_CAPSULE_PAD : 0;
-    const pillYOff = LEGEND_CAPSULE_PAD;
-    const pillH = LEGEND_HEIGHT - LEGEND_CAPSULE_PAD * 2;
-
-    // Pill background
-    gEl
-      .append('rect')
-      .attr('x', pillXOff)
-      .attr('y', pillYOff)
-      .attr('width', pillWidth)
-      .attr('height', pillH)
-      .attr('rx', pillH / 2)
-      .attr('fill', isActive ? palette.bg : groupBg);
-
-    // Active pill border
-    if (isActive) {
-      gEl
-        .append('rect')
-        .attr('x', pillXOff)
-        .attr('y', pillYOff)
-        .attr('width', pillWidth)
-        .attr('height', pillH)
-        .attr('rx', pillH / 2)
-        .attr('fill', 'none')
-        .attr('stroke', mix(palette.textMuted, palette.bg, 50))
-        .attr('stroke-width', 0.75);
-    }
-
-    // Pill text
-    gEl
-      .append('text')
-      .attr('x', pillXOff + pillWidth / 2)
-      .attr('y', LEGEND_HEIGHT / 2 + LEGEND_PILL_FONT_SIZE / 2 - 2)
-      .attr('font-family', FONT_FAMILY)
-      .attr('font-size', LEGEND_PILL_FONT_SIZE)
-      .attr('font-weight', '500')
-      .attr('fill', isActive ? palette.text : palette.textMuted)
-      .attr('text-anchor', 'middle')
-      .text(pillLabel);
-
-    // Entries inside capsule (active only)
-    if (isActive) {
-      let entryX = pillXOff + pillWidth + 4;
-      for (const entry of group.entries) {
-        const entryG = gEl
-          .append('g')
-          .attr('class', 'infra-legend-entry')
+    const groupKey = group.name.toLowerCase();
+    for (const entry of group.entries) {
+      const entryEl = legendG.select(
+        `[data-legend-group="${groupKey}"] [data-legend-entry="${entry.value.toLowerCase()}"]`
+      );
+      if (!entryEl.empty()) {
+        entryEl
           .attr('data-legend-entry', entry.key.toLowerCase())
           .attr('data-legend-color', entry.color)
           .attr('data-legend-type', group.type)
           .attr(
             'data-legend-tag-group',
             group.type === 'tag' ? (group.tagKey ?? '') : null
-          )
-          .style('cursor', 'pointer');
-
-        entryG
-          .append('circle')
-          .attr('cx', entryX + LEGEND_DOT_R)
-          .attr('cy', LEGEND_HEIGHT / 2)
-          .attr('r', LEGEND_DOT_R)
-          .attr('fill', entry.color);
-
-        const textX = entryX + LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP;
-        entryG
-          .append('text')
-          .attr('x', textX)
-          .attr('y', LEGEND_HEIGHT / 2 + LEGEND_ENTRY_FONT_SIZE / 2 - 1)
-          .attr('font-family', FONT_FAMILY)
-          .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
-          .attr('fill', palette.textMuted)
-          .text(entry.value);
-
-        entryX =
-          textX +
-          measureLegendText(entry.value, LEGEND_ENTRY_FONT_SIZE) +
-          LEGEND_ENTRY_TRAIL;
+          );
       }
     }
-
-    cursorX += effectiveW(group) + LEGEND_GROUP_GAP;
   }
 
-  // Playback pill — speed + pause only
-  if (playback) {
-    const isExpanded = playback.expanded;
-    const groupBg = isDark
-      ? mix(palette.bg, palette.text, 85)
-      : mix(palette.bg, palette.text, 92);
+  // Mark the Playback pill with infra-playback-pill class for app interactivity
+  const playbackEl = legendG.select('[data-legend-group="playback"]');
+  if (!playbackEl.empty()) {
+    playbackEl.classed('infra-playback-pill', true);
+  }
 
-    const pillLabel = 'Playback';
+  // Inject speed badges into the Playback pill when expanded
+  // Speed badges are injected into the Playback pill below
+
+  // Inject speed badges into the Playback pill when expanded
+  if (playback && playback.expanded && !playbackEl.empty()) {
     const pillWidth =
-      measureLegendText(pillLabel, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
-    const fullW = computePlaybackWidth(playback);
+      measureLegendText('Playback', LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
 
-    const pbG = legendG
-      .append('g')
-      .attr('transform', `translate(${cursorX}, 0)`)
-      .attr('class', 'infra-legend-group infra-playback-pill')
-      .style('cursor', 'pointer');
+    let entryX = pillWidth + 8;
+    const entryY = LEGEND_HEIGHT / 2 + LEGEND_ENTRY_FONT_SIZE / 2 - 1;
 
-    if (isExpanded) {
-      pbG
-        .append('rect')
-        .attr('width', fullW)
-        .attr('height', LEGEND_HEIGHT)
-        .attr('rx', LEGEND_HEIGHT / 2)
-        .attr('fill', groupBg);
-    }
-
-    const pillXOff = isExpanded ? LEGEND_CAPSULE_PAD : 0;
-    const pillYOff = isExpanded ? LEGEND_CAPSULE_PAD : 0;
-    const pillH = LEGEND_HEIGHT - (isExpanded ? LEGEND_CAPSULE_PAD * 2 : 0);
-
-    pbG
-      .append('rect')
-      .attr('x', pillXOff)
-      .attr('y', pillYOff)
-      .attr('width', pillWidth)
-      .attr('height', pillH)
-      .attr('rx', pillH / 2)
-      .attr('fill', isExpanded ? palette.bg : groupBg);
-
-    if (isExpanded) {
-      pbG
-        .append('rect')
-        .attr('x', pillXOff)
-        .attr('y', pillYOff)
-        .attr('width', pillWidth)
-        .attr('height', pillH)
-        .attr('rx', pillH / 2)
-        .attr('fill', 'none')
-        .attr('stroke', mix(palette.textMuted, palette.bg, 50))
-        .attr('stroke-width', 0.75);
-    }
-
-    pbG
+    const ppLabel = playback.paused ? '▶' : '⏸';
+    playbackEl
       .append('text')
-      .attr('x', pillXOff + pillWidth / 2)
-      .attr('y', LEGEND_HEIGHT / 2 + LEGEND_PILL_FONT_SIZE / 2 - 2)
+      .attr('x', entryX)
+      .attr('y', entryY)
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', LEGEND_PILL_FONT_SIZE)
-      .attr('font-weight', '500')
-      .attr('fill', isExpanded ? palette.text : palette.textMuted)
-      .attr('text-anchor', 'middle')
-      .text(pillLabel);
+      .attr('fill', palette.textMuted)
+      .attr('data-playback-action', 'toggle-pause')
+      .style('cursor', 'pointer')
+      .text(ppLabel);
+    entryX += LEGEND_PILL_FONT_SIZE * 0.8 + 6;
 
-    if (isExpanded) {
-      let entryX = pillXOff + pillWidth + 8;
-      const entryY = LEGEND_HEIGHT / 2 + LEGEND_ENTRY_FONT_SIZE / 2 - 1;
+    for (const s of playback.speedOptions) {
+      const label = `${s}x`;
+      const isSpeedActive = playback.speed === s;
+      const slotW =
+        measureLegendText(label, LEGEND_ENTRY_FONT_SIZE) +
+        SPEED_BADGE_H_PAD * 2;
+      const badgeH = LEGEND_ENTRY_FONT_SIZE + SPEED_BADGE_V_PAD * 2;
+      const badgeY = (LEGEND_HEIGHT - badgeH) / 2;
 
-      const ppLabel = playback.paused ? '▶' : '⏸';
-      pbG
-        .append('text')
+      const speedG = playbackEl
+        .append('g')
+        .attr('data-playback-action', 'set-speed')
+        .attr('data-playback-value', String(s))
+        .style('cursor', 'pointer');
+
+      speedG
+        .append('rect')
         .attr('x', entryX)
+        .attr('y', badgeY)
+        .attr('width', slotW)
+        .attr('height', badgeH)
+        .attr('rx', badgeH / 2)
+        .attr('fill', isSpeedActive ? palette.primary : 'transparent');
+
+      speedG
+        .append('text')
+        .attr('x', entryX + slotW / 2)
         .attr('y', entryY)
         .attr('font-family', FONT_FAMILY)
-        .attr('font-size', LEGEND_PILL_FONT_SIZE)
-        .attr('fill', palette.textMuted)
-        .attr('data-playback-action', 'toggle-pause')
-        .style('cursor', 'pointer')
-        .text(ppLabel);
-      entryX += LEGEND_PILL_FONT_SIZE * 0.8 + 6;
-
-      for (const s of playback.speedOptions) {
-        const label = `${s}x`;
-        const isActive = playback.speed === s;
-        const slotW =
-          measureLegendText(label, LEGEND_ENTRY_FONT_SIZE) +
-          SPEED_BADGE_H_PAD * 2;
-        const badgeH = LEGEND_ENTRY_FONT_SIZE + SPEED_BADGE_V_PAD * 2;
-        const badgeY = (LEGEND_HEIGHT - badgeH) / 2;
-
-        const speedG = pbG
-          .append('g')
-          .attr('data-playback-action', 'set-speed')
-          .attr('data-playback-value', String(s))
-          .style('cursor', 'pointer');
-
-        speedG
-          .append('rect')
-          .attr('x', entryX)
-          .attr('y', badgeY)
-          .attr('width', slotW)
-          .attr('height', badgeH)
-          .attr('rx', badgeH / 2)
-          .attr('fill', isActive ? palette.primary : 'transparent');
-
-        speedG
-          .append('text')
-          .attr('x', entryX + slotW / 2)
-          .attr('y', entryY)
-          .attr('font-family', FONT_FAMILY)
-          .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
-          .attr('font-weight', isActive ? '600' : '400')
-          .attr('fill', isActive ? palette.bg : palette.textMuted)
-          .attr('text-anchor', 'middle')
-          .text(label);
-        entryX += slotW + SPEED_BADGE_GAP;
-      }
+        .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
+        .attr('font-weight', isSpeedActive ? '600' : '400')
+        .attr('fill', isSpeedActive ? palette.bg : palette.textMuted)
+        .attr('text-anchor', 'middle')
+        .text(label);
+      entryX += slotW + SPEED_BADGE_GAP;
     }
-
-    cursorX += fullW + LEGEND_GROUP_GAP; // eslint-disable-line no-useless-assignment
   }
 }
 

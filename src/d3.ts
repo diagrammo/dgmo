@@ -205,9 +205,14 @@ import {
   LEGEND_ENTRY_FONT_SIZE as TL_LEGEND_ENTRY_FONT_SIZE,
   LEGEND_ENTRY_DOT_GAP as TL_LEGEND_ENTRY_DOT_GAP,
   LEGEND_ENTRY_TRAIL as TL_LEGEND_ENTRY_TRAIL,
-  LEGEND_GROUP_GAP as TL_LEGEND_GROUP_GAP,
   measureLegendText,
 } from './utils/legend-constants';
+import { renderLegendD3 } from './utils/legend-d3';
+import type {
+  LegendConfig,
+  LegendState,
+  LegendCallbacks,
+} from './utils/legend-types';
 import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
@@ -4866,7 +4871,7 @@ export function renderTimeline(
     const LG_ENTRY_FONT_SIZE = TL_LEGEND_ENTRY_FONT_SIZE;
     const LG_ENTRY_DOT_GAP = TL_LEGEND_ENTRY_DOT_GAP;
     const LG_ENTRY_TRAIL = TL_LEGEND_ENTRY_TRAIL;
-    const LG_GROUP_GAP = TL_LEGEND_GROUP_GAP;
+    // LG_GROUP_GAP no longer needed — centralized legend handles spacing
     const LG_ICON_W = 20; // swimlane icon area (icon + surrounding space) — local
 
     const mainSvg = d3Selection.select(container).select<SVGSVGElement>('svg');
@@ -4874,10 +4879,6 @@ export function renderTimeline(
     if (!mainSvg.empty() && !mainG.empty()) {
       // Position legend at top, below title
       const legendY = title ? 50 : 10;
-
-      const groupBg = isDark
-        ? mix(palette.surface, palette.bg, 50)
-        : mix(palette.surface, palette.bg, 30);
 
       // Pre-compute group widths (minified and expanded)
       type LegendGroup = {
@@ -4980,20 +4981,6 @@ export function renderTimeline(
 
         if (visibleGroups.length === 0) return;
 
-        // Compute total width and center horizontally in SVG
-        const totalW =
-          visibleGroups.reduce((s, lg) => {
-            const isActive =
-              viewMode ||
-              (currentActiveGroup != null &&
-                lg.group.name.toLowerCase() ===
-                  currentActiveGroup.toLowerCase());
-            return s + (isActive ? lg.expandedWidth : lg.minifiedWidth);
-          }, 0) +
-          (visibleGroups.length - 1) * LG_GROUP_GAP;
-
-        let cx = (width - totalW) / 2;
-
         // Legend container for data-legend-active attribute
         const legendContainer = mainSvg
           .append('g')
@@ -5005,177 +4992,113 @@ export function renderTimeline(
           );
         }
 
-        for (const lg of visibleGroups) {
-          const groupKey = lg.group.name.toLowerCase();
-          const isActive =
-            viewMode ||
-            (currentActiveGroup != null &&
-              currentActiveGroup.toLowerCase() === groupKey);
-          const isSwimActive =
-            currentSwimlaneGroup != null &&
-            currentSwimlaneGroup.toLowerCase() === groupKey;
+        // Render tag groups via centralized legend system
+        const iconAddon = viewMode ? 0 : LG_ICON_W;
+        const centralGroups = visibleGroups.map((lg) => ({
+          name: lg.group.name,
+          entries: lg.group.entries.map((e) => ({
+            value: e.value,
+            color: e.color,
+          })),
+        }));
 
-          const pillLabel = lg.group.name;
-          const pillWidth =
-            measureLegendText(pillLabel, LG_PILL_FONT_SIZE) + LG_PILL_PAD;
+        // Determine effective active group for centralized renderer
+        const centralActive = viewMode ? effectiveColorKey : currentActiveGroup;
 
-          const gEl = legendContainer
-            .append('g')
-            .attr('transform', `translate(${cx}, ${legendY})`)
-            .attr('class', 'tl-tag-legend-group tl-tag-legend-entry')
-            .attr('data-legend-group', groupKey)
-            .attr('data-tag-group', groupKey)
-            .attr('data-legend-entry', '__group__');
+        const centralConfig: LegendConfig = {
+          groups: centralGroups,
+          position: { placement: 'top-center', titleRelation: 'below-title' },
+          mode: 'fixed',
+          capsulePillAddonWidth: iconAddon,
+        };
+        const centralState: LegendState = { activeGroup: centralActive };
 
-          if (!viewMode) {
-            gEl.style('cursor', 'pointer').on('click', () => {
-              currentActiveGroup =
-                currentActiveGroup === groupKey ? null : groupKey;
-              drawLegend();
-              recolorEvents();
-              onTagStateChange?.(currentActiveGroup, currentSwimlaneGroup);
-            });
-          }
+        const centralCallbacks: LegendCallbacks = viewMode
+          ? {}
+          : {
+              onGroupToggle: (groupName) => {
+                currentActiveGroup =
+                  currentActiveGroup === groupName.toLowerCase()
+                    ? null
+                    : groupName.toLowerCase();
+                drawLegend();
+                recolorEvents();
+                onTagStateChange?.(currentActiveGroup, currentSwimlaneGroup);
+              },
+              onEntryHover: (groupName, entryValue) => {
+                const tagKey = groupName.toLowerCase();
+                if (entryValue) {
+                  const tagVal = entryValue.toLowerCase();
+                  fadeToTagValue(mainG, tagKey, tagVal);
+                  mainSvg
+                    .selectAll<SVGGElement, unknown>('[data-legend-entry]')
+                    .each(function () {
+                      const el = d3Selection.select(this);
+                      const ev = el.attr('data-legend-entry');
+                      const eg =
+                        el.attr('data-tag-group') ??
+                        (el.node() as Element)
+                          ?.closest?.('[data-tag-group]')
+                          ?.getAttribute('data-tag-group');
+                      el.attr(
+                        'opacity',
+                        eg === tagKey && ev === tagVal ? 1 : FADE_OPACITY
+                      );
+                    });
+                } else {
+                  fadeReset(mainG);
+                  mainSvg
+                    .selectAll<SVGGElement, unknown>('[data-legend-entry]')
+                    .attr('opacity', 1);
+                }
+              },
+              onGroupRendered: (groupName, groupEl, isActive) => {
+                const groupKey = groupName.toLowerCase();
+                groupEl.attr('data-tag-group', groupKey);
+                if (isActive && !viewMode) {
+                  const isSwimActive =
+                    currentSwimlaneGroup != null &&
+                    currentSwimlaneGroup.toLowerCase() === groupKey;
+                  const pillWidth =
+                    measureLegendText(groupName, LG_PILL_FONT_SIZE) +
+                    LG_PILL_PAD;
+                  const pillXOff = LG_CAPSULE_PAD;
+                  const iconX = pillXOff + pillWidth + 5;
+                  const iconY = (LG_HEIGHT - 10) / 2;
+                  const iconEl = drawSwimlaneIcon(
+                    groupEl,
+                    iconX,
+                    iconY,
+                    isSwimActive
+                  );
+                  iconEl
+                    .attr('data-swimlane-toggle', groupKey)
+                    .on('click', (event: MouseEvent) => {
+                      event.stopPropagation();
+                      currentSwimlaneGroup =
+                        currentSwimlaneGroup === groupKey ? null : groupKey;
+                      onTagStateChange?.(
+                        currentActiveGroup,
+                        currentSwimlaneGroup
+                      );
+                      relayout();
+                    });
+                }
+              },
+            };
 
-          // Outer capsule background (active only)
-          if (isActive) {
-            gEl
-              .append('rect')
-              .attr('width', lg.expandedWidth)
-              .attr('height', LG_HEIGHT)
-              .attr('rx', LG_HEIGHT / 2)
-              .attr('fill', groupBg);
-          }
-
-          const pillXOff = isActive ? LG_CAPSULE_PAD : 0;
-          const pillYOff = LG_CAPSULE_PAD;
-          const pillH = LG_HEIGHT - LG_CAPSULE_PAD * 2;
-
-          // Pill background
-          gEl
-            .append('rect')
-            .attr('x', pillXOff)
-            .attr('y', pillYOff)
-            .attr('width', pillWidth)
-            .attr('height', pillH)
-            .attr('rx', pillH / 2)
-            .attr('fill', isActive ? palette.bg : groupBg);
-
-          // Active pill border
-          if (isActive) {
-            gEl
-              .append('rect')
-              .attr('x', pillXOff)
-              .attr('y', pillYOff)
-              .attr('width', pillWidth)
-              .attr('height', pillH)
-              .attr('rx', pillH / 2)
-              .attr('fill', 'none')
-              .attr('stroke', mix(palette.textMuted, palette.bg, 50))
-              .attr('stroke-width', 0.75);
-          }
-
-          // Pill text
-          gEl
-            .append('text')
-            .attr('x', pillXOff + pillWidth / 2)
-            .attr('y', LG_HEIGHT / 2 + LG_PILL_FONT_SIZE / 2 - 2)
-            .attr('font-size', LG_PILL_FONT_SIZE)
-            .attr('font-weight', '500')
-            .attr('font-family', FONT_FAMILY)
-            .attr('fill', isActive ? palette.text : palette.textMuted)
-            .attr('text-anchor', 'middle')
-            .text(pillLabel);
-
-          // Entries + swimlane icon inside capsule (active only)
-          if (isActive) {
-            // Swimlane icon (skip in view mode — non-interactive)
-            let entryX: number;
-            if (!viewMode) {
-              const iconX = pillXOff + pillWidth + 5;
-              const iconY = (LG_HEIGHT - 10) / 2; // vertically centered
-              const iconEl = drawSwimlaneIcon(gEl, iconX, iconY, isSwimActive);
-              iconEl
-                .attr('data-swimlane-toggle', groupKey)
-                .on('click', (event: MouseEvent) => {
-                  event.stopPropagation();
-                  currentSwimlaneGroup =
-                    currentSwimlaneGroup === groupKey ? null : groupKey;
-                  onTagStateChange?.(currentActiveGroup, currentSwimlaneGroup);
-                  relayout();
-                });
-              entryX = pillXOff + pillWidth + LG_ICON_W + 4;
-            } else {
-              entryX = pillXOff + pillWidth + 8;
-            }
-
-            for (const entry of lg.group.entries) {
-              const tagKey = lg.group.name.toLowerCase();
-              const tagVal = entry.value.toLowerCase();
-
-              const entryG = gEl
-                .append('g')
-                .attr('class', 'tl-tag-legend-entry')
-                .attr('data-tag-group', tagKey)
-                .attr('data-legend-entry', tagVal);
-
-              if (!viewMode) {
-                entryG
-                  .style('cursor', 'pointer')
-                  .on('mouseenter', (event: MouseEvent) => {
-                    event.stopPropagation();
-                    fadeToTagValue(mainG, tagKey, tagVal);
-                    mainSvg
-                      .selectAll<SVGGElement, unknown>('.tl-tag-legend-entry')
-                      .each(function () {
-                        const el = d3Selection.select(this);
-                        const ev = el.attr('data-legend-entry');
-                        if (ev === '__group__') return;
-                        const eg = el.attr('data-tag-group');
-                        el.attr(
-                          'opacity',
-                          eg === tagKey && ev === tagVal ? 1 : FADE_OPACITY
-                        );
-                      });
-                  })
-                  .on('mouseleave', (event: MouseEvent) => {
-                    event.stopPropagation();
-                    fadeReset(mainG);
-                    mainSvg
-                      .selectAll<SVGGElement, unknown>('.tl-tag-legend-entry')
-                      .attr('opacity', 1);
-                  })
-                  .on('click', (event: MouseEvent) => {
-                    event.stopPropagation();
-                  });
-              }
-
-              entryG
-                .append('circle')
-                .attr('cx', entryX + LG_DOT_R)
-                .attr('cy', LG_HEIGHT / 2)
-                .attr('r', LG_DOT_R)
-                .attr('fill', entry.color);
-
-              const textX = entryX + LG_DOT_R * 2 + LG_ENTRY_DOT_GAP;
-              entryG
-                .append('text')
-                .attr('x', textX)
-                .attr('y', LG_HEIGHT / 2 + LG_ENTRY_FONT_SIZE / 2 - 1)
-                .attr('font-size', LG_ENTRY_FONT_SIZE)
-                .attr('font-family', FONT_FAMILY)
-                .attr('fill', palette.textMuted)
-                .text(entry.value);
-
-              entryX =
-                textX +
-                measureLegendText(entry.value, LG_ENTRY_FONT_SIZE) +
-                LG_ENTRY_TRAIL;
-            }
-          }
-
-          cx += (isActive ? lg.expandedWidth : lg.minifiedWidth) + LG_GROUP_GAP;
-        }
+        const legendInnerG = legendContainer
+          .append('g')
+          .attr('transform', `translate(0, ${legendY})`);
+        renderLegendD3(
+          legendInnerG,
+          centralConfig,
+          centralState,
+          palette,
+          isDark,
+          centralCallbacks,
+          width
+        );
       }
 
       // Build a quick lineNumber→event lookup

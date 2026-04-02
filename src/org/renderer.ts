@@ -16,20 +16,14 @@ import { parseOrg } from './parser';
 import { layoutOrg } from './layout';
 import {
   LEGEND_HEIGHT,
-  LEGEND_PILL_PAD,
-  LEGEND_PILL_FONT_SIZE,
-  LEGEND_CAPSULE_PAD,
-  LEGEND_DOT_R,
-  LEGEND_ENTRY_FONT_SIZE,
-  LEGEND_ENTRY_DOT_GAP,
-  LEGEND_ENTRY_TRAIL,
   LEGEND_GROUP_GAP,
   LEGEND_EYE_SIZE,
   LEGEND_EYE_GAP,
   EYE_OPEN_PATH,
   EYE_CLOSED_PATH,
-  measureLegendText,
 } from '../utils/legend-constants';
+import { renderLegendD3 } from '../utils/legend-d3';
+import type { LegendConfig, LegendState } from '../utils/legend-types';
 
 // ============================================================
 // Constants
@@ -487,33 +481,17 @@ export function renderOrg(
     }
   }
 
-  // Render legend — kanban-style pills.
+  // Render legend — capsule pills.
   // In app mode (fixedLegend): render at native size outside the scaled group.
   // In export mode: skip legend (unless legend-only chart).
   // Legend-only (no nodes): all groups rendered as expanded capsules inside scaled group.
   if (fixedLegend || legendOnly || (exportDims && hasLegend)) {
-    // Determine which groups to render
-    const visibleGroups = layout.legend.filter((group) => {
-      if (legendOnly) return true;
-      if (activeTagGroup == null) return true;
-      return group.name.toLowerCase() === activeTagGroup.toLowerCase();
-    });
+    const groups = layout.legend.map((g) => ({
+      name: g.name,
+      entries: g.entries.map((e) => ({ value: e.value, color: e.color })),
+    }));
 
-    // For fixedLegend: compute positions in pixel space, centered in SVG
-    let fixedPositions: Map<string, number> | undefined;
-    if (fixedLegend && visibleGroups.length > 0) {
-      fixedPositions = new Map();
-      const effectiveW = (g: (typeof visibleGroups)[0]) =>
-        activeTagGroup != null ? g.width : g.minifiedWidth;
-      const totalW =
-        visibleGroups.reduce((s, g) => s + effectiveW(g), 0) +
-        (visibleGroups.length - 1) * LEGEND_GROUP_GAP;
-      let cx = (width - totalW) / 2;
-      for (const g of visibleGroups) {
-        fixedPositions.set(g.name, cx);
-        cx += effectiveW(g) + LEGEND_GROUP_GAP;
-      }
-    }
+    const eyeAddonWidth = fixedLegend ? LEGEND_EYE_SIZE + LEGEND_EYE_GAP : 0;
 
     // Choose parent: unscaled group for fixedLegend, contentG for legend-only
     const legendParentBase = fixedLegend
@@ -521,152 +499,107 @@ export function renderOrg(
           .append('g')
           .attr('class', 'org-legend-fixed')
           .attr('transform', `translate(0, ${DIAGRAM_PADDING + titleReserve})`)
-      : contentG;
-    const legendParent = legendParentBase;
-    if (fixedLegend && activeTagGroup) {
-      legendParentBase.attr('data-legend-active', activeTagGroup.toLowerCase());
+      : contentG.append('g');
+
+    let legendHandle;
+    if (legendOnly) {
+      // Legend-only mode: render each group expanded individually at layout positions
+      for (const lg of layout.legend) {
+        const singleConfig: LegendConfig = {
+          groups: [
+            {
+              name: lg.name,
+              entries: lg.entries.map((e) => ({
+                value: e.value,
+                color: e.color,
+              })),
+            },
+          ],
+          position: { placement: 'top-center', titleRelation: 'below-title' },
+          mode: 'fixed',
+        };
+        const singleState: LegendState = { activeGroup: lg.name };
+        const groupG = legendParentBase
+          .append('g')
+          .attr('transform', `translate(${lg.x}, ${lg.y})`);
+        renderLegendD3(
+          groupG,
+          singleConfig,
+          singleState,
+          palette,
+          isDark,
+          undefined,
+          lg.width
+        );
+        groupG
+          .selectAll('[data-legend-group]')
+          .classed('org-legend-group', true);
+      }
+      legendHandle = null;
+    } else {
+      const legendConfig: LegendConfig = {
+        groups,
+        position: { placement: 'top-center', titleRelation: 'below-title' },
+        mode: 'fixed',
+        capsulePillAddonWidth: eyeAddonWidth,
+      };
+      const legendState: LegendState = { activeGroup: activeTagGroup ?? null };
+      legendHandle = renderLegendD3(
+        legendParentBase,
+        legendConfig,
+        legendState,
+        palette,
+        isDark,
+        undefined,
+        fixedLegend ? width : layout.width
+      );
+      legendParentBase
+        .selectAll('[data-legend-group]')
+        .classed('org-legend-group', true);
     }
 
-    for (const group of visibleGroups) {
-      const isActive =
-        legendOnly ||
-        (activeTagGroup != null &&
-          group.name.toLowerCase() === activeTagGroup.toLowerCase());
-
-      const groupBg = isDark
-        ? mix(palette.surface, palette.bg, 50)
-        : mix(palette.surface, palette.bg, 30);
-
-      const pillLabel = group.name;
-      const pillWidth =
-        measureLegendText(pillLabel, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
-
-      const gX = fixedPositions?.get(group.name) ?? group.x;
-      const gY = fixedPositions ? 0 : group.y;
-
-      const gEl = legendParent
-        .append('g')
-        .attr('transform', `translate(${gX}, ${gY})`)
-        .attr('class', 'org-legend-group')
-        .attr('data-legend-group', group.name.toLowerCase())
-        .style('cursor', legendOnly ? 'default' : 'pointer');
-
-      // Outer capsule background (active only)
-      if (isActive) {
-        gEl
-          .append('rect')
-          .attr('width', group.width)
-          .attr('height', LEGEND_HEIGHT)
-          .attr('rx', LEGEND_HEIGHT / 2)
-          .attr('fill', groupBg);
-      }
-
-      const pillXOff = isActive ? LEGEND_CAPSULE_PAD : 0;
-      const pillYOff = LEGEND_CAPSULE_PAD;
-      const pillH = LEGEND_HEIGHT - LEGEND_CAPSULE_PAD * 2;
-
-      // Pill background
-      gEl
-        .append('rect')
-        .attr('x', pillXOff)
-        .attr('y', pillYOff)
-        .attr('width', pillWidth)
-        .attr('height', pillH)
-        .attr('rx', pillH / 2)
-        .attr('fill', isActive ? palette.bg : groupBg);
-
-      // Active pill border
-      if (isActive) {
-        gEl
-          .append('rect')
-          .attr('x', pillXOff)
-          .attr('y', pillYOff)
-          .attr('width', pillWidth)
-          .attr('height', pillH)
-          .attr('rx', pillH / 2)
-          .attr('fill', 'none')
-          .attr('stroke', mix(palette.textMuted, palette.bg, 50))
-          .attr('stroke-width', 0.75);
-      }
-
-      // Pill text
-      gEl
-        .append('text')
-        .attr('x', pillXOff + pillWidth / 2)
-        .attr('y', LEGEND_HEIGHT / 2 + LEGEND_PILL_FONT_SIZE / 2 - 2)
-        .attr('font-size', LEGEND_PILL_FONT_SIZE)
-        .attr('font-weight', '500')
-        .attr('fill', isActive ? palette.text : palette.textMuted)
-        .attr('text-anchor', 'middle')
-        .text(pillLabel);
-
-      // Eye icon for visibility toggle (active only, app mode)
-      if (isActive && fixedLegend) {
-        const groupKey = group.name.toLowerCase();
+    // Inject eye icons into active group capsules (app mode only)
+    if (fixedLegend && legendHandle) {
+      const computedLayout = legendHandle.getLayout();
+      if (computedLayout.activeCapsule?.addonX != null) {
+        const capsule = computedLayout.activeCapsule;
+        const groupKey = capsule.groupName.toLowerCase();
         const isHidden = hiddenAttributes?.has(groupKey) ?? false;
-        const eyeX = pillXOff + pillWidth + LEGEND_EYE_GAP;
-        const eyeY = (LEGEND_HEIGHT - LEGEND_EYE_SIZE) / 2;
-        const hitPad = 6;
 
-        const eyeG = gEl
-          .append('g')
-          .attr('class', 'org-legend-eye')
-          .attr('data-legend-visibility', groupKey)
-          .style('cursor', 'pointer')
-          .attr('opacity', isHidden ? 0.4 : 0.7);
+        // Find the rendered active group <g> and append eye icon
+        const activeGroupEl = legendParentBase.select(
+          `[data-legend-group="${groupKey}"]`
+        );
+        if (!activeGroupEl.empty()) {
+          const eyeX = capsule.addonX!;
+          const eyeY = (LEGEND_HEIGHT - LEGEND_EYE_SIZE) / 2;
+          const hitPad = 6;
 
-        // Transparent hit area for easier clicking
-        eyeG
-          .append('rect')
-          .attr('x', eyeX - hitPad)
-          .attr('y', eyeY - hitPad)
-          .attr('width', LEGEND_EYE_SIZE + hitPad * 2)
-          .attr('height', LEGEND_EYE_SIZE + hitPad * 2)
-          .attr('fill', 'transparent')
-          .attr('pointer-events', 'all');
-
-        eyeG
-          .append('path')
-          .attr('d', isHidden ? EYE_CLOSED_PATH : EYE_OPEN_PATH)
-          .attr('transform', `translate(${eyeX}, ${eyeY})`)
-          .attr('fill', 'none')
-          .attr('stroke', palette.textMuted)
-          .attr('stroke-width', 1.2)
-          .attr('stroke-linecap', 'round')
-          .attr('stroke-linejoin', 'round');
-      }
-
-      // Entries inside capsule (active only)
-      if (isActive) {
-        const eyeShift = fixedLegend ? LEGEND_EYE_SIZE + LEGEND_EYE_GAP : 0;
-        let entryX = pillXOff + pillWidth + 4 + eyeShift;
-        for (const entry of group.entries) {
-          const entryG = gEl
+          const eyeG = activeGroupEl
             .append('g')
-            .attr('data-legend-entry', entry.value.toLowerCase())
-            .style('cursor', 'pointer');
+            .attr('class', 'org-legend-eye')
+            .attr('data-legend-visibility', groupKey)
+            .style('cursor', 'pointer')
+            .attr('opacity', isHidden ? 0.4 : 0.7);
 
-          entryG
-            .append('circle')
-            .attr('cx', entryX + LEGEND_DOT_R)
-            .attr('cy', LEGEND_HEIGHT / 2)
-            .attr('r', LEGEND_DOT_R)
-            .attr('fill', entry.color);
+          eyeG
+            .append('rect')
+            .attr('x', eyeX - hitPad)
+            .attr('y', eyeY - hitPad)
+            .attr('width', LEGEND_EYE_SIZE + hitPad * 2)
+            .attr('height', LEGEND_EYE_SIZE + hitPad * 2)
+            .attr('fill', 'transparent')
+            .attr('pointer-events', 'all');
 
-          const textX = entryX + LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP;
-          const entryLabel = entry.value;
-          entryG
-            .append('text')
-            .attr('x', textX)
-            .attr('y', LEGEND_HEIGHT / 2 + LEGEND_ENTRY_FONT_SIZE / 2 - 1)
-            .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
-            .attr('fill', palette.textMuted)
-            .text(entryLabel);
-
-          entryX =
-            textX +
-            measureLegendText(entryLabel, LEGEND_ENTRY_FONT_SIZE) +
-            LEGEND_ENTRY_TRAIL;
+          eyeG
+            .append('path')
+            .attr('d', isHidden ? EYE_CLOSED_PATH : EYE_OPEN_PATH)
+            .attr('transform', `translate(${eyeX}, ${eyeY})`)
+            .attr('fill', 'none')
+            .attr('stroke', palette.textMuted)
+            .attr('stroke-width', 1.2)
+            .attr('stroke-linecap', 'round')
+            .attr('stroke-linejoin', 'round');
         }
       }
     }

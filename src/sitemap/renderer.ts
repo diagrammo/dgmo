@@ -11,20 +11,14 @@ import type { ParsedSitemap } from './types';
 import type { SitemapLayoutResult, SitemapLegendGroup } from './layout';
 import {
   LEGEND_HEIGHT,
-  LEGEND_PILL_PAD,
-  LEGEND_PILL_FONT_SIZE,
-  LEGEND_CAPSULE_PAD,
-  LEGEND_DOT_R,
-  LEGEND_ENTRY_FONT_SIZE,
-  LEGEND_ENTRY_DOT_GAP,
-  LEGEND_ENTRY_TRAIL,
   LEGEND_GROUP_GAP,
   LEGEND_EYE_SIZE,
   LEGEND_EYE_GAP,
   EYE_OPEN_PATH,
   EYE_CLOSED_PATH,
-  measureLegendText,
 } from '../utils/legend-constants';
+import { renderLegendD3 } from '../utils/legend-d3';
+import type { LegendConfig, LegendState } from '../utils/legend-types';
 
 // ============================================================
 // Constants
@@ -624,164 +618,75 @@ function renderLegend(
 ): void {
   if (legendGroups.length === 0) return;
 
-  const visibleGroups =
-    activeTagGroup != null
-      ? legendGroups.filter(
-          (g) => g.name.toLowerCase() === activeTagGroup.toLowerCase()
-        )
-      : legendGroups;
+  const groups = legendGroups.map((g) => ({
+    name: g.name,
+    entries: g.entries.map((e) => ({ value: e.value, color: e.color })),
+  }));
 
-  const groupBg = isDark
-    ? mix(palette.surface, palette.bg, 50)
-    : mix(palette.surface, palette.bg, 30);
+  const isFixedMode = fixedWidth != null;
+  const eyeAddonWidth = isFixedMode ? LEGEND_EYE_SIZE + LEGEND_EYE_GAP : 0;
 
-  // For fixed legend: compute pixel-space positions centered in SVG width
-  let fixedPositions: Map<string, number> | undefined;
-  if (fixedWidth != null && visibleGroups.length > 0) {
-    fixedPositions = new Map();
-    const effectiveW = (g: SitemapLegendGroup) =>
-      activeTagGroup != null ? g.width : g.minifiedWidth;
-    const totalW =
-      visibleGroups.reduce((s, g) => s + effectiveW(g), 0) +
-      (visibleGroups.length - 1) * LEGEND_GROUP_GAP;
-    let cx = (fixedWidth - totalW) / 2;
-    for (const g of visibleGroups) {
-      fixedPositions.set(g.name, cx);
-      cx += effectiveW(g) + LEGEND_GROUP_GAP;
-    }
-  }
+  const legendConfig: LegendConfig = {
+    groups,
+    position: { placement: 'top-center', titleRelation: 'below-title' },
+    mode: 'fixed',
+    capsulePillAddonWidth: eyeAddonWidth,
+  };
+  const legendState: LegendState = { activeGroup: activeTagGroup ?? null };
+  const containerWidth =
+    fixedWidth ?? legendGroups[0]?.x + (legendGroups[0]?.width ?? 200);
 
-  for (const group of visibleGroups) {
-    const isActive = activeTagGroup != null;
-    const pillW =
-      measureLegendText(group.name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
+  const legendHandle = renderLegendD3(
+    parent,
+    legendConfig,
+    legendState,
+    palette,
+    isDark,
+    undefined,
+    containerWidth
+  );
 
-    const gX = fixedPositions?.get(group.name) ?? group.x;
-    const gY = fixedPositions ? 0 : group.y;
+  parent.selectAll('[data-legend-group]').classed('sitemap-legend-group', true);
 
-    const legendG = parent
-      .append('g')
-      .attr('transform', `translate(${gX}, ${gY})`)
-      .attr('class', 'sitemap-legend-group')
-      .attr('data-legend-group', group.name.toLowerCase())
-      .style('cursor', 'pointer');
-
-    // Outer capsule background (active/expanded only)
-    if (isActive) {
-      legendG
-        .append('rect')
-        .attr('width', group.width)
-        .attr('height', LEGEND_HEIGHT)
-        .attr('rx', LEGEND_HEIGHT / 2)
-        .attr('fill', groupBg);
-    }
-
-    const pillXOff = isActive ? LEGEND_CAPSULE_PAD : 0;
-    const pillYOff = LEGEND_CAPSULE_PAD;
-    const pillH = LEGEND_HEIGHT - LEGEND_CAPSULE_PAD * 2;
-
-    // Pill background
-    legendG
-      .append('rect')
-      .attr('x', pillXOff)
-      .attr('y', pillYOff)
-      .attr('width', pillW)
-      .attr('height', pillH)
-      .attr('rx', pillH / 2)
-      .attr('fill', isActive ? palette.bg : groupBg);
-
-    // Active pill border
-    if (isActive) {
-      legendG
-        .append('rect')
-        .attr('x', pillXOff)
-        .attr('y', pillYOff)
-        .attr('width', pillW)
-        .attr('height', pillH)
-        .attr('rx', pillH / 2)
-        .attr('fill', 'none')
-        .attr('stroke', mix(palette.textMuted, palette.bg, 50))
-        .attr('stroke-width', 0.75);
-    }
-
-    // Pill text
-    legendG
-      .append('text')
-      .attr('x', pillXOff + pillW / 2)
-      .attr('y', LEGEND_HEIGHT / 2 + LEGEND_PILL_FONT_SIZE / 2 - 2)
-      .attr('font-size', LEGEND_PILL_FONT_SIZE)
-      .attr('font-weight', '500')
-      .attr('fill', isActive ? palette.text : palette.textMuted)
-      .attr('text-anchor', 'middle')
-      .text(group.name);
-
-    // Eye icon for visibility toggle (active only, app mode)
-    if (isActive && fixedWidth != null) {
-      const groupKey = group.name.toLowerCase();
+  // Inject eye icons into active group capsules (fixed/app mode only)
+  if (isFixedMode) {
+    const computedLayout = legendHandle.getLayout();
+    if (computedLayout.activeCapsule?.addonX != null) {
+      const capsule = computedLayout.activeCapsule;
+      const groupKey = capsule.groupName.toLowerCase();
       const isHidden = hiddenAttributes?.has(groupKey) ?? false;
-      const eyeX = pillXOff + pillW + LEGEND_EYE_GAP;
-      const eyeY = (LEGEND_HEIGHT - LEGEND_EYE_SIZE) / 2;
-      const hitPad = 6;
 
-      const eyeG = legendG
-        .append('g')
-        .attr('class', 'sitemap-legend-eye')
-        .attr('data-legend-visibility', groupKey)
-        .style('cursor', 'pointer')
-        .attr('opacity', isHidden ? 0.4 : 0.7);
+      const activeGroupEl = parent.select(`[data-legend-group="${groupKey}"]`);
+      if (!activeGroupEl.empty()) {
+        const eyeX = capsule.addonX!;
+        const eyeY = (LEGEND_HEIGHT - LEGEND_EYE_SIZE) / 2;
+        const hitPad = 6;
 
-      // Transparent hit area for easier clicking
-      eyeG
-        .append('rect')
-        .attr('x', eyeX - hitPad)
-        .attr('y', eyeY - hitPad)
-        .attr('width', LEGEND_EYE_SIZE + hitPad * 2)
-        .attr('height', LEGEND_EYE_SIZE + hitPad * 2)
-        .attr('fill', 'transparent')
-        .attr('pointer-events', 'all');
-
-      eyeG
-        .append('path')
-        .attr('d', isHidden ? EYE_CLOSED_PATH : EYE_OPEN_PATH)
-        .attr('transform', `translate(${eyeX}, ${eyeY})`)
-        .attr('fill', 'none')
-        .attr('stroke', palette.textMuted)
-        .attr('stroke-width', 1.2)
-        .attr('stroke-linecap', 'round')
-        .attr('stroke-linejoin', 'round');
-    }
-
-    // Entries (active/expanded only)
-    if (isActive) {
-      const eyeShift =
-        fixedWidth != null ? LEGEND_EYE_SIZE + LEGEND_EYE_GAP : 0;
-      let entryX = pillXOff + pillW + 4 + eyeShift;
-      for (const entry of group.entries) {
-        const entryG = legendG
+        const eyeG = activeGroupEl
           .append('g')
-          .attr('data-legend-entry', entry.value.toLowerCase())
-          .style('cursor', 'pointer');
+          .attr('class', 'sitemap-legend-eye')
+          .attr('data-legend-visibility', groupKey)
+          .style('cursor', 'pointer')
+          .attr('opacity', isHidden ? 0.4 : 0.7);
 
-        entryG
-          .append('circle')
-          .attr('cx', entryX + LEGEND_DOT_R)
-          .attr('cy', LEGEND_HEIGHT / 2)
-          .attr('r', LEGEND_DOT_R)
-          .attr('fill', entry.color);
+        eyeG
+          .append('rect')
+          .attr('x', eyeX - hitPad)
+          .attr('y', eyeY - hitPad)
+          .attr('width', LEGEND_EYE_SIZE + hitPad * 2)
+          .attr('height', LEGEND_EYE_SIZE + hitPad * 2)
+          .attr('fill', 'transparent')
+          .attr('pointer-events', 'all');
 
-        const textX = entryX + LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP;
-        entryG
-          .append('text')
-          .attr('x', textX)
-          .attr('y', LEGEND_HEIGHT / 2 + LEGEND_ENTRY_FONT_SIZE / 2 - 1)
-          .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
-          .attr('fill', palette.textMuted)
-          .text(entry.value);
-
-        entryX =
-          textX +
-          measureLegendText(entry.value, LEGEND_ENTRY_FONT_SIZE) +
-          LEGEND_ENTRY_TRAIL;
+        eyeG
+          .append('path')
+          .attr('d', isHidden ? EYE_CLOSED_PATH : EYE_OPEN_PATH)
+          .attr('transform', `translate(${eyeX}, ${eyeY})`)
+          .attr('fill', 'none')
+          .attr('stroke', palette.textMuted)
+          .attr('stroke-width', 1.2)
+          .attr('stroke-linecap', 'round')
+          .attr('stroke-linejoin', 'round');
       }
     }
   }

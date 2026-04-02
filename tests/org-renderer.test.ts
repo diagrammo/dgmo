@@ -576,7 +576,7 @@ Alice
 Bob
   location: LA`;
     const svg = renderOrgForExport(input, 'light', palette.light);
-    expect(svg).toContain('org-legend-group');
+    expect(svg).toContain('data-legend-group');
     expect(svg).toContain('Location');
   });
 
@@ -585,7 +585,7 @@ Bob
 Alice
   Bob`;
     const svg = renderOrgForExport(input, 'light', palette.light);
-    expect(svg).not.toContain('org-legend-group');
+    expect(svg).not.toContain('data-legend-group');
   });
 
   it('shows group names in legend (interactive)', () => {
@@ -610,7 +610,7 @@ Alice | location: NY, status: FTE`;
     const svg = container.innerHTML;
 
     // Two legend groups
-    const matches = svg.match(/org-legend-group/g);
+    const matches = svg.match(/data-legend-group/g);
     expect(matches).toHaveLength(2);
     // Group names rendered as headers
     expect(svg).toContain('>Location<');
@@ -961,13 +961,14 @@ Alice | location: NY, status: FTE`;
     );
 
     const legendGroups = container.querySelectorAll('[data-legend-group]');
-    expect(legendGroups).toHaveLength(1);
-    expect(legendGroups[0].getAttribute('data-legend-group')).toBe('location');
-
-    // Active group has entry dots (full rendering)
-    expect(legendGroups[0].querySelectorAll('circle').length).toBeGreaterThan(
-      0
+    // Centralized legend shows all groups — active one expanded, others as pills
+    expect(legendGroups.length).toBeGreaterThanOrEqual(1);
+    const activeGroup = container.querySelector(
+      '[data-legend-group="location"]'
     );
+    expect(activeGroup).not.toBeNull();
+    // Active group has entry dots (full rendering)
+    expect(activeGroup!.querySelectorAll('circle').length).toBeGreaterThan(0);
   });
 
   it('all legend groups rendered minified when no activeTagGroup', () => {
@@ -1247,7 +1248,7 @@ tag Status
     const svg = renderOrgForExport(tagGroupOnlyInput, 'light', palette.light);
     expect(svg).toContain('<svg');
     // Both groups should be rendered
-    const groupMatches = svg.match(/org-legend-group/g);
+    const groupMatches = svg.match(/data-legend-group/g);
     expect(groupMatches?.length).toBe(2);
     // Entries should be visible (expanded capsules)
     expect(svg).toContain('>Captain<');

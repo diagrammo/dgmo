@@ -38,7 +38,7 @@ const palette = getPalette('nord').light;
 
 function renderToSvg(
   input: string,
-  options?: SequenceRenderOptions,
+  options?: SequenceRenderOptions
 ): SVGSVGElement | null {
   const parsed = parseSequenceDgmo(input);
   expect(parsed.error).toBeNull();
@@ -118,7 +118,9 @@ describe('Sequence tag-driven recoloring', () => {
   it('sets data-tag-* attribute on tagged message arrow', () => {
     const svg = renderToSvg(tagDiagram, { activeTagGroup: 'concern' });
     // Find message arrows with data-tag attribute
-    const taggedArrows = svg!.querySelectorAll('.message-arrow[data-tag-concern]');
+    const taggedArrows = svg!.querySelectorAll(
+      '.message-arrow[data-tag-concern]'
+    );
     expect(taggedArrows.length).toBeGreaterThanOrEqual(1);
   });
 
@@ -269,7 +271,7 @@ const multiGroupDiagram = [
 describe('Sequence legend rendering', () => {
   it('renders legend pills for each tag group', () => {
     const svg = renderToSvg(multiGroupDiagram);
-    const pills = svg!.querySelectorAll('.sequence-legend-group');
+    const pills = svg!.querySelectorAll('[data-legend-group]');
     expect(pills.length).toBe(2);
   });
 
@@ -309,12 +311,9 @@ describe('Sequence legend rendering', () => {
   });
 
   it('renders no legend when no tag groups exist', () => {
-    const input = [
-      'sequence',
-      'API -query-> DB',
-    ].join('\n');
+    const input = ['sequence', 'API -query-> DB'].join('\n');
     const svg = renderToSvg(input);
-    const pills = svg!.querySelectorAll('.sequence-legend-group');
+    const pills = svg!.querySelectorAll('[data-legend-group]');
     expect(pills.length).toBe(0);
   });
 
@@ -331,7 +330,7 @@ describe('Sequence legend rendering', () => {
       'API -query-> DB',
     ].join('\n');
     const svg = renderToSvg(input);
-    const pills = svg!.querySelectorAll('.sequence-legend-group');
+    const pills = svg!.querySelectorAll('[data-legend-group]');
     // Only Concern should appear (Empty has no entries)
     expect(pills.length).toBe(1);
     expect(pills[0].getAttribute('data-legend-group')).toBe('concern');

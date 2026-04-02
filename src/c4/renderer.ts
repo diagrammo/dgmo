@@ -9,7 +9,7 @@ import type { PaletteColors } from '../palettes';
 import { mix } from '../palettes/color-utils';
 import { renderInlineText } from '../utils/inline-markdown';
 import type { ParsedC4 } from './types';
-import type { C4LayoutResult, C4LayoutEdge, C4LegendGroup } from './layout';
+import type { C4LayoutResult, C4LayoutEdge } from './layout';
 import { parseC4 } from './parser';
 import {
   layoutC4Context,
@@ -18,18 +18,9 @@ import {
   layoutC4Deployment,
   collectCardMetadata,
 } from './layout';
-import {
-  LEGEND_HEIGHT,
-  LEGEND_PILL_FONT_SIZE,
-  LEGEND_PILL_PAD,
-  LEGEND_DOT_R,
-  LEGEND_ENTRY_FONT_SIZE,
-  LEGEND_ENTRY_DOT_GAP,
-  LEGEND_ENTRY_TRAIL,
-  LEGEND_CAPSULE_PAD,
-  LEGEND_GROUP_GAP,
-  measureLegendText,
-} from '../utils/legend-constants';
+import { LEGEND_HEIGHT } from '../utils/legend-constants';
+import { renderLegendD3 } from '../utils/legend-d3';
+import type { LegendConfig, LegendState } from '../utils/legend-types';
 import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT } from '../utils/title-constants';
 
 // ============================================================
@@ -1251,133 +1242,29 @@ function renderLegend(
   palette: PaletteColors,
   isDark: boolean,
   activeTagGroup?: string | null,
-  /** When set, center groups horizontally across this width (fixed overlay mode). */
   fixedWidth?: number | null
 ): void {
-  const visibleGroups =
-    activeTagGroup != null
-      ? layout.legend.filter(
-          (g) => g.name.toLowerCase() === (activeTagGroup ?? '').toLowerCase()
-        )
-      : layout.legend;
-
-  const pillWidthOf = (g: C4LegendGroup) =>
-    measureLegendText(g.name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
-  const effectiveW = (g: C4LegendGroup) =>
-    activeTagGroup != null ? g.width : pillWidthOf(g);
-
-  // In fixed mode, compute centered x-positions
-  let fixedPositions: Map<string, number> | null = null;
-  if (fixedWidth != null && visibleGroups.length > 0) {
-    fixedPositions = new Map();
-    const totalW =
-      visibleGroups.reduce((s, g) => s + effectiveW(g), 0) +
-      (visibleGroups.length - 1) * LEGEND_GROUP_GAP;
-    let cx = Math.max(DIAGRAM_PADDING, (fixedWidth - totalW) / 2);
-    for (const g of visibleGroups) {
-      fixedPositions.set(g.name, cx);
-      cx += effectiveW(g) + LEGEND_GROUP_GAP;
-    }
-  }
-
-  for (const group of visibleGroups) {
-    const isActive =
-      activeTagGroup != null &&
-      group.name.toLowerCase() === (activeTagGroup ?? '').toLowerCase();
-
-    const groupBg = isDark
-      ? mix(palette.surface, palette.bg, 50)
-      : mix(palette.surface, palette.bg, 30);
-
-    const pillLabel = group.name;
-    const pillWidth = pillWidthOf(group);
-
-    const gX = fixedPositions?.get(group.name) ?? group.x;
-    const gY = fixedPositions != null ? 0 : group.y;
-
-    const gEl = parent
-      .append('g')
-      .attr('transform', `translate(${gX}, ${gY})`)
-      .attr('class', 'c4-legend-group')
-      .attr('data-legend-group', group.name.toLowerCase())
-      .style('cursor', 'pointer');
-
-    if (isActive) {
-      gEl
-        .append('rect')
-        .attr('width', group.width)
-        .attr('height', LEGEND_HEIGHT)
-        .attr('rx', LEGEND_HEIGHT / 2)
-        .attr('fill', groupBg);
-    }
-
-    const pillX = isActive ? LEGEND_CAPSULE_PAD : 0;
-    const pillY = LEGEND_CAPSULE_PAD;
-    const pillH = LEGEND_HEIGHT - LEGEND_CAPSULE_PAD * 2;
-
-    gEl
-      .append('rect')
-      .attr('x', pillX)
-      .attr('y', pillY)
-      .attr('width', pillWidth)
-      .attr('height', pillH)
-      .attr('rx', pillH / 2)
-      .attr('fill', isActive ? palette.bg : groupBg);
-
-    if (isActive) {
-      gEl
-        .append('rect')
-        .attr('x', pillX)
-        .attr('y', pillY)
-        .attr('width', pillWidth)
-        .attr('height', pillH)
-        .attr('rx', pillH / 2)
-        .attr('fill', 'none')
-        .attr('stroke', mix(palette.textMuted, palette.bg, 50))
-        .attr('stroke-width', 0.75);
-    }
-
-    gEl
-      .append('text')
-      .attr('x', pillX + pillWidth / 2)
-      .attr('y', LEGEND_HEIGHT / 2 + LEGEND_PILL_FONT_SIZE / 2 - 2)
-      .attr('font-size', LEGEND_PILL_FONT_SIZE)
-      .attr('font-weight', '500')
-      .attr('fill', isActive ? palette.text : palette.textMuted)
-      .attr('text-anchor', 'middle')
-      .text(pillLabel);
-
-    if (isActive) {
-      let entryX = pillX + pillWidth + 4;
-      for (const entry of group.entries) {
-        const entryG = gEl
-          .append('g')
-          .attr('data-legend-entry', entry.value.toLowerCase())
-          .style('cursor', 'pointer');
-
-        entryG
-          .append('circle')
-          .attr('cx', entryX + LEGEND_DOT_R)
-          .attr('cy', LEGEND_HEIGHT / 2)
-          .attr('r', LEGEND_DOT_R)
-          .attr('fill', entry.color);
-
-        const textX = entryX + LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP;
-        entryG
-          .append('text')
-          .attr('x', textX)
-          .attr('y', LEGEND_HEIGHT / 2 + LEGEND_ENTRY_FONT_SIZE / 2 - 1)
-          .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
-          .attr('fill', palette.textMuted)
-          .text(entry.value);
-
-        entryX =
-          textX +
-          measureLegendText(entry.value, LEGEND_ENTRY_FONT_SIZE) +
-          LEGEND_ENTRY_TRAIL;
-      }
-    }
-  }
+  const groups = layout.legend.map((g) => ({
+    name: g.name,
+    entries: g.entries.map((e) => ({ value: e.value, color: e.color })),
+  }));
+  const legendConfig: LegendConfig = {
+    groups,
+    position: { placement: 'top-center', titleRelation: 'below-title' },
+    mode: 'fixed',
+  };
+  const legendState: LegendState = { activeGroup: activeTagGroup ?? null };
+  const containerWidth = fixedWidth ?? layout.width;
+  renderLegendD3(
+    parent,
+    legendConfig,
+    legendState,
+    palette,
+    isDark,
+    undefined,
+    containerWidth
+  );
+  parent.selectAll('[data-legend-group]').classed('c4-legend-group', true);
 }
 
 // ============================================================

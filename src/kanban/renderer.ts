@@ -15,13 +15,9 @@ import type {
 } from './types';
 import { parseKanban } from './parser';
 import { isArchiveColumn } from './mutations';
-import {
-  LEGEND_HEIGHT,
-  LEGEND_PILL_FONT_SIZE,
-  LEGEND_DOT_R,
-  LEGEND_ENTRY_FONT_SIZE,
-  LEGEND_CAPSULE_PAD,
-} from '../utils/legend-constants';
+import { LEGEND_HEIGHT } from '../utils/legend-constants';
+import { renderLegendD3 } from '../utils/legend-d3';
+import type { LegendConfig, LegendState } from '../utils/legend-types';
 
 // ============================================================
 // Constants
@@ -256,128 +252,25 @@ export function renderKanban(
   // Legend (bottom of diagram)
   if (parsed.tagGroups.length > 0) {
     const legendY = height - LEGEND_HEIGHT;
-    let legendX = DIAGRAM_PADDING;
-    const groupBg = isDark
-      ? mix(palette.surface, palette.bg, 50)
-      : mix(palette.surface, palette.bg, 30);
-    const capsulePad = LEGEND_CAPSULE_PAD;
-
-    const legendContainer = svg.append('g').attr('class', 'kanban-legend');
-    if (activeTagGroup) {
-      legendContainer.attr('data-legend-active', activeTagGroup.toLowerCase());
-    }
-
-    for (const group of parsed.tagGroups) {
-      const isActive =
-        activeTagGroup?.toLowerCase() === group.name.toLowerCase();
-
-      // When a group is active, skip all other groups entirely
-      if (activeTagGroup != null && !isActive) continue;
-
-      const pillTextWidth = group.name.length * LEGEND_PILL_FONT_SIZE * 0.6;
-      const pillWidth = pillTextWidth + 16;
-
-      // Measure total capsule width for active groups (pill + entries)
-      let capsuleContentWidth = pillWidth;
-      if (isActive) {
-        capsuleContentWidth += 4; // gap after pill
-        for (const entry of group.entries) {
-          capsuleContentWidth +=
-            LEGEND_DOT_R * 2 +
-            4 +
-            entry.value.length * LEGEND_ENTRY_FONT_SIZE * 0.6 +
-            8;
-        }
-      }
-      const capsuleWidth = capsuleContentWidth + capsulePad * 2;
-
-      // Outer capsule background for active group
-      if (isActive) {
-        legendContainer
-          .append('rect')
-          .attr('x', legendX)
-          .attr('y', legendY)
-          .attr('width', capsuleWidth)
-          .attr('height', LEGEND_HEIGHT)
-          .attr('rx', LEGEND_HEIGHT / 2)
-          .attr('fill', groupBg);
-      }
-
-      const pillX = legendX + (isActive ? capsulePad : 0);
-
-      // Pill background
-      const pillBg = isActive ? palette.bg : groupBg;
-      legendContainer
-        .append('rect')
-        .attr('x', pillX)
-        .attr('y', legendY + capsulePad)
-        .attr('width', pillWidth)
-        .attr('height', LEGEND_HEIGHT - capsulePad * 2)
-        .attr('rx', (LEGEND_HEIGHT - capsulePad * 2) / 2)
-        .attr('fill', pillBg)
-        .attr('class', 'kanban-legend-group')
-        .attr('data-legend-group', group.name.toLowerCase());
-
-      if (isActive) {
-        legendContainer
-          .append('rect')
-          .attr('x', pillX)
-          .attr('y', legendY + capsulePad)
-          .attr('width', pillWidth)
-          .attr('height', LEGEND_HEIGHT - capsulePad * 2)
-          .attr('rx', (LEGEND_HEIGHT - capsulePad * 2) / 2)
-          .attr('fill', 'none')
-          .attr('stroke', mix(palette.textMuted, palette.bg, 50))
-          .attr('stroke-width', 0.75);
-      }
-
-      // Pill text
-      legendContainer
-        .append('text')
-        .attr('x', pillX + pillWidth / 2)
-        .attr('y', legendY + LEGEND_HEIGHT / 2 + LEGEND_PILL_FONT_SIZE / 2 - 2)
-        .attr('font-size', LEGEND_PILL_FONT_SIZE)
-        .attr('font-weight', '500')
-        .attr('fill', isActive ? palette.text : palette.textMuted)
-        .attr('text-anchor', 'middle')
-        .text(group.name);
-
-      // Show entries inside capsule when active
-      if (isActive) {
-        let entryX = pillX + pillWidth + 4;
-        for (const entry of group.entries) {
-          const entryG = legendContainer
-            .append('g')
-            .attr('data-legend-entry', entry.value.toLowerCase())
-            .style('cursor', 'pointer');
-
-          entryG
-            .append('circle')
-            .attr('cx', entryX + LEGEND_DOT_R)
-            .attr('cy', legendY + LEGEND_HEIGHT / 2)
-            .attr('r', LEGEND_DOT_R)
-            .attr('fill', entry.color);
-
-          const entryTextX = entryX + LEGEND_DOT_R * 2 + 4;
-          entryG
-            .append('text')
-            .attr('x', entryTextX)
-            .attr(
-              'y',
-              legendY + LEGEND_HEIGHT / 2 + LEGEND_ENTRY_FONT_SIZE / 2 - 1
-            )
-            .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
-            .attr('fill', palette.textMuted)
-            .text(entry.value);
-
-          entryX =
-            entryTextX + entry.value.length * LEGEND_ENTRY_FONT_SIZE * 0.6 + 8;
-        }
-        legendX += capsuleWidth + 12;
-      } else {
-        legendX += pillWidth + 12;
-      }
-    }
+    const legendConfig: LegendConfig = {
+      groups: parsed.tagGroups,
+      position: { placement: 'top-center', titleRelation: 'below-title' },
+      mode: exportDims ? 'inline' : 'fixed',
+    };
+    const legendState: LegendState = { activeGroup: activeTagGroup ?? null };
+    const legendG = svg
+      .append('g')
+      .attr('class', 'kanban-legend')
+      .attr('transform', `translate(${DIAGRAM_PADDING},${legendY})`);
+    renderLegendD3(
+      legendG,
+      legendConfig,
+      legendState,
+      palette,
+      isDark,
+      undefined,
+      width - DIAGRAM_PADDING * 2
+    );
   }
 
   // Columns

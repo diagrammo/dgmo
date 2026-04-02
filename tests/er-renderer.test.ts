@@ -75,8 +75,14 @@ function renderToContainer(content: string, isDark = false): HTMLDivElement {
   const layout = layoutERDiagram(parsed);
 
   const container = document.createElement('div');
-  Object.defineProperty(container, 'clientWidth', { value: 1200, configurable: true });
-  Object.defineProperty(container, 'clientHeight', { value: 800, configurable: true });
+  Object.defineProperty(container, 'clientWidth', {
+    value: 1200,
+    configurable: true,
+  });
+  Object.defineProperty(container, 'clientHeight', {
+    value: 800,
+    configurable: true,
+  });
   document.body.appendChild(container);
 
   renderERDiagram(container, parsed, layout, testPalette, isDark);
@@ -177,7 +183,8 @@ describe('renderERDiagram', () => {
 
   describe('multiple tables', () => {
     it('renders all tables', () => {
-      const content = 'users\n  id: int [pk]\n\nposts\n  id: int [pk]\n\ncomments\n  id: int [pk]';
+      const content =
+        'users\n  id: int [pk]\n\nposts\n  id: int [pk]\n\ncomments\n  id: int [pk]';
       const container = renderToContainer(content);
       const nodes = container.querySelectorAll('.er-table');
       expect(nodes.length).toBe(3);
@@ -205,9 +212,22 @@ Orders | d: Shipping
       container.style.width = '800px';
       container.style.height = '600px';
       document.body.appendChild(container);
-      renderERDiagram(container, parsed, layout, testPalette, false, undefined, { width: 800, height: 600 }, 'domain');
-      const billingTable = container.querySelector('.er-table[data-tag-domain="billing"]');
-      const shippingTable = container.querySelector('.er-table[data-tag-domain="shipping"]');
+      renderERDiagram(
+        container,
+        parsed,
+        layout,
+        testPalette,
+        false,
+        undefined,
+        { width: 800, height: 600 },
+        'domain'
+      );
+      const billingTable = container.querySelector(
+        '.er-table[data-tag-domain="billing"]'
+      );
+      const shippingTable = container.querySelector(
+        '.er-table[data-tag-domain="shipping"]'
+      );
       expect(billingTable).toBeTruthy();
       expect(shippingTable).toBeTruthy();
       document.body.removeChild(container);
@@ -220,7 +240,15 @@ Orders | d: Shipping
       container.style.width = '800px';
       container.style.height = '600px';
       document.body.appendChild(container);
-      renderERDiagram(container, parsed, layout, testPalette, false, undefined, { width: 800, height: 600 });
+      renderERDiagram(
+        container,
+        parsed,
+        layout,
+        testPalette,
+        false,
+        undefined,
+        { width: 800, height: 600 }
+      );
       const tagged = container.querySelector('[data-tag-domain]');
       expect(tagged).toBeNull();
       document.body.removeChild(container);
@@ -233,11 +261,20 @@ Orders | d: Shipping
       container.style.width = '800px';
       container.style.height = '600px';
       document.body.appendChild(container);
-      renderERDiagram(container, parsed, layout, testPalette, false, undefined, { width: 800, height: 600 });
+      renderERDiagram(
+        container,
+        parsed,
+        layout,
+        testPalette,
+        false,
+        undefined,
+        { width: 800, height: 600 }
+      );
       const legend = container.querySelector('.er-tag-legend');
       expect(legend).toBeTruthy();
-      const entries = container.querySelectorAll('[data-legend-entry]');
-      expect(entries.length).toBe(2); // Billing, Shipping
+      // Centralized legend shows group pills; entries visible when group is active
+      const groups = legend!.querySelectorAll('[data-legend-group]');
+      expect(groups.length).toBeGreaterThan(0);
       document.body.removeChild(container);
     });
 
@@ -248,7 +285,15 @@ Orders | d: Shipping
       container.style.width = '800px';
       container.style.height = '600px';
       document.body.appendChild(container);
-      renderERDiagram(container, parsed, layout, testPalette, false, undefined, { width: 800, height: 600 });
+      renderERDiagram(
+        container,
+        parsed,
+        layout,
+        testPalette,
+        false,
+        undefined,
+        { width: 800, height: 600 }
+      );
       const legend = container.querySelector('.er-tag-legend');
       expect(legend).toBeNull();
       document.body.removeChild(container);
@@ -289,10 +334,24 @@ posts
       const parsed = parseERDiagram(content, testPalette);
       const layout = layoutERDiagram(parsed);
       const container = document.createElement('div');
-      Object.defineProperty(container, 'clientWidth', { value: 800, configurable: true });
-      Object.defineProperty(container, 'clientHeight', { value: 600, configurable: true });
+      Object.defineProperty(container, 'clientWidth', {
+        value: 800,
+        configurable: true,
+      });
+      Object.defineProperty(container, 'clientHeight', {
+        value: 600,
+        configurable: true,
+      });
       document.body.appendChild(container);
-      renderERDiagram(container, parsed, layout, testPalette, isDark, undefined, { width: 800, height: 600 });
+      renderERDiagram(
+        container,
+        parsed,
+        layout,
+        testPalette,
+        isDark,
+        undefined,
+        { width: 800, height: 600 }
+      );
       return container;
     }
 
@@ -343,7 +402,9 @@ posts
       const container = renderWithDims(PLAIN_ER);
       // users = core (no FK), posts = dependent (has author_id FK)
       // So only 2 distinct roles should appear in legend
-      const entries = container.querySelectorAll('.er-semantic-legend [data-legend-entry]');
+      const entries = container.querySelectorAll(
+        '.er-semantic-legend [data-legend-entry]'
+      );
       expect(entries.length).toBe(2);
       document.body.removeChild(container);
     });
@@ -351,7 +412,9 @@ posts
     it('core table gets green stroke on its rect', () => {
       const container = renderWithDims(PLAIN_ER);
       // users has no FK columns → core → green
-      const usersNode = container.querySelector('.er-table[data-node-id="users"]');
+      const usersNode = container.querySelector(
+        '.er-table[data-node-id="users"]'
+      );
       expect(usersNode).toBeTruthy();
       const rect = usersNode?.querySelector('rect');
       expect(rect?.getAttribute('stroke')).toBe(testPalette.colors.green);
@@ -361,7 +424,9 @@ posts
     it('dependent table gets blue stroke on its rect', () => {
       const container = renderWithDims(PLAIN_ER);
       // posts has author_id FK → dependent → blue
-      const postsNode = container.querySelector('.er-table[data-node-id="posts"]');
+      const postsNode = container.querySelector(
+        '.er-table[data-node-id="posts"]'
+      );
       expect(postsNode).toBeTruthy();
       const rect = postsNode?.querySelector('rect');
       expect(rect?.getAttribute('stroke')).toBe(testPalette.colors.blue);
@@ -385,7 +450,9 @@ order_items
 
       const container = renderWithDims(junctionER);
       // order_items: 2 FK / 2 cols = 1.0 ratio → junction → red
-      const junctionNode = container.querySelector('.er-table[data-node-id="order_items"]');
+      const junctionNode = container.querySelector(
+        '.er-table[data-node-id="order_items"]'
+      );
       expect(junctionNode).toBeTruthy();
       const rect = junctionNode?.querySelector('rect');
       expect(rect?.getAttribute('stroke')).toBe(testPalette.colors.red);

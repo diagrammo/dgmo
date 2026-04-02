@@ -62,8 +62,14 @@ function renderToContainer(content: string, isDark = false): HTMLDivElement {
   const layout = layoutClassDiagram(parsed);
 
   const container = document.createElement('div');
-  Object.defineProperty(container, 'clientWidth', { value: 1200, configurable: true });
-  Object.defineProperty(container, 'clientHeight', { value: 800, configurable: true });
+  Object.defineProperty(container, 'clientWidth', {
+    value: 1200,
+    configurable: true,
+  });
+  Object.defineProperty(container, 'clientHeight', {
+    value: 800,
+    configurable: true,
+  });
   document.body.appendChild(container);
 
   renderClassDiagram(container, parsed, layout, testPalette, isDark);
@@ -73,7 +79,9 @@ function renderToContainer(content: string, isDark = false): HTMLDivElement {
 describe('renderClassDiagram', () => {
   describe('basic rendering', () => {
     it('renders SVG with expected structure', () => {
-      const container = renderToContainer('Animal\n  name: string\n  speak(): void');
+      const container = renderToContainer(
+        'Animal\n  name: string\n  speak(): void'
+      );
       const svg = container.querySelector('svg');
       expect(svg).toBeTruthy();
       document.body.removeChild(container);
@@ -103,11 +111,13 @@ describe('renderClassDiagram', () => {
 
   describe('marker defs', () => {
     it('creates marker definitions for edge types', () => {
-      const container = renderToContainer('Animal\n  name: string\n\nDog extends Animal');
+      const container = renderToContainer(
+        'Animal\n  name: string\n\nDog extends Animal'
+      );
       const markers = container.querySelectorAll('marker');
       expect(markers.length).toBeGreaterThan(0);
 
-      const markerIds = Array.from(markers).map(m => m.getAttribute('id'));
+      const markerIds = Array.from(markers).map((m) => m.getAttribute('id'));
       expect(markerIds).toContain('cd-arrow-inherit');
       expect(markerIds).toContain('cd-arrow-implement');
       expect(markerIds).toContain('cd-arrow-compose');
@@ -120,28 +130,36 @@ describe('renderClassDiagram', () => {
 
   describe('edges', () => {
     it('renders edge groups with cd-edge-group class', () => {
-      const container = renderToContainer('Animal\n  name: string\n\nDog extends Animal');
+      const container = renderToContainer(
+        'Animal\n  name: string\n\nDog extends Animal'
+      );
       const edges = container.querySelectorAll('.cd-edge-group');
       expect(edges.length).toBe(1);
       document.body.removeChild(container);
     });
 
     it('renders data-line-number on edge groups', () => {
-      const container = renderToContainer('Animal\n  name: string\n\nDog extends Animal');
+      const container = renderToContainer(
+        'Animal\n  name: string\n\nDog extends Animal'
+      );
       const edge = container.querySelector('.cd-edge-group');
       expect(edge?.getAttribute('data-line-number')).toBe('4');
       document.body.removeChild(container);
     });
 
     it('renders dashed edges for implements', () => {
-      const container = renderToContainer('Drawable [interface]\n  draw(): void\n\nCircle\n  ..|> Drawable');
+      const container = renderToContainer(
+        'Drawable [interface]\n  draw(): void\n\nCircle\n  ..|> Drawable'
+      );
       const edgePath = container.querySelector('.cd-edge');
       expect(edgePath?.getAttribute('stroke-dasharray')).toBe('6 3');
       document.body.removeChild(container);
     });
 
     it('renders solid edges for extends', () => {
-      const container = renderToContainer('Animal\n  name: string\n\nDog\n  --|> Animal');
+      const container = renderToContainer(
+        'Animal\n  name: string\n\nDog\n  --|> Animal'
+      );
       const edgePath = container.querySelector('.cd-edge');
       expect(edgePath?.getAttribute('stroke-dasharray')).toBeNull();
       document.body.removeChild(container);
@@ -150,7 +168,9 @@ describe('renderClassDiagram', () => {
 
   describe('compartments', () => {
     it('renders separator lines for fields and methods', () => {
-      const container = renderToContainer('Animal\n  name: string\n  speak(): void');
+      const container = renderToContainer(
+        'Animal\n  name: string\n  speak(): void'
+      );
       const lines = container.querySelectorAll('.cd-class line');
       // Should have at least 2 separators (header/fields, fields/methods)
       expect(lines.length).toBeGreaterThanOrEqual(2);
@@ -160,11 +180,13 @@ describe('renderClassDiagram', () => {
 
   describe('modifier badges', () => {
     it('renders interface badge text', () => {
-      const container = renderToContainer('Drawable [interface]\n  draw(): void');
+      const container = renderToContainer(
+        'Drawable [interface]\n  draw(): void'
+      );
       const svg = container.querySelector('svg');
       const texts = svg?.querySelectorAll('text');
-      const badgeTexts = Array.from(texts ?? []).map(t => t.textContent);
-      expect(badgeTexts.some(t => t?.includes('interface'))).toBe(true);
+      const badgeTexts = Array.from(texts ?? []).map((t) => t.textContent);
+      expect(badgeTexts.some((t) => t?.includes('interface'))).toBe(true);
       document.body.removeChild(container);
     });
 
@@ -172,24 +194,28 @@ describe('renderClassDiagram', () => {
       const container = renderToContainer('Shape [abstract]\n  area(): number');
       const svg = container.querySelector('svg');
       const texts = svg?.querySelectorAll('text');
-      const badgeTexts = Array.from(texts ?? []).map(t => t.textContent);
-      expect(badgeTexts.some(t => t?.includes('abstract'))).toBe(true);
+      const badgeTexts = Array.from(texts ?? []).map((t) => t.textContent);
+      expect(badgeTexts.some((t) => t?.includes('abstract'))).toBe(true);
       document.body.removeChild(container);
     });
 
     it('renders enum badge text', () => {
-      const container = renderToContainer('Color [enum]\n  Red\n  Green\n  Blue');
+      const container = renderToContainer(
+        'Color [enum]\n  Red\n  Green\n  Blue'
+      );
       const svg = container.querySelector('svg');
       const texts = svg?.querySelectorAll('text');
-      const badgeTexts = Array.from(texts ?? []).map(t => t.textContent);
-      expect(badgeTexts.some(t => t?.includes('enum'))).toBe(true);
+      const badgeTexts = Array.from(texts ?? []).map((t) => t.textContent);
+      expect(badgeTexts.some((t) => t?.includes('enum'))).toBe(true);
       document.body.removeChild(container);
     });
   });
 
   describe('title', () => {
     it('renders title when present', () => {
-      const container = renderToContainer('class My Diagram\nAnimal\n  name: string');
+      const container = renderToContainer(
+        'class My Diagram\nAnimal\n  name: string'
+      );
       const title = container.querySelector('.chart-title');
       expect(title).toBeTruthy();
       expect(title?.textContent).toBe('My Diagram');
@@ -197,7 +223,9 @@ describe('renderClassDiagram', () => {
     });
 
     it('renders title with data-line-number', () => {
-      const container = renderToContainer('class My Diagram\nAnimal\n  name: string');
+      const container = renderToContainer(
+        'class My Diagram\nAnimal\n  name: string'
+      );
       const title = container.querySelector('.chart-title');
       expect(title?.getAttribute('data-line-number')).toBe('1');
       document.body.removeChild(container);
@@ -206,7 +234,9 @@ describe('renderClassDiagram', () => {
 
   describe('multiple classes', () => {
     it('renders all classes', () => {
-      const container = renderToContainer('Animal\n  name: string\n\nDog\n  breed: string\n\nCat\n  indoor: boolean');
+      const container = renderToContainer(
+        'Animal\n  name: string\n\nDog\n  breed: string\n\nCat\n  indoor: boolean'
+      );
       const nodes = container.querySelectorAll('.cd-class');
       expect(nodes.length).toBe(3);
       document.body.removeChild(container);
@@ -220,10 +250,14 @@ describe('renderClassDiagram', () => {
       );
       const legend = container.querySelector('.cd-legend');
       expect(legend).toBeTruthy();
-      expect(legend!.getAttribute('data-legend-group')).toBe('type');
+      // data-legend-group is on a nested <g> inside .cd-legend
+      const legendGroup = legend!.querySelector('[data-legend-group="type"]');
+      expect(legendGroup).toBeTruthy();
 
       // Pill text + 3 entry labels
-      const allTexts = Array.from(legend!.querySelectorAll('text')).map(t => t.textContent);
+      const allTexts = Array.from(legend!.querySelectorAll('text')).map(
+        (t) => t.textContent
+      );
       expect(allTexts).toContain('Type');
       expect(allTexts).toContain('Class');
       expect(allTexts).toContain('Abstract');
@@ -232,7 +266,9 @@ describe('renderClassDiagram', () => {
       // Entry groups with data-legend-entry
       const entries = legend!.querySelectorAll('[data-legend-entry]');
       expect(entries.length).toBe(3);
-      const entryValues = Array.from(entries).map(e => e.getAttribute('data-legend-entry'));
+      const entryValues = Array.from(entries).map((e) =>
+        e.getAttribute('data-legend-entry')
+      );
       expect(entryValues).toContain('class');
       expect(entryValues).toContain('abstract');
       expect(entryValues).toContain('interface');
@@ -240,7 +276,9 @@ describe('renderClassDiagram', () => {
     });
 
     it('does not render legend when only one class type is present', () => {
-      const container = renderToContainer('Animal\n  name: string\n\nDog\n  breed: string');
+      const container = renderToContainer(
+        'Animal\n  name: string\n\nDog\n  breed: string'
+      );
       const legend = container.querySelector('.cd-legend');
       expect(legend).toBeNull();
       document.body.removeChild(container);
@@ -272,7 +310,9 @@ describe('renderClassDiagram', () => {
       expect(legend).toBeTruthy();
 
       const entries = legend!.querySelectorAll('[data-legend-entry]');
-      const entryValues = Array.from(entries).map(e => e.getAttribute('data-legend-entry'));
+      const entryValues = Array.from(entries).map((e) =>
+        e.getAttribute('data-legend-entry')
+      );
       expect(entryValues).toContain('class');
       expect(entryValues).toContain('enum');
       expect(entryValues).not.toContain('abstract');
@@ -288,7 +328,9 @@ describe('renderClassDiagram', () => {
       expect(legend).toBeTruthy();
 
       const entries = legend!.querySelectorAll('[data-legend-entry]');
-      const entryValues = Array.from(entries).map(e => e.getAttribute('data-legend-entry'));
+      const entryValues = Array.from(entries).map((e) =>
+        e.getAttribute('data-legend-entry')
+      );
       expect(entryValues).toEqual(['class', 'abstract', 'interface', 'enum']);
       document.body.removeChild(container);
     });
@@ -298,7 +340,9 @@ describe('renderClassDiagram', () => {
         'Drawable [interface]\n  draw(): void\n\nAnimal\n  name: string'
       );
       const nodes = container.querySelectorAll('.cd-class');
-      const types = Array.from(nodes).map(n => n.getAttribute('data-cd-type'));
+      const types = Array.from(nodes).map((n) =>
+        n.getAttribute('data-cd-type')
+      );
       expect(types).toContain('interface');
       expect(types).toContain('class');
       document.body.removeChild(container);

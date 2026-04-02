@@ -153,7 +153,7 @@ CDN
     // Without active group — pill shows but no dots
     const svg = renderToSvg(content);
     expect(svg).toContain('Capabilities');
-    expect(svg).toContain('infra-legend-group');
+    expect(svg).toContain('data-legend-group');
     expect(svg).not.toContain('<circle');
 
     // With Capabilities active — dots appear

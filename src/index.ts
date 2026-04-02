@@ -356,8 +356,28 @@ export {
   computeScatterLabelGraphics,
 } from './echarts';
 export type { ScatterLabelPoint } from './echarts';
-export { renderLegendSvg, type LegendGroupData } from './utils/legend-svg';
+export {
+  renderLegendSvg,
+  renderLegendSvgFromConfig,
+  type LegendGroupData,
+} from './utils/legend-svg';
 export { LEGEND_HEIGHT } from './utils/legend-constants';
+export { renderLegendD3 } from './utils/legend-d3';
+export {
+  computeLegendLayout,
+  getLegendReservedHeight,
+} from './utils/legend-layout';
+export type {
+  LegendConfig,
+  LegendState,
+  LegendCallbacks,
+  LegendPosition,
+  LegendMode,
+  LegendControl,
+  LegendLayout,
+  LegendHandle,
+  LegendPalette,
+} from './utils/legend-types';
 export { buildMermaidQuadrant } from './dgmo-mermaid';
 
 // ============================================================

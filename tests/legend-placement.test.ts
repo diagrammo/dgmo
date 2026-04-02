@@ -225,17 +225,13 @@ tag Priority
       undefined
     );
 
-    // Kanban data-legend-group is on a <rect> with `y` attribute (not transform)
-    const legendRect = container.querySelector('[data-legend-group]');
-    expect(legendRect).not.toBeNull();
-    const y = parseFloat(legendRect!.getAttribute('y') ?? '0');
-
-    // SVG height from natural width/height attributes
-    const svgEl = container.querySelector('svg');
-    expect(svgEl).not.toBeNull();
-    // Kanban SVG doesn't expose height directly — use viewBox or trust layout
+    // Kanban legend is positioned via parent <g> transform at the bottom
+    const legendContainer = container.querySelector('.kanban-legend');
+    expect(legendContainer).not.toBeNull();
+    const legendY = extractTransformY(legendContainer as Element);
+    expect(legendY).not.toBeNull();
     // Key assertion: y > 0 (not at top)
-    expect(y).toBeGreaterThan(0);
+    expect(legendY!).toBeGreaterThan(0);
 
     document.body.removeChild(container);
   });
@@ -346,16 +342,19 @@ edge
     const svgHeight = getViewboxHeight(container);
     expect(svgHeight).not.toBeNull();
 
-    // The legend groups have translate(cursorX, 0) relative to their parent legendG
-    // which has translate(0, legendY). Walk up to find legendY.
-    const legendGroup = container.querySelector('[data-legend-group]');
-    expect(legendGroup).not.toBeNull();
-    const legendContainer = legendGroup!.parentElement;
-    const legendY = extractTransformY(legendContainer as Element);
-    expect(legendY).not.toBeNull();
+    // Walk up from data-legend-group to find the legend container's Y position.
+    // Accumulate transform Y values up the DOM tree.
+    let el: Element | null = container.querySelector('[data-legend-group]');
+    expect(el).not.toBeNull();
+    let totalY = 0;
+    while (el && el.tagName !== 'svg') {
+      const y = extractTransformY(el);
+      if (y != null) totalY += y;
+      el = el.parentElement;
+    }
 
     // legendY should be in the top portion of the SVG viewBox
-    expect(legendY!).toBeLessThan(svgHeight! * 0.25);
+    expect(totalY).toBeLessThan(svgHeight! * 0.25);
     document.body.removeChild(container);
   });
 });

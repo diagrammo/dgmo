@@ -16,6 +16,12 @@ export const LEGEND_EYE_SIZE = 14;
 export const LEGEND_EYE_GAP = 6;
 export const LEGEND_ICON_W = 20;
 
+// ── Spacing constants (centralized legend system) ───────────
+export const LEGEND_TOP_PAD = 12;
+export const LEGEND_TITLE_GAP = 8;
+export const LEGEND_CONTENT_GAP = 12;
+export const LEGEND_MAX_ENTRY_ROWS = 3;
+
 // ── Proportional text measurement ────────────────────────────
 // Helvetica character width ratios (fraction of fontSize).
 // Replaces the naive `chars * 0.6 * fontSize` estimate with

@@ -24,18 +24,9 @@ import type {
 import { isSequenceBlock, isSequenceSection, isSequenceNote } from './parser';
 import { resolveSequenceTags } from './tag-resolution';
 import type { ResolvedTagMap } from './tag-resolution';
-import {
-  LEGEND_HEIGHT,
-  LEGEND_PILL_PAD,
-  LEGEND_PILL_FONT_SIZE,
-  LEGEND_CAPSULE_PAD,
-  LEGEND_DOT_R,
-  LEGEND_ENTRY_FONT_SIZE,
-  LEGEND_ENTRY_DOT_GAP,
-  LEGEND_ENTRY_TRAIL,
-  LEGEND_GROUP_GAP,
-  measureLegendText,
-} from '../utils/legend-constants';
+import { LEGEND_HEIGHT } from '../utils/legend-constants';
+import { renderLegendD3 } from '../utils/legend-d3';
+import type { LegendConfig, LegendState } from '../utils/legend-types';
 import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT } from '../utils/title-constants';
 
 // ============================================================
@@ -1598,146 +1589,35 @@ export function renderSequenceDiagram(
   // Render legend pills for tag groups
   if (parsed.tagGroups.length > 0) {
     const legendY = TOP_MARGIN + titleOffset;
-    const groupBg = isDark
-      ? mix(palette.surface, palette.bg, 50)
-      : mix(palette.surface, palette.bg, 30);
-
-    // Pre-compute pill/capsule widths for centering
-    const legendItems: Array<{
-      group: (typeof parsed.tagGroups)[0];
-      isActive: boolean;
-      pillWidth: number;
-      totalWidth: number;
-      entries: Array<{ value: string; color: string }>;
-    }> = [];
-    for (const tg of parsed.tagGroups) {
-      if (tg.entries.length === 0) continue;
-      const isActive =
-        !!activeTagGroup &&
-        tg.name.toLowerCase() === activeTagGroup.toLowerCase();
-      const pillWidth =
-        measureLegendText(tg.name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
-      const entries = tg.entries.map((e) => ({
-        value: e.value,
-        color: resolveColor(e.color) ?? e.color,
+    // Resolve tag colors for legend entries
+    const resolvedGroups = parsed.tagGroups
+      .filter((tg) => tg.entries.length > 0)
+      .map((tg) => ({
+        name: tg.name,
+        entries: tg.entries.map((e) => ({
+          value: e.value,
+          color: resolveColor(e.color) ?? e.color,
+        })),
       }));
-      let totalWidth = pillWidth;
-      if (isActive) {
-        let entriesWidth = 0;
-        for (const entry of entries) {
-          entriesWidth +=
-            LEGEND_DOT_R * 2 +
-            LEGEND_ENTRY_DOT_GAP +
-            measureLegendText(entry.value, LEGEND_ENTRY_FONT_SIZE) +
-            LEGEND_ENTRY_TRAIL;
-        }
-        totalWidth = LEGEND_CAPSULE_PAD * 2 + pillWidth + 4 + entriesWidth;
-      }
-      legendItems.push({ group: tg, isActive, pillWidth, totalWidth, entries });
-    }
-
-    // Center legend horizontally
-    const totalLegendWidth =
-      legendItems.reduce((s, item) => s + item.totalWidth, 0) +
-      (legendItems.length - 1) * LEGEND_GROUP_GAP;
-    let legendX = (svgWidth - totalLegendWidth) / 2;
-
-    const legendContainer = svg.append('g').attr('class', 'sequence-legend');
-    if (activeTagGroup) {
-      legendContainer.attr('data-legend-active', activeTagGroup.toLowerCase());
-    }
-
-    for (const item of legendItems) {
-      const gEl = legendContainer
-        .append('g')
-        .attr('transform', `translate(${legendX}, ${legendY})`)
-        .attr('class', 'sequence-legend-group')
-        .attr('data-legend-group', item.group.name.toLowerCase())
-        .style('cursor', 'pointer');
-
-      // Outer capsule background (active only)
-      if (item.isActive) {
-        gEl
-          .append('rect')
-          .attr('width', item.totalWidth)
-          .attr('height', LEGEND_HEIGHT)
-          .attr('rx', LEGEND_HEIGHT / 2)
-          .attr('fill', groupBg);
-      }
-
-      const pillXOff = item.isActive ? LEGEND_CAPSULE_PAD : 0;
-      const pillYOff = LEGEND_CAPSULE_PAD;
-      const pillH = LEGEND_HEIGHT - LEGEND_CAPSULE_PAD * 2;
-
-      // Pill background
-      gEl
-        .append('rect')
-        .attr('x', pillXOff)
-        .attr('y', pillYOff)
-        .attr('width', item.pillWidth)
-        .attr('height', pillH)
-        .attr('rx', pillH / 2)
-        .attr('fill', item.isActive ? palette.bg : groupBg);
-
-      // Active pill border
-      if (item.isActive) {
-        gEl
-          .append('rect')
-          .attr('x', pillXOff)
-          .attr('y', pillYOff)
-          .attr('width', item.pillWidth)
-          .attr('height', pillH)
-          .attr('rx', pillH / 2)
-          .attr('fill', 'none')
-          .attr('stroke', mix(palette.textMuted, palette.bg, 50))
-          .attr('stroke-width', 0.75);
-      }
-
-      // Pill text
-      gEl
-        .append('text')
-        .attr('x', pillXOff + item.pillWidth / 2)
-        .attr('y', LEGEND_HEIGHT / 2 + LEGEND_PILL_FONT_SIZE / 2 - 2)
-        .attr('font-size', LEGEND_PILL_FONT_SIZE)
-        .attr('font-weight', '500')
-        .attr('fill', item.isActive ? palette.text : palette.textMuted)
-        .attr('text-anchor', 'middle')
-        .text(item.group.name);
-
-      // Entries inside capsule (active only)
-      if (item.isActive) {
-        let entryX = pillXOff + item.pillWidth + 4;
-        for (const entry of item.entries) {
-          const entryG = gEl
-            .append('g')
-            .attr('data-legend-entry', entry.value.toLowerCase())
-            .style('cursor', 'pointer');
-
-          entryG
-            .append('circle')
-            .attr('cx', entryX + LEGEND_DOT_R)
-            .attr('cy', LEGEND_HEIGHT / 2)
-            .attr('r', LEGEND_DOT_R)
-            .attr('fill', entry.color);
-
-          const textX = entryX + LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP;
-          entryG
-            .append('text')
-            .attr('x', textX)
-            .attr('y', LEGEND_HEIGHT / 2 + LEGEND_ENTRY_FONT_SIZE / 2 - 1)
-            .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
-            .attr('fill', palette.textMuted)
-            .text(entry.value);
-
-          entryX =
-            textX +
-            measureLegendText(entry.value, LEGEND_ENTRY_FONT_SIZE) +
-            LEGEND_ENTRY_TRAIL;
-        }
-      }
-
-      legendX += item.totalWidth + LEGEND_GROUP_GAP;
-    }
+    const legendConfig: LegendConfig = {
+      groups: resolvedGroups,
+      position: { placement: 'top-center', titleRelation: 'below-title' },
+      mode: 'fixed',
+    };
+    const legendState: LegendState = { activeGroup: activeTagGroup ?? null };
+    const legendG = svg
+      .append('g')
+      .attr('class', 'sequence-legend')
+      .attr('transform', `translate(0,${legendY})`);
+    renderLegendD3(
+      legendG,
+      legendConfig,
+      legendState,
+      palette,
+      isDark,
+      undefined,
+      svgWidth
+    );
   }
 
   // Render group boxes (behind participant shapes)

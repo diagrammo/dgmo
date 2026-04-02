@@ -15,11 +15,26 @@ async function ensureDom(): Promise<void> {
   const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>');
   const win = dom.window;
 
-  Object.defineProperty(globalThis, 'document', { value: win.document, configurable: true });
-  Object.defineProperty(globalThis, 'window', { value: win, configurable: true });
-  Object.defineProperty(globalThis, 'navigator', { value: win.navigator, configurable: true });
-  Object.defineProperty(globalThis, 'HTMLElement', { value: win.HTMLElement, configurable: true });
-  Object.defineProperty(globalThis, 'SVGElement', { value: win.SVGElement, configurable: true });
+  Object.defineProperty(globalThis, 'document', {
+    value: win.document,
+    configurable: true,
+  });
+  Object.defineProperty(globalThis, 'window', {
+    value: win,
+    configurable: true,
+  });
+  Object.defineProperty(globalThis, 'navigator', {
+    value: win.navigator,
+    configurable: true,
+  });
+  Object.defineProperty(globalThis, 'HTMLElement', {
+    value: win.HTMLElement,
+    configurable: true,
+  });
+  Object.defineProperty(globalThis, 'SVGElement', {
+    value: win.SVGElement,
+    configurable: true,
+  });
 }
 
 /**
@@ -52,24 +67,39 @@ export async function render(
     c4System?: string;
     c4Container?: string;
     tagGroup?: string;
-  },
+    /** Legend state for export — controls which tag group is shown in exported SVG. */
+    legendState?: { activeGroup?: string; hiddenAttributes?: string[] };
+  }
 ): Promise<string> {
   const theme = options?.theme ?? 'light';
   const paletteName = options?.palette ?? 'nord';
   const branding = options?.branding ?? false;
 
-  const paletteColors = getPalette(paletteName)[theme === 'dark' ? 'dark' : 'light'];
+  const paletteColors =
+    getPalette(paletteName)[theme === 'dark' ? 'dark' : 'light'];
 
   const chartType = parseDgmoChartType(content);
   const category = chartType ? getRenderCategory(chartType) : null;
 
+  // Build orgExportState from legendState if provided
+  const legendExportState = options?.legendState
+    ? {
+        activeTagGroup: options.legendState.activeGroup ?? null,
+        hiddenAttributes: options.legendState.hiddenAttributes
+          ? new Set(options.legendState.hiddenAttributes)
+          : undefined,
+      }
+    : undefined;
+
   if (category === 'data-chart') {
-    return renderExtendedChartForExport(content, theme, paletteColors, { branding });
+    return renderExtendedChartForExport(content, theme, paletteColors, {
+      branding,
+    });
   }
 
   // Visualization/diagram and unknown/null types all go through the unified renderer
   await ensureDom();
-  return renderForExport(content, theme, paletteColors, undefined, {
+  return renderForExport(content, theme, paletteColors, legendExportState, {
     branding,
     c4Level: options?.c4Level,
     c4System: options?.c4System,

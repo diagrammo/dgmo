@@ -5,18 +5,9 @@
 import * as d3Selection from 'd3-selection';
 import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
-import {
-  LEGEND_HEIGHT,
-  LEGEND_PILL_PAD,
-  LEGEND_PILL_FONT_SIZE,
-  LEGEND_CAPSULE_PAD,
-  LEGEND_DOT_R,
-  LEGEND_ENTRY_FONT_SIZE,
-  LEGEND_ENTRY_DOT_GAP,
-  LEGEND_ENTRY_TRAIL,
-  LEGEND_GROUP_GAP,
-  measureLegendText,
-} from '../utils/legend-constants';
+import { LEGEND_HEIGHT } from '../utils/legend-constants';
+import { renderLegendD3 } from '../utils/legend-d3';
+import type { LegendConfig, LegendState } from '../utils/legend-types';
 import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
@@ -715,126 +706,25 @@ export function renderBoxesAndLines(
 
   // ── Render legend ──────────────────────────────────────
   if (parsed.tagGroups.length > 0) {
-    renderLegend(svg, parsed, palette, isDark, activeGroup, width, titleOffset);
-  }
-}
-
-// ── Legend ──────────────────────────────────────────────────
-
-function renderLegend(
-  svg: D3Svg,
-  parsed: ParsedBoxesAndLines,
-  palette: PaletteColors,
-  isDark: boolean,
-  activeGroup: string | null,
-  svgWidth: number,
-  titleOffset: number
-): void {
-  const groupBg = isDark
-    ? mix(palette.surface, palette.bg, 50)
-    : mix(palette.surface, palette.bg, 30);
-  const pillBorder = mix(palette.textMuted, palette.bg, 50);
-
-  // ── Pre-compute total legend width for centering ──
-  let totalW = 0;
-  for (const tg of parsed.tagGroups) {
-    const isActive = activeGroup?.toLowerCase() === tg.name.toLowerCase();
-    totalW +=
-      measureLegendText(tg.name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
-    if (isActive) {
-      totalW += 6;
-      for (const entry of tg.entries) {
-        totalW +=
-          LEGEND_DOT_R * 2 +
-          LEGEND_ENTRY_DOT_GAP +
-          measureLegendText(entry.value, LEGEND_ENTRY_FONT_SIZE) +
-          LEGEND_ENTRY_TRAIL;
-      }
-    }
-    totalW += LEGEND_GROUP_GAP;
-  }
-
-  const legendX = Math.max(LEGEND_CAPSULE_PAD, (svgWidth - totalW) / 2);
-  const legendY = titleOffset + 4;
-  const legendG = svg
-    .append('g')
-    .attr('transform', `translate(${legendX},${legendY})`);
-
-  let x = 0;
-
-  // ── Tag group pills (collapsed when inactive, expanded when active) ──
-  for (const tg of parsed.tagGroups) {
-    const isActiveGroup = activeGroup?.toLowerCase() === tg.name.toLowerCase();
-
-    const groupG = legendG
+    const legendConfig: LegendConfig = {
+      groups: parsed.tagGroups,
+      position: { placement: 'top-center', titleRelation: 'below-title' },
+      mode: 'fixed',
+    };
+    const legendState: LegendState = { activeGroup };
+    const legendG = svg
       .append('g')
-      .attr('class', 'bl-legend-group')
-      .attr('data-legend-group', tg.name.toLowerCase())
-      .style('cursor', 'pointer');
-
-    // Group name pill
-    const nameW =
-      measureLegendText(tg.name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
-    const tagPill = groupG
-      .append('rect')
-      .attr('x', x)
-      .attr('y', 0)
-      .attr('width', nameW)
-      .attr('height', LEGEND_HEIGHT)
-      .attr('rx', LEGEND_HEIGHT / 2)
-      .attr('fill', groupBg);
-
-    if (isActiveGroup) {
-      tagPill.attr('stroke', pillBorder).attr('stroke-width', 0.75);
-    }
-
-    groupG
-      .append('text')
-      .attr('x', x + nameW / 2)
-      .attr('y', LEGEND_HEIGHT / 2)
-      .attr('text-anchor', 'middle')
-      .attr('dominant-baseline', 'central')
-      .attr('font-size', LEGEND_PILL_FONT_SIZE)
-      .attr('font-weight', 500)
-      .attr('fill', isActiveGroup ? palette.text : palette.textMuted)
-      .attr('pointer-events', 'none')
-      .text(tg.name);
-
-    x += nameW;
-
-    // Entries — only rendered when this group is active
-    if (isActiveGroup) {
-      x += 6;
-      for (const entry of tg.entries) {
-        const entryColor = entry.color || palette.textMuted;
-        const ew = measureLegendText(entry.value, LEGEND_ENTRY_FONT_SIZE);
-
-        const entryG = groupG
-          .append('g')
-          .attr('data-legend-entry', entry.value.toLowerCase())
-          .style('cursor', 'pointer');
-
-        entryG
-          .append('circle')
-          .attr('cx', x + LEGEND_DOT_R)
-          .attr('cy', LEGEND_HEIGHT / 2)
-          .attr('r', LEGEND_DOT_R)
-          .attr('fill', entryColor);
-
-        entryG
-          .append('text')
-          .attr('x', x + LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP)
-          .attr('y', LEGEND_HEIGHT / 2)
-          .attr('dominant-baseline', 'central')
-          .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
-          .attr('fill', palette.textMuted)
-          .text(entry.value);
-
-        x += LEGEND_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP + ew + LEGEND_ENTRY_TRAIL;
-      }
-    }
-
-    x += LEGEND_GROUP_GAP;
+      .attr('transform', `translate(0,${titleOffset + 4})`);
+    renderLegendD3(
+      legendG,
+      legendConfig,
+      legendState,
+      palette,
+      isDark,
+      undefined,
+      width
+    );
+    legendG.selectAll('[data-legend-group]').classed('bl-legend-group', true);
   }
 }
 
