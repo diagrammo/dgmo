@@ -716,6 +716,20 @@ Home
   -login-> Login
 ```
 
+Arrows can target containers using bracket syntax:
+
+```
+Home
+  -> [Port Market]
+[Port Market]
+  Shop
+  -> [Warehouse]
+[Warehouse]
+  Storage
+```
+
+All permutations supported: node→group, group→node, group→group. Brackets required to distinguish group targets from page targets.
+
 ### 11.4 Containers
 
 ```
@@ -898,12 +912,24 @@ Nested groups (max depth 2):
 
 Group metadata cascades to children (node metadata overrides). Nodes already declared above can be referenced inside groups to assign membership.
 
-### 13.5 Group-to-Group Edges
+### 13.5 Group-Targeted Edges
+
+Node-to-group and group-to-group edges use bracket syntax `[Group Name]`:
 
 ```
-[Region A] -> [Region B]
+API -> [Backend]
+[Backend] -> [Frontend]
 [Region A] <-> [Region B]
 [Region A] -VPN-> [Region B]
+```
+
+Indented shorthand also supports groups (place arrow directly after group header):
+
+```
+[Backend]
+  -> [Frontend]
+  DB
+  Cache
 ```
 
 ### 13.6 Directives

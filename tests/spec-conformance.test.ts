@@ -20,6 +20,7 @@ import {
   parseKanban,
   parseSitemap,
   parseGantt,
+  parseBoxesAndLines,
 } from '../src/index';
 import { getPalette } from '../src/palettes';
 
@@ -472,6 +473,48 @@ describe('1. Valid syntax', () => {
       );
       expect(hasNoErrors(r)).toBe(true);
       expect(r.roots.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('sitemap with group-targeted arrows', () => {
+      const r = parseSitemap(
+        'sitemap\nHome\n  -> [Browse]\n[Browse]\n  Shop\n  -> [Account]\n[Account]\n  Login',
+        palette
+      );
+      expect(hasNoErrors(r)).toBe(true);
+      expect(r.edges).toHaveLength(2);
+      // node -> [group]
+      expect(r.edges[0].targetId).toBe(r.roots[1].id);
+      // [group] -> [group]
+      expect(r.edges[1].sourceId).toBe(r.roots[1].id);
+      expect(r.edges[1].targetId).toBe(r.roots[2].id);
+    });
+  });
+
+  describe('boxes-and-lines (parseBoxesAndLines)', () => {
+    it('minimal boxes-and-lines', () => {
+      const r = parseBoxesAndLines('boxes-and-lines System\nAPI\n  -> DB\nDB');
+      expect(r.error).toBeNull();
+      expect(r.nodes.length).toBeGreaterThanOrEqual(2);
+      expect(r.edges).toHaveLength(1);
+    });
+
+    it('boxes-and-lines with group-targeted arrows', () => {
+      const r = parseBoxesAndLines(
+        'boxes-and-lines\nClient\n  -> [Backend]\n[Backend]\n  -> Monitor\n  API\nMonitor'
+      );
+      expect(r.error).toBeNull();
+      // Client -> [Backend] (node to group)
+      expect(
+        r.edges.some(
+          (e) => e.source === 'Client' && e.target === '__group_Backend'
+        )
+      ).toBe(true);
+      // [Backend] -> Monitor (group to node)
+      expect(
+        r.edges.some(
+          (e) => e.source === '__group_Backend' && e.target === 'Monitor'
+        )
+      ).toBe(true);
     });
   });
 

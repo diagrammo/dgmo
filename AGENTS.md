@@ -125,6 +125,9 @@ tag Team t Backend(blue), Frontend(green)
 active-tag Team
 direction LR
 
+WebApp | t: Frontend
+  -> [Cloud]
+
 API Gateway | t: Backend
   -routes-> AuthService
   -queries-> DB
