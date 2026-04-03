@@ -1762,6 +1762,7 @@ export function renderSequenceDiagram(
     y1: number;
     x2: number;
     y2: number;
+    blockLine?: number;
   }> = [];
 
   // Recursive block renderer — draws borders/dividers now, defers label text
@@ -1770,12 +1771,17 @@ export function renderSequenceDiagram(
       if (!isSequenceBlock(el)) continue;
 
       const ifIndices = collectMsgIndices(el.children);
-      const elseIfBranchData: { label: string; indices: number[] }[] = [];
+      const elseIfBranchData: {
+        label: string;
+        indices: number[];
+        lineNumber: number;
+      }[] = [];
       if (el.elseIfBranches) {
         for (const branch of el.elseIfBranches) {
           elseIfBranchData.push({
             label: branch.label,
             indices: collectMsgIndices(branch.children),
+            lineNumber: branch.lineNumber,
           });
         }
       }
@@ -1865,6 +1871,7 @@ export function renderSequenceDiagram(
               y1: dividerY,
               x2: frameX + frameW,
               y2: dividerY,
+              blockLine: branchData.lineNumber,
             });
             deferredLabels.push({
               x: frameX + 6,
@@ -1872,6 +1879,7 @@ export function renderSequenceDiagram(
               text: `else if ${branchData.label}`,
               bold: false,
               italic: true,
+              blockLine: branchData.lineNumber,
             });
           }
         }
@@ -1892,6 +1900,7 @@ export function renderSequenceDiagram(
             y1: dividerY,
             x2: frameX + frameW,
             y2: dividerY,
+            blockLine: el.elseLineNumber,
           });
           deferredLabels.push({
             x: frameX + 6,
@@ -1899,6 +1908,7 @@ export function renderSequenceDiagram(
             text: 'else',
             bold: false,
             italic: true,
+            blockLine: el.elseLineNumber,
           });
         }
       }
@@ -1980,7 +1990,7 @@ export function renderSequenceDiagram(
 
   // Render deferred else dividers (on top of activations)
   for (const ln of deferredLines) {
-    svg
+    const line = svg
       .append('line')
       .attr('x1', ln.x1)
       .attr('y1', ln.y1)
@@ -1988,7 +1998,10 @@ export function renderSequenceDiagram(
       .attr('y2', ln.y2)
       .attr('stroke', palette.textMuted)
       .attr('stroke-width', 1)
-      .attr('stroke-dasharray', '2 3');
+      .attr('stroke-dasharray', '2 3')
+      .attr('class', 'block-divider');
+    if (ln.blockLine !== undefined)
+      line.attr('data-block-line', String(ln.blockLine));
   }
 
   // Render deferred block labels (on top of activations)

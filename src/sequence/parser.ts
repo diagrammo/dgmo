@@ -91,6 +91,7 @@ export interface SequenceMessage {
 export interface ElseIfBranch {
   label: string;
   children: SequenceElement[];
+  lineNumber: number;
 }
 
 export interface SequenceBlock {
@@ -100,6 +101,7 @@ export interface SequenceBlock {
   children: SequenceElement[];
   elseChildren: SequenceElement[];
   elseIfBranches?: ElseIfBranch[];
+  elseLineNumber?: number;
   lineNumber: number;
 }
 
@@ -1114,6 +1116,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
           const branch: ElseIfBranch = {
             label: elseIfMatch[1].trim(),
             children: [],
+            lineNumber,
           };
           if (!top.block.elseIfBranches) top.block.elseIfBranches = [];
           top.block.elseIfBranches.push(branch);
@@ -1141,6 +1144,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
         if (top.block.type === 'if') {
           top.inElse = true;
           top.activeElseIfBranch = undefined;
+          top.block.elseLineNumber = lineNumber;
         }
       }
       continue;
