@@ -18,6 +18,27 @@ import {
   measureLegendText,
 } from '../utils/legend-constants';
 
+/** dagre node label shape after layout(). */
+interface DagreNodeLabel {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  [key: string]: unknown;
+}
+
+/** dagre edge label shape after layout(). */
+interface DagreEdgeLabel {
+  points: { x: number; y: number }[];
+  [key: string]: unknown;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const gNode = (g: any, name: string): DagreNodeLabel => g.node(name);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const gEdge = (g: any, v: string, w: string): DagreEdgeLabel | undefined =>
+  g.edge(v, w);
+
 // ============================================================
 // Types
 // ============================================================
@@ -213,7 +234,7 @@ function computeEdgePenalty(
  * closer to their neighbors, producing cleaner visual layouts.
  */
 function reduceCrossings(
-  g: dagre.graphlib.Graph,
+  g: InstanceType<typeof dagre.graphlib.Graph>,
   edgeList: { source: string; target: string }[],
   nodeGroupMap?: Map<string, string>
 ): void {
@@ -229,7 +250,7 @@ function reduceCrossings(
   // Build geometry map for edge-node collision scoring
   const nodeGeometry = new Map<string, NodeGeometry>();
   for (const name of g.nodes()) {
-    const pos = g.node(name);
+    const pos = gNode(g, name);
     if (pos)
       nodeGeometry.set(name, {
         y: pos.y,
@@ -241,7 +262,7 @@ function reduceCrossings(
   // Group nodes by rank
   const rankMap = new Map<number, string[]>();
   for (const name of g.nodes()) {
-    const pos = g.node(name);
+    const pos = gNode(g, name);
     if (!pos) continue;
     const rankY = Math.round(pos.y);
     if (!rankMap.has(rankY)) rankMap.set(rankY, []);
@@ -250,7 +271,7 @@ function reduceCrossings(
 
   // Sort each rank by current x position
   for (const [, rankNodes] of rankMap) {
-    rankNodes.sort((a, b) => g.node(a).x - g.node(b).x);
+    rankNodes.sort((a, b) => gNode(g, a).x - gNode(g, b).x);
   }
 
   let anyMoved = false;
@@ -285,13 +306,13 @@ function reduceCrossings(
 
       // Collect the x-slots for this partition (sorted)
       const xSlots = partition
-        .map((name) => g.node(name).x)
+        .map((name) => gNode(g, name).x)
         .sort((a, b) => a - b);
 
       // Build position map snapshot
       const basePositions = new Map<string, number>();
       for (const name of g.nodes()) {
-        const pos = g.node(name);
+        const pos = gNode(g, name);
         if (pos) basePositions.set(name, pos.x);
       }
 
@@ -379,7 +400,7 @@ function reduceCrossings(
       // Apply best permutation if it differs from current
       if (bestPerm.some((name, i) => name !== partition[i])) {
         for (let i = 0; i < bestPerm.length; i++) {
-          g.node(bestPerm[i]!).x = xSlots[i]!;
+          gNode(g, bestPerm[i]!).x = xSlots[i]!;
           // Update in the original rankNodes too
           const rankIdx = rankNodes.indexOf(partition[i]!);
           if (rankIdx >= 0) rankNodes[rankIdx] = bestPerm[i]!;
@@ -392,10 +413,10 @@ function reduceCrossings(
   // Recompute edge waypoints if any positions changed
   if (anyMoved) {
     for (const edge of edgeList) {
-      const edgeData = g.edge(edge.source, edge.target);
+      const edgeData = gEdge(g, edge.source, edge.target);
       if (!edgeData) continue;
-      const srcPos = g.node(edge.source);
-      const tgtPos = g.node(edge.target);
+      const srcPos = gNode(g, edge.source);
+      const tgtPos = gNode(g, edge.target);
       if (!srcPos || !tgtPos) continue;
 
       const srcBottom = { x: srcPos.x, y: srcPos.y + srcPos.height / 2 };

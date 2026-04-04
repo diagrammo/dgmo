@@ -74,7 +74,7 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "@dagrejs/dagre": "^2.0.4",
+    "@dagrejs/dagre": "^3.0.0",
     "@resvg/resvg-js": "^2.6.2",
     "d3-array": "^3.2.4",
     "d3-cloud": "^1.2.9",
