@@ -1721,6 +1721,16 @@ function buildHeatmapOption(
     });
   });
 
+  // Rotate column labels only when they'd overlap at the default font size.
+  // Estimate: each char ~7px at 12px font; rotate if longest label exceeds
+  // an even share of a ~900px-wide chart.
+  const CHAR_WIDTH = 7;
+  const ESTIMATED_CHART_WIDTH = 900;
+  const longestCol = Math.max(...columns.map((c) => c.length), 0);
+  const slotWidth =
+    columns.length > 0 ? ESTIMATED_CHART_WIDTH / columns.length : Infinity;
+  const needsRotation = longestCol * CHAR_WIDTH > slotWidth * 0.85;
+
   return {
     ...CHART_BASE,
     title: titleConfig,
@@ -1745,9 +1755,11 @@ function buildHeatmapOption(
         color: textColor,
         fontSize: 12,
         interval: 0,
-        rotate: -45,
-        width: 200,
-        overflow: 'none',
+        ...(needsRotation && {
+          rotate: -45,
+          width: 200,
+          overflow: 'none' as const,
+        }),
       },
     },
     yAxis: {
