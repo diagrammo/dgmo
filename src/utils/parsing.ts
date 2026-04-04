@@ -108,7 +108,7 @@ export function parseFirstLine(
 }
 
 /** Result of `prescanOptions()` — options collected from a two-pass scan. */
-export interface PrescanResult {
+interface PrescanResult {
   /** Key-value options, e.g., `direction LR` → `{ direction: 'LR' }` */
   options: Record<string, string>;
   /** Presence-based boolean options, e.g., `critical-path` → Set('critical-path') */

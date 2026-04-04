@@ -1,5 +1,4 @@
 import { LRLanguage, LanguageSupport } from '@codemirror/language';
-import type { Extension } from '@codemirror/state';
 import { parser } from './dgmo.grammar.js';
 import { dgmoHighlighting } from './highlight';
 
@@ -25,4 +24,4 @@ export const dgmoLanguageSupport = new LanguageSupport(dgmoLanguage);
  * Consumers should add indentationMarkers() separately if desired
  * (from @replit/codemirror-indentation-markers).
  */
-export const dgmoExtension: Extension = dgmoLanguageSupport;
+export const dgmoExtension = dgmoLanguageSupport;

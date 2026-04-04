@@ -13,6 +13,7 @@ import {
   LEGEND_ENTRY_DOT_GAP,
   LEGEND_ENTRY_TRAIL,
   LEGEND_GROUP_GAP,
+  LEGEND_MAX_ENTRY_ROWS,
   measureLegendText,
 } from './legend-constants';
 
@@ -29,11 +30,6 @@ import type {
 } from './legend-types';
 
 // ── Constants ───────────────────────────────────────────────
-
-export const LEGEND_TOP_PAD = 12;
-export const LEGEND_TITLE_GAP = 8;
-export const LEGEND_CONTENT_GAP = 12;
-export const LEGEND_MAX_ENTRY_ROWS = 3;
 
 const CONTROL_PILL_PAD = 16;
 const CONTROL_FONT_SIZE = 11;

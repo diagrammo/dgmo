@@ -1,3 +1,8 @@
 {
-  "ignoreDependencies": ["esbuild"]
+  "ignoreDependencies": ["@lezer/common", "@lezer/highlight", "@lezer/lr"],
+  "ignoreBinaries": ["du"],
+  "ignore": ["src/editor/tokens.ts"],
+  "rules": {
+    "duplicates": "off"
+  }
 }

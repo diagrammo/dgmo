@@ -30,7 +30,7 @@ export interface LegendGroupData {
   entries: Array<{ value: string; color: string }>;
 }
 
-export interface LegendRenderOptions {
+interface LegendRenderOptions {
   palette: { bg: string; surface: string; text: string; textMuted: string };
   isDark: boolean;
   containerWidth: number;
@@ -42,7 +42,7 @@ export interface LegendRenderOptions {
   className?: string;
 }
 
-export interface LegendRenderResult {
+interface LegendRenderResult {
   svg: string;
   height: number;
   /** Natural content width (px). Callers can use this for CSS-based centering. */

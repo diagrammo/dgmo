@@ -7,16 +7,16 @@
 
 import type { GanttTask, GanttNode } from './types';
 
-export interface ResolverMatch {
+interface ResolverMatch {
   task: GanttTask;
 }
 
-export interface ResolverError {
+interface ResolverError {
   kind: 'not_found' | 'ambiguous';
   message: string;
 }
 
-export type ResolverResult = ResolverMatch | ResolverError;
+type ResolverResult = ResolverMatch | ResolverError;
 
 export function isResolverError(r: ResolverResult): r is ResolverError {
   return 'kind' in r;
@@ -53,23 +53,23 @@ export function collectTasks(nodes: GanttNode[]): GanttTask[] {
  */
 export function resolveTaskName(
   name: string,
-  allTasks: GanttTask[],
+  allTasks: GanttTask[]
 ): ResolverResult {
   const trimmed = name.trim();
 
   // 1. Try exact label match (no dots involved)
-  const exactMatches = allTasks.filter(t => t.label === trimmed);
+  const exactMatches = allTasks.filter((t) => t.label === trimmed);
   if (exactMatches.length === 1) {
     return { task: exactMatches[0] };
   }
   if (exactMatches.length > 1) {
     // Multiple tasks with same name — need disambiguation
-    const suggestions = exactMatches.map(t =>
+    const suggestions = exactMatches.map((t) =>
       t.groupPath.length > 0 ? `${t.groupPath.join('.')}.${t.label}` : t.label
     );
     return {
       kind: 'ambiguous',
-      message: `Multiple tasks match "${trimmed}". Did you mean ${suggestions.map(s => `\`${s}\``).join(' or ')}?`,
+      message: `Multiple tasks match "${trimmed}". Did you mean ${suggestions.map((s) => `\`${s}\``).join(' or ')}?`,
     };
   }
 
@@ -80,7 +80,7 @@ export function resolveTaskName(
     const taskLabel = trimmed.substring(lastDotIdx + 1);
 
     // Find tasks whose label matches and whose group path ends with the prefix
-    const matches = allTasks.filter(t => {
+    const matches = allTasks.filter((t) => {
       if (t.label !== taskLabel) return false;
       return matchesGroupPath(t.groupPath, groupPrefix);
     });
@@ -89,12 +89,12 @@ export function resolveTaskName(
       return { task: matches[0] };
     }
     if (matches.length > 1) {
-      const suggestions = matches.map(t =>
+      const suggestions = matches.map((t) =>
         t.groupPath.length > 0 ? `${t.groupPath.join('.')}.${t.label}` : t.label
       );
       return {
         kind: 'ambiguous',
-        message: `Multiple tasks match "${trimmed}". Did you mean ${suggestions.map(s => `\`${s}\``).join(' or ')}?`,
+        message: `Multiple tasks match "${trimmed}". Did you mean ${suggestions.map((s) => `\`${s}\``).join(' or ')}?`,
       };
     }
 
@@ -106,8 +106,8 @@ export function resolveTaskName(
   }
 
   // 3. No match found — try case-insensitive as a fallback for suggestions
-  const caseInsensitive = allTasks.filter(t =>
-    t.label.toLowerCase() === trimmed.toLowerCase()
+  const caseInsensitive = allTasks.filter(
+    (t) => t.label.toLowerCase() === trimmed.toLowerCase()
   );
   if (caseInsensitive.length > 0) {
     return {
@@ -134,11 +134,16 @@ export function resolveTaskName(
 function matchesGroupPath(groupPath: string[], prefix: string): boolean {
   // Simple case: prefix is a single segment
   if (!prefix.includes('.')) {
-    return groupPath.some(g => g === prefix);
+    return groupPath.some((g) => g === prefix);
   }
 
   // Multi-segment prefix: try matching from the start of the group path
   const pathStr = groupPath.join('.');
   // Check if the full prefix matches any contiguous section of the path
-  return pathStr === prefix || pathStr.endsWith('.' + prefix) || pathStr.startsWith(prefix + '.') || pathStr.includes('.' + prefix + '.');
+  return (
+    pathStr === prefix ||
+    pathStr.endsWith('.' + prefix) ||
+    pathStr.startsWith(prefix + '.') ||
+    pathStr.includes('.' + prefix + '.')
+  );
 }

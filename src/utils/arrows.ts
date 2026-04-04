@@ -6,7 +6,7 @@
 //   Sync:  `-label->`
 //   Async: `~label~>`
 
-export interface ParsedArrow {
+interface ParsedArrow {
   from: string;
   to: string;
   label: string;

@@ -440,6 +440,8 @@ export {
   tokyoNightPalette,
   oneDarkPalette,
   boldPalette,
+  draculaPalette,
+  monokaiPalette,
   // Mermaid bridge
   buildMermaidThemeVars,
   buildThemeCSS,

@@ -1,6 +1,6 @@
 {
   "name": "@diagrammo/dgmo",
-  "version": "0.8.10",
+  "version": "0.8.11",
   "description": "DGMO diagram markup language — parser, renderer, and color system",
   "license": "MIT",
   "type": "module",
@@ -87,7 +87,6 @@
   },
   "devDependencies": {
     "@codemirror/language": "^6.12.3",
-    "@codemirror/state": "^6.6.0",
     "@eslint/js": "^10.0.1",
     "@lezer/generator": "^1.8.0",
     "@types/d3-array": "^3.2.2",
@@ -119,7 +118,6 @@
   },
   "peerDependencies": {
     "@codemirror/language": "^6.12.3",
-    "@codemirror/state": "^6.6.0",
     "@lezer/common": "^1.5.1",
     "@lezer/highlight": "^1.2.3",
     "@lezer/lr": "^1.4.8"

@@ -4,9 +4,6 @@
 
 import type { Selection } from 'd3-selection';
 
-// Re-export from legend-svg.ts for backward compat
-export type { LegendGroupData } from './legend-svg';
-
 // ── State ───────────────────────────────────────────────────
 
 export interface LegendState {

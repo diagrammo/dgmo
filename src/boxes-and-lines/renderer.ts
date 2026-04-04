@@ -292,7 +292,7 @@ function resolveEdgeLabelOverlaps(
 
 // ── Main render function ───────────────────────────────────
 
-export interface BLRenderOptions {
+interface BLRenderOptions {
   onClickItem?: (lineNumber: number) => void;
   exportDims?: { width?: number; height?: number };
   activeTagGroup?: string | null;

@@ -22,7 +22,7 @@ export interface TagGroup {
 }
 
 /** Result of matching a tag block heading */
-export interface TagBlockMatch {
+interface TagBlockMatch {
   name: string;
   alias: string | undefined;
   colorHint: string | undefined;

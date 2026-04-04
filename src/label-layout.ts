@@ -46,7 +46,7 @@ export interface QuadrantLabelPoint {
   cy: number; // pixel y
 }
 
-export interface PlacedQuadrantLabel {
+interface PlacedQuadrantLabel {
   label: string;
   x: number; // text x
   y: number; // text y (center of label)

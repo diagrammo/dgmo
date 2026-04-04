@@ -15,7 +15,7 @@ import type {
 } from './types';
 import { parseKanban } from './parser';
 import { isArchiveColumn } from './mutations';
-import { LEGEND_HEIGHT } from '../utils/legend-constants';
+import { LEGEND_HEIGHT, measureLegendText } from '../utils/legend-constants';
 import { renderLegendD3 } from '../utils/legend-d3';
 import type { LegendConfig, LegendState } from '../utils/legend-types';
 
@@ -200,8 +200,7 @@ function computeLayout(
   }
 
   const totalWidth = currentX - COLUMN_GAP + DIAGRAM_PADDING;
-  const legendSpace = parsed.tagGroups.length > 0 ? LEGEND_HEIGHT : 0;
-  const totalHeight = startY + maxColumnHeight + DIAGRAM_PADDING + legendSpace;
+  const totalHeight = startY + maxColumnHeight + DIAGRAM_PADDING;
 
   return { columns: columnLayouts, totalWidth, totalHeight };
 }
@@ -249,9 +248,13 @@ export function renderKanban(
       .text(parsed.title);
   }
 
-  // Legend (bottom of diagram)
+  // Legend (top-right, inline with title)
   if (parsed.tagGroups.length > 0) {
-    const legendY = height - LEGEND_HEIGHT;
+    const titleTextWidth = parsed.title
+      ? measureLegendText(parsed.title, TITLE_FONT_SIZE) + 16
+      : 0;
+    const legendX = DIAGRAM_PADDING + titleTextWidth;
+    const legendY = DIAGRAM_PADDING + (TITLE_FONT_SIZE - LEGEND_HEIGHT) / 2;
     const legendConfig: LegendConfig = {
       groups: parsed.tagGroups,
       position: { placement: 'top-center', titleRelation: 'below-title' },
@@ -261,7 +264,7 @@ export function renderKanban(
     const legendG = svg
       .append('g')
       .attr('class', 'kanban-legend')
-      .attr('transform', `translate(${DIAGRAM_PADDING},${legendY})`);
+      .attr('transform', `translate(${legendX},${legendY})`);
     renderLegendD3(
       legendG,
       legendConfig,
@@ -269,7 +272,7 @@ export function renderKanban(
       palette,
       isDark,
       undefined,
-      width - DIAGRAM_PADDING * 2
+      width - legendX - DIAGRAM_PADDING
     );
   }
 

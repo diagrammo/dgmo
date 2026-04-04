@@ -20,22 +20,22 @@ export type VisualizationType =
   | 'quadrant'
   | 'sequence';
 
-export interface D3DataItem {
+interface D3DataItem {
   label: string;
   values: number[];
   color: string | null;
   lineNumber: number;
 }
 
-export interface WordCloudWord {
+interface WordCloudWord {
   text: string;
   weight: number;
   lineNumber: number;
 }
 
-export type WordCloudRotate = 'none' | 'mixed' | 'angled';
+type WordCloudRotate = 'none' | 'mixed' | 'angled';
 
-export interface WordCloudOptions {
+interface WordCloudOptions {
   rotate: WordCloudRotate;
   max: number;
   minSize: number;
@@ -57,7 +57,7 @@ export interface ArcLink {
   lineNumber: number;
 }
 
-export type ArcOrder = 'appearance' | 'name' | 'group' | 'degree';
+type ArcOrder = 'appearance' | 'name' | 'group' | 'degree';
 
 export interface ArcNodeGroup {
   name: string;
@@ -66,9 +66,9 @@ export interface ArcNodeGroup {
   lineNumber: number;
 }
 
-export type TimelineSort = 'time' | 'group' | 'tag';
+type TimelineSort = 'time' | 'group' | 'tag';
 
-export interface TimelineEvent {
+interface TimelineEvent {
   date: string;
   endDate: string | null;
   label: string;
@@ -78,13 +78,13 @@ export interface TimelineEvent {
   uncertain?: boolean;
 }
 
-export interface TimelineGroup {
+interface TimelineGroup {
   name: string;
   color: string | null;
   lineNumber: number;
 }
 
-export interface TimelineEra {
+interface TimelineEra {
   startDate: string;
   endDate: string;
   label: string;
@@ -92,40 +92,40 @@ export interface TimelineEra {
   lineNumber: number;
 }
 
-export interface TimelineMarker {
+interface TimelineMarker {
   date: string;
   label: string;
   color: string | null;
   lineNumber: number;
 }
 
-export interface VennSet {
+interface VennSet {
   name: string;
   alias: string | null;
   color: string | null;
   lineNumber: number;
 }
 
-export interface VennOverlap {
+interface VennOverlap {
   sets: string[];
   label: string | null;
   lineNumber: number;
 }
 
-export interface QuadrantLabel {
+interface QuadrantLabel {
   text: string;
   color: string | null;
   lineNumber: number;
 }
 
-export interface QuadrantPoint {
+interface QuadrantPoint {
   label: string;
   x: number;
   y: number;
   lineNumber: number;
 }
 
-export interface QuadrantLabels {
+interface QuadrantLabels {
   topRight: QuadrantLabel | null;
   topLeft: QuadrantLabel | null;
   bottomLeft: QuadrantLabel | null;
@@ -5460,7 +5460,7 @@ export function renderVenn(
   exportDims?: D3ExportDimensions
 ): void {
   const { vennSets, vennOverlaps, title } = parsed;
-  if (vennSets.length < 2) return;
+  if (vennSets.length < 2 || vennSets.length > 3) return;
 
   const init = initD3Chart(container, palette, exportDims);
   if (!init) return;
