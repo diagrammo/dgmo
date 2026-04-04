@@ -4525,8 +4525,7 @@ export function renderTimeline(
               .attr('dy', '0.35em')
               .attr('text-anchor', 'start')
               .attr('fill', textColor)
-              .attr('font-size', '14px')
-              .attr('font-weight', '700')
+              .attr('font-size', '13px')
               .text(ev.label);
           } else {
             // Text outside bar - check if it fits on left or must go right
@@ -4815,8 +4814,7 @@ export function renderTimeline(
             .attr('dy', '0.35em')
             .attr('text-anchor', 'start')
             .attr('fill', textColor)
-            .attr('font-size', '14px')
-            .attr('font-weight', '700')
+            .attr('font-size', '13px')
             .text(ev.label);
         } else {
           // Text outside bar - check if it fits on left or must go right
