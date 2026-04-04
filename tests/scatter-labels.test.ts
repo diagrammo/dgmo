@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import { rectsOverlap, rectCircleOverlap } from '../src/label-layout';
 import {
-  rectsOverlap,
-  rectCircleOverlap,
   computeScatterLabelGraphics,
   type ScatterLabelPoint,
 } from '../src/echarts';
@@ -87,7 +86,12 @@ describe('computeScatterLabelGraphics', () => {
     const points: ScatterLabelPoint[] = [
       { name: 'Alpha', px: 400, py: 400, color: '#ff0000' },
     ];
-    const result = computeScatterLabelGraphics(points, chartBounds, fontSize, symbolSize);
+    const result = computeScatterLabelGraphics(
+      points,
+      chartBounds,
+      fontSize,
+      symbolSize
+    );
 
     // Should have exactly 1 text element (no connector for first-slot placement)
     const texts = result.filter((e) => e.type === 'text');
@@ -105,7 +109,12 @@ describe('computeScatterLabelGraphics', () => {
       { name: 'A', px: 400, py: 400, color: '#ff0000' },
       { name: 'B', px: 400, py: 400, color: '#00ff00' },
     ];
-    const result = computeScatterLabelGraphics(points, chartBounds, fontSize, symbolSize);
+    const result = computeScatterLabelGraphics(
+      points,
+      chartBounds,
+      fontSize,
+      symbolSize
+    );
 
     const texts = result.filter((e) => e.type === 'text') as { y: number }[];
     expect(texts).toHaveLength(2);
@@ -124,21 +133,33 @@ describe('computeScatterLabelGraphics', () => {
       py: 400,
       color: '#333',
     }));
-    const result = computeScatterLabelGraphics(points, chartBounds, fontSize, symbolSize);
+    const result = computeScatterLabelGraphics(
+      points,
+      chartBounds,
+      fontSize,
+      symbolSize
+    );
 
     const texts = result.filter((e) => e.type === 'text');
     expect(texts).toHaveLength(8);
 
     // With wide spacing (80px apart), all labels should be placed (closest-wins
     // heuristic prefers above when equidistant, but may push some below on collision)
-    expect(texts.filter((t) => (t as { y: number }).y < 400).length).toBeGreaterThan(0);
+    expect(
+      texts.filter((t) => (t as { y: number }).y < 400).length
+    ).toBeGreaterThan(0);
   });
 
   it('forces label below when point is near chart top', () => {
     const points: ScatterLabelPoint[] = [
       { name: 'TopPoint', px: 400, py: 10, color: '#ff0000' },
     ];
-    const result = computeScatterLabelGraphics(points, chartBounds, fontSize, symbolSize);
+    const result = computeScatterLabelGraphics(
+      points,
+      chartBounds,
+      fontSize,
+      symbolSize
+    );
 
     const texts = result.filter((e) => e.type === 'text') as { y: number }[];
     expect(texts).toHaveLength(1);
@@ -152,8 +173,18 @@ describe('computeScatterLabelGraphics', () => {
       { name: 'Y', px: 200, py: 300, color: '#0f0' },
       { name: 'Z', px: 250, py: 310, color: '#00f' },
     ];
-    const result1 = computeScatterLabelGraphics(points, chartBounds, fontSize, symbolSize);
-    const result2 = computeScatterLabelGraphics(points, chartBounds, fontSize, symbolSize);
+    const result1 = computeScatterLabelGraphics(
+      points,
+      chartBounds,
+      fontSize,
+      symbolSize
+    );
+    const result2 = computeScatterLabelGraphics(
+      points,
+      chartBounds,
+      fontSize,
+      symbolSize
+    );
     expect(result1).toEqual(result2);
   });
 
@@ -165,7 +196,12 @@ describe('computeScatterLabelGraphics', () => {
       py: 400,
       color: '#333',
     }));
-    const result = computeScatterLabelGraphics(points, chartBounds, fontSize, symbolSize);
+    const result = computeScatterLabelGraphics(
+      points,
+      chartBounds,
+      fontSize,
+      symbolSize
+    );
 
     const lines = result.filter((e) => e.type === 'line');
     // At least some labels should be pushed far enough to need connectors
@@ -176,9 +212,16 @@ describe('computeScatterLabelGraphics', () => {
     const points: ScatterLabelPoint[] = [
       { name: 'Red', px: 400, py: 400, color: '#ff0000' },
     ];
-    const result = computeScatterLabelGraphics(points, chartBounds, fontSize, symbolSize);
+    const result = computeScatterLabelGraphics(
+      points,
+      chartBounds,
+      fontSize,
+      symbolSize
+    );
 
-    const text = result.find((e) => e.type === 'text') as { style: { fill: string } };
+    const text = result.find((e) => e.type === 'text') as {
+      style: { fill: string };
+    };
     expect(text.style.fill).toBe('#ff0000');
   });
 
@@ -189,7 +232,12 @@ describe('computeScatterLabelGraphics', () => {
       py: 400,
       color: '#333',
     }));
-    const result = computeScatterLabelGraphics(points, chartBounds, fontSize, symbolSize);
+    const result = computeScatterLabelGraphics(
+      points,
+      chartBounds,
+      fontSize,
+      symbolSize
+    );
 
     const texts = result.filter((e) => e.type === 'text');
     const lines = result.filter((e) => e.type === 'line');

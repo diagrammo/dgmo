@@ -5,6 +5,7 @@ import * as d3Array from 'd3-array';
 import cloud from 'd3-cloud';
 import { FONT_FAMILY } from './fonts';
 import { injectBranding } from './branding';
+import { computeQuadrantPointLabels, type LabelRect } from './label-layout';
 
 // ============================================================
 // Types
@@ -5537,7 +5538,9 @@ export function renderVenn(
   // Suppress WebKit focus ring on interactive SVG elements
   svg
     .append('style')
-    .text('circle:focus, circle:focus-visible { outline: none !important; }');
+    .text(
+      'circle:focus, circle:focus-visible { outline-solid: none !important; }'
+    );
 
   // Title
   renderChartTitle(
@@ -5868,7 +5871,7 @@ export function renderVenn(
       .attr('class', 'venn-hit-target')
       .attr('data-line-number', String(vennSets[i].lineNumber))
       .style('cursor', onClickItem ? 'pointer' : 'default')
-      .style('outline', 'none')
+      .style('outline-solid', 'none')
       .on('mouseenter', () => {
         showRegionOverlay([i]);
       })
@@ -5924,7 +5927,7 @@ export function renderVenn(
       .attr('class', 'venn-hit-target')
       .attr('data-line-number', declaredOv ? String(declaredOv.lineNumber) : '')
       .style('cursor', onClickItem && declaredOv ? 'pointer' : 'default')
-      .style('outline', 'none')
+      .style('outline-solid', 'none')
       .on('mouseenter', () => {
         showRegionOverlay(idxs);
       })
@@ -6414,40 +6417,88 @@ export function renderQuadrant(
     return 'bottom-right';
   };
 
+  // Build obstacle rects from quadrant watermark labels for collision avoidance
+  const POINT_RADIUS = 6;
+  const POINT_LABEL_FONT_SIZE = 12;
+  const quadrantLabelObstacles: LabelRect[] = quadrantDefsWithLabel.map((d) => {
+    const layout = labelLayouts.get(d.label!.text)!;
+    const totalW =
+      Math.max(...layout.lines.map((l) => l.length)) *
+      layout.fontSize *
+      CHAR_WIDTH_RATIO;
+    const totalH = layout.lines.length * layout.fontSize * 1.2;
+    return {
+      x: d.labelX - totalW / 2,
+      y: d.labelY - totalH / 2,
+      w: totalW,
+      h: totalH,
+    };
+  });
+
+  // Compute collision-free label positions for all points
+  const pointPixels = quadrantPoints.map((point) => ({
+    label: point.label,
+    cx: xScale(point.x),
+    cy: yScale(point.y),
+  }));
+
+  const placedPointLabels = computeQuadrantPointLabels(
+    pointPixels,
+    { left: 0, top: 0, right: chartWidth, bottom: chartHeight },
+    quadrantLabelObstacles,
+    POINT_RADIUS,
+    POINT_LABEL_FONT_SIZE
+  );
+
   // Draw data points (circles and labels)
   const pointsG = chartG.append('g').attr('class', 'points');
 
-  quadrantPoints.forEach((point) => {
+  quadrantPoints.forEach((point, i) => {
     const cx = xScale(point.x);
     const cy = yScale(point.y);
     const quadrant = getPointQuadrant(point.x, point.y);
     const quadDef = quadrantDefs.find((d) => d.position === quadrant);
     const pointColor =
       quadDef?.label?.color ?? defaultColors[quadDef?.colorIdx ?? 0];
+    const placed = placedPointLabels[i];
 
     const pointG = pointsG
       .append('g')
       .attr('class', 'point-group')
       .attr('data-line-number', String(point.lineNumber));
 
+    // Connector line (drawn first so it renders behind circle and label)
+    if (placed.connectorLine) {
+      pointG
+        .append('line')
+        .attr('x1', placed.connectorLine.x1)
+        .attr('y1', placed.connectorLine.y1)
+        .attr('x2', placed.connectorLine.x2)
+        .attr('y2', placed.connectorLine.y2)
+        .attr('stroke', pointColor)
+        .attr('stroke-width', 1)
+        .attr('opacity', 0.5);
+    }
+
     // Circle with white fill and colored border for visibility on opaque quadrants
     pointG
       .append('circle')
       .attr('cx', cx)
       .attr('cy', cy)
-      .attr('r', 6)
+      .attr('r', POINT_RADIUS)
       .attr('fill', '#ffffff')
       .attr('stroke', pointColor)
       .attr('stroke-width', 2);
 
-    // Label (palette text color adapts to light/dark mode)
+    // Label at computed position
     pointG
       .append('text')
-      .attr('x', cx)
-      .attr('y', cy - 10)
-      .attr('text-anchor', 'middle')
+      .attr('x', placed.x)
+      .attr('y', placed.y)
+      .attr('text-anchor', placed.anchor)
+      .attr('dominant-baseline', 'central')
       .attr('fill', textColor)
-      .attr('font-size', '12px')
+      .attr('font-size', `${POINT_LABEL_FONT_SIZE}px`)
       .attr('font-weight', '700')
       .style('text-shadow', `0 1px 2px ${shadowColor}`)
       .text(point.label);
@@ -6466,7 +6517,7 @@ export function renderQuadrant(
       })
       .on('mouseleave', () => {
         hideTooltip(tooltip);
-        pointG.select('circle').attr('r', 6);
+        pointG.select('circle').attr('r', POINT_RADIUS);
       })
       .on('click', () => {
         if (onClickItem && point.lineNumber) onClickItem(point.lineNumber);

@@ -4,6 +4,12 @@ import { FONT_FAMILY } from './fonts';
 import { injectBranding } from './branding';
 import { renderLegendSvg } from './utils/legend-svg';
 import type { LegendGroupData } from './utils/legend-svg';
+import {
+  type LabelRect,
+  type PointCircle,
+  rectsOverlap,
+  rectCircleOverlap,
+} from './label-layout';
 
 // ============================================================
 // Types
@@ -1182,36 +1188,8 @@ export function getExtendedChartLegendGroups(
 // Scatter label collision avoidance — greedy placement algorithm
 // ---------------------------------------------------------------------------
 
-interface LabelRect {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
-interface PointCircle {
-  cx: number;
-  cy: number;
-  r: number;
-}
-
-/** Axis-aligned bounding box overlap test. @internal exported for testing */
-export function rectsOverlap(a: LabelRect, b: LabelRect): boolean {
-  return (
-    a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y
-  );
-}
-
-/** Rect vs circle overlap using nearest-point-on-rect distance check. @internal exported for testing */
-export function rectCircleOverlap(
-  rect: LabelRect,
-  circle: PointCircle
-): boolean {
-  const nearestX = Math.max(rect.x, Math.min(circle.cx, rect.x + rect.w));
-  const nearestY = Math.max(rect.y, Math.min(circle.cy, rect.y + rect.h));
-  const dx = nearestX - circle.cx;
-  const dy = nearestY - circle.cy;
-  return dx * dx + dy * dy < circle.r * circle.r;
-}
+// Re-export collision helpers for backwards compatibility (tests import from here)
+export { rectsOverlap, rectCircleOverlap };
 
 export interface ScatterLabelPoint {
   name: string;
