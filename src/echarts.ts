@@ -739,7 +739,8 @@ export function buildExtendedChartOption(
 
   // Sankey chart has different structure
   if (parsed.type === 'sankey') {
-    return buildSankeyOption(parsed, textColor, colors, titleConfig);
+    const bg = isDark ? palette.surface : palette.bg;
+    return buildSankeyOption(parsed, textColor, colors, bg, titleConfig);
   }
 
   // Chord diagram
@@ -800,6 +801,7 @@ function buildSankeyOption(
   parsed: ParsedExtendedChart,
   textColor: string,
   colors: string[],
+  bg: string,
   titleConfig: EChartsOption['title']
 ): EChartsOption {
   // Extract unique nodes from links
@@ -811,12 +813,18 @@ function buildSankeyOption(
     }
   }
 
-  const nodes = Array.from(nodeSet).map((name, index) => ({
-    name,
-    itemStyle: {
-      color: parsed.nodeColors?.[name] ?? colors[index % colors.length],
-    },
-  }));
+  // Tint colors with background so the diagram feels less saturated.
+  // Nodes get a lighter tint so they stand out; links get more tinting.
+  const tintNode = (c: string) => mix(c, bg, 75);
+  const tintLink = (c: string) => mix(c, bg, 45);
+
+  const nodeColorMap = new Map<string, string>();
+  const nodes = Array.from(nodeSet).map((name, index) => {
+    const raw = parsed.nodeColors?.[name] ?? colors[index % colors.length];
+    const tinted = tintNode(raw);
+    nodeColorMap.set(name, tintLink(raw));
+    return { name, itemStyle: { color: tinted } };
+  });
 
   return {
     ...CHART_BASE,
@@ -840,11 +848,15 @@ function buildSankeyOption(
           source: link.source,
           target: link.target,
           value: link.value,
-          ...(link.color && { lineStyle: { color: link.color } }),
+          lineStyle: {
+            color: link.color
+              ? tintLink(link.color)
+              : nodeColorMap.get(link.source),
+          },
         })),
         lineStyle: {
-          color: 'gradient',
           curveness: 0.5,
+          opacity: 0.6,
         },
         label: {
           color: textColor,
