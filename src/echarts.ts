@@ -23,14 +23,14 @@ export type ExtendedChartType =
   | 'heatmap'
   | 'funnel';
 
-export interface ExtendedChartDataPoint {
+interface ExtendedChartDataPoint {
   label: string;
   value: number;
   color?: string;
   lineNumber: number;
 }
 
-export interface ParsedSankeyLink {
+interface ParsedSankeyLink {
   source: string;
   target: string;
   value: number;
@@ -39,14 +39,14 @@ export interface ParsedSankeyLink {
   lineNumber: number;
 }
 
-export interface ParsedFunction {
+interface ParsedFunction {
   name: string;
   expression: string;
   color?: string;
   lineNumber: number;
 }
 
-export interface ParsedScatterPoint {
+interface ParsedScatterPoint {
   name: string;
   x: number;
   y: number;
@@ -56,7 +56,7 @@ export interface ParsedScatterPoint {
   lineNumber: number;
 }
 
-export interface ParsedHeatmapRow {
+interface ParsedHeatmapRow {
   label: string;
   values: number[];
   lineNumber: number;
@@ -1200,9 +1200,6 @@ export function getExtendedChartLegendGroups(
 // Scatter label collision avoidance — greedy placement algorithm
 // ---------------------------------------------------------------------------
 
-// Re-export collision helpers for backwards compatibility (tests import from here)
-export { rectsOverlap, rectCircleOverlap };
-
 export interface ScatterLabelPoint {
   name: string;
   px: number;
@@ -1729,7 +1726,7 @@ function buildHeatmapOption(
     title: titleConfig,
     grid: {
       left: '3%',
-      right: '10%',
+      right: '3%',
       bottom: '3%',
       top: parsed.title ? '15%' : '5%',
       containLabel: true,
@@ -1737,6 +1734,7 @@ function buildHeatmapOption(
     xAxis: {
       type: 'category',
       data: columns,
+      position: 'top',
       splitArea: {
         show: true,
       },
@@ -1745,12 +1743,17 @@ function buildHeatmapOption(
       },
       axisLabel: {
         color: textColor,
-        fontSize: 16,
+        fontSize: 12,
+        interval: 0,
+        rotate: -45,
+        width: 200,
+        overflow: 'none',
       },
     },
     yAxis: {
       type: 'category',
       data: rowLabels,
+      inverse: true,
       splitArea: {
         show: true,
       },
@@ -1759,16 +1762,14 @@ function buildHeatmapOption(
       },
       axisLabel: {
         color: textColor,
-        fontSize: 16,
+        fontSize: 12,
+        interval: 0,
       },
     },
     visualMap: {
+      show: false,
       min: minValue,
       max: maxValue,
-      calculable: true,
-      orient: 'vertical',
-      right: '2%',
-      top: 'center',
       inRange: {
         color: [
           mix(palette.primary, bg, 30),
@@ -1776,9 +1777,6 @@ function buildHeatmapOption(
           mix(palette.colors.yellow, bg, 30),
           mix(palette.colors.orange, bg, 30),
         ],
-      },
-      textStyle: {
-        color: textColor,
       },
     },
     series: [
@@ -1796,9 +1794,8 @@ function buildHeatmapOption(
           fontWeight: 'bold' as const,
         },
         emphasis: {
-          ...EMPHASIS_SELF,
+          disabled: true,
         },
-        blur: BLUR_DIM,
       },
     ],
   };
