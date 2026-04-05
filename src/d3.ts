@@ -3406,6 +3406,78 @@ function buildEraTooltipHtml(era: TimelineEra): string {
 // ============================================================
 
 /**
+ * Renders timeline group legend as pills (colored dot + text in rounded rect),
+ * matching the centralized legend pill style.
+ */
+function renderTimelineGroupLegend(
+  g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
+  groups: TimelineGroup[],
+  groupColorMap: Map<string, string>,
+  textColor: string,
+  palette: PaletteColors,
+  isDark: boolean,
+  legendY: number,
+  onHover: (name: string) => void,
+  onLeave: () => void
+): void {
+  const PILL_H = 22;
+  const DOT_R = 4;
+  const DOT_GAP = 4;
+  const PAD_X = 10;
+  const FONT_SIZE = 11;
+  const GAP = 8;
+  const pillBg = isDark
+    ? mix(palette.surface, palette.bg, 50)
+    : mix(palette.surface, palette.bg, 30);
+
+  let legendX = 0;
+  for (const grp of groups) {
+    const color = groupColorMap.get(grp.name) ?? textColor;
+    const textW = measureLegendText(grp.name, FONT_SIZE);
+    const pillW = PAD_X + DOT_R * 2 + DOT_GAP + textW + PAD_X;
+
+    const itemG = g
+      .append('g')
+      .attr('class', 'tl-legend-item')
+      .attr('data-group', grp.name)
+      .style('cursor', 'pointer')
+      .on('mouseenter', () => onHover(grp.name))
+      .on('mouseleave', () => onLeave());
+
+    // Pill background
+    itemG
+      .append('rect')
+      .attr('x', legendX)
+      .attr('y', legendY - PILL_H / 2)
+      .attr('width', pillW)
+      .attr('height', PILL_H)
+      .attr('rx', PILL_H / 2)
+      .attr('fill', pillBg);
+
+    // Colored dot
+    itemG
+      .append('circle')
+      .attr('cx', legendX + PAD_X + DOT_R)
+      .attr('cy', legendY)
+      .attr('r', DOT_R)
+      .attr('fill', color);
+
+    // Label text
+    itemG
+      .append('text')
+      .attr('x', legendX + PAD_X + DOT_R * 2 + DOT_GAP)
+      .attr('y', legendY)
+      .attr('dy', '0.35em')
+      .attr('fill', textColor)
+      .attr('font-size', `${FONT_SIZE}px`)
+      .attr('font-family', FONT_FAMILY)
+      .text(grp.name);
+
+    legendX += pillW + GAP;
+  }
+}
+
+/**
  * Renders a timeline chart into the given container using D3.
  * Supports horizontal (default) and vertical orientation.
  */
@@ -4038,38 +4110,19 @@ export function renderTimeline(
         );
       }
 
-      // Group legend
+      // Group legend (pill style)
       if (timelineGroups.length > 0) {
-        let legendX = 0;
-        const legendY = -55;
-        for (const grp of timelineGroups) {
-          const color = groupColorMap.get(grp.name) ?? textColor;
-          const itemG = g
-            .append('g')
-            .attr('class', 'tl-legend-item')
-            .attr('data-group', grp.name)
-            .style('cursor', 'pointer')
-            .on('mouseenter', () => fadeToGroup(g, grp.name))
-            .on('mouseleave', () => fadeReset(g));
-
-          itemG
-            .append('circle')
-            .attr('cx', legendX)
-            .attr('cy', legendY)
-            .attr('r', 5)
-            .attr('fill', color);
-
-          itemG
-            .append('text')
-            .attr('x', legendX + 10)
-            .attr('y', legendY)
-            .attr('dy', '0.35em')
-            .attr('fill', textColor)
-            .attr('font-size', '11px')
-            .text(grp.name);
-
-          legendX += grp.name.length * 7 + 30;
-        }
+        renderTimelineGroupLegend(
+          g,
+          timelineGroups,
+          groupColorMap,
+          textColor,
+          palette,
+          isDark,
+          -55,
+          (name) => fadeToGroup(g, name),
+          () => fadeReset(g)
+        );
       }
 
       g.append('line')
@@ -4656,38 +4709,20 @@ export function renderTimeline(
       );
     }
 
-    // Group legend at top-left
+    // Group legend at top-left (pill style)
     if (timelineGroups.length > 0) {
-      let legendX = 0;
       const legendY = timelineScale ? -75 : -55;
-      for (const grp of timelineGroups) {
-        const color = groupColorMap.get(grp.name) ?? textColor;
-        const itemG = g
-          .append('g')
-          .attr('class', 'tl-legend-item')
-          .attr('data-group', grp.name)
-          .style('cursor', 'pointer')
-          .on('mouseenter', () => fadeToGroup(g, grp.name))
-          .on('mouseleave', () => fadeReset(g));
-
-        itemG
-          .append('circle')
-          .attr('cx', legendX)
-          .attr('cy', legendY)
-          .attr('r', 5)
-          .attr('fill', color);
-
-        itemG
-          .append('text')
-          .attr('x', legendX + 10)
-          .attr('y', legendY)
-          .attr('dy', '0.35em')
-          .attr('fill', textColor)
-          .attr('font-size', '11px')
-          .text(grp.name);
-
-        legendX += grp.name.length * 7 + 30;
-      }
+      renderTimelineGroupLegend(
+        g,
+        timelineGroups,
+        groupColorMap,
+        textColor,
+        palette,
+        isDark,
+        legendY,
+        (name) => fadeToGroup(g, name),
+        () => fadeReset(g)
+      );
     }
 
     sorted.forEach((ev, i) => {

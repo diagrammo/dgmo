@@ -271,13 +271,15 @@ export function computeLegendLayout(
   }
 
   // Position elements in rows
+  const alignLeft = config.position.titleRelation === 'inline-with-title';
   const rows = layoutRows(
     activeCapsule,
     pills,
     controlLayouts,
     groupAvailW,
     containerWidth,
-    totalControlsW
+    totalControlsW,
+    alignLeft
   );
 
   const height = rows.length * LEGEND_HEIGHT;
@@ -379,7 +381,8 @@ function layoutRows(
   controls: LegendControlLayout[],
   groupAvailW: number,
   containerWidth: number,
-  totalControlsW: number
+  totalControlsW: number,
+  alignLeft = false
 ): Array<{
   y: number;
   items: Array<LegendPillLayout | LegendCapsuleLayout | LegendControlLayout>;
@@ -405,7 +408,8 @@ function layoutRows(
     const itemW = item.width + LEGEND_GROUP_GAP;
     if (currentRowW + item.width > groupAvailW && currentRowItems.length > 0) {
       // Commit current row
-      centerRowItems(currentRowItems, containerWidth, totalControlsW);
+      if (!alignLeft)
+        centerRowItems(currentRowItems, containerWidth, totalControlsW);
       rows.push({ y: rowY, items: currentRowItems });
       rowY += LEGEND_HEIGHT;
       currentRowItems = [];

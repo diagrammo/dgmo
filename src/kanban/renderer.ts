@@ -257,7 +257,7 @@ export function renderKanban(
     const legendY = DIAGRAM_PADDING + (TITLE_FONT_SIZE - LEGEND_HEIGHT) / 2;
     const legendConfig: LegendConfig = {
       groups: parsed.tagGroups,
-      position: { placement: 'top-center', titleRelation: 'below-title' },
+      position: { placement: 'top-center', titleRelation: 'inline-with-title' },
       mode: exportDims ? 'inline' : 'fixed',
     };
     const legendState: LegendState = { activeGroup: activeTagGroup ?? null };
