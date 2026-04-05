@@ -977,7 +977,7 @@ function buildChordOption(
             };
           });
         })(),
-        roam: true,
+        roam: false,
         label: {
           position: 'right',
           formatter: '{b}',
