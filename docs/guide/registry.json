@@ -1,0 +1,51 @@
+{
+  "groups": [
+    { "id": "getting-started", "label": "Getting Started" },
+    { "id": "software", "label": "Software" },
+    { "id": "data", "label": "Data" },
+    { "id": "business", "label": "Business" },
+    { "id": "project", "label": "Project" }
+  ],
+  "pages": [
+    { "slug": "index", "title": "Welcome", "group": "getting-started", "file": "index.md" },
+    { "slug": "keyboard-shortcuts", "title": "Keyboard Shortcuts", "group": "getting-started", "file": "keyboard-shortcuts.md" },
+    { "slug": "colors", "title": "Colors", "group": "getting-started", "file": "colors.md" },
+
+    { "slug": "chart-arc", "title": "Arc Diagram", "group": "software", "file": "chart-arc.md" },
+    { "slug": "chart-boxes-and-lines", "title": "Boxes and Lines", "group": "software", "file": "chart-boxes-and-lines.md" },
+    { "slug": "chart-c4", "title": "C4 Diagram (Beta)", "group": "software", "file": "chart-c4.md" },
+    { "slug": "chart-class", "title": "Class Diagram", "group": "software", "file": "chart-class.md" },
+    { "slug": "chart-er", "title": "Entity Relationship", "group": "software", "file": "chart-er.md" },
+    { "slug": "chart-flowchart", "title": "Flowchart", "group": "software", "file": "chart-flowchart.md" },
+    { "slug": "chart-infra", "title": "Infrastructure", "group": "software", "file": "chart-infra.md" },
+    { "slug": "chart-sequence", "title": "Sequence Diagram", "group": "software", "file": "chart-sequence.md" },
+    { "slug": "chart-sitemap", "title": "Sitemap", "group": "software", "file": "chart-sitemap.md" },
+    { "slug": "chart-state", "title": "State Diagram", "group": "software", "file": "chart-state.md" },
+
+    { "slug": "chart-area", "title": "Area Chart", "group": "data", "file": "chart-area.md" },
+    { "slug": "chart-bar", "title": "Bar Chart", "group": "data", "file": "chart-bar.md" },
+    { "slug": "chart-chord", "title": "Chord Diagram", "group": "data", "file": "chart-chord.md" },
+    { "slug": "chart-doughnut", "title": "Doughnut Chart", "group": "data", "file": "chart-doughnut.md" },
+    { "slug": "chart-function", "title": "Function Plot", "group": "data", "file": "chart-function.md" },
+    { "slug": "chart-heatmap", "title": "Heatmap", "group": "data", "file": "chart-heatmap.md" },
+    { "slug": "chart-line", "title": "Line Chart", "group": "data", "file": "chart-line.md" },
+    { "slug": "chart-multi-line", "title": "Multi-Line Chart", "group": "data", "file": "chart-multi-line.md" },
+    { "slug": "chart-pie", "title": "Pie Chart", "group": "data", "file": "chart-pie.md" },
+    { "slug": "chart-polar-area", "title": "Polar Area Chart", "group": "data", "file": "chart-polar-area.md" },
+    { "slug": "chart-radar", "title": "Radar Chart", "group": "data", "file": "chart-radar.md" },
+    { "slug": "chart-scatter", "title": "Scatter Plot", "group": "data", "file": "chart-scatter.md" },
+    { "slug": "chart-slope", "title": "Slope Chart", "group": "data", "file": "chart-slope.md" },
+    { "slug": "chart-bar-stacked", "title": "Stacked Bar Chart", "group": "data", "file": "chart-bar-stacked.md" },
+
+    { "slug": "chart-funnel", "title": "Funnel Chart", "group": "business", "file": "chart-funnel.md" },
+    { "slug": "chart-org", "title": "Org Chart", "group": "business", "file": "chart-org.md" },
+    { "slug": "chart-quadrant", "title": "Quadrant Chart", "group": "business", "file": "chart-quadrant.md" },
+    { "slug": "chart-sankey", "title": "Sankey Diagram", "group": "business", "file": "chart-sankey.md" },
+    { "slug": "chart-venn", "title": "Venn Diagram (Beta)", "group": "business", "file": "chart-venn.md" },
+    { "slug": "chart-wordcloud", "title": "Word Cloud", "group": "business", "file": "chart-wordcloud.md" },
+
+    { "slug": "chart-gantt", "title": "Gantt Chart", "group": "project", "file": "chart-gantt.md" },
+    { "slug": "chart-kanban", "title": "Kanban Board", "group": "project", "file": "chart-kanban.md" },
+    { "slug": "chart-timeline", "title": "Timeline", "group": "project", "file": "chart-timeline.md" }
+  ]
+}
