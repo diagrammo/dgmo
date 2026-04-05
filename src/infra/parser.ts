@@ -15,6 +15,7 @@ import {
 import {
   matchTagBlockHeading,
   stripDefaultModifier,
+  validateTagGroupNames,
 } from '../utils/tag-groups';
 import type {
   ParsedInfra,
@@ -77,6 +78,7 @@ const TOP_LEVEL_OPTIONS = new Set([
   'default-latency-ms',
   'default-uptime',
   'default-rps',
+  'active-tag',
 ]);
 
 // ============================================================
@@ -725,6 +727,8 @@ export function parseInfra(content: string): ParsedInfra {
       }
     }
   }
+
+  validateTagGroupNames(result.tagGroups, warn);
 
   return result;
 }

@@ -14,7 +14,7 @@ import {
   TITLE_Y,
 } from '../utils/title-constants';
 import { contrastText, mix } from '../palettes/color-utils';
-import { resolveTagColor } from '../utils/tag-groups';
+import { resolveTagColor, resolveActiveTagGroup } from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
 import type { PaletteColors } from '../palettes';
 import type { ParsedBoxesAndLines, BLNode } from './types';
@@ -315,8 +315,12 @@ export function renderBoxesAndLines(
   const height = exportDims?.height ?? container.clientHeight;
   if (width <= 0 || height <= 0) return;
 
-  // Determine active tag group
-  const activeGroup = activeTagGroup ?? parsed.options['active-tag'] ?? null;
+  // Determine active tag group — shared utility handles priority chain
+  const activeGroup = resolveActiveTagGroup(
+    parsed.tagGroups,
+    parsed.options['active-tag'],
+    activeTagGroup
+  );
 
   // Build hidden set
   const hidden = hiddenTagValues ?? parsed.initialHiddenTagValues;
@@ -736,9 +740,13 @@ export function renderBoxesAndLinesForExport(
   layout: BLLayoutResult,
   palette: PaletteColors,
   isDark: boolean,
-  options?: { exportDims?: { width: number; height: number } }
+  options?: {
+    exportDims?: { width: number; height: number };
+    activeTagGroup?: string | null;
+  }
 ): void {
   renderBoxesAndLines(container, parsed, layout, palette, isDark, {
     exportDims: options?.exportDims,
+    activeTagGroup: options?.activeTagGroup,
   });
 }

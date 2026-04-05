@@ -11,6 +11,7 @@ import {
 import {
   matchTagBlockHeading,
   validateTagValues,
+  validateTagGroupNames,
   stripDefaultModifier,
 } from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
@@ -54,7 +55,7 @@ const CONSTRAINT_MAP: Record<string, ERConstraint> = {
 };
 
 // Known options (space-separated, no colon)
-const KNOWN_OPTIONS = new Set(['notation']);
+const KNOWN_OPTIONS = new Set(['notation', 'active-tag']);
 
 // ============================================================
 // Cardinality parsing
@@ -417,6 +418,9 @@ export function parseERDiagram(
       (line, msg) =>
         result.diagnostics.push(makeDgmoError(line, msg, 'warning')),
       suggest
+    );
+    validateTagGroupNames(result.tagGroups, (line, msg) =>
+      result.diagnostics.push(makeDgmoError(line, msg, 'warning'))
     );
 
     // Inject defaults for tables without explicit tags

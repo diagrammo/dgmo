@@ -6,8 +6,10 @@ import {
   parseTagDeclaration,
   resolveTagColor,
   validateTagValues,
+  validateTagGroupNames,
   injectDefaultTagMetadata,
   stripDefaultModifier,
+  resolveActiveTagGroup,
 } from '../src/utils/tag-groups';
 import type { TagGroup } from '../src/utils/tag-groups';
 
@@ -481,5 +483,125 @@ describe('injectDefaultTagMetadata', () => {
     injectDefaultTagMetadata(entities, groups);
     injectDefaultTagMetadata(entities, groups);
     expect(entities[0].metadata).toEqual({ role: 'Engineer' });
+  });
+});
+
+// ============================================================
+// validateTagGroupNames
+// ============================================================
+
+describe('validateTagGroupNames', () => {
+  it('warns when a tag group is named "none" (case-insensitive)', () => {
+    const warn = vi.fn();
+    validateTagGroupNames(
+      [
+        { name: 'none', lineNumber: 5 },
+        { name: 'Priority', lineNumber: 10 },
+      ],
+      warn
+    );
+    expect(warn).toHaveBeenCalledOnce();
+    expect(warn.mock.calls[0][0]).toBe(5);
+    expect(warn.mock.calls[0][1]).toContain('reserved keyword');
+  });
+
+  it('warns for mixed-case None', () => {
+    const warn = vi.fn();
+    validateTagGroupNames([{ name: 'None', lineNumber: 3 }], warn);
+    expect(warn).toHaveBeenCalledOnce();
+  });
+
+  it('warns for NONE', () => {
+    const warn = vi.fn();
+    validateTagGroupNames([{ name: 'NONE', lineNumber: 3 }], warn);
+    expect(warn).toHaveBeenCalledOnce();
+  });
+
+  it('does not warn for normal group names', () => {
+    const warn = vi.fn();
+    validateTagGroupNames(
+      [
+        { name: 'Priority', lineNumber: 2 },
+        { name: 'Team', lineNumber: 8 },
+      ],
+      warn
+    );
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('does nothing with empty tag groups', () => {
+    const warn = vi.fn();
+    validateTagGroupNames([], warn);
+    expect(warn).not.toHaveBeenCalled();
+  });
+});
+
+// ============================================================
+// resolveActiveTagGroup
+// ============================================================
+describe('resolveActiveTagGroup', () => {
+  const groups = [{ name: 'Priority' }, { name: 'Team' }];
+
+  // -- Programmatic override (highest priority) --
+
+  it('programmatic override wins over everything', () => {
+    expect(resolveActiveTagGroup(groups, 'Team', 'Priority')).toBe('Priority');
+  });
+
+  it('programmatic null means no coloring', () => {
+    expect(resolveActiveTagGroup(groups, 'Team', null)).toBeNull();
+  });
+
+  it('programmatic empty string treated as null', () => {
+    expect(resolveActiveTagGroup(groups, 'Team', '')).toBeNull();
+  });
+
+  it('programmatic "none" (case-insensitive) returns null', () => {
+    expect(resolveActiveTagGroup(groups, 'Team', 'none')).toBeNull();
+    expect(resolveActiveTagGroup(groups, 'Team', 'None')).toBeNull();
+    expect(resolveActiveTagGroup(groups, 'Team', 'NONE')).toBeNull();
+    expect(resolveActiveTagGroup(groups, 'Team', 'nOnE')).toBeNull();
+  });
+
+  // -- Diagram-level active-tag option --
+
+  it('explicit active-tag selects that group', () => {
+    expect(resolveActiveTagGroup(groups, 'Team')).toBe('Team');
+  });
+
+  it('explicit active-tag "none" (case-insensitive) returns null', () => {
+    expect(resolveActiveTagGroup(groups, 'none')).toBeNull();
+    expect(resolveActiveTagGroup(groups, 'None')).toBeNull();
+    expect(resolveActiveTagGroup(groups, 'NONE')).toBeNull();
+  });
+
+  // -- Auto-activation --
+
+  it('explicit empty string falls through to auto-activation', () => {
+    expect(resolveActiveTagGroup(groups, '')).toBe('Priority');
+  });
+
+  it('no explicit tag + tag groups present → first group name', () => {
+    expect(resolveActiveTagGroup(groups, undefined)).toBe('Priority');
+  });
+
+  it('no explicit tag + no tag groups → null', () => {
+    expect(resolveActiveTagGroup([], undefined)).toBeNull();
+  });
+
+  // -- Edge cases --
+
+  it('explicit active-tag names nonexistent group → returns name anyway', () => {
+    expect(resolveActiveTagGroup(groups, 'Nonexistent')).toBe('Nonexistent');
+  });
+
+  it('programmatic undefined falls through to explicit', () => {
+    expect(resolveActiveTagGroup(groups, 'Team', undefined)).toBe('Team');
+  });
+
+  it('programmatic undefined + no explicit → auto-activates', () => {
+    expect(resolveActiveTagGroup(groups, undefined, undefined)).toBe(
+      'Priority'
+    );
   });
 });

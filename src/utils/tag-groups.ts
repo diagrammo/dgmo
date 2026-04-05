@@ -304,6 +304,27 @@ export function validateTagValues(
   }
 }
 
+// ── Tag Group Name Validation ────────────────────────────
+
+/**
+ * Warn when a tag group uses the reserved name "none" (case-insensitive).
+ * Should be called alongside `validateTagValues()` in each parser's
+ * post-parse validation.
+ */
+export function validateTagGroupNames(
+  tagGroups: ReadonlyArray<{ name: string; lineNumber: number }>,
+  pushWarning: (lineNumber: number, message: string) => void
+): void {
+  for (const group of tagGroups) {
+    if (group.name.toLowerCase() === 'none') {
+      pushWarning(
+        group.lineNumber,
+        `'none' is a reserved keyword and cannot be used as a tag group name`
+      );
+    }
+  }
+}
+
 // ── Default Metadata Injection ────────────────────────────
 
 /**
@@ -338,6 +359,49 @@ export function injectDefaultTagMetadata(
       }
     }
   }
+}
+
+// ── Active Tag Group Resolution ──────────────────────────────
+
+/**
+ * Determine which tag group should be active, using a priority chain:
+ *
+ * 1. Programmatic override (from render API / CLI flag) — highest priority
+ * 2. Diagram-level `active-tag` option (from parsed source)
+ * 3. Auto-activate first declared tag group
+ * 4. No coloring (null)
+ *
+ * The sentinel value `"none"` (case-insensitive) at any level means
+ * "suppress tag coloring."
+ *
+ * @param tagGroups     Declared tag groups (only `.name` is used)
+ * @param explicitActiveTag  Value of `active-tag` option from parsed diagram, if any
+ * @param programmaticOverride  Value from render API / CLI; `undefined` = not set,
+ *                              `null` or `''` = explicitly no coloring
+ */
+export function resolveActiveTagGroup(
+  tagGroups: ReadonlyArray<{ name: string }>,
+  explicitActiveTag: string | undefined,
+  programmaticOverride?: string | null
+): string | null {
+  // 1. Programmatic override (highest priority)
+  if (programmaticOverride !== undefined) {
+    if (!programmaticOverride) return null; // null or ''
+    if (programmaticOverride.toLowerCase() === 'none') return null;
+    return programmaticOverride;
+  }
+
+  // 2. Diagram-level active-tag option
+  if (explicitActiveTag) {
+    if (explicitActiveTag.toLowerCase() === 'none') return null;
+    return explicitActiveTag;
+  }
+
+  // 3. Auto-activate first declared group
+  if (tagGroups.length > 0) return tagGroups[0].name;
+
+  // 4. No tag groups → no coloring
+  return null;
 }
 
 // ── Matchers ────────────────────────────────────────────────

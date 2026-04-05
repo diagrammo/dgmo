@@ -115,6 +115,7 @@ export interface GanttOptions {
   dependencies: boolean;
   sort: 'default' | 'tag';
   defaultSwimlaneGroup: string | null; // tag group name from `sort: tag:Team`
+  activeTag: string | null; // from `active-tag GroupName` or `active-tag none`
   /** Line numbers for option/block keywords — maps key to source line */
   optionLineNumbers: Record<string, number>;
   holidaysLineNumber: number | null;

@@ -36,11 +36,26 @@ import { parseVisualization, renderTimeline } from '../src/d3';
 beforeAll(() => {
   const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>');
   const win = dom.window;
-  Object.defineProperty(globalThis, 'document', { value: win.document, configurable: true });
-  Object.defineProperty(globalThis, 'window', { value: win, configurable: true });
-  Object.defineProperty(globalThis, 'navigator', { value: win.navigator, configurable: true });
-  Object.defineProperty(globalThis, 'HTMLElement', { value: win.HTMLElement, configurable: true });
-  Object.defineProperty(globalThis, 'SVGElement', { value: win.SVGElement, configurable: true });
+  Object.defineProperty(globalThis, 'document', {
+    value: win.document,
+    configurable: true,
+  });
+  Object.defineProperty(globalThis, 'window', {
+    value: win,
+    configurable: true,
+  });
+  Object.defineProperty(globalThis, 'navigator', {
+    value: win.navigator,
+    configurable: true,
+  });
+  Object.defineProperty(globalThis, 'HTMLElement', {
+    value: win.HTMLElement,
+    configurable: true,
+  });
+  Object.defineProperty(globalThis, 'SVGElement', {
+    value: win.SVGElement,
+    configurable: true,
+  });
 });
 
 const palette = getPalette('nord').light;
@@ -49,11 +64,15 @@ const palette = getPalette('nord').light;
 function assertAllLowercase(container: Element): void {
   container.querySelectorAll('[data-legend-group]').forEach((el) => {
     const val = el.getAttribute('data-legend-group')!;
-    expect(val, `data-legend-group "${val}" should be lowercase`).toBe(val.toLowerCase());
+    expect(val, `data-legend-group "${val}" should be lowercase`).toBe(
+      val.toLowerCase()
+    );
   });
   container.querySelectorAll('[data-legend-entry]').forEach((el) => {
     const val = el.getAttribute('data-legend-entry')!;
-    expect(val, `data-legend-entry "${val}" should be lowercase`).toBe(val.toLowerCase());
+    expect(val, `data-legend-entry "${val}" should be lowercase`).toBe(
+      val.toLowerCase()
+    );
   });
 }
 
@@ -68,7 +87,10 @@ function assertLegendActive(container: Element, expectedGroup: string): void {
 /** Assert [data-legend-active] is absent */
 function assertNoLegendActive(container: Element): void {
   const el = container.querySelector('[data-legend-active]');
-  expect(el, '[data-legend-active] should not exist when no activeTagGroup').toBeNull();
+  expect(
+    el,
+    '[data-legend-active] should not exist when no activeTagGroup'
+  ).toBeNull();
 }
 
 // ── Sequence ──────────────────────────────────────────────────────────────────
@@ -88,7 +110,9 @@ Alice -hello-> Bob`;
     const parsed = parseSequenceDgmo(src);
     const container = document.createElement('div');
     document.body.appendChild(container);
-    renderSequenceDiagram(container, parsed, palette, false, undefined, { exportWidth: 800 });
+    renderSequenceDiagram(container, parsed, palette, false, undefined, {
+      exportWidth: 800,
+    });
     assertAllLowercase(container);
     document.body.removeChild(container);
   });
@@ -105,12 +129,15 @@ Alice -hello-> Bob`;
     document.body.removeChild(container);
   });
 
-  it('omits data-legend-active when no activeTagGroup', () => {
+  it('auto-activates first tag group when no explicit activeTagGroup', () => {
     const parsed = parseSequenceDgmo(src);
     const container = document.createElement('div');
     document.body.appendChild(container);
-    renderSequenceDiagram(container, parsed, palette, false, undefined, { exportWidth: 800 });
-    assertNoLegendActive(container);
+    renderSequenceDiagram(container, parsed, palette, false, undefined, {
+      exportWidth: 800,
+    });
+    // Auto-activation: first declared tag group (REGION) becomes active
+    assertLegendActive(container, 'REGION');
     document.body.removeChild(container);
   });
 });
@@ -148,7 +175,16 @@ CoreSvc is a system | domain: Core`;
     Object.defineProperty(container, 'clientWidth', { value: 900 });
     Object.defineProperty(container, 'clientHeight', { value: 700 });
     document.body.appendChild(container);
-    renderC4Context(container, parsed, layout, palette, false, undefined, undefined, 'DOMAIN');
+    renderC4Context(
+      container,
+      parsed,
+      layout,
+      palette,
+      false,
+      undefined,
+      undefined,
+      'DOMAIN'
+    );
     assertLegendActive(container, 'DOMAIN');
     document.body.removeChild(container);
   });
@@ -192,7 +228,15 @@ tag PRIORITY
     const parsed = parseKanban(src, palette);
     const container = document.createElement('div');
     document.body.appendChild(container);
-    renderKanban(container, parsed, palette, false, undefined, undefined, 'PRIORITY');
+    renderKanban(
+      container,
+      parsed,
+      palette,
+      false,
+      undefined,
+      undefined,
+      'PRIORITY'
+    );
     assertLegendActive(container, 'PRIORITY');
     document.body.removeChild(container);
   });
@@ -241,7 +285,16 @@ CEO
     Object.defineProperty(container, 'clientHeight', { value: 600 });
     document.body.appendChild(container);
     // No exportDims → fixedLegend=true → data-legend-active is set
-    renderOrg(container, parsed, layout, palette, false, undefined, undefined, 'REGION');
+    renderOrg(
+      container,
+      parsed,
+      layout,
+      palette,
+      false,
+      undefined,
+      undefined,
+      'REGION'
+    );
     assertLegendActive(container, 'REGION');
     document.body.removeChild(container);
   });
@@ -293,7 +346,16 @@ Home
     Object.defineProperty(container, 'clientHeight', { value: 600 });
     document.body.appendChild(container);
     // No exportDims → fixedLegend=true → data-legend-active is set
-    renderSitemap(container, parsed, layout, palette, false, undefined, undefined, 'SECTION');
+    renderSitemap(
+      container,
+      parsed,
+      layout,
+      palette,
+      false,
+      undefined,
+      undefined,
+      'SECTION'
+    );
     assertLegendActive(container, 'SECTION');
     document.body.removeChild(container);
   });
@@ -332,9 +394,18 @@ edge
     const container = document.createElement('div');
     document.body.appendChild(container);
     renderInfra(
-      container, layout, palette, false,
-      parsed.title, parsed.titleLineNumber,
-      parsed.tagGroups, null, false, null, null, true
+      container,
+      layout,
+      palette,
+      false,
+      parsed.title,
+      parsed.titleLineNumber,
+      parsed.tagGroups,
+      null,
+      false,
+      null,
+      null,
+      true
     );
     assertAllLowercase(container);
     document.body.removeChild(container);
@@ -347,9 +418,18 @@ edge
     const container = document.createElement('div');
     document.body.appendChild(container);
     renderInfra(
-      container, layout, palette, false,
-      parsed.title, parsed.titleLineNumber,
-      parsed.tagGroups, 'TEAM', false, null, null, true
+      container,
+      layout,
+      palette,
+      false,
+      parsed.title,
+      parsed.titleLineNumber,
+      parsed.tagGroups,
+      'TEAM',
+      false,
+      null,
+      null,
+      true
     );
     assertLegendActive(container, 'TEAM');
     document.body.removeChild(container);
@@ -362,9 +442,18 @@ edge
     const container = document.createElement('div');
     document.body.appendChild(container);
     renderInfra(
-      container, layout, palette, false,
-      parsed.title, parsed.titleLineNumber,
-      parsed.tagGroups, null, false, null, null, true
+      container,
+      layout,
+      palette,
+      false,
+      parsed.title,
+      parsed.titleLineNumber,
+      parsed.tagGroups,
+      null,
+      false,
+      null,
+      null,
+      true
     );
     assertNoLegendActive(container);
     document.body.removeChild(container);
@@ -392,7 +481,10 @@ Order {
     const layout = layoutERDiagram(parsed);
     const container = document.createElement('div');
     document.body.appendChild(container);
-    renderERDiagram(container, parsed, layout, palette, false, undefined, { width: 800, height: 600 });
+    renderERDiagram(container, parsed, layout, palette, false, undefined, {
+      width: 800,
+      height: 600,
+    });
     assertAllLowercase(container);
     document.body.removeChild(container);
   });
@@ -402,7 +494,16 @@ Order {
     const layout = layoutERDiagram(parsed);
     const container = document.createElement('div');
     document.body.appendChild(container);
-    renderERDiagram(container, parsed, layout, palette, false, undefined, { width: 800, height: 600 }, 'DOMAIN');
+    renderERDiagram(
+      container,
+      parsed,
+      layout,
+      palette,
+      false,
+      undefined,
+      { width: 800, height: 600 },
+      'DOMAIN'
+    );
     assertLegendActive(container, 'DOMAIN');
     document.body.removeChild(container);
   });
@@ -412,7 +513,10 @@ Order {
     const layout = layoutERDiagram(parsed);
     const container = document.createElement('div');
     document.body.appendChild(container);
-    renderERDiagram(container, parsed, layout, palette, false, undefined, { width: 800, height: 600 });
+    renderERDiagram(container, parsed, layout, palette, false, undefined, {
+      width: 800,
+      height: 600,
+    });
     assertNoLegendActive(container);
     document.body.removeChild(container);
   });
@@ -434,7 +538,10 @@ tag STATUS
     const parsed = parseVisualization(src, palette);
     const container = document.createElement('div');
     document.body.appendChild(container);
-    renderTimeline(container, parsed, palette, false, undefined, { width: 800, height: 400 });
+    renderTimeline(container, parsed, palette, false, undefined, {
+      width: 800,
+      height: 400,
+    });
     assertAllLowercase(container);
     document.body.removeChild(container);
   });
@@ -444,8 +551,13 @@ tag STATUS
     const container = document.createElement('div');
     document.body.appendChild(container);
     renderTimeline(
-      container, parsed, palette, false, undefined,
-      { width: 800, height: 400 }, 'STATUS'
+      container,
+      parsed,
+      palette,
+      false,
+      undefined,
+      { width: 800, height: 400 },
+      'STATUS'
     );
     assertLegendActive(container, 'STATUS');
     document.body.removeChild(container);
@@ -455,7 +567,10 @@ tag STATUS
     const parsed = parseVisualization(src, palette);
     const container = document.createElement('div');
     document.body.appendChild(container);
-    renderTimeline(container, parsed, palette, false, undefined, { width: 800, height: 400 });
+    renderTimeline(container, parsed, palette, false, undefined, {
+      width: 800,
+      height: 400,
+    });
     assertNoLegendActive(container);
     document.body.removeChild(container);
   });

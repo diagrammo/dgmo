@@ -24,6 +24,7 @@ import type {
 import { isSequenceBlock, isSequenceSection, isSequenceNote } from './parser';
 import { resolveSequenceTags } from './tag-resolution';
 import type { ResolvedTagMap } from './tag-resolution';
+import { resolveActiveTagGroup } from '../utils/tag-groups';
 import { LEGEND_HEIGHT } from '../utils/legend-constants';
 import { renderLegendD3 } from '../utils/legend-d3';
 import type { LegendConfig, LegendState } from '../utils/legend-types';
@@ -918,13 +919,14 @@ export function renderSequenceDiagram(
 
   const activationsOff = parsedOptions.activations?.toLowerCase() === 'off';
 
-  // Tag resolution — compute resolved tag values and build color lookup
-  // Explicit render option wins (including null = "no active group"),
-  // then fall back to diagram-level `active-tag: Name` option for CLI/export
+  // Tag resolution — shared utility handles priority chain:
+  // programmatic override → diagram-level active-tag → auto-activate first group
   const activeTagGroup =
-    options?.activeTagGroup !== undefined
-      ? options.activeTagGroup || undefined
-      : parsedOptions['active-tag'] || undefined;
+    resolveActiveTagGroup(
+      parsed.tagGroups,
+      parsedOptions['active-tag'],
+      options?.activeTagGroup
+    ) ?? undefined;
   let tagMap: ResolvedTagMap | undefined;
   const tagValueToColor = new Map<string, string>();
   if (activeTagGroup) {

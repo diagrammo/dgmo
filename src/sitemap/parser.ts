@@ -10,6 +10,7 @@ import {
   isTagBlockHeading,
   matchTagBlockHeading,
   validateTagValues,
+  validateTagGroupNames,
   stripDefaultModifier,
 } from '../utils/tag-groups';
 import {
@@ -476,6 +477,7 @@ export function parseSitemap(
     };
     collectAll(result.roots);
     validateTagValues(allNodes, result.tagGroups, pushWarning, suggest);
+    validateTagGroupNames(result.tagGroups, pushWarning);
   }
 
   if (

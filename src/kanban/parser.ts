@@ -4,6 +4,7 @@ import { resolveColor } from '../colors';
 import {
   matchTagBlockHeading,
   stripDefaultModifier,
+  validateTagGroupNames,
 } from '../utils/tag-groups';
 import {
   measureIndent,
@@ -29,7 +30,7 @@ const COLUMN_RE = /^\[(.+?)\](?:\s*\(([^)]+)\))?\s*(?:\|\s*(.+))?$/;
 const LEGACY_COLUMN_RE = /^==\s+(.+?)\s*(?:\[wip:\s*(\d+)\])?\s*==$/;
 
 /** Known kanban options (key-value). */
-const KNOWN_OPTIONS = new Set(['hide']);
+const KNOWN_OPTIONS = new Set(['hide', 'active-tag']);
 /** Known kanban boolean options (bare keyword = on). */
 const KNOWN_BOOLEANS = new Set<string>(['no-auto-color']);
 
@@ -365,6 +366,8 @@ export function parseKanban(
   if (result.columns.length === 0 && !result.error) {
     return fail(1, 'No columns found. Use [Column Name] to define columns');
   }
+
+  validateTagGroupNames(result.tagGroups, warn);
 
   return result;
 }

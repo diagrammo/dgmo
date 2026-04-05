@@ -258,21 +258,33 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       },
     }),
   ],
-  ['er', withGlobals()],
+  [
+    'er',
+    withGlobals({
+      'active-tag': { description: 'Active tag group name' },
+    }),
+  ],
   [
     'org',
     withGlobals({
       'sub-node-label': { description: 'Label for sub-nodes' },
       'show-sub-node-count': { description: 'Show sub-node counts' },
+      'active-tag': { description: 'Active tag group name' },
     }),
   ],
   [
     'kanban',
     withGlobals({
       'no-auto-color': { description: 'Disable automatic card coloring' },
+      'active-tag': { description: 'Active tag group name' },
     }),
   ],
-  ['c4', withGlobals()],
+  [
+    'c4',
+    withGlobals({
+      'active-tag': { description: 'Active tag group name' },
+    }),
+  ],
   [
     'state',
     withGlobals({
@@ -284,6 +296,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     'sitemap',
     withGlobals({
       'direction-tb': { description: 'Switch to top-to-bottom layout' },
+      'active-tag': { description: 'Active tag group name' },
     }),
   ],
   [
@@ -298,6 +311,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'slo-availability': { description: 'SLO availability target (0-1)' },
       'slo-p90-latency-ms': { description: 'SLO p90 latency target in ms' },
       'slo-warning-margin': { description: 'SLO warning margin percentage' },
+      'active-tag': { description: 'Active tag group name' },
     }),
   ],
   [
@@ -310,6 +324,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       sort: { description: 'Sort order', values: ['time', 'group', 'tag'] },
       'critical-path': { description: 'Show critical path' },
       dependencies: { description: 'Show dependencies' },
+      'active-tag': { description: 'Active tag group name' },
     }),
   ],
   [

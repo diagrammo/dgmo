@@ -6,6 +6,7 @@ import {
   isTagBlockHeading,
   matchTagBlockHeading,
   validateTagValues,
+  validateTagGroupNames,
   stripDefaultModifier,
 } from '../utils/tag-groups';
 import {
@@ -54,6 +55,7 @@ const KNOWN_OPTIONS = new Set([
   'sub-node-label',
   'hide',
   'show-sub-node-count',
+  'active-tag',
 ]);
 /** Known org chart boolean options (bare keyword = on). */
 const KNOWN_BOOLEANS = new Set(['show-sub-node-count', 'direction-tb']);
@@ -344,6 +346,7 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
     collectAll(result.roots);
 
     validateTagValues(allNodes, result.tagGroups, pushWarning, suggest);
+    validateTagGroupNames(result.tagGroups, pushWarning);
   }
 
   if (

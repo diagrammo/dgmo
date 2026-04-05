@@ -193,7 +193,9 @@ import {
 import {
   matchTagBlockHeading,
   validateTagValues,
+  validateTagGroupNames,
   resolveTagColor,
+  resolveActiveTagGroup,
   stripDefaultModifier,
 } from './utils/tag-groups';
 import type { TagGroup } from './utils/tag-groups';
@@ -1476,6 +1478,9 @@ export function parseVisualization(
         (line, msg) =>
           result.diagnostics.push(makeDgmoError(line, msg, 'warning')),
         suggest
+      );
+      validateTagGroupNames(result.timelineTagGroups, (line, msg) =>
+        result.diagnostics.push(makeDgmoError(line, msg, 'warning'))
       );
       for (const group of result.timelineTagGroups) {
         if (!group.defaultValue) continue;
@@ -6693,8 +6698,11 @@ export async function renderForExport(
 
     // Apply interactive collapse state when provided
     const collapsedNodes = orgExportState?.collapsedNodes;
-    const activeTagGroup =
-      orgExportState?.activeTagGroup ?? options?.tagGroup ?? null;
+    const activeTagGroup = resolveActiveTagGroup(
+      orgParsed.tagGroups,
+      orgParsed.options['active-tag'],
+      orgExportState?.activeTagGroup ?? options?.tagGroup
+    );
     const hiddenAttributes = orgExportState?.hiddenAttributes;
 
     const { parsed: effectiveParsed, hiddenCounts } =
@@ -6744,8 +6752,11 @@ export async function renderForExport(
 
     // Apply interactive collapse state when provided
     const collapsedNodes = orgExportState?.collapsedNodes;
-    const activeTagGroup =
-      orgExportState?.activeTagGroup ?? options?.tagGroup ?? null;
+    const activeTagGroup = resolveActiveTagGroup(
+      sitemapParsed.tagGroups,
+      sitemapParsed.options['active-tag'],
+      orgExportState?.activeTagGroup ?? options?.tagGroup
+    );
     const hiddenAttributes = orgExportState?.hiddenAttributes;
 
     const { parsed: effectiveParsed, hiddenCounts } =
@@ -6802,7 +6813,11 @@ export async function renderForExport(
       theme === 'dark',
       undefined,
       undefined,
-      options?.tagGroup
+      resolveActiveTagGroup(
+        kanbanParsed.tagGroups,
+        kanbanParsed.options['active-tag'],
+        options?.tagGroup
+      )
     );
     return finalizeSvgExport(container, theme, effectivePalette, options);
   }
@@ -6859,7 +6874,11 @@ export async function renderForExport(
       theme === 'dark',
       undefined,
       { width: exportWidth, height: exportHeight },
-      options?.tagGroup
+      resolveActiveTagGroup(
+        erParsed.tagGroups,
+        erParsed.options['active-tag'],
+        options?.tagGroup
+      )
     );
     return finalizeSvgExport(container, theme, effectivePalette, options);
   }
@@ -6887,7 +6906,10 @@ export async function renderForExport(
       blLayout,
       effectivePalette,
       theme === 'dark',
-      { exportDims: { width: exportWidth, height: exportHeight } }
+      {
+        exportDims: { width: exportWidth, height: exportHeight },
+        activeTagGroup: options?.tagGroup,
+      }
     );
     return finalizeSvgExport(container, theme, effectivePalette, options);
   }
@@ -6944,7 +6966,11 @@ export async function renderForExport(
       theme === 'dark',
       undefined,
       { width: exportWidth, height: exportHeight },
-      options?.tagGroup
+      resolveActiveTagGroup(
+        c4Parsed.tagGroups,
+        c4Parsed.options['active-tag'],
+        options?.tagGroup
+      )
     );
     return finalizeSvgExport(container, theme, effectivePalette, options);
   }
@@ -6986,7 +7012,11 @@ export async function renderForExport(
 
     const infraComputed = computeInfra(infraParsed);
     const infraLayout = layoutInfra(infraComputed);
-    const activeTagGroup = options?.tagGroup ?? null;
+    const activeTagGroup = resolveActiveTagGroup(
+      infraParsed.tagGroups,
+      infraParsed.options['active-tag'],
+      options?.tagGroup
+    );
 
     const titleOffset = infraParsed.title ? 40 : 0;
     const legendGroups = computeInfraLegendGroups(
@@ -7139,7 +7169,11 @@ export async function renderForExport(
       isDark,
       undefined,
       dims,
-      orgExportState?.activeTagGroup ?? options?.tagGroup,
+      resolveActiveTagGroup(
+        parsed.timelineTagGroups,
+        undefined,
+        orgExportState?.activeTagGroup ?? options?.tagGroup
+      ),
       orgExportState?.swimlaneTagGroup
     );
   } else if (parsed.type === 'venn') {

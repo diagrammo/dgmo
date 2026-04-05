@@ -8,6 +8,7 @@ import type { TagGroup } from '../utils/tag-groups';
 import {
   matchTagBlockHeading,
   stripDefaultModifier,
+  validateTagGroupNames,
 } from '../utils/tag-groups';
 import {
   measureIndent,
@@ -134,6 +135,7 @@ export function parseGantt(
       dependencies: true,
       sort: 'default',
       defaultSwimlaneGroup: null,
+      activeTag: null,
       optionLineNumbers: {},
       holidaysLineNumber: null,
     },
@@ -645,6 +647,9 @@ export function parseGantt(
             );
           }
           break;
+        case 'active-tag':
+          result.options.activeTag = value;
+          break;
       }
       continue;
     }
@@ -872,6 +877,8 @@ export function parseGantt(
     result.options.sort = 'default';
   }
 
+  validateTagGroupNames(result.tagGroups, warn);
+
   return result;
 
   // ── Helper: create a task ───────────────────────────────
@@ -1033,6 +1040,7 @@ const KNOWN_OPTIONS = new Set([
   'dependencies',
   'chart',
   'sort',
+  'active-tag',
 ]);
 
 /** Boolean options that can appear as bare keywords or with `no-` prefix. */

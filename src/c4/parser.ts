@@ -8,6 +8,7 @@ import type { TagGroup } from '../utils/tag-groups';
 import {
   matchTagBlockHeading,
   stripDefaultModifier,
+  validateTagGroupNames,
 } from '../utils/tag-groups';
 import { inferParticipantType } from '../sequence/participant-inference';
 import {
@@ -84,7 +85,7 @@ const VALID_SHAPES = new Set<string>([
 ]);
 
 /** Known top-level option keys for C4 diagrams. */
-const KNOWN_C4_OPTIONS = new Set<string>(['layout']);
+const KNOWN_C4_OPTIONS = new Set<string>(['layout', 'active-tag']);
 
 /** Known C4 boolean options (bare keyword = on). */
 const KNOWN_C4_BOOLEANS = new Set<string>(['direction-tb']);
@@ -829,6 +830,9 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
   // ── Post-parse validation ───────────────────────────────
   validateRelationshipTargets(result, knownNames, pushError);
   validateDeploymentRefs(result, knownNames, pushError);
+  validateTagGroupNames(result.tagGroups, (line, msg) =>
+    pushError(line, msg, 'warning')
+  );
 
   return result;
 }

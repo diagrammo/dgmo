@@ -7,7 +7,7 @@ import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
 import { getSeriesColors } from '../palettes';
 import { mix } from '../palettes/color-utils';
-import { resolveTagColor } from '../utils/tag-groups';
+import { resolveTagColor, resolveActiveTagGroup } from '../utils/tag-groups';
 import { computeTimeTicks } from '../d3';
 import {
   LEGEND_HEIGHT,
@@ -227,12 +227,11 @@ export function renderGantt(
   // ── Compute layout dimensions ───────────────────────────
 
   const seriesColors = getSeriesColors(palette);
-  let currentActiveGroup: string | null =
-    options?.currentActiveGroup !== undefined
-      ? options.currentActiveGroup
-      : resolved.tagGroups.length > 0
-        ? resolved.tagGroups[0].name
-        : null;
+  let currentActiveGroup: string | null = resolveActiveTagGroup(
+    resolved.tagGroups,
+    resolved.options.activeTag ?? undefined,
+    options?.currentActiveGroup
+  );
   let criticalPathActive = false;
 
   // ── Build row list (structural vs tag mode) ─────────────

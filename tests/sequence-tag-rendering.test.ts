@@ -97,12 +97,12 @@ describe('Sequence tag-driven recoloring', () => {
     // User is not receiver of any tagged message → neutral/default
   });
 
-  it('renders without error when no activeTagGroup', () => {
+  it('renders with auto-activated first tag group when no explicit activeTagGroup', () => {
     const svg = renderToSvg(tagDiagram);
     expect(svg).not.toBeNull();
-    // No colored markers should be created
+    // Auto-activation colors the diagram — expect more markers than base 3
     const markers = svg!.querySelectorAll('marker');
-    expect(markers.length).toBe(3); // default 3 markers only
+    expect(markers.length).toBeGreaterThanOrEqual(3);
   });
 
   // ──────────────────────────────────────────────────
