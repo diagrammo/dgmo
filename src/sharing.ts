@@ -3,7 +3,7 @@ import {
   decompressFromEncodedURIComponent,
 } from 'lz-string';
 
-const DEFAULT_BASE_URL = 'https://diagrammo.app/view';
+const DEFAULT_BASE_URL = 'https://online.diagrammo.app';
 const COMPRESSED_SIZE_LIMIT = 8192; // 8 KB
 
 export interface DiagramViewState {
@@ -27,7 +27,12 @@ export interface EncodeDiagramUrlOptions {
 
 export type EncodeDiagramUrlResult =
   | { url: string; error?: undefined }
-  | { url?: undefined; error: 'too-large'; compressedSize: number; limit: number };
+  | {
+      url?: undefined;
+      error: 'too-large';
+      compressedSize: number;
+      limit: number;
+    };
 
 /**
  * Compress a DGMO DSL string into a shareable URL.
@@ -36,14 +41,18 @@ export type EncodeDiagramUrlResult =
  */
 export function encodeDiagramUrl(
   dsl: string,
-  options?: EncodeDiagramUrlOptions,
+  options?: EncodeDiagramUrlOptions
 ): EncodeDiagramUrlResult {
   const baseUrl = options?.baseUrl ?? DEFAULT_BASE_URL;
   const compressed = compressToEncodedURIComponent(dsl);
   const byteSize = new TextEncoder().encode(compressed).byteLength;
 
   if (byteSize > COMPRESSED_SIZE_LIMIT) {
-    return { error: 'too-large', compressedSize: byteSize, limit: COMPRESSED_SIZE_LIMIT };
+    return {
+      error: 'too-large',
+      compressedSize: byteSize,
+      limit: COMPRESSED_SIZE_LIMIT,
+    };
   }
 
   let hash = `dgmo=${compressed}`;
@@ -124,7 +133,8 @@ export function decodeDiagramUrl(hash: string): DecodedDiagramUrl {
       viewState.collapsedLanes = val.split(',').filter(Boolean);
     }
     if (key === 'pal' && val) viewState.palette = val;
-    if (key === 'th' && (val === 'light' || val === 'dark')) viewState.theme = val;
+    if (key === 'th' && (val === 'light' || val === 'dark'))
+      viewState.theme = val;
   }
 
   // Strip 'dgmo=' prefix

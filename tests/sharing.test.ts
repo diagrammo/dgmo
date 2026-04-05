@@ -32,7 +32,7 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
     const result = encodeDiagramUrl('pie\nA: 10');
     if (result.error) throw new Error('unexpected error');
     expect(result.url).toMatch(
-      /^https:\/\/diagrammo\.app\/view\?dgmo=.+#dgmo=/
+      /^https:\/\/online\.diagrammo\.app\?dgmo=.+#dgmo=/
     );
   });
 
