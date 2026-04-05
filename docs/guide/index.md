@@ -1,8 +1,8 @@
 # Welcome to Diagrammo
 
-Diagrammo is a desktop diagram editor for creating charts and diagrams with a simple plain-text syntax. Write a few lines of text — get a polished, theme-aware diagram.
+Diagrammo is a diagram editor for creating charts and diagrams with a simple plain-text syntax. Write a few lines of text — get a polished, theme-aware diagram. Available as a [desktop app](https://diagrammo.app/app) and [online editor](https://online.diagrammo.app).
 
-Learn more and download at **[diagrammo.app](https://diagrammo.app)**.
+Learn more at **[diagrammo.app](https://diagrammo.app)**.
 
 ## Getting Started
 
@@ -25,7 +25,11 @@ Mar: 71
 
 ### Desktop App
 
-That's this — a native Mac app for authoring `.dgmo` files with a live preview editor, file tree, and export.
+A native Mac app for authoring `.dgmo` files with a live preview editor, file tree, and export. Download at [diagrammo.app/app](https://diagrammo.app/app).
+
+### Online Editor
+
+The full Diagrammo experience in your browser at [online.diagrammo.app](https://online.diagrammo.app). Your diagrams are stored in your browser's [Origin Private File System (OPFS)](https://developer.mozilla.org/en-US/docs/Web/API/File_System_API/Origin_private_file_system) — they persist across sessions, but clearing browser data will remove them.
 
 ### CLI Tool
 
