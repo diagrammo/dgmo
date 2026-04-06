@@ -24,17 +24,17 @@ const inlineJsdomStylesheet: Plugin = {
     build.onLoad(
       {
         filter:
-          /jsdom[\\/]lib[\\/]jsdom[\\/]living[\\/]helpers[\\/]style-rules\.js$/,
+          /jsdom[\\/]lib[\\/]jsdom[\\/]living[\\/]css[\\/]helpers[\\/]computed-style\.js$/,
       },
       async (args) => {
         const cssPath = resolve(
           dirname(args.path),
-          '../../browser/default-stylesheet.css'
+          '../../../browser/default-stylesheet.css'
         );
         const css = await readFile(cssPath, 'utf8');
         let contents = await readFile(args.path, 'utf8');
         contents = contents.replace(
-          /const defaultStyleSheet = fs\.readFileSync\(\s*path\.resolve\(__dirname,\s*"\.\.\/\.\.\/browser\/default-stylesheet\.css"\),\s*\{\s*encoding:\s*"utf-8"\s*\}\s*\);/,
+          /const defaultStyleSheet = fs\.readFileSync\(\s*path\.resolve\(__dirname,\s*"\.\.\/\.\.\/\.\.\/browser\/default-stylesheet\.css"\),\s*\{\s*encoding:\s*"utf-8"\s*\}\s*\);/,
           `const defaultStyleSheet = ${JSON.stringify(css)};`
         );
         return { contents, loader: 'js' };
@@ -83,8 +83,8 @@ export default defineConfig([
     sourcemap: false,
     splitting: false,
     banner: { js: '#!/usr/bin/env node' },
-    noExternal: [/^(?!@resvg\/)/],
-    external: ['@resvg/resvg-js'],
+    noExternal: [/^(?!@resvg\/|jsdom$)/],
+    external: ['@resvg/resvg-js', 'jsdom'],
     minify: true,
     esbuildPlugins: [fixJsdomXhrWorker, inlineJsdomStylesheet],
   },

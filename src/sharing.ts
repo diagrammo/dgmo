@@ -1,7 +1,6 @@
-import {
-  compressToEncodedURIComponent,
-  decompressFromEncodedURIComponent,
-} from 'lz-string';
+import lzString from 'lz-string';
+const { compressToEncodedURIComponent, decompressFromEncodedURIComponent } =
+  lzString;
 
 const DEFAULT_BASE_URL = 'https://online.diagrammo.app';
 const COMPRESSED_SIZE_LIMIT = 8192; // 8 KB
