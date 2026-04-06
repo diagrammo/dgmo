@@ -72,7 +72,8 @@ function parseArrowLine(
       ? (resolveColor(arrowMatch[2].trim(), palette) ?? undefined)
       : undefined;
     if (label && !color) {
-      color = inferArrowColor(label);
+      const inferred = inferArrowColor(label);
+      if (inferred) color = resolveColor(inferred, palette) ?? undefined;
     }
     const rawTarget = arrowMatch[3].trim();
     const groupMatch = rawTarget.match(/^\[(.+)\]$/);

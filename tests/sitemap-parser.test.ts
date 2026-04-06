@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { parseSitemap, looksLikeSitemap } from '../src/sitemap/parser';
+import { resolveColor } from '../src/colors';
+import { getPalette } from '../src/palettes';
 
 describe('parseSitemap', () => {
   // === Chart type ===
@@ -250,24 +252,31 @@ describe('parseSitemap', () => {
 
   // === Arrow color inference ===
   describe('arrow color inference', () => {
-    it('-yes-> infers green', () => {
+    // Inferred colors are resolved through the active palette so they match
+    // the diagram's palette rather than raw CSS "green"/"red".
+    const greenHex = resolveColor('green', getPalette('nord').light);
+    const redHex = resolveColor('red', getPalette('nord').light);
+    const orangeHex = resolveColor('orange', getPalette('nord').light);
+    const blueHex = resolveColor('blue', getPalette('nord').light);
+
+    it('-yes-> infers palette green', () => {
       const result = parseSitemap('Home\n  -yes-> About\nAbout');
-      expect(result.edges[0].color).toBe('green');
+      expect(result.edges[0].color).toBe(greenHex);
     });
 
-    it('-no-> infers red', () => {
+    it('-no-> infers palette red', () => {
       const result = parseSitemap('Home\n  -no-> About\nAbout');
-      expect(result.edges[0].color).toBe('red');
+      expect(result.edges[0].color).toBe(redHex);
     });
 
-    it('-maybe-> infers orange', () => {
+    it('-maybe-> infers palette orange', () => {
       const result = parseSitemap('Home\n  -maybe-> About\nAbout');
-      expect(result.edges[0].color).toBe('orange');
+      expect(result.edges[0].color).toBe(orangeHex);
     });
 
-    it('-YES-> infers green (case-insensitive)', () => {
+    it('-YES-> infers palette green (case-insensitive)', () => {
       const result = parseSitemap('Home\n  -YES-> About\nAbout');
-      expect(result.edges[0].color).toBe('green');
+      expect(result.edges[0].color).toBe(greenHex);
     });
 
     it('-yesterday-> does NOT infer color (not exact match)', () => {
@@ -277,18 +286,18 @@ describe('parseSitemap', () => {
 
     it('-no(blue)-> uses explicit blue, not inferred red', () => {
       const result = parseSitemap('Home\n  -no(blue)-> About\nAbout');
-      expect(result.edges[0].color).toBeDefined();
-      expect(result.edges[0].color).not.toBe('red');
+      expect(result.edges[0].color).toBe(blueHex);
+      expect(result.edges[0].color).not.toBe(redHex);
     });
 
-    it('-success-> infers green', () => {
+    it('-success-> infers palette green', () => {
       const result = parseSitemap('Home\n  -success-> About\nAbout');
-      expect(result.edges[0].color).toBe('green');
+      expect(result.edges[0].color).toBe(greenHex);
     });
 
-    it('-error-> infers red', () => {
+    it('-error-> infers palette red', () => {
       const result = parseSitemap('Home\n  -error-> About\nAbout');
-      expect(result.edges[0].color).toBe('red');
+      expect(result.edges[0].color).toBe(redHex);
     });
   });
 

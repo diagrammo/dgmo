@@ -3,6 +3,8 @@ import {
   parseFlowchart,
   looksLikeFlowchart,
 } from '../src/graph/flowchart-parser';
+import { resolveColor } from '../src/colors';
+import { getPalette } from '../src/palettes';
 
 describe('parseFlowchart', () => {
   // === AC 11: Metadata ===
@@ -130,24 +132,33 @@ describe('parseFlowchart', () => {
 
   // === Arrow color inference ===
   describe('arrow color inference', () => {
-    it('-yes-> infers green', () => {
+    // Inferred colors are resolved through the active palette so they match
+    // the rest of the diagram (no raw CSS "green"/"red"). We assert that the
+    // resolved color for yes/success matches the resolved color for "green",
+    // etc., rather than the literal string.
+    const greenHex = resolveColor('green', getPalette('nord').light);
+    const redHex = resolveColor('red', getPalette('nord').light);
+    const orangeHex = resolveColor('orange', getPalette('nord').light);
+    const blueHex = resolveColor('blue', getPalette('nord').light);
+
+    it('-yes-> infers palette green', () => {
       const result = parseFlowchart('[A] -yes-> [B]');
-      expect(result.edges[0].color).toBe('green');
+      expect(result.edges[0].color).toBe(greenHex);
     });
 
-    it('-no-> infers red', () => {
+    it('-no-> infers palette red', () => {
       const result = parseFlowchart('[A] -no-> [B]');
-      expect(result.edges[0].color).toBe('red');
+      expect(result.edges[0].color).toBe(redHex);
     });
 
-    it('-maybe-> infers orange', () => {
+    it('-maybe-> infers palette orange', () => {
       const result = parseFlowchart('[A] -maybe-> [B]');
-      expect(result.edges[0].color).toBe('orange');
+      expect(result.edges[0].color).toBe(orangeHex);
     });
 
-    it('-YES-> infers green (case-insensitive)', () => {
+    it('-YES-> infers palette green (case-insensitive)', () => {
       const result = parseFlowchart('[A] -YES-> [B]');
-      expect(result.edges[0].color).toBe('green');
+      expect(result.edges[0].color).toBe(greenHex);
     });
 
     it('-yesterday-> does NOT infer color (not exact match)', () => {
@@ -157,18 +168,18 @@ describe('parseFlowchart', () => {
 
     it('-no(blue)-> uses explicit blue, not inferred red', () => {
       const result = parseFlowchart('[A] -no(blue)-> [B]');
-      expect(result.edges[0].color).toBeDefined();
-      expect(result.edges[0].color).not.toBe('red');
+      expect(result.edges[0].color).toBe(blueHex);
+      expect(result.edges[0].color).not.toBe(redHex);
     });
 
-    it('-success-> infers green', () => {
+    it('-success-> infers palette green', () => {
       const result = parseFlowchart('[A] -success-> [B]');
-      expect(result.edges[0].color).toBe('green');
+      expect(result.edges[0].color).toBe(greenHex);
     });
 
-    it('-error-> infers red', () => {
+    it('-error-> infers palette red', () => {
       const result = parseFlowchart('[A] -error-> [B]');
-      expect(result.edges[0].color).toBe('red');
+      expect(result.edges[0].color).toBe(redHex);
     });
   });
 
