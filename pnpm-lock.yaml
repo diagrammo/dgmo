@@ -44,6 +44,9 @@ importers:
       echarts:
         specifier: ^6.0.0
         version: 6.0.0
+      jsdom:
+        specifier: ^29.0.1
+        version: 29.0.1
       lz-string:
         specifier: ^1.5.0
         version: 1.5.0
@@ -93,9 +96,6 @@ importers:
       jscpd:
         specifier: ^4.0.8
         version: 4.0.8
-      jsdom:
-        specifier: ^29.0.1
-        version: 29.0.1
       knip:
         specifier: ^6.3.0
         version: 6.3.0(@emnapi/core@1.9.1)(@emnapi/runtime@1.9.1)
