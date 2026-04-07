@@ -17,11 +17,13 @@ export interface DiagramViewState {
 export interface DecodedDiagramUrl {
   dsl: string;
   viewState: DiagramViewState;
+  filename?: string;
 }
 
 export interface EncodeDiagramUrlOptions {
   baseUrl?: string;
   viewState?: DiagramViewState;
+  filename?: string;
 }
 
 export type EncodeDiagramUrlResult =
@@ -80,6 +82,10 @@ export function encodeDiagramUrl(
     hash += `&th=${encodeURIComponent(options.viewState.theme)}`;
   }
 
+  if (options?.filename) {
+    hash += `&fn=${encodeURIComponent(options.filename)}`;
+  }
+
   // Encode in both query param AND hash fragment — some share mechanisms
   // strip one or the other (iOS share sheet strips #, AirDrop strips ?)
   return { url: `${baseUrl}?${hash}#${hash}` };
@@ -97,6 +103,7 @@ export function encodeDiagramUrl(
  */
 export function decodeDiagramUrl(hash: string): DecodedDiagramUrl {
   const empty: DecodedDiagramUrl = { dsl: '', viewState: {} };
+  let filename: string | undefined;
   if (!hash) return empty;
 
   let raw = hash;
@@ -134,6 +141,7 @@ export function decodeDiagramUrl(hash: string): DecodedDiagramUrl {
     if (key === 'pal' && val) viewState.palette = val;
     if (key === 'th' && (val === 'light' || val === 'dark'))
       viewState.theme = val;
+    if (key === 'fn' && val) filename = val;
   }
 
   // Strip 'dgmo=' prefix
@@ -141,12 +149,12 @@ export function decodeDiagramUrl(hash: string): DecodedDiagramUrl {
     payload = payload.slice(5);
   }
 
-  if (!payload) return { dsl: '', viewState };
+  if (!payload) return { dsl: '', viewState, filename };
 
   try {
     const result = decompressFromEncodedURIComponent(payload);
-    return { dsl: result ?? '', viewState };
+    return { dsl: result ?? '', viewState, filename };
   } catch {
-    return { dsl: '', viewState };
+    return { dsl: '', viewState, filename };
   }
 }
