@@ -7,6 +7,7 @@
 // and connections, [Group] containers, tag groups, pipe metadata.
 
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
+import { resolveColorWithDiagnostic } from '../colors';
 import {
   measureIndent,
   parseFirstLine,
@@ -349,9 +350,14 @@ export function parseInfra(content: string): ParsedInfra {
       const tvMatch = cleanEntry.match(TAG_VALUE_RE);
       if (tvMatch) {
         const valueName = tvMatch[1].trim();
+        const rawColor = tvMatch[2]?.trim();
+        if (rawColor) {
+          // Validate the color name; emit diagnostic if invalid
+          resolveColorWithDiagnostic(rawColor, lineNumber, result.diagnostics);
+        }
         currentTagGroup.values.push({
           name: valueName,
-          color: tvMatch[2]?.trim(),
+          color: rawColor,
         });
         if (isDefault) {
           currentTagGroup.defaultValue = valueName;

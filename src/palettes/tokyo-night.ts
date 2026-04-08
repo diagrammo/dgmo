@@ -48,6 +48,8 @@ export const tokyoNightPalette: PaletteConfig = {
       teal: '#118c74',
       cyan: '#007197',
       gray: '#8990b3', // Day dark3
+      black: '#1a1b26',
+      white: '#d0d5e3',
     },
   },
   dark: {
@@ -71,6 +73,8 @@ export const tokyoNightPalette: PaletteConfig = {
       teal: '#1abc9c',
       cyan: '#7dcfff',
       gray: '#565f89', // Night comment
+      black: '#292e42',
+      white: '#c0caf5',
     },
   },
 };

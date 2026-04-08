@@ -47,6 +47,8 @@ export const gruvboxPalette: PaletteConfig = {
       teal: '#427b58', // faded aqua
       cyan: '#427b58', // faded aqua
       gray: '#928374',
+      black: '#3c3836',
+      white: '#ebdbb2',
     },
   },
   dark: {
@@ -70,6 +72,8 @@ export const gruvboxPalette: PaletteConfig = {
       teal: '#8ec07c', // bright aqua
       cyan: '#8ec07c', // bright aqua
       gray: '#928374',
+      black: '#3c3836',
+      white: '#ebdbb2',
     },
   },
 };

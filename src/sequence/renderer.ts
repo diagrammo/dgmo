@@ -12,7 +12,6 @@ import {
 } from '../utils/inline-markdown';
 export { parseInlineMarkdown, truncateBareUrl };
 import { FONT_FAMILY } from '../fonts';
-import { resolveColor } from '../colors';
 import type {
   ParsedSequenceDgmo,
   SequenceElement,
@@ -936,10 +935,7 @@ export function renderSequenceDiagram(
     );
     if (tg) {
       for (const entry of tg.entries) {
-        tagValueToColor.set(
-          entry.value.toLowerCase(),
-          resolveColor(entry.color) ?? entry.color
-        );
+        tagValueToColor.set(entry.value.toLowerCase(), entry.color);
       }
     }
   }
@@ -1598,7 +1594,7 @@ export function renderSequenceDiagram(
         name: tg.name,
         entries: tg.entries.map((e) => ({
           value: e.value,
-          color: resolveColor(e.color) ?? e.color,
+          color: e.color,
         })),
       }));
     const legendConfig: LegendConfig = {

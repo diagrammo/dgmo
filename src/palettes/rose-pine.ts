@@ -46,6 +46,8 @@ export const rosePinePalette: PaletteConfig = {
       teal: '#286983', // Pine
       cyan: '#56949f', // Foam
       gray: '#9893a5', // Muted
+      black: '#575279',
+      white: '#fffaf3',
     },
   },
   dark: {
@@ -69,6 +71,8 @@ export const rosePinePalette: PaletteConfig = {
       teal: '#3e8fb0', // Pine
       cyan: '#9ccfd8', // Foam
       gray: '#6e6a86', // Muted
+      black: '#2a273f',
+      white: '#e0def4',
     },
   },
 };

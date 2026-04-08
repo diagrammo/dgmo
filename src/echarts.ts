@@ -105,7 +105,7 @@ import { mix } from './palettes/color-utils';
 import { parseChart } from './chart';
 import type { ParsedChart, ChartEra } from './chart';
 import { makeDgmoError, formatDgmoError, suggest } from './diagnostics';
-import { resolveColor } from './colors';
+import { resolveColorWithDiagnostic } from './colors';
 import {
   collectIndentedValues,
   extractColor,
@@ -300,7 +300,12 @@ export function parseExtendedChart(
     if (categoryMatch) {
       const catName = categoryMatch[1].trim();
       const catColor = categoryMatch[2]
-        ? resolveColor(categoryMatch[2].trim(), palette)
+        ? (resolveColorWithDiagnostic(
+            categoryMatch[2].trim(),
+            lineNumber,
+            result.diagnostics,
+            palette
+          ) ?? null)
         : null;
       if (catColor) {
         if (!result.categoryColors) result.categoryColors = {};
@@ -332,7 +337,12 @@ export function parseExtendedChart(
         if (targetColor) result.nodeColors[target] = targetColor;
       }
       const linkColor = rawLinkColor
-        ? resolveColor(rawLinkColor.trim(), palette)
+        ? resolveColorWithDiagnostic(
+            rawLinkColor.trim(),
+            lineNumber,
+            result.diagnostics,
+            palette
+          )
         : undefined;
       if (!result.links) result.links = [];
       result.links.push({
@@ -368,7 +378,12 @@ export function parseExtendedChart(
           if (dataRow && dataRow.values.length === 1) {
             const source = sankeyStack.at(-1)!.name;
             const linkColor = valColorMatch?.[2]
-              ? resolveColor(valColorMatch[2].trim(), palette)
+              ? resolveColorWithDiagnostic(
+                  valColorMatch[2].trim(),
+                  lineNumber,
+                  result.diagnostics,
+                  palette
+                )
               : undefined;
             const { label: target, color: targetColor } = extractColor(
               dataRow.label,

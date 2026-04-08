@@ -3,7 +3,8 @@
 // ============================================================
 
 import type { PaletteColors } from '../palettes';
-import { resolveColor } from '../colors';
+import { resolveColorWithDiagnostic } from '../colors';
+import type { DgmoError } from '../diagnostics';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
 import type { TagGroup } from '../utils/tag-groups';
 import {
@@ -46,7 +47,9 @@ const BARE_ARROW_RE = /^->\s*(.+)$/;
 
 function parseArrowLine(
   trimmed: string,
-  palette?: PaletteColors
+  palette: PaletteColors | undefined,
+  lineNumber: number,
+  diagnostics: DgmoError[]
 ): {
   label?: string;
   color?: string;
@@ -69,11 +72,22 @@ function parseArrowLine(
   if (arrowMatch) {
     const label = arrowMatch[1]?.trim() || undefined;
     let color = arrowMatch[2]
-      ? (resolveColor(arrowMatch[2].trim(), palette) ?? undefined)
+      ? resolveColorWithDiagnostic(
+          arrowMatch[2].trim(),
+          lineNumber,
+          diagnostics,
+          palette
+        )
       : undefined;
     if (label && !color) {
       const inferred = inferArrowColor(label);
-      if (inferred) color = resolveColor(inferred, palette) ?? undefined;
+      if (inferred)
+        color = resolveColorWithDiagnostic(
+          inferred,
+          lineNumber,
+          diagnostics,
+          palette
+        );
     }
     const rawTarget = arrowMatch[3].trim();
     const groupMatch = rawTarget.match(/^\[(.+)\]$/);
@@ -322,7 +336,12 @@ export function parseSitemap(
 
     // Check for arrow syntax (must check before metadata — arrows contain `:` in labels
     // but also start with `-`)
-    const arrowInfo = parseArrowLine(trimmed, palette);
+    const arrowInfo = parseArrowLine(
+      trimmed,
+      palette,
+      lineNumber,
+      result.diagnostics
+    );
     if (arrowInfo) {
       // Find the source node: the most recent node on the indent stack
       // at a shallower indent (same pattern as metadata attachment)
@@ -352,7 +371,12 @@ export function parseSitemap(
 
     if (containerMatch) {
       const rawLabel = containerMatch[1].trim();
-      const { label, color } = extractColor(rawLabel, palette);
+      const { label, color } = extractColor(
+        rawLabel,
+        palette,
+        result.diagnostics,
+        lineNumber
+      );
 
       // Parse optional pipe metadata on the container line
       const pipeStr = containerMatch[2];
@@ -402,7 +426,8 @@ export function parseSitemap(
           palette,
           ++nodeCounter,
           aliasMap,
-          pushWarning
+          pushWarning,
+          result.diagnostics
         );
         attachNode(node, indent, indentStack, result);
         labelToNode.set(node.label.toLowerCase(), node);
@@ -417,7 +442,8 @@ export function parseSitemap(
         palette,
         ++nodeCounter,
         aliasMap,
-        pushWarning
+        pushWarning,
+        result.diagnostics
       );
       attachNode(node, indent, indentStack, result);
       labelToNode.set(node.label.toLowerCase(), node);
@@ -504,11 +530,17 @@ function parseNodeLabel(
   palette: PaletteColors | undefined,
   counter: number,
   aliasMap: Map<string, string> = new Map(),
-  warnFn?: (line: number, msg: string) => void
+  warnFn?: (line: number, msg: string) => void,
+  diagnostics?: DgmoError[]
 ): SitemapNode {
   const segments = trimmed.split('|').map((s) => s.trim());
   const rawLabel = segments[0];
-  const { label, color } = extractColor(rawLabel, palette);
+  const { label, color } = extractColor(
+    rawLabel,
+    palette,
+    diagnostics,
+    lineNumber
+  );
   const metadata = parsePipeMetadata(
     segments,
     aliasMap,

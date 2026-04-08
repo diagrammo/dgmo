@@ -3,7 +3,7 @@
 // Parses dgmo quadrant syntax and generates valid Mermaid code.
 // ============================================================
 
-import { resolveColor } from './colors';
+import { resolveColorWithDiagnostic } from './colors';
 import type { DgmoError } from './diagnostics';
 import { makeDgmoError, formatDgmoError } from './diagnostics';
 
@@ -127,7 +127,13 @@ export function parseQuadrant(content: string): ParsedQuadrant {
       if (labelMatch) {
         const label: QuadrantLabel = {
           text: labelMatch[1].trim(),
-          color: labelMatch[2] ? resolveColor(labelMatch[2].trim()) : null,
+          color: labelMatch[2]
+            ? (resolveColorWithDiagnostic(
+                labelMatch[2].trim(),
+                lineNumber,
+                result.diagnostics
+              ) ?? null)
+            : null,
           lineNumber,
         };
         if (position === 'top-right') result.quadrants.topRight = label;

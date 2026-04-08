@@ -604,7 +604,12 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     // First entry is the default unless another is marked `default`
     if (currentTagGroup && !contentStarted && measureIndent(raw) > 0) {
       const { text: cleanEntry, isDefault } = stripDefaultModifier(trimmed);
-      const { label, color } = extractColor(cleanEntry);
+      const { label, color } = extractColor(
+        cleanEntry,
+        undefined,
+        result.diagnostics,
+        lineNumber
+      );
       if (!color) {
         pushError(
           lineNumber,

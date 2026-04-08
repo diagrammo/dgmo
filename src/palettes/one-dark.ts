@@ -31,6 +31,8 @@ export const oneDarkPalette: PaletteConfig = {
       teal: '#0184bc',
       cyan: '#0997b3',
       gray: '#696c77',
+      black: '#383a42',
+      white: '#f0f0f0',
     },
   },
   dark: {
@@ -55,6 +57,8 @@ export const oneDarkPalette: PaletteConfig = {
       teal: '#56b6c2',
       cyan: '#56b6c2',
       gray: '#5c6370',
+      black: '#21252b',
+      white: '#abb2bf',
     },
   },
 };

@@ -80,7 +80,9 @@ EntityName | key: value, key2: value2
 Label(colorName)
 ```
 
-- Named palette colors only (no hex codes)
+- **Allowed color names (exactly these 10):** `red`, `orange`, `yellow`, `green`, `blue`, `purple`, `teal`, `cyan`, `lightblue`, `gray`
+- Any other value — including hex codes (`#ff0000`), CSS keywords (`black`, `white`, `pink`), or typos — is a parse error and produces an inline diagnostic in the editor (with a "did you mean?" suggestion when close to a known name)
+- The actual hex value rendered for each name comes from the active palette/theme; users cannot extend or override the allowed list
 - Appears at end of labels, node names, tag values, series names
 - Color is stripped from display text
 

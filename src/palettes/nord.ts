@@ -29,6 +29,8 @@ export const nordPalette: PaletteConfig = {
       teal: '#8fbcbb', // nord7
       cyan: '#88c0d0', // nord8
       gray: '#4c566a', // nord3
+      black: '#2e3440',
+      white: '#e5e9f0',
     },
   },
   dark: {
@@ -52,6 +54,8 @@ export const nordPalette: PaletteConfig = {
       teal: '#8fbcbb', // nord7
       cyan: '#88c0d0', // nord8
       gray: '#4c566a', // nord3
+      black: '#3b4252',
+      white: '#eceff4',
     },
   },
 };

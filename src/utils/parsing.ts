@@ -4,7 +4,8 @@
  * pipe-metadata parsing.
  */
 
-import { resolveColor } from '../colors';
+import { resolveColor, resolveColorWithDiagnostic } from '../colors';
+import type { DgmoError } from '../diagnostics';
 import type { PaletteColors } from '../palettes';
 
 // ── All known chart types ────────────────────────────────────
@@ -65,14 +66,22 @@ export const COLOR_SUFFIX_RE = /\(([^)]+)\)\s*$/;
 /** Extract an optional trailing color suffix from a label, resolving via palette. */
 export function extractColor(
   label: string,
-  palette?: PaletteColors
+  palette?: PaletteColors,
+  diagnostics?: DgmoError[],
+  line?: number
 ): { label: string; color?: string } {
   const m = label.match(COLOR_SUFFIX_RE);
   if (!m) return { label };
   const colorName = m[1].trim();
+  let color: string | undefined;
+  if (diagnostics && line !== undefined) {
+    color = resolveColorWithDiagnostic(colorName, line, diagnostics, palette);
+  } else {
+    color = resolveColor(colorName, palette) ?? undefined;
+  }
   return {
     label: label.substring(0, m.index!).trim(),
-    color: resolveColor(colorName, palette) ?? undefined,
+    color,
   };
 }
 
@@ -299,7 +308,8 @@ export function parseSeriesNames(
   value: string,
   lines: string[],
   lineIndex: number,
-  palette?: PaletteColors
+  palette?: PaletteColors,
+  diagnostics?: DgmoError[]
 ): {
   series: string;
   names: string[];
@@ -328,8 +338,14 @@ export function parseSeriesNames(
   }
   const names: string[] = [];
   const nameColors: (string | undefined)[] = [];
-  for (const raw of rawNames) {
-    const extracted = extractColor(raw, palette);
+  for (let i = 0; i < rawNames.length; i++) {
+    const raw = rawNames[i];
+    const extracted = extractColor(
+      raw,
+      palette,
+      diagnostics,
+      nameLineNumbers[i]
+    );
     nameColors.push(extracted.color);
     names.push(extracted.label);
   }

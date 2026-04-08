@@ -30,6 +30,8 @@ export const monokaiPalette: PaletteConfig = {
       teal: '#4ea8a6', // muted from cyan
       cyan: '#66d9ef',
       gray: '#75715e', // comment
+      black: '#272822',
+      white: '#f0efe8',
     },
   },
   dark: {
@@ -53,6 +55,8 @@ export const monokaiPalette: PaletteConfig = {
       teal: '#4ea8a6', // muted from cyan
       cyan: '#66d9ef',
       gray: '#75715e', // comment
+      black: '#2d2e27',
+      white: '#f8f8f2',
     },
   },
 };

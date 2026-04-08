@@ -1,6 +1,6 @@
 import type { PaletteColors } from '../palettes';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
-import { resolveColor } from '../colors';
+import { resolveColorWithDiagnostic } from '../colors';
 import {
   matchTagBlockHeading,
   stripDefaultModifier,
@@ -237,7 +237,12 @@ export function parseKanban(
       columnCounter++;
       const colName = columnMatch[1].trim();
       const colColor = columnMatch[2]
-        ? (resolveColor(columnMatch[2].trim(), palette) ?? undefined)
+        ? resolveColorWithDiagnostic(
+            columnMatch[2].trim(),
+            lineNumber,
+            result.diagnostics,
+            palette
+          )
         : undefined;
 
       // Parse pipe metadata (e.g., "| wip: 3, t: Sprint1")
@@ -298,7 +303,8 @@ export function parseKanban(
         lineNumber,
         cardCounter,
         aliasMap,
-        palette
+        palette,
+        result.diagnostics
       );
       // Cascade column metadata to card tags (card overrides on conflict)
       // Exclude 'wip' from cascading — it's a column-level property, not a card tag
@@ -381,7 +387,8 @@ function parseCardLine(
   lineNumber: number,
   counter: number,
   aliasMap: Map<string, string>,
-  palette?: PaletteColors
+  palette?: PaletteColors,
+  diagnostics?: import('../diagnostics').DgmoError[]
 ): KanbanCard {
   // Split on first pipe: Title | tag: value, tag: value
   const pipeIdx = trimmed.indexOf('|');
@@ -396,7 +403,12 @@ function parseCardLine(
   }
 
   // Extract optional color suffix from title
-  const { label: title, color } = extractColor(rawTitle, palette);
+  const { label: title, color } = extractColor(
+    rawTitle,
+    palette,
+    diagnostics,
+    lineNumber
+  );
 
   // Parse tags: comma-separated key: value pairs
   const tags: Record<string, string> = {};

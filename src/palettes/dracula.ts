@@ -30,6 +30,8 @@ export const draculaPalette: PaletteConfig = {
       teal: '#5ac8b8', // muted cyan toward green
       cyan: '#8be9fd',
       gray: '#6272a4',
+      black: '#282a36',
+      white: '#f0f0ec',
     },
   },
   dark: {
@@ -53,6 +55,8 @@ export const draculaPalette: PaletteConfig = {
       teal: '#5ac8b8', // muted cyan toward green
       cyan: '#8be9fd',
       gray: '#6272a4',
+      black: '#343746',
+      white: '#f8f8f2',
     },
   },
 };

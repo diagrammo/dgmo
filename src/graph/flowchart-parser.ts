@@ -1,4 +1,5 @@
-import { resolveColor } from '../colors';
+import { resolveColorWithDiagnostic } from '../colors';
+import type { DgmoError } from '../diagnostics';
 import type { PaletteColors } from '../palettes';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
 import {
@@ -185,23 +186,46 @@ interface ArrowInfo {
   color?: string;
 }
 
-function parseArrowToken(token: string, palette?: PaletteColors): ArrowInfo {
+function parseArrowToken(
+  token: string,
+  palette: PaletteColors | undefined,
+  lineNumber: number,
+  diagnostics: DgmoError[]
+): ArrowInfo {
   if (token === '->') return {};
   // Color-only: -(color)->
   const colorOnly = token.match(/^-\(([^)]+)\)->$/);
   if (colorOnly) {
-    return { color: resolveColor(colorOnly[1].trim(), palette) ?? undefined };
+    return {
+      color: resolveColorWithDiagnostic(
+        colorOnly[1].trim(),
+        lineNumber,
+        diagnostics,
+        palette
+      ),
+    };
   }
   // -label(color)-> or -label->
   const m = token.match(/^-(.+?)(?:\(([^)]+)\))?->$/);
   if (m) {
     const label = m[1]?.trim() || undefined;
     let color = m[2]
-      ? (resolveColor(m[2].trim(), palette) ?? undefined)
+      ? resolveColorWithDiagnostic(
+          m[2].trim(),
+          lineNumber,
+          diagnostics,
+          palette
+        )
       : undefined;
     if (label && !color) {
       const inferred = inferArrowColor(label);
-      if (inferred) color = resolveColor(inferred, palette) ?? undefined;
+      if (inferred)
+        color = resolveColorWithDiagnostic(
+          inferred,
+          lineNumber,
+          diagnostics,
+          palette
+        );
     }
     return { label, color };
   }
@@ -327,7 +351,12 @@ export function parseFlowchart(
 
       // Check if this is an arrow token
       if (seg === '->' || /^-.+->$/.test(seg)) {
-        pendingArrow = parseArrowToken(seg, palette);
+        pendingArrow = parseArrowToken(
+          seg,
+          palette,
+          lineNumber,
+          result.diagnostics
+        );
         continue;
       }
 

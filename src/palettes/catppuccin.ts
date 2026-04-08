@@ -46,6 +46,8 @@ export const catppuccinPalette: PaletteConfig = {
       teal: '#179299',
       cyan: '#209fb5',
       gray: '#9ca0b0', // Latte Overlay0
+      black: '#4c4f69',
+      white: '#e6e9ef',
     },
   },
   dark: {
@@ -69,6 +71,8 @@ export const catppuccinPalette: PaletteConfig = {
       teal: '#94e2d5',
       cyan: '#74c7ec',
       gray: '#6c7086', // Mocha Overlay0
+      black: '#313244',
+      white: '#cdd6f4',
     },
   },
 };

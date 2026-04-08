@@ -39,6 +39,8 @@ export const solarizedPalette: PaletteConfig = {
       teal: '#2aa198',
       cyan: '#2aa198', // Solarized has no separate cyan — reuse teal
       gray: '#586e75', // base01
+      black: '#657b83',
+      white: '#eee8d5',
     },
   },
   dark: {
@@ -62,6 +64,8 @@ export const solarizedPalette: PaletteConfig = {
       teal: '#2aa198',
       cyan: '#2aa198',
       gray: '#586e75', // base01
+      black: '#073642',
+      white: '#839496',
     },
   },
 };

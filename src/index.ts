@@ -414,7 +414,15 @@ export type {
 // Colors & Palettes
 // ============================================================
 
-export { resolveColor, colorNames, nord, seriesColors } from './colors';
+export {
+  resolveColor,
+  resolveColorWithDiagnostic,
+  colorNames,
+  nord,
+  seriesColors,
+  RECOGNIZED_COLOR_NAMES,
+  isRecognizedColorName,
+} from './colors';
 
 export {
   // Registry

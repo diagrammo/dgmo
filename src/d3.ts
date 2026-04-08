@@ -177,7 +177,7 @@ export interface ParsedVisualization {
 // Color Imports
 // ============================================================
 
-import { resolveColor } from './colors';
+import { resolveColorWithDiagnostic } from './colors';
 import type { PaletteColors } from './palettes';
 import { getSeriesColors } from './palettes';
 import { mix } from './palettes/color-utils';
@@ -609,14 +609,24 @@ export function parseVisualization(
       if (result.type === 'arc') {
         const name = groupMatch[1].trim();
         const color = groupMatch[2]
-          ? resolveColor(groupMatch[2].trim(), palette)
+          ? (resolveColorWithDiagnostic(
+              groupMatch[2].trim(),
+              lineNumber,
+              result.diagnostics,
+              palette
+            ) ?? null)
           : null;
         result.arcNodeGroups.push({ name, nodes: [], color, lineNumber });
         currentArcGroup = name;
       } else if (result.type === 'timeline') {
         const name = groupMatch[1].trim();
         const color = groupMatch[2]
-          ? resolveColor(groupMatch[2].trim(), palette)
+          ? (resolveColorWithDiagnostic(
+              groupMatch[2].trim(),
+              lineNumber,
+              result.diagnostics,
+              palette
+            ) ?? null)
           : null;
         result.timelineGroups.push({ name, color, lineNumber });
         currentTimelineGroup = name;
@@ -658,7 +668,12 @@ export function parseVisualization(
         const source = linkMatch[1].trim();
         const target = linkMatch[2].trim();
         const linkColor = linkMatch[3]
-          ? resolveColor(linkMatch[3].trim(), palette)
+          ? (resolveColorWithDiagnostic(
+              linkMatch[3].trim(),
+              lineNumber,
+              result.diagnostics,
+              palette
+            ) ?? null)
           : null;
         result.links.push({
           source,
@@ -701,7 +716,12 @@ export function parseVisualization(
             endDate: eraEntryMatch[2],
             label: eraEntryMatch[3].trim(),
             color: colorAnnotation
-              ? resolveColor(colorAnnotation, palette)
+              ? (resolveColorWithDiagnostic(
+                  colorAnnotation,
+                  lineNumber,
+                  result.diagnostics,
+                  palette
+                ) ?? null)
               : null,
             lineNumber,
           });
@@ -728,7 +748,12 @@ export function parseVisualization(
             date: markerEntryMatch[1],
             label: markerEntryMatch[2].trim(),
             color: colorAnnotation
-              ? resolveColor(colorAnnotation, palette)
+              ? (resolveColorWithDiagnostic(
+                  colorAnnotation,
+                  lineNumber,
+                  result.diagnostics,
+                  palette
+                ) ?? null)
               : null,
             lineNumber,
           });
@@ -766,7 +791,12 @@ export function parseVisualization(
           endDate: eraMatch[2],
           label: eraMatch[3].trim(),
           color: colorAnnotation
-            ? resolveColor(colorAnnotation, palette)
+            ? (resolveColorWithDiagnostic(
+                colorAnnotation,
+                lineNumber,
+                result.diagnostics,
+                palette
+              ) ?? null)
             : null,
           lineNumber,
         });
@@ -783,7 +813,12 @@ export function parseVisualization(
           date: markerMatch[1],
           label: markerMatch[2].trim(),
           color: colorAnnotation
-            ? resolveColor(colorAnnotation, palette)
+            ? (resolveColorWithDiagnostic(
+                colorAnnotation,
+                lineNumber,
+                result.diagnostics,
+                palette
+              ) ?? null)
             : null,
           lineNumber,
         });
@@ -938,20 +973,13 @@ export function parseVisualization(
         const colorName = setDeclMatch[2]?.trim() ?? null;
         let color: string | null = null;
         if (colorName) {
-          const resolved = resolveColor(colorName, palette);
-          if (resolved === null) {
-            warn(
+          color =
+            resolveColorWithDiagnostic(
+              colorName,
               lineNumber,
-              `Hex colors are not supported — use named colors (blue, red, green, etc.)`
-            );
-          } else if (resolved.startsWith('#')) {
-            color = resolved;
-          } else {
-            warn(
-              lineNumber,
-              `Unknown color "${colorName}" on set "${name}". Using auto-assigned color.`
-            );
-          }
+              result.diagnostics,
+              palette
+            ) ?? null;
         }
         const alias = setDeclMatch[3]?.trim() ?? null;
         result.vennSets.push({ name, alias, color, lineNumber });
@@ -1010,7 +1038,12 @@ export function parseVisualization(
         const labelColorMatch = labelPart.match(/^(.+?)\s*\(([^)]+)\)\s*$/);
         const text = labelColorMatch ? labelColorMatch[1].trim() : labelPart;
         const color = labelColorMatch
-          ? resolveColor(labelColorMatch[2].trim(), palette)
+          ? (resolveColorWithDiagnostic(
+              labelColorMatch[2].trim(),
+              lineNumber,
+              result.diagnostics,
+              palette
+            ) ?? null)
           : null;
         const label: QuadrantLabel = { text, color, lineNumber };
 
@@ -1232,7 +1265,12 @@ export function parseVisualization(
         const colorMatch = joinedLabel.match(/^(.+?)\(([^)]+)\)\s*$/);
         const labelPart = colorMatch ? colorMatch[1].trim() : joinedLabel;
         const colorPart = colorMatch
-          ? resolveColor(colorMatch[2].trim(), palette)
+          ? (resolveColorWithDiagnostic(
+              colorMatch[2].trim(),
+              lineNumber,
+              result.diagnostics,
+              palette
+            ) ?? null)
           : null;
 
         if (!labelPart) {
@@ -1333,7 +1371,12 @@ export function parseVisualization(
       // Data line: "Label: value1, value2" or "Label(color): value1, value2"
       const labelPart = colorMatch ? colorMatch[1].trim() : rawKey;
       const colorPart = colorMatch
-        ? resolveColor(colorMatch[2].trim(), palette)
+        ? (resolveColorWithDiagnostic(
+            colorMatch[2].trim(),
+            lineNumber,
+            result.diagnostics,
+            palette
+          ) ?? null)
         : null;
       const valuePart = line.substring(colonIndex + 1).trim();
       const values = valuePart.split(',').map((v) => v.trim());
@@ -6806,19 +6849,13 @@ export async function renderForExport(
     container.style.left = '-9999px';
     document.body.appendChild(container);
 
-    renderKanban(
-      container,
-      kanbanParsed,
-      effectivePalette,
-      theme === 'dark',
-      undefined,
-      undefined,
-      resolveActiveTagGroup(
+    renderKanban(container, kanbanParsed, effectivePalette, theme === 'dark', {
+      activeTagGroup: resolveActiveTagGroup(
         kanbanParsed.tagGroups,
         kanbanParsed.options['active-tag'],
         options?.tagGroup
-      )
-    );
+      ),
+    });
     return finalizeSvgExport(container, theme, effectivePalette, options);
   }
 

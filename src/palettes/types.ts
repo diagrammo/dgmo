@@ -48,6 +48,8 @@ export interface PaletteColors {
     teal: string;
     cyan: string;
     gray: string;
+    black: string;
+    white: string;
   };
 }
 

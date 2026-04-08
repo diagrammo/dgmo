@@ -29,6 +29,8 @@ export const boldPalette: PaletteConfig = {
       teal: '#008080',
       cyan: '#00cccc',
       gray: '#808080',
+      black: '#000000',
+      white: '#f0f0f0',
     },
   },
   dark: {
@@ -52,6 +54,8 @@ export const boldPalette: PaletteConfig = {
       teal: '#00cccc',
       cyan: '#00ffff',
       gray: '#808080',
+      black: '#111111',
+      white: '#ffffff',
     },
   },
 };

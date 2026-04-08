@@ -1,4 +1,4 @@
-import { resolveColor } from '../colors';
+import { resolveColorWithDiagnostic } from '../colors';
 import type { PaletteColors } from '../palettes';
 import { makeDgmoError, formatDgmoError } from '../diagnostics';
 import {
@@ -302,7 +302,14 @@ export function parseClassDiagram(
       const bracketModifier = classDecl[5] as ClassModifier | undefined;
       const modifier = prefixModifier ?? bracketModifier;
       const colorName = classDecl[6]?.trim();
-      const color = colorName ? resolveColor(colorName, palette) : undefined;
+      const color = colorName
+        ? resolveColorWithDiagnostic(
+            colorName,
+            lineNumber,
+            result.diagnostics,
+            palette
+          )
+        : undefined;
 
       const node = getOrCreateClass(name, lineNumber);
       if (modifier) node.modifier = modifier;

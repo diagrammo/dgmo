@@ -59,7 +59,7 @@ export interface ParsedChart {
 // Colors
 // ============================================================
 
-import { resolveColor } from './colors';
+import { resolveColorWithDiagnostic } from './colors';
 import type { PaletteColors } from './palettes';
 import { makeDgmoError, formatDgmoError, suggest } from './diagnostics';
 import {
@@ -215,7 +215,14 @@ export function parseChart(
         rawEras.push({
           start: eraMatch[1].trim(),
           afterArrow,
-          color: eraMatch[3] ? resolveColor(eraMatch[3].trim(), palette) : null,
+          color: eraMatch[3]
+            ? (resolveColorWithDiagnostic(
+                eraMatch[3].trim(),
+                lineNumber,
+                result.diagnostics,
+                palette
+              ) ?? null)
+            : null,
           lineNumber,
         });
       }
@@ -278,12 +285,23 @@ export function parseChart(
       }
 
       if (firstToken === 'color') {
-        result.color = resolveColor(value.trim(), palette) ?? undefined;
+        result.color = resolveColorWithDiagnostic(
+          value.trim(),
+          lineNumber,
+          result.diagnostics,
+          palette
+        );
         continue;
       }
 
       if (firstToken === 'series') {
-        const parsed = parseSeriesNames(value, lines, i, palette);
+        const parsed = parseSeriesNames(
+          value,
+          lines,
+          i,
+          palette,
+          result.diagnostics
+        );
         i = parsed.newIndex;
         result.series = parsed.series;
         result.seriesLineNumber = lineNumber;
