@@ -87,10 +87,19 @@ export function addBusinessDays(
   const days = Math.round(Math.abs(count));
   if (days === 0) return new Date(startDate);
 
+  // Guard: an invalid start date would produce an infinite loop because
+  // isWorkday() always returns false for NaN day-of-week. This happens
+  // mid-edit when the user is typing a partial date like `start 2026-`.
+  if (Number.isNaN(startDate.getTime())) return new Date(startDate);
+
+  // Guard: a workweek with no workdays (or fully blocked by holidays) would
+  // also loop forever. Bound the search at days * 14 calendar days, which
+  // covers up to 2 weeks of skipped days per business day requested.
   const current = new Date(startDate);
   let remaining = days;
+  let safety = days * 14 + 14;
 
-  while (remaining > 0) {
+  while (remaining > 0 && safety-- > 0) {
     current.setDate(current.getDate() + direction);
     if (isWorkday(current, workweek, holidaySet)) {
       remaining--;
