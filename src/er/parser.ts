@@ -1,4 +1,4 @@
-import { resolveColor } from '../colors';
+import { resolveColorWithDiagnostic } from '../colors';
 import type { PaletteColors } from '../palettes';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
 import {
@@ -43,8 +43,9 @@ const TABLE_DECL_RE = /^([a-zA-Z_]\w*)(?:\s*\(([^)]+)\))?(?:\s*\|(.+))?$/;
 // Remaining tokens are constraint keywords (pk, fk, unique, nullable).
 // Handled programmatically, not with a single regex.
 
-// Indented relationship: 1-* target  or  1-label-* target
-const INDENT_REL_RE = /^([1*?])-(?:(.+)-)?([1*?])\s+([a-zA-Z_]\w*)\s*$/;
+// Indented relationship: 1-* target, 1--* target, or 1-label-* target / 1--label--* target
+const INDENT_REL_RE =
+  /^([1*?])-{1,2}(?:(.+?)-{1,2})?([1*?])\s+([a-zA-Z_]\w*)\s*$/;
 
 // Constraint keywords
 const CONSTRAINT_MAP: Record<string, ERConstraint> = {
@@ -372,7 +373,14 @@ export function parseERDiagram(
     if (tableDecl) {
       const name = tableDecl[1];
       const colorName = tableDecl[2]?.trim();
-      const color = colorName ? resolveColor(colorName, palette) : undefined;
+      const color = colorName
+        ? resolveColorWithDiagnostic(
+            colorName,
+            lineNumber,
+            result.diagnostics,
+            palette
+          )
+        : undefined;
 
       const table = getOrCreateTable(name, lineNumber);
       if (color) table.color = color;

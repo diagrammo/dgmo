@@ -119,7 +119,9 @@ describe('parseERDiagram', () => {
     });
 
     it('parses multiple columns', () => {
-      const result = parseERDiagram('users\n  id int pk\n  name varchar\n  email varchar unique');
+      const result = parseERDiagram(
+        'users\n  id int pk\n  name varchar\n  email varchar unique'
+      );
       expect(result.tables[0].columns).toHaveLength(3);
     });
   });
@@ -127,20 +129,28 @@ describe('parseERDiagram', () => {
   // === Top-level relationships (rejected) ===
   describe('top-level relationships (rejected)', () => {
     it('rejects top-level symbolic relationship with warning', () => {
-      const result = parseERDiagram('users\n  id int pk\n\nposts\n  id int pk\n\nusers 1--* posts');
+      const result = parseERDiagram(
+        'users\n  id int pk\n\nposts\n  id int pk\n\nusers 1--* posts'
+      );
       expect(result.relationships).toHaveLength(0);
-      expect(result.diagnostics.some(d => d.message.includes('must be indented'))).toBe(true);
+      expect(
+        result.diagnostics.some((d) => d.message.includes('must be indented'))
+      ).toBe(true);
     });
 
     it('rejects keyword cardinality with symbolic suggestion', () => {
-      const result = parseERDiagram('users\n  id int pk\n\nposts\n  id int pk\n\nusers one-to-many posts');
+      const result = parseERDiagram(
+        'users\n  id int pk\n\nposts\n  id int pk\n\nusers one-to-many posts'
+      );
       expect(result.error).toBeTruthy();
       expect(result.diagnostics[0].message).toContain('1--*');
       expect(result.relationships).toHaveLength(0);
     });
 
     it('rejects natural cardinality with symbolic suggestion', () => {
-      const result = parseERDiagram('users\n  id int pk\n\nposts\n  id int pk\n\nusers one to many posts');
+      const result = parseERDiagram(
+        'users\n  id int pk\n\nposts\n  id int pk\n\nusers one to many posts'
+      );
       expect(result.error).toBeTruthy();
       expect(result.diagnostics[0].message).toContain('1--*');
     });
@@ -167,7 +177,9 @@ describe('parseERDiagram', () => {
     });
 
     it('mixes columns and indented relationships', () => {
-      const result = parseERDiagram('users\n  id int pk\n  name varchar\n  1-* posts\n  1-writes-* comments');
+      const result = parseERDiagram(
+        'users\n  id int pk\n  name varchar\n  1-* posts\n  1-writes-* comments'
+      );
       expect(result.tables[0].columns).toHaveLength(2);
       expect(result.relationships).toHaveLength(2);
       expect(result.relationships[0].target).toBe('posts');
@@ -184,7 +196,10 @@ describe('parseERDiagram', () => {
         ['?-1 t5', '?', '1'],
         ['1-? t6', '1', '?'],
       ] as const;
-      const lines = ['src\n  id int pk', ...combos.map(([line]) => `  ${line}`)].join('\n');
+      const lines = [
+        'src\n  id int pk',
+        ...combos.map(([line]) => `  ${line}`),
+      ].join('\n');
       const result = parseERDiagram(lines);
       expect(result.relationships).toHaveLength(6);
       combos.forEach(([, from, to], i) => {
@@ -199,8 +214,30 @@ describe('parseERDiagram', () => {
       expect(result.tables.find((t) => t.name === 'posts')).toBeDefined();
     });
 
+    it('parses double-dash unlabeled indented relationship', () => {
+      const result = parseERDiagram('ports\n  id int pk\n  1--* ships');
+      expect(result.relationships).toHaveLength(1);
+      expect(result.relationships[0].source).toBe('ports');
+      expect(result.relationships[0].target).toBe('ships');
+      expect(result.relationships[0].cardinality.from).toBe('1');
+      expect(result.relationships[0].cardinality.to).toBe('*');
+      expect(result.relationships[0].label).toBeUndefined();
+    });
+
+    it('parses double-dash labeled indented relationship', () => {
+      const result = parseERDiagram(
+        'ships\n  id int pk\n  1--carries--* treasure'
+      );
+      expect(result.relationships).toHaveLength(1);
+      expect(result.relationships[0].label).toBe('carries');
+      expect(result.relationships[0].cardinality.from).toBe('1');
+      expect(result.relationships[0].cardinality.to).toBe('*');
+    });
+
     it('supports self-referencing relationship', () => {
-      const result = parseERDiagram('employees\n  id int pk\n  1-manages-* employees');
+      const result = parseERDiagram(
+        'employees\n  id int pk\n  1-manages-* employees'
+      );
       expect(result.relationships).toHaveLength(1);
       expect(result.relationships[0].source).toBe('employees');
       expect(result.relationships[0].target).toBe('employees');
@@ -216,7 +253,9 @@ describe('parseERDiagram', () => {
   // === Edge cases ===
   describe('edge cases', () => {
     it('handles multiple tables', () => {
-      const result = parseERDiagram('users\n  id int pk\n\nposts\n  id int pk\n\ncomments\n  id int pk');
+      const result = parseERDiagram(
+        'users\n  id int pk\n\nposts\n  id int pk\n\ncomments\n  id int pk'
+      );
       expect(result.tables).toHaveLength(3);
     });
 
@@ -251,7 +290,9 @@ describe('looksLikeERDiagram', () => {
   });
 
   it('detects indented relationships with table decl (no constraints)', () => {
-    expect(looksLikeERDiagram('users\n  1-* posts\nposts\n  1-* comments')).toBe(true);
+    expect(
+      looksLikeERDiagram('users\n  1-* posts\nposts\n  1-* comments')
+    ).toBe(true);
   });
 
   it('does not false-positive on plain text', () => {
@@ -267,7 +308,9 @@ describe('looksLikeERDiagram', () => {
   });
 
   it('does not false-positive on sequence diagrams', () => {
-    expect(looksLikeERDiagram('Alice -> Bob: Hello\nBob -> Alice: Hi')).toBe(false);
+    expect(looksLikeERDiagram('Alice -> Bob: Hello\nBob -> Alice: Hi')).toBe(
+      false
+    );
   });
 });
 
@@ -338,7 +381,9 @@ tag Domain
 
 Users | Domain: Unknown
   id int pk`);
-    const warnings = result.diagnostics.filter(d => d.message.includes("Unknown value 'Unknown'"));
+    const warnings = result.diagnostics.filter((d) =>
+      d.message.includes("Unknown value 'Unknown'")
+    );
     expect(warnings).toHaveLength(1);
   });
 
