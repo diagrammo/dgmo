@@ -228,15 +228,9 @@ tag PRIORITY
     const parsed = parseKanban(src, palette);
     const container = document.createElement('div');
     document.body.appendChild(container);
-    renderKanban(
-      container,
-      parsed,
-      palette,
-      false,
-      undefined,
-      undefined,
-      'PRIORITY'
-    );
+    renderKanban(container, parsed, palette, false, {
+      activeTagGroup: 'PRIORITY',
+    });
     assertLegendActive(container, 'PRIORITY');
     document.body.removeChild(container);
   });

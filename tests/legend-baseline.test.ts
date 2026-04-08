@@ -171,15 +171,7 @@ tag Priority
     const parsed = parseKanban(src, palette);
     const container = document.createElement('div');
     document.body.appendChild(container);
-    renderKanban(
-      container,
-      parsed,
-      palette,
-      false,
-      undefined,
-      undefined,
-      undefined
-    );
+    renderKanban(container, parsed, palette, false);
     // Legend pill rects use data-legend-group
     const groups = container.querySelectorAll('[data-legend-group]');
     expect(groups.length).toBeGreaterThan(0);

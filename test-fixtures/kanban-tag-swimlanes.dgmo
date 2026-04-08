@@ -1,0 +1,27 @@
+kanban
+
+title Sprint Board
+
+tag Team
+  Frontend(blue)
+  Backend(green)
+  QA(orange)
+
+tag Priority
+  High(red)
+  Medium(yellow)
+  Low(green)
+
+[Backlog]
+  Redesign login screen | team: Frontend, priority: High
+  Add caching layer | team: Backend, priority: Medium
+  Write smoke tests | team: QA, priority: Low
+
+[In Progress]
+  Refactor auth API | team: Backend, priority: High
+  Polish settings page | team: Frontend, priority: Medium
+  Triage bug reports
+
+[Done]
+  Ship release notes | team: Frontend, priority: Low
+  Patch CSRF bug | team: Backend, priority: High

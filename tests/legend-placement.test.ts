@@ -215,15 +215,7 @@ tag Priority
     const parsed = parseKanban(src, palette);
     const container = document.createElement('div');
     document.body.appendChild(container);
-    renderKanban(
-      container,
-      parsed,
-      palette,
-      false,
-      undefined,
-      undefined,
-      undefined
-    );
+    renderKanban(container, parsed, palette, false);
 
     // Kanban legend is positioned via parent <g> transform at the bottom
     const legendContainer = container.querySelector('.kanban-legend');
