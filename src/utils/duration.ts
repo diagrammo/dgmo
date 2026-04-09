@@ -120,7 +120,8 @@ export function addGanttDuration(
   duration: Duration,
   holidays: GanttHolidays,
   holidaySet: Set<string>,
-  direction: 1 | -1 = 1
+  direction: 1 | -1 = 1,
+  opts?: { sprintLength?: Duration }
 ): Date {
   const { amount, unit } = duration;
 
@@ -197,6 +198,19 @@ export function addGanttDuration(
       result.setTime(result.getTime() + amount * 60000 * direction);
       return result;
     }
+
+    case 's': {
+      if (!opts?.sprintLength) {
+        throw new Error(
+          'Sprint duration unit "s" requires sprintLength configuration'
+        );
+      }
+      const sl = opts.sprintLength;
+      const totalDays = amount * sl.amount * (sl.unit === 'w' ? 7 : 1);
+      const result = new Date(startDate);
+      result.setDate(result.getDate() + Math.round(totalDays) * direction);
+      return result;
+    }
   }
 }
 
@@ -204,7 +218,7 @@ export function addGanttDuration(
  * Parse a duration string like "3bd" or "5d".
  */
 export function parseDuration(s: string): Duration | null {
-  const match = s.trim().match(/^(\d+(?:\.\d+)?)(min|bd|d|w|m|q|y|h)$/);
+  const match = s.trim().match(/^(\d+(?:\.\d+)?)(min|bd|d|w|m|q|y|h|s)$/);
   if (!match) return null;
   return { amount: parseFloat(match[1]), unit: match[2] as DurationUnit };
 }

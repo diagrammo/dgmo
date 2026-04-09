@@ -7,8 +7,17 @@ import type { TagGroup } from '../utils/tag-groups';
 
 // ── Duration ────────────────────────────────────────────────
 
-/** Calendar units: d (days), w (weeks), m (months), q (quarters), y (years), h (hours), min (minutes). bd = business days. */
-export type DurationUnit = 'd' | 'bd' | 'w' | 'm' | 'q' | 'y' | 'h' | 'min';
+/** Calendar units: d (days), w (weeks), m (months), q (quarters), y (years), h (hours), min (minutes). bd = business days. s = sprints. */
+export type DurationUnit =
+  | 'd'
+  | 'bd'
+  | 'w'
+  | 'm'
+  | 'q'
+  | 'y'
+  | 'h'
+  | 'min'
+  | 's';
 
 export interface Duration {
   amount: number;
@@ -119,6 +128,11 @@ export interface GanttOptions {
   /** Line numbers for option/block keywords — maps key to source line */
   optionLineNumbers: Record<string, number>;
   holidaysLineNumber: number | null;
+  // ── Sprint options ─────────────────────────────────────────
+  sprintLength: Duration | null; // default { amount: 2, unit: 'w' } when sprint mode active
+  sprintNumber: number | null; // which sprint the chart starts at (default 1)
+  sprintStart: string | null; // YYYY-MM-DD — date that sprintNumber begins
+  sprintMode: 'auto' | 'explicit' | null; // auto = activated by `s` unit, explicit = sprint-* option present
 }
 
 // ── Parsed Result ───────────────────────────────────────────
@@ -158,6 +172,12 @@ export interface ResolvedGroup {
   depth: number;
 }
 
+export interface ResolvedSprint {
+  number: number;
+  startDate: Date;
+  endDate: Date;
+}
+
 export interface ResolvedSchedule {
   tasks: ResolvedTask[];
   groups: ResolvedGroup[];
@@ -167,6 +187,7 @@ export interface ResolvedSchedule {
   tagGroups: TagGroup[];
   eras: GanttEra[];
   markers: GanttMarker[];
+  sprints: ResolvedSprint[];
   options: GanttOptions;
   diagnostics: DgmoError[];
   error: string | null;

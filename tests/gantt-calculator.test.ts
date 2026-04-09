@@ -488,4 +488,99 @@ parallel
       expect(res!.isUncertain).toBe(true);
     });
   });
+
+  describe('sprint bands', () => {
+    it('generates sprint bands for tasks spanning 6 weeks with sprint-length 2w', () => {
+      const input =
+        'gantt\nstart 2026-01-05\nsprint-length 2w\n2w Task A\n2w Task B\n2w Task C';
+      const result = calc(input);
+      expect(result.sprints.length).toBeGreaterThanOrEqual(3);
+      expect(result.sprints[0].number).toBe(1); // default sprint-number
+    });
+
+    it('numbers sprints starting from sprint-number', () => {
+      const input =
+        'gantt\nstart 2026-01-05\nsprint-length 2w\nsprint-number 5\n2w Task A\n2w Task B';
+      const result = calc(input);
+      expect(result.sprints[0].number).toBe(5);
+      expect(result.sprints[1].number).toBe(6);
+    });
+
+    it('handles sprint-start before chart range', () => {
+      // Sprint 1 starts Jan 5, chart starts Mar 1 with 2w sprints
+      // Days from Jan 5 to Mar 1 = 55 days, 55/14 = 3.93 → sprint 4 starts at day 42 (Feb 16), sprint 5 at day 56 (Mar 2)
+      // So Mar 1 falls in sprint 4 (anchor sprint 1 + 3 elapsed)
+      const input =
+        'gantt\nstart 2026-03-01\nsprint-length 2w\nsprint-number 1\nsprint-start 2026-01-05\n4w Task A';
+      const result = calc(input);
+      expect(result.sprints.length).toBeGreaterThan(0);
+      // First visible sprint should contain Mar 1
+      const firstSprint = result.sprints[0];
+      expect(firstSprint.startDate.getTime()).toBeLessThanOrEqual(
+        new Date(2026, 2, 1).getTime()
+      );
+      // Sprint number should be 4 (Jan 5 + 3*14 = Feb 16 → Sprint 4 starts Feb 16)
+      expect(firstSprint.number).toBe(4);
+    });
+
+    it('uses start-inclusive, end-exclusive boundary', () => {
+      // Sprint boundary at day 14 from start — task starting on that boundary belongs to next sprint
+      const input =
+        'gantt\nstart 2026-01-05\nsprint-length 2w\n14d Task A\n7d Task B';
+      const result = calc(input);
+      // Task A: Jan 5 → Jan 19 (14 days)
+      // Sprint 1: Jan 5 to Jan 19, Sprint 2: Jan 19 to Feb 2
+      expect(result.sprints.length).toBeGreaterThanOrEqual(2);
+      expect(fmt(result.sprints[0].startDate)).toBe('2026-01-05');
+      expect(fmt(result.sprints[0].endDate)).toBe('2026-01-19');
+      expect(fmt(result.sprints[1].startDate)).toBe('2026-01-19');
+    });
+
+    it('generates partial band when chart start falls mid-sprint', () => {
+      // Sprint starts Jan 5, chart starts Jan 10 with 2w sprints
+      const input =
+        'gantt\nstart 2026-01-10\nsprint-length 2w\nsprint-start 2026-01-05\n4w Task A';
+      const result = calc(input);
+      expect(result.sprints.length).toBeGreaterThan(0);
+      // First sprint should start before chart start (partial band)
+      expect(result.sprints[0].startDate.getTime()).toBeLessThan(
+        new Date(2026, 0, 10).getTime()
+      );
+    });
+
+    it('auto-enables sprint mode when s unit used without options', () => {
+      const input = 'gantt\nstart 2026-01-05\n2s Task A\n1s Task B';
+      const result = calc(input);
+      // Default sprint-length 2w: 2s = 28 days, 1s = 14 days = 42 days total
+      expect(result.sprints.length).toBeGreaterThan(0);
+      expect(fmt(result.tasks[0].endDate)).toBe('2026-02-02'); // Jan 5 + 28 days
+    });
+
+    it('resolves 0.5s with sprint-length 2w to 7 days', () => {
+      const input = 'gantt\nstart 2026-01-05\nsprint-length 2w\n0.5s Task A';
+      const result = calc(input);
+      expect(fmt(result.tasks[0].startDate)).toBe('2026-01-05');
+      expect(fmt(result.tasks[0].endDate)).toBe('2026-01-12'); // Jan 5 + 7 days
+    });
+
+    it('handles sprint-start in the future (negative sprint indices)', () => {
+      // Sprint 10 starts 2027-01-01, chart starts 2026-01-05 with 2w sprints
+      // That's ~361 days before anchor, so sprints will have lower numbers
+      const input =
+        'gantt\nstart 2026-01-05\nsprint-length 2w\nsprint-number 10\nsprint-start 2027-01-01\n4w Task A';
+      const result = calc(input);
+      expect(result.sprints.length).toBeGreaterThan(0);
+      // Sprint numbers can go below sprintNumber when chart is before anchor
+      // 361 days / 14 = ~25.8 sprints before anchor → first sprint ~ 10 - 26 = -16
+      expect(result.sprints[0].number).toBeLessThan(10);
+    });
+
+    it('generates sprint bands even without s unit when sprint options present', () => {
+      const input =
+        'gantt\nstart 2026-01-05\nsprint-length 2w\nsprint-number 3\n4w Task A';
+      const result = calc(input);
+      expect(result.sprints.length).toBeGreaterThan(0);
+      expect(result.sprints[0].number).toBe(3);
+    });
+  });
 });

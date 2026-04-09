@@ -17,7 +17,7 @@ import {
   MULTIPLE_PIPE_ERROR,
   parseFirstLine,
 } from '../utils/parsing';
-import { parseOffset } from '../utils/duration';
+import { parseOffset, parseDuration } from '../utils/duration';
 import type { PaletteColors } from '../palettes';
 import { getSeriesColors } from '../palettes';
 import type {
@@ -35,14 +35,14 @@ import type {
 // ── Regexes ─────────────────────────────────────────────────
 
 /** Duration task: `30d Label`, `1.5w Label`, `10bd? Label`, `2h Label`, `90min Label` */
-const DURATION_RE = /^(\d+(?:\.\d+)?)(min|bd|d|w|m|q|y|h)(\?)?\s+(.+)$/;
+const DURATION_RE = /^(\d+(?:\.\d+)?)(min|bd|d|w|m|q|y|h|s)(\?)?\s+(.+)$/;
 
 /** Explicit date task: `2024-01-15 Label` or `2024-01-15 14:30 Label` */
 const EXPLICIT_DATE_RE = /^(\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2})?)\s+(.+)$/;
 
 /** Timeline migration syntax: `2024-01-15 -> 30d Label` or `2024-01-15 14:30 -> 2h Label` */
 const TIMELINE_DURATION_RE =
-  /^(\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2})?)\s*(?:->|\u2013>)\s*(\d+(?:\.\d+)?)(min|bd|d|w|m|q|y|h)(\?)?\s+(.+)$/;
+  /^(\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2})?)\s*(?:->|\u2013>)\s*(\d+(?:\.\d+)?)(min|bd|d|w|m|q|y|h|s)(\?)?\s+(.+)$/;
 
 /** Group container: `[GroupName]` with optional pipe metadata */
 const GROUP_RE = /^\[(.+?)\]\s*(.*)$/;
@@ -138,6 +138,10 @@ export function parseGantt(
       activeTag: null,
       optionLineNumbers: {},
       holidaysLineNumber: null,
+      sprintLength: null,
+      sprintNumber: null,
+      sprintStart: null,
+      sprintMode: null,
     },
     diagnostics,
     error: null,
@@ -650,6 +654,57 @@ export function parseGantt(
         case 'active-tag':
           result.options.activeTag = value;
           break;
+        case 'sprint-length': {
+          const dur = parseDuration(value);
+          if (!dur) {
+            warn(
+              lineNumber,
+              `Invalid sprint-length value: "${value}". Expected a duration like "2w" or "10d".`
+            );
+          } else if (dur.unit !== 'd' && dur.unit !== 'w') {
+            warn(
+              lineNumber,
+              `sprint-length only accepts "d" or "w" units, got "${dur.unit}".`
+            );
+          } else if (dur.amount <= 0) {
+            warn(lineNumber, `sprint-length must be greater than 0.`);
+          } else if (
+            !Number.isInteger(dur.amount * (dur.unit === 'w' ? 7 : 1))
+          ) {
+            warn(
+              lineNumber,
+              `sprint-length must resolve to a whole number of days.`
+            );
+          } else {
+            result.options.sprintLength = dur;
+          }
+          break;
+        }
+        case 'sprint-number': {
+          const n = Number(value);
+          if (!Number.isFinite(n) || !Number.isInteger(n) || n <= 0) {
+            warn(
+              lineNumber,
+              `sprint-number must be a positive integer, got "${value}".`
+            );
+          } else {
+            result.options.sprintNumber = n;
+          }
+          break;
+        }
+        case 'sprint-start': {
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+            warn(
+              lineNumber,
+              `sprint-start requires a full date (YYYY-MM-DD), got "${value}".`
+            );
+          } else if (Number.isNaN(new Date(value + 'T00:00:00').getTime())) {
+            warn(lineNumber, `sprint-start is not a valid date: "${value}".`);
+          } else {
+            result.options.sprintStart = value;
+          }
+          break;
+        }
       }
       continue;
     }
@@ -879,6 +934,31 @@ export function parseGantt(
 
   validateTagGroupNames(result.tagGroups, warn);
 
+  // ── Sprint mode detection ──────────────────────────────
+  const hasSprintOption =
+    result.options.sprintLength !== null ||
+    result.options.sprintNumber !== null ||
+    result.options.sprintStart !== null;
+
+  const hasSprintUnit = hasSprintDurationUnit(result.nodes);
+
+  if (hasSprintOption) {
+    result.options.sprintMode = 'explicit';
+  } else if (hasSprintUnit) {
+    result.options.sprintMode = 'auto';
+  }
+
+  // Apply defaults when sprint mode is active
+  if (result.options.sprintMode) {
+    if (!result.options.sprintLength) {
+      result.options.sprintLength = { amount: 2, unit: 'w' };
+    }
+    if (result.options.sprintNumber === null) {
+      result.options.sprintNumber = 1;
+    }
+    // sprintStart defaults to chart start or today — handled in calculator
+  }
+
   return result;
 
   // ── Helper: create a task ───────────────────────────────
@@ -1041,6 +1121,9 @@ const KNOWN_OPTIONS = new Set([
   'chart',
   'sort',
   'active-tag',
+  'sprint-length',
+  'sprint-number',
+  'sprint-start',
 ]);
 
 /** Boolean options that can appear as bare keywords or with `no-` prefix. */
@@ -1052,4 +1135,16 @@ const KNOWN_BOOLEANS = new Set([
 
 function isKnownOption(key: string): boolean {
   return KNOWN_OPTIONS.has(key);
+}
+
+/** Check if any task in the tree uses the `s` (sprint) duration unit. */
+function hasSprintDurationUnit(nodes: GanttNode[]): boolean {
+  for (const node of nodes) {
+    if (node.kind === 'task') {
+      if (node.duration?.unit === 's') return true;
+    } else if (node.kind === 'group' || node.kind === 'parallel') {
+      if (hasSprintDurationUnit(node.children)) return true;
+    }
+  }
+  return false;
 }

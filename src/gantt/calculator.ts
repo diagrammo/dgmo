@@ -17,7 +17,10 @@ import type {
   GanttTask,
   GanttGroup,
   GanttHolidays,
+  GanttOptions,
+  Duration,
   ResolvedSchedule,
+  ResolvedSprint,
   ResolvedGroup,
   Offset,
 } from './types';
@@ -52,6 +55,7 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
     tagGroups: parsed.tagGroups,
     eras: parsed.eras,
     markers: parsed.markers,
+    sprints: [],
     options: parsed.options,
     diagnostics,
     error: parsed.error,
@@ -84,6 +88,12 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
     // Relative timeline: use epoch-like reference (Day 1 = Jan 1, 2000)
     projectStart = new Date(2000, 0, 1);
   }
+
+  // ── Sprint config ──────────────────────────────────────
+
+  const sprintOpts = parsed.options.sprintLength
+    ? { sprintLength: parsed.options.sprintLength }
+    : undefined;
 
   // ── Dep offset storage ─────────────────────────────────
 
@@ -208,7 +218,8 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
             depOffset.duration,
             parsed.holidays,
             holidaySet,
-            depOffset.direction
+            depOffset.direction,
+            sprintOpts
           );
         }
 
@@ -225,7 +236,8 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
         task.offset.duration,
         parsed.holidays,
         holidaySet,
-        task.offset.direction
+        task.offset.direction,
+        sprintOpts
       );
       if (start.getTime() < projectStart.getTime()) {
         warn(
@@ -273,7 +285,9 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
           start,
           task.duration,
           parsed.holidays,
-          holidaySet
+          holidaySet,
+          1,
+          sprintOpts
         );
       }
     } else {
@@ -294,7 +308,8 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
         taskMap,
         depOffsetMap,
         parsed.holidays,
-        holidaySet
+        holidaySet,
+        sprintOpts
       )
     : new Set<string>();
 
@@ -345,6 +360,29 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
     }
     result.startDate = minDate;
     result.endDate = maxDate;
+  }
+
+  // ── Generate sprint bands ──────────────────────────────
+
+  if (
+    parsed.options.sprintMode &&
+    parsed.options.sprintLength &&
+    result.tasks.length > 0
+  ) {
+    result.sprints = generateSprintBands(
+      parsed.options,
+      result.startDate,
+      result.endDate,
+      projectStart
+    );
+
+    // Extend chart range to include the last sprint's end so it doesn't clip
+    if (result.sprints.length > 0) {
+      const lastSprintEnd = result.sprints[result.sprints.length - 1].endDate;
+      if (lastSprintEnd.getTime() > result.endDate.getTime()) {
+        result.endDate = lastSprintEnd;
+      }
+    }
   }
 
   // ── Warnings ────────────────────────────────────────────
@@ -613,7 +651,8 @@ function computeCriticalPath(
   taskMap: Map<string, TaskNode>,
   depOffsetMap: Map<string, Offset>,
   holidays: GanttHolidays,
-  holidaySet: Set<string>
+  holidaySet: Set<string>,
+  sprintOpts?: { sprintLength?: Duration }
 ): Set<string> {
   if (sortedIds.length === 0) return new Set();
 
@@ -660,7 +699,8 @@ function computeCriticalPath(
             succTask.offset.duration,
             holidays,
             holidaySet,
-            reverseDir
+            reverseDir,
+            sprintOpts
           );
           succLS = adjusted.getTime();
         }
@@ -674,7 +714,8 @@ function computeCriticalPath(
             depOffset.duration,
             holidays,
             holidaySet,
-            reverseDir
+            reverseDir,
+            sprintOpts
           );
           succLS = adjusted.getTime();
         }
@@ -767,6 +808,78 @@ function buildResolvedGroups(
       buildResolvedGroups(node.children, taskMap, groups, depth);
     }
   }
+}
+
+// ── Sprint band generation ──────────────────────────────────
+
+function generateSprintBands(
+  options: GanttOptions,
+  chartStart: Date,
+  chartEnd: Date,
+  projectStart: Date
+): ResolvedSprint[] {
+  const sprintLength = options.sprintLength!;
+  const sprintNumber = options.sprintNumber ?? 1;
+
+  // Determine anchor date: sprint-start or chart start or today
+  let anchorDate: Date;
+  if (options.sprintStart) {
+    anchorDate = new Date(options.sprintStart + 'T00:00:00');
+  } else if (options.start) {
+    anchorDate = new Date(projectStart);
+  } else {
+    const now = new Date();
+    anchorDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  }
+  anchorDate.setHours(0, 0, 0, 0);
+
+  // Sprint length in whole days (parser ensures only d/w with integer day result)
+  const sprintDays = Math.round(
+    sprintLength.amount * (sprintLength.unit === 'w' ? 7 : 1)
+  );
+  if (sprintDays <= 0) return []; // defensive guard
+
+  // Bail if anchor date is invalid (e.g. sprint-start 2026-13-45)
+  if (Number.isNaN(anchorDate.getTime())) return [];
+
+  // Calculate which sprint chartStart falls in, relative to the anchor
+  const chartStartTime = new Date(chartStart);
+  chartStartTime.setHours(0, 0, 0, 0);
+  const chartEndTime = new Date(chartEnd);
+  chartEndTime.setHours(0, 0, 0, 0);
+
+  const msPerDay = 86400000;
+  const dayDiff = Math.floor(
+    (chartStartTime.getTime() - anchorDate.getTime()) / msPerDay
+  );
+  // Floor division: which sprint index (from anchor) does chartStart fall in?
+  const startSprintIndex = Math.floor(dayDiff / sprintDays);
+
+  const sprints: ResolvedSprint[] = [];
+  const maxSprints = 1000; // safety guard against infinite loops
+
+  // Generate sprints that overlap with [chartStart, chartEnd]
+  // Sprint at index i (relative to anchor) has number: sprintNumber + i
+  for (let i = startSprintIndex; sprints.length < maxSprints; i++) {
+    const sprintStartDate = new Date(anchorDate);
+    sprintStartDate.setDate(sprintStartDate.getDate() + i * sprintDays);
+    sprintStartDate.setHours(0, 0, 0, 0);
+
+    const sprintEndDate = new Date(sprintStartDate);
+    sprintEndDate.setDate(sprintEndDate.getDate() + sprintDays);
+    sprintEndDate.setHours(0, 0, 0, 0);
+
+    // Stop when sprint start is past chart end
+    if (sprintStartDate.getTime() >= chartEndTime.getTime() + msPerDay) break;
+
+    sprints.push({
+      number: sprintNumber + i,
+      startDate: sprintStartDate,
+      endDate: sprintEndDate,
+    });
+  }
+
+  return sprints;
 }
 
 // ── Utility ─────────────────────────────────────────────────

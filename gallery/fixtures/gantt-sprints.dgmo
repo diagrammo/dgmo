@@ -1,0 +1,20 @@
+gantt Sprint Planning
+start 2026-03-01
+sprint-length 2w
+sprint-number 5
+sprint-start 2026-01-05
+
+[Design]
+  2s UX Research
+  1s Wireframes
+  1.5s Visual Design
+
+[Engineering]
+  3s Backend API
+  2s Frontend Build
+  0.5s Performance Tuning
+
+[QA]
+  1s Integration Testing
+  0.5s UAT
+  0d Release Candidate

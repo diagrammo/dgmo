@@ -272,11 +272,16 @@ export function renderGantt(
   const topDateLabelReserve = 22; // tick (6) + gap (4) + label height (~12)
   const hasOverheadLabels =
     resolved.markers.length > 0 || resolved.eras.length > 0;
-  const markerLabelReserve = hasOverheadLabels ? 18 : 0; // markers/eras extend above date labels
+  const markerLabelReserve = hasOverheadLabels ? 28 : 0; // markers/eras get own row above sprint labels
+  const sprintLabelReserve = resolved.sprints.length > 0 ? 16 : 0; // sprint hover label above date labels
   const CONTENT_TOP_PAD = 16; // breathing room between scale labels and first row
 
   const marginTop =
-    titleHeight + tagLegendReserve + topDateLabelReserve + markerLabelReserve;
+    titleHeight +
+    tagLegendReserve +
+    topDateLabelReserve +
+    markerLabelReserve +
+    sprintLabelReserve;
 
   // Content area
   const contentH = isTagMode
@@ -286,7 +291,10 @@ export function renderGantt(
   const outerHeight = marginTop + innerHeight + BOTTOM_MARGIN;
 
   const containerWidth = exportDims?.width ?? (container.clientWidth || 800);
-  const innerWidth = containerWidth - leftMargin - RIGHT_MARGIN;
+  // Extra right margin when sprints present so hover date labels aren't clipped
+  const sprintRightPad = resolved.sprints.length > 0 ? 50 : 0;
+  const innerWidth =
+    containerWidth - leftMargin - RIGHT_MARGIN - sprintRightPad;
 
   // ── Create SVG ──────────────────────────────────────────
 
@@ -418,6 +426,7 @@ export function renderGantt(
     onClickItem
   );
   renderErasAndMarkers(g, svg, resolved, xScale, innerHeight, palette);
+  renderSprintBands(g, svg, resolved, xScale, innerHeight, palette);
 
   // ── Today marker (line rendered before rows so it paints behind task bars) ──
 
@@ -2192,7 +2201,7 @@ function renderErasAndMarkers(
       .append('text')
       .attr('class', 'gantt-era-label')
       .attr('x', (sx + ex) / 2)
-      .attr('y', -24)
+      .attr('y', -34)
       .attr('text-anchor', 'middle')
       .attr('font-size', '10px')
       .attr('fill', color)
@@ -2257,8 +2266,8 @@ function renderErasAndMarkers(
     const mx = xScale(parseDateToFractionalYear(marker.date));
     const markerDate = parseDateStringToDate(marker.date);
     const diamondSize = 5;
-    const labelY = -24;
-    const diamondY = labelY + 14;
+    const labelY = -34;
+    const diamondY = -2; // below date indicator labels
 
     const markerG = g
       .append('g')
@@ -2372,6 +2381,250 @@ function renderErasAndMarkers(
         hideGanttDateIndicators(g);
       });
   }
+}
+
+// ── Sprint band rendering ──────────────────────────────────
+
+const SPRINT_BAND_OPACITY = 0.05;
+const SPRINT_HOVER_OPACITY = 0.12;
+const SPRINT_BOUNDARY_OPACITY = 0.3;
+
+function renderSprintBands(
+  g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
+  svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
+  resolved: ResolvedSchedule,
+  xScale: d3Scale.ScaleLinear<number, number>,
+  innerHeight: number,
+  palette: PaletteColors
+): void {
+  if (resolved.sprints.length === 0) return;
+
+  // When both eras and sprints defined, eras win — don't render sprint bands
+  if (resolved.eras.length > 0) return;
+
+  const bandColor = palette.textMuted || palette.text || '#888';
+
+  // Chart content area starts at x=0 in the g coordinate space
+  const chartMinX = 0;
+
+  for (let i = 0; i < resolved.sprints.length; i++) {
+    const sprint = resolved.sprints[i];
+    const rawSx = xScale(dateToFractionalYear(sprint.startDate));
+    const rawEx = xScale(dateToFractionalYear(sprint.endDate));
+    if (rawEx <= rawSx) continue;
+
+    // Clip to chart content area — prevent bands from extending into swimlane margin
+    const sx = Math.max(rawSx, chartMinX);
+    const ex = rawEx;
+    const bandWidth = ex - sx;
+    if (bandWidth <= 0) continue;
+
+    const sprintG = g
+      .append('g')
+      .attr('class', 'gantt-sprint-group')
+      .style('cursor', 'pointer');
+
+    // Alternating shaded bands (consistent by sprint number)
+    const sprintRect = sprintG
+      .append('rect')
+      .attr('class', 'gantt-sprint-band')
+      .attr('x', sx)
+      .attr('y', 0)
+      .attr('width', bandWidth)
+      .attr('height', innerHeight)
+      .attr('fill', bandColor)
+      .attr('opacity', sprint.number % 2 === 0 ? SPRINT_BAND_OPACITY : 0);
+
+    // Invisible hit rect for hover on unshaded bands
+    if (sprint.number % 2 !== 0) {
+      sprintG
+        .append('rect')
+        .attr('x', sx)
+        .attr('y', 0)
+        .attr('width', bandWidth)
+        .attr('height', innerHeight)
+        .attr('fill', 'transparent');
+    }
+
+    // Persistent sprint number label — always visible, turns into "Sprint X" on hover
+    const sprintLabel = sprintG
+      .append('text')
+      .attr('class', 'gantt-sprint-label')
+      .attr('x', (sx + ex) / 2)
+      .attr('y', -22)
+      .attr('text-anchor', 'middle')
+      .attr('font-size', '10px')
+      .attr('font-weight', '600')
+      .attr('fill', bandColor)
+      .attr('opacity', 0.4)
+      .text(String(sprint.number));
+
+    // Dashed boundary line at sprint start (skip for first visible band)
+    if (i > 0 && rawSx >= chartMinX) {
+      sprintG
+        .append('line')
+        .attr('class', 'gantt-sprint-boundary')
+        .attr('x1', sx)
+        .attr('y1', -6)
+        .attr('x2', sx)
+        .attr('y2', innerHeight)
+        .attr('stroke', bandColor)
+        .attr('stroke-width', 1)
+        .attr('stroke-dasharray', '3 3')
+        .attr('opacity', SPRINT_BOUNDARY_OPACITY);
+    }
+
+    // Determine which tasks and groups overlap this sprint (start-inclusive, end-exclusive)
+    const sprintStartMs = sprint.startDate.getTime();
+    const sprintEndMs = sprint.endDate.getTime();
+    const overlappingTaskIds = new Set<string>();
+    for (const rt of resolved.tasks) {
+      const taskStart = rt.startDate.getTime();
+      const taskEnd = rt.endDate.getTime();
+      // Task overlaps sprint if it starts before sprint ends AND ends after sprint starts
+      if (taskStart < sprintEndMs && taskEnd > sprintStartMs) {
+        overlappingTaskIds.add(rt.task.id);
+      }
+      // Milestones (zero duration): include if they fall within [sprintStart, sprintEnd)
+      if (
+        taskStart === taskEnd &&
+        taskStart >= sprintStartMs &&
+        taskStart < sprintEndMs
+      ) {
+        overlappingTaskIds.add(rt.task.id);
+      }
+    }
+    const overlappingGroupNames = new Set<string>();
+    for (const rg of resolved.groups) {
+      const gStart = rg.startDate.getTime();
+      const gEnd = rg.endDate.getTime();
+      if (gStart < sprintEndMs && gEnd > sprintStartMs) {
+        overlappingGroupNames.add(rg.name);
+      }
+    }
+
+    // Hover: highlight band, keep overlapping tasks visible, show dates + sprint label
+    const baseOpacity = sprint.number % 2 === 0 ? SPRINT_BAND_OPACITY : 0;
+    sprintG
+      .on('mouseenter', () => {
+        // Dim tasks NOT in this sprint, keep overlapping ones visible
+        g.selectAll<SVGGElement, unknown>('.gantt-task').each(function () {
+          const el = d3Selection.select(this);
+          const id = el.attr('data-task-id');
+          el.attr(
+            'opacity',
+            id && overlappingTaskIds.has(id) ? 1 : FADE_OPACITY
+          );
+        });
+        g.selectAll<SVGElement, unknown>('.gantt-milestone').each(function () {
+          const el = d3Selection.select(this);
+          const id = el.attr('data-task-id');
+          el.attr(
+            'opacity',
+            id && overlappingTaskIds.has(id) ? 1 : FADE_OPACITY
+          );
+        });
+        svg
+          .selectAll<SVGTextElement, unknown>('.gantt-task-label')
+          .each(function () {
+            const el = d3Selection.select(this);
+            const id = el.attr('data-task-id');
+            el.attr(
+              'opacity',
+              id && overlappingTaskIds.has(id) ? 1 : FADE_OPACITY
+            );
+          });
+        g.selectAll<SVGElement, unknown>(
+          '.gantt-group-bar, .gantt-group-summary'
+        ).each(function () {
+          const el = d3Selection.select(this);
+          const name = el.attr('data-group');
+          el.attr(
+            'opacity',
+            name && overlappingGroupNames.has(name) ? 1 : FADE_OPACITY
+          );
+        });
+        svg
+          .selectAll<SVGGElement, unknown>('.gantt-group-label')
+          .each(function () {
+            const el = d3Selection.select(this);
+            const name = el.attr('data-group');
+            el.attr(
+              'opacity',
+              name && overlappingGroupNames.has(name) ? 1 : FADE_OPACITY
+            );
+          });
+        svg
+          .selectAll<SVGGElement, unknown>('.gantt-lane-header')
+          .attr('opacity', FADE_OPACITY);
+        g.selectAll<SVGElement, unknown>(
+          '.gantt-lane-band, .gantt-lane-accent, .gantt-lane-band-group'
+        ).attr('opacity', FADE_OPACITY);
+        g.selectAll<SVGElement, unknown>(
+          '.gantt-dep-arrow, .gantt-dep-arrowhead'
+        ).attr('opacity', FADE_OPACITY);
+        g.selectAll<SVGElement, unknown>('.gantt-marker-group').attr(
+          'opacity',
+          FADE_OPACITY
+        );
+        sprintRect.attr('opacity', SPRINT_HOVER_OPACITY);
+        // Only show start date indicator if it's within the visible chart area
+        const startVisible = rawSx >= chartMinX;
+        if (startVisible) {
+          showGanttDateIndicators(
+            g,
+            xScale,
+            sprint.startDate,
+            sprint.endDate,
+            innerHeight,
+            bandColor
+          );
+        } else {
+          // Only show end date indicator (start is clipped/off-screen)
+          showGanttDateIndicators(
+            g,
+            xScale,
+            sprint.endDate,
+            null,
+            innerHeight,
+            bandColor
+          );
+        }
+        // Swap persistent label to full "Sprint X" on hover
+        const accentColor = palette.accent || palette.text || bandColor;
+        sprintLabel
+          .text(`Sprint ${sprint.number}`)
+          .attr('font-size', '13px')
+          .attr('font-weight', '700')
+          .attr('fill', accentColor)
+          .attr('opacity', 1);
+      })
+      .on('mouseleave', () => {
+        resetHighlight(g, svg);
+        sprintRect.attr('opacity', baseOpacity);
+        sprintLabel
+          .text(String(sprint.number))
+          .attr('font-size', '10px')
+          .attr('font-weight', '600')
+          .attr('fill', bandColor)
+          .attr('opacity', 0.4);
+        hideGanttDateIndicators(g);
+      });
+  }
+
+  // Boundary line at end of last sprint
+  const lastSprint = resolved.sprints[resolved.sprints.length - 1];
+  const lastEx = xScale(dateToFractionalYear(lastSprint.endDate));
+  g.append('line')
+    .attr('class', 'gantt-sprint-boundary')
+    .attr('x1', lastEx)
+    .attr('y1', -6)
+    .attr('x2', lastEx)
+    .attr('y2', innerHeight)
+    .attr('stroke', bandColor)
+    .attr('stroke-width', 1)
+    .attr('stroke-dasharray', '3 3')
+    .attr('opacity', SPRINT_BOUNDARY_OPACITY);
 }
 
 /**
