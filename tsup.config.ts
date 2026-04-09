@@ -50,6 +50,7 @@ export default defineConfig([
     dts: true,
     sourcemap: true,
     splitting: false,
+    noExternal: ['lz-string'],
     external: ['jsdom'],
     esbuildPlugins: [fixJsdomXhrWorker],
   },
