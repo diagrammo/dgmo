@@ -70,7 +70,7 @@ export function isRecognizedColorName(name: string): boolean {
 /**
  * Resolves a recognized color name to its hex value for the active palette
  * (falling back to the built-in Nord defaults). Returns `null` for any
- * unrecognized input — including hex codes, CSS keywords like `black`,
+ * unrecognized input — including hex codes, CSS keywords like `pink`,
  * and typos. Callers MUST treat `null` as a parse error and emit a
  * diagnostic; do not silently fall back to the raw input.
  */

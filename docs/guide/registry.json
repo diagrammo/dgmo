@@ -10,6 +10,7 @@
     { "slug": "index", "title": "Welcome", "group": "getting-started", "file": "index.md" },
     { "slug": "keyboard-shortcuts", "title": "Keyboard Shortcuts", "group": "getting-started", "file": "keyboard-shortcuts.md" },
     { "slug": "colors", "title": "Colors", "group": "getting-started", "file": "colors.md" },
+    { "slug": "how-dgmo-thinks", "title": "How DGMO Thinks", "group": "getting-started", "file": "how-dgmo-thinks.md" },
 
     { "slug": "chart-arc", "title": "Arc Diagram", "group": "software", "file": "chart-arc.md" },
     { "slug": "chart-boxes-and-lines", "title": "Boxes and Lines", "group": "software", "file": "chart-boxes-and-lines.md" },
