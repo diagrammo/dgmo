@@ -107,14 +107,16 @@ function capsuleWidth(
   }
 
   // Multi-row: compute how many entries fit per row
-  const rowWidth = maxCapsuleW - LEGEND_CAPSULE_PAD * 2;
+  // Right boundary leaves one LEGEND_CAPSULE_PAD for right padding;
+  // left padding is already baked into the starting rowX.
+  const rowWidth = maxCapsuleW - LEGEND_CAPSULE_PAD;
   let row = 1;
-  let rowX = pw + 4;
+  let rowX = LEGEND_CAPSULE_PAD + pw + 4 + addonWidth;
   let visible = 0;
 
   for (let i = 0; i < entries.length; i++) {
     const ew2 = entryWidth(entries[i].value);
-    if (rowX + ew2 > rowWidth && rowX > pw + 4) {
+    if (rowX + ew2 > rowWidth && i > 0) {
       row++;
       rowX = 0;
       if (row > LEGEND_MAX_ENTRY_ROWS) {
@@ -323,7 +325,9 @@ function buildCapsuleLayout(
   let ex = LEGEND_CAPSULE_PAD + pw + 4 + addonWidth;
   let ey = 0;
   let rowX = ex;
-  const maxRowW = containerWidth - LEGEND_CAPSULE_PAD * 2;
+  // Right boundary: one LEGEND_CAPSULE_PAD for right padding.
+  // Left padding is already in ex/rowX starting position.
+  const maxRowW = containerWidth - LEGEND_CAPSULE_PAD;
   let currentRow = 0;
 
   for (let i = 0; i < info.visibleEntries; i++) {
