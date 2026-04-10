@@ -21,6 +21,8 @@ import type {
   SequenceParticipant,
 } from './parser';
 import { isSequenceBlock, isSequenceSection, isSequenceNote } from './parser';
+import { applyCollapseProjection } from './collapse';
+import type { CollapsedView } from './collapse';
 import { resolveSequenceTags } from './tag-resolution';
 import type { ResolvedTagMap } from './tag-resolution';
 import { resolveActiveTagGroup } from '../utils/tag-groups';
@@ -533,6 +535,7 @@ export interface SectionMessageGroup {
 
 export interface SequenceRenderOptions {
   collapsedSections?: Set<number>; // keyed by section lineNumber
+  collapsedGroups?: Set<number>; // keyed by group lineNumber
   expandedNoteLines?: Set<number>; // keyed by note lineNumber; undefined = all expanded (CLI default)
   exportWidth?: number; // Explicit width for CLI/export rendering (bypasses getBoundingClientRect)
   activeTagGroup?: string | null; // Active tag group name for tag-driven recoloring; null = explicitly none
@@ -900,7 +903,37 @@ export function renderSequenceDiagram(
   // Clear previous content
   d3Selection.select(container).selectAll('*').remove();
 
-  const { title, messages, elements, groups, options: parsedOptions } = parsed;
+  const { title, options: parsedOptions } = parsed;
+
+  // Compute effective collapsed groups: union of syntax-declared and runtime-toggled
+  const effectiveCollapsedGroups = new Set<number>();
+  for (const group of parsed.groups) {
+    if (group.collapsed) effectiveCollapsedGroups.add(group.lineNumber);
+  }
+  if (options?.collapsedGroups) {
+    for (const ln of options.collapsedGroups) {
+      // Toggle: if already in the set (from syntax), remove it (user expanded);
+      // if not in the set, add it (user collapsed)
+      if (effectiveCollapsedGroups.has(ln)) {
+        effectiveCollapsedGroups.delete(ln);
+      } else {
+        effectiveCollapsedGroups.add(ln);
+      }
+    }
+  }
+
+  // Apply collapse projection before participant ordering
+  const collapsed: CollapsedView | null =
+    effectiveCollapsedGroups.size > 0
+      ? applyCollapseProjection(parsed, effectiveCollapsedGroups)
+      : null;
+
+  const messages = collapsed ? collapsed.messages : parsed.messages;
+  const elements = collapsed ? collapsed.elements : parsed.elements;
+  const groups = collapsed ? collapsed.groups : parsed.groups;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const collapsedGroupIds = collapsed?.collapsedGroupIds ?? new Map();
+
   const collapsedSections = options?.collapsedSections;
   const expandedNoteLines = options?.expandedNoteLines;
   const collapseNotesDisabled =
@@ -911,8 +944,12 @@ export function renderSequenceDiagram(
     expandedNoteLines === undefined ||
     collapseNotesDisabled ||
     expandedNoteLines.has(note.lineNumber);
+
+  const sourceParticipants = collapsed
+    ? collapsed.participants
+    : parsed.participants;
   const participants = applyPositionOverrides(
-    applyGroupOrdering(parsed.participants, groups, messages)
+    applyGroupOrdering(sourceParticipants, groups, messages)
   );
   if (participants.length === 0) return;
 
@@ -1618,7 +1655,23 @@ export function renderSequenceDiagram(
     );
   }
 
-  // Render group boxes (behind participant shapes)
+  // Build set of collapsed group names for drill-bar rendering
+  const collapsedGroupNames = new Set<string>();
+  const collapsedGroupMeta = new Map<
+    string,
+    { lineNumber: number; metadata?: Record<string, string> }
+  >();
+  for (const group of parsed.groups) {
+    if (effectiveCollapsedGroups.has(group.lineNumber)) {
+      collapsedGroupNames.add(group.name);
+      collapsedGroupMeta.set(group.name, {
+        lineNumber: group.lineNumber,
+        metadata: group.metadata,
+      });
+    }
+  }
+
+  // Render group boxes (behind participant shapes) — skip collapsed groups
   for (const group of groups) {
     if (group.participantIds.length === 0) continue;
 
@@ -1650,7 +1703,15 @@ export function renderSequenceDiagram(
         : palette.bg;
     const strokeColor = groupTagColor || palette.textMuted;
 
-    svg
+    const groupG = svg
+      .append('g')
+      .attr('class', 'group-box-wrapper')
+      .attr('data-group-toggle', '')
+      .attr('data-group-line', String(group.lineNumber))
+      .attr('cursor', 'pointer');
+    groupG.append('title').text('Click to collapse');
+
+    groupG
       .append('rect')
       .attr('x', minX)
       .attr('y', boxY)
@@ -1661,11 +1722,10 @@ export function renderSequenceDiagram(
       .attr('stroke', strokeColor)
       .attr('stroke-width', 1)
       .attr('stroke-opacity', 0.5)
-      .attr('class', 'group-box')
-      .attr('data-group-line', String(group.lineNumber));
+      .attr('class', 'group-box');
 
     // Group label
-    svg
+    groupG
       .append('text')
       .attr('x', minX + 8)
       .attr('y', boxY + GROUP_LABEL_SIZE + 4)
@@ -1674,7 +1734,6 @@ export function renderSequenceDiagram(
       .attr('font-weight', 'bold')
       .attr('opacity', 0.7)
       .attr('class', 'group-label')
-      .attr('data-group-line', String(group.lineNumber))
       .text(group.name);
   }
 
@@ -1690,6 +1749,16 @@ export function renderSequenceDiagram(
       tagKey && pTagValue
         ? { key: tagKey, value: pTagValue.toLowerCase() }
         : undefined;
+    // For collapsed group participants, resolve tag color from group metadata
+    const isCollapsedGroup = collapsedGroupNames.has(participant.id);
+    let effectiveTagColor = pTagColor;
+    if (isCollapsedGroup && !effectiveTagColor) {
+      const meta = collapsedGroupMeta.get(participant.id);
+      if (meta?.metadata && tagKey) {
+        effectiveTagColor = getTagColor(meta.metadata[tagKey]);
+      }
+    }
+
     renderParticipant(
       svg,
       participant,
@@ -1697,9 +1766,48 @@ export function renderSequenceDiagram(
       cy,
       palette,
       isDark,
-      pTagColor,
+      effectiveTagColor,
       pTagAttr
     );
+
+    // Drill-bar for collapsed group participants
+    if (isCollapsedGroup) {
+      const meta = collapsedGroupMeta.get(participant.id)!;
+      const drillColor = effectiveTagColor || palette.textMuted;
+      const drillBarH = 6;
+      const boxW = PARTICIPANT_BOX_WIDTH;
+      const boxH = PARTICIPANT_BOX_HEIGHT;
+      const boxX = cx - boxW / 2;
+      const boxY = cy - boxH / 2;
+      const clipId = `clip-drill-group-${participant.id.replace(/[^a-zA-Z0-9-]/g, '-')}`;
+
+      const drillG = svg
+        .append('g')
+        .attr('class', 'sequence-drill-bar')
+        .attr('data-group-toggle', '')
+        .attr('data-group-line', String(meta.lineNumber))
+        .attr('cursor', 'pointer');
+      drillG.append('title').text('Click to expand');
+
+      drillG
+        .append('clipPath')
+        .attr('id', clipId)
+        .append('rect')
+        .attr('x', boxX)
+        .attr('y', boxY)
+        .attr('width', boxW)
+        .attr('height', boxH)
+        .attr('rx', SERVICE_BORDER_RADIUS);
+
+      drillG
+        .append('rect')
+        .attr('x', boxX)
+        .attr('y', boxY + boxH - drillBarH)
+        .attr('width', boxW)
+        .attr('height', drillBarH)
+        .attr('fill', drillColor)
+        .attr('clip-path', `url(#${clipId})`);
+    }
 
     // Render lifeline
     const lifelineEl = svg
@@ -2104,43 +2212,14 @@ export function renderSequenceDiagram(
       ? `${sec.label} (${msgCount} ${msgCount === 1 ? 'message' : 'messages'})`
       : sec.label;
 
-    // Collapsed sections use white text for contrast against the darker band
-    const labelColor = isCollapsed ? '#ffffff' : lineColor;
-
-    // Chevron indicator
-    const chevronSpace = 14;
-    const labelX = (sectionLineX1 + sectionLineX2) / 2;
-    const chevronX = labelX - (labelText.length * 3.5 + 8 + chevronSpace / 2);
-    const chevronY = secY;
-    if (isCollapsed) {
-      // Right-pointing triangle ▶
-      sectionG
-        .append('path')
-        .attr(
-          'd',
-          `M ${chevronX} ${chevronY - 4} L ${chevronX + 6} ${chevronY} L ${chevronX} ${chevronY + 4} Z`
-        )
-        .attr('fill', labelColor)
-        .attr('class', 'section-chevron');
-    } else {
-      // Down-pointing triangle ▼
-      sectionG
-        .append('path')
-        .attr(
-          'd',
-          `M ${chevronX - 1} ${chevronY - 3} L ${chevronX + 7} ${chevronY - 3} L ${chevronX + 3} ${chevronY + 3} Z`
-        )
-        .attr('fill', labelColor)
-        .attr('class', 'section-chevron');
-    }
-
     // Centered label text
+    const labelX = (sectionLineX1 + sectionLineX2) / 2;
     sectionG
       .append('text')
-      .attr('x', labelX + chevronSpace / 2)
+      .attr('x', labelX)
       .attr('y', secY + 4)
       .attr('text-anchor', 'middle')
-      .attr('fill', labelColor)
+      .attr('fill', lineColor)
       .attr('font-size', 11)
       .attr('font-weight', 'bold')
       .attr('class', 'section-label')
