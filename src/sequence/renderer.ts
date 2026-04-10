@@ -1781,7 +1781,7 @@ export function renderSequenceDiagram(
       pTagAttr
     );
 
-    // Collapsed group: re-render participant box at full group height + drill-bar + click target
+    // Collapsed group: re-render participant box at full group height + drill-bar
     if (isCollapsedGroup) {
       const meta = collapsedGroupMeta.get(participant.id)!;
       const drillColor = effectiveTagColor || palette.textMuted;
@@ -1790,9 +1790,18 @@ export function renderSequenceDiagram(
       // Match the group box dimensions
       const fullH =
         PARTICIPANT_BOX_HEIGHT + GROUP_PADDING_TOP + GROUP_PADDING_BOTTOM;
-      const boxX = cx - boxW / 2;
-      const boxY = cy - GROUP_PADDING_TOP;
       const clipId = `clip-drill-group-${participant.id.replace(/[^a-zA-Z0-9-]/g, '-')}`;
+
+      // Add toggle attributes to the participant <g> so any click on it
+      // (overlay rect, label, drill-bar) walks up and triggers the toggle
+      const participantG = svg.select<SVGGElement>(
+        `.participant[data-participant-id="${participant.id}"]`
+      );
+      participantG
+        .attr('data-group-toggle', '')
+        .attr('data-group-line', String(meta.lineNumber))
+        .attr('cursor', 'pointer');
+      participantG.append('title').text('Click to expand');
 
       // Overlay a taller rect to replace the standard participant box
       const pFill = effectiveTagColor
@@ -1806,11 +1815,11 @@ export function renderSequenceDiagram(
           : mix(palette.bg, palette.surface, 50);
       const pStroke = effectiveTagColor || palette.border;
 
-      // Remove the standard-height rect by overlaying the full-height one
-      svg
+      // Taller box inside the participant <g> (local coords, y=0 is participant cy)
+      participantG
         .append('rect')
-        .attr('x', boxX)
-        .attr('y', boxY)
+        .attr('x', -boxW / 2)
+        .attr('y', -GROUP_PADDING_TOP)
         .attr('width', boxW)
         .attr('height', fullH)
         .attr('rx', 6)
@@ -1818,12 +1827,11 @@ export function renderSequenceDiagram(
         .attr('stroke', pStroke)
         .attr('stroke-width', 1.5);
 
-      // Re-render label centered in the taller box
-      const labelY = boxY + fullH / 2;
-      svg
+      // Re-render label centered in the taller box (local coords)
+      participantG
         .append('text')
-        .attr('x', cx)
-        .attr('y', labelY)
+        .attr('x', 0)
+        .attr('y', -GROUP_PADDING_TOP + fullH / 2)
         .attr('text-anchor', 'middle')
         .attr('dominant-baseline', 'central')
         .attr('fill', palette.text)
@@ -1831,42 +1839,26 @@ export function renderSequenceDiagram(
         .attr('font-weight', 500)
         .text(participant.label);
 
-      // Drill-bar at bottom
-      const drillG = svg
-        .append('g')
-        .attr('class', 'sequence-drill-bar')
-        .attr('data-group-toggle', '')
-        .attr('data-group-line', String(meta.lineNumber))
-        .attr('cursor', 'pointer');
-      drillG.append('title').text('Click to expand');
-
-      drillG
+      // Drill-bar at bottom (local coords)
+      participantG
         .append('clipPath')
         .attr('id', clipId)
         .append('rect')
-        .attr('x', boxX)
-        .attr('y', boxY)
+        .attr('x', -boxW / 2)
+        .attr('y', -GROUP_PADDING_TOP)
         .attr('width', boxW)
         .attr('height', fullH)
         .attr('rx', 6);
 
-      drillG
+      participantG
         .append('rect')
-        .attr('x', boxX)
-        .attr('y', boxY + fullH - drillBarH)
+        .attr('class', 'sequence-drill-bar')
+        .attr('x', -boxW / 2)
+        .attr('y', -GROUP_PADDING_TOP + fullH - drillBarH)
         .attr('width', boxW)
         .attr('height', drillBarH)
         .attr('fill', drillColor)
         .attr('clip-path', `url(#${clipId})`);
-
-      // Invisible click target covering the full box for expand toggle
-      drillG
-        .append('rect')
-        .attr('x', boxX)
-        .attr('y', boxY)
-        .attr('width', boxW)
-        .attr('height', fullH)
-        .attr('fill', 'transparent');
     }
 
     // Render lifeline — collapsed groups start below the taller box

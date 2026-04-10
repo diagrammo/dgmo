@@ -379,7 +379,11 @@ describe('Collapse rendering', () => {
     const svg = renderToSvg(collapseDiagram)!;
     const drillBars = svg.querySelectorAll('.sequence-drill-bar');
     expect(drillBars.length).toBeGreaterThan(0);
-    expect(drillBars[0].getAttribute('data-group-toggle')).toBe('');
+    // data-group-toggle is on the participant <g> wrapper
+    const participant = svg.querySelector(
+      '.participant[data-participant-id="Backend"]'
+    )!;
+    expect(participant.getAttribute('data-group-toggle')).toBe('');
   });
 
   it('expanded group has .group-box present', () => {
