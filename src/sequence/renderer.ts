@@ -1195,6 +1195,15 @@ export function renderSequenceDiagram(
   const preSectionMsgIndices: number[] = [];
   const sectionRegions: SectionRegion[] = [];
   {
+    // Build lineNumber → message index lookup.  This is used instead of
+    // messages.indexOf() because collapse projection creates spread copies
+    // of messages, breaking reference equality.
+    const msgLineToIndex = new Map<number, number>();
+    messages.forEach((m, i) => msgLineToIndex.set(m.lineNumber, i));
+
+    const findMsgIndex = (child: SequenceElement): number =>
+      msgLineToIndex.get(child.lineNumber) ?? -1;
+
     const collectMsgIndicesFromBlock = (
       block: import('./parser').SequenceBlock
     ): number[] => {
@@ -1203,7 +1212,7 @@ export function renderSequenceDiagram(
         if (isSequenceBlock(child)) {
           indices.push(...collectMsgIndicesFromBlock(child));
         } else if (!isSequenceSection(child) && !isSequenceNote(child)) {
-          const idx = messages.indexOf(child as SequenceMessage);
+          const idx = findMsgIndex(child);
           if (idx >= 0) indices.push(idx);
         }
       }
@@ -1213,7 +1222,7 @@ export function renderSequenceDiagram(
             if (isSequenceBlock(child)) {
               indices.push(...collectMsgIndicesFromBlock(child));
             } else if (!isSequenceSection(child) && !isSequenceNote(child)) {
-              const idx = messages.indexOf(child as SequenceMessage);
+              const idx = findMsgIndex(child);
               if (idx >= 0) indices.push(idx);
             }
           }
@@ -1223,7 +1232,7 @@ export function renderSequenceDiagram(
         if (isSequenceBlock(child)) {
           indices.push(...collectMsgIndicesFromBlock(child));
         } else if (!isSequenceSection(child) && !isSequenceNote(child)) {
-          const idx = messages.indexOf(child as SequenceMessage);
+          const idx = findMsgIndex(child);
           if (idx >= 0) indices.push(idx);
         }
       }
@@ -1239,7 +1248,7 @@ export function renderSequenceDiagram(
       } else if (isSequenceBlock(el)) {
         currentTarget.push(...collectMsgIndicesFromBlock(el));
       } else {
-        const idx = messages.indexOf(el as SequenceMessage);
+        const idx = findMsgIndex(el);
         if (idx >= 0) currentTarget.push(idx);
       }
     }
