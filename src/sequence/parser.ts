@@ -154,6 +154,8 @@ export interface SequenceGroup {
   lineNumber: number;
   /** Pipe-delimited tag metadata (e.g. `[Backend | t: Product]`) */
   metadata?: Record<string, string>;
+  /** Whether this group is collapsed by default */
+  collapsed?: boolean;
 }
 
 /**
@@ -502,8 +504,17 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       const groupColor = groupMatch[2]?.trim();
       let groupMeta: Record<string, string> | undefined;
 
-      // Parse pipe metadata AFTER the closing bracket
-      const afterBracket = groupMatch[3]?.trim() || '';
+      // Parse collapse keyword and pipe metadata AFTER the closing bracket
+      let afterBracket = groupMatch[3]?.trim() || '';
+      let isCollapsed = false;
+
+      // Extract `collapse` keyword (before any pipe metadata)
+      const collapseMatch = afterBracket.match(/^collapse\b/i);
+      if (collapseMatch) {
+        isCollapsed = true;
+        afterBracket = afterBracket.slice(collapseMatch[0].length).trim();
+      }
+
       if (afterBracket.startsWith('|')) {
         const segments = afterBracket.split('|');
         const meta = parsePipeMetadata(segments, aliasMap, () =>
@@ -524,6 +535,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
         participantIds: [],
         lineNumber,
         ...(groupMeta ? { metadata: groupMeta } : {}),
+        ...(isCollapsed ? { collapsed: true } : {}),
       };
       result.groups.push(activeGroup);
       continue;

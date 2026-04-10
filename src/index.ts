@@ -410,6 +410,9 @@ export type {
   SequenceRenderOptions,
 } from './sequence/renderer';
 
+export { applyCollapseProjection } from './sequence/collapse';
+export type { CollapsedView } from './sequence/collapse';
+
 // ============================================================
 // Colors & Palettes
 // ============================================================

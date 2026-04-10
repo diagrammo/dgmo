@@ -9,6 +9,7 @@ import type { Selection } from 'd3-selection';
 export interface LegendState {
   activeGroup: string | null;
   hiddenAttributes?: Set<string>;
+  controlsExpanded?: boolean;
 }
 
 export interface LegendCallbacks {
@@ -23,6 +24,10 @@ export interface LegendCallbacks {
     groupEl: D3Sel,
     isActive: boolean
   ) => void;
+  /** Called when the controls group gear pill is clicked (expand/collapse) */
+  onControlsExpand?: () => void;
+  /** Called when a controls group toggle entry is clicked */
+  onControlsToggle?: (toggleId: string, active: boolean) => void;
 }
 
 // ── Position & Layout ───────────────────────────────────────
@@ -53,12 +58,28 @@ export interface LegendControlEntry {
   onClick?: () => void;
 }
 
+// ── Controls Group ─────────────────────────────────────────
+
+export interface ControlsGroupToggle {
+  id: string;
+  /** Only 'toggle' is implemented in v1. 'select' and 'action' future-proof for Infra playback etc. */
+  type: 'toggle' | 'select' | 'action';
+  label: string;
+  active: boolean;
+  onToggle: (active: boolean) => void;
+}
+
+export interface ControlsGroupConfig {
+  toggles: ControlsGroupToggle[];
+}
+
 // ── Config ──────────────────────────────────────────────────
 
 export interface LegendConfig {
   groups: import('./legend-svg').LegendGroupData[];
   position: LegendPosition;
   controls?: LegendControl[];
+  controlsGroup?: ControlsGroupConfig;
   mode: LegendMode;
   /** Title width in pixels — used for inline-with-title computation */
   titleWidth?: number;
@@ -131,6 +152,28 @@ export interface LegendControlLayout {
   }>;
 }
 
+export interface ControlsGroupToggleLayout {
+  id: string;
+  label: string;
+  active: boolean;
+  dotCx: number;
+  dotCy: number;
+  textX: number;
+  textY: number;
+}
+
+export interface ControlsGroupLayout {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  expanded: boolean;
+  /** The gear pill layout (collapsed or inside capsule) */
+  pill: { x: number; y: number; width: number; height: number };
+  /** Toggle entries (only present when expanded) */
+  toggles: ControlsGroupToggleLayout[];
+}
+
 export interface LegendRowLayout {
   y: number;
   items: Array<LegendPillLayout | LegendCapsuleLayout | LegendControlLayout>;
@@ -149,6 +192,8 @@ export interface LegendLayout {
   controls: LegendControlLayout[];
   /** All pill layouts (collapsed groups) */
   pills: LegendPillLayout[];
+  /** Controls group layout (gear pill / capsule) */
+  controlsGroup?: ControlsGroupLayout;
 }
 
 // ── Handle ──────────────────────────────────────────────────

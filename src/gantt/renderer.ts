@@ -20,9 +20,11 @@ import {
   LEGEND_ENTRY_TRAIL,
   LEGEND_GROUP_GAP,
   LEGEND_ICON_W,
+  LEGEND_GEAR_PILL_W,
   measureLegendText,
 } from '../utils/legend-constants';
 import { renderLegendD3 } from '../utils/legend-d3';
+import { controlsGroupCapsuleWidth } from '../utils/legend-layout';
 import type {
   LegendConfig,
   LegendState,
@@ -233,6 +235,8 @@ export function renderGantt(
     options?.currentActiveGroup
   );
   let criticalPathActive = false;
+  let dependenciesActive = !!resolved.options.dependencies;
+  let controlsExpanded = false;
 
   // ── Build row list (structural vs tag mode) ─────────────
 
@@ -264,11 +268,21 @@ export function renderGantt(
 
   const totalRows = rows.length;
 
+  // Pre-compute critical path / dependency flags (needed for legend height reservation)
+  const hasCriticalPath =
+    resolved.options.criticalPath &&
+    resolved.tasks.some((t) => t.isCriticalPath);
+  const hasDependencies =
+    resolved.options.dependencies &&
+    resolved.tasks.some((t) => t.task.dependencies.length > 0);
+
   // Vertical layout — matches timeline pattern (d3.ts:3649-3655)
   const title = resolved.options.title;
   const titleHeight = title ? 50 : 20;
   const tagLegendReserve =
-    resolved.tagGroups.length > 0 ? LEGEND_HEIGHT + 8 : 0;
+    resolved.tagGroups.length > 0 || hasCriticalPath || hasDependencies
+      ? LEGEND_HEIGHT + 8
+      : 0;
   const topDateLabelReserve = 22; // tick (6) + gap (4) + label height (~12)
   const hasOverheadLabels =
     resolved.markers.length > 0 || resolved.eras.length > 0;
@@ -327,13 +341,9 @@ export function renderGantt(
 
   // ── Tag legend (interactive) ────────────────────────────
 
-  const hasCriticalPath =
-    resolved.options.criticalPath &&
-    resolved.tasks.some((t) => t.isCriticalPath);
-
   function drawLegend() {
     svg.selectAll('.gantt-tag-legend-container').remove();
-    if (resolved.tagGroups.length > 0 || hasCriticalPath) {
+    if (resolved.tagGroups.length > 0 || hasCriticalPath || hasDependencies) {
       const legendY = titleHeight;
       renderTagLegend(
         svg,
@@ -359,14 +369,38 @@ export function renderGantt(
           recolorBars();
         },
         () => {
-          criticalPathActive = !criticalPathActive;
+          controlsExpanded = !controlsExpanded;
           drawLegend();
         },
         currentSwimlaneGroup,
         onSwimlaneChange,
         viewMode,
-        resolved.tasks
+        resolved.tasks,
+        controlsExpanded,
+        hasDependencies,
+        dependenciesActive,
+        (toggleId, active) => {
+          if (toggleId === 'critical-path') {
+            criticalPathActive = active;
+          } else if (toggleId === 'dependencies') {
+            dependenciesActive = active;
+            // Show/hide dependency arrows
+            g.selectAll<SVGElement, unknown>(
+              '.gantt-dep-arrow, .gantt-dep-arrowhead, .gantt-dep-label'
+            ).attr('display', active ? null : 'none');
+          }
+          drawLegend();
+        }
       );
+    }
+  }
+
+  function restoreHighlight() {
+    if (criticalPathActive) {
+      applyCriticalPathHighlight(svg, g);
+    } else {
+      svg.attr('data-critical-path-active', null);
+      resetHighlight(g, svg);
     }
   }
 
@@ -568,7 +602,7 @@ export function renderGantt(
           }
         })
         .on('mouseleave', () => {
-          resetHighlight(g, svg);
+          restoreHighlight();
           hideGanttDateIndicators(g);
         });
 
@@ -979,7 +1013,7 @@ export function renderGantt(
               .text(task.label);
           })
           .on('mouseleave', () => {
-            resetHighlight(g, svg);
+            restoreHighlight();
             hideGanttDateIndicators(g);
             g.selectAll('.gantt-milestone-hover-label').remove();
           });
@@ -1023,11 +1057,7 @@ export function renderGantt(
           })
           .on('mouseleave', () => {
             if (resolved.options.dependencies) {
-              if (criticalPathActive) {
-                applyCriticalPathHighlight(svg, g);
-              } else {
-                resetHighlight(g, svg);
-              }
+              restoreHighlight();
             }
             resetTaskLabels(svg);
             hideGanttDateIndicators(g);
@@ -1704,6 +1734,7 @@ function applyCriticalPathHighlight(
   svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
   chartG: d3Selection.Selection<SVGGElement, unknown, null, undefined>
 ) {
+  svg.attr('data-critical-path-active', 'true');
   chartG.selectAll<SVGGElement, unknown>('.gantt-task').each(function () {
     const el = d3Selection.select(this);
     el.attr(
@@ -1827,6 +1858,34 @@ function drawSwimlaneIcon(
   return iconG;
 }
 
+function buildControlsToggles(
+  hasCriticalPath: boolean,
+  criticalPathActive: boolean,
+  hasDependencies: boolean,
+  dependenciesActive: boolean
+): import('../utils/legend-types').ControlsGroupToggle[] {
+  const toggles: import('../utils/legend-types').ControlsGroupToggle[] = [];
+  if (hasCriticalPath) {
+    toggles.push({
+      id: 'critical-path',
+      type: 'toggle',
+      label: 'Critical Path',
+      active: criticalPathActive,
+      onToggle: () => {},
+    });
+  }
+  if (hasDependencies) {
+    toggles.push({
+      id: 'dependencies',
+      type: 'toggle',
+      label: 'Dependencies',
+      active: dependenciesActive,
+      onToggle: () => {},
+    });
+  }
+  return toggles;
+}
+
 function renderTagLegend(
   svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
   chartG: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
@@ -1841,16 +1900,16 @@ function renderTagLegend(
   criticalPathActive: boolean,
   optionLineNumbers: Record<string, number>,
   onToggle?: (groupName: string) => void,
-  onToggleCriticalPath?: () => void,
+  onToggleControlsExpand?: () => void,
   currentSwimlaneGroup?: string | null,
   onSwimlaneChange?: (group: string | null) => void,
   legendViewMode?: boolean,
-  resolvedTasks?: ResolvedTask[]
+  resolvedTasks?: ResolvedTask[],
+  controlsExpanded = false,
+  hasDependencies = false,
+  dependenciesActive = false,
+  onControlsToggle?: (toggleId: string, active: boolean) => void
 ): void {
-  const groupBg = isDark
-    ? mix(palette.surface, palette.bg, 50)
-    : mix(palette.surface, palette.bg, 30);
-
   // Build visible groups: active group expanded + swimlane group as compact pill
   let visibleGroups: TagGroup[];
   if (activeGroupName) {
@@ -1934,13 +1993,16 @@ function renderTagLegend(
   }
   totalW += Math.max(0, (visibleGroups.length - 1) * LEGEND_GROUP_GAP);
 
-  // Critical Path pill width
-  const cpLabel = 'Critical Path';
-  const cpPillW =
-    measureLegendText(cpLabel, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
-  if (hasCriticalPath) {
+  // Controls group width — replaces standalone critical path pill
+  const hasControls = hasCriticalPath || hasDependencies;
+  const controlsToggleLabels: Array<{ label: string }> = [];
+  if (hasCriticalPath) controlsToggleLabels.push({ label: 'Critical Path' });
+  if (hasDependencies) controlsToggleLabels.push({ label: 'Dependencies' });
+  if (hasControls) {
     if (visibleGroups.length > 0) totalW += LEGEND_GROUP_GAP;
-    totalW += cpPillW;
+    totalW += controlsExpanded
+      ? controlsGroupCapsuleWidth(controlsToggleLabels)
+      : LEGEND_GEAR_PILL_W;
   }
 
   // Center over full container (matching title centering)
@@ -1951,8 +2013,6 @@ function renderTagLegend(
     .append('g')
     .attr('class', 'gantt-tag-legend-container')
     .attr('transform', `translate(${legendX}, ${legendY})`);
-
-  let cursorX = 0;
 
   // Render tag groups via centralized legend system
   if (visibleGroups.length > 0) {
@@ -1969,6 +2029,13 @@ function renderTagLegend(
       };
     });
 
+    const controlsToggles = buildControlsToggles(
+      hasCriticalPath,
+      criticalPathActive,
+      hasDependencies,
+      dependenciesActive
+    );
+
     const legendConfig: LegendConfig = {
       groups: legendGroups,
       position: {
@@ -1977,16 +2044,30 @@ function renderTagLegend(
       },
       mode: 'fixed' as const,
       capsulePillAddonWidth: iconReserve,
+      controlsGroup:
+        controlsToggles.length > 0 ? { toggles: controlsToggles } : undefined,
     };
-    const legendState: LegendState = { activeGroup: activeGroupName };
+    const legendState: LegendState = {
+      activeGroup: activeGroupName,
+      controlsExpanded,
+    };
 
-    const tagGroupsW =
+    let tagGroupsW =
       visibleGroups.reduce((s, _, i) => s + groupWidths[i], 0) +
       Math.max(0, (visibleGroups.length - 1) * LEGEND_GROUP_GAP);
+    // Add controls group space to the renderLegendD3 container width
+    if (hasControls) {
+      if (visibleGroups.length > 0) tagGroupsW += LEGEND_GROUP_GAP;
+      tagGroupsW += controlsExpanded
+        ? controlsGroupCapsuleWidth(controlsToggleLabels)
+        : LEGEND_GEAR_PILL_W;
+    }
     const tagGroupG = legendRow.append('g');
 
     const legendCallbacks: LegendCallbacks = {
       onGroupToggle: onToggle,
+      onControlsExpand: onToggleControlsExpand,
+      onControlsToggle,
       onEntryHover: (groupName, entryValue) => {
         const tagKey = groupName.toLowerCase();
         if (entryValue) {
@@ -2092,67 +2173,43 @@ function renderTagLegend(
       legendCallbacks,
       tagGroupsW
     );
+  } else if (hasControls) {
+    // No tag groups, but controls group needs rendering
+    const controlsToggles = buildControlsToggles(
+      hasCriticalPath,
+      criticalPathActive,
+      hasDependencies,
+      dependenciesActive
+    );
 
-    for (let i = 0; i < visibleGroups.length; i++) {
-      cursorX += groupWidths[i] + LEGEND_GROUP_GAP;
-    }
+    const legendConfig: LegendConfig = {
+      groups: [],
+      position: {
+        placement: 'top-center' as const,
+        titleRelation: 'below-title' as const,
+      },
+      mode: 'fixed' as const,
+      controlsGroup: { toggles: controlsToggles },
+    };
+
+    const tagGroupG = legendRow.append('g');
+    renderLegendD3(
+      tagGroupG,
+      legendConfig,
+      { activeGroup: null, controlsExpanded },
+      palette,
+      isDark,
+      {
+        onControlsExpand: onToggleControlsExpand,
+        onControlsToggle,
+      },
+      totalW
+    );
   }
 
-  // Critical Path pill
-  if (hasCriticalPath) {
-    const cpLineNum = optionLineNumbers['critical-path'];
-    const cpG = legendRow
-      .append('g')
-      .attr('transform', `translate(${cursorX}, 0)`)
-      .attr('class', 'gantt-legend-critical-path')
-      .style('cursor', 'pointer')
-      .on('click', () => {
-        if (onToggleCriticalPath) onToggleCriticalPath();
-      });
-    if (cpLineNum) cpG.attr('data-line-number', String(cpLineNum));
-
-    cpG
-      .append('rect')
-      .attr('width', cpPillW)
-      .attr('height', LEGEND_HEIGHT)
-      .attr('rx', LEGEND_HEIGHT / 2)
-      .attr('fill', criticalPathActive ? palette.bg : groupBg);
-
-    if (criticalPathActive) {
-      cpG
-        .append('rect')
-        .attr('width', cpPillW)
-        .attr('height', LEGEND_HEIGHT)
-        .attr('rx', LEGEND_HEIGHT / 2)
-        .attr('fill', 'none')
-        .attr('stroke', mix(palette.textMuted, palette.bg, 50))
-        .attr('stroke-width', 0.75);
-    }
-
-    cpG
-      .append('text')
-      .attr('x', cpPillW / 2)
-      .attr('y', LEGEND_HEIGHT / 2 + LEGEND_PILL_FONT_SIZE / 2 - 2)
-      .attr('text-anchor', 'middle')
-      .attr('font-size', `${LEGEND_PILL_FONT_SIZE}px`)
-      .attr('font-weight', '500')
-      .attr('fill', criticalPathActive ? palette.text : palette.textMuted)
-      .text(cpLabel);
-
-    // Apply persistent highlighting when active
-    if (criticalPathActive) {
-      applyCriticalPathHighlight(svg, chartG);
-    }
-
-    cpG
-      .on('mouseenter', () => {
-        applyCriticalPathHighlight(svg, chartG);
-      })
-      .on('mouseleave', () => {
-        if (!criticalPathActive) {
-          resetHighlightAll(svg, chartG);
-        }
-      });
+  // Apply persistent critical path highlighting when active
+  if (criticalPathActive) {
+    applyCriticalPathHighlight(svg, chartG);
   }
 }
 
@@ -2990,6 +3047,11 @@ function resetHighlight(
   g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>
 ): void {
+  // If critical path is actively toggled ON, restore its highlight instead of full reset
+  if (svg.attr('data-critical-path-active') === 'true') {
+    applyCriticalPathHighlight(svg, g);
+    return;
+  }
   g.selectAll<SVGGElement, unknown>('.gantt-task, .gantt-milestone').attr(
     'opacity',
     1

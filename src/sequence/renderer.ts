@@ -1322,8 +1322,10 @@ export function renderSequenceDiagram(
   const LEGEND_FIXED_GAP = 8;
   const legendTopSpace =
     parsed.tagGroups.length > 0 ? LEGEND_HEIGHT + LEGEND_FIXED_GAP : 0;
+  // Use parsed.groups (not projected groups) to keep vertical space consistent
+  // even when all groups are collapsed into virtual participants
   const groupOffset =
-    groups.length > 0 ? GROUP_PADDING_TOP + GROUP_LABEL_SIZE : 0;
+    parsed.groups.length > 0 ? GROUP_PADDING_TOP + GROUP_LABEL_SIZE : 0;
   const participantStartY =
     TOP_MARGIN +
     titleOffset +
@@ -1770,17 +1772,57 @@ export function renderSequenceDiagram(
       pTagAttr
     );
 
-    // Drill-bar for collapsed group participants
+    // Collapsed group: re-render participant box at full group height + drill-bar + click target
     if (isCollapsedGroup) {
       const meta = collapsedGroupMeta.get(participant.id)!;
       const drillColor = effectiveTagColor || palette.textMuted;
       const drillBarH = 6;
       const boxW = PARTICIPANT_BOX_WIDTH;
-      const boxH = PARTICIPANT_BOX_HEIGHT;
+      // Match the group box dimensions
+      const fullH =
+        PARTICIPANT_BOX_HEIGHT + GROUP_PADDING_TOP + GROUP_PADDING_BOTTOM;
       const boxX = cx - boxW / 2;
-      const boxY = cy - boxH / 2;
+      const boxY = cy - GROUP_PADDING_TOP;
       const clipId = `clip-drill-group-${participant.id.replace(/[^a-zA-Z0-9-]/g, '-')}`;
 
+      // Overlay a taller rect to replace the standard participant box
+      const pFill = effectiveTagColor
+        ? mix(
+            effectiveTagColor,
+            isDark ? palette.surface : palette.bg,
+            isDark ? 30 : 40
+          )
+        : isDark
+          ? mix(palette.overlay, palette.surface, 50)
+          : mix(palette.bg, palette.surface, 50);
+      const pStroke = effectiveTagColor || palette.border;
+
+      // Remove the standard-height rect by overlaying the full-height one
+      svg
+        .append('rect')
+        .attr('x', boxX)
+        .attr('y', boxY)
+        .attr('width', boxW)
+        .attr('height', fullH)
+        .attr('rx', 6)
+        .attr('fill', pFill)
+        .attr('stroke', pStroke)
+        .attr('stroke-width', 1.5);
+
+      // Re-render label centered in the taller box
+      const labelY = boxY + fullH / 2;
+      svg
+        .append('text')
+        .attr('x', cx)
+        .attr('y', labelY)
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'central')
+        .attr('fill', palette.text)
+        .attr('font-size', 13)
+        .attr('font-weight', 500)
+        .text(participant.label);
+
+      // Drill-bar at bottom
       const drillG = svg
         .append('g')
         .attr('class', 'sequence-drill-bar')
@@ -1796,27 +1838,42 @@ export function renderSequenceDiagram(
         .attr('x', boxX)
         .attr('y', boxY)
         .attr('width', boxW)
-        .attr('height', boxH)
-        .attr('rx', SERVICE_BORDER_RADIUS);
+        .attr('height', fullH)
+        .attr('rx', 6);
 
       drillG
         .append('rect')
         .attr('x', boxX)
-        .attr('y', boxY + boxH - drillBarH)
+        .attr('y', boxY + fullH - drillBarH)
         .attr('width', boxW)
         .attr('height', drillBarH)
         .attr('fill', drillColor)
         .attr('clip-path', `url(#${clipId})`);
+
+      // Invisible click target covering the full box for expand toggle
+      drillG
+        .append('rect')
+        .attr('x', boxX)
+        .attr('y', boxY)
+        .attr('width', boxW)
+        .attr('height', fullH)
+        .attr('fill', 'transparent');
     }
 
-    // Render lifeline
+    // Render lifeline — collapsed groups start below the taller box
+    const llY = isCollapsedGroup
+      ? lifelineStartY + GROUP_PADDING_BOTTOM
+      : lifelineStartY;
+    const llColor = isCollapsedGroup
+      ? effectiveTagColor || palette.textMuted
+      : pTagColor || palette.textMuted;
     const lifelineEl = svg
       .append('line')
       .attr('x1', cx)
-      .attr('y1', lifelineStartY)
+      .attr('y1', llY)
       .attr('x2', cx)
       .attr('y2', lifelineStartY + lifelineLength)
-      .attr('stroke', pTagColor || palette.textMuted)
+      .attr('stroke', llColor)
       .attr('stroke-width', 1)
       .attr('stroke-dasharray', '6 4')
       .attr('class', 'lifeline')

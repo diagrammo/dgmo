@@ -9,6 +9,9 @@ import {
   LEGEND_DOT_R,
   LEGEND_ENTRY_FONT_SIZE,
   LEGEND_ENTRY_DOT_GAP,
+  LEGEND_TOGGLE_DOT_R,
+  LEGEND_TOGGLE_OFF_OPACITY,
+  CONTROLS_ICON_PATH,
   measureLegendText,
 } from './legend-constants';
 import { computeLegendLayout } from './legend-layout';
@@ -24,6 +27,7 @@ import type {
   LegendPillLayout,
   LegendCapsuleLayout,
   LegendControlLayout,
+  ControlsGroupLayout,
   D3Sel,
 } from './legend-types';
 
@@ -81,6 +85,19 @@ export function renderLegendD3(
     // Render collapsed pills
     for (const pill of currentLayout.pills) {
       renderPill(legendG, pill, palette, groupBg, callbacks);
+    }
+
+    // Render controls group (gear pill / capsule)
+    if (currentLayout.controlsGroup) {
+      renderControlsGroup(
+        legendG,
+        currentLayout.controlsGroup,
+        palette,
+        groupBg,
+        pillBorder,
+        callbacks,
+        config
+      );
     }
 
     // Render controls
@@ -396,5 +413,159 @@ function renderControl(
   if (configCtrl?.onClick) {
     const onClick = configCtrl.onClick;
     g.on('click', () => onClick());
+  }
+}
+
+// ── Controls group (gear pill / capsule) ───────────────────
+
+function renderControlsGroup(
+  parent: D3Sel,
+  layout: ControlsGroupLayout,
+  palette: LegendPalette,
+  groupBg: string,
+  pillBorder: string,
+  callbacks?: LegendCallbacks,
+  config?: LegendConfig
+): void {
+  const g = parent
+    .append('g')
+    .attr('transform', `translate(${layout.x},${layout.y})`)
+    .attr('data-legend-controls', layout.expanded ? 'expanded' : 'collapsed')
+    .attr('data-export-ignore', 'true')
+    .style('cursor', 'pointer');
+
+  if (!layout.expanded) {
+    // Collapsed: gear pill
+    g.append('rect')
+      .attr('width', layout.width)
+      .attr('height', layout.height)
+      .attr('rx', layout.height / 2)
+      .attr('fill', groupBg);
+
+    // Gear icon centered
+    const iconSize = 14;
+    const iconX = (layout.width - iconSize) / 2;
+    const iconY = (layout.height - iconSize) / 2;
+    g.append('path')
+      .attr('d', CONTROLS_ICON_PATH)
+      .attr('transform', `translate(${iconX},${iconY})`)
+      .attr('fill', palette.textMuted)
+      .attr('fill-rule', 'evenodd')
+      .attr('pointer-events', 'none');
+
+    if (callbacks?.onControlsExpand) {
+      const cb = callbacks.onControlsExpand;
+      g.on('click', () => cb());
+    }
+  } else {
+    // Expanded: capsule with gear pill + toggle entries
+    const pill = layout.pill;
+
+    // Outer capsule background
+    g.append('rect')
+      .attr('width', layout.width)
+      .attr('height', layout.height)
+      .attr('rx', LEGEND_HEIGHT / 2)
+      .attr('fill', groupBg);
+
+    // Inner gear pill
+    const pillG = g
+      .append('g')
+      .attr('class', 'controls-gear-pill')
+      .style('cursor', 'pointer');
+
+    pillG
+      .append('rect')
+      .attr('x', pill.x)
+      .attr('y', pill.y)
+      .attr('width', pill.width)
+      .attr('height', pill.height)
+      .attr('rx', pill.height / 2)
+      .attr('fill', palette.bg);
+
+    pillG
+      .append('rect')
+      .attr('x', pill.x)
+      .attr('y', pill.y)
+      .attr('width', pill.width)
+      .attr('height', pill.height)
+      .attr('rx', pill.height / 2)
+      .attr('fill', 'none')
+      .attr('stroke', pillBorder)
+      .attr('stroke-width', 0.75);
+
+    // Gear icon inside pill
+    const iconSize = 14;
+    const iconX = pill.x + (pill.width - iconSize) / 2;
+    const iconY = pill.y + (pill.height - iconSize) / 2;
+    pillG
+      .append('path')
+      .attr('d', CONTROLS_ICON_PATH)
+      .attr('transform', `translate(${iconX},${iconY})`)
+      .attr('fill', palette.text)
+      .attr('fill-rule', 'evenodd')
+      .attr('pointer-events', 'none');
+
+    // Click on gear pill collapses
+    if (callbacks?.onControlsExpand) {
+      const cb = callbacks.onControlsExpand;
+      pillG.on('click', (event: Event) => {
+        event.stopPropagation();
+        cb();
+      });
+    }
+
+    // Toggle entries
+    const toggles = config?.controlsGroup?.toggles ?? [];
+    for (const tl of layout.toggles) {
+      const toggle = toggles.find((t) => t.id === tl.id);
+      const entryG = g
+        .append('g')
+        .attr('data-controls-toggle', tl.id)
+        .style('cursor', 'pointer');
+
+      if (tl.active) {
+        // Filled dot
+        entryG
+          .append('circle')
+          .attr('cx', tl.dotCx)
+          .attr('cy', tl.dotCy)
+          .attr('r', LEGEND_TOGGLE_DOT_R)
+          .attr('fill', palette.primary ?? palette.text);
+      } else {
+        // Hollow dot
+        entryG
+          .append('circle')
+          .attr('cx', tl.dotCx)
+          .attr('cy', tl.dotCy)
+          .attr('r', LEGEND_TOGGLE_DOT_R)
+          .attr('fill', 'none')
+          .attr('stroke', palette.textMuted)
+          .attr('stroke-width', 1);
+      }
+
+      // Label
+      entryG
+        .append('text')
+        .attr('x', tl.textX)
+        .attr('y', tl.textY)
+        .attr('dominant-baseline', 'central')
+        .attr('font-size', LEGEND_ENTRY_FONT_SIZE)
+        .attr('fill', palette.textMuted)
+        .attr('opacity', tl.active ? 1 : LEGEND_TOGGLE_OFF_OPACITY)
+        .attr('font-family', FONT_FAMILY)
+        .text(tl.label);
+
+      // Click on toggle entry
+      if (callbacks?.onControlsToggle && toggle) {
+        const cb = callbacks.onControlsToggle;
+        const id = tl.id;
+        const newActive = !tl.active;
+        entryG.on('click', (event: Event) => {
+          event.stopPropagation();
+          cb(id, newActive);
+        });
+      }
+    }
   }
 }

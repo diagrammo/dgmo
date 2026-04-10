@@ -14,6 +14,8 @@ import {
   LEGEND_ENTRY_TRAIL,
   LEGEND_GROUP_GAP,
   LEGEND_MAX_ENTRY_ROWS,
+  LEGEND_GEAR_PILL_W,
+  LEGEND_TOGGLE_DOT_R,
   measureLegendText,
 } from './legend-constants';
 
@@ -27,6 +29,8 @@ import type {
   LegendControlLayout,
   LegendEntryLayout,
   LegendControl,
+  ControlsGroupLayout,
+  ControlsGroupToggleLayout,
 } from './legend-types';
 
 // ── Constants ───────────────────────────────────────────────
@@ -140,6 +144,89 @@ function capsuleWidth(
   };
 }
 
+// ── Controls group layout helpers ───────────────────────────
+
+export function controlsGroupCapsuleWidth(
+  toggles: Array<{ label: string }>
+): number {
+  let w = LEGEND_CAPSULE_PAD * 2 + LEGEND_GEAR_PILL_W + 4;
+  for (const t of toggles) {
+    w +=
+      LEGEND_TOGGLE_DOT_R * 2 +
+      LEGEND_ENTRY_DOT_GAP +
+      measureLegendText(t.label, LEGEND_ENTRY_FONT_SIZE) +
+      LEGEND_ENTRY_TRAIL;
+  }
+  return w;
+}
+
+function buildControlsGroupLayout(
+  config: LegendConfig,
+  state: LegendState
+): ControlsGroupLayout | undefined {
+  const cg = config.controlsGroup;
+  if (!cg || cg.toggles.length === 0) return undefined;
+
+  const expanded = !!state.controlsExpanded;
+  const pillH = LEGEND_HEIGHT - LEGEND_CAPSULE_PAD * 2;
+
+  if (!expanded) {
+    // Collapsed: just a gear pill
+    return {
+      x: 0,
+      y: 0,
+      width: LEGEND_GEAR_PILL_W,
+      height: LEGEND_HEIGHT,
+      expanded: false,
+      pill: { x: 0, y: 0, width: LEGEND_GEAR_PILL_W, height: LEGEND_HEIGHT },
+      toggles: [],
+    };
+  }
+
+  // Expanded capsule
+  const capsuleW = controlsGroupCapsuleWidth(cg.toggles);
+  const toggleLayouts: ControlsGroupToggleLayout[] = [];
+  let tx = LEGEND_CAPSULE_PAD + LEGEND_GEAR_PILL_W + 4;
+
+  for (const toggle of cg.toggles) {
+    const dotCx = tx + LEGEND_TOGGLE_DOT_R;
+    const dotCy = LEGEND_HEIGHT / 2;
+    const textX = tx + LEGEND_TOGGLE_DOT_R * 2 + LEGEND_ENTRY_DOT_GAP;
+    const textY = LEGEND_HEIGHT / 2;
+
+    toggleLayouts.push({
+      id: toggle.id,
+      label: toggle.label,
+      active: toggle.active,
+      dotCx,
+      dotCy,
+      textX,
+      textY,
+    });
+
+    tx +=
+      LEGEND_TOGGLE_DOT_R * 2 +
+      LEGEND_ENTRY_DOT_GAP +
+      measureLegendText(toggle.label, LEGEND_ENTRY_FONT_SIZE) +
+      LEGEND_ENTRY_TRAIL;
+  }
+
+  return {
+    x: 0,
+    y: 0,
+    width: capsuleW,
+    height: LEGEND_HEIGHT,
+    expanded: true,
+    pill: {
+      x: LEGEND_CAPSULE_PAD,
+      y: LEGEND_CAPSULE_PAD,
+      width: LEGEND_GEAR_PILL_W - LEGEND_CAPSULE_PAD * 2,
+      height: pillH,
+    },
+    toggles: toggleLayouts,
+  };
+}
+
 // ── Main layout computation ─────────────────────────────────
 
 export function computeLegendLayout(
@@ -153,7 +240,7 @@ export function computeLegendLayout(
   // Filter groups for export: only active group shown
   const activeGroupName = state.activeGroup?.toLowerCase() ?? null;
 
-  // In export mode with no active group, no legend
+  // In export mode with no active group and no groups, no legend
   if (isExport && !activeGroupName) {
     return {
       height: 0,
@@ -165,12 +252,18 @@ export function computeLegendLayout(
     };
   }
 
+  // Controls group (strip in export mode)
+  const controlsGroupLayout = isExport
+    ? undefined
+    : buildControlsGroupLayout(config, state);
+
   const visibleGroups = config.showEmptyGroups
     ? groups
     : groups.filter((g) => g.entries.length > 0);
   if (
     visibleGroups.length === 0 &&
-    (!configControls || configControls.length === 0)
+    (!configControls || configControls.length === 0) &&
+    !controlsGroupLayout
   ) {
     return {
       height: 0,
@@ -238,10 +331,13 @@ export function computeLegendLayout(
     if (totalControlsW > 0) totalControlsW -= CONTROL_GAP;
   }
 
-  // Available width for tag groups (controls anchor right)
+  // Available width for tag groups (controls anchor right, gear pill at end of pills)
   const controlsSpace =
     totalControlsW > 0 ? totalControlsW + LEGEND_GROUP_GAP * 2 : 0;
-  const groupAvailW = containerWidth - controlsSpace;
+  const gearSpace = controlsGroupLayout
+    ? controlsGroupLayout.width + LEGEND_GROUP_GAP
+    : 0;
+  const groupAvailW = containerWidth - controlsSpace - gearSpace;
 
   // Build pill/capsule layouts
   const pills: LegendPillLayout[] = [];
@@ -256,7 +352,7 @@ export function computeLegendLayout(
     if (isActive) {
       activeCapsule = buildCapsuleLayout(
         g,
-        containerWidth,
+        groupAvailW,
         config.capsulePillAddonWidth ?? 0
       );
     } else {
@@ -281,7 +377,8 @@ export function computeLegendLayout(
     groupAvailW,
     containerWidth,
     totalControlsW,
-    alignLeft
+    alignLeft,
+    controlsGroupLayout
   );
 
   const height = rows.length * LEGEND_HEIGHT;
@@ -294,6 +391,7 @@ export function computeLegendLayout(
     activeCapsule,
     controls: controlLayouts,
     pills,
+    controlsGroup: controlsGroupLayout,
   };
 }
 
@@ -386,7 +484,8 @@ function layoutRows(
   groupAvailW: number,
   containerWidth: number,
   totalControlsW: number,
-  alignLeft = false
+  alignLeft = false,
+  controlsGroup?: ControlsGroupLayout
 ): Array<{
   y: number;
   items: Array<LegendPillLayout | LegendCapsuleLayout | LegendControlLayout>;
@@ -401,6 +500,9 @@ function layoutRows(
   if (activeCapsule) groupItems.push(activeCapsule);
   groupItems.push(...pills);
 
+  // Controls group width for centering offset
+  const gearW = controlsGroup ? controlsGroup.width + LEGEND_GROUP_GAP : 0;
+
   // Compute total group items width
   let currentRowItems: Array<
     LegendPillLayout | LegendCapsuleLayout | LegendControlLayout
@@ -411,9 +513,16 @@ function layoutRows(
   for (const item of groupItems) {
     const itemW = item.width + LEGEND_GROUP_GAP;
     if (currentRowW + item.width > groupAvailW && currentRowItems.length > 0) {
-      // Commit current row
-      if (!alignLeft)
-        centerRowItems(currentRowItems, containerWidth, totalControlsW);
+      // Commit current row (row 0 needs gear space deducted for centering)
+      if (!alignLeft) {
+        const rowGearW = rows.length === 0 ? gearW : 0;
+        centerRowItems(
+          currentRowItems,
+          containerWidth,
+          totalControlsW,
+          rowGearW
+        );
+      }
       rows.push({ y: rowY, items: currentRowItems });
       rowY += LEGEND_HEIGHT;
       currentRowItems = [];
@@ -447,8 +556,24 @@ function layoutRows(
 
   // Commit last row
   if (currentRowItems.length > 0) {
-    centerRowItems(currentRowItems, containerWidth, totalControlsW);
+    centerRowItems(currentRowItems, containerWidth, totalControlsW, gearW);
     rows.push({ y: rowY, items: currentRowItems });
+  }
+
+  // Position controls group AFTER centering so it follows the shifted items
+  if (controlsGroup) {
+    const row0Items = rows[0]?.items ?? [];
+    const groupItemsInRow0 = row0Items.filter(
+      (it) => 'groupName' in it
+    ) as Array<LegendPillLayout | LegendCapsuleLayout>;
+    if (groupItemsInRow0.length > 0) {
+      const last = groupItemsInRow0[groupItemsInRow0.length - 1];
+      controlsGroup.x = last.x + last.width + LEGEND_GROUP_GAP;
+    } else {
+      // No group items — controls group at start
+      controlsGroup.x = 0;
+    }
+    controlsGroup.y = 0;
   }
 
   // Ensure at least one row height
@@ -462,7 +587,8 @@ function layoutRows(
 function centerRowItems(
   items: Array<LegendPillLayout | LegendCapsuleLayout | LegendControlLayout>,
   containerWidth: number,
-  totalControlsW: number
+  totalControlsW: number,
+  controlsGroupW = 0
 ): void {
   // Only center group items (pills and capsules), not controls
   const groupItems = items.filter((it) => 'groupName' in it) as Array<
@@ -477,7 +603,8 @@ function centerRowItems(
 
   const availW =
     containerWidth -
-    (totalControlsW > 0 ? totalControlsW + LEGEND_GROUP_GAP * 2 : 0);
+    (totalControlsW > 0 ? totalControlsW + LEGEND_GROUP_GAP * 2 : 0) -
+    controlsGroupW;
   const offset = Math.max(0, (availW - totalGroupW) / 2);
 
   let x = offset;

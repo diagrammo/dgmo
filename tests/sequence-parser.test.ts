@@ -1460,6 +1460,63 @@ describe('pipe metadata on group headers', () => {
 });
 
 // ============================================================
+// Collapse keyword on group headers
+// ============================================================
+describe('collapse keyword on group headers', () => {
+  it('[Backend] collapse sets collapsed: true', () => {
+    const result = parseSequenceDgmo(
+      '[Backend] collapse\n  API\n  DB\nAPI -query-> DB'
+    );
+    expect(result.error).toBeNull();
+    expect(result.groups).toHaveLength(1);
+    expect(result.groups[0].name).toBe('Backend');
+    expect(result.groups[0].collapsed).toBe(true);
+  });
+
+  it('[Backend] collapse with pipe metadata', () => {
+    const result = parseSequenceDgmo(
+      '[Backend] collapse | t: Eng\n  API\n  DB\nAPI -query-> DB'
+    );
+    expect(result.error).toBeNull();
+    expect(result.groups[0].collapsed).toBe(true);
+    expect(result.groups[0].metadata).toEqual({ t: 'Eng' });
+  });
+
+  it('[Backend] without collapse has no collapsed field', () => {
+    const result = parseSequenceDgmo('[Backend]\n  API\n  DB\nAPI -query-> DB');
+    expect(result.error).toBeNull();
+    expect(result.groups[0].collapsed).toBeUndefined();
+  });
+
+  it('[Backend] | t: Eng without collapse has no collapsed field', () => {
+    const result = parseSequenceDgmo(
+      '[Backend] | t: Eng\n  API\n  DB\nAPI -query-> DB'
+    );
+    expect(result.error).toBeNull();
+    expect(result.groups[0].collapsed).toBeUndefined();
+    expect(result.groups[0].metadata).toEqual({ t: 'Eng' });
+  });
+
+  it('COLLAPSE is case-insensitive', () => {
+    const result = parseSequenceDgmo(
+      '[Backend] COLLAPSE\n  API\n  DB\nAPI -query-> DB'
+    );
+    expect(result.error).toBeNull();
+    expect(result.groups[0].collapsed).toBe(true);
+  });
+
+  it('[Backend] collapse with indented participants', () => {
+    const result = parseSequenceDgmo(
+      '[Backend] collapse\n  API\n  DB\nUser -request-> API'
+    );
+    expect(result.error).toBeNull();
+    expect(result.groups[0].collapsed).toBe(true);
+    expect(result.groups[0].participantIds).toContain('API');
+    expect(result.groups[0].participantIds).toContain('DB');
+  });
+});
+
+// ============================================================
 // Tag validation
 // ============================================================
 describe('tag validation on sequence diagrams', () => {
