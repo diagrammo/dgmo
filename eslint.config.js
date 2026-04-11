@@ -1,4 +1,5 @@
 import js from '@eslint/js';
+import security from 'eslint-plugin-security';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
@@ -33,6 +34,20 @@ export default tseslint.config(
       '@typescript-eslint/no-implied-eval': 'off',
       '@typescript-eslint/restrict-template-expressions': 'off',
       '@typescript-eslint/require-await': 'off',
+    },
+  },
+  security.configs.recommended,
+  {
+    rules: {
+      'security/detect-object-injection': 'off',
+      // Parser regexes process local diagram markup, not untrusted network input
+      'security/detect-unsafe-regex': 'off',
+      // Parser builds regexes from known strings, not user-supplied patterns
+      'security/detect-non-literal-regexp': 'off',
+      // String comparisons in parsers are not timing-sensitive
+      'security/detect-possible-timing-attacks': 'off',
+      // CLI and tests read files from known paths
+      'security/detect-non-literal-fs-filename': 'off',
     },
   },
   // Disable type-checked linting for files outside tsconfig

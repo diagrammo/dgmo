@@ -38,9 +38,9 @@ export {
   orderArcNodes,
   parseTimelineDate,
   addDurationToDate,
-  computeTimeTicks,
   formatDateLabel,
 } from './d3';
+export { computeTimeTicks } from './utils/time-ticks';
 export type {
   ParsedVisualization,
   VisualizationType,

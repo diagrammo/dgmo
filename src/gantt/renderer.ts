@@ -8,7 +8,7 @@ import { FONT_FAMILY } from '../fonts';
 import { getSeriesColors } from '../palettes';
 import { mix } from '../palettes/color-utils';
 import { resolveTagColor, resolveActiveTagGroup } from '../utils/tag-groups';
-import { computeTimeTicks } from '../d3';
+import { computeTimeTicks } from '../utils/time-ticks';
 import {
   LEGEND_HEIGHT,
   LEGEND_PILL_PAD,
@@ -36,7 +36,7 @@ import {
   TITLE_Y,
 } from '../utils/title-constants';
 import type { PaletteColors } from '../palettes';
-import type { D3ExportDimensions } from '../d3';
+import type { D3ExportDimensions } from '../utils/d3-types';
 import type {
   ResolvedSchedule,
   ResolvedTask,
