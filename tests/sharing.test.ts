@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { encodeDiagramUrl, decodeDiagramUrl } from '../src/sharing';
+import {
+  encodeDiagramUrl,
+  decodeDiagramUrl,
+  encodeViewState,
+  decodeViewState,
+} from '../src/sharing';
+import type { CompactViewState } from '../src/sharing';
 
 describe('encodeDiagramUrl / decodeDiagramUrl', () => {
   const samples = [
@@ -103,10 +109,9 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
     });
 
     it('returns empty dsl for invalid payload', () => {
-      expect(decodeDiagramUrl('not-valid-lz-data!!!')).toEqual({
-        dsl: '',
-        viewState: {},
-      });
+      const decoded = decodeDiagramUrl('not-valid-lz-data!!!');
+      expect(decoded.dsl).toBe('');
+      expect(decoded.viewState).toEqual({});
     });
 
     it('returns empty dsl for empty input', () => {
@@ -118,49 +123,39 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
     });
 
     it('returns empty dsl for just #dgmo=', () => {
-      expect(decodeDiagramUrl('#dgmo=')).toEqual({ dsl: '', viewState: {} });
+      const decoded = decodeDiagramUrl('#dgmo=');
+      expect(decoded.dsl).toBe('');
+      expect(decoded.viewState).toEqual({});
     });
   });
 
-  describe('view state (activeTagGroup)', () => {
-    it('round-trips with activeTagGroup', () => {
+  describe('view state (vs= param)', () => {
+    it('round-trips with activeTagGroup override', () => {
       const dsl = 'org\nCEO\n  VP Engineering';
       const result = encodeDiagramUrl(dsl, {
-        viewState: { activeTagGroup: 'Location' },
+        viewState: { tag: 'Location' },
       });
       if (result.error) throw new Error('unexpected error');
-      expect(result.url).toContain('&tag=Location');
+      expect(result.url).toContain('&vs=');
       const query = new URL(result.url).search;
       const decoded = decodeDiagramUrl(query);
       expect(decoded.dsl).toBe(dsl);
-      expect(decoded.viewState.activeTagGroup).toBe('Location');
+      expect(decoded.viewState.tag).toBe('Location');
     });
 
-    it('URL-encodes unsafe characters in tag name', () => {
-      const dsl = 'org\nCEO';
-      const result = encodeDiagramUrl(dsl, {
-        viewState: { activeTagGroup: 'Team & Role' },
-      });
-      if (result.error) throw new Error('unexpected error');
-      expect(result.url).toContain('&tag=Team%20%26%20Role');
-      const query = new URL(result.url).search;
-      const decoded = decodeDiagramUrl(query);
-      expect(decoded.viewState.activeTagGroup).toBe('Team & Role');
-    });
-
-    it('omits tag param when activeTagGroup is undefined', () => {
+    it('omits vs= when viewState is empty object', () => {
       const result = encodeDiagramUrl('org\nCEO', { viewState: {} });
       if (result.error) throw new Error('unexpected error');
-      expect(result.url).not.toContain('&tag=');
+      expect(result.url).not.toContain('&vs=');
     });
 
-    it('omits tag param when viewState is not provided', () => {
+    it('omits vs= when viewState is not provided', () => {
       const result = encodeDiagramUrl('org\nCEO');
       if (result.error) throw new Error('unexpected error');
-      expect(result.url).not.toContain('&tag=');
+      expect(result.url).not.toContain('&vs=');
     });
 
-    it('returns empty viewState when no tag param present', () => {
+    it('returns empty viewState when no vs= param present', () => {
       const result = encodeDiagramUrl('org\nCEO');
       if (result.error) throw new Error('unexpected error');
       const query = new URL(result.url).search;
@@ -168,148 +163,256 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
       expect(decoded.viewState).toEqual({});
     });
 
-    it('handles hash with tag but no dgmo prefix gracefully', () => {
-      // Bare payload shouldn't have &tag but decoder should still be robust
-      const decoded = decodeDiagramUrl('#dgmo=&tag=Location');
-      expect(decoded.dsl).toBe('');
-      expect(decoded.viewState.activeTagGroup).toBe('Location');
+    it('distinguishes tag: null from absent tag', () => {
+      // tag: null means "user chose none"
+      const withNull = encodeDiagramUrl('org\nCEO', {
+        viewState: { tag: null },
+      });
+      if (withNull.error) throw new Error('unexpected error');
+      expect(withNull.url).toContain('&vs=');
+      const decodedNull = decodeDiagramUrl(new URL(withNull.url).search);
+      expect(decodedNull.viewState.tag).toBeNull();
+
+      // absent tag means "use DSL default"
+      const withoutTag = encodeDiagramUrl('org\nCEO', { viewState: {} });
+      if (withoutTag.error) throw new Error('unexpected error');
+      const decodedAbsent = decodeDiagramUrl(new URL(withoutTag.url).search);
+      expect(decodedAbsent.viewState.tag).toBeUndefined();
     });
   });
 
-  describe('view state (swimlaneTagGroup)', () => {
-    it('round-trips with swimlaneTagGroup', () => {
-      const dsl = 'timeline\n1716->1717 Event | p: Blackbeard';
-      const result = encodeDiagramUrl(dsl, {
-        viewState: { swimlaneTagGroup: 'Pirate' },
-      });
-      if (result.error) throw new Error('unexpected error');
-      expect(result.url).toContain('&swim=Pirate');
-      const query = new URL(result.url).search;
-      const decoded = decodeDiagramUrl(query);
-      expect(decoded.dsl).toBe(dsl);
-      expect(decoded.viewState.swimlaneTagGroup).toBe('Pirate');
-    });
+  describe('view state round-trips per chart type', () => {
+    const chartStates: { name: string; state: CompactViewState }[] = [
+      {
+        name: 'sequence',
+        state: { tag: 'Team', cs: [12, 45, 78], cg: ['group-1', 'group-2'] },
+      },
+      {
+        name: 'gantt',
+        state: {
+          tag: 'Sprint',
+          cg: ['Phase 1'],
+          swim: 'Team',
+          cl: ['QA', 'Eng'],
+        },
+      },
+      {
+        name: 'c4',
+        state: {
+          tag: 'Environment',
+          c4l: 'components',
+          c4s: 'API Gateway',
+          c4c: 'Auth Service',
+        },
+      },
+      { name: 'er', state: { sem: false, tag: 'Module' } },
+      {
+        name: 'infra',
+        state: {
+          tag: 'Region',
+          cg: ['us-east', 'eu-west'],
+          rps: 5,
+          spd: 2,
+          io: { 'web-server': 4, 'api-server': 8 },
+        },
+      },
+      {
+        name: 'sitemap',
+        state: { tag: 'Status', cg: ['archive'], ha: ['description', 'url'] },
+      },
+      {
+        name: 'boxes-and-lines',
+        state: {
+          tag: 'Priority',
+          cg: ['helpers'],
+          rm: 'shapes',
+          htv: { Priority: ['low', 'medium'] },
+        },
+      },
+      {
+        name: 'kanban',
+        state: {
+          tag: 'Assignee',
+          swim: 'Sprint',
+          cl: ['Done'],
+          cc: ['Backlog'],
+          cm: true,
+        },
+      },
+      {
+        name: 'timeline',
+        state: { tag: 'Outcome', swim: 'Pirate' },
+      },
+      {
+        name: 'org',
+        state: {
+          tag: 'Location',
+          cg: ['node-5', 'node-12'],
+          ha: ['email'],
+        },
+      },
+    ];
 
-    it('round-trips with both activeTagGroup and swimlaneTagGroup', () => {
-      const dsl = 'timeline\n1716->1717 Event';
-      const result = encodeDiagramUrl(dsl, {
-        viewState: { activeTagGroup: 'Outcome', swimlaneTagGroup: 'Pirate' },
+    for (const { name, state } of chartStates) {
+      it(`round-trips ${name} view state`, () => {
+        const dsl = `${name === 'boxes-and-lines' ? 'graph' : name}\nA`;
+        const result = encodeDiagramUrl(dsl, { viewState: state });
+        if (result.error) throw new Error(`unexpected error for ${name}`);
+        const query = new URL(result.url).search;
+        const decoded = decodeDiagramUrl(query);
+        expect(decoded.viewState).toEqual(state);
       });
-      if (result.error) throw new Error('unexpected error');
-      expect(result.url).toContain('&tag=Outcome');
-      expect(result.url).toContain('&swim=Pirate');
-      const query = new URL(result.url).search;
-      const decoded = decodeDiagramUrl(query);
-      expect(decoded.viewState.activeTagGroup).toBe('Outcome');
-      expect(decoded.viewState.swimlaneTagGroup).toBe('Pirate');
-    });
-
-    it('omits swim param when swimlaneTagGroup is undefined', () => {
-      const result = encodeDiagramUrl('timeline\n1716 Event', {
-        viewState: { activeTagGroup: 'Pirate' },
-      });
-      if (result.error) throw new Error('unexpected error');
-      expect(result.url).not.toContain('&swim=');
-    });
+    }
   });
 
   describe('view state (palette + theme)', () => {
     it('round-trips palette: catppuccin', () => {
       const dsl = 'pie\nA: 10';
-      const result = encodeDiagramUrl(dsl, {
-        viewState: { palette: 'catppuccin' },
-      });
+      const result = encodeDiagramUrl(dsl, { palette: 'catppuccin' });
       if (result.error) throw new Error('unexpected error');
       expect(result.url).toContain('&pal=catppuccin');
       const query = new URL(result.url).search;
       const decoded = decodeDiagramUrl(query);
-      expect(decoded.viewState.palette).toBe('catppuccin');
+      expect(decoded.palette).toBe('catppuccin');
     });
 
     it('round-trips theme: light', () => {
       const dsl = 'pie\nA: 10';
-      const result = encodeDiagramUrl(dsl, { viewState: { theme: 'light' } });
+      const result = encodeDiagramUrl(dsl, { theme: 'light' });
       if (result.error) throw new Error('unexpected error');
       expect(result.url).toContain('&th=light');
       const query = new URL(result.url).search;
       const decoded = decodeDiagramUrl(query);
-      expect(decoded.viewState.theme).toBe('light');
+      expect(decoded.theme).toBe('light');
     });
 
-    it('round-trips palette + theme + activeTagGroup together', () => {
+    it('round-trips palette + theme + viewState together', () => {
       const dsl = 'org\nCEO';
       const result = encodeDiagramUrl(dsl, {
-        viewState: {
-          palette: 'catppuccin',
-          theme: 'light',
-          activeTagGroup: 'Team',
-        },
+        viewState: { tag: 'Team' },
+        palette: 'catppuccin',
+        theme: 'light',
       });
       if (result.error) throw new Error('unexpected error');
       expect(result.url).toContain('&pal=catppuccin');
       expect(result.url).toContain('&th=light');
-      expect(result.url).toContain('&tag=Team');
+      expect(result.url).toContain('&vs=');
       const query = new URL(result.url).search;
       const decoded = decodeDiagramUrl(query);
-      expect(decoded.viewState.palette).toBe('catppuccin');
-      expect(decoded.viewState.theme).toBe('light');
-      expect(decoded.viewState.activeTagGroup).toBe('Team');
+      expect(decoded.palette).toBe('catppuccin');
+      expect(decoded.theme).toBe('light');
+      expect(decoded.viewState.tag).toBe('Team');
     });
 
     it('omits &pal= when palette is nord (default)', () => {
-      const result = encodeDiagramUrl('pie\nA: 10', {
-        viewState: { palette: 'nord' },
-      });
+      const result = encodeDiagramUrl('pie\nA: 10', { palette: 'nord' });
       if (result.error) throw new Error('unexpected error');
       expect(result.url).not.toContain('&pal=');
     });
 
     it('omits &th= when theme is dark (default)', () => {
-      const result = encodeDiagramUrl('pie\nA: 10', {
-        viewState: { theme: 'dark' },
-      });
+      const result = encodeDiagramUrl('pie\nA: 10', { theme: 'dark' });
       if (result.error) throw new Error('unexpected error');
       expect(result.url).not.toContain('&th=');
     });
 
-    it('ignores unknown &th= values — transparent → viewState.theme undefined', () => {
-      // Manually craft a URL with an invalid th value
+    it('ignores unknown &th= values — transparent → theme undefined', () => {
       const result = encodeDiagramUrl('pie\nA: 10');
       if (result.error) throw new Error('unexpected error');
       const query =
         new URL(result.url).search.replace('?', '') + '&th=transparent';
       const decoded = decodeDiagramUrl(query);
-      expect(decoded.viewState.theme).toBeUndefined();
+      expect(decoded.theme).toBeUndefined();
     });
 
-    it('URL without &pal= → viewState.palette is undefined (not nord)', () => {
+    it('URL without &pal= → palette is undefined (not nord)', () => {
       const result = encodeDiagramUrl('pie\nA: 10');
       if (result.error) throw new Error('unexpected error');
       const query = new URL(result.url).search;
       const decoded = decodeDiagramUrl(query);
-      expect(decoded.viewState.palette).toBeUndefined();
+      expect(decoded.palette).toBeUndefined();
     });
   });
 
-  describe('view state (collapsedLanes)', () => {
-    it('round-trips collapsedLanes', () => {
-      const dsl = 'gantt\nstart 2024-01-15\n10d Task';
-      const result = encodeDiagramUrl(dsl, {
-        viewState: { collapsedLanes: ['Engineering', 'QA'] },
-      });
+  describe('filename', () => {
+    it('round-trips filename', () => {
+      const dsl = 'pie\nA: 10';
+      const result = encodeDiagramUrl(dsl, { filename: 'my-chart.dgmo' });
       if (result.error) throw new Error('unexpected error');
-      expect(result.url).toContain('&cl=');
+      expect(result.url).toContain('&fn=my-chart.dgmo');
       const query = new URL(result.url).search;
       const decoded = decodeDiagramUrl(query);
-      expect(decoded.viewState.collapsedLanes).toEqual(['Engineering', 'QA']);
+      expect(decoded.filename).toBe('my-chart.dgmo');
     });
+  });
+});
 
-    it('omits cl param when collapsedLanes is empty', () => {
-      const result = encodeDiagramUrl('gantt\nstart 2024-01-15\n10d Task', {
-        viewState: { collapsedLanes: [] },
-      });
-      if (result.error) throw new Error('unexpected error');
-      expect(result.url).not.toContain('&cl=');
-    });
+describe('encodeViewState / decodeViewState', () => {
+  it('returns empty string for empty state', () => {
+    expect(encodeViewState({})).toBe('');
+  });
+
+  it('round-trips a simple state', () => {
+    const state: CompactViewState = { tag: 'Team', cs: [1, 2, 3] };
+    const encoded = encodeViewState(state);
+    expect(encoded).not.toBe('');
+    const decoded = decodeViewState(encoded);
+    expect(decoded).toEqual(state);
+  });
+
+  it('round-trips tag: null correctly', () => {
+    const state: CompactViewState = { tag: null };
+    const encoded = encodeViewState(state);
+    const decoded = decodeViewState(encoded);
+    expect(decoded.tag).toBeNull();
+  });
+
+  it('round-trips all fields populated', () => {
+    const state: CompactViewState = {
+      tag: 'Region',
+      cs: [10, 20, 30],
+      cg: ['node-1', 'node-2'],
+      swim: 'Team',
+      cl: ['Done', 'Blocked'],
+      cc: ['Backlog'],
+      rm: 'shapes',
+      htv: { Priority: ['low'], Status: ['draft'] },
+      ha: ['description'],
+      sem: true,
+      cm: false,
+      c4l: 'components',
+      c4s: 'API',
+      c4c: 'Auth',
+      rps: 5,
+      spd: 2,
+      io: { web: 4 },
+    };
+    const encoded = encodeViewState(state);
+    const decoded = decodeViewState(encoded);
+    expect(decoded).toEqual(state);
+  });
+
+  it('returns empty object for malformed input', () => {
+    expect(decodeViewState('not-valid-lz-data!!!')).toEqual({});
+  });
+
+  it('returns empty object for empty string', () => {
+    expect(decodeViewState('')).toEqual({});
+  });
+
+  it('large state stays under 8KB with typical DSL', () => {
+    const state: CompactViewState = {
+      tag: 'Region',
+      cs: Array.from({ length: 50 }, (_, i) => i),
+      cg: Array.from({ length: 20 }, (_, i) => `node-${i}`),
+      swim: 'Team',
+      cl: Array.from({ length: 10 }, (_, i) => `lane-${i}`),
+      htv: { Priority: ['low', 'medium', 'high'] },
+      ha: ['description', 'url', 'status'],
+    };
+    const encoded = encodeViewState(state);
+    const byteSize = new TextEncoder().encode(encoded).byteLength;
+    // State blob alone should be well under 8KB
+    expect(byteSize).toBeLessThan(8192);
   });
 });

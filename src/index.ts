@@ -464,11 +464,16 @@ export type { PaletteConfig, PaletteColors } from './palettes';
 // Sharing (URL encoding/decoding)
 // ============================================================
 
-export { encodeDiagramUrl, decodeDiagramUrl } from './sharing';
+export {
+  encodeDiagramUrl,
+  decodeDiagramUrl,
+  encodeViewState,
+  decodeViewState,
+} from './sharing';
 export type {
   EncodeDiagramUrlOptions,
   EncodeDiagramUrlResult,
-  DiagramViewState,
+  CompactViewState,
   DecodedDiagramUrl,
 } from './sharing';
 

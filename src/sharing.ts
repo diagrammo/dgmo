@@ -6,24 +6,45 @@ import {
 const DEFAULT_BASE_URL = 'https://online.diagrammo.app';
 const COMPRESSED_SIZE_LIMIT = 8192; // 8 KB
 
-export interface DiagramViewState {
-  activeTagGroup?: string;
-  collapsedGroups?: string[];
-  swimlaneTagGroup?: string;
-  collapsedLanes?: string[];
-  palette?: string;
-  theme?: 'light' | 'dark';
+/**
+ * Compact view state schema (ADR-6).
+ * All fields optional. Only non-default values are encoded.
+ * `tag: null` means "user chose none"; absent `tag` means "use DSL default" (ADR-5).
+ */
+export interface CompactViewState {
+  tag?: string | null; // active tag override (null = "none")
+  cs?: number[]; // collapsed sections (sequence line numbers)
+  cg?: string[]; // collapsed groups/nodes (IDs or names)
+  swim?: string | null; // swimlane tag group
+  cl?: string[]; // collapsed lanes
+  cc?: string[]; // collapsed columns (kanban)
+  rm?: string; // render mode override
+  htv?: Record<string, string[]>; // hidden tag values
+  ha?: string[]; // hidden attributes
+  enl?: number[]; // expanded note lines (sequence)
+  sem?: boolean; // semantic colors (ER)
+  cm?: boolean; // compact meta (kanban)
+  c4l?: string; // C4 level
+  c4s?: string; // C4 system
+  c4c?: string; // C4 container
+  rps?: number; // RPS multiplier (infra)
+  spd?: number; // playback speed (infra)
+  io?: Record<string, number>; // instance overrides (infra)
 }
 
 export interface DecodedDiagramUrl {
   dsl: string;
-  viewState: DiagramViewState;
+  viewState: CompactViewState;
+  palette?: string;
+  theme?: 'light' | 'dark';
   filename?: string;
 }
 
 export interface EncodeDiagramUrlOptions {
   baseUrl?: string;
-  viewState?: DiagramViewState;
+  viewState?: CompactViewState;
+  palette?: string;
+  theme?: 'light' | 'dark';
   filename?: string;
 }
 
@@ -35,6 +56,34 @@ export type EncodeDiagramUrlResult =
       compressedSize: number;
       limit: number;
     };
+
+/**
+ * Encode a CompactViewState to a compressed string for URL embedding.
+ * Returns empty string if state has no keys (ADR-4).
+ */
+export function encodeViewState(state: CompactViewState): string {
+  const keys = Object.keys(state);
+  if (keys.length === 0) return '';
+  return compressToEncodedURIComponent(JSON.stringify(state));
+}
+
+/**
+ * Decode a compressed view state string back to CompactViewState.
+ * Returns empty object on failure (no crash).
+ */
+export function decodeViewState(encoded: string): CompactViewState {
+  if (!encoded) return {};
+  try {
+    const json = decompressFromEncodedURIComponent(encoded);
+    if (!json) return {};
+    const parsed = JSON.parse(json);
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed))
+      return {};
+    return parsed as CompactViewState;
+  } catch {
+    return {};
+  }
+}
 
 /**
  * Compress a DGMO DSL string into a shareable URL.
@@ -59,28 +108,21 @@ export function encodeDiagramUrl(
 
   let hash = `dgmo=${compressed}`;
 
-  if (options?.viewState?.activeTagGroup) {
-    hash += `&tag=${encodeURIComponent(options.viewState.activeTagGroup)}`;
+  // View state as single compressed blob (ADR-1)
+  if (options?.viewState) {
+    const vsEncoded = encodeViewState(options.viewState);
+    if (vsEncoded) {
+      hash += `&vs=${vsEncoded}`;
+    }
   }
 
-  if (options?.viewState?.collapsedGroups?.length) {
-    hash += `&cg=${encodeURIComponent(options.viewState.collapsedGroups.join(','))}`;
+  // Palette and theme are app-level, kept as separate params
+  if (options?.palette && options.palette !== 'nord') {
+    hash += `&pal=${encodeURIComponent(options.palette)}`;
   }
 
-  if (options?.viewState?.swimlaneTagGroup) {
-    hash += `&swim=${encodeURIComponent(options.viewState.swimlaneTagGroup)}`;
-  }
-
-  if (options?.viewState?.collapsedLanes?.length) {
-    hash += `&cl=${encodeURIComponent(options.viewState.collapsedLanes.join(','))}`;
-  }
-
-  if (options?.viewState?.palette && options.viewState.palette !== 'nord') {
-    hash += `&pal=${encodeURIComponent(options.viewState.palette)}`;
-  }
-
-  if (options?.viewState?.theme && options.viewState.theme !== 'dark') {
-    hash += `&th=${encodeURIComponent(options.viewState.theme)}`;
+  if (options?.theme && options.theme !== 'dark') {
+    hash += `&th=${encodeURIComponent(options.theme)}`;
   }
 
   if (options?.filename) {
@@ -95,8 +137,8 @@ export function encodeDiagramUrl(
 /**
  * Decode a DGMO DSL string and view state from a URL query string or hash.
  * Accepts any of:
- *   - `?dgmo=<payload>&tag=<name>`
- *   - `#dgmo=<payload>&tag=<name>` (backwards compat)
+ *   - `?dgmo=<payload>&vs=<state>`
+ *   - `#dgmo=<payload>&vs=<state>` (backwards compat)
  *   - `dgmo=<payload>`
  *   - `<bare payload>`
  *
@@ -105,6 +147,8 @@ export function encodeDiagramUrl(
 export function decodeDiagramUrl(hash: string): DecodedDiagramUrl {
   const empty: DecodedDiagramUrl = { dsl: '', viewState: {} };
   let filename: string | undefined;
+  let palette: string | undefined;
+  let theme: 'light' | 'dark' | undefined;
   if (!hash) return empty;
 
   let raw = hash;
@@ -120,29 +164,22 @@ export function decodeDiagramUrl(hash: string): DecodedDiagramUrl {
   const parts = raw.split('&');
   let payload = parts[0];
 
-  // Parse extra params (e.g. tag=Location)
-  const viewState: DiagramViewState = {};
+  // Parse extra params
+  let viewState: CompactViewState = {};
   for (let i = 1; i < parts.length; i++) {
     const eq = parts[i].indexOf('=');
     if (eq === -1) continue;
     const key = parts[i].slice(0, eq);
-    const val = decodeURIComponent(parts[i].slice(eq + 1));
-    if (key === 'tag' && val) {
-      viewState.activeTagGroup = val;
+    const val = parts[i].slice(eq + 1);
+    if (key === 'vs' && val) {
+      viewState = decodeViewState(val);
     }
-    if (key === 'cg' && val) {
-      viewState.collapsedGroups = val.split(',').filter(Boolean);
+    if (key === 'pal' && val) palette = decodeURIComponent(val);
+    if (key === 'th') {
+      const decoded = decodeURIComponent(val);
+      if (decoded === 'light' || decoded === 'dark') theme = decoded;
     }
-    if (key === 'swim' && val) {
-      viewState.swimlaneTagGroup = val;
-    }
-    if (key === 'cl' && val) {
-      viewState.collapsedLanes = val.split(',').filter(Boolean);
-    }
-    if (key === 'pal' && val) viewState.palette = val;
-    if (key === 'th' && (val === 'light' || val === 'dark'))
-      viewState.theme = val;
-    if (key === 'fn' && val) filename = val;
+    if (key === 'fn' && val) filename = decodeURIComponent(val);
   }
 
   // Strip 'dgmo=' prefix
@@ -150,12 +187,12 @@ export function decodeDiagramUrl(hash: string): DecodedDiagramUrl {
     payload = payload.slice(5);
   }
 
-  if (!payload) return { dsl: '', viewState, filename };
+  if (!payload) return { dsl: '', viewState, palette, theme, filename };
 
   try {
     const result = decompressFromEncodedURIComponent(payload);
-    return { dsl: result ?? '', viewState, filename };
+    return { dsl: result ?? '', viewState, palette, theme, filename };
   } catch {
-    return { dsl: '', viewState, filename };
+    return { dsl: '', viewState, palette, theme, filename };
   }
 }
