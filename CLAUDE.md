@@ -30,32 +30,48 @@ Entry point: `src/cli.ts` → built to `dist/cli.cjs`.
 src/
 ├── index.ts                    # Public API exports
 ├── cli.ts                      # CLI entry point
-├── chart.ts                    # Chart type routing
-├── dgmo-router.ts              # Framework dispatcher (sequence, D3, ECharts)
+├── chart.ts                    # ECharts chart parser
+├── dgmo-router.ts              # Framework dispatcher (all chart types)
 ├── fonts.ts                    # FONT_FAMILY, DEFAULT_FONT_NAME ('Helvetica')
-├── colors.ts                   # Color utilities
+├── colors.ts                   # Color name → hex resolver
 ├── d3.ts                       # D3 renderers (slope, arc, timeline, wordcloud, venn, quadrant)
 ├── echarts.ts                  # ECharts parser and renderer
-├── sequence/
-│   ├── parser.ts               # Sequence diagram parser
-│   ├── renderer.ts             # SVG renderer (D3-based)
-│   └── participant-inference.ts
+├── render.ts                   # Unified render() entry
+├── sharing.ts                  # Share-link URL encode/decode
+├── completion.ts               # Symbol extraction for editor autocomplete
+├── diagnostics.ts              # DgmoError, severity, suggest()
+├── label-layout.ts             # Shared label placement helpers
+├── sequence/                   # Sequence diagram parser + D3 renderer
+├── graph/                      # Flowchart, state, generic graph parsers/renderers
+├── infra/                      # Infrastructure diagram + compute model
+├── org/                        # Org charts (with import resolver)
+├── c4/                         # C4 architecture diagrams (context/containers/components/deployment)
+├── er/                         # Entity-relationship diagrams
+├── class/                      # Class diagrams
+├── kanban/                     # Kanban boards
+├── gantt/                      # Gantt charts + scheduler
+├── sitemap/                    # Sitemaps
+├── boxes-and-lines/            # Boxes-and-lines diagrams
+├── editor/                     # CodeMirror grammar/highlight helpers
+├── utils/                      # Shared utilities (parsing, legend, time ticks, inline markdown, tag groups)
 └── palettes/
     ├── index.ts                # Registry + exports
     ├── types.ts                # PaletteConfig, PaletteColors
     ├── color-utils.ts          # HSL conversions, color mixing
     ├── registry.ts             # Palette registry
-    └── [palette].ts            # nord, solarized, catppuccin, rose-pine, gruvbox, tokyo-night, one-dark, bold
+    └── [palette].ts            # bold, catppuccin, dracula, gruvbox, monokai, nord, one-dark, rose-pine, solarized, tokyo-night
 ```
 
 ## Architecture
 
 ### Diagram Routing
 
-`dgmo-router.ts` dispatches based on content:
-- Sequence diagrams → `sequence/parser.ts` + `sequence/renderer.ts`
-- D3 chart types (slope, arc, timeline, wordcloud, venn, quadrant) → `d3.ts`
-- ECharts chart types (sankey, chord, scatter, heatmap, etc.) → `echarts.ts`
+`dgmo-router.ts` dispatches based on the first line (or content inference when absent):
+- **Sequence** → `sequence/parser.ts` + `sequence/renderer.ts`
+- **Flowchart / state / generic graph** → `graph/` subparsers + renderers
+- **D3 chart types** (slope, arc, timeline, wordcloud, venn, quadrant) → `d3.ts`
+- **ECharts chart types** (sankey, chord, scatter, heatmap, etc.) → `echarts.ts`
+- **Structured diagrams** (c4, class, er, kanban, org, infra, gantt, sitemap, boxes-and-lines) → own subfolders with parser + layout + renderer
 
 ### Sequence Parser
 
@@ -73,7 +89,7 @@ SVG renderer using D3. Key concepts:
 
 ### Color System
 
-8 palettes, each with light/dark/transparent themes. `color-utils.ts` provides HSL conversion and a `mix()` helper for blending colors.
+10 palettes (bold, catppuccin, dracula, gruvbox, monokai, nord, one-dark, rose-pine, solarized, tokyo-night), each with light/dark/transparent themes. `color-utils.ts` provides HSL conversion and a `mix()` helper for blending colors.
 
 ## Constraints
 
@@ -91,7 +107,7 @@ tsup produces dual ESM/CJS:
 ## Testing
 
 - **Framework:** Vitest with jsdom environment
-- **Tests:** `tests/cli-render.test.ts`, `tests/chart-echarts.test.ts`, `tests/echarts-ssr.test.ts`
+- **Layout:** One test file per parser/renderer in `tests/` (e.g. `c4-parser.test.ts`, `gantt-renderer.test.ts`, `infra-compute.test.ts`), plus fixtures in `tests/fixtures/` and snapshots in `tests/__snapshots__/`
 
 ## Pre-Commit Validation
 
