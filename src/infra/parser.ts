@@ -8,6 +8,7 @@
 
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
 import { resolveColorWithDiagnostic } from '../colors';
+import { parseInArrowLabel } from '../utils/arrows';
 import {
   measureIndent,
   parseFirstLine,
@@ -477,7 +478,10 @@ export function parseInfra(content: string): ParsedInfra {
       // Async labeled connection: ~label~> Target
       const asyncConnMatch = trimmed.match(ASYNC_CONNECTION_RE);
       if (asyncConnMatch) {
-        const label = asyncConnMatch[1]?.trim() || '';
+        const rawLabel = asyncConnMatch[1] ?? '';
+        const labelResult = parseInArrowLabel(rawLabel, lineNumber);
+        result.diagnostics.push(...labelResult.diagnostics);
+        const label = labelResult.label ?? '';
         const targetRaw = asyncConnMatch[2].trim();
         const pipeMeta = extractPipeMetadata(targetRaw);
         const targetName = pipeMeta.clean || targetRaw;
@@ -551,7 +555,10 @@ export function parseInfra(content: string): ParsedInfra {
       // Labeled connection: -label-> Target | split: N%, fanout: 3
       const connMatch = trimmed.match(CONNECTION_RE);
       if (connMatch) {
-        const label = connMatch[1]?.trim() || '';
+        const rawLabel = connMatch[1] ?? '';
+        const labelResult = parseInArrowLabel(rawLabel, lineNumber);
+        result.diagnostics.push(...labelResult.diagnostics);
+        const label = labelResult.label ?? '';
         const targetRaw = connMatch[2].trim();
         const pipeMeta = extractPipeMetadata(targetRaw);
         const targetName = pipeMeta.clean || targetRaw;

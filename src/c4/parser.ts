@@ -4,6 +4,7 @@
 
 import type { PaletteColors } from '../palettes';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
+import { parseInArrowLabel } from '../utils/arrows';
 import type { TagGroup } from '../utils/tag-groups';
 import {
   matchTagBlockHeading,
@@ -519,14 +520,14 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
           break;
         }
 
-        // Extract [technology] from end of label
-        let label: string | undefined = rawLabel;
+        // TD-5: the trailing `[tech]` sugar is no longer extracted from the
+        // in-arrow label. The entire label stays as the label. Technology
+        // metadata comes from post-colon or pipe metadata on the target.
+        // Also run TD-13/TD-14 validation on the label characters.
+        const labelResult = parseInArrowLabel(rawLabel, lineNumber);
+        labelResult.diagnostics.forEach((d) => result.diagnostics.push(d));
+        const label: string | undefined = labelResult.label;
         let technology: string | undefined;
-        const techMatch = rawLabel.match(/\[([^\]]+)\]\s*$/);
-        if (techMatch) {
-          label = rawLabel.substring(0, techMatch.index!).trim() || undefined;
-          technology = techMatch[1].trim();
-        }
 
         // Extract pipe metadata from target body (e.g. "Database | tech: SQL")
         let target = targetBody;

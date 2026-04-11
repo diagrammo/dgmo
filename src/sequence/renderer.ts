@@ -2365,7 +2365,9 @@ export function renderSequenceDiagram(
           if (tagKey && msgTagValue) {
             labelEl.attr(`data-tag-${tagKey}`, msgTagValue.toLowerCase());
           }
-          renderInlineText(labelEl, step.label, palette);
+          // TD-1: in-arrow labels render as plain text (no markdown interpretation).
+          // Fixes the `location[]`-style silent character drop.
+          labelEl.text(step.label);
         }
       } else {
         // Normal call arrow — snap to activation box edges
@@ -2433,7 +2435,9 @@ export function renderSequenceDiagram(
           if (tagKey && msgTagValue) {
             labelEl.attr(`data-tag-${tagKey}`, msgTagValue.toLowerCase());
           }
-          renderInlineText(labelEl, step.label, palette);
+          // TD-1: in-arrow labels render as plain text (no markdown interpretation).
+          // Fixes the `location[]`-style silent character drop.
+          labelEl.text(step.label);
         }
       }
     } else {
@@ -2505,7 +2509,12 @@ export function renderSequenceDiagram(
         if (tagKey && msgTagValue) {
           labelEl.attr(`data-tag-${tagKey}`, msgTagValue.toLowerCase());
         }
-        renderInlineText(labelEl, step.label, palette);
+        // TD-1: in-arrow labels render as plain text (no markdown
+        // interpretation). Return-arrow labels are currently always empty
+        // (buildRenderSequence sets them to '') but this path is kept in
+        // sync with the call/self-call sites above to prevent a future
+        // change resurrecting the location[] silent-drop bug.
+        labelEl.text(step.label);
       }
     }
   });

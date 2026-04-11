@@ -114,6 +114,79 @@ no-option-name       // off
 - Bare keyword = on; `no-` prefix = off
 - Must appear before diagram content
 
+### 1.9 In-Arrow Message Labels
+
+An **in-arrow label** is the text embedded inside an arrow between the opening delimiter and the arrow token, as in `A -label-> B`.
+
+```
+A -label-> B
+ ^ ^---^ ^^
+ | |     ||
+ | |     |+- destination id
+ | |     +- arrow token
+ | +- label text (plain, no markdown)
+ +- opening delimiter (matches arrow type)
+```
+
+**Chart types that support in-arrow labels**: sequence, flowchart, state, infra, c4, er, class, boxes-and-lines.
+
+#### Cheat sheet
+
+```
+// happy-path: labels are plain text with punctuation allowed
+A -location[]-> B          // label = "location[]"
+A -a[b]c-> B                // label = "a[b]c"
+A -{json}-> B               // label = "{json}"
+
+// unicode: all scripts and emoji preserved verbatim
+A -café-> B
+A -日本語-> B
+A -🎉-> B
+
+// punctuation is literal — no markdown interpretation
+A -(parenthetical)-> B      // label = "(parenthetical)"  (NOT a color)
+A -*emphasis*-> B           // label = "*emphasis*"       (NOT bold)
+A -`code`-> B               // label = "`code`"           (NOT a code span)
+
+// forbidden: -> and ~> substrings inside a label
+A -uses -> chain-> B        // ERROR (E_ARROW_SUBSTRING_IN_LABEL)
+// migration: move the label to the post-colon form
+A -> B: uses -> chain       // works for charts that accept post-colon labels
+
+// migration from pre-gauntlet (legacy) syntax
+A -Makes calls [HTTP]-> B   // label is now the FULL "Makes calls [HTTP]"
+A -Makes calls-> B | tech: HTTP   // preferred: technology on target metadata
+```
+
+#### Character-set contract
+
+- **Allowed**: any Unicode codepoint except the forbidden list below. Brackets `[] {} ()`, pipes `|`, quotes `"' `, backticks, punctuation, digits, emoji, ZWJ sequences, combining marks — all pass through as literal characters.
+- **Forbidden substrings**: `->` and `~>`. These terminate the arrow. If you need them inside a label, use the post-colon form (`A -> B: uses -> to chain`) on chart types that support it; there is no escape mechanism.
+- **Forbidden characters**: C0 control characters U+0000–U+001F except U+0009 (tab), and U+007F (DEL). Silent renderer breakage and log-injection surface — no legitimate use case.
+- **Whitespace**: leading and trailing whitespace is trimmed; internal whitespace runs (including tabs, non-breaking spaces, and zero-width spaces) are **preserved**, never collapsed.
+- **Plain text only**: no markdown interpretation. `*foo*` renders as `*foo*`, not italicized. `[label](url)` renders as literal `[label](url)`, not a hyperlink. Clickable URLs belong in notes, not in in-arrow labels.
+- **HTML-safe**: all renderers emit label text as a DOM text node. `<script>alert(1)</script>` renders as literal text — the entire label is a sequence of codepoints, not a markup fragment.
+
+#### Color suffix (flowchart and state only)
+
+```
+A -(red)-> B         // colored edge, no label
+A -(notacolor)-> B   // label = "(notacolor)" (fall-through)
+A -(red) uses-> B    // label = "(red) uses" (combined form not supported)
+A -red-> B           // label = "red" (bare word is always a label)
+```
+
+A parenthesized palette color is only recognized when the entire label between the opening `-` and the arrow token is exactly `(colorName)` and `colorName` is one of the 11 names in §1.5. Any other content falls through to the label. To combine a color and a label, use the post-colon or pipe-metadata form instead.
+
+#### Migrating from pre-gauntlet syntax
+
+Two legacy forms changed with this spec:
+
+1. **C4 trailing `[technology]` sugar is removed.** A C4 arrow like `-Makes calls [HTTPS]-> API` used to extract `HTTPS` as the technology annotation. The full `Makes calls [HTTPS]` is now the label. Use the post-colon or pipe form for technology: `-Makes calls-> API | tech: HTTPS`.
+2. **Bare palette color suffixes are a literal label.** `A -red-> B` on flowchart/state used to be accepted as a bare color suffix in some surfaces. It is now always a label with text `red`. To color an edge, use the `-(red)->` parens form.
+
+No code migration is required for in-arrow label character escaping — any label that was valid before remains valid, with one exception: if your label happened to contain the literal substring `->` or `~>`, the parser now rejects it with `E_ARROW_SUBSTRING_IN_LABEL`. Move those labels to the post-colon form.
+
 ---
 
 ## 2. Sequence Diagrams

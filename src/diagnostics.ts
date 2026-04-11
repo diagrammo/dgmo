@@ -9,14 +9,23 @@ export interface DgmoError {
   column?: number; // optional 1-based column
   message: string; // without "Line N:" prefix
   severity: DgmoSeverity;
+  /**
+   * Optional stable diagnostic code (e.g. 'E_ARROW_SUBSTRING_IN_LABEL').
+   * Additive; pre-existing diagnostics omit this field and existing
+   * substring-on-`.message` assertions keep working unchanged.
+   */
+  code?: string;
 }
 
 export function makeDgmoError(
   line: number,
   message: string,
-  severity: DgmoSeverity = 'error'
+  severity: DgmoSeverity = 'error',
+  code?: string
 ): DgmoError {
-  return { line, message, severity };
+  return code !== undefined
+    ? { line, message, severity, code }
+    : { line, message, severity };
 }
 
 export function formatDgmoError(err: DgmoError): string {
@@ -43,9 +52,7 @@ function levenshtein(a: string, b: string): number {
     for (let j = 1; j <= n; j++) {
       const tmp = dp[j];
       dp[j] =
-        a[i - 1] === b[j - 1]
-          ? prev
-          : 1 + Math.min(prev, dp[j], dp[j - 1]);
+        a[i - 1] === b[j - 1] ? prev : 1 + Math.min(prev, dp[j], dp[j - 1]);
       prev = tmp;
     }
   }
@@ -57,7 +64,10 @@ function levenshtein(a: string, b: string): number {
  * Returns null if no good match is found.
  * Threshold: distance ≤ max(2, floor(input.length / 3))
  */
-export function suggest(input: string, candidates: readonly string[]): string | null {
+export function suggest(
+  input: string,
+  candidates: readonly string[]
+): string | null {
   if (!input || candidates.length === 0) return null;
   const lower = input.toLowerCase();
   const threshold = Math.max(2, Math.floor(lower.length / 3));

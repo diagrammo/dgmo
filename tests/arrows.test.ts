@@ -113,12 +113,22 @@ describe('parseArrow — labeled arrow utility', () => {
 
     it('async no spaces: API~event~>Queue', () => {
       const r = parseArrow('API~event~>Queue');
-      expect(r).toEqual({ from: 'API', to: 'Queue', label: 'event', async: true });
+      expect(r).toEqual({
+        from: 'API',
+        to: 'Queue',
+        label: 'event',
+        async: true,
+      });
     });
 
     it('async mixed spacing: API~event~> Queue', () => {
       const r = parseArrow('API~event~> Queue');
-      expect(r).toEqual({ from: 'API', to: 'Queue', label: 'event', async: true });
+      expect(r).toEqual({
+        from: 'API',
+        to: 'Queue',
+        label: 'event',
+        async: true,
+      });
     });
   });
 
@@ -126,17 +136,32 @@ describe('parseArrow — labeled arrow utility', () => {
   describe('dashes in labels', () => {
     it('label with inner dashes: A -pre-process-> B', () => {
       const r = parseArrow('A -pre-process-> B');
-      expect(r).toEqual({ from: 'A', to: 'B', label: 'pre-process', async: false });
+      expect(r).toEqual({
+        from: 'A',
+        to: 'B',
+        label: 'pre-process',
+        async: false,
+      });
     });
 
     it('multi-word hyphenated label', () => {
       const r = parseArrow('Client -re-auth token-> Server');
-      expect(r).toEqual({ from: 'Client', to: 'Server', label: 're-auth token', async: false });
+      expect(r).toEqual({
+        from: 'Client',
+        to: 'Server',
+        label: 're-auth token',
+        async: false,
+      });
     });
 
     it('hyphenated to name: A -call-> my-api', () => {
       const r = parseArrow('A -call-> my-api');
-      expect(r).toEqual({ from: 'A', to: 'my-api', label: 'call', async: false });
+      expect(r).toEqual({
+        from: 'A',
+        to: 'my-api',
+        label: 'call',
+        async: false,
+      });
     });
 
     it('async hyphenated label: A ~re-sync~> B', () => {
@@ -172,17 +197,25 @@ describe('parseArrow — labeled arrow utility', () => {
     });
   });
 
-  // ---- Error cases ----
-  describe('error on arrow chars inside label', () => {
-    it('-> inside label', () => {
+  // ---- Arrow-char-in-label validation (moved to parseInArrowLabel) ----
+  //
+  // Post-TD-13: `parseArrow` no longer emits "arrow chars inside labels"
+  // as an error. That validation lives in `validateLabelCharacters`
+  // (imported via `parseInArrowLabel`) so it emits the stable
+  // `E_ARROW_SUBSTRING_IN_LABEL` diagnostic code from the unified registry.
+  // Callers of `parseArrow` are expected to route the returned label
+  // through `parseInArrowLabel` — sequence's parser does exactly this at
+  // `src/sequence/parser.ts:945-948`.
+  describe('TD-13 validation moved to parseInArrowLabel', () => {
+    it('parseArrow itself no longer rejects -> inside label text', () => {
+      // In practice this path is unreachable because non-greedy source
+      // match + greedy target match absorbs the inner `->` into one of
+      // the capture groups. We assert only that parseArrow does not emit
+      // the legacy `{error: "...not allowed..."}` return.
       const r = parseArrow('A -routes->next-> B');
-      expect(r).toHaveProperty('error');
-      expect((r as { error: string }).error).toContain('not allowed');
-    });
-
-    it('~> inside label', () => {
-      const r = parseArrow('A -has~>val-> B');
-      expect(r).toHaveProperty('error');
+      if (r && 'error' in r) {
+        expect(r.error).not.toContain('not allowed');
+      }
     });
   });
 });

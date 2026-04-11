@@ -1,6 +1,7 @@
 import { resolveColorWithDiagnostic } from '../colors';
 import type { PaletteColors } from '../palettes';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
+import { validateLabelCharacters } from '../utils/arrows';
 import {
   measureIndent,
   extractColor,
@@ -108,12 +109,22 @@ function parseRelationship(
     const fromCard = parseCardSide(sym[2]);
     const toCard = parseCardSide(sym[3]);
     if (fromCard && toCard) {
+      const label = sym[5]?.trim();
+      // F17: run label through validator for defense in depth. The parent
+      // loop currently discards top-level relationships as warnings, so
+      // the label never reaches the AST — but if that changes, this keeps
+      // character-set validation in sync with the indented path.
+      if (label) {
+        validateLabelCharacters(label, lineNumber).forEach((d) =>
+          pushError(d.line, d.message)
+        );
+      }
       return {
         source: sym[1],
         target: sym[4],
         from: fromCard,
         to: toCard,
-        label: sym[5]?.trim(),
+        label,
       };
     }
   }
@@ -321,6 +332,9 @@ export function parseERDiagram(
     // Indented lines = columns or relationships of current table
     if (indent > 0 && currentTable) {
       // Try indented relationship first: 1-* target  or  1-label-* target
+      // ER chart-specific constraint: labels cannot contain `-` because
+      // INDENT_REL_RE uses `-{1,2}` as hard delimiters on both sides of the
+      // label. So `1-has-*` works but `1-has dashes-*` does not.
       const indentRel = trimmed.match(INDENT_REL_RE);
       if (indentRel) {
         const fromCard = parseCardSide(indentRel[1]);
@@ -328,11 +342,17 @@ export function parseERDiagram(
         if (fromCard && toCard) {
           const targetName = indentRel[4];
           getOrCreateTable(targetName, lineNumber);
+          const rawLabel = indentRel[2]?.trim();
+          if (rawLabel) {
+            result.diagnostics.push(
+              ...validateLabelCharacters(rawLabel, lineNumber)
+            );
+          }
           result.relationships.push({
             source: currentTable.id,
             target: tableId(targetName),
             cardinality: { from: fromCard, to: toCard },
-            ...(indentRel[2]?.trim() && { label: indentRel[2].trim() }),
+            ...(rawLabel && { label: rawLabel }),
             lineNumber,
           });
         }

@@ -5,7 +5,7 @@
 import { inferParticipantType } from './participant-inference';
 import type { DgmoError } from '../diagnostics';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
-import { parseArrow } from '../utils/arrows';
+import { parseArrow, parseInArrowLabel } from '../utils/arrows';
 import {
   measureIndent,
   extractColor,
@@ -945,8 +945,13 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     }
     if (labeledArrow) {
       contentStarted = true;
-      const { from, to, label, async: isAsync } = labeledArrow;
+      const { from, to, label: rawLabel, async: isAsync } = labeledArrow;
       lastMsgFrom = from;
+
+      // TD-13/TD-14: validate in-arrow label characters
+      const labelResult = parseInArrowLabel(rawLabel, lineNumber);
+      labelResult.diagnostics.forEach((d) => result.diagnostics.push(d));
+      const label = labelResult.label ?? rawLabel;
 
       const msg: SequenceMessage = {
         from,

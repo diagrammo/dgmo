@@ -4,6 +4,7 @@
 
 import { makeDgmoError, suggest } from '../diagnostics';
 import type { DgmoError } from '../diagnostics';
+import { parseInArrowLabel } from '../utils/arrows';
 import type { ParsedBoxesAndLines, BLNode, BLEdge, BLGroup } from './types';
 import {
   matchTagBlockHeading,
@@ -607,7 +608,9 @@ function parseEdgeLine(
   const biLabeledMatch = trimmed.match(/^(.+?)\s*<-(.+)->\s*(.+)$/);
   if (biLabeledMatch) {
     const source = resolveEndpoint(biLabeledMatch[1].trim());
-    const label = biLabeledMatch[2].trim();
+    const labelResult = parseInArrowLabel(biLabeledMatch[2], lineNum);
+    diagnostics.push(...labelResult.diagnostics);
+    const label = labelResult.label;
     let rest = biLabeledMatch[3].trim();
 
     let metadata: Record<string, string> = {};
@@ -631,7 +634,7 @@ function parseEdgeLine(
     return {
       source,
       target: resolveEndpoint(rest),
-      label: label || undefined,
+      label,
       bidirectional: true,
       lineNumber: lineNum,
       metadata,
@@ -675,7 +678,9 @@ function parseEdgeLine(
   const labeledMatch = trimmed.match(/^(.+?)\s+-(.+)->\s*(.+)$/);
   if (labeledMatch) {
     const source = resolveEndpoint(labeledMatch[1].trim());
-    const label = labeledMatch[2].trim();
+    const labelResult = parseInArrowLabel(labeledMatch[2], lineNum);
+    diagnostics.push(...labelResult.diagnostics);
+    const label = labelResult.label;
     let rest = labeledMatch[3].trim();
 
     if (label) {

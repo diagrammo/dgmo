@@ -6,6 +6,18 @@ export { makeDgmoError, formatDgmoError } from './diagnostics';
 export type { DgmoError, DgmoSeverity } from './diagnostics';
 
 // ============================================================
+// Arrow helpers (in-arrow label validation)
+// ============================================================
+
+export {
+  parseInArrowLabel,
+  validateLabelCharacters,
+  matchColorParens,
+  ARROW_DIAGNOSTIC_CODES,
+} from './utils/arrows';
+export type { ParseInArrowLabelResult } from './utils/arrows';
+
+// ============================================================
 // Unified API
 // ============================================================
 

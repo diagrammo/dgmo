@@ -1,7 +1,12 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { JSDOM } from 'jsdom';
 import { parseSequenceDgmo } from '../src/sequence/parser';
-import { renderSequenceDiagram, buildNoteMessageMap, parseInlineMarkdown, truncateBareUrl } from '../src/sequence/renderer';
+import {
+  renderSequenceDiagram,
+  buildNoteMessageMap,
+  parseInlineMarkdown,
+  truncateBareUrl,
+} from '../src/sequence/renderer';
 import { getPalette } from '../src/palettes';
 
 // Set up jsdom globals for D3
@@ -218,9 +223,14 @@ describe('Collapsed note rendering', () => {
   });
 
   it('renders expanded notes when note lineNumber is in expandedNoteLines', () => {
-    const parsed = parseSequenceDgmo('A -hello-> B\nnote right of A annotation');
+    const parsed = parseSequenceDgmo(
+      'A -hello-> B\nnote right of A annotation'
+    );
     const noteLineNumber = parsed.elements
-      .filter((el): el is import('../src/sequence/parser').SequenceNote => 'kind' in el && el.kind === 'note')
+      .filter(
+        (el): el is import('../src/sequence/parser').SequenceNote =>
+          'kind' in el && el.kind === 'note'
+      )
       .map((n) => n.lineNumber)[0];
 
     const svg = renderToSvg('A -hello-> B\nnote right of A annotation', {
@@ -234,7 +244,8 @@ describe('Collapsed note rendering', () => {
   });
 
   it('collapsed notes are shorter than expanded notes', () => {
-    const input = 'A -hello-> B\nnote right of A this is a longer annotation text';
+    const input =
+      'A -hello-> B\nnote right of A this is a longer annotation text';
 
     // Expanded (default, no expandedNoteLines)
     const svgExpanded = renderToSvg(input);
@@ -261,7 +272,10 @@ describe('Collapsed note rendering', () => {
     ].join('\n');
     const parsed = parseSequenceDgmo(input);
     const noteLines = parsed.elements
-      .filter((el): el is import('../src/sequence/parser').SequenceNote => 'kind' in el && el.kind === 'note')
+      .filter(
+        (el): el is import('../src/sequence/parser').SequenceNote =>
+          'kind' in el && el.kind === 'note'
+      )
       .map((n) => n.lineNumber);
     expect(noteLines.length).toBe(2);
 
@@ -302,16 +316,20 @@ describe('Collapsed note rendering', () => {
 
 describe('buildNoteMessageMap', () => {
   it('maps notes to their preceding message lines', () => {
-    const parsed = parseSequenceDgmo([
-      'A -hello-> B',
-      'note right of A annotation',
-      'A -world-> B',
-      'note right of B second annotation',
-    ].join('\n'));
+    const parsed = parseSequenceDgmo(
+      [
+        'A -hello-> B',
+        'note right of A annotation',
+        'A -world-> B',
+        'note right of B second annotation',
+      ].join('\n')
+    );
 
     const map = buildNoteMessageMap(parsed.elements);
-    const notes = parsed.elements
-      .filter((el): el is import('../src/sequence/parser').SequenceNote => 'kind' in el && el.kind === 'note');
+    const notes = parsed.elements.filter(
+      (el): el is import('../src/sequence/parser').SequenceNote =>
+        'kind' in el && el.kind === 'note'
+    );
 
     expect(notes.length).toBe(2);
     // First note maps to first message
@@ -321,13 +339,15 @@ describe('buildNoteMessageMap', () => {
   });
 
   it('handles notes inside blocks', () => {
-    const parsed = parseSequenceDgmo([
-      'A -setup-> B',
-      'if condition',
-      '  A -action-> B',
-      '  note right of A inside block',
-      'A -done-> B',
-    ].join('\n'));
+    const parsed = parseSequenceDgmo(
+      [
+        'A -setup-> B',
+        'if condition',
+        '  A -action-> B',
+        '  note right of A inside block',
+        'A -done-> B',
+      ].join('\n')
+    );
 
     const map = buildNoteMessageMap(parsed.elements);
     expect(map.size).toBe(1);
@@ -347,7 +367,10 @@ describe('parseInlineMarkdown — bare URL detection', () => {
   it('detects http:// URLs', () => {
     const spans = parseInlineMarkdown('http://example.com/path?q=1');
     expect(spans).toEqual([
-      { text: 'http://example.com/path?q=1', href: 'http://example.com/path?q=1' },
+      {
+        text: 'http://example.com/path?q=1',
+        href: 'http://example.com/path?q=1',
+      },
     ]);
   });
 
@@ -361,9 +384,7 @@ describe('parseInlineMarkdown — bare URL detection', () => {
 
   it('preserves existing markdown link syntax', () => {
     const spans = parseInlineMarkdown('[docs](https://docs.example.com)');
-    expect(spans).toEqual([
-      { text: 'docs', href: 'https://docs.example.com' },
-    ]);
+    expect(spans).toEqual([{ text: 'docs', href: 'https://docs.example.com' }]);
   });
 
   it('handles bare URL alongside markdown formatting', () => {
@@ -391,23 +412,24 @@ describe('parseInlineMarkdown — bare URL detection', () => {
 });
 
 describe('Message label inline markdown rendering', () => {
-  it('renders bare URL in a message label as an <a> element', () => {
+  // TD-1: in-arrow message labels render as plain text. URLs and markdown
+  // links are NOT auto-linked. If a user wants a clickable URL, they should
+  // put it in a note. See docs/dgmo-language-spec.md §"In-Arrow Message Labels".
+  it('TD-1: bare URL in a message label renders as plain text, no <a>', () => {
     const svg = renderToSvg('A -call https://api.example.com/endpoint-> B');
     expect(svg).not.toBeNull();
     const labels = svg!.querySelectorAll('.message-label');
     expect(labels.length).toBe(1);
-    const anchor = labels[0].querySelector('a');
-    expect(anchor).not.toBeNull();
-    expect(anchor!.getAttribute('href')).toBe('https://api.example.com/endpoint');
+    expect(labels[0].querySelector('a')).toBeNull();
+    expect(labels[0].textContent).toBe('call https://api.example.com/endpoint');
   });
 
-  it('renders markdown link in a message label as an <a> element', () => {
+  it('TD-1: markdown link in a message label renders as literal characters', () => {
     const svg = renderToSvg('A -see [docs](https://docs.example.com)-> B');
     expect(svg).not.toBeNull();
-    const anchor = svg!.querySelector('.message-label a');
-    expect(anchor).not.toBeNull();
-    expect(anchor!.getAttribute('href')).toBe('https://docs.example.com');
-    expect(anchor!.textContent).toBe('docs');
+    const label = svg!.querySelector('.message-label');
+    expect(label!.querySelector('a')).toBeNull();
+    expect(label!.textContent).toBe('see [docs](https://docs.example.com)');
   });
 
   it('renders two forward labels as message label elements', () => {
@@ -435,11 +457,14 @@ describe('truncateBareUrl', () => {
   });
 
   it('keeps short URLs intact after stripping', () => {
-    expect(truncateBareUrl('https://api.example.com/v2/users')).toBe('api.example.com/v2/users');
+    expect(truncateBareUrl('https://api.example.com/v2/users')).toBe(
+      'api.example.com/v2/users'
+    );
   });
 
   it('truncates long URLs with ellipsis', () => {
-    const long = 'https://api.example.com/v2/users/authentication/oauth2/callback';
+    const long =
+      'https://api.example.com/v2/users/authentication/oauth2/callback';
     const result = truncateBareUrl(long);
     expect(result.length).toBe(35);
     expect(result.endsWith('\u2026')).toBe(true);
@@ -447,25 +472,55 @@ describe('truncateBareUrl', () => {
   });
 });
 
-describe('Rendered bare URL truncation', () => {
-  it('truncates long bare URL display text but preserves full href', () => {
-    const longUrl = 'https://api.example.com/v2/users/authentication/oauth2/callback';
-    const svg = renderToSvg(`A -${longUrl}-> B`);
+describe('AC-4 (TD-1): location[] bug fix', () => {
+  // Originally reported: `TreasureAPI -location[]-> WebApp` rendered as
+  // "location]" because inline-markdown.ts stripped `[`. After TD-1 the
+  // sequence renderer bypasses the markdown pipeline for in-arrow labels.
+  it('renders location[] verbatim, not location]', () => {
+    const svg = renderToSvg('TreasureAPI -location[]-> WebApp');
     expect(svg).not.toBeNull();
-    const anchor = svg!.querySelector('.message-label a');
-    expect(anchor).not.toBeNull();
-    expect(anchor!.getAttribute('href')).toBe(longUrl);
-    // Display text should be truncated
-    const tspan = anchor!.querySelector('tspan');
-    expect(tspan!.textContent!.endsWith('\u2026')).toBe(true);
-    expect(tspan!.textContent!.length).toBe(35);
+    const label = svg!.querySelector('.message-label');
+    expect(label).not.toBeNull();
+    expect(label!.textContent).toBe('location[]');
   });
 
-  it('does not truncate markdown link display text', () => {
-    const svg = renderToSvg('A -[my custom label](https://api.example.com/v2/users/authentication/oauth2/callback)-> B');
+  it('renders a[b]c verbatim', () => {
+    const svg = renderToSvg('A -a[b]c-> B');
+    const label = svg!.querySelector('.message-label');
+    expect(label!.textContent).toBe('a[b]c');
+  });
+
+  it('renders {json} literally', () => {
+    const svg = renderToSvg('A -{json}-> B');
+    const label = svg!.querySelector('.message-label');
+    expect(label!.textContent).toBe('{json}');
+  });
+});
+
+describe('Rendered in-arrow label plain-text (TD-1)', () => {
+  // These tests used to assert URL truncation and markdown-link rendering
+  // for in-arrow labels. After TD-1, in-arrow labels are plain text — the
+  // entire label string renders verbatim as a single text node, no <a>,
+  // no truncation, no markdown interpretation. Clickable URLs belong in notes.
+  it('long bare URL renders verbatim as plain text', () => {
+    const longUrl =
+      'https://api.example.com/v2/users/authentication/oauth2/callback';
+    const svg = renderToSvg(`A -${longUrl}-> B`);
     expect(svg).not.toBeNull();
-    const anchor = svg!.querySelector('.message-label a');
-    expect(anchor).not.toBeNull();
-    expect(anchor!.querySelector('tspan')!.textContent).toBe('my custom label');
+    const label = svg!.querySelector('.message-label');
+    expect(label!.querySelector('a')).toBeNull();
+    expect(label!.textContent).toBe(longUrl);
+  });
+
+  it('markdown-link syntax renders as literal bracket/paren characters', () => {
+    const svg = renderToSvg(
+      'A -[my custom label](https://api.example.com/v2/users/authentication/oauth2/callback)-> B'
+    );
+    expect(svg).not.toBeNull();
+    const label = svg!.querySelector('.message-label');
+    expect(label!.querySelector('a')).toBeNull();
+    expect(label!.textContent).toBe(
+      '[my custom label](https://api.example.com/v2/users/authentication/oauth2/callback)'
+    );
   });
 });

@@ -128,6 +128,57 @@ describe('parseFlowchart', () => {
       expect(result.edges[0].label).toBe('yes');
       expect(result.edges[0].color).toBeDefined();
     });
+
+    // === AC-1 (TD-9): arrow-shape longest match ===
+    describe('TD-9 longest-match arrow tokenization', () => {
+      it('AC-1: [A] --foo---> [B] → label foo, no diagnostics', () => {
+        const result = parseFlowchart('[A] --foo---> [B]');
+        expect(result.edges).toHaveLength(1);
+        expect(result.edges[0].label).toBe('foo');
+        expect(result.edges[0].color).toBeUndefined();
+        expect(
+          result.diagnostics.filter((d) => d.severity === 'error')
+        ).toHaveLength(0);
+      });
+      it('[A] -foo--> [B] → label foo', () => {
+        const result = parseFlowchart('[A] -foo--> [B]');
+        expect(result.edges).toHaveLength(1);
+        expect(result.edges[0].label).toBe('foo');
+      });
+      it('[A] --> [B] → bare arrow, no label', () => {
+        const result = parseFlowchart('[A] --> [B]');
+        expect(result.edges).toHaveLength(1);
+        expect(result.edges[0].label).toBeUndefined();
+      });
+    });
+
+    // === AC-5 (TD-11): color parens fall-through to label ===
+    describe('TD-11 color parens', () => {
+      it('AC-5: -(red)-> → color red, no label', () => {
+        const result = parseFlowchart('[A] -(red)-> [B]');
+        expect(result.edges[0].color).toBeDefined();
+        expect(result.edges[0].label).toBeUndefined();
+      });
+      it('AC-5: -(notacolor)-> → label (notacolor), no color', () => {
+        const result = parseFlowchart('[A] -(notacolor)-> [B]');
+        expect(result.edges[0].color).toBeUndefined();
+        expect(result.edges[0].label).toBe('(notacolor)');
+      });
+      it('AC-5: -(red) uses-> → label "(red) uses", no color', () => {
+        const result = parseFlowchart('[A] -(red) uses-> [B]');
+        expect(result.edges[0].color).toBeUndefined();
+        expect(result.edges[0].label).toBe('(red) uses');
+      });
+    });
+
+    // === AC-6 (TD-4): bare -red-> → label "red" (no color) ===
+    describe('TD-4 bare-color is a literal label', () => {
+      it('AC-6: -red-> parses as label red, no color', () => {
+        const result = parseFlowchart('[A] -red-> [B]');
+        expect(result.edges[0].label).toBe('red');
+        expect(result.edges[0].color).toBeUndefined();
+      });
+    });
   });
 
   // === Arrow color inference ===

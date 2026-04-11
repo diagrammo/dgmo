@@ -2,6 +2,7 @@ import { resolveColorWithDiagnostic } from '../colors';
 import type { DgmoError } from '../diagnostics';
 import type { PaletteColors } from '../palettes';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
+import { parseInArrowLabel, matchColorParens } from '../utils/arrows';
 import {
   measureIndent,
   extractColor,
@@ -87,15 +88,17 @@ function parseNodeRef(text: string, palette?: PaletteColors): NodeRef | null {
 
 /**
  * Split a line into segments around arrow tokens.
- * Arrows: `->`, `-label->`, `-(color)->`, `-label(color)->`
+ * Arrows: `->`, `-label->`, `-(color)->`, `-label(color)->`, and long-dash
+ * variants like `-->`, `--->`, `--foo--->` (TD-9 longest-match: the arrow
+ * token is the maximal run of `-+>`).
  *
  * Returns alternating: [nodeText, arrowText, nodeText, arrowText, nodeText, ...]
- * Where arrowText is the full arrow token like `-yes->` or `->`.
+ * Where arrowText is the synthesized full arrow token like `-yes->` or `->`
+ * (with visual dash-run length collapsed to the minimal `-...->` form —
+ * edge styling is not yet differentiated by arrow length).
  */
 function splitArrows(line: string): string[] {
   const segments: string[] = [];
-  let lastIndex = 0;
-  // Simpler approach: find all `->` positions, then determine if there's a label prefix
   const arrowPositions: {
     start: number;
     end: number;
@@ -103,60 +106,84 @@ function splitArrows(line: string): string[] {
     color?: string;
   }[] = [];
 
-  // Find all -> occurrences
+  // Find all arrow tokens. A token is a maximal run of `-+>` (one-or-more
+  // dashes followed by `>`). We scan for `->` and then expand leftward across
+  // adjacent dashes to absorb longer forms. `scanFloor` marks the lower
+  // bound for the next opening-dash search so an arrow's opening cannot
+  // reach back into the territory of a previously consumed arrow.
   let searchFrom = 0;
+  let scanFloor = 0;
   while (searchFrom < line.length) {
     const idx = line.indexOf('->', searchFrom);
     if (idx === -1) break;
 
-    // Look backwards from idx to find the start of the arrow (the `-` that starts the label)
-    let arrowStart = idx;
+    // TD-9: absorb the full arrow run leftward from idx, but not past the
+    // scanFloor (which is right after the previous arrow).
+    let runStart = idx;
+    while (runStart > scanFloor && line[runStart - 1] === '-') runStart--;
+    const arrowEnd = idx + 2; // position after `>`
+
+    // Look for an opening dash run before the arrow. The opening is the
+    // LEFTMOST `-` in the region `[scanFloor, runStart)` that is preceded by
+    // whitespace or start-of-line. Any dashes to its right up to the first
+    // non-dash character are part of the opening run; content after that is
+    // the label; the full arrow token runs from opening through `>`.
+    let arrowStart: number;
     let label: string | undefined;
     let color: string | undefined;
 
-    // Check if there's content between a preceding `-` and this `->` (e.g., `-yes->`)
-    // Walk backwards from idx-1 to find another `-` that could be the arrow start
-    if (idx > 0 && line[idx - 1] !== ' ' && line[idx - 1] !== '\t') {
-      // There might be label/color content attached: e.g. `-yes->` or `-(blue)->`
-      // The arrow token starts with `-` followed by optional label, optional (color), then `->`
-      // We need to find the opening `-` before any label text
-      // Scan backwards to find a `-` preceded by whitespace or start-of-line
-      let scanBack = idx - 1;
-      while (scanBack > 0 && line[scanBack] !== '-') {
-        scanBack--;
-      }
-      // Check if this `-` could be the start of the arrow
-      if (
-        line[scanBack] === '-' &&
-        (scanBack === 0 || /\s/.test(line[scanBack - 1]))
-      ) {
-        // Content between opening `-` and `->` (strip trailing `-` that is part of `->`)
-        let arrowContent = line.substring(scanBack + 1, idx);
-        if (arrowContent.endsWith('-'))
-          arrowContent = arrowContent.slice(0, -1);
-        // Parse label and color from arrow content
-        const colorMatch = arrowContent.match(/\(([^)]+)\)\s*$/);
-        if (colorMatch) {
-          color = colorMatch[1].trim();
-          const labelPart = arrowContent.substring(0, colorMatch.index!).trim();
-          if (labelPart) label = labelPart;
-        } else {
-          const labelPart = arrowContent.trim();
-          if (labelPart) label = labelPart;
-        }
-        arrowStart = scanBack;
+    let openingStart = -1;
+    for (let i = scanFloor; i < runStart; i++) {
+      if (line[i] !== '-') continue;
+      const prevIsWsOrFloor =
+        i === 0 || i === scanFloor || /\s/.test(line[i - 1]);
+      if (prevIsWsOrFloor) {
+        openingStart = i;
+        break;
       }
     }
 
-    arrowPositions.push({ start: arrowStart, end: idx + 2, label, color });
-    searchFrom = idx + 2;
+    if (openingStart !== -1) {
+      // End of opening run: consume consecutive dashes after openingStart.
+      let openingEnd = openingStart;
+      while (openingEnd < runStart && line[openingEnd] === '-') openingEnd++;
+
+      // Label content = everything between opening run and the arrow run.
+      const arrowContent = line.substring(openingEnd, runStart);
+      const colorMatch = arrowContent.match(/\(([^)]+)\)\s*$/);
+      if (colorMatch) {
+        color = colorMatch[1].trim();
+        const labelPart = arrowContent.substring(0, colorMatch.index!).trim();
+        if (labelPart) label = labelPart;
+      } else {
+        const labelPart = arrowContent.trim();
+        if (labelPart) label = labelPart;
+      }
+      arrowStart = openingStart;
+    } else {
+      // No opening dash run found. All absorbed leftward dashes belong to
+      // the arrow token itself (e.g. `A --> B` → arrow is `-->`, no label).
+      arrowStart = runStart;
+    }
+
+    arrowPositions.push({ start: arrowStart, end: arrowEnd, label, color });
+    searchFrom = arrowEnd;
+    scanFloor = arrowEnd;
   }
 
   if (arrowPositions.length === 0) {
     return [line];
   }
 
-  // Build segments
+  // Build segments.
+  //
+  // NOTE: the synthesized arrow token is always the short form (`->`,
+  // `-label->`, `-(color)->`). The actual dash run-length (`-->`, `--->`,
+  // `---->`) seen in the source is collapsed here. If we ever add
+  // dash-length-sensitive edge styling (e.g. Mermaid-style "long arrow"
+  // emphasis), thread `arrow.end - arrow.start - label?.length - color?.length`
+  // through to ArrowInfo so downstream renderers can honor it.
+  let lastIndex = 0;
   for (let i = 0; i < arrowPositions.length; i++) {
     const arrow = arrowPositions[i];
     const beforeText = line.substring(lastIndex, arrow.start).trim();
@@ -193,22 +220,32 @@ function parseArrowToken(
   diagnostics: DgmoError[]
 ): ArrowInfo {
   if (token === '->') return {};
-  // Color-only: -(color)->
-  const colorOnly = token.match(/^-\(([^)]+)\)->$/);
-  if (colorOnly) {
-    return {
-      color: resolveColorWithDiagnostic(
-        colorOnly[1].trim(),
-        lineNumber,
-        diagnostics,
-        palette
-      ),
-    };
+  // TD-11: `-(X)->` is a color if and only if `X` is one of the 11 recognized
+  // palette color names. Otherwise the entire `(X)` becomes the label.
+  // Delegate the recognition rule to the shared `matchColorParens` helper.
+  const bareParen = token.match(/^-(\([A-Za-z]+\))->$/);
+  if (bareParen) {
+    const colorName = matchColorParens(bareParen[1]);
+    if (colorName) {
+      return {
+        color: resolveColorWithDiagnostic(
+          colorName,
+          lineNumber,
+          diagnostics,
+          palette
+        ),
+      };
+    }
+    // Unrecognized color name → whole `(X)` is the label (fall through).
   }
   // -label(color)-> or -label->
   const m = token.match(/^-(.+?)(?:\(([^)]+)\))?->$/);
   if (m) {
-    const label = m[1]?.trim() || undefined;
+    const rawLabel = m[1] ?? '';
+    // Route label through TD-13/TD-14 validator.
+    const labelResult = parseInArrowLabel(rawLabel, lineNumber);
+    diagnostics.push(...labelResult.diagnostics);
+    const label = labelResult.label;
     let color = m[2]
       ? resolveColorWithDiagnostic(
           m[2].trim(),

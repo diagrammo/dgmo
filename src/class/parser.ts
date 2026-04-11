@@ -1,6 +1,7 @@
 import { resolveColorWithDiagnostic } from '../colors';
 import type { PaletteColors } from '../palettes';
 import { makeDgmoError, formatDgmoError } from '../diagnostics';
+import { validateLabelCharacters } from '../utils/arrows';
 import {
   measureIndent,
   parseFirstLine,
@@ -251,6 +252,11 @@ export function parseClassDiagram(
 
         getOrCreateClass(targetName, lineNumber);
 
+        if (label) {
+          result.diagnostics.push(
+            ...validateLabelCharacters(label, lineNumber)
+          );
+        }
         result.relationships.push({
           source: currentClass.id,
           target: classId(targetName),

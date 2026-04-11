@@ -2,6 +2,7 @@ import { resolveColorWithDiagnostic } from '../colors';
 import type { DgmoError } from '../diagnostics';
 import type { PaletteColors } from '../palettes';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
+import { parseInArrowLabel, matchColorParens } from '../utils/arrows';
 import {
   measureIndent,
   extractColor,
@@ -31,6 +32,8 @@ const GROUP_BRACKET_RE = /^\[([^\]]+)\](?:\(([^)]+)\))?\s*$/;
  * Arrows: `->`, `-label->`, `-(color)->`, `-label(color)->`
  */
 function splitArrows(line: string): string[] {
+  // Mirrors flowchart-parser.ts splitArrows. TD-9 longest-match: arrow token
+  // is the maximal run of `-+>`. See that file for the full algorithm rationale.
   const segments: string[] = [];
   const arrowPositions: {
     start: number;
@@ -40,41 +43,52 @@ function splitArrows(line: string): string[] {
   }[] = [];
 
   let searchFrom = 0;
+  let scanFloor = 0;
   while (searchFrom < line.length) {
     const idx = line.indexOf('->', searchFrom);
     if (idx === -1) break;
 
-    let arrowStart = idx;
+    let runStart = idx;
+    while (runStart > scanFloor && line[runStart - 1] === '-') runStart--;
+    const arrowEnd = idx + 2;
+
+    let arrowStart: number;
     let label: string | undefined;
     let color: string | undefined;
 
-    if (idx > 0 && line[idx - 1] !== ' ' && line[idx - 1] !== '\t') {
-      let scanBack = idx - 1;
-      while (scanBack > 0 && line[scanBack] !== '-') {
-        scanBack--;
-      }
-      if (
-        line[scanBack] === '-' &&
-        (scanBack === 0 || /\s/.test(line[scanBack - 1]))
-      ) {
-        let arrowContent = line.substring(scanBack + 1, idx);
-        if (arrowContent.endsWith('-'))
-          arrowContent = arrowContent.slice(0, -1);
-        const colorMatch = arrowContent.match(/\(([^)]+)\)\s*$/);
-        if (colorMatch) {
-          color = colorMatch[1].trim();
-          const labelPart = arrowContent.substring(0, colorMatch.index!).trim();
-          if (labelPart) label = labelPart;
-        } else {
-          const labelPart = arrowContent.trim();
-          if (labelPart) label = labelPart;
-        }
-        arrowStart = scanBack;
+    let openingStart = -1;
+    for (let i = scanFloor; i < runStart; i++) {
+      if (line[i] !== '-') continue;
+      const prevIsWsOrFloor =
+        i === 0 || i === scanFloor || /\s/.test(line[i - 1]);
+      if (prevIsWsOrFloor) {
+        openingStart = i;
+        break;
       }
     }
 
-    arrowPositions.push({ start: arrowStart, end: idx + 2, label, color });
-    searchFrom = idx + 2;
+    if (openingStart !== -1) {
+      let openingEnd = openingStart;
+      while (openingEnd < runStart && line[openingEnd] === '-') openingEnd++;
+
+      const arrowContent = line.substring(openingEnd, runStart);
+      const colorMatch = arrowContent.match(/\(([^)]+)\)\s*$/);
+      if (colorMatch) {
+        color = colorMatch[1].trim();
+        const labelPart = arrowContent.substring(0, colorMatch.index!).trim();
+        if (labelPart) label = labelPart;
+      } else {
+        const labelPart = arrowContent.trim();
+        if (labelPart) label = labelPart;
+      }
+      arrowStart = openingStart;
+    } else {
+      arrowStart = runStart;
+    }
+
+    arrowPositions.push({ start: arrowStart, end: arrowEnd, label, color });
+    searchFrom = arrowEnd;
+    scanFloor = arrowEnd;
   }
 
   if (arrowPositions.length === 0) return [line];
@@ -111,19 +125,30 @@ function parseArrowToken(
   diagnostics: DgmoError[]
 ): ArrowInfo {
   if (token === '->') return {};
-  const colorOnly = token.match(/^-\(([^)]+)\)->$/);
-  if (colorOnly)
-    return {
-      color: resolveColorWithDiagnostic(
-        colorOnly[1].trim(),
-        lineNumber,
-        diagnostics,
-        palette
-      ),
-    };
+  // TD-11: `-(X)->` is a color if and only if X is a recognized palette
+  // color; otherwise the whole `(X)` becomes the label. Delegate recognition
+  // to the shared `matchColorParens` helper.
+  const bareParen = token.match(/^-(\([A-Za-z]+\))->$/);
+  if (bareParen) {
+    const colorName = matchColorParens(bareParen[1]);
+    if (colorName) {
+      return {
+        color: resolveColorWithDiagnostic(
+          colorName,
+          lineNumber,
+          diagnostics,
+          palette
+        ),
+      };
+    }
+    // fall through — whole `(X)` becomes label
+  }
   const m = token.match(/^-(.+?)(?:\(([^)]+)\))?->$/);
   if (m) {
-    const label = m[1]?.trim() || undefined;
+    const rawLabel = m[1] ?? '';
+    const labelResult = parseInArrowLabel(rawLabel, lineNumber);
+    diagnostics.push(...labelResult.diagnostics);
+    const label = labelResult.label;
     const color = m[2]
       ? resolveColorWithDiagnostic(
           m[2].trim(),

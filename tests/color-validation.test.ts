@@ -8,29 +8,38 @@ function colorDiags(diagnostics: { message: string; severity: string }[]) {
   return diagnostics.filter((d) => d.message.startsWith('Unknown color'));
 }
 
-describe('color name validation — boxes-and-lines (flowchart)', () => {
-  it('emits a warning diagnostic for an unknown CSS keyword like "magenta"', () => {
-    const result = parseFlowchart(['flowchart', 'A -(magenta)-> B'].join('\n'));
-    const diags = colorDiags(result.diagnostics);
-    expect(diags.length).toBe(1);
-    expect(diags[0].severity).toBe('warning');
-    expect(diags[0].message).toContain('"magenta"');
-    // Line 2 in the source
-    expect((diags[0] as { line: number }).line).toBe(2);
+describe('color name validation — flowchart (TD-11 fall-through)', () => {
+  // Per TD-11 "greedy-for-color, fall-through-to-label": if `(X)` is not one
+  // of the 11 recognized palette colors, the entire `(X)` becomes the label.
+  // No "Unknown color" warning is emitted because the parser no longer
+  // interprets the token as a color at all.
+  it('TD-11: unknown CSS keyword like "magenta" becomes a label, no diagnostic', () => {
+    const result = parseFlowchart(
+      ['flowchart', '[A] -(magenta)-> [B]'].join('\n')
+    );
+    expect(colorDiags(result.diagnostics).length).toBe(0);
+    expect(result.edges).toHaveLength(1);
+    expect(result.edges[0].color).toBeUndefined();
+    expect(result.edges[0].label).toBe('(magenta)');
   });
 
-  it('emits a warning for a hex code', () => {
-    const result = parseFlowchart(['flowchart', 'A -(#ff0000)-> B'].join('\n'));
-    const diags = colorDiags(result.diagnostics);
-    expect(diags.length).toBe(1);
-    expect(diags[0].message).toContain('"#ff0000"');
+  it('TD-11: hex code in parens becomes a label', () => {
+    const result = parseFlowchart(
+      ['flowchart', '[A] -(#ff0000)-> [B]'].join('\n')
+    );
+    expect(colorDiags(result.diagnostics).length).toBe(0);
+    expect(result.edges).toHaveLength(1);
+    expect(result.edges[0].label).toBe('(#ff0000)');
+    expect(result.edges[0].color).toBeUndefined();
   });
 
-  it('suggests a similar name for a typo', () => {
-    const result = parseFlowchart(['flowchart', 'A -(grenn)-> B'].join('\n'));
-    const diags = colorDiags(result.diagnostics);
-    expect(diags.length).toBe(1);
-    expect(diags[0].message.toLowerCase()).toContain("did you mean 'green'");
+  it('TD-11: typo like "grenn" becomes a label (no suggestion in parser)', () => {
+    const result = parseFlowchart(
+      ['flowchart', '[A] -(grenn)-> [B]'].join('\n')
+    );
+    expect(colorDiags(result.diagnostics).length).toBe(0);
+    expect(result.edges).toHaveLength(1);
+    expect(result.edges[0].label).toBe('(grenn)');
   });
 
   it('produces no diagnostic for a valid color name', () => {

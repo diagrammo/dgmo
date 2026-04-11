@@ -51,7 +51,7 @@ describe('parseC4', () => {
 
     it('ignores comments between elements', () => {
       const result = parseC4(
-        'c4\nAlice is a person\n// comment\nBanking is a system',
+        'c4\nAlice is a person\n// comment\nBanking is a system'
       );
       expect(result.elements).toHaveLength(2);
     });
@@ -73,7 +73,7 @@ describe('parseC4', () => {
 
     it('parses container', () => {
       const result = parseC4(
-        'c4\nBanking is a system\n  containers\n    API is a container',
+        'c4\nBanking is a system\n  containers\n    API is a container'
       );
       const api = result.elements[0].children[0];
       expect(api.type).toBe('container');
@@ -82,7 +82,7 @@ describe('parseC4', () => {
 
     it('parses component', () => {
       const result = parseC4(
-        'c4\nBanking is a system\n  containers\n    API is a container\n      components\n        Auth is a component',
+        'c4\nBanking is a system\n  containers\n    API is a container\n      components\n        Auth is a component'
       );
       const auth = result.elements[0].children[0].children[0];
       expect(auth.type).toBe('component');
@@ -123,7 +123,7 @@ describe('parseC4', () => {
   describe('shape override', () => {
     it('parses system with "is a" shape after type', () => {
       const result = parseC4(
-        'c4\nBanking is a system\n  containers\n    UserDB is a container is a database',
+        'c4\nBanking is a system\n  containers\n    UserDB is a container is a database'
       );
       const db = result.elements[0].children[0];
       expect(db.shape).toBe('database');
@@ -132,23 +132,21 @@ describe('parseC4', () => {
 
     it('parses "is a cache" shape via container type', () => {
       const result = parseC4(
-        'c4\nBanking is a system\n  containers\n    SessionStore is a container is a cache',
+        'c4\nBanking is a system\n  containers\n    SessionStore is a container is a cache'
       );
       expect(result.elements[0].children[0].shape).toBe('cache');
     });
 
     it('errors on unknown shape', () => {
-      const result = parseC4(
-        'c4\nFoo is a container is a widget',
-      );
-      expect(result.diagnostics.some((d) => d.message.includes('Unknown shape'))).toBe(
-        true,
-      );
+      const result = parseC4('c4\nFoo is a container is a widget');
+      expect(
+        result.diagnostics.some((d) => d.message.includes('Unknown shape'))
+      ).toBe(true);
     });
 
     it('strips "is a" shape from element name', () => {
       const result = parseC4(
-        'c4\nBanking is a system\n  containers\n    Cache is a container is a cache | tech: Redis',
+        'c4\nBanking is a system\n  containers\n    Cache is a container is a cache | tech: Redis'
       );
       const el = result.elements[0].children[0];
       expect(el.name).toBe('Cache');
@@ -161,35 +159,35 @@ describe('parseC4', () => {
   describe('shape inference', () => {
     it('infers database from PostgreSQL tech', () => {
       const result = parseC4(
-        'c4\nBanking is a system\n  containers\n    Data is a container | tech: PostgreSQL',
+        'c4\nBanking is a system\n  containers\n    Data is a container | tech: PostgreSQL'
       );
       expect(result.elements[0].children[0].shape).toBe('database');
     });
 
     it('infers cache from Redis tech', () => {
       const result = parseC4(
-        'c4\nBanking is a system\n  containers\n    Sessions is a container | tech: Redis',
+        'c4\nBanking is a system\n  containers\n    Sessions is a container | tech: Redis'
       );
       expect(result.elements[0].children[0].shape).toBe('cache');
     });
 
     it('infers queue from Kafka tech', () => {
       const result = parseC4(
-        'c4\nBanking is a system\n  containers\n    Events is a container | tech: Kafka',
+        'c4\nBanking is a system\n  containers\n    Events is a container | tech: Kafka'
       );
       expect(result.elements[0].children[0].shape).toBe('queue');
     });
 
     it('infers database from name containing DB', () => {
       const result = parseC4(
-        'c4\nBanking is a system\n  containers\n    UserDB is a container',
+        'c4\nBanking is a system\n  containers\n    UserDB is a container'
       );
       expect(result.elements[0].children[0].shape).toBe('database');
     });
 
     it('defaults to default shape when no inference matches', () => {
       const result = parseC4(
-        'c4\nBanking is a system\n  containers\n    API is a container',
+        'c4\nBanking is a system\n  containers\n    API is a container'
       );
       expect(result.elements[0].children[0].shape).toBe('default');
     });
@@ -199,7 +197,7 @@ describe('parseC4', () => {
   describe('metadata', () => {
     it('parses pipe syntax', () => {
       const result = parseC4(
-        'c4\nBanking is a system | tech: Node.js, team: Platform',
+        'c4\nBanking is a system | tech: Node.js, team: Platform'
       );
       expect(result.elements[0].metadata).toEqual({
         tech: 'Node.js',
@@ -209,17 +207,17 @@ describe('parseC4', () => {
 
     it('parses indented metadata', () => {
       const result = parseC4(
-        'c4\nBanking is a system\n  description: Core banking system\n  tech: Java',
+        'c4\nBanking is a system\n  description: Core banking system\n  tech: Java'
       );
       expect(result.elements[0].metadata.description).toBe(
-        'Core banking system',
+        'Core banking system'
       );
       expect(result.elements[0].metadata.tech).toBe('Java');
     });
 
     it('parses mixed pipe and indented metadata', () => {
       const result = parseC4(
-        'c4\nBanking is a system | tech: Java\n  description: Core banking',
+        'c4\nBanking is a system | tech: Java\n  description: Core banking'
       );
       const el = result.elements[0];
       expect(el.metadata.tech).toBe('Java');
@@ -228,7 +226,7 @@ describe('parseC4', () => {
 
     it('resolves tag group aliases in metadata', () => {
       const result = parseC4(
-        'c4\ntag Technology alias tech\n  React(blue)\n\nBanking is a system | tech: Node.js',
+        'c4\ntag Technology alias tech\n  React(blue)\n\nBanking is a system | tech: Node.js'
       );
       expect(result.elements[0].metadata.technology).toBe('Node.js');
     });
@@ -238,7 +236,7 @@ describe('parseC4', () => {
   describe('relationships', () => {
     it('parses sync relationship ->', () => {
       const result = parseC4(
-        'c4\nCustomer is a person\nBanking is a system\n  -Serves-> Customer',
+        'c4\nCustomer is a person\nBanking is a system\n  -Serves-> Customer'
       );
       const rels = result.elements[1].relationships;
       expect(rels).toHaveLength(1);
@@ -249,42 +247,44 @@ describe('parseC4', () => {
 
     it('parses async relationship ~>', () => {
       const result = parseC4(
-        'c4\nBanking is a system\nEmail is a system\n  ~Sends notifications~> Banking',
+        'c4\nBanking is a system\nEmail is a system\n  ~Sends notifications~> Banking'
       );
       expect(result.elements[1].relationships[0].arrowType).toBe('async');
     });
 
     it('emits error for deprecated bidirectional <->', () => {
-      const result = parseC4(
-        'c4\nA is a system\nB is a system\n  <-> A',
-      );
-      expect(result.diagnostics.some((d) =>
-        d.severity === 'error' && d.message.includes('<->'),
-      )).toBe(true);
+      const result = parseC4('c4\nA is a system\nB is a system\n  <-> A');
+      expect(
+        result.diagnostics.some(
+          (d) => d.severity === 'error' && d.message.includes('<->')
+        )
+      ).toBe(true);
     });
 
     it('emits error for deprecated bidirectional async <~>', () => {
-      const result = parseC4(
-        'c4\nA is a system\nB is a system\n  <~> A',
-      );
-      expect(result.diagnostics.some((d) =>
-        d.severity === 'error' && d.message.includes('<~>'),
-      )).toBe(true);
+      const result = parseC4('c4\nA is a system\nB is a system\n  <~> A');
+      expect(
+        result.diagnostics.some(
+          (d) => d.severity === 'error' && d.message.includes('<~>')
+        )
+      ).toBe(true);
     });
 
     it('emits error for deprecated <-label-> syntax', () => {
       const result = parseC4(
-        'c4\nA is a system\nB is a system\n  <-Syncs data-> A',
+        'c4\nA is a system\nB is a system\n  <-Syncs data-> A'
       );
-      expect(result.diagnostics.some((d) =>
-        d.severity === 'error' && d.message.includes('Bidirectional arrows are no longer supported'),
-      )).toBe(true);
+      expect(
+        result.diagnostics.some(
+          (d) =>
+            d.severity === 'error' &&
+            d.message.includes('Bidirectional arrows are no longer supported')
+        )
+      ).toBe(true);
     });
 
     it('colon in plain arrow target is treated as part of target name', () => {
-      const result = parseC4(
-        'c4\nA is a system\nB is a system\n  -> A: Calls',
-      );
+      const result = parseC4('c4\nA is a system\nB is a system\n  -> A: Calls');
       // No label parsing from colon — entire body is the target
       const rel = result.elements[1].relationships[0];
       expect(rel.target).toBe('A: Calls');
@@ -293,7 +293,7 @@ describe('parseC4', () => {
 
     it('parses technology annotation via pipe metadata', () => {
       const result = parseC4(
-        'c4\nA is a system\nB is a system\n  -Calls-> A | tech: JSON/HTTPS',
+        'c4\nA is a system\nB is a system\n  -Calls-> A | tech: JSON/HTTPS'
       );
       const rel = result.elements[1].relationships[0];
       expect(rel.technology).toBe('JSON/HTTPS');
@@ -301,9 +301,7 @@ describe('parseC4', () => {
     });
 
     it('parses relationship with target only (no label)', () => {
-      const result = parseC4(
-        'c4\nA is a system\nB is a system\n  -> A',
-      );
+      const result = parseC4('c4\nA is a system\nB is a system\n  -> A');
       const rel = result.elements[1].relationships[0];
       expect(rel.target).toBe('A');
       expect(rel.label).toBeUndefined();
@@ -314,7 +312,7 @@ describe('parseC4', () => {
   describe('section headers', () => {
     it('parses containers as structural marker', () => {
       const result = parseC4(
-        'c4\nBanking is a system\n  containers\n    API is a container\n    DB is a container',
+        'c4\nBanking is a system\n  containers\n    API is a container\n    DB is a container'
       );
       expect(result.elements[0].sectionHeader).toBe('containers');
       expect(result.elements[0].children).toHaveLength(2);
@@ -330,7 +328,7 @@ describe('parseC4', () => {
           '      components',
           '        Auth is a component',
           '        Accounts is a component',
-        ].join('\n'),
+        ].join('\n')
       );
       const api = result.elements[0].children[0];
       expect(api.sectionHeader).toBe('components');
@@ -346,7 +344,7 @@ describe('parseC4', () => {
           '    API is a container',
           '      components',
           '        Auth is a component',
-        ].join('\n'),
+        ].join('\n')
       );
       // containers is on line 3
       expect(result.elements[0].sectionHeaderLineNumber).toBe(3);
@@ -369,7 +367,7 @@ describe('parseC4', () => {
           '      MobileApp is a container',
           '    [Backend]',
           '      API is a container',
-        ].join('\n'),
+        ].join('\n')
       );
       const banking = result.elements[0];
       expect(banking.groups).toHaveLength(2);
@@ -396,7 +394,7 @@ describe('parseC4', () => {
           '      container API',
           '    RDS',
           '      container DB',
-        ].join('\n'),
+        ].join('\n')
       );
       expect(result.deployment).toHaveLength(1);
       expect(result.deployment[0].name).toBe('AWS us-east-1');
@@ -416,7 +414,7 @@ describe('parseC4', () => {
           '    API is a container',
           'deployment',
           '  AWS us-east-1 | team: Platform',
-        ].join('\n'),
+        ].join('\n')
       );
       expect(result.deployment[0].metadata.team).toBe('Platform');
     });
@@ -432,10 +430,10 @@ describe('parseC4', () => {
           '  containers',
           '    API is a container',
           '      import: auth-classes.dgmo',
-        ].join('\n'),
+        ].join('\n')
       );
       expect(result.elements[0].children[0].importPath).toBe(
-        'auth-classes.dgmo',
+        'auth-classes.dgmo'
       );
     });
   });
@@ -451,7 +449,7 @@ describe('parseC4', () => {
           '  Node.js(green)',
           '',
           'Alice is a person',
-        ].join('\n'),
+        ].join('\n')
       );
       expect(result.tagGroups).toHaveLength(1);
       expect(result.tagGroups[0].name).toBe('Technology');
@@ -468,7 +466,7 @@ describe('parseC4', () => {
           '  Payments(orange)',
           '',
           'Alice is a person',
-        ].join('\n'),
+        ].join('\n')
       );
       expect(result.tagGroups[0].defaultValue).toBe('Platform');
     });
@@ -480,9 +478,11 @@ describe('parseC4', () => {
           'Alice is a person',
           'tag Team alias t',
           '  Platform(blue)',
-        ].join('\n'),
+        ].join('\n')
       );
-      expect(result.diagnostics.some((d) => d.message.includes('must appear before'))).toBe(true);
+      expect(
+        result.diagnostics.some((d) => d.message.includes('must appear before'))
+      ).toBe(true);
     });
 
     it('resolves alias in pipe metadata', () => {
@@ -493,7 +493,7 @@ describe('parseC4', () => {
           '  Platform(blue)',
           '',
           'Banking is a system | t: Platform',
-        ].join('\n'),
+        ].join('\n')
       );
       // 't' should be resolved to 'team'
       expect(result.elements[0].metadata.team).toBe('Platform');
@@ -504,7 +504,14 @@ describe('parseC4', () => {
   describe('tag block syntax', () => {
     it('parses tag heading with entries', () => {
       const result = parseC4(
-        ['c4', 'tag Technology alias tech', '  React(blue)', '  Node.js(green)', '', 'Alice is a person'].join('\n'),
+        [
+          'c4',
+          'tag Technology alias tech',
+          '  React(blue)',
+          '  Node.js(green)',
+          '',
+          'Alice is a person',
+        ].join('\n')
       );
       expect(result.tagGroups).toHaveLength(1);
       expect(result.tagGroups[0].name).toBe('Technology');
@@ -514,36 +521,57 @@ describe('parseC4', () => {
 
     it('first entry becomes default', () => {
       const result = parseC4(
-        ['c4', 'tag Team alias t', '  Platform(blue)', '  Payments(orange)', '', 'Alice is a person'].join('\n'),
+        [
+          'c4',
+          'tag Team alias t',
+          '  Platform(blue)',
+          '  Payments(orange)',
+          '',
+          'Alice is a person',
+        ].join('\n')
       );
       expect(result.tagGroups[0].defaultValue).toBe('Platform');
     });
 
     it('is case-insensitive', () => {
       const result = parseC4(
-        ['c4', 'Tag Team', '  Platform(blue)', '', 'Alice is a person'].join('\n'),
+        ['c4', 'Tag Team', '  Platform(blue)', '', 'Alice is a person'].join(
+          '\n'
+        )
       );
       expect(result.tagGroups[0].name).toBe('Team');
     });
 
     it('does not emit deprecation warning for tag syntax', () => {
       const result = parseC4(
-        ['c4', 'tag Team', '  Platform(blue)', '', 'Alice is a person'].join('\n'),
+        ['c4', 'tag Team', '  Platform(blue)', '', 'Alice is a person'].join(
+          '\n'
+        )
       );
-      const warnings = result.diagnostics.filter(d => d.message.includes('deprecated'));
+      const warnings = result.diagnostics.filter((d) =>
+        d.message.includes('deprecated')
+      );
       expect(warnings).toHaveLength(0);
     });
 
     it('ignores ## syntax (no longer recognized as tag heading)', () => {
       const result = parseC4(
-        ['c4', '## Team', '  Platform(blue)', '', 'Alice is a person'].join('\n'),
+        ['c4', '## Team', '  Platform(blue)', '', 'Alice is a person'].join(
+          '\n'
+        )
       );
       expect(result.tagGroups).toHaveLength(0);
     });
 
     it('resolves alias in pipe metadata with tag syntax', () => {
       const result = parseC4(
-        ['c4', 'tag Team alias t', '  Platform(blue)', '', 'Banking is a system | t: Platform'].join('\n'),
+        [
+          'c4',
+          'tag Team alias t',
+          '  Platform(blue)',
+          '',
+          'Banking is a system | t: Platform',
+        ].join('\n')
       );
       expect(result.elements[0].metadata.team).toBe('Platform');
     });
@@ -562,7 +590,7 @@ describe('parseC4', () => {
           '        Auth is a component',
           '        Payments is a component',
           '    DB is a container is a database',
-        ].join('\n'),
+        ].join('\n')
       );
       expect(result.elements).toHaveLength(1);
       const banking = result.elements[0];
@@ -580,7 +608,7 @@ describe('parseC4', () => {
           'Customer is a person',
           'Banking is a system',
           'Email is a system',
-        ].join('\n'),
+        ].join('\n')
       );
       expect(result.elements).toHaveLength(3);
     });
@@ -589,23 +617,19 @@ describe('parseC4', () => {
   // === Line numbers ===
   describe('line numbers', () => {
     it('tracks line numbers on elements', () => {
-      const result = parseC4(
-        'c4\nAlice is a person\nBanking is a system',
-      );
+      const result = parseC4('c4\nAlice is a person\nBanking is a system');
       expect(result.elements[0].lineNumber).toBe(2);
       expect(result.elements[1].lineNumber).toBe(3);
     });
 
     it('tracks line numbers on relationships', () => {
-      const result = parseC4(
-        'c4\nA is a system\n  -calls-> B',
-      );
+      const result = parseC4('c4\nA is a system\n  -calls-> B');
       expect(result.elements[0].relationships[0].lineNumber).toBe(3);
     });
 
     it('tracks line numbers on tag groups', () => {
       const result = parseC4(
-        'c4\ntag Team\n  Platform(blue)\n\nAlice is a person',
+        'c4\ntag Team\n  Platform(blue)\n\nAlice is a person'
       );
       expect(result.tagGroups[0].lineNumber).toBe(2);
       expect(result.tagGroups[0].entries[0].lineNumber).toBe(3);
@@ -615,27 +639,25 @@ describe('parseC4', () => {
   // === Errors ===
   describe('errors', () => {
     it('reports duplicate element names', () => {
-      const result = parseC4(
-        'c4\nBanking is a system\nBanking is a system',
-      );
+      const result = parseC4('c4\nBanking is a system\nBanking is a system');
       expect(
-        result.diagnostics.some((d) => d.message.includes('Duplicate element name')),
+        result.diagnostics.some((d) =>
+          d.message.includes('Duplicate element name')
+        )
       ).toBe(true);
     });
 
     it('reports unknown element keywords with suggestion', () => {
       const result = parseC4('c4\nsytem Banking');
       expect(
-        result.diagnostics.some((d) => d.message.includes('Did you mean')),
+        result.diagnostics.some((d) => d.message.includes('Did you mean'))
       ).toBe(true);
     });
 
     it('warns about unresolved relationship targets', () => {
-      const result = parseC4(
-        'c4\nBanking is a system\n  -calls-> NonExistent',
-      );
+      const result = parseC4('c4\nBanking is a system\n  -calls-> NonExistent');
       const warning = result.diagnostics.find((d) =>
-        d.message.includes('not found'),
+        d.message.includes('not found')
       );
       expect(warning).toBeDefined();
       expect(warning!.severity).toBe('warning');
@@ -649,12 +671,12 @@ describe('parseC4', () => {
           'deployment',
           '  AWS',
           '    container NonExistent',
-        ].join('\n'),
+        ].join('\n')
       );
       expect(
         result.diagnostics.some((d) =>
-          d.message.includes('Deployment reference'),
-        ),
+          d.message.includes('Deployment reference')
+        )
       ).toBe(true);
     });
   });
@@ -662,9 +684,7 @@ describe('parseC4', () => {
   // === Options ===
   describe('options', () => {
     it('parses header options', () => {
-      const result = parseC4(
-        'c4\nlayout left-right\nAlice is a person',
-      );
+      const result = parseC4('c4\nlayout left-right\nAlice is a person');
       expect(result.options.layout).toBe('left-right');
     });
   });
@@ -789,7 +809,7 @@ describe('parseC4', () => {
       // Customer relationships
       expect(result.elements[0].relationships).toHaveLength(1);
       expect(result.elements[0].relationships[0].target).toBe(
-        'Internet Banking',
+        'Internet Banking'
       );
 
       // Internet Banking structure
@@ -811,9 +831,7 @@ describe('parseC4', () => {
       expect(cache!.shape).toBe('cache');
 
       // API components
-      const api = banking.groups[1].children.find(
-        (c) => c.name === 'API',
-      );
+      const api = banking.groups[1].children.find((c) => c.name === 'API');
       expect(api).toBeDefined();
       expect(api!.sectionHeader).toBe('components');
       expect(api!.children).toHaveLength(2);
@@ -828,7 +846,7 @@ describe('parseC4', () => {
       expect(result.deployment[0].name).toBe('AWS us-east-1');
       expect(result.deployment[0].children).toHaveLength(4);
       expect(result.deployment[0].children[0].containerRefs).toContain(
-        'Web App',
+        'Web App'
       );
       expect(result.deployment[1].name).toBe('Cloudflare');
     });
@@ -870,24 +888,50 @@ API is a system
       const result = parseC4(`c4
 API is a system
   <-Syncs data-> Database`);
-      expect(result.diagnostics.some((d) =>
-        d.severity === 'error' && d.message.includes('Bidirectional arrows are no longer supported'),
-      )).toBe(true);
+      expect(
+        result.diagnostics.some(
+          (d) =>
+            d.severity === 'error' &&
+            d.message.includes('Bidirectional arrows are no longer supported')
+        )
+      ).toBe(true);
     });
 
     it('<~label~> emits deprecation error with replacement hint', () => {
       const result = parseC4(`c4
 API is a system
   <~heartbeat~> Monitor`);
-      expect(result.diagnostics.some((d) =>
-        d.severity === 'error' && d.message.includes('Bidirectional arrows are no longer supported'),
-      )).toBe(true);
+      expect(
+        result.diagnostics.some(
+          (d) =>
+            d.severity === 'error' &&
+            d.message.includes('Bidirectional arrows are no longer supported')
+        )
+      ).toBe(true);
     });
 
-    it('technology annotation in labeled arrow', () => {
+    it('TD-5: trailing [tech] sugar is no longer extracted — label keeps brackets', () => {
+      // Per the "In-Arrow Message Labels" spec, trailing [technology] is not
+      // parsed out of the in-arrow label. Use the post-colon / pipe metadata
+      // form for technology annotations.
       const result = parseC4(`c4
 WebApp is a system
   -Makes calls [JSON/HTTPS]-> API`);
+      expect(result.error).toBeNull();
+      const rels = result.elements[0].relationships;
+      expect(rels).toHaveLength(1);
+      expect(rels[0]).toMatchObject({
+        target: 'API',
+        label: 'Makes calls [JSON/HTTPS]',
+        technology: undefined,
+        arrowType: 'sync',
+      });
+    });
+
+    it('TD-5: technology metadata via pipe on target works', () => {
+      const result = parseC4(`c4
+WebApp is a system
+  -Makes calls-> API | tech: JSON/HTTPS`);
       expect(result.error).toBeNull();
       const rels = result.elements[0].relationships;
       expect(rels).toHaveLength(1);
@@ -918,10 +962,14 @@ API is a system
   describe('deprecated prefix syntax', () => {
     it('person Name emits deprecation error', () => {
       const result = parseC4('c4\nperson Auth Service');
-      expect(result.diagnostics.some((d) =>
-        d.message.includes("'person Auth Service' prefix syntax is no longer supported") &&
-        d.message.includes("'Auth Service is a person' instead"),
-      )).toBe(true);
+      expect(
+        result.diagnostics.some(
+          (d) =>
+            d.message.includes(
+              "'person Auth Service' prefix syntax is no longer supported"
+            ) && d.message.includes("'Auth Service is a person' instead")
+        )
+      ).toBe(true);
       // Still parses the element (graceful degradation)
       expect(result.elements).toHaveLength(1);
       expect(result.elements[0].name).toBe('Auth Service');
@@ -930,31 +978,42 @@ API is a system
 
     it('system Name emits deprecation error', () => {
       const result = parseC4('c4\nsystem Database');
-      expect(result.diagnostics.some((d) =>
-        d.message.includes("prefix syntax is no longer supported") &&
-        d.message.includes("'Database is a system' instead"),
-      )).toBe(true);
+      expect(
+        result.diagnostics.some(
+          (d) =>
+            d.message.includes('prefix syntax is no longer supported') &&
+            d.message.includes("'Database is a system' instead")
+        )
+      ).toBe(true);
       expect(result.elements).toHaveLength(1);
     });
 
     it('container Name emits deprecation error', () => {
       const result = parseC4(
-        'c4\nBanking is a system\n  containers\n    container API',
+        'c4\nBanking is a system\n  containers\n    container API'
       );
-      expect(result.diagnostics.some((d) =>
-        d.message.includes("'container API' prefix syntax is no longer supported") &&
-        d.message.includes("'API is a container' instead"),
-      )).toBe(true);
+      expect(
+        result.diagnostics.some(
+          (d) =>
+            d.message.includes(
+              "'container API' prefix syntax is no longer supported"
+            ) && d.message.includes("'API is a container' instead")
+        )
+      ).toBe(true);
     });
 
     it('component Name emits deprecation error', () => {
       const result = parseC4(
-        'c4\nBanking is a system\n  containers\n    API is a container\n      components\n        component Auth',
+        'c4\nBanking is a system\n  containers\n    API is a container\n      components\n        component Auth'
       );
-      expect(result.diagnostics.some((d) =>
-        d.message.includes("'component Auth' prefix syntax is no longer supported") &&
-        d.message.includes("'Auth is a component' instead"),
-      )).toBe(true);
+      expect(
+        result.diagnostics.some(
+          (d) =>
+            d.message.includes(
+              "'component Auth' prefix syntax is no longer supported"
+            ) && d.message.includes("'Auth is a component' instead")
+        )
+      ).toBe(true);
     });
   });
 
@@ -992,7 +1051,11 @@ API is a system
     it('MyApp is a system is a cylinder reports unknown shape', () => {
       const result = parseC4('c4\nMyApp is a system is a cylinder');
       // 'cylinder' is not a valid shape, should report error
-      expect(result.diagnostics.some((d) => d.message.includes('Unknown shape "cylinder"'))).toBe(true);
+      expect(
+        result.diagnostics.some((d) =>
+          d.message.includes('Unknown shape "cylinder"')
+        )
+      ).toBe(true);
       // Element still created
       expect(result.elements).toHaveLength(1);
       expect(result.elements[0].name).toBe('MyApp');
@@ -1019,7 +1082,7 @@ API is a system
 
     it('works with indented metadata', () => {
       const result = parseC4(
-        'c4\nAuth Service is a system\n  description: Handles auth\n  tech: Node.js',
+        'c4\nAuth Service is a system\n  description: Handles auth\n  tech: Node.js'
       );
       expect(result.error).toBeNull();
       expect(result.elements[0].metadata.description).toBe('Handles auth');
@@ -1028,7 +1091,7 @@ API is a system
 
     it('works with relationships', () => {
       const result = parseC4(
-        'c4\nAlice is a person\nBanking is a system\n  -Serves-> Alice',
+        'c4\nAlice is a person\nBanking is a system\n  -Serves-> Alice'
       );
       expect(result.error).toBeNull();
       expect(result.elements[1].relationships).toHaveLength(1);
@@ -1043,7 +1106,7 @@ API is a system
           '  containers',
           '    API is a container | tech: Node.js',
           '    Cache is a container is a cache | tech: Redis',
-        ].join('\n'),
+        ].join('\n')
       );
       expect(result.error).toBeNull();
       expect(result.elements[0].children).toHaveLength(2);
