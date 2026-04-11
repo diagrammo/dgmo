@@ -704,8 +704,6 @@ export async function renderSitemapForExport(
   const { parseSitemap } = await import('./parser');
   const { layoutSitemap } = await import('./layout');
   const { getPalette } = await import('../palettes');
-  const { injectBranding } = await import('../branding');
-
   const isDark = theme === 'dark';
   const effectivePalette =
     palette ?? (isDark ? getPalette('nord').dark : getPalette('nord').light);
@@ -756,8 +754,5 @@ export async function renderSitemapForExport(
 
   const svgHtml = svgEl.outerHTML;
   document.body.removeChild(container);
-
-  const brandColor =
-    theme === 'transparent' ? '#888' : effectivePalette.textMuted;
-  return injectBranding(svgHtml, brandColor);
+  return svgHtml;
 }

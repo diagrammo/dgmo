@@ -160,7 +160,6 @@ Key options:
 - \`--theme <theme>\` — \`light\` (default), \`dark\`, \`transparent\`
 - \`--palette <name>\` — \`nord\` (default), \`solarized\`, \`catppuccin\`, \`rose-pine\`, \`gruvbox\`, \`tokyo-night\`, \`one-dark\`, \`bold\`
 - \`--copy\` — copy the URL to clipboard (use with \`-o url\`)
-- \`--branding\` — add diagrammo.app branding to exports
 - \`--chart-types\` — list all supported chart types
 
 ## Supported Chart Types
@@ -502,7 +501,6 @@ Options:
   --c4-system <name>   System to drill into (with --c4-level containers or components)
   --c4-container <name> Container to drill into (with --c4-level components)
   --tag-group <name>   Pre-select a tag group for static export coloring
-  --branding           Add diagrammo.app branding to exports
   --copy               Copy URL to clipboard (only with -o url)
   --json               Output structured JSON to stdout
   --chart-types        List all supported chart types
@@ -532,7 +530,6 @@ function parseArgs(argv: string[]): {
   palette: string;
   help: boolean;
   version: boolean;
-  branding: boolean;
   copy: boolean;
   json: boolean;
   chartTypes: boolean;
@@ -553,7 +550,6 @@ function parseArgs(argv: string[]): {
     palette: 'nord',
     help: false,
     version: false,
-    branding: false,
     copy: false,
     json: false,
     chartTypes: false,
@@ -636,9 +632,6 @@ function parseArgs(argv: string[]): {
       i++;
     } else if (arg === '--tag-group') {
       result.tagGroup = args[++i];
-      i++;
-    } else if (arg === '--branding') {
-      result.branding = true;
       i++;
     } else if (arg === '--json') {
       result.json = true;
@@ -1254,7 +1247,6 @@ async function main(): Promise<void> {
   const { svg } = await render(content, {
     theme: opts.theme,
     palette: opts.palette,
-    branding: opts.branding,
     c4Level: opts.c4Level,
     c4System: opts.c4System,
     c4Container: opts.c4Container,

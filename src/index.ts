@@ -500,9 +500,3 @@ export type {
 } from './completion';
 
 export { parseFirstLine, ALL_CHART_TYPES } from './utils/parsing';
-
-// ============================================================
-// Branding
-// ============================================================
-
-export { injectBranding } from './branding';

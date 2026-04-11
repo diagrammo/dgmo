@@ -1,7 +1,6 @@
 import * as echarts from 'echarts';
 import type { EChartsOption } from 'echarts';
 import { FONT_FAMILY } from './fonts';
-import { injectBranding } from './branding';
 import { renderLegendSvg } from './utils/legend-svg';
 import type { LegendGroupData } from './utils/legend-svg';
 import {
@@ -2863,8 +2862,7 @@ const STANDARD_CHART_TYPES = new Set([
 export async function renderExtendedChartForExport(
   content: string,
   theme: 'light' | 'dark' | 'transparent',
-  palette?: PaletteColors,
-  options?: { branding?: boolean }
+  palette?: PaletteColors
 ): Promise<string> {
   const isDark = theme === 'dark';
 
@@ -2963,12 +2961,6 @@ export async function renderExtendedChartForExport(
         /(<svg[^>]*>)/,
         `$1<g transform="translate(0,${legendY})">${legendSvgStr}</g>`
       );
-    }
-
-    if (options?.branding !== false) {
-      const brandColor =
-        theme === 'transparent' ? '#888' : effectivePalette.textMuted;
-      result = injectBranding(result, brandColor);
     }
 
     return result;

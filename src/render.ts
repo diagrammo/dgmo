@@ -100,10 +100,7 @@ export async function render(
     const svg = await renderExtendedChartForExport(
       content,
       theme,
-      paletteColors,
-      {
-        branding,
-      }
+      paletteColors
     );
     return { svg, diagnostics };
   }
@@ -116,7 +113,6 @@ export async function render(
     paletteColors,
     legendExportState,
     {
-      branding,
       c4Level: options?.c4Level,
       c4System: options?.c4System,
       c4Container: options?.c4Container,

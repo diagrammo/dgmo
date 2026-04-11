@@ -4,7 +4,6 @@ import * as d3Shape from 'd3-shape';
 import * as d3Array from 'd3-array';
 import cloud from 'd3-cloud';
 import { FONT_FAMILY } from './fonts';
-import { injectBranding } from './branding';
 import { computeQuadrantPointLabels, type LabelRect } from './label-layout';
 import { MONTH_ABBR, computeTimeTicks } from './utils/time-ticks';
 import type { D3ExportDimensions } from './utils/d3-types';
@@ -6467,8 +6466,7 @@ function createExportContainer(width: number, height: number): HTMLDivElement {
 function finalizeSvgExport(
   container: HTMLDivElement,
   theme: string,
-  palette: PaletteColors,
-  options?: { branding?: boolean }
+  palette: PaletteColors
 ): string {
   const svgEl = container.querySelector('svg');
   if (!svgEl) return '';
@@ -6483,10 +6481,6 @@ function finalizeSvgExport(
   svgEl.querySelectorAll('[data-export-ignore]').forEach((el) => el.remove());
   const svgHtml = svgEl.outerHTML;
   document.body.removeChild(container);
-  if (options?.branding !== false) {
-    const brandColor = theme === 'transparent' ? '#888' : palette.textMuted;
-    return injectBranding(svgHtml, brandColor);
-  }
   return svgHtml;
 }
 
@@ -6505,7 +6499,6 @@ export async function renderForExport(
     swimlaneTagGroup?: string | null;
   },
   options?: {
-    branding?: boolean;
     c4Level?: 'context' | 'containers' | 'components' | 'deployment';
     c4System?: string;
     c4Container?: string;
@@ -6567,7 +6560,7 @@ export async function renderForExport(
       activeTagGroup,
       hiddenAttributes
     );
-    return finalizeSvgExport(container, theme, effectivePalette, options);
+    return finalizeSvgExport(container, theme, effectivePalette);
   }
 
   if (detectedType === 'sitemap') {
@@ -6621,7 +6614,7 @@ export async function renderForExport(
       activeTagGroup,
       hiddenAttributes
     );
-    return finalizeSvgExport(container, theme, effectivePalette, options);
+    return finalizeSvgExport(container, theme, effectivePalette);
   }
 
   if (detectedType === 'kanban') {
@@ -6645,7 +6638,7 @@ export async function renderForExport(
         options?.tagGroup
       ),
     });
-    return finalizeSvgExport(container, theme, effectivePalette, options);
+    return finalizeSvgExport(container, theme, effectivePalette);
   }
 
   if (detectedType === 'class') {
@@ -6673,7 +6666,7 @@ export async function renderForExport(
       undefined,
       { width: exportWidth, height: exportHeight }
     );
-    return finalizeSvgExport(container, theme, effectivePalette, options);
+    return finalizeSvgExport(container, theme, effectivePalette);
   }
 
   if (detectedType === 'er') {
@@ -6706,7 +6699,7 @@ export async function renderForExport(
         options?.tagGroup
       )
     );
-    return finalizeSvgExport(container, theme, effectivePalette, options);
+    return finalizeSvgExport(container, theme, effectivePalette);
   }
 
   if (detectedType === 'boxes-and-lines') {
@@ -6737,7 +6730,7 @@ export async function renderForExport(
         activeTagGroup: options?.tagGroup,
       }
     );
-    return finalizeSvgExport(container, theme, effectivePalette, options);
+    return finalizeSvgExport(container, theme, effectivePalette);
   }
 
   if (detectedType === 'c4') {
@@ -6798,7 +6791,7 @@ export async function renderForExport(
         options?.tagGroup
       )
     );
-    return finalizeSvgExport(container, theme, effectivePalette, options);
+    return finalizeSvgExport(container, theme, effectivePalette);
   }
 
   if (detectedType === 'flowchart') {
@@ -6822,7 +6815,7 @@ export async function renderForExport(
       undefined,
       { width: EXPORT_WIDTH, height: EXPORT_HEIGHT }
     );
-    return finalizeSvgExport(container, theme, effectivePalette, options);
+    return finalizeSvgExport(container, theme, effectivePalette);
   }
 
   if (detectedType === 'infra') {
@@ -6875,7 +6868,7 @@ export async function renderForExport(
       infraSvg.setAttribute('width', String(exportWidth));
       infraSvg.setAttribute('height', String(exportHeight));
     }
-    return finalizeSvgExport(container, theme, effectivePalette, options);
+    return finalizeSvgExport(container, theme, effectivePalette);
   }
 
   if (detectedType === 'gantt') {
@@ -6900,7 +6893,7 @@ export async function renderForExport(
       undefined,
       { width: EXPORT_W, height: EXPORT_H }
     );
-    return finalizeSvgExport(container, theme, effectivePalette, options);
+    return finalizeSvgExport(container, theme, effectivePalette);
   }
 
   if (detectedType === 'state') {
@@ -6924,7 +6917,7 @@ export async function renderForExport(
       undefined,
       { width: EXPORT_WIDTH, height: EXPORT_HEIGHT }
     );
-    return finalizeSvgExport(container, theme, effectivePalette, options);
+    return finalizeSvgExport(container, theme, effectivePalette);
   }
 
   const parsed = parseVisualization(content, palette);
@@ -7024,5 +7017,5 @@ export async function renderForExport(
     );
   }
 
-  return finalizeSvgExport(container, theme, effectivePalette, options);
+  return finalizeSvgExport(container, theme, effectivePalette);
 }
