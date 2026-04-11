@@ -111,13 +111,23 @@
     "recognised",
     "creds",
     "Rackham",
-    "Hornigold"
+    "Hornigold",
+    "lezer",
+    "Lezer",
+    "Punct",
+    "replit",
+    "cand",
+    "ZWSP",
+    "specializer",
+    "dwmyh",
+    "smhd"
   ],
   "ignorePaths": [
     "node_modules",
     "dist",
     "pnpm-lock.yaml",
     "test-fixtures",
+    "tests",
     "gallery",
     "*.json"
   ],
