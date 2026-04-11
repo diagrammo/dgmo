@@ -19,7 +19,7 @@ export const MONTH_ABBR = [
   'Dec',
 ];
 
-export function fractionalYearToDate(frac: number): Date {
+function fractionalYearToDate(frac: number): Date {
   const year = Math.floor(frac);
   const remainder = frac - year;
   // Inverse of: (month-1)/12 + (day-1)/365 + hour/8760 + minute/525600
@@ -36,7 +36,7 @@ export function fractionalYearToDate(frac: number): Date {
 }
 
 /** Convert a Date to a fractional year number. */
-export function dateToFractionalYear(d: Date): number {
+function dateToFractionalYear(d: Date): number {
   return (
     d.getFullYear() +
     d.getMonth() / 12 +
