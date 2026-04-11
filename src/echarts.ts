@@ -1,5 +1,46 @@
-import * as echarts from 'echarts';
+import * as echarts from 'echarts/core';
 import type { EChartsOption } from 'echarts';
+import {
+  BarChart,
+  LineChart,
+  PieChart,
+  ScatterChart,
+  RadarChart,
+  SankeyChart,
+  GraphChart,
+  HeatmapChart,
+  FunnelChart,
+} from 'echarts/charts';
+import {
+  GridComponent,
+  TitleComponent,
+  TooltipComponent,
+  LegendComponent,
+  RadarComponent,
+  VisualMapComponent,
+  GraphicComponent,
+} from 'echarts/components';
+import { SVGRenderer } from 'echarts/renderers';
+
+echarts.use([
+  BarChart,
+  LineChart,
+  PieChart,
+  ScatterChart,
+  RadarChart,
+  SankeyChart,
+  GraphChart,
+  HeatmapChart,
+  FunnelChart,
+  GridComponent,
+  TitleComponent,
+  TooltipComponent,
+  LegendComponent,
+  RadarComponent,
+  VisualMapComponent,
+  GraphicComponent,
+  SVGRenderer,
+]);
 import { FONT_FAMILY } from './fonts';
 import { renderLegendSvg } from './utils/legend-svg';
 import type { LegendGroupData } from './utils/legend-svg';
