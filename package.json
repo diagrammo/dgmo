@@ -55,10 +55,12 @@
   ],
   "sideEffects": false,
   "scripts": {
-    "prebuild": "rm -rf dist && lezer-generator src/editor/dgmo.grammar -o src/editor/dgmo.grammar.js",
+    "codegen": "lezer-generator src/editor/dgmo.grammar -o src/editor/dgmo.grammar.js",
+    "prebuild": "rm -rf dist && pnpm codegen",
     "build": "tsup",
     "typecheck": "tsc --noEmit",
     "dev": "tsup --watch",
+    "pretest": "pnpm codegen",
     "test": "vitest run",
     "test:watch": "vitest",
     "gallery": "pnpm build && node scripts/generate-gallery.mjs",
