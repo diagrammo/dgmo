@@ -73,9 +73,6 @@ export {
   RULE_COUNT,
 } from './sequence/participant-inference';
 
-export { parseQuadrant } from './dgmo-mermaid';
-export type { ParsedQuadrant } from './dgmo-mermaid';
-
 export { parseFlowchart, looksLikeFlowchart } from './graph/flowchart-parser';
 
 export { parseState, looksLikeState } from './graph/state-parser';
@@ -378,8 +375,6 @@ export type {
   LegendHandle,
   LegendPalette,
 } from './utils/legend-types';
-export { buildMermaidQuadrant } from './dgmo-mermaid';
-
 // ============================================================
 // Renderers (produce SVG output)
 // ============================================================
@@ -437,7 +432,6 @@ export {
   hexToHSL,
   hslToHex,
   hexToHSLString,
-  mute,
   tint,
   shade,
   getSeriesColors,
@@ -453,9 +447,6 @@ export {
   boldPalette,
   draculaPalette,
   monokaiPalette,
-  // Mermaid bridge
-  buildMermaidThemeVars,
-  buildThemeCSS,
 } from './palettes';
 
 export type { PaletteConfig, PaletteColors } from './palettes';

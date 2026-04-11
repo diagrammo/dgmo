@@ -14,7 +14,6 @@ export {
   hexToHSL,
   hslToHex,
   hexToHSLString,
-  mute,
   tint,
   shade,
   getSeriesColors,
@@ -34,6 +33,3 @@ export { tokyoNightPalette } from './tokyo-night';
 
 export { draculaPalette } from './dracula';
 export { monokaiPalette } from './monokai';
-
-// Re-export Mermaid bridge
-export { buildMermaidThemeVars, buildThemeCSS } from './mermaid-bridge';

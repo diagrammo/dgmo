@@ -32,7 +32,6 @@ src/
 ├── cli.ts                      # CLI entry point
 ├── chart.ts                    # Chart type routing
 ├── dgmo-router.ts              # Framework dispatcher (sequence, D3, ECharts)
-├── dgmo-mermaid.ts             # Mermaid quadrant parser/builder
 ├── fonts.ts                    # FONT_FAMILY, DEFAULT_FONT_NAME ('Helvetica')
 ├── colors.ts                   # Color utilities
 ├── d3.ts                       # D3 renderers (slope, arc, timeline, wordcloud, venn, quadrant)
@@ -45,7 +44,6 @@ src/
     ├── index.ts                # Registry + exports
     ├── types.ts                # PaletteConfig, PaletteColors
     ├── color-utils.ts          # HSL conversions, color mixing
-    ├── mermaid-bridge.ts       # Mermaid theme builder
     ├── registry.ts             # Palette registry
     └── [palette].ts            # nord, solarized, catppuccin, rose-pine, gruvbox, tokyo-night, one-dark, bold
 ```
@@ -58,7 +56,6 @@ src/
 - Sequence diagrams → `sequence/parser.ts` + `sequence/renderer.ts`
 - D3 chart types (slope, arc, timeline, wordcloud, venn, quadrant) → `d3.ts`
 - ECharts chart types (sankey, chord, scatter, heatmap, etc.) → `echarts.ts`
-- Mermaid-backed types → `dgmo-mermaid.ts`
 
 ### Sequence Parser
 

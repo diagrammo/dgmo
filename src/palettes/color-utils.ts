@@ -85,17 +85,6 @@ export function hexToHSLString(hex: string): string {
 // ============================================================
 
 /**
- * Derive a muted (desaturated, darkened) variant of a color.
- * Used by the Mermaid theme generator for dark-mode fills.
- *
- * Algorithm: cap saturation at 35% and lightness at 36%.
- */
-export function mute(hex: string): string {
-  const { h, s, l } = hexToHSL(hex);
-  return hslToHex(h, Math.min(s, 35), Math.min(l, 36));
-}
-
-/**
  * Blend a color toward white (light mode quadrant fills).
  * amount: 0 = original, 1 = white
  */
@@ -232,7 +221,10 @@ export function getSeriesColors(palette: PaletteColors): string[] {
  * saturation and lightness, guaranteeing every segment gets a unique,
  * perceptually distinct color regardless of segment count.
  */
-export function getSegmentColors(palette: PaletteColors, count: number): string[] {
+export function getSegmentColors(
+  palette: PaletteColors,
+  count: number
+): string[] {
   const base = getSeriesColors(palette);
   const unique = [...new Set(base)];
   const hsls = unique.map(hexToHSL);
