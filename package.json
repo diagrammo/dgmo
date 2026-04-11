@@ -151,10 +151,5 @@
     "@lezer/lr": {
       "optional": true
     }
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild"
-    ]
   }
 }
