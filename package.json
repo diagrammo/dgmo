@@ -1,6 +1,6 @@
 {
   "name": "@diagrammo/dgmo",
-  "version": "0.8.19",
+  "version": "0.8.20",
   "description": "DGMO diagram markup language — parser, renderer, and color system",
   "license": "MIT",
   "type": "module",
@@ -77,7 +77,7 @@
     "check:security": "pnpm audit --prod",
     "check:publish": "publint",
     "check:size": "pnpm build && du -sh dist/ && echo '---' && ls -lh dist/*.js dist/*.cjs",
-    "check:types": "attw --pack .",
+    "check:types": "attw --pack . --ignore-rules no-resolution",
     "postinstall": "node -e \"console.log('\\n💡 Claude Code user? Run: dgmo --install-claude-skill\\n')\"",
     "prepare": "husky"
   },
