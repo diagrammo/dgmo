@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   parseDgmoChartType,
+  parseDgmo,
   looksLikeGantt,
   looksLikeC4,
 } from '../src/dgmo-router';
@@ -120,5 +121,63 @@ describe('looksLikeC4', () => {
 
   it('skips comments', () => {
     expect(looksLikeC4('// MyApp is a system')).toBe(false);
+  });
+});
+
+describe('parseDgmo — common-mistake detection', () => {
+  describe('colon in chart type', () => {
+    it('detects colon in known chart type declaration', () => {
+      const { diagnostics } = parseDgmo('bar: Sales');
+      const errors = diagnostics.filter((d) => d.severity === 'error');
+      expect(errors.length).toBeGreaterThan(0);
+      expect(errors[0].message).toContain('Remove the colon');
+      expect(errors[0].message).toContain('bar Sales');
+    });
+
+    it('detects colon in pie chart type', () => {
+      const { diagnostics } = parseDgmo('pie: Revenue');
+      const errors = diagnostics.filter((d) => d.severity === 'error');
+      expect(errors.length).toBeGreaterThan(0);
+      expect(errors[0].message).toContain('Remove the colon');
+    });
+
+    it('detects colon with misspelled chart type', () => {
+      const { diagnostics } = parseDgmo('sequnce: Flow');
+      const errors = diagnostics.filter((d) => d.severity === 'error');
+      expect(errors.length).toBeGreaterThan(0);
+      expect(errors[0].message).toContain('Did you mean');
+      expect(errors[0].message).toContain("don't use colons");
+    });
+
+    it('does not flag data lines as colon errors', () => {
+      const { diagnostics } = parseDgmo('pie\nApples: 30\nBananas: 20');
+      const colonErrors = diagnostics.filter(
+        (d) => d.severity === 'error' && d.message.includes('colon')
+      );
+      expect(colonErrors.length).toBe(0);
+    });
+
+    it('handles bare colon with no title', () => {
+      const { diagnostics } = parseDgmo('pie:');
+      const errors = diagnostics.filter((d) => d.severity === 'error');
+      expect(errors.length).toBeGreaterThan(0);
+      expect(errors[0].message).toContain('Remove the colon');
+    });
+  });
+
+  describe('empty content after chart type', () => {
+    it('warns when only chart type line is present', () => {
+      const { diagnostics } = parseDgmo('bar');
+      const warnings = diagnostics.filter((d) => d.severity === 'warning');
+      expect(warnings.some((w) => w.message.includes('No content'))).toBe(true);
+    });
+
+    it('does not warn when content follows chart type', () => {
+      const { diagnostics } = parseDgmo('bar\nA: 10\nB: 20');
+      const warnings = diagnostics.filter(
+        (d) => d.severity === 'warning' && d.message.includes('No content')
+      );
+      expect(warnings.length).toBe(0);
+    });
   });
 });

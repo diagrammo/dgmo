@@ -18,6 +18,7 @@ import { parseInfra } from './infra/parser';
 import { parseGantt } from './gantt/parser';
 import { parseBoxesAndLines } from './boxes-and-lines/parser';
 import { parseFirstLine } from './utils/parsing';
+import { makeDgmoError, suggest } from './diagnostics';
 import type { DgmoError } from './diagnostics';
 
 // ============================================================
@@ -233,24 +234,115 @@ const PARSE_DISPATCH = new Map<
  * Parse DGMO content and return diagnostics without rendering.
  * Useful for the CLI and editor to surface all errors before attempting render.
  */
+/** All known chart type names for colon-pattern detection. */
+const ALL_KNOWN_TYPES = new Set([
+  ...DATA_CHART_TYPES,
+  ...VISUALIZATION_TYPES,
+  ...DIAGRAM_TYPES,
+]);
+
+/**
+ * Parse DGMO content and return diagnostics without rendering.
+ * Useful for the CLI and editor to surface all errors before attempting render.
+ */
 export function parseDgmo(content: string): { diagnostics: DgmoError[] } {
   const chartType = parseDgmoChartType(content);
 
   if (!chartType) {
-    // No chart type detected — try visualization parser as fallback (it handles missing chart: line)
+    // Check for common mistake: colon in chart type declaration (e.g. "bar: Sales")
+    const colonDiag = detectColonChartType(content);
+    if (colonDiag) {
+      const fallback = parseVisualization(content).diagnostics;
+      return { diagnostics: [colonDiag, ...fallback] };
+    }
+
+    // No chart type detected — try visualization parser as fallback
     return { diagnostics: parseVisualization(content).diagnostics };
   }
 
   const directParser = PARSE_DISPATCH.get(chartType);
-  if (directParser) return { diagnostics: directParser(content).diagnostics };
+  if (directParser) {
+    const result = directParser(content);
+    return {
+      diagnostics: [...result.diagnostics, ...detectEmptyContent(content)],
+    };
+  }
 
   if (STANDARD_CHART_TYPES.has(chartType)) {
-    return { diagnostics: parseChart(content).diagnostics };
+    const result = parseChart(content);
+    return {
+      diagnostics: [...result.diagnostics, ...detectEmptyContent(content)],
+    };
   }
   if (ECHART_TYPES.has(chartType)) {
-    return { diagnostics: parseExtendedChart(content).diagnostics };
+    const result = parseExtendedChart(content);
+    return {
+      diagnostics: [...result.diagnostics, ...detectEmptyContent(content)],
+    };
   }
 
   // Visualization types (slope, wordcloud, arc, timeline, venn, quadrant)
-  return { diagnostics: parseVisualization(content).diagnostics };
+  const result = parseVisualization(content);
+  return {
+    diagnostics: [...result.diagnostics, ...detectEmptyContent(content)],
+  };
+}
+
+// ============================================================
+// Common-mistake detectors
+// ============================================================
+
+/**
+ * Detects colon-separated chart type declarations like "bar: Sales" or "pie: Data".
+ * Returns a diagnostic if the word before the colon is a known or similar chart type.
+ */
+function detectColonChartType(content: string): DgmoError | null {
+  const lines = content.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
+    if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('//'))
+      continue;
+
+    const match = trimmed.match(/^(\w[\w-]*)\s*:\s*(.*)$/);
+    if (!match) return null; // First non-empty line doesn't match colon pattern
+
+    const word = match[1].toLowerCase();
+    const rest = match[2].trim();
+
+    if (ALL_KNOWN_TYPES.has(word)) {
+      const example = rest ? `${word} ${rest}` : word;
+      return makeDgmoError(
+        i + 1,
+        `Remove the colon — use '${example}' instead of '${trimmed}'. DGMO chart types don't use colons.`
+      );
+    }
+
+    // Check if it's a misspelling of a known type
+    const hint = suggest(word, [...ALL_KNOWN_TYPES]);
+    if (hint) {
+      return makeDgmoError(
+        i + 1,
+        `Unknown chart type: ${word}. ${hint} Also, DGMO chart types don't use colons.`
+      );
+    }
+
+    return null; // First line has colon but isn't a chart type — normal data
+  }
+  return null;
+}
+
+/**
+ * Detects when content has only the chart type line with no meaningful data lines.
+ */
+function detectEmptyContent(content: string): DgmoError[] {
+  const lines = content.split('\n');
+  const nonEmpty = lines.filter(
+    (l) => l.trim() && !l.trim().startsWith('#') && !l.trim().startsWith('//')
+  );
+  if (nonEmpty.length <= 1) {
+    return [
+      makeDgmoError(1, 'No content after chart type declaration.', 'warning'),
+    ];
+  }
+  return [];
 }

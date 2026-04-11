@@ -1251,7 +1251,7 @@ async function main(): Promise<void> {
     }
   }
 
-  const svg = await render(content, {
+  const { svg } = await render(content, {
     theme: opts.theme,
     palette: opts.palette,
     branding: opts.branding,

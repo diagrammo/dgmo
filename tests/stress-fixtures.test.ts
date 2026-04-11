@@ -42,7 +42,7 @@ describe('stress fixtures', () => {
     });
 
     it('renders non-empty SVG', async () => {
-      const svg = await render(content);
+      const { svg } = await render(content);
       expect(svg).toContain('<svg');
       expect(svg).toContain('</svg>');
       expect(svg.length).toBeGreaterThan(1000);
