@@ -28,7 +28,7 @@ import type {
 // Public options object
 // ============================================================
 
-export interface KanbanInteractiveOptions {
+interface KanbanInteractiveOptions {
   onNavigateToLine?: (line: number) => void;
   exportDims?: { width: number; height: number };
   activeTagGroup?: string | null;
@@ -608,7 +608,7 @@ interface SwimlaneBucket {
   cellsByColumn: Record<string, KanbanCard[]>;
 }
 
-export function bucketCardsBySwimlane(
+function bucketCardsBySwimlane(
   columns: KanbanColumn[],
   swimlaneGroup: KanbanTagGroup
 ): SwimlaneBucket[] {
