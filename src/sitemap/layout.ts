@@ -396,19 +396,30 @@ export function layoutSitemap(
   const pageNodeIds = new Set<string>();
   const collapsedContainerIds = new Set<string>();
 
-  // Identify containers vs pages, and detect collapsed (empty) containers
+  // Identify containers vs pages, and detect collapsed containers.
+  // A container is collapsed iff hiddenCounts records it with a positive count
+  // (meaning collapseSitemapTree pruned its descendants). Source-level empty
+  // containers (never had children) are NOT treated as collapsed.
   for (const flat of flatNodes) {
     if (flat.sitemapNode.isContainer) {
       containerIds.add(flat.sitemapNode.id);
-      // A container is "collapsed" if it has no children at all in the flat list
-      const hasAnyChild = flatNodes.some(
-        (f) => f.parentContainerId === flat.sitemapNode.id
-      );
-      if (!hasAnyChild) {
+      const hidden = hiddenCounts?.get(flat.sitemapNode.id) ?? 0;
+      if (hidden > 0) {
         collapsedContainerIds.add(flat.sitemapNode.id);
       }
     } else {
       pageNodeIds.add(flat.sitemapNode.id);
+    }
+  }
+
+  // Sibling-page floor for collapsed containers — prevents collapsed containers
+  // from rendering smaller than meta-rich page cards in the same layout.
+  let pageMaxW = 0;
+  let pageMaxH = 0;
+  for (const f of flatNodes) {
+    if (!f.sitemapNode.isContainer) {
+      if (f.width > pageMaxW) pageMaxW = f.width;
+      if (f.height > pageMaxH) pageMaxH = f.height;
     }
   }
 
@@ -417,11 +428,15 @@ export function layoutSitemap(
     const node = flat.sitemapNode;
     if (node.isContainer) {
       if (collapsedContainerIds.has(node.id)) {
-        // Collapsed container — regular node with explicit dimensions
+        // Collapsed container — regular node with explicit dimensions.
+        // Floor to max page-card dims so collapsed containers never look
+        // smaller than sibling page cards.
+        const flooredW = Math.max(flat.width, pageMaxW);
+        const flooredH = Math.max(flat.height, pageMaxH);
         g.setNode(node.id, {
           label: node.label,
-          width: flat.width,
-          height: flat.height,
+          width: flooredW,
+          height: flooredH,
         });
       } else {
         // Regular container — compound node with padding for child layout
@@ -546,7 +561,15 @@ export function layoutSitemap(
           node.children.length > 0 || (hc != null && hc > 0) || undefined,
       });
     } else {
-      // Fallback
+      // Fallback — still apply the floor for consistency
+      const isCollapsed = collapsedContainerIds.has(node.id);
+      const flooredW = isCollapsed
+        ? Math.max(flat.width, pageMaxW)
+        : flat.width;
+      const fallbackH = isCollapsed
+        ? flat.height
+        : labelHeight + CONTAINER_PAD_BOTTOM;
+      const flooredH = isCollapsed ? Math.max(fallbackH, pageMaxH) : fallbackH;
       layoutContainers.push({
         nodeId: node.id,
         label: node.label,
@@ -556,8 +579,8 @@ export function layoutSitemap(
         tagMetadata: flat.fullMeta,
         x: MARGIN,
         y: MARGIN,
-        width: flat.width,
-        height: labelHeight + CONTAINER_PAD_BOTTOM,
+        width: flooredW,
+        height: flooredH,
         labelHeight,
         hiddenCount: hc,
         hasChildren:

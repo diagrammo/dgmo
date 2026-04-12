@@ -1,6 +1,23 @@
 import { describe, it, expect } from 'vitest';
 import { parseSitemap } from '../src/sitemap/parser';
 import { layoutSitemap } from '../src/sitemap/layout';
+import { collapseSitemapTree } from '../src/sitemap/collapse';
+import type { SitemapNode } from '../src/sitemap/types';
+
+/** Find a container's parser-generated ID by label (recursive). */
+function findContainerId(roots: SitemapNode[], label: string): string {
+  function search(nodes: SitemapNode[]): string | undefined {
+    for (const n of nodes) {
+      if (n.isContainer && n.label === label) return n.id;
+      const found = search(n.children);
+      if (found) return found;
+    }
+    return undefined;
+  }
+  const id = search(roots);
+  if (!id) throw new Error(`Container "${label}" not found`);
+  return id;
+}
 
 function layout(content: string) {
   const parsed = parseSitemap(content);
@@ -244,5 +261,201 @@ describe('layoutSitemap', () => {
       expect(Number.isFinite(p.x)).toBe(true);
       expect(Number.isFinite(p.y)).toBe(true);
     }
+  });
+
+  describe('collapsed-container sibling-page floor', () => {
+    it('floors collapsed container to max sibling page-card dimensions', () => {
+      const source = [
+        'sitemap',
+        '[Storefront]',
+        '  Checkout | Access: Public, Payment: Card',
+        '  Catalog | Access: Public, Items: 240',
+        '[Warehouse]',
+        '  Intake | Access: Internal, Shift: Morning',
+        '  Outbound | Access: Internal, Shift: Evening',
+      ].join('\n');
+      const parsed = parseSitemap(source);
+      const warehouseId = findContainerId(parsed.roots, 'Warehouse');
+      const { parsed: collapsed, hiddenCounts } = collapseSitemapTree(
+        parsed,
+        new Set([warehouseId])
+      );
+      const result = layoutSitemap(collapsed, hiddenCounts);
+      const pageMaxW = Math.max(...result.nodes.map((n) => n.width));
+      const pageMaxH = Math.max(...result.nodes.map((n) => n.height));
+      const warehouse = result.containers.find((c) => c.label === 'Warehouse');
+      expect(warehouse).toBeDefined();
+      expect(warehouse!.width).toBeGreaterThanOrEqual(pageMaxW);
+      expect(warehouse!.height).toBeGreaterThanOrEqual(pageMaxH);
+    });
+
+    it('discriminates empty containers from collapsed containers via hiddenCount', () => {
+      const source = [
+        'sitemap',
+        '[Storefront]',
+        '  Checkout | Access: Public, Payment: Card',
+        '[Empty]',
+        '[Warehouse]',
+        '  Intake | Access: Internal, Shift: Morning',
+      ].join('\n');
+      const parsed = parseSitemap(source);
+      const warehouseId = findContainerId(parsed.roots, 'Warehouse');
+      const { parsed: collapsed, hiddenCounts } = collapseSitemapTree(
+        parsed,
+        new Set([warehouseId])
+      );
+      const result = layoutSitemap(collapsed, hiddenCounts);
+      const empty = result.containers.find((c) => c.label === 'Empty');
+      const warehouse = result.containers.find((c) => c.label === 'Warehouse');
+      expect(empty).toBeDefined();
+      expect(warehouse).toBeDefined();
+      expect(empty!.hiddenCount).toBeUndefined();
+      expect(warehouse!.hiddenCount).toBeGreaterThan(0);
+      expect(warehouse!.width).toBeGreaterThanOrEqual(
+        Math.max(...result.nodes.map((n) => n.width))
+      );
+    });
+
+    it('grows collapsed container past the floor when content requires it', () => {
+      const source = [
+        'sitemap',
+        '[Main]',
+        '  Home | K: v',
+        '[Details] | A: 1, B: 2, C: 3, D: 4, E: 5',
+        '  Child | K: v',
+      ].join('\n');
+      const parsed = parseSitemap(source);
+      const detailsId = findContainerId(parsed.roots, 'Details');
+      const { parsed: collapsed, hiddenCounts } = collapseSitemapTree(
+        parsed,
+        new Set([detailsId])
+      );
+      const result = layoutSitemap(collapsed, hiddenCounts);
+      const details = result.containers.find((c) => c.label === 'Details');
+      expect(details).toBeDefined();
+      expect(details!.hiddenCount).toBeGreaterThan(0);
+      // Content-required height for a container with 5 meta rows =
+      // 28 + 5*16 + 24 = 132, which exceeds any 1-meta page-card floor (~54)
+      expect(details!.height).toBeGreaterThanOrEqual(120);
+    });
+
+    it('does not crash when no page cards exist to derive a floor from', () => {
+      const source = ['sitemap', '[OnlyContainer]', '  Hidden | K: v'].join(
+        '\n'
+      );
+      const parsed = parseSitemap(source);
+      const containerId = findContainerId(parsed.roots, 'OnlyContainer');
+      const { parsed: collapsed, hiddenCounts } = collapseSitemapTree(
+        parsed,
+        new Set([containerId])
+      );
+      expect(() => layoutSitemap(collapsed, hiddenCounts)).not.toThrow();
+      const result = layoutSitemap(collapsed, hiddenCounts);
+      const only = result.containers.find((c) => c.label === 'OnlyContainer');
+      expect(only).toBeDefined();
+      expect(only!.hiddenCount).toBeGreaterThan(0);
+      expect(only!.width).toBe(140); // MIN_CARD_WIDTH, floor is no-op
+    });
+
+    it('floors every collapsed container uniformly, not just one', () => {
+      const source = [
+        'sitemap',
+        '[Open]',
+        '  LargePage | A: 1, B: 2, C: 3',
+        '[Collapsed1]',
+        '  Hidden1 | K: v',
+        '[Collapsed2]',
+        '  Hidden2 | K: v',
+      ].join('\n');
+      const parsed = parseSitemap(source);
+      const c1Id = findContainerId(parsed.roots, 'Collapsed1');
+      const c2Id = findContainerId(parsed.roots, 'Collapsed2');
+      const { parsed: collapsed, hiddenCounts } = collapseSitemapTree(
+        parsed,
+        new Set([c1Id, c2Id])
+      );
+      const result = layoutSitemap(collapsed, hiddenCounts);
+      const pageMaxW = Math.max(...result.nodes.map((n) => n.width));
+      const pageMaxH = Math.max(...result.nodes.map((n) => n.height));
+      const c1 = result.containers.find((c) => c.label === 'Collapsed1');
+      const c2 = result.containers.find((c) => c.label === 'Collapsed2');
+      expect(c1!.hiddenCount).toBeGreaterThan(0);
+      expect(c2!.hiddenCount).toBeGreaterThan(0);
+      expect(c1!.width).toBeGreaterThanOrEqual(pageMaxW);
+      expect(c1!.height).toBeGreaterThanOrEqual(pageMaxH);
+      expect(c2!.width).toBeGreaterThanOrEqual(pageMaxW);
+      expect(c2!.height).toBeGreaterThanOrEqual(pageMaxH);
+    });
+
+    it('floors width and height independently', () => {
+      const source = [
+        'sitemap',
+        '[Main]',
+        '  Home | Access: Public, Page: Landing',
+        '[A Very Long Container Name Indeed]',
+        '  Inside | K: v',
+      ].join('\n');
+      const parsed = parseSitemap(source);
+      const wideId = findContainerId(
+        parsed.roots,
+        'A Very Long Container Name Indeed'
+      );
+      const { parsed: collapsed, hiddenCounts } = collapseSitemapTree(
+        parsed,
+        new Set([wideId])
+      );
+      const result = layoutSitemap(collapsed, hiddenCounts);
+      const pageMaxW = Math.max(...result.nodes.map((n) => n.width));
+      const pageMaxH = Math.max(...result.nodes.map((n) => n.height));
+      const wide = result.containers.find((c) =>
+        c.label.startsWith('A Very Long')
+      );
+      expect(wide).toBeDefined();
+      expect(wide!.hiddenCount).toBeGreaterThan(0);
+      // Width: content-driven (label ~32 chars → ~280px > page ~145px)
+      expect(wide!.width).toBeGreaterThan(pageMaxW);
+      // Height: floor-driven (container 52 → floored to page ~76)
+      expect(wide!.height).toBeGreaterThanOrEqual(pageMaxH);
+    });
+
+    it('pirate-bay scenario: collapsed Port Market is floored to page-card max', () => {
+      const source = [
+        'sitemap Pirate Bay Trading Co.',
+        '',
+        'Home | Access: Public, Page: Landing',
+        '  -shop-> Shop',
+        '  -join-> Enlist',
+        '  -map-> Treasure Map',
+        '',
+        '[Port Market]',
+        '  Shop | Access: Public, Page: Content',
+        '    -buy-> Checkout',
+        '  Checkout | Access: Crew Only, Page: Form',
+        '    -purchased-> Ship Log',
+        '',
+        '[Crew Quarters]',
+        '  Enlist | Access: Public, Page: Form',
+        '    -enlisted-> Ship Log',
+        '  Ship Log | Access: Crew Only, Page: Content',
+        '    -voyage-> Treasure Map',
+        '  Treasure Map | Access: Captain, Page: Content',
+      ].join('\n');
+      const parsed = parseSitemap(source);
+      const portMarketId = findContainerId(parsed.roots, 'Port Market');
+      const { parsed: collapsed, hiddenCounts } = collapseSitemapTree(
+        parsed,
+        new Set([portMarketId])
+      );
+      const result = layoutSitemap(collapsed, hiddenCounts);
+      const portMarket = result.containers.find(
+        (c) => c.label === 'Port Market'
+      );
+      const pageMaxW = Math.max(...result.nodes.map((n) => n.width));
+      const pageMaxH = Math.max(...result.nodes.map((n) => n.height));
+      expect(portMarket).toBeDefined();
+      expect(portMarket!.hiddenCount).toBeGreaterThan(0);
+      expect(portMarket!.width).toBeGreaterThanOrEqual(pageMaxW);
+      expect(portMarket!.height).toBeGreaterThanOrEqual(pageMaxH);
+    });
   });
 });
