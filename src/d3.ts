@@ -6492,12 +6492,7 @@ export async function renderForExport(
   content: string,
   theme: 'light' | 'dark' | 'transparent',
   palette?: PaletteColors,
-  orgExportState?: {
-    collapsedNodes?: Set<string>;
-    activeTagGroup?: string | null;
-    hiddenAttributes?: Set<string>;
-    swimlaneTagGroup?: string | null;
-  },
+  viewState?: import('./sharing').CompactViewState,
   options?: {
     c4Level?: 'context' | 'containers' | 'components' | 'deployment';
     c4System?: string;
@@ -6521,14 +6516,14 @@ export async function renderForExport(
     const orgParsed = parseOrg(content, effectivePalette);
     if (orgParsed.error) return '';
 
-    // Apply interactive collapse state when provided
-    const collapsedNodes = orgExportState?.collapsedNodes;
+    // Apply interactive collapse state when provided (read from unified viewState)
+    const collapsedNodes = viewState?.cg ? new Set(viewState.cg) : undefined;
     const activeTagGroup = resolveActiveTagGroup(
       orgParsed.tagGroups,
       orgParsed.options['active-tag'],
-      orgExportState?.activeTagGroup ?? options?.tagGroup
+      viewState?.tag ?? options?.tagGroup
     );
-    const hiddenAttributes = orgExportState?.hiddenAttributes;
+    const hiddenAttributes = viewState?.ha ? new Set(viewState.ha) : undefined;
 
     const { parsed: effectiveParsed, hiddenCounts } =
       collapsedNodes && collapsedNodes.size > 0
@@ -6575,14 +6570,14 @@ export async function renderForExport(
     const sitemapParsed = parseSitemap(content, effectivePalette);
     if (sitemapParsed.error || sitemapParsed.roots.length === 0) return '';
 
-    // Apply interactive collapse state when provided
-    const collapsedNodes = orgExportState?.collapsedNodes;
+    // Apply interactive collapse state when provided (read from unified viewState)
+    const collapsedNodes = viewState?.cg ? new Set(viewState.cg) : undefined;
     const activeTagGroup = resolveActiveTagGroup(
       sitemapParsed.tagGroups,
       sitemapParsed.options['active-tag'],
-      orgExportState?.activeTagGroup ?? options?.tagGroup
+      viewState?.tag ?? options?.tagGroup
     );
-    const hiddenAttributes = orgExportState?.hiddenAttributes;
+    const hiddenAttributes = viewState?.ha ? new Set(viewState.ha) : undefined;
 
     const { parsed: effectiveParsed, hiddenCounts } =
       collapsedNodes && collapsedNodes.size > 0
@@ -6635,8 +6630,12 @@ export async function renderForExport(
       activeTagGroup: resolveActiveTagGroup(
         kanbanParsed.tagGroups,
         kanbanParsed.options['active-tag'],
-        options?.tagGroup
+        viewState?.tag ?? options?.tagGroup
       ),
+      currentSwimlaneGroup: viewState?.swim ?? null,
+      collapsedLanes: viewState?.cl ? new Set(viewState.cl) : undefined,
+      collapsedColumns: viewState?.cc ? new Set(viewState.cc) : undefined,
+      compactMeta: viewState?.cm,
     });
     return finalizeSvgExport(container, theme, effectivePalette);
   }
@@ -6696,8 +6695,9 @@ export async function renderForExport(
       resolveActiveTagGroup(
         erParsed.tagGroups,
         erParsed.options['active-tag'],
-        options?.tagGroup
-      )
+        viewState?.tag ?? options?.tagGroup
+      ),
+      viewState?.sem
     );
     return finalizeSvgExport(container, theme, effectivePalette);
   }
@@ -6719,6 +6719,15 @@ export async function renderForExport(
     const exportHeight = blLayout.height + PADDING * 2 + titleOffset;
     const container = createExportContainer(exportWidth, exportHeight);
 
+    // Convert viewState.htv (Record<string, string[]>) to Map<string, Set<string>>
+    let blHiddenTagValues: Map<string, Set<string>> | undefined;
+    if (viewState?.htv) {
+      blHiddenTagValues = new Map();
+      for (const [k, v] of Object.entries(viewState.htv)) {
+        blHiddenTagValues.set(k, new Set(v));
+      }
+    }
+
     renderBoxesAndLinesForExport(
       container,
       blParsed,
@@ -6727,7 +6736,8 @@ export async function renderForExport(
       theme === 'dark',
       {
         exportDims: { width: exportWidth, height: exportHeight },
-        activeTagGroup: options?.tagGroup,
+        activeTagGroup: viewState?.tag ?? options?.tagGroup,
+        hiddenTagValues: blHiddenTagValues,
       }
     );
     return finalizeSvgExport(container, theme, effectivePalette);
@@ -6748,10 +6758,18 @@ export async function renderForExport(
     const c4Parsed = parseC4(content, effectivePalette);
     if (c4Parsed.error || c4Parsed.elements.length === 0) return '';
 
-    // Container/component-level rendering
-    const c4Level = options?.c4Level ?? 'context';
-    const c4System = options?.c4System;
-    const c4Container = options?.c4Container;
+    // Container/component-level rendering (viewState fallback for share links)
+    const c4Level =
+      options?.c4Level ??
+      (viewState?.c4l as
+        | 'context'
+        | 'containers'
+        | 'components'
+        | 'deployment'
+        | undefined) ??
+      'context';
+    const c4System = options?.c4System ?? viewState?.c4s;
+    const c4Container = options?.c4Container ?? viewState?.c4c;
 
     const c4Layout =
       c4Level === 'deployment'
@@ -6788,7 +6806,7 @@ export async function renderForExport(
       resolveActiveTagGroup(
         c4Parsed.tagGroups,
         c4Parsed.options['active-tag'],
-        options?.tagGroup
+        viewState?.tag ?? options?.tagGroup
       )
     );
     return finalizeSvgExport(container, theme, effectivePalette);
@@ -6834,7 +6852,7 @@ export async function renderForExport(
     const activeTagGroup = resolveActiveTagGroup(
       infraParsed.tagGroups,
       infraParsed.options['active-tag'],
-      options?.tagGroup
+      viewState?.tag ?? options?.tagGroup
     );
 
     const titleOffset = infraParsed.title ? 40 : 0;
@@ -6860,7 +6878,8 @@ export async function renderForExport(
       false,
       null,
       null,
-      true
+      true,
+      viewState?.cg ? new Set(viewState.cg) : null
     );
     // Restore explicit pixel dimensions for resvg (renderer uses 100%/viewBox for app scaling)
     const infraSvg = container.querySelector('svg');
@@ -6890,7 +6909,16 @@ export async function renderForExport(
       resolved,
       effectivePalette,
       theme === 'dark',
-      undefined,
+      {
+        collapsedGroups: viewState?.cg ? new Set(viewState.cg) : undefined,
+        currentSwimlaneGroup: viewState?.swim ?? undefined,
+        collapsedLanes: viewState?.cl ? new Set(viewState.cl) : undefined,
+        currentActiveGroup: resolveActiveTagGroup(
+          resolved.tagGroups,
+          resolved.options.activeTag ?? undefined,
+          viewState?.tag ?? options?.tagGroup
+        ),
+      },
       { width: EXPORT_W, height: EXPORT_H }
     );
     return finalizeSvgExport(container, theme, effectivePalette);
@@ -6991,9 +7019,9 @@ export async function renderForExport(
       resolveActiveTagGroup(
         parsed.timelineTagGroups,
         undefined,
-        orgExportState?.activeTagGroup ?? options?.tagGroup
+        viewState?.tag ?? options?.tagGroup
       ),
-      orgExportState?.swimlaneTagGroup
+      viewState?.swim
     );
   } else if (parsed.type === 'venn') {
     renderVenn(container, parsed, effectivePalette, isDark, undefined, dims);

@@ -400,6 +400,27 @@ describe('encodeViewState / decodeViewState', () => {
     expect(decodeViewState('')).toEqual({});
   });
 
+  it('round-trips kanban view state (swim, cl, cc, cm)', () => {
+    const state: CompactViewState = {
+      tag: 'Crew',
+      swim: 'Crew',
+      cl: ['Blackbeard'],
+      cc: ['Done'],
+      cm: true,
+    };
+    const encoded = encodeViewState(state);
+    expect(encoded).not.toBe('');
+    const decoded = decodeViewState(encoded);
+    expect(decoded).toEqual(state);
+  });
+
+  it('round-trips partial kanban state (swim only)', () => {
+    const state: CompactViewState = { swim: 'Crew' };
+    const encoded = encodeViewState(state);
+    const decoded = decodeViewState(encoded);
+    expect(decoded).toEqual(state);
+  });
+
   it('large state stays under 8KB with typical DSL', () => {
     const state: CompactViewState = {
       tag: 'Region',

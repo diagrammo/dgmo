@@ -7,6 +7,7 @@ import {
 } from './dgmo-router';
 import type { DgmoError } from './diagnostics';
 import { getPalette } from './palettes/registry';
+import type { CompactViewState } from './sharing';
 
 /**
  * Ensures DOM globals are available for D3 renderers.
@@ -73,6 +74,8 @@ export async function render(
     tagGroup?: string;
     /** Legend state for export — controls which tag group is shown in exported SVG. */
     legendState?: { activeGroup?: string; hiddenAttributes?: string[] };
+    /** View state for export — controls interactive state (collapse, swimlanes, etc.) */
+    viewState?: CompactViewState;
   }
 ): Promise<{ svg: string; diagnostics: DgmoError[] }> {
   const theme = options?.theme ?? 'light';
@@ -86,15 +89,15 @@ export async function render(
   const chartType = parseDgmoChartType(content);
   const category = chartType ? getRenderCategory(chartType) : null;
 
-  // Build orgExportState from legendState if provided
-  const legendExportState = options?.legendState
-    ? {
-        activeTagGroup: options.legendState.activeGroup ?? null,
-        hiddenAttributes: options.legendState.hiddenAttributes
-          ? new Set(options.legendState.hiddenAttributes)
-          : undefined,
-      }
-    : undefined;
+  // Build viewState from legendState (backwards compat) or use provided viewState
+  const viewState: CompactViewState | undefined =
+    options?.viewState ??
+    (options?.legendState
+      ? {
+          tag: options.legendState.activeGroup ?? undefined,
+          ha: options.legendState.hiddenAttributes,
+        }
+      : undefined);
 
   if (category === 'data-chart') {
     const svg = await renderExtendedChartForExport(
@@ -107,17 +110,11 @@ export async function render(
 
   // Visualization/diagram and unknown/null types all go through the unified renderer
   await ensureDom();
-  const svg = await renderForExport(
-    content,
-    theme,
-    paletteColors,
-    legendExportState,
-    {
-      c4Level: options?.c4Level,
-      c4System: options?.c4System,
-      c4Container: options?.c4Container,
-      tagGroup: options?.tagGroup,
-    }
-  );
+  const svg = await renderForExport(content, theme, paletteColors, viewState, {
+    c4Level: options?.c4Level,
+    c4System: options?.c4System,
+    c4Container: options?.c4Container,
+    tagGroup: options?.tagGroup,
+  });
   return { svg, diagnostics };
 }

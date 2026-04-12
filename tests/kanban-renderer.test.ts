@@ -297,3 +297,250 @@ tag Team
     expect(icons.length).toBe(0);
   });
 });
+
+// ============================================================
+// Export view state: collapsed columns
+// ============================================================
+
+describe('kanban collapsed columns', () => {
+  const input = `kanban
+
+tag Priority
+  High(red)
+  Low(green)
+
+[Backlog]
+  Fix login | priority: High
+
+[In Progress]
+  Auth | priority: High
+
+[Done]
+  Notes | priority: Low`;
+
+  it('renders collapsed column as narrow strip without cards', () => {
+    const parsed = parseKanban(input, palette.light);
+    // Find the Done column ID
+    const doneColId = parsed.columns.find((c) => c.name === 'Done')!.id;
+    const container = document.createElement('div');
+    renderKanban(container, parsed, palette.light, false, {
+      collapsedColumns: new Set([doneColId]),
+    });
+
+    // Collapsed column should still exist
+    const cols = container.querySelectorAll('.kanban-column');
+    expect(cols.length).toBe(3);
+
+    // The Done column should have no cards rendered
+    const doneCol = Array.from(cols).find(
+      (c) => c.getAttribute('data-column-id') === doneColId
+    );
+    expect(doneCol).toBeTruthy();
+    expect(doneCol!.querySelectorAll('.kanban-card').length).toBe(0);
+  });
+
+  it('renders non-collapsed columns normally with cards', () => {
+    const parsed = parseKanban(input, palette.light);
+    const doneColId = parsed.columns.find((c) => c.name === 'Done')!.id;
+    const container = document.createElement('div');
+    renderKanban(container, parsed, palette.light, false, {
+      collapsedColumns: new Set([doneColId]),
+    });
+
+    const backlogCol = Array.from(
+      container.querySelectorAll('.kanban-column')
+    ).find(
+      (c) =>
+        c.getAttribute('data-column-id') ===
+        parsed.columns.find((col) => col.name === 'Backlog')!.id
+    );
+    expect(backlogCol).toBeTruthy();
+    expect(backlogCol!.querySelectorAll('.kanban-card').length).toBe(1);
+  });
+
+  it('no regression: renders all cards when no collapsedColumns', () => {
+    const parsed = parseKanban(input, palette.light);
+    const container = document.createElement('div');
+    renderKanban(container, parsed, palette.light, false);
+
+    const allCards = container.querySelectorAll('.kanban-card');
+    expect(allCards.length).toBe(3);
+  });
+});
+
+// ============================================================
+// Export view state: collapsed lanes in swimlane mode
+// ============================================================
+
+describe('kanban collapsed lanes', () => {
+  const swimInput = `kanban
+
+tag Team
+  Frontend(blue)
+  Backend(green)
+  QA(orange)
+
+[Backlog]
+  Redesign | team: Frontend
+  Caching | team: Backend
+
+[In Progress]
+  Auth | team: Backend
+  Polish | team: Frontend
+
+[Done]
+  Notes | team: QA`;
+
+  it('renders collapsed lane without full card rendering', () => {
+    const parsed = parseKanban(swimInput, palette.light);
+    const container = document.createElement('div');
+    renderKanban(container, parsed, palette.light, false, {
+      currentSwimlaneGroup: 'Team',
+      collapsedLanes: new Set(['Backend']),
+    });
+
+    // Backend lane should exist
+    const backendLane = container.querySelector('[data-lane-name="Backend"]');
+    expect(backendLane).toBeTruthy();
+
+    // But its cards should NOT be rendered as full card elements
+    expect(backendLane!.querySelectorAll('.kanban-card').length).toBe(0);
+  });
+
+  it('renders non-collapsed lanes with full cards', () => {
+    const parsed = parseKanban(swimInput, palette.light);
+    const container = document.createElement('div');
+    renderKanban(container, parsed, palette.light, false, {
+      currentSwimlaneGroup: 'Team',
+      collapsedLanes: new Set(['Backend']),
+    });
+
+    const frontendLane = container.querySelector('[data-lane-name="Frontend"]');
+    expect(frontendLane).toBeTruthy();
+    expect(frontendLane!.querySelectorAll('.kanban-card').length).toBe(2);
+  });
+
+  it('silently ignores non-existent lane names in collapsedLanes', () => {
+    const parsed = parseKanban(swimInput, palette.light);
+    const container = document.createElement('div');
+    // Should not throw
+    renderKanban(container, parsed, palette.light, false, {
+      currentSwimlaneGroup: 'Team',
+      collapsedLanes: new Set(['NonExistentCrew']),
+    });
+
+    // All lanes should render with full cards (nothing actually collapsed)
+    const cards = container.querySelectorAll('.kanban-card');
+    expect(cards.length).toBe(5);
+  });
+});
+
+// ============================================================
+// Export view state: compact meta
+// ============================================================
+
+describe('kanban compact meta', () => {
+  const input = `kanban
+
+tag Team
+  Frontend(blue)
+  Backend(green)
+
+tag Priority
+  High(red)
+  Low(yellow)
+
+[Backlog]
+  Fix login | team: Frontend, priority: High
+  Caching | team: Backend, priority: Low`;
+
+  it('hides active tag group meta from cards when compactMeta is true', () => {
+    const parsed = parseKanban(input, palette.light);
+
+    // Without compact: cards show both Team and Priority meta
+    const containerFull = document.createElement('div');
+    renderKanban(containerFull, parsed, palette.light, false, {
+      activeTagGroup: 'Team',
+    });
+    // With compact: active tag group (Team) meta should be hidden
+    const containerCompact = document.createElement('div');
+    renderKanban(containerCompact, parsed, palette.light, false, {
+      activeTagGroup: 'Team',
+      compactMeta: true,
+    });
+
+    // Both should still render cards
+    expect(containerCompact.querySelectorAll('.kanban-card').length).toBe(2);
+
+    // The compact version should have fewer text elements (hidden team meta)
+    const fullTexts = containerFull.querySelectorAll('.kanban-card text');
+    const compactTexts = containerCompact.querySelectorAll('.kanban-card text');
+    expect(compactTexts.length).toBeLessThan(fullTexts.length);
+  });
+});
+
+// ============================================================
+// Export view state: partial state (no crash)
+// ============================================================
+
+describe('kanban partial view state', () => {
+  const input = `kanban
+
+tag Crew
+  Blackbeard(red)
+  Anne Bonny(blue)
+
+[Backlog]
+  Swab deck | crew: Blackbeard
+  Mend sails | crew: Anne Bonny
+
+[Done]
+  Navigate | crew: Blackbeard`;
+
+  it('renders swimlanes when only currentSwimlaneGroup is set (no crash from missing cl/cc/cm)', () => {
+    const parsed = parseKanban(input, palette.light);
+    const container = document.createElement('div');
+    // Only swim set, no cl/cc/cm
+    renderKanban(container, parsed, palette.light, false, {
+      currentSwimlaneGroup: 'Crew',
+    });
+
+    expect(container.querySelectorAll('.kanban-lane').length).toBeGreaterThan(
+      0
+    );
+    expect(container.querySelectorAll('.kanban-card').length).toBe(3);
+  });
+
+  it('handles empty sets for collapsedLanes/collapsedColumns identically to undefined', () => {
+    const parsed = parseKanban(input, palette.light);
+
+    const containerUndef = document.createElement('div');
+    renderKanban(containerUndef, parsed, palette.light, false, {
+      currentSwimlaneGroup: 'Crew',
+    });
+
+    const containerEmpty = document.createElement('div');
+    renderKanban(containerEmpty, parsed, palette.light, false, {
+      currentSwimlaneGroup: 'Crew',
+      collapsedLanes: new Set(),
+      collapsedColumns: new Set(),
+    });
+
+    // Both should produce identical card counts
+    expect(containerEmpty.querySelectorAll('.kanban-card').length).toBe(
+      containerUndef.querySelectorAll('.kanban-card').length
+    );
+  });
+
+  it('handles stale view state referencing non-existent column without crash', () => {
+    const parsed = parseKanban(input, palette.light);
+    const container = document.createElement('div');
+    // Reference a column that doesn't exist
+    renderKanban(container, parsed, palette.light, false, {
+      collapsedColumns: new Set(['nonexistent-column']),
+    });
+
+    // Should render normally, no crash
+    expect(container.querySelectorAll('.kanban-card').length).toBe(3);
+  });
+});

@@ -743,10 +743,12 @@ export function renderBoxesAndLinesForExport(
   options?: {
     exportDims?: { width: number; height: number };
     activeTagGroup?: string | null;
+    hiddenTagValues?: Map<string, Set<string>>;
   }
 ): void {
   renderBoxesAndLines(container, parsed, layout, palette, isDark, {
     exportDims: options?.exportDims,
     activeTagGroup: options?.activeTagGroup,
+    hiddenTagValues: options?.hiddenTagValues,
   });
 }

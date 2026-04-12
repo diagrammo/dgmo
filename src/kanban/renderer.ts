@@ -34,6 +34,9 @@ interface KanbanInteractiveOptions {
   activeTagGroup?: string | null;
   currentSwimlaneGroup?: string | null;
   onSwimlaneChange?: (group: string | null) => void;
+  collapsedLanes?: Set<string>;
+  collapsedColumns?: Set<string>;
+  compactMeta?: boolean;
 }
 
 // ============================================================
@@ -61,6 +64,8 @@ const CARD_META_FONT_SIZE = 10;
 const WIP_FONT_SIZE = 10;
 const COLUMN_RADIUS = 8;
 const COLUMN_HEADER_RADIUS = 8;
+const COLLAPSED_COLUMN_WIDTH = 40;
+const COLLAPSED_LANE_HEIGHT = 26;
 
 // ============================================================
 // Tag color resolution
@@ -68,10 +73,12 @@ const COLUMN_HEADER_RADIUS = 8;
 
 function resolveCardTagMeta(
   card: KanbanCard,
-  tagGroups: KanbanTagGroup[]
+  tagGroups: KanbanTagGroup[],
+  hiddenMetaGroups?: string[]
 ): { label: string; value: string; color?: string }[] {
   const meta: { label: string; value: string; color?: string }[] = [];
   for (const group of tagGroups) {
+    if (hiddenMetaGroups?.includes(group.name.toLowerCase())) continue;
     const tagValue = card.tags[group.name.toLowerCase()];
     const value = tagValue ?? group.defaultValue;
     if (!value) continue;
@@ -125,7 +132,9 @@ interface CardLayout {
 
 function computeLayout(
   parsed: ParsedKanban,
-  _palette: PaletteColors
+  _palette: PaletteColors,
+  collapsedColumns?: Set<string>,
+  hiddenMetaGroups?: string[]
 ): { columns: ColumnLayout[]; totalWidth: number; totalHeight: number } {
   // Title row
   const headerHeight = parsed.title ? TITLE_HEIGHT + 8 : 0;
@@ -141,6 +150,20 @@ function computeLayout(
   const visibleColumns = parsed.columns.filter((c) => !isArchiveColumn(c.name));
 
   for (const col of visibleColumns) {
+    const isCollapsed = collapsedColumns?.has(col.id) ?? false;
+
+    if (isCollapsed) {
+      columnLayouts.push({
+        x: 0,
+        y: startY,
+        width: COLLAPSED_COLUMN_WIDTH,
+        height: 0, // normalized below
+        column: col,
+        cardLayouts: [],
+      });
+      continue;
+    }
+
     // Compute card heights and column width
     let maxCardTextWidth = col.name.length * (COLUMN_HEADER_FONT_SIZE * 0.65);
 
@@ -155,7 +178,11 @@ function computeLayout(
       );
 
       // Count metadata rows (tag groups + detail lines)
-      const tagMeta = resolveCardTagMeta(card, parsed.tagGroups);
+      const tagMeta = resolveCardTagMeta(
+        card,
+        parsed.tagGroups,
+        hiddenMetaGroups
+      );
       const metaCount = tagMeta.length + card.details.length;
       const metaHeight =
         metaCount > 0
@@ -236,6 +263,9 @@ export function renderKanban(
   const exportDims = options?.exportDims;
   const activeTagGroup = options?.activeTagGroup ?? null;
   const onSwimlaneChange = options?.onSwimlaneChange;
+  const collapsedLanes = options?.collapsedLanes;
+  const collapsedColumns = options?.collapsedColumns;
+  const compactMeta = options?.compactMeta ?? false;
   // Resolve current swimlane group: must match an existing tag group, else ignore.
   const requestedSwimlane = options?.currentSwimlaneGroup ?? null;
   const swimlaneGroup = requestedSwimlane
@@ -244,7 +274,20 @@ export function renderKanban(
       ) ?? null)
     : null;
 
-  const layout = computeLayout(parsed, palette);
+  // Compute hidden meta groups for compact mode
+  const hiddenMetaGroups: string[] = [];
+  if (compactMeta) {
+    if (activeTagGroup) hiddenMetaGroups.push(activeTagGroup.toLowerCase());
+    if (requestedSwimlane)
+      hiddenMetaGroups.push(requestedSwimlane.toLowerCase());
+  }
+
+  const layout = computeLayout(
+    parsed,
+    palette,
+    collapsedColumns,
+    hiddenMetaGroups
+  );
 
   const width = exportDims?.width ?? layout.totalWidth;
   const height = exportDims?.height ?? layout.totalHeight;
@@ -347,7 +390,10 @@ export function renderKanban(
       swimlaneGroup,
       palette,
       isDark,
-      activeTagGroup
+      activeTagGroup,
+      collapsedLanes,
+      collapsedColumns,
+      hiddenMetaGroups
     );
     return;
   }
@@ -364,6 +410,7 @@ export function renderKanban(
 
   for (const colLayout of layout.columns) {
     const col = colLayout.column;
+    const isColCollapsed = collapsedColumns?.has(col.id) ?? false;
     const g = svg
       .append('g')
       .attr('class', 'kanban-column')
@@ -376,6 +423,51 @@ export function renderKanban(
     const thisColHeaderBg = col.color
       ? mix(col.color, palette.bg, 25)
       : defaultColHeaderBg;
+
+    if (isColCollapsed) {
+      // Collapsed column: narrow strip with count + vertical name
+      g.append('rect')
+        .attr('x', colLayout.x)
+        .attr('y', colLayout.y)
+        .attr('width', COLLAPSED_COLUMN_WIDTH)
+        .attr('height', colLayout.height)
+        .attr('rx', COLUMN_RADIUS)
+        .attr('fill', thisColBg);
+
+      g.append('rect')
+        .attr('x', colLayout.x)
+        .attr('y', colLayout.y)
+        .attr('width', COLLAPSED_COLUMN_WIDTH)
+        .attr('height', COLUMN_HEADER_HEIGHT)
+        .attr('rx', COLUMN_HEADER_RADIUS)
+        .attr('fill', thisColHeaderBg);
+
+      // Card count
+      g.append('text')
+        .attr('x', colLayout.x + COLLAPSED_COLUMN_WIDTH / 2)
+        .attr(
+          'y',
+          colLayout.y + COLUMN_HEADER_HEIGHT / 2 + WIP_FONT_SIZE / 2 - 1
+        )
+        .attr('font-size', WIP_FONT_SIZE)
+        .attr('font-weight', 'bold')
+        .attr('fill', palette.textMuted)
+        .attr('text-anchor', 'middle')
+        .text(String(col.cards.length));
+
+      // Vertical column name
+      g.append('text')
+        .attr('x', colLayout.x + COLLAPSED_COLUMN_WIDTH / 2)
+        .attr('y', colLayout.y + COLUMN_HEADER_HEIGHT + COLUMN_PADDING)
+        .attr('font-size', CARD_TITLE_FONT_SIZE)
+        .attr('font-weight', 'bold')
+        .attr('fill', palette.text)
+        .attr('text-anchor', 'middle')
+        .attr('writing-mode', 'tb')
+        .text(col.name);
+
+      continue;
+    }
 
     // Column background
     g.append('rect')
@@ -432,7 +524,11 @@ export function renderKanban(
         parsed.tagGroups,
         activeTagGroup ?? null
       );
-      const tagMeta = resolveCardTagMeta(card, parsed.tagGroups);
+      const tagMeta = resolveCardTagMeta(
+        card,
+        parsed.tagGroups,
+        hiddenMetaGroups
+      );
       const hasMeta = tagMeta.length > 0 || card.details.length > 0;
 
       // Org-chart-style fill: 15% blend of color into bg
@@ -674,8 +770,12 @@ interface SwimlaneBoardLayout {
   startY: number;
 }
 
-function computeCardHeight(card: KanbanCard, tagGroups: KanbanTagGroup[]) {
-  const tagMeta = resolveCardTagMeta(card, tagGroups);
+function computeCardHeight(
+  card: KanbanCard,
+  tagGroups: KanbanTagGroup[],
+  hiddenMetaGroups?: string[]
+) {
+  const tagMeta = resolveCardTagMeta(card, tagGroups, hiddenMetaGroups);
   const metaCount = tagMeta.length + card.details.length;
   const metaHeight =
     metaCount > 0
@@ -690,7 +790,10 @@ function computeCardHeight(card: KanbanCard, tagGroups: KanbanTagGroup[]) {
 function computeSwimlaneLayout(
   parsed: ParsedKanban,
   buckets: SwimlaneBucket[],
-  baseLayout: { columns: ColumnLayout[] }
+  baseLayout: { columns: ColumnLayout[] },
+  collapsedLanes?: Set<string>,
+  collapsedColumns?: Set<string>,
+  hiddenMetaGroups?: string[]
 ): SwimlaneBoardLayout {
   const headerHeight = parsed.title ? TITLE_HEIGHT + 8 : 0;
   const startY = DIAGRAM_PADDING + headerHeight;
@@ -699,8 +802,10 @@ function computeSwimlaneLayout(
   const columnXs: SwimlaneBoardLayout['columnXs'] = [];
   let currentX = DIAGRAM_PADDING + LANE_HEADER_WIDTH;
   for (const col of baseLayout.columns) {
-    columnXs.push({ column: col.column, x: currentX, width: col.width });
-    currentX += col.width + COLUMN_GAP;
+    const isColCollapsed = collapsedColumns?.has(col.column.id) ?? false;
+    const w = isColCollapsed ? COLLAPSED_COLUMN_WIDTH : col.width;
+    columnXs.push({ column: col.column, x: currentX, width: w });
+    currentX += w + COLUMN_GAP;
   }
   const totalWidth = currentX - COLUMN_GAP + DIAGRAM_PADDING;
 
@@ -710,15 +815,36 @@ function computeSwimlaneLayout(
   const minCellH = CARD_HEADER_HEIGHT + CARD_PADDING_Y + CARD_GAP;
 
   for (const bucket of buckets) {
+    const isLaneCollapsed = collapsedLanes?.has(bucket.laneName) ?? false;
+
+    if (isLaneCollapsed) {
+      // Collapsed lane: minimal height, no card layouts
+      const cells: SwimlaneCellLayout[] = columnXs.map((colInfo) => ({
+        column: colInfo.column,
+        cards: bucket.cellsByColumn[colInfo.column.id] ?? [],
+        cardLayouts: [],
+      }));
+      lanes.push({ bucket, y: laneY, height: COLLAPSED_LANE_HEIGHT, cells });
+      laneY += COLLAPSED_LANE_HEIGHT + LANE_GAP;
+      continue;
+    }
+
     let maxCellH = minCellH;
     const cellsTmp: { column: KanbanColumn; cards: KanbanCard[]; h: number }[] =
       [];
 
     for (const colInfo of columnXs) {
+      const isColCollapsed = collapsedColumns?.has(colInfo.column.id) ?? false;
       const cards = bucket.cellsByColumn[colInfo.column.id] ?? [];
+      if (isColCollapsed) {
+        // Collapsed column cells get minimal height
+        cellsTmp.push({ column: colInfo.column, cards, h: 0 });
+        continue;
+      }
       let h = 0;
       for (const c of cards) {
-        h += computeCardHeight(c, parsed.tagGroups) + CARD_GAP;
+        h +=
+          computeCardHeight(c, parsed.tagGroups, hiddenMetaGroups) + CARD_GAP;
       }
       h = Math.max(h - (cards.length > 0 ? CARD_GAP : 0), 0);
       cellsTmp.push({ column: colInfo.column, cards, h });
@@ -730,10 +856,14 @@ function computeSwimlaneLayout(
     // Build cell layouts with card x/y offsets relative to (cell.x, laneY)
     const cells: SwimlaneCellLayout[] = cellsTmp.map((tmp, i) => {
       const colInfo = columnXs[i]!;
+      const isColCollapsed = collapsedColumns?.has(colInfo.column.id) ?? false;
+      if (isColCollapsed) {
+        return { column: tmp.column, cards: tmp.cards, cardLayouts: [] };
+      }
       const cardLayouts: CardLayout[] = [];
       let cy = 0;
       for (const card of tmp.cards) {
-        const ch = computeCardHeight(card, parsed.tagGroups);
+        const ch = computeCardHeight(card, parsed.tagGroups, hiddenMetaGroups);
         cardLayouts.push({
           x: colInfo.x + COLUMN_PADDING,
           y: laneY + cy,
@@ -766,11 +896,21 @@ function renderSwimlaneBoard(
   swimlaneGroup: KanbanTagGroup,
   palette: PaletteColors,
   isDark: boolean,
-  activeTagGroup: string | null
+  activeTagGroup: string | null,
+  collapsedLanes?: Set<string>,
+  collapsedColumns?: Set<string>,
+  hiddenMetaGroups?: string[]
 ): void {
   const visibleColumns = parsed.columns.filter((c) => !isArchiveColumn(c.name));
   const buckets = bucketCardsBySwimlane(visibleColumns, swimlaneGroup);
-  const grid = computeSwimlaneLayout(parsed, buckets, baseLayout);
+  const grid = computeSwimlaneLayout(
+    parsed,
+    buckets,
+    baseLayout,
+    collapsedLanes,
+    collapsedColumns,
+    hiddenMetaGroups
+  );
 
   // Resize the svg to fit the grid (only when not using exportDims).
   const currentW = parseFloat(svg.attr('width') || '0');
@@ -789,6 +929,7 @@ function renderSwimlaneBoard(
   // Column header row spanning all lanes
   for (const colInfo of grid.columnXs) {
     const col = colInfo.column;
+    const isColCollapsed = collapsedColumns?.has(col.id) ?? false;
     const headerG = svg
       .append('g')
       .attr('class', 'kanban-column kanban-column-header')
@@ -808,21 +949,41 @@ function renderSwimlaneBoard(
       .attr('rx', COLUMN_HEADER_RADIUS)
       .attr('fill', colHeaderBg);
 
-    headerG
-      .append('text')
-      .attr('x', colInfo.x + COLUMN_PADDING)
-      .attr(
-        'y',
-        grid.startY + COLUMN_HEADER_HEIGHT / 2 + COLUMN_HEADER_FONT_SIZE / 2 - 2
-      )
-      .attr('font-size', COLUMN_HEADER_FONT_SIZE)
-      .attr('font-weight', 'bold')
-      .attr('fill', palette.text)
-      .text(col.name);
+    if (isColCollapsed) {
+      // Collapsed: show count + vertical name below header
+      headerG
+        .append('text')
+        .attr('x', colInfo.x + colInfo.width / 2)
+        .attr(
+          'y',
+          grid.startY + COLUMN_HEADER_HEIGHT / 2 + WIP_FONT_SIZE / 2 - 1
+        )
+        .attr('font-size', WIP_FONT_SIZE)
+        .attr('font-weight', 'bold')
+        .attr('fill', palette.textMuted)
+        .attr('text-anchor', 'middle')
+        .text(String(col.cards.length));
+    } else {
+      headerG
+        .append('text')
+        .attr('x', colInfo.x + COLUMN_PADDING)
+        .attr(
+          'y',
+          grid.startY +
+            COLUMN_HEADER_HEIGHT / 2 +
+            COLUMN_HEADER_FONT_SIZE / 2 -
+            2
+        )
+        .attr('font-size', COLUMN_HEADER_FONT_SIZE)
+        .attr('font-weight', 'bold')
+        .attr('fill', palette.text)
+        .text(col.name);
+    }
   }
 
   // Lanes
   for (const lane of grid.lanes) {
+    const isLaneCollapsed = collapsedLanes?.has(lane.bucket.laneName) ?? false;
     const laneG = svg
       .append('g')
       .attr('class', 'kanban-lane')
@@ -847,8 +1008,9 @@ function renderSwimlaneBoard(
       .attr('rx', COLUMN_RADIUS)
       .attr('fill', defaultColBg);
 
-    // Lane label
+    // Lane label + count
     let labelX = 10;
+    const totalCards = lane.cells.reduce((s, c) => s + c.cards.length, 0);
     if (lane.bucket.laneColor) {
       headerG
         .append('circle')
@@ -858,24 +1020,74 @@ function renderSwimlaneBoard(
         .attr('fill', lane.bucket.laneColor);
       labelX += 14;
     }
-    headerG
-      .append('text')
-      .attr('x', labelX)
-      .attr('y', 20)
-      .attr('font-size', 12)
-      .attr('font-weight', 'bold')
-      .attr('fill', lane.bucket.isFallback ? palette.textMuted : palette.text)
-      .text(lane.bucket.laneName);
 
-    // Card count
-    const totalCards = lane.cells.reduce((s, c) => s + c.cards.length, 0);
-    headerG
-      .append('text')
-      .attr('x', labelX)
-      .attr('y', 36)
-      .attr('font-size', 10)
-      .attr('fill', palette.textMuted)
-      .text(`(${totalCards})`);
+    if (isLaneCollapsed) {
+      // Collapsed: single line with name + count
+      headerG
+        .append('text')
+        .attr('x', labelX)
+        .attr('y', 20)
+        .attr('font-size', 10)
+        .attr('fill', palette.textMuted)
+        .text(`${lane.bucket.laneName} (${totalCards})`);
+    } else {
+      // Expanded: name on first line, count on second
+      headerG
+        .append('text')
+        .attr('x', labelX)
+        .attr('y', 20)
+        .attr('font-size', 12)
+        .attr('font-weight', 'bold')
+        .attr('fill', lane.bucket.isFallback ? palette.textMuted : palette.text)
+        .text(lane.bucket.laneName);
+
+      headerG
+        .append('text')
+        .attr('x', labelX)
+        .attr('y', 36)
+        .attr('font-size', 10)
+        .attr('fill', palette.textMuted)
+        .text(`(${totalCards})`);
+    }
+
+    if (isLaneCollapsed) {
+      // Render count placeholders in each cell
+      for (const cell of lane.cells) {
+        const isColCollapsed = collapsedColumns?.has(cell.column.id) ?? false;
+        if (cell.cards.length > 0) {
+          const colInfo = grid.columnXs.find(
+            (c) => c.column.id === cell.column.id
+          );
+          if (!colInfo) continue;
+          const placeholderBg = lane.bucket.laneColor
+            ? mix(lane.bucket.laneColor, palette.bg, isDark ? 40 : 28)
+            : mix(palette.textMuted, palette.bg, isDark ? 28 : 22);
+          const pw = isColCollapsed
+            ? COLLAPSED_COLUMN_WIDTH - 8
+            : colInfo.width - COLUMN_PADDING * 2;
+          laneG
+            .append('rect')
+            .attr('x', colInfo.x + (isColCollapsed ? 4 : COLUMN_PADDING))
+            .attr('y', lane.y)
+            .attr('width', pw)
+            .attr('height', 18)
+            .attr('rx', 4)
+            .attr('fill', placeholderBg);
+          laneG
+            .append('text')
+            .attr(
+              'x',
+              colInfo.x + (isColCollapsed ? 4 : COLUMN_PADDING) + pw / 2
+            )
+            .attr('y', lane.y + 13)
+            .attr('font-size', WIP_FONT_SIZE)
+            .attr('font-weight', 'bold')
+            .attr('fill', palette.textMuted)
+            .attr('text-anchor', 'middle')
+            .text(String(cell.cards.length));
+        }
+      }
+    }
 
     // Lane divider line below the row
     laneG
@@ -888,17 +1100,50 @@ function renderSwimlaneBoard(
       .attr('stroke-opacity', 0.4)
       .attr('stroke-width', 1);
 
-    // Cards inside cells
-    for (const cell of lane.cells) {
-      for (const cardLayout of cell.cardLayouts) {
-        renderSwimlaneCard(
-          laneG,
-          cardLayout,
-          parsed.tagGroups,
-          activeTagGroup,
-          palette,
-          cardBaseBg
-        );
+    // Cards inside cells (skip for collapsed lanes — they show count placeholders instead)
+    if (!isLaneCollapsed) {
+      for (const cell of lane.cells) {
+        const isColCollapsed = collapsedColumns?.has(cell.column.id) ?? false;
+        if (isColCollapsed && cell.cards.length > 0) {
+          // Collapsed column in non-collapsed lane: show count placeholder
+          const colInfo = grid.columnXs.find(
+            (c) => c.column.id === cell.column.id
+          );
+          if (colInfo) {
+            const placeholderBg = lane.bucket.laneColor
+              ? mix(lane.bucket.laneColor, palette.bg, isDark ? 40 : 28)
+              : mix(palette.textMuted, palette.bg, isDark ? 28 : 22);
+            laneG
+              .append('rect')
+              .attr('x', colInfo.x + 4)
+              .attr('y', lane.y)
+              .attr('width', COLLAPSED_COLUMN_WIDTH - 8)
+              .attr('height', 22)
+              .attr('rx', 4)
+              .attr('fill', placeholderBg);
+            laneG
+              .append('text')
+              .attr('x', colInfo.x + COLLAPSED_COLUMN_WIDTH / 2)
+              .attr('y', lane.y + 16)
+              .attr('font-size', WIP_FONT_SIZE)
+              .attr('font-weight', 'bold')
+              .attr('fill', palette.textMuted)
+              .attr('text-anchor', 'middle')
+              .text(String(cell.cards.length));
+          }
+          continue;
+        }
+        for (const cardLayout of cell.cardLayouts) {
+          renderSwimlaneCard(
+            laneG,
+            cardLayout,
+            parsed.tagGroups,
+            activeTagGroup,
+            palette,
+            cardBaseBg,
+            hiddenMetaGroups
+          );
+        }
       }
     }
   }
@@ -910,11 +1155,12 @@ function renderSwimlaneCard(
   tagGroups: KanbanTagGroup[],
   activeTagGroup: string | null,
   palette: PaletteColors,
-  cardBaseBg: string
+  cardBaseBg: string,
+  hiddenMetaGroups?: string[]
 ): void {
   const card = cardLayout.card;
   const resolvedColor = resolveCardTagColor(card, tagGroups, activeTagGroup);
-  const tagMeta = resolveCardTagMeta(card, tagGroups);
+  const tagMeta = resolveCardTagMeta(card, tagGroups, hiddenMetaGroups);
   const hasMeta = tagMeta.length > 0 || card.details.length > 0;
 
   const cardFill = resolvedColor
