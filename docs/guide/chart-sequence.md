@@ -103,7 +103,29 @@ PaymentGW is a networking aka "Payment Gateway"
 OrderDB position -1
 ```
 
-Position `0` is leftmost, `-1` is rightmost. Unpositioned participants appear in first-mention order.
+## Participant Ordering
+
+Participants are laid out left-to-right based on **first appearance in messages** — the first participant mentioned gets the leftmost column.
+
+**Position values:**
+- `0` = leftmost, `1` = second from left, etc.
+- `-1` = rightmost, `-2` = second from right
+- If two participants target the same slot, the later one shifts to the nearest free position
+
+**Groups affect ordering:** members of the same group always stay adjacent (see [Groups](#groups) below). The group is placed where its first member would naturally appear.
+
+**Priority (highest wins):**
+1. Explicit `position N`
+2. Group adjacency
+3. First appearance in messages
+
+```
+// Example: force the database to the far right
+sequence
+User -placeOrder-> OrderService
+OrderService -save-> OrderDB
+OrderDB position -1
+```
 
 ## Messages
 
