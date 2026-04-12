@@ -2354,6 +2354,10 @@ export function renderSequenceDiagram(
             .attr('y', y + SELF_CALL_HEIGHT / 2 + 4)
             .attr('text-anchor', 'start')
             .attr('fill', arrowColor)
+            .attr('paint-order', 'stroke fill')
+            .attr('stroke', palette.bg)
+            .attr('stroke-width', 4)
+            .attr('stroke-linejoin', 'round')
             .attr('font-size', 12)
             .attr('class', 'message-label')
             .attr(
@@ -2424,6 +2428,10 @@ export function renderSequenceDiagram(
             .attr('y', y - 8)
             .attr('text-anchor', 'middle')
             .attr('fill', arrowColor)
+            .attr('paint-order', 'stroke fill')
+            .attr('stroke', palette.bg)
+            .attr('stroke-width', 4)
+            .attr('stroke-linejoin', 'round')
             .attr('font-size', 12)
             .attr('class', 'message-label')
             .attr(
@@ -2498,6 +2506,10 @@ export function renderSequenceDiagram(
           .attr('y', y - 6)
           .attr('text-anchor', 'middle')
           .attr('fill', returnColor)
+          .attr('paint-order', 'stroke fill')
+          .attr('stroke', palette.bg)
+          .attr('stroke-width', 4)
+          .attr('stroke-linejoin', 'round')
           .attr('font-size', 11)
           .attr('class', 'message-label')
           .attr(

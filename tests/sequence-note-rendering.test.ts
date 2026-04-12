@@ -495,6 +495,25 @@ describe('AC-4 (TD-1): location[] bug fix', () => {
     const label = svg!.querySelector('.message-label');
     expect(label!.textContent).toBe('{json}');
   });
+
+  it('call arrow labels have paint-order halo for legibility', () => {
+    const svg = renderToSvg('A -call-> B');
+    const label = svg!.querySelector('.message-label');
+    expect(label).not.toBeNull();
+    expect(label!.getAttribute('paint-order')).toBe('stroke fill');
+    expect(label!.getAttribute('stroke')).toBe(palette.bg);
+    expect(label!.getAttribute('stroke-width')).toBe('4');
+    expect(label!.getAttribute('stroke-linejoin')).toBe('round');
+  });
+
+  it('self-call labels have paint-order halo for legibility', () => {
+    const svg = renderToSvg('A -self call-> A');
+    const label = svg!.querySelector('.message-label');
+    expect(label).not.toBeNull();
+    expect(label!.getAttribute('paint-order')).toBe('stroke fill');
+    expect(label!.getAttribute('stroke')).toBe(palette.bg);
+    expect(label!.getAttribute('stroke-linejoin')).toBe('round');
+  });
 });
 
 describe('Rendered in-arrow label plain-text (TD-1)', () => {
