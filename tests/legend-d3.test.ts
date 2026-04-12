@@ -230,6 +230,46 @@ describe('renderLegendD3', () => {
     expect(ctrl!.getAttribute('data-export-ignore')).toBe('true');
   });
 
+  it('inactive pills have data-export-ignore, active capsule does not', () => {
+    const g = makeContainer();
+    const container = select(g);
+    renderLegendD3(
+      container,
+      defaultConfig,
+      { activeGroup: 'Priority' },
+      palette,
+      false
+    );
+
+    // The inactive pill (Status) should have data-export-ignore
+    const statusPill = g.querySelector('[data-legend-group="status"]');
+    expect(statusPill).not.toBeNull();
+    expect(statusPill!.getAttribute('data-export-ignore')).toBe('true');
+
+    // The active capsule (Priority) should NOT have data-export-ignore
+    const priorityCapsule = g.querySelector('[data-legend-group="priority"]');
+    expect(priorityCapsule).not.toBeNull();
+    expect(priorityCapsule!.getAttribute('data-export-ignore')).toBeNull();
+  });
+
+  it('all pills have data-export-ignore when no group is active', () => {
+    const g = makeContainer();
+    const container = select(g);
+    renderLegendD3(
+      container,
+      defaultConfig,
+      { activeGroup: null },
+      palette,
+      false
+    );
+
+    const pills = g.querySelectorAll('[data-legend-group]');
+    expect(pills.length).toBe(2);
+    for (const pill of pills) {
+      expect(pill.getAttribute('data-export-ignore')).toBe('true');
+    }
+  });
+
   it('capsulePillAddonWidth reserves space for addons', () => {
     const g = makeContainer();
     const container = select(g);

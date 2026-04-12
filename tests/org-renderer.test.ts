@@ -564,7 +564,7 @@ Boss
 // ============================================================
 
 describe('legend rendering', () => {
-  it('renders legend in export mode', () => {
+  it('renders legend in export mode (inactive pills stripped)', () => {
     const input = `org
 
 tag Location
@@ -576,7 +576,8 @@ Alice
 Bob
   location: LA`;
     const svg = renderOrgForExport(input, 'light', palette.light);
-    expect(svg).toContain('data-legend-group');
+    // Inactive pills are stripped via data-export-ignore in export mode
+    expect(svg).not.toContain('data-legend-group');
     expect(svg).toContain('Location');
   });
 

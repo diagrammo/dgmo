@@ -7,7 +7,7 @@ import { FONT_FAMILY } from '../fonts';
 export function runInExportContainer<T>(
   width: number,
   height: number,
-  fn: (container: HTMLDivElement) => T,
+  fn: (container: HTMLDivElement) => T
 ): T {
   const container = document.createElement('div');
   container.style.width = `${width}px`;
@@ -29,12 +29,13 @@ export function runInExportContainer<T>(
  */
 export function extractExportSvg(
   container: HTMLElement,
-  theme: 'light' | 'dark' | 'transparent',
+  theme: 'light' | 'dark' | 'transparent'
 ): string {
   const svgEl = container.querySelector('svg');
   if (!svgEl) return '';
   if (theme === 'transparent') svgEl.style.background = 'none';
   svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
   svgEl.style.fontFamily = FONT_FAMILY;
+  svgEl.querySelectorAll('[data-export-ignore]').forEach((el) => el.remove());
   return svgEl.outerHTML;
 }

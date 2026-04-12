@@ -274,6 +274,7 @@ function renderPill(
     .append('g')
     .attr('transform', `translate(${pill.x},${pill.y})`)
     .attr('data-legend-group', pill.groupName.toLowerCase())
+    .attr('data-export-ignore', 'true')
     .style('cursor', 'pointer');
 
   g.append('rect')
