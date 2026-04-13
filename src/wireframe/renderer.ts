@@ -686,7 +686,7 @@ function renderNav(
   g.append('rect')
     .attr('width', node.width)
     .attr('height', node.height)
-    .attr('fill', mix(palette.surface, palette.bg, 0.3))
+    .attr('fill', mix(palette.textMuted, palette.bg, 8))
     .attr('rx', 4);
 
   // Nav items horizontal
@@ -793,7 +793,7 @@ function renderTable(
     .attr('height', headerH)
     .attr(
       'fill',
-      isTransparent ? 'none' : mix(palette.surface, palette.bg, 0.3)
+      isTransparent ? 'none' : mix(palette.textMuted, palette.bg, 8)
     )
     .attr('rx', 4);
 
@@ -840,8 +840,8 @@ function renderTable(
           .attr('y', ry + 8)
           .attr('width', colW * 0.6)
           .attr('height', 12)
-          .attr('fill', palette.border)
-          .attr('opacity', 0.3)
+          .attr('fill', palette.textMuted)
+          .attr('opacity', 0.25)
           .attr('rx', 2);
       } else if (data[r]) {
         const cellText = data[r][c] || '';
@@ -970,7 +970,7 @@ function renderImage(
       .attr('r', r)
       .attr(
         'fill',
-        isTransparent ? 'none' : mix(palette.border, palette.bg, 0.5)
+        isTransparent ? 'none' : mix(palette.border, palette.bg, 30)
       )
       .attr('stroke', palette.border);
 
@@ -993,7 +993,7 @@ function renderImage(
       .attr('height', node.height)
       .attr(
         'fill',
-        isTransparent ? 'none' : mix(palette.border, palette.bg, 0.5)
+        isTransparent ? 'none' : mix(palette.border, palette.bg, 30)
       )
       .attr('stroke', palette.border)
       .attr('rx', 4);
@@ -1064,7 +1064,7 @@ function renderAlert(
     g.append('rect')
       .attr('width', node.width)
       .attr('height', node.height)
-      .attr('fill', mix(color, palette.bg, 0.85))
+      .attr('fill', mix(color, palette.bg, 15))
       .attr('rx', 4);
   }
 
@@ -1109,7 +1109,7 @@ function renderProgress(
     .attr('width', node.width - 40)
     .attr('height', barH)
     .attr('y', cy - barH / 2)
-    .attr('fill', isTransparent ? 'none' : mix(palette.border, palette.bg, 0.5))
+    .attr('fill', isTransparent ? 'none' : mix(palette.border, palette.bg, 30))
     .attr('stroke', isTransparent ? palette.border : 'none')
     .attr('rx', barH / 2);
 
@@ -1148,7 +1148,7 @@ function renderChart(
     .attr('height', node.height)
     .attr(
       'fill',
-      isTransparent ? 'none' : mix(palette.surface, palette.bg, 0.3)
+      isTransparent ? 'none' : mix(palette.textMuted, palette.bg, 8)
     )
     .attr('stroke', palette.border)
     .attr('rx', 4);
@@ -1264,7 +1264,7 @@ function renderModal(
     .attr('height', 36)
     .attr(
       'fill',
-      isTransparent ? 'none' : mix(palette.surface, palette.border, 0.3)
+      isTransparent ? 'none' : mix(palette.textMuted, palette.bg, 15)
     )
     .attr('rx', GROUP_CORNER);
 
