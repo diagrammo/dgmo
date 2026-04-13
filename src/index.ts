@@ -486,6 +486,7 @@ export {
 } from './palettes';
 
 export type { PaletteConfig, PaletteColors } from './palettes';
+export { mix } from './palettes/color-utils';
 
 // ============================================================
 // Sharing (URL encoding/decoding)
