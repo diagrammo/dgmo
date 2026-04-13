@@ -105,12 +105,20 @@ export function renderWireframe(
   const svg = d3Selection
     .select(container)
     .append('svg')
-    .attr('width', isExport ? width : '100%')
-    .attr('height', isExport ? height : '100%')
     .attr('viewBox', `0 0 ${layout.width} ${layout.height}`)
-    .attr('preserveAspectRatio', 'xMidYMin meet')
     .attr('xmlns', 'http://www.w3.org/2000/svg')
     .style('font-family', FONT_FAMILY);
+
+  if (isExport) {
+    svg.attr('width', width).attr('height', height);
+  } else {
+    // Fill width, scale height proportionally — container scrolls vertically
+    svg
+      .attr('width', '100%')
+      .attr('height', 'auto')
+      .attr('preserveAspectRatio', 'xMidYMin meet')
+      .style('display', 'block');
+  }
 
   const ctx: RenderContext = {
     palette,
