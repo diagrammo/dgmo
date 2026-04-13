@@ -75,12 +75,14 @@ export function renderWireframe(
   const width = exportDims?.width ?? container.clientWidth;
   const height = exportDims?.height ?? container.clientHeight;
 
+  const isExport = !!exportDims;
   const svg = d3Selection
     .select(container)
     .append('svg')
-    .attr('width', width)
-    .attr('height', height)
+    .attr('width', isExport ? width : '100%')
+    .attr('height', isExport ? height : '100%')
     .attr('viewBox', `0 0 ${layout.width} ${layout.height}`)
+    .attr('preserveAspectRatio', 'xMidYMin meet')
     .attr('xmlns', 'http://www.w3.org/2000/svg')
     .style('font-family', FONT_FAMILY);
 
