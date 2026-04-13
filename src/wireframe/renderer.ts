@@ -240,11 +240,12 @@ function renderGroup(
     return;
   }
 
-  // Depth-based shading: outer containers darker, inner ones lighter.
-  // depth 0 → strongest tint, depth 3+ → nearly transparent.
+  // Depth-based shading: outer containers use visible tint, inner ones fade toward bg.
+  // Mix between border (dark enough to see) and bg, shifting toward bg as depth increases.
+  // depth 0 → 85% bg + 15% border, depth 1 → 90%, depth 2 → 95%, depth 3+ → ~bg
   const depthBlend = Math.min(depth, 3) / 4; // 0→0, 1→0.25, 2→0.5, 3→0.75
-  const fillColor = mix(palette.surface, palette.bg, 0.3 + depthBlend * 0.6);
-  const strokeOpacity = Math.max(0.2, 1 - depth * 0.3);
+  const fillColor = mix(palette.border, palette.bg, 0.82 + depthBlend * 0.15);
+  const strokeOpacity = Math.max(0.15, 0.6 - depth * 0.15);
 
   // Container background — solid border + depth-based shading
   if (isTransparent) {
