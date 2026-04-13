@@ -558,11 +558,6 @@ export function parseWireframe(content: string): ParsedWireframe {
   // Indent stack for hierarchy
   const indentStack: { node: WireframeElement; indent: number }[] = [];
 
-  function currentContainer(): WireframeElement[] {
-    if (indentStack.length === 0) return roots;
-    return indentStack[indentStack.length - 1].node.children;
-  }
-
   function findParent(indent: number): WireframeElement | null {
     // Pop nodes at same or deeper indent
     while (
@@ -619,6 +614,41 @@ export function parseWireframe(content: string): ParsedWireframe {
     ) {
       indentStack.push({ node: el, indent: el.indent });
     }
+  }
+
+  function pushInlineRow(
+    segments: string[],
+    lineNumber: number,
+    indent: number,
+    diags: DgmoError[]
+  ): void {
+    const children: WireframeElement[] = [];
+    let lastEl: WireframeElement | null = null;
+    for (const seg of segments) {
+      // EC5: segment starting with `|` attaches to previous element
+      if (seg.startsWith('|') && lastEl) {
+        applyMetadata(lastEl, seg.substring(1).trim());
+        continue;
+      }
+      const el = parseSegment(seg, lineNumber, indent, diags);
+      if (el) {
+        children.push(el);
+        lastEl = el;
+      }
+    }
+    if (children.length === 0) return;
+    if (children.length === 1) {
+      pushElement(children[0]);
+      return;
+    }
+    // Wrap in a horizontal inline row
+    const wrapper = makeElement('group', '', lineNumber, indent);
+    wrapper.id = genId(lineNumber, indent, 'row');
+    wrapper.isContainer = true;
+    wrapper.orientation = 'horizontal';
+    wrapper.children = children;
+    wrapper.metadata._inlineRow = 'true';
+    pushElement(wrapper);
   }
 
   for (let i = 0; i < lines.length; i++) {
@@ -819,31 +849,13 @@ export function parseWireframe(content: string): ParsedWireframe {
             pushElement(wrapper);
           }
         } else {
-          // Two inline items
-          for (const seg of segments) {
-            const el = parseSegment(seg, lineNumber, indent, diagnostics);
-            if (el) pushElement(el);
-          }
+          // Two inline items — wrap in horizontal row
+          pushInlineRow(segments, lineNumber, indent, diagnostics);
         }
       }
     } else {
-      // 3+ segments = inline items, no label pairing
-      for (const seg of segments) {
-        // EC5: segment starting with `|` attaches to previous element
-        if (seg.startsWith('|')) {
-          // Find last pushed element in current container
-          const container = currentContainer();
-          if (container.length > 0) {
-            applyMetadata(
-              container[container.length - 1],
-              seg.substring(1).trim()
-            );
-          }
-          continue;
-        }
-        const el = parseSegment(seg, lineNumber, indent, diagnostics);
-        if (el) pushElement(el);
-      }
+      // 3+ segments = inline items, no label pairing — wrap in horizontal row
+      pushInlineRow(segments, lineNumber, indent, diagnostics);
     }
   }
 

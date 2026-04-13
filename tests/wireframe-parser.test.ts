@@ -404,12 +404,15 @@ describe('wireframe parser', () => {
       expect(result.roots[0].label).toBe('Cart (3)');
     });
 
-    it('three segments are inline items, no label pairing', () => {
+    it('three segments are inline items wrapped in horizontal row', () => {
       const result = parseWireframe('wireframe Test\n(-)  1  (+)');
-      expect(result.roots).toHaveLength(3);
-      expect(result.roots[0].type).toBe('button');
-      expect(result.roots[1].type).toBe('text');
-      expect(result.roots[2].type).toBe('button');
+      expect(result.roots).toHaveLength(1);
+      const row = result.roots[0];
+      expect(row.orientation).toBe('horizontal');
+      expect(row.children).toHaveLength(3);
+      expect(row.children[0].type).toBe('button');
+      expect(row.children[1].type).toBe('text');
+      expect(row.children[2].type).toBe('button');
     });
   });
 

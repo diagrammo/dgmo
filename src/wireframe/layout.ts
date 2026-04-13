@@ -318,8 +318,13 @@ function layoutElement(
   }
 
   // Container — layout children
-  const innerWidth = width - GROUP_PADDING_X * 2;
-  const innerX = GROUP_PADDING_X;
+  const isInlineRow =
+    el.metadata._inlineRow === 'true' || el.metadata._labelField === 'true';
+  const padTop = isInlineRow ? 0 : GROUP_PADDING_TOP;
+  const padBottom = isInlineRow ? 0 : GROUP_PADDING_BOTTOM;
+  const padX = isInlineRow ? 0 : GROUP_PADDING_X;
+  const innerWidth = width - padX * 2;
+  const innerX = padX;
 
   if (el.orientation === 'horizontal') {
     // Horizontal layout: children in a row
@@ -330,7 +335,7 @@ function layoutElement(
     for (let i = 0; i < el.children.length; i++) {
       const child = el.children[i];
       const cw = childWidths[i];
-      const childNode = layoutElement(child, cx, GROUP_PADDING_TOP, cw);
+      const childNode = layoutElement(child, cx, padTop, cw);
       node.children.push(childNode);
       maxChildHeight = Math.max(maxChildHeight, childNode.height);
       cx += cw + 8;
@@ -341,10 +346,10 @@ function layoutElement(
       cn.height = maxChildHeight;
     }
 
-    node.height = GROUP_PADDING_TOP + maxChildHeight + GROUP_PADDING_BOTTOM;
+    node.height = padTop + maxChildHeight + padBottom;
   } else {
     // Vertical layout: stack children
-    let cy = GROUP_PADDING_TOP;
+    let cy = padTop;
 
     // Check for label-field auto-alignment (ADR-4)
     const fieldAlignX = computeFieldAlignX(el.children);
@@ -358,7 +363,7 @@ function layoutElement(
       cy += childNode.height + getSpacingAfter(child);
     }
 
-    node.height = cy + GROUP_PADDING_BOTTOM;
+    node.height = cy + padBottom;
   }
 
   // Collapsed state: only show header

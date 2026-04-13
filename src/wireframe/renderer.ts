@@ -120,7 +120,7 @@ export function renderWireframe(
 
   // Render main nodes
   for (const node of layout.nodes) {
-    renderNode(contentG, node, ctx);
+    renderNode(contentG, node, ctx, 0);
   }
 
   // Render modals
@@ -139,7 +139,8 @@ export function renderWireframe(
 function renderNode(
   parent: GSelection,
   node: WireframeLayoutNode,
-  ctx: RenderContext
+  ctx: RenderContext,
+  depth: number
 ): void {
   const el = node.element;
   const g = parent
@@ -160,7 +161,7 @@ function renderNode(
 
   switch (el.type) {
     case 'group':
-      renderGroup(g, node, ctx);
+      renderGroup(g, node, ctx, depth);
       break;
     case 'textInput':
       renderTextInput(g, node, ctx);
@@ -225,25 +226,44 @@ function renderNode(
 function renderGroup(
   g: GSelection,
   node: WireframeLayoutNode,
-  ctx: RenderContext
+  ctx: RenderContext,
+  depth: number
 ): void {
   const { palette, isTransparent } = ctx;
   const el = node.element;
 
-  // Container background — shading instead of dashed borders
+  // Inline rows and label-field wrappers — no group chrome, just render children
+  if (el.metadata._inlineRow === 'true' || el.metadata._labelField === 'true') {
+    for (const child of node.children) {
+      renderNode(g, child, ctx, depth);
+    }
+    return;
+  }
+
+  // Depth-based shading: outer containers darker, inner ones lighter.
+  // depth 0 → strongest tint, depth 3+ → nearly transparent.
+  const depthBlend = Math.min(depth, 3) / 4; // 0→0, 1→0.25, 2→0.5, 3→0.75
+  const fillColor = mix(palette.surface, palette.bg, 0.3 + depthBlend * 0.6);
+  const strokeOpacity = Math.max(0.2, 1 - depth * 0.3);
+
+  // Container background — solid border + depth-based shading
   if (isTransparent) {
     g.append('rect')
       .attr('width', node.width)
       .attr('height', node.height)
       .attr('fill', 'none')
       .attr('stroke', palette.border)
-      .attr('stroke-width', 0.5)
+      .attr('stroke-width', 1)
+      .attr('opacity', strokeOpacity)
       .attr('rx', GROUP_CORNER);
   } else {
     g.append('rect')
       .attr('width', node.width)
       .attr('height', node.height)
-      .attr('fill', mix(palette.surface, palette.bg, 0.5))
+      .attr('fill', fillColor)
+      .attr('stroke', palette.border)
+      .attr('stroke-width', 1)
+      .attr('stroke-opacity', strokeOpacity)
       .attr('rx', GROUP_CORNER);
   }
 
@@ -281,9 +301,9 @@ function renderGroup(
       .attr('rx', 1.5);
   }
 
-  // Render children
+  // Render children at increased depth
   for (const child of node.children) {
-    renderNode(g, child, ctx);
+    renderNode(g, child, ctx, depth + 1);
   }
 }
 
@@ -585,7 +605,7 @@ function renderText(
   // Check if this is a label-field wrapper
   if (el.metadata._labelField === 'true' && el.children.length >= 2) {
     for (const child of node.children) {
-      renderNode(g, child, ctx);
+      renderNode(g, child, ctx, 0);
     }
     return;
   }
@@ -1143,6 +1163,6 @@ function renderModal(
   // Render children with offset
   for (const child of node.children) {
     const childG = g.append('g').attr('transform', 'translate(0, 36)');
-    renderNode(childG, child, ctx);
+    renderNode(childG, child, ctx, 1);
   }
 }
