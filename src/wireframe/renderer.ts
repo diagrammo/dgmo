@@ -62,6 +62,7 @@ interface RenderContext {
   palette: PaletteColors;
   isTransparent: boolean;
   isDark: boolean;
+  showGroupLabels: boolean;
 }
 
 // ============================================================
@@ -75,6 +76,7 @@ export interface WireframeRenderOptions {
   /** Controls group state */
   controlsExpanded?: boolean;
   fitWidth?: boolean;
+  showGroupLabels?: boolean;
   onControlsExpand?: () => void;
   onControlsToggle?: (id: string, active: boolean) => void;
 }
@@ -114,6 +116,7 @@ export function renderWireframe(
     palette,
     isTransparent: effectiveTheme === 'transparent',
     isDark,
+    showGroupLabels: opts.showGroupLabels ?? true,
   };
 
   // Background
@@ -161,6 +164,14 @@ export function renderWireframe(
             active: opts.fitWidth ?? true,
             onToggle: (active: boolean) =>
               opts.onControlsToggle?.('fit-width', active),
+          },
+          {
+            id: 'group-labels',
+            type: 'toggle',
+            label: 'Labels',
+            active: opts.showGroupLabels ?? true,
+            onToggle: (active: boolean) =>
+              opts.onControlsToggle?.('group-labels', active),
           },
         ],
       },
@@ -345,7 +356,7 @@ function renderGroup(
   }
 
   // Label
-  if (el.label) {
+  if (el.label && ctx.showGroupLabels) {
     g.append('text')
       .attr('x', 10)
       .attr('y', 18)
