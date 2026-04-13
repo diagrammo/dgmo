@@ -240,14 +240,11 @@ function renderGroup(
     return;
   }
 
-  // Depth-based shading: strong visible bands between nesting levels.
-  // depth 0 → 65% bg / 35% border (clearly tinted)
-  // depth 1 → 80% bg / 20% border
-  // depth 2 → 90% bg / 10% border
-  // depth 3+ → 97% bg (nearly bare)
-  const blendSteps = [0.65, 0.8, 0.92, 0.97];
+  // Depth-based shading: mix textMuted toward bg — wide color range for clear bands.
+  // depth 0 → 90% bg (visible tint), depth 1 → 94%, depth 2 → 97%, depth 3+ → ~bg
+  const blendSteps = [0.9, 0.94, 0.97, 0.99];
   const blendAmount = blendSteps[Math.min(depth, blendSteps.length - 1)];
-  const fillColor = mix(palette.border, palette.bg, blendAmount);
+  const fillColor = mix(palette.textMuted, palette.bg, blendAmount);
 
   // Container background — solid border + depth-based shading
   if (isTransparent) {
