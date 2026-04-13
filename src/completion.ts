@@ -335,6 +335,20 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       hide: { description: 'Hide tag:value pairs' },
     }),
   ],
+  [
+    'mindmap',
+    withGlobals({
+      'hide-descriptions': { description: 'Hide node descriptions' },
+      'active-tag': { description: 'Active tag group name' },
+    }),
+  ],
+  [
+    'wireframe',
+    withGlobals({
+      mobile: { description: 'Use mobile (narrow vertical) layout' },
+      'active-tag': { description: 'Active tag group name' },
+    }),
+  ],
 ]);
 
 // ============================================================
@@ -378,6 +392,8 @@ const CHART_TYPE_DESCRIPTIONS: Record<string, string> = {
   infra: 'Infrastructure diagram',
   gantt: 'Gantt chart',
   'boxes-and-lines': 'Boxes and lines diagram',
+  mindmap: 'Mindmap diagram',
+  wireframe: 'UI wireframe diagram',
 };
 
 /** All chart types with descriptions, for chart type autocomplete. Excludes `multi-line` alias. */
@@ -507,6 +523,16 @@ export const PIPE_METADATA = new Map<
     {
       node: {
         description: { description: 'Node description text' },
+      },
+      edge: {},
+    },
+  ],
+  [
+    'mindmap',
+    {
+      node: {
+        description: { description: 'Node description text' },
+        collapsed: { description: 'Collapse node subtree by default' },
       },
       edge: {},
     },

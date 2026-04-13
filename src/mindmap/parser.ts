@@ -1,0 +1,379 @@
+import type { PaletteColors } from '../palettes';
+import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
+import type { TagGroup } from '../utils/tag-groups';
+import {
+  matchTagBlockHeading,
+  validateTagValues,
+  validateTagGroupNames,
+  stripDefaultModifier,
+} from '../utils/tag-groups';
+import {
+  measureIndent,
+  extractColor,
+  parsePipeMetadata,
+  MULTIPLE_PIPE_ERROR,
+  parseFirstLine,
+  OPTION_NOCOLON_RE,
+} from '../utils/parsing';
+import type { MindmapNode, ParsedMindmap } from './types';
+
+// ============================================================
+// Constants
+// ============================================================
+
+const DESCRIPTION_RE = /^description:\s*(.*)$/i;
+
+/** Known mindmap options (key-value). */
+const KNOWN_OPTIONS = new Set(['active-tag']);
+
+// ============================================================
+// Parser
+// ============================================================
+
+export function parseMindmap(
+  content: string,
+  palette?: PaletteColors
+): ParsedMindmap {
+  const result: ParsedMindmap = {
+    title: null,
+    titleLineNumber: null,
+    roots: [],
+    tagGroups: [],
+    options: {},
+    diagnostics: [],
+    error: null,
+  };
+
+  const fail = (line: number, message: string): ParsedMindmap => {
+    const diag = makeDgmoError(line, message);
+    result.diagnostics.push(diag);
+    result.error = formatDgmoError(diag);
+    return result;
+  };
+
+  const pushError = (line: number, message: string): void => {
+    const diag = makeDgmoError(line, message);
+    result.diagnostics.push(diag);
+    if (!result.error) result.error = formatDgmoError(diag);
+  };
+
+  const pushWarning = (line: number, message: string): void => {
+    result.diagnostics.push(makeDgmoError(line, message, 'warning'));
+  };
+
+  if (!content || !content.trim()) {
+    return fail(0, 'No content provided');
+  }
+
+  const lines = content.split('\n');
+  let contentStarted = false;
+  let nodeCounter = 0;
+
+  // Tag group parsing state
+  let currentTagGroup: TagGroup | null = null;
+  const aliasMap = new Map<string, string>();
+
+  // Indent stack for hierarchy tracking
+  const indentStack: { node: MindmapNode; indent: number }[] = [];
+
+  // Track which nodes have had a child added (for late-description warnings)
+  const nodesWithChildren = new Set<string>();
+
+  // Title-derived root node (if title exists on first line)
+  let titleRoot: MindmapNode | null = null;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const lineNumber = i + 1;
+    const trimmed = line.trim();
+
+    // Skip empty lines
+    if (!trimmed) {
+      if (currentTagGroup) {
+        currentTagGroup = null;
+      }
+      continue;
+    }
+
+    // Skip comments
+    if (trimmed.startsWith('//')) continue;
+
+    // --- Header phase ---
+
+    if (!contentStarted) {
+      // Extract chart type + title from first line
+      const firstLine = parseFirstLine(trimmed);
+      if (firstLine) {
+        if (firstLine.chartType !== 'mindmap') {
+          let msg = `Expected chart type "mindmap", got "${firstLine.chartType}"`;
+          const hint = suggest(firstLine.chartType, ['mindmap']);
+          if (hint) msg += `. ${hint}`;
+          return fail(lineNumber, msg);
+        }
+        if (firstLine.title) {
+          // Title IS the root: extract color from title
+          const { label, color } = extractColor(firstLine.title, palette);
+          result.title = label;
+          result.titleLineNumber = lineNumber;
+
+          nodeCounter++;
+          titleRoot = {
+            id: `node-${nodeCounter}`,
+            label,
+            metadata: {},
+            children: [],
+            parentId: null,
+            lineNumber,
+            color,
+          };
+          result.roots.push(titleRoot);
+          // Push title root onto indent stack at indent -1 so all indent-0 lines become children
+          indentStack.push({ node: titleRoot, indent: -1 });
+        }
+        continue;
+      }
+    }
+
+    // Tag group heading
+    const tagBlockMatch = matchTagBlockHeading(trimmed);
+    if (tagBlockMatch) {
+      if (contentStarted) {
+        pushError(lineNumber, 'Tag groups must appear before mindmap content');
+        continue;
+      }
+      currentTagGroup = {
+        name: tagBlockMatch.name,
+        alias: tagBlockMatch.alias,
+        entries: [],
+        lineNumber,
+      };
+      if (tagBlockMatch.alias) {
+        aliasMap.set(
+          tagBlockMatch.alias.toLowerCase(),
+          tagBlockMatch.name.toLowerCase()
+        );
+      }
+      result.tagGroups.push(currentTagGroup);
+      continue;
+    }
+
+    // Options: key-value (e.g., `active-tag Priority`)
+    if (!contentStarted && !currentTagGroup && measureIndent(line) === 0) {
+      const optMatch = trimmed.match(OPTION_NOCOLON_RE);
+      if (optMatch) {
+        const key = optMatch[1].trim().toLowerCase();
+        if (KNOWN_OPTIONS.has(key)) {
+          result.options[key] = optMatch[2].trim();
+          continue;
+        }
+      }
+      // Bare keyword option: hide-descriptions
+      if (trimmed.toLowerCase() === 'hide-descriptions') {
+        result.options['hide-descriptions'] = 'true';
+        continue;
+      }
+    }
+
+    // Tag group entries (indented Value(color) under tag heading)
+    if (currentTagGroup && !contentStarted) {
+      const indent = measureIndent(line);
+      if (indent > 0) {
+        const { text: cleanEntry, isDefault } = stripDefaultModifier(trimmed);
+        const { label, color } = extractColor(cleanEntry, palette);
+        if (!color) {
+          pushError(
+            lineNumber,
+            `Expected 'Value(color)' in tag group '${currentTagGroup.name}'`
+          );
+          continue;
+        }
+        if (isDefault) {
+          currentTagGroup.defaultValue = label;
+        } else if (currentTagGroup.entries.length === 0) {
+          currentTagGroup.defaultValue = label;
+        }
+        currentTagGroup.entries.push({
+          value: label,
+          color,
+          lineNumber,
+        });
+        continue;
+      }
+      currentTagGroup = null; // eslint-disable-line no-useless-assignment
+    }
+
+    // --- Content phase ---
+    contentStarted = true;
+    currentTagGroup = null;
+
+    const indent = measureIndent(line);
+
+    // Check for indented `description: text` metadata
+    if (indent > 0) {
+      const descMatch = trimmed.match(DESCRIPTION_RE);
+      if (descMatch) {
+        // Find parent node from indent stack
+        const parent = findMetadataParent(indent, indentStack);
+        if (parent) {
+          const descValue = descMatch[1].trim();
+          if (!descValue) {
+            // Empty description: silently skip
+            continue;
+          }
+          // Check if parent already has children at this indent level
+          if (nodesWithChildren.has(parent.id)) {
+            pushWarning(
+              lineNumber,
+              `description after child nodes under "${parent.label}" — should precede children`
+            );
+            continue;
+          }
+          // Only set if pipe description didn't already set it
+          if (parent.description === undefined) {
+            parent.description = descValue;
+          }
+          continue;
+        }
+      }
+    }
+
+    // It's a node line — possibly with pipe metadata
+    const node = parseNodeLine(
+      trimmed,
+      lineNumber,
+      palette,
+      ++nodeCounter,
+      aliasMap,
+      pushWarning
+    );
+    attachNode(node, indent, indentStack, result, nodesWithChildren);
+  }
+
+  // If no title and roots exist, infer title from first root
+  if (result.title === null && result.roots.length > 0) {
+    result.title = result.roots[0].label;
+    result.titleLineNumber = result.roots[0].lineNumber;
+  }
+
+  // Validate tag group values
+  if (result.tagGroups.length > 0) {
+    const allNodes: MindmapNode[] = [];
+    const collectAll = (nodes: MindmapNode[]) => {
+      for (const node of nodes) {
+        allNodes.push(node);
+        collectAll(node.children);
+      }
+    };
+    collectAll(result.roots);
+    validateTagValues(allNodes, result.tagGroups, pushWarning, suggest);
+    validateTagGroupNames(result.tagGroups, pushWarning);
+  }
+
+  // Check for empty mindmap
+  if (result.roots.length === 0 && !result.error) {
+    const diag = makeDgmoError(1, 'No nodes found in mindmap');
+    result.diagnostics.push(diag);
+    result.error = formatDgmoError(diag);
+  } else if (
+    titleRoot &&
+    titleRoot.children.length === 0 &&
+    result.roots.length === 1 &&
+    !result.error
+  ) {
+    // Title-only mindmap with no children is valid (single node)
+    // No error needed
+  }
+
+  return result;
+}
+
+// ============================================================
+// Internal helpers
+// ============================================================
+
+function parseNodeLine(
+  trimmed: string,
+  lineNumber: number,
+  palette: PaletteColors | undefined,
+  counter: number,
+  aliasMap: Map<string, string>,
+  warnFn: (line: number, msg: string) => void
+): MindmapNode {
+  const segments = trimmed.split('|').map((s) => s.trim());
+  const rawLabel = segments[0];
+  const { label, color } = extractColor(rawLabel, palette);
+
+  const metadata = parsePipeMetadata(segments, aliasMap, () =>
+    warnFn(lineNumber, MULTIPLE_PIPE_ERROR)
+  );
+
+  // Extract description from pipe metadata as a dedicated field
+  let description: string | undefined;
+  if ('description' in metadata) {
+    const descVal = metadata['description'].trim();
+    if (descVal) {
+      description = descVal;
+    }
+    delete metadata['description'];
+  }
+
+  // Extract collapsed flag from pipe metadata
+  let collapsed: boolean | undefined;
+  if ('collapsed' in metadata) {
+    collapsed = metadata['collapsed'].toLowerCase() === 'true';
+    delete metadata['collapsed'];
+  }
+
+  return {
+    id: `node-${counter}`,
+    label,
+    description,
+    metadata,
+    children: [],
+    parentId: null,
+    lineNumber,
+    color,
+    collapsed,
+  };
+}
+
+function attachNode(
+  node: MindmapNode,
+  indent: number,
+  indentStack: { node: MindmapNode; indent: number }[],
+  result: ParsedMindmap,
+  nodesWithChildren: Set<string>
+): void {
+  // Pop stack entries with indent >= current indent
+  while (indentStack.length > 0) {
+    const top = indentStack[indentStack.length - 1];
+    if (top.indent < indent) break;
+    indentStack.pop();
+  }
+
+  if (indentStack.length > 0) {
+    const parent = indentStack[indentStack.length - 1].node;
+    node.parentId = parent.id;
+    parent.children.push(node);
+    nodesWithChildren.add(parent.id);
+  } else {
+    result.roots.push(node);
+  }
+
+  indentStack.push({ node, indent });
+}
+
+function findMetadataParent(
+  indent: number,
+  indentStack: { node: MindmapNode; indent: number }[]
+): MindmapNode | null {
+  for (let i = indentStack.length - 1; i >= 0; i--) {
+    if (indentStack[i].indent < indent) {
+      return indentStack[i].node;
+    }
+  }
+  if (indentStack.length > 0) {
+    return indentStack[indentStack.length - 1].node;
+  }
+  return null;
+}

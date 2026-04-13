@@ -332,6 +332,30 @@ export type {
 export { collapseOrgTree } from './org/collapse';
 export type { CollapsedOrgResult } from './org/collapse';
 
+export { parseMindmap } from './mindmap/parser';
+export type {
+  MindmapNode,
+  ParsedMindmap,
+  MindmapLayoutNode,
+  MindmapLayoutEdge,
+  MindmapLayoutResult,
+} from './mindmap/types';
+export { layoutMindmap } from './mindmap/layout';
+export { renderMindmap, renderMindmapForExport } from './mindmap/renderer';
+export { collapseMindmapTree } from './mindmap/collapse';
+export type { CollapsedMindmapResult } from './mindmap/collapse';
+
+export { parseWireframe } from './wireframe/parser';
+export type {
+  ParsedWireframe,
+  WireframeElement,
+  WireframeElementType,
+  WireframeFormFactor,
+} from './wireframe/types';
+export { layoutWireframe } from './wireframe/layout';
+export type { WireframeLayout, WireframeLayoutNode } from './wireframe/layout';
+export { renderWireframe } from './wireframe/renderer';
+
 export { resolveOrgImports } from './org/resolver';
 export type {
   ReadFileFn,

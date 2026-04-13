@@ -17,6 +17,8 @@ import { looksLikeSitemap, parseSitemap } from './sitemap/parser';
 import { parseInfra } from './infra/parser';
 import { parseGantt } from './gantt/parser';
 import { parseBoxesAndLines } from './boxes-and-lines/parser';
+import { parseMindmap } from './mindmap/parser';
+import { parseWireframe } from './wireframe/parser';
 import { parseFirstLine } from './utils/parsing';
 import { makeDgmoError, suggest } from './diagnostics';
 import type { DgmoError } from './diagnostics';
@@ -149,6 +151,8 @@ const DIAGRAM_TYPES = new Set([
   'infra',
   'gantt',
   'boxes-and-lines',
+  'mindmap',
+  'wireframe',
 ]);
 const EXTENDED_CHART_TYPES = new Set([
   'scatter',
@@ -228,6 +232,8 @@ const PARSE_DISPATCH = new Map<
   ['infra', (c) => parseInfra(c)],
   ['gantt', (c) => parseGantt(c)],
   ['boxes-and-lines', (c) => parseBoxesAndLines(c)],
+  ['mindmap', (c) => parseMindmap(c)],
+  ['wireframe', (c) => parseWireframe(c)],
 ]);
 
 /**

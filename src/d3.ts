@@ -6743,6 +6743,95 @@ export async function renderForExport(
     return finalizeSvgExport(container, theme, effectivePalette);
   }
 
+  if (detectedType === 'mindmap') {
+    const { parseMindmap } = await import('./mindmap/parser');
+    const { layoutMindmap } = await import('./mindmap/layout');
+    const { collapseMindmapTree } = await import('./mindmap/collapse');
+    const { renderMindmap } = await import('./mindmap/renderer');
+
+    const isDark = theme === 'dark';
+    const effectivePalette = await resolveExportPalette(theme, palette);
+
+    const mmParsed = parseMindmap(content, effectivePalette);
+    if (mmParsed.error) return '';
+
+    const collapsedNodes = viewState?.cg ? new Set(viewState.cg) : undefined;
+    const activeTagGroup = resolveActiveTagGroup(
+      mmParsed.tagGroups,
+      mmParsed.options['active-tag'],
+      viewState?.tag ?? options?.tagGroup
+    );
+    const hideDescriptions =
+      mmParsed.options['hide-descriptions'] === 'true' ||
+      viewState?.hd === true;
+
+    const { roots: effectiveRoots, hiddenCounts } =
+      collapsedNodes && collapsedNodes.size > 0
+        ? collapseMindmapTree(mmParsed.roots, collapsedNodes)
+        : { roots: mmParsed.roots, hiddenCounts: new Map<string, number>() };
+
+    const effectiveParsed = { ...mmParsed, roots: effectiveRoots };
+
+    const mmLayout = layoutMindmap(effectiveParsed, effectivePalette, {
+      interactive: false,
+      hiddenCounts: hiddenCounts.size > 0 ? hiddenCounts : undefined,
+      activeTagGroup,
+      hideDescriptions,
+    });
+
+    const PADDING = 20;
+    const titleOffset = effectiveParsed.title ? 30 : 0;
+    const exportWidth = mmLayout.width + PADDING * 2;
+    const exportHeight = mmLayout.height + PADDING * 2 + titleOffset;
+    const container = createExportContainer(exportWidth, exportHeight);
+
+    renderMindmap(
+      container,
+      effectiveParsed,
+      mmLayout,
+      effectivePalette,
+      isDark,
+      undefined,
+      { width: exportWidth, height: exportHeight },
+      undefined,
+      hideDescriptions
+    );
+    return finalizeSvgExport(container, theme, effectivePalette);
+  }
+
+  if (detectedType === 'wireframe') {
+    const { parseWireframe } = await import('./wireframe/parser');
+    const { layoutWireframe } = await import('./wireframe/layout');
+    const { renderWireframe } = await import('./wireframe/renderer');
+
+    const effectivePalette = await resolveExportPalette(theme, palette);
+    const wireframeParsed = parseWireframe(content);
+    if (
+      wireframeParsed.error ||
+      (wireframeParsed.roots.length === 0 &&
+        wireframeParsed.modals.length === 0)
+    )
+      return '';
+
+    const wireframeLayout = layoutWireframe(wireframeParsed);
+
+    const exportWidth = wireframeLayout.width;
+    const exportHeight = wireframeLayout.height;
+    const container = createExportContainer(exportWidth, exportHeight);
+
+    renderWireframe(
+      container,
+      wireframeParsed,
+      wireframeLayout,
+      effectivePalette,
+      theme === 'dark',
+      undefined,
+      { width: exportWidth, height: exportHeight },
+      theme
+    );
+    return finalizeSvgExport(container, theme, effectivePalette);
+  }
+
   if (detectedType === 'c4') {
     const { parseC4 } = await import('./c4/parser');
     const {

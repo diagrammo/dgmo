@@ -143,6 +143,13 @@ start 2024-01-15
   'boxes-and-lines': `boxes-and-lines System
 API -> Database
 API -> Cache`,
+
+  mindmap: `mindmap Ideas
+  Feature A
+  Feature B`,
+
+  wireframe: `wireframe Login Page
+Button Submit`,
 };
 
 // All D3 types now render in JSDOM via explicit dimensions (Epic 41)

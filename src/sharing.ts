@@ -30,6 +30,7 @@ export interface CompactViewState {
   rps?: number; // RPS multiplier (infra)
   spd?: number; // playback speed (infra)
   io?: Record<string, number>; // instance overrides (infra)
+  hd?: boolean; // hide descriptions (mindmap)
 }
 
 export interface DecodedDiagramUrl {

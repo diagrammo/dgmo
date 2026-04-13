@@ -1,0 +1,22 @@
+mindmap Product Strategy
+
+tag Priority p
+  High(red)
+  Medium(yellow)
+  Low(green)
+
+Research | p: High
+  User Interviews
+    Surveys | description: Quarterly NPS survey
+    Focus Groups
+  Competitor Analysis
+    Feature Matrix
+    Pricing Review
+Development | p: High
+  MVP Features
+    Auth System
+      description: Handle login, signup, OAuth flows
+    Dashboard
+  Nice-to-haves | p: Low, collapsed: true
+    Dark Mode
+    Export PDF
