@@ -13,6 +13,7 @@ export const CHART_TYPES = new Set([
   'infra',
   'gantt',
   'boxes-and-lines',
+  'wireframe',
   // Data chart types
   'bar',
   'line',
@@ -170,6 +171,17 @@ export const CONTROL_KEYWORDS = new Set([
   'loop',
   'parallel',
   'note',
+  // Wireframe elements
+  'nav',
+  'tabs',
+  'table',
+  'image',
+  'modal',
+  'skeleton',
+  'alert',
+  'progress',
+  'chart',
+  'mobile',
 ]);
 
 /** Status keywords — kanban. */

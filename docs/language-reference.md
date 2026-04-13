@@ -20,7 +20,8 @@
 14. [Timeline Diagrams](#14-timeline-diagrams)
 15. [Data Charts](#15-data-charts)
 16. [Visualizations](#16-visualizations)
-17. [Colon Usage Summary](#17-colon-usage-summary)
+17. [Wireframe Diagrams](#17-wireframe-diagrams)
+18. [Colon Usage Summary](#18-colon-usage-summary)
 
 ---
 
@@ -1326,7 +1327,141 @@ Navigator 0.85 0.8
 
 ---
 
-## 17. Colon Usage Summary
+## 17. Wireframe Diagrams
+
+Wireframe diagrams use **visual-mnemonic syntax** where bracket characters communicate element type.
+
+### Declaration
+
+```
+wireframe Page Title
+```
+
+### Form Factor
+
+```
+mobile
+```
+
+Switches to narrow vertical layout (375px). Desktop (1200px, horizontal regions) is the default.
+
+### Visual-Mnemonic Elements
+
+| Syntax | Element | Example |
+|--------|---------|---------|
+| `[text]` (leaf) | Text input | `[Email address]` |
+| `[Name]` (with children) | Group/region | `[Sidebar]` + indented children |
+| `(Label)` | Button | `(Submit)` |
+| `{A \| B \| C}` | Dropdown/select | `{Small \| Medium \| Large}` |
+| `<x>` / `< >` | Checkbox | `<x> Remember me` |
+| `(*) Label` / `( ) Label` | Radio button | `(*) Option A` |
+| `# Text` / `## Text` | Heading | `# Sign In` |
+| `---` | Divider | `---` |
+| `- text` | List item | `- Electronics` |
+| Bare text | Text/paragraph | `Welcome to our app` |
+
+### Keyword Elements
+
+| Keyword | Type | Parameters |
+|---------|------|------------|
+| `nav` | Block | Children are nav items |
+| `tabs` | Block | Children are tab labels |
+| `table` | Block | Comma-separated rows; first = header |
+| `table RxC` | Skeleton table | `table 5x4` + optional header row |
+| `image` | Leaf | `round`, `wide` hints |
+| `modal Title` | Block | Rendered as separate panel below |
+| `skeleton` | Block | Children render as grey placeholders |
+| `alert` | Block | Optional semantic state |
+| `progress N` | Leaf | Value 0-100: `progress 60` |
+| `chart type` | Leaf | `chart line`, `chart bar`, `chart pie` |
+
+### Pipe Metadata (States)
+
+Wireframe uses flag keywords (not `key: value`):
+
+```
+(Submit) | disabled
+(Delete) | destructive
+(Cancel) | ghost
+[Email] | password
+[Notes] | textarea
+[Cards] | horizontal
+[Advanced] | collapsed
+[Messages] | scrollable
+<x> Dark mode | toggle
+```
+
+Available states: `disabled`, `active`, `selected`, `empty`, `ghost`, `destructive`, `success`, `warning`, `info`, `scrollable`, `collapsed`, `toggle`, `password`, `textarea`, `horizontal`, `primary`.
+
+Free-text annotations after states: `[Email] | required, validates email format`.
+
+### Multi-Element Lines
+
+Two or more spaces between segments create separate elements:
+
+```
+Email  [user@example.com]    // label + field (2 segments)
+(-)  1  (+)                  // 3 inline items
+$299.99  ~~$349.99~~         // 2 inline texts
+```
+
+- **2 segments** (bare text + element): label-for-element pairing
+- **3+ segments**: inline items, no label pairing
+- **Single space = same element**: `Cart (3)` is one text element
+
+### Group Disambiguation
+
+- `[Name]` with indented children = group/container
+- `[Name]` with no children = text input
+- `[Name] | horizontal/scrollable/collapsed` = group (even without children)
+
+### Table Syntax
+
+Explicit rows (comma-separated, first row = header):
+
+```
+table
+  Name, Email, Role
+  John, john@, Admin
+  Sally, sally@, Editor
+```
+
+Skeleton shorthand:
+
+```
+table 5x4
+  Name, Email, Role, Status
+```
+
+### Layout Model
+
+- Desktop: 1200px wide, top-level regions arrange horizontally
+- Mobile: 375px wide, all regions stack vertically
+- Smart sizing: `sidebar` → ~25%, `main`/`content` → fill, `header`/`footer` → full width
+- `| horizontal` on groups arranges children in a row
+
+### Example
+
+```
+wireframe Login Page
+
+[Header]
+  nav
+    Home | active
+    Settings
+
+[Main]
+  # Sign In
+  Email  [user@example.com]
+  Password  [****] | password
+  <x> Remember me
+  (Sign In)
+  (Forgot Password?) | ghost
+```
+
+---
+
+## 18. Colon Usage Summary
 
 ### Constructs Where Colons Are REQUIRED
 
