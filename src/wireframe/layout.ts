@@ -112,10 +112,12 @@ export interface WireframeLayout {
 
 export function layoutWireframe(
   parsed: ParsedWireframe,
-  _options?: Record<string, string>
+  _options?: Record<string, string>,
+  overrideWidth?: number
 ): WireframeLayout {
-  const frameWidth =
+  const defaultWidth =
     parsed.formFactor === 'mobile' ? MOBILE_WIDTH : DESKTOP_WIDTH;
+  const frameWidth = overrideWidth ?? defaultWidth;
   const titleHeight = parsed.title ? TITLE_HEIGHT : 0;
 
   const contentWidth = frameWidth - FRAME_PADDING * 2;
