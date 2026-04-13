@@ -62,7 +62,7 @@ interface RenderContext {
 // Main Renderer
 // ============================================================
 
-export interface WireframeRenderOptions {
+interface WireframeRenderOptions {
   exportDims?: { width?: number; height?: number };
   theme?: string;
   onClickItem?: (lineNumber: number) => void;
