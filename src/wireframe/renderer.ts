@@ -240,12 +240,14 @@ function renderGroup(
     return;
   }
 
-  // Depth-based shading: outer containers use visible tint, inner ones fade toward bg.
-  // Mix between border (dark enough to see) and bg, shifting toward bg as depth increases.
-  // depth 0 → 85% bg + 15% border, depth 1 → 90%, depth 2 → 95%, depth 3+ → ~bg
-  const depthBlend = Math.min(depth, 3) / 4; // 0→0, 1→0.25, 2→0.5, 3→0.75
-  const fillColor = mix(palette.border, palette.bg, 0.82 + depthBlend * 0.15);
-  const strokeOpacity = Math.max(0.15, 0.6 - depth * 0.15);
+  // Depth-based shading: strong visible bands between nesting levels.
+  // depth 0 → 65% bg / 35% border (clearly tinted)
+  // depth 1 → 80% bg / 20% border
+  // depth 2 → 90% bg / 10% border
+  // depth 3+ → 97% bg (nearly bare)
+  const blendSteps = [0.65, 0.8, 0.92, 0.97];
+  const blendAmount = blendSteps[Math.min(depth, blendSteps.length - 1)];
+  const fillColor = mix(palette.border, palette.bg, blendAmount);
 
   // Container background — solid border + depth-based shading
   if (isTransparent) {
@@ -255,7 +257,6 @@ function renderGroup(
       .attr('fill', 'none')
       .attr('stroke', palette.border)
       .attr('stroke-width', 1)
-      .attr('opacity', strokeOpacity)
       .attr('rx', GROUP_CORNER);
   } else {
     g.append('rect')
@@ -264,7 +265,6 @@ function renderGroup(
       .attr('fill', fillColor)
       .attr('stroke', palette.border)
       .attr('stroke-width', 1)
-      .attr('stroke-opacity', strokeOpacity)
       .attr('rx', GROUP_CORNER);
   }
 
