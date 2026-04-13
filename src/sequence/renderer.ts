@@ -60,6 +60,11 @@ const NOTE_CHARS_PER_LINE = Math.floor(
 );
 const COLLAPSED_NOTE_H = 20;
 const COLLAPSED_NOTE_W = 40;
+const ACTIVATION_WIDTH = 10;
+const SELF_CALL_HEIGHT = 25;
+const SELF_CALL_WIDTH = 30;
+// Max note width that keeps a note within one participant lane
+const NOTE_LANE_MAX = PARTICIPANT_GAP - ACTIVATION_WIDTH - NOTE_GAP; // 135px
 
 function wrapTextLines(text: string, maxChars: number): string[] {
   const rawLines = text.split('\n');
@@ -953,6 +958,37 @@ export function renderSequenceDiagram(
   );
   if (participants.length === 0) return;
 
+  // Participant index lookup — used to clamp note width within one lane
+  const participantIndexMap = new Map<string, number>();
+  participants.forEach((p, i) => participantIndexMap.set(p.id, i));
+
+  // Extra X shift for notes after self-calls
+  const SELF_CALL_NOTE_X_SHIFT =
+    ACTIVATION_WIDTH / 2 +
+    SELF_CALL_WIDTH +
+    NOTE_GAP -
+    (ACTIVATION_WIDTH + NOTE_GAP); // 25px
+
+  const noteEffectiveMaxW = (
+    participantId: string,
+    position: 'right' | 'left',
+    afterSelfCall = false
+  ): number => {
+    const idx = participantIndexMap.get(participantId);
+    if (idx === undefined) return NOTE_MAX_W;
+    const hasNeighbor =
+      position === 'right' ? idx < participants.length - 1 : idx > 0;
+    if (!hasNeighbor) return NOTE_MAX_W;
+    const laneMax =
+      afterSelfCall && position === 'right'
+        ? NOTE_LANE_MAX - SELF_CALL_NOTE_X_SHIFT
+        : NOTE_LANE_MAX;
+    return Math.min(NOTE_MAX_W, laneMax);
+  };
+
+  const charsForWidth = (maxW: number): number =>
+    Math.floor((maxW - NOTE_PAD_H * 2 - NOTE_FOLD) / NOTE_CHAR_W);
+
   const activationsOff = parsedOptions.activations?.toLowerCase() === 'off';
 
   // Tag resolution — shared utility handles priority chain:
@@ -1049,7 +1085,39 @@ export function renderSequenceDiagram(
     return msgToLastStep.get(closestMsgIndex) ?? -1;
   };
 
-  // Find the first visible message index in an element subtree
+  // Check whether a note's preceding message is a self-call.
+  // Self-call loopback arrows extend SELF_CALL_HEIGHT below the step Y,
+  // so notes after self-calls need a larger vertical offset.
+  const isNoteAfterSelfCall = (note: SequenceNote): boolean => {
+    let closestMsgIndex = -1;
+    let closestLine = -1;
+    for (let mi = 0; mi < messages.length; mi++) {
+      if (
+        messages[mi].lineNumber < note.lineNumber &&
+        messages[mi].lineNumber > closestLine
+      ) {
+        closestLine = messages[mi].lineNumber;
+        closestMsgIndex = mi;
+      }
+    }
+    if (closestMsgIndex < 0) return false;
+    const msg = messages[closestMsgIndex];
+    return msg.from === msg.to;
+  };
+
+  // Extra gap below self-call loop before note starts
+  const SELF_CALL_NOTE_GAP = 8;
+  const noteOffsetBelow = (note: SequenceNote): number =>
+    isNoteAfterSelfCall(note)
+      ? SELF_CALL_HEIGHT + NOTE_OFFSET_BELOW + SELF_CALL_NOTE_GAP
+      : NOTE_OFFSET_BELOW;
+
+  // Find the first visible message index in an element subtree.
+  // Use lineNumber lookup instead of indexOf — collapse projection creates
+  // separate spread copies for messages[] and elements[], breaking reference equality.
+  const msgLineToIdx = new Map<number, number>();
+  messages.forEach((m, i) => msgLineToIdx.set(m.lineNumber, i));
+
   const findFirstMsgIndex = (els: SequenceElement[]): number => {
     for (const el of els) {
       if (isSequenceBlock(el)) {
@@ -1064,7 +1132,7 @@ export function renderSequenceDiagram(
         const elseIdx = findFirstMsgIndex(el.elseChildren);
         if (elseIdx >= 0) return elseIdx;
       } else if (!isSequenceSection(el) && !isSequenceNote(el)) {
-        const idx = messages.indexOf(el as SequenceMessage);
+        const idx = msgLineToIdx.get(el.lineNumber) ?? -1;
         if (idx >= 0 && !hiddenMsgIndices.has(idx)) return idx;
       }
     }
@@ -1121,8 +1189,11 @@ export function renderSequenceDiagram(
   // When notes share horizontal space with subsequent arrows, generous vertical clearance
   // is needed so note boxes don't visually cover message labels.
   const NOTE_TRAILING_GAP = 35;
-  const computeNoteHeight = (text: string): number => {
-    const lines = wrapTextLines(text, NOTE_CHARS_PER_LINE);
+  const computeNoteHeight = (
+    text: string,
+    maxChars: number = NOTE_CHARS_PER_LINE
+  ): number => {
+    const lines = wrapTextLines(text, maxChars);
     return lines.length * NOTE_LINE_H + NOTE_PAD_V * 2;
   };
   let trailingNoteSpace = 0; // extra space for notes at the end with no following message
@@ -1131,15 +1202,18 @@ export function renderSequenceDiagram(
       const el = els[i];
       if (isSequenceNote(el)) {
         // Total vertical extent of notes from the message arrow:
-        //   NOTE_OFFSET_BELOW (gap above first note)
+        //   offset (gap above first note — larger after self-calls)
         //   + each note's height + NOTE_OFFSET_BELOW (inter-note gap)
         //   + NOTE_TRAILING_GAP (gap below last note — clears next message label)
-        let totalExtent = NOTE_OFFSET_BELOW;
+        const firstOffset = noteOffsetBelow(el as SequenceNote);
+        let totalExtent = firstOffset;
         let j = i;
         while (j < els.length && isSequenceNote(els[j])) {
           const note = els[j] as SequenceNote;
+          const sc = isNoteAfterSelfCall(note);
+          const maxW = noteEffectiveMaxW(note.participantId, note.position, sc);
           const noteH = isNoteExpanded(note)
-            ? computeNoteHeight(note.text)
+            ? computeNoteHeight(note.text, charsForWidth(maxW))
             : COLLAPSED_NOTE_H;
           totalExtent += noteH + NOTE_OFFSET_BELOW;
           j++;
@@ -1401,13 +1475,18 @@ export function renderSequenceDiagram(
           let noteTopY: number;
           if (prevNoteY !== undefined && prevNote) {
             // Stack below previous note
+            const prevMaxW = noteEffectiveMaxW(
+              prevNote.participantId,
+              prevNote.position,
+              isNoteAfterSelfCall(prevNote)
+            );
             const prevNoteH = isNoteExpanded(prevNote)
-              ? computeNoteHeight(prevNote.text)
+              ? computeNoteHeight(prevNote.text, charsForWidth(prevMaxW))
               : COLLAPSED_NOTE_H;
             noteTopY = prevNoteY + prevNoteH + NOTE_OFFSET_BELOW;
           } else {
-            // First note after a message
-            noteTopY = stepY(si) + NOTE_OFFSET_BELOW;
+            // First note after a message — use larger offset after self-calls
+            noteTopY = stepY(si) + noteOffsetBelow(el);
           }
           noteYMap.set(el, noteTopY);
         } else if (isSequenceBlock(el)) {
@@ -1435,8 +1514,13 @@ export function renderSequenceDiagram(
         )
       : layoutEndY;
   for (const [note, noteTopY] of noteYMap) {
+    const maxW = noteEffectiveMaxW(
+      note.participantId,
+      note.position,
+      isNoteAfterSelfCall(note)
+    );
     const noteH = isNoteExpanded(note)
-      ? computeNoteHeight(note.text)
+      ? computeNoteHeight(note.text, charsForWidth(maxW))
       : COLLAPSED_NOTE_H;
     contentBottomY = Math.max(
       contentBottomY,
@@ -2093,7 +2177,6 @@ export function renderSequenceDiagram(
   }
 
   // Render activation rectangles (behind arrows)
-  const ACTIVATION_WIDTH = 10;
   const ACTIVATION_NEST_OFFSET = 6;
   activations.forEach((act) => {
     const px = participantX.get(act.participantId);
@@ -2285,8 +2368,7 @@ export function renderSequenceDiagram(
   }
 
   // Render steps (calls and returns in stack-inferred order)
-  const SELF_CALL_WIDTH = 30;
-  const SELF_CALL_HEIGHT = 25;
+  // SELF_CALL_WIDTH is now a module-level constant
   renderSteps.forEach((step, i) => {
     const fromX = participantX.get(step.from);
     const toX = participantX.get(step.to);
@@ -2551,15 +2633,27 @@ export function renderSequenceDiagram(
 
         if (expanded) {
           // --- Expanded note: full folded-corner box with wrapped text ---
-          const wrappedLines = wrapTextLines(el.text, NOTE_CHARS_PER_LINE);
+          const afterSelfCall = isNoteAfterSelfCall(el);
+          const maxW = noteEffectiveMaxW(
+            el.participantId,
+            el.position,
+            afterSelfCall
+          );
+          const maxChars = charsForWidth(maxW);
+          const wrappedLines = wrapTextLines(el.text, maxChars);
           const noteH = wrappedLines.length * NOTE_LINE_H + NOTE_PAD_V * 2;
           const maxLineLen = Math.max(...wrappedLines.map((l) => l.length));
           const noteW = Math.min(
-            NOTE_MAX_W,
+            maxW,
             Math.max(80, maxLineLen * NOTE_CHAR_W + NOTE_PAD_H * 2 + NOTE_FOLD)
           );
+          // Shift notes past self-call loopback when applicable
+          const rightOffset =
+            afterSelfCall && isRight
+              ? ACTIVATION_WIDTH / 2 + SELF_CALL_WIDTH + NOTE_GAP
+              : ACTIVATION_WIDTH + NOTE_GAP;
           const noteX = isRight
-            ? px + ACTIVATION_WIDTH + NOTE_GAP
+            ? px + rightOffset
             : px - ACTIVATION_WIDTH - NOTE_GAP - noteW;
 
           const noteG = svg
@@ -2633,8 +2727,13 @@ export function renderSequenceDiagram(
         } else {
           // --- Collapsed note: compact indicator ---
           const cFold = 6;
+          const afterSelfCallC = isNoteAfterSelfCall(el);
+          const rightOffsetC =
+            afterSelfCallC && isRight
+              ? ACTIVATION_WIDTH / 2 + SELF_CALL_WIDTH + NOTE_GAP
+              : ACTIVATION_WIDTH + NOTE_GAP;
           const noteX = isRight
-            ? px + ACTIVATION_WIDTH + NOTE_GAP
+            ? px + rightOffsetC
             : px - ACTIVATION_WIDTH - NOTE_GAP - COLLAPSED_NOTE_W;
 
           const noteG = svg
