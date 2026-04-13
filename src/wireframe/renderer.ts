@@ -240,11 +240,12 @@ function renderGroup(
     return;
   }
 
-  // Depth-based shading: mix textMuted toward bg — wide color range for clear bands.
-  // depth 0 → 90% bg (visible tint), depth 1 → 94%, depth 2 → 97%, depth 3+ → ~bg
-  const blendSteps = [0.9, 0.94, 0.97, 0.99];
-  const blendAmount = blendSteps[Math.min(depth, blendSteps.length - 1)];
-  const fillColor = mix(palette.textMuted, palette.bg, blendAmount);
+  // Depth-based fill shading: mix textMuted into bg for visible section tints.
+  // mix(a, b, pct) — pct is 0-100 where 100 = 100% of a.
+  // depth 0 → 12% textMuted, depth 1 → 7%, depth 2 → 4%, depth 3+ → 2%
+  const tintSteps = [12, 7, 4, 2];
+  const tintPct = tintSteps[Math.min(depth, tintSteps.length - 1)];
+  const fillColor = mix(palette.textMuted, palette.bg, tintPct);
 
   // Container background — solid border + depth-based shading
   if (isTransparent) {
