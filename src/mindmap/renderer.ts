@@ -26,7 +26,9 @@ import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT } from '../utils/title-constants';
 const DIAGRAM_PADDING = 20;
 const MAX_SCALE = 3;
 const TITLE_HEIGHT = 30;
-const LABEL_FONT_SIZE = 13;
+const ROOT_FONT_SIZE = 17;
+const MIN_FONT_SIZE = 9;
+const FONT_STEP = 3; // decrease per depth level
 const LABEL_HEIGHT = 28;
 const DESC_FONT_SIZE = 10;
 const NODE_RADIUS = 6;
@@ -39,6 +41,10 @@ const COLLAPSE_BAR_HEIGHT = 6;
 // Color helpers
 // ============================================================
 
+function labelFontSize(depth: number): number {
+  return Math.max(MIN_FONT_SIZE, ROOT_FONT_SIZE - depth * FONT_STEP);
+}
+
 function nodeFill(
   palette: PaletteColors,
   isDark: boolean,
@@ -50,6 +56,28 @@ function nodeFill(
 
 function nodeStroke(palette: PaletteColors, nodeColor?: string): string {
   return nodeColor ?? palette.primary;
+}
+
+/** Depth color sequence — ROYGBIV-ish from the palette's named colors */
+const DEPTH_COLOR_KEYS = [
+  'red',
+  'orange',
+  'yellow',
+  'green',
+  'blue',
+  'purple',
+  'teal',
+  'cyan',
+];
+
+function depthColor(depth: number, palette: PaletteColors): string {
+  const key = DEPTH_COLOR_KEYS[depth] as
+    | keyof typeof palette.colors
+    | undefined;
+  if (key && key in palette.colors) {
+    return palette.colors[key];
+  }
+  return palette.colors.gray;
 }
 
 // ============================================================
@@ -66,7 +94,14 @@ export function renderMindmap(
   exportDims?: { width?: number; height?: number },
   onToggleNode?: (nodeId: string) => void,
   hideDescriptions?: boolean,
-  activeTagGroup?: string | null
+  activeTagGroup?: string | null,
+  options?: {
+    colorByDepth?: boolean;
+    onToggleColorByDepth?: (active: boolean) => void;
+    onToggleDescriptions?: (active: boolean) => void;
+    controlsExpanded?: boolean;
+    onToggleControlsExpand?: () => void;
+  }
 ): void {
   const isExport = !!exportDims;
   const containerWidth =
@@ -85,7 +120,9 @@ export function renderMindmap(
     .style('font-family', FONT_FAMILY);
 
   // Reserve space for fixed elements (legend, title) in interactive mode
-  const hasLegend = parsed.tagGroups.length > 0;
+  const hasControls =
+    !!options?.onToggleColorByDepth || !!options?.onToggleDescriptions;
+  const hasLegend = parsed.tagGroups.length > 0 || hasControls;
   const fixedLegend = !isExport && hasLegend;
   const legendReserve = fixedLegend ? LEGEND_HEIGHT + LEGEND_GROUP_GAP : 0;
   const fixedTitle = !isExport && !!parsed.title;
@@ -167,6 +204,29 @@ export function renderMindmap(
       }
     }
 
+    // Build controls toggles
+    const toggles: import('../utils/legend-types').ControlsGroupToggle[] = [];
+    if (options?.onToggleDescriptions) {
+      toggles.push({
+        id: 'descriptions',
+        type: 'toggle' as const,
+        label: 'Descriptions',
+        active: !hideDescriptions,
+        onToggle: (active) => options.onToggleDescriptions!(active),
+      });
+    }
+    if (options?.onToggleColorByDepth) {
+      toggles.push({
+        id: 'depth-colors',
+        type: 'toggle' as const,
+        label: 'Depth Colors',
+        active: options.colorByDepth ?? false,
+        onToggle: options.onToggleColorByDepth,
+      });
+    }
+    const controlsToggles: LegendConfig['controlsGroup'] =
+      toggles.length > 0 ? { toggles } : undefined;
+
     const legendConfig: LegendConfig = {
       groups: parsed.tagGroups.map((tg) => {
         const used = usedValues.get(tg.name.toLowerCase());
@@ -180,10 +240,16 @@ export function renderMindmap(
       }),
       position: { placement: 'top-center', titleRelation: 'below-title' },
       mode: 'fixed',
+      controlsGroup: controlsToggles,
     };
     const legendState: LegendState = {
-      activeGroup: activeTagGroup ?? parsed.options['active-tag'] ?? null,
+      activeGroup: options?.colorByDepth
+        ? null
+        : activeTagGroup !== undefined
+          ? activeTagGroup
+          : (parsed.options['active-tag'] ?? null),
       hiddenAttributes: new Set(),
+      controlsExpanded: options?.controlsExpanded,
     };
     const legendPalette = {
       text: palette.text,
@@ -192,13 +258,24 @@ export function renderMindmap(
       surface: palette.surface,
       primary: palette.primary,
     };
+    const legendCallbacks: import('../utils/legend-types').LegendCallbacks = {
+      onControlsExpand: options?.onToggleControlsExpand,
+      onControlsToggle: (id, active) => {
+        if (id === 'depth-colors' && options?.onToggleColorByDepth) {
+          options.onToggleColorByDepth(active);
+        }
+        if (id === 'descriptions' && options?.onToggleDescriptions) {
+          options.onToggleDescriptions(active);
+        }
+      },
+    };
     renderLegendD3(
       legendG,
       legendConfig,
       legendState,
       legendPalette,
       isDark,
-      undefined,
+      legendCallbacks,
       containerWidth
     );
   }
@@ -219,8 +296,11 @@ export function renderMindmap(
   for (const node of layout.nodes) {
     const isRoot = node.radius === 0 && layout.nodes.indexOf(node) === 0;
     const strokeW = isRoot ? ROOT_STROKE_WIDTH : NODE_STROKE_WIDTH;
-    const fill = nodeFill(palette, isDark, node.color);
-    const stroke = nodeStroke(palette, node.color);
+    const effectiveColor = options?.colorByDepth
+      ? depthColor(node.depth, palette)
+      : node.color;
+    const fill = nodeFill(palette, isDark, effectiveColor);
+    const stroke = nodeStroke(palette, effectiveColor);
 
     const nodeG = mainG
       .append('g')
@@ -262,8 +342,16 @@ export function renderMindmap(
       .attr('stroke', stroke)
       .attr('stroke-width', strokeW);
 
-    // Label text
-    const labelY = node.y + 18;
+    // Determine if description is visible (needed for label centering)
+    const showDesc =
+      !hideDescriptions &&
+      !!node.description &&
+      !(node.hiddenCount != null && node.hiddenCount > 0);
+
+    // Label text — vertically centered in the label zone
+    const fontSize = labelFontSize(node.depth);
+    const labelZoneHeight = showDesc ? LABEL_HEIGHT : node.height;
+    const labelY = node.y + labelZoneHeight / 2 + fontSize * 0.35;
     const maxChars = Math.floor((node.width - 16) / 7);
     const displayLabel =
       node.label.length > maxChars
@@ -275,7 +363,7 @@ export function renderMindmap(
       .attr('x', node.x + node.width / 2)
       .attr('y', labelY)
       .attr('text-anchor', 'middle')
-      .attr('font-size', LABEL_FONT_SIZE)
+      .attr('font-size', labelFontSize(node.depth))
       .attr('font-weight', isRoot ? 'bold' : 'normal')
       .attr('fill', palette.text)
       .text(displayLabel);
@@ -286,10 +374,6 @@ export function renderMindmap(
     }
 
     // Description — separator line + muted text below label (org chart pattern)
-    const showDesc =
-      !hideDescriptions &&
-      node.description &&
-      !(node.hiddenCount != null && node.hiddenCount > 0);
     if (showDesc) {
       const separatorY = node.y + LABEL_HEIGHT;
 

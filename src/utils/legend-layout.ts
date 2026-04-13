@@ -570,8 +570,8 @@ function layoutRows(
       const last = groupItemsInRow0[groupItemsInRow0.length - 1];
       controlsGroup.x = last.x + last.width + LEGEND_GROUP_GAP;
     } else {
-      // No group items — controls group at start
-      controlsGroup.x = 0;
+      // No group items — center the controls group
+      controlsGroup.x = (containerWidth - controlsGroup.width) / 2;
     }
     controlsGroup.y = 0;
   }

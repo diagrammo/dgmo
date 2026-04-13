@@ -34,6 +34,7 @@ export interface MindmapLayoutNode {
   y: number;
   width: number;
   height: number;
+  depth: number;
   angle: number;
   radius: number;
   hiddenCount?: number;

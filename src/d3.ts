@@ -6785,6 +6785,8 @@ export async function renderForExport(
     const exportHeight = mmLayout.height + PADDING * 2 + titleOffset;
     const container = createExportContainer(exportWidth, exportHeight);
 
+    const colorByDepth = viewState?.cbd === true;
+
     renderMindmap(
       container,
       effectiveParsed,
@@ -6794,7 +6796,9 @@ export async function renderForExport(
       undefined,
       { width: exportWidth, height: exportHeight },
       undefined,
-      hideDescriptions
+      hideDescriptions,
+      colorByDepth ? null : activeTagGroup,
+      colorByDepth ? { colorByDepth: true } : undefined
     );
     return finalizeSvgExport(container, theme, effectivePalette);
   }

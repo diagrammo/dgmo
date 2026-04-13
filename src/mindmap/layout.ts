@@ -401,6 +401,7 @@ function finalize(
       y: p.y + offsetY,
       width: p.width,
       height: p.height,
+      depth: p.depth,
       angle: 0,
       radius: 0,
       hiddenCount: hiddenCounts.get(p.node.id),

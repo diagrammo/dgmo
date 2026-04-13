@@ -31,6 +31,7 @@ export interface CompactViewState {
   spd?: number; // playback speed (infra)
   io?: Record<string, number>; // instance overrides (infra)
   hd?: boolean; // hide descriptions (mindmap)
+  cbd?: boolean; // color by depth (mindmap)
 }
 
 export interface DecodedDiagramUrl {
