@@ -3,6 +3,7 @@ import type {
   ParsedGraph,
   GraphNode,
   GraphEdge,
+  GraphGroup,
   GraphShape,
 } from './types';
 
@@ -33,10 +34,18 @@ export interface LayoutGroup {
   label: string;
   color?: string;
   lineNumber: number;
+  collapsed?: boolean;
   x: number;
   y: number;
   width: number;
   height: number;
+}
+
+export interface LayoutOptions {
+  /** Map of group ID → number of child nodes (for collapsed groups) */
+  collapsedChildCounts?: Map<string, number>;
+  /** Original groups before collapse (includes collapsed ones) */
+  originalGroups?: GraphGroup[];
 }
 
 export interface LayoutResult {
@@ -61,8 +70,33 @@ function computeNodeHeight(shape: GraphShape): number {
   return shape === 'decision' ? 60 : 50;
 }
 
-export function layoutGraph(graph: ParsedGraph): LayoutResult {
-  if (graph.nodes.length === 0) {
+export function layoutGraph(
+  graph: ParsedGraph,
+  options?: LayoutOptions
+): LayoutResult {
+  const collapsedChildCounts = options?.collapsedChildCounts;
+  const originalGroups = options?.originalGroups;
+
+  // Collapsed groups become synthetic nodes in the graph
+  const collapsedGroupNodes: GraphNode[] = [];
+  if (collapsedChildCounts && originalGroups) {
+    for (const group of originalGroups) {
+      if (collapsedChildCounts.has(group.id)) {
+        const count = collapsedChildCounts.get(group.id)!;
+        collapsedGroupNodes.push({
+          id: group.id,
+          label: `${group.label} (${count} state${count !== 1 ? 's' : ''})`,
+          shape: 'state',
+          lineNumber: group.lineNumber,
+          ...(group.color && { color: group.color }),
+        });
+      }
+    }
+  }
+
+  const allNodes = [...graph.nodes, ...collapsedGroupNodes];
+
+  if (allNodes.length === 0) {
     return { nodes: [], edges: [], groups: [], width: 0, height: 0 };
   }
 
@@ -77,11 +111,11 @@ export function layoutGraph(graph: ParsedGraph): LayoutResult {
 
   // Build a lookup for original node data
   const nodeDataMap = new Map<string, GraphNode>();
-  for (const node of graph.nodes) {
+  for (const node of allNodes) {
     nodeDataMap.set(node.id, node);
   }
 
-  // Add group parent nodes
+  // Add group parent nodes (only non-collapsed groups)
   if (graph.groups) {
     for (const group of graph.groups) {
       g.setNode(group.id, {
@@ -92,12 +126,12 @@ export function layoutGraph(graph: ParsedGraph): LayoutResult {
   }
 
   // Add nodes with computed dimensions
-  for (const node of graph.nodes) {
+  for (const node of allNodes) {
     const width = computeNodeWidth(node.label, node.shape);
     const height = computeNodeHeight(node.shape);
     g.setNode(node.id, { label: node.label, width, height });
 
-    // Set parent for grouped nodes
+    // Set parent for grouped nodes (only for non-collapsed groups)
     if (node.group && graph.groups?.some((gr) => gr.id === node.group)) {
       g.setParent(node.id, node.group);
     }
@@ -117,7 +151,11 @@ export function layoutGraph(graph: ParsedGraph): LayoutResult {
   dagre.layout(g);
 
   // Extract positioned nodes
-  const layoutNodes: LayoutNode[] = graph.nodes.map((node) => {
+  const collapsedGroupIds = collapsedChildCounts
+    ? new Set(collapsedChildCounts.keys())
+    : new Set<string>();
+
+  const layoutNodes: LayoutNode[] = allNodes.map((node) => {
     const pos = g.node(node.id);
     return {
       id: node.id,
@@ -147,10 +185,36 @@ export function layoutGraph(graph: ParsedGraph): LayoutResult {
   });
 
   // Compute group bounding boxes from member node positions
+  // Collapsed groups are included as layout groups with collapsed=true
+  // (their synthetic node is in layoutNodes for positioning)
   const layoutGroups: LayoutGroup[] = [];
-  if (graph.groups) {
+  const allGroups = graph.groups ?? [];
+
+  // Also include collapsed groups from originalGroups
+  if (originalGroups) {
+    for (const group of originalGroups) {
+      if (collapsedGroupIds.has(group.id)) {
+        const syntheticNode = layoutNodes.find((n) => n.id === group.id);
+        if (syntheticNode) {
+          layoutGroups.push({
+            id: group.id,
+            label: group.label,
+            color: group.color,
+            lineNumber: group.lineNumber,
+            collapsed: true,
+            x: syntheticNode.x - syntheticNode.width / 2,
+            y: syntheticNode.y - syntheticNode.height / 2,
+            width: syntheticNode.width,
+            height: syntheticNode.height,
+          });
+        }
+      }
+    }
+  }
+
+  if (allGroups.length > 0) {
     const nodeMap = new Map(layoutNodes.map((n) => [n.id, n]));
-    for (const group of graph.groups) {
+    for (const group of allGroups) {
       const members = group.nodeIds
         .map((id) => nodeMap.get(id))
         .filter((n): n is LayoutNode => n !== undefined);

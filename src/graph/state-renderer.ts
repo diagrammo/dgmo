@@ -11,7 +11,11 @@ import type { ParsedGraph } from './types';
 import type { LayoutResult, LayoutNode } from './layout';
 import { parseState } from './state-parser';
 import { layoutGraph } from './layout';
-import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT, TITLE_Y } from '../utils/title-constants';
+import {
+  TITLE_FONT_SIZE,
+  TITLE_FONT_WEIGHT,
+  TITLE_Y,
+} from '../utils/title-constants';
 
 // ============================================================
 // Constants
@@ -38,12 +42,21 @@ function stateDefaultColor(palette: PaletteColors, colorOff?: boolean): string {
   return colorOff ? palette.textMuted : palette.colors.blue;
 }
 
-function stateFill(palette: PaletteColors, isDark: boolean, nodeColor?: string, colorOff?: boolean): string {
+function stateFill(
+  palette: PaletteColors,
+  isDark: boolean,
+  nodeColor?: string,
+  colorOff?: boolean
+): string {
   const color = nodeColor ?? stateDefaultColor(palette, colorOff);
   return mix(color, isDark ? palette.surface : palette.bg, 25);
 }
 
-function stateStroke(palette: PaletteColors, nodeColor?: string, colorOff?: boolean): string {
+function stateStroke(
+  palette: PaletteColors,
+  nodeColor?: string,
+  colorOff?: boolean
+): string {
   return nodeColor ?? stateDefaultColor(palette, colorOff);
 }
 
@@ -51,7 +64,8 @@ function stateStroke(palette: PaletteColors, nodeColor?: string, colorOff?: bool
 // Edge path generator
 // ============================================================
 
-const lineGenerator = d3Shape.line<{ x: number; y: number }>()
+const lineGenerator = d3Shape
+  .line<{ x: number; y: number }>()
   .x((d) => d.x)
   .y((d) => d.y)
   .curve(d3Shape.curveBasis);
@@ -160,7 +174,10 @@ export function renderState(
       .attr('fill', palette.text)
       .attr('font-size', TITLE_FONT_SIZE)
       .attr('font-weight', TITLE_FONT_WEIGHT)
-      .style('cursor', onClickItem && graph.titleLineNumber ? 'pointer' : 'default')
+      .style(
+        'cursor',
+        onClickItem && graph.titleLineNumber ? 'pointer' : 'default'
+      )
       .text(graph.title);
 
     if (graph.titleLineNumber) {
@@ -168,8 +185,12 @@ export function renderState(
       if (onClickItem) {
         titleEl
           .on('click', () => onClickItem(graph.titleLineNumber!))
-          .on('mouseenter', function () { d3Selection.select(this).attr('opacity', 0.7); })
-          .on('mouseleave', function () { d3Selection.select(this).attr('opacity', 1); });
+          .on('mouseenter', function () {
+            d3Selection.select(this).attr('opacity', 0.7);
+          })
+          .on('mouseleave', function () {
+            d3Selection.select(this).attr('opacity', 1);
+          });
       }
     }
   }
@@ -180,12 +201,15 @@ export function renderState(
     .attr('transform', `translate(${offsetX}, ${offsetY}) scale(${scale})`);
 
   // Render groups (background layer)
+  // Collapsed groups are rendered in the node layer instead — skip them here
   for (const group of layout.groups) {
+    if (group.collapsed) continue;
     if (group.width === 0 && group.height === 0) continue;
     const gx = group.x - GROUP_EXTRA_PADDING;
     const gy = group.y - GROUP_EXTRA_PADDING - GROUP_LABEL_FONT_SIZE - 4;
     const gw = group.width + GROUP_EXTRA_PADDING * 2;
-    const gh = group.height + GROUP_EXTRA_PADDING * 2 + GROUP_LABEL_FONT_SIZE + 4;
+    const gh =
+      group.height + GROUP_EXTRA_PADDING * 2 + GROUP_LABEL_FONT_SIZE + 4;
 
     const fillColor = group.color
       ? mix(group.color, isDark ? palette.surface : palette.bg, 10)
@@ -198,13 +222,13 @@ export function renderState(
       .append('g')
       .attr('class', 'st-group-wrapper')
       .attr('data-line-number', String(group.lineNumber))
-      .attr('data-group-id', group.id);
-
-    if (onClickItem) {
-      groupWrapper.style('cursor', 'pointer').on('click', () => {
-        onClickItem(group.lineNumber);
-      });
-    }
+      .attr('data-group-id', group.id)
+      .attr('data-group-toggle', group.id)
+      .attr('tabindex', '0')
+      .attr('role', 'button')
+      .attr('aria-expanded', 'true')
+      .attr('aria-label', `Collapse group ${group.label}`)
+      .style('cursor', 'pointer');
 
     groupWrapper
       .append('rect')
@@ -250,7 +274,13 @@ export function renderState(
   const LABEL_H = 16;
   const PERP_OFFSET = 10; // px offset perpendicular to edge direction
 
-  interface LabelPos { x: number; y: number; w: number; h: number; edgeIdx: number }
+  interface LabelPos {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    edgeIdx: number;
+  }
   const labelPositions: LabelPos[] = [];
 
   for (let ei = 0; ei < layout.edges.length; ei++) {
@@ -333,7 +363,8 @@ export function renderState(
 
         const lp = labelPosMap.get(ei);
         if (edge.label && lp) {
-          edgeG.append('rect')
+          edgeG
+            .append('rect')
             .attr('x', lp.x - lp.w / 2)
             .attr('y', lp.y - lp.h / 2 - 1)
             .attr('width', lp.w)
@@ -342,7 +373,8 @@ export function renderState(
             .attr('fill', palette.bg)
             .attr('opacity', 0.85)
             .attr('class', 'st-edge-label-bg');
-          edgeG.append('text')
+          edgeG
+            .append('text')
             .attr('x', lp.x)
             .attr('y', lp.y + 4)
             .attr('text-anchor', 'middle')
@@ -367,7 +399,8 @@ export function renderState(
 
       const lp = labelPosMap.get(ei);
       if (edge.label && lp) {
-        edgeG.append('rect')
+        edgeG
+          .append('rect')
           .attr('x', lp.x - lp.w / 2)
           .attr('y', lp.y - lp.h / 2 - 1)
           .attr('width', lp.w)
@@ -376,7 +409,8 @@ export function renderState(
           .attr('fill', palette.bg)
           .attr('opacity', 0.85)
           .attr('class', 'st-edge-label-bg');
-        edgeG.append('text')
+        edgeG
+          .append('text')
           .attr('x', lp.x)
           .attr('y', lp.y + 4)
           .attr('text-anchor', 'middle')
@@ -388,18 +422,36 @@ export function renderState(
     }
   }
 
+  // Build set of collapsed group IDs for special rendering
+  const collapsedGroupIds = new Set<string>();
+  for (const group of layout.groups) {
+    if (group.collapsed) collapsedGroupIds.add(group.id);
+  }
+
   // Render nodes (top layer)
   const colorOff = graph.options?.color === 'off';
   for (const node of layout.nodes) {
+    const isCollapsedGroup = collapsedGroupIds.has(node.id);
+
     const nodeG = contentG
       .append('g')
       .attr('transform', `translate(${node.x}, ${node.y})`)
-      .attr('class', 'st-node')
+      .attr('class', isCollapsedGroup ? 'st-group-wrapper st-node' : 'st-node')
       .attr('data-line-number', String(node.lineNumber))
-      .attr('data-node-id', node.id);
+      .attr('data-node-id', node.id)
+      .style('cursor', 'pointer');
 
-    if (onClickItem) {
-      nodeG.style('cursor', 'pointer').on('click', () => {
+    if (isCollapsedGroup) {
+      nodeG
+        .attr('data-group-toggle', node.id)
+        .attr('tabindex', '0')
+        .attr('role', 'button')
+        .attr('aria-expanded', 'false')
+        .attr('aria-label', `Expand group ${node.label}`);
+    }
+
+    if (onClickItem && !isCollapsedGroup) {
+      nodeG.on('click', () => {
         onClickItem(node.lineNumber);
       });
     }
@@ -413,6 +465,63 @@ export function renderState(
         .attr('r', PSEUDOSTATE_RADIUS)
         .attr('fill', palette.text)
         .attr('stroke', 'none');
+    } else if (isCollapsedGroup) {
+      // Collapsed group — distinctive rounded rect with collapse bar
+      const w = node.width;
+      const h = node.height;
+      const groupColor = node.color ?? stateDefaultColor(palette, colorOff);
+      const fillColor = mix(
+        groupColor,
+        isDark ? palette.surface : palette.bg,
+        15
+      );
+      const strokeColor = groupColor;
+      const COLLAPSE_BAR_H = 6;
+
+      // Main rect
+      nodeG
+        .append('rect')
+        .attr('x', -w / 2)
+        .attr('y', -h / 2)
+        .attr('width', w)
+        .attr('height', h)
+        .attr('rx', STATE_CORNER_RADIUS)
+        .attr('ry', STATE_CORNER_RADIUS)
+        .attr('fill', fillColor)
+        .attr('stroke', strokeColor)
+        .attr('stroke-width', NODE_STROKE_WIDTH);
+
+      // Collapse indicator bar at bottom (clipped to rounded corners)
+      const clipId = `st-clip-${node.id.replace(/[[\]:\s]/g, '')}`;
+      nodeG
+        .append('clipPath')
+        .attr('id', clipId)
+        .append('rect')
+        .attr('x', -w / 2)
+        .attr('y', -h / 2)
+        .attr('width', w)
+        .attr('height', h)
+        .attr('rx', STATE_CORNER_RADIUS);
+      nodeG
+        .append('rect')
+        .attr('x', -w / 2)
+        .attr('y', h / 2 - COLLAPSE_BAR_H)
+        .attr('width', w)
+        .attr('height', COLLAPSE_BAR_H)
+        .attr('fill', strokeColor)
+        .attr('opacity', 0.5)
+        .attr('clip-path', `url(#${clipId})`);
+
+      // Label
+      nodeG
+        .append('text')
+        .attr('x', 0)
+        .attr('y', 0)
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'central')
+        .attr('fill', palette.text)
+        .attr('font-size', NODE_FONT_SIZE)
+        .text(node.label);
     } else {
       // State — rounded rectangle
       const w = node.width;
@@ -460,7 +569,8 @@ export function renderStateForExport(
 
   const container = document.createElement('div');
   const exportWidth = layout.width + DIAGRAM_PADDING * 2;
-  const exportHeight = layout.height + DIAGRAM_PADDING * 2 + (parsed.title ? 40 : 0);
+  const exportHeight =
+    layout.height + DIAGRAM_PADDING * 2 + (parsed.title ? 40 : 0);
   container.style.width = `${exportWidth}px`;
   container.style.height = `${exportHeight}px`;
   container.style.position = 'absolute';
@@ -468,15 +578,10 @@ export function renderStateForExport(
   document.body.appendChild(container);
 
   try {
-    renderState(
-      container,
-      parsed,
-      layout,
-      palette,
-      isDark,
-      undefined,
-      { width: exportWidth, height: exportHeight }
-    );
+    renderState(container, parsed, layout, palette, isDark, undefined, {
+      width: exportWidth,
+      height: exportHeight,
+    });
 
     const svgEl = container.querySelector('svg');
     if (!svgEl) return '';

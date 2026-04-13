@@ -89,6 +89,8 @@ export { parseFlowchart, looksLikeFlowchart } from './graph/flowchart-parser';
 
 export { parseState, looksLikeState } from './graph/state-parser';
 export { renderState, renderStateForExport } from './graph/state-renderer';
+export { collapseStateGroups } from './graph/state-collapse';
+export type { StateCollapseResult } from './graph/state-collapse';
 
 export { parseClassDiagram, looksLikeClassDiagram } from './class/parser';
 
@@ -369,6 +371,7 @@ export type {
   LayoutNode,
   LayoutEdge,
   LayoutGroup,
+  LayoutOptions,
 } from './graph/layout';
 
 export {
