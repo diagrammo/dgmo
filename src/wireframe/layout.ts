@@ -60,8 +60,12 @@ const SPACING_AFTER: Record<string, number> = {
   table: 16,
 };
 
-const GROUP_PADDING_TOP = 32; // label + top padding
+const GROUP_PADDING_TOP_WITH_LABEL = 32; // label + top padding
+const GROUP_PADDING_TOP_NO_LABEL = 10; // just content padding
 const GROUP_PADDING_BOTTOM = 12;
+
+/** Resolved at layout time based on showGroupLabels option */
+let GROUP_PADDING_TOP = GROUP_PADDING_TOP_WITH_LABEL;
 const GROUP_PADDING_X = 12;
 const FRAME_PADDING = 20;
 const TITLE_HEIGHT = 40;
@@ -113,8 +117,12 @@ export interface WireframeLayout {
 export function layoutWireframe(
   parsed: ParsedWireframe,
   _options?: Record<string, string>,
-  overrideWidth?: number
+  overrideWidth?: number,
+  showGroupLabels = true
 ): WireframeLayout {
+  GROUP_PADDING_TOP = showGroupLabels
+    ? GROUP_PADDING_TOP_WITH_LABEL
+    : GROUP_PADDING_TOP_NO_LABEL;
   const defaultWidth =
     parsed.formFactor === 'mobile' ? MOBILE_WIDTH : DESKTOP_WIDTH;
   const frameWidth = overrideWidth ?? defaultWidth;
