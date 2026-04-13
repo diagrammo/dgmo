@@ -4,6 +4,14 @@ Diagrammo is a diagram editor for creating charts and diagrams with a simple pla
 
 Learn more at **[diagrammo.app](https://diagrammo.app)**.
 
+## DGMO and Diagrammo
+
+**DGMO** is the plain-text markup language you write. **Diagrammo** is the app you write it in.
+
+Think of it like Markdown and your editor — Markdown is the syntax, and you can write it anywhere. DGMO works the same way: it's a `.dgmo` text file that describes a diagram. You can create and edit `.dgmo` files in the Diagrammo desktop app, the online editor, Obsidian (via plugin), or any text editor. The `dgmo` CLI renders them from the terminal, and the `@diagrammo/dgmo` npm package lets you render them programmatically.
+
+The name "DGMO" is shorthand for "Diagrammo" — shorter to type, easier to use as a file extension and command name.
+
 ## Getting Started
 
 - **Create a new file** using the file tree on the left, or press **Cmd + N**
