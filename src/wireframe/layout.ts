@@ -311,7 +311,10 @@ function layoutElement(
     children: [],
   };
 
-  if (!el.isContainer || el.children.length === 0) {
+  // Nav and tabs render children internally as a horizontal bar — treat as leaf for layout
+  const selfRendered = el.type === 'nav' || el.type === 'tabs';
+
+  if (!el.isContainer || el.children.length === 0 || selfRendered) {
     // Leaf element — use type-specific height
     node.height = getElementHeight(el);
     return node;
