@@ -104,8 +104,9 @@ export function renderWireframe(
 
   const mainG = svg.append('g').attr('transform', `translate(20, 20)`);
 
-  // Title
-  if (parsed.title) {
+  // Title — only in export mode; live preview renders title in HTML
+  const showSvgTitle = isExport && parsed.title;
+  if (showSvgTitle) {
     mainG
       .append('text')
       .attr('x', 0)
@@ -113,12 +114,13 @@ export function renderWireframe(
       .attr('fill', palette.text)
       .attr('font-size', 20)
       .attr('font-weight', 'bold')
-      .text(parsed.title);
+      .text(parsed.title!);
   }
 
+  const titleOffset = showSvgTitle ? layout.titleHeight : 0;
   const contentG = mainG
     .append('g')
-    .attr('transform', `translate(0, ${layout.titleHeight})`);
+    .attr('transform', `translate(0, ${titleOffset})`);
 
   // Render main nodes
   for (const node of layout.nodes) {
