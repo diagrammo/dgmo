@@ -891,15 +891,109 @@ function renderTable(
           .attr('rx', 2);
       } else if (data[r]) {
         const cellText = data[r][c] || '';
-        g.append('text')
-          .attr('x', c * colW + 10)
-          .attr('y', ry + rowH / 2 + 4)
-          .attr('fill', palette.text)
-          .attr('font-size', 12)
-          .text(cellText);
+        renderTableCell(g, cellText, c * colW + 10, ry, colW - 20, rowH, ctx);
       }
     }
   }
+}
+
+/** Render a table cell — detects button/checkbox patterns in cell text */
+function renderTableCell(
+  g: GSelection,
+  text: string,
+  x: number,
+  y: number,
+  maxW: number,
+  rowH: number,
+  ctx: RenderContext
+): void {
+  const { palette } = ctx;
+  const trimmed = text.trim();
+
+  // Button pattern: `(Label)` or `(Label) | state`
+  const btnMatch = trimmed.match(/^\(([^)]+)\)(?:\s*\|\s*(.+))?$/);
+  if (btnMatch) {
+    const label = btnMatch[1];
+    const stateStr = btnMatch[2]?.trim().toLowerCase();
+    const isGhost = stateStr === 'ghost';
+    const isDestructive = stateStr === 'destructive';
+    const fill = isDestructive ? palette.destructive : palette.primary;
+    const btnW = Math.min(label.length * 7 + 16, maxW);
+    const btnH = 20;
+    const by = y + (rowH - btnH) / 2;
+
+    if (isGhost) {
+      g.append('rect')
+        .attr('x', x)
+        .attr('y', by)
+        .attr('width', btnW)
+        .attr('height', btnH)
+        .attr('fill', 'none')
+        .attr('stroke', fill)
+        .attr('stroke-width', 1)
+        .attr('rx', 3);
+      g.append('text')
+        .attr('x', x + btnW / 2)
+        .attr('y', by + btnH / 2 + 3)
+        .attr('fill', fill)
+        .attr('font-size', 10)
+        .attr('font-weight', '600')
+        .attr('text-anchor', 'middle')
+        .text(label);
+    } else {
+      g.append('rect')
+        .attr('x', x)
+        .attr('y', by)
+        .attr('width', btnW)
+        .attr('height', btnH)
+        .attr('fill', fill)
+        .attr('rx', 3);
+      g.append('text')
+        .attr('x', x + btnW / 2)
+        .attr('y', by + btnH / 2 + 3)
+        .attr('fill', palette.bg)
+        .attr('font-size', 10)
+        .attr('font-weight', '600')
+        .attr('text-anchor', 'middle')
+        .text(label);
+    }
+    return;
+  }
+
+  // Checkbox pattern: `<x>` or `< >`
+  if (/^<\s*x?\s*>$/.test(trimmed)) {
+    const checked = /x/i.test(trimmed);
+    const boxSize = 12;
+    const bx = x;
+    const by = y + (rowH - boxSize) / 2;
+    g.append('rect')
+      .attr('x', bx)
+      .attr('y', by)
+      .attr('width', boxSize)
+      .attr('height', boxSize)
+      .attr('fill', checked ? palette.primary : 'none')
+      .attr('stroke', checked ? palette.primary : palette.border)
+      .attr('rx', 2);
+    if (checked) {
+      g.append('path')
+        .attr(
+          'd',
+          `M${bx + 2},${by + boxSize / 2} L${bx + 4},${by + boxSize / 2 + 2} L${bx + 10},${by + 2}`
+        )
+        .attr('fill', 'none')
+        .attr('stroke', palette.bg)
+        .attr('stroke-width', 1.5);
+    }
+    return;
+  }
+
+  // Plain text
+  g.append('text')
+    .attr('x', x)
+    .attr('y', y + rowH / 2 + 4)
+    .attr('fill', palette.text)
+    .attr('font-size', 12)
+    .text(trimmed);
 }
 
 function renderImage(
