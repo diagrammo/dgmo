@@ -6,6 +6,14 @@ import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
 import { mix } from '../palettes/color-utils';
+import { renderLegendD3 } from '../utils/legend-d3';
+import type {
+  LegendConfig,
+  LegendState,
+  LegendCallbacks,
+} from '../utils/legend-types';
+import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT } from '../utils/title-constants';
+import { measureLegendText } from '../utils/legend-constants';
 import type { WireframeElement, ParsedWireframe } from './types';
 import type { WireframeLayout, WireframeLayoutNode } from './layout';
 
@@ -60,6 +68,17 @@ interface RenderContext {
 // Main Renderer
 // ============================================================
 
+export interface WireframeRenderOptions {
+  exportDims?: { width?: number; height?: number };
+  theme?: string;
+  onClickItem?: (lineNumber: number) => void;
+  /** Controls group state */
+  controlsExpanded?: boolean;
+  fitWidth?: boolean;
+  onControlsExpand?: () => void;
+  onControlsToggle?: (id: string, active: boolean) => void;
+}
+
 export function renderWireframe(
   container: HTMLDivElement,
   parsed: ParsedWireframe,
@@ -68,14 +87,19 @@ export function renderWireframe(
   isDark: boolean,
   _onClickItem?: (lineNumber: number) => void,
   exportDims?: { width?: number; height?: number },
-  theme?: string
+  theme?: string,
+  options?: WireframeRenderOptions
 ): void {
+  // Merge legacy positional args with options
+  const opts = options ?? {};
+  const effectiveExportDims = opts.exportDims ?? exportDims;
+  const effectiveTheme = opts.theme ?? theme;
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
 
-  const width = exportDims?.width ?? container.clientWidth;
-  const height = exportDims?.height ?? container.clientHeight;
+  const isExport = !!effectiveExportDims;
+  const width = effectiveExportDims?.width ?? container.clientWidth;
+  const height = effectiveExportDims?.height ?? container.clientHeight;
 
-  const isExport = !!exportDims;
   const svg = d3Selection
     .select(container)
     .append('svg')
@@ -88,7 +112,7 @@ export function renderWireframe(
 
   const ctx: RenderContext = {
     palette,
-    isTransparent: theme === 'transparent',
+    isTransparent: effectiveTheme === 'transparent',
     isDark,
   };
 
@@ -104,20 +128,70 @@ export function renderWireframe(
 
   const mainG = svg.append('g').attr('transform', `translate(20, 20)`);
 
-  // Title — only in export mode; live preview renders title in HTML
-  const showSvgTitle = isExport && parsed.title;
-  if (showSvgTitle) {
+  // Title
+  let titleOffset = 0;
+  if (parsed.title) {
     mainG
       .append('text')
       .attr('x', 0)
-      .attr('y', 24)
+      .attr('y', TITLE_FONT_SIZE)
       .attr('fill', palette.text)
-      .attr('font-size', 20)
-      .attr('font-weight', 'bold')
-      .text(parsed.title!);
+      .attr('font-size', TITLE_FONT_SIZE)
+      .attr('font-weight', TITLE_FONT_WEIGHT)
+      .text(parsed.title);
+    titleOffset = layout.titleHeight;
   }
 
-  const titleOffset = showSvgTitle ? layout.titleHeight : 0;
+  // Legend with gear pill (controls group)
+  if (!isExport) {
+    const titleWidth = parsed.title
+      ? measureLegendText(parsed.title, TITLE_FONT_SIZE) + 16
+      : 0;
+    const legendConfig: LegendConfig = {
+      groups: [],
+      position: { placement: 'top-center', titleRelation: 'inline-with-title' },
+      mode: 'fixed',
+      titleWidth,
+      controlsGroup: {
+        toggles: [
+          {
+            id: 'fit-width',
+            type: 'toggle',
+            label: 'Fit Width',
+            active: opts.fitWidth ?? true,
+            onToggle: (active: boolean) =>
+              opts.onControlsToggle?.('fit-width', active),
+          },
+        ],
+      },
+    };
+    const legendState: LegendState = {
+      activeGroup: null,
+      controlsExpanded: opts.controlsExpanded ?? false,
+    };
+    const legendPalette = {
+      text: palette.text,
+      textMuted: palette.textMuted,
+      bg: palette.bg,
+      surface: palette.surface,
+      primary: palette.primary,
+    };
+    const legendCallbacks: LegendCallbacks = {
+      onControlsExpand: opts.onControlsExpand,
+      onControlsToggle: opts.onControlsToggle,
+    };
+    const legendG = mainG.append('g').attr('class', 'wireframe-legend');
+    renderLegendD3(
+      legendG,
+      legendConfig,
+      legendState,
+      legendPalette,
+      isDark,
+      legendCallbacks,
+      layout.width - 40
+    );
+  }
+
   const contentG = mainG
     .append('g')
     .attr('transform', `translate(0, ${titleOffset})`);
