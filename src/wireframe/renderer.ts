@@ -230,22 +230,20 @@ function renderGroup(
   const { palette, isTransparent } = ctx;
   const el = node.element;
 
-  // Container background
+  // Container background — shading instead of dashed borders
   if (isTransparent) {
     g.append('rect')
       .attr('width', node.width)
       .attr('height', node.height)
       .attr('fill', 'none')
       .attr('stroke', palette.border)
-      .attr('stroke-dasharray', '4,4')
+      .attr('stroke-width', 0.5)
       .attr('rx', GROUP_CORNER);
   } else {
     g.append('rect')
       .attr('width', node.width)
       .attr('height', node.height)
       .attr('fill', mix(palette.surface, palette.bg, 0.5))
-      .attr('stroke', palette.border)
-      .attr('stroke-dasharray', '4,4')
       .attr('rx', GROUP_CORNER);
   }
 
@@ -894,9 +892,8 @@ function renderSkeletonPlaceholder(
     pg.append('rect')
       .attr('width', node.width)
       .attr('height', node.height)
-      .attr('fill', 'none')
-      .attr('stroke', palette.border)
-      .attr('stroke-dasharray', '4,4')
+      .attr('fill', palette.border)
+      .attr('opacity', 0.1)
       .attr('rx', 4);
   } else {
     pg.append('rect')

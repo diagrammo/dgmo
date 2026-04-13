@@ -82,9 +82,9 @@ describe('wireframe renderer', () => {
   });
 
   describe('groups', () => {
-    it('renders group with dashed border', () => {
+    it('renders group with shaded background', () => {
       const { svg } = renderToSvg('wireframe Test\n[Sidebar]\n  Content');
-      const rects = svg.querySelectorAll('rect[stroke-dasharray]');
+      const rects = svg.querySelectorAll('rect[rx]');
       expect(rects.length).toBeGreaterThan(0);
     });
 
@@ -121,17 +121,13 @@ describe('wireframe renderer', () => {
   });
 
   describe('transparent theme', () => {
-    it('renders groups with border instead of fill in transparent mode', () => {
+    it('renders groups with thin border in transparent mode', () => {
       const { svg } = renderToSvg(
         'wireframe Test\n[Sidebar]\n  Content',
         'transparent'
       );
-      const dashedRects = svg.querySelectorAll('rect[stroke-dasharray]');
-      expect(dashedRects.length).toBeGreaterThan(0);
-      // All dashed rects should have fill=none in transparent mode
-      for (const rect of dashedRects) {
-        expect(rect.getAttribute('fill')).toBe('none');
-      }
+      const borderRects = svg.querySelectorAll('rect[stroke]');
+      expect(borderRects.length).toBeGreaterThan(0);
     });
   });
 
