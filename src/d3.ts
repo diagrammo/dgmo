@@ -6498,6 +6498,7 @@ export async function renderForExport(
     c4System?: string;
     c4Container?: string;
     tagGroup?: string;
+    blRendererV2?: boolean;
   }
 ): Promise<string> {
   // Flowchart and org chart use their own parser pipelines — intercept before parseVisualization()
@@ -6704,20 +6705,9 @@ export async function renderForExport(
 
   if (detectedType === 'boxes-and-lines') {
     const { parseBoxesAndLines } = await import('./boxes-and-lines/parser');
-    const { layoutBoxesAndLines } = await import('./boxes-and-lines/layout');
-    const { renderBoxesAndLinesForExport } =
-      await import('./boxes-and-lines/renderer');
-
     const effectivePalette = await resolveExportPalette(theme, palette);
     const blParsed = parseBoxesAndLines(content);
     if (blParsed.error || blParsed.nodes.length === 0) return '';
-
-    const blLayout = layoutBoxesAndLines(blParsed);
-    const PADDING = 20;
-    const titleOffset = blParsed.title ? 40 : 0;
-    const exportWidth = blLayout.width + PADDING * 2;
-    const exportHeight = blLayout.height + PADDING * 2 + titleOffset;
-    const container = createExportContainer(exportWidth, exportHeight);
 
     // Convert viewState.htv (Record<string, string[]>) to Map<string, Set<string>>
     let blHiddenTagValues: Map<string, Set<string>> | undefined;
@@ -6727,6 +6717,53 @@ export async function renderForExport(
         blHiddenTagValues.set(k, new Set(v));
       }
     }
+
+    if (options?.blRendererV2) {
+      // v2 pipeline: custom layout + routing + renderer
+      const { layoutBoxesAndLinesV2 } =
+        await import('./boxes-and-lines/layout-v2');
+      const { routeEdges } = await import('./boxes-and-lines/routing');
+      const { renderBoxesAndLinesV2ForExport } =
+        await import('./boxes-and-lines/renderer-v2');
+
+      const blLayout = layoutBoxesAndLinesV2(blParsed);
+      blLayout.edges = routeEdges(
+        blLayout.edges,
+        blLayout.nodes,
+        blParsed.direction
+      );
+      const PADDING = 20;
+      const titleOffset = blParsed.title ? 40 : 0;
+      const exportWidth = blLayout.width + PADDING * 2;
+      const exportHeight = blLayout.height + PADDING * 2 + titleOffset;
+      const container = createExportContainer(exportWidth, exportHeight);
+
+      renderBoxesAndLinesV2ForExport(
+        container,
+        blParsed,
+        blLayout,
+        effectivePalette,
+        theme === 'dark',
+        {
+          exportDims: { width: exportWidth, height: exportHeight },
+          activeTagGroup: viewState?.tag ?? options?.tagGroup,
+          hiddenTagValues: blHiddenTagValues,
+        }
+      );
+      return finalizeSvgExport(container, theme, effectivePalette);
+    }
+
+    // v1 pipeline (default)
+    const { layoutBoxesAndLines } = await import('./boxes-and-lines/layout');
+    const { renderBoxesAndLinesForExport } =
+      await import('./boxes-and-lines/renderer');
+
+    const blLayout = layoutBoxesAndLines(blParsed);
+    const PADDING = 20;
+    const titleOffset = blParsed.title ? 40 : 0;
+    const exportWidth = blLayout.width + PADDING * 2;
+    const exportHeight = blLayout.height + PADDING * 2 + titleOffset;
+    const container = createExportContainer(exportWidth, exportHeight);
 
     renderBoxesAndLinesForExport(
       container,

@@ -38,8 +38,7 @@ const CONTAINER_PAD_X = 30;
 const CONTAINER_PAD_TOP = 40;
 const CONTAINER_PAD_BOTTOM = 24;
 const MAX_PARALLEL_EDGES = 5;
-const PARALLEL_SPACING = 12;
-const PARALLEL_EDGE_MARGIN = 10;
+const PARALLEL_SPACING = 22;
 
 // ── Result types ───────────────────────────────────────────
 
@@ -279,10 +278,7 @@ export function layoutBoxesAndLines(
       edgeParallelCounts[idx] = 0;
     }
     if (capped.length < 2) continue;
-    const effectiveSpacing = Math.min(
-      PARALLEL_SPACING,
-      (60 - PARALLEL_EDGE_MARGIN) / (capped.length - 1)
-    );
+    const effectiveSpacing = PARALLEL_SPACING;
     for (let j = 0; j < capped.length; j++) {
       edgeYOffsets[capped[j]] =
         (j - (capped.length - 1) / 2) * effectiveSpacing;

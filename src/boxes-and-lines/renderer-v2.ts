@@ -1,9 +1,8 @@
 // ============================================================
-// Boxes and Lines Diagram — D3 SVG Renderer
+// Boxes and Lines Diagram — D3 SVG Renderer V2
 // ============================================================
 
 import * as d3Selection from 'd3-selection';
-import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
 import { LEGEND_HEIGHT } from '../utils/legend-constants';
 import { renderLegendD3 } from '../utils/legend-d3';
@@ -18,15 +17,15 @@ import { resolveTagColor, resolveActiveTagGroup } from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
 import type { PaletteColors } from '../palettes';
 import type { ParsedBoxesAndLines, BLNode } from './types';
-import type { BLLayoutResult, BLLayoutNode, BLLayoutEdge } from './layout';
+import type { BLLayoutResultV2, BLLayoutNodeV2, BLLayoutEdgeV2 } from './types';
 
-// ── Constants (aligned with infra pattern) ─────────────────
+// ── Constants ─────────────────────────────────────────────
 const DIAGRAM_PADDING = 20;
 const NODE_FONT_SIZE = 13;
 const MIN_NODE_FONT_SIZE = 9;
 const META_FONT_SIZE = 10;
 const EDGE_LABEL_FONT_SIZE = 11;
-const EDGE_STROKE_WIDTH = 1.5;
+const EDGE_STROKE_WIDTH = 1;
 const NODE_STROKE_WIDTH = 1.5;
 const NODE_RX = 8;
 const COLLAPSE_BAR_HEIGHT = 4;
@@ -36,24 +35,13 @@ const CHAR_WIDTH_RATIO = 0.6;
 const NODE_TEXT_PADDING = 12;
 const GROUP_RX = 8;
 const GROUP_LABEL_FONT_SIZE = 14;
+const HOP_RADIUS = 4;
+const DIM_OPACITY = 0.15;
 
 type D3G = d3Selection.Selection<SVGGElement, unknown, null, undefined>;
 type D3Svg = d3Selection.Selection<SVGSVGElement, unknown, null, undefined>;
 
-// ── Edge path generators ───────────────────────────────────
-const lineGeneratorLR = d3Shape
-  .line<{ x: number; y: number }>()
-  .x((d) => d.x)
-  .y((d) => d.y)
-  .curve(d3Shape.curveBasis);
-
-const lineGeneratorTB = d3Shape
-  .line<{ x: number; y: number }>()
-  .x((d) => d.x)
-  .y((d) => d.y)
-  .curve(d3Shape.curveBasis);
-
-// ── Text fitting ───────────────────────────────────────────
+// ── Text fitting (same as v1) ─────────────────────────────
 
 function splitCamelCase(word: string): string[] {
   const parts: string[] = [];
@@ -165,7 +153,7 @@ function fitTextToNode(
   return { lines: [truncated], fontSize: MIN_NODE_FONT_SIZE };
 }
 
-// ── Color helpers ──────────────────────────────────────────
+// ── Color helpers ─────────────────────────────────────────
 
 function nodeColors(
   node: BLNode,
@@ -176,12 +164,12 @@ function nodeColors(
 ): { fill: string; stroke: string; text: string } {
   const tagColor = resolveTagColor(node.metadata, tagGroups, activeGroupName);
   if (tagColor) {
+    // Subtle tinting — color is a whisper, not a shout
     const fill = mix(tagColor, isDark ? palette.surface : palette.bg, 30);
     const stroke = tagColor;
     const text = contrastText(fill, '#eceff4', '#2e3440');
     return { fill, stroke, text };
   }
-  // Untagged fallback (matches infra node styling)
   const fill = mix(palette.bg, palette.text, isDark ? 90 : 95);
   const stroke = mix(palette.text, palette.bg, isDark ? 60 : 40);
   const text = palette.text;
@@ -189,12 +177,11 @@ function nodeColors(
 }
 
 function edgeColor(
-  edge: BLLayoutEdge,
+  edge: BLLayoutEdgeV2,
   tagGroups: TagGroup[],
   activeGroupName: string | null,
   palette: PaletteColors
 ): string {
-  // Only color edges that have explicit tag metadata — otherwise neutral
   const hasTagMeta =
     Object.keys(edge.metadata).length > 0 && activeGroupName != null;
   if (hasTagMeta) {
@@ -204,14 +191,14 @@ function edgeColor(
   return palette.textMuted;
 }
 
-// ── Arrowhead markers ──────────────────────────────────────
+// ── Arrowhead markers ─────────────────────────────────────
 
 function ensureArrowMarkers(
   defs: d3Selection.Selection<SVGDefsElement, unknown, null, undefined>,
   colors: Set<string>
 ): void {
   for (const color of colors) {
-    const id = `bl-arrow-${color.replace('#', '')}`;
+    const id = `bl-v2-arrow-${color.replace(/[^a-zA-Z0-9]/g, '')}`;
     if (!defs.select(`#${id}`).empty()) continue;
     defs
       .append('marker')
@@ -229,8 +216,7 @@ function ensureArrowMarkers(
       )
       .attr('fill', color);
 
-    // Reverse marker for bidirectional
-    const revId = `bl-arrow-rev-${color.replace('#', '')}`;
+    const revId = `bl-v2-arrow-rev-${color.replace('#', '')}`;
     if (!defs.select(`#${revId}`).empty()) continue;
     defs
       .append('marker')
@@ -250,7 +236,7 @@ function ensureArrowMarkers(
   }
 }
 
-// ── Edge label overlap resolution ──────────────────────────
+// ── Edge label overlap resolution ─────────────────────────
 
 function resolveEdgeLabelOverlaps(
   labels: { x: number; y: number; width: number; height: number }[]
@@ -284,22 +270,48 @@ function resolveEdgeLabelOverlaps(
   }
 }
 
-// ── Main render function ───────────────────────────────────
+// ── Hop rendering helper ──────────────────────────────────
 
-interface BLRenderOptions {
+function renderHop(
+  g: D3G,
+  hop: { x: number; y: number },
+  color: string,
+  bgColor: string
+): void {
+  // Small semicircular arc — clear the line with bg, then draw arc
+  g.append('circle')
+    .attr('cx', hop.x)
+    .attr('cy', hop.y)
+    .attr('r', HOP_RADIUS)
+    .attr('fill', bgColor)
+    .attr('stroke', 'none');
+
+  g.append('path')
+    .attr(
+      'd',
+      `M ${hop.x - HOP_RADIUS} ${hop.y} A ${HOP_RADIUS} ${HOP_RADIUS} 0 0 1 ${hop.x + HOP_RADIUS} ${hop.y}`
+    )
+    .attr('fill', 'none')
+    .attr('stroke', color)
+    .attr('stroke-width', EDGE_STROKE_WIDTH);
+}
+
+// ── Main render function ──────────────────────────────────
+
+export interface BLRenderOptionsV2 {
   onClickItem?: (lineNumber: number) => void;
   exportDims?: { width?: number; height?: number };
   activeTagGroup?: string | null;
   hiddenTagValues?: Map<string, Set<string>>;
 }
 
-export function renderBoxesAndLines(
+export function renderBoxesAndLinesV2(
   container: HTMLDivElement,
   parsed: ParsedBoxesAndLines,
-  layout: BLLayoutResult,
+  layout: BLLayoutResultV2,
   palette: PaletteColors,
   isDark: boolean,
-  options?: BLRenderOptions
+  options?: BLRenderOptionsV2
 ): void {
   const { onClickItem, exportDims, activeTagGroup, hiddenTagValues } =
     options ?? {};
@@ -309,23 +321,29 @@ export function renderBoxesAndLines(
   const height = exportDims?.height ?? container.clientHeight;
   if (width <= 0 || height <= 0) return;
 
-  // Determine active tag group — shared utility handles priority chain
   const activeGroup = resolveActiveTagGroup(
     parsed.tagGroups,
     parsed.options['active-tag'],
     activeTagGroup
   );
 
-  // Build hidden set
   const hidden = hiddenTagValues ?? parsed.initialHiddenTagValues;
 
-  // Build node lookup
   const nodeMap = new Map<string, BLNode>();
   for (const node of parsed.nodes) nodeMap.set(node.label, node);
 
-  // Build layout node lookup
-  const layoutNodeMap = new Map<string, BLLayoutNode>();
+  const layoutNodeMap = new Map<string, BLLayoutNodeV2>();
   for (const ln of layout.nodes) layoutNodeMap.set(ln.label, ln);
+
+  // Build edge-to-node connectivity for hover highlighting
+  const nodeEdges = new Map<string, number[]>();
+  for (let i = 0; i < layout.edges.length; i++) {
+    const e = layout.edges[i];
+    if (!nodeEdges.has(e.source)) nodeEdges.set(e.source, []);
+    if (!nodeEdges.has(e.target)) nodeEdges.set(e.target, []);
+    nodeEdges.get(e.source)!.push(i);
+    nodeEdges.get(e.target)!.push(i);
+  }
 
   // Compute diagram bounds for scaling
   const titleOffset = parsed.title ? 40 : 0;
@@ -351,7 +369,7 @@ export function renderBoxesAndLines(
 
   const defs = svg.append('defs');
 
-  // Title
+  // Title — generous separation
   if (parsed.title) {
     svg
       .append('text')
@@ -364,12 +382,13 @@ export function renderBoxesAndLines(
       .text(parsed.title);
   }
 
-  // Main diagram group with scaling
+  // Main diagram group
   const diagramG = svg
     .append('g')
+    .attr('class', 'bl-v2-diagram')
     .attr('transform', `translate(${offsetX},${offsetY}) scale(${scale})`);
 
-  // Collect all edge colors for arrowhead markers
+  // Collect edge colors
   const arrowColors = new Set<string>();
   const edgeColorMap = new Map<number, string>();
   for (let i = 0; i < layout.edges.length; i++) {
@@ -384,19 +403,17 @@ export function renderBoxesAndLines(
   }
   ensureArrowMarkers(defs, arrowColors);
 
-  // ── Render groups (bottom layer, largest first for nesting) ──
+  // ── Render groups (bottom layer, largest first) ──
   const sortedGroups = [...layout.groups].sort(
     (a, b) => b.width * b.height - a.width * a.height
   );
-  for (const group of sortedGroups) {
-    const gx = group.x - group.width / 2;
-    const gy = group.y - group.height / 2;
 
+  for (const group of sortedGroups) {
     const groupG = diagramG
       .append('g')
       .attr(
         'class',
-        group.collapsed ? 'bl-group bl-group-collapsed' : 'bl-group'
+        group.collapsed ? 'bl-v2-group bl-v2-group-collapsed' : 'bl-v2-group'
       )
       .attr('data-line-number', String(group.lineNumber))
       .attr('data-node-id', group.label)
@@ -404,14 +421,13 @@ export function renderBoxesAndLines(
       .style('cursor', 'pointer');
 
     if (group.collapsed) {
-      // Collapsed: solid rounded rect matching node style + 6px collapse bar
       const fillColor = isDark ? palette.surface : palette.bg;
       const strokeColor = palette.border;
 
       groupG
         .append('rect')
-        .attr('x', gx)
-        .attr('y', gy)
+        .attr('x', group.x)
+        .attr('y', group.y)
         .attr('width', group.width)
         .attr('height', group.height)
         .attr('rx', NODE_RX)
@@ -420,33 +436,31 @@ export function renderBoxesAndLines(
         .attr('stroke', strokeColor)
         .attr('stroke-width', NODE_STROKE_WIDTH);
 
-      // 6px collapse bar at bottom (clipped to rounded corners)
-      const clipId = `bl-clip-${group.label.replace(/[[\]\s]/g, '')}`;
+      const clipId = `bl-v2-clip-${group.label.replace(/[[\]\s]/g, '')}`;
       groupG
         .append('clipPath')
         .attr('id', clipId)
         .append('rect')
-        .attr('x', gx)
-        .attr('y', gy)
+        .attr('x', group.x)
+        .attr('y', group.y)
         .attr('width', group.width)
         .attr('height', group.height)
         .attr('rx', NODE_RX);
       groupG
         .append('rect')
-        .attr('x', gx)
-        .attr('y', gy + group.height - COLLAPSE_BAR_HEIGHT)
+        .attr('x', group.x)
+        .attr('y', group.y + group.height - COLLAPSE_BAR_HEIGHT)
         .attr('width', group.width)
         .attr('height', COLLAPSE_BAR_HEIGHT)
         .attr('fill', strokeColor)
         .attr('clip-path', `url(#${clipId})`)
-        .attr('class', 'bl-collapse-bar');
+        .attr('class', 'bl-v2-collapse-bar');
 
-      // Label centered vertically
       groupG
         .append('text')
-        .attr('class', 'bl-group-label')
-        .attr('x', group.x)
-        .attr('y', group.y)
+        .attr('class', 'bl-v2-group-label')
+        .attr('x', group.x + group.width / 2)
+        .attr('y', group.y + group.height / 2)
         .attr('text-anchor', 'middle')
         .attr('dominant-baseline', 'central')
         .attr('font-family', FONT_FAMILY)
@@ -455,25 +469,27 @@ export function renderBoxesAndLines(
         .attr('fill', palette.text)
         .text(group.label);
     } else {
-      // Expanded: background container with label
+      // Different shading intensity per nesting level
+      const nestAlpha = Math.max(20, 40 - group.nestingLevel * 10);
       groupG
         .append('rect')
-        .attr('x', gx)
-        .attr('y', gy)
+        .attr('x', group.x)
+        .attr('y', group.y)
         .attr('width', group.width)
         .attr('height', group.height)
         .attr('rx', GROUP_RX)
         .attr('ry', GROUP_RX)
-        .attr('fill', mix(palette.surface, palette.bg, 40))
+        .attr('fill', mix(palette.surface, palette.bg, nestAlpha))
         .attr('stroke', palette.textMuted)
         .attr('stroke-width', 1)
-        .attr('stroke-opacity', 0.35);
+        .attr('stroke-opacity', 0.35)
+        .attr('stroke-dasharray', group.nestingLevel > 0 ? '4,2' : 'none');
 
       groupG
         .append('text')
-        .attr('class', 'bl-group-label')
-        .attr('x', gx + group.width / 2)
-        .attr('y', gy + 18)
+        .attr('class', 'bl-v2-group-label')
+        .attr('x', group.x + group.width / 2)
+        .attr('y', group.y + 18)
         .attr('text-anchor', 'middle')
         .attr('font-family', FONT_FAMILY)
         .attr('font-size', GROUP_LABEL_FONT_SIZE)
@@ -483,8 +499,7 @@ export function renderBoxesAndLines(
     }
   }
 
-  // ── Render edges ───────────────────────────────────────
-  // Collect label positions for overlap resolution
+  // ── Render edges ────────────────────────────────────────
   const labelPositions: {
     x: number;
     y: number;
@@ -493,14 +508,13 @@ export function renderBoxesAndLines(
     idx: number;
   }[] = [];
 
-  // Store edge group elements for label pass
-  const edgeGroups = new Map<number, D3G>();
+  const edgeGroupElements = new Map<number, D3G>();
 
   for (let i = 0; i < layout.edges.length; i++) {
     const le = layout.edges[i];
     const color = edgeColorMap.get(i) ?? palette.textMuted;
 
-    // Check if hidden
+    // Check if hidden by tag filter
     if (hidden.size > 0) {
       let isHidden = false;
       for (const [groupKey, hiddenVals] of hidden) {
@@ -513,132 +527,95 @@ export function renderBoxesAndLines(
       if (isHidden) continue;
     }
 
-    // Self-loop: render as a smooth circular arc below the node
-    if (le.source === le.target) {
-      const nodeLayout = layoutNodeMap.get(le.source);
-      if (nodeLayout) {
-        const edgeG = diagramG
-          .append('g')
-          .attr('class', 'bl-edge-group')
-          .attr('data-line-number', String(le.lineNumber));
-        edgeGroups.set(i, edgeG as unknown as D3G);
-
-        const markerId = `bl-arrow-${color.replace('#', '')}`;
-        const cx = nodeLayout.x;
-        const cy = nodeLayout.y;
-        const hw = nodeLayout.width / 2;
-        const hh = nodeLayout.height / 2;
-        const pad = 20; // clearance from node edge
-
-        // Arc exits from bottom of right side, swings wide, returns to right of bottom side
-        const startX = cx + hw;
-        const startY = cy + hh * 0.4;
-        const endX = cx + hw * 0.4;
-        const endY = cy + hh;
-
-        // Control points swing far out to create a smooth circular arc
-        const cp1x = startX + hw + pad;
-        const cp1y = startY;
-        const cp2x = endX;
-        const cp2y = endY + hh + pad;
-
-        edgeG
-          .append('path')
-          .attr('class', 'bl-edge')
-          .attr(
-            'd',
-            `M ${startX} ${startY} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${endX} ${endY}`
-          )
-          .attr('fill', 'none')
-          .attr('stroke', color)
-          .attr('stroke-width', EDGE_STROKE_WIDTH)
-          .attr('marker-end', `url(#${markerId})`);
-      }
-      continue;
-    }
-
-    // Parallel edge fan: construct explicit 5-point geometry so lines
-    // bundle at ports and visibly spread apart in the middle.
-    let points: { x: number; y: number }[];
-    if (le.yOffset !== 0 && le.parallelCount > 1) {
-      const srcLayout = layoutNodeMap.get(le.source);
-      const tgtLayout = layoutNodeMap.get(le.target);
-      const srcY = srcLayout?.y ?? le.points[0]?.y ?? 0;
-      const tgtY = tgtLayout?.y ?? le.points[le.points.length - 1]?.y ?? 0;
-      const srcX = le.points[0]?.x ?? 0;
-      const tgtX = le.points[le.points.length - 1]?.x ?? 0;
-      const midX = (srcX + tgtX) / 2;
-      const midY = (srcY + tgtY) / 2;
-
-      points = [
-        { x: srcX, y: srcY }, // port (bundled)
-        { x: srcX + (midX - srcX) * 0.3, y: srcY + le.yOffset * 0.5 }, // separate
-        { x: midX, y: midY + le.yOffset }, // full spread
-        { x: tgtX - (tgtX - midX) * 0.3, y: tgtY + le.yOffset * 0.5 }, // converge
-        { x: tgtX, y: tgtY }, // port (bundled)
-      ];
-    } else {
-      points = le.points.map((p) => ({ x: p.x, y: p.y }));
-    }
-    if (points.length < 2) continue;
-
     const edgeG = diagramG
       .append('g')
-      .attr('class', 'bl-edge-group')
-      .attr('data-line-number', String(le.lineNumber));
-    edgeGroups.set(i, edgeG as unknown as D3G);
+      .attr('class', 'bl-v2-edge-group')
+      .attr('data-line-number', String(le.lineNumber))
+      .attr('data-edge-index', String(i));
+    edgeGroupElements.set(i, edgeG as unknown as D3G);
 
-    const markerId = `bl-arrow-${color.replace('#', '')}`;
-    const gen = parsed.direction === 'TB' ? lineGeneratorTB : lineGeneratorLR;
+    const markerId = `bl-v2-arrow-${color.replace(/[^a-zA-Z0-9]/g, '')}`;
+
+    // Render using pre-computed smoothPath
     const path = edgeG
       .append('path')
-      .attr('class', 'bl-edge')
-      .attr('d', gen(points) ?? '')
+      .attr('class', 'bl-v2-edge')
+      .attr('d', le.smoothPath)
       .attr('fill', 'none')
       .attr('stroke', color)
       .attr('stroke-width', EDGE_STROKE_WIDTH)
       .attr('marker-end', `url(#${markerId})`);
 
     if (le.bidirectional) {
-      const revId = `bl-arrow-rev-${color.replace('#', '')}`;
+      const revId = `bl-v2-arrow-rev-${color.replace('#', '')}`;
       path.attr('marker-start', `url(#${revId})`);
     }
 
-    // Edge label — for parallel edges, place relative to each line:
-    // negative offset (top line) → label above, zero → on line, positive → below
-    if (le.label && le.labelX != null && le.labelY != null) {
-      const lw = le.label.length * EDGE_LABEL_FONT_SIZE * CHAR_WIDTH_RATIO;
-      const labelH = EDGE_LABEL_FONT_SIZE + 6;
-      let ly: number;
-      if (le.parallelCount > 1 && le.yOffset !== 0) {
-        // Position label on the line at midpoint, shifted above/below based on offset sign
-        const lineY = le.labelY + 10 + le.yOffset; // +10 to undo the -10 in layout
-        const labelShift = le.yOffset < 0 ? -labelH : labelH;
-        ly = lineY + labelShift * 0.5;
-      } else {
-        ly = le.labelY + le.yOffset;
+    // Render crossing hops
+    for (const hop of le.hops) {
+      renderHop(edgeG as unknown as D3G, hop, color, palette.bg);
+    }
+
+    // Edge label position — geometric midpoint along path length
+    if (le.label && le.routedPath.length >= 2) {
+      // Compute cumulative distances to find true midpoint
+      let totalLen = 0;
+      const segLens: number[] = [];
+      for (let si = 0; si < le.routedPath.length - 1; si++) {
+        const dx = le.routedPath[si + 1].x - le.routedPath[si].x;
+        const dy = le.routedPath[si + 1].y - le.routedPath[si].y;
+        const sl = Math.sqrt(dx * dx + dy * dy);
+        segLens.push(sl);
+        totalLen += sl;
       }
+      const halfLen = totalLen / 2;
+      let accum = 0;
+      let lx = le.routedPath[0].x;
+      let ly = le.routedPath[0].y;
+      for (let si = 0; si < segLens.length; si++) {
+        if (accum + segLens[si] >= halfLen) {
+          const t = segLens[si] > 0 ? (halfLen - accum) / segLens[si] : 0;
+          lx =
+            le.routedPath[si].x +
+            t * (le.routedPath[si + 1].x - le.routedPath[si].x);
+          ly =
+            le.routedPath[si].y +
+            t * (le.routedPath[si + 1].y - le.routedPath[si].y);
+          break;
+        }
+        accum += segLens[si];
+      }
+      const lw = le.label.length * EDGE_LABEL_FONT_SIZE * CHAR_WIDTH_RATIO;
+
+      // Short edge: shift label outside midpoint
+      const edgeLen = Math.sqrt(
+        (le.routedPath[0].x - le.routedPath[le.routedPath.length - 1].x) ** 2 +
+          (le.routedPath[0].y - le.routedPath[le.routedPath.length - 1].y) ** 2
+      );
+      const yShift = edgeLen < 80 ? -15 : -10;
+
       labelPositions.push({
-        x: le.labelX,
-        y: ly,
+        x: lx,
+        y: ly + yShift,
         width: lw + 8,
-        height: labelH,
+        height: EDGE_LABEL_FONT_SIZE + 6,
         idx: i,
       });
     }
   }
 
-  // Resolve overlaps
+  // Resolve label overlaps
   resolveEdgeLabelOverlaps(labelPositions);
 
-  // Render edge labels into their edge groups
+  // Render edge labels
   for (const lp of labelPositions) {
     const le = layout.edges[lp.idx];
     if (!le.label) continue;
 
-    const edgeG = edgeGroups.get(lp.idx);
+    const edgeG = edgeGroupElements.get(lp.idx);
     const target = edgeG ?? diagramG;
 
+    // Knockout rectangle
     target
       .append('rect')
       .attr('x', lp.x - lp.width / 2)
@@ -649,6 +626,7 @@ export function renderBoxesAndLines(
       .attr('fill', palette.bg)
       .attr('opacity', 0.85);
 
+    // Label text — smaller, lighter (second-class citizen)
     target
       .append('text')
       .attr('x', lp.x)
@@ -659,7 +637,7 @@ export function renderBoxesAndLines(
       .text(le.label);
   }
 
-  // ── Render nodes ───────────────────────────────────────
+  // ── Render nodes ────────────────────────────────────────
   for (const ln of layout.nodes) {
     const node = nodeMap.get(ln.label);
     if (!node) continue;
@@ -687,14 +665,16 @@ export function renderBoxesAndLines(
 
     const nodeG = diagramG
       .append('g')
-      .attr('class', 'bl-node')
-      .attr('transform', `translate(${ln.x},${ln.y})`)
+      .attr('class', 'bl-v2-node')
+      .attr(
+        'transform',
+        `translate(${ln.x + ln.width / 2},${ln.y + ln.height / 2})`
+      )
       .attr('data-line-number', node.lineNumber)
       .attr('data-node-id', node.label)
-      .style('cursor', onClickItem ? 'pointer' : 'default')
-      .style('--bl-node-stroke', colors.stroke);
+      .style('cursor', onClickItem ? 'pointer' : 'default');
 
-    // Add tag metadata as data attributes for legend hover dimming
+    // Tag metadata for legend hover dimming
     for (const [key, val] of Object.entries(node.metadata)) {
       nodeG.attr(`data-tag-${key.toLowerCase()}`, val.toLowerCase());
     }
@@ -703,11 +683,26 @@ export function renderBoxesAndLines(
       nodeG.on('click', () => onClickItem(node.lineNumber));
     }
 
-    // Rectangle card
+    // Hover highlighting
+    if (!exportDims) {
+      nodeG.on('mouseenter', () => {
+        const connectedEdges = new Set(nodeEdges.get(ln.label) ?? []);
+        // Dim all non-connected edges
+        diagramG.selectAll('.bl-v2-edge-group').each(function () {
+          const el = d3Selection.select(this);
+          const idx = parseInt(el.attr('data-edge-index') ?? '-1', 10);
+          el.attr('opacity', connectedEdges.has(idx) ? 1 : DIM_OPACITY);
+        });
+      });
+      nodeG.on('mouseleave', () => {
+        diagramG.selectAll('.bl-v2-edge-group').attr('opacity', 1);
+      });
+    }
+
+    // Node rectangle — flat, no shadows
     const x = -ln.width / 2;
     const y = -ln.height / 2;
 
-    // Background rect
     nodeG
       .append('rect')
       .attr('x', x)
@@ -720,7 +715,7 @@ export function renderBoxesAndLines(
       .attr('stroke', colors.stroke)
       .attr('stroke-width', NODE_STROKE_WIDTH);
 
-    // All text centered vertically using dominant-baseline: central
+    // Text fitting
     if (node.description) {
       const lineH = NODE_FONT_SIZE * 1.3;
       const gap = 2;
@@ -777,7 +772,7 @@ export function renderBoxesAndLines(
     }
   }
 
-  // ── Render legend ──────────────────────────────────────
+  // ── Render legend ───────────────────────────────────────
   if (parsed.tagGroups.length > 0) {
     const legendConfig: LegendConfig = {
       groups: parsed.tagGroups,
@@ -797,16 +792,18 @@ export function renderBoxesAndLines(
       undefined,
       width
     );
-    legendG.selectAll('[data-legend-group]').classed('bl-legend-group', true);
+    legendG
+      .selectAll('[data-legend-group]')
+      .classed('bl-v2-legend-group', true);
   }
 }
 
-// ── Export helper ──────────────────────────────────────────
+// ── Export renderer ────────────────────────────────────────
 
-export function renderBoxesAndLinesForExport(
+export function renderBoxesAndLinesV2ForExport(
   container: HTMLDivElement,
   parsed: ParsedBoxesAndLines,
-  layout: BLLayoutResult,
+  layout: BLLayoutResultV2,
   palette: PaletteColors,
   isDark: boolean,
   options?: {
@@ -815,7 +812,7 @@ export function renderBoxesAndLinesForExport(
     hiddenTagValues?: Map<string, Set<string>>;
   }
 ): void {
-  renderBoxesAndLines(container, parsed, layout, palette, isDark, {
+  renderBoxesAndLinesV2(container, parsed, layout, palette, isDark, {
     exportDims: options?.exportDims,
     activeTagGroup: options?.activeTagGroup,
     hiddenTagValues: options?.hiddenTagValues,
