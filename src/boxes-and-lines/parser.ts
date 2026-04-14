@@ -20,7 +20,7 @@ import {
   OPTION_NOCOLON_RE,
 } from '../utils/parsing';
 
-const MAX_GROUP_DEPTH = 1;
+const MAX_GROUP_DEPTH = 2;
 
 /** Boxes-and-lines requires explicit first line — no heuristic detection. */
 export function looksLikeBoxesAndLines(_content: string): boolean {
@@ -387,12 +387,19 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
         }
       }
 
+      const parentGs = currentGroupState();
       const group: BLGroup = {
         label,
         children: [],
         lineNumber: lineNum,
         metadata: groupMeta,
+        ...(parentGs ? { parentGroup: parentGs.group.label } : {}),
       };
+
+      // Add nested group as child of parent group
+      if (parentGs && indent > parentGs.indent) {
+        parentGs.group.children.push(label);
+      }
 
       groupLabels.add(label);
       groupStack.push({ group, indent, depth: currentDepth });

@@ -390,8 +390,11 @@ export function renderBoxesAndLines(
   }
   ensureArrowMarkers(defs, arrowColors);
 
-  // ── Render groups (bottom layer) ───────────────────────
-  for (const group of layout.groups) {
+  // ── Render groups (bottom layer, largest first for nesting) ──
+  const sortedGroups = [...layout.groups].sort(
+    (a, b) => b.width * b.height - a.width * a.height
+  );
+  for (const group of sortedGroups) {
     const gx = group.x - group.width / 2;
     const gy = group.y - group.height / 2;
 

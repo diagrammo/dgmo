@@ -22,6 +22,7 @@ export interface BLGroup {
   children: string[];
   lineNumber: number;
   metadata: Record<string, string>;
+  parentGroup?: string;
 }
 
 export interface ParsedBoxesAndLines {

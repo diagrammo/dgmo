@@ -190,9 +190,30 @@ describe('boxes-and-lines parser', () => {
   });
 
   describe('nested groups', () => {
-    it('warns on 2-level nesting (nesting not supported)', () => {
+    it('parses 2-level nested groups', () => {
       const result = parseBoxesAndLines(
         'boxes-and-lines\n[AWS]\n  [us-east-1]\n    API\n    DB'
+      );
+      expect(
+        result.diagnostics.some((d) => d.message.includes('maximum depth'))
+      ).toBe(false);
+      expect(result.groups).toHaveLength(2);
+
+      const inner = result.groups.find((g) => g.label === 'us-east-1');
+      expect(inner).toBeDefined();
+      expect(inner!.children).toContain('API');
+      expect(inner!.children).toContain('DB');
+      expect(inner!.parentGroup).toBe('AWS');
+
+      const outer = result.groups.find((g) => g.label === 'AWS');
+      expect(outer).toBeDefined();
+      expect(outer!.children).toContain('us-east-1');
+      expect(outer!.parentGroup).toBeUndefined();
+    });
+
+    it('warns on 3-level nesting (exceeds max depth)', () => {
+      const result = parseBoxesAndLines(
+        'boxes-and-lines\n[A]\n  [B]\n    [C]\n      X'
       );
       expect(
         result.diagnostics.some((d) => d.message.includes('maximum depth'))

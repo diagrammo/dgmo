@@ -157,10 +157,26 @@ export function layoutBoxesAndLines(
     });
   }
 
+  // Set parent relationships for nested groups
+  for (const group of parsed.groups) {
+    if (group.parentGroup) {
+      const childGid = `__group_${group.label}`;
+      const parentGid = `__group_${group.parentGroup}`;
+      if (g.hasNode(childGid) && g.hasNode(parentGid)) {
+        g.setParent(childGid, parentGid);
+      }
+    }
+  }
+
+  // Build set of group labels for skip-check below
+  const groupLabelSet = new Set(parsed.groups.map((gr) => gr.label));
+
   // Set parent relationships for nodes in groups
   for (const group of parsed.groups) {
     const gid = `__group_${group.label}`;
     for (const child of group.children) {
+      // Skip children that are sub-groups — their parent is set above
+      if (groupLabelSet.has(child)) continue;
       if (g.hasNode(child)) {
         g.setParent(child, gid);
       }
