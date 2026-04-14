@@ -88,7 +88,7 @@ function truncateLastLine(
   return result;
 }
 
-export interface WrapResult {
+interface WrapResult {
   lines: string[];
   fontSize: number;
 }
@@ -157,7 +157,7 @@ function labelFontSize(depth: number): number {
   return Math.max(MIN_FONT_SIZE, ROOT_FONT_SIZE - depth * FONT_STEP);
 }
 
-export interface NodeTextLayout {
+interface NodeTextLayout {
   labelLines: string[];
   labelFontSize: number;
   descLines: string[];
