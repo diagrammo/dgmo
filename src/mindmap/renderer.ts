@@ -14,6 +14,7 @@ import type { ParsedMindmap } from './types';
 import type { MindmapLayoutResult } from './types';
 import { parseMindmap } from './parser';
 import { layoutMindmap } from './layout';
+import { computeNodeText } from './text-wrap';
 import { renderLegendD3 } from '../utils/legend-d3';
 import type { LegendConfig, LegendState } from '../utils/legend-types';
 import { LEGEND_HEIGHT, LEGEND_GROUP_GAP } from '../utils/legend-constants';
@@ -26,24 +27,14 @@ import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT } from '../utils/title-constants';
 const DIAGRAM_PADDING = 20;
 const MAX_SCALE = 3;
 const TITLE_HEIGHT = 30;
-const ROOT_FONT_SIZE = 17;
-const MIN_FONT_SIZE = 9;
-const FONT_STEP = 3; // decrease per depth level
-const LABEL_HEIGHT = 28;
-const DESC_FONT_SIZE = 10;
+const SINGLE_LABEL_HEIGHT = 28;
+const LABEL_LINE_HEIGHT = 18;
+const DESC_LINE_HEIGHT = 14;
 const NODE_RADIUS = 6;
 const ROOT_STROKE_WIDTH = 2.5;
 const NODE_STROKE_WIDTH = 1.5;
 const EDGE_STROKE_WIDTH = 1.5;
 const COLLAPSE_BAR_HEIGHT = 6;
-
-// ============================================================
-// Color helpers
-// ============================================================
-
-function labelFontSize(depth: number): number {
-  return Math.max(MIN_FONT_SIZE, ROOT_FONT_SIZE - depth * FONT_STEP);
-}
 
 function nodeFill(
   palette: PaletteColors,
@@ -343,39 +334,79 @@ export function renderMindmap(
       .attr('stroke-width', strokeW);
 
     // Determine if description is visible (needed for label centering)
-    const showDesc =
-      !hideDescriptions &&
-      !!node.description &&
-      !(node.hiddenCount != null && node.hiddenCount > 0);
+    const collapsed = node.hiddenCount != null && node.hiddenCount > 0;
+    const showDesc = !hideDescriptions && !!node.description && !collapsed;
+
+    // Compute wrapped text layout (same logic as layout.ts for sizing agreement)
+    const textLayout = computeNodeText(
+      node.label,
+      node.description,
+      node.depth,
+      node.width,
+      hideDescriptions || collapsed
+    );
+    const {
+      labelLines,
+      labelFontSize: fontSize,
+      descLines,
+      descFontSize,
+    } = textLayout;
+
+    // Label zone height
+    const labelLineCount = labelLines.length;
+    const labelZoneH =
+      labelLineCount <= 1
+        ? SINGLE_LABEL_HEIGHT
+        : LABEL_LINE_HEIGHT * labelLineCount;
+    const labelZoneHeight = showDesc ? labelZoneH : node.height;
 
     // Label text — vertically centered in the label zone
-    const fontSize = labelFontSize(node.depth);
-    const labelZoneHeight = showDesc ? LABEL_HEIGHT : node.height;
-    const labelY = node.y + labelZoneHeight / 2 + fontSize * 0.35;
-    const maxChars = Math.floor((node.width - 16) / 7);
-    const displayLabel =
-      node.label.length > maxChars
-        ? node.label.substring(0, maxChars - 1) + '\u2026'
-        : node.label;
+    const centerX = node.x + node.width / 2;
+    if (labelLineCount <= 1) {
+      // Single line — simple centering
+      const labelY = node.y + labelZoneHeight / 2 + fontSize * 0.35;
+      nodeG
+        .append('text')
+        .attr('x', centerX)
+        .attr('y', labelY)
+        .attr('text-anchor', 'middle')
+        .attr('font-size', fontSize)
+        .attr('font-weight', isRoot ? 'bold' : 'normal')
+        .attr('fill', palette.text)
+        .text(labelLines[0]);
+    } else {
+      // Multi-line — use tspan elements
+      // Visual text block spans from first baseline to last baseline:
+      //   blockH = (lineCount - 1) * lineHeight
+      // Center that block in the zone, then offset each baseline by fontSize * 0.35
+      const blockH = LABEL_LINE_HEIGHT * (labelLineCount - 1);
+      const firstBaselineY =
+        node.y + labelZoneHeight / 2 - blockH / 2 + fontSize * 0.35;
+      const textEl = nodeG
+        .append('text')
+        .attr('x', centerX)
+        .attr('text-anchor', 'middle')
+        .attr('font-size', fontSize)
+        .attr('font-weight', isRoot ? 'bold' : 'normal')
+        .attr('fill', palette.text);
 
-    nodeG
-      .append('text')
-      .attr('x', node.x + node.width / 2)
-      .attr('y', labelY)
-      .attr('text-anchor', 'middle')
-      .attr('font-size', labelFontSize(node.depth))
-      .attr('font-weight', isRoot ? 'bold' : 'normal')
-      .attr('fill', palette.text)
-      .text(displayLabel);
+      for (let i = 0; i < labelLines.length; i++) {
+        textEl
+          .append('tspan')
+          .attr('x', centerX)
+          .attr('y', firstBaselineY + i * LABEL_LINE_HEIGHT)
+          .text(labelLines[i]);
+      }
+    }
 
-    // Hover tooltip for truncated labels — on the <g>, not on <text>
-    if (node.label.length > maxChars) {
+    // Hover tooltip for truncated/wrapped labels — on the <g>, not on <text>
+    if (labelLines.length > 1 || labelLines[0] !== node.label) {
       nodeG.append('title').text(node.label);
     }
 
-    // Description — separator line + muted text below label (org chart pattern)
-    if (showDesc) {
-      const separatorY = node.y + LABEL_HEIGHT;
+    // Description — separator line + muted text below label
+    if (showDesc && descLines.length > 0) {
+      const separatorY = node.y + labelZoneH;
 
       // Separator line
       nodeG
@@ -389,21 +420,32 @@ export function renderMindmap(
         .attr('stroke-width', 1);
 
       // Description text
-      const descY = separatorY + 4 + DESC_FONT_SIZE;
-      const descMaxChars = Math.floor((node.width - 16) / 6);
-      const displayDesc =
-        node.description!.length > descMaxChars
-          ? node.description!.substring(0, descMaxChars - 1) + '\u2026'
-          : node.description!;
-
-      nodeG
-        .append('text')
-        .attr('x', node.x + node.width / 2)
-        .attr('y', descY)
-        .attr('text-anchor', 'middle')
-        .attr('font-size', DESC_FONT_SIZE)
-        .attr('fill', palette.textMuted)
-        .text(displayDesc);
+      if (descLines.length <= 1) {
+        const descY = separatorY + 4 + descFontSize;
+        nodeG
+          .append('text')
+          .attr('x', centerX)
+          .attr('y', descY)
+          .attr('text-anchor', 'middle')
+          .attr('font-size', descFontSize)
+          .attr('fill', palette.textMuted)
+          .text(descLines[0]);
+      } else {
+        const descStartY = separatorY + 4 + descFontSize;
+        const descTextEl = nodeG
+          .append('text')
+          .attr('x', centerX)
+          .attr('text-anchor', 'middle')
+          .attr('font-size', descFontSize)
+          .attr('fill', palette.textMuted);
+        for (let i = 0; i < descLines.length; i++) {
+          descTextEl
+            .append('tspan')
+            .attr('x', centerX)
+            .attr('y', descStartY + i * DESC_LINE_HEIGHT)
+            .text(descLines[i]);
+        }
+      }
     }
 
     // Collapse drill-bar (interactive mode only)

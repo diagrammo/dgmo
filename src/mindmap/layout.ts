@@ -17,6 +17,7 @@ import type { ParsedMindmap } from './types';
 import type { PaletteColors } from '../palettes';
 import type { TagGroup } from '../utils/tag-groups';
 import { resolveTagColor, injectDefaultTagMetadata } from '../utils/tag-groups';
+import { computeNodeText } from './text-wrap';
 
 // ============================================================
 // Constants
@@ -26,8 +27,9 @@ const ROOT_WIDTH = 180;
 const DEPTH1_WIDTH = 150;
 const LEAF_WIDTH = 120;
 
-const LABEL_HEIGHT = 28;
-const DESC_LINE_HEIGHT = 16;
+const SINGLE_LABEL_HEIGHT = 28;
+const LABEL_LINE_HEIGHT = 18; // per line when multi-line
+const DESC_LINE_HEIGHT = 14; // per description line
 const NODE_V_PAD = 10;
 
 const H_GAP = 40; // horizontal gap between parent edge and child edge
@@ -78,6 +80,9 @@ export function layoutMindmap(
   const hiddenCounts = options?.hiddenCounts ?? new Map<string, number>();
   const activeTagGroup = options?.activeTagGroup ?? null;
   const hideDescriptions = options?.hideDescriptions ?? false;
+
+  // Populate depth cache for nodeHeight() wrapping calculations
+  populateDepthCache(roots);
 
   // Inject default tag metadata (idempotent — fills empty metadata keys)
   const allNodes: MindmapNode[] = [];
@@ -554,9 +559,47 @@ function nodeWidth(depth: number): number {
 }
 
 function nodeHeight(node: MindmapNode, hideDescriptions: boolean): number {
-  let h = LABEL_HEIGHT + NODE_V_PAD;
-  if (!hideDescriptions && node.description) {
-    h += DESC_LINE_HEIGHT;
+  const depth = getNodeDepth(node);
+  const w = nodeWidth(depth);
+  const text = computeNodeText(
+    node.label,
+    node.description,
+    depth,
+    w,
+    hideDescriptions
+  );
+  const labelLineCount = text.labelLines.length;
+  const labelH =
+    labelLineCount <= 1
+      ? SINGLE_LABEL_HEIGHT
+      : LABEL_LINE_HEIGHT * labelLineCount;
+  let h = labelH + NODE_V_PAD;
+  if (text.descLines.length > 0) {
+    h += DESC_LINE_HEIGHT * text.descLines.length + 4; // 4px separator gap
   }
   return h;
+}
+
+/** Walk parentId chain to compute depth. Cached via roots traversal isn't needed — trees are small. */
+function getNodeDepth(node: MindmapNode): number {
+  // The node structure doesn't carry depth directly, but we can
+  // infer from the layout context. For nodeHeight we need depth
+  // for font sizing. Use a simple heuristic: walk up parentId.
+  // Since MindmapNode doesn't have a parent reference (only parentId),
+  // and we don't have the node map here, we use a depth cache.
+  return nodeDepthCache.get(node.id) ?? 0;
+}
+
+const nodeDepthCache = new Map<string, number>();
+
+/** Populate depth cache by walking the tree. Call before layout. */
+function populateDepthCache(roots: MindmapNode[]): void {
+  nodeDepthCache.clear();
+  const walk = (nodes: MindmapNode[], depth: number) => {
+    for (const n of nodes) {
+      nodeDepthCache.set(n.id, depth);
+      walk(n.children, depth + 1);
+    }
+  };
+  walk(roots, 0);
 }
