@@ -234,19 +234,6 @@ export {
   renderBoxesAndLinesForExport,
 } from './boxes-and-lines/renderer';
 
-export { layoutBoxesAndLinesV2 } from './boxes-and-lines/layout-v2';
-export type {
-  BLLayoutResultV2,
-  BLLayoutNodeV2,
-  BLLayoutEdgeV2,
-  BLLayoutGroupV2,
-} from './boxes-and-lines/types';
-export {
-  renderBoxesAndLinesV2,
-  renderBoxesAndLinesV2ForExport,
-} from './boxes-and-lines/renderer-v2';
-export { routeEdges } from './boxes-and-lines/routing';
-
 export { collapseBoxesAndLines } from './boxes-and-lines/collapse';
 export type { BLCollapseResult } from './boxes-and-lines/collapse';
 

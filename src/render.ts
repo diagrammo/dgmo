@@ -72,8 +72,6 @@ export async function render(
     c4System?: string;
     c4Container?: string;
     tagGroup?: string;
-    /** Use v2 boxes-and-lines renderer (experimental). */
-    blRendererV2?: boolean;
     /** Legend state for export — controls which tag group is shown in exported SVG. */
     legendState?: { activeGroup?: string; hiddenAttributes?: string[] };
     /** View state for export — controls interactive state (collapse, swimlanes, etc.) */
@@ -117,7 +115,6 @@ export async function render(
     c4System: options?.c4System,
     c4Container: options?.c4Container,
     tagGroup: options?.tagGroup,
-    blRendererV2: options?.blRendererV2,
   });
   return { svg, diagnostics };
 }
