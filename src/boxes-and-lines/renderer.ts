@@ -36,6 +36,7 @@ const CHAR_WIDTH_RATIO = 0.6;
 const NODE_TEXT_PADDING = 12;
 const GROUP_RX = 8;
 const GROUP_LABEL_FONT_SIZE = 14;
+const GROUP_LABEL_ZONE = 32;
 
 type D3G = d3Selection.Selection<SVGGElement, unknown, null, undefined>;
 type D3Svg = d3Selection.Selection<SVGSVGElement, unknown, null, undefined>;
@@ -330,8 +331,18 @@ export function renderBoxesAndLines(
   // Compute diagram bounds for scaling
   const titleOffset = parsed.title ? 40 : 0;
   const legendH = parsed.tagGroups.length > 0 ? LEGEND_HEIGHT + 8 : 0;
+
+  // Account for group label zone extensions (renderer-only, not in layout.height)
+  const groupLabelsSet = new Set(layout.groups.map((g) => g.label));
+  let labelZoneExtension = 0;
+  for (const group of parsed.groups) {
+    if (group.children.some((c) => groupLabelsSet.has(c))) {
+      labelZoneExtension += GROUP_LABEL_ZONE;
+    }
+  }
+
   const contentW = layout.width;
-  const contentH = layout.height + titleOffset + legendH;
+  const contentH = layout.height + titleOffset + legendH + labelZoneExtension;
 
   const scaleX = width / (contentW + DIAGRAM_PADDING * 2);
   const scaleY = height / (contentH + DIAGRAM_PADDING * 2);
@@ -388,9 +399,25 @@ export function renderBoxesAndLines(
   const sortedGroups = [...layout.groups].sort(
     (a, b) => b.width * b.height - a.width * a.height
   );
+  // Identify groups that contain sub-groups — only those need extra label space
+  const groupLabels = new Set(layout.groups.map((g) => g.label));
+  const hasSubGroups = new Set<string>();
+  for (const group of parsed.groups) {
+    for (const child of group.children) {
+      if (groupLabels.has(child)) hasSubGroups.add(group.label);
+    }
+  }
+
   for (const group of sortedGroups) {
     const gx = group.x - group.width / 2;
-    const gy = group.y - group.height / 2;
+    // Only extend top for groups that contain sub-groups (dagre under-pads these)
+    const needsExtra = !group.collapsed && hasSubGroups.has(group.label);
+    const gy = needsExtra
+      ? group.y - group.height / 2 - GROUP_LABEL_ZONE
+      : group.y - group.height / 2;
+    const groupHeight = needsExtra
+      ? group.height + GROUP_LABEL_ZONE
+      : group.height;
 
     const groupG = diagramG
       .append('g')
@@ -461,7 +488,7 @@ export function renderBoxesAndLines(
         .attr('x', gx)
         .attr('y', gy)
         .attr('width', group.width)
-        .attr('height', group.height)
+        .attr('height', groupHeight)
         .attr('rx', GROUP_RX)
         .attr('ry', GROUP_RX)
         .attr('fill', mix(palette.surface, palette.bg, 40))

@@ -3,7 +3,7 @@
 // ============================================================
 
 import dagre from '@dagrejs/dagre';
-import type { ParsedBoxesAndLines, BLNode } from './types';
+import type { ParsedBoxesAndLines, BLNode, BLGroup } from './types';
 
 /**
  * Clip a point at (cx, cy) to the border of a rectangle centered at (cx, cy)
@@ -115,12 +115,23 @@ export function layoutBoxesAndLines(
   });
   g.setDefaultEdgeLabel(() => ({}));
 
-  // Determine which groups are collapsed
+  // Determine which groups are collapsed (but not hidden inside a collapsed parent)
   const collapsedGroupLabels = new Set<string>();
   if (collapseInfo) {
+    // Build set of all groups that are missing from parsed (collapsed or hidden)
+    const missingGroups = new Set<string>();
     for (const og of collapseInfo.originalGroups) {
       if (!parsed.groups.some((g) => g.label === og.label)) {
-        collapsedGroupLabels.add(og.label);
+        missingGroups.add(og.label);
+      }
+    }
+    // Only show a collapsed group as a node if its parent is NOT also missing
+    // (i.e., it's a directly collapsed group, not one hidden inside a collapsed parent)
+    for (const label of missingGroups) {
+      const og = collapseInfo.originalGroups.find((g) => g.label === label);
+      const parentLabel = og?.parentGroup;
+      if (!parentLabel || !missingGroups.has(parentLabel)) {
+        collapsedGroupLabels.add(label);
       }
     }
   }
@@ -144,6 +155,25 @@ export function layoutBoxesAndLines(
       paddingTop: CONTAINER_PAD_TOP,
       paddingBottom: CONTAINER_PAD_BOTTOM,
     });
+  }
+
+  // Re-establish parent relationships for collapsed groups
+  // (must run AFTER expanded groups are added to the graph)
+  const originalGroupByLabel = new Map<string, BLGroup>();
+  if (collapseInfo) {
+    for (const og of collapseInfo.originalGroups) {
+      originalGroupByLabel.set(og.label, og);
+    }
+  }
+  for (const label of collapsedGroupLabels) {
+    const og = originalGroupByLabel.get(label);
+    if (og?.parentGroup && !collapsedGroupLabels.has(og.parentGroup)) {
+      const gid = `__group_${label}`;
+      const parentGid = `__group_${og.parentGroup}`;
+      if (g.hasNode(parentGid)) {
+        g.setParent(gid, parentGid);
+      }
+    }
   }
 
   // Add nodes

@@ -40,12 +40,28 @@ export function collapseBoxesAndLines(
   const nodeToGroup = new Map<string, string>();
   const collapsedChildCounts = new Map<string, number>();
 
+  // Recursively collect all descendants of a group (including sub-group children)
+  function collectDescendants(groupLabel: string): string[] {
+    const group = groupByLabel.get(groupLabel);
+    if (!group) return [];
+    const descendants: string[] = [];
+    for (const child of group.children) {
+      descendants.push(child);
+      // If child is itself a group, collect its descendants too
+      if (groupByLabel.has(child)) {
+        descendants.push(...collectDescendants(child));
+      }
+    }
+    return descendants;
+  }
+
   for (const groupLabel of collapsedGroups) {
     const group = groupByLabel.get(groupLabel);
     if (!group) continue;
     const groupId = `__group_${groupLabel}`;
 
-    for (const child of group.children) {
+    const allDescendants = collectDescendants(groupLabel);
+    for (const child of allDescendants) {
       nodeToGroup.set(child, groupId);
     }
     collapsedChildCounts.set(groupLabel, group.children.length);
@@ -67,8 +83,10 @@ export function collapseBoxesAndLines(
     edges.push({ ...edge, source: src, target: tgt });
   }
 
-  // Keep only groups that are not collapsed
-  const groups = parsed.groups.filter((g) => !collapsedGroups.has(g.label));
+  // Keep only groups that are not collapsed and not inside a collapsed group
+  const groups = parsed.groups.filter(
+    (g) => !collapsedGroups.has(g.label) && !nodeToGroup.has(g.label)
+  );
 
   return {
     parsed: { ...parsed, nodes, edges, groups },
