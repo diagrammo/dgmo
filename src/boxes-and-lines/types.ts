@@ -5,7 +5,7 @@ export interface BLNode {
   label: string;
   lineNumber: number;
   metadata: Record<string, string>;
-  description?: string;
+  description?: string[];
 }
 
 export interface BLEdge {

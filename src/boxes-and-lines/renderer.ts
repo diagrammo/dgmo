@@ -7,7 +7,12 @@ import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
 import { LEGEND_HEIGHT } from '../utils/legend-constants';
 import { renderLegendD3 } from '../utils/legend-d3';
-import type { LegendConfig, LegendState } from '../utils/legend-types';
+import type {
+  LegendConfig,
+  LegendState,
+  LegendCallbacks,
+  ControlsGroupToggle,
+} from '../utils/legend-types';
 import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
@@ -17,6 +22,7 @@ import { contrastText, mix } from '../palettes/color-utils';
 import { resolveTagColor, resolveActiveTagGroup } from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
 import type { PaletteColors } from '../palettes';
+import { renderInlineText } from '../utils/inline-markdown';
 import type { ParsedBoxesAndLines, BLNode } from './types';
 import type { BLLayoutResult, BLLayoutNode, BLLayoutEdge } from './layout';
 
@@ -24,7 +30,6 @@ import type { BLLayoutResult, BLLayoutNode, BLLayoutEdge } from './layout';
 const DIAGRAM_PADDING = 20;
 const NODE_FONT_SIZE = 13;
 const MIN_NODE_FONT_SIZE = 9;
-const META_FONT_SIZE = 10;
 const EDGE_LABEL_FONT_SIZE = 11;
 const EDGE_STROKE_WIDTH = 1.5;
 const NODE_STROKE_WIDTH = 1.5;
@@ -32,6 +37,9 @@ const NODE_RX = 8;
 const COLLAPSE_BAR_HEIGHT = 4;
 const ARROWHEAD_W = 5;
 const ARROWHEAD_H = 4;
+const DESC_FONT_SIZE = 10; // matches infra META_FONT_SIZE
+const DESC_LINE_HEIGHT = 1.4; // 14px row height at 10px font (matches infra META_LINE_HEIGHT)
+const MAX_DESC_LINES = 6;
 const CHAR_WIDTH_RATIO = 0.6;
 const NODE_TEXT_PADDING = 12;
 const GROUP_RX = 8;
@@ -81,13 +89,25 @@ function splitCamelCase(word: string): string[] {
   return parts.length > 1 ? parts : [word];
 }
 
-function fitTextToNode(
+/**
+ * Fit a label into a header zone for described nodes.
+ * Strategy: split first (spaces, dashes, camelCase), wrap into lines,
+ * shrink font if needed, truncate individual lines with "…" — never hard-break.
+ */
+function fitLabelToHeader(
   label: string,
   nodeWidth: number,
-  nodeHeight: number
+  maxLines: number
 ): { lines: string[]; fontSize: number } {
   const maxTextWidth = nodeWidth - NODE_TEXT_PADDING * 2;
-  const lineHeight = 1.3;
+
+  // Split on spaces and dashes, then camelCase split each part
+  const rawParts = label.split(/(\s+|-)/);
+  const words: string[] = [];
+  for (const part of rawParts) {
+    if (!part || /^\s+$/.test(part) || part === '-') continue;
+    words.push(...splitCamelCase(part));
+  }
 
   for (
     let fontSize = NODE_FONT_SIZE;
@@ -95,17 +115,15 @@ function fitTextToNode(
     fontSize--
   ) {
     const charWidth = fontSize * CHAR_WIDTH_RATIO;
-    const maxCharsPerLine = Math.floor(maxTextWidth / charWidth);
-    const maxLines = Math.floor((nodeHeight - 8) / (fontSize * lineHeight));
-    if (maxCharsPerLine < 2 || maxLines < 1) continue;
-    if (label.length <= maxCharsPerLine) return { lines: [label], fontSize };
+    const maxChars = Math.floor(maxTextWidth / charWidth);
+    if (maxChars < 2) continue;
 
-    const words = label.split(/\s+/);
+    // Wrap words into lines
     const lines: string[] = [];
     let current = '';
     for (const word of words) {
       const test = current ? `${current} ${word}` : word;
-      if (test.length <= maxCharsPerLine) {
+      if (test.length <= maxChars) {
         current = test;
       } else {
         if (current) lines.push(current);
@@ -113,54 +131,39 @@ function fitTextToNode(
       }
     }
     if (current) lines.push(current);
-    if (
-      lines.length <= maxLines &&
-      lines.every((l) => l.length <= maxCharsPerLine)
-    ) {
+
+    // All lines fit at this font? Done.
+    if (lines.length <= maxLines && lines.every((l) => l.length <= maxChars)) {
       return { lines, fontSize };
     }
 
-    // CamelCase split
-    const camelWords: string[] = [];
-    for (const word of words) {
-      if (word.length > maxCharsPerLine)
-        camelWords.push(...splitCamelCase(word));
-      else camelWords.push(word);
-    }
-    const camelLines: string[] = [];
-    let cc = '';
-    for (const word of camelWords) {
-      const test = cc ? `${cc} ${word}` : word;
-      if (test.length <= maxCharsPerLine) {
-        cc = test;
-      } else {
-        if (cc) camelLines.push(cc);
-        cc = word;
-      }
-    }
-    if (cc) camelLines.push(cc);
-    if (
-      camelLines.length <= maxLines &&
-      camelLines.every((l) => l.length <= maxCharsPerLine)
-    ) {
-      return { lines: camelLines, fontSize };
+    // Lines fit in count but some are too wide? Truncate those lines.
+    if (lines.length <= maxLines) {
+      const result = lines.map((l) =>
+        l.length > maxChars ? l.slice(0, maxChars - 1) + '\u2026' : l
+      );
+      return { lines: result, fontSize };
     }
 
-    if (fontSize > MIN_NODE_FONT_SIZE) continue;
-
-    // Hard-break
-    const hardLines: string[] = [];
-    for (const line of camelLines) {
-      if (line.length <= maxCharsPerLine) hardLines.push(line);
-      else
-        for (let i = 0; i < line.length; i += maxCharsPerLine)
-          hardLines.push(line.slice(i, i + maxCharsPerLine));
+    // Too many lines — take first maxLines, truncate last + any oversized
+    const result = lines
+      .slice(0, maxLines)
+      .map((l) =>
+        l.length > maxChars ? l.slice(0, maxChars - 1) + '\u2026' : l
+      );
+    const last = result[maxLines - 1];
+    if (!last.endsWith('\u2026')) {
+      result[maxLines - 1] =
+        last.length >= maxChars
+          ? last.slice(0, maxChars - 1) + '\u2026'
+          : last + '\u2026';
     }
-    if (hardLines.length <= maxLines) return { lines: hardLines, fontSize };
+    return { lines: result, fontSize };
   }
 
+  // Fallback at min font
   const charWidth = MIN_NODE_FONT_SIZE * CHAR_WIDTH_RATIO;
-  const maxChars = Math.floor((nodeWidth - NODE_TEXT_PADDING * 2) / charWidth);
+  const maxChars = Math.floor(maxTextWidth / charWidth);
   const truncated =
     label.length > maxChars ? label.slice(0, maxChars - 1) + '\u2026' : label;
   return { lines: [truncated], fontSize: MIN_NODE_FONT_SIZE };
@@ -292,6 +295,10 @@ interface BLRenderOptions {
   exportDims?: { width?: number; height?: number };
   activeTagGroup?: string | null;
   hiddenTagValues?: Map<string, Set<string>>;
+  hideDescriptions?: boolean;
+  controlsExpanded?: boolean;
+  onToggleDescriptions?: (active: boolean) => void;
+  onToggleControlsExpand?: () => void;
 }
 
 export function renderBoxesAndLines(
@@ -302,8 +309,16 @@ export function renderBoxesAndLines(
   isDark: boolean,
   options?: BLRenderOptions
 ): void {
-  const { onClickItem, exportDims, activeTagGroup, hiddenTagValues } =
-    options ?? {};
+  const {
+    onClickItem,
+    exportDims,
+    activeTagGroup,
+    hiddenTagValues,
+    hideDescriptions,
+    controlsExpanded,
+    onToggleDescriptions,
+    onToggleControlsExpand,
+  } = options ?? {};
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
 
   const width = exportDims?.width ?? container.clientWidth;
@@ -330,7 +345,12 @@ export function renderBoxesAndLines(
 
   // Compute diagram bounds for scaling
   const titleOffset = parsed.title ? 40 : 0;
-  const legendH = parsed.tagGroups.length > 0 ? LEGEND_HEIGHT + 8 : 0;
+  const hasAnyDescriptions = parsed.nodes.some(
+    (n) => n.description && n.description.length > 0
+  );
+  const needsLegend =
+    parsed.tagGroups.length > 0 || (hasAnyDescriptions && onToggleDescriptions);
+  const legendH = needsLegend ? LEGEND_HEIGHT + 8 : 0;
 
   // Account for group label zone extensions (renderer-only, not in layout.height)
   const groupLabelsSet = new Set(layout.groups.map((g) => g.label));
@@ -727,7 +747,12 @@ export function renderBoxesAndLines(
     }
 
     if (onClickItem) {
-      nodeG.on('click', () => onClickItem(node.lineNumber));
+      nodeG.on('click', (event: Event) => {
+        // Don't intercept clicks on links in description text
+        const target = event.target as Element | null;
+        if (target?.closest('a')) return;
+        onClickItem(node.lineNumber);
+      });
     }
 
     // Rectangle card
@@ -748,45 +773,146 @@ export function renderBoxesAndLines(
       .attr('stroke-width', NODE_STROKE_WIDTH);
 
     // All text centered vertically using dominant-baseline: central
-    if (node.description) {
-      const lineH = NODE_FONT_SIZE * 1.3;
-      const gap = 2;
-      const totalH = lineH + gap + META_FONT_SIZE;
-      const labelY = -totalH / 2 + lineH / 2;
-      const descY = labelY + lineH / 2 + gap + META_FONT_SIZE / 2;
+    const desc = node.description;
+    if (desc && desc.length > 0 && !hideDescriptions) {
+      // Label in header zone — split on spaces/dashes/camelCase, up to 3 lines
+      const MAX_LABEL_LINES = 3;
+      const fitted = fitLabelToHeader(node.label, ln.width, MAX_LABEL_LINES);
+      const labelLines = fitted.lines;
+      const labelLineH = fitted.fontSize * 1.3;
+      const labelTotalH = labelLines.length * labelLineH;
+      const headerH = labelTotalH + 12; // 12px padding
+      const headerCenterY = -ln.height / 2 + headerH / 2;
+      for (let li = 0; li < labelLines.length; li++) {
+        nodeG
+          .append('text')
+          .attr('x', 0)
+          .attr(
+            'y',
+            headerCenterY - labelTotalH / 2 + labelLineH / 2 + li * labelLineH
+          )
+          .attr('text-anchor', 'middle')
+          .attr('dominant-baseline', 'central')
+          .attr('font-size', fitted.fontSize)
+          .attr('font-weight', '600')
+          .attr('fill', colors.text)
+          .text(labelLines[li]);
+      }
 
+      // Separator line (full width, matches infra style)
+      const sepY = -ln.height / 2 + headerH;
       nodeG
-        .append('text')
-        .attr('x', 0)
-        .attr('y', labelY)
-        .attr('text-anchor', 'middle')
-        .attr('dominant-baseline', 'central')
-        .attr('font-size', NODE_FONT_SIZE)
-        .attr('font-weight', '600')
-        .attr('fill', colors.text)
-        .text(node.label);
+        .append('line')
+        .attr('x1', -ln.width / 2)
+        .attr('y1', sepY)
+        .attr('x2', ln.width / 2)
+        .attr('y2', sepY)
+        .attr('stroke', colors.stroke)
+        .attr('stroke-opacity', 0.3)
+        .attr('stroke-width', 1);
 
-      const maxChars = Math.floor(
-        (ln.width - NODE_TEXT_PADDING * 2) / (META_FONT_SIZE * CHAR_WIDTH_RATIO)
+      // Description lines with word wrapping and inline markdown
+      const descStartY = sepY + 4 + DESC_FONT_SIZE;
+      const maxTextWidth = ln.width - NODE_TEXT_PADDING * 2;
+      const charsPerLine = Math.floor(
+        maxTextWidth / (DESC_FONT_SIZE * CHAR_WIDTH_RATIO)
       );
-      const desc =
-        node.description.length > maxChars
-          ? node.description.slice(0, maxChars - 1) + '\u2026'
-          : node.description;
-      const descEl = nodeG
-        .append('text')
-        .attr('x', 0)
-        .attr('y', descY)
-        .attr('text-anchor', 'middle')
-        .attr('dominant-baseline', 'central')
-        .attr('font-size', META_FONT_SIZE)
-        .attr('fill', palette.textMuted)
-        .text(desc);
-      if (desc !== node.description) {
-        descEl.append('title').text(node.description);
+      const descLineH = DESC_FONT_SIZE * DESC_LINE_HEIGHT;
+
+      // Estimate display length — strip markdown syntax for measurement
+      const displayLen = (text: string): number =>
+        text
+          .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // [text](url) → text
+          .replace(/\*\*(.+?)\*\*/g, '$1') // **bold** → bold
+          .replace(/\*(.+?)\*/g, '$1') // *italic* → italic
+          .replace(/`(.+?)`/g, '$1') // `code` → code
+          .replace(/https?:\/\/\S+/g, (u) => u.slice(0, 20)).length; // bare URLs shortened
+      const hasMarkdown = (text: string): boolean =>
+        /\[.+?\]\(.+?\)|https?:\/\/|www\./.test(text);
+
+      // Build wrapped lines from description
+      const wrappedLines: string[] = [];
+      for (let descLine of desc) {
+        // Render `- ` as bullet
+        if (descLine.startsWith('- ')) descLine = '\u2022 ' + descLine.slice(2);
+        // Normalize bare URLs: `http example.com` → `http://example.com`
+        descLine = descLine.replace(
+          /\bhttps?\s+([\w][\w.-]+\.[a-z]{2,}(?:\/\S*)?)/gi,
+          (_, domain) => `https://${domain}`
+        );
+        if (displayLen(descLine) <= charsPerLine) {
+          wrappedLines.push(descLine);
+        } else {
+          // Word wrap using display lengths
+          // Keep bullet attached to first word
+          let words: string[];
+          if (descLine.startsWith('\u2022 ')) {
+            const rest = descLine.slice(2);
+            const restWords = rest.split(/\s+/);
+            words = [`\u2022 ${restWords[0]}`, ...restWords.slice(1)];
+          } else {
+            words = descLine.split(/\s+/);
+          }
+          let current = '';
+          for (const word of words) {
+            const test = current ? `${current} ${word}` : word;
+            if (displayLen(test) <= charsPerLine) {
+              current = test;
+            } else {
+              if (current) wrappedLines.push(current);
+              // Don't truncate words containing markdown/links
+              current =
+                !hasMarkdown(word) && word.length > charsPerLine
+                  ? word.slice(0, charsPerLine - 1) + '\u2026'
+                  : word;
+            }
+          }
+          if (current) wrappedLines.push(current);
+        }
+      }
+
+      const truncated = wrappedLines.length > MAX_DESC_LINES;
+      const visibleLines = truncated
+        ? wrappedLines.slice(0, MAX_DESC_LINES)
+        : wrappedLines;
+
+      for (let li = 0; li < visibleLines.length; li++) {
+        let lineText = visibleLines[li];
+        // Truncate last line if there are more lines beyond the cap
+        if (truncated && li === visibleLines.length - 1) {
+          lineText =
+            lineText.length >= charsPerLine
+              ? lineText.slice(0, charsPerLine - 1) + '\u2026'
+              : lineText + '\u2026';
+        }
+        // Bulleted lines left-align, plain lines center
+        const isBullet = lineText.startsWith('\u2022');
+        const textEl = nodeG
+          .append('text')
+          .attr('x', isBullet ? -ln.width / 2 + 6 : 0)
+          .attr('y', descStartY + li * descLineH)
+          .attr('text-anchor', isBullet ? 'start' : 'middle')
+          .attr('dominant-baseline', 'central')
+          .attr('font-size', DESC_FONT_SIZE)
+          .attr('fill', palette.textMuted);
+        renderInlineText(textEl, lineText, palette, DESC_FONT_SIZE);
+      }
+
+      // Tooltip when truncated
+      if (truncated) {
+        const fullText = desc.join(' ');
+        const tooltipText =
+          fullText.length > 200 ? fullText.slice(0, 199) + '\u2026' : fullText;
+        nodeG.append('title').text(tooltipText);
       }
     } else {
-      const fitted = fitTextToNode(node.label, ln.width - 16, ln.height);
+      // Compact label — use same split-first algorithm (camelCase, no hard-break)
+      // 16px vertical padding (8 top + 8 bottom) to keep text off borders
+      const maxLabelLines = Math.max(
+        2,
+        Math.floor((ln.height - 16) / (MIN_NODE_FONT_SIZE * 1.3))
+      );
+      const fitted = fitLabelToHeader(node.label, ln.width, maxLabelLines);
       const lineH = fitted.fontSize * 1.3;
       const totalH = fitted.lines.length * lineH;
       for (let li = 0; li < fitted.lines.length; li++) {
@@ -805,13 +931,46 @@ export function renderBoxesAndLines(
   }
 
   // ── Render legend ──────────────────────────────────────
-  if (parsed.tagGroups.length > 0) {
+  const hasDescriptions = parsed.nodes.some(
+    (n) => n.description && n.description.length > 0
+  );
+  const hasLegend = parsed.tagGroups.length > 0 || hasDescriptions;
+
+  if (hasLegend) {
+    // Build controls group for description toggle
+    let controlsGroup: { toggles: ControlsGroupToggle[] } | undefined;
+    if (hasDescriptions && onToggleDescriptions) {
+      controlsGroup = {
+        toggles: [
+          {
+            id: 'descriptions',
+            type: 'toggle',
+            label: 'Descriptions',
+            active: !hideDescriptions,
+            onToggle: () => {},
+          },
+        ],
+      };
+    }
+
     const legendConfig: LegendConfig = {
       groups: parsed.tagGroups,
       position: { placement: 'top-center', titleRelation: 'below-title' },
       mode: 'fixed',
+      controlsGroup,
     };
-    const legendState: LegendState = { activeGroup };
+    const legendState: LegendState = {
+      activeGroup,
+      controlsExpanded,
+    };
+    const legendCallbacks: LegendCallbacks = {
+      onControlsExpand: onToggleControlsExpand,
+      onControlsToggle: (toggleId, active) => {
+        if (toggleId === 'descriptions' && onToggleDescriptions) {
+          onToggleDescriptions(active);
+        }
+      },
+    };
     const legendG = svg
       .append('g')
       .attr('transform', `translate(0,${titleOffset + 4})`);
@@ -821,7 +980,7 @@ export function renderBoxesAndLines(
       legendState,
       palette,
       isDark,
-      undefined,
+      legendCallbacks,
       width
     );
     legendG.selectAll('[data-legend-group]').classed('bl-legend-group', true);

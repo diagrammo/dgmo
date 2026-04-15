@@ -9,20 +9,27 @@ hide priority:Low
 direction LR
 
 // --- Services ---
-API Gateway | t: Backend, description: Main entry point for all requests
+API Gateway | t: Backend
+  Main entry point for all requests
+  Routes to **backend services**
   -routes-> UserService
   -routes-> ProductService
   -routes-> OrderService
 
-UserService | t: Backend, description: Handles auth and profiles
+UserService | t: Backend
+  Handles auth and profiles
+  Uses `JWT` tokens for sessions
   -reads-> UserDB
   -checks-> SessionCache
 
 ProductService | t: Frontend, description: Product catalog and search
+  Supports *full-text* search
   -queries-> ProductDB
   -invalidates-> ProductCache
 
-OrderService | t: Backend, description: Order processing pipeline
+OrderService | t: Backend
+  Order processing pipeline
+  Validates inventory before commit
   -writes-> OrderDB
   -publishes-> OrderQueue
 

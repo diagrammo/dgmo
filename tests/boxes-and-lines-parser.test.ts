@@ -71,11 +71,11 @@ describe('boxes-and-lines parser', () => {
       expect(result.nodes[0].metadata.env).toBe('Prod');
     });
 
-    it('extracts description field', () => {
+    it('extracts description field as string[]', () => {
       const result = parseBoxesAndLines(
         'boxes-and-lines\nAPI | description: Main API gateway'
       );
-      expect(result.nodes[0].description).toBe('Main API gateway');
+      expect(result.nodes[0].description).toEqual(['Main API gateway']);
       // description should NOT be in metadata
       expect(result.nodes[0].metadata.description).toBeUndefined();
     });
@@ -493,6 +493,118 @@ describe('boxes-and-lines parser', () => {
           (e) => e.source === 'API' && e.target === '__group_Backend'
         )
       ).toBe(true);
+    });
+  });
+
+  describe('node descriptions', () => {
+    it('collects indented lines as description', () => {
+      const result = parseBoxesAndLines(
+        'boxes-and-lines\nStage 1\n  Tools in use\n  Primary build'
+      );
+      expect(result.nodes[0].description).toEqual([
+        'Tools in use',
+        'Primary build',
+      ]);
+    });
+
+    it('excludes edge lines from description', () => {
+      const result = parseBoxesAndLines(
+        'boxes-and-lines\nStage 1\n  Tools in use\n  -> Stage 2'
+      );
+      expect(result.nodes[0].description).toEqual(['Tools in use']);
+      expect(result.edges).toHaveLength(1);
+    });
+
+    it('merges pipe description with indented lines', () => {
+      const result = parseBoxesAndLines(
+        'boxes-and-lines\nStage 1 | description: Summary\n  More detail'
+      );
+      expect(result.nodes[0].description).toEqual(['Summary', 'More detail']);
+    });
+
+    it('description-only block (no edges)', () => {
+      const result = parseBoxesAndLines(
+        'boxes-and-lines\nStage 1\n  Line one\n  Line two'
+      );
+      expect(result.nodes[0].description).toEqual(['Line one', 'Line two']);
+      expect(result.edges).toHaveLength(0);
+    });
+
+    it('edge-only block (no description)', () => {
+      const result = parseBoxesAndLines(
+        'boxes-and-lines\nStage 1\n  -> Stage 2\n  -> Stage 3'
+      );
+      expect(result.nodes[0].description).toBeUndefined();
+      expect(result.edges).toHaveLength(2);
+    });
+
+    it('warns on text after edges', () => {
+      const result = parseBoxesAndLines(
+        'boxes-and-lines\nStage 1\n  -> Stage 2\n  Late text'
+      );
+      expect(
+        result.diagnostics.some((d) =>
+          d.message.includes('Move description lines above edges')
+        )
+      ).toBe(true);
+    });
+
+    it('skips blank lines within description block', () => {
+      const result = parseBoxesAndLines(
+        'boxes-and-lines\nStage 1\n  Line one\n\n  Line two'
+      );
+      expect(result.nodes[0].description).toEqual(['Line one', 'Line two']);
+    });
+
+    it('hints on malformed edge lines', () => {
+      const result = parseBoxesAndLines('boxes-and-lines\nStage 1\n  -Target');
+      expect(
+        result.diagnostics.some((d) => d.message.includes('incomplete edge'))
+      ).toBe(true);
+    });
+
+    it('does not warn on dash-space list items in descriptions', () => {
+      const result = parseBoxesAndLines(
+        'boxes-and-lines\nStage 1\n  - important note'
+      );
+      expect(
+        result.diagnostics.some((d) => d.message.includes('incomplete edge'))
+      ).toBe(false);
+      expect(result.nodes[0].description).toEqual(['- important note']);
+    });
+
+    it('description inside group at double-indent', () => {
+      const result = parseBoxesAndLines(
+        'boxes-and-lines\n[Backend]\n  API\n    Handles requests\n    -> DB'
+      );
+      const api = result.nodes.find((n) => n.label === 'API');
+      expect(api?.description).toEqual(['Handles requests']);
+      expect(result.edges).toHaveLength(1);
+    });
+
+    it('description inside nested group at triple-indent', () => {
+      const result = parseBoxesAndLines(
+        'boxes-and-lines\n[AWS]\n  [Compute]\n    API\n      Handles requests'
+      );
+      const api = result.nodes.find((n) => n.label === 'API');
+      expect(api?.description).toEqual(['Handles requests']);
+    });
+
+    it('multiple nodes with descriptions', () => {
+      const result = parseBoxesAndLines(
+        'boxes-and-lines\nNode A\n  Desc A\nNode B\n  Desc B'
+      );
+      const a = result.nodes.find((n) => n.label === 'Node A');
+      const b = result.nodes.find((n) => n.label === 'Node B');
+      expect(a?.description).toEqual(['Desc A']);
+      expect(b?.description).toEqual(['Desc B']);
+    });
+
+    it('pipe-only description (no indented lines) still works', () => {
+      const result = parseBoxesAndLines(
+        'boxes-and-lines\nAPI | description: Main gateway'
+      );
+      expect(result.nodes[0].description).toEqual(['Main gateway']);
     });
   });
 

@@ -45,9 +45,9 @@ function measureIndent(line: string): number {
 function parsePipeMetadata(
   segment: string,
   aliasMap: Map<string, string>
-): { metadata: Record<string, string>; description?: string } {
+): { metadata: Record<string, string>; description?: string[] } {
   const metadata: Record<string, string> = {};
-  let description: string | undefined;
+  let description: string[] | undefined;
 
   const items = segment.split(',');
   for (const item of items) {
@@ -59,7 +59,7 @@ function parsePipeMetadata(
       const rawKey = trimmed.slice(0, colonIdx).trim().toLowerCase();
       const value = trimmed.slice(colonIdx + 1).trim();
       if (rawKey === 'description') {
-        description = value;
+        description = [value];
       } else {
         const resolvedKey = aliasMap.get(rawKey) ?? rawKey;
         metadata[resolvedKey] = value;
@@ -97,6 +97,25 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
   const groupLabels = new Set<string>();
   let lastNodeLabel: string | null = null;
   let lastSourceIsGroup = false;
+
+  // Description collection state
+  let descState: {
+    nodeLabel: string;
+    indent: number;
+    lines: string[];
+    edgeSeen: boolean;
+  } | null = null;
+
+  function flushDescription() {
+    if (descState && descState.lines.length > 0) {
+      const node = result.nodes.find((n) => n.label === descState!.nodeLabel);
+      if (node) {
+        const existing = node.description ?? [];
+        node.description = [...existing, ...descState!.lines];
+      }
+    }
+    descState = null;
+  }
 
   // Group stack for nesting
   interface GroupState {
@@ -283,7 +302,51 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
 
     // Non-indented line closes tag group
     if (currentTagGroup && indent === 0) {
-      currentTagGroup = null; // eslint-disable-line no-useless-assignment
+      currentTagGroup = null;
+    }
+
+    // Description collection: indented non-edge lines under a node
+    if (descState !== null) {
+      if (indent > descState.indent) {
+        // Check if this is an edge line
+        if (trimmed.includes('->') || trimmed.includes('<->')) {
+          descState.edgeSeen = true;
+          // Fall through to normal edge processing
+        } else if (descState.edgeSeen) {
+          // Text after edges — emit warning
+          result.diagnostics.push(
+            makeDgmoError(
+              lineNum,
+              `Move description lines above edges for '${descState.nodeLabel}' — descriptions must come before -> lines`,
+              'warning'
+            )
+          );
+          continue;
+        } else if (
+          /^-\s*\w/.test(trimmed) &&
+          !trimmed.startsWith('- ') &&
+          !trimmed.includes('->') &&
+          !trimmed.includes('<->')
+        ) {
+          // Looks like a malformed edge (e.g. "-Target" but not "- list item")
+          result.diagnostics.push(
+            makeDgmoError(
+              lineNum,
+              `Looks like an incomplete edge — did you mean "-> ${trimmed.slice(1).trim()}"?`,
+              'warning'
+            )
+          );
+          descState.lines.push(trimmed);
+          continue;
+        } else {
+          // Collect as description
+          descState.lines.push(trimmed);
+          continue;
+        }
+      } else {
+        // Indent decreased — flush description
+        flushDescription();
+      }
     }
 
     // Close groups that are no longer scoped by indent
@@ -358,6 +421,7 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
     if (groupMatch && !trimmed.includes('->') && !trimmed.includes('<->')) {
       contentStarted = true;
       currentTagGroup = null;
+      flushDescription();
       const label = groupMatch[1];
 
       // Check nesting depth
@@ -449,6 +513,7 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
     // Node: everything else
     contentStarted = true;
     currentTagGroup = null;
+    flushDescription(); // Flush any pending description from previous node
     const node = parseNodeLine(trimmed, lineNum, aliasMap, result.diagnostics);
     if (!node) {
       result.diagnostics.push(
@@ -486,7 +551,11 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
     }
 
     result.nodes.push(node);
+    descState = { nodeLabel: node.label, indent, lines: [], edgeSeen: false };
   }
+
+  // Flush any remaining description
+  flushDescription();
 
   // Close any remaining groups
   while (groupStack.length > 0) {
@@ -562,7 +631,7 @@ function parseNodeLine(
   _diagnostics: DgmoError[]
 ): BLNode | null {
   let metadata: Record<string, string> = {};
-  let description: string | undefined;
+  let description: string[] | undefined;
 
   // Split on pipe for metadata
   const pipeIdx = trimmed.indexOf('|');

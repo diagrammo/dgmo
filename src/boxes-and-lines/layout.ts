@@ -87,13 +87,125 @@ export interface BLLayoutResult {
 
 // ── Node sizing ────────────────────────────────────────────
 
-function computeNodeSize(_node: BLNode): { width: number; height: number } {
-  // Golden ratio (φ ≈ 1.618), uniform size
-  const PHI = 1.618;
-  const NODE_HEIGHT = 60;
-  const NODE_WIDTH = Math.round(NODE_HEIGHT * PHI); // ≈ 97
+const PHI = 1.618;
+const NODE_HEIGHT = 60;
+const NODE_WIDTH = Math.round(NODE_HEIGHT * PHI); // ≈ 97
+const DESC_NODE_WIDTH = 140; // wider nodes when descriptions are shown
+const DESC_FONT_SIZE = 10; // matches infra META_FONT_SIZE
+const DESC_LINE_HEIGHT = 1.4; // 14px row height at 10px (matches infra META_LINE_HEIGHT)
+const DESC_PADDING = 8;
+const SEPARATOR_GAP = 4; // matches infra NODE_SEPARATOR_GAP
+const MAX_DESC_LINES = 6;
+const MAX_LABEL_LINES = 3;
+const LABEL_LINE_HEIGHT = 1.3;
+const LABEL_PAD = 12; // top + bottom padding around label area
 
-  return { width: NODE_WIDTH, height: NODE_HEIGHT };
+/** Split on camelCase boundaries */
+function splitCamelCase(word: string): string[] {
+  const parts: string[] = [];
+  let start = 0;
+  for (let i = 1; i < word.length; i++) {
+    const prev = word[i - 1];
+    const curr = word[i];
+    const next = i + 1 < word.length ? word[i + 1] : '';
+    const lowerToUpper =
+      prev >= 'a' && prev <= 'z' && curr >= 'A' && curr <= 'Z';
+    const upperRunEnd =
+      prev >= 'A' &&
+      prev <= 'Z' &&
+      curr >= 'A' &&
+      curr <= 'Z' &&
+      next >= 'a' &&
+      next <= 'z';
+    if (lowerToUpper || upperRunEnd) {
+      parts.push(word.slice(start, i));
+      start = i;
+    }
+  }
+  parts.push(word.slice(start));
+  return parts.length > 1 ? parts : [word];
+}
+
+/** Estimate how many lines a label needs (split on spaces/dashes/camelCase, font shrink 13→9) */
+function estimateLabelLines(label: string, nodeWidth = NODE_WIDTH): number {
+  // Split on spaces and dashes, then camelCase
+  const rawParts = label.split(/[\s-]+/);
+  const words: string[] = [];
+  for (const part of rawParts) {
+    if (!part) continue;
+    words.push(...splitCamelCase(part));
+  }
+
+  for (let fontSize = 13; fontSize >= 9; fontSize--) {
+    const charWidth = fontSize * 0.6;
+    const maxChars = Math.floor((nodeWidth - 24) / charWidth);
+    if (maxChars < 2) continue;
+
+    let lines = 1;
+    let current = '';
+    for (const word of words) {
+      const test = current ? `${current} ${word}` : word;
+      if (test.length <= maxChars) {
+        current = test;
+      } else {
+        lines++;
+        current = word;
+      }
+    }
+    if (lines <= MAX_LABEL_LINES) return Math.min(lines, MAX_LABEL_LINES);
+  }
+  return MAX_LABEL_LINES;
+}
+
+function computeNodeSize(node: BLNode): { width: number; height: number } {
+  if (!node.description || node.description.length === 0) {
+    return { width: NODE_WIDTH, height: NODE_HEIGHT };
+  }
+
+  const w = DESC_NODE_WIDTH;
+
+  // Estimate label height (up to 3 lines)
+  const labelLines = estimateLabelLines(node.label, w);
+  const labelHeight = labelLines * 13 * LABEL_LINE_HEIGHT + LABEL_PAD;
+
+  // Estimate wrapped line count using word-boundary wrapping (matches renderer)
+  const charsPerLine = Math.floor((w - 24) / (DESC_FONT_SIZE * 0.6));
+  let totalRenderedLines = 0;
+  for (const line of node.description) {
+    if (line.length <= charsPerLine) {
+      totalRenderedLines += 1;
+    } else {
+      const words = line.split(/\s+/);
+      let current = '';
+      let lineCount = 0;
+      for (const word of words) {
+        // Words wider than line get truncated with "…" in renderer (1 line)
+        const fitted =
+          word.length > charsPerLine ? word.slice(0, charsPerLine) : word;
+        const test = current ? `${current} ${fitted}` : fitted;
+        if (test.length <= charsPerLine) {
+          current = test;
+        } else {
+          if (current) lineCount++;
+          current = fitted;
+        }
+      }
+      if (current) lineCount++;
+      totalRenderedLines += lineCount;
+    }
+  }
+  totalRenderedLines = Math.min(totalRenderedLines, MAX_DESC_LINES);
+
+  const descriptionHeight =
+    totalRenderedLines * DESC_FONT_SIZE * DESC_LINE_HEIGHT;
+  const totalHeight =
+    labelHeight +
+    SEPARATOR_GAP +
+    DESC_PADDING +
+    descriptionHeight +
+    DESC_PADDING;
+
+  return { width: w, height: Math.max(NODE_HEIGHT, totalHeight) };
 }
 
 // ── Main layout ────────────────────────────────────────────
@@ -103,8 +215,10 @@ export function layoutBoxesAndLines(
   collapseInfo?: {
     collapsedChildCounts: Map<string, number>;
     originalGroups: import('./types').BLGroup[];
-  }
+  },
+  layoutOptions?: { hideDescriptions?: boolean }
 ): BLLayoutResult {
+  const hideDescriptions = layoutOptions?.hideDescriptions ?? false;
   const g = new dagre.graphlib.Graph({ compound: true, multigraph: true });
   g.setGraph({
     rankdir: parsed.direction,
@@ -137,12 +251,9 @@ export function layoutBoxesAndLines(
   }
 
   // Add collapsed groups as regular nodes — same golden-ratio dimensions
-  const PHI = 1.618;
-  const COLLAPSED_H = 60;
-  const COLLAPSED_W = Math.round(COLLAPSED_H * PHI);
   for (const label of collapsedGroupLabels) {
     const gid = `__group_${label}`;
-    g.setNode(gid, { label, width: COLLAPSED_W, height: COLLAPSED_H });
+    g.setNode(gid, { label, width: NODE_WIDTH, height: NODE_HEIGHT });
   }
 
   // Add expanded group nodes as compound parents
@@ -176,9 +287,31 @@ export function layoutBoxesAndLines(
     }
   }
 
+  // Compute node sizes — described nodes share uniform height (unless hidden)
+  const nodeSizes = new Map<string, { width: number; height: number }>();
+  let maxDescHeight = 0;
+  for (const node of parsed.nodes) {
+    const size = hideDescriptions
+      ? { width: NODE_WIDTH, height: NODE_HEIGHT }
+      : computeNodeSize(node);
+    nodeSizes.set(node.label, size);
+    if (!hideDescriptions && node.description && node.description.length > 0) {
+      maxDescHeight = Math.max(maxDescHeight, size.height);
+    }
+  }
+  // Apply uniform height to all described nodes
+  if (maxDescHeight > 0) {
+    for (const node of parsed.nodes) {
+      if (node.description && node.description.length > 0) {
+        const size = nodeSizes.get(node.label)!;
+        nodeSizes.set(node.label, { width: size.width, height: maxDescHeight });
+      }
+    }
+  }
+
   // Add nodes
   for (const node of parsed.nodes) {
-    const size = computeNodeSize(node);
+    const size = nodeSizes.get(node.label)!;
     g.setNode(node.label, {
       label: node.label,
       width: size.width,
