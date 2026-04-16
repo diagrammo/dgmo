@@ -8,7 +8,7 @@ import {
   ALL_CHART_TYPES,
   parseFirstLine,
   prescanOptions,
-  normalizeGroupedNumber,
+  normalizeNumericToken,
   stripQuotes,
   tokenizeQuoteAware,
 } from '../src/utils/parsing';
@@ -244,30 +244,70 @@ describe('prescanOptions', () => {
   });
 });
 
-describe('normalizeGroupedNumber', () => {
-  it('normalizes valid grouped numbers', () => {
-    expect(normalizeGroupedNumber('1,087')).toBe('1087');
-    expect(normalizeGroupedNumber('1,250,000')).toBe('1250000');
-    expect(normalizeGroupedNumber('10,000')).toBe('10000');
-    expect(normalizeGroupedNumber('100,000,000')).toBe('100000000');
+describe('normalizeNumericToken', () => {
+  it('normalizes comma-grouped integers', () => {
+    expect(normalizeNumericToken('1,000')).toBe('1000');
+    expect(normalizeNumericToken('1,087')).toBe('1087');
+    expect(normalizeNumericToken('1,234,567')).toBe('1234567');
+    expect(normalizeNumericToken('10,000')).toBe('10000');
+    expect(normalizeNumericToken('100,000,000')).toBe('100000000');
   });
 
-  it('returns null for non-grouped numbers', () => {
-    expect(normalizeGroupedNumber('1087')).toBeNull();
-    expect(normalizeGroupedNumber('100')).toBeNull();
+  it('normalizes comma-grouped decimals', () => {
+    expect(normalizeNumericToken('1,234.56')).toBe('1234.56');
+    expect(normalizeNumericToken('1,000,000.99')).toBe('1000000.99');
   });
 
-  it('returns null for invalid grouping', () => {
-    expect(normalizeGroupedNumber('1,08,7')).toBeNull();
-    expect(normalizeGroupedNumber('1,0877')).toBeNull();
-    expect(normalizeGroupedNumber(',087')).toBeNull();
-    expect(normalizeGroupedNumber('1,')).toBeNull();
+  it('normalizes underscore-separated integers', () => {
+    expect(normalizeNumericToken('1_000')).toBe('1000');
+    expect(normalizeNumericToken('1_234_567')).toBe('1234567');
+    expect(normalizeNumericToken('10_00_000')).toBe('1000000');
+  });
+
+  it('normalizes underscore-separated decimals', () => {
+    expect(normalizeNumericToken('1_234.56')).toBe('1234.56');
+    expect(normalizeNumericToken('1_000_000.5')).toBe('1000000.5');
+  });
+
+  it('handles negative numbers', () => {
+    expect(normalizeNumericToken('-1,000')).toBe('-1000');
+    expect(normalizeNumericToken('-1_000')).toBe('-1000');
+    expect(normalizeNumericToken('-1,234.56')).toBe('-1234.56');
+    expect(normalizeNumericToken('-1_234.56')).toBe('-1234.56');
+  });
+
+  it('returns null for no separators (passthrough)', () => {
+    expect(normalizeNumericToken('1000')).toBeNull();
+    expect(normalizeNumericToken('3.14')).toBeNull();
+    expect(normalizeNumericToken('-42')).toBeNull();
+  });
+
+  it('rejects invalid comma grouping', () => {
+    expect(normalizeNumericToken('1,00')).toBeNull();
+    expect(normalizeNumericToken('1,08,7')).toBeNull();
+    expect(normalizeNumericToken('1,0877')).toBeNull();
+    expect(normalizeNumericToken(',087')).toBeNull();
+    expect(normalizeNumericToken('1,')).toBeNull();
+    expect(normalizeNumericToken('1,,000')).toBeNull();
+  });
+
+  it('rejects invalid underscore placement', () => {
+    expect(normalizeNumericToken('_1000')).toBeNull();
+    expect(normalizeNumericToken('1000_')).toBeNull();
+  });
+
+  it('rejects mixed separators', () => {
+    expect(normalizeNumericToken('1_000,000')).toBeNull();
+    expect(normalizeNumericToken('1,000_000')).toBeNull();
+  });
+
+  it('rejects underscore in decimal part', () => {
+    expect(normalizeNumericToken('1_000.5_6')).toBeNull();
   });
 
   it('handles edge cases', () => {
-    expect(normalizeGroupedNumber('')).toBeNull();
-    expect(normalizeGroupedNumber('abc')).toBeNull();
-    expect(normalizeGroupedNumber('1,000')).toBe('1000');
+    expect(normalizeNumericToken('')).toBeNull();
+    expect(normalizeNumericToken('abc')).toBeNull();
   });
 });
 

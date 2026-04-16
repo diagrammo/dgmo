@@ -150,6 +150,7 @@ import {
   collectIndentedValues,
   extractColor,
   measureIndent,
+  normalizeNumericToken,
   parseFirstLine,
   parseSeriesNames,
 } from './utils/parsing';
@@ -359,10 +360,11 @@ export function parseExtendedChart(
 
     // Sankey/chord link syntax: Source -> Target Value (directed) or Source -- Target Value (undirected)
     const arrowMatch = trimmed.match(
-      /^(.+?)\s*(->|--)\s*(.+?)\s+(\d+(?:\.\d+)?)\s*(?:\(([^)]+)\))?\s*$/
+      /^(.+?)\s*(->|--)\s*(.+?)\s+(-?[\d,_]+(?:\.[\d]+)?)\s*(?:\(([^)]+)\))?\s*$/
     );
     if (arrowMatch) {
-      const [, rawSource, arrow, rawTarget, val, rawLinkColor] = arrowMatch;
+      const [, rawSource, arrow, rawTarget, rawVal, rawLinkColor] = arrowMatch;
+      const val = normalizeNumericToken(rawVal) ?? rawVal;
       const { label: source, color: sourceColor } = extractColor(
         rawSource.trim(),
         palette
@@ -409,7 +411,7 @@ export function parseExtendedChart(
           // Parse "TargetName value (linkColor)" or "TargetName(nodeColor) value (linkColor)"
           // Strip trailing (color) annotation before parseDataRowValues — it can't handle it
           const valColorMatch = trimmed.match(
-            /(\d+(?:\.\d+)?)\s*\(([^)]+)\)\s*$/
+            /(-?[\d,_]+(?:\.[\d]+)?)\s*\(([^)]+)\)\s*$/
           );
           const strippedLine = valColorMatch
             ? trimmed.replace(/\s*\([^)]+\)\s*$/, '')
@@ -449,9 +451,10 @@ export function parseExtendedChart(
 
       // Bare label at indent 0 (or any indent without a value) = new source node
       const spaceIdx = trimmed.indexOf(' ');
+      const lastTok = trimmed.substring(trimmed.lastIndexOf(' ') + 1);
       const hasNumericSuffix =
         spaceIdx >= 0 &&
-        !isNaN(parseFloat(trimmed.substring(trimmed.lastIndexOf(' ') + 1)));
+        !isNaN(parseFloat(normalizeNumericToken(lastTok) ?? lastTok));
       if (!hasNumericSuffix) {
         while (sankeyStack.length && sankeyStack.at(-1)!.indent >= indent) {
           sankeyStack.pop();

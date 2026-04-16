@@ -205,15 +205,51 @@ export function prescanOptions(
 }
 
 /**
- * Normalize a comma-grouped number string to a plain integer string.
- * Validates the strict pattern: leftmost group 1-3 digits, then groups of exactly 3.
+ * Normalize a numeric token with visual separators (commas or underscores) to a plain number string.
  *
- * Examples: `1,087` → `'1087'`, `1,250,000` → `'1250000'`
- * Returns `null` if the string is not a valid comma-grouped number.
+ * Supported formats:
+ * - Comma-grouped integers: `1,000` → `'1000'`, `1,234,567` → `'1234567'` (strict 3-digit grouping)
+ * - Comma-grouped decimals: `1,234.56` → `'1234.56'`
+ * - Underscore-separated integers: `1_000` → `'1000'`, `10_00_000` → `'1000000'` (any grouping)
+ * - Underscore-separated decimals: `1_234.56` → `'1234.56'` (no underscores in decimal part)
+ * - Negatives: `-1,000` → `'-1000'`, `-1_000` → `'-1000'`
+ *
+ * Returns `null` if:
+ * - Token has no commas or underscores (caller should use raw token as-is)
+ * - Token has BOTH commas and underscores (mixed separators rejected)
+ * - Token has separators but doesn't match any valid pattern
  */
-export function normalizeGroupedNumber(token: string): string | null {
-  if (!/^\d{1,3}(,\d{3})+$/.test(token)) return null;
-  return token.replace(/,/g, '');
+export function normalizeNumericToken(token: string): string | null {
+  // No separators → null (caller uses raw token)
+  if (!token.includes(',') && !token.includes('_')) return null;
+  // Mixed separators → rejected
+  if (token.includes(',') && token.includes('_')) return null;
+
+  // Strip optional leading minus sign
+  let sign = '';
+  let unsigned = token;
+  if (unsigned.startsWith('-')) {
+    sign = '-';
+    unsigned = unsigned.substring(1);
+  }
+  if (!unsigned) return null;
+
+  if (unsigned.includes(',')) {
+    // Comma-grouped integers: 1,000 or 1,234,567
+    if (/^\d{1,3}(,\d{3})+$/.test(unsigned))
+      return sign + unsigned.replace(/,/g, '');
+    // Comma-grouped decimals: 1,234.56
+    if (/^\d{1,3}(,\d{3})+\.\d+$/.test(unsigned))
+      return sign + unsigned.replace(/,/g, '');
+    return null;
+  }
+
+  // Underscore-separated integers: 1_000, 10_00_000
+  if (/^\d+(_\d+)+$/.test(unsigned)) return sign + unsigned.replace(/_/g, '');
+  // Underscore-separated decimals: 1_234.56 (no underscores in decimal part)
+  if (/^\d+(_\d+)*\.\d+$/.test(unsigned) && unsigned.includes('_'))
+    return sign + unsigned.replace(/_/g, '');
+  return null;
 }
 
 /**

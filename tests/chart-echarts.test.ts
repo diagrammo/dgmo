@@ -1110,6 +1110,109 @@ describe('parseDataRowValues — space-delimited multi-values', () => {
   });
 });
 
+// ── Numeric separator support ───────────────────────────────
+
+describe('numeric separators in chart data', () => {
+  it('bar chart with comma-grouped value', () => {
+    const parsed = parseChart('bar\nRevenue 1,000,000', palette);
+    expect(parsed.data[0].label).toBe('Revenue');
+    expect(parsed.data[0].value).toBe(1000000);
+  });
+
+  it('bar chart with underscore-separated value', () => {
+    const parsed = parseChart('bar\nRevenue 1_000_000', palette);
+    expect(parsed.data[0].label).toBe('Revenue');
+    expect(parsed.data[0].value).toBe(1000000);
+  });
+
+  it('bar chart with comma-grouped decimal', () => {
+    const parsed = parseChart('bar\nRate 1,234.56', palette);
+    expect(parsed.data[0].value).toBeCloseTo(1234.56);
+  });
+
+  it('bar chart with underscore-separated decimal', () => {
+    const parsed = parseChart('bar\nRate 1_234.56', palette);
+    expect(parsed.data[0].value).toBeCloseTo(1234.56);
+  });
+
+  it('bar chart with negative comma-grouped value', () => {
+    const parsed = parseChart('bar\nLoss -1,000', palette);
+    expect(parsed.data[0].value).toBe(-1000);
+  });
+
+  it('bar chart with negative underscore-separated value', () => {
+    const parsed = parseChart('bar\nLoss -1_000', palette);
+    expect(parsed.data[0].value).toBe(-1000);
+  });
+
+  it('multi-value row with comma-grouped numbers', () => {
+    const input = 'bar-stacked\nseries A, B, C\nQ1 1,000, 2,000, 3,000';
+    const parsed = parseChart(input, palette);
+    expect(parsed.data[0].value).toBe(1000);
+    expect(parsed.data[0].extraValues).toEqual([2000, 3000]);
+  });
+
+  it('multi-value row with underscore-separated numbers', () => {
+    const input = 'bar-stacked\nseries A, B, C\nQ1 1_000, 2_000, 3_000';
+    const parsed = parseChart(input, palette);
+    expect(parsed.data[0].value).toBe(1000);
+    expect(parsed.data[0].extraValues).toEqual([2000, 3000]);
+  });
+
+  it('scatter with mixed separators per axis', () => {
+    const input = 'scatter\nCity 1,000 2_000';
+    const parsed = parseExtendedChart(input, palette);
+    expect(parsed.scatterPoints![0]).toMatchObject({
+      name: 'City',
+      x: 1000,
+      y: 2000,
+    });
+  });
+
+  it('heatmap with formatted numbers', () => {
+    const input = 'heatmap\ncolumns A B C\nRow 1,000 2_000 3,000';
+    const parsed = parseExtendedChart(input, palette);
+    expect(parsed.heatmapRows![0].values).toEqual([1000, 2000, 3000]);
+  });
+
+  it('invalid grouping is not treated as separator', () => {
+    // 1,00 has invalid grouping — comma acts as value delimiter
+    // Produces label "Revenue", value 1, extraValues [0] (the "00" part)
+    const parsed = parseChart('bar\nRevenue 1,00', palette);
+    expect(parsed.data).toHaveLength(1);
+    expect(parsed.data[0].label).toBe('Revenue');
+    expect(parsed.data[0].value).toBe(1);
+    expect(parsed.data[0].extraValues).toEqual([0]);
+  });
+
+  it('comma-as-delimiter preserved', () => {
+    const input = 'bar-stacked\nseries A, B, C\nQ1 10, 20, 30';
+    const parsed = parseChart(input, palette);
+    expect(parsed.data[0].value).toBe(10);
+    expect(parsed.data[0].extraValues).toEqual([20, 30]);
+  });
+
+  it('sankey arrow link with comma-grouped value', () => {
+    const input = 'sankey\nA -> B 1,000';
+    const parsed = parseExtendedChart(input, palette);
+    expect(parsed.links![0]).toMatchObject({
+      source: 'A',
+      target: 'B',
+      value: 1000,
+    });
+  });
+
+  it('sankey arrow link with underscore-separated value', () => {
+    const input = 'sankey\nA -> B 1_000';
+    const parsed = parseExtendedChart(input, palette);
+    expect(parsed.links![0]).toMatchObject({
+      source: 'A',
+      target: 'B',
+      value: 1000,
+    });
+  });
+});
+
 // ── Function chart shade option ──────────────────────────────
 
 describe('function chart — shade option', () => {

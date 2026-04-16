@@ -184,6 +184,7 @@ import { makeDgmoError, formatDgmoError, suggest } from './diagnostics';
 import {
   collectIndentedValues,
   extractColor,
+  normalizeNumericToken,
   parseFirstLine,
   parsePipeMetadata,
   MULTIPLE_PIPE_ERROR,
@@ -632,7 +633,7 @@ export function parseVisualization(
     // Arc link line: source -> target(color) weight
     if (result.type === 'arc') {
       const linkMatch = line.match(
-        /^(.+?)\s*->\s*(.+?)(?:\(([^)]+)\))?\s*(?:\s+(\d+(?:\.\d+)?))?$/
+        /^(.+?)\s*->\s*(.+?)(?:\(([^)]+)\))?\s*(?:\s+(-?[\d,_]+(?:\.[\d]+)?))?$/
       );
       if (linkMatch) {
         const source = linkMatch[1].trim();
@@ -648,7 +649,9 @@ export function parseVisualization(
         result.links.push({
           source,
           target,
-          value: linkMatch[4] ? parseFloat(linkMatch[4]) : 1,
+          value: linkMatch[4]
+            ? parseFloat(normalizeNumericToken(linkMatch[4]) ?? linkMatch[4])
+            : 1,
           color: linkColor,
           lineNumber,
         });
@@ -1028,7 +1031,7 @@ export function parseVisualization(
 
       // Data points: Label x, y  OR  Label x y
       const pointMatch = line.match(
-        /^(.+?)\s+([0-9]*\.?[0-9]+)\s*[,\s]\s*([0-9]*\.?[0-9]+)\s*$/
+        /^(.+?)\s+(-?[0-9][0-9,_]*(?:\.[0-9]+)?)\s*[,\s]\s*(-?[0-9][0-9,_]*(?:\.[0-9]+)?)\s*$/
       );
       if (pointMatch) {
         const label = pointMatch[1].trim();
@@ -1042,8 +1045,12 @@ export function parseVisualization(
         ) {
           result.quadrantPoints.push({
             label,
-            x: parseFloat(pointMatch[2]),
-            y: parseFloat(pointMatch[3]),
+            x: parseFloat(
+              normalizeNumericToken(pointMatch[2]) ?? pointMatch[2]
+            ),
+            y: parseFloat(
+              normalizeNumericToken(pointMatch[3]) ?? pointMatch[3]
+            ),
             lineNumber,
           });
         }
@@ -1201,7 +1208,8 @@ export function parseVisualization(
         // Scan from right, capped at P values
         let rightIdx = tokens.length - 1;
         while (rightIdx >= 0 && values.length < P) {
-          const raw = tokens[rightIdx].replace(/,/g, '');
+          const raw =
+            normalizeNumericToken(tokens[rightIdx]) ?? tokens[rightIdx];
           const num = parseFloat(raw);
           if (!isNaN(num) && /^-?\d/.test(raw)) {
             values.unshift(num);
@@ -1385,8 +1393,11 @@ export function parseVisualization(
       } else if (colonIndex === -1) {
         // Try "word weight" or "multi-word-label weight" space-separated format
         const lastSpace = line.lastIndexOf(' ');
+        const rawWeight = lastSpace >= 0 ? line.substring(lastSpace + 1) : '';
         const maybeWeight =
-          lastSpace >= 0 ? parseFloat(line.substring(lastSpace + 1)) : NaN;
+          lastSpace >= 0
+            ? parseFloat(normalizeNumericToken(rawWeight) ?? rawWeight)
+            : NaN;
         if (lastSpace >= 0 && !isNaN(maybeWeight) && maybeWeight > 0) {
           result.words.push({
             text: line.substring(0, lastSpace).trim(),

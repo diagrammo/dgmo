@@ -64,6 +64,7 @@ import type { PaletteColors } from './palettes';
 import { makeDgmoError, formatDgmoError, suggest } from './diagnostics';
 import {
   extractColor,
+  normalizeNumericToken,
   parseFirstLine,
   parseSeriesNames,
 } from './utils/parsing';
@@ -528,7 +529,8 @@ export function parseDataRowValues(
     // Find how many trailing comma-separated parts are numeric
     let numericCount = 0;
     for (let j = commaParts.length - 1; j >= 0; j--) {
-      const part = commaParts[j].trim();
+      const part =
+        normalizeNumericToken(commaParts[j].trim()) ?? commaParts[j].trim();
       if (part && !isNaN(parseFloat(part)) && isFinite(Number(part))) {
         numericCount++;
       } else {
@@ -545,7 +547,9 @@ export function parseDataRowValues(
       // Split firstPart from the right: last space-separated token must be numeric
       const lastSpaceIdx = firstPart.lastIndexOf(' ');
       if (lastSpaceIdx >= 0) {
-        const possibleFirstVal = firstPart.substring(lastSpaceIdx + 1).trim();
+        const rawFirstVal = firstPart.substring(lastSpaceIdx + 1).trim();
+        const possibleFirstVal =
+          normalizeNumericToken(rawFirstVal) ?? rawFirstVal;
         if (
           possibleFirstVal &&
           !isNaN(parseFloat(possibleFirstVal)) &&
@@ -555,7 +559,8 @@ export function parseDataRowValues(
           if (label) {
             const values = [parseFloat(possibleFirstVal)];
             for (const p of extraValueParts) {
-              values.push(parseFloat(p.trim()));
+              const normP = normalizeNumericToken(p.trim()) ?? p.trim();
+              values.push(parseFloat(normP));
             }
             return { label, values };
           }
@@ -577,8 +582,9 @@ export function parseDataRowValues(
     let idx = tokens.length - 1;
     while (idx >= 1 && values.length < limit) {
       const tok = tokens[idx];
-      const num = parseFloat(tok);
-      if (isNaN(num) || !isFinite(Number(tok))) break;
+      const normTok = normalizeNumericToken(tok) ?? tok;
+      const num = parseFloat(normTok);
+      if (isNaN(num) || !isFinite(Number(normTok))) break;
       values.unshift(num);
       idx--;
     }
@@ -590,8 +596,9 @@ export function parseDataRowValues(
 
   // Single-value mode: only the last space-separated token
   const lastToken = tokens[tokens.length - 1];
-  const num = parseFloat(lastToken);
-  if (isNaN(num) || !isFinite(Number(lastToken))) return null;
+  const normalizedLast = normalizeNumericToken(lastToken) ?? lastToken;
+  const num = parseFloat(normalizedLast);
+  if (isNaN(num) || !isFinite(Number(normalizedLast))) return null;
 
   const label = tokens.slice(0, -1).join(' ');
   if (!label) return null;
