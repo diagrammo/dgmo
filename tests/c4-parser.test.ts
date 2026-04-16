@@ -209,9 +209,7 @@ describe('parseC4', () => {
       const result = parseC4(
         'c4\nBanking is a system\n  description: Core banking system\n  tech: Java'
       );
-      expect(result.elements[0].metadata.description).toBe(
-        'Core banking system'
-      );
+      expect(result.elements[0].description).toEqual(['Core banking system']);
       expect(result.elements[0].metadata.tech).toBe('Java');
     });
 
@@ -221,7 +219,7 @@ describe('parseC4', () => {
       );
       const el = result.elements[0];
       expect(el.metadata.tech).toBe('Java');
-      expect(el.metadata.description).toBe('Core banking');
+      expect(el.description).toEqual(['Core banking']);
     });
 
     it('resolves tag group aliases in metadata', () => {
@@ -1085,7 +1083,7 @@ API is a system
         'c4\nAuth Service is a system\n  description: Handles auth\n  tech: Node.js'
       );
       expect(result.error).toBeNull();
-      expect(result.elements[0].metadata.description).toBe('Handles auth');
+      expect(result.elements[0].description).toEqual(['Handles auth']);
       expect(result.elements[0].metadata.tech).toBe('Node.js');
     });
 

@@ -4,7 +4,7 @@ import type { TagGroup } from '../utils/tag-groups.js';
 export interface MindmapNode {
   id: string;
   label: string;
-  description?: string;
+  description?: string[];
   metadata: Record<string, string>;
   children: MindmapNode[];
   parentId: string | null;
@@ -26,7 +26,7 @@ export interface ParsedMindmap {
 export interface MindmapLayoutNode {
   id: string;
   label: string;
-  description?: string;
+  description?: string[];
   metadata: Record<string, string>;
   lineNumber: number;
   color?: string;

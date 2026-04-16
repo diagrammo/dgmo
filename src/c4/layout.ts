@@ -689,7 +689,7 @@ export function computeC4NodeDimensions(
     // (no type label — containers are the default in container view)
     let height = CARD_V_PAD + NAME_HEIGHT;
 
-    const desc = el.metadata['description'];
+    const desc = el.description?.join('\n');
     if (desc) {
       const contentWidth = width - CARD_H_PAD * 2;
       const lines = wrapText(desc, contentWidth, DESC_CHAR_WIDTH);
@@ -719,7 +719,7 @@ export function computeC4NodeDimensions(
   // Context card layout: type + name | divider | description
   let height = CARD_V_PAD + TYPE_LABEL_HEIGHT + DIVIDER_GAP + NAME_HEIGHT;
 
-  const desc = el.metadata['description'];
+  const desc = el.description?.join('\n');
   if (desc) {
     const contentWidth = width - CARD_H_PAD * 2;
     const lines = wrapText(desc, contentWidth, DESC_CHAR_WIDTH);
@@ -887,7 +887,7 @@ export function layoutC4Context(
       id: el.name,
       name: el.name,
       type: el.type as 'person' | 'system',
-      description: el.metadata['description'],
+      description: el.description?.join('\n'),
       metadata: el.metadata,
       lineNumber: el.lineNumber,
       color,
@@ -1241,7 +1241,7 @@ export function layoutC4Containers(
       id: el.name,
       name: el.name,
       type: 'container',
-      description: el.metadata['description'],
+      description: el.description?.join('\n'),
       metadata: el.metadata,
       lineNumber: el.lineNumber,
       color,
@@ -1267,7 +1267,7 @@ export function layoutC4Containers(
       id: el.name,
       name: el.name,
       type: el.type as 'person' | 'system',
-      description: el.metadata['description'],
+      description: el.description?.join('\n'),
       metadata: el.metadata,
       lineNumber: el.lineNumber,
       color,
@@ -1787,7 +1787,7 @@ export function layoutC4Components(
       id: el.name,
       name: el.name,
       type: 'component',
-      description: el.metadata['description'],
+      description: el.description?.join('\n'),
       metadata: el.metadata,
       lineNumber: el.lineNumber,
       color,
@@ -1813,7 +1813,7 @@ export function layoutC4Components(
       id: el.name,
       name: el.name,
       type: el.type as 'person' | 'system' | 'container',
-      description: el.metadata['description'],
+      description: el.description?.join('\n'),
       metadata: el.metadata,
       lineNumber: el.lineNumber,
       color,
@@ -2236,7 +2236,7 @@ export function layoutC4Deployment(
       id: r.element.name,
       name: r.element.name,
       type: 'container',
-      description: r.element.metadata['description'],
+      description: r.element.description?.join('\n'),
       metadata: r.element.metadata,
       lineNumber: r.element.lineNumber,
       color,

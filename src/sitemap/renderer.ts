@@ -9,6 +9,8 @@ import type { PaletteColors } from '../palettes';
 import { mix } from '../palettes/color-utils';
 import type { ParsedSitemap } from './types';
 import type { SitemapLayoutResult, SitemapLegendGroup } from './layout';
+import { renderInlineText } from '../utils/inline-markdown';
+import { preprocessDescriptionLine } from '../utils/description-helpers';
 import {
   LEGEND_HEIGHT,
   LEGEND_GROUP_GAP,
@@ -519,6 +521,38 @@ export function renderSitemap(
           .attr('fill', valColor)
           .attr('font-size', META_FONT_SIZE)
           .text(value);
+      }
+    }
+
+    // Description lines (after metadata)
+    if (node.description && node.description.length > 0) {
+      const metaCount = Object.keys(node.metadata).length;
+      // Separator line before descriptions
+      const sepY =
+        metaCount > 0
+          ? HEADER_HEIGHT + SEPARATOR_GAP + metaCount * META_LINE_HEIGHT
+          : HEADER_HEIGHT;
+      nodeG
+        .append('line')
+        .attr('x1', 0)
+        .attr('y1', sepY)
+        .attr('x2', node.width)
+        .attr('y2', sepY)
+        .attr('stroke', stroke)
+        .attr('stroke-opacity', 0.3);
+
+      const descStartY =
+        HEADER_HEIGHT + SEPARATOR_GAP + metaCount * META_LINE_HEIGHT;
+      for (let di = 0; di < node.description.length; di++) {
+        const processed = preprocessDescriptionLine(node.description[di]);
+        const rowY = descStartY + (di + 1) * META_LINE_HEIGHT - 4;
+        const textEl = nodeG
+          .append('text')
+          .attr('x', 10)
+          .attr('y', rowY)
+          .attr('fill', palette.textMuted)
+          .attr('font-size', META_FONT_SIZE);
+        renderInlineText(textEl, processed, palette, META_FONT_SIZE);
       }
     }
 

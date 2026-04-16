@@ -16,12 +16,11 @@ import {
   OPTION_NOCOLON_RE,
 } from '../utils/parsing';
 import type { MindmapNode, ParsedMindmap } from './types';
+import { tryStripDescriptionKeyword } from '../utils/description-helpers';
 
 // ============================================================
 // Constants
 // ============================================================
-
-const DESCRIPTION_RE = /^description:\s*(.*)$/i;
 
 /** Known mindmap options (key-value). */
 const KNOWN_OPTIONS = new Set(['active-tag']);
@@ -208,14 +207,14 @@ export function parseMindmap(
 
     const indent = measureIndent(line);
 
-    // Check for indented `description: text` metadata
+    // Check for indented `description: text` or `description text` metadata
     if (indent > 0) {
-      const descMatch = trimmed.match(DESCRIPTION_RE);
-      if (descMatch) {
+      const descResult = tryStripDescriptionKeyword(trimmed);
+      if (descResult.isKeyword) {
         // Find parent node from indent stack
         const parent = findMetadataParent(indent, indentStack);
         if (parent) {
-          const descValue = descMatch[1].trim();
+          const descValue = descResult.text.trim();
           if (!descValue) {
             // Empty description: silently skip
             continue;
@@ -228,10 +227,8 @@ export function parseMindmap(
             );
             continue;
           }
-          // Only set if pipe description didn't already set it
-          if (parent.description === undefined) {
-            parent.description = descValue;
-          }
+          if (!parent.description) parent.description = [];
+          parent.description.push(descValue);
           continue;
         }
       }
@@ -308,11 +305,11 @@ function parseNodeLine(
   );
 
   // Extract description from pipe metadata as a dedicated field
-  let description: string | undefined;
+  let description: string[] | undefined;
   if ('description' in metadata) {
     const descVal = metadata['description'].trim();
     if (descVal) {
-      description = descVal;
+      description = [descVal];
     }
     delete metadata['description'];
   }

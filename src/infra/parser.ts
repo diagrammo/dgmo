@@ -7,6 +7,7 @@
 // and connections, [Group] containers, tag groups, pipe metadata.
 
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
+import { tryStripDescriptionKeyword } from '../utils/description-helpers';
 import { resolveColorWithDiagnostic } from '../colors';
 import { parseInArrowLabel } from '../utils/arrows';
 import {
@@ -610,17 +611,33 @@ export function parseInfra(content: string): ParsedInfra {
         // description is display metadata, not a behavior key; silently ignored on edge nodes.
         // Single-line only — no length enforcement, but keep it short for legibility.
         if (key === 'description' && currentNode) {
-          if (!currentNode.isEdge) currentNode.description = rawVal;
+          if (!currentNode.isEdge) {
+            if (!currentNode.description) currentNode.description = [];
+            currentNode.description.push(rawVal);
+          }
           continue;
         }
 
-        // Validate property key
+        // Unknown keys: decide between property typo warning vs description collection.
+        // Heuristic: if the key looks like a plausible property (alphanumeric-hyphen, close
+        // match to a known key, or the value looks numeric/percentage), warn as typo.
+        // Otherwise treat the whole line as description text.
         if (!INFRA_BEHAVIOR_KEYS.has(key) && !EDGE_ONLY_KEYS.has(key)) {
           const allKeys = [...INFRA_BEHAVIOR_KEYS, ...EDGE_ONLY_KEYS];
-          let msg = `Unknown property '${key}'.`;
           const hint = suggest(key, allKeys);
-          if (hint) msg += ` ${hint}`;
-          warn(lineNumber, msg);
+          const valueLooksNumeric = /^[\d.]+%?$/.test(rawVal);
+          if (hint || valueLooksNumeric) {
+            // Likely a typo — warn
+            let msg = `Unknown property '${key}'.`;
+            if (hint) msg += ` ${hint}`;
+            warn(lineNumber, msg);
+          } else if (!currentNode.isEdge) {
+            // Likely prose — collect as description
+            if (!currentNode.description) currentNode.description = [];
+            currentNode.description.push(trimmed);
+            continue;
+          }
+          continue;
         }
 
         // Validate edge-only keys
@@ -636,7 +653,14 @@ export function parseInfra(content: string): ParsedInfra {
         continue;
       }
 
-      // Unknown indented line
+      // Unknown indented line — try as keywordless description
+      if (!currentNode.isEdge) {
+        const descResult = tryStripDescriptionKeyword(trimmed);
+        const descText = descResult.isKeyword ? descResult.text : trimmed;
+        if (!currentNode.description) currentNode.description = [];
+        currentNode.description.push(descText);
+        continue;
+      }
       warn(
         lineNumber,
         `Unexpected line inside component '${currentNode.label}'.`

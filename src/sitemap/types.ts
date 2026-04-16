@@ -11,6 +11,7 @@ export interface SitemapNode {
   metadata: Record<string, string>;
   children: SitemapNode[];
   parentId: string | null;
+  description?: string[];
   /** True for [Group Name] container nodes */
   isContainer: boolean;
   lineNumber: number;

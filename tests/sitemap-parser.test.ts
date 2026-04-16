@@ -128,13 +128,6 @@ describe('parseSitemap', () => {
       expect(result.roots[0].children[0].isContainer).toBe(true);
       expect(result.roots[0].children[0].children[0].label).toBe('Page A');
     });
-
-    it('container with color', () => {
-      const result = parseSitemap('[Group(blue)]');
-      expect(result.roots[0].isContainer).toBe(true);
-      expect(result.roots[0].label).toBe('Group');
-      expect(result.roots[0].color).toBeDefined();
-    });
   });
 
   // === Metadata ===

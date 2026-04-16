@@ -8,6 +8,7 @@ import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
 import { mix } from '../palettes/color-utils';
 import { renderInlineText } from '../utils/inline-markdown';
+import { preprocessDescriptionLine } from '../utils/description-helpers';
 import type { ParsedC4 } from './types';
 import type { C4LayoutResult, C4LayoutEdge } from './layout';
 import { parseC4 } from './parser';
@@ -572,7 +573,12 @@ export function renderC4Context(
           .attr('dominant-baseline', 'central')
           .attr('fill', palette.textMuted)
           .attr('font-size', DESC_FONT_SIZE);
-        renderInlineText(textEl, line, palette, DESC_FONT_SIZE);
+        renderInlineText(
+          textEl,
+          preprocessDescriptionLine(line),
+          palette,
+          DESC_FONT_SIZE
+        );
         yPos += DESC_LINE_HEIGHT;
       }
     }
@@ -1641,7 +1647,12 @@ export function renderC4Containers(
             .attr('dominant-baseline', 'central')
             .attr('fill', palette.textMuted)
             .attr('font-size', DESC_FONT_SIZE);
-          renderInlineText(textEl, line, palette, DESC_FONT_SIZE);
+          renderInlineText(
+            textEl,
+            preprocessDescriptionLine(line),
+            palette,
+            DESC_FONT_SIZE
+          );
           yPos += DESC_LINE_HEIGHT;
         }
       }
@@ -1720,7 +1731,12 @@ export function renderC4Containers(
             .attr('dominant-baseline', 'central')
             .attr('fill', palette.textMuted)
             .attr('font-size', DESC_FONT_SIZE);
-          renderInlineText(textEl, line, palette, DESC_FONT_SIZE);
+          renderInlineText(
+            textEl,
+            preprocessDescriptionLine(line),
+            palette,
+            DESC_FONT_SIZE
+          );
           yPos += DESC_LINE_HEIGHT;
         }
       }

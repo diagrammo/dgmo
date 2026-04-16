@@ -99,7 +99,7 @@ describe('computeNodeText', () => {
   it('includes description when not hidden', () => {
     const result = computeNodeText(
       'Node',
-      'Some description text here',
+      ['Some description text here'],
       1,
       150,
       false

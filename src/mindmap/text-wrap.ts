@@ -6,6 +6,8 @@
 // multiple lines. Used by both layout (for sizing) and renderer
 // (for drawing). Ensures both agree on line breaks and font size.
 
+import { preprocessDescriptionLine } from '../utils/description-helpers';
+
 const CHAR_WIDTH_RATIO = 0.58; // avg char width / fontSize for Helvetica
 const H_PAD = 16; // 8px padding each side
 const MAX_LABEL_LINES = 3;
@@ -170,7 +172,7 @@ interface NodeTextLayout {
  */
 export function computeNodeText(
   label: string,
-  description: string | undefined,
+  description: string[] | undefined,
   depth: number,
   nodeWidth: number,
   hideDescriptions: boolean
@@ -184,18 +186,26 @@ export function computeNodeText(
     MAX_LABEL_LINES
   );
 
-  let descLines: string[] = [];
+  const descLines: string[] = [];
   let descFontSize = DESC_FONT_SIZE;
-  if (!hideDescriptions && description) {
-    const descResult = wrapText(
-      description,
-      nodeWidth,
-      DESC_FONT_SIZE,
-      DESC_FONT_SIZE, // don't shrink descriptions
-      MAX_DESC_LINES
-    );
-    descLines = descResult.lines;
-    descFontSize = descResult.fontSize;
+  if (!hideDescriptions && description && description.length > 0) {
+    // Wrap each description line independently so bullets and line breaks are preserved.
+    // Cap total output lines at MAX_DESC_LINES across all input lines.
+    let remaining = MAX_DESC_LINES;
+    for (const rawLine of description) {
+      if (remaining <= 0) break;
+      const line = preprocessDescriptionLine(rawLine);
+      const lineResult = wrapText(
+        line,
+        nodeWidth,
+        DESC_FONT_SIZE,
+        DESC_FONT_SIZE,
+        remaining
+      );
+      descLines.push(...lineResult.lines);
+      remaining -= lineResult.lines.length;
+      descFontSize = lineResult.fontSize;
+    }
   }
 
   return {

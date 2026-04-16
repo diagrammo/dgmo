@@ -22,6 +22,7 @@ export interface SitemapLayoutNode {
   metadata: Record<string, string>;
   /** Original (unfiltered) metadata for tag-based coloring and hover dimming */
   tagMetadata: Record<string, string>;
+  description?: string[];
   isContainer: boolean;
   lineNumber: number;
   color?: string;
@@ -161,11 +162,20 @@ function filterMetadata(
   return filtered;
 }
 
-function computeCardWidth(label: string, meta: Record<string, string>): number {
+function computeCardWidth(
+  label: string,
+  meta: Record<string, string>,
+  descLines?: string[]
+): number {
   let maxChars = label.length;
   for (const [key, value] of Object.entries(meta)) {
     const lineChars = key.length + 2 + value.length;
     if (lineChars > maxChars) maxChars = lineChars;
+  }
+  if (descLines) {
+    for (const dl of descLines) {
+      if (dl.length > maxChars) maxChars = dl.length;
+    }
   }
   return Math.max(
     MIN_CARD_WIDTH,
@@ -173,11 +183,15 @@ function computeCardWidth(label: string, meta: Record<string, string>): number {
   );
 }
 
-function computeCardHeight(meta: Record<string, string>): number {
+function computeCardHeight(
+  meta: Record<string, string>,
+  descLineCount = 0
+): number {
   const metaCount = Object.keys(meta).length;
-  if (metaCount === 0) return HEADER_HEIGHT + CARD_V_PAD;
+  const contentCount = metaCount + descLineCount;
+  if (contentCount === 0) return HEADER_HEIGHT + CARD_V_PAD;
   return (
-    HEADER_HEIGHT + SEPARATOR_GAP + metaCount * META_LINE_HEIGHT + CARD_V_PAD
+    HEADER_HEIGHT + SEPARATOR_GAP + contentCount * META_LINE_HEIGHT + CARD_V_PAD
   );
 }
 
@@ -307,8 +321,8 @@ function flattenNodes(
         parentPageId,
         meta,
         fullMeta: { ...node.metadata },
-        width: computeCardWidth(node.label, meta),
-        height: computeCardHeight(meta),
+        width: computeCardWidth(node.label, meta, node.description),
+        height: computeCardHeight(meta, node.description?.length ?? 0),
       });
       // Pages can have children too (nested pages) — this page becomes the parentPageId
       if (node.children.length > 0) {
@@ -519,6 +533,7 @@ export function layoutSitemap(
       label: node.label,
       metadata: flat.meta,
       tagMetadata: flat.fullMeta,
+      description: node.description,
       isContainer: false,
       lineNumber: node.lineNumber,
       color: resolveNodeColor(node, parsed.tagGroups, activeTagGroup ?? null),

@@ -53,6 +53,7 @@ export interface C4Element {
   type: C4ElementType;
   shape: C4Shape;
   metadata: Record<string, string>;
+  description?: string[];
   children: C4Element[];
   groups: C4Group[];
   relationships: C4Relationship[];

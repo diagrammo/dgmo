@@ -62,7 +62,7 @@ export interface InfraNode {
   groupId: string | null;
   tags: Record<string, string>; // tagGroup -> tagValue
   isEdge: boolean; // true for the `edge` entry-point component
-  description?: string;
+  description?: string[];
   lineNumber: number;
 }
 
@@ -170,7 +170,7 @@ export interface ComputedInfraNode {
   };
   properties: InfraProperty[];
   tags: Record<string, string>;
-  description?: string;
+  description?: string[];
   lineNumber: number;
 }
 
@@ -186,7 +186,14 @@ export interface ComputedInfraEdge {
 }
 
 export interface InfraDiagnostic {
-  type: 'SPLIT_SUM' | 'CYCLE' | 'OVERLOAD' | 'RATE_LIMITED' | 'ORPHAN' | 'SYNTAX' | 'UPTIME';
+  type:
+    | 'SPLIT_SUM'
+    | 'CYCLE'
+    | 'OVERLOAD'
+    | 'RATE_LIMITED'
+    | 'ORPHAN'
+    | 'SYNTAX'
+    | 'UPTIME';
   line: number;
   message: string;
 }

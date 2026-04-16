@@ -15,6 +15,8 @@ import type { MindmapLayoutResult } from './types';
 import { parseMindmap } from './parser';
 import { layoutMindmap } from './layout';
 import { computeNodeText } from './text-wrap';
+import { renderInlineText } from '../utils/inline-markdown';
+import { preprocessDescriptionLine } from '../utils/description-helpers';
 import { renderLegendD3 } from '../utils/legend-d3';
 import type { LegendConfig, LegendState } from '../utils/legend-types';
 import { LEGEND_HEIGHT, LEGEND_GROUP_GAP } from '../utils/legend-constants';
@@ -419,31 +421,30 @@ export function renderMindmap(
         .attr('stroke-opacity', 0.3)
         .attr('stroke-width', 1);
 
-      // Description text
+      // Description text (with inline markdown + preprocessing)
       if (descLines.length <= 1) {
         const descY = separatorY + 4 + descFontSize;
-        nodeG
+        const processed = preprocessDescriptionLine(descLines[0]);
+        const textEl = nodeG
           .append('text')
           .attr('x', centerX)
           .attr('y', descY)
           .attr('text-anchor', 'middle')
           .attr('font-size', descFontSize)
-          .attr('fill', palette.textMuted)
-          .text(descLines[0]);
+          .attr('fill', palette.textMuted);
+        renderInlineText(textEl, processed, palette, descFontSize);
       } else {
         const descStartY = separatorY + 4 + descFontSize;
-        const descTextEl = nodeG
-          .append('text')
-          .attr('x', centerX)
-          .attr('text-anchor', 'middle')
-          .attr('font-size', descFontSize)
-          .attr('fill', palette.textMuted);
         for (let i = 0; i < descLines.length; i++) {
-          descTextEl
-            .append('tspan')
+          const processed = preprocessDescriptionLine(descLines[i]);
+          const textEl = nodeG
+            .append('text')
             .attr('x', centerX)
             .attr('y', descStartY + i * DESC_LINE_HEIGHT)
-            .text(descLines[i]);
+            .attr('text-anchor', 'middle')
+            .attr('font-size', descFontSize)
+            .attr('fill', palette.textMuted);
+          renderInlineText(textEl, processed, palette, descFontSize);
         }
       }
     }

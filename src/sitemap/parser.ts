@@ -25,6 +25,7 @@ import {
   ALL_CHART_TYPES,
 } from '../utils/parsing';
 import type { SitemapNode, ParsedSitemap } from './types';
+import { tryStripDescriptionKeyword } from '../utils/description-helpers';
 
 // ============================================================
 // Regexes
@@ -435,6 +436,17 @@ export function parseSitemap(
         pushError(lineNumber, 'Metadata has no parent node');
       }
     } else {
+      // Check if this is a description line for a parent node
+      const descResult = tryStripDescriptionKeyword(trimmed);
+      if (descResult.isKeyword && indentStack.length > 0) {
+        const parent = findParentNode(indent, indentStack);
+        if (parent) {
+          if (!parent.description) parent.description = [];
+          parent.description.push(descResult.text.trim());
+          continue;
+        }
+      }
+
       // Node label — possibly with pipe-delimited metadata
       const node = parseNodeLabel(
         trimmed,
@@ -547,10 +559,21 @@ function parseNodeLabel(
     warnFn ? () => warnFn(lineNumber, MULTIPLE_PIPE_ERROR) : undefined
   );
 
+  // Extract description from pipe metadata into dedicated field
+  let description: string[] | undefined;
+  if ('description' in metadata) {
+    const descVal = metadata['description'].trim();
+    if (descVal) {
+      description = [descVal];
+    }
+    delete metadata['description'];
+  }
+
   return {
     id: `node-${counter}`,
     label,
     metadata,
+    description,
     children: [],
     parentId: null,
     isContainer: false,

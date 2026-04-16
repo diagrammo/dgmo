@@ -20,6 +20,7 @@ import {
   parseFirstLine,
   OPTION_NOCOLON_RE,
 } from '../utils/parsing';
+import { tryStripDescriptionKeyword } from '../utils/description-helpers';
 import type {
   ParsedC4,
   C4Element,
@@ -695,11 +696,20 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
         explicitShape ??
         inferC4Shape(namePart, metadata.tech ?? metadata.technology);
 
+      // Extract description from pipe metadata into dedicated field
+      let isADescription: string[] | undefined;
+      if ('description' in metadata) {
+        const descVal = metadata['description'].trim();
+        if (descVal) isADescription = [descVal];
+        delete metadata['description'];
+      }
+
       const element: C4Element = {
         name: namePart,
         type: elementType,
         shape,
         metadata,
+        description: isADescription,
         children: [],
         groups: [],
         relationships: [],
@@ -762,11 +772,20 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
         explicitShape ??
         inferC4Shape(namePart, metadata.tech ?? metadata.technology);
 
+      // Extract description from pipe metadata into dedicated field
+      let prefixDescription: string[] | undefined;
+      if ('description' in metadata) {
+        const descVal = metadata['description'].trim();
+        if (descVal) prefixDescription = [descVal];
+        delete metadata['description'];
+      }
+
       const element: C4Element = {
         name: namePart,
         type: elementType,
         shape,
         metadata,
+        description: prefixDescription,
         children: [],
         groups: [],
         relationships: [],
@@ -805,6 +824,15 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
 
         const key = aliasMap.get(rawKey) ?? rawKey;
         const value = metadataMatch[2].trim();
+
+        // Extract description into dedicated field
+        if (key === 'description') {
+          if (!parentEntry.element.description)
+            parentEntry.element.description = [];
+          parentEntry.element.description.push(value);
+          continue;
+        }
+
         parentEntry.element.metadata[key] = value;
         continue;
       }
@@ -821,9 +849,14 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
       }
     }
 
-    // If inside a parent, could be an unkeyed description or misc text — ignore gracefully
+    // If inside a parent, try as keyword-based or keywordless description
     const parent = findParentElement(indent, stack);
-    if (!parent) {
+    if (parent) {
+      const descResult = tryStripDescriptionKeyword(trimmed);
+      const descText = descResult.isKeyword ? descResult.text : trimmed;
+      if (!parent.element.description) parent.element.description = [];
+      parent.element.description.push(descText);
+    } else {
       pushError(lineNumber, `Unexpected content: "${trimmed}"`);
     }
   }

@@ -844,7 +844,7 @@ describe('4. New features', () => {
     expect(hasNoErrors(r)).toBe(true);
     const webapp = r.elements.find((e) => e.name === 'WebApp');
     expect(webapp).toBeDefined();
-    expect(webapp!.metadata['description']).toBe('SPA built with React');
+    expect(webapp!.description).toEqual(['SPA built with React']);
   });
 
   it('venn intersection without colon', () => {

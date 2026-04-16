@@ -101,7 +101,7 @@ describe('mindmap fixtures', () => {
     const taskA = result.roots[0].children.find((c) => c.label === 'Task A');
     const taskB = result.roots[0].children.find((c) => c.label === 'Task B');
     expect(taskA?.description).toBeUndefined();
-    expect(taskB?.description).toBe('Has a description');
+    expect(taskB?.description).toEqual(['Has a description']);
   });
 
   it('tags-and-colors has multiple tag groups and options', () => {

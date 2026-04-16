@@ -84,7 +84,7 @@ CloudFront
   rps 5000
 `);
       const warn = result.diagnostics.find((d) =>
-        d.message.includes('only valid on the entry point'),
+        d.message.includes('only valid on the entry point')
       );
       expect(warn).toBeDefined();
     });
@@ -164,7 +164,9 @@ API
   ratelimit-rps 1000
 `);
       const api = result.nodes[0];
-      expect(api.properties.find((p) => p.key === 'latency-ms')!.value).toBe(45);
+      expect(api.properties.find((p) => p.key === 'latency-ms')!.value).toBe(
+        45
+      );
       expect(api.properties.find((p) => p.key === 'max-rps')!.value).toBe(500);
       expect(api.properties.find((p) => p.key === 'instances')!.value).toBe(3);
     });
@@ -188,7 +190,9 @@ API
   unknown-prop 42
 `);
       expect(result.diagnostics).toHaveLength(1);
-      expect(result.diagnostics[0].message).toContain("Unknown property 'unknown-prop'");
+      expect(result.diagnostics[0].message).toContain(
+        "Unknown property 'unknown-prop'"
+      );
     });
 
     it('suggests close matches for typos', () => {
@@ -400,7 +404,9 @@ StaticServer | t: Platform
 
       const edgeNode = result.nodes.find((n) => n.isEdge);
       expect(edgeNode).toBeDefined();
-      expect(edgeNode!.properties.find((p) => p.key === 'rps')!.value).toBe(10000);
+      expect(edgeNode!.properties.find((p) => p.key === 'rps')!.value).toBe(
+        10000
+      );
 
       const cf = result.nodes.find((n) => n.id === 'CloudFront');
       expect(cf!.tags).toEqual({ t: 'Platform' });
@@ -446,11 +452,19 @@ ProcessOrder
       expect(result.error).toBeNull();
       const node = result.nodes.find((n) => n.id === 'ProcessOrder');
       expect(node).toBeDefined();
-      expect(node!.properties.find((p) => p.key === 'concurrency')!.value).toBe(1000);
-      expect(node!.properties.find((p) => p.key === 'duration-ms')!.value).toBe(200);
-      expect(node!.properties.find((p) => p.key === 'cold-start-ms')!.value).toBe(250);
+      expect(node!.properties.find((p) => p.key === 'concurrency')!.value).toBe(
+        1000
+      );
+      expect(node!.properties.find((p) => p.key === 'duration-ms')!.value).toBe(
+        200
+      );
+      expect(
+        node!.properties.find((p) => p.key === 'cold-start-ms')!.value
+      ).toBe(250);
       // No unknown property warnings
-      const unknownWarnings = result.diagnostics.filter((d) => d.message.includes('Unknown property'));
+      const unknownWarnings = result.diagnostics.filter((d) =>
+        d.message.includes('Unknown property')
+      );
       expect(unknownWarnings).toHaveLength(0);
     });
 
@@ -462,7 +476,9 @@ Lambda
   concurrency 1000
   instances 3
 `);
-      const warnings = result.diagnostics.filter((d) => d.message.includes('mutually exclusive'));
+      const warnings = result.diagnostics.filter((d) =>
+        d.message.includes('mutually exclusive')
+      );
       expect(warnings).toHaveLength(1);
       expect(warnings[0].message).toContain('instances');
       // Still parses — warning, not error
@@ -477,7 +493,9 @@ Lambda
   concurrency 500
   max-rps 2000
 `);
-      const warnings = result.diagnostics.filter((d) => d.message.includes('mutually exclusive'));
+      const warnings = result.diagnostics.filter((d) =>
+        d.message.includes('mutually exclusive')
+      );
       expect(warnings).toHaveLength(1);
       expect(warnings[0].message).toContain('max-rps');
     });
@@ -491,7 +509,9 @@ Lambda
   instances 2
   max-rps 1000
 `);
-      const warnings = result.diagnostics.filter((d) => d.message.includes('mutually exclusive'));
+      const warnings = result.diagnostics.filter((d) =>
+        d.message.includes('mutually exclusive')
+      );
       expect(warnings).toHaveLength(1);
       expect(warnings[0].message).toContain('instances');
       expect(warnings[0].message).toContain('max-rps');
@@ -505,7 +525,9 @@ Lambda
   concurrency 1000
   duration-ms 200
 `);
-      const warnings = result.diagnostics.filter((d) => d.message.includes('mutually exclusive'));
+      const warnings = result.diagnostics.filter((d) =>
+        d.message.includes('mutually exclusive')
+      );
       expect(warnings).toHaveLength(0);
     });
   });
@@ -525,11 +547,21 @@ OrderQueue
       expect(result.error).toBeNull();
       const node = result.nodes.find((n) => n.id === 'OrderQueue');
       expect(node).toBeDefined();
-      expect(node!.properties.find((p) => p.key === 'buffer')!.value).toBe(100000);
-      expect(node!.properties.find((p) => p.key === 'drain-rate')!.value).toBe(500);
-      expect(node!.properties.find((p) => p.key === 'retention-hours')!.value).toBe(72);
-      expect(node!.properties.find((p) => p.key === 'partitions')!.value).toBe(6);
-      const unknownWarnings = result.diagnostics.filter((d) => d.message.includes('Unknown property'));
+      expect(node!.properties.find((p) => p.key === 'buffer')!.value).toBe(
+        100000
+      );
+      expect(node!.properties.find((p) => p.key === 'drain-rate')!.value).toBe(
+        500
+      );
+      expect(
+        node!.properties.find((p) => p.key === 'retention-hours')!.value
+      ).toBe(72);
+      expect(node!.properties.find((p) => p.key === 'partitions')!.value).toBe(
+        6
+      );
+      const unknownWarnings = result.diagnostics.filter((d) =>
+        d.message.includes('Unknown property')
+      );
       expect(unknownWarnings).toHaveLength(0);
     });
 
@@ -541,7 +573,9 @@ Queue
   buffer 100000
   max-rps 5000
 `);
-      const warnings = result.diagnostics.filter((d) => d.message.includes('capacity models'));
+      const warnings = result.diagnostics.filter((d) =>
+        d.message.includes('capacity models')
+      );
       expect(warnings).toHaveLength(1);
       expect(result.nodes).toHaveLength(1);
     });
@@ -554,7 +588,9 @@ Queue
   buffer 50000
   drain-rate 1000
 `);
-      const warnings = result.diagnostics.filter((d) => d.message.includes('capacity models'));
+      const warnings = result.diagnostics.filter((d) =>
+        d.message.includes('capacity models')
+      );
       expect(warnings).toHaveLength(0);
     });
   });
@@ -647,8 +683,10 @@ edge
   rps 100
   -> Database x5
 `);
-      expect(result.error).toContain("'x5' fanout syntax is no longer supported");
-      expect(result.error).toContain("| fanout: 5");
+      expect(result.error).toContain(
+        "'x5' fanout syntax is no longer supported"
+      );
+      expect(result.error).toContain('| fanout: 5');
     });
 
     it('emits error for deprecated xN fanout syntax on labeled connection', () => {
@@ -659,8 +697,10 @@ edge
   rps 100
   -query-> Shards x10
 `);
-      expect(result.error).toContain("'x10' fanout syntax is no longer supported");
-      expect(result.error).toContain("| fanout: 10");
+      expect(result.error).toContain(
+        "'x10' fanout syntax is no longer supported"
+      );
+      expect(result.error).toContain('| fanout: 10');
     });
   });
 
@@ -772,7 +812,9 @@ infra
 APIServer
   description Handles all REST API calls
 `);
-      expect(result.nodes[0].description).toBe('Handles all REST API calls');
+      expect(result.nodes[0].description).toEqual([
+        'Handles all REST API calls',
+      ]);
       expect(result.nodes[0].properties).toHaveLength(0);
     });
 
@@ -782,7 +824,9 @@ infra
 AuthService
   description Handles auth: JWT and sessions
 `);
-      expect(result.nodes[0].description).toBe('Handles auth: JWT and sessions');
+      expect(result.nodes[0].description).toEqual([
+        'Handles auth: JWT and sessions',
+      ]);
     });
 
     it('description does not go into properties array', () => {
@@ -792,7 +836,7 @@ APIServer
   description My service
   max-rps 500
 `);
-      expect(result.nodes[0].description).toBe('My service');
+      expect(result.nodes[0].description).toEqual(['My service']);
       expect(result.nodes[0].properties).toHaveLength(1);
       expect(result.nodes[0].properties[0].key).toBe('max-rps');
     });
@@ -855,7 +899,9 @@ API
   slo-availability 99%
 `);
       const apiNode = result.nodes.find((n) => n.id === 'API');
-      const sloProp = apiNode?.properties.find((p) => p.key === 'slo-availability');
+      const sloProp = apiNode?.properties.find(
+        (p) => p.key === 'slo-availability'
+      );
       // PROPERTY_RE already captures per-node SLO keys; % is stripped to number by parsePropertyValue
       expect(sloProp).toBeDefined();
       expect(Number(sloProp!.value)).toBe(99);
@@ -981,7 +1027,7 @@ infra
 [Backend] | t: Engineering
   OrderAPI
 `);
-      const node = result.nodes.find(n => n.id === 'OrderAPI');
+      const node = result.nodes.find((n) => n.id === 'OrderAPI');
       expect(node).toBeDefined();
       expect(node!.tags.t).toBe('Engineering');
     });
@@ -993,7 +1039,7 @@ infra
 [Backend] | t: Engineering
   OrderAPI | t: Platform
 `);
-      const node = result.nodes.find(n => n.id === 'OrderAPI');
+      const node = result.nodes.find((n) => n.id === 'OrderAPI');
       expect(node).toBeDefined();
       expect(node!.tags.t).toBe('Platform');
     });
@@ -1005,7 +1051,7 @@ infra
 [Backend]
   OrderAPI
 `);
-      const node = result.nodes.find(n => n.id === 'OrderAPI');
+      const node = result.nodes.find((n) => n.id === 'OrderAPI');
       expect(node).toBeDefined();
       expect(Object.keys(node!.tags)).toHaveLength(0);
     });
@@ -1017,7 +1063,7 @@ infra
 [Backend] | t: Engineering, env: Prod
   OrderAPI
 `);
-      const node = result.nodes.find(n => n.id === 'OrderAPI');
+      const node = result.nodes.find((n) => n.id === 'OrderAPI');
       expect(node).toBeDefined();
       expect(node!.tags.t).toBe('Engineering');
       expect(node!.tags.env).toBe('Prod');

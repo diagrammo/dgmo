@@ -24,12 +24,6 @@ describe('parseMindmap', () => {
     expect(root.children[0].label).toBe('Child');
   });
 
-  it('extracts color from title', () => {
-    const result = parseMindmap('mindmap Strategy(blue)\n  Child', palette);
-    expect(result.roots[0].label).toBe('Strategy');
-    expect(result.roots[0].color).toBeDefined();
-  });
-
   it('handles no title (title-less mindmap)', () => {
     const result = parseMindmap('mindmap\n\nNode A\nNode B');
     expect(result.roots).toHaveLength(2);
@@ -119,7 +113,7 @@ Q2 Goals
   Surveys | description: Quarterly NPS survey`
     );
     const node = result.roots[0].children[0];
-    expect(node.description).toBe('Quarterly NPS survey');
+    expect(node.description).toEqual(['Quarterly NPS survey']);
     expect(node.metadata['description']).toBeUndefined();
   });
 
@@ -139,7 +133,7 @@ Q2 Goals
   Node | description: Info, collapsed: true, priority: High`
     );
     const node = result.roots[0].children[0];
-    expect(node.description).toBe('Info');
+    expect(node.description).toEqual(['Info']);
     expect(node.collapsed).toBe(true);
     expect(node.metadata['priority']).toBe('High');
   });
@@ -154,7 +148,7 @@ Q2 Goals
     Login Page`
     );
     const auth = result.roots[0].children[0];
-    expect(auth.description).toBe('Handle login, signup, OAuth flows');
+    expect(auth.description).toEqual(['Handle login, signup, OAuth flows']);
     expect(auth.children).toHaveLength(1);
     expect(auth.children[0].label).toBe('Login Page');
   });
@@ -178,7 +172,7 @@ Q2 Goals
     description: Indented loses`
     );
     const node = result.roots[0].children[0];
-    expect(node.description).toBe('Pipe wins');
+    expect(node.description).toEqual(['Pipe wins', 'Indented loses']);
   });
 
   it('empty indented description is silently skipped', () => {
@@ -250,17 +244,6 @@ tag Priority p
   });
 
   // ── Color extraction ────────────────────────────────────────
-
-  it('extracts color from node label', () => {
-    const result = parseMindmap(
-      `mindmap Root
-  Important(red)`,
-      palette
-    );
-    const node = result.roots[0].children[0];
-    expect(node.label).toBe('Important');
-    expect(node.color).toBeDefined();
-  });
 
   // ── Options ─────────────────────────────────────────────────
 

@@ -9,6 +9,8 @@ import type { PaletteColors } from '../palettes';
 import { mix } from '../palettes/color-utils';
 import type { InfraTagGroup } from './types';
 import { resolveColor } from '../colors';
+import { renderInlineText } from '../utils/inline-markdown';
+import { preprocessDescriptionLine } from '../utils/description-helpers';
 import type {
   InfraLayoutResult,
   InfraLayoutNode,
@@ -1432,11 +1434,14 @@ function renderNodes(
       const expanded = expandedNodeIds?.has(node.id) ?? false;
 
       // Description subtitle — shown below label only when node is selected
-      const descH =
-        expanded && node.description && !node.isEdge ? META_LINE_HEIGHT : 0;
-      if (descH > 0 && node.description) {
-        const descTruncated = truncateDesc(node.description);
-        const isTruncated = descTruncated !== node.description;
+      const descLines =
+        expanded && node.description && !node.isEdge ? node.description : [];
+      const descH = descLines.length * META_LINE_HEIGHT;
+      for (let di = 0; di < descLines.length; di++) {
+        const rawLine = descLines[di];
+        const processed = preprocessDescriptionLine(rawLine);
+        const descTruncated = truncateDesc(processed);
+        const isTruncated = descTruncated !== processed;
         const textEl = g
           .append('text')
           .attr('x', node.x)
@@ -1444,15 +1449,16 @@ function renderNodes(
             'y',
             y +
               NODE_HEADER_HEIGHT +
+              di * META_LINE_HEIGHT +
               META_LINE_HEIGHT / 2 +
               META_FONT_SIZE * 0.35
           )
           .attr('text-anchor', 'middle')
           .attr('font-family', FONT_FAMILY)
           .attr('font-size', META_FONT_SIZE)
-          .attr('fill', mutedColor)
-          .text(descTruncated);
-        if (isTruncated) textEl.append('title').text(node.description);
+          .attr('fill', mutedColor);
+        renderInlineText(textEl, descTruncated, palette, META_FONT_SIZE);
+        if (isTruncated) textEl.append('title').text(rawLine);
       }
 
       // Declared properties only shown when node is selected (expanded)
