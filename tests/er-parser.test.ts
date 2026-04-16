@@ -347,7 +347,7 @@ Users | d: Billing
     expect(result.tables[0].metadata).toEqual({ domain: 'Billing' });
   });
 
-  it('resolves alias in pipe metadata', () => {
+  it('resolves in pipe metadata', () => {
     const result = parseERDiagram(`er
 
 tag Domain d

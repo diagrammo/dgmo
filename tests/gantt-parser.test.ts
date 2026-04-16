@@ -152,7 +152,7 @@ describe('gantt parser', () => {
 
     it('parses group with pipe metadata', () => {
       const input =
-        'gantt\ntag Team alias t\n  Engineering(blue)\n[Backend] | t: Engineering\n  10d Task';
+        'gantt\ntag Team t\n  Engineering(blue)\n[Backend] | t: Engineering\n  10d Task';
       const result = parseGantt(input, palette);
       expect(result.error).toBeNull();
       const group = result.nodes[0];
@@ -456,7 +456,7 @@ describe('gantt parser', () => {
   describe('tag groups', () => {
     it('parses tag block with entries', () => {
       const input =
-        'gantt\ntag Team alias t\n  Engineering(blue)\n  Design(purple)\n10d Task | t: Engineering';
+        'gantt\ntag Team t\n  Engineering(blue)\n  Design(purple)\n10d Task | t: Engineering';
       const result = parseGantt(input, palette);
       expect(result.tagGroups).toHaveLength(1);
       expect(result.tagGroups[0].name).toBe('Team');
@@ -466,14 +466,14 @@ describe('gantt parser', () => {
 
     it('first entry is default', () => {
       const input =
-        'gantt\ntag Team alias t\n  Engineering(blue)\n  Design(purple)\n10d Task';
+        'gantt\ntag Team t\n  Engineering(blue)\n  Design(purple)\n10d Task';
       const result = parseGantt(input, palette);
       expect(result.tagGroups[0].defaultValue).toBe('Engineering');
     });
 
     it('tag inheritance from parent group', () => {
       const input =
-        'gantt\ntag Team alias t\n  Engineering(blue)\n[Backend] | t: Engineering\n  10d Task';
+        'gantt\ntag Team t\n  Engineering(blue)\n[Backend] | t: Engineering\n  10d Task';
       const result = parseGantt(input, palette);
       const group = result.nodes[0];
       if (group.kind === 'group') {
@@ -486,7 +486,7 @@ describe('gantt parser', () => {
 
     it('child overrides inherited tag', () => {
       const input =
-        'gantt\ntag Team alias t\n  Engineering(blue)\n  QA(orange)\n[Backend] | t: Engineering\n  10d Task | t: QA';
+        'gantt\ntag Team t\n  Engineering(blue)\n  QA(orange)\n[Backend] | t: Engineering\n  10d Task | t: QA';
       const result = parseGantt(input, palette);
       const group = result.nodes[0];
       if (group.kind === 'group') {

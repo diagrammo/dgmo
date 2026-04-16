@@ -744,7 +744,7 @@ export function parseGantt(
 
       // First segment could be empty (just `[Group]`) or have metadata
       let metadata: Record<string, string> = {};
-      let color: string | null = null;
+      const color: string | null = null;
 
       const pipeWarn = () => warn(lineNumber, MULTIPLE_PIPE_ERROR);
       if (segments.length > 0 && segments[0].trim()) {
@@ -758,14 +758,8 @@ export function parseGantt(
         );
       }
 
-      // Extract color from group name if present
-      const nameExtracted = extractColor(groupMatch[1], palette);
-      if (nameExtracted.color) {
-        color = nameExtracted.color;
-      }
-
       const group: GanttGroup = {
-        name: nameExtracted.label,
+        name: groupMatch[1],
         color,
         metadata,
         lineNumber,

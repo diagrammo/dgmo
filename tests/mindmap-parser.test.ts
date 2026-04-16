@@ -195,6 +195,46 @@ Q2 Goals
     expect(node.description).toBeUndefined();
   });
 
+  // ── Multi-line and keyword variants ─────────────────────────
+
+  it('multi-line description accumulates to array', () => {
+    const result = parseMindmap(
+      `mindmap Root
+  Node
+    description line1
+    description line2`
+    );
+    const node = result.roots[0].children[0];
+    expect(node.description).toEqual(['line1', 'line2']);
+  });
+
+  it('colon optional: both description: text and description text work', () => {
+    const result = parseMindmap(
+      `mindmap Root
+  NodeA
+    description: with colon
+  NodeB
+    description without colon`
+    );
+    const nodeA = result.roots[0].children[0];
+    const nodeB = result.roots[0].children[1];
+    expect(nodeA.description).toEqual(['with colon']);
+    expect(nodeB.description).toEqual(['without colon']);
+  });
+
+  it('bare Description (capitalized, no trailing text) creates a CHILD NODE, not a description', () => {
+    const result = parseMindmap(
+      `mindmap Root
+  Parent
+    Description`
+    );
+    const parent = result.roots[0].children[0];
+    // "Description" with no trailing text is not a description keyword — it's a child node
+    expect(parent.description).toBeUndefined();
+    expect(parent.children).toHaveLength(1);
+    expect(parent.children[0].label).toBe('Description');
+  });
+
   // ── Non-description indented lines are child nodes ──────────
 
   it('treats non-description indented key:value as child node', () => {
@@ -228,7 +268,7 @@ tag Priority p
     expect(result.tagGroups[0].entries).toHaveLength(2);
   });
 
-  it('resolves alias in pipe metadata via tag group', () => {
+  it('resolves in pipe metadata via tag group', () => {
     const result = parseMindmap(
       `mindmap Root
 

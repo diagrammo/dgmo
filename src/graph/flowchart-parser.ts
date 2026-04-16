@@ -5,7 +5,6 @@ import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
 import { parseInArrowLabel, matchColorParens } from '../utils/arrows';
 import {
   measureIndent,
-  extractColor,
   inferArrowColor,
   parseFirstLine,
   OPTION_NOCOLON_RE,
@@ -32,55 +31,50 @@ interface NodeRef {
  * Try to parse a node reference from a text fragment.
  * Order matters: subroutine & document before process.
  */
-function parseNodeRef(text: string, palette?: PaletteColors): NodeRef | null {
+function parseNodeRef(text: string): NodeRef | null {
   const t = text.trim();
   if (!t) return null;
 
   // Subroutine: [[Label]]
   let m = t.match(/^\[\[([^\]]+)\]\]$/);
   if (m) {
-    const { label, color } = extractColor(m[1].trim(), palette);
-    return {
-      id: nodeId('subroutine', label),
-      label,
-      shape: 'subroutine',
-      color,
-    };
+    const label = m[1].trim();
+    return { id: nodeId('subroutine', label), label, shape: 'subroutine' };
   }
 
   // Document: [Label~]
   m = t.match(/^\[([^\]]+)~\]$/);
   if (m) {
-    const { label, color } = extractColor(m[1].trim(), palette);
-    return { id: nodeId('document', label), label, shape: 'document', color };
+    const label = m[1].trim();
+    return { id: nodeId('document', label), label, shape: 'document' };
   }
 
   // Process: [Label]
   m = t.match(/^\[([^\]]+)\]$/);
   if (m) {
-    const { label, color } = extractColor(m[1].trim(), palette);
-    return { id: nodeId('process', label), label, shape: 'process', color };
+    const label = m[1].trim();
+    return { id: nodeId('process', label), label, shape: 'process' };
   }
 
   // Terminal: (Label) — use .+ (greedy) so (Label(color)) matches outermost parens
   m = t.match(/^\((.+)\)$/);
   if (m) {
-    const { label, color } = extractColor(m[1].trim(), palette);
-    return { id: nodeId('terminal', label), label, shape: 'terminal', color };
+    const label = m[1].trim();
+    return { id: nodeId('terminal', label), label, shape: 'terminal' };
   }
 
   // Decision: <Label>
   m = t.match(/^<([^>]+)>$/);
   if (m) {
-    const { label, color } = extractColor(m[1].trim(), palette);
-    return { id: nodeId('decision', label), label, shape: 'decision', color };
+    const label = m[1].trim();
+    return { id: nodeId('decision', label), label, shape: 'decision' };
   }
 
   // I/O: /Label/
   m = t.match(/^\/([^/]+)\/$/);
   if (m) {
-    const { label, color } = extractColor(m[1].trim(), palette);
-    return { id: nodeId('io', label), label, shape: 'io', color };
+    const label = m[1].trim();
+    return { id: nodeId('io', label), label, shape: 'io' };
   }
 
   return null;
@@ -370,7 +364,7 @@ export function parseFlowchart(
 
     if (segments.length === 1) {
       // Single node reference, no arrows
-      const ref = parseNodeRef(segments[0], palette);
+      const ref = parseNodeRef(segments[0]);
       if (ref) {
         const node = getOrCreateNode(ref, lineNumber);
         indentStack.push({ nodeId: node.id, indent });
@@ -398,7 +392,7 @@ export function parseFlowchart(
       }
 
       // This is a node text segment
-      const ref = parseNodeRef(seg, palette);
+      const ref = parseNodeRef(seg);
       if (!ref) continue;
 
       const node = getOrCreateNode(ref, lineNumber);

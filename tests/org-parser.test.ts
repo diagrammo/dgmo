@@ -16,7 +16,9 @@ describe('parseOrg', () => {
       expect(result.error).toMatch(/Expected chart type "org"/);
       // diagnostics
       expect(result.diagnostics).toHaveLength(1);
-      expect(result.diagnostics[0].message).toMatch(/Expected chart type "org"/);
+      expect(result.diagnostics[0].message).toMatch(
+        /Expected chart type "org"/
+      );
       expect(result.diagnostics[0].severity).toBe('error');
       expect(result.diagnostics[0].line).toBeGreaterThanOrEqual(0);
     });
@@ -166,11 +168,11 @@ describe('parseOrg', () => {
       expect(alice.metadata).toEqual({ role: 'Senior', location: 'NY' });
     });
 
-    it('single-line metadata with color', () => {
+    it('(color) suffix is literal in label with metadata', () => {
       const result = parseOrg('Alice Park(blue) | role: Senior');
       const alice = result.roots[0];
-      expect(alice.label).toBe('Alice Park');
-      expect(alice.color).toBeDefined();
+      expect(alice.label).toBe('Alice Park(blue)');
+      expect(alice.color).toBeUndefined();
       expect(alice.metadata).toEqual({ role: 'Senior' });
     });
 
@@ -226,9 +228,15 @@ describe('parseOrg', () => {
       expect(team.metadata).toEqual({ goal: 'Core infra' });
       expect(team.children).toHaveLength(2);
       expect(team.children[0].label).toBe('Alice Park');
-      expect(team.children[0].metadata).toEqual({ role: 'Senior Engineer', location: 'NY' });
+      expect(team.children[0].metadata).toEqual({
+        role: 'Senior Engineer',
+        location: 'NY',
+      });
       expect(team.children[1].label).toBe('Bob Torres');
-      expect(team.children[1].metadata).toEqual({ role: 'Junior Engineer', location: 'CO' });
+      expect(team.children[1].metadata).toEqual({
+        role: 'Junior Engineer',
+        location: 'CO',
+      });
     });
 
     it('nested containers', () => {
@@ -246,12 +254,12 @@ describe('parseOrg', () => {
       expect(eng.children[1].children[0].label).toBe('Bob');
     });
 
-    it('container with color suffix', () => {
+    it('container (color) suffix is literal', () => {
       const result = parseOrg('[Platform Team(blue)]');
       const team = result.roots[0];
       expect(team.isContainer).toBe(true);
-      expect(team.label).toBe('Platform Team');
-      expect(team.color).toBeDefined();
+      expect(team.label).toBe('Platform Team(blue)');
+      expect(team.color).toBeUndefined();
     });
   });
 
@@ -296,9 +304,7 @@ describe('parseOrg', () => {
     });
 
     it('first entry is default', () => {
-      const result = parseOrg(
-        'tag Location\n  CO(green)\n  NY(blue)\n\nJane'
-      );
+      const result = parseOrg('tag Location\n  CO(green)\n  NY(blue)\n\nJane');
       expect(result.tagGroups).toHaveLength(1);
       expect(result.tagGroups[0].defaultValue).toBe('CO');
       expect(result.tagGroups[0].entries).toHaveLength(2);
@@ -313,10 +319,8 @@ describe('parseOrg', () => {
 
   // === Tag group aliases ===
   describe('tag group aliases', () => {
-    it('parses alias from tag group heading', () => {
-      const result = parseOrg(
-        'tag Location loc\n  NY(blue)\n\nJane Smith'
-      );
+    it('parses from tag group heading', () => {
+      const result = parseOrg('tag Location loc\n  NY(blue)\n\nJane Smith');
       expect(result.tagGroups).toHaveLength(1);
       expect(result.tagGroups[0].name).toBe('Location');
       expect(result.tagGroups[0].alias).toBe('loc');
@@ -329,7 +333,7 @@ describe('parseOrg', () => {
       expect(result.tagGroups[0].alias).toBeUndefined();
     });
 
-    it('expands alias in pipe-delimited metadata', () => {
+    it('expands in pipe-delimited metadata', () => {
       const result = parseOrg(
         'tag Title t\n  CTO(purple)\n\nSean Curtis| t: CTO'
       );
@@ -337,7 +341,7 @@ describe('parseOrg', () => {
       expect(sean.metadata).toEqual({ title: 'CTO' });
     });
 
-    it('expands alias in comma-separated metadata', () => {
+    it('expands in comma-separated metadata', () => {
       const result = parseOrg(
         'tag Title t\n  CTO(purple)\n\ntag Location loc\n  NY(blue)\n\nSean Curtis| t: CTO, loc: NY'
       );
@@ -345,7 +349,7 @@ describe('parseOrg', () => {
       expect(sean.metadata).toEqual({ title: 'CTO', location: 'NY' });
     });
 
-    it('expands alias in standalone metadata lines', () => {
+    it('expands in standalone metadata lines', () => {
       const result = parseOrg(
         'tag Location loc\n  NY(blue)\n\nSean Curtis\n  loc: NY'
       );
@@ -380,9 +384,7 @@ describe('parseOrg', () => {
     });
 
     it('alias on tag group heading', () => {
-      const result = parseOrg(
-        'tag Status st\n  FTE(green)\n\nJane'
-      );
+      const result = parseOrg('tag Status st\n  FTE(green)\n\nJane');
       expect(result.tagGroups[0].name).toBe('Status');
       expect(result.tagGroups[0].alias).toBe('st');
     });
@@ -399,7 +401,9 @@ describe('parseOrg', () => {
   // === tag block syntax ===
   describe('tag block syntax', () => {
     it('parses tag heading with entries', () => {
-      const result = parseOrg('tag Location\n  NY(blue)\n  LA(yellow)\n\nJane Smith');
+      const result = parseOrg(
+        'tag Location\n  NY(blue)\n  LA(yellow)\n\nJane Smith'
+      );
       expect(result.tagGroups).toHaveLength(1);
       expect(result.tagGroups[0].name).toBe('Location');
       expect(result.tagGroups[0].entries).toHaveLength(2);
@@ -427,7 +431,9 @@ describe('parseOrg', () => {
 
     it('does not emit deprecation warning for tag syntax', () => {
       const result = parseOrg('tag Location\n  NY(blue)\n\nJane');
-      const warnings = result.diagnostics.filter(d => d.severity === 'warning');
+      const warnings = result.diagnostics.filter(
+        (d) => d.severity === 'warning'
+      );
       expect(warnings).toHaveLength(0);
     });
 
@@ -443,7 +449,7 @@ describe('parseOrg', () => {
       expect(result.options['tag']).toBeUndefined();
     });
 
-    it('expands alias in metadata with tag syntax', () => {
+    it('expands in metadata with tag syntax', () => {
       const result = parseOrg('tag Title t\n  CTO(purple)\n\nSean| t: CTO');
       expect(result.roots[0].metadata).toEqual({ title: 'CTO' });
     });
@@ -466,9 +472,7 @@ describe('parseOrg', () => {
     });
 
     it('works alongside title and tag groups', () => {
-      const result = parseOrg(
-        'org Acme\n\ntag Location\n  NY(blue)\n\nJane'
-      );
+      const result = parseOrg('org Acme\n\ntag Location\n  NY(blue)\n\nJane');
       expect(result.title).toBe('Acme');
       expect(result.options).toEqual({});
       expect(result.tagGroups).toHaveLength(1);
@@ -493,11 +497,11 @@ describe('parseOrg', () => {
 
   // === Colors ===
   describe('colors', () => {
-    it('extracts color from node label', () => {
+    it('(color) suffix is literal in node label', () => {
       const result = parseOrg('Jane Smith(blue)');
       const jane = result.roots[0];
-      expect(jane.label).toBe('Jane Smith');
-      expect(jane.color).toBeDefined();
+      expect(jane.label).toBe('Jane Smith(blue)');
+      expect(jane.color).toBeUndefined();
     });
 
     it('no color when no suffix', () => {
@@ -689,10 +693,8 @@ Jane Smith
       expect(result.tagGroups).toHaveLength(2);
     });
 
-    it('preserves alias and default in tag-group-only input', () => {
-      const result = parseOrg(
-        'tag Rank r\n  Sailor(blue)\n  Captain(red)'
-      );
+    it('preserves and default in tag-group-only input', () => {
+      const result = parseOrg('tag Rank r\n  Sailor(blue)\n  Captain(red)');
       expect(result.tagGroups[0].name).toBe('Rank');
       expect(result.tagGroups[0].alias).toBe('r');
       expect(result.tagGroups[0].defaultValue).toBe('Sailor');
@@ -709,7 +711,9 @@ Jane Smith
 Alice | department: Marketing`;
       const result = parseOrg(input);
       expect(result.error).toBeNull();
-      const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
+      const warnings = result.diagnostics.filter(
+        (d) => d.severity === 'warning'
+      );
       expect(warnings).toHaveLength(1);
       expect(warnings[0].message).toContain("Unknown value 'Marketing'");
       expect(warnings[0].message).toContain('Department');
@@ -723,7 +727,9 @@ Alice | department: Marketing`;
 
 Alice | department: Engineering`;
       const result = parseOrg(input);
-      const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
+      const warnings = result.diagnostics.filter(
+        (d) => d.severity === 'warning'
+      );
       expect(warnings).toHaveLength(0);
     });
 
@@ -733,7 +739,9 @@ Alice | department: Engineering`;
 
 Alice | department: engineering`;
       const result = parseOrg(input);
-      const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
+      const warnings = result.diagnostics.filter(
+        (d) => d.severity === 'warning'
+      );
       expect(warnings).toHaveLength(0);
     });
 
@@ -744,7 +752,9 @@ Alice | department: engineering`;
 
 Alice | department: Enginering`;
       const result = parseOrg(input);
-      const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
+      const warnings = result.diagnostics.filter(
+        (d) => d.severity === 'warning'
+      );
       expect(warnings).toHaveLength(1);
       expect(warnings[0].message).toContain('Did you mean');
     });
@@ -756,7 +766,9 @@ Alice | department: Enginering`;
 
 Alice | department: Finance`;
       const result = parseOrg(input);
-      const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
+      const warnings = result.diagnostics.filter(
+        (d) => d.severity === 'warning'
+      );
       expect(warnings).toHaveLength(1);
       expect(warnings[0].message).toContain('Engineering, Design');
     });
@@ -769,7 +781,9 @@ Alice | department: Finance`;
 CEO
   Alice | role: VP`;
       const result = parseOrg(input);
-      const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
+      const warnings = result.diagnostics.filter(
+        (d) => d.severity === 'warning'
+      );
       expect(warnings).toHaveLength(1);
       expect(warnings[0].message).toContain("Unknown value 'VP'");
     });
@@ -780,7 +794,9 @@ CEO
 
 Alice | d: Marketing`;
       const result = parseOrg(input);
-      const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
+      const warnings = result.diagnostics.filter(
+        (d) => d.severity === 'warning'
+      );
       expect(warnings).toHaveLength(1);
       expect(warnings[0].message).toContain("Unknown value 'Marketing'");
       expect(warnings[0].message).toContain('Department');

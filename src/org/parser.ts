@@ -270,8 +270,7 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
 
     if (containerMatch) {
       // It's a container node
-      const rawLabel = containerMatch[1].trim();
-      const { label, color } = extractColor(rawLabel, palette);
+      const label = containerMatch[1].trim();
 
       containerCounter++;
       const node: OrgNode = {
@@ -282,7 +281,6 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
         parentId: null,
         isContainer: true,
         lineNumber,
-        color,
       };
 
       attachNode(node, indent, indentStack, result);
@@ -378,8 +376,7 @@ function parseNodeLabel(
   // Check for single-line compact metadata: "Alice Park | role: Senior, location: NY"
   const segments = trimmed.split('|').map((s) => s.trim());
 
-  const rawLabel = segments[0];
-  const { label, color } = extractColor(rawLabel, palette);
+  const label = segments[0];
 
   const metadata = parsePipeMetadata(
     segments,
@@ -395,7 +392,6 @@ function parseNodeLabel(
     parentId: null,
     isContainer: false,
     lineNumber,
-    color,
   };
 }
 

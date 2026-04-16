@@ -113,6 +113,6 @@ describe('mindmap fixtures', () => {
     expect(result.tagGroups).toHaveLength(2);
     expect(result.options['active-tag']).toBe('Priority');
     expect(result.options['hide-descriptions']).toBe('true');
-    expect(result.roots[0].color).toBeDefined(); // blue
+    expect(result.roots[0].color).toBeUndefined(); // color suffix no longer extracted
   });
 });

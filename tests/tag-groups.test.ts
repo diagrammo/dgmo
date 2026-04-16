@@ -57,13 +57,13 @@ describe('stripDefaultModifier', () => {
 describe('isTagBlockHeading', () => {
   it('returns true for tag syntax (no colon)', () => {
     expect(isTagBlockHeading('tag Location')).toBe(true);
-    expect(isTagBlockHeading('Tag Location alias loc')).toBe(true);
+    expect(isTagBlockHeading('Tag Location loc')).toBe(true);
     expect(isTagBlockHeading('TAG Rank(blue)')).toBe(true);
   });
 
   it('returns false for tag: syntax (deprecated)', () => {
     expect(isTagBlockHeading('tag: Location')).toBe(false);
-    expect(isTagBlockHeading('Tag: Location alias loc')).toBe(false);
+    expect(isTagBlockHeading('Tag: Location loc')).toBe(false);
   });
 
   it('returns false for ## syntax (deprecated)', () => {
@@ -144,7 +144,7 @@ describe('parseTagDeclaration', () => {
     });
   });
 
-  it('infers alias from trailing 1-4 lowercase token', () => {
+  it('infers from trailing 1-4 lowercase token', () => {
     const r = parseTagDeclaration('tag Priority p');
     expect(r?.name).toBe('Priority');
     expect(r?.alias).toBe('p');
@@ -156,14 +156,14 @@ describe('parseTagDeclaration', () => {
     expect(r?.alias).toBe('eng');
   });
 
-  it('does not infer alias from 5+ char token', () => {
+  it('does not infer from 5+ char token', () => {
     const r = parseTagDeclaration('tag Priority level');
     // 'level' is 5 chars — not an alias
     expect(r?.name).toBe('Priority level');
     expect(r?.alias).toBeUndefined();
   });
 
-  it('does not infer alias from uppercase token', () => {
+  it('does not infer from uppercase token', () => {
     const r = parseTagDeclaration('tag Priority High');
     // 'High' has uppercase — not an alias
     expect(r?.name).toBe('Priority High');
@@ -240,7 +240,7 @@ describe('matchTagBlockHeading (via parseTagDeclaration)', () => {
   });
 
   it('rejects old colon syntax', () => {
-    expect(matchTagBlockHeading('tag: Location alias loc')).toBeNull();
+    expect(matchTagBlockHeading('tag: Location loc')).toBeNull();
   });
 
   it('rejects legacy ## syntax', () => {

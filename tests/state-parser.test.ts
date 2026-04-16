@@ -15,7 +15,9 @@ describe('parseState', () => {
       const result = parseState('flowchart\n[*] -> Idle');
       expect(result.error).toBeDefined();
       expect(result.diagnostics).toHaveLength(1);
-      expect(result.diagnostics[0].message).toContain('Expected chart type "state"');
+      expect(result.diagnostics[0].message).toContain(
+        'Expected chart type "state"'
+      );
     });
 
     it('suggests correct type on typo', () => {
@@ -49,10 +51,10 @@ describe('parseState', () => {
       expect(result.nodes[0].shape).toBe('state');
     });
 
-    it('parses state with color suffix', () => {
+    it('(color) suffix is literal label text', () => {
       const result = parseState('Active(green) -> Done');
-      expect(result.nodes[0].label).toBe('Active');
-      expect(result.nodes[0].color).toBeDefined();
+      expect(result.nodes[0].label).toBe('Active(green)');
+      expect(result.nodes[0].color).toBeUndefined();
     });
 
     it('deduplicates states referenced multiple times', () => {

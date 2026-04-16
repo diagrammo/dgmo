@@ -1,11 +1,11 @@
 infra E-Commerce Platform — Full Infrastructure
 
-tag Team alias t
+tag Team t
   Backend(blue)
   Platform(teal)
   Data(purple)
 
-tag Tier alias r
+tag Tier r
   Edge(green)
   Core(blue)
   Storage(orange)

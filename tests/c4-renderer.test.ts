@@ -186,7 +186,10 @@ Banking is a system
 
     // Only Customer + Banking, not WebApp
     expect(layout.nodes.length).toBe(2);
-    expect(layout.nodes.map((n) => n.name).sort()).toEqual(['Banking', 'Customer']);
+    expect(layout.nodes.map((n) => n.name).sort()).toEqual([
+      'Banking',
+      'Customer',
+    ]);
   });
 
   it('computes positive dimensions', () => {
@@ -259,10 +262,18 @@ Banking is a system
     container.style.height = '600px';
     document.body.appendChild(container);
 
-    renderC4Context(container, parsed, layout, palette.light, false, undefined, {
-      width: 800,
-      height: 600,
-    });
+    renderC4Context(
+      container,
+      parsed,
+      layout,
+      palette.light,
+      false,
+      undefined,
+      {
+        width: 800,
+        height: 600,
+      }
+    );
 
     const svg = container.querySelector('svg');
     expect(svg).not.toBeNull();
@@ -285,10 +296,18 @@ Banking is a system
     const container = document.createElement('div');
     document.body.appendChild(container);
 
-    renderC4Context(container, parsed, layout, palette.light, false, undefined, {
-      width: 800,
-      height: 600,
-    });
+    renderC4Context(
+      container,
+      parsed,
+      layout,
+      palette.light,
+      false,
+      undefined,
+      {
+        width: 800,
+        height: 600,
+      }
+    );
 
     const title = container.querySelector('.chart-title');
     expect(title).not.toBeNull();
@@ -309,10 +328,18 @@ Notifications is a system
     const container = document.createElement('div');
     document.body.appendChild(container);
 
-    renderC4Context(container, parsed, layout, palette.light, false, undefined, {
-      width: 800,
-      height: 600,
-    });
+    renderC4Context(
+      container,
+      parsed,
+      layout,
+      palette.light,
+      false,
+      undefined,
+      {
+        width: 800,
+        height: 600,
+      }
+    );
 
     const edge = container.querySelector('.c4-edge');
     expect(edge).not.toBeNull();
@@ -330,10 +357,18 @@ Customer is a person`;
     const container = document.createElement('div');
     document.body.appendChild(container);
 
-    renderC4Context(container, parsed, layout, palette.light, false, undefined, {
-      width: 800,
-      height: 600,
-    });
+    renderC4Context(
+      container,
+      parsed,
+      layout,
+      palette.light,
+      false,
+      undefined,
+      {
+        width: 800,
+        height: 600,
+      }
+    );
 
     // Person icon has a circle (head) inside the card
     const card = container.querySelector('.c4-card');
@@ -351,10 +386,18 @@ Customer is a person`;
     const container = document.createElement('div');
     document.body.appendChild(container);
 
-    renderC4Context(container, parsed, layout, palette.light, false, undefined, {
-      width: 800,
-      height: 600,
-    });
+    renderC4Context(
+      container,
+      parsed,
+      layout,
+      palette.light,
+      false,
+      undefined,
+      {
+        width: 800,
+        height: 600,
+      }
+    );
 
     const cards = container.querySelectorAll('.c4-card');
     for (const card of cards) {
@@ -397,7 +440,11 @@ Banking is a system
   });
 
   it('handles transparent theme', () => {
-    const svg = renderC4ContextForExport(basicInput, 'transparent', palette.light);
+    const svg = renderC4ContextForExport(
+      basicInput,
+      'transparent',
+      palette.light
+    );
     expect(svg.length).toBeGreaterThan(0);
   });
 });
@@ -408,7 +455,7 @@ Banking is a system
 
 const containerInput = `c4 Container View
 
-tag Technology alias tech
+tag Technology tech
   React(blue)
   Node.js(green)
   PostgreSQL(purple)
@@ -436,9 +483,12 @@ describe('layoutC4Containers', () => {
 
     const containerNodes = layout.nodes.filter((n) => n.type === 'container');
     expect(containerNodes.length).toBe(4);
-    expect(containerNodes.map((n) => n.name).sort()).toEqual(
-      ['API', 'Cache', 'Database', 'WebApp']
-    );
+    expect(containerNodes.map((n) => n.name).sort()).toEqual([
+      'API',
+      'Cache',
+      'Database',
+      'WebApp',
+    ]);
   });
 
   it('includes external elements with relationships to containers', () => {
@@ -489,9 +539,13 @@ describe('layoutC4Containers', () => {
 
     expect(layout.edges.length).toBeGreaterThanOrEqual(3);
     // WebApp -> API
-    expect(layout.edges.some((e) => e.source === 'WebApp' && e.target === 'API')).toBe(true);
+    expect(
+      layout.edges.some((e) => e.source === 'WebApp' && e.target === 'API')
+    ).toBe(true);
     // API -> Database
-    expect(layout.edges.some((e) => e.source === 'API' && e.target === 'Database')).toBe(true);
+    expect(
+      layout.edges.some((e) => e.source === 'API' && e.target === 'Database')
+    ).toBe(true);
   });
 
   it('returns empty result for unknown system name', () => {
@@ -679,7 +733,12 @@ describe('renderC4ContainersForExport', () => {
       it(`produces non-empty SVG for ${paletteName} / ${theme}`, () => {
         const pal = getPalette(paletteName);
         const colors = theme === 'dark' ? pal.dark : pal.light;
-        const svg = renderC4ContainersForExport(containerInput, 'Banking', theme, colors);
+        const svg = renderC4ContainersForExport(
+          containerInput,
+          'Banking',
+          theme,
+          colors
+        );
 
         expect(svg.length).toBeGreaterThan(0);
         expect(svg).toContain('<svg');
@@ -689,12 +748,22 @@ describe('renderC4ContainersForExport', () => {
   }
 
   it('returns empty string for unknown system', () => {
-    const svg = renderC4ContainersForExport(containerInput, 'NonExistent', 'light', palette.light);
+    const svg = renderC4ContainersForExport(
+      containerInput,
+      'NonExistent',
+      'light',
+      palette.light
+    );
     expect(svg).toBe('');
   });
 
   it('handles transparent theme', () => {
-    const svg = renderC4ContainersForExport(containerInput, 'Banking', 'transparent', palette.light);
+    const svg = renderC4ContainersForExport(
+      containerInput,
+      'Banking',
+      'transparent',
+      palette.light
+    );
     expect(svg.length).toBeGreaterThan(0);
   });
 });
@@ -714,7 +783,9 @@ Banking is a system
     const container = parsed.elements[0].children[0];
 
     const dimsContext = computeC4NodeDimensions(container);
-    const dimsContainer = computeC4NodeDimensions(container, { showTechnology: true });
+    const dimsContainer = computeC4NodeDimensions(container, {
+      showTechnology: true,
+    });
 
     // Container card: no type label, but has metadata rows below divider
     // Both should be reasonable heights
@@ -797,7 +868,7 @@ Analytics is a system
 
 const componentInput = `c4 Component View
 
-tag Technology alias tech
+tag Technology tech
   Spring(green)
   React(blue)
   PostgreSQL(purple)
@@ -825,9 +896,11 @@ describe('layoutC4Components', () => {
 
     const compNodes = layout.nodes.filter((n) => n.type === 'component');
     expect(compNodes.length).toBe(3);
-    expect(compNodes.map((n) => n.name).sort()).toEqual(
-      ['Ride Controller', 'Ride Manager', 'Ride Repository']
-    );
+    expect(compNodes.map((n) => n.name).sort()).toEqual([
+      'Ride Controller',
+      'Ride Manager',
+      'Ride Repository',
+    ]);
   });
 
   it('includes external elements with relationships to components', () => {
@@ -881,7 +954,9 @@ describe('layoutC4Components', () => {
     const parsed = parseC4(componentInput, palette.light);
     const layout = layoutC4Components(parsed, 'Ride Platform', 'Ride Service');
 
-    const controllerNode = layout.nodes.find((n) => n.name === 'Ride Controller');
+    const controllerNode = layout.nodes.find(
+      (n) => n.name === 'Ride Controller'
+    );
     expect(controllerNode?.technology).toBe('Spring');
 
     const repoNode = layout.nodes.find((n) => n.name === 'Ride Repository');
@@ -894,9 +969,17 @@ describe('layoutC4Components', () => {
 
     expect(layout.edges.length).toBeGreaterThanOrEqual(2);
     // Ride Controller -> Ride Manager
-    expect(layout.edges.some((e) => e.source === 'Ride Controller' && e.target === 'Ride Manager')).toBe(true);
+    expect(
+      layout.edges.some(
+        (e) => e.source === 'Ride Controller' && e.target === 'Ride Manager'
+      )
+    ).toBe(true);
     // Ride Manager -> Ride Repository
-    expect(layout.edges.some((e) => e.source === 'Ride Manager' && e.target === 'Ride Repository')).toBe(true);
+    expect(
+      layout.edges.some(
+        (e) => e.source === 'Ride Manager' && e.target === 'Ride Repository'
+      )
+    ).toBe(true);
   });
 
   it('produces edges from components to external elements', () => {
@@ -904,7 +987,11 @@ describe('layoutC4Components', () => {
     const layout = layoutC4Components(parsed, 'Ride Platform', 'Ride Service');
 
     // Ride Controller -> Customer
-    expect(layout.edges.some((e) => e.source === 'Ride Controller' && e.target === 'Customer')).toBe(true);
+    expect(
+      layout.edges.some(
+        (e) => e.source === 'Ride Controller' && e.target === 'Customer'
+      )
+    ).toBe(true);
   });
 
   it('returns empty result for unknown system', () => {
@@ -931,9 +1018,16 @@ Platform is a system
 
   it('resolves tag group colors with inheritance (system → container → component)', () => {
     const parsed = parseC4(componentInput, palette.light);
-    const layout = layoutC4Components(parsed, 'Ride Platform', 'Ride Service', 'Technology');
+    const layout = layoutC4Components(
+      parsed,
+      'Ride Platform',
+      'Ride Service',
+      'Technology'
+    );
 
-    const controllerNode = layout.nodes.find((n) => n.name === 'Ride Controller');
+    const controllerNode = layout.nodes.find(
+      (n) => n.name === 'Ride Controller'
+    );
     expect(controllerNode?.color).toBeDefined();
   });
 
@@ -1029,7 +1123,13 @@ describe('renderC4ComponentsForExport', () => {
       it(`produces non-empty SVG for ${paletteName} / ${theme}`, () => {
         const pal = getPalette(paletteName);
         const colors = theme === 'dark' ? pal.dark : pal.light;
-        const svg = renderC4ComponentsForExport(componentInput, 'Ride Platform', 'Ride Service', theme, colors);
+        const svg = renderC4ComponentsForExport(
+          componentInput,
+          'Ride Platform',
+          'Ride Service',
+          theme,
+          colors
+        );
 
         expect(svg.length).toBeGreaterThan(0);
         expect(svg).toContain('<svg');
@@ -1039,17 +1139,35 @@ describe('renderC4ComponentsForExport', () => {
   }
 
   it('returns empty string for unknown system', () => {
-    const svg = renderC4ComponentsForExport(componentInput, 'NonExistent', 'Ride Service', 'light', palette.light);
+    const svg = renderC4ComponentsForExport(
+      componentInput,
+      'NonExistent',
+      'Ride Service',
+      'light',
+      palette.light
+    );
     expect(svg).toBe('');
   });
 
   it('returns empty string for unknown container', () => {
-    const svg = renderC4ComponentsForExport(componentInput, 'Ride Platform', 'NonExistent', 'light', palette.light);
+    const svg = renderC4ComponentsForExport(
+      componentInput,
+      'Ride Platform',
+      'NonExistent',
+      'light',
+      palette.light
+    );
     expect(svg).toBe('');
   });
 
   it('handles transparent theme', () => {
-    const svg = renderC4ComponentsForExport(componentInput, 'Ride Platform', 'Ride Service', 'transparent', palette.light);
+    const svg = renderC4ComponentsForExport(
+      componentInput,
+      'Ride Platform',
+      'Ride Service',
+      'transparent',
+      palette.light
+    );
     expect(svg.length).toBeGreaterThan(0);
   });
 });

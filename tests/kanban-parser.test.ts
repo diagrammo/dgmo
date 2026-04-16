@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { parseKanban } from '../src/kanban/parser';
-import { computeCardMove, computeCardArchive, isArchiveColumn } from '../src/kanban/mutations';
+import {
+  computeCardMove,
+  computeCardArchive,
+  isArchiveColumn,
+} from '../src/kanban/mutations';
 
 describe('parseKanban', () => {
   // === Chart type ===
@@ -29,9 +33,7 @@ describe('parseKanban', () => {
   // === Title ===
   describe('title', () => {
     it('parses title from first line', () => {
-      const result = parseKanban(
-        'kanban Sprint 12\n[To Do]\n  Task 1'
-      );
+      const result = parseKanban('kanban Sprint 12\n[To Do]\n  Task 1');
       expect(result.title).toBe('Sprint 12');
       expect(result.titleLineNumber).toBe(1);
     });
@@ -45,9 +47,7 @@ describe('parseKanban', () => {
   // === Comments ===
   describe('comments', () => {
     it('ignores // comments', () => {
-      const result = parseKanban(
-        'kanban\n// comment\n[To Do]\n  Task 1'
-      );
+      const result = parseKanban('kanban\n// comment\n[To Do]\n  Task 1');
       expect(result.error).toBeNull();
       expect(result.columns).toHaveLength(1);
     });
@@ -73,9 +73,7 @@ describe('parseKanban', () => {
     });
 
     it('parses WIP limit', () => {
-      const result = parseKanban(
-        'kanban\n[In Progress] | wip: 3\n  Task 1'
-      );
+      const result = parseKanban('kanban\n[In Progress] | wip: 3\n  Task 1');
       expect(result.columns[0].wipLimit).toBe(3);
     });
 
@@ -85,9 +83,7 @@ describe('parseKanban', () => {
     });
 
     it('empty column has no cards', () => {
-      const result = parseKanban(
-        'kanban\n[To Do]\n[Done]\n  Task 1'
-      );
+      const result = parseKanban('kanban\n[To Do]\n[Done]\n  Task 1');
       expect(result.columns[0].cards).toHaveLength(0);
       expect(result.columns[1].cards).toHaveLength(1);
     });
@@ -118,19 +114,15 @@ describe('parseKanban', () => {
       expect(card.tags).toEqual({ priority: 'High', assignee: 'Alice' });
     });
 
-    it('parses card with color suffix', () => {
-      const result = parseKanban(
-        'kanban\n[To Do]\n  Urgent task(red)'
-      );
+    it('card (color) suffix is literal', () => {
+      const result = parseKanban('kanban\n[To Do]\n  Urgent task(red)');
       const card = result.columns[0].cards[0];
-      expect(card.title).toBe('Urgent task');
-      expect(card.color).toBeDefined();
+      expect(card.title).toBe('Urgent task(red)');
+      expect(card.color).toBeUndefined();
     });
 
     it('parses column with color suffix', () => {
-      const result = parseKanban(
-        'kanban\n[Done](green)\n  Task 1'
-      );
+      const result = parseKanban('kanban\n[Done](green)\n  Task 1');
       expect(result.columns[0].name).toBe('Done');
       expect(result.columns[0].color).toBeDefined();
     });
@@ -149,10 +141,7 @@ describe('parseKanban', () => {
         'kanban\n[To Do]\n  Build login\n    OAuth support\n    Needs design review'
       );
       const card = result.columns[0].cards[0];
-      expect(card.details).toEqual([
-        'OAuth support',
-        'Needs design review',
-      ]);
+      expect(card.details).toEqual(['OAuth support', 'Needs design review']);
       expect(card.lineNumber).toBe(3);
       expect(card.endLineNumber).toBe(5);
     });
@@ -207,7 +196,11 @@ describe('parseKanban', () => {
       const result = parseKanban(
         'kanban\ntag Priority\n  High\n\n[To Do]\n  Task 1'
       );
-      expect(result.diagnostics.some((d) => d.message.includes("Expected 'Value(color)'"))).toBe(true);
+      expect(
+        result.diagnostics.some((d) =>
+          d.message.includes("Expected 'Value(color)'")
+        )
+      ).toBe(true);
     });
   });
 
@@ -248,7 +241,9 @@ describe('parseKanban', () => {
       const result = parseKanban(
         'kanban\ntag Priority\n  High(red)\n\n[To Do]\n  Task 1'
       );
-      const warnings = result.diagnostics.filter(d => d.message.includes('deprecated'));
+      const warnings = result.diagnostics.filter((d) =>
+        d.message.includes('deprecated')
+      );
       expect(warnings).toHaveLength(0);
     });
 
@@ -263,10 +258,10 @@ describe('parseKanban', () => {
   // === Legacy syntax warnings ===
   describe('legacy syntax', () => {
     it('warns on == Column == syntax', () => {
-      const result = parseKanban(
-        'kanban\n[Valid]\n  Task 1\n== Legacy =='
+      const result = parseKanban('kanban\n[Valid]\n  Task 1\n== Legacy ==');
+      const warnings = result.diagnostics.filter((d) =>
+        d.message.includes('no longer supported')
       );
-      const warnings = result.diagnostics.filter(d => d.message.includes('no longer supported'));
       expect(warnings).toHaveLength(1);
       expect(warnings[0].message).toContain('[Legacy]');
     });
@@ -275,13 +270,9 @@ describe('parseKanban', () => {
   // === Warnings ===
   describe('warnings', () => {
     it('warns when WIP limit exceeded', () => {
-      const result = parseKanban(
-        'kanban\n[WIP] | wip: 1\n  Task A\n  Task B'
-      );
+      const result = parseKanban('kanban\n[WIP] | wip: 1\n  Task A\n  Task B');
       expect(
-        result.diagnostics.some((d) =>
-          d.message.includes('WIP limit')
-        )
+        result.diagnostics.some((d) => d.message.includes('WIP limit'))
       ).toBe(true);
       expect(result.diagnostics[0].severity).toBe('warning');
     });
@@ -494,25 +485,13 @@ describe('computeCardMove', () => {
 
   it('returns null for unknown card ID', () => {
     const parsed = parseKanban(basicBoard);
-    const result = computeCardMove(
-      basicBoard,
-      parsed,
-      'card-999',
-      'col-2',
-      0
-    );
+    const result = computeCardMove(basicBoard, parsed, 'card-999', 'col-2', 0);
     expect(result).toBeNull();
   });
 
   it('returns null for unknown column ID', () => {
     const parsed = parseKanban(basicBoard);
-    const result = computeCardMove(
-      basicBoard,
-      parsed,
-      'card-1',
-      'col-999',
-      0
-    );
+    const result = computeCardMove(basicBoard, parsed, 'card-1', 'col-999', 0);
     expect(result).toBeNull();
   });
 });

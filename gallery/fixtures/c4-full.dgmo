@@ -1,12 +1,12 @@
 c4 Online Bookstore — C4 Architecture
 
-tag Technology alias tech
+tag Technology tech
   React(blue)
   Node(green)
   Python(orange)
   PostgreSQL(purple)
 
-tag Team alias t
+tag Team t
   Frontend(blue)
   Backend(green)
   Platform(teal)

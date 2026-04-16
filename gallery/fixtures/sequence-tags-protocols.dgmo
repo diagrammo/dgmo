@@ -1,13 +1,13 @@
 sequence Order Fulfillment — Protocols & Ownership
 active-tag Protocol
 
-tag Protocol alias p
+tag Protocol p
   REST(blue)
   gRPC(green)
   Async(orange)
   SQL(purple)
 
-tag Owner alias o
+tag Owner o
   Checkout(teal)
   Fulfillment(orange)
   Payments(red)

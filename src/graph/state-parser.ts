@@ -5,7 +5,6 @@ import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
 import { parseInArrowLabel, matchColorParens } from '../utils/arrows';
 import {
   measureIndent,
-  extractColor,
   parseFirstLine,
   OPTION_NOCOLON_RE,
   ALL_CHART_TYPES,
@@ -173,10 +172,7 @@ interface NodeRef {
   color?: string;
 }
 
-function parseStateNodeRef(
-  text: string,
-  palette?: PaletteColors
-): NodeRef | null {
+function parseStateNodeRef(text: string): NodeRef | null {
   const t = text.trim();
   if (!t) return null;
 
@@ -189,14 +185,13 @@ function parseStateNodeRef(
     };
   }
 
-  // State: bare text with optional (color) suffix
-  const { label, color } = extractColor(t, palette);
+  // State: bare text
+  const label = t;
   if (!label) return null;
   return {
     id: `state:${label.toLowerCase().trim()}`,
     label,
     shape: 'state',
-    color,
   };
 }
 
@@ -380,7 +375,7 @@ export function parseState(
 
     if (segments.length === 1) {
       // Single state reference, no arrows — this is the canonical definition
-      const ref = parseStateNodeRef(segments[0], palette);
+      const ref = parseStateNodeRef(segments[0]);
       if (ref) {
         const node = getOrCreateNode(ref, lineNumber);
         // Standalone heading is the "definition" — update lineNumber so
@@ -409,7 +404,7 @@ export function parseState(
         continue;
       }
 
-      const ref = parseStateNodeRef(seg, palette);
+      const ref = parseStateNodeRef(seg);
       if (!ref) continue;
 
       const node = getOrCreateNode(ref, lineNumber);

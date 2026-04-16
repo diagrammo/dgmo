@@ -108,70 +108,56 @@ export function parseTagDeclaration(line: string): TagBlockMatch | null {
     // Unquoted — collect multi-word name. The alias is the last token that's 1-4 lowercase
     // BEFORE any value tokens (values have `(color)` suffixes or appear after we see a comma).
 
-    // First check for explicit `alias` keyword: `tag Name alias X`
-    const aliasKeywordIdx = tokens.findIndex(
-      (t, i) => i > 0 && t.toLowerCase() === 'alias'
-    );
-    if (aliasKeywordIdx > 0 && aliasKeywordIdx + 1 < tokens.length) {
-      // Everything before `alias` is the name, the token after `alias` is the alias
-      name = tokens
-        .slice(0, aliasKeywordIdx)
-        .map((t) => stripQuotes(t))
-        .join(' ');
-      alias = tokens[aliasKeywordIdx + 1];
-      restStartIdx = aliasKeywordIdx + 2;
-    } else {
-      // Find where inline values start — look for a token with `(` in it (color suffix)
-      // or the presence of a comma in the remaining text
-      const remainingText = tokens.slice(1).join(' ');
-      const commaInRemaining = remainingText.includes(',');
+    // Find where inline values start — look for a token with `(` in it (color suffix)
+    // or the presence of a comma in the remaining text
+    const remainingText = tokens.slice(1).join(' ');
+    const commaInRemaining = remainingText.includes(',');
 
-      if (tokens.length === 1) {
-        // Just `tag Name` — no alias, no values
-      } else if (
-        tokens.length === 2 &&
-        isAliasToken(tokens[1]) &&
-        !commaInRemaining
-      ) {
-        // `tag Priority p` — alias only, no values
+    if (tokens.length === 1) {
+      // Just `tag Name` — no alias, no values
+    } else if (
+      tokens.length === 2 &&
+      isAliasToken(tokens[1]) &&
+      !commaInRemaining
+    ) {
+      // `tag Priority p` — alias only, no values
+      alias = tokens[1];
+      restStartIdx = 2;
+    } else if (tokens.length >= 2) {
+      // Check if token[1] is an alias
+      if (isAliasToken(tokens[1])) {
         alias = tokens[1];
         restStartIdx = 2;
-      } else if (tokens.length >= 2) {
-        // Check if token[1] is an alias
-        if (isAliasToken(tokens[1])) {
-          alias = tokens[1];
-          restStartIdx = 2;
-          // Multi-word name not applicable when alias is right after first token
-        } else {
-          // Could be multi-word name: `tag Risk Level lo`
-          // Walk tokens to find the alias at the end (before inline values)
-          // Find where inline values begin — first token containing `(` or after comma
-          let valueStart = tokens.length; // default: no values
-          for (let i = 1; i < tokens.length; i++) {
-            // A token containing `(` suggests a value with color: `High(red)`
-            if (tokens[i].includes('(')) {
-              valueStart = i;
-              break;
-            }
+        // Multi-word name not applicable when alias is right after first token
+      } else {
+        // Could be multi-word name: `tag Risk Level lo`
+        // Walk tokens to find the alias at the end (before inline values)
+        // Find where inline values begin — first token containing `(` or after comma
+        let valueStart = tokens.length; // default: no values
+        for (let i = 1; i < tokens.length; i++) {
+          // A token containing `(` suggests a value with color: `High(red)`
+          if (tokens[i].includes('(')) {
+            valueStart = i;
+            break;
           }
+        }
 
-          // Check if the token just before valueStart is an alias
-          if (valueStart > 1 && isAliasToken(tokens[valueStart - 1])) {
-            alias = tokens[valueStart - 1];
-            // Name is everything from token[0] to token[valueStart-2]
-            name = tokens
-              .slice(0, valueStart - 1)
-              .map((t) => stripQuotes(t))
-              .join(' ');
-            restStartIdx = valueStart;
-          } else {
-            // No alias — name is everything before values
-            name = tokens
-              .slice(0, valueStart)
-              .map((t) => stripQuotes(t))
-              .join(' ');
-            restStartIdx = valueStart;
-          }
+        // Check if the token just before valueStart is an alias
+        if (valueStart > 1 && isAliasToken(tokens[valueStart - 1])) {
+          alias = tokens[valueStart - 1];
+          // Name is everything from token[0] to token[valueStart-2]
+          name = tokens
+            .slice(0, valueStart - 1)
+            .map((t) => stripQuotes(t))
+            .join(' ');
+          restStartIdx = valueStart;
+        } else {
+          // No alias — name is everything before values
+          name = tokens
+            .slice(0, valueStart)
+            .map((t) => stripQuotes(t))
+            .join(' ');
+          restStartIdx = valueStart;
         }
       }
     }

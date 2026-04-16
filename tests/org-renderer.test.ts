@@ -172,16 +172,16 @@ Bob
     expect(bob.color).toBeUndefined();
   });
 
-  it('resolves explicit node colors', () => {
+  it('node (color) suffix is literal — no color resolved', () => {
     const content = `org
 Alice(red)
 Bob`;
     const parsed = parseOrg(content, palette.light);
     const layout = layoutOrg(parsed);
 
-    const alice = layout.nodes.find((n) => n.label === 'Alice')!;
+    const alice = layout.nodes.find((n) => n.label === 'Alice(red)')!;
     const bob = layout.nodes.find((n) => n.label === 'Bob')!;
-    expect(alice.color).toBeTruthy();
+    expect(alice.color).toBeUndefined();
     expect(bob.color).toBeUndefined();
   });
 
@@ -709,7 +709,7 @@ Bob
     expect(alice.color).not.toBe(bob.color);
   });
 
-  it('explicit node (color) is not overridden by activeTagGroup', () => {
+  it('node (color) suffix is literal — tag group color applies', () => {
     const input = `org
 
 tag Location
@@ -720,11 +720,9 @@ Alice(red)
     const parsed = parseOrg(input, palette.light);
     const layout = layoutOrg(parsed, undefined, 'location');
 
-    const alice = layout.nodes.find((n) => n.label === 'Alice')!;
-    // Explicit red wins over tag group blue
-    expect(alice.color).toBeTruthy();
-    // Should be the parsed red color, not a blue-ish one
-    expect(alice.color).toBe(parsed.roots[0].color);
+    // No explicit color — tag group color applies
+    expect(layout.nodes.find((n) => n.label === 'Alice(red)')).toBeDefined();
+    expect(parsed.roots[0].color).toBeUndefined();
   });
 
   it('nodes without explicit metadata get default (first entry) tag color when activeTagGroup set', () => {
@@ -1238,7 +1236,7 @@ tag Status
     expect(layout.legend[1].y).toBeGreaterThan(layout.legend[0].y);
   });
 
-  it('carries alias in legend data', () => {
+  it('carries in legend data', () => {
     const parsed = parseOrg(tagGroupOnlyInput);
     const layout = layoutOrg(parsed);
 
@@ -1259,7 +1257,7 @@ tag Status
     expect(svg).toContain('>Inactive<');
   });
 
-  it('shows group name without alias in pill label', () => {
+  it('shows group name without in pill label', () => {
     const svg = renderOrgForExport(tagGroupOnlyInput, 'light', palette.light);
     expect(svg).toContain('>Rank<');
     expect(svg).not.toContain('>Rank (r)<');

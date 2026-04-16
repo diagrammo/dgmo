@@ -224,9 +224,67 @@ describe('parseC4', () => {
 
     it('resolves tag group aliases in metadata', () => {
       const result = parseC4(
-        'c4\ntag Technology alias tech\n  React(blue)\n\nBanking is a system | tech: Node.js'
+        'c4\ntag Technology tech\n  React(blue)\n\nBanking is a system | tech: Node.js'
       );
       expect(result.elements[0].metadata.technology).toBe('Node.js');
+    });
+  });
+
+  // === Node descriptions ===
+  describe('node descriptions', () => {
+    it('description: text as indented metadata extracts to dedicated description field', () => {
+      const result = parseC4(
+        'c4\nBanking is a system\n  description: Core banking system'
+      );
+      expect(result.elements[0].description).toEqual(['Core banking system']);
+      expect(result.elements[0].metadata['description']).toBeUndefined();
+    });
+
+    it('multiple description lines accumulate', () => {
+      const result = parseC4(
+        [
+          'c4',
+          'Banking is a system',
+          '  description: Handles all banking ops',
+          '  description: Built with Java',
+        ].join('\n')
+      );
+      expect(result.elements[0].description).toEqual([
+        'Handles all banking ops',
+        'Built with Java',
+      ]);
+    });
+
+    it('pipe metadata: Element | description: text extracts to dedicated field', () => {
+      const result = parseC4(
+        'c4\nBanking is a system | description: Core banking, tech: Java'
+      );
+      expect(result.elements[0].description).toEqual(['Core banking']);
+      expect(result.elements[0].metadata['description']).toBeUndefined();
+      expect(result.elements[0].metadata.tech).toBe('Java');
+    });
+
+    it('description text (keyword without colon) as unrecognized line collects as description', () => {
+      const result = parseC4(
+        ['c4', 'Banking is a system', '  description Handles all banking'].join(
+          '\n'
+        )
+      );
+      expect(result.elements[0].description).toEqual(['Handles all banking']);
+    });
+
+    it('description does not appear in general metadata record', () => {
+      const result = parseC4(
+        [
+          'c4',
+          'Banking is a system',
+          '  description: Core banking system',
+          '  tech: Java',
+        ].join('\n')
+      );
+      expect(result.elements[0].description).toEqual(['Core banking system']);
+      expect(result.elements[0].metadata.tech).toBe('Java');
+      expect('description' in result.elements[0].metadata).toBe(false);
     });
   });
 
@@ -442,7 +500,7 @@ describe('parseC4', () => {
       const result = parseC4(
         [
           'c4',
-          'tag Technology alias tech',
+          'tag Technology tech',
           '  React(blue)',
           '  Node.js(green)',
           '',
@@ -459,7 +517,7 @@ describe('parseC4', () => {
       const result = parseC4(
         [
           'c4',
-          'tag Team alias t',
+          'tag Team t',
           '  Platform(blue)',
           '  Payments(orange)',
           '',
@@ -471,23 +529,18 @@ describe('parseC4', () => {
 
     it('rejects tag groups after content', () => {
       const result = parseC4(
-        [
-          'c4',
-          'Alice is a person',
-          'tag Team alias t',
-          '  Platform(blue)',
-        ].join('\n')
+        ['c4', 'Alice is a person', 'tag Team t', '  Platform(blue)'].join('\n')
       );
       expect(
         result.diagnostics.some((d) => d.message.includes('must appear before'))
       ).toBe(true);
     });
 
-    it('resolves alias in pipe metadata', () => {
+    it('resolves in pipe metadata', () => {
       const result = parseC4(
         [
           'c4',
-          'tag Team alias t',
+          'tag Team t',
           '  Platform(blue)',
           '',
           'Banking is a system | t: Platform',
@@ -504,7 +557,7 @@ describe('parseC4', () => {
       const result = parseC4(
         [
           'c4',
-          'tag Technology alias tech',
+          'tag Technology tech',
           '  React(blue)',
           '  Node.js(green)',
           '',
@@ -521,7 +574,7 @@ describe('parseC4', () => {
       const result = parseC4(
         [
           'c4',
-          'tag Team alias t',
+          'tag Team t',
           '  Platform(blue)',
           '  Payments(orange)',
           '',
@@ -561,11 +614,11 @@ describe('parseC4', () => {
       expect(result.tagGroups).toHaveLength(0);
     });
 
-    it('resolves alias in pipe metadata with tag syntax', () => {
+    it('resolves in pipe metadata with tag syntax', () => {
       const result = parseC4(
         [
           'c4',
-          'tag Team alias t',
+          'tag Team t',
           '  Platform(blue)',
           '',
           'Banking is a system | t: Platform',
@@ -693,17 +746,17 @@ describe('parseC4', () => {
       const input = [
         'c4 Internet Banking System',
         '',
-        'tag Technology alias tech',
+        'tag Technology tech',
         '  React(blue)',
         '  Node.js(green)',
         '  PostgreSQL(purple)',
         '  Redis(red)',
         '',
-        'tag Team alias t',
+        'tag Team t',
         '  Platform(blue)',
         '  Payments(orange)',
         '',
-        'tag Scope alias sc',
+        'tag Scope sc',
         '  Internal(blue)',
         '  External(gray)',
         '',

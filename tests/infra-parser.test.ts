@@ -304,7 +304,7 @@ infra
   });
 
   describe('tag groups (FR7)', () => {
-    it('parses tag group with alias and values', () => {
+    it('parses tag group with and values', () => {
       const result = parseInfra(`
 infra
 

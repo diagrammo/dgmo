@@ -144,8 +144,9 @@ DB | t: Backend
 
 - `type` — chart type as first line, optionally followed by title: `bar Revenue`
 - `// comment` — only `//` comments (not `#`)
-- `(colorname)` — inline colors: `Label(red) 100`
+- `(colorname)` — inline colors on data series, tag values, kanban columns, era/marker labels: `Label(red) 100`
 - `series A(red), B(blue)` — multi-series with colors
+- Node coloring — use tags, not `(color)` suffix on node labels
 
 ## Rendering via CLI
 

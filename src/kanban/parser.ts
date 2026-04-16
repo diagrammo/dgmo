@@ -387,8 +387,8 @@ function parseCardLine(
   lineNumber: number,
   counter: number,
   aliasMap: Map<string, string>,
-  palette?: PaletteColors,
-  diagnostics?: import('../diagnostics').DgmoError[]
+  _palette?: PaletteColors,
+  _diagnostics?: import('../diagnostics').DgmoError[]
 ): KanbanCard {
   // Split on first pipe: Title | tag: value, tag: value
   const pipeIdx = trimmed.indexOf('|');
@@ -402,13 +402,7 @@ function parseCardLine(
     rawTitle = trimmed;
   }
 
-  // Extract optional color suffix from title
-  const { label: title, color } = extractColor(
-    rawTitle,
-    palette,
-    diagnostics,
-    lineNumber
-  );
+  const title = rawTitle;
 
   // Parse tags: comma-separated key: value pairs
   const tags: Record<string, string> = {};
@@ -431,6 +425,5 @@ function parseCardLine(
     details: [],
     lineNumber,
     endLineNumber: lineNumber,
-    color,
   };
 }

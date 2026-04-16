@@ -371,13 +371,7 @@ export function parseSitemap(
       : trimmed.match(METADATA_RE);
 
     if (containerMatch) {
-      const rawLabel = containerMatch[1].trim();
-      const { label, color } = extractColor(
-        rawLabel,
-        palette,
-        result.diagnostics,
-        lineNumber
-      );
+      const label = containerMatch[1].trim();
 
       // Parse optional pipe metadata on the container line
       const pipeStr = containerMatch[2];
@@ -400,7 +394,6 @@ export function parseSitemap(
         parentId: null,
         isContainer: true,
         lineNumber,
-        color,
       };
 
       attachNode(node, indent, indentStack, result);
@@ -543,16 +536,10 @@ function parseNodeLabel(
   counter: number,
   aliasMap: Map<string, string> = new Map(),
   warnFn?: (line: number, msg: string) => void,
-  diagnostics?: DgmoError[]
+  _diagnostics?: DgmoError[]
 ): SitemapNode {
   const segments = trimmed.split('|').map((s) => s.trim());
-  const rawLabel = segments[0];
-  const { label, color } = extractColor(
-    rawLabel,
-    palette,
-    diagnostics,
-    lineNumber
-  );
+  const label = segments[0];
   const metadata = parsePipeMetadata(
     segments,
     aliasMap,
@@ -578,7 +565,6 @@ function parseNodeLabel(
     parentId: null,
     isContainer: false,
     lineNumber,
-    color,
   };
 }
 

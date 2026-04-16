@@ -154,6 +154,62 @@ describe('parseSitemap', () => {
     });
   });
 
+  // === Node descriptions ===
+  describe('node descriptions', () => {
+    it('description keyword line under a node collects as description', () => {
+      const result = parseSitemap(
+        'sitemap\nHome\n  description Main landing page'
+      );
+      expect(result.roots[0].description).toEqual(['Main landing page']);
+    });
+
+    it('description: with colon is treated as metadata (not dedicated field)', () => {
+      const result = parseSitemap(
+        'sitemap\nHome\n  description: Main landing page'
+      );
+      // Colon form matches METADATA_RE, stored in metadata record
+      expect(result.roots[0].metadata['description']).toBe('Main landing page');
+      // Not extracted to dedicated description field via indented path
+      expect(result.roots[0].description).toBeUndefined();
+    });
+
+    it('pipe metadata: Node | description: text extracts to dedicated field', () => {
+      const result = parseSitemap(
+        'sitemap\nHome | description: Main landing page'
+      );
+      expect(result.roots[0].description).toEqual(['Main landing page']);
+      expect(result.roots[0].metadata['description']).toBeUndefined();
+    });
+
+    it('multi-line: multiple description lines accumulate', () => {
+      const result = parseSitemap(
+        'sitemap\nHome\n  description First line\n  description Second line'
+      );
+      expect(result.roots[0].description).toEqual([
+        'First line',
+        'Second line',
+      ]);
+    });
+
+    it('description on container nodes', () => {
+      const result = parseSitemap(
+        'sitemap\n[Navigation]\n  description Nav group\n  Home'
+      );
+      // Container is parsed; description is on the container
+      const container = result.roots[0];
+      expect(container.isContainer).toBe(true);
+      // Description collected on the container node
+      expect(container.description).toEqual(['Nav group']);
+    });
+
+    it('bare description with no text is silently skipped', () => {
+      const result = parseSitemap('sitemap\nHome\n  description');
+      // Bare "description" with no trailing text — isKeyword: false, treated as child node
+      expect(result.roots[0].description).toBeUndefined();
+      expect(result.diagnostics).toHaveLength(0);
+    });
+  });
+
   // === Arrows ===
   describe('arrows', () => {
     it('bare arrow -> Target', () => {
@@ -342,7 +398,7 @@ describe('parseSitemap', () => {
 
     it('tag group with alias', () => {
       const content = [
-        'tag Authorization alias auth',
+        'tag Authorization auth',
         '  Public(green)',
         '',
         'Home',
@@ -357,10 +413,10 @@ describe('parseSitemap', () => {
 
   // === Node color ===
   describe('node color', () => {
-    it('parses trailing (color) on page', () => {
+    it('(color) suffix is literal on page', () => {
       const result = parseSitemap('Home(blue)');
-      expect(result.roots[0].label).toBe('Home');
-      expect(result.roots[0].color).toBeDefined();
+      expect(result.roots[0].label).toBe('Home(blue)');
+      expect(result.roots[0].color).toBeUndefined();
     });
   });
 

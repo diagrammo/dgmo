@@ -620,7 +620,7 @@ describe('State extractSymbols', () => {
 describe('extractTagDeclarations', () => {
   it('extracts tag group with alias', () => {
     const doc =
-      'sequence\ntag Team alias t\n  Frontend(blue)\n  Backend(green)\nA -> B\n';
+      'sequence\ntag Team t\n  Frontend(blue)\n  Backend(green)\nA -> B\n';
     const result = extractTagDeclarations(doc);
     expect(result.get('t')).toEqual(['Frontend', 'Backend']);
   });
@@ -641,14 +641,14 @@ describe('extractTagDeclarations', () => {
 
   it('handles multiple tag groups', () => {
     const doc =
-      'infra\ntag Role alias r\n  Backend\n  Frontend\ntag Env alias e\n  Prod\n  Staging\n';
+      'infra\ntag Role r\n  Backend\n  Frontend\ntag Env e\n  Prod\n  Staging\n';
     const result = extractTagDeclarations(doc);
     expect(result.get('r')).toEqual(['Backend', 'Frontend']);
     expect(result.get('e')).toEqual(['Prod', 'Staging']);
   });
 
   it('strips color annotations from values', () => {
-    const doc = 'org\ntag Team alias t\n  Alpha(blue)\n  Beta(red)\n';
+    const doc = 'org\ntag Team t\n  Alpha(blue)\n  Beta(red)\n';
     const result = extractTagDeclarations(doc);
     expect(result.get('t')).toEqual(['Alpha', 'Beta']);
   });

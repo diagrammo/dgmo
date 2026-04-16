@@ -72,12 +72,12 @@ title Tag Swimlane Test
 start 2024-01-15
 critical-path
 
-tag Team alias t
+tag Team t
   Engineering(blue)
   Design(purple)
   QA(orange)
 
-tag Phase alias p
+tag Phase p
   Design(green)
   Build(orange)
   Test(red)
@@ -172,7 +172,7 @@ describe('gantt renderer', () => {
 
   it('sets data-tag attributes on task elements', () => {
     const input =
-      'gantt\ntag Team alias t\n  Engineering(blue)\nstart 2024-01-15\n10d Task | t: Engineering';
+      'gantt\ntag Team t\n  Engineering(blue)\nstart 2024-01-15\n10d Task | t: Engineering';
     const container = renderFromInput(input);
     const task = container.querySelector('.gantt-task');
     expect(task).not.toBeNull();
@@ -726,7 +726,7 @@ describe('hover date indicators', () => {
 describe('left panel visual enhancements', () => {
   const groupedInput = `gantt
 start 2024-01-15
-tag Team alias t
+tag Team t
   Engineering(blue)
   Design(purple)
 

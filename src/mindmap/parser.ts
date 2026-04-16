@@ -110,8 +110,8 @@ export function parseMindmap(
           return fail(lineNumber, msg);
         }
         if (firstLine.title) {
-          // Title IS the root: extract color from title
-          const { label, color } = extractColor(firstLine.title, palette);
+          // Title IS the root
+          const label = firstLine.title;
           result.title = label;
           result.titleLineNumber = lineNumber;
 
@@ -123,7 +123,6 @@ export function parseMindmap(
             children: [],
             parentId: null,
             lineNumber,
-            color,
           };
           result.roots.push(titleRoot);
           // Push title root onto indent stack at indent -1 so all indent-0 lines become children
@@ -297,8 +296,7 @@ function parseNodeLine(
   warnFn: (line: number, msg: string) => void
 ): MindmapNode {
   const segments = trimmed.split('|').map((s) => s.trim());
-  const rawLabel = segments[0];
-  const { label, color } = extractColor(rawLabel, palette);
+  const label = segments[0];
 
   const metadata = parsePipeMetadata(segments, aliasMap, () =>
     warnFn(lineNumber, MULTIPLE_PIPE_ERROR)
@@ -329,7 +327,6 @@ function parseNodeLine(
     children: [],
     parentId: null,
     lineNumber,
-    color,
     collapsed,
   };
 }

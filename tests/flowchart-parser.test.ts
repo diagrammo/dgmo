@@ -323,36 +323,36 @@ describe('parseFlowchart', () => {
     });
   });
 
-  // === AC 10: Node colors ===
-  describe('node colors', () => {
-    it('parses inline color [Process(blue)]', () => {
+  // === Color suffix in label (no extractColor on nodes) ===
+  describe('color suffix in label', () => {
+    it('(color) suffix is literal label text [Process(blue)]', () => {
       const result = parseFlowchart('[Process(blue)]');
       expect(result.nodes).toHaveLength(1);
-      expect(result.nodes[0].label).toBe('Process');
-      expect(result.nodes[0].color).toBeDefined();
+      expect(result.nodes[0].label).toBe('Process(blue)');
+      expect(result.nodes[0].color).toBeUndefined();
     });
 
-    it('parses inline color on decision <Check?(red)>', () => {
+    it('(color) suffix is literal on decision <Check?(red)>', () => {
       const result = parseFlowchart('<Check?(red)>');
       expect(result.nodes).toHaveLength(1);
-      expect(result.nodes[0].label).toBe('Check?');
-      expect(result.nodes[0].color).toBeDefined();
+      expect(result.nodes[0].label).toBe('Check?(red)');
+      expect(result.nodes[0].color).toBeUndefined();
     });
 
-    it('parses inline color on document [Report(teal)~]', () => {
+    it('(color) suffix is literal on document [Report(teal)~]', () => {
       const result = parseFlowchart('[Report(teal)~]');
       expect(result.nodes).toHaveLength(1);
-      expect(result.nodes[0].label).toBe('Report');
-      expect(result.nodes[0].color).toBeDefined();
+      expect(result.nodes[0].label).toBe('Report(teal)');
+      expect(result.nodes[0].color).toBeUndefined();
     });
 
-    it('parses inline color on terminal (Start(green))', () => {
+    it('(color) suffix is literal on terminal (Start(green))', () => {
       const result = parseFlowchart('(Start(green)) -> (End(red))');
       expect(result.nodes).toHaveLength(2);
-      expect(result.nodes[0].label).toBe('Start');
-      expect(result.nodes[0].color).toBeDefined();
-      expect(result.nodes[1].label).toBe('End');
-      expect(result.nodes[1].color).toBeDefined();
+      expect(result.nodes[0].label).toBe('Start(green)');
+      expect(result.nodes[0].color).toBeUndefined();
+      expect(result.nodes[1].label).toBe('End(red)');
+      expect(result.nodes[1].color).toBeUndefined();
     });
   });
 

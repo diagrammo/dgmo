@@ -81,16 +81,18 @@ describe('mindmap renderer', () => {
     expect(svg).toContain('<svg');
   });
 
-  it('explicit color on node overrides default', () => {
+  it('node (color) suffix is literal — no color resolved', () => {
     const content = `mindmap Root
   Important(red)
   Normal`;
     const parsed = parseMindmap(content, palette);
     const layout = layoutMindmap(parsed, palette);
-    const importantNode = layout.nodes.find((n) => n.label === 'Important');
+    const importantNode = layout.nodes.find(
+      (n) => n.label === 'Important(red)'
+    );
     const normalNode = layout.nodes.find((n) => n.label === 'Normal');
-    // Important should have a color, normal should not
-    expect(importantNode?.color).toBeDefined();
+    // Neither should have an explicit color
+    expect(importantNode?.color).toBeUndefined();
     expect(normalNode?.color).toBeUndefined();
   });
 });

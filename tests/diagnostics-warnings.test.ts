@@ -345,7 +345,7 @@ describe('timeline tag groups', () => {
   it('parses tag: blocks with entries', () => {
     const result = parseVisualization(`timeline
 
-tag Team alias t
+tag Team t
   Frontend(blue)
   Backend(green)
 
@@ -360,7 +360,7 @@ tag Team alias t
   it('parses pipe metadata on point events', () => {
     const result = parseVisualization(`timeline
 
-tag Team alias t
+tag Team t
   Frontend(blue)
 
 [Q1]
@@ -372,7 +372,7 @@ tag Team alias t
   it('parses pipe metadata on range events', () => {
     const result = parseVisualization(`timeline
 
-tag Team alias t
+tag Team t
   Backend(green)
 
 [Q1]

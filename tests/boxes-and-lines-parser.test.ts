@@ -254,7 +254,7 @@ describe('boxes-and-lines parser', () => {
       expect(result.tagGroups[0].entries).toHaveLength(2);
     });
 
-    it('resolves alias in metadata', () => {
+    it('resolves in metadata', () => {
       const result = parseBoxesAndLines(
         'boxes-and-lines\ntag Team t Backend(blue), Frontend(green)\nAPI | t: Backend'
       );

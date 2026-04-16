@@ -133,7 +133,7 @@ describe('flowchart fixtures', () => {
     );
     const result = parseFlowchart(content);
     const coloredNodes = result.nodes.filter((n) => n.color);
-    expect(coloredNodes.length).toBeGreaterThanOrEqual(4);
+    expect(coloredNodes).toHaveLength(0);
     const coloredEdges = result.edges.filter((e) => e.color);
     expect(coloredEdges.length).toBeGreaterThanOrEqual(2);
   });

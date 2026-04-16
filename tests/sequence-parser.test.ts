@@ -1113,7 +1113,7 @@ describe('looksLikeSequence with new arrows', () => {
 describe('tag group declarations', () => {
   it('parses a single tag group with entries', () => {
     const content = [
-      'tag Concern alias c',
+      'tag Concern c',
       '  Caching(blue)',
       '  Auth(green)',
       '',
@@ -1131,10 +1131,10 @@ describe('tag group declarations', () => {
 
   it('parses multiple tag groups', () => {
     const content = [
-      'tag Concern alias c',
+      'tag Concern c',
       '  Caching(blue)',
       '  Auth(green)',
-      'tag Team alias t',
+      'tag Team t',
       '  Platform(purple)',
       '  Product(orange)',
       '',
@@ -1161,7 +1161,7 @@ describe('tag group declarations', () => {
 
   it('registers aliases in aliasMap', () => {
     const content = [
-      'tag Concern alias c',
+      'tag Concern c',
       '  Caching(blue)',
       '',
       'A -req-> B | c: Caching',
@@ -1241,7 +1241,7 @@ describe('pipe metadata on participants', () => {
 
   it('parses metadata on bare top-level participant', () => {
     const content = [
-      'tag Location alias l',
+      'tag Location l',
       '  Park(red)',
       '  Cloud(blue)',
       '',
@@ -1256,7 +1256,7 @@ describe('pipe metadata on participants', () => {
 
   it('parses metadata on bare top-level participant after groups', () => {
     const content = [
-      'tag Location alias l',
+      'tag Location l',
       '  Park(red)',
       '  Cloud(blue)',
       '',
@@ -1292,9 +1292,9 @@ describe('pipe metadata on participants', () => {
     expect(db?.metadata).toEqual({ role: 'Storage' });
   });
 
-  it('resolves alias in participant metadata', () => {
+  it('resolves in participant metadata', () => {
     const content = [
-      'tag Concern alias c',
+      'tag Concern c',
       '  Caching(blue)',
       '',
       'API is a gateway | c: Caching',
@@ -1358,9 +1358,9 @@ describe('pipe metadata on messages', () => {
     expect(errors[0].message).toContain('single "|"');
   });
 
-  it('resolves alias in message metadata', () => {
+  it('resolves in message metadata', () => {
     const content = [
-      'tag Concern alias c',
+      'tag Concern c',
       '  Caching(blue)',
       '',
       'A -req-> B | c: Caching',
