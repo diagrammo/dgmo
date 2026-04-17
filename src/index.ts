@@ -358,6 +358,23 @@ export { layoutWireframe } from './wireframe/layout';
 export type { WireframeLayout, WireframeLayoutNode } from './wireframe/layout';
 export { renderWireframe } from './wireframe/renderer';
 
+export { parseTechRadar } from './tech-radar/parser';
+export { computeRadarLayout, getRadarGeometry } from './tech-radar/layout';
+export {
+  renderTechRadar,
+  renderTechRadarForExport,
+} from './tech-radar/renderer';
+export { renderQuadrantFocus } from './tech-radar/interactive';
+export type {
+  ParsedTechRadar,
+  TechRadarRing,
+  TechRadarQuadrant,
+  TechRadarBlip,
+  TechRadarLayoutPoint,
+  QuadrantPosition,
+  BlipTrend,
+} from './tech-radar/types';
+
 export { resolveOrgImports } from './org/resolver';
 export type {
   ReadFileFn,

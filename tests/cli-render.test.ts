@@ -150,6 +150,26 @@ API -> Cache`,
 
   wireframe: `wireframe Login Page
 Button Submit`,
+
+  'tech-radar': `tech-radar My Radar
+
+rings
+  Adopt
+  Trial
+  Assess
+  Hold
+
+Techniques | quadrant: top-right
+  CD | ring: Adopt, trend: stable
+
+Tools | quadrant: top-left
+  Vite | ring: Trial, trend: new
+
+Platforms | quadrant: bottom-left
+  K8s | ring: Adopt
+
+Languages | quadrant: bottom-right
+  TypeScript | ring: Adopt`,
 };
 
 // All D3 types now render in JSDOM via explicit dimensions (Epic 41)

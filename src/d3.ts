@@ -19,7 +19,8 @@ export type VisualizationType =
   | 'timeline'
   | 'venn'
   | 'quadrant'
-  | 'sequence';
+  | 'sequence'
+  | 'tech-radar';
 
 interface D3DataItem {
   label: string;
@@ -7048,6 +7049,26 @@ export async function renderForExport(
       theme === 'dark',
       undefined,
       { width: EXPORT_WIDTH, height: EXPORT_HEIGHT }
+    );
+    return finalizeSvgExport(container, theme, effectivePalette);
+  }
+
+  if (detectedType === 'tech-radar') {
+    const { parseTechRadar } = await import('./tech-radar/parser');
+    const { renderTechRadarForExport } = await import('./tech-radar/renderer');
+
+    const effectivePalette = await resolveExportPalette(theme, palette);
+    const radarParsed = parseTechRadar(content);
+    if (radarParsed.error || radarParsed.quadrants.length === 0) return '';
+
+    const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
+    renderTechRadarForExport(
+      container,
+      radarParsed,
+      effectivePalette,
+      theme === 'dark',
+      { width: EXPORT_WIDTH, height: EXPORT_HEIGHT },
+      viewState
     );
     return finalizeSvgExport(container, theme, effectivePalette);
   }

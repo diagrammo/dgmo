@@ -32,6 +32,7 @@ export interface CompactViewState {
   io?: Record<string, number>; // instance overrides (infra)
   hd?: boolean; // hide descriptions (mindmap)
   cbd?: boolean; // color by depth (mindmap)
+  rq?: string; // radar quadrant focus (tech-radar position)
 }
 
 export interface DecodedDiagramUrl {

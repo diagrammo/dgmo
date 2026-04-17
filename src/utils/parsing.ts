@@ -49,6 +49,7 @@ export const ALL_CHART_TYPES = new Set([
   'boxes-and-lines',
   'mindmap',
   'wireframe',
+  'tech-radar',
 ]);
 
 /** Measure leading whitespace of a line, normalizing tabs to 4 spaces. */

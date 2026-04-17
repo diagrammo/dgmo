@@ -1,0 +1,77 @@
+tech-radar Dense Radar Stress Test
+
+rings
+  Adopt
+  Trial
+  Assess
+  Hold
+
+Techniques | quadrant: top-right
+  CI/CD | ring: Adopt, trend: stable
+  IaC | ring: Adopt, trend: stable
+  Microservices | ring: Adopt, trend: stable
+  Event Sourcing | ring: Trial, trend: up
+  CQRS | ring: Trial, trend: up
+  Feature Flags | ring: Adopt, trend: new
+  Chaos Engineering | ring: Assess, trend: new
+  Trunk-Based Dev | ring: Trial, trend: up
+  Contract Testing | ring: Trial, trend: new
+  Design Tokens | ring: Assess, trend: new
+  Micro Frontends | ring: Assess, trend: up
+  Server Components | ring: Trial, trend: new
+  Edge Functions | ring: Trial, trend: up
+  Zero Trust | ring: Adopt, trend: stable
+  Observability | ring: Adopt, trend: stable
+  Platform Engineering | ring: Trial, trend: new
+
+Tools | quadrant: top-left
+  GitHub Copilot | ring: Trial, trend: new
+  Vite | ring: Adopt, trend: up
+  Playwright | ring: Adopt, trend: stable
+  Turborepo | ring: Trial, trend: new
+  Docker | ring: Adopt, trend: stable
+  Grafana | ring: Adopt, trend: stable
+  Datadog | ring: Trial, trend: up
+  Webpack | ring: Hold, trend: down
+  Storybook | ring: Adopt, trend: stable
+  Figma | ring: Adopt, trend: stable
+  Linear | ring: Trial, trend: new
+  Pulumi | ring: Assess, trend: new
+  Tailscale | ring: Trial, trend: up
+  Renovate | ring: Adopt, trend: stable
+  Bruno | ring: Assess, trend: new
+  Cursor | ring: Trial, trend: new
+
+Platforms | quadrant: bottom-left
+  Kubernetes | ring: Adopt, trend: stable
+  Cloudflare Workers | ring: Trial, trend: up
+  AWS Lambda | ring: Hold, trend: down
+  Vercel | ring: Trial, trend: up
+  Fly.io | ring: Assess, trend: new
+  Neon | ring: Trial, trend: new
+  PlanetScale | ring: Hold, trend: down
+  Supabase | ring: Assess, trend: up
+  Upstash | ring: Trial, trend: new
+  Railway | ring: Assess, trend: new
+  Deno Deploy | ring: Assess, trend: new
+  Google Cloud Run | ring: Adopt, trend: stable
+  Azure AKS | ring: Trial, trend: up
+  Hetzner | ring: Assess, trend: new
+  Tigris | ring: Assess, trend: new
+
+Languages & Frameworks | quadrant: bottom-right
+  TypeScript | ring: Adopt, trend: stable
+  Rust | ring: Assess, trend: new
+  React | ring: Adopt, trend: stable
+  Go | ring: Adopt, trend: stable
+  Python | ring: Adopt, trend: stable
+  Svelte | ring: Assess, trend: up
+  Solid | ring: Assess, trend: new
+  Zig | ring: Hold, trend: stable
+  Kotlin | ring: Trial, trend: up
+  Swift | ring: Adopt, trend: stable
+  Astro | ring: Trial, trend: new
+  HTMX | ring: Assess, trend: new
+  Effect-TS | ring: Assess, trend: new
+  Bun | ring: Trial, trend: up
+  Deno | ring: Assess, trend: up

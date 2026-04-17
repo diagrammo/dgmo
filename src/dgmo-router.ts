@@ -19,6 +19,7 @@ import { parseGantt } from './gantt/parser';
 import { parseBoxesAndLines } from './boxes-and-lines/parser';
 import { parseMindmap } from './mindmap/parser';
 import { parseWireframe } from './wireframe/parser';
+import { parseTechRadar } from './tech-radar/parser';
 import { parseFirstLine } from './utils/parsing';
 import { makeDgmoError, suggest } from './diagnostics';
 import type { DgmoError } from './diagnostics';
@@ -137,6 +138,7 @@ const VISUALIZATION_TYPES = new Set([
   'timeline',
   'venn',
   'quadrant',
+  'tech-radar',
 ]);
 const DIAGRAM_TYPES = new Set([
   'sequence',
@@ -234,6 +236,7 @@ const PARSE_DISPATCH = new Map<
   ['boxes-and-lines', (c) => parseBoxesAndLines(c)],
   ['mindmap', (c) => parseMindmap(c)],
   ['wireframe', (c) => parseWireframe(c)],
+  ['tech-radar', (c) => parseTechRadar(c)],
 ]);
 
 /**

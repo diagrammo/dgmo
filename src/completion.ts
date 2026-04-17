@@ -349,6 +349,19 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'active-tag': { description: 'Active tag group name' },
     }),
   ],
+  [
+    'tech-radar',
+    withGlobals({
+      rings: { description: 'Ring names block (innermost to outermost)' },
+      quadrant: {
+        description:
+          'Quadrant position (top-left, top-right, bottom-left, bottom-right)',
+      },
+      ring: { description: 'Ring assignment for a blip' },
+      trend: { description: 'Blip trend (new, up, down, stable)' },
+      color: { description: 'Override quadrant color' },
+    }),
+  ],
 ]);
 
 // ============================================================
@@ -394,6 +407,7 @@ const CHART_TYPE_DESCRIPTIONS: Record<string, string> = {
   'boxes-and-lines': 'Boxes and lines diagram',
   mindmap: 'Mindmap diagram',
   wireframe: 'UI wireframe diagram',
+  'tech-radar': 'Technology adoption radar (ThoughtWorks style)',
 };
 
 /** All chart types with descriptions, for chart type autocomplete. Excludes `multi-line` alias. */
