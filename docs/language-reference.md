@@ -609,7 +609,28 @@ deployment
   container Web App    // reference existing container
 ```
 
-### 7.7 Options
+### 7.7 Element Descriptions
+
+```
+// Indented metadata form (colon required)
+Web App is a container
+  description: SPA built with React
+  description: Supports SSR and client-side routing
+
+// Keyword form (colon optional)
+API is a container
+  description Handles all REST endpoints
+
+// Pipe metadata form
+Database is a container | description: PostgreSQL with read replicas
+```
+
+- Multiple `description` lines accumulate into a multi-line description
+- `description` is extracted as a dedicated field, not stored in general metadata
+- Supports inline markdown: `**bold**`, `*italic*`, `` `code` ``, `[links](url)`
+- `- bullet text` renders as `• bullet text`
+
+### 7.8 Options
 
 - `direction-tb` (boolean; default is LR)
 
@@ -813,7 +834,28 @@ All permutations supported: node→group, group→node, group→group. Brackets 
   Pricing | Auth: Public
 ```
 
-### 11.5 Options
+### 11.5 Node Descriptions
+
+```
+// Keyword form (colon optional)
+About
+  description Company history and team bios
+
+// Pipe metadata form
+Pricing | description: Compare plans and features
+
+// Multi-line
+Blog
+  description: Engineering and product updates
+  description: Published weekly
+```
+
+- `description` keyword required (bare prose lines are not auto-detected as descriptions)
+- Multiple `description` lines accumulate into a multi-line description
+- Supports inline markdown: `**bold**`, `*italic*`, `` `code` ``, `[links](url)`
+- `- bullet text` renders as `• bullet text`
+
+### 11.6 Options
 
 - `direction-tb` (boolean; default is LR)
 
@@ -1480,6 +1522,7 @@ wireframe Login Page
 | Construct | Diagram Type | Example |
 |-----------|-------------|---------|
 | Class relationship label | class | `--|> Vessel : extends` or `--|> Vessel extends` |
+| Description keyword (indented) | sitemap, c4 | `description text` or `description: text` |
 
 ### Colons NOT USED
 

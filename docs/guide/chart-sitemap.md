@@ -7,7 +7,7 @@ tag Auth
   Public(green)
   Crew Only(blue)
 
-Home | Auth: Public
+Home | Auth: Public, description: Landing page with interactive demos
   -shop-> Shop
   -voyages-> Upcoming Voyages
   -join crew-> Sign Up
@@ -39,6 +39,7 @@ Home | Auth: Public
   Sign Up | Auth: Public
     -welcome aboard-> Dashboard
   Dashboard | Auth: Crew Only
+    description Full overview of crew activity and orders
     -> My Orders
   My Orders | Auth: Crew Only
     -reorder-> Shop
@@ -139,6 +140,22 @@ For concise entries, use `|` to put metadata on a single line:
 Home | status: Live | owner: Marketing
 Products | status: Draft | owner: Product Team
 ```
+
+## Descriptions
+
+Add a description to any page using the `description` keyword (indented) or pipe metadata:
+
+```
+// Pipe metadata form
+Pricing | description: Compare plans and features
+
+// Indented keyword form (colon optional)
+Dashboard
+  description Full overview of crew activity and orders
+  My Orders
+```
+
+Descriptions render as secondary text on the page card. The indented form must come before child pages. Multiple `description` lines accumulate into a multi-line description.
 
 ## Node Colors
 

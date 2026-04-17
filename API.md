@@ -194,6 +194,78 @@ const layout = layoutBoxesAndLines(parsed);
 
 **Types**: `ParsedBoxesAndLines`, `BLNode`, `BLEdge`, `BLGroup`, `BLLayoutResult`, `BLLayoutNode`, `BLLayoutEdge`, `BLLayoutGroup`, `BLCollapseResult`
 
+#### Infrastructure Diagram
+
+| Function     | Signature                                      |
+| ------------ | ---------------------------------------------- |
+| `parseInfra` | `(content: string) => ParsedInfra`             |
+
+```ts
+import { parseInfra } from '@diagrammo/dgmo';
+
+const parsed = parseInfra(fileContent);
+// parsed.title, parsed.nodes, parsed.edges, parsed.groups, parsed.tagGroups
+```
+
+**Types**: `ParsedInfra`, `InfraNode`, `InfraEdge`, `InfraGroup`, `InfraProperty`, `ComputedInfraNode`
+
+`InfraNode` fields include:
+- `description?: string[]` — Multi-line node description text. Supports inline markdown, bullets (`- text` → `•`), and bare URL normalization.
+
+#### Sitemap
+
+| Function       | Signature                                                        |
+| -------------- | ---------------------------------------------------------------- |
+| `parseSitemap` | `(content: string, palette?: PaletteColors) => ParsedSitemap`   |
+
+```ts
+import { parseSitemap, nordPalette } from '@diagrammo/dgmo';
+
+const parsed = parseSitemap(fileContent, nordPalette.light);
+// parsed.title, parsed.roots, parsed.edges, parsed.tagGroups
+```
+
+**Types**: `ParsedSitemap`, `SitemapNode`, `SitemapEdge`, `SitemapDirection`
+
+`SitemapNode` fields include:
+- `description?: string[]` — Multi-line node description text. Supports inline markdown, bullets (`- text` → `•`), and bare URL normalization.
+
+#### Mindmap
+
+| Function       | Signature                                                        |
+| -------------- | ---------------------------------------------------------------- |
+| `parseMindmap` | `(content: string, palette?: PaletteColors) => ParsedMindmap`   |
+
+```ts
+import { parseMindmap, nordPalette } from '@diagrammo/dgmo';
+
+const parsed = parseMindmap(fileContent, nordPalette.light);
+// parsed.title, parsed.roots, parsed.tagGroups, parsed.options
+```
+
+**Types**: `ParsedMindmap`, `MindmapNode`
+
+`MindmapNode` fields include:
+- `description?: string[]` — Multi-line node description text. Supports inline markdown, bullets (`- text` → `•`), and bare URL normalization.
+
+#### C4 Architecture Diagram
+
+| Function  | Signature                                                     |
+| --------- | ------------------------------------------------------------- |
+| `parseC4` | `(content: string, palette?: PaletteColors) => ParsedC4`     |
+
+```ts
+import { parseC4, nordPalette } from '@diagrammo/dgmo';
+
+const parsed = parseC4(fileContent, nordPalette.light);
+// parsed.elements, parsed.tagGroups, parsed.deployment
+```
+
+**Types**: `ParsedC4`, `C4Element`, `C4ElementType`, `C4Shape`, `C4Relationship`, `C4ArrowType`, `C4Group`, `C4DeploymentNode`
+
+`C4Element` fields include:
+- `description?: string[]` — Multi-line node description text. Supports inline markdown, bullets (`- text` → `•`), and bare URL normalization.
+
 #### Quadrant (Mermaid bridge)
 
 | Function        | Signature                             |
@@ -588,6 +660,10 @@ Core parse/render/build functions — these are the main library API:
 - `renderSequenceDiagram`, `renderForExport`
 - `parseOrg`, `layoutOrg`, `renderOrg`, `renderOrgForExport`, `collapseOrgTree`
 - `parseGantt`, `calculateSchedule`, `renderGantt`
+- `parseInfra`
+- `parseSitemap`
+- `parseMindmap`
+- `parseC4`
 - `parseBoxesAndLines`, `layoutBoxesAndLines`, `renderBoxesAndLines`, `renderBoxesAndLinesForExport`, `collapseBoxesAndLines`
 - `getPalette`, `getAvailablePalettes`, `registerPalette`
 - All `PaletteConfig` definitions
@@ -600,7 +676,7 @@ Useful for advanced consumers:
 - `resolveColor`, `getSeriesColors`, `contrastText`
 - `buildMermaidThemeVars`, `buildThemeCSS`
 - Color utilities: `hexToHSL`, `hslToHex`, `mute`, `tint`, `shade`
-- `looksLikeSequence`, `looksLikeGantt`, `looksLikeC4`, `isSequenceBlock`, `inferParticipantType`
+- `looksLikeSequence`, `looksLikeGantt`, `looksLikeC4`, `looksLikeSitemap`, `isSequenceBlock`, `inferParticipantType`
 
 ### Internal (exported for testing, may change)
 
