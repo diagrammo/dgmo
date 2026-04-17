@@ -57,3 +57,22 @@ export interface TechRadarLayoutPoint {
   quadrantIndex: number;
   ringIndex: number;
 }
+
+// ============================================================
+// Tech Radar — Render Options
+// ============================================================
+
+export interface TechRadarRenderOptions {
+  /** Whether the blip listing is visible. Default: true for export, false for interactive. */
+  showListing?: boolean;
+  /** Callback when the listing toggle is clicked. */
+  onToggleListing?: (show: boolean) => void;
+  /** Whether the controls legend capsule is expanded. */
+  controlsExpanded?: boolean;
+  /** Callback when the controls gear pill is clicked (expand/collapse). */
+  onToggleControlsExpand?: () => void;
+  /** Active legend group name (e.g. 'Trends'). */
+  activeLegendGroup?: string | null;
+  /** Callback when a legend group pill is toggled. */
+  onLegendGroupToggle?: (groupName: string) => void;
+}

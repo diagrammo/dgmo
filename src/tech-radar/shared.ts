@@ -1,4 +1,5 @@
 import type * as d3Selection from 'd3-selection';
+import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
 import type { QuadrantPosition, BlipTrend } from './types';
 
@@ -112,4 +113,75 @@ export function getTrendChar(trend: BlipTrend | null): string {
     default:
       return '';
   }
+}
+
+// ============================================================
+// Shared Constants
+// ============================================================
+
+export const DIM_OPACITY = 0.25;
+
+export const TREND_ITEMS: { trend: BlipTrend | null; label: string }[] = [
+  { trend: 'new', label: 'New' },
+  { trend: 'up', label: 'Moved in' },
+  { trend: 'down', label: 'Moved out' },
+  { trend: null, label: 'No change' },
+];
+
+// ============================================================
+// Tooltip Helpers
+// ============================================================
+
+export function createTooltip(
+  container: HTMLElement,
+  palette: PaletteColors,
+  isDark: boolean
+): HTMLDivElement {
+  container.style.position = 'relative';
+  const existing = container.querySelector<HTMLDivElement>('[data-d3-tooltip]');
+  if (existing) {
+    existing.style.display = 'none';
+    return existing;
+  }
+  const tip = document.createElement('div');
+  tip.setAttribute('data-d3-tooltip', '');
+  tip.style.position = 'absolute';
+  tip.style.display = 'none';
+  tip.style.pointerEvents = 'none';
+  tip.style.padding = '6px 10px';
+  tip.style.borderRadius = '4px';
+  tip.style.fontSize = '12px';
+  tip.style.fontFamily = FONT_FAMILY;
+  tip.style.lineHeight = '1.4';
+  tip.style.zIndex = '10';
+  tip.style.whiteSpace = 'nowrap';
+  tip.style.background = palette.surface;
+  tip.style.color = palette.text;
+  tip.style.boxShadow = isDark
+    ? '0 2px 6px rgba(0,0,0,0.3)'
+    : '0 2px 6px rgba(0,0,0,0.12)';
+  container.appendChild(tip);
+  return tip;
+}
+
+export function showTooltip(
+  tooltip: HTMLDivElement,
+  text: string,
+  event: MouseEvent
+): void {
+  tooltip.textContent = text;
+  tooltip.style.display = 'block';
+  const container = tooltip.parentElement!;
+  const rect = container.getBoundingClientRect();
+  let left = event.clientX - rect.left + 12;
+  let top = event.clientY - rect.top - 28;
+  const tipW = tooltip.offsetWidth;
+  if (left + tipW > rect.width) left = rect.width - tipW - 4;
+  if (top < 0) top = event.clientY - rect.top + 16;
+  tooltip.style.left = `${left}px`;
+  tooltip.style.top = `${top}px`;
+}
+
+export function hideTooltip(tooltip: HTMLDivElement): void {
+  tooltip.style.display = 'none';
 }

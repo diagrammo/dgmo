@@ -4,14 +4,23 @@ import { mix } from '../palettes/color-utils';
 import type { PaletteColors } from '../palettes';
 import type { D3ExportDimensions } from '../utils/d3-types';
 import type { CompactViewState } from '../sharing';
-import type { ParsedTechRadar, QuadrantPosition, BlipTrend } from './types';
+import type {
+  ParsedTechRadar,
+  QuadrantPosition,
+  TechRadarRenderOptions,
+} from './types';
 import {
   computeRadarLayout,
   getRadarGeometry,
   getQuadrantArc,
   POSITION_ORDER,
 } from './layout';
-import { resolveQuadrantColor, renderTrendIndicator } from './shared';
+import {
+  resolveQuadrantColor,
+  renderTrendIndicator,
+  DIM_OPACITY,
+  TREND_ITEMS,
+} from './shared';
 import { renderQuadrantFocus } from './interactive';
 import { renderLegendD3 } from '../utils/legend-d3';
 import { LEGEND_HEIGHT } from '../utils/legend-constants';
@@ -70,83 +79,6 @@ function initRadarSvg(
 }
 
 // ============================================================
-// Tooltip helpers
-// ============================================================
-
-function createTooltip(
-  container: HTMLElement,
-  palette: PaletteColors,
-  isDark: boolean
-): HTMLDivElement {
-  container.style.position = 'relative';
-  const existing = container.querySelector<HTMLDivElement>('[data-d3-tooltip]');
-  if (existing) {
-    existing.style.display = 'none';
-    return existing;
-  }
-  const tip = document.createElement('div');
-  tip.setAttribute('data-d3-tooltip', '');
-  tip.style.position = 'absolute';
-  tip.style.display = 'none';
-  tip.style.pointerEvents = 'none';
-  tip.style.padding = '6px 10px';
-  tip.style.borderRadius = '4px';
-  tip.style.fontSize = '12px';
-  tip.style.fontFamily = FONT_FAMILY;
-  tip.style.lineHeight = '1.4';
-  tip.style.zIndex = '10';
-  tip.style.whiteSpace = 'nowrap';
-  tip.style.background = palette.surface;
-  tip.style.color = palette.text;
-  tip.style.boxShadow = isDark
-    ? '0 2px 6px rgba(0,0,0,0.3)'
-    : '0 2px 6px rgba(0,0,0,0.12)';
-  container.appendChild(tip);
-  return tip;
-}
-
-function showTooltip(
-  tooltip: HTMLDivElement,
-  text: string,
-  event: MouseEvent
-): void {
-  tooltip.textContent = text;
-  tooltip.style.display = 'block';
-  const container = tooltip.parentElement!;
-  const rect = container.getBoundingClientRect();
-  let left = event.clientX - rect.left + 12;
-  let top = event.clientY - rect.top - 28;
-  const tipW = tooltip.offsetWidth;
-  if (left + tipW > rect.width) left = rect.width - tipW - 4;
-  if (top < 0) top = event.clientY - rect.top + 16;
-  tooltip.style.left = `${left}px`;
-  tooltip.style.top = `${top}px`;
-}
-
-function hideTooltip(tooltip: HTMLDivElement): void {
-  tooltip.style.display = 'none';
-}
-
-// ============================================================
-// Options
-// ============================================================
-
-export interface TechRadarRenderOptions {
-  /** Whether the blip listing is visible. Default: true for export, false for interactive. */
-  showListing?: boolean;
-  /** Callback when the listing toggle is clicked. */
-  onToggleListing?: (show: boolean) => void;
-  /** Whether the controls legend capsule is expanded. */
-  controlsExpanded?: boolean;
-  /** Callback when the controls gear pill is clicked (expand/collapse). */
-  onToggleControlsExpand?: () => void;
-  /** Active legend group name (e.g. 'Trends'). */
-  activeLegendGroup?: string | null;
-  /** Callback when a legend group pill is toggled. */
-  onLegendGroupToggle?: (groupName: string) => void;
-}
-
-// ============================================================
 // Main Renderer
 // ============================================================
 
@@ -171,7 +103,8 @@ export function renderTechRadar(
       palette,
       isDark,
       onClickItem,
-      exportDims
+      exportDims,
+      options
     );
     return;
   }
@@ -330,7 +263,6 @@ export function renderTechRadar(
         .attr('fill', fillColor)
         .attr('stroke', mutedColor)
         .attr('stroke-width', 0.5)
-        .attr('stroke-dasharray', '4,3')
         .attr('data-ring-segment', '')
         .attr('data-quadrant', quadrant.position)
         .attr('data-ring', ringName);
@@ -417,11 +349,8 @@ export function renderTechRadar(
     } = getQuadrantLabelPosition(quadrant.position, cx, cy, maxRadius);
     const labelGroup = radarGroup
       .append('g')
-      .style('cursor', onClickItem ? 'pointer' : 'default');
-
-    if (onClickItem) {
-      labelGroup.on('click', () => onClickItem(quadrant.lineNumber));
-    }
+      .attr('data-line-number', quadrant.lineNumber)
+      .style('cursor', 'pointer');
 
     renderQuadrantLabel(
       labelGroup,
@@ -455,7 +384,35 @@ export function renderTechRadar(
     radarAreaHeight
   );
 
-  const tooltip = createTooltip(container, palette, isDark);
+  // Rich popover for blip details
+  const popover = createBlipPopover(container, palette, isDark);
+  let pinnedLineNum: string | null = null;
+
+  function showBlipHighlight(
+    lineNum: string,
+    bx: number,
+    by: number,
+    blipGroup: d3Selection.Selection<SVGGElement, unknown, null, undefined>
+  ) {
+    blipGroup.attr(
+      'transform',
+      `translate(${bx},${by}) scale(1.5) translate(${-bx},${-by})`
+    );
+    svg
+      .selectAll<SVGElement, unknown>('[data-line-number]')
+      .style('opacity', function () {
+        return this.getAttribute('data-line-number') === lineNum
+          ? '1'
+          : String(DIM_OPACITY);
+      });
+  }
+
+  function clearBlipHighlight() {
+    svg
+      .selectAll<SVGElement, unknown>('[data-line-number]')
+      .style('opacity', '1')
+      .attr('transform', null);
+  }
 
   for (const point of layoutPoints) {
     const quadrant = parsed.quadrants.find((q) =>
@@ -473,7 +430,7 @@ export function renderTechRadar(
       .attr('data-quadrant', quadrant.position)
       .attr('data-ring', point.blip.ring)
       .attr('data-trend', point.blip.trend ?? 'stable')
-      .style('cursor', onClickItem ? 'pointer' : 'default');
+      .style('cursor', 'pointer');
 
     // Angle from blip toward radar center in SVG coords (Y-down)
     const angleToCenter = Math.atan2(cy - point.y, cx - point.x);
@@ -501,42 +458,51 @@ export function renderTechRadar(
       .attr('font-weight', 'bold')
       .text(point.blip.globalNumber);
 
-    // Tooltip + cross-highlight with legend + scale up
+    // Hover: show rich popover + highlight
     const lineNum = String(point.blip.lineNumber);
     const bx = point.x;
     const by = point.y;
     blipGroup
       .on('mouseenter', (event: MouseEvent) => {
-        showTooltip(tooltip, point.blip.name, event);
-        // Scale up this blip
-        blipGroup.attr(
-          'transform',
-          `translate(${bx},${by}) scale(1.5) translate(${-bx},${-by})`
-        );
-        // Dim all other blips (radar + legend)
-        svg
-          .selectAll<SVGElement, unknown>('[data-line-number]')
-          .style('opacity', function () {
-            return this.getAttribute('data-line-number') === lineNum
-              ? '1'
-              : String(DIM_OPACITY);
-          });
+        if (pinnedLineNum) return; // don't interfere with pinned popover
+        showBlipPopover(popover, point.blip, qColor, palette, isDark, event);
+        showBlipHighlight(lineNum, bx, by, blipGroup);
       })
       .on('mousemove', (event: MouseEvent) => {
-        showTooltip(tooltip, point.blip.name, event);
+        if (pinnedLineNum) return;
+        positionPopover(popover, event);
       })
       .on('mouseleave', () => {
-        hideTooltip(tooltip);
-        blipGroup.attr('transform', null);
-        svg
-          .selectAll<SVGElement, unknown>('[data-line-number]')
-          .style('opacity', '1');
+        if (pinnedLineNum) return;
+        hideBlipPopover(popover);
+        clearBlipHighlight();
       });
 
-    if (onClickItem) {
-      blipGroup.on('click', () => onClickItem(point.blip.lineNumber));
-    }
+    // Click: pin/unpin the popover
+    blipGroup.on('click', (event: MouseEvent) => {
+      event.stopPropagation();
+      if (pinnedLineNum === lineNum) {
+        // Unpin
+        pinnedLineNum = null;
+        hideBlipPopover(popover);
+        clearBlipHighlight();
+      } else {
+        // Pin this blip
+        pinnedLineNum = lineNum;
+        showBlipPopover(popover, point.blip, qColor, palette, isDark, event);
+        showBlipHighlight(lineNum, bx, by, blipGroup);
+      }
+    });
   }
+
+  // Click on empty space clears pinned popover
+  svg.on('click', () => {
+    if (pinnedLineNum) {
+      pinnedLineNum = null;
+      hideBlipPopover(popover);
+      clearBlipHighlight();
+    }
+  });
 
   // ── Four-column blip listing below radar ──
   if (showListing) {
@@ -742,8 +708,6 @@ function truncateLabel(
 // Ring×Quadrant Hover Interactivity
 // ============================================================
 
-const DIM_OPACITY = 0.25;
-
 /**
  * Render transparent arc hit areas for each ring×quadrant slice.
  * On hover, dims all blips (radar + listing) except those in the hovered slice.
@@ -844,13 +808,6 @@ function buildArcSlicePath(
 // Trend Items (used by legend group entries)
 // ============================================================
 
-const TREND_ITEMS: { trend: BlipTrend | null; label: string }[] = [
-  { trend: 'new', label: 'New' },
-  { trend: 'up', label: 'Moved in' },
-  { trend: 'down', label: 'Moved out' },
-  { trend: null, label: 'No change' },
-];
-
 function estimateListingHeight(parsed: ParsedTechRadar): number {
   const maxBlipsInQuadrant = Math.max(
     0,
@@ -861,6 +818,109 @@ function estimateListingHeight(parsed: ParsedTechRadar): number {
     LISTING_LINE_HEIGHT +
     LISTING_TOP_MARGIN
   );
+}
+
+// ============================================================
+// Rich Blip Popover (B&L-style node card)
+// ============================================================
+
+import type { TechRadarBlip } from './types';
+
+function createBlipPopover(
+  container: HTMLElement,
+  palette: PaletteColors,
+  isDark: boolean
+): HTMLDivElement {
+  container.style.position = 'relative';
+  const existing = container.querySelector<HTMLDivElement>(
+    '[data-blip-popover]'
+  );
+  if (existing) {
+    existing.style.display = 'none';
+    return existing;
+  }
+  const el = document.createElement('div');
+  el.setAttribute('data-blip-popover', '');
+  el.style.position = 'absolute';
+  el.style.display = 'none';
+  el.style.pointerEvents = 'none';
+  el.style.zIndex = '20';
+  el.style.maxWidth = '280px';
+  el.style.fontFamily = FONT_FAMILY;
+  el.style.fontSize = '12px';
+  el.style.lineHeight = '1.5';
+  el.style.borderRadius = '6px';
+  el.style.overflow = 'hidden';
+  el.style.boxShadow = isDark
+    ? '0 4px 12px rgba(0,0,0,0.4)'
+    : '0 4px 12px rgba(0,0,0,0.12)';
+  container.appendChild(el);
+  return el;
+}
+
+function showBlipPopover(
+  popover: HTMLDivElement,
+  blip: TechRadarBlip,
+  qColor: string,
+  palette: PaletteColors,
+  isDark: boolean,
+  event: MouseEvent
+): void {
+  const fillColor = mix(qColor, isDark ? palette.surface : palette.bg, 30);
+  const hasDesc = blip.description.length > 0;
+
+  let html = `<div style="background:${fillColor}; border: 1.5px solid ${qColor}; border-radius: 6px; overflow: hidden;">`;
+  html += `<div style="padding: 8px 12px; font-weight: 600; color: ${palette.text};">${escapeHtml(blip.name)}</div>`;
+
+  if (hasDesc) {
+    html += `<div style="border-top: 1px solid ${qColor}; opacity: 0.3;"></div>`;
+    html += `<div style="padding: 6px 12px 8px; color: ${palette.textMuted}; font-size: 11px;">`;
+    for (const line of blip.description) {
+      html += `<div>${escapeHtml(line)}</div>`;
+    }
+    html += `</div>`;
+  }
+
+  html += `</div>`;
+
+  popover.innerHTML = html;
+  popover.style.display = 'block';
+  positionPopover(popover, event);
+}
+
+function positionPopover(popover: HTMLDivElement, event: MouseEvent): void {
+  const container = popover.parentElement!;
+  const rect = container.getBoundingClientRect();
+  const tipW = popover.offsetWidth;
+  const tipH = popover.offsetHeight;
+  const cursorX = event.clientX - rect.left;
+  const cursorY = event.clientY - rect.top;
+  const centerX = rect.width / 2;
+  const centerY = rect.height / 2;
+
+  // Position toward the center of the diagram relative to the blip
+  let left = cursorX < centerX ? cursorX + 16 : cursorX - tipW - 16;
+  let top = cursorY < centerY ? cursorY + 16 : cursorY - tipH - 16;
+
+  // Clamp to container bounds
+  if (left + tipW > rect.width - 4) left = rect.width - tipW - 4;
+  if (left < 4) left = 4;
+  if (top + tipH > rect.height - 4) top = rect.height - tipH - 4;
+  if (top < 4) top = 4;
+
+  popover.style.left = `${left}px`;
+  popover.style.top = `${top}px`;
+}
+
+function hideBlipPopover(popover: HTMLDivElement): void {
+  popover.style.display = 'none';
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 // ============================================================

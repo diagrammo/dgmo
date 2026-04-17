@@ -10,4 +10,5 @@ export type {
   TechRadarLayoutPoint,
   QuadrantPosition,
   BlipTrend,
+  TechRadarRenderOptions,
 } from './types';
