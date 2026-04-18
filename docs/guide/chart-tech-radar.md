@@ -15,9 +15,11 @@ Tactics | quadrant: top-right
     approaching from the east with the sun behind us.
     - Crew morale peaks at dawn — grog hasn't worn off yet
     - Reduced cannon fire needed: *3 volleys* vs 8 at midday
+  Boarding Parties | ring: Full Sail, trend: stable
   Decoy Flags | ring: Trial Run, trend: up
     Flying false colours until within cannon range. Early results
     are promising — merchant ships drop anchor **40% more often**.
+  Smoke Screens | ring: Trial Run, trend: new
   Kraken Diplomacy | ring: Spyglass, trend: new
     Exploring alliances with *sea monsters*. Negotiations ongoing.
 
@@ -26,22 +28,24 @@ Vessels | quadrant: top-left
     Our workhorse. Fast, manoeuvrable, carries **18 cannons**.
     - Crew capacity: 100 pirates
     - Top speed: *11 knots* in fair wind
+  Sloop | ring: Full Sail, trend: up
   War Galleon | ring: Trial Run, trend: up
     Captured from the Spanish fleet. Massive firepower but
     **slow to turn** — best for convoy raids, not chases.
-  Submarine | ring: Davy Jones, trend: down
-    Prototype sank on first dive. Crew survived by clinging
-    to a *very confused whale*.
+  Longboat | ring: Davy Jones, trend: down
 
 Plunder Targets | quadrant: bottom-left
   Merchant Convoys | ring: Full Sail, trend: stable
     Core revenue stream — **78% of total plunder**. East India
     Company ships running the spice route remain most lucrative.
+  Port Raids | ring: Trial Run, trend: up
+  Rival Pirates | ring: Trial Run, trend: new
   Royal Treasury Ships | ring: Spyglass, trend: new
     High risk, astronomical reward. Requires:
     - Inside information from *corrupt harbourmasters*
     - At least **3 allied ships** for the blockade
     - A really good escape plan
+  Whaling Ships | ring: Spyglass, trend: stable
   Fishing Villages | ring: Davy Jones, trend: down
     Terrible ROI and **bad for reputation**. The parrot union
     filed a formal complaint.
