@@ -28,7 +28,11 @@ import type { ResolvedTagMap } from './tag-resolution';
 import { resolveActiveTagGroup } from '../utils/tag-groups';
 import { LEGEND_HEIGHT } from '../utils/legend-constants';
 import { renderLegendD3 } from '../utils/legend-d3';
-import type { LegendConfig, LegendState } from '../utils/legend-types';
+import type {
+  LegendCallbacks,
+  LegendConfig,
+  LegendState,
+} from '../utils/legend-types';
 import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT } from '../utils/title-constants';
 
 // ============================================================
@@ -544,6 +548,10 @@ export interface SequenceRenderOptions {
   expandedNoteLines?: Set<number>; // keyed by note lineNumber; undefined = all expanded (CLI default)
   exportWidth?: number; // Explicit width for CLI/export rendering (bypasses getBoundingClientRect)
   activeTagGroup?: string | null; // Active tag group name for tag-driven recoloring; null = explicitly none
+  expandAllNotes?: boolean; // Whether the "Expand Notes" toggle is active
+  onExpandAllNotes?: (expand: boolean) => void; // Toggle all notes expanded/collapsed
+  controlsExpanded?: boolean; // Controls group expanded state (managed by React)
+  onToggleControlsExpand?: () => void; // Callback to toggle controls group
 }
 
 /**
@@ -1716,39 +1724,33 @@ export function renderSequenceDiagram(
     }
   }
 
-  // Render legend pills for tag groups
-  if (parsed.tagGroups.length > 0) {
-    const legendY = TOP_MARGIN + titleOffset;
-    // Resolve tag colors for legend entries
-    const resolvedGroups = parsed.tagGroups
-      .filter((tg) => tg.entries.length > 0)
-      .map((tg) => ({
-        name: tg.name,
-        entries: tg.entries.map((e) => ({
-          value: e.value,
-          color: e.color,
-        })),
-      }));
-    const legendConfig: LegendConfig = {
-      groups: resolvedGroups,
-      position: { placement: 'top-center', titleRelation: 'below-title' },
-      mode: 'fixed',
-    };
-    const legendState: LegendState = { activeGroup: activeTagGroup ?? null };
-    const legendG = svg
-      .append('g')
-      .attr('class', 'sequence-legend')
-      .attr('transform', `translate(0,${legendY})`);
-    renderLegendD3(
-      legendG,
-      legendConfig,
-      legendState,
-      palette,
-      isDark,
-      undefined,
-      svgWidth
-    );
-  }
+  // Collect all note line numbers (for controls group visibility + "all expanded" check)
+  const allNoteLineNumbers: number[] = [];
+  const collectNoteLines = (els: SequenceElement[]): void => {
+    for (const el of els) {
+      if (isSequenceNote(el)) {
+        allNoteLineNumbers.push(el.lineNumber);
+      } else if (isSequenceBlock(el)) {
+        collectNoteLines(el.children);
+        if ('elseChildren' in el) collectNoteLines(el.elseChildren);
+        if ('branches' in el && Array.isArray(el.branches)) {
+          for (const branch of el.branches) {
+            collectNoteLines(branch.children);
+          }
+        }
+      }
+    }
+  };
+  collectNoteLines(elements);
+
+  // Show controls group only in interactive mode (expandedNoteLines defined)
+  // when notes exist and collapse-notes is not disabled
+  const showNotesControl =
+    allNoteLineNumbers.length > 0 &&
+    !collapseNotesDisabled &&
+    expandedNoteLines !== undefined;
+
+  const hasTagGroups = parsed.tagGroups.length > 0;
 
   // Build set of collapsed group names for drill-bar rendering
   const collapsedGroupNames = new Set<string>();
@@ -2805,6 +2807,73 @@ export function renderSequenceDiagram(
   if (elements && elements.length > 0) {
     renderNoteElements(elements);
   }
+
+  // Render legend LAST so it sits on top of all other SVG elements
+  // (group boxes, lifelines, participants, etc.) and can receive clicks.
+  if (hasTagGroups || showNotesControl) {
+    const controlsExpanded = options?.controlsExpanded ?? false;
+
+    const legendY = TOP_MARGIN + titleOffset;
+    const resolvedGroups = parsed.tagGroups
+      .filter((tg) => tg.entries.length > 0)
+      .map((tg) => ({
+        name: tg.name,
+        entries: tg.entries.map((e) => ({
+          value: e.value,
+          color: e.color,
+        })),
+      }));
+
+    const allExpanded = showNotesControl && (options?.expandAllNotes ?? false);
+
+    const controlsGroup = showNotesControl
+      ? {
+          toggles: [
+            {
+              id: 'expand-all-notes',
+              type: 'toggle' as const,
+              label: 'Expand Notes',
+              active: allExpanded,
+              onToggle: () => {},
+            },
+          ],
+        }
+      : undefined;
+
+    const legendConfig: LegendConfig = {
+      groups: resolvedGroups,
+      position: { placement: 'top-center', titleRelation: 'below-title' },
+      mode: 'fixed',
+      controlsGroup,
+    };
+    const legendState: LegendState = {
+      activeGroup: activeTagGroup ?? null,
+      controlsExpanded,
+    };
+
+    const legendCallbacks: LegendCallbacks = {
+      onControlsExpand: () => {
+        options?.onToggleControlsExpand?.();
+      },
+      onControlsToggle: (_toggleId: string, active: boolean) => {
+        options?.onExpandAllNotes?.(active);
+      },
+    };
+
+    const legendG = svg
+      .append('g')
+      .attr('class', 'sequence-legend')
+      .attr('transform', `translate(0,${legendY})`);
+    renderLegendD3(
+      legendG,
+      legendConfig,
+      legendState,
+      palette,
+      isDark,
+      legendCallbacks,
+      svgWidth
+    );
+  }
 }
 
 /**
@@ -2841,6 +2910,31 @@ export function buildNoteMessageMap(
   };
   walk(elements);
   return map;
+}
+
+/**
+ * Collect all note line numbers from a sequence diagram's elements.
+ * Used by the app to compute the "expand all" set.
+ */
+export function collectNoteLineNumbers(elements: SequenceElement[]): number[] {
+  const result: number[] = [];
+  const walk = (els: SequenceElement[]): void => {
+    for (const el of els) {
+      if (isSequenceNote(el)) {
+        result.push(el.lineNumber);
+      } else if (isSequenceBlock(el)) {
+        walk(el.children);
+        if (el.elseIfBranches) {
+          for (const branch of el.elseIfBranches) {
+            walk(branch.children);
+          }
+        }
+        walk(el.elseChildren);
+      }
+    }
+  };
+  walk(elements);
+  return result;
 }
 
 function renderParticipant(

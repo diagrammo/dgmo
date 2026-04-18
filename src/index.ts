@@ -456,6 +456,7 @@ export {
   applyGroupOrdering,
   groupMessagesBySection,
   buildNoteMessageMap,
+  collectNoteLineNumbers,
 } from './sequence/renderer';
 export type {
   RenderStep,
