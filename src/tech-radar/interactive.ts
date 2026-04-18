@@ -685,3 +685,374 @@ function escapeHtml(text: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
 }
+
+// ============================================================
+// Static Quadrant Export Renderer (all descriptions expanded, no interactivity)
+// ============================================================
+
+export function renderQuadrantFocusForExport(
+  container: HTMLDivElement,
+  parsed: ParsedTechRadar,
+  quadrantPosition: QuadrantPosition,
+  palette: PaletteColors,
+  isDark: boolean,
+  exportDims: { width: number; height: number }
+): void {
+  const quadrant = parsed.quadrants.find(
+    (q) => q.position === quadrantPosition
+  );
+  if (!quadrant) return;
+
+  container.innerHTML = '';
+
+  const width = exportDims.width;
+  const height = exportDims.height;
+  const qColor = resolveQuadrantColor(
+    quadrant.position,
+    quadrant.color,
+    palette
+  );
+
+  // ── Title bar ──
+  const titleBar = document.createElement('div');
+  titleBar.style.cssText = `
+    display: flex; align-items: baseline; gap: 8px;
+    padding: 12px 16px; font-family: ${FONT_FAMILY};
+    font-size: ${TITLE_FONT_SIZE + 2}px; background: ${palette.bg};
+  `;
+
+  const titleText = document.createElement('span');
+  titleText.textContent = parsed.title || 'Tech Radar';
+  titleText.style.cssText = `font-weight: bold; color: ${palette.text};`;
+
+  const sep = document.createElement('span');
+  sep.textContent = '›';
+  sep.style.color = palette.border;
+
+  const quadrantLabel = document.createElement('span');
+  quadrantLabel.textContent = quadrant.name;
+  quadrantLabel.style.cssText = `font-weight: bold; color: ${qColor};`;
+
+  titleBar.appendChild(titleText);
+  titleBar.appendChild(sep);
+  titleBar.appendChild(quadrantLabel);
+  container.appendChild(titleBar);
+
+  // ── Main layout: SVG radar (left) + HTML panel (right) ──
+  const mainLayout = document.createElement('div');
+  mainLayout.style.cssText = `
+    display: flex; flex-direction: row;
+    height: ${height - 48}px; background: ${palette.bg};
+  `;
+  container.appendChild(mainLayout);
+
+  // SVG container for quarter-circle (left 45%)
+  const svgContainer = document.createElement('div');
+  svgContainer.style.cssText = `width: 45%; min-width: 200px; flex-shrink: 0;`;
+  mainLayout.appendChild(svgContainer);
+
+  // HTML panel for blip listing (right 55%)
+  const panel = document.createElement('div');
+  panel.style.cssText = `
+    flex: 1; padding: 8px 16px;
+    font-family: ${FONT_FAMILY}; background: ${palette.bg};
+  `;
+  mainLayout.appendChild(panel);
+
+  // ── Render static HTML panel (all descriptions expanded) ──
+  renderStaticHtmlPanel(panel, parsed, quadrant, qColor, palette, isDark);
+
+  // ── Render quarter-circle SVG ──
+  const svgWidth = width * 0.45;
+  const svgHeight = height - 48;
+
+  const svg = d3Selection
+    .select(svgContainer)
+    .append('svg')
+    .attr('width', svgWidth)
+    .attr('height', svgHeight)
+    .attr('viewBox', `0 0 ${svgWidth} ${svgHeight}`)
+    .style('background', palette.bg);
+
+  renderQuarterCircleStatic(
+    svg,
+    parsed,
+    quadrant,
+    qColor,
+    palette,
+    isDark,
+    svgWidth,
+    svgHeight,
+    palette.border
+  );
+}
+
+/**
+ * Render the quarter-circle SVG without any interactivity.
+ */
+function renderQuarterCircleStatic(
+  svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
+  parsed: ParsedTechRadar,
+  quadrant: ParsedTechRadar['quadrants'][number],
+  qColor: string,
+  palette: PaletteColors,
+  isDark: boolean,
+  width: number,
+  height: number,
+  mutedColor: string
+): void {
+  const padding = 8;
+  const size = Math.min(width - padding, height - padding);
+  const maxRadius = size * 0.95;
+  const ringCount = parsed.rings.length;
+  const ringBandWidth = maxRadius / ringCount;
+
+  const { startAngle, endAngle } = getQuadrantArc(quadrant.position);
+  let cx: number, cy: number;
+
+  switch (quadrant.position) {
+    case 'top-right':
+      cx = padding;
+      cy = size + padding;
+      break;
+    case 'top-left':
+      cx = width - padding;
+      cy = size + padding;
+      break;
+    case 'bottom-left':
+      cx = width - padding;
+      cy = padding;
+      break;
+    case 'bottom-right':
+      cx = padding;
+      cy = padding;
+      break;
+  }
+
+  // Ring arcs with zebra shading
+  const arcGen = (innerR: number, outerR: number) =>
+    `M${cx + outerR * Math.cos(startAngle)},${cy - outerR * Math.sin(startAngle)} A${outerR},${outerR} 0 0,0 ${cx + outerR * Math.cos(endAngle)},${cy - outerR * Math.sin(endAngle)} L${cx + innerR * Math.cos(endAngle)},${cy - innerR * Math.sin(endAngle)} A${innerR},${innerR} 0 0,1 ${cx + innerR * Math.cos(startAngle)},${cy - innerR * Math.sin(startAngle)} Z`;
+
+  for (let ri = parsed.rings.length - 1; ri >= 0; ri--) {
+    const innerR = ri * ringBandWidth;
+    const outerR = (ri + 1) * ringBandWidth;
+    const fillColor =
+      ri % 2 === 0 ? palette.bg : mix(palette.bg, palette.border, 0.15);
+
+    svg
+      .append('path')
+      .attr('d', arcGen(innerR, outerR))
+      .attr('fill', fillColor)
+      .attr('stroke', mutedColor)
+      .attr('stroke-width', 0.5);
+  }
+
+  // Ring labels along the arc edge
+  for (let ri = 0; ri < parsed.rings.length; ri++) {
+    const rCenter = (ri + 0.5) * ringBandWidth;
+    const midAngle = (startAngle + endAngle) / 2;
+    const labelX = cx + rCenter * Math.cos(midAngle);
+    const labelY = cy - rCenter * Math.sin(midAngle);
+
+    svg
+      .append('text')
+      .attr('x', labelX)
+      .attr('y', labelY)
+      .attr('text-anchor', 'middle')
+      .attr('dominant-baseline', 'central')
+      .attr('fill', palette.textMuted)
+      .attr('font-family', FONT_FAMILY)
+      .attr('font-size', 11)
+      .attr('font-weight', '600')
+      .attr('opacity', 0.5)
+      .text(parsed.rings[ri].name);
+  }
+
+  // Blip dots
+  const ringOrder = parsed.rings.map((r) => r.name);
+  const angularPadding = 0.08;
+  const radialPadding = ringBandWidth * 0.12;
+  const usableArcStart = startAngle + angularPadding;
+  const usableArcEnd = endAngle - angularPadding;
+  const arcSpan = usableArcEnd - usableArcStart;
+
+  const blipsByRing = new Map<string, typeof quadrant.blips>();
+  for (const blip of quadrant.blips) {
+    const list = blipsByRing.get(blip.ring) ?? [];
+    list.push(blip);
+    blipsByRing.set(blip.ring, list);
+  }
+
+  for (const [ringName, blips] of blipsByRing) {
+    const ringIndex = ringOrder.indexOf(ringName);
+    if (ringIndex < 0) continue;
+    const rInner = ringIndex * ringBandWidth + radialPadding;
+    const rOuter = (ringIndex + 1) * ringBandWidth - radialPadding;
+    const rMid = (rInner + rOuter) / 2;
+
+    for (let bi = 0; bi < blips.length; bi++) {
+      const blip = blips[bi];
+      const angle =
+        blips.length === 1
+          ? (usableArcStart + usableArcEnd) / 2
+          : usableArcStart + ((bi + 0.5) / blips.length) * arcSpan;
+
+      const radius =
+        blips.length <= 3
+          ? rMid
+          : rInner +
+            BLIP_RADIUS +
+            ((bi % 3) / 2) * (rOuter - rInner - BLIP_RADIUS * 2);
+
+      const bx = cx + radius * Math.cos(angle);
+      const by = cy - radius * Math.sin(angle);
+
+      const blipGroup = svg.append('g');
+
+      const angleToCenter = Math.atan2(cy - by, cx - bx);
+      renderTrendIndicator(
+        blipGroup,
+        blip.trend,
+        qColor,
+        bx,
+        by,
+        BLIP_RADIUS,
+        angleToCenter
+      );
+
+      blipGroup
+        .append('text')
+        .attr('x', bx)
+        .attr('y', by + 3)
+        .attr('text-anchor', 'middle')
+        .attr('fill', isDark ? '#000' : '#fff')
+        .attr('font-family', FONT_FAMILY)
+        .attr('font-size', BLIP_FONT_SIZE)
+        .attr('font-weight', 'bold')
+        .text(blip.globalNumber);
+    }
+  }
+}
+
+/**
+ * Render static HTML panel with all descriptions expanded (for export).
+ */
+function renderStaticHtmlPanel(
+  panel: HTMLElement,
+  parsed: ParsedTechRadar,
+  quadrant: ParsedTechRadar['quadrants'][number],
+  qColor: string,
+  palette: PaletteColors,
+  isDark: boolean
+): void {
+  const ringOrder = parsed.rings.map((r) => r.name);
+  const fillColor = mix(qColor, isDark ? palette.surface : palette.bg, 30);
+
+  for (const ringName of ringOrder) {
+    const blips = quadrant.blips.filter((b) => b.ring === ringName);
+    if (blips.length === 0) continue;
+
+    // Ring group container
+    const ringGroup = document.createElement('div');
+    ringGroup.style.cssText = `
+      background: ${palette.surface};
+      border-radius: 8px;
+      padding: 10px;
+      margin-bottom: 12px;
+    `;
+
+    // Ring header
+    const header = document.createElement('div');
+    header.style.cssText = `
+      font-size: 13px; font-weight: 700; color: ${palette.textMuted};
+      margin-bottom: 8px;
+    `;
+    header.textContent = ringName;
+    ringGroup.appendChild(header);
+
+    panel.appendChild(ringGroup);
+
+    for (const blip of blips) {
+      const hasDesc = blip.description.length > 0;
+
+      const node = document.createElement('div');
+      node.style.cssText = `
+        background: ${fillColor}; border: 1.5px solid ${qColor};
+        border-radius: 6px; margin-bottom: 6px;
+      `;
+
+      // Title row
+      const titleRow = document.createElement('div');
+      titleRow.style.cssText = `
+        display: flex; align-items: center; gap: 8px;
+        padding: 6px 10px; min-height: 28px;
+      `;
+
+      // Mini SVG blip indicator
+      const indicatorSvg = document.createElementNS(
+        'http://www.w3.org/2000/svg',
+        'svg'
+      );
+      indicatorSvg.setAttribute('width', '26');
+      indicatorSvg.setAttribute('height', '26');
+      indicatorSvg.style.flexShrink = '0';
+      const indicatorG = d3Selection
+        .select(indicatorSvg)
+        .append('g') as d3Selection.Selection<
+        SVGGElement,
+        unknown,
+        null,
+        undefined
+      >;
+      renderTrendIndicator(
+        indicatorG,
+        blip.trend,
+        qColor,
+        13,
+        13,
+        10,
+        -Math.PI / 2
+      );
+      d3Selection
+        .select(indicatorSvg)
+        .append('text')
+        .attr('x', 13)
+        .attr('y', 16)
+        .attr('text-anchor', 'middle')
+        .attr('fill', isDark ? '#000' : '#fff')
+        .attr('font-family', FONT_FAMILY)
+        .attr('font-size', 9)
+        .attr('font-weight', 'bold')
+        .text(blip.globalNumber);
+      titleRow.appendChild(indicatorSvg);
+
+      // Name
+      const name = document.createElement('span');
+      name.textContent = blip.name;
+      name.style.cssText = `
+        flex: 1; font-size: 12px; font-weight: 600;
+        color: ${palette.text};
+      `;
+      titleRow.appendChild(name);
+
+      node.appendChild(titleRow);
+
+      // Description (always expanded for export)
+      if (hasDesc) {
+        const sepDiv = document.createElement('div');
+        sepDiv.style.cssText = `border-top: 1px solid ${qColor}; opacity: 0.3;`;
+        node.appendChild(sepDiv);
+
+        const descDiv = document.createElement('div');
+        descDiv.style.cssText = `
+          padding: 6px 10px 8px; font-size: 11px; line-height: 1.6;
+          color: ${palette.textMuted};
+        `;
+        descDiv.innerHTML = renderDescriptionHtml(blip.description, palette);
+        node.appendChild(descDiv);
+      }
+
+      ringGroup.appendChild(node);
+    }
+  }
+}

@@ -38,7 +38,7 @@ import type {
 
 const BLIP_RADIUS = 12;
 const BLIP_FONT_SIZE = 9;
-const RING_LABEL_FONT_SIZE = 11;
+const RING_LABEL_FONT_SIZE = 13;
 const QUADRANT_LABEL_FONT_SIZE = 18;
 const TITLE_FONT_SIZE = 18;
 const LISTING_FONT_SIZE = 12;
@@ -95,8 +95,9 @@ export function renderTechRadar(
 ): void {
   if (parsed.quadrants.length === 0 || parsed.rings.length === 0) return;
 
-  // If a quadrant is focused, delegate to the interactive module (synchronous)
-  if (viewState?.rq) {
+  // If a quadrant is focused, delegate to the interactive module
+  // (but NOT for export — always export the full radar with blip legend)
+  if (viewState?.rq && !exportDims) {
     renderQuadrantFocus(
       container,
       parsed,
@@ -110,8 +111,8 @@ export function renderTechRadar(
     return;
   }
 
-  // Determine if listing is visible
-  const showListing = options?.showListing ?? !!exportDims; // default: show for export, hide for interactive
+  // Determine if listing is visible — always show for export (blip legend is essential)
+  const showListing = exportDims ? true : (options?.showListing ?? false);
   const listingHeight = showListing ? estimateListingHeight(parsed) : 0;
 
   const init = initRadarSvg(container, palette, exportDims);
@@ -288,18 +289,18 @@ export function renderTechRadar(
     .attr('stroke', mutedColor)
     .attr('stroke-width', 1);
 
-  // ── Ring labels (along horizontal axis) ──
+  // ── Ring labels (along vertical axis, centered — avoids horizontal collision) ──
   for (let ri = 0; ri < parsed.rings.length; ri++) {
-    const rOuter = (ri + 1) * ringBandWidth;
-    const labelY = cy + RING_LABEL_FONT_SIZE + 4;
+    const rCenter = (ri + 0.5) * ringBandWidth;
 
     if (ri === 0) {
-      // Innermost ring: single centered label
+      // Innermost ring: dead center
       radarGroup
         .append('text')
         .attr('x', cx)
-        .attr('y', labelY)
+        .attr('y', cy)
         .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'central')
         .attr('fill', textColor)
         .attr('font-family', FONT_FAMILY)
         .attr('font-size', RING_LABEL_FONT_SIZE)
@@ -307,13 +308,13 @@ export function renderTechRadar(
         .attr('opacity', 0.5)
         .text(parsed.rings[ri].name);
     } else {
-      // Other rings: labels on both sides of horizontal axis
-      // Right side — label left of boundary
+      // Above center
       radarGroup
         .append('text')
-        .attr('x', cx + rOuter - 4)
-        .attr('y', labelY)
-        .attr('text-anchor', 'end')
+        .attr('x', cx)
+        .attr('y', cy - rCenter)
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'central')
         .attr('fill', textColor)
         .attr('font-family', FONT_FAMILY)
         .attr('font-size', RING_LABEL_FONT_SIZE)
@@ -321,12 +322,13 @@ export function renderTechRadar(
         .attr('opacity', 0.5)
         .text(parsed.rings[ri].name);
 
-      // Left side — label right of boundary (mirrored)
+      // Below center (mirrored)
       radarGroup
         .append('text')
-        .attr('x', cx - rOuter + 4)
-        .attr('y', labelY)
-        .attr('text-anchor', 'start')
+        .attr('x', cx)
+        .attr('y', cy + rCenter)
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'central')
         .attr('fill', textColor)
         .attr('font-family', FONT_FAMILY)
         .attr('font-size', RING_LABEL_FONT_SIZE)

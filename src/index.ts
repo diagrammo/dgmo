@@ -364,7 +364,10 @@ export {
   renderTechRadar,
   renderTechRadarForExport,
 } from './tech-radar/renderer';
-export { renderQuadrantFocus } from './tech-radar/interactive';
+export {
+  renderQuadrantFocus,
+  renderQuadrantFocusForExport,
+} from './tech-radar/interactive';
 export type {
   ParsedTechRadar,
   TechRadarRing,
