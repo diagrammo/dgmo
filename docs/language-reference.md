@@ -20,8 +20,9 @@
 14. [Timeline Diagrams](#14-timeline-diagrams)
 15. [Data Charts](#15-data-charts)
 16. [Visualizations](#16-visualizations)
-17. [Wireframe Diagrams](#17-wireframe-diagrams)
-18. [Colon Usage Summary](#18-colon-usage-summary)
+17. [Tech Radar Diagrams](#17-tech-radar-diagrams)
+18. [Wireframe Diagrams](#18-wireframe-diagrams)
+19. [Colon Usage Summary](#19-colon-usage-summary)
 
 ---
 
@@ -1369,7 +1370,73 @@ Navigator 0.85 0.8
 
 ---
 
-## 17. Wireframe Diagrams
+## 17. Tech Radar Diagrams
+
+```
+tech-radar Title
+
+rings
+  Adopt
+  Trial
+  Assess
+  Hold
+
+Techniques | quadrant: top-right
+  Continuous Deployment | ring: Adopt, trend: stable
+    Fully adopted across all services.
+  Micro Frontends | ring: Trial, trend: up
+
+Tools | quadrant: top-left
+  Vite | ring: Adopt, trend: up
+  Webpack | ring: Hold, trend: down
+```
+
+### Rings
+
+Declared in a `rings` block, one per indented line. Order: innermost (first) to outermost (last). Any names, any count.
+
+Aliases supported: `Adopt alias a` — then blips can use `ring: a`.
+
+### Quadrants
+
+Exactly 4 required. Each is a top-level header with pipe metadata:
+
+```
+Name | quadrant: position
+```
+
+**Positions:** `top-left`, `top-right`, `bottom-left`, `bottom-right` — each used exactly once.
+
+Optional color override: `Tools | quadrant: top-left, color: purple`
+
+Default colors: top-left=blue, top-right=green, bottom-left=red, bottom-right=orange.
+
+### Blips
+
+Indented under their quadrant. Require `ring` metadata (case-insensitive match). Optional `trend`:
+
+```
+  Item Name | ring: Adopt, trend: stable
+```
+
+**Trends:** `new` (double circle), `up` (inward crescent), `down` (outward crescent), `stable` (plain circle). Omitting renders plain circle.
+
+### Descriptions
+
+Further-indented lines below a blip. Supports inline markdown (bold, italic, code, links).
+
+```
+  Rust | ring: Assess, trend: new
+    Evaluating for **performance-critical** services.
+```
+
+### Numbering
+
+Blips receive sequential global numbers. Order: quadrants clockwise (top-left → top-right → bottom-right → bottom-left), then by ring (innermost first), then declaration order.
+
+---
+
+## 18. Wireframe Diagrams
 
 Wireframe diagrams use **visual-mnemonic syntax** where bracket characters communicate element type.
 
@@ -1503,7 +1570,7 @@ wireframe Login Page
 
 ---
 
-## 18. Colon Usage Summary
+## 19. Colon Usage Summary
 
 ### Constructs Where Colons Are REQUIRED
 
