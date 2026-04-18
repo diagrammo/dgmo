@@ -733,4 +733,135 @@ describe('PIPE_METADATA', () => {
   it('does NOT have sequence entry (| is tag separator)', () => {
     expect(PIPE_METADATA.has('sequence')).toBe(false);
   });
+
+  it('has tech-radar entry with quadrant/ring/trend/color node keys', () => {
+    const tr = PIPE_METADATA.get('tech-radar');
+    expect(tr).toBeDefined();
+    expect(tr!.node.quadrant).toBeDefined();
+    expect(tr!.node.quadrant.values).toEqual([
+      'top-left',
+      'top-right',
+      'bottom-left',
+      'bottom-right',
+    ]);
+    expect(tr!.node.ring).toBeDefined();
+    expect(tr!.node.trend).toBeDefined();
+    expect(tr!.node.trend.values).toEqual(['new', 'up', 'down', 'stable']);
+    expect(tr!.node.color).toBeDefined();
+    expect(tr!.edge).toEqual({});
+  });
+});
+
+// ============================================================
+// Tech Radar symbol extraction
+// ============================================================
+
+describe('extractDiagramSymbols — tech-radar', () => {
+  it('extracts ring names as entities', () => {
+    const doc = `tech-radar My Radar
+
+rings
+  Adopt
+  Trial
+  Assess
+  Hold
+
+Techniques | quadrant: top-right
+  CI/CD | ring: Adopt, trend: stable
+`;
+    const symbols = extractDiagramSymbols(doc);
+    expect(symbols).not.toBeNull();
+    expect(symbols!.kind).toBe('tech-radar');
+    expect(symbols!.entities).toContain('Adopt');
+    expect(symbols!.entities).toContain('Trial');
+    expect(symbols!.entities).toContain('Assess');
+    expect(symbols!.entities).toContain('Hold');
+  });
+
+  it('extracts ring aliases as entities', () => {
+    const doc = `tech-radar My Radar
+
+rings
+  Adopt alias a
+  Trial aka t
+  Assess
+`;
+    const symbols = extractDiagramSymbols(doc);
+    expect(symbols).not.toBeNull();
+    expect(symbols!.entities).toContain('Adopt');
+    expect(symbols!.entities).toContain('a');
+    expect(symbols!.entities).toContain('Trial');
+    expect(symbols!.entities).toContain('t');
+    expect(symbols!.entities).toContain('Assess');
+  });
+
+  it('includes tech-radar keywords', () => {
+    const doc = `tech-radar My Radar
+
+rings
+  Adopt
+`;
+    const symbols = extractDiagramSymbols(doc);
+    expect(symbols).not.toBeNull();
+    expect(symbols!.keywords).toContain('rings');
+    expect(symbols!.keywords).toContain('quadrant');
+    expect(symbols!.keywords).toContain('ring');
+    expect(symbols!.keywords).toContain('trend');
+    expect(symbols!.keywords).toContain('new');
+    expect(symbols!.keywords).toContain('up');
+    expect(symbols!.keywords).toContain('down');
+    expect(symbols!.keywords).toContain('stable');
+    expect(symbols!.keywords).toContain('top-left');
+    expect(symbols!.keywords).toContain('top-right');
+    expect(symbols!.keywords).toContain('bottom-left');
+    expect(symbols!.keywords).toContain('bottom-right');
+  });
+
+  it('stops ring extraction at unindented line', () => {
+    const doc = `tech-radar My Radar
+
+rings
+  Adopt
+  Trial
+
+Techniques | quadrant: top-right
+  CI/CD | ring: Adopt
+`;
+    const symbols = extractDiagramSymbols(doc);
+    expect(symbols!.entities).toContain('Adopt');
+    expect(symbols!.entities).toContain('Trial');
+    expect(symbols!.entities).not.toContain('Techniques');
+    expect(symbols!.entities).not.toContain('CI/CD');
+  });
+
+  it('handles empty rings block', () => {
+    const doc = `tech-radar My Radar
+
+rings
+
+Techniques | quadrant: top-right
+`;
+    const symbols = extractDiagramSymbols(doc);
+    expect(symbols).not.toBeNull();
+    expect(symbols!.entities).toHaveLength(0);
+  });
+});
+
+// ============================================================
+// COMPLETION_REGISTRY — tech-radar
+// ============================================================
+
+describe('COMPLETION_REGISTRY — tech-radar', () => {
+  it('registers tech-radar directives', () => {
+    const spec = COMPLETION_REGISTRY.get('tech-radar');
+    expect(spec).toBeDefined();
+    expect(spec!.directives).toHaveProperty('rings');
+    expect(spec!.directives).toHaveProperty('quadrant');
+    expect(spec!.directives).toHaveProperty('ring');
+    expect(spec!.directives).toHaveProperty('trend');
+    expect(spec!.directives).toHaveProperty('color');
+    // Global directives inherited
+    expect(spec!.directives).toHaveProperty('palette');
+    expect(spec!.directives).toHaveProperty('theme');
+  });
 });
