@@ -193,21 +193,27 @@ Navigation | quadrant: top-right
   Star Charts | ring: Battle Ready, trend: stable
   Compass Calibration | ring: Sea Trials, trend: up
     New lodestone from Madagascar shows **30% better accuracy**.
+  Sextant | ring: Battle Ready, trend: stable
   Treasure Maps | ring: Scouting, trend: new
+  Celestial Tables | ring: Scouting, trend: new
 
 Armaments | quadrant: top-left
   Cannon Broadside | ring: Battle Ready, trend: stable
   Greek Fire | ring: Sea Trials, trend: new
+  Chain Shot | ring: Sea Trials, trend: up
   Catapult | ring: Scuttle, trend: down
 
 Provisions | quadrant: bottom-left
   Salted Pork | ring: Battle Ready, trend: stable
   Citrus Rations | ring: Sea Trials, trend: up
     Reduced scurvy cases by **80%** in trial crews.
+  Rum Distillation | ring: Scouting, trend: new
   Hardtack | ring: Scuttle, trend: down
+  Barnacle Soup | ring: Scuttle, trend: down
 
 Morale | quadrant: bottom-right
   Shore Leave | ring: Battle Ready, trend: stable
+  Sea Shanties | ring: Battle Ready, trend: up
   Parrot Companions | ring: Scouting, trend: new
   Plank Walking | ring: Scuttle, trend: down
 ```
