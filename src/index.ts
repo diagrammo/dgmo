@@ -378,6 +378,19 @@ export type {
   BlipTrend,
 } from './tech-radar/types';
 
+export { parseCycle } from './cycle/parser';
+export { computeCycleLayout } from './cycle/layout';
+export { renderCycle, renderCycleForExport } from './cycle/renderer';
+export type { CycleRenderOptions } from './cycle/renderer';
+export type {
+  ParsedCycle,
+  CycleNode,
+  CycleEdge,
+  CycleLayoutNode,
+  CycleLayoutEdge,
+  CycleLayoutResult,
+} from './cycle/types';
+
 export { resolveOrgImports } from './org/resolver';
 export type {
   ReadFileFn,

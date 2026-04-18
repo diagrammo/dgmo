@@ -1,0 +1,447 @@
+// ============================================================
+// Cycle Diagram — D3 SVG Renderer
+// ============================================================
+
+import * as d3Selection from 'd3-selection';
+import { FONT_FAMILY } from '../fonts';
+import {
+  TITLE_FONT_SIZE,
+  TITLE_FONT_WEIGHT,
+  TITLE_Y,
+} from '../utils/title-constants';
+import { LEGEND_HEIGHT } from '../utils/legend-constants';
+import { renderLegendD3 } from '../utils/legend-d3';
+import type {
+  LegendConfig,
+  LegendState,
+  LegendCallbacks,
+  ControlsGroupToggle,
+} from '../utils/legend-types';
+import { contrastText, mix } from '../palettes/color-utils';
+import { resolveColor } from '../colors';
+import { renderInlineText } from '../utils/inline-markdown';
+import type { PaletteColors } from '../palettes';
+import type { D3ExportDimensions } from '../utils/d3-types';
+import type { CompactViewState } from '../sharing';
+import type { ParsedCycle } from './types';
+import { computeCycleLayout } from './layout';
+
+// ── Constants ────────────────────────────────────────────────
+const DEFAULT_EDGE_WIDTH = 3;
+const ARROWHEAD_W = 8;
+const ARROWHEAD_H = 8;
+const NODE_FONT_SIZE = 13;
+const DESC_FONT_SIZE = 11;
+const EDGE_LABEL_FONT_SIZE = 11;
+const DESC_LINE_HEIGHT = 15;
+const TITLE_AREA_HEIGHT = 50;
+
+export interface CycleRenderOptions {
+  onClickItem?: (lineNumber: number) => void;
+  exportDims?: D3ExportDimensions;
+  viewState?: CompactViewState;
+  hideDescriptions?: boolean;
+  controlsExpanded?: boolean;
+  onToggleDescriptions?: (active: boolean) => void;
+  onToggleControlsExpand?: () => void;
+}
+
+/**
+ * Render a cycle diagram into the given container.
+ */
+export function renderCycle(
+  container: HTMLDivElement,
+  parsed: ParsedCycle,
+  palette: PaletteColors,
+  isDark: boolean,
+  onClickItem?: (lineNumber: number) => void,
+  exportDims?: D3ExportDimensions,
+  viewState?: CompactViewState,
+  renderOptions?: CycleRenderOptions
+): void {
+  if (parsed.nodes.length === 0) return;
+
+  // Clear previous render
+  d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
+  const width = exportDims?.width ?? container.clientWidth;
+  const height = exportDims?.height ?? container.clientHeight;
+  if (width <= 0 || height <= 0) return;
+
+  const hideDescriptions =
+    (renderOptions?.hideDescriptions ?? false) ||
+    parsed.options['hide-descriptions'] === 'true' ||
+    viewState?.hd === true;
+  const showDescriptions = !hideDescriptions;
+
+  // Check if descriptions exist in the diagram
+  const hasDescriptions =
+    parsed.nodes.some((n) => n.description.length > 0) ||
+    parsed.edges.some((e) => e.description.length > 0);
+  const hasLegend = hasDescriptions && !!renderOptions?.onToggleDescriptions;
+
+  // Layout
+  const legendOffset = hasLegend ? LEGEND_HEIGHT : 0;
+  const layoutHeight =
+    height - (parsed.title ? TITLE_AREA_HEIGHT : 0) - legendOffset;
+  const layout = computeCycleLayout(parsed, {
+    width,
+    height: layoutHeight,
+    hideDescriptions,
+  });
+
+  // Create SVG
+  const svg = d3Selection
+    .select(container)
+    .append('svg')
+    .attr('width', width)
+    .attr('height', height)
+    .attr('xmlns', 'http://www.w3.org/2000/svg')
+    .style('font-family', FONT_FAMILY);
+
+  // Background
+  svg
+    .append('rect')
+    .attr('width', width)
+    .attr('height', height)
+    .attr('fill', palette.bg);
+
+  // Title
+  if (parsed.title) {
+    const titleText = svg
+      .append('text')
+      .attr('x', width / 2)
+      .attr('y', TITLE_Y)
+      .attr('text-anchor', 'middle')
+      .attr('fill', palette.text)
+      .attr('font-family', FONT_FAMILY)
+      .attr('font-size', TITLE_FONT_SIZE)
+      .attr('font-weight', TITLE_FONT_WEIGHT)
+      .attr('data-line-number', parsed.titleLineNumber)
+      .text(parsed.title)
+      .style('cursor', onClickItem ? 'pointer' : 'default');
+    if (onClickItem) {
+      titleText.on('click', () => onClickItem(parsed.titleLineNumber));
+    }
+  }
+
+  // Legend (controls toggle for descriptions)
+  if (hasLegend) {
+    const controlsGroup: { toggles: ControlsGroupToggle[] } = {
+      toggles: [
+        {
+          id: 'descriptions',
+          type: 'toggle',
+          label: 'Descriptions',
+          active: !hideDescriptions,
+          onToggle: () => {},
+        },
+      ],
+    };
+    const legendConfig: LegendConfig = {
+      groups: [],
+      position: { placement: 'top-center', titleRelation: 'below-title' },
+      mode: 'fixed',
+      controlsGroup,
+    };
+    const legendState: LegendState = {
+      activeGroup: null,
+      controlsExpanded: renderOptions?.controlsExpanded,
+    };
+    const legendCallbacks: LegendCallbacks = {
+      onControlsExpand: renderOptions?.onToggleControlsExpand,
+      onControlsToggle: (toggleId, active) => {
+        if (
+          toggleId === 'descriptions' &&
+          renderOptions?.onToggleDescriptions
+        ) {
+          renderOptions.onToggleDescriptions(active);
+        }
+      },
+    };
+    const titleOffset = parsed.title ? TITLE_AREA_HEIGHT : 0;
+    const legendG = svg
+      .append('g')
+      .attr('transform', `translate(0, ${titleOffset + 4})`);
+    renderLegendD3(
+      legendG,
+      legendConfig,
+      legendState,
+      palette,
+      isDark,
+      legendCallbacks,
+      width
+    );
+  }
+
+  // Main diagram group
+  const diagramTop = (parsed.title ? TITLE_AREA_HEIGHT : 0) + legendOffset;
+  const g = svg.append('g').attr('transform', `translate(0, ${diagramTop})`);
+
+  // Defs for arrowheads
+  const defs = svg.append('defs');
+
+  // Resolve default node color: first palette color (uniform)
+  const defaultNodeColor = palette.primary;
+
+  // ── Arrowhead markers ──
+  const arrowColors = new Set<string>();
+  for (let i = 0; i < parsed.edges.length; i++) {
+    const edge = parsed.edges[i];
+    const color = resolveEdgeColor(edge, parsed, palette, defaultNodeColor);
+    arrowColors.add(color);
+  }
+  ensureArrowMarkers(defs, arrowColors);
+
+  // ── Render edges (below nodes) ──
+  for (let i = 0; i < layout.edges.length; i++) {
+    const le = layout.edges[i];
+    const edge = parsed.edges[i];
+    const color = resolveEdgeColor(edge, parsed, palette, defaultNodeColor);
+    const strokeWidth = edge.width ?? DEFAULT_EDGE_WIDTH;
+    const markerId = `cycle-arrow-${color.replace('#', '')}`;
+
+    const edgeG = g.append('g').attr('class', 'cycle-edge');
+
+    if (edge.lineNumber) {
+      edgeG.attr('data-line-number', edge.lineNumber);
+    }
+
+    // Edge path
+    const pathEl = edgeG
+      .append('path')
+      .attr('d', le.path)
+      .attr('fill', 'none')
+      .attr('stroke', color)
+      .attr('stroke-width', strokeWidth)
+      .attr('marker-end', `url(#${markerId})`);
+
+    if (onClickItem && edge.lineNumber) {
+      const ln = edge.lineNumber;
+      pathEl.style('cursor', 'pointer').on('click', () => onClickItem(ln));
+    }
+
+    // Edge label + descriptions — positioned outside the circle
+    const hasEdgeLabel = !!le.label;
+    const hasEdgeDesc = showDescriptions && edge.description.length > 0;
+
+    if (hasEdgeLabel || hasEdgeDesc) {
+      // Determine text-anchor based on which side of the circle the label is on
+      const normAngle =
+        ((le.labelAngle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+      const isRight = normAngle < Math.PI * 0.4 || normAngle > Math.PI * 1.6;
+      const isLeft = normAngle > Math.PI * 0.6 && normAngle < Math.PI * 1.4;
+      const anchor = isRight ? 'start' : isLeft ? 'end' : 'middle';
+
+      let textY = le.labelY;
+
+      if (hasEdgeLabel) {
+        const labelText = edgeG
+          .append('text')
+          .attr('x', le.labelX)
+          .attr('y', textY)
+          .attr('text-anchor', anchor)
+          .attr('fill', palette.text)
+          .attr('font-family', FONT_FAMILY)
+          .attr('font-size', EDGE_LABEL_FONT_SIZE)
+          .attr('font-weight', '600');
+        renderInlineText(labelText, le.label!, palette, EDGE_LABEL_FONT_SIZE);
+        textY += DESC_LINE_HEIGHT;
+      }
+
+      if (hasEdgeDesc) {
+        edge.description.forEach((line) => {
+          const descText = edgeG
+            .append('text')
+            .attr('x', le.labelX)
+            .attr('y', textY)
+            .attr('text-anchor', anchor)
+            .attr('fill', palette.textMuted)
+            .attr('font-family', FONT_FAMILY)
+            .attr('font-size', DESC_FONT_SIZE);
+          renderInlineText(descText, line, palette, DESC_FONT_SIZE);
+          textY += DESC_LINE_HEIGHT;
+        });
+      }
+    }
+  }
+
+  // ── Render nodes ──
+  const HEADER_H = 36 * layout.scale;
+  const scaledNodeFont = Math.max(9, Math.round(NODE_FONT_SIZE * layout.scale));
+  const scaledDescFont = Math.max(8, Math.round(DESC_FONT_SIZE * layout.scale));
+  const scaledDescLineH = Math.max(
+    11,
+    Math.round(DESC_LINE_HEIGHT * layout.scale)
+  );
+
+  for (let i = 0; i < layout.nodes.length; i++) {
+    const ln = layout.nodes[i];
+    const node = parsed.nodes[i];
+    const solidColor = resolveNodeColor(node.color, palette, defaultNodeColor);
+    // Muted fill (mix color with background), solid border
+    const fillColor = mix(
+      solidColor,
+      isDark ? palette.surface : palette.bg,
+      30
+    );
+    const textColor = contrastText(fillColor, '#eceff4', '#2e3440');
+    const nodeW = ln.width;
+    const nodeH = ln.height;
+    const wrappedDesc = ln.wrappedDesc;
+    const hasDesc = showDescriptions && wrappedDesc.length > 0;
+
+    const nodeG = g
+      .append('g')
+      .attr('class', 'cycle-node')
+      .attr('data-line-number', node.lineNumber)
+      .style('cursor', onClickItem ? 'pointer' : 'default');
+
+    if (onClickItem) {
+      const lineNum = node.lineNumber;
+      nodeG.on('click', () => onClickItem(lineNum));
+    }
+
+    // Node shape: rounded rectangle with solid color border, muted fill
+    const rx = 6;
+    nodeG
+      .append('rect')
+      .attr('x', ln.x - nodeW / 2)
+      .attr('y', ln.y - nodeH / 2)
+      .attr('width', nodeW)
+      .attr('height', nodeH)
+      .attr('rx', rx)
+      .attr('ry', rx)
+      .attr('fill', fillColor)
+      .attr('stroke', solidColor)
+      .attr('stroke-width', 2);
+
+    if (hasDesc) {
+      // ── Described node: header + separator + description ──
+
+      // Label in header zone
+      const headerCenterY = ln.y - nodeH / 2 + HEADER_H / 2;
+      const labelText = nodeG
+        .append('text')
+        .attr('x', ln.x)
+        .attr('y', headerCenterY + scaledNodeFont / 3)
+        .attr('text-anchor', 'middle')
+        .attr('fill', textColor)
+        .attr('font-family', FONT_FAMILY)
+        .attr('font-size', scaledNodeFont)
+        .attr('font-weight', '600');
+      renderInlineText(labelText, node.label, palette, scaledNodeFont);
+
+      // Separator line
+      const sepY = ln.y - nodeH / 2 + HEADER_H;
+      nodeG
+        .append('line')
+        .attr('x1', ln.x - nodeW / 2)
+        .attr('y1', sepY)
+        .attr('x2', ln.x + nodeW / 2)
+        .attr('y2', sepY)
+        .attr('stroke', solidColor)
+        .attr('stroke-opacity', 0.3)
+        .attr('stroke-width', 1);
+
+      // Description lines below separator (pre-wrapped by layout)
+      const descStartY = sepY + 4 + scaledDescFont;
+      wrappedDesc.forEach((line, li) => {
+        const descText = nodeG
+          .append('text')
+          .attr('x', ln.x)
+          .attr('y', descStartY + li * scaledDescLineH)
+          .attr('text-anchor', 'middle')
+          .attr('fill', palette.textMuted)
+          .attr('font-family', FONT_FAMILY)
+          .attr('font-size', scaledDescFont);
+        renderInlineText(descText, line, palette, DESC_FONT_SIZE);
+      });
+    } else {
+      // ── Plain node: label centered ──
+      const labelText = nodeG
+        .append('text')
+        .attr('x', ln.x)
+        .attr('y', ln.y + scaledNodeFont / 3)
+        .attr('text-anchor', 'middle')
+        .attr('fill', textColor)
+        .attr('font-family', FONT_FAMILY)
+        .attr('font-size', scaledNodeFont)
+        .attr('font-weight', '600');
+      renderInlineText(labelText, node.label, palette, scaledNodeFont);
+    }
+  }
+}
+
+/**
+ * Render for CLI/export (no click handlers).
+ */
+export function renderCycleForExport(
+  container: HTMLDivElement,
+  parsed: ParsedCycle,
+  palette: PaletteColors,
+  isDark: boolean,
+  exportDims?: D3ExportDimensions,
+  viewState?: CompactViewState
+): void {
+  renderCycle(
+    container,
+    parsed,
+    palette,
+    isDark,
+    undefined,
+    exportDims,
+    viewState
+  );
+}
+
+// ── Helpers ──────────────────────────────────────────────────
+
+function resolveNodeColor(
+  color: string | undefined,
+  palette: PaletteColors,
+  defaultColor: string
+): string {
+  if (!color) return defaultColor;
+  return resolveColor(color, palette) ?? defaultColor;
+}
+
+function resolveEdgeColor(
+  edge: ParsedCycle['edges'][0],
+  parsed: ParsedCycle,
+  palette: PaletteColors,
+  defaultNodeColor: string
+): string {
+  if (edge.color) {
+    return resolveColor(edge.color, palette) ?? defaultNodeColor;
+  }
+  // Inherit from source node
+  const sourceNode = parsed.nodes[edge.sourceIndex];
+  if (sourceNode?.color) {
+    return resolveColor(sourceNode.color, palette) ?? defaultNodeColor;
+  }
+  return defaultNodeColor;
+}
+
+function ensureArrowMarkers(
+  defs: d3Selection.Selection<SVGDefsElement, unknown, null, undefined>,
+  colors: Set<string>
+): void {
+  for (const color of colors) {
+    const id = `cycle-arrow-${color.replace('#', '')}`;
+    defs
+      .append('marker')
+      .attr('id', id)
+      .attr('viewBox', `0 0 ${ARROWHEAD_W * 2} ${ARROWHEAD_H * 2}`)
+      .attr('refX', ARROWHEAD_W * 2)
+      .attr('refY', ARROWHEAD_H)
+      .attr('markerWidth', ARROWHEAD_W)
+      .attr('markerHeight', ARROWHEAD_H)
+      .attr('orient', 'auto')
+      .append('polygon')
+      .attr(
+        'points',
+        `0,0 ${ARROWHEAD_W * 2},${ARROWHEAD_H} 0,${ARROWHEAD_H * 2}`
+      )
+      .attr('fill', color);
+  }
+}

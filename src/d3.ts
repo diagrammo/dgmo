@@ -20,7 +20,8 @@ export type VisualizationType =
   | 'venn'
   | 'quadrant'
   | 'sequence'
-  | 'tech-radar';
+  | 'tech-radar'
+  | 'cycle';
 
 interface D3DataItem {
   label: string;
@@ -7070,6 +7071,26 @@ export async function renderForExport(
       effectivePalette,
       theme === 'dark',
       { width: RADAR_EXPORT_W, height: RADAR_EXPORT_H },
+      viewState
+    );
+    return finalizeSvgExport(container, theme, effectivePalette);
+  }
+
+  if (detectedType === 'cycle') {
+    const { parseCycle } = await import('./cycle/parser');
+    const { renderCycleForExport } = await import('./cycle/renderer');
+
+    const effectivePalette = await resolveExportPalette(theme, palette);
+    const cycleParsed = parseCycle(content);
+    if (cycleParsed.error || cycleParsed.nodes.length === 0) return '';
+
+    const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
+    renderCycleForExport(
+      container,
+      cycleParsed,
+      effectivePalette,
+      theme === 'dark',
+      { width: EXPORT_WIDTH, height: EXPORT_HEIGHT },
       viewState
     );
     return finalizeSvgExport(container, theme, effectivePalette);

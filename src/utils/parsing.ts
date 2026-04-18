@@ -50,6 +50,7 @@ export const ALL_CHART_TYPES = new Set([
   'mindmap',
   'wireframe',
   'tech-radar',
+  'cycle',
 ]);
 
 /** Measure leading whitespace of a line, normalizing tabs to 4 spaces. */

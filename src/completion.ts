@@ -362,6 +362,15 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       color: { description: 'Override quadrant color' },
     }),
   ],
+  [
+    'cycle',
+    withGlobals({
+      'direction-counterclockwise': {
+        description: 'Reverse cycle direction to counterclockwise',
+      },
+      'hide-descriptions': { description: 'Hide node and edge descriptions' },
+    }),
+  ],
 ]);
 
 // ============================================================
@@ -408,6 +417,7 @@ const CHART_TYPE_DESCRIPTIONS: Record<string, string> = {
   mindmap: 'Mindmap diagram',
   wireframe: 'UI wireframe diagram',
   'tech-radar': 'Technology adoption radar (ThoughtWorks style)',
+  cycle: 'Cycle diagram (circular process flow)',
 };
 
 /** All chart types with descriptions, for chart type autocomplete. Excludes `multi-line` alias. */
@@ -567,6 +577,20 @@ export const PIPE_METADATA = new Map<
         color: { description: 'Override quadrant color' },
       },
       edge: {},
+    },
+  ],
+  [
+    'cycle',
+    {
+      node: {
+        color: { description: 'Node fill color (palette name)' },
+        span: { description: 'Relative arc distance to next node' },
+        description: { description: 'Node description text' },
+      },
+      edge: {
+        color: { description: 'Edge stroke color (palette name)' },
+        width: { description: 'Edge stroke width in pixels' },
+      },
     },
   ],
 ]);
@@ -1068,6 +1092,7 @@ registerExtractor('c4', extractC4Symbols);
 registerExtractor('gantt', extractGanttSymbols);
 registerExtractor('boxes-and-lines', extractBoxesAndLinesSymbols);
 registerExtractor('tech-radar', extractTechRadarSymbols);
+registerExtractor('cycle', extractCycleSymbols);
 
 function extractTechRadarSymbols(docText: string): DiagramSymbols {
   const entities: string[] = [];
@@ -1115,4 +1140,42 @@ function extractTechRadarSymbols(docText: string): DiagramSymbols {
   }
 
   return { kind: 'tech-radar', entities, keywords };
+}
+
+// ============================================================
+// Cycle extractor
+// ============================================================
+
+function extractCycleSymbols(docText: string): DiagramSymbols {
+  const lines = docText.split('\n');
+  const entities: string[] = [];
+  let pastFirstLine = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('//')) continue;
+
+    if (!pastFirstLine) {
+      pastFirstLine = true;
+      continue;
+    }
+
+    // Skip directives/metadata
+    const firstToken = trimmed.split(/\s+/)[0].toLowerCase();
+    if (METADATA_KEY_SET.has(firstToken)) continue;
+    if (firstToken === 'direction-counterclockwise') continue;
+
+    // Skip indented lines (descriptions, edges)
+    if (line[0] === ' ' || line[0] === '\t') continue;
+
+    // Node label (strip pipe metadata)
+    const label = trimmed.split('|')[0].trim();
+    if (label && !entities.includes(label)) entities.push(label);
+  }
+
+  return {
+    kind: 'cycle',
+    entities,
+    keywords: ['direction-counterclockwise', 'hide-descriptions'],
+  };
 }

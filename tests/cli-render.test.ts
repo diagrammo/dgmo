@@ -170,6 +170,12 @@ Platforms | quadrant: bottom-left
 
 Languages | quadrant: bottom-right
   TypeScript | ring: Adopt`,
+
+  cycle: `cycle PDCA
+Plan | color: blue
+Do | color: green
+Check | color: orange
+Act | color: red`,
 };
 
 // All D3 types now render in JSDOM via explicit dimensions (Epic 41)
