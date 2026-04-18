@@ -499,17 +499,21 @@ export function renderKanban(
       .attr('fill', palette.text)
       .text(col.name);
 
-    // WIP limit badge
-    if (col.wipLimit != null) {
-      const wipExceeded = col.cards.length > col.wipLimit;
-      const badgeText = `${col.cards.length}/${col.wipLimit}`;
-      const nameWidth = col.name.length * COLUMN_HEADER_FONT_SIZE * 0.65;
+    // Card count / WIP limit badge (right-aligned)
+    {
+      const wipExceeded =
+        col.wipLimit != null && col.cards.length > col.wipLimit;
+      const badgeText =
+        col.wipLimit != null
+          ? `${col.cards.length}/${col.wipLimit}`
+          : String(col.cards.length);
       g.append('text')
-        .attr('x', colLayout.x + COLUMN_PADDING + nameWidth + 8)
+        .attr('x', colLayout.x + colLayout.width - COLUMN_PADDING)
         .attr(
           'y',
           colLayout.y + COLUMN_HEADER_HEIGHT / 2 + WIP_FONT_SIZE / 2 - 1
         )
+        .attr('text-anchor', 'end')
         .attr('font-size', WIP_FONT_SIZE)
         .attr('fill', wipExceeded ? palette.colors.red : palette.textMuted)
         .attr('font-weight', wipExceeded ? 'bold' : 'normal')
@@ -978,6 +982,26 @@ function renderSwimlaneBoard(
         .attr('font-weight', 'bold')
         .attr('fill', palette.text)
         .text(col.name);
+
+      // Card count (right-aligned)
+      const wipExceeded =
+        col.wipLimit != null && col.cards.length > col.wipLimit;
+      const badgeText =
+        col.wipLimit != null
+          ? `${col.cards.length}/${col.wipLimit}`
+          : String(col.cards.length);
+      headerG
+        .append('text')
+        .attr('x', colInfo.x + colInfo.width - COLUMN_PADDING)
+        .attr(
+          'y',
+          grid.startY + COLUMN_HEADER_HEIGHT / 2 + WIP_FONT_SIZE / 2 - 1
+        )
+        .attr('text-anchor', 'end')
+        .attr('font-size', WIP_FONT_SIZE)
+        .attr('fill', wipExceeded ? palette.colors.red : palette.textMuted)
+        .attr('font-weight', wipExceeded ? 'bold' : 'normal')
+        .text(badgeText);
     }
   }
 
@@ -1031,7 +1055,7 @@ function renderSwimlaneBoard(
         .attr('fill', palette.textMuted)
         .text(`${lane.bucket.laneName} (${totalCards})`);
     } else {
-      // Expanded: name on first line, count on second
+      // Expanded: name only (count omitted to match app view)
       headerG
         .append('text')
         .attr('x', labelX)
@@ -1040,14 +1064,6 @@ function renderSwimlaneBoard(
         .attr('font-weight', 'bold')
         .attr('fill', lane.bucket.isFallback ? palette.textMuted : palette.text)
         .text(lane.bucket.laneName);
-
-      headerG
-        .append('text')
-        .attr('x', labelX)
-        .attr('y', 36)
-        .attr('font-size', 10)
-        .attr('fill', palette.textMuted)
-        .text(`(${totalCards})`);
     }
 
     if (isLaneCollapsed) {
