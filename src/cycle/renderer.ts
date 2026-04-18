@@ -232,6 +232,39 @@ export function renderCycle(
       const isLeft = normAngle > Math.PI * 0.6 && normAngle < Math.PI * 1.4;
       const anchor = isRight ? 'start' : isLeft ? 'end' : 'middle';
 
+      // Estimate text block dimensions for background
+      let lineCount = 0;
+      let maxCharLen = 0;
+      if (hasEdgeLabel) {
+        lineCount++;
+        maxCharLen = Math.max(maxCharLen, le.label!.length);
+      }
+      if (hasEdgeDesc) {
+        lineCount += edge.description.length;
+        for (const dl of edge.description) {
+          maxCharLen = Math.max(maxCharLen, dl.length);
+        }
+      }
+      const bgW = maxCharLen * 7 + 12; // estimated text width + padding
+      const bgH = lineCount * DESC_LINE_HEIGHT + 6;
+      const bgX = isRight
+        ? le.labelX - 4
+        : isLeft
+          ? le.labelX - bgW + 4
+          : le.labelX - bgW / 2;
+      const bgY = le.labelY - EDGE_LABEL_FONT_SIZE - 2;
+
+      // Background rect behind edge label text
+      edgeG
+        .append('rect')
+        .attr('x', bgX)
+        .attr('y', bgY)
+        .attr('width', bgW)
+        .attr('height', bgH)
+        .attr('rx', 3)
+        .attr('fill', palette.bg)
+        .attr('fill-opacity', 0.85);
+
       let textY = le.labelY;
 
       if (hasEdgeLabel) {
@@ -268,6 +301,11 @@ export function renderCycle(
   // ── Render nodes ──
   const HEADER_H = 36 * layout.scale;
   const scaledNodeFont = Math.max(9, Math.round(NODE_FONT_SIZE * layout.scale));
+  const CIRCLE_LABEL_FONT_SIZE = 16;
+  const scaledCircleLabelFont = Math.max(
+    11,
+    Math.round(CIRCLE_LABEL_FONT_SIZE * layout.scale)
+  );
   const scaledDescFont = Math.max(8, Math.round(DESC_FONT_SIZE * layout.scale));
   const scaledDescLineH = Math.max(
     11,
@@ -301,73 +339,127 @@ export function renderCycle(
       nodeG.on('click', () => onClickItem(lineNum));
     }
 
-    // Node shape: rounded rectangle with solid color border, muted fill
-    const rx = 6;
-    nodeG
-      .append('rect')
-      .attr('x', ln.x - nodeW / 2)
-      .attr('y', ln.y - nodeH / 2)
-      .attr('width', nodeW)
-      .attr('height', nodeH)
-      .attr('rx', rx)
-      .attr('ry', rx)
-      .attr('fill', fillColor)
-      .attr('stroke', solidColor)
-      .attr('stroke-width', 2);
-
-    if (hasDesc) {
-      // ── Described node: header + separator + description ──
-
-      // Label in header zone
-      const headerCenterY = ln.y - nodeH / 2 + HEADER_H / 2;
-      const labelText = nodeG
-        .append('text')
-        .attr('x', ln.x)
-        .attr('y', headerCenterY + scaledNodeFont / 3)
-        .attr('text-anchor', 'middle')
-        .attr('fill', textColor)
-        .attr('font-family', FONT_FAMILY)
-        .attr('font-size', scaledNodeFont)
-        .attr('font-weight', '600');
-      renderInlineText(labelText, node.label, palette, scaledNodeFont);
-
-      // Separator line
-      const sepY = ln.y - nodeH / 2 + HEADER_H;
+    if (ln.isCircle) {
+      // ── Circle node shape ──
+      const r = nodeW / 2;
       nodeG
-        .append('line')
-        .attr('x1', ln.x - nodeW / 2)
-        .attr('y1', sepY)
-        .attr('x2', ln.x + nodeW / 2)
-        .attr('y2', sepY)
+        .append('circle')
+        .attr('cx', ln.x)
+        .attr('cy', ln.y)
+        .attr('r', r)
+        .attr('fill', fillColor)
         .attr('stroke', solidColor)
-        .attr('stroke-opacity', 0.3)
-        .attr('stroke-width', 1);
+        .attr('stroke-width', 2);
 
-      // Description lines below separator (pre-wrapped by layout)
-      const descStartY = sepY + 4 + scaledDescFont;
-      wrappedDesc.forEach((line, li) => {
-        const descText = nodeG
+      if (hasDesc) {
+        // Label + descriptions vertically centered in circle
+        const labelFont = scaledCircleLabelFont;
+        const blockH = labelFont + 4 + wrappedDesc.length * scaledDescLineH;
+        const startY = ln.y - blockH / 2 + labelFont;
+
+        const labelText = nodeG
           .append('text')
           .attr('x', ln.x)
-          .attr('y', descStartY + li * scaledDescLineH)
+          .attr('y', startY)
           .attr('text-anchor', 'middle')
-          .attr('fill', palette.textMuted)
+          .attr('fill', textColor)
           .attr('font-family', FONT_FAMILY)
-          .attr('font-size', scaledDescFont);
-        renderInlineText(descText, line, palette, DESC_FONT_SIZE);
-      });
+          .attr('font-size', labelFont)
+          .attr('font-weight', '600');
+        renderInlineText(labelText, node.label, palette, labelFont);
+
+        let descY = startY + scaledDescLineH + 4;
+        wrappedDesc.forEach((line) => {
+          const descText = nodeG
+            .append('text')
+            .attr('x', ln.x)
+            .attr('y', descY)
+            .attr('text-anchor', 'middle')
+            .attr('fill', palette.textMuted)
+            .attr('font-family', FONT_FAMILY)
+            .attr('font-size', scaledDescFont);
+          renderInlineText(descText, line, palette, DESC_FONT_SIZE);
+          descY += scaledDescLineH;
+        });
+      } else {
+        // Label centered in circle
+        const labelFont = scaledCircleLabelFont;
+        const labelText = nodeG
+          .append('text')
+          .attr('x', ln.x)
+          .attr('y', ln.y + labelFont / 3)
+          .attr('text-anchor', 'middle')
+          .attr('fill', textColor)
+          .attr('font-family', FONT_FAMILY)
+          .attr('font-size', labelFont)
+          .attr('font-weight', '600');
+        renderInlineText(labelText, node.label, palette, labelFont);
+      }
     } else {
-      // ── Plain node: label centered ──
-      const labelText = nodeG
-        .append('text')
-        .attr('x', ln.x)
-        .attr('y', ln.y + scaledNodeFont / 3)
-        .attr('text-anchor', 'middle')
-        .attr('fill', textColor)
-        .attr('font-family', FONT_FAMILY)
-        .attr('font-size', scaledNodeFont)
-        .attr('font-weight', '600');
-      renderInlineText(labelText, node.label, palette, scaledNodeFont);
+      // ── Rectangular node shape ──
+      const rx = 6;
+      nodeG
+        .append('rect')
+        .attr('x', ln.x - nodeW / 2)
+        .attr('y', ln.y - nodeH / 2)
+        .attr('width', nodeW)
+        .attr('height', nodeH)
+        .attr('rx', rx)
+        .attr('ry', rx)
+        .attr('fill', fillColor)
+        .attr('stroke', solidColor)
+        .attr('stroke-width', 2);
+
+      if (hasDesc) {
+        // ── Described node: header + separator + description ──
+        const headerCenterY = ln.y - nodeH / 2 + HEADER_H / 2;
+        const labelText = nodeG
+          .append('text')
+          .attr('x', ln.x)
+          .attr('y', headerCenterY + scaledNodeFont / 3)
+          .attr('text-anchor', 'middle')
+          .attr('fill', textColor)
+          .attr('font-family', FONT_FAMILY)
+          .attr('font-size', scaledNodeFont)
+          .attr('font-weight', '600');
+        renderInlineText(labelText, node.label, palette, scaledNodeFont);
+
+        const sepY = ln.y - nodeH / 2 + HEADER_H;
+        nodeG
+          .append('line')
+          .attr('x1', ln.x - nodeW / 2)
+          .attr('y1', sepY)
+          .attr('x2', ln.x + nodeW / 2)
+          .attr('y2', sepY)
+          .attr('stroke', solidColor)
+          .attr('stroke-opacity', 0.3)
+          .attr('stroke-width', 1);
+
+        const descStartY = sepY + 4 + scaledDescFont;
+        wrappedDesc.forEach((line, li) => {
+          const descText = nodeG
+            .append('text')
+            .attr('x', ln.x)
+            .attr('y', descStartY + li * scaledDescLineH)
+            .attr('text-anchor', 'middle')
+            .attr('fill', palette.textMuted)
+            .attr('font-family', FONT_FAMILY)
+            .attr('font-size', scaledDescFont);
+          renderInlineText(descText, line, palette, DESC_FONT_SIZE);
+        });
+      } else {
+        // ── Plain node: label centered ──
+        const labelText = nodeG
+          .append('text')
+          .attr('x', ln.x)
+          .attr('y', ln.y + scaledNodeFont / 3)
+          .attr('text-anchor', 'middle')
+          .attr('fill', textColor)
+          .attr('font-family', FONT_FAMILY)
+          .attr('font-size', scaledNodeFont)
+          .attr('font-weight', '600');
+        renderInlineText(labelText, node.label, palette, scaledNodeFont);
+      }
     }
   }
 }
@@ -432,7 +524,7 @@ function ensureArrowMarkers(
       .append('marker')
       .attr('id', id)
       .attr('viewBox', `0 0 ${ARROWHEAD_W * 2} ${ARROWHEAD_H * 2}`)
-      .attr('refX', ARROWHEAD_W * 2)
+      .attr('refX', 0)
       .attr('refY', ARROWHEAD_H)
       .attr('markerWidth', ARROWHEAD_W)
       .attr('markerHeight', ARROWHEAD_H)

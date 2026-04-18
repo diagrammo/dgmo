@@ -369,6 +369,9 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description: 'Reverse cycle direction to counterclockwise',
       },
       'hide-descriptions': { description: 'Hide node and edge descriptions' },
+      'circle-nodes': {
+        description: 'Render nodes as circles instead of rectangles',
+      },
     }),
   ],
 ]);
@@ -1163,7 +1166,11 @@ function extractCycleSymbols(docText: string): DiagramSymbols {
     // Skip directives/metadata
     const firstToken = trimmed.split(/\s+/)[0].toLowerCase();
     if (METADATA_KEY_SET.has(firstToken)) continue;
-    if (firstToken === 'direction-counterclockwise') continue;
+    if (
+      firstToken === 'direction-counterclockwise' ||
+      firstToken === 'circle-nodes'
+    )
+      continue;
 
     // Skip indented lines (descriptions, edges)
     if (line[0] === ' ' || line[0] === '\t') continue;
@@ -1176,6 +1183,10 @@ function extractCycleSymbols(docText: string): DiagramSymbols {
   return {
     kind: 'cycle',
     entities,
-    keywords: ['direction-counterclockwise', 'hide-descriptions'],
+    keywords: [
+      'direction-counterclockwise',
+      'hide-descriptions',
+      'circle-nodes',
+    ],
   };
 }

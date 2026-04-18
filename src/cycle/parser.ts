@@ -122,6 +122,12 @@ export function parseCycle(content: string): ParsedCycle {
       continue;
     }
 
+    // ── Bare keyword: circle-nodes ──
+    if (indent === 0 && trimmed.toLowerCase() === 'circle-nodes') {
+      result.options['circle-nodes'] = 'true';
+      continue;
+    }
+
     // ── Top-level line (indent === 0): must be a node declaration ──
     if (indent === 0) {
       flushNode();

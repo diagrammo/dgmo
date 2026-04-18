@@ -15,6 +15,9 @@ const MIN_ARC_ANGLE = (15 * Math.PI) / 180;
 /** Estimated character width at 13px label font. */
 const LABEL_CHAR_W = 8;
 
+/** Estimated character width at 16px circle label font. */
+const CIRCLE_LABEL_CHAR_W = 10;
+
 /** Estimated character width at 11px description font. */
 const DESC_CHAR_W = 6.5;
 
@@ -38,6 +41,12 @@ const DESC_PAD_Y = 14;
 
 /** Horizontal padding inside node for text. */
 const NODE_PAD_X = 20;
+
+/** Minimum circle-node radius. */
+const MIN_CIRCLE_RADIUS = 35;
+
+/** Padding inside circle for text. */
+const CIRCLE_PAD = 14;
 
 /**
  * Compute cycle diagram layout: positions nodes equidistant (or span-weighted)
@@ -67,6 +76,7 @@ export function computeCycleLayout(
   const nodeCount = parsed.nodes.length;
   const cx = width / 2;
   const cy = height / 2;
+  const circleNodes = parsed.options['circle-nodes'] === 'true';
 
   // ── Compute node dimensions with word wrapping ──
   const nodeDims = parsed.nodes.map((node) => {
@@ -75,6 +85,10 @@ export function computeCycleLayout(
       MIN_NODE_WIDTH,
       node.label.length * LABEL_CHAR_W + NODE_PAD_X * 2
     );
+
+    if (circleNodes) {
+      return computeCircleNodeDims(node, hasDesc);
+    }
 
     if (!hasDesc) {
       return {
@@ -89,27 +103,28 @@ export function computeCycleLayout(
     const textWidth = nodeWidth - NODE_PAD_X * 2;
     const charsPerLine = Math.max(10, Math.floor(textWidth / DESC_CHAR_W));
 
-    // Word-wrap each description line
-    const wrappedDesc: string[] = [];
-    for (const line of node.description) {
-      const words = line.split(/\s+/);
-      let current = '';
-      for (const word of words) {
-        const test = current ? `${current} ${word}` : word;
-        if (test.length > charsPerLine && current) {
-          wrappedDesc.push(current);
-          current = word;
-        } else {
-          current = test;
-        }
-      }
-      if (current) wrappedDesc.push(current);
-    }
+    const wrappedDesc = wrapLines(node.description, charsPerLine);
 
     const descHeight =
       HEADER_HEIGHT + wrappedDesc.length * DESC_LINE_HEIGHT + DESC_PAD_Y;
     return { width: nodeWidth, height: descHeight, wrappedDesc };
   });
+
+  // ── Uniform circle sizing: all circles match the largest ──
+  if (circleNodes) {
+    const maxDiam = Math.max(...nodeDims.map((d) => d.width));
+    for (const d of nodeDims) {
+      d.width = maxDiam;
+      d.height = maxDiam;
+      // Re-wrap descriptions to fit the larger circle
+      const nodeIdx = nodeDims.indexOf(d);
+      const node = parsed.nodes[nodeIdx];
+      const hasDesc = !hideDescriptions && node.description.length > 0;
+      if (hasDesc) {
+        d.wrappedDesc = wrapLinesForCircle(node.description, maxDiam / 2);
+      }
+    }
+  }
 
   // ── Compute angles using span weights ──
   const totalSpan = parsed.nodes.reduce((sum, n) => sum + n.span, 0);
@@ -194,28 +209,35 @@ export function computeCycleLayout(
       const approxY = cy + radius * Math.sin(theta);
       const hw = nodeDims[i].width / 2;
       const hh = nodeDims[i].height / 2;
-      const exitCW = circleRectExitAngle(
-        approxX,
-        approxY,
-        hw,
-        hh,
-        cx,
-        cy,
-        radius,
-        theta,
-        1
-      );
-      const exitCCW = circleRectExitAngle(
-        approxX,
-        approxY,
-        hw,
-        hh,
-        cx,
-        cy,
-        radius,
-        theta,
-        -1
-      );
+      let exitCW: number, exitCCW: number;
+      if (circleNodes) {
+        const nodeR = hw; // width === height for circles
+        exitCW = circleNodeExitAngle(nodeR, radius, theta, 1);
+        exitCCW = circleNodeExitAngle(nodeR, radius, theta, -1);
+      } else {
+        exitCW = circleRectExitAngle(
+          approxX,
+          approxY,
+          hw,
+          hh,
+          cx,
+          cy,
+          radius,
+          theta,
+          1
+        );
+        exitCCW = circleRectExitAngle(
+          approxX,
+          approxY,
+          hw,
+          hh,
+          cx,
+          cy,
+          radius,
+          theta,
+          -1
+        );
+      }
       footprints[i] = Math.abs(exitCW - exitCCW);
     }
 
@@ -252,6 +274,7 @@ export function computeCycleLayout(
       width: nodeDims[i].width,
       height: nodeDims[i].height,
       wrappedDesc: nodeDims[i].wrappedDesc,
+      isCircle: circleNodes,
     });
   }
 
@@ -304,6 +327,135 @@ export function computeCycleLayout(
     height,
     scale,
   };
+}
+
+// ── Helper: word-wrap lines ──
+
+function wrapLines(lines: string[], charsPerLine: number): string[] {
+  const result: string[] = [];
+  for (const line of lines) {
+    const words = line.split(/\s+/);
+    let current = '';
+    for (const word of words) {
+      const test = current ? `${current} ${word}` : word;
+      if (test.length > charsPerLine && current) {
+        result.push(current);
+        current = word;
+      } else {
+        current = test;
+      }
+    }
+    if (current) result.push(current);
+  }
+  return result;
+}
+
+// ── Helper: circle node dimensions ──
+
+function computeCircleNodeDims(
+  node: { label: string; description: string[] },
+  hasDesc: boolean
+): { width: number; height: number; wrappedDesc: string[] } {
+  if (!hasDesc) {
+    // Label-only circle: radius fits the larger label text
+    const textW = node.label.length * CIRCLE_LABEL_CHAR_W;
+    const r = Math.max(MIN_CIRCLE_RADIUS, textW / 2 + CIRCLE_PAD);
+    return { width: r * 2, height: r * 2, wrappedDesc: [] };
+  }
+
+  // With descriptions: iteratively find a circle radius that fits the text.
+  // Start with a reasonable guess and grow until all text fits.
+  let r = MIN_CIRCLE_RADIUS;
+
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const wrappedDesc = wrapLinesForCircle(node.description, r);
+    const totalLines = 1 + wrappedDesc.length; // label + desc lines
+    const textBlockH = totalLines * DESC_LINE_HEIGHT + CIRCLE_PAD;
+
+    // Check if text fits vertically within the circle
+    if (textBlockH / 2 <= r * 0.85) {
+      // Also check the label fits horizontally at its y-position (larger font)
+      const labelW = node.label.length * CIRCLE_LABEL_CHAR_W;
+      const labelY = -textBlockH / 2 + DESC_LINE_HEIGHT; // relative to center
+      const availW = 2 * Math.sqrt(Math.max(0, r * r - labelY * labelY));
+      if (labelW <= availW - CIRCLE_PAD) {
+        return { width: r * 2, height: r * 2, wrappedDesc };
+      }
+    }
+    r += 10;
+  }
+
+  const wrappedDesc = wrapLinesForCircle(node.description, r);
+  return { width: r * 2, height: r * 2, wrappedDesc };
+}
+
+/**
+ * Wrap description lines to fit inside a circle of given radius.
+ * Each line gets a different max width based on its vertical position
+ * within the circle — wider at the center, narrower near edges.
+ */
+function wrapLinesForCircle(descriptions: string[], radius: number): string[] {
+  // First pass: wrap with center-width to estimate line count
+  const centerWidth = radius * 2 * 0.75;
+  const centerChars = Math.max(8, Math.floor(centerWidth / DESC_CHAR_W));
+  const roughWrapped = wrapLines(descriptions, centerChars);
+  const totalLines = 1 + roughWrapped.length; // +1 for label line
+  const blockH = totalLines * DESC_LINE_HEIGHT;
+
+  // Second pass: re-wrap each source line with position-aware width
+  const result: string[] = [];
+  let lineIdx = 1; // start after label line
+  for (const srcLine of descriptions) {
+    const words = srcLine.split(/\s+/);
+    let current = '';
+    for (const word of words) {
+      // Compute available width at this line's y position
+      const y = -blockH / 2 + (lineIdx + 0.5) * DESC_LINE_HEIGHT;
+      const rSq = radius * radius;
+      const availPx =
+        y * y < rSq ? 2 * Math.sqrt(rSq - y * y) - CIRCLE_PAD * 2 : centerWidth;
+      const maxChars = Math.max(6, Math.floor(availPx / DESC_CHAR_W));
+
+      const test = current ? `${current} ${word}` : word;
+      if (test.length > maxChars && current) {
+        result.push(current);
+        lineIdx++;
+        current = word;
+      } else {
+        current = test;
+      }
+    }
+    if (current) {
+      result.push(current);
+      lineIdx++;
+    }
+  }
+  return result;
+}
+
+// ── Circle-circle intersection exit angle ──
+
+/**
+ * For a circular node of radius `nodeR` centered on the cycle circle of radius
+ * `cycleR`, compute the angle where the cycle circle exits the node boundary.
+ * Uses the law of cosines: the half-angle subtended at the cycle center is
+ * arccos(1 - nodeR²/(2·cycleR²)).
+ */
+function circleNodeExitAngle(
+  nodeR: number,
+  cycleR: number,
+  nodeAngle: number,
+  direction: number
+): number {
+  // Law of cosines in the triangle: cycle-center, node-center, intersection-point
+  // sides: R (to intersection), R (to node center), nodeR (node center to intersection)
+  // cos(α) = (R² + R² - nodeR²) / (2·R·R) = 1 - nodeR²/(2·R²)
+  const cosAlpha = Math.max(
+    -1,
+    Math.min(1, 1 - (nodeR * nodeR) / (2 * cycleR * cycleR))
+  );
+  const halfAngle = Math.acos(cosAlpha);
+  return nodeAngle + direction * halfAngle;
 }
 
 /** Is the point (px, py) inside the rect centered at (rx, ry) with half-dims (hw, hh)? */
@@ -367,6 +519,11 @@ function circleRectExitAngle(
   return (insideAngle + outsideAngle) / 2;
 }
 
+/** Default edge stroke width (must match renderer). */
+const DEFAULT_EDGE_WIDTH = 3;
+/** Arrowhead marker width in stroke-width units (must match renderer). */
+const ARROWHEAD_MARKER_W = 8;
+
 /** Compute edge paths for all edges in the parsed diagram. */
 function computeEdgePaths(
   layoutNodes: CycleLayoutNode[],
@@ -379,13 +536,17 @@ function computeEdgePaths(
   return parsed.edges.map((edge) => {
     const src = layoutNodes[edge.sourceIndex];
     const tgt = layoutNodes[edge.targetIndex];
+    const strokeWidth = edge.width ?? DEFAULT_EDGE_WIDTH;
+    // Arrowhead rendered length in pixels (markerUnits = strokeWidth)
+    const arrowLen = ARROWHEAD_MARKER_W * strokeWidth;
     const { path, labelX, labelY, labelAngle } = buildEdgeArc(
       src,
       tgt,
       cx,
       cy,
       radius,
-      isClockwise
+      isClockwise,
+      arrowLen
     );
     return {
       sourceIndex: edge.sourceIndex,
@@ -498,7 +659,7 @@ function fitToCanvas(
  * Build an SVG arc path that follows the circle circumference between two nodes.
  * Uses SVG `A` (arc) command so the edge traces the actual circle, not a chord.
  * Start/end points are computed as the exact intersection of the circle with
- * each node's rectangular boundary — no gaps.
+ * each node's boundary (rect or circle) — no gaps.
  */
 function buildEdgeArc(
   src: CycleLayoutNode,
@@ -506,35 +667,45 @@ function buildEdgeArc(
   cx: number,
   cy: number,
   radius: number,
-  isClockwise: boolean
+  isClockwise: boolean,
+  arrowLength: number = 0
 ): { path: string; labelX: number; labelY: number; labelAngle: number } {
   const dir = isClockwise ? 1 : -1;
 
-  // Find where the circle exits the source node (walking in the arc direction)
-  const startAngle = circleRectExitAngle(
-    src.x,
-    src.y,
-    src.width / 2,
-    src.height / 2,
-    cx,
-    cy,
-    radius,
-    src.angle,
-    dir
-  );
+  // Find where the cycle circle exits the source node
+  const startAngle = src.isCircle
+    ? circleNodeExitAngle(src.width / 2, radius, src.angle, dir)
+    : circleRectExitAngle(
+        src.x,
+        src.y,
+        src.width / 2,
+        src.height / 2,
+        cx,
+        cy,
+        radius,
+        src.angle,
+        dir
+      );
 
-  // Find where the circle exits the target node (walking against the arc direction)
-  const endAngle = circleRectExitAngle(
-    tgt.x,
-    tgt.y,
-    tgt.width / 2,
-    tgt.height / 2,
-    cx,
-    cy,
-    radius,
-    tgt.angle,
-    -dir
-  );
+  // Find where the cycle circle exits the target node
+  const nodeEndAngle = tgt.isCircle
+    ? circleNodeExitAngle(tgt.width / 2, radius, tgt.angle, -dir)
+    : circleRectExitAngle(
+        tgt.x,
+        tgt.y,
+        tgt.width / 2,
+        tgt.height / 2,
+        cx,
+        cy,
+        radius,
+        tgt.angle,
+        -dir
+      );
+
+  // Pull back the path endpoint by the arrowhead length so the stroke
+  // stops at the arrow base (refX=0 means arrow extends forward from endpoint)
+  const arrowPullback = arrowLength > 0 ? arrowLength / radius : 0;
+  const endAngle = nodeEndAngle - dir * arrowPullback;
 
   const startX = cx + radius * Math.cos(startAngle);
   const startY = cy + radius * Math.sin(startAngle);

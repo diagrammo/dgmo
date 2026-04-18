@@ -1,0 +1,12 @@
+cycle PDCA
+
+circle-nodes
+
+Plan | color: blue
+  Define goals and processes
+Do | color: green
+  Implement the plan
+Check | color: orange
+  Evaluate results
+Act | color: red
+  Adjust and improve

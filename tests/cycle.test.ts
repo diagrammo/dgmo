@@ -611,3 +611,117 @@ B`);
     expect(widths).toContain('6');
   });
 });
+
+// ============================================================
+// Circle Nodes
+// ============================================================
+
+describe('circle-nodes option', () => {
+  function createContainer(w = 800, h = 600): HTMLDivElement {
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'clientWidth', { value: w });
+    Object.defineProperty(container, 'clientHeight', { value: h });
+    document.body.appendChild(container);
+    return container;
+  }
+
+  it('parser recognizes circle-nodes keyword', () => {
+    const parsed = parseCycle(`cycle Test
+circle-nodes
+A
+B`);
+    expect(parsed.options['circle-nodes']).toBe('true');
+  });
+
+  it('layout produces isCircle: true on all nodes', () => {
+    const parsed = parseCycle(`cycle Test
+circle-nodes
+A
+B
+C`);
+    const layout = computeCycleLayout(parsed, { width: 800, height: 600 });
+    for (const node of layout.nodes) {
+      expect(node.isCircle).toBe(true);
+    }
+  });
+
+  it('circle nodes have width === height (square bounding box)', () => {
+    const parsed = parseCycle(`cycle Test
+circle-nodes
+Alpha
+Beta
+Gamma`);
+    const layout = computeCycleLayout(parsed, { width: 800, height: 600 });
+    for (const node of layout.nodes) {
+      expect(node.width).toBe(node.height);
+    }
+  });
+
+  it('without circle-nodes, nodes have isCircle: false', () => {
+    const parsed = parseCycle(`cycle Test
+A
+B`);
+    const layout = computeCycleLayout(parsed, { width: 800, height: 600 });
+    for (const node of layout.nodes) {
+      expect(node.isCircle).toBe(false);
+    }
+  });
+
+  it('renders <circle> elements for circle nodes', () => {
+    const parsed = parseCycle(`cycle Test
+circle-nodes
+A | color: blue
+B | color: red`);
+    const container = createContainer();
+    renderCycle(container, parsed, nordLight, false, undefined, {
+      width: 800,
+      height: 600,
+    });
+    const circles = container.querySelectorAll('circle');
+    // Background rect doesn't count — only node circles
+    expect(circles.length).toBe(2);
+  });
+
+  it('renders <rect> elements for non-circle nodes', () => {
+    const parsed = parseCycle(`cycle Test
+A
+B`);
+    const container = createContainer();
+    renderCycle(container, parsed, nordLight, false, undefined, {
+      width: 800,
+      height: 600,
+    });
+    const circles = container.querySelectorAll('.cycle-node circle');
+    expect(circles.length).toBe(0);
+    const rects = container.querySelectorAll('.cycle-node rect');
+    expect(rects.length).toBe(2);
+  });
+
+  it('circle nodes with descriptions have width === height', () => {
+    const parsed = parseCycle(`cycle Test
+circle-nodes
+A
+  Some description text
+B
+  Another description`);
+    const layout = computeCycleLayout(parsed, { width: 800, height: 600 });
+    for (const node of layout.nodes) {
+      expect(node.width).toBe(node.height);
+      expect(node.wrappedDesc.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('edge paths connect properly with circle nodes', () => {
+    const parsed = parseCycle(`cycle Test
+circle-nodes
+A
+  -Go->
+B
+C`);
+    const layout = computeCycleLayout(parsed, { width: 800, height: 600 });
+    // All edges should produce valid SVG paths
+    for (const edge of layout.edges) {
+      expect(edge.path).toMatch(/^M .+ A .+$/);
+    }
+  });
+});
