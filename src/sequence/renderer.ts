@@ -77,14 +77,26 @@ function wrapTextLines(text: string, maxChars: number): string[] {
     if (line.length <= maxChars) {
       wrapped.push(line);
     } else {
-      const words = line.split(' ');
-      let current = '';
+      // Preserve bullet prefix: keep "- " glued to the first content word
+      // so wrapping never produces a bare "-" line.
+      const bulletPrefix = line.startsWith('- ') ? '- ' : '';
+      const content = bulletPrefix ? line.slice(2) : line;
+      const words = content.split(' ');
+      let current = bulletPrefix;
       for (const word of words) {
-        if (current && (current + ' ' + word).length > maxChars) {
+        const candidate = current ? current + ' ' + word : word;
+        if (
+          current &&
+          current !== bulletPrefix &&
+          candidate.length > maxChars
+        ) {
           wrapped.push(current);
           current = word;
         } else {
-          current = current ? current + ' ' + word : word;
+          current =
+            current && current !== bulletPrefix
+              ? current + ' ' + word
+              : current + word;
         }
       }
       if (current) wrapped.push(current);
