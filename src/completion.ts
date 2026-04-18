@@ -1168,7 +1168,8 @@ function extractCycleSymbols(docText: string): DiagramSymbols {
     if (METADATA_KEY_SET.has(firstToken)) continue;
     if (
       firstToken === 'direction-counterclockwise' ||
-      firstToken === 'circle-nodes'
+      firstToken === 'circle-nodes' ||
+      firstToken === 'hide-descriptions'
     )
       continue;
 
