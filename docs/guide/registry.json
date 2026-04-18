@@ -42,6 +42,7 @@
     { "slug": "chart-org", "title": "Org Chart", "group": "business", "file": "chart-org.md" },
     { "slug": "chart-quadrant", "title": "Quadrant Chart", "group": "business", "file": "chart-quadrant.md" },
     { "slug": "chart-sankey", "title": "Sankey Diagram", "group": "business", "file": "chart-sankey.md" },
+    { "slug": "chart-tech-radar", "title": "Technology Radar", "group": "business", "file": "chart-tech-radar.md" },
     { "slug": "chart-venn", "title": "Venn Diagram (Beta)", "group": "business", "file": "chart-venn.md" },
     { "slug": "chart-wordcloud", "title": "Word Cloud", "group": "business", "file": "chart-wordcloud.md" },
 

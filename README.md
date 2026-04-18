@@ -94,6 +94,7 @@ dgmo diagram.dgmo --theme dark --palette catppuccin
 | `timeline` | Timelines with eras and markers |
 | `venn` | Set intersection diagrams |
 | `quadrant` | 2D quadrant scatter |
+| `tech-radar` | Technology adoption radar (ThoughtWorks style) |
 
 ### Structural Diagrams
 
