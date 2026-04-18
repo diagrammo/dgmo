@@ -1,51 +1,60 @@
 # Technology Radar
 
 ```dgmo
-tech-radar Product Strategy Radar — Q2 2026
+tech-radar Pirate Operations Radar — Q2 1718
 
 rings
-  Invest
-  Experiment
-  Watch
-  Sunset
+  Full Sail
+  Trial Run
+  Spyglass
+  Davy Jones
 
-Growth Channels | quadrant: top-right
-  Content Marketing | ring: Invest, trend: stable
-    Our highest-ROI channel. Blog traffic drives **42% of signups**.
-    - SEO-first strategy producing 3 articles/week
-    - Conversion rate: *4.2%* from blog visitor to trial
-  Community-Led Growth | ring: Experiment, trend: up
-    Building user community on Discord. Early signals are strong —
-    **800 members** in first 2 months, 15% converting to paid.
-  Influencer Partnerships | ring: Watch, trend: new
-    Exploring micro-influencer partnerships in the productivity space.
+Tactics | quadrant: top-right
+  Ambush at Dawn | ring: Full Sail, trend: stable
+    Our most reliable boarding tactic. **90% success rate** when
+    approaching from the east with the sun behind us.
+    - Crew morale peaks at dawn — grog hasn't worn off yet
+    - Reduced cannon fire needed: *3 volleys* vs 8 at midday
+  Decoy Flags | ring: Trial Run, trend: up
+    Flying false colours until within cannon range. Early results
+    are promising — merchant ships drop anchor **40% more often**.
+  Kraken Diplomacy | ring: Spyglass, trend: new
+    Exploring alliances with *sea monsters*. Negotiations ongoing.
 
-Revenue Models | quadrant: top-left
-  Usage-Based Pricing | ring: Invest, trend: up
-    Migrating from flat-rate to **usage-based** pricing. Early cohorts
-    show *23% higher LTV* compared to flat-rate customers.
-  Annual Contracts | ring: Invest, trend: stable
-  Freemium Tier | ring: Experiment, trend: new
-    Testing a limited free tier to reduce acquisition cost.
+Vessels | quadrant: top-left
+  Brigantine | ring: Full Sail, trend: stable
+    Our workhorse. Fast, manoeuvrable, carries **18 cannons**.
+    - Crew capacity: 100 pirates
+    - Top speed: *11 knots* in fair wind
+  War Galleon | ring: Trial Run, trend: up
+    Captured from the Spanish fleet. Massive firepower but
+    **slow to turn** — best for convoy raids, not chases.
+  Submarine | ring: Davy Jones, trend: down
+    Prototype sank on first dive. Crew survived by clinging
+    to a *very confused whale*.
 
-Market Segments | quadrant: bottom-left
-  Mid-Market SaaS | ring: Invest, trend: stable
-    Core segment — **78% of ARR**. Strong product-market fit.
-  Enterprise | ring: Experiment, trend: up
-    Piloting with 3 Fortune 500 accounts. Key requirements:
-    - SSO and SCIM provisioning
-    - *SOC 2 Type II* certification (in progress)
-    - Dedicated support SLAs
-  SMB Self-Serve | ring: Sunset, trend: down
-    Deprioritizing due to **high churn** (12% monthly) and low LTV.
+Plunder Targets | quadrant: bottom-left
+  Merchant Convoys | ring: Full Sail, trend: stable
+    Core revenue stream — **78% of total plunder**. East India
+    Company ships running the spice route remain most lucrative.
+  Royal Treasury Ships | ring: Spyglass, trend: new
+    High risk, astronomical reward. Requires:
+    - Inside information from *corrupt harbourmasters*
+    - At least **3 allied ships** for the blockade
+    - A really good escape plan
+  Fishing Villages | ring: Davy Jones, trend: down
+    Terrible ROI and **bad for reputation**. The parrot union
+    filed a formal complaint.
 
-Customer Experience | quadrant: bottom-right
-  In-App Onboarding | ring: Invest, trend: stable
-    Interactive product tours reduced time-to-value from *14 days* to **3 days**.
-  AI-Powered Support | ring: Experiment, trend: new
-    Testing AI chatbot for tier-1 support. Resolving **35%** of
-    tickets without human intervention in pilot.
-  NPS Surveys | ring: Watch, trend: stable
+Crew Welfare | quadrant: bottom-right
+  Grog Rations | ring: Full Sail, trend: stable
+    Non-negotiable. Cutting grog rations caused the *Great Mutiny of 1716*.
+  Sea Shanty Program | ring: Trial Run, trend: new
+    Hired a shanty master. Crew productivity up **25%** during
+    long voyages. Signature tune: *"Yo Ho Ho and a Bottle of Rum"*.
+  Dental Plan | ring: Spyglass, trend: up
+    Exploring options. Most crew down to **4 teeth** on average.
+    Parley with a Port Royal dentist scheduled for Q3.
 ```
 
 ## Overview
@@ -168,33 +177,33 @@ Descriptions appear in the quadrant detail view and on hover/click in the main r
 ## Complete Example
 
 ```dgmo
-tech-radar Market Expansion Radar
+tech-radar Fleet Readiness Radar
 
 rings
-  Scale
-  Pilot
-  Evaluate
-  Phase Out
+  Battle Ready
+  Sea Trials
+  Scouting
+  Scuttle
 
-Direct Sales | quadrant: top-right
-  Enterprise Outbound | ring: Scale, trend: stable
-  Partner Channel | ring: Pilot, trend: up
-    Testing reseller partnerships in APAC region.
-  Cold Outreach | ring: Phase Out, trend: down
+Navigation | quadrant: top-right
+  Star Charts | ring: Battle Ready, trend: stable
+  Compass Calibration | ring: Sea Trials, trend: up
+    New lodestone from Madagascar shows **30% better accuracy**.
+  Treasure Maps | ring: Scouting, trend: new
 
-Digital Channels | quadrant: top-left
-  SEO & Content | ring: Scale, trend: stable
-  Paid Social | ring: Pilot, trend: new
-  Email Campaigns | ring: Scale, trend: stable
+Armaments | quadrant: top-left
+  Cannon Broadside | ring: Battle Ready, trend: stable
+  Greek Fire | ring: Sea Trials, trend: new
+  Catapult | ring: Scuttle, trend: down
 
-Product Strategy | quadrant: bottom-left
-  Self-Serve Onboarding | ring: Scale, trend: up
-  AI Features | ring: Evaluate, trend: new
-    Exploring AI-assisted workflows for power users.
-  White-Label | ring: Evaluate, trend: stable
+Provisions | quadrant: bottom-left
+  Salted Pork | ring: Battle Ready, trend: stable
+  Citrus Rations | ring: Sea Trials, trend: up
+    Reduced scurvy cases by **80%** in trial crews.
+  Hardtack | ring: Scuttle, trend: down
 
-Customer Success | quadrant: bottom-right
-  Health Scoring | ring: Scale, trend: stable
-  Automated Renewals | ring: Pilot, trend: up
-  Community Forum | ring: Evaluate, trend: new
+Morale | quadrant: bottom-right
+  Shore Leave | ring: Battle Ready, trend: stable
+  Parrot Companions | ring: Scouting, trend: new
+  Plank Walking | ring: Scuttle, trend: down
 ```
