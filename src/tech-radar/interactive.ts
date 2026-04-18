@@ -13,57 +13,18 @@ import {
   resolveQuadrantColor,
   renderTrendIndicator,
   createTooltip,
-  showTooltip,
-  hideTooltip,
   DIM_OPACITY,
 } from './shared';
+import { parseInlineMarkdown } from '../utils/inline-markdown';
 
 // ============================================================
 // Constants
 // ============================================================
 
-const BLIP_RADIUS = 11;
-const BLIP_FONT_SIZE = 9;
+const BLIP_RADIUS = 13;
+const BLIP_FONT_SIZE = 10;
 const TITLE_FONT_SIZE = 16;
-const PANEL_RING_FONT_SIZE = 13;
-const PANEL_BLIP_FONT_SIZE = 12;
-const PANEL_DESC_FONT_SIZE = 11;
 const NARROW_BREAKPOINT = 600;
-
-// ============================================================
-// SVG Init
-// ============================================================
-
-function initSvg(
-  container: HTMLDivElement,
-  palette: PaletteColors,
-  exportDims?: D3ExportDimensions
-): {
-  svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>;
-  width: number;
-  height: number;
-  textColor: string;
-  mutedColor: string;
-  bgColor: string;
-} | null {
-  d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
-  const width = exportDims?.width ?? container.clientWidth;
-  const height = exportDims?.height ?? container.clientHeight;
-  if (width <= 0 || height <= 0) return null;
-  return {
-    svg: d3Selection
-      .select(container)
-      .append('svg')
-      .attr('width', width)
-      .attr('height', height)
-      .style('background', palette.bg),
-    width,
-    height,
-    textColor: palette.text,
-    mutedColor: palette.border,
-    bgColor: palette.bg,
-  };
-}
 
 // ============================================================
 // Quadrant Focus Renderer
@@ -84,9 +45,12 @@ export function renderQuadrantFocus(
   );
   if (!quadrant) return;
 
-  const init = initSvg(container, palette, exportDims);
-  if (!init) return;
-  const { svg, width, height, textColor, mutedColor } = init;
+  // Clear container
+  container.innerHTML = '';
+
+  const width = exportDims?.width ?? container.clientWidth;
+  const height = exportDims?.height ?? container.clientHeight;
+  if (width <= 0 || height <= 0) return;
 
   const isNarrow = width < NARROW_BREAKPOINT;
   const qColor = resolveQuadrantColor(
@@ -95,107 +59,125 @@ export function renderQuadrantFocus(
     palette
   );
 
-  // ── Layout: radar slice (left/top) + side panel (right/bottom) ──
-  const radarWidth = isNarrow ? width : width * 0.55;
-  const radarHeight = isNarrow ? height * 0.4 : height - 40;
-  const panelX = isNarrow ? 0 : radarWidth;
-  const panelY = isNarrow ? radarHeight + 8 : 40;
-  const panelWidth = isNarrow ? width : width - radarWidth;
-
   // ── Breadcrumb title ──
-  const titleY = 24;
-  const titleGroup = svg.append('g');
+  const titleBar = document.createElement('div');
+  titleBar.style.cssText = `
+    display: flex; align-items: baseline; gap: 8px;
+    padding: 8px 12px; font-family: ${FONT_FAMILY};
+    font-size: ${TITLE_FONT_SIZE}px; background: ${palette.bg};
+  `;
 
-  // Chart title (clickable, navigates back) — data-line-number on <g> wrapper
-  const titleClickGroup = titleGroup
-    .append('g')
-    .attr('data-line-number', parsed.titleLineNumber)
-    .style('cursor', onClickItem ? 'pointer' : 'default');
+  const titleLink = document.createElement('span');
+  titleLink.textContent = parsed.title || 'Tech Radar';
+  titleLink.style.cssText = `font-weight: bold; color: ${palette.text}; cursor: pointer;`;
+  titleLink.setAttribute('data-line-number', String(parsed.titleLineNumber));
 
-  titleClickGroup
-    .append('text')
-    .attr('x', 12)
-    .attr('y', titleY)
-    .attr('fill', textColor)
-    .attr('font-family', FONT_FAMILY)
-    .attr('font-size', TITLE_FONT_SIZE)
-    .attr('font-weight', 'bold')
-    .text(parsed.title || 'Tech Radar');
+  const sep = document.createElement('span');
+  sep.textContent = '›';
+  sep.style.color = palette.border;
 
-  if (onClickItem) {
-    titleClickGroup.on('click', () => onClickItem(parsed.titleLineNumber));
-  }
+  const quadrantLabel = document.createElement('span');
+  quadrantLabel.textContent = quadrant.name;
+  quadrantLabel.style.cssText = `font-weight: bold; color: ${qColor};`;
 
-  // Breadcrumb separator + quadrant name
-  const titleTextNode = titleClickGroup.select('text').node() as SVGTextElement;
-  const titleBBox = titleTextNode?.getBBox?.();
-  const sepX = titleBBox ? 12 + titleBBox.width + 8 : 120;
+  titleBar.appendChild(titleLink);
+  titleBar.appendChild(sep);
+  titleBar.appendChild(quadrantLabel);
+  container.appendChild(titleBar);
 
-  titleGroup
-    .append('text')
-    .attr('x', sepX)
-    .attr('y', titleY)
-    .attr('fill', mutedColor)
-    .attr('font-family', FONT_FAMILY)
-    .attr('font-size', TITLE_FONT_SIZE)
-    .text('>');
+  // ── Main layout: SVG radar (left) + HTML panel (right) ──
+  const mainLayout = document.createElement('div');
+  mainLayout.style.cssText = `
+    display: flex; flex-direction: ${isNarrow ? 'column' : 'row'};
+    flex: 1; min-height: 0; height: calc(100% - 40px); background: ${palette.bg};
+  `;
+  container.appendChild(mainLayout);
 
-  titleGroup
-    .append('text')
-    .attr('x', sepX + 16)
-    .attr('y', titleY)
-    .attr('fill', qColor)
-    .attr('font-family', FONT_FAMILY)
-    .attr('font-size', TITLE_FONT_SIZE)
-    .attr('font-weight', 'bold')
-    .text(quadrant.name);
+  // SVG container for quarter-circle
+  const svgContainer = document.createElement('div');
+  svgContainer.style.cssText = `
+    ${isNarrow ? 'height: 40%;' : 'width: 50%; min-width: 200px;'}
+    flex-shrink: 0;
+  `;
+  mainLayout.appendChild(svgContainer);
 
-  // ── Quarter-circle radar slice ──
-  const sliceGroup = svg
-    .append('g')
-    .attr('transform', `translate(0, ${isNarrow ? 32 : 40})`);
+  // HTML panel for blip listing
+  const panel = document.createElement('div');
+  panel.style.cssText = `
+    flex: 1; overflow-y: auto; padding: 8px 12px;
+    font-family: ${FONT_FAMILY}; background: ${palette.bg};
+  `;
+  mainLayout.appendChild(panel);
+
+  // ── Render HTML side panel first (returns toggle callback for radar clicks) ──
+  const toggleBlip = renderHtmlPanel(
+    panel,
+    parsed,
+    quadrant,
+    qColor,
+    palette,
+    isDark,
+    container,
+    onClickItem
+  );
+
+  // ── Render quarter-circle SVG ──
+  const svgWidth = svgContainer.clientWidth || (isNarrow ? width : width * 0.5);
+  const svgHeight =
+    svgContainer.clientHeight || (isNarrow ? height * 0.4 : height - 40);
+
+  const svg = d3Selection
+    .select(svgContainer)
+    .append('svg')
+    .attr('width', '100%')
+    .attr('height', '100%')
+    .attr('viewBox', `0 0 ${svgWidth} ${svgHeight}`)
+    .style('background', palette.bg);
 
   const tooltip = createTooltip(container, palette, isDark);
 
   renderQuarterCircle(
-    sliceGroup,
     svg,
     parsed,
     quadrant,
     qColor,
     palette,
     isDark,
-    radarWidth,
-    radarHeight - (isNarrow ? 32 : 0),
-    textColor,
-    mutedColor,
+    svgWidth,
+    svgHeight,
+    palette.border,
     tooltip,
-    onClickItem
+    container,
+    toggleBlip
   );
 
-  // ── Side panel (blip listing with ring headers) ──
-  renderSidePanel(
-    svg,
-    parsed,
-    quadrant,
-    qColor,
-    palette,
-    isDark,
-    textColor,
-    mutedColor,
-    panelX,
-    panelY,
-    panelWidth,
-    onClickItem
-  );
+  // ── Click handlers for title (back navigation) ──
+  titleLink.addEventListener('click', () => {
+    if (onClickItem) onClickItem(parsed.titleLineNumber);
+  });
+
+  // ── Active line from editor cursor → expand that blip in the panel ──
+  if (_options?.activeLine) {
+    const activeLn = _options.activeLine;
+    for (const blip of quadrant.blips) {
+      const isOnBlip = blip.lineNumber === activeLn;
+      const isOnDesc =
+        blip.description.length > 0 &&
+        activeLn > blip.lineNumber &&
+        activeLn <= blip.lineNumber + blip.description.length;
+      if (isOnBlip || isOnDesc) {
+        toggleBlip(blip.lineNumber);
+        break;
+      }
+    }
+  }
 }
 
 // ============================================================
-// Quarter-Circle Rendering
+// Quarter-Circle SVG Rendering
 // ============================================================
 
 function renderQuarterCircle(
-  g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
   parsed: ParsedTechRadar,
   quadrant: ParsedTechRadar['quadrants'][number],
@@ -204,18 +186,17 @@ function renderQuarterCircle(
   isDark: boolean,
   width: number,
   height: number,
-  textColor: string,
   mutedColor: string,
   tooltip: HTMLDivElement,
+  rootContainer: HTMLElement,
   onClickItem?: (lineNumber: number) => void
 ): void {
-  const padding = 16;
-  const size = Math.min(width - padding * 2, height - padding * 2);
-  const maxRadius = size * 0.85;
+  const padding = 8;
+  const size = Math.min(width - padding, height - padding);
+  const maxRadius = size * 0.95;
   const ringCount = parsed.rings.length;
   const ringBandWidth = maxRadius / ringCount;
 
-  // Position center at the corner opposite to the quadrant
   const { startAngle, endAngle } = getQuadrantArc(quadrant.position);
   let cx: number, cy: number;
 
@@ -248,34 +229,15 @@ function renderQuarterCircle(
     const fillColor =
       ri % 2 === 0 ? palette.bg : mix(palette.bg, palette.border, 0.15);
 
-    g.append('path')
+    svg
+      .append('path')
       .attr('d', arcGen(innerR, outerR))
       .attr('fill', fillColor)
       .attr('stroke', mutedColor)
       .attr('stroke-width', 0.5);
   }
 
-  // Ring labels — large watermark text centered in each ring arc
-  const bisectAngle = (startAngle + endAngle) / 2;
-  for (let ri = 0; ri < parsed.rings.length; ri++) {
-    const rLabel = (ri + 0.5) * ringBandWidth;
-    const labelX = cx + rLabel * Math.cos(bisectAngle);
-    const labelY = cy - rLabel * Math.sin(bisectAngle);
-    // Scale font based on ring band width, larger in outer rings
-    const fontSize = Math.min(16, Math.max(11, ringBandWidth * 0.18));
-
-    g.append('text')
-      .attr('x', labelX)
-      .attr('y', labelY)
-      .attr('text-anchor', 'middle')
-      .attr('dominant-baseline', 'central')
-      .attr('fill', palette.textMuted)
-      .attr('font-family', FONT_FAMILY)
-      .attr('font-size', fontSize)
-      .attr('font-weight', '700')
-      .attr('opacity', 0.6)
-      .text(parsed.rings[ri].name);
-  }
+  // Ring labels removed — the side panel ring headers serve this purpose
 
   // Blip dots
   const ringOrder = parsed.rings.map((r) => r.name);
@@ -316,12 +278,12 @@ function renderQuarterCircle(
       const bx = cx + radius * Math.cos(angle);
       const by = cy - radius * Math.sin(angle);
 
-      const blipGroup = g
+      const blipGroup = svg
         .append('g')
         .attr('data-line-number', blip.lineNumber)
         .attr('data-ring', blip.ring)
         .attr('data-trend', blip.trend ?? 'stable')
-        .style('cursor', onClickItem ? 'pointer' : 'default');
+        .style('cursor', 'pointer');
 
       const angleToCenter = Math.atan2(cy - by, cx - bx);
       renderTrendIndicator(
@@ -345,233 +307,381 @@ function renderQuarterCircle(
         .attr('font-weight', 'bold')
         .text(blip.globalNumber);
 
-      // Tooltip + cross-highlight with side panel + scale-up
+      // Hover: scale up + dim others (preview only, no expansion)
       const lineNum = String(blip.lineNumber);
       blipGroup
-        .on('mouseenter', (event: MouseEvent) => {
-          showTooltip(tooltip, blip.name, event);
+        .on('mouseenter', () => {
           blipGroup.attr(
             'transform',
             `translate(${bx},${by}) scale(1.5) translate(${-bx},${-by})`
           );
-          svg
-            .selectAll<SVGElement, unknown>('[data-line-number]')
-            .style('opacity', function () {
-              return this.getAttribute('data-line-number') === lineNum
-                ? '1'
-                : String(DIM_OPACITY);
-            });
-        })
-        .on('mousemove', (event: MouseEvent) => {
-          showTooltip(tooltip, blip.name, event);
+          dimExcept(rootContainer, lineNum);
         })
         .on('mouseleave', () => {
-          hideTooltip(tooltip);
           blipGroup.attr('transform', null);
-          svg
-            .selectAll<SVGElement, unknown>('[data-line-number]')
-            .style('opacity', '1');
+          clearDim(rootContainer);
         });
 
-      if (onClickItem) {
-        blipGroup.on('click', () => onClickItem(blip.lineNumber));
-      }
+      // Click: expand description in panel (persistent)
+      blipGroup.on('click', () => {
+        if (onClickItem) {
+          onClickItem(blip.lineNumber);
+          requestAnimationFrame(() => dimExcept(rootContainer, lineNum));
+        }
+      });
     }
   }
 }
 
 // ============================================================
-// Side Panel (ring-grouped blip listing)
+// Cross-highlight helpers (work across SVG + HTML)
 // ============================================================
 
-function renderSidePanel(
-  svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
+function dimExcept(root: HTMLElement, lineNum: string): void {
+  root.querySelectorAll<HTMLElement>('[data-line-number]').forEach((el) => {
+    el.style.opacity =
+      el.getAttribute('data-line-number') === lineNum
+        ? '1'
+        : String(DIM_OPACITY);
+  });
+}
+
+function clearDim(root: HTMLElement): void {
+  root.querySelectorAll<HTMLElement>('[data-line-number]').forEach((el) => {
+    el.style.opacity = '1';
+  });
+}
+
+// ============================================================
+// HTML Side Panel
+// ============================================================
+
+/**
+ * Render the HTML side panel. Returns a toggle callback that the radar
+ * can call to expand/scroll a blip by line number.
+ */
+function renderHtmlPanel(
+  panel: HTMLElement,
   parsed: ParsedTechRadar,
   quadrant: ParsedTechRadar['quadrants'][number],
   qColor: string,
   palette: PaletteColors,
   isDark: boolean,
-  textColor: string,
-  mutedColor: string,
-  panelX: number,
-  panelY: number,
-  panelWidth: number,
+  rootContainer: HTMLElement,
   onClickItem?: (lineNumber: number) => void
-): void {
-  const panelGroup = svg
-    .append('g')
-    .attr('transform', `translate(${panelX}, ${panelY})`);
-
+): (lineNumber: number) => void {
   const ringOrder = parsed.rings.map((r) => r.name);
-  let y = 0;
-  const ringHeaderGap = 20; // space below ring header text before first node
-  const ringGroupGap = 16; // space between ring groups
-  const nodeGap = 6; // space between nodes within a ring
-  const descLineH = 16;
-  const indent = 8;
+  const fillColor = mix(qColor, isDark ? palette.surface : palette.bg, 30);
+  let expandedLineNum: string | null = null;
 
-  for (const ringName of ringOrder) {
-    const blips = quadrant.blips.filter((b) => b.ring === ringName);
-    if (blips.length === 0) continue;
+  function render() {
+    panel.innerHTML = '';
 
-    // Ring header
-    y += PANEL_RING_FONT_SIZE + 4;
-    panelGroup
-      .append('text')
-      .attr('x', 8)
-      .attr('y', y)
-      .attr('fill', palette.textMuted)
-      .attr('font-family', FONT_FAMILY)
-      .attr('font-size', PANEL_RING_FONT_SIZE)
-      .attr('font-weight', 'bold')
-      .text(ringName);
-    y += ringHeaderGap;
+    for (const ringName of ringOrder) {
+      const blips = quadrant.blips.filter((b) => b.ring === ringName);
+      if (blips.length === 0) continue;
 
-    // Blips under this ring — rectangular nodes with optional description section
-    const titleRowH = 28;
-    const nodePadX = 10;
-    const descPadTop = 6;
-    const descPadBottom = 6;
-    for (const blip of blips) {
-      const nodeWidth = Math.min(panelWidth - indent - 16, 320);
-      const hasDesc = blip.description.length > 0;
-      const descHeight = hasDesc
-        ? descPadTop + blip.description.length * descLineH + descPadBottom
-        : 0;
-      const totalNodeH = titleRowH + descHeight;
-      const nodeTop = y;
+      // Ring group container
+      const ringGroup = document.createElement('div');
+      ringGroup.style.cssText = `
+        background: ${palette.surface};
+        border-radius: 8px;
+        padding: 10px;
+        margin-bottom: 12px;
+      `;
 
-      const nodeGroup = panelGroup
-        .append('g')
-        .attr('data-line-number', blip.lineNumber)
-        .attr('data-ring', blip.ring)
-        .attr('data-trend', blip.trend ?? 'stable')
-        .style('cursor', onClickItem ? 'pointer' : 'default');
+      // Ring header inside the group
+      const header = document.createElement('div');
+      header.style.cssText = `
+        font-size: 13px; font-weight: 700; color: ${palette.textMuted};
+        margin-bottom: 8px;
+      `;
+      header.textContent = ringName;
+      ringGroup.appendChild(header);
 
-      // Rectangle background
-      nodeGroup
-        .append('rect')
-        .attr('x', indent)
-        .attr('y', nodeTop)
-        .attr('width', nodeWidth)
-        .attr('height', totalNodeH)
-        .attr('rx', 4)
-        .attr('fill', mix(qColor, isDark ? palette.surface : palette.bg, 30))
-        .attr('stroke', qColor)
-        .attr('stroke-width', 1.5);
+      panel.appendChild(ringGroup);
 
-      // Mini circle indicator with number
-      const circleR = 8;
-      const circleCx = indent + nodePadX + circleR;
-      const circleCy = nodeTop + titleRowH / 2;
-      const indicatorG = nodeGroup.append('g') as d3Selection.Selection<
-        SVGGElement,
-        unknown,
-        null,
-        undefined
-      >;
-      renderTrendIndicator(
-        indicatorG,
-        blip.trend,
-        qColor,
-        circleCx,
-        circleCy,
-        circleR,
-        -Math.PI / 2
-      );
-      nodeGroup
-        .append('text')
-        .attr('x', circleCx)
-        .attr('y', circleCy + 3)
-        .attr('text-anchor', 'middle')
-        .attr('fill', isDark ? '#000' : '#fff')
-        .attr('font-family', FONT_FAMILY)
-        .attr('font-size', 7)
-        .attr('font-weight', 'bold')
-        .text(blip.globalNumber);
+      // Blip nodes (appended to ringGroup, not panel)
+      for (const blip of blips) {
+        const ln = String(blip.lineNumber);
+        const isExpanded = expandedLineNum === ln;
+        const hasDesc = blip.description.length > 0;
 
-      // Blip name
-      nodeGroup
-        .append('text')
-        .attr('x', circleCx + circleR + 8)
-        .attr('y', nodeTop + titleRowH / 2 + 4)
-        .attr('fill', textColor)
-        .attr('font-family', FONT_FAMILY)
-        .attr('font-size', PANEL_BLIP_FONT_SIZE)
-        .text(blip.name);
+        const node = document.createElement('div');
+        node.setAttribute('data-line-number', ln);
+        node.setAttribute('data-ring', blip.ring);
+        node.setAttribute('data-trend', blip.trend ?? 'stable');
+        node.style.cssText = `
+          background: ${fillColor}; border: 1.5px solid ${qColor};
+          border-radius: 6px; margin-bottom: 6px; cursor: pointer;
+          transition: border-width 0.1s;
+          ${isExpanded ? 'border-width: 2px;' : ''}
+        `;
 
-      // Description section (below separator line)
-      if (hasDesc) {
-        const sepY = nodeTop + titleRowH;
+        // Title row
+        const titleRow = document.createElement('div');
+        titleRow.style.cssText = `
+          display: flex; align-items: center; gap: 8px;
+          padding: 6px 10px; min-height: 28px;
+        `;
 
-        // Thin separator line
-        nodeGroup
-          .append('line')
-          .attr('x1', indent + 6)
-          .attr('y1', sepY)
-          .attr('x2', indent + nodeWidth - 6)
-          .attr('y2', sepY)
-          .attr('stroke', qColor)
-          .attr('stroke-opacity', 0.3)
-          .attr('stroke-width', 1);
+        // Mini SVG blip indicator
+        const indicatorSvg = document.createElementNS(
+          'http://www.w3.org/2000/svg',
+          'svg'
+        );
+        indicatorSvg.setAttribute('width', '26');
+        indicatorSvg.setAttribute('height', '26');
+        indicatorSvg.style.flexShrink = '0';
+        const indicatorG = d3Selection
+          .select(indicatorSvg)
+          .append('g') as d3Selection.Selection<
+          SVGGElement,
+          unknown,
+          null,
+          undefined
+        >;
+        renderTrendIndicator(
+          indicatorG,
+          blip.trend,
+          qColor,
+          13,
+          13,
+          10,
+          -Math.PI / 2
+        );
+        d3Selection
+          .select(indicatorSvg)
+          .append('text')
+          .attr('x', 13)
+          .attr('y', 16)
+          .attr('text-anchor', 'middle')
+          .attr('fill', isDark ? '#000' : '#fff')
+          .attr('font-family', FONT_FAMILY)
+          .attr('font-size', 9)
+          .attr('font-weight', 'bold')
+          .text(blip.globalNumber);
+        titleRow.appendChild(indicatorSvg);
 
-        // Description text lines
-        let descY = sepY + descPadTop + descLineH - 4;
-        for (const descLine of blip.description) {
-          nodeGroup
-            .append('text')
-            .attr('x', indent + nodePadX)
-            .attr('y', descY)
-            .attr('fill', palette.textMuted)
-            .attr('font-family', FONT_FAMILY)
-            .attr('font-size', PANEL_DESC_FONT_SIZE)
-            .text(descLine);
-          descY += descLineH;
+        // Name
+        const name = document.createElement('span');
+        name.textContent = blip.name;
+        name.style.cssText = `
+          flex: 1; font-size: 12px; font-weight: 600;
+          color: ${palette.text}; white-space: nowrap;
+          overflow: hidden; text-overflow: ellipsis;
+        `;
+        titleRow.appendChild(name);
+
+        node.appendChild(titleRow);
+
+        // Description (expanded only)
+        if (isExpanded && hasDesc) {
+          const sep = document.createElement('div');
+          sep.style.cssText = `
+            border-top: 1px solid ${qColor}; opacity: 0.3;
+          `;
+          node.appendChild(sep);
+
+          const descDiv = document.createElement('div');
+          descDiv.style.cssText = `
+            padding: 6px 10px 8px; font-size: 11px; line-height: 1.6;
+            color: ${palette.textMuted};
+          `;
+          descDiv.innerHTML = renderDescriptionHtml(blip.description, palette);
+          node.appendChild(descDiv);
         }
-      }
 
-      // Cross-highlight: hover side panel blip → highlight dot on radar + scale up
-      const ln = String(blip.lineNumber);
-      nodeGroup
-        .on('mouseenter', () => {
-          svg
-            .selectAll<SVGElement, unknown>('[data-line-number]')
-            .style('opacity', function () {
-              const isMatch = this.getAttribute('data-line-number') === ln;
-              if (
-                isMatch &&
-                this.closest('g[transform]') &&
-                !this.closest('[data-line-number]')?.closest(
-                  `g[transform^="translate(${panelX}"]`
-                )
-              ) {
-                const bbox = (this as SVGGraphicsElement).getBBox?.();
+        // Hover: dim all other blips (radar + panel), scale up matching radar dot
+        node.addEventListener('mouseenter', () => {
+          dimExcept(rootContainer, ln);
+          // Scale up matching radar dot
+          rootContainer
+            .querySelectorAll<SVGElement>('svg [data-line-number]')
+            .forEach((el) => {
+              if (el.getAttribute('data-line-number') === ln) {
+                const bbox = (el as SVGGraphicsElement).getBBox?.();
                 if (bbox) {
                   const bx = bbox.x + bbox.width / 2;
                   const by = bbox.y + bbox.height / 2;
-                  this.setAttribute(
+                  el.setAttribute(
                     'transform',
                     `translate(${bx},${by}) scale(1.5) translate(${-bx},${-by})`
                   );
                 }
               }
-              return isMatch ? '1' : String(DIM_OPACITY);
             });
-        })
-        .on('mouseleave', () => {
-          svg
-            .selectAll<SVGElement, unknown>('[data-line-number]')
-            .style('opacity', '1')
-            .attr('transform', null);
+        });
+        node.addEventListener('mouseleave', () => {
+          clearDim(rootContainer);
+          rootContainer
+            .querySelectorAll<SVGElement>('svg [data-line-number]')
+            .forEach((el) => {
+              el.removeAttribute('transform');
+            });
         });
 
-      if (onClickItem) {
-        nodeGroup.on('click', () => onClickItem(blip.lineNumber));
+        // Click: accordion toggle + persistent dim
+        node.addEventListener('click', (event) => {
+          event.stopPropagation();
+          if (hasDesc) {
+            const wasExpanded = expandedLineNum === ln;
+            expandedLineNum = wasExpanded ? null : ln;
+            render();
+            if (!wasExpanded) {
+              // Dim others after re-render
+              requestAnimationFrame(() => {
+                dimExcept(rootContainer, ln);
+                // Scale up matching radar dot
+                rootContainer
+                  .querySelectorAll<SVGElement>('svg [data-line-number]')
+                  .forEach((el) => {
+                    if (el.getAttribute('data-line-number') === ln) {
+                      const bbox = (el as SVGGraphicsElement).getBBox?.();
+                      if (bbox) {
+                        const cbx = bbox.x + bbox.width / 2;
+                        const cby = bbox.y + bbox.height / 2;
+                        el.setAttribute(
+                          'transform',
+                          `translate(${cbx},${cby}) scale(1.5) translate(${-cbx},${-cby})`
+                        );
+                      }
+                    }
+                  });
+              });
+            } else {
+              // Collapsed — clear all
+              clearDim(rootContainer);
+              rootContainer
+                .querySelectorAll<SVGElement>('svg [data-line-number]')
+                .forEach((el) => el.removeAttribute('transform'));
+            }
+          } else if (onClickItem) {
+            onClickItem(blip.lineNumber);
+          }
+        });
+
+        ringGroup.appendChild(node);
       }
-
-      y += totalNodeH + nodeGap;
     }
-
-    y += ringGroupGap;
   }
+
+  render();
+
+  // Click on empty panel space → collapse and clear
+  panel.addEventListener('click', () => {
+    if (expandedLineNum) {
+      expandedLineNum = null;
+      render();
+      clearDim(rootContainer);
+      rootContainer
+        .querySelectorAll<SVGElement>('svg [data-line-number]')
+        .forEach((el) => el.removeAttribute('transform'));
+    }
+  });
+
+  // Return a toggle function for external callers (radar blip clicks)
+  return (lineNumber: number) => {
+    const ln = String(lineNumber);
+    const blip = quadrant.blips.find((b) => String(b.lineNumber) === ln);
+    if (blip && blip.description.length > 0) {
+      const wasExpanded = expandedLineNum === ln;
+      expandedLineNum = wasExpanded ? null : ln;
+      render();
+      const node = panel.querySelector(`[data-line-number="${ln}"]`);
+      if (node) node.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      if (!wasExpanded) {
+        requestAnimationFrame(() => dimExcept(rootContainer, ln));
+      } else {
+        clearDim(rootContainer);
+        rootContainer
+          .querySelectorAll<SVGElement>('svg [data-line-number]')
+          .forEach((el) => el.removeAttribute('transform'));
+      }
+    } else if (onClickItem) {
+      onClickItem(lineNumber);
+    }
+  };
+}
+
+// ============================================================
+// Description HTML Rendering (with markdown)
+// ============================================================
+
+function renderDescriptionHtml(
+  lines: string[],
+  palette: PaletteColors
+): string {
+  // Join prose lines into paragraphs, keep bullets separate
+  const paragraphs = joinParagraphs(lines);
+  let html = '';
+
+  for (const para of paragraphs) {
+    const trimmed = para.trim();
+    const isBullet = /^[-*•]\s+/.test(trimmed);
+    const content = isBullet ? trimmed.replace(/^[-*•]\s+/, '') : trimmed;
+    const rendered = renderInlineMarkdownHtml(content, palette);
+
+    if (isBullet) {
+      html += `<div style="padding-left: 14px; text-indent: -10px; margin: 2px 0;">• ${rendered}</div>`;
+    } else {
+      html += `<div style="margin: 4px 0;">${rendered}</div>`;
+    }
+  }
+
+  return html;
+}
+
+function joinParagraphs(lines: string[]): string[] {
+  const result: string[] = [];
+  let currentPara = '';
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    const isBullet = /^[-*•]\s+/.test(trimmed);
+
+    if (isBullet) {
+      if (currentPara) {
+        result.push(currentPara);
+        currentPara = '';
+      }
+      result.push(trimmed);
+    } else if (!trimmed) {
+      if (currentPara) {
+        result.push(currentPara);
+        currentPara = '';
+      }
+    } else {
+      currentPara = currentPara ? `${currentPara} ${trimmed}` : trimmed;
+    }
+  }
+
+  if (currentPara) result.push(currentPara);
+  return result;
+}
+
+function renderInlineMarkdownHtml(
+  text: string,
+  palette: PaletteColors
+): string {
+  const spans = parseInlineMarkdown(text);
+  let html = '';
+  for (const span of spans) {
+    let t = escapeHtml(span.text);
+    if (span.bold) t = `<strong>${t}</strong>`;
+    if (span.italic) t = `<em>${t}</em>`;
+    if (span.code)
+      t = `<code style="background:${palette.surface}; padding: 1px 4px; border-radius: 3px; font-size: 10px;">${t}</code>`;
+    if (span.href)
+      t = `<a href="${escapeHtml(span.href)}" target="_blank" rel="noopener" style="color: ${palette.primary ?? palette.text}; text-decoration: underline;">${t}</a>`;
+    html += t;
+  }
+  return html;
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }

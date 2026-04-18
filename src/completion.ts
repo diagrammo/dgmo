@@ -551,6 +551,24 @@ export const PIPE_METADATA = new Map<
       edge: {},
     },
   ],
+  [
+    'tech-radar',
+    {
+      node: {
+        quadrant: {
+          description: 'Quadrant position',
+          values: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+        },
+        ring: { description: 'Ring assignment for blip' },
+        trend: {
+          description: 'Blip trend indicator',
+          values: ['new', 'up', 'down', 'stable'],
+        },
+        color: { description: 'Override quadrant color' },
+      },
+      edge: {},
+    },
+  ],
 ]);
 
 // ============================================================
@@ -1049,3 +1067,52 @@ registerExtractor('sitemap', extractSitemapSymbols);
 registerExtractor('c4', extractC4Symbols);
 registerExtractor('gantt', extractGanttSymbols);
 registerExtractor('boxes-and-lines', extractBoxesAndLinesSymbols);
+registerExtractor('tech-radar', extractTechRadarSymbols);
+
+function extractTechRadarSymbols(docText: string): DiagramSymbols {
+  const entities: string[] = [];
+  const keywords: string[] = [
+    'rings',
+    'quadrant',
+    'ring',
+    'trend',
+    'new',
+    'up',
+    'down',
+    'stable',
+    'top-left',
+    'top-right',
+    'bottom-left',
+    'bottom-right',
+    'alias',
+    'aka',
+    'color',
+  ];
+
+  // Extract ring names and aliases from the rings block
+  const lines = docText.split('\n');
+  let inRings = false;
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.toLowerCase() === 'rings') {
+      inRings = true;
+      continue;
+    }
+    if (inRings) {
+      if (!trimmed || (line[0] !== ' ' && line[0] !== '\t')) {
+        inRings = false;
+        continue;
+      }
+      // Parse ring name (and alias)
+      const aliasMatch = trimmed.match(/^(.+?)\s+(?:alias|aka)\s+(\S+)\s*$/i);
+      if (aliasMatch) {
+        entities.push(aliasMatch[1].trim());
+        entities.push(aliasMatch[2].trim());
+      } else {
+        entities.push(trimmed);
+      }
+    }
+  }
+
+  return { kind: 'tech-radar', entities, keywords };
+}

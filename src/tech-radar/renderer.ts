@@ -4,6 +4,7 @@ import { mix } from '../palettes/color-utils';
 import type { PaletteColors } from '../palettes';
 import type { D3ExportDimensions } from '../utils/d3-types';
 import type { CompactViewState } from '../sharing';
+import { parseInlineMarkdown } from '../utils/inline-markdown';
 import type {
   ParsedTechRadar,
   QuadrantPosition,
@@ -35,8 +36,8 @@ import type {
 // Constants
 // ============================================================
 
-const BLIP_RADIUS = 9;
-const BLIP_FONT_SIZE = 8;
+const BLIP_RADIUS = 12;
+const BLIP_FONT_SIZE = 9;
 const RING_LABEL_FONT_SIZE = 11;
 const QUADRANT_LABEL_FONT_SIZE = 18;
 const TITLE_FONT_SIZE = 18;
@@ -44,7 +45,7 @@ const LISTING_FONT_SIZE = 12;
 const LISTING_HEADER_FONT_SIZE = 13;
 const LISTING_TOP_MARGIN = 24;
 const LISTING_COL_GAP = 16;
-const LISTING_LINE_HEIGHT = 18;
+const LISTING_LINE_HEIGHT = 24;
 
 // ============================================================
 // SVG Init (local, matches d3.ts pattern)
@@ -478,31 +479,83 @@ export function renderTechRadar(
         clearBlipHighlight();
       });
 
-    // Click: pin/unpin the popover
+    // Click: pin/unpin the popover (don't stopPropagation so the
+    // interactivity hook's document listener can fire for editor navigation)
     blipGroup.on('click', (event: MouseEvent) => {
-      event.stopPropagation();
+      (event as MouseEvent & { _blipClick?: boolean })._blipClick = true;
       if (pinnedLineNum === lineNum) {
         // Unpin
         pinnedLineNum = null;
         hideBlipPopover(popover);
         clearBlipHighlight();
       } else {
-        // Pin this blip
+        // Pin this blip — enable pointer events so links are clickable
         pinnedLineNum = lineNum;
         showBlipPopover(popover, point.blip, qColor, palette, isDark, event);
+        popover.style.pointerEvents = 'auto';
         showBlipHighlight(lineNum, bx, by, blipGroup);
       }
     });
   }
 
-  // Click on empty space clears pinned popover
-  svg.on('click', () => {
+  // Click on empty space clears pinned popover (ignore blip clicks)
+  svg.on('click', (event: MouseEvent) => {
+    if ((event as MouseEvent & { _blipClick?: boolean })._blipClick) return;
     if (pinnedLineNum) {
       pinnedLineNum = null;
       hideBlipPopover(popover);
       clearBlipHighlight();
     }
   });
+
+  // ── Active line from editor cursor → show popover for that blip ──
+  if (options?.activeLine && !pinnedLineNum) {
+    const activeLn = options.activeLine;
+    // Find the blip that matches this line (or whose description contains this line)
+    for (const point of layoutPoints) {
+      const blip = point.blip;
+      const isOnBlip = blip.lineNumber === activeLn;
+      const isOnDesc =
+        blip.description.length > 0 &&
+        activeLn > blip.lineNumber &&
+        activeLn <= blip.lineNumber + blip.description.length;
+
+      if (isOnBlip || isOnDesc) {
+        const quadrant = parsed.quadrants.find((q) => q.blips.includes(blip))!;
+        const qColor = resolveQuadrantColor(
+          quadrant.position,
+          quadrant.color,
+          palette
+        );
+        // Show popover at the blip's position
+        const svgRect = (svg.node() as SVGSVGElement)?.getBoundingClientRect();
+        if (svgRect) {
+          const fakeEvent = {
+            clientX: svgRect.left + point.x,
+            clientY: svgRect.top + offsetY + point.y,
+          } as MouseEvent;
+          showBlipPopover(popover, blip, qColor, palette, isDark, fakeEvent);
+        }
+        // Scale up and dim
+        const lineNum = String(blip.lineNumber);
+        const blipEl = svg.select(`[data-line-number="${lineNum}"]`);
+        if (!blipEl.empty()) {
+          blipEl.attr(
+            'transform',
+            `translate(${point.x},${point.y}) scale(1.5) translate(${-point.x},${-point.y})`
+          );
+        }
+        svg
+          .selectAll<SVGElement, unknown>('[data-line-number]')
+          .style('opacity', function () {
+            return this.getAttribute('data-line-number') === lineNum
+              ? '1'
+              : String(DIM_OPACITY);
+          });
+        break;
+      }
+    }
+  }
 
   // ── Four-column blip listing below radar ──
   if (showListing) {
@@ -523,7 +576,7 @@ export function renderTechRadar(
 // Four-Column Listing
 // ============================================================
 
-const LISTING_BLIP_R = 7;
+const LISTING_BLIP_R = 11;
 
 function renderBlipListing(
   svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
@@ -628,7 +681,7 @@ function renderBlipListing(
         .attr('text-anchor', 'middle')
         .attr('fill', isDark ? '#000' : '#fff')
         .attr('font-family', FONT_FAMILY)
-        .attr('font-size', 7)
+        .attr('font-size', 9)
         .attr('font-weight', 'bold')
         .text(blip.globalNumber);
 
@@ -874,9 +927,11 @@ function showBlipPopover(
 
   if (hasDesc) {
     html += `<div style="border-top: 1px solid ${qColor}; opacity: 0.3;"></div>`;
-    html += `<div style="padding: 6px 12px 8px; color: ${palette.textMuted}; font-size: 11px;">`;
-    for (const line of blip.description) {
-      html += `<div>${escapeHtml(line)}</div>`;
+    html += `<div style="padding: 6px 12px 8px; color: ${palette.textMuted}; font-size: 11px; line-height: 1.6;">`;
+    // Join consecutive prose lines into paragraphs; bullets stay separate
+    const paragraphs = joinDescriptionParagraphs(blip.description);
+    for (const para of paragraphs) {
+      html += renderDescriptionLine(para, palette);
     }
     html += `</div>`;
   }
@@ -914,6 +969,67 @@ function positionPopover(popover: HTMLDivElement, event: MouseEvent): void {
 
 function hideBlipPopover(popover: HTMLDivElement): void {
   popover.style.display = 'none';
+  popover.style.pointerEvents = 'none';
+}
+
+/**
+ * Join consecutive prose lines into single paragraphs.
+ * Bullets (lines starting with -, *, •) stay as separate entries.
+ * Blank lines create paragraph breaks.
+ */
+function joinDescriptionParagraphs(lines: string[]): string[] {
+  const result: string[] = [];
+  let currentPara = '';
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    const isBullet = /^[-*•]\s+/.test(trimmed);
+
+    if (isBullet) {
+      // Flush any accumulated paragraph
+      if (currentPara) {
+        result.push(currentPara);
+        currentPara = '';
+      }
+      result.push(trimmed);
+    } else if (!trimmed) {
+      // Blank line — paragraph break
+      if (currentPara) {
+        result.push(currentPara);
+        currentPara = '';
+      }
+    } else {
+      // Prose line — join with previous
+      currentPara = currentPara ? `${currentPara} ${trimmed}` : trimmed;
+    }
+  }
+
+  if (currentPara) result.push(currentPara);
+  return result;
+}
+
+function renderDescriptionLine(line: string, palette: PaletteColors): string {
+  const trimmed = line.trim();
+  const isBullet = /^[-*•]\s+/.test(trimmed);
+  const content = isBullet ? trimmed.replace(/^[-*•]\s+/, '') : trimmed;
+
+  const spans = parseInlineMarkdown(content);
+  let spanHtml = '';
+  for (const span of spans) {
+    let text = escapeHtml(span.text);
+    if (span.bold) text = `<strong>${text}</strong>`;
+    if (span.italic) text = `<em>${text}</em>`;
+    if (span.code)
+      text = `<code style="background:${palette.surface}; padding: 1px 4px; border-radius: 3px; font-size: 10px;">${text}</code>`;
+    if (span.href)
+      text = `<a href="${escapeHtml(span.href)}" target="_blank" rel="noopener" style="color: ${palette.primary ?? palette.text}; text-decoration: underline;">${text}</a>`;
+    spanHtml += text;
+  }
+
+  if (isBullet) {
+    return `<div style="padding-left: 12px; text-indent: -10px; margin: 1px 0;">• ${spanHtml}</div>`;
+  }
+  return `<div style="margin: 2px 0;">${spanHtml}</div>`;
 }
 
 function escapeHtml(text: string): string {

@@ -14,6 +14,8 @@ export const CHART_TYPES = new Set([
   'gantt',
   'boxes-and-lines',
   'wireframe',
+  'tech-radar',
+  'mindmap',
   // Data chart types
   'bar',
   'line',
@@ -65,6 +67,10 @@ export const METADATA_KEYS = new Set([
   'top-left',
   'bottom-right',
   'bottom-left',
+  // Tech-radar pipe metadata
+  'quadrant',
+  'ring',
+  'trend',
 ]);
 
 /** Tag declaration keyword. */
@@ -82,6 +88,8 @@ export const DIRECTIVE_KEYWORDS = new Set([
   'critical-path',
   'no-dependencies',
   'sort',
+  // Tech-radar
+  'rings',
   // Tags
   'tags',
   'import',
@@ -194,6 +202,11 @@ export const STATUS_KEYWORDS = new Set([
   'in-progress',
   'backlog',
   'ready',
+  // Tech-radar trend values
+  'new',
+  'up',
+  'down',
+  'stable',
 ]);
 
 /** Modifier keywords — adjust declarations. */

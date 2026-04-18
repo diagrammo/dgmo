@@ -214,7 +214,7 @@ Languages | quadrant: bottom-right
   TS | ring: Adopt
 `);
     expect(
-      result.diagnostics.some((d) => d.message.includes('missing required'))
+      result.diagnostics.some((d) => d.message.includes('no ring assignment'))
     ).toBe(true);
   });
 
@@ -579,5 +579,196 @@ D | quadrant: bottom-right
     expect(result.title).toBe('');
     expect(result.quadrants).toHaveLength(4);
     expect(result.diagnostics).toHaveLength(0);
+  });
+});
+
+// ============================================================
+// Ring Section Syntax (new)
+// ============================================================
+
+describe('tech-radar parser — ring section syntax', () => {
+  it('parses blips under ring section headers', () => {
+    const result = parseTechRadar(`tech-radar Ring Sections
+
+rings
+  Adopt
+  Trial
+  Hold
+
+A | quadrant: top-right
+  Adopt
+    X
+    Y
+  Trial
+    Z | trend: up
+B | quadrant: top-left
+  Adopt
+    W
+C | quadrant: bottom-left
+  Hold
+    V
+D | quadrant: bottom-right
+  Trial
+    U
+`);
+    expect(result.diagnostics).toHaveLength(0);
+    expect(result.quadrants).toHaveLength(4);
+
+    const a = result.quadrants.find((q) => q.position === 'top-right')!;
+    expect(a.blips).toHaveLength(3);
+    expect(a.blips[0].name).toBe('X');
+    expect(a.blips[0].ring).toBe('Adopt');
+    expect(a.blips[0].trend).toBeNull();
+    expect(a.blips[2].name).toBe('Z');
+    expect(a.blips[2].ring).toBe('Trial');
+    expect(a.blips[2].trend).toBe('up');
+  });
+
+  it('supports descriptions under ring-section blips', () => {
+    const result = parseTechRadar(`tech-radar Desc Test
+
+rings
+  Adopt
+  Trial
+
+A | quadrant: top-right
+  Adopt
+    Tool X
+      First line of description.
+      Second line.
+B | quadrant: top-left
+  Trial
+    Tool Y
+C | quadrant: bottom-left
+  Adopt
+    Tool Z
+D | quadrant: bottom-right
+  Trial
+    Tool W
+`);
+    expect(result.diagnostics).toHaveLength(0);
+    const a = result.quadrants.find((q) => q.position === 'top-right')!;
+    expect(a.blips[0].description).toEqual([
+      'First line of description.',
+      'Second line.',
+    ]);
+  });
+
+  it('mixes old and new syntax in the same file', () => {
+    const result = parseTechRadar(`tech-radar Mixed
+
+rings
+  Adopt
+  Trial
+
+A | quadrant: top-right
+  Adopt
+    NewSyntax
+  OldSyntax | ring: Trial, trend: new
+B | quadrant: top-left
+  Adopt
+    B1
+C | quadrant: bottom-left
+  Trial
+    C1
+D | quadrant: bottom-right
+  Adopt
+    D1
+`);
+    expect(result.diagnostics).toHaveLength(0);
+    const a = result.quadrants.find((q) => q.position === 'top-right')!;
+    expect(a.blips).toHaveLength(2);
+    expect(a.blips[0].name).toBe('NewSyntax');
+    expect(a.blips[0].ring).toBe('Adopt');
+    expect(a.blips[1].name).toBe('OldSyntax');
+    expect(a.blips[1].ring).toBe('Trial');
+    expect(a.blips[1].trend).toBe('new');
+  });
+
+  it('explicit ring: metadata overrides section ring', () => {
+    const result = parseTechRadar(`tech-radar Override
+
+rings
+  Adopt
+  Trial
+
+A | quadrant: top-right
+  Adopt
+    Blip | ring: Trial
+B | quadrant: top-left
+  Adopt
+    B1
+C | quadrant: bottom-left
+  Adopt
+    C1
+D | quadrant: bottom-right
+  Adopt
+    D1
+`);
+    expect(result.diagnostics).toHaveLength(0);
+    const a = result.quadrants.find((q) => q.position === 'top-right')!;
+    expect(a.blips[0].ring).toBe('Trial');
+  });
+
+  it('supports ring aliases in declarations and references', () => {
+    const result = parseTechRadar(`tech-radar Aliases
+
+rings
+  Adopt alias a
+  Trial aka t
+  Hold
+
+A | quadrant: top-right
+  a
+    X
+  t
+    Y | trend: up
+B | quadrant: top-left
+  a
+    B1
+C | quadrant: bottom-left
+  Hold
+    C1
+D | quadrant: bottom-right
+  a
+    D1
+`);
+    expect(result.diagnostics).toHaveLength(0);
+    expect(result.rings[0].name).toBe('Adopt');
+    expect(result.rings[0].alias).toBe('a');
+    expect(result.rings[1].name).toBe('Trial');
+    expect(result.rings[1].alias).toBe('t');
+    expect(result.rings[2].alias).toBeNull();
+
+    const a = result.quadrants.find((q) => q.position === 'top-right')!;
+    expect(a.blips[0].name).toBe('X');
+    expect(a.blips[0].ring).toBe('Adopt'); // resolved from alias
+    expect(a.blips[1].name).toBe('Y');
+    expect(a.blips[1].ring).toBe('Trial'); // resolved from alias
+  });
+
+  it('supports ring alias in pipe metadata', () => {
+    const result = parseTechRadar(`tech-radar Alias Pipe
+
+rings
+  Adopt alias a
+  Trial
+
+A | quadrant: top-right
+  X | ring: a, trend: new
+B | quadrant: top-left
+  Trial
+    B1
+C | quadrant: bottom-left
+  Trial
+    C1
+D | quadrant: bottom-right
+  Trial
+    D1
+`);
+    expect(result.diagnostics).toHaveLength(0);
+    const a = result.quadrants.find((q) => q.position === 'top-right')!;
+    expect(a.blips[0].ring).toBe('Adopt');
+    expect(a.blips[0].trend).toBe('new');
   });
 });

@@ -62,12 +62,34 @@ export function parseTechRadar(content: string): ParsedTechRadar {
     return fail(0, 'No content provided');
   }
 
+  /** Check if a string matches a declared ring name or alias (case-insensitive). */
+  function isRingName(name: string): boolean {
+    const lower = name.toLowerCase();
+    return result.rings.some(
+      (r) =>
+        r.name.toLowerCase() === lower ||
+        (r.alias !== null && r.alias.toLowerCase() === lower)
+    );
+  }
+
+  /** Get the canonical ring name for a case-insensitive match (by name or alias). */
+  function canonicalRingName(name: string): string {
+    const lower = name.toLowerCase();
+    const ring = result.rings.find(
+      (r) =>
+        r.name.toLowerCase() === lower ||
+        (r.alias !== null && r.alias.toLowerCase() === lower)
+    );
+    return ring?.name ?? name;
+  }
+
   const lines = content.split('\n');
   let headerParsed = false;
   let inRingsBlock = false;
   let currentQuadrant: TechRadarQuadrant | null = null;
   let currentBlip: TechRadarBlip | null = null;
   let blipBaseIndent = 0;
+  let currentRing: string | null = null; // active ring section (new syntax)
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -95,7 +117,6 @@ export function parseTechRadar(content: string): ParsedTechRadar {
         headerParsed = true;
         continue;
       }
-      // If first non-empty line is not the chart type, fail
       return fail(lineNumber, 'Expected "tech-radar" chart type declaration');
     }
 
@@ -108,15 +129,25 @@ export function parseTechRadar(content: string): ParsedTechRadar {
       inRingsBlock = true;
       currentBlip = null;
       currentQuadrant = null;
+      currentRing = null;
       continue;
     }
 
     if (inRingsBlock) {
       if (indent > 0) {
-        result.rings.push({ name: trimmed, lineNumber });
+        // Parse ring declaration: `Name`, `Name alias a`, or `Name aka a`
+        const aliasMatch = trimmed.match(/^(.+?)\s+(?:alias|aka)\s+(\S+)\s*$/i);
+        if (aliasMatch) {
+          result.rings.push({
+            name: aliasMatch[1].trim(),
+            alias: aliasMatch[2].trim(),
+            lineNumber,
+          });
+        } else {
+          result.rings.push({ name: trimmed, alias: null, lineNumber });
+        }
         continue;
       }
-      // Non-indented line ends rings block
       inRingsBlock = false;
     }
 
@@ -154,7 +185,6 @@ export function parseTechRadar(content: string): ParsedTechRadar {
           continue;
         }
 
-        // Check for duplicate position
         const existing = result.quadrants.find((q) => q.position === position);
         if (existing) {
           result.diagnostics.push(
@@ -178,94 +208,114 @@ export function parseTechRadar(content: string): ParsedTechRadar {
         };
         result.quadrants.push(currentQuadrant);
         currentBlip = null;
+        currentRing = null;
         continue;
       }
     }
 
-    // --- Blip: indented line with pipe metadata under a quadrant ---
-    if (currentQuadrant && indent > 0 && trimmed.includes('|')) {
-      const segments = trimmed.split('|');
-      const meta = parsePipeMetadata(segments);
-      const ringName = meta['ring'];
-
-      if (!ringName) {
-        result.diagnostics.push(
-          makeDgmoError(
-            lineNumber,
-            `Blip "${segments[0].trim()}" is missing required "ring" metadata`
-          )
-        );
-        continue;
-      }
-
-      // Validate ring name matches a declared ring
+    // --- Inside a quadrant ---
+    if (currentQuadrant && indent > 0) {
+      // --- Ring section header (new syntax): indented line matching a declared ring name ---
       if (
+        !trimmed.includes('|') &&
         result.rings.length > 0 &&
-        !result.rings.some(
-          (r) => r.name.toLowerCase() === ringName.toLowerCase()
-        )
+        isRingName(trimmed)
       ) {
-        const hint = suggest(
-          ringName,
-          result.rings.map((r) => r.name)
-        );
-        let msg = `Unknown ring "${ringName}" on blip "${segments[0].trim()}"`;
-        if (hint) msg += `. ${hint}`;
-        result.diagnostics.push(makeDgmoError(lineNumber, msg));
+        currentRing = canonicalRingName(trimmed);
+        currentBlip = null;
         continue;
       }
 
-      // Resolve the canonical ring name (case-insensitive match)
-      const canonicalRing =
-        result.rings.find(
-          (r) => r.name.toLowerCase() === ringName.toLowerCase()
-        )?.name ?? ringName;
-
-      // Parse optional trend
-      let trend: BlipTrend | null = null;
-      if (meta['trend']) {
-        const trendVal = meta['trend'].toLowerCase() as BlipTrend;
-        if (!VALID_TRENDS.includes(trendVal)) {
-          const hint = suggest(meta['trend'], [...VALID_TRENDS]);
-          let msg = `Unknown trend "${meta['trend']}" on blip "${segments[0].trim()}". Must be one of: ${VALID_TRENDS.join(', ')}`;
-          if (hint) msg += `. ${hint}`;
-          result.diagnostics.push(makeDgmoError(lineNumber, msg, 'warning'));
-        } else {
-          trend = trendVal;
-        }
-      }
-
-      currentBlip = {
-        name: segments[0].trim(),
-        ring: canonicalRing,
-        trend,
-        description: [],
-        lineNumber,
-        globalNumber: 0, // assigned later
-      };
-      blipBaseIndent = indent;
-      currentQuadrant.blips.push(currentBlip);
-      continue;
-    }
-
-    // --- Description lines: indented deeper than blip ---
-    if (currentBlip && indent > blipBaseIndent) {
-      currentBlip.description.push(trimmed);
-      continue;
-    }
-
-    // --- Blip without pipe metadata (plain indented line under quadrant) ---
-    if (currentQuadrant && indent > 0 && !trimmed.includes('|')) {
-      // Could be a description line for the current blip
+      // --- Description lines: indented deeper than current blip ---
       if (currentBlip && indent > blipBaseIndent) {
         currentBlip.description.push(trimmed);
         continue;
       }
-      // Otherwise it's a blip missing ring metadata
+
+      // --- Blip with pipe metadata ---
+      if (trimmed.includes('|')) {
+        const segments = trimmed.split('|');
+        const meta = parsePipeMetadata(segments);
+
+        // Determine ring: explicit `ring:` metadata overrides section ring
+        const explicitRing = meta['ring'];
+        const effectiveRing = explicitRing
+          ? canonicalRingName(explicitRing)
+          : currentRing;
+
+        if (!effectiveRing) {
+          result.diagnostics.push(
+            makeDgmoError(
+              lineNumber,
+              `Blip "${segments[0].trim()}" has no ring assignment. Use a ring section header or add "ring: RingName" metadata.`
+            )
+          );
+          continue;
+        }
+
+        // Validate ring name
+        if (
+          explicitRing &&
+          result.rings.length > 0 &&
+          !isRingName(explicitRing)
+        ) {
+          const hint = suggest(
+            explicitRing,
+            result.rings.map((r) => r.name)
+          );
+          let msg = `Unknown ring "${explicitRing}" on blip "${segments[0].trim()}"`;
+          if (hint) msg += `. ${hint}`;
+          result.diagnostics.push(makeDgmoError(lineNumber, msg));
+          continue;
+        }
+
+        // Parse optional trend
+        let trend: BlipTrend | null = null;
+        if (meta['trend']) {
+          const trendVal = meta['trend'].toLowerCase() as BlipTrend;
+          if (!VALID_TRENDS.includes(trendVal)) {
+            const hint = suggest(meta['trend'], [...VALID_TRENDS]);
+            let msg = `Unknown trend "${meta['trend']}" on blip "${segments[0].trim()}". Must be one of: ${VALID_TRENDS.join(', ')}`;
+            if (hint) msg += `. ${hint}`;
+            result.diagnostics.push(makeDgmoError(lineNumber, msg, 'warning'));
+          } else {
+            trend = trendVal;
+          }
+        }
+
+        currentBlip = {
+          name: segments[0].trim(),
+          ring: effectiveRing,
+          trend,
+          description: [],
+          lineNumber,
+          globalNumber: 0,
+        };
+        blipBaseIndent = indent;
+        currentQuadrant.blips.push(currentBlip);
+        continue;
+      }
+
+      // --- Blip without pipe metadata (plain name, inherits ring from section) ---
+      if (currentRing) {
+        currentBlip = {
+          name: trimmed,
+          ring: currentRing,
+          trend: null,
+          description: [],
+          lineNumber,
+          globalNumber: 0,
+        };
+        blipBaseIndent = indent;
+        currentQuadrant.blips.push(currentBlip);
+        continue;
+      }
+
+      // No ring section and no pipe metadata — error
       result.diagnostics.push(
         makeDgmoError(
           lineNumber,
-          `Blip "${trimmed}" is missing required pipe metadata (ring assignment). Use: ${trimmed} | ring: RingName`
+          `Blip "${trimmed}" has no ring assignment. Place it under a ring section header or use: ${trimmed} | ring: RingName`
         )
       );
       continue;
@@ -273,7 +323,6 @@ export function parseTechRadar(content: string): ParsedTechRadar {
 
     // --- Unrecognized top-level line ---
     if (indent === 0) {
-      // Could be a quadrant without pipe metadata
       if (!trimmed.includes('|') && headerParsed && result.rings.length > 0) {
         warn(
           lineNumber,
@@ -322,7 +371,6 @@ function assignGlobalNumbers(result: ParsedTechRadar): void {
     const quadrant = result.quadrants.find((q) => q.position === position);
     if (!quadrant) continue;
 
-    // Sort blips by ring order (innermost first), then by declaration order
     const sortedBlips = [...quadrant.blips].sort((a, b) => {
       const aRing = ringOrder.indexOf(a.ring);
       const bRing = ringOrder.indexOf(b.ring);

@@ -14,6 +14,7 @@ export type BlipTrend = 'new' | 'up' | 'down' | 'stable';
 
 export interface TechRadarRing {
   name: string;
+  alias: string | null;
   lineNumber: number;
 }
 
@@ -75,4 +76,6 @@ export interface TechRadarRenderOptions {
   activeLegendGroup?: string | null;
   /** Callback when a legend group pill is toggled. */
   onLegendGroupToggle?: (groupName: string) => void;
+  /** Active line from the editor cursor — triggers popover/expansion for that blip. */
+  activeLine?: number | null;
 }

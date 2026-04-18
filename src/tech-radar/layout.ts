@@ -37,8 +37,8 @@ function getQuadrantArc(position: QuadrantPosition): {
 }
 
 /** Blip circle radius in pixels — scales down when slices are dense. */
-const BASE_BLIP_RADIUS = 9;
-const MIN_BLIP_RADIUS = 5;
+const BASE_BLIP_RADIUS = 12;
+const MIN_BLIP_RADIUS = 7;
 
 /**
  * Compute deterministic, non-overlapping blip positions for a tech radar.
