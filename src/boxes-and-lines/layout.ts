@@ -352,8 +352,22 @@ export function layoutBoxesAndLines(
     expandedGroupIds.add(`__group_${group.label}`);
   }
 
+  // Map expanded group IDs to their first child node (for proxy edges)
+  const groupFirstChild = new Map<string, string>();
+  for (const group of parsed.groups) {
+    const gid = `__group_${group.label}`;
+    // Find first child that is a plain node (not a sub-group)
+    const firstChild = group.children.find(
+      (c) => !groupLabelSet.has(c) && g.hasNode(c)
+    );
+    if (firstChild) {
+      groupFirstChild.set(gid, firstChild);
+    }
+  }
+
   // Add edges — skip edges where either endpoint is an expanded compound parent
   const deferredEdgeIndices: number[] = [];
+  let proxyIdx = 0;
   for (let i = 0; i < parsed.edges.length; i++) {
     const edge = parsed.edges[i];
     const src = edge.source;
@@ -361,6 +375,21 @@ export function layoutBoxesAndLines(
     if (!g.hasNode(src) || !g.hasNode(tgt)) continue;
     if (expandedGroupIds.has(src) || expandedGroupIds.has(tgt)) {
       deferredEdgeIndices.push(i);
+      // Add invisible proxy edge between child nodes so dagre ranks the groups
+      const proxySrc = expandedGroupIds.has(src)
+        ? groupFirstChild.get(src)
+        : src;
+      const proxyTgt = expandedGroupIds.has(tgt)
+        ? groupFirstChild.get(tgt)
+        : tgt;
+      if (proxySrc && proxyTgt && proxySrc !== proxyTgt) {
+        g.setEdge(
+          proxySrc,
+          proxyTgt,
+          { label: '', minlen: 1 },
+          `proxy${proxyIdx++}`
+        );
+      }
       continue;
     }
     g.setEdge(src, tgt, { label: edge.label ?? '', minlen: 1 }, `e${i}`);
@@ -418,6 +447,88 @@ export function layoutBoxesAndLines(
     });
   }
 
+  // Center-align groups connected by group-to-group edges.
+  // Dagre can't rank expanded compound parents directly, and collapsed groups
+  // may also end up misaligned. Post-process to share a common center axis.
+  // Track per-group shifts so regular edge points can be adjusted too.
+  const groupAlignShifts = new Map<string, number>(); // gid → shift in alignment axis
+  {
+    // Find all group-to-group edges (both deferred and regular)
+    const groupEdges: { source: string; target: string }[] = [];
+    for (const edge of parsed.edges) {
+      if (
+        edge.source.startsWith('__group_') &&
+        edge.target.startsWith('__group_')
+      ) {
+        groupEdges.push(edge);
+      }
+    }
+
+    if (groupEdges.length > 0) {
+      // Build connected components via union-find
+      const groupParent = new Map<string, string>();
+      const find = (x: string): string => {
+        while (groupParent.has(x) && groupParent.get(x) !== x) {
+          groupParent.set(x, groupParent.get(groupParent.get(x)!)!);
+          x = groupParent.get(x)!;
+        }
+        return x;
+      };
+      const union = (a: string, b: string) => {
+        const ra = find(a),
+          rb = find(b);
+        if (ra !== rb) groupParent.set(ra, rb);
+      };
+
+      for (const edge of groupEdges) {
+        if (!groupParent.has(edge.source))
+          groupParent.set(edge.source, edge.source);
+        if (!groupParent.has(edge.target))
+          groupParent.set(edge.target, edge.target);
+        union(edge.source, edge.target);
+      }
+
+      // Group layout groups by connected component
+      const components = new Map<string, BLLayoutGroup[]>();
+      for (const lg of layoutGroups) {
+        const gid = `__group_${lg.label}`;
+        if (!groupParent.has(gid)) continue;
+        const root = find(gid);
+        if (!components.has(root)) components.set(root, []);
+        components.get(root)!.push(lg);
+      }
+
+      // For each component, align on the widest group's center
+      const axis = parsed.direction === 'TB' ? 'x' : 'y';
+      for (const groups of components.values()) {
+        if (groups.length < 2) continue;
+        const dim = axis === 'x' ? 'width' : 'height';
+        let widest = groups[0];
+        for (const g of groups) {
+          if (g[dim] > widest[dim]) widest = g;
+        }
+        const targetCenter = widest[axis];
+
+        for (const grp of groups) {
+          const dx = targetCenter - grp[axis];
+          if (dx === 0) continue;
+          grp[axis] += dx;
+          groupAlignShifts.set(`__group_${grp.label}`, dx);
+          // Shift child nodes in this group (expanded groups only)
+          const parsedGroup = parsed.groups.find(
+            (pg) => pg.label === grp.label
+          );
+          if (parsedGroup) {
+            for (const childLabel of parsedGroup.children) {
+              const childNode = layoutNodes.find((n) => n.label === childLabel);
+              if (childNode) childNode[axis] += dx;
+            }
+          }
+        }
+      }
+    }
+  }
+
   // Compute parallel edge offsets
   const edgeYOffsets: number[] = new Array(parsed.edges.length).fill(0);
   const edgeParallelCounts: number[] = new Array(parsed.edges.length).fill(1);
@@ -459,32 +570,64 @@ export function layoutBoxesAndLines(
     let points: { x: number; y: number }[];
 
     if (deferredSet.has(i)) {
-      // Deferred edge (compound parent endpoint) — compute points clipped to border
-      const srcNode = g.node(edge.source);
-      const tgtNode = g.node(edge.target);
-      if (!srcNode || !tgtNode) continue;
-      const srcPt = clipToRectBorder(
-        srcNode.x,
-        srcNode.y,
-        srcNode.width,
-        srcNode.height,
-        tgtNode.x,
-        tgtNode.y
+      // Deferred edge (compound parent endpoint) — use post-alignment layout
+      // positions and emit from center of the relevant border face
+      const srcLayout = layoutGroups.find(
+        (lg) => `__group_${lg.label}` === edge.source
       );
-      const tgtPt = clipToRectBorder(
-        tgtNode.x,
-        tgtNode.y,
-        tgtNode.width,
-        tgtNode.height,
-        srcNode.x,
-        srcNode.y
+      const tgtLayout = layoutGroups.find(
+        (lg) => `__group_${lg.label}` === edge.target
       );
-      const midX = (srcPt.x + tgtPt.x) / 2;
-      const midY = (srcPt.y + tgtPt.y) / 2;
-      points = [srcPt, { x: midX, y: midY }, tgtPt];
+      if (!srcLayout || !tgtLayout) {
+        // Fallback to dagre node positions for collapsed groups / mixed endpoints
+        const srcNode = g.node(edge.source);
+        const tgtNode = g.node(edge.target);
+        if (!srcNode || !tgtNode) continue;
+        const srcPt = clipToRectBorder(
+          srcNode.x,
+          srcNode.y,
+          srcNode.width,
+          srcNode.height,
+          tgtNode.x,
+          tgtNode.y
+        );
+        const tgtPt = clipToRectBorder(
+          tgtNode.x,
+          tgtNode.y,
+          tgtNode.width,
+          tgtNode.height,
+          srcNode.x,
+          srcNode.y
+        );
+        const midX = (srcPt.x + tgtPt.x) / 2;
+        const midY = (srcPt.y + tgtPt.y) / 2;
+        points = [srcPt, { x: midX, y: midY }, tgtPt];
+      } else if (parsed.direction === 'TB') {
+        // TB: straight vertical line from bottom-center to top-center
+        const cx = (srcLayout.x + tgtLayout.x) / 2;
+        const srcPt = { x: cx, y: srcLayout.y + srcLayout.height / 2 };
+        const tgtPt = { x: cx, y: tgtLayout.y - tgtLayout.height / 2 };
+        const midY = (srcPt.y + tgtPt.y) / 2;
+        points = [srcPt, { x: cx, y: midY }, tgtPt];
+      } else {
+        // LR: straight horizontal line from right-center to left-center
+        const cy = (srcLayout.y + tgtLayout.y) / 2;
+        const srcPt = { x: srcLayout.x + srcLayout.width / 2, y: cy };
+        const tgtPt = { x: tgtLayout.x - tgtLayout.width / 2, y: cy };
+        const midX = (srcPt.x + tgtPt.x) / 2;
+        points = [srcPt, { x: midX, y: cy }, tgtPt];
+      }
     } else {
       const dagreEdge = g.edge(edge.source, edge.target, `e${i}`);
       points = dagreEdge?.points ?? [];
+      // If endpoints were shifted by center-alignment, adjust edge points
+      const srcShift = groupAlignShifts.get(edge.source) ?? 0;
+      const tgtShift = groupAlignShifts.get(edge.target) ?? 0;
+      if (srcShift !== 0 || tgtShift !== 0) {
+        const avgShift = (srcShift + tgtShift) / 2;
+        const prop = parsed.direction === 'TB' ? 'x' : 'y';
+        points = points.map((p) => ({ ...p, [prop]: p[prop] + avgShift }));
+      }
     }
 
     // Compute label position at midpoint

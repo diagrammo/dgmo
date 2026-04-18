@@ -480,7 +480,18 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
 
       // Indented shorthand: `-> Target` or `-label-> Target`
       if (trimmed.startsWith('->') || /^-[^>].*->/.test(trimmed)) {
-        if (!lastNodeLabel) {
+        // If the edge is at group-child indent level, use the containing group
+        const gs = currentGroupState();
+        const inGroup = gs && indent > gs.indent;
+        if (inGroup) {
+          const sourcePrefix = `[${gs.group.label}]`;
+          edgeText = `${sourcePrefix} ${trimmed}`;
+        } else if (lastNodeLabel) {
+          const sourcePrefix = lastSourceIsGroup
+            ? `[${lastNodeLabel}]`
+            : lastNodeLabel;
+          edgeText = `${sourcePrefix} ${trimmed}`;
+        } else {
           result.diagnostics.push(
             makeDgmoError(
               lineNum,
@@ -490,10 +501,6 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
           );
           continue;
         }
-        const sourcePrefix = lastSourceIsGroup
-          ? `[${lastNodeLabel}]`
-          : lastNodeLabel;
-        edgeText = `${sourcePrefix} ${trimmed}`;
       }
 
       const edge = parseEdgeLine(

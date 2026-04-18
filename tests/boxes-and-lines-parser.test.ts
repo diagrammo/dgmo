@@ -152,6 +152,15 @@ describe('boxes-and-lines parser', () => {
         result.diagnostics.some((d) => d.message.includes('no preceding node'))
       ).toBe(true);
     });
+
+    it('uses containing group as source when inside a group', () => {
+      const result = parseBoxesAndLines(
+        'boxes-and-lines\n[AI Only]\n  Boilerplate\n  Log aggregation\n  ->[Human + AI]\n[Human + AI]\n  Code review'
+      );
+      expect(result.edges).toHaveLength(1);
+      expect(result.edges[0].source).toBe('__group_AI Only');
+      expect(result.edges[0].target).toBe('__group_Human + AI');
+    });
   });
 
   describe('groups', () => {
