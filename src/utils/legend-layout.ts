@@ -556,7 +556,9 @@ function layoutRows(
 
   // Commit last row
   if (currentRowItems.length > 0) {
-    centerRowItems(currentRowItems, containerWidth, totalControlsW, gearW);
+    if (!alignLeft) {
+      centerRowItems(currentRowItems, containerWidth, totalControlsW, gearW);
+    }
     rows.push({ y: rowY, items: currentRowItems });
   }
 

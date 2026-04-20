@@ -176,6 +176,15 @@ Plan | color: blue
 Do | color: green
 Check | color: orange
 Act | color: red`,
+
+  'journey-map': `journey-map Test Journey
+
+[Phase One]
+  Step A | 4
+  Step B | 2
+
+[Phase Two]
+  Step C | 5`,
 };
 
 // All D3 types now render in JSDOM via explicit dimensions (Epic 41)
@@ -194,6 +203,7 @@ const D3_TYPES = [
   'sitemap',
   'infra',
   'gantt',
+  'journey-map',
 ];
 
 // Wordcloud requires HTMLCanvasElement.getContext('2d') for d3-cloud text measurement —

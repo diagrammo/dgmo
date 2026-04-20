@@ -21,6 +21,7 @@ import { parseMindmap } from './mindmap/parser';
 import { parseWireframe } from './wireframe/parser';
 import { parseTechRadar } from './tech-radar/parser';
 import { parseCycle } from './cycle/parser';
+import { parseJourneyMap } from './journey-map/parser';
 import { parseFirstLine } from './utils/parsing';
 import { makeDgmoError, suggest } from './diagnostics';
 import type { DgmoError } from './diagnostics';
@@ -157,6 +158,7 @@ const DIAGRAM_TYPES = new Set([
   'boxes-and-lines',
   'mindmap',
   'wireframe',
+  'journey-map',
 ]);
 const EXTENDED_CHART_TYPES = new Set([
   'scatter',
@@ -240,6 +242,7 @@ const PARSE_DISPATCH = new Map<
   ['wireframe', (c) => parseWireframe(c)],
   ['tech-radar', (c) => parseTechRadar(c)],
   ['cycle', (c) => parseCycle(c)],
+  ['journey-map', (c) => parseJourneyMap(c)],
 ]);
 
 /**

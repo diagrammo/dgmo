@@ -7076,6 +7076,30 @@ export async function renderForExport(
     return finalizeSvgExport(container, theme, effectivePalette);
   }
 
+  if (detectedType === 'journey-map') {
+    const { parseJourneyMap } = await import('./journey-map/parser');
+    const { renderJourneyMap } = await import('./journey-map/renderer');
+    const { layoutJourneyMap } = await import('./journey-map/layout');
+
+    const effectivePalette = await resolveExportPalette(theme, palette);
+    const jmParsed = parseJourneyMap(content, effectivePalette);
+    if (
+      jmParsed.error ||
+      (jmParsed.phases.length === 0 && jmParsed.steps.length === 0)
+    )
+      return '';
+
+    const jmLayout = layoutJourneyMap(jmParsed, effectivePalette);
+    const container = createExportContainer(
+      jmLayout.totalWidth,
+      jmLayout.totalHeight
+    );
+    renderJourneyMap(container, jmParsed, effectivePalette, theme === 'dark', {
+      exportDims: { width: jmLayout.totalWidth, height: jmLayout.totalHeight },
+    });
+    return finalizeSvgExport(container, theme, effectivePalette);
+  }
+
   if (detectedType === 'cycle') {
     const { parseCycle } = await import('./cycle/parser');
     const { renderCycleForExport } = await import('./cycle/renderer');

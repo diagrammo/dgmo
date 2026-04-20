@@ -374,6 +374,13 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       },
     }),
   ],
+  [
+    'journey-map',
+    withGlobals({
+      'no-legend': { description: 'Hide the score legend' },
+      persona: { description: 'Define the journey persona' },
+    }),
+  ],
 ]);
 
 // ============================================================
@@ -421,6 +428,7 @@ const CHART_TYPE_DESCRIPTIONS: Record<string, string> = {
   wireframe: 'UI wireframe diagram',
   'tech-radar': 'Technology adoption radar (ThoughtWorks style)',
   cycle: 'Cycle diagram (circular process flow)',
+  'journey-map': 'User journey map with emotion curve',
 };
 
 /** All chart types with descriptions, for chart type autocomplete. Excludes `multi-line` alias. */
@@ -1096,6 +1104,7 @@ registerExtractor('gantt', extractGanttSymbols);
 registerExtractor('boxes-and-lines', extractBoxesAndLinesSymbols);
 registerExtractor('tech-radar', extractTechRadarSymbols);
 registerExtractor('cycle', extractCycleSymbols);
+registerExtractor('journey-map', extractJourneyMapSymbols);
 
 function extractTechRadarSymbols(docText: string): DiagramSymbols {
   const entities: string[] = [];
@@ -1188,6 +1197,68 @@ function extractCycleSymbols(docText: string): DiagramSymbols {
       'direction-counterclockwise',
       'hide-descriptions',
       'circle-nodes',
+    ],
+  };
+}
+
+function extractJourneyMapSymbols(docText: string): DiagramSymbols {
+  const lines = docText.split('\n');
+  const entities: string[] = [];
+  let pastFirstLine = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('//')) continue;
+
+    if (!pastFirstLine) {
+      pastFirstLine = true;
+      continue;
+    }
+
+    // Skip directives/metadata at indent 0
+    const firstToken = trimmed.split(/\s+/)[0].toLowerCase();
+    if (METADATA_KEY_SET.has(firstToken)) continue;
+    if (
+      firstToken === 'persona' ||
+      firstToken === 'tag' ||
+      firstToken === 'no-legend'
+    )
+      continue;
+
+    const isIndented = line[0] === ' ' || line[0] === '\t';
+
+    // Skip deep-indented lines (annotations, descriptions under steps)
+    // but keep singly-indented lines (steps within phases)
+    if (isIndented) {
+      // Annotation/description keywords — skip
+      if (/^(pain|opportunity|thought|description)\s*:/i.test(trimmed))
+        continue;
+      // Tag group entries — skip
+      if (/^\S+\([^)]+\)/.test(trimmed)) continue;
+    }
+
+    // Phase header
+    const phaseMatch = trimmed.match(/^\[(.+?)\]$/);
+    if (phaseMatch) {
+      entities.push(phaseMatch[1].trim());
+      continue;
+    }
+
+    // Step label (strip pipe metadata) — works for both indent 0 and indented steps
+    const label = trimmed.split('|')[0].trim();
+    if (label && !entities.includes(label)) entities.push(label);
+  }
+
+  return {
+    kind: 'journey-map',
+    entities,
+    keywords: [
+      'persona',
+      'no-legend',
+      'pain',
+      'opportunity',
+      'thought',
+      'description',
     ],
   };
 }

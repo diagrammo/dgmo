@@ -16,6 +16,7 @@ export const CHART_TYPES = new Set([
   'wireframe',
   'tech-radar',
   'mindmap',
+  'journey-map',
   // Data chart types
   'bar',
   'line',

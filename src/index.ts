@@ -391,6 +391,22 @@ export type {
   CycleLayoutResult,
 } from './cycle/types';
 
+export { parseJourneyMap } from './journey-map/parser';
+export { layoutJourneyMap } from './journey-map/layout';
+export type { JourneyMapLayout } from './journey-map/layout';
+export {
+  renderJourneyMap,
+  renderJourneyMapForExport,
+} from './journey-map/renderer';
+export type {
+  ParsedJourneyMap,
+  JourneyMapPhase,
+  JourneyMapStep,
+  JourneyMapPersona,
+  JourneyMapAnnotation,
+} from './journey-map/types';
+export type { JourneyMapInteractiveOptions } from './journey-map/renderer';
+
 export { resolveOrgImports } from './org/resolver';
 export type {
   ReadFileFn,
