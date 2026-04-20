@@ -62,6 +62,9 @@ const FONT_SIZE_META = 10;
 const GRID_LINE_OPACITY = 0.15;
 const CURVE_STROKE_WIDTH = 2.5;
 const FACE_RADIUS = 14;
+const DIM_HOVER = 0.25;
+const TITLE_LINE_HEIGHT = 16;
+const TITLE_CHAR_WIDTH = 6.5;
 
 // ============================================================
 // Renderer
@@ -301,8 +304,6 @@ export function renderJourneyMap(
 
     const legendState: LegendState = { activeGroup: effectiveActiveGroup };
 
-    const DIM_HOVER = 0.25;
-
     const legendCallbacks: import('../utils/legend-types').LegendCallbacks = {
       ...(onActiveTagGroupChange
         ? {
@@ -406,16 +407,55 @@ export function renderJourneyMap(
       .attr('stroke-opacity', GRID_LINE_OPACITY)
       .attr('stroke-dasharray', '4,4');
 
-    // Score label
-    curveG
-      .append('text')
-      .attr('x', PADDING - 4)
-      .attr('y', y + 4)
-      .attr('text-anchor', 'end')
-      .attr('font-size', FONT_SIZE_META)
-      .attr('fill', palette.textMuted)
-      .attr('opacity', 0.5)
-      .text(String(score));
+    // Score label — emotion face icon
+    const SCORE_LABEL_R = 8;
+    const labelG = curveG.append('g').attr('class', 'journey-score-label');
+    renderScoreFace(
+      labelG,
+      PADDING - SCORE_LABEL_R - 2,
+      y,
+      score,
+      palette,
+      SCORE_LABEL_R
+    );
+
+    // Interactive hover: highlight faces + cards matching this score
+    if (!exportDims) {
+      const scoreStr = String(score);
+      labelG.style('cursor', 'pointer');
+      labelG.on('mouseenter', () => {
+        svg.selectAll<SVGGElement, unknown>('.journey-step').each(function () {
+          const hit = this.getAttribute('data-score') === scoreStr;
+          d3.select(this).style('opacity', hit ? '1' : String(DIM_HOVER));
+        });
+        svg.selectAll<SVGGElement, unknown>('.journey-face').each(function () {
+          const hit = this.getAttribute('data-score') === scoreStr;
+          const sel = d3.select(this);
+          sel.style('opacity', hit ? '1' : String(DIM_HOVER));
+          if (hit) {
+            const fcx = parseFloat(sel.attr('data-cx') ?? '0');
+            const fcy = parseFloat(sel.attr('data-cy') ?? '0');
+            sel.attr(
+              'transform',
+              `translate(${fcx},${fcy}) scale(1.3) translate(${-fcx},${-fcy})`
+            );
+          } else {
+            sel.attr('transform', null);
+          }
+        });
+        svg
+          .selectAll<SVGGElement, unknown>('.journey-thought')
+          .style('opacity', String(DIM_HOVER));
+      });
+      labelG.on('mouseleave', () => {
+        svg.selectAll('.journey-step').style('opacity', null);
+        svg
+          .selectAll('.journey-face')
+          .style('opacity', null)
+          .attr('transform', null);
+        svg.selectAll('.journey-thought').style('opacity', null);
+      });
+    }
   }
 
   // Emotion curve (area fill + line)
@@ -482,6 +522,14 @@ export function renderJourneyMap(
         for (const [key, value] of Object.entries(step.tags)) {
           faceG.attr(`data-tag-${key.toLowerCase()}`, value);
         }
+        // Store thought text for hover-to-reveal
+        const thoughts = step.annotations.filter((a) => a.type === 'thought');
+        if (thoughts.length > 0) {
+          faceG.attr(
+            'data-thought',
+            thoughts.map((t) => t.text).join(' \u2022 ')
+          );
+        }
         if (onNavigateToLine) {
           faceG.style('cursor', 'pointer').on('click', () => {
             onNavigateToLine(step.lineNumber);
@@ -503,6 +551,13 @@ export function renderJourneyMap(
       faceG.attr('data-score', pt.score);
       for (const [key, value] of Object.entries(step.tags)) {
         faceG.attr(`data-tag-${key.toLowerCase()}`, value);
+      }
+      const thoughts = step.annotations.filter((a) => a.type === 'thought');
+      if (thoughts.length > 0) {
+        faceG.attr(
+          'data-thought',
+          thoughts.map((t) => t.text).join(' \u2022 ')
+        );
       }
       if (onNavigateToLine) {
         faceG.style('cursor', 'pointer').on('click', () => {
@@ -710,9 +765,13 @@ export function renderJourneyMap(
     }
   }
 
-  // ── Hover + cursor-line dimming ────────────────────────
+  // Top-level overlay group for hover elements (renders above everything)
+  const overlayG = svg.append('g').attr('class', 'journey-overlay');
+
+  // ── Hover + click-to-lock dimming ─────────────────────
   if (!exportDims) {
     const DIM_OPACITY = 0.35;
+    let lockedLine: number | null = null;
 
     // Helper: dim everything except elements matching a line number
     const applyDimming = (activeLine: number) => {
@@ -756,28 +815,164 @@ export function renderJourneyMap(
         .style('opacity', null)
         .attr('transform', null);
       svg.selectAll('.journey-phase').style('opacity', null);
+      overlayG.selectAll('.journey-thought-hover').remove();
     };
 
-    // Hover on faces
-    svg.selectAll('.journey-face').each(function () {
-      const el = d3.select(this);
-      el.on('mouseenter', () => {
-        const ln = parseInt(el.attr('data-line-number') ?? '0', 10);
-        if (ln) applyDimming(ln);
-      }).on('mouseleave', () => {
+    // Show thought bubble for a face in the overlay layer
+    const THOUGHT_FONT = 11;
+    const THOUGHT_PAD_X = 10;
+    const THOUGHT_PAD_Y = 6;
+    const THOUGHT_MAX_W = 200;
+    const THOUGHT_LINE_H = 14;
+    const THOUGHT_GAP = 10;
+
+    const showThoughtBubble = (
+      faceEl: d3.Selection<SVGGElement, unknown, null, undefined>
+    ) => {
+      overlayG.selectAll('.journey-thought-hover').remove();
+
+      const thoughtText = faceEl.attr('data-thought');
+      if (!thoughtText || !layout.hasThoughts) return;
+
+      const fcx = parseFloat(faceEl.attr('data-cx') ?? '0');
+      const fcy = parseFloat(faceEl.attr('data-cy') ?? '0');
+      const score = parseInt(faceEl.attr('data-score') ?? '3', 10);
+
+      const lines = wrapText(thoughtText, THOUGHT_MAX_W, THOUGHT_FONT);
+      const textW = Math.min(
+        THOUGHT_MAX_W,
+        Math.max(...lines.map((l) => l.length * 4.8))
+      );
+      const bw = textW + THOUGHT_PAD_X * 2;
+      const bh = lines.length * THOUGHT_LINE_H + THOUGHT_PAD_Y * 2;
+
+      // Position above the face, overlaying the curve area (clamp to stay in view)
+      const bx = Math.max(
+        PADDING,
+        Math.min(fcx - bw / 2, layout.totalWidth - PADDING - bw)
+      );
+      const by = Math.max(PADDING, fcy - FACE_RADIUS - THOUGHT_GAP - bh);
+
+      const scoreColor = scoreToColor(score, palette);
+      const tintedBg = mix(scoreColor, palette.surface, 20);
+
+      const g = overlayG.append('g').attr('class', 'journey-thought-hover');
+
+      g.append('rect')
+        .attr('x', bx)
+        .attr('y', by)
+        .attr('width', bw)
+        .attr('height', bh)
+        .attr('rx', CARD_RADIUS)
+        .attr('fill', tintedBg)
+        .attr('stroke', scoreColor)
+        .attr('stroke-width', CARD_STROKE_WIDTH);
+
+      // Connector line from bubble bottom to face top
+      g.append('line')
+        .attr('x1', fcx)
+        .attr('y1', by + bh)
+        .attr('x2', fcx)
+        .attr('y2', fcy - FACE_RADIUS - 1)
+        .attr('stroke', scoreColor)
+        .attr('stroke-width', CARD_STROKE_WIDTH);
+
+      const centerX = bx + bw / 2;
+      for (let i = 0; i < lines.length; i++) {
+        g.append('text')
+          .attr('x', centerX)
+          .attr('y', by + THOUGHT_PAD_Y + (i + 1) * THOUGHT_LINE_H - 2)
+          .attr('text-anchor', 'middle')
+          .attr('font-size', THOUGHT_FONT)
+          .attr('font-style', 'italic')
+          .attr('fill', palette.textMuted)
+          .text(lines[i]);
+      }
+    };
+
+    // Click background to unlock
+    svg.on('click', (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (
+        !target.closest('.journey-face') &&
+        !target.closest('.journey-step') &&
+        !target.closest('.journey-phase')
+      ) {
+        lockedLine = null;
         clearDimming();
-      });
+      }
     });
 
-    // Hover on step cards
+    // Find the curve face for a line number and show its thought bubble
+    const showThoughtForLine = (ln: number) => {
+      svg
+        .selectAll<SVGGElement, unknown>('.journey-curve-area .journey-face')
+        .each(function () {
+          const face = d3.select<SVGGElement, unknown>(this);
+          if (parseInt(face.attr('data-line-number') ?? '0', 10) === ln) {
+            showThoughtBubble(face);
+          }
+        });
+    };
+
+    // Hover + click on faces
+    svg.selectAll<SVGGElement, unknown>('.journey-face').each(function () {
+      const el = d3.select<SVGGElement, unknown>(this);
+      el.on('mouseenter', () => {
+        if (lockedLine !== null) return;
+        const ln = parseInt(el.attr('data-line-number') ?? '0', 10);
+        if (ln) {
+          applyDimming(ln);
+          showThoughtForLine(ln);
+        }
+      })
+        .on('mouseleave', () => {
+          if (lockedLine !== null) return;
+          clearDimming();
+        })
+        .on('click', (event: MouseEvent) => {
+          event.stopPropagation();
+          const ln = parseInt(el.attr('data-line-number') ?? '0', 10);
+          if (lockedLine === ln) {
+            lockedLine = null;
+            clearDimming();
+          } else {
+            lockedLine = ln;
+            applyDimming(ln);
+            showThoughtForLine(ln);
+            if (onNavigateToLine && ln) onNavigateToLine(ln);
+          }
+        });
+    });
+
+    // Hover + click on step cards
     svg.selectAll('.journey-step').each(function () {
       const el = d3.select(this);
       el.on('mouseenter', () => {
+        if (lockedLine !== null) return;
         const ln = parseInt(el.attr('data-line-number') ?? '0', 10);
-        if (ln) applyDimming(ln);
-      }).on('mouseleave', () => {
-        clearDimming();
-      });
+        if (ln) {
+          applyDimming(ln);
+          showThoughtForLine(ln);
+        }
+      })
+        .on('mouseleave', () => {
+          if (lockedLine !== null) return;
+          clearDimming();
+        })
+        .on('click', (event: MouseEvent) => {
+          event.stopPropagation();
+          const ln = parseInt(el.attr('data-line-number') ?? '0', 10);
+          if (lockedLine === ln) {
+            lockedLine = null;
+            clearDimming();
+          } else {
+            lockedLine = ln;
+            applyDimming(ln);
+            showThoughtForLine(ln);
+            if (onNavigateToLine && ln) onNavigateToLine(ln);
+          }
+        });
     });
   }
 }
@@ -866,16 +1061,36 @@ function renderStepCard(
     .attr('stroke', cardStroke)
     .attr('stroke-width', CARD_STROKE_WIDTH);
 
-  // Title
-  stepG
-    .append('text')
-    .attr('x', cx + CARD_PADDING_X)
-    .attr('y', cy + CARD_PADDING_Y + FONT_SIZE_STEP)
-    .attr('font-size', FONT_SIZE_STEP)
-    .attr('font-weight', '500')
-    .attr('fill', palette.text)
-    .text(truncateText(sl.step.title, sl.width - CARD_PADDING_X * 2));
+  // Title (wrapped)
+  const titleMaxW = sl.width - CARD_PADDING_X * 2;
+  const titleMaxChars = Math.max(1, Math.floor(titleMaxW / TITLE_CHAR_WIDTH));
+  const titleWords = sl.step.title.split(/\s+/);
+  const titleLines: string[] = [];
+  let titleCur = '';
+  for (const w of titleWords) {
+    const candidate = titleCur ? `${titleCur} ${w}` : w;
+    if (candidate.length > titleMaxChars && titleCur) {
+      titleLines.push(titleCur);
+      titleCur = w;
+    } else {
+      titleCur = candidate;
+    }
+  }
+  if (titleCur) titleLines.push(titleCur);
 
+  for (let i = 0; i < titleLines.length; i++) {
+    stepG
+      .append('text')
+      .attr('x', cx + CARD_PADDING_X)
+      .attr('y', cy + CARD_PADDING_Y + FONT_SIZE_STEP + i * TITLE_LINE_HEIGHT)
+      .attr('font-size', FONT_SIZE_STEP)
+      .attr('font-weight', '500')
+      .attr('fill', palette.text)
+      .text(titleLines[i]);
+  }
+
+  const titleBlockH =
+    CARD_PADDING_Y + titleLines.length * TITLE_LINE_HEIGHT + CARD_PADDING_Y;
   const cardAnnotations = sl.step.annotations;
 
   // Separator line between title and content (matches kanban)
@@ -885,15 +1100,15 @@ function renderStepCard(
     stepG
       .append('line')
       .attr('x1', cx)
-      .attr('y1', cy + CARD_HEADER_HEIGHT)
+      .attr('y1', cy + titleBlockH)
       .attr('x2', cx + sl.width)
-      .attr('y2', cy + CARD_HEADER_HEIGHT)
+      .attr('y2', cy + titleBlockH)
       .attr('stroke', cardStroke)
       .attr('stroke-opacity', 0.3)
       .attr('stroke-width', 1);
   }
 
-  let metaY = cy + CARD_HEADER_HEIGHT + CARD_META_LINE_HEIGHT;
+  let metaY = cy + titleBlockH + CARD_META_LINE_HEIGHT;
 
   // Description (wrapped text, matches kanban metadata style)
   if (sl.step.description) {
@@ -914,18 +1129,16 @@ function renderStepCard(
     }
   }
 
-  // Annotations (icon + wrapped text, matches kanban metadata style)
+  // Annotations (icon bullet + indented text)
   const ANNO_ICON_SIZE = 10;
   const ANNO_ICON_GAP = 4;
   const annoIconIndent = ANNO_ICON_SIZE + ANNO_ICON_GAP;
-  const annoFirstLineW = sl.width - CARD_PADDING_X * 2 - annoIconIndent;
-  const annoContinueW = sl.width - CARD_PADDING_X * 2;
+  const annoTextW = sl.width - CARD_PADDING_X * 2 - annoIconIndent;
   for (const anno of cardAnnotations) {
     const annoColor = annotationColor(anno.type, palette);
     const iconPaths = annotationIconPaths(anno.type);
-    // Wrap: first line shorter (icon), continuation lines use full width
-    const annoLines = wrapTextHanging(anno.text, annoFirstLineW, annoContinueW);
-    // Icon aligned to first line baseline
+    const annoLines = wrapText(anno.text, annoTextW, FONT_SIZE_META);
+    // Icon as bullet, aligned to first line
     renderAnnotationIcon(
       stepG,
       cx + CARD_PADDING_X,
@@ -934,11 +1147,11 @@ function renderStepCard(
       iconPaths,
       annoColor
     );
+    // All text lines indented past the icon
     for (let li = 0; li < annoLines.length; li++) {
-      const indented = li === 0;
       stepG
         .append('text')
-        .attr('x', cx + CARD_PADDING_X + (indented ? annoIconIndent : 0))
+        .attr('x', cx + CARD_PADDING_X + annoIconIndent)
         .attr('y', metaY)
         .attr('font-size', FONT_SIZE_META)
         .attr('fill', annoColor)
@@ -1114,7 +1327,7 @@ function renderScoreFace(
 }
 
 function wrapText(text: string, maxWidth: number, _fontSize: number): string[] {
-  const charWidth = 5.5;
+  const charWidth = 4.8;
   const maxChars = Math.floor(maxWidth / charWidth);
   if (maxChars <= 0) return [text];
 
@@ -1135,37 +1348,8 @@ function wrapText(text: string, maxWidth: number, _fontSize: number): string[] {
   return lines;
 }
 
-/** Wrap with a shorter first line (for hanging icon indent) and full-width continuation. */
-function wrapTextHanging(
-  text: string,
-  firstLineWidth: number,
-  continueWidth: number
-): string[] {
-  const charW = 5.5;
-  const firstMax = Math.max(1, Math.floor(firstLineWidth / charW));
-  const continueMax = Math.max(1, Math.floor(continueWidth / charW));
-  const words = text.split(/\s+/);
-  const lines: string[] = [];
-  let current = '';
-  let isFirst = true;
-
-  for (const word of words) {
-    const maxChars = isFirst ? firstMax : continueMax;
-    const candidate = current ? `${current} ${word}` : word;
-    if (candidate.length > maxChars && current) {
-      lines.push(current);
-      current = word;
-      isFirst = false;
-    } else {
-      current = candidate;
-    }
-  }
-  if (current) lines.push(current);
-  return lines;
-}
-
 function truncateText(text: string, maxWidth: number): string {
-  const maxChars = Math.floor(maxWidth / 7);
+  const maxChars = Math.floor(maxWidth / 4.8);
   if (text.length <= maxChars) return text;
   return text.substring(0, maxChars - 1) + '\u2026';
 }
@@ -1194,7 +1378,9 @@ const ICON_THUMBS_UP: string[] = [
   'M7 10v12',
 ];
 const ICON_THOUGHT: string[] = [
-  'M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z',
+  'M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5',
+  'M9 18h6',
+  'M10 22h4',
 ];
 
 function annotationIconPaths(type: JourneyMapAnnotation['type']): string[] {

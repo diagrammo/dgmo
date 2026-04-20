@@ -48,6 +48,8 @@ export interface JourneyMapLayout {
   cardAreaTop: number;
   personaHeight: number;
   titleHeight: number;
+  /** Whether any step has thought annotations */
+  hasThoughts: boolean;
 }
 
 // ============================================================
@@ -64,6 +66,7 @@ const CARD_HEADER_HEIGHT = 24;
 const CARD_META_LINE_HEIGHT = 14;
 const PHASE_HEADER_HEIGHT = 36;
 const CARD_PADDING_X = 10;
+const CARD_PADDING_Y = 6;
 const ANNO_ICON_SIZE = 10;
 const ANNO_ICON_GAP = 4;
 export const TAG_STRIP_HEIGHT = 18;
@@ -101,6 +104,15 @@ export function layoutJourneyMap(
 
   const titleHeight = hasTitle ? TITLE_HEIGHT : 0;
   const personaHeight = hasPersona ? PERSONA_HEIGHT : 0;
+
+  // Thought bubbles render as overlays on hover — no reserved vertical space
+  const allStepsForThoughts = hasPhases
+    ? parsed.phases.flatMap((p) => p.steps)
+    : parsed.steps;
+  const hasThoughts = allStepsForThoughts.some((s) =>
+    s.annotations.some((a) => a.type === 'thought')
+  );
+
   const curveAreaTop = PADDING + titleHeight + personaHeight;
   const curveAreaBottom = curveAreaTop + CURVE_AREA_HEIGHT;
   const cardAreaTop = curveAreaBottom + PADDING;
@@ -111,27 +123,30 @@ export function layoutJourneyMap(
 
   // Compute step card heights based on content (matches kanban card sizing)
   const annoIconIndent = ANNO_ICON_SIZE + ANNO_ICON_GAP;
-  const annoFirstLineW = STEP_CARD_WIDTH - CARD_PADDING_X * 2 - annoIconIndent;
-  const annoContinueW = STEP_CARD_WIDTH - CARD_PADDING_X * 2;
+  const annoTextW = STEP_CARD_WIDTH - CARD_PADDING_X * 2 - annoIconIndent;
   const descTextWidth = STEP_CARD_WIDTH - CARD_PADDING_X * 2;
-  const charWidth = 5.5; // average char width at FONT_SIZE_META (10px)
+  const charWidth = 4.8; // average char width at FONT_SIZE_META (10px)
+
+  const titleTextWidth = STEP_CARD_WIDTH - CARD_PADDING_X * 2;
+  const titleCharWidth = 6.5; // average char width at FONT_SIZE_STEP (12px)
+  const TITLE_LINE_HEIGHT = 16;
 
   const stepHeights = allSteps.map((step) => {
-    let h = CARD_HEADER_HEIGHT; // title row
+    const titleLines = wrapLineCount(
+      step.title,
+      titleTextWidth,
+      titleCharWidth
+    );
+    let h = CARD_PADDING_Y + titleLines * TITLE_LINE_HEIGHT + CARD_PADDING_Y;
     const cardAnnos = step.annotations;
     let contentLines = 0;
     // Description may wrap
     if (step.description) {
       contentLines += wrapLineCount(step.description, descTextWidth, charWidth);
     }
-    // Annotations: first line shorter (icon indent), continuation full width
+    // Annotations: all lines indented past icon
     for (const anno of cardAnnos) {
-      contentLines += wrapLineCountHanging(
-        anno.text,
-        annoFirstLineW,
-        annoContinueW,
-        charWidth
-      );
+      contentLines += wrapLineCount(anno.text, annoTextW, charWidth);
     }
     if (contentLines > 0) {
       h += contentLines * CARD_META_LINE_HEIGHT + 4; // 4px bottom padding
@@ -344,6 +359,7 @@ export function layoutJourneyMap(
     cardAreaTop,
     personaHeight,
     titleHeight,
+    hasThoughts,
   };
 }
 
@@ -362,33 +378,6 @@ function wrapLineCount(
     if (currentLen + needed > maxChars && currentLen > 0) {
       lines++;
       currentLen = word.length;
-    } else {
-      currentLen += needed;
-    }
-  }
-  return lines;
-}
-
-/** Count lines with a shorter first line (icon indent) and full-width continuation. */
-function wrapLineCountHanging(
-  text: string,
-  firstLineWidth: number,
-  continueWidth: number,
-  charWidth: number
-): number {
-  const firstMax = Math.max(1, Math.floor(firstLineWidth / charWidth));
-  const continueMax = Math.max(1, Math.floor(continueWidth / charWidth));
-  const words = text.split(/\s+/);
-  let lines = 1;
-  let currentLen = 0;
-  let isFirst = true;
-  for (const word of words) {
-    const maxChars = isFirst ? firstMax : continueMax;
-    const needed = currentLen > 0 ? word.length + 1 : word.length;
-    if (currentLen + needed > maxChars && currentLen > 0) {
-      lines++;
-      currentLen = word.length;
-      isFirst = false;
     } else {
       currentLen += needed;
     }

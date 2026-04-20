@@ -192,11 +192,12 @@ Hit error | 1`;
       const { container } = renderToContainer(input);
       const steps = container.querySelectorAll('.journey-step');
       expect(steps).toHaveLength(1);
-      // Face icon renders (has a mouth path) but no area fill path
+      // Face icon renders on the curve (has a mouth path) but no area fill path
+      // 5 score-label faces + 1 curve-point face = 6
       const faces = container.querySelectorAll(
         '.journey-curve-area .journey-face'
       );
-      expect(faces).toHaveLength(1);
+      expect(faces).toHaveLength(6);
       // No area fill or line stroke paths (only the face mouth path)
       const areaPaths = container.querySelectorAll(
         '.journey-curve-area > path'
