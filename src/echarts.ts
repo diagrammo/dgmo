@@ -1913,7 +1913,7 @@ function buildFunnelOption(
     bottom: 20,
     width: '60%',
     sort: 'descending' as const,
-    gap: 2,
+    gap: 0,
     minSize: '8%',
   };
 
