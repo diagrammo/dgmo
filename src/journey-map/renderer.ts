@@ -101,8 +101,14 @@ export function renderJourneyMap(
     .select(container)
     .append('svg')
     .attr('xmlns', 'http://www.w3.org/2000/svg')
-    .attr('width', useContainerFit ? containerW : layout.totalWidth)
-    .attr('height', useContainerFit ? containerH : layout.totalHeight)
+    .attr(
+      'width',
+      useContainerFit ? containerW : (exportDims?.width ?? layout.totalWidth)
+    )
+    .attr(
+      'height',
+      useContainerFit ? containerH : (exportDims?.height ?? layout.totalHeight)
+    )
     .attr('viewBox', `0 0 ${layout.totalWidth} ${layout.totalHeight}`)
     .attr('preserveAspectRatio', 'xMidYMin meet')
     .attr('font-family', FONT_FAMILY);
@@ -293,7 +299,7 @@ export function renderJourneyMap(
       .attr('transform', `translate(${legendX},${legendY})`);
 
     const legendConfig: LegendConfig = {
-      groups: allLegendGroups,
+      groups: parsed.tagGroups,
       position: {
         placement: 'top-center',
         titleRelation: 'inline-with-title',
@@ -409,7 +415,10 @@ export function renderJourneyMap(
 
     // Score label — emotion face icon
     const SCORE_LABEL_R = 8;
-    const labelG = curveG.append('g').attr('class', 'journey-score-label');
+    const labelG = curveG
+      .append('g')
+      .attr('class', 'journey-score-label')
+      .attr('data-score', String(score));
     renderScoreFace(
       labelG,
       PADDING - SCORE_LABEL_R - 2,
@@ -419,42 +428,9 @@ export function renderJourneyMap(
       SCORE_LABEL_R
     );
 
-    // Interactive hover: highlight faces + cards matching this score
+    // Score label interactivity is wired up in the click-to-lock section below
     if (!exportDims) {
-      const scoreStr = String(score);
       labelG.style('cursor', 'pointer');
-      labelG.on('mouseenter', () => {
-        svg.selectAll<SVGGElement, unknown>('.journey-step').each(function () {
-          const hit = this.getAttribute('data-score') === scoreStr;
-          d3.select(this).style('opacity', hit ? '1' : String(DIM_HOVER));
-        });
-        svg.selectAll<SVGGElement, unknown>('.journey-face').each(function () {
-          const hit = this.getAttribute('data-score') === scoreStr;
-          const sel = d3.select(this);
-          sel.style('opacity', hit ? '1' : String(DIM_HOVER));
-          if (hit) {
-            const fcx = parseFloat(sel.attr('data-cx') ?? '0');
-            const fcy = parseFloat(sel.attr('data-cy') ?? '0');
-            sel.attr(
-              'transform',
-              `translate(${fcx},${fcy}) scale(1.3) translate(${-fcx},${-fcy})`
-            );
-          } else {
-            sel.attr('transform', null);
-          }
-        });
-        svg
-          .selectAll<SVGGElement, unknown>('.journey-thought')
-          .style('opacity', String(DIM_HOVER));
-      });
-      labelG.on('mouseleave', () => {
-        svg.selectAll('.journey-step').style('opacity', null);
-        svg
-          .selectAll('.journey-face')
-          .style('opacity', null)
-          .attr('transform', null);
-        svg.selectAll('.journey-thought').style('opacity', null);
-      });
     }
   }
 
@@ -772,6 +748,52 @@ export function renderJourneyMap(
   if (!exportDims) {
     const DIM_OPACITY = 0.35;
     let lockedLine: number | null = null;
+    let lockedScore: number | null = null;
+
+    // Helper: dim everything except elements matching a score value
+    const applyScoreDimming = (activeScore: number) => {
+      const scoreStr = String(activeScore);
+      svg.selectAll<SVGGElement, unknown>('.journey-step').each(function () {
+        const hit = this.getAttribute('data-score') === scoreStr;
+        d3.select(this).style('opacity', hit ? '1' : String(DIM_HOVER));
+      });
+      svg.selectAll<SVGGElement, unknown>('.journey-face').each(function () {
+        const hit = this.getAttribute('data-score') === scoreStr;
+        const sel = d3.select(this);
+        sel.style('opacity', hit ? '1' : String(DIM_HOVER));
+        if (hit) {
+          const fcx = parseFloat(sel.attr('data-cx') ?? '0');
+          const fcy = parseFloat(sel.attr('data-cy') ?? '0');
+          sel.attr(
+            'transform',
+            `translate(${fcx},${fcy}) scale(1.3) translate(${-fcx},${-fcy})`
+          );
+        } else {
+          sel.attr('transform', null);
+        }
+      });
+      svg
+        .selectAll<SVGGElement, unknown>('.journey-thought')
+        .style('opacity', String(DIM_HOVER));
+      // Highlight the active y-axis score label, dim the rest
+      svg
+        .selectAll<SVGGElement, unknown>('.journey-score-label')
+        .each(function () {
+          const sel = d3.select(this);
+          const s = sel.attr('data-score');
+          sel.style('opacity', s === scoreStr ? '1' : String(DIM_HOVER));
+        });
+    };
+
+    const clearScoreDimming = () => {
+      svg.selectAll('.journey-step').style('opacity', null);
+      svg
+        .selectAll('.journey-face')
+        .style('opacity', null)
+        .attr('transform', null);
+      svg.selectAll('.journey-thought').style('opacity', null);
+      svg.selectAll('.journey-score-label').style('opacity', null);
+    };
 
     // Helper: dim everything except elements matching a line number
     const applyDimming = (activeLine: number) => {
@@ -896,10 +918,13 @@ export function renderJourneyMap(
       if (
         !target.closest('.journey-face') &&
         !target.closest('.journey-step') &&
-        !target.closest('.journey-phase')
+        !target.closest('.journey-phase') &&
+        !target.closest('.journey-score-label')
       ) {
         lockedLine = null;
+        lockedScore = null;
         clearDimming();
+        clearScoreDimming();
       }
     });
 
@@ -919,7 +944,7 @@ export function renderJourneyMap(
     svg.selectAll<SVGGElement, unknown>('.journey-face').each(function () {
       const el = d3.select<SVGGElement, unknown>(this);
       el.on('mouseenter', () => {
-        if (lockedLine !== null) return;
+        if (lockedLine !== null || lockedScore !== null) return;
         const ln = parseInt(el.attr('data-line-number') ?? '0', 10);
         if (ln) {
           applyDimming(ln);
@@ -927,11 +952,16 @@ export function renderJourneyMap(
         }
       })
         .on('mouseleave', () => {
-          if (lockedLine !== null) return;
+          if (lockedLine !== null || lockedScore !== null) return;
           clearDimming();
         })
         .on('click', (event: MouseEvent) => {
           event.stopPropagation();
+          if (lockedScore !== null) {
+            lockedScore = null;
+            clearScoreDimming();
+            return;
+          }
           const ln = parseInt(el.attr('data-line-number') ?? '0', 10);
           if (lockedLine === ln) {
             lockedLine = null;
@@ -949,7 +979,7 @@ export function renderJourneyMap(
     svg.selectAll('.journey-step').each(function () {
       const el = d3.select(this);
       el.on('mouseenter', () => {
-        if (lockedLine !== null) return;
+        if (lockedLine !== null || lockedScore !== null) return;
         const ln = parseInt(el.attr('data-line-number') ?? '0', 10);
         if (ln) {
           applyDimming(ln);
@@ -957,11 +987,16 @@ export function renderJourneyMap(
         }
       })
         .on('mouseleave', () => {
-          if (lockedLine !== null) return;
+          if (lockedLine !== null || lockedScore !== null) return;
           clearDimming();
         })
         .on('click', (event: MouseEvent) => {
           event.stopPropagation();
+          if (lockedScore !== null) {
+            lockedScore = null;
+            clearScoreDimming();
+            return;
+          }
           const ln = parseInt(el.attr('data-line-number') ?? '0', 10);
           if (lockedLine === ln) {
             lockedLine = null;
@@ -974,6 +1009,36 @@ export function renderJourneyMap(
           }
         });
     });
+
+    // Hover + click on y-axis score labels
+    svg
+      .selectAll<SVGGElement, unknown>('.journey-score-label')
+      .each(function () {
+        const el = d3.select<SVGGElement, unknown>(this);
+        const score = parseInt(el.attr('data-score') ?? '0', 10);
+        el.on('mouseenter', () => {
+          if (lockedLine !== null || lockedScore !== null) return;
+          applyScoreDimming(score);
+        })
+          .on('mouseleave', () => {
+            if (lockedLine !== null || lockedScore !== null) return;
+            clearScoreDimming();
+          })
+          .on('click', (event: MouseEvent) => {
+            event.stopPropagation();
+            if (lockedLine !== null) {
+              lockedLine = null;
+              clearDimming();
+            }
+            if (lockedScore === score) {
+              lockedScore = null;
+              clearScoreDimming();
+            } else {
+              lockedScore = score;
+              applyScoreDimming(score);
+            }
+          });
+      });
   }
 }
 
