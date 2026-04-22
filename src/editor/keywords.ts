@@ -17,6 +17,7 @@ export const CHART_TYPES = new Set([
   'tech-radar',
   'mindmap',
   'journey-map',
+  'pyramid',
   // Data chart types
   'bar',
   'line',
@@ -158,6 +159,8 @@ export const DIRECTIVE_KEYWORDS = new Set([
   // Layout
   'direction-tb',
   'direction-lr',
+  // Pyramid
+  'inverted',
   // Data chart metadata
   'title',
   'series',
