@@ -863,7 +863,7 @@ export function renderJourneyMap(
       const lines = wrapText(thoughtText, THOUGHT_MAX_W, THOUGHT_FONT);
       const textW = Math.min(
         THOUGHT_MAX_W,
-        Math.max(...lines.map((l) => l.length * 4.8))
+        Math.max(...lines.map((l) => l.length * THOUGHT_FONT * 0.6))
       );
       const bw = textW + THOUGHT_PAD_X * 2;
       const bh = lines.length * THOUGHT_LINE_H + THOUGHT_PAD_Y * 2;
@@ -1391,8 +1391,8 @@ function renderScoreFace(
   return g;
 }
 
-function wrapText(text: string, maxWidth: number, _fontSize: number): string[] {
-  const charWidth = 4.8;
+function wrapText(text: string, maxWidth: number, fontSize: number): string[] {
+  const charWidth = fontSize * 0.6;
   const maxChars = Math.floor(maxWidth / charWidth);
   if (maxChars <= 0) return [text];
 
@@ -1414,7 +1414,7 @@ function wrapText(text: string, maxWidth: number, _fontSize: number): string[] {
 }
 
 function truncateText(text: string, maxWidth: number): string {
-  const maxChars = Math.floor(maxWidth / 4.8);
+  const maxChars = Math.floor(maxWidth / 6.6);
   if (text.length <= maxChars) return text;
   return text.substring(0, maxChars - 1) + '\u2026';
 }
