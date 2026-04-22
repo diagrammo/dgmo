@@ -19,12 +19,15 @@
     { "slug": "chart-er", "title": "Entity Relationship", "group": "software", "file": "chart-er.md" },
     { "slug": "chart-flowchart", "title": "Flowchart", "group": "software", "file": "chart-flowchart.md" },
     { "slug": "chart-infra", "title": "Infrastructure", "group": "software", "file": "chart-infra.md" },
+    { "slug": "chart-mindmap", "title": "Mind Map", "group": "software", "file": "chart-mindmap.md" },
     { "slug": "chart-sequence", "title": "Sequence Diagram", "group": "software", "file": "chart-sequence.md" },
     { "slug": "chart-sitemap", "title": "Sitemap", "group": "software", "file": "chart-sitemap.md" },
     { "slug": "chart-state", "title": "State Diagram", "group": "software", "file": "chart-state.md" },
+    { "slug": "chart-wireframe", "title": "Wireframe", "group": "software", "file": "chart-wireframe.md" },
 
     { "slug": "chart-area", "title": "Area Chart", "group": "data", "file": "chart-area.md" },
     { "slug": "chart-bar", "title": "Bar Chart", "group": "data", "file": "chart-bar.md" },
+    { "slug": "chart-cycle", "title": "Cycle Diagram", "group": "data", "file": "chart-cycle.md" },
     { "slug": "chart-chord", "title": "Chord Diagram", "group": "data", "file": "chart-chord.md" },
     { "slug": "chart-doughnut", "title": "Doughnut Chart", "group": "data", "file": "chart-doughnut.md" },
     { "slug": "chart-function", "title": "Function Plot", "group": "data", "file": "chart-function.md" },
@@ -38,6 +41,7 @@
     { "slug": "chart-slope", "title": "Slope Chart", "group": "data", "file": "chart-slope.md" },
     { "slug": "chart-bar-stacked", "title": "Stacked Bar Chart", "group": "data", "file": "chart-bar-stacked.md" },
 
+    { "slug": "chart-journey-map", "title": "Journey Map", "group": "business", "file": "chart-journey-map.md" },
     { "slug": "chart-funnel", "title": "Funnel Chart", "group": "business", "file": "chart-funnel.md" },
     { "slug": "chart-org", "title": "Org Chart", "group": "business", "file": "chart-org.md" },
     { "slug": "chart-quadrant", "title": "Quadrant Chart", "group": "business", "file": "chart-quadrant.md" },
