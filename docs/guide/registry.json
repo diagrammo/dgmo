@@ -44,6 +44,7 @@
     { "slug": "chart-journey-map", "title": "Journey Map", "group": "business", "file": "chart-journey-map.md" },
     { "slug": "chart-funnel", "title": "Funnel Chart", "group": "business", "file": "chart-funnel.md" },
     { "slug": "chart-org", "title": "Org Chart", "group": "business", "file": "chart-org.md" },
+    { "slug": "chart-pyramid", "title": "Pyramid Diagram", "group": "business", "file": "chart-pyramid.md" },
     { "slug": "chart-quadrant", "title": "Quadrant Chart", "group": "business", "file": "chart-quadrant.md" },
     { "slug": "chart-sankey", "title": "Sankey Diagram", "group": "business", "file": "chart-sankey.md" },
     { "slug": "chart-tech-radar", "title": "Technology Radar", "group": "business", "file": "chart-tech-radar.md" },

@@ -1570,7 +1570,68 @@ wireframe Login Page
 
 ---
 
-## 19. Colon Usage Summary
+## 19. Pyramid Diagrams
+
+Hierarchical pyramid visualization with stacked layers, descriptions, and optional per-layer color. Source order reads apex-first (top of file = top of pyramid).
+
+### Declaration
+
+```
+pyramid [Title]
+
+LayerLabel
+LayerLabel | color: blue
+LayerLabel | color: green
+  Indented description
+```
+
+The first line declares the chart type and an optional title. Each non-indented, non-directive line declares one layer. At least two layers are required.
+
+### Example
+
+```
+pyramid Maslow's Hierarchy
+
+Self-Actualization | color: purple
+  Morality, creativity, acceptance of facts.
+
+Esteem | color: blue
+  Respect, recognition, confidence.
+
+Love & Belonging | color: green
+  Friendship, intimacy, family.
+
+Safety | color: yellow
+  Security, employment, health.
+
+Physiological | color: orange
+  Food, water, warmth, rest.
+```
+
+### Layer Pipe Metadata
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `color` | palette name | auto | Layer color |
+| `description` | string | — | One-liner description |
+
+### Descriptions
+
+Indented lines under a layer are description text. Markdown inline formatting (`**bold**`, `*italic*`, `` `code` ``, `[links](url)`) is supported. Bullets written as `- item` render as `• item`.
+
+### Directives
+
+| Directive | Effect |
+|-----------|--------|
+| `inverted` | Flip apex to the bottom (funnel orientation). Source order is preserved — the first layer is always the visual top. |
+
+### Overflow Handling
+
+When descriptions don't fit a layer's band the renderer wraps at the column edge, truncates with `…`, auto-alternates descriptions left ↔ right when one column can't hold them, and (in-app) reveals the full description on highlight while hiding siblings.
+
+---
+
+## 20. Colon Usage Summary
 
 ### Constructs Where Colons Are REQUIRED
 
