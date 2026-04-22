@@ -236,6 +236,8 @@ type NoteParseResult =
 function parseNoteLine(
   trimmed: string,
   participants: SequenceParticipant[],
+  participantIds: Set<string>,
+  sortedParticipantsCache: SequenceParticipant[],
   lastMsgFrom: string | null
 ): NoteParseResult {
   const lower = trimmed.toLowerCase();
@@ -256,7 +258,7 @@ function parseNoteLine(
       if (!lastMsgFrom) return { kind: 'skip' };
       participantId = lastMsgFrom;
     }
-    if (participants.some((p) => p.id === participantId)) {
+    if (participantIds.has(participantId)) {
       return { kind: 'multi-head', position, participantId };
     }
     // Participant not found — fall through to bare-note handler for proper resolution
@@ -284,13 +286,17 @@ function parseNoteLine(
       if (!afterPos) {
         // Just `note left` or `note right` — multi-line head
         if (!lastMsgFrom) return { kind: 'skip' };
-        if (!participants.some((p) => p.id === lastMsgFrom))
-          return { kind: 'skip' };
+        if (!participantIds.has(lastMsgFrom)) return { kind: 'skip' };
         return { kind: 'multi-head', position, participantId: lastMsgFrom };
       }
 
       // Try to match a known participant at the start of afterPos
-      const resolved = resolveParticipantAndText(afterPos, participants);
+      const resolved = resolveParticipantAndText(
+        afterPos,
+        participants,
+        participantIds,
+        sortedParticipantsCache
+      );
       if (resolved) {
         if (resolved.text) {
           return {
@@ -316,8 +322,7 @@ function parseNoteLine(
 
       // Without `of`, treat remaining text as note content on the last-msg sender
       if (!lastMsgFrom) return { kind: 'skip' };
-      if (!participants.some((p) => p.id === lastMsgFrom))
-        return { kind: 'skip' };
+      if (!participantIds.has(lastMsgFrom)) return { kind: 'skip' };
       return {
         kind: 'single',
         position,
@@ -328,8 +333,7 @@ function parseNoteLine(
 
     // Plain `note text` — default position, last msg sender
     if (!lastMsgFrom) return { kind: 'skip' };
-    if (!participants.some((p) => p.id === lastMsgFrom))
-      return { kind: 'skip' };
+    if (!participantIds.has(lastMsgFrom)) return { kind: 'skip' };
     return {
       kind: 'single',
       position: 'right',
@@ -348,7 +352,9 @@ function parseNoteLine(
  */
 function resolveParticipantAndText(
   input: string,
-  participants: SequenceParticipant[]
+  participants: SequenceParticipant[],
+  participantIds: Set<string>,
+  sortedParticipantsCache: SequenceParticipant[]
 ): { participantId: string; text: string } | null {
   // Handle quoted participant: `"Auth Service" text`
   if (input.startsWith('"') || input.startsWith("'")) {
@@ -356,7 +362,7 @@ function resolveParticipantAndText(
     const endQuote = input.indexOf(quote, 1);
     if (endQuote > 0) {
       const name = input.substring(1, endQuote);
-      if (participants.some((p) => p.id === name)) {
+      if (participantIds.has(name)) {
         const text = input.substring(endQuote + 1).trim();
         return { participantId: name, text };
       }
@@ -364,8 +370,8 @@ function resolveParticipantAndText(
     return null;
   }
 
-  // Sort participants by name length (longest first) for greedy matching
-  const sorted = [...participants].sort((a, b) => b.id.length - a.id.length);
+  // Use pre-sorted participants (longest first) for greedy matching
+  const sorted = sortedParticipantsCache;
   for (const p of sorted) {
     if (input.startsWith(p.id)) {
       const remaining = input.substring(p.id.length);
@@ -442,6 +448,25 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
 
   // Group parsing state — tracks the active [Group] heading
   let activeGroup: SequenceGroup | null = null;
+
+  // Fast lookup set for participant existence checks (mirrors result.participants)
+  const participantIds = new Set<string>();
+
+  // Cache sorted participants (longest ID first) for greedy name matching in notes.
+  // Invalidated whenever a new participant is added.
+  let sortedParticipantsCache: SequenceParticipant[] = [];
+  let sortedCacheDirty = true;
+
+  /** Get sorted participants, rebuilding cache only when dirty. */
+  const getSortedParticipants = (): SequenceParticipant[] => {
+    if (sortedCacheDirty) {
+      sortedParticipantsCache = [...result.participants].sort(
+        (a, b) => b.id.length - a.id.length
+      );
+      sortedCacheDirty = false;
+    }
+    return sortedParticipantsCache;
+  };
 
   // Track participant → group name for duplicate membership detection
   const participantGroupMap = new Map<string, string>();
@@ -774,7 +799,9 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       const position = posMatch ? parseInt(posMatch[1], 10) : undefined;
 
       // Avoid duplicate participant declarations
-      if (!result.participants.some((p) => p.id === id)) {
+      if (!participantIds.has(id)) {
+        participantIds.add(id);
+        sortedCacheDirty = true;
         result.participants.push({
           id,
           label: alias || id,
@@ -808,7 +835,9 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       const id = posOnlyMatch[1];
       const position = parseInt(posOnlyMatch[2], 10);
 
-      if (!result.participants.some((p) => p.id === id)) {
+      if (!participantIds.has(id)) {
+        participantIds.add(id);
+        sortedCacheDirty = true;
         result.participants.push({
           id,
           label: id,
@@ -846,7 +875,9 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
         `'${id}(${color})' syntax is no longer supported — use 'tag:' groups for coloring`
       );
       contentStarted = true;
-      if (!result.participants.some((p) => p.id === id)) {
+      if (!participantIds.has(id)) {
+        participantIds.add(id);
+        sortedCacheDirty = true;
         result.participants.push({
           id,
           label: id,
@@ -882,7 +913,8 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       ) {
         contentStarted = true;
         const id = bareCore;
-        if (!result.participants.some((p) => p.id === id)) {
+        if (!participantIds.has(id)) {
+          participantIds.add(id);
           result.participants.push({
             id,
             label: id,
@@ -965,7 +997,9 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       currentContainer().push(msg);
 
       // Auto-register participants
-      if (!result.participants.some((p) => p.id === from)) {
+      if (!participantIds.has(from)) {
+        participantIds.add(from);
+        sortedCacheDirty = true;
         result.participants.push({
           id: from,
           label: from,
@@ -973,7 +1007,9 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
           lineNumber,
         });
       }
-      if (!result.participants.some((p) => p.id === to)) {
+      if (!participantIds.has(to)) {
+        participantIds.add(to);
+        sortedCacheDirty = true;
         result.participants.push({
           id: to,
           label: to,
@@ -1050,7 +1086,9 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       result.messages.push(msg);
       currentContainer().push(msg);
 
-      if (!result.participants.some((p) => p.id === from)) {
+      if (!participantIds.has(from)) {
+        participantIds.add(from);
+        sortedCacheDirty = true;
         result.participants.push({
           id: from,
           label: from,
@@ -1058,7 +1096,9 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
           lineNumber,
         });
       }
-      if (!result.participants.some((p) => p.id === to)) {
+      if (!participantIds.has(to)) {
+        participantIds.add(to);
+        sortedCacheDirty = true;
         result.participants.push({
           id: to,
           label: to,
@@ -1182,6 +1222,8 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       const noteParsed = parseNoteLine(
         trimmed,
         result.participants,
+        participantIds,
+        getSortedParticipants(),
         lastMsgFrom
       );
       if (noteParsed) {

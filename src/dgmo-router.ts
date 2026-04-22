@@ -22,6 +22,7 @@ import { parseWireframe } from './wireframe/parser';
 import { parseTechRadar } from './tech-radar/parser';
 import { parseCycle } from './cycle/parser';
 import { parseJourneyMap } from './journey-map/parser';
+import { parsePyramid } from './pyramid/parser';
 import { parseFirstLine } from './utils/parsing';
 import { makeDgmoError, suggest } from './diagnostics';
 import type { DgmoError } from './diagnostics';
@@ -142,6 +143,7 @@ const VISUALIZATION_TYPES = new Set([
   'quadrant',
   'tech-radar',
   'cycle',
+  'pyramid',
 ]);
 const DIAGRAM_TYPES = new Set([
   'sequence',
@@ -264,6 +266,8 @@ export const CHART_TYPE_DESCRIPTIONS: Record<string, string> = {
     'Wireframe — low-fidelity UI layout with panels, controls, and annotations',
   'journey-map':
     'Journey map — user experience flow with emotion scores, phases, and annotations',
+  pyramid:
+    'Pyramid — hierarchical layered pyramid (Maslow, DIKW, learning pyramid); inverted for funnel-of-learning style',
 };
 
 // ECharts-native types parsed by parseExtendedChart
@@ -298,6 +302,7 @@ const PARSE_DISPATCH = new Map<
   ['tech-radar', (c) => parseTechRadar(c)],
   ['cycle', (c) => parseCycle(c)],
   ['journey-map', (c) => parseJourneyMap(c)],
+  ['pyramid', (c) => parsePyramid(c)],
 ]);
 
 /**
@@ -315,7 +320,10 @@ const ALL_KNOWN_TYPES = new Set([
  * Parse DGMO content and return diagnostics without rendering.
  * Useful for the CLI and editor to surface all errors before attempting render.
  */
-export function parseDgmo(content: string): { diagnostics: DgmoError[] } {
+export function parseDgmo(content: string): {
+  diagnostics: DgmoError[];
+  chartType: string | null;
+} {
   const chartType = parseDgmoChartType(content);
 
   if (!chartType) {
@@ -323,11 +331,14 @@ export function parseDgmo(content: string): { diagnostics: DgmoError[] } {
     const colonDiag = detectColonChartType(content);
     if (colonDiag) {
       const fallback = parseVisualization(content).diagnostics;
-      return { diagnostics: [colonDiag, ...fallback] };
+      return { diagnostics: [colonDiag, ...fallback], chartType: null };
     }
 
     // No chart type detected — try visualization parser as fallback
-    return { diagnostics: parseVisualization(content).diagnostics };
+    return {
+      diagnostics: parseVisualization(content).diagnostics,
+      chartType: null,
+    };
   }
 
   const directParser = PARSE_DISPATCH.get(chartType);
@@ -335,6 +346,7 @@ export function parseDgmo(content: string): { diagnostics: DgmoError[] } {
     const result = directParser(content);
     return {
       diagnostics: [...result.diagnostics, ...detectEmptyContent(content)],
+      chartType,
     };
   }
 
@@ -342,12 +354,14 @@ export function parseDgmo(content: string): { diagnostics: DgmoError[] } {
     const result = parseChart(content);
     return {
       diagnostics: [...result.diagnostics, ...detectEmptyContent(content)],
+      chartType,
     };
   }
   if (ECHART_TYPES.has(chartType)) {
     const result = parseExtendedChart(content);
     return {
       diagnostics: [...result.diagnostics, ...detectEmptyContent(content)],
+      chartType,
     };
   }
 
@@ -355,6 +369,7 @@ export function parseDgmo(content: string): { diagnostics: DgmoError[] } {
   const result = parseVisualization(content);
   return {
     diagnostics: [...result.diagnostics, ...detectEmptyContent(content)],
+    chartType,
   };
 }
 

@@ -1,10 +1,6 @@
 import { renderForExport } from './d3';
 import { renderExtendedChartForExport } from './echarts';
-import {
-  parseDgmoChartType,
-  getRenderCategory,
-  parseDgmo,
-} from './dgmo-router';
+import { getRenderCategory, parseDgmo } from './dgmo-router';
 import type { DgmoError } from './diagnostics';
 import { getPalette } from './palettes/registry';
 import type { CompactViewState } from './sharing';
@@ -84,9 +80,7 @@ export async function render(
   const paletteColors =
     getPalette(paletteName)[theme === 'dark' ? 'dark' : 'light'];
 
-  const { diagnostics } = parseDgmo(content);
-
-  const chartType = parseDgmoChartType(content);
+  const { diagnostics, chartType } = parseDgmo(content);
   const category = chartType ? getRenderCategory(chartType) : null;
 
   // Build viewState from legendState (backwards compat) or use provided viewState

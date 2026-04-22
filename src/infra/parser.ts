@@ -113,8 +113,8 @@ function extractPipeMetadata(rest: string): {
   const tags: Record<string, string> = {};
   let clean = rest;
   let match: RegExpExecArray | null;
-  const re = new RegExp(PIPE_META_RE.source, 'g');
-  while ((match = re.exec(rest)) !== null) {
+  PIPE_META_RE.lastIndex = 0;
+  while ((match = PIPE_META_RE.exec(rest)) !== null) {
     tags[match[1].trim()] = match[2].trim();
     clean = clean.replace(match[0], '');
   }
