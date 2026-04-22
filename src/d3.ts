@@ -21,7 +21,8 @@ export type VisualizationType =
   | 'quadrant'
   | 'sequence'
   | 'tech-radar'
-  | 'cycle';
+  | 'cycle'
+  | 'pyramid';
 
 interface D3DataItem {
   label: string;
@@ -7116,6 +7117,25 @@ export async function renderForExport(
       theme === 'dark',
       { width: EXPORT_WIDTH, height: EXPORT_HEIGHT },
       viewState
+    );
+    return finalizeSvgExport(container, theme, effectivePalette);
+  }
+
+  if (detectedType === 'pyramid') {
+    const { parsePyramid } = await import('./pyramid/parser');
+    const { renderPyramidForExport } = await import('./pyramid/renderer');
+
+    const effectivePalette = await resolveExportPalette(theme, palette);
+    const pyramidParsed = parsePyramid(content);
+    if (pyramidParsed.error || pyramidParsed.layers.length === 0) return '';
+
+    const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
+    renderPyramidForExport(
+      container,
+      pyramidParsed,
+      effectivePalette,
+      theme === 'dark',
+      { width: EXPORT_WIDTH, height: EXPORT_HEIGHT }
     );
     return finalizeSvgExport(container, theme, effectivePalette);
   }

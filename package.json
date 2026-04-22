@@ -40,6 +40,16 @@
         "types": "./dist/highlight.d.cts",
         "default": "./dist/highlight.cjs"
       }
+    },
+    "./internal": {
+      "import": {
+        "types": "./dist/internal.d.ts",
+        "default": "./dist/internal.js"
+      },
+      "require": {
+        "types": "./dist/internal.d.cts",
+        "default": "./dist/internal.cjs"
+      }
     }
   },
   "files": [

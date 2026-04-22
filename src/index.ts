@@ -65,6 +65,7 @@ export type {
 
 export {
   parseSequenceDgmo,
+  parseSequenceDgmo as parseSequenceDiagram,
   looksLikeSequence,
   isSequenceBlock,
   isSequenceNote,
@@ -408,6 +409,10 @@ export type {
   JourneyMapAnnotation,
 } from './journey-map/types';
 export type { JourneyMapInteractiveOptions } from './journey-map/renderer';
+
+export { parsePyramid } from './pyramid/parser';
+export { renderPyramid, renderPyramidForExport } from './pyramid/renderer';
+export type { ParsedPyramid, PyramidLayer } from './pyramid/types';
 
 export { resolveOrgImports } from './org/resolver';
 export type {

@@ -382,6 +382,14 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       persona: { description: 'Define the journey persona' },
     }),
   ],
+  [
+    'pyramid',
+    withGlobals({
+      inverted: { description: 'Flip apex to the bottom (funnel orientation)' },
+      color: { description: 'Override layer color (pipe metadata)' },
+      description: { description: 'Layer description (pipe or indented body)' },
+    }),
+  ],
 ]);
 
 // ============================================================

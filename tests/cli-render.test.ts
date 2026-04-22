@@ -185,6 +185,12 @@ Act | color: red`,
 
 [Phase Two]
   Step C | 5`,
+
+  pyramid: `pyramid Test Pyramid
+
+Top | apex description
+Middle | middle description
+Bottom | base description`,
 };
 
 // All D3 types now render in JSDOM via explicit dimensions (Epic 41)
@@ -204,6 +210,7 @@ const D3_TYPES = [
   'infra',
   'gantt',
   'journey-map',
+  'pyramid',
 ];
 
 // Wordcloud requires HTMLCanvasElement.getContext('2d') for d3-cloud text measurement —
