@@ -121,14 +121,18 @@ export function layoutJourneyMap(
     ? parsed.phases.flatMap((p) => p.steps)
     : parsed.steps;
 
-  // Compute step card heights based on content (matches kanban card sizing)
+  // Compute step card heights based on content (matches kanban card sizing).
+  // Char-width constants MUST match the renderer's wrapText() in renderer.ts
+  // (`fontSize * 0.6`) and the title wrap (`TITLE_CHAR_WIDTH`) — otherwise the
+  // layout reserves too little vertical space and rendered text overflows.
   const annoIconIndent = ANNO_ICON_SIZE + ANNO_ICON_GAP;
   const annoTextW = STEP_CARD_WIDTH - CARD_PADDING_X * 2 - annoIconIndent;
   const descTextWidth = STEP_CARD_WIDTH - CARD_PADDING_X * 2;
-  const charWidth = 4.8; // average char width at FONT_SIZE_META (10px)
+  const FONT_SIZE_META = 10;
+  const charWidth = FONT_SIZE_META * 0.6; // matches renderer wrapText()
 
   const titleTextWidth = STEP_CARD_WIDTH - CARD_PADDING_X * 2;
-  const titleCharWidth = 6.5; // average char width at FONT_SIZE_STEP (12px)
+  const titleCharWidth = 6.5; // matches renderer TITLE_CHAR_WIDTH (FONT_SIZE_STEP 12px)
   const TITLE_LINE_HEIGHT = 16;
 
   const stepHeights = allSteps.map((step) => {
