@@ -229,12 +229,46 @@ function renderQuarterCircle(
     const fillColor =
       ri % 2 === 0 ? palette.bg : mix(palette.bg, palette.border, 0.15);
 
+    const ringName = parsed.rings[ri].name;
+
+    // Background ring arc
     svg
       .append('path')
       .attr('d', arcGen(innerR, outerR))
       .attr('fill', fillColor)
       .attr('stroke', mutedColor)
       .attr('stroke-width', 0.5);
+
+    // Transparent hover overlay for ring interaction
+    svg
+      .append('path')
+      .attr('d', arcGen(innerR, outerR))
+      .attr('fill', 'transparent')
+      .attr('data-ring-arc', ringName)
+      .style('cursor', 'pointer')
+      .on('mouseenter', () => {
+        // Tint the hovered ring arc
+        d3Selection
+          .select(rootContainer)
+          .selectAll<SVGPathElement, unknown>('[data-ring-arc]')
+          .each(function () {
+            const el = d3Selection.select(this);
+            const isMatch = this.getAttribute('data-ring-arc') === ringName;
+            el.attr('fill', isMatch ? qColor : 'transparent').attr(
+              'opacity',
+              isMatch ? 0.15 : 1
+            );
+          });
+        dimExceptRing(rootContainer, ringName);
+      })
+      .on('mouseleave', () => {
+        d3Selection
+          .select(rootContainer)
+          .selectAll<SVGPathElement, unknown>('[data-ring-arc]')
+          .attr('fill', 'transparent')
+          .attr('opacity', 1);
+        clearDim(rootContainer);
+      });
   }
 
   // Ring labels removed — the side panel ring headers serve this purpose
@@ -346,8 +380,26 @@ function dimExcept(root: HTMLElement, lineNum: string): void {
   });
 }
 
+function dimExceptRing(root: HTMLElement, ringName: string): void {
+  // Dim blips not in the hovered ring (SVG + HTML)
+  root.querySelectorAll<HTMLElement>('[data-line-number]').forEach((el) => {
+    el.style.opacity =
+      el.getAttribute('data-ring') === ringName ? '1' : String(DIM_OPACITY);
+  });
+  // Dim ring groups not matching
+  root.querySelectorAll<HTMLElement>('[data-ring-group]').forEach((el) => {
+    el.style.opacity =
+      el.getAttribute('data-ring-group') === ringName
+        ? '1'
+        : String(DIM_OPACITY);
+  });
+}
+
 function clearDim(root: HTMLElement): void {
   root.querySelectorAll<HTMLElement>('[data-line-number]').forEach((el) => {
+    el.style.opacity = '1';
+  });
+  root.querySelectorAll<HTMLElement>('[data-ring-group]').forEach((el) => {
     el.style.opacity = '1';
   });
 }
@@ -383,11 +435,13 @@ function renderHtmlPanel(
 
       // Ring group container
       const ringGroup = document.createElement('div');
+      ringGroup.setAttribute('data-ring-group', ringName);
       ringGroup.style.cssText = `
         background: ${palette.surface};
         border-radius: 8px;
         padding: 10px;
         margin-bottom: 12px;
+        transition: opacity 0.15s;
       `;
 
       // Ring header inside the group
