@@ -6,7 +6,11 @@ import { resolve, join, basename, extname } from 'node:path';
 import { createInterface } from 'node:readline';
 import { Resvg } from '@resvg/resvg-js';
 import { render } from './render';
-import { parseDgmo, getAllChartTypes } from './dgmo-router';
+import {
+  parseDgmo,
+  getAllChartTypes,
+  CHART_TYPE_DESCRIPTIONS,
+} from './dgmo-router';
 import { parseDgmoChartType } from './dgmo-router';
 import { formatDgmoError } from './diagnostics';
 import { getPalette, getAvailablePalettes } from './palettes';
@@ -18,40 +22,6 @@ import { resolveOrgImports } from './org/resolver';
 const PALETTES = getAvailablePalettes().map((p) => p.id);
 
 const THEMES = ['light', 'dark', 'transparent'] as const;
-
-const CHART_TYPE_DESCRIPTIONS: Record<string, string> = {
-  bar: 'Bar chart — categorical comparisons',
-  line: 'Line chart — trends over time',
-  'multi-line': 'Multi-line chart — multiple series trends',
-  area: 'Area chart — filled line chart',
-  pie: 'Pie chart — part-to-whole proportions',
-  doughnut: 'Doughnut chart — ring-style pie chart',
-  radar: 'Radar chart — multi-dimensional metrics',
-  'polar-area': 'Polar area chart — radial bar chart',
-  'bar-stacked': 'Stacked bar chart — multi-series categorical',
-  scatter: 'Scatter plot — 2D data points or bubble chart',
-  sankey: 'Sankey diagram — flow/allocation visualization',
-  chord: 'Chord diagram — circular flow relationships',
-  function: 'Function plot — mathematical expressions',
-  heatmap: 'Heatmap — matrix intensity visualization',
-  funnel: 'Funnel chart — conversion pipeline',
-  slope: 'Slope chart — change between two periods',
-  wordcloud: 'Word cloud — term frequency visualization',
-  arc: 'Arc diagram — network relationships',
-  timeline: 'Timeline — events, eras, and date ranges',
-  venn: 'Venn diagram — set overlaps',
-  quadrant: 'Quadrant chart — 2x2 positioning matrix',
-  sequence: 'Sequence diagram — message/interaction flows',
-  flowchart: 'Flowchart — decision trees and process flows',
-  class: 'Class diagram — UML class hierarchies',
-  er: 'ER diagram — database schemas and relationships',
-  org: 'Org chart — hierarchical tree structures',
-  kanban: 'Kanban board — task/workflow columns',
-  c4: 'C4 diagram — system architecture (context, container, component, deployment)',
-  infra: 'Infra chart — infrastructure traffic flow with rps computation',
-  'boxes-and-lines':
-    'Boxes and lines — general-purpose node-edge diagrams with groups and tags',
-};
 
 const CLAUDE_SKILL_CONTENT = `# dgmo — Diagrammo Diagram Assistant
 

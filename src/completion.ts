@@ -16,6 +16,7 @@ import { extractSymbols as extractFlowchartSymbols } from './graph/flowchart-par
 import { extractSymbols as extractInfraSymbols } from './infra/parser';
 import { extractSymbols as extractClassSymbols } from './class/parser';
 import { parseFirstLine, ALL_CHART_TYPES } from './utils/parsing';
+import { CHART_TYPE_DESCRIPTIONS } from './dgmo-router';
 
 // ============================================================
 // Symbol extraction
@@ -386,50 +387,6 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
 // ============================================================
 // Chart types array (for chart type completion popup)
 // ============================================================
-
-const CHART_TYPE_DESCRIPTIONS: Record<string, string> = {
-  // Data charts
-  bar: 'Bar chart',
-  line: 'Line chart',
-  pie: 'Pie chart',
-  doughnut: 'Doughnut chart',
-  area: 'Area chart',
-  'polar-area': 'Polar area chart',
-  radar: 'Radar chart',
-  'bar-stacked': 'Stacked bar chart',
-  // Extended charts
-  scatter: 'Scatter plot',
-  heatmap: 'Heatmap',
-  sankey: 'Sankey flow diagram',
-  chord: 'Chord diagram',
-  funnel: 'Funnel chart',
-  function: 'Mathematical function plot',
-  // Visualizations
-  slope: 'Slope chart',
-  wordcloud: 'Word cloud',
-  arc: 'Arc diagram',
-  timeline: 'Timeline',
-  venn: 'Venn diagram',
-  quadrant: 'Quadrant chart',
-  // Diagrams
-  sequence: 'Sequence diagram',
-  flowchart: 'Flowchart',
-  class: 'Class diagram',
-  er: 'Entity-relationship diagram',
-  org: 'Organization chart',
-  kanban: 'Kanban board',
-  c4: 'C4 architecture diagram',
-  state: 'State diagram',
-  sitemap: 'Sitemap diagram',
-  infra: 'Infrastructure diagram',
-  gantt: 'Gantt chart',
-  'boxes-and-lines': 'Boxes and lines diagram',
-  mindmap: 'Mindmap diagram',
-  wireframe: 'UI wireframe diagram',
-  'tech-radar': 'Technology adoption radar (ThoughtWorks style)',
-  cycle: 'Cycle diagram (circular process flow)',
-  'journey-map': 'User journey map with emotion curve',
-};
 
 /** All chart types with descriptions, for chart type autocomplete. Excludes `multi-line` alias. */
 export const CHART_TYPES: ReadonlyArray<{ name: string; description: string }> =

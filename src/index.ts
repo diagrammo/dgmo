@@ -32,6 +32,8 @@ export {
   parseDgmo,
   getRenderCategory,
   isExtendedChartType,
+  getAllChartTypes,
+  CHART_TYPE_DESCRIPTIONS,
 } from './dgmo-router';
 export type { RenderCategory } from './dgmo-router';
 

@@ -211,6 +211,61 @@ export function getAllChartTypes(): string[] {
   return [...DATA_CHART_TYPES, ...VISUALIZATION_TYPES, ...DIAGRAM_TYPES];
 }
 
+/**
+ * Canonical descriptions for every supported chart type. Shared by the CLI
+ * `--chart-types` flag, the editor autocomplete popup, and the MCP
+ * `list_chart_types` tool so all three surfaces stay in sync.
+ */
+export const CHART_TYPE_DESCRIPTIONS: Record<string, string> = {
+  bar: 'Bar chart — categorical comparisons',
+  line: 'Line chart — trends over time; supports era bands (era start -> end Label (color)) for annotating named periods',
+  'multi-line':
+    'Multi-line chart — multiple series trends over time; supports era bands',
+  area: 'Area chart — filled line chart; supports era bands',
+  pie: 'Pie chart — part-to-whole proportions',
+  doughnut: 'Doughnut chart — ring-style pie chart',
+  radar: 'Radar chart — multi-dimensional metrics',
+  'polar-area': 'Polar area chart — radial bar chart',
+  'bar-stacked': 'Stacked bar chart — multi-series categorical',
+  scatter: 'Scatter plot — 2D data points or bubble chart',
+  sankey: 'Sankey diagram — flow/allocation visualization',
+  chord: 'Chord diagram — circular flow relationships',
+  function: 'Function plot — mathematical expressions',
+  heatmap: 'Heatmap — matrix intensity visualization',
+  funnel: 'Funnel chart — conversion pipeline',
+  slope: 'Slope chart — change between two periods',
+  wordcloud: 'Word cloud — term frequency visualization',
+  arc: 'Arc diagram — network relationships',
+  timeline: 'Timeline — events, eras, and date ranges',
+  venn: 'Venn diagram — set overlaps',
+  quadrant: 'Quadrant chart — 2x2 positioning matrix',
+  'tech-radar':
+    'Tech radar — technology adoption quadrants (adopt/trial/assess/hold)',
+  cycle:
+    'Cycle diagram — cyclical process visualization (PDCA, OODA, DevOps loops)',
+  sequence: 'Sequence diagram — message/interaction flows',
+  flowchart: 'Flowchart — decision trees and process flows',
+  class: 'Class diagram — UML class hierarchies',
+  er: 'ER diagram — database schemas and relationships',
+  org: 'Org chart — hierarchical tree structures',
+  kanban: 'Kanban board — task/workflow columns',
+  c4: 'C4 diagram — system architecture (context, container, component, deployment)',
+  state: 'State diagram — state machine / lifecycle transitions',
+  sitemap:
+    'Sitemap — navigable UI structure with pages, groups, and cross-link arrows',
+  infra:
+    'Infrastructure diagram — traffic flow with RPS computation, capacity modeling, and latency analysis',
+  gantt:
+    'Gantt chart — project scheduling with task dependencies and milestones',
+  'boxes-and-lines':
+    'Boxes and lines — general-purpose node-edge diagrams with nested groups, tags, and shape inference',
+  mindmap: 'Mindmap — radial hierarchy of ideas branching from a central topic',
+  wireframe:
+    'Wireframe — low-fidelity UI layout with panels, controls, and annotations',
+  'journey-map':
+    'Journey map — user experience flow with emotion scores, phases, and annotations',
+};
+
 // ECharts-native types parsed by parseExtendedChart
 const ECHART_TYPES = new Set([
   'scatter',
