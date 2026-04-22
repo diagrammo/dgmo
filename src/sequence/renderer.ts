@@ -2127,7 +2127,7 @@ export function renderSequenceDiagram(
               firstBranchStep = Math.min(firstBranchStep, first);
           }
           if (firstBranchStep < Infinity) {
-            const dividerY = stepY(firstBranchStep) - stepSpacing / 2;
+            const dividerY = stepY(firstBranchStep) - BLOCK_HEADER_SPACE;
             deferredLines.push({
               x1: frameX,
               y1: dividerY,
@@ -2156,7 +2156,7 @@ export function renderSequenceDiagram(
             firstElseStep = Math.min(firstElseStep, first);
         }
         if (firstElseStep < Infinity) {
-          const dividerY = stepY(firstElseStep) - stepSpacing / 2;
+          const dividerY = stepY(firstElseStep) - BLOCK_HEADER_SPACE;
           deferredLines.push({
             x1: frameX,
             y1: dividerY,
