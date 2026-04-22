@@ -2,11 +2,14 @@
 // Cycle Diagram — Layout Engine
 // ============================================================
 
-import type {
-  ParsedCycle,
-  CycleLayoutNode,
-  CycleLayoutEdge,
-  CycleLayoutResult,
+import {
+  DEFAULT_EDGE_WIDTH,
+  MIN_EDGE_WIDTH,
+  arrowHeadLength,
+  type ParsedCycle,
+  type CycleLayoutNode,
+  type CycleLayoutEdge,
+  type CycleLayoutResult,
 } from './types';
 
 /** Minimum arc angle in radians (~15°) to keep arcs readable. */
@@ -519,11 +522,6 @@ function circleRectExitAngle(
   return (insideAngle + outsideAngle) / 2;
 }
 
-/** Default edge stroke width (must match renderer). */
-const DEFAULT_EDGE_WIDTH = 3;
-/** Arrowhead marker width in stroke-width units (must match renderer). */
-const ARROWHEAD_MARKER_W = 8;
-
 /** Compute edge paths for all edges in the parsed diagram. */
 function computeEdgePaths(
   layoutNodes: CycleLayoutNode[],
@@ -536,9 +534,13 @@ function computeEdgePaths(
   return parsed.edges.map((edge) => {
     const src = layoutNodes[edge.sourceIndex];
     const tgt = layoutNodes[edge.targetIndex];
-    const strokeWidth = edge.width ?? DEFAULT_EDGE_WIDTH;
-    // Arrowhead rendered length in pixels (markerUnits = strokeWidth)
-    const arrowLen = ARROWHEAD_MARKER_W * strokeWidth;
+    const strokeWidth = Math.max(
+      edge.width ?? DEFAULT_EDGE_WIDTH,
+      MIN_EDGE_WIDTH
+    );
+    // Arrowhead effective reach: full length minus the 10% overlap that
+    // slides the marker back to cover the stroke/arrowhead junction line.
+    const arrowLen = arrowHeadLength(strokeWidth) * 0.9;
     const { path, labelX, labelY, labelAngle } = buildEdgeArc(
       src,
       tgt,
@@ -578,7 +580,7 @@ function fitToCanvas(
   height: number,
   _isClockwise: boolean
 ): { radius: number } | null {
-  const PADDING = 10;
+  const PADDING = 30;
   let contentMinX = Infinity,
     contentMaxX = -Infinity;
   let contentMinY = Infinity,
@@ -672,20 +674,9 @@ function buildEdgeArc(
 ): { path: string; labelX: number; labelY: number; labelAngle: number } {
   const dir = isClockwise ? 1 : -1;
 
-  // Find where the cycle circle exits the source node
-  const startAngle = src.isCircle
-    ? circleNodeExitAngle(src.width / 2, radius, src.angle, dir)
-    : circleRectExitAngle(
-        src.x,
-        src.y,
-        src.width / 2,
-        src.height / 2,
-        cx,
-        cy,
-        radius,
-        src.angle,
-        dir
-      );
+  // Start arc from the source node's center angle — the node renders on top
+  // of the edge, so the overlap is hidden and there's no visible gap.
+  const startAngle = src.angle;
 
   // Find where the cycle circle exits the target node
   const nodeEndAngle = tgt.isCircle

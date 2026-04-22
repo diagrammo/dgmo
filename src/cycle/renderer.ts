@@ -23,13 +23,15 @@ import { renderInlineText } from '../utils/inline-markdown';
 import type { PaletteColors } from '../palettes';
 import type { D3ExportDimensions } from '../utils/d3-types';
 import type { CompactViewState } from '../sharing';
-import type { ParsedCycle } from './types';
+import {
+  DEFAULT_EDGE_WIDTH,
+  MIN_EDGE_WIDTH,
+  arrowHeadLength,
+  type ParsedCycle,
+} from './types';
 import { computeCycleLayout } from './layout';
 
 // ── Constants ────────────────────────────────────────────────
-const DEFAULT_EDGE_WIDTH = 3;
-const ARROWHEAD_W = 8;
-const ARROWHEAD_H = 8;
 const NODE_FONT_SIZE = 13;
 const DESC_FONT_SIZE = 11;
 const EDGE_LABEL_FONT_SIZE = 11;
@@ -183,22 +185,28 @@ export function renderCycle(
   // Resolve default node color: first palette color (uniform)
   const defaultNodeColor = palette.primary;
 
-  // ── Arrowhead markers ──
-  const arrowColors = new Set<string>();
-  for (let i = 0; i < parsed.edges.length; i++) {
-    const edge = parsed.edges[i];
+  // ── Arrowhead markers (per color+width, markerUnits=strokeWidth) ──
+  const markerKeys = new Set<string>();
+  for (const edge of parsed.edges) {
     const color = resolveEdgeColor(edge, parsed, palette, defaultNodeColor);
-    arrowColors.add(color);
+    const sw = Math.max(edge.width ?? DEFAULT_EDGE_WIDTH, MIN_EDGE_WIDTH);
+    const key = `${color}|${sw}`;
+    if (!markerKeys.has(key)) {
+      markerKeys.add(key);
+      ensureArrowMarker(defs, color, sw);
+    }
   }
-  ensureArrowMarkers(defs, arrowColors);
 
   // ── Render edges (below nodes) ──
   for (let i = 0; i < layout.edges.length; i++) {
     const le = layout.edges[i];
     const edge = parsed.edges[i];
     const color = resolveEdgeColor(edge, parsed, palette, defaultNodeColor);
-    const strokeWidth = edge.width ?? DEFAULT_EDGE_WIDTH;
-    const markerId = `cycle-arrow-${color.replace('#', '')}`;
+    const strokeWidth = Math.max(
+      edge.width ?? DEFAULT_EDGE_WIDTH,
+      MIN_EDGE_WIDTH
+    );
+    const markerId = arrowMarkerId(color, strokeWidth);
 
     const edgeG = g.append('g').attr('class', 'cycle-edge');
 
@@ -514,26 +522,45 @@ function resolveEdgeColor(
   return defaultNodeColor;
 }
 
-function ensureArrowMarkers(
+/** Stable marker ID for a (color, strokeWidth) pair. */
+function arrowMarkerId(color: string, strokeWidth: number): string {
+  return `cycle-arrow-${color.replace('#', '')}-w${strokeWidth}`;
+}
+
+/**
+ * Create an arrowhead marker using markerUnits="strokeWidth" (SVG default)
+ * with per-edge dimensions.  The marker base automatically equals the stroke
+ * width — no gaps or lollipop effects.  Marker dimensions are computed so
+ * the rendered arrowhead length follows a sublinear formula:
+ *
+ *   rendered length = markerWidth × strokeWidth = arrowHeadLength(sw)
+ *   → markerWidth = arrowHeadLength(sw) / sw
+ *
+ * The height is fixed at 1 strokeWidth unit so the base = stroke width.
+ */
+function ensureArrowMarker(
   defs: d3Selection.Selection<SVGDefsElement, unknown, null, undefined>,
-  colors: Set<string>
+  color: string,
+  strokeWidth: number
 ): void {
-  for (const color of colors) {
-    const id = `cycle-arrow-${color.replace('#', '')}`;
-    defs
-      .append('marker')
-      .attr('id', id)
-      .attr('viewBox', `0 0 ${ARROWHEAD_W * 2} ${ARROWHEAD_H * 2}`)
-      .attr('refX', 0)
-      .attr('refY', ARROWHEAD_H)
-      .attr('markerWidth', ARROWHEAD_W)
-      .attr('markerHeight', ARROWHEAD_H)
-      .attr('orient', 'auto')
-      .append('polygon')
-      .attr(
-        'points',
-        `0,0 ${ARROWHEAD_W * 2},${ARROWHEAD_H} 0,${ARROWHEAD_H * 2}`
-      )
-      .attr('fill', color);
-  }
+  const id = arrowMarkerId(color, strokeWidth);
+  // Marker dimensions in strokeWidth units.
+  // Rendered size = mw × sw  (length)  and  mh × sw  (height).
+  const mw = arrowHeadLength(strokeWidth) / strokeWidth;
+  // Height proportional to length (½ ratio) but at least 1.5× stroke width
+  // so the arrowhead is always visibly wider than the stroke.
+  const mh = Math.max(1.5, mw * 0.5);
+
+  defs
+    .append('marker')
+    .attr('id', id)
+    .attr('viewBox', `0 0 ${mw} ${mh}`)
+    .attr('refX', mw * 0.1)
+    .attr('refY', mh / 2)
+    .attr('markerWidth', mw)
+    .attr('markerHeight', mh)
+    .attr('orient', 'auto')
+    .append('polygon')
+    .attr('points', `0,0 ${mw},${mh / 2} 0,${mh}`)
+    .attr('fill', color);
 }

@@ -64,6 +64,27 @@ export interface CycleLayoutEdge {
   label?: string;
 }
 
+// ============================================================
+// Shared arrow-sizing helpers (used by both layout + renderer)
+// ============================================================
+
+/** Default edge stroke width. */
+export const DEFAULT_EDGE_WIDTH = 3;
+/** Minimum rendered stroke width — thinner strokes produce unusable arrowheads. */
+export const MIN_EDGE_WIDTH = 2;
+
+/**
+ * Compute the desired arrowhead length in user-space pixels using sublinear
+ * scaling.  The renderer uses markerUnits="strokeWidth" with computed marker
+ * dimensions so the arrowhead base always matches the stroke width (no gaps,
+ * no lollipop effect) while the rendered length follows this formula.
+ */
+const BASE_ARROW_SIZE = 8;
+const ARROW_SCALE = 6;
+export function arrowHeadLength(strokeWidth: number): number {
+  return BASE_ARROW_SIZE + ARROW_SCALE * Math.sqrt(strokeWidth);
+}
+
 export interface CycleLayoutResult {
   nodes: CycleLayoutNode[];
   edges: CycleLayoutEdge[];
