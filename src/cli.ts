@@ -643,12 +643,19 @@ function inferFormat(outputPath: string | undefined): 'svg' | 'png' | 'url' {
   return 'png';
 }
 
+const BUNDLED_FONTS = [
+  join(__dirname, '..', 'fonts', 'Inter-Regular.ttf'),
+  join(__dirname, '..', 'fonts', 'Inter-Bold.ttf'),
+];
+
 function svgToPng(svg: string, background?: string): Buffer {
+  const fontFiles = BUNDLED_FONTS.filter((f) => existsSync(f));
   const resvg = new Resvg(svg, {
     fitTo: { mode: 'zoom', value: 2 },
     ...(background ? { background } : {}),
     font: {
-      loadSystemFonts: true,
+      loadSystemFonts: fontFiles.length === 0,
+      ...(fontFiles.length > 0 ? { fontFiles } : {}),
       defaultFontFamily: DEFAULT_FONT_NAME,
       sansSerifFamily: DEFAULT_FONT_NAME,
     },

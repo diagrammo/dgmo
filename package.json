@@ -50,10 +50,12 @@
         "types": "./dist/internal.d.cts",
         "default": "./dist/internal.cjs"
       }
-    }
+    },
+    "./fonts/*": "./fonts/*"
   },
   "files": [
     "dist",
+    "fonts",
     "src",
     "docs",
     "gallery/fixtures",

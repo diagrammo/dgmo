@@ -32,7 +32,7 @@ src/
 ├── cli.ts                      # CLI entry point
 ├── chart.ts                    # ECharts chart parser
 ├── dgmo-router.ts              # Framework dispatcher (all chart types)
-├── fonts.ts                    # FONT_FAMILY, DEFAULT_FONT_NAME ('Helvetica')
+├── fonts.ts                    # FONT_FAMILY, DEFAULT_FONT_NAME ('Inter')
 ├── colors.ts                   # Color name → hex resolver
 ├── d3.ts                       # D3 renderers (slope, arc, timeline, wordcloud, venn, quadrant)
 ├── echarts.ts                  # ECharts parser and renderer
@@ -95,7 +95,7 @@ SVG renderer using D3. Key concepts:
 
 - **resvg does NOT support CSS `color-mix()`** — use the `mix()` helper in `color-utils.ts` instead (pre-computes hex colors)
 - **resvg PNG background:** pass `paletteColors.bg` as `background` option for light/dark themes; omit for transparent
-- **Font standardization:** `fonts.ts` exports `FONT_FAMILY` and `DEFAULT_FONT_NAME` ('Helvetica'). All renderers import `FONT_FAMILY`. resvg configured with Helvetica as system font (no bundling needed).
+- **Font standardization:** `fonts.ts` exports `FONT_FAMILY` and `DEFAULT_FONT_NAME` ('Inter'). All renderers import `FONT_FAMILY`. Inter Regular + Bold TTF files are bundled in `fonts/` and used by the CLI via resvg `fontFiles`. The app and Obsidian plugin load Inter via `@font-face`.
 
 ## Build Output
 
