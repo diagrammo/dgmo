@@ -509,7 +509,7 @@ export function parseSitemap(
     };
     collectAll(result.roots);
     validateTagValues(allNodes, result.tagGroups, pushWarning, suggest);
-    validateTagGroupNames(result.tagGroups, pushWarning);
+    validateTagGroupNames(result.tagGroups, pushWarning, pushError);
   }
 
   if (

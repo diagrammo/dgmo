@@ -293,19 +293,49 @@ export function validateTagValues(
 // ── Tag Group Name Validation ────────────────────────────
 
 /**
- * Warn when a tag group uses the reserved name "none" (case-insensitive).
- * Should be called alongside `validateTagValues()` in each parser's
- * post-parse validation.
+ * Valid identifier for use as a `data-tag-<name>` attribute suffix.
+ * Must start with a letter or underscore, then letters/digits/underscore/hyphen only.
+ * Spaces and punctuation are rejected because they produce invalid DOM attribute
+ * names (setAttribute throws "Invalid qualified name").
+ */
+const VALID_TAG_IDENT_RE = /^[A-Za-z_][A-Za-z0-9_-]*$/;
+
+/**
+ * Validate tag group names (and aliases) for reserved keywords and DOM-safe
+ * identifier syntax. Should be called alongside `validateTagValues()` in each
+ * parser's post-parse validation.
+ *
+ * - Reserved name `none` (case-insensitive) → warning
+ * - Name or alias containing chars invalid for a `data-tag-*` attribute → error
+ *   (falls back to `pushWarning` if `pushError` is not supplied)
  */
 export function validateTagGroupNames(
-  tagGroups: ReadonlyArray<{ name: string; lineNumber: number }>,
-  pushWarning: (lineNumber: number, message: string) => void
+  tagGroups: ReadonlyArray<{
+    name: string;
+    alias?: string | null;
+    lineNumber: number;
+  }>,
+  pushWarning: (lineNumber: number, message: string) => void,
+  pushError?: (lineNumber: number, message: string) => void
 ): void {
+  const report = pushError ?? pushWarning;
   for (const group of tagGroups) {
     if (group.name.toLowerCase() === 'none') {
       pushWarning(
         group.lineNumber,
         `'none' is a reserved keyword and cannot be used as a tag group name`
+      );
+    }
+    if (!VALID_TAG_IDENT_RE.test(group.name)) {
+      report(
+        group.lineNumber,
+        `Tag group name "${group.name}" contains invalid characters — use a single identifier (letters, digits, underscore, hyphen)`
+      );
+    }
+    if (group.alias != null && !VALID_TAG_IDENT_RE.test(group.alias)) {
+      report(
+        group.lineNumber,
+        `Tag group alias "${group.alias}" contains invalid characters — use a single identifier (letters, digits, underscore, hyphen)`
       );
     }
   }

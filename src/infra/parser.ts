@@ -765,7 +765,7 @@ export function parseInfra(content: string): ParsedInfra {
     }
   }
 
-  validateTagGroupNames(result.tagGroups, warn);
+  validateTagGroupNames(result.tagGroups, warn, setError);
 
   return result;
 }

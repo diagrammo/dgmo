@@ -534,6 +534,54 @@ describe('validateTagGroupNames', () => {
     validateTagGroupNames([], warn);
     expect(warn).not.toHaveBeenCalled();
   });
+
+  it('reports an error when tag name contains a space', () => {
+    const warn = vi.fn();
+    const error = vi.fn();
+    validateTagGroupNames(
+      [{ name: 'Layer alias', lineNumber: 4 }],
+      warn,
+      error
+    );
+    expect(error).toHaveBeenCalledOnce();
+    expect(error.mock.calls[0][0]).toBe(4);
+    expect(error.mock.calls[0][1]).toContain('invalid characters');
+  });
+
+  it('reports an error when alias contains a space', () => {
+    const warn = vi.fn();
+    const error = vi.fn();
+    validateTagGroupNames(
+      [{ name: 'Priority', alias: 'bad alias', lineNumber: 7 }],
+      warn,
+      error
+    );
+    expect(error).toHaveBeenCalledOnce();
+    expect(error.mock.calls[0][1]).toContain('alias');
+  });
+
+  it('falls back to warn when pushError is not supplied', () => {
+    const warn = vi.fn();
+    validateTagGroupNames([{ name: 'Layer alias', lineNumber: 2 }], warn);
+    expect(warn).toHaveBeenCalledOnce();
+    expect(warn.mock.calls[0][1]).toContain('invalid characters');
+  });
+
+  it('accepts names with hyphens, underscores, and digits', () => {
+    const warn = vi.fn();
+    const error = vi.fn();
+    validateTagGroupNames(
+      [
+        { name: 'risk-level', lineNumber: 1 },
+        { name: 'team_2', lineNumber: 2 },
+        { name: 'Priority', alias: 'p', lineNumber: 3 },
+      ],
+      warn,
+      error
+    );
+    expect(warn).not.toHaveBeenCalled();
+    expect(error).not.toHaveBeenCalled();
+  });
 });
 
 // ============================================================

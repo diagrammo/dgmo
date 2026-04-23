@@ -373,7 +373,11 @@ export function parseKanban(
     return fail(1, 'No columns found. Use [Column Name] to define columns');
   }
 
-  validateTagGroupNames(result.tagGroups, warn);
+  validateTagGroupNames(result.tagGroups, warn, (line, msg) => {
+    const diag = makeDgmoError(line, msg);
+    result.diagnostics.push(diag);
+    if (!result.error) result.error = formatDgmoError(diag);
+  });
 
   return result;
 }

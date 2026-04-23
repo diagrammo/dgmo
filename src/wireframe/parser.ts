@@ -871,7 +871,9 @@ export function parseWireframe(content: string): ParsedWireframe {
   }
 
   // Validate tag groups
-  validateTagGroupNames(tagGroups, pushWarning);
+  validateTagGroupNames(tagGroups, pushWarning, (line, msg) => {
+    diagnostics.push(makeDgmoError(line, msg));
+  });
 
   const error = diagnostics.find((d) => d.severity === 'error')
     ? formatDgmoError(diagnostics.find((d) => d.severity === 'error')!)

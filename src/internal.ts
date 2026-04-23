@@ -10,7 +10,12 @@ export {
   isArchiveColumn,
 } from './kanban/mutations';
 export {
-  groupMessagesBySection,
+  applyGroupOrdering,
+  applyPositionOverrides,
   buildNoteMessageMap,
+  buildRenderSequence,
   collectNoteLineNumbers,
+  computeActivations,
+  groupMessagesBySection,
 } from './sequence/renderer';
+export { orderArcNodes } from './d3';

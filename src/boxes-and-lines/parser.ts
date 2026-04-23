@@ -616,7 +616,11 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
   if (result.tagGroups.length > 0) {
     injectDefaultTagMetadata(result.nodes, result.tagGroups);
     validateTagValues(result.nodes, result.tagGroups, pushWarning, suggest);
-    validateTagGroupNames(result.tagGroups, pushWarning);
+    validateTagGroupNames(result.tagGroups, pushWarning, (line, msg) => {
+      const diag = makeDgmoError(line, msg);
+      result.diagnostics.push(diag);
+      if (!result.error) result.error = diag.message;
+    });
   }
 
   return result;

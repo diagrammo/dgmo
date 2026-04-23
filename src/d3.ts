@@ -1506,8 +1506,15 @@ export function parseVisualization(
           result.diagnostics.push(makeDgmoError(line, msg, 'warning')),
         suggest
       );
-      validateTagGroupNames(result.timelineTagGroups, (line, msg) =>
-        result.diagnostics.push(makeDgmoError(line, msg, 'warning'))
+      validateTagGroupNames(
+        result.timelineTagGroups,
+        (line, msg) =>
+          result.diagnostics.push(makeDgmoError(line, msg, 'warning')),
+        (line, msg) => {
+          const diag = makeDgmoError(line, msg);
+          result.diagnostics.push(diag);
+          if (!result.error) result.error = formatDgmoError(diag);
+        }
       );
       for (const group of result.timelineTagGroups) {
         if (!group.defaultValue) continue;

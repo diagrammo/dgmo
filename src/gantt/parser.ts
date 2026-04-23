@@ -926,7 +926,11 @@ export function parseGantt(
     result.options.sort = 'default';
   }
 
-  validateTagGroupNames(result.tagGroups, warn);
+  validateTagGroupNames(result.tagGroups, warn, (line, msg) => {
+    const diag = makeDgmoError(line, msg);
+    diagnostics.push(diag);
+    if (!result.error) result.error = formatDgmoError(diag);
+  });
 
   // ── Sprint mode detection ──────────────────────────────
   const hasSprintOption =

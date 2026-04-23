@@ -1345,7 +1345,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
         entities.push({ metadata: g.metadata, lineNumber: g.lineNumber });
     }
     validateTagValues(entities, result.tagGroups, pushWarning, suggest);
-    validateTagGroupNames(result.tagGroups, pushWarning);
+    validateTagGroupNames(result.tagGroups, pushWarning, pushError);
   }
 
   return result;

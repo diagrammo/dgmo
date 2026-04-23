@@ -408,7 +408,11 @@ export function parseJourneyMap(
     return fail(1, 'No phases or steps found');
   }
 
-  validateTagGroupNames(result.tagGroups, warn);
+  validateTagGroupNames(result.tagGroups, warn, (line, msg) => {
+    const diag = makeDgmoError(line, msg);
+    result.diagnostics.push(diag);
+    if (!result.error) result.error = formatDgmoError(diag);
+  });
 
   return result;
 }
