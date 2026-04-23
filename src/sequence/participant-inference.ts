@@ -185,7 +185,6 @@ const PARTICIPANT_RULES: readonly InferenceRule[] = [
   { pattern: /^Admin$/i, type: 'actor' },
   { pattern: /^User$/i, type: 'actor' },
   { pattern: /^Customer$/i, type: 'actor' },
-  { pattern: /^Client$/i, type: 'actor' },
   { pattern: /^Agent$/i, type: 'actor' },
   { pattern: /^Person$/i, type: 'actor' },
   { pattern: /^Buyer$/i, type: 'actor' },

@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { inferParticipantType, RULE_COUNT } from '../src/sequence/participant-inference';
+import {
+  inferParticipantType,
+  RULE_COUNT,
+} from '../src/sequence/participant-inference';
 
 // ────────────────────────────────────────────────────────────
 // Rule count assertion
@@ -7,7 +10,7 @@ import { inferParticipantType, RULE_COUNT } from '../src/sequence/participant-in
 
 describe('RULE_COUNT', () => {
   it('matches the actual number of rules in the table', () => {
-    expect(RULE_COUNT).toBe(223);
+    expect(RULE_COUNT).toBe(222);
   });
 });
 
@@ -111,7 +114,6 @@ describe('regression guard — original rules', () => {
     ['Admin', 'actor'],
     ['User', 'actor'],
     ['Customer', 'actor'],
-    ['Client', 'actor'],
     ['Agent', 'actor'],
     ['Person', 'actor'],
     ['Buyer', 'actor'],
