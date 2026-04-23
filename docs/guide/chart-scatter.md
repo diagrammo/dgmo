@@ -5,17 +5,16 @@ scatter Cannon Range vs Powder Charge
 x-label Powder (lbs)
 y-label Range (yards)
 
-// label: x, y
-Long Tom: 12, 1800
-Demi-Culverin: 8, 1200
-Carronade: 4, 400
-Swivel Gun: 2, 250
-Nine-Pounder: 6, 900
-Eighteen-Pounder: 10, 1500
-Basilisk: 14, 2000
-Falconet: 3, 350
-Minion: 5, 700
-Saker: 7, 1050
+Long Tom 12 1800
+Demi-Culverin 8 1200
+Carronade 4 400
+Swivel Gun 2 250
+Nine-Pounder 6 900
+Eighteen-Pounder 10 1500
+Basilisk 14 2000
+Falconet 3 350
+Minion 5 700
+Saker 7 1050
 ```
 
 ## Syntax
@@ -27,12 +26,10 @@ y-label Y Axis Label
 no-labels
 size-label Size Legend Label
 
-// label: x, y
-Point Name: x, y
+Point Name x y
 
 // or with size (bubble chart)
-// label: x, y, size
-Point Name: x, y, size
+Point Name x y size
 ```
 
 ## Metadata Keys
@@ -52,12 +49,12 @@ Each data line provides X and Y values, with an optional third value for bubble 
 
 ```
 // 2D scatter
-Point A: 12, 1800
-Point B: 8, 1200
+Point A 12 1800
+Point B 8 1200
 
 // 3D bubble
-Point A: 85, 90, 80
-Point B: 45, 55, 35
+Point A 85 90 80
+Point B 45 55 35
 ```
 
 ## Category Groups
@@ -66,11 +63,11 @@ Use `[Category Name](color)` headers to group points into colored categories:
 
 ```
 [English Pirates](red)
-Blackbeard: 85, 90, 80
-Calico Jack: 45, 55, 35
+Blackbeard 85 90 80
+Calico Jack 45 55 35
 
 [French Buccaneers](blue)
-L'Olonnais: 70, 80, 60
+L'Olonnais 70 80 60
 ```
 
 ## Variants
@@ -84,11 +81,11 @@ scatter Pirate Fleets of the Caribbean
 size-label Crew
 
 [English Pirates](red)
-Blackbeard: 85, 90, 80
-Calico Jack: 45, 55, 35
-Anne Bonny: 50, 70, 30
+Blackbeard 85 90 80
+Calico Jack 45 55 35
+Anne Bonny 50 70 30
 
 [French Buccaneers](blue)
-L'Olonnais: 70, 80, 60
-Pierre le Grand: 30, 45, 25
+L'Olonnais 70 80 60
+Pierre le Grand 30 45 25
 ```

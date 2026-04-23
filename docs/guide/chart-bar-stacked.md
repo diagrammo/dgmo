@@ -4,10 +4,10 @@
 bar-stacked Cargo by Voyage
 series Rum, Spices, Silk, Gold
 
-Voyage 1 40, 20, 10, 30
-Voyage 2 25, 35, 20, 20
-Voyage 3 15, 10, 45, 30
-Voyage 4 30, 25, 15, 30
+Voyage 1 40 20 10 30
+Voyage 2 25 35 20 20
+Voyage 3 15 10 45 30
+Voyage 4 30 25 15 30
 ```
 
 ## Syntax
@@ -16,7 +16,7 @@ Voyage 4 30, 25, 15, 30
 bar-stacked Chart Title
 series Series1, Series2, Series3
 
-Label value1, value2, value3
+Label value1 value2 value3
 ```
 
 ## Metadata Keys
@@ -30,11 +30,11 @@ Label value1, value2, value3
 
 ## Data Format
 
-Each data line provides comma-separated values matching the series order:
+Each data line provides space-separated values matching the series order:
 
 ```
-Voyage 1 40, 20, 10, 30
-Voyage 2 25, 35, 20, 20
+Voyage 1 40 20 10 30
+Voyage 2 25 35 20 20
 ```
 
 ## Series Colors
@@ -54,8 +54,8 @@ bar-stacked Port Revenue by Trade
 orientation-horizontal
 series Imports(blue), Exports(green), Tariffs(orange)
 
-Port Royal 300, 450, 80
-Tortuga 150, 200, 30
-Nassau 400, 350, 120
-Havana 500, 600, 150
+Port Royal 300 450 80
+Tortuga 150 200 30
+Nassau 400 350 120
+Havana 500 600 150
 ```

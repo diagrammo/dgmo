@@ -3,11 +3,11 @@
 ```dgmo
 radar Ship Combat Rating
 
-Firepower: 85
-Speed: 70
-Armor: 60
-Maneuverability: 90
-Crew Morale: 75
+Firepower 85
+Speed 70
+Armor 60
+Maneuverability 90
+Crew Morale 75
 ```
 
 ## Syntax
@@ -15,7 +15,7 @@ Crew Morale: 75
 ```
 radar Chart Title
 
-Label: value
+Label value
 ```
 
 ## Metadata Keys
@@ -30,9 +30,9 @@ Label: value
 Each data line defines one axis of the radar with its value:
 
 ```
-Firepower: 85
-Speed: 70
-Armor: 60
+Firepower 85
+Speed 70
+Armor 60
 ```
 
 Values are plotted on axes radiating from the center, connected by a filled polygon.

@@ -3,12 +3,12 @@
 ```dgmo
 pie Crew Roles Distribution
 
-Sailors: 45
-Gunners: 20
-Marines: 15
-Officers: 8
-Specialists: 7
-Cooks & Surgeons: 5
+Sailors 45
+Gunners 20
+Marines 15
+Officers 8
+Specialists 7
+Cooks & Surgeons 5
 ```
 
 ## Syntax
@@ -16,7 +16,7 @@ Cooks & Surgeons: 5
 ```
 pie Chart Title
 
-Label: value
+Label value
 ```
 
 ## Metadata Keys
@@ -28,12 +28,12 @@ Label: value
 
 ## Data Format
 
-Each data line follows the pattern `Label: value`:
+Each data line follows the pattern `Label value`:
 
 ```
-Sailors: 45
-Gunners: 20
-Officers: 8
+Sailors 45
+Gunners 20
+Officers 8
 ```
 
 Slices are automatically colored using the Nord palette.

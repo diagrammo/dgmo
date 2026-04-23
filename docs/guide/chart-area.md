@@ -8,12 +8,12 @@ x-label Year
 era 1710 -> 1716 Rise (green)
 era 1716 -> 1720 Decline (red)
 
-1710: 3
-1712: 5
-1714: 9
-1716: 14
-1718: 8
-1720: 4
+1710 3
+1712 5
+1714 9
+1716 14
+1718 8
+1720 4
 ```
 
 ## Syntax
@@ -24,7 +24,7 @@ series Series Name
 x-label X Axis Label
 y-label Y Axis Label
 
-Label: value
+Label value
 ```
 
 ## Era Bands
@@ -38,12 +38,12 @@ x-label Year
 era 1710 -> 1714 Early Growth (blue)
 era 1714 -> 1720 Decline (red)
 
-1710: 3
-1712: 5
-1714: 9
-1716: 14
-1718: 8
-1720: 4
+1710 3
+1712 5
+1714 9
+1716 14
+1718 8
+1720 4
 ```
 
 Era syntax: `era <start> -> <end> Label (color)`
@@ -64,10 +64,10 @@ Era syntax: `era <start> -> <end> Label (color)`
 
 ## Data Format
 
-Each data line follows the pattern `Label: value`:
+Each data line follows the pattern `Label value`:
 
 ```
-1710: 3
-1712: 5
-1714: 9
+1710 3
+1712 5
+1714 9
 ```

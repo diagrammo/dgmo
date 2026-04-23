@@ -9,13 +9,13 @@ y-label Speed
 era Day 1 -> Day 3 Rough Seas (red)
 era Day 3 -> Day 7 Fair Winds (blue)
 
-Day 1: 8
-Day 2: 10
-Day 3: 7
-Day 4: 12
-Day 5: 9
-Day 6: 11
-Day 7: 6
+Day 1 8
+Day 2 10
+Day 3 7
+Day 4 12
+Day 5 9
+Day 6 11
+Day 7 6
 ```
 
 ## Syntax
@@ -26,7 +26,7 @@ series Series Name
 x-label X Axis Label
 y-label Y Axis Label
 
-Label: value
+Label value
 ```
 
 ## Era Bands
@@ -41,13 +41,13 @@ era '77 -> '81 Carter (blue)
 era '81 -> '89 Reagan (red)
 era '89 -> '93 Bush (red)
 
-'77: 7
-'78: 67
-'79: 91
-'80: 108
-'81: 230
-'82: 294
-'83: 379
+'77 7
+'78 67
+'79 91
+'80 108
+'81 230
+'82 294
+'83 379
 ```
 
 Era syntax: `era <start> -> <end> Label (color)`
@@ -70,10 +70,10 @@ Era syntax: `era <start> -> <end> Label (color)`
 
 ## Data Format
 
-Each data line follows the pattern `Label: value`:
+Each data line follows the pattern `Label value`:
 
 ```
-Day 1: 8
-Day 2: 10
-Day 3: 7
+Day 1 8
+Day 2 10
+Day 3 7
 ```

@@ -3,11 +3,11 @@
 ```dgmo
 polar-area Captain's Skills
 
-Navigation: 90
-Swordsmanship: 75
-Leadership: 85
-Cunning: 95
-Seamanship: 80
+Navigation 90
+Swordsmanship 75
+Leadership 85
+Cunning 95
+Seamanship 80
 ```
 
 ## Syntax
@@ -15,7 +15,7 @@ Seamanship: 80
 ```
 polar-area Chart Title
 
-Label: value
+Label value
 ```
 
 ## Metadata Keys
@@ -27,12 +27,12 @@ Label: value
 
 ## Data Format
 
-Each data line follows the pattern `Label: value`:
+Each data line follows the pattern `Label value`:
 
 ```
-Navigation: 90
-Swordsmanship: 75
-Leadership: 85
+Navigation 90
+Swordsmanship 75
+Leadership 85
 ```
 
 Segments are automatically colored using the Nord palette.

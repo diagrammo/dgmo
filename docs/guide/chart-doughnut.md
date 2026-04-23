@@ -3,11 +3,11 @@
 ```dgmo
 doughnut Plunder Distribution
 
-Captain's Share: 40
-Quartermaster: 20
-Crew Split: 25
-Ship Repairs: 10
-Provisions: 5
+Captain's Share 40
+Quartermaster 20
+Crew Split 25
+Ship Repairs 10
+Provisions 5
 ```
 
 ## Syntax
@@ -15,7 +15,7 @@ Provisions: 5
 ```
 doughnut Chart Title
 
-Label: value
+Label value
 ```
 
 ## Metadata Keys
@@ -27,12 +27,12 @@ Label: value
 
 ## Data Format
 
-Each data line follows the pattern `Label: value`:
+Each data line follows the pattern `Label value`:
 
 ```
-Captain's Share: 40
-Quartermaster: 20
-Crew Split: 25
+Captain's Share 40
+Quartermaster 20
+Crew Split 25
 ```
 
 Segments are automatically colored using the Nord palette.

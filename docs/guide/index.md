@@ -24,9 +24,9 @@ Every diagram starts with the chart type on the first line, followed by your dat
 ```
 bar Q1 Sales
 
-Jan: 42
-Feb: 58
-Mar: 71
+Jan 42
+Feb 58
+Mar 71
 ```
 
 ## The Diagrammo Ecosystem
