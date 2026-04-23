@@ -317,17 +317,24 @@ Shapes: `(oval)` `[rect]` `<diamond>` `/parallelogram/` `[[subroutine]]` `[docum
 
 ### bar / line / pie (data charts)
 
+**Data-chart conventions (apply to every chart under §15 of the spec):**
+- Data rows are **space-separated**. Commas between values are tolerated for back-compat but not idiomatic — do not generate them.
+- Multi-series `series` declarations use the **indented one-per-line form** when there's more than one series; it's easier to read and reviewers prefer it.
+
 ```
-// bar
+// bar (single series)
 bar Revenue by Region
 series Revenue
 North 850
 South 620
 
-// line (multi-series)
-series Sales(red), Costs(blue)
-Q1 100, 50
-Q2 120, 55
+// line (multi-series — use indented series block + space-separated values)
+line Quarterly Numbers
+series
+  Sales (red)
+  Costs (blue)
+Q1 100 50
+Q2 120 55
 
 // pie
 pie Market Share
@@ -543,14 +550,14 @@ top-right Major Projects
 bottom-left Fill-ins
 bottom-right Avoid(red)
 
-Dark Mode (blue) 0.25, 0.85
-API v2 0.8, 0.9
-Fix Typos 0.1, 0.15
+Dark Mode (blue) 0.25 0.85
+API v2 0.8 0.9
+Fix Typos 0.1 0.15
 ```
 
-- Axis labels: `x-label Low, High` and `y-label Low, High`
+- Axis labels: `x-label Low, High` and `y-label Low, High` (comma is the low/high delimiter here by design, not a data-row delimiter)
 - Quadrant labels: `top-left`, `top-right`, `bottom-left`, `bottom-right`
-- Data: `Label (color) x, y` where x,y are 0–1
+- Data points: `Label (color) x y` — space-separated per §15 Rule A (comma-form tolerated for back-compat but not idiomatic)
 
 ### sankey / chord
 
@@ -610,15 +617,15 @@ x-label Funding ($M)
 y-label Revenue ($M)
 
 [SaaS](blue)
-  Acme 12, 8.5
-  DataSync 5.2, 3.1
+  Acme 12 8.5
+  DataSync 5.2 3.1
 
 [Fintech](green)
-  PayFlow 45, 32
-  LendTech 18, 12.5
+  PayFlow 45 32
+  LendTech 18 12.5
 ```
 
-- Data: `Label x, y` or `Label x, y, size` (bubble chart)
+- Data: `Label x y` or `Label x y size` (bubble chart) — space-separated per §15 Rule A
 - Groups: `[Category](color)` headers
 - Options: `labels on`, `xlabel`, `ylabel`, `sizelabel`
 
@@ -669,6 +676,17 @@ series: A, B       ❌  use `series A, B` (no colon)
 Label: 100         ❌  use `Label 100` (no colon in data rows)
 tag: Group         ❌  use `tag Group` (no colon)
 note: text         ❌  use `note text` (no colon)
+```
+
+**Data-chart style (back-compat tolerated, but not idiomatic — don't generate these):**
+
+```
+Q1 100, 200, 300                     ⚠  prefer space-separated: `Q1 100 200 300`
+series A (red), B (blue), C (green)  ⚠  for ≥2 series, prefer the indented block:
+                                         series
+                                           A (red)
+                                           B (blue)
+                                           C (green)
 ```
 
 ## Tips

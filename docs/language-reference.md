@@ -1134,28 +1134,50 @@ marker
 
 ## 15. Data Charts
 
+### Conventions shared across all data charts
+
+Every section under §15 follows the same two rules.
+
+**Rule A — data rows are space-separated.** Commas between values are tolerated for back-compat but not idiomatic. Thousands-separator commas *inside a single number* (`3,984,078.65`) are always supported.
+
+```
+Q1 400 700 300 500     ✅  preferred
+Q1 400, 700, 300, 500  ⚠  tolerated; use spaces
+```
+
+**Rule B — list-of-labelled-items directives (e.g. `series`, `columns`) prefer the indented one-per-line form.** Short one-line forms are tolerated for ≤3 items with no colour annotations or spaces.
+
+```
+series                            ✅  preferred
+  Cloud Platform (blue)
+  Legacy Suite (red)
+  Mobile App (green)
+
+series Cloud (blue), Legacy (red) ⚠  tolerated; prefer the block
+```
+
+Parsers accept either form. The rules above are authoring guidance.
+
 ### 15.1 Simple Charts (bar, line, pie, doughnut, area, polar-area, radar, bar-stacked)
 
 **Declaration:** `bar [Title]`, `line [Title]`, etc.
 
-**Series:**
+**Series** — follows Rule B (prefer the indented block):
 ```
-series Name1 Name2
 series
-  Name1
-  Name2(color)
+  Cloud Platform (blue)
+  Legacy Suite (red)
 ```
 
-Commas between series names are optional.
+Short one-line form is tolerated: `series Revenue` or `series A B`.
 
-**Data rows (space-separated, NO colon):**
+**Data rows** — follows Rule A:
 ```
 Label 100
 Label 100 200 300
 Label(color) 100
+Q1 400 700 300 500
 ```
-
-Commas between values are optional. Thousands commas are supported (`3,984,078.65` is a valid number).
 
 **Options (space-separated, NO colon):**
 ```
@@ -1182,13 +1204,11 @@ era Day 1 -> Day 3 Rough Seas (red)
 
 ### 15.2 Scatter / Bubble Charts
 
-**Data rows (space-separated, NO colon):**
+**Data rows** — follows §15 Rule A (space-separated):
 ```
 Name x y
 Name x y size
 ```
-
-Commas between values are optional. Thousands commas supported.
 
 **Categories:**
 ```
@@ -1208,19 +1228,20 @@ Labels are on by default. Use `no-labels` to hide point names.
 
 ### 15.3 Heatmap
 
-**Columns:**
+**Columns** — follows §15 Rule B (prefer the indented block for multiple columns):
 ```
-columns Jan Feb Mar
+columns
+  Jan
+  Feb
+  Mar
 ```
 
-Commas between column names are optional.
+Short one-line form is tolerated: `columns Jan Feb Mar`.
 
-**Data rows (space-separated, NO colon):**
+**Data rows** — follows §15 Rule A:
 ```
 RowLabel 5 4 3
 ```
-
-Commas between values are optional. Thousands commas supported.
 
 ### 15.4 Function Charts (Colon REQUIRED)
 
@@ -1254,7 +1275,7 @@ Source -> Target 3500
 Source -- Target 2000
 ```
 
-`->` = directed, `--` = undirected. Thousands commas supported in values.
+`->` = directed, `--` = undirected. Values follow §15 Rule A.
 
 ### 15.6 Chord Charts
 
@@ -1263,18 +1284,16 @@ Blackbeard -- Bonnet 150        // undirected
 Roberts -> Rackham 20           // directed
 ```
 
-Thousands commas supported in values.
+Values follow §15 Rule A.
 
 ### 15.7 Funnel Charts
 
-**Data rows (space-separated, NO colon):**
+**Data rows** — follows §15 Rule A (space-separated):
 ```
 Visits 1200
 Signups 800
 Purchases 200
 ```
-
-Thousands commas supported.
 
 ---
 
@@ -1297,7 +1316,7 @@ Roberts 12 52
     Before COVID
     After COVID
   ```
-- Data rows: `Label value1 value2` — space-separated, no colons, no commas between values
+- Data rows: `Label value1 value2` — follows §15 Rule A (space-separated; commas between values tolerated for back-compat but not idiomatic)
 - Thousands commas within values supported (e.g., `1,000`)
 - Color annotations: `Label (color) value1 value2`
 - Minimum 2 periods required
@@ -1364,9 +1383,9 @@ Quartermaster 0.9 0.95
 Navigator 0.85 0.8
 ```
 
-- Axis labels: `x-label Low, High` — comma-separated
+- Axis labels: `x-label Low, High` — comma-separated (low/high pair, not a data row; comma is the delimiter here by design)
 - Position labels: `top-right Label` — space-separated
-- Data points: `Label x y` or `Label x, y` — comma or space between coordinates
+- Data points: `Label x y` — follows §15 Rule A (space-separated; `Label x, y` tolerated for back-compat)
 
 ---
 
