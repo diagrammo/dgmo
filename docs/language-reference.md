@@ -768,6 +768,8 @@ kanban [Title]
 
 ### 10.2 Columns
 
+Columns represent workflow stages and must flow left-to-right from least-done to most-done (e.g., Backlog → In Progress → Done). Every column should be a stage that cards pass through. Don't create columns for non-workflow concepts like gates, criteria, or definitions of done — use a tag instead (e.g., `type: Gate`).
+
 ```
 [Column Name]
 [Column Name](color) | wip: 3

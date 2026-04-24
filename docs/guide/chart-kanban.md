@@ -59,6 +59,8 @@ Card Title | key: Value, key: Value
 
 Columns are defined with `[Column Name]` syntax. All cards between one column header and the next belong to that column.
 
+Kanban columns model a workflow pipeline. Cards move left to right as work progresses. Each column should answer "what stage is this work in?" If something isn't a stage — like acceptance criteria, decision gates, or definitions of done — model it as a tag on cards rather than a separate column.
+
 ```
 [To Do]
 [In Progress]
