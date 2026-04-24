@@ -24,6 +24,28 @@ export type { ParseInArrowLabelResult } from './utils/arrows';
 export { render } from './render';
 
 // ============================================================
+// Chart-type registry (single source of truth)
+// ============================================================
+
+export { chartTypes } from './chart-types';
+export type { ChartTypeMeta } from './chart-types';
+
+export {
+  normalize as normalizeChartTypePrompt,
+  matchesContiguously,
+  scoreChartType,
+  confidence as chartTypeConfidence,
+  suggestChartTypes,
+  MIN_PRIMARY_SCORE,
+  AMBIGUITY_THRESHOLD,
+} from './chart-type-scoring';
+export type {
+  ChartTypeScore,
+  Confidence as ChartTypeConfidence,
+  SuggestionResult as ChartTypeSuggestionResult,
+} from './chart-type-scoring';
+
+// ============================================================
 // Router
 // ============================================================
 
@@ -34,6 +56,8 @@ export {
   isExtendedChartType,
   getAllChartTypes,
   CHART_TYPE_DESCRIPTIONS,
+  chartTypeParsers,
+  knownChartTypeIds,
 } from './dgmo-router';
 export type { RenderCategory } from './dgmo-router';
 

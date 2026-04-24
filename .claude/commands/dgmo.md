@@ -89,25 +89,18 @@ For **examples** of real diagrams, call `mcp__dgmo__get_examples("<type>")` — 
 
 ### Creating a new diagram
 
-1. **Pick the right chart type** — don't ask the user. Use these heuristics:
-   - "show our API" / "how does X work" → `sequence`
-   - "architecture" / "system overview" → `c4`
-   - "database" / "schema" / "models" → `er`
-   - "infrastructure" / "deployment" / "traffic" → `infra`
-   - "process" / "decision" / "flow" → `flowchart`
-   - "states" / "lifecycle" / "transitions" → `state`
-   - "org" / "team" / "hierarchy" → `org`
-   - "roadmap" / "project status" → `gantt`
-   - "boxes" / "nodes and edges" / "general diagram" → `boxes-and-lines`
-   - "compare" / "metrics" / "data" → `bar`, `line`, `pie`, etc.
-   - If genuinely ambiguous, suggest your best guess with a one-line rationale.
+1. **Pick the right chart type** — always call `mcp__dgmo__suggest_chart_type({ prompt: <user's request> })` first. It returns up to 3 ranked candidates with a confidence banner and matched trigger phrases. Use the top match unless you have a strong reason to override it. If the MCP tool is unavailable (Setup Check fallback path), run `dgmo --chart-types` in a terminal to list supported types and pick from that list.
 2. **Get syntax + examples** — call `mcp__dgmo__get_language_reference("<type>")` and `mcp__dgmo__get_examples("<type>")`.
 3. **Write the `.dgmo` content** — compose the markup.
 4. **Validate first** — call `mcp__dgmo__validate_diagram(dgmo)` to catch syntax errors before rendering. If errors come back, fix them and validate again.
-5. **Open in browser** — call `mcp__dgmo__preview_diagram([{dgmo, title}])` without asking. This is always the right default.
+5. **Open on online.diagrammo.app** — the **default** visual output. Call `mcp__dgmo__share_diagram(dgmo)` to get a URL, then immediately run `open <url>` in the shell. This lands the user on the web editor where they see the chart AND the code side-by-side, can tweak the markup interactively, and can share the link as-is. Do NOT just print the URL — always `open` it.
+
+   **Exception — image-output intent detected:** if the user's prompt explicitly asks for an image or saved file (phrases like "save as PNG", "export to SVG", "make an image", "render to a file", "give me a png", "I need an SVG"), skip the share URL and go straight to `mcp__dgmo__render_diagram` (see "Image output" below). The detection is intent-based, not keyword-strict — if in doubt, default to share URL and offer "Want me to save as PNG/SVG instead?"
+
+   **Side-by-side variants** still use `mcp__dgmo__preview_diagram` (multi-diagram preview is its killer feature). See "Side-by-side variants" below.
 6. **Save the source file** (if working in a project) — write it to `<name>.dgmo` so the user has an editable copy.
 
-Do not ask the user how they want to view the diagram. Just open it. They can ask for other formats if they want.
+Do not ask the user how they want to view the diagram. Just open the share URL. They can ask for other formats if they want.
 
 ### Editing an existing diagram
 
@@ -117,7 +110,7 @@ When the user asks to modify a `.dgmo` file or says "update this diagram":
 2. **Understand it** — identify the chart type, key elements, and structure.
 3. **Make the change** — edit the file using the Edit tool. Preserve the user's style and organization.
 4. **Validate** — call `mcp__dgmo__validate_diagram(dgmo)` on the updated content.
-5. **Preview** — call `mcp__dgmo__preview_diagram` so the user sees the result immediately.
+5. **Preview** — call `mcp__dgmo__share_diagram(dgmo)` and `open <url>` so the user sees the result on online.diagrammo.app. (Image-output intent exception applies — if the user asked for a PNG/SVG file explicitly, render to file instead.)
 
 Keep the diff minimal — don't rewrite the whole file when adding one element.
 
@@ -142,7 +135,7 @@ When `validate_diagram` or `render_diagram` returns errors:
 1. **Read the error messages** — they include line numbers and descriptions.
 2. **Fix the specific issues** — don't regenerate from scratch unless there are many errors.
 3. **Validate again** — loop until clean.
-4. **Then render** — only call `preview_diagram` or `render_diagram` after validation passes.
+4. **Then render** — only call `share_diagram` (default), `preview_diagram` (variants), or `render_diagram` (files) after validation passes.
 
 Common fixes:
 - "Unknown directive" → check spelling, remove colons from directives
@@ -165,16 +158,25 @@ This opens a single page with both diagrams. Use this for:
 - Different levels of detail
 - Alternative structures for the same data
 
-### Other output options (only when explicitly requested)
+### Image output (when the user explicitly asks for an image/file)
+
+Trigger phrases: "save as PNG", "export to SVG", "make an image", "render to a file", "give me a PNG", "I need an SVG", "generate an image". For these, skip the share URL and go straight to file output:
+
+| Intent | How to do it |
+|---|---|
+| **Save as PNG** | `mcp__dgmo__render_diagram(dgmo, format:"png", theme:"dark", palette:"nord")` → returns temp path; offer to copy to their preferred location. Or CLI: `dgmo file.dgmo -o out.png --theme dark --palette nord` |
+| **Save as SVG** | `mcp__dgmo__render_diagram(dgmo, format:"svg", theme:"dark", palette:"nord")` returns SVG text — write it to the desired path. Or CLI: `dgmo file.dgmo -o out.svg --theme dark --palette nord` |
+| **View in macOS Preview** | `mcp__dgmo__render_diagram(dgmo, format:"png", theme:"dark", palette:"nord")` → get temp path → `open <path>` |
+
+### Other output options (when explicitly requested)
 
 | What the user wants | How to do it |
 |---|---|
 | **Quick look in the desktop app** | `mcp__dgmo__open_in_app(dgmo)` — opens directly in Diagrammo (macOS) |
-| **View in macOS Preview** | `mcp__dgmo__render_diagram(dgmo, format:"png", theme:"dark", palette:"nord")` → get temp path → `open <path>` |
-| **Save as PNG** | `mcp__dgmo__render_diagram(dgmo, format:"png", theme:"dark", palette:"nord")` → returns temp path; offer to copy to their preferred location. Or CLI: `dgmo file.dgmo -o out.png --theme dark --palette nord` |
-| **Save as SVG** | `mcp__dgmo__render_diagram(dgmo, format:"svg", theme:"dark", palette:"nord")` returns SVG text — write it to the desired path. Or CLI: `dgmo file.dgmo -o out.svg --theme dark --palette nord` |
-| **Shareable URL** | `mcp__dgmo__share_diagram(dgmo)` → returns a URL; immediately run `open <url>` — do NOT just display the URL |
+| **Local HTML preview (not online.diagrammo.app)** | `mcp__dgmo__preview_diagram([{dgmo, title}])` — useful when the user specifically wants a local file or is offline |
 | **Copy markup to clipboard** | Run `echo '<dgmo markup>' \| pbcopy` |
+
+(The share URL — `mcp__dgmo__share_diagram` + `open` — is the DEFAULT visual output, not an alternative. See "Creating a new diagram → step 5" above.)
 
 ### Embedding diagrams in docs
 
@@ -199,15 +201,15 @@ for f in diagrams/*.dgmo; do dgmo "$f" -o "${f%.dgmo}.png" --theme dark --palett
 
 Or for SVG: replace `.png` with `.svg` in the output.
 
-### Share link to clipboard
+### Share link to clipboard (when the user asks for the URL without opening)
 
-After generating a share link, always copy it to the clipboard automatically:
+If the user wants the link in clipboard rather than opened (e.g., they want to paste it into Slack themselves), after generating the share link:
 
 ```bash
 echo '<url>' | pbcopy
 ```
 
-Then tell the user it's been copied.
+Then tell the user it's been copied. Otherwise, the default is always `open <url>` — that's what step 5 of the main workflow does.
 
 ## CLI Reference
 
@@ -226,37 +228,7 @@ Key options:
 
 ## Supported Chart Types
 
-| Type | Use case |
-|------|----------|
-| `bar` | Categorical comparisons |
-| `line` / `multi-line` / `area` | Trends over time |
-| `pie` / `doughnut` | Part-to-whole |
-| `radar` / `polar-area` | Multi-dimensional metrics |
-| `bar-stacked` | Multi-series categorical |
-| `scatter` | 2D data points or bubble chart |
-| `sankey` | Flow / allocation |
-| `chord` | Circular flow relationships |
-| `function` | Mathematical expressions |
-| `heatmap` | Matrix intensity |
-| `funnel` | Conversion pipeline |
-| `slope` | Change between two periods |
-| `wordcloud` | Term frequency |
-| `arc` | Network relationships |
-| `timeline` | Events, eras, date ranges |
-| `venn` | Set overlaps |
-| `quadrant` | 2x2 positioning matrix |
-| `sequence` | Message / interaction flows |
-| `flowchart` | Decision trees, process flows |
-| `state` | State machine / lifecycle |
-| `class` | UML class hierarchies |
-| `er` | Database schemas |
-| `org` | Hierarchical tree structures |
-| `kanban` | Task / workflow columns |
-| `c4` | System architecture (context → container → component → deployment) |
-| `sitemap` | Website / app navigation structure |
-| `infra` | Infrastructure traffic flow with rps computation |
-| `gantt` | Project scheduling with dependencies |
-| `boxes-and-lines` | General-purpose node-edge diagrams with groups and tags |
+Call `mcp__dgmo__list_chart_types` to see every supported type with descriptions, or `dgmo --chart-types` in a terminal as a CLI fallback. When picking for a new diagram, use `mcp__dgmo__suggest_chart_type` — it scores the full list against the user's prompt (see "Creating a new diagram → step 1").
 
 ## Key Syntax Patterns
 

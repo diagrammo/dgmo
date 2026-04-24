@@ -682,7 +682,7 @@ async function main(): Promise<void> {
     } else {
       for (const id of types) {
         const desc = CHART_TYPE_DESCRIPTIONS[id];
-        console.log(desc ? `${id} — ${desc.split(' — ')[1]}` : id);
+        console.log(desc ? `${id} — ${desc}` : id);
       }
     }
     return;

@@ -26,6 +26,7 @@ import { parsePyramid } from './pyramid/parser';
 import { parseFirstLine } from './utils/parsing';
 import { makeDgmoError, suggest } from './diagnostics';
 import type { DgmoError } from './diagnostics';
+import { chartTypes } from './chart-types';
 
 // ============================================================
 // Content-based chart type inference helpers
@@ -192,129 +193,98 @@ export function isExtendedChartType(chartType: string): boolean {
   return EXTENDED_CHART_TYPES.has(chartType.toLowerCase());
 }
 
-/** Standard chart types parsed by parseChart (then rendered via ECharts). Internal use. */
-const STANDARD_CHART_TYPES = new Set([
-  'bar',
-  'line',
-  'multi-line',
-  'area',
-  'pie',
-  'doughnut',
-  'radar',
-  'polar-area',
-  'bar-stacked',
-]);
-
 /**
- * Returns all supported chart type identifiers.
- * Useful for CLI enumeration and autocomplete.
+ * Returns all supported chart type identifiers in canonical (tier) order,
+ * derived from `chartTypes`. Consumers that need alphabetical order should
+ * call `.sort()` explicitly.
  */
 export function getAllChartTypes(): string[] {
-  return [...DATA_CHART_TYPES, ...VISUALIZATION_TYPES, ...DIAGRAM_TYPES];
+  return chartTypes.map((c) => c.id);
 }
 
 /**
- * Canonical descriptions for every supported chart type. Shared by the CLI
- * `--chart-types` flag, the editor autocomplete popup, and the MCP
- * `list_chart_types` tool so all three surfaces stay in sync.
+ * Canonical descriptions for every supported chart type. Derived from
+ * `chartTypes` so there is exactly one place to update when adding a new
+ * type. Consumed by the CLI `--chart-types` flag, the editor autocomplete
+ * popup, and the MCP `list_chart_types` tool.
  */
-export const CHART_TYPE_DESCRIPTIONS: Record<string, string> = {
-  bar: 'Bar chart — categorical comparisons',
-  line: 'Line chart — trends over time; supports era bands (era start -> end Label (color)) for annotating named periods',
-  'multi-line':
-    'Multi-line chart — multiple series trends over time; supports era bands',
-  area: 'Area chart — filled line chart; supports era bands',
-  pie: 'Pie chart — part-to-whole proportions',
-  doughnut: 'Doughnut chart — ring-style pie chart',
-  radar: 'Radar chart — multi-dimensional metrics',
-  'polar-area': 'Polar area chart — radial bar chart',
-  'bar-stacked': 'Stacked bar chart — multi-series categorical',
-  scatter: 'Scatter plot — 2D data points or bubble chart',
-  sankey: 'Sankey diagram — flow/allocation visualization',
-  chord: 'Chord diagram — circular flow relationships',
-  function: 'Function plot — mathematical expressions',
-  heatmap: 'Heatmap — matrix intensity visualization',
-  funnel: 'Funnel chart — conversion pipeline',
-  slope: 'Slope chart — change between two periods',
-  wordcloud: 'Word cloud — term frequency visualization',
-  arc: 'Arc diagram — network relationships',
-  timeline: 'Timeline — events, eras, and date ranges',
-  venn: 'Venn diagram — set overlaps',
-  quadrant: 'Quadrant chart — 2x2 positioning matrix',
-  'tech-radar':
-    'Tech radar — technology adoption quadrants (adopt/trial/assess/hold)',
-  cycle:
-    'Cycle diagram — cyclical process visualization (PDCA, OODA, DevOps loops)',
-  sequence: 'Sequence diagram — message/interaction flows',
-  flowchart: 'Flowchart — decision trees and process flows',
-  class: 'Class diagram — UML class hierarchies',
-  er: 'ER diagram — database schemas and relationships',
-  org: 'Org chart — hierarchical tree structures',
-  kanban: 'Kanban board — task/workflow columns',
-  c4: 'C4 diagram — system architecture (context, container, component, deployment)',
-  state: 'State diagram — state machine / lifecycle transitions',
-  sitemap:
-    'Sitemap — navigable UI structure with pages, groups, and cross-link arrows',
-  infra:
-    'Infrastructure diagram — traffic flow with RPS computation, capacity modeling, and latency analysis',
-  gantt:
-    'Gantt chart — project scheduling with task dependencies and milestones',
-  'boxes-and-lines':
-    'Boxes and lines — general-purpose node-edge diagrams with nested groups, tags, and shape inference',
-  mindmap: 'Mindmap — radial hierarchy of ideas branching from a central topic',
-  wireframe:
-    'Wireframe — low-fidelity UI layout with panels, controls, and annotations',
-  'journey-map':
-    'Journey map — user experience flow with emotion scores, phases, and annotations',
-  pyramid:
-    'Pyramid — hierarchical layered pyramid (Maslow, DIKW, learning pyramid); inverted for funnel-of-learning style',
-};
+export const CHART_TYPE_DESCRIPTIONS: Record<string, string> =
+  Object.fromEntries(chartTypes.map((c) => [c.id, c.description]));
 
-// ECharts-native types parsed by parseExtendedChart
-const ECHART_TYPES = new Set([
-  'scatter',
-  'sankey',
-  'chord',
-  'function',
-  'heatmap',
-  'funnel',
-]);
+// ============================================================
+// Parser registry — single source of truth for id → parser
+// ============================================================
 
-/** Map chart type strings to their parse function (content → { diagnostics }). */
-const PARSE_DISPATCH = new Map<
-  string,
-  (content: string) => { diagnostics: DgmoError[] }
->([
-  ['sequence', (c) => parseSequenceDgmo(c)],
-  ['flowchart', (c) => parseFlowchart(c)],
-  ['class', (c) => parseClassDiagram(c)],
-  ['er', (c) => parseERDiagram(c)],
-  ['org', (c) => parseOrg(c)],
-  ['kanban', (c) => parseKanban(c)],
-  ['c4', (c) => parseC4(c)],
-  ['state', (c) => parseState(c)],
-  ['sitemap', (c) => parseSitemap(c)],
-  ['infra', (c) => parseInfra(c)],
-  ['gantt', (c) => parseGantt(c)],
-  ['boxes-and-lines', (c) => parseBoxesAndLines(c)],
-  ['mindmap', (c) => parseMindmap(c)],
-  ['wireframe', (c) => parseWireframe(c)],
-  ['tech-radar', (c) => parseTechRadar(c)],
-  ['cycle', (c) => parseCycle(c)],
-  ['journey-map', (c) => parseJourneyMap(c)],
-  ['pyramid', (c) => parsePyramid(c)],
-]);
+type ParseResult = { diagnostics: DgmoError[] };
+type ParseFn = (content: string) => ParseResult;
 
 /**
- * Parse DGMO content and return diagnostics without rendering.
- * Useful for the CLI and editor to surface all errors before attempting render.
+ * Maps every chart-type id to the parser that handles it. Adding a new
+ * chart type means:
+ *   1. Add an entry here.
+ *   2. Add an entry to `chartTypes` in `chart-types.ts`.
+ *
+ * The `chart-types.test.ts` cross-check asserts both sets are identical;
+ * forgetting either side trips the test.
  */
+export const chartTypeParsers: ReadonlyArray<readonly [string, ParseFn]> = [
+  // Structured diagrams (direct parsers)
+  ['sequence', parseSequenceDgmo],
+  ['flowchart', parseFlowchart],
+  ['class', parseClassDiagram],
+  ['er', parseERDiagram],
+  ['state', parseState],
+  ['org', parseOrg],
+  ['kanban', parseKanban],
+  ['c4', parseC4],
+  ['sitemap', parseSitemap],
+  ['infra', parseInfra],
+  ['gantt', parseGantt],
+  ['boxes-and-lines', parseBoxesAndLines],
+  ['mindmap', parseMindmap],
+  ['wireframe', parseWireframe],
+  ['tech-radar', parseTechRadar],
+  ['cycle', parseCycle],
+  ['journey-map', parseJourneyMap],
+  ['pyramid', parsePyramid],
+
+  // Standard ECharts charts (parseChart)
+  ['bar', parseChart],
+  ['line', parseChart],
+  ['multi-line', parseChart],
+  ['area', parseChart],
+  ['pie', parseChart],
+  ['doughnut', parseChart],
+  ['radar', parseChart],
+  ['polar-area', parseChart],
+  ['bar-stacked', parseChart],
+
+  // Extended ECharts charts (parseExtendedChart)
+  ['scatter', parseExtendedChart],
+  ['sankey', parseExtendedChart],
+  ['chord', parseExtendedChart],
+  ['function', parseExtendedChart],
+  ['heatmap', parseExtendedChart],
+  ['funnel', parseExtendedChart],
+
+  // D3 visualizations (parseVisualization)
+  ['slope', parseVisualization],
+  ['wordcloud', parseVisualization],
+  ['arc', parseVisualization],
+  ['timeline', parseVisualization],
+  ['venn', parseVisualization],
+  ['quadrant', parseVisualization],
+];
+
+/** Ids in the same order as `chartTypeParsers`; used for cross-checks. */
+export const knownChartTypeIds: readonly string[] = chartTypeParsers.map(
+  ([id]) => id
+);
+
+const PARSER_BY_ID: Map<string, ParseFn> = new Map(chartTypeParsers);
+
 /** All known chart type names for colon-pattern detection. */
-const ALL_KNOWN_TYPES = new Set([
-  ...DATA_CHART_TYPES,
-  ...VISUALIZATION_TYPES,
-  ...DIAGRAM_TYPES,
-]);
+const ALL_KNOWN_TYPES: ReadonlySet<string> = new Set(knownChartTypeIds);
 
 /**
  * Parse DGMO content and return diagnostics without rendering.
@@ -341,31 +311,16 @@ export function parseDgmo(content: string): {
     };
   }
 
-  const directParser = PARSE_DISPATCH.get(chartType);
-  if (directParser) {
-    const result = directParser(content);
+  const parser = PARSER_BY_ID.get(chartType);
+  if (parser) {
+    const result = parser(content);
     return {
       diagnostics: [...result.diagnostics, ...detectEmptyContent(content)],
       chartType,
     };
   }
 
-  if (STANDARD_CHART_TYPES.has(chartType)) {
-    const result = parseChart(content);
-    return {
-      diagnostics: [...result.diagnostics, ...detectEmptyContent(content)],
-      chartType,
-    };
-  }
-  if (ECHART_TYPES.has(chartType)) {
-    const result = parseExtendedChart(content);
-    return {
-      diagnostics: [...result.diagnostics, ...detectEmptyContent(content)],
-      chartType,
-    };
-  }
-
-  // Visualization types (slope, wordcloud, arc, timeline, venn, quadrant)
+  // Unknown id (defensive): fall through to visualization parser.
   const result = parseVisualization(content);
   return {
     diagnostics: [...result.diagnostics, ...detectEmptyContent(content)],
