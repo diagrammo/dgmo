@@ -21,7 +21,6 @@ export interface CompactViewState {
   rm?: string; // render mode override
   htv?: Record<string, string[]>; // hidden tag values
   ha?: string[]; // hidden attributes
-  enl?: number[]; // expanded note lines (sequence)
   sem?: boolean; // semantic colors (ER)
   cm?: boolean; // compact meta (kanban)
   c4l?: string; // C4 level

@@ -140,8 +140,6 @@ export const DIRECTIVE_KEYWORDS = new Set([
   // Sequence
   'activations',
   'no-activations',
-  'collapse-notes',
-  'no-collapse-notes',
   // Data charts
   'stacked',
   'no-label-name',

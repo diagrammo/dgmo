@@ -428,7 +428,6 @@ describe('COMPLETION_REGISTRY', () => {
 
     const seqSpec = COMPLETION_REGISTRY.get('sequence')!;
     expect(seqSpec.directives.activations).toBeDefined();
-    expect(seqSpec.directives['collapse-notes']).toBeDefined();
 
     const ganttSpec = COMPLETION_REGISTRY.get('gantt')!;
     expect(ganttSpec.directives.start).toBeDefined();

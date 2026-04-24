@@ -62,8 +62,6 @@ const NOTE_CHAR_W = 6;
 const NOTE_CHARS_PER_LINE = Math.floor(
   (NOTE_MAX_W - NOTE_PAD_H * 2 - NOTE_FOLD) / NOTE_CHAR_W
 );
-const COLLAPSED_NOTE_H = 20;
-const COLLAPSED_NOTE_W = 40;
 const ACTIVATION_WIDTH = 10;
 const SELF_CALL_HEIGHT = 25;
 const SELF_CALL_WIDTH = 30;
@@ -557,13 +555,8 @@ export interface SectionMessageGroup {
 export interface SequenceRenderOptions {
   collapsedSections?: Set<number>; // keyed by section lineNumber
   collapsedGroups?: Set<number>; // keyed by group lineNumber
-  expandedNoteLines?: Set<number>; // keyed by note lineNumber; undefined = all expanded (CLI default)
   exportWidth?: number; // Explicit width for CLI/export rendering (bypasses getBoundingClientRect)
   activeTagGroup?: string | null; // Active tag group name for tag-driven recoloring; null = explicitly none
-  expandAllNotes?: boolean; // Whether the "Expand Notes" toggle is active
-  onExpandAllNotes?: (expand: boolean) => void; // Toggle all notes expanded/collapsed
-  controlsExpanded?: boolean; // Controls group expanded state (managed by React)
-  onToggleControlsExpand?: () => void; // Callback to toggle controls group
 }
 
 /**
@@ -960,15 +953,6 @@ export function renderSequenceDiagram(
   const collapsedGroupIds = collapsed?.collapsedGroupIds ?? new Map();
 
   const collapsedSections = options?.collapsedSections;
-  const expandedNoteLines = options?.expandedNoteLines;
-  const collapseNotesDisabled =
-    parsedOptions['collapse-notes']?.toLowerCase() === 'no';
-  // A note is expanded if: expandedNoteLines is undefined (CLI/export),
-  // collapse-notes: no is set, or the note's lineNumber is in the set.
-  const isNoteExpanded = (note: SequenceNote): boolean =>
-    expandedNoteLines === undefined ||
-    collapseNotesDisabled ||
-    expandedNoteLines.has(note.lineNumber);
 
   const sourceParticipants = collapsed
     ? collapsed.participants
@@ -1232,9 +1216,7 @@ export function renderSequenceDiagram(
           const note = els[j] as SequenceNote;
           const sc = isNoteAfterSelfCall(note);
           const maxW = noteEffectiveMaxW(note.participantId, note.position, sc);
-          const noteH = isNoteExpanded(note)
-            ? computeNoteHeight(note.text, charsForWidth(maxW))
-            : COLLAPSED_NOTE_H;
+          const noteH = computeNoteHeight(note.text, charsForWidth(maxW));
           totalExtent += noteH + NOTE_OFFSET_BELOW;
           j++;
         }
@@ -1500,9 +1482,10 @@ export function renderSequenceDiagram(
               prevNote.position,
               isNoteAfterSelfCall(prevNote)
             );
-            const prevNoteH = isNoteExpanded(prevNote)
-              ? computeNoteHeight(prevNote.text, charsForWidth(prevMaxW))
-              : COLLAPSED_NOTE_H;
+            const prevNoteH = computeNoteHeight(
+              prevNote.text,
+              charsForWidth(prevMaxW)
+            );
             noteTopY = prevNoteY + prevNoteH + NOTE_OFFSET_BELOW;
           } else {
             // First note after a message — use larger offset after self-calls
@@ -1539,9 +1522,7 @@ export function renderSequenceDiagram(
       note.position,
       isNoteAfterSelfCall(note)
     );
-    const noteH = isNoteExpanded(note)
-      ? computeNoteHeight(note.text, charsForWidth(maxW))
-      : COLLAPSED_NOTE_H;
+    const noteH = computeNoteHeight(note.text, charsForWidth(maxW));
     contentBottomY = Math.max(
       contentBottomY,
       noteTopY + noteH + NOTE_TRAILING_GAP
@@ -1735,32 +1716,6 @@ export function renderSequenceDiagram(
       titleEl.attr('data-line-number', parsed.titleLineNumber);
     }
   }
-
-  // Collect all note line numbers (for controls group visibility + "all expanded" check)
-  const allNoteLineNumbers: number[] = [];
-  const collectNoteLines = (els: SequenceElement[]): void => {
-    for (const el of els) {
-      if (isSequenceNote(el)) {
-        allNoteLineNumbers.push(el.lineNumber);
-      } else if (isSequenceBlock(el)) {
-        collectNoteLines(el.children);
-        if ('elseChildren' in el) collectNoteLines(el.elseChildren);
-        if ('branches' in el && Array.isArray(el.branches)) {
-          for (const branch of el.branches) {
-            collectNoteLines(branch.children);
-          }
-        }
-      }
-    }
-  };
-  collectNoteLines(elements);
-
-  // Show controls group only in interactive mode (expandedNoteLines defined)
-  // when notes exist and collapse-notes is not disabled
-  const showNotesControl =
-    allNoteLineNumbers.length > 0 &&
-    !collapseNotesDisabled &&
-    expandedNoteLines !== undefined;
 
   const hasTagGroups = parsed.tagGroups.length > 0;
 
@@ -2632,8 +2587,6 @@ export function renderSequenceDiagram(
     ? mix(palette.surface, palette.bg, 50)
     : mix(palette.bg, palette.surface, 15);
 
-  const collapsedNoteFill = mix(palette.textMuted, palette.bg, 15);
-
   const renderNoteElements = (els: SequenceElement[]): void => {
     for (const el of els) {
       if (isSequenceNote(el)) {
@@ -2642,168 +2595,98 @@ export function renderSequenceDiagram(
         const noteTopY = noteYMap.get(el);
         if (noteTopY === undefined) continue;
 
-        const expanded = isNoteExpanded(el);
         const isRight = el.position === 'right';
+        const afterSelfCall = isNoteAfterSelfCall(el);
+        const maxW = noteEffectiveMaxW(
+          el.participantId,
+          el.position,
+          afterSelfCall
+        );
+        const maxChars = charsForWidth(maxW);
+        const wrappedLines = wrapTextLines(el.text, maxChars);
+        const noteH = wrappedLines.length * NOTE_LINE_H + NOTE_PAD_V * 2;
+        const maxLineLen = Math.max(...wrappedLines.map((l) => l.length));
+        const noteW = Math.min(
+          maxW,
+          Math.max(80, maxLineLen * NOTE_CHAR_W + NOTE_PAD_H * 2 + NOTE_FOLD)
+        );
+        // Shift notes past self-call loopback when applicable
+        const rightOffset =
+          afterSelfCall && isRight
+            ? ACTIVATION_WIDTH / 2 + SELF_CALL_WIDTH + NOTE_GAP
+            : ACTIVATION_WIDTH + NOTE_GAP;
+        const noteX = isRight
+          ? px + rightOffset
+          : px - ACTIVATION_WIDTH - NOTE_GAP - noteW;
 
-        if (expanded) {
-          // --- Expanded note: full folded-corner box with wrapped text ---
-          const afterSelfCall = isNoteAfterSelfCall(el);
-          const maxW = noteEffectiveMaxW(
-            el.participantId,
-            el.position,
-            afterSelfCall
-          );
-          const maxChars = charsForWidth(maxW);
-          const wrappedLines = wrapTextLines(el.text, maxChars);
-          const noteH = wrappedLines.length * NOTE_LINE_H + NOTE_PAD_V * 2;
-          const maxLineLen = Math.max(...wrappedLines.map((l) => l.length));
-          const noteW = Math.min(
-            maxW,
-            Math.max(80, maxLineLen * NOTE_CHAR_W + NOTE_PAD_H * 2 + NOTE_FOLD)
-          );
-          // Shift notes past self-call loopback when applicable
-          const rightOffset =
-            afterSelfCall && isRight
-              ? ACTIVATION_WIDTH / 2 + SELF_CALL_WIDTH + NOTE_GAP
-              : ACTIVATION_WIDTH + NOTE_GAP;
-          const noteX = isRight
-            ? px + rightOffset
-            : px - ACTIVATION_WIDTH - NOTE_GAP - noteW;
+        const noteG = svg
+          .append('g')
+          .attr('class', 'note')
+          .attr('data-note-toggle', '')
+          .attr('data-line-number', String(el.lineNumber))
+          .attr('data-line-end', String(el.endLineNumber));
 
-          const noteG = svg
-            .append('g')
-            .attr('class', 'note')
-            .attr('data-note-toggle', '')
-            .attr('data-line-number', String(el.lineNumber))
-            .attr('data-line-end', String(el.endLineNumber));
+        // Folded-corner path
+        noteG
+          .append('path')
+          .attr(
+            'd',
+            [
+              `M ${noteX} ${noteTopY}`,
+              `L ${noteX + noteW - NOTE_FOLD} ${noteTopY}`,
+              `L ${noteX + noteW} ${noteTopY + NOTE_FOLD}`,
+              `L ${noteX + noteW} ${noteTopY + noteH}`,
+              `L ${noteX} ${noteTopY + noteH}`,
+              'Z',
+            ].join(' ')
+          )
+          .attr('fill', noteFill)
+          .attr('stroke', palette.textMuted)
+          .attr('stroke-width', 0.75)
+          .attr('class', 'note-box');
 
-          // Folded-corner path
-          noteG
-            .append('path')
-            .attr(
-              'd',
-              [
-                `M ${noteX} ${noteTopY}`,
-                `L ${noteX + noteW - NOTE_FOLD} ${noteTopY}`,
-                `L ${noteX + noteW} ${noteTopY + NOTE_FOLD}`,
-                `L ${noteX + noteW} ${noteTopY + noteH}`,
-                `L ${noteX} ${noteTopY + noteH}`,
-                'Z',
-              ].join(' ')
-            )
-            .attr('fill', noteFill)
-            .attr('stroke', palette.textMuted)
-            .attr('stroke-width', 0.75)
-            .attr('class', 'note-box');
+        // Fold triangle
+        noteG
+          .append('path')
+          .attr(
+            'd',
+            [
+              `M ${noteX + noteW - NOTE_FOLD} ${noteTopY}`,
+              `L ${noteX + noteW - NOTE_FOLD} ${noteTopY + NOTE_FOLD}`,
+              `L ${noteX + noteW} ${noteTopY + NOTE_FOLD}`,
+            ].join(' ')
+          )
+          .attr('fill', 'none')
+          .attr('stroke', palette.textMuted)
+          .attr('stroke-width', 0.75)
+          .attr('class', 'note-fold');
 
-          // Fold triangle
-          noteG
-            .append('path')
-            .attr(
-              'd',
-              [
-                `M ${noteX + noteW - NOTE_FOLD} ${noteTopY}`,
-                `L ${noteX + noteW - NOTE_FOLD} ${noteTopY + NOTE_FOLD}`,
-                `L ${noteX + noteW} ${noteTopY + NOTE_FOLD}`,
-              ].join(' ')
-            )
-            .attr('fill', 'none')
-            .attr('stroke', palette.textMuted)
-            .attr('stroke-width', 0.75)
-            .attr('class', 'note-fold');
+        // Render text with inline markdown
+        wrappedLines.forEach((line, li) => {
+          const textY = noteTopY + NOTE_PAD_V + (li + 1) * NOTE_LINE_H - 3;
+          const isBullet = line.startsWith('- ');
+          const bulletIndent = isBullet ? 10 : 0;
+          const displayLine = isBullet ? line.slice(2) : line;
+          const textEl = noteG
+            .append('text')
+            .attr('x', noteX + NOTE_PAD_H + bulletIndent)
+            .attr('y', textY)
+            .attr('fill', palette.text)
+            .attr('font-size', NOTE_FONT_SIZE)
+            .attr('class', 'note-text');
 
-          // Render text with inline markdown
-          wrappedLines.forEach((line, li) => {
-            const textY = noteTopY + NOTE_PAD_V + (li + 1) * NOTE_LINE_H - 3;
-            const isBullet = line.startsWith('- ');
-            const bulletIndent = isBullet ? 10 : 0;
-            const displayLine = isBullet ? line.slice(2) : line;
-            const textEl = noteG
+          if (isBullet) {
+            noteG
               .append('text')
-              .attr('x', noteX + NOTE_PAD_H + bulletIndent)
+              .attr('x', noteX + NOTE_PAD_H)
               .attr('y', textY)
               .attr('fill', palette.text)
               .attr('font-size', NOTE_FONT_SIZE)
-              .attr('class', 'note-text');
+              .text('\u2022');
+          }
 
-            if (isBullet) {
-              noteG
-                .append('text')
-                .attr('x', noteX + NOTE_PAD_H)
-                .attr('y', textY)
-                .attr('fill', palette.text)
-                .attr('font-size', NOTE_FONT_SIZE)
-                .text('\u2022');
-            }
-
-            renderInlineText(textEl, displayLine, palette, NOTE_FONT_SIZE);
-          });
-        } else {
-          // --- Collapsed note: compact indicator ---
-          const cFold = 6;
-          const afterSelfCallC = isNoteAfterSelfCall(el);
-          const rightOffsetC =
-            afterSelfCallC && isRight
-              ? ACTIVATION_WIDTH / 2 + SELF_CALL_WIDTH + NOTE_GAP
-              : ACTIVATION_WIDTH + NOTE_GAP;
-          const noteX = isRight
-            ? px + rightOffsetC
-            : px - ACTIVATION_WIDTH - NOTE_GAP - COLLAPSED_NOTE_W;
-
-          const noteG = svg
-            .append('g')
-            .attr('class', 'note note-collapsed')
-            .attr('data-note-toggle', '')
-            .attr('data-line-number', String(el.lineNumber))
-            .attr('data-line-end', String(el.endLineNumber))
-            .style('cursor', 'pointer');
-
-          // Small folded-corner rectangle
-          noteG
-            .append('path')
-            .attr(
-              'd',
-              [
-                `M ${noteX} ${noteTopY}`,
-                `L ${noteX + COLLAPSED_NOTE_W - cFold} ${noteTopY}`,
-                `L ${noteX + COLLAPSED_NOTE_W} ${noteTopY + cFold}`,
-                `L ${noteX + COLLAPSED_NOTE_W} ${noteTopY + COLLAPSED_NOTE_H}`,
-                `L ${noteX} ${noteTopY + COLLAPSED_NOTE_H}`,
-                'Z',
-              ].join(' ')
-            )
-            .attr('fill', collapsedNoteFill)
-            .attr('stroke', palette.border)
-            .attr('stroke-width', 0.75)
-            .attr('class', 'note-box');
-
-          // Fold triangle
-          noteG
-            .append('path')
-            .attr(
-              'd',
-              [
-                `M ${noteX + COLLAPSED_NOTE_W - cFold} ${noteTopY}`,
-                `L ${noteX + COLLAPSED_NOTE_W - cFold} ${noteTopY + cFold}`,
-                `L ${noteX + COLLAPSED_NOTE_W} ${noteTopY + cFold}`,
-              ].join(' ')
-            )
-            .attr('fill', 'none')
-            .attr('stroke', palette.border)
-            .attr('stroke-width', 0.75)
-            .attr('class', 'note-fold');
-
-          // "..." text
-          noteG
-            .append('text')
-            .attr('x', noteX + COLLAPSED_NOTE_W / 2)
-            .attr('y', noteTopY + COLLAPSED_NOTE_H / 2 + 3)
-            .attr('text-anchor', 'middle')
-            .attr('fill', palette.textMuted)
-            .attr('font-size', 9)
-            .attr('class', 'note-text')
-            .text('\u2026');
-        }
+          renderInlineText(textEl, displayLine, palette, NOTE_FONT_SIZE);
+        });
       } else if (isSequenceBlock(el)) {
         renderNoteElements(el.children);
         if (el.elseIfBranches) {
@@ -2822,9 +2705,7 @@ export function renderSequenceDiagram(
 
   // Render legend LAST so it sits on top of all other SVG elements
   // (group boxes, lifelines, participants, etc.) and can receive clicks.
-  if (hasTagGroups || showNotesControl) {
-    const controlsExpanded = options?.controlsExpanded ?? false;
-
+  if (hasTagGroups) {
     const legendY = TOP_MARGIN + titleOffset;
     const resolvedGroups = parsed.tagGroups
       .filter((tg) => tg.entries.length > 0)
@@ -2836,41 +2717,17 @@ export function renderSequenceDiagram(
         })),
       }));
 
-    const allExpanded = showNotesControl && (options?.expandAllNotes ?? false);
-
-    const controlsGroup = showNotesControl
-      ? {
-          toggles: [
-            {
-              id: 'expand-all-notes',
-              type: 'toggle' as const,
-              label: 'Expand Notes',
-              active: allExpanded,
-              onToggle: () => {},
-            },
-          ],
-        }
-      : undefined;
-
     const legendConfig: LegendConfig = {
       groups: resolvedGroups,
       position: { placement: 'top-center', titleRelation: 'below-title' },
       mode: 'fixed',
-      controlsGroup,
     };
     const legendState: LegendState = {
       activeGroup: activeTagGroup ?? null,
-      controlsExpanded,
+      controlsExpanded: false,
     };
 
-    const legendCallbacks: LegendCallbacks = {
-      onControlsExpand: () => {
-        options?.onToggleControlsExpand?.();
-      },
-      onControlsToggle: (_toggleId: string, active: boolean) => {
-        options?.onExpandAllNotes?.(active);
-      },
-    };
+    const legendCallbacks: LegendCallbacks = {};
 
     const legendG = svg
       .append('g')
@@ -2891,7 +2748,7 @@ export function renderSequenceDiagram(
 /**
  * Build a mapping from each note's lineNumber to the lineNumber of its
  * associated message (the last message before the note in document order).
- * Used by the app to expand notes when cursor is on the associated message.
+ * Used by the app to highlight the associated message when cursor is on a note.
  */
 export function buildNoteMessageMap(
   elements: SequenceElement[]
@@ -2922,31 +2779,6 @@ export function buildNoteMessageMap(
   };
   walk(elements);
   return map;
-}
-
-/**
- * Collect all note line numbers from a sequence diagram's elements.
- * Used by the app to compute the "expand all" set.
- */
-export function collectNoteLineNumbers(elements: SequenceElement[]): number[] {
-  const result: number[] = [];
-  const walk = (els: SequenceElement[]): void => {
-    for (const el of els) {
-      if (isSequenceNote(el)) {
-        result.push(el.lineNumber);
-      } else if (isSequenceBlock(el)) {
-        walk(el.children);
-        if (el.elseIfBranches) {
-          for (const branch of el.elseIfBranches) {
-            walk(branch.children);
-          }
-        }
-        walk(el.elseChildren);
-      }
-    }
-  };
-  walk(elements);
-  return result;
 }
 
 function renderParticipant(

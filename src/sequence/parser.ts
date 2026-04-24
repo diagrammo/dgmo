@@ -26,7 +26,7 @@ import {
 const KNOWN_SEQ_OPTIONS = new Set(['active-tag']);
 
 /** Known sequence-diagram boolean options (bare keyword or `no-` prefix). */
-const KNOWN_SEQ_BOOLEANS = new Set(['activations', 'collapse-notes']);
+const KNOWN_SEQ_BOOLEANS = new Set(['activations']);
 
 /**
  * Participant types that can be declared via "Name is a type" syntax.

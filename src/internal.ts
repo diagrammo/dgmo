@@ -14,7 +14,6 @@ export {
   applyPositionOverrides,
   buildNoteMessageMap,
   buildRenderSequence,
-  collectNoteLineNumbers,
   computeActivations,
   groupMessagesBySection,
 } from './sequence/renderer';

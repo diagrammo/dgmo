@@ -238,10 +238,6 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description: 'Show activation bars',
         values: ['on', 'off'],
       },
-      'collapse-notes': {
-        description: 'Collapse note blocks',
-        values: ['yes', 'no'],
-      },
       'active-tag': { description: 'Active tag group name' },
     }),
   ],

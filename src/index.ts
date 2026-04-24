@@ -358,8 +358,12 @@ export type {
   ResolvedGroup,
 } from './gantt/types';
 
-export { collapseOrgTree } from './org/collapse';
-export type { CollapsedOrgResult } from './org/collapse';
+export { collapseOrgTree, focusOrgTree } from './org/collapse';
+export type {
+  CollapsedOrgResult,
+  FocusOrgResult,
+  AncestorInfo,
+} from './org/collapse';
 
 export { parseMindmap } from './mindmap/parser';
 export type {
@@ -516,7 +520,6 @@ export {
   applyGroupOrdering,
   groupMessagesBySection,
   buildNoteMessageMap,
-  collectNoteLineNumbers,
 } from './sequence/renderer';
 export type {
   RenderStep,
