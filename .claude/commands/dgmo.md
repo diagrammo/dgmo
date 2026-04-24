@@ -222,7 +222,6 @@ Key options:
 - `--theme <theme>` — `light` (default), `dark`, `transparent`
 - `--palette <name>` — `nord` (default), `solarized`, `catppuccin`, `rose-pine`, `gruvbox`, `tokyo-night`, `one-dark`, `bold`
 - `--copy` — copy the URL to clipboard (use with `-o url`)
-- `--no-branding` — omit diagrammo.app branding from exports
 - `--chart-types` — list all supported chart types
 
 ## Supported Chart Types
@@ -695,7 +694,6 @@ series A (red), B (blue), C (green)  ⚠  for ≥2 series, prefer the indented b
 - Always validate before rendering — `validate_diagram` is much faster than a failed render.
 - Always call `get_examples` before generating an unfamiliar chart type — real examples beat guessing.
 - Stdin mode for quick renders: `echo "..." | dgmo -o out.png`
-- For C4, `--c4-level` drills from context → containers → components → deployment.
 - When auto-detection picks the wrong chart type, add an explicit type as the first word on the first line.
 - `mcp__dgmo__preview_diagram` accepts multiple diagrams at once — useful for showing variants side by side.
 - When the user says "diagram this" while looking at code, read the code first and pick the chart type yourself — don't ask.

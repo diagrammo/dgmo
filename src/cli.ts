@@ -467,10 +467,6 @@ Options:
                        With stdin and no -o, PNG is written to stdout
   --theme <theme>      Theme: ${THEMES.join(', ')} (default: light)
   --palette <name>     Palette: ${PALETTES.join(', ')} (default: nord)
-  --c4-level <level>   C4 render level: context (default), containers, components, deployment
-  --c4-system <name>   System to drill into (with --c4-level containers or components)
-  --c4-container <name> Container to drill into (with --c4-level components)
-  --tag-group <name>   Pre-select a tag group for static export coloring
   --copy               Copy URL to clipboard (only with -o url)
   --json               Output structured JSON to stdout
   --chart-types        List all supported chart types
@@ -508,10 +504,6 @@ function parseArgs(argv: string[]): {
   installClaudeSkill: boolean;
   installClaudeCodeIntegration: boolean;
   installCodexIntegration: boolean;
-  c4Level: 'context' | 'containers' | 'components' | 'deployment';
-  c4System: string | undefined;
-  c4Container: string | undefined;
-  tagGroup: string | undefined;
 } {
   const result = {
     input: undefined as string | undefined,
@@ -528,14 +520,6 @@ function parseArgs(argv: string[]): {
     installClaudeSkill: false,
     installClaudeCodeIntegration: false,
     installCodexIntegration: false,
-    c4Level: 'context' as
-      | 'context'
-      | 'containers'
-      | 'components'
-      | 'deployment',
-    c4System: undefined as string | undefined,
-    c4Container: undefined as string | undefined,
-    tagGroup: undefined as string | undefined,
   };
 
   const args = argv.slice(2); // skip node + script
@@ -578,30 +562,6 @@ function parseArgs(argv: string[]): {
         process.exit(1);
       }
       result.palette = val;
-      i++;
-    } else if (arg === '--c4-level') {
-      const val = args[++i];
-      if (
-        val !== 'context' &&
-        val !== 'containers' &&
-        val !== 'components' &&
-        val !== 'deployment'
-      ) {
-        console.error(
-          `Error: Invalid C4 level "${val}". Valid levels: context, containers, components, deployment`
-        );
-        process.exit(1);
-      }
-      result.c4Level = val;
-      i++;
-    } else if (arg === '--c4-system') {
-      result.c4System = args[++i];
-      i++;
-    } else if (arg === '--c4-container') {
-      result.c4Container = args[++i];
-      i++;
-    } else if (arg === '--tag-group') {
-      result.tagGroup = args[++i];
       i++;
     } else if (arg === '--json') {
       result.json = true;
@@ -1202,32 +1162,9 @@ async function main(): Promise<void> {
     }
   }
 
-  // Validate C4 options
-  if (opts.c4Level === 'containers' && !opts.c4System) {
-    exitWithJsonError(
-      'Error: --c4-system is required when --c4-level is containers'
-    );
-  }
-  if (opts.c4Level === 'components') {
-    if (!opts.c4System) {
-      exitWithJsonError(
-        'Error: --c4-system is required when --c4-level is components'
-      );
-    }
-    if (!opts.c4Container) {
-      exitWithJsonError(
-        'Error: --c4-container is required when --c4-level is components'
-      );
-    }
-  }
-
   const { svg } = await render(content, {
     theme: opts.theme,
     palette: opts.palette,
-    c4Level: opts.c4Level,
-    c4System: opts.c4System,
-    c4Container: opts.c4Container,
-    tagGroup: opts.tagGroup,
   });
 
   if (!svg) {
