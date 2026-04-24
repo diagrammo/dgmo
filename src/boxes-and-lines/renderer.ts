@@ -488,19 +488,28 @@ export function renderBoxesAndLines(
         .attr('clip-path', `url(#${clipId})`)
         .attr('class', 'bl-collapse-bar');
 
-      // Label centered vertically
-      groupG
-        .append('text')
-        .attr('class', 'bl-group-label')
-        .attr('x', group.x)
-        .attr('y', group.y)
-        .attr('text-anchor', 'middle')
-        .attr('dominant-baseline', 'central')
-        .attr('font-family', FONT_FAMILY)
-        .attr('font-size', GROUP_LABEL_FONT_SIZE)
-        .attr('font-weight', '600')
-        .attr('fill', palette.text)
-        .text(group.label);
+      // Label centered vertically — wrap like regular nodes
+      const maxLabelLines = Math.max(
+        2,
+        Math.floor((group.height - 16) / (MIN_NODE_FONT_SIZE * 1.3))
+      );
+      const fitted = fitLabelToHeader(group.label, group.width, maxLabelLines);
+      const lineH = fitted.fontSize * 1.3;
+      const totalH = fitted.lines.length * lineH;
+      for (let li = 0; li < fitted.lines.length; li++) {
+        groupG
+          .append('text')
+          .attr('class', 'bl-group-label')
+          .attr('x', group.x)
+          .attr('y', group.y - totalH / 2 + lineH / 2 + li * lineH)
+          .attr('text-anchor', 'middle')
+          .attr('dominant-baseline', 'central')
+          .attr('font-family', FONT_FAMILY)
+          .attr('font-size', fitted.fontSize)
+          .attr('font-weight', '600')
+          .attr('fill', palette.text)
+          .text(fitted.lines[li]);
+      }
     } else {
       // Expanded: background container with label
       groupG

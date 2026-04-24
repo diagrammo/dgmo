@@ -97,6 +97,7 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
   const groupLabels = new Set<string>();
   let lastNodeLabel: string | null = null;
   let lastSourceIsGroup = false;
+  let lastNodeIndent = 0;
 
   // Description collection state
   let descState: {
@@ -481,9 +482,14 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
       // Indented shorthand: `-> Target` or `-label-> Target`
       if (trimmed.startsWith('->') || /^-[^>].*->/.test(trimmed)) {
         // If the edge is at group-child indent level, use the containing group
+        // UNLESS lastNodeLabel is a plain node (not a group) — then the edge
+        // is indented under that node and should source from it.
         const gs = currentGroupState();
         const inGroup = gs && indent > gs.indent;
-        if (inGroup) {
+        // Edge is deeper than the last node → indented under that node, use it
+        const indentedUnderNode =
+          lastNodeLabel && !lastSourceIsGroup && indent > lastNodeIndent;
+        if (inGroup && !indentedUnderNode) {
           const sourcePrefix = `[${gs.group.label}]`;
           edgeText = `${sourcePrefix} ${trimmed}`;
         } else if (lastNodeLabel) {
@@ -530,6 +536,7 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
     }
     lastNodeLabel = node.label;
     lastSourceIsGroup = false;
+    lastNodeIndent = indent;
 
     const gs = currentGroupState();
     const isGroupChild = gs && indent > gs.indent;
