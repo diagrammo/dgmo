@@ -1,7 +1,7 @@
 /* eslint-disable no-console */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
-import { homedir } from 'node:os';
+import { homedir, platform } from 'node:os';
 import { resolve, join, basename, extname } from 'node:path';
 import { createInterface } from 'node:readline';
 import { Resvg } from '@resvg/resvg-js';
@@ -478,6 +478,11 @@ Options:
   --install-codex-integration
                        Full Codex CLI setup: write AGENTS.md to the project and configure
                        the dgmo MCP server in .codex/config.toml (project) or ~/.codex/config.toml (global)
+  --install-claude-desktop-integration
+                       Full Claude Desktop setup: install @diagrammo/dgmo-mcp if needed,
+                       then merge the dgmo MCP entry into Claude Desktop's config file
+                       (~/Library/Application Support/Claude/claude_desktop_config.json on macOS,
+                       %APPDATA%/Claude/... on Windows, ~/.config/Claude/... on Linux)
   --help               Show this help
   --version            Show version`);
 }
@@ -504,6 +509,7 @@ function parseArgs(argv: string[]): {
   installClaudeSkill: boolean;
   installClaudeCodeIntegration: boolean;
   installCodexIntegration: boolean;
+  installClaudeDesktopIntegration: boolean;
 } {
   const result = {
     input: undefined as string | undefined,
@@ -520,6 +526,7 @@ function parseArgs(argv: string[]): {
     installClaudeSkill: false,
     installClaudeCodeIntegration: false,
     installCodexIntegration: false,
+    installClaudeDesktopIntegration: false,
   };
 
   const args = argv.slice(2); // skip node + script
@@ -577,6 +584,9 @@ function parseArgs(argv: string[]): {
       i++;
     } else if (arg === '--install-codex-integration') {
       result.installCodexIntegration = true;
+      i++;
+    } else if (arg === '--install-claude-desktop-integration') {
+      result.installClaudeDesktopIntegration = true;
       i++;
     } else if (arg === '--copy') {
       result.copy = true;
@@ -1002,6 +1012,133 @@ async function main(): Promise<void> {
     }
 
     console.log('\nRestart Codex to activate the MCP server.');
+    return;
+  }
+
+  if (opts.installClaudeDesktopIntegration) {
+    const ask = (prompt: string): Promise<string> =>
+      new Promise((resolve) => {
+        const rl = createInterface({
+          input: process.stdin,
+          output: process.stdout,
+        });
+        rl.question(prompt, (answer) => {
+          rl.close();
+          resolve(answer);
+        });
+      });
+
+    // Check / install dgmo-mcp binary
+    let dgmoMcpInstalled = false;
+    try {
+      execSync('which dgmo-mcp', { stdio: 'pipe' });
+      dgmoMcpInstalled = true;
+    } catch {
+      /* not found */
+    }
+    if (!dgmoMcpInstalled) {
+      const ans = await ask(
+        '\ndgmo-mcp not found. Install @diagrammo/dgmo-mcp globally now? [Y/n] '
+      );
+      const yes =
+        ans === '' || ans.toLowerCase() === 'y' || ans.toLowerCase() === 'yes';
+      if (yes) {
+        console.log('Installing @diagrammo/dgmo-mcp...');
+        try {
+          execSync('npm install -g @diagrammo/dgmo-mcp', { stdio: 'inherit' });
+          console.log('✓ @diagrammo/dgmo-mcp installed');
+        } catch {
+          console.error('Error: Failed to install @diagrammo/dgmo-mcp.');
+          console.error('Try manually: npm install -g @diagrammo/dgmo-mcp');
+        }
+      } else {
+        console.log(
+          '  Skipped. Install later with: npm install -g @diagrammo/dgmo-mcp'
+        );
+      }
+    } else {
+      console.log('✓ dgmo-mcp already installed');
+    }
+
+    // Resolve the Claude Desktop config path for the current platform.
+    // macOS and Windows use the documented Claude Desktop paths; Linux
+    // doesn't have a first-party build yet, but community installs follow
+    // the XDG config convention.
+    const os = platform();
+    let configPath: string;
+    if (os === 'darwin') {
+      configPath = join(
+        homedir(),
+        'Library',
+        'Application Support',
+        'Claude',
+        'claude_desktop_config.json'
+      );
+    } else if (os === 'win32') {
+      const appData =
+        process.env.APPDATA ?? join(homedir(), 'AppData', 'Roaming');
+      configPath = join(appData, 'Claude', 'claude_desktop_config.json');
+    } else {
+      configPath = join(
+        homedir(),
+        '.config',
+        'Claude',
+        'claude_desktop_config.json'
+      );
+    }
+
+    // Read existing config (or start fresh). Non-JSON contents are treated
+    // as corruption and we bail — the user needs to resolve it manually so
+    // we don't silently overwrite something they care about.
+    type ClaudeDesktopConfig = {
+      mcpServers?: Record<
+        string,
+        { command: string; args?: string[]; env?: Record<string, string> }
+      >;
+      [key: string]: unknown;
+    };
+    let config: ClaudeDesktopConfig = {};
+    if (existsSync(configPath)) {
+      const raw = readFileSync(configPath, 'utf-8');
+      if (raw.trim().length > 0) {
+        try {
+          config = JSON.parse(raw) as ClaudeDesktopConfig;
+        } catch {
+          console.error(
+            `Error: ${configPath} exists but is not valid JSON. Fix it manually and re-run, or remove the file to regenerate.`
+          );
+          process.exit(1);
+        }
+      }
+    }
+
+    const existingDgmo = config.mcpServers?.dgmo;
+    if (existingDgmo && existingDgmo.command === 'dgmo-mcp') {
+      console.log(`✓ dgmo MCP server already configured in ${configPath}`);
+    } else {
+      if (existingDgmo) {
+        const ans = await ask(
+          `\nA "dgmo" entry already exists in ${configPath}. Overwrite? [y/N] `
+        );
+        if (ans.toLowerCase() !== 'y' && ans.toLowerCase() !== 'yes') {
+          console.log('  Skipped.');
+          return;
+        }
+      }
+      config.mcpServers = {
+        ...(config.mcpServers ?? {}),
+        dgmo: { command: 'dgmo-mcp' },
+      };
+      mkdirSync(join(configPath, '..'), { recursive: true });
+      writeFileSync(
+        configPath,
+        JSON.stringify(config, null, 2) + '\n',
+        'utf-8'
+      );
+      console.log(`✓ dgmo MCP server configured: ${configPath}`);
+    }
+
+    console.log('\nRestart Claude Desktop to activate the MCP server.');
     return;
   }
 
