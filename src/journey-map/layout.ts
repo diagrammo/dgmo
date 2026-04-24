@@ -27,7 +27,7 @@ export interface StepLayout {
   color: string;
 }
 
-export interface PhaseLayout {
+interface PhaseLayout {
   x: number;
   y: number;
   width: number;
@@ -87,8 +87,6 @@ export function scoreToColor(score: number, palette: PaletteColors): string {
 // ============================================================
 // Layout Engine
 // ============================================================
-
-export const COLLAPSED_PHASE_WIDTH = 60;
 
 export function layoutJourneyMap(
   parsed: ParsedJourneyMap,

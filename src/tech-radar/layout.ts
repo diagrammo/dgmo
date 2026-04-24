@@ -186,5 +186,4 @@ export function getRadarGeometry(
   return { cx, cy, maxRadius, ringBandWidth: maxRadius / ringCount };
 }
 
-/** Exported for testing. */
-export { POSITION_ORDER, getQuadrantArc, BASE_BLIP_RADIUS, MIN_BLIP_RADIUS };
+export { POSITION_ORDER, getQuadrantArc };

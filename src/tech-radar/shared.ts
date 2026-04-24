@@ -4,7 +4,7 @@ import type { PaletteColors } from '../palettes';
 import type { QuadrantPosition, BlipTrend } from './types';
 
 /** Default quadrant colors by position when not overridden. */
-export const DEFAULT_QUADRANT_COLORS: Record<QuadrantPosition, string> = {
+const DEFAULT_QUADRANT_COLORS: Record<QuadrantPosition, string> = {
   'top-left': 'blue',
   'top-right': 'green',
   'bottom-left': 'red',
@@ -101,20 +101,6 @@ function renderCrescent(
     .attr('stroke-linecap', 'round');
 }
 
-/** Trend indicator character for text listings. */
-export function getTrendChar(trend: BlipTrend | null): string {
-  switch (trend) {
-    case 'new':
-      return ' ★';
-    case 'up':
-      return ' ▲';
-    case 'down':
-      return ' ▼';
-    default:
-      return '';
-  }
-}
-
 // ============================================================
 // Shared Constants
 // ============================================================
@@ -162,26 +148,4 @@ export function createTooltip(
     : '0 2px 6px rgba(0,0,0,0.12)';
   container.appendChild(tip);
   return tip;
-}
-
-export function showTooltip(
-  tooltip: HTMLDivElement,
-  text: string,
-  event: MouseEvent
-): void {
-  tooltip.textContent = text;
-  tooltip.style.display = 'block';
-  const container = tooltip.parentElement!;
-  const rect = container.getBoundingClientRect();
-  let left = event.clientX - rect.left + 12;
-  let top = event.clientY - rect.top - 28;
-  const tipW = tooltip.offsetWidth;
-  if (left + tipW > rect.width) left = rect.width - tipW - 4;
-  if (top < 0) top = event.clientY - rect.top + 16;
-  tooltip.style.left = `${left}px`;
-  tooltip.style.top = `${top}px`;
-}
-
-export function hideTooltip(tooltip: HTMLDivElement): void {
-  tooltip.style.display = 'none';
 }

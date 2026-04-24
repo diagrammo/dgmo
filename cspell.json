@@ -123,7 +123,18 @@
     "smhd",
     "mindmap",
     "ROYGBIV",
-    "Unsel"
+    "Unsel",
+    "annos",
+    "arccos",
+    "dikw",
+    "keywordless",
+    "maslow",
+    "noopener",
+    "ooda",
+    "pdca",
+    "pluggability",
+    "sublinear",
+    "touchpoints"
   ],
   "ignorePaths": [
     "node_modules",
