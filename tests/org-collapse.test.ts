@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parseOrg } from '../src/org/parser';
-import { collapseOrgTree } from '../src/org/collapse';
+import { collapseOrgTree, focusOrgTree } from '../src/org/collapse';
 
 // ============================================================
 // collapseOrgTree
@@ -9,10 +9,7 @@ import { collapseOrgTree } from '../src/org/collapse';
 describe('collapseOrgTree', () => {
   it('returns identical result for empty collapsed set', () => {
     const parsed = parseOrg('org\nAlice\n  Bob\n  Carol');
-    const { parsed: result, hiddenCounts } = collapseOrgTree(
-      parsed,
-      new Set()
-    );
+    const { parsed: result, hiddenCounts } = collapseOrgTree(parsed, new Set());
 
     // Should return original object (no clone needed)
     expect(result).toBe(parsed);
@@ -187,10 +184,7 @@ Alice
     const bobId = parsed.roots[0].children[0].id;
 
     // Both Alice and Bob collapsed — Alice should still count all 4 descendants
-    const { hiddenCounts } = collapseOrgTree(
-      parsed,
-      new Set([aliceId, bobId])
-    );
+    const { hiddenCounts } = collapseOrgTree(parsed, new Set([aliceId, bobId]));
 
     expect(hiddenCounts.get(bobId)).toBe(2); // Charlie + Dave
     expect(hiddenCounts.get(aliceId)).toBe(4); // Bob + Charlie + Dave + Eve
@@ -214,5 +208,123 @@ Alice
     expect(result.titleLineNumber).toBe(1);
     expect(result.tagGroups).toHaveLength(1);
     expect(result.error).toBeNull();
+  });
+});
+
+// ============================================================
+// focusOrgTree
+// ============================================================
+
+describe('focusOrgTree', () => {
+  it('returns null for non-existent node', () => {
+    const parsed = parseOrg('org\nAlice\n  Bob');
+    expect(focusOrgTree(parsed, 'non-existent-id')).toBeNull();
+  });
+
+  it('focuses on root → returns same tree, empty ancestor path', () => {
+    const parsed = parseOrg('org\nAlice\n  Bob\n  Carol');
+    const aliceId = parsed.roots[0].id;
+
+    const result = focusOrgTree(parsed, aliceId)!;
+    expect(result).not.toBeNull();
+    expect(result.ancestorPath).toHaveLength(0);
+    expect(result.parsed.roots).toHaveLength(1);
+    expect(result.parsed.roots[0].label).toBe('Alice');
+    expect(result.parsed.roots[0].children).toHaveLength(2);
+  });
+
+  it('focuses on mid-level node → returns subtree + ancestor path', () => {
+    const content = `org
+Alice
+  Bob
+    Charlie
+    Dave
+  Eve`;
+    const parsed = parseOrg(content);
+    const bobId = parsed.roots[0].children[0].id;
+
+    const result = focusOrgTree(parsed, bobId)!;
+    expect(result).not.toBeNull();
+
+    // Ancestor path should be [Alice]
+    expect(result.ancestorPath).toHaveLength(1);
+    expect(result.ancestorPath[0].label).toBe('Alice');
+
+    // Focused subtree should have Bob as root with Charlie + Dave
+    expect(result.parsed.roots).toHaveLength(1);
+    expect(result.parsed.roots[0].label).toBe('Bob');
+    expect(result.parsed.roots[0].children).toHaveLength(2);
+    expect(result.parsed.roots[0].children[0].label).toBe('Charlie');
+    expect(result.parsed.roots[0].children[1].label).toBe('Dave');
+  });
+
+  it('focuses on deeply nested node → full ancestor path', () => {
+    const content = `org
+Alice
+  Bob
+    Charlie
+      Dave`;
+    const parsed = parseOrg(content);
+    const daveId = parsed.roots[0].children[0].children[0].children[0].id;
+
+    const result = focusOrgTree(parsed, daveId)!;
+    expect(result).not.toBeNull();
+
+    // Ancestor path: Alice → Bob → Charlie
+    expect(result.ancestorPath).toHaveLength(3);
+    expect(result.ancestorPath[0].label).toBe('Alice');
+    expect(result.ancestorPath[1].label).toBe('Bob');
+    expect(result.ancestorPath[2].label).toBe('Charlie');
+
+    // Dave is the new root (leaf)
+    expect(result.parsed.roots[0].label).toBe('Dave');
+    expect(result.parsed.roots[0].children).toHaveLength(0);
+  });
+
+  it('preserves tag groups and title', () => {
+    const content = `org My Org
+
+tag Location
+  NY(blue)
+
+Alice
+  location: NY
+  Bob
+    Charlie`;
+    const parsed = parseOrg(content);
+    const bobId = parsed.roots[0].children[0].id;
+
+    const result = focusOrgTree(parsed, bobId)!;
+    expect(result.parsed.title).toBe('My Org');
+    expect(result.parsed.tagGroups).toHaveLength(1);
+    expect(result.parsed.tagGroups[0].name).toBe('Location');
+  });
+
+  it('does not mutate original tree', () => {
+    const content = `org
+Alice
+  Bob
+    Charlie`;
+    const parsed = parseOrg(content);
+    const bobId = parsed.roots[0].children[0].id;
+
+    focusOrgTree(parsed, bobId);
+
+    // Original still has Alice as root with Bob as child
+    expect(parsed.roots[0].label).toBe('Alice');
+    expect(parsed.roots[0].children).toHaveLength(1);
+    expect(parsed.roots[0].children[0].label).toBe('Bob');
+  });
+
+  it('focused node has parentId set to null', () => {
+    const content = `org
+Alice
+  Bob
+    Charlie`;
+    const parsed = parseOrg(content);
+    const bobId = parsed.roots[0].children[0].id;
+
+    const result = focusOrgTree(parsed, bobId)!;
+    expect(result.parsed.roots[0].parentId).toBeNull();
   });
 });

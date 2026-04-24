@@ -10,8 +10,10 @@ import {
 } from '../utils/export-container';
 import type { PaletteColors } from '../palettes';
 import { mix } from '../palettes/color-utils';
+import { resolveTagColor } from '../utils/tag-groups';
 import type { ParsedOrg } from './parser';
 import type { OrgLayoutResult } from './layout';
+import type { AncestorInfo } from './collapse';
 import { parseOrg } from './parser';
 import { layoutOrg } from './layout';
 import {
@@ -50,6 +52,12 @@ const CONTAINER_HEADER_HEIGHT = 28;
 // Collapsed-node accent bar
 const COLLAPSE_BAR_HEIGHT = 6;
 const COLLAPSE_BAR_INSET = 0;
+
+// Ancestor breadcrumb trail (focus mode)
+const ANCESTOR_DOT_R = 4;
+const ANCESTOR_LABEL_FONT_SIZE = 11;
+const ANCESTOR_ROW_HEIGHT = 22;
+const ANCESTOR_TRAIL_BOTTOM_GAP = 16;
 
 const LEGEND_FIXED_GAP = 8; // gap between fixed legend and scaled diagram — local, not shared
 
@@ -100,7 +108,8 @@ export function renderOrg(
   onClickItem?: (lineNumber: number) => void,
   exportDims?: { width?: number; height?: number },
   activeTagGroup?: string | null,
-  hiddenAttributes?: Set<string>
+  hiddenAttributes?: Set<string>,
+  ancestorPath?: AncestorInfo[]
 ): void {
   // Clear existing content
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
@@ -128,9 +137,17 @@ export function renderOrg(
   const fixedTitle = !exportDims && !!parsed.title;
   const titleReserve = fixedTitle ? TITLE_HEIGHT : 0;
 
+  // Ancestor breadcrumb trail (focus mode) — rendered inside the scaled group
+  const hasAncestorTrail =
+    !exportDims && ancestorPath && ancestorPath.length > 0;
+  const ancestorTrailHeight = hasAncestorTrail
+    ? ancestorPath.length * ANCESTOR_ROW_HEIGHT + ANCESTOR_TRAIL_BOTTOM_GAP
+    : 0;
+
   // Compute scale to fit diagram in viewport
   const diagramW = layout.width;
-  let diagramH = layout.height + (fixedTitle ? 0 : titleOffset);
+  let diagramH =
+    layout.height + (fixedTitle ? 0 : titleOffset) + ancestorTrailHeight;
   if (fixedLegend) {
     // Remove the legend space from diagram height — legend is rendered separately
     diagramH -= layoutLegendShift;
@@ -200,16 +217,20 @@ export function renderOrg(
     }
   }
 
-  // Content group (offset by title — only when title is inside the scaled group)
+  // Content group (offset by title + ancestor trail height)
+  const contentYShift = (fixedTitle ? 0 : titleOffset) + ancestorTrailHeight;
   const contentG = mainG
     .append('g')
-    .attr('transform', `translate(0, ${fixedTitle ? 0 : titleOffset})`);
+    .attr('transform', `translate(0, ${contentYShift})`);
 
   // Build display name map from tag groups (lowercase key → original casing)
   const displayNames = new Map<string, string>();
   for (const group of parsed.tagGroups) {
     displayNames.set(group.name.toLowerCase(), group.name);
   }
+
+  // Root node IDs — focus icon is suppressed on these (already the tree root)
+  const rootNodeIds = new Set(parsed.roots.map((r) => r.id));
 
   // Render container backgrounds (bottom layer)
   const colorOff = parsed.options?.color === 'off';
@@ -321,6 +342,45 @@ export function renderOrg(
         .attr('fill', containerStroke(palette, colorOff ? undefined : c.color))
         .attr('clip-path', `url(#${clipId})`)
         .attr('class', 'org-collapse-bar');
+    }
+
+    // Focus icon (hover-reveal, interactive only) — for non-root containers with children
+    if (!exportDims && c.hasChildren && !rootNodeIds.has(c.nodeId)) {
+      const iconSize = 14;
+      const iconPad = 5;
+      const iconX = c.width - iconSize - iconPad;
+      const iconY = iconPad;
+
+      const focusG = cG
+        .append('g')
+        .attr('class', 'org-focus-icon')
+        .attr('data-focus-node', c.nodeId)
+        .attr('transform', `translate(${iconX}, ${iconY})`);
+
+      focusG
+        .append('rect')
+        .attr('x', -3)
+        .attr('y', -3)
+        .attr('width', iconSize + 6)
+        .attr('height', iconSize + 6)
+        .attr('fill', 'transparent');
+
+      const cx = iconSize / 2;
+      const cy = iconSize / 2;
+      focusG
+        .append('circle')
+        .attr('cx', cx)
+        .attr('cy', cy)
+        .attr('r', iconSize / 2 - 1)
+        .attr('fill', 'none')
+        .attr('stroke', palette.textMuted)
+        .attr('stroke-width', 1.5);
+      focusG
+        .append('circle')
+        .attr('cx', cx)
+        .attr('cy', cy)
+        .attr('r', 2)
+        .attr('fill', palette.textMuted);
     }
   }
 
@@ -478,6 +538,163 @@ export function renderOrg(
         .attr('fill', nodeStroke(palette, colorOff ? undefined : node.color))
         .attr('clip-path', `url(#${clipId})`)
         .attr('class', 'org-collapse-bar');
+    }
+
+    // Focus icon (hover-reveal, interactive only) — for non-root nodes with children
+    if (!exportDims && node.hasChildren && !rootNodeIds.has(node.id)) {
+      const iconSize = 14;
+      const iconPad = 5;
+      const iconX = node.width - iconSize - iconPad;
+      const iconY = iconPad;
+
+      const focusG = nodeG
+        .append('g')
+        .attr('class', 'org-focus-icon')
+        .attr('data-focus-node', node.id)
+        .attr('transform', `translate(${iconX}, ${iconY})`);
+
+      // Hit area
+      focusG
+        .append('rect')
+        .attr('x', -3)
+        .attr('y', -3)
+        .attr('width', iconSize + 6)
+        .attr('height', iconSize + 6)
+        .attr('fill', 'transparent');
+
+      // Scope/target icon: outer circle + inner dot
+      const cx = iconSize / 2;
+      const cy = iconSize / 2;
+      focusG
+        .append('circle')
+        .attr('cx', cx)
+        .attr('cy', cy)
+        .attr('r', iconSize / 2 - 1)
+        .attr('fill', 'none')
+        .attr('stroke', palette.textMuted)
+        .attr('stroke-width', 1.5);
+      focusG
+        .append('circle')
+        .attr('cx', cx)
+        .attr('cy', cy)
+        .attr('r', 2)
+        .attr('fill', palette.textMuted);
+    }
+  }
+
+  // Render ancestor breadcrumb trail (focus mode) — inside scaled group,
+  // centered on and connected to the root node
+  if (hasAncestorTrail) {
+    // Find the root node/container position in the layout
+    const rootNode = layout.nodes.find((n) => rootNodeIds.has(n.id));
+    const rootContainer = !rootNode
+      ? layout.containers.find((c) => rootNodeIds.has(c.nodeId))
+      : null;
+    // Nodes: x is center. Containers: x is left edge, so center = x + width/2
+    const rootCenterX = rootNode
+      ? rootNode.x
+      : rootContainer
+        ? rootContainer.x + rootContainer.width / 2
+        : null;
+    const rootTopY = rootNode
+      ? rootNode.y
+      : rootContainer
+        ? rootContainer.y
+        : null;
+    if (rootCenterX !== null && rootTopY !== null) {
+      // Trail connects directly to the top edge of the root node.
+      // The last ancestor dot sits ANCESTOR_TRAIL_BOTTOM_GAP above the root.
+      const trailBottomY = rootTopY - ANCESTOR_TRAIL_BOTTOM_GAP;
+
+      const trailG = contentG.append('g').attr('class', 'org-ancestor-trail');
+
+      const count = ancestorPath!.length;
+
+      // Compute dot positions (top-down order, topmost ancestor highest)
+      const dotPositions: number[] = [];
+      for (let i = 0; i < count; i++) {
+        const fromBottom = count - 1 - i;
+        dotPositions.push(trailBottomY - fromBottom * ANCESTOR_ROW_HEIGHT);
+      }
+
+      // Single continuous line from topmost dot to root node top edge
+      const lineTopY = dotPositions[0];
+      trailG
+        .append('line')
+        .attr('x1', rootCenterX)
+        .attr('y1', lineTopY)
+        .attr('x2', rootCenterX)
+        .attr('y2', rootTopY)
+        .attr('stroke', palette.textMuted)
+        .attr('stroke-width', 1.5)
+        .attr('stroke-opacity', 0.4);
+
+      // Dots and labels on top of the line
+      for (let i = 0; i < count; i++) {
+        const ancestor = ancestorPath![i];
+        const dotY = dotPositions[i];
+
+        // Resolve color from tag groups (same logic as node cards)
+        const resolvedColor =
+          ancestor.color ??
+          resolveTagColor(
+            ancestor.metadata,
+            parsed.tagGroups,
+            activeTagGroup ?? null,
+            ancestor.isContainer
+          );
+        const dotColor = resolvedColor ?? palette.textMuted;
+
+        const rowG = trailG
+          .append('g')
+          .attr('class', 'org-ancestor-node')
+          .attr('data-focus-ancestor', ancestor.id)
+          .style('cursor', 'pointer')
+          .attr('transform', `translate(${rootCenterX}, ${dotY})`);
+
+        // Hit area
+        rowG
+          .append('rect')
+          .attr('x', -ANCESTOR_DOT_R - 2)
+          .attr('y', -ANCESTOR_DOT_R - 2)
+          .attr('width', 120)
+          .attr('height', ANCESTOR_DOT_R * 2 + 4)
+          .attr('fill', 'transparent');
+
+        // Dot — colored by tag group value
+        rowG
+          .append('circle')
+          .attr('cx', 0)
+          .attr('cy', 0)
+          .attr('r', ANCESTOR_DOT_R)
+          .attr('fill', dotColor);
+
+        // Label
+        rowG
+          .append('text')
+          .attr('x', ANCESTOR_DOT_R + 6)
+          .attr('y', ANCESTOR_LABEL_FONT_SIZE * 0.35)
+          .attr('fill', palette.textMuted)
+          .attr('font-size', ANCESTOR_LABEL_FONT_SIZE)
+          .text(ancestor.label);
+
+        // Hover effect
+        rowG
+          .on('mouseenter', function () {
+            d3Selection
+              .select(this)
+              .select('circle')
+              .attr('r', ANCESTOR_DOT_R + 1);
+            d3Selection.select(this).select('text').attr('fill', palette.text);
+          })
+          .on('mouseleave', function () {
+            d3Selection.select(this).select('circle').attr('r', ANCESTOR_DOT_R);
+            d3Selection
+              .select(this)
+              .select('text')
+              .attr('fill', palette.textMuted);
+          });
+      }
     }
   }
 
