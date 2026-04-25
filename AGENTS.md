@@ -15,12 +15,15 @@ This installs the MCP server and writes the dgmo config to `.codex/config.toml`.
 ## MCP Tools
 
 When the `dgmo` MCP server is configured, use these tools directly:
-- `preview_diagram` — renders diagram(s) and opens a live HTML preview in the browser (default for showing diagrams)
+- `suggest_chart_type` — first call when creating a new diagram; ranks the best chart types for a plain-English prompt
+- `list_chart_types` — lists every supported chart type with descriptions
+- `get_language_reference` — fetches full syntax for any chart type (call this before generating an unfamiliar chart type)
+- `get_examples` — real example diagrams from the gallery; useful as few-shot references
+- `validate_diagram` — fast syntax check before rendering (much cheaper than a failed render)
 - `render_diagram` — renders to PNG or SVG, returns file path
+- `preview_diagram` — renders diagram(s) and opens a live HTML preview in the browser
 - `share_diagram` — creates a shareable diagrammo.app URL
 - `open_in_app` — opens diagram in Diagrammo desktop app (macOS)
-- `list_chart_types` — lists all 34 supported chart types with descriptions
-- `get_language_reference` — fetches full syntax for any chart type (call this before generating an unfamiliar chart type)
 - `generate_report` — renders multiple diagrams into an HTML report with table of contents
 
 ## When to use dgmo
@@ -113,9 +116,9 @@ API
   latency-ms: 45
 ```
 
-## All 33 chart types
+## Supported chart types
 
-bar, line, multi-line, area, pie, doughnut, radar, polar-area, bar-stacked, scatter, sankey, chord, function, heatmap, funnel, slope, wordcloud, arc, timeline, venn, quadrant, sequence, flowchart, state, class, er, org, kanban, c4, sitemap, infra, gantt, boxes-and-lines
+Call `list_chart_types` for the authoritative list with descriptions, or `suggest_chart_type({ prompt })` to rank candidates against a user request. The static list previously here drifted with every new chart type — the MCP tool is the source of truth.
 
 ### Boxes and lines
 ```
