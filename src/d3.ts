@@ -2681,8 +2681,10 @@ function renderEras(
   eras.forEach((era, i) => {
     const startVal = parseTimelineDate(era.startDate);
     const endVal = parseTimelineDate(era.endDate);
+    if (!Number.isFinite(startVal) || !Number.isFinite(endVal)) return;
     const start = scale(startVal);
     const end = scale(endVal);
+    if (!Number.isFinite(start) || !Number.isFinite(end)) return;
     const color = era.color || eraColors[i % eraColors.length];
 
     const eraG = g
@@ -2772,7 +2774,9 @@ function renderMarkers(
 
   markers.forEach((marker) => {
     const dateVal = parseTimelineDate(marker.date);
+    if (!Number.isFinite(dateVal)) return;
     const pos = scale(dateVal);
+    if (!Number.isFinite(pos)) return;
     const color = marker.color || defaultColor;
     const lineOpacity = 0.5;
     const diamondSize = 5;
@@ -3478,6 +3482,33 @@ export function renderTimeline(
     if (endNum > maxDate) {
       maxDate = endNum;
       latestEndDateStr = ev.endDate ?? ev.date;
+    }
+  }
+
+  // Eras and markers anchor the time axis — fold their dates into the
+  // domain so out-of-range items still render within the chart.
+  for (const era of timelineEras) {
+    const eraStartNum = parseTimelineDate(era.startDate);
+    const eraEndNum = parseTimelineDate(era.endDate);
+    if (Number.isFinite(eraStartNum) && eraStartNum < minDate) {
+      minDate = eraStartNum;
+      earliestStartDateStr = era.startDate;
+    }
+    if (Number.isFinite(eraEndNum) && eraEndNum > maxDate) {
+      maxDate = eraEndNum;
+      latestEndDateStr = era.endDate;
+    }
+  }
+  for (const marker of timelineMarkers) {
+    const markerNum = parseTimelineDate(marker.date);
+    if (!Number.isFinite(markerNum)) continue;
+    if (markerNum < minDate) {
+      minDate = markerNum;
+      earliestStartDateStr = marker.date;
+    }
+    if (markerNum > maxDate) {
+      maxDate = markerNum;
+      latestEndDateStr = marker.date;
     }
   }
   const datePadding = (maxDate - minDate) * 0.05 || 0.5;
