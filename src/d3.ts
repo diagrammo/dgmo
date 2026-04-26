@@ -7101,8 +7101,8 @@ export async function renderForExport(
     const radarParsed = parseTechRadar(content);
     if (radarParsed.error || radarParsed.quadrants.length === 0) return '';
 
-    const RADAR_EXPORT_W = 1600;
-    const RADAR_EXPORT_H = 1200;
+    const RADAR_EXPORT_W = 1300;
+    const RADAR_EXPORT_H = 1500;
     const container = createExportContainer(RADAR_EXPORT_W, RADAR_EXPORT_H);
     renderTechRadarForExport(
       container,

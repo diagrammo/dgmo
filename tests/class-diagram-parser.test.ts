@@ -12,7 +12,9 @@ describe('parseClassDiagram', () => {
     });
 
     it('parses class keyword with title on first line', () => {
-      const result = parseClassDiagram('class My Classes\nAnimal\n  name: string');
+      const result = parseClassDiagram(
+        'class My Classes\nAnimal\n  name: string'
+      );
       expect(result.type).toBe('class');
       expect(result.title).toBe('My Classes');
       expect(result.titleLineNumber).toBe(1);
@@ -20,7 +22,9 @@ describe('parseClassDiagram', () => {
     });
 
     it('parses no-auto-color boolean option', () => {
-      const result = parseClassDiagram('class\nno-auto-color\nAnimal\n  name: string');
+      const result = parseClassDiagram(
+        'class\nno-auto-color\nAnimal\n  name: string'
+      );
       expect(result.options['no-auto-color']).toBe('on');
     });
   });
@@ -28,7 +32,9 @@ describe('parseClassDiagram', () => {
   // === Comments ===
   describe('comments', () => {
     it('ignores // comments', () => {
-      const result = parseClassDiagram('// this is a comment\nAnimal\n  name: string');
+      const result = parseClassDiagram(
+        '// this is a comment\nAnimal\n  name: string'
+      );
       expect(result.error).toBeNull();
       expect(result.classes).toHaveLength(1);
     });
@@ -68,7 +74,9 @@ describe('parseClassDiagram', () => {
     });
 
     it('parses class with bare modifier and color', () => {
-      const result = parseClassDiagram('abstract Animal (blue)\n  name: string');
+      const result = parseClassDiagram(
+        'abstract Animal (blue)\n  name: string'
+      );
       expect(result.classes[0].modifier).toBe('abstract');
       expect(result.classes[0].color).toBeDefined();
     });
@@ -173,7 +181,9 @@ describe('parseClassDiagram', () => {
   // === Enum values ===
   describe('enum values', () => {
     it('parses enum values as plain text', () => {
-      const result = parseClassDiagram('enum Status\n  Active\n  Inactive\n  Pending');
+      const result = parseClassDiagram(
+        'enum Status\n  Active\n  Inactive\n  Pending'
+      );
       const members = result.classes[0].members;
       expect(members).toHaveLength(3);
       expect(members[0].name).toBe('Active');
@@ -186,19 +196,23 @@ describe('parseClassDiagram', () => {
   // === Inline extends/implements ===
   describe('inline extends/implements', () => {
     it('parses extends in class declaration', () => {
-      const result = parseClassDiagram('Animal\n  name: string\n\nDog extends Animal\n  breed: string');
+      const result = parseClassDiagram(
+        'Animal\n  name: string\n\nDog extends Animal\n  breed: string'
+      );
       expect(result.relationships).toHaveLength(1);
       expect(result.relationships[0].type).toBe('extends');
       expect(result.relationships[0].source).toBe('dog');
       expect(result.relationships[0].target).toBe('animal');
       // Dog should have its member
-      const dog = result.classes.find(c => c.name === 'Dog')!;
+      const dog = result.classes.find((c) => c.name === 'Dog')!;
       expect(dog.members).toHaveLength(1);
       expect(dog.members[0].name).toBe('breed');
     });
 
     it('parses implements in class declaration', () => {
-      const result = parseClassDiagram('interface Drawable\n  draw(): void\n\nCircle implements Drawable\n  - radius: number');
+      const result = parseClassDiagram(
+        'interface Drawable\n  draw(): void\n\nCircle implements Drawable\n  - radius: number'
+      );
       expect(result.relationships).toHaveLength(1);
       expect(result.relationships[0].type).toBe('implements');
       expect(result.relationships[0].source).toBe('circle');
@@ -208,27 +222,62 @@ describe('parseClassDiagram', () => {
     it('auto-creates parent class from extends', () => {
       const result = parseClassDiagram('Dog extends Animal\n  breed: string');
       expect(result.classes).toHaveLength(2);
-      expect(result.classes.map(c => c.name).sort()).toEqual(['Animal', 'Dog']);
+      expect(result.classes.map((c) => c.name).sort()).toEqual([
+        'Animal',
+        'Dog',
+      ]);
     });
 
     it('extends with modifier', () => {
-      const result = parseClassDiagram('abstract Shape\n  + area(): number\n\nCircle extends Shape\n  - radius: number');
+      const result = parseClassDiagram(
+        'abstract Shape\n  + area(): number\n\nCircle extends Shape\n  - radius: number'
+      );
       expect(result.relationships[0].type).toBe('extends');
       expect(result.relationships[0].source).toBe('circle');
       expect(result.relationships[0].target).toBe('shape');
     });
 
     it('extends with color', () => {
-      const result = parseClassDiagram('Dog extends Animal (red)\n  breed: string');
+      const result = parseClassDiagram(
+        'Dog extends Animal (red)\n  breed: string'
+      );
       expect(result.relationships[0].type).toBe('extends');
-      const dog = result.classes.find(c => c.name === 'Dog')!;
+      const dog = result.classes.find((c) => c.name === 'Dog')!;
       expect(dog.color).toBeDefined();
     });
 
     it('extends with no members', () => {
-      const result = parseClassDiagram('Animal\n  name: string\n\nDog extends Animal');
+      const result = parseClassDiagram(
+        'Animal\n  name: string\n\nDog extends Animal'
+      );
       expect(result.relationships).toHaveLength(1);
       expect(result.relationships[0].type).toBe('extends');
+    });
+
+    it('extends and implements on the same line', () => {
+      const result = parseClassDiagram(
+        'abstract Shape\n  + area(): number\n\ninterface Drawable\n  draw(): void\n\nCircle extends Shape implements Drawable\n  - radius: number'
+      );
+      // Three classes: Shape, Drawable, Circle
+      expect(result.classes.map((c) => c.name).sort()).toEqual([
+        'Circle',
+        'Drawable',
+        'Shape',
+      ]);
+      // Two relationships from Circle: extends Shape, implements Drawable
+      expect(result.relationships).toHaveLength(2);
+      const extendsRel = result.relationships.find((r) => r.type === 'extends');
+      const implementsRel = result.relationships.find(
+        (r) => r.type === 'implements'
+      );
+      expect(extendsRel?.source).toBe('circle');
+      expect(extendsRel?.target).toBe('shape');
+      expect(implementsRel?.source).toBe('circle');
+      expect(implementsRel?.target).toBe('drawable');
+      // Circle's member preserved
+      const circle = result.classes.find((c) => c.name === 'Circle')!;
+      expect(circle.members).toHaveLength(1);
+      expect(circle.members[0].name).toBe('radius');
     });
   });
 
@@ -278,7 +327,9 @@ describe('parseClassDiagram', () => {
     });
 
     it('source is the current class', () => {
-      const result = parseClassDiagram('Canvas\n  - shapes: Shape[]\n  *-- Shape');
+      const result = parseClassDiagram(
+        'Canvas\n  - shapes: Shape[]\n  *-- Shape'
+      );
       expect(result.relationships[0].source).toBe('canvas');
       expect(result.relationships[0].target).toBe('shape');
     });
@@ -292,7 +343,10 @@ describe('parseClassDiagram', () => {
 
     it('auto-creates target class', () => {
       const result = parseClassDiagram('Dog\n  --|> Animal');
-      expect(result.classes.map(c => c.name).sort()).toEqual(['Animal', 'Dog']);
+      expect(result.classes.map((c) => c.name).sort()).toEqual([
+        'Animal',
+        'Dog',
+      ]);
     });
   });
 
@@ -301,13 +355,17 @@ describe('parseClassDiagram', () => {
     it('rejects top-level --|> with warning', () => {
       const result = parseClassDiagram('Dog --|> Animal');
       expect(result.relationships).toHaveLength(0);
-      expect(result.diagnostics.some(d => d.message.includes('must be indented'))).toBe(true);
+      expect(
+        result.diagnostics.some((d) => d.message.includes('must be indented'))
+      ).toBe(true);
     });
 
     it('rejects top-level *-- with warning', () => {
       const result = parseClassDiagram('Car *-- Engine');
       expect(result.relationships).toHaveLength(0);
-      expect(result.diagnostics.some(d => d.message.includes('must be indented'))).toBe(true);
+      expect(
+        result.diagnostics.some((d) => d.message.includes('must be indented'))
+      ).toBe(true);
     });
 
     it('rejects top-level -> with warning', () => {
@@ -319,12 +377,16 @@ describe('parseClassDiagram', () => {
   // === Relationship line numbers ===
   describe('relationship line numbers', () => {
     it('tracks inline extends line number', () => {
-      const result = parseClassDiagram('Animal\n  name: string\n\nDog extends Animal\n  breed: string');
+      const result = parseClassDiagram(
+        'Animal\n  name: string\n\nDog extends Animal\n  breed: string'
+      );
       expect(result.relationships[0].lineNumber).toBe(4);
     });
 
     it('tracks arrow relationship line number', () => {
-      const result = parseClassDiagram('Animal\n  name: string\n\nDog\n  breed: string\n  --|> Animal');
+      const result = parseClassDiagram(
+        'Animal\n  name: string\n\nDog\n  breed: string\n  --|> Animal'
+      );
       expect(result.relationships[0].lineNumber).toBe(6);
     });
   });
@@ -332,12 +394,16 @@ describe('parseClassDiagram', () => {
   // === Edge cases ===
   describe('edge cases', () => {
     it('handles class with only methods', () => {
-      const result = parseClassDiagram('Service\n  start(): void\n  stop(): void');
-      expect(result.classes[0].members.every(m => m.isMethod)).toBe(true);
+      const result = parseClassDiagram(
+        'Service\n  start(): void\n  stop(): void'
+      );
+      expect(result.classes[0].members.every((m) => m.isMethod)).toBe(true);
     });
 
     it('handles multiple classes', () => {
-      const result = parseClassDiagram('Animal\n  name: string\n\nDog\n  breed: string');
+      const result = parseClassDiagram(
+        'Animal\n  name: string\n\nDog\n  breed: string'
+      );
       expect(result.classes).toHaveLength(2);
     });
 
@@ -351,7 +417,9 @@ describe('parseClassDiagram', () => {
     });
 
     it('handles mixed fields and methods', () => {
-      const result = parseClassDiagram('Animal\n  name: string\n  speak(): void\n  age: number');
+      const result = parseClassDiagram(
+        'Animal\n  name: string\n  speak(): void\n  age: number'
+      );
       const members = result.classes[0].members;
       expect(members).toHaveLength(3);
       expect(members[0].isMethod).toBe(false);
@@ -367,7 +435,9 @@ describe('looksLikeClassDiagram', () => {
   });
 
   it('detects bare interface keyword', () => {
-    expect(looksLikeClassDiagram('interface Drawable\n  draw(): void')).toBe(true);
+    expect(looksLikeClassDiagram('interface Drawable\n  draw(): void')).toBe(
+      true
+    );
   });
 
   it('detects bare enum keyword', () => {
@@ -375,11 +445,17 @@ describe('looksLikeClassDiagram', () => {
   });
 
   it('detects inline extends with members', () => {
-    expect(looksLikeClassDiagram('Animal\n  name: string\n\nDog extends Animal\n  breed: string')).toBe(true);
+    expect(
+      looksLikeClassDiagram(
+        'Animal\n  name: string\n\nDog extends Animal\n  breed: string'
+      )
+    ).toBe(true);
   });
 
   it('detects indented relationship arrows with members', () => {
-    expect(looksLikeClassDiagram('Animal\n  name: string\nDog\n  --|> Animal')).toBe(true);
+    expect(
+      looksLikeClassDiagram('Animal\n  name: string\nDog\n  --|> Animal')
+    ).toBe(true);
   });
 
   it('does not false-positive on flowcharts', () => {
@@ -391,6 +467,8 @@ describe('looksLikeClassDiagram', () => {
   });
 
   it('does not false-positive on sequence diagrams', () => {
-    expect(looksLikeClassDiagram('Alice -> Bob: Hello\nBob -> Alice: Hi')).toBe(false);
+    expect(looksLikeClassDiagram('Alice -> Bob: Hello\nBob -> Alice: Hi')).toBe(
+      false
+    );
   });
 });

@@ -28,12 +28,13 @@ function classId(name: string): string {
 // Regex patterns
 // ============================================================
 
-// Class declaration: [modifier] ClassName [extends|implements ParentClass] (color)
+// Class declaration: [modifier] ClassName [extends Parent] [implements Interface] (color)
 // Supports both:
 //   New: `abstract Animal` or `interface Serializable`
 //   Old: `Animal [abstract]` (bracketed suffix, kept for transition)
+// Both `extends` and `implements` may appear together: `Circle extends Shape implements Drawable`.
 const CLASS_DECL_RE =
-  /^(?:(abstract|interface|enum)\s+)?([A-Z][A-Za-z0-9_]*)(?:\s+(extends|implements)\s+([A-Z][A-Za-z0-9_]*))?(?:\s+\[(abstract|interface|enum)\])?(?:\s+\(([^)]+)\))?\s*$/;
+  /^(?:(abstract|interface|enum)\s+)?([A-Z][A-Za-z0-9_]*)(?:\s+extends\s+([A-Z][A-Za-z0-9_]*))?(?:\s+implements\s+([A-Z][A-Za-z0-9_]*))?(?:\s+\[(abstract|interface|enum)\])?(?:\s+\(([^)]+)\))?\s*$/;
 
 // Relationship — arrow syntax (indented under source class):
 //   --|> TargetClass label  (space-separated)
@@ -303,8 +304,8 @@ export function parseClassDiagram(
     if (classDecl) {
       const prefixModifier = classDecl[1] as ClassModifier | undefined;
       const name = classDecl[2];
-      const relKeyword = classDecl[3] as 'extends' | 'implements' | undefined;
-      const parentName = classDecl[4];
+      const extendsParent = classDecl[3];
+      const implementsInterface = classDecl[4];
       const bracketModifier = classDecl[5] as ClassModifier | undefined;
       const modifier = prefixModifier ?? bracketModifier;
       const colorName = classDecl[6]?.trim();
@@ -323,13 +324,25 @@ export function parseClassDiagram(
       // Update line number to the declaration line (may have been created by relationship)
       node.lineNumber = lineNumber;
 
-      // Inline extends/implements creates a relationship
-      if (relKeyword && parentName) {
-        getOrCreateClass(parentName, lineNumber);
+      // Inline extends creates an extends relationship
+      if (extendsParent) {
+        getOrCreateClass(extendsParent, lineNumber);
         result.relationships.push({
           source: classId(name),
-          target: classId(parentName),
-          type: relKeyword as RelationshipType,
+          target: classId(extendsParent),
+          type: 'extends',
+          lineNumber,
+        });
+      }
+
+      // Inline implements creates an implements relationship
+      // (may co-occur with extends — Circle extends Shape implements Drawable)
+      if (implementsInterface) {
+        getOrCreateClass(implementsInterface, lineNumber);
+        result.relationships.push({
+          source: classId(name),
+          target: classId(implementsInterface),
+          type: 'implements',
           lineNumber,
         });
       }
