@@ -3,6 +3,11 @@
   "version": "0.8.26",
   "description": "DGMO diagram markup language — parser, renderer, and color system",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/diagrammo/dgmo.git"
+  },
+  "homepage": "https://github.com/diagrammo/dgmo#readme",
   "type": "module",
   "bin": {
     "dgmo": "dist/cli.cjs"
