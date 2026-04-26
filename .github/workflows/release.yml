@@ -23,7 +23,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version: 24
           registry-url: 'https://registry.npmjs.org'
           cache: pnpm
 
@@ -52,12 +52,9 @@ jobs:
       - name: Build
         run: pnpm build
 
-      # OIDC trusted publishing requires npm 11.5+; Node 22 ships with 10.9.
-      - name: Upgrade npm for OIDC support
-        run: npm install -g npm@latest
-
       - name: Publish to npm
         # Auth via OIDC (Trusted Publishers configured on npmjs.com).
+        # Node 24 ships with npm 11.x which has trusted-publisher support.
         # No NODE_AUTH_TOKEN — npm prefers the env token if present.
         run: npm publish --access public --provenance
 
