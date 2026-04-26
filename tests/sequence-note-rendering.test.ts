@@ -435,4 +435,54 @@ describe('Rendered in-arrow label plain-text (TD-1)', () => {
       '[my custom label](https://api.example.com/v2/users/authentication/oauth2/callback)'
     );
   });
+
+  describe('edge-participant note flipping', () => {
+    const lifelineX = (svg: SVGSVGElement, id: string): number => {
+      const ll = svg.querySelector(`.lifeline[data-participant-id="${id}"]`);
+      return Number(ll!.getAttribute('x1'));
+    };
+    const noteLeftX = (svg: SVGSVGElement): number => {
+      const d = svg.querySelector('.note-box')!.getAttribute('d') || '';
+      return Number(d.match(/M\s+([\d.]+)/)![1]);
+    };
+
+    it('right note on rightmost participant flips to the left of the lifeline', () => {
+      const svg = renderToSvg('A -hello-> B\nnote right of B trailing');
+      expect(svg).not.toBeNull();
+      // After flipping, the note's left edge should sit to the LEFT of B's
+      // lifeline (it now occupies the lane between A and B).
+      expect(noteLeftX(svg!)).toBeLessThan(lifelineX(svg!, 'B'));
+    });
+
+    it('left note on leftmost participant flips to the right of the lifeline', () => {
+      const svg = renderToSvg('A -hello-> B\nnote left of A leading');
+      expect(svg).not.toBeNull();
+      // After flipping, the note's left edge should sit to the RIGHT of A's
+      // lifeline (it now occupies the lane between A and B).
+      expect(noteLeftX(svg!)).toBeGreaterThan(lifelineX(svg!, 'A'));
+    });
+
+    it('single-participant diagram leaves note position alone', () => {
+      // No neighbor to flip toward — the existing direction is preserved.
+      const svg = renderToSvg('A -ping-> A\nnote right of A solo');
+      expect(svg).not.toBeNull();
+      expect(noteLeftX(svg!)).toBeGreaterThan(lifelineX(svg!, 'A'));
+    });
+
+    it('right note stays in the lane on rightmost (no SVG overflow)', () => {
+      const svg = renderToSvg(
+        'A -hello-> B\nnote right of B this is a longer note'
+      );
+      expect(svg).not.toBeNull();
+      const d = svg!.querySelector('.note-box')!.getAttribute('d') || '';
+      // Right edge of the note = max x-coord in the path.
+      const xs: number[] = [];
+      const re = /[ML]\s+([\d.]+)\s+[\d.]+/g;
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(d)) !== null) xs.push(Number(m[1]));
+      const noteRight = Math.max(...xs);
+      const svgWidth = Number(svg!.getAttribute('viewBox')!.split(' ')[2]);
+      expect(noteRight).toBeLessThanOrEqual(svgWidth);
+    });
+  });
 });

@@ -972,6 +972,19 @@ export function renderSequenceDiagram(
   const participantIndexMap = new Map<string, number>();
   participants.forEach((p, i) => participantIndexMap.set(p.id, i));
 
+  // Notes anchored to the outermost participant on the side they'd extend
+  // toward have no neighbor lane to fit into, so they would overflow the SVG.
+  // Flip them to the inside when there's a participant on the other side.
+  const effectiveNotePosition = (note: SequenceNote): 'left' | 'right' => {
+    const idx = participantIndexMap.get(note.participantId);
+    if (idx === undefined) return note.position;
+    if (note.position === 'right' && idx === participants.length - 1 && idx > 0)
+      return 'left';
+    if (note.position === 'left' && idx === 0 && participants.length > 1)
+      return 'right';
+    return note.position;
+  };
+
   // Extra X shift for notes after self-calls
   const SELF_CALL_NOTE_X_SHIFT =
     ACTIVATION_WIDTH / 2 +
@@ -1491,7 +1504,7 @@ export function renderSequenceDiagram(
             // Stack below previous note
             const prevMaxW = noteEffectiveMaxW(
               prevNote.participantId,
-              prevNote.position,
+              effectiveNotePosition(prevNote),
               isNoteAfterSelfCall(prevNote)
             );
             const prevNoteH = computeNoteHeight(
@@ -1535,7 +1548,7 @@ export function renderSequenceDiagram(
   for (const [note, noteTopY] of noteYMap) {
     const maxW = noteEffectiveMaxW(
       note.participantId,
-      note.position,
+      effectiveNotePosition(note),
       isNoteAfterSelfCall(note)
     );
     const noteH = computeNoteHeight(note.text, charsForWidth(maxW));
@@ -2613,11 +2626,12 @@ export function renderSequenceDiagram(
         const noteTopY = noteYMap.get(el);
         if (noteTopY === undefined) continue;
 
-        const isRight = el.position === 'right';
+        const position = effectiveNotePosition(el);
+        const isRight = position === 'right';
         const afterSelfCall = isNoteAfterSelfCall(el);
         const maxW = noteEffectiveMaxW(
           el.participantId,
-          el.position,
+          position,
           afterSelfCall
         );
         const maxChars = charsForWidth(maxW);
