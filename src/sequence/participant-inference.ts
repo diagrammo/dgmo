@@ -192,6 +192,7 @@ const PARTICIPANT_RULES: readonly InferenceRule[] = [
   { pattern: /^Guest$/i, type: 'actor' },
   { pattern: /^Visitor$/i, type: 'actor' },
   { pattern: /^Operator$/i, type: 'actor' },
+  { pattern: /^Developer$/i, type: 'actor' },
   { pattern: /^Alice$/i, type: 'actor' },
   { pattern: /^Bob$/i, type: 'actor' },
   { pattern: /^Charlie$/i, type: 'actor' },

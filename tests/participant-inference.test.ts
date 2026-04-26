@@ -10,7 +10,7 @@ import {
 
 describe('RULE_COUNT', () => {
   it('matches the actual number of rules in the table', () => {
-    expect(RULE_COUNT).toBe(222);
+    expect(RULE_COUNT).toBe(223);
   });
 });
 
@@ -109,7 +109,7 @@ describe('regression guard — original rules', () => {
     expect(inferParticipantType(name)).toBe(expected);
   });
 
-  // Group 6: Actor (18 rules — 14 exact + 4 suffix)
+  // Group 6: Actor (19 rules — 15 exact + 4 suffix)
   it.each([
     ['Admin', 'actor'],
     ['User', 'actor'],
@@ -121,6 +121,7 @@ describe('regression guard — original rules', () => {
     ['Guest', 'actor'],
     ['Visitor', 'actor'],
     ['Operator', 'actor'],
+    ['Developer', 'actor'],
     ['Alice', 'actor'],
     ['Bob', 'actor'],
     ['Charlie', 'actor'],
