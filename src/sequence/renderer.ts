@@ -571,6 +571,12 @@ export function groupMessagesBySection(
   const groups: SectionMessageGroup[] = [];
   let currentGroup: SectionMessageGroup | null = null;
 
+  // Look up by lineNumber — collapse projection creates separate spread copies
+  // for messages[] and the messages embedded in elements[], breaking reference
+  // equality. lineNumber is preserved across spreads.
+  const msgLineToIdx = new Map<number, number>();
+  messages.forEach((m, i) => msgLineToIdx.set(m.lineNumber, i));
+
   // Recursively collect all message indices from an element subtree
   const collectIndices = (els: SequenceElement[]): number[] => {
     const indices: number[] = [];
@@ -589,7 +595,7 @@ export function groupMessagesBySection(
         // Sections and notes inside blocks are not messages — skip
         continue;
       } else {
-        const idx = messages.indexOf(el as SequenceMessage);
+        const idx = msgLineToIdx.get(el.lineNumber) ?? -1;
         if (idx >= 0) indices.push(idx);
       }
     }
@@ -606,7 +612,7 @@ export function groupMessagesBySection(
       if (isSequenceBlock(el)) {
         currentGroup.messageIndices.push(...collectIndices([el]));
       } else if (!isSequenceNote(el)) {
-        const idx = messages.indexOf(el as SequenceMessage);
+        const idx = msgLineToIdx.get(el.lineNumber) ?? -1;
         if (idx >= 0) currentGroup.messageIndices.push(idx);
       }
     }

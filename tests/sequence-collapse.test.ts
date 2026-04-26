@@ -453,4 +453,33 @@ describe('Collapse rendering', () => {
     expect(ids).toContain('Backend');
     expect(ids).not.toContain('API');
   });
+
+  it('section collapse hides messages even when a group is also collapsed', () => {
+    // Regression: collapse projection creates spread copies of message objects
+    // for messages[] and elements[], breaking reference equality in
+    // groupMessagesBySection. Section collapse must use lineNumber lookup
+    // so its messageIndices populate correctly even on a projected view.
+    const diagram = [
+      '[Backend]',
+      '  API',
+      '  DB',
+      '== Setup ==',
+      'User -req-> API',
+      'API -query-> DB',
+    ].join('\n');
+    const parsed = parseSequenceDgmo(diagram);
+    expect(parsed.error).toBeNull();
+    const groupLine = parsed.groups[0].lineNumber;
+    const sectionLine = parsed.elements
+      .filter((el): el is SequenceSection => el.kind === 'section')
+      .map((s) => s.lineNumber)[0];
+
+    const svg = renderToSvg(diagram, {
+      collapsedGroups: new Set([groupLine]),
+      collapsedSections: new Set([sectionLine]),
+    })!;
+    // No message arrows should be rendered inside the collapsed section
+    const arrows = svg.querySelectorAll('.message-arrow');
+    expect(arrows.length).toBe(0);
+  });
 });
