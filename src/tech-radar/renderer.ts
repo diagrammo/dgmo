@@ -111,8 +111,10 @@ export function renderTechRadar(
     return;
   }
 
-  // Determine if listing is visible — always show for export (blip legend is essential)
-  const showListing = exportDims ? true : (options?.showListing ?? false);
+  // Determine if listing is visible — always show for export (blip legend is essential).
+  // Otherwise: runtime option wins; falls back to the `show-blip-legend` directive in source.
+  const directiveOn = parsed.options['show-blip-legend'] === 'on';
+  const showListing = exportDims ? true : (options?.showListing ?? directiveOn);
   const listingHeight = showListing ? estimateListingHeight(parsed) : 0;
 
   const init = initRadarSvg(container, palette, exportDims);

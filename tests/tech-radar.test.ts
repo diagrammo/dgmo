@@ -123,6 +123,35 @@ describe('tech-radar parser — basic', () => {
   });
 });
 
+describe('tech-radar parser — directives', () => {
+  it('parses show-blip-legend directive into options', () => {
+    const radar = `tech-radar With Legend
+show-blip-legend
+
+rings
+  Adopt
+  Trial
+
+Techniques | quadrant: top-right
+  CD | ring: Adopt
+Tools | quadrant: top-left
+  Vite | ring: Trial
+Platforms | quadrant: bottom-left
+  K8s | ring: Adopt
+Languages | quadrant: bottom-right
+  TS | ring: Adopt
+`;
+    const result = parseTechRadar(radar);
+    expect(result.options['show-blip-legend']).toBe('on');
+    expect(result.error).toBeNull();
+  });
+
+  it('omits show-blip-legend when directive is absent', () => {
+    const result = parseTechRadar(BASIC_RADAR);
+    expect(result.options['show-blip-legend']).toBeUndefined();
+  });
+});
+
 describe('tech-radar parser — global numbering', () => {
   it('assigns globalNumber in correct order (quadrant→ring→declaration)', () => {
     const result = parseTechRadar(BASIC_RADAR);
@@ -439,6 +468,36 @@ describe('tech-radar renderer', () => {
     expect(svg).not.toBeNull();
     expect(svg!.getAttribute('width')).toBe('1200');
     expect(svg!.getAttribute('height')).toBe('900');
+  });
+
+  it('show-blip-legend directive renders the blip listing on live render', () => {
+    const radarWithDirective = BASIC_RADAR.replace(
+      'tech-radar My Tech Radar\n',
+      'tech-radar My Tech Radar\nshow-blip-legend\n'
+    );
+    const parsedWith = parseTechRadar(radarWithDirective);
+    const parsedWithout = parseTechRadar(BASIC_RADAR);
+
+    const makeContainer = () => {
+      const c = document.createElement('div') as unknown as HTMLDivElement;
+      Object.defineProperty(c, 'clientWidth', { value: 800 });
+      Object.defineProperty(c, 'clientHeight', { value: 700 });
+      return c;
+    };
+
+    const cWith = makeContainer();
+    const cWithout = makeContainer();
+    renderTechRadar(cWith, parsedWith, nordLight, false);
+    renderTechRadar(cWithout, parsedWithout, nordLight, false);
+
+    // The listing renders one extra data-line-number group per blip.
+    const totalBlips = parsedWith.quadrants.reduce(
+      (sum, q) => sum + q.blips.length,
+      0
+    );
+    const withCount = cWith.querySelectorAll('[data-line-number]').length;
+    const withoutCount = cWithout.querySelectorAll('[data-line-number]').length;
+    expect(withCount - withoutCount).toBe(totalBlips);
   });
 });
 
