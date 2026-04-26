@@ -1443,7 +1443,13 @@ export function renderSequenceDiagram(
         curY += extra;
       }
       stepYPositions.push(curY);
-      curY += stepSpacing;
+      // Self-call loops extend SELF_CALL_HEIGHT below the step Y, plus the loop
+      // label sits at y + SELF_CALL_HEIGHT/2 + 4 (font 12) — the label's descender
+      // reaches ~y + SELF_CALL_HEIGHT/2 + 10. The next message's label sits ~13px
+      // above its arrow line. Reserve enough vertical space so neither the next
+      // arrow nor its label can overlap the loop or its label.
+      const isSelfCall = step.type === 'call' && step.from === step.to;
+      curY += isSelfCall ? SELF_CALL_HEIGHT + 25 : stepSpacing;
     }
     // Handle trailing sections (after all steps)
     for (const sec of trailingSections) {
@@ -1509,10 +1515,14 @@ export function renderSequenceDiagram(
   }
 
   // Ensure contentBottomY accounts for all note extents
+  const lastStep = renderSteps[renderSteps.length - 1];
+  const lastIsSelfCall =
+    lastStep && lastStep.type === 'call' && lastStep.from === lastStep.to;
+  const lastStepTrailing = lastIsSelfCall ? SELF_CALL_HEIGHT + 25 : stepSpacing;
   let contentBottomY =
     renderSteps.length > 0
       ? Math.max(
-          stepYPositions[stepYPositions.length - 1] + stepSpacing,
+          stepYPositions[stepYPositions.length - 1] + lastStepTrailing,
           layoutEndY
         )
       : layoutEndY;
