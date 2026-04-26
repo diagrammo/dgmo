@@ -2372,13 +2372,18 @@ export function renderSequenceDiagram(
       const arrowColor = msgTagColor || palette.text;
 
       if (step.from === step.to) {
-        // Self-call: loopback arrow from right edge of activation
-        const x = arrowEdgeX(step.from, i, 'right');
+        // Self-call: loopback arrow. Flip leftward on the rightmost lifeline
+        // so the loop and label stay inside the canvas.
+        const px = participantX.get(step.from)!;
+        const flipLeft = px === rightmostX;
+        const x = arrowEdgeX(step.from, i, flipLeft ? 'left' : 'right');
+        const loopX = flipLeft ? x - SELF_CALL_WIDTH : x + SELF_CALL_WIDTH;
+        const hitX = flipLeft ? x - SELF_CALL_WIDTH : x;
 
         // Hit area for self-call
         svg
           .append('rect')
-          .attr('x', x)
+          .attr('x', hitX)
           .attr('y', y - 5)
           .attr('width', SELF_CALL_WIDTH)
           .attr('height', SELF_CALL_HEIGHT + 10)
@@ -2393,10 +2398,7 @@ export function renderSequenceDiagram(
 
         const selfCallEl = svg
           .append('path')
-          .attr(
-            'd',
-            `M ${x} ${y} H ${x + SELF_CALL_WIDTH} V ${y + SELF_CALL_HEIGHT} H ${x}`
-          )
+          .attr('d', `M ${x} ${y} H ${loopX} V ${y + SELF_CALL_HEIGHT} H ${x}`)
           .attr('fill', 'none')
           .attr('stroke', arrowColor)
           .attr('stroke-width', 1.2)
@@ -2417,9 +2419,9 @@ export function renderSequenceDiagram(
         if (step.label) {
           const labelEl = svg
             .append('text')
-            .attr('x', x + SELF_CALL_WIDTH + 5)
+            .attr('x', flipLeft ? loopX - 5 : loopX + 5)
             .attr('y', y + SELF_CALL_HEIGHT / 2 + 4)
-            .attr('text-anchor', 'start')
+            .attr('text-anchor', flipLeft ? 'end' : 'start')
             .attr('fill', arrowColor)
             .attr('paint-order', 'stroke fill')
             .attr('stroke', palette.bg)
