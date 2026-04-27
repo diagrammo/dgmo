@@ -12,6 +12,10 @@ import {
 import { contrastText, getSeriesColors, mix } from '../palettes/color-utils';
 import { resolveColor } from '../colors';
 import { renderInlineText } from '../utils/inline-markdown';
+import {
+  wrapDescriptionLines,
+  type WrappedDescLine,
+} from '../utils/wrapped-desc';
 import type { PaletteColors } from '../palettes';
 import type { D3ExportDimensions } from '../utils/d3-types';
 import type { ParsedPyramid, PyramidLayer } from './types';
@@ -48,7 +52,7 @@ type Side = 'left' | 'right';
 
 interface WrappedDescription {
   /** All wrapped lines, full content. */
-  allLines: string[];
+  allLines: WrappedDescLine[];
   /** Whether the wrapped content exceeds the layer's band cap. */
   overflows: boolean;
   /** Visible line count for the short (truncated) variant. */
@@ -374,10 +378,7 @@ function computeLayout(input: LayoutInput): PyramidLayout {
     }
     const side: Side = alternate ? (i % 2 === 0 ? 'right' : 'left') : 'right';
     const colWidth = side === 'right' ? rightTextWidth : leftTextWidth;
-    const wrapped: string[] = [];
-    for (const line of layer.description) {
-      wrapped.push(...wrapText(line, colWidth, descFont));
-    }
+    const wrapped = wrapDescription(layer.description, colWidth, descFont);
     // Visible cap: lines that fit the layer band with a little breathing room.
     const bandCap = Math.max(1, Math.floor(layerH / descLineHeight) - 0);
     const overflows = wrapped.length > bandCap;
@@ -440,6 +441,12 @@ function renderLayerDescriptions(
   // For right-anchored (left-column) text, x is the right edge of the column.
   const textLineX =
     side === 'right' ? textX : layout.leftAccentX - DESC_ACCENT_GAP;
+  // Bullet glyph + body always read left-to-right, so anchor them at the
+  // column's left edge regardless of which side the description sits on.
+  const bulletColLeftX =
+    side === 'right'
+      ? layout.rightTextX
+      : layout.leftAccentX + DESC_ACCENT_WIDTH + DESC_ACCENT_GAP;
 
   // Full-reveal budget: how many wrapped lines can fit between title and
   // bottom margin. Truncate beyond that.
@@ -458,6 +465,8 @@ function renderLayerDescriptions(
       accentColor,
       textX: textLineX,
       textAnchor,
+      side,
+      bulletColLeftX,
       midY,
       descFont,
       descLineHeight,
@@ -481,6 +490,8 @@ function renderLayerDescriptions(
     accentColor,
     textX: textLineX,
     textAnchor,
+    side,
+    bulletColLeftX,
     midY,
     descFont,
     descLineHeight,
@@ -500,6 +511,8 @@ function renderLayerDescriptions(
     accentColor,
     textX: textLineX,
     textAnchor,
+    side,
+    bulletColLeftX,
     midY,
     descFont,
     descLineHeight,
@@ -511,34 +524,50 @@ function renderLayerDescriptions(
   });
 }
 
-function truncateWithEllipsis(lines: string[], maxLines: number): string[] {
+function truncateWithEllipsis(
+  lines: WrappedDescLine[],
+  maxLines: number
+): WrappedDescLine[] {
   if (lines.length <= maxLines) return lines.slice();
   const visible = lines.slice(0, maxLines);
   if (visible.length === 0) return visible;
   const last = visible[visible.length - 1];
-  visible[visible.length - 1] = last.endsWith('…') ? last : `${last} …`;
+  visible[visible.length - 1] = {
+    ...last,
+    text: last.text.endsWith('…') ? last.text : `${last.text} …`,
+  };
   return visible;
 }
 
-function buildShortLines(wrap: WrappedDescription): string[] {
+function buildShortLines(wrap: WrappedDescription): WrappedDescLine[] {
   if (!wrap.overflows) return wrap.allLines.slice();
   const visible = wrap.allLines.slice(0, wrap.shortLineCount);
   if (visible.length === 0) return [];
-  // Append ellipsis to the last visible line (with a space separator if room).
   const last = visible[visible.length - 1];
-  visible[visible.length - 1] = last.endsWith('…') ? last : `${last} …`;
+  visible[visible.length - 1] = {
+    ...last,
+    text: last.text.endsWith('…') ? last.text : `${last.text} …`,
+  };
   return visible;
 }
 
 interface RenderVariantArgs {
   parentG: d3Selection.Selection<SVGGElement, unknown, null, undefined>;
   layer: PyramidLayer;
-  lines: string[];
+  lines: WrappedDescLine[];
   className: string;
   accentX: number;
   accentColor: string;
   textX: number;
   textAnchor: 'start' | 'end';
+  /**
+   * Side of the pyramid the description sits on. Bullet lines are always
+   * laid out left-to-right with the glyph at the column's left edge so
+   * continuation lines align under the body — regardless of which side
+   * the column is on.
+   */
+  side: Side;
+  bulletColLeftX: number;
   midY: number;
   descFont: number;
   descLineHeight: number;
@@ -559,6 +588,7 @@ function renderDescriptionVariant(args: RenderVariantArgs): void {
     accentColor,
     textX,
     textAnchor,
+    bulletColLeftX,
     midY,
     descFont,
     descLineHeight,
@@ -569,6 +599,7 @@ function renderDescriptionVariant(args: RenderVariantArgs): void {
     variant,
   } = args;
   if (lines.length === 0) return;
+  const BULLET_BODY_INDENT = 10;
 
   // Center the block on midY, but clamp so it stays between topBound/bottomBound.
   const totalH = lines.length * descLineHeight;
@@ -610,17 +641,34 @@ function renderDescriptionVariant(args: RenderVariantArgs): void {
     .attr('fill', accentColor);
 
   for (let j = 0; j < lines.length; j++) {
+    const line = lines[j];
+    const y = startY + j * descLineHeight;
+    const isBullet =
+      line.kind === 'bullet-first' || line.kind === 'bullet-cont';
+    if (line.kind === 'bullet-first') {
+      descG
+        .append('text')
+        .attr('x', bulletColLeftX)
+        .attr('y', y)
+        .attr('dy', '0.35em')
+        .attr('text-anchor', 'start')
+        .attr('fill', palette.text)
+        .attr('font-family', FONT_FAMILY)
+        .attr('font-size', descFont)
+        .attr('font-weight', j === 0 ? 500 : 400)
+        .text('•');
+    }
     const t = descG
       .append('text')
-      .attr('x', textX)
-      .attr('y', startY + j * descLineHeight)
+      .attr('x', isBullet ? bulletColLeftX + BULLET_BODY_INDENT : textX)
+      .attr('y', y)
       .attr('dy', '0.35em')
-      .attr('text-anchor', textAnchor)
+      .attr('text-anchor', isBullet ? 'start' : textAnchor)
       .attr('fill', palette.text)
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', descFont)
       .attr('font-weight', j === 0 ? 500 : 400);
-    renderInlineText(t, lines[j], palette);
+    renderInlineText(t, line.text, palette);
   }
 }
 
@@ -629,54 +677,31 @@ function renderDescriptionVariant(args: RenderVariantArgs): void {
 // ============================================================
 
 /**
- * Greedy word-wrap. Uses a font-size heuristic (CHAR_WIDTH_RATIO) to estimate
- * glyph width. Close enough for sans-serif body text at typical sizes.
- *
- * Preserves empty lines (returned as a single empty string) so paragraphs
- * separated by blank lines keep their spacing.
+ * Wrap a layer's description. Bullet lines (leading "- " or "• ") are split
+ * by the shared helper into bullet-first / bullet-cont rows so the renderer
+ * can place the glyph at the column edge and align continuation lines under
+ * the body. Empty source lines render as a blank "plain" row to preserve
+ * paragraph spacing.
  */
-function wrapText(line: string, maxWidth: number, fontSize: number): string[] {
-  if (line === '') return [''];
+function wrapDescription(
+  lines: string[],
+  maxWidth: number,
+  fontSize: number
+): WrappedDescLine[] {
   const avgCharW = fontSize * CHAR_WIDTH_RATIO;
   const maxChars = Math.max(8, Math.floor(maxWidth / avgCharW));
-
-  // Respect explicit indentation: if the source line starts with bullet
-  // markers ("• ", "- "), we keep the marker on the first wrapped segment
-  // and indent subsequent wraps by the marker width.
-  const bulletMatch = line.match(/^(\s*(?:•|-)\s+)(.*)$/);
-  const indent = bulletMatch ? bulletMatch[1] : '';
-  const body = bulletMatch ? bulletMatch[2] : line;
-  const hangingIndent = ' '.repeat(indent.length);
-
-  const words = body.split(/\s+/);
-  const out: string[] = [];
-  let current = indent;
-  for (const word of words) {
-    if (word === '') continue;
-    const tentative =
-      current.length === indent.length ? current + word : `${current} ${word}`;
-    if (tentative.length <= maxChars) {
-      current = tentative;
-    } else {
-      if (current.length > indent.length) out.push(current);
-      // Word itself longer than a full line? Hard-break.
-      if (word.length > maxChars - hangingIndent.length) {
-        let remaining = word;
-        while (remaining.length > maxChars - hangingIndent.length) {
-          const slice = remaining.slice(0, maxChars - hangingIndent.length);
-          out.push(hangingIndent + slice);
-          remaining = remaining.slice(maxChars - hangingIndent.length);
-        }
-        current = remaining.length > 0 ? hangingIndent + remaining : '';
-      } else {
-        current = hangingIndent + word;
-      }
+  const normalized = lines.map((l) =>
+    l.startsWith('- ') ? '• ' + l.slice(2) : l
+  );
+  const out: WrappedDescLine[] = [];
+  for (const line of normalized) {
+    if (line === '') {
+      out.push({ text: '', kind: 'plain' });
+      continue;
     }
+    out.push(...wrapDescriptionLines([line], maxChars));
   }
-  if (current.length > (out.length === 0 ? 0 : indent.length)) {
-    if (current.trim().length > 0) out.push(current);
-  }
-  return out.length > 0 ? out : [line];
+  return out;
 }
 
 function clamp(x: number, lo: number, hi: number): number {
