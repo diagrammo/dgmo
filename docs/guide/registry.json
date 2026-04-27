@@ -14,7 +14,7 @@
 
     { "slug": "chart-arc", "title": "Arc Diagram", "group": "software", "file": "chart-arc.md" },
     { "slug": "chart-boxes-and-lines", "title": "Boxes and Lines", "group": "software", "file": "chart-boxes-and-lines.md" },
-    { "slug": "chart-c4", "title": "C4 Diagram (Beta)", "group": "software", "file": "chart-c4.md" },
+    { "slug": "chart-c4", "title": "C4 Diagram", "group": "software", "file": "chart-c4.md" },
     { "slug": "chart-class", "title": "Class Diagram", "group": "software", "file": "chart-class.md" },
     { "slug": "chart-er", "title": "Entity Relationship", "group": "software", "file": "chart-er.md" },
     { "slug": "chart-flowchart", "title": "Flowchart", "group": "software", "file": "chart-flowchart.md" },
@@ -48,7 +48,7 @@
     { "slug": "chart-quadrant", "title": "Quadrant Chart", "group": "business", "file": "chart-quadrant.md" },
     { "slug": "chart-sankey", "title": "Sankey Diagram", "group": "business", "file": "chart-sankey.md" },
     { "slug": "chart-tech-radar", "title": "Technology Radar", "group": "business", "file": "chart-tech-radar.md" },
-    { "slug": "chart-venn", "title": "Venn Diagram (Beta)", "group": "business", "file": "chart-venn.md" },
+    { "slug": "chart-venn", "title": "Venn Diagram", "group": "business", "file": "chart-venn.md" },
     { "slug": "chart-wordcloud", "title": "Word Cloud", "group": "business", "file": "chart-wordcloud.md" },
 
     { "slug": "chart-gantt", "title": "Gantt Chart", "group": "project", "file": "chart-gantt.md" },

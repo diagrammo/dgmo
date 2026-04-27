@@ -27,7 +27,7 @@ export { render } from './render';
 // Chart-type registry (single source of truth)
 // ============================================================
 
-export { chartTypes } from './chart-types';
+export { chartTypes, BETA_CHART_IDS } from './chart-types';
 export type { ChartTypeMeta } from './chart-types';
 
 export {

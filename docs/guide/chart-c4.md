@@ -1,7 +1,5 @@
 # C4 Diagram
 
-> **Beta** — C4 diagram support is in beta. The DSL syntax may change in future releases.
-
 ```dgmo
 c4 Internet Banking System
 
