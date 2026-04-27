@@ -211,6 +211,7 @@ import {
   LEGEND_ENTRY_DOT_GAP as TL_LEGEND_ENTRY_DOT_GAP,
   LEGEND_ENTRY_TRAIL as TL_LEGEND_ENTRY_TRAIL,
   measureLegendText,
+  truncateLegendText,
 } from './utils/legend-constants';
 import { renderLegendD3 } from './utils/legend-d3';
 import type {
@@ -2673,7 +2674,12 @@ function renderEras(
   onLeave: () => void,
   hasScale: boolean = false,
   tooltip: HTMLDivElement | null = null,
-  palette?: PaletteColors
+  palette?: PaletteColors,
+  // When provided (horizontal reserved-row mode), eras render their label
+  // in the dedicated header row at this Y, the rect stays inside the chart
+  // (rectTop=0), and the label is truncated to fit the era's span. Hover
+  // restores the full text.
+  reservedLabelY?: number
 ): void {
   const eraColors = palette
     ? getEraColors(palette)
@@ -2693,18 +2699,16 @@ function renderEras(
       .attr('data-line-number', String(era.lineNumber))
       .attr('data-era-start', String(startVal))
       .attr('data-era-end', String(endVal))
-      .style('cursor', 'pointer')
-      .on('mouseenter', function (event: MouseEvent) {
-        onEnter(startVal, endVal);
-        if (tooltip) showTooltip(tooltip, buildEraTooltipHtml(era), event);
-      })
-      .on('mouseleave', function () {
-        onLeave();
-        if (tooltip) hideTooltip(tooltip);
-      })
-      .on('mousemove', function (event: MouseEvent) {
-        if (tooltip) showTooltip(tooltip, buildEraTooltipHtml(era), event);
-      });
+      .style('cursor', 'pointer');
+
+    let labelEl: d3Selection.Selection<
+      SVGTextElement,
+      unknown,
+      null,
+      undefined
+    >;
+    let displayLabel = era.label;
+    let truncated = false;
 
     if (isVertical) {
       const y = Math.min(start, end);
@@ -2717,7 +2721,7 @@ function renderEras(
         .attr('height', h)
         .attr('fill', color)
         .attr('opacity', 0.08);
-      eraG
+      labelEl = eraG
         .append('text')
         .attr('x', 6)
         .attr('y', y + 18)
@@ -2726,13 +2730,16 @@ function renderEras(
         .attr('font-size', '13px')
         .attr('font-weight', '600')
         .attr('opacity', 0.8)
-        .text(era.label);
+        .text(displayLabel);
     } else {
       const x = Math.min(start, end);
       const w = Math.abs(end - start);
-      // When scale is on, extend the shading above the chart area
-      // so the label sits above the scale marks but inside the band.
-      const rectTop = hasScale ? -48 : 0;
+      // Reserved-row mode: rect lives inside the chart, label sits in its
+      // own row above. Legacy mode (no reserved row): keep the era rect
+      // extending above the chart so the label has space when scale is on.
+      const useReservedRow = reservedLabelY != null;
+      const rectTop = useReservedRow ? 0 : hasScale ? -48 : 0;
+      const labelY = useReservedRow ? reservedLabelY! : hasScale ? -32 : 18;
       eraG
         .append('rect')
         .attr('x', x)
@@ -2741,17 +2748,38 @@ function renderEras(
         .attr('height', innerHeight - rectTop)
         .attr('fill', color)
         .attr('opacity', 0.08);
-      eraG
+      if (useReservedRow) {
+        // Truncate to era's own span so labels stay inside their tinted band.
+        const maxW = Math.max(0, w - 8);
+        displayLabel = truncateLegendText(era.label, 13, maxW);
+        truncated = displayLabel !== era.label;
+      }
+      labelEl = eraG
         .append('text')
         .attr('x', x + w / 2)
-        .attr('y', hasScale ? -32 : 18)
+        .attr('y', labelY)
         .attr('text-anchor', 'middle')
         .attr('fill', color)
         .attr('font-size', '13px')
         .attr('font-weight', '600')
         .attr('opacity', 0.8)
-        .text(era.label);
+        .text(displayLabel);
     }
+
+    eraG
+      .on('mouseenter', function (event: MouseEvent) {
+        onEnter(startVal, endVal);
+        if (truncated) labelEl.text(era.label);
+        if (tooltip) showTooltip(tooltip, buildEraTooltipHtml(era), event);
+      })
+      .on('mouseleave', function () {
+        onLeave();
+        if (truncated) labelEl.text(displayLabel);
+        if (tooltip) hideTooltip(tooltip);
+      })
+      .on('mousemove', function (event: MouseEvent) {
+        if (tooltip) showTooltip(tooltip, buildEraTooltipHtml(era), event);
+      });
   });
 }
 
@@ -2767,15 +2795,27 @@ function renderMarkers(
   innerHeight: number,
   _hasScale: boolean = false,
   tooltip: HTMLDivElement | null = null,
-  palette?: PaletteColors
+  palette?: PaletteColors,
+  // When provided (horizontal reserved-row mode), labels render at this Y
+  // above the chart edge instead of inside the chart at y=6, and are
+  // truncated symmetrically based on neighbor distance.
+  reservedLabelY?: number
 ): void {
   // Default marker color - bright orange/red that "pops"
   const defaultColor = palette?.accent || '#d08770';
 
-  markers.forEach((marker) => {
+  // Pre-compute marker positions so each can size its label based on the
+  // distance to its nearest neighbor (or chart edge).
+  const positions = markers.map((m) => {
+    const v = parseTimelineDate(m.date);
+    return Number.isFinite(v) ? scale(v) : NaN;
+  });
+  const useReservedRow = reservedLabelY != null && !isVertical;
+
+  markers.forEach((marker, i) => {
     const dateVal = parseTimelineDate(marker.date);
     if (!Number.isFinite(dateVal)) return;
-    const pos = scale(dateVal);
+    const pos = positions[i];
     if (!Number.isFinite(pos)) return;
     const color = marker.color || defaultColor;
     const lineOpacity = 0.5;
@@ -2786,20 +2826,7 @@ function renderMarkers(
       .attr('class', 'tl-marker')
       .attr('data-marker-date', String(dateVal))
       .attr('data-line-number', String(marker.lineNumber))
-      .style('cursor', 'pointer')
-      .on('mouseenter', function (event: MouseEvent) {
-        if (tooltip) {
-          showTooltip(tooltip, formatDateLabel(marker.date), event);
-        }
-      })
-      .on('mouseleave', function () {
-        if (tooltip) hideTooltip(tooltip);
-      })
-      .on('mousemove', function (event: MouseEvent) {
-        if (tooltip) {
-          showTooltip(tooltip, formatDateLabel(marker.date), event);
-        }
-      });
+      .style('cursor', 'pointer');
 
     if (isVertical) {
       // Vertical orientation: horizontal dashed line across the chart
@@ -2834,14 +2861,50 @@ function renderMarkers(
         )
         .attr('fill', color)
         .attr('opacity', 0.9);
-    } else {
-      // Horizontal orientation: vertical dashed line down the chart
-      // Label above diamond, diamond below, then dashed line to chart bottom
-      const labelY = 6;
-      const diamondY = labelY + 14;
 
-      // Label above diamond
       markerG
+        .on('mouseenter', function (event: MouseEvent) {
+          if (tooltip) {
+            showTooltip(tooltip, buildMarkerTooltipHtml(marker), event);
+          }
+        })
+        .on('mouseleave', function () {
+          if (tooltip) hideTooltip(tooltip);
+        })
+        .on('mousemove', function (event: MouseEvent) {
+          if (tooltip) {
+            showTooltip(tooltip, buildMarkerTooltipHtml(marker), event);
+          }
+        });
+    } else {
+      // Horizontal orientation: vertical dashed line down the chart.
+      // Reserved-row mode lifts the label above the chart edge; legacy mode
+      // keeps it at y=6 inside the chart top.
+      const labelY = useReservedRow ? reservedLabelY! : 6;
+      // Diamond stays just below the chart top edge so the dashed line has a
+      // clear visual head, regardless of where the label sits.
+      const diamondY = useReservedRow ? -2 : labelY + 14;
+      const lineTop = diamondY + diamondSize;
+
+      // Compute available label width based on nearest-neighbor distance.
+      // Both labels truncate symmetrically and meet in the middle of the gap.
+      let displayLabel = marker.label;
+      let truncated = false;
+      if (useReservedRow) {
+        let nearestDist = Math.min(pos, innerWidth - pos);
+        for (let j = 0; j < positions.length; j++) {
+          if (j === i) continue;
+          const other = positions[j];
+          if (!Number.isFinite(other)) continue;
+          const d = Math.abs(other - pos);
+          if (d < nearestDist) nearestDist = d;
+        }
+        const maxW = Math.max(0, nearestDist - 8);
+        displayLabel = truncateLegendText(marker.label, 11, maxW);
+        truncated = displayLabel !== marker.label;
+      }
+
+      const labelEl = markerG
         .append('text')
         .attr('x', pos)
         .attr('y', labelY)
@@ -2849,9 +2912,9 @@ function renderMarkers(
         .attr('fill', color)
         .attr('font-size', '11px')
         .attr('font-weight', '600')
-        .text(marker.label);
+        .text(displayLabel);
 
-      // Diamond below label
+      // Diamond
       markerG
         .append('path')
         .attr(
@@ -2861,19 +2924,49 @@ function renderMarkers(
         .attr('fill', color)
         .attr('opacity', 0.9);
 
-      // Line starts from bottom of diamond and goes down to chart bottom
+      // Dashed line down the chart
       markerG
         .append('line')
         .attr('x1', pos)
-        .attr('y1', diamondY + diamondSize)
+        .attr('y1', lineTop)
         .attr('x2', pos)
         .attr('y2', innerHeight)
         .attr('stroke', color)
         .attr('stroke-width', 1.5)
         .attr('stroke-dasharray', '6 4')
         .attr('opacity', lineOpacity);
+
+      markerG
+        .on('mouseenter', function (event: MouseEvent) {
+          if (truncated) labelEl.text(marker.label);
+          if (tooltip) {
+            const html = buildMarkerTooltipHtml(marker);
+            showTooltip(tooltip, html, event);
+          }
+        })
+        .on('mouseleave', function () {
+          if (truncated) labelEl.text(displayLabel);
+          if (tooltip) hideTooltip(tooltip);
+        })
+        .on('mousemove', function (event: MouseEvent) {
+          if (tooltip) {
+            const html = buildMarkerTooltipHtml(marker);
+            showTooltip(tooltip, html, event);
+          }
+        });
     }
   });
+}
+
+function buildMarkerTooltipHtml(marker: TimelineMarker): string {
+  const date = formatDateLabel(marker.date);
+  // Show marker label + date so the full label is discoverable even when
+  // the inline text is truncated and the user reads via tooltip.
+  const safeLabel = marker.label
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  return `<strong>${safeLabel}</strong><br/>${date}`;
 }
 
 // ============================================================
@@ -4203,7 +4296,13 @@ export function renderTimeline(
 
     const totalEventRows = lanes.reduce((s, l) => s + l.events.length, 0);
     const scaleMargin = timelineScale ? 24 : 0;
-    const markerMargin = timelineMarkers.length > 0 ? 30 : 0;
+    // Per-feature header rows: era + marker each get their own row, reserved
+    // only when present (mirrors the gantt header stack).
+    const ERA_ROW_H = 22;
+    const MARKER_ROW_H = 22;
+    const eraReserve = timelineEras.length > 0 ? ERA_ROW_H : 0;
+    const markerReserve = timelineMarkers.length > 0 ? MARKER_ROW_H : 0;
+    const topScaleH = timelineScale ? 40 : 0;
     // Calculate left margin based on longest group name (~7px per char + padding)
     const maxGroupNameLen = Math.max(...lanes.map((l) => l.name.length));
     const dynamicLeftMargin = Math.max(120, maxGroupNameLen * 7 + 30);
@@ -4212,13 +4311,19 @@ export function renderTimeline(
     const margin = {
       top:
         baseTopMargin +
-        (timelineScale ? 40 : 0) +
-        markerMargin +
+        topScaleH +
+        eraReserve +
+        markerReserve +
         tagLegendReserve,
       right: 40,
       bottom: 40 + scaleMargin,
       left: dynamicLeftMargin,
     };
+    // Y offsets for label rows (negative = above chart's y=0).
+    const markerLabelY = markerReserve ? -(topScaleH + MARKER_ROW_H / 2) : 0;
+    const eraLabelY = eraReserve
+      ? -(topScaleH + markerReserve + ERA_ROW_H / 2)
+      : 0;
     const innerWidth = width - margin.left - margin.right;
     const innerHeight = height - margin.top - margin.bottom;
     const totalGaps = (lanes.length - 1) * GROUP_GAP;
@@ -4260,7 +4365,8 @@ export function renderTimeline(
       () => fadeReset(g),
       timelineScale,
       tooltip,
-      palette
+      palette,
+      eraReserve ? eraLabelY : undefined
     );
 
     renderMarkers(
@@ -4272,7 +4378,8 @@ export function renderTimeline(
       innerHeight,
       timelineScale,
       tooltip,
-      palette
+      palette,
+      markerReserve ? markerLabelY : undefined
     );
 
     if (timelineScale) {
@@ -4290,13 +4397,14 @@ export function renderTimeline(
       );
     }
 
-    // Offset events below marker area when markers are present
-    let curY = markerMargin;
+    // Marker labels now live in their reserved row above the chart, so
+    // events can start at y=0 (chart top edge).
+    let curY = 0;
 
     // Render swimlane backgrounds first (so they appear behind events)
     // Extend into left margin to include group names
     if (timelineSwimlanes || tagLanes) {
-      let swimY = markerMargin;
+      let swimY = 0;
       lanes.forEach((lane, idx) => {
         const laneSpan = lane.events.length * rowH;
         // Alternate between light gray and transparent for visual separation
@@ -4520,13 +4628,23 @@ export function renderTimeline(
       .sort((a, b) => parseTimelineDate(a.date) - parseTimelineDate(b.date));
 
     const scaleMargin = timelineScale ? 24 : 0;
-    const markerMargin = timelineMarkers.length > 0 ? 30 : 0;
+    // Per-feature header rows: era + marker each get their own row, reserved
+    // only when present (mirrors the gantt header stack).
+    const ERA_ROW_H = 22;
+    const MARKER_ROW_H = 22;
+    const eraReserve = timelineEras.length > 0 ? ERA_ROW_H : 0;
+    const markerReserve = timelineMarkers.length > 0 ? MARKER_ROW_H : 0;
+    const topScaleH = timelineScale ? 40 : 0;
     const margin = {
-      top: 104 + (timelineScale ? 40 : 0) + markerMargin + tagLegendReserve,
+      top: 104 + topScaleH + eraReserve + markerReserve + tagLegendReserve,
       right: 40,
       bottom: 40 + scaleMargin,
       left: 60,
     };
+    const markerLabelY = markerReserve ? -(topScaleH + MARKER_ROW_H / 2) : 0;
+    const eraLabelY = eraReserve
+      ? -(topScaleH + markerReserve + ERA_ROW_H / 2)
+      : 0;
     const innerWidth = width - margin.left - margin.right;
     const innerHeight = height - margin.top - margin.bottom;
     const rowH = Math.min(28, innerHeight / sorted.length);
@@ -4567,7 +4685,8 @@ export function renderTimeline(
       () => fadeReset(g),
       timelineScale,
       tooltip,
-      palette
+      palette,
+      eraReserve ? eraLabelY : undefined
     );
 
     renderMarkers(
@@ -4579,7 +4698,8 @@ export function renderTimeline(
       innerHeight,
       timelineScale,
       tooltip,
-      palette
+      palette,
+      markerReserve ? markerLabelY : undefined
     );
 
     if (timelineScale) {
@@ -4614,8 +4734,9 @@ export function renderTimeline(
     }
 
     sorted.forEach((ev, i) => {
-      // Offset events below marker area when markers are present
-      const y = markerMargin + i * rowH + rowH / 2;
+      // Marker labels live in their reserved row above the chart, so the
+      // first event sits at the chart top edge.
+      const y = i * rowH + rowH / 2;
       const x = xScale(parseTimelineDate(ev.date));
       const color = eventColor(ev);
 
