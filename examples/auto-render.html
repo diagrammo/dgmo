@@ -42,50 +42,60 @@
 
     <section>
       <h2>Pie chart (default config)</h2>
-      <pre class="dgmo">pie Languages used
-TypeScript: 58
-Rust: 21
-Python: 13
-Other: 8</pre>
+      <pre class="dgmo">pie Crew Roles Distribution
+
+Sailors          45
+Gunners          20
+Marines          15
+Officers          8
+Specialists       7
+Cooks &amp; Surgeons  5</pre>
     </section>
 
     <section>
       <h2>Sequence diagram</h2>
-      <pre class="dgmo">sequence
-Captain -&gt; Crew: Set sail
-Crew -&gt; Helm: Aye!
-Helm -&gt; Captain: On heading 270</pre>
+      <pre class="dgmo">sequence Cast Off
+
+Captain -Set sail-&gt; Crew
+Crew -Aye!-&gt; Helm
+Helm -On heading 270-&gt; Captain</pre>
     </section>
 
     <section>
       <h2>Flowchart inside &lt;pre&gt;&lt;code class="language-dgmo"&gt;</h2>
-      <pre><code class="language-dgmo">flowchart
-Start -&gt; Build
-Build -&gt; Test
-Test -&gt; Ship</code></pre>
+      <pre><code class="language-dgmo">flowchart Pirate Voyage
+
+(Sail Ho!) -&gt; &lt;Friend or Foe?&gt;
+  -friend-&gt; [Check Logs~] -&gt; /Trade Rum/ -&gt; [Celebrate]
+  -foe-&gt; [Fire Cannons] -&gt; [[Claim Loot]] -&gt; [Celebrate]
+[Celebrate] -&gt; (Sail On)</code></pre>
     </section>
 
     <section>
       <h2>Long source (verifies max-height + scroll)</h2>
-      <pre class="dgmo">flowchart
-A -&gt; B
-B -&gt; C
-C -&gt; D
-D -&gt; E
-E -&gt; F
-F -&gt; G
-G -&gt; H
-H -&gt; I
-I -&gt; J
-J -&gt; K
-K -&gt; L</pre>
+      <pre class="dgmo">flowchart Pirate's Long Voyage
+
+(Embark) -&gt; [Hoist Sails]
+[Hoist Sails] -&gt; [Set Heading]
+[Set Heading] -&gt; [Trim Sheets]
+[Trim Sheets] -&gt; [Watch Horizon]
+[Watch Horizon] -&gt; &lt;Storm?&gt;
+&lt;Storm?&gt; -reef sails-&gt; [Batten Down]
+&lt;Storm?&gt; -clear-&gt; [Hold Course]
+[Batten Down] -&gt; [Hold Course]
+[Hold Course] -&gt; &lt;Land Ho?&gt;
+&lt;Land Ho?&gt; -not yet-&gt; [Watch Horizon]
+&lt;Land Ho?&gt; -ahoy-&gt; [[Drop Anchor]]
+[[Drop Anchor]] -&gt; (Disembark)</pre>
     </section>
 
     <section>
       <h2>Per-element override: data-show-source="false"</h2>
       <pre class="dgmo" data-show-source="false">pie Hide source
-A: 1
-B: 2</pre>
+
+Sloop  60
+Brig   25
+Galleon 15</pre>
     </section>
 
     <section>

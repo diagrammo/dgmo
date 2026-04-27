@@ -544,10 +544,11 @@ Drop a `<script>` tag on any static HTML page and any `<pre class="dgmo">` block
 </head>
 <body>
   <pre class="dgmo">sequence Boarding the Marauder
-Quartermaster -> Crew: Hoist colors
-Crew -> Bosun: Aye, captain
-Bosun -> Helm: Heading 270
-Helm -> Quartermaster: On course
+
+Quartermaster -Hoist colors-> Crew
+Crew -Aye, captain-> Bosun
+Bosun -Heading 270-> Helm
+Helm -On course-> Quartermaster
 </pre>
 </body>
 </html>
