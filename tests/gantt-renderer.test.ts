@@ -283,6 +283,90 @@ parallel
     const task = container.querySelector('.gantt-task');
     expect(task?.getAttribute('data-task-id')).toBeTruthy();
   });
+
+  it('leaves marker labels intact when markers are far apart', () => {
+    // Markers placed well inside the chart and far from each other —
+    // both should keep their full labels.
+    const input = `gantt
+start 2024-01-01
+marker 2024-03-01 Mid one
+marker 2024-05-01 Mid two
+200d Long Task`;
+    const container = renderFromInput(input);
+    const labels = Array.from(
+      container.querySelectorAll('.gantt-marker-label')
+    );
+    const texts = labels.map((l) => l.textContent ?? '');
+    expect(texts).toContain('Mid one');
+    expect(texts).toContain('Mid two');
+    expect(texts.every((t) => !t.endsWith('…'))).toBe(true);
+  });
+
+  it('truncates crowded marker labels with an ellipsis', () => {
+    // Markers ~10 days apart on a 60-day chart — gap is enough for the
+    // ellipsis plus a few characters but not the full label.
+    const input = `gantt
+start 2024-01-01
+marker 2024-01-20 Final tune-up time trial
+marker 2024-01-30 Race Day Celebration
+60d Long Task`;
+    const container = renderFromInput(input);
+    const labels = Array.from(
+      container.querySelectorAll('.gantt-marker-label')
+    );
+    const texts = labels.map((l) => l.textContent ?? '');
+    expect(texts.length).toBe(2);
+    expect(texts.every((t) => t.endsWith('…'))).toBe(true);
+    // Truncated text should retain at least one real character, not be
+    // just an ellipsis.
+    expect(texts.every((t) => t.length > 1)).toBe(true);
+  });
+
+  it('truncates era labels that overflow their span', () => {
+    // A 6-day era with a long label — should not fit within the span.
+    const input = `gantt
+start 2024-01-01
+era 2024-06-15 -> 2024-06-21 Taper and Race Week
+200d Long Task`;
+    const container = renderFromInput(input);
+    const eraLabel = container.querySelector('.gantt-era-label');
+    expect(eraLabel).not.toBeNull();
+    expect(eraLabel?.textContent?.endsWith('…')).toBe(true);
+  });
+
+  it('keeps wide-era labels intact', () => {
+    const input = `gantt
+start 2024-01-01
+era 2024-01-01 -> 2024-06-30 Phase One
+200d Long Task`;
+    const container = renderFromInput(input);
+    const eraLabel = container.querySelector('.gantt-era-label');
+    expect(eraLabel?.textContent).toBe('Phase One');
+  });
+
+  it('restores full marker label on hover and re-truncates on leave', () => {
+    const input = `gantt
+start 2024-01-01
+marker 2024-01-20 Final tune-up time trial
+marker 2024-01-30 Race Day Celebration
+60d Long Task`;
+    const container = renderFromInput(input);
+    const markerGroups = Array.from(
+      container.querySelectorAll<SVGGElement>('.gantt-marker-group')
+    );
+    expect(markerGroups.length).toBe(2);
+
+    const firstGroup = markerGroups[0];
+    const firstLabel = firstGroup.querySelector('.gantt-marker-label');
+    expect(firstLabel?.textContent?.endsWith('…')).toBe(true);
+    const truncated = firstLabel?.textContent ?? '';
+
+    firstGroup.dispatchEvent(new window.Event('mouseenter'));
+    expect(firstLabel?.textContent).toBe('Final tune-up time trial');
+
+    firstGroup.dispatchEvent(new window.Event('mouseleave'));
+    expect(firstLabel?.textContent).toBe(truncated);
+  });
 });
 
 // ── buildTagLaneRowList unit tests ──────────────────────────
