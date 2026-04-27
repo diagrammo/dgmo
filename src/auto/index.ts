@@ -322,6 +322,20 @@ function buildHighlightedSource(source: string): DocumentFragment {
   return frag;
 }
 
+// ----- icon SVGs (built as DocumentFragments via cloneNode for safety) -----
+const COPY_ICON_SVG =
+  '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5V3a1.5 1.5 0 0 0-1.5-1.5H3A1.5 1.5 0 0 0 1.5 3v6A1.5 1.5 0 0 0 3 10.5h2.5"/></svg>';
+const CHECK_ICON_SVG =
+  '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 8.5 6.5 12 13 4.5"/></svg>';
+const EXTERNAL_ICON_SVG =
+  '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 2h5v5"/><path d="M14 2L7 9"/><path d="M13 9v4a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h4"/></svg>';
+
+function setIcon(el: Element, svg: string): void {
+  // Static icon strings authored above — no user content. innerHTML is
+  // safe here because the markup never originates from runtime data.
+  el.innerHTML = svg;
+}
+
 function buildSourcePanel(
   source: string,
   shareUrl: string | null,
@@ -337,7 +351,7 @@ function buildSourcePanel(
   const chevron = document.createElement('span');
   chevron.className = 'dgmo-chevron';
   chevron.setAttribute('aria-hidden', 'true');
-  chevron.textContent = '▶';
+  chevron.textContent = '▸';
   toggle.appendChild(chevron);
   const label = document.createElement('span');
   label.textContent = 'DGMO source';
@@ -350,13 +364,18 @@ function buildSourcePanel(
   pre.appendChild(buildHighlightedSource(source));
   body.appendChild(pre);
 
+  // Icon-only action buttons floated in the top-right of the source pre.
+  // They're inside the body so they're effectively hidden when the panel
+  // is collapsed (max-height: 0 + pointer-events: none in CSS).
   const actions = document.createElement('div');
   actions.className = 'dgmo-source-actions';
 
   const copyBtn = document.createElement('button');
   copyBtn.type = 'button';
   copyBtn.className = 'dgmo-btn dgmo-btn-copy';
-  copyBtn.textContent = 'Copy';
+  copyBtn.setAttribute('aria-label', 'Copy DGMO source');
+  copyBtn.title = 'Copy source';
+  setIcon(copyBtn, COPY_ICON_SVG);
   copyBtn.addEventListener('click', () => {
     void copySource(source, copyBtn);
   });
@@ -367,16 +386,15 @@ function buildSourcePanel(
     editorBtn.className = 'dgmo-btn dgmo-btn-editor';
     editorBtn.target = '_blank';
     editorBtn.rel = 'noopener noreferrer';
+    editorBtn.setAttribute('aria-label', 'Open in editor');
+    setIcon(editorBtn, EXTERNAL_ICON_SVG);
     if (shareUrl) {
       editorBtn.href = shareUrl;
-      editorBtn.textContent = 'Open in editor ↗';
+      editorBtn.title = 'Open in editor';
     } else {
       editorBtn.setAttribute('aria-disabled', 'true');
-      editorBtn.setAttribute(
-        'title',
-        'Diagram too large for share link; copy source and paste into editor'
-      );
-      editorBtn.textContent = 'Open in editor ↗';
+      editorBtn.title =
+        'Diagram too large for share link; copy source and paste into editor';
       editorBtn.addEventListener('click', (e) => e.preventDefault());
     }
     actions.appendChild(editorBtn);
@@ -423,11 +441,13 @@ async function copySource(
     }
   }
   if (copied) {
-    const original = btn.textContent;
-    btn.textContent = 'Copied!';
+    // Swap the clipboard icon to a checkmark for COPIED_INTERACTION_MS,
+    // then revert. The button is icon-only so we just rewrite its inner
+    // SVG; aria-label is a separate attribute and remains intact.
+    setIcon(btn, CHECK_ICON_SVG);
     btn.classList.add('dgmo-btn-copied');
     setTimeout(() => {
-      btn.textContent = original;
+      setIcon(btn, COPY_ICON_SVG);
       btn.classList.remove('dgmo-btn-copied');
     }, COPIED_INTERACTION_MS);
   } else {

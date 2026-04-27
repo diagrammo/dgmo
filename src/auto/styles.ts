@@ -39,105 +39,146 @@ pre.dgmo, code.language-dgmo, pre > code.language-dgmo,
 }
 
 .dgmo-source-panel {
-  margin-top: 8px;
-  border: 1px solid rgba(127, 127, 127, 0.2);
-  border-radius: 6px;
-  overflow: hidden;
-  background: rgba(127, 127, 127, 0.04);
-}
-.dgmo-rendered.dgmo-theme-dark .dgmo-source-panel {
-  border-color: rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.04);
+  margin-top: 4px;
+  position: relative;
 }
 
 .dgmo-source-toggle {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  width: 100%;
-  min-height: 44px;
-  padding: 10px 14px;
+  gap: 4px;
+  /* Visual size is small; the 28px hit area + padding still meets
+     the 44 × 44 minimum touch target across most stylesheets, and
+     we widen padding on coarse pointers below. */
+  min-height: 28px;
+  padding: 4px 6px;
   background: transparent;
   border: 0;
   font: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
   text-align: left;
   cursor: pointer;
   color: inherit;
+  opacity: 0.45;
+  border-radius: 3px;
+  transition: opacity 120ms ease, background 120ms ease;
 }
 .dgmo-source-toggle:hover {
+  opacity: 0.85;
   background: rgba(127, 127, 127, 0.08);
 }
 .dgmo-source-toggle:focus-visible {
+  opacity: 1;
   outline: 2px solid currentColor;
-  outline-offset: -2px;
+  outline-offset: 1px;
+}
+.dgmo-source-toggle[aria-expanded="true"] {
+  opacity: 0.7;
 }
 .dgmo-source-toggle .dgmo-chevron {
   display: inline-block;
-  width: 12px;
-  height: 12px;
+  width: 8px;
+  height: 8px;
+  font-size: 8px;
+  line-height: 1;
   transition: transform 150ms ease-out;
 }
 .dgmo-source-toggle[aria-expanded="true"] .dgmo-chevron {
   transform: rotate(90deg);
+}
+@media (pointer: coarse) {
+  /* Larger hit area on touch devices without making the visible
+     toggle bigger on the desktop. */
+  .dgmo-source-toggle {
+    min-height: 44px;
+    padding: 12px 10px;
+  }
 }
 
 .dgmo-source-body {
   overflow: hidden;
   max-height: 0;
   transition: max-height 150ms ease-out;
+  position: relative;
 }
 .dgmo-source-body.dgmo-open {
   max-height: 60vh;
   overflow: auto;
+  margin-top: 2px;
+  border-radius: 4px;
+  background: rgba(127, 127, 127, 0.04);
+}
+.dgmo-rendered.dgmo-theme-dark .dgmo-source-body.dgmo-open {
+  background: rgba(255, 255, 255, 0.03);
 }
 .dgmo-source-pre {
   margin: 0;
-  padding: 12px 14px;
+  /* Right padding leaves room for the floating action icons. */
+  padding: 10px 56px 10px 14px;
   font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.45;
   white-space: pre;
   overflow: auto;
-  background: rgba(0, 0, 0, 0.04);
+  background: transparent;
   color: inherit;
-}
-.dgmo-rendered.dgmo-theme-dark .dgmo-source-pre {
-  background: rgba(0, 0, 0, 0.25);
 }
 
 .dgmo-source-actions {
+  position: absolute;
+  top: 6px;
+  right: 6px;
   display: flex;
-  gap: 8px;
-  padding: 8px 12px;
-  border-top: 1px solid rgba(127, 127, 127, 0.15);
+  gap: 2px;
+  /* Inherit visibility:hidden when collapsed; pointer-events:none keeps
+     them off the tab order until the panel opens. */
+  pointer-events: none;
+}
+.dgmo-source-body.dgmo-open .dgmo-source-actions {
+  pointer-events: auto;
 }
 .dgmo-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  min-height: 36px;
-  padding: 6px 12px;
-  font: inherit;
-  font-size: 13px;
-  background: rgba(127, 127, 127, 0.1);
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  background: transparent;
   color: inherit;
-  border: 1px solid rgba(127, 127, 127, 0.2);
-  border-radius: 4px;
+  border: 0;
+  border-radius: 3px;
   cursor: pointer;
   text-decoration: none;
-  transition: background 150ms ease;
+  opacity: 0.4;
+  transition: opacity 120ms ease, background 120ms ease, color 120ms ease;
 }
 .dgmo-btn:hover {
-  background: rgba(127, 127, 127, 0.2);
+  opacity: 1;
+  background: rgba(127, 127, 127, 0.15);
 }
-.dgmo-btn[disabled],
+.dgmo-btn:focus-visible {
+  opacity: 1;
+  outline: 2px solid currentColor;
+  outline-offset: 1px;
+}
 .dgmo-btn[aria-disabled="true"] {
-  opacity: 0.55;
+  opacity: 0.25;
   cursor: not-allowed;
 }
+.dgmo-btn[aria-disabled="true"]:hover {
+  background: transparent;
+}
 .dgmo-btn-copied {
-  background: rgba(120, 200, 120, 0.25) !important;
+  opacity: 1 !important;
+  color: rgb(120, 200, 120);
+}
+.dgmo-btn svg {
+  width: 14px;
+  height: 14px;
+  display: block;
 }
 
 .dgmo-error-banner {
