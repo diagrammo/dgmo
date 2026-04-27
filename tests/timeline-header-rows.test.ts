@@ -151,6 +151,43 @@ marker 2024-09 Mid two
     expect(labels.every((t) => !t.endsWith('…'))).toBe(true);
   });
 
+  it('fades other markers, eras, and events when hovering a marker', () => {
+    const src = `timeline
+era 2024-01 -> 2024-12 Phase A
+marker 2024-03 First milestone
+marker 2024-09 Second milestone
+2024-01 -> 2024-12 Background event`;
+    const container = renderToContainer(src);
+    const markerGroups = Array.from(
+      container.querySelectorAll<SVGGElement>('.tl-marker')
+    );
+    const eraGroup = container.querySelector<SVGGElement>('.tl-era');
+    const eventGroup = container.querySelector<SVGGElement>('.tl-event');
+    expect(markerGroups.length).toBe(2);
+    expect(eraGroup).not.toBeNull();
+    expect(eventGroup).not.toBeNull();
+
+    const [first, second] = markerGroups;
+
+    // Pre-hover: everything at full opacity (no opacity attr or "1").
+    expect(second.getAttribute('opacity')).not.toBe('0.1');
+
+    first.dispatchEvent(new window.Event('mouseenter'));
+    // Hovered marker stays prominent, the other one fades.
+    expect(first.getAttribute('opacity')).toBe('1');
+    expect(second.getAttribute('opacity')).toBe('0.1');
+    // Eras and events also fade.
+    expect(eraGroup!.getAttribute('opacity')).toBe('0.1');
+    expect(eventGroup!.getAttribute('opacity')).toBe('0.1');
+
+    first.dispatchEvent(new window.Event('mouseleave'));
+    // Reset.
+    expect(first.getAttribute('opacity')).toBe('1');
+    expect(second.getAttribute('opacity')).toBe('1');
+    expect(eraGroup!.getAttribute('opacity')).toBe('1');
+    expect(eventGroup!.getAttribute('opacity')).toBe('1');
+  });
+
   it('restores full marker label on hover and re-truncates on leave', () => {
     const src = `timeline
 marker 2024-06 First Important Quarterly Milestone

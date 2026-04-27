@@ -2788,6 +2788,8 @@ function renderMarkers(
   isVertical: boolean,
   innerWidth: number,
   innerHeight: number,
+  onEnter: (markerDate: number) => void,
+  onLeave: () => void,
   _hasScale: boolean = false,
   _tooltip: HTMLDivElement | null = null,
   palette?: PaletteColors,
@@ -2856,6 +2858,14 @@ function renderMarkers(
         )
         .attr('fill', color)
         .attr('opacity', 0.9);
+
+      markerG
+        .on('mouseenter', function () {
+          onEnter(dateVal);
+        })
+        .on('mouseleave', function () {
+          onLeave();
+        });
     } else {
       // Horizontal orientation: vertical dashed line down the chart.
       // Reserved-row mode lifts the label above the chart edge; legacy mode
@@ -2918,9 +2928,11 @@ function renderMarkers(
 
       markerG
         .on('mouseenter', function () {
+          onEnter(dateVal);
           if (truncated) labelEl.text(marker.label);
         })
         .on('mouseleave', function () {
+          onLeave();
           if (truncated) labelEl.text(displayLabel);
         });
     }
@@ -3620,6 +3632,26 @@ export function renderTimeline(
     });
   }
 
+  function fadeToMarker(
+    g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
+    markerDate: number
+  ) {
+    g.selectAll<SVGGElement, unknown>('.tl-event').attr(
+      'opacity',
+      FADE_OPACITY
+    );
+    g.selectAll<SVGGElement, unknown>('.tl-era').attr('opacity', FADE_OPACITY);
+    g.selectAll<SVGGElement, unknown>('.tl-legend-item, .tl-lane-header').attr(
+      'opacity',
+      FADE_OPACITY
+    );
+    g.selectAll<SVGGElement, unknown>('.tl-marker').each(function () {
+      const el = d3Selection.select(this);
+      const date = parseFloat(el.attr('data-marker-date')!);
+      el.attr('opacity', date === markerDate ? 1 : FADE_OPACITY);
+    });
+  }
+
   function fadeReset(
     g: d3Selection.Selection<SVGGElement, unknown, null, undefined>
   ) {
@@ -3768,6 +3800,8 @@ export function renderTimeline(
         true,
         innerWidth,
         innerHeight,
+        (d) => fadeToMarker(g, d),
+        () => fadeReset(g),
         timelineScale,
         tooltip,
         palette
@@ -4025,6 +4059,8 @@ export function renderTimeline(
         true,
         innerWidth,
         innerHeight,
+        (d) => fadeToMarker(g, d),
+        () => fadeReset(g),
         timelineScale,
         tooltip,
         palette
@@ -4330,6 +4366,8 @@ export function renderTimeline(
       false,
       innerWidth,
       innerHeight,
+      (d) => fadeToMarker(g, d),
+      () => fadeReset(g),
       timelineScale,
       tooltip,
       palette,
@@ -4650,6 +4688,8 @@ export function renderTimeline(
       false,
       innerWidth,
       innerHeight,
+      (d) => fadeToMarker(g, d),
+      () => fadeReset(g),
       timelineScale,
       tooltip,
       palette,
@@ -5802,31 +5842,54 @@ export function renderVenn(
     }
   });
 
-  // ── Overlap labels (inline at region centroid) ──
-  function overlapHSpan(py: number, idxs: number[]): number {
-    let left = -Infinity,
-      right = Infinity;
-    for (const ci of idxs) {
-      const dy = py - circles[ci].y;
-      if (Math.abs(dy) >= circles[ci].r) return 0;
-      const hc = Math.sqrt(circles[ci].r * circles[ci].r - dy * dy);
-      left = Math.max(left, circles[ci].x - hc);
-      right = Math.min(right, circles[ci].x + hc);
+  // ── Overlap labels (leader line from region centroid to outside the region) ──
+  function overlapOutwardDir(centroid: Point, idxs: number[]): Point {
+    const excluded = circles.map((_, j) => j).filter((j) => !idxs.includes(j));
+    if (excluded.length > 0) {
+      let sx = 0,
+        sy = 0;
+      for (const ei of excluded) {
+        sx += circles[ei].x;
+        sy += circles[ei].y;
+      }
+      sx /= excluded.length;
+      sy /= excluded.length;
+      const dx = centroid.x - sx;
+      const dy = centroid.y - sy;
+      const m = Math.sqrt(dx * dx + dy * dy);
+      if (m >= 1e-6) return { x: dx / m, y: dy / m };
     }
-    if (left >= right) return 0;
-    for (let j = 0; j < n; j++) {
-      if (idxs.includes(j)) continue;
-      const dy = py - circles[j].y;
-      if (Math.abs(dy) >= circles[j].r) continue;
-      const hc = Math.sqrt(circles[j].r * circles[j].r - dy * dy);
-      const jLeft = circles[j].x - hc;
-      const jRight = circles[j].x + hc;
-      if (jLeft <= left && jRight >= right) return 0;
-      if (jLeft <= left && jRight > left) left = jRight;
-      if (jRight >= right && jLeft < right) right = jLeft;
-    }
-    return Math.max(0, right - left);
+    // Triple overlap in 3-set Venn: point up so the leader doesn't
+    // collide with the pair (0,1) leader going down.
+    if (n === 3) return { x: 0, y: -1 };
+    return { x: 0, y: 1 };
   }
+
+  function exitOverlap(c0: Point, dir: Point, idxs: number[]): Point {
+    // Walk outward until we are past the overlap region AND no longer
+    // inside any other circle of the diagram. Without the second clause,
+    // a triple-overlap leader going up would stop while still inside the
+    // top circle's exclusive region and collide with that set's label.
+    const STEP = 3;
+    const MAX_ITERS = 400;
+    let p = { x: c0.x, y: c0.y };
+    let leftOverlap = false;
+    for (let i = 0; i < MAX_ITERS; i++) {
+      const next = { x: p.x + dir.x * STEP, y: p.y + dir.y * STEP };
+      p = next;
+      if (!leftOverlap) {
+        leftOverlap = !idxs.every((ci) => pointInCircle(next, circles[ci]));
+        if (!leftOverlap) continue;
+      }
+      const insideAny = circles.some((c) => pointInCircle(next, c));
+      if (!insideAny) break;
+    }
+    return p;
+  }
+
+  const OVERLAP_LEADER_PAD = 14;
+  const OVERLAP_TEXT_GAP = 4;
+  const OVERLAP_FONT = 13;
 
   for (const ov of vennOverlaps) {
     if (!ov.label) continue;
@@ -5834,22 +5897,48 @@ export function renderVenn(
     if (idxs.some((idx) => idx < 0)) continue;
     const inside = circles.map((_, j) => idxs.includes(j));
     const centroid = regionCentroid(circles, inside);
-    const availW = overlapHSpan(centroid.y, idxs);
-    const fitFont = Math.min(
-      MAX_FONT,
-      Math.max(
-        MIN_FONT,
-        (availW - INTERNAL_PAD * 2) / (ov.label.length * CH_RATIO)
-      )
-    );
+    const dir = overlapOutwardDir(centroid, idxs);
+    const exitPt = exitOverlap(centroid, dir, idxs);
+    const stubEndX = exitPt.x + dir.x * OVERLAP_LEADER_PAD;
+    const stubEndY = exitPt.y + dir.y * OVERLAP_LEADER_PAD;
+
+    const horizontal = Math.abs(dir.x) >= Math.abs(dir.y);
+    let textAnchor: string;
+    let baseline = 'central';
+    if (horizontal) {
+      textAnchor = dir.x >= 0 ? 'start' : 'end';
+    } else {
+      textAnchor = 'middle';
+      baseline = dir.y >= 0 ? 'hanging' : 'auto';
+    }
+
+    let textX = stubEndX + dir.x * OVERLAP_TEXT_GAP;
+    let textY = stubEndY + dir.y * OVERLAP_TEXT_GAP;
+
+    const estW = ov.label.length * 7.5;
+    if (textAnchor === 'start') textX = Math.min(textX, width - estW - 4);
+    else if (textAnchor === 'end') textX = Math.max(textX, estW + 4);
+    else textX = Math.max(estW / 2 + 4, Math.min(width - estW / 2 - 4, textX));
+    textY = Math.max(titleHeight + 14, Math.min(height - 8, textY));
+
+    labelGroup
+      .append('line')
+      .attr('x1', centroid.x)
+      .attr('y1', centroid.y)
+      .attr('x2', stubEndX)
+      .attr('y2', stubEndY)
+      .attr('stroke', textColor)
+      .attr('stroke-width', 1)
+      .attr('opacity', 0.55);
+
     labelGroup
       .append('text')
-      .attr('x', centroid.x)
-      .attr('y', centroid.y)
-      .attr('text-anchor', 'middle')
-      .attr('dominant-baseline', 'central')
+      .attr('x', textX)
+      .attr('y', textY)
+      .attr('text-anchor', textAnchor)
+      .attr('dominant-baseline', baseline)
       .attr('fill', textColor)
-      .attr('font-size', `${Math.round(fitFont)}px`)
+      .attr('font-size', `${OVERLAP_FONT}px`)
       .attr('font-weight', '600')
       .text(ov.label);
   }
