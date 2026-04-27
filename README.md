@@ -525,6 +525,174 @@ const vars = buildMermaidThemeVars(palette.light); // ~121 CSS custom properties
 const css = buildThemeCSS(palette.light);          // complete CSS string
 ```
 
+## HTML embed (auto-render)
+
+Drop a `<script>` tag on any static HTML page and any `<pre class="dgmo">` block becomes a rendered diagram on load.
+
+### 60-second quickstart
+
+```html
+<!doctype html>
+<html>
+<head>
+  <!-- Add `integrity="sha384-…"` for SRI; the published value for each
+       release is in the GitHub release notes (or run `pnpm sri` after
+       building from source). -->
+  <script
+    src="https://cdn.jsdelivr.net/npm/@diagrammo/dgmo@^0.8/dist/auto.js"
+    crossorigin="anonymous"></script>
+</head>
+<body>
+  <pre class="dgmo">sequence Boarding the Marauder
+Quartermaster -> Crew: Hoist colors
+Crew -> Bosun: Aye, captain
+Bosun -> Helm: Heading 270
+Helm -> Quartermaster: On course
+</pre>
+</body>
+</html>
+```
+
+The bundle exposes `window.dgmo` and self-runs on `DOMContentLoaded`. Each match is replaced with a `<div class="dgmo-rendered">` containing the SVG plus a collapsible source panel with **Copy** and **Open in editor** buttons.
+
+Selectors matched: `.dgmo`, `.language-dgmo` (covers Prism/highlight.js fenced ` ```dgmo ` blocks). Already-rendered nodes are tagged `data-dgmo-processed="true"` so re-runs are idempotent.
+
+### Configuration
+
+Configure via JSON on the bundle's own `<script>` tag — no inline JS, CSP-friendly:
+
+```html
+<script
+  src="https://cdn.jsdelivr.net/npm/@diagrammo/dgmo@^0.8/dist/auto.js"
+  data-config='{"theme":"auto","palette":"nord","showSource":true,"showEditorLink":true}'
+></script>
+```
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `theme` | `'auto' \| 'light' \| 'dark' \| 'transparent'` | `'auto'` | `'auto'` reads `prefers-color-scheme`, `<html data-theme>`, and `<html class="dark">`; re-renders live when the system preference flips |
+| `palette` | palette id (string) | `'nord'` | Any registered palette: `bold`, `catppuccin`, `dracula`, `gruvbox`, `monokai`, `nord`, `one-dark`, `rose-pine`, `solarized`, `tokyo-night` |
+| `showSource` | `boolean` | `true` | Show the collapsible "DGMO source" panel under each diagram |
+| `showEditorLink` | `boolean` | `true` | Include the "Open in editor" button (set `false` for air-gapped intranets) |
+
+Per-element override: `<pre class="dgmo" data-show-source="false">` hides only that diagram's source panel.
+
+Opt out of auto-bootstrap with `data-auto="false"` and call `dgmo.run()` manually after framework hydration:
+
+```js
+window.dgmo.initialize({ theme: 'dark' });
+window.dgmo.run(); // or: window.dgmo.run({ nodes: [el1, el2] });
+```
+
+### Framework recipes
+
+<details>
+<summary><strong>Astro</strong></summary>
+
+Use `client:load` only if you need SPA hydration. For static pages the script tag is enough.
+
+```astro
+---
+// src/pages/index.astro
+---
+<script src="https://cdn.jsdelivr.net/npm/@diagrammo/dgmo@^0.8/dist/auto.js" is:inline></script>
+<pre class="dgmo">pie Languages
+TypeScript: 58
+Rust: 21</pre>
+```
+
+For islands/dynamic content set `data-auto="false"` and run from `onMount`.
+</details>
+
+<details>
+<summary><strong>Docusaurus / MDX</strong></summary>
+
+Add the script via the `scripts` field in `docusaurus.config.js`:
+
+```js
+module.exports = {
+  scripts: [{
+    src: 'https://cdn.jsdelivr.net/npm/@diagrammo/dgmo@^0.8/dist/auto.js',
+    'data-config': '{"theme":"auto"}',
+    async: false,
+  }],
+};
+```
+
+If you use Prism, ensure it loads **after** the dgmo bundle, or set `data-auto="false"` and trigger `dgmo.run()` from a Docusaurus client module.
+</details>
+
+<details>
+<summary><strong>MkDocs</strong></summary>
+
+In `mkdocs.yml`:
+
+```yaml
+extra_javascript:
+  - https://cdn.jsdelivr.net/npm/@diagrammo/dgmo@^0.8/dist/auto.js
+```
+
+Markdown fences `` ```dgmo `` rendered by Pygments produce `<pre><code class="language-dgmo">…</code></pre>` — the auto bundle replaces the entire `<pre>`, leaving no empty shell.
+</details>
+
+<details>
+<summary><strong>Hugo</strong></summary>
+
+Add a partial at `layouts/partials/dgmo.html`:
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/@diagrammo/dgmo@^0.8/dist/auto.js"></script>
+```
+
+Include it from your base template's `<head>`. Hugo's chroma highlighter emits `<pre><code class="language-dgmo">…</code></pre>` which the bundle picks up automatically.
+</details>
+
+### Self-hosting
+
+Drop `dist/auto.js` (and optionally `dist/auto.css`) on any web server or intranet CDN — there are zero outbound runtime fetches. The only outbound link is the **Open in editor** button to `online.diagrammo.app`, suppressible with:
+
+```html
+<script src="/static/auto.js" data-config='{"showEditorLink":false}'></script>
+```
+
+Air-gapped and outbound-blocked environments work without modification.
+
+### Bundle size
+
+The IIFE bundle ships every chart-type renderer for one-tag-and-done convenience, so the artifact is currently ~1.6 MB gzipped. If size matters more than coverage, two options:
+
+1. **Use the npm-direct ESM/CJS exports** (`@diagrammo/dgmo/auto`) and tree-shake — your bundler drops chart types you don't reference.
+2. **Subset import** — if you only need a handful of chart types, import the parser/renderer pieces directly from `@diagrammo/dgmo` and skip the auto facade.
+
+Per-chart-type lazy-loading inside the IIFE is on the roadmap and tracked in the spec under ADR-2 plan B.
+
+### Security & CSP
+
+Recommended Content-Security-Policy snippet:
+
+```
+script-src 'self' https://cdn.jsdelivr.net;
+style-src  'self' 'unsafe-inline';
+connect-src 'self';
+```
+
+The bundle makes no `fetch`/XHR calls. The injected `<style>` block requires `'unsafe-inline'` in `style-src`; for strict CSP, link the parallel `dist/auto.css` artifact and the bundle skips inline injection.
+
+`window.dgmo` and `window.diagrammo` are defined with `Object.defineProperty(..., { writable: false, configurable: false })` so a later-loaded script cannot intercept the API.
+
+### SemVer policy
+
+Within a major version, the following surface is stable for embedders:
+
+- `window.dgmo` API (`initialize`, `run`, `version`)
+- DOM contract (selector, wrapper class names, `data-dgmo-processed` flag)
+- CSS class prefix `dgmo-`
+- Error-banner shape (HTML class names + text format — locked so AI tools can screen-scrape it)
+- Default values (`theme: 'auto'`, `palette: 'nord'`, `showSource: true`, `showEditorLink: true`)
+- UTM parameter shape on the editor link
+
+Any breaking change is a major-version bump. Pin `^0.8` (or whatever the current major is) in your CDN URL to opt out of breaking changes.
+
 ## Server-side / headless export
 
 Render any chart to an SVG string without a visible DOM:

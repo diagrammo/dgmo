@@ -56,6 +56,16 @@
         "default": "./dist/internal.cjs"
       }
     },
+    "./auto": {
+      "import": {
+        "types": "./dist/auto.d.ts",
+        "default": "./dist/auto.mjs"
+      },
+      "require": {
+        "types": "./dist/auto.d.cts",
+        "default": "./dist/auto.cjs"
+      }
+    },
     "./fonts/*": "./fonts/*"
   },
   "files": [
@@ -80,6 +90,8 @@
     "pretest": "pnpm codegen",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:auto": "pnpm build && vitest run tests/auto.test.ts tests/safe-href.test.ts",
+    "sri": "node scripts/sri.mjs",
     "gallery": "pnpm build && node scripts/generate-gallery.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -115,6 +127,7 @@
     "@arethetypeswrong/cli": "^0.18.2",
     "@codemirror/language": "^6.12.3",
     "@eslint/js": "^10.0.1",
+    "axe-core": "^4.10.0",
     "@lezer/generator": "^1.8.0",
     "@types/d3-array": "^3.2.2",
     "@types/d3-cloud": "^1.2.9",

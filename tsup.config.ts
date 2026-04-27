@@ -1,7 +1,37 @@
 import { defineConfig } from 'tsup';
 import type { Plugin } from 'esbuild';
-import { readFile } from 'fs/promises';
+import { readFile, writeFile } from 'fs/promises';
 import { resolve, dirname } from 'path';
+import { createRequire } from 'node:module';
+
+const pkg = createRequire(import.meta.url)('./package.json') as {
+  version: string;
+};
+
+/**
+ * After the auto IIFE builds, also emit `dist/auto.css` so strict-CSP
+ * embedders can opt out of inline `<style>` injection by linking the CSS
+ * file. The CSS literal lives in `src/auto/styles.ts` — we eval-import
+ * the freshly-built ESM artifact so there's a single source of truth.
+ */
+async function emitAutoCss(): Promise<void> {
+  // Use a regex-extract approach so we don't have to dynamic-import the
+  // freshly-built ESM (which would also resolve d3/echarts side-effect
+  // chains). The CSS literal is the only template string in styles.ts.
+  const stylesPath = resolve('./src/auto/styles.ts');
+  const stylesSource = await readFile(stylesPath, 'utf8');
+  const m = stylesSource.match(
+    /export const CSS:\s*string\s*=\s*`([\s\S]*?)`;\s*$/m
+  );
+  if (!m) {
+    throw new Error(
+      'tsup.config: failed to extract CSS literal from src/auto/styles.ts'
+    );
+  }
+  // Strip leading newline to match how the CSS is consumed inline.
+  const css = m[1].replace(/^\n/, '');
+  await writeFile(resolve('./dist/auto.css'), css, 'utf8');
+}
 
 /** Patch out jsdom's sync-XHR worker require.resolve (not needed by CLI). */
 const fixJsdomXhrWorker: Plugin = {
@@ -98,5 +128,52 @@ export default defineConfig([
     external: ['@resvg/resvg-js', 'jsdom'],
     minify: true,
     esbuildPlugins: [fixJsdomXhrWorker, inlineJsdomStylesheet],
+  },
+  // Auto bundle — IIFE at dist/auto.js for `<script src="…/auto.js">`.
+  // dts disabled because tsup forbids combining iife + declaration emission.
+  // globalName is deliberately NOT `dgmo` — at top-level the bundle would
+  // emit `var dgmo = (() => { ...defineProperty(window, 'dgmo', {writable:
+  // false}); return api; })();`. Strict-mode then throws on the implicit
+  // global assign because window.dgmo was just frozen inside the IIFE. Using
+  // a private name (`__dgmoAuto`) keeps the var binding independent and the
+  // bundle exposes the public API exclusively via `window.dgmo` /
+  // `window.diagrammo` from inside the IIFE body.
+  {
+    entry: { auto: 'src/auto/index.ts' },
+    format: ['iife'],
+    globalName: '__dgmoAuto',
+    dts: false,
+    sourcemap: true,
+    splitting: false,
+    minify: true,
+    noExternal: ['lz-string'],
+    external: ['jsdom'],
+    outExtension: () => ({ js: '.js' }),
+    define: {
+      __DGMO_VERSION__: JSON.stringify(pkg.version),
+      'process.env.NODE_ENV': JSON.stringify('production'),
+    },
+    esbuildPlugins: [fixJsdomXhrWorker],
+    onSuccess: emitAutoCss,
+  },
+  // Auto bundle — ESM (.mjs) + CJS (.cjs) for direct npm consumers, plus
+  // .d.ts/.d.cts. Filename extensions chosen so they don't collide with
+  // the IIFE's dist/auto.js.
+  {
+    entry: { auto: 'src/auto/index.ts' },
+    format: ['esm', 'cjs'],
+    dts: true,
+    sourcemap: true,
+    splitting: false,
+    noExternal: ['lz-string'],
+    external: ['jsdom'],
+    outExtension: ({ format }) => ({
+      js: format === 'cjs' ? '.cjs' : '.mjs',
+    }),
+    define: {
+      __DGMO_VERSION__: JSON.stringify(pkg.version),
+      'process.env.NODE_ENV': JSON.stringify('production'),
+    },
+    esbuildPlugins: [fixJsdomXhrWorker],
   },
 ]);

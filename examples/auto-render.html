@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@diagrammo/dgmo/auto — manual test page</title>
+    <style>
+      :root {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+          sans-serif;
+        line-height: 1.45;
+        color-scheme: light dark;
+      }
+      body {
+        max-width: 880px;
+        margin: 2em auto;
+        padding: 0 1em;
+      }
+      section {
+        margin: 2em 0;
+        padding: 1em;
+        border: 1px dashed rgba(127, 127, 127, 0.35);
+        border-radius: 8px;
+      }
+      h1 {
+        margin-top: 0;
+      }
+      p.hint {
+        opacity: 0.75;
+        font-size: 0.9em;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>@diagrammo/dgmo/auto — manual test page</h1>
+    <p class="hint">
+      Build the bundle (<code>pnpm --filter @diagrammo/dgmo build</code>) and
+      serve this directory via <code>npx serve examples</code> or
+      <code>python3 -m http.server</code> — clipboard tests need a real
+      <code>http://</code> origin.
+    </p>
+
+    <section>
+      <h2>Pie chart (default config)</h2>
+      <pre class="dgmo">pie Languages used
+TypeScript: 58
+Rust: 21
+Python: 13
+Other: 8</pre>
+    </section>
+
+    <section>
+      <h2>Sequence diagram</h2>
+      <pre class="dgmo">sequence
+Captain -&gt; Crew: Set sail
+Crew -&gt; Helm: Aye!
+Helm -&gt; Captain: On heading 270</pre>
+    </section>
+
+    <section>
+      <h2>Flowchart inside &lt;pre&gt;&lt;code class="language-dgmo"&gt;</h2>
+      <pre><code class="language-dgmo">flowchart
+Start -&gt; Build
+Build -&gt; Test
+Test -&gt; Ship</code></pre>
+    </section>
+
+    <section>
+      <h2>Long source (verifies max-height + scroll)</h2>
+      <pre class="dgmo">flowchart
+A -&gt; B
+B -&gt; C
+C -&gt; D
+D -&gt; E
+E -&gt; F
+F -&gt; G
+G -&gt; H
+H -&gt; I
+I -&gt; J
+J -&gt; K
+K -&gt; L</pre>
+    </section>
+
+    <section>
+      <h2>Per-element override: data-show-source="false"</h2>
+      <pre class="dgmo" data-show-source="false">pie Hide source
+A: 1
+B: 2</pre>
+    </section>
+
+    <section>
+      <h2>Intentionally broken source (error banner)</h2>
+      <pre class="dgmo">!!! definitely not a real chart type
+this should produce an error banner</pre>
+    </section>
+
+    <!-- Bundle bootstrap. Adjust the data-config to test combinations. -->
+    <script
+      src="../dist/auto.js"
+      data-config='{"theme":"auto","palette":"nord","showSource":true,"showEditorLink":true}'
+    ></script>
+  </body>
+</html>
