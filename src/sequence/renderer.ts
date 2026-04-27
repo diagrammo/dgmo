@@ -23,6 +23,10 @@ import type {
 import { isSequenceBlock, isSequenceSection, isSequenceNote } from './parser';
 import { applyCollapseProjection } from './collapse';
 import type { CollapsedView } from './collapse';
+import {
+  wrapDescriptionLines,
+  type WrappedDescLine,
+} from '../utils/wrapped-desc';
 import { resolveSequenceTags } from './tag-resolution';
 import type { ResolvedTagMap } from './tag-resolution';
 import { resolveActiveTagGroup } from '../utils/tag-groups';
@@ -68,39 +72,14 @@ const SELF_CALL_WIDTH = 30;
 // Max note width that keeps a note within one participant lane
 const NOTE_LANE_MAX = PARTICIPANT_GAP - ACTIVATION_WIDTH - NOTE_GAP; // 135px
 
-function wrapTextLines(text: string, maxChars: number): string[] {
-  const rawLines = text.split('\n');
-  const wrapped: string[] = [];
-  for (const line of rawLines) {
-    if (line.length <= maxChars) {
-      wrapped.push(line);
-    } else {
-      // Preserve bullet prefix: keep "- " glued to the first content word
-      // so wrapping never produces a bare "-" line.
-      const bulletPrefix = line.startsWith('- ') ? '- ' : '';
-      const content = bulletPrefix ? line.slice(2) : line;
-      const words = content.split(' ');
-      let current = bulletPrefix;
-      for (const word of words) {
-        const candidate = current ? current + ' ' + word : word;
-        if (
-          current &&
-          current !== bulletPrefix &&
-          candidate.length > maxChars
-        ) {
-          wrapped.push(current);
-          current = word;
-        } else {
-          current =
-            current && current !== bulletPrefix
-              ? current + ' ' + word
-              : current + word;
-        }
-      }
-      if (current) wrapped.push(current);
-    }
-  }
-  return wrapped;
+function wrapTextLines(text: string, maxChars: number): WrappedDescLine[] {
+  // Convert leading "- " to the canonical bullet prefix so the shared wrap
+  // helper can split bullet lines into bullet-first / bullet-cont kinds and
+  // give us hanging-indent alignment on continuation lines.
+  const rawLines = text
+    .split('\n')
+    .map((l) => (l.startsWith('- ') ? '• ' + l.slice(2) : l));
+  return wrapDescriptionLines(rawLines, maxChars);
 }
 
 /**
@@ -2654,7 +2633,7 @@ export function renderSequenceDiagram(
         const maxChars = charsForWidth(maxW);
         const wrappedLines = wrapTextLines(el.text, maxChars);
         const noteH = wrappedLines.length * NOTE_LINE_H + NOTE_PAD_V * 2;
-        const maxLineLen = Math.max(...wrappedLines.map((l) => l.length));
+        const maxLineLen = Math.max(...wrappedLines.map((l) => l.text.length));
         const noteW = Math.min(
           maxW,
           Math.max(80, maxLineLen * NOTE_CHAR_W + NOTE_PAD_H * 2 + NOTE_FOLD)
@@ -2710,21 +2689,14 @@ export function renderSequenceDiagram(
           .attr('stroke-width', 0.75)
           .attr('class', 'note-fold');
 
-        // Render text with inline markdown
+        // Render text with inline markdown. Bullet first lines get a "\u2022"
+        // glyph at the left edge with body text indented; bullet continuation
+        // lines render at the same indented body column for hanging alignment.
+        const BULLET_BODY_INDENT = 10;
         wrappedLines.forEach((line, li) => {
           const textY = noteTopY + NOTE_PAD_V + (li + 1) * NOTE_LINE_H - 3;
-          const isBullet = line.startsWith('- ');
-          const bulletIndent = isBullet ? 10 : 0;
-          const displayLine = isBullet ? line.slice(2) : line;
-          const textEl = noteG
-            .append('text')
-            .attr('x', noteX + NOTE_PAD_H + bulletIndent)
-            .attr('y', textY)
-            .attr('fill', palette.text)
-            .attr('font-size', NOTE_FONT_SIZE)
-            .attr('class', 'note-text');
-
-          if (isBullet) {
+          const indent = line.kind === 'plain' ? 0 : BULLET_BODY_INDENT;
+          if (line.kind === 'bullet-first') {
             noteG
               .append('text')
               .attr('x', noteX + NOTE_PAD_H)
@@ -2733,8 +2705,14 @@ export function renderSequenceDiagram(
               .attr('font-size', NOTE_FONT_SIZE)
               .text('\u2022');
           }
-
-          renderInlineText(textEl, displayLine, palette, NOTE_FONT_SIZE);
+          const textEl = noteG
+            .append('text')
+            .attr('x', noteX + NOTE_PAD_H + indent)
+            .attr('y', textY)
+            .attr('fill', palette.text)
+            .attr('font-size', NOTE_FONT_SIZE)
+            .attr('class', 'note-text');
+          renderInlineText(textEl, line.text, palette, NOTE_FONT_SIZE);
         });
       } else if (isSequenceBlock(el)) {
         renderNoteElements(el.children);
