@@ -242,9 +242,11 @@ export function renderOrg(
       .attr('data-line-number', String(c.lineNumber)) as GSelection;
 
     // Expose active tag group value for legend-entry hover dimming
+    // Use tagMetadata (unfiltered) so hover-highlight works even when the
+    // active tag group is hidden from the visible card body via the eye toggle.
     if (activeTagGroup) {
       const tagKey = activeTagGroup.toLowerCase();
-      const metaValue = c.metadata[tagKey];
+      const metaValue = c.tagMetadata[tagKey];
       if (metaValue) {
         cG.attr(`data-tag-${tagKey}`, metaValue.toLowerCase());
       }
@@ -417,9 +419,11 @@ export function renderOrg(
       .attr('data-line-number', String(node.lineNumber)) as GSelection;
 
     // Expose active tag group value for legend-entry hover dimming
+    // Use tagMetadata (unfiltered) so hover-highlight works even when the
+    // active tag group is hidden from the visible card body via the eye toggle.
     if (activeTagGroup) {
       const tagKey = activeTagGroup.toLowerCase();
-      const metaValue = node.metadata[tagKey];
+      const metaValue = node.tagMetadata[tagKey];
       if (metaValue) {
         nodeG.attr(`data-tag-${tagKey}`, metaValue.toLowerCase());
       }

@@ -20,6 +20,8 @@ export interface OrgLayoutNode {
   id: string;
   label: string;
   metadata: Record<string, string>;
+  /** Original (unfiltered) metadata — used for tag-based hover dimming even when the group is hidden */
+  tagMetadata: Record<string, string>;
   isContainer: boolean;
   lineNumber: number;
   color?: string;
@@ -45,6 +47,8 @@ export interface OrgContainerBounds {
   lineNumber: number;
   color?: string;
   metadata: Record<string, string>;
+  /** Original (unfiltered) metadata — used for tag-based hover dimming even when the group is hidden */
+  tagMetadata: Record<string, string>;
   x: number;
   y: number;
   width: number;
@@ -807,6 +811,7 @@ export function layoutOrg(
       id: ec.orgNode.id,
       label: ec.orgNode.label,
       metadata: meta,
+      tagMetadata: { ...ec.orgNode.metadata },
       isContainer: ec.orgNode.isContainer,
       lineNumber: ec.orgNode.lineNumber,
       color: resolveNodeColor(
@@ -854,6 +859,7 @@ export function layoutOrg(
       id: orgNode.id,
       label: orgNode.label,
       metadata: nodeMeta,
+      tagMetadata: { ...orgNode.metadata },
       isContainer: orgNode.isContainer,
       lineNumber: orgNode.lineNumber,
       color: resolveNodeColor(
@@ -1015,6 +1021,7 @@ export function layoutOrg(
         activeTagGroup ?? null
       ),
       metadata: cMeta,
+      tagMetadata: { ...d.data.orgNode.metadata },
       x: boxX,
       y: boxY,
       width: boxWidth,
@@ -1124,6 +1131,7 @@ export function layoutOrg(
         activeTagGroup ?? null
       ),
       metadata: cMeta2,
+      tagMetadata: { ...d.data.orgNode.metadata },
       x: centeredBoxX,
       y: boxY,
       width: finalBoxWidth,
