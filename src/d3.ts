@@ -5560,7 +5560,115 @@ export function renderVenn(
     }
   }
 
+  // Pre-wrap overlap labels and reserve margin so circles shrink enough
+  // to leave readable space outside for leader+text. Wrap target scales
+  // with the canvas so labels stay narrow on small windows.
+  const OVERLAP_FONT = 13;
+  const OVERLAP_CH_W = 7;
+  const OVERLAP_LINE_H = 16;
+  const OVERLAP_LEADER_PAD = 18;
+  const OVERLAP_TEXT_GAP = 6;
+  const OVERLAP_MARGIN_PAD = 12;
+  const OVERLAP_WRAP_TARGET_W = Math.max(80, Math.min(170, width * 0.18));
+  const MAX_WRAP_CHARS = Math.max(
+    8,
+    Math.floor(OVERLAP_WRAP_TARGET_W / OVERLAP_CH_W)
+  );
+
+  function wrapLabel(text: string, maxChars: number): string[] {
+    const words = text.split(/\s+/).filter(Boolean);
+    const lines: string[] = [];
+    let cur = '';
+    for (const w of words) {
+      const cand = cur ? cur + ' ' + w : w;
+      if (cand.length > maxChars && cur) {
+        lines.push(cur);
+        cur = w;
+      } else {
+        cur = cand;
+      }
+    }
+    if (cur) lines.push(cur);
+    return lines.length ? lines : [text];
+  }
+
+  function predictOverlapDirRaw(idxs: number[]): { x: number; y: number } {
+    const excluded = rawCircles
+      .map((_, j) => j)
+      .filter((j) => !idxs.includes(j));
+    if (excluded.length > 0) {
+      let sx = 0,
+        sy = 0;
+      for (const ei of excluded) {
+        sx += rawCircles[ei].x;
+        sy += rawCircles[ei].y;
+      }
+      sx /= excluded.length;
+      sy /= excluded.length;
+      let cx = 0,
+        cy = 0;
+      for (const ci of idxs) {
+        cx += rawCircles[ci].x;
+        cy += rawCircles[ci].y;
+      }
+      cx /= idxs.length;
+      cy /= idxs.length;
+      const dx = cx - sx;
+      const dy = cy - sy;
+      const m = Math.sqrt(dx * dx + dy * dy);
+      if (m >= 1e-6) return { x: dx / m, y: dy / m };
+    }
+    if (n === 3) return { x: 0, y: -1 };
+    return { x: 0, y: 1 };
+  }
+
+  const wrappedOverlapLabels = new Map<VennOverlap, string[]>();
+  for (const ov of vennOverlaps) {
+    if (!ov.label) continue;
+    const idxs = ov.sets.map((s) => vennSets.findIndex((vs) => vs.name === s));
+    if (idxs.some((idx) => idx < 0)) continue;
+    const lines = wrapLabel(ov.label, MAX_WRAP_CHARS);
+    wrappedOverlapLabels.set(ov, lines);
+
+    const dir = predictOverlapDirRaw(idxs);
+    const longest = lines.reduce((m, l) => Math.max(m, l.length), 0);
+    const labelW = longest * OVERLAP_CH_W;
+    const labelH = lines.length * OVERLAP_LINE_H;
+    const baseLeader =
+      OVERLAP_LEADER_PAD + OVERLAP_TEXT_GAP + OVERLAP_MARGIN_PAD;
+
+    if (Math.abs(dir.x) >= Math.abs(dir.y)) {
+      const need = labelW + baseLeader;
+      if (dir.x >= 0) marginRight = Math.max(marginRight, need);
+      else marginLeft = Math.max(marginLeft, need);
+      // Multi-line label also reaches vertically; reserve half its height
+      const halfH = labelH / 2;
+      if (dir.y >= 0) marginBottom = Math.max(marginBottom, halfH + 8);
+      else marginTop = Math.max(marginTop, halfH + 8);
+    } else {
+      // Triple-overlap leader exits the union at the top circle's top
+      // edge — exactly where that circle's set label gets placed when
+      // it can't fit inside (small canvases). Use a longer leader pad
+      // so the triple text clears the set label.
+      const isStackedTriple = idxs.length === 3 && n === 3 && dir.y < 0;
+      const padBoost = isStackedTriple ? 32 : 0;
+      const need = labelH + baseLeader + padBoost;
+      if (dir.y >= 0) marginBottom = Math.max(marginBottom, need);
+      else marginTop = Math.max(marginTop, need);
+    }
+  }
+
   const drawH = height - titleHeight;
+  // Cap margins so the figure always keeps a usable share of the canvas.
+  // If labels need more space than the cap allows the leader+text logic
+  // will clamp them to the viewport instead of letting circles shrink to
+  // unreadable.
+  const maxSideMarginX = width * 0.32;
+  const maxSideMarginY = drawH * 0.4;
+  marginLeft = Math.min(marginLeft, maxSideMarginX);
+  marginRight = Math.min(marginRight, maxSideMarginX);
+  marginTop = Math.min(marginTop, maxSideMarginY);
+  marginBottom = Math.min(marginBottom, maxSideMarginY);
   const circles = fitCirclesToContainerAsymmetric(
     rawCircles,
     width,
@@ -5722,14 +5830,37 @@ export function renderVenn(
     overlayEls.set(key, el);
   }
 
+  // Registry of label wrapper <g>s keyed by region (sorted idxs joined by
+  // '-'), so hovering a shape can dim non-matching labels and hovering a
+  // label can highlight the matching shape overlay.
+  const labelEls = new Map<
+    string,
+    d3Selection.Selection<SVGGElement, unknown, null, undefined>[]
+  >();
+  function registerLabel(
+    key: string,
+    el: d3Selection.Selection<SVGGElement, unknown, null, undefined>
+  ) {
+    if (!labelEls.has(key)) labelEls.set(key, []);
+    labelEls.get(key)!.push(el);
+  }
+  function dimLabelsExcept(matchKey: string | null) {
+    labelEls.forEach((els, k) => {
+      const op = matchKey === null || k === matchKey ? 1 : 0.2;
+      els.forEach((el) => el.attr('opacity', op));
+    });
+  }
+
   const showRegionOverlay = (idxs: number[]) => {
     const key = [...idxs].sort((a, b) => a - b).join('-');
     overlayEls.forEach((el, k) =>
       el.attr('fill-opacity', k === key ? 0 : 0.55)
     );
+    dimLabelsExcept(key);
   };
   const hideAllOverlays = () => {
     overlayEls.forEach((el) => el.attr('fill-opacity', 0));
+    dimLabelsExcept(null);
   };
 
   // ── Labels ──
@@ -5762,7 +5893,12 @@ export function renderVenn(
   const MAX_FONT = 22;
   const INTERNAL_PAD = 12;
 
-  const labelGroup = svg.append('g').style('pointer-events', 'none');
+  const labelGroup = svg.append('g');
+
+  // Bboxes of rendered set labels, used to clip overlap leader lines
+  // so they don't draw through the set name text.
+  type Bbox = { x: number; y: number; w: number; h: number };
+  const setLabelBBoxes: Array<Bbox | null> = circles.map(() => null);
 
   // Set name labels: prefer inside exclusive region, fall back to external leader line
   circles.forEach((c, i) => {
@@ -5782,8 +5918,16 @@ export function renderVenn(
       pointInCircle({ x: centroid.x, y: centroid.y - fitFont / 2 }, c) &&
       pointInCircle({ x: centroid.x, y: centroid.y + fitFont / 2 }, c);
 
+    const setKey = String(i);
+    const labelG = labelGroup
+      .append('g')
+      .style('cursor', 'default')
+      .on('mouseenter', () => showRegionOverlay([i]))
+      .on('mouseleave', () => hideAllOverlays());
+    registerLabel(setKey, labelG);
+
     if (fitsInside) {
-      labelGroup
+      labelG
         .append('text')
         .attr('x', centroid.x)
         .attr('y', centroid.y)
@@ -5793,6 +5937,12 @@ export function renderVenn(
         .attr('font-size', `${Math.round(fitFont)}px`)
         .attr('font-weight', 'bold')
         .text(text);
+      setLabelBBoxes[i] = {
+        x: centroid.x - estTextW / 2,
+        y: centroid.y - fitFont / 2,
+        w: estTextW,
+        h: fitFont,
+      };
     } else {
       let dx = c.x - gcx;
       let dy = c.y - gcy;
@@ -5812,7 +5962,7 @@ export function renderVenn(
       const stubEndX = edgeX + dx * stubLen;
       const stubEndY = edgeY + dy * stubLen;
 
-      labelGroup
+      labelG
         .append('line')
         .attr('x1', edgeX)
         .attr('y1', edgeY)
@@ -5829,18 +5979,94 @@ export function renderVenn(
       if (isRight) textX = Math.min(textX, width - estW - 4);
       else textX = Math.max(textX, estW + 4);
 
-      labelGroup
+      const renderedTextY = Math.max(14, Math.min(height - 4, textY));
+      labelG
         .append('text')
         .attr('x', textX)
-        .attr('y', Math.max(14, Math.min(height - 4, textY)))
+        .attr('y', renderedTextY)
         .attr('text-anchor', textAnchor)
         .attr('dominant-baseline', 'central')
         .attr('fill', textColor)
         .attr('font-size', '14px')
         .attr('font-weight', 'bold')
         .text(text);
+      const externalEstW = text.length * 8.5;
+      setLabelBBoxes[i] = {
+        x: isRight ? textX : textX - externalEstW,
+        y: renderedTextY - 7,
+        w: externalEstW,
+        h: 14,
+      };
     }
   });
+
+  // Splits a line into visible segments that skip any of the given rects
+  // (with optional padding). Used so overlap leaders don't draw through
+  // set name text.
+  function clipLineByRects(
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    rects: Bbox[],
+    pad = 4
+  ): Array<{ x1: number; y1: number; x2: number; y2: number }> {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const skips: Array<[number, number]> = [];
+    for (const raw of rects) {
+      const rx = raw.x - pad;
+      const ry = raw.y - pad;
+      const rw = raw.w + 2 * pad;
+      const rh = raw.h + 2 * pad;
+      let tMin = 0;
+      let tMax = 1;
+      if (Math.abs(dx) < 1e-9) {
+        if (x1 < rx || x1 > rx + rw) continue;
+      } else {
+        const t1 = (rx - x1) / dx;
+        const t2 = (rx + rw - x1) / dx;
+        tMin = Math.max(tMin, Math.min(t1, t2));
+        tMax = Math.min(tMax, Math.max(t1, t2));
+      }
+      if (Math.abs(dy) < 1e-9) {
+        if (y1 < ry || y1 > ry + rh) continue;
+      } else {
+        const t1 = (ry - y1) / dy;
+        const t2 = (ry + rh - y1) / dy;
+        tMin = Math.max(tMin, Math.min(t1, t2));
+        tMax = Math.min(tMax, Math.max(t1, t2));
+      }
+      if (tMin < tMax) skips.push([Math.max(0, tMin), Math.min(1, tMax)]);
+    }
+    skips.sort((a, b) => a[0] - b[0]);
+    const merged: Array<[number, number]> = [];
+    for (const s of skips) {
+      const last = merged[merged.length - 1];
+      if (!last || s[0] > last[1]) merged.push([s[0], s[1]]);
+      else last[1] = Math.max(last[1], s[1]);
+    }
+    const segs: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
+    let cursor = 0;
+    for (const [s, e] of merged) {
+      if (s > cursor)
+        segs.push({
+          x1: x1 + dx * cursor,
+          y1: y1 + dy * cursor,
+          x2: x1 + dx * s,
+          y2: y1 + dy * s,
+        });
+      cursor = Math.max(cursor, e);
+    }
+    if (cursor < 1)
+      segs.push({
+        x1: x1 + dx * cursor,
+        y1: y1 + dy * cursor,
+        x2: x2,
+        y2: y2,
+      });
+    return segs;
+  }
 
   // ── Overlap labels (leader line from region centroid to outside the region) ──
   function overlapOutwardDir(centroid: Point, idxs: number[]): Point {
@@ -5857,7 +6083,12 @@ export function renderVenn(
       const dx = centroid.x - sx;
       const dy = centroid.y - sy;
       const m = Math.sqrt(dx * dx + dy * dy);
-      if (m >= 1e-6) return { x: dx / m, y: dy / m };
+      if (m >= 1e-6) {
+        // Snap floating-point noise to 0 so axis-aligned checks downstream work.
+        const nx = Math.abs(dx / m) < 1e-9 ? 0 : dx / m;
+        const ny = Math.abs(dy / m) < 1e-9 ? 0 : dy / m;
+        return { x: nx, y: ny };
+      }
     }
     // Triple overlap in 3-set Venn: point up so the leader doesn't
     // collide with the pair (0,1) leader going down.
@@ -5865,13 +6096,43 @@ export function renderVenn(
     return { x: 0, y: 1 };
   }
 
-  function exitOverlap(c0: Point, dir: Point, idxs: number[]): Point {
-    // Walk outward until we are past the overlap region AND no longer
-    // inside any other circle of the diagram. Without the second clause,
-    // a triple-overlap leader going up would stop while still inside the
-    // top circle's exclusive region and collide with that set's label.
+  // Where the ray (c0, dir) crosses the lens boundary — the first idxs
+  // circle it leaves. This is the visual touch point for pair leaders.
+  function lensExit(c0: Point, dir: Point, idxs: number[]): Point {
+    let minT = Infinity;
+    for (const i of idxs) {
+      const c = circles[i];
+      const dx = c0.x - c.x;
+      const dy = c0.y - c.y;
+      const B = dx * dir.x + dy * dir.y;
+      const C = dx * dx + dy * dy - c.r * c.r;
+      const disc = B * B - C;
+      if (disc < 0) continue;
+      const t = -B + Math.sqrt(disc);
+      if (t > 0 && t < minT) minT = t;
+    }
+    if (!isFinite(minT)) return { x: c0.x, y: c0.y };
+    return { x: c0.x + dir.x * minT, y: c0.y + dir.y * minT };
+  }
+
+  // Where the ray clears the union's visual silhouette — used to position
+  // text (and the stub end) so they don't overlap any circle. Walks until
+  // outside every circle and, for axis-aligned leaders, also past the
+  // union's bounding box on the travel axis.
+  function unionExit(c0: Point, dir: Point, idxs: number[]): Point {
+    let minX = Infinity,
+      maxX = -Infinity,
+      minY = Infinity,
+      maxY = -Infinity;
+    for (const c of circles) {
+      minX = Math.min(minX, c.x - c.r);
+      maxX = Math.max(maxX, c.x + c.r);
+      minY = Math.min(minY, c.y - c.r);
+      maxY = Math.max(maxY, c.y + c.r);
+    }
     const STEP = 3;
     const MAX_ITERS = 400;
+    const axisAligned = dir.x === 0 || dir.y === 0;
     let p = { x: c0.x, y: c0.y };
     let leftOverlap = false;
     for (let i = 0; i < MAX_ITERS; i++) {
@@ -5882,25 +6143,35 @@ export function renderVenn(
         if (!leftOverlap) continue;
       }
       const insideAny = circles.some((c) => pointInCircle(next, c));
-      if (!insideAny) break;
+      if (insideAny) continue;
+      if (axisAligned) {
+        const passedX = dir.x > 0 ? next.x >= maxX : next.x <= minX;
+        const passedY = dir.y > 0 ? next.y >= maxY : next.y <= minY;
+        if (dir.x !== 0 && !passedX) continue;
+        if (dir.y !== 0 && !passedY) continue;
+      }
+      break;
     }
     return p;
   }
-
-  const OVERLAP_LEADER_PAD = 14;
-  const OVERLAP_TEXT_GAP = 4;
-  const OVERLAP_FONT = 13;
 
   for (const ov of vennOverlaps) {
     if (!ov.label) continue;
     const idxs = ov.sets.map((s) => vennSets.findIndex((vs) => vs.name === s));
     if (idxs.some((idx) => idx < 0)) continue;
+    const lines = wrappedOverlapLabels.get(ov) ?? [ov.label];
     const inside = circles.map((_, j) => idxs.includes(j));
     const centroid = regionCentroid(circles, inside);
     const dir = overlapOutwardDir(centroid, idxs);
-    const exitPt = exitOverlap(centroid, dir, idxs);
-    const stubEndX = exitPt.x + dir.x * OVERLAP_LEADER_PAD;
-    const stubEndY = exitPt.y + dir.y * OVERLAP_LEADER_PAD;
+    const isTriple = idxs.length === 3 && n === 3;
+    const padBoost = isTriple && dir.y < 0 ? 32 : 0;
+    const leaderPad = OVERLAP_LEADER_PAD + padBoost;
+    // Pair leaders touch the lens exactly; stub end sits past the union
+    // silhouette so text doesn't overlap circles.
+    const lensPt = lensExit(centroid, dir, idxs);
+    const farExit = unionExit(centroid, dir, idxs);
+    const stubEndX = farExit.x + dir.x * leaderPad;
+    const stubEndY = farExit.y + dir.y * leaderPad;
 
     const horizontal = Math.abs(dir.x) >= Math.abs(dir.y);
     let textAnchor: string;
@@ -5912,35 +6183,110 @@ export function renderVenn(
       baseline = dir.y >= 0 ? 'hanging' : 'auto';
     }
 
-    let textX = stubEndX + dir.x * OVERLAP_TEXT_GAP;
-    let textY = stubEndY + dir.y * OVERLAP_TEXT_GAP;
+    // For horizontal-dominated leaders, offset text only horizontally and
+    // align it vertically with the leader endpoint — otherwise multi-line
+    // text blocks engulf the leader's tip. Mirror logic for vertical.
+    let textX: number, textY: number;
+    if (horizontal) {
+      const sign = dir.x >= 0 ? 1 : -1;
+      textX = stubEndX + sign * OVERLAP_TEXT_GAP;
+      textY = stubEndY;
+    } else {
+      const sign = dir.y >= 0 ? 1 : -1;
+      textX = stubEndX;
+      textY = stubEndY + sign * OVERLAP_TEXT_GAP;
+    }
 
-    const estW = ov.label.length * 7.5;
-    if (textAnchor === 'start') textX = Math.min(textX, width - estW - 4);
-    else if (textAnchor === 'end') textX = Math.max(textX, estW + 4);
-    else textX = Math.max(estW / 2 + 4, Math.min(width - estW / 2 - 4, textX));
-    textY = Math.max(titleHeight + 14, Math.min(height - 8, textY));
+    const longest = lines.reduce((m, l) => Math.max(m, l.length), 0);
+    const blockW = longest * OVERLAP_CH_W;
+    const blockH = lines.length * OVERLAP_LINE_H;
 
-    labelGroup
-      .append('line')
-      .attr('x1', centroid.x)
-      .attr('y1', centroid.y)
-      .attr('x2', stubEndX)
-      .attr('y2', stubEndY)
-      .attr('stroke', textColor)
-      .attr('stroke-width', 1)
-      .attr('opacity', 0.55);
+    if (textAnchor === 'start') textX = Math.min(textX, width - blockW - 4);
+    else if (textAnchor === 'end') textX = Math.max(textX, blockW + 4);
+    else
+      textX = Math.max(blockW / 2 + 4, Math.min(width - blockW / 2 - 4, textX));
 
-    labelGroup
+    let topY: number, bottomY: number;
+    if (baseline === 'hanging') {
+      topY = textY;
+      bottomY = textY + blockH;
+    } else if (baseline === 'auto') {
+      bottomY = textY;
+      topY = textY - blockH;
+    } else {
+      topY = textY - blockH / 2;
+      bottomY = textY + blockH / 2;
+    }
+    if (topY < titleHeight + 6) textY += titleHeight + 6 - topY;
+    else if (bottomY > height - 4) textY -= bottomY - (height - 4);
+
+    const startY =
+      baseline === 'hanging'
+        ? textY
+        : baseline === 'auto'
+          ? textY - (lines.length - 1) * OVERLAP_LINE_H
+          : textY - ((lines.length - 1) * OVERLAP_LINE_H) / 2;
+
+    // Triple leader runs from the centroid (through the diagram) to the
+    // text — preserved per the user's "leave the triple alone" request.
+    // Pair leaders start exactly on the lens boundary (analytic), so the
+    // line touches the shape it describes.
+    const leaderStartX = isTriple ? centroid.x : lensPt.x;
+    const leaderStartY = isTriple ? centroid.y : lensPt.y;
+
+    // Tint the leader + text with the average of the constituent set
+    // colors so the label visually ties to its overlap region. Mix a bit
+    // of the body text color in to keep contrast against the bg.
+    let tinted = setColors[idxs[0]];
+    for (let k = 1; k < idxs.length; k++) {
+      const pct = (k / (k + 1)) * 100;
+      tinted = mix(tinted, setColors[idxs[k]], pct);
+    }
+    const overlapColor = mix(tinted, textColor, 90);
+
+    const ovKey = [...idxs].sort((a, b) => a - b).join('-');
+    const ovLabelG = labelGroup
+      .append('g')
+      .style('cursor', 'default')
+      .on('mouseenter', () => showRegionOverlay(idxs))
+      .on('mouseleave', () => hideAllOverlays());
+    registerLabel(ovKey, ovLabelG);
+
+    const labelRects = setLabelBBoxes.filter((b): b is Bbox => b !== null);
+    const segments = clipLineByRects(
+      leaderStartX,
+      leaderStartY,
+      stubEndX,
+      stubEndY,
+      labelRects,
+      4
+    );
+    for (const seg of segments) {
+      ovLabelG
+        .append('line')
+        .attr('x1', seg.x1)
+        .attr('y1', seg.y1)
+        .attr('x2', seg.x2)
+        .attr('y2', seg.y2)
+        .attr('stroke', overlapColor)
+        .attr('stroke-width', 1.25)
+        .attr('opacity', 0.85);
+    }
+
+    const textEl = ovLabelG
       .append('text')
-      .attr('x', textX)
-      .attr('y', textY)
       .attr('text-anchor', textAnchor)
       .attr('dominant-baseline', baseline)
-      .attr('fill', textColor)
+      .attr('fill', overlapColor)
       .attr('font-size', `${OVERLAP_FONT}px`)
-      .attr('font-weight', '600')
-      .text(ov.label);
+      .attr('font-weight', '600');
+
+    lines.forEach((line, i) => {
+      const tspan = textEl.append('tspan').attr('x', textX);
+      if (i === 0) tspan.attr('y', startY);
+      else tspan.attr('dy', OVERLAP_LINE_H);
+      tspan.text(line);
+    });
   }
 
   // ── Hover targets ──
