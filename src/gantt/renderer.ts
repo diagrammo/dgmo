@@ -276,6 +276,22 @@ export function renderGantt(
     resolved.options.dependencies &&
     resolved.tasks.some((t) => t.task.dependencies.length > 0);
 
+  // Resolve today-marker date early so we can decide whether to reserve a row.
+  // Each label-bearing element gets its own horizontal row, reserved only when
+  // present in the DGMO. Stack (top → bottom): title, legend, eras, markers,
+  // today, dates. Within-row collisions (long labels on adjacent items) are a
+  // separate concern.
+  let resolvedTodayDate: Date | null = null;
+  if (resolved.options.todayMarker !== 'off') {
+    const d =
+      resolved.options.todayMarker === 'on'
+        ? new Date()
+        : new Date(resolved.options.todayMarker + 'T00:00:00');
+    if (d >= resolved.startDate && d <= resolved.endDate) {
+      resolvedTodayDate = d;
+    }
+  }
+
   // Vertical layout — matches timeline pattern (d3.ts:3649-3655)
   const title = resolved.options.title;
   const titleHeight = title ? 50 : 20;
@@ -284,18 +300,32 @@ export function renderGantt(
       ? LEGEND_HEIGHT + 8
       : 0;
   const topDateLabelReserve = 22; // tick (6) + gap (4) + label height (~12)
-  const hasOverheadLabels =
-    resolved.markers.length > 0 || resolved.eras.length > 0;
-  const markerLabelReserve = hasOverheadLabels ? 28 : 0; // markers/eras get own row above sprint labels
+  const HEADER_ROW_H = 18; // height per reserved label row
+  const eraReserve = resolved.eras.length > 0 ? HEADER_ROW_H : 0;
+  const markerReserve = resolved.markers.length > 0 ? HEADER_ROW_H : 0;
+  const todayReserve = resolvedTodayDate ? HEADER_ROW_H : 0;
   const sprintLabelReserve = resolved.sprints.length > 0 ? 16 : 0; // sprint hover label above date labels
   const CONTENT_TOP_PAD = 16; // breathing room between scale labels and first row
 
   const marginTop =
     titleHeight +
     tagLegendReserve +
+    eraReserve +
+    markerReserve +
+    todayReserve +
     topDateLabelReserve +
-    markerLabelReserve +
     sprintLabelReserve;
+
+  // Y offsets (negative = above chart's y=0). Each row's label sits at center.
+  const todayLabelY = todayReserve
+    ? -(topDateLabelReserve + HEADER_ROW_H / 2)
+    : 0;
+  const markerLabelY = markerReserve
+    ? -(topDateLabelReserve + todayReserve + HEADER_ROW_H / 2)
+    : 0;
+  const eraLabelY = eraReserve
+    ? -(topDateLabelReserve + todayReserve + markerReserve + HEADER_ROW_H / 2)
+    : 0;
 
   // Content area
   const contentH = isTagMode
@@ -459,21 +489,25 @@ export function renderGantt(
     leftMargin,
     onClickItem
   );
-  renderErasAndMarkers(g, svg, resolved, xScale, innerHeight, palette);
+  renderErasAndMarkers(
+    g,
+    svg,
+    resolved,
+    xScale,
+    innerHeight,
+    palette,
+    eraLabelY,
+    markerLabelY
+  );
   renderSprintBands(g, svg, resolved, xScale, innerHeight, palette);
 
   // ── Today marker (line rendered before rows so it paints behind task bars) ──
 
-  let todayDate: Date | null = null;
+  const todayDate: Date | null = resolvedTodayDate;
   let todayX = -1;
   const todayColor = palette.accent || '#e74c3c';
   const todayMarkerLineNum = resolved.options.optionLineNumbers['today-marker'];
-  if (resolved.options.todayMarker !== 'off') {
-    if (resolved.options.todayMarker === 'on') {
-      todayDate = new Date();
-    } else {
-      todayDate = new Date(resolved.options.todayMarker + 'T00:00:00');
-    }
+  if (todayDate) {
     todayX = xScale(dateToFractionalYear(todayDate));
     if (todayX >= 0 && todayX <= innerWidth) {
       const todayLine = g
@@ -495,7 +529,7 @@ export function renderGantt(
         .append('text')
         .attr('class', 'gantt-today')
         .attr('x', todayX)
-        .attr('y', innerHeight + 24)
+        .attr('y', todayLabelY)
         .attr('text-anchor', 'middle')
         .attr('font-size', '10px')
         .attr('fill', todayColor)
@@ -2223,7 +2257,9 @@ function renderErasAndMarkers(
   resolved: ResolvedSchedule,
   xScale: d3Scale.ScaleLinear<number, number>,
   innerHeight: number,
-  palette: PaletteColors
+  palette: PaletteColors,
+  eraLabelY: number,
+  markerLabelY: number
 ): void {
   // Eras: semi-transparent background bands
   for (let i = 0; i < resolved.eras.length; i++) {
@@ -2253,12 +2289,12 @@ function renderErasAndMarkers(
       .attr('fill', color)
       .attr('opacity', baseEraOpacity);
 
-    // Era label (above date scale, same zone as markers)
+    // Era label sits in the era row (one row above markers when both present)
     eraG
       .append('text')
       .attr('class', 'gantt-era-label')
       .attr('x', (sx + ex) / 2)
-      .attr('y', -34)
+      .attr('y', eraLabelY)
       .attr('text-anchor', 'middle')
       .attr('font-size', '10px')
       .attr('fill', color)
@@ -2323,7 +2359,7 @@ function renderErasAndMarkers(
     const mx = xScale(parseDateToFractionalYear(marker.date));
     const markerDate = parseDateStringToDate(marker.date);
     const diamondSize = 5;
-    const labelY = -34;
+    const labelY = markerLabelY;
     const diamondY = -2; // below date indicator labels
 
     const markerG = g
