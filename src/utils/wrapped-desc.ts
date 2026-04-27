@@ -24,6 +24,14 @@ export const BULLET_PREFIX = '• ';
 export const BULLET_INDENT_CHARS = 2;
 
 /**
+ * Optional measurer — returns the *display* length of a string in characters.
+ * Defaults to `s.length`. Pass a markdown-aware function (stripping link
+ * targets, emphasis markers, etc.) when wrapping rich text so the wrap
+ * boundary matches what the user will actually see.
+ */
+export type LengthFn = (s: string) => number;
+
+/**
  * Word-wrap description lines. Bullet lines (starting with "• ") are split
  * so the renderer can place the "•" glyph at the description's left edge and
  * the body text at a fixed bullet-body column — continuation lines align
@@ -32,19 +40,20 @@ export const BULLET_INDENT_CHARS = 2;
  */
 export function wrapDescriptionLines(
   lines: string[],
-  charsPerLine: number
+  charsPerLine: number,
+  lengthFn: LengthFn = (s) => s.length
 ): WrappedDescLine[] {
   const result: WrappedDescLine[] = [];
   for (const line of lines) {
     if (!line.startsWith(BULLET_PREFIX)) {
-      const wrapped = wrapPlainLine(line, charsPerLine);
+      const wrapped = wrapPlainLine(line, charsPerLine, lengthFn);
       for (const w of wrapped) result.push({ text: w, kind: 'plain' });
       continue;
     }
     // Strip "• " — the renderer draws the bullet glyph; we only wrap the body.
     const body = line.slice(BULLET_PREFIX.length);
     const bodyLimit = Math.max(8, charsPerLine - BULLET_INDENT_CHARS);
-    const wrapped = wrapPlainLine(body, bodyLimit);
+    const wrapped = wrapPlainLine(body, bodyLimit, lengthFn);
     wrapped.forEach((w, i) => {
       result.push({ text: w, kind: i === 0 ? 'bullet-first' : 'bullet-cont' });
     });
@@ -56,13 +65,17 @@ export function wrapDescriptionLines(
  * Greedy word-wrap of a single string at the given character limit.
  * Long words are kept whole even if they exceed the limit (no mid-word break).
  */
-function wrapPlainLine(line: string, charsPerLine: number): string[] {
+function wrapPlainLine(
+  line: string,
+  charsPerLine: number,
+  lengthFn: LengthFn
+): string[] {
   const words = line.split(/\s+/);
   const result: string[] = [];
   let current = '';
   for (const word of words) {
     const test = current ? `${current} ${word}` : word;
-    if (test.length > charsPerLine && current) {
+    if (lengthFn(test) > charsPerLine && current) {
       result.push(current);
       current = word;
     } else {

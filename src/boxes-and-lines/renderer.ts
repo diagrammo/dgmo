@@ -23,6 +23,10 @@ import { resolveTagColor, resolveActiveTagGroup } from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
 import type { PaletteColors } from '../palettes';
 import { renderInlineText } from '../utils/inline-markdown';
+import {
+  wrapDescriptionLines,
+  type WrappedDescLine,
+} from '../utils/wrapped-desc';
 import type { ParsedBoxesAndLines, BLNode } from './types';
 import type { BLLayoutResult, BLLayoutNode, BLLayoutEdge } from './layout';
 
@@ -836,57 +840,42 @@ export function renderBoxesAndLines(
           .replace(/\*(.+?)\*/g, '$1') // *italic* → italic
           .replace(/`(.+?)`/g, '$1') // `code` → code
           .replace(/https?:\/\/\S+/g, (u) => u.slice(0, 20)).length; // bare URLs shortened
-      const hasMarkdown = (text: string): boolean =>
-        /\[.+?\]\(.+?\)|https?:\/\/|www\./.test(text);
 
-      // Build wrapped lines from description
-      const wrappedLines: string[] = [];
-      for (let descLine of desc) {
-        // Render `- ` as bullet
-        if (descLine.startsWith('- ')) descLine = '\u2022 ' + descLine.slice(2);
+      // Build wrapped lines from description. Convert "- " to bullet glyph
+      // and let the shared helper split bullet lines into first/cont rows
+      // so continuation text aligns under the bullet body, not the glyph.
+      const normalizedLines: string[] = [];
+      for (const descLine of desc) {
+        let normalized = descLine.startsWith('- ')
+          ? '\u2022 ' + descLine.slice(2)
+          : descLine;
         // Normalize bare URLs: `http example.com` → `http://example.com`
-        descLine = descLine.replace(
+        normalized = normalized.replace(
           /\bhttps?\s+([\w][\w.-]+\.[a-z]{2,}(?:\/\S*)?)/gi,
           (_, domain) => `https://${domain}`
         );
-        if (displayLen(descLine) <= charsPerLine) {
-          wrappedLines.push(descLine);
-        } else {
-          // Word wrap using display lengths
-          // Keep bullet attached to first word
-          let words: string[];
-          if (descLine.startsWith('\u2022 ')) {
-            const rest = descLine.slice(2);
-            const restWords = rest.split(/\s+/);
-            words = [`\u2022 ${restWords[0]}`, ...restWords.slice(1)];
-          } else {
-            words = descLine.split(/\s+/);
-          }
-          let current = '';
-          for (const word of words) {
-            const test = current ? `${current} ${word}` : word;
-            if (displayLen(test) <= charsPerLine) {
-              current = test;
-            } else {
-              if (current) wrappedLines.push(current);
-              // Don't truncate words containing markdown/links
-              current =
-                !hasMarkdown(word) && word.length > charsPerLine
-                  ? word.slice(0, charsPerLine - 1) + '\u2026'
-                  : word;
-            }
-          }
-          if (current) wrappedLines.push(current);
-        }
+        normalizedLines.push(normalized);
       }
 
-      const truncated = wrappedLines.length > MAX_DESC_LINES;
+      const wrappedLinesShared: WrappedDescLine[] = wrapDescriptionLines(
+        normalizedLines,
+        charsPerLine,
+        displayLen
+      );
+
+      const truncated = wrappedLinesShared.length > MAX_DESC_LINES;
       const visibleLines = truncated
-        ? wrappedLines.slice(0, MAX_DESC_LINES)
-        : wrappedLines;
+        ? wrappedLinesShared.slice(0, MAX_DESC_LINES)
+        : wrappedLinesShared;
+
+      // Bullet glyph at the description's left edge; body text indented so
+      // continuation lines align under the first word past the bullet.
+      const BULLET_GLYPH_X = -ln.width / 2 + 6;
+      const BULLET_BODY_X = BULLET_GLYPH_X + 10;
 
       for (let li = 0; li < visibleLines.length; li++) {
-        let lineText = visibleLines[li];
+        const line = visibleLines[li];
+        let lineText = line.text;
         // Truncate last line if there are more lines beyond the cap
         if (truncated && li === visibleLines.length - 1) {
           lineText =
@@ -894,12 +883,24 @@ export function renderBoxesAndLines(
               ? lineText.slice(0, charsPerLine - 1) + '\u2026'
               : lineText + '\u2026';
         }
-        // Bulleted lines left-align, plain lines center
-        const isBullet = lineText.startsWith('\u2022');
+        const y = descStartY + li * descLineH;
+        if (line.kind === 'bullet-first') {
+          nodeG
+            .append('text')
+            .attr('x', BULLET_GLYPH_X)
+            .attr('y', y)
+            .attr('text-anchor', 'start')
+            .attr('dominant-baseline', 'central')
+            .attr('font-size', DESC_FONT_SIZE)
+            .attr('fill', palette.textMuted)
+            .text('\u2022');
+        }
+        const isBullet =
+          line.kind === 'bullet-first' || line.kind === 'bullet-cont';
         const textEl = nodeG
           .append('text')
-          .attr('x', isBullet ? -ln.width / 2 + 6 : 0)
-          .attr('y', descStartY + li * descLineH)
+          .attr('x', isBullet ? BULLET_BODY_X : 0)
+          .attr('y', y)
           .attr('text-anchor', isBullet ? 'start' : 'middle')
           .attr('dominant-baseline', 'central')
           .attr('font-size', DESC_FONT_SIZE)
