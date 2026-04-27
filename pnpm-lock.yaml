@@ -84,6 +84,9 @@ importers:
       '@types/jsdom':
         specifier: ^28.0.1
         version: 28.0.1
+      axe-core:
+        specifier: ^4.10.0
+        version: 4.11.3
       cspell:
         specifier: ^10.0.0
         version: 10.0.0
@@ -1639,6 +1642,10 @@ packages:
   ast-module-types@6.0.1:
     resolution: {integrity: sha512-WHw67kLXYbZuHTmcdbIrVArCq5wxo6NEuj3hiYAWr8mwJeC+C2mMCIBIWCiDoCye/OF/xelc+teJ1ERoWmnEIA==}
     engines: {node: '>=18'}
+
+  axe-core@4.11.3:
+    resolution: {integrity: sha512-zBQouZixDTbo3jMGqHKyePxYxr1e5W8UdTmBQ7sNtaA9M2bE32daxxPLS/jojhKOHxQ7LWwPjfiwf/fhaJWzlg==}
+    engines: {node: '>=4'}
 
   babel-walk@3.0.0-canary-5:
     resolution: {integrity: sha512-GAwkz0AihzY5bkwIY5QDR+LvsRQgB/B+1foMPvi0FZPMl5fjD7ICiznUiBdLYMH1QYe6vqu4gWYytZOccLouFw==}
@@ -4825,6 +4832,8 @@ snapshots:
   assertion-error@2.0.1: {}
 
   ast-module-types@6.0.1: {}
+
+  axe-core@4.11.3: {}
 
   babel-walk@3.0.0-canary-5:
     dependencies:
