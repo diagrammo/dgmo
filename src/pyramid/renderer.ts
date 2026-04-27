@@ -442,11 +442,11 @@ function renderLayerDescriptions(
   const textLineX =
     side === 'right' ? textX : layout.leftAccentX - DESC_ACCENT_GAP;
   // Bullet glyph + body always read left-to-right, so anchor them at the
-  // column's left edge regardless of which side the description sits on.
+  // column's left edge. For left-side descriptions the column sits to the
+  // LEFT of the accent bar, so bulletColLeftX is the column's outer edge
+  // (leftTextX) — not the gap between bar and pyramid.
   const bulletColLeftX =
-    side === 'right'
-      ? layout.rightTextX
-      : layout.leftAccentX + DESC_ACCENT_WIDTH + DESC_ACCENT_GAP;
+    side === 'right' ? layout.rightTextX : layout.leftTextX;
 
   // Full-reveal budget: how many wrapped lines can fit between title and
   // bottom margin. Truncate beyond that.
