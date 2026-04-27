@@ -2334,6 +2334,9 @@ export function renderSequenceDiagram(
       : isDark
         ? 0.1
         : 0.08;
+    // Visual band — pointer-events:none so it never intercepts clicks
+    // intended for elements rendered earlier (participants, lifelines, etc.).
+    // Toggle hit area is the label rect below.
     sectionG
       .append('rect')
       .attr('x', bandX)
@@ -2343,6 +2346,7 @@ export function renderSequenceDiagram(
       .attr('fill', lineColor)
       .attr('opacity', bandOpacity)
       .attr('rx', 2)
+      .attr('pointer-events', 'none')
       .attr('class', 'section-divider');
 
     // Build display label
@@ -2353,6 +2357,19 @@ export function renderSequenceDiagram(
 
     // Centered label text
     const labelX = (sectionLineX1 + sectionLineX2) / 2;
+
+    // Transparent hit area scoped to the label so the toggle stays clickable
+    // without the band swallowing clicks across the full diagram width.
+    const labelHitW = Math.max(80, labelText.length * 7 + 24);
+    sectionG
+      .append('rect')
+      .attr('x', labelX - labelHitW / 2)
+      .attr('y', secY - BAND_HEIGHT / 2)
+      .attr('width', labelHitW)
+      .attr('height', BAND_HEIGHT)
+      .attr('fill', 'transparent')
+      .attr('class', 'section-label-hit');
+
     sectionG
       .append('text')
       .attr('x', labelX)
