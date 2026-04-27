@@ -16,6 +16,7 @@ import {
   DIM_OPACITY,
 } from './shared';
 import { parseInlineMarkdown } from '../utils/inline-markdown';
+import { safeHref } from '../utils/safe-href';
 
 // ============================================================
 // Constants
@@ -726,8 +727,13 @@ function renderInlineMarkdownHtml(
     if (span.italic) t = `<em>${t}</em>`;
     if (span.code)
       t = `<code style="background:${palette.surface}; padding: 1px 4px; border-radius: 3px; font-size: 10px;">${t}</code>`;
-    if (span.href)
-      t = `<a href="${escapeHtml(span.href)}" target="_blank" rel="noopener" style="color: ${palette.primary ?? palette.text}; text-decoration: underline;">${t}</a>`;
+    if (span.href) {
+      const safe = safeHref(span.href);
+      if (safe !== null) {
+        t = `<a href="${escapeHtml(safe)}" target="_blank" rel="noopener noreferrer" style="color: ${palette.primary ?? palette.text}; text-decoration: underline;">${t}</a>`;
+      }
+      // else: drop the anchor, leave text as plain content.
+    }
     html += t;
   }
   return html;
@@ -737,7 +743,9 @@ function escapeHtml(text: string): string {
   return text
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 // ============================================================

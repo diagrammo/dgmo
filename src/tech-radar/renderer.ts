@@ -5,6 +5,7 @@ import type { PaletteColors } from '../palettes';
 import type { D3ExportDimensions } from '../utils/d3-types';
 import type { CompactViewState } from '../sharing';
 import { parseInlineMarkdown } from '../utils/inline-markdown';
+import { safeHref } from '../utils/safe-href';
 import type {
   ParsedTechRadar,
   QuadrantPosition,
@@ -1025,8 +1026,13 @@ function renderDescriptionLine(line: string, palette: PaletteColors): string {
     if (span.italic) text = `<em>${text}</em>`;
     if (span.code)
       text = `<code style="background:${palette.surface}; padding: 1px 4px; border-radius: 3px; font-size: 10px;">${text}</code>`;
-    if (span.href)
-      text = `<a href="${escapeHtml(span.href)}" target="_blank" rel="noopener" style="color: ${palette.primary ?? palette.text}; text-decoration: underline;">${text}</a>`;
+    if (span.href) {
+      const safe = safeHref(span.href);
+      if (safe !== null) {
+        text = `<a href="${escapeHtml(safe)}" target="_blank" rel="noopener noreferrer" style="color: ${palette.primary ?? palette.text}; text-decoration: underline;">${text}</a>`;
+      }
+      // else: drop the anchor, render plain text.
+    }
     spanHtml += text;
   }
 
@@ -1040,7 +1046,9 @@ function escapeHtml(text: string): string {
   return text
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 // ============================================================

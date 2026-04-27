@@ -4,6 +4,7 @@
 
 import * as d3Selection from 'd3-selection';
 import type { PaletteColors } from '../palettes';
+import { safeHref } from './safe-href';
 
 export interface InlineSpan {
   text: string;
@@ -19,17 +20,24 @@ export function parseInlineMarkdown(text: string): InlineSpan[] {
     /\*\*(.+?)\*\*|__(.+?)__|\*(.+?)\*|_(.+?)_|`(.+?)`|\[(.+?)\]\((.+?)\)|(https?:\/\/[^\s)>\]]+|www\.[^\s)>\]]+)|([^*_`[]+?(?=https?:\/\/|www\.|$)|[^*_`[]+)/g;
   let match;
   while ((match = regex.exec(text)) !== null) {
-    if (match[1]) spans.push({ text: match[1], bold: true });       // **bold**
-    else if (match[2]) spans.push({ text: match[2], bold: true });  // __bold__
-    else if (match[3]) spans.push({ text: match[3], italic: true }); // *italic*
-    else if (match[4]) spans.push({ text: match[4], italic: true }); // _italic_
-    else if (match[5]) spans.push({ text: match[5], code: true });   // `code`
-    else if (match[6]) spans.push({ text: match[6], href: match[7] }); // [text](url)
-    else if (match[8]) {                                              // bare URL
+    if (match[1])
+      spans.push({ text: match[1], bold: true }); // **bold**
+    else if (match[2])
+      spans.push({ text: match[2], bold: true }); // __bold__
+    else if (match[3])
+      spans.push({ text: match[3], italic: true }); // *italic*
+    else if (match[4])
+      spans.push({ text: match[4], italic: true }); // _italic_
+    else if (match[5])
+      spans.push({ text: match[5], code: true }); // `code`
+    else if (match[6])
+      spans.push({ text: match[6], href: match[7] }); // [text](url)
+    else if (match[8]) {
+      // bare URL
       const url = match[8];
       const href = url.startsWith('www.') ? `https://${url}` : url;
       spans.push({ text: url, href });
-    } else if (match[9]) spans.push({ text: match[9] });             // plain text
+    } else if (match[9]) spans.push({ text: match[9] }); // plain text
   }
   return spans;
 }
@@ -54,14 +62,23 @@ export function renderInlineText(
       // Bare URLs (text === href or href with https:// prepended) get truncated display;
       // markdown links [text](url) keep their user-chosen text as-is.
       const isBareUrl =
-        span.text === span.href ||
-        `https://${span.text}` === span.href;
+        span.text === span.href || `https://${span.text}` === span.href;
       const display = isBareUrl ? truncateBareUrl(span.text) : span.text;
-      const a = textEl.append('a').attr('href', span.href);
-      a.append('tspan')
-        .text(display)
-        .attr('fill', palette.primary)
-        .style('text-decoration', 'underline');
+      const safe = safeHref(span.href);
+      if (safe !== null) {
+        const a = textEl.append('a').attr('href', safe);
+        a.append('tspan')
+          .text(display)
+          .attr('fill', palette.primary)
+          .style('text-decoration', 'underline');
+      } else {
+        // Disallowed protocol — render as inert text, no anchor.
+        textEl
+          .append('tspan')
+          .text(display)
+          .attr('fill', palette.primary)
+          .style('text-decoration', 'underline');
+      }
     } else {
       const tspan = textEl.append('tspan').text(span.text);
       if (span.bold) tspan.attr('font-weight', 'bold');
