@@ -44,6 +44,36 @@ export function measureLegendText(text: string, fontSize: number): number {
   return w;
 }
 
+/**
+ * Truncate text with a trailing ellipsis to fit within maxWidth.
+ * Returns the original text if it already fits, or '' if even the
+ * ellipsis alone won't fit.
+ */
+export function truncateLegendText(
+  text: string,
+  fontSize: number,
+  maxWidth: number
+): string {
+  if (measureLegendText(text, fontSize) <= maxWidth) return text;
+  const ellipsis = '…';
+  const ellipsisW = measureLegendText(ellipsis, fontSize);
+  if (ellipsisW > maxWidth) return '';
+  let lo = 0;
+  let hi = text.length;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (
+      measureLegendText(text.slice(0, mid), fontSize) + ellipsisW <=
+      maxWidth
+    ) {
+      lo = mid;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  return lo === 0 ? ellipsis : text.slice(0, lo) + ellipsis;
+}
+
 // Eye icon SVG paths (14×14 viewBox)
 // Present only in org and sitemap legends (metadata visibility toggle)
 export const EYE_OPEN_PATH =

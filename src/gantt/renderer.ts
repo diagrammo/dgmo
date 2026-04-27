@@ -22,6 +22,7 @@ import {
   LEGEND_ICON_W,
   LEGEND_GEAR_PILL_W,
   measureLegendText,
+  truncateLegendText,
 } from '../utils/legend-constants';
 import { renderLegendD3 } from '../utils/legend-d3';
 import { controlsGroupCapsuleWidth } from '../utils/legend-layout';
@@ -2289,8 +2290,13 @@ function renderErasAndMarkers(
       .attr('fill', color)
       .attr('opacity', baseEraOpacity);
 
-    // Era label sits in the era row (one row above markers when both present)
-    eraG
+    // Era label sits in the era row (one row above markers when both present).
+    // Truncate to fit the era's own span (with breathing room) so labels stay
+    // confined to their tinted band. Full text is restored on hover.
+    const eraLabelMaxW = Math.max(0, ex - sx - 8);
+    const eraDisplayLabel = truncateLegendText(era.label, 10, eraLabelMaxW);
+    const eraTruncated = eraDisplayLabel !== era.label;
+    const eraLabel = eraG
       .append('text')
       .attr('class', 'gantt-era-label')
       .attr('x', (sx + ex) / 2)
@@ -2300,7 +2306,7 @@ function renderErasAndMarkers(
       .attr('fill', color)
       .attr('opacity', 0.7)
       .style('cursor', 'pointer')
-      .text(era.label);
+      .text(eraDisplayLabel);
 
     eraG
       .on('mouseenter', () => {
@@ -2337,6 +2343,7 @@ function renderErasAndMarkers(
         );
         // Highlight this era
         eraRect.attr('opacity', hoverEraOpacity);
+        if (eraTruncated) eraLabel.text(era.label);
         showGanttDateIndicators(
           g,
           xScale,
@@ -2349,18 +2356,44 @@ function renderErasAndMarkers(
       .on('mouseleave', () => {
         resetHighlight(g, svg);
         eraRect.attr('opacity', baseEraOpacity);
+        if (eraTruncated) eraLabel.text(eraDisplayLabel);
         hideGanttDateIndicators(g);
       });
   }
 
-  // Markers: label → diamond → dashed line (same layout as timeline)
-  for (const marker of resolved.markers) {
+  // Markers: label → diamond → dashed line (same layout as timeline).
+  // Pre-compute x positions so each marker can size its label based on the
+  // distance to its nearest neighbor — symmetric truncation lets crowded
+  // labels meet in the middle of the gap rather than overlapping.
+  const markerXs = resolved.markers.map((m) =>
+    xScale(parseDateToFractionalYear(m.date))
+  );
+  const innerWidth = xScale.range()[1];
+  for (let i = 0; i < resolved.markers.length; i++) {
+    const marker = resolved.markers[i];
     const color = marker.color || palette.accent || '#d08770';
-    const mx = xScale(parseDateToFractionalYear(marker.date));
+    const mx = markerXs[i];
     const markerDate = parseDateStringToDate(marker.date);
     const diamondSize = 5;
     const labelY = markerLabelY;
     const diamondY = -2; // below date indicator labels
+
+    // Available label width: distance to nearest neighbor (or chart edge),
+    // minus a small padding. Both labels truncate symmetrically and meet
+    // in the middle of the gap.
+    let nearestDist = Math.min(mx, innerWidth - mx);
+    for (let j = 0; j < markerXs.length; j++) {
+      if (j === i) continue;
+      const d = Math.abs(markerXs[j] - mx);
+      if (d < nearestDist) nearestDist = d;
+    }
+    const markerLabelMaxW = Math.max(0, nearestDist - 8);
+    const markerDisplayLabel = truncateLegendText(
+      marker.label,
+      11,
+      markerLabelMaxW
+    );
+    const markerTruncated = markerDisplayLabel !== marker.label;
 
     const markerG = g
       .append('g')
@@ -2379,7 +2412,7 @@ function renderErasAndMarkers(
       .attr('pointer-events', 'all');
 
     // Label above diamond
-    markerG
+    const markerLabelEl = markerG
       .append('text')
       .attr('class', 'gantt-marker-label')
       .attr('x', mx)
@@ -2388,7 +2421,7 @@ function renderErasAndMarkers(
       .attr('font-size', '11px')
       .attr('font-weight', '600')
       .attr('fill', color)
-      .text(marker.label);
+      .text(markerDisplayLabel);
 
     // Diamond below label
     markerG
@@ -2457,6 +2490,7 @@ function renderErasAndMarkers(
         markerG.attr('opacity', 1);
         markerLine.attr('opacity', 0.8);
         markerDiamond.attr('opacity', 0);
+        if (markerTruncated) markerLabelEl.text(marker.label);
         showGanttDateIndicators(
           g,
           xScale,
@@ -2471,6 +2505,7 @@ function renderErasAndMarkers(
         resetHighlight(g, svg);
         markerLine.attr('opacity', 0.5);
         markerDiamond.attr('opacity', 0.9);
+        if (markerTruncated) markerLabelEl.text(markerDisplayLabel);
         hideGanttDateIndicators(g);
       });
   }
