@@ -2673,7 +2673,7 @@ function renderEras(
   onEnter: (eraStart: number, eraEnd: number) => void,
   onLeave: () => void,
   hasScale: boolean = false,
-  tooltip: HTMLDivElement | null = null,
+  _tooltip: HTMLDivElement | null = null,
   palette?: PaletteColors,
   // When provided (horizontal reserved-row mode), eras render their label
   // in the dedicated header row at this Y, the rect stays inside the chart
@@ -2767,18 +2767,13 @@ function renderEras(
     }
 
     eraG
-      .on('mouseenter', function (event: MouseEvent) {
+      .on('mouseenter', function () {
         onEnter(startVal, endVal);
         if (truncated) labelEl.text(era.label);
-        if (tooltip) showTooltip(tooltip, buildEraTooltipHtml(era), event);
       })
       .on('mouseleave', function () {
         onLeave();
         if (truncated) labelEl.text(displayLabel);
-        if (tooltip) hideTooltip(tooltip);
-      })
-      .on('mousemove', function (event: MouseEvent) {
-        if (tooltip) showTooltip(tooltip, buildEraTooltipHtml(era), event);
       });
   });
 }
@@ -2794,7 +2789,7 @@ function renderMarkers(
   innerWidth: number,
   innerHeight: number,
   _hasScale: boolean = false,
-  tooltip: HTMLDivElement | null = null,
+  _tooltip: HTMLDivElement | null = null,
   palette?: PaletteColors,
   // When provided (horizontal reserved-row mode), labels render at this Y
   // above the chart edge instead of inside the chart at y=6, and are
@@ -2861,21 +2856,6 @@ function renderMarkers(
         )
         .attr('fill', color)
         .attr('opacity', 0.9);
-
-      markerG
-        .on('mouseenter', function (event: MouseEvent) {
-          if (tooltip) {
-            showTooltip(tooltip, buildMarkerTooltipHtml(marker), event);
-          }
-        })
-        .on('mouseleave', function () {
-          if (tooltip) hideTooltip(tooltip);
-        })
-        .on('mousemove', function (event: MouseEvent) {
-          if (tooltip) {
-            showTooltip(tooltip, buildMarkerTooltipHtml(marker), event);
-          }
-        });
     } else {
       // Horizontal orientation: vertical dashed line down the chart.
       // Reserved-row mode lifts the label above the chart edge; legacy mode
@@ -2937,36 +2917,14 @@ function renderMarkers(
         .attr('opacity', lineOpacity);
 
       markerG
-        .on('mouseenter', function (event: MouseEvent) {
+        .on('mouseenter', function () {
           if (truncated) labelEl.text(marker.label);
-          if (tooltip) {
-            const html = buildMarkerTooltipHtml(marker);
-            showTooltip(tooltip, html, event);
-          }
         })
         .on('mouseleave', function () {
           if (truncated) labelEl.text(displayLabel);
-          if (tooltip) hideTooltip(tooltip);
-        })
-        .on('mousemove', function (event: MouseEvent) {
-          if (tooltip) {
-            const html = buildMarkerTooltipHtml(marker);
-            showTooltip(tooltip, html, event);
-          }
         });
     }
   });
-}
-
-function buildMarkerTooltipHtml(marker: TimelineMarker): string {
-  const date = formatDateLabel(marker.date);
-  // Show marker label + date so the full label is discoverable even when
-  // the inline text is truncated and the user reads via tooltip.
-  const safeLabel = marker.label
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-  return `<strong>${safeLabel}</strong><br/>${date}`;
 }
 
 // ============================================================
@@ -3349,10 +3307,6 @@ function buildEventTooltipHtml(ev: TimelineEvent): string {
     ? `${formatDateLabel(ev.date)} → ${formatDateLabel(ev.endDate)}`
     : formatDateLabel(ev.date);
   return `<strong>${ev.label}</strong><br>${datePart}`;
-}
-
-function buildEraTooltipHtml(era: TimelineEra): string {
-  return `<strong>${era.label}</strong><br>${formatDateLabel(era.startDate)} → ${formatDateLabel(era.endDate)}`;
 }
 
 // ============================================================
