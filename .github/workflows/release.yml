@@ -13,10 +13,10 @@ jobs:
       id-token: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v5
         with:
           version: 10
 
@@ -59,7 +59,7 @@ jobs:
         run: npm publish --access public --provenance
 
       - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           generate_release_notes: true
 
@@ -87,7 +87,7 @@ jobs:
           exit 1
 
       - name: Checkout homebrew-dgmo
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           repository: diagrammo/homebrew-dgmo
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
