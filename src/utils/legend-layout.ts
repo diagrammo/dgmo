@@ -420,7 +420,7 @@ function buildCapsuleLayout(
   };
 
   const entries: LegendEntryLayout[] = [];
-  let ex = LEGEND_CAPSULE_PAD + pw + 4 + addonWidth;
+  const ex = LEGEND_CAPSULE_PAD + pw + 4 + addonWidth;
   let ey = 0;
   let rowX = ex;
   // Right boundary: one LEGEND_CAPSULE_PAD for right padding.
@@ -432,12 +432,13 @@ function buildCapsuleLayout(
     const entry = group.entries[i];
     const ew = entryWidth(entry.value);
 
-    // Wrap to next row if needed
-    if (rowX + ew > maxRowW && rowX > ex && i > 0) {
+    // Wrap to next row if needed. Only check when capsuleWidth decided
+    // multi-row layout — otherwise float-precision drift in the per-entry
+    // accumulation can wrongly wrap an entry that fit on a single row.
+    if (info.entryRows > 1 && rowX + ew > maxRowW && rowX > ex && i > 0) {
       currentRow++;
       rowX = 0;
       ey = currentRow * LEGEND_HEIGHT;
-      if (currentRow === 0) ex = LEGEND_CAPSULE_PAD + pw + 4;
     }
 
     const dotCx = rowX + LEGEND_DOT_R;
