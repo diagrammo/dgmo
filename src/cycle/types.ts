@@ -40,6 +40,9 @@ export interface ParsedCycle {
 // Cycle Diagram — Layout Types
 // ============================================================
 
+export type { WrappedDescLine } from '../utils/wrapped-desc';
+import type { WrappedDescLine } from '../utils/wrapped-desc';
+
 export interface CycleLayoutNode {
   label: string;
   x: number;
@@ -48,7 +51,7 @@ export interface CycleLayoutNode {
   width: number;
   height: number;
   /** Pre-wrapped description lines (fit to node width). Empty if no descriptions. */
-  wrappedDesc: string[];
+  wrappedDesc: WrappedDescLine[];
   /** Whether this node should be rendered as a circle. */
   isCircle: boolean;
 }

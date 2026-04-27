@@ -11,6 +11,10 @@ import {
   type CycleLayoutEdge,
   type CycleLayoutResult,
 } from './types';
+import {
+  wrapDescriptionLines,
+  type WrappedDescLine,
+} from '../utils/wrapped-desc';
 
 /** Minimum arc angle in radians (~15°) to keep arcs readable. */
 const MIN_ARC_ANGLE = (15 * Math.PI) / 180;
@@ -21,14 +25,28 @@ const LABEL_CHAR_W = 8;
 /** Estimated character width at 16px circle label font. */
 const CIRCLE_LABEL_CHAR_W = 10;
 
-/** Estimated character width at 11px description font. */
-const DESC_CHAR_W = 6.5;
+/**
+ * Estimated character width at 11px description font (Inter).
+ * Average glyph width is ~5.5–6.0 px for typical English text — using 6.0
+ * gives us a small margin of safety for wide glyphs (m, w) without leaving
+ * obvious dead space on the right side of the rectangle.
+ */
+const DESC_CHAR_W = 6.0;
 
 /** Minimum node width. */
 const MIN_NODE_WIDTH = 70;
 
 /** Maximum node width. */
-const MAX_NODE_WIDTH = 180;
+const MAX_NODE_WIDTH = 260;
+
+/** Minimum width to consider for described nodes (avoid ultra-narrow columns). */
+const DESC_MIN_WIDTH = 140;
+
+/** Width sweep step when choosing the best aspect ratio for described nodes. */
+const DESC_WIDTH_STEP = 20;
+
+/** Target width:height ratio for described rectangular nodes. */
+const DESC_TARGET_RATIO = 1.6;
 
 /** Node height for label-only nodes. */
 const PLAIN_NODE_HEIGHT = 50;
@@ -97,20 +115,11 @@ export function computeCycleLayout(
       return {
         width: Math.min(MAX_NODE_WIDTH, labelWidth),
         height: PLAIN_NODE_HEIGHT,
-        wrappedDesc: [] as string[],
+        wrappedDesc: [] as WrappedDescLine[],
       };
     }
 
-    // Determine node width: fit the label and a reasonable description width
-    const nodeWidth = Math.min(MAX_NODE_WIDTH, Math.max(labelWidth, 150));
-    const textWidth = nodeWidth - NODE_PAD_X * 2;
-    const charsPerLine = Math.max(10, Math.floor(textWidth / DESC_CHAR_W));
-
-    const wrappedDesc = wrapLines(node.description, charsPerLine);
-
-    const descHeight =
-      HEADER_HEIGHT + wrappedDesc.length * DESC_LINE_HEIGHT + DESC_PAD_Y;
-    return { width: nodeWidth, height: descHeight, wrappedDesc };
+    return chooseDescribedRectDims(node.description, labelWidth);
   });
 
   // ── Uniform circle sizing: all circles match the largest ──
@@ -124,7 +133,9 @@ export function computeCycleLayout(
       const node = parsed.nodes[nodeIdx];
       const hasDesc = !hideDescriptions && node.description.length > 0;
       if (hasDesc) {
-        d.wrappedDesc = wrapLinesForCircle(node.description, maxDiam / 2);
+        d.wrappedDesc = wrapLinesForCircle(node.description, maxDiam / 2).map(
+          (text) => ({ text, kind: 'plain' as const })
+        );
       }
     }
   }
@@ -184,10 +195,35 @@ export function computeCycleLayout(
     // Nodes are too big to fit without overlap — shrink them
     radius = Math.max(80, maxRadius);
     scale = radius / minRadiusForNodes;
-    // Scale down all node dimensions
-    for (const d of nodeDims) {
-      d.width = Math.max(50, d.width * scale);
-      d.height = Math.max(30, d.height * scale);
+    // Scale down all node dimensions and re-wrap descriptions so text always
+    // fits inside the shrunk rectangle (font scales linearly in the renderer,
+    // so chars-per-line stays roughly constant — but line *count* must match
+    // the new height budget).
+    for (let i = 0; i < nodeDims.length; i++) {
+      const d = nodeDims[i];
+      const node = parsed.nodes[i];
+      const hasDesc = !hideDescriptions && node.description.length > 0;
+      const newW = Math.max(50, d.width * scale);
+      if (circleNodes) {
+        d.width = newW;
+        d.height = newW;
+        if (hasDesc) {
+          d.wrappedDesc = wrapLinesForCircle(node.description, newW / 2).map(
+            (text) => ({ text, kind: 'plain' as const })
+          );
+        }
+      } else if (hasDesc) {
+        d.width = newW;
+        // Re-wrap at the unscaled width: layout-space char count stays
+        // constant under uniform font scaling, so wrap on d.width / scale,
+        // which equals the original chosen width in pre-scale units.
+        const layoutWidth = newW / scale;
+        d.wrappedDesc = wrapDescForWidth(node.description, layoutWidth);
+        d.height = renderedDescNodeHeight(d.wrappedDesc.length, scale);
+      } else {
+        d.width = newW;
+        d.height = Math.max(30, d.height * scale);
+      }
     }
   }
 
@@ -332,6 +368,116 @@ export function computeCycleLayout(
   };
 }
 
+/**
+ * Choose width + height for a described rectangular node by sweeping candidate
+ * widths and picking the one whose resulting aspect ratio is closest to
+ * DESC_TARGET_RATIO. Width grows with content so long descriptions get wider
+ * boxes instead of tall thin columns.
+ */
+function chooseDescribedRectDims(
+  description: string[],
+  labelWidth: number
+): { width: number; height: number; wrappedDesc: WrappedDescLine[] } {
+  const minW = Math.min(
+    MAX_NODE_WIDTH,
+    Math.max(MIN_NODE_WIDTH, labelWidth, DESC_MIN_WIDTH)
+  );
+  let best: {
+    width: number;
+    height: number;
+    wrappedDesc: WrappedDescLine[];
+  } | null = null;
+  let bestScore = Infinity;
+  for (let w = minW; w <= MAX_NODE_WIDTH; w += DESC_WIDTH_STEP) {
+    const wrapped = wrapDescForWidth(description, w);
+    const h = HEADER_HEIGHT + wrapped.length * DESC_LINE_HEIGHT + DESC_PAD_Y;
+    const ratio = w / h;
+    const score = Math.abs(Math.log(ratio / DESC_TARGET_RATIO));
+    if (score < bestScore) {
+      bestScore = score;
+      best = { width: w, height: h, wrappedDesc: wrapped };
+    }
+  }
+  if (best) return best;
+  const wrapped = wrapDescForWidth(description, minW);
+  return {
+    width: minW,
+    height: HEADER_HEIGHT + wrapped.length * DESC_LINE_HEIGHT + DESC_PAD_Y,
+    wrappedDesc: wrapped,
+  };
+}
+
+/** Wrap description lines for a rect node of the given total width. */
+function wrapDescForWidth(
+  description: string[],
+  nodeWidth: number
+): WrappedDescLine[] {
+  const textWidth = nodeWidth - NODE_PAD_X * 2;
+  const charsPerLine = Math.max(8, Math.floor(textWidth / DESC_CHAR_W));
+  return wrapDescriptionLines(description, charsPerLine);
+}
+
+// ── Renderer-aligned font/line-height clamps ──
+// These mirror the floor clamps in cycle/renderer.ts so the layout's reserved
+// height always matches what the renderer actually draws — preventing the
+// "text spills out the bottom of the box" bug at small scales.
+const RENDERER_DESC_FONT = 11;
+const RENDERER_DESC_FONT_MIN = 8;
+const RENDERER_DESC_LINE_H = 15;
+const RENDERER_DESC_LINE_H_MIN = 11;
+
+/**
+ * Reserved height for a rectangular described node at the given scale,
+ * computed using the renderer's clamped font + line-height so text always
+ * fits inside the rectangle even when scale is small enough to trigger the
+ * renderer's minimum-size clamps.
+ */
+function renderedDescNodeHeight(numLines: number, scale: number): number {
+  const headerH = HEADER_HEIGHT * scale;
+  const descFont = Math.max(
+    RENDERER_DESC_FONT_MIN,
+    Math.round(RENDERER_DESC_FONT * scale)
+  );
+  const descLineH = Math.max(
+    RENDERER_DESC_LINE_H_MIN,
+    Math.round(RENDERER_DESC_LINE_H * scale)
+  );
+  // Renderer: descStartY = sepY + 4 + scaledDescFont, then (N-1) more lines
+  // at scaledDescLineH. Add a small bottom pad so the last descender clears
+  // the box border.
+  const textBlockH = 4 + descFont + (numLines - 1) * descLineH;
+  const bottomPad = 8;
+  return headerH + textBlockH + bottomPad;
+}
+
+// ── Edge-label wrapping (shared with renderer) ──
+
+/**
+ * Maximum characters per line for edge labels and edge descriptions.
+ * Long single-line text gets wrapped to multiple lines so it doesn't
+ * shoot off-canvas when positioned at a cycle quadrant.
+ */
+export const EDGE_LABEL_MAX_CHARS = 32;
+
+/**
+ * Wrap an edge label string + description lines into rendered lines.
+ * Used by both layout (for fit-to-canvas sizing) and renderer (for drawing).
+ * The label, if present, is the first wrapped block; each description string
+ * is its own wrapped block. Empty strings are filtered.
+ */
+export function wrapEdgeLabelText(
+  label: string | undefined,
+  description: string[],
+  maxChars: number = EDGE_LABEL_MAX_CHARS
+): { labelLines: string[]; descLines: string[] } {
+  const labelLines = label ? wrapLines([label], maxChars) : [];
+  const descLines: string[] = [];
+  for (const d of description) {
+    descLines.push(...wrapLines([d], maxChars));
+  }
+  return { labelLines, descLines };
+}
+
 // ── Helper: word-wrap lines ──
 
 function wrapLines(lines: string[], charsPerLine: number): string[] {
@@ -358,38 +504,44 @@ function wrapLines(lines: string[], charsPerLine: number): string[] {
 function computeCircleNodeDims(
   node: { label: string; description: string[] },
   hasDesc: boolean
-): { width: number; height: number; wrappedDesc: string[] } {
+): { width: number; height: number; wrappedDesc: WrappedDescLine[] } {
   if (!hasDesc) {
-    // Label-only circle: radius fits the larger label text
     const textW = node.label.length * CIRCLE_LABEL_CHAR_W;
     const r = Math.max(MIN_CIRCLE_RADIUS, textW / 2 + CIRCLE_PAD);
     return { width: r * 2, height: r * 2, wrappedDesc: [] };
   }
 
-  // With descriptions: iteratively find a circle radius that fits the text.
-  // Start with a reasonable guess and grow until all text fits.
   let r = MIN_CIRCLE_RADIUS;
 
   for (let attempt = 0; attempt < 10; attempt++) {
     const wrappedDesc = wrapLinesForCircle(node.description, r);
-    const totalLines = 1 + wrappedDesc.length; // label + desc lines
+    const totalLines = 1 + wrappedDesc.length;
     const textBlockH = totalLines * DESC_LINE_HEIGHT + CIRCLE_PAD;
 
-    // Check if text fits vertically within the circle
     if (textBlockH / 2 <= r * 0.85) {
-      // Also check the label fits horizontally at its y-position (larger font)
       const labelW = node.label.length * CIRCLE_LABEL_CHAR_W;
-      const labelY = -textBlockH / 2 + DESC_LINE_HEIGHT; // relative to center
+      const labelY = -textBlockH / 2 + DESC_LINE_HEIGHT;
       const availW = 2 * Math.sqrt(Math.max(0, r * r - labelY * labelY));
       if (labelW <= availW - CIRCLE_PAD) {
-        return { width: r * 2, height: r * 2, wrappedDesc };
+        return {
+          width: r * 2,
+          height: r * 2,
+          wrappedDesc: wrappedDesc.map((text) => ({
+            text,
+            kind: 'plain' as const,
+          })),
+        };
       }
     }
     r += 10;
   }
 
   const wrappedDesc = wrapLinesForCircle(node.description, r);
-  return { width: r * 2, height: r * 2, wrappedDesc };
+  return {
+    width: r * 2,
+    height: r * 2,
+    wrappedDesc: wrappedDesc.map((text) => ({ text, kind: 'plain' as const })),
+  };
 }
 
 /**
@@ -541,7 +693,7 @@ function computeEdgePaths(
     // Arrowhead effective reach: full length minus the 10% overlap that
     // slides the marker back to cover the stroke/arrowhead junction line.
     const arrowLen = arrowHeadLength(strokeWidth) * 0.9;
-    const { path, labelX, labelY, labelAngle } = buildEdgeArc(
+    const { path, midAngle } = buildEdgeArc(
       src,
       tgt,
       cx,
@@ -549,6 +701,27 @@ function computeEdgePaths(
       radius,
       isClockwise,
       arrowLen
+    );
+
+    // Smart label placement: scale offset with label size and pick whichever
+    // side of the arc (outward toward canvas edge, inward toward center) has
+    // the most clearance from node bounding boxes.
+    const { labelLines, descLines } = wrapEdgeLabelText(
+      edge.label,
+      edge.description
+    );
+    const lineCount = labelLines.length + descLines.length;
+    let maxCharLen = 0;
+    for (const l of labelLines) maxCharLen = Math.max(maxCharLen, l.length);
+    for (const l of descLines) maxCharLen = Math.max(maxCharLen, l.length);
+    const { labelX, labelY, labelAngle } = computeEdgeLabelPosition(
+      midAngle,
+      radius,
+      cx,
+      cy,
+      lineCount,
+      maxCharLen,
+      layoutNodes
     );
     return {
       sourceIndex: edge.sourceIndex,
@@ -560,6 +733,123 @@ function computeEdgePaths(
       label: edge.label,
     };
   });
+}
+
+/**
+ * Position an edge label so its inner corner (the corner of the text bbox
+ * closest to the cycle center) sits exactly `EDGE_LABEL_CORNER_OFFSET`
+ * pixels radially outward from the arc midpoint. The bbox extends from that
+ * corner *away* from the cycle, into the empty quadrant between adjacent
+ * nodes — so the label visibly belongs to the arrow, not to either node.
+ *
+ * For mostly-vertical arc midpoints (top/bottom of the cycle) the bbox is
+ * centered horizontally on the radial axis. If the resulting placement still
+ * overlaps a node, we flip to inward placement (corner toward center) and
+ * adjust labelAngle so the renderer's text-anchor logic points text away
+ * from the ring.
+ */
+function computeEdgeLabelPosition(
+  midAngle: number,
+  radius: number,
+  cx: number,
+  cy: number,
+  lineCount: number,
+  maxCharLen: number,
+  layoutNodes: CycleLayoutNode[]
+): { labelX: number; labelY: number; labelAngle: number } {
+  if (lineCount === 0 || maxCharLen === 0) {
+    return {
+      labelX: cx + radius * Math.cos(midAngle),
+      labelY: cy + radius * Math.sin(midAngle),
+      labelAngle: midAngle,
+    };
+  }
+
+  const EDGE_LABEL_CORNER_OFFSET = 10;
+  const labelW = maxCharLen * EDGE_LABEL_CHAR_W;
+  const labelH = lineCount * 15;
+  const cosT = Math.cos(midAngle);
+  const sinT = Math.sin(midAngle);
+
+  type Placement = {
+    labelX: number;
+    labelY: number;
+    labelAngle: number;
+    bbX1: number;
+    bbX2: number;
+    bbY1: number;
+    bbY2: number;
+    overlap: number;
+  };
+
+  function place(sign: 1 | -1): Placement {
+    // Inner corner of bbox = arc midpoint M + sign * offset along radial.
+    // sign=+1: bbox extends outward (corner inside the cycle, body outside).
+    // sign=-1: bbox extends inward (corner outside the cycle, body toward
+    // center) — used as fallback when outward overlaps a node.
+    const cornerX = cx + (radius + sign * EDGE_LABEL_CORNER_OFFSET) * cosT;
+    const cornerY = cy + (radius + sign * EDGE_LABEL_CORNER_OFFSET) * sinT;
+
+    // Bbox extends from inner corner in the direction opposite the cycle
+    // center (when sign=+1) or toward the center (sign=-1). Treated axis-
+    // aligned: x extends in sign(cosT), y extends in sign(sinT), each scaled
+    // by `sign`.
+    const ROUND_THRESH = 0.3;
+    const radialX = sign * cosT;
+    const radialY = sign * sinT;
+    const sx = Math.abs(radialX) < ROUND_THRESH ? 0 : Math.sign(radialX);
+    const sy = Math.abs(radialY) < ROUND_THRESH ? 0 : Math.sign(radialY);
+
+    const bboxCx = cornerX + (sx * labelW) / 2;
+    const bboxCy = cornerY + (sy * labelH) / 2;
+
+    // Map bbox sx → text-anchor: +1 right (start), -1 left (end), 0 middle.
+    let labelX: number;
+    if (sx > 0) labelX = bboxCx - labelW / 2;
+    else if (sx < 0) labelX = bboxCx + labelW / 2;
+    else labelX = bboxCx;
+
+    // First-line baseline ≈ top of bbox + 12 (font ascent).
+    const labelY = bboxCy - labelH / 2 + 12;
+
+    const bbX1 = bboxCx - labelW / 2;
+    const bbX2 = bboxCx + labelW / 2;
+    const bbY1 = bboxCy - labelH / 2;
+    const bbY2 = bboxCy + labelH / 2;
+
+    let overlap = 0;
+    for (const n of layoutNodes) {
+      const nx1 = n.x - n.width / 2;
+      const nx2 = n.x + n.width / 2;
+      const ny1 = n.y - n.height / 2;
+      const ny2 = n.y + n.height / 2;
+      const ox = Math.max(0, Math.min(bbX2, nx2) - Math.max(bbX1, nx1));
+      const oy = Math.max(0, Math.min(bbY2, ny2) - Math.max(bbY1, ny1));
+      overlap += ox * oy;
+    }
+
+    // For inward placement, flip labelAngle by π so the renderer's anchor
+    // logic (driven by labelAngle quadrant) picks an anchor consistent with
+    // text growing toward the cycle center rather than away.
+    const labelAngle = sign === 1 ? midAngle : midAngle + Math.PI;
+    return { labelX, labelY, labelAngle, bbX1, bbX2, bbY1, bbY2, overlap };
+  }
+
+  const outward = place(1);
+  if (outward.overlap === 0) {
+    return {
+      labelX: outward.labelX,
+      labelY: outward.labelY,
+      labelAngle: outward.labelAngle,
+    };
+  }
+  const inward = place(-1);
+  const best = inward.overlap < outward.overlap ? inward : outward;
+  return {
+    labelX: best.labelX,
+    labelY: best.labelY,
+    labelAngle: best.labelAngle,
+  };
 }
 
 /** Estimated character width at 11px edge label font. */
@@ -594,16 +884,19 @@ function fitToCanvas(
     contentMaxY = Math.max(contentMaxY, n.y + n.height / 2);
   }
 
-  // Edge label extents (estimate text width from character count)
+  // Edge label extents (estimate text width from character count, accounting
+  // for line-wrapping that the renderer will apply to long edge labels).
   for (let i = 0; i < edges.length; i++) {
     const le = edges[i];
     const edge = parsed.edges[i];
 
+    const { labelLines, descLines } = wrapEdgeLabelText(
+      le.label,
+      edge.description
+    );
     let maxLineLen = 0;
-    if (le.label) maxLineLen = Math.max(maxLineLen, le.label.length);
-    for (const desc of edge.description) {
-      maxLineLen = Math.max(maxLineLen, desc.length);
-    }
+    for (const l of labelLines) maxLineLen = Math.max(maxLineLen, l.length);
+    for (const l of descLines) maxLineLen = Math.max(maxLineLen, l.length);
     if (maxLineLen === 0) continue;
 
     const textWidth = maxLineLen * EDGE_LABEL_CHAR_W;
@@ -629,9 +922,8 @@ function fitToCanvas(
     contentMinX = Math.min(contentMinX, labelLeft);
     contentMaxX = Math.max(contentMaxX, labelRight);
 
-    // Vertical: rough estimate for multi-line labels
-    let lineCount = le.label ? 1 : 0;
-    lineCount += edge.description.length;
+    // Vertical: account for wrapped label + description line counts
+    const lineCount = labelLines.length + descLines.length;
     contentMinY = Math.min(contentMinY, le.labelY - 12);
     contentMaxY = Math.max(contentMaxY, le.labelY + (lineCount - 1) * 15);
   }
@@ -671,14 +963,28 @@ function buildEdgeArc(
   radius: number,
   isClockwise: boolean,
   arrowLength: number = 0
-): { path: string; labelX: number; labelY: number; labelAngle: number } {
+): { path: string; midAngle: number } {
   const dir = isClockwise ? 1 : -1;
 
-  // Start arc from the source node's center angle — the node renders on top
-  // of the edge, so the overlap is hidden and there's no visible gap.
+  // Path starts at source center (covered by source node), but the *visible*
+  // arrow starts where the ring exits the source's boundary. Compute both:
+  // the path's startAngle for SVG, and srcExitAngle for the visible midpoint.
   const startAngle = src.angle;
+  const srcExitAngle = src.isCircle
+    ? circleNodeExitAngle(src.width / 2, radius, src.angle, dir)
+    : circleRectExitAngle(
+        src.x,
+        src.y,
+        src.width / 2,
+        src.height / 2,
+        cx,
+        cy,
+        radius,
+        src.angle,
+        dir
+      );
 
-  // Find where the cycle circle exits the target node
+  // Where the cycle circle enters the target node (visible end of arrow).
   const nodeEndAngle = tgt.isCircle
     ? circleNodeExitAngle(tgt.width / 2, radius, tgt.angle, -dir)
     : circleRectExitAngle(
@@ -694,7 +1000,7 @@ function buildEdgeArc(
       );
 
   // Pull back the path endpoint by the arrowhead length so the stroke
-  // stops at the arrow base (refX=0 means arrow extends forward from endpoint)
+  // stops at the arrow base.
   const arrowPullback = arrowLength > 0 ? arrowLength / radius : 0;
   const endAngle = nodeEndAngle - dir * arrowPullback;
 
@@ -703,7 +1009,6 @@ function buildEdgeArc(
   const endX = cx + radius * Math.cos(endAngle);
   const endY = cy + radius * Math.sin(endAngle);
 
-  // Compute effective sweep for large-arc-flag
   let effectiveSweep = (endAngle - startAngle) * dir;
   if (effectiveSweep <= 0) effectiveSweep += 2 * Math.PI;
 
@@ -712,12 +1017,11 @@ function buildEdgeArc(
 
   const path = `M ${startX} ${startY} A ${radius} ${radius} 0 ${largeArc} ${sweepFlag} ${endX} ${endY}`;
 
-  // Label position: pushed outward from the arc midpoint
-  const midAngle = startAngle + (dir * effectiveSweep) / 2;
-  const LABEL_OUTWARD_OFFSET = 16;
-  const labelR = radius + LABEL_OUTWARD_OFFSET;
-  const labelX = cx + labelR * Math.cos(midAngle);
-  const labelY = cy + labelR * Math.sin(midAngle);
-
-  return { path, labelX, labelY, labelAngle: midAngle };
+  // Visible-arrow midpoint: between where the ring leaves the source rectangle
+  // and where it enters the target rectangle (after arrow pullback). For
+  // asymmetric nodes this differs noticeably from the geometric path midpoint.
+  let visibleSweep = (nodeEndAngle - srcExitAngle) * dir;
+  if (visibleSweep <= 0) visibleSweep += 2 * Math.PI;
+  const midAngle = srcExitAngle + (dir * visibleSweep) / 2;
+  return { path, midAngle };
 }

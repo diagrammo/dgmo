@@ -29,7 +29,7 @@ import {
   arrowHeadLength,
   type ParsedCycle,
 } from './types';
-import { computeCycleLayout } from './layout';
+import { computeCycleLayout, wrapEdgeLabelText } from './layout';
 
 // ── Constants ────────────────────────────────────────────────
 const NODE_FONT_SIZE = 13;
@@ -197,7 +197,11 @@ export function renderCycle(
     }
   }
 
-  // ── Render edges (below nodes) ──
+  // ── Render edges paths (below nodes); labels rendered later, on top ──
+  const edgeLabelInfo: Array<{
+    le: (typeof layout.edges)[number];
+    edge: (typeof parsed.edges)[number];
+  }> = [];
   for (let i = 0; i < layout.edges.length; i++) {
     const le = layout.edges[i];
     const edge = parsed.edges[i];
@@ -214,7 +218,6 @@ export function renderCycle(
       edgeG.attr('data-line-number', edge.lineNumber);
     }
 
-    // Edge path
     const pathEl = edgeG
       .append('path')
       .attr('d', le.path)
@@ -228,82 +231,7 @@ export function renderCycle(
       pathEl.style('cursor', 'pointer').on('click', () => onClickItem(ln));
     }
 
-    // Edge label + descriptions — positioned outside the circle
-    const hasEdgeLabel = !!le.label;
-    const hasEdgeDesc = showDescriptions && edge.description.length > 0;
-
-    if (hasEdgeLabel || hasEdgeDesc) {
-      // Determine text-anchor based on which side of the circle the label is on
-      const normAngle =
-        ((le.labelAngle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
-      const isRight = normAngle < Math.PI * 0.4 || normAngle > Math.PI * 1.6;
-      const isLeft = normAngle > Math.PI * 0.6 && normAngle < Math.PI * 1.4;
-      const anchor = isRight ? 'start' : isLeft ? 'end' : 'middle';
-
-      // Estimate text block dimensions for background
-      let lineCount = 0;
-      let maxCharLen = 0;
-      if (hasEdgeLabel) {
-        lineCount++;
-        maxCharLen = Math.max(maxCharLen, le.label!.length);
-      }
-      if (hasEdgeDesc) {
-        lineCount += edge.description.length;
-        for (const dl of edge.description) {
-          maxCharLen = Math.max(maxCharLen, dl.length);
-        }
-      }
-      const bgW = maxCharLen * 7 + 12; // estimated text width + padding
-      const bgH = lineCount * DESC_LINE_HEIGHT + 6;
-      const bgX = isRight
-        ? le.labelX - 4
-        : isLeft
-          ? le.labelX - bgW + 4
-          : le.labelX - bgW / 2;
-      const bgY = le.labelY - EDGE_LABEL_FONT_SIZE - 2;
-
-      // Background rect behind edge label text
-      edgeG
-        .append('rect')
-        .attr('x', bgX)
-        .attr('y', bgY)
-        .attr('width', bgW)
-        .attr('height', bgH)
-        .attr('rx', 3)
-        .attr('fill', palette.bg)
-        .attr('fill-opacity', 0.85);
-
-      let textY = le.labelY;
-
-      if (hasEdgeLabel) {
-        const labelText = edgeG
-          .append('text')
-          .attr('x', le.labelX)
-          .attr('y', textY)
-          .attr('text-anchor', anchor)
-          .attr('fill', palette.text)
-          .attr('font-family', FONT_FAMILY)
-          .attr('font-size', EDGE_LABEL_FONT_SIZE)
-          .attr('font-weight', '600');
-        renderInlineText(labelText, le.label!, palette, EDGE_LABEL_FONT_SIZE);
-        textY += DESC_LINE_HEIGHT;
-      }
-
-      if (hasEdgeDesc) {
-        edge.description.forEach((line) => {
-          const descText = edgeG
-            .append('text')
-            .attr('x', le.labelX)
-            .attr('y', textY)
-            .attr('text-anchor', anchor)
-            .attr('fill', palette.textMuted)
-            .attr('font-family', FONT_FAMILY)
-            .attr('font-size', DESC_FONT_SIZE);
-          renderInlineText(descText, line, palette, DESC_FONT_SIZE);
-          textY += DESC_LINE_HEIGHT;
-        });
-      }
-    }
+    edgeLabelInfo.push({ le, edge });
   }
 
   // ── Render nodes ──
@@ -386,7 +314,7 @@ export function renderCycle(
             .attr('fill', palette.textMuted)
             .attr('font-family', FONT_FAMILY)
             .attr('font-size', scaledDescFont);
-          renderInlineText(descText, line, palette, DESC_FONT_SIZE);
+          renderInlineText(descText, line.text, palette, DESC_FONT_SIZE);
           descY += scaledDescLineH;
         });
       } else {
@@ -444,16 +372,46 @@ export function renderCycle(
           .attr('stroke-width', 1);
 
         const descStartY = sepY + 4 + scaledDescFont;
+        const descPadX = Math.max(8, 12 * layout.scale);
+        const descX = ln.x - nodeW / 2 + descPadX;
+        // Bullet body column — body of bullet items + their continuations
+        // share this x so wrapped text aligns under the first word past "•".
+        const bulletBodyX = descX + Math.max(8, 12 * layout.scale);
         wrappedDesc.forEach((line, li) => {
-          const descText = nodeG
-            .append('text')
-            .attr('x', ln.x)
-            .attr('y', descStartY + li * scaledDescLineH)
-            .attr('text-anchor', 'middle')
-            .attr('fill', palette.textMuted)
-            .attr('font-family', FONT_FAMILY)
-            .attr('font-size', scaledDescFont);
-          renderInlineText(descText, line, palette, DESC_FONT_SIZE);
+          const lineY = descStartY + li * scaledDescLineH;
+          if (line.kind === 'bullet-first') {
+            // Bullet glyph as its own text element at descX
+            nodeG
+              .append('text')
+              .attr('x', descX)
+              .attr('y', lineY)
+              .attr('text-anchor', 'start')
+              .attr('fill', palette.textMuted)
+              .attr('font-family', FONT_FAMILY)
+              .attr('font-size', scaledDescFont)
+              .text('•');
+            // Body text at the bullet column
+            const bodyText = nodeG
+              .append('text')
+              .attr('x', bulletBodyX)
+              .attr('y', lineY)
+              .attr('text-anchor', 'start')
+              .attr('fill', palette.textMuted)
+              .attr('font-family', FONT_FAMILY)
+              .attr('font-size', scaledDescFont);
+            renderInlineText(bodyText, line.text, palette, DESC_FONT_SIZE);
+          } else {
+            const x = line.kind === 'bullet-cont' ? bulletBodyX : descX;
+            const descText = nodeG
+              .append('text')
+              .attr('x', x)
+              .attr('y', lineY)
+              .attr('text-anchor', 'start')
+              .attr('fill', palette.textMuted)
+              .attr('font-family', FONT_FAMILY)
+              .attr('font-size', scaledDescFont);
+            renderInlineText(descText, line.text, palette, DESC_FONT_SIZE);
+          }
         });
       } else {
         // ── Plain node: label centered ──
@@ -468,6 +426,80 @@ export function renderCycle(
           .attr('font-weight', '600');
         renderInlineText(labelText, node.label, palette, scaledNodeFont);
       }
+    }
+  }
+
+  // ── Render edge labels (in a new group appended after nodes so they sit
+  // on top of nodes in document order, regardless of append-time ordering). ──
+  const labelLayer = g.append('g').attr('class', 'cycle-edge-labels');
+  for (const { le, edge } of edgeLabelInfo) {
+    const hasEdgeLabel = !!le.label;
+    const hasEdgeDesc = showDescriptions && edge.description.length > 0;
+    const { labelLines, descLines } = wrapEdgeLabelText(
+      hasEdgeLabel ? le.label : undefined,
+      hasEdgeDesc ? edge.description : []
+    );
+    if (labelLines.length === 0 && descLines.length === 0) continue;
+    const edgeG = labelLayer.append('g').attr('class', 'cycle-edge');
+    if (edge.lineNumber) {
+      edgeG.attr('data-line-number', edge.lineNumber);
+    }
+
+    const normAngle =
+      ((le.labelAngle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+    const isRight = normAngle < Math.PI * 0.4 || normAngle > Math.PI * 1.6;
+    const isLeft = normAngle > Math.PI * 0.6 && normAngle < Math.PI * 1.4;
+    const anchor = isRight ? 'start' : isLeft ? 'end' : 'middle';
+
+    const lineCount = labelLines.length + descLines.length;
+    let maxCharLen = 0;
+    for (const l of labelLines) maxCharLen = Math.max(maxCharLen, l.length);
+    for (const l of descLines) maxCharLen = Math.max(maxCharLen, l.length);
+
+    const bgW = maxCharLen * 7 + 12;
+    const bgH = lineCount * DESC_LINE_HEIGHT + 6;
+    const bgX = isRight
+      ? le.labelX - 4
+      : isLeft
+        ? le.labelX - bgW + 4
+        : le.labelX - bgW / 2;
+    const bgY = le.labelY - EDGE_LABEL_FONT_SIZE - 2;
+
+    edgeG
+      .append('rect')
+      .attr('x', bgX)
+      .attr('y', bgY)
+      .attr('width', bgW)
+      .attr('height', bgH)
+      .attr('rx', 3)
+      .attr('fill', palette.bg)
+      .attr('fill-opacity', 0.85);
+
+    let textY = le.labelY;
+    for (const line of labelLines) {
+      const labelText = edgeG
+        .append('text')
+        .attr('x', le.labelX)
+        .attr('y', textY)
+        .attr('text-anchor', anchor)
+        .attr('fill', palette.text)
+        .attr('font-family', FONT_FAMILY)
+        .attr('font-size', EDGE_LABEL_FONT_SIZE)
+        .attr('font-weight', '600');
+      renderInlineText(labelText, line, palette, EDGE_LABEL_FONT_SIZE);
+      textY += DESC_LINE_HEIGHT;
+    }
+    for (const line of descLines) {
+      const descText = edgeG
+        .append('text')
+        .attr('x', le.labelX)
+        .attr('y', textY)
+        .attr('text-anchor', anchor)
+        .attr('fill', palette.textMuted)
+        .attr('font-family', FONT_FAMILY)
+        .attr('font-size', DESC_FONT_SIZE);
+      renderInlineText(descText, line, palette, DESC_FONT_SIZE);
+      textY += DESC_LINE_HEIGHT;
     }
   }
 }
