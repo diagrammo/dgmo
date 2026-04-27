@@ -42,6 +42,8 @@ const DESC_ACCENT_WIDTH = 3;
 const DESC_ACCENT_GAP = 12;
 /** Approximate ratio of average glyph width to font size (sans-serif). */
 const CHAR_WIDTH_RATIO = 0.55;
+/** Pixel offset between bullet glyph column and body-text column. */
+const BULLET_BODY_INDENT = 10;
 
 const LABEL_FONT_MIN = 12;
 const LABEL_FONT_MAX = 22;
@@ -441,12 +443,25 @@ function renderLayerDescriptions(
   // For right-anchored (left-column) text, x is the right edge of the column.
   const textLineX =
     side === 'right' ? textX : layout.leftAccentX - DESC_ACCENT_GAP;
-  // Bullet glyph + body always read left-to-right, so anchor them at the
-  // column's left edge. For left-side descriptions the column sits to the
-  // LEFT of the accent bar, so bulletColLeftX is the column's outer edge
-  // (leftTextX) — not the gap between bar and pyramid.
-  const bulletColLeftX =
-    side === 'right' ? layout.rightTextX : layout.leftTextX;
+  // For right-side bullets, anchor the glyph at the column's left edge and
+  // let body text flow rightward. For left-side bullets, the column sits to
+  // the LEFT of the bar and plain text right-aligns to the bar — to keep
+  // the visual block tight against the bar (rather than floating at the
+  // canvas margin), measure the widest bullet line per variant and
+  // right-anchor the bullet block as a whole. Hanging indent is preserved
+  // because all bullet rows still share the same body-column x.
+  const bulletColRightEdge = layout.leftAccentX - DESC_ACCENT_GAP;
+  const computeBulletColLeftX = (lines: WrappedDescLine[]): number => {
+    if (side === 'right') return layout.rightTextX;
+    const charW = descFont * CHAR_WIDTH_RATIO;
+    let maxBodyW = 0;
+    for (const l of lines) {
+      if (l.kind === 'bullet-first' || l.kind === 'bullet-cont') {
+        maxBodyW = Math.max(maxBodyW, l.text.length * charW);
+      }
+    }
+    return bulletColRightEdge - maxBodyW - BULLET_BODY_INDENT;
+  };
 
   // Full-reveal budget: how many wrapped lines can fit between title and
   // bottom margin. Truncate beyond that.
@@ -466,7 +481,7 @@ function renderLayerDescriptions(
       textX: textLineX,
       textAnchor,
       side,
-      bulletColLeftX,
+      bulletColLeftX: computeBulletColLeftX(wrap.allLines),
       midY,
       descFont,
       descLineHeight,
@@ -491,7 +506,7 @@ function renderLayerDescriptions(
     textX: textLineX,
     textAnchor,
     side,
-    bulletColLeftX,
+    bulletColLeftX: computeBulletColLeftX(shortLines),
     midY,
     descFont,
     descLineHeight,
@@ -512,7 +527,7 @@ function renderLayerDescriptions(
     textX: textLineX,
     textAnchor,
     side,
-    bulletColLeftX,
+    bulletColLeftX: computeBulletColLeftX(fullLines),
     midY,
     descFont,
     descLineHeight,
@@ -599,7 +614,6 @@ function renderDescriptionVariant(args: RenderVariantArgs): void {
     variant,
   } = args;
   if (lines.length === 0) return;
-  const BULLET_BODY_INDENT = 10;
 
   // Center the block on midY, but clamp so it stays between topBound/bottomBound.
   const totalH = lines.length * descLineHeight;
