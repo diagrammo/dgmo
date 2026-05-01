@@ -732,27 +732,27 @@ describe('3. Boolean options', () => {
     expect(r.options['no-auto-color']).toBeTruthy();
   });
 
-  it('no-labels works for scatter', () => {
+  it('no-name works for scatter', () => {
     const r = parseExtendedChart(
-      'scatter Test\nno-labels\nAlice 0.5 0.5',
+      'scatter Test\nno-name\nAlice 0.5 0.5',
       palette
     );
-    expect(r.showLabels).toBe(false);
+    expect(r.noName).toBe(true);
   });
 
-  it('no-label-name works for pie', () => {
-    const r = parseChart('pie Test\nno-label-name\nA 50\nB 50', palette);
-    expect(r.noLabelName).toBe(true);
+  it('no-name works for pie', () => {
+    const r = parseChart('pie Test\nno-name\nA 50\nB 50', palette);
+    expect(r.noName).toBe(true);
   });
 
-  it('no-label-value works for pie', () => {
-    const r = parseChart('pie Test\nno-label-value\nA 50\nB 50', palette);
-    expect(r.noLabelValue).toBe(true);
+  it('no-value works for pie', () => {
+    const r = parseChart('pie Test\nno-value\nA 50\nB 50', palette);
+    expect(r.noValue).toBe(true);
   });
 
-  it('no-label-percent works for pie', () => {
-    const r = parseChart('pie Test\nno-label-percent\nA 50\nB 50', palette);
-    expect(r.noLabelPercent).toBe(true);
+  it('no-percent works for pie', () => {
+    const r = parseChart('pie Test\nno-percent\nA 50\nB 50', palette);
+    expect(r.noPercent).toBe(true);
   });
 
   it('shade works for function charts', () => {

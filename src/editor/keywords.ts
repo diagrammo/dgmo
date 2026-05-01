@@ -142,9 +142,10 @@ export const DIRECTIVE_KEYWORDS = new Set([
   'no-activations',
   // Data charts
   'stacked',
-  'no-label-name',
-  'no-label-value',
-  'no-label-percent',
+  'no-name',
+  'no-value',
+  'no-percent',
+  'no-descriptions',
   // Slope
   'period',
   // Quadrant

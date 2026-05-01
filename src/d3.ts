@@ -170,6 +170,10 @@ export interface ParsedVisualization {
   quadrantYAxis: [string, string] | null;
   quadrantYAxisLineNumber: number | null;
   quadrantTitleLineNumber: number | null;
+  // Show-everything-default flags (silent-ignore at parser; per-chart honoring at renderer)
+  noName?: boolean;
+  noValue?: boolean;
+  noPercent?: boolean;
   diagnostics: DgmoError[];
   error: string | null;
 }
@@ -1119,6 +1123,40 @@ export function parseVisualization(
           result.cloudOptions.minSize = parts[0];
           result.cloudOptions.maxSize = parts[1];
         }
+        continue;
+      }
+    }
+
+    // ── Bare-keyword no-* flags (show-everything default) ──────
+    {
+      const bareToken = line.toLowerCase();
+      // Retired flag names — hard error with did-you-mean.
+      const RETIRED_D3: Record<string, string> = {
+        'no-label-name': 'no-name',
+        'no-label-value': 'no-value',
+        'no-label-percent': 'no-percent',
+        'no-labels': 'no-name',
+      };
+      if (RETIRED_D3[bareToken]) {
+        return fail(
+          lineNumber,
+          `Unknown option '${bareToken}'. Did you mean '${RETIRED_D3[bareToken]}'? (Renamed in v0.10.)`
+        );
+      }
+      if (bareToken === 'no-name') {
+        result.noName = true;
+        continue;
+      }
+      if (bareToken === 'no-value') {
+        result.noValue = true;
+        continue;
+      }
+      if (bareToken === 'no-percent') {
+        result.noPercent = true;
+        continue;
+      }
+      // Silent-ignore unrecognized no-* flags (typos, future flags).
+      if (bareToken.startsWith('no-')) {
         continue;
       }
     }
@@ -7321,8 +7359,7 @@ export async function renderForExport(
       viewState?.tag ?? options?.tagGroup
     );
     const hideDescriptions =
-      mmParsed.options['hide-descriptions'] === 'true' ||
-      viewState?.hd === true;
+      mmParsed.options['no-descriptions'] === 'true' || viewState?.hd === true;
 
     const { roots: effectiveRoots, hiddenCounts } =
       collapsedNodes && collapsedNodes.size > 0

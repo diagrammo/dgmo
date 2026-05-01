@@ -63,7 +63,7 @@ describe('mindmap renderer', () => {
     expect(svg).toMatch(/d="M\s.*L\s/);
   });
 
-  it('hide-descriptions suppresses description text', () => {
+  it('no-descriptions suppresses description text', () => {
     const content = readFileSync(
       resolve(FIXTURE_DIR, 'tags-and-colors.dgmo'),
       'utf-8'

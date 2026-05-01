@@ -516,7 +516,7 @@ export function renderMindmapForExport(
   if (parsed.error) return '';
 
   const isDark = theme === 'dark';
-  const hideDescriptions = parsed.options['hide-descriptions'] === 'true';
+  const hideDescriptions = parsed.options['no-descriptions'] === 'true';
 
   const layout = layoutMindmap(parsed, palette, {
     interactive: false,

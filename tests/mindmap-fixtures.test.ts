@@ -112,7 +112,7 @@ describe('mindmap fixtures', () => {
     const result = parseMindmap(content, palette);
     expect(result.tagGroups).toHaveLength(2);
     expect(result.options['active-tag']).toBe('Priority');
-    expect(result.options['hide-descriptions']).toBe('true');
+    expect(result.options['no-descriptions']).toBe('true');
     expect(result.roots[0].color).toBeUndefined(); // color suffix no longer extracted
   });
 });

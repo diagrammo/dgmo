@@ -11,7 +11,7 @@ tag Department d
   Marketing(orange)
 
 active-tag Priority
-hide-descriptions
+no-descriptions
 
 Feature A(red) | p: High, d: Engineering
   description: This should be hidden

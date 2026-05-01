@@ -165,9 +165,24 @@ export function parseMindmap(
           continue;
         }
       }
-      // Bare keyword option: hide-descriptions
-      if (trimmed.toLowerCase() === 'hide-descriptions') {
-        result.options['hide-descriptions'] = 'true';
+      // Retired flags: data-chart vocabulary + hide-descriptions
+      const lower = trimmed.toLowerCase();
+      const RETIRED_MM: Record<string, string> = {
+        'hide-descriptions': 'no-descriptions',
+        'no-label-name': 'no-name',
+        'no-label-value': 'no-value',
+        'no-label-percent': 'no-percent',
+        'no-labels': 'no-name',
+      };
+      if (RETIRED_MM[lower]) {
+        return fail(
+          lineNumber,
+          `Unknown option '${lower}'. Did you mean '${RETIRED_MM[lower]}'? (Renamed in v0.10.)`
+        );
+      }
+      // Bare keyword option: no-descriptions
+      if (lower === 'no-descriptions') {
+        result.options['no-descriptions'] = 'true';
         continue;
       }
     }

@@ -23,7 +23,7 @@ Saker 7 1050
 scatter Chart Title
 x-label X Axis Label
 y-label Y Axis Label
-no-labels
+no-name
 size-label Size Legend Label
 
 Point Name x y
@@ -40,7 +40,7 @@ Point Name x y size
 | `title`      | Chart title displayed above the chart                      | No       |
 | `x-label`    | Label for the X axis                                       | No       |
 | `y-label`    | Label for the Y axis                                       | No       |
-| `no-labels`  | Hide point labels (labels are on by default)               | No       |
+| `no-name`    | Hide point labels (labels are on by default)               | No       |
 | `size-label` | Label for the size dimension (shown in legend for bubbles) | No       |
 
 ## Data Format

@@ -287,7 +287,18 @@ tag Priority p
 
   // ── Options ─────────────────────────────────────────────────
 
-  it('parses hide-descriptions option', () => {
+  it('parses no-descriptions option', () => {
+    const result = parseMindmap(
+      `mindmap Root
+
+no-descriptions
+
+  Child`
+    );
+    expect(result.options['no-descriptions']).toBe('true');
+  });
+
+  it('errors on retired hide-descriptions with did-you-mean', () => {
     const result = parseMindmap(
       `mindmap Root
 
@@ -295,7 +306,9 @@ hide-descriptions
 
   Child`
     );
-    expect(result.options['hide-descriptions']).toBe('true');
+    expect(result.error).toBeTruthy();
+    expect(result.error).toContain('hide-descriptions');
+    expect(result.error).toContain('no-descriptions');
   });
 
   it('parses active-tag option', () => {

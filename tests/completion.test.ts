@@ -405,10 +405,9 @@ describe('COMPLETION_REGISTRY', () => {
       'critical-path',
       'direction-tb',
       'series',
-      'no-label-name',
-      'no-label-value',
-      'no-label-percent',
-      'no-labels',
+      'no-name',
+      'no-value',
+      'no-percent',
     ];
     for (const key of expected) {
       expect(METADATA_KEY_SET.has(key), `METADATA_KEY_SET missing ${key}`).toBe(

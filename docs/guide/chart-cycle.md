@@ -114,7 +114,7 @@ Another Step | span: 1.5
 | Directive | Effect |
 |-----------|--------|
 | `direction-counterclockwise` | Reverse cycle direction (default: clockwise) |
-| `hide-descriptions` | Hide description text on all nodes and edges |
+| `no-descriptions` | Hide description text on all nodes and edges |
 | `circle-nodes` | Render nodes as circles instead of rounded rectangles |
 
 ```

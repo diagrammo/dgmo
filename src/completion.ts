@@ -115,6 +115,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'x-label': { description: 'X-axis label' },
       'y-label': { description: 'Y-axis label' },
       'orientation-horizontal': { description: 'Switch to horizontal bars' },
+      'no-value': { description: 'Hide value labels atop each bar' },
       color: { description: 'Bar color override' },
     }),
   ],
@@ -124,22 +125,23 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       series: { description: 'Series name(s)' },
       'x-label': { description: 'X-axis label' },
       'y-label': { description: 'Y-axis label' },
+      'no-value': { description: 'Hide value labels at each point' },
     }),
   ],
   [
     'pie',
     withGlobals({
-      'no-label-name': { description: 'Hide name from segment labels' },
-      'no-label-value': { description: 'Hide value from segment labels' },
-      'no-label-percent': { description: 'Hide percent from segment labels' },
+      'no-name': { description: 'Hide name from segment labels' },
+      'no-value': { description: 'Hide value from segment labels' },
+      'no-percent': { description: 'Hide percent from segment labels' },
     }),
   ],
   [
     'doughnut',
     withGlobals({
-      'no-label-name': { description: 'Hide name from segment labels' },
-      'no-label-value': { description: 'Hide value from segment labels' },
-      'no-label-percent': { description: 'Hide percent from segment labels' },
+      'no-name': { description: 'Hide name from segment labels' },
+      'no-value': { description: 'Hide value from segment labels' },
+      'no-percent': { description: 'Hide percent from segment labels' },
     }),
   ],
   [
@@ -148,17 +150,23 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       series: { description: 'Series name(s)' },
       'x-label': { description: 'X-axis label' },
       'y-label': { description: 'Y-axis label' },
+      'no-value': { description: 'Hide value labels at each point' },
     }),
   ],
   [
     'polar-area',
     withGlobals({
-      'no-label-name': { description: 'Hide name from segment labels' },
-      'no-label-value': { description: 'Hide value from segment labels' },
-      'no-label-percent': { description: 'Hide percent from segment labels' },
+      'no-name': { description: 'Hide name from segment labels' },
+      'no-value': { description: 'Hide value from segment labels' },
+      'no-percent': { description: 'Hide percent from segment labels' },
     }),
   ],
-  ['radar', withGlobals()],
+  [
+    'radar',
+    withGlobals({
+      'no-value': { description: 'Hide value labels at each vertex' },
+    }),
+  ],
   [
     'bar-stacked',
     withGlobals({
@@ -166,6 +174,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'x-label': { description: 'X-axis label' },
       'y-label': { description: 'Y-axis label' },
       'orientation-horizontal': { description: 'Switch to horizontal bars' },
+      'no-value': { description: 'Hide per-segment values inside each stack' },
     }),
   ],
 
@@ -173,7 +182,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'scatter',
     withGlobals({
-      'no-labels': { description: 'Hide point labels' },
+      'no-name': { description: 'Hide point labels' },
       'x-label': { description: 'X-axis label' },
       'y-label': { description: 'Y-axis label' },
       'size-label': { description: 'Size axis label' },
@@ -183,11 +192,18 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     'heatmap',
     withGlobals({
       columns: { description: 'Column labels (required)' },
+      'no-value': { description: 'Hide cell value text' },
     }),
   ],
   ['sankey', withGlobals()],
   ['chord', withGlobals()],
-  ['funnel', withGlobals()],
+  [
+    'funnel',
+    withGlobals({
+      'no-name': { description: 'Hide left-side name labels' },
+      'no-value': { description: 'Hide right-side value labels' },
+    }),
+  ],
   [
     'function',
     withGlobals({
@@ -335,7 +351,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   [
     'mindmap',
     withGlobals({
-      'hide-descriptions': { description: 'Hide node descriptions' },
+      'no-descriptions': { description: 'Hide node descriptions' },
       'active-tag': { description: 'Active tag group name' },
     }),
   ],
@@ -365,7 +381,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'direction-counterclockwise': {
         description: 'Reverse cycle direction to counterclockwise',
       },
-      'hide-descriptions': { description: 'Hide node and edge descriptions' },
+      'no-descriptions': { description: 'Hide node and edge descriptions' },
       'circle-nodes': {
         description: 'Render nodes as circles instead of rectangles',
       },
@@ -1139,7 +1155,7 @@ function extractCycleSymbols(docText: string): DiagramSymbols {
     if (
       firstToken === 'direction-counterclockwise' ||
       firstToken === 'circle-nodes' ||
-      firstToken === 'hide-descriptions'
+      firstToken === 'no-descriptions'
     )
       continue;
 
@@ -1154,11 +1170,7 @@ function extractCycleSymbols(docText: string): DiagramSymbols {
   return {
     kind: 'cycle',
     entities,
-    keywords: [
-      'direction-counterclockwise',
-      'hide-descriptions',
-      'circle-nodes',
-    ],
+    keywords: ['direction-counterclockwise', 'no-descriptions', 'circle-nodes'],
   };
 }
 

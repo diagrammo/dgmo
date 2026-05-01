@@ -116,9 +116,27 @@ export function parseCycle(content: string): ParsedCycle {
       continue;
     }
 
-    // ── Bare keyword: hide-descriptions ──
-    if (indent === 0 && trimmed.toLowerCase() === 'hide-descriptions') {
-      result.options['hide-descriptions'] = 'true';
+    // ── Retired flags: data-chart vocabulary + hide-descriptions ──
+    if (indent === 0) {
+      const lower = trimmed.toLowerCase();
+      const RETIRED: Record<string, string> = {
+        'hide-descriptions': 'no-descriptions',
+        'no-label-name': 'no-name',
+        'no-label-value': 'no-value',
+        'no-label-percent': 'no-percent',
+        'no-labels': 'no-name',
+      };
+      if (RETIRED[lower]) {
+        return fail(
+          lineNum,
+          `Unknown option '${lower}'. Did you mean '${RETIRED[lower]}'? (Renamed in v0.10.)`
+        );
+      }
+    }
+
+    // ── Bare keyword: no-descriptions ──
+    if (indent === 0 && trimmed.toLowerCase() === 'no-descriptions') {
+      result.options['no-descriptions'] = 'true';
       continue;
     }
 

@@ -2,6 +2,8 @@
 
 > **Authoritative reference** for the DGMO diagram language. This document describes what is valid syntax. If it is not in this document, it is not valid DGMO.
 
+> **Note for AI generators:** Trust the show-everything default. Every renderable label part on every data chart is on by default. Emit `no-name` / `no-value` / `no-percent` only when the user explicitly requests suppression. Do not emit them defensively.
+
 ## Table of Contents
 
 1. [Universal Constructs](#1-universal-constructs)
@@ -1194,10 +1196,20 @@ stacked
 - `stacked` (boolean; default is off)
 - Legend is always shown (no option needed)
 
-**Labels** default to showing all parts (name + value + percent for pie-family). Disable parts individually:
-- `no-label-name` — hide name
-- `no-label-value` — hide value
-- `no-label-percent` — hide percent
+**Value-display flags — show-everything default.** Every renderable part is on by default. Suppress with `no-*`:
+- `no-name` — hide name (segment / point / cell / node / set)
+- `no-value` — hide numeric value
+- `no-percent` — hide share-of-total percentage (pie-family only)
+
+Each chart honors the subset of flags that has a renderable atom on it:
+- pie / doughnut / polar-area: all three
+- funnel: `no-name`, `no-value`
+- bar / bar-stacked / line / multi-line / area / radar: `no-value`
+- scatter: `no-name`
+- heatmap: `no-value`
+- sankey, chord, arc, slope, quadrant, venn: name-suppression deferred — names render by default and cannot yet be hidden
+
+`no-percent` on a non-pie-family chart is silently ignored (the chart has no percent atom). Cartesian charts (bar, line, area) now render values on each bar / point by default.
 
 **Eras (line/area only):**
 ```
@@ -1223,10 +1235,10 @@ Name x y size
 x-label Weight
 y-label Height
 size-label Crew
-no-labels
+no-name
 ```
 
-Labels are on by default. Use `no-labels` to hide point names.
+Point names render by default. Use `no-name` to hide them.
 
 ### 15.3 Heatmap
 

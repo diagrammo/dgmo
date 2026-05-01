@@ -126,7 +126,9 @@ export interface ParsedExtendedChart {
   ylabel?: string;
   ylabelLineNumber?: number;
   sizelabel?: string;
-  showLabels?: boolean;
+  noName?: boolean;
+  noValue?: boolean;
+  noPercent?: boolean;
   shade?: boolean;
   categoryColors?: Record<string, string>;
   categoryLineNumbers?: Record<string, number>;
@@ -203,11 +205,26 @@ const KNOWN_EXTENDED_OPTIONS = new Set([
   'x-label',
   'y-label',
   'size-label',
-  'no-labels',
+  'no-name',
+  'no-value',
+  'no-percent',
   'columns',
   'rows',
   'x',
 ]);
+
+/**
+ * Retired flag names — fixed-size map for the migration window.
+ * Hard-errors with a "did you mean" suggestion so existing diagrams don't
+ * silently regress when the renamed defaults take effect. Drop after the
+ * migration window (~6 months).
+ */
+const RETIRED_EXTENDED_FLAGS: Record<string, string> = {
+  'no-label-name': 'no-name',
+  'no-label-value': 'no-value',
+  'no-label-percent': 'no-percent',
+  'no-labels': 'no-name',
+};
 
 /**
  * Parse a scatter data row: "Name x, y[, size]" or "Name(color) x, y[, size]"
@@ -572,13 +589,36 @@ export function parseExtendedChart(
       }
     }
 
+    // Retired flag names — hard-error with "did you mean".
+    if (RETIRED_EXTENDED_FLAGS[firstToken]) {
+      const diag = makeDgmoError(
+        lineNumber,
+        `Unknown option '${firstToken}'. Did you mean '${RETIRED_EXTENDED_FLAGS[firstToken]}'? (Renamed in v0.10.)`
+      );
+      result.diagnostics.push(diag);
+      result.error = formatDgmoError(diag);
+      return result;
+    }
+
     // Bare boolean options
-    if (firstToken === 'no-labels') {
-      result.showLabels = false;
+    if (firstToken === 'no-name') {
+      result.noName = true;
+      continue;
+    }
+    if (firstToken === 'no-value') {
+      result.noValue = true;
+      continue;
+    }
+    if (firstToken === 'no-percent') {
+      result.noPercent = true;
       continue;
     }
     if (firstToken === 'shade') {
       result.shade = true;
+      continue;
+    }
+    // Silent-ignore unrecognized no-* flags (typos, future flags).
+    if (firstToken.startsWith('no-') && spaceIdx < 0) {
       continue;
     }
 
@@ -1500,7 +1540,7 @@ function buildScatterOption(
   const hasCategories = points.some((p) => p.category !== undefined);
   const hasSize = points.some((p) => p.size !== undefined);
 
-  const showLabels = parsed.showLabels ?? true;
+  const showLabels = !parsed.noName;
   const labelFontSize = 11;
 
   // When showLabels is on, we render labels ourselves via graphic — disable ECharts labels
@@ -1858,7 +1898,7 @@ function buildHeatmapOption(
           borderColor: bg,
         },
         label: {
-          show: true,
+          show: !parsed.noValue,
           color: textColor,
           fontSize: 14,
           fontWeight: 'bold' as const,
@@ -1927,14 +1967,14 @@ function buildFunnelOption(
         type: 'funnel',
         ...funnelLayout,
         label: {
-          show: true,
+          show: !parsed.noName,
           position: 'left',
           formatter: '{b}',
           color: textColor,
           fontSize: 13,
         },
         labelLine: {
-          show: true,
+          show: !parsed.noName,
           length: 10,
           lineStyle: { color: textColor, opacity: 0.3 },
         },
@@ -1950,14 +1990,14 @@ function buildFunnelOption(
         silent: true,
         itemStyle: { color: 'transparent', borderWidth: 0 },
         label: {
-          show: true,
+          show: !parsed.noValue,
           position: 'right',
           formatter: '{c}',
           color: textColor,
           fontSize: 13,
         },
         labelLine: {
-          show: true,
+          show: !parsed.noValue,
           length: 10,
           lineStyle: { color: textColor, opacity: 0.3 },
         },
@@ -2307,6 +2347,15 @@ function buildBarOption(
       {
         type: 'bar',
         data,
+        label: {
+          show: !parsed.noValue,
+          position: isHorizontal ? 'right' : 'top',
+          formatter: '{c}',
+          color: textColor,
+          fontSize: 11,
+          fontFamily: FONT_FAMILY,
+        },
+        labelLayout: { hideOverlap: true },
         emphasis: EMPHASIS_SELF,
         blur: BLUR_DIM,
       },
@@ -2416,6 +2465,15 @@ function buildLineOption(
         symbolSize: 8,
         lineStyle: { color: lineColor, width: 3 },
         itemStyle: { color: lineColor },
+        label: {
+          show: !parsed.noValue,
+          position: 'top',
+          formatter: '{c}',
+          color: textColor,
+          fontSize: 11,
+          fontFamily: FONT_FAMILY,
+        },
+        labelLayout: { hideOverlap: true },
         emphasis: EMPHASIS_LINE,
         blur: BLUR_DIM,
         ...(markArea && { markArea }),
@@ -2457,6 +2515,15 @@ function buildMultiLineOption(
       symbolSize: 8,
       lineStyle: { color, width: 3 },
       itemStyle: { color },
+      label: {
+        show: !parsed.noValue,
+        position: 'top' as const,
+        formatter: '{c}',
+        color: textColor,
+        fontSize: 11,
+        fontFamily: FONT_FAMILY,
+      },
+      labelLayout: { hideOverlap: true },
       emphasis: EMPHASIS_LINE,
       blur: BLUR_DIM,
       ...(idx === 0 && markArea && { markArea }),
@@ -2555,6 +2622,15 @@ function buildAreaOption(
         lineStyle: { color: lineColor, width: 3 },
         itemStyle: { color: lineColor },
         areaStyle: { opacity: 0.25 },
+        label: {
+          show: !parsed.noValue,
+          position: 'top',
+          formatter: '{c}',
+          color: textColor,
+          fontSize: 11,
+          fontFamily: FONT_FAMILY,
+        },
+        labelLayout: { hideOverlap: true },
         emphasis: EMPHASIS_LINE,
         blur: BLUR_DIM,
         ...(markArea && { markArea }),
@@ -2566,9 +2642,9 @@ function buildAreaOption(
 // ── Segment label formatter ──────────────────────────────────
 
 function segmentLabelFormatter(parsed: ParsedChart): string {
-  const showName = !parsed.noLabelName;
-  const showValue = !parsed.noLabelValue;
-  const showPercent = !parsed.noLabelPercent;
+  const showName = !parsed.noName;
+  const showValue = !parsed.noValue;
+  const showPercent = !parsed.noPercent;
 
   const parts: string[] = [];
   if (showName) parts.push('{b}');
@@ -2717,7 +2793,7 @@ function buildRadarOption(
             symbol: 'circle',
             symbolSize: 8,
             label: {
-              show: true,
+              show: !parsed.noValue,
               formatter: '{c}',
               color: textColor,
               fontSize: 11,
@@ -2817,7 +2893,7 @@ function buildBarStackedOption(
         borderWidth: CHART_BORDER_WIDTH,
       },
       label: {
-        show: true,
+        show: !parsed.noValue,
         position: 'inside' as const,
         formatter: '{c}',
         color: textColor,

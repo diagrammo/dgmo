@@ -71,7 +71,7 @@ export function renderCycle(
 
   const hideDescriptions =
     (renderOptions?.hideDescriptions ?? false) ||
-    parsed.options['hide-descriptions'] === 'true' ||
+    parsed.options['no-descriptions'] === 'true' ||
     viewState?.hd === true;
   const showDescriptions = !hideDescriptions;
 
