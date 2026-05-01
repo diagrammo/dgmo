@@ -357,6 +357,7 @@ export function renderOrg(
         .append('g')
         .attr('class', 'org-focus-icon')
         .attr('data-focus-node', c.nodeId)
+        .attr('data-export-ignore', 'true')
         .attr('transform', `translate(${iconX}, ${iconY})`);
 
       focusG
@@ -555,6 +556,7 @@ export function renderOrg(
         .append('g')
         .attr('class', 'org-focus-icon')
         .attr('data-focus-node', node.id)
+        .attr('data-export-ignore', 'true')
         .attr('transform', `translate(${iconX}, ${iconY})`);
 
       // Hit area

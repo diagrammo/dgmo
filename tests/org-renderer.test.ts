@@ -1425,3 +1425,34 @@ tag Status
     expect(eng).toBeTruthy();
   });
 });
+
+// ============================================================
+// Focus icon export behavior
+// ============================================================
+
+describe('focus icon export behavior', () => {
+  const input = `org\nAlice\n  Bob\n    Carol\n    Dave`;
+
+  it('marks interactive focus icons with data-export-ignore', () => {
+    const parsed = parseOrg(input, palette.light);
+    const layout = layoutOrg(parsed);
+
+    const container = document.createElement('div');
+    Object.defineProperty(container, 'clientWidth', { value: 800 });
+    Object.defineProperty(container, 'clientHeight', { value: 600 });
+
+    renderOrg(container, parsed, layout, palette.light, false);
+
+    const icons = container.querySelectorAll('.org-focus-icon');
+    expect(icons.length).toBeGreaterThan(0);
+    icons.forEach((el) => {
+      expect(el.getAttribute('data-export-ignore')).toBe('true');
+    });
+  });
+
+  it('does not render focus icons in export SVG', () => {
+    const svg = renderOrgForExport(input, 'light', palette.light);
+    expect(svg).not.toContain('org-focus-icon');
+    expect(svg).not.toContain('data-focus-node');
+  });
+});
