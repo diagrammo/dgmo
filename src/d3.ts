@@ -6568,14 +6568,11 @@ export function renderQuadrant(
     .attr('stroke', (d) => getQuadrantColor(d.label, d.colorIdx))
     .attr('stroke-width', 2);
 
-  // White text for points; quadrant labels use a darkened shade of their fill
+  // White text for points; quadrant labels use a muted text color (consistent across all quadrants)
   const shadowColor = 'rgba(0,0,0,0.4)';
 
-  // Darken the full palette color (not the muted fill) to create a watermark-style label
-  const getQuadrantLabelColor = (d: (typeof quadrantDefs)[number]): string => {
-    const color = getQuadrantColor(d.label, d.colorIdx);
-    return mixHex('#000000', color, 40);
-  };
+  // Single muted shade of textColor — watermark-style, readable against any quadrant fill
+  const quadrantLabelColor = mixHex(textColor, bg, 35);
 
   // Scale label font size to fit within quadrant bounds, wrapping into multiple lines if needed
   const LABEL_MAX_FONT = 48;
@@ -6669,7 +6666,7 @@ export function renderQuadrant(
     .attr('y', (d) => d.labelY)
     .attr('text-anchor', 'middle')
     .attr('dominant-baseline', 'central')
-    .attr('fill', (d) => getQuadrantLabelColor(d))
+    .attr('fill', quadrantLabelColor)
     .attr('font-size', (d) => `${labelLayouts.get(d.label!.text)!.fontSize}px`)
     .attr('font-weight', '700')
     .attr('data-line-number', (d) =>
