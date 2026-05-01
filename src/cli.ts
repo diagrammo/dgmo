@@ -308,30 +308,26 @@ end                ❌  not needed — indentation closes blocks in sequence dia
 - \`mcp__dgmo__preview_diagram\` accepts multiple diagrams at once — useful for showing variants side by side.
 `;
 
-const CODEX_AGENTS_CONTENT = `# DGMO Diagram Language — Codex Integration
+const CODEX_SKILL_FRONTMATTER = `---
+name: dgmo-diagramming
+description: Use when the user asks for a diagram, chart, sequence diagram, flowchart, ER diagram, org chart, kanban, sitemap, infra/architecture diagram, or any visual based on the DGMO diagram markup language. Provides syntax, MCP tool guidance, and rendering/sharing workflows.
+---
+
+`;
+
+const CODEX_SKILL_CONTENT = `# DGMO Diagram Language
 
 Use dgmo tools to create, render, and share diagrams. dgmo is a text-based diagram markup language that renders to SVG/PNG.
 
-## Quick setup
+## MCP Tools — preferred order
 
-If the MCP server is not yet configured:
-
-\`\`\`bash
-dgmo --install-codex-integration
-\`\`\`
-
-This installs the MCP server and writes the dgmo config to \`.codex/config.toml\`. Restart Codex to activate.
-
-## MCP Tools
-
-When the \`dgmo\` MCP server is configured, use these tools directly:
-- \`preview_diagram\` — renders diagram(s) and opens a live HTML preview in the browser (default for showing diagrams)
-- \`render_diagram\` — renders to PNG or SVG, returns file path
-- \`share_diagram\` — creates a shareable diagrammo.app URL
-- \`open_in_app\` — opens diagram in Diagrammo desktop app (macOS)
-- \`list_chart_types\` — lists all 32 supported chart types with descriptions
-- \`get_language_reference\` — fetches full syntax for any chart type (call this before generating an unfamiliar chart type)
-- \`generate_report\` — renders multiple diagrams into an HTML report with table of contents
+When the \`dgmo\` MCP server is configured, prefer tools in this order:
+1. \`open_in_app\` — opens the diagram in the Diagrammo desktop app (macOS). **Best UX** — chart + editor side-by-side, full editing.
+2. \`share_diagram\` — returns a \`https://online.diagrammo.app/...\` URL. Tell the user to open it; same chart + editor view in the browser. **Preferred fallback** when the desktop app is not available.
+3. \`render_diagram\` — renders to PNG or SVG and returns a file path. Use when the user wants an image artifact (export, embed, attach).
+4. \`generate_report\` — renders multiple diagrams into an HTML report with table of contents.
+5. \`preview_diagram\` — local HTML preview in the browser. Last resort — only when none of the above fit.
+6. \`list_chart_types\` / \`get_language_reference\` — discovery; call \`get_language_reference\` before generating an unfamiliar chart type.
 
 ## When to use dgmo
 
@@ -367,11 +363,11 @@ flowchart Process
 ### Bar chart
 \`\`\`
 bar Revenue
-series: USD
+series USD
 
-North: 850
-South: 620
-East: 1100
+North 850
+South 620
+East 1100
 \`\`\`
 
 ### ER diagram
@@ -379,14 +375,14 @@ East: 1100
 er Schema
 
 users
-  id: int [pk]
-  email: varchar [unique]
+  id int pk
+  email varchar
 
 posts
-  id: int [pk]
-  user_id: int [fk]
+  id int pk
+  user_id int fk
 
-users 1--* posts : writes
+users 1-writes-* posts
 \`\`\`
 
 ### Org chart
@@ -428,11 +424,10 @@ bar, line, multi-line, area, pie, doughnut, radar, polar-area, bar-stacked, scat
 
 ## Common patterns
 
-- First line: chart type keyword (e.g. \`sequence\`, \`flowchart\`, \`bar\`) — auto-detected if unambiguous
-- \`title: text\` — diagram title
+- First line: chart type keyword (e.g. \`sequence\`, \`flowchart\`, \`bar\`), optionally followed by a title (\`bar Revenue\`)
 - \`// comment\` — only \`//\` comments (not \`#\`)
-- \`(colorname)\` — inline colors: \`Label(red): 100\`
-- \`series: A(red), B(blue)\` — multi-series with colors
+- \`(colorname)\` — inline colors on data series, tag values, kanban columns: \`Label(red) 100\`
+- \`series A(red), B(blue)\` — multi-series with colors
 
 ## Rendering via CLI
 
@@ -451,6 +446,13 @@ dgmo file.dgmo --json              # structured JSON output
 - Sequence arrows: \`->\` (sync), \`~>\` (async) — always left-to-right
 
 Full reference: call \`get_language_reference\` MCP tool or visit diagrammo.app/docs
+`;
+
+const CODEX_AGENTS_NOTE_MARKER = '<!-- dgmo-integration -->';
+const CODEX_AGENTS_NOTE = `${CODEX_AGENTS_NOTE_MARKER}
+## Diagrams
+
+For architecture diagrams, sequence diagrams, flowcharts, and charts, use the \`dgmo-diagramming\` skill and the configured \`dgmo\` MCP tools (\`open_in_app\`, \`share_diagram\`, \`render_diagram\`, etc.).
 `;
 
 function printHelp(): void {
@@ -476,8 +478,10 @@ Options:
                        then writes .mcp.json (project) or ~/.claude/settings.json (global)
   --install-claude-skill  Install only the /dgmo skill to ~/.claude/commands/dgmo.md
   --install-codex-integration
-                       Full Codex CLI setup: write AGENTS.md to the project and configure
-                       the dgmo MCP server in .codex/config.toml (project) or ~/.codex/config.toml (global)
+                       Full Codex CLI setup: install the dgmo-diagramming skill at
+                       ~/.codex/skills/dgmo-diagramming/SKILL.md, configure the dgmo MCP
+                       server in .codex/config.toml (project) or ~/.codex/config.toml (global),
+                       and append a non-destructive note to AGENTS.md if one already exists.
   --install-claude-desktop-integration
                        Full Claude Desktop setup: install @diagrammo/dgmo-mcp if needed,
                        then merge the dgmo MCP entry into Claude Desktop's config file
@@ -966,7 +970,7 @@ async function main(): Promise<void> {
       );
     }
     const useGlobal = scopeAns.trim() === '2';
-    const tomlEntry = '[mcp_servers.dgmo]\ncommand = ["dgmo-mcp"]\n';
+    const tomlEntry = '[mcp_servers.dgmo]\ncommand = "dgmo-mcp"\n';
 
     if (useGlobal) {
       const configPath = join(homedir(), '.codex', 'config.toml');
@@ -997,21 +1001,58 @@ async function main(): Promise<void> {
       }
     }
 
-    // Write AGENTS.md
-    const agentsPath = join(process.cwd(), 'AGENTS.md');
-    let writeAgents = true;
-    if (existsSync(agentsPath)) {
-      const ans = await ask('\nAGENTS.md already exists. Overwrite? [y/N] ');
-      writeAgents = ans.toLowerCase() === 'y' || ans.toLowerCase() === 'yes';
-    }
-    if (writeAgents) {
-      writeFileSync(agentsPath, CODEX_AGENTS_CONTENT, 'utf-8');
-      console.log(`✓ AGENTS.md written to: ${agentsPath}`);
+    // Install the dgmo-diagramming skill at ~/.codex/skills/dgmo-diagramming/SKILL.md
+    const skillDir = join(homedir(), '.codex', 'skills', 'dgmo-diagramming');
+    const skillPath = join(skillDir, 'SKILL.md');
+    const skillBody = CODEX_SKILL_FRONTMATTER + CODEX_SKILL_CONTENT;
+    if (existsSync(skillPath)) {
+      const existingSkill = readFileSync(skillPath, 'utf-8');
+      if (existingSkill === skillBody) {
+        console.log('✓ dgmo-diagramming skill already up to date');
+      } else {
+        const ans = await ask(
+          '\n~/.codex/skills/dgmo-diagramming/SKILL.md exists. Overwrite? [Y/n] '
+        );
+        const yes =
+          ans === '' ||
+          ans.toLowerCase() === 'y' ||
+          ans.toLowerCase() === 'yes';
+        if (yes) {
+          writeFileSync(skillPath, skillBody, 'utf-8');
+          console.log(`✓ Skill updated: ${skillPath}`);
+        } else {
+          console.log('  Skipped skill update.');
+        }
+      }
     } else {
-      console.log('  Skipped AGENTS.md.');
+      mkdirSync(skillDir, { recursive: true });
+      writeFileSync(skillPath, skillBody, 'utf-8');
+      console.log(`✓ Skill installed: ${skillPath}`);
     }
 
-    console.log('\nRestart Codex to activate the MCP server.');
+    // Non-destructive AGENTS.md handling: append a marked note only if AGENTS.md
+    // already exists and doesn't already contain the marker. Never create it.
+    const agentsPath = join(process.cwd(), 'AGENTS.md');
+    if (existsSync(agentsPath)) {
+      const existingAgents = readFileSync(agentsPath, 'utf-8');
+      if (existingAgents.includes(CODEX_AGENTS_NOTE_MARKER)) {
+        console.log('✓ AGENTS.md already mentions dgmo');
+      } else {
+        const separator = existingAgents.endsWith('\n') ? '\n' : '\n\n';
+        writeFileSync(
+          agentsPath,
+          existingAgents + separator + CODEX_AGENTS_NOTE,
+          'utf-8'
+        );
+        console.log(`✓ Appended dgmo note to: ${agentsPath}`);
+      }
+    } else {
+      console.log(
+        '  No AGENTS.md found in cwd — skipped (the skill is enough).'
+      );
+    }
+
+    console.log('\nRestart Codex to activate the skill and MCP server.');
     return;
   }
 

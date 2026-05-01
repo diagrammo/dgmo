@@ -78,7 +78,7 @@
     ".github/copilot-instructions.md",
     ".cursorrules",
     ".windsurfrules",
-    "AGENTS.md"
+    "SKILL.md"
   ],
   "sideEffects": false,
   "scripts": {
