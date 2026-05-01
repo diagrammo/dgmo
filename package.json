@@ -80,7 +80,10 @@
     ".windsurfrules",
     "SKILL.md"
   ],
-  "sideEffects": false,
+  "sideEffects": [
+    "./src/palettes/*.ts",
+    "./dist/palettes/*"
+  ],
   "scripts": {
     "codegen": "lezer-generator src/editor/dgmo.grammar -o src/editor/dgmo.grammar.js",
     "prebuild": "rm -rf dist && pnpm codegen",
