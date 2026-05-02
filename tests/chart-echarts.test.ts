@@ -1110,64 +1110,24 @@ describe('parseDataRowValues — space-delimited multi-values', () => {
   });
 });
 
-// ── Scatter hover crosshair (chart-native, no floating tooltip box) ──────
+// ── Scatter has no tooltip in the option (hover wired in app) ──
 
-describe('scatter hover crosshair', () => {
+describe('scatter option has no tooltip/axisPointer', () => {
   function buildScatter(input: string) {
     const parsed = parseExtendedChart(input, palette);
     return buildExtendedChartOption(parsed, palette, false);
   }
 
-  it('tooltip enabled but renders nothing — content suppressed in favor of crosshair', () => {
+  it('inherits CHART_BASE tooltip:{show:false} — no per-chart tooltip override', () => {
     const input = 'scatter\nAlice 12 300';
     const opt = buildScatter(input) as {
-      tooltip: { show: boolean; trigger: string; showContent: boolean };
+      tooltip?: { show?: boolean; axisPointer?: unknown };
     };
-    expect(opt.tooltip.show).toBe(true);
-    expect(opt.tooltip.trigger).toBe('item');
-    expect(opt.tooltip.showContent).toBe(false);
+    expect(opt.tooltip?.show).toBe(false);
+    expect(opt.tooltip?.axisPointer).toBeUndefined();
   });
 
-  it('axisPointer cross with dashed lines configured on tooltip', () => {
-    const input = 'scatter\nAlice 12 300';
-    const opt = buildScatter(input) as {
-      tooltip: {
-        axisPointer: { type: string; lineStyle: { type: string } };
-      };
-    };
-    expect(opt.tooltip.axisPointer.type).toBe('cross');
-    expect(opt.tooltip.axisPointer.lineStyle.type).toBe('dashed');
-  });
-
-  it('tooltip.axisPointer.label paints the data value', () => {
-    const input = 'scatter\nAlice 12 300';
-    const opt = buildScatter(input) as {
-      tooltip: {
-        axisPointer: {
-          label: { show: boolean; formatter: (p: { value: number }) => string };
-        };
-      };
-    };
-    expect(opt.tooltip.axisPointer.label.show).toBe(true);
-    expect(opt.tooltip.axisPointer.label.formatter({ value: 12 })).toBe('12');
-    expect(opt.tooltip.axisPointer.label.formatter({ value: 300 })).toBe('300');
-  });
-
-  it('axisPointer label rounds non-integer values', () => {
-    const input = 'scatter\nAlice 12 300';
-    const opt = buildScatter(input) as {
-      tooltip: {
-        axisPointer: {
-          label: { formatter: (p: { value: number }) => string };
-        };
-      };
-    };
-    expect(opt.tooltip.axisPointer.label.formatter({ value: 3.14159 })).toBe(
-      '3.14'
-    );
-  });
-
-  it('individual axes do NOT have their own axisPointer (avoids mouse-follow on empty space)', () => {
+  it('individual axes have no axisPointer config', () => {
     const input = 'scatter\nAlice 12 300';
     const opt = buildScatter(input) as {
       xAxis: { axisPointer?: unknown };

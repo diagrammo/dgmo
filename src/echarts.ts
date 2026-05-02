@@ -1707,44 +1707,15 @@ function buildScatterOption(
   // (with a chart-bg-matched background that occludes the underlying tick).
   // Static exports (PNG / pre-rendered SVG) drop this; only fires in live
   // ECharts contexts.
-  // Item-triggered: only fires when hovering directly on a point.
-  // axisPointer config lives entirely inside the tooltip (NOT on xAxis/yAxis)
-  // so it's bound to item hover. With snap, the cross anchors to the data
-  // point coordinates rather than tracking the mouse position.
-  const tooltipConfig = {
-    show: true,
-    trigger: 'item' as const,
-    showContent: false,
-    axisPointer: {
-      type: 'cross' as const,
-      snap: true,
-      lineStyle: {
-        color: palette.border,
-        width: 1,
-        type: 'dashed' as const,
-      },
-      label: {
-        show: true,
-        backgroundColor: bg,
-        color: textColor,
-        fontSize: 14,
-        fontFamily: FONT_FAMILY,
-        padding: 6,
-        margin: 4,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        formatter: (params: any): string => {
-          const v = Number(params?.value);
-          if (!Number.isFinite(v)) return String(params?.value ?? '');
-          return Number.isInteger(v) ? String(v) : v.toFixed(2);
-        },
-      },
-    },
-  };
+  // Hover behavior is wired in the consumer (diagrammo-app's EChartsPreview)
+  // via mouseover/mouseout handlers that render crosshair graphics. Doing it
+  // there gives strict point-only scoping that the option-config approach
+  // (axisPointer cross) can't deliver — it always fires on plain mousemove.
+  // Static exports get no hover (correctly).
 
   return {
     ...CHART_BASE,
     title: titleConfig,
-    tooltip: tooltipConfig,
     ...(legendConfig && { legend: legendConfig }),
     grid: {
       left: `${gridLeft}%`,
