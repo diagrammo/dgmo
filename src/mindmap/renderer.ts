@@ -9,7 +9,7 @@ import {
   extractExportSvg,
 } from '../utils/export-container';
 import type { PaletteColors } from '../palettes';
-import { mix } from '../palettes/color-utils';
+import { contrastText, shapeFill } from '../palettes/color-utils';
 import type { ParsedMindmap } from './types';
 import type { MindmapLayoutResult } from './types';
 import { parseMindmap } from './parser';
@@ -44,7 +44,7 @@ function nodeFill(
   nodeColor?: string
 ): string {
   const color = nodeColor ?? palette.primary;
-  return mix(color, isDark ? palette.surface : palette.bg, 25);
+  return shapeFill(palette, color, isDark);
 }
 
 function nodeStroke(palette: PaletteColors, nodeColor?: string): string {
@@ -294,6 +294,11 @@ export function renderMindmap(
       : node.color;
     const fill = nodeFill(palette, isDark, effectiveColor);
     const stroke = nodeStroke(palette, effectiveColor);
+    const onFillText = contrastText(
+      fill,
+      palette.textOnFillLight,
+      palette.textOnFillDark
+    );
 
     const nodeG = mainG
       .append('g')
@@ -374,7 +379,7 @@ export function renderMindmap(
         .attr('text-anchor', 'middle')
         .attr('font-size', fontSize)
         .attr('font-weight', isRoot ? 'bold' : 'normal')
-        .attr('fill', palette.text)
+        .attr('fill', onFillText)
         .text(labelLines[0]);
     } else {
       // Multi-line — use tspan elements
@@ -390,7 +395,7 @@ export function renderMindmap(
         .attr('text-anchor', 'middle')
         .attr('font-size', fontSize)
         .attr('font-weight', isRoot ? 'bold' : 'normal')
-        .attr('fill', palette.text);
+        .attr('fill', onFillText);
 
       for (let i = 0; i < labelLines.length; i++) {
         textEl

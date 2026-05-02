@@ -185,7 +185,7 @@ export interface ParsedVisualization {
 import { resolveColorWithDiagnostic } from './colors';
 import type { PaletteColors } from './palettes';
 import { getSeriesColors } from './palettes';
-import { mix } from './palettes/color-utils';
+import { mix, shapeFill } from './palettes/color-utils';
 import type { DgmoError } from './diagnostics';
 import { makeDgmoError, formatDgmoError, suggest } from './diagnostics';
 import {
@@ -3933,7 +3933,7 @@ export function renderTimeline(
             const y2 = yScale(parseTimelineDate(ev.endDate));
             const rectH = Math.max(y2 - y, 4);
 
-            let fill: string = mix(evColor, bg, 30);
+            let fill: string = shapeFill(palette, evColor, isDark);
             let stroke: string = evColor;
             if (ev.uncertain) {
               const gradientId = `uncertain-vg-${ev.lineNumber}`;
@@ -4005,7 +4005,7 @@ export function renderTimeline(
               .attr('cx', laneCenter)
               .attr('cy', y)
               .attr('r', 4)
-              .attr('fill', mix(evColor, bg, 30))
+              .attr('fill', shapeFill(palette, evColor, isDark))
               .attr('stroke', evColor)
               .attr('stroke-width', 2);
             evG
@@ -4165,7 +4165,7 @@ export function renderTimeline(
           const y2 = yScale(parseTimelineDate(ev.endDate));
           const rectH = Math.max(y2 - y, 4);
 
-          let fill: string = mix(color, bg, 30);
+          let fill: string = shapeFill(palette, color, isDark);
           let stroke: string = color;
           if (ev.uncertain) {
             const gradientId = `uncertain-v-${ev.lineNumber}`;
@@ -4236,7 +4236,7 @@ export function renderTimeline(
             .attr('cx', axisX)
             .attr('cy', y)
             .attr('r', 4)
-            .attr('fill', mix(color, bg, 30))
+            .attr('fill', shapeFill(palette, color, isDark))
             .attr('stroke', color)
             .attr('stroke-width', 2);
           evG
@@ -4524,7 +4524,7 @@ export function renderTimeline(
           const estLabelWidth = ev.label.length * 7 + 16;
           const labelFitsInside = rectW >= estLabelWidth;
 
-          let fill: string = mix(evColor, bg, 30);
+          let fill: string = shapeFill(palette, evColor, isDark);
           let stroke: string = evColor;
           if (ev.uncertain) {
             // Create gradient for uncertain end - fades last 20%
@@ -4621,7 +4621,7 @@ export function renderTimeline(
             .attr('cx', x)
             .attr('cy', y)
             .attr('r', 5)
-            .attr('fill', mix(evColor, bg, 30))
+            .attr('fill', shapeFill(palette, evColor, isDark))
             .attr('stroke', evColor)
             .attr('stroke-width', 2);
           evG
@@ -4810,7 +4810,7 @@ export function renderTimeline(
         const estLabelWidth = ev.label.length * 7 + 16;
         const labelFitsInside = rectW >= estLabelWidth;
 
-        let fill: string = mix(color, bg, 30);
+        let fill: string = shapeFill(palette, color, isDark);
         let stroke: string = color;
         if (ev.uncertain) {
           // Create gradient for uncertain end - fades last 20%
@@ -4907,7 +4907,7 @@ export function renderTimeline(
           .attr('cx', x)
           .attr('cy', y)
           .attr('r', 5)
-          .attr('fill', mix(color, bg, 30))
+          .attr('fill', shapeFill(palette, color, isDark))
           .attr('stroke', color)
           .attr('stroke-width', 2);
         evG
@@ -5196,10 +5196,10 @@ export function renderTimeline(
                 : textColor;
           }
           el.selectAll('rect')
-            .attr('fill', mix(color, bg, 30))
+            .attr('fill', shapeFill(palette, color, isDark))
             .attr('stroke', color);
           el.selectAll('circle:not(.tl-event-point-outline)')
-            .attr('fill', mix(color, bg, 30))
+            .attr('fill', shapeFill(palette, color, isDark))
             .attr('stroke', color);
         });
       }
@@ -7659,7 +7659,9 @@ export async function renderForExport(
     )
       return '';
 
-    const jmLayout = layoutJourneyMap(jmParsed, effectivePalette);
+    const jmLayout = layoutJourneyMap(jmParsed, effectivePalette, {
+      isDark: theme === 'dark',
+    });
     const container = createExportContainer(
       jmLayout.totalWidth,
       jmLayout.totalHeight

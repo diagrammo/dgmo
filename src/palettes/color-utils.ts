@@ -200,6 +200,33 @@ export function contrastText(
 }
 
 // ============================================================
+// Shape Fill (canonical tinted fill)
+// ============================================================
+
+/**
+ * Canonical tinted shape fill: 25% intent color + 75% surface.
+ * Use for any "tinted intent shape" — graph nodes, kanban cards,
+ * journey-map shapes, infra severity, ECharts pie/funnel/bar/etc.
+ *
+ * NOT for subtle-neutral shapes (use the existing 5-10% inline formula
+ * for "recede when no intent" cases — infra normal-state, untagged
+ * boxes, no-color sequence participants).
+ *
+ * Sankey is the only documented exception (75/45% custom desaturation).
+ *
+ * `opts.solid` is reserved for the follow-up `option solid-fill` spec.
+ */
+export function shapeFill(
+  palette: PaletteColors,
+  intent: string,
+  isDark: boolean,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  opts?: { solid?: boolean }
+): string {
+  return mix(intent, isDark ? palette.surface : palette.bg, 25);
+}
+
+// ============================================================
 // Series Colors
 // ============================================================
 

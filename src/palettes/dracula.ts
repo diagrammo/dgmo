@@ -16,6 +16,8 @@ export const draculaPalette: PaletteConfig = {
     border: '#d8d8d2',
     text: '#282a36', // background as light text
     textMuted: '#44475a', // current line
+    textOnFillLight: '#f8f8f2',
+    textOnFillDark: '#282a36',
     primary: '#6272a4', // comment
     secondary: '#bd93f9', // purple
     accent: '#bd93f9', // purple
@@ -41,6 +43,8 @@ export const draculaPalette: PaletteConfig = {
     border: '#6272a4', // comment
     text: '#f8f8f2', // foreground
     textMuted: '#bcc2d4', // muted foreground
+    textOnFillLight: '#f8f8f2',
+    textOnFillDark: '#282a36',
     primary: '#bd93f9', // purple (Dracula's signature)
     secondary: '#8be9fd', // cyan
     accent: '#ff79c6', // pink

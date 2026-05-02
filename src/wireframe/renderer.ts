@@ -5,7 +5,7 @@
 import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
-import { mix } from '../palettes/color-utils';
+import { mix, shapeFill } from '../palettes/color-utils';
 import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT } from '../utils/title-constants';
 import type { WireframeElement, ParsedWireframe } from './types';
 import type { WireframeLayout, WireframeLayoutNode } from './layout';
@@ -1055,7 +1055,7 @@ function renderAlert(
   node: WireframeLayoutNode,
   ctx: RenderContext
 ): void {
-  const { palette, isTransparent } = ctx;
+  const { palette, isDark, isTransparent } = ctx;
   const el = node.element;
   const color = getElementSemanticColor(el, palette) || palette.accent;
 
@@ -1064,7 +1064,7 @@ function renderAlert(
     g.append('rect')
       .attr('width', node.width)
       .attr('height', node.height)
-      .attr('fill', mix(color, palette.bg, 15))
+      .attr('fill', shapeFill(palette, color, isDark))
       .attr('rx', 4);
   }
 

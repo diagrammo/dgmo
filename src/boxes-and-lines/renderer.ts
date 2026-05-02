@@ -18,7 +18,7 @@ import {
   TITLE_FONT_WEIGHT,
   TITLE_Y,
 } from '../utils/title-constants';
-import { contrastText, mix } from '../palettes/color-utils';
+import { contrastText, mix, shapeFill } from '../palettes/color-utils';
 import { resolveTagColor, resolveActiveTagGroup } from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
 import type { PaletteColors } from '../palettes';
@@ -184,12 +184,17 @@ function nodeColors(
 ): { fill: string; stroke: string; text: string } {
   const tagColor = resolveTagColor(node.metadata, tagGroups, activeGroupName);
   if (tagColor) {
-    const fill = mix(tagColor, isDark ? palette.surface : palette.bg, 30);
+    const fill = shapeFill(palette, tagColor, isDark);
     const stroke = tagColor;
-    const text = contrastText(fill, '#eceff4', '#2e3440');
+    const text = contrastText(
+      fill,
+      palette.textOnFillLight,
+      palette.textOnFillDark
+    );
     return { fill, stroke, text };
   }
-  // Untagged fallback (matches infra node styling)
+  // Untagged fallback (subtle-neutral — out of scope per TD-2 / F2;
+  // intentionally near-invisible so default nodes recede).
   const fill = mix(palette.bg, palette.text, isDark ? 90 : 95);
   const stroke = mix(palette.text, palette.bg, isDark ? 60 : 40);
   const text = palette.text;

@@ -1,5 +1,5 @@
 import type { PaletteColors } from '../palettes';
-import { mix } from '../palettes/color-utils';
+import { mix, shapeFill } from '../palettes/color-utils';
 import type {
   ParsedJourneyMap,
   JourneyMapPhase,
@@ -94,8 +94,10 @@ export function layoutJourneyMap(
   options?: {
     exportDims?: { width: number; height: number };
     collapsedPhases?: Set<string>;
+    isDark?: boolean;
   }
 ): JourneyMapLayout {
+  const isDark = options?.isDark ?? false;
   const hasTitle = !!parsed.title;
   const hasPersona = !!parsed.persona;
   const hasPhases = parsed.phases.length > 0;
@@ -260,7 +262,11 @@ export function layoutJourneyMap(
           ? scoredSteps.reduce((sum, s) => sum + s.score!, 0) /
             scoredSteps.length
           : 3;
-      const headerColor = mix(scoreToColor(avgScore, palette), palette.bg, 25);
+      const headerColor = shapeFill(
+        palette,
+        scoreToColor(avgScore, palette),
+        isDark
+      );
 
       const COLLAPSED_CARD_H = 26;
       const COLLAPSED_GAP = 6;

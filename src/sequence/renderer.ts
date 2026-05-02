@@ -4,7 +4,7 @@
 
 import * as d3Selection from 'd3-selection';
 import type { PaletteColors } from '../palettes';
-import { mix } from '../palettes/color-utils';
+import { contrastText, mix, shapeFill } from '../palettes/color-utils';
 import {
   parseInlineMarkdown,
   truncateBareUrl,
@@ -135,14 +135,18 @@ function wrapLabelWords(words: string[]): string[] {
   return lines;
 }
 
-// Shared fill/stroke helpers — accept optional color override for per-participant coloring
+// Shared fill/stroke helpers — accept optional color override for per-participant coloring.
+// When `color` is provided we use the canonical shapeFill() 25% tint.
+// When omitted we fall back to a subtle-neutral surface highlight (out of scope for the
+// shape-fill standardization spec — see TD-2 / F11). Participants without a color should
+// recede; bumping them to 25% intent would defeat that intent.
 const fill = (
   palette: PaletteColors,
   isDark: boolean,
   color?: string
 ): string =>
   color
-    ? mix(color, isDark ? palette.surface : palette.bg, isDark ? 30 : 40)
+    ? shapeFill(palette, color, isDark)
     : isDark
       ? mix(palette.overlay, palette.surface, 50)
       : mix(palette.bg, palette.surface, 50);
@@ -1761,7 +1765,11 @@ export function renderSequenceDiagram(
     const boxH =
       PARTICIPANT_BOX_HEIGHT + GROUP_PADDING_TOP + GROUP_PADDING_BOTTOM;
 
-    // Group box background — use tag color if group has metadata for the active tag group
+    // Group box background — use tag color if group has metadata for the active tag group.
+    // Intentionally 15-20% (not the canonical 25% shapeFill): group boxes are
+    // CONTAINERS that wrap multiple participants, so they should recede behind
+    // the tinted participant shapes inside them. Promoting to 25% would make
+    // the wrapper compete with its contents.
     const groupTagValue = tagKey && group.metadata?.[tagKey];
     const groupTagColor = getTagColor(groupTagValue || undefined);
     const fillColor = groupTagColor
@@ -2188,11 +2196,8 @@ export function renderSequenceDiagram(
       .attr('height', y2 - y1)
       .attr('fill', isDark ? palette.surface : palette.bg);
 
-    const actFill = mix(
-      actBaseColor,
-      isDark ? palette.surface : palette.bg,
-      isDark ? 15 : 30
-    );
+    // Canonical 25% tint via shapeFill() (was 30% light / 15% dark).
+    const actFill = shapeFill(palette, actBaseColor, isDark);
     const actRect = svg
       .append('rect')
       .attr('x', x)
@@ -2868,11 +2873,20 @@ function renderParticipant(
   const labelLines = splitParticipantLabel(participant.label);
   const fontSize = 13;
   const lineHeight = fontSize + 2;
+  // Actors render the label below the shape (on bg). Other participants render
+  // the label inside the participant box, so contrast against the resolved fill.
+  const labelFill = isActor
+    ? palette.text
+    : contrastText(
+        fill(palette, isDark, color),
+        palette.textOnFillLight,
+        palette.textOnFillDark
+      );
   const textEl = g
     .append('text')
     .attr('x', 0)
     .attr('text-anchor', 'middle')
-    .attr('fill', palette.text)
+    .attr('fill', labelFill)
     .attr('font-size', fontSize)
     .attr('font-weight', 500);
 

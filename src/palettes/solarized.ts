@@ -25,6 +25,8 @@ export const solarizedPalette: PaletteConfig = {
     border: '#93a1a1', // base1
     text: '#657b83', // base00
     textMuted: '#93a1a1', // base1
+    textOnFillLight: '#fdf6e3', // base3
+    textOnFillDark: '#002b36', // base03
     primary: '#268bd2', // blue
     secondary: '#2aa198', // cyan
     accent: '#6c71c4', // violet
@@ -50,6 +52,8 @@ export const solarizedPalette: PaletteConfig = {
     border: '#586e75', // base01
     text: '#839496', // base0
     textMuted: '#586e75', // base01
+    textOnFillLight: '#fdf6e3', // base3
+    textOnFillDark: '#002b36', // base03
     primary: '#268bd2', // blue
     secondary: '#2aa198', // cyan
     accent: '#6c71c4', // violet

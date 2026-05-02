@@ -39,6 +39,8 @@ const testPalette: PaletteColors = {
   border: '#d8dee9',
   text: '#2e3440',
   textMuted: '#4c566a',
+  textOnFillLight: '#eceff4',
+  textOnFillDark: '#2e3440',
   primary: '#5e81ac',
   secondary: '#81a1c1',
   accent: '#88c0d0',
@@ -53,6 +55,8 @@ const testPalette: PaletteColors = {
     teal: '#8fbcbb',
     cyan: '#88c0d0',
     gray: '#4c566a',
+    black: '#2e3440',
+    white: '#eceff4',
   },
 };
 
@@ -62,8 +66,14 @@ function renderToContainer(content: string, isDark = false): HTMLDivElement {
   const layout = layoutGraph(parsed);
 
   const container = document.createElement('div');
-  Object.defineProperty(container, 'clientWidth', { value: 1200, configurable: true });
-  Object.defineProperty(container, 'clientHeight', { value: 800, configurable: true });
+  Object.defineProperty(container, 'clientWidth', {
+    value: 1200,
+    configurable: true,
+  });
+  Object.defineProperty(container, 'clientHeight', {
+    value: 800,
+    configurable: true,
+  });
   document.body.appendChild(container);
 
   renderState(container, parsed, layout, testPalette, isDark);
@@ -154,7 +164,9 @@ describe('renderState', () => {
 
   describe('group rendering', () => {
     it('renders group box rect', () => {
-      const container = renderToContainer('[Processing](blue)\n  Validating -> Approved');
+      const container = renderToContainer(
+        '[Processing](blue)\n  Validating -> Approved'
+      );
       const groupRects = container.querySelectorAll('rect.st-group');
       expect(groupRects.length).toBe(1);
       document.body.removeChild(container);
@@ -190,14 +202,18 @@ describe('renderState', () => {
   describe('data attributes', () => {
     it('adds data-line-number to node groups', () => {
       const container = renderToContainer('A -> B');
-      const nodeGroups = container.querySelectorAll('g.st-node[data-line-number]');
+      const nodeGroups = container.querySelectorAll(
+        'g.st-node[data-line-number]'
+      );
       expect(nodeGroups.length).toBe(2);
       document.body.removeChild(container);
     });
 
     it('adds data-line-number to edge groups', () => {
       const container = renderToContainer('A -> B');
-      const edgeGroups = container.querySelectorAll('g.st-edge-group[data-line-number]');
+      const edgeGroups = container.querySelectorAll(
+        'g.st-edge-group[data-line-number]'
+      );
       expect(edgeGroups.length).toBe(1);
       document.body.removeChild(container);
     });

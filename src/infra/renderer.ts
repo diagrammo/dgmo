@@ -6,7 +6,7 @@ import * as d3Selection from 'd3-selection';
 import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
-import { mix } from '../palettes/color-utils';
+import { contrastText, mix, shapeFill } from '../palettes/color-utils';
 import type { InfraTagGroup } from './types';
 import { resolveColor } from '../colors';
 import { renderInlineText } from '../utils/inline-markdown';
@@ -1034,27 +1034,48 @@ function nodeColor(
   stroke: string;
   textFill: string;
 } {
+  // Severity fills: canonical 25% tint via shapeFill() (TD-3).
+  // Fills are visibly LOUDER than pre-spec 8-20% color; combined with
+  // the 2x OVERLOAD_STROKE_WIDTH, severity reads cleanly without a badge.
   if (severity === 'overloaded') {
+    const fill = shapeFill(palette, COLOR_OVERLOADED, isDark);
     return {
-      fill: mix(palette.bg, COLOR_OVERLOADED, isDark ? 80 : 92),
+      fill,
       stroke: COLOR_OVERLOADED,
-      textFill: palette.text,
+      textFill: contrastText(
+        fill,
+        palette.textOnFillLight,
+        palette.textOnFillDark
+      ),
     };
   }
   if (severity === 'warning') {
+    const fill = shapeFill(palette, COLOR_WARNING, isDark);
     return {
-      fill: mix(palette.bg, COLOR_WARNING, isDark ? 85 : 92),
+      fill,
       stroke: COLOR_WARNING,
-      textFill: palette.text,
+      textFill: contrastText(
+        fill,
+        palette.textOnFillLight,
+        palette.textOnFillDark
+      ),
     };
   }
   if (severity === 'healthy') {
+    const fill = shapeFill(palette, COLOR_HEALTHY, isDark);
     return {
-      fill: mix(palette.bg, COLOR_HEALTHY, isDark ? 85 : 93),
+      fill,
       stroke: COLOR_HEALTHY,
-      textFill: palette.text,
+      textFill: contrastText(
+        fill,
+        palette.textOnFillLight,
+        palette.textOnFillDark
+      ),
     };
   }
+  // Normal-state node: subtle-neutral 5-10% text tint — intentionally
+  // near-invisible so default nodes recede. Out of scope per TD-2 / F2;
+  // migrating to shapeFill() would 5x its saturation.
   return {
     fill: isDark
       ? mix(palette.bg, palette.text, 90)

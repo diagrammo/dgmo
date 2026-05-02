@@ -6,7 +6,7 @@ import * as d3Scale from 'd3-scale';
 import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
 import { getSeriesColors } from '../palettes';
-import { mix } from '../palettes/color-utils';
+import { contrastText, mix, shapeFill } from '../palettes/color-utils';
 import { resolveTagColor, resolveActiveTagGroup } from '../utils/tag-groups';
 import { computeTimeTicks } from '../utils/time-ticks';
 import {
@@ -73,14 +73,22 @@ function computeBarLabel(
   x1: number,
   barWidth: number,
   innerWidth: number,
-  textColor: string
+  textColor: string,
+  // Optional: color for labels rendered inside the bar (text-on-fill).
+  // Falls back to textColor for outside placements.
+  onFillColor?: string
 ): BarLabelPlacement | null {
   const textWidth = label.length * CHAR_W;
   const x2 = x1 + barWidth;
 
-  // 1. Inside
+  // 1. Inside (text-on-fill \u2014 use contrast color when available)
   if (textWidth < barWidth - LABEL_PAD) {
-    return { x: x1 + 6, anchor: 'start', fill: textColor, text: label };
+    return {
+      x: x1 + 6,
+      anchor: 'start',
+      fill: onFillColor ?? textColor,
+      text: label,
+    };
   }
 
   // 2. After (right of bar)
@@ -120,6 +128,7 @@ function renderLabelBand(
   leftMargin: number,
   color: string,
   palette: PaletteColors,
+  isDark: boolean,
   cssPrefix: 'group' | 'lane',
   dataAttr?: { key: string; value: string }
 ): void {
@@ -148,7 +157,7 @@ function renderLabelBand(
     .attr('width', bandW)
     .attr('height', BAR_H)
     .attr('rx', BAND_RADIUS)
-    .attr('fill', mix(color, palette.bg, 20))
+    .attr('fill', shapeFill(palette, color, isDark))
     .style('pointer-events', 'none');
 
   // Accent strip inside the tint, clipped to the band's rounded shape
@@ -448,7 +457,7 @@ export function renderGantt(
         seriesColors,
         palette
       );
-      const fillColor = mix(color, palette.bg, 30);
+      const fillColor = shapeFill(palette, color, isDark);
       el.select('rect').attr('fill', fillColor).attr('stroke', color);
     });
   }
@@ -611,6 +620,7 @@ export function renderGantt(
         leftMargin,
         laneColor,
         palette,
+        isDark,
         'lane',
         { key: 'data-lane', value: row.laneName }
       );
@@ -661,7 +671,7 @@ export function renderGantt(
         );
 
       if (laneBarWidth > 0) {
-        const barFill = mix(laneColor, palette.bg, 30);
+        const barFill = shapeFill(palette, laneColor, isDark);
         const laneBandG = g
           .append('g')
           .attr('class', 'gantt-lane-band-group')
@@ -737,6 +747,7 @@ export function renderGantt(
         leftMargin,
         groupColor,
         palette,
+        isDark,
         'group',
         { key: 'data-group', value: group.name }
       );
@@ -822,7 +833,7 @@ export function renderGantt(
             .attr('width', barWidth)
             .attr('height', BAR_H)
             .attr('rx', 4)
-            .attr('fill', mix(groupColor, palette.bg, 30))
+            .attr('fill', shapeFill(palette, groupColor, isDark))
             .attr('stroke', groupColor)
             .attr('stroke-width', 2);
 
@@ -847,7 +858,12 @@ export function renderGantt(
             gx1,
             barWidth,
             innerWidth,
-            palette.text
+            palette.text,
+            contrastText(
+              shapeFill(palette, groupColor, isDark),
+              palette.textOnFillLight,
+              palette.textOnFillDark
+            )
           );
           if (summaryPlacement) {
             summaryG
@@ -872,7 +888,7 @@ export function renderGantt(
         } else {
           // Expanded: bar spanning group date range (matches task bar style)
           const groupBarWidth = Math.max(gx2 - gx1, 2);
-          const bandFill = mix(groupColor, palette.bg, 30);
+          const bandFill = shapeFill(palette, groupColor, isDark);
           const groupBarG = g
             .append('g')
             .attr('class', 'gantt-group-bar')
@@ -927,7 +943,12 @@ export function renderGantt(
             gx1,
             groupBarWidth,
             innerWidth,
-            palette.text
+            palette.text,
+            contrastText(
+              shapeFill(palette, groupColor, isDark),
+              palette.textOnFillLight,
+              palette.textOnFillDark
+            )
           );
           if (expandedPlacement) {
             groupBarG
@@ -1063,7 +1084,7 @@ export function renderGantt(
         const x2 = xScale(tEnd);
         const barWidth = Math.max(x2 - x1, 2);
 
-        const fillColor = mix(barColor, palette.bg, 30);
+        const fillColor = shapeFill(palette, barColor, isDark);
 
         const taskG = g
           .append('g')
@@ -1233,7 +1254,12 @@ export function renderGantt(
           x1,
           barWidth,
           innerWidth,
-          palette.text
+          palette.text,
+          contrastText(
+            shapeFill(palette, barColor, isDark),
+            palette.textOnFillLight,
+            palette.textOnFillDark
+          )
         );
         if (labelPlacement) {
           taskG

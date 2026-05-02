@@ -1,6 +1,6 @@
 import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
-import { mix } from '../palettes/color-utils';
+import { contrastText, mix, shapeFill } from '../palettes/color-utils';
 import type { PaletteColors } from '../palettes';
 import type { D3ExportDimensions } from '../utils/d3-types';
 import type { CompactViewState } from '../sharing';
@@ -924,11 +924,16 @@ function showBlipPopover(
   isDark: boolean,
   event: MouseEvent
 ): void {
-  const fillColor = mix(qColor, isDark ? palette.surface : palette.bg, 30);
+  const fillColor = shapeFill(palette, qColor, isDark);
   const hasDesc = blip.description.length > 0;
+  const onFillText = contrastText(
+    fillColor,
+    palette.textOnFillLight,
+    palette.textOnFillDark
+  );
 
   let html = `<div style="background:${fillColor}; border: 1.5px solid ${qColor}; border-radius: 6px; overflow: hidden;">`;
-  html += `<div style="padding: 8px 12px; font-weight: 600; color: ${palette.text};">${escapeHtml(blip.name)}</div>`;
+  html += `<div style="padding: 8px 12px; font-weight: 600; color: ${onFillText};">${escapeHtml(blip.name)}</div>`;
 
   if (hasDesc) {
     html += `<div style="border-top: 1px solid ${qColor}; opacity: 0.3;"></div>`;

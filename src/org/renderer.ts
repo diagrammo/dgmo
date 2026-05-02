@@ -9,7 +9,7 @@ import {
   extractExportSvg,
 } from '../utils/export-container';
 import type { PaletteColors } from '../palettes';
-import { mix } from '../palettes/color-utils';
+import { contrastText, mix, shapeFill } from '../palettes/color-utils';
 import { resolveTagColor } from '../utils/tag-groups';
 import type { ParsedOrg } from './parser';
 import type { OrgLayoutResult } from './layout';
@@ -71,7 +71,7 @@ function nodeFill(
   nodeColor?: string
 ): string {
   const color = nodeColor ?? palette.primary;
-  return mix(color, isDark ? palette.surface : palette.bg, 25);
+  return shapeFill(palette, color, isDark);
 }
 
 function nodeStroke(palette: PaletteColors, nodeColor?: string): string {
@@ -466,13 +466,18 @@ export function renderOrg(
       rect.attr('stroke-dasharray', '6 3');
     }
 
-    // Label
+    // Label — contrast against the node fill
+    const labelColor = contrastText(
+      fill,
+      palette.textOnFillLight,
+      palette.textOnFillDark
+    );
     nodeG
       .append('text')
       .attr('x', node.width / 2)
       .attr('y', HEADER_HEIGHT / 2 + LABEL_FONT_SIZE / 2 - 2)
       .attr('text-anchor', 'middle')
-      .attr('fill', palette.text)
+      .attr('fill', labelColor)
       .attr('font-size', LABEL_FONT_SIZE)
       .attr('font-weight', 'bold')
       .text(node.label);
@@ -513,12 +518,12 @@ export function renderOrg(
           .attr('font-size', META_FONT_SIZE)
           .text(`${displayKey}: `);
 
-        // Value (normal)
+        // Value (normal) — contrast against node fill
         nodeG
           .append('text')
           .attr('x', valueX)
           .attr('y', rowY)
-          .attr('fill', palette.text)
+          .attr('fill', labelColor)
           .attr('font-size', META_FONT_SIZE)
           .text(value);
       }

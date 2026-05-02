@@ -32,6 +32,8 @@ export const rosePinePalette: PaletteConfig = {
     border: '#dfdad9', // Dawn Highlight Med
     text: '#575279', // Dawn Text
     textMuted: '#9893a5', // Dawn Muted
+    textOnFillLight: '#faf4ed', // Dawn Base
+    textOnFillDark: '#191724', // Rosé Pine Main Base (deep dark)
     primary: '#286983', // Dawn Pine
     secondary: '#56949f', // Dawn Foam
     accent: '#907aa9', // Dawn Iris
@@ -57,6 +59,8 @@ export const rosePinePalette: PaletteConfig = {
     border: '#44415a', // Moon Highlight Med
     text: '#e0def4', // Moon Text
     textMuted: '#908caa', // Moon Subtle
+    textOnFillLight: '#e0def4', // Moon Text
+    textOnFillDark: '#191724', // Rosé Pine Main Base
     primary: '#3e8fb0', // Moon Pine
     secondary: '#9ccfd8', // Moon Foam
     accent: '#c4a7e7', // Moon Iris

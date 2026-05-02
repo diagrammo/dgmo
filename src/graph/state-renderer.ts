@@ -6,7 +6,7 @@ import * as d3Selection from 'd3-selection';
 import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
-import { mix } from '../palettes/color-utils';
+import { contrastText, mix, shapeFill } from '../palettes/color-utils';
 import type { ParsedGraph } from './types';
 import type { LayoutResult, LayoutNode } from './layout';
 import { parseState } from './state-parser';
@@ -49,7 +49,7 @@ function stateFill(
   colorOff?: boolean
 ): string {
   const color = nodeColor ?? stateDefaultColor(palette, colorOff);
-  return mix(color, isDark ? palette.surface : palette.bg, 25);
+  return shapeFill(palette, color, isDark);
 }
 
 function stateStroke(
@@ -512,20 +512,28 @@ export function renderState(
         .attr('opacity', 0.5)
         .attr('clip-path', `url(#${clipId})`);
 
-      // Label
+      // Label — contrast against the collapsed-group fill
       nodeG
         .append('text')
         .attr('x', 0)
         .attr('y', 0)
         .attr('text-anchor', 'middle')
         .attr('dominant-baseline', 'central')
-        .attr('fill', palette.text)
+        .attr(
+          'fill',
+          contrastText(
+            fillColor,
+            palette.textOnFillLight,
+            palette.textOnFillDark
+          )
+        )
         .attr('font-size', NODE_FONT_SIZE)
         .text(node.label);
     } else {
       // State — rounded rectangle
       const w = node.width;
       const h = node.height;
+      const resolvedFill = stateFill(palette, isDark, node.color, colorOff);
       nodeG
         .append('rect')
         .attr('x', -w / 2)
@@ -534,18 +542,25 @@ export function renderState(
         .attr('height', h)
         .attr('rx', STATE_CORNER_RADIUS)
         .attr('ry', STATE_CORNER_RADIUS)
-        .attr('fill', stateFill(palette, isDark, node.color, colorOff))
+        .attr('fill', resolvedFill)
         .attr('stroke', stateStroke(palette, node.color, colorOff))
         .attr('stroke-width', NODE_STROKE_WIDTH);
 
-      // Label
+      // Label — contrast against the state fill
       nodeG
         .append('text')
         .attr('x', 0)
         .attr('y', 0)
         .attr('text-anchor', 'middle')
         .attr('dominant-baseline', 'central')
-        .attr('fill', palette.text)
+        .attr(
+          'fill',
+          contrastText(
+            resolvedFill,
+            palette.textOnFillLight,
+            palette.textOnFillDark
+          )
+        )
         .attr('font-size', NODE_FONT_SIZE)
         .text(node.label);
     }

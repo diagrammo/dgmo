@@ -1,6 +1,18 @@
 import { describe, it, expect } from 'vitest';
-import { mix, hexToHSL, hslToHex, tint, shade, relativeLuminance, contrastText } from '../src/palettes/color-utils';
+import {
+  mix,
+  hexToHSL,
+  hslToHex,
+  tint,
+  shade,
+  relativeLuminance,
+  contrastText,
+  shapeFill,
+} from '../src/palettes/color-utils';
 import { resolveColor } from '../src/colors';
+import { nordPalette } from '../src/palettes/nord';
+import { boldPalette } from '../src/palettes/bold';
+import { catppuccinPalette } from '../src/palettes/catppuccin';
 
 describe('mix', () => {
   it('returns color b at pct=0', () => {
@@ -96,6 +108,46 @@ describe('shade', () => {
 
   it('returns base at amount=1', () => {
     expect(shade('#5e81ac', '#2e3440', 1)).toBe('#2e3440');
+  });
+});
+
+describe('shapeFill', () => {
+  const palettes = [
+    { name: 'nord', cfg: nordPalette },
+    { name: 'bold', cfg: boldPalette },
+    { name: 'catppuccin', cfg: catppuccinPalette },
+  ];
+
+  for (const { name, cfg } of palettes) {
+    it(`${name} light: returns mix(intent, palette.bg, 25)`, () => {
+      const intent = cfg.light.colors.blue;
+      expect(shapeFill(cfg.light, intent, false)).toBe(
+        mix(intent, cfg.light.bg, 25)
+      );
+    });
+
+    it(`${name} dark: returns mix(intent, palette.surface, 25)`, () => {
+      const intent = cfg.dark.colors.blue;
+      expect(shapeFill(cfg.dark, intent, true)).toBe(
+        mix(intent, cfg.dark.surface, 25)
+      );
+    });
+
+    it(`${name} works with palette.primary as intent`, () => {
+      expect(shapeFill(cfg.light, cfg.light.primary, false)).toBe(
+        mix(cfg.light.primary, cfg.light.bg, 25)
+      );
+    });
+  }
+
+  it('opts.solid is currently ignored (reserved for follow-up spec)', () => {
+    const intent = nordPalette.light.colors.red;
+    const expected = mix(intent, nordPalette.light.bg, 25);
+    expect(shapeFill(nordPalette.light, intent, false)).toBe(expected);
+    expect(shapeFill(nordPalette.light, intent, false, {})).toBe(expected);
+    expect(shapeFill(nordPalette.light, intent, false, { solid: true })).toBe(
+      expected
+    );
   });
 });
 

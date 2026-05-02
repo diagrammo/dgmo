@@ -23,6 +23,18 @@ export interface PaletteColors {
   /** Secondary/diminished text (#4c566a / #d8dee9) */
   textMuted: string;
 
+  // ── Contrast tokens for text-on-fill ───────────────────
+  /**
+   * Light-mode arg for `contrastText()` when text is rendered on a
+   * tinted shape fill (e.g. `shapeFill()` output). Must guarantee
+   * ≥ 4.5:1 WCAG AA against any `shapeFill()` the palette can produce.
+   * Distinct from `colors.white` because palette-aesthetic anchors don't
+   * always meet contrast requirements (TD-5).
+   */
+  textOnFillLight: string;
+  /** Dark-mode counterpart to `textOnFillLight`. */
+  textOnFillDark: string;
+
   // ── Semantic accents ───────────────────────────────────
   /** Primary accent — buttons, links */
   primary: string;

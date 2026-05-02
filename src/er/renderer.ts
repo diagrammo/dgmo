@@ -6,7 +6,7 @@ import * as d3Selection from 'd3-selection';
 import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
-import { mix } from '../palettes/color-utils';
+import { contrastText, shapeFill } from '../palettes/color-utils';
 import { getSeriesColors } from '../palettes';
 import { resolveTagColor } from '../utils/tag-groups';
 import { LEGEND_HEIGHT } from '../utils/legend-constants';
@@ -465,8 +465,13 @@ export function renderERDiagram(
 
     const w = node.width;
     const h = node.height;
-    const fill = mix(nodeColor, isDark ? palette.surface : palette.bg, 25);
+    const fill = shapeFill(palette, nodeColor, isDark);
     const stroke = nodeColor;
+    const onFillText = contrastText(
+      fill,
+      palette.textOnFillLight,
+      palette.textOnFillDark
+    );
 
     // Outer rectangle
     nodeG
@@ -491,7 +496,7 @@ export function renderERDiagram(
       .attr('y', headerCenterY)
       .attr('text-anchor', 'middle')
       .attr('dominant-baseline', 'central')
-      .attr('fill', palette.text)
+      .attr('fill', onFillText)
       .attr('font-size', TABLE_FONT_SIZE)
       .attr('font-weight', 'bold')
       .text(node.name);
@@ -537,7 +542,7 @@ export function renderERDiagram(
           .attr('x', textX)
           .attr('y', memberY + MEMBER_LINE_HEIGHT / 2)
           .attr('dominant-baseline', 'central')
-          .attr('fill', palette.text)
+          .attr('fill', onFillText)
           .attr('font-size', COLUMN_FONT_SIZE)
           .text(colText);
 

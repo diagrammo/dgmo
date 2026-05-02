@@ -17,7 +17,7 @@ import type {
   LegendCallbacks,
   ControlsGroupToggle,
 } from '../utils/legend-types';
-import { contrastText, mix } from '../palettes/color-utils';
+import { contrastText, shapeFill } from '../palettes/color-utils';
 import { resolveColor } from '../colors';
 import { renderInlineText } from '../utils/inline-markdown';
 import type { PaletteColors } from '../palettes';
@@ -252,13 +252,13 @@ export function renderCycle(
     const ln = layout.nodes[i];
     const node = parsed.nodes[i];
     const solidColor = resolveNodeColor(node.color, palette, defaultNodeColor);
-    // Muted fill (mix color with background), solid border
-    const fillColor = mix(
-      solidColor,
-      isDark ? palette.surface : palette.bg,
-      30
+    // Canonical 25% tinted fill via shapeFill().
+    const fillColor = shapeFill(palette, solidColor, isDark);
+    const textColor = contrastText(
+      fillColor,
+      palette.textOnFillLight,
+      palette.textOnFillDark
     );
-    const textColor = contrastText(fillColor, '#eceff4', '#2e3440');
     const nodeW = ln.width;
     const nodeH = ln.height;
     const wrappedDesc = ln.wrappedDesc;

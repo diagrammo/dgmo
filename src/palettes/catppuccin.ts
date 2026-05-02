@@ -32,6 +32,8 @@ export const catppuccinPalette: PaletteConfig = {
     border: '#dce0e8', // Latte Crust
     text: '#4c4f69', // Latte Text
     textMuted: '#5c5f77', // Latte Subtext1
+    textOnFillLight: '#eff1f5', // Latte Base
+    textOnFillDark: '#4c4f69', // Latte Text
     primary: '#1e66f5', // Latte Blue
     secondary: '#7287fd', // Latte Lavender
     accent: '#8839ef', // Latte Mauve
@@ -57,6 +59,8 @@ export const catppuccinPalette: PaletteConfig = {
     border: '#6c7086', // Mocha Overlay0
     text: '#cdd6f4', // Mocha Text
     textMuted: '#bac2de', // Mocha Subtext1
+    textOnFillLight: '#f5e0dc', // Mocha Rosewater (highest-luminance accent)
+    textOnFillDark: '#11111b', // Mocha Crust (low luminance)
     primary: '#89b4fa', // Mocha Blue
     secondary: '#b4befe', // Mocha Lavender
     accent: '#cba6f7', // Mocha Mauve

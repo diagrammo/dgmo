@@ -9,7 +9,11 @@ import {
   TITLE_FONT_WEIGHT,
   TITLE_Y,
 } from '../utils/title-constants';
-import { contrastText, getSeriesColors, mix } from '../palettes/color-utils';
+import {
+  contrastText,
+  getSeriesColors,
+  shapeFill,
+} from '../palettes/color-utils';
 import { resolveColor } from '../colors';
 import { renderInlineText } from '../utils/inline-markdown';
 import {
@@ -166,7 +170,6 @@ export function renderPyramid(
 
   // ── Layer colors ────────────────────────────────────────────
   const seriesColors = getSeriesColors(palette);
-  const layerBase = isDark ? palette.surface : palette.bg;
   const resolveSolid = (layer: PyramidLayer, i: number): string => {
     if (layer.color) {
       const named = resolveColor(layer.color, palette);
@@ -195,7 +198,7 @@ export function renderPyramid(
       .join(' ');
 
     const solidColor = resolveSolid(layer, i);
-    const fillColor = mix(solidColor, layerBase, 30);
+    const fillColor = shapeFill(palette, solidColor, isDark);
 
     const layerG = diagramG
       .append('g')
@@ -218,7 +221,7 @@ export function renderPyramid(
     const labelFitsInside =
       Math.min(topHalf, botHalf) * 2 > layout.labelFont * 4;
     const textColor = labelFitsInside
-      ? contrastText(fillColor, '#eceff4', '#2e3440')
+      ? contrastText(fillColor, palette.textOnFillLight, palette.textOnFillDark)
       : palette.text;
 
     const labelText = layerG

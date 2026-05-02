@@ -143,7 +143,7 @@ export interface ParsedExtendedChart {
 
 import type { PaletteColors } from './palettes';
 import { getSeriesColors, getSegmentColors } from './palettes';
-import { mix } from './palettes/color-utils';
+import { mix, shapeFill } from './palettes/color-utils';
 import { parseChart } from './chart';
 import type { ParsedChart, ChartEra } from './chart';
 import { makeDgmoError, formatDgmoError, suggest } from './diagnostics';
@@ -820,7 +820,15 @@ export function buildExtendedChartOption(
   // Chord diagram
   if (parsed.type === 'chord') {
     const bg = isDark ? palette.surface : palette.bg;
-    return buildChordOption(parsed, textColor, colors, bg, titleConfig);
+    return buildChordOption(
+      parsed,
+      palette,
+      isDark,
+      textColor,
+      colors,
+      bg,
+      titleConfig
+    );
   }
 
   // Function plot
@@ -828,6 +836,7 @@ export function buildExtendedChartOption(
     return buildFunctionOption(
       parsed,
       palette,
+      isDark,
       textColor,
       axisLineColor,
       gridOpacity,
@@ -842,6 +851,7 @@ export function buildExtendedChartOption(
     return buildScatterOption(
       parsed,
       palette,
+      isDark,
       textColor,
       axisLineColor,
       gridOpacity,
@@ -854,7 +864,15 @@ export function buildExtendedChartOption(
   // Funnel chart
   if (parsed.type === 'funnel') {
     const bg = isDark ? palette.surface : palette.bg;
-    return buildFunnelOption(parsed, textColor, colors, bg, titleConfig);
+    return buildFunnelOption(
+      parsed,
+      palette,
+      isDark,
+      textColor,
+      colors,
+      bg,
+      titleConfig
+    );
   }
 
   // Heatmap
@@ -887,8 +905,12 @@ function buildSankeyOption(
     }
   }
 
-  // Tint colors with background so the diagram feels less saturated.
-  // Nodes get a lighter tint so they stand out; links get more tinting.
+  // Sankey is the only chart in dgmo with both dense parallel node-bars
+  // AND many bezier links. The 75%/45% desaturation is load-bearing for
+  // visual quietness; collapsing to the canonical shapeFill() 25% tint
+  // washes out the layout. Verified via preview spike 2026-05-02.
+  // See: tech-spec-shape-fill-standardization, TD-4.
+  // sankey-baseline.test.ts asserts these literals stay intact.
   const tintNode = (c: string) => mix(c, bg, 75);
   const tintLink = (c: string) => mix(c, bg, 45);
 
@@ -946,6 +968,8 @@ function buildSankeyOption(
  */
 function buildChordOption(
   parsed: ParsedExtendedChart,
+  palette: PaletteColors,
+  isDark: boolean,
   textColor: string,
   colors: string[],
   bg: string,
@@ -984,7 +1008,7 @@ function buildChordOption(
     return {
       name,
       itemStyle: {
-        color: mix(stroke, bg, 30),
+        color: shapeFill(palette, stroke, isDark),
         borderColor: stroke,
         borderWidth: CHART_BORDER_WIDTH,
       },
@@ -1105,6 +1129,7 @@ function evaluateExpression(expr: string, x: number): number {
 function buildFunctionOption(
   parsed: ParsedExtendedChart,
   palette: PaletteColors,
+  isDark: boolean,
   textColor: string,
   axisLineColor: string,
   gridOpacity: number,
@@ -1503,6 +1528,7 @@ function dataToPixel(
 function buildScatterOption(
   parsed: ParsedExtendedChart,
   palette: PaletteColors,
+  isDark: boolean,
   textColor: string,
   axisLineColor: string,
   gridOpacity: number,
@@ -1552,7 +1578,7 @@ function buildScatterOption(
         value: hasSize ? [p.x, p.y, p.size ?? 0] : [p.x, p.y],
         ...(p.color && {
           itemStyle: {
-            color: mix(p.color, bg, 30),
+            color: shapeFill(palette, p.color, isDark),
             borderColor: p.color,
             borderWidth: CHART_BORDER_WIDTH,
           },
@@ -1567,7 +1593,7 @@ function buildScatterOption(
           ? { symbolSize: (val: number[]) => val[2] }
           : { symbolSize: defaultSize }),
         itemStyle: {
-          color: mix(catColor, bg, 30),
+          color: shapeFill(palette, catColor, isDark),
           borderColor: catColor,
           borderWidth: CHART_BORDER_WIDTH,
         },
@@ -1587,7 +1613,7 @@ function buildScatterOption(
           ? { symbolSize: p.size ?? defaultSize }
           : { symbolSize: defaultSize }),
         itemStyle: {
-          color: mix(stroke, bg, 30),
+          color: shapeFill(palette, stroke, isDark),
           borderColor: stroke,
           borderWidth: CHART_BORDER_WIDTH,
         },
@@ -1864,10 +1890,10 @@ function buildHeatmapOption(
       max: maxValue,
       inRange: {
         color: [
-          mix(palette.primary, bg, 30),
-          mix(palette.colors.cyan, bg, 30),
-          mix(palette.colors.yellow, bg, 30),
-          mix(palette.colors.orange, bg, 30),
+          shapeFill(palette, palette.primary, isDark),
+          shapeFill(palette, palette.colors.cyan, isDark),
+          shapeFill(palette, palette.colors.yellow, isDark),
+          shapeFill(palette, palette.colors.orange, isDark),
         ],
       },
     },
@@ -1898,6 +1924,8 @@ function buildHeatmapOption(
  */
 function buildFunnelOption(
   parsed: ParsedExtendedChart,
+  palette: PaletteColors,
+  isDark: boolean,
   textColor: string,
   colors: string[],
   bg: string,
@@ -1912,7 +1940,7 @@ function buildFunnelOption(
       name: d.label,
       value: d.value,
       itemStyle: {
-        color: mix(stroke, bg, 30),
+        color: shapeFill(palette, stroke, isDark),
         borderColor: stroke,
         borderWidth: CHART_BORDER_WIDTH,
       },
@@ -2119,6 +2147,8 @@ export function buildSimpleChartOption(
     case 'bar':
       return buildBarOption(
         parsed,
+        palette,
+        isDark,
         textColor,
         axisLineColor,
         splitLineColor,
@@ -2131,6 +2161,8 @@ export function buildSimpleChartOption(
     case 'bar-stacked':
       return buildBarStackedOption(
         parsed,
+        palette,
+        isDark,
         textColor,
         axisLineColor,
         splitLineColor,
@@ -2177,6 +2209,8 @@ export function buildSimpleChartOption(
     case 'pie':
       return buildPieOption(
         parsed,
+        palette,
+        isDark,
         textColor,
         getSegmentColors(palette, parsed.data.length),
         bg,
@@ -2186,6 +2220,8 @@ export function buildSimpleChartOption(
     case 'doughnut':
       return buildPieOption(
         parsed,
+        palette,
+        isDark,
         textColor,
         getSegmentColors(palette, parsed.data.length),
         bg,
@@ -2204,6 +2240,8 @@ export function buildSimpleChartOption(
     case 'polar-area':
       return buildPolarAreaOption(
         parsed,
+        palette,
+        isDark,
         textColor,
         getSegmentColors(palette, parsed.data.length),
         bg,
@@ -2253,6 +2291,8 @@ function wrapLabel(text: string, maxChars: number): string {
 
 function buildBarOption(
   parsed: ParsedChart,
+  palette: PaletteColors,
+  isDark: boolean,
   textColor: string,
   axisLineColor: string,
   splitLineColor: string,
@@ -2270,7 +2310,7 @@ function buildBarOption(
     return {
       value: d.value,
       itemStyle: {
-        color: mix(stroke, bg, 30),
+        color: shapeFill(palette, stroke, isDark),
         borderColor: stroke,
         borderWidth: CHART_BORDER_WIDTH,
       },
@@ -2673,6 +2713,8 @@ function pieLabelLayout(parsed: ParsedChart): {
 
 function buildPieOption(
   parsed: ParsedChart,
+  palette: PaletteColors,
+  isDark: boolean,
   textColor: string,
   colors: string[],
   bg: string,
@@ -2686,7 +2728,7 @@ function buildPieOption(
       name: d.label,
       value: d.value,
       itemStyle: {
-        color: mix(stroke, bg, 30),
+        color: shapeFill(palette, stroke, isDark),
         borderColor: stroke,
         borderWidth: CHART_BORDER_WIDTH,
       },
@@ -2731,7 +2773,6 @@ function buildRadarOption(
   gridOpacity: number,
   titleConfig: EChartsOption['title']
 ): EChartsOption {
-  const bg = isDark ? palette.surface : palette.bg;
   const radarColor =
     parsed.color ?? parsed.seriesNameColors?.[0] ?? palette.primary;
   const values = parsed.data.map((d) => d.value);
@@ -2769,7 +2810,7 @@ function buildRadarOption(
           {
             value: values,
             name: parsed.series ?? 'Value',
-            areaStyle: { color: mix(radarColor, bg, 30) },
+            areaStyle: { color: shapeFill(palette, radarColor, isDark) },
             lineStyle: { color: radarColor },
             itemStyle: { color: radarColor },
             symbol: 'circle',
@@ -2794,6 +2835,8 @@ function buildRadarOption(
 
 function buildPolarAreaOption(
   parsed: ParsedChart,
+  palette: PaletteColors,
+  isDark: boolean,
   textColor: string,
   colors: string[],
   bg: string,
@@ -2805,7 +2848,7 @@ function buildPolarAreaOption(
       name: d.label,
       value: d.value,
       itemStyle: {
-        color: mix(stroke, bg, 30),
+        color: shapeFill(palette, stroke, isDark),
         borderColor: stroke,
         borderWidth: CHART_BORDER_WIDTH,
       },
@@ -2845,6 +2888,8 @@ function buildPolarAreaOption(
 
 function buildBarStackedOption(
   parsed: ParsedChart,
+  palette: PaletteColors,
+  isDark: boolean,
   textColor: string,
   axisLineColor: string,
   splitLineColor: string,
@@ -2870,7 +2915,7 @@ function buildBarStackedOption(
       stack: 'total',
       data,
       itemStyle: {
-        color: mix(color, bg, 30),
+        color: shapeFill(palette, color, isDark),
         borderColor: color,
         borderWidth: CHART_BORDER_WIDTH,
       },

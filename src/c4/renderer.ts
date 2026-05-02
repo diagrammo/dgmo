@@ -6,7 +6,7 @@ import * as d3Selection from 'd3-selection';
 import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
-import { mix } from '../palettes/color-utils';
+import { contrastText, mix, shapeFill } from '../palettes/color-utils';
 import { renderInlineText } from '../utils/inline-markdown';
 import { preprocessDescriptionLine } from '../utils/description-helpers';
 import type { ParsedC4 } from './types';
@@ -97,7 +97,7 @@ function nodeFill(
   nodeColor?: string
 ): string {
   const color = typeColor(type, palette, nodeColor);
-  return mix(color, isDark ? palette.surface : palette.bg, 25);
+  return shapeFill(palette, color, isDark);
 }
 
 function nodeStroke(
@@ -474,6 +474,11 @@ export function renderC4Context(
     const h = node.height;
     const fill = nodeFill(palette, isDark, node.type, node.color);
     const stroke = nodeStroke(palette, node.type, node.color);
+    const onFillText = contrastText(
+      fill,
+      palette.textOnFillLight,
+      palette.textOnFillDark
+    );
 
     // Card background
     nodeG
@@ -528,7 +533,7 @@ export function renderC4Context(
         .attr('y', yPos + NAME_FONT_SIZE / 2)
         .attr('text-anchor', 'start')
         .attr('dominant-baseline', 'central')
-        .attr('fill', palette.text)
+        .attr('fill', onFillText)
         .attr('font-size', NAME_FONT_SIZE)
         .attr('font-weight', 'bold')
         .text(node.name);
@@ -539,7 +544,7 @@ export function renderC4Context(
         .attr('y', yPos + NAME_FONT_SIZE / 2)
         .attr('text-anchor', 'middle')
         .attr('dominant-baseline', 'central')
-        .attr('fill', palette.text)
+        .attr('fill', onFillText)
         .attr('font-size', NAME_FONT_SIZE)
         .attr('font-weight', 'bold')
         .text(node.name);
@@ -1549,6 +1554,11 @@ export function renderC4Containers(
     const h = node.height;
     const fill = nodeFill(palette, isDark, node.type, node.color);
     const stroke = nodeStroke(palette, node.type, node.color);
+    const onFillText = contrastText(
+      fill,
+      palette.textOnFillLight,
+      palette.textOnFillDark
+    );
     const shape = node.shape ?? 'default';
     const isExternalShape = shape === 'external';
 
@@ -1612,7 +1622,7 @@ export function renderC4Containers(
         .attr('y', yPos + NAME_FONT_SIZE / 2)
         .attr('text-anchor', 'start')
         .attr('dominant-baseline', 'central')
-        .attr('fill', palette.text)
+        .attr('fill', onFillText)
         .attr('font-size', NAME_FONT_SIZE)
         .attr('font-weight', 'bold')
         .text(node.name);
@@ -1623,7 +1633,7 @@ export function renderC4Containers(
         .attr('y', yPos + NAME_FONT_SIZE / 2)
         .attr('text-anchor', 'middle')
         .attr('dominant-baseline', 'central')
-        .attr('fill', palette.text)
+        .attr('fill', onFillText)
         .attr('font-size', NAME_FONT_SIZE)
         .attr('font-weight', 'bold')
         .text(node.name);
@@ -1688,14 +1698,14 @@ export function renderC4Containers(
             .attr('font-size', META_FONT_SIZE)
             .text(`${entry.key}:`);
 
-          // Value (normal)
+          // Value (normal) — contrast against card fill
           nodeG
             .append('text')
             .attr('x', valueX)
             .attr('y', yPos + META_FONT_SIZE / 2)
             .attr('text-anchor', 'start')
             .attr('dominant-baseline', 'central')
-            .attr('fill', palette.text)
+            .attr('fill', onFillText)
             .attr('font-size', META_FONT_SIZE)
             .text(entry.value);
 

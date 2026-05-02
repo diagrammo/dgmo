@@ -6,12 +6,16 @@ import * as d3Selection from 'd3-selection';
 import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
-import { mix } from '../palettes/color-utils';
+import { contrastText, shapeFill } from '../palettes/color-utils';
 import type { ParsedGraph, GraphShape } from './types';
 import type { LayoutResult, LayoutNode } from './layout';
 import { parseFlowchart } from './flowchart-parser';
 import { layoutGraph } from './layout';
-import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT, TITLE_Y } from '../utils/title-constants';
+import {
+  TITLE_FONT_SIZE,
+  TITLE_FONT_WEIGHT,
+  TITLE_Y,
+} from '../utils/title-constants';
 
 // ============================================================
 // Constants
@@ -33,26 +37,54 @@ const DOC_WAVE_HEIGHT = 10;
 // Color helpers
 // ============================================================
 
-function shapeDefaultColor(shape: GraphShape, palette: PaletteColors, isEndTerminal?: boolean, colorOff?: boolean): string {
+function shapeDefaultColor(
+  shape: GraphShape,
+  palette: PaletteColors,
+  isEndTerminal?: boolean,
+  colorOff?: boolean
+): string {
   if (colorOff) return palette.textMuted;
   switch (shape) {
-    case 'terminal':   return isEndTerminal ? palette.colors.red : palette.colors.green;
-    case 'process':    return palette.colors.blue;
-    case 'decision':   return palette.colors.yellow;
-    case 'io':         return palette.colors.purple;
-    case 'subroutine': return palette.colors.teal;
-    case 'document':   return palette.colors.orange;
-    default:           return palette.colors.blue;
+    case 'terminal':
+      return isEndTerminal ? palette.colors.red : palette.colors.green;
+    case 'process':
+      return palette.colors.blue;
+    case 'decision':
+      return palette.colors.yellow;
+    case 'io':
+      return palette.colors.purple;
+    case 'subroutine':
+      return palette.colors.teal;
+    case 'document':
+      return palette.colors.orange;
+    default:
+      return palette.colors.blue;
   }
 }
 
-function nodeFill(palette: PaletteColors, isDark: boolean, shape: GraphShape, nodeColor?: string, isEndTerminal?: boolean, colorOff?: boolean): string {
-  const color = nodeColor ?? shapeDefaultColor(shape, palette, isEndTerminal, colorOff);
-  return mix(color, isDark ? palette.surface : palette.bg, 25);
+function nodeFill(
+  palette: PaletteColors,
+  isDark: boolean,
+  shape: GraphShape,
+  nodeColor?: string,
+  isEndTerminal?: boolean,
+  colorOff?: boolean
+): string {
+  const color =
+    nodeColor ?? shapeDefaultColor(shape, palette, isEndTerminal, colorOff);
+  return shapeFill(palette, color, isDark);
 }
 
-function nodeStroke(palette: PaletteColors, shape: GraphShape, nodeColor?: string, isEndTerminal?: boolean, colorOff?: boolean): string {
-  return nodeColor ?? shapeDefaultColor(shape, palette, isEndTerminal, colorOff);
+function nodeStroke(
+  palette: PaletteColors,
+  shape: GraphShape,
+  nodeColor?: string,
+  isEndTerminal?: boolean,
+  colorOff?: boolean
+): string {
+  return (
+    nodeColor ?? shapeDefaultColor(shape, palette, isEndTerminal, colorOff)
+  );
 }
 
 // ============================================================
@@ -61,7 +93,14 @@ function nodeStroke(palette: PaletteColors, shape: GraphShape, nodeColor?: strin
 
 type GSelection = d3Selection.Selection<SVGGElement, unknown, null, undefined>;
 
-function renderTerminal(g: GSelection, node: LayoutNode, palette: PaletteColors, isDark: boolean, isEnd: boolean, colorOff?: boolean): void {
+function renderTerminal(
+  g: GSelection,
+  node: LayoutNode,
+  palette: PaletteColors,
+  isDark: boolean,
+  isEnd: boolean,
+  colorOff?: boolean
+): void {
   const w = node.width;
   const h = node.height;
   const rx = h / 2;
@@ -72,12 +111,24 @@ function renderTerminal(g: GSelection, node: LayoutNode, palette: PaletteColors,
     .attr('height', h)
     .attr('rx', rx)
     .attr('ry', rx)
-    .attr('fill', nodeFill(palette, isDark, node.shape, node.color, isEnd, colorOff))
-    .attr('stroke', nodeStroke(palette, node.shape, node.color, isEnd, colorOff))
+    .attr(
+      'fill',
+      nodeFill(palette, isDark, node.shape, node.color, isEnd, colorOff)
+    )
+    .attr(
+      'stroke',
+      nodeStroke(palette, node.shape, node.color, isEnd, colorOff)
+    )
     .attr('stroke-width', NODE_STROKE_WIDTH);
 }
 
-function renderProcess(g: GSelection, node: LayoutNode, palette: PaletteColors, isDark: boolean, colorOff?: boolean): void {
+function renderProcess(
+  g: GSelection,
+  node: LayoutNode,
+  palette: PaletteColors,
+  isDark: boolean,
+  colorOff?: boolean
+): void {
   const w = node.width;
   const h = node.height;
   g.append('rect')
@@ -87,45 +138,81 @@ function renderProcess(g: GSelection, node: LayoutNode, palette: PaletteColors, 
     .attr('height', h)
     .attr('rx', 3)
     .attr('ry', 3)
-    .attr('fill', nodeFill(palette, isDark, node.shape, node.color, undefined, colorOff))
-    .attr('stroke', nodeStroke(palette, node.shape, node.color, undefined, colorOff))
+    .attr(
+      'fill',
+      nodeFill(palette, isDark, node.shape, node.color, undefined, colorOff)
+    )
+    .attr(
+      'stroke',
+      nodeStroke(palette, node.shape, node.color, undefined, colorOff)
+    )
     .attr('stroke-width', NODE_STROKE_WIDTH);
 }
 
-function renderDecision(g: GSelection, node: LayoutNode, palette: PaletteColors, isDark: boolean, colorOff?: boolean): void {
+function renderDecision(
+  g: GSelection,
+  node: LayoutNode,
+  palette: PaletteColors,
+  isDark: boolean,
+  colorOff?: boolean
+): void {
   const w = node.width / 2;
   const h = node.height / 2;
   const points = [
-    `${0},${-h}`,   // top
-    `${w},${0}`,    // right
-    `${0},${h}`,    // bottom
-    `${-w},${0}`,   // left
+    `${0},${-h}`, // top
+    `${w},${0}`, // right
+    `${0},${h}`, // bottom
+    `${-w},${0}`, // left
   ].join(' ');
   g.append('polygon')
     .attr('points', points)
-    .attr('fill', nodeFill(palette, isDark, node.shape, node.color, undefined, colorOff))
-    .attr('stroke', nodeStroke(palette, node.shape, node.color, undefined, colorOff))
+    .attr(
+      'fill',
+      nodeFill(palette, isDark, node.shape, node.color, undefined, colorOff)
+    )
+    .attr(
+      'stroke',
+      nodeStroke(palette, node.shape, node.color, undefined, colorOff)
+    )
     .attr('stroke-width', NODE_STROKE_WIDTH);
 }
 
-function renderIO(g: GSelection, node: LayoutNode, palette: PaletteColors, isDark: boolean, colorOff?: boolean): void {
+function renderIO(
+  g: GSelection,
+  node: LayoutNode,
+  palette: PaletteColors,
+  isDark: boolean,
+  colorOff?: boolean
+): void {
   const w = node.width / 2;
   const h = node.height / 2;
   const sk = IO_SKEW;
   const points = [
-    `${-w + sk},${-h}`,   // top-left (shifted right)
-    `${w + sk},${-h}`,    // top-right (shifted right)
-    `${w - sk},${h}`,     // bottom-right (shifted left)
-    `${-w - sk},${h}`,    // bottom-left (shifted left)
+    `${-w + sk},${-h}`, // top-left (shifted right)
+    `${w + sk},${-h}`, // top-right (shifted right)
+    `${w - sk},${h}`, // bottom-right (shifted left)
+    `${-w - sk},${h}`, // bottom-left (shifted left)
   ].join(' ');
   g.append('polygon')
     .attr('points', points)
-    .attr('fill', nodeFill(palette, isDark, node.shape, node.color, undefined, colorOff))
-    .attr('stroke', nodeStroke(palette, node.shape, node.color, undefined, colorOff))
+    .attr(
+      'fill',
+      nodeFill(palette, isDark, node.shape, node.color, undefined, colorOff)
+    )
+    .attr(
+      'stroke',
+      nodeStroke(palette, node.shape, node.color, undefined, colorOff)
+    )
     .attr('stroke-width', NODE_STROKE_WIDTH);
 }
 
-function renderSubroutine(g: GSelection, node: LayoutNode, palette: PaletteColors, isDark: boolean, colorOff?: boolean): void {
+function renderSubroutine(
+  g: GSelection,
+  node: LayoutNode,
+  palette: PaletteColors,
+  isDark: boolean,
+  colorOff?: boolean
+): void {
   const w = node.width;
   const h = node.height;
   const s = nodeStroke(palette, node.shape, node.color, undefined, colorOff);
@@ -137,7 +224,10 @@ function renderSubroutine(g: GSelection, node: LayoutNode, palette: PaletteColor
     .attr('height', h)
     .attr('rx', 3)
     .attr('ry', 3)
-    .attr('fill', nodeFill(palette, isDark, node.shape, node.color, undefined, colorOff))
+    .attr(
+      'fill',
+      nodeFill(palette, isDark, node.shape, node.color, undefined, colorOff)
+    )
     .attr('stroke', s)
     .attr('stroke-width', NODE_STROKE_WIDTH);
   // Left inner border
@@ -158,7 +248,13 @@ function renderSubroutine(g: GSelection, node: LayoutNode, palette: PaletteColor
     .attr('stroke-width', NODE_STROKE_WIDTH);
 }
 
-function renderDocument(g: GSelection, node: LayoutNode, palette: PaletteColors, isDark: boolean, colorOff?: boolean): void {
+function renderDocument(
+  g: GSelection,
+  node: LayoutNode,
+  palette: PaletteColors,
+  isDark: boolean,
+  colorOff?: boolean
+): void {
   const w = node.width;
   const h = node.height;
   const waveH = DOC_WAVE_HEIGHT;
@@ -178,15 +274,35 @@ function renderDocument(g: GSelection, node: LayoutNode, palette: PaletteColors,
 
   g.append('path')
     .attr('d', d)
-    .attr('fill', nodeFill(palette, isDark, node.shape, node.color, undefined, colorOff))
-    .attr('stroke', nodeStroke(palette, node.shape, node.color, undefined, colorOff))
+    .attr(
+      'fill',
+      nodeFill(palette, isDark, node.shape, node.color, undefined, colorOff)
+    )
+    .attr(
+      'stroke',
+      nodeStroke(palette, node.shape, node.color, undefined, colorOff)
+    )
     .attr('stroke-width', NODE_STROKE_WIDTH);
 }
 
-function renderNodeShape(g: GSelection, node: LayoutNode, palette: PaletteColors, isDark: boolean, endTerminalIds: Set<string>, colorOff?: boolean): void {
+function renderNodeShape(
+  g: GSelection,
+  node: LayoutNode,
+  palette: PaletteColors,
+  isDark: boolean,
+  endTerminalIds: Set<string>,
+  colorOff?: boolean
+): void {
   switch (node.shape) {
     case 'terminal':
-      renderTerminal(g, node, palette, isDark, endTerminalIds.has(node.id), colorOff);
+      renderTerminal(
+        g,
+        node,
+        palette,
+        isDark,
+        endTerminalIds.has(node.id),
+        colorOff
+      );
       break;
     case 'process':
       renderProcess(g, node, palette, isDark, colorOff);
@@ -210,7 +326,8 @@ function renderNodeShape(g: GSelection, node: LayoutNode, palette: PaletteColors
 // Edge path generator
 // ============================================================
 
-const lineGenerator = d3Shape.line<{ x: number; y: number }>()
+const lineGenerator = d3Shape
+  .line<{ x: number; y: number }>()
   .x((d) => d.x)
   .y((d) => d.y)
   .curve(d3Shape.curveBasis);
@@ -307,7 +424,10 @@ export function renderFlowchart(
       .attr('fill', palette.text)
       .attr('font-size', TITLE_FONT_SIZE)
       .attr('font-weight', TITLE_FONT_WEIGHT)
-      .style('cursor', onClickItem && graph.titleLineNumber ? 'pointer' : 'default')
+      .style(
+        'cursor',
+        onClickItem && graph.titleLineNumber ? 'pointer' : 'default'
+      )
       .text(graph.title);
 
     if (graph.titleLineNumber) {
@@ -315,8 +435,12 @@ export function renderFlowchart(
       if (onClickItem) {
         titleEl
           .on('click', () => onClickItem(graph.titleLineNumber!))
-          .on('mouseenter', function () { d3Selection.select(this).attr('opacity', 0.7); })
-          .on('mouseleave', function () { d3Selection.select(this).attr('opacity', 1); });
+          .on('mouseenter', function () {
+            d3Selection.select(this).attr('opacity', 0.7);
+          })
+          .on('mouseleave', function () {
+            d3Selection.select(this).attr('opacity', 1);
+          });
       }
     }
   }
@@ -333,7 +457,13 @@ export function renderFlowchart(
   const LABEL_H = 16;
   const PERP_OFFSET = 10;
 
-  interface LabelPos { x: number; y: number; w: number; h: number; edgeIdx: number }
+  interface LabelPos {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    edgeIdx: number;
+  }
   const labelPositions: LabelPos[] = [];
 
   for (let ei = 0; ei < layout.edges.length; ei++) {
@@ -454,16 +584,39 @@ export function renderFlowchart(
     }
 
     // Shape
-    renderNodeShape(nodeG as GSelection, node, palette, isDark, endTerminalIds, colorOff);
+    renderNodeShape(
+      nodeG as GSelection,
+      node,
+      palette,
+      isDark,
+      endTerminalIds,
+      colorOff
+    );
 
-    // Label
+    // Label — contrast against the resolved node fill
+    const isEnd = endTerminalIds.has(node.id);
+    const resolvedFill = nodeFill(
+      palette,
+      isDark,
+      node.shape,
+      node.color,
+      isEnd,
+      colorOff
+    );
     nodeG
       .append('text')
       .attr('x', 0)
       .attr('y', 0)
       .attr('text-anchor', 'middle')
       .attr('dominant-baseline', 'central')
-      .attr('fill', palette.text)
+      .attr(
+        'fill',
+        contrastText(
+          resolvedFill,
+          palette.textOnFillLight,
+          palette.textOnFillDark
+        )
+      )
       .attr('font-size', NODE_FONT_SIZE)
       .text(node.label);
   }
@@ -493,18 +646,14 @@ export function renderFlowchartForExport(
   document.body.appendChild(container);
 
   const exportWidth = layout.width + DIAGRAM_PADDING * 2;
-  const exportHeight = layout.height + DIAGRAM_PADDING * 2 + (parsed.title ? 40 : 0);
+  const exportHeight =
+    layout.height + DIAGRAM_PADDING * 2 + (parsed.title ? 40 : 0);
 
   try {
-    renderFlowchart(
-      container,
-      parsed,
-      layout,
-      palette,
-      isDark,
-      undefined,
-      { width: exportWidth, height: exportHeight }
-    );
+    renderFlowchart(container, parsed, layout, palette, isDark, undefined, {
+      width: exportWidth,
+      height: exportHeight,
+    });
 
     const svgEl = container.querySelector('svg');
     if (!svgEl) return '';

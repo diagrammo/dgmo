@@ -1,7 +1,7 @@
 import * as d3 from 'd3-selection';
 import * as d3Shape from 'd3-shape';
 import type { PaletteColors } from '../palettes';
-import { mix, contrastText } from '../palettes/color-utils';
+import { contrastText, mix, shapeFill } from '../palettes/color-utils';
 import { FONT_FAMILY } from '../fonts';
 import { parseJourneyMap } from './parser';
 import {
@@ -87,6 +87,7 @@ export function renderJourneyMap(
   const layout = layoutJourneyMap(parsed, palette, {
     collapsedPhases,
     exportDims,
+    isDark,
   });
 
   // Clear container
@@ -202,9 +203,8 @@ export function renderJourneyMap(
       .attr('height', panelHeight)
       .attr('rx', CARD_RADIUS);
 
-    // Card — same treatment as step cards: colored stroke, 15% blend fill
-    const cardBaseBg = isDark ? palette.surface : palette.bg;
-    const personaFill = mix(personaColor, cardBaseBg, 15);
+    // Card — canonical 25% tint via shapeFill() (was 15%)
+    const personaFill = shapeFill(palette, personaColor, isDark);
 
     personaG
       .append('rect')
@@ -653,10 +653,12 @@ export function renderJourneyMap(
             parsed.tagGroups,
             palette
           );
-          const cardBaseBg = isDark ? palette.surface : palette.bg;
-          const rowFill = stepColor
-            ? mix(stepColor, cardBaseBg, 15)
-            : mix(palette.primary, cardBaseBg, 15);
+          // Canonical 25% tint via shapeFill() (was 15%)
+          const rowFill = shapeFill(
+            palette,
+            stepColor ?? palette.primary,
+            isDark
+          );
           const rowStroke = stepColor ?? palette.textMuted;
 
           // Card background
@@ -1101,7 +1103,6 @@ function renderStepCard(
   const cy = sl.y;
 
   // Card colors — driven by active legend group (matches kanban pattern)
-  const cardBaseBg = isDark ? palette.surface : palette.bg;
   const resolvedColor = resolveStepColor(
     sl.step,
     sl.color,
@@ -1109,9 +1110,8 @@ function renderStepCard(
     tagGroups,
     palette
   );
-  const cardFill = resolvedColor
-    ? mix(resolvedColor, cardBaseBg, 15)
-    : mix(palette.primary, cardBaseBg, 15);
+  // Canonical 25% tint via shapeFill() (was 15%)
+  const cardFill = shapeFill(palette, resolvedColor ?? palette.primary, isDark);
   const cardStroke = resolvedColor ?? palette.textMuted;
 
   // Card background
@@ -1236,8 +1236,8 @@ function renderStepCard(
     const stripColor = entry?.color ?? palette.textMuted;
     const TAG_GAP = 6;
     const stripY = cy - TAG_STRIP_HEIGHT - TAG_GAP;
-    const cardBaseBg = isDark ? palette.surface : palette.bg;
-    const stripFill = mix(stripColor, cardBaseBg, 15);
+    // Canonical 25% tint via shapeFill() (was 15%)
+    const stripFill = shapeFill(palette, stripColor, isDark);
 
     stepG
       .append('rect')
@@ -1356,7 +1356,11 @@ function renderScoreFace(
     .attr('stroke-width', 1.5);
 
   // Eyes
-  const eyeColor = contrastText(color, '#ffffff', '#000000');
+  const eyeColor = contrastText(
+    color,
+    palette.textOnFillLight,
+    palette.textOnFillDark
+  );
   const eyeY = cy - r * 0.15;
   const eyeSpacing = r * 0.32;
   const eyeR = r * 0.12;
@@ -1501,7 +1505,7 @@ export function renderJourneyMapForExport(
   }
 
   const isDark = theme === 'dark';
-  const layout = layoutJourneyMap(parsed, palette);
+  const layout = layoutJourneyMap(parsed, palette, { isDark });
 
   const container = document.createElement('div');
   renderJourneyMap(container, parsed, palette, isDark, {

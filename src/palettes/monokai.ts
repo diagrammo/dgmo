@@ -16,6 +16,8 @@ export const monokaiPalette: PaletteConfig = {
     border: '#d4d3cc',
     text: '#272822', // classic Monokai bg as text
     textMuted: '#75715e', // comment
+    textOnFillLight: '#fafaf8',
+    textOnFillDark: '#272822',
     primary: '#49483e', // line highlight
     secondary: '#f92672', // pink
     accent: '#a6e22e', // green
@@ -41,6 +43,8 @@ export const monokaiPalette: PaletteConfig = {
     border: '#49483e',
     text: '#f8f8f2', // foreground
     textMuted: '#a6a28c', // brightened comment
+    textOnFillLight: '#f8f8f2',
+    textOnFillDark: '#272822',
     primary: '#a6e22e', // green
     secondary: '#66d9ef', // cyan
     accent: '#f92672', // pink

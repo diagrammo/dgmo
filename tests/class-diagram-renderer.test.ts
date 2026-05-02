@@ -39,6 +39,8 @@ const testPalette: PaletteColors = {
   border: '#d8dee9',
   text: '#2e3440',
   textMuted: '#4c566a',
+  textOnFillLight: '#eceff4',
+  textOnFillDark: '#2e3440',
   primary: '#5e81ac',
   secondary: '#81a1c1',
   accent: '#88c0d0',
@@ -53,6 +55,8 @@ const testPalette: PaletteColors = {
     teal: '#8fbcbb',
     cyan: '#88c0d0',
     gray: '#4c566a',
+    black: '#2e3440',
+    white: '#eceff4',
   },
 };
 

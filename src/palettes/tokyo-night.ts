@@ -34,6 +34,8 @@ export const tokyoNightPalette: PaletteConfig = {
     border: '#a8aecb', // Day fg_gutter
     text: '#3760bf', // Day fg
     textMuted: '#6172b0', // Day fg_dark
+    textOnFillLight: '#e1e2e7', // Day bg
+    textOnFillDark: '#1a1b26', // Night bg (deep dark)
     primary: '#2e7de9', // Day blue
     secondary: '#007197', // Day cyan
     accent: '#9854f1', // Day magenta
@@ -59,6 +61,8 @@ export const tokyoNightPalette: PaletteConfig = {
     border: '#3b4261', // Night fg_gutter
     text: '#c0caf5', // Night fg
     textMuted: '#a9b1d6', // Night fg_dark
+    textOnFillLight: '#c0caf5', // Night fg
+    textOnFillDark: '#1a1b26', // Night bg
     primary: '#7aa2f7', // Night blue
     secondary: '#7dcfff', // Night cyan
     accent: '#bb9af7', // Night magenta

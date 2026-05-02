@@ -1,6 +1,6 @@
 import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
-import { mix } from '../palettes/color-utils';
+import { mix, shapeFill } from '../palettes/color-utils';
 import type { PaletteColors } from '../palettes';
 import type { D3ExportDimensions } from '../utils/d3-types';
 import type {
@@ -424,7 +424,7 @@ function renderHtmlPanel(
   onClickItem?: (lineNumber: number) => void
 ): (lineNumber: number) => void {
   const ringOrder = parsed.rings.map((r) => r.name);
-  const fillColor = mix(qColor, isDark ? palette.surface : palette.bg, 30);
+  const fillColor = shapeFill(palette, qColor, isDark);
   let expandedLineNum: string | null = null;
 
   function render() {
@@ -1008,7 +1008,7 @@ function renderStaticHtmlPanel(
   isDark: boolean
 ): void {
   const ringOrder = parsed.rings.map((r) => r.name);
-  const fillColor = mix(qColor, isDark ? palette.surface : palette.bg, 30);
+  const fillColor = shapeFill(palette, qColor, isDark);
 
   for (const ringName of ringOrder) {
     const blips = quadrant.blips.filter((b) => b.ring === ringName);

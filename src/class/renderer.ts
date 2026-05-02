@@ -18,7 +18,7 @@ import {
   TITLE_Y,
 } from '../utils/title-constants';
 import type { PaletteColors } from '../palettes';
-import { mix } from '../palettes/color-utils';
+import { contrastText, shapeFill } from '../palettes/color-utils';
 import type {
   ParsedClassDiagram,
   ClassModifier,
@@ -73,7 +73,7 @@ function nodeFill(
   colorOff?: boolean
 ): string {
   const color = nodeColor ?? modifierColor(modifier, palette, colorOff);
-  return mix(color, isDark ? palette.surface : palette.bg, 25);
+  return shapeFill(palette, color, isDark);
 }
 
 function nodeStroke(
@@ -495,6 +495,11 @@ export function renderClassDiagram(
       colorOff
     );
     const stroke = nodeStroke(palette, node.modifier, effectiveColor, colorOff);
+    const onFillText = contrastText(
+      fill,
+      palette.textOnFillLight,
+      palette.textOnFillDark
+    );
 
     // Outer rectangle
     nodeG
@@ -534,7 +539,7 @@ export function renderClassDiagram(
         .attr('y', headerCenterY + 10)
         .attr('text-anchor', 'middle')
         .attr('dominant-baseline', 'central')
-        .attr('fill', palette.text)
+        .attr('fill', onFillText)
         .attr('font-size', CLASS_FONT_SIZE)
         .attr('font-weight', 'bold')
         .attr('font-style', node.modifier === 'abstract' ? 'italic' : 'normal')
@@ -547,7 +552,7 @@ export function renderClassDiagram(
         .attr('y', headerCenterY)
         .attr('text-anchor', 'middle')
         .attr('dominant-baseline', 'central')
-        .attr('fill', palette.text)
+        .attr('fill', onFillText)
         .attr('font-size', CLASS_FONT_SIZE)
         .attr('font-weight', 'bold')
         .text(node.name);
@@ -579,7 +584,7 @@ export function renderClassDiagram(
           .attr('x', -w / 2 + MEMBER_PADDING_X)
           .attr('y', memberY + MEMBER_LINE_HEIGHT / 2)
           .attr('dominant-baseline', 'central')
-          .attr('fill', palette.text)
+          .attr('fill', onFillText)
           .attr('font-size', MEMBER_FONT_SIZE)
           .text(member.name);
         memberY += MEMBER_LINE_HEIGHT;
@@ -610,7 +615,7 @@ export function renderClassDiagram(
             .attr('x', -w / 2 + MEMBER_PADDING_X)
             .attr('y', memberY + MEMBER_LINE_HEIGHT / 2)
             .attr('dominant-baseline', 'central')
-            .attr('fill', palette.text)
+            .attr('fill', onFillText)
             .attr('font-size', MEMBER_FONT_SIZE);
 
           if (field.isStatic) {
@@ -646,7 +651,7 @@ export function renderClassDiagram(
             .attr('x', -w / 2 + MEMBER_PADDING_X)
             .attr('y', memberY + MEMBER_LINE_HEIGHT / 2)
             .attr('dominant-baseline', 'central')
-            .attr('fill', palette.text)
+            .attr('fill', onFillText)
             .attr('font-size', MEMBER_FONT_SIZE);
 
           if (method.isStatic) {

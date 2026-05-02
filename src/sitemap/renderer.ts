@@ -6,7 +6,7 @@ import * as d3Selection from 'd3-selection';
 import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
-import { mix } from '../palettes/color-utils';
+import { contrastText, mix, shapeFill } from '../palettes/color-utils';
 import type { ParsedSitemap } from './types';
 import type { SitemapLayoutResult, SitemapLegendGroup } from './layout';
 import { renderInlineText } from '../utils/inline-markdown';
@@ -62,7 +62,7 @@ function nodeFill(
   nodeColor?: string
 ): string {
   const color = nodeColor ?? palette.primary;
-  return mix(color, isDark ? palette.surface : palette.bg, 25);
+  return shapeFill(palette, color, isDark);
 }
 
 function nodeStroke(_palette: PaletteColors, nodeColor?: string): string {
@@ -468,13 +468,18 @@ export function renderSitemap(
       .attr('stroke', stroke)
       .attr('stroke-width', NODE_STROKE_WIDTH);
 
-    // Label
+    // Label — contrast against the node fill
+    const labelColor = contrastText(
+      fill,
+      palette.textOnFillLight,
+      palette.textOnFillDark
+    );
     nodeG
       .append('text')
       .attr('x', node.width / 2)
       .attr('y', HEADER_HEIGHT / 2 + LABEL_FONT_SIZE / 2 - 2)
       .attr('text-anchor', 'middle')
-      .attr('fill', palette.text)
+      .attr('fill', labelColor)
       .attr('font-size', LABEL_FONT_SIZE)
       .attr('font-weight', 'bold')
       .text(node.label);
@@ -504,7 +509,7 @@ export function renderSitemap(
         const rowY =
           HEADER_HEIGHT + SEPARATOR_GAP + (i + 1) * META_LINE_HEIGHT - 4;
         const valColor =
-          tagColors.get(`${key}:${value.toLowerCase()}`) ?? palette.text;
+          tagColors.get(`${key}:${value.toLowerCase()}`) ?? labelColor;
 
         nodeG
           .append('text')

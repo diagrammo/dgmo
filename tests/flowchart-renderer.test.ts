@@ -2,7 +2,10 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { JSDOM } from 'jsdom';
 import { parseFlowchart } from '../src/graph/flowchart-parser';
 import { layoutGraph } from '../src/graph/layout';
-import { renderFlowchart, renderFlowchartForExport } from '../src/graph/flowchart-renderer';
+import {
+  renderFlowchart,
+  renderFlowchartForExport,
+} from '../src/graph/flowchart-renderer';
 import type { PaletteColors } from '../src/palettes/types';
 
 // Set up jsdom globals for D3
@@ -39,6 +42,8 @@ const testPalette: PaletteColors = {
   border: '#d8dee9',
   text: '#2e3440',
   textMuted: '#4c566a',
+  textOnFillLight: '#eceff4',
+  textOnFillDark: '#2e3440',
   primary: '#5e81ac',
   secondary: '#81a1c1',
   accent: '#88c0d0',
@@ -53,6 +58,8 @@ const testPalette: PaletteColors = {
     teal: '#8fbcbb',
     cyan: '#88c0d0',
     gray: '#4c566a',
+    black: '#2e3440',
+    white: '#eceff4',
   },
 };
 
@@ -62,8 +69,14 @@ function renderToContainer(content: string, isDark = false): HTMLDivElement {
   const layout = layoutGraph(parsed);
 
   const container = document.createElement('div');
-  Object.defineProperty(container, 'clientWidth', { value: 1200, configurable: true });
-  Object.defineProperty(container, 'clientHeight', { value: 800, configurable: true });
+  Object.defineProperty(container, 'clientWidth', {
+    value: 1200,
+    configurable: true,
+  });
+  Object.defineProperty(container, 'clientHeight', {
+    value: 800,
+    configurable: true,
+  });
   document.body.appendChild(container);
 
   renderFlowchart(container, parsed, layout, testPalette, isDark);
@@ -163,7 +176,9 @@ describe('renderFlowchart', () => {
 
   describe('title rendering', () => {
     it('renders title text element', () => {
-      const container = renderToContainer('flowchart My Flow\n(Start) -> (End)');
+      const container = renderToContainer(
+        'flowchart My Flow\n(Start) -> (End)'
+      );
       const titles = container.querySelectorAll('text.chart-title');
       expect(titles.length).toBe(1);
       expect(titles[0].textContent).toBe('My Flow');
@@ -195,14 +210,18 @@ describe('renderFlowchart', () => {
   describe('data attributes', () => {
     it('adds data-line-number to node groups', () => {
       const container = renderToContainer('[A] -> [B]');
-      const nodeGroups = container.querySelectorAll('g.fc-node[data-line-number]');
+      const nodeGroups = container.querySelectorAll(
+        'g.fc-node[data-line-number]'
+      );
       expect(nodeGroups.length).toBe(2);
       document.body.removeChild(container);
     });
 
     it('adds data-line-number to edge groups', () => {
       const container = renderToContainer('[A] -> [B]');
-      const edgeGroups = container.querySelectorAll('g.fc-edge-group[data-line-number]');
+      const edgeGroups = container.querySelectorAll(
+        'g.fc-edge-group[data-line-number]'
+      );
       expect(edgeGroups.length).toBe(1);
       document.body.removeChild(container);
     });
@@ -217,12 +236,14 @@ describe('renderFlowchart', () => {
       document.body.removeChild(container);
     });
 
-    it('applies text fill from palette', () => {
+    it('applies contrast-aware text fill from palette tokens', () => {
       const container = renderToContainer('(Start)');
       const texts = container.querySelectorAll('g.fc-node text');
       expect(texts.length).toBeGreaterThanOrEqual(1);
       const fill = texts[0].getAttribute('fill');
-      expect(fill).toBe(testPalette.text);
+      // (Start) renders as a green terminal at 25% tint over the light Nord
+      // bg — fill luminance is high, so contrastText returns the dark token.
+      expect(fill).toBe(testPalette.textOnFillDark);
       document.body.removeChild(container);
     });
   });

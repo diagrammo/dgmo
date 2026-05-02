@@ -5,7 +5,7 @@
 import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
-import { mix } from '../palettes/color-utils';
+import { contrastText, mix, shapeFill } from '../palettes/color-utils';
 import { renderInlineText } from '../utils/inline-markdown';
 import type {
   ParsedKanban,
@@ -406,8 +406,6 @@ export function renderKanban(
     ? mix(palette.surface, palette.bg, 70)
     : mix(palette.surface, palette.bg, 50);
 
-  const cardBaseBg = isDark ? palette.surface : palette.bg;
-
   for (const colLayout of layout.columns) {
     const col = colLayout.column;
     const isColCollapsed = collapsedColumns?.has(col.id) ?? false;
@@ -421,7 +419,7 @@ export function renderKanban(
     const thisColBg = defaultColBg;
     // Column header: tinted if column has explicit color
     const thisColHeaderBg = col.color
-      ? mix(col.color, palette.bg, 25)
+      ? shapeFill(palette, col.color, isDark)
       : defaultColHeaderBg;
 
     if (isColCollapsed) {
@@ -535,11 +533,18 @@ export function renderKanban(
       );
       const hasMeta = tagMeta.length > 0 || card.details.length > 0;
 
-      // Org-chart-style fill: 15% blend of color into bg
-      const cardFill = resolvedColor
-        ? mix(resolvedColor, cardBaseBg, 15)
-        : mix(palette.primary, cardBaseBg, 15);
+      // Canonical 25% tint via shapeFill() (was 15% before standardization)
+      const cardFill = shapeFill(
+        palette,
+        resolvedColor ?? palette.primary,
+        isDark
+      );
       const cardStroke = resolvedColor ?? palette.textMuted;
+      const onCardText = contrastText(
+        cardFill,
+        palette.textOnFillLight,
+        palette.textOnFillDark
+      );
 
       const cg = g
         .append('g')
@@ -574,14 +579,14 @@ export function renderKanban(
         .attr('stroke', cardStroke)
         .attr('stroke-width', CARD_STROKE_WIDTH);
 
-      // Card title (inline markdown)
+      // Card title (inline markdown) — contrast against card fill
       const titleEl = cg
         .append('text')
         .attr('x', cx + CARD_PADDING_X)
         .attr('y', cy + CARD_PADDING_Y + CARD_TITLE_FONT_SIZE)
         .attr('font-size', CARD_TITLE_FONT_SIZE)
         .attr('font-weight', '500')
-        .attr('fill', palette.text);
+        .attr('fill', onCardText);
       renderInlineText(titleEl, card.title, palette, CARD_TITLE_FONT_SIZE);
 
       // Separator + metadata
@@ -614,7 +619,7 @@ export function renderKanban(
             .attr('x', cx + CARD_PADDING_X + labelWidth)
             .attr('y', metaY)
             .attr('font-size', CARD_META_FONT_SIZE)
-            .attr('fill', palette.text)
+            .attr('fill', onCardText)
             .text(meta.value);
 
           metaY += CARD_META_LINE_HEIGHT;
@@ -928,7 +933,6 @@ function renderSwimlaneBoard(
   const defaultColHeaderBg = isDark
     ? mix(palette.surface, palette.bg, 70)
     : mix(palette.surface, palette.bg, 50);
-  const cardBaseBg = isDark ? palette.surface : palette.bg;
 
   // Column header row spanning all lanes
   for (const colInfo of grid.columnXs) {
@@ -941,7 +945,7 @@ function renderSwimlaneBoard(
       .attr('data-line-number', col.lineNumber);
 
     const colHeaderBg = col.color
-      ? mix(col.color, palette.bg, 25)
+      ? shapeFill(palette, col.color, isDark)
       : defaultColHeaderBg;
 
     headerG
@@ -1156,7 +1160,7 @@ function renderSwimlaneBoard(
             parsed.tagGroups,
             activeTagGroup,
             palette,
-            cardBaseBg,
+            isDark,
             hiddenMetaGroups
           );
         }
@@ -1171,7 +1175,7 @@ function renderSwimlaneCard(
   tagGroups: KanbanTagGroup[],
   activeTagGroup: string | null,
   palette: PaletteColors,
-  cardBaseBg: string,
+  isDark: boolean,
   hiddenMetaGroups?: string[]
 ): void {
   const card = cardLayout.card;
@@ -1179,10 +1183,14 @@ function renderSwimlaneCard(
   const tagMeta = resolveCardTagMeta(card, tagGroups, hiddenMetaGroups);
   const hasMeta = tagMeta.length > 0 || card.details.length > 0;
 
-  const cardFill = resolvedColor
-    ? mix(resolvedColor, cardBaseBg, 15)
-    : mix(palette.primary, cardBaseBg, 15);
+  // Canonical 25% tint via shapeFill() (was 15% before standardization)
+  const cardFill = shapeFill(palette, resolvedColor ?? palette.primary, isDark);
   const cardStroke = resolvedColor ?? palette.textMuted;
+  const onCardText = contrastText(
+    cardFill,
+    palette.textOnFillLight,
+    palette.textOnFillDark
+  );
 
   const cg = parent
     .append('g')
@@ -1218,7 +1226,7 @@ function renderSwimlaneCard(
     .attr('y', cy + CARD_PADDING_Y + CARD_TITLE_FONT_SIZE)
     .attr('font-size', CARD_TITLE_FONT_SIZE)
     .attr('font-weight', '500')
-    .attr('fill', palette.text);
+    .attr('fill', onCardText);
   renderInlineText(titleEl, card.title, palette, CARD_TITLE_FONT_SIZE);
 
   if (hasMeta) {
@@ -1246,7 +1254,7 @@ function renderSwimlaneCard(
         .attr('x', cx + CARD_PADDING_X + labelWidth)
         .attr('y', metaY)
         .attr('font-size', CARD_META_FONT_SIZE)
-        .attr('fill', palette.text)
+        .attr('fill', onCardText)
         .text(meta.value);
       metaY += CARD_META_LINE_HEIGHT;
     }

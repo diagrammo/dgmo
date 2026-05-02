@@ -33,6 +33,8 @@ export const gruvboxPalette: PaletteConfig = {
     border: '#bdae93', // light3
     text: '#3c3836', // dark1
     textMuted: '#7c6f64', // dark4
+    textOnFillLight: '#fbf1c7', // light0
+    textOnFillDark: '#282828', // dark0
     primary: '#076678', // faded blue
     secondary: '#427b58', // faded aqua
     accent: '#8f3f71', // faded purple
@@ -58,6 +60,8 @@ export const gruvboxPalette: PaletteConfig = {
     border: '#665c54', // dark3
     text: '#ebdbb2', // light1
     textMuted: '#a89984', // light4
+    textOnFillLight: '#fbf1c7', // light0
+    textOnFillDark: '#282828', // dark0
     primary: '#83a598', // bright blue
     secondary: '#8ec07c', // bright aqua
     accent: '#d3869b', // bright purple

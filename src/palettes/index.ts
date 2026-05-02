@@ -19,6 +19,7 @@ export {
   getSeriesColors,
   getSegmentColors,
   contrastText,
+  shapeFill,
 } from './color-utils';
 
 // Re-export palette definitions (alphabetical)

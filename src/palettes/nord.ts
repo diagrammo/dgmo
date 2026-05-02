@@ -15,6 +15,8 @@ export const nordPalette: PaletteConfig = {
     border: '#d8dee9', // nord4
     text: '#2e3440', // nord0
     textMuted: '#4c566a', // nord3
+    textOnFillLight: '#eceff4', // nord6
+    textOnFillDark: '#2e3440', // nord0
     primary: '#5e81ac', // nord10
     secondary: '#81a1c1', // nord9
     accent: '#81a1c1', // nord9
@@ -40,6 +42,8 @@ export const nordPalette: PaletteConfig = {
     border: '#4c566a', // nord3
     text: '#eceff4', // nord6
     textMuted: '#d8dee9', // nord4
+    textOnFillLight: '#eceff4', // nord6
+    textOnFillDark: '#2e3440', // nord0
     primary: '#88c0d0', // nord8 (different from light's nord10)
     secondary: '#81a1c1', // nord9
     accent: '#81a1c1', // nord9
