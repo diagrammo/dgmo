@@ -1707,12 +1707,15 @@ function buildScatterOption(
   // (with a chart-bg-matched background that occludes the underlying tick).
   // Static exports (PNG / pre-rendered SVG) drop this; only fires in live
   // ECharts contexts.
+  // Item-triggered: only fires when hovering directly on a point. With snap,
+  // the cross anchors to the data point coordinates (not the mouse position).
   const tooltipConfig = {
     show: true,
     trigger: 'item' as const,
     showContent: false,
     axisPointer: {
       type: 'cross' as const,
+      snap: true,
       lineStyle: {
         color: palette.border,
         width: 1,
