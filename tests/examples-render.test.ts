@@ -10,7 +10,7 @@ import { getPalette } from '../src/palettes';
 
 const palette = getPalette('nord').light;
 
-const EXAMPLES_DIR = resolve(__dirname, '../../dgmo-examples');
+const EXAMPLES_DIR = resolve(__dirname, '../../dgmo-content/examples');
 const GALLERY_DIR = resolve(__dirname, '../gallery/fixtures');
 
 function walk(dir: string, out: string[] = []): string[] {
@@ -98,7 +98,7 @@ describe('examples + gallery render without parser errors (Task E5 / AC26)', () 
   });
 
   for (const file of allFiles) {
-    const rel = file.replace(/^.*\/(dgmo-examples|gallery)/, '$1');
+    const rel = file.replace(/^.*\/(dgmo-content|gallery)/, '$1');
     it(`parses ${rel} without error`, () => {
       const content = readFileSync(file, 'utf-8');
       const kind = pickParser(content);

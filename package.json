@@ -72,7 +72,7 @@
     "dist",
     "fonts",
     "src",
-    "docs",
+    "docs/*.md",
     "gallery/fixtures",
     ".claude/commands",
     ".github/copilot-instructions.md",
