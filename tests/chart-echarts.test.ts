@@ -1110,69 +1110,66 @@ describe('parseDataRowValues — space-delimited multi-values', () => {
   });
 });
 
-// ── Scatter hover tooltip ──────────────────────────────────────
+// ── Scatter hover crosshair (chart-native, no floating tooltip box) ──────
 
-describe('scatter hover tooltip', () => {
+describe('scatter hover crosshair', () => {
   function buildScatter(input: string) {
     const parsed = parseExtendedChart(input, palette);
     return buildExtendedChartOption(parsed, palette, false);
   }
 
-  it('enables tooltip on scatter (overrides global tooltip:show=false)', () => {
-    const input = 'scatter\nx-label Speed\ny-label Crew\nAlice 12 300';
+  it('tooltip enabled but renders nothing — content suppressed in favor of crosshair', () => {
+    const input = 'scatter\nAlice 12 300';
     const opt = buildScatter(input) as {
-      tooltip: { show: boolean; trigger: string };
+      tooltip: { show: boolean; trigger: string; showContent: boolean };
     };
     expect(opt.tooltip.show).toBe(true);
     expect(opt.tooltip.trigger).toBe('item');
+    expect(opt.tooltip.showContent).toBe(false);
   });
 
-  it('formatter renders name + axis-labeled values', () => {
-    const input = 'scatter\nx-label Speed\ny-label Crew\nAlice 12 300';
-    const opt = buildScatter(input) as {
-      tooltip: { formatter: (p: unknown) => string };
-    };
-    const html = opt.tooltip.formatter({
-      data: { name: 'Alice', value: [12, 300] },
-    });
-    expect(html).toContain('<strong>Alice</strong>');
-    expect(html).toContain('Speed: 12');
-    expect(html).toContain('Crew: 300');
-  });
-
-  it('formatter falls back to "x"/"y" when no axis labels', () => {
+  it('axisPointer cross with dashed lines configured on tooltip', () => {
     const input = 'scatter\nAlice 12 300';
     const opt = buildScatter(input) as {
-      tooltip: { formatter: (p: unknown) => string };
+      tooltip: {
+        axisPointer: { type: string; lineStyle: { type: string } };
+      };
     };
-    const html = opt.tooltip.formatter({
-      data: { name: 'Alice', value: [12, 300] },
-    });
-    expect(html).toContain('x: 12');
-    expect(html).toContain('y: 300');
+    expect(opt.tooltip.axisPointer.type).toBe('cross');
+    expect(opt.tooltip.axisPointer.lineStyle.type).toBe('dashed');
   });
 
-  it('formatter includes size when bubble (3rd value)', () => {
-    const input =
-      'scatter\nx-label Speed\ny-label Crew\nsize-label Cannons\nAlice 12 300 40';
-    const opt = buildScatter(input) as {
-      tooltip: { formatter: (p: unknown) => string };
-    };
-    const html = opt.tooltip.formatter({
-      data: { name: 'Alice', value: [12, 300, 40] },
-    });
-    expect(html).toContain('Cannons: 40');
-  });
-
-  it('formatter omits size when scatter (no 3rd value)', () => {
+  it('per-axis pointer label paints the data value', () => {
     const input = 'scatter\nAlice 12 300';
     const opt = buildScatter(input) as {
-      tooltip: { formatter: (p: unknown) => string };
+      xAxis: {
+        axisPointer: {
+          label: { show: boolean; formatter: (p: { value: number }) => string };
+        };
+      };
+      yAxis: {
+        axisPointer: {
+          label: { formatter: (p: { value: number }) => string };
+        };
+      };
     };
-    const html = opt.tooltip.formatter({
-      data: { name: 'Alice', value: [12, 300] },
-    });
-    expect(html).not.toContain('size');
+    expect(opt.xAxis.axisPointer.label.show).toBe(true);
+    expect(opt.xAxis.axisPointer.label.formatter({ value: 12 })).toBe('12');
+    expect(opt.yAxis.axisPointer.label.formatter({ value: 300 })).toBe('300');
+  });
+
+  it('axisPointer label rounds non-integer values', () => {
+    const input = 'scatter\nAlice 12 300';
+    const opt = buildScatter(input) as {
+      xAxis: {
+        axisPointer: {
+          label: { formatter: (p: { value: number }) => string };
+        };
+      };
+    };
+    expect(opt.xAxis.axisPointer.label.formatter({ value: 3.14159 })).toBe(
+      '3.14'
+    );
   });
 });
 

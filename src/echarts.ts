@@ -1700,30 +1700,39 @@ function buildScatterOption(
       ? { data: categories, bottom: 10, textStyle: { color: textColor } }
       : undefined;
 
-  // Hover tooltip — reveal value(s) without cluttering the plot.
-  // Format prefers axis labels when provided; falls back to "x, y" otherwise.
-  // Static exports (PNG / pre-rendered SVG) ignore this; it only fires in
-  // live ECharts contexts (app preview, web editor).
-  const xLabel = parsed.xlabel ?? 'x';
-  const yLabel = parsed.ylabel ?? 'y';
-  const sizeLabel = parsed.sizelabel ?? 'size';
+  // Hover behavior — chart-native crosshair to each axis. No floating box.
+  // The tooltip itself renders nothing (showContent:false); axisPointer.type
+  // 'cross' draws faint dashed lines from the hovered point to both axes,
+  // and the per-axis pointer label paints the data value at the axis edge
+  // (with a chart-bg-matched background that occludes the underlying tick).
+  // Static exports (PNG / pre-rendered SVG) drop this; only fires in live
+  // ECharts contexts.
   const tooltipConfig = {
     show: true,
     trigger: 'item' as const,
+    showContent: false,
+    axisPointer: {
+      type: 'cross' as const,
+      lineStyle: {
+        color: palette.border,
+        width: 1,
+        type: 'dashed' as const,
+      },
+    },
+  };
+  const axisPointerLabel = {
+    show: true,
     backgroundColor: bg,
-    borderColor: palette.border,
-    textStyle: { color: textColor, fontSize: 13 },
+    color: textColor,
+    fontSize: 14,
+    fontFamily: FONT_FAMILY,
+    padding: 6,
+    margin: 4,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     formatter: (params: any): string => {
-      const data = params?.data ?? {};
-      const name: string = data.name ?? '';
-      const v: number[] = Array.isArray(data.value) ? data.value : [];
-      const lines: string[] = [];
-      if (name) lines.push(`<strong>${name}</strong>`);
-      if (v[0] !== undefined) lines.push(`${xLabel}: ${v[0]}`);
-      if (v[1] !== undefined) lines.push(`${yLabel}: ${v[1]}`);
-      if (v[2] !== undefined && hasSize) lines.push(`${sizeLabel}: ${v[2]}`);
-      return lines.join('<br/>');
+      const v = Number(params?.value);
+      if (!Number.isFinite(v)) return String(params?.value ?? '');
+      return Number.isInteger(v) ? String(v) : v.toFixed(2);
     },
   };
 
@@ -1757,6 +1766,7 @@ function buildScatterOption(
         color: textColor,
         fontSize: 16,
       },
+      axisPointer: { label: axisPointerLabel },
       splitLine: {
         lineStyle: {
           color: palette.border,
@@ -1782,6 +1792,7 @@ function buildScatterOption(
         color: textColor,
         fontSize: 16,
       },
+      axisPointer: { label: axisPointerLabel },
       splitLine: {
         lineStyle: {
           color: palette.border,
