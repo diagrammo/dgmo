@@ -1700,13 +1700,6 @@ function buildScatterOption(
       ? { data: categories, bottom: 10, textStyle: { color: textColor } }
       : undefined;
 
-  // Hover behavior — chart-native crosshair to each axis. No floating box.
-  // The tooltip itself renders nothing (showContent:false); axisPointer.type
-  // 'cross' draws faint dashed lines from the hovered point to both axes,
-  // and the per-axis pointer label paints the data value at the axis edge
-  // (with a chart-bg-matched background that occludes the underlying tick).
-  // Static exports (PNG / pre-rendered SVG) drop this; only fires in live
-  // ECharts contexts.
   // Hover behavior is wired in the consumer (diagrammo-app's EChartsPreview)
   // via mouseover/mouseout handlers that render crosshair graphics. Doing it
   // there gives strict point-only scoping that the option-config approach
