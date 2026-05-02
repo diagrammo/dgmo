@@ -1707,8 +1707,10 @@ function buildScatterOption(
   // (with a chart-bg-matched background that occludes the underlying tick).
   // Static exports (PNG / pre-rendered SVG) drop this; only fires in live
   // ECharts contexts.
-  // Item-triggered: only fires when hovering directly on a point. With snap,
-  // the cross anchors to the data point coordinates (not the mouse position).
+  // Item-triggered: only fires when hovering directly on a point.
+  // axisPointer config lives entirely inside the tooltip (NOT on xAxis/yAxis)
+  // so it's bound to item hover. With snap, the cross anchors to the data
+  // point coordinates rather than tracking the mouse position.
   const tooltipConfig = {
     show: true,
     trigger: 'item' as const,
@@ -1721,21 +1723,21 @@ function buildScatterOption(
         width: 1,
         type: 'dashed' as const,
       },
-    },
-  };
-  const axisPointerLabel = {
-    show: true,
-    backgroundColor: bg,
-    color: textColor,
-    fontSize: 14,
-    fontFamily: FONT_FAMILY,
-    padding: 6,
-    margin: 4,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    formatter: (params: any): string => {
-      const v = Number(params?.value);
-      if (!Number.isFinite(v)) return String(params?.value ?? '');
-      return Number.isInteger(v) ? String(v) : v.toFixed(2);
+      label: {
+        show: true,
+        backgroundColor: bg,
+        color: textColor,
+        fontSize: 14,
+        fontFamily: FONT_FAMILY,
+        padding: 6,
+        margin: 4,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        formatter: (params: any): string => {
+          const v = Number(params?.value);
+          if (!Number.isFinite(v)) return String(params?.value ?? '');
+          return Number.isInteger(v) ? String(v) : v.toFixed(2);
+        },
+      },
     },
   };
 
@@ -1769,7 +1771,6 @@ function buildScatterOption(
         color: textColor,
         fontSize: 16,
       },
-      axisPointer: { label: axisPointerLabel },
       splitLine: {
         lineStyle: {
           color: palette.border,
@@ -1795,7 +1796,6 @@ function buildScatterOption(
         color: textColor,
         fontSize: 16,
       },
-      axisPointer: { label: axisPointerLabel },
       splitLine: {
         lineStyle: {
           color: palette.border,

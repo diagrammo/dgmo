@@ -1139,37 +1139,42 @@ describe('scatter hover crosshair', () => {
     expect(opt.tooltip.axisPointer.lineStyle.type).toBe('dashed');
   });
 
-  it('per-axis pointer label paints the data value', () => {
+  it('tooltip.axisPointer.label paints the data value', () => {
     const input = 'scatter\nAlice 12 300';
     const opt = buildScatter(input) as {
-      xAxis: {
+      tooltip: {
         axisPointer: {
           label: { show: boolean; formatter: (p: { value: number }) => string };
         };
       };
-      yAxis: {
-        axisPointer: {
-          label: { formatter: (p: { value: number }) => string };
-        };
-      };
     };
-    expect(opt.xAxis.axisPointer.label.show).toBe(true);
-    expect(opt.xAxis.axisPointer.label.formatter({ value: 12 })).toBe('12');
-    expect(opt.yAxis.axisPointer.label.formatter({ value: 300 })).toBe('300');
+    expect(opt.tooltip.axisPointer.label.show).toBe(true);
+    expect(opt.tooltip.axisPointer.label.formatter({ value: 12 })).toBe('12');
+    expect(opt.tooltip.axisPointer.label.formatter({ value: 300 })).toBe('300');
   });
 
   it('axisPointer label rounds non-integer values', () => {
     const input = 'scatter\nAlice 12 300';
     const opt = buildScatter(input) as {
-      xAxis: {
+      tooltip: {
         axisPointer: {
           label: { formatter: (p: { value: number }) => string };
         };
       };
     };
-    expect(opt.xAxis.axisPointer.label.formatter({ value: 3.14159 })).toBe(
+    expect(opt.tooltip.axisPointer.label.formatter({ value: 3.14159 })).toBe(
       '3.14'
     );
+  });
+
+  it('individual axes do NOT have their own axisPointer (avoids mouse-follow on empty space)', () => {
+    const input = 'scatter\nAlice 12 300';
+    const opt = buildScatter(input) as {
+      xAxis: { axisPointer?: unknown };
+      yAxis: { axisPointer?: unknown };
+    };
+    expect(opt.xAxis.axisPointer).toBeUndefined();
+    expect(opt.yAxis.axisPointer).toBeUndefined();
   });
 });
 
