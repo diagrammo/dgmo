@@ -106,19 +106,6 @@ const KNOWN_OPTIONS = new Set([
 const KNOWN_BOOLEANS = new Set(['orientation-horizontal']);
 
 /**
- * Retired flag names — fixed-size map for the migration window.
- * The parser hard-errors on these with a "did you mean" suggestion so existing
- * diagrams don't silently regress visually. Drop this map after the migration
- * window (~6 months).
- */
-const RETIRED_FLAGS: Record<string, string> = {
-  'no-label-name': 'no-name',
-  'no-label-value': 'no-value',
-  'no-label-percent': 'no-percent',
-  'no-labels': 'no-name',
-};
-
-/**
  * Parses the simple chart text format into a structured object.
  *
  * Format (colon-free):
@@ -327,15 +314,6 @@ export function parseChart(
           result.seriesNameColors = parsed.nameColors;
         continue;
       }
-    }
-
-    // Retired flag names — hard-error with "did you mean" so existing diagrams
-    // don't silently regress when the renamed defaults take effect.
-    if (RETIRED_FLAGS[firstToken]) {
-      return fail(
-        lineNumber,
-        `Unknown option '${firstToken}'. Did you mean '${RETIRED_FLAGS[firstToken]}'? (Renamed in v0.10.)`
-      );
     }
 
     // Bare boolean options: no-name, no-value, no-percent

@@ -81,27 +81,6 @@ describe('Pie / Doughnut / Polar-Area configurable labels', () => {
     expect(parsed.noPercent).toBeUndefined();
   });
 
-  // ── Retired flag diagnostic ────────────────────────────────
-
-  it('errors on retired no-label-name with did-you-mean', () => {
-    const r = parseChart('pie\nno-label-name\nA 10\nB 20', palette);
-    expect(r.error).toBeTruthy();
-    expect(r.error).toContain('no-label-name');
-    expect(r.error).toContain('no-name');
-  });
-
-  it('errors on retired no-label-value with did-you-mean', () => {
-    const r = parseChart('pie\nno-label-value\nA 10', palette);
-    expect(r.error).toBeTruthy();
-    expect(r.error).toContain('no-value');
-  });
-
-  it('errors on retired no-label-percent with did-you-mean', () => {
-    const r = parseChart('pie\nno-label-percent\nA 10', palette);
-    expect(r.error).toBeTruthy();
-    expect(r.error).toContain('no-percent');
-  });
-
   // ── Silent-ignore unknown no-* flags ───────────────────────
 
   it('silent-ignores typoed no-* flag (no-vlaue)', () => {

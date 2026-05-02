@@ -214,19 +214,6 @@ const KNOWN_EXTENDED_OPTIONS = new Set([
 ]);
 
 /**
- * Retired flag names — fixed-size map for the migration window.
- * Hard-errors with a "did you mean" suggestion so existing diagrams don't
- * silently regress when the renamed defaults take effect. Drop after the
- * migration window (~6 months).
- */
-const RETIRED_EXTENDED_FLAGS: Record<string, string> = {
-  'no-label-name': 'no-name',
-  'no-label-value': 'no-value',
-  'no-label-percent': 'no-percent',
-  'no-labels': 'no-name',
-};
-
-/**
  * Parse a scatter data row: "Name x, y[, size]" or "Name(color) x, y[, size]"
  * Returns a ParsedScatterPoint or null if the line doesn't match.
  */
@@ -587,17 +574,6 @@ export function parseExtendedChart(
         }
         continue;
       }
-    }
-
-    // Retired flag names — hard-error with "did you mean".
-    if (RETIRED_EXTENDED_FLAGS[firstToken]) {
-      const diag = makeDgmoError(
-        lineNumber,
-        `Unknown option '${firstToken}'. Did you mean '${RETIRED_EXTENDED_FLAGS[firstToken]}'? (Renamed in v0.10.)`
-      );
-      result.diagnostics.push(diag);
-      result.error = formatDgmoError(diag);
-      return result;
     }
 
     // Bare boolean options

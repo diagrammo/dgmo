@@ -1130,19 +1130,6 @@ export function parseVisualization(
     // ── Bare-keyword no-* flags (show-everything default) ──────
     {
       const bareToken = line.toLowerCase();
-      // Retired flag names — hard error with did-you-mean.
-      const RETIRED_D3: Record<string, string> = {
-        'no-label-name': 'no-name',
-        'no-label-value': 'no-value',
-        'no-label-percent': 'no-percent',
-        'no-labels': 'no-name',
-      };
-      if (RETIRED_D3[bareToken]) {
-        return fail(
-          lineNumber,
-          `Unknown option '${bareToken}'. Did you mean '${RETIRED_D3[bareToken]}'? (Renamed in v0.10.)`
-        );
-      }
       if (bareToken === 'no-name') {
         result.noName = true;
         continue;
