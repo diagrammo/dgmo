@@ -1700,9 +1700,37 @@ function buildScatterOption(
       ? { data: categories, bottom: 10, textStyle: { color: textColor } }
       : undefined;
 
+  // Hover tooltip — reveal value(s) without cluttering the plot.
+  // Format prefers axis labels when provided; falls back to "x, y" otherwise.
+  // Static exports (PNG / pre-rendered SVG) ignore this; it only fires in
+  // live ECharts contexts (app preview, web editor).
+  const xLabel = parsed.xlabel ?? 'x';
+  const yLabel = parsed.ylabel ?? 'y';
+  const sizeLabel = parsed.sizelabel ?? 'size';
+  const tooltipConfig = {
+    show: true,
+    trigger: 'item' as const,
+    backgroundColor: bg,
+    borderColor: palette.border,
+    textStyle: { color: textColor, fontSize: 13 },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    formatter: (params: any): string => {
+      const data = params?.data ?? {};
+      const name: string = data.name ?? '';
+      const v: number[] = Array.isArray(data.value) ? data.value : [];
+      const lines: string[] = [];
+      if (name) lines.push(`<strong>${name}</strong>`);
+      if (v[0] !== undefined) lines.push(`${xLabel}: ${v[0]}`);
+      if (v[1] !== undefined) lines.push(`${yLabel}: ${v[1]}`);
+      if (v[2] !== undefined && hasSize) lines.push(`${sizeLabel}: ${v[2]}`);
+      return lines.join('<br/>');
+    },
+  };
+
   return {
     ...CHART_BASE,
     title: titleConfig,
+    tooltip: tooltipConfig,
     ...(legendConfig && { legend: legendConfig }),
     grid: {
       left: `${gridLeft}%`,

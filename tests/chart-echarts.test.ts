@@ -1110,6 +1110,72 @@ describe('parseDataRowValues — space-delimited multi-values', () => {
   });
 });
 
+// ── Scatter hover tooltip ──────────────────────────────────────
+
+describe('scatter hover tooltip', () => {
+  function buildScatter(input: string) {
+    const parsed = parseExtendedChart(input, palette);
+    return buildExtendedChartOption(parsed, palette, false);
+  }
+
+  it('enables tooltip on scatter (overrides global tooltip:show=false)', () => {
+    const input = 'scatter\nx-label Speed\ny-label Crew\nAlice 12 300';
+    const opt = buildScatter(input) as {
+      tooltip: { show: boolean; trigger: string };
+    };
+    expect(opt.tooltip.show).toBe(true);
+    expect(opt.tooltip.trigger).toBe('item');
+  });
+
+  it('formatter renders name + axis-labeled values', () => {
+    const input = 'scatter\nx-label Speed\ny-label Crew\nAlice 12 300';
+    const opt = buildScatter(input) as {
+      tooltip: { formatter: (p: unknown) => string };
+    };
+    const html = opt.tooltip.formatter({
+      data: { name: 'Alice', value: [12, 300] },
+    });
+    expect(html).toContain('<strong>Alice</strong>');
+    expect(html).toContain('Speed: 12');
+    expect(html).toContain('Crew: 300');
+  });
+
+  it('formatter falls back to "x"/"y" when no axis labels', () => {
+    const input = 'scatter\nAlice 12 300';
+    const opt = buildScatter(input) as {
+      tooltip: { formatter: (p: unknown) => string };
+    };
+    const html = opt.tooltip.formatter({
+      data: { name: 'Alice', value: [12, 300] },
+    });
+    expect(html).toContain('x: 12');
+    expect(html).toContain('y: 300');
+  });
+
+  it('formatter includes size when bubble (3rd value)', () => {
+    const input =
+      'scatter\nx-label Speed\ny-label Crew\nsize-label Cannons\nAlice 12 300 40';
+    const opt = buildScatter(input) as {
+      tooltip: { formatter: (p: unknown) => string };
+    };
+    const html = opt.tooltip.formatter({
+      data: { name: 'Alice', value: [12, 300, 40] },
+    });
+    expect(html).toContain('Cannons: 40');
+  });
+
+  it('formatter omits size when scatter (no 3rd value)', () => {
+    const input = 'scatter\nAlice 12 300';
+    const opt = buildScatter(input) as {
+      tooltip: { formatter: (p: unknown) => string };
+    };
+    const html = opt.tooltip.formatter({
+      data: { name: 'Alice', value: [12, 300] },
+    });
+    expect(html).not.toContain('size');
+  });
+});
+
 // ── Numeric separator support ───────────────────────────────
 
 describe('numeric separators in chart data', () => {
