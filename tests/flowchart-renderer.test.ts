@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { JSDOM } from 'jsdom';
+import { mix } from '../src/palettes/color-utils';
 import { parseFlowchart } from '../src/graph/flowchart-parser';
 import { layoutGraph } from '../src/graph/layout';
 import {
@@ -248,6 +249,55 @@ describe('renderFlowchart', () => {
     });
   });
 
+  describe('solid-fill option', () => {
+    it('node fill equals raw intent when solid-fill is on', () => {
+      const container = renderToContainer(
+        'flowchart\nsolid-fill\n(Start) -> (End)'
+      );
+      const rect = container.querySelector('g.fc-node rect');
+      expect(rect).toBeTruthy();
+      // Start terminal (with outgoing edge) defaults to green
+      expect(rect!.getAttribute('fill')).toBe(testPalette.colors.green);
+      document.body.removeChild(container);
+    });
+
+    it('node fill is the 25% mix when solid-fill is absent', () => {
+      const container = renderToContainer('flowchart\n(Start) -> (End)');
+      const rect = container.querySelector('g.fc-node rect');
+      expect(rect).toBeTruthy();
+      const expected = mix(testPalette.colors.green, testPalette.bg, 25);
+      expect(rect!.getAttribute('fill')).toBe(expected);
+      document.body.removeChild(container);
+    });
+
+    it('no-color + solid-fill: node fill collapses to textMuted (color off wins)', () => {
+      // Flowchart node syntax has no explicit-color suffix, so the matrix
+      // collapses to a single case: untagged + colorOff → textMuted, regardless
+      // of solid-fill (the muted path bypasses shapeFill entirely).
+      const container = renderToContainer(
+        'flowchart\nno-color\nsolid-fill\n(Start) -> (End)'
+      );
+      const rect = container.querySelector('g.fc-node rect');
+      expect(rect).toBeTruthy();
+      expect(rect!.getAttribute('fill')).toBe(testPalette.textMuted);
+      document.body.removeChild(container);
+    });
+
+    it('label uses contrast-aware text fill against the saturated background', () => {
+      const container = renderToContainer(
+        'flowchart\nsolid-fill\n(Start) -> (End)'
+      );
+      const text = container.querySelector('g.fc-node text');
+      expect(text).toBeTruthy();
+      const fill = text!.getAttribute('fill');
+      expect([
+        testPalette.textOnFillLight,
+        testPalette.textOnFillDark,
+      ]).toContain(fill);
+      document.body.removeChild(container);
+    });
+  });
+
   describe('export function', () => {
     it('renderFlowchartForExport produces valid SVG string', () => {
       const svg = renderFlowchartForExport(
@@ -272,6 +322,16 @@ describe('renderFlowchart', () => {
         testPalette
       );
       expect(svg).toContain('<svg');
+    });
+
+    it('renderFlowchartForExport threads solid-fill through to the SVG fill attribute', () => {
+      const svg = renderFlowchartForExport(
+        'flowchart\nsolid-fill\n(Start) -> (End)',
+        'light',
+        testPalette
+      );
+      // The raw green intent must appear as a fill — confirms the option flows through the export path.
+      expect(svg).toContain(`fill="${testPalette.colors.green}"`);
     });
   });
 });

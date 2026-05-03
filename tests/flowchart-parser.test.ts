@@ -34,6 +34,31 @@ describe('parseFlowchart', () => {
     });
   });
 
+  describe('solid-fill option', () => {
+    it('parses bare solid-fill keyword as on', () => {
+      const result = parseFlowchart('flowchart\nsolid-fill\n(Start) -> (End)');
+      expect(result.options['solid-fill']).toBe('on');
+    });
+
+    it('parses solid-fill case-insensitively', () => {
+      expect(
+        parseFlowchart('flowchart\nSolid-Fill\n(Start) -> (End)').options[
+          'solid-fill'
+        ]
+      ).toBe('on');
+      expect(
+        parseFlowchart('flowchart\nSOLID-FILL\n(Start) -> (End)').options[
+          'solid-fill'
+        ]
+      ).toBe('on');
+    });
+
+    it('defaults to undefined when keyword absent', () => {
+      const result = parseFlowchart('flowchart\n(Start) -> (End)');
+      expect(result.options['solid-fill']).toBeUndefined();
+    });
+  });
+
   // === AC 12: Comments ===
   describe('comments', () => {
     it('ignores // comments', () => {

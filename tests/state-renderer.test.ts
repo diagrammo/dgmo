@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { JSDOM } from 'jsdom';
+import { mix } from '../src/palettes/color-utils';
 import { parseState } from '../src/graph/state-parser';
 import { layoutGraph } from '../src/graph/layout';
 import { renderState, renderStateForExport } from '../src/graph/state-renderer';
@@ -224,6 +225,106 @@ describe('renderState', () => {
       const container = renderToContainer('[*] -> Idle -> Active -> [*]', true);
       const svg = container.querySelector('svg');
       expect(svg).toBeTruthy();
+      document.body.removeChild(container);
+    });
+  });
+
+  describe('solid-fill option', () => {
+    it('state fill equals raw intent when solid-fill is on', () => {
+      const container = renderToContainer('solid-fill\nIdle -> Active');
+      const rect = container.querySelector('g.st-node rect');
+      expect(rect).toBeTruthy();
+      // Default state color is blue; solid-fill returns the raw intent
+      expect(rect!.getAttribute('fill')).toBe(testPalette.colors.blue);
+      document.body.removeChild(container);
+    });
+
+    it('state fill is the 25% mix when solid-fill is absent', () => {
+      const container = renderToContainer('Idle -> Active');
+      const rect = container.querySelector('g.st-node rect');
+      expect(rect).toBeTruthy();
+      const expected = mix(testPalette.colors.blue, testPalette.bg, 25);
+      expect(rect!.getAttribute('fill')).toBe(expected);
+      document.body.removeChild(container);
+    });
+
+    it('no-color + solid-fill: state fill is textMuted (color off wins)', () => {
+      const container = renderToContainer(
+        'no-color\nsolid-fill\nIdle -> Active'
+      );
+      const rect = container.querySelector('g.st-node rect');
+      expect(rect).toBeTruthy();
+      expect(rect!.getAttribute('fill')).toBe(testPalette.textMuted);
+      document.body.removeChild(container);
+    });
+
+    it('collapsed-group fill equals raw group color when solid-fill is on', () => {
+      const parsed = parseState(
+        'solid-fill\n[Processing](red)\n  Validating -> Approved',
+        testPalette
+      );
+      expect(parsed.error).toBeNull();
+      const originalGroups = parsed.groups ?? [];
+      const collapsedChildCounts = new Map<string, number>();
+      for (const g of originalGroups) collapsedChildCounts.set(g.id, 2);
+      const layout = layoutGraph(parsed, {
+        collapsedChildCounts,
+        originalGroups,
+      });
+      const container = document.createElement('div');
+      Object.defineProperty(container, 'clientWidth', {
+        value: 1200,
+        configurable: true,
+      });
+      Object.defineProperty(container, 'clientHeight', {
+        value: 800,
+        configurable: true,
+      });
+      document.body.appendChild(container);
+      renderState(container, parsed, layout, testPalette, false);
+
+      // Collapsed-group wrapper carries both st-group-wrapper and st-node;
+      // the regular (un-collapsed) group rect carries only st-group-wrapper.
+      const wrapper = container.querySelector('g.st-group-wrapper.st-node');
+      expect(wrapper).toBeTruthy();
+      const mainRect = wrapper!.querySelector('rect');
+      expect(mainRect).toBeTruthy();
+      expect(mainRect!.getAttribute('fill')).toBe(testPalette.colors.red);
+      document.body.removeChild(container);
+    });
+
+    it('collapsed-group fill is the 25% mix when solid-fill is absent', () => {
+      const parsed = parseState(
+        '[Processing](red)\n  Validating -> Approved',
+        testPalette
+      );
+      expect(parsed.error).toBeNull();
+      const originalGroups = parsed.groups ?? [];
+      const collapsedChildCounts = new Map<string, number>();
+      for (const g of originalGroups) collapsedChildCounts.set(g.id, 2);
+      const layout = layoutGraph(parsed, {
+        collapsedChildCounts,
+        originalGroups,
+      });
+      const container = document.createElement('div');
+      Object.defineProperty(container, 'clientWidth', {
+        value: 1200,
+        configurable: true,
+      });
+      Object.defineProperty(container, 'clientHeight', {
+        value: 800,
+        configurable: true,
+      });
+      document.body.appendChild(container);
+      renderState(container, parsed, layout, testPalette, false);
+
+      const wrapper = container.querySelector('g.st-group-wrapper.st-node');
+      expect(wrapper).toBeTruthy();
+      const mainRect = wrapper!.querySelector('rect');
+      expect(mainRect).toBeTruthy();
+      // Migrated to canonical 25% shapeFill (was 15% inline mix pre-spike)
+      const expected = mix(testPalette.colors.red, testPalette.bg, 25);
+      expect(mainRect!.getAttribute('fill')).toBe(expected);
       document.body.removeChild(container);
     });
   });

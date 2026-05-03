@@ -472,6 +472,10 @@ Bracket syntax only.
 
 - `direction-lr` (boolean; default is TB)
 - `orientation-vertical` (boolean; default is horizontal)
+- `no-color` (boolean; default off — when on, all nodes resolve to the muted neutral fill instead of their default intent color)
+- `solid-fill` (boolean; default off — render shapes with their full intent color instead of the canonical 25% tint)
+
+`no-color` + `solid-fill` precedence: `no-color` wins for nodes with no explicit color (the muted neutral path bypasses `solid-fill`). Nodes with an explicit color survive `no-color` and are then rendered at full saturation if `solid-fill` is also on.
 
 ---
 
@@ -509,6 +513,10 @@ StateName(color)
 ### 5.5 Options
 
 - `direction-tb` (boolean; default is LR)
+- `no-color` (boolean; default off — when on, all states resolve to the muted neutral fill instead of their default intent color)
+- `solid-fill` (boolean; default off — render states with their full intent color instead of the canonical 25% tint; collapsed groups are also rendered at full saturation)
+
+`no-color` + `solid-fill` precedence: `no-color` wins for states with no explicit color (the muted neutral path bypasses `solid-fill`). Group colors survive `no-color` and are then rendered at full saturation if `solid-fill` is also on.
 
 ---
 

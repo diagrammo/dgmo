@@ -46,10 +46,11 @@ function stateFill(
   palette: PaletteColors,
   isDark: boolean,
   nodeColor?: string,
-  colorOff?: boolean
+  colorOff?: boolean,
+  solid?: boolean
 ): string {
   const color = nodeColor ?? stateDefaultColor(palette, colorOff);
-  return shapeFill(palette, color, isDark);
+  return shapeFill(palette, color, isDark, { solid });
 }
 
 function stateStroke(
@@ -430,6 +431,7 @@ export function renderState(
 
   // Render nodes (top layer)
   const colorOff = graph.options?.color === 'off';
+  const solid = graph.options?.['solid-fill'] === 'on';
   for (const node of layout.nodes) {
     const isCollapsedGroup = collapsedGroupIds.has(node.id);
 
@@ -470,11 +472,7 @@ export function renderState(
       const w = node.width;
       const h = node.height;
       const groupColor = node.color ?? stateDefaultColor(palette, colorOff);
-      const fillColor = mix(
-        groupColor,
-        isDark ? palette.surface : palette.bg,
-        15
-      );
+      const fillColor = shapeFill(palette, groupColor, isDark, { solid });
       const strokeColor = groupColor;
       const COLLAPSE_BAR_H = 6;
 
@@ -533,7 +531,13 @@ export function renderState(
       // State — rounded rectangle
       const w = node.width;
       const h = node.height;
-      const resolvedFill = stateFill(palette, isDark, node.color, colorOff);
+      const resolvedFill = stateFill(
+        palette,
+        isDark,
+        node.color,
+        colorOff,
+        solid
+      );
       nodeG
         .append('rect')
         .attr('x', -w / 2)

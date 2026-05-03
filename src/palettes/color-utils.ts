@@ -214,15 +214,16 @@ export function contrastText(
  *
  * Sankey is the only documented exception (75/45% custom desaturation).
  *
- * `opts.solid` is reserved for the follow-up `option solid-fill` spec.
+ * `opts.solid` (per `option solid-fill`): bypass the 25% tint and return
+ * the raw intent. Opt-in only; default behavior unchanged.
  */
 export function shapeFill(
   palette: PaletteColors,
   intent: string,
   isDark: boolean,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   opts?: { solid?: boolean }
 ): string {
+  if (opts?.solid) return intent;
   return mix(intent, isDark ? palette.surface : palette.bg, 25);
 }
 

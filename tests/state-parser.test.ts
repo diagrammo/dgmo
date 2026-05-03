@@ -42,6 +42,27 @@ describe('parseState', () => {
     });
   });
 
+  describe('solid-fill option', () => {
+    it('parses bare solid-fill keyword as on', () => {
+      const result = parseState('solid-fill\n[*] -> Idle');
+      expect(result.options['solid-fill']).toBe('on');
+    });
+
+    it('parses solid-fill case-insensitively', () => {
+      expect(parseState('Solid-Fill\n[*] -> Idle').options['solid-fill']).toBe(
+        'on'
+      );
+      expect(parseState('SOLID-FILL\n[*] -> Idle').options['solid-fill']).toBe(
+        'on'
+      );
+    });
+
+    it('defaults to undefined when keyword absent', () => {
+      const result = parseState('[*] -> Idle');
+      expect(result.options['solid-fill']).toBeUndefined();
+    });
+  });
+
   // === States ===
   describe('states', () => {
     it('parses bare state name', () => {

@@ -331,6 +331,18 @@ export function parseState(
         continue;
       }
 
+      // Bare boolean: solid-fill
+      if (/^solid-fill$/i.test(trimmed)) {
+        result.options['solid-fill'] = 'on';
+        continue;
+      }
+
+      // Bare boolean: no-color (toggles color off)
+      if (/^no-color$/i.test(trimmed)) {
+        result.options['color'] = 'off';
+        continue;
+      }
+
       const optMatch = trimmed.match(OPTION_NOCOLON_RE);
       if (optMatch && !trimmed.includes('->')) {
         const key = optMatch[1].toLowerCase();

@@ -140,13 +140,23 @@ describe('shapeFill', () => {
     });
   }
 
-  it('opts.solid is currently ignored (reserved for follow-up spec)', () => {
+  it('opts.solid returns the raw intent (bypasses 25% tint)', () => {
     const intent = nordPalette.light.colors.red;
-    const expected = mix(intent, nordPalette.light.bg, 25);
-    expect(shapeFill(nordPalette.light, intent, false)).toBe(expected);
-    expect(shapeFill(nordPalette.light, intent, false, {})).toBe(expected);
     expect(shapeFill(nordPalette.light, intent, false, { solid: true })).toBe(
-      expected
+      intent
+    );
+    expect(shapeFill(nordPalette.dark, intent, true, { solid: true })).toBe(
+      intent
+    );
+  });
+
+  it('opts.solid: false and omitted opts both return the 25% tint', () => {
+    const intent = nordPalette.light.colors.red;
+    const expectedLight = mix(intent, nordPalette.light.bg, 25);
+    expect(shapeFill(nordPalette.light, intent, false)).toBe(expectedLight);
+    expect(shapeFill(nordPalette.light, intent, false, {})).toBe(expectedLight);
+    expect(shapeFill(nordPalette.light, intent, false, { solid: false })).toBe(
+      expectedLight
     );
   });
 });

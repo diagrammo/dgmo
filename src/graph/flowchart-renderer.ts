@@ -68,11 +68,12 @@ function nodeFill(
   shape: GraphShape,
   nodeColor?: string,
   isEndTerminal?: boolean,
-  colorOff?: boolean
+  colorOff?: boolean,
+  solid?: boolean
 ): string {
   const color =
     nodeColor ?? shapeDefaultColor(shape, palette, isEndTerminal, colorOff);
-  return shapeFill(palette, color, isDark);
+  return shapeFill(palette, color, isDark, { solid });
 }
 
 function nodeStroke(
@@ -99,7 +100,8 @@ function renderTerminal(
   palette: PaletteColors,
   isDark: boolean,
   isEnd: boolean,
-  colorOff?: boolean
+  colorOff?: boolean,
+  solid?: boolean
 ): void {
   const w = node.width;
   const h = node.height;
@@ -113,7 +115,7 @@ function renderTerminal(
     .attr('ry', rx)
     .attr(
       'fill',
-      nodeFill(palette, isDark, node.shape, node.color, isEnd, colorOff)
+      nodeFill(palette, isDark, node.shape, node.color, isEnd, colorOff, solid)
     )
     .attr(
       'stroke',
@@ -127,7 +129,8 @@ function renderProcess(
   node: LayoutNode,
   palette: PaletteColors,
   isDark: boolean,
-  colorOff?: boolean
+  colorOff?: boolean,
+  solid?: boolean
 ): void {
   const w = node.width;
   const h = node.height;
@@ -140,7 +143,15 @@ function renderProcess(
     .attr('ry', 3)
     .attr(
       'fill',
-      nodeFill(palette, isDark, node.shape, node.color, undefined, colorOff)
+      nodeFill(
+        palette,
+        isDark,
+        node.shape,
+        node.color,
+        undefined,
+        colorOff,
+        solid
+      )
     )
     .attr(
       'stroke',
@@ -154,7 +165,8 @@ function renderDecision(
   node: LayoutNode,
   palette: PaletteColors,
   isDark: boolean,
-  colorOff?: boolean
+  colorOff?: boolean,
+  solid?: boolean
 ): void {
   const w = node.width / 2;
   const h = node.height / 2;
@@ -168,7 +180,15 @@ function renderDecision(
     .attr('points', points)
     .attr(
       'fill',
-      nodeFill(palette, isDark, node.shape, node.color, undefined, colorOff)
+      nodeFill(
+        palette,
+        isDark,
+        node.shape,
+        node.color,
+        undefined,
+        colorOff,
+        solid
+      )
     )
     .attr(
       'stroke',
@@ -182,7 +202,8 @@ function renderIO(
   node: LayoutNode,
   palette: PaletteColors,
   isDark: boolean,
-  colorOff?: boolean
+  colorOff?: boolean,
+  solid?: boolean
 ): void {
   const w = node.width / 2;
   const h = node.height / 2;
@@ -197,7 +218,15 @@ function renderIO(
     .attr('points', points)
     .attr(
       'fill',
-      nodeFill(palette, isDark, node.shape, node.color, undefined, colorOff)
+      nodeFill(
+        palette,
+        isDark,
+        node.shape,
+        node.color,
+        undefined,
+        colorOff,
+        solid
+      )
     )
     .attr(
       'stroke',
@@ -211,7 +240,8 @@ function renderSubroutine(
   node: LayoutNode,
   palette: PaletteColors,
   isDark: boolean,
-  colorOff?: boolean
+  colorOff?: boolean,
+  solid?: boolean
 ): void {
   const w = node.width;
   const h = node.height;
@@ -226,7 +256,15 @@ function renderSubroutine(
     .attr('ry', 3)
     .attr(
       'fill',
-      nodeFill(palette, isDark, node.shape, node.color, undefined, colorOff)
+      nodeFill(
+        palette,
+        isDark,
+        node.shape,
+        node.color,
+        undefined,
+        colorOff,
+        solid
+      )
     )
     .attr('stroke', s)
     .attr('stroke-width', NODE_STROKE_WIDTH);
@@ -253,7 +291,8 @@ function renderDocument(
   node: LayoutNode,
   palette: PaletteColors,
   isDark: boolean,
-  colorOff?: boolean
+  colorOff?: boolean,
+  solid?: boolean
 ): void {
   const w = node.width;
   const h = node.height;
@@ -276,7 +315,15 @@ function renderDocument(
     .attr('d', d)
     .attr(
       'fill',
-      nodeFill(palette, isDark, node.shape, node.color, undefined, colorOff)
+      nodeFill(
+        palette,
+        isDark,
+        node.shape,
+        node.color,
+        undefined,
+        colorOff,
+        solid
+      )
     )
     .attr(
       'stroke',
@@ -291,7 +338,8 @@ function renderNodeShape(
   palette: PaletteColors,
   isDark: boolean,
   endTerminalIds: Set<string>,
-  colorOff?: boolean
+  colorOff?: boolean,
+  solid?: boolean
 ): void {
   switch (node.shape) {
     case 'terminal':
@@ -301,23 +349,24 @@ function renderNodeShape(
         palette,
         isDark,
         endTerminalIds.has(node.id),
-        colorOff
+        colorOff,
+        solid
       );
       break;
     case 'process':
-      renderProcess(g, node, palette, isDark, colorOff);
+      renderProcess(g, node, palette, isDark, colorOff, solid);
       break;
     case 'decision':
-      renderDecision(g, node, palette, isDark, colorOff);
+      renderDecision(g, node, palette, isDark, colorOff, solid);
       break;
     case 'io':
-      renderIO(g, node, palette, isDark, colorOff);
+      renderIO(g, node, palette, isDark, colorOff, solid);
       break;
     case 'subroutine':
-      renderSubroutine(g, node, palette, isDark, colorOff);
+      renderSubroutine(g, node, palette, isDark, colorOff, solid);
       break;
     case 'document':
-      renderDocument(g, node, palette, isDark, colorOff);
+      renderDocument(g, node, palette, isDark, colorOff, solid);
       break;
   }
 }
@@ -569,6 +618,7 @@ export function renderFlowchart(
 
   // Render nodes (top layer)
   const colorOff = graph.options?.color === 'off';
+  const solid = graph.options?.['solid-fill'] === 'on';
   for (const node of layout.nodes) {
     const nodeG = contentG
       .append('g')
@@ -590,7 +640,8 @@ export function renderFlowchart(
       palette,
       isDark,
       endTerminalIds,
-      colorOff
+      colorOff,
+      solid
     );
 
     // Label — contrast against the resolved node fill
@@ -601,7 +652,8 @@ export function renderFlowchart(
       node.shape,
       node.color,
       isEnd,
-      colorOff
+      colorOff,
+      solid
     );
     nodeG
       .append('text')
