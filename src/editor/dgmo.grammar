@@ -12,7 +12,7 @@ contentPart {
   Pipe | Colon | Comma | Plus | Dash | Tilde | Star | Question |
   ChartType |
   TagKeyword | DirectiveKeyword | ControlKeyword | ModifierKeyword |
-  Identifier |
+  QuotedString | Identifier |
   Punct
 }
 
@@ -57,6 +57,11 @@ contentPart {
 
   Identifier { $[a-zA-Z_] ($[a-zA-Z0-9_./&?=@#!'+] | "-" $[a-zA-Z_./&?=@#!'+])* }
 
+  // Universal Name Handling: quoted form for names containing reserved
+  // chars (pipe, colon, edge sigils, brackets) or wanting a single
+  // multi-word token for syntax highlighting. No `"`-inside-`"` escape.
+  QuotedString { '"' ![\n"]* '"' }
+
   Punct { ![$[ \t\n] }
 
   @precedence {
@@ -64,7 +69,7 @@ contentPart {
     Duration, DateLiteral, Percentage, Number, SectionMarker, Url, ColorAnnotation,
     Pipe, Colon, Comma, Plus, Dash, Tilde, Star, Question,
     OpenBracket, CloseBracket, OpenParen, CloseParen, OpenAngle, CloseAngle,
-    Identifier, Punct
+    QuotedString, Identifier, Punct
   }
 }
 

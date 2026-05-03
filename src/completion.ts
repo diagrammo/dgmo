@@ -600,8 +600,12 @@ export const METADATA_KEY_SET: ReadonlySet<string> = new Set([
 // Sequence extractor
 // ============================================================
 
-const SEQ_ARROW_RE = /^(\S+)\s+(->|-.*->|~>|~.*~>)\s+(\S+)/;
-const SEQ_IS_A_RE = /^(\S+)\s+is\s+an?\s+/i;
+// Universal Name Handling: source/target accept multi-word + "quoted" names.
+// `[^|]+?` captures greedy-to-pipe-or-arrow; the arrow alternation acts as
+// the boundary. Caller strips quotes via stripQuotes().
+const SEQ_ARROW_RE =
+  /^(?:"([^"]+)"|([^|"]+?))\s+(->|-.*->|~>|~.*~>)\s+(?:"([^"]+)"|([^|"]+?))(?:\s|\|.*)?$/;
+const SEQ_IS_A_RE = /^(?:"([^"]+)"|([^|":]+?))\s+is\s+an?\s+/i;
 const SEQ_SECTION_RE = /^==/;
 const SEQ_STRUCTURAL_RE = /^(if|else|loop|parallel|end)\b/i;
 
@@ -631,8 +635,8 @@ function extractSequenceSymbols(docText: string): DiagramSymbols {
     // Arrow lines: A -> B, A -label-> B, A ~> B
     const arrowMatch = trimmed.match(SEQ_ARROW_RE);
     if (arrowMatch) {
-      const src = arrowMatch[1].split('|')[0].trim();
-      const dst = arrowMatch[3].split('|')[0].trim();
+      const src = (arrowMatch[1] ?? arrowMatch[2] ?? '').trim();
+      const dst = (arrowMatch[4] ?? arrowMatch[5] ?? '').trim();
       if (src && !entities.includes(src)) entities.push(src);
       if (dst && !entities.includes(dst)) entities.push(dst);
       continue;
@@ -641,7 +645,7 @@ function extractSequenceSymbols(docText: string): DiagramSymbols {
     // Type declarations: A is a person, A is an actor
     const isAMatch = trimmed.match(SEQ_IS_A_RE);
     if (isAMatch) {
-      const name = isAMatch[1].split('|')[0].trim();
+      const name = (isAMatch[1] ?? isAMatch[2] ?? '').trim();
       if (name && !entities.includes(name)) entities.push(name);
       continue;
     }

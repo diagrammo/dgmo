@@ -7,24 +7,26 @@
 ## Table of Contents
 
 1. [Universal Constructs](#1-universal-constructs)
-2. [Sequence Diagrams](#2-sequence-diagrams)
-3. [Infrastructure Diagrams](#3-infrastructure-diagrams)
-4. [Flowchart Diagrams](#4-flowchart-diagrams)
-5. [State Diagrams](#5-state-diagrams)
-6. [Org Charts](#6-org-charts)
-7. [C4 Architecture Diagrams](#7-c4-architecture-diagrams)
-8. [Entity-Relationship Diagrams](#8-entity-relationship-diagrams)
-9. [Class Diagrams](#9-class-diagrams)
-10. [Kanban Boards](#10-kanban-boards)
-11. [Sitemap Diagrams](#11-sitemap-diagrams)
-12. [Gantt Charts](#12-gantt-charts)
-13. [Boxes and Lines Diagrams](#13-boxes-and-lines-diagrams)
-14. [Timeline Diagrams](#14-timeline-diagrams)
-15. [Data Charts](#15-data-charts)
-16. [Visualizations](#16-visualizations)
-17. [Tech Radar Diagrams](#17-tech-radar-diagrams)
-18. [Wireframe Diagrams](#18-wireframe-diagrams)
-19. [Colon Usage Summary](#19-colon-usage-summary)
+2. [Universal Name Handling](#2-universal-name-handling)
+3. [Sequence Diagrams](#3-sequence-diagrams)
+4. [Infrastructure Diagrams](#4-infrastructure-diagrams)
+5. [Flowchart Diagrams](#5-flowchart-diagrams)
+6. [State Diagrams](#6-state-diagrams)
+7. [Org Charts](#7-org-charts)
+8. [C4 Architecture Diagrams](#8-c4-architecture-diagrams)
+9. [Entity-Relationship Diagrams](#9-entity-relationship-diagrams)
+10. [Class Diagrams](#10-class-diagrams)
+11. [Kanban Boards](#11-kanban-boards)
+12. [Sitemap Diagrams](#12-sitemap-diagrams)
+13. [Gantt Charts](#13-gantt-charts)
+14. [Boxes and Lines Diagrams](#14-boxes-and-lines-diagrams)
+15. [Timeline Diagrams](#15-timeline-diagrams)
+16. [Data Charts](#16-data-charts)
+17. [Visualizations](#17-visualizations)
+18. [Tech Radar Diagrams](#18-tech-radar-diagrams)
+19. [Wireframe Diagrams](#19-wireframe-diagrams)
+20. [Pyramid Diagrams](#20-pyramid-diagrams)
+21. [Colon Usage Summary](#21-colon-usage-summary)
 
 ---
 
@@ -193,7 +195,72 @@ No code migration is required for in-arrow label character escaping — any labe
 
 ---
 
-## 2. Sequence Diagrams
+## 2. Universal Name Handling
+
+DGMO uses one rule for entity names across every chart type. Names accept
+spaces verbatim. Equality is forgiving — case-insensitive and
+whitespace-collapsed. The first-seen casing/spacing wins for display.
+Quoting is on-demand — required only when a name contains a reserved
+character.
+
+### 2.1 Pinned Algorithm
+
+Two names are the same entity when they reduce to the same key under
+this algorithm:
+
+1. NFC normalize the input
+2. Replace runs of Unicode whitespace with a single ASCII space
+3. Trim leading/trailing whitespace
+4. Case-fold via `toLocaleLowerCase('en-US')`
+
+`Auth Service`, `auth service`, `AUTH\tSERVICE`, and `  auth   service  `
+all normalize to `auth service`. The first declaration wins for the
+display label. Subsequent re-declarations with a different casing or
+spacing fold into the first and emit `I_NAME_MERGED` (warning).
+
+### 2.2 Reserved Characters
+
+Bare names accept letters, digits, spaces, and hyphens. The following
+characters are reserved and require `"..."` quoting if you want them in
+a name: `|` (pipe metadata), `:` (type/metadata separator), edge sigils
+`-> <- ~> <~ -- ..`, shape brackets `[] () {} <>`, leading/trailing
+whitespace.
+
+There is no `"`-inside-`"` escape — names cannot contain a double
+quote.
+
+### 2.3 Examples
+
+- `Auth Service is a service` — bare multi-word, no quoting needed
+- `"first name" varchar` — quote when name contains a reserved char (the `:` ER type separator)
+- `"Order | Items"` — quote the pipe
+- `class "Customer Service"` — bare multi-word also accepts in class
+- `Auth Server` then `auth server -hi-> DB` — message resolves via normalization to one participant
+
+### 2.4 Migration: aka Removed
+
+Sequence's `Name is a type aka Alias` modifier is removed. Forgiving
+normalization makes aliasing redundant. Encountering `aka` in a
+participant declaration produces `E_AKA_REMOVED`.
+
+### 2.5 Carve-Outs
+
+These are intentionally outside the universal rule:
+
+- D3 chart data rows (slope, venn, quadrant, arc) — labels are data, not entity names
+- `tags:` and `import:` directives in org — values are file/tag references
+- Flowchart and state shape brackets `[]`, `()`, `{}`, `<>` — shape sigils, not name quoting
+- Tag suffix-alias `tag Priority p` — separate alias map
+
+### 2.6 Error Codes
+
+- `I_NAME_MERGED` (warning) — two source-distinct names normalize to the same key with different displayed forms
+- `E_NAME_RESERVED_CHAR` (error) — bare name contains a reserved char without quoting
+- `E_AKA_REMOVED` (error) — removed `aka` keyword used in sequence participant declaration
+
+---
+
+## 3. Sequence Diagrams
 
 ### 2.1 Participants
 
@@ -326,7 +393,7 @@ parallel label
 
 ---
 
-## 3. Infrastructure Diagrams
+## 4. Infrastructure Diagrams
 
 ### 3.1 Declaration
 
@@ -421,7 +488,7 @@ Special top-level entry points. `internet` only accepts `rps` property.
 
 ---
 
-## 4. Flowchart Diagrams
+## 5. Flowchart Diagrams
 
 ### 4.1 Declaration
 
@@ -479,7 +546,7 @@ Bracket syntax only.
 
 ---
 
-## 5. State Diagrams
+## 6. State Diagrams
 
 ### 5.1 Declaration
 
@@ -520,7 +587,7 @@ StateName(color)
 
 ---
 
-## 6. Org Charts
+## 7. Org Charts
 
 ### 6.1 Declaration
 
@@ -567,7 +634,7 @@ This is key-value metadata assignment, consistent with pipe metadata syntax.
 
 ---
 
-## 7. C4 Architecture Diagrams
+## 8. C4 Architecture Diagrams
 
 ### 7.1 Declaration
 
@@ -647,7 +714,7 @@ Database is a container | description: PostgreSQL with read replicas
 
 ---
 
-## 8. Entity-Relationship Diagrams
+## 9. Entity-Relationship Diagrams
 
 ### 8.1 Declaration
 
@@ -695,7 +762,7 @@ Cardinality symbols: `1` (one), `*` (many), `?` (optional)
 
 ---
 
-## 9. Class Diagrams
+## 10. Class Diagrams
 
 ### 9.1 Declaration
 
@@ -768,7 +835,7 @@ Optional label: `--|> Vessel : extends` (colon optional before label)
 
 ---
 
-## 10. Kanban Boards
+## 11. Kanban Boards
 
 ### 10.1 Declaration
 
@@ -800,7 +867,7 @@ Columns represent workflow stages and must flow left-to-right from least-done to
 
 ---
 
-## 11. Sitemap Diagrams
+## 12. Sitemap Diagrams
 
 ### 11.1 Declaration
 
@@ -874,7 +941,7 @@ Blog
 
 ---
 
-## 12. Gantt Charts
+## 13. Gantt Charts
 
 ### 12.1 Declaration
 
@@ -979,7 +1046,7 @@ parallel
 
 ---
 
-## 13. Boxes and Lines Diagrams
+## 14. Boxes and Lines Diagrams
 
 ### 13.1 Declaration
 
@@ -1074,7 +1141,7 @@ Indented shorthand also supports groups (place arrow directly after group header
 
 ---
 
-## 14. Timeline Diagrams
+## 15. Timeline Diagrams
 
 ### 14.1 Declaration
 
@@ -1144,7 +1211,7 @@ marker
 
 ---
 
-## 15. Data Charts
+## 16. Data Charts
 
 ### Conventions shared across all data charts
 
@@ -1319,7 +1386,7 @@ Purchases 200
 
 ---
 
-## 16. Visualizations
+## 17. Visualizations
 
 ### 16.1 Slope Charts
 
@@ -1411,7 +1478,7 @@ Navigator 0.85 0.8
 
 ---
 
-## 17. Tech Radar Diagrams
+## 18. Tech Radar Diagrams
 
 ```
 tech-radar Title
@@ -1477,7 +1544,7 @@ Blips receive sequential global numbers. Order: quadrants clockwise (top-left �
 
 ---
 
-## 18. Wireframe Diagrams
+## 19. Wireframe Diagrams
 
 Wireframe diagrams use **visual-mnemonic syntax** where bracket characters communicate element type.
 
@@ -1611,7 +1678,7 @@ wireframe Login Page
 
 ---
 
-## 19. Pyramid Diagrams
+## 20. Pyramid Diagrams
 
 Hierarchical pyramid visualization with stacked layers, descriptions, and optional per-layer color. Source order reads apex-first (top of file = top of pyramid).
 
@@ -1672,7 +1739,7 @@ When descriptions don't fit a layer's band the renderer wraps at the column edge
 
 ---
 
-## 20. Colon Usage Summary
+## 21. Colon Usage Summary
 
 ### Constructs Where Colons Are REQUIRED
 
