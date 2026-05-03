@@ -1,9 +1,13 @@
 import js from '@eslint/js';
 import security from 'eslint-plugin-security';
 import tseslint from 'typescript-eslint';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+const localPlugin = require('./eslint-plugin-local');
 
 export default tseslint.config(
-  { ignores: ['dist', 'scripts', 'test-fixtures'] },
+  { ignores: ['dist', 'scripts', 'test-fixtures', 'eslint-plugin-local', 'gallery'] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommendedTypeChecked],
     files: ['**/*.ts'],
@@ -54,5 +58,13 @@ export default tseslint.config(
   {
     files: ['**/*.config.ts', 'tests/**/*.ts'],
     ...tseslint.configs.disableTypeChecked,
+  },
+  // Universal Name Handling guardrail — see eslint-plugin-local/rules/.
+  // Severity is 'warn' until Phase B migrates the existing parser
+  // insertion sites; the Phase B PR escalates this to 'error'.
+  {
+    files: ['src/**/*.ts'],
+    plugins: { 'name-normalize': localPlugin },
+    rules: { 'name-normalize/required-at-insertion': 'warn' },
   }
 );

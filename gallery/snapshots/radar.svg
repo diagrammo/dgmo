@@ -1,0 +1,51 @@
+<svg style="background: #eceff4; font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif" width="1200" height="800" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" baseProfile="full" viewBox="0 0 1200 800">
+<rect width="1200" height="800" x="0" y="0" fill="none"></rect>
+<path d="M600 400M600 360L565.4 380L565.4 420L600 440L634.6 420L634.6 380L600 360M600 320L530.7 360L530.7 440L600 480L669.3 440L669.3 360L600 320M600 280L496.1 340L496.1 460L600 520L703.9 460L703.9 340L600 280M600 240L461.4 320L461.4 480L600 560L738.6 480L738.6 320L600 240M600 200L426.8 300L426.8 500L600 600L773.2 500L773.2 300L600 200M600 200L426.8 300L426.8 500L600 600L773.2 500L773.2 300L600 200" fill="none" pointer-events="visible" stroke="#d8dee9" stroke-opacity="0.55" class="zr0-cls-0"></path>
+<path d="M600.5 400L600.5 200" fill="none" pointer-events="visible" stroke="#d8dee9" stroke-opacity="0.55" stroke-linecap="round" class="zr0-cls-0"></path>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:16px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-8" transform="translate(600 185)" fill="#2e3440">Frontend</text>
+<path d="M600 400L426.8 300" fill="none" pointer-events="visible" stroke="#d8dee9" stroke-opacity="0.55" stroke-linecap="round" class="zr0-cls-0"></path>
+<text dominant-baseline="central" text-anchor="end" style="font-size:16px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" transform="translate(413.8045 292.5)" fill="#2e3440">Backend</text>
+<path d="M600 400L426.8 500" fill="none" pointer-events="visible" stroke="#d8dee9" stroke-opacity="0.55" stroke-linecap="round" class="zr0-cls-0"></path>
+<text dominant-baseline="central" text-anchor="end" style="font-size:16px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" transform="translate(413.8045 507.5)" fill="#2e3440">DevOps</text>
+<path d="M600.5 400L600.5 600" fill="none" pointer-events="visible" stroke="#d8dee9" stroke-opacity="0.55" stroke-linecap="round" class="zr0-cls-0"></path>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:16px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="8" transform="translate(600 615)" fill="#2e3440">Testing</text>
+<path d="M600 400L773.2 500" fill="none" pointer-events="visible" stroke="#d8dee9" stroke-opacity="0.55" stroke-linecap="round" class="zr0-cls-0"></path>
+<text dominant-baseline="central" text-anchor="start" style="font-size:16px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" transform="translate(786.1955 507.5)" fill="#2e3440">Documentation</text>
+<path d="M600 400L773.2 300" fill="none" pointer-events="visible" stroke="#d8dee9" stroke-opacity="0.55" stroke-linecap="round" class="zr0-cls-0"></path>
+<text dominant-baseline="central" text-anchor="start" style="font-size:16px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" transform="translate(786.1955 292.5)" fill="#2e3440">Architecture</text>
+<polyline points="600 235.7 479.5 330.4 486.2 465.7 600 573.9 692 453.1 730.5 324.6 600 235.7" fill="none" pointer-events="visible" stroke="#5e81ac" stroke-width="2" stroke-linejoin="round" ecmeta_series_index="0" ecmeta_data_index="0" ecmeta_ssr_type="chart" class="zr0-cls-1"></polyline>
+<polygon points="600 235.7 479.5 330.4 486.2 465.7 600 573.9 692 453.1 730.5 324.6 600 235.7" fill="#c9d4e2" fill-opacity="0.7" ecmeta_series_index="0" ecmeta_data_index="0" ecmeta_ssr_type="chart" class="zr0-cls-2"></polygon>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,600,235.7488)" fill="#5e81ac" ecmeta_series_index="0" ecmeta_data_index="0" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,479.5095,330.4348)" fill="#5e81ac" ecmeta_series_index="0" ecmeta_data_index="0" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,486.2034,465.7005)" fill="#5e81ac" ecmeta_series_index="0" ecmeta_data_index="0" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,600,573.913)" fill="#5e81ac" ecmeta_series_index="0" ecmeta_data_index="0" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,692.0413,453.1401)" fill="#5e81ac" ecmeta_series_index="0" ecmeta_data_index="0" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,730.5314,324.6377)" fill="#5e81ac" ecmeta_series_index="0" ecmeta_data_index="0" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(600 226.7488)" fill="#2e3440">85</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(479.5095 321.4348)" fill="#2e3440">72</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(486.2034 456.7005)" fill="#2e3440">68</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(600 564.913)" fill="#2e3440">90</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(692.0413 444.1401)" fill="#2e3440">55</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(730.5314 315.6377)" fill="#2e3440">78</text>
+<path d="M-170.5 -5l341 0l0 30l-341 0Z" transform="translate(600 13)" fill="rgb(0,0,0)" fill-opacity="0" stroke="#3c3c41" stroke-width="0" class="zr0-cls-0"></path>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:20px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;font-weight:bold;" xml:space="preserve" y="10" transform="translate(600 13)" fill="#2e3440">Engineering Team Skills Assessment</text>
+<style ><![CDATA[
+.zr0-cls-0:hover {
+pointer-events:none;
+}
+.zr0-cls-1:hover {
+cursor:pointer;
+}
+.zr0-cls-2:hover {
+cursor:pointer;
+fill:rgba(221,233,248,1);
+}
+.zr0-cls-3:hover {
+cursor:pointer;
+fill:rgba(103,141,189,1);
+}
+
+]]>
+
+</style>
+</svg>

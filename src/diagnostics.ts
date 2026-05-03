@@ -85,3 +85,87 @@ export function suggest(
 
   return best ? `Did you mean '${best}'?` : null;
 }
+
+// ============================================================
+// Universal Name Handling diagnostic codes
+// ============================================================
+//
+// Stable diagnostic codes + canonical message strings for the
+// universal name handling spec. Parsers MUST import these factories
+// rather than inlining wording — a single source of truth keeps
+// parser output and the spec's error catalog from drifting.
+//
+// See `docs/dgmo-language-spec.md` § "Universal Name Handling".
+
+export const NAME_DIAGNOSTIC_CODES = {
+  /**
+   * Warning: two source-distinct names normalized to the same key
+   * (case- or whitespace-only difference). The first occurrence wins
+   * for display; subsequent occurrences fold into it. Suppressible
+   * per-line via `# allow-merge` annotation when intentional.
+   *
+   * Note: the `I_` prefix is intentionally preserved for stability —
+   * callers may have pinned this string. The diagnostic emits at
+   * `warning` severity (no `info` severity exists in DgmoError).
+   */
+  NAME_MERGED: 'I_NAME_MERGED',
+  /**
+   * Error: a name contains a reserved character (`|`, `:`, edge
+   * sigils `-> <- ~> <~ -- ..`, shape brackets `[] () {} <>`,
+   * leading/trailing whitespace) without being wrapped in `"..."`.
+   */
+  NAME_RESERVED_CHAR: 'E_NAME_RESERVED_CHAR',
+  /**
+   * Error: the removed `aka` keyword was used in a sequence
+   * participant declaration. Forgiving normalization makes aliasing
+   * unnecessary; the diagnostic directs users to the new syntax.
+   */
+  AKA_REMOVED: 'E_AKA_REMOVED',
+} as const;
+
+export const NAME_DIAGNOSTIC_SEVERITY: Record<
+  keyof typeof NAME_DIAGNOSTIC_CODES,
+  DgmoSeverity
+> = {
+  NAME_MERGED: 'warning',
+  NAME_RESERVED_CHAR: 'error',
+  AKA_REMOVED: 'error',
+};
+
+/**
+ * Canonical message for `I_NAME_MERGED`. Emitted when two distinct
+ * source labels normalize to the same key AND their displayed forms
+ * differ — identical re-declarations are silent.
+ *
+ * Parsers wrap this with `makeDgmoError(line, msg, 'warning',
+ * NAME_DIAGNOSTIC_CODES.NAME_MERGED)`.
+ */
+export function nameMergedMessage(args: {
+  incomingDisplay: string;
+  incomingLine: number;
+  existingDisplay: string;
+  existingLine: number;
+}): string {
+  return (
+    `merged '${args.incomingDisplay}' (line ${args.incomingLine}) into ` +
+    `'${args.existingDisplay}' (line ${args.existingLine}) — ` +
+    'names differ only in case/whitespace'
+  );
+}
+
+/**
+ * Canonical message for `E_NAME_RESERVED_CHAR`. The `char` argument
+ * is the offending character (`|`, `:`, etc.) — the wording names
+ * it explicitly so the diagnostic is actionable.
+ */
+export function nameReservedCharMessage(char: string): string {
+  return `name contains reserved character '${char}' — wrap in "..." to use literally`;
+}
+
+/**
+ * Canonical message for `E_AKA_REMOVED`. Emitted when a sequence
+ * participant declaration uses the removed `aka` keyword.
+ */
+export function akaRemovedMessage(): string {
+  return `'aka' is no longer supported — use the participant name directly`;
+}

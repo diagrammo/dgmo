@@ -1,0 +1,83 @@
+<svg style="background: #eceff4; font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif" width="1200" height="800" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" baseProfile="full" viewBox="0 0 1200 800">
+<rect width="1200" height="800" x="0" y="0" fill="none"></rect>
+<path d="M172.9 702.5L1152 702.5" fill="none" pointer-events="visible" stroke="#d8dee9" stroke-opacity="0.55" class="zr0-cls-0"></path>
+<path d="M172.9 587.5L1152 587.5" fill="none" pointer-events="visible" stroke="#d8dee9" stroke-opacity="0.55" class="zr0-cls-0"></path>
+<path d="M172.9 472.5L1152 472.5" fill="none" pointer-events="visible" stroke="#d8dee9" stroke-opacity="0.55" class="zr0-cls-0"></path>
+<path d="M172.9 357.5L1152 357.5" fill="none" pointer-events="visible" stroke="#d8dee9" stroke-opacity="0.55" class="zr0-cls-0"></path>
+<path d="M172.9 243.5L1152 243.5" fill="none" pointer-events="visible" stroke="#d8dee9" stroke-opacity="0.55" class="zr0-cls-0"></path>
+<path d="M172.9 128.5L1152 128.5" fill="none" pointer-events="visible" stroke="#d8dee9" stroke-opacity="0.55" class="zr0-cls-0"></path>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:18px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" xml:space="preserve" y="-9" transform="matrix(0,-1,1,0,97.92,415)" fill="#2e3440">Users (thousands)</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:18px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="9" transform="translate(662.46 742)" fill="#2e3440">Week</text>
+<path d="M172.9 702.5L1152 702.5" fill="none" pointer-events="visible" stroke="#d8dee9" stroke-linecap="round" class="zr0-cls-0"></path>
+<text dominant-baseline="central" text-anchor="end" style="font-size:16px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" transform="translate(164.92 702)" fill="#2e3440">0</text>
+<text dominant-baseline="central" text-anchor="end" style="font-size:16px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" transform="translate(164.92 587.2)" fill="#2e3440">5</text>
+<text dominant-baseline="central" text-anchor="end" style="font-size:16px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" transform="translate(164.92 472.4)" fill="#2e3440">10</text>
+<text dominant-baseline="central" text-anchor="end" style="font-size:16px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" transform="translate(164.92 357.6)" fill="#2e3440">15</text>
+<text dominant-baseline="central" text-anchor="end" style="font-size:16px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" transform="translate(164.92 242.8)" fill="#2e3440">20</text>
+<text dominant-baseline="central" text-anchor="end" style="font-size:16px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" transform="translate(164.92 128)" fill="#2e3440">25</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:10px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" xml:space="preserve" y="5" transform="translate(213.715 710)" fill="#2e3440">Week 1</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:10px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" xml:space="preserve" y="5" transform="translate(295.305 710)" fill="#2e3440">Week 2</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:10px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" xml:space="preserve" y="5" transform="translate(376.895 710)" fill="#2e3440">Week 3</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:10px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" xml:space="preserve" y="5" transform="translate(458.485 710)" fill="#2e3440">Week 4</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:10px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" xml:space="preserve" y="5" transform="translate(540.075 710)" fill="#2e3440">Week 5</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:10px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" xml:space="preserve" y="5" transform="translate(621.665 710)" fill="#2e3440">Week 6</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:10px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" xml:space="preserve" y="5" transform="translate(703.255 710)" fill="#2e3440">Week 7</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:10px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" xml:space="preserve" y="5" transform="translate(784.845 710)" fill="#2e3440">Week 8</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:10px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" xml:space="preserve" y="5" transform="translate(866.435 710)" fill="#2e3440">Week 9</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:10px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" xml:space="preserve" y="5" transform="translate(948.025 710)" fill="#2e3440">Week 10</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:10px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" xml:space="preserve" y="5" transform="translate(1029.615 710)" fill="#2e3440">Week 11</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:10px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" xml:space="preserve" y="5" transform="translate(1111.205 710)" fill="#2e3440">Week 12</text>
+<g clip-path="url(#zr0-c0)">
+<path d="M213.7 417.3L295.3 401.2L376.9 362.2L458.5 382.9L540.1 330L621.7 300.2L703.3 286.4L784.8 258.9L866.4 219.8L948 187.7L1029.6 148.7L1111.2 155.6" fill="none" pointer-events="visible" stroke="#5e81ac" stroke-width="3" stroke-linejoin="bevel" class="zr0-cls-2"></path>
+</g>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,213.715,417.296)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="0" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,295.305,401.224)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="1" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,376.895,362.192)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="2" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,458.485,382.856)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="3" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,540.075,330.048)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="4" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,621.665,300.2)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="5" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,703.255,286.424)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="6" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,784.845,258.872)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="7" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,866.435,219.84)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="8" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,948.025,187.696)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="9" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,1029.615,148.664)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="10" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,1111.205,155.552)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="11" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(213.715 407.296)" fill="#2e3440">12.4</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(295.305 391.224)" fill="#2e3440">13.1</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(376.895 352.192)" fill="#2e3440">14.8</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(458.485 372.856)" fill="#2e3440">13.9</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(540.075 320.048)" fill="#2e3440">16.2</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(621.665 290.2)" fill="#2e3440">17.5</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(703.255 276.424)" fill="#2e3440">18.1</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(784.845 248.872)" fill="#2e3440">19.3</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(866.435 209.84)" fill="#2e3440">21</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(948.025 177.696)" fill="#2e3440">22.4</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(1029.615 138.664)" fill="#2e3440">24.1</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(1111.205 145.552)" fill="#2e3440">23.8</text>
+<path d="M-134.2 -5l268.4 0l0 30l-268.4 0Z" transform="translate(600 13)" fill="rgb(0,0,0)" fill-opacity="0" stroke="#3c3c41" stroke-width="0" class="zr0-cls-0"></path>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:20px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;font-weight:bold;" xml:space="preserve" y="10" transform="translate(600 13)" fill="#2e3440">Daily Active Users (Q1 2025)</text>
+<defs >
+<clipPath id="zr0-c0">
+<path d="M171 126.5l984 0l0 577l-984 0Z" fill="#000" class="zr0-cls-1"></path>
+</clipPath>
+</defs>
+<style ><![CDATA[
+.zr0-cls-0:hover {
+pointer-events:none;
+}
+.zr0-cls-1:hover {
+cursor:pointer;
+fill:rgba(0,0,0,1);
+}
+.zr0-cls-2:hover {
+cursor:pointer;
+}
+.zr0-cls-3:hover {
+cursor:pointer;
+fill:rgba(255,255,255,1);
+}
+
+]]>
+
+</style>
+</svg>

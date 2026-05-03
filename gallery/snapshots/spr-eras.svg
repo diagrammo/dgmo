@@ -1,0 +1,155 @@
+<svg style="background: #eceff4; font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif" width="1200" height="800" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" baseProfile="full" viewBox="0 0 1200 800">
+<rect width="1200" height="800" x="0" y="0" fill="none"></rect>
+<path d="M181.9 752.5L1152 752.5" fill="none" pointer-events="visible" stroke="#d8dee9" stroke-opacity="0.55" class="zr0-cls-0"></path>
+<path d="M181.9 674.5L1152 674.5" fill="none" pointer-events="visible" stroke="#d8dee9" stroke-opacity="0.55" class="zr0-cls-0"></path>
+<path d="M181.9 596.5L1152 596.5" fill="none" pointer-events="visible" stroke="#d8dee9" stroke-opacity="0.55" class="zr0-cls-0"></path>
+<path d="M181.9 518.5L1152 518.5" fill="none" pointer-events="visible" stroke="#d8dee9" stroke-opacity="0.55" class="zr0-cls-0"></path>
+<path d="M181.9 440.5L1152 440.5" fill="none" pointer-events="visible" stroke="#d8dee9" stroke-opacity="0.55" class="zr0-cls-0"></path>
+<path d="M181.9 362.5L1152 362.5" fill="none" pointer-events="visible" stroke="#d8dee9" stroke-opacity="0.55" class="zr0-cls-0"></path>
+<path d="M181.9 284.5L1152 284.5" fill="none" pointer-events="visible" stroke="#d8dee9" stroke-opacity="0.55" class="zr0-cls-0"></path>
+<path d="M181.9 206.5L1152 206.5" fill="none" pointer-events="visible" stroke="#d8dee9" stroke-opacity="0.55" class="zr0-cls-0"></path>
+<path d="M181.9 128.5L1152 128.5" fill="none" pointer-events="visible" stroke="#d8dee9" stroke-opacity="0.55" class="zr0-cls-0"></path>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:18px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" xml:space="preserve" y="-9" transform="matrix(0,-1,1,0,106.88,440)" fill="#2e3440">Million Barrels</text>
+<path d="M181.9 752.5L1152 752.5" fill="none" pointer-events="visible" stroke="#d8dee9" stroke-linecap="round" class="zr0-cls-0"></path>
+<text dominant-baseline="central" text-anchor="end" style="font-size:16px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" transform="translate(173.88 752)" fill="#2e3440">0</text>
+<text dominant-baseline="central" text-anchor="end" style="font-size:16px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" transform="translate(173.88 674)" fill="#2e3440">100</text>
+<text dominant-baseline="central" text-anchor="end" style="font-size:16px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" transform="translate(173.88 596)" fill="#2e3440">200</text>
+<text dominant-baseline="central" text-anchor="end" style="font-size:16px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" transform="translate(173.88 518)" fill="#2e3440">300</text>
+<text dominant-baseline="central" text-anchor="end" style="font-size:16px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" transform="translate(173.88 440)" fill="#2e3440">400</text>
+<text dominant-baseline="central" text-anchor="end" style="font-size:16px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" transform="translate(173.88 362)" fill="#2e3440">500</text>
+<text dominant-baseline="central" text-anchor="end" style="font-size:16px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" transform="translate(173.88 284)" fill="#2e3440">600</text>
+<text dominant-baseline="central" text-anchor="end" style="font-size:16px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" transform="translate(173.88 206)" fill="#2e3440">700</text>
+<text dominant-baseline="central" text-anchor="end" style="font-size:16px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" transform="translate(173.88 128)" fill="#2e3440">800</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:16px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="8" transform="translate(191.7792 760)" fill="#2e3440">&#39;77</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:16px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="8" transform="translate(389.7629 760)" fill="#2e3440">&#39;87</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:16px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="8" transform="translate(587.7465 760)" fill="#2e3440">&#39;97</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:16px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="8" transform="translate(785.7302 760)" fill="#2e3440">&#39;07</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:16px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="8" transform="translate(983.7139 760)" fill="#2e3440">&#39;17</text>
+<g clip-path="url(#zr0-c0)">
+<path d="M191.8 746.5L211.6 699.7L231.4 681L251.2 667.8L271 572.6L290.8 522.7L310.6 456.4L330.4 400.2L350.2 367.5L370 352.6L389.8 330L409.6 315.2L429.4 299.6L449.2 294.9L469 308.2L488.8 303.5L508.6 294.1L528.4 290.2L548.1 290.2L567.9 310.5L587.7 312.9L607.5 306.6L627.3 309.7L647.1 330L666.9 323L686.7 284.8L706.5 254.4L726.3 224.7L746.1 217.7L765.9 214.6L785.7 208.3L805.5 204.4L825.3 184.9L845.1 184.9L864.9 209.1L884.7 209.9L904.5 209.1L924.3 213L944.1 209.9L963.9 209.9L983.7 234.9L1003.5 245.8L1023.3 256.7L1043.1 254.4L1062.9 288.7L1082.7 461.8L1102.5 475.1L1122.3 444.7L1142.1 429.9" fill="none" pointer-events="visible" stroke="#5e81ac" stroke-width="3" stroke-linejoin="bevel" class="zr0-cls-2"></path>
+</g>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,191.7792,746.54)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="0" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,211.5775,699.74)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="1" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,231.3759,681.02)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="2" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,251.1743,667.76)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="3" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,270.9727,572.6)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="4" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,290.771,522.68)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="5" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,310.5694,456.38)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="6" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,330.3678,400.22)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="7" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,350.1661,367.46)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="8" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,369.9645,352.64)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="9" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,389.7628,330.02)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="10" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,409.5612,315.2)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="11" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,429.3596,299.6)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="12" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,449.158,294.92)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="13" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,468.9563,308.18)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="14" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,488.7547,303.5)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="15" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,508.5531,294.14)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="16" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,528.3514,290.24)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="17" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,548.1498,290.24)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="18" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,567.9482,310.52)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="19" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,587.7465,312.86)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="20" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,607.5449,306.62)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="21" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,627.3433,309.74)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="22" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,647.1417,330.02)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="23" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,666.94,323)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="24" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,686.7383,284.78)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="25" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,706.5367,254.36)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="26" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,726.3351,224.72)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="27" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,746.1335,217.7)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="28" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,765.9318,214.58)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="29" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,785.7302,208.34)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="30" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,805.5286,204.44)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="31" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,825.327,184.94)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="32" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,845.1253,184.94)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="33" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,864.9236,209.12)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="34" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,884.722,209.9)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="35" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,904.5204,209.12)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="36" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,924.3188,213.02)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="37" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,944.1171,209.9)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="38" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,963.9155,209.9)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="39" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,983.7139,234.86)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="40" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,1003.5123,245.78)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="41" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,1023.3106,256.7)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="42" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,1043.109,254.36)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="43" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,1062.9073,288.68)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="44" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,1082.7057,461.84)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="45" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,1102.504,475.1)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="46" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,1122.3025,444.68)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="47" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M1 0A1 1 0 1 1 1 -0.1A1 1 0 0 1 1 0" transform="matrix(4,0,0,4,1142.1008,429.86)" fill="#fff" stroke="#5e81ac" stroke-width="0.5" ecmeta_series_index="0" ecmeta_data_index="48" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(191.7792 736.54)" fill="#2e3440">7</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(211.5775 689.74)" fill="#2e3440">67</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(231.3759 671.02)" fill="#2e3440">91</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(251.1743 657.76)" fill="#2e3440">108</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(270.9727 562.6)" fill="#2e3440">230</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(290.771 512.68)" fill="#2e3440">294</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(310.5694 446.38)" fill="#2e3440">379</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(330.3678 390.22)" fill="#2e3440">451</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(350.1661 357.46)" fill="#2e3440">493</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(369.9645 342.64)" fill="#2e3440">512</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(389.7628 320.02)" fill="#2e3440">541</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(409.5612 305.2)" fill="#2e3440">560</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(429.3596 289.6)" fill="#2e3440">580</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(449.158 284.92)" fill="#2e3440">586</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(468.9563 298.18)" fill="#2e3440">569</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(488.7547 293.5)" fill="#2e3440">575</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(508.5531 284.14)" fill="#2e3440">587</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(528.3514 280.24)" fill="#2e3440">592</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(548.1498 280.24)" fill="#2e3440">592</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(567.9482 300.52)" fill="#2e3440">566</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(587.7465 302.86)" fill="#2e3440">563</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(607.5449 296.62)" fill="#2e3440">571</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(627.3433 299.74)" fill="#2e3440">567</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(647.1417 320.02)" fill="#2e3440">541</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(666.94 313)" fill="#2e3440">550</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(686.7383 274.78)" fill="#2e3440">599</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(706.5367 244.36)" fill="#2e3440">638</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(726.3351 214.72)" fill="#2e3440">676</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(746.1335 207.7)" fill="#2e3440">685</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(765.9318 204.58)" fill="#2e3440">689</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(785.7302 198.34)" fill="#2e3440">697</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(805.5286 194.44)" fill="#2e3440">702</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(825.327 174.94)" fill="#2e3440">727</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(845.1253 174.94)" fill="#2e3440">727</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(864.9236 199.12)" fill="#2e3440">696</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(884.722 199.9)" fill="#2e3440">695</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(904.5204 199.12)" fill="#2e3440">696</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(924.3188 203.02)" fill="#2e3440">691</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(944.1171 199.9)" fill="#2e3440">695</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(963.9155 199.9)" fill="#2e3440">695</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(983.7139 224.86)" fill="#2e3440">663</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(1003.5123 235.78)" fill="#2e3440">649</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(1023.3106 246.7)" fill="#2e3440">635</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(1043.109 244.36)" fill="#2e3440">638</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(1062.9073 278.68)" fill="#2e3440">594</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(1082.7057 451.84)" fill="#2e3440">372</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(1102.504 465.1)" fill="#2e3440">355</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(1122.3025 434.68)" fill="#2e3440">394</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:11px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;" y="-5.5" transform="translate(1142.1008 419.86)" fill="#2e3440">413</text>
+<path d="M-155.5 -5l311 0l0 30l-311 0Z" transform="translate(600 13)" fill="rgb(0,0,0)" fill-opacity="0" stroke="#3c3c41" stroke-width="0" class="zr0-cls-0"></path>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:20px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;font-weight:bold;" xml:space="preserve" y="10" transform="translate(600 13)" fill="#2e3440">U.S. Strategic Petroleum Reserve</text>
+<defs >
+<clipPath id="zr0-c0">
+<path d="M180 126.5l975 0l0 627l-975 0Z" fill="#000" class="zr0-cls-1"></path>
+</clipPath>
+</defs>
+<style ><![CDATA[
+.zr0-cls-0:hover {
+pointer-events:none;
+}
+.zr0-cls-1:hover {
+cursor:pointer;
+fill:rgba(0,0,0,1);
+}
+.zr0-cls-2:hover {
+cursor:pointer;
+}
+.zr0-cls-3:hover {
+cursor:pointer;
+fill:rgba(255,255,255,1);
+}
+
+]]>
+
+</style>
+</svg>

@@ -1,0 +1,133 @@
+<svg style="background: #eceff4; font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif" width="1200" height="800" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" baseProfile="full" viewBox="0 0 1200 800">
+<rect width="1200" height="800" x="0" y="0" fill="none"></rect>
+<path d="M81.8 140l1082.2 0l0 127.2l-1082.2 0Z" fill="rgb(234,237,245)" fill-opacity="0.5" class="zr0-cls-0"></path>
+<path d="M81.8 267.2l1082.2 0l0 127.2l-1082.2 0Z" fill="rgb(255,255,255)" fill-opacity="0" class="zr0-cls-0"></path>
+<path d="M81.8 394.4l1082.2 0l0 127.2l-1082.2 0Z" fill="rgb(234,237,245)" fill-opacity="0.5" class="zr0-cls-0"></path>
+<path d="M81.8 521.6l1082.2 0l0 127.2l-1082.2 0Z" fill="rgb(255,255,255)" fill-opacity="0" class="zr0-cls-0"></path>
+<path d="M81.8 648.8l1082.2 0l0 127.2l-1082.2 0Z" fill="rgb(234,237,245)" fill-opacity="0.5" class="zr0-cls-0"></path>
+<path d="M81.8 140l216.4 0l0 636l-216.4 0Z" fill="rgb(234,237,245)" fill-opacity="0.5" class="zr0-cls-0"></path>
+<path d="M298.2 140l216.4 0l0 636l-216.4 0Z" fill="rgb(255,255,255)" fill-opacity="0" class="zr0-cls-0"></path>
+<path d="M514.7 140l216.4 0l0 636l-216.4 0Z" fill="rgb(234,237,245)" fill-opacity="0.5" class="zr0-cls-0"></path>
+<path d="M731.1 140l216.4 0l0 636l-216.4 0Z" fill="rgb(255,255,255)" fill-opacity="0" class="zr0-cls-0"></path>
+<path d="M947.6 140l216.4 0l0 636l-216.4 0Z" fill="rgb(234,237,245)" fill-opacity="0.5" class="zr0-cls-0"></path>
+<path d="M82.5 140L82.5 776" fill="none" pointer-events="visible" stroke="#d8dee9" stroke-linecap="round" class="zr0-cls-0"></path>
+<path d="M81.8 140.5L1164 140.5" fill="none" pointer-events="visible" stroke="#d8dee9" stroke-linecap="round" class="zr0-cls-0"></path>
+<text dominant-baseline="central" text-anchor="end" style="font-size:12px;font-family:sans-serif;" xml:space="preserve" transform="translate(73.8 203.6)" fill="#2e3440">6 AM</text>
+<text dominant-baseline="central" text-anchor="end" style="font-size:12px;font-family:sans-serif;" xml:space="preserve" transform="translate(73.8 330.8)" fill="#2e3440">9 AM</text>
+<text dominant-baseline="central" text-anchor="end" style="font-size:12px;font-family:sans-serif;" xml:space="preserve" transform="translate(73.8 458)" fill="#2e3440">12 PM</text>
+<text dominant-baseline="central" text-anchor="end" style="font-size:12px;font-family:sans-serif;" xml:space="preserve" transform="translate(73.8 585.2)" fill="#2e3440">3 PM</text>
+<text dominant-baseline="central" text-anchor="end" style="font-size:12px;font-family:sans-serif;" xml:space="preserve" transform="translate(73.8 712.4)" fill="#2e3440">6 PM</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:12px;font-family:sans-serif;" y="-6" transform="translate(190.02 132)" fill="#2e3440">Mon</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:12px;font-family:sans-serif;" y="-6" transform="translate(406.46 132)" fill="#2e3440">Tue</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:12px;font-family:sans-serif;" y="-6" transform="translate(622.9 132)" fill="#2e3440">Wed</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:12px;font-family:sans-serif;" y="-6" transform="translate(839.34 132)" fill="#2e3440">Thu</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:12px;font-family:sans-serif;" y="-6" transform="translate(1055.78 132)" fill="#2e3440">Fri</text>
+<path d="M81.5 139.8l216.9 0l0 127.7l-216.9 0Z" fill="rgb(204,216,228)" stroke="#eceff4" stroke-width="2" ecmeta_series_index="0" ecmeta_data_index="0" ecmeta_ssr_type="chart" class="zr0-cls-1"></path>
+<path d="M298 139.8l216.9 0l0 127.7l-216.9 0Z" fill="rgb(206,220,231)" stroke="#eceff4" stroke-width="2" ecmeta_series_index="0" ecmeta_data_index="1" ecmeta_ssr_type="chart" class="zr0-cls-2"></path>
+<path d="M514.4 139.8l216.9 0l0 127.7l-216.9 0Z" fill="rgb(201,212,226)" stroke="#eceff4" stroke-width="2" ecmeta_series_index="0" ecmeta_data_index="2" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M730.9 139.8l216.9 0l0 127.7l-216.9 0Z" fill="rgb(204,216,228)" stroke="#eceff4" stroke-width="2" ecmeta_series_index="0" ecmeta_data_index="3" ecmeta_ssr_type="chart" class="zr0-cls-1"></path>
+<path d="M947.3 139.8l216.9 0l0 127.7l-216.9 0Z" fill="rgb(201,212,226)" stroke="#eceff4" stroke-width="2" ecmeta_series_index="0" ecmeta_data_index="4" ecmeta_ssr_type="chart" class="zr0-cls-3"></path>
+<path d="M81.5 267l216.9 0l0 127.7l-216.9 0Z" fill="rgb(217,228,231)" stroke="#eceff4" stroke-width="2" ecmeta_series_index="0" ecmeta_data_index="5" ecmeta_ssr_type="chart" class="zr0-cls-4"></path>
+<path d="M298 267l216.9 0l0 127.7l-216.9 0Z" fill="rgb(236,230,218)" stroke="#eceff4" stroke-width="2" ecmeta_series_index="0" ecmeta_data_index="6" ecmeta_ssr_type="chart" class="zr0-cls-5"></path>
+<path d="M514.4 267l216.9 0l0 127.7l-216.9 0Z" fill="rgb(224,229,227)" stroke="#eceff4" stroke-width="2" ecmeta_series_index="0" ecmeta_data_index="7" ecmeta_ssr_type="chart" class="zr0-cls-6"></path>
+<path d="M730.9 267l216.9 0l0 127.7l-216.9 0Z" fill="rgb(230,229,222)" stroke="#eceff4" stroke-width="2" ecmeta_series_index="0" ecmeta_data_index="8" ecmeta_ssr_type="chart" class="zr0-cls-7"></path>
+<path d="M947.3 267l216.9 0l0 127.7l-216.9 0Z" fill="rgb(211,227,235)" stroke="#eceff4" stroke-width="2" ecmeta_series_index="0" ecmeta_data_index="9" ecmeta_ssr_type="chart" class="zr0-cls-8"></path>
+<path d="M81.5 394.2l216.9 0l0 127.7l-216.9 0Z" fill="rgb(209,223,233)" stroke="#eceff4" stroke-width="2" ecmeta_series_index="0" ecmeta_data_index="10" ecmeta_ssr_type="chart" class="zr0-cls-9"></path>
+<path d="M298 394.2l216.9 0l0 127.7l-216.9 0Z" fill="rgb(211,227,235)" stroke="#eceff4" stroke-width="2" ecmeta_series_index="0" ecmeta_data_index="11" ecmeta_ssr_type="chart" class="zr0-cls-8"></path>
+<path d="M514.4 394.2l216.9 0l0 127.7l-216.9 0Z" fill="rgb(217,228,231)" stroke="#eceff4" stroke-width="2" ecmeta_series_index="0" ecmeta_data_index="12" ecmeta_ssr_type="chart" class="zr0-cls-4"></path>
+<path d="M730.9 394.2l216.9 0l0 127.7l-216.9 0Z" fill="rgb(209,223,233)" stroke="#eceff4" stroke-width="2" ecmeta_series_index="0" ecmeta_data_index="13" ecmeta_ssr_type="chart" class="zr0-cls-9"></path>
+<path d="M947.3 394.2l216.9 0l0 127.7l-216.9 0Z" fill="rgb(206,220,231)" stroke="#eceff4" stroke-width="2" ecmeta_series_index="0" ecmeta_data_index="14" ecmeta_ssr_type="chart" class="zr0-cls-2"></path>
+<path d="M81.5 521.4l216.9 0l0 127.7l-216.9 0Z" fill="rgb(236,230,218)" stroke="#eceff4" stroke-width="2" ecmeta_series_index="0" ecmeta_data_index="15" ecmeta_ssr_type="chart" class="zr0-cls-5"></path>
+<path d="M298 521.4l216.9 0l0 127.7l-216.9 0Z" fill="rgb(229,213,211)" stroke="#eceff4" stroke-width="2" ecmeta_series_index="0" ecmeta_data_index="16" ecmeta_ssr_type="chart" class="zr0-cls-10"></path>
+<path d="M514.4 521.4l216.9 0l0 127.7l-216.9 0Z" fill="rgb(234,226,216)" stroke="#eceff4" stroke-width="2" ecmeta_series_index="0" ecmeta_data_index="17" ecmeta_ssr_type="chart" class="zr0-cls-11"></path>
+<path d="M730.9 521.4l216.9 0l0 127.7l-216.9 0Z" fill="rgb(233,222,215)" stroke="#eceff4" stroke-width="2" ecmeta_series_index="0" ecmeta_data_index="18" ecmeta_ssr_type="chart" class="zr0-cls-12"></path>
+<path d="M947.3 521.4l216.9 0l0 127.7l-216.9 0Z" fill="rgb(224,229,227)" stroke="#eceff4" stroke-width="2" ecmeta_series_index="0" ecmeta_data_index="19" ecmeta_ssr_type="chart" class="zr0-cls-6"></path>
+<path d="M81.5 648.6l216.9 0l0 127.7l-216.9 0Z" fill="rgb(206,220,231)" stroke="#eceff4" stroke-width="2" ecmeta_series_index="0" ecmeta_data_index="20" ecmeta_ssr_type="chart" class="zr0-cls-2"></path>
+<path d="M298 648.6l216.9 0l0 127.7l-216.9 0Z" fill="rgb(209,223,233)" stroke="#eceff4" stroke-width="2" ecmeta_series_index="0" ecmeta_data_index="21" ecmeta_ssr_type="chart" class="zr0-cls-9"></path>
+<path d="M514.4 648.6l216.9 0l0 127.7l-216.9 0Z" fill="rgb(204,216,228)" stroke="#eceff4" stroke-width="2" ecmeta_series_index="0" ecmeta_data_index="22" ecmeta_ssr_type="chart" class="zr0-cls-1"></path>
+<path d="M730.9 648.6l216.9 0l0 127.7l-216.9 0Z" fill="rgb(206,220,231)" stroke="#eceff4" stroke-width="2" ecmeta_series_index="0" ecmeta_data_index="23" ecmeta_ssr_type="chart" class="zr0-cls-2"></path>
+<path d="M947.3 648.6l216.9 0l0 127.7l-216.9 0Z" fill="rgb(204,216,228)" stroke="#eceff4" stroke-width="2" ecmeta_series_index="0" ecmeta_data_index="24" ecmeta_ssr_type="chart" class="zr0-cls-1"></path>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(190.02 203.6)" fill="#2e3440">1</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(406.46 203.6)" fill="#2e3440">2</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(622.9 203.6)" fill="#2e3440">0</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(839.34 203.6)" fill="#2e3440">1</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(1055.78 203.6)" fill="#2e3440">0</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(190.02 330.8)" fill="#2e3440">5</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(406.46 330.8)" fill="#2e3440">8</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(622.9 330.8)" fill="#2e3440">6</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(839.34 330.8)" fill="#2e3440">7</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(1055.78 330.8)" fill="#2e3440">4</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(190.02 458)" fill="#2e3440">3</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(406.46 458)" fill="#2e3440">4</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(622.9 458)" fill="#2e3440">5</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(839.34 458)" fill="#2e3440">3</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(1055.78 458)" fill="#2e3440">2</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(190.02 585.2)" fill="#2e3440">8</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(406.46 585.2)" fill="#2e3440">12</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(622.9 585.2)" fill="#2e3440">9</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(839.34 585.2)" fill="#2e3440">10</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(1055.78 585.2)" fill="#2e3440">6</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(190.02 712.4)" fill="#2e3440">2</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(406.46 712.4)" fill="#2e3440">3</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(622.9 712.4)" fill="#2e3440">1</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(839.34 712.4)" fill="#2e3440">2</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(1055.78 712.4)" fill="#2e3440">1</text>
+<path d="M-164.5 -5l329 0l0 30l-329 0Z" transform="translate(600 13)" fill="rgb(0,0,0)" fill-opacity="0" stroke="#3c3c41" stroke-width="0" class="zr0-cls-0"></path>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:20px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;font-weight:bold;" xml:space="preserve" y="10" transform="translate(600 13)" fill="#2e3440">Deploy Frequency by Day and Hour</text>
+<style ><![CDATA[
+.zr0-cls-0:hover {
+pointer-events:none;
+}
+.zr0-cls-1:hover {
+cursor:pointer;
+fill:rgba(224,237,250,1);
+}
+.zr0-cls-2:hover {
+cursor:pointer;
+fill:rgba(226,242,254,1);
+}
+.zr0-cls-3:hover {
+cursor:pointer;
+fill:rgba(221,233,248,1);
+}
+.zr0-cls-4:hover {
+cursor:pointer;
+fill:rgba(238,250,254,1);
+}
+.zr0-cls-5:hover {
+cursor:pointer;
+fill:rgba(255,253,239,1);
+}
+.zr0-cls-6:hover {
+cursor:pointer;
+fill:rgba(246,251,249,1);
+}
+.zr0-cls-7:hover {
+cursor:pointer;
+fill:rgba(253,251,244,1);
+}
+.zr0-cls-8:hover {
+cursor:pointer;
+fill:rgba(232,249,255,1);
+}
+.zr0-cls-9:hover {
+cursor:pointer;
+fill:rgba(229,245,255,1);
+}
+.zr0-cls-10:hover {
+cursor:pointer;
+fill:rgba(251,234,232,1);
+}
+.zr0-cls-11:hover {
+cursor:pointer;
+fill:rgba(255,248,237,1);
+}
+.zr0-cls-12:hover {
+cursor:pointer;
+fill:rgba(255,244,236,1);
+}
+
+]]>
+
+</style>
+</svg>

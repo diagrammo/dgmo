@@ -34,3 +34,6 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+      - name: Gallery snapshot
+        run: pnpm gallery:snapshot

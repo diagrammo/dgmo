@@ -1,0 +1,37 @@
+<svg style="background: #eceff4; font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif" width="1200" height="800" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" baseProfile="full" viewBox="0 0 1200 800">
+<rect width="1200" height="800" x="0" y="0" fill="none"></rect>
+<path d="M58.5 120L58.5 656" fill="none" pointer-events="visible" stroke="#d8dee9" stroke-opacity="0.55" class="zr0-cls-0"></path>
+<path d="M239.5 120L239.5 656" fill="none" pointer-events="visible" stroke="#d8dee9" stroke-opacity="0.55" class="zr0-cls-0"></path>
+<path d="M420.5 120L420.5 656" fill="none" pointer-events="visible" stroke="#d8dee9" stroke-opacity="0.55" class="zr0-cls-0"></path>
+<path d="M601.5 120L601.5 656" fill="none" pointer-events="visible" stroke="#d8dee9" stroke-opacity="0.55" class="zr0-cls-0"></path>
+<path d="M782.5 120L782.5 656" fill="none" pointer-events="visible" stroke="#d8dee9" stroke-opacity="0.55" class="zr0-cls-0"></path>
+<path d="M963.5 120L963.5 656" fill="none" pointer-events="visible" stroke="#d8dee9" stroke-opacity="0.55" class="zr0-cls-0"></path>
+<path d="M1144.5 120L1144.5 656" fill="none" pointer-events="visible" stroke="#d8dee9" stroke-opacity="0.55" class="zr0-cls-0"></path>
+<path d="M601.5 656L601.5 120" fill="none" pointer-events="visible" stroke="#d8dee9" stroke-linecap="round" class="zr0-cls-0"></path>
+<path d="M58.1 656.5L1144.5 656.5" fill="none" pointer-events="visible" stroke="#d8dee9" stroke-linecap="round" class="zr0-cls-0"></path>
+<path d="M58.5 656L58.5 661" fill="none" pointer-events="visible" stroke="#d8dee9" class="zr0-cls-0"></path>
+<path d="M239.5 656L239.5 661" fill="none" pointer-events="visible" stroke="#d8dee9" class="zr0-cls-0"></path>
+<path d="M420.5 656L420.5 661" fill="none" pointer-events="visible" stroke="#d8dee9" class="zr0-cls-0"></path>
+<path d="M601.5 656L601.5 661" fill="none" pointer-events="visible" stroke="#d8dee9" class="zr0-cls-0"></path>
+<path d="M782.5 656L782.5 661" fill="none" pointer-events="visible" stroke="#d8dee9" class="zr0-cls-0"></path>
+<path d="M963.5 656L963.5 661" fill="none" pointer-events="visible" stroke="#d8dee9" class="zr0-cls-0"></path>
+<path d="M1144.5 656L1144.5 661" fill="none" pointer-events="visible" stroke="#d8dee9" class="zr0-cls-0"></path>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:16px;font-family:sans-serif;" y="8" transform="translate(58.12 664)" fill="#2e3440">-6</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:16px;font-family:sans-serif;" y="8" transform="translate(239.1867 664)" fill="#2e3440">-4</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:16px;font-family:sans-serif;" y="8" transform="translate(420.2533 664)" fill="#2e3440">-2</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:16px;font-family:sans-serif;" y="8" transform="translate(601.32 664)" fill="#2e3440">0</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:16px;font-family:sans-serif;" y="8" transform="translate(782.3867 664)" fill="#2e3440">2</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:16px;font-family:sans-serif;" y="8" transform="translate(963.4533 664)" fill="#2e3440">4</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:16px;font-family:sans-serif;" y="8" transform="translate(1144.52 664)" fill="#2e3440">6</text>
+<path d="M-5 -5l10 0l0 10l-10 0Z" transform="translate(600 785)" fill="rgb(0,0,0)" fill-opacity="0" stroke="#b7b9be" stroke-width="0" class="zr0-cls-0"></path>
+<path d="M-110.9 -5l221.8 0l0 30l-221.8 0Z" transform="translate(600 13)" fill="rgb(0,0,0)" fill-opacity="0" stroke="#3c3c41" stroke-width="0" class="zr0-cls-0"></path>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:20px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;font-weight:bold;" xml:space="preserve" y="10" transform="translate(600 13)" fill="#2e3440">Mathematical Functions</text>
+<style ><![CDATA[
+.zr0-cls-0:hover {
+pointer-events:none;
+}
+
+]]>
+
+</style>
+</svg>

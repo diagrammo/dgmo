@@ -1,0 +1,11 @@
+{
+  "name": "eslint-plugin-local",
+  "version": "0.0.0",
+  "private": true,
+  "description": "In-tree ESLint rules specific to the dgmo codebase. Not published.",
+  "type": "commonjs",
+  "main": "./index.js",
+  "peerDependencies": {
+    "eslint": "^10.0.0"
+  }
+}

@@ -96,6 +96,8 @@
     "test:auto": "pnpm build && vitest run tests/auto.test.ts tests/safe-href.test.ts",
     "sri": "node scripts/sri.mjs",
     "gallery": "pnpm build && node scripts/generate-gallery.mjs",
+    "gallery:snapshot": "pnpm build && node scripts/gallery-snapshot.mjs",
+    "gallery:snapshot:update": "pnpm build && node scripts/gallery-snapshot.mjs --update",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write src/",
