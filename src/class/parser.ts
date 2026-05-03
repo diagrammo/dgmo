@@ -1,12 +1,19 @@
 import { resolveColorWithDiagnostic } from '../colors';
 import type { PaletteColors } from '../palettes';
-import { makeDgmoError, formatDgmoError } from '../diagnostics';
+import {
+  makeDgmoError,
+  formatDgmoError,
+  NAME_DIAGNOSTIC_CODES,
+  nameMergedMessage,
+} from '../diagnostics';
 import { validateLabelCharacters } from '../utils/arrows';
 import {
   measureIndent,
   parseFirstLine,
   OPTION_NOCOLON_RE,
+  tryParseSharedOption,
 } from '../utils/parsing';
+import { normalizeName, displayName } from '../utils/name-normalize';
 import type {
   ParsedClassDiagram,
   ClassNode,
@@ -21,7 +28,7 @@ import type {
 // ============================================================
 
 function classId(name: string): string {
-  return name.toLowerCase().trim();
+  return normalizeName(name);
 }
 
 // ============================================================
@@ -179,17 +186,36 @@ export function parseClassDiagram(
   let contentStarted = false;
 
   function getOrCreateClass(name: string, lineNumber: number): ClassNode {
-    const id = classId(name);
-    const existing = classMap.get(id);
-    if (existing) return existing;
+    const key = classId(name);
+    const existing = classMap.get(key);
+    if (existing) {
+      const incomingDisplay = displayName(name);
+      const existingDisplay = displayName(existing.name);
+      if (incomingDisplay !== existingDisplay) {
+        result.diagnostics.push(
+          makeDgmoError(
+            lineNumber,
+            nameMergedMessage({
+              incomingDisplay,
+              incomingLine: lineNumber,
+              existingDisplay,
+              existingLine: existing.lineNumber,
+            }),
+            'warning',
+            NAME_DIAGNOSTIC_CODES.NAME_MERGED
+          )
+        );
+      }
+      return existing;
+    }
 
     const node: ClassNode = {
-      id,
+      id: key,
       name,
       members: [],
       lineNumber,
     };
-    classMap.set(id, node);
+    classMap.set(key, node);
     result.classes.push(node);
     return node;
   }
@@ -228,6 +254,9 @@ export function parseClassDiagram(
       // Bare boolean option (single keyword, no value)
       if (trimmed.toLowerCase() === 'no-auto-color') {
         result.options['no-auto-color'] = 'on';
+        continue;
+      }
+      if (tryParseSharedOption(trimmed, result.options)) {
         continue;
       }
       const optMatch = trimmed.match(OPTION_NOCOLON_RE);
@@ -375,7 +404,10 @@ export function parseClassDiagram(
   ) {
     const connectedIds = new Set<string>();
     for (const rel of result.relationships) {
+      // rel.source/target are class ids set via classId() at relationship parse
+      // eslint-disable-next-line name-normalize/required-at-insertion
       connectedIds.add(rel.source);
+      // eslint-disable-next-line name-normalize/required-at-insertion
       connectedIds.add(rel.target);
     }
     for (const cls of result.classes) {

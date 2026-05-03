@@ -1028,7 +1028,8 @@ function nodeColor(
   _node: InfraLayoutNode,
   palette: PaletteColors,
   isDark: boolean,
-  severity: ReturnType<typeof worstNodeSeverity>
+  severity: ReturnType<typeof worstNodeSeverity>,
+  solid?: boolean
 ): {
   fill: string;
   stroke: string;
@@ -1038,7 +1039,7 @@ function nodeColor(
   // Fills are visibly LOUDER than pre-spec 8-20% color; combined with
   // the 2x OVERLOAD_STROKE_WIDTH, severity reads cleanly without a badge.
   if (severity === 'overloaded') {
-    const fill = shapeFill(palette, COLOR_OVERLOADED, isDark);
+    const fill = shapeFill(palette, COLOR_OVERLOADED, isDark, { solid });
     return {
       fill,
       stroke: COLOR_OVERLOADED,
@@ -1050,7 +1051,7 @@ function nodeColor(
     };
   }
   if (severity === 'warning') {
-    const fill = shapeFill(palette, COLOR_WARNING, isDark);
+    const fill = shapeFill(palette, COLOR_WARNING, isDark, { solid });
     return {
       fill,
       stroke: COLOR_WARNING,
@@ -1062,7 +1063,7 @@ function nodeColor(
     };
   }
   if (severity === 'healthy') {
-    const fill = shapeFill(palette, COLOR_HEALTHY, isDark);
+    const fill = shapeFill(palette, COLOR_HEALTHY, isDark, { solid });
     return {
       fill,
       stroke: COLOR_HEALTHY,
@@ -1350,7 +1351,13 @@ function renderNodes(
         ? resolveNodeSlo(node, diagramOptions)
         : null;
     const severity = worstNodeSeverity(node, slo);
-    const nodeColors = nodeColor(node, palette, isDark, severity);
+    const nodeColors = nodeColor(
+      node,
+      palette,
+      isDark,
+      severity,
+      diagramOptions?.['solid-fill'] === 'on'
+    );
     const textFill = nodeColors.textFill;
     let { fill, stroke } = nodeColors;
 

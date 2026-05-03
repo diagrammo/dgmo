@@ -19,11 +19,26 @@ const SLO_COLORS = new Set([COLOR_OVERLOADED, COLOR_WARNING, COLOR_HEALTHY]);
 beforeAll(() => {
   const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>');
   const win = dom.window;
-  Object.defineProperty(globalThis, 'document', { value: win.document, configurable: true });
-  Object.defineProperty(globalThis, 'window', { value: win, configurable: true });
-  Object.defineProperty(globalThis, 'navigator', { value: win.navigator, configurable: true });
-  Object.defineProperty(globalThis, 'HTMLElement', { value: win.HTMLElement, configurable: true });
-  Object.defineProperty(globalThis, 'SVGElement', { value: win.SVGElement, configurable: true });
+  Object.defineProperty(globalThis, 'document', {
+    value: win.document,
+    configurable: true,
+  });
+  Object.defineProperty(globalThis, 'window', {
+    value: win,
+    configurable: true,
+  });
+  Object.defineProperty(globalThis, 'navigator', {
+    value: win.navigator,
+    configurable: true,
+  });
+  Object.defineProperty(globalThis, 'HTMLElement', {
+    value: win.HTMLElement,
+    configurable: true,
+  });
+  Object.defineProperty(globalThis, 'SVGElement', {
+    value: win.SVGElement,
+    configurable: true,
+  });
 });
 
 const palette = getPalette('nord');
@@ -33,24 +48,52 @@ function renderCollapsed(src: string): HTMLElement {
   const computed = computeInfra(parsed);
   const laidOut = layoutInfra(computed, null);
   const container = document.createElement('div');
-  renderInfra(container, laidOut, palette.light, false, null, null, [], null, false, null, null, true);
+  renderInfra(
+    container,
+    laidOut,
+    palette.light,
+    false,
+    null,
+    null,
+    [],
+    null,
+    false,
+    null,
+    null,
+    true
+  );
   return container;
 }
 
 function renderExpanded(src: string, selectedId: string): HTMLElement {
   const parsed = parseInfra(src);
   const computed = computeInfra(parsed);
-  const expandedNodeIds = new Set([selectedId]);
+  // Tests pass user-typed CamelCase ('API') for readability — normalize so
+  // the value matches the parser's internal id form ('api').
+  const expandedNodeIds = new Set([selectedId.toLowerCase()]);
   const laidOut = layoutInfra(computed, expandedNodeIds);
   const container = document.createElement('div');
-  renderInfra(container, laidOut, palette.light, false, null, null, [], null, false, null, expandedNodeIds, true);
+  renderInfra(
+    container,
+    laidOut,
+    palette.light,
+    false,
+    null,
+    null,
+    [],
+    null,
+    false,
+    null,
+    expandedNodeIds,
+    true
+  );
   return container;
 }
 
 /** Find all SVG text elements whose text content includes the given string. */
 function findTexts(container: HTMLElement, text: string): Element[] {
-  return Array.from(container.querySelectorAll('text')).filter(
-    (el) => el.textContent?.includes(text),
+  return Array.from(container.querySelectorAll('text')).filter((el) =>
+    el.textContent?.includes(text)
   );
 }
 
@@ -125,7 +168,10 @@ describe('p90 threshold display — "current / threshold" format', () => {
   });
 
   it('TH5: breach expanded → p90 shows "400ms / 200ms"; p50 and p99 still present', () => {
-    const container = renderExpanded(BASE_SRC(400, 'slo-p90-latency-ms 200'), 'API');
+    const container = renderExpanded(
+      BASE_SRC(400, 'slo-p90-latency-ms 200'),
+      'API'
+    );
     expect(findTexts(container, '400ms / 200ms').length).toBeGreaterThan(0);
     // p50 and p99 must still be rendered alongside the modified p90 row
     expect(findTexts(container, 'p50').length).toBeGreaterThan(0);
@@ -133,7 +179,10 @@ describe('p90 threshold display — "current / threshold" format', () => {
   });
 
   it('TH6: healthy expanded → no threshold suffix', () => {
-    const container = renderExpanded(BASE_SRC(50, 'slo-p90-latency-ms 200'), 'API');
+    const container = renderExpanded(
+      BASE_SRC(50, 'slo-p90-latency-ms 200'),
+      'API'
+    );
     expect(findTexts(container, '50ms / 200ms').length).toBe(0);
     expect(findTexts(container, '50ms').length).toBeGreaterThan(0);
   });
@@ -141,7 +190,9 @@ describe('p90 threshold display — "current / threshold" format', () => {
   it('TH7: large threshold formatted as seconds — "1.5s / 1.0s"', () => {
     // latency-ms: 1500 → p90 ≈ 1500ms → formatMsShort → "1.5s"
     // slo-p90-latency-ms 1000 → "1.0s"
-    const container = renderCollapsed(BASE_SRC(1500, 'slo-p90-latency-ms 1000'));
+    const container = renderCollapsed(
+      BASE_SRC(1500, 'slo-p90-latency-ms 1000')
+    );
     expect(findTexts(container, '1.5s / 1.0s').length).toBeGreaterThan(0);
   });
 });

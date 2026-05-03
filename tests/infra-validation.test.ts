@@ -137,8 +137,9 @@ B
 `);
       const cycles = diags.filter((d) => d.type === 'CYCLE');
       expect(cycles).toHaveLength(1);
-      expect(cycles[0].message).toContain('B');
-      expect(cycles[0].message).toContain('A');
+      // Cycle message references node ids (post-Phase-B: lowercased).
+      expect(cycles[0].message.toLowerCase()).toContain('b');
+      expect(cycles[0].message.toLowerCase()).toContain('a');
     });
 
     it('passes for a valid DAG', () => {

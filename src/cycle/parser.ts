@@ -7,6 +7,7 @@ import {
   measureIndent,
   parseFirstLine,
   parsePipeMetadata,
+  tryParseSharedOption,
 } from '../utils/parsing';
 import type { ParsedCycle, CycleNode, CycleEdge } from './types';
 
@@ -125,6 +126,11 @@ export function parseCycle(content: string): ParsedCycle {
     // ── Bare keyword: circle-nodes ──
     if (indent === 0 && trimmed.toLowerCase() === 'circle-nodes') {
       result.options['circle-nodes'] = 'true';
+      continue;
+    }
+
+    // ── Shared bare keyword: solid-fill ──
+    if (indent === 0 && tryParseSharedOption(trimmed, result.options)) {
       continue;
     }
 

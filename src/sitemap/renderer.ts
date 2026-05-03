@@ -59,10 +59,11 @@ const LEGEND_FIXED_GAP = 8; // gap between fixed legend and scaled diagram — l
 function nodeFill(
   palette: PaletteColors,
   isDark: boolean,
-  nodeColor?: string
+  nodeColor?: string,
+  solid?: boolean
 ): string {
   const color = nodeColor ?? palette.primary;
-  return shapeFill(palette, color, isDark);
+  return shapeFill(palette, color, isDark, { solid });
 }
 
 function nodeStroke(_palette: PaletteColors, nodeColor?: string): string {
@@ -453,7 +454,12 @@ export function renderSitemap(
       if (tagVal) nodeG.attr(`data-tag-${tagKey}`, tagVal.toLowerCase());
     }
 
-    const fill = nodeFill(palette, isDark, node.color);
+    const fill = nodeFill(
+      palette,
+      isDark,
+      node.color,
+      parsed.options['solid-fill'] === 'on'
+    );
     const stroke = nodeStroke(palette, node.color);
 
     // Card background

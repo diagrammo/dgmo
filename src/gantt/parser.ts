@@ -142,6 +142,7 @@ export function parseGantt(
       sprintNumber: null,
       sprintStart: null,
       sprintMode: null,
+      solidFill: false,
     },
     diagnostics,
     error: null,
@@ -581,6 +582,9 @@ export function parseGantt(
           break;
         case 'today-marker':
           result.options.todayMarker = 'on';
+          break;
+        case 'solid-fill':
+          result.options.solidFill = true;
           break;
       }
       continue;
@@ -1129,6 +1133,7 @@ const KNOWN_BOOLEANS = new Set([
   'critical-path',
   'today-marker',
   'dependencies',
+  'solid-fill',
 ]);
 
 function isKnownOption(key: string): boolean {

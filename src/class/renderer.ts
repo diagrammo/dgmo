@@ -70,10 +70,11 @@ function nodeFill(
   isDark: boolean,
   modifier: ClassModifier | undefined,
   nodeColor?: string,
-  colorOff?: boolean
+  colorOff?: boolean,
+  solid?: boolean
 ): string {
   const color = nodeColor ?? modifierColor(modifier, palette, colorOff);
-  return shapeFill(palette, color, isDark);
+  return shapeFill(palette, color, isDark, { solid });
 }
 
 function nodeStroke(
@@ -492,7 +493,8 @@ export function renderClassDiagram(
       isDark,
       node.modifier,
       effectiveColor,
-      colorOff
+      colorOff,
+      parsed.options?.['solid-fill'] === 'on'
     );
     const stroke = nodeStroke(palette, node.modifier, effectiveColor, colorOff);
     const onFillText = contrastText(

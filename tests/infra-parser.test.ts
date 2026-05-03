@@ -38,7 +38,7 @@ CloudFront
   cache-hit 80%
 `);
       expect(result.nodes).toHaveLength(1);
-      expect(result.nodes[0].id).toBe('CloudFront');
+      expect(result.nodes[0].id).toBe('cloudfront');
       expect(result.nodes[0].label).toBe('CloudFront');
       expect(result.nodes[0].properties).toHaveLength(1);
       expect(result.nodes[0].properties[0].key).toBe('cache-hit');
@@ -56,8 +56,8 @@ WAF
   firewall-block 5%
 `);
       expect(result.nodes).toHaveLength(2);
-      expect(result.nodes[0].id).toBe('CloudFront');
-      expect(result.nodes[1].id).toBe('WAF');
+      expect(result.nodes[0].id).toBe('cloudfront');
+      expect(result.nodes[1].id).toBe('waf');
     });
   });
 
@@ -104,7 +104,7 @@ CloudFront
 `);
       expect(result.edges).toHaveLength(1);
       expect(result.edges[0].sourceId).toBe('edge');
-      expect(result.edges[0].targetId).toBe('CloudFront');
+      expect(result.edges[0].targetId).toBe('cloudfront');
       expect(result.edges[0].label).toBe('');
     });
 
@@ -118,7 +118,7 @@ ALB
 `);
       expect(result.edges).toHaveLength(2);
       expect(result.edges[0].label).toBe('/api');
-      expect(result.edges[0].targetId).toBe('APIServer');
+      expect(result.edges[0].targetId).toBe('apiserver');
       expect(result.edges[0].split).toBe(60);
       expect(result.edges[1].label).toBe('/static');
       expect(result.edges[1].split).toBe(40);
@@ -135,7 +135,7 @@ ALB
   APIServer
     instances 3
 `);
-      expect(result.edges[0].targetId).toBe('[API Pods]');
+      expect(result.edges[0].targetId).toBe('[api pods]');
     });
   });
 
@@ -219,11 +219,11 @@ infra
 `);
       expect(result.groups).toHaveLength(1);
       expect(result.groups[0].label).toBe('API Pods');
-      expect(result.groups[0].id).toBe('[API Pods]');
+      expect(result.groups[0].id).toBe('[api pods]');
 
-      const apiServer = result.nodes.find((n) => n.id === 'APIServer');
+      const apiServer = result.nodes.find((n) => n.label === 'APIServer');
       expect(apiServer).toBeDefined();
-      expect(apiServer!.groupId).toBe('[API Pods]');
+      expect(apiServer!.groupId).toBe('[api pods]');
     });
 
     it('parses multiple components in a group', () => {
@@ -238,8 +238,8 @@ infra
 `);
       expect(result.groups).toHaveLength(1);
       expect(result.nodes).toHaveLength(2);
-      expect(result.nodes[0].groupId).toBe('[Backend Services]');
-      expect(result.nodes[1].groupId).toBe('[Backend Services]');
+      expect(result.nodes[0].groupId).toBe('[backend services]');
+      expect(result.nodes[1].groupId).toBe('[backend services]');
     });
   });
 
@@ -258,7 +258,7 @@ infra
       expect(result.groups).toHaveLength(1);
       expect(result.groups[0].instances).toBe(5);
       expect(result.nodes).toHaveLength(2);
-      expect(result.nodes[0].groupId).toBe('[PVO]');
+      expect(result.nodes[0].groupId).toBe('[pvo]');
     });
 
     it('parses group instances as range', () => {
@@ -346,7 +346,7 @@ tag Team t
 CloudFront | t: Backend
   cache-hit 80%
 `);
-      const node = result.nodes.find((n) => n.id === 'CloudFront');
+      const node = result.nodes.find((n) => n.label === 'CloudFront');
       expect(node!.tags).toEqual({ t: 'Backend' });
     });
   });
@@ -408,16 +408,16 @@ StaticServer | t: Platform
         10000
       );
 
-      const cf = result.nodes.find((n) => n.id === 'CloudFront');
+      const cf = result.nodes.find((n) => n.label === 'CloudFront');
       expect(cf!.tags).toEqual({ t: 'Platform' });
       expect(cf!.properties.find((p) => p.key === 'cache-hit')!.value).toBe(80);
 
-      const api = result.nodes.find((n) => n.id === 'APIServer');
-      expect(api!.groupId).toBe('[API Pods]');
+      const api = result.nodes.find((n) => n.label === 'APIServer');
+      expect(api!.groupId).toBe('[api pods]');
       expect(api!.properties.find((p) => p.key === 'instances')!.value).toBe(3);
 
-      const purchase = result.nodes.find((n) => n.id === 'PurchaseMS');
-      expect(purchase!.groupId).toBe('[Commerce Pods]');
+      const purchase = result.nodes.find((n) => n.label === 'PurchaseMS');
+      expect(purchase!.groupId).toBe('[commerce pods]');
 
       // Groups
       expect(result.groups).toHaveLength(2);
@@ -427,7 +427,7 @@ StaticServer | t: Platform
       // Edges: edge->CF, CF->CA, CA->ALB, ALB->/api->[API Pods], ALB->/purchase->[Commerce Pods], ALB->/static->Static
       expect(result.edges).toHaveLength(6);
 
-      const albEdges = result.edges.filter((e) => e.sourceId === 'ALB');
+      const albEdges = result.edges.filter((e) => e.sourceId === 'alb');
       expect(albEdges).toHaveLength(3);
       expect(albEdges[0].label).toBe('/api');
       expect(albEdges[0].split).toBe(60);
@@ -450,7 +450,7 @@ ProcessOrder
   -> DB
 `);
       expect(result.error).toBeNull();
-      const node = result.nodes.find((n) => n.id === 'ProcessOrder');
+      const node = result.nodes.find((n) => n.label === 'ProcessOrder');
       expect(node).toBeDefined();
       expect(node!.properties.find((p) => p.key === 'concurrency')!.value).toBe(
         1000
@@ -545,7 +545,7 @@ OrderQueue
   -> OrderProcessor
 `);
       expect(result.error).toBeNull();
-      const node = result.nodes.find((n) => n.id === 'OrderQueue');
+      const node = result.nodes.find((n) => n.label === 'OrderQueue');
       expect(node).toBeDefined();
       expect(node!.properties.find((p) => p.key === 'buffer')!.value).toBe(
         100000
@@ -629,7 +629,7 @@ edge
       expect(result.edges).toHaveLength(1);
       expect(result.edges[0].fanout).toBe(5);
       expect(result.edges[0].split).toBeNull();
-      expect(result.edges[0].targetId).toBe('API');
+      expect(result.edges[0].targetId).toBe('api');
     });
 
     it('parses connection with both split and fanout in pipe metadata', () => {
@@ -641,8 +641,8 @@ edge
   -> B | split: 50%, fanout: 3
   -> C | split: 50%
 `);
-      const edgeB = result.edges.find((e) => e.targetId === 'B')!;
-      const edgeC = result.edges.find((e) => e.targetId === 'C')!;
+      const edgeB = result.edges.find((e) => e.targetId === 'b')!;
+      const edgeC = result.edges.find((e) => e.targetId === 'c')!;
       expect(edgeB.split).toBe(50);
       expect(edgeB.fanout).toBe(3);
       expect(edgeC.split).toBe(50);
@@ -660,7 +660,7 @@ edge
       expect(result.edges).toHaveLength(1);
       expect(result.edges[0].label).toBe('query');
       expect(result.edges[0].fanout).toBe(10);
-      expect(result.edges[0].targetId).toBe('Shards');
+      expect(result.edges[0].targetId).toBe('shards');
     });
 
     it('parses connection without fanout — fanout is null (regression)', () => {
@@ -719,7 +719,7 @@ CDN
       expect(edgeNode!.properties[0].lineNumber).toBe(4);
       expect(result.edges[0].lineNumber).toBe(5);
 
-      const cdn = result.nodes.find((n) => n.id === 'CDN');
+      const cdn = result.nodes.find((n) => n.label === 'CDN');
       expect(cdn!.lineNumber).toBe(7);
     });
   });
@@ -799,9 +799,9 @@ infra
       const primary = result.nodes.find((n) => n.id === 'shard-primary');
       const replica = result.nodes.find((n) => n.id === 'shard-replica');
       expect(primary).toBeDefined();
-      expect(primary!.groupId).toBe('[Shards]');
+      expect(primary!.groupId).toBe('[shards]');
       expect(replica).toBeDefined();
-      expect(replica!.groupId).toBe('[Shards]');
+      expect(replica!.groupId).toBe('[shards]');
     });
   });
 
@@ -898,7 +898,7 @@ infra
 API
   slo-availability 99%
 `);
-      const apiNode = result.nodes.find((n) => n.id === 'API');
+      const apiNode = result.nodes.find((n) => n.label === 'API');
       const sloProp = apiNode?.properties.find(
         (p) => p.key === 'slo-availability'
       );
@@ -963,7 +963,7 @@ API
       expect(result.edges).toHaveLength(1);
       expect(result.edges[0].async).toBe(true);
       expect(result.edges[0].label).toBe('');
-      expect(result.edges[0].targetId).toBe('Database');
+      expect(result.edges[0].targetId).toBe('database');
     });
 
     it('parses ~label~> as async labeled edge', () => {
@@ -976,7 +976,7 @@ OrderService
       expect(result.edges).toHaveLength(1);
       expect(result.edges[0].async).toBe(true);
       expect(result.edges[0].label).toBe('emit order');
-      expect(result.edges[0].targetId).toBe('EventBus');
+      expect(result.edges[0].targetId).toBe('eventbus');
     });
 
     it('parses -> as sync edge (regression)', () => {
@@ -1027,7 +1027,7 @@ infra
 [Backend] | t: Engineering
   OrderAPI
 `);
-      const node = result.nodes.find((n) => n.id === 'OrderAPI');
+      const node = result.nodes.find((n) => n.label === 'OrderAPI');
       expect(node).toBeDefined();
       expect(node!.tags.t).toBe('Engineering');
     });
@@ -1039,7 +1039,7 @@ infra
 [Backend] | t: Engineering
   OrderAPI | t: Platform
 `);
-      const node = result.nodes.find((n) => n.id === 'OrderAPI');
+      const node = result.nodes.find((n) => n.label === 'OrderAPI');
       expect(node).toBeDefined();
       expect(node!.tags.t).toBe('Platform');
     });
@@ -1051,7 +1051,7 @@ infra
 [Backend]
   OrderAPI
 `);
-      const node = result.nodes.find((n) => n.id === 'OrderAPI');
+      const node = result.nodes.find((n) => n.label === 'OrderAPI');
       expect(node).toBeDefined();
       expect(Object.keys(node!.tags)).toHaveLength(0);
     });
@@ -1063,7 +1063,7 @@ infra
 [Backend] | t: Engineering, env: Prod
   OrderAPI
 `);
-      const node = result.nodes.find((n) => n.id === 'OrderAPI');
+      const node = result.nodes.find((n) => n.label === 'OrderAPI');
       expect(node).toBeDefined();
       expect(node!.tags.t).toBe('Engineering');
       expect(node!.tags.env).toBe('Prod');

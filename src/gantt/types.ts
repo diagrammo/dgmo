@@ -133,6 +133,8 @@ export interface GanttOptions {
   sprintNumber: number | null; // which sprint the chart starts at (default 1)
   sprintStart: string | null; // YYYY-MM-DD — date that sprintNumber begins
   sprintMode: 'auto' | 'explicit' | null; // auto = activated by `s` unit, explicit = sprint-* option present
+  /** When true, render bars at full intent saturation instead of the canonical 25% tint. */
+  solidFill: boolean;
 }
 
 // ── Parsed Result ───────────────────────────────────────────

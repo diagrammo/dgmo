@@ -4,6 +4,7 @@ import { computeInfra } from '../src/infra/compute';
 import { layoutInfra } from '../src/infra/layout';
 import { renderInfra } from '../src/infra/renderer';
 import { getPalette } from '../src/palettes';
+import { normalizeName } from '../src/utils/name-normalize';
 
 function renderToSvg(
   content: string,
@@ -13,8 +14,10 @@ function renderToSvg(
   const parsed = parseInfra(content);
   expect(parsed.error).toBeNull();
   const computed = computeInfra(parsed);
+  // Tests pass user-typed CamelCase ('API') for readability — normalize
+  // here so the value matches the parser's internal id form ('api').
   const expandedNodeIds = selectedNodeId
-    ? new Set([selectedNodeId])
+    ? new Set([normalizeName(selectedNodeId)])
     : undefined;
   const layout = layoutInfra(computed, expandedNodeIds);
   const paletteConfig = getPalette('nord');
@@ -516,11 +519,11 @@ API
 
     // Base: 10 instances * 500 = 5000 capacity, not overloaded
     const base = computeInfra(parsed);
-    expect(base.nodes.find((n) => n.id === 'API')!.overloaded).toBe(false);
+    expect(base.nodes.find((n) => n.id === 'api')!.overloaded).toBe(false);
 
     // Override to 1 instance: 1 * 500 = 500 capacity, overloaded at 5000 rps
-    const overloaded = computeInfra(parsed, { instanceOverrides: { API: 1 } });
-    expect(overloaded.nodes.find((n) => n.id === 'API')!.overloaded).toBe(true);
+    const overloaded = computeInfra(parsed, { instanceOverrides: { api: 1 } });
+    expect(overloaded.nodes.find((n) => n.id === 'api')!.overloaded).toBe(true);
   });
 
   it('property overrides change downstream rps', () => {
@@ -537,22 +540,22 @@ API
 
     // Base: CDN cache-hit 80% → 2000 rps reach API
     const base = computeInfra(parsed);
-    expect(base.nodes.find((n) => n.id === 'API')!.computedRps).toBe(2000);
-    expect(base.nodes.find((n) => n.id === 'API')!.overloaded).toBe(false);
+    expect(base.nodes.find((n) => n.id === 'api')!.computedRps).toBe(2000);
+    expect(base.nodes.find((n) => n.id === 'api')!.overloaded).toBe(false);
 
     // Override CDN cache-hit to 50% → 5000 rps reach API
     const adjusted = computeInfra(parsed, {
-      propertyOverrides: { CDN: { 'cache-hit': 50 } },
+      propertyOverrides: { cdn: { 'cache-hit': 50 } },
     });
-    expect(adjusted.nodes.find((n) => n.id === 'API')!.computedRps).toBe(5000);
-    expect(adjusted.nodes.find((n) => n.id === 'API')!.overloaded).toBe(false);
+    expect(adjusted.nodes.find((n) => n.id === 'api')!.computedRps).toBe(5000);
+    expect(adjusted.nodes.find((n) => n.id === 'api')!.overloaded).toBe(false);
 
     // Override CDN cache-hit to 0% → 10000 rps reach API → overloaded
     const noCache = computeInfra(parsed, {
-      propertyOverrides: { CDN: { 'cache-hit': 0 } },
+      propertyOverrides: { cdn: { 'cache-hit': 0 } },
     });
-    expect(noCache.nodes.find((n) => n.id === 'API')!.computedRps).toBe(10000);
-    expect(noCache.nodes.find((n) => n.id === 'API')!.overloaded).toBe(true);
+    expect(noCache.nodes.find((n) => n.id === 'api')!.computedRps).toBe(10000);
+    expect(noCache.nodes.find((n) => n.id === 'api')!.overloaded).toBe(true);
   });
 
   it('property overrides for ratelimit-rps cap downstream traffic', () => {
@@ -568,13 +571,13 @@ API`);
 
     // Base: ratelimit caps at 5000
     const base = computeInfra(parsed);
-    expect(base.nodes.find((n) => n.id === 'API')!.computedRps).toBe(5000);
+    expect(base.nodes.find((n) => n.id === 'api')!.computedRps).toBe(5000);
 
     // Override ratelimit to 2000
     const limited = computeInfra(parsed, {
-      propertyOverrides: { Gateway: { 'ratelimit-rps': 2000 } },
+      propertyOverrides: { gateway: { 'ratelimit-rps': 2000 } },
     });
-    expect(limited.nodes.find((n) => n.id === 'API')!.computedRps).toBe(2000);
+    expect(limited.nodes.find((n) => n.id === 'api')!.computedRps).toBe(2000);
   });
 
   it('renders serverless node with instances row and property rows', () => {
@@ -660,13 +663,13 @@ API`);
 
     // Base: 80% cache-hit → 20% passes → 2000 rps to API
     const base = computeInfra(parsed);
-    expect(base.nodes.find((n) => n.id === 'API')!.computedRps).toBe(2000);
+    expect(base.nodes.find((n) => n.id === 'api')!.computedRps).toBe(2000);
 
     // Property override to 30% cache-hit → 70% passes → 7000 rps to API
     const withOverride = computeInfra(parsed, {
-      propertyOverrides: { CDN: { 'cache-hit': 30 } },
+      propertyOverrides: { cdn: { 'cache-hit': 30 } },
     });
-    expect(withOverride.nodes.find((n) => n.id === 'API')!.computedRps).toBe(
+    expect(withOverride.nodes.find((n) => n.id === 'api')!.computedRps).toBe(
       7000
     );
   });

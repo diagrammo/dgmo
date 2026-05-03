@@ -14,6 +14,7 @@ import {
   MULTIPLE_PIPE_ERROR,
   parseFirstLine,
   OPTION_NOCOLON_RE,
+  tryParseSharedOption,
 } from '../utils/parsing';
 import type { MindmapNode, ParsedMindmap } from './types';
 import { tryStripDescriptionKeyword } from '../utils/description-helpers';
@@ -169,6 +170,9 @@ export function parseMindmap(
       const lower = trimmed.toLowerCase();
       if (lower === 'no-descriptions') {
         result.options['no-descriptions'] = 'true';
+        continue;
+      }
+      if (tryParseSharedOption(trimmed, result.options)) {
         continue;
       }
     }

@@ -56,6 +56,7 @@ interface RenderContext {
   isTransparent: boolean;
   isDark: boolean;
   showGroupLabels: boolean;
+  solid: boolean;
 }
 
 // ============================================================
@@ -118,6 +119,7 @@ export function renderWireframe(
     isTransparent: effectiveTheme === 'transparent',
     isDark,
     showGroupLabels: opts.showGroupLabels ?? true,
+    solid: parsed.options['solid-fill'] === 'on',
   };
 
   // Background
@@ -1064,7 +1066,7 @@ function renderAlert(
     g.append('rect')
       .attr('width', node.width)
       .attr('height', node.height)
-      .attr('fill', shapeFill(palette, color, isDark))
+      .attr('fill', shapeFill(palette, color, isDark, { solid: ctx.solid }))
       .attr('rx', 4);
   }
 

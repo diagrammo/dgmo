@@ -198,7 +198,9 @@ export function renderPyramid(
       .join(' ');
 
     const solidColor = resolveSolid(layer, i);
-    const fillColor = shapeFill(palette, solidColor, isDark);
+    const fillColor = shapeFill(palette, solidColor, isDark, {
+      solid: parsed.options['solid-fill'] === 'on',
+    });
 
     const layerG = diagramG
       .append('g')

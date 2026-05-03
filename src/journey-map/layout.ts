@@ -265,7 +265,8 @@ export function layoutJourneyMap(
       const headerColor = shapeFill(
         palette,
         scoreToColor(avgScore, palette),
-        isDark
+        isDark,
+        { solid: parsed.options['solid-fill'] === 'on' }
       );
 
       const COLLAPSED_CARD_H = 26;

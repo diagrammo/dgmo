@@ -5,6 +5,7 @@
 import type { PaletteColors } from '../palettes';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
 import { parseInArrowLabel } from '../utils/arrows';
+import { normalizeName } from '../utils/name-normalize';
 import type { TagGroup } from '../utils/tag-groups';
 import {
   matchTagBlockHeading,
@@ -90,7 +91,7 @@ const VALID_SHAPES = new Set<string>([
 const KNOWN_C4_OPTIONS = new Set<string>(['layout', 'active-tag']);
 
 /** Known C4 boolean options (bare keyword = on). */
-const KNOWN_C4_BOOLEANS = new Set<string>(['direction-tb']);
+const KNOWN_C4_BOOLEANS = new Set<string>(['direction-tb', 'solid-fill']);
 
 const ALL_CHART_TYPES = [
   'c4',
@@ -716,15 +717,16 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
         lineNumber,
       };
 
-      // Check for duplicate name
-      const existingLine = knownNames.get(namePart.toLowerCase());
+      // Check for duplicate name (forgiving: case + whitespace insensitive)
+      const key = normalizeName(namePart);
+      const existingLine = knownNames.get(key);
       if (existingLine !== undefined) {
         pushError(
           lineNumber,
           `Duplicate element name "${namePart}" (first defined on line ${existingLine})`
         );
       } else {
-        knownNames.set(namePart.toLowerCase(), lineNumber);
+        knownNames.set(key, lineNumber);
       }
 
       attachElement(element, indent, stack, result);
@@ -792,15 +794,16 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
         lineNumber,
       };
 
-      // Check for duplicate name
-      const existingLine = knownNames.get(namePart.toLowerCase());
+      // Check for duplicate name (forgiving: case + whitespace insensitive)
+      const key = normalizeName(namePart);
+      const existingLine = knownNames.get(key);
       if (existingLine !== undefined) {
         pushError(
           lineNumber,
           `Duplicate element name "${namePart}" (first defined on line ${existingLine})`
         );
       } else {
-        knownNames.set(namePart.toLowerCase(), lineNumber);
+        knownNames.set(key, lineNumber);
       }
 
       // Attach to parent or push to top-level
@@ -955,7 +958,7 @@ function validateRelationshipTargets(
   function walkRels(elements: C4Element[]) {
     for (const el of elements) {
       for (const rel of el.relationships) {
-        if (!knownNames.has(rel.target.toLowerCase())) {
+        if (!knownNames.has(normalizeName(rel.target))) {
           pushWarning(
             rel.lineNumber,
             `Relationship target "${rel.target}" not found`,
@@ -973,7 +976,7 @@ function validateRelationshipTargets(
 
   // Also check top-level relationships
   for (const rel of result.relationships) {
-    if (!knownNames.has(rel.target.toLowerCase())) {
+    if (!knownNames.has(normalizeName(rel.target))) {
       pushWarning(
         rel.lineNumber,
         `Relationship target "${rel.target}" not found`,
@@ -995,7 +998,7 @@ function validateDeploymentRefs(
   function walkDeploy(nodes: C4DeploymentNode[]) {
     for (const node of nodes) {
       for (const ref of node.containerRefs) {
-        if (!knownNames.has(ref.toLowerCase())) {
+        if (!knownNames.has(normalizeName(ref))) {
           pushWarning(
             node.lineNumber,
             `Deployment reference "container ${ref}" not found`,

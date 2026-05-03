@@ -2,7 +2,11 @@ import { describe, it, expect } from 'vitest';
 import { resolveTaskName, isResolverError } from '../src/gantt/resolver';
 import type { GanttTask } from '../src/gantt/types';
 
-function makeTask(label: string, groupPath: string[] = [], id?: string): GanttTask {
+function makeTask(
+  label: string,
+  groupPath: string[] = [],
+  id?: string
+): GanttTask {
   return {
     id: id ?? `task_${label}`,
     label,
@@ -79,9 +83,7 @@ describe('gantt resolver', () => {
 
     it('handles dots in group names', () => {
       // "U.S. Operations.Task A" — last dot split gives "U.S. Operations" + "Task A"
-      const tasks = [
-        makeTask('Task A', ['U.S. Operations'], 'task_1'),
-      ];
+      const tasks = [makeTask('Task A', ['U.S. Operations'], 'task_1')];
       const result = resolveTaskName('U.S. Operations.Task A', tasks);
       expect(isResolverError(result)).toBe(false);
       if (!isResolverError(result)) {
@@ -91,13 +93,12 @@ describe('gantt resolver', () => {
   });
 
   describe('case sensitivity', () => {
-    it('suggests case mismatch', () => {
+    it('matches case-insensitively (Universal Name Handling)', () => {
       const tasks = [makeTask('Deploy')];
       const result = resolveTaskName('deploy', tasks);
-      expect(isResolverError(result)).toBe(true);
-      if (isResolverError(result)) {
-        expect(result.kind).toBe('not_found');
-        expect(result.message).toContain('case mismatch');
+      expect(isResolverError(result)).toBe(false);
+      if (!isResolverError(result)) {
+        expect(result.task.label).toBe('Deploy');
       }
     });
   });

@@ -94,10 +94,11 @@ function nodeFill(
   palette: PaletteColors,
   isDark: boolean,
   type: 'person' | 'system' | 'container' | 'component',
-  nodeColor?: string
+  nodeColor?: string,
+  solid?: boolean
 ): string {
   const color = typeColor(type, palette, nodeColor);
-  return shapeFill(palette, color, isDark);
+  return shapeFill(palette, color, isDark, { solid });
 }
 
 function nodeStroke(
@@ -472,7 +473,13 @@ export function renderC4Context(
 
     const w = node.width;
     const h = node.height;
-    const fill = nodeFill(palette, isDark, node.type, node.color);
+    const fill = nodeFill(
+      palette,
+      isDark,
+      node.type,
+      node.color,
+      parsed.options['solid-fill'] === 'on'
+    );
     const stroke = nodeStroke(palette, node.type, node.color);
     const onFillText = contrastText(
       fill,
@@ -1552,7 +1559,13 @@ export function renderC4Containers(
 
     const w = node.width;
     const h = node.height;
-    const fill = nodeFill(palette, isDark, node.type, node.color);
+    const fill = nodeFill(
+      palette,
+      isDark,
+      node.type,
+      node.color,
+      parsed.options['solid-fill'] === 'on'
+    );
     const stroke = nodeStroke(palette, node.type, node.color);
     const onFillText = contrastText(
       fill,

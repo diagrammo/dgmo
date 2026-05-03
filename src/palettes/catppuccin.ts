@@ -33,7 +33,7 @@ export const catppuccinPalette: PaletteConfig = {
     text: '#4c4f69', // Latte Text
     textMuted: '#5c5f77', // Latte Subtext1
     textOnFillLight: '#eff1f5', // Latte Base
-    textOnFillDark: '#4c4f69', // Latte Text
+    textOnFillDark: '#11111b', // Mocha Crust (Latte Text #4c4f69 fails 3:1 on saturated mid-luminance intents — orange/green/teal/cyan)
     primary: '#1e66f5', // Latte Blue
     secondary: '#7287fd', // Latte Lavender
     accent: '#8839ef', // Latte Mauve

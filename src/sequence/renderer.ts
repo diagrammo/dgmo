@@ -143,10 +143,11 @@ function wrapLabelWords(words: string[]): string[] {
 const fill = (
   palette: PaletteColors,
   isDark: boolean,
-  color?: string
+  color?: string,
+  solid?: boolean
 ): string =>
   color
-    ? shapeFill(palette, color, isDark)
+    ? shapeFill(palette, color, isDark, { solid })
     : isDark
       ? mix(palette.overlay, palette.surface, 50)
       : mix(palette.bg, palette.surface, 50);
@@ -164,7 +165,8 @@ function renderRectParticipant(
   g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   palette: PaletteColors,
   isDark: boolean,
-  color?: string
+  color?: string,
+  solid?: boolean
 ): void {
   g.append('rect')
     .attr('x', -W / 2)
@@ -173,7 +175,7 @@ function renderRectParticipant(
     .attr('height', H)
     .attr('rx', 2)
     .attr('ry', 2)
-    .attr('fill', fill(palette, isDark, color))
+    .attr('fill', fill(palette, isDark, color, solid))
     .attr('stroke', stroke(palette, color))
     .attr('stroke-width', SW);
 }
@@ -182,7 +184,8 @@ function renderServiceParticipant(
   g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   palette: PaletteColors,
   isDark: boolean,
-  color?: string
+  color?: string,
+  solid?: boolean
 ): void {
   g.append('rect')
     .attr('x', -W / 2)
@@ -191,7 +194,7 @@ function renderServiceParticipant(
     .attr('height', H)
     .attr('rx', SERVICE_BORDER_RADIUS)
     .attr('ry', SERVICE_BORDER_RADIUS)
-    .attr('fill', fill(palette, isDark, color))
+    .attr('fill', fill(palette, isDark, color, solid))
     .attr('stroke', stroke(palette, color))
     .attr('stroke-width', SW);
 }
@@ -258,13 +261,14 @@ function renderDatabaseParticipant(
   g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   palette: PaletteColors,
   isDark: boolean,
-  color?: string
+  color?: string,
+  solid?: boolean
 ): void {
   // Cylinder fitting within W x H
   const ry = 7;
   const topY = ry;
   const bodyH = H - ry * 2;
-  const f = fill(palette, isDark, color);
+  const f = fill(palette, isDark, color, solid);
   const s = stroke(palette, color);
 
   // Bottom ellipse (drawn first — rect will cover its top arc)
@@ -318,13 +322,14 @@ function renderQueueParticipant(
   g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   palette: PaletteColors,
   isDark: boolean,
-  color?: string
+  color?: string,
+  solid?: boolean
 ): void {
   // Horizontal cylinder (pipe) — like database rotated 90 degrees
   const rx = 10;
   const leftX = -W / 2 + rx;
   const bodyW = W - rx * 2;
-  const f = fill(palette, isDark, color);
+  const f = fill(palette, isDark, color, solid);
   const s = stroke(palette, color);
 
   // Right ellipse (back face, drawn first — rect will cover its left arc)
@@ -378,13 +383,14 @@ function renderCacheParticipant(
   g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   palette: PaletteColors,
   isDark: boolean,
-  color?: string
+  color?: string,
+  solid?: boolean
 ): void {
   // Dashed cylinder — variation of database to convey ephemeral storage
   const ry = 7;
   const topY = ry;
   const bodyH = H - ry * 2;
-  const f = fill(palette, isDark, color);
+  const f = fill(palette, isDark, color, solid);
   const s = stroke(palette, color);
   const dash = '4 3';
 
@@ -441,7 +447,8 @@ function renderNetworkingParticipant(
   g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   palette: PaletteColors,
   isDark: boolean,
-  color?: string
+  color?: string,
+  solid?: boolean
 ): void {
   // Hexagon fitting within W x H
   const inset = 16;
@@ -455,7 +462,7 @@ function renderNetworkingParticipant(
   ].join(' ');
   g.append('polygon')
     .attr('points', points)
-    .attr('fill', fill(palette, isDark, color))
+    .attr('fill', fill(palette, isDark, color, solid))
     .attr('stroke', stroke(palette, color))
     .attr('stroke-width', SW);
 }
@@ -464,7 +471,8 @@ function renderFrontendParticipant(
   g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   palette: PaletteColors,
   isDark: boolean,
-  color?: string
+  color?: string,
+  solid?: boolean
 ): void {
   // Monitor shape fitting within W x H
   const screenH = H - 10;
@@ -476,7 +484,7 @@ function renderFrontendParticipant(
     .attr('height', screenH)
     .attr('rx', 3)
     .attr('ry', 3)
-    .attr('fill', fill(palette, isDark, color))
+    .attr('fill', fill(palette, isDark, color, solid))
     .attr('stroke', s)
     .attr('stroke-width', SW);
   // Stand
@@ -501,7 +509,8 @@ function renderExternalParticipant(
   g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   palette: PaletteColors,
   isDark: boolean,
-  color?: string
+  color?: string,
+  solid?: boolean
 ): void {
   // Dashed border rectangle
   g.append('rect')
@@ -511,7 +520,7 @@ function renderExternalParticipant(
     .attr('height', H)
     .attr('rx', 2)
     .attr('ry', 2)
-    .attr('fill', fill(palette, isDark, color))
+    .attr('fill', fill(palette, isDark, color, solid))
     .attr('stroke', stroke(palette, color))
     .attr('stroke-width', SW)
     .attr('stroke-dasharray', '6 3');
@@ -521,7 +530,8 @@ function renderGatewayParticipant(
   g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   palette: PaletteColors,
   isDark: boolean,
-  color?: string
+  color?: string,
+  _solid?: boolean
 ): void {
   renderRectParticipant(g, palette, isDark, color);
 }
@@ -911,6 +921,7 @@ export function renderSequenceDiagram(
   d3Selection.select(container).selectAll('*').remove();
 
   const { title, options: parsedOptions } = parsed;
+  const solid = parsedOptions['solid-fill'] === 'on';
 
   // Compute effective collapsed groups: union of syntax-declared and runtime-toggled
   const effectiveCollapsedGroups = new Set<number>();
@@ -1847,7 +1858,8 @@ export function renderSequenceDiagram(
       palette,
       isDark,
       effectiveTagColor,
-      pTagAttr
+      pTagAttr,
+      solid
     );
 
     // Collapsed group: re-render participant box at full group height + drill-bar
@@ -2196,8 +2208,8 @@ export function renderSequenceDiagram(
       .attr('height', y2 - y1)
       .attr('fill', isDark ? palette.surface : palette.bg);
 
-    // Canonical 25% tint via shapeFill() (was 30% light / 15% dark).
-    const actFill = shapeFill(palette, actBaseColor, isDark);
+    // Canonical 25% tint via shapeFill() (or full intent when solid-fill is on).
+    const actFill = shapeFill(palette, actBaseColor, isDark, { solid });
     const actRect = svg
       .append('rect')
       .attr('x', x)
@@ -2821,7 +2833,8 @@ function renderParticipant(
   palette: PaletteColors,
   isDark: boolean,
   color?: string,
-  tagAttr?: { key: string; value: string }
+  tagAttr?: { key: string; value: string },
+  solid?: boolean
 ): void {
   const g = svg
     .append('g')
@@ -2840,31 +2853,31 @@ function renderParticipant(
       renderActorParticipant(g, palette, color);
       break;
     case 'database':
-      renderDatabaseParticipant(g, palette, isDark, color);
+      renderDatabaseParticipant(g, palette, isDark, color, solid);
       break;
     case 'service':
-      renderServiceParticipant(g, palette, isDark, color);
+      renderServiceParticipant(g, palette, isDark, color, solid);
       break;
     case 'queue':
-      renderQueueParticipant(g, palette, isDark, color);
+      renderQueueParticipant(g, palette, isDark, color, solid);
       break;
     case 'cache':
-      renderCacheParticipant(g, palette, isDark, color);
+      renderCacheParticipant(g, palette, isDark, color, solid);
       break;
     case 'networking':
-      renderNetworkingParticipant(g, palette, isDark, color);
+      renderNetworkingParticipant(g, palette, isDark, color, solid);
       break;
     case 'frontend':
-      renderFrontendParticipant(g, palette, isDark, color);
+      renderFrontendParticipant(g, palette, isDark, color, solid);
       break;
     case 'external':
-      renderExternalParticipant(g, palette, isDark, color);
+      renderExternalParticipant(g, palette, isDark, color, solid);
       break;
     case 'gateway':
-      renderGatewayParticipant(g, palette, isDark, color);
+      renderGatewayParticipant(g, palette, isDark, color, solid);
       break;
     default:
-      renderRectParticipant(g, palette, isDark, color);
+      renderRectParticipant(g, palette, isDark, color, solid);
       break;
   }
 
@@ -2878,7 +2891,7 @@ function renderParticipant(
   const labelFill = isActor
     ? palette.text
     : contrastText(
-        fill(palette, isDark, color),
+        fill(palette, isDark, color, solid),
         palette.textOnFillLight,
         palette.textOnFillDark
       );

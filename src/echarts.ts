@@ -130,6 +130,8 @@ export interface ParsedExtendedChart {
   noValue?: boolean;
   noPercent?: boolean;
   shade?: boolean;
+  /** Render with full intent saturation instead of the canonical 25% tint. */
+  solidFill?: boolean;
   categoryColors?: Record<string, string>;
   categoryLineNumbers?: Record<string, number>;
   nodeColors?: Record<string, string>;
@@ -453,13 +455,18 @@ export function parseExtendedChart(
         }
       }
 
-      // Bare label at indent 0 (or any indent without a value) = new source node
+      // Bare label at indent 0 (or any indent without a value) = new source node.
+      // Skip cross-chart bare-keyword options so they're handled by the
+      // bare-keyword block below instead of becoming a phantom "solid-fill" node.
       const spaceIdx = trimmed.indexOf(' ');
       const lastTok = trimmed.substring(trimmed.lastIndexOf(' ') + 1);
       const hasNumericSuffix =
         spaceIdx >= 0 &&
         !isNaN(parseFloat(normalizeNumericToken(lastTok) ?? lastTok));
-      if (!hasNumericSuffix) {
+      const isBareKeywordOption =
+        spaceIdx < 0 &&
+        /^(solid-fill|no-name|no-value|no-percent|shade)$/i.test(trimmed);
+      if (!hasNumericSuffix && !isBareKeywordOption) {
         while (sankeyStack.length && sankeyStack.at(-1)!.indent >= indent) {
           sankeyStack.pop();
         }
@@ -591,6 +598,10 @@ export function parseExtendedChart(
     }
     if (firstToken === 'shade') {
       result.shade = true;
+      continue;
+    }
+    if (firstToken === 'solid-fill') {
+      result.solidFill = true;
       continue;
     }
     // Silent-ignore unrecognized no-* flags (typos, future flags).
@@ -911,8 +922,11 @@ function buildSankeyOption(
   // washes out the layout. Verified via preview spike 2026-05-02.
   // See: tech-spec-shape-fill-standardization, TD-4.
   // sankey-baseline.test.ts asserts these literals stay intact.
-  const tintNode = (c: string) => mix(c, bg, 75);
-  const tintLink = (c: string) => mix(c, bg, 45);
+  // When `solid-fill` is requested, both nodes and links use the raw
+  // intent color (no desaturation) — opt-in only, default stays quiet.
+  const solid = parsed.solidFill === true;
+  const tintNode = (c: string) => (solid ? c : mix(c, bg, 75));
+  const tintLink = (c: string) => (solid ? c : mix(c, bg, 45));
 
   const nodeColorMap = new Map<string, string>();
   const nodes = Array.from(nodeSet).map((name, index) => {
@@ -1008,7 +1022,9 @@ function buildChordOption(
     return {
       name,
       itemStyle: {
-        color: shapeFill(palette, stroke, isDark),
+        color: shapeFill(palette, stroke, isDark, {
+          solid: parsed.solidFill === true,
+        }),
         borderColor: stroke,
         borderWidth: CHART_BORDER_WIDTH,
       },
@@ -1578,7 +1594,9 @@ function buildScatterOption(
         value: hasSize ? [p.x, p.y, p.size ?? 0] : [p.x, p.y],
         ...(p.color && {
           itemStyle: {
-            color: shapeFill(palette, p.color, isDark),
+            color: shapeFill(palette, p.color, isDark, {
+              solid: parsed.solidFill === true,
+            }),
             borderColor: p.color,
             borderWidth: CHART_BORDER_WIDTH,
           },
@@ -1593,7 +1611,9 @@ function buildScatterOption(
           ? { symbolSize: (val: number[]) => val[2] }
           : { symbolSize: defaultSize }),
         itemStyle: {
-          color: shapeFill(palette, catColor, isDark),
+          color: shapeFill(palette, catColor, isDark, {
+            solid: parsed.solidFill === true,
+          }),
           borderColor: catColor,
           borderWidth: CHART_BORDER_WIDTH,
         },
@@ -1613,7 +1633,9 @@ function buildScatterOption(
           ? { symbolSize: p.size ?? defaultSize }
           : { symbolSize: defaultSize }),
         itemStyle: {
-          color: shapeFill(palette, stroke, isDark),
+          color: shapeFill(palette, stroke, isDark, {
+            solid: parsed.solidFill === true,
+          }),
           borderColor: stroke,
           borderWidth: CHART_BORDER_WIDTH,
         },
@@ -1890,10 +1912,18 @@ function buildHeatmapOption(
       max: maxValue,
       inRange: {
         color: [
-          shapeFill(palette, palette.primary, isDark),
-          shapeFill(palette, palette.colors.cyan, isDark),
-          shapeFill(palette, palette.colors.yellow, isDark),
-          shapeFill(palette, palette.colors.orange, isDark),
+          shapeFill(palette, palette.primary, isDark, {
+            solid: parsed.solidFill === true,
+          }),
+          shapeFill(palette, palette.colors.cyan, isDark, {
+            solid: parsed.solidFill === true,
+          }),
+          shapeFill(palette, palette.colors.yellow, isDark, {
+            solid: parsed.solidFill === true,
+          }),
+          shapeFill(palette, palette.colors.orange, isDark, {
+            solid: parsed.solidFill === true,
+          }),
         ],
       },
     },
@@ -1940,7 +1970,9 @@ function buildFunnelOption(
       name: d.label,
       value: d.value,
       itemStyle: {
-        color: shapeFill(palette, stroke, isDark),
+        color: shapeFill(palette, stroke, isDark, {
+          solid: parsed.solidFill === true,
+        }),
         borderColor: stroke,
         borderWidth: CHART_BORDER_WIDTH,
       },
@@ -2310,7 +2342,9 @@ function buildBarOption(
     return {
       value: d.value,
       itemStyle: {
-        color: shapeFill(palette, stroke, isDark),
+        color: shapeFill(palette, stroke, isDark, {
+          solid: parsed.solidFill === true,
+        }),
         borderColor: stroke,
         borderWidth: CHART_BORDER_WIDTH,
       },
@@ -2728,7 +2762,9 @@ function buildPieOption(
       name: d.label,
       value: d.value,
       itemStyle: {
-        color: shapeFill(palette, stroke, isDark),
+        color: shapeFill(palette, stroke, isDark, {
+          solid: parsed.solidFill === true,
+        }),
         borderColor: stroke,
         borderWidth: CHART_BORDER_WIDTH,
       },
@@ -2810,7 +2846,11 @@ function buildRadarOption(
           {
             value: values,
             name: parsed.series ?? 'Value',
-            areaStyle: { color: shapeFill(palette, radarColor, isDark) },
+            areaStyle: {
+              color: shapeFill(palette, radarColor, isDark, {
+                solid: parsed.solidFill === true,
+              }),
+            },
             lineStyle: { color: radarColor },
             itemStyle: { color: radarColor },
             symbol: 'circle',
@@ -2848,7 +2888,9 @@ function buildPolarAreaOption(
       name: d.label,
       value: d.value,
       itemStyle: {
-        color: shapeFill(palette, stroke, isDark),
+        color: shapeFill(palette, stroke, isDark, {
+          solid: parsed.solidFill === true,
+        }),
         borderColor: stroke,
         borderWidth: CHART_BORDER_WIDTH,
       },
@@ -2915,7 +2957,9 @@ function buildBarStackedOption(
       stack: 'total',
       data,
       itemStyle: {
-        color: shapeFill(palette, color, isDark),
+        color: shapeFill(palette, color, isDark, {
+          solid: parsed.solidFill === true,
+        }),
         borderColor: color,
         borderWidth: CHART_BORDER_WIDTH,
       },

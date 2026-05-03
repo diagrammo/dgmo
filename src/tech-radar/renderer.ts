@@ -471,7 +471,15 @@ export function renderTechRadar(
     blipGroup
       .on('mouseenter', (event: MouseEvent) => {
         if (pinnedLineNum) return; // don't interfere with pinned popover
-        showBlipPopover(popover, point.blip, qColor, palette, isDark, event);
+        showBlipPopover(
+          popover,
+          point.blip,
+          qColor,
+          palette,
+          isDark,
+          event,
+          parsed.options['solid-fill'] === 'on'
+        );
         showBlipHighlight(lineNum, bx, by, blipGroup);
       })
       .on('mousemove', (event: MouseEvent) => {
@@ -496,7 +504,15 @@ export function renderTechRadar(
       } else {
         // Pin this blip — enable pointer events so links are clickable
         pinnedLineNum = lineNum;
-        showBlipPopover(popover, point.blip, qColor, palette, isDark, event);
+        showBlipPopover(
+          popover,
+          point.blip,
+          qColor,
+          palette,
+          isDark,
+          event,
+          parsed.options['solid-fill'] === 'on'
+        );
         popover.style.pointerEvents = 'auto';
         showBlipHighlight(lineNum, bx, by, blipGroup);
       }
@@ -539,7 +555,15 @@ export function renderTechRadar(
             clientX: svgRect.left + point.x,
             clientY: svgRect.top + offsetY + point.y,
           } as MouseEvent;
-          showBlipPopover(popover, blip, qColor, palette, isDark, fakeEvent);
+          showBlipPopover(
+            popover,
+            blip,
+            qColor,
+            palette,
+            isDark,
+            fakeEvent,
+            parsed.options['solid-fill'] === 'on'
+          );
         }
         // Scale up and dim
         const lineNum = String(blip.lineNumber);
@@ -922,9 +946,10 @@ function showBlipPopover(
   qColor: string,
   palette: PaletteColors,
   isDark: boolean,
-  event: MouseEvent
+  event: MouseEvent,
+  solid?: boolean
 ): void {
-  const fillColor = shapeFill(palette, qColor, isDark);
+  const fillColor = shapeFill(palette, qColor, isDark, { solid });
   const hasDesc = blip.description.length > 0;
   const onFillText = contrastText(
     fillColor,

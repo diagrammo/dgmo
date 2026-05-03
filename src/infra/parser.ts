@@ -6,7 +6,13 @@
 // Handles: chart metadata, component blocks with indented properties
 // and connections, [Group] containers, tag groups, pipe metadata.
 
-import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
+import {
+  makeDgmoError,
+  formatDgmoError,
+  suggest,
+  NAME_DIAGNOSTIC_CODES,
+  nameMergedMessage,
+} from '../diagnostics';
 import { tryStripDescriptionKeyword } from '../utils/description-helpers';
 import { resolveColorWithDiagnostic } from '../colors';
 import { parseInArrowLabel } from '../utils/arrows';
@@ -14,7 +20,9 @@ import {
   measureIndent,
   parseFirstLine,
   OPTION_NOCOLON_RE,
+  tryParseSharedOption,
 } from '../utils/parsing';
+import { normalizeName, displayName } from '../utils/name-normalize';
 import {
   matchTagBlockHeading,
   stripDefaultModifier,
@@ -89,11 +97,11 @@ const TOP_LEVEL_OPTIONS = new Set([
 // ============================================================
 
 function nodeId(name: string): string {
-  return name.trim();
+  return normalizeName(name);
 }
 
 function groupId(name: string): string {
-  return `[${name.trim()}]`;
+  return `[${normalizeName(name)}]`;
 }
 
 function parsePropertyValue(raw: string): string | number {
@@ -167,6 +175,14 @@ export function parseInfra(content: string): ParsedInfra {
 
   const nodeMap = new Map<string, InfraNode>();
 
+  // Tracks first-seen display form for each normalized edge-target id.
+  // Used to give forward-reference stubs a readable label (e.g. 'CDN'
+  // instead of the lowercased internal 'cdn').
+  const targetDisplays = new Map<string, string>();
+  const rememberTargetDisplay = (key: string, display: string): void => {
+    if (!targetDisplays.has(key)) targetDisplays.set(key, display.trim());
+  };
+
   const setError = (line: number, message: string) => {
     const diag = makeDgmoError(line, message);
     result.diagnostics.push(diag);
@@ -184,34 +200,56 @@ export function parseInfra(content: string): ParsedInfra {
   let baseIndent = 0; // indent of the current component line
 
   function finishCurrentNode() {
-    if (currentNode && !nodeMap.has(currentNode.id)) {
-      // Validate mutual exclusion: concurrency vs instances/max-rps
-      const keys = new Set(currentNode.properties.map((p) => p.key));
-      if (
-        keys.has('concurrency') &&
-        (keys.has('instances') || keys.has('max-rps'))
-      ) {
-        const conflicting = [
-          keys.has('instances') ? 'instances' : '',
-          keys.has('max-rps') ? 'max-rps' : '',
-        ]
-          .filter(Boolean)
-          .join(', ');
-        warn(
-          currentNode.lineNumber,
-          `'concurrency' (serverless) is mutually exclusive with ${conflicting}. Serverless nodes scale via concurrency, not instances.`
+    if (!currentNode) return;
+    const key = currentNode.id;
+    const existing = nodeMap.get(key);
+    if (existing) {
+      const incomingDisplay = displayName(currentNode.label);
+      const existingDisplay = displayName(existing.label);
+      if (incomingDisplay !== existingDisplay) {
+        result.diagnostics.push(
+          makeDgmoError(
+            currentNode.lineNumber,
+            nameMergedMessage({
+              incomingDisplay,
+              incomingLine: currentNode.lineNumber,
+              existingDisplay,
+              existingLine: existing.lineNumber,
+            }),
+            'warning',
+            NAME_DIAGNOSTIC_CODES.NAME_MERGED
+          )
         );
       }
-      // Validate mutual exclusion: buffer (queue) vs max-rps (service)
-      if (keys.has('buffer') && keys.has('max-rps')) {
-        warn(
-          currentNode.lineNumber,
-          `'buffer' (queue) and 'max-rps' (service) represent different capacity models. A queue buffers messages; a service processes them.`
-        );
-      }
-      nodeMap.set(currentNode.id, currentNode);
-      result.nodes.push(currentNode);
+      currentNode = null;
+      return;
     }
+    // Validate mutual exclusion: concurrency vs instances/max-rps
+    const keys = new Set(currentNode.properties.map((p) => p.key));
+    if (
+      keys.has('concurrency') &&
+      (keys.has('instances') || keys.has('max-rps'))
+    ) {
+      const conflicting = [
+        keys.has('instances') ? 'instances' : '',
+        keys.has('max-rps') ? 'max-rps' : '',
+      ]
+        .filter(Boolean)
+        .join(', ');
+      warn(
+        currentNode.lineNumber,
+        `'concurrency' (serverless) is mutually exclusive with ${conflicting}. Serverless nodes scale via concurrency, not instances.`
+      );
+    }
+    // Validate mutual exclusion: buffer (queue) vs max-rps (service)
+    if (keys.has('buffer') && keys.has('max-rps')) {
+      warn(
+        currentNode.lineNumber,
+        `'buffer' (queue) and 'max-rps' (service) represent different capacity models. A queue buffers messages; a service processes them.`
+      );
+    }
+    nodeMap.set(key, currentNode);
+    result.nodes.push(currentNode);
     currentNode = null;
   }
 
@@ -270,6 +308,10 @@ export function parseInfra(content: string): ParsedInfra {
       }
       if (trimmed === 'no-animate') {
         result.options.animate = 'off';
+        continue;
+      }
+
+      if (tryParseSharedOption(trimmed, result.options)) {
         continue;
       }
 
@@ -464,9 +506,11 @@ export function parseInfra(content: string): ParsedInfra {
           );
         }
         const fanout = fanoutRaw !== null && fanoutRaw >= 1 ? fanoutRaw : null;
+        const targetIdAsync = nodeId(targetName);
+        rememberTargetDisplay(targetIdAsync, targetName);
         result.edges.push({
           sourceId: currentNode.id,
-          targetId: nodeId(targetName),
+          targetId: targetIdAsync,
           label: '',
           async: true,
           split,
@@ -505,8 +549,10 @@ export function parseInfra(content: string): ParsedInfra {
         const targetGroupMatch = targetName.match(/^\[([^\]]+)\]/);
         if (targetGroupMatch) {
           targetId = groupId(targetGroupMatch[1]);
+          rememberTargetDisplay(targetId, `[${targetGroupMatch[1]}]`);
         } else {
           targetId = nodeId(targetName);
+          rememberTargetDisplay(targetId, targetName);
         }
 
         result.edges.push({
@@ -541,9 +587,11 @@ export function parseInfra(content: string): ParsedInfra {
           );
         }
         const fanout = fanoutRaw !== null && fanoutRaw >= 1 ? fanoutRaw : null;
+        const targetIdSimple = nodeId(targetName);
+        rememberTargetDisplay(targetIdSimple, targetName);
         result.edges.push({
           sourceId: currentNode.id,
-          targetId: nodeId(targetName),
+          targetId: targetIdSimple,
           label: '',
           async: false,
           split,
@@ -583,8 +631,10 @@ export function parseInfra(content: string): ParsedInfra {
         const targetGroupMatch = targetName.match(/^\[([^\]]+)\]/);
         if (targetGroupMatch) {
           targetId = groupId(targetGroupMatch[1]);
+          rememberTargetDisplay(targetId, `[${targetGroupMatch[1]}]`);
         } else {
           targetId = nodeId(targetName);
+          rememberTargetDisplay(targetId, targetName);
         }
 
         result.edges.push({
@@ -737,16 +787,21 @@ export function parseInfra(content: string): ParsedInfra {
       // Check if target is a group
       const isGroup = result.groups.some((g) => g.id === edge.targetId);
       if (!isGroup) {
-        // Create a stub node for forward-referenced targets
+        // Create a stub node for forward-referenced targets. Display label
+        // recovers the user's first-seen casing so the rendered SVG shows
+        // 'CDN' instead of the lowercased internal id.
+        const stubDisplay = targetDisplays.get(edge.targetId) ?? edge.targetId;
         const stub: InfraNode = {
           id: edge.targetId,
-          label: edge.targetId,
+          label: stubDisplay,
           properties: [],
           groupId: null,
           tags: {},
           isEdge: false,
           lineNumber: edge.lineNumber,
         };
+        // stub.id is edge.targetId, already-normalized via nodeId() at edge construction
+        // eslint-disable-next-line name-normalize/required-at-insertion
         nodeMap.set(stub.id, stub);
         result.nodes.push(stub);
       }

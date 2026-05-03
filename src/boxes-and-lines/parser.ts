@@ -5,6 +5,7 @@
 import { makeDgmoError, suggest } from '../diagnostics';
 import type { DgmoError } from '../diagnostics';
 import { parseInArrowLabel } from '../utils/arrows';
+import { normalizeName } from '../utils/name-normalize';
 import type { ParsedBoxesAndLines, BLNode, BLEdge, BLGroup } from './types';
 import {
   matchTagBlockHeading,
@@ -18,6 +19,7 @@ import {
   extractColor,
   parseFirstLine,
   OPTION_NOCOLON_RE,
+  tryParseSharedOption,
 } from '../utils/parsing';
 
 const MAX_GROUP_DEPTH = 2;
@@ -153,13 +155,14 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
 
   /** Ensure a node exists (implicit creation) */
   function ensureNode(label: string, lineNum: number) {
-    if (!nodeLabels.has(label)) {
+    const key = normalizeName(label);
+    if (!nodeLabels.has(key)) {
       result.nodes.push({
         label,
         lineNumber: lineNum,
         metadata: {},
       });
-      nodeLabels.add(label);
+      nodeLabels.add(key);
     }
   }
 
@@ -233,6 +236,9 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
             result.options[key] = value;
             continue;
           }
+        }
+        if (tryParseSharedOption(trimmed, result.options)) {
+          continue;
         }
       }
     }
@@ -466,7 +472,7 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
         parentGs.group.children.push(label);
       }
 
-      groupLabels.add(label);
+      groupLabels.add(normalizeName(label));
       groupStack.push({ group, indent, depth: currentDepth });
       lastNodeLabel = label;
       lastSourceIsGroup = true;
@@ -541,7 +547,8 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
     const gs = currentGroupState();
     const isGroupChild = gs && indent > gs.indent;
 
-    if (nodeLabels.has(node.label)) {
+    const key = normalizeName(node.label);
+    if (nodeLabels.has(key)) {
       // Already declared — if inside a group, just add as child (no duplicate)
       if (isGroupChild) {
         gs.group.children.push(node.label);
@@ -551,7 +558,7 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
         makeDgmoError(lineNum, `Duplicate node "${node.label}"`, 'warning')
       );
     } else {
-      nodeLabels.add(node.label);
+      nodeLabels.add(key);
     }
 
     // Cascade group metadata into node (group provides defaults, node overrides)
@@ -585,9 +592,7 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
     // Check group references exist
     if (edge.source.startsWith('__group_')) {
       const label = edge.source.slice('__group_'.length);
-      const found = [...groupLabels].some(
-        (g) => g.toLowerCase() === label.toLowerCase()
-      );
+      const found = groupLabels.has(normalizeName(label));
       if (!found) {
         result.diagnostics.push(
           makeDgmoError(edge.lineNumber, `Group '[${label}]' not found`)
@@ -600,9 +605,7 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
 
     if (edge.target.startsWith('__group_')) {
       const label = edge.target.slice('__group_'.length);
-      const found = [...groupLabels].some(
-        (g) => g.toLowerCase() === label.toLowerCase()
-      );
+      const found = groupLabels.has(normalizeName(label));
       if (!found) {
         result.diagnostics.push(
           makeDgmoError(edge.lineNumber, `Group '[${label}]' not found`)

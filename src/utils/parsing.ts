@@ -94,6 +94,24 @@ export function extractColor(
 /** Matches `option value` header lines (space-separated, no colon). */
 export const OPTION_NOCOLON_RE = /^([a-z][a-z0-9-]*)\s+(.+)$/i;
 
+/**
+ * Try to parse a line as a cross-chart-type bare-keyword option (currently only
+ * `solid-fill`). Returns true if the line matched and the option was set.
+ *
+ * Use inside each parser's option block so the keyword is recognized uniformly
+ * across all chart types without each parser duplicating the regex.
+ */
+export function tryParseSharedOption(
+  line: string,
+  options: Record<string, string>
+): boolean {
+  if (/^solid-fill$/i.test(line.trim())) {
+    options['solid-fill'] = 'on';
+    return true;
+  }
+  return false;
+}
+
 // ── New shared utilities ─────────────────────────────────────
 
 /**

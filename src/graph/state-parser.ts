@@ -1,7 +1,13 @@
 import { resolveColorWithDiagnostic } from '../colors';
 import type { DgmoError } from '../diagnostics';
 import type { PaletteColors } from '../palettes';
-import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
+import {
+  makeDgmoError,
+  formatDgmoError,
+  suggest,
+  NAME_DIAGNOSTIC_CODES,
+  nameMergedMessage,
+} from '../diagnostics';
 import { parseInArrowLabel, matchColorParens } from '../utils/arrows';
 import {
   measureIndent,
@@ -9,6 +15,7 @@ import {
   OPTION_NOCOLON_RE,
   ALL_CHART_TYPES,
 } from '../utils/parsing';
+import { normalizeName, displayName } from '../utils/name-normalize';
 import type { ParsedGraph, GraphNode, GraphGroup } from './types';
 
 // ============================================================
@@ -189,7 +196,7 @@ function parseStateNodeRef(text: string): NodeRef | null {
   const label = t;
   if (!label) return null;
   return {
-    id: `state:${label.toLowerCase().trim()}`,
+    id: `state:${normalizeName(label)}`,
     label,
     shape: 'state',
   };
@@ -230,22 +237,42 @@ export function parseState(
   let firstLineParsed = false;
 
   function getOrCreateNode(ref: NodeRef, lineNumber: number): GraphNode {
-    const existing = nodeMap.get(ref.id);
-    if (existing) return existing;
+    const key = ref.id;
+    const existing = nodeMap.get(key);
+    if (existing) {
+      const incomingDisplay = displayName(ref.label);
+      const existingDisplay = displayName(existing.label);
+      if (incomingDisplay !== existingDisplay) {
+        result.diagnostics.push(
+          makeDgmoError(
+            lineNumber,
+            nameMergedMessage({
+              incomingDisplay,
+              incomingLine: lineNumber,
+              existingDisplay,
+              existingLine: existing.lineNumber,
+            }),
+            'warning',
+            NAME_DIAGNOSTIC_CODES.NAME_MERGED
+          )
+        );
+      }
+      return existing;
+    }
 
     const node: GraphNode = {
-      id: ref.id,
+      id: key,
       label: ref.label,
       shape: ref.shape,
       lineNumber,
       ...(ref.color && { color: ref.color }),
       ...(currentGroup && { group: currentGroup.id }),
     };
-    nodeMap.set(ref.id, node);
+    nodeMap.set(key, node);
     result.nodes.push(node);
 
-    if (currentGroup && !currentGroup.nodeIds.includes(ref.id)) {
-      currentGroup.nodeIds.push(ref.id);
+    if (currentGroup && !currentGroup.nodeIds.includes(key)) {
+      currentGroup.nodeIds.push(key);
     }
 
     return node;
@@ -460,7 +487,10 @@ export function parseState(
   if (result.nodes.length >= 2 && result.edges.length >= 1 && !result.error) {
     const connectedIds = new Set<string>();
     for (const edge of result.edges) {
+      // edge endpoints are already-normalized node IDs (set via getOrCreateNode)
+      // eslint-disable-next-line name-normalize/required-at-insertion
       connectedIds.add(edge.source);
+      // eslint-disable-next-line name-normalize/required-at-insertion
       connectedIds.add(edge.target);
     }
     for (const node of result.nodes) {

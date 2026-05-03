@@ -8,12 +8,26 @@ function compute(source: string, params = {}) {
   return computeInfra(parsed, params);
 }
 
+// id arguments are normalized via the same algorithm parsers use,
+// so test sites can pass the user-typed CamelCase form ('Shards')
+// rather than the internal normalized form ('shards').
+import { normalizeName } from '../src/utils/name-normalize';
+
 function node(result: ReturnType<typeof compute>, id: string) {
-  return result.nodes.find((n) => n.id === id)!;
+  const key = normalizeName(id);
+  return result.nodes.find((n) => n.id === key)!;
 }
 
-function edge(result: ReturnType<typeof compute>, source: string, target: string) {
-  return result.edges.find((e) => e.sourceId === source && e.targetId === target)!;
+function edge(
+  result: ReturnType<typeof compute>,
+  source: string,
+  target: string
+) {
+  const sourceKey = normalizeName(source);
+  const targetKey = normalizeName(target);
+  return result.edges.find(
+    (e) => e.sourceId === sourceKey && e.targetId === targetKey
+  )!;
 }
 
 describe('infra computation engine', () => {
@@ -113,7 +127,7 @@ edge
 CDN
   cache-hit 50%
 `,
-        { rps: 5000 },
+        { rps: 5000 }
       );
       expect(node(result, 'edge').computedRps).toBe(5000);
       expect(node(result, 'CDN').computedRps).toBe(5000);
@@ -297,7 +311,9 @@ API
 `);
       // Capacity: 1500, receiving 1000
       expect(node(result, 'API').overloaded).toBe(false);
-      expect(result.diagnostics.filter((d) => d.type === 'OVERLOAD')).toHaveLength(0);
+      expect(
+        result.diagnostics.filter((d) => d.type === 'OVERLOAD')
+      ).toHaveLength(0);
     });
 
     it('handles single instance overload', () => {
@@ -379,7 +395,9 @@ ALB | t: Platform
 
 StaticServer | t: Platform
 `);
-      expect(result.diagnostics.filter((d) => d.type === 'SPLIT_SUM')).toHaveLength(0);
+      expect(
+        result.diagnostics.filter((d) => d.type === 'SPLIT_SUM')
+      ).toHaveLength(0);
 
       // edge: 10000
       expect(node(result, 'edge').computedRps).toBe(10000);
@@ -703,8 +721,8 @@ Edge
       // Aggregated latency: 10 + 50 = 60
       expect(vn.computedLatencyMs).toBeGreaterThanOrEqual(60);
       // No individual child nodes in output
-      expect(result.nodes.find((n) => n.id === 'Nginx')).toBeUndefined();
-      expect(result.nodes.find((n) => n.id === 'AppServer')).toBeUndefined();
+      expect(result.nodes.find((n) => n.id === 'nginx')).toBeUndefined();
+      expect(result.nodes.find((n) => n.id === 'appserver')).toBeUndefined();
     });
 
     it('collapsed group uses bottleneck max-rps', () => {
@@ -803,9 +821,11 @@ Edge
     latency-ms 50
 `);
       // Source says expanded, but params say collapsed
-      const result = computeInfra(parsed, { collapsedGroups: new Set(['[Backend]']) });
-      expect(result.nodes.find((n) => n.id === '[Backend]')).toBeDefined();
-      expect(result.nodes.find((n) => n.id === 'Nginx')).toBeUndefined();
+      const result = computeInfra(parsed, {
+        collapsedGroups: new Set(['[backend]']),
+      });
+      expect(result.nodes.find((n) => n.id === '[backend]')).toBeDefined();
+      expect(result.nodes.find((n) => n.id === 'nginx')).toBeUndefined();
     });
 
     it('collapsed groups are removed from result.groups', () => {
@@ -826,9 +846,9 @@ Edge
     max-rps 500
 `);
       // Collapsed group should not appear in result.groups
-      expect(result.groups.find((g) => g.id === '[Backend]')).toBeUndefined();
+      expect(result.groups.find((g) => g.id === '[backend]')).toBeUndefined();
       // Virtual node should exist
-      expect(result.nodes.find((n) => n.id === '[Backend]')).toBeDefined();
+      expect(result.nodes.find((n) => n.id === '[backend]')).toBeDefined();
     });
 
     it('childHealthState reflects worst child health', () => {
@@ -910,7 +930,7 @@ DB
 `);
       // Cross-group edge LB->API should become [Frontend]->[Backend]
       const crossEdge = result.edges.find(
-        (e) => e.sourceId === '[Frontend]' && e.targetId === '[Backend]'
+        (e) => e.sourceId === '[frontend]' && e.targetId === '[backend]'
       );
       expect(crossEdge).toBeDefined();
       // DB should receive traffic through both virtual nodes
@@ -953,7 +973,9 @@ External
       // well under the 500ms SLO. If it incorrectly summed all children it would be
       // 260ms (A+SideDep1+SideDep2) + 10ms = 270ms — still under 500 in this case,
       // but the virtual node's own latency-ms property should be 20ms not 260ms.
-      const latencyProp = vn.properties.find((p: { key: string }) => p.key === 'latency-ms');
+      const latencyProp = vn.properties.find(
+        (p: { key: string }) => p.key === 'latency-ms'
+      );
       expect(latencyProp?.value).toBe(20);
     });
 
@@ -988,7 +1010,9 @@ External
       const groupNode = node(result, '[Group]');
 
       // Virtual node latency-ms = 20ms (just Proxy, the through-path node)
-      const latencyProp = groupNode.properties.find((p: { key: string }) => p.key === 'latency-ms');
+      const latencyProp = groupNode.properties.find(
+        (p: { key: string }) => p.key === 'latency-ms'
+      );
       expect(latencyProp?.value).toBe(20);
 
       // p90 latency = Proxy(20) + External(10) = 30ms, well under the 500ms SLO
@@ -1214,7 +1238,7 @@ Lambda
       expect(node(result, 'Lambda').computedInstances).toBe(0);
     });
 
-    it('computes concurrent invocations via Little\'s Law (RPS × duration / 1000)', () => {
+    it("computes concurrent invocations via Little's Law (RPS × duration / 1000)", () => {
       const result = compute(`
 infra
 
@@ -1337,7 +1361,7 @@ Lambda
 `);
       // Use propertyOverrides — scenario syntax is deprecated and ignored by parser
       const result = computeInfra(parsed, {
-        propertyOverrides: { Lambda: { concurrency: 2000 } },
+        propertyOverrides: { lambda: { concurrency: 2000 } },
       });
       const lambda = node(result, 'Lambda');
       // New capacity = 2000 / 0.2 = 10000. 8000 < 10000 → not overloaded
@@ -1497,7 +1521,7 @@ Processor
 `);
       // Use propertyOverrides — scenario syntax is deprecated and ignored by parser
       const result = computeInfra(parsed, {
-        propertyOverrides: { Queue: { 'drain-rate': 1000 } },
+        propertyOverrides: { queue: { 'drain-rate': 1000 } },
       });
       expect(node(result, 'Processor').computedRps).toBe(1000);
     });
@@ -1771,7 +1795,9 @@ edge
     max-rps 500
 `);
       // The collapsed group becomes a virtual node
-      const workers = result.nodes.find((n) => n.label === 'Workers' || n.id === 'Workers');
+      const workers = result.nodes.find(
+        (n) => n.label === 'Workers' || n.id === 'workers'
+      );
       expect(workers).toBeDefined();
       // The virtual node should carry queue properties from collapsed children
       const hasBuf = workers!.properties.some((p) => p.key === 'buffer');

@@ -62,6 +62,7 @@ export function renderCycle(
   renderOptions?: CycleRenderOptions
 ): void {
   if (parsed.nodes.length === 0) return;
+  const solid = parsed.options?.['solid-fill'] === 'on';
 
   // Clear previous render
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
@@ -252,8 +253,8 @@ export function renderCycle(
     const ln = layout.nodes[i];
     const node = parsed.nodes[i];
     const solidColor = resolveNodeColor(node.color, palette, defaultNodeColor);
-    // Canonical 25% tinted fill via shapeFill().
-    const fillColor = shapeFill(palette, solidColor, isDark);
+    // Canonical 25% tinted fill via shapeFill() (or full intent when solid-fill is on).
+    const fillColor = shapeFill(palette, solidColor, isDark, { solid });
     const textColor = contrastText(
       fillColor,
       palette.textOnFillLight,

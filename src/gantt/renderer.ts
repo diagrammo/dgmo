@@ -7,6 +7,7 @@ import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
 import { getSeriesColors } from '../palettes';
 import { contrastText, mix, shapeFill } from '../palettes/color-utils';
+import { normalizeName } from '../utils/name-normalize';
 import { resolveTagColor, resolveActiveTagGroup } from '../utils/tag-groups';
 import { computeTimeTicks } from '../utils/time-ticks';
 import {
@@ -130,7 +131,8 @@ function renderLabelBand(
   palette: PaletteColors,
   isDark: boolean,
   cssPrefix: 'group' | 'lane',
-  dataAttr?: { key: string; value: string }
+  dataAttr?: { key: string; value: string },
+  solid?: boolean
 ): void {
   const bandX = 5;
   const bandW = leftMargin - 7;
@@ -157,7 +159,7 @@ function renderLabelBand(
     .attr('width', bandW)
     .attr('height', BAR_H)
     .attr('rx', BAND_RADIUS)
-    .attr('fill', shapeFill(palette, color, isDark))
+    .attr('fill', shapeFill(palette, color, isDark, { solid }))
     .style('pointer-events', 'none');
 
   // Accent strip inside the tint, clipped to the band's rounded shape
@@ -223,6 +225,7 @@ export function renderGantt(
   bandClipCounter = 0;
 
   if (resolved.tasks.length === 0) return;
+  const solid = resolved.options.solidFill;
 
   // ── Destructure options ─────────────────────────────────
 
@@ -457,7 +460,7 @@ export function renderGantt(
         seriesColors,
         palette
       );
-      const fillColor = shapeFill(palette, color, isDark);
+      const fillColor = shapeFill(palette, color, isDark, { solid });
       el.select('rect').attr('fill', fillColor).attr('stroke', color);
     });
   }
@@ -622,7 +625,8 @@ export function renderGantt(
         palette,
         isDark,
         'lane',
-        { key: 'data-lane', value: row.laneName }
+        { key: 'data-lane', value: row.laneName },
+        solid
       );
       const labelG = svg
         .append('g')
@@ -671,7 +675,7 @@ export function renderGantt(
         );
 
       if (laneBarWidth > 0) {
-        const barFill = shapeFill(palette, laneColor, isDark);
+        const barFill = shapeFill(palette, laneColor, isDark, { solid });
         const laneBandG = g
           .append('g')
           .attr('class', 'gantt-lane-band-group')
@@ -749,7 +753,8 @@ export function renderGantt(
         palette,
         isDark,
         'group',
-        { key: 'data-group', value: group.name }
+        { key: 'data-group', value: group.name },
+        solid
       );
       const labelG = svg
         .append('g')
@@ -833,7 +838,7 @@ export function renderGantt(
             .attr('width', barWidth)
             .attr('height', BAR_H)
             .attr('rx', 4)
-            .attr('fill', shapeFill(palette, groupColor, isDark))
+            .attr('fill', shapeFill(palette, groupColor, isDark, { solid }))
             .attr('stroke', groupColor)
             .attr('stroke-width', 2);
 
@@ -860,7 +865,7 @@ export function renderGantt(
             innerWidth,
             palette.text,
             contrastText(
-              shapeFill(palette, groupColor, isDark),
+              shapeFill(palette, groupColor, isDark, { solid }),
               palette.textOnFillLight,
               palette.textOnFillDark
             )
@@ -888,7 +893,7 @@ export function renderGantt(
         } else {
           // Expanded: bar spanning group date range (matches task bar style)
           const groupBarWidth = Math.max(gx2 - gx1, 2);
-          const bandFill = shapeFill(palette, groupColor, isDark);
+          const bandFill = shapeFill(palette, groupColor, isDark, { solid });
           const groupBarG = g
             .append('g')
             .attr('class', 'gantt-group-bar')
@@ -945,7 +950,7 @@ export function renderGantt(
             innerWidth,
             palette.text,
             contrastText(
-              shapeFill(palette, groupColor, isDark),
+              shapeFill(palette, groupColor, isDark, { solid }),
               palette.textOnFillLight,
               palette.textOnFillDark
             )
@@ -1084,7 +1089,7 @@ export function renderGantt(
         const x2 = xScale(tEnd);
         const barWidth = Math.max(x2 - x1, 2);
 
-        const fillColor = shapeFill(palette, barColor, isDark);
+        const fillColor = shapeFill(palette, barColor, isDark, { solid });
 
         const taskG = g
           .append('g')
@@ -1256,7 +1261,7 @@ export function renderGantt(
           innerWidth,
           palette.text,
           contrastText(
-            shapeFill(palette, barColor, isDark),
+            shapeFill(palette, barColor, isDark, { solid }),
             palette.textOnFillLight,
             palette.textOnFillDark
           )
@@ -1673,11 +1678,14 @@ function renderDependencyArrows(
     if (!sourcePos) continue;
 
     for (const dep of rt.task.dependencies) {
-      // Find target task
+      // Find target task — forgiving normalization per universal name handling
+      const depKey = normalizeName(dep.targetName);
       const targetTask = resolved.tasks.find(
         (t) =>
-          t.task.label === dep.targetName ||
-          `${t.groupPath.join('.')}.${t.task.label}`.endsWith(dep.targetName)
+          normalizeName(t.task.label) === depKey ||
+          normalizeName(`${t.groupPath.join('.')}.${t.task.label}`).endsWith(
+            depKey
+          )
       );
       if (!targetTask) continue;
 
@@ -2819,12 +2827,13 @@ function highlightDeps(
   // Predecessors: tasks whose deps point to this task
   for (const rt of resolved.tasks) {
     for (const dep of rt.task.dependencies) {
-      // Check if this dep points to our task
+      // Check if this dep points to our task (forgiving normalization)
+      const depKey = normalizeName(dep.targetName);
       if (
-        dep.targetName === task.task.label ||
-        `${task.groupPath.join('.')}.${task.task.label}`.endsWith(
-          dep.targetName
-        )
+        depKey === normalizeName(task.task.label) ||
+        normalizeName(
+          `${task.groupPath.join('.')}.${task.task.label}`
+        ).endsWith(depKey)
       ) {
         related.add(rt.task.id);
       }

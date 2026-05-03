@@ -83,6 +83,7 @@ export function renderJourneyMap(
   const onActiveTagGroupChange = options?.onActiveTagGroupChange;
   const collapsedPhases = options?.collapsedPhases ?? new Set<string>();
   const onPhaseToggle = options?.onPhaseToggle;
+  const solid = parsed.options['solid-fill'] === 'on';
 
   const layout = layoutJourneyMap(parsed, palette, {
     collapsedPhases,
@@ -203,8 +204,8 @@ export function renderJourneyMap(
       .attr('height', panelHeight)
       .attr('rx', CARD_RADIUS);
 
-    // Card — canonical 25% tint via shapeFill() (was 15%)
-    const personaFill = shapeFill(palette, personaColor, isDark);
+    // Card — canonical 25% tint via shapeFill() (or full intent when solid-fill is on)
+    const personaFill = shapeFill(palette, personaColor, isDark, { solid });
 
     personaG
       .append('rect')
@@ -653,11 +654,12 @@ export function renderJourneyMap(
             parsed.tagGroups,
             palette
           );
-          // Canonical 25% tint via shapeFill() (was 15%)
+          // Canonical 25% tint via shapeFill() (or full intent when solid-fill is on)
           const rowFill = shapeFill(
             palette,
             stepColor ?? palette.primary,
-            isDark
+            isDark,
+            { solid }
           );
           const rowStroke = stepColor ?? palette.textMuted;
 
@@ -723,7 +725,8 @@ export function renderJourneyMap(
             isDark,
             effectiveActiveGroup,
             parsed.tagGroups,
-            onNavigateToLine
+            onNavigateToLine,
+            solid
           );
         }
       }
@@ -738,7 +741,8 @@ export function renderJourneyMap(
         isDark,
         effectiveActiveGroup,
         parsed.tagGroups,
-        onNavigateToLine
+        onNavigateToLine,
+        solid
       );
     }
   }
@@ -1084,7 +1088,8 @@ function renderStepCard(
   isDark: boolean,
   activeGroup: string | null,
   tagGroups: import('../utils/tag-groups').TagGroup[],
-  onNavigateToLine?: (line: number) => void
+  onNavigateToLine?: (line: number) => void,
+  solid?: boolean
 ): void {
   const stepG = parent
     .append('g')
@@ -1110,8 +1115,15 @@ function renderStepCard(
     tagGroups,
     palette
   );
-  // Canonical 25% tint via shapeFill() (was 15%)
-  const cardFill = shapeFill(palette, resolvedColor ?? palette.primary, isDark);
+  // Canonical 25% tint via shapeFill() (or full intent when solid-fill is on)
+  const cardFill = shapeFill(
+    palette,
+    resolvedColor ?? palette.primary,
+    isDark,
+    {
+      solid,
+    }
+  );
   const cardStroke = resolvedColor ?? palette.textMuted;
 
   // Card background
@@ -1236,8 +1248,8 @@ function renderStepCard(
     const stripColor = entry?.color ?? palette.textMuted;
     const TAG_GAP = 6;
     const stripY = cy - TAG_STRIP_HEIGHT - TAG_GAP;
-    // Canonical 25% tint via shapeFill() (was 15%)
-    const stripFill = shapeFill(palette, stripColor, isDark);
+    // Canonical 25% tint via shapeFill() (or full intent when solid-fill is on)
+    const stripFill = shapeFill(palette, stripColor, isDark, { solid });
 
     stepG
       .append('rect')

@@ -4,7 +4,14 @@
 
 import { inferParticipantType } from './participant-inference';
 import type { DgmoError } from '../diagnostics';
-import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
+import {
+  makeDgmoError,
+  formatDgmoError,
+  suggest,
+  NAME_DIAGNOSTIC_CODES,
+  nameMergedMessage,
+} from '../diagnostics';
+import { normalizeName, displayName } from '../utils/name-normalize';
 import { parseArrow, parseInArrowLabel } from '../utils/arrows';
 import {
   measureIndent,
@@ -26,7 +33,7 @@ import {
 const KNOWN_SEQ_OPTIONS = new Set(['active-tag']);
 
 /** Known sequence-diagram boolean options (bare keyword or `no-` prefix). */
-const KNOWN_SEQ_BOOLEANS = new Set(['activations']);
+const KNOWN_SEQ_BOOLEANS = new Set(['activations', 'solid-fill']);
 
 /**
  * Participant types that can be declared via "Name is a type" syntax.
@@ -258,8 +265,15 @@ function parseNoteLine(
       if (!lastMsgFrom) return { kind: 'skip' };
       participantId = lastMsgFrom;
     }
-    if (participantIds.has(participantId)) {
-      return { kind: 'multi-head', position, participantId };
+    const lookupKey = normalizeName(participantId);
+    if (participantIds.has(lookupKey)) {
+      // Resolve to first-seen display id so the renderer can find it
+      const found = participants.find((p) => normalizeName(p.id) === lookupKey);
+      return {
+        kind: 'multi-head',
+        position,
+        participantId: found?.id ?? participantId,
+      };
     }
     // Participant not found — fall through to bare-note handler for proper resolution
   }
@@ -286,7 +300,8 @@ function parseNoteLine(
       if (!afterPos) {
         // Just `note left` or `note right` — multi-line head
         if (!lastMsgFrom) return { kind: 'skip' };
-        if (!participantIds.has(lastMsgFrom)) return { kind: 'skip' };
+        if (!participantIds.has(normalizeName(lastMsgFrom)))
+          return { kind: 'skip' };
         return { kind: 'multi-head', position, participantId: lastMsgFrom };
       }
 
@@ -322,7 +337,8 @@ function parseNoteLine(
 
       // Without `of`, treat remaining text as note content on the last-msg sender
       if (!lastMsgFrom) return { kind: 'skip' };
-      if (!participantIds.has(lastMsgFrom)) return { kind: 'skip' };
+      if (!participantIds.has(normalizeName(lastMsgFrom)))
+        return { kind: 'skip' };
       return {
         kind: 'single',
         position,
@@ -333,7 +349,8 @@ function parseNoteLine(
 
     // Plain `note text` — default position, last msg sender
     if (!lastMsgFrom) return { kind: 'skip' };
-    if (!participantIds.has(lastMsgFrom)) return { kind: 'skip' };
+    if (!participantIds.has(normalizeName(lastMsgFrom)))
+      return { kind: 'skip' };
     return {
       kind: 'single',
       position: 'right',
@@ -362,23 +379,29 @@ function resolveParticipantAndText(
     const endQuote = input.indexOf(quote, 1);
     if (endQuote > 0) {
       const name = input.substring(1, endQuote);
-      if (participantIds.has(name)) {
+      const key = normalizeName(name);
+      if (participantIds.has(key)) {
         const text = input.substring(endQuote + 1).trim();
-        return { participantId: name, text };
+        const found = participants.find((p) => normalizeName(p.id) === key);
+        return { participantId: found?.id ?? name, text };
       }
     }
     return null;
   }
 
-  // Use pre-sorted participants (longest first) for greedy matching
+  // Use pre-sorted participants (longest display id first) for greedy
+  // matching. Compare via the shared normalizer so 'auth service text' matches
+  // a participant declared as 'Auth Service'.
   const sorted = sortedParticipantsCache;
   for (const p of sorted) {
-    if (input.startsWith(p.id)) {
-      const remaining = input.substring(p.id.length);
-      // Must be followed by whitespace, end of string, or nothing
-      if (remaining === '' || remaining[0] === ' ' || remaining[0] === '\t') {
-        return { participantId: p.id, text: remaining.trim() };
-      }
+    const idLen = p.id.length;
+    if (input.length < idLen) continue;
+    const candidate = input.substring(0, idLen);
+    if (normalizeName(candidate) !== normalizeName(p.id)) continue;
+    const remaining = input.substring(idLen);
+    // Must be followed by whitespace, end of string, or nothing
+    if (remaining === '' || remaining[0] === ' ' || remaining[0] === '\t') {
+      return { participantId: p.id, text: remaining.trim() };
     }
   }
   return null;
@@ -449,19 +472,90 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
   // Group parsing state — tracks the active [Group] heading
   let activeGroup: SequenceGroup | null = null;
 
-  // Fast lookup set for participant existence checks (mirrors result.participants)
+  // Fast lookup set for participant existence checks (mirrors result.participants).
+  // Holds NORMALIZED participant keys so 'Auth Service' and 'auth service' fold
+  // to the same entry. Display label survives in result.participants[i].label.
   const participantIds = new Set<string>();
+
+  // Map<normalizedKey, first-seen participant.id> — the canonical
+  // identifier callers store on messages, group memberships, etc.
+  const idByKey = new Map<string, string>();
+
+  /**
+   * Get-or-create a participant by normalized key. Returns the FIRST-SEEN
+   * `participant.id` — which is the user's original casing/spacing.
+   * Callers should use the returned value on messages, group memberships,
+   * notes, etc. so all references resolve to the canonical id.
+   *
+   * Emits NAME_MERGED warning when an incoming source label normalizes to
+   * an existing key but its display form differs (case/whitespace).
+   */
+  const addParticipant = (
+    name: string,
+    lineNumber: number,
+    extras?: {
+      type?: ParticipantType;
+      position?: number;
+      label?: string;
+      metadata?: Record<string, string>;
+    }
+  ): string => {
+    const key = normalizeName(name);
+    const trimmed = name.trim();
+    const incomingLabel = extras?.label ?? trimmed;
+    if (participantIds.has(key)) {
+      const existing = result.participants.find(
+        (p) => normalizeName(p.id) === key
+      );
+      if (existing) {
+        if (
+          displayName(existing.label) !== displayName(incomingLabel) ||
+          displayName(existing.id) !== displayName(trimmed)
+        ) {
+          result.diagnostics.push(
+            makeDgmoError(
+              lineNumber,
+              nameMergedMessage({
+                incomingDisplay: trimmed,
+                incomingLine: lineNumber,
+                existingDisplay: existing.id,
+                existingLine: existing.lineNumber,
+              }),
+              'warning',
+              NAME_DIAGNOSTIC_CODES.NAME_MERGED
+            )
+          );
+        }
+        return existing.id;
+      }
+      // Fallback: idByKey lookup hit but participant somehow missing.
+      return idByKey.get(key) ?? trimmed;
+    }
+    participantIds.add(key);
+
+    idByKey.set(key, trimmed);
+    sortedCacheDirty = true;
+    result.participants.push({
+      id: trimmed,
+      label: incomingLabel,
+      type: extras?.type ?? inferParticipantType(name),
+      lineNumber,
+      ...(extras?.position !== undefined ? { position: extras.position } : {}),
+      ...(extras?.metadata ? { metadata: extras.metadata } : {}),
+    });
+    return trimmed;
+  };
 
   // Cache sorted participants (longest ID first) for greedy name matching in notes.
   // Invalidated whenever a new participant is added.
   let sortedParticipantsCache: SequenceParticipant[] = [];
   let sortedCacheDirty = true;
 
-  /** Get sorted participants, rebuilding cache only when dirty. */
+  /** Get sorted participants (longest display label first), rebuilding only when dirty. */
   const getSortedParticipants = (): SequenceParticipant[] => {
     if (sortedCacheDirty) {
       sortedParticipantsCache = [...result.participants].sort(
-        (a, b) => b.id.length - a.id.length
+        (a, b) => b.label.length - a.label.length
       );
       sortedCacheDirty = false;
     }
@@ -770,6 +864,18 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
           continue;
         }
       }
+      // Bare boolean keyword: `solid-fill`
+      if (KNOWN_SEQ_BOOLEANS.has(optLower) && optLower === 'solid-fill') {
+        if (contentStarted) {
+          pushError(
+            lineNumber,
+            `Options like '${trimmed}' must appear before the first message or declaration`
+          );
+          continue;
+        }
+        result.options['solid-fill'] = 'on';
+        continue;
+      }
     }
 
     // Parse "Name is a type [aka Alias]" declarations (always top-level)
@@ -799,29 +905,25 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       const position = posMatch ? parseInt(posMatch[1], 10) : undefined;
 
       // Avoid duplicate participant declarations
-      if (!participantIds.has(id)) {
-        participantIds.add(id);
-        sortedCacheDirty = true;
-        result.participants.push({
-          id,
-          label: alias || id,
-          type: participantType,
-          lineNumber,
-          ...(position !== undefined ? { position } : {}),
-          ...(isAMeta ? { metadata: isAMeta } : {}),
-        });
-      }
+      const key = addParticipant(id, lineNumber, {
+        type: participantType,
+        label: alias || displayName(id),
+        position,
+        metadata: isAMeta,
+      });
       // Track group membership
-      if (activeGroup && !activeGroup.participantIds.includes(id)) {
-        const existingGroup = participantGroupMap.get(id);
+      if (activeGroup && !activeGroup.participantIds.includes(key)) {
+        const existingGroup = participantGroupMap.get(key);
         if (existingGroup) {
           pushError(
             lineNumber,
             `Participant '${id}' is already in group '${existingGroup}' — participants can only belong to one group`
           );
         } else {
-          activeGroup.participantIds.push(id);
-          participantGroupMap.set(id, activeGroup.name);
+          activeGroup.participantIds.push(key);
+          // participantGroupMap is keyed by normalized participant key
+
+          participantGroupMap.set(key, activeGroup.name);
         }
       }
       continue;
@@ -835,29 +937,22 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       const id = posOnlyMatch[1];
       const position = parseInt(posOnlyMatch[2], 10);
 
-      if (!participantIds.has(id)) {
-        participantIds.add(id);
-        sortedCacheDirty = true;
-        result.participants.push({
-          id,
-          label: id,
-          type: inferParticipantType(id),
-          lineNumber,
-          position,
-          ...(posMeta ? { metadata: posMeta } : {}),
-        });
-      }
+      const key = addParticipant(id, lineNumber, {
+        position,
+        metadata: posMeta,
+      });
       // Track group membership
-      if (activeGroup && !activeGroup.participantIds.includes(id)) {
-        const existingGroup = participantGroupMap.get(id);
+      if (activeGroup && !activeGroup.participantIds.includes(key)) {
+        const existingGroup = participantGroupMap.get(key);
         if (existingGroup) {
           pushError(
             lineNumber,
             `Participant '${id}' is already in group '${existingGroup}' — participants can only belong to one group`
           );
         } else {
-          activeGroup.participantIds.push(id);
-          participantGroupMap.set(id, activeGroup.name);
+          activeGroup.participantIds.push(key);
+
+          participantGroupMap.set(key, activeGroup.name);
         }
       }
       continue;
@@ -875,27 +970,18 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
         `'${id}(${color})' syntax is no longer supported — use 'tag:' groups for coloring`
       );
       contentStarted = true;
-      if (!participantIds.has(id)) {
-        participantIds.add(id);
-        sortedCacheDirty = true;
-        result.participants.push({
-          id,
-          label: id,
-          type: inferParticipantType(id),
-          lineNumber,
-          ...(colorMeta ? { metadata: colorMeta } : {}),
-        });
-      }
-      if (activeGroup && !activeGroup.participantIds.includes(id)) {
-        const existingGroup = participantGroupMap.get(id);
+      const key = addParticipant(id, lineNumber, { metadata: colorMeta });
+      if (activeGroup && !activeGroup.participantIds.includes(key)) {
+        const existingGroup = participantGroupMap.get(key);
         if (existingGroup) {
           pushError(
             lineNumber,
             `Participant '${id}' is already in group '${existingGroup}' — participants can only belong to one group`
           );
         } else {
-          activeGroup.participantIds.push(id);
-          participantGroupMap.set(id, activeGroup.name);
+          activeGroup.participantIds.push(key);
+
+          participantGroupMap.set(key, activeGroup.name);
         }
       }
       continue;
@@ -913,26 +999,18 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       ) {
         contentStarted = true;
         const id = bareCore;
-        if (!participantIds.has(id)) {
-          participantIds.add(id);
-          result.participants.push({
-            id,
-            label: id,
-            type: inferParticipantType(id),
-            lineNumber,
-            ...(bareMeta ? { metadata: bareMeta } : {}),
-          });
-        }
-        if (activeGroup && !activeGroup.participantIds.includes(id)) {
-          const existingGroup = participantGroupMap.get(id);
+        const key = addParticipant(id, lineNumber, { metadata: bareMeta });
+        if (activeGroup && !activeGroup.participantIds.includes(key)) {
+          const existingGroup = participantGroupMap.get(key);
           if (existingGroup) {
             pushError(
               lineNumber,
               `Participant '${id}' is already in group '${existingGroup}' — participants can only belong to one group`
             );
           } else {
-            activeGroup.participantIds.push(id);
-            participantGroupMap.set(id, activeGroup.name);
+            activeGroup.participantIds.push(key);
+
+            participantGroupMap.set(key, activeGroup.name);
           }
         }
         continue;
@@ -978,7 +1056,9 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     if (labeledArrow) {
       contentStarted = true;
       const { from, to, label: rawLabel, async: isAsync } = labeledArrow;
-      lastMsgFrom = from;
+      const fromKey = addParticipant(from, lineNumber);
+      const toKey = addParticipant(to, lineNumber);
+      lastMsgFrom = fromKey;
 
       // TD-13/TD-14: validate in-arrow label characters
       const labelResult = parseInArrowLabel(rawLabel, lineNumber);
@@ -986,8 +1066,8 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       const label = labelResult.label ?? rawLabel;
 
       const msg: SequenceMessage = {
-        from,
-        to,
+        from: fromKey,
+        to: toKey,
         label,
         lineNumber,
         ...(isAsync ? { async: true } : {}),
@@ -995,28 +1075,6 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       };
       result.messages.push(msg);
       currentContainer().push(msg);
-
-      // Auto-register participants
-      if (!participantIds.has(from)) {
-        participantIds.add(from);
-        sortedCacheDirty = true;
-        result.participants.push({
-          id: from,
-          label: from,
-          type: inferParticipantType(from),
-          lineNumber,
-        });
-      }
-      if (!participantIds.has(to)) {
-        participantIds.add(to);
-        sortedCacheDirty = true;
-        result.participants.push({
-          id: to,
-          label: to,
-          type: inferParticipantType(to),
-          lineNumber,
-        });
-      }
       continue;
     }
 
@@ -1073,11 +1131,13 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       contentStarted = true;
       const from = bareCall[1];
       const to = bareCall[2];
-      lastMsgFrom = from;
+      const fromKey = addParticipant(from, lineNumber);
+      const toKey = addParticipant(to, lineNumber);
+      lastMsgFrom = fromKey;
 
       const msg: SequenceMessage = {
-        from,
-        to,
+        from: fromKey,
+        to: toKey,
         label: '',
         lineNumber,
         ...(bareCallAsync ? { async: true } : {}),
@@ -1085,27 +1145,6 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       };
       result.messages.push(msg);
       currentContainer().push(msg);
-
-      if (!participantIds.has(from)) {
-        participantIds.add(from);
-        sortedCacheDirty = true;
-        result.participants.push({
-          id: from,
-          label: from,
-          type: inferParticipantType(from),
-          lineNumber,
-        });
-      }
-      if (!participantIds.has(to)) {
-        participantIds.add(to);
-        sortedCacheDirty = true;
-        result.participants.push({
-          id: to,
-          label: to,
-          type: inferParticipantType(to),
-          lineNumber,
-        });
-      }
       continue;
     }
 
@@ -1285,13 +1324,18 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
   if (result.messages.length > 0) {
     const usedIds = new Set<string>();
     for (const msg of result.messages) {
+      // msg.from / msg.to / el.participantId are normalized participant keys
+      // (set via addParticipant during parsing)
+      // eslint-disable-next-line name-normalize/required-at-insertion
       usedIds.add(msg.from);
+      // eslint-disable-next-line name-normalize/required-at-insertion
       usedIds.add(msg.to);
     }
     // Walk elements recursively to find note participant references
     const walkElements = (elements: SequenceElement[]): void => {
       for (const el of elements) {
         if (isSequenceNote(el)) {
+          // eslint-disable-next-line name-normalize/required-at-insertion
           usedIds.add(el.participantId);
         } else if (isSequenceBlock(el)) {
           walkElements(el.children);

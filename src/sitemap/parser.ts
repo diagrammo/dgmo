@@ -6,6 +6,7 @@ import type { PaletteColors } from '../palettes';
 import { resolveColorWithDiagnostic } from '../colors';
 import type { DgmoError } from '../diagnostics';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
+import { normalizeName } from '../utils/name-normalize';
 import type { TagGroup } from '../utils/tag-groups';
 import {
   isTagBlockHeading,
@@ -23,6 +24,7 @@ import {
   parseFirstLine,
   OPTION_NOCOLON_RE,
   ALL_CHART_TYPES,
+  tryParseSharedOption,
 } from '../utils/parsing';
 import type { SitemapNode, ParsedSitemap } from './types';
 import { tryStripDescriptionKeyword } from '../utils/description-helpers';
@@ -291,6 +293,10 @@ export function parseSitemap(
         continue;
       }
 
+      if (tryParseSharedOption(trimmed, result.options)) {
+        continue;
+      }
+
       const optMatch = trimmed.match(OPTION_NOCOLON_RE);
       if (optMatch) {
         const key = optMatch[1].trim().toLowerCase();
@@ -398,7 +404,8 @@ export function parseSitemap(
 
       attachNode(node, indent, indentStack, result);
       // Register in labelToContainer for group-targeted arrows (-> [Group])
-      labelToContainer.set(label.toLowerCase(), node);
+      const key = normalizeName(label);
+      labelToContainer.set(key, node);
     } else if (metadataMatch && indentStack.length > 0) {
       // Metadata line — attach to parent
       const rawKey = metadataMatch[1].trim().toLowerCase();
@@ -424,7 +431,8 @@ export function parseSitemap(
           result.diagnostics
         );
         attachNode(node, indent, indentStack, result);
-        labelToNode.set(node.label.toLowerCase(), node);
+        const key = normalizeName(node.label);
+        labelToNode.set(key, node);
       } else {
         pushError(lineNumber, 'Metadata has no parent node');
       }
@@ -451,13 +459,14 @@ export function parseSitemap(
         result.diagnostics
       );
       attachNode(node, indent, indentStack, result);
-      labelToNode.set(node.label.toLowerCase(), node);
+      const key = normalizeName(node.label);
+      labelToNode.set(key, node);
     }
   }
 
   // --- Post-parse: resolve arrow targets ---
   for (const arrow of deferredArrows) {
-    const targetKey = arrow.targetLabel.toLowerCase();
+    const targetKey = normalizeName(arrow.targetLabel);
 
     if (arrow.targetIsGroup) {
       // Group target: look up in labelToContainer

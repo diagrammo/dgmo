@@ -174,6 +174,8 @@ export interface ParsedVisualization {
   noName?: boolean;
   noValue?: boolean;
   noPercent?: boolean;
+  /** Render with full intent saturation instead of the canonical 25% tint. */
+  solidFill?: boolean;
   diagnostics: DgmoError[];
   error: string | null;
 }
@@ -897,9 +899,12 @@ export function parseVisualization(
 
     // Venn diagram DSL
     if (result.type === 'venn') {
-      // Intersection line: "A + B Label" / "A + B" / "A + B + C Label"
-      // Also accepts deprecated colon syntax: "A + B: Label"
-      if (/\+/.test(line)) {
+      // Skip cross-chart bare-keyword options so they don't get parsed as
+      // a 4th set name (the bare-keyword block at line ~1132 runs AFTER
+      // type-specific parsing).
+      if (/^(solid-fill|no-name|no-value|no-percent)$/i.test(line)) {
+        // Fall through to the bare-keyword block below.
+      } else if (/\+/.test(line)) {
         // Build lookup of known set names and aliases for label extraction
         const knownSetRefs = new Set<string>();
         for (const s of result.vennSets) {
@@ -946,25 +951,28 @@ export function parseVisualization(
       }
 
       // Set declaration: "Name(color) alias x" / "Name alias x" / "Name(color)" / "Name"
-      const setDeclMatch = line.match(
-        /^([^(:]+?)(?:\(([^)]+)\))?(?:\s+alias\s+(\S+))?\s*$/i
-      );
-      if (setDeclMatch) {
-        const name = setDeclMatch[1].trim();
-        const colorName = setDeclMatch[2]?.trim() ?? null;
-        let color: string | null = null;
-        if (colorName) {
-          color =
-            resolveColorWithDiagnostic(
-              colorName,
-              lineNumber,
-              result.diagnostics,
-              palette
-            ) ?? null;
+      // Only attempt set parsing if the line wasn't a bare-keyword option (handled above).
+      if (!/^(solid-fill|no-name|no-value|no-percent)$/i.test(line)) {
+        const setDeclMatch = line.match(
+          /^([^(:]+?)(?:\(([^)]+)\))?(?:\s+alias\s+(\S+))?\s*$/i
+        );
+        if (setDeclMatch) {
+          const name = setDeclMatch[1].trim();
+          const colorName = setDeclMatch[2]?.trim() ?? null;
+          let color: string | null = null;
+          if (colorName) {
+            color =
+              resolveColorWithDiagnostic(
+                colorName,
+                lineNumber,
+                result.diagnostics,
+                palette
+              ) ?? null;
+          }
+          const alias = setDeclMatch[3]?.trim() ?? null;
+          result.vennSets.push({ name, alias, color, lineNumber });
+          continue;
         }
-        const alias = setDeclMatch[3]?.trim() ?? null;
-        result.vennSets.push({ name, alias, color, lineNumber });
-        continue;
       }
     }
 
@@ -1140,6 +1148,10 @@ export function parseVisualization(
       }
       if (bareToken === 'no-percent') {
         result.noPercent = true;
+        continue;
+      }
+      if (bareToken === 'solid-fill') {
+        result.solidFill = true;
         continue;
       }
       // Silent-ignore unrecognized no-* flags (typos, future flags).
@@ -3442,6 +3454,7 @@ export function renderTimeline(
   viewMode?: boolean
 ): void {
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
+  const solid = parsed.solidFill === true;
 
   const {
     timelineEvents,
@@ -3933,7 +3946,7 @@ export function renderTimeline(
             const y2 = yScale(parseTimelineDate(ev.endDate));
             const rectH = Math.max(y2 - y, 4);
 
-            let fill: string = shapeFill(palette, evColor, isDark);
+            let fill: string = shapeFill(palette, evColor, isDark, { solid });
             let stroke: string = evColor;
             if (ev.uncertain) {
               const gradientId = `uncertain-vg-${ev.lineNumber}`;
@@ -4005,7 +4018,7 @@ export function renderTimeline(
               .attr('cx', laneCenter)
               .attr('cy', y)
               .attr('r', 4)
-              .attr('fill', shapeFill(palette, evColor, isDark))
+              .attr('fill', shapeFill(palette, evColor, isDark, { solid }))
               .attr('stroke', evColor)
               .attr('stroke-width', 2);
             evG
@@ -4165,7 +4178,7 @@ export function renderTimeline(
           const y2 = yScale(parseTimelineDate(ev.endDate));
           const rectH = Math.max(y2 - y, 4);
 
-          let fill: string = shapeFill(palette, color, isDark);
+          let fill: string = shapeFill(palette, color, isDark, { solid });
           let stroke: string = color;
           if (ev.uncertain) {
             const gradientId = `uncertain-v-${ev.lineNumber}`;
@@ -4236,7 +4249,7 @@ export function renderTimeline(
             .attr('cx', axisX)
             .attr('cy', y)
             .attr('r', 4)
-            .attr('fill', shapeFill(palette, color, isDark))
+            .attr('fill', shapeFill(palette, color, isDark, { solid }))
             .attr('stroke', color)
             .attr('stroke-width', 2);
           evG
@@ -4524,7 +4537,7 @@ export function renderTimeline(
           const estLabelWidth = ev.label.length * 7 + 16;
           const labelFitsInside = rectW >= estLabelWidth;
 
-          let fill: string = shapeFill(palette, evColor, isDark);
+          let fill: string = shapeFill(palette, evColor, isDark, { solid });
           let stroke: string = evColor;
           if (ev.uncertain) {
             // Create gradient for uncertain end - fades last 20%
@@ -4621,7 +4634,7 @@ export function renderTimeline(
             .attr('cx', x)
             .attr('cy', y)
             .attr('r', 5)
-            .attr('fill', shapeFill(palette, evColor, isDark))
+            .attr('fill', shapeFill(palette, evColor, isDark, { solid }))
             .attr('stroke', evColor)
             .attr('stroke-width', 2);
           evG
@@ -4810,7 +4823,7 @@ export function renderTimeline(
         const estLabelWidth = ev.label.length * 7 + 16;
         const labelFitsInside = rectW >= estLabelWidth;
 
-        let fill: string = shapeFill(palette, color, isDark);
+        let fill: string = shapeFill(palette, color, isDark, { solid });
         let stroke: string = color;
         if (ev.uncertain) {
           // Create gradient for uncertain end - fades last 20%
@@ -4907,7 +4920,7 @@ export function renderTimeline(
           .attr('cx', x)
           .attr('cy', y)
           .attr('r', 5)
-          .attr('fill', shapeFill(palette, color, isDark))
+          .attr('fill', shapeFill(palette, color, isDark, { solid }))
           .attr('stroke', color)
           .attr('stroke-width', 2);
         evG
@@ -5196,10 +5209,10 @@ export function renderTimeline(
                 : textColor;
           }
           el.selectAll('rect')
-            .attr('fill', shapeFill(palette, color, isDark))
+            .attr('fill', shapeFill(palette, color, isDark, { solid }))
             .attr('stroke', color);
           el.selectAll('circle:not(.tl-event-point-outline)')
-            .attr('fill', shapeFill(palette, color, isDark))
+            .attr('fill', shapeFill(palette, color, isDark, { solid }))
             .attr('stroke', color);
         });
       }

@@ -41,10 +41,11 @@ const COLLAPSE_BAR_HEIGHT = 6;
 function nodeFill(
   palette: PaletteColors,
   isDark: boolean,
-  nodeColor?: string
+  nodeColor?: string,
+  solid?: boolean
 ): string {
   const color = nodeColor ?? palette.primary;
-  return shapeFill(palette, color, isDark);
+  return shapeFill(palette, color, isDark, { solid });
 }
 
 function nodeStroke(palette: PaletteColors, nodeColor?: string): string {
@@ -292,7 +293,12 @@ export function renderMindmap(
     const effectiveColor = options?.colorByDepth
       ? depthColor(node.depth, palette)
       : node.color;
-    const fill = nodeFill(palette, isDark, effectiveColor);
+    const fill = nodeFill(
+      palette,
+      isDark,
+      effectiveColor,
+      parsed.options['solid-fill'] === 'on'
+    );
     const stroke = nodeStroke(palette, effectiveColor);
     const onFillText = contrastText(
       fill,

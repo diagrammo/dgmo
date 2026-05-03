@@ -18,7 +18,7 @@ export const oneDarkPalette: PaletteConfig = {
     text: '#383a42',
     textMuted: '#696c77',
     textOnFillLight: '#fafafa',
-    textOnFillDark: '#383a42',
+    textOnFillDark: '#181a1f', // Tightened from #383a42 — the light Text token fails 3:1 on saturated blue/teal
     primary: '#4078f2',
     secondary: '#a626a4',
     accent: '#0184bc',

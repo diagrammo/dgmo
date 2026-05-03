@@ -7,6 +7,7 @@ import {
   measureIndent,
   parseFirstLine,
   parsePipeMetadata,
+  tryParseSharedOption,
 } from '../utils/parsing';
 import type { ParsedPyramid, PyramidLayer } from './types';
 
@@ -97,6 +98,11 @@ export function parsePyramid(content: string): ParsedPyramid {
     // ── Bare directive: inverted ──
     if (indent === 0 && trimmed.toLowerCase() === 'inverted') {
       result.inverted = true;
+      continue;
+    }
+
+    // ── Shared bare keyword: solid-fill ──
+    if (indent === 0 && tryParseSharedOption(trimmed, result.options)) {
       continue;
     }
 

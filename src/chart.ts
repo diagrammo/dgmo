@@ -49,6 +49,8 @@ export interface ParsedChart {
   noName?: boolean;
   noValue?: boolean;
   noPercent?: boolean;
+  /** Render with full intent saturation instead of the canonical 25% tint. */
+  solidFill?: boolean;
   data: ChartDataPoint[];
   eras?: ChartEra[];
   diagnostics: DgmoError[];
@@ -103,7 +105,7 @@ const KNOWN_OPTIONS = new Set([
 ]);
 
 /** Known boolean options for the simple chart parser. */
-const KNOWN_BOOLEANS = new Set(['orientation-horizontal']);
+const KNOWN_BOOLEANS = new Set(['orientation-horizontal', 'solid-fill']);
 
 /**
  * Parses the simple chart text format into a structured object.
@@ -240,6 +242,8 @@ export function parseChart(
     if (KNOWN_BOOLEANS.has(firstToken) && spaceIdx < 0) {
       if (firstToken === 'orientation-horizontal') {
         result.orientation = 'horizontal';
+      } else if (firstToken === 'solid-fill') {
+        result.solidFill = true;
       }
       continue;
     }

@@ -32,7 +32,7 @@ const LEGACY_COLUMN_RE = /^==\s+(.+?)\s*(?:\[wip:\s*(\d+)\])?\s*==$/;
 /** Known kanban options (key-value). */
 const KNOWN_OPTIONS = new Set(['hide', 'active-tag']);
 /** Known kanban boolean options (bare keyword = on). */
-const KNOWN_BOOLEANS = new Set<string>(['no-auto-color']);
+const KNOWN_BOOLEANS = new Set<string>(['no-auto-color', 'solid-fill']);
 
 // ============================================================
 // Parser

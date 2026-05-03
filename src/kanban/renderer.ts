@@ -266,6 +266,7 @@ export function renderKanban(
   const collapsedLanes = options?.collapsedLanes;
   const collapsedColumns = options?.collapsedColumns;
   const compactMeta = options?.compactMeta ?? false;
+  const solid = parsed.options['solid-fill'] === 'on';
   // Resolve current swimlane group: must match an existing tag group, else ignore.
   const requestedSwimlane = options?.currentSwimlaneGroup ?? null;
   const swimlaneGroup = requestedSwimlane
@@ -417,9 +418,9 @@ export function renderKanban(
 
     // Column body: always neutral
     const thisColBg = defaultColBg;
-    // Column header: tinted if column has explicit color
+    // Column header: tinted if column has explicit color (or full intent when solid-fill is on)
     const thisColHeaderBg = col.color
-      ? shapeFill(palette, col.color, isDark)
+      ? shapeFill(palette, col.color, isDark, { solid })
       : defaultColHeaderBg;
 
     if (isColCollapsed) {
@@ -533,11 +534,12 @@ export function renderKanban(
       );
       const hasMeta = tagMeta.length > 0 || card.details.length > 0;
 
-      // Canonical 25% tint via shapeFill() (was 15% before standardization)
+      // Canonical 25% tint via shapeFill() (or full intent when solid-fill is on)
       const cardFill = shapeFill(
         palette,
         resolvedColor ?? palette.primary,
-        isDark
+        isDark,
+        { solid }
       );
       const cardStroke = resolvedColor ?? palette.textMuted;
       const onCardText = contrastText(
@@ -945,7 +947,9 @@ function renderSwimlaneBoard(
       .attr('data-line-number', col.lineNumber);
 
     const colHeaderBg = col.color
-      ? shapeFill(palette, col.color, isDark)
+      ? shapeFill(palette, col.color, isDark, {
+          solid: parsed.options['solid-fill'] === 'on',
+        })
       : defaultColHeaderBg;
 
     headerG
@@ -1161,7 +1165,8 @@ function renderSwimlaneBoard(
             activeTagGroup,
             palette,
             isDark,
-            hiddenMetaGroups
+            hiddenMetaGroups,
+            parsed.options['solid-fill'] === 'on'
           );
         }
       }
@@ -1176,15 +1181,23 @@ function renderSwimlaneCard(
   activeTagGroup: string | null,
   palette: PaletteColors,
   isDark: boolean,
-  hiddenMetaGroups?: string[]
+  hiddenMetaGroups?: string[],
+  solid?: boolean
 ): void {
   const card = cardLayout.card;
   const resolvedColor = resolveCardTagColor(card, tagGroups, activeTagGroup);
   const tagMeta = resolveCardTagMeta(card, tagGroups, hiddenMetaGroups);
   const hasMeta = tagMeta.length > 0 || card.details.length > 0;
 
-  // Canonical 25% tint via shapeFill() (was 15% before standardization)
-  const cardFill = shapeFill(palette, resolvedColor ?? palette.primary, isDark);
+  // Canonical 25% tint via shapeFill() (or full intent when solid-fill is on)
+  const cardFill = shapeFill(
+    palette,
+    resolvedColor ?? palette.primary,
+    isDark,
+    {
+      solid,
+    }
+  );
   const cardStroke = resolvedColor ?? palette.textMuted;
   const onCardText = contrastText(
     cardFill,

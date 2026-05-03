@@ -424,7 +424,9 @@ function renderHtmlPanel(
   onClickItem?: (lineNumber: number) => void
 ): (lineNumber: number) => void {
   const ringOrder = parsed.rings.map((r) => r.name);
-  const fillColor = shapeFill(palette, qColor, isDark);
+  const fillColor = shapeFill(palette, qColor, isDark, {
+    solid: parsed.options['solid-fill'] === 'on',
+  });
   let expandedLineNum: string | null = null;
 
   function render() {
@@ -1008,7 +1010,9 @@ function renderStaticHtmlPanel(
   isDark: boolean
 ): void {
   const ringOrder = parsed.rings.map((r) => r.name);
-  const fillColor = shapeFill(palette, qColor, isDark);
+  const fillColor = shapeFill(palette, qColor, isDark, {
+    solid: parsed.options['solid-fill'] === 'on',
+  });
 
   for (const ringName of ringOrder) {
     const blips = quadrant.blips.filter((b) => b.ring === ringName);

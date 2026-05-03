@@ -60,11 +60,12 @@ export default tseslint.config(
     ...tseslint.configs.disableTypeChecked,
   },
   // Universal Name Handling guardrail — see eslint-plugin-local/rules/.
-  // Severity is 'warn' until Phase B migrates the existing parser
-  // insertion sites; the Phase B PR escalates this to 'error'.
+  // Phase B migrated every parser insertion site through normalizeName /
+  // getOrCreateName; the rule is now an error so future insertions can't
+  // silently re-introduce phantom-entity bugs.
   {
     files: ['src/**/*.ts'],
     plugins: { 'name-normalize': localPlugin },
-    rules: { 'name-normalize/required-at-insertion': 'warn' },
+    rules: { 'name-normalize/required-at-insertion': 'error' },
   }
 );

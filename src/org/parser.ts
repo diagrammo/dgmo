@@ -58,7 +58,11 @@ const KNOWN_OPTIONS = new Set([
   'active-tag',
 ]);
 /** Known org chart boolean options (bare keyword = on). */
-const KNOWN_BOOLEANS = new Set(['show-sub-node-count', 'direction-tb']);
+const KNOWN_BOOLEANS = new Set([
+  'show-sub-node-count',
+  'direction-tb',
+  'solid-fill',
+]);
 
 // ============================================================
 // Inference

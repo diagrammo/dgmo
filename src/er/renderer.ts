@@ -465,7 +465,9 @@ export function renderERDiagram(
 
     const w = node.width;
     const h = node.height;
-    const fill = shapeFill(palette, nodeColor, isDark);
+    const fill = shapeFill(palette, nodeColor, isDark, {
+      solid: parsed.options['solid-fill'] === 'on',
+    });
     const stroke = nodeColor;
     const onFillText = contrastText(
       fill,

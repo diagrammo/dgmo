@@ -33,7 +33,7 @@ const POSITION_ORDER: readonly QuadrantPosition[] = [
 /** Known tech-radar options (key-value). */
 const KNOWN_OPTIONS = new Set<string>([]);
 /** Known tech-radar boolean options (bare keyword). */
-const KNOWN_BOOLEANS = new Set<string>(['show-blip-legend']);
+const KNOWN_BOOLEANS = new Set<string>(['show-blip-legend', 'solid-fill']);
 
 export function parseTechRadar(content: string): ParsedTechRadar {
   const result: ParsedTechRadar = {

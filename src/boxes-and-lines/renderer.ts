@@ -180,11 +180,12 @@ function nodeColors(
   tagGroups: TagGroup[],
   activeGroupName: string | null,
   palette: PaletteColors,
-  isDark: boolean
+  isDark: boolean,
+  solid?: boolean
 ): { fill: string; stroke: string; text: string } {
   const tagColor = resolveTagColor(node.metadata, tagGroups, activeGroupName);
   if (tagColor) {
-    const fill = shapeFill(palette, tagColor, isDark);
+    const fill = shapeFill(palette, tagColor, isDark, { solid });
     const stroke = tagColor;
     const text = contrastText(
       fill,
@@ -747,7 +748,8 @@ export function renderBoxesAndLines(
       parsed.tagGroups,
       activeGroup,
       palette,
-      isDark
+      isDark,
+      parsed.options['solid-fill'] === 'on'
     );
 
     const nodeG = diagramG

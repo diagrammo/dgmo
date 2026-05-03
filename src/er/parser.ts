@@ -1,13 +1,21 @@
 import { resolveColorWithDiagnostic } from '../colors';
 import type { PaletteColors } from '../palettes';
-import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
+import {
+  makeDgmoError,
+  formatDgmoError,
+  suggest,
+  NAME_DIAGNOSTIC_CODES,
+  nameMergedMessage,
+} from '../diagnostics';
 import { validateLabelCharacters } from '../utils/arrows';
+import { normalizeName, displayName } from '../utils/name-normalize';
 import {
   measureIndent,
   extractColor,
   parsePipeMetadata,
   parseFirstLine,
   OPTION_NOCOLON_RE,
+  tryParseSharedOption,
 } from '../utils/parsing';
 import {
   matchTagBlockHeading,
@@ -28,7 +36,7 @@ import type {
 // ============================================================
 
 function tableId(name: string): string {
-  return name.toLowerCase().trim();
+  return normalizeName(name);
 }
 
 // ============================================================
@@ -120,8 +128,8 @@ function parseRelationship(
         );
       }
       return {
-        source: sym[1],
-        target: sym[4],
+        source: tableId(sym[1]),
+        target: tableId(sym[4]),
         from: fromCard,
         to: toCard,
         label,
@@ -221,18 +229,37 @@ export function parseERDiagram(
   let firstLineParsed = false;
 
   function getOrCreateTable(name: string, lineNumber: number): ERTable {
-    const id = tableId(name);
-    const existing = tableMap.get(id);
-    if (existing) return existing;
+    const key = tableId(name);
+    const existing = tableMap.get(key);
+    if (existing) {
+      const incomingDisplay = displayName(name);
+      const existingDisplay = displayName(existing.name);
+      if (incomingDisplay !== existingDisplay) {
+        result.diagnostics.push(
+          makeDgmoError(
+            lineNumber,
+            nameMergedMessage({
+              incomingDisplay,
+              incomingLine: lineNumber,
+              existingDisplay,
+              existingLine: existing.lineNumber,
+            }),
+            'warning',
+            NAME_DIAGNOSTIC_CODES.NAME_MERGED
+          )
+        );
+      }
+      return existing;
+    }
 
     const table: ERTable = {
-      id,
+      id: key,
       name,
       columns: [],
       metadata: {},
       lineNumber,
     };
-    tableMap.set(id, table);
+    tableMap.set(key, table);
     result.tables.push(table);
     return table;
   }
@@ -326,6 +353,9 @@ export function parseERDiagram(
           result.options[key] = value.toLowerCase();
           continue;
         }
+      }
+      if (tryParseSharedOption(trimmed, result.options)) {
+        continue;
       }
     }
 
@@ -471,7 +501,10 @@ export function parseERDiagram(
   ) {
     const connectedIds = new Set<string>();
     for (const rel of result.relationships) {
+      // rel.source and rel.target are already-normalized table ids
+      // eslint-disable-next-line name-normalize/required-at-insertion
       connectedIds.add(rel.source);
+      // eslint-disable-next-line name-normalize/required-at-insertion
       connectedIds.add(rel.target);
     }
     for (const table of result.tables) {

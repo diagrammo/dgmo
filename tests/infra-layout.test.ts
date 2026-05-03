@@ -1,7 +1,14 @@
 import { describe, it, expect, vi } from 'vitest';
 import { parseInfra } from '../src/infra/parser';
 import { computeInfra } from '../src/infra/compute';
-import { layoutInfra, separateGroups, fixEdgeWaypoints, type InfraLayoutGroup, type InfraLayoutNode, type InfraLayoutEdge } from '../src/infra/layout';
+import {
+  layoutInfra,
+  separateGroups,
+  fixEdgeWaypoints,
+  type InfraLayoutGroup,
+  type InfraLayoutNode,
+  type InfraLayoutEdge,
+} from '../src/infra/layout';
 
 function layout(source: string) {
   const parsed = parseInfra(source);
@@ -77,7 +84,7 @@ edge
     expect(group.height).toBeGreaterThan(0);
 
     // Group should contain its children
-    const children = result.nodes.filter((n) => n.groupId === '[Backend]');
+    const children = result.nodes.filter((n) => n.groupId === '[backend]');
     expect(children).toHaveLength(2);
     for (const child of children) {
       const childLeft = child.x - child.width / 2;
@@ -115,7 +122,7 @@ API
 `);
     // In TB layout, nodes should be stacked vertically
     const edgeNode = result.nodes.find((n) => n.id === 'edge')!;
-    const apiNode = result.nodes.find((n) => n.id === 'API')!;
+    const apiNode = result.nodes.find((n) => n.id === 'api')!;
     expect(apiNode.y).toBeGreaterThan(edgeNode.y);
   });
 
@@ -188,10 +195,13 @@ edge
     const { groups } = result;
     for (let i = 0; i < groups.length; i++) {
       for (let j = i + 1; j < groups.length; j++) {
-        const ga = groups[i], gb = groups[j];
+        const ga = groups[i],
+          gb = groups[j];
         const overlaps =
-          ga.x < gb.x + gb.width && ga.x + ga.width > gb.x &&
-          ga.y < gb.y + gb.height && ga.y + ga.height > gb.y;
+          ga.x < gb.x + gb.width &&
+          ga.x + ga.width > gb.x &&
+          ga.y < gb.y + gb.height &&
+          ga.y + ga.height > gb.y;
         expect(overlaps).toBe(false);
       }
     }
@@ -199,11 +209,22 @@ edge
 });
 
 describe('separateGroups()', () => {
-  function makeGroup(id: string, x: number, y: number, w: number, h: number): InfraLayoutGroup {
+  function makeGroup(
+    id: string,
+    x: number,
+    y: number,
+    w: number,
+    h: number
+  ): InfraLayoutGroup {
     return { id, label: id, x, y, width: w, height: h, lineNumber: 1 };
   }
 
-  function makeNode(id: string, groupId: string, x: number, y: number): InfraLayoutNode {
+  function makeNode(
+    id: string,
+    groupId: string,
+    x: number,
+    y: number
+  ): InfraLayoutNode {
     return { id, groupId, x, y, width: 100, height: 50 } as InfraLayoutNode;
   }
 
@@ -240,7 +261,7 @@ describe('separateGroups()', () => {
   it('resolves a chain reaction across three groups', () => {
     const groups = [
       makeGroup('[A]', 0, 0, 200, 100),
-      makeGroup('[B]', 50, 60, 200, 100),  // overlaps A
+      makeGroup('[B]', 50, 60, 200, 100), // overlaps A
       makeGroup('[C]', 50, 120, 200, 100), // overlaps B
     ];
     const nodes: InfraLayoutNode[] = [];
@@ -249,10 +270,13 @@ describe('separateGroups()', () => {
 
     for (let i = 0; i < groups.length; i++) {
       for (let j = i + 1; j < groups.length; j++) {
-        const ga = groups[i], gb = groups[j];
+        const ga = groups[i],
+          gb = groups[j];
         const overlaps =
-          ga.x < gb.x + gb.width && ga.x + ga.width > gb.x &&
-          ga.y < gb.y + gb.height && ga.y + ga.height > gb.y;
+          ga.x < gb.x + gb.width &&
+          ga.x + ga.width > gb.x &&
+          ga.y < gb.y + gb.height &&
+          ga.y + ga.height > gb.y;
         expect(overlaps).toBe(false);
       }
     }
@@ -272,13 +296,15 @@ describe('separateGroups()', () => {
   it('emits console.warn when maxIterations is reached without full resolution', () => {
     // Three overlapping groups: one pass can only resolve part of the overlaps
     const groups = [
-      makeGroup('[A]', 0,   0, 200, 100),
-      makeGroup('[B]', 0,  50, 200, 100), // overlaps A
+      makeGroup('[A]', 0, 0, 200, 100),
+      makeGroup('[B]', 0, 50, 200, 100), // overlaps A
       makeGroup('[C]', 0, 100, 200, 100), // overlaps B (and A after shift)
     ];
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     separateGroups(groups, [], true, 1);
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('maxIterations'));
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('maxIterations')
+    );
     warnSpy.mockRestore();
   });
 
@@ -309,16 +335,39 @@ describe('separateGroups()', () => {
 
 describe('fixEdgeWaypoints()', () => {
   function makeNode(id: string, groupId: string | null): InfraLayoutNode {
-    return { id, groupId, x: 0, y: 0, width: 100, height: 50 } as InfraLayoutNode;
+    return {
+      id,
+      groupId,
+      x: 0,
+      y: 0,
+      width: 100,
+      height: 50,
+    } as InfraLayoutNode;
   }
 
-  function makeEdge(sourceId: string, targetId: string, points: { x: number; y: number }[]): InfraLayoutEdge {
-    return { sourceId, targetId, label: '', computedRps: 0, split: 1, fanout: null, points, lineNumber: 1 };
+  function makeEdge(
+    sourceId: string,
+    targetId: string,
+    points: { x: number; y: number }[]
+  ): InfraLayoutEdge {
+    return {
+      sourceId,
+      targetId,
+      label: '',
+      computedRps: 0,
+      split: 1,
+      fanout: null,
+      points,
+      lineNumber: 1,
+    };
   }
 
   it('translates intra-group edge waypoints by the group delta', () => {
     const nodes = [makeNode('a1', '[G]'), makeNode('a2', '[G]')];
-    const edge = makeEdge('a1', 'a2', [{ x: 10, y: 20 }, { x: 30, y: 40 }]);
+    const edge = makeEdge('a1', 'a2', [
+      { x: 10, y: 20 },
+      { x: 30, y: 40 },
+    ]);
     const deltas = new Map([['[G]', { dx: 0, dy: 50 }]]);
 
     fixEdgeWaypoints([edge], nodes, deltas);
@@ -350,7 +399,10 @@ describe('fixEdgeWaypoints()', () => {
   it('discards waypoints when both sides are in different shifted groups', () => {
     const nodes = [makeNode('a1', '[GA]'), makeNode('b1', '[GB]')];
     const edge = makeEdge('a1', 'b1', [{ x: 50, y: 50 }]);
-    const deltas = new Map([['[GA]', { dx: 0, dy: 30 }], ['[GB]', { dx: 0, dy: 60 }]]);
+    const deltas = new Map([
+      ['[GA]', { dx: 0, dy: 30 }],
+      ['[GB]', { dx: 0, dy: 60 }],
+    ]);
 
     fixEdgeWaypoints([edge], nodes, deltas);
 
@@ -399,16 +451,16 @@ edge
     latency-ms 2
 `);
 
-    const group = result.groups.find((g) => g.id === '[Shards]');
+    const group = result.groups.find((g) => g.id === '[shards]');
     expect(group).toBeDefined();
     expect(group!.instances).toBe(3);
 
-    const shardA = result.nodes.find((n) => n.id === 'ShardA');
-    const shardB = result.nodes.find((n) => n.id === 'ShardB');
+    const shardA = result.nodes.find((n) => n.id === 'sharda');
+    const shardB = result.nodes.find((n) => n.id === 'shardb');
     expect(shardA).toBeDefined();
     expect(shardB).toBeDefined();
-    expect(shardA!.groupId).toBe('[Shards]');
-    expect(shardB!.groupId).toBe('[Shards]');
+    expect(shardA!.groupId).toBe('[shards]');
+    expect(shardB!.groupId).toBe('[shards]');
   });
 
   it('nodes outside a group have groupId null', () => {
@@ -424,7 +476,7 @@ API
   instances 2
 `);
 
-    const api = result.nodes.find((n) => n.id === 'API');
+    const api = result.nodes.find((n) => n.id === 'api');
     expect(api).toBeDefined();
     expect(api!.groupId).toBeNull();
   });
@@ -440,11 +492,22 @@ MyService
   max-rps 500
   description Handles all REST API calls for the mobile app
 `;
-      const contentNoDesc = content.replace('  description Handles all REST API calls for the mobile app\n', '');
-      const layoutWith = layoutInfra(computeInfra(parseInfra(content)), new Set(['MyService']));
-      const layoutWithout = layoutInfra(computeInfra(parseInfra(contentNoDesc)), new Set(['MyService']));
-      const nodeWith = layoutWith.nodes.find((n) => n.id === 'MyService')!;
-      const nodeWithout = layoutWithout.nodes.find((n) => n.id === 'MyService')!;
+      const contentNoDesc = content.replace(
+        '  description Handles all REST API calls for the mobile app\n',
+        ''
+      );
+      const layoutWith = layoutInfra(
+        computeInfra(parseInfra(content)),
+        new Set(['myservice'])
+      );
+      const layoutWithout = layoutInfra(
+        computeInfra(parseInfra(contentNoDesc)),
+        new Set(['myservice'])
+      );
+      const nodeWith = layoutWith.nodes.find((n) => n.id === 'myservice')!;
+      const nodeWithout = layoutWithout.nodes.find(
+        (n) => n.id === 'myservice'
+      )!;
       expect(nodeWith.height).toBe(nodeWithout.height + 14); // META_LINE_HEIGHT
     });
 
@@ -458,40 +521,58 @@ MyService
   max-rps 500
   description Handles all REST API calls for the mobile app
 `;
-      const contentNoDesc = content.replace('  description Handles all REST API calls for the mobile app\n', '');
+      const contentNoDesc = content.replace(
+        '  description Handles all REST API calls for the mobile app\n',
+        ''
+      );
       const layoutWith = layoutInfra(computeInfra(parseInfra(content)), null);
-      const layoutWithout = layoutInfra(computeInfra(parseInfra(contentNoDesc)), null);
-      const nodeWith = layoutWith.nodes.find((n) => n.id === 'MyService')!;
-      const nodeWithout = layoutWithout.nodes.find((n) => n.id === 'MyService')!;
+      const layoutWithout = layoutInfra(
+        computeInfra(parseInfra(contentNoDesc)),
+        null
+      );
+      const nodeWith = layoutWith.nodes.find((n) => n.id === 'myservice')!;
+      const nodeWithout = layoutWithout.nodes.find(
+        (n) => n.id === 'myservice'
+      )!;
       expect(nodeWith.height).toBe(nodeWithout.height);
     });
 
     it('selected node with description and no other content uses no-content early return height', () => {
       // AC7: NODE_HEADER_HEIGHT(28) + META_LINE_HEIGHT(14) + NODE_PAD_BOTTOM(10) = 52
-      const result = layoutInfra(computeInfra(parseInfra(`
+      const result = layoutInfra(
+        computeInfra(
+          parseInfra(`
 infra
 edge
   rps 0
   -> Lonely
 Lonely
   description Only a description here
-`)), new Set(['Lonely']));
-      const node = result.nodes.find((n) => n.id === 'Lonely')!;
+`)
+        ),
+        new Set(['lonely'])
+      );
+      const node = result.nodes.find((n) => n.id === 'lonely')!;
       expect(node.height).toBe(28 + 14 + 10); // NODE_HEADER_HEIGHT + META_LINE_HEIGHT + NODE_PAD_BOTTOM
     });
 
     it('selected node with long description is wider than minimum', () => {
       // AC5: description width = length * META_CHAR_WIDTH(6) + PADDING_X(24)
       const longDesc = 'A'.repeat(40); // 40 * 6 + 24 = 264px
-      const result = layoutInfra(computeInfra(parseInfra(`
+      const result = layoutInfra(
+        computeInfra(
+          parseInfra(`
 infra
 edge
   rps 1000
   -> MyService
 MyService
   description ${longDesc}
-`)), new Set(['MyService']));
-      const node = result.nodes.find((n) => n.id === 'MyService')!;
+`)
+        ),
+        new Set(['myservice'])
+      );
+      const node = result.nodes.find((n) => n.id === 'myservice')!;
       expect(node.width).toBeGreaterThanOrEqual(40 * 6 + 24); // description drives width
     });
   });
@@ -509,9 +590,12 @@ API
   max-rps 500
 `;
     const collapsed = layoutInfra(computeInfra(parseInfra(src)), null);
-    const expanded = layoutInfra(computeInfra(parseInfra(src)), new Set(['API']));
-    const nodeC = collapsed.nodes.find((n) => n.id === 'API')!;
-    const nodeE = expanded.nodes.find((n) => n.id === 'API')!;
+    const expanded = layoutInfra(
+      computeInfra(parseInfra(src)),
+      new Set(['api'])
+    );
+    const nodeC = collapsed.nodes.find((n) => n.id === 'api')!;
+    const nodeE = expanded.nodes.find((n) => n.id === 'api')!;
     // Expanded shows p50+p90+p99 (3 rows); collapsed shows p90 (1 row)
     // Height difference includes 2 latency rows (p50 + p99) plus expanded-only declared props
     expect(nodeC.height).toBeLessThan(nodeE.height);
@@ -530,15 +614,23 @@ API
   max-rps 500
 `;
     const collapsed = layoutInfra(computeInfra(parseInfra(src)), null);
-    const expanded = layoutInfra(computeInfra(parseInfra(src)), new Set(['API']));
-    const nodeC = collapsed.nodes.find((n) => n.id === 'API')!;
-    const nodeE = expanded.nodes.find((n) => n.id === 'API')!;
+    const expanded = layoutInfra(
+      computeInfra(parseInfra(src)),
+      new Set(['api'])
+    );
+    const nodeC = collapsed.nodes.find((n) => n.id === 'api')!;
+    const nodeE = expanded.nodes.find((n) => n.id === 'api')!;
     // No latency data — collapsed and expanded have same computed rows (zero latency rows each)
     expect(nodeC.height).toBeLessThanOrEqual(nodeE.height);
     // Expanded shows declared props (max-rps); collapsed does not — height may differ for props, not for latency
     // Key assertion: no additional latency row in collapsed
-    const collapsedWithLatency = layoutInfra(computeInfra(parseInfra(src + '  latency-ms 50\n')), null);
-    const apiWithLatency = collapsedWithLatency.nodes.find((n) => n.id === 'API')!;
+    const collapsedWithLatency = layoutInfra(
+      computeInfra(parseInfra(src + '  latency-ms 50\n')),
+      null
+    );
+    const apiWithLatency = collapsedWithLatency.nodes.find(
+      (n) => n.id === 'api'
+    )!;
     // With latency-ms=50, collapsed is exactly 1 META_LINE_HEIGHT taller (the p90 row)
     expect(apiWithLatency.height - nodeC.height).toBe(14); // 1 × META_LINE_HEIGHT
   });
@@ -556,9 +648,12 @@ API
   max-rps 500
 `;
     const collapsedResult = layoutInfra(computeInfra(parseInfra(src)), null);
-    const expandedResult = layoutInfra(computeInfra(parseInfra(src)), new Set(['API']));
-    const apiC = collapsedResult.nodes.find((n) => n.id === 'API')!;
-    const apiE = expandedResult.nodes.find((n) => n.id === 'API')!;
+    const expandedResult = layoutInfra(
+      computeInfra(parseInfra(src)),
+      new Set(['api'])
+    );
+    const apiC = collapsedResult.nodes.find((n) => n.id === 'api')!;
+    const apiE = expandedResult.nodes.find((n) => n.id === 'api')!;
     // Collapsed must have width > MIN_NODE_WIDTH (140) since it shows a p90 row with value
     expect(apiC.width).toBeGreaterThan(140);
     // Expanded is wider (shows p50 which can be shorter value, but declared props increase width)
@@ -593,9 +688,11 @@ API
   max-rps 5000
 `;
     const noSloResult = layoutInfra(computeInfra(parseInfra(base())));
-    const withSloResult = layoutInfra(computeInfra(parseInfra(base('slo-p90-latency-ms 200'))));
-    const noSloApi = noSloResult.nodes.find((n) => n.id === 'API')!;
-    const withSloApi = withSloResult.nodes.find((n) => n.id === 'API')!;
+    const withSloResult = layoutInfra(
+      computeInfra(parseInfra(base('slo-p90-latency-ms 200')))
+    );
+    const noSloApi = noSloResult.nodes.find((n) => n.id === 'api')!;
+    const withSloApi = withSloResult.nodes.find((n) => n.id === 'api')!;
     // Node with SLO must be wider to accommodate "520ms / 200ms" vs "520ms"
     expect(withSloApi.width).toBeGreaterThan(noSloApi.width);
   });

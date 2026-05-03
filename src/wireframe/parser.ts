@@ -16,6 +16,7 @@ import {
   extractColor,
   parseFirstLine,
   OPTION_NOCOLON_RE,
+  tryParseSharedOption,
 } from '../utils/parsing';
 import type {
   WireframeElement,
@@ -674,6 +675,10 @@ export function parseWireframe(content: string): ParsedWireframe {
       // Options: `mobile`, `palette xxx`, `theme xxx`
       if (trimmed === 'mobile') {
         formFactor = 'mobile';
+        continue;
+      }
+
+      if (tryParseSharedOption(trimmed, options)) {
         continue;
       }
 

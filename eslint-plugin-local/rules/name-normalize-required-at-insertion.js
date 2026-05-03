@@ -38,6 +38,14 @@ const PARSER_PATH_RE =
 
 const ENTITY_VAR_RE = /(Map|Set|Ids|Labels|ByKey)$/;
 
+// Receivers whose name matches the entity-storage suffix pattern but which
+// are NOT entity-name stores. The spec carves these out (tag aliases,
+// tag-value sets) — normalizing them would change unrelated behavior.
+const NON_ENTITY_VARS = new Set([
+  'aliasMap', // tag aliases per `tag Name [alias]`
+  'tagValueSets', // sets of tag values
+]);
+
 const NORMALIZED_VAR_NAMES = new Set([
   'key',
   'normalized',
@@ -131,6 +139,7 @@ module.exports = {
 
         const recv = receiverName(callee);
         if (!recv || !ENTITY_VAR_RE.test(recv)) return;
+        if (NON_ENTITY_VARS.has(recv)) return;
 
         const firstArg = node.arguments[0];
         if (looksNormalized(firstArg)) return;
