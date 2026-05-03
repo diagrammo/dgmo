@@ -16,6 +16,8 @@ import {
   parseFirstLine,
   OPTION_NOCOLON_RE,
   tryParseSharedOption,
+  stripQuotes,
+  tokenizeQuoteAware,
 } from '../utils/parsing';
 import {
   matchTagBlockHeading,
@@ -43,9 +45,15 @@ function tableId(name: string): string {
 // Regex patterns
 // ============================================================
 
-// Table declaration: table_name or table_name (color) or table_name | key: value
-// Allows lowercase, uppercase, underscores, digits — must start with letter or underscore
-const TABLE_DECL_RE = /^([a-zA-Z_]\w*)(?:\s*\(([^)]+)\))?(?:\s*\|(.+))?$/;
+// Table declaration: name or name (color) or name | key: value
+// Multi-word names allowed; quote `"name with reserved chars"` if the name
+// contains pipe / paren / colon. Captures:
+//   1: quoted-name content (without surrounding quotes), or undefined
+//   2: bare-name (trimmed at call site), or undefined
+//   3: color (inside parens), or undefined
+//   4: pipe metadata (without leading `|`), or undefined
+const TABLE_DECL_RE =
+  /^(?:"([^"]+)"|([a-zA-Z_][^|":(]*?))(?:\s*\(([^)]+)\))?(?:\s*\|(.+))?$/;
 
 // Column: name [type] [constraints...]  — space-separated, no colon, no brackets
 // First token is always the name. Second token is the type if it's not a constraint keyword.
@@ -53,8 +61,9 @@ const TABLE_DECL_RE = /^([a-zA-Z_]\w*)(?:\s*\(([^)]+)\))?(?:\s*\|(.+))?$/;
 // Handled programmatically, not with a single regex.
 
 // Indented relationship: 1-* target, 1--* target, or 1-label-* target / 1--label--* target
+// Target name accepts multi-word + quoted form per Universal Name Handling.
 const INDENT_REL_RE =
-  /^([1*?])-{1,2}(?:(.+?)-{1,2})?([1*?])\s+([a-zA-Z_]\w*)\s*$/;
+  /^([1*?])-{1,2}(?:(.+?)-{1,2})?([1*?])\s+(?:"([^"]+)"|([a-zA-Z_][^":]*?))\s*$/;
 
 // Constraint keywords
 const CONSTRAINT_MAP: Record<string, ERConstraint> = {
@@ -87,12 +96,14 @@ function parseCardSide(token: string): ERCardinality | null {
  *   tableName 1-* tableName label
  *   tableName ?--1 tableName
  */
+// Top-level relationship (symbolic): SourceName 1--* TargetName [label]
+// Both names accept quoted or multi-word bare form.
 const REL_SYMBOLIC_RE =
-  /^([a-zA-Z_]\w*)\s+([1*?])\s*-{1,2}\s*([1*?])\s+([a-zA-Z_]\w*)(?:\s+(.+))?$/;
+  /^(?:"([^"]+)"|([a-zA-Z_][^":]*?))\s+([1*?])\s*-{1,2}\s*([1*?])\s+(?:"([^"]+)"|([a-zA-Z_][^":]*?))(?:\s+(.+))?$/;
 
 /** Detects keyword cardinality forms to emit helpful error */
 const REL_KEYWORD_RE =
-  /^([a-zA-Z_]\w*)\s+(one|many|zero)[- ]to[- ](one|many|zero)\s+([a-zA-Z_]\w*)(?:\s+(.+))?$/i;
+  /^(?:"([^"]+)"|([a-zA-Z_][^":]*?))\s+(one|many|zero)[- ]to[- ](one|many|zero)\s+(?:"([^"]+)"|([a-zA-Z_][^":]*?))(?:\s+(.+))?$/i;
 
 const KEYWORD_TO_SYMBOL: Record<string, string> = {
   one: '1',
@@ -112,24 +123,23 @@ function parseRelationship(
   label?: string;
 } | null {
   // Symbolic: 1--*, 1-*, ?--1, etc.
+  // Captures: [1]=qSrc [2]=bareSrc [3]=fromCard [4]=toCard [5]=qTarget [6]=bareTarget [7]=label
   const sym = trimmed.match(REL_SYMBOLIC_RE);
   if (sym) {
-    const fromCard = parseCardSide(sym[2]);
-    const toCard = parseCardSide(sym[3]);
+    const fromCard = parseCardSide(sym[3]);
+    const toCard = parseCardSide(sym[4]);
     if (fromCard && toCard) {
-      const label = sym[5]?.trim();
-      // F17: run label through validator for defense in depth. The parent
-      // loop currently discards top-level relationships as warnings, so
-      // the label never reaches the AST — but if that changes, this keeps
-      // character-set validation in sync with the indented path.
+      const sourceName = (sym[1] ?? sym[2] ?? '').trim();
+      const targetName = (sym[5] ?? sym[6] ?? '').trim();
+      const label = sym[7]?.trim();
       if (label) {
         validateLabelCharacters(label, lineNumber).forEach((d) =>
           pushError(d.line, d.message)
         );
       }
       return {
-        source: tableId(sym[1]),
-        target: tableId(sym[4]),
+        source: tableId(sourceName),
+        target: tableId(targetName),
         from: fromCard,
         to: toCard,
         label,
@@ -137,14 +147,17 @@ function parseRelationship(
     }
   }
 
-  // Keyword / natural: produce helpful error with symbolic suggestion
+  // Keyword / natural: produce helpful error with symbolic suggestion.
+  // Captures: [1]=qSrc [2]=bareSrc [3]=fromKw [4]=toKw [5]=qTarget [6]=bareTarget [7]=label
   const kw = trimmed.match(REL_KEYWORD_RE);
   if (kw) {
-    const fromSym = KEYWORD_TO_SYMBOL[kw[2].toLowerCase()] ?? kw[2];
-    const toSym = KEYWORD_TO_SYMBOL[kw[3].toLowerCase()] ?? kw[3];
+    const sourceName = (kw[1] ?? kw[2] ?? '').trim();
+    const targetName = (kw[5] ?? kw[6] ?? '').trim();
+    const fromSym = KEYWORD_TO_SYMBOL[kw[3].toLowerCase()] ?? kw[3];
+    const toSym = KEYWORD_TO_SYMBOL[kw[4].toLowerCase()] ?? kw[4];
     pushError(
       lineNumber,
-      `Use symbolic cardinality (1--*, ?--1, *--*) instead of "${kw[2]}-to-${kw[3]}". Example: ${kw[1]} ${fromSym}--${toSym} ${kw[4]}`
+      `Use symbolic cardinality (1--*, ?--1, *--*) instead of "${kw[3]}-to-${kw[4]}". Example: ${sourceName} ${fromSym}--${toSym} ${targetName}`
     );
     return null;
   }
@@ -161,24 +174,32 @@ function parseColumn(trimmed: string): {
   type?: string;
   constraints: ERConstraint[];
 } | null {
-  const tokens = trimmed.split(/\s+/);
-  if (tokens.length === 0) return null;
+  // Quote-aware tokenizer keeps `"first name"` together as a single token
+  // so multi-word column names work via Universal Name Handling quoting.
+  const rawTokens = tokenizeQuoteAware(trimmed);
+  if (rawTokens.length === 0) return null;
 
-  // First token must look like a column name (word chars)
-  const name = tokens[0];
-  if (!/^\w+$/.test(name)) return null;
+  const firstRaw = rawTokens[0];
+  const wasQuoted = firstRaw.startsWith('"') || firstRaw.startsWith("'");
+  const name = stripQuotes(firstRaw);
+
+  // Bare names must look like a single word (preserves rejection of lines
+  // that aren't column declarations, e.g. relationships). Quoted names are
+  // accepted as-is.
+  if (!wasQuoted && !/^\w+$/.test(name)) return null;
 
   const constraints: ERConstraint[] = [];
   let type: string | undefined;
 
-  for (let i = 1; i < tokens.length; i++) {
-    const lower = tokens[i].toLowerCase();
+  for (let i = 1; i < rawTokens.length; i++) {
+    const tok = stripQuotes(rawTokens[i]);
+    const lower = tok.toLowerCase();
     const constraint = CONSTRAINT_MAP[lower];
     if (constraint) {
       constraints.push(constraint);
     } else if (type === undefined) {
       // First non-constraint token after name is the type
-      type = tokens[i];
+      type = tok;
     } else {
       // Unknown token after type — not a valid column line
       return null;
@@ -365,12 +386,14 @@ export function parseERDiagram(
       // ER chart-specific constraint: labels cannot contain `-` because
       // INDENT_REL_RE uses `-{1,2}` as hard delimiters on both sides of the
       // label. So `1-has-*` works but `1-has dashes-*` does not.
+      // INDENT_REL_RE captures: [1]=fromCard [2]=label [3]=toCard
+      // [4]=qTarget [5]=bareTarget
       const indentRel = trimmed.match(INDENT_REL_RE);
       if (indentRel) {
         const fromCard = parseCardSide(indentRel[1]);
         const toCard = parseCardSide(indentRel[3]);
         if (fromCard && toCard) {
-          const targetName = indentRel[4];
+          const targetName = (indentRel[4] ?? indentRel[5] ?? '').trim();
           getOrCreateTable(targetName, lineNumber);
           const rawLabel = indentRel[2]?.trim();
           if (rawLabel) {
@@ -419,10 +442,11 @@ export function parseERDiagram(
     }
 
     // Try table declaration
+    // Captures: [1]=quotedName [2]=bareName [3]=color [4]=pipe
     const tableDecl = trimmed.match(TABLE_DECL_RE);
     if (tableDecl) {
-      const name = tableDecl[1];
-      const colorName = tableDecl[2]?.trim();
+      const name = (tableDecl[1] ?? tableDecl[2] ?? '').trim();
+      const colorName = tableDecl[3]?.trim();
       const color = colorName
         ? resolveColorWithDiagnostic(
             colorName,
@@ -437,7 +461,7 @@ export function parseERDiagram(
       table.lineNumber = lineNumber;
 
       // Parse pipe metadata: TableName(color) | key: value, key2: value2
-      const pipeStr = tableDecl[3]?.trim();
+      const pipeStr = tableDecl[4]?.trim();
       if (pipeStr) {
         const pipeSegments = pipeStr.split('|');
         const meta = parsePipeMetadata(['', ...pipeSegments], aliasMap);
@@ -601,7 +625,10 @@ export function extractSymbols(docText: string): DiagramSymbols {
     if (line.length === 0) continue;
     if (/^\s/.test(rawLine)) continue; // indented = column definition, not table
     const m = TABLE_DECL_RE.exec(line);
-    if (m) entities.push(m[1]!);
+    if (m) {
+      const name = (m[1] ?? m[2] ?? '').trim();
+      if (name) entities.push(name);
+    }
   }
   return {
     kind: 'er',

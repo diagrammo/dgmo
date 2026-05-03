@@ -62,9 +62,16 @@ const GROUP_RE = /^\[([^\]]+)\]\s*(?:\|\s*(.+))?$/;
 // Note: `default` keyword removed — first value is the default.
 const TAG_VALUE_RE = /^(\w[\w\s]*?)(?:\(([^)]+)\))?\s*$/;
 
-// Component line: ComponentName  or  ComponentName | t: Backend | env: Prod
-// Allows hyphens in names (e.g. api-gateway, my-service-v2) — but not at the start.
-const COMPONENT_RE = /^([a-zA-Z_][\w-]*)(.*)$/;
+// Component line. Accepts either a quoted name ("name with | : reserved chars")
+// or a bare name (multi-word allowed; must start with letter/underscore so digit-
+// only or sigil-led lines fall through to other branches). Pipe metadata follows
+// after a `|` separator.
+//
+// Captures:
+//   1: quoted-name content (without the surrounding quotes), or undefined
+//   2: bare-name (trimmed at the call site), or undefined
+//   3: pipe-metadata block (including the leading `|`), or undefined
+const COMPONENT_RE = /^(?:"([^"]+)"|([a-zA-Z_][^|":]*?))\s*(\|.*)?$/;
 
 // Pipe metadata: | key: value  or  | k1: v1, k2: v2  (comma-separated)
 const PIPE_META_RE = /[|,]\s*(\w+)\s*:\s*([^|,]+)/g;
@@ -365,8 +372,8 @@ export function parseInfra(content: string): ParsedInfra {
         finishCurrentNode();
         finishCurrentTagGroup();
 
-        const name = compMatch[1];
-        const rest = compMatch[2] || '';
+        const name = (compMatch[1] ?? compMatch[2] ?? '').trim();
+        const rest = compMatch[3] || '';
         const { tags } = extractPipeMetadata(rest);
         const id = nodeId(name);
         const isEdge = EDGE_NODE_NAMES.has(id.toLowerCase());
@@ -445,8 +452,8 @@ export function parseInfra(content: string): ParsedInfra {
       const compMatch = trimmed.match(COMPONENT_RE);
       if (compMatch) {
         finishCurrentTagGroup();
-        const name = compMatch[1];
-        const rest = compMatch[2] || '';
+        const name = (compMatch[1] ?? compMatch[2] ?? '').trim();
+        const rest = compMatch[3] || '';
         const { tags: nodeTags } = extractPipeMetadata(rest);
         const id = nodeId(name);
         // Cascade group metadata into node tags; node-level metadata overrides
@@ -724,8 +731,8 @@ export function parseInfra(content: string): ParsedInfra {
 
       const compMatch = trimmed.match(COMPONENT_RE);
       if (compMatch) {
-        const name = compMatch[1];
-        const rest = compMatch[2] || '';
+        const name = (compMatch[1] ?? compMatch[2] ?? '').trim();
+        const rest = compMatch[3] || '';
         const { tags: nodeTags } = extractPipeMetadata(rest);
         const id = nodeId(name);
         const tags: Record<string, string> = currentGroup.metadata
@@ -754,8 +761,8 @@ export function parseInfra(content: string): ParsedInfra {
         finishCurrentTagGroup();
         currentGroup = null;
 
-        const name = compMatch[1];
-        const rest = compMatch[2] || '';
+        const name = (compMatch[1] ?? compMatch[2] ?? '').trim();
+        const rest = compMatch[3] || '';
         const { tags } = extractPipeMetadata(rest);
         const id = nodeId(name);
 
@@ -873,7 +880,10 @@ export function extractSymbols(docText: string): DiagramSymbols {
       inTagGroup = false;
       if (/^\[/.test(line)) continue; // [Group] header
       const m = COMPONENT_RE.exec(line);
-      if (m && !entities.includes(m[1]!)) entities.push(m[1]!);
+      if (m) {
+        const name = (m[1] ?? m[2] ?? '').trim();
+        if (name && !entities.includes(name)) entities.push(name);
+      }
     } else {
       // Indented: skip tag values, connections, and properties; extract grouped components
       if (inTagGroup) continue;
@@ -894,7 +904,10 @@ export function extractSymbols(docText: string): DiagramSymbols {
       )
         continue;
       const m = COMPONENT_RE.exec(line);
-      if (m && !entities.includes(m[1]!)) entities.push(m[1]!);
+      if (m) {
+        const name = (m[1] ?? m[2] ?? '').trim();
+        if (name && !entities.includes(name)) entities.push(name);
+      }
     }
   }
   return { kind: 'infra', entities, keywords: [] };

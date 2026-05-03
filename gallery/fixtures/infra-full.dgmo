@@ -14,23 +14,23 @@ edge
   rps: 15000
   -> CloudFront
 
-CloudFront is a network | t: Platform, r: Edge
+CloudFront | t: Platform, r: Edge
   description: CDN — edge cache with 200+ PoPs
   cache-hit: 85%
   -> WAF
 
-WAF is a gateway | t: Platform, r: Edge
+WAF | t: Platform, r: Edge
   description: Web Application Firewall — bot protection and rate limiting
   firewall-block: 8%
   -> ALB
 
-ALB is a gateway | t: Platform, r: Core
+ALB | t: Platform, r: Core
   -/api-> [API Tier] | split: 50%
   -/shop-> [Commerce Tier] | split: 35%
   -/static-> StaticBucket | split: 15%
 
 [API Tier] | t: Backend, r: Core
-  APIServer is a service
+  APIServer
     description: Core REST API — auth, catalog, user profiles
     instances: 4
     max-rps: 800
@@ -41,7 +41,7 @@ ALB is a gateway | t: Platform, r: Core
     ~order.placed~> EventBus
 
 [Commerce Tier] | t: Backend, r: Core
-  CheckoutSvc is a service
+  CheckoutSvc
     description: Checkout and payment orchestration
     instances: 2-10
     max-rps: 400
@@ -49,30 +49,30 @@ ALB is a gateway | t: Platform, r: Core
     -> PaymentGW
     -> PostgreSQL
     ~payment.confirmed~> EventBus
-  PaymentGW is a gateway
+  PaymentGW
     description: Stripe/Adyen payment gateway proxy
     latency-ms: 250
 
-Redis is a cache | t: Data, r: Storage
+Redis | t: Data, r: Storage
   description: Session store and query cache
   latency-ms: 2
 
-PostgreSQL is a database | t: Data, r: Storage
+PostgreSQL | t: Data, r: Storage
   description: Primary relational store — orders, users, catalog
   latency-ms: 8
 
-EventBus is a queue | t: Platform, r: Core
+EventBus | t: Platform, r: Core
   description: Async event backbone (Kafka)
   ~analytics~> ClickHouse
   ~notifications~> NotifySvc
 
-ClickHouse is a database | t: Data, r: Storage
+ClickHouse | t: Data, r: Storage
   description: Analytics OLAP — real-time dashboards
 
-NotifySvc is a service | t: Backend, r: Core
+NotifySvc | t: Backend, r: Core
   description: Email/SMS/push notification dispatcher
   instances: 2
 
-StaticBucket is a storage | t: Platform, r: Edge
+StaticBucket | t: Platform, r: Edge
   description: S3 bucket — JS, CSS, images
   latency-ms: 5

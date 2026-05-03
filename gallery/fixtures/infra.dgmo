@@ -8,23 +8,23 @@ edge
   rps: 10000
   -> CloudFront
 
-CloudFront is a network | t: Platform
+CloudFront | t: Platform
   description: CDN — edge cache for assets and API responses
   cache-hit: 80%
   -> CloudArmor
 
-CloudArmor is a gateway | t: Platform
+CloudArmor | t: Platform
   description: WAF — blocks bots and malicious traffic
   firewall-block: 5%
   -> ALB
 
-ALB is a gateway | t: Platform
+ALB | t: Platform
   -/api-> [API Pods] | split: 60%
   -/purchase-> [Commerce Pods] | split: 30%
   -/static-> StaticServer | split: 10%
 
 [API Pods]
-  APIServer is a service | t: Backend
+  APIServer | t: Backend
     description: Core REST API — auth, orders, user profiles
     instances: 3
     max-rps: 500
@@ -33,15 +33,15 @@ ALB is a gateway | t: Platform
     ~events~> MessageQueue
 
 [Commerce Pods]
-  PurchaseMS is a service
+  PurchaseMS
     description: Checkout and payment processing
     instances: 1-8
     max-rps: 300
     latency-ms: 120
 
-MessageQueue is a queue | t: Platform
+MessageQueue | t: Platform
   description: Async event bus for order notifications
 
-StaticServer is a storage | t: Platform
+StaticServer | t: Platform
   description: Serves static assets (JS, CSS, images)
   latency-ms: 5

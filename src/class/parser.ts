@@ -36,23 +36,31 @@ function classId(name: string): string {
 // ============================================================
 
 // Class declaration: [modifier] ClassName [extends Parent] [implements Interface] (color)
-// Supports both:
-//   New: `abstract Animal` or `interface Serializable`
-//   Old: `Animal [abstract]` (bracketed suffix, kept for transition)
-// Both `extends` and `implements` may appear together: `Circle extends Shape implements Drawable`.
+// Multi-word names allowed (`Customer Service`); quote with `"name"` if name
+// contains reserved chars. ClassName must start with uppercase to keep the
+// convention. Captures (positional):
+//   1: modifier (abstract|interface|enum) | undefined
+//   2: quotedClassName | undefined
+//   3: bareClassName | undefined
+//   4: quotedExtends | undefined
+//   5: bareExtends | undefined
+//   6: quotedImplements | undefined
+//   7: bareImplements | undefined
+//   8: legacy bracket modifier | undefined
+//   9: color | undefined
 const CLASS_DECL_RE =
-  /^(?:(abstract|interface|enum)\s+)?([A-Z][A-Za-z0-9_]*)(?:\s+extends\s+([A-Z][A-Za-z0-9_]*))?(?:\s+implements\s+([A-Z][A-Za-z0-9_]*))?(?:\s+\[(abstract|interface|enum)\])?(?:\s+\(([^)]+)\))?\s*$/;
+  /^(?:(abstract|interface|enum)\s+)?(?:"([^"]+)"|([A-Z][^":]*?))(?:\s+extends\s+(?:"([^"]+)"|([A-Z][^":]*?)))?(?:\s+implements\s+(?:"([^"]+)"|([A-Z][^":]*?)))?(?:\s+\[(abstract|interface|enum)\])?(?:\s+\(([^)]+)\))?\s*$/;
 
-// Relationship — arrow syntax (indented under source class):
-//   --|> TargetClass label  (space-separated)
-//   --|> TargetClass : label  (colon-separated, kept for transition)
+// Relationship — arrow syntax (indented under source class).
 // Arrows: --|>  ..|>  *--  o--  ..>  ->
+// Captures: [1]=arrow [2]=quotedTarget [3]=bareTarget [4]=label
 const INDENT_REL_ARROW_RE =
-  /^(--\|>|\.\.\|>|\*--|o--|\.\.>|->)\s*([A-Z][A-Za-z0-9_]*)(?:\s+:?\s*(.+))?$/;
+  /^(--\|>|\.\.\|>|\*--|o--|\.\.>|->)\s*(?:"([^"]+)"|([A-Z][^":]*?))(?:\s+:?\s*(.+))?$/;
 
 // Legacy top-level relationship regex (used only for detection/rejection)
+// Captures: [1]=qSrc [2]=bareSrc [3]=arrow [4]=qTarget [5]=bareTarget [6]=label
 const REL_ARROW_RE =
-  /^([A-Z][A-Za-z0-9_]*)\s*(--\|>|\.\.\|>|\*--|o--|\.\.>|->)\s*([A-Z][A-Za-z0-9_]*)(?:\s+:?\s*(.+))?$/;
+  /^(?:"([^"]+)"|([A-Z][^":]*?))\s*(--\|>|\.\.\|>|\*--|o--|\.\.>|->)\s*(?:"([^"]+)"|([A-Z][^":]*?))(?:\s+:?\s*(.+))?$/;
 
 // Member line patterns
 const VISIBILITY_RE = /^([+\-#])\s*/;
@@ -274,11 +282,12 @@ export function parseClassDiagram(
     // Indented lines = relationships or members of current class
     if (indent > 0 && currentClass) {
       // Try indented relationship arrow: --|> TargetClass [label]
+      // Captures: [1]=arrow [2]=quotedTarget [3]=bareTarget [4]=label
       const indentRel = trimmed.match(INDENT_REL_ARROW_RE);
       if (indentRel) {
         const arrow = indentRel[1];
-        const targetName = indentRel[2];
-        const label = indentRel[3]?.trim();
+        const targetName = (indentRel[2] ?? indentRel[3] ?? '').trim();
+        const label = indentRel[4]?.trim();
 
         getOrCreateClass(targetName, lineNumber);
 
@@ -313,11 +322,12 @@ export function parseClassDiagram(
     contentStarted = true;
 
     // Reject top-level relationship arrows — must be indented under source class
+    // Captures: [1]=qSrc [2]=bareSrc [3]=arrow [4]=qTarget [5]=bareTarget [6]=label
     const relArrow = trimmed.match(REL_ARROW_RE);
     if (relArrow) {
-      const sourceName = relArrow[1];
-      const arrow = relArrow[2];
-      const targetName = relArrow[3];
+      const sourceName = (relArrow[1] ?? relArrow[2] ?? '').trim();
+      const arrow = relArrow[3];
+      const targetName = (relArrow[4] ?? relArrow[5] ?? '').trim();
       result.diagnostics.push(
         makeDgmoError(
           lineNumber,
@@ -329,15 +339,21 @@ export function parseClassDiagram(
     }
 
     // Try class declaration
+    // Captures: [1]=modifier [2]=qName [3]=bareName [4]=qExt [5]=bareExt
+    //   [6]=qImpl [7]=bareImpl [8]=bracketMod [9]=color
     const classDecl = trimmed.match(CLASS_DECL_RE);
     if (classDecl) {
       const prefixModifier = classDecl[1] as ClassModifier | undefined;
-      const name = classDecl[2];
-      const extendsParent = classDecl[3];
-      const implementsInterface = classDecl[4];
-      const bracketModifier = classDecl[5] as ClassModifier | undefined;
+      const name = (classDecl[2] ?? classDecl[3] ?? '').trim();
+      const extendsRaw = classDecl[4] ?? classDecl[5];
+      const extendsParent = extendsRaw ? extendsRaw.trim() : undefined;
+      const implementsRaw = classDecl[6] ?? classDecl[7];
+      const implementsInterface = implementsRaw
+        ? implementsRaw.trim()
+        : undefined;
+      const bracketModifier = classDecl[8] as ClassModifier | undefined;
       const modifier = prefixModifier ?? bracketModifier;
-      const colorName = classDecl[6]?.trim();
+      const colorName = classDecl[9]?.trim();
       const color = colorName
         ? resolveColorWithDiagnostic(
             colorName,
@@ -532,8 +548,8 @@ export function extractSymbols(docText: string): DiagramSymbols {
     if (line.length === 0 || /^\s/.test(rawLine)) continue;
     const m = CLASS_DECL_RE.exec(line);
     if (m) {
-      const name = m[2]!; // group 2 is the class name in the new regex
-      if (!entities.includes(name)) entities.push(name);
+      const name = (m[2] ?? m[3] ?? '').trim();
+      if (name && !entities.includes(name)) entities.push(name);
     }
   }
   return {
