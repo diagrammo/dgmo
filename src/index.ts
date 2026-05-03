@@ -173,6 +173,13 @@ export type { TagGroup, TagEntry } from './utils/tag-groups';
 export { parseInlineMarkdown, truncateBareUrl } from './utils/inline-markdown';
 export type { InlineSpan } from './utils/inline-markdown';
 
+export {
+  normalizeName,
+  displayName,
+  getOrCreateName,
+} from './utils/name-normalize';
+export type { NameEntry, GetOrCreateNameResult } from './utils/name-normalize';
+
 export { parseOrg } from './org/parser';
 export type { ParsedOrg, OrgNode } from './org/parser';
 
