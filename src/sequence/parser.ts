@@ -10,6 +10,7 @@ import {
   suggest,
   NAME_DIAGNOSTIC_CODES,
   nameMergedMessage,
+  akaRemovedMessage,
 } from '../diagnostics';
 import { normalizeName, displayName } from '../utils/name-normalize';
 import { parseArrow, parseInArrowLabel } from '../utils/arrows';
@@ -68,7 +69,7 @@ const VALID_PARTICIPANT_TYPES: ReadonlySet<string> = new Set([
 export interface SequenceParticipant {
   /** Internal identifier (e.g. "AuthService") */
   id: string;
-  /** Display label — uses aka alias if provided, otherwise id */
+  /** Display label — first-seen casing/spacing of the name */
   label: string;
   /** Participant shape type */
   type: ParticipantType;
@@ -185,7 +186,7 @@ export interface ParsedSequenceDgmo {
 // "Name is a type" pattern — e.g. "Auth Server is a service"
 // Participant names may contain spaces; [^:]+? stops at colons so that
 // note lines like "note right of A: this is a service" are not falsely matched.
-// Remainder after type is parsed separately for aka/position modifiers
+// Remainder after type is parsed separately for `position N` modifier.
 const IS_A_PATTERN = /^([^:]+?)\s+is\s+an?\s+(\w+)(?:\s+(.+))?$/i;
 
 // Standalone "Name position N" pattern — e.g. "DB position -1"
@@ -878,8 +879,11 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       }
     }
 
-    // Parse "Name is a type [aka Alias]" declarations (always top-level)
-    // Skip lines starting with 'note' — handled by note parsing below
+    // Parse "Name is a type [position N]" declarations (always top-level).
+    // The legacy `aka Alias` modifier is no longer supported — Universal Name
+    // Handling makes aliasing unnecessary because forgiving normalization
+    // handles casing/whitespace differences automatically.
+    // Skip lines starting with 'note' — handled by note parsing below.
     const { core: isACore, meta: isAMeta } = splitPipe(trimmed, lineNumber);
     const isAMatch = !/^note(\s|$)/i.test(trimmed)
       ? isACore.match(IS_A_PATTERN)
@@ -896,18 +900,25 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
         ? (typeStr as ParticipantType)
         : 'default';
 
-      // Parse modifiers from remainder: aka ALIAS, position N
-      const akaMatch = remainder.match(
-        /\baka\s+(.+?)(?:\s+position\s+-?\d+\s*$|$)/i
-      );
+      // Reject removed `aka Alias` modifier with the canonical diagnostic.
+      if (/\baka\b/i.test(remainder)) {
+        result.diagnostics.push(
+          makeDgmoError(
+            lineNumber,
+            akaRemovedMessage(),
+            'error',
+            NAME_DIAGNOSTIC_CODES.AKA_REMOVED
+          )
+        );
+        continue;
+      }
+
       const posMatch = remainder.match(/\bposition\s+(-?\d+)/i);
-      const alias = akaMatch ? akaMatch[1].trim() : null;
       const position = posMatch ? parseInt(posMatch[1], 10) : undefined;
 
       // Avoid duplicate participant declarations
       const key = addParticipant(id, lineNumber, {
         type: participantType,
-        label: alias || displayName(id),
         position,
         metadata: isAMeta,
       });

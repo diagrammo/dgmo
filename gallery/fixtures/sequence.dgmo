@@ -4,7 +4,7 @@ User is an actor
 App is a frontend
 API is a gateway
 Orders is a service
-Payments is an external aka Stripe
+Payments is an external
 DB is a database
 
 [Place Order]

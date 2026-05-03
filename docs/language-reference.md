@@ -198,7 +198,7 @@ No code migration is required for in-arrow label character escaping — any labe
 ### 2.1 Participants
 
 ```
-Name is a <type> [aka Alias] [position N]
+Name is a <type> [position N]
 Name | key: value
 ```
 

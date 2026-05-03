@@ -1678,3 +1678,31 @@ describe('multi-word participant names', () => {
     expect(result.messages.length).toBeGreaterThan(5);
   });
 });
+
+describe('aka removal (Phase D)', () => {
+  it('emits E_AKA_REMOVED when aka appears in a participant declaration', () => {
+    const result = parseSequenceDgmo(`sequence
+Alice is a service aka Authenticator
+Alice -hi-> Bob`);
+    const akaErrors = result.diagnostics.filter(
+      (d) => d.code === 'E_AKA_REMOVED'
+    );
+    expect(akaErrors).toHaveLength(1);
+    expect(akaErrors[0].severity).toBe('error');
+    expect(akaErrors[0].message).toMatch(/aka.*no longer supported/);
+  });
+
+  it('does not register a participant when its declaration uses aka', () => {
+    const result = parseSequenceDgmo(`sequence
+Alice is a service aka Authenticator`);
+    expect(result.participants).toHaveLength(0);
+  });
+
+  it('treats aka inside a quoted name as literal (not a keyword)', () => {
+    const result = parseSequenceDgmo(`sequence
+"aka something" -hi-> Bob`);
+    expect(
+      result.diagnostics.filter((d) => d.code === 'E_AKA_REMOVED')
+    ).toHaveLength(0);
+  });
+});
