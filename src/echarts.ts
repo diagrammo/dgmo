@@ -145,7 +145,7 @@ export interface ParsedExtendedChart {
 
 import type { PaletteColors } from './palettes';
 import { getSeriesColors, getSegmentColors } from './palettes';
-import { mix, shapeFill } from './palettes/color-utils';
+import { contrastText, mix, shapeFill } from './palettes/color-utils';
 import { parseChart } from './chart';
 import type { ParsedChart, ChartEra } from './chart';
 import { makeDgmoError, formatDgmoError, suggest } from './diagnostics';
@@ -1480,7 +1480,11 @@ export function computeScatterLabelGraphics(
       });
     }
 
-    // Text element (z=3, rendered on top)
+    // Text element (z=3, rendered on top). The text fill is the point color,
+    // which in solid-fill mode matches the bubble fill exactly → invisible on
+    // the bubble. Add a paint-order halo using the chart bg so the text stays
+    // readable whether it lands on the plot bg, on a connector line, or
+    // partially on a same-colored bubble.
     elements.push({
       type: 'text',
       id: `scatter-label-${i}`,
@@ -1490,6 +1494,11 @@ export function computeScatterLabelGraphics(
       style: {
         text: pt.name,
         fill: pt.color,
+        ...(bg && {
+          stroke: bg,
+          lineWidth: 3,
+          paintOrder: 'stroke',
+        }),
         fontSize,
         fontFamily: FONT_FAMILY,
         textAlign: 'center',
@@ -1910,20 +1919,16 @@ function buildHeatmapOption(
       show: false,
       min: minValue,
       max: maxValue,
+      // Heatmap INTENTIONALLY ignores `solid-fill`. The cell color IS the
+      // value gradient — solid mode collapses each color into its full
+      // intent and ECharts interpolates between them, producing high-saturation
+      // cells where text is unreadable. Same opt-out as gantt and infra.
       inRange: {
         color: [
-          shapeFill(palette, palette.primary, isDark, {
-            solid: parsed.solidFill === true,
-          }),
-          shapeFill(palette, palette.colors.cyan, isDark, {
-            solid: parsed.solidFill === true,
-          }),
-          shapeFill(palette, palette.colors.yellow, isDark, {
-            solid: parsed.solidFill === true,
-          }),
-          shapeFill(palette, palette.colors.orange, isDark, {
-            solid: parsed.solidFill === true,
-          }),
+          shapeFill(palette, palette.primary, isDark),
+          shapeFill(palette, palette.colors.cyan, isDark),
+          shapeFill(palette, palette.colors.yellow, isDark),
+          shapeFill(palette, palette.colors.orange, isDark),
         ],
       },
     },
@@ -2948,6 +2953,9 @@ function buildBarStackedOption(
 
   const series = seriesNames.map((name, idx) => {
     const color = parsed.seriesNameColors?.[idx] ?? colors[idx % colors.length];
+    const segmentFill = shapeFill(palette, color, isDark, {
+      solid: parsed.solidFill === true,
+    });
     const data = parsed.data.map((dp) =>
       idx === 0 ? dp.value : (dp.extraValues?.[idx - 1] ?? 0)
     );
@@ -2957,9 +2965,7 @@ function buildBarStackedOption(
       stack: 'total',
       data,
       itemStyle: {
-        color: shapeFill(palette, color, isDark, {
-          solid: parsed.solidFill === true,
-        }),
+        color: segmentFill,
         borderColor: color,
         borderWidth: CHART_BORDER_WIDTH,
       },
@@ -2967,7 +2973,14 @@ function buildBarStackedOption(
         show: !parsed.noValue,
         position: 'inside' as const,
         formatter: '{c}',
-        color: textColor,
+        // Inside-segment label must contrast against the segment fill, not
+        // against the chart bg — `textColor` (= palette.text) is illegible
+        // on saturated solid fills.
+        color: contrastText(
+          segmentFill,
+          palette.textOnFillLight,
+          palette.textOnFillDark
+        ),
         fontSize: 14,
         fontWeight: 'bold' as const,
         fontFamily: FONT_FAMILY,

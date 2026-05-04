@@ -1343,21 +1343,18 @@ function renderNodes(
   fanoutSourceIds?: Set<string>,
   scaledGroupIds?: Set<string>
 ) {
-  const mutedColor = palette.textMuted;
-
   for (const node of nodes) {
     const slo =
       !node.isEdge && diagramOptions
         ? resolveNodeSlo(node, diagramOptions)
         : null;
     const severity = worstNodeSeverity(node, slo);
-    const nodeColors = nodeColor(
-      node,
-      palette,
-      isDark,
-      severity,
-      diagramOptions?.['solid-fill'] === 'on'
-    );
+    // Infra INTENTIONALLY ignores `solid-fill` — the renderer relies on subtle
+    // tint gradations to communicate severity tiers (normal / warning /
+    // overloaded), instance counts, RPS load indicators, and the nested
+    // header/body/metrics panel structure. Solid fills collapse all of those
+    // signals into one saturated rectangle, making the diagram unreadable.
+    const nodeColors = nodeColor(node, palette, isDark, severity, false);
     const textFill = nodeColors.textFill;
     let { fill, stroke } = nodeColors;
 
@@ -1484,7 +1481,7 @@ function renderNodes(
           .attr('text-anchor', 'middle')
           .attr('font-family', FONT_FAMILY)
           .attr('font-size', META_FONT_SIZE)
-          .attr('fill', mutedColor);
+          .attr('fill', textFill);
         renderInlineText(textEl, descTruncated, palette, META_FONT_SIZE);
         if (isTruncated) textEl.append('title').text(rawLine);
       }
@@ -1565,7 +1562,7 @@ function renderNodes(
               ? COLOR_OVERLOADED
               : rpsSeverity === 'warning'
                 ? COLOR_WARNING
-                : mutedColor;
+                : textFill;
           const rpsInverted = rpsSeverity !== 'normal';
           const rpsText =
             effectiveCap > 0 && !node.isEdge
@@ -1584,7 +1581,7 @@ function renderNodes(
           computedSection.push({
             key: cr.key,
             value: cr.value,
-            valueFill: cr.color ?? mutedColor,
+            valueFill: cr.color ?? textFill,
             fontWeight: 'normal',
             inverted: cr.inverted,
             invertedBg: cr.inverted ? cr.color : undefined,
@@ -1686,13 +1683,14 @@ function renderNodes(
               .attr('fill', pillTextColor)
               .text(row.value);
           } else {
-            // Normal row: muted key + colored value
+            // Normal row: contrast key + colored value (textFill instead of
+            // mutedColor — gray on saturated solid fills is illegible).
             g.append('text')
               .attr('x', x + 10)
               .attr('y', rowY)
               .attr('font-family', FONT_FAMILY)
               .attr('font-size', META_FONT_SIZE)
-              .attr('fill', mutedColor)
+              .attr('fill', textFill)
               .text(`${row.key}: `);
 
             g.append('text')
@@ -1728,7 +1726,7 @@ function renderNodes(
           .attr('text-anchor', 'end')
           .attr('font-family', FONT_FAMILY)
           .attr('font-size', META_FONT_SIZE)
-          .attr('fill', mutedColor)
+          .attr('fill', textFill)
           .attr('data-instance-node', node.id)
           .style('cursor', 'pointer')
           .text(badgeText);

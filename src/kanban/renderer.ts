@@ -422,6 +422,16 @@ export function renderKanban(
     const thisColHeaderBg = col.color
       ? shapeFill(palette, col.color, isDark, { solid })
       : defaultColHeaderBg;
+    // Header text must contrast against the header bg, not against the chart bg.
+    // Without this, a solid-yellow "In Progress" header with `palette.text` (white
+    // in dark mode) gives white-on-yellow — unreadable.
+    const onHeaderText = col.color
+      ? contrastText(
+          thisColHeaderBg,
+          palette.textOnFillLight,
+          palette.textOnFillDark
+        )
+      : palette.text;
 
     if (isColCollapsed) {
       // Collapsed column: narrow strip with count + vertical name
@@ -441,7 +451,8 @@ export function renderKanban(
         .attr('rx', COLUMN_HEADER_RADIUS)
         .attr('fill', thisColHeaderBg);
 
-      // Card count
+      // Card count — count sits on the header bg, vertical name sits on the
+      // body bg below. Contrast against header for the count.
       g.append('text')
         .attr('x', colLayout.x + COLLAPSED_COLUMN_WIDTH / 2)
         .attr(
@@ -450,11 +461,11 @@ export function renderKanban(
         )
         .attr('font-size', WIP_FONT_SIZE)
         .attr('font-weight', 'bold')
-        .attr('fill', palette.textMuted)
+        .attr('fill', col.color ? onHeaderText : palette.textMuted)
         .attr('text-anchor', 'middle')
         .text(String(col.cards.length));
 
-      // Vertical column name
+      // Vertical column name (sits on body bg below the header — palette.text fine)
       g.append('text')
         .attr('x', colLayout.x + COLLAPSED_COLUMN_WIDTH / 2)
         .attr('y', colLayout.y + COLUMN_HEADER_HEIGHT + COLUMN_PADDING)
@@ -486,7 +497,7 @@ export function renderKanban(
       .attr('rx', COLUMN_HEADER_RADIUS)
       .attr('fill', thisColHeaderBg);
 
-    // Column title
+    // Column title — must contrast against the (possibly solid) header bg.
     g.append('text')
       .attr('x', colLayout.x + COLUMN_PADDING)
       .attr(
@@ -495,7 +506,7 @@ export function renderKanban(
       )
       .attr('font-size', COLUMN_HEADER_FONT_SIZE)
       .attr('font-weight', 'bold')
-      .attr('fill', palette.text)
+      .attr('fill', onHeaderText)
       .text(col.name);
 
     // Card count / WIP limit badge (right-aligned)
@@ -514,7 +525,14 @@ export function renderKanban(
         )
         .attr('text-anchor', 'end')
         .attr('font-size', WIP_FONT_SIZE)
-        .attr('fill', wipExceeded ? palette.colors.red : palette.textMuted)
+        .attr(
+          'fill',
+          wipExceeded
+            ? palette.colors.red
+            : col.color
+              ? onHeaderText
+              : palette.textMuted
+        )
         .attr('font-weight', wipExceeded ? 'bold' : 'normal')
         .text(badgeText);
     }
@@ -600,7 +618,7 @@ export function renderKanban(
           .attr('y1', separatorY)
           .attr('x2', cx + cardLayout.width)
           .attr('y2', separatorY)
-          .attr('stroke', cardStroke)
+          .attr('stroke', solid ? onCardText : cardStroke)
           .attr('stroke-opacity', 0.3)
           .attr('stroke-width', 1);
 
@@ -612,7 +630,7 @@ export function renderKanban(
             .attr('x', cx + CARD_PADDING_X)
             .attr('y', metaY)
             .attr('font-size', CARD_META_FONT_SIZE)
-            .attr('fill', palette.textMuted)
+            .attr('fill', onCardText)
             .text(`${meta.label}: `);
 
           const labelWidth =
@@ -634,7 +652,7 @@ export function renderKanban(
             .attr('x', cx + CARD_PADDING_X)
             .attr('y', metaY)
             .attr('font-size', CARD_META_FONT_SIZE)
-            .attr('fill', palette.textMuted);
+            .attr('fill', onCardText);
           renderInlineText(detailEl, detail, palette, CARD_META_FONT_SIZE);
 
           metaY += CARD_META_LINE_HEIGHT;

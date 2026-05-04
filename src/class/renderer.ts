@@ -488,13 +488,14 @@ export function renderClassDiagram(
     // When legend is collapsed, use neutral color for nodes without explicit color
     const neutralize = hasLegend && !isLegendExpanded && !node.color;
     const effectiveColor = neutralize ? palette.primary : node.color;
+    const solid = parsed.options?.['solid-fill'] === 'on';
     const fill = nodeFill(
       palette,
       isDark,
       node.modifier,
       effectiveColor,
       colorOff,
-      parsed.options?.['solid-fill'] === 'on'
+      solid
     );
     const stroke = nodeStroke(palette, node.modifier, effectiveColor, colorOff);
     const onFillText = contrastText(
@@ -529,12 +530,12 @@ export function renderClassDiagram(
         .attr('y', headerCenterY - 6)
         .attr('text-anchor', 'middle')
         .attr('dominant-baseline', 'central')
-        .attr('fill', palette.textMuted)
+        .attr('fill', onFillText)
         .attr('font-size', MEMBER_FONT_SIZE)
         .attr('font-style', 'italic')
         .text(badgeText);
 
-      // Class name below badge
+      // Class name below badge — contrast against fill
       nodeG
         .append('text')
         .attr('x', 0)
@@ -575,7 +576,7 @@ export function renderClassDiagram(
         .attr('y1', yPos)
         .attr('x2', w / 2)
         .attr('y2', yPos)
-        .attr('stroke', stroke)
+        .attr('stroke', solid ? onFillText : stroke)
         .attr('stroke-width', 0.5)
         .attr('stroke-opacity', 0.5);
 
@@ -601,7 +602,7 @@ export function renderClassDiagram(
         .attr('y1', yPos)
         .attr('x2', w / 2)
         .attr('y2', yPos)
-        .attr('stroke', stroke)
+        .attr('stroke', solid ? onFillText : stroke)
         .attr('stroke-width', 0.5)
         .attr('stroke-opacity', 0.5);
 
@@ -637,7 +638,7 @@ export function renderClassDiagram(
         .attr('y1', yPos)
         .attr('x2', w / 2)
         .attr('y2', yPos)
-        .attr('stroke', stroke)
+        .attr('stroke', solid ? onFillText : stroke)
         .attr('stroke-width', 0.5)
         .attr('stroke-opacity', 0.5);
 

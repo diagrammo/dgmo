@@ -260,6 +260,10 @@ export function renderCycle(
       palette.textOnFillLight,
       palette.textOnFillDark
     );
+    // Description text sits on top of the node fill — must follow the same
+    // contrast rule as the title, NOT use a fixed `palette.textMuted` gray
+    // (which is only legible against bg/surface, not against saturated fills).
+    const descColor = textColor;
     const nodeW = ln.width;
     const nodeH = ln.height;
     const wrappedDesc = ln.wrappedDesc;
@@ -312,7 +316,7 @@ export function renderCycle(
             .attr('x', ln.x)
             .attr('y', descY)
             .attr('text-anchor', 'middle')
-            .attr('fill', palette.textMuted)
+            .attr('fill', descColor)
             .attr('font-family', FONT_FAMILY)
             .attr('font-size', scaledDescFont);
           renderInlineText(descText, line.text, palette, DESC_FONT_SIZE);
@@ -368,7 +372,7 @@ export function renderCycle(
           .attr('y1', sepY)
           .attr('x2', ln.x + nodeW / 2)
           .attr('y2', sepY)
-          .attr('stroke', solidColor)
+          .attr('stroke', solid ? descColor : solidColor)
           .attr('stroke-opacity', 0.3)
           .attr('stroke-width', 1);
 
@@ -387,7 +391,7 @@ export function renderCycle(
               .attr('x', descX)
               .attr('y', lineY)
               .attr('text-anchor', 'start')
-              .attr('fill', palette.textMuted)
+              .attr('fill', descColor)
               .attr('font-family', FONT_FAMILY)
               .attr('font-size', scaledDescFont)
               .text('•');
@@ -397,7 +401,7 @@ export function renderCycle(
               .attr('x', bulletBodyX)
               .attr('y', lineY)
               .attr('text-anchor', 'start')
-              .attr('fill', palette.textMuted)
+              .attr('fill', descColor)
               .attr('font-family', FONT_FAMILY)
               .attr('font-size', scaledDescFont);
             renderInlineText(bodyText, line.text, palette, DESC_FONT_SIZE);
@@ -408,7 +412,7 @@ export function renderCycle(
               .attr('x', x)
               .attr('y', lineY)
               .attr('text-anchor', 'start')
-              .attr('fill', palette.textMuted)
+              .attr('fill', descColor)
               .attr('font-family', FONT_FAMILY)
               .attr('font-size', scaledDescFont);
             renderInlineText(descText, line.text, palette, DESC_FONT_SIZE);

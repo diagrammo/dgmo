@@ -41,10 +41,18 @@ const HEADER_RE = /^(org|kanban|title\s*:)/i;
 /**
  * Known option keys that can appear in org chart headers (space-separated).
  * Only these are stripped from imported files — avoids eating content like "Alice Chen".
+ * MUST stay in sync with `KNOWN_OPTIONS` + `KNOWN_BOOLEANS` in `parser.ts`; otherwise
+ * an unknown header keyword causes the resolver to misidentify body-start, which
+ * pushes downstream `tags` / `import` directives into the body as garbage.
  */
 const KNOWN_HEADER_OPTIONS = new Set([
-  'direction-tb', 'sub-node-label', 'hide', 'show-sub-node-count',
+  'direction-tb',
+  'sub-node-label',
+  'hide',
+  'show-sub-node-count',
   'color-off',
+  'solid-fill',
+  'active-tag',
 ]);
 
 // ============================================================
@@ -166,7 +174,11 @@ function parseFileHeader(lines: string[]): ParsedHeader {
       }
 
       // Known option header lines (space-separated `key value` or bare boolean)
-      if (!lines[i].match(/^\s/) && !isTagBlockHeading(trimmed) && !trimmed.includes('|')) {
+      if (
+        !lines[i].match(/^\s/) &&
+        !isTagBlockHeading(trimmed) &&
+        !trimmed.includes('|')
+      ) {
         const firstToken = trimmed.split(/\s/)[0].toLowerCase();
         if (KNOWN_HEADER_OPTIONS.has(firstToken)) {
           continue;
@@ -198,10 +210,17 @@ function parseFileHeader(lines: string[]): ParsedHeader {
 export async function resolveOrgImports(
   content: string,
   filePath: string,
-  readFileFn: ReadFileFn,
+  readFileFn: ReadFileFn
 ): Promise<ResolveImportsResult> {
   const diagnostics: DgmoError[] = [];
-  const result = await resolveFile(content, filePath, readFileFn, diagnostics, new Set([filePath]), 0);
+  const result = await resolveFile(
+    content,
+    filePath,
+    readFileFn,
+    diagnostics,
+    new Set([filePath]),
+    0
+  );
   return {
     content: result.content,
     diagnostics,
@@ -216,8 +235,12 @@ async function resolveFile(
   readFileFn: ReadFileFn,
   diagnostics: DgmoError[],
   ancestorChain: Set<string>,
-  depth: number,
-): Promise<{ content: string; lineMap: (number | null)[]; importSourceMap: (ImportSource | null)[] }> {
+  depth: number
+): Promise<{
+  content: string;
+  lineMap: (number | null)[];
+  importSourceMap: (ImportSource | null)[];
+}> {
   const lines = content.split('\n');
 
   // ---- Step 1: Identify header, tags directive, inline tag groups ----
@@ -264,7 +287,11 @@ async function resolveFile(
 
   // ---- Step 3: Resolve import directives in body ----
   const bodyLines = lines.slice(bodyStartIndex);
-  const resolvedBodyLines: { text: string; originalLine: number | null; importSource: ImportSource | null }[] = [];
+  const resolvedBodyLines: {
+    text: string;
+    originalLine: number | null;
+    importSource: ImportSource | null;
+  }[] = [];
   const importedTagGroups: TagGroupBlock[] = [];
 
   for (let i = 0; i < bodyLines.length; i++) {
@@ -275,10 +302,17 @@ async function resolveFile(
     if (!importMatch) {
       // Pass through — skip inline tag group lines (already extracted above)
       const trimmed = line.trim();
-      if (isTagBlockHeading(trimmed) || (inlineTagGroups.length > 0 && isTagGroupEntry(line, bodyLines, i))) {
+      if (
+        isTagBlockHeading(trimmed) ||
+        (inlineTagGroups.length > 0 && isTagGroupEntry(line, bodyLines, i))
+      ) {
         continue;
       }
-      resolvedBodyLines.push({ text: line, originalLine: lineNumber, importSource: null });
+      resolvedBodyLines.push({
+        text: line,
+        originalLine: lineNumber,
+        importSource: null,
+      });
       continue;
     }
 
@@ -289,14 +323,19 @@ async function resolveFile(
     // Depth check
     if (depth >= MAX_DEPTH) {
       diagnostics.push(
-        makeDgmoError(lineNumber, `Import depth limit exceeded (${MAX_DEPTH}): ${importRelPath}`)
+        makeDgmoError(
+          lineNumber,
+          `Import depth limit exceeded (${MAX_DEPTH}): ${importRelPath}`
+        )
       );
       continue;
     }
 
     // Circular check
     if (ancestorChain.has(importAbsPath)) {
-      const chain = [...ancestorChain, importAbsPath].map(p => p.split('/').pop()).join(' -> ');
+      const chain = [...ancestorChain, importAbsPath]
+        .map((p) => p.split('/').pop())
+        .join(' -> ');
       diagnostics.push(
         makeDgmoError(lineNumber, `Circular import detected: ${chain}`)
       );
@@ -323,7 +362,7 @@ async function resolveFile(
       readFileFn,
       diagnostics,
       nestedChain,
-      depth + 1,
+      depth + 1
     );
 
     // Strip header, extract tag groups from resolved content
@@ -339,13 +378,19 @@ async function resolveFile(
     const importedContentLines: { text: string; index: number }[] = [];
     for (let j = 0; j < parsed.contentLines.length; j++) {
       if (parsed.contentLines[j].trim() !== '') {
-        importedContentLines.push({ text: parsed.contentLines[j], index: parsed.contentLineIndices[j] });
+        importedContentLines.push({
+          text: parsed.contentLines[j],
+          index: parsed.contentLineIndices[j],
+        });
       }
     }
 
     // Trim trailing empty lines but keep internal structure
     let lastNonEmpty = importedContentLines.length - 1;
-    while (lastNonEmpty >= 0 && importedContentLines[lastNonEmpty].text.trim() === '') {
+    while (
+      lastNonEmpty >= 0 &&
+      importedContentLines[lastNonEmpty].text.trim() === ''
+    ) {
       lastNonEmpty--;
     }
     const trimmedImported = importedContentLines.slice(0, lastNonEmpty + 1);
@@ -369,16 +414,28 @@ async function resolveFile(
       }
 
       if (entry.text.trim() === '') {
-        resolvedBodyLines.push({ text: '', originalLine: lineNumber, importSource });
+        resolvedBodyLines.push({
+          text: '',
+          originalLine: lineNumber,
+          importSource,
+        });
       } else {
-        resolvedBodyLines.push({ text: indent + entry.text, originalLine: lineNumber, importSource });
+        resolvedBodyLines.push({
+          text: indent + entry.text,
+          originalLine: lineNumber,
+          importSource,
+        });
       }
     }
   }
 
   // ---- Step 4: Merge tag groups with precedence ----
   // Priority: inline > tags file > imported files
-  const mergedGroups = mergeTagGroups(inlineTagGroups, tagsFileGroups, importedTagGroups);
+  const mergedGroups = mergeTagGroups(
+    inlineTagGroups,
+    tagsFileGroups,
+    importedTagGroups
+  );
 
   // ---- Step 5: Rebuild output ----
   const outputLines: string[] = [];
@@ -398,7 +455,10 @@ async function resolveFile(
   // Merged tag groups
   if (mergedGroups.length > 0) {
     // Ensure blank line before tag groups if header has content
-    if (outputLines.length > 0 && outputLines[outputLines.length - 1].trim() !== '') {
+    if (
+      outputLines.length > 0 &&
+      outputLines[outputLines.length - 1].trim() !== ''
+    ) {
       outputLines.push('');
       lineMap.push(null);
       importSourceMap.push(null);
@@ -426,7 +486,11 @@ async function resolveFile(
 
   // Body content
   // Ensure blank line separator
-  if (resolvedBodyLines.length > 0 && outputLines.length > 0 && outputLines[outputLines.length - 1].trim() !== '') {
+  if (
+    resolvedBodyLines.length > 0 &&
+    outputLines.length > 0 &&
+    outputLines[outputLines.length - 1].trim() !== ''
+  ) {
     outputLines.push('');
     lineMap.push(null);
     importSourceMap.push(null);
@@ -478,7 +542,11 @@ function findBodyStart(lines: string[]): number {
     if (TAGS_RE.test(trimmed)) continue;
 
     // Known option lines (space-separated `key value` or bare boolean before content)
-    if (!lines[i].match(/^\s/) && !trimmed.includes('|') && !isTagBlockHeading(trimmed)) {
+    if (
+      !lines[i].match(/^\s/) &&
+      !trimmed.includes('|') &&
+      !isTagBlockHeading(trimmed)
+    ) {
       const firstToken = trimmed.split(/\s/)[0].toLowerCase();
       if (KNOWN_HEADER_OPTIONS.has(firstToken)) {
         continue;
@@ -495,7 +563,11 @@ function findBodyStart(lines: string[]): number {
 /**
  * Check if a line is a tag group entry (indented line under a tag block heading).
  */
-function isTagGroupEntry(line: string, allLines: string[], index: number): boolean {
+function isTagGroupEntry(
+  line: string,
+  allLines: string[],
+  index: number
+): boolean {
   if (!line.match(/^\s+/)) return false;
   // Walk backwards to find the nearest non-blank, non-comment, non-entry line
   for (let i = index - 1; i >= 0; i--) {
@@ -518,7 +590,7 @@ function isTagGroupEntry(line: string, allLines: string[], index: number): boole
 function mergeTagGroups(
   inline: TagGroupBlock[],
   tagsFile: TagGroupBlock[],
-  imported: TagGroupBlock[],
+  imported: TagGroupBlock[]
 ): TagGroupBlock[] {
   const seen = new Map<string, TagGroupBlock>();
 

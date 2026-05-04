@@ -186,17 +186,66 @@ export function relativeLuminance(hex: string): number {
 }
 
 /**
- * Pick a text color that contrasts against `bg`.
- * Returns `darkText` when background is light (luminance > 0.179),
- * `lightText` when background is dark.
- * Threshold 0.179 is the standard WCAG midpoint for the contrast flip.
+ * WCAG 2.1 contrast ratio between two colors. (L_lighter + 0.05) / (L_darker + 0.05).
+ * Range: 1.0 (identical) to 21.0 (black on white).
+ */
+export function contrastRatio(a: string, b: string): number {
+  const la = relativeLuminance(a);
+  const lb = relativeLuminance(b);
+  const lighter = Math.max(la, lb);
+  const darker = Math.min(la, lb);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+/**
+ * Pick `lightText` or `darkText` for placement on top of `bg`.
+ *
+ * Three-tier decision:
+ *  1. **High-luminance fill (luminance > 0.55)** → `darkText`. Yellows, peaches,
+ *     light cyans — dark text reads better and a light cream on light yellow is
+ *     unreadable.
+ *  2. **Pastel fill (min RGB channel ≥ 100, luminance ≤ 0.55)** → defer to WCAG
+ *     ratio. Pastels have no near-zero channel and tend to read as "soft" —
+ *     dark text usually wins by ratio (catppuccin dark mauve `#cba6f7` min 166,
+ *     ratio 9.35:1; tokyo-night dark red `#f7768e` min 118, ratio 7.86:1; and
+ *     tokyo-night green `#9ece6a` min 106, ratio 11.4:1 all correctly pick dark).
+ *  3. **Saturated fill (min RGB < 100, luminance ≤ 0.55)** → `lightText`. At least
+ *     one channel near zero signals true saturation — gruvbox dark green
+ *     `#b8bb26` (min 38), one-dark blue `#4078f2` (min 64), bold red/blue
+ *     (min 0), solarized blue `#268bd2` (min 38). The user consistently
+ *     prefers light text on these for visual punch.
+ *
+ * `min RGB` discriminates pastel-vs-saturated more reliably than `max-min`
+ * (vibrance): tokyo-night and catppuccin dark are pastels with high max RGB,
+ * so vibrance alone misclassifies them as "saturated."
+ *
+ * Tinted fills (luminance ~0.7+ in light themes / ~0.02–0.14 in dark themes)
+ * are unambiguous in either branch; only solid-fill output shifts here.
  */
 export function contrastText(
   bg: string,
   lightText: string,
   darkText: string
 ): string {
-  return relativeLuminance(bg) > 0.179 ? darkText : lightText;
+  const L = relativeLuminance(bg);
+  if (L > 0.55) return darkText;
+  const raw = bg.replace('#', '');
+  const full =
+    raw.length === 3
+      ? raw[0] + raw[0] + raw[1] + raw[1] + raw[2] + raw[2]
+      : raw;
+  const r = parseInt(full.substring(0, 2), 16);
+  const g = parseInt(full.substring(2, 4), 16);
+  const b = parseInt(full.substring(4, 6), 16);
+  const minRgb = Math.min(r, g, b);
+  if (minRgb >= 100) {
+    // Pastel: defer to WCAG ratio (almost always picks dark for these).
+    return contrastRatio(bg, darkText) > contrastRatio(bg, lightText)
+      ? darkText
+      : lightText;
+  }
+  // Truly saturated: prefer light text for visual punch.
+  return lightText;
 }
 
 // ============================================================

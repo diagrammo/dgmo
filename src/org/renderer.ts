@@ -448,11 +448,12 @@ export function renderOrg(
     }
 
     // Card background
+    const solid = parsed.options['solid-fill'] === 'on';
     const fill = nodeFill(
       palette,
       isDark,
       colorOff ? undefined : node.color,
-      parsed.options['solid-fill'] === 'on'
+      solid
     );
     const stroke = nodeStroke(palette, colorOff ? undefined : node.color);
 
@@ -498,7 +499,7 @@ export function renderOrg(
         .attr('y1', HEADER_HEIGHT)
         .attr('x2', node.width)
         .attr('y2', HEADER_HEIGHT)
-        .attr('stroke', stroke)
+        .attr('stroke', solid ? labelColor : stroke)
         .attr('stroke-opacity', 0.3)
         .attr('stroke-width', 1);
 
@@ -515,12 +516,12 @@ export function renderOrg(
         const displayKey = metaDisplayKeys[i];
         const rowY = metaStartY + i * META_LINE_HEIGHT;
 
-        // Key (muted)
+        // Key — must contrast against fill (textMuted is illegible on solid fills)
         nodeG
           .append('text')
           .attr('x', 10)
           .attr('y', rowY)
-          .attr('fill', palette.textMuted)
+          .attr('fill', labelColor)
           .attr('font-size', META_FONT_SIZE)
           .text(`${displayKey}: `);
 
@@ -551,7 +552,14 @@ export function renderOrg(
         .attr('y', node.height - COLLAPSE_BAR_HEIGHT)
         .attr('width', node.width - COLLAPSE_BAR_INSET * 2)
         .attr('height', COLLAPSE_BAR_HEIGHT)
-        .attr('fill', nodeStroke(palette, colorOff ? undefined : node.color))
+        // In solid mode, nodeStroke matches the fill — bar disappears.
+        // Use the contrast text color so the indicator stays visible.
+        .attr(
+          'fill',
+          solid
+            ? labelColor
+            : nodeStroke(palette, colorOff ? undefined : node.color)
+        )
         .attr('clip-path', `url(#${clipId})`)
         .attr('class', 'org-collapse-bar');
     }

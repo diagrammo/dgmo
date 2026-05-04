@@ -220,11 +220,25 @@ export function renderPyramid(
       .attr('stroke-width', 2);
 
     const midY = (topEdgeY + botEdgeY) / 2;
+    // Always contrast text color against the fill — that's where the label
+    // sits in the common case.
+    const textColor = contrastText(
+      fillColor,
+      palette.textOnFillLight,
+      palette.textOnFillDark
+    );
+    // At narrow apexes the label can horizontally overflow the triangle and
+    // spill onto the chart bg, where a single text color can't be readable
+    // against both backgrounds. Add a paint-order halo in the opposite
+    // contrast (dark halo around light text or vice versa) so the spilled
+    // portion stays readable. Only when needed — wide segments don't need
+    // the visual noise of a stroke.
     const labelFitsInside =
       Math.min(topHalf, botHalf) * 2 > layout.labelFont * 4;
-    const textColor = labelFitsInside
-      ? contrastText(fillColor, palette.textOnFillLight, palette.textOnFillDark)
-      : palette.text;
+    const haloColor =
+      textColor === palette.textOnFillLight
+        ? palette.textOnFillDark
+        : palette.textOnFillLight;
 
     const labelText = layerG
       .append('text')
@@ -236,6 +250,14 @@ export function renderPyramid(
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', layout.labelFont)
       .attr('font-weight', 600);
+    if (!labelFitsInside) {
+      labelText
+        .attr('paint-order', 'stroke fill')
+        .attr('stroke', haloColor)
+        .attr('stroke-width', 3)
+        .attr('stroke-linejoin', 'round')
+        .attr('stroke-opacity', 0.6);
+    }
     renderInlineText(labelText, layer.label, palette);
 
     // Description: render both short (truncated) and full variants.

@@ -529,7 +529,7 @@ export function renderERDiagram(
             .attr('x', iconX)
             .attr('y', memberY + MEMBER_LINE_HEIGHT / 2)
             .attr('dominant-baseline', 'central')
-            .attr('fill', palette.textMuted)
+            .attr('fill', onFillText)
             .attr('font-size', COLUMN_FONT_SIZE)
             .text(constraintIcon(primaryConstraint));
         }

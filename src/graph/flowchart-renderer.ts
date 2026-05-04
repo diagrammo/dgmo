@@ -246,6 +246,22 @@ function renderSubroutine(
   const w = node.width;
   const h = node.height;
   const s = nodeStroke(palette, node.shape, node.color, undefined, colorOff);
+  const fill = nodeFill(
+    palette,
+    isDark,
+    node.shape,
+    node.color,
+    undefined,
+    colorOff,
+    solid
+  );
+  // The two inner vertical bars are what makes a subroutine LOOK like a
+  // subroutine (vs a plain process rectangle). In solid mode the fill matches
+  // `s` (= node.color), so the bars become invisible and the shape semantics
+  // are lost. Use contrastText against the fill so the bars stay visible.
+  const innerStroke = solid
+    ? contrastText(fill, palette.textOnFillLight, palette.textOnFillDark)
+    : s;
   // Outer rectangle
   g.append('rect')
     .attr('x', -w / 2)
@@ -254,18 +270,7 @@ function renderSubroutine(
     .attr('height', h)
     .attr('rx', 3)
     .attr('ry', 3)
-    .attr(
-      'fill',
-      nodeFill(
-        palette,
-        isDark,
-        node.shape,
-        node.color,
-        undefined,
-        colorOff,
-        solid
-      )
-    )
+    .attr('fill', fill)
     .attr('stroke', s)
     .attr('stroke-width', NODE_STROKE_WIDTH);
   // Left inner border
@@ -274,7 +279,7 @@ function renderSubroutine(
     .attr('y1', -h / 2)
     .attr('x2', -w / 2 + SUBROUTINE_INSET)
     .attr('y2', h / 2)
-    .attr('stroke', s)
+    .attr('stroke', innerStroke)
     .attr('stroke-width', NODE_STROKE_WIDTH);
   // Right inner border
   g.append('line')
@@ -282,7 +287,7 @@ function renderSubroutine(
     .attr('y1', -h / 2)
     .attr('x2', w / 2 - SUBROUTINE_INSET)
     .attr('y2', h / 2)
-    .attr('stroke', s)
+    .attr('stroke', innerStroke)
     .attr('stroke-width', NODE_STROKE_WIDTH);
 }
 

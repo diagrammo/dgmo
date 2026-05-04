@@ -473,13 +473,8 @@ export function renderC4Context(
 
     const w = node.width;
     const h = node.height;
-    const fill = nodeFill(
-      palette,
-      isDark,
-      node.type,
-      node.color,
-      parsed.options['solid-fill'] === 'on'
-    );
+    const solid = parsed.options['solid-fill'] === 'on';
+    const fill = nodeFill(palette, isDark, node.type, node.color, solid);
     const stroke = nodeStroke(palette, node.type, node.color);
     const onFillText = contrastText(
       fill,
@@ -510,7 +505,7 @@ export function renderC4Context(
       .attr('y', yPos + TYPE_FONT_SIZE / 2)
       .attr('text-anchor', 'middle')
       .attr('dominant-baseline', 'central')
-      .attr('fill', palette.textMuted)
+      .attr('fill', onFillText)
       .attr('font-size', TYPE_FONT_SIZE)
       .attr('font-style', 'italic')
       .text(typeLabel);
@@ -566,13 +561,13 @@ export function renderC4Context(
       .attr('y1', yPos)
       .attr('x2', w / 2 - CARD_H_PAD / 2)
       .attr('y2', yPos)
-      .attr('stroke', stroke)
+      .attr('stroke', solid ? onFillText : stroke)
       .attr('stroke-width', 0.5)
       .attr('stroke-opacity', 0.4);
 
     yPos += DIVIDER_GAP;
 
-    // Description (wrapping, muted, inline markdown)
+    // Description (wrapping, inline markdown) — must contrast against fill
     if (node.description) {
       const contentWidth = w - CARD_H_PAD * 2;
       const lines = wrapText(node.description, contentWidth, DESC_CHAR_WIDTH);
@@ -583,7 +578,7 @@ export function renderC4Context(
           .attr('y', yPos + DESC_FONT_SIZE / 2)
           .attr('text-anchor', 'middle')
           .attr('dominant-baseline', 'central')
-          .attr('fill', palette.textMuted)
+          .attr('fill', onFillText)
           .attr('font-size', DESC_FONT_SIZE);
         renderInlineText(
           textEl,
@@ -613,7 +608,9 @@ export function renderC4Context(
         .attr('y', h / 2 - DRILL_BAR_HEIGHT)
         .attr('width', w)
         .attr('height', DRILL_BAR_HEIGHT)
-        .attr('fill', stroke)
+        // In solid mode, `stroke` matches the fill — drill-bar disappears.
+        // Use the contrast text color so the indicator stays visible.
+        .attr('fill', solid ? onFillText : stroke)
         .attr('clip-path', `url(#${clipId})`)
         .attr('class', 'c4-drill-bar');
     }
@@ -1559,13 +1556,8 @@ export function renderC4Containers(
 
     const w = node.width;
     const h = node.height;
-    const fill = nodeFill(
-      palette,
-      isDark,
-      node.type,
-      node.color,
-      parsed.options['solid-fill'] === 'on'
-    );
+    const solid = parsed.options['solid-fill'] === 'on';
+    const fill = nodeFill(palette, isDark, node.type, node.color, solid);
     const stroke = nodeStroke(palette, node.type, node.color);
     const onFillText = contrastText(
       fill,
@@ -1605,7 +1597,7 @@ export function renderC4Containers(
         .attr('y', yPos + TYPE_FONT_SIZE / 2)
         .attr('text-anchor', 'middle')
         .attr('dominant-baseline', 'central')
-        .attr('fill', palette.textMuted)
+        .attr('fill', onFillText)
         .attr('font-size', TYPE_FONT_SIZE)
         .attr('font-style', 'italic')
         .text(typeLabel);
@@ -1657,7 +1649,7 @@ export function renderC4Containers(
     if (node.type === 'container') {
       // Container cards: description above divider, metadata below
 
-      // Description (above divider, inline markdown)
+      // Description (above divider, inline markdown) — contrast against fill
       if (node.description) {
         const contentWidth = w - CARD_H_PAD * 2;
         const lines = wrapText(node.description, contentWidth, DESC_CHAR_WIDTH);
@@ -1668,7 +1660,7 @@ export function renderC4Containers(
             .attr('y', yPos + DESC_FONT_SIZE / 2)
             .attr('text-anchor', 'middle')
             .attr('dominant-baseline', 'central')
-            .attr('fill', palette.textMuted)
+            .attr('fill', onFillText)
             .attr('font-size', DESC_FONT_SIZE);
           renderInlineText(
             textEl,
@@ -1690,7 +1682,7 @@ export function renderC4Containers(
           .attr('y1', yPos)
           .attr('x2', w / 2 - CARD_H_PAD / 2)
           .attr('y2', yPos)
-          .attr('stroke', stroke)
+          .attr('stroke', solid ? onFillText : stroke)
           .attr('stroke-width', 0.5)
           .attr('stroke-opacity', 0.4);
 
@@ -1700,14 +1692,14 @@ export function renderC4Containers(
         const valueX = -w / 2 + CARD_H_PAD + (maxKeyLen + 2) * META_CHAR_WIDTH;
 
         for (const entry of metaEntries) {
-          // Key (muted)
+          // Key — contrast against fill (textMuted is illegible on solid fills)
           nodeG
             .append('text')
             .attr('x', -w / 2 + CARD_H_PAD)
             .attr('y', yPos + META_FONT_SIZE / 2)
             .attr('text-anchor', 'start')
             .attr('dominant-baseline', 'central')
-            .attr('fill', palette.textMuted)
+            .attr('fill', onFillText)
             .attr('font-size', META_FONT_SIZE)
             .text(`${entry.key}:`);
 
@@ -1735,13 +1727,13 @@ export function renderC4Containers(
         .attr('y1', yPos)
         .attr('x2', w / 2 - CARD_H_PAD / 2)
         .attr('y2', yPos)
-        .attr('stroke', stroke)
+        .attr('stroke', solid ? onFillText : stroke)
         .attr('stroke-width', 0.5)
         .attr('stroke-opacity', 0.4);
 
       yPos += DIVIDER_GAP;
 
-      // Description (inline markdown)
+      // Description (inline markdown) — contrast against fill
       if (node.description) {
         const contentWidth = w - CARD_H_PAD * 2;
         const lines = wrapText(node.description, contentWidth, DESC_CHAR_WIDTH);
@@ -1752,7 +1744,7 @@ export function renderC4Containers(
             .attr('y', yPos + DESC_FONT_SIZE / 2)
             .attr('text-anchor', 'middle')
             .attr('dominant-baseline', 'central')
-            .attr('fill', palette.textMuted)
+            .attr('fill', onFillText)
             .attr('font-size', DESC_FONT_SIZE);
           renderInlineText(
             textEl,
@@ -1783,7 +1775,9 @@ export function renderC4Containers(
         .attr('y', h / 2 - DRILL_BAR_HEIGHT)
         .attr('width', w)
         .attr('height', DRILL_BAR_HEIGHT)
-        .attr('fill', stroke)
+        // In solid mode, `stroke` matches the fill — drill-bar disappears.
+        // Use the contrast text color so the indicator stays visible.
+        .attr('fill', solid ? onFillText : stroke)
         .attr('clip-path', `url(#${clipId})`)
         .attr('class', 'c4-drill-bar');
     }

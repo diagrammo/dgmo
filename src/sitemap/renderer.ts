@@ -454,12 +454,8 @@ export function renderSitemap(
       if (tagVal) nodeG.attr(`data-tag-${tagKey}`, tagVal.toLowerCase());
     }
 
-    const fill = nodeFill(
-      palette,
-      isDark,
-      node.color,
-      parsed.options['solid-fill'] === 'on'
-    );
+    const solid = parsed.options['solid-fill'] === 'on';
+    const fill = nodeFill(palette, isDark, node.color, solid);
     const stroke = nodeStroke(palette, node.color);
 
     // Card background
@@ -493,14 +489,15 @@ export function renderSitemap(
     // Separator and metadata
     const metaEntries = Object.entries(node.metadata);
     if (metaEntries.length > 0) {
-      // Separator line
+      // Separator line — contrast against fill in solid mode (otherwise
+      // stroke matches the fill and divider is invisible)
       nodeG
         .append('line')
         .attr('x1', 0)
         .attr('y1', HEADER_HEIGHT)
         .attr('x2', node.width)
         .attr('y2', HEADER_HEIGHT)
-        .attr('stroke', stroke)
+        .attr('stroke', solid ? labelColor : stroke)
         .attr('stroke-opacity', 0.3);
 
       const metaDisplayKeys = metaEntries.map(
@@ -514,14 +511,18 @@ export function renderSitemap(
         const displayKey = metaDisplayKeys[i];
         const rowY =
           HEADER_HEIGHT + SEPARATOR_GAP + (i + 1) * META_LINE_HEIGHT - 4;
-        const valColor =
-          tagColors.get(`${key}:${value.toLowerCase()}`) ?? labelColor;
+        // In solid mode the tag's color often matches the card fill (e.g.
+        // "Captain" tag is red, card colored as Captain is red → red text on
+        // red invisible). Drop the tag color tint in solid mode and use the
+        // contrast-derived labelColor; legend still shows the tag colors.
+        const tagColor = tagColors.get(`${key}:${value.toLowerCase()}`);
+        const valColor = solid ? labelColor : (tagColor ?? labelColor);
 
         nodeG
           .append('text')
           .attr('x', 10)
           .attr('y', rowY)
-          .attr('fill', palette.textMuted)
+          .attr('fill', labelColor)
           .attr('font-size', META_FONT_SIZE)
           .text(`${displayKey}:`);
 
@@ -549,7 +550,7 @@ export function renderSitemap(
         .attr('y1', sepY)
         .attr('x2', node.width)
         .attr('y2', sepY)
-        .attr('stroke', stroke)
+        .attr('stroke', solid ? labelColor : stroke)
         .attr('stroke-opacity', 0.3);
 
       const descStartY =
@@ -561,7 +562,7 @@ export function renderSitemap(
           .append('text')
           .attr('x', 10)
           .attr('y', rowY)
-          .attr('fill', palette.textMuted)
+          .attr('fill', labelColor)
           .attr('font-size', META_FONT_SIZE);
         renderInlineText(textEl, processed, palette, META_FONT_SIZE);
       }
@@ -582,7 +583,9 @@ export function renderSitemap(
         .attr('y', node.height - COLLAPSE_BAR_HEIGHT)
         .attr('width', node.width)
         .attr('height', COLLAPSE_BAR_HEIGHT)
-        .attr('fill', node.color ?? palette.primary)
+        // In solid mode, node.color matches the fill — bar disappears.
+        // Use the contrast text color so the indicator stays visible.
+        .attr('fill', solid ? labelColor : (node.color ?? palette.primary))
         .attr('opacity', 0.5)
         .attr('clip-path', `url(#${clipId})`);
     }

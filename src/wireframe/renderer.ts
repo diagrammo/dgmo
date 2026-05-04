@@ -5,7 +5,7 @@
 import * as d3Selection from 'd3-selection';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
-import { mix, shapeFill } from '../palettes/color-utils';
+import { contrastText, mix, shapeFill } from '../palettes/color-utils';
 import { TITLE_FONT_SIZE, TITLE_FONT_WEIGHT } from '../utils/title-constants';
 import type { WireframeElement, ParsedWireframe } from './types';
 import type { WireframeLayout, WireframeLayoutNode } from './layout';
@@ -1062,11 +1062,14 @@ function renderAlert(
   const color = getElementSemanticColor(el, palette) || palette.accent;
 
   // Background
-  if (!isTransparent) {
+  const fill = isTransparent
+    ? null
+    : shapeFill(palette, color, isDark, { solid: ctx.solid });
+  if (fill) {
     g.append('rect')
       .attr('width', node.width)
       .attr('height', node.height)
-      .attr('fill', shapeFill(palette, color, isDark, { solid: ctx.solid }))
+      .attr('fill', fill)
       .attr('rx', 4);
   }
 
@@ -1087,10 +1090,15 @@ function renderAlert(
       .attr('rx', 4);
   }
 
+  // Label — contrast against the alert bg (palette.text is illegible on
+  // saturated solid fills). For transparent variant fall back to palette.text.
+  const labelFill = fill
+    ? contrastText(fill, palette.textOnFillLight, palette.textOnFillDark)
+    : palette.text;
   g.append('text')
     .attr('x', 12)
     .attr('y', node.height / 2 + 4)
-    .attr('fill', palette.text)
+    .attr('fill', labelFill)
     .attr('font-size', 13)
     .text(el.label);
 }

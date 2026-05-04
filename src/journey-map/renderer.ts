@@ -206,6 +206,12 @@ export function renderJourneyMap(
 
     // Card — canonical 25% tint via shapeFill() (or full intent when solid-fill is on)
     const personaFill = shapeFill(palette, personaColor, isDark, { solid });
+    // Text drawn on top of the card must contrast against the fill, not against bg/surface.
+    const onPersonaText = contrastText(
+      personaFill,
+      palette.textOnFillLight,
+      palette.textOnFillDark
+    );
 
     personaG
       .append('rect')
@@ -224,7 +230,7 @@ export function renderJourneyMap(
         .attr('x2', panelX + panelWidth - silhouetteZone)
         .attr('y1', panelY + titleRowH)
         .attr('y2', panelY + titleRowH)
-        .attr('stroke', personaColor)
+        .attr('stroke', solid ? onPersonaText : personaColor)
         .attr('stroke-opacity', 0.3)
         .attr('stroke-width', 1);
     }
@@ -254,7 +260,7 @@ export function renderJourneyMap(
       .attr('y', panelY + CARD_PADDING_Y + FONT_SIZE_STEP)
       .attr('font-size', FONT_SIZE_STEP)
       .attr('font-weight', '500')
-      .attr('fill', palette.text)
+      .attr('fill', onPersonaText)
       .text(parsed.persona.name);
 
     // Description — wrapped lines below divider, with inline markdown
@@ -264,7 +270,7 @@ export function renderJourneyMap(
         .attr('x', textX)
         .attr('y', panelY + titleRowH + descLineH * (li + 1))
         .attr('font-size', FONT_SIZE_META)
-        .attr('fill', palette.textMuted);
+        .attr('fill', onPersonaText);
       renderInlineText(lineEl, descLines[li], palette, FONT_SIZE_META);
     }
 
@@ -587,14 +593,20 @@ export function renderJourneyMap(
         .attr('height', COLUMN_RADIUS)
         .attr('fill', pl.headerColor);
 
-      // Column header text (always show full name)
+      // Column header text — must contrast against pl.headerColor, not bg.
+      // (palette.text is dark in light themes, illegible on a saturated header.)
+      const onHeaderText = contrastText(
+        pl.headerColor,
+        palette.textOnFillLight,
+        palette.textOnFillDark
+      );
       phaseG
         .append('text')
         .attr('x', pl.x + COLUMN_PADDING)
         .attr('y', pl.y + COLUMN_HEADER_HEIGHT / 2 + FONT_SIZE_PHASE / 2 - 2)
         .attr('font-size', FONT_SIZE_PHASE)
         .attr('font-weight', 'bold')
-        .attr('fill', palette.text)
+        .attr('fill', onHeaderText)
         .text(
           isCollapsed
             ? truncateText(pl.phase.name, pl.width - COLUMN_PADDING * 2)
@@ -1125,6 +1137,13 @@ function renderStepCard(
     }
   );
   const cardStroke = resolvedColor ?? palette.textMuted;
+  // Text drawn on top of the card must contrast against the fill,
+  // not against bg/surface (otherwise textMuted is illegible on solid fills).
+  const onCardText = contrastText(
+    cardFill,
+    palette.textOnFillLight,
+    palette.textOnFillDark
+  );
 
   // Card background
   stepG
@@ -1162,7 +1181,7 @@ function renderStepCard(
       .attr('y', cy + CARD_PADDING_Y + FONT_SIZE_STEP + i * TITLE_LINE_HEIGHT)
       .attr('font-size', FONT_SIZE_STEP)
       .attr('font-weight', '500')
-      .attr('fill', palette.text)
+      .attr('fill', onCardText)
       .text(titleLines[i]);
   }
 
@@ -1180,7 +1199,9 @@ function renderStepCard(
       .attr('y1', cy + titleBlockH)
       .attr('x2', cx + sl.width)
       .attr('y2', cy + titleBlockH)
-      .attr('stroke', cardStroke)
+      // Solid mode: cardStroke matches the fill, so the divider is invisible.
+      // Use the contrast text color at low opacity instead.
+      .attr('stroke', solid ? onCardText : cardStroke)
       .attr('stroke-opacity', 0.3)
       .attr('stroke-width', 1);
   }
@@ -1200,7 +1221,7 @@ function renderStepCard(
         .attr('x', cx + CARD_PADDING_X)
         .attr('y', metaY)
         .attr('font-size', FONT_SIZE_META)
-        .attr('fill', palette.textMuted)
+        .attr('fill', onCardText)
         .text(line);
       metaY += CARD_META_LINE_HEIGHT;
     }
@@ -1215,6 +1236,11 @@ function renderStepCard(
     const annoColor = annotationColor(anno.type, palette);
     const iconPaths = annotationIconPaths(anno.type);
     const annoLines = wrapText(anno.text, annoTextW, FONT_SIZE_META);
+    // Icon color: semantic in tint mode (red pain / green opportunity reads
+    // fine on a 25% tinted card). In solid mode the semantic color often
+    // matches the card fill (red icon on red card → invisible), so fall back
+    // to the contrast color — the icon SHAPE still differentiates the type.
+    const iconColor = solid ? onCardText : annoColor;
     // Icon as bullet, aligned to first line
     renderAnnotationIcon(
       stepG,
@@ -1222,16 +1248,20 @@ function renderStepCard(
       metaY - ANNO_ICON_SIZE + 1,
       ANNO_ICON_SIZE,
       iconPaths,
-      annoColor
+      iconColor
     );
-    // All text lines indented past the icon
+    // All text lines indented past the icon. Text uses the same
+    // contrast color as the rest of the card body — the icon already
+    // signals the annotation type. Without this, "thought" lines
+    // (palette.textMuted) and "pain"/"opportunity" lines (red/green)
+    // are illegible on solid fills.
     for (let li = 0; li < annoLines.length; li++) {
       stepG
         .append('text')
         .attr('x', cx + CARD_PADDING_X + annoIconIndent)
         .attr('y', metaY)
         .attr('font-size', FONT_SIZE_META)
-        .attr('fill', annoColor)
+        .attr('fill', onCardText)
         .text(annoLines[li]);
       metaY += CARD_META_LINE_HEIGHT;
     }
@@ -1262,13 +1292,19 @@ function renderStepCard(
       .attr('stroke', stripColor)
       .attr('stroke-width', CARD_STROKE_WIDTH);
 
+    // Tag strip text — contrast against the strip fill, not against bg.
+    const stripTextColor = contrastText(
+      stripFill,
+      palette.textOnFillLight,
+      palette.textOnFillDark
+    );
     stepG
       .append('text')
       .attr('x', cx + sl.width / 2)
       .attr('y', stripY + TAG_STRIP_HEIGHT / 2 + FONT_SIZE_META / 2 - 1)
       .attr('text-anchor', 'middle')
       .attr('font-size', FONT_SIZE_META)
-      .attr('fill', palette.text)
+      .attr('fill', stripTextColor)
       .text(value);
   }
 

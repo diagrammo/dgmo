@@ -225,7 +225,11 @@ export function renderGantt(
   bandClipCounter = 0;
 
   if (resolved.tasks.length === 0) return;
-  const solid = resolved.options.solidFill;
+  // Gantt INTENTIONALLY ignores `solid-fill` — the partial-tint vs full-saturation
+  // split inside each bar IS the progress visualization (e.g. "Blockade 72%" =
+  // 72% saturated + 28% lighter). Solid mode would destroy that signal. Hardcode
+  // false so all `shapeFill()` calls in this renderer keep using the 25% tint.
+  const solid = false;
 
   // ── Destructure options ─────────────────────────────────
 

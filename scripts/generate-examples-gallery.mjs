@@ -123,6 +123,14 @@ function injectSolidFillEnd(text) {
   return text.replace(/\s*$/, '\n\nsolid-fill\n');
 }
 
+// Detect fixtures that use sibling-relative directives (`import foo.dgmo` /
+// `tags foo.dgmo`). For those, the solid-fill temp file MUST live in the
+// same directory as the source — otherwise relative path resolution breaks
+// and imported nodes get silently dropped.
+function hasRelativeImports(text) {
+  return /^[ \t]*(?:import|tags)\s*:?\s+\S+\.dgmo\s*$/im.test(text);
+}
+
 function renderOne({ inputPath, outputPath, palette, theme }) {
   return new Promise((res) => {
     mkdirSync(dirname(outputPath), { recursive: true });
@@ -576,18 +584,34 @@ async function main() {
 
   // Pre-write both top- and end-inject solid-fill temp copies. The
   // renderer will try top-first and fall back to end if that fails.
+  // Fixtures with sibling-relative `import`/`tags` directives need the
+  // temp file co-located with the source so relative paths resolve.
   const tmpRoot = join(OUT_DIR, '.tmp-solid');
+  const sourceCoLocatedTempFiles = []; // tracked for cleanup
   if (!opts.htmlOnly) {
     mkdirSync(tmpRoot, { recursive: true });
     for (const ex of examples) {
       if (!ex.solidFill) continue;
       const src = readFileSync(ex.file, 'utf8');
-      const topPath = join(tmpRoot, ex.id + '.top.dgmo');
-      const endPath = join(tmpRoot, ex.id + '.end.dgmo');
-      writeFileSync(topPath, injectSolidFillTop(src));
-      writeFileSync(endPath, injectSolidFillEnd(src));
-      ex.solidSourceTop = topPath;
-      ex.solidSourceEnd = endPath;
+      if (hasRelativeImports(src)) {
+        // Co-locate temp files next to the source so relative imports work.
+        const sourceDir = dirname(ex.file);
+        const baseName = ex.id;
+        const topPath = join(sourceDir, `.gallery-${baseName}.top.dgmo`);
+        const endPath = join(sourceDir, `.gallery-${baseName}.end.dgmo`);
+        writeFileSync(topPath, injectSolidFillTop(src));
+        writeFileSync(endPath, injectSolidFillEnd(src));
+        ex.solidSourceTop = topPath;
+        ex.solidSourceEnd = endPath;
+        sourceCoLocatedTempFiles.push(topPath, endPath);
+      } else {
+        const topPath = join(tmpRoot, ex.id + '.top.dgmo');
+        const endPath = join(tmpRoot, ex.id + '.end.dgmo');
+        writeFileSync(topPath, injectSolidFillTop(src));
+        writeFileSync(endPath, injectSolidFillEnd(src));
+        ex.solidSourceTop = topPath;
+        ex.solidSourceEnd = endPath;
+      }
     }
   }
 
@@ -698,6 +722,9 @@ async function main() {
 
   // Cleanup temp solid-fill sources.
   rmSync(tmpRoot, { recursive: true, force: true });
+  for (const f of sourceCoLocatedTempFiles) {
+    rmSync(f, { force: true });
+  }
 }
 
 main().catch((err) => {

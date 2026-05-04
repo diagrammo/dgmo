@@ -442,7 +442,7 @@ export function renderMindmap(
           .attr('y', descY)
           .attr('text-anchor', 'middle')
           .attr('font-size', descFontSize)
-          .attr('fill', palette.textMuted);
+          .attr('fill', onFillText);
         renderInlineText(textEl, processed, palette, descFontSize);
       } else {
         const descStartY = separatorY + 4 + descFontSize;
@@ -454,7 +454,7 @@ export function renderMindmap(
             .attr('y', descStartY + i * DESC_LINE_HEIGHT)
             .attr('text-anchor', 'middle')
             .attr('font-size', descFontSize)
-            .attr('fill', palette.textMuted);
+            .attr('fill', onFillText);
           renderInlineText(textEl, processed, palette, descFontSize);
         }
       }
