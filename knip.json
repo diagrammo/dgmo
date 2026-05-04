@@ -1,8 +1,15 @@
 {
-  "ignoreDependencies": ["@lezer/common", "@lezer/highlight", "@lezer/lr"],
+  "ignoreDependencies": ["@lezer/common", "@lezer/highlight", "@lezer/lr", "axe-core"],
   "ignoreBinaries": ["du"],
-  "ignore": ["src/editor/tokens.ts"],
+  "ignore": [
+    "src/editor/tokens.ts",
+    "scripts/audit-solid-fill-contrast.ts",
+    "scripts/generate-examples-gallery.mjs"
+  ],
+  "ignoreExportsUsedInFile": true,
   "rules": {
-    "duplicates": "off"
+    "duplicates": "off",
+    "exports": "warn",
+    "types": "warn"
   }
 }

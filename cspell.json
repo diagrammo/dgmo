@@ -134,7 +134,18 @@
     "pdca",
     "pluggability",
     "sublinear",
-    "touchpoints"
+    "touchpoints",
+    "xlink",
+    "noreferrer",
+    "checkmark",
+    "Segoe",
+    "Cantarell",
+    "Menlo",
+    "Consolas",
+    "Bboxes",
+    "segs",
+    "desaturation",
+    "dotless"
   ],
   "ignorePaths": [
     "node_modules",

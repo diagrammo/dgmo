@@ -187,9 +187,10 @@ export function relativeLuminance(hex: string): number {
 
 /**
  * WCAG 2.1 contrast ratio between two colors. (L_lighter + 0.05) / (L_darker + 0.05).
- * Range: 1.0 (identical) to 21.0 (black on white).
+ * Range: 1.0 (identical) to 21.0 (black on white). Internal helper used by
+ * `contrastText`'s pastel branch.
  */
-export function contrastRatio(a: string, b: string): number {
+function contrastRatio(a: string, b: string): number {
   const la = relativeLuminance(a);
   const lb = relativeLuminance(b);
   const lighter = Math.max(la, lb);
