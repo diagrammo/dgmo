@@ -392,6 +392,76 @@ describe('COMPLETION_REGISTRY', () => {
     expect(CHART_TYPES.find((t) => t.name === 'multi-line')).toBeUndefined();
   });
 
+  describe('solid-fill directive coverage', () => {
+    // Chart types whose renderers actually respond to `solid-fill`.
+    const expected = [
+      'flowchart',
+      'state',
+      'sequence',
+      'c4',
+      'org',
+      'kanban',
+      'journey-map',
+      'mindmap',
+      'cycle',
+      'pyramid',
+      'funnel',
+      'class',
+      'er',
+      'sitemap',
+      'boxes-and-lines',
+      'wireframe',
+      'bar',
+      'bar-stacked',
+      'pie',
+      'doughnut',
+      'polar-area',
+      'radar',
+      'scatter',
+      'chord',
+    ];
+    for (const type of expected) {
+      it(`exposes solid-fill for ${type}`, () => {
+        const spec = COMPLETION_REGISTRY.get(type);
+        expect(spec, `${type} not in registry`).toBeDefined();
+        expect(
+          spec!.directives['solid-fill'],
+          `${type} should expose solid-fill`
+        ).toBeDefined();
+      });
+    }
+
+    // Chart types where the keyword is a no-op (renderer opt-out, no shapeFill,
+    // or no shape fills at all). These should NOT advertise solid-fill in
+    // completion to avoid misleading users.
+    const skipped = [
+      'gantt',
+      'infra',
+      'heatmap',
+      'tech-radar',
+      'venn',
+      'quadrant',
+      'line',
+      'area',
+      'function',
+      'sankey',
+      'wordcloud',
+      'slope',
+      'arc',
+      'timeline',
+    ];
+    for (const type of skipped) {
+      it(`does not expose solid-fill for ${type}`, () => {
+        const spec = COMPLETION_REGISTRY.get(type);
+        expect(spec, `${type} not in registry`).toBeDefined();
+        expect(
+          spec!.directives['solid-fill'],
+          `${type} should not expose solid-fill`
+        ).toBeUndefined();
+      });
+    }
+  });
+
   it('METADATA_KEY_SET includes expected keys', () => {
     const expected = [
       'palette',

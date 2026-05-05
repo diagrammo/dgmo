@@ -158,6 +158,8 @@ export const DIRECTIVE_KEYWORDS = new Set([
   // Layout
   'direction-tb',
   'direction-lr',
+  // Fill mode (cross-chart-type)
+  'solid-fill',
   // Pyramid
   'inverted',
   // Data chart metadata

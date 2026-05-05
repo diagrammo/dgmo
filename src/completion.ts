@@ -404,6 +404,47 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   ],
 ]);
 
+// ── Cross-chart-type bare-keyword option: `solid-fill` ──────────
+// Adds the directive to every chart type whose renderer actually responds to
+// it (i.e. uses `shapeFill()` and is not opted out). Chart types where the
+// keyword is a no-op (gantt/infra/heatmap/tech-radar opt-outs; venn/quadrant
+// don't use shapeFill; line/area/wordcloud have no shape fills) intentionally
+// don't list it — keeps the completion popup honest.
+const SOLID_FILL_CAPABLE = new Set([
+  'flowchart',
+  'state',
+  'sequence',
+  'c4',
+  'org',
+  'kanban',
+  'journey-map',
+  'mindmap',
+  'cycle',
+  'pyramid',
+  'funnel',
+  'class',
+  'er',
+  'sitemap',
+  'boxes-and-lines',
+  'wireframe',
+  'bar',
+  'bar-stacked',
+  'pie',
+  'doughnut',
+  'polar-area',
+  'radar',
+  'scatter',
+  'chord',
+]);
+for (const [type, spec] of COMPLETION_REGISTRY) {
+  if (SOLID_FILL_CAPABLE.has(type)) {
+    spec.directives['solid-fill'] = {
+      description:
+        'Render shapes with full intent color instead of the default 25% tint',
+    };
+  }
+}
+
 // ============================================================
 // Chart types array (for chart type completion popup)
 // ============================================================
