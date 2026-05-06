@@ -235,6 +235,18 @@ export const chartTypes: readonly ChartTypeMeta[] = [
       'layered model',
     ],
   },
+  {
+    id: 'ring',
+    description:
+      'Concentric rings showing nested or hierarchical categories (read core-out)',
+    triggers: [
+      'ring diagram',
+      'concentric rings',
+      'circle hierarchy',
+      'circles of influence',
+      'nested circles',
+    ],
+  },
 
   // ── Tier 3 — Specialized analytical charts ────────────────
   {

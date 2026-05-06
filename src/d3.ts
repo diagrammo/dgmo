@@ -22,7 +22,8 @@ export type VisualizationType =
   | 'sequence'
   | 'tech-radar'
   | 'cycle'
-  | 'pyramid';
+  | 'pyramid'
+  | 'ring';
 
 interface D3DataItem {
   label: string;
@@ -7717,6 +7718,25 @@ export async function renderForExport(
     renderPyramidForExport(
       container,
       pyramidParsed,
+      effectivePalette,
+      theme === 'dark',
+      { width: EXPORT_WIDTH, height: EXPORT_HEIGHT }
+    );
+    return finalizeSvgExport(container, theme, effectivePalette);
+  }
+
+  if (detectedType === 'ring') {
+    const { parseRing } = await import('./ring/parser');
+    const { renderRingForExport } = await import('./ring/renderer');
+
+    const effectivePalette = await resolveExportPalette(theme, palette);
+    const ringParsed = parseRing(content);
+    if (ringParsed.error || ringParsed.layers.length === 0) return '';
+
+    const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
+    renderRingForExport(
+      container,
+      ringParsed,
       effectivePalette,
       theme === 'dark',
       { width: EXPORT_WIDTH, height: EXPORT_HEIGHT }

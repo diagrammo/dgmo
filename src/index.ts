@@ -449,6 +449,10 @@ export { parsePyramid } from './pyramid/parser';
 export { renderPyramid, renderPyramidForExport } from './pyramid/renderer';
 export type { ParsedPyramid, PyramidLayer } from './pyramid/types';
 
+export { parseRing } from './ring/parser';
+export { renderRing, renderRingForExport } from './ring/renderer';
+export type { ParsedRing, RingLayer } from './ring/types';
+
 export { resolveOrgImports } from './org/resolver';
 export type {
   ReadFileFn,

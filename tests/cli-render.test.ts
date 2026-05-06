@@ -191,6 +191,12 @@ Act | color: red`,
 Top | apex description
 Middle | middle description
 Bottom | base description`,
+
+  ring: `ring Test Ring
+
+Inner | core description
+Middle | middle description
+Outer | outermost description`,
 };
 
 // All D3 types now render in JSDOM via explicit dimensions (Epic 41)
@@ -211,6 +217,7 @@ const D3_TYPES = [
   'gantt',
   'journey-map',
   'pyramid',
+  'ring',
 ];
 
 // Wordcloud requires HTMLCanvasElement.getContext('2d') for d3-cloud text measurement —

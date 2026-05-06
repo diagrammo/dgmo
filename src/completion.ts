@@ -402,6 +402,18 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       description: { description: 'Layer description (pipe or indented body)' },
     }),
   ],
+  [
+    'ring',
+    withGlobals({
+      color: {
+        description:
+          'Override ring color (pipe metadata; closed set of 11 named colors)',
+      },
+      description: {
+        description: 'Ring description (pipe shorthand or indented body)',
+      },
+    }),
+  ],
 ]);
 
 // ── Cross-chart-type bare-keyword option: `solid-fill` ──────────
@@ -421,6 +433,7 @@ const SOLID_FILL_CAPABLE = new Set([
   'mindmap',
   'cycle',
   'pyramid',
+  'ring',
   'funnel',
   'class',
   'er',

@@ -18,6 +18,7 @@ export const CHART_TYPES = new Set([
   'mindmap',
   'journey-map',
   'pyramid',
+  'ring',
   // Data chart types
   'bar',
   'line',

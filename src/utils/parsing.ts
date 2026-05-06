@@ -53,7 +53,24 @@ export const ALL_CHART_TYPES = new Set([
   'cycle',
   'journey-map',
   'pyramid',
+  'ring',
 ]);
+
+/**
+ * Heuristic: pipe-metadata content is structured `key: value, …` form when
+ * the first token is a bare identifier followed by `:`. Used by parsers that
+ * accept both shorthand-description-after-pipe and structured key-value
+ * (pyramid, ring) to disambiguate the two.
+ */
+export const PIPE_KEY_VALUE_PREFIX_RE = /^\s*[A-Za-z][A-Za-z0-9_-]*\s*:/;
+
+/**
+ * Heuristic to detect a likely-structured tail inside an otherwise-shorthand
+ * pipe: `, key:` somewhere in the string. Used to flag user errors like
+ * `Inner | bare desc, color: blue` where `color: blue` is silently swallowed
+ * into the description.
+ */
+export const PIPE_LIKELY_STRUCTURED_TAIL_RE = /,\s*[A-Za-z][A-Za-z0-9_-]*\s*:/;
 
 /** Measure leading whitespace of a line, normalizing tabs to 4 spaces. */
 export function measureIndent(line: string): number {

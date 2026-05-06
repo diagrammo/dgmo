@@ -23,6 +23,7 @@ import { parseTechRadar } from './tech-radar/parser';
 import { parseCycle } from './cycle/parser';
 import { parseJourneyMap } from './journey-map/parser';
 import { parsePyramid } from './pyramid/parser';
+import { parseRing } from './ring/parser';
 import { parseFirstLine } from './utils/parsing';
 import { makeDgmoError, suggest } from './diagnostics';
 import type { DgmoError } from './diagnostics';
@@ -145,6 +146,7 @@ const VISUALIZATION_TYPES = new Set([
   'tech-radar',
   'cycle',
   'pyramid',
+  'ring',
 ]);
 const DIAGRAM_TYPES = new Set([
   'sequence',
@@ -247,6 +249,7 @@ export const chartTypeParsers: ReadonlyArray<readonly [string, ParseFn]> = [
   ['cycle', parseCycle],
   ['journey-map', parseJourneyMap],
   ['pyramid', parsePyramid],
+  ['ring', parseRing],
 
   // Standard ECharts charts (parseChart)
   ['bar', parseChart],
