@@ -26,7 +26,8 @@
 18. [Tech Radar Diagrams](#18-tech-radar-diagrams)
 19. [Wireframe Diagrams](#19-wireframe-diagrams)
 20. [Pyramid Diagrams](#20-pyramid-diagrams)
-21. [Colon Usage Summary](#21-colon-usage-summary)
+21. [Ring Diagrams](#21-ring-diagrams)
+22. [Colon Usage Summary](#22-colon-usage-summary)
 
 ---
 
@@ -1739,7 +1740,74 @@ When descriptions don't fit a layer's band the renderer wraps at the column edge
 
 ---
 
-## 21. Colon Usage Summary
+## 21. Ring Diagrams
+
+Concentric-ring visualization for nested or hierarchical categories. Source order reads core-out: top of file = innermost element (rendered as a filled disc), last line = outermost ring. Min 2 layers, max 15.
+
+### Declaration
+
+```
+ring [Title]
+
+LayerLabel
+LayerLabel | color: blue
+LayerLabel | color: green
+  Indented description
+```
+
+### Example
+
+```
+ring Captain's Sphere of Influence
+
+solid-fill
+
+Captain | color: purple
+  Final word on heading and plunder,
+  keeper of the ship's charter.
+
+Quartermaster | Second-in-command, divvies the booty
+
+Crew | color: green
+  Deckhands, gunners, and powder monkeys.
+
+Allied Crews | color: orange
+  Loose alliances kept by oath.
+
+The Open Sea | color: cyan
+  Weather, currents, and rival flags.
+```
+
+### Layer Pipe Metadata
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `color` | palette name | auto | Ring color |
+| `description` | string | — | One-liner description |
+
+### Descriptions
+
+Indented lines under a layer are description text. Markdown inline formatting is supported. Bullets written as `- item` render as `• item`. Descriptions appear in a stacked side list with colored accent bars.
+
+### Directives
+
+| Directive | Effect |
+|-----------|--------|
+| `solid-fill` | Render rings with full intent color instead of the default 25% tint. |
+
+`inverted` is **not** valid on ring diagrams (rings are rotationally symmetric). Using it emits an error-severity diagnostic and the line is discarded.
+
+### Color Validation
+
+Unknown color names emit an error-severity diagnostic with a "Did you mean…?" hint, and the layer falls back to its series color so the chart still renders.
+
+### Label Degradation
+
+When ring band thickness would force the in-band label below the readable floor (12 px), in-band labels are skipped entirely and the side list shows the layer names instead.
+
+---
+
+## 22. Colon Usage Summary
 
 ### Constructs Where Colons Are REQUIRED
 
