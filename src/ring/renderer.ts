@@ -173,7 +173,7 @@ export function renderRing(
     shapeFill(palette, c, isDark, { solid })
   );
 
-  // ── Render rings (with labels nested) ───────────────────────
+  // ── Render rings ────────────────────────────────────────────
   // Each ring is its own annular shape — innermost is a <circle>, outer
   // rings are <path>s with two arcs and fill-rule="evenodd" carving a
   // donut hole. This keeps bands non-overlapping so opacity-based dimming
@@ -182,9 +182,6 @@ export function renderRing(
   // Source order = render order (innermost first). DOM order doesn't change
   // visuals because the bands don't overlap; click handlers land on the
   // visible band the cursor is over.
-  //
-  // Each ring's label is appended INSIDE its own <g class="ring-layer"> so
-  // dimming the layer dims the label too.
   const diagramG = svg.append('g').attr('class', 'ring-body');
   const strokeColor = palette.text;
 
@@ -234,16 +231,54 @@ export function renderRing(
         .attr('stroke-width', RING_STROKE_WIDTH)
         .attr('stroke-opacity', RING_STROKE_OPACITY);
     }
+  }
 
-    if (inBandLabelsVisible) {
+  // ── Render labels (separate top-level group) ────────────────
+  // Labels live in their own group AFTER all ring shapes so they paint on
+  // top of every band — otherwise an outer ring's path covers earlier-drawn
+  // labels that horizontally spill into its band. Each label is wrapped in
+  // a <g class="ring-label-group" data-line-number=N> so the sync adapter
+  // can still dim it alongside its layer.
+  if (inBandLabelsVisible) {
+    const labelsG = svg.append('g').attr('class', 'ring-labels');
+    for (let i = 0; i < N; i++) {
+      const layer = parsed.layers[i];
+      const fill = layerFills[i];
       const isInnermost = i === 0;
       const labelY = isInnermost ? cy : cy - (i + 0.5) * thickness;
+      // Available horizontal half-width inside this band at the label's y.
+      // Innermost: full disc radius. Outer: chord at the label's offset
+      // from center (no inner cutout — at this y the inner circle doesn't
+      // reach). Pad inward a bit so text doesn't kiss the ring stroke.
+      const halfWidth = isInnermost
+        ? thickness
+        : Math.sqrt(i + 0.75) * thickness;
+      const textBudget = Math.max(20, halfWidth * 2 - 8);
+      // Pick the largest font that fits both vertical (band thickness) and
+      // horizontal (band chord at label y) constraints, then clamp.
+      const horizontalFit = Math.floor(
+        textBudget / Math.max(1, layer.label.length * CHAR_WIDTH_RATIO)
+      );
+      const fittedFont = clamp(
+        Math.min(labelFont, horizontalFit),
+        LABEL_FONT_MIN,
+        LABEL_FONT_MAX
+      );
+      // Skip the label entirely if even the floor doesn't fit — side list
+      // shows the name in that case.
+      if (fittedFont * layer.label.length * CHAR_WIDTH_RATIO > textBudget) {
+        continue;
+      }
       const textColor = contrastText(
         fill,
         palette.textOnFillLight,
         palette.textOnFillDark
       );
-      const label = layerG
+      const labelG = labelsG
+        .append('g')
+        .attr('class', 'ring-label-group')
+        .attr('data-line-number', layer.lineNumber);
+      const label = labelG
         .append('text')
         .attr('class', 'ring-label')
         .attr('x', cx)
@@ -252,10 +287,10 @@ export function renderRing(
         .attr('text-anchor', 'middle')
         .attr('fill', textColor)
         .attr('font-family', FONT_FAMILY)
-        .attr('font-size', labelFont)
+        .attr('font-size', fittedFont)
         .attr('font-weight', 600)
         .style('pointer-events', 'none');
-      renderInlineText(label, layer.label, palette, labelFont);
+      renderInlineText(label, layer.label, palette, fittedFont);
     }
   }
 
