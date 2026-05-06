@@ -61,6 +61,12 @@ Only`);
     expect(result.error).toMatch(/at least 2 layers/);
   });
 
+  it('rejects more than 15 layers', () => {
+    const layers = Array.from({ length: 16 }, (_, i) => `Layer${i}`).join('\n');
+    const result = parsePyramid(`pyramid Big\n\n${layers}`);
+    expect(result.error).toMatch(/at most 15 layers; got 16/);
+  });
+
   it('rejects non-pyramid first line', () => {
     const result = parsePyramid('cycle OODA\n\nA\nB');
     expect(result.error).toMatch(/Expected "pyramid/);

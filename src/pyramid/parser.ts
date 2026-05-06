@@ -14,6 +14,8 @@ import type { ParsedPyramid, PyramidLayer } from './types';
 /** Heuristic: pipe content is key:value form if it starts with `word:`. */
 const KEY_VALUE_PREFIX_RE = /^\s*[A-Za-z][A-Za-z0-9_-]*\s*:/;
 
+const MAX_LAYERS = 15;
+
 /**
  * Parse a `.dgmo` pyramid diagram document.
  *
@@ -171,6 +173,13 @@ export function parsePyramid(content: string): ParsedPyramid {
     return fail(
       result.titleLineNumber || 1,
       'pyramid requires at least 2 layers.'
+    );
+  }
+
+  if (result.layers.length > MAX_LAYERS) {
+    return fail(
+      result.titleLineNumber || 1,
+      `pyramid supports at most ${MAX_LAYERS} layers; got ${result.layers.length}.`
     );
   }
 
