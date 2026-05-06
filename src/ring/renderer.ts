@@ -174,22 +174,25 @@ export function renderRing(
   );
 
   // ── Render rings (with labels nested) ───────────────────────
-  // Concentric circles drawn outermost-first so each subsequent inner circle
-  // covers the centermost portion of the larger one — producing visible
-  // annular bands without needing path/evenodd geometry. Ring N-1 (outermost)
-  // is painted first, ring 0 (innermost disc) last.
+  // Each ring is its own annular shape — innermost is a <circle>, outer
+  // rings are <path>s with two arcs and fill-rule="evenodd" carving a
+  // donut hole. This keeps bands non-overlapping so opacity-based dimming
+  // doesn't bleed the active ring's color through dimmed siblings.
+  //
+  // Source order = render order (innermost first). DOM order doesn't change
+  // visuals because the bands don't overlap; click handlers land on the
+  // visible band the cursor is over.
   //
   // Each ring's label is appended INSIDE its own <g class="ring-layer"> so
-  // dimming the layer dims the label too. Outer-ring labels sit at the top
-  // of the band above center; inner rings (smaller circles) painted later
-  // don't reach that y, so labels stay visible without stacking-order tricks.
+  // dimming the layer dims the label too.
   const diagramG = svg.append('g').attr('class', 'ring-body');
   const strokeColor = palette.text;
 
-  for (let visibleIdx = N - 1; visibleIdx >= 0; visibleIdx--) {
-    const layer = parsed.layers[visibleIdx];
-    const r = (visibleIdx + 1) * thickness;
-    const fill = layerFills[visibleIdx];
+  for (let i = 0; i < N; i++) {
+    const layer = parsed.layers[i];
+    const rOuter = (i + 1) * thickness;
+    const rInner = i * thickness;
+    const fill = layerFills[i];
 
     const layerG = diagramG
       .append('g')
@@ -201,19 +204,40 @@ export function renderRing(
       layerG.style('cursor', 'pointer').on('click', () => onClickItem(ln));
     }
 
-    layerG
-      .append('circle')
-      .attr('cx', cx)
-      .attr('cy', cy)
-      .attr('r', r)
-      .attr('fill', fill)
-      .attr('stroke', strokeColor)
-      .attr('stroke-width', RING_STROKE_WIDTH)
-      .attr('stroke-opacity', RING_STROKE_OPACITY);
+    if (i === 0) {
+      // Innermost: filled disc, no donut hole.
+      layerG
+        .append('circle')
+        .attr('cx', cx)
+        .attr('cy', cy)
+        .attr('r', rOuter)
+        .attr('fill', fill)
+        .attr('stroke', strokeColor)
+        .attr('stroke-width', RING_STROKE_WIDTH)
+        .attr('stroke-opacity', RING_STROKE_OPACITY);
+    } else {
+      // Annular band: outer arc + inner arc with evenodd fill rule.
+      const d =
+        `M ${cx - rOuter} ${cy}` +
+        ` A ${rOuter} ${rOuter} 0 1 0 ${cx + rOuter} ${cy}` +
+        ` A ${rOuter} ${rOuter} 0 1 0 ${cx - rOuter} ${cy}` +
+        ` M ${cx - rInner} ${cy}` +
+        ` A ${rInner} ${rInner} 0 1 0 ${cx + rInner} ${cy}` +
+        ` A ${rInner} ${rInner} 0 1 0 ${cx - rInner} ${cy}` +
+        ` Z`;
+      layerG
+        .append('path')
+        .attr('d', d)
+        .attr('fill-rule', 'evenodd')
+        .attr('fill', fill)
+        .attr('stroke', strokeColor)
+        .attr('stroke-width', RING_STROKE_WIDTH)
+        .attr('stroke-opacity', RING_STROKE_OPACITY);
+    }
 
     if (inBandLabelsVisible) {
-      const isInnermost = visibleIdx === 0;
-      const labelY = isInnermost ? cy : cy - (visibleIdx + 0.5) * thickness;
+      const isInnermost = i === 0;
+      const labelY = isInnermost ? cy : cy - (i + 0.5) * thickness;
       const textColor = contrastText(
         fill,
         palette.textOnFillLight,

@@ -199,7 +199,7 @@ describe('ring router', () => {
 // ============================================================
 
 describe('ring renderer', () => {
-  it('renders SVG with one circle per layer plus per-ring labels', () => {
+  it('renders one shape per layer (circle for innermost, path for outer rings)', () => {
     const parsed = parseRing(`ring Test
 
 Inner | first desc
@@ -210,31 +210,35 @@ Outer | third desc`);
 
     const svg = container.querySelector('svg');
     expect(svg).not.toBeNull();
-    const circles = svg!.querySelectorAll('circle');
-    expect(circles.length).toBe(3);
+    // Innermost is a <circle>; the other two rings are annular <path>s with
+    // fill-rule="evenodd".
+    expect(svg!.querySelectorAll('g.ring-layer > circle')).toHaveLength(1);
+    expect(svg!.querySelectorAll('g.ring-layer > path')).toHaveLength(2);
 
-    // Each layer's <g> wrapper carries data-line-number.
+    // Each layer's <g> wrapper carries data-line-number, in source order
+    // (innermost first).
     const ringLayers = svg!.querySelectorAll('g.ring-layer');
     expect(ringLayers).toHaveLength(3);
-    for (const g of Array.from(ringLayers)) {
-      expect(g.getAttribute('data-line-number')).toBeTruthy();
-    }
+    expect(ringLayers[0].getAttribute('data-line-number')).toBe(
+      String(parsed.layers[0].lineNumber)
+    );
 
     // Side description list is present (one per layer) plus accent rects.
-    const descBlocks = svg!.querySelectorAll('g.ring-desc');
-    expect(descBlocks).toHaveLength(3);
+    expect(svg!.querySelectorAll('g.ring-desc')).toHaveLength(3);
 
-    // Contrast stroke present and visible on rings (Decision 14).
-    for (const c of Array.from(circles)) {
-      expect(c.getAttribute('stroke-width')).toBe('1');
-      expect(c.getAttribute('stroke')).toBeTruthy();
-      const opacity = parseFloat(c.getAttribute('stroke-opacity') ?? '0');
+    // Contrast stroke present and visible on every ring shape (Decision 14).
+    const shapes = svg!.querySelectorAll(
+      'g.ring-layer > circle, g.ring-layer > path'
+    );
+    for (const s of Array.from(shapes)) {
+      expect(s.getAttribute('stroke-width')).toBe('1');
+      expect(s.getAttribute('stroke')).toBeTruthy();
+      const opacity = parseFloat(s.getAttribute('stroke-opacity') ?? '0');
       expect(opacity).toBeGreaterThan(0.2);
     }
 
     // At least one per-ring label + chart title rendered.
-    const labels = svg!.querySelectorAll('text.ring-label');
-    expect(labels).toHaveLength(3);
+    expect(svg!.querySelectorAll('text.ring-label')).toHaveLength(3);
   });
 
   it('innermost layer is a filled circle (no inner cutout)', () => {
@@ -246,19 +250,20 @@ C`);
     const container = makeContainer();
     renderRing(container, parsed, nordLight, false);
     const svg = container.querySelector('svg')!;
-    // Innermost = layer 0; rendering paints outermost first, so the innermost
-    // <g> is the LAST ring-layer in document order.
+    // Innermost = layer 0; rendered first, so it's the FIRST ring-layer
+    // <g> in document order.
     const ringLayers = svg.querySelectorAll('g.ring-layer');
-    const innermost = ringLayers[ringLayers.length - 1];
+    const innermost = ringLayers[0];
     expect(innermost.getAttribute('data-line-number')).toBe(
       String(parsed.layers[0].lineNumber)
     );
     const innerCircle = innermost.querySelector('circle');
     expect(innerCircle).not.toBeNull();
-    // No inner cutout — fill is set, no mask, no clipPath.
+    // No inner cutout — plain <circle>, no mask, no clipPath, no path.
     expect(innerCircle!.getAttribute('fill')).toBeTruthy();
     expect(innerCircle!.getAttribute('mask')).toBeNull();
     expect(innerCircle!.getAttribute('clip-path')).toBeNull();
+    expect(innermost.querySelector('path')).toBeNull();
   });
 
   it('side description list is omitted when no descriptions are present', () => {
@@ -283,7 +288,8 @@ B`);
     renderRing(container, parsed, nordLight, false, onClick);
     const svg = container.querySelector('svg')!;
     const ringLayers = svg.querySelectorAll('g.ring-layer');
-    const innermost = ringLayers[ringLayers.length - 1] as SVGGElement;
+    // Innermost = layer 0 = FIRST ring-layer in document order.
+    const innermost = ringLayers[0] as SVGGElement;
     innermost.dispatchEvent(new window.Event('click'));
     expect(onClick).toHaveBeenCalledTimes(1);
     expect(onClick).toHaveBeenCalledWith(parsed.layers[0].lineNumber);
@@ -300,9 +306,8 @@ C`);
     renderRing(container, parsed, nordLight, false, onClick);
     const svg = container.querySelector('svg')!;
     const ringLayers = svg.querySelectorAll('g.ring-layer');
-    // Outermost = last layer (index N-1) is painted FIRST, so it's the
-    // first ring-layer <g> in document order.
-    const outermost = ringLayers[0] as SVGGElement;
+    // Outermost = last layer (N-1) = LAST ring-layer in document order.
+    const outermost = ringLayers[ringLayers.length - 1] as SVGGElement;
     outermost.dispatchEvent(new window.Event('click'));
     expect(onClick).toHaveBeenCalledTimes(1);
     expect(onClick).toHaveBeenCalledWith(
