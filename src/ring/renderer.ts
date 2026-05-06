@@ -173,11 +173,16 @@ export function renderRing(
     shapeFill(palette, c, isDark, { solid })
   );
 
-  // ── Render rings ────────────────────────────────────────────
+  // ── Render rings (with labels nested) ───────────────────────
   // Concentric circles drawn outermost-first so each subsequent inner circle
   // covers the centermost portion of the larger one — producing visible
   // annular bands without needing path/evenodd geometry. Ring N-1 (outermost)
   // is painted first, ring 0 (innermost disc) last.
+  //
+  // Each ring's label is appended INSIDE its own <g class="ring-layer"> so
+  // dimming the layer dims the label too. Outer-ring labels sit at the top
+  // of the band above center; inner rings (smaller circles) painted later
+  // don't reach that y, so labels stay visible without stacking-order tricks.
   const diagramG = svg.append('g').attr('class', 'ring-body');
   const strokeColor = palette.text;
 
@@ -205,29 +210,16 @@ export function renderRing(
       .attr('stroke', strokeColor)
       .attr('stroke-width', RING_STROKE_WIDTH)
       .attr('stroke-opacity', RING_STROKE_OPACITY);
-  }
 
-  // ── Render labels ───────────────────────────────────────────
-  // Labels are appended after rings so they sit on top of every fill, and
-  // are placed top-of-band so the disc label and ring labels stack vertically.
-  // Skipped entirely when bands are too thin (Decision 9) — side list shows
-  // the labels in that case.
-  const labelsG = svg.append('g').attr('class', 'ring-labels');
-  if (inBandLabelsVisible)
-    for (let i = 0; i < N; i++) {
-      const layer = parsed.layers[i];
-      const fill = layerFills[i];
-      const isInnermost = i === 0;
-      // Innermost disc label sits at center; outer-ring labels sit on the
-      // band's vertical midline above center, so each ring's label is visible
-      // even when adjacent fills are similar tints.
-      const labelY = isInnermost ? cy : cy - (i + 0.5) * thickness;
+    if (inBandLabelsVisible) {
+      const isInnermost = visibleIdx === 0;
+      const labelY = isInnermost ? cy : cy - (visibleIdx + 0.5) * thickness;
       const textColor = contrastText(
         fill,
         palette.textOnFillLight,
         palette.textOnFillDark
       );
-      const label = labelsG
+      const label = layerG
         .append('text')
         .attr('class', 'ring-label')
         .attr('x', cx)
@@ -238,10 +230,10 @@ export function renderRing(
         .attr('font-family', FONT_FAMILY)
         .attr('font-size', labelFont)
         .attr('font-weight', 600)
-        .attr('data-line-number', layer.lineNumber)
         .style('pointer-events', 'none');
       renderInlineText(label, layer.label, palette, labelFont);
     }
+  }
 
   // ── Side description list ───────────────────────────────────
   // Always render when descriptions exist. Also render (label-only) when
