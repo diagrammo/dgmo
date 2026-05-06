@@ -24,6 +24,7 @@ import { parseCycle } from './cycle/parser';
 import { parseJourneyMap } from './journey-map/parser';
 import { parsePyramid } from './pyramid/parser';
 import { parseRing } from './ring/parser';
+import { parseRaci } from './raci/parser';
 import { parseFirstLine } from './utils/parsing';
 import { makeDgmoError, suggest } from './diagnostics';
 import type { DgmoError } from './diagnostics';
@@ -164,6 +165,9 @@ const DIAGRAM_TYPES = new Set([
   'mindmap',
   'wireframe',
   'journey-map',
+  'raci',
+  'rasci',
+  'daci',
 ]);
 const EXTENDED_CHART_TYPES = new Set([
   'scatter',
@@ -250,6 +254,9 @@ export const chartTypeParsers: ReadonlyArray<readonly [string, ParseFn]> = [
   ['journey-map', parseJourneyMap],
   ['pyramid', parsePyramid],
   ['ring', parseRing],
+  ['raci', parseRaci],
+  ['rasci', parseRaci],
+  ['daci', parseRaci],
 
   // Standard ECharts charts (parseChart)
   ['bar', parseChart],

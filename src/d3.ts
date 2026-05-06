@@ -7744,6 +7744,29 @@ export async function renderForExport(
     return finalizeSvgExport(container, theme, effectivePalette);
   }
 
+  if (
+    detectedType === 'raci' ||
+    detectedType === 'rasci' ||
+    detectedType === 'daci'
+  ) {
+    const { parseRaci } = await import('./raci/parser');
+    const { renderRaciForExport } = await import('./raci/renderer');
+
+    const effectivePalette = await resolveExportPalette(theme, palette);
+    const raciParsed = parseRaci(content, effectivePalette);
+    if (raciParsed.error) return '';
+
+    const container = createExportContainer(EXPORT_WIDTH, EXPORT_HEIGHT);
+    renderRaciForExport(
+      container,
+      raciParsed,
+      effectivePalette,
+      theme === 'dark',
+      { width: EXPORT_WIDTH, height: EXPORT_HEIGHT }
+    );
+    return finalizeSvgExport(container, theme, effectivePalette);
+  }
+
   const parsed = parseVisualization(content, palette);
   // Allow sequence diagrams through even if parseVisualization errors —
   // sequence is parsed by its own dedicated parser (parseSequenceDgmo)

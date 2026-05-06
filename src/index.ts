@@ -453,6 +453,30 @@ export { parseRing } from './ring/parser';
 export { renderRing, renderRingForExport } from './ring/renderer';
 export type { ParsedRing, RingLayer } from './ring/types';
 
+export type { RaciDragSource, RaciInteractionHandlers } from './raci';
+export {
+  parseRaci,
+  renderRaci,
+  renderRaciForExport,
+  VARIANTS as RACI_VARIANTS,
+  RACI_ERROR_CODES,
+  RACI_WARNING_CODES,
+  parseTaskAnnotations,
+  cellReplace as raciCellReplace,
+  cellAppendMarker as raciCellAppendMarker,
+  cellRemove as raciCellRemove,
+  cellCycle as raciCellCycle,
+} from './raci';
+export type {
+  ParsedRaci,
+  RaciVariant,
+  RaciMarker,
+  RaciTask,
+  RaciPhase,
+  RaciRoleAssignment,
+  RaciTaskAnnotation,
+} from './raci';
+
 export { resolveOrgImports } from './org/resolver';
 export type {
   ReadFileFn,

@@ -29,6 +29,13 @@ export interface DiagramSymbols {
   kind: ChartType;
   entities: string[]; // table names, node IDs, class names, etc.
   keywords: string[]; // diagram-specific reserved words
+  /**
+   * Map of alias-literal → canonical entity name, collected from
+   * `Name as <alias>` declarations in the document. Editor surfaces
+   * both forms in autocomplete; selecting an alias inserts the alias
+   * literal (the alias is input convenience, not a display name).
+   */
+  aliases?: Record<string, string>;
 }
 
 export type ExtractFn = (docText: string) => DiagramSymbols;
@@ -58,7 +65,11 @@ export function extractDiagramSymbols(docText: string): DiagramSymbols | null {
   if (!chartType) return null;
   const fn = extractorRegistry.get(chartType);
   if (!fn) return null;
-  return fn(docText);
+  const result = fn(docText);
+  // Populate `aliases` uniformly for every chart type so downstream
+  // editor surfaces don't need per-extractor branches.
+  const aliases = extractAliasDeclarations(docText);
+  return Object.keys(aliases).length > 0 ? { ...result, aliases } : result;
 }
 
 // ============================================================
@@ -289,6 +300,58 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     'kanban',
     withGlobals({
       'no-auto-color': { description: 'Disable automatic card coloring' },
+      'active-tag': { description: 'Active tag group name' },
+    }),
+  ],
+  // RACI / RASCI / DACI — three chart-type ids, one parser, same directives.
+  [
+    'raci',
+    withGlobals({
+      variant: {
+        description: 'Variant rule set',
+        values: ['raci', 'rasci', 'daci'],
+      },
+      roles: {
+        description:
+          'Comma-separated role list (declares column order; enables unknown-role linting)',
+      },
+      draft: {
+        description: 'Suppress missing-A / missing-R warnings during authoring',
+      },
+      'active-tag': { description: 'Active tag group name' },
+    }),
+  ],
+  [
+    'rasci',
+    withGlobals({
+      variant: {
+        description: 'Variant rule set',
+        values: ['raci', 'rasci', 'daci'],
+      },
+      roles: {
+        description:
+          'Comma-separated role list (declares column order; enables unknown-role linting)',
+      },
+      draft: {
+        description: 'Suppress missing-A / missing-R warnings during authoring',
+      },
+      'active-tag': { description: 'Active tag group name' },
+    }),
+  ],
+  [
+    'daci',
+    withGlobals({
+      variant: {
+        description: 'Variant rule set',
+        values: ['raci', 'rasci', 'daci'],
+      },
+      roles: {
+        description:
+          'Comma-separated role list (declares column order; enables unknown-role linting)',
+      },
+      draft: {
+        description: 'Suppress missing-A / missing-R warnings during authoring',
+      },
       'active-tag': { description: 'Active tag group name' },
     }),
   ],
@@ -830,6 +893,47 @@ export function extractTagDeclarations(docText: string): Map<string, string[]> {
 }
 
 // ============================================================
+// Universal alias extractor (`Name as <alias>` postfix)
+// ============================================================
+
+// Postfix-alias form on any name-slot line. Caller-agnostic — runs
+// over the full document so every chart-type extractor can populate
+// `DiagramSymbols.aliases` consistently.
+const ALIAS_POSTFIX_DECL_RE =
+  /(?:^|[^|/])\s*(.+?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*(?:\|.*)?$/;
+
+/**
+ * Scan document text for `Name as <alias>` declarations.
+ *
+ * Returns `Record<alias, canonical-fragment>`. The canonical may
+ * still carry color/type modifiers (the per-parser logic peels
+ * those off at parse time); for autocomplete display purposes the
+ * raw fragment is good enough.
+ *
+ * Pure helper — does NOT enforce strict-ordering, collisions, or
+ * other semantic rules. Those are parser-side checks.
+ */
+export function extractAliasDeclarations(
+  docText: string
+): Record<string, string> {
+  const aliases: Record<string, string> = {};
+  for (const raw of docText.split('\n')) {
+    const trimmed = raw.trim();
+    if (!trimmed || trimmed.startsWith('//')) continue;
+    const match = trimmed.match(ALIAS_POSTFIX_DECL_RE);
+    if (!match) continue;
+    const canonical = match[1].trim();
+    const alias = match[2];
+    // Skip if canonical itself looks structural (arrow / pipe-only / brackets-only)
+    if (!canonical || canonical === '[' || canonical === ']') continue;
+    if (!(alias in aliases)) {
+      aliases[alias] = canonical;
+    }
+  }
+  return aliases;
+}
+
+// ============================================================
 // Sitemap extractor
 // ============================================================
 
@@ -1140,6 +1244,9 @@ registerExtractor('boxes-and-lines', extractBoxesAndLinesSymbols);
 registerExtractor('tech-radar', extractTechRadarSymbols);
 registerExtractor('cycle', extractCycleSymbols);
 registerExtractor('journey-map', extractJourneyMapSymbols);
+registerExtractor('raci', extractRaciSymbols);
+registerExtractor('rasci', extractRaciSymbols);
+registerExtractor('daci', extractRaciSymbols);
 
 function extractTechRadarSymbols(docText: string): DiagramSymbols {
   const entities: string[] = [];
@@ -1229,6 +1336,99 @@ function extractCycleSymbols(docText: string): DiagramSymbols {
     kind: 'cycle',
     entities,
     keywords: ['direction-counterclockwise', 'no-descriptions', 'circle-nodes'],
+  };
+}
+
+// ============================================================
+// RACI / RASCI / DACI extractor
+// ============================================================
+//
+// Extract role names, task names, and phase labels for editor
+// autocomplete. Mirrors the lightweight per-line scan pattern used
+// by other extractors (cycle / journey-map) — does NOT rebuild the
+// full AST.
+
+const RACI_PHASE_RE = /^\[(.+)\]\s*$/;
+const RACI_ROLES_DIRECTIVE_RE = /^roles\s+(.+)$/i;
+const RACI_VARIANT_DIRECTIVE_RE = /^variant\s+(.+)$/i;
+const RACI_ROLE_ASSIGNMENT_RE = /^([^:]+):\s*(.*)$/;
+
+function extractRaciSymbols(docText: string): DiagramSymbols {
+  const lines = docText.split('\n');
+  const entities: string[] = [];
+  let chartType = 'raci';
+  let pastFirstLine = false;
+  let underTask = false;
+
+  const push = (s: string): void => {
+    const trimmed = s.trim();
+    if (trimmed && !entities.includes(trimmed)) entities.push(trimmed);
+  };
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('//')) continue;
+
+    if (!pastFirstLine) {
+      pastFirstLine = true;
+      const firstToken = trimmed.split(/\s+/)[0].toLowerCase();
+      if (
+        firstToken === 'raci' ||
+        firstToken === 'rasci' ||
+        firstToken === 'daci'
+      ) {
+        chartType = firstToken;
+      }
+      continue;
+    }
+
+    const indent = line.length - line.trimStart().length;
+
+    // Header directives
+    if (indent === 0) {
+      const rolesMatch = trimmed.match(RACI_ROLES_DIRECTIVE_RE);
+      if (rolesMatch) {
+        for (const r of rolesMatch[1].split(',')) push(r);
+        continue;
+      }
+      if (RACI_VARIANT_DIRECTIVE_RE.test(trimmed)) continue;
+      if (METADATA_KEY_SET.has(trimmed.split(/\s+/)[0].toLowerCase())) continue;
+      if (
+        trimmed.toLowerCase() === 'draft' ||
+        trimmed.toLowerCase() === 'solid-fill'
+      )
+        continue;
+    }
+
+    // [Phase Label]
+    const phaseMatch = trimmed.match(RACI_PHASE_RE);
+    if (phaseMatch && indent === 0) {
+      push(phaseMatch[1]);
+      underTask = false;
+      continue;
+    }
+
+    // Role assignment (Role: markers) — only valid under a task
+    const roleMatch = trimmed.match(RACI_ROLE_ASSIGNMENT_RE);
+    if (underTask && roleMatch) {
+      // Strip a possible trailing `# annotation`
+      const rolePart = roleMatch[1].trim();
+      push(rolePart);
+      continue;
+    }
+
+    // Otherwise: treat the line as a task name (strip trailing # annotations)
+    let taskName = trimmed;
+    const hashIdx = taskName.search(/\s+#\s+\S+/);
+    if (hashIdx >= 0) taskName = taskName.substring(0, hashIdx).trimEnd();
+    push(taskName);
+    underTask = true;
+  }
+
+  return {
+    kind: chartType,
+    entities,
+    keywords: ['variant', 'roles', 'draft', 'allow-incomplete'],
   };
 }
 

@@ -179,6 +179,34 @@ export const chartTypes: readonly ChartTypeMeta[] = [
     ],
   },
   {
+    id: 'raci',
+    description: 'Tasks × roles responsibility matrix with constraint linting',
+    triggers: [
+      'raci',
+      'raci matrix',
+      'responsibility matrix',
+      'responsibility assignment',
+      'who does what',
+      'accountability matrix',
+    ],
+  },
+  {
+    id: 'rasci',
+    description: 'RACI variant adding Support (R A S C I)',
+    triggers: ['rasci', 'rasci matrix', 'support roles matrix'],
+  },
+  {
+    id: 'daci',
+    description: 'Decision matrix with Driver, Approver, Contributor, Informed',
+    triggers: [
+      'daci',
+      'daci matrix',
+      'decision matrix',
+      'decision tracking',
+      'driver approver',
+    ],
+  },
+  {
     id: 'tech-radar',
     description: 'Technology adoption quadrants (adopt/trial/assess/hold)',
     triggers: [

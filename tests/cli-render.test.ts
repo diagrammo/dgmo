@@ -197,6 +197,40 @@ Bottom | base description`,
 Inner | core description
 Middle | middle description
 Outer | outermost description`,
+
+  raci: `raci Test RACI
+roles Cap, QM, Bos
+
+[Voyage]
+  Set sail
+    Cap: A
+    QM: R
+  Drop anchor
+    Cap: A
+    Bos: R`,
+
+  rasci: `rasci Test RASCI
+roles Cap, QM, Bos, Crew
+
+[Voyage]
+  Hoist sails
+    Cap: A
+    QM: R
+    Crew: S
+  Furl sails
+    Bos: A
+    Crew: R`,
+
+  daci: `daci Test DACI
+roles PM, Cap, QM
+
+[Decisions]
+  Choose route
+    PM: D
+    Cap: A
+  Set provisions
+    QM: D
+    Cap: A`,
 };
 
 // All D3 types now render in JSDOM via explicit dimensions (Epic 41)

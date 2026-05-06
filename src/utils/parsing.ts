@@ -54,6 +54,9 @@ export const ALL_CHART_TYPES = new Set([
   'journey-map',
   'pyramid',
   'ring',
+  'raci',
+  'rasci',
+  'daci',
 ]);
 
 /**
