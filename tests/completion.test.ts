@@ -802,21 +802,22 @@ describe('PIPE_METADATA', () => {
     expect(PIPE_METADATA.has('sequence')).toBe(false);
   });
 
-  it('has tech-radar entry with quadrant/ring/trend/color node keys', () => {
+  it('has tech-radar entry with quadrant + blip contexts', () => {
     const tr = PIPE_METADATA.get('tech-radar');
     expect(tr).toBeDefined();
-    expect(tr!.node.quadrant).toBeDefined();
-    expect(tr!.node.quadrant.values).toEqual([
+    // Quadrant headers: quadrant + color
+    expect(tr!.quadrant.quadrant).toBeDefined();
+    expect(tr!.quadrant.quadrant.values).toEqual([
       'top-left',
       'top-right',
       'bottom-left',
       'bottom-right',
     ]);
-    expect(tr!.node.ring).toBeDefined();
-    expect(tr!.node.trend).toBeDefined();
-    expect(tr!.node.trend.values).toEqual(['new', 'up', 'down', 'stable']);
-    expect(tr!.node.color).toBeDefined();
-    expect(tr!.edge).toEqual({});
+    expect(tr!.quadrant.color).toBeDefined();
+    // Blips: ring + trend
+    expect(tr!.blip.ring).toBeDefined();
+    expect(tr!.blip.trend).toBeDefined();
+    expect(tr!.blip.trend.values).toEqual(['new', 'up', 'down', 'stable']);
   });
 });
 
@@ -932,9 +933,9 @@ describe('COMPLETION_REGISTRY — tech-radar', () => {
 
     const pipe = PIPE_METADATA.get('tech-radar');
     expect(pipe).toBeDefined();
-    expect(pipe!.node).toHaveProperty('quadrant');
-    expect(pipe!.node).toHaveProperty('ring');
-    expect(pipe!.node).toHaveProperty('trend');
-    expect(pipe!.node).toHaveProperty('color');
+    expect(pipe!.quadrant).toHaveProperty('quadrant');
+    expect(pipe!.quadrant).toHaveProperty('color');
+    expect(pipe!.blip).toHaveProperty('ring');
+    expect(pipe!.blip).toHaveProperty('trend');
   });
 });

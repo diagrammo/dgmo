@@ -584,19 +584,28 @@ export interface PipeKeySpec {
 
 /**
  * Pipe metadata keys for inline `| key value` on data lines.
- * Keyed by chart type → { node: ..., edge: ... }.
+ * Keyed by chart type → { context-name: keys }.
+ *
+ * Contexts are open-ended. The two universal ones are:
+ *   - `node` — the default for any non-arrow line
+ *   - `edge` — lines containing an arrow (`->`, `--`)
+ *
+ * Charts with richer line types declare additional contexts:
+ *   - raci: `role`, `phase`, `assignment`
+ *   - ring / pyramid: `layer`
+ *   - tech-radar: `quadrant`, `blip`
+ *   - journey-map: `step`
+ *
+ * Consumers that don't classify lines beyond node/edge can fall back to
+ * the union of all contexts via `unionPipeKeys(spec)` below.
  *
  * IMPORTANT: NEVER add 'sequence' here. The `|` character in sequence
  * diagrams separates display names from identifiers and tag metadata.
  * Adding sequence would trigger false pipe-metadata completions on every `|`.
  */
-export const PIPE_METADATA = new Map<
-  string,
-  {
-    node: Record<string, PipeKeySpec>;
-    edge: Record<string, PipeKeySpec>;
-  }
->([
+export type PipeContextMap = Record<string, Record<string, PipeKeySpec>>;
+
+export const PIPE_METADATA = new Map<string, PipeContextMap>([
   [
     'infra',
     {
@@ -675,21 +684,25 @@ export const PIPE_METADATA = new Map<
     },
   ],
   [
+    // Tech-radar pipe metadata (spec §20). Two contexts:
+    //   - quadrant: top-level quadrant headers (`Tools | quadrant: top-left, color: blue`)
+    //   - blip: indented blip lines (`  Vite | ring: Adopt, trend: up`)
     'tech-radar',
     {
-      node: {
+      quadrant: {
         quadrant: {
           description: 'Quadrant position',
           values: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
         },
-        ring: { description: 'Ring assignment for blip' },
+        color: { description: 'Override quadrant color' },
+      },
+      blip: {
+        ring: { description: 'Ring assignment (must match a declared ring)' },
         trend: {
           description: 'Blip trend indicator',
           values: ['new', 'up', 'down', 'stable'],
         },
-        color: { description: 'Override quadrant color' },
       },
-      edge: {},
     },
   ],
   [
@@ -707,56 +720,67 @@ export const PIPE_METADATA = new Map<
     },
   ],
   [
-    // RACI uses pipe metadata in two contexts: role declarations
-    // (`Cap | color: red`) and phase headers (`[Departure] | color: teal`).
-    // The current PIPE_METADATA shape only has node/edge buckets — we put
-    // `color` in `node` so completion fires after `|` regardless of context.
-    // Refactoring PIPE_METADATA to support role/phase/layer contexts is
-    // tracked separately.
+    // RACI pipe metadata (spec §24A). Two contexts:
+    //   - role: declarations inside the `roles` block (`Cap | color: red`)
+    //   - phase: bracketed phase headers (`[Departure] | color: teal`)
     'raci',
     {
-      node: {
-        color: { description: 'Color (role column tint, or phase bar tint)' },
+      role: {
+        color: { description: 'Role column tint (palette name)' },
       },
-      edge: {},
+      phase: {
+        color: { description: 'Phase bar tint (palette name)' },
+      },
     },
   ],
   [
-    // Ring layer pipe metadata. Same node-bucket workaround as raci until
-    // multi-context (layer/role/phase) support lands.
+    // Ring layer pipe metadata (spec §24.4). One context: `layer`.
     'ring',
     {
-      node: {
+      layer: {
         color: { description: 'Ring color (palette name)' },
         description: { description: 'Layer description (one-liner shorthand)' },
       },
-      edge: {},
     },
   ],
   [
     // Pyramid layer pipe metadata (spec §23.4). Identical surface to ring.
     'pyramid',
     {
-      node: {
+      layer: {
         color: { description: 'Layer color (palette name)' },
         description: { description: 'Layer description (one-liner shorthand)' },
       },
-      edge: {},
     },
   ],
   [
-    // Journey-map step pipe metadata (spec §22). `score` is the only
-    // static key; tag aliases like `ch: Web` are user-defined via the
-    // `tag` block and resolved dynamically.
+    // Journey-map step pipe metadata (spec §22). One static key: `score`.
+    // Tag aliases (e.g. `ch: Web`) are user-defined via the `tag` block
+    // and resolved dynamically — not part of the static map.
     'journey-map',
     {
-      node: {
+      step: {
         score: { description: 'Step score (1–5 integer; high = good)' },
       },
-      edge: {},
     },
   ],
 ]);
+
+/**
+ * Union of all pipe-metadata keys across every context for a chart.
+ * Use this when a consumer can't precisely classify which line context
+ * the cursor is on (e.g. raci role vs phase) and wants to surface every
+ * potentially-valid key. Returns an empty record for unknown chart types.
+ */
+export function unionPipeKeys(chartType: string): Record<string, PipeKeySpec> {
+  const spec = PIPE_METADATA.get(chartType);
+  if (!spec) return {};
+  const merged: Record<string, PipeKeySpec> = {};
+  for (const ctx of Object.values(spec)) {
+    Object.assign(merged, ctx);
+  }
+  return merged;
+}
 
 // ============================================================
 // Derived metadata key set

@@ -362,11 +362,11 @@ B`);
     // solid-fill is mixed in for ring (it's in SOLID_FILL_CAPABLE).
     expect(spec!.directives['solid-fill']).toBeDefined();
     // color/description are layer pipe metadata (spec §24.4), not
-    // directives — they live in PIPE_METADATA.
+    // directives — they live in PIPE_METADATA under the `layer` context.
     const pipe = PIPE_METADATA.get('ring');
     expect(pipe).toBeDefined();
-    expect(pipe!.node['color']).toBeDefined();
-    expect(pipe!.node['description']).toBeDefined();
+    expect(pipe!.layer['color']).toBeDefined();
+    expect(pipe!.layer['description']).toBeDefined();
   });
 
   it('editor keywords set includes ring (AC 14)', () => {

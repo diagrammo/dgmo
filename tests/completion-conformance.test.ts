@@ -172,10 +172,10 @@ for (const f of fixtures) {
       ).toBeDefined();
 
       if (!liveBuckets) return;
-      const actualKeys = new Set([
-        ...Object.keys(liveBuckets.node),
-        ...Object.keys(liveBuckets.edge),
-      ]);
+      const actualKeys = new Set<string>();
+      for (const ctx of Object.values(liveBuckets)) {
+        for (const k of Object.keys(ctx)) actualKeys.add(k);
+      }
       const missing = expectedKeys.filter((k) => !actualKeys.has(k)).sort();
       expect(
         missing,
