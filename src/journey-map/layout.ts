@@ -59,6 +59,11 @@ export interface JourneyMapLayout {
 const PADDING = 24;
 const TITLE_HEIGHT = 36;
 const PERSONA_HEIGHT = 48;
+// Must match renderer.ts persona panel width
+const PERSONA_PANEL_WIDTH = 280;
+// Approx char width for FONT_SIZE_TITLE 18px bold (Inter)
+const TITLE_HEADER_CHAR_WIDTH = 10;
+const HEADER_GAP = 24;
 const CURVE_AREA_HEIGHT = 260;
 const CARD_GAP = 8;
 const STEP_CARD_WIDTH = 190;
@@ -353,8 +358,24 @@ export function layoutJourneyMap(
       : cardAreaTop + PADDING
     : cardAreaTop + CARD_GAP + tagStripOffset + maxCardHeight + PADDING + 40;
 
+  // Reserve enough horizontal space so the title text and the persona card
+  // don't collapse into each other when the diagram has few steps. Without
+  // this, a single-step journey produces a totalWidth that's narrower than
+  // the title + persona row, and the persona panel overlaps the title.
+  const headerTitleWidth = parsed.title
+    ? parsed.title.length * TITLE_HEADER_CHAR_WIDTH
+    : 0;
+  const personaPanelWidth = parsed.persona ? PERSONA_PANEL_WIDTH : 0;
+  const headerWidth =
+    parsed.title && parsed.persona
+      ? PADDING + headerTitleWidth + HEADER_GAP + personaPanelWidth + PADDING
+      : Math.max(
+          PADDING + headerTitleWidth + PADDING,
+          PADDING + personaPanelWidth + PADDING
+        );
+
   // Add space for score legend at bottom
-  const totalWidth = Math.max(rightEdge, 400);
+  const totalWidth = Math.max(rightEdge, 400, headerWidth);
   const totalHeight = bottomEdge;
 
   return {
