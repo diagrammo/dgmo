@@ -1967,25 +1967,6 @@ Phase headers accept pipe metadata for per-phase styling:
 
 The phase bar tints to a soft mix of the color over the background. Phases without metadata fall back to the neutral gray bar.
 
-### Diagnostic codes
-
-| Code | Severity | Fires when |
-|------|----------|------------|
-| `E_RACI_MULTI_ACCOUNTABLE` | error | RACI/RASCI task has more than one A |
-| `E_DACI_MULTI_DRIVER` | error | DACI task has more than one D |
-| `E_DACI_MULTI_ACCOUNTABLE` | error | DACI task has more than one A |
-| `E_RACI_INVALID_MARKER` | error | Marker isn't in the resolved variant's alphabet |
-| `E_RACI_UNEXPECTED_LINE` | error | Free-text line appears after the first role assignment |
-| `E_RACI_MIXED_VARIANTS` | error | Both `D` and `S` markers appear without a `variant-*` lock |
-| `E_RACI_DUPLICATE_VARIANT` | error | More than one `variant-*` directive in the chart |
-| `W_RACI_MISSING_ACCOUNTABLE` | warning | RACI/RASCI task has no A |
-| `W_RACI_MISSING_RESPONSIBLE` | warning | RACI/RASCI task has no R |
-| `W_DACI_MISSING_DRIVER` | warning | DACI task has no D |
-| `W_DACI_MISSING_ACCOUNTABLE` | warning | DACI task has no A |
-| `W_RACI_UNKNOWN_ROLE` | warning | Role used without being declared in `roles` |
-
-Warnings are non-blocking; there is no source-level suppression mechanism — by design, source should not silently mute the linter.
-
 ### Display vs source ordering
 
 Markers in cells are always **rendered in canonical alphabet order** (`R A C I`, `R A S C I`, `D A C I`) regardless of source order. Source casing and order are preserved in the file; mutations operate on source order to keep round-trips byte-stable except for the cell that changed.
