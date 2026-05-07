@@ -200,3 +200,46 @@ describe('renderAnsi', () => {
     expect(colored).toContain('\x1b[1;31m');
   });
 });
+
+// ============================================================
+// `as` keyword highlighting (TD-18 Universal Alias Syntax)
+// ============================================================
+
+describe('highlightDgmo — `as` modifier keyword', () => {
+  it('highlights `as` as a modifier keyword in name-slot context', () => {
+    const tokens = highlightDgmo('sequence\nAlice as a');
+    const asTokens = tokens.filter(
+      (t) => t.text === 'as' && t.role === 'modifier'
+    );
+    expect(asTokens.length).toBeGreaterThan(0);
+  });
+
+  it('does not break parse when `as` appears inside arrow labels', () => {
+    // Per F6: name-slot vs label scoping isn't expressible in the
+    // flat Lezer grammar. The post-parse entity-highlight pass demotes
+    // modifier keywords inside labels to `default`, so the visible
+    // role inside a label is `default`. The contract this test locks
+    // is just: parse does not error, round-trip is lossless.
+    const source = 'sequence\nA -used as connector-> B';
+    const tokens = highlightDgmo(source);
+    expect(tokens.map((t) => t.text).join('')).toBe(source);
+    const asTokens = tokens.filter((t) => t.text === 'as');
+    expect(asTokens.length).toBe(1);
+  });
+
+  it('does not break parse when `as` appears in comments', () => {
+    const tokens = highlightDgmo(
+      'sequence\n// alias mappings via `as`\nAlice as a'
+    );
+    const reconstructed = tokens.map((t) => t.text).join('');
+    expect(reconstructed).toBe(
+      'sequence\n// alias mappings via `as`\nAlice as a'
+    );
+  });
+
+  it('does not break parse when `as` appears inside quoted names', () => {
+    const tokens = highlightDgmo('sequence\n"Storage as a Service" as svc');
+    const reconstructed = tokens.map((t) => t.text).join('');
+    expect(reconstructed).toBe('sequence\n"Storage as a Service" as svc');
+  });
+});

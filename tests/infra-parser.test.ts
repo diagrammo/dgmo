@@ -1080,4 +1080,61 @@ infra
       expect(result.groups[0].metadata).toEqual({ t: 'Engineering' });
     });
   });
+
+  describe('universal alias syntax (TD-18)', () => {
+    it('extracts alias from component declaration', () => {
+      const result = parseInfra(`
+infra
+GatewayService as gw
+  -routes-> OrderService
+OrderService as os
+`);
+      expect(
+        result.diagnostics.filter((d) => d.severity === 'error')
+      ).toHaveLength(0);
+      expect(result.nodes.map((n) => n.label)).toEqual([
+        'GatewayService',
+        'OrderService',
+      ]);
+    });
+
+    it('resolves alias in connection target', () => {
+      const result = parseInfra(`
+infra
+PaymentService as ps
+OrderAPI as oa
+  -routes-> ps
+`);
+      expect(result.edges).toHaveLength(1);
+      const ps = result.nodes.find((n) => n.label === 'PaymentService');
+      expect(ps).toBeDefined();
+      expect(result.edges[0].targetId).toBe(ps!.id);
+    });
+
+    it('extracts alias from group declaration', () => {
+      const result = parseInfra(`
+infra
+[API Pods] as pods
+  Worker
+`);
+      expect(result.groups).toHaveLength(1);
+      expect(result.groups[0].label).toBe('API Pods');
+    });
+
+    it('aliases do not leak across separate parse calls', () => {
+      const a = parseInfra(`
+infra
+GatewayService as gw
+`);
+      expect(a.nodes.find((n) => n.label === 'GatewayService')).toBeDefined();
+      const b = parseInfra(`
+infra
+gw
+  -routes-> Foo
+`);
+      // `gw` was never declared — treated as a literal node name.
+      expect(b.nodes.find((n) => n.label === 'gw')).toBeDefined();
+      expect(b.nodes.find((n) => n.label === 'GatewayService')).toBeUndefined();
+    });
+  });
 });

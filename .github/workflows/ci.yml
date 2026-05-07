@@ -23,6 +23,9 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Reject legacy alias syntaxes (TD-18)
+        run: bash scripts/lint-no-legacy-alias.sh
+
       - name: Typecheck
         run: pnpm typecheck
 

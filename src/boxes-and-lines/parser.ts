@@ -9,6 +9,7 @@ import { normalizeName } from '../utils/name-normalize';
 import type { ParsedBoxesAndLines, BLNode, BLEdge, BLGroup } from './types';
 import {
   matchTagBlockHeading,
+  emitTagLegacyDiagnostic,
   injectDefaultTagMetadata,
   validateTagValues,
   validateTagGroupNames,
@@ -46,7 +47,7 @@ function measureIndent(line: string): number {
  */
 function parsePipeMetadata(
   segment: string,
-  aliasMap: Map<string, string>
+  metaAliasMap: Map<string, string>
 ): { metadata: Record<string, string>; description?: string[] } {
   const metadata: Record<string, string> = {};
   let description: string[] | undefined;
@@ -63,7 +64,7 @@ function parsePipeMetadata(
       if (rawKey === 'description') {
         description = [value];
       } else {
-        const resolvedKey = aliasMap.get(rawKey) ?? rawKey;
+        const resolvedKey = metaAliasMap.get(rawKey) ?? rawKey;
         metadata[resolvedKey] = value;
       }
     }
@@ -131,8 +132,16 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
   // Tag block state
   let contentStarted = false;
   let currentTagGroup: TagGroup | null = null;
-  const aliasMap = new Map<string, string>();
-
+  // metaAliasMap: tag-group metadata-key aliases (per A1).
+  const metaAliasMap = new Map<string, string>();
+  // nameAliasMap: TD-18 entity-name aliases (`a` → `<canonical id>`). Per C8.
+  const nameAliasMap = new Map<string, string>();
+  function peelAlias(label: string): { label: string; alias?: string } {
+    const trimmed = label.trim();
+    const m = trimmed.match(/^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/);
+    if (!m) return { label: trimmed };
+    return { label: m[1].trim(), alias: m[2] };
+  }
   const pushWarning = (lineNumber: number, message: string) => {
     result.diagnostics.push(makeDgmoError(lineNumber, message, 'warning'));
   };
@@ -246,6 +255,7 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
     // Tag group heading — must be checked BEFORE group/node/edge matching
     const tagBlockMatch = matchTagBlockHeading(trimmed);
     if (tagBlockMatch && indent === 0) {
+      emitTagLegacyDiagnostic(tagBlockMatch, lineNum, result.diagnostics);
       if (contentStarted) {
         result.diagnostics.push(
           makeDgmoError(
@@ -263,8 +273,8 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
         lineNumber: lineNum,
       };
       if (tagBlockMatch.alias) {
-        aliasMap.set(
-          tagBlockMatch.alias.toLowerCase(),
+        metaAliasMap.set(
+          normalizeName(tagBlockMatch.alias),
           tagBlockMatch.name.toLowerCase()
         );
       }
@@ -378,7 +388,7 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
 
       let edgeMeta: Record<string, string> = {};
       if (metaSeg) {
-        const parsed = parsePipeMetadata(metaSeg, aliasMap);
+        const parsed = parsePipeMetadata(metaSeg, metaAliasMap);
         edgeMeta = parsed.metadata;
       }
 
@@ -408,7 +418,7 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
 
       let edgeMeta: Record<string, string> = {};
       if (metaSeg) {
-        const parsed = parsePipeMetadata(metaSeg, aliasMap);
+        const parsed = parsePipeMetadata(metaSeg, metaAliasMap);
         edgeMeta = parsed.metadata;
       }
 
@@ -429,7 +439,11 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
       contentStarted = true;
       currentTagGroup = null;
       flushDescription();
-      const label = groupMatch[1];
+      // TD-18: peel optional `as <alias>` from the group label.
+      const groupPeeled = peelAlias(groupMatch[1]);
+      const label = groupPeeled.label;
+      if (groupPeeled.alias)
+        nameAliasMap.set(normalizeName(groupPeeled.alias), groupId(label));
 
       // Check nesting depth
       const currentDepth = groupStack.length + 1;
@@ -452,7 +466,7 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
           if (ci >= 0) {
             const rawKey = item.slice(0, ci).trim().toLowerCase();
             const value = item.slice(ci + 1).trim();
-            const resolvedKey = aliasMap.get(rawKey) ?? rawKey;
+            const resolvedKey = metaAliasMap.get(rawKey) ?? rawKey;
             groupMeta[resolvedKey] = value;
           }
         }
@@ -518,8 +532,9 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
       const edge = parseEdgeLine(
         edgeText,
         lineNum,
-        aliasMap,
-        result.diagnostics
+        metaAliasMap,
+        result.diagnostics,
+        nameAliasMap
       );
       if (edge) {
         result.edges.push(edge);
@@ -533,7 +548,13 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
     contentStarted = true;
     currentTagGroup = null;
     flushDescription(); // Flush any pending description from previous node
-    const node = parseNodeLine(trimmed, lineNum, aliasMap, result.diagnostics);
+    const node = parseNodeLine(
+      trimmed,
+      lineNum,
+      metaAliasMap,
+      result.diagnostics,
+      nameAliasMap
+    );
     if (!node) {
       result.diagnostics.push(
         makeDgmoError(lineNum, `Unexpected line: '${trimmed}'.`, 'warning')
@@ -648,8 +669,9 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
 function parseNodeLine(
   trimmed: string,
   lineNum: number,
-  aliasMap: Map<string, string>,
-  _diagnostics: DgmoError[]
+  metaAliasMap: Map<string, string>,
+  _diagnostics: DgmoError[],
+  nameAliasMap?: Map<string, string>
 ): BLNode | null {
   let metadata: Record<string, string> = {};
   let description: string[] | undefined;
@@ -661,11 +683,18 @@ function parseNodeLine(
   if (pipeIdx >= 0) {
     label = trimmed.slice(0, pipeIdx).trim();
     const metaSegment = trimmed.slice(pipeIdx + 1).trim();
-    const parsed = parsePipeMetadata(metaSegment, aliasMap);
+    const parsed = parsePipeMetadata(metaSegment, metaAliasMap);
     metadata = parsed.metadata;
     description = parsed.description;
   } else {
     label = trimmed;
+  }
+
+  // TD-18: peel optional `as <alias>` from label.
+  const asMatch = label.match(/^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/);
+  if (asMatch) {
+    label = asMatch[1].trim();
+    nameAliasMap?.set(normalizeName(asMatch[2]), label);
   }
 
   if (!label) return null;
@@ -678,10 +707,21 @@ function parseNodeLine(
   };
 }
 
-/** Convert `[Group Name]` to `__group_Group Name`, or return as-is for plain nodes */
-function resolveEndpoint(name: string): string {
+/**
+ * Convert `[Group Name]` to `__group_Group Name`, resolve TD-18 alias
+ * literals to their canonical name, otherwise return as-is.
+ */
+function resolveEndpoint(
+  name: string,
+  nameAliasMap?: Map<string, string>
+): string {
   const m = name.match(/^\[(.+)\]$/);
-  return m ? groupId(m[1].trim()) : name;
+  if (m) return groupId(m[1].trim());
+  if (nameAliasMap) {
+    const aliased = nameAliasMap.get(name.trim());
+    if (aliased !== undefined) return aliased;
+  }
+  return name;
 }
 
 /**
@@ -698,13 +738,14 @@ function resolveEndpoint(name: string): string {
 function parseEdgeLine(
   trimmed: string,
   lineNum: number,
-  aliasMap: Map<string, string>,
-  diagnostics: DgmoError[]
+  metaAliasMap: Map<string, string>,
+  diagnostics: DgmoError[],
+  nameAliasMap?: Map<string, string>
 ): BLEdge | null {
   // Check for bidirectional labeled: `Source <-label-> Target`
   const biLabeledMatch = trimmed.match(/^(.+?)\s*<-(.+)->\s*(.+)$/);
   if (biLabeledMatch) {
-    const source = resolveEndpoint(biLabeledMatch[1].trim());
+    const source = resolveEndpoint(biLabeledMatch[1].trim(), nameAliasMap);
     const labelResult = parseInArrowLabel(biLabeledMatch[2], lineNum);
     diagnostics.push(...labelResult.diagnostics);
     const label = labelResult.label;
@@ -715,7 +756,7 @@ function parseEdgeLine(
     if (pipeIdx >= 0) {
       const parsed = parsePipeMetadata(
         rest.slice(pipeIdx + 1).trim(),
-        aliasMap
+        metaAliasMap
       );
       metadata = parsed.metadata;
       rest = rest.slice(0, pipeIdx).trim();
@@ -730,7 +771,7 @@ function parseEdgeLine(
 
     return {
       source,
-      target: resolveEndpoint(rest),
+      target: resolveEndpoint(rest, nameAliasMap),
       label,
       bidirectional: true,
       lineNumber: lineNum,
@@ -741,7 +782,10 @@ function parseEdgeLine(
   // Check for bidirectional plain: `Source <-> Target`
   const biIdx = trimmed.indexOf('<->');
   if (biIdx >= 0) {
-    const source = resolveEndpoint(trimmed.slice(0, biIdx).trim());
+    const source = resolveEndpoint(
+      trimmed.slice(0, biIdx).trim(),
+      nameAliasMap
+    );
     let rest = trimmed.slice(biIdx + 3).trim();
 
     let metadata: Record<string, string> = {};
@@ -749,7 +793,7 @@ function parseEdgeLine(
     if (pipeIdx >= 0) {
       const parsed = parsePipeMetadata(
         rest.slice(pipeIdx + 1).trim(),
-        aliasMap
+        metaAliasMap
       );
       metadata = parsed.metadata;
       rest = rest.slice(0, pipeIdx).trim();
@@ -764,7 +808,7 @@ function parseEdgeLine(
 
     return {
       source,
-      target: resolveEndpoint(rest),
+      target: resolveEndpoint(rest, nameAliasMap),
       bidirectional: true,
       lineNumber: lineNum,
       metadata,
@@ -774,7 +818,7 @@ function parseEdgeLine(
   // Check for labeled arrow: `Source -label-> Target`
   const labeledMatch = trimmed.match(/^(.+?)\s+-(.+)->\s*(.+)$/);
   if (labeledMatch) {
-    const source = resolveEndpoint(labeledMatch[1].trim());
+    const source = resolveEndpoint(labeledMatch[1].trim(), nameAliasMap);
     const labelResult = parseInArrowLabel(labeledMatch[2], lineNum);
     diagnostics.push(...labelResult.diagnostics);
     const label = labelResult.label;
@@ -786,7 +830,7 @@ function parseEdgeLine(
       if (pipeIdx >= 0) {
         const parsed = parsePipeMetadata(
           rest.slice(pipeIdx + 1).trim(),
-          aliasMap
+          metaAliasMap
         );
         metadata = parsed.metadata;
         rest = rest.slice(0, pipeIdx).trim();
@@ -801,7 +845,7 @@ function parseEdgeLine(
 
       return {
         source,
-        target: resolveEndpoint(rest),
+        target: resolveEndpoint(rest, nameAliasMap),
         label,
         bidirectional: false,
         lineNumber: lineNum,
@@ -814,7 +858,10 @@ function parseEdgeLine(
   const arrowIdx = trimmed.indexOf('->');
   if (arrowIdx < 0) return null;
 
-  const source = resolveEndpoint(trimmed.slice(0, arrowIdx).trim());
+  const source = resolveEndpoint(
+    trimmed.slice(0, arrowIdx).trim(),
+    nameAliasMap
+  );
   let rest = trimmed.slice(arrowIdx + 2).trim();
 
   if (!source || !rest) {
@@ -827,7 +874,10 @@ function parseEdgeLine(
   let metadata: Record<string, string> = {};
   const pipeIdx = rest.indexOf('|');
   if (pipeIdx >= 0) {
-    const parsed = parsePipeMetadata(rest.slice(pipeIdx + 1).trim(), aliasMap);
+    const parsed = parsePipeMetadata(
+      rest.slice(pipeIdx + 1).trim(),
+      metaAliasMap
+    );
     metadata = parsed.metadata;
     rest = rest.slice(0, pipeIdx).trim();
   }
@@ -839,7 +889,7 @@ function parseEdgeLine(
 
   return {
     source,
-    target: resolveEndpoint(rest),
+    target: resolveEndpoint(rest, nameAliasMap),
     bidirectional: false,
     lineNumber: lineNum,
     metadata,

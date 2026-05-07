@@ -25,12 +25,34 @@ import {
 import type { TagGroup } from '../utils/tag-groups';
 import {
   matchTagBlockHeading,
+  emitTagLegacyDiagnostic,
   validateTagValues,
   validateTagGroupNames,
   stripDefaultModifier,
 } from '../utils/tag-groups';
 
 /** Known sequence-diagram options that take a value (space-separated). */
+/**
+ * Detect whether a participant-declaration remainder contains a
+ * hard-removed legacy modifier. Returns the diagnostic to emit when
+ * one is found.
+ *
+ * Centralized so future postfix modifiers (e.g. `as` per TD-18)
+ * don't accidentally re-route through the rejection branch.
+ */
+function isHardRemovedToken(
+  remainder: string
+): { removed: true; code: string; message: string } | { removed: false } {
+  if (/\baka\b/i.test(remainder)) {
+    return {
+      removed: true,
+      code: NAME_DIAGNOSTIC_CODES.AKA_REMOVED,
+      message: akaRemovedMessage(),
+    };
+  }
+  return { removed: false };
+}
+
 const KNOWN_SEQ_OPTIONS = new Set(['active-tag']);
 
 /** Known sequence-diagram boolean options (bare keyword or `no-` prefix). */
@@ -426,6 +448,16 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     error: null,
   };
 
+  // Per-parse entity alias literal → canonical participantId map
+  // (TD-18). Distinct from `aliasMap` further down, which is for
+  // tag-group aliases (per the A1 naming convention). Per C8:
+  // never persisted, fresh each parse.
+  const nameAliasMap = new Map<string, string>();
+  const resolveAlias = (token: string): string => {
+    const trimmed = token.trim();
+    return nameAliasMap.get(trimmed) ?? trimmed;
+  };
+
   const fail = (line: number, message: string): ParsedSequenceDgmo => {
     const diag = makeDgmoError(line, message);
     result.diagnostics.push(diag);
@@ -709,9 +741,10 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     }
 
     // ---- Tag group handling ----
-    // Tag block heading: "tag Name [alias X]"
+    // Tag block heading: "tag Name as <alias>"
     const tagBlockMatch = matchTagBlockHeading(trimmed);
     if (tagBlockMatch) {
+      emitTagLegacyDiagnostic(tagBlockMatch, lineNumber, result.diagnostics);
       if (contentStarted) {
         pushError(lineNumber, 'Tag groups must appear before sequence content');
         continue;
@@ -892,7 +925,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       contentStarted = true;
       const id = isAMatch[1];
       const typeStr = isAMatch[2].toLowerCase();
-      const remainder = isAMatch[3]?.trim() || '';
+      let remainder = isAMatch[3]?.trim() || '';
 
       const participantType: ParticipantType = VALID_PARTICIPANT_TYPES.has(
         typeStr
@@ -900,17 +933,28 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
         ? (typeStr as ParticipantType)
         : 'default';
 
-      // Reject removed `aka Alias` modifier with the canonical diagnostic.
-      if (/\baka\b/i.test(remainder)) {
+      // Reject removed-keyword modifiers via the guarded helper so a
+      // developer adding new postfix modifiers (e.g. `as`) doesn't
+      // accidentally re-invoke the rejection branch — see A2.
+      const removed = isHardRemovedToken(remainder);
+      if (removed.removed) {
         result.diagnostics.push(
-          makeDgmoError(
-            lineNumber,
-            akaRemovedMessage(),
-            'error',
-            NAME_DIAGNOSTIC_CODES.AKA_REMOVED
-          )
+          makeDgmoError(lineNumber, removed.message, 'error', removed.code)
         );
         continue;
+      }
+
+      // TD-18: extract trailing `as <alias>` from the remainder and
+      // register it. Order on the line is `Name is a TYPE [position N] as <alias>`.
+      // The leading `(.*?)\s*\b` allows the remainder to be just
+      // `as <alias>` (empty prefix) — the canonical example writes
+      // `Alice is a service as a` where the entire remainder is `as a`.
+      const asInRemainder = remainder.match(
+        /^(.*?)\s*\bas\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/
+      );
+      if (asInRemainder) {
+        nameAliasMap.set(normalizeName(asInRemainder[2]), id);
+        remainder = asInRemainder[1].trim();
       }
 
       const posMatch = remainder.match(/\bposition\s+(-?\d+)/i);
@@ -1067,8 +1111,8 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     if (labeledArrow) {
       contentStarted = true;
       const { from, to, label: rawLabel, async: isAsync } = labeledArrow;
-      const fromKey = addParticipant(from, lineNumber);
-      const toKey = addParticipant(to, lineNumber);
+      const fromKey = addParticipant(resolveAlias(from), lineNumber);
+      const toKey = addParticipant(resolveAlias(to), lineNumber);
       lastMsgFrom = fromKey;
 
       // TD-13/TD-14: validate in-arrow label characters
@@ -1142,8 +1186,8 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       contentStarted = true;
       const from = bareCall[1];
       const to = bareCall[2];
-      const fromKey = addParticipant(from, lineNumber);
-      const toKey = addParticipant(to, lineNumber);
+      const fromKey = addParticipant(resolveAlias(from), lineNumber);
+      const toKey = addParticipant(resolveAlias(to), lineNumber);
       lastMsgFrom = fromKey;
 
       const msg: SequenceMessage = {

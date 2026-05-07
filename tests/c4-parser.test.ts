@@ -1167,4 +1167,34 @@ API is a system
       expect(result.elements[0].children[1].shape).toBe('cache');
     });
   });
+
+  describe('universal alias syntax (TD-18)', () => {
+    it('extracts alias from `Name is a TYPE as <alias>`', () => {
+      const result = parseC4(`c4
+OrderSystem is a system as os
+Alice is a person as al
+  -uses-> os`);
+      expect(
+        result.diagnostics.filter((d) => d.severity === 'error')
+      ).toHaveLength(0);
+      expect(result.elements.map((e) => e.name).sort()).toEqual([
+        'Alice',
+        'OrderSystem',
+      ]);
+      const rel = result.elements.find((e) => e.name === 'Alice')
+        ?.relationships[0];
+      expect(rel?.target).toBe('OrderSystem');
+    });
+
+    it('alias does not survive across separate parse calls', () => {
+      const a = parseC4(`c4
+OrderSystem is a system as os`);
+      expect(a.elements[0].name).toBe('OrderSystem');
+      const b = parseC4(`c4
+Alice is a person
+  -uses-> os`);
+      // `os` isn't declared in `b`; resolves to itself.
+      expect(b.elements[0].relationships[0].target).toBe('os');
+    });
+  });
 });

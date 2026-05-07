@@ -169,3 +169,159 @@ export function nameReservedCharMessage(char: string): string {
 export function akaRemovedMessage(): string {
   return `'aka' is no longer supported — use the participant name directly`;
 }
+
+// ============================================================
+// Universal Alias Syntax diagnostic codes (TD-18)
+// ============================================================
+//
+// See `_bmad-output/implementation-artifacts/tech-spec-universal-alias-syntax.md`
+// (P2 appendix) for canonical message text. Parsers MUST import
+// these factories rather than inlining wording.
+
+export const ALIAS_DIAGNOSTIC_CODES = {
+  /** Alias token used before its declaration (strict-ordering rule). */
+  ALIAS_BEFORE_DECL: 'E_ALIAS_BEFORE_DECL',
+  /** Same alias bound to two different canonicals. */
+  ALIAS_COLLISION: 'E_ALIAS_COLLISION',
+  /** Alias literal matches an existing canonical name. */
+  ALIAS_SHADOWS_NAME: 'E_ALIAS_SHADOWS_NAME',
+  /** Same canonical re-declared with a different alias. */
+  ALIAS_REBINDING: 'E_ALIAS_REBINDING',
+  /** `pm as p` where `pm` is itself an alias — must alias the canonical. */
+  ALIAS_OF_ALIAS: 'E_ALIAS_OF_ALIAS',
+  /** Alias matches a reserved keyword (`as`, `is`, chart-type tokens, etc.). */
+  ALIAS_RESERVED_KEYWORD: 'E_ALIAS_RESERVED_KEYWORD',
+  /** `as` matched but token doesn't fit `[A-Za-z][A-Za-z0-9_]{0,11}`. */
+  ALIAS_INVALID_FORMAT: 'E_ALIAS_INVALID_FORMAT',
+  /** Canonical name was used plainly before its alias declaration. */
+  ALIAS_AFTER_CANONICAL: 'E_ALIAS_AFTER_CANONICAL',
+  /** Legacy `tag Name x` shorthand encountered — use `tag Name as x`. */
+  TAG_SHORTHAND_REMOVED: 'E_TAG_SHORTHAND_REMOVED',
+  /** Legacy venn `Name(color) alias X` encountered — use `as`. */
+  VENN_ALIAS_KEYWORD_REMOVED: 'E_VENN_ALIAS_KEYWORD_REMOVED',
+  /** Reference token differs from a declared alias only in case. */
+  ALIAS_CASE_NEAR_MATCH: 'W_ALIAS_CASE_NEAR_MATCH',
+  /** Alias declared but referenced ≤1 time. */
+  ALIAS_UNDERUSED: 'W_ALIAS_UNDERUSED',
+} as const;
+
+export const ALIAS_DIAGNOSTIC_SEVERITY: Record<
+  keyof typeof ALIAS_DIAGNOSTIC_CODES,
+  DgmoSeverity
+> = {
+  ALIAS_BEFORE_DECL: 'error',
+  ALIAS_COLLISION: 'error',
+  ALIAS_SHADOWS_NAME: 'error',
+  ALIAS_REBINDING: 'error',
+  ALIAS_OF_ALIAS: 'error',
+  ALIAS_RESERVED_KEYWORD: 'error',
+  ALIAS_INVALID_FORMAT: 'error',
+  ALIAS_AFTER_CANONICAL: 'error',
+  TAG_SHORTHAND_REMOVED: 'error',
+  VENN_ALIAS_KEYWORD_REMOVED: 'error',
+  ALIAS_CASE_NEAR_MATCH: 'warning',
+  ALIAS_UNDERUSED: 'warning',
+};
+
+export function aliasBeforeDeclMessage(token: string): string {
+  return (
+    `Alias '${token}' used before declaration. ` +
+    `Declare '<canonical> as ${token}' on or above this line.`
+  );
+}
+
+export function aliasCollisionMessage(args: {
+  token: string;
+  existingCanonical: string;
+  existingLine: number;
+  incomingCanonical: string;
+}): string {
+  return (
+    `Alias '${args.token}' is already bound to '${args.existingCanonical}' ` +
+    `(line ${args.existingLine}). Cannot rebind to '${args.incomingCanonical}'.`
+  );
+}
+
+export function aliasShadowsNameMessage(token: string): string {
+  return `Alias '${token}' would shadow an existing canonical name. Choose a different alias.`;
+}
+
+export function aliasRebindingMessage(args: {
+  canonical: string;
+  existingAlias: string;
+  existingLine: number;
+  incomingAlias: string;
+}): string {
+  return (
+    `'${args.canonical}' is already aliased as '${args.existingAlias}' ` +
+    `(line ${args.existingLine}). Cannot also alias as '${args.incomingAlias}'.`
+  );
+}
+
+export function aliasOfAliasMessage(args: {
+  token: string;
+  canonical: string;
+}): string {
+  return (
+    `'${args.token}' is itself an alias for '${args.canonical}'. ` +
+    `Cannot alias an alias — alias the canonical instead.`
+  );
+}
+
+export function aliasReservedKeywordMessage(token: string): string {
+  return `'${token}' is a reserved keyword and cannot be used as an alias.`;
+}
+
+export function aliasInvalidFormatMessage(token: string): string {
+  return (
+    `Alias '${token}' must match [A-Za-z][A-Za-z0-9_]{0,11} ` +
+    `(letter start, letters/digits/underscore, max 12 chars).`
+  );
+}
+
+export function aliasAfterCanonicalMessage(args: {
+  canonical: string;
+  existingLine: number;
+}): string {
+  return (
+    `'${args.canonical}' was already used as a canonical name (line ${args.existingLine}). ` +
+    `Aliases must be declared on or before first use.`
+  );
+}
+
+export function tagShorthandRemovedMessage(args: {
+  name: string;
+  alias: string;
+}): string {
+  return (
+    `Bare tag shorthand 'tag ${args.name} ${args.alias}' was removed. ` +
+    `Use 'tag ${args.name} as ${args.alias}' instead.`
+  );
+}
+
+export function vennAliasKeywordRemovedMessage(args: {
+  name: string;
+  alias: string;
+}): string {
+  return (
+    `Venn 'alias' keyword was removed. ` +
+    `Use 'as' instead — '${args.name} as ${args.alias}'.`
+  );
+}
+
+export function aliasCaseNearMatchMessage(args: {
+  reference: string;
+  declared: string;
+}): string {
+  return (
+    `'${args.reference}' differs only in case from declared alias '${args.declared}'. ` +
+    `Did you mean '${args.declared}'?`
+  );
+}
+
+export function aliasUnderusedMessage(token: string): string {
+  return (
+    `Alias '${token}' is declared but referenced ≤1 time. ` +
+    `Aliases earn their keep on names that repeat 3+ times.`
+  );
+}

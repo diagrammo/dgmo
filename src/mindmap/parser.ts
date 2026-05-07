@@ -3,6 +3,7 @@ import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
 import type { TagGroup } from '../utils/tag-groups';
 import {
   matchTagBlockHeading,
+  emitTagLegacyDiagnostic,
   validateTagValues,
   validateTagGroupNames,
   stripDefaultModifier,
@@ -136,6 +137,7 @@ export function parseMindmap(
     // Tag group heading
     const tagBlockMatch = matchTagBlockHeading(trimmed);
     if (tagBlockMatch) {
+      emitTagLegacyDiagnostic(tagBlockMatch, lineNumber, result.diagnostics);
       if (contentStarted) {
         pushError(lineNumber, 'Tag groups must appear before mindmap content');
         continue;

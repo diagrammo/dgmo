@@ -9,6 +9,7 @@ import { normalizeName } from '../utils/name-normalize';
 import type { TagGroup } from '../utils/tag-groups';
 import {
   matchTagBlockHeading,
+  emitTagLegacyDiagnostic,
   stripDefaultModifier,
   validateTagGroupNames,
 } from '../utils/tag-groups';
@@ -238,7 +239,16 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
 
   // Tag group parsing state
   let currentTagGroup: TagGroup | null = null;
-  const aliasMap = new Map<string, string>();
+  // metaAliasMap: pipe-metadata-key aliases (`tech:` → `technology:`).
+  // Distinct from nameAliasMap below per the A1 naming convention.
+  const metaAliasMap = new Map<string, string>();
+
+  // nameAliasMap: TD-18 entity-name aliases (`os` → `Order Service`).
+  // Per C8: per-parse, never persisted, fresh each parse.
+  const nameAliasMap = new Map<string, string>();
+  function resolveNameRef(rawName: string): string {
+    return nameAliasMap.get(rawName.trim()) ?? rawName;
+  }
 
   // Name uniqueness tracking
   const knownNames = new Map<string, number>(); // name → lineNumber
@@ -284,10 +294,11 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
       }
     }
 
-    // Tag group heading — `tag: Name` (new) or `## Name` (deprecated)
+    // Tag group heading — `tag Name as <alias>`
     // Must be checked BEFORE OPTION_RE to prevent `tag: Rank` being swallowed as option
     const tagBlockMatch = matchTagBlockHeading(trimmed);
     if (tagBlockMatch) {
+      emitTagLegacyDiagnostic(tagBlockMatch, lineNumber, result.diagnostics);
       if (contentStarted) {
         pushError(lineNumber, 'Tag groups must appear before content');
         continue;
@@ -299,8 +310,8 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
         lineNumber,
       };
       if (tagBlockMatch.alias) {
-        aliasMap.set(
-          tagBlockMatch.alias.toLowerCase(),
+        metaAliasMap.set(
+          normalizeName(tagBlockMatch.alias),
           tagBlockMatch.name.toLowerCase()
         );
       }
@@ -401,7 +412,7 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
         // Otherwise it's a deployment node (possibly with pipe metadata)
         const segments = trimmed.split('|').map((s) => s.trim());
         const nodeName = segments[0];
-        const metadata = parsePipeMetadata(segments, aliasMap, () =>
+        const metadata = parsePipeMetadata(segments, metaAliasMap, () =>
           pushError(lineNumber, MULTIPLE_PIPE_ERROR)
         );
         const shape = inferC4Shape(
@@ -538,7 +549,7 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
           target = targetBody.substring(0, pipeIdx).trim();
           const metaPart = targetBody.substring(pipeIdx + 1).trim();
           // parsePipeMetadata expects segments split by |; first segment is pre-pipe
-          const meta = parsePipeMetadata(['', metaPart], aliasMap);
+          const meta = parsePipeMetadata(['', metaPart], metaAliasMap);
           // tech/technology on pipe overrides [tech] in label
           if (meta.tech) {
             technology = meta.tech;
@@ -549,7 +560,7 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
         }
 
         const rel: C4Relationship = {
-          target,
+          target: resolveNameRef(target),
           label,
           technology,
           arrowType,
@@ -591,7 +602,7 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
         // Plain arrow: entire body is the target (no colon label, no technology)
         const target = relMatch[2].trim();
         const rel: C4Relationship = {
-          target,
+          target: resolveNameRef(target),
           arrowType,
           lineNumber,
         };
@@ -613,7 +624,26 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
     if (isATypeMatch) {
       let namePart = isATypeMatch[1].trim();
       const rawType = isATypeMatch[2].toLowerCase();
-      const remainder = isATypeMatch[3];
+      let remainder = isATypeMatch[3];
+
+      // TD-18: peel optional `as <alias>` from the trailing remainder
+      // (modifier order: `Name is a TYPE [is a SHAPE] as <alias> [| meta]`).
+      const asPostfix = remainder.match(
+        /^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*(\|.*)?$/
+      );
+      if (asPostfix) {
+        nameAliasMap.set(normalizeName(asPostfix[2]), namePart);
+        remainder = (asPostfix[1] + (asPostfix[3] ?? '')).trim();
+      } else {
+        // Or peel from the namePart itself in `Name as <alias> is a TYPE` form.
+        const asInName = namePart.match(
+          /^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/
+        );
+        if (asInName) {
+          namePart = asInName[1].trim();
+          nameAliasMap.set(normalizeName(asInName[2]), namePart);
+        }
+      }
 
       // Map external/database to shape overrides with default element type
       let elementType: C4ElementType;
@@ -689,7 +719,7 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
         namePart = namePart.substring(0, nameIsAMatch.index!).trim();
       }
 
-      const metadata = parsePipeMetadata(segments, aliasMap, () =>
+      const metadata = parsePipeMetadata(segments, metaAliasMap, () =>
         pushError(lineNumber, MULTIPLE_PIPE_ERROR)
       );
 
@@ -765,7 +795,7 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
         `'${elementMatch[1]} ${namePart}' prefix syntax is no longer supported — use '${namePart} is a ${elementType}' instead`
       );
 
-      const metadata = parsePipeMetadata(segments, aliasMap, () =>
+      const metadata = parsePipeMetadata(segments, metaAliasMap, () =>
         pushError(lineNumber, MULTIPLE_PIPE_ERROR)
       );
 
@@ -825,7 +855,7 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
           continue;
         }
 
-        const key = aliasMap.get(rawKey) ?? rawKey;
+        const key = metaAliasMap.get(rawKey) ?? rawKey;
         const value = metadataMatch[2].trim();
 
         // Extract description into dedicated field

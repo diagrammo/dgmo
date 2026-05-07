@@ -1706,3 +1706,52 @@ Alice is a service aka Authenticator`);
     ).toHaveLength(0);
   });
 });
+
+describe('sequence parser — universal alias syntax (TD-18)', () => {
+  it('extracts alias from `Name is a TYPE as <alias>` declaration', () => {
+    const result = parseSequenceDgmo(`sequence
+Alice is a service as a
+Bob is a database as b
+a -hello-> b
+b -ack-> a`);
+    expect(
+      result.diagnostics.filter((d) => d.severity === 'error')
+    ).toHaveLength(0);
+    expect(result.participants).toHaveLength(2);
+    expect(result.participants[0].id).toBe('Alice');
+    expect(result.participants[1].id).toBe('Bob');
+    expect(result.messages).toHaveLength(2);
+    expect(result.messages[0].from).toBe('Alice');
+    expect(result.messages[0].to).toBe('Bob');
+    expect(result.messages[1].from).toBe('Bob');
+    expect(result.messages[1].to).toBe('Alice');
+  });
+
+  it('alias resolves via case-sensitive exact match', () => {
+    const result = parseSequenceDgmo(`sequence
+Alice is a service as a
+a -hello-> Bob`);
+    expect(result.messages[0].from).toBe('Alice');
+    expect(result.messages[0].to).toBe('Bob');
+  });
+
+  it('keeps `position N as <alias>` working', () => {
+    const result = parseSequenceDgmo(`sequence
+Alice is a service position 1 as a
+a -hi-> Bob`);
+    expect(result.participants[0].position).toBe(1);
+    expect(result.messages[0].from).toBe('Alice');
+  });
+
+  it('aliases do not leak across separate parse calls (C8)', () => {
+    const a = parseSequenceDgmo(`sequence
+Alice is a service as x
+x -hi-> Bob`);
+    expect(a.messages[0].from).toBe('Alice');
+    const b = parseSequenceDgmo(`sequence
+x -hi-> y`);
+    // 'x' was never declared in `b` — should be treated as a literal name.
+    expect(b.messages[0].from).toBe('x');
+    expect(b.messages[0].to).toBe('y');
+  });
+});

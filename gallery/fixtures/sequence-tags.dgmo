@@ -1,13 +1,13 @@
 sequence API Gateway — Infrastructure Concerns
 active-tag Concern
 
-tag Concern c
+tag Concern as c
   Caching(blue)
   Auth(green)
   RateLimiting(orange)
   BusinessLogic(purple) default
 
-tag Team t
+tag Team as t
   Platform(teal)
   Product(orange)
   Security(red)

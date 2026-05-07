@@ -4,12 +4,12 @@ today-marker 2024-03-01
 critical-path
 dependencies
 
-tag Team t
+tag Team as t
   Engineering(blue)
   Design(purple)
   QA(orange)
 
-tag Phase p
+tag Phase as p
   Foundation(green)
   Growth(orange)
 

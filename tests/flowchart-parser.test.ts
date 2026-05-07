@@ -462,3 +462,55 @@ describe('looksLikeFlowchart', () => {
     expect(looksLikeFlowchart('Alice -> Bob: hello')).toBe(false);
   });
 });
+
+describe('flowchart parser — universal alias syntax (TD-18)', () => {
+  it('extracts alias from `[Label] as <alias>` declaration', () => {
+    const result = parseFlowchart(`flowchart
+[Order Service] as os
+[Payment Service] as ps
+os -> ps`);
+    expect(
+      result.diagnostics.filter((d) => d.severity === 'error')
+    ).toHaveLength(0);
+    expect(result.nodes).toHaveLength(2);
+    expect(result.edges).toHaveLength(1);
+    expect(result.nodes.map((n) => n.label)).toEqual([
+      'Order Service',
+      'Payment Service',
+    ]);
+    // node ids are `<shape>:<normalizedLabel>` — both alias-references
+    // resolve to the same canonical ids the bracketed declarations made.
+    expect(result.edges[0].source).toBe(result.nodes[0].id);
+    expect(result.edges[0].target).toBe(result.nodes[1].id);
+  });
+
+  it('resolves alias inside a chained-arrow line', () => {
+    const result = parseFlowchart(`flowchart
+[Process Order] as po
+[Ship] as sh
+po -> sh -> [Deliver]`);
+    expect(result.edges).toHaveLength(2);
+    const ids = result.nodes.reduce<Record<string, string>>((acc, n) => {
+      acc[n.label] = n.id;
+      return acc;
+    }, {});
+    expect(result.edges[0].source).toBe(ids['Process Order']);
+    expect(result.edges[0].target).toBe(ids['Ship']);
+    expect(result.edges[1].source).toBe(ids['Ship']);
+    expect(result.edges[1].target).toBe(ids['Deliver']);
+  });
+
+  it('aliases do not leak across separate parse calls', () => {
+    const a = parseFlowchart(`flowchart
+[Order] as o
+o -> [Ship]`);
+    expect(a.edges).toHaveLength(1);
+    expect(a.nodes.find((n) => n.label === 'Order')).toBeDefined();
+
+    const b = parseFlowchart(`flowchart
+o -> [Ship]`);
+    // `o` was never declared — falls through to a literal node ref
+    // which fails parseNodeRef, so no edge created.
+    expect(b.edges).toHaveLength(0);
+  });
+});

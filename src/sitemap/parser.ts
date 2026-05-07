@@ -11,6 +11,7 @@ import type { TagGroup } from '../utils/tag-groups';
 import {
   isTagBlockHeading,
   matchTagBlockHeading,
+  emitTagLegacyDiagnostic,
   validateTagValues,
   validateTagGroupNames,
   stripDefaultModifier,
@@ -195,8 +196,10 @@ export function parseSitemap(
   // Tag group parsing state
   let currentTagGroup: TagGroup | null = null;
 
-  // Alias map: alias (lowercased) -> group name (lowercased)
-  const aliasMap = new Map<string, string>();
+  // metaAliasMap: tag-group metadata-key aliases (per A1 convention).
+  const metaAliasMap = new Map<string, string>();
+  // nameAliasMap: TD-18 entity-name aliases (`a` → `node-7`). Per C8.
+  const nameAliasMap = new Map<string, string>();
 
   // Indent stack for hierarchy tracking
   const indentStack: { node: SitemapNode; indent: number }[] = [];
@@ -258,6 +261,7 @@ export function parseSitemap(
     // Tag group heading
     const tagBlockMatch = matchTagBlockHeading(trimmed);
     if (tagBlockMatch) {
+      emitTagLegacyDiagnostic(tagBlockMatch, lineNumber, result.diagnostics);
       if (contentStarted) {
         pushError(lineNumber, 'Tag groups must appear before sitemap content');
         continue;
@@ -269,8 +273,8 @@ export function parseSitemap(
         lineNumber,
       };
       if (tagBlockMatch.alias) {
-        aliasMap.set(
-          tagBlockMatch.alias.toLowerCase(),
+        metaAliasMap.set(
+          normalizeName(tagBlockMatch.alias),
           tagBlockMatch.name.toLowerCase()
         );
       }
@@ -377,7 +381,12 @@ export function parseSitemap(
       : trimmed.match(METADATA_RE);
 
     if (containerMatch) {
-      const label = containerMatch[1].trim();
+      // TD-18: peel optional `as <alias>` from container label.
+      const rawLabel = containerMatch[1].trim();
+      const asMatch = rawLabel.match(
+        /^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/
+      );
+      const label = asMatch ? asMatch[1].trim() : rawLabel;
 
       // Parse optional pipe metadata on the container line
       const pipeStr = containerMatch[2];
@@ -387,13 +396,15 @@ export function parseSitemap(
         const pipeSegments = ['', pipeStr];
         Object.assign(
           containerMetadata,
-          parsePipeMetadata(pipeSegments, aliasMap)
+          parsePipeMetadata(pipeSegments, metaAliasMap)
         );
       }
 
       containerCounter++;
+      const containerId = `container-${containerCounter}`;
+      if (asMatch) nameAliasMap.set(normalizeName(asMatch[2]), containerId);
       const node: SitemapNode = {
-        id: `container-${containerCounter}`,
+        id: containerId,
         label,
         metadata: containerMetadata,
         children: [],
@@ -409,7 +420,7 @@ export function parseSitemap(
     } else if (metadataMatch && indentStack.length > 0) {
       // Metadata line — attach to parent
       const rawKey = metadataMatch[1].trim().toLowerCase();
-      const key = aliasMap.get(rawKey) ?? rawKey;
+      const key = metaAliasMap.get(rawKey) ?? rawKey;
       const value = metadataMatch[2].trim();
 
       const parent = findParentNode(indent, indentStack);
@@ -426,9 +437,10 @@ export function parseSitemap(
           lineNumber,
           palette,
           ++nodeCounter,
-          aliasMap,
+          metaAliasMap,
           pushWarning,
-          result.diagnostics
+          result.diagnostics,
+          nameAliasMap
         );
         attachNode(node, indent, indentStack, result);
         const key = normalizeName(node.label);
@@ -454,9 +466,10 @@ export function parseSitemap(
         lineNumber,
         palette,
         ++nodeCounter,
-        aliasMap,
+        metaAliasMap,
         pushWarning,
-        result.diagnostics
+        result.diagnostics,
+        nameAliasMap
       );
       attachNode(node, indent, indentStack, result);
       const key = normalizeName(node.label);
@@ -466,6 +479,18 @@ export function parseSitemap(
 
   // --- Post-parse: resolve arrow targets ---
   for (const arrow of deferredArrows) {
+    // TD-18: resolve alias literal first; if hit, use the bound id directly.
+    const aliasHit = nameAliasMap.get(arrow.targetLabel.trim());
+    if (aliasHit !== undefined) {
+      result.edges.push({
+        sourceId: arrow.sourceNode.id,
+        targetId: aliasHit,
+        label: arrow.label,
+        color: arrow.color,
+        lineNumber: arrow.lineNumber,
+      });
+      continue;
+    }
     const targetKey = normalizeName(arrow.targetLabel);
 
     if (arrow.targetIsGroup) {
@@ -543,15 +568,23 @@ function parseNodeLabel(
   lineNumber: number,
   palette: PaletteColors | undefined,
   counter: number,
-  aliasMap: Map<string, string> = new Map(),
+  metaAliasMap: Map<string, string> = new Map(),
   warnFn?: (line: number, msg: string) => void,
-  _diagnostics?: DgmoError[]
+  _diagnostics?: DgmoError[],
+  nameAliasMap?: Map<string, string>
 ): SitemapNode {
   const segments = trimmed.split('|').map((s) => s.trim());
-  const label = segments[0];
+  // TD-18: peel optional `as <alias>` from the label slot.
+  let label = segments[0];
+  const asMatch = label.match(/^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/);
+  const id = `node-${counter}`;
+  if (asMatch) {
+    label = asMatch[1].trim();
+    nameAliasMap?.set(normalizeName(asMatch[2]), id);
+  }
   const metadata = parsePipeMetadata(
     segments,
-    aliasMap,
+    metaAliasMap,
     warnFn ? () => warnFn(lineNumber, MULTIPLE_PIPE_ERROR) : undefined
   );
 
@@ -566,7 +599,7 @@ function parseNodeLabel(
   }
 
   return {
-    id: `node-${counter}`,
+    id,
     label,
     metadata,
     description,

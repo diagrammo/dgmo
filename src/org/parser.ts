@@ -5,6 +5,7 @@ import type { TagGroup } from '../utils/tag-groups';
 import {
   isTagBlockHeading,
   matchTagBlockHeading,
+  emitTagLegacyDiagnostic,
   validateTagValues,
   validateTagGroupNames,
   stripDefaultModifier,
@@ -17,6 +18,7 @@ import {
   parseFirstLine,
   OPTION_NOCOLON_RE,
 } from '../utils/parsing';
+import { normalizeName } from '../utils/name-normalize';
 
 // ============================================================
 // Types
@@ -125,7 +127,12 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
   let currentTagGroup: TagGroup | null = null;
 
   // Alias map: alias (lowercased) → group name (lowercased)
-  const aliasMap = new Map<string, string>();
+  // metaAliasMap: tag-group metadata-key aliases (e.g. `p` → `priority`).
+  // Distinct from nameAliasMap below per the A1 convention.
+  const metaAliasMap = new Map<string, string>();
+  // nameAliasMap: TD-18 entity-name aliases (e.g. `pm` → `Product Manager`).
+  // Per C8: per-parse, never persisted, fresh each parse.
+  const nameAliasMap = new Map<string, string>();
 
   // Indent stack for hierarchy tracking
   // Each entry: { node, indent }
@@ -184,10 +191,11 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
       }
     }
 
-    // Tag group heading — `tag: Name` (new) or `## Name` (deprecated)
+    // Tag group heading — `tag Name as <alias>`.
     // Must be checked BEFORE OPTION_RE to prevent `tag: Rank` being swallowed as option `tag=Rank`
     const tagBlockMatch = matchTagBlockHeading(trimmed);
     if (tagBlockMatch) {
+      emitTagLegacyDiagnostic(tagBlockMatch, lineNumber, result.diagnostics);
       if (contentStarted) {
         pushError(lineNumber, 'Tag groups must appear before org content');
         continue;
@@ -199,8 +207,8 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
         lineNumber,
       };
       if (tagBlockMatch.alias) {
-        aliasMap.set(
-          tagBlockMatch.alias.toLowerCase(),
+        metaAliasMap.set(
+          normalizeName(tagBlockMatch.alias),
           tagBlockMatch.name.toLowerCase()
         );
       }
@@ -273,12 +281,18 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
       : trimmed.match(METADATA_RE);
 
     if (containerMatch) {
-      // It's a container node
-      const label = containerMatch[1].trim();
+      // It's a container node — supports `as <alias>` postfix per TD-18.
+      const rawLabel = containerMatch[1].trim();
+      const asMatch = rawLabel.match(
+        /^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/
+      );
+      const label = asMatch ? asMatch[1].trim() : rawLabel;
 
       containerCounter++;
+      const containerId = `container-${containerCounter}`;
+      if (asMatch) nameAliasMap.set(normalizeName(asMatch[2]), containerId);
       const node: OrgNode = {
-        id: `container-${containerCounter}`,
+        id: containerId,
         label,
         metadata: {},
         children: [],
@@ -291,7 +305,7 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
     } else if (metadataMatch && indentStack.length > 0) {
       // It's a metadata line — attach to most recent node on stack at shallower indent
       const rawKey = metadataMatch[1].trim().toLowerCase();
-      const key = aliasMap.get(rawKey) ?? rawKey;
+      const key = metaAliasMap.get(rawKey) ?? rawKey;
       const value = metadataMatch[2].trim();
 
       // Find the parent node: top of stack (the most recent node)
@@ -313,8 +327,9 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
           lineNumber,
           palette,
           ++nodeCounter,
-          aliasMap,
-          pushWarning
+          metaAliasMap,
+          pushWarning,
+          nameAliasMap
         );
         attachNode(node, indent, indentStack, result);
       } else {
@@ -328,8 +343,9 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
         lineNumber,
         palette,
         ++nodeCounter,
-        aliasMap,
-        pushWarning
+        metaAliasMap,
+        pushWarning,
+        nameAliasMap
       );
       attachNode(node, indent, indentStack, result);
     }
@@ -374,22 +390,30 @@ function parseNodeLabel(
   lineNumber: number,
   palette: PaletteColors | undefined,
   counter: number,
-  aliasMap: Map<string, string> = new Map(),
-  warnFn?: (line: number, msg: string) => void
+  metaAliasMap: Map<string, string> = new Map(),
+  warnFn?: (line: number, msg: string) => void,
+  nameAliasMap?: Map<string, string>
 ): OrgNode {
   // Check for single-line compact metadata: "Alice Park | role: Senior, location: NY"
   const segments = trimmed.split('|').map((s) => s.trim());
 
-  const label = segments[0];
+  // TD-18: peel optional `as <alias>` from the label (pre-pipe).
+  let label = segments[0];
+  const asMatch = label.match(/^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/);
+  const id = `node-${counter}`;
+  if (asMatch) {
+    label = asMatch[1].trim();
+    nameAliasMap?.set(normalizeName(asMatch[2]), id);
+  }
 
   const metadata = parsePipeMetadata(
     segments,
-    aliasMap,
+    metaAliasMap,
     warnFn ? () => warnFn(lineNumber, MULTIPLE_PIPE_ERROR) : undefined
   );
 
   return {
-    id: `node-${counter}`,
+    id,
     label,
     metadata,
     children: [],

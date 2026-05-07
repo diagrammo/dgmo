@@ -5,7 +5,7 @@ tag Priority
   Urgent(red)
   High(orange)
 
-tag Crew c
+tag Crew as c
   Blackbeard(red)
   Anne Bonny(purple)
   Calico Jack(teal)

@@ -97,12 +97,28 @@ export interface GetOrCreateNameResult {
  * carries shape + edges) should wrap this helper: call it for the
  * normalization + merge-detection bookkeeping, then store the result
  * in their own `Map<normalizedKey, RichNode>`.
+ *
+ * When an `aliasStore` is provided, alias resolution runs FIRST: an
+ * exact-match (case-sensitive) hit returns the bound canonical entry
+ * untouched (the alias literal does NOT contribute to display or
+ * merge bookkeeping). Misses fall through to UNH normalization.
  */
 export function getOrCreateName(
   input: string,
   store: Map<string, NameEntry>,
-  lineNumber: number
+  lineNumber: number,
+  aliasStore?: AliasMap
 ): GetOrCreateNameResult {
+  // Alias resolution is exact-match, case-sensitive, never normalized.
+  // A miss falls through to UNH; a hit short-circuits with the bound
+  // canonical entry — see B5 in the tech-spec.
+  if (aliasStore !== undefined) {
+    const aliased = aliasStore.get(input.trim());
+    if (aliased !== undefined) {
+      return { entry: aliased, created: false };
+    }
+  }
+
   const key = normalizeName(input);
   const incomingDisplay = displayName(input);
 
@@ -129,4 +145,118 @@ export function getOrCreateName(
   };
   store.set(key, entry);
   return { entry, created: true };
+}
+
+// ============================================================
+// Universal Alias Map (sibling structure — TD-18)
+// ============================================================
+//
+// Aliases are short-token bindings to existing `NameEntry` records.
+// Distinct from UNH normalization: aliases are exact-match,
+// case-sensitive ASCII tokens. `pm` and `PM` are different aliases.
+//
+// The map is per-parse — never persisted. LSP incremental-parse
+// implementations MUST clear and rebuild from scratch (C8). See the
+// `ParseContext` shape below for the threading model.
+
+/** alias literal → bound canonical entry. Exact-match, case-sensitive. */
+export type AliasMap = Map<string, NameEntry>;
+
+export function createAliasMap(): AliasMap {
+  return new Map();
+}
+
+export interface AliasBindingResult {
+  /** Successful binding. */
+  bound?: { alias: string; entry: NameEntry };
+  /** Diagnostic-relevant rejection — caller emits the appropriate code. */
+  conflict?:
+    | { kind: 'collision'; existingEntry: NameEntry }
+    | { kind: 'rebinding'; existingAlias: string }
+    | { kind: 'shadows-name'; existingEntry: NameEntry };
+}
+
+/**
+ * Register `alias → entry` after the alias has already passed
+ * format validation in `extract-alias.ts`.
+ *
+ * Detects collision / rebinding / shadows-name. The `alias-of-alias`
+ * case is checked at the CALLER level (parser pre-flight on the
+ * canonical-side `aliasStore.has(canonical)`), not here — that case
+ * is a property of the DECLARATION, not of the binding op itself.
+ *
+ * Does NOT emit diagnostics — returns the conflict shape so the
+ * caller can use the canonical message factories with the right
+ * context (line numbers, conflicting-canonical strings) per C7.
+ */
+export function bindAlias(
+  alias: string,
+  entry: NameEntry,
+  aliasStore: AliasMap,
+  nameStore: Map<string, NameEntry>
+): AliasBindingResult {
+  // collision: alias literal already bound to a different entry.
+  const existingBinding = aliasStore.get(alias);
+  if (existingBinding !== undefined && existingBinding !== entry) {
+    return { conflict: { kind: 'collision', existingEntry: existingBinding } };
+  }
+
+  // shadows-name: the alias literal (after UNH normalization) collides
+  // with an existing canonical entry. Pre-1.0 token-collision check —
+  // covers `pm` clashing with a canonical `PM` typed earlier.
+  const normalizedAlias = normalizeName(alias);
+  const shadowed = nameStore.get(normalizedAlias);
+  if (shadowed !== undefined && shadowed !== entry) {
+    return { conflict: { kind: 'shadows-name', existingEntry: shadowed } };
+  }
+
+  // rebinding: this entry already has a different alias bound to it.
+  for (const [existingAlias, existingEntry] of aliasStore) {
+    if (existingEntry === entry && existingAlias !== alias) {
+      return { conflict: { kind: 'rebinding', existingAlias } };
+    }
+  }
+
+  aliasStore.set(alias, entry);
+  return { bound: { alias, entry } };
+}
+
+/**
+ * Pre-flight check: returns true if the given canonical literal
+ * (LHS of a `Name as <alias>` declaration) is itself already a
+ * registered alias. The caller then emits `E_ALIAS_OF_ALIAS`.
+ */
+export function isAliasLiteral(
+  canonical: string,
+  aliasStore: AliasMap
+): boolean {
+  return aliasStore.has(canonical.trim());
+}
+
+// ============================================================
+// ParseContext (W2 threading model)
+// ============================================================
+//
+// Per-parse context object threaded through helper calls. Zero
+// module-level state: each parser entry-point creates a fresh
+// `ParseContext` so an LSP edit-and-reparse cycle starts with an
+// empty alias map (C8).
+
+import type { DgmoError } from '../diagnostics.js';
+
+export interface ParseContext {
+  nameStore: Map<string, NameEntry>;
+  nameAliasMap: AliasMap;
+  diagnostics: DgmoError[];
+  /** 1-based; updated as the parser advances. */
+  lineNumber: number;
+}
+
+export function createParseContext(): ParseContext {
+  return {
+    nameStore: new Map(),
+    nameAliasMap: createAliasMap(),
+    diagnostics: [],
+    lineNumber: 0,
+  };
 }

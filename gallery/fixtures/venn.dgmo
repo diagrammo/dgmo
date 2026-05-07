@@ -1,8 +1,8 @@
 venn Full-Stack Developer Skills
 
-Frontend(blue) alias fe
-Backend(green) alias be
-DevOps(orange) alias de
+Frontend(blue) as fe
+Backend(green) as be
+DevOps(orange) as de
 
 fe + be Web Systems
 be + de Platform Ops

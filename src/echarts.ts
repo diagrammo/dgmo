@@ -273,6 +273,22 @@ export function parseExtendedChart(
   const sankeyStack: { name: string; indent: number }[] = [];
   let firstLineParsed = false;
 
+  // Per-parse alias literal → canonical node name (TD-18). Per C8.
+  // Used by sankey + chord link slots.
+  const nameAliasMap = new Map<string, string>();
+  /** Peel `as <alias>` and resolve bare alias references in one pass. */
+  function resolveSlot(raw: string): string {
+    const trimmed = raw.trim();
+    const m = trimmed.match(/^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/);
+    if (m) {
+      const canonical = m[1].trim();
+      nameAliasMap.set(m[2], canonical);
+      return canonical;
+    }
+    const aliased = nameAliasMap.get(trimmed);
+    return aliased !== undefined ? aliased : trimmed;
+  }
+
   for (let i = 0; i < lines.length; i++) {
     const trimmed = lines[i].trim();
     const lineNumber = i + 1;
@@ -371,12 +387,15 @@ export function parseExtendedChart(
     if (arrowMatch) {
       const [, rawSource, arrow, rawTarget, rawVal, rawLinkColor] = arrowMatch;
       const val = normalizeNumericToken(rawVal) ?? rawVal;
+      // TD-18: peel/resolve aliases on source and target before color extraction.
+      const sourceResolved = resolveSlot(rawSource);
+      const targetResolved = resolveSlot(rawTarget);
       const { label: source, color: sourceColor } = extractColor(
-        rawSource.trim(),
+        sourceResolved,
         palette
       );
       const { label: target, color: targetColor } = extractColor(
-        rawTarget.trim(),
+        targetResolved,
         palette
       );
       if (sourceColor || targetColor) {
@@ -433,8 +452,10 @@ export function parseExtendedChart(
                   palette
                 )
               : undefined;
+            // TD-18: peel/resolve alias on the indented child target name.
+            const targetResolved = resolveSlot(dataRow.label);
             const { label: target, color: targetColor } = extractColor(
-              dataRow.label,
+              targetResolved,
               palette
             );
             if (targetColor) {
@@ -470,8 +491,10 @@ export function parseExtendedChart(
         while (sankeyStack.length && sankeyStack.at(-1)!.indent >= indent) {
           sankeyStack.pop();
         }
+        // TD-18: peel/resolve alias on the bare source node label.
+        const trimmedResolved = resolveSlot(trimmed);
         const { label: nodeName, color: nodeColor } = extractColor(
-          trimmed,
+          trimmedResolved,
           palette
         );
         if (nodeColor) {

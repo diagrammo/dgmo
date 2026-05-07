@@ -190,7 +190,13 @@ import type { PaletteColors } from './palettes';
 import { getSeriesColors } from './palettes';
 import { mix, shapeFill } from './palettes/color-utils';
 import type { DgmoError } from './diagnostics';
-import { makeDgmoError, formatDgmoError, suggest } from './diagnostics';
+import {
+  makeDgmoError,
+  formatDgmoError,
+  suggest,
+  ALIAS_DIAGNOSTIC_CODES,
+  vennAliasKeywordRemovedMessage,
+} from './diagnostics';
 import {
   collectIndentedValues,
   extractColor,
@@ -951,11 +957,43 @@ export function parseVisualization(
         }
       }
 
-      // Set declaration: "Name(color) alias x" / "Name alias x" / "Name(color)" / "Name"
+      // Set declaration: "Name(color) as <alias>" / "Name as <alias>" / "Name(color)" / "Name"
+      // Legacy "Name(color) alias <token>" emits E_VENN_ALIAS_KEYWORD_REMOVED.
       // Only attempt set parsing if the line wasn't a bare-keyword option (handled above).
       if (!/^(solid-fill|no-name|no-value|no-percent)$/i.test(line)) {
+        // Detect legacy `alias` keyword first — graceful degradation parses
+        // the rest of the line so the set still appears.
+        const legacyAliasMatch = line.match(
+          /^([^(:]+?)(?:\(([^)]+)\))?\s+alias\s+(\S+)\s*$/i
+        );
+        if (legacyAliasMatch) {
+          const name = legacyAliasMatch[1].trim();
+          const colorName = legacyAliasMatch[2]?.trim() ?? null;
+          const aliasToken = legacyAliasMatch[3].trim();
+          let color: string | null = null;
+          if (colorName) {
+            color =
+              resolveColorWithDiagnostic(
+                colorName,
+                lineNumber,
+                result.diagnostics,
+                palette
+              ) ?? null;
+          }
+          result.diagnostics.push(
+            makeDgmoError(
+              lineNumber,
+              vennAliasKeywordRemovedMessage({ name, alias: aliasToken }),
+              'error',
+              ALIAS_DIAGNOSTIC_CODES.VENN_ALIAS_KEYWORD_REMOVED
+            )
+          );
+          result.vennSets.push({ name, alias: aliasToken, color, lineNumber });
+          continue;
+        }
+
         const setDeclMatch = line.match(
-          /^([^(:]+?)(?:\(([^)]+)\))?(?:\s+alias\s+(\S+))?\s*$/i
+          /^([^(:]+?)(?:\(([^)]+)\))?(?:\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11}))?\s*$/i
         );
         if (setDeclMatch) {
           const name = setDeclMatch[1].trim();

@@ -3,6 +3,7 @@ import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
 import { resolveColorWithDiagnostic } from '../colors';
 import {
   matchTagBlockHeading,
+  emitTagLegacyDiagnostic,
   stripDefaultModifier,
   validateTagGroupNames,
 } from '../utils/tag-groups';
@@ -13,6 +14,7 @@ import {
   parseFirstLine,
   OPTION_NOCOLON_RE,
 } from '../utils/parsing';
+import { normalizeName } from '../utils/name-normalize';
 import type {
   ParsedKanban,
   KanbanColumn,
@@ -24,8 +26,10 @@ import type {
 // Regex patterns
 // ============================================================
 
-// [Column Name], [Column Name](color), [Column Name] | wip: 3, etc.
-const COLUMN_RE = /^\[(.+?)\](?:\s*\(([^)]+)\))?\s*(?:\|\s*(.+))?$/;
+// [Column Name], [Column Name](color), [Column Name] as <alias>, [Column Name] | wip: 3, etc.
+// Captures: [1]=label [2]=color [3]=alias (TD-18) [4]=pipe meta
+const COLUMN_RE =
+  /^\[(.+?)\](?:\s*\(([^)]+)\))?(?:\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11}))?\s*(?:\|\s*(.+))?$/;
 // Legacy delimiter
 const LEGACY_COLUMN_RE = /^==\s+(.+?)\s*(?:\[wip:\s*(\d+)\])?\s*==$/;
 
@@ -75,8 +79,10 @@ export function parseKanban(
   let columnCounter = 0;
   let cardCounter = 0;
 
-  // Alias map: alias (lowercased) → group name (lowercased)
-  const aliasMap = new Map<string, string>();
+  // metaAliasMap: tag-group metadata-key aliases (per A1 convention).
+  const metaAliasMap = new Map<string, string>();
+  // nameAliasMap: TD-18 entity-name aliases for kanban columns. Per C8.
+  const nameAliasMap = new Map<string, string>();
 
   // Build a lookup for tag group entries (for validation)
   const tagValueSets = new Map<string, Set<string>>();
@@ -131,6 +137,7 @@ export function parseKanban(
     if (!contentStarted) {
       const tagBlockMatch = matchTagBlockHeading(trimmed);
       if (tagBlockMatch) {
+        emitTagLegacyDiagnostic(tagBlockMatch, lineNumber, result.diagnostics);
         currentTagGroup = {
           name: tagBlockMatch.name,
           alias: tagBlockMatch.alias,
@@ -138,8 +145,8 @@ export function parseKanban(
           lineNumber,
         };
         if (tagBlockMatch.alias) {
-          aliasMap.set(
-            tagBlockMatch.alias.toLowerCase(),
+          metaAliasMap.set(
+            normalizeName(tagBlockMatch.alias),
             tagBlockMatch.name.toLowerCase()
           );
         }
@@ -244,16 +251,19 @@ export function parseKanban(
             palette
           )
         : undefined;
+      // TD-18: alias capture (group 3 after regex extension).
+      // Bind to the column id once it's allocated below.
+      const colAlias = columnMatch[3];
 
       // Parse pipe metadata (e.g., "| wip: 3, t: Sprint1")
       let wipLimit: number | undefined;
       const columnMetadata: Record<string, string> = {};
-      const pipeStr = columnMatch[3];
+      const pipeStr = columnMatch[4];
       if (pipeStr) {
         const pipeSegments = ['', pipeStr];
         Object.assign(
           columnMetadata,
-          parsePipeMetadata(pipeSegments, aliasMap)
+          parsePipeMetadata(pipeSegments, metaAliasMap)
         );
         // Extract wip from metadata
         if (columnMetadata.wip) {
@@ -264,8 +274,10 @@ export function parseKanban(
         }
       }
 
+      const colId = `col-${columnCounter}`;
+      if (colAlias) nameAliasMap.set(normalizeName(colAlias), colId);
       currentColumn = {
-        id: `col-${columnCounter}`,
+        id: colId,
         name: colName,
         wipLimit,
         color: colColor,
@@ -302,7 +314,7 @@ export function parseKanban(
         trimmed,
         lineNumber,
         cardCounter,
-        aliasMap,
+        metaAliasMap,
         palette,
         result.diagnostics
       );
@@ -352,7 +364,7 @@ export function parseKanban(
     for (const card of col.cards) {
       for (const [tagKey, tagValue] of Object.entries(card.tags)) {
         const groupKey =
-          aliasMap.get(tagKey.toLowerCase()) ?? tagKey.toLowerCase();
+          metaAliasMap.get(tagKey.toLowerCase()) ?? tagKey.toLowerCase();
         const validValues = tagValueSets.get(groupKey);
         if (validValues && !validValues.has(tagValue.toLowerCase())) {
           const entries = result.tagGroups
@@ -390,7 +402,7 @@ function parseCardLine(
   trimmed: string,
   lineNumber: number,
   counter: number,
-  aliasMap: Map<string, string>,
+  metaAliasMap: Map<string, string>,
   _palette?: PaletteColors,
   _diagnostics?: import('../diagnostics').DgmoError[]
 ): KanbanCard {
@@ -415,7 +427,7 @@ function parseCardLine(
       const colonIdx = part.indexOf(':');
       if (colonIdx > 0) {
         const rawKey = part.substring(0, colonIdx).trim().toLowerCase();
-        const key = aliasMap.get(rawKey) ?? rawKey;
+        const key = metaAliasMap.get(rawKey) ?? rawKey;
         const value = part.substring(colonIdx + 1).trim();
         tags[key] = value;
       }

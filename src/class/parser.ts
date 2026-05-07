@@ -48,14 +48,17 @@ function classId(name: string): string {
 //   7: bareImplements | undefined
 //   8: legacy bracket modifier | undefined
 //   9: color | undefined
+//  10: alias literal (TD-18) | undefined
 const CLASS_DECL_RE =
-  /^(?:(abstract|interface|enum)\s+)?(?:"([^"]+)"|([A-Z][^":]*?))(?:\s+extends\s+(?:"([^"]+)"|([A-Z][^":]*?)))?(?:\s+implements\s+(?:"([^"]+)"|([A-Z][^":]*?)))?(?:\s+\[(abstract|interface|enum)\])?(?:\s+\(([^)]+)\))?\s*$/;
+  /^(?:(abstract|interface|enum)\s+)?(?:"([^"]+)"|([A-Z][^":]*?))(?:\s+extends\s+(?:"([^"]+)"|([A-Z][^":]*?)))?(?:\s+implements\s+(?:"([^"]+)"|([A-Z][^":]*?)))?(?:\s+\[(abstract|interface|enum)\])?(?:\s+\(([^)]+)\))?(?:\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11}))?\s*$/;
 
 // Relationship — arrow syntax (indented under source class).
 // Arrows: --|>  ..|>  *--  o--  ..>  ->
 // Captures: [1]=arrow [2]=quotedTarget [3]=bareTarget [4]=label
+// Bare target accepts both `[A-Z]…` (canonical class name) and
+// `[a-z]…` (TD-18 alias literal) so alias references resolve here.
 const INDENT_REL_ARROW_RE =
-  /^(--\|>|\.\.\|>|\*--|o--|\.\.>|->)\s*(?:"([^"]+)"|([A-Z][^":]*?))(?:\s+:?\s*(.+))?$/;
+  /^(--\|>|\.\.\|>|\*--|o--|\.\.>|->)\s*(?:"([^"]+)"|([A-Za-z][^":]*?))(?:\s+:?\s*(.+))?$/;
 
 // Legacy top-level relationship regex (used only for detection/rejection)
 // Captures: [1]=qSrc [2]=bareSrc [3]=arrow [4]=qTarget [5]=bareTarget [6]=label
@@ -190,6 +193,22 @@ export function parseClassDiagram(
   };
 
   const classMap = new Map<string, ClassNode>();
+
+  // Per-parse alias literal → canonical class id (TD-18). Per C8.
+  const nameAliasMap = new Map<string, string>();
+  function resolveAliasName(token: string | undefined): string | undefined {
+    if (!token) return token;
+    const trimmed = token.trim();
+    const hit = nameAliasMap.get(trimmed);
+    if (hit !== undefined) {
+      // The aliasMap stores canonical-id; need to invert to canonical-name
+      // for callers like getOrCreateClass that hash the name. Walk classMap.
+      for (const [, node] of classMap) {
+        if (classId(node.name) === hit) return node.name;
+      }
+    }
+    return token;
+  }
   let currentClass: ClassNode | null = null;
   let contentStarted = false;
 
@@ -286,7 +305,9 @@ export function parseClassDiagram(
       const indentRel = trimmed.match(INDENT_REL_ARROW_RE);
       if (indentRel) {
         const arrow = indentRel[1];
-        const targetName = (indentRel[2] ?? indentRel[3] ?? '').trim();
+        const rawTarget = (indentRel[2] ?? indentRel[3] ?? '').trim();
+        // TD-18: resolve alias literal → canonical class name.
+        const targetName = resolveAliasName(rawTarget) ?? rawTarget;
         const label = indentRel[4]?.trim();
 
         getOrCreateClass(targetName, lineNumber);
@@ -363,30 +384,36 @@ export function parseClassDiagram(
           )
         : undefined;
 
+      const aliasLiteral = classDecl[10];
+
       const node = getOrCreateClass(name, lineNumber);
       if (modifier) node.modifier = modifier;
       if (color) node.color = color;
+      if (aliasLiteral)
+        nameAliasMap.set(normalizeName(aliasLiteral), classId(name));
       // Update line number to the declaration line (may have been created by relationship)
       node.lineNumber = lineNumber;
 
-      // Inline extends creates an extends relationship
+      // Inline extends creates an extends relationship — resolve alias.
       if (extendsParent) {
-        getOrCreateClass(extendsParent, lineNumber);
+        const ext = resolveAliasName(extendsParent) ?? extendsParent;
+        getOrCreateClass(ext, lineNumber);
         result.relationships.push({
           source: classId(name),
-          target: classId(extendsParent),
+          target: classId(ext),
           type: 'extends',
           lineNumber,
         });
       }
 
-      // Inline implements creates an implements relationship
-      // (may co-occur with extends — Circle extends Shape implements Drawable)
+      // Inline implements creates an implements relationship — resolve alias.
       if (implementsInterface) {
-        getOrCreateClass(implementsInterface, lineNumber);
+        const impl =
+          resolveAliasName(implementsInterface) ?? implementsInterface;
+        getOrCreateClass(impl, lineNumber);
         result.relationships.push({
           source: classId(name),
-          target: classId(implementsInterface),
+          target: classId(impl),
           type: 'implements',
           lineNumber,
         });

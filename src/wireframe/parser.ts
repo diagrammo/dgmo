@@ -8,6 +8,7 @@ import type { TagGroup } from '../utils/tag-groups';
 import {
   isTagBlockHeading,
   matchTagBlockHeading,
+  emitTagLegacyDiagnostic,
   validateTagGroupNames,
   stripDefaultModifier,
 } from '../utils/tag-groups';
@@ -548,6 +549,7 @@ export function parseWireframe(content: string): ParsedWireframe {
   function makeTagGroup(trimmed: string, lineNumber: number): TagGroup | null {
     const match = matchTagBlockHeading(trimmed);
     if (!match) return null;
+    emitTagLegacyDiagnostic(match, lineNumber, diagnostics);
     return {
       name: match.name,
       alias: match.alias,

@@ -57,16 +57,17 @@ These patterns are shared across all or most diagram types.
 ### 1.3 Tag Declarations
 
 ```
-tag GroupName [alias X]
+tag GroupName as <alias>
   Value1(color)
   Value2(color) [default]
 ```
 
 - `tag` keyword, NO colon
-- Alias: 1-4 lowercase letters
-- Inline values also supported: `tag Priority p Low(green), High(red)`
+- Alias: optional postfix `as <alias>` per §2A (universal alias syntax — `[A-Za-z][A-Za-z0-9_]{0,11}`)
+- Inline values also supported: `tag Priority as p Low(green), High(red)`
 - First entry is default unless another is marked `default`
 - Must appear before diagram content
+- Legacy bare shorthand (`tag Priority p`) and `alias` keyword (`tag Priority alias p`) emit `E_TAG_SHORTHAND_REMOVED` per TD-18
 
 **Diagram types that support tags**: sequence, infra, org, c4, er, kanban, gantt, sitemap, timeline, boxes-and-lines
 
@@ -78,7 +79,7 @@ EntityName | key: value, key2: value2
 
 - Colons ARE required within pipe segments (`key: value`)
 - Items separated by commas
-- Tag aliases resolve: `| c: Caching` resolves to `concern: Caching` (if `tag Concern alias c` is defined)
+- Tag aliases resolve: `| c: Caching` resolves to `concern: Caching` (if `tag Concern as c` is defined)
 - One pipe per line only
 
 ### 1.5 Color Suffixes
@@ -240,24 +241,99 @@ quote.
 
 ### 2.4 Migration: aka Removed
 
-Sequence's `Name is a type aka Alias` modifier is removed. Forgiving
-normalization makes aliasing redundant. Encountering `aka` in a
-participant declaration produces `E_AKA_REMOVED`.
+Sequence's `Name is a type aka Alias` modifier is removed. Use the
+universal `as` postfix (§2A) for short-codes; UNH normalization
+handles casing/spacing variants automatically. Encountering `aka`
+in a participant declaration produces `E_AKA_REMOVED`.
 
 ### 2.5 Carve-Outs
 
 These are intentionally outside the universal rule:
 
-- D3 chart data rows (slope, venn, quadrant, arc) — labels are data, not entity names
+- D3 chart data rows (slope, quadrant) — labels are data, not entity names
 - `tags:` and `import:` directives in org — values are file/tag references
 - Flowchart and state shape brackets `[]`, `()`, `{}`, `<>` — shape sigils, not name quoting
-- Tag suffix-alias `tag Priority p` — separate alias map
 
 ### 2.6 Error Codes
 
 - `I_NAME_MERGED` (warning) — two source-distinct names normalize to the same key with different displayed forms
 - `E_NAME_RESERVED_CHAR` (error) — bare name contains a reserved char without quoting
 - `E_AKA_REMOVED` (error) — removed `aka` keyword used in sequence participant declaration
+
+---
+
+## 2A. Universal Aliases (`as` keyword)
+
+A single postfix syntax — `Name as <alias>` — applies anywhere a name
+appears across every chart type with named entities. Replaces prior
+tag-shorthand and venn `alias` keyword forms with a uniform rule.
+
+### 2A.1 Syntax
+
+```
+sequence
+Alice is a service as a
+Bob is a database as b
+a -hello-> b
+b -ack-> a
+```
+
+```
+venn
+Swordsmanship(red) as sw
+Navigation(blue) as nav
+sw + nav Sea Raiders
+```
+
+```
+tag Priority as p
+tag Concern as c
+```
+
+### 2A.2 Rules
+
+- **Token shape**: `[A-Za-z][A-Za-z0-9_]{0,11}` — letter start,
+  letters/digits/underscore, length 1–12. **Case-sensitive**.
+- **Modifier order on declarations**: `<name> [(color)] [is a type] as <alias> [| key: value, …]`.
+- **Strict ordering**: aliases must be declared on or before first use.
+- **Flat global namespace**: one alias literal has exactly one binding per source.
+- **Aliases are NEVER UNH-normalized** — exact-match short-codes only.
+- **Reserved tokens**: `as`, `is`, `tag`, `alias`, `aka`, plus chart-type tokens.
+- **SaaS-naming is safe**: `Storage as a Service` parses as a canonical name (no false alias extraction).
+
+### 2A.3 When to use aliases
+
+Aliases earn their keep on names that repeat 3+ times. Single-use
+names should not be aliased; two- and three-character source names
+rarely benefit. Aliases should aid comprehension, not obscure it.
+
+### 2A.4 UNH vs. Aliases
+
+- **UNH** = same-name typo tolerance. `Alice` ≡ `alice` ≡ `ALICE`.
+- **Aliases** = different-token short codes. `pm` ≡ `Product Manager`.
+
+### 2A.5 Migration
+
+| Was | Now |
+|-----|-----|
+| `tag Priority p` (bare shorthand) | `tag Priority as p` |
+| `tag Priority alias p` (explicit) | `tag Priority as p` |
+| `Swordsmanship(red) alias sw` (venn) | `Swordsmanship(red) as sw` |
+
+### 2A.6 Error Codes
+
+- `E_ALIAS_BEFORE_DECL` — alias used before declaration
+- `E_ALIAS_COLLISION` — same alias bound to two canonicals
+- `E_ALIAS_SHADOWS_NAME` — alias literal collides with an existing canonical
+- `E_ALIAS_REBINDING` — same canonical given two aliases
+- `E_ALIAS_OF_ALIAS` — aliasing an alias
+- `E_ALIAS_RESERVED_KEYWORD` — alias is a reserved keyword
+- `E_ALIAS_INVALID_FORMAT` — alias doesn't match `[A-Za-z][A-Za-z0-9_]{0,11}`
+- `E_ALIAS_AFTER_CANONICAL` — canonical was already used plain before its alias declaration
+- `E_TAG_SHORTHAND_REMOVED` — legacy `tag Name <alias>` (bare shorthand)
+- `E_VENN_ALIAS_KEYWORD_REMOVED` — legacy venn `alias` keyword
+- `W_ALIAS_CASE_NEAR_MATCH` — case-near-match suggestion
+- `W_ALIAS_UNDERUSED` — alias declared but referenced ≤1 time
 
 ---
 
@@ -1446,16 +1522,17 @@ order group
 ```
 venn Skill Overlap
 
-Swordsmanship(red) alias sw
-Navigation(blue) alias nav
-Leadership(green) alias lead
+Swordsmanship(red) as sw
+Navigation(blue) as nav
+Leadership(green) as lead
 
 sw + nav Sea Raiders
 sw + nav + lead Legendary Pirates
 ```
 
-- Set declaration: `Name(color) alias X`
+- Set declaration: `Name(color) as <alias>` — uses the universal alias syntax (§2A)
 - Intersections: `Set1 + Set2 Label` — label follows the last set reference (no colon)
+- Legacy `Name(color) alias X` emits `E_VENN_ALIAS_KEYWORD_REMOVED` per TD-18
 
 ### 16.5 Quadrant Diagrams
 
@@ -1504,7 +1581,7 @@ Tools | quadrant: top-left
 
 Declared in a `rings` block, one per indented line. Order: innermost (first) to outermost (last). Any names, any count.
 
-Aliases supported: `Adopt alias a` — then blips can use `ring: a`.
+Aliases supported: `Adopt as a` — then blips can use `ring: a`. (Universal alias syntax per §2A.)
 
 ### Quadrants
 
@@ -1833,7 +1910,7 @@ When ring band thickness would force the in-band label below the readable floor 
 | Construct | Diagram Type | Example |
 |-----------|-------------|---------|
 | Chart type declaration | all | `bar Title` |
-| Tag declarations | all | `tag Name alias x` |
+| Tag declarations | all | `tag Name as x` |
 | Boolean options | all | `activations`, `no-activations` |
 | Key-value options | all | `start 2026-03-15`, `active-tag Team` |
 | Series declarations | data charts | `series A B C` |

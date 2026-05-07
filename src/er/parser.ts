@@ -21,6 +21,7 @@ import {
 } from '../utils/parsing';
 import {
   matchTagBlockHeading,
+  emitTagLegacyDiagnostic,
   validateTagValues,
   validateTagGroupNames,
   stripDefaultModifier,
@@ -246,7 +247,19 @@ export function parseERDiagram(
   let currentTable: ERTable | null = null;
   let contentStarted = false;
   let currentTagGroup: TagGroup | null = null;
-  const aliasMap = new Map<string, string>();
+  // metaAliasMap: tag-group metadata-key aliases (per A1 convention).
+  const metaAliasMap = new Map<string, string>();
+  // nameAliasMap: TD-18 entity-name aliases (`u` → `users`). Per C8.
+  const nameAliasMap = new Map<string, string>();
+  function peelAlias(label: string): { label: string; alias?: string } {
+    const trimmed = label.trim();
+    const m = trimmed.match(/^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/);
+    if (!m) return { label: trimmed };
+    return { label: m[1].trim(), alias: m[2] };
+  }
+  function resolveAliasName(token: string): string {
+    return nameAliasMap.get(token.trim()) ?? token;
+  }
   let firstLineParsed = false;
 
   function getOrCreateTable(name: string, lineNumber: number): ERTable {
@@ -319,6 +332,7 @@ export function parseERDiagram(
     if (!contentStarted && indent === 0) {
       const tagBlockMatch = matchTagBlockHeading(trimmed);
       if (tagBlockMatch) {
+        emitTagLegacyDiagnostic(tagBlockMatch, lineNumber, result.diagnostics);
         currentTagGroup = {
           name: tagBlockMatch.name,
           alias: tagBlockMatch.alias,
@@ -326,8 +340,8 @@ export function parseERDiagram(
           lineNumber,
         };
         if (tagBlockMatch.alias) {
-          aliasMap.set(
-            tagBlockMatch.alias.toLowerCase(),
+          metaAliasMap.set(
+            normalizeName(tagBlockMatch.alias),
             tagBlockMatch.name.toLowerCase()
           );
         }
@@ -393,7 +407,9 @@ export function parseERDiagram(
         const fromCard = parseCardSide(indentRel[1]);
         const toCard = parseCardSide(indentRel[3]);
         if (fromCard && toCard) {
-          const targetName = (indentRel[4] ?? indentRel[5] ?? '').trim();
+          const rawTarget = (indentRel[4] ?? indentRel[5] ?? '').trim();
+          // TD-18: resolve alias literal → canonical table name.
+          const targetName = resolveAliasName(rawTarget);
           getOrCreateTable(targetName, lineNumber);
           const rawLabel = indentRel[2]?.trim();
           if (rawLabel) {
@@ -445,7 +461,11 @@ export function parseERDiagram(
     // Captures: [1]=quotedName [2]=bareName [3]=color [4]=pipe
     const tableDecl = trimmed.match(TABLE_DECL_RE);
     if (tableDecl) {
-      const name = (tableDecl[1] ?? tableDecl[2] ?? '').trim();
+      const rawName = (tableDecl[1] ?? tableDecl[2] ?? '').trim();
+      // TD-18: peel optional `as <alias>` from the name slot.
+      const peeled = peelAlias(rawName);
+      const name = peeled.label;
+      if (peeled.alias) nameAliasMap.set(normalizeName(peeled.alias), name);
       const colorName = tableDecl[3]?.trim();
       const color = colorName
         ? resolveColorWithDiagnostic(
@@ -464,7 +484,7 @@ export function parseERDiagram(
       const pipeStr = tableDecl[4]?.trim();
       if (pipeStr) {
         const pipeSegments = pipeStr.split('|');
-        const meta = parsePipeMetadata(['', ...pipeSegments], aliasMap);
+        const meta = parsePipeMetadata(['', ...pipeSegments], metaAliasMap);
         Object.assign(table.metadata, meta);
       }
 

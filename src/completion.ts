@@ -1417,18 +1417,16 @@ function extractRaciSymbols(docText: string): DiagramSymbols {
       continue;
     }
 
-    // Otherwise: treat the line as a task name (strip trailing # annotations)
-    let taskName = trimmed;
-    const hashIdx = taskName.search(/\s+#\s+\S+/);
-    if (hashIdx >= 0) taskName = taskName.substring(0, hashIdx).trimEnd();
-    push(taskName);
+    // Otherwise: treat the line as a task name. `#` is NOT a comment
+    // character in DGMO (`//` is) — task names are used verbatim.
+    push(trimmed);
     underTask = true;
   }
 
   return {
     kind: chartType,
     entities,
-    keywords: ['variant', 'roles', 'draft', 'allow-incomplete'],
+    keywords: ['variant', 'roles', 'no-rule-enforcement'],
   };
 }
 

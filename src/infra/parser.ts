@@ -25,6 +25,7 @@ import {
 import { normalizeName, displayName } from '../utils/name-normalize';
 import {
   matchTagBlockHeading,
+  emitTagLegacyDiagnostic,
   stripDefaultModifier,
   validateTagGroupNames,
 } from '../utils/tag-groups';
@@ -56,7 +57,10 @@ const ASYNC_SIMPLE_CONNECTION_RE = /^~>\s*(.+?)\s*$/;
 const DEPRECATED_FANOUT_RE = /\bx(\d+)\s*$/;
 
 // Group declaration: [Group Name] with optional pipe metadata
-const GROUP_RE = /^\[([^\]]+)\]\s*(?:\|\s*(.+))?$/;
+// Group with optional `as <alias>` postfix (TD-18) and optional pipe metadata.
+// Capture order: 1=label, 2=alias, 3=pipe metadata (after `|`).
+const GROUP_RE =
+  /^\[([^\]]+)\]\s*(?:as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*)?(?:\|\s*(.+))?$/;
 
 // Tag value: Name  or  Name(color)
 // Note: `default` keyword removed — first value is the default.
@@ -181,6 +185,25 @@ export function parseInfra(content: string): ParsedInfra {
   };
 
   const nodeMap = new Map<string, InfraNode>();
+
+  // Per-parse alias literal → canonical node id (TD-18). Per C8.
+  const nameAliasMap = new Map<string, string>();
+  function peelAlias(label: string): { label: string; alias?: string } {
+    const trimmed = label.trim();
+    const m = trimmed.match(/^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/);
+    if (!m) return { label: trimmed };
+    return { label: m[1].trim(), alias: m[2] };
+  }
+  /**
+   * Resolve a connection-target token. If the token exactly matches a
+   * declared alias, return the bound canonical id. Otherwise fall
+   * through to the normal `nodeId()` hash.
+   */
+  function resolveTargetId(rawName: string): string {
+    const aliasResolved = nameAliasMap.get(rawName.trim());
+    if (aliasResolved !== undefined) return aliasResolved;
+    return nodeId(rawName);
+  }
 
   // Tracks first-seen display form for each normalized edge-target id.
   // Used to give forward-reference stubs a readable label (e.g. 'CDN'
@@ -329,9 +352,10 @@ export function parseInfra(content: string): ParsedInfra {
         continue;
       }
 
-      // Tag group: `tag Name [alias]` (via shared matchTagBlockHeading)
+      // Tag group: `tag Name as <alias>` (via shared matchTagBlockHeading)
       const tagMatch = matchTagBlockHeading(trimmed);
       if (tagMatch) {
+        emitTagLegacyDiagnostic(tagMatch, lineNumber, result.diagnostics);
         finishCurrentNode();
         finishCurrentTagGroup();
         currentTagGroup = {
@@ -343,15 +367,17 @@ export function parseInfra(content: string): ParsedInfra {
         continue;
       }
 
-      // [Group Name] or [Group Name] | t: Engineering
+      // [Group Name] [as <alias>] [| t: Engineering] — TD-18 native `as` postfix
       const groupMatch = trimmed.match(GROUP_RE);
       if (groupMatch) {
         finishCurrentNode();
         finishCurrentTagGroup();
         const gLabel = groupMatch[1].trim();
+        const groupAlias = groupMatch[2];
         const gId = groupId(gLabel);
-        const groupMeta = groupMatch[2]
-          ? extractPipeMetadata('|' + groupMatch[2]).tags
+        if (groupAlias) nameAliasMap.set(normalizeName(groupAlias), gId);
+        const groupMeta = groupMatch[3]
+          ? extractPipeMetadata('|' + groupMatch[3]).tags
           : undefined;
         currentGroup = {
           id: gId,
@@ -366,16 +392,19 @@ export function parseInfra(content: string): ParsedInfra {
         continue;
       }
 
-      // Component at top level (no indent)
+      // Component at top level (no indent) — supports `as` postfix
       const compMatch = trimmed.match(COMPONENT_RE);
       if (compMatch) {
         finishCurrentNode();
         finishCurrentTagGroup();
 
-        const name = (compMatch[1] ?? compMatch[2] ?? '').trim();
+        const rawName = (compMatch[1] ?? compMatch[2] ?? '').trim();
+        const peeled = peelAlias(rawName);
+        const name = peeled.label;
         const rest = compMatch[3] || '';
         const { tags } = extractPipeMetadata(rest);
         const id = nodeId(name);
+        if (peeled.alias) nameAliasMap.set(normalizeName(peeled.alias), id);
         const isEdge = EDGE_NODE_NAMES.has(id.toLowerCase());
 
         currentNode = {
@@ -452,10 +481,13 @@ export function parseInfra(content: string): ParsedInfra {
       const compMatch = trimmed.match(COMPONENT_RE);
       if (compMatch) {
         finishCurrentTagGroup();
-        const name = (compMatch[1] ?? compMatch[2] ?? '').trim();
+        const rawName = (compMatch[1] ?? compMatch[2] ?? '').trim();
+        const peeled = peelAlias(rawName);
+        const name = peeled.label;
         const rest = compMatch[3] || '';
         const { tags: nodeTags } = extractPipeMetadata(rest);
         const id = nodeId(name);
+        if (peeled.alias) nameAliasMap.set(normalizeName(peeled.alias), id);
         // Cascade group metadata into node tags; node-level metadata overrides
         const tags: Record<string, string> = currentGroup.metadata
           ? { ...currentGroup.metadata, ...nodeTags }
@@ -513,7 +545,7 @@ export function parseInfra(content: string): ParsedInfra {
           );
         }
         const fanout = fanoutRaw !== null && fanoutRaw >= 1 ? fanoutRaw : null;
-        const targetIdAsync = nodeId(targetName);
+        const targetIdAsync = resolveTargetId(targetName);
         rememberTargetDisplay(targetIdAsync, targetName);
         result.edges.push({
           sourceId: currentNode.id,
@@ -558,7 +590,7 @@ export function parseInfra(content: string): ParsedInfra {
           targetId = groupId(targetGroupMatch[1]);
           rememberTargetDisplay(targetId, `[${targetGroupMatch[1]}]`);
         } else {
-          targetId = nodeId(targetName);
+          targetId = resolveTargetId(targetName);
           rememberTargetDisplay(targetId, targetName);
         }
 
@@ -594,7 +626,7 @@ export function parseInfra(content: string): ParsedInfra {
           );
         }
         const fanout = fanoutRaw !== null && fanoutRaw >= 1 ? fanoutRaw : null;
-        const targetIdSimple = nodeId(targetName);
+        const targetIdSimple = resolveTargetId(targetName);
         rememberTargetDisplay(targetIdSimple, targetName);
         result.edges.push({
           sourceId: currentNode.id,
@@ -633,14 +665,14 @@ export function parseInfra(content: string): ParsedInfra {
         }
         const fanout = fanoutRaw !== null && fanoutRaw >= 1 ? fanoutRaw : null;
 
-        // Target might be a group ref like [API Pods]
+        // Target might be a group ref like [API Pods] or an alias literal.
         let targetId: string;
         const targetGroupMatch = targetName.match(/^\[([^\]]+)\]/);
         if (targetGroupMatch) {
           targetId = groupId(targetGroupMatch[1]);
           rememberTargetDisplay(targetId, `[${targetGroupMatch[1]}]`);
         } else {
-          targetId = nodeId(targetName);
+          targetId = resolveTargetId(targetName);
           rememberTargetDisplay(targetId, targetName);
         }
 
@@ -731,10 +763,13 @@ export function parseInfra(content: string): ParsedInfra {
 
       const compMatch = trimmed.match(COMPONENT_RE);
       if (compMatch) {
-        const name = (compMatch[1] ?? compMatch[2] ?? '').trim();
+        const rawName = (compMatch[1] ?? compMatch[2] ?? '').trim();
+        const peeled = peelAlias(rawName);
+        const name = peeled.label;
         const rest = compMatch[3] || '';
         const { tags: nodeTags } = extractPipeMetadata(rest);
         const id = nodeId(name);
+        if (peeled.alias) nameAliasMap.set(normalizeName(peeled.alias), id);
         const tags: Record<string, string> = currentGroup.metadata
           ? { ...currentGroup.metadata, ...nodeTags }
           : nodeTags;

@@ -3,12 +3,12 @@ start 2024-01-15
 critical-path on
 dependencies on
 
-tag Team alias t
+tag Team as t
   Engineering(blue)
   Design(purple)
   QA(orange)
 
-tag Phase alias p
+tag Phase as p
   Design(green)
   Build(orange)
   Test(red) default

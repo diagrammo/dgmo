@@ -236,6 +236,15 @@ export function parseState(
   let contentStarted = false;
   let firstLineParsed = false;
 
+  // Per-parse alias literal → canonical node id (TD-18). Per C8.
+  const nameAliasMap = new Map<string, string>();
+  function peelAlias(seg: string): { seg: string; alias?: string } {
+    const trimmed = seg.trim();
+    const m = trimmed.match(/^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/);
+    if (!m) return { seg: trimmed };
+    return { seg: m[1].trim(), alias: m[2] };
+  }
+
   function getOrCreateNode(ref: NodeRef, lineNumber: number): GraphNode {
     const key = ref.id;
     const existing = nodeMap.get(key);
@@ -414,14 +423,23 @@ export function parseState(
 
     if (segments.length === 1) {
       // Single state reference, no arrows — this is the canonical definition
-      const ref = parseStateNodeRef(segments[0]);
+      const peeled = peelAlias(segments[0]);
+      const ref = parseStateNodeRef(peeled.seg);
       if (ref) {
         const node = getOrCreateNode(ref, lineNumber);
+        if (peeled.alias)
+          nameAliasMap.set(normalizeName(peeled.alias), node.id);
         // Standalone heading is the "definition" — update lineNumber so
         // clicking the node in the preview navigates here, not to the
         // first edge mention.
         node.lineNumber = lineNumber;
         indentStack.push({ nodeId: node.id, indent });
+      } else {
+        // Bare alias-only line: `os` resolves to a previously declared node.
+        const aliasResolved = nameAliasMap.get(peeled.seg.trim());
+        if (aliasResolved !== undefined) {
+          indentStack.push({ nodeId: aliasResolved, indent });
+        }
       }
       continue;
     }
@@ -443,10 +461,29 @@ export function parseState(
         continue;
       }
 
-      const ref = parseStateNodeRef(seg);
+      const peeled = peelAlias(seg);
+      let ref = parseStateNodeRef(peeled.seg);
+      if (!ref) {
+        const aliasResolved = nameAliasMap.get(peeled.seg.trim());
+        if (aliasResolved !== undefined) {
+          const existing = nodeMap.get(aliasResolved);
+          if (existing) {
+            // Narrow to state shapes — alias-resolution can only point
+            // at nodes the parser itself created, so the shape is
+            // guaranteed to be 'state' or 'pseudostate'.
+            const shape = existing.shape as 'state' | 'pseudostate';
+            ref = {
+              id: aliasResolved,
+              label: existing.label,
+              shape,
+            };
+          }
+        }
+      }
       if (!ref) continue;
 
       const node = getOrCreateNode(ref, lineNumber);
+      if (peeled.alias) nameAliasMap.set(normalizeName(peeled.alias), node.id);
 
       if (pendingArrow !== null) {
         // Use explicit source if available, else implicit from indent

@@ -343,7 +343,7 @@ describe('1. Valid syntax', () => {
 
     it('venn diagram', () => {
       const r = parseVisualization(
-        'venn Overlap\n\nSwordsmanship alias sw\nNavigation alias nav\n\nsw + nav Sea Raiders',
+        'venn Overlap\n\nSwordsmanship as sw\nNavigation as nav\n\nsw + nav Sea Raiders',
         palette
       );
       expect(hasNoErrors(r)).toBe(true);
@@ -849,7 +849,7 @@ describe('4. New features', () => {
 
   it('venn intersection without colon', () => {
     const r = parseVisualization(
-      'venn Overlap\n\nSwordsmanship alias sw\nNavigation alias nav\n\nsw + nav Sea Raiders',
+      'venn Overlap\n\nSwordsmanship as sw\nNavigation as nav\n\nsw + nav Sea Raiders',
       palette
     );
     expect(hasNoErrors(r)).toBe(true);

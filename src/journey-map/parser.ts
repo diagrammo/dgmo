@@ -2,6 +2,7 @@ import type { PaletteColors } from '../palettes';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
 import {
   matchTagBlockHeading,
+  emitTagLegacyDiagnostic,
   stripDefaultModifier,
   validateTagGroupNames,
 } from '../utils/tag-groups';
@@ -182,6 +183,7 @@ export function parseJourneyMap(
     if (!contentStarted) {
       const tagBlockMatch = matchTagBlockHeading(trimmed);
       if (tagBlockMatch) {
+        emitTagLegacyDiagnostic(tagBlockMatch, lineNumber, result.diagnostics);
         currentTagGroup = {
           name: tagBlockMatch.name,
           alias: tagBlockMatch.alias,

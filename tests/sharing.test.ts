@@ -76,6 +76,38 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
         expect(result.limit).toBe(8192);
       }
     });
+
+    it('30-task × 8-role RACI fits within the 8 KB compressed limit', () => {
+      // Realistic ceiling for v1 — most authored RACIs are well under this.
+      // If this ever crosses 8 KB, revisit per TD #23 before introducing
+      // a separate cp= field for collapsed phases.
+      const roles = ['Cap', 'QM', 'Bos', 'Nav', 'Crew', 'Cook', 'Mate', 'Doc'];
+      const lines: string[] = ['raci Voyage Operations', 'roles'];
+      for (const r of roles) lines.push(`  ${r}`);
+      lines.push('');
+      const phases = ['Departure', 'At Sea', 'Landfall'];
+      let taskNo = 1;
+      for (const phase of phases) {
+        lines.push(`[${phase}]`);
+        const tasksInPhase = phase === 'At Sea' ? 12 : 9;
+        for (let i = 0; i < tasksInPhase; i++) {
+          lines.push(`  Task ${taskNo++}`);
+          lines.push(`    ${roles[i % roles.length]}: A`);
+          lines.push(`    ${roles[(i + 1) % roles.length]}: R`);
+          lines.push(`    ${roles[(i + 2) % roles.length]}: C`);
+        }
+      }
+      const dsl = lines.join('\n');
+      const result = encodeDiagramUrl(dsl, {
+        viewState: { cs: [4, 13, 25] },
+      });
+      expect(result.error).toBeUndefined();
+      // Round-trip preserves both DSL and view state.
+      if (!result.url) throw new Error('expected url');
+      const decoded = decodeDiagramUrl(new URL(result.url).search);
+      expect(decoded.dsl).toBe(dsl);
+      expect(decoded.viewState.cs).toEqual([4, 13, 25]);
+    });
   });
 
   describe('decodeDiagramUrl edge cases', () => {
@@ -250,6 +282,13 @@ describe('encodeDiagramUrl / decodeDiagramUrl', () => {
           cg: ['node-5', 'node-12'],
           ha: ['email'],
         },
+      },
+      {
+        name: 'raci',
+        // RACI phases ride on existing `cs` field per TD #23 — no schema
+        // change. Phase line numbers are stable for a fixed DSL revision,
+        // which is what `cs` already represents for sequence sections.
+        state: { cs: [4, 12, 20] },
       },
     ];
 

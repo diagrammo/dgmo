@@ -3,6 +3,12 @@
 // ============================================================
 
 import { stripQuotes, tokenizeQuoteAware } from './parsing';
+import {
+  ALIAS_DIAGNOSTIC_CODES,
+  makeDgmoError,
+  tagShorthandRemovedMessage,
+  type DgmoError,
+} from '../diagnostics';
 
 /** A single entry inside a tag group: `Value(color)` */
 export interface TagEntry {
@@ -26,8 +32,16 @@ interface TagBlockMatch {
   name: string;
   alias: string | undefined;
   colorHint: string | undefined;
-  /** Inline tag values parsed from single-line form (e.g., `tag Priority p High(red), Low(blue)`) */
+  /** Inline tag values parsed from single-line form (e.g., `tag Priority as p High(red), Low(blue)`) */
   inlineValues?: string[];
+  /**
+   * If the heading used the legacy `tag Name <alias>` (bare shorthand)
+   * or `tag Name alias <alias>` (explicit-keyword) syntax, this is set
+   * so the calling parser can emit `E_TAG_SHORTHAND_REMOVED`. Pre-1.0
+   * hard-break — bare shorthand still parses for graceful degradation
+   * but is no longer a valid form.
+   */
+  legacyForm?: 'bare-shorthand' | 'alias-keyword';
 }
 
 // ── Default Modifier ────────────────────────────────────────
@@ -57,9 +71,13 @@ export const TAG_BLOCK_NOCOLON_RE = /^tag\s+/i;
 
 // ── Alias Inference ─────────────────────────────────────────
 
-/** Returns true if the token looks like an alias: 1-4 lowercase ASCII characters. */
+/**
+ * Returns true if the token matches the universal alias character set:
+ * `[A-Za-z][A-Za-z0-9_]{0,11}` — letter start, letters/digits/underscore,
+ * length 1–12 (per TD-18). Widened from the previous 1-4 lowercase rule.
+ */
 function isAliasToken(token: string): boolean {
-  return /^[a-z]{1,4}$/.test(token);
+  return /^[A-Za-z][A-Za-z0-9_]{0,11}$/.test(token);
 }
 
 // ── Matchers ────────────────────────────────────────────────
@@ -70,102 +88,118 @@ export function isTagBlockHeading(trimmed: string): boolean {
 }
 
 /**
- * Parse a new-syntax tag declaration line: `tag Name [alias] [Values...]`
+ * Parse a tag declaration line: `tag Name [as <alias>] [Values...]`
  *
- * Alias inference: the token immediately after the name is the alias if it's 1-4 lowercase chars.
- * Everything after the alias (or name, if no alias) that contains a comma or `(` is treated as inline values.
+ * Canonical form (post-TD-18): `tag Priority as p High(red), Low(blue)`.
+ *
+ * Legacy forms still parse for graceful degradation but set
+ * `legacyForm` on the result so the caller can emit
+ * `E_TAG_SHORTHAND_REMOVED`:
+ *   - bare shorthand:  `tag Priority p`
+ *   - alias keyword:   `tag Priority alias p`
  *
  * Supports quoted names: `tag "Marketing mktg"` → name="Marketing mktg", no alias.
  */
 export function parseTagDeclaration(line: string): TagBlockMatch | null {
-  // Must start with `tag ` (case-insensitive)
   if (!TAG_BLOCK_NOCOLON_RE.test(line)) return null;
 
-  // Strip the `tag ` prefix
   const afterTag = line.replace(/^tag\s+/i, '');
   if (!afterTag.trim()) return null;
 
-  // Check if there are inline values (indicated by presence of `(` for colors after the name part)
-  // Strategy: tokenize, identify name + optional alias, rest is inline values
   const tokens = tokenizeQuoteAware(afterTag);
   if (tokens.length === 0) return null;
 
-  // First token (or quoted token) is the tag name
   let name = stripQuotes(tokens[0]);
   let alias: string | undefined;
   let inlineValues: string[] | undefined;
   let colorHint: string | undefined;
+  let legacyForm: 'bare-shorthand' | 'alias-keyword' | undefined;
   let restStartIdx = 1;
 
-  // If the first token is quoted, name is the quoted content — check for alias next
-  if (tokens[0][0] === '"' || tokens[0][0] === "'") {
-    // Quoted name — check if next token is alias
-    if (tokens.length > 1 && isAliasToken(tokens[1])) {
-      alias = tokens[1];
-      restStartIdx = 2;
+  // Locate any keyword separator (`as` or legacy `alias`) that appears
+  // BEFORE the first inline-value token. Inline values are tokens that
+  // contain `(` (color suffix) or follow a comma.
+  let valueStart = tokens.length;
+  for (let i = 1; i < tokens.length; i++) {
+    if (tokens[i].includes('(')) {
+      valueStart = i;
+      break;
+    }
+  }
+
+  // Search left-to-right for the keyword within [1, valueStart).
+  let keywordIdx = -1;
+  let keywordKind: 'as' | 'alias' | null = null;
+  for (let i = 1; i < valueStart; i++) {
+    const t = tokens[i].toLowerCase();
+    if (t === 'as') {
+      keywordIdx = i;
+      keywordKind = 'as';
+      break;
+    }
+    if (t === 'alias') {
+      keywordIdx = i;
+      keywordKind = 'alias';
+      break;
+    }
+  }
+
+  if (keywordIdx > 0 && keywordIdx + 1 < tokens.length) {
+    // `tag Name [Multi Word] (as|alias) <token> [Values...]`
+    const candidate = tokens[keywordIdx + 1];
+    if (isAliasToken(candidate)) {
+      // Name is everything before the keyword (joined for multi-word names).
+      // First token may be quoted; preserve stripQuotes behavior.
+      name = tokens
+        .slice(0, keywordIdx)
+        .map((t) => stripQuotes(t))
+        .join(' ');
+      alias = candidate;
+      if (keywordKind === 'alias') legacyForm = 'alias-keyword';
+      restStartIdx = keywordIdx + 2;
+    } else {
+      // Keyword present but candidate doesn't look like a valid alias.
+      // Treat the line as if the keyword wasn't there — name extends.
+      // (Caller will likely emit a diagnostic via extract-alias path.)
+      name = tokens
+        .slice(0, valueStart)
+        .map((t) => stripQuotes(t))
+        .join(' ');
+      restStartIdx = valueStart;
     }
   } else {
-    // Unquoted — collect multi-word name. The alias is the last token that's 1-4 lowercase
-    // BEFORE any value tokens (values have `(color)` suffixes or appear after we see a comma).
-
-    // Find where inline values start — look for a token with `(` in it (color suffix)
-    // or the presence of a comma in the remaining text
-    const remainingText = tokens.slice(1).join(' ');
-    const commaInRemaining = remainingText.includes(',');
-
-    if (tokens.length === 1) {
-      // Just `tag Name` — no alias, no values
-    } else if (
-      tokens.length === 2 &&
-      isAliasToken(tokens[1]) &&
-      !commaInRemaining
-    ) {
-      // `tag Priority p` — alias only, no values
-      alias = tokens[1];
-      restStartIdx = 2;
-    } else if (tokens.length >= 2) {
-      // Check if token[1] is an alias
-      if (isAliasToken(tokens[1])) {
+    // No `as`/`alias` keyword — try legacy bare-shorthand. The trailing
+    // token of the name span (just before inline values) is the alias
+    // candidate; if it passes the universal alias regex, accept it and
+    // mark legacyForm='bare-shorthand'.
+    if (tokens[0][0] === '"' || tokens[0][0] === "'") {
+      // Quoted name. Check the next token for legacy bare alias.
+      if (tokens.length > 1 && isAliasToken(tokens[1]) && valueStart > 1) {
         alias = tokens[1];
+        legacyForm = 'bare-shorthand';
         restStartIdx = 2;
-        // Multi-word name not applicable when alias is right after first token
-      } else {
-        // Could be multi-word name: `tag Risk Level lo`
-        // Walk tokens to find the alias at the end (before inline values)
-        // Find where inline values begin — first token containing `(` or after comma
-        let valueStart = tokens.length; // default: no values
-        for (let i = 1; i < tokens.length; i++) {
-          // A token containing `(` suggests a value with color: `High(red)`
-          if (tokens[i].includes('(')) {
-            valueStart = i;
-            break;
-          }
-        }
-
-        // Check if the token just before valueStart is an alias
-        if (valueStart > 1 && isAliasToken(tokens[valueStart - 1])) {
-          alias = tokens[valueStart - 1];
-          // Name is everything from token[0] to token[valueStart-2]
-          name = tokens
-            .slice(0, valueStart - 1)
-            .map((t) => stripQuotes(t))
-            .join(' ');
-          restStartIdx = valueStart;
-        } else {
-          // No alias — name is everything before values
-          name = tokens
-            .slice(0, valueStart)
-            .map((t) => stripQuotes(t))
-            .join(' ');
-          restStartIdx = valueStart;
-        }
       }
+    } else if (valueStart > 1 && isAliasToken(tokens[valueStart - 1])) {
+      // Bare shorthand at the end of the name span.
+      alias = tokens[valueStart - 1];
+      legacyForm = 'bare-shorthand';
+      name = tokens
+        .slice(0, valueStart - 1)
+        .map((t) => stripQuotes(t))
+        .join(' ');
+      restStartIdx = valueStart;
+    } else {
+      // No alias at all. Name extends through all non-value tokens.
+      name = tokens
+        .slice(0, valueStart)
+        .map((t) => stripQuotes(t))
+        .join(' ');
+      restStartIdx = valueStart;
     }
   }
 
   // Parse remaining tokens as inline values (if any)
   if (restStartIdx < tokens.length) {
-    // Rejoin and split by comma for inline values
     const valueStr = tokens.slice(restStartIdx).join(' ');
     inlineValues = valueStr
       .split(',')
@@ -173,8 +207,7 @@ export function parseTagDeclaration(line: string): TagBlockMatch | null {
       .filter(Boolean);
   }
 
-  // Check for trailing color hint on name (without inline values)
-  // e.g., `tag Location(blue)` — colorHint on the tag group itself
+  // Trailing `(color)` on the name itself (no inline values).
   if (!inlineValues || inlineValues.length === 0) {
     const colorMatch = name.match(/\(([^)]+)\)\s*$/);
     if (colorMatch) {
@@ -189,6 +222,7 @@ export function parseTagDeclaration(line: string): TagBlockMatch | null {
     colorHint,
     inlineValues:
       inlineValues && inlineValues.length > 0 ? inlineValues : undefined,
+    legacyForm,
   };
 }
 
@@ -424,4 +458,26 @@ export function resolveActiveTagGroup(
 
 export function matchTagBlockHeading(trimmed: string): TagBlockMatch | null {
   return parseTagDeclaration(trimmed);
+}
+
+/**
+ * Emit `E_TAG_SHORTHAND_REMOVED` if the match captured a legacy tag
+ * shorthand form (bare or `alias` keyword). Caller-side helper so
+ * each parser can emit the diagnostic without duplicating the
+ * messaging logic. No-op if the match is in canonical form.
+ */
+export function emitTagLegacyDiagnostic(
+  match: TagBlockMatch,
+  lineNumber: number,
+  diagnostics: DgmoError[]
+): void {
+  if (!match.legacyForm || !match.alias) return;
+  diagnostics.push(
+    makeDgmoError(
+      lineNumber,
+      tagShorthandRemovedMessage({ name: match.name, alias: match.alias }),
+      'error',
+      ALIAS_DIAGNOSTIC_CODES.TAG_SHORTHAND_REMOVED
+    )
+  );
 }

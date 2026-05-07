@@ -461,7 +461,6 @@ export {
   VARIANTS as RACI_VARIANTS,
   RACI_ERROR_CODES,
   RACI_WARNING_CODES,
-  parseTaskAnnotations,
   cellReplace as raciCellReplace,
   cellAppendMarker as raciCellAppendMarker,
   cellRemove as raciCellRemove,
@@ -474,7 +473,6 @@ export type {
   RaciTask,
   RaciPhase,
   RaciRoleAssignment,
-  RaciTaskAnnotation,
 } from './raci';
 
 export { resolveOrgImports } from './org/resolver';

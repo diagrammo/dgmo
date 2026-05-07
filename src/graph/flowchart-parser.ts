@@ -305,6 +305,21 @@ export function parseFlowchart(
   let contentStarted = false;
   let firstLineParsed = false;
 
+  // Per-parse alias literal → canonical node id (TD-18). Per C8:
+  // never persisted, fresh each parse.
+  const nameAliasMap = new Map<string, string>();
+  /**
+   * Peel any trailing `as <alias>` off a segment. Returns the cleaned
+   * segment plus the alias literal if one was found. The caller is
+   * expected to register the alias once it knows the canonical node id.
+   */
+  function peelAlias(seg: string): { seg: string; alias?: string } {
+    const trimmed = seg.trim();
+    const m = trimmed.match(/^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/);
+    if (!m) return { seg: trimmed };
+    return { seg: m[1].trim(), alias: m[2] };
+  }
+
   function getOrCreateNode(ref: NodeRef, lineNumber: number): GraphNode {
     const key = ref.id;
     const existing = nodeMap.get(key);
@@ -390,12 +405,23 @@ export function parseFlowchart(
     const segments = splitArrows(trimmed);
 
     if (segments.length === 1) {
-      // Single node reference, no arrows
-      const ref = parseNodeRef(segments[0]);
+      // Single node reference, no arrows. May carry an `as <alias>`
+      // postfix per TD-18.
+      const peeled = peelAlias(segments[0]);
+      const ref = parseNodeRef(peeled.seg);
       if (ref) {
         const node = getOrCreateNode(ref, lineNumber);
+        if (peeled.alias)
+          nameAliasMap.set(normalizeName(peeled.alias), node.id);
         indentStack.push({ nodeId: node.id, indent });
         return node.id;
+      }
+      // Bare-token alias reference: `os` (no brackets) on its own line
+      // resolves to the canonical id and pushes onto the indent stack.
+      const aliasResolved = nameAliasMap.get(peeled.seg.trim());
+      if (aliasResolved !== undefined) {
+        indentStack.push({ nodeId: aliasResolved, indent });
+        return aliasResolved;
       }
       return null;
     }
@@ -418,11 +444,29 @@ export function parseFlowchart(
         continue;
       }
 
-      // This is a node text segment
-      const ref = parseNodeRef(seg);
+      // This is a node text segment. May carry an `as <alias>` postfix.
+      const peeled = peelAlias(seg);
+      let ref = parseNodeRef(peeled.seg);
+      if (!ref) {
+        // Bare alias reference inside a chain: `os -> ps`.
+        const aliasResolved = nameAliasMap.get(peeled.seg.trim());
+        if (aliasResolved !== undefined) {
+          // Synthesize a NodeRef shape that exactly matches the bound
+          // canonical entry — fed to getOrCreateNode (which dedups by id).
+          const existing = nodeMap.get(aliasResolved);
+          if (existing) {
+            ref = {
+              id: aliasResolved,
+              label: existing.label,
+              shape: existing.shape,
+            };
+          }
+        }
+      }
       if (!ref) continue;
 
       const node = getOrCreateNode(ref, lineNumber);
+      if (peeled.alias) nameAliasMap.set(normalizeName(peeled.alias), node.id);
 
       if (pendingArrow !== null) {
         const sourceId = lastNodeId ?? implicitSourceId;

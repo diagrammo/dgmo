@@ -87,16 +87,29 @@ describe('matchTagBlockHeading', () => {
       alias: undefined,
       colorHint: undefined,
       inlineValues: undefined,
+      legacyForm: undefined,
     });
   });
 
-  it('parses Tag (mixed case)', () => {
+  it('parses canonical `as` form (Tag mixed-case)', () => {
+    const result = matchTagBlockHeading('Tag Rank as r');
+    expect(result).toEqual({
+      name: 'Rank',
+      alias: 'r',
+      colorHint: undefined,
+      inlineValues: undefined,
+      legacyForm: undefined,
+    });
+  });
+
+  it('parses legacy bare-shorthand and flags it (Tag Rank r)', () => {
     const result = matchTagBlockHeading('Tag Rank r');
     expect(result).toEqual({
       name: 'Rank',
       alias: 'r',
       colorHint: undefined,
       inlineValues: undefined,
+      legacyForm: 'bare-shorthand',
     });
   });
 
@@ -141,33 +154,51 @@ describe('parseTagDeclaration', () => {
       alias: undefined,
       colorHint: undefined,
       inlineValues: undefined,
+      legacyForm: undefined,
     });
   });
 
-  it('infers from trailing 1-4 lowercase token', () => {
+  it('parses canonical `tag Name as alias` form', () => {
+    const r = parseTagDeclaration('tag Priority as p');
+    expect(r?.name).toBe('Priority');
+    expect(r?.alias).toBe('p');
+    expect(r?.legacyForm).toBeUndefined();
+  });
+
+  it('flags legacy `tag Name alias` form', () => {
+    const r = parseTagDeclaration('tag Priority alias p');
+    expect(r?.name).toBe('Priority');
+    expect(r?.alias).toBe('p');
+    expect(r?.legacyForm).toBe('alias-keyword');
+  });
+
+  it('flags legacy bare-shorthand (1-4 lowercase)', () => {
     const r = parseTagDeclaration('tag Priority p');
     expect(r?.name).toBe('Priority');
     expect(r?.alias).toBe('p');
+    expect(r?.legacyForm).toBe('bare-shorthand');
   });
 
-  it('infers multi-char alias', () => {
+  it('flags legacy multi-char shorthand', () => {
     const r = parseTagDeclaration('tag Engineering eng');
     expect(r?.name).toBe('Engineering');
     expect(r?.alias).toBe('eng');
+    expect(r?.legacyForm).toBe('bare-shorthand');
   });
 
-  it('does not infer from 5+ char token', () => {
-    const r = parseTagDeclaration('tag Priority level');
-    // 'level' is 5 chars — not an alias
-    expect(r?.name).toBe('Priority level');
-    expect(r?.alias).toBeUndefined();
-  });
+  it('widened universal-alias regex accepts 5+ chars and uppercase as legacy bare-shorthand', () => {
+    // Post-TD-18: widened to [A-Za-z][A-Za-z0-9_]{0,11}. Tokens like
+    // `level` and `High` now pass the alias regex; the bare form is
+    // still flagged as legacy so the parser can emit a diagnostic.
+    const a = parseTagDeclaration('tag Priority level');
+    expect(a?.name).toBe('Priority');
+    expect(a?.alias).toBe('level');
+    expect(a?.legacyForm).toBe('bare-shorthand');
 
-  it('does not infer from uppercase token', () => {
-    const r = parseTagDeclaration('tag Priority High');
-    // 'High' has uppercase — not an alias
-    expect(r?.name).toBe('Priority High');
-    expect(r?.alias).toBeUndefined();
+    const b = parseTagDeclaration('tag Priority High');
+    expect(b?.name).toBe('Priority');
+    expect(b?.alias).toBe('High');
+    expect(b?.legacyForm).toBe('bare-shorthand');
   });
 
   it('parses quoted tag name', () => {
@@ -176,24 +207,41 @@ describe('parseTagDeclaration', () => {
     expect(r?.alias).toBeUndefined();
   });
 
-  it('parses quoted tag name with alias', () => {
+  it('parses quoted tag name with `as` alias (canonical)', () => {
+    const r = parseTagDeclaration('tag "A Team" as at');
+    expect(r?.name).toBe('A Team');
+    expect(r?.alias).toBe('at');
+    expect(r?.legacyForm).toBeUndefined();
+  });
+
+  it('parses quoted tag name with legacy bare alias', () => {
     const r = parseTagDeclaration('tag "A Team" at');
     expect(r?.name).toBe('A Team');
     expect(r?.alias).toBe('at');
+    expect(r?.legacyForm).toBe('bare-shorthand');
   });
 
-  it('parses single-line values', () => {
-    const r = parseTagDeclaration('tag Priority p High(red), Low(blue)');
+  it('parses single-line values (canonical `as` form)', () => {
+    const r = parseTagDeclaration('tag Priority as p High(red), Low(blue)');
     expect(r?.name).toBe('Priority');
     expect(r?.alias).toBe('p');
     expect(r?.inlineValues).toEqual(['High(red)', 'Low(blue)']);
+    expect(r?.legacyForm).toBeUndefined();
   });
 
-  it('parses single-line values with multi-word name', () => {
-    const r = parseTagDeclaration('tag Risk Level lo High(red), Low(blue)');
+  it('parses single-line values with multi-word name (canonical)', () => {
+    const r = parseTagDeclaration('tag Risk Level as lo High(red), Low(blue)');
     expect(r?.name).toBe('Risk Level');
     expect(r?.alias).toBe('lo');
     expect(r?.inlineValues).toEqual(['High(red)', 'Low(blue)']);
+    expect(r?.legacyForm).toBeUndefined();
+  });
+
+  it('parses single-line values with legacy multi-word bare shorthand', () => {
+    const r = parseTagDeclaration('tag Risk Level lo High(red), Low(blue)');
+    expect(r?.name).toBe('Risk Level');
+    expect(r?.alias).toBe('lo');
+    expect(r?.legacyForm).toBe('bare-shorthand');
   });
 
   it('parses tag with color hint on name', () => {
@@ -233,10 +281,18 @@ describe('parseTagDeclaration', () => {
 });
 
 describe('matchTagBlockHeading (via parseTagDeclaration)', () => {
-  it('matches no-colon syntax via matchTagBlockHeading', () => {
+  it('matches canonical `as` form via matchTagBlockHeading', () => {
+    const r = matchTagBlockHeading('tag Priority as p');
+    expect(r?.name).toBe('Priority');
+    expect(r?.alias).toBe('p');
+    expect(r?.legacyForm).toBeUndefined();
+  });
+
+  it('matches legacy bare shorthand and flags it', () => {
     const r = matchTagBlockHeading('tag Priority p');
     expect(r?.name).toBe('Priority');
     expect(r?.alias).toBe('p');
+    expect(r?.legacyForm).toBe('bare-shorthand');
   });
 
   it('rejects old colon syntax', () => {

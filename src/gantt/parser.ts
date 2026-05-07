@@ -7,6 +7,7 @@ import type { DgmoError } from '../diagnostics';
 import type { TagGroup } from '../utils/tag-groups';
 import {
   matchTagBlockHeading,
+  emitTagLegacyDiagnostic,
   stripDefaultModifier,
   validateTagGroupNames,
 } from '../utils/tag-groups';
@@ -18,6 +19,7 @@ import {
   parseFirstLine,
 } from '../utils/parsing';
 import { parseOffset, parseDuration } from '../utils/duration';
+import { normalizeName } from '../utils/name-normalize';
 import type { PaletteColors } from '../palettes';
 import { getSeriesColors } from '../palettes';
 import type {
@@ -164,9 +166,20 @@ export function parseGantt(
     diagnostics.push(makeDgmoError(line, message, 'error'));
   };
 
-  // ── Alias map for pipe metadata ─────────────────────────
+  // ── Alias map for pipe metadata (per A1 convention) ─────
 
-  const aliasMap = new Map<string, string>();
+  const metaAliasMap = new Map<string, string>();
+  // ── nameAliasMap: TD-18 entity-name aliases (per C8) ────
+  const nameAliasMap = new Map<string, string>();
+  function peelAlias(label: string): { label: string; alias?: string } {
+    const trimmed = label.trim();
+    const m = trimmed.match(/^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/);
+    if (!m) return { label: trimmed };
+    return { label: m[1].trim(), alias: m[2] };
+  }
+  function resolveAliasTarget(token: string): string {
+    return nameAliasMap.get(token.trim()) ?? token;
+  }
 
   // ── Block stack ─────────────────────────────────────────
 
@@ -411,13 +424,14 @@ export function parseGantt(
       if (depMatch) {
         const label = depMatch[1]?.trim() || undefined;
         const depParts = depMatch[2].split('|');
-        const targetName = depParts[0].trim();
+        // TD-18: resolve alias literal → canonical task label.
+        const targetName = resolveAliasTarget(depParts[0].trim());
         let offset: Offset | undefined;
 
         if (depParts.length > 1) {
           const meta = parsePipeMetadata(
             ['', ...depParts.slice(1)],
-            aliasMap,
+            metaAliasMap,
             () => warn(lineNumber, MULTIPLE_PIPE_ERROR)
           );
           if (meta.lag || meta.lead) {
@@ -495,6 +509,7 @@ export function parseGantt(
     // Tag block heading
     const tagMatch = matchTagBlockHeading(line);
     if (tagMatch) {
+      emitTagLegacyDiagnostic(tagMatch, lineNumber, result.diagnostics);
       inTagBlock = true;
       tagBlockIndent = indent;
       currentTagGroup = {
@@ -504,7 +519,10 @@ export function parseGantt(
         lineNumber,
       };
       if (tagMatch.alias) {
-        aliasMap.set(tagMatch.alias.toLowerCase(), tagMatch.name.toLowerCase());
+        metaAliasMap.set(
+          normalizeName(tagMatch.alias),
+          tagMatch.name.toLowerCase()
+        );
       }
       continue;
     }
@@ -753,17 +771,21 @@ export function parseGantt(
       const pipeWarn = () => warn(lineNumber, MULTIPLE_PIPE_ERROR);
       if (segments.length > 0 && segments[0].trim()) {
         // Check if first segment after brackets is pipe metadata
-        metadata = parsePipeMetadata(['', ...segments], aliasMap, pipeWarn);
+        metadata = parsePipeMetadata(['', ...segments], metaAliasMap, pipeWarn);
       } else if (segments.length > 1) {
         metadata = parsePipeMetadata(
           ['', ...segments.slice(1)],
-          aliasMap,
+          metaAliasMap,
           pipeWarn
         );
       }
 
+      // TD-18: peel optional `as <alias>` from the group label.
+      const groupPeeled = peelAlias(groupMatch[1]);
+      if (groupPeeled.alias)
+        nameAliasMap.set(normalizeName(groupPeeled.alias), groupPeeled.label);
       const group: GanttGroup = {
-        name: groupMatch[1],
+        name: groupPeeled.label,
         color,
         metadata,
         lineNumber,
@@ -867,13 +889,14 @@ export function parseGantt(
       // This happens when the dep is at the same indent as the task
       const label = depMatch[1]?.trim() || undefined;
       const depParts = depMatch[2].split('|');
-      const targetName = depParts[0].trim();
+      // TD-18: resolve alias literal → canonical task label.
+      const targetName = resolveAliasTarget(depParts[0].trim());
       let offset: Offset | undefined;
 
       if (depParts.length > 1) {
         const meta = parsePipeMetadata(
           ['', ...depParts.slice(1)],
-          aliasMap,
+          metaAliasMap,
           () => warn(lineNumber, MULTIPLE_PIPE_ERROR)
         );
         if (meta.lag || meta.lead) {
@@ -973,7 +996,10 @@ export function parseGantt(
     explicitStart?: string
   ): GanttTask {
     const segments = labelRaw.split('|');
-    const label = segments[0].trim();
+    // TD-18: peel optional `as <alias>` from the label (pre-pipe).
+    const peeled = peelAlias(segments[0]);
+    const label = peeled.label;
+    if (peeled.alias) nameAliasMap.set(normalizeName(peeled.alias), label);
 
     // Check for reserved keyword
     if (label.toLowerCase() === 'parallel') {
@@ -986,7 +1012,7 @@ export function parseGantt(
     // Parse pipe metadata
     const metadata =
       segments.length > 1
-        ? parsePipeMetadata(segments, aliasMap, () =>
+        ? parsePipeMetadata(segments, metaAliasMap, () =>
             warn(ln, MULTIPLE_PIPE_ERROR)
           )
         : {};

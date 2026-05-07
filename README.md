@@ -388,7 +388,7 @@ Containers can nest and carry their own metadata (key: value pairs). Children ar
 **Tag groups** — define color coding for metadata values. Must appear before org content:
 
 ```
-tag Location alias l
+tag Location as l
   NY(blue)
   SF(green)
   Remote(purple) default

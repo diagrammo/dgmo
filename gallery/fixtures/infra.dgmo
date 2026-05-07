@@ -1,6 +1,6 @@
 infra Production Traffic Flow
 
-tag Team t
+tag Team as t
   Backend(blue)
   Platform(teal)
 
