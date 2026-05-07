@@ -564,6 +564,32 @@ export function renderRaci(
   // any body content so phase bars and marker cells render above it.
   const colTotalHeight = colBottomY - headerY;
 
+  // No-phase row bands: when the chart has no [Section] bars carrying
+  // visual rhythm, paint a full-width tinted band per task row so each
+  // row reads as its own micro-section. Drawn BEFORE columns/cells so
+  // column tints stack on top without muddying. A 4-px y-margin keeps
+  // adjacent bands from touching.
+  if (parsed.phases.length === 0) {
+    const bandsG = svg.append('g').attr('class', 'raci-row-bands');
+    phasedRows.forEach((row, i) => {
+      if (row.kind !== 'task') return;
+      const taskIdx = parsed.tasksWithoutPhase.indexOf(row.task);
+      if (taskIdx < 0) return;
+      const yTop = rowYs[i];
+      const rh = taskRowContent.get(row.task.id)?.rowHeight ?? ROW_HEIGHT;
+      bandsG
+        .append('rect')
+        .attr('class', 'raci-row-band')
+        .attr('data-task-id', row.task.id)
+        .attr('x', H_MARGIN)
+        .attr('y', yTop + 2)
+        .attr('width', innerWidth)
+        .attr('height', rh - 4)
+        .attr('rx', 6)
+        .attr('fill', mix(autoAccent(taskIdx, palette), surfaceBg, 12));
+    });
+  }
+
   // Each role gets its own <g class="raci-column" data-role-id> wrapping
   // body + header + name text. This lets the app's sync CSS dim other
   // columns when one is hovered: any descendant getting :hover bubbles
@@ -1023,9 +1049,9 @@ function renderTaskRow(
   // the rowG so they DON'T trigger the row-hover dim.
   const labelG = rowG.append('g').attr('class', 'raci-task-label-area');
 
-  // Transparent hit-zone over the task-label column. Sized to match the
-  // wrapped row height so any pointer drift inside the label column is
-  // captured by the wrapper :hover.
+  // Transparent hit-zone over the task-label column, sized to match
+  // the wrapped row height so any pointer drift inside the label
+  // column is captured by the wrapper :hover.
   labelG
     .append('rect')
     .attr('class', 'raci-task-label-zone')
