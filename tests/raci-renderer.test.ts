@@ -58,21 +58,23 @@ roles Cap, QM, Bos
 Task
   Cap: A
   QM: R`);
-    const headerTexts = Array.from(c.querySelectorAll('.raci-header text')).map(
-      (t) => t.textContent
-    );
+    const headerTexts = Array.from(
+      c.querySelectorAll('.raci-column .raci-column-label')
+    ).map((t) => t.textContent);
     expect(headerTexts).toEqual(['Cap', 'QM', 'Bos']);
   });
 
   it('renders markers in source order across cells', () => {
     const c = render(`raci\n\nTask\n  Cap: A R\n  Crew: I`);
-    // Cells contain text equal to a single marker letter.
-    const cellTexts = Array.from(c.querySelectorAll('.raci-cell text')).map(
-      (t) => t.textContent
-    );
-    expect(cellTexts).toContain('A');
-    expect(cellTexts).toContain('R');
-    expect(cellTexts).toContain('I');
+    // Each marker slice carries a data-marker attribute. The rendered
+    // text may be the letter ('A') or the full label ('Accountable')
+    // depending on the slice width.
+    const cellMarkers = Array.from(
+      c.querySelectorAll('.raci-cell .raci-marker-slice')
+    ).map((s) => s.getAttribute('data-marker'));
+    expect(cellMarkers).toContain('A');
+    expect(cellMarkers).toContain('R');
+    expect(cellMarkers).toContain('I');
   });
 });
 
@@ -133,19 +135,19 @@ describe('renderRaci — SVG attribute conventions', () => {
 
 describe('renderRaci — all variants render', () => {
   it('RASCI accepts S marker', () => {
-    const c = render(`rasci\n\nTask\n  Cap: A\n  Crew: R\n  Bos: S`);
-    const cellTexts = Array.from(c.querySelectorAll('.raci-cell text')).map(
-      (t) => t.textContent
-    );
-    expect(cellTexts).toContain('S');
+    const c = render(`raci\n\nTask\n  Cap: A\n  Crew: R\n  Bos: S`);
+    const cellMarkers = Array.from(
+      c.querySelectorAll('.raci-cell .raci-marker-slice')
+    ).map((s) => s.getAttribute('data-marker'));
+    expect(cellMarkers).toContain('S');
   });
 
   it('DACI renders D marker', () => {
-    const c = render(`daci\n\nDecide\n  PM: D\n  Cap: A`);
-    const cellTexts = Array.from(c.querySelectorAll('.raci-cell text')).map(
-      (t) => t.textContent
-    );
-    expect(cellTexts).toContain('D');
+    const c = render(`raci\n\nDecide\n  PM: D\n  Cap: A`);
+    const cellMarkers = Array.from(
+      c.querySelectorAll('.raci-cell .raci-marker-slice')
+    ).map((s) => s.getAttribute('data-marker'));
+    expect(cellMarkers).toContain('D');
   });
 });
 
@@ -154,18 +156,22 @@ describe('renderRaci — all variants render', () => {
 // ============================================================
 
 describe('renderRaci — empty cells', () => {
-  it('renders a hairline outline rect for unfilled role columns', () => {
+  it('renders a column body bg behind unfilled role cells (kanban-style)', () => {
     const c = render(`raci
 roles Cap, QM, Bos
 
 Task
   Cap: A`);
-    // QM and Bos cells are empty for this task — should each have a
-    // dashed-stroke rect (the hairline empty-cell marker).
-    const dashedRects = Array.from(
+    // Kanban-style treatment: each role gets a column-body rect spanning
+    // the full body height. Empty cells fall on this bg (no per-cell
+    // outline is drawn). Confirm the column rects exist.
+    const columnBodies = c.querySelectorAll('.raci-column-body');
+    expect(columnBodies.length).toBe(3);
+    // And no per-cell `fill=none` outlines are drawn for empty cells.
+    const outlineRects = Array.from(
       c.querySelectorAll('.raci-cell rect')
-    ).filter((r) => r.getAttribute('stroke-dasharray') !== null);
-    expect(dashedRects.length).toBeGreaterThanOrEqual(2);
+    ).filter((r) => r.getAttribute('fill') === 'none');
+    expect(outlineRects.length).toBe(0);
   });
 
   it('shows a discoverability hint when no cells are filled', () => {
@@ -207,7 +213,7 @@ Task
   });
 
   it('DACI legend uses Driver/Approver/Contributor/Informed labels', () => {
-    const c = render(`daci\n\nDecide\n  PM: D\n  Cap: A`);
+    const c = render(`raci\n\nDecide\n  PM: D\n  Cap: A`);
     const labels = Array.from(c.querySelectorAll('.raci-legend-chip text'))
       .map((t) => t.textContent ?? '')
       .filter((t) => t.length > 1);

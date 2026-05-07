@@ -39,8 +39,8 @@ describe('parseRaci — happy paths', () => {
     expect(r.titleLineNumber).toBe(1);
   });
 
-  it('parses RASCI with the S marker accepted', () => {
-    const r = parseRaci(`rasci\n\nTask\n  Cap: A\n  Crew: R\n  Bosun: S`);
+  it('infers RASCI from an S marker (no directive needed)', () => {
+    const r = parseRaci(`raci\n\nTask\n  Cap: A\n  Crew: R\n  Bosun: S`);
     expect(r.error).toBeNull();
     expect(r.variant).toBe('rasci');
     const task = r.tasksWithoutPhase[0];
@@ -48,8 +48,8 @@ describe('parseRaci — happy paths', () => {
     expect(bosun?.markers).toEqual(['S']);
   });
 
-  it('parses DACI with D and A required, C/I optional', () => {
-    const r = parseRaci(`daci\n\nDecide route\n  PM: D\n  Cap: A`);
+  it('infers DACI from a D marker (no directive needed)', () => {
+    const r = parseRaci(`raci\n\nDecide route\n  PM: D\n  Cap: A`);
     expect(r.variant).toBe('daci');
     expect(errorCount(r)).toBe(0);
   });
@@ -141,34 +141,46 @@ describe('parseRaci — constraint linting', () => {
   });
 
   it('DACI: two D markers fires E_DACI_MULTI_DRIVER', () => {
-    const r = parseRaci(`daci\n\nDecision\n  PM: D\n  Cap: D`);
+    const r = parseRaci(`raci\n\nDecision\n  PM: D\n  Cap: D`);
     expect(codes(r)).toContain(RACI_ERROR_CODES.DACI_MULTI_DRIVER);
   });
 
-  it('DACI: two A markers fires E_DACI_MULTI_ACCOUNTABLE', () => {
-    const r = parseRaci(`daci\n\nDecision\n  PM: A\n  Cap: A`);
+  it('DACI (locked): two A markers fires E_DACI_MULTI_ACCOUNTABLE', () => {
+    // No D marker, so inference would land on RACI; lock to DACI
+    // explicitly so the DACI-specific rule fires.
+    const r = parseRaci(`raci\nvariant-daci\n\nDecision\n  PM: A\n  Cap: A`);
     expect(codes(r)).toContain(RACI_ERROR_CODES.DACI_MULTI_ACCOUNTABLE);
   });
 
-  it('DACI: missing-D and missing-A both fire as warnings', () => {
-    const r = parseRaci(`daci\n\nDecision\n  PM: C`);
+  it('DACI (locked): missing-D and missing-A both fire as warnings', () => {
+    const r = parseRaci(`raci\nvariant-daci\n\nDecision\n  PM: C`);
     expect(codes(r)).toContain(RACI_WARNING_CODES.DACI_MISSING_DRIVER);
     expect(codes(r)).toContain(RACI_WARNING_CODES.DACI_MISSING_ACCOUNTABLE);
   });
 
-  it('emits E_RACI_INVALID_MARKER for marker not in the variant alphabet', () => {
+  it('emits E_RACI_INVALID_MARKER for marker not in any alphabet', () => {
     const r = parseRaci(`raci\n\nTask\n  Cap: X`);
     expect(codes(r)).toContain(RACI_ERROR_CODES.INVALID_MARKER);
   });
 
-  it('S is invalid in plain RACI', () => {
-    const r = parseRaci(`raci\n\nTask\n  Cap: S`);
+  it('S is invalid when variant-raci is locked', () => {
+    const r = parseRaci(`raci\nvariant-raci\n\nTask\n  Cap: S`);
     expect(codes(r)).toContain(RACI_ERROR_CODES.INVALID_MARKER);
   });
 
-  it('S is valid in RASCI', () => {
-    const r = parseRaci(`rasci\n\nTask\n  Cap: A\n  Crew: R\n  Bosun: S`);
+  it('S is valid when inference resolves variant to RASCI', () => {
+    const r = parseRaci(`raci\n\nTask\n  Cap: A\n  Crew: R\n  Bosun: S`);
     expect(codes(r)).not.toContain(RACI_ERROR_CODES.INVALID_MARKER);
+  });
+
+  it('mixed D and S without a variant lock fires E_RACI_MIXED_VARIANTS', () => {
+    const r = parseRaci(`raci\n\nTask\n  Cap: D\n  Crew: S`);
+    expect(codes(r)).toContain(RACI_ERROR_CODES.MIXED_VARIANTS);
+  });
+
+  it('two variant-* directives in one chart fire E_RACI_DUPLICATE_VARIANT', () => {
+    const r = parseRaci(`raci\nvariant-raci\nvariant-daci\n\nTask\n  Cap: A`);
+    expect(codes(r)).toContain(RACI_ERROR_CODES.DUPLICATE_VARIANT);
   });
 
   it('emits E_RACI_UNEXPECTED_LINE for free-text after first role assignment', () => {
@@ -182,13 +194,13 @@ Task
 });
 
 // ============================================================
-// Suppression: draft mode + per-task `# allow-incomplete`
+// Suppression: `no-rule-enforcement` directive (chart-wide kill switch)
 // ============================================================
 
 describe('parseRaci — diagnostic suppression', () => {
-  it('draft directive suppresses missing-A / missing-R warnings chart-wide', () => {
+  it('no-rule-enforcement suppresses warnings chart-wide', () => {
     const r = parseRaci(`raci
-draft
+no-rule-enforcement
 
 Task A
   Cap: I
@@ -198,9 +210,18 @@ Task B
     expect(codes(r)).not.toContain(RACI_WARNING_CODES.MISSING_RESPONSIBLE);
   });
 
-  it('draft does NOT suppress multi-A error (variant-defining rule)', () => {
+  it('no-rule-enforcement ALSO suppresses structural errors (e.g. multi-A)', () => {
     const r = parseRaci(`raci
-draft
+no-rule-enforcement
+
+Task
+  Cap: A
+  QM: A`);
+    expect(codes(r)).not.toContain(RACI_ERROR_CODES.MULTI_ACCOUNTABLE);
+  });
+
+  it('without the directive, multi-A still errors', () => {
+    const r = parseRaci(`raci
 
 Task
   Cap: A
@@ -208,32 +229,12 @@ Task
     expect(codes(r)).toContain(RACI_ERROR_CODES.MULTI_ACCOUNTABLE);
   });
 
-  it('# allow-incomplete suppresses warnings for THAT task only', () => {
-    const r = parseRaci(`raci
-
-Free task
-  Cap: I
-Quiet task # allow-incomplete
-  Cap: C`);
-    const warnings = r.diagnostics
-      .filter((d) => d.severity === 'warning')
-      .map((d) => `${d.line}:${d.code}`);
-    // Warnings should attach to the FIRST task (line 3), not the second (line 5).
-    expect(warnings.some((w) => w.startsWith('3:'))).toBe(true);
-    expect(warnings.some((w) => w.startsWith('5:'))).toBe(false);
-  });
-
-  it('warns on unknown # annotation', () => {
-    const r = parseRaci(`raci\n\nTask # bogus-annotation\n  Cap: A`);
-    expect(codes(r)).toContain(RACI_WARNING_CODES.UNKNOWN_ANNOTATION);
-  });
-
-  it('does not strip a hash that lives inside a quoted string', () => {
-    const r = parseRaci(`raci\n\n"Task with # in name"\n  Cap: A`);
+  it('treats `#` as a literal character — DGMO comments are `//` only', () => {
+    // Per the language spec, `#` is NOT a comment character — it's just
+    // a literal in the task name.
+    const r = parseRaci(`raci\n\nTask # not-a-comment\n  Cap: A`);
     const t = r.tasksWithoutPhase[0];
-    // The hash inside quotes should be preserved.
-    expect(t.displayName).toContain('#');
-    expect(t.annotations.size).toBe(0);
+    expect(t.displayName).toBe('Task # not-a-comment');
   });
 });
 
@@ -334,31 +335,35 @@ describe('parseRaci — forgiving identity', () => {
 // Variant directive
 // ============================================================
 
-describe('parseRaci — variant directive', () => {
-  it('variant directive overrides the leading id', () => {
+describe('parseRaci — variant resolution', () => {
+  it('variant-rasci lock forces RASCI even with no S markers', () => {
     const r = parseRaci(`raci
-variant rasci
+variant-rasci
 
 Task
   Cap: A
-  Crew: S`);
+  Crew: R`);
     expect(r.variant).toBe('rasci');
     expect(codes(r)).not.toContain(RACI_ERROR_CODES.INVALID_MARKER);
   });
 
-  it('rejects unknown variant value with a parse error', () => {
-    const r = parseRaci(`raci
-variant cairo
-
-Task
-  Cap: A`);
-    expect(errorCount(r)).toBeGreaterThanOrEqual(1);
+  it('inference defaults to RACI when no D or S marker is present', () => {
+    expect(parseRaci(`raci\n\nTask\n  Cap: A`).variant).toBe('raci');
   });
 
-  it('the leading chart-type id sets the default variant', () => {
-    expect(parseRaci(`raci\n\nTask\n  Cap: A`).variant).toBe('raci');
-    expect(parseRaci(`rasci\n\nTask\n  Cap: A`).variant).toBe('rasci');
-    expect(parseRaci(`daci\n\nTask\n  Cap: D\n  QM: A`).variant).toBe('daci');
+  it('inference picks RASCI when an S marker appears', () => {
+    expect(parseRaci(`raci\n\nTask\n  Cap: A\n  Crew: S`).variant).toBe(
+      'rasci'
+    );
+  });
+
+  it('inference picks DACI when a D marker appears', () => {
+    expect(parseRaci(`raci\n\nTask\n  Cap: D\n  QM: A`).variant).toBe('daci');
+  });
+
+  it('rejects rasci/daci as chart-type ids (raci is the only chart type)', () => {
+    expect(parseRaci(`rasci\n\nTask\n  Cap: A`).error).not.toBeNull();
+    expect(parseRaci(`daci\n\nTask\n  Cap: D`).error).not.toBeNull();
   });
 });
 
@@ -433,5 +438,56 @@ Top
     expect(VARIANTS.raci.alphabet).toEqual(['R', 'A', 'C', 'I']);
     expect(VARIANTS.rasci.alphabet).toEqual(['R', 'A', 'S', 'C', 'I']);
     expect(VARIANTS.daci.alphabet).toEqual(['D', 'A', 'C', 'I']);
+  });
+});
+
+describe('parseRaci — colon-less and concatenated marker syntax', () => {
+  it('accepts role assignments without a colon', () => {
+    const r = parseRaci(`raci
+Task
+  Cap A
+  Crew R C`);
+    expect(r.error).toBeNull();
+    const t = r.tasksWithoutPhase[0];
+    expect(t.roleAssignments).toHaveLength(2);
+    expect(t.roleAssignments[0].displayName).toBe('Cap');
+    expect(t.roleAssignments[0].markers).toEqual(['A']);
+    expect(t.roleAssignments[1].displayName).toBe('Crew');
+    expect(t.roleAssignments[1].markers).toEqual(['R', 'C']);
+  });
+
+  it('accepts concatenated markers (no spaces between letters)', () => {
+    const r = parseRaci(`raci
+Task
+  Cap: AR
+  Crew RCI`);
+    expect(r.error).toBeNull();
+    const t = r.tasksWithoutPhase[0];
+    expect(t.roleAssignments[0].markers).toEqual(['A', 'R']);
+    expect(t.roleAssignments[1].markers).toEqual(['R', 'C', 'I']);
+  });
+
+  it('still treats free prose as a description when no marker token is present', () => {
+    const r = parseRaci(`raci
+Provision the hold
+  Salt pork biscuit fresh water for six weeks
+  Cap A`);
+    expect(r.error).toBeNull();
+    const t = r.tasksWithoutPhase[0];
+    expect(t.description).toBe('Salt pork biscuit fresh water for six weeks');
+    expect(t.roleAssignments).toHaveLength(1);
+    expect(t.roleAssignments[0].displayName).toBe('Cap');
+  });
+
+  it('supports a multi-word role name when followed by markers', () => {
+    const r = parseRaci(`raci
+Task
+  Senior Engineer A R
+  Junior Dev: C`);
+    expect(r.error).toBeNull();
+    const t = r.tasksWithoutPhase[0];
+    expect(t.roleAssignments[0].displayName).toBe('Senior Engineer');
+    expect(t.roleAssignments[0].markers).toEqual(['A', 'R']);
+    expect(t.roleAssignments[1].displayName).toBe('Junior Dev');
   });
 });

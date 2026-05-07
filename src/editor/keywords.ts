@@ -208,15 +208,16 @@ export const STATUS_KEYWORDS = new Set([
   'in-progress',
   'backlog',
   'ready',
-  // Tech-radar trend values
-  'new',
-  'up',
-  'down',
-  'stable',
+  // Tech-radar trend values (`new`, `up`, `down`, `stable`) are
+  // intentionally NOT in this set — they collide with common English
+  // prose ("Bring up coffee", "new requirement"). The tech-radar
+  // parser still validates them explicitly, and the completion
+  // provider still suggests them in trend-value position.
 ]);
 
 /** Modifier keywords — adjust declarations. */
 export const MODIFIER_KEYWORDS = new Set([
+  'as',
   'alias',
   'aka',
   'position',
