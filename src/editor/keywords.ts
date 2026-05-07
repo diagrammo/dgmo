@@ -19,6 +19,8 @@ export const CHART_TYPES = new Set([
   'journey-map',
   'pyramid',
   'ring',
+  'raci',
+  'cycle',
   // Data chart types
   'bar',
   'line',
@@ -176,6 +178,36 @@ export const DIRECTIVE_KEYWORDS = new Set([
   'rotate',
   'scale',
   'values',
+  // Color / no-color (cross-chart-type)
+  'color',
+  'no-color',
+  // Flowchart layout
+  'orientation-vertical',
+  // RACI
+  'variant-raci',
+  'variant-rasci',
+  'variant-daci',
+  'roles',
+  // Cycle
+  'direction-counterclockwise',
+  'circle-nodes',
+  'span',
+  // Journey-map
+  'no-legend',
+  'persona',
+  'score',
+  'pain',
+  'opportunity',
+  'thought',
+  // Mindmap
+  'collapsed',
+  // Tech-radar
+  'show-blip-legend',
+  // Gantt
+  'no-dependencies',
+  'sprint-length',
+  'sprint-number',
+  'sprint-start',
 ]);
 
 /** Control flow keywords — structural blocks. */
