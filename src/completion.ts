@@ -424,30 +424,29 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   ],
   [
     'journey-map',
+    // Spec §22 directives: `no-legend`, `active-tag`. `persona` is a
+    // structural keyword (like `tag` / `roles`), not a directive.
+    // `solid-fill` is added via SOLID_FILL_CAPABLE below.
     withGlobals({
       'no-legend': { description: 'Hide the score legend' },
-      persona: { description: 'Define the journey persona' },
+      'active-tag': { description: 'Active tag group name' },
     }),
   ],
   [
     'pyramid',
+    // Spec §23.5 documents `inverted`; `solid-fill` is added via
+    // SOLID_FILL_CAPABLE below (working but not yet in spec §23.5).
+    // `color`/`description` are layer pipe-metadata, not directives.
     withGlobals({
       inverted: { description: 'Flip apex to the bottom (funnel orientation)' },
-      color: { description: 'Override layer color (pipe metadata)' },
-      description: { description: 'Layer description (pipe or indented body)' },
     }),
   ],
   [
     'ring',
-    withGlobals({
-      color: {
-        description:
-          'Override ring color (pipe metadata; closed set of 11 named colors)',
-      },
-      description: {
-        description: 'Ring description (pipe shorthand or indented body)',
-      },
-    }),
+    // Per spec §24.5 the only chart-specific directive is `solid-fill`,
+    // applied via SOLID_FILL_CAPABLE below. `color`/`description` are
+    // layer pipe-metadata, not directives — they live in PIPE_METADATA.
+    withGlobals({}),
   ],
 ]);
 
@@ -681,6 +680,41 @@ export const PIPE_METADATA = new Map<
     {
       node: {
         color: { description: 'Color (role column tint, or phase bar tint)' },
+      },
+      edge: {},
+    },
+  ],
+  [
+    // Ring layer pipe metadata. Same node-bucket workaround as raci until
+    // multi-context (layer/role/phase) support lands.
+    'ring',
+    {
+      node: {
+        color: { description: 'Ring color (palette name)' },
+        description: { description: 'Layer description (one-liner shorthand)' },
+      },
+      edge: {},
+    },
+  ],
+  [
+    // Pyramid layer pipe metadata (spec §23.4). Identical surface to ring.
+    'pyramid',
+    {
+      node: {
+        color: { description: 'Layer color (palette name)' },
+        description: { description: 'Layer description (one-liner shorthand)' },
+      },
+      edge: {},
+    },
+  ],
+  [
+    // Journey-map step pipe metadata (spec §22). `score` is the only
+    // static key; tag aliases like `ch: Web` are user-defined via the
+    // `tag` block and resolved dynamically.
+    'journey-map',
+    {
+      node: {
+        score: { description: 'Step score (1–5 integer; high = good)' },
       },
       edge: {},
     },

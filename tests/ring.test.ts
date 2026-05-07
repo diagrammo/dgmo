@@ -5,7 +5,7 @@ import { renderRing } from '../src/ring/renderer';
 import { getPalette } from '../src/palettes';
 import { getRenderCategory, parseDgmo } from '../src/dgmo-router';
 import { suggestChartTypes } from '../src/chart-type-scoring';
-import { COMPLETION_REGISTRY } from '../src/completion';
+import { COMPLETION_REGISTRY, PIPE_METADATA } from '../src/completion';
 import { CHART_TYPES as EDITOR_CHART_TYPES } from '../src/editor/keywords';
 
 beforeAll(() => {
@@ -359,10 +359,14 @@ B`);
   it('completion registry exposes ring directives (AC 14)', () => {
     const spec = COMPLETION_REGISTRY.get('ring');
     expect(spec).toBeDefined();
-    expect(spec!.directives['color']).toBeDefined();
-    expect(spec!.directives['description']).toBeDefined();
     // solid-fill is mixed in for ring (it's in SOLID_FILL_CAPABLE).
     expect(spec!.directives['solid-fill']).toBeDefined();
+    // color/description are layer pipe metadata (spec §24.4), not
+    // directives — they live in PIPE_METADATA.
+    const pipe = PIPE_METADATA.get('ring');
+    expect(pipe).toBeDefined();
+    expect(pipe!.node['color']).toBeDefined();
+    expect(pipe!.node['description']).toBeDefined();
   });
 
   it('editor keywords set includes ring (AC 14)', () => {

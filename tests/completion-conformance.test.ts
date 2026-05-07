@@ -24,12 +24,20 @@ import { getAvailablePalettes } from '../src/palettes';
 import type { ConformanceFixture } from './fixtures/completion-conformance/_types';
 
 import { fixture as raciFixture } from './fixtures/completion-conformance/raci';
-// Future fixtures land here:
-// import { fixture as ringFixture } from './fixtures/completion-conformance/ring';
-// import { fixture as pyramidFixture } from './fixtures/completion-conformance/pyramid';
-// ...
+import { fixture as ringFixture } from './fixtures/completion-conformance/ring';
+import { fixture as pyramidFixture } from './fixtures/completion-conformance/pyramid';
+import { fixture as cycleFixture } from './fixtures/completion-conformance/cycle';
+import { fixture as journeyMapFixture } from './fixtures/completion-conformance/journey-map';
+import { fixture as mindmapFixture } from './fixtures/completion-conformance/mindmap';
 
-const fixtures: ConformanceFixture[] = [raciFixture];
+const fixtures: ConformanceFixture[] = [
+  raciFixture,
+  ringFixture,
+  pyramidFixture,
+  cycleFixture,
+  journeyMapFixture,
+  mindmapFixture,
+];
 
 const UNIVERSAL_DIRECTIVES = ['palette', 'theme'];
 
