@@ -48,7 +48,7 @@ Task
     expect(content).not.toContain('Cap: A R');
   });
 
-  it('inserts a new role-assignment line for a role not yet present', () => {
+  it('inserts new role-assignment lines in declared `roles` order', () => {
     const s = `raci
 roles Cap, QM, Crew
 
@@ -59,12 +59,13 @@ Task
       cellReplace(s, p, 'task', 'qm', 'C')
     );
     expect(changed).toBe(true);
-    // Inserted after existing role assignments.
+    // QM is declared between Cap and Crew, so the new line slots
+    // between them — not at the end.
     const lines = content.split('\n');
     const taskIdx = lines.findIndex((l) => l.trim() === 'Task');
     expect(lines[taskIdx + 1]).toMatch(/^ {2}Cap: A$/);
-    expect(lines[taskIdx + 2]).toMatch(/^ {2}Crew: R$/);
-    expect(lines[taskIdx + 3]).toMatch(/^ {2}QM: C$/);
+    expect(lines[taskIdx + 2]).toMatch(/^ {2}QM: C$/);
+    expect(lines[taskIdx + 3]).toMatch(/^ {2}Crew: R$/);
   });
 
   it('declared role display name is used when inserting', () => {

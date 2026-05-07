@@ -18,8 +18,6 @@ export {
   isVariantMarker,
 } from './variants';
 export type { ConstraintRule, VariantRuleSet } from './variants';
-export { parseTaskAnnotations } from './annotations';
-export type { ParsedTaskAnnotations } from './annotations';
 export type {
   ParsedRaci,
   RaciMarker,
@@ -27,5 +25,4 @@ export type {
   RaciTask,
   RaciPhase,
   RaciRoleAssignment,
-  RaciTaskAnnotation,
 } from './types';

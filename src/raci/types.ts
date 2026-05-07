@@ -15,9 +15,6 @@ export type RaciMarker = 'R' | 'A' | 'S' | 'C' | 'I' | 'D';
 /** Variant identifier — selects alphabet + constraint rule set. */
 export type RaciVariant = 'raci' | 'rasci' | 'daci';
 
-/** Recognized per-task `# annotation` flags. */
-export type RaciTaskAnnotation = 'allow-incomplete';
-
 /**
  * One `Role: <markers>` line under a task.
  *
@@ -38,8 +35,6 @@ export interface RaciTask {
   id: string;
   displayName: string;
   description: string;
-  /** Parsed `# annotation-name` flags from the trailing comment, validated. */
-  annotations: Set<RaciTaskAnnotation>;
   roleAssignments: RaciRoleAssignment[];
   lineNumber: number;
   endLineNumber: number;
@@ -49,6 +44,8 @@ export interface RaciTask {
 export interface RaciPhase {
   id: string;
   displayName: string;
+  /** Optional palette color from a `[Label](color)` suffix on the bracket. */
+  color?: string;
   tasks: RaciTask[];
   lineNumber: number;
   endLineNumber: number;
@@ -69,6 +66,12 @@ export interface ParsedRaci {
   roles: string[];
   /** Display name for each role (parallel to `roles`). */
   roleDisplayNames: string[];
+  /**
+   * Optional per-role palette color from `Cap(blue)` suffix in the
+   * roles block. Parallel to `roles`; entries default to `undefined`
+   * (renderer falls back to the neutral column tint).
+   */
+  roleColors: Array<string | undefined>;
   phases: RaciPhase[];
   /** Tasks declared without a parent phase. */
   tasksWithoutPhase: RaciTask[];

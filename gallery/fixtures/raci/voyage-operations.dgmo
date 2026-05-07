@@ -1,0 +1,41 @@
+raci Voyage Operations
+roles
+  Cap  | color: red
+  QM   | color: orange
+  Bos  | color: yellow
+  Nav  | color: blue
+  Crew | color: gray
+
+[Departure] | color: teal
+  Plot the course
+    Cap: A
+    Nav: R
+    QM: C
+  Provision the hold
+    QM: A R
+    Cap: C
+    Crew: I
+  Inspect rigging
+    Bos: A R
+    Crew: C
+
+[At Sea] | color: purple
+  Stand the watch
+    Bos: A
+    Crew: R
+  Take the noon sight
+    Cap: A
+    Nav: R
+  Mend sail damage
+    Bos: A
+    Crew: R
+    QM: I
+
+[Landfall] | color: green
+  Negotiate with port
+    Cap: A R
+    QM: C
+  Inventory the take
+    QM: A R
+    Cap: C
+    Crew: I

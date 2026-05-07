@@ -96,7 +96,7 @@ export function cellReplace(
   if (!roleDisplay) return null;
 
   const indent = inferAssignmentIndent(task, lines);
-  const insertAt = insertionLineFor(task);
+  const insertAt = insertionLineFor(task, roleId, parsed);
   const newLine = `${' '.repeat(indent)}${roleDisplay}: ${marker}`;
   lines.splice(insertAt, 0, newLine);
   return lines.join('\n');
@@ -276,18 +276,37 @@ function inferAssignmentIndent(task: RaciTask, lines: string[]): number {
  * task's last contentful line (description or role assignment) — or
  * directly after the task line when neither exists.
  */
-function insertionLineFor(task: RaciTask): number {
-  // `endLineNumber` is the last line of the task block; splice index
-  // is therefore endLineNumber (the next line after that block).
-  // For a brand-new task with no children, endLineNumber === lineNumber
-  // and we still want to insert AFTER the task line: index = endLineNumber.
-  const lastAssignmentLine =
-    task.roleAssignments.length > 0
-      ? Math.max(
-          ...task.roleAssignments.map(
-            (a: RaciRoleAssignment) => a.endLineNumber
-          )
-        )
-      : task.endLineNumber;
-  return lastAssignmentLine; // splice() inserts at this 0-based index → after lastAssignmentLine
+function insertionLineFor(
+  task: RaciTask,
+  roleId: string,
+  parsed: ParsedRaci
+): number {
+  // No existing role assignments — insert directly after the task block
+  // (after the task line and any description lines).
+  if (task.roleAssignments.length === 0) {
+    return task.endLineNumber;
+  }
+
+  // Match role-declaration order: insert before the first existing
+  // role assignment whose role-index is greater than this role's. If
+  // none has a higher index (i.e. this role belongs at the bottom of
+  // the declared order), append after the last existing assignment.
+  const targetIdx = parsed.roles.indexOf(roleId);
+  const lastAssignmentLine = Math.max(
+    ...task.roleAssignments.map((a: RaciRoleAssignment) => a.endLineNumber)
+  );
+  if (targetIdx < 0) {
+    // Role not registered (shouldn't normally happen since callers
+    // look up by parsed.roles index) — fall back to end-of-block.
+    return lastAssignmentLine;
+  }
+  for (const a of task.roleAssignments) {
+    const aIdx = parsed.roles.indexOf(a.id);
+    if (aIdx > targetIdx) {
+      // splice index = (1-based line) - 1 places the new line BEFORE
+      // the existing line at `a.lineNumber`.
+      return a.lineNumber - 1;
+    }
+  }
+  return lastAssignmentLine;
 }
