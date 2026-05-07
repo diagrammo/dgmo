@@ -27,7 +27,8 @@
 19. [Wireframe Diagrams](#19-wireframe-diagrams)
 20. [Pyramid Diagrams](#20-pyramid-diagrams)
 21. [Ring Diagrams](#21-ring-diagrams)
-22. [Colon Usage Summary](#22-colon-usage-summary)
+22. [RACI Matrices](#22-raci-matrices-raci--rasci--daci)
+23. [Colon Usage Summary](#23-colon-usage-summary)
 
 ---
 
@@ -1884,7 +1885,114 @@ When ring band thickness would force the in-band label below the readable floor 
 
 ---
 
-## 22. Colon Usage Summary
+## 22. RACI Matrices (RACI / RASCI / DACI)
+
+A tasks × roles responsibility matrix with author-time linting. **One chart type — `raci` — covers all three variants.** Variant is inferred from the markers used; an optional `variant-*` directive locks it explicitly.
+
+| Variant | Marker alphabet | Constraint |
+|---------|-----------------|------------|
+| RACI    | `R A C I`       | Exactly one Accountable per task |
+| RASCI   | `R A S C I`     | Exactly one Accountable per task |
+| DACI    | `D A C I`       | Exactly one Driver and one Approver per task |
+
+### Declaration
+
+```
+raci [Title]
+[directives]
+[Phase Label] [| color: <name>]               # optional bracketed phase header
+  Task name
+    Optional description line                  # multi-line, before the first role
+    Role: <markers>                            # space-delimited markers from the alphabet
+```
+
+Three-level indentation: phase → task → role assignment / description. Phase headers are optional. Combined-marker cells are written space-delimited (e.g. `Cap: A R`).
+
+### Example — RACI with phases
+
+```
+raci Voyage Operations
+roles
+  Cap  | color: red
+  QM   | color: orange
+  Bos  | color: yellow
+  Nav  | color: blue
+  Crew | color: gray
+
+[Departure] | color: teal
+  Plot the course
+    Heading, currents, weather window
+    Cap: A
+    Nav: R
+    QM: C
+  Provision the hold
+    QM: A R
+    Crew: I
+
+[At Sea] | color: purple
+  Stand the watch
+    Bos: A
+    Crew: R
+```
+
+### Example — DACI (variant inferred from `D`)
+
+```
+raci Choose the next port
+roles Cap, Nav, QM, Bos
+
+  Pick destination
+    Cap: D
+    Nav: A
+    QM: C
+    Bos: I
+```
+
+### Directives
+
+| Directive | Effect |
+|-----------|--------|
+| `variant-raci` / `variant-rasci` / `variant-daci` | Lock the chart to a specific variant. Markers outside the alphabet error. At most one per chart. |
+| `roles` | Declare column order. Inline (`roles Cap, QM, Bos`) is name-only; the indented block form supports per-role pipe metadata (`Cap \| color: red`). When present, unknown roles in tasks emit `W_RACI_UNKNOWN_ROLE`. |
+| `palette`, `theme`, `active-tag` | Universal options. |
+
+### Phase metadata
+
+Phase headers accept pipe metadata for per-phase styling:
+
+```
+[Departure] | color: teal
+[At Sea] | color: purple
+```
+
+The phase bar tints to a soft mix of the color over the background. Phases without metadata fall back to the neutral gray bar.
+
+### Diagnostic codes
+
+| Code | Severity | Fires when |
+|------|----------|------------|
+| `E_RACI_MULTI_ACCOUNTABLE` | error | RACI/RASCI task has more than one A |
+| `E_DACI_MULTI_DRIVER` | error | DACI task has more than one D |
+| `E_DACI_MULTI_ACCOUNTABLE` | error | DACI task has more than one A |
+| `E_RACI_INVALID_MARKER` | error | Marker isn't in the resolved variant's alphabet |
+| `E_RACI_UNEXPECTED_LINE` | error | Free-text line appears after the first role assignment |
+| `E_RACI_MIXED_VARIANTS` | error | Both `D` and `S` markers appear without a `variant-*` lock |
+| `E_RACI_DUPLICATE_VARIANT` | error | More than one `variant-*` directive in the chart |
+| `W_RACI_MISSING_ACCOUNTABLE` | warning | RACI/RASCI task has no A |
+| `W_RACI_MISSING_RESPONSIBLE` | warning | RACI/RASCI task has no R |
+| `W_DACI_MISSING_DRIVER` | warning | DACI task has no D |
+| `W_DACI_MISSING_ACCOUNTABLE` | warning | DACI task has no A |
+| `W_RACI_UNKNOWN_ROLE` | warning | Role used without being declared in `roles` |
+
+Warnings are non-blocking; there is no source-level suppression mechanism — by design, source should not silently mute the linter.
+
+### Display vs source ordering
+
+Markers in cells are always **rendered in canonical alphabet order** (`R A C I`, `R A S C I`, `D A C I`) regardless of source order. Source casing and order are preserved in the file; mutations operate on source order to keep round-trips byte-stable except for the cell that changed.
+
+---
+
+## 23. Colon Usage Summary
 
 ### Constructs Where Colons Are REQUIRED
 

@@ -22,7 +22,8 @@ When the `dgmo` MCP server is configured, prefer tools in this order:
 - Architecture diagrams, sequence diagrams, flowcharts
 - Data charts (bar, line, pie, scatter, heatmap, etc.)
 - ER diagrams, class diagrams, org charts
-- Project roadmaps, kanban boards, timelines
+- Project roadmaps, kanban boards, gantt charts, timelines
+- Responsibility matrices (RACI / RASCI / DACI), journey maps, pyramids, rings, mindmaps, wireframes, tech radars
 
 ## Quick syntax reference
 
@@ -106,9 +107,13 @@ API
   latency-ms: 45
 ```
 
-## All 31 chart types
+## All chart types
 
-bar, line, multi-line, area, pie, doughnut, radar, polar-area, bar-stacked, scatter, sankey, chord, function, heatmap, funnel, slope, wordcloud, arc, timeline, venn, quadrant, sequence, flowchart, state, class, er, org, kanban, c4, sitemap, infra
+**Data charts:** bar, line, multi-line, area, pie, doughnut, radar, polar-area, bar-stacked, scatter, sankey, chord, function, heatmap, funnel
+
+**Visualizations:** slope, wordcloud, arc, timeline, venn, quadrant, tech-radar, cycle, pyramid, ring
+
+**Diagrams:** sequence, flowchart, state, class, er, org, kanban, c4, sitemap, infra, gantt, boxes-and-lines, mindmap, wireframe, journey-map, raci (also `rasci`, `daci`)
 
 ## Common patterns
 
