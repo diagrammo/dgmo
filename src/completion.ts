@@ -303,54 +303,26 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'active-tag': { description: 'Active tag group name' },
     }),
   ],
-  // RACI / RASCI / DACI — three chart-type ids, one parser, same directives.
+  // RACI / RASCI / DACI — one chart type (`raci`), variant inferred from
+  // markers or locked via `variant-*` bare directive. `rasci`/`daci` are
+  // not first-line keywords so they get no separate registry entry.
   [
     'raci',
     withGlobals({
-      variant: {
-        description: 'Variant rule set',
-        values: ['raci', 'rasci', 'daci'],
+      'variant-raci': {
+        description: 'Lock chart to RACI variant (R / A / C / I markers)',
+      },
+      'variant-rasci': {
+        description:
+          'Lock chart to RASCI variant (adds Support — R / A / S / C / I)',
+      },
+      'variant-daci': {
+        description:
+          'Lock chart to DACI variant (Driver / Approver / Contributor / Informed)',
       },
       roles: {
         description:
-          'Comma-separated role list (declares column order; enables unknown-role linting)',
-      },
-      draft: {
-        description: 'Suppress missing-A / missing-R warnings during authoring',
-      },
-      'active-tag': { description: 'Active tag group name' },
-    }),
-  ],
-  [
-    'rasci',
-    withGlobals({
-      variant: {
-        description: 'Variant rule set',
-        values: ['raci', 'rasci', 'daci'],
-      },
-      roles: {
-        description:
-          'Comma-separated role list (declares column order; enables unknown-role linting)',
-      },
-      draft: {
-        description: 'Suppress missing-A / missing-R warnings during authoring',
-      },
-      'active-tag': { description: 'Active tag group name' },
-    }),
-  ],
-  [
-    'daci',
-    withGlobals({
-      variant: {
-        description: 'Variant rule set',
-        values: ['raci', 'rasci', 'daci'],
-      },
-      roles: {
-        description:
-          'Comma-separated role list (declares column order; enables unknown-role linting)',
-      },
-      draft: {
-        description: 'Suppress missing-A / missing-R warnings during authoring',
+          'Declare role column order (inline `roles A, B, C` or indented block with per-role pipe metadata)',
       },
       'active-tag': { description: 'Active tag group name' },
     }),
@@ -696,6 +668,21 @@ export const PIPE_METADATA = new Map<
         color: { description: 'Edge stroke color (palette name)' },
         width: { description: 'Edge stroke width in pixels' },
       },
+    },
+  ],
+  [
+    // RACI uses pipe metadata in two contexts: role declarations
+    // (`Cap | color: red`) and phase headers (`[Departure] | color: teal`).
+    // The current PIPE_METADATA shape only has node/edge buckets — we put
+    // `color` in `node` so completion fires after `|` regardless of context.
+    // Refactoring PIPE_METADATA to support role/phase/layer contexts is
+    // tracked separately.
+    'raci',
+    {
+      node: {
+        color: { description: 'Color (role column tint, or phase bar tint)' },
+      },
+      edge: {},
     },
   ],
 ]);
