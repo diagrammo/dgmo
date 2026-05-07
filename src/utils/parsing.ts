@@ -55,8 +55,12 @@ export const ALL_CHART_TYPES = new Set([
   'pyramid',
   'ring',
   'raci',
-  'rasci',
-  'daci',
+  // Note: `rasci` and `daci` are NOT first-line keywords. The `raci` parser
+  // covers all three variants — variant is inferred from markers (D → daci,
+  // S → rasci, else raci) or locked via the `variant-rasci`/`variant-daci`
+  // directive. They remain registered in `chart-types.ts` for AI suggestion
+  // (so "rasci matrix" prompts still resolve), but are intentionally absent
+  // here so first-line dispatch rejects them.
 ]);
 
 /**

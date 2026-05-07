@@ -166,8 +166,9 @@ const DIAGRAM_TYPES = new Set([
   'wireframe',
   'journey-map',
   'raci',
-  'rasci',
-  'daci',
+  // `rasci` and `daci` aren't first-line keywords — the raci parser handles
+  // all three variants. Suggestion entries in `chart-types.ts` map them back
+  // to raci with a `variant-*` directive; lookup APIs treat them as unknown.
 ]);
 const EXTENDED_CHART_TYPES = new Set([
   'scatter',
