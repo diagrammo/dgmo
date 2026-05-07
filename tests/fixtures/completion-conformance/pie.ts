@@ -1,0 +1,11 @@
+import type { ConformanceFixture } from './_types';
+
+// Spec §16 / §15.1. Share-of-total family — supports the full no-* trio.
+export const fixture: ConformanceFixture = {
+  chartType: 'pie',
+  specSection: '16',
+  firstLineKeyword: 'pie',
+  directives: ['no-name', 'no-value', 'no-percent', 'solid-fill'],
+  pipeKeys: {},
+  enumChecks: [{ directive: 'palette', source: 'palettes' }],
+};

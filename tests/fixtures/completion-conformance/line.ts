@@ -1,0 +1,12 @@
+import type { ConformanceFixture } from './_types';
+
+// Spec §16 / §15.1. Cartesian — `no-value` only. `era` is a structural
+// keyword (declares an era band), not a directive.
+export const fixture: ConformanceFixture = {
+  chartType: 'line',
+  specSection: '16',
+  firstLineKeyword: 'line',
+  directives: ['series', 'x-label', 'y-label', 'no-value'],
+  pipeKeys: {},
+  enumChecks: [{ directive: 'palette', source: 'palettes' }],
+};

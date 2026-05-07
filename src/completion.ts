@@ -165,6 +165,15 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
     }),
   ],
   [
+    'multi-line',
+    withGlobals({
+      series: { description: 'Series name(s)' },
+      'x-label': { description: 'X-axis label' },
+      'y-label': { description: 'Y-axis label' },
+      'no-value': { description: 'Hide value labels at each point' },
+    }),
+  ],
+  [
     'polar-area',
     withGlobals({
       'no-name': { description: 'Hide name from segment labels' },
@@ -270,8 +279,15 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   ],
   [
     'flowchart',
+    // Spec §5 §4.6: direction-lr, orientation-vertical, no-color, solid-fill
     withGlobals({
       'direction-lr': { description: 'Switch to left-to-right layout' },
+      'orientation-vertical': {
+        description: 'Use vertical orientation for ranks',
+      },
+      'no-color': {
+        description: 'Resolve all nodes to muted neutral fill',
+      },
     }),
   ],
   [
@@ -284,22 +300,33 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   ],
   [
     'er',
+    // Spec §9 §8.5: notation (chen/crow), active-tag.
     withGlobals({
+      notation: {
+        description: 'ER notation style',
+        values: ['chen', 'crow'],
+      },
       'active-tag': { description: 'Active tag group name' },
     }),
   ],
   [
     'org',
+    // Spec §7 §6.5: direction-tb, sub-node-label, show-sub-node-count,
+    // hide, active-tag. solid-fill via SOLID_FILL_CAPABLE.
     withGlobals({
+      'direction-tb': { description: 'Switch to top-to-bottom layout' },
       'sub-node-label': { description: 'Label for sub-nodes' },
       'show-sub-node-count': { description: 'Show sub-node counts' },
+      hide: { description: 'Hide tag:value pairs' },
       'active-tag': { description: 'Active tag group name' },
     }),
   ],
   [
     'kanban',
+    // Spec §11 §10.4: no-auto-color, hide, active-tag.
     withGlobals({
       'no-auto-color': { description: 'Disable automatic card coloring' },
+      hide: { description: 'Hide tag:value pairs' },
       'active-tag': { description: 'Active tag group name' },
     }),
   ],
@@ -329,15 +356,20 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   ],
   [
     'c4',
+    // Spec §8 §7.7: direction-tb, active-tag.
     withGlobals({
+      'direction-tb': { description: 'Switch to top-to-bottom layout' },
       'active-tag': { description: 'Active tag group name' },
     }),
   ],
   [
     'state',
+    // Spec §6 §5.5: direction-tb, no-color, solid-fill.
     withGlobals({
       'direction-tb': { description: 'Switch to top-to-bottom layout' },
-      color: { description: 'Color mode', values: ['off'] },
+      'no-color': {
+        description: 'Resolve all states to muted neutral fill',
+      },
     }),
   ],
   [
@@ -364,6 +396,7 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   ],
   [
     'gantt',
+    // Spec §13 §12.2 Options.
     withGlobals({
       start: { description: 'Project start date (YYYY-MM-DD)' },
       'today-marker': {
@@ -371,8 +404,14 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       },
       sort: { description: 'Sort order', values: ['time', 'group', 'tag'] },
       'critical-path': { description: 'Show critical path' },
-      dependencies: { description: 'Show dependencies' },
+      'no-dependencies': { description: 'Hide dependency arrows' },
+      'sprint-length': { description: 'Sprint duration (e.g. 2w)' },
+      'sprint-number': { description: 'Starting sprint number' },
+      'sprint-start': { description: 'Sprint start date (YYYY-MM-DD)' },
       'active-tag': { description: 'Active tag group name' },
+      // Legacy positive form `dependencies` — kept for back-compat. Use
+      // `no-dependencies` to suppress dependency arrows in new code.
+      dependencies: { description: 'Show dependencies (legacy form)' },
     }),
   ],
   [
@@ -399,15 +438,13 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   ],
   [
     'tech-radar',
+    // Spec §20 documents one directive: `show-blip-legend`. `rings` is a
+    // structural block keyword; quadrant/ring/trend/color are pipe metadata
+    // that live in PIPE_METADATA.
     withGlobals({
-      rings: { description: 'Ring names block (innermost to outermost)' },
-      quadrant: {
-        description:
-          'Quadrant position (top-left, top-right, bottom-left, bottom-right)',
+      'show-blip-legend': {
+        description: 'Render the four-column blip listing alongside the radar',
       },
-      ring: { description: 'Ring assignment for a blip' },
-      trend: { description: 'Blip trend (new, up, down, stable)' },
-      color: { description: 'Override quadrant color' },
     }),
   ],
   [

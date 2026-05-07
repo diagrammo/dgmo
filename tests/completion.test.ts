@@ -920,16 +920,21 @@ Techniques | quadrant: top-right
 // ============================================================
 
 describe('COMPLETION_REGISTRY — tech-radar', () => {
-  it('registers tech-radar directives', () => {
+  it('registers tech-radar directive + pipe metadata', () => {
     const spec = COMPLETION_REGISTRY.get('tech-radar');
     expect(spec).toBeDefined();
-    expect(spec!.directives).toHaveProperty('rings');
-    expect(spec!.directives).toHaveProperty('quadrant');
-    expect(spec!.directives).toHaveProperty('ring');
-    expect(spec!.directives).toHaveProperty('trend');
-    expect(spec!.directives).toHaveProperty('color');
-    // Global directives inherited
+    // Per spec §20, the only chart-specific directive is `show-blip-legend`.
+    // `rings` is a structural keyword; quadrant/ring/trend/color are pipe
+    // metadata that live in PIPE_METADATA.
+    expect(spec!.directives).toHaveProperty('show-blip-legend');
     expect(spec!.directives).toHaveProperty('palette');
     expect(spec!.directives).toHaveProperty('theme');
+
+    const pipe = PIPE_METADATA.get('tech-radar');
+    expect(pipe).toBeDefined();
+    expect(pipe!.node).toHaveProperty('quadrant');
+    expect(pipe!.node).toHaveProperty('ring');
+    expect(pipe!.node).toHaveProperty('trend');
+    expect(pipe!.node).toHaveProperty('color');
   });
 });

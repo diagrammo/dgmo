@@ -29,6 +29,44 @@ import { fixture as pyramidFixture } from './fixtures/completion-conformance/pyr
 import { fixture as cycleFixture } from './fixtures/completion-conformance/cycle';
 import { fixture as journeyMapFixture } from './fixtures/completion-conformance/journey-map';
 import { fixture as mindmapFixture } from './fixtures/completion-conformance/mindmap';
+// Data charts (spec §16)
+import { fixture as barFixture } from './fixtures/completion-conformance/bar';
+import { fixture as lineFixture } from './fixtures/completion-conformance/line';
+import { fixture as multiLineFixture } from './fixtures/completion-conformance/multi-line';
+import { fixture as areaFixture } from './fixtures/completion-conformance/area';
+import { fixture as pieFixture } from './fixtures/completion-conformance/pie';
+import { fixture as doughnutFixture } from './fixtures/completion-conformance/doughnut';
+import { fixture as polarAreaFixture } from './fixtures/completion-conformance/polar-area';
+import { fixture as radarFixture } from './fixtures/completion-conformance/radar';
+import { fixture as barStackedFixture } from './fixtures/completion-conformance/bar-stacked';
+import { fixture as scatterFixture } from './fixtures/completion-conformance/scatter';
+import { fixture as heatmapFixture } from './fixtures/completion-conformance/heatmap';
+import { fixture as funnelFixture } from './fixtures/completion-conformance/funnel';
+import { fixture as functionFixture } from './fixtures/completion-conformance/function';
+import { fixture as sankeyFixture } from './fixtures/completion-conformance/sankey';
+import { fixture as chordFixture } from './fixtures/completion-conformance/chord';
+// Visualizations (spec §17 + §15 timeline + §20 tech-radar)
+import { fixture as slopeFixture } from './fixtures/completion-conformance/slope';
+import { fixture as wordcloudFixture } from './fixtures/completion-conformance/wordcloud';
+import { fixture as arcFixture } from './fixtures/completion-conformance/arc';
+import { fixture as vennFixture } from './fixtures/completion-conformance/venn';
+import { fixture as quadrantFixture } from './fixtures/completion-conformance/quadrant';
+import { fixture as timelineFixture } from './fixtures/completion-conformance/timeline';
+import { fixture as techRadarFixture } from './fixtures/completion-conformance/tech-radar';
+// Diagrams (spec §3–§14, §19)
+import { fixture as sequenceFixture } from './fixtures/completion-conformance/sequence';
+import { fixture as flowchartFixture } from './fixtures/completion-conformance/flowchart';
+import { fixture as stateFixture } from './fixtures/completion-conformance/state';
+import { fixture as orgFixture } from './fixtures/completion-conformance/org';
+import { fixture as c4Fixture } from './fixtures/completion-conformance/c4';
+import { fixture as erFixture } from './fixtures/completion-conformance/er';
+import { fixture as classFixture } from './fixtures/completion-conformance/class';
+import { fixture as kanbanFixture } from './fixtures/completion-conformance/kanban';
+import { fixture as sitemapFixture } from './fixtures/completion-conformance/sitemap';
+import { fixture as infraFixture } from './fixtures/completion-conformance/infra';
+import { fixture as ganttFixture } from './fixtures/completion-conformance/gantt';
+import { fixture as boxesAndLinesFixture } from './fixtures/completion-conformance/boxes-and-lines';
+import { fixture as wireframeFixture } from './fixtures/completion-conformance/wireframe';
 
 const fixtures: ConformanceFixture[] = [
   raciFixture,
@@ -37,6 +75,44 @@ const fixtures: ConformanceFixture[] = [
   cycleFixture,
   journeyMapFixture,
   mindmapFixture,
+  // Data charts
+  barFixture,
+  lineFixture,
+  multiLineFixture,
+  areaFixture,
+  pieFixture,
+  doughnutFixture,
+  polarAreaFixture,
+  radarFixture,
+  barStackedFixture,
+  scatterFixture,
+  heatmapFixture,
+  funnelFixture,
+  functionFixture,
+  sankeyFixture,
+  chordFixture,
+  // Visualizations
+  slopeFixture,
+  wordcloudFixture,
+  arcFixture,
+  vennFixture,
+  quadrantFixture,
+  timelineFixture,
+  techRadarFixture,
+  // Diagrams
+  sequenceFixture,
+  flowchartFixture,
+  stateFixture,
+  orgFixture,
+  c4Fixture,
+  erFixture,
+  classFixture,
+  kanbanFixture,
+  sitemapFixture,
+  infraFixture,
+  ganttFixture,
+  boxesAndLinesFixture,
+  wireframeFixture,
 ];
 
 const UNIVERSAL_DIRECTIVES = ['palette', 'theme'];
