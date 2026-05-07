@@ -203,11 +203,31 @@ export const DIRECTIVE_KEYWORDS = new Set([
   'collapsed',
   // Tech-radar
   'show-blip-legend',
+  'trend',
   // Gantt
   'no-dependencies',
   'sprint-length',
   'sprint-number',
   'sprint-start',
+  // Bar-stacked / data-chart layout
+  'orientation-horizontal',
+  // Function
+  'x',
+  'shade',
+  // Wordcloud
+  'max',
+  'size',
+  // Arc
+  'order',
+  // C4
+  'tech',
+  'technology',
+  // Infra defaults + animate flags
+  'default-rps',
+  'default-latency-ms',
+  'default-uptime',
+  'animate',
+  'no-animate',
 ]);
 
 /** Control flow keywords — structural blocks. */
