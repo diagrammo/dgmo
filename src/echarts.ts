@@ -881,7 +881,9 @@ export function buildExtendedChartOption(
 
   // Scatter plot
   if (parsed.type === 'scatter') {
-    const bg = isDark ? palette.surface : palette.bg;
+    // Label rect bg matches the chart bg so it disappears against the plot area
+    // while still masking connector lines behind the text.
+    const bg = palette.bg;
     return buildScatterOption(
       parsed,
       palette,
