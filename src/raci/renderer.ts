@@ -1026,10 +1026,24 @@ function renderPhaseBar(
     const summaryColBodyW = roleColW - 2 * summaryInset;
     const SUMMARY_CHIP_H = 24;
     const SUMMARY_LETTER_FONT = 13;
+    /** Below this slice width chips read as squashed/overlapping (the
+     *  letter inside no longer has breathing room). When any column's
+     *  worst-case slice width would fall below this, suppress the
+     *  whole bar's summary so we never show a half-broken render. */
+    const SUMMARY_MIN_SLICE_W = 22;
     const summaryY = y + (PHASE_HEIGHT - SUMMARY_CHIP_H) / 2;
 
+    // Pre-pass: compute each column's marker-union AND the worst-case
+    // slice width across all columns. If the worst is below the
+    // readable threshold, bail entirely — better to show a clean
+    // "Filing 3 tasks" bar than crowded illegible chips in one column.
+    const columnUnions: Array<{
+      colIdx: number;
+      ordered: RaciMarker[];
+      sliceW: number;
+    }> = [];
+    let worstSliceW = Infinity;
     roles.forEach((roleId, colIdx) => {
-      // Collect every marker used in (this column × any task in this phase).
       const used = new Set<RaciMarker>();
       for (const t of phase.tasks) {
         const a = t.roleAssignments.find((r) => r.id === roleId);
@@ -1040,6 +1054,12 @@ function renderPhaseBar(
       const ordered = sortByAlphabet([...used], alphabet);
       const totalGap = SLICE_GAP * Math.max(0, ordered.length - 1);
       const sliceW = (summaryColBodyW - totalGap) / ordered.length;
+      columnUnions.push({ colIdx, ordered, sliceW });
+      if (sliceW < worstSliceW) worstSliceW = sliceW;
+    });
+    if (worstSliceW < SUMMARY_MIN_SLICE_W) return;
+
+    columnUnions.forEach(({ colIdx, ordered, sliceW }) => {
       const startX = roleX(colIdx) + summaryInset;
 
       ordered.forEach((marker, i) => {
