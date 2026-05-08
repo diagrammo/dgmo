@@ -19,6 +19,17 @@ const FIXTURES = [
   'area',
 ] as const;
 
+// Strip zrender's per-render CSS class numbering and `ecmeta_silent` flag
+// before snapshotting. Those attributes drift with global render-count state,
+// so the same chart fixture can produce different output depending on how
+// many other tests rendered first. We only care that the fill values + paths
+// are stable, not the auto-generated class names.
+function sanitize(svg: string): string {
+  return svg
+    .replace(/\s*class="zr\d+-cls-\d+"/g, '')
+    .replace(/\s*ecmeta_silent="(?:true|false)"/g, '');
+}
+
 describe('echarts shapeFill snapshots (TD-7 high-risk)', () => {
   for (const name of FIXTURES) {
     it(`${name} (nord light) — stable SVG output`, async () => {
@@ -33,7 +44,7 @@ describe('echarts shapeFill snapshots (TD-7 high-risk)', () => {
         'light',
         nordPalette.light
       );
-      expect(svg).toMatchSnapshot();
+      expect(sanitize(svg)).toMatchSnapshot();
     });
   }
 });
