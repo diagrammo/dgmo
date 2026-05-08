@@ -145,7 +145,13 @@ export interface ParsedExtendedChart {
 
 import type { PaletteColors } from './palettes';
 import { getSeriesColors, getSegmentColors } from './palettes';
-import { contrastText, mix, shapeFill } from './palettes/color-utils';
+import {
+  contrastText,
+  mix,
+  shapeFill,
+  hexToHSL,
+  hslToHex,
+} from './palettes/color-utils';
 import { parseChart } from './chart';
 import type { ParsedChart, ChartEra } from './chart';
 import { makeDgmoError, formatDgmoError, suggest } from './diagnostics';
@@ -1882,16 +1888,65 @@ function buildHeatmapOption(
   const columns = parsed.columns ?? [];
   const rowLabels = heatmapRows.map((r) => r.label);
 
-  // Convert row data to [colIndex, rowIndex, value] format
-  const data: [number, number, number][] = [];
+  // First pass: compute value range for the visualMap gradient.
   let minValue = Infinity;
   let maxValue = -Infinity;
-
-  heatmapRows.forEach((row, rowIndex) => {
-    row.values.forEach((value, colIndex) => {
-      data.push([colIndex, rowIndex, value]);
+  heatmapRows.forEach((row) => {
+    row.values.forEach((value) => {
       minValue = Math.min(minValue, value);
       maxValue = Math.max(maxValue, value);
+    });
+  });
+
+  // Mirror the visualMap gradient so we can derive per-cell label tints
+  // matching the cell fill.
+  const gradientStops = [
+    shapeFill(palette, palette.primary, isDark),
+    shapeFill(palette, palette.colors.cyan, isDark),
+    shapeFill(palette, palette.colors.yellow, isDark),
+    shapeFill(palette, palette.colors.orange, isDark),
+  ];
+  const gradientAt = (t: number): string => {
+    if (gradientStops.length === 1) return gradientStops[0];
+    const tt = Math.max(0, Math.min(1, t));
+    const seg = 1 / (gradientStops.length - 1);
+    const idx = Math.min(gradientStops.length - 2, Math.floor(tt / seg));
+    const localT = (tt - idx * seg) / seg;
+    return mix(gradientStops[idx + 1], gradientStops[idx], localT * 100);
+  };
+  const labelTint = (cellColor: string): string => {
+    const { h, s } = hexToHSL(cellColor);
+    // Pull saturation up so the tint reads as colored, not gray. Push
+    // lightness toward the bright end on dark themes and the deep end on
+    // light themes — keeps the label clearly a variation of the cell color.
+    const targetS = Math.min(75, Math.max(s + 25, 50));
+    const targetL = isDark ? 72 : 30;
+    return hslToHex(h, targetS, targetL);
+  };
+
+  type HeatmapDatum = {
+    value: [number, number, number];
+    label: { color: string };
+    emphasis: { label: { color: string } };
+    blur: { label: { color: string } };
+  };
+  const data: HeatmapDatum[] = [];
+  heatmapRows.forEach((row, rowIndex) => {
+    row.values.forEach((value, colIndex) => {
+      const t =
+        maxValue === minValue
+          ? 0.5
+          : (value - minValue) / (maxValue - minValue);
+      const tint = labelTint(gradientAt(t));
+      // Repeat the tint in emphasis/blur so ECharts state changes (triggered
+      // by hover, including the row/col handler in the app layer) don't
+      // reset label color back to the series default.
+      data.push({
+        value: [colIndex, rowIndex, value],
+        label: { color: tint },
+        emphasis: { label: { color: tint } },
+        blur: { label: { color: tint } },
+      });
     });
   });
 
@@ -1904,6 +1959,30 @@ function buildHeatmapOption(
   const slotWidth =
     columns.length > 0 ? ESTIMATED_CHART_WIDTH / columns.length : Infinity;
   const needsRotation = longestCol * CHAR_WIDTH > slotWidth * 0.85;
+
+  // Cell-label font sizing: target ~75% fill of cell, bounded by both height
+  // and per-character width (longest value drives width). Estimates assume
+  // a ~900×500 chart; ECharts scales the actual plot to its container, so
+  // these picks are approximate but stable across typical viewports.
+  const ESTIMATED_PLOT_W = 770;
+  const ESTIMATED_PLOT_H = 380;
+  const cellW =
+    columns.length > 0 ? ESTIMATED_PLOT_W / columns.length : ESTIMATED_PLOT_W;
+  const cellH =
+    heatmapRows.length > 0
+      ? ESTIMATED_PLOT_H / heatmapRows.length
+      : ESTIMATED_PLOT_H;
+  const maxValueChars = Math.max(
+    1,
+    ...heatmapRows.flatMap((r) => r.values.map((v) => String(v).length))
+  );
+  // Bold sans glyphs: width ≈ 0.55em, cap-height ≈ 0.72em.
+  const fontFromWidth = (cellW * 0.75) / (maxValueChars * 0.55);
+  const fontFromHeight = (cellH * 0.75) / 0.72;
+  const labelFontSize = Math.max(
+    16,
+    Math.min(72, Math.floor(Math.min(fontFromWidth, fontFromHeight)))
+  );
 
   return {
     ...CHART_BASE,
@@ -1920,7 +1999,7 @@ function buildHeatmapOption(
       data: columns,
       position: 'top',
       splitArea: {
-        show: true,
+        show: false,
       },
       axisLine: {
         lineStyle: { color: axisLineColor },
@@ -1941,7 +2020,7 @@ function buildHeatmapOption(
       data: rowLabels,
       inverse: true,
       splitArea: {
-        show: true,
+        show: false,
       },
       axisLine: {
         lineStyle: { color: axisLineColor },
@@ -1961,12 +2040,7 @@ function buildHeatmapOption(
       // intent and ECharts interpolates between them, producing high-saturation
       // cells where text is unreadable. Same opt-out as gantt and infra.
       inRange: {
-        color: [
-          shapeFill(palette, palette.primary, isDark),
-          shapeFill(palette, palette.colors.cyan, isDark),
-          shapeFill(palette, palette.colors.yellow, isDark),
-          shapeFill(palette, palette.colors.orange, isDark),
-        ],
+        color: gradientStops,
       },
     },
     series: [
@@ -1978,13 +2052,22 @@ function buildHeatmapOption(
           borderColor: bg,
         },
         label: {
+          // Per-cell `label.color` is set in `data` above (a tint of each
+          // cell's gradient color). textColor here is just a fallback.
           show: !parsed.noValue,
           color: textColor,
-          fontSize: 14,
+          fontSize: labelFontSize,
           fontWeight: 'bold' as const,
         },
+        // Hovered cell: stay as-is (label color comes from per-cell tint).
         emphasis: {
-          disabled: true,
+          itemStyle: { opacity: 1 },
+        },
+        // Non-hovered cells (set by the app's heatmap-hover handler): dim
+        // heavily. Row/col matches get a lighter dim applied at runtime
+        // via `dispatchAction({ type: 'highlight' })`.
+        blur: {
+          itemStyle: { opacity: 0.25 },
         },
       },
     ],
