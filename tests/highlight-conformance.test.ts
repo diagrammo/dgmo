@@ -8,106 +8,43 @@
  *   - the Lezer grammar doesn't tokenize the construct correctly
  *   - the post-processing in highlight-api.ts is overriding the role
  *
- * Adding coverage:
- *   1. Read the spec section.
- *   2. Create tests/fixtures/highlight-conformance/<chart-type>.ts.
- *   3. Add an import below.
+ * Drift protection:
+ *   The fixture set is auto-discovered via `import.meta.glob` and cross-
+ *   checked against the canonical `chartTypes` registry. Adding a new
+ *   chart type without a matching fixture file fails the coverage test.
  */
 import { describe, expect, it } from 'vitest';
 
+import { chartTypes } from '../src/chart-types';
 import { highlightDgmo } from '../src/editor/highlight-api';
 
 import type { HighlightFixture } from './fixtures/highlight-conformance/_types';
-import { fixture as raciFixture } from './fixtures/highlight-conformance/raci';
-import { fixture as ringFixture } from './fixtures/highlight-conformance/ring';
-import { fixture as pyramidFixture } from './fixtures/highlight-conformance/pyramid';
-import { fixture as cycleFixture } from './fixtures/highlight-conformance/cycle';
-import { fixture as journeyMapFixture } from './fixtures/highlight-conformance/journey-map';
-import { fixture as mindmapFixture } from './fixtures/highlight-conformance/mindmap';
-// Data charts (§16)
-import { fixture as barFixture } from './fixtures/highlight-conformance/bar';
-import { fixture as lineFixture } from './fixtures/highlight-conformance/line';
-import { fixture as multiLineFixture } from './fixtures/highlight-conformance/multi-line';
-import { fixture as areaFixture } from './fixtures/highlight-conformance/area';
-import { fixture as pieFixture } from './fixtures/highlight-conformance/pie';
-import { fixture as doughnutFixture } from './fixtures/highlight-conformance/doughnut';
-import { fixture as polarAreaFixture } from './fixtures/highlight-conformance/polar-area';
-import { fixture as radarFixture } from './fixtures/highlight-conformance/radar';
-import { fixture as barStackedFixture } from './fixtures/highlight-conformance/bar-stacked';
-import { fixture as scatterFixture } from './fixtures/highlight-conformance/scatter';
-import { fixture as sankeyFixture } from './fixtures/highlight-conformance/sankey';
-import { fixture as chordFixture } from './fixtures/highlight-conformance/chord';
-import { fixture as functionFixture } from './fixtures/highlight-conformance/function';
-import { fixture as heatmapFixture } from './fixtures/highlight-conformance/heatmap';
-import { fixture as funnelFixture } from './fixtures/highlight-conformance/funnel';
-// Visualizations (§17 + §15 timeline + §20 tech-radar)
-import { fixture as slopeFixture } from './fixtures/highlight-conformance/slope';
-import { fixture as wordcloudFixture } from './fixtures/highlight-conformance/wordcloud';
-import { fixture as arcFixture } from './fixtures/highlight-conformance/arc';
-import { fixture as timelineFixture } from './fixtures/highlight-conformance/timeline';
-import { fixture as vennFixture } from './fixtures/highlight-conformance/venn';
-import { fixture as quadrantFixture } from './fixtures/highlight-conformance/quadrant';
-import { fixture as techRadarFixture } from './fixtures/highlight-conformance/tech-radar';
-// Diagrams (§3-§14, §19)
-import { fixture as sequenceFixture } from './fixtures/highlight-conformance/sequence';
-import { fixture as flowchartFixture } from './fixtures/highlight-conformance/flowchart';
-import { fixture as stateFixture } from './fixtures/highlight-conformance/state';
-import { fixture as orgFixture } from './fixtures/highlight-conformance/org';
-import { fixture as c4Fixture } from './fixtures/highlight-conformance/c4';
-import { fixture as erFixture } from './fixtures/highlight-conformance/er';
-import { fixture as classFixture } from './fixtures/highlight-conformance/class';
-import { fixture as kanbanFixture } from './fixtures/highlight-conformance/kanban';
-import { fixture as sitemapFixture } from './fixtures/highlight-conformance/sitemap';
-import { fixture as infraFixture } from './fixtures/highlight-conformance/infra';
-import { fixture as ganttFixture } from './fixtures/highlight-conformance/gantt';
-import { fixture as boxesAndLinesFixture } from './fixtures/highlight-conformance/boxes-and-lines';
-import { fixture as wireframeFixture } from './fixtures/highlight-conformance/wireframe';
 
-const fixtures: HighlightFixture[] = [
-  raciFixture,
-  ringFixture,
-  pyramidFixture,
-  cycleFixture,
-  journeyMapFixture,
-  mindmapFixture,
-  barFixture,
-  lineFixture,
-  multiLineFixture,
-  areaFixture,
-  pieFixture,
-  doughnutFixture,
-  polarAreaFixture,
-  radarFixture,
-  barStackedFixture,
-  scatterFixture,
-  sankeyFixture,
-  chordFixture,
-  functionFixture,
-  heatmapFixture,
-  funnelFixture,
-  slopeFixture,
-  wordcloudFixture,
-  arcFixture,
-  timelineFixture,
-  vennFixture,
-  quadrantFixture,
-  techRadarFixture,
-  sequenceFixture,
-  flowchartFixture,
-  stateFixture,
-  orgFixture,
-  c4Fixture,
-  erFixture,
-  classFixture,
-  kanbanFixture,
-  sitemapFixture,
-  infraFixture,
-  ganttFixture,
-  boxesAndLinesFixture,
-  wireframeFixture,
-];
+const fixtureModules = import.meta.glob<{ fixture: HighlightFixture }>(
+  './fixtures/highlight-conformance/*.ts',
+  { eager: true }
+);
 
-for (const f of fixtures) {
+const fixturesByChartType = new Map<string, HighlightFixture>();
+for (const [path, mod] of Object.entries(fixtureModules)) {
+  if (path.endsWith('/_types.ts')) continue;
+  const f = mod.fixture;
+  if (!f) continue;
+  fixturesByChartType.set(f.chartType, f);
+}
+
+describe('highlight conformance — coverage', () => {
+  for (const ct of chartTypes) {
+    it(`has a fixture for chart type '${ct.id}'`, () => {
+      expect(
+        fixturesByChartType.has(ct.id),
+        `Missing highlight-conformance fixture for chart type '${ct.id}'. Add tests/fixtures/highlight-conformance/${ct.id}.ts.`
+      ).toBe(true);
+    });
+  }
+});
+
+for (const f of fixturesByChartType.values()) {
   describe(`highlight conformance — ${f.chartType} (spec §${f.specSection})`, () => {
     const tokens = highlightDgmo(f.source);
 

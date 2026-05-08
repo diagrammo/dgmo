@@ -20,6 +20,8 @@ export const CHART_TYPES = new Set([
   'pyramid',
   'ring',
   'raci',
+  'rasci',
+  'daci',
   'cycle',
   // Data chart types
   'bar',
