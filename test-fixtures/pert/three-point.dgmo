@@ -1,0 +1,15 @@
+pert Three-Point Sample
+time-unit d
+
+design 2 5 9
+  -> implement 3 7 14
+
+implement
+  -> review 1 2 4
+  -> qa 2 4 8
+
+review
+  -> ship 0.5 1 2
+
+qa
+  -> ship

@@ -365,6 +365,31 @@ export type {
   ResolvedGroup,
 } from './gantt/types';
 
+// ── PERT Diagram ──────────────────────────────────────────
+export { parsePert, looksLikePert, extractPertSymbols } from './pert/parser';
+export { analyzePert } from './pert/analyzer';
+export { layoutPert, relayoutPert } from './pert/layout';
+export { renderPert, renderPertForExport } from './pert/renderer';
+export type { PertRenderOptions } from './pert/renderer';
+export type {
+  ParsedPert,
+  PertActivity,
+  PertEdge,
+  PertGroup,
+  PertMilestone,
+  PertOptions,
+  PertDirection,
+  NodeDetail,
+  ResolvedActivity,
+  ResolvedGroup as ResolvedPertGroup,
+  ResolvedPert,
+  MonteCarloResult,
+  PertLayoutNode,
+  PertLayoutEdge,
+  PertLayoutGroup,
+  LayoutResult as PertLayoutResult,
+} from './pert/types';
+
 export { collapseOrgTree, focusOrgTree } from './org/collapse';
 export type {
   CollapsedOrgResult,

@@ -1,0 +1,13 @@
+pert
+time-unit w
+confidence medium
+
+A 1 2 3
+  -> B 2 3 4
+  -> C 1 2 3
+
+B
+  -> D 1 2 3
+
+C
+  -> D

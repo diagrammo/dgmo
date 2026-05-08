@@ -1,0 +1,14 @@
+pert
+time-unit w
+
+recruit crew 1 2 4
+  -> load powder 0.5 1 2
+
+load powder
+  -> sail to atoll 3 5 8
+
+sail to atoll
+  -> celebrate
+
+celebrate
+  -> divvy shares 1 2 3

@@ -1,0 +1,11 @@
+pert
+time-unit w
+
+recruit crew 1 2 4 as rc
+  -> load powder 0.5 1 2 as lp
+
+load powder
+  -> sail to atoll 3 5 8 as sa
+
+sa
+  -> count gold 1 2 3

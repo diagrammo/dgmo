@@ -132,6 +132,21 @@ export const chartTypes: readonly ChartTypeMeta[] = [
       'project milestones',
     ],
   },
+  {
+    id: 'pert',
+    description:
+      'Project network with three-point estimates, critical path, and uncertainty (Beta-PERT, Monte Carlo)',
+    triggers: [
+      'pert chart',
+      'pert diagram',
+      'project network',
+      'critical path method',
+      'monte carlo schedule',
+      'schedule risk',
+      'estimate uncertainty',
+      'project simulation',
+    ],
+  },
 
   // ── Tier 2 — Specialized structural diagrams ──────────────
   {

@@ -15,6 +15,7 @@ import { extractSymbols as extractErSymbols } from './er/parser';
 import { extractSymbols as extractFlowchartSymbols } from './graph/flowchart-parser';
 import { extractSymbols as extractInfraSymbols } from './infra/parser';
 import { extractSymbols as extractClassSymbols } from './class/parser';
+import { extractPertSymbols } from './pert/parser';
 import { parseFirstLine, ALL_CHART_TYPES } from './utils/parsing';
 import { CHART_TYPE_DESCRIPTIONS } from './dgmo-router';
 
@@ -392,6 +393,34 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
       'slo-p90-latency-ms': { description: 'SLO p90 latency target in ms' },
       'slo-warning-margin': { description: 'SLO warning margin percentage' },
       'active-tag': { description: 'Active tag group name' },
+    }),
+  ],
+  [
+    'pert',
+    withGlobals({
+      'time-unit': {
+        description: 'Time unit for activity durations',
+        values: ['min', 'h', 'd', 'bd', 'w', 'm', 'q', 'y'],
+      },
+      confidence: {
+        description: 'Confidence factor for M-only durations',
+        values: ['high', 'medium', 'low'],
+      },
+      direction: { description: 'Layout direction', values: ['LR', 'TB'] },
+      'node-detail': {
+        description: 'Node visual density',
+        values: ['compact', 'full'],
+      },
+      analysis: {
+        description: 'Analysis mode beyond analytical PERT',
+        values: ['monte-carlo'],
+      },
+      trials: { description: 'Monte Carlo trial count (default 10000)' },
+      seed: { description: 'Monte Carlo PRNG seed (deterministic)' },
+      'scrubber-trials': {
+        description: 'Fast-MC trials for the duration scrubber (default 300)',
+      },
+      milestone: { description: 'Zero-duration named event (diamond shape)' },
     }),
   ],
   [
@@ -1333,6 +1362,7 @@ registerExtractor('state', extractStateSymbols);
 registerExtractor('sitemap', extractSitemapSymbols);
 registerExtractor('c4', extractC4Symbols);
 registerExtractor('gantt', extractGanttSymbols);
+registerExtractor('pert', extractPertSymbols);
 registerExtractor('boxes-and-lines', extractBoxesAndLinesSymbols);
 registerExtractor('tech-radar', extractTechRadarSymbols);
 registerExtractor('cycle', extractCycleSymbols);

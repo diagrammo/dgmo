@@ -46,6 +46,7 @@ export const ALL_CHART_TYPES = new Set([
   'sitemap',
   'infra',
   'gantt',
+  'pert',
   'boxes-and-lines',
   'mindmap',
   'wireframe',

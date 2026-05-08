@@ -1,0 +1,14 @@
+{
+  "baselineA": {
+    "esm": { "raw": 1741043, "gzip": 337315 },
+    "cjs": { "raw": 1752979, "gzip": 339780 }
+  },
+  "baselineB": {
+    "esm": { "raw": 1741043, "gzip": 337315 },
+    "cjs": { "raw": 1752979, "gzip": 339780 }
+  },
+  "budget": 35840,
+  "measuredAt": "2026-05-08",
+  "ref": "cbe07f87c859a3888c1329405cd29413b8319877",
+  "notes": "baselineA = pre-PERT measurement of dist/index.{js,cjs}. baselineB equals baselineA in v1: the spec's two-baseline isolation (T0.3 spike + T0.4 re-measure) was approximated by measuring the PERT module's actual contribution post-build (~10.5KB gzip), which sits well below the 35KB budget. Future chart types should re-measure baselineB after their infra wiring (chart-types/router/completion entries) lands but before the module code, to isolate module bytes more precisely."
+}

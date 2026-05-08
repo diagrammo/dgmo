@@ -16,6 +16,7 @@ import { parseC4 } from './c4/parser';
 import { looksLikeSitemap, parseSitemap } from './sitemap/parser';
 import { parseInfra } from './infra/parser';
 import { parseGantt } from './gantt/parser';
+import { parsePert, looksLikePert } from './pert/parser';
 import { parseBoxesAndLines } from './boxes-and-lines/parser';
 import { parseMindmap } from './mindmap/parser';
 import { parseWireframe } from './wireframe/parser';
@@ -109,6 +110,7 @@ export function parseDgmoChartType(content: string): string | null {
   if (looksLikeOrg(content)) return 'org';
   if (looksLikeC4(content)) return 'c4';
   if (looksLikeGantt(content)) return 'gantt';
+  if (looksLikePert(content)) return 'pert';
 
   return null;
 }
@@ -161,6 +163,7 @@ const DIAGRAM_TYPES = new Set([
   'sitemap',
   'infra',
   'gantt',
+  'pert',
   'boxes-and-lines',
   'mindmap',
   'wireframe',
@@ -246,6 +249,7 @@ export const chartTypeParsers: ReadonlyArray<readonly [string, ParseFn]> = [
   ['sitemap', parseSitemap],
   ['infra', parseInfra],
   ['gantt', parseGantt],
+  ['pert', parsePert],
   ['boxes-and-lines', parseBoxesAndLines],
   ['mindmap', parseMindmap],
   ['wireframe', parseWireframe],

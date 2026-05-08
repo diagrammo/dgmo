@@ -7651,6 +7651,39 @@ export async function renderForExport(
     return finalizeSvgExport(container, theme, effectivePalette);
   }
 
+  if (detectedType === 'pert') {
+    const { parsePert } = await import('./pert/parser');
+    const { analyzePert } = await import('./pert/analyzer');
+    const { layoutPert } = await import('./pert/layout');
+    const { renderPert } = await import('./pert/renderer');
+
+    const effectivePalette = await resolveExportPalette(theme, palette);
+    const pertParsed = parsePert(content);
+    if (pertParsed.error || pertParsed.activities.length === 0) return '';
+
+    const pertResolved = analyzePert(pertParsed);
+    const pertLayout = layoutPert(pertResolved);
+
+    const titleHeight = pertParsed.title ? 40 : 0;
+    const PERT_PADDING = 20;
+    const exportW = pertLayout.width + PERT_PADDING * 2;
+    const exportH = pertLayout.height + PERT_PADDING * 2 + titleHeight;
+    const container = createExportContainer(exportW, exportH);
+
+    renderPert(
+      container,
+      pertResolved,
+      pertLayout,
+      effectivePalette,
+      theme === 'dark',
+      {
+        title: pertParsed.title,
+        exportDims: { width: exportW, height: exportH },
+      }
+    );
+    return finalizeSvgExport(container, theme, effectivePalette);
+  }
+
   if (detectedType === 'gantt') {
     const { parseGantt } = await import('./gantt/parser');
     const { calculateSchedule } = await import('./gantt/calculator');

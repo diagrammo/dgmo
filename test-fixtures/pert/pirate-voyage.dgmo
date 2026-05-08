@@ -1,0 +1,51 @@
+pert Pirate Voyage
+time-unit w
+confidence medium
+
+milestone voyage approved
+
+voyage approved
+  -> recruit crew
+
+[outfit ship]
+  recruit crew 1 2 4 as rc | confidence: low
+    -> load powder 0.5 1 2
+  careen hull 1 1.5 2.5
+    -> load powder
+  load powder
+    -> sail to atoll 3 5 8
+
+sail to atoll
+  -> atoll sighted
+
+milestone atoll sighted
+
+atoll sighted
+  -> decode map 0.5 1 3 | confidence: low
+  -> scout reef 1
+
+decode map
+  -> dig chest 1 2 5 | confidence: low
+
+scout reef
+  -> fight giant squid 0.5 1 3 | confidence: low
+
+dig chest
+  -> sail home 3 5 8
+
+fight giant squid
+  -> sail home
+
+sail home
+  -> count gold 0.5d
+  -> repair hull 2 3 5 | confidence: low
+  -> celebrate
+
+count gold
+  -> divvy shares 1 2 3
+
+repair hull
+  -> divvy shares
+
+celebrate
+  -> divvy shares

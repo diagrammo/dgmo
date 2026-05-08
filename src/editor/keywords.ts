@@ -12,6 +12,7 @@ export const CHART_TYPES = new Set([
   'sitemap',
   'infra',
   'gantt',
+  'pert',
   'boxes-and-lines',
   'wireframe',
   'tech-radar',
@@ -230,6 +231,16 @@ export const DIRECTIVE_KEYWORDS = new Set([
   'default-uptime',
   'animate',
   'no-animate',
+  // PERT
+  'time-unit',
+  'confidence',
+  'node-detail',
+  'analysis',
+  'monte-carlo',
+  'trials',
+  'seed',
+  'scrubber-trials',
+  'milestone',
 ]);
 
 /** Control flow keywords — structural blocks. */

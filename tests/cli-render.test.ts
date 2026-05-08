@@ -140,6 +140,13 @@ start 2024-01-15
 3d Testing
 0d Ship`,
 
+  pert: `pert Sample
+time-unit w
+A 1 2 3
+  -> B 1 2 3
+B
+  -> C 1 2 3`,
+
   'boxes-and-lines': `boxes-and-lines System
 API -> Database
 API -> Cache`,
@@ -249,6 +256,7 @@ const D3_TYPES = [
   'sitemap',
   'infra',
   'gantt',
+  'pert',
   'journey-map',
   'pyramid',
   'ring',
