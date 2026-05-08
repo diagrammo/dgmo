@@ -6515,9 +6515,6 @@ export function renderQuadrant(
   const xScale = d3Scale.scaleLinear().domain([0, 1]).range([0, chartWidth]);
   const yScale = d3Scale.scaleLinear().domain([0, 1]).range([chartHeight, 0]);
 
-  // Tooltip
-  const tooltip = createTooltip(container, palette, isDark);
-
   // Title
   renderChartTitle(
     svg,
@@ -6733,6 +6730,32 @@ export function renderQuadrant(
     ])
   );
 
+  // Renders the original watermark content (quadrant name) into a text element.
+  // Extracted so point hover can swap it for a hover state and restore on leave.
+  const renderWatermarkOriginal = (
+    textEl: SVGTextElement,
+    d: (typeof quadrantDefsWithLabel)[number]
+  ) => {
+    const layout = labelLayouts.get(d.label!.text)!;
+    const el = d3Selection.select(textEl);
+    el.text(null)
+      .attr('font-size', `${layout.fontSize}px`)
+      .attr('font-weight', '700');
+    if (layout.lines.length === 1) {
+      el.text(layout.lines[0]);
+    } else {
+      const lineH = layout.fontSize * 1.2;
+      const totalH = layout.lines.length * lineH;
+      const startY = -totalH / 2 + lineH / 2;
+      layout.lines.forEach((line, i) => {
+        el.append('tspan')
+          .attr('x', d.labelX)
+          .attr('dy', i === 0 ? `${startY}px` : `${lineH}px`)
+          .text(line);
+      });
+    }
+  };
+
   const quadrantLabelTexts = chartG
     .selectAll('text.quadrant-label')
     .data(quadrantDefsWithLabel)
@@ -6744,8 +6767,6 @@ export function renderQuadrant(
     .attr('text-anchor', 'middle')
     .attr('dominant-baseline', 'central')
     .attr('fill', quadrantLabelColor)
-    .attr('font-size', (d) => `${labelLayouts.get(d.label!.text)!.fontSize}px`)
-    .attr('font-weight', '700')
     .attr('data-line-number', (d) =>
       d.label?.lineNumber ? String(d.label.lineNumber) : null
     )
@@ -6753,22 +6774,7 @@ export function renderQuadrant(
       onClickItem && d.label?.lineNumber ? 'pointer' : 'default'
     )
     .each(function (d) {
-      const layout = labelLayouts.get(d.label!.text)!;
-      const el = d3Selection.select(this);
-      if (layout.lines.length === 1) {
-        el.text(layout.lines[0]);
-      } else {
-        // Multi-line: use tspan elements, offset from center
-        const lineH = layout.fontSize * 1.2;
-        const totalH = layout.lines.length * lineH;
-        const startY = -totalH / 2 + lineH / 2;
-        layout.lines.forEach((line, i) => {
-          el.append('tspan')
-            .attr('x', d.labelX)
-            .attr('dy', i === 0 ? `${startY}px` : `${lineH}px`)
-            .text(line);
-        });
-      }
+      renderWatermarkOriginal(this as SVGTextElement, d);
     });
 
   if (onClickItem) {
@@ -6997,8 +7003,9 @@ export function renderQuadrant(
       .attr('stroke', pointColor)
       .attr('stroke-width', 2);
 
-    // Label at computed position
-    pointG
+    // Label at computed position. Name is always shown; coords sit below
+    // (smaller, lighter weight) and only appear on hover.
+    const labelText = pointG
       .append('text')
       .attr('x', placed.x)
       .attr('y', placed.y)
@@ -7008,23 +7015,49 @@ export function renderQuadrant(
       .attr('font-size', `${POINT_LABEL_FONT_SIZE}px`)
       .attr('font-weight', '700')
       .style('text-shadow', `0 1px 2px ${shadowColor}`)
-      .text(point.label);
+      .style('transition', 'y 120ms ease-out');
 
-    // Interactivity
-    const tipHtml = `<strong>${point.label}</strong><br>x: ${point.x.toFixed(2)}, y: ${point.y.toFixed(2)}`;
+    labelText.append('tspan').text(point.label);
+
+    const coordsTspan = labelText
+      .append('tspan')
+      .attr('class', 'point-coords')
+      .attr('x', placed.x)
+      .attr('dy', `${POINT_LABEL_FONT_SIZE}px`)
+      .attr('font-size', '10px')
+      .attr('font-weight', '500')
+      .attr('opacity', 0)
+      .text(`${point.x.toFixed(2)}, ${point.y.toFixed(2)}`);
+
+    // On hover, shift the label away from the dot so the coords line
+    // (which sits below the name) doesn't land on the circle.
+    const COORDS_LINE_H = 14;
+    const bumpDy = placed.y < cy ? -COORDS_LINE_H : COORDS_LINE_H;
 
     pointG
       .style('cursor', onClickItem ? 'pointer' : 'default')
-      .on('mouseenter', (event: MouseEvent) => {
-        showTooltip(tooltip, tipHtml, event);
+      .on('mouseenter', () => {
         pointG.select('circle').attr('r', 8);
-      })
-      .on('mousemove', (event: MouseEvent) => {
-        showTooltip(tooltip, tipHtml, event);
+        labelText.attr('y', placed.y + bumpDy);
+        coordsTspan.attr('opacity', 1);
+        quadrantRects.attr('opacity', (qd) =>
+          qd.position === quadrant ? 1 : 0.3
+        );
+        quadrantLabelTexts.attr('opacity', (qd) =>
+          qd.position === quadrant ? 1 : 0.3
+        );
+        pointsG
+          .selectAll<SVGGElement, unknown>('g.point-group')
+          .filter((_, j) => j !== i)
+          .attr('opacity', 0.3);
       })
       .on('mouseleave', () => {
-        hideTooltip(tooltip);
         pointG.select('circle').attr('r', POINT_RADIUS);
+        labelText.attr('y', placed.y);
+        coordsTspan.attr('opacity', 0);
+        quadrantRects.attr('opacity', 1);
+        quadrantLabelTexts.attr('opacity', 1);
+        pointsG.selectAll('g.point-group').attr('opacity', 1);
       })
       .on('click', () => {
         if (onClickItem && point.lineNumber) onClickItem(point.lineNumber);
