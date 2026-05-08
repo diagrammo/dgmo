@@ -1045,10 +1045,11 @@ function renderPhaseBar(
       ordered.forEach((marker, i) => {
         const cx = startX + i * (sliceW + SLICE_GAP);
         const rawColor = markerColor(marker, palette);
-        const fill = solid ? rawColor : mix(rawColor, surfaceBg, 22);
-        const stroke = solid
-          ? mix(rawColor, surfaceBg, 60)
-          : mix(rawColor, surfaceBg, 50);
+        // Match the cell-marker / legend-chip border treatment exactly:
+        // 28% mix fill (non-solid), full marker color stroke, NODE_RADIUS
+        // corner, NODE_STROKE_WIDTH border.
+        const fill = solid ? rawColor : mix(rawColor, surfaceBg, 28);
+        const stroke = solid ? mix(rawColor, surfaceBg, 70) : rawColor;
         const chipG = phaseG.append('g').attr('class', 'raci-phase-summary');
         chipG
           .append('rect')
@@ -1056,10 +1057,10 @@ function renderPhaseBar(
           .attr('y', summaryY)
           .attr('width', sliceW)
           .attr('height', SUMMARY_CHIP_H)
-          .attr('rx', 4)
+          .attr('rx', NODE_RADIUS)
           .attr('fill', fill)
           .attr('stroke', stroke)
-          .attr('stroke-width', 1.5);
+          .attr('stroke-width', NODE_STROKE_WIDTH);
         chipG
           .append('text')
           .attr('x', cx + sliceW / 2)
