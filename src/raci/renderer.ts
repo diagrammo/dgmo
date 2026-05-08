@@ -670,7 +670,17 @@ export function renderRaci(
         innerWidth,
         palette,
         row.collapsed,
-        autoAccent(Math.max(0, phaseIdx), palette)
+        autoAccent(Math.max(0, phaseIdx), palette),
+        // When collapsed, draw a per-column marker-union summary so users
+        // get a glance of "what roles are involved in this phase" without
+        // expanding it. Roles + roleX/roleColW + variant let renderPhaseBar
+        // compute and lay out the summary chips.
+        parsed.roles,
+        roleX,
+        roleColW,
+        parsed.variant,
+        surfaceBg,
+        solid
       );
     } else {
       renderTaskRow(
@@ -927,7 +937,15 @@ function renderPhaseBar(
   width: number,
   palette: PaletteColors,
   collapsed: boolean,
-  autoColor: string
+  autoColor: string,
+  // Role columns + variant. Supplied so a collapsed phase bar can paint
+  // a per-column marker-union summary in each role column's slot.
+  roles: ReadonlyArray<string>,
+  roleX: (i: number) => number,
+  roleColW: number,
+  variant: RaciVariant,
+  surfaceBg: string,
+  solid: boolean
 ): void {
   const phaseG = svg
     .append('g')
@@ -994,6 +1012,82 @@ function renderPhaseBar(
         .attr('fill', palette.textMuted)
         .text(`${taskCount} ${taskCount === 1 ? 'task' : 'tasks'}`);
     }
+
+    // Per-column marker-union summary. For each role column, walk every
+    // task in this phase, union the markers used in that column, and
+    // paint them as small letter chips in the column's slot. Lets users
+    // see "Cap is A and R, QM is C" without expanding.
+    const alphabet = VARIANTS[variant].alphabet;
+    const SUMMARY_LETTER_FONT = 10;
+    const SUMMARY_CHIP_H = 16;
+    const SUMMARY_CHIP_W = 14;
+    const SUMMARY_GAP = 2;
+    const summaryY = y + (PHASE_HEIGHT - SUMMARY_CHIP_H) / 2;
+
+    roles.forEach((roleId, colIdx) => {
+      // Collect every marker used in (this column × any task in this phase).
+      const used = new Set<RaciMarker>();
+      for (const t of phase.tasks) {
+        const a = t.roleAssignments.find((r) => r.id === roleId);
+        if (!a) continue;
+        for (const m of a.markers) used.add(m);
+      }
+      if (used.size === 0) return;
+      const ordered = sortByAlphabet([...used], alphabet);
+      const totalW =
+        ordered.length * SUMMARY_CHIP_W + (ordered.length - 1) * SUMMARY_GAP;
+      // Cap the strip to the column body so we never spill into the
+      // neighbor. If too many markers crowd the column, fall back to a
+      // tighter sub-pixel-style packing rather than overflow.
+      const colInsetX = 4;
+      const colBodyW = roleColW - 2 * colInsetX;
+      const drawW = Math.min(totalW, colBodyW);
+      const startX = roleX(colIdx) + (roleColW - drawW) / 2;
+      const stride =
+        ordered.length > 1
+          ? (drawW - SUMMARY_CHIP_W) / (ordered.length - 1)
+          : 0;
+
+      ordered.forEach((marker, i) => {
+        const cx = startX + (ordered.length > 1 ? i * stride : 0);
+        const rawColor = markerColor(marker, palette);
+        const fill = solid ? rawColor : mix(rawColor, surfaceBg, 22);
+        const stroke = solid
+          ? mix(rawColor, surfaceBg, 60)
+          : mix(rawColor, surfaceBg, 50);
+        const chipG = phaseG.append('g').attr('class', 'raci-phase-summary');
+        chipG
+          .append('rect')
+          .attr('x', cx)
+          .attr('y', summaryY)
+          .attr('width', SUMMARY_CHIP_W)
+          .attr('height', SUMMARY_CHIP_H)
+          .attr('rx', 3)
+          .attr('fill', fill)
+          .attr('stroke', stroke)
+          .attr('stroke-width', 0.75);
+        chipG
+          .append('text')
+          .attr('x', cx + SUMMARY_CHIP_W / 2)
+          .attr('y', summaryY + SUMMARY_CHIP_H / 2)
+          .attr('text-anchor', 'middle')
+          .attr('dominant-baseline', 'central')
+          .attr('font-size', SUMMARY_LETTER_FONT)
+          .attr('font-weight', 700)
+          .attr(
+            'fill',
+            solid
+              ? contrastText(
+                  fill,
+                  palette.textOnFillLight,
+                  palette.textOnFillDark
+                )
+              : palette.text
+          )
+          .attr('opacity', 0.95)
+          .text(marker);
+      });
+    });
   }
 }
 
