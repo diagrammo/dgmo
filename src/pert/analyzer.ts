@@ -21,9 +21,11 @@ import type {
   ResolvedActivity,
   ResolvedGroup,
   ResolvedPert,
+  MonteCarloResult,
 } from './types';
 import type { DurationEstimate } from './internal';
 import { resolveConfidence, CONFIDENCE_TABLE } from './internal';
+import { simulateCanonical, type ExpandedActivity } from './monte-carlo';
 
 // ============================================================
 // Duration arithmetic helpers
@@ -314,10 +316,64 @@ export function analyzePert(parsed: ParsedPert): ResolvedPert {
     };
   });
 
-  // Resolved groups: μ/σ rolled up along the group's internal critical path.
-  // For Phase 1 we use the M-world critical-set restricted to group members.
+  // Resolved groups: μ/σ rolled up along a path through the group. When
+  // MC is on (Phase 2), the rollup uses the modal-longest-path observed
+  // across trials; otherwise the M-world critical path.
+  let monteCarloResult: MonteCarloResult | null = null;
+
+  if (parsed.options.analysis === 'monte-carlo') {
+    const allTerminalsPoisoned = activities
+      .filter((a) => (successors.get(a.id) ?? []).length === 0)
+      .every((a) => poisoned.has(a.id));
+    if (allTerminalsPoisoned && activities.length > 0) {
+      const tbdNames = activities
+        .filter((a) => a.duration === null)
+        .map((a) => `"${a.name}"`)
+        .join(', ');
+      error(
+        0,
+        `Cannot run Monte Carlo — every project-end path is downstream of an unestimated activity. Estimate at least one of: ${tbdNames}.`
+      );
+    } else {
+      const expandedArr: ExpandedActivity[] = [];
+      for (const a of activities) {
+        const exp = expandedById.get(a.id);
+        if (exp) expandedArr.push({ id: a.id, o: exp.o, m: exp.m, p: exp.p });
+      }
+      // Build a preliminary ResolvedPert just for the simulator's graph
+      // shape. The simulator uses only `activities` (for ids) and `edges`.
+      const prelim: ResolvedPert = {
+        options: parsed.options,
+        activities: resolvedActivities,
+        edges,
+        groups: [],
+        projectMu: null,
+        projectSigma: null,
+        criticalPath,
+        monteCarloResult: null,
+        diagnostics: [],
+        error: null,
+      };
+      monteCarloResult = simulateCanonical(prelim, expandedArr, {
+        trials: parsed.options.trials,
+        seed: parsed.options.seed,
+      });
+      // Populate per-activity criticality on the resolved activities.
+      for (const ra of resolvedActivities) {
+        if (poisoned.has(ra.activity.id)) continue;
+        const c = monteCarloResult.criticalityByActivity[ra.activity.id];
+        ra.criticality = typeof c === 'number' ? c : null;
+      }
+    }
+  }
+
+  // For hammock rollup: use MC-derived modal-longest-path when MC is on.
+  const rollupSet =
+    monteCarloResult && monteCarloResult.modalCriticalPath.length > 0
+      ? new Set(monteCarloResult.modalCriticalPath)
+      : criticalSet;
   const resolvedGroups: ResolvedGroup[] = parsed.groups.map((g) =>
-    rollupGroup(g, expandedById, criticalSet, unit)
+    rollupGroup(g, expandedById, rollupSet, unit)
   );
 
   return {
@@ -329,7 +385,7 @@ export function analyzePert(parsed: ParsedPert): ResolvedPert {
     projectSigma:
       projectSigmaDays === null ? null : fromDays(projectSigmaDays, unit),
     criticalPath,
-    monteCarloResult: null,
+    monteCarloResult,
     diagnostics,
     error: parsed.error ?? firstFatal(diagnostics),
   };

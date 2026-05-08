@@ -1,0 +1,16 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`mulberry32 PRNG > AC3.2 portability tripwire — first 10 values at seed=42 are stable 1`] = `
+[
+  0.6011037519201636,
+  0.44829055899754167,
+  0.8524657934904099,
+  0.6697340414393693,
+  0.17481389874592423,
+  0.5265925421845168,
+  0.2732279943302274,
+  0.6247446539346129,
+  0.8654746483080089,
+  0.4723170551005751,
+]
+`;

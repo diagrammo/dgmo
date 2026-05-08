@@ -118,7 +118,15 @@ export function renderPert(
 
   renderGroups(root, resolved, layout, palette, isDark);
   renderEdges(root, resolved, layout, palette);
-  renderNodes(root, resolved, layout, palette, isDark, options.onClickItem);
+  renderNodes(
+    root,
+    defs,
+    resolved,
+    layout,
+    palette,
+    isDark,
+    options.onClickItem
+  );
   renderSummary(root, resolved, layout, palette);
 }
 
@@ -284,6 +292,7 @@ function renderEdges(
 
 function renderNodes(
   root: RootSel,
+  defs: Defs,
   resolved: ResolvedPert,
   layout: LayoutResult,
   palette: PaletteColors,
@@ -295,6 +304,7 @@ function renderNodes(
   const tbdSet = new Set<string>(
     resolved.activities.filter((r) => r.es === null).map((r) => r.activity.id)
   );
+  const mcOn = resolved.monteCarloResult !== null;
 
   for (const node of layout.nodes) {
     const r = byId.get(node.id);
@@ -303,9 +313,18 @@ function renderNodes(
     const isMilestone = r.activity.isMilestone;
     const isTbd = tbdSet.has(node.id);
 
-    const fill = isCritical
-      ? mix(palette.accent, palette.surface, 22)
-      : palette.surface;
+    // Criticality gradient when MC is on; binary tint when MC is off.
+    // Gamma curve (γ=1.8) compresses 0–30% into near-neutral and reserves
+    // saturated tints for the actionable risk band (60–100%).
+    let fill: string;
+    if (mcOn && r.criticality !== null) {
+      const tintPct = Math.pow(r.criticality, 1.8) * 100;
+      fill = mix(palette.accent, palette.surface, tintPct);
+    } else {
+      fill = isCritical
+        ? mix(palette.accent, palette.surface, 22)
+        : palette.surface;
+    }
     const stroke = isCritical ? palette.accent : palette.border;
     const strokeWidth = isCritical
       ? NODE_CRITICAL_STROKE_WIDTH
@@ -367,6 +386,42 @@ function renderNodes(
       .attr('stroke-width', strokeWidth)
       .attr('stroke-dasharray', dashArray);
 
+    // Diagonal-stripe overlay at criticality ≥ 90% — non-color signal
+    // for deuteranopia (per spec § Accessibility). Layered <line>
+    // elements clipped to the rectangle; avoids resvg <pattern> quirks.
+    if (mcOn && r.criticality !== null && r.criticality >= 0.9) {
+      const safeId = node.id.replace(/[^A-Za-z0-9_-]/g, '_');
+      const clipId = `pert-stripe-clip-${safeId}`;
+      defs
+        .append('clipPath')
+        .attr('id', clipId)
+        .append('rect')
+        .attr('x', -node.width / 2)
+        .attr('y', -node.height / 2)
+        .attr('width', node.width)
+        .attr('height', node.height)
+        .attr('rx', NODE_RADIUS)
+        .attr('ry', NODE_RADIUS);
+      const stripeG = g
+        .append('g')
+        .attr('class', 'pert-stripe-overlay')
+        .attr('clip-path', `url(#${clipId})`);
+      const halfW = node.width / 2;
+      const halfH = node.height / 2;
+      const span = node.width + node.height;
+      for (let offset = -span; offset <= span; offset += 4) {
+        stripeG
+          .append('line')
+          .attr('x1', -halfW + offset)
+          .attr('y1', -halfH)
+          .attr('x2', -halfW + offset + halfH * 2)
+          .attr('y2', halfH)
+          .attr('stroke', palette.text)
+          .attr('stroke-width', 1)
+          .attr('opacity', 0.4);
+      }
+    }
+
     const textColor = contrastText(
       fill,
       palette.textOnFillLight,
@@ -394,7 +449,7 @@ function renderNodes(
       .attr('x', 0)
       .attr('y', 14)
       .attr('text-anchor', 'middle')
-      .attr('fill', isCritical ? palette.text : palette.textMuted)
+      .attr('fill', isCritical ? textColor : palette.textMuted)
       .attr('font-size', NODE_SECONDARY_FONT_SIZE)
       .text(muStr);
   }
@@ -412,12 +467,25 @@ function renderSummary(
 ): void {
   if (resolved.activities.length === 0) return;
   const lines: string[] = [];
-  lines.push(
-    `Project μ: ${formatDuration(resolved.projectMu, resolved.options.timeUnit, '?')}`
-  );
+  const unit = resolved.options.timeUnit;
+  lines.push(`Project μ: ${formatDuration(resolved.projectMu, unit, '?')}`);
   if (resolved.projectSigma !== null) {
     lines.push(
-      `Project σ: ${formatDuration(resolved.projectSigma, resolved.options.timeUnit, '0')}`
+      `Project σ: ${formatDuration(resolved.projectSigma, unit, '0')}`
+    );
+  }
+  // Phase 2: when Monte Carlo ran, surface P50/P80/P95 in canonical days
+  // converted to the diagram's time-unit. The simulator stores these in
+  // canonical days (days), so we convert here.
+  const mc = resolved.monteCarloResult;
+  if (mc) {
+    const fmt = (days: number): string => {
+      const v = days / unitToDays(unit);
+      const r = Math.round(v * 100) / 100;
+      return `${r.toFixed(2).replace(/\.?0+$/, '')}${unit}`;
+    };
+    lines.push(
+      `P50: ${fmt(mc.p50)}    P80: ${fmt(mc.p80)}    P95: ${fmt(mc.p95)}`
     );
   }
   if (resolved.criticalPath.length > 0) {
@@ -477,6 +545,29 @@ function formatDuration(
   const rounded = Math.round(value * 100) / 100;
   const display = rounded.toFixed(2).replace(/\.?0+$/, '');
   return `${display}${unit}`;
+}
+
+/** Mirror of analyzer's UNIT_TO_DAYS — kept local to avoid a cycle. */
+function unitToDays(unit: DurationUnit): number {
+  switch (unit) {
+    case 'min':
+      return 1 / (60 * 24);
+    case 'h':
+      return 1 / 24;
+    case 'd':
+    case 'bd':
+      return 1;
+    case 'w':
+      return 7;
+    case 'm':
+      return 30;
+    case 'q':
+      return 90;
+    case 'y':
+      return 365;
+    case 's':
+      return 14;
+  }
 }
 
 // re-export to silence unused-type lint when consumers only want the helper
