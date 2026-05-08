@@ -204,8 +204,11 @@ const LEGEND_LETTER_FONT = 14;
 const HEADER_HEIGHT = 36;
 /** Each task row. */
 const ROW_HEIGHT = 36;
-/** Phase divider band height (full-width above the phase's tasks). */
-const PHASE_HEIGHT = 32;
+/** Phase divider band height (full-width above the phase's tasks).
+ *  Sized with breathing room so the per-column collapsed-phase
+ *  summary chips can match the regular cell geometry without crowding
+ *  the phase title. */
+const PHASE_HEIGHT = 40;
 /** Width allocated to the task-label column on the left. */
 const TASK_LABEL_MIN = 200;
 const TASK_LABEL_MAX = 360;
@@ -1015,13 +1018,14 @@ function renderPhaseBar(
 
     // Per-column marker-union summary. For each role column, walk every
     // task in this phase, union the markers used in that column, and
-    // paint them as small letter chips in the column's slot. Lets users
-    // see "Cap is A and R, QM is C" without expanding.
+    // paint chips that match the regular cell geometry — same column
+    // inset, same SLICE_GAP, so chips fill the column body and read
+    // as a compressed cell rather than a separate primitive.
     const alphabet = VARIANTS[variant].alphabet;
-    const SUMMARY_LETTER_FONT = 10;
-    const SUMMARY_CHIP_H = 16;
-    const SUMMARY_CHIP_W = 14;
-    const SUMMARY_GAP = 2;
+    const summaryInset = COLUMN_INSET + 4;
+    const summaryColBodyW = roleColW - 2 * summaryInset;
+    const SUMMARY_CHIP_H = 24;
+    const SUMMARY_LETTER_FONT = 13;
     const summaryY = y + (PHASE_HEIGHT - SUMMARY_CHIP_H) / 2;
 
     roles.forEach((roleId, colIdx) => {
@@ -1034,22 +1038,12 @@ function renderPhaseBar(
       }
       if (used.size === 0) return;
       const ordered = sortByAlphabet([...used], alphabet);
-      const totalW =
-        ordered.length * SUMMARY_CHIP_W + (ordered.length - 1) * SUMMARY_GAP;
-      // Cap the strip to the column body so we never spill into the
-      // neighbor. If too many markers crowd the column, fall back to a
-      // tighter sub-pixel-style packing rather than overflow.
-      const colInsetX = 4;
-      const colBodyW = roleColW - 2 * colInsetX;
-      const drawW = Math.min(totalW, colBodyW);
-      const startX = roleX(colIdx) + (roleColW - drawW) / 2;
-      const stride =
-        ordered.length > 1
-          ? (drawW - SUMMARY_CHIP_W) / (ordered.length - 1)
-          : 0;
+      const totalGap = SLICE_GAP * Math.max(0, ordered.length - 1);
+      const sliceW = (summaryColBodyW - totalGap) / ordered.length;
+      const startX = roleX(colIdx) + summaryInset;
 
       ordered.forEach((marker, i) => {
-        const cx = startX + (ordered.length > 1 ? i * stride : 0);
+        const cx = startX + i * (sliceW + SLICE_GAP);
         const rawColor = markerColor(marker, palette);
         const fill = solid ? rawColor : mix(rawColor, surfaceBg, 22);
         const stroke = solid
@@ -1060,15 +1054,15 @@ function renderPhaseBar(
           .append('rect')
           .attr('x', cx)
           .attr('y', summaryY)
-          .attr('width', SUMMARY_CHIP_W)
+          .attr('width', sliceW)
           .attr('height', SUMMARY_CHIP_H)
-          .attr('rx', 3)
+          .attr('rx', 4)
           .attr('fill', fill)
           .attr('stroke', stroke)
-          .attr('stroke-width', 0.75);
+          .attr('stroke-width', 1.5);
         chipG
           .append('text')
-          .attr('x', cx + SUMMARY_CHIP_W / 2)
+          .attr('x', cx + sliceW / 2)
           .attr('y', summaryY + SUMMARY_CHIP_H / 2)
           .attr('text-anchor', 'middle')
           .attr('dominant-baseline', 'central')
@@ -1084,7 +1078,6 @@ function renderPhaseBar(
                 )
               : palette.text
           )
-          .attr('opacity', 0.95)
           .text(marker);
       });
     });
