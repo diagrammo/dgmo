@@ -246,29 +246,9 @@ export function renderRing(
       const fill = layerFills[i];
       const isInnermost = i === 0;
       const labelY = isInnermost ? cy : cy - (i + 0.5) * thickness;
-      // Available horizontal half-width inside this band at the label's y.
-      // Innermost: full disc radius. Outer: chord at the label's offset
-      // from center (no inner cutout — at this y the inner circle doesn't
-      // reach). Pad inward a bit so text doesn't kiss the ring stroke.
-      const halfWidth = isInnermost
-        ? thickness
-        : Math.sqrt(i + 0.75) * thickness;
-      const textBudget = Math.max(20, halfWidth * 2 - 8);
-      // Pick the largest font that fits both vertical (band thickness) and
-      // horizontal (band chord at label y) constraints, then clamp.
-      const horizontalFit = Math.floor(
-        textBudget / Math.max(1, layer.label.length * CHAR_WIDTH_RATIO)
-      );
-      const fittedFont = clamp(
-        Math.min(labelFont, horizontalFit),
-        LABEL_FONT_MIN,
-        LABEL_FONT_MAX
-      );
-      // Skip the label entirely if even the floor doesn't fit — side list
-      // shows the name in that case.
-      if (fittedFont * layer.label.length * CHAR_WIDTH_RATIO > textBudget) {
-        continue;
-      }
+      // Font is sized purely by band thickness; horizontal overflow into
+      // adjacent bands is allowed so long labels still appear.
+      const fittedFont = labelFont;
       const textColor = contrastText(
         fill,
         palette.textOnFillLight,
