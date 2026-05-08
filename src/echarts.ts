@@ -1198,7 +1198,14 @@ function buildFunctionOption(
     return {
       name: fn.name,
       type: 'line' as const,
-      showSymbol: false,
+      // Invisible symbols at every sample act as hit targets so mouseover
+      // fires reliably along the curve (a thin line is a near-impossible
+      // target on its own). Transparent fill + zero border keeps them
+      // hidden in the base state; the hovered point becomes visible via
+      // emphasis below, marking the precise hover position.
+      showSymbol: true,
+      symbol: 'circle',
+      symbolSize: 12,
       smooth: true,
       data,
       lineStyle: {
@@ -1206,7 +1213,9 @@ function buildFunctionOption(
         color: fnColor,
       },
       itemStyle: {
-        color: fnColor,
+        color: 'transparent',
+        borderColor: 'transparent',
+        borderWidth: 0,
       },
       ...(parsed.shade && {
         areaStyle: {
@@ -1214,7 +1223,10 @@ function buildFunctionOption(
           opacity: 0.15,
         },
       }),
-      emphasis: EMPHASIS_SELF,
+      emphasis: {
+        ...EMPHASIS_SELF,
+        itemStyle: { color: fnColor, opacity: 1 },
+      },
       blur: BLUR_DIM,
     };
   });
