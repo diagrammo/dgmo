@@ -660,6 +660,35 @@ export function renderRaci(
 
   const hasAnyDiagnostic = taskDiagnostics.size > 0;
 
+  // Chart-wide collapsed-summary decision. If ANY collapsed phase would
+  // need a column whose chip-slice width drops below the readable
+  // threshold, suppress summary chips on EVERY collapsed bar — so the
+  // user never wonders "why does Filing have data but Settlement
+  // doesn't?". Either every collapsed bar shows chips or none do.
+  const SUMMARY_MIN_SLICE_W = 22;
+  const summaryInsetForCheck = COLUMN_INSET + 4;
+  const summaryColBodyWForCheck = roleColW - 2 * summaryInsetForCheck;
+  let chartCanShowSummaries = true;
+  for (const row of phasedRows) {
+    if (row.kind !== 'phase' || !row.collapsed) continue;
+    for (const roleId of parsed.roles) {
+      const used = new Set<RaciMarker>();
+      for (const t of row.phase.tasks) {
+        const a = t.roleAssignments.find((r) => r.id === roleId);
+        if (!a) continue;
+        for (const m of a.markers) used.add(m);
+      }
+      if (used.size === 0) continue;
+      const totalGap = SLICE_GAP * Math.max(0, used.size - 1);
+      const sliceW = (summaryColBodyWForCheck - totalGap) / used.size;
+      if (sliceW < SUMMARY_MIN_SLICE_W) {
+        chartCanShowSummaries = false;
+        break;
+      }
+    }
+    if (!chartCanShowSummaries) break;
+  }
+
   for (let i = 0; i < phasedRows.length; i++) {
     const row = phasedRows[i];
     const y = rowYs[i];
@@ -683,7 +712,8 @@ export function renderRaci(
         roleColW,
         parsed.variant,
         surfaceBg,
-        solid
+        solid,
+        chartCanShowSummaries
       );
     } else {
       renderTaskRow(
@@ -948,7 +978,12 @@ function renderPhaseBar(
   roleColW: number,
   variant: RaciVariant,
   surfaceBg: string,
-  solid: boolean
+  solid: boolean,
+  // Chart-wide flag from renderRaci. False when any collapsed phase
+  // anywhere on this chart would fail the slice-width threshold —
+  // we suppress the summary on every collapsed bar so coverage stays
+  // consistent (no "Filing has data, Settlement doesn't" confusion).
+  showSummary: boolean
 ): void {
   const phaseG = svg
     .append('g')
@@ -1016,6 +1051,11 @@ function renderPhaseBar(
         .text(`${taskCount} ${taskCount === 1 ? 'task' : 'tasks'}`);
     }
 
+    // Chart-wide gate: if any collapsed phase on this chart would have
+    // a column too narrow to render readable chips, suppress on every
+    // collapsed bar — coverage stays consistent.
+    if (!showSummary) return;
+
     // Per-column marker-union summary. For each role column, walk every
     // task in this phase, union the markers used in that column, and
     // paint chips that match the regular cell geometry — same column
@@ -1026,23 +1066,8 @@ function renderPhaseBar(
     const summaryColBodyW = roleColW - 2 * summaryInset;
     const SUMMARY_CHIP_H = 24;
     const SUMMARY_LETTER_FONT = 13;
-    /** Below this slice width chips read as squashed/overlapping (the
-     *  letter inside no longer has breathing room). When any column's
-     *  worst-case slice width would fall below this, suppress the
-     *  whole bar's summary so we never show a half-broken render. */
-    const SUMMARY_MIN_SLICE_W = 22;
     const summaryY = y + (PHASE_HEIGHT - SUMMARY_CHIP_H) / 2;
 
-    // Pre-pass: compute each column's marker-union AND the worst-case
-    // slice width across all columns. If the worst is below the
-    // readable threshold, bail entirely — better to show a clean
-    // "Filing 3 tasks" bar than crowded illegible chips in one column.
-    const columnUnions: Array<{
-      colIdx: number;
-      ordered: RaciMarker[];
-      sliceW: number;
-    }> = [];
-    let worstSliceW = Infinity;
     roles.forEach((roleId, colIdx) => {
       const used = new Set<RaciMarker>();
       for (const t of phase.tasks) {
@@ -1054,12 +1079,6 @@ function renderPhaseBar(
       const ordered = sortByAlphabet([...used], alphabet);
       const totalGap = SLICE_GAP * Math.max(0, ordered.length - 1);
       const sliceW = (summaryColBodyW - totalGap) / ordered.length;
-      columnUnions.push({ colIdx, ordered, sliceW });
-      if (sliceW < worstSliceW) worstSliceW = sliceW;
-    });
-    if (worstSliceW < SUMMARY_MIN_SLICE_W) return;
-
-    columnUnions.forEach(({ colIdx, ordered, sliceW }) => {
       const startX = roleX(colIdx) + summaryInset;
 
       ordered.forEach((marker, i) => {
