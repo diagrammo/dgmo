@@ -833,7 +833,6 @@ function renderLegend(
             : palette.text
         )
         .text(marker);
-      chipG.append('title').text(`${marker} — ${labelText}`);
       return;
     }
 
