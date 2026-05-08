@@ -49,8 +49,22 @@ import type {
   RaciVariant,
 } from './types';
 
-/** The canonical chart type — `rasci` and `daci` are no longer chart-type ids. */
-const RACI_CHART_TYPE_IDS: ReadonlySet<string> = new Set(['raci']);
+/**
+ * Chart-type ids accepted on the first line. All three route here via the
+ * router; writing `rasci` or `daci` as line 1 is equivalent to `raci` plus a
+ * `variant-rasci` / `variant-daci` lock directive.
+ */
+const RACI_CHART_TYPE_IDS: ReadonlySet<string> = new Set([
+  'raci',
+  'rasci',
+  'daci',
+]);
+
+/** First-line chart-type ids that imply a variant lock. */
+const CHART_TYPE_VARIANT_LOCK: Record<string, RaciVariant> = {
+  rasci: 'rasci',
+  daci: 'daci',
+};
 
 /** Variant lock directives — hyphenated bare keywords, one per variant. */
 const VARIANT_LOCK_DIRECTIVES: Record<string, RaciVariant> = {
@@ -172,19 +186,37 @@ export function parseRaci(
 
   let i = 0;
 
+  // Variant resolution happens after parse:
+  //   1. If a `variant-*` lock directive was present → use it.
+  //   2. Else infer from markers used (D → daci, S → rasci, else raci).
+  //   3. If both D and S without a lock → E_RACI_MIXED_VARIANTS.
+  // Writing `rasci` or `daci` as the first-line chart type also sets the
+  // lock, equivalent to a `variant-rasci` / `variant-daci` directive on
+  // line 1.
+  let lockedVariant: RaciVariant | null = null;
+  let lockedVariantLine = 0;
+
   // First non-empty / non-comment line: chart type + optional title.
   for (; i < lines.length; i++) {
     const trimmed = lines[i].trim();
     if (!trimmed || trimmed.startsWith('//')) continue;
     const firstLine = parseFirstLine(trimmed);
     if (!firstLine) {
-      return fail(i + 1, 'Expected chart type "raci" on the first line.');
+      return fail(
+        i + 1,
+        'Expected chart type "raci", "rasci", or "daci" on the first line.'
+      );
     }
     if (!RACI_CHART_TYPE_IDS.has(firstLine.chartType)) {
-      let msg = `Expected chart type "raci", got "${firstLine.chartType}"`;
-      const hint = suggest(firstLine.chartType, ['raci']);
+      let msg = `Expected chart type "raci", "rasci", or "daci", got "${firstLine.chartType}"`;
+      const hint = suggest(firstLine.chartType, ['raci', 'rasci', 'daci']);
       if (hint) msg += `. ${hint}`;
       return fail(i + 1, msg);
+    }
+    const impliedVariant = CHART_TYPE_VARIANT_LOCK[firstLine.chartType];
+    if (impliedVariant) {
+      lockedVariant = impliedVariant;
+      lockedVariantLine = i + 1;
     }
     if (firstLine.title) {
       result.title = firstLine.title;
@@ -193,13 +225,6 @@ export function parseRaci(
     i++;
     break;
   }
-
-  // Variant resolution happens after parse:
-  //   1. If a `variant-*` lock directive was present → use it.
-  //   2. Else infer from markers used (D → daci, S → rasci, else raci).
-  //   3. If both D and S without a lock → E_RACI_MIXED_VARIANTS.
-  let lockedVariant: RaciVariant | null = null;
-  let lockedVariantLine = 0;
 
   // ── Directives + body, single pass ───────────────────────────
 
@@ -385,11 +410,15 @@ export function parseRaci(
         if (lower in VARIANT_LOCK_DIRECTIVES) {
           const v = VARIANT_LOCK_DIRECTIVES[lower];
           if (lockedVariant !== null) {
-            errorAt(
-              lineNumber,
-              `Duplicate variant directive '${lower}'. A chart may declare at most one variant-* directive (previous lock was on line ${lockedVariantLine}).`,
-              RACI_ERROR_CODES.DUPLICATE_VARIANT
-            );
+            // Redundant restatement of the same lock is fine; conflicting
+            // locks (e.g. `rasci` chart type + `variant-daci`) error out.
+            if (lockedVariant !== v) {
+              errorAt(
+                lineNumber,
+                `Conflicting variant directive '${lower}' — chart already locked to '${lockedVariant}' on line ${lockedVariantLine}.`,
+                RACI_ERROR_CODES.DUPLICATE_VARIANT
+              );
+            }
           } else {
             lockedVariant = v;
             lockedVariantLine = lineNumber;

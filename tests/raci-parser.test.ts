@@ -361,9 +361,32 @@ Task
     expect(parseRaci(`raci\n\nTask\n  Cap: D\n  QM: A`).variant).toBe('daci');
   });
 
-  it('rejects rasci/daci as chart-type ids (raci is the only chart type)', () => {
-    expect(parseRaci(`rasci\n\nTask\n  Cap: A`).error).not.toBeNull();
-    expect(parseRaci(`daci\n\nTask\n  Cap: D`).error).not.toBeNull();
+  it('rasci as chart-type id locks the RASCI variant', () => {
+    const r = parseRaci(`rasci\n\nTask\n  Cap: A\n  Crew: R`);
+    expect(r.error).toBeNull();
+    expect(r.variant).toBe('rasci');
+    expect(codes(r)).not.toContain(RACI_ERROR_CODES.INVALID_MARKER);
+  });
+
+  it('daci as chart-type id locks the DACI variant', () => {
+    const r = parseRaci(`daci\n\nDecide\n  PM: D\n  Cap: A`);
+    expect(r.error).toBeNull();
+    expect(r.variant).toBe('daci');
+  });
+
+  it('matching variant directive after rasci chart type is silent', () => {
+    const r = parseRaci(`rasci\nvariant-rasci\n\nTask\n  Cap: A`);
+    expect(r.variant).toBe('rasci');
+    expect(codes(r)).not.toContain(RACI_ERROR_CODES.DUPLICATE_VARIANT);
+  });
+
+  it('conflicting variant directive after rasci chart type errors', () => {
+    const r = parseRaci(`rasci\nvariant-daci\n\nTask\n  Cap: A`);
+    expect(codes(r)).toContain(RACI_ERROR_CODES.DUPLICATE_VARIANT);
+  });
+
+  it('rejects unrelated chart-type ids on the first line', () => {
+    expect(parseRaci(`flowchart\n\nTask\n  Cap: A`).error).not.toBeNull();
   });
 });
 

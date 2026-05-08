@@ -487,6 +487,17 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
   ],
 ]);
 
+// `rasci` and `daci` accept the same directives as `raci` (they're variants of
+// the same chart type, just locked at the chart-type-id level). Mirror the
+// registry entry so completion works identically on all three.
+{
+  const raciSpec = COMPLETION_REGISTRY.get('raci');
+  if (raciSpec) {
+    COMPLETION_REGISTRY.set('rasci', raciSpec);
+    COMPLETION_REGISTRY.set('daci', raciSpec);
+  }
+}
+
 // ── Cross-chart-type bare-keyword option: `solid-fill` ──────────
 // Adds the directive to every chart type whose renderer actually responds to
 // it (i.e. uses `shapeFill()` and is not opted out). Chart types where the

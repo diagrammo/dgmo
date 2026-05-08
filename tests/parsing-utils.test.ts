@@ -83,6 +83,20 @@ describe('ALL_CHART_TYPES', () => {
     expect(ALL_CHART_TYPES.has('scatter')).toBe(true);
     expect(ALL_CHART_TYPES.has('unknown')).toBe(false);
   });
+
+  it('covers every id registered in chart-types.ts', async () => {
+    // Drift guard: chart-types.ts is the canonical registry. Anything
+    // listed there must be a valid first-line token, otherwise users
+    // following AI suggestions get an "expected chart type X" error.
+    const { chartTypes } = await import('../src/chart-types');
+    const missing = chartTypes
+      .map((c) => c.id)
+      .filter((id) => !ALL_CHART_TYPES.has(id));
+    expect(
+      missing,
+      `chart-types.ts ids missing from ALL_CHART_TYPES: ${missing.join(', ')}`
+    ).toEqual([]);
+  });
 });
 
 describe('OPTION_NOCOLON_RE', () => {

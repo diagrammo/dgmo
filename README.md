@@ -2,7 +2,7 @@
 
 A diagram markup language — parser, config builder, renderer, and color system.
 
-Write plain-text `.dgmo` files and render them as charts, diagrams, and visualizations. Supports 26 chart types — data charts, structural diagrams, and sequence diagrams. Ships as both a library and a standalone CLI.
+Write plain-text `.dgmo` files and render them as charts, diagrams, and visualizations. Supports 40+ chart types — data charts, structural diagrams, sequence diagrams, RACI matrices, and more. Ships as both a library and a standalone CLI.
 
 ## Language Reference
 

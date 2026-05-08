@@ -20,9 +20,9 @@ export const fixture: ConformanceFixture = {
   chartType: 'raci',
   specSection: '24A',
   firstLineKeyword: 'raci',
-  // rasci / daci are NOT first-line keywords — they're variant-lock directives
-  // and chart-type-id triggers used for AI suggestion only.
-  notFirstLineKeywords: ['rasci', 'daci'],
+  // `rasci` and `daci` are also valid first-line keywords — writing either as
+  // line 1 implicitly locks the variant (equivalent to `raci` + `variant-*`).
+  notFirstLineKeywords: [],
 
   // Directives the spec documents (palette/theme are universal — included
   // automatically by the harness for every chart type).
