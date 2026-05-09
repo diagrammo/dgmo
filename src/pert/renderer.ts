@@ -1228,9 +1228,9 @@ interface CaptionBullet {
   /** 0 = top-level bullet; 1 = sub-bullet (indented). */
   level: number;
   /**
-   * When true, render the bullet text in italic and omit the `•`
-   * glyph. Used for the D10 backward-anchor framing note that sits at
-   * the bottom of the caption box.
+   * When true, render the bullet text in italic. Bullets always carry
+   * a `•` glyph regardless; italic is a stylistic accent for the D10
+   * anchor framing note at the bottom of the caption box.
    */
   italic?: boolean;
 }
@@ -1358,7 +1358,7 @@ function renderCaptionBlock(
     const tspan = text
       .append('tspan')
       .attr('x', textX + indent)
-      .text(bullet.italic ? bullet.text : `• ${bullet.text}`);
+      .text(`• ${bullet.text}`);
     if (bullet.italic) tspan.attr('font-style', 'italic');
     if (i > 0) tspan.attr('dy', CAPTION_LINE_HEIGHT);
   });

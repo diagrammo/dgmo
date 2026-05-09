@@ -414,8 +414,9 @@ describe('pert renderer — date anchoring', () => {
     // subtitle element no longer exists.
     expect(svg).toContain('font-style="italic"');
     expect(svg).not.toContain('class="pert-anchor-annotation"');
-    // The italic bullet has no `•` glyph (contextual note, not a fact).
-    expect(svg).not.toContain('• Backward-anchored');
+    // Anchor note is rendered as a regular bullet — every line in the
+    // Summary box wears the `•` glyph for visual consistency.
+    expect(svg).toContain('• Backward-anchored');
   });
 
   it('backward anchor + TBD upstream: schedule cells fall back to "?"', () => {
