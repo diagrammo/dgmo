@@ -2,23 +2,38 @@
 // PERT Renderer (Phase 1 — static SVG)
 // ============================================================
 //
-// Phase 1 visual encoding:
-//   - rectangle nodes (compact = name + μ)
-//   - diamond shapes for milestones (60% width, label below)
+// Visual encoding (textbook 3×3 PERT/CPM box):
+//   - top row    [ ES | dur | EF ]
+//   - middle row [    name spans 3    ]
+//   - bottom row [ LS | slack | LF ]
 //   - dashed border for TBD activities (and downstream-of-TBD)
-//   - binary critical-path stroke (bold solid in palette accent)
+//   - criticality encoding (border + 25% fill tint + edge stroke):
+//       analytical mode (no MC):
+//         on M-world critical path → `palette.colors.red`
+//         else                     → `palette.primary` (default)
+//       Monte-Carlo mode (per-activity criticality index `c`):
+//         c ≥ 0.80 → red    (very likely on the critical path)
+//         c ≥ 0.50 → orange (often)
+//         c ≥ 0.25 → yellow (sometimes — could swing either way)
+//         c ≥ 0.10 → green  (occasionally)
+//         c ≥ 0.02 → blue   (rare but real)
+//         c <  0.02 → primary (default — effectively never)
+//     Border + fill share the same intent color (matching the org / infra
+//     "solid border, 25% muted fill" convention). Internal cell-grid
+//     lines inherit the same color at low opacity so the card reads as a
+//     single tinted unit. Edges pick the band from
+//     min(source.crit, target.crit) and a matching arrowhead marker.
+//     Collapsed groups inherit the band from the max member criticality
+//     (or any-member-critical when MC is off).
 //   - group bounding rects (cluster) and super-edges (hammock when collapsed)
 //   - data attrs on the `<g>` wrapper of each activity ONLY (per
 //     CLAUDE.md gotcha: children must NOT carry data attributes)
-//
-// Phase 2 will layer in: criticality gradient fill, slack bars,
-// σ-as-border-thickness, CDF curve. Those gate on `monteCarloResult`.
 
 import * as d3Selection from 'd3-selection';
 import * as d3Shape from 'd3-shape';
 import { FONT_FAMILY } from '../fonts';
 import type { PaletteColors } from '../palettes';
-import { contrastText, mix } from '../palettes/color-utils';
+import { contrastText, mix, shapeFill } from '../palettes/color-utils';
 import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
@@ -36,21 +51,78 @@ import type { Duration, DurationUnit } from '../gantt/types';
 
 const DIAGRAM_PADDING = 20;
 const NODE_FONT_SIZE = 13;
-const NODE_SECONDARY_FONT_SIZE = 11;
-const SUMMARY_FONT_SIZE = 11;
+const NODE_CELL_FONT_SIZE = 11;
+// Textbook 3×3 PERT/CPM box. Card rx=6 to match org/infra. The middle
+// row holds the name and is taller than the corner cells so the name
+// reads as the primary label (mirroring textbook proportions).
 const NODE_RADIUS = 6;
 const NODE_STROKE_WIDTH = 1.5;
-const NODE_CRITICAL_STROKE_WIDTH = 3;
-const EDGE_STROKE_WIDTH = 1.4;
-const EDGE_CRITICAL_STROKE_WIDTH = 2.4;
+const NODE_TOP_ROW_HEIGHT = 26;
+const NODE_BOTTOM_ROW_HEIGHT = 26;
+// Edge styling: non-critical edges follow `diagram-visual-conventions.md`
+// §4 (uniform textMuted stroke + width + arrowhead). Critical-path
+// edges deliberately deviate — they use `palette.colors.red` for the
+// stroke and a matching red arrowhead because the critical path is the
+// central concept of a PERT chart, and a binary `data-critical` attr
+// alone left it visually invisible to readers.
+const EDGE_STROKE_WIDTH = 1.5;
 const ARROWHEAD_W = 10;
 const ARROWHEAD_H = 7;
+// Group-rect treatment per §2: neutral surface fill on textMuted stroke,
+// solid border, rx=8, top-center 13pt 'bold' label inside a reserved
+// 28px header band — exactly matching org's container recipe.
+const CONTAINER_RADIUS = 8;
+const CONTAINER_LABEL_FONT_SIZE = 13;
+const CONTAINER_HEADER_HEIGHT = 28;
+// Collapse-bar height — see conventions doc §3 Pattern A/B (matches
+// org's `COLLAPSE_BAR_HEIGHT`). Universal "this is collapsed" signal.
+const COLLAPSE_BAR_HEIGHT = 6;
 
 const lineGenerator = d3Shape
   .line<{ x: number; y: number }>()
   .x((d) => d.x)
   .y((d) => d.y)
   .curve(d3Shape.curveBasis);
+
+// ============================================================
+// Criticality bands
+// ============================================================
+
+type Band = 'red' | 'orange' | 'yellow' | 'green' | 'blue' | null;
+
+/**
+ * Map a Monte-Carlo criticality index (0–1) to a color band, or `null`
+ * when the activity is essentially never on the critical path. The
+ * five-band split visualizes how schedule risk is distributed across
+ * candidate paths:
+ *   red    ≥ 0.80 — very likely critical, plan conservatively
+ *   orange ≥ 0.50 — often critical
+ *   yellow ≥ 0.25 — could swing either way
+ *   green  ≥ 0.10 — occasionally
+ *   blue   ≥ 0.02 — rare but non-zero
+ *   default       — effectively never critical
+ */
+function criticalityBand(c: number | null): Band {
+  if (c === null) return null;
+  if (c >= 0.8) return 'red';
+  if (c >= 0.5) return 'orange';
+  if (c >= 0.25) return 'yellow';
+  if (c >= 0.1) return 'green';
+  if (c >= 0.02) return 'blue';
+  return null;
+}
+
+function bandColor(
+  band: Band,
+  palette: PaletteColors,
+  fallback: string
+): string {
+  return band === null ? fallback : palette.colors[band];
+}
+
+function bandArrow(band: Band): string {
+  return band === null ? 'pert-arrow' : `pert-arrow-${band}`;
+}
 
 // ============================================================
 // Public API
@@ -64,20 +136,10 @@ export interface PertRenderOptions {
   /** Override container dimensions during export. */
   exportDims?: { width?: number; height?: number };
   /**
-   * When set, the activity with this id is rendered as an empty
-   * `<g>` containing a single `<foreignObject>` with an inner
-   * `<div data-pert-expanded-content>` slot. The default name + μ
-   * text is suppressed so the host app can mount custom content
-   * (e.g. an expanded React card) into the slot via `createPortal`.
-   * Layout dimensions for the expanded activity must be supplied
-   * via `relayoutPert(resolved, { [id]: {width, height} })`.
-   */
-  expandedActivityId?: string | null;
-  /**
    * Group ids that should render as a single collapsed surface.
    * When set, the renderer:
-   *   - draws the group rect with a solid fill and a rolled-up
-   *     summary label (name · N activities · μ in time-unit)
+   *   - draws the group rect with a solid fill and the rolled-up
+   *     attribute body (μ / σ / slack / ES·EF / LS·LF / criticality)
    *   - skips every activity node whose `groupId` is in this set
    *   - skips every edge whose source AND target are both inside a
    *     collapsed group (i.e. internal-only edges)
@@ -95,7 +157,7 @@ export function renderPert(
 ): void {
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
 
-  const titleHeight = options.title ? 40 : 0;
+  const titleHeight = options.title ? 80 : 0;
 
   const exportWidth =
     options.exportDims?.width ?? layout.width + DIAGRAM_PADDING * 2;
@@ -147,10 +209,8 @@ export function renderPert(
     palette,
     isDark,
     options.onClickItem,
-    options.expandedActivityId ?? null,
     collapsedSet
   );
-  renderSummary(root, resolved, layout, palette);
 }
 
 export function renderPertForExport(
@@ -165,7 +225,7 @@ export function renderPertForExport(
   const layout = layoutPert(resolved);
   const isDark = theme === 'dark';
 
-  const titleHeight = parsed.title ? 40 : 0;
+  const titleHeight = parsed.title ? 80 : 0;
   const exportWidth = layout.width + DIAGRAM_PADDING * 2;
   const exportHeight = layout.height + DIAGRAM_PADDING * 2 + titleHeight;
 
@@ -200,14 +260,10 @@ export function renderPertForExport(
 type Defs = d3Selection.Selection<SVGDefsElement, unknown, null, undefined>;
 
 function buildArrowheads(defs: Defs, palette: PaletteColors): void {
-  const variants: { id: string; fill: string }[] = [
-    { id: 'pert-arrow', fill: palette.textMuted },
-    { id: 'pert-arrow-critical', fill: palette.accent },
-  ];
-  for (const v of variants) {
+  const mk = (id: string, fill: string): void => {
     defs
       .append('marker')
-      .attr('id', v.id)
+      .attr('id', id)
       .attr('viewBox', `0 0 ${ARROWHEAD_W} ${ARROWHEAD_H}`)
       .attr('refX', ARROWHEAD_W)
       .attr('refY', ARROWHEAD_H / 2)
@@ -216,8 +272,14 @@ function buildArrowheads(defs: Defs, palette: PaletteColors): void {
       .attr('orient', 'auto')
       .append('polygon')
       .attr('points', `0,0 ${ARROWHEAD_W},${ARROWHEAD_H / 2} 0,${ARROWHEAD_H}`)
-      .attr('fill', v.fill);
-  }
+      .attr('fill', fill);
+  };
+  mk('pert-arrow', palette.textMuted);
+  mk('pert-arrow-red', palette.colors.red);
+  mk('pert-arrow-orange', palette.colors.orange);
+  mk('pert-arrow-yellow', palette.colors.yellow);
+  mk('pert-arrow-green', palette.colors.green);
+  mk('pert-arrow-blue', palette.colors.blue);
 }
 
 // ============================================================
@@ -237,66 +299,140 @@ function renderGroups(
   if (layout.groups.length === 0) return;
   const layer = root.append('g').attr('class', 'pert-groups');
   const unit = resolved.options.timeUnit;
+
+  // Container recipe (non-collapsed groups) — see
+  // `docs/architecture/diagram-visual-conventions.md` §2.
+  // PERT groups don't carry a color, so use the uncolored-group form:
+  // a neutral surface-on-bg mix that reads as a soft grey container,
+  // matching org's `Data Team` / `Frontend Team` look.
+  const containerFill = mix(palette.surface, palette.bg, 40);
+  const containerStroke = palette.textMuted;
+
+  // Collapsed-group surface — looks like a regular activity card per §3
+  // Pattern B. Same fill/stroke/radius as `renderNodes`. Border + fill
+  // both switch to the band color when any member activity is on the
+  // critical path (or by MC criticality band), so the rolled-up card
+  // mirrors the activity-card convention.
+
+  const mcOn = resolved.monteCarloResult !== null;
+  const groupHasCritical = (groupId: string): boolean =>
+    resolved.activities.some(
+      (a) => a.activity.groupId === groupId && a.isCriticalPath
+    );
+
+  const groupBand = (groupId: string, mcCriticality: number | null): Band =>
+    mcOn
+      ? criticalityBand(mcCriticality)
+      : groupHasCritical(groupId)
+        ? 'red'
+        : null;
+
   for (const grp of layout.groups) {
     if (grp.width <= 0 || grp.height <= 0) continue;
     const resolvedGroup = resolved.groups.find((rg) => rg.group.id === grp.id);
     const label = resolvedGroup?.group.name ?? grp.id;
     const isCollapsed = collapsedSet.has(grp.id);
-    const fill = isCollapsed
-      ? mix(palette.accent, palette.surface, 22)
-      : mix(palette.surface, palette.bg, isDark ? 60 : 80);
-    const stroke = isCollapsed ? palette.accent : palette.border;
-    const dashArray = isCollapsed
-      ? 'none'
-      : grp.classification === 'cluster'
-        ? '5,3'
-        : 'none';
 
     const g = layer
       .append('g')
-      .attr('class', 'pert-group')
+      .attr(
+        'class',
+        isCollapsed ? 'pert-group pert-group-collapsed' : 'pert-group'
+      )
       .attr('data-group-id', grp.id)
+      .attr('data-group-toggle', grp.id)
       .attr('data-collapsed', String(isCollapsed))
-      .attr('data-line-number', String(resolvedGroup?.group.lineNumber ?? 0));
+      .attr('data-line-number', String(resolvedGroup?.group.lineNumber ?? 0))
+      .style('cursor', 'pointer');
 
+    if (isCollapsed) {
+      // Render the rolled-up envelope as a textbook card with the
+      // group name in the middle band — visually identical to an
+      // activity node so users can read it the same way.
+      const muStr = formatDuration(resolvedGroup?.rolledMu ?? null, unit, '?');
+      const slackStr = formatDuration(resolvedGroup?.slack ?? null, unit, '?');
+      const esStr = formatDuration(resolvedGroup?.es ?? null, unit, '?');
+      const efStr = formatDuration(resolvedGroup?.ef ?? null, unit, '?');
+      const lsStr = formatDuration(resolvedGroup?.ls ?? null, unit, '?');
+      const lfStr = formatDuration(resolvedGroup?.lf ?? null, unit, '?');
+
+      const band = groupBand(grp.id, resolvedGroup?.criticality ?? null);
+      const cardBaseColor = bandColor(band, palette, palette.primary);
+      const cardFill = shapeFill(palette, cardBaseColor, isDark);
+      const cardLabelColor = contrastText(
+        cardFill,
+        palette.textOnFillLight,
+        palette.textOnFillDark
+      );
+      drawTextbookCard(g, {
+        width: grp.width,
+        height: grp.height,
+        x: grp.x,
+        y: grp.y,
+        name: label,
+        es: esStr,
+        dur: muStr,
+        ef: efStr,
+        ls: lsStr,
+        slack: slackStr,
+        lf: lfStr,
+        fill: cardFill,
+        stroke: cardBaseColor,
+        labelColor: cardLabelColor,
+      });
+
+      // Bottom collapse bar (universal "this is collapsed" signal —
+      // see conventions doc §3 Pattern B). Clipped to the card's
+      // rounded corners so it follows the rx.
+      const safeGroupId = grp.id.replace(/[^A-Za-z0-9_-]/g, '_');
+      const clipId = `pert-group-clip-${safeGroupId}`;
+      g.append('clipPath')
+        .attr('id', clipId)
+        .append('rect')
+        .attr('x', grp.x)
+        .attr('y', grp.y)
+        .attr('width', grp.width)
+        .attr('height', grp.height)
+        .attr('rx', NODE_RADIUS)
+        .attr('ry', NODE_RADIUS);
+      g.append('rect')
+        .attr('class', 'pert-collapse-bar')
+        .attr('x', grp.x)
+        .attr('y', grp.y + grp.height - COLLAPSE_BAR_HEIGHT)
+        .attr('width', grp.width)
+        .attr('height', COLLAPSE_BAR_HEIGHT)
+        .attr('fill', cardBaseColor)
+        .attr('clip-path', `url(#${clipId})`);
+      continue;
+    }
+
+    // Non-collapsed group — container recipe per conventions doc §2:
+    // neutral surface fill, textMuted stroke at 0.35 / width 1.5,
+    // rx=8, top-CENTER bold label inside the 28px reserved header band.
     g.append('rect')
       .attr('x', grp.x)
       .attr('y', grp.y)
       .attr('width', grp.width)
       .attr('height', grp.height)
-      .attr('rx', 8)
-      .attr('ry', 8)
-      .attr('fill', fill)
-      .attr('stroke', stroke)
-      .attr('stroke-width', isCollapsed ? 1.5 : 1)
-      .attr('stroke-dasharray', dashArray);
+      .attr('rx', CONTAINER_RADIUS)
+      .attr('ry', CONTAINER_RADIUS)
+      .attr('fill', containerFill)
+      .attr('stroke', containerStroke)
+      .attr('stroke-opacity', 0.35)
+      .attr('stroke-width', NODE_STROKE_WIDTH);
 
     g.append('text')
-      .attr('x', grp.x + 10)
-      .attr('y', grp.y + 14)
-      .attr('fill', palette.textMuted)
-      .attr('font-size', SUMMARY_FONT_SIZE)
-      .attr('font-weight', 600)
+      .attr('x', grp.x + grp.width / 2)
+      .attr(
+        'y',
+        grp.y + CONTAINER_HEADER_HEIGHT / 2 + CONTAINER_LABEL_FONT_SIZE / 2 - 2
+      )
+      .attr('text-anchor', 'middle')
+      .attr('font-family', FONT_FAMILY)
+      .attr('fill', palette.text)
+      .attr('font-size', CONTAINER_LABEL_FONT_SIZE)
+      .attr('font-weight', 'bold')
       .text(label);
-
-    if (isCollapsed) {
-      const memberCount = resolvedGroup?.group.activityIds.length ?? 0;
-      const muStr = formatDuration(resolvedGroup?.rolledMu ?? null, unit, '?');
-      const summary = `${memberCount} ${memberCount === 1 ? 'activity' : 'activities'} · μ ${muStr}`;
-      const textColor = contrastText(
-        fill,
-        palette.textOnFillLight,
-        palette.textOnFillDark
-      );
-      g.append('text')
-        .attr('x', grp.x + grp.width / 2)
-        .attr('y', grp.y + grp.height / 2 + 4)
-        .attr('text-anchor', 'middle')
-        .attr('fill', textColor)
-        .attr('font-size', NODE_FONT_SIZE)
-        .attr('font-weight', 600)
-        .text(summary);
-    }
   }
 }
 
@@ -313,12 +449,15 @@ function renderEdges(
 ): void {
   const layer = root.append('g').attr('class', 'pert-edges');
   const criticalSet = new Set(resolved.criticalPath);
+  const mcOn = resolved.monteCarloResult !== null;
 
   // Map activity → group for fast lookup so we can suppress edges
   // that live entirely inside a collapsed group.
   const activityGroup = new Map<string, string | undefined>();
+  const critById = new Map<string, number | null>();
   for (const a of resolved.activities) {
     activityGroup.set(a.activity.id, a.activity.groupId);
+    critById.set(a.activity.id, a.criticality);
   }
 
   for (const e of layout.edges) {
@@ -334,24 +473,32 @@ function renderEdges(
       continue; // internal-only edge of a collapsed group
     }
     const isCritical = criticalSet.has(e.source) && criticalSet.has(e.target);
+    let band: Band;
+    if (mcOn) {
+      const sc = critById.get(e.source);
+      const tc = critById.get(e.target);
+      const minC =
+        sc === null || tc === null || sc === undefined || tc === undefined
+          ? null
+          : Math.min(sc, tc);
+      band = criticalityBand(minC);
+    } else {
+      band = isCritical ? 'red' : null;
+    }
     const path = lineGenerator(e.points);
     if (!path) continue;
-    const stroke = isCritical ? palette.accent : palette.textMuted;
-    const markerId = isCritical ? 'pert-arrow-critical' : 'pert-arrow';
     layer
       .append('path')
       .attr('class', 'pert-edge')
       .attr('d', path)
       .attr('fill', 'none')
-      .attr('stroke', stroke)
-      .attr(
-        'stroke-width',
-        isCritical ? EDGE_CRITICAL_STROKE_WIDTH : EDGE_STROKE_WIDTH
-      )
-      .attr('marker-end', `url(#${markerId})`)
+      .attr('stroke', bandColor(band, palette, palette.textMuted))
+      .attr('stroke-width', EDGE_STROKE_WIDTH)
+      .attr('marker-end', `url(#${bandArrow(band)})`)
       .attr('data-source', e.source)
       .attr('data-target', e.target)
-      .attr('data-critical', String(isCritical));
+      .attr('data-critical', String(isCritical))
+      .attr('data-criticality-band', band ?? '');
   }
 }
 
@@ -361,13 +508,12 @@ function renderEdges(
 
 function renderNodes(
   root: RootSel,
-  defs: Defs,
+  _defs: Defs,
   resolved: ResolvedPert,
   layout: LayoutResult,
   palette: PaletteColors,
   isDark: boolean,
   onClickItem?: (lineNumber: number) => void,
-  expandedActivityId: string | null = null,
   collapsedSet: ReadonlySet<string> = new Set()
 ): void {
   const layer = root.append('g').attr('class', 'pert-nodes');
@@ -375,36 +521,33 @@ function renderNodes(
   const tbdSet = new Set<string>(
     resolved.activities.filter((r) => r.es === null).map((r) => r.activity.id)
   );
+  const unit = resolved.options.timeUnit;
+
+  // Match org / infra default-node treatment:
+  //   fill   = 25% tint of the node's intent color on surface (via shapeFill)
+  //   stroke = the node's intent color
+  // For critical-path / criticality-band nodes the intent color is the band
+  // hue (red / orange / yellow); otherwise it's `palette.primary`. The fill
+  // therefore tracks the border so a red-bordered card reads as red-tinted,
+  // an orange one as orange-tinted, etc. — same convention as org / infra.
+  const fmt = (v: number | null, isTbd: boolean): string =>
+    formatDuration(v, unit, isTbd ? '?' : null);
+
   const mcOn = resolved.monteCarloResult !== null;
 
   for (const node of layout.nodes) {
     const r = byId.get(node.id);
     if (!r) continue;
-    // Hide activities inside a collapsed group — the group's summary
-    // text supplies the rolled-up duration.
     if (r.activity.groupId && collapsedSet.has(r.activity.groupId)) continue;
     const isCritical = r.isCriticalPath;
-    const isMilestone = r.activity.isMilestone;
     const isTbd = tbdSet.has(node.id);
-    const isExpanded = expandedActivityId === node.id;
-
-    // Criticality gradient when MC is on; binary tint when MC is off.
-    // Gamma curve (γ=1.8) compresses 0–30% into near-neutral and reserves
-    // saturated tints for the actionable risk band (60–100%).
-    let fill: string;
-    if (mcOn && r.criticality !== null) {
-      const tintPct = Math.pow(r.criticality, 1.8) * 100;
-      fill = mix(palette.accent, palette.surface, tintPct);
-    } else {
-      fill = isCritical
-        ? mix(palette.accent, palette.surface, 22)
-        : palette.surface;
-    }
-    const stroke = isCritical ? palette.accent : palette.border;
-    const strokeWidth = isCritical
-      ? NODE_CRITICAL_STROKE_WIDTH
-      : NODE_STROKE_WIDTH;
     const dashArray = isTbd ? '4,3' : 'none';
+
+    const band: Band = mcOn
+      ? criticalityBand(r.criticality)
+      : isCritical
+        ? 'red'
+        : null;
 
     const g = layer
       .append('g')
@@ -416,7 +559,8 @@ function renderNodes(
         'data-group-id',
         r.activity.groupId !== undefined ? r.activity.groupId : ''
       )
-      .attr('data-critical-path', String(isCritical));
+      .attr('data-critical-path', String(isCritical))
+      .attr('data-criticality-band', band ?? '');
 
     if (onClickItem) {
       g.style('cursor', 'pointer').on('click', () =>
@@ -424,188 +568,146 @@ function renderNodes(
       );
     }
 
-    // Expanded activity: leave the wrapper as an empty `<g>` with
-    // just the data attrs. The host app overlays its own React-
-    // managed expansion card on top of this reserved space.
-    if (isExpanded) continue;
-
-    g.append('rect')
-      .attr('x', -node.width / 2)
-      .attr('y', -node.height / 2)
-      .attr('width', node.width)
-      .attr('height', node.height)
-      .attr('rx', NODE_RADIUS)
-      .attr('ry', NODE_RADIUS)
-      .attr('fill', fill)
-      .attr('stroke', stroke)
-      .attr('stroke-width', strokeWidth)
-      .attr('stroke-dasharray', dashArray);
-
-    // Diagonal-stripe overlay at criticality ≥ 90% — non-color signal
-    // for deuteranopia (per spec § Accessibility). Layered <line>
-    // elements clipped to the rectangle; avoids resvg <pattern> quirks.
-    if (mcOn && r.criticality !== null && r.criticality >= 0.9) {
-      const safeId = node.id.replace(/[^A-Za-z0-9_-]/g, '_');
-      const clipId = `pert-stripe-clip-${safeId}`;
-      defs
-        .append('clipPath')
-        .attr('id', clipId)
-        .append('rect')
-        .attr('x', -node.width / 2)
-        .attr('y', -node.height / 2)
-        .attr('width', node.width)
-        .attr('height', node.height)
-        .attr('rx', NODE_RADIUS)
-        .attr('ry', NODE_RADIUS);
-      const stripeG = g
-        .append('g')
-        .attr('class', 'pert-stripe-overlay')
-        .attr('clip-path', `url(#${clipId})`);
-      const halfW = node.width / 2;
-      const halfH = node.height / 2;
-      const span = node.width + node.height;
-      for (let offset = -span; offset <= span; offset += 4) {
-        stripeG
-          .append('line')
-          .attr('x1', -halfW + offset)
-          .attr('y1', -halfH)
-          .attr('x2', -halfW + offset + halfH * 2)
-          .attr('y2', halfH)
-          .attr('stroke', palette.text)
-          .attr('stroke-width', 1)
-          .attr('opacity', 0.4);
-      }
-    }
-
-    const textColor = contrastText(
+    const baseColor = bandColor(band, palette, palette.primary);
+    const fill = shapeFill(palette, baseColor, isDark);
+    const labelColor = contrastText(
       fill,
       palette.textOnFillLight,
       palette.textOnFillDark
     );
 
-    // Header / body layout — same convention as infra & org nodes.
-    // Header band sits at the top with the name (and ★ if critical);
-    // a faint separator line divides it from the body, which carries
-    // μ (or `?` for TBDs). Milestones have no body row — the
-    // semantic distinction shows as a centered name without a
-    // duration. Hide the separator entirely when the body would be
-    // empty so the node reads cleanly.
-    const halfH = node.height / 2;
-    const headerY = -halfH + 18;
-    const sepY = -halfH + 30;
-    const bodyY = -halfH + 46;
-    const showBody = !isMilestone;
-
-    const nameLine = isCritical ? `★ ${r.activity.name}` : r.activity.name;
-    g.append('text')
-      .attr('x', 0)
-      .attr('y', isMilestone ? 4 : headerY)
-      .attr('text-anchor', 'middle')
-      .attr('fill', textColor)
-      .attr('font-size', NODE_FONT_SIZE)
-      .attr('font-weight', 600)
-      .text(nameLine);
-
-    if (showBody) {
-      g.append('line')
-        .attr('x1', -node.width / 2)
-        .attr('y1', sepY)
-        .attr('x2', node.width / 2)
-        .attr('y2', sepY)
-        .attr('stroke', stroke)
-        .attr('stroke-opacity', 0.35)
-        .attr('stroke-width', 1);
-
-      const muStr = formatDuration(
-        r.mu,
-        resolved.options.timeUnit,
-        isTbd ? '?' : null
-      );
-      g.append('text')
-        .attr('x', 0)
-        .attr('y', bodyY)
-        .attr('text-anchor', 'middle')
-        .attr('fill', isCritical ? textColor : palette.textMuted)
-        .attr('font-size', NODE_SECONDARY_FONT_SIZE)
-        .text(muStr);
-    }
+    drawTextbookCard(g, {
+      width: node.width,
+      height: node.height,
+      x: -node.width / 2,
+      y: -node.height / 2,
+      name: r.activity.name,
+      es: fmt(r.es, isTbd),
+      dur: fmt(r.mu, isTbd),
+      ef: fmt(r.ef, isTbd),
+      ls: fmt(r.ls, isTbd),
+      slack: fmt(r.slack, isTbd),
+      lf: fmt(r.lf, isTbd),
+      fill,
+      stroke: baseColor,
+      labelColor,
+      dashArray,
+    });
   }
 }
 
 // ============================================================
-// Section: summary box (bottom-right)
+// Section: textbook 3×3 PERT/CPM card
 // ============================================================
+//
+//   ┌──────┬──────┬──────┐
+//   │  ES  │ dur  │  EF  │   ← top row
+//   ├──────┴──────┴──────┤
+//   │        name        │   ← middle row (spans full width)
+//   ├──────┬──────┬──────┤
+//   │  LS  │ slack│  LF  │   ← bottom row
+//   └──────┴──────┴──────┘
+//
+// Used for both individual activity nodes and collapsed-group cards.
 
-function renderSummary(
-  root: RootSel,
-  resolved: ResolvedPert,
-  layout: LayoutResult,
-  palette: PaletteColors
-): void {
-  if (resolved.activities.length === 0) return;
-  const lines: string[] = [];
-  const unit = resolved.options.timeUnit;
-  lines.push(`Project μ: ${formatDuration(resolved.projectMu, unit, '?')}`);
-  if (resolved.projectSigma !== null) {
-    lines.push(
-      `Project σ: ${formatDuration(resolved.projectSigma, unit, '0')}`
-    );
-  }
-  // Phase 2: when Monte Carlo ran, surface P50/P80/P95 in canonical days
-  // converted to the diagram's time-unit. The simulator stores these in
-  // canonical days (days), so we convert here.
-  const mc = resolved.monteCarloResult;
-  if (mc) {
-    const fmt = (days: number): string => {
-      const v = days / unitToDays(unit);
-      const r = Math.round(v * 100) / 100;
-      return `${r.toFixed(2).replace(/\.?0+$/, '')}${unit}`;
-    };
-    lines.push(
-      `P50: ${fmt(mc.p50)}    P80: ${fmt(mc.p80)}    P95: ${fmt(mc.p95)}`
-    );
-  }
-  if (resolved.criticalPath.length > 0) {
-    const names = resolved.criticalPath
-      .map((id) => {
-        const r = resolved.activities.find((x) => x.activity.id === id);
-        return r ? r.activity.name : id;
-      })
-      .join(' → ');
-    lines.push(`Critical path: ${names}`);
-  }
+interface TextbookCardArgs {
+  width: number;
+  height: number;
+  x: number;
+  y: number;
+  name: string;
+  es: string;
+  dur: string;
+  ef: string;
+  ls: string;
+  slack: string;
+  lf: string;
+  fill: string;
+  stroke: string;
+  /** Stroke for internal cell-grid lines. Defaults to `stroke`. */
+  gridStroke?: string;
+  labelColor: string;
+  dashArray?: string;
+}
 
-  const padding = 8;
-  const lineHeight = 14;
-  const boxWidth = Math.min(
-    400,
-    Math.max(160, ...lines.map((l) => l.length * 6.5 + padding * 2))
-  );
-  const boxHeight = lines.length * lineHeight + padding * 2;
-  const x = layout.width - boxWidth - DIAGRAM_PADDING;
-  const y = layout.height - boxHeight - DIAGRAM_PADDING;
+type AnySel = d3Selection.Selection<SVGGElement, unknown, null, undefined>;
 
-  const g = root
-    .append('g')
-    .attr('class', 'pert-summary')
-    .attr('transform', `translate(${x}, ${y})`);
+function drawTextbookCard(g: AnySel, a: TextbookCardArgs): void {
+  const { width: w, height: h, x, y } = a;
+  const colW = w / 3;
+  const topY = y + NODE_TOP_ROW_HEIGHT;
+  const bottomY = y + h - NODE_BOTTOM_ROW_HEIGHT;
+  const colX1 = x + colW;
+  const colX2 = x + colW * 2;
 
   g.append('rect')
-    .attr('width', boxWidth)
-    .attr('height', boxHeight)
-    .attr('rx', 6)
-    .attr('fill', mix(palette.surface, palette.bg, 60))
-    .attr('stroke', palette.border)
-    .attr('stroke-width', 1);
+    .attr('x', x)
+    .attr('y', y)
+    .attr('width', w)
+    .attr('height', h)
+    .attr('rx', NODE_RADIUS)
+    .attr('ry', NODE_RADIUS)
+    .attr('fill', a.fill)
+    .attr('stroke', a.stroke)
+    .attr('stroke-width', NODE_STROKE_WIDTH)
+    .attr('stroke-dasharray', a.dashArray ?? 'none');
 
-  for (let i = 0; i < lines.length; i++) {
+  // Internal grid lines — low-opacity divider stroke. Defaults to the
+  // border color but can be overridden so a critical-path (red) border
+  // doesn't drag the cell-grid red along with it.
+  const gridColor = a.gridStroke ?? a.stroke;
+  const grid = (x1: number, y1: number, x2: number, y2: number): void => {
+    g.append('line')
+      .attr('x1', x1)
+      .attr('y1', y1)
+      .attr('x2', x2)
+      .attr('y2', y2)
+      .attr('stroke', gridColor)
+      .attr('stroke-opacity', 0.3)
+      .attr('stroke-width', 1);
+  };
+  grid(x, topY, x + w, topY);
+  grid(x, bottomY, x + w, bottomY);
+  grid(colX1, y, colX1, topY);
+  grid(colX2, y, colX2, topY);
+  grid(colX1, bottomY, colX1, y + h);
+  grid(colX2, bottomY, colX2, y + h);
+
+  // Cell text — vertically centered within each row.
+  const drawCell = (
+    cx: number,
+    cy: number,
+    text: string,
+    weight: 'normal' | 'bold' = 'normal',
+    size: number = NODE_CELL_FONT_SIZE
+  ): void => {
     g.append('text')
-      .attr('x', padding)
-      .attr('y', padding + (i + 1) * lineHeight - 3)
-      .attr('fill', palette.text)
-      .attr('font-size', SUMMARY_FONT_SIZE)
-      .text(lines[i]);
-  }
+      .attr('x', cx)
+      .attr('y', cy + size / 2 - 2)
+      .attr('text-anchor', 'middle')
+      .attr('font-family', FONT_FAMILY)
+      .attr('fill', a.labelColor)
+      .attr('font-size', size)
+      .attr('font-weight', weight)
+      .text(text);
+  };
+
+  // Top row: ES | dur | EF
+  const topMid = y + NODE_TOP_ROW_HEIGHT / 2;
+  drawCell(x + colW / 2, topMid, a.es);
+  drawCell(x + colW * 1.5, topMid, a.dur);
+  drawCell(x + colW * 2.5, topMid, a.ef);
+
+  // Middle row: name (spans full width)
+  const midRowTop = y + NODE_TOP_ROW_HEIGHT;
+  const midRowH = h - NODE_TOP_ROW_HEIGHT - NODE_BOTTOM_ROW_HEIGHT;
+  drawCell(x + w / 2, midRowTop + midRowH / 2, a.name, 'bold', NODE_FONT_SIZE);
+
+  // Bottom row: LS | slack | LF
+  const botMid = y + h - NODE_BOTTOM_ROW_HEIGHT / 2;
+  drawCell(x + colW / 2, botMid, a.ls);
+  drawCell(x + colW * 1.5, botMid, a.slack);
+  drawCell(x + colW * 2.5, botMid, a.lf);
 }
 
 // ============================================================
@@ -622,29 +724,6 @@ function formatDuration(
   const rounded = Math.round(value * 100) / 100;
   const display = rounded.toFixed(2).replace(/\.?0+$/, '');
   return `${display}${unit}`;
-}
-
-/** Mirror of analyzer's UNIT_TO_DAYS — kept local to avoid a cycle. */
-function unitToDays(unit: DurationUnit): number {
-  switch (unit) {
-    case 'min':
-      return 1 / (60 * 24);
-    case 'h':
-      return 1 / 24;
-    case 'd':
-    case 'bd':
-      return 1;
-    case 'w':
-      return 7;
-    case 'm':
-      return 30;
-    case 'q':
-      return 90;
-    case 'y':
-      return 365;
-    case 's':
-      return 14;
-  }
 }
 
 // re-export to silence unused-type lint when consumers only want the helper
