@@ -350,12 +350,12 @@ A
     expect(doc.querySelectorAll('text.pert-caption').length).toBe(0);
   });
 
-  it('TBD-fallback caption: legend still emits Field labels bullet', () => {
+  it('AC15 (rendered): TBD-fallback caption is the single sentence', () => {
     const svg = renderForTest(loadFixture('tbd-poison.dgmo'));
     const doc = parseDom(svg);
     const tspans = doc.querySelectorAll('text.pert-caption tspan');
-    expect(tspans.length).toBeGreaterThan(0);
-    expect(tspans[0]!.textContent).toContain('Field labels');
+    expect(tspans.length).toBe(1);
+    expect(tspans[0]!.textContent).toContain('Expected duration unknown');
   });
 
   it('AC12: hidden-risk activity inside collapsed group surfaces the group name', () => {

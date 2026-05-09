@@ -3,7 +3,11 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parsePert } from '../src/pert/parser';
 import { analyzePert, buildSummary } from '../src/pert/analyzer';
-import type { PertActivity, ResolvedActivity } from '../src/pert/types';
+import type {
+  MonteCarloResult,
+  PertActivity,
+  ResolvedActivity,
+} from '../src/pert/types';
 
 const FIXTURES = join(__dirname, '../test-fixtures/pert');
 function loadFixture(name: string): string {
@@ -199,7 +203,7 @@ middle
     expect(r.mode).toBe('analytical');
   });
 
-  it('AC4: trials < 100 clamps mode to analytical (no MC result)', () => {
+  it('AC4: trials < 100 clamps to analytical and adds caveat to summary', () => {
     const r = analyze(`pert
 time-unit w
 trials 50
@@ -210,6 +214,8 @@ A
 `);
     expect(r.mode).toBe('analytical');
     expect(r.monteCarloResult).toBeNull();
+    expect(r.summaryText).not.toBeNull();
+    expect(r.summaryText!).toContain('Insufficient trials configured');
   });
 });
 
@@ -249,8 +255,8 @@ B
   });
 });
 
-describe('pert analyzer — summaryText is a two-bullet legend', () => {
-  it('analytical caption: Field labels + Critical path', () => {
+describe('pert analyzer — summaryText (AC8/AC9/AC15)', () => {
+  it('AC8: analytical caption begins with Expected duration and includes Critical path', () => {
     const r = analyze(`pert
 time-unit d
 A 2
@@ -259,12 +265,11 @@ A
   -> B
 `);
     expect(r.summaryText).not.toBeNull();
-    const lines = r.summaryText!.split('\n');
-    expect(lines[0]).toBe('Field labels: ES dur EF / name / LS slack LF');
-    expect(lines[1]).toMatch(/^Critical path:/);
+    expect(r.summaryText!.startsWith('Expected duration:')).toBe(true);
+    expect(r.summaryText!).toContain('Critical path:');
   });
 
-  it('MC caption is the same two-bullet legend (no project stats)', () => {
+  it('AC9: MC caption emits expected/std/percentiles/critical/bottleneck in order', () => {
     const r = analyze(`pert
 time-unit d
 trials 500
@@ -279,12 +284,14 @@ B
 `);
     expect(r.mode).toBe('monte-carlo');
     const lines = r.summaryText!.split('\n');
-    expect(lines).toHaveLength(2);
-    expect(lines[0]).toBe('Field labels: ES dur EF / name / LS slack LF');
-    expect(lines[1]).toMatch(/^Critical path:/);
+    expect(lines[0]).toMatch(/^Expected duration:/);
+    expect(lines[1]).toMatch(/^Standard deviation:/);
+    expect(lines[2]).toMatch(/^50th-percentile finish:/);
+    expect(lines[3]).toMatch(/^Critical path:/);
+    expect(lines.find((l) => l.startsWith('Bottleneck:'))).toBeDefined();
   });
 
-  it('TBD upstream → caption is just Field labels (no critical path resolvable)', () => {
+  it('AC15: TBD upstream → caption is exactly the TBD-fallback sentence', () => {
     const r = analyze(`pert
 time-unit w
 A
@@ -293,12 +300,9 @@ A
   -> B
 `);
     expect(r.projectMu).toBeNull();
-    // Critical path may still resolve through the un-poisoned arm; if
-    // not, only Field labels survives. Either way, expected-duration /
-    // percentile content is gone.
-    expect(r.summaryText).not.toBeNull();
-    expect(r.summaryText!.startsWith('Field labels:')).toBe(true);
-    expect(r.summaryText!).not.toContain('Expected duration');
+    expect(r.summaryText).toBe(
+      'Expected duration unknown — 1 activity has no estimate.'
+    );
   });
 });
 
@@ -481,6 +485,237 @@ function stubResolved(
     isAuthored,
   };
 }
+
+describe('buildSummary — AC11 (two hidden-risk sentences within 0.10)', () => {
+  it('reports both off-CPM activities in descending order when within 0.10 and ≥0.25', () => {
+    const cpm = stubResolved('a', 5, true);
+    const b = stubResolved('b', 4, true, { isCriticalPath: false });
+    const c = stubResolved('c', 4, true, { isCriticalPath: false });
+    const mc: MonteCarloResult = {
+      trials: 1000,
+      seed: 1,
+      p50: 5,
+      p80: 5,
+      p95: 5,
+      criticalityByActivity: { a: 1.0, b: 0.5, c: 0.45 },
+      modalCriticalPath: ['a'],
+    };
+    const summary = buildSummary({
+      mode: 'monte-carlo',
+      projectMu: 5,
+      projectSigma: 0.5,
+      unit: 'd',
+      criticalPath: ['a'],
+      activities: [cpm, b, c],
+      parsedActivities: [cpm.activity, b.activity, c.activity],
+      monteCarloResult: mc,
+      trialsClamped: false,
+      collapsedGroupIds: new Set(),
+      groups: [],
+    });
+    expect(summary).not.toBeNull();
+    const hidden = summary!
+      .split('\n')
+      .filter((l) => l.includes('lands on the critical path'));
+    expect(hidden.length).toBe(2);
+    expect(hidden[0]).toMatch(/^b lands.*50%/);
+    expect(hidden[1]).toMatch(/^c lands.*45%/);
+  });
+
+  it('reports only top hidden-risk when second activity is more than 0.10 below', () => {
+    const cpm = stubResolved('a', 5, true);
+    const b = stubResolved('b', 4, true, { isCriticalPath: false });
+    const c = stubResolved('c', 4, true, { isCriticalPath: false });
+    const mc: MonteCarloResult = {
+      trials: 1000,
+      seed: 1,
+      p50: 5,
+      p80: 5,
+      p95: 5,
+      criticalityByActivity: { a: 1.0, b: 0.5, c: 0.3 },
+      modalCriticalPath: ['a'],
+    };
+    const summary = buildSummary({
+      mode: 'monte-carlo',
+      projectMu: 5,
+      projectSigma: 0.5,
+      unit: 'd',
+      criticalPath: ['a'],
+      activities: [cpm, b, c],
+      parsedActivities: [cpm.activity, b.activity, c.activity],
+      monteCarloResult: mc,
+      trialsClamped: false,
+      collapsedGroupIds: new Set(),
+      groups: [],
+    });
+    const hidden = summary!
+      .split('\n')
+      .filter((l) => l.includes('lands on the critical path'));
+    expect(hidden.length).toBe(1);
+    expect(hidden[0]).toMatch(/^b lands/);
+  });
+});
+
+describe('buildSummary — AC13 (modal divergence)', () => {
+  it('emits Most-frequent critical path under simulation when modal differs', () => {
+    const a = stubResolved('a', 1, true);
+    const b = stubResolved('b', 2, true);
+    const c = stubResolved('c', 2, true);
+    const d = stubResolved('d', 1, true);
+    const mc: MonteCarloResult = {
+      trials: 1000,
+      seed: 1,
+      p50: 4,
+      p80: 4,
+      p95: 4,
+      criticalityByActivity: { a: 1, b: 0.55, c: 0.45, d: 1 },
+      modalCriticalPath: ['a', 'c', 'd'],
+    };
+    const summary = buildSummary({
+      mode: 'monte-carlo',
+      projectMu: 4,
+      projectSigma: 0.5,
+      unit: 'd',
+      criticalPath: ['a', 'b', 'd'],
+      activities: [a, b, c, d],
+      parsedActivities: [a, b, c, d].map((r) => r.activity),
+      monteCarloResult: mc,
+      trialsClamped: false,
+      collapsedGroupIds: new Set(),
+      groups: [],
+    });
+    expect(summary!).toContain(
+      'Most-frequent critical path under simulation: a → c → d.'
+    );
+  });
+
+  it('omits the modal-divergence sentence when modal equals deterministic', () => {
+    const a = stubResolved('a', 5, true);
+    const mc: MonteCarloResult = {
+      trials: 1000,
+      seed: 1,
+      p50: 5,
+      p80: 5,
+      p95: 5,
+      criticalityByActivity: { a: 1 },
+      modalCriticalPath: ['a'],
+    };
+    const summary = buildSummary({
+      mode: 'monte-carlo',
+      projectMu: 5,
+      projectSigma: 0.5,
+      unit: 'd',
+      criticalPath: ['a'],
+      activities: [a],
+      parsedActivities: [a.activity],
+      monteCarloResult: mc,
+      trialsClamped: false,
+      collapsedGroupIds: new Set(),
+      groups: [],
+    });
+    expect(summary!).not.toContain('Most-frequent critical path');
+  });
+});
+
+describe('buildSummary — AC14 (zero-variance fallback)', () => {
+  it('replaces percentile/bottleneck/hidden-risk with the (No variance...) parenthetical', () => {
+    const a = stubResolved('a', 5, true, { sigma: 0 });
+    const b = stubResolved('b', 3, true, { sigma: 0 });
+    const c = stubResolved('c', 2, true, { sigma: 0 });
+    const mc: MonteCarloResult = {
+      trials: 1000,
+      seed: 1,
+      p50: 10,
+      p80: 10,
+      p95: 10,
+      criticalityByActivity: { a: 1, b: 1, c: 1 },
+      modalCriticalPath: ['a', 'b', 'c'],
+    };
+    const summary = buildSummary({
+      mode: 'monte-carlo',
+      projectMu: 10,
+      projectSigma: 0,
+      unit: 'd',
+      criticalPath: ['a', 'b', 'c'],
+      activities: [a, b, c],
+      parsedActivities: [a, b, c].map((r) => r.activity),
+      monteCarloResult: mc,
+      trialsClamped: false,
+      collapsedGroupIds: new Set(),
+      groups: [],
+    });
+    expect(summary!).toContain(
+      '(No variance in estimates — all activities have O = M = P.)'
+    );
+    expect(summary!).not.toContain('percentile');
+    expect(summary!).not.toContain('Bottleneck:');
+    expect(summary!).not.toContain('lands on the critical path');
+    expect(summary!).toContain('Expected duration:');
+    expect(summary!).toContain('Critical path:');
+  });
+});
+
+describe('buildSummary — AC17/AC18 (heuristic-variance caveat)', () => {
+  it('AC17: > 50% heuristic variance on CPM → caveat fires', () => {
+    const a = stubResolved('a', 5, false, { sigma: 1.5 });
+    const b = stubResolved('b', 5, false, { sigma: 1.5 });
+    const c = stubResolved('c', 5, true, { sigma: 0.5 });
+    const mc: MonteCarloResult = {
+      trials: 1000,
+      seed: 1,
+      p50: 15,
+      p80: 15,
+      p95: 15,
+      criticalityByActivity: { a: 1, b: 1, c: 1 },
+      modalCriticalPath: ['a', 'b', 'c'],
+    };
+    const summary = buildSummary({
+      mode: 'monte-carlo',
+      projectMu: 15,
+      projectSigma: Math.sqrt(4.75),
+      unit: 'd',
+      criticalPath: ['a', 'b', 'c'],
+      activities: [a, b, c],
+      parsedActivities: [a, b, c].map((r) => r.activity),
+      monteCarloResult: mc,
+      trialsClamped: false,
+      collapsedGroupIds: new Set(),
+      groups: [],
+    });
+    expect(summary!).toContain(
+      'Variance estimates derive primarily from the `confidence` heuristic'
+    );
+  });
+
+  it('AC18: ≤ 50% heuristic variance → no caveat', () => {
+    const a = stubResolved('a', 5, true, { sigma: 1.0 });
+    const b = stubResolved('b', 5, true, { sigma: 1.0 });
+    const c = stubResolved('c', 5, false, { sigma: 0.5 });
+    const mc: MonteCarloResult = {
+      trials: 1000,
+      seed: 1,
+      p50: 15,
+      p80: 15,
+      p95: 15,
+      criticalityByActivity: { a: 1, b: 1, c: 1 },
+      modalCriticalPath: ['a', 'b', 'c'],
+    };
+    const summary = buildSummary({
+      mode: 'monte-carlo',
+      projectMu: 15,
+      projectSigma: Math.sqrt(2.25),
+      unit: 'd',
+      criticalPath: ['a', 'b', 'c'],
+      activities: [a, b, c],
+      parsedActivities: [a, b, c].map((r) => r.activity),
+      monteCarloResult: mc,
+      trialsClamped: false,
+      collapsedGroupIds: new Set(),
+      groups: [],
+    });
+    expect(summary!).not.toContain('Variance estimates derive primarily');
+  });
+});
 
 describe('buildSummary — critical-path abbreviation', () => {
   it('renders full chain at 7 activities', () => {

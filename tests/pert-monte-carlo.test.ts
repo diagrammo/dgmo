@@ -92,7 +92,7 @@ A
     }
   });
 
-  it('Trials clamp: trials < 100 forces mode back to analytical', () => {
+  it('Trials clamp: trials < 100 forces analytical with caveat', () => {
     const r = analyze(`pert
 time-unit w
 trials 50
@@ -103,6 +103,8 @@ A
 `);
     expect(r.mode).toBe('analytical');
     expect(r.monteCarloResult).toBeNull();
+    expect(r.summaryText).not.toBeNull();
+    expect(r.summaryText!).toContain('Insufficient trials configured');
   });
 
   it('MC populates criticality + percentiles', () => {
@@ -204,8 +206,7 @@ A
     expect(
       r.diagnostics.find((d) => d.message.includes('Cannot run Monte Carlo'))
     ).toBeUndefined();
-    // projectMu null when terminals are poisoned by TBD upstream.
-    expect(r.projectMu).toBeNull();
+    expect(r.summaryText).toContain('Expected duration unknown');
   });
 
   it('MC-derived hammock rollup uses modal critical path', () => {

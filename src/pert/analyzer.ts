@@ -565,13 +565,69 @@ export interface BuildSummaryInput {
 }
 
 export function buildSummary(input: BuildSummaryInput): string | null {
-  const { criticalPath, activities, parsedActivities } = input;
+  const {
+    mode,
+    projectMu,
+    projectSigma,
+    unit,
+    criticalPath,
+    activities,
+    parsedActivities,
+    monteCarloResult,
+    trialsClamped,
+    collapsedGroupIds,
+    groups,
+  } = input;
 
   if (parsedActivities.length === 0) return null;
 
-  const activityById = new Map(activities.map((r) => [r.activity.id, r]));
-  const lines: string[] = ['Field labels: ES dur EF / name / LS slack LF'];
+  // TBD fallback — no project end resolvable.
+  if (projectMu === null) {
+    const tbdCount = parsedActivities.filter(
+      (a) => a.duration === null && !a.isMilestone
+    ).length;
+    return `Expected duration unknown — ${tbdCount} ${
+      tbdCount === 1 ? 'activity has' : 'activities have'
+    } no estimate.`;
+  }
 
+  const lines: string[] = [];
+  const mc = mode === 'monte-carlo' && monteCarloResult !== null;
+  const sigmaPositive = projectSigma !== null && projectSigma > 0;
+  const showMcDetail = mc && sigmaPositive;
+  const activityById = new Map(activities.map((r) => [r.activity.id, r]));
+  const groupsById = new Map(groups.map((g) => [g.id, g]));
+  const collapsedGroupByMember = new Map<string, string>();
+  for (const g of groups) {
+    if (!collapsedGroupIds.has(g.id)) continue;
+    for (const aid of g.activityIds) collapsedGroupByMember.set(aid, g.id);
+  }
+
+  // 1. Expected duration
+  lines.push(
+    `Expected duration: ${roundForCaption(projectMu)} ${pluralizeUnit(projectMu, unit)}.`
+  );
+
+  // 2. Standard deviation
+  if (showMcDetail) {
+    lines.push(
+      `Standard deviation: ${roundForCaption(projectSigma!)} ${pluralizeUnit(projectSigma!, unit)}.`
+    );
+  }
+
+  // 3. Percentiles (in canonical days — convert to source unit)
+  if (showMcDetail) {
+    const p50 = fromDays(monteCarloResult!.p50, unit);
+    const p80 = fromDays(monteCarloResult!.p80, unit);
+    const p95 = fromDays(monteCarloResult!.p95, unit);
+    lines.push(
+      `50th-percentile finish: ${formatPercentile(p50, unit)}. ` +
+        `80th-percentile: ${formatPercentile(p80, unit)}. ` +
+        `95th-percentile: ${formatPercentile(p95, unit)}.`
+    );
+  }
+
+  // 4. Critical path
   if (criticalPath.length > 0) {
     const names = criticalPath.map(
       (id) => activityById.get(id)?.activity.name ?? id
@@ -579,7 +635,94 @@ export function buildSummary(input: BuildSummaryInput): string | null {
     lines.push(`Critical path: ${formatCriticalPath(names)}.`);
   }
 
+  // 5. Modal divergence
+  if (
+    mc &&
+    monteCarloResult!.modalCriticalPath.length > 0 &&
+    !sequenceEquals(monteCarloResult!.modalCriticalPath, criticalPath)
+  ) {
+    const modalNames = monteCarloResult!.modalCriticalPath.map(
+      (id) => activityById.get(id)?.activity.name ?? id
+    );
+    lines.push(
+      `Most-frequent critical path under simulation: ${formatCriticalPath(modalNames)}.`
+    );
+  }
+
+  // 6. Bottleneck
+  if (showMcDetail) {
+    const bottleneck = findBottleneck(criticalPath, activities);
+    if (bottleneck && bottleneck.mu !== null) {
+      lines.push(
+        `Bottleneck: ${bottleneck.activity.name} (${roundForCaption(bottleneck.mu)} ${pluralizeUnit(bottleneck.mu, unit)}).`
+      );
+    }
+  }
+
+  // 7. Hidden risk (top 1, optionally a second within 0.10 of the first)
+  if (showMcDetail) {
+    const hidden = findHiddenRisk(
+      criticalPath,
+      activities,
+      monteCarloResult!.criticalityByActivity
+    );
+    for (const h of hidden) {
+      const groupId = collapsedGroupByMember.get(h.activity.id);
+      const group = groupId ? groupsById.get(groupId) : undefined;
+      const pct = Math.round(h.criticality * 100);
+      if (group) {
+        lines.push(
+          `${group.name} (collapsed) lands on the critical path in ${pct}% of simulations.`
+        );
+      } else {
+        lines.push(
+          `${h.activity.name} lands on the critical path in ${pct}% of simulations.`
+        );
+      }
+    }
+  }
+
+  // 8. Heuristic-variance caveat
+  if (showMcDetail) {
+    const fraction = computeHeuristicVarianceFraction(criticalPath, activities);
+    if (fraction > 0.5) {
+      lines.push(
+        'Variance estimates derive primarily from the `confidence` heuristic; results are indicative.'
+      );
+    }
+  }
+
+  // 9. Zero-variance fallback (replaces percentile/bottleneck/hidden-risk)
+  if (mc && projectSigma === 0) {
+    const filtered: string[] = [];
+    for (const line of lines) {
+      if (
+        line.startsWith('Expected duration:') ||
+        line.startsWith('Critical path:')
+      ) {
+        filtered.push(line);
+      }
+    }
+    filtered.push(
+      '(No variance in estimates — all activities have O = M = P.)'
+    );
+    return filtered.join('\n');
+  }
+
+  // 10. Trials caveat (mode auto-derived to MC then clamped back)
+  if (trialsClamped) {
+    lines.push(
+      'Insufficient trials configured (`trials` < 100) — falling back to deterministic analysis.'
+    );
+  }
+
   return lines.join('\n');
+}
+
+function sequenceEquals(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
 }
 
 const CAPTION_ABBREV_THRESHOLD = 8;
@@ -588,6 +731,105 @@ function formatCriticalPath(names: string[]): string {
   if (names.length === 0) return '';
   if (names.length < CAPTION_ABBREV_THRESHOLD) return names.join(' → ');
   return `${names[0]} → … → ${names[names.length - 1]}`;
+}
+
+function findBottleneck(
+  criticalPath: string[],
+  activities: ResolvedActivity[]
+): ResolvedActivity | null {
+  // Highest-μ activity on the critical path; topological-order tiebreak
+  // (criticalPath is already in topological order).
+  const byId = new Map(activities.map((r) => [r.activity.id, r]));
+  let best: ResolvedActivity | null = null;
+  for (const id of criticalPath) {
+    const r = byId.get(id);
+    if (!r || r.mu === null || r.activity.isMilestone) continue;
+    if (best === null || r.mu > (best.mu ?? -Infinity)) best = r;
+  }
+  return best;
+}
+
+interface HiddenRiskEntry {
+  activity: PertActivity;
+  criticality: number;
+}
+
+function findHiddenRisk(
+  criticalPath: string[],
+  activities: ResolvedActivity[],
+  criticalityByActivity: Record<string, number>
+): HiddenRiskEntry[] {
+  const onCpm = new Set(criticalPath);
+  const offCpm: HiddenRiskEntry[] = [];
+  for (const r of activities) {
+    if (onCpm.has(r.activity.id)) continue;
+    if (r.activity.isMilestone) continue;
+    const c = criticalityByActivity[r.activity.id];
+    if (typeof c !== 'number' || c < 0.25) continue;
+    offCpm.push({ activity: r.activity, criticality: c });
+  }
+  if (offCpm.length === 0) return [];
+  offCpm.sort((a, b) => b.criticality - a.criticality);
+  const top = offCpm[0];
+  if (offCpm.length === 1) return [top];
+  const second = offCpm[1];
+  if (
+    second.criticality >= 0.25 &&
+    top.criticality - second.criticality <= 0.1
+  ) {
+    return [top, second];
+  }
+  return [top];
+}
+
+function computeHeuristicVarianceFraction(
+  criticalPath: string[],
+  activities: ResolvedActivity[]
+): number {
+  const byId = new Map(activities.map((r) => [r.activity.id, r]));
+  let totalVar = 0;
+  let heuristicVar = 0;
+  for (const id of criticalPath) {
+    const r = byId.get(id);
+    if (!r || r.activity.isMilestone) continue;
+    if (r.sigma === null) continue;
+    const v = r.sigma * r.sigma;
+    totalVar += v;
+    if (!r.isAuthored) heuristicVar += v;
+  }
+  return totalVar > 0 ? heuristicVar / totalVar : 0;
+}
+
+function roundForCaption(n: number): string {
+  let rounded: number;
+  const abs = Math.abs(n);
+  if (abs < 10) rounded = Math.round(n * 100) / 100;
+  else if (abs < 100) rounded = Math.round(n * 10) / 10;
+  else rounded = Math.round(n);
+  // Trim trailing zeros after the decimal: 29.20 → 29.2, 29.00 → 29.
+  const str = rounded.toString();
+  return str.includes('.') ? str.replace(/\.?0+$/, '') : str;
+}
+
+const UNIT_WORDS: Record<DurationUnit, [string, string]> = {
+  min: ['minute', 'minutes'],
+  h: ['hour', 'hours'],
+  d: ['day', 'days'],
+  bd: ['business day', 'business days'],
+  w: ['week', 'weeks'],
+  m: ['month', 'months'],
+  q: ['quarter', 'quarters'],
+  y: ['year', 'years'],
+  s: ['day', 'days'],
+};
+
+function pluralizeUnit(value: number, unit: DurationUnit): string {
+  const [singular, plural] = UNIT_WORDS[unit];
+  return roundForCaption(value) === '1' ? singular : plural;
+}
+
+function formatPercentile(value: number, unit: DurationUnit): string {
+  return `${roundForCaption(value)} ${pluralizeUnit(value, unit)}`;
 }
 
 function emptyResolved(
