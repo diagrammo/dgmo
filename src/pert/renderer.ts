@@ -733,10 +733,6 @@ function renderNodes(
       .attr('data-criticality-band', band ?? '')
       .attr('data-duration-rank', isTopMu ? 'top' : isBottomMu ? 'bottom' : '');
 
-    if (isBottomMu) {
-      g.attr('opacity', String(DURATION_FADE_OPACITY));
-    }
-
     if (onClickItem) {
       g.style('cursor', 'pointer').on('click', () =>
         onClickItem(r.activity.lineNumber)
@@ -774,7 +770,7 @@ function renderNodes(
       stroke: baseColor,
       labelColor,
       dashArray,
-      emphasis: isTopMu ? 'top' : null,
+      emphasis: isTopMu ? 'top' : isBottomMu ? 'bottom' : null,
     });
   }
 }
@@ -837,12 +833,12 @@ interface TextbookCardArgs {
   labelColor: string;
   dashArray?: string;
   /**
-   * Duration-rank emphasis. 'top' bolds the corner cells (ES/dur/EF and
-   * LS/slack/LF) so the longest activities visually weigh more. 'bottom'
-   * is applied at the wrapper-`<g>` level via opacity (renderer sets it),
-   * not here.
+   * Duration-rank emphasis. Affects ONLY the `dur` cell: 'top' bolds
+   * the duration value, 'bottom' fades it to DURATION_FADE_OPACITY.
+   * Card border, fill, name, and other cells are unaffected — the
+   * signal is precise to "longer / shorter task".
    */
-  emphasis?: 'top' | null;
+  emphasis?: 'top' | 'bottom' | null;
 }
 
 type AnySel = d3Selection.Selection<SVGGElement, unknown, null, undefined>;
@@ -888,20 +884,19 @@ function drawTextbookCard(g: AnySel, a: TextbookCardArgs): void {
   grid(colX1, bottomY, colX1, y + h);
   grid(colX2, bottomY, colX2, y + h);
 
-  // Cell text — vertically centered within each row. Top-emphasis
-  // promotes the default cell weight to 'bold' so the corner cells
-  // (ES/dur/EF, LS/slack/LF) sit visually heavier; the name cell
-  // explicitly passes 'bold' regardless and is unaffected.
-  const cornerWeight: 'normal' | 'bold' =
-    a.emphasis === 'top' ? 'bold' : 'normal';
+  // Cell text — vertically centered within each row. Defaults to
+  // normal weight; the name cell and the dur cell pass an explicit
+  // weight when needed.
   const drawCell = (
     cx: number,
     cy: number,
     text: string,
-    weight: 'normal' | 'bold' = cornerWeight,
-    size: number = NODE_CELL_FONT_SIZE
+    weight: 'normal' | 'bold' = 'normal',
+    size: number = NODE_CELL_FONT_SIZE,
+    opacity = 1
   ): void => {
-    g.append('text')
+    const t = g
+      .append('text')
       .attr('x', cx)
       .attr('y', cy + size / 2 - 2)
       .attr('text-anchor', 'middle')
@@ -910,12 +905,23 @@ function drawTextbookCard(g: AnySel, a: TextbookCardArgs): void {
       .attr('font-size', size)
       .attr('font-weight', weight)
       .text(text);
+    if (opacity !== 1) t.attr('opacity', String(opacity));
   };
 
-  // Top row: ES | dur | EF
+  // Top row: ES | dur | EF — the dur cell carries the duration-rank
+  // emphasis: bold for top-20%, faded for bottom-20%, plain otherwise.
   const topMid = y + NODE_TOP_ROW_HEIGHT / 2;
+  const durWeight: 'normal' | 'bold' = a.emphasis === 'top' ? 'bold' : 'normal';
+  const durOpacity = a.emphasis === 'bottom' ? DURATION_FADE_OPACITY : 1;
   drawCell(x + colW / 2, topMid, a.es);
-  drawCell(x + colW * 1.5, topMid, a.dur);
+  drawCell(
+    x + colW * 1.5,
+    topMid,
+    a.dur,
+    durWeight,
+    NODE_CELL_FONT_SIZE,
+    durOpacity
+  );
   drawCell(x + colW * 2.5, topMid, a.ef);
 
   // Middle row: name (spans full width)
