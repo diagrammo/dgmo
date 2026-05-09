@@ -450,25 +450,15 @@ function renderNodes(
       continue;
     }
 
-    // Expanded activity: emit a foreignObject content slot instead of
-    // the default rect + name + μ. The host app mounts React content
-    // (e.g. PertNodeExpanded) into the inner `<div data-pert-expanded-content>`.
-    if (isExpanded) {
-      const fo = g
-        .append('foreignObject')
-        .attr('class', 'pert-node-expanded-slot')
-        .attr('x', -node.width / 2)
-        .attr('y', -node.height / 2)
-        .attr('width', node.width)
-        .attr('height', node.height);
-      fo.append('xhtml:div' as 'div')
-        .attr('data-pert-expanded-content', node.id)
-        .style('width', '100%')
-        .style('height', '100%')
-        .style('box-sizing', 'border-box')
-        .style('overflow', 'hidden');
-      continue;
-    }
+    // Expanded activity: leave the wrapper as an empty `<g>` with
+    // just the data attrs. The host app overlays its own React-
+    // managed expansion card on top of this reserved space. We
+    // intentionally don't emit a foreignObject — mounting React
+    // portals inside SVG content that D3 wipes on every layout
+    // change causes "object can not be found here" removeChild
+    // errors when React's deletion runs against a parent that's
+    // already been destroyed.
+    if (isExpanded) continue;
 
     g.append('rect')
       .attr('x', -node.width / 2)

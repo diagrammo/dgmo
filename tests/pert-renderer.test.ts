@@ -122,7 +122,7 @@ describe('pert renderer — structural assertions', () => {
     expect(() => renderForTest('pert\n')).not.toThrow();
   });
 
-  it('expandedActivityId emits a foreignObject content slot in place of rect+text', () => {
+  it('expandedActivityId leaves the wrapper empty so the host can overlay React content', () => {
     const c = document.createElement('div');
     document.body.appendChild(c);
 
@@ -142,21 +142,18 @@ describe('pert renderer — structural assertions', () => {
       `g.pert-node[data-activity-id="${expandedId}"]`
     );
     expect(expandedG).not.toBeNull();
-    // Slot present, rect/name-text suppressed
-    expect(
-      expandedG!.querySelector('foreignObject.pert-node-expanded-slot')
-    ).not.toBeNull();
-    expect(
-      expandedG!.querySelector('[data-pert-expanded-content]')
-    ).not.toBeNull();
-    expect(expandedG!.querySelector(':scope > rect')).toBeNull();
+    // Wrapper kept (data attrs intact for adapter click resolution)
+    // but rect / text / foreignObject are all suppressed so the host
+    // app can mount its own React overlay on top.
+    expect(expandedG!.querySelector('rect')).toBeNull();
+    expect(expandedG!.querySelector('text')).toBeNull();
+    expect(expandedG!.querySelector('foreignObject')).toBeNull();
 
     // Other activities still render as rect+text normally
     const otherG = c.querySelector(
       `g.pert-node:not([data-activity-id="${expandedId}"])`
     );
     expect(otherG?.querySelector('rect')).not.toBeNull();
-    expect(otherG?.querySelector('foreignObject')).toBeNull();
 
     document.body.removeChild(c);
   });
