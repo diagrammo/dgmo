@@ -62,28 +62,58 @@ describe('sampleBetaPert', () => {
 });
 
 describe('analyzer + MC integration', () => {
-  it('AC3.5: no MC when `analysis monte-carlo` directive is absent', () => {
+  it('MC enables when at least one activity has O/M/P, regardless of `analysis` directive', () => {
+    // Auto-derive: 3-point estimates present → MC runs even though the
+    // `analysis monte-carlo` directive is gone.
     const r = analyze(`pert
 time-unit w
+trials 500
 A 1 2 4
-  -> B 1 2 4
-B
+B 1 2 4
+A
+  -> B
 `);
+    expect(r.mode).toBe('monte-carlo');
+    expect(r.monteCarloResult).not.toBeNull();
+  });
+
+  it('Auto-derive: no MC when all activities are M-only', () => {
+    const r = analyze(`pert
+time-unit w
+A 2
+B 3
+A
+  -> B
+`);
+    expect(r.mode).toBe('analytical');
     expect(r.monteCarloResult).toBeNull();
     for (const ra of r.activities) {
       expect(ra.criticality).toBeNull();
     }
   });
 
-  it('MC populates criticality + percentiles when directive is set', () => {
+  it('Trials clamp: trials < 100 forces mode back to analytical', () => {
     const r = analyze(`pert
 time-unit w
-analysis monte-carlo
+trials 50
+A 1 2 4
+B 1 2 4
+A
+  -> B
+`);
+    expect(r.mode).toBe('analytical');
+    expect(r.monteCarloResult).toBeNull();
+  });
+
+  it('MC populates criticality + percentiles', () => {
+    const r = analyze(`pert
+time-unit w
 trials 500
 seed 42
 A 1 2 4
-  -> B 1 2 4
-B
+B 1 2 4
+A
+  -> B
 `);
     expect(r.monteCarloResult).not.toBeNull();
     expect(r.monteCarloResult!.trials).toBe(500);
@@ -106,14 +136,15 @@ B
     // Project mean ≈ 6.5 weeks (sum of 3 means)
     const r = analyze(`pert
 time-unit w
-analysis monte-carlo
 trials 5000
 seed 1
 A 1 2 4
-  -> B 1 2 4
+B 1 2 4
+C 1 2 4
+A
+  -> B
 B
-  -> C 1 2 4
-C
+  -> C
 `);
     expect(r.monteCarloResult).not.toBeNull();
     // P50 ≈ project mean for symmetric-ish distributions; in general MC
@@ -131,14 +162,17 @@ C
     // distribution, neither arm is uniformly critical.
     const r = analyze(`pert
 time-unit w
-analysis monte-carlo
 trials 5000
 seed 7
 A 1 2 4
-  -> B 1 2 4
-  -> C 1 2 4
+B 1 2 4
+C 1 2 4
+D 1 2 4
+A
+  -> B
+  -> C
 B
-  -> D 1 2 4
+  -> D
 C
   -> D
 `);
@@ -152,36 +186,41 @@ C
     expect(cb + cc).toBeGreaterThan(0.95);
   });
 
-  it('AC3.3b: MC errors when every terminal is poisoned by TBD', () => {
+  it('AC3.3b: every-terminal-poisoned silently downgrades to analytical (no error)', () => {
+    // Auto-derive removes the explicit "ask for MC then fail" path —
+    // when the user didn't author the directive, an all-poisoned graph
+    // should fall through to TBD-fallback analytical instead of erroring.
     const r = analyze(`pert
 time-unit w
-analysis monte-carlo
-trials 100
+trials 200
 seed 1
 A
-  -> B 1 2 4
-B
+B 1 2 4
+A
+  -> B
 `);
-    // A is TBD, B is downstream → only terminal (B) is poisoned → MC must error.
-    const err = r.diagnostics.find((d) =>
-      d.message.includes('Cannot run Monte Carlo')
-    );
-    expect(err).toBeDefined();
+    expect(r.mode).toBe('analytical');
+    expect(r.monteCarloResult).toBeNull();
+    expect(
+      r.diagnostics.find((d) => d.message.includes('Cannot run Monte Carlo'))
+    ).toBeUndefined();
+    // projectMu null when terminals are poisoned by TBD upstream.
+    expect(r.projectMu).toBeNull();
   });
 
   it('MC-derived hammock rollup uses modal critical path', () => {
     // Single-entry/single-exit group should get a non-null rolledMu.
     const r = analyze(`pert
 time-unit w
-analysis monte-carlo
 trials 500
 seed 99
 [work]
   start 1 2 3
-    -> middle 2 3 4
-  middle
-    -> finish 1 2 3
-finish
+    -> middle
+  middle 2 3 4
+    -> finish
+
+finish 1 2 3
 `);
     const group = r.groups.find((g) => g.group.name === 'work');
     expect(group?.rolledMu).not.toBeNull();

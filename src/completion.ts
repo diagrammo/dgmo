@@ -411,10 +411,6 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description: 'Node visual density',
         values: ['compact', 'full'],
       },
-      analysis: {
-        description: 'Analysis mode beyond analytical PERT',
-        values: ['monte-carlo'],
-      },
       trials: { description: 'Monte Carlo trial count (default 10000)' },
       seed: { description: 'Monte Carlo PRNG seed (deterministic)' },
       'scrubber-trials': {

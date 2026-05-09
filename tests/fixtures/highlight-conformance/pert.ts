@@ -8,17 +8,18 @@ time-unit w
 confidence medium
 direction LR
 node-detail compact
-analysis monte-carlo
 trials 10000
 seed 42
 
 milestone start
 
 start
-  -> recruit crew 1 2 4 as rc
+  -> recruit crew
 
-recruit crew
-  -> sail 3 5 8
+recruit crew 1 2 4 as rc
+  -> sail
+
+sail 3 5 8
 `,
   assertions: [
     { text: 'pert', role: 'chartType' },
@@ -26,7 +27,6 @@ recruit crew
     { text: 'confidence', role: 'keyword' },
     { text: 'direction', role: 'keyword' },
     { text: 'node-detail', role: 'keyword' },
-    { text: 'analysis', role: 'keyword' },
     { text: 'trials', role: 'keyword' },
     { text: 'seed', role: 'keyword' },
     { text: 'milestone', role: 'keyword' },

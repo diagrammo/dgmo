@@ -12,17 +12,20 @@ voyage approved
 
 [outfit ship]
   recruit crew 1 2 4 as rc
-    -> load powder 0.5 1 2
+    -> load powder
   careen hull 1 1.5 2.5
     -> load powder
-  load powder
-    -> sail to atoll 3 5 8
+  load powder 0.5 1 2
+    -> sail to atoll
 
-sail to atoll
-  -> count gold 1 2 3
-  -> repair hull 2 3 5
+sail to atoll 3 5 8
+  -> count gold
+  -> repair hull
 
-count gold
-  -> divvy shares 1 2 3
-repair hull
+count gold 1 2 3
   -> divvy shares
+
+repair hull 2 3 5
+  -> divvy shares
+
+divvy shares 1 2 3

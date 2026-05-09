@@ -38,11 +38,19 @@ import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
   TITLE_Y,
+  TITLE_OFFSET,
+  CAPTION_FONT_SIZE,
+  CAPTION_FONT_WEIGHT,
+  CAPTION_LINE_HEIGHT,
+  CAPTION_TOP_GAP,
+  CAPTION_BOX_PADDING_X,
+  CAPTION_BOX_PADDING_Y,
 } from '../utils/title-constants';
 import type { LayoutResult, ResolvedActivity, ResolvedPert } from './types';
 import { parsePert } from './parser';
-import { analyzePert } from './analyzer';
+import { analyzePert, buildSummary } from './analyzer';
 import { layoutPert } from './layout';
+import { addCalendarDays, unitToDays } from './internal';
 import type { Duration, DurationUnit } from '../gantt/types';
 
 // ============================================================
@@ -137,7 +145,13 @@ export interface PertRenderOptions {
   title?: string | null;
   /** Optional callback for click → editor sync. */
   onClickItem?: (lineNumber: number) => void;
-  /** Override container dimensions during export. */
+  /**
+   * Override container dimensions during export. Treated as a hint:
+   * the renderer will expand height/width if needed to fit chrome
+   * (title + backward-anchor annotation + diagram body + caption
+   * block) so the diagram never clips. Pass `undefined` (or omit) to
+   * use the auto-computed natural size.
+   */
   exportDims?: { width?: number; height?: number };
   /**
    * Group ids that should render as a single collapsed surface.
@@ -163,11 +177,54 @@ export function renderPert(
 
   const titleHeight = options.title ? 80 : 0;
 
-  const exportWidth =
-    options.exportDims?.width ?? layout.width + DIAGRAM_PADDING * 2;
-  const exportHeight =
-    options.exportDims?.height ??
-    layout.height + DIAGRAM_PADDING * 2 + titleHeight;
+  // D10 — backward-anchor annotation. Italic subtitle that names the
+  // end-date and frames ES/EF as "earliest possible" rather than the
+  // intended start. Forward mode emits no annotation; the default
+  // mental model handles forward correctly.
+  const anchorAnnotation = backwardAnchorAnnotation(resolved);
+  // Reserve one CAPTION-line worth of vertical (single line, fits in
+  // ~CAPTION_LINE_HEIGHT + a top gap so the line doesn't kiss the title).
+  const annotationHeight = anchorAnnotation
+    ? CAPTION_LINE_HEIGHT + CAPTION_TOP_GAP
+    : 0;
+
+  // Caption: re-invoke buildSummary when groups are collapsed at render
+  // time so hidden-risk callouts can name the visible group surface
+  // instead of an inner activity. Skip caption when analyzer bailed.
+  const collapsedSet = new Set(options.collapsedGroupIds ?? []);
+  const captionText = chooseCaptionText(resolved, collapsedSet);
+  const captionBullets =
+    captionText !== null && captionText.length > 0
+      ? bulletizeCaption(captionText)
+      : [];
+  const captionBoxHeight =
+    captionBullets.length > 0
+      ? captionBullets.length * CAPTION_LINE_HEIGHT + 2 * CAPTION_BOX_PADDING_Y
+      : 0;
+  // The caption block reserves: a top gap (between diagram and box) +
+  // the box itself. When no caption fires, contributes zero height.
+  const captionBlockHeight =
+    captionBullets.length > 0 ? CAPTION_TOP_GAP + captionBoxHeight : 0;
+
+  // Natural size — fits all chrome without clipping. We always expand
+  // a supplied `exportDims` to at least this; smaller hints would
+  // crop the diagram body off-screen now that the annotation reserves
+  // its own vertical band.
+  const naturalWidth = layout.width + DIAGRAM_PADDING * 2;
+  const naturalHeight =
+    layout.height +
+    DIAGRAM_PADDING * 2 +
+    titleHeight +
+    annotationHeight +
+    captionBlockHeight;
+  const exportWidth = Math.max(
+    options.exportDims?.width ?? naturalWidth,
+    naturalWidth
+  );
+  const exportHeight = Math.max(
+    options.exportDims?.height ?? naturalHeight,
+    naturalHeight
+  );
   if (exportWidth <= 0 || exportHeight <= 0) return;
 
   const svg = d3Selection
@@ -194,14 +251,29 @@ export function renderPert(
       .text(options.title);
   }
 
+  if (anchorAnnotation) {
+    const annotationY = options.title
+      ? TITLE_Y + TITLE_OFFSET + CAPTION_TOP_GAP
+      : TITLE_Y + CAPTION_TOP_GAP;
+    svg
+      .append('text')
+      .attr('class', 'pert-anchor-annotation')
+      .attr('data-pert-anchor-annotation', '')
+      .attr('x', exportWidth / 2)
+      .attr('y', annotationY)
+      .attr('text-anchor', 'middle')
+      .attr('fill', palette.textMuted)
+      .attr('font-size', CAPTION_FONT_SIZE)
+      .attr('font-style', 'italic')
+      .text(anchorAnnotation);
+  }
+
   const offsetX = DIAGRAM_PADDING;
-  const offsetY = DIAGRAM_PADDING + titleHeight;
+  const offsetY = DIAGRAM_PADDING + titleHeight + annotationHeight;
 
   const root = svg
     .append('g')
     .attr('transform', `translate(${offsetX}, ${offsetY})`);
-
-  const collapsedSet = new Set(options.collapsedGroupIds ?? []);
 
   renderGroups(root, resolved, layout, palette, isDark, collapsedSet);
   renderEdges(root, resolved, layout, palette, collapsedSet);
@@ -215,6 +287,17 @@ export function renderPert(
     options.onClickItem,
     collapsedSet
   );
+
+  if (captionBullets.length > 0) {
+    renderCaptionBlock(svg, captionBullets, {
+      x: DIAGRAM_PADDING,
+      y: offsetY + layout.height + CAPTION_TOP_GAP,
+      width: exportWidth - 2 * DIAGRAM_PADDING,
+      height: captionBoxHeight,
+      palette,
+      isDark,
+    });
+  }
 }
 
 export function renderPertForExport(
@@ -230,8 +313,26 @@ export function renderPertForExport(
   const isDark = theme === 'dark';
 
   const titleHeight = parsed.title ? 80 : 0;
+  const annotationHeight = backwardAnchorAnnotation(resolved)
+    ? CAPTION_LINE_HEIGHT + CAPTION_TOP_GAP
+    : 0;
+  const captionBullets =
+    resolved.summaryText !== null && resolved.summaryText.length > 0
+      ? bulletizeCaption(resolved.summaryText)
+      : [];
+  const captionBoxHeight =
+    captionBullets.length > 0
+      ? captionBullets.length * CAPTION_LINE_HEIGHT + 2 * CAPTION_BOX_PADDING_Y
+      : 0;
+  const captionBlockHeight =
+    captionBullets.length > 0 ? CAPTION_TOP_GAP + captionBoxHeight : 0;
   const exportWidth = layout.width + DIAGRAM_PADDING * 2;
-  const exportHeight = layout.height + DIAGRAM_PADDING * 2 + titleHeight;
+  const exportHeight =
+    layout.height +
+    DIAGRAM_PADDING * 2 +
+    titleHeight +
+    annotationHeight +
+    captionBlockHeight;
 
   const container = document.createElement('div');
   container.style.width = `${exportWidth}px`;
@@ -357,12 +458,38 @@ function renderGroups(
       // Render the rolled-up envelope as a textbook card with the
       // group name in the middle band — visually identical to an
       // activity node so users can read it the same way.
+      const projectStart = resolved.projectStart;
       const muStr = formatDuration(resolvedGroup?.rolledMu ?? null, unit, '?');
-      const slackStr = formatDuration(resolvedGroup?.slack ?? null, unit, '?');
-      const esStr = formatDuration(resolvedGroup?.es ?? null, unit, '?');
-      const efStr = formatDuration(resolvedGroup?.ef ?? null, unit, '?');
-      const lsStr = formatDuration(resolvedGroup?.ls ?? null, unit, '?');
-      const lfStr = formatDuration(resolvedGroup?.lf ?? null, unit, '?');
+      const slackStr = formatSlackValue(
+        resolvedGroup?.slack ?? null,
+        projectStart,
+        unit,
+        '?'
+      );
+      const esStr = formatScheduleValue(
+        resolvedGroup?.es ?? null,
+        projectStart,
+        unit,
+        '?'
+      );
+      const efStr = formatScheduleValue(
+        resolvedGroup?.ef ?? null,
+        projectStart,
+        unit,
+        '?'
+      );
+      const lsStr = formatScheduleValue(
+        resolvedGroup?.ls ?? null,
+        projectStart,
+        unit,
+        '?'
+      );
+      const lfStr = formatScheduleValue(
+        resolvedGroup?.lf ?? null,
+        projectStart,
+        unit,
+        '?'
+      );
 
       const cardBaseColor = bandColor(memberBand, palette, palette.primary);
       const cardFill = shapeFill(palette, cardBaseColor, isDark);
@@ -507,6 +634,10 @@ function renderEdges(
           ? null
           : Math.min(sc, tc);
       band = criticalityBand(minC);
+      // Mirror the node-side fallback: a deterministic critical edge
+      // whose endpoints score 0 in MC (e.g., one is a milestone) still
+      // belongs to the visual critical chain.
+      if (band === null && isCritical) band = 'red';
     } else {
       band = isCritical ? 'red' : null;
     }
@@ -556,7 +687,15 @@ function renderNodes(
   // hue (red / orange / yellow); otherwise it's `palette.primary`. The fill
   // therefore tracks the border so a red-bordered card reads as red-tinted,
   // an orange one as orange-tinted, etc. — same convention as org / infra.
-  const fmt = (v: number | null, isTbd: boolean): string =>
+  const projectStart = resolved.projectStart;
+  // Three formatter roles, distinct semantics: schedule cells become
+  // dates when anchored, slack normalizes to days when anchored, and
+  // mu/dur is always a duration label regardless of mode.
+  const fmtSchedule = (v: number | null, isTbd: boolean): string =>
+    formatScheduleValue(v, projectStart, unit, isTbd ? '?' : null);
+  const fmtSlack = (v: number | null, isTbd: boolean): string =>
+    formatSlackValue(v, projectStart, unit, isTbd ? '?' : null);
+  const fmtDur = (v: number | null, isTbd: boolean): string =>
     formatDuration(v, unit, isTbd ? '?' : null);
 
   const mcOn = resolved.monteCarloResult !== null;
@@ -569,11 +708,18 @@ function renderNodes(
     const isTbd = tbdSet.has(node.id);
     const dashArray = isTbd ? '4,3' : 'none';
 
-    const band: Band = mcOn
-      ? criticalityBand(r.criticality)
-      : isCritical
-        ? 'red'
-        : null;
+    // In MC mode, prefer the per-activity criticality band. Fall back
+    // to red when the deterministic critical path includes this
+    // activity but the MC band is null — ensures milestones (which
+    // tend to score 0 in the simulator) and other quirks don't make
+    // the caption's "Critical path:" text disagree with the colors.
+    let band: Band;
+    if (mcOn) {
+      band = criticalityBand(r.criticality);
+      if (band === null && isCritical) band = 'red';
+    } else {
+      band = isCritical ? 'red' : null;
+    }
 
     const g = layer
       .append('g')
@@ -608,12 +754,12 @@ function renderNodes(
       x: -node.width / 2,
       y: -node.height / 2,
       name: r.activity.name,
-      es: fmt(r.es, isTbd),
-      dur: fmt(r.mu, isTbd),
-      ef: fmt(r.ef, isTbd),
-      ls: fmt(r.ls, isTbd),
-      slack: fmt(r.slack, isTbd),
-      lf: fmt(r.lf, isTbd),
+      es: fmtSchedule(r.es, isTbd),
+      dur: fmtDur(r.mu, isTbd),
+      ef: fmtSchedule(r.ef, isTbd),
+      ls: fmtSchedule(r.ls, isTbd),
+      slack: fmtSlack(r.slack, isTbd),
+      lf: fmtSchedule(r.lf, isTbd),
       fill,
       stroke: baseColor,
       labelColor,
@@ -752,6 +898,44 @@ function formatDuration(
   return `${display}${unit}`;
 }
 
+/**
+ * Format an ES / EF / LS / LF cell. When `projectStart` is set, the
+ * numeric offset (in `unit`) becomes a calendar date; otherwise we
+ * fall back to the numeric duration label so unanchored diagrams keep
+ * their original output byte-for-byte.
+ */
+function formatScheduleValue(
+  value: number | null,
+  projectStart: string | null,
+  unit: DurationUnit,
+  nullLabel: string | null
+): string {
+  if (value === null) return nullLabel ?? '?';
+  if (projectStart === null) return formatDuration(value, unit, nullLabel);
+  return addCalendarDays(projectStart, value * unitToDays(unit));
+}
+
+/**
+ * Format a slack cell. Anchored diagrams normalize slack to calendar
+ * days regardless of `time-unit` (per spec C6); unanchored diagrams
+ * keep the original behavior.
+ */
+function formatSlackValue(
+  value: number | null,
+  projectStart: string | null,
+  unit: DurationUnit,
+  nullLabel: string | null
+): string {
+  if (value === null) return nullLabel ?? '?';
+  if (projectStart === null) return formatDuration(value, unit, nullLabel);
+  // Convert from `unit` to calendar days so a 3-week slack reads "21d"
+  // instead of "3w" when dates are showing.
+  const days = value * unitToDays(unit);
+  const rounded = Math.round(days * 100) / 100;
+  const display = rounded.toFixed(2).replace(/\.?0+$/, '');
+  return `${display}d`;
+}
+
 // ============================================================
 // Section: critical-path highlight (React-callable)
 // ============================================================
@@ -838,6 +1022,151 @@ export function resetPertCriticalPath(container: Element): void {
   )) {
     (el as SVGElement).removeAttribute('opacity');
   }
+}
+
+// ============================================================
+// Section: caption text selection
+// ============================================================
+
+/**
+ * Pick the caption string the renderer paints. Returns the canonical
+ * `resolved.summaryText` when nothing is collapsed, or re-invokes
+ * `buildSummary` with the collapsed-group set so hidden-risk callouts
+ * can name a visible group surface instead of a hidden member.
+ *
+ * Returns `null` when the analyzer bailed (cycle, etc.) or when there
+ * is no summary to render — caller skips caption and reverts to the
+ * `titleHeight`-only layout.
+ */
+/**
+ * Build the D10 backward-anchor italic subtitle, or `null` for forward
+ * / no-anchor. The string is short enough to fit on one line; renderer
+ * positions it directly below the title (or at the top when no title).
+ */
+function backwardAnchorAnnotation(resolved: ResolvedPert): string | null {
+  const anchor = resolved.options.anchor;
+  if (anchor === null || anchor.kind !== 'backward') return null;
+  // Surface BOTH the user-supplied end-date AND the derived projectStart
+  // so the reader can see the schedule envelope at a glance. Falls back
+  // to a generic phrasing when projectStart is null (TBD upstream — the
+  // body cells will show `?` and there's no concrete start to name).
+  if (resolved.projectStart) {
+    return `Backward-anchored: end-date ${anchor.date} → project start ${resolved.projectStart}. Non-critical dates show earliest possible.`;
+  }
+  return `Backward-anchored from end-date ${anchor.date}. Project start is unknown until upstream activities are estimated.`;
+}
+
+/**
+ * Split the analyzer's `summaryText` into one bullet per logical
+ * sentence. Per-line strings already correspond to one bullet each,
+ * except the percentile line which packs three sentences into one
+ * line (separated by ". "). We split that line so each percentile
+ * gets its own bullet.
+ */
+function bulletizeCaption(summaryText: string): string[] {
+  const bullets: string[] = [];
+  for (const line of summaryText.split('\n')) {
+    if (!line.includes('. ')) {
+      bullets.push(line);
+      continue;
+    }
+    // Split on ". " but rejoin the period so each fragment ends with one.
+    const parts = line.split('. ');
+    parts.forEach((p, i) => {
+      bullets.push(i < parts.length - 1 ? `${p}.` : p);
+    });
+  }
+  return bullets;
+}
+
+interface CaptionBlockArgs {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  palette: PaletteColors;
+  isDark: boolean;
+}
+
+/**
+ * Render the project-stats caption as a node-styled rectangle below
+ * the diagram body. Mirrors the textbook-card recipe: rounded corners,
+ * `palette.primary` stroke, 25% tint fill via `shapeFill`. Text is
+ * left-aligned with a `•` bullet glyph prefixing each line.
+ */
+function renderCaptionBlock(
+  svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
+  bullets: string[],
+  args: CaptionBlockArgs
+): void {
+  const { x, y, width, height, palette, isDark } = args;
+  const baseColor = palette.colors.yellow;
+  const fill = shapeFill(palette, baseColor, isDark);
+  const labelColor = contrastText(
+    fill,
+    palette.textOnFillLight,
+    palette.textOnFillDark
+  );
+
+  const block = svg
+    .append('g')
+    .attr('class', 'pert-caption-block')
+    .attr('data-pert-caption', '');
+
+  block
+    .append('rect')
+    .attr('class', 'pert-caption-rect')
+    .attr('x', x)
+    .attr('y', y)
+    .attr('width', width)
+    .attr('height', height)
+    .attr('rx', NODE_RADIUS)
+    .attr('ry', NODE_RADIUS)
+    .attr('fill', fill)
+    .attr('stroke', baseColor)
+    .attr('stroke-width', NODE_STROKE_WIDTH);
+
+  const textX = x + CAPTION_BOX_PADDING_X;
+  const firstBaselineY = y + CAPTION_BOX_PADDING_Y + CAPTION_FONT_SIZE;
+  const text = block
+    .append('text')
+    .attr('class', 'pert-caption')
+    .attr('x', textX)
+    .attr('y', firstBaselineY)
+    .attr('text-anchor', 'start')
+    .attr('fill', labelColor)
+    .attr('font-size', CAPTION_FONT_SIZE)
+    .attr('font-weight', CAPTION_FONT_WEIGHT);
+
+  bullets.forEach((line, i) => {
+    const tspan = text.append('tspan').attr('x', textX).text(`• ${line}`);
+    if (i > 0) tspan.attr('dy', CAPTION_LINE_HEIGHT);
+  });
+}
+
+function chooseCaptionText(
+  resolved: ResolvedPert,
+  collapsedSet: ReadonlySet<string>
+): string | null {
+  if (resolved.error !== null) return null;
+  if (resolved.summaryText === null) return null;
+  if (collapsedSet.size === 0) return resolved.summaryText;
+
+  const dataDrivenMC = resolved.activities.some((r) => r.isAuthored);
+  const trialsClamped = dataDrivenMC && resolved.options.trials < 100;
+  return buildSummary({
+    mode: resolved.mode,
+    projectMu: resolved.projectMu,
+    projectSigma: resolved.projectSigma,
+    unit: resolved.options.timeUnit,
+    criticalPath: resolved.criticalPath,
+    activities: resolved.activities,
+    parsedActivities: resolved.activities.map((r) => r.activity),
+    monteCarloResult: resolved.monteCarloResult,
+    trialsClamped,
+    collapsedGroupIds: collapsedSet,
+    groups: resolved.groups.map((g) => g.group),
+  });
 }
 
 // re-export to silence unused-type lint when consumers only want the helper

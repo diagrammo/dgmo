@@ -4,12 +4,12 @@ time-unit w
 milestone voyage approved
 
 voyage approved
-  -> recruit crew 1 2 4
+  -> recruit crew
 
-recruit crew
-  -> sail home 3 5 8
+recruit crew 1 2 4
+  -> sail home
+
+sail home 3 5 8
+  -> landfall
 
 milestone landfall
-
-sail home
-  -> landfall

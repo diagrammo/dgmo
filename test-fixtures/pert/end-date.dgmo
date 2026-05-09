@@ -1,0 +1,27 @@
+pert Pirate Voyage
+time-unit w
+confidence medium
+end-date 2026-09-15
+
+milestone voyage approved
+
+voyage approved
+  -> recruit crew
+
+recruit crew 1 2 4 as rc
+  -> load powder
+
+load powder 0.5 1 2
+  -> sail to atoll
+
+sail to atoll 3 5 8
+  -> count gold
+  -> repair hull
+
+count gold 0.5
+  -> divvy shares
+
+repair hull 2 3 5
+  -> divvy shares
+
+divvy shares 1 2 3

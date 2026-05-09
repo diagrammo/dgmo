@@ -17,6 +17,7 @@ import { getPalette, getAvailablePalettes } from './palettes';
 import { DEFAULT_FONT_NAME } from './fonts';
 import { encodeDiagramUrl } from './sharing';
 import { resolveOrgImports } from './org/resolver';
+import { normalizePertSourceForShare } from './pert/share-normalize';
 
 // Derived from the palette registry so new palettes are auto-included.
 const PALETTES = getAvailablePalettes().map((p) => p.id);
@@ -1261,9 +1262,15 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  // URL output — encode DSL directly, no rendering needed
+  // URL output — encode DSL directly, no rendering needed.
+  // PERT diagrams may contain `start-date now`; resolve to today's
+  // date BEFORE encoding so the share-link captures authoring intent
+  // (per spec D9). Cheap to call on non-PERT content — the regex
+  // matches nothing.
   if (format === 'url') {
-    const result = encodeDiagramUrl(content);
+    const sourceForUrl =
+      chartType === 'pert' ? normalizePertSourceForShare(content) : content;
+    const result = encodeDiagramUrl(sourceForUrl);
     if (result.error) {
       exitWithJsonError(
         `Error: Diagram too large for URL sharing (${result.compressedSize} bytes, limit ${result.limit} bytes)`

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
@@ -6,6 +6,7 @@ import {
   looksLikePert,
   extractPertSymbols,
 } from '../src/pert/parser';
+import { normalizePertSourceForShare } from '../src/pert/share-normalize';
 
 const FIXTURES = join(__dirname, '../test-fixtures/pert');
 function loadFixture(name: string): string {
@@ -15,6 +16,18 @@ function loadFixture(name: string): string {
 function findError(parsed: ReturnType<typeof parsePert>, substring: string) {
   return parsed.diagnostics.find(
     (d) => d.severity === 'error' && d.message.includes(substring)
+  );
+}
+
+function findWarning(
+  parsed: ReturnType<typeof parsePert>,
+  opts: { code?: string; substring?: string }
+) {
+  return parsed.diagnostics.find(
+    (d) =>
+      d.severity === 'warning' &&
+      (opts.code === undefined || d.code === opts.code) &&
+      (opts.substring === undefined || d.message.includes(opts.substring))
   );
 }
 
@@ -144,6 +157,46 @@ describe('pert parser — duration validation', () => {
   });
 });
 
+describe('pert parser — inline forward-decl rejected', () => {
+  it('rejects durations on an arrow line', () => {
+    const parsed = parsePert(`pert\nA 1 2 3\n  -> B 2 3 5\n`);
+    const diag = findError(parsed, 'Inline forward-declaration not allowed');
+    expect(diag).toBeDefined();
+    expect(diag!.message).toContain("'2 3 5'");
+    expect(diag!.message).toContain("'B 2 3 5'");
+    expect(diag!.message).toContain("'-> B'");
+  });
+
+  it('rejects an `as <alias>` declaration on an arrow line', () => {
+    const parsed = parsePert(`pert\nA 1 2 3\n  -> B as bb\n`);
+    const diag = findError(parsed, 'Inline forward-declaration not allowed');
+    expect(diag).toBeDefined();
+    expect(diag!.message).toContain("'as bb'");
+  });
+
+  it('rejects pipe metadata on an arrow line', () => {
+    const parsed = parsePert(`pert\nA 1 2 3\n  -> B | confidence: low\n`);
+    const diag = findError(parsed, 'Inline forward-declaration not allowed');
+    expect(diag).toBeDefined();
+    expect(diag!.message).toContain('confidence: low');
+  });
+
+  it('still accepts a bare `-> dest` reference', () => {
+    const parsed = parsePert(`pert\nA 1 2 3\nB 2 3 5\nA\n  -> B\n`);
+    expect(parsed.error).toBeNull();
+    expect(parsed.edges).toHaveLength(1);
+    expect(parsed.edges[0]).toMatchObject({ source: 'a', target: 'b' });
+  });
+
+  it('still accepts a bare `-> alias` reference to an existing alias', () => {
+    const parsed = parsePert(
+      `pert\nrecruit crew 1 2 4 as rc\nA 1 2 3\nA\n  -> rc\n`
+    );
+    expect(parsed.error).toBeNull();
+    expect(parsed.edges.find((e) => e.target === 'recruit crew')).toBeDefined();
+  });
+});
+
 describe('pert parser — alias rules', () => {
   it('AC1.7: registers aliases via `as <id>` suffix', () => {
     const parsed = parsePert(
@@ -170,7 +223,208 @@ describe('pert parser — extractPertSymbols', () => {
     expect(symbols.entities).toContain('rc'); // alias
     expect(symbols.entities).toContain('outfit ship'); // group
     expect(symbols.keywords).toContain('milestone');
-    expect(symbols.keywords).toContain('analysis');
+    // `analysis` and `monte-carlo` were removed from autocomplete after
+    // the directive became reserved-but-inert; lock the removal in.
+    expect(symbols.keywords).not.toContain('analysis');
+    expect(symbols.keywords).not.toContain('monte-carlo');
+  });
+});
+
+describe('pert parser — `analysis` reserved-but-inert', () => {
+  it('emits warning with code pert.deprecated.analysis-directive and parses without error', () => {
+    const parsed = parsePert(`pert
+analysis monte-carlo
+A 1 2 4
+`);
+    expect(parsed.error).toBeNull();
+    const warn = findWarning(parsed, {
+      code: 'pert.deprecated.analysis-directive',
+    });
+    expect(warn).toBeDefined();
+    expect(warn!.message).toContain('no longer needed');
+  });
+
+  it('emits the same warning for any value (directive is inert regardless)', () => {
+    const parsed = parsePert(`pert
+analysis some-future-mode
+A 1 2 4
+`);
+    expect(parsed.error).toBeNull();
+    const warn = findWarning(parsed, {
+      code: 'pert.deprecated.analysis-directive',
+    });
+    expect(warn).toBeDefined();
+  });
+
+  it('emits no analysis-deprecation warning when the directive is absent', () => {
+    const parsed = parsePert(`pert
+A 1 2 4
+`);
+    expect(
+      findWarning(parsed, { code: 'pert.deprecated.analysis-directive' })
+    ).toBeUndefined();
+  });
+});
+
+describe('pert parser — date anchoring', () => {
+  function findCode(parsed: ReturnType<typeof parsePert>, code: string) {
+    return parsed.diagnostics.find((d) => d.code === code);
+  }
+
+  it('accepts `start-date YYYY-MM-DD` and stores forward anchor', () => {
+    const parsed = parsePert(`pert\nstart-date 2026-06-01\nA 1 2 3\n`);
+    expect(parsed.error).toBeNull();
+    expect(parsed.options.anchor).toEqual({
+      kind: 'forward',
+      date: '2026-06-01',
+    });
+  });
+
+  it('accepts `end-date YYYY-MM-DD` and stores backward anchor', () => {
+    const parsed = parsePert(`pert\nend-date 2026-09-15\nA 1 2 3\n`);
+    expect(parsed.error).toBeNull();
+    expect(parsed.options.anchor).toEqual({
+      kind: 'backward',
+      date: '2026-09-15',
+    });
+  });
+
+  describe('with frozen system time', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('resolves `start-date now` to today (host-local)', () => {
+      vi.useFakeTimers().setSystemTime(new Date(2026, 4, 8, 12, 0, 0));
+      const parsed = parsePert(`pert\nstart-date now\nA 1 2 3\n`);
+      expect(parsed.error).toBeNull();
+      expect(parsed.options.anchor).toEqual({
+        kind: 'forward',
+        date: '2026-05-08',
+      });
+    });
+  });
+
+  it('rejects `end-date now` with E_PERT_END_DATE_NOW', () => {
+    const parsed = parsePert(`pert\nend-date now\nA 1 2 3\n`);
+    const diag = findCode(parsed, 'E_PERT_END_DATE_NOW');
+    expect(diag).toBeDefined();
+    expect(diag!.severity).toBe('error');
+    expect(diag!.message).toContain('only valid for `start-date`');
+    expect(parsed.options.anchor).toBeNull();
+  });
+
+  it('rejects calendar-invalid dates with E_PERT_INVALID_DATE', () => {
+    const parsed = parsePert(`pert\nstart-date 2026-13-99\nA 1 2 3\n`);
+    const diag = findCode(parsed, 'E_PERT_INVALID_DATE');
+    expect(diag).toBeDefined();
+    expect(diag!.severity).toBe('error');
+    expect(parsed.options.anchor).toBeNull();
+  });
+
+  it('rejects malformed shape with E_PERT_INVALID_DATE', () => {
+    const parsed = parsePert(`pert\nstart-date 2026/06/01\nA 1 2 3\n`);
+    const diag = findCode(parsed, 'E_PERT_INVALID_DATE');
+    expect(diag).toBeDefined();
+  });
+
+  it('rejects both anchors with E_PERT_BOTH_ANCHORS and clears anchor', () => {
+    const parsed = parsePert(
+      `pert\nstart-date 2026-06-01\nend-date 2026-09-15\nA 1 2 3\n`
+    );
+    const diag = findCode(parsed, 'E_PERT_BOTH_ANCHORS');
+    expect(diag).toBeDefined();
+    expect(diag!.severity).toBe('error');
+    // Clear-on-collision: no partial state.
+    expect(parsed.options.anchor).toBeNull();
+    // Diagnostic names the first anchor's line so the user knows which
+    // directive collides (per F9 review fix).
+    expect(diag!.message).toContain('line 2');
+    expect(diag!.message).toContain('start-date');
+    // And tells the user the FIRST anchor was also discarded (per F5).
+    expect(diag!.message).toContain('discarded');
+  });
+
+  it('matches case-insensitively (Start-Date / START-DATE)', () => {
+    const parsed = parsePert(`pert\nStart-Date 2026-06-01\nA 1 2 3\n`);
+    expect(parsed.error).toBeNull();
+    expect(parsed.options.anchor).toEqual({
+      kind: 'forward',
+      date: '2026-06-01',
+    });
+  });
+
+  it('warns W_PERT_BD_WITH_ANCHOR for `time-unit bd` + anchor', () => {
+    const parsed = parsePert(
+      `pert\ntime-unit bd\nstart-date 2026-06-01\nA 1 2 3\n`
+    );
+    const diag = findCode(parsed, 'W_PERT_BD_WITH_ANCHOR');
+    expect(diag).toBeDefined();
+    expect(diag!.severity).toBe('warning');
+    // Order-independent — same warning when directives are reversed.
+    const reversed = parsePert(
+      `pert\nstart-date 2026-06-01\ntime-unit bd\nA 1 2 3\n`
+    );
+    expect(findCode(reversed, 'W_PERT_BD_WITH_ANCHOR')).toBeDefined();
+  });
+
+  it('warns W_PERT_SUBDAY_WITH_ANCHOR for `time-unit h`/`min` + anchor', () => {
+    const h = parsePert(`pert\ntime-unit h\nstart-date 2026-06-01\nA 1 2 3\n`);
+    expect(findCode(h, 'W_PERT_SUBDAY_WITH_ANCHOR')).toBeDefined();
+    const m = parsePert(`pert\ntime-unit min\nend-date 2026-06-30\nA 1 2 3\n`);
+    expect(findCode(m, 'W_PERT_SUBDAY_WITH_ANCHOR')).toBeDefined();
+  });
+
+  it('does not warn for `time-unit d`/`w`/`m`/`y`/`q` + anchor', () => {
+    for (const unit of ['d', 'w', 'm', 'y', 'q']) {
+      const parsed = parsePert(
+        `pert\ntime-unit ${unit}\nstart-date 2026-06-01\nA 1 2 3\n`
+      );
+      expect(findCode(parsed, 'W_PERT_BD_WITH_ANCHOR')).toBeUndefined();
+      expect(findCode(parsed, 'W_PERT_SUBDAY_WITH_ANCHOR')).toBeUndefined();
+    }
+  });
+});
+
+describe('pert parser — extractPertSymbols includes anchor keywords', () => {
+  it('exposes `start-date` and `end-date` for autocomplete', () => {
+    const symbols = extractPertSymbols(' ');
+    expect(symbols.keywords).toContain('start-date');
+    expect(symbols.keywords).toContain('end-date');
+  });
+});
+
+describe('pert share normalizer', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('substitutes `start-date now` with the resolved local date', () => {
+    vi.useFakeTimers().setSystemTime(new Date(2026, 4, 8, 12, 0, 0));
+    const dsl = `pert\ntime-unit w\nstart-date now\nA 1 2 3\n`;
+    const out = normalizePertSourceForShare(dsl);
+    expect(out).toContain('start-date 2026-05-08');
+    expect(out).not.toContain('start-date now');
+  });
+
+  it('preserves a trailing comment on the substituted line', () => {
+    vi.useFakeTimers().setSystemTime(new Date(2026, 4, 8, 12, 0, 0));
+    const dsl = `pert\nstart-date now  # use today's plan\n`;
+    const out = normalizePertSourceForShare(dsl);
+    expect(out).toContain("start-date 2026-05-08  # use today's plan");
+  });
+
+  it('leaves explicit-date lines, other directives, and bare tokens untouched', () => {
+    const dsl = [
+      'pert',
+      'time-unit w',
+      'start-date 2026-06-01',
+      '# now is a calm sea',
+      'A 1 2 3',
+      '  -> B 1 2 3 # do this now',
+    ].join('\n');
+    const out = normalizePertSourceForShare(dsl);
+    expect(out).toBe(dsl);
   });
 });
 

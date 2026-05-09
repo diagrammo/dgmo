@@ -1,5 +1,6 @@
-pert
+pert Pirate Voyage
 time-unit w
+end-date 2026-09-15
 
 recruit crew 1 2 4
   -> load powder

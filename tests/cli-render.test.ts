@@ -143,9 +143,12 @@ start 2024-01-15
   pert: `pert Sample
 time-unit w
 A 1 2 3
-  -> B 1 2 3
+B 1 2 3
+C 1 2 3
+A
+  -> B
 B
-  -> C 1 2 3`,
+  -> C`,
 
   'boxes-and-lines': `boxes-and-lines System
 API -> Database

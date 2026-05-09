@@ -370,6 +370,7 @@ export { parsePert, looksLikePert, extractPertSymbols } from './pert/parser';
 export { analyzePert } from './pert/analyzer';
 export { layoutPert, relayoutPert } from './pert/layout';
 export type { LayoutOverrides as PertLayoutOverrides } from './pert/internal';
+export { normalizePertSourceForShare } from './pert/share-normalize';
 export {
   renderPert,
   renderPertForExport,
@@ -378,6 +379,7 @@ export {
 } from './pert/renderer';
 export type { PertRenderOptions } from './pert/renderer';
 export type {
+  Anchor as PertAnchor,
   ParsedPert,
   PertActivity,
   PertEdge,

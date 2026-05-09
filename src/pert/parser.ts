@@ -26,6 +26,7 @@ import type {
   PertDirection,
   NodeDetail,
 } from './types';
+import { formatLocalISODate, parseLocalISODate } from './internal';
 import type {
   DurationEstimate,
   DeclarationSite,
@@ -47,12 +48,14 @@ const DIRECTIVE_KEYS = new Set([
   'trials',
   'seed',
   'scrubber-trials',
+  'start-date',
+  'end-date',
 ]);
 
 /** Group header: `[name]` with optional `| collapsed: true` etc. */
 const GROUP_HEADER_RE = /^\[([^\]]+)\]\s*(?:\|\s*(.+))?$/;
 
-/** Inline reference / forward-decl: `-> rest…` */
+/** Indented reference: `-> dest`. */
 const ARROW_RE = /^->\s*(.+?)\s*$/;
 
 /** Trailing `as <ident>` (alias) suffix; `<ident>` ≤ 12 chars. */
@@ -70,10 +73,10 @@ const DEFAULT_OPTIONS: PertOptions = {
   direction: 'LR',
   nodeDetail: 'compact',
   confidence: 'medium',
-  analysis: 'none',
   trials: 10000,
   seed: 1,
   scrubberTrials: 300,
+  anchor: null,
 };
 
 // ============================================================
@@ -276,15 +279,21 @@ function parsePipeMetadata(raw: string): Record<string, string> {
 export function parsePert(content: string): ParsedPert {
   const lines = content.split('\n');
   const diagnostics: DgmoError[] = [];
-  const error = (line: number, msg: string): void => {
-    diagnostics.push(makeDgmoError(line, msg, 'error'));
+  const error = (line: number, msg: string, code?: string): void => {
+    diagnostics.push(makeDgmoError(line, msg, 'error', code));
   };
-  const warn = (line: number, msg: string): void => {
-    diagnostics.push(makeDgmoError(line, msg, 'warning'));
+  const warn = (line: number, msg: string, code?: string): void => {
+    diagnostics.push(makeDgmoError(line, msg, 'warning', code));
   };
 
   const options: PertOptions = { ...DEFAULT_OPTIONS };
   let title: string | null = null;
+
+  // Track the line of the FIRST anchor directive so a later collision
+  // can name it (per F9 review feedback). Cleared along with
+  // `options.anchor` when both-anchors is detected.
+  let firstAnchorLine: number | null = null;
+  let firstAnchorKey: 'start-date' | 'end-date' | null = null;
 
   // ── Pass 1 ──────────────────────────────────────────────
   // Collect declarations, references, group blocks. No resolution yet.
@@ -397,33 +406,43 @@ export function parsePert(content: string): ParsedPert {
         error(lineNumber, `'-> …' is missing a target name.`);
         continue;
       }
+
+      // Arrow lines are pure references. Durations, alias declarations,
+      // and pipe metadata must live on a non-indented source-line so
+      // readers know exactly where to look for an activity's attributes.
+      if (
+        tok.durationTokens.length > 0 ||
+        tok.alias !== undefined ||
+        tok.pipeMetadata !== undefined
+      ) {
+        const extras: string[] = [];
+        if (tok.durationTokens.length > 0) {
+          extras.push(`'${tok.durationTokens.join(' ')}'`);
+        }
+        if (tok.alias !== undefined) extras.push(`'as ${tok.alias}'`);
+        if (tok.pipeMetadata !== undefined) {
+          extras.push(`'| ${tok.pipeMetadata}'`);
+        }
+        const durHint =
+          tok.durationTokens.length > 0
+            ? ` ${tok.durationTokens.join(' ')}`
+            : '';
+        error(
+          lineNumber,
+          `Inline forward-declaration not allowed on '-> ${arrowMatch[1]}' ` +
+            `(${extras.join(', ')}). ` +
+            `Move attributes to a source-line: '${targetName}${durHint}' ` +
+            `then '-> ${targetName}'.`
+        );
+        continue;
+      }
+
       references.push({
         sourceName: currentSourceName,
         sourceLineNumber: -1, // resolved in Pass 2 from declarations
         targetName,
         targetLineNumber: lineNumber,
       });
-
-      // Inline forward-decl: register a tentative declaration if the
-      // line carries duration tokens or an alias. Pass 2 will demote
-      // it to a reference if the target turns out to already be declared.
-      if (tok.durationTokens.length > 0 || tok.alias !== undefined) {
-        const site: DeclarationSite = {
-          name: targetName,
-          ...(tok.alias !== undefined && { alias: tok.alias }),
-          durationTokens: tok.durationTokens,
-          ...(tok.pipeMetadata !== undefined && {
-            pipeMetadata: tok.pipeMetadata,
-          }),
-          lineNumber,
-          inline: true,
-          ...(currentGroupId() !== undefined && {
-            groupHint: currentGroupId(),
-          }),
-          isMilestone: false,
-        };
-        registerSite(site);
-      }
       continue;
     }
 
@@ -438,7 +457,6 @@ export function parsePert(content: string): ParsedPert {
           ...(peeled.alias !== undefined && { alias: peeled.alias }),
           durationTokens: [],
           lineNumber,
-          inline: false,
           ...(currentGroupId() !== undefined && {
             groupHint: currentGroupId(),
           }),
@@ -461,6 +479,30 @@ export function parsePert(content: string): ParsedPert {
       if (DIRECTIVE_KEYS.has(head)) {
         const value =
           firstSpace === -1 ? '' : trimmed.slice(firstSpace + 1).trim();
+        if (head === 'start-date' || head === 'end-date') {
+          // Closure-aware path: collision diagnostic names the first
+          // anchor's line so the user knows which directive to remove.
+          const hadAnchor = options.anchor !== null;
+          applyAnchorDirective(
+            head as 'start-date' | 'end-date',
+            value,
+            lineNumber,
+            options,
+            error,
+            firstAnchorLine,
+            firstAnchorKey
+          );
+          if (!hadAnchor && options.anchor !== null) {
+            firstAnchorLine = lineNumber;
+            firstAnchorKey = head as 'start-date' | 'end-date';
+          } else if (hadAnchor && options.anchor === null) {
+            // Both-anchors collision cleared the prior anchor — clear the
+            // tracker too so a third directive (if any) sees a clean slate.
+            firstAnchorLine = null;
+            firstAnchorKey = null;
+          }
+          continue;
+        }
         applyDirective(head, value, lineNumber, options, error, warn);
         continue;
       }
@@ -495,7 +537,6 @@ export function parsePert(content: string): ParsedPert {
           pipeMetadata: tok.pipeMetadata,
         }),
         lineNumber,
-        inline: false,
         ...(currentGroupId() !== undefined && { groupHint: currentGroupId() }),
         isMilestone: false,
       };
@@ -517,6 +558,26 @@ export function parsePert(content: string): ParsedPert {
     }
     if (site.alias && !declarationsByAlias.has(site.alias)) {
       declarationsByAlias.set(site.alias, site);
+    }
+  }
+
+  // ── Anchor + time-unit cross-checks ─────────────────────
+  // Order-independent: directives can appear in any order; both must
+  // be parsed before this fires. Render-blocking false; the chart
+  // still renders with whatever rounding the date display imposes.
+  if (options.anchor !== null) {
+    if (options.timeUnit === 'bd') {
+      warn(
+        0,
+        '`bd` (business days) is treated as calendar days when `start-date`/`end-date` is set. For business-day scheduling with weekend/holiday awareness, use Gantt.',
+        'W_PERT_BD_WITH_ANCHOR'
+      );
+    } else if (options.timeUnit === 'min' || options.timeUnit === 'h') {
+      warn(
+        0,
+        "Date display rounds to whole days; sub-day `time-unit` ('h'/'min') will lose precision when `start-date`/`end-date` is set. For honest output use `time-unit d`.",
+        'W_PERT_SUBDAY_WITH_ANCHOR'
+      );
     }
   }
 
@@ -690,8 +751,8 @@ function applyDirective(
   value: string,
   lineNumber: number,
   options: PertOptions,
-  error: (line: number, msg: string) => void,
-  warn: (line: number, msg: string) => void
+  error: (line: number, msg: string, code?: string) => void,
+  warn: (line: number, msg: string, code?: string) => void
 ): void {
   switch (key) {
     case 'time-unit': {
@@ -732,11 +793,14 @@ function applyDirective(
       return;
     }
     case 'analysis': {
-      if (value !== 'monte-carlo') {
-        error(lineNumber, `Unknown analysis '${value}'. Expected monte-carlo.`);
-        return;
-      }
-      options.analysis = 'monte-carlo';
+      // Reserved-but-inert: the directive no longer selects analysis
+      // mode (auto-derived from data) but stays recognized so cached
+      // share-link payloads keep rendering.
+      warn(
+        lineNumber,
+        '`analysis` directive is no longer needed — Monte Carlo auto-enables when activities have O/M/P estimates',
+        'pert.deprecated.analysis-directive'
+      );
       return;
     }
     case 'trials': {
@@ -778,7 +842,92 @@ function applyDirective(
       options.scrubberTrials = n;
       return;
     }
+    case 'start-date':
+    case 'end-date': {
+      // Anchor directives need closure state (first-anchor line/key) to
+      // produce a useful collision diagnostic. They are intercepted in
+      // the parse loop before this dispatch fires; reaching this case
+      // would be a bug.
+      error(
+        lineNumber,
+        `internal error: anchor directive '${key}' reached generic dispatch`
+      );
+      return;
+    }
   }
+}
+
+/**
+ * Validate and apply a `start-date` / `end-date` directive. Mutual
+ * exclusion enforced via clear-on-collision: when a second anchor of
+ * either kind arrives we emit `E_PERT_BOTH_ANCHORS` and reset
+ * `options.anchor` to `null` so downstream code never sees partial state.
+ */
+function applyAnchorDirective(
+  key: 'start-date' | 'end-date',
+  value: string,
+  lineNumber: number,
+  options: PertOptions,
+  error: (line: number, msg: string, code?: string) => void,
+  firstAnchorLine: number | null,
+  firstAnchorKey: 'start-date' | 'end-date' | null
+): void {
+  // Both-anchors collision (per F4 — clear-on-collision policy):
+  // if the user already authored an anchor of either kind, emit error
+  // AND drop the prior anchor so the parsed result has no ambiguous
+  // partial state. The user must fix the source.
+  if (options.anchor !== null) {
+    const priorRef =
+      firstAnchorKey && firstAnchorLine
+        ? ` Conflicts with \`${firstAnchorKey}\` declared on line ${firstAnchorLine}.`
+        : '';
+    error(
+      lineNumber,
+      `Specify \`start-date\` or \`end-date\`, not both. Use one anchor — both directives are discarded; re-author one to recover.${priorRef}`,
+      'E_PERT_BOTH_ANCHORS'
+    );
+    options.anchor = null;
+    return;
+  }
+
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    error(
+      lineNumber,
+      `\`${key}\` requires a full date (YYYY-MM-DD), got '${value}'.`,
+      'E_PERT_INVALID_DATE'
+    );
+    return;
+  }
+
+  // `now` token — only valid for start-date.
+  if (trimmed.toLowerCase() === 'now') {
+    if (key === 'end-date') {
+      error(
+        lineNumber,
+        '`end-date` requires an explicit YYYY-MM-DD; `now` is only valid for `start-date`.',
+        'E_PERT_END_DATE_NOW'
+      );
+      return;
+    }
+    options.anchor = { kind: 'forward', date: formatLocalISODate(new Date()) };
+    return;
+  }
+
+  const parsed = parseLocalISODate(trimmed);
+  if (!parsed) {
+    error(
+      lineNumber,
+      `Invalid date '${trimmed}' for ${key}. Expected YYYY-MM-DD.`,
+      'E_PERT_INVALID_DATE'
+    );
+    return;
+  }
+
+  options.anchor =
+    key === 'start-date'
+      ? { kind: 'forward', date: trimmed }
+      : { kind: 'backward', date: trimmed };
 }
 
 function classifyGroup(
@@ -829,11 +978,11 @@ export function extractPertSymbols(docText: string): DiagramSymbols {
       'confidence',
       'direction',
       'node-detail',
-      'analysis',
-      'monte-carlo',
       'trials',
       'seed',
       'scrubber-trials',
+      'start-date',
+      'end-date',
       'milestone',
       'as',
     ],

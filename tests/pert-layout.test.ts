@@ -57,15 +57,21 @@ describe('pert layout', () => {
     const linear = `pert
 direction TB
 A 1 1 1
-  -> B 1 1 1
+B 1 1 1
+C 1 1 1
+D 1 1 1
+E 1 1 1
+F 1 1 1
+A
+  -> B
 B
-  -> C 1 1 1
+  -> C
 C
-  -> D 1 1 1
+  -> D
 D
-  -> E 1 1 1
+  -> E
 E
-  -> F 1 1 1
+  -> F
 `;
     const { resolved: tbResolved } = pipeline(linear);
     const tbLayout = layoutPert(tbResolved);

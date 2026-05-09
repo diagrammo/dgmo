@@ -2,10 +2,15 @@ pert
 time-unit w
 
 recruit crew 1 2 4 as rc
-  -> load powder 0.5 1 2 as lp
+  -> load powder
 
-load powder
-  -> sail to atoll 3 5 8 as sa
+load powder 0.5 1 2 as lp
+  -> sail to atoll
 
+sail to atoll 3 5 8 as sa
+
+count gold 1 2 3
+
+# bare alias source-line references the aliased activity
 sa
-  -> count gold 1 2 3
+  -> count gold

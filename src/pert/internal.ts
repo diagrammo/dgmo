@@ -5,7 +5,8 @@
 // Not re-exported from the package barrel. Parser/analyzer/renderer
 // share these; consumers should reach for `./types` instead.
 
-import type { Duration } from '../gantt/types';
+import type { Duration, DurationUnit } from '../gantt/types';
+import { formatDateKey, parseGanttDate } from '../utils/duration';
 
 /**
  * A three-point duration estimate. Each component is a parsed
@@ -79,8 +80,6 @@ export interface DeclarationSite {
   pipeMetadata?: string;
   /** Source line (1-based). */
   lineNumber: number;
-  /** Whether this site was an inline `-> name <durs>` forward-decl. */
-  inline: boolean;
   /** Pending group id from the enclosing block at the source line. */
   groupHint?: string;
   /** Set when this is a `milestone <name>` primitive. */
@@ -95,4 +94,82 @@ export interface ReferenceSite {
   /** Target name as written. */
   targetName: string;
   targetLineNumber: number;
+}
+
+// ============================================================
+// Date anchoring helpers
+// ============================================================
+//
+// `start-date` / `end-date` directives let PERT diagrams render
+// real calendar dates instead of numeric day-offsets. These helpers
+// own the host-TZ-invariant arithmetic; reuse them everywhere a date
+// flows through PERT (parser, analyzer, renderer).
+
+/** Time-unit → calendar-day conversion, mirroring analyzer's table. */
+const UNIT_TO_DAYS_LOCAL: Record<DurationUnit, number> = {
+  min: 1 / (60 * 24),
+  h: 1 / 24,
+  d: 1,
+  bd: 1, // PERT has no calendar; bd ≈ d for analytical purposes
+  w: 7,
+  m: 30,
+  q: 90,
+  y: 365,
+  s: 14, // sprint (14 calendar days) — not seconds
+};
+
+export function unitToDays(unit: DurationUnit): number {
+  return UNIT_TO_DAYS_LOCAL[unit];
+}
+
+/** Strict `YYYY-MM-DD` literal — no time component, no other formats. */
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * TZ-safe parse of a `YYYY-MM-DD` string into a local-time `Date`.
+ * Rejects:
+ *   - shape mismatches (e.g. `2026/06/01`, `2026-6-1`)
+ *   - invalid calendar dates (`2026-13-99`, `2026-02-31`)
+ * Returns `null` on rejection.
+ */
+export function parseLocalISODate(iso: string): Date | null {
+  if (!ISO_DATE_RE.test(iso)) return null;
+  const date = parseGanttDate(iso);
+  // Round-trip check rejects calendar wrap-arounds like 2026-13-99
+  // (which JS happily reinterprets as 2027-01-99 etc.).
+  if (formatDateKey(date) !== iso) return null;
+  return date;
+}
+
+/**
+ * Format a `Date` as `YYYY-MM-DD` using local-time getters (NOT
+ * `toISOString`, which silently shifts to UTC and produces off-by-one
+ * results in non-UTC zones).
+ */
+export function formatLocalISODate(date: Date): string {
+  return formatDateKey(date);
+}
+
+/**
+ * Add `days` calendar days to an ISO date string, returning a new
+ * `YYYY-MM-DD`. Single rounding point at entry, symmetric (round-half-
+ * away-from-zero) so forward and backward anchors agree at fractional
+ * boundaries. Returns the input unchanged when it fails to parse —
+ * upstream validation should have caught that, so this is defensive.
+ */
+export function addCalendarDays(iso: string, days: number): string {
+  const start = parseLocalISODate(iso);
+  if (!start) return iso;
+  // Symmetric round-half-away-from-zero. `Math.round` rounds .5
+  // toward +∞, which makes forward (+17.5) and backward (-17.5) of
+  // the same offset disagree.
+  const whole = Math.sign(days) * Math.round(Math.abs(days));
+  const result = new Date(
+    start.getFullYear(),
+    start.getMonth(),
+    start.getDate() + whole,
+    start.getHours(),
+    start.getMinutes()
+  );
+  return formatLocalISODate(result);
 }

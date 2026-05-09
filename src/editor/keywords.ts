@@ -235,8 +235,6 @@ export const DIRECTIVE_KEYWORDS = new Set([
   'time-unit',
   'confidence',
   'node-detail',
-  'analysis',
-  'monte-carlo',
   'trials',
   'seed',
   'scrubber-trials',

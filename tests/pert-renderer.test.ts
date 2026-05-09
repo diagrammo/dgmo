@@ -34,6 +34,9 @@ const FIXTURE_NAMES = [
   'with-aliases.dgmo',
   'tbd-poison.dgmo',
   'pirate-voyage.dgmo',
+  'start-date.dgmo',
+  'end-date.dgmo',
+  'backward-tbd.dgmo',
 ];
 
 // Snapshot suite: each fixture × {nord light, tokyo-night dark}. Keeps
@@ -269,6 +272,141 @@ describe('pert renderer — structural assertions', () => {
     document.body.removeChild(c);
   });
 
+  it('AC19: caption emits one tspan per bullet, prefixed with •; first has no dy, others have pixel dy', () => {
+    const svg = renderForTest(loadFixture('three-point.dgmo'));
+    const doc = parseDom(svg);
+    const captions = doc.querySelectorAll('text.pert-caption');
+    expect(captions.length).toBe(1);
+    const tspans = captions[0]!.querySelectorAll('tspan');
+    expect(tspans.length).toBeGreaterThan(0);
+    expect(tspans[0]!.getAttribute('dy')).toBeNull();
+    expect(tspans[0]!.textContent?.startsWith('• ')).toBe(true);
+    for (let i = 1; i < tspans.length; i++) {
+      const dy = tspans[i]!.getAttribute('dy');
+      expect(dy).not.toBeNull();
+      expect(/^\d+(\.\d+)?$/.test(dy!)).toBe(true);
+      expect(tspans[i]!.textContent?.startsWith('• ')).toBe(true);
+    }
+  });
+
+  it('AC20: caption renders below the diagram, wrapped in a node-styled rect', () => {
+    const c = document.createElement('div');
+    document.body.appendChild(c);
+    const parsed = parsePert(loadFixture('basic.dgmo'));
+    const resolved = analyzePert(parsed);
+    const layout = relayoutPert(resolved, {});
+    const colors = getPalette('nord').light;
+    renderPert(c as HTMLDivElement, resolved, layout, colors, false, {
+      title: parsed.title,
+    });
+    const block = c.querySelector('g.pert-caption-block');
+    expect(block).not.toBeNull();
+    expect(block!.querySelector('rect.pert-caption-rect')).not.toBeNull();
+    // Caption rect Y is below every node g's transform Y.
+    const captionRect = block!.querySelector('rect')!;
+    const captionY = parseFloat(captionRect.getAttribute('y')!);
+    const nodeYs = Array.from(c.querySelectorAll('g.pert-node')).map((n) => {
+      const t = n.getAttribute('transform') ?? '';
+      const m = t.match(/translate\(\s*[\d.]+\s*,\s*([\d.]+)/);
+      return m ? parseFloat(m[1]) : 0;
+    });
+    const lastNodeBottom = Math.max(...nodeYs);
+    expect(captionY).toBeGreaterThan(lastNodeBottom);
+    document.body.removeChild(c);
+  });
+
+  it('AC21: TB and LR layouts produce byte-identical summaryText', () => {
+    const lr = `pert
+direction LR
+A 1 2 4
+B 1 2 4
+A
+  -> B
+`;
+    const tb = `pert
+direction TB
+A 1 2 4
+B 1 2 4
+A
+  -> B
+`;
+    const resLr = analyzePert(parsePert(lr));
+    const resTb = analyzePert(parsePert(tb));
+    expect(resLr.summaryText).toBe(resTb.summaryText);
+  });
+
+  it('AC25: monte-carlo.dgmo (with deprecated `analysis monte-carlo`) still renders', () => {
+    // The directive now warns but does not block rendering. SVG must
+    // contain a caption and the chart body.
+    const svg = renderForTest(loadFixture('monte-carlo.dgmo'));
+    expect(svg).toContain('<svg');
+    expect(svg).toContain('class="pert-caption"');
+    expect(svg).toContain('class="pert-node"');
+  });
+
+  it('AC27: cycle bailout emits no caption element', () => {
+    const svg = renderForTest(loadFixture('cycle-error.dgmo'));
+    const doc = parseDom(svg);
+    expect(doc.querySelectorAll('text.pert-caption').length).toBe(0);
+  });
+
+  it('TBD-fallback caption: legend still emits Field labels bullet', () => {
+    const svg = renderForTest(loadFixture('tbd-poison.dgmo'));
+    const doc = parseDom(svg);
+    const tspans = doc.querySelectorAll('text.pert-caption tspan');
+    expect(tspans.length).toBeGreaterThan(0);
+    expect(tspans[0]!.textContent).toContain('Field labels');
+  });
+
+  it('AC12: hidden-risk activity inside collapsed group surfaces the group name', () => {
+    // Diamond with a high-criticality off-CPM arm inside a group. Both
+    // arms are similar length so C lands on the critical path often
+    // enough to clear the 0.25 threshold. Collapse the group at render
+    // time → caption should name the group, not C.
+    const c = document.createElement('div');
+    document.body.appendChild(c);
+    const src = `pert
+time-unit w
+trials 2000
+seed 7
+
+A 1 1 1
+B 4 5 6
+[hidden-team]
+  C 4 5 6
+D 1 1 1
+
+A
+  -> B
+  -> C
+B
+  -> D
+C
+  -> D
+`;
+    const parsed = parsePert(src);
+    const resolved = analyzePert(parsed);
+    const groupId = resolved.groups[0]!.group.id;
+    // Sanity: the group must actually contain C so the collapse-aware
+    // hidden-risk substitution has something to find.
+    expect(resolved.groups[0]!.group.activityIds).toContain('c');
+    const layout = relayoutPert(resolved, {}, new Set([groupId]));
+    const colors = getPalette('nord').light;
+    renderPert(c as HTMLDivElement, resolved, layout, colors, false, {
+      title: parsed.title,
+      collapsedGroupIds: [groupId],
+    });
+    const captionText = c.querySelector('text.pert-caption')!.textContent ?? '';
+    // Hidden-risk sentence may or may not fire (criticality depends on
+    // seed). When it does, it MUST name the group, never the inner
+    // activity.
+    if (captionText.includes('lands on the critical path')) {
+      expect(captionText).toContain('hidden-team (collapsed)');
+      expect(/\bC lands on the critical path/.test(captionText)).toBe(false);
+    }
+    document.body.removeChild(c);
+  });
+
   it('renders cleanly across all 10 palettes (smoke)', () => {
     const palettes = [
       'nord',
@@ -291,5 +429,50 @@ describe('pert renderer — structural assertions', () => {
       );
       expect(svg).toContain('<svg');
     }
+  });
+});
+
+describe('pert renderer — date anchoring', () => {
+  function renderForTest(input: string) {
+    const colors = getPalette('nord').light;
+    return renderPertForExport(input, 'light', colors);
+  }
+
+  it('forward anchor: source ES renders as the literal start-date', () => {
+    // recruit crew is the first activity after the milestone, so its
+    // ES is the start-date carried through. Renderer formats as ISO.
+    const svg = renderForTest(loadFixture('start-date.dgmo'));
+    expect(svg).toContain('2026-06-01');
+    // No D10 annotation in forward mode.
+    expect(svg).not.toContain('Backward-anchored');
+  });
+
+  it('backward anchor: D10 italic annotation names end-date AND derived projectStart', () => {
+    const svg = renderForTest(loadFixture('end-date.dgmo'));
+    // Annotation names BOTH dates so the reader sees the schedule
+    // envelope at a glance (per F11 review fix).
+    expect(svg).toContain('end-date 2026-09-15');
+    expect(svg).toContain('project start');
+    expect(svg).toContain('Backward-anchored');
+    expect(svg).toContain('font-style="italic"');
+    expect(svg).toContain('class="pert-anchor-annotation"');
+  });
+
+  it('backward anchor + TBD upstream: schedule cells fall back to "?"', () => {
+    const svg = renderForTest(loadFixture('backward-tbd.dgmo'));
+    // Annotation still names the end-date, even when projectStart can't
+    // be derived because of upstream TBDs (uses the fallback phrasing).
+    expect(svg).toContain('Backward-anchored from end-date 2026-09-15');
+    expect(svg).toContain('Project start is unknown');
+    // No date strings should appear in node bodies — projectStart is null
+    // so every schedule cell renders nullLabel='?'.
+    expect(svg).not.toContain('2026-09-15</text>');
+    expect(svg).not.toContain('2026-08-');
+  });
+
+  it('unanchored fixtures keep numeric label formatting (regression)', () => {
+    const svg = renderForTest(loadFixture('basic.dgmo'));
+    // No anchor present, so no ISO-date strings should leak in.
+    expect(svg).not.toMatch(/\d{4}-\d{2}-\d{2}/);
   });
 });

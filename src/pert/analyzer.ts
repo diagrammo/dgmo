@@ -16,6 +16,7 @@ import type { DgmoError } from '../diagnostics';
 import type { Duration, DurationUnit } from '../gantt/types';
 import type {
   ParsedPert,
+  PertActivity,
   PertEdge,
   PertGroup,
   ResolvedActivity,
@@ -24,7 +25,11 @@ import type {
   MonteCarloResult,
 } from './types';
 import type { DurationEstimate } from './internal';
-import { resolveConfidence, CONFIDENCE_TABLE } from './internal';
+import {
+  addCalendarDays,
+  resolveConfidence,
+  CONFIDENCE_TABLE,
+} from './internal';
 import { simulateCanonical, type ExpandedActivity } from './monte-carlo';
 
 // ============================================================
@@ -313,27 +318,33 @@ export function analyzePert(parsed: ParsedPert): ResolvedPert {
       mu: exp ? fromDays(exp.mean, unit) : null,
       sigma: exp ? fromDays(exp.sigma, unit) : null,
       criticality: null,
+      isAuthored: a.duration !== null && !a.duration.mOnly && !a.isMilestone,
     };
   });
 
   // Resolved groups: μ/σ rolled up along a path through the group. When
-  // MC is on (Phase 2), the rollup uses the modal-longest-path observed
-  // across trials; otherwise the M-world critical path.
+  // MC is on, the rollup uses the modal-longest-path observed across
+  // trials; otherwise the M-world critical path.
   let monteCarloResult: MonteCarloResult | null = null;
 
-  if (parsed.options.analysis === 'monte-carlo') {
+  // Auto-derive mode from data: monte-carlo when at least one
+  // non-milestone activity carries a three-point estimate.
+  const dataDrivenMC = activities.some((a) => has3PointEstimate(a));
+  // Trials clamp: nonsense percentiles from low-N samples → fall back
+  // to analytical and surface the reason in the caption.
+  const trialsClamped = dataDrivenMC && parsed.options.trials < 100;
+  let mode: 'monte-carlo' | 'analytical' =
+    dataDrivenMC && !trialsClamped ? 'monte-carlo' : 'analytical';
+
+  if (mode === 'monte-carlo') {
     const allTerminalsPoisoned = activities
       .filter((a) => (successors.get(a.id) ?? []).length === 0)
       .every((a) => poisoned.has(a.id));
     if (allTerminalsPoisoned && activities.length > 0) {
-      const tbdNames = activities
-        .filter((a) => a.duration === null)
-        .map((a) => `"${a.name}"`)
-        .join(', ');
-      error(
-        0,
-        `Cannot run Monte Carlo — every project-end path is downstream of an unestimated activity. Estimate at least one of: ${tbdNames}.`
-      );
+      // Silently downgrade — the TBD-fallback caption already names
+      // the unestimated activities. Erroring would block render even
+      // when the user didn't ask for MC explicitly (auto-derive).
+      mode = 'analytical';
     } else {
       const expandedArr: ExpandedActivity[] = [];
       for (const a of activities) {
@@ -347,9 +358,12 @@ export function analyzePert(parsed: ParsedPert): ResolvedPert {
         activities: resolvedActivities,
         edges,
         groups: [],
+        mode: 'monte-carlo',
+        summaryText: null,
         projectMu: null,
         projectSigma: null,
         criticalPath,
+        projectStart: null,
         monteCarloResult: null,
         expandedActivities: expandedArr,
         diagnostics: [],
@@ -390,20 +404,67 @@ export function analyzePert(parsed: ParsedPert): ResolvedPert {
     if (exp) publicExpanded.push({ id: a.id, o: exp.o, m: exp.m, p: exp.p });
   }
 
+  const projectMuOut =
+    projectMuDays === null ? null : fromDays(projectMuDays, unit);
+  const projectSigmaOut =
+    projectSigmaDays === null ? null : fromDays(projectSigmaDays, unit);
+
+  // Derive projectStart from the optional anchor. Renderer reads this
+  // directly — no mode-specific logic in the presentation layer.
+  //   forward  → literal start-date
+  //   backward → end-date − projectMu (in calendar days), rounded once
+  //   no anchor or backward+TBD upstream → null
+  let projectStart: string | null = null;
+  const anchor = parsed.options.anchor;
+  if (anchor !== null) {
+    if (anchor.kind === 'forward') {
+      projectStart = anchor.date;
+    } else if (anchor.kind === 'backward' && projectMuDays !== null) {
+      projectStart = addCalendarDays(anchor.date, -projectMuDays);
+    }
+  }
+
+  // Build the canonical caption (no collapse). Renderer re-invokes with
+  // a non-empty collapsed set when groups are collapsed at render time.
+  const summaryText = buildSummary({
+    mode,
+    projectMu: projectMuOut,
+    projectSigma: projectSigmaOut,
+    unit,
+    criticalPath,
+    activities: resolvedActivities,
+    parsedActivities: activities,
+    monteCarloResult,
+    trialsClamped,
+    collapsedGroupIds: new Set(),
+    groups: parsed.groups,
+  });
+
   return {
     options: parsed.options,
     activities: resolvedActivities,
     edges,
     groups: resolvedGroups,
-    projectMu: projectMuDays === null ? null : fromDays(projectMuDays, unit),
-    projectSigma:
-      projectSigmaDays === null ? null : fromDays(projectSigmaDays, unit),
+    mode,
+    summaryText,
+    projectMu: projectMuOut,
+    projectSigma: projectSigmaOut,
     criticalPath,
+    projectStart,
     monteCarloResult,
     expandedActivities: publicExpanded,
     diagnostics,
     error: parsed.error ?? firstFatal(diagnostics),
   };
+}
+
+/**
+ * True iff the source supplied an explicit O/M/P triple for the
+ * activity. Milestones report false (they're zero-duration sentinels,
+ * not estimated work).
+ */
+function has3PointEstimate(a: PertActivity): boolean {
+  return a.duration !== null && !a.duration.mOnly && !a.isMilestone;
 }
 
 // ============================================================
@@ -478,6 +539,57 @@ function rollupGroup(
   };
 }
 
+// ============================================================
+// Caption (project-stats summary) builder
+// ============================================================
+
+/**
+ * Build the project-stats caption emitted as `ResolvedPert.summaryText`.
+ * Renderer reads the returned string and emits one `<tspan>` per
+ * `\n`-delimited line. Returns the empty string if the analyzer
+ * produced no output (e.g. cycle bailout) — caller decides whether to
+ * map that to `null`.
+ */
+export interface BuildSummaryInput {
+  mode: 'monte-carlo' | 'analytical';
+  projectMu: number | null;
+  projectSigma: number | null;
+  unit: DurationUnit;
+  criticalPath: string[];
+  activities: ResolvedActivity[];
+  parsedActivities: PertActivity[];
+  monteCarloResult: MonteCarloResult | null;
+  trialsClamped: boolean;
+  collapsedGroupIds: ReadonlySet<string>;
+  groups: PertGroup[];
+}
+
+export function buildSummary(input: BuildSummaryInput): string | null {
+  const { criticalPath, activities, parsedActivities } = input;
+
+  if (parsedActivities.length === 0) return null;
+
+  const activityById = new Map(activities.map((r) => [r.activity.id, r]));
+  const lines: string[] = ['Field labels: ES dur EF / name / LS slack LF'];
+
+  if (criticalPath.length > 0) {
+    const names = criticalPath.map(
+      (id) => activityById.get(id)?.activity.name ?? id
+    );
+    lines.push(`Critical path: ${formatCriticalPath(names)}.`);
+  }
+
+  return lines.join('\n');
+}
+
+const CAPTION_ABBREV_THRESHOLD = 8;
+
+function formatCriticalPath(names: string[]): string {
+  if (names.length === 0) return '';
+  if (names.length < CAPTION_ABBREV_THRESHOLD) return names.join(' → ');
+  return `${names[0]} → … → ${names[names.length - 1]}`;
+}
+
 function emptyResolved(
   parsed: ParsedPert,
   diagnostics: DgmoError[]
@@ -495,6 +607,7 @@ function emptyResolved(
       mu: null,
       sigma: null,
       criticality: null,
+      isAuthored: false,
     })),
     edges: parsed.edges,
     groups: parsed.groups.map((g) => ({
@@ -510,9 +623,12 @@ function emptyResolved(
       slack: null,
       criticality: null,
     })),
+    mode: 'analytical',
+    summaryText: null,
     projectMu: null,
     projectSigma: null,
     criticalPath: [],
+    projectStart: null,
     monteCarloResult: null,
     expandedActivities: [],
     diagnostics,

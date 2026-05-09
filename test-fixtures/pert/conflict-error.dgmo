@@ -2,7 +2,9 @@ pert
 time-unit w
 
 load powder 0.5 1 2
-  -> sail to atoll 3 5 8
+  -> sail to atoll
+
+sail to atoll 3 5 8
 
 # duplicate declaration with conflicting estimate
 load powder 1 2 3

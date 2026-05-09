@@ -19,6 +19,17 @@ export type PertDirection = 'LR' | 'TB';
 /** `node-detail` directive value. */
 export type NodeDetail = 'compact' | 'full';
 
+/**
+ * Project schedule anchor. Mutually-exclusive at parse time:
+ *   - `forward`  — `start-date YYYY-MM-DD` anchors source-activity ES.
+ *   - `backward` — `end-date YYYY-MM-DD` anchors sink-activity LF.
+ *   - `null`     — no anchor; ES/EF/LS/LF render as numeric offsets.
+ */
+export type Anchor =
+  | { kind: 'forward'; date: string }
+  | { kind: 'backward'; date: string }
+  | null;
+
 /** Diagram-level options collected by the parser. */
 export interface PertOptions {
   /** Time unit for μ/σ/ES/EF formatting and M-only heuristics. */
@@ -33,17 +44,17 @@ export interface PertOptions {
    * named levels (`high`/`medium`/`low`) or `O/P` factor pairs.
    */
   confidence: string;
-  /**
-   * `analysis monte-carlo` directive. Phase 1 ignores this; Phase 2 wires
-   * it into the analyzer to populate `monteCarloResult`.
-   */
-  analysis: 'none' | 'monte-carlo';
   /** Monte-Carlo trials for the canonical run (default 10000). */
   trials: number;
   /** Monte-Carlo seed; deterministic across machines via mulberry32. */
   seed: number;
   /** Fast-MC trials for the live duration scrubber (default 300, floor 100). */
   scrubberTrials: number;
+  /**
+   * Date anchor — discriminated union enforces mutual exclusion.
+   * `null` when no `start-date`/`end-date` directive was authored.
+   */
+  anchor: Anchor;
 }
 
 // ── Parsed elements ─────────────────────────────────────────
@@ -158,6 +169,11 @@ export interface ResolvedActivity {
    * when this activity is downstream of a TBD.
    */
   criticality: number | null;
+  /**
+   * True iff the source declared an explicit O/M/P triple. M-only,
+   * TBD, and milestone activities all report `false`.
+   */
+  isAuthored: boolean;
 }
 
 /** Resolved hammock/cluster group. */
@@ -226,13 +242,31 @@ export interface ResolvedPert {
   activities: ResolvedActivity[];
   edges: PertEdge[];
   groups: ResolvedGroup[];
+  /**
+   * Analysis mode auto-derived from data: `monte-carlo` when at least
+   * one non-milestone activity carries an O/M/P triple AND `trials >= 100`,
+   * otherwise `analytical`.
+   */
+  mode: 'monte-carlo' | 'analytical';
+  /**
+   * Project-stats caption text. One `<tspan>` per `\n`-delimited line.
+   * Null only when analysis bails out before producing any output (e.g.
+   * cycle detection); non-null in every successful analyze() run.
+   */
+  summaryText: string | null;
   /** μ along the M-world critical path (max EF over all activities). */
   projectMu: number | null;
   /** σ along the M-world critical path (sqrt of variance sum). */
   projectSigma: number | null;
   /** Critical-path activity ids in topological order. */
   criticalPath: string[];
-  /** Phase 2: populated when `options.analysis === 'monte-carlo'`. */
+  /**
+   * Anchored mode: the date all four schedule labels (ES/EF/LS/LF) are
+   * computed off. Forward = start-date; backward = end-date − projectMu;
+   * null otherwise (no anchor, or backward + TBD upstream).
+   */
+  projectStart: string | null;
+  /** Populated when `mode === 'monte-carlo'`. */
   monteCarloResult: MonteCarloResult | null;
   /**
    * Per-activity (O, M, P) in canonical days. Always populated; used
