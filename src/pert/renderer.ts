@@ -93,6 +93,11 @@ const FADE_OPACITY = 0.15;
 // Less aggressive than FADE_OPACITY because these cards still need to
 // be readable; this is a hint, not a hide.
 const DURATION_FADE_OPACITY = 0.55;
+// Anchor-pin glyph dimensions (Lucide map-pin path, scaled to fit
+// next to the 13pt bold name label). Width drives the layout math;
+// height is a derived target for vertical centering.
+const PIN_ICON_W = 12;
+const PIN_ICON_H = 14;
 
 const lineGenerator = d3Shape
   .line<{ x: number; y: number }>()
@@ -186,9 +191,9 @@ export function renderPert(
   // rather than the intended start. Rendered as the FINAL bullet
   // inside the caption box (no longer a standalone subtitle), so the
   // diagram body sits right under the title and the framing note
-  // lives next to the dates it qualifies. Forward mode emits no
-  // annotation; the default mental model handles forward correctly.
-  const anchorAnnotation = backwardAnchorAnnotation(resolved);
+  // lives next to the dates it qualifies. Forward mode emits a
+  // companion bullet naming the start-date for symmetry.
+  const anchorAnnotation = anchorAnnotationText(resolved);
 
   // Caption: re-invoke buildSummary when groups are collapsed at render
   // time so hidden-risk callouts can name the visible group surface
@@ -307,7 +312,7 @@ export function renderPertForExport(
     resolved.summaryText !== null && resolved.summaryText.length > 0
       ? bulletizeCaption(resolved.summaryText)
       : [];
-  const anchorNote = backwardAnchorAnnotation(resolved);
+  const anchorNote = anchorAnnotationText(resolved);
   if (anchorNote) {
     captionBullets.push({ text: anchorNote, level: 0, italic: true });
   }
@@ -696,6 +701,14 @@ function renderNodes(
     resolved.activities
   );
 
+  // Anchor "pin" set — nodes whose label gets a map-pin icon prefix
+  // because one of their schedule cells comes directly from the
+  // user-supplied date (not a derived offset).
+  //   forward  → activities with no predecessors (ES = start-date)
+  //   backward → activities with no successors   (LF = end-date)
+  // No anchor → empty set, no pins drawn anywhere.
+  const pinnedSet = computeAnchorPinSet(resolved);
+
   for (const node of layout.nodes) {
     const r = byId.get(node.id);
     if (!r) continue;
@@ -771,6 +784,7 @@ function renderNodes(
       labelColor,
       dashArray,
       emphasis: isTopMu ? 'top' : isBottomMu ? 'bottom' : null,
+      pinned: pinnedSet.has(node.id),
     });
   }
 }
@@ -839,6 +853,13 @@ interface TextbookCardArgs {
    * signal is precise to "longer / shorter task".
    */
   emphasis?: 'top' | 'bottom' | null;
+  /**
+   * When true, prefix the middle-row name with a small map-pin icon —
+   * a hint that this activity carries one of the user-supplied anchor
+   * dates directly (ES of a source node in forward mode, LF of a sink
+   * node in backward mode). All other cards leave the label plain.
+   */
+  pinned?: boolean;
 }
 
 type AnySel = d3Selection.Selection<SVGGElement, unknown, null, undefined>;
@@ -924,10 +945,27 @@ function drawTextbookCard(g: AnySel, a: TextbookCardArgs): void {
   );
   drawCell(x + colW * 2.5, topMid, a.ef);
 
-  // Middle row: name (spans full width)
+  // Middle row: name (spans full width). When `pinned`, shift the
+  // name slightly right and draw a small map-pin icon to its left so
+  // the combined glyph reads as one centered unit.
   const midRowTop = y + NODE_TOP_ROW_HEIGHT;
   const midRowH = h - NODE_TOP_ROW_HEIGHT - NODE_BOTTOM_ROW_HEIGHT;
-  drawCell(x + w / 2, midRowTop + midRowH / 2, a.name, 'bold', NODE_FONT_SIZE);
+  const midCenterY = midRowTop + midRowH / 2;
+  if (a.pinned) {
+    // Approximate text width — sans-serif average char width ≈ 0.55 *
+    // font-size. Off by a couple pixels for variable-width text but
+    // close enough for a small adornment.
+    const approxTextW = a.name.length * NODE_FONT_SIZE * 0.55;
+    const gap = 4;
+    const combined = PIN_ICON_W + gap + approxTextW;
+    const groupLeft = x + w / 2 - combined / 2;
+    drawAnchorPin(g, groupLeft, midCenterY, a.labelColor);
+    // Center text on (groupLeft + pin + gap) + textW/2.
+    const textCx = groupLeft + PIN_ICON_W + gap + approxTextW / 2;
+    drawCell(textCx, midCenterY, a.name, 'bold', NODE_FONT_SIZE);
+  } else {
+    drawCell(x + w / 2, midCenterY, a.name, 'bold', NODE_FONT_SIZE);
+  }
 
   // Bottom row: LS | slack | LF
   const botMid = y + h - NODE_BOTTOM_ROW_HEIGHT / 2;
@@ -939,6 +977,76 @@ function drawTextbookCard(g: AnySel, a: TextbookCardArgs): void {
 // ============================================================
 // Helpers
 // ============================================================
+
+/**
+ * Render a Lucide-style push-pin (thumbtack) glyph at `(left, centerY)`,
+ * sized to PIN_ICON_W × PIN_ICON_H. Two paths — the cap with its
+ * pinch and the down-stroke — both inherit the supplied color so the
+ * pin tracks the node's tint.
+ */
+function drawAnchorPin(
+  g: AnySel,
+  left: number,
+  centerY: number,
+  color: string
+): void {
+  // Lucide `pin` icon authored on a 24×24 viewbox — scale to PIN_ICON_W.
+  const scale = PIN_ICON_W / 24;
+  const top = centerY - PIN_ICON_H / 2;
+  const pin = g
+    .append('g')
+    .attr('class', 'pert-pin')
+    .attr('data-pert-pin', '')
+    .attr('transform', `translate(${left}, ${top}) scale(${scale})`);
+  // Body of the thumbtack: head, pinched neck, stem-pad shape.
+  pin
+    .append('path')
+    .attr(
+      'd',
+      'M12 17v5 M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V5a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z'
+    )
+    .attr('fill', 'none')
+    .attr('stroke', color)
+    .attr('stroke-width', 2)
+    .attr('stroke-linecap', 'round')
+    .attr('stroke-linejoin', 'round');
+}
+
+/**
+ * Build the set of activity ids whose label gets a map-pin icon
+ * because their card carries a user-supplied anchor date directly:
+ *   forward  → activities with no predecessors (ES = start-date)
+ *   backward → activities with no successors   (LF = end-date)
+ *   unanchored → empty set
+ */
+function computeAnchorPinSet(resolved: ResolvedPert): Set<string> {
+  const anchor = resolved.options.anchor;
+  if (anchor === null) return new Set();
+  // Build incoming/outgoing degree from edges so we don't need an
+  // analyzer-side flag.
+  const inDeg = new Map<string, number>();
+  const outDeg = new Map<string, number>();
+  for (const a of resolved.activities) {
+    inDeg.set(a.activity.id, 0);
+    outDeg.set(a.activity.id, 0);
+  }
+  for (const e of resolved.edges) {
+    outDeg.set(e.source, (outDeg.get(e.source) ?? 0) + 1);
+    inDeg.set(e.target, (inDeg.get(e.target) ?? 0) + 1);
+  }
+  const pinned = new Set<string>();
+  for (const a of resolved.activities) {
+    if (anchor.kind === 'forward' && (inDeg.get(a.activity.id) ?? 0) === 0) {
+      pinned.add(a.activity.id);
+    } else if (
+      anchor.kind === 'backward' &&
+      (outDeg.get(a.activity.id) ?? 0) === 0
+    ) {
+      pinned.add(a.activity.id);
+    }
+  }
+  return pinned;
+}
 
 function formatDuration(
   value: number | null,
@@ -1093,17 +1201,22 @@ export function resetPertCriticalPath(container: Element): void {
  * `titleHeight`-only layout.
  */
 /**
- * Build the D10 backward-anchor italic subtitle, or `null` for forward
- * / no-anchor. The string is short enough to fit on one line; renderer
- * positions it directly below the title (or at the top when no title).
+ * Build the anchor framing bullet, or `null` when no anchor is set.
+ * Surfaces which end of the schedule the user pinned and (for
+ * backward) the derived project-start date so the envelope is
+ * legible at a glance. Rendered as an italic bullet at the bottom
+ * of the caption box.
  */
-function backwardAnchorAnnotation(resolved: ResolvedPert): string | null {
+function anchorAnnotationText(resolved: ResolvedPert): string | null {
   const anchor = resolved.options.anchor;
-  if (anchor === null || anchor.kind !== 'backward') return null;
-  // Surface BOTH the user-supplied end-date AND the derived projectStart
-  // so the reader can see the schedule envelope at a glance. Falls back
-  // to a generic phrasing when projectStart is null (TBD upstream — the
-  // body cells will show `?` and there's no concrete start to name).
+  if (anchor === null) return null;
+  if (anchor.kind === 'forward') {
+    return `Forward-anchored from start-date ${anchor.date}.`;
+  }
+  // Backward — surface BOTH the user-supplied end-date AND the derived
+  // projectStart so the reader can see the schedule envelope at a
+  // glance. Falls back to a generic phrasing when projectStart is null
+  // (TBD upstream — the body cells will show `?`).
   if (resolved.projectStart) {
     return `Backward-anchored: end-date ${anchor.date} → project start ${resolved.projectStart}. Non-critical dates show earliest possible.`;
   }

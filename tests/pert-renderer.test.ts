@@ -440,12 +440,13 @@ describe('pert renderer — date anchoring', () => {
     return renderPertForExport(input, 'light', colors);
   }
 
-  it('forward anchor: source ES renders as the literal start-date', () => {
+  it('forward anchor: source ES renders as the literal start-date and a "Forward-anchored" bullet appears', () => {
     // recruit crew is the first non-zero-duration activity, so its ES
     // is the start-date carried through. Renderer formats as ISO.
     const svg = renderForTest(loadFixture('start-date.dgmo'));
     expect(svg).toContain('2026-06-01');
-    // No D10 annotation in forward mode.
+    // Forward emits its own anchor bullet (symmetric with backward).
+    expect(svg).toContain('Forward-anchored from start-date 2026-06-01');
     expect(svg).not.toContain('Backward-anchored');
   });
 
@@ -476,6 +477,90 @@ describe('pert renderer — date anchoring', () => {
     // so every schedule cell renders nullLabel='?'.
     expect(svg).not.toContain('2026-09-15</text>');
     expect(svg).not.toContain('2026-08-');
+  });
+
+  it('forward anchor: only source activities (no predecessors) get a pin icon', () => {
+    const c = document.createElement('div');
+    document.body.appendChild(c);
+
+    const parsed = parsePert(loadFixture('start-date.dgmo'));
+    const resolved = analyzePert(parsed);
+    const layout = relayoutPert(resolved, {});
+    const colors = getPalette('nord').light;
+    renderPert(c as HTMLDivElement, resolved, layout, colors, false, {
+      title: parsed.title,
+    });
+
+    const sourceIds = new Set(
+      resolved.activities
+        .filter((r) => !resolved.edges.some((e) => e.target === r.activity.id))
+        .map((r) => r.activity.id)
+    );
+    expect(sourceIds.size).toBeGreaterThan(0);
+
+    for (const r of resolved.activities) {
+      const wrapper = c.querySelector(
+        `g.pert-node[data-activity-id="${r.activity.id}"]`
+      );
+      if (!wrapper) continue;
+      const pin = wrapper.querySelector('g.pert-pin[data-pert-pin]');
+      if (sourceIds.has(r.activity.id)) {
+        expect(pin).not.toBeNull();
+      } else {
+        expect(pin).toBeNull();
+      }
+    }
+    document.body.removeChild(c);
+  });
+
+  it('backward anchor: only sink activities (no successors) get a pin icon', () => {
+    const c = document.createElement('div');
+    document.body.appendChild(c);
+
+    const parsed = parsePert(loadFixture('end-date.dgmo'));
+    const resolved = analyzePert(parsed);
+    const layout = relayoutPert(resolved, {});
+    const colors = getPalette('nord').light;
+    renderPert(c as HTMLDivElement, resolved, layout, colors, false, {
+      title: parsed.title,
+    });
+
+    const sinkIds = new Set(
+      resolved.activities
+        .filter((r) => !resolved.edges.some((e) => e.source === r.activity.id))
+        .map((r) => r.activity.id)
+    );
+    expect(sinkIds.size).toBeGreaterThan(0);
+
+    for (const r of resolved.activities) {
+      const wrapper = c.querySelector(
+        `g.pert-node[data-activity-id="${r.activity.id}"]`
+      );
+      if (!wrapper) continue;
+      const pin = wrapper.querySelector('g.pert-pin[data-pert-pin]');
+      if (sinkIds.has(r.activity.id)) {
+        expect(pin).not.toBeNull();
+      } else {
+        expect(pin).toBeNull();
+      }
+    }
+    document.body.removeChild(c);
+  });
+
+  it('unanchored fixtures: no pin icon on any node', () => {
+    const c = document.createElement('div');
+    document.body.appendChild(c);
+
+    const parsed = parsePert(loadFixture('basic.dgmo'));
+    const resolved = analyzePert(parsed);
+    const layout = relayoutPert(resolved, {});
+    const colors = getPalette('nord').light;
+    renderPert(c as HTMLDivElement, resolved, layout, colors, false, {
+      title: parsed.title,
+    });
+
+    expect(c.querySelectorAll('g.pert-pin').length).toBe(0);
+    document.body.removeChild(c);
   });
 
   it('unanchored fixtures keep numeric label formatting (regression)', () => {
