@@ -431,8 +431,6 @@ export function analyzePert(parsed: ParsedPert): ResolvedPert {
     projectMu: projectMuOut,
     projectSigma: projectSigmaOut,
     unit,
-    criticalPath,
-    activities: resolvedActivities,
     parsedActivities: activities,
     monteCarloResult,
     trialsClamped,
@@ -554,8 +552,6 @@ export interface BuildSummaryInput {
   projectMu: number | null;
   projectSigma: number | null;
   unit: DurationUnit;
-  criticalPath: string[];
-  activities: ResolvedActivity[];
   parsedActivities: PertActivity[];
   monteCarloResult: MonteCarloResult | null;
   trialsClamped: boolean;
@@ -573,8 +569,6 @@ export function buildSummary(input: BuildSummaryInput): string | null {
     projectMu,
     projectSigma,
     unit,
-    criticalPath,
-    activities,
     parsedActivities,
     monteCarloResult,
     trialsClamped,
@@ -674,15 +668,10 @@ export function buildSummary(input: BuildSummaryInput): string | null {
   // become critical; spelling out a percentage adds noise without
   // changing the reader's action.
 
-  // 8. Heuristic-variance caveat
-  if (showMcDetail) {
-    const fraction = computeHeuristicVarianceFraction(criticalPath, activities);
-    if (fraction > 0.5) {
-      lines.push(
-        'Variance estimates derive primarily from the `confidence` heuristic; results are indicative.'
-      );
-    }
-  }
+  // 8. Heuristic-variance caveat — intentionally NOT a caption bullet.
+  // The ±σ parenthetical on "Expected duration" already flags how wide
+  // the distribution is; readers don't need a meta-statement that the
+  // numbers are "indicative."
 
   // 9. Zero-variance fallback (replaces percentile bullets)
   if (mc && projectSigma === 0) {
@@ -703,24 +692,6 @@ export function buildSummary(input: BuildSummaryInput): string | null {
   }
 
   return lines.join('\n');
-}
-
-function computeHeuristicVarianceFraction(
-  criticalPath: string[],
-  activities: ResolvedActivity[]
-): number {
-  const byId = new Map(activities.map((r) => [r.activity.id, r]));
-  let totalVar = 0;
-  let heuristicVar = 0;
-  for (const id of criticalPath) {
-    const r = byId.get(id);
-    if (!r || r.activity.isMilestone) continue;
-    if (r.sigma === null) continue;
-    const v = r.sigma * r.sigma;
-    totalVar += v;
-    if (!r.isAuthored) heuristicVar += v;
-  }
-  return totalVar > 0 ? heuristicVar / totalVar : 0;
 }
 
 function roundForCaption(n: number): string {

@@ -592,8 +592,6 @@ describe('buildSummary — AC14 (zero-variance fallback)', () => {
       projectMu: 10,
       projectSigma: 0,
       unit: 'd',
-      criticalPath: ['a', 'b', 'c'],
-      activities: [a, b, c],
       parsedActivities: [a, b, c].map((r) => r.activity),
       monteCarloResult: mc,
       trialsClamped: false,
@@ -605,63 +603,5 @@ describe('buildSummary — AC14 (zero-variance fallback)', () => {
     expect(summary!).toContain('Expected duration:');
     // Critical-path bullet was dropped — diagram conveys the chain.
     expect(summary!).not.toContain('Critical path:');
-  });
-});
-
-describe('buildSummary — AC17/AC18 (heuristic-variance caveat)', () => {
-  it('AC17: > 50% heuristic variance on CPM → caveat fires', () => {
-    const a = stubResolved('a', 5, false, { sigma: 1.5 });
-    const b = stubResolved('b', 5, false, { sigma: 1.5 });
-    const c = stubResolved('c', 5, true, { sigma: 0.5 });
-    const mc: MonteCarloResult = {
-      trials: 1000,
-      seed: 1,
-      p50: 15,
-      p80: 15,
-      p95: 15,
-      criticalityByActivity: { a: 1, b: 1, c: 1 },
-      modalCriticalPath: ['a', 'b', 'c'],
-    };
-    const summary = buildSummary({
-      mode: 'monte-carlo',
-      projectMu: 15,
-      projectSigma: Math.sqrt(4.75),
-      unit: 'd',
-      criticalPath: ['a', 'b', 'c'],
-      activities: [a, b, c],
-      parsedActivities: [a, b, c].map((r) => r.activity),
-      monteCarloResult: mc,
-      trialsClamped: false,
-    });
-    expect(summary!).toContain(
-      'Variance estimates derive primarily from the `confidence` heuristic'
-    );
-  });
-
-  it('AC18: ≤ 50% heuristic variance → no caveat', () => {
-    const a = stubResolved('a', 5, true, { sigma: 1.0 });
-    const b = stubResolved('b', 5, true, { sigma: 1.0 });
-    const c = stubResolved('c', 5, false, { sigma: 0.5 });
-    const mc: MonteCarloResult = {
-      trials: 1000,
-      seed: 1,
-      p50: 15,
-      p80: 15,
-      p95: 15,
-      criticalityByActivity: { a: 1, b: 1, c: 1 },
-      modalCriticalPath: ['a', 'b', 'c'],
-    };
-    const summary = buildSummary({
-      mode: 'monte-carlo',
-      projectMu: 15,
-      projectSigma: Math.sqrt(2.25),
-      unit: 'd',
-      criticalPath: ['a', 'b', 'c'],
-      activities: [a, b, c],
-      parsedActivities: [a, b, c].map((r) => r.activity),
-      monteCarloResult: mc,
-      trialsClamped: false,
-    });
-    expect(summary!).not.toContain('Variance estimates derive primarily');
   });
 });
