@@ -11,22 +11,21 @@ import type { LayoutOverrides } from './internal';
 
 const DEFAULT_NODE_WIDTH = 160;
 const DEFAULT_NODE_HEIGHT = 64;
-const MILESTONE_SIZE = 56;
 const DIAGRAM_PADDING = 20;
 const GROUP_PADDING = 18;
 
 function nodeDimensions(
-  resolved: ResolvedPert,
+  _resolved: ResolvedPert,
   id: string,
   overrides?: LayoutOverrides
 ): { width: number; height: number } {
   if (overrides && overrides[id]) {
     return { width: overrides[id].width, height: overrides[id].height };
   }
-  const activity = resolved.activities.find((r) => r.activity.id === id);
-  if (activity?.activity.isMilestone) {
-    return { width: MILESTONE_SIZE, height: MILESTONE_SIZE };
-  }
+  // Milestones use the same dimensions as activities so they style
+  // consistently with the rest of the network. The semantic
+  // distinction (zero duration, sync point) shows in the body — no
+  // μ row, just a centered name.
   return { width: DEFAULT_NODE_WIDTH, height: DEFAULT_NODE_HEIGHT };
 }
 

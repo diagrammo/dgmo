@@ -36,7 +36,6 @@ import type { Duration, DurationUnit } from '../gantt/types';
 
 const DIAGRAM_PADDING = 20;
 const NODE_FONT_SIZE = 13;
-const NODE_LABEL_FONT_SIZE = 12;
 const NODE_SECONDARY_FONT_SIZE = 11;
 const SUMMARY_FONT_SIZE = 11;
 const NODE_RADIUS = 6;
@@ -425,39 +424,9 @@ function renderNodes(
       );
     }
 
-    if (isMilestone) {
-      const half = node.width / 2;
-      const points = [
-        `0,${-half}`,
-        `${half},0`,
-        `0,${half}`,
-        `${-half},0`,
-      ].join(' ');
-      g.append('polygon')
-        .attr('points', points)
-        .attr('fill', isCritical ? palette.accent : palette.colors.purple)
-        .attr('stroke', stroke)
-        .attr('stroke-width', strokeWidth);
-      // Label below the diamond (per spec § Diamond milestone sizing).
-      g.append('text')
-        .attr('x', 0)
-        .attr('y', half + 16)
-        .attr('text-anchor', 'middle')
-        .attr('fill', palette.text)
-        .attr('font-size', NODE_LABEL_FONT_SIZE)
-        .attr('font-weight', 600)
-        .text(r.activity.name);
-      continue;
-    }
-
     // Expanded activity: leave the wrapper as an empty `<g>` with
     // just the data attrs. The host app overlays its own React-
-    // managed expansion card on top of this reserved space. We
-    // intentionally don't emit a foreignObject — mounting React
-    // portals inside SVG content that D3 wipes on every layout
-    // change causes "object can not be found here" removeChild
-    // errors when React's deletion runs against a parent that's
-    // already been destroyed.
+    // managed expansion card on top of this reserved space.
     if (isExpanded) continue;
 
     g.append('rect')
@@ -514,30 +483,52 @@ function renderNodes(
       palette.textOnFillDark
     );
 
-    // Top line: name (with optional ★ when critical).
+    // Header / body layout — same convention as infra & org nodes.
+    // Header band sits at the top with the name (and ★ if critical);
+    // a faint separator line divides it from the body, which carries
+    // μ (or `?` for TBDs). Milestones have no body row — the
+    // semantic distinction shows as a centered name without a
+    // duration. Hide the separator entirely when the body would be
+    // empty so the node reads cleanly.
+    const halfH = node.height / 2;
+    const headerY = -halfH + 18;
+    const sepY = -halfH + 30;
+    const bodyY = -halfH + 46;
+    const showBody = !isMilestone;
+
     const nameLine = isCritical ? `★ ${r.activity.name}` : r.activity.name;
     g.append('text')
       .attr('x', 0)
-      .attr('y', -4)
+      .attr('y', isMilestone ? 4 : headerY)
       .attr('text-anchor', 'middle')
       .attr('fill', textColor)
       .attr('font-size', NODE_FONT_SIZE)
       .attr('font-weight', 600)
       .text(nameLine);
 
-    // Bottom line: μ formatted with diagram time-unit, or `?` when TBD.
-    const muStr = formatDuration(
-      r.mu,
-      resolved.options.timeUnit,
-      isTbd ? '?' : null
-    );
-    g.append('text')
-      .attr('x', 0)
-      .attr('y', 14)
-      .attr('text-anchor', 'middle')
-      .attr('fill', isCritical ? textColor : palette.textMuted)
-      .attr('font-size', NODE_SECONDARY_FONT_SIZE)
-      .text(muStr);
+    if (showBody) {
+      g.append('line')
+        .attr('x1', -node.width / 2)
+        .attr('y1', sepY)
+        .attr('x2', node.width / 2)
+        .attr('y2', sepY)
+        .attr('stroke', stroke)
+        .attr('stroke-opacity', 0.35)
+        .attr('stroke-width', 1);
+
+      const muStr = formatDuration(
+        r.mu,
+        resolved.options.timeUnit,
+        isTbd ? '?' : null
+      );
+      g.append('text')
+        .attr('x', 0)
+        .attr('y', bodyY)
+        .attr('text-anchor', 'middle')
+        .attr('fill', isCritical ? textColor : palette.textMuted)
+        .attr('font-size', NODE_SECONDARY_FONT_SIZE)
+        .text(muStr);
+    }
   }
 }
 

@@ -33,9 +33,11 @@ describe('pert layout', () => {
   it('AC5.1: compact dimensions when no overrides given', () => {
     const { resolved } = pipeline(loadFixture('basic.dgmo'));
     const layout = layoutPert(resolved);
+    // Milestones share dimensions with activities now (160×64) so the
+    // visual treatment matches infra/org node styling.
     for (const node of layout.nodes) {
-      // milestones are 56×56, regular activities are 160×64
-      expect([56, 160]).toContain(node.width);
+      expect(node.width).toBe(160);
+      expect(node.height).toBe(64);
     }
   });
 

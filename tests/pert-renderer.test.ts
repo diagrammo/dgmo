@@ -91,14 +91,23 @@ describe('pert renderer — structural assertions', () => {
     expect(edges.length).toBeGreaterThan(0);
   });
 
-  it('milestone activities render as polygon (diamond), not rect', () => {
+  it('milestone activities render as rectangles with no body row (centered name)', () => {
     const svg = renderForTest(loadFixture('with-milestones.dgmo'));
     const doc = parseDom(svg);
-    const milestones = doc.querySelectorAll(
-      'g.pert-node[data-activity-id="voyage approved"] polygon, ' +
-        'g.pert-node[data-activity-id="landfall"] polygon'
-    );
-    expect(milestones.length).toBeGreaterThan(0);
+    const milestoneIds = ['voyage approved', 'landfall'];
+    for (const id of milestoneIds) {
+      const wrapper = doc.querySelector(
+        `g.pert-node[data-activity-id="${id}"]`
+      );
+      expect(wrapper).not.toBeNull();
+      // Same rect treatment as activities — no diamond polygon.
+      expect(wrapper!.querySelector('polygon')).toBeNull();
+      expect(wrapper!.querySelector('rect')).not.toBeNull();
+      // No separator line and exactly one text row (the name) since
+      // milestones don't have a μ body row.
+      expect(wrapper!.querySelector('line')).toBeNull();
+      expect(wrapper!.querySelectorAll('text').length).toBe(1);
+    }
   });
 
   it('TBD activity nodes use dashed stroke', () => {
