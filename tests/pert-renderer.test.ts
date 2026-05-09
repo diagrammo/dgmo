@@ -2,7 +2,10 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { JSDOM } from 'jsdom';
-import { renderPertForExport } from '../src/pert/renderer';
+import { renderPert, renderPertForExport } from '../src/pert/renderer';
+import { parsePert } from '../src/pert/parser';
+import { analyzePert } from '../src/pert/analyzer';
+import { relayoutPert } from '../src/pert/layout';
 import { getPalette } from '../src/palettes';
 
 const FIXTURES = join(__dirname, '../test-fixtures/pert');
@@ -117,6 +120,45 @@ describe('pert renderer — structural assertions', () => {
 
   it('handles empty content without throwing', () => {
     expect(() => renderForTest('pert\n')).not.toThrow();
+  });
+
+  it('expandedActivityId emits a foreignObject content slot in place of rect+text', () => {
+    const c = document.createElement('div');
+    document.body.appendChild(c);
+
+    const parsed = parsePert(loadFixture('basic.dgmo'));
+    const resolved = analyzePert(parsed);
+    const expandedId = resolved.activities[0]!.activity.id;
+    const layout = relayoutPert(resolved, {
+      [expandedId]: { width: 280, height: 180 },
+    });
+    const colors = getPalette('nord').light;
+    renderPert(c as HTMLDivElement, resolved, layout, colors, false, {
+      title: parsed.title,
+      expandedActivityId: expandedId,
+    });
+
+    const expandedG = c.querySelector(
+      `g.pert-node[data-activity-id="${expandedId}"]`
+    );
+    expect(expandedG).not.toBeNull();
+    // Slot present, rect/name-text suppressed
+    expect(
+      expandedG!.querySelector('foreignObject.pert-node-expanded-slot')
+    ).not.toBeNull();
+    expect(
+      expandedG!.querySelector('[data-pert-expanded-content]')
+    ).not.toBeNull();
+    expect(expandedG!.querySelector(':scope > rect')).toBeNull();
+
+    // Other activities still render as rect+text normally
+    const otherG = c.querySelector(
+      `g.pert-node:not([data-activity-id="${expandedId}"])`
+    );
+    expect(otherG?.querySelector('rect')).not.toBeNull();
+    expect(otherG?.querySelector('foreignObject')).toBeNull();
+
+    document.body.removeChild(c);
   });
 
   it('renders cleanly across all 10 palettes (smoke)', () => {

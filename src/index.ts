@@ -369,6 +369,7 @@ export type {
 export { parsePert, looksLikePert, extractPertSymbols } from './pert/parser';
 export { analyzePert } from './pert/analyzer';
 export { layoutPert, relayoutPert } from './pert/layout';
+export type { LayoutOverrides as PertLayoutOverrides } from './pert/internal';
 export { renderPert, renderPertForExport } from './pert/renderer';
 export type { PertRenderOptions } from './pert/renderer';
 export type {

@@ -64,6 +64,16 @@ export interface PertRenderOptions {
   onClickItem?: (lineNumber: number) => void;
   /** Override container dimensions during export. */
   exportDims?: { width?: number; height?: number };
+  /**
+   * When set, the activity with this id is rendered as an empty
+   * `<g>` containing a single `<foreignObject>` with an inner
+   * `<div data-pert-expanded-content>` slot. The default name + μ
+   * text is suppressed so the host app can mount custom content
+   * (e.g. an expanded React card) into the slot via `createPortal`.
+   * Layout dimensions for the expanded activity must be supplied
+   * via `relayoutPert(resolved, { [id]: {width, height} })`.
+   */
+  expandedActivityId?: string | null;
 }
 
 export function renderPert(
@@ -125,7 +135,8 @@ export function renderPert(
     layout,
     palette,
     isDark,
-    options.onClickItem
+    options.onClickItem,
+    options.expandedActivityId ?? null
   );
   renderSummary(root, resolved, layout, palette);
 }
@@ -297,7 +308,8 @@ function renderNodes(
   layout: LayoutResult,
   palette: PaletteColors,
   isDark: boolean,
-  onClickItem?: (lineNumber: number) => void
+  onClickItem?: (lineNumber: number) => void,
+  expandedActivityId: string | null = null
 ): void {
   const layer = root.append('g').attr('class', 'pert-nodes');
   const byId = new Map(resolved.activities.map((r) => [r.activity.id, r]));
@@ -312,6 +324,7 @@ function renderNodes(
     const isCritical = r.isCriticalPath;
     const isMilestone = r.activity.isMilestone;
     const isTbd = tbdSet.has(node.id);
+    const isExpanded = expandedActivityId === node.id;
 
     // Criticality gradient when MC is on; binary tint when MC is off.
     // Gamma curve (γ=1.8) compresses 0–30% into near-neutral and reserves
@@ -371,6 +384,26 @@ function renderNodes(
         .attr('font-size', NODE_LABEL_FONT_SIZE)
         .attr('font-weight', 600)
         .text(r.activity.name);
+      continue;
+    }
+
+    // Expanded activity: emit a foreignObject content slot instead of
+    // the default rect + name + μ. The host app mounts React content
+    // (e.g. PertNodeExpanded) into the inner `<div data-pert-expanded-content>`.
+    if (isExpanded) {
+      const fo = g
+        .append('foreignObject')
+        .attr('class', 'pert-node-expanded-slot')
+        .attr('x', -node.width / 2)
+        .attr('y', -node.height / 2)
+        .attr('width', node.width)
+        .attr('height', node.height);
+      fo.append('xhtml:div' as 'div')
+        .attr('data-pert-expanded-content', node.id)
+        .style('width', '100%')
+        .style('height', '100%')
+        .style('box-sizing', 'border-box')
+        .style('overflow', 'hidden');
       continue;
     }
 
