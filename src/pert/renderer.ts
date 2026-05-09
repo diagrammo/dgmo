@@ -38,7 +38,6 @@ import {
   TITLE_FONT_SIZE,
   TITLE_FONT_WEIGHT,
   TITLE_Y,
-  TITLE_OFFSET,
   CAPTION_FONT_SIZE,
   CAPTION_FONT_WEIGHT,
   CAPTION_LINE_HEIGHT,
@@ -177,26 +176,31 @@ export function renderPert(
 
   const titleHeight = options.title ? 80 : 0;
 
-  // D10 — backward-anchor annotation. Italic subtitle that names the
-  // end-date and frames ES/EF as "earliest possible" rather than the
-  // intended start. Forward mode emits no annotation; the default
-  // mental model handles forward correctly.
+  // D10 — backward-anchor annotation. Italic framing note that names
+  // the end-date and tells readers ES/EF show "earliest possible"
+  // rather than the intended start. Rendered as the FINAL bullet
+  // inside the caption box (no longer a standalone subtitle), so the
+  // diagram body sits right under the title and the framing note
+  // lives next to the dates it qualifies. Forward mode emits no
+  // annotation; the default mental model handles forward correctly.
   const anchorAnnotation = backwardAnchorAnnotation(resolved);
-  // Reserve one CAPTION-line worth of vertical (single line, fits in
-  // ~CAPTION_LINE_HEIGHT + a top gap so the line doesn't kiss the title).
-  const annotationHeight = anchorAnnotation
-    ? CAPTION_LINE_HEIGHT + CAPTION_TOP_GAP
-    : 0;
 
   // Caption: re-invoke buildSummary when groups are collapsed at render
   // time so hidden-risk callouts can name the visible group surface
   // instead of an inner activity. Skip caption when analyzer bailed.
   const collapsedSet = new Set(options.collapsedGroupIds ?? []);
   const captionText = chooseCaptionText(resolved, collapsedSet);
-  const captionBullets =
+  const captionBullets: CaptionBullet[] =
     captionText !== null && captionText.length > 0
       ? bulletizeCaption(captionText)
       : [];
+  if (anchorAnnotation) {
+    captionBullets.push({
+      text: anchorAnnotation,
+      level: 0,
+      italic: true,
+    });
+  }
   const captionBoxHeight =
     captionBullets.length > 0
       ? captionBullets.length * CAPTION_LINE_HEIGHT + 2 * CAPTION_BOX_PADDING_Y
@@ -208,15 +212,10 @@ export function renderPert(
 
   // Natural size — fits all chrome without clipping. We always expand
   // a supplied `exportDims` to at least this; smaller hints would
-  // crop the diagram body off-screen now that the annotation reserves
-  // its own vertical band.
+  // crop the diagram body off-screen.
   const naturalWidth = layout.width + DIAGRAM_PADDING * 2;
   const naturalHeight =
-    layout.height +
-    DIAGRAM_PADDING * 2 +
-    titleHeight +
-    annotationHeight +
-    captionBlockHeight;
+    layout.height + DIAGRAM_PADDING * 2 + titleHeight + captionBlockHeight;
   const exportWidth = Math.max(
     options.exportDims?.width ?? naturalWidth,
     naturalWidth
@@ -251,25 +250,8 @@ export function renderPert(
       .text(options.title);
   }
 
-  if (anchorAnnotation) {
-    const annotationY = options.title
-      ? TITLE_Y + TITLE_OFFSET + CAPTION_TOP_GAP
-      : TITLE_Y + CAPTION_TOP_GAP;
-    svg
-      .append('text')
-      .attr('class', 'pert-anchor-annotation')
-      .attr('data-pert-anchor-annotation', '')
-      .attr('x', exportWidth / 2)
-      .attr('y', annotationY)
-      .attr('text-anchor', 'middle')
-      .attr('fill', palette.textMuted)
-      .attr('font-size', CAPTION_FONT_SIZE)
-      .attr('font-style', 'italic')
-      .text(anchorAnnotation);
-  }
-
   const offsetX = DIAGRAM_PADDING;
-  const offsetY = DIAGRAM_PADDING + titleHeight + annotationHeight;
+  const offsetY = DIAGRAM_PADDING + titleHeight;
 
   const root = svg
     .append('g')
@@ -313,13 +295,17 @@ export function renderPertForExport(
   const isDark = theme === 'dark';
 
   const titleHeight = parsed.title ? 80 : 0;
-  const annotationHeight = backwardAnchorAnnotation(resolved)
-    ? CAPTION_LINE_HEIGHT + CAPTION_TOP_GAP
-    : 0;
-  const captionBullets =
+  // Mirror the bullet-list assembly inside renderPert so exportDims
+  // matches the natural height (anchor annotation now lives inside
+  // the caption box as a final italic bullet).
+  const captionBullets: CaptionBullet[] =
     resolved.summaryText !== null && resolved.summaryText.length > 0
       ? bulletizeCaption(resolved.summaryText)
       : [];
+  const anchorNote = backwardAnchorAnnotation(resolved);
+  if (anchorNote) {
+    captionBullets.push({ text: anchorNote, level: 0, italic: true });
+  }
   const captionBoxHeight =
     captionBullets.length > 0
       ? captionBullets.length * CAPTION_LINE_HEIGHT + 2 * CAPTION_BOX_PADDING_Y
@@ -328,11 +314,7 @@ export function renderPertForExport(
     captionBullets.length > 0 ? CAPTION_TOP_GAP + captionBoxHeight : 0;
   const exportWidth = layout.width + DIAGRAM_PADDING * 2;
   const exportHeight =
-    layout.height +
-    DIAGRAM_PADDING * 2 +
-    titleHeight +
-    annotationHeight +
-    captionBlockHeight;
+    layout.height + DIAGRAM_PADDING * 2 + titleHeight + captionBlockHeight;
 
   const container = document.createElement('div');
   container.style.width = `${exportWidth}px`;
@@ -748,12 +730,19 @@ function renderNodes(
       palette.textOnFillDark
     );
 
+    // Zero-duration activities (formerly milestone primitive) get a
+    // ◆ glyph prefix so authors can spot sync points at a glance. The
+    // node geometry is identical to a regular activity.
+    const displayName = r.activity.isMilestone
+      ? `◆ ${r.activity.name}`
+      : r.activity.name;
+
     drawTextbookCard(g, {
       width: node.width,
       height: node.height,
       x: -node.width / 2,
       y: -node.height / 2,
-      name: r.activity.name,
+      name: displayName,
       es: fmtSchedule(r.es, isTbd),
       dur: fmtDur(r.mu, isTbd),
       ef: fmtSchedule(r.ef, isTbd),
@@ -1056,24 +1045,39 @@ function backwardAnchorAnnotation(resolved: ResolvedPert): string | null {
   return `Backward-anchored from end-date ${anchor.date}. Project start is unknown until upstream activities are estimated.`;
 }
 
+interface CaptionBullet {
+  text: string;
+  /** 0 = top-level bullet; 1 = sub-bullet (indented). */
+  level: number;
+  /**
+   * When true, render the bullet text in italic and omit the `•`
+   * glyph. Used for the D10 backward-anchor framing note that sits at
+   * the bottom of the caption box.
+   */
+  italic?: boolean;
+}
+
 /**
  * Split the analyzer's `summaryText` into one bullet per logical
  * sentence. Per-line strings already correspond to one bullet each,
  * except the percentile line which packs three sentences into one
- * line (separated by ". "). We split that line so each percentile
- * gets its own bullet.
+ * line (separated by ". "). Fragments produced by that split are
+ * rendered as sub-bullets indented under the preceding top-level
+ * bullet (Expected duration).
  */
-function bulletizeCaption(summaryText: string): string[] {
-  const bullets: string[] = [];
+function bulletizeCaption(summaryText: string): CaptionBullet[] {
+  const bullets: CaptionBullet[] = [];
   for (const line of summaryText.split('\n')) {
     if (!line.includes('. ')) {
-      bullets.push(line);
+      bullets.push({ text: line, level: 0 });
       continue;
     }
-    // Split on ". " but rejoin the period so each fragment ends with one.
+    // Split on ". " — every fragment is a sub-bullet under the previous
+    // top-level. Rejoin the period so each fragment ends with one.
     const parts = line.split('. ');
     parts.forEach((p, i) => {
-      bullets.push(i < parts.length - 1 ? `${p}.` : p);
+      const text = i < parts.length - 1 ? `${p}.` : p;
+      bullets.push({ text, level: 1 });
     });
   }
   return bullets;
@@ -1092,11 +1096,14 @@ interface CaptionBlockArgs {
  * Render the project-stats caption as a node-styled rectangle below
  * the diagram body. Mirrors the textbook-card recipe: rounded corners,
  * `palette.primary` stroke, 25% tint fill via `shapeFill`. Text is
- * left-aligned with a `•` bullet glyph prefixing each line.
+ * left-aligned with a `•` bullet glyph prefixing each line; sub-bullets
+ * (level 1) sit indented under the preceding top-level bullet.
  */
+const SUB_BULLET_INDENT = 20;
+
 function renderCaptionBlock(
   svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
-  bullets: string[],
+  bullets: CaptionBullet[],
   args: CaptionBlockArgs
 ): void {
   const { x, y, width, height, palette, isDark } = args;
@@ -1138,8 +1145,13 @@ function renderCaptionBlock(
     .attr('font-size', CAPTION_FONT_SIZE)
     .attr('font-weight', CAPTION_FONT_WEIGHT);
 
-  bullets.forEach((line, i) => {
-    const tspan = text.append('tspan').attr('x', textX).text(`• ${line}`);
+  bullets.forEach((bullet, i) => {
+    const indent = bullet.level === 1 ? SUB_BULLET_INDENT : 0;
+    const tspan = text
+      .append('tspan')
+      .attr('x', textX + indent)
+      .text(bullet.italic ? bullet.text : `• ${bullet.text}`);
+    if (bullet.italic) tspan.attr('font-style', 'italic');
     if (i > 0) tspan.attr('dy', CAPTION_LINE_HEIGHT);
   });
 }
@@ -1166,6 +1178,7 @@ function chooseCaptionText(
     trialsClamped,
     collapsedGroupIds: collapsedSet,
     groups: resolved.groups.map((g) => g.group),
+    anchor: resolved.options.anchor,
   });
 }
 

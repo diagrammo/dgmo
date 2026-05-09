@@ -605,7 +605,6 @@ export function buildSummary(input: BuildSummaryInput): string | null {
   const mc = mode === 'monte-carlo' && monteCarloResult !== null;
   const sigmaPositive = projectSigma !== null && projectSigma > 0;
   const showMcDetail = mc && sigmaPositive;
-  const activityById = new Map(activities.map((r) => [r.activity.id, r]));
   const groupsById = new Map(groups.map((g) => [g.id, g]));
   const collapsedGroupByMember = new Map<string, string>();
   for (const g of groups) {
@@ -668,27 +667,11 @@ export function buildSummary(input: BuildSummaryInput): string | null {
     }
   }
 
-  // 4. Critical path
-  if (criticalPath.length > 0) {
-    const names = criticalPath.map(
-      (id) => activityById.get(id)?.activity.name ?? id
-    );
-    lines.push(`Critical path: ${formatCriticalPath(names)}.`);
-  }
-
-  // 5. Modal divergence
-  if (
-    mc &&
-    monteCarloResult!.modalCriticalPath.length > 0 &&
-    !sequenceEquals(monteCarloResult!.modalCriticalPath, criticalPath)
-  ) {
-    const modalNames = monteCarloResult!.modalCriticalPath.map(
-      (id) => activityById.get(id)?.activity.name ?? id
-    );
-    lines.push(
-      `Most-frequent critical path under simulation: ${formatCriticalPath(modalNames)}.`
-    );
-  }
+  // 4. Critical path — intentionally NOT a caption bullet. The diagram
+  // already shows the critical chain via red node borders + edge stroke;
+  // duplicating the names in text adds noise without information.
+  // Modal-vs-deterministic divergence is dropped for the same reason
+  // (it only makes sense as a contrast to "Critical path").
 
   // 6. Bottleneck
   if (showMcDetail) {
@@ -735,15 +718,9 @@ export function buildSummary(input: BuildSummaryInput): string | null {
 
   // 9. Zero-variance fallback (replaces percentile/bottleneck/hidden-risk)
   if (mc && projectSigma === 0) {
-    const filtered: string[] = [];
-    for (const line of lines) {
-      if (
-        line.startsWith('Expected duration:') ||
-        line.startsWith('Critical path:')
-      ) {
-        filtered.push(line);
-      }
-    }
+    const filtered: string[] = lines.filter((line) =>
+      line.startsWith('Expected duration:')
+    );
     filtered.push(
       '(No variance in estimates — all activities have O = M = P.)'
     );
@@ -758,20 +735,6 @@ export function buildSummary(input: BuildSummaryInput): string | null {
   }
 
   return lines.join('\n');
-}
-
-function sequenceEquals(a: string[], b: string[]): boolean {
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
-  return true;
-}
-
-const CAPTION_ABBREV_THRESHOLD = 8;
-
-function formatCriticalPath(names: string[]): string {
-  if (names.length === 0) return '';
-  if (names.length < CAPTION_ABBREV_THRESHOLD) return names.join(' → ');
-  return `${names[0]} → … → ${names[names.length - 1]}`;
 }
 
 function findBottleneck(

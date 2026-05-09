@@ -152,9 +152,9 @@ A
   });
 });
 
-describe('pert analyzer — milestone semantics', () => {
-  it('milestones contribute zero to project μ/σ but participate in critical path', () => {
-    const resolved = analyze(loadFixture('with-milestones.dgmo'));
+describe('pert analyzer — zero-duration activity semantics', () => {
+  it('zero-duration activities contribute zero to project μ/σ but participate in critical path', () => {
+    const resolved = analyze(loadFixture('with-zero-duration.dgmo'));
     expect(resolved.error).toBeNull();
     const m = resolved.activities.find(
       (r) => r.activity.name === 'voyage approved'
@@ -190,11 +190,11 @@ A
     expect(r.monteCarloResult).not.toBeNull();
   });
 
-  it('AC3: milestones-only diagram → analytical mode', () => {
+  it('AC3: zero-duration-only diagram → analytical mode', () => {
     const r = analyze(`pert
-milestone start
-milestone middle
-milestone end
+start 0
+middle 0
+end 0
 start
   -> middle
 middle
@@ -230,12 +230,12 @@ A 2
 });
 
 describe('pert analyzer — isAuthored (AC28)', () => {
-  it('3-point activity → isAuthored true; M-only → false; milestone → false; TBD → false', () => {
+  it('3-point activity → isAuthored true; M-only → false; zero-duration → false; TBD → false', () => {
     const r = analyze(`pert
 time-unit w
 trials 200
 
-milestone start
+start 0
 A 1 2 4
 B 3
 C
@@ -256,7 +256,7 @@ B
 });
 
 describe('pert analyzer — summaryText (AC8/AC9/AC15)', () => {
-  it('AC8: analytical caption begins with Expected duration and includes Critical path', () => {
+  it('AC8: analytical caption begins with Expected duration; no Critical path bullet (diagram shows it)', () => {
     const r = analyze(`pert
 time-unit d
 A 2
@@ -266,7 +266,7 @@ A
 `);
     expect(r.summaryText).not.toBeNull();
     expect(r.summaryText!.startsWith('Expected duration:')).toBe(true);
-    expect(r.summaryText!).toContain('Critical path:');
+    expect(r.summaryText!).not.toContain('Critical path:');
   });
 
   it('AC9: MC caption emits expected (with ±σ)/percentiles/critical/bottleneck in order', () => {
@@ -284,13 +284,18 @@ B
 `);
     expect(r.mode).toBe('monte-carlo');
     const lines = r.summaryText!.split('\n');
-    // Expected-duration line carries σ as "(± X)" parenthetical —
-    // standalone "Standard deviation:" bullet is gone.
+    // Expected-duration line carries σ as "(± X)" parenthetical.
+    // Standalone "Standard deviation:" / "Critical path:" /
+    // "Most-frequent critical path..." bullets are intentionally gone
+    // (the diagram's red coloring shows the critical chain).
     expect(lines[0]).toMatch(/^Expected duration:.*\(±\s/);
     expect(lines[1]).toMatch(/^50th-percentile finish:/);
-    expect(lines[2]).toMatch(/^Critical path:/);
     expect(
       lines.find((l) => l.startsWith('Standard deviation:'))
+    ).toBeUndefined();
+    expect(lines.find((l) => l.startsWith('Critical path:'))).toBeUndefined();
+    expect(
+      lines.find((l) => l.startsWith('Most-frequent critical path'))
     ).toBeUndefined();
     expect(lines.find((l) => l.startsWith('Bottleneck:'))).toBeDefined();
   });
@@ -642,67 +647,6 @@ describe('buildSummary — AC11 (two hidden-risk sentences within 0.10)', () => 
   });
 });
 
-describe('buildSummary — AC13 (modal divergence)', () => {
-  it('emits Most-frequent critical path under simulation when modal differs', () => {
-    const a = stubResolved('a', 1, true);
-    const b = stubResolved('b', 2, true);
-    const c = stubResolved('c', 2, true);
-    const d = stubResolved('d', 1, true);
-    const mc: MonteCarloResult = {
-      trials: 1000,
-      seed: 1,
-      p50: 4,
-      p80: 4,
-      p95: 4,
-      criticalityByActivity: { a: 1, b: 0.55, c: 0.45, d: 1 },
-      modalCriticalPath: ['a', 'c', 'd'],
-    };
-    const summary = buildSummary({
-      mode: 'monte-carlo',
-      projectMu: 4,
-      projectSigma: 0.5,
-      unit: 'd',
-      criticalPath: ['a', 'b', 'd'],
-      activities: [a, b, c, d],
-      parsedActivities: [a, b, c, d].map((r) => r.activity),
-      monteCarloResult: mc,
-      trialsClamped: false,
-      collapsedGroupIds: new Set(),
-      groups: [],
-    });
-    expect(summary!).toContain(
-      'Most-frequent critical path under simulation: a → c → d.'
-    );
-  });
-
-  it('omits the modal-divergence sentence when modal equals deterministic', () => {
-    const a = stubResolved('a', 5, true);
-    const mc: MonteCarloResult = {
-      trials: 1000,
-      seed: 1,
-      p50: 5,
-      p80: 5,
-      p95: 5,
-      criticalityByActivity: { a: 1 },
-      modalCriticalPath: ['a'],
-    };
-    const summary = buildSummary({
-      mode: 'monte-carlo',
-      projectMu: 5,
-      projectSigma: 0.5,
-      unit: 'd',
-      criticalPath: ['a'],
-      activities: [a],
-      parsedActivities: [a.activity],
-      monteCarloResult: mc,
-      trialsClamped: false,
-      collapsedGroupIds: new Set(),
-      groups: [],
-    });
-    expect(summary!).not.toContain('Most-frequent critical path');
-  });
-});
-
 describe('buildSummary — AC14 (zero-variance fallback)', () => {
   it('replaces percentile/bottleneck/hidden-risk with the (No variance...) parenthetical', () => {
     const a = stubResolved('a', 5, true, { sigma: 0 });
@@ -737,7 +681,8 @@ describe('buildSummary — AC14 (zero-variance fallback)', () => {
     expect(summary!).not.toContain('Bottleneck:');
     expect(summary!).not.toContain('lands on the critical path');
     expect(summary!).toContain('Expected duration:');
-    expect(summary!).toContain('Critical path:');
+    // Critical-path bullet was dropped — diagram conveys the chain.
+    expect(summary!).not.toContain('Critical path:');
   });
 });
 
@@ -800,45 +745,5 @@ describe('buildSummary — AC17/AC18 (heuristic-variance caveat)', () => {
       groups: [],
     });
     expect(summary!).not.toContain('Variance estimates derive primarily');
-  });
-});
-
-describe('buildSummary — critical-path abbreviation', () => {
-  it('renders full chain at 7 activities', () => {
-    const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
-    const acts = ids.map((id) => stubResolved(id, 1, false, { sigma: 0 }));
-    const summary = buildSummary({
-      mode: 'analytical',
-      projectMu: 7,
-      projectSigma: 0,
-      unit: 'd',
-      criticalPath: ids,
-      activities: acts,
-      parsedActivities: acts.map((r) => r.activity),
-      monteCarloResult: null,
-      trialsClamped: false,
-      collapsedGroupIds: new Set(),
-      groups: [],
-    });
-    expect(summary!).toContain('Critical path: a → b → c → d → e → f → g.');
-  });
-
-  it('abbreviates to head → … → tail at 8 activities', () => {
-    const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
-    const acts = ids.map((id) => stubResolved(id, 1, false, { sigma: 0 }));
-    const summary = buildSummary({
-      mode: 'analytical',
-      projectMu: 8,
-      projectSigma: 0,
-      unit: 'd',
-      criticalPath: ids,
-      activities: acts,
-      parsedActivities: acts.map((r) => r.activity),
-      monteCarloResult: null,
-      trialsClamped: false,
-      collapsedGroupIds: new Set(),
-      groups: [],
-    });
-    expect(summary!).toContain('Critical path: a → … → h.');
   });
 });
