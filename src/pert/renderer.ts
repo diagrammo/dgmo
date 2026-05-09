@@ -88,6 +88,11 @@ const COLLAPSE_BAR_HEIGHT = 6;
 // is on. Matches gantt's `FADE_OPACITY` (renderer.ts:1815) so the same
 // "spotlight" effect reads consistently across diagrams.
 const FADE_OPACITY = 0.15;
+// Always-on fade applied to bottom-20% (by duration) activity nodes
+// so the eye is drawn to the longer, schedule-dominating work first.
+// Less aggressive than FADE_OPACITY because these cards still need to
+// be readable; this is a hint, not a hide.
+const DURATION_FADE_OPACITY = 0.55;
 
 const lineGenerator = d3Shape
   .line<{ x: number; y: number }>()
@@ -682,6 +687,15 @@ function renderNodes(
 
   const mcOn = resolved.monteCarloResult !== null;
 
+  // Duration-rank emphasis: top 20% of (non-milestone, estimated)
+  // activities by μ get bold corner cells; bottom 20% fade to
+  // DURATION_FADE_OPACITY so the eye is drawn to longer work first.
+  // Skipped when the project has fewer than 5 activities — the buckets
+  // become noise.
+  const { topMuIds, bottomMuIds } = computeDurationEmphasis(
+    resolved.activities
+  );
+
   for (const node of layout.nodes) {
     const r = byId.get(node.id);
     if (!r) continue;
@@ -689,6 +703,8 @@ function renderNodes(
     const isCritical = r.isCriticalPath;
     const isTbd = tbdSet.has(node.id);
     const dashArray = isTbd ? '4,3' : 'none';
+    const isTopMu = topMuIds.has(node.id);
+    const isBottomMu = bottomMuIds.has(node.id);
 
     // In MC mode, prefer the per-activity criticality band. Fall back
     // to red when the deterministic critical path includes this
@@ -714,7 +730,12 @@ function renderNodes(
         r.activity.groupId !== undefined ? r.activity.groupId : ''
       )
       .attr('data-critical-path', String(isCritical))
-      .attr('data-criticality-band', band ?? '');
+      .attr('data-criticality-band', band ?? '')
+      .attr('data-duration-rank', isTopMu ? 'top' : isBottomMu ? 'bottom' : '');
+
+    if (isBottomMu) {
+      g.attr('opacity', String(DURATION_FADE_OPACITY));
+    }
 
     if (onClickItem) {
       g.style('cursor', 'pointer').on('click', () =>
@@ -753,8 +774,34 @@ function renderNodes(
       stroke: baseColor,
       labelColor,
       dashArray,
+      emphasis: isTopMu ? 'top' : null,
     });
   }
+}
+
+/**
+ * Bucket activities into top-20% / bottom-20% / middle by expected
+ * duration (μ). Milestones, TBDs, and zero-μ activities are excluded
+ * from the buckets. Skipped (returns empty sets) when fewer than 5
+ * activities qualify — the buckets become noise on small projects.
+ */
+function computeDurationEmphasis(activities: ResolvedActivity[]): {
+  topMuIds: Set<string>;
+  bottomMuIds: Set<string>;
+} {
+  const ranked = activities
+    .filter(
+      (r) => !r.activity.isMilestone && r.mu !== null && (r.mu as number) > 0
+    )
+    .map((r) => ({ id: r.activity.id, mu: r.mu as number }))
+    .sort((a, b) => a.mu - b.mu);
+  if (ranked.length < 5) {
+    return { topMuIds: new Set(), bottomMuIds: new Set() };
+  }
+  const tierCount = Math.max(1, Math.floor(ranked.length * 0.2));
+  const bottomMuIds = new Set(ranked.slice(0, tierCount).map((b) => b.id));
+  const topMuIds = new Set(ranked.slice(-tierCount).map((b) => b.id));
+  return { topMuIds, bottomMuIds };
 }
 
 // ============================================================
@@ -789,6 +836,13 @@ interface TextbookCardArgs {
   gridStroke?: string;
   labelColor: string;
   dashArray?: string;
+  /**
+   * Duration-rank emphasis. 'top' bolds the corner cells (ES/dur/EF and
+   * LS/slack/LF) so the longest activities visually weigh more. 'bottom'
+   * is applied at the wrapper-`<g>` level via opacity (renderer sets it),
+   * not here.
+   */
+  emphasis?: 'top' | null;
 }
 
 type AnySel = d3Selection.Selection<SVGGElement, unknown, null, undefined>;
@@ -834,12 +888,17 @@ function drawTextbookCard(g: AnySel, a: TextbookCardArgs): void {
   grid(colX1, bottomY, colX1, y + h);
   grid(colX2, bottomY, colX2, y + h);
 
-  // Cell text — vertically centered within each row.
+  // Cell text — vertically centered within each row. Top-emphasis
+  // promotes the default cell weight to 'bold' so the corner cells
+  // (ES/dur/EF, LS/slack/LF) sit visually heavier; the name cell
+  // explicitly passes 'bold' regardless and is unaffected.
+  const cornerWeight: 'normal' | 'bold' =
+    a.emphasis === 'top' ? 'bold' : 'normal';
   const drawCell = (
     cx: number,
     cy: number,
     text: string,
-    weight: 'normal' | 'bold' = 'normal',
+    weight: 'normal' | 'bold' = cornerWeight,
     size: number = NODE_CELL_FONT_SIZE
   ): void => {
     g.append('text')

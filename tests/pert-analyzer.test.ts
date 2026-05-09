@@ -297,7 +297,7 @@ B
     expect(
       lines.find((l) => l.startsWith('Most-frequent critical path'))
     ).toBeUndefined();
-    expect(lines.find((l) => l.startsWith('Bottleneck:'))).toBeDefined();
+    expect(lines.find((l) => l.startsWith('Bottleneck:'))).toBeUndefined();
   });
 
   it('AC15: TBD upstream → caption is exactly the TBD-fallback sentence', () => {
@@ -341,15 +341,16 @@ C 1 2 4
 `);
     expect(r.mode).toBe('monte-carlo');
     const lines = r.summaryText!.split('\n');
-    // Expected-finish line carries σ as "(± X)" parenthetical; standalone
-    // "Standard deviation:" bullet is gone (line 1 is now the first
-    // percentile end-date).
+    // Expected-finish line carries σ as "(± X)" parenthetical.
     expect(lines[0]).toMatch(
       /^Expected finish: \d{4}-\d{2}-\d{2} \(±\s.+\)\.$/
     );
-    expect(lines[1]).toMatch(/^50th percentile end date: \d{4}-\d{2}-\d{2}\.$/);
-    expect(lines[2]).toMatch(/^80th percentile end date: \d{4}-\d{2}-\d{2}\.$/);
-    expect(lines[3]).toMatch(/^95th percentile end date: \d{4}-\d{2}-\d{2}\.$/);
+    // The three percentile sentences live on a single line joined by
+    // ". " — bulletizeCaption splits them into indented sub-bullets
+    // under "Expected finish" (matches unanchored shape).
+    expect(lines[1]).toMatch(
+      /^50th percentile end date: \d{4}-\d{2}-\d{2}\. 80th percentile end date: \d{4}-\d{2}-\d{2}\. 95th percentile end date: \d{4}-\d{2}-\d{2}\.$/
+    );
     // No anchored caption should mention the legacy "Nth-percentile finish" prose.
     expect(r.summaryText).not.toContain('Expected duration');
     expect(r.summaryText).not.toContain('50th-percentile finish');
@@ -370,14 +371,9 @@ C 1 2 4
     expect(r.mode).toBe('monte-carlo');
     const lines = r.summaryText!.split('\n');
     expect(lines[0]).toMatch(/^Expected start: \d{4}-\d{2}-\d{2} \(±\s.+\)\.$/);
+    // Single ". "-joined line — three percentile sub-bullets after split.
     expect(lines[1]).toMatch(
-      /^50th percentile start date: \d{4}-\d{2}-\d{2}\.$/
-    );
-    expect(lines[2]).toMatch(
-      /^80th percentile start date: \d{4}-\d{2}-\d{2}\.$/
-    );
-    expect(lines[3]).toMatch(
-      /^95th percentile start date: \d{4}-\d{2}-\d{2}\.$/
+      /^50th percentile start date: \d{4}-\d{2}-\d{2}\. 80th percentile start date: \d{4}-\d{2}-\d{2}\. 95th percentile start date: \d{4}-\d{2}-\d{2}\.$/
     );
   });
 

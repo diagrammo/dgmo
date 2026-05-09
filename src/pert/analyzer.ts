@@ -646,15 +646,18 @@ export function buildSummary(input: BuildSummaryInput): string | null {
     if (anchor) {
       const direction = anchor.kind === 'forward' ? 1 : -1;
       const noun = anchor.kind === 'forward' ? 'end date' : 'start date';
-      for (const [pct, days] of [
-        [50, monteCarloResult!.p50],
-        [80, monteCarloResult!.p80],
-        [95, monteCarloResult!.p95],
-      ] as const) {
-        lines.push(
-          `${pct}th percentile ${noun}: ${addCalendarDays(anchor.date, direction * days)}.`
-        );
-      }
+      // Join the three percentile sentences with ". " so bulletizeCaption
+      // splits them into indented sub-bullets under "Expected finish" /
+      // "Expected start" — matches the unanchored caption shape.
+      const fragments = [50, 80, 95].map((pct, i) => {
+        const days = [
+          monteCarloResult!.p50,
+          monteCarloResult!.p80,
+          monteCarloResult!.p95,
+        ][i];
+        return `${pct}th percentile ${noun}: ${addCalendarDays(anchor.date, direction * days)}`;
+      });
+      lines.push(fragments.join('. ') + '.');
     } else {
       const p50 = fromDays(monteCarloResult!.p50, unit);
       const p80 = fromDays(monteCarloResult!.p80, unit);
@@ -673,15 +676,12 @@ export function buildSummary(input: BuildSummaryInput): string | null {
   // Modal-vs-deterministic divergence is dropped for the same reason
   // (it only makes sense as a contrast to "Critical path").
 
-  // 6. Bottleneck
-  if (showMcDetail) {
-    const bottleneck = findBottleneck(criticalPath, activities);
-    if (bottleneck && bottleneck.mu !== null) {
-      lines.push(
-        `Bottleneck: ${bottleneck.activity.name} (${roundForCaption(bottleneck.mu)} ${pluralizeUnit(bottleneck.mu, unit)}).`
-      );
-    }
-  }
+  // 6. Bottleneck — intentionally NOT a caption bullet. Calling out a
+  // single "longest critical activity" overclaims; on a critical path
+  // every activity is a constraint. The diagram itself shows the dur
+  // cell on every red-bordered card, and the renderer now emphasizes
+  // top-20% activities (bold cell text) so the longest sticks out
+  // visually without naming any single one as THE bottleneck.
 
   // 7. Hidden risk (top 1, optionally a second within 0.10 of the first)
   if (showMcDetail) {
@@ -735,22 +735,6 @@ export function buildSummary(input: BuildSummaryInput): string | null {
   }
 
   return lines.join('\n');
-}
-
-function findBottleneck(
-  criticalPath: string[],
-  activities: ResolvedActivity[]
-): ResolvedActivity | null {
-  // Highest-μ activity on the critical path; topological-order tiebreak
-  // (criticalPath is already in topological order).
-  const byId = new Map(activities.map((r) => [r.activity.id, r]));
-  let best: ResolvedActivity | null = null;
-  for (const id of criticalPath) {
-    const r = byId.get(id);
-    if (!r || r.mu === null || r.activity.isMilestone) continue;
-    if (best === null || r.mu > (best.mu ?? -Infinity)) best = r;
-  }
-  return best;
 }
 
 interface HiddenRiskEntry {
