@@ -1,6 +1,6 @@
 pert
 time-unit w
-confidence medium
+default-confidence medium
 
 A 1 2 3
   -> B

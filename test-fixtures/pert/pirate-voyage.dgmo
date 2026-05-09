@@ -1,6 +1,6 @@
 pert Pirate Voyage
 time-unit w
-confidence medium
+default-confidence medium
 
 voyage approved 0
   -> recruit crew

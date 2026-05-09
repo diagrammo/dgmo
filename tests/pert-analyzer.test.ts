@@ -508,10 +508,10 @@ A 4
     APPROX(A.mu, 31 / 6);
   });
 
-  it('per-activity confidence override beats diagram confidence', () => {
+  it('per-activity confidence override beats diagram default-confidence', () => {
     const resolved = analyze(`pert
 time-unit w
-confidence high
+default-confidence high
 A 4 | confidence: low
 `);
     expect(resolved.error).toBeNull();

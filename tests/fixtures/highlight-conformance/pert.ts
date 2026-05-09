@@ -5,7 +5,7 @@ export const fixture: HighlightFixture = {
   specSection: '13A',
   source: `pert Voyage
 time-unit w
-confidence medium
+default-confidence medium
 direction LR
 node-detail compact
 trials 10000
@@ -24,7 +24,7 @@ sail 3 5 8
   assertions: [
     { text: 'pert', role: 'chartType' },
     { text: 'time-unit', role: 'keyword' },
-    { text: 'confidence', role: 'keyword' },
+    { text: 'default-confidence', role: 'keyword' },
     { text: 'direction', role: 'keyword' },
     { text: 'node-detail', role: 'keyword' },
     { text: 'trials', role: 'keyword' },

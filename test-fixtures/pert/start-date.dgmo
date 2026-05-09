@@ -1,6 +1,6 @@
 pert Pirate Voyage
 time-unit w
-confidence medium
+default-confidence medium
 start-date 2026-06-01
 
 voyage approved 0

@@ -40,7 +40,7 @@ import type { DiagramSymbols } from '../completion';
 /** Bare directive lines accepted at the diagram level. */
 const DIRECTIVE_KEYS = new Set([
   'time-unit',
-  'confidence',
+  'default-confidence',
   'direction',
   'node-detail',
   'analysis',
@@ -790,7 +790,7 @@ function applyDirective(
       options.timeUnit = value as DurationUnit;
       return;
     }
-    case 'confidence': {
+    case 'default-confidence': {
       // Verbatim — `resolveConfidence` validates at analyzer time.
       options.confidence = value || 'medium';
       return;
@@ -998,7 +998,7 @@ export function extractPertSymbols(docText: string): DiagramSymbols {
     entities,
     keywords: [
       'time-unit',
-      'confidence',
+      'default-confidence',
       'direction',
       'node-detail',
       'trials',

@@ -233,7 +233,7 @@ export const DIRECTIVE_KEYWORDS = new Set([
   'no-animate',
   // PERT
   'time-unit',
-  'confidence',
+  'default-confidence',
   'node-detail',
   'trials',
   'seed',

@@ -1,6 +1,6 @@
 pert Pirate Voyage with Monte Carlo
 time-unit w
-confidence medium
+default-confidence medium
 
 voyage approved 0
   -> recruit crew
