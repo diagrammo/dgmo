@@ -77,6 +77,10 @@ const CONTAINER_HEADER_HEIGHT = 28;
 // Collapse-bar height — see conventions doc §3 Pattern A/B (matches
 // org's `COLLAPSE_BAR_HEIGHT`). Universal "this is collapsed" signal.
 const COLLAPSE_BAR_HEIGHT = 6;
+// Fade applied to non-critical elements when the Critical Path toggle
+// is on. Matches gantt's `FADE_OPACITY` (renderer.ts:1815) so the same
+// "spotlight" effect reads consistently across diagrams.
+const FADE_OPACITY = 0.15;
 
 const lineGenerator = d3Shape
   .line<{ x: number; y: number }>()
@@ -332,6 +336,8 @@ function renderGroups(
     const resolvedGroup = resolved.groups.find((rg) => rg.group.id === grp.id);
     const label = resolvedGroup?.group.name ?? grp.id;
     const isCollapsed = collapsedSet.has(grp.id);
+    const memberBand = groupBand(grp.id, resolvedGroup?.criticality ?? null);
+    const memberCritical = groupHasCritical(grp.id);
 
     const g = layer
       .append('g')
@@ -343,6 +349,8 @@ function renderGroups(
       .attr('data-group-toggle', grp.id)
       .attr('data-collapsed', String(isCollapsed))
       .attr('data-line-number', String(resolvedGroup?.group.lineNumber ?? 0))
+      .attr('data-critical-path', String(memberCritical))
+      .attr('data-criticality-band', memberBand ?? '')
       .style('cursor', 'pointer');
 
     if (isCollapsed) {
@@ -356,8 +364,7 @@ function renderGroups(
       const lsStr = formatDuration(resolvedGroup?.ls ?? null, unit, '?');
       const lfStr = formatDuration(resolvedGroup?.lf ?? null, unit, '?');
 
-      const band = groupBand(grp.id, resolvedGroup?.criticality ?? null);
-      const cardBaseColor = bandColor(band, palette, palette.primary);
+      const cardBaseColor = bandColor(memberBand, palette, palette.primary);
       const cardFill = shapeFill(palette, cardBaseColor, isDark);
       const cardLabelColor = contrastText(
         cardFill,
@@ -516,6 +523,7 @@ function renderEdges(
       .attr('data-source', e.source)
       .attr('data-target', e.target)
       .attr('data-critical', String(isCritical))
+      .attr('data-critical-path', String(isCritical))
       .attr('data-criticality-band', band ?? '');
   }
 }
@@ -742,6 +750,94 @@ function formatDuration(
   const rounded = Math.round(value * 100) / 100;
   const display = rounded.toFixed(2).replace(/\.?0+$/, '');
   return `${display}${unit}`;
+}
+
+// ============================================================
+// Section: critical-path highlight (React-callable)
+// ============================================================
+//
+// Helpers that React (PertPreview) calls when the user toggles the
+// "Highlight Critical Path" entry inside the cog dropdown. Operates
+// on the diagram's container element — finds the SVG inside, fades
+// non-critical nodes/edges/groups to 15%.
+//
+// In Monte-Carlo mode the binary critical chain is a misleading lens
+// (every activity has some criticality), so the highlight rule keeps
+// the high-band activities (red / orange / yellow) visible and fades
+// the rest. In analytical mode it falls back to the binary path.
+
+const HIGHLIGHT_BANDS = new Set<string>(['red', 'orange', 'yellow']);
+
+function isCritical(el: Element, mcOn: boolean): boolean {
+  if (mcOn) {
+    return HIGHLIGHT_BANDS.has(el.getAttribute('data-criticality-band') ?? '');
+  }
+  return el.getAttribute('data-critical-path') === 'true';
+}
+
+/**
+ * Fade non-critical activities, edges, and group containers in the
+ * PERT diagram inside `container`. Auto-detects MC vs analytical mode
+ * from the rendered attributes — no extra arguments needed.
+ *
+ * No-op when nothing qualifies as critical (e.g. TBD-poisoned terminals
+ * with no MC) so the user doesn't get a "fade everything" surprise.
+ */
+export function highlightPertCriticalPath(container: Element): void {
+  const svg = container.querySelector('svg');
+  if (!svg) return;
+  // Detect MC mode: edges in MC mode have non-empty data-criticality-band
+  // bands like 'red'/'orange'/etc. Analytical mode uses only 'red' or ''.
+  const mcOn = Array.from(svg.querySelectorAll('.pert-edge')).some((e) => {
+    const b = e.getAttribute('data-criticality-band');
+    return b !== null && b !== '' && b !== 'red';
+  });
+
+  const targets = svg.querySelectorAll(
+    '.pert-node, .pert-edge, .pert-group-collapsed'
+  );
+  let anyCritical = false;
+  for (const el of targets) {
+    if (isCritical(el, mcOn)) {
+      anyCritical = true;
+      break;
+    }
+  }
+  if (!anyCritical) return;
+
+  svg.setAttribute('data-critical-path-active', 'true');
+  for (const el of svg.querySelectorAll('.pert-node, .pert-edge')) {
+    (el as SVGElement).setAttribute(
+      'opacity',
+      isCritical(el, mcOn) ? '1' : String(FADE_OPACITY)
+    );
+  }
+  // Group containers (non-collapsed) always dim to scenery; collapsed
+  // group cards behave like nodes and follow the critical/non-critical
+  // rule (data-critical-path is set on the wrapper from member roll-up).
+  for (const el of svg.querySelectorAll('.pert-group')) {
+    const opacity = el.classList.contains('pert-group-collapsed')
+      ? isCritical(el, mcOn)
+        ? '1'
+        : String(FADE_OPACITY)
+      : String(FADE_OPACITY);
+    (el as SVGElement).setAttribute('opacity', opacity);
+  }
+}
+
+/**
+ * Reset opacities applied by `highlightPertCriticalPath`. Safe to
+ * call when no highlight is active.
+ */
+export function resetPertCriticalPath(container: Element): void {
+  const svg = container.querySelector('svg');
+  if (!svg) return;
+  svg.removeAttribute('data-critical-path-active');
+  for (const el of svg.querySelectorAll(
+    '.pert-node, .pert-edge, .pert-group'
+  )) {
+    (el as SVGElement).removeAttribute('opacity');
+  }
 }
 
 // re-export to silence unused-type lint when consumers only want the helper

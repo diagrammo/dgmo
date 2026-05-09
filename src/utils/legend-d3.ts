@@ -436,12 +436,16 @@ function renderControlsGroup(
     .style('cursor', 'pointer');
 
   if (!layout.expanded) {
-    // Collapsed: gear pill
+    // Collapsed: gear pill. Subtle stroke so the affordance reads
+    // even when the pill sits alone on an empty canvas (PERT, etc.) —
+    // a fill-only pill blends into bg and looks like nothing.
     g.append('rect')
       .attr('width', layout.width)
       .attr('height', layout.height)
       .attr('rx', layout.height / 2)
-      .attr('fill', groupBg);
+      .attr('fill', groupBg)
+      .attr('stroke', pillBorder)
+      .attr('stroke-width', 0.75);
 
     // Gear icon centered
     const iconSize = 14;

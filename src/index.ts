@@ -370,7 +370,12 @@ export { parsePert, looksLikePert, extractPertSymbols } from './pert/parser';
 export { analyzePert } from './pert/analyzer';
 export { layoutPert, relayoutPert } from './pert/layout';
 export type { LayoutOverrides as PertLayoutOverrides } from './pert/internal';
-export { renderPert, renderPertForExport } from './pert/renderer';
+export {
+  renderPert,
+  renderPertForExport,
+  highlightPertCriticalPath,
+  resetPertCriticalPath,
+} from './pert/renderer';
 export type { PertRenderOptions } from './pert/renderer';
 export type {
   ParsedPert,
@@ -540,10 +545,11 @@ export {
   renderLegendSvgFromConfig,
   type LegendGroupData,
 } from './utils/legend-svg';
-export { LEGEND_HEIGHT } from './utils/legend-constants';
+export { LEGEND_HEIGHT, LEGEND_GEAR_PILL_W } from './utils/legend-constants';
 export { renderLegendD3 } from './utils/legend-d3';
 export {
   computeLegendLayout,
+  controlsGroupCapsuleWidth,
   getLegendReservedHeight,
 } from './utils/legend-layout';
 export type {

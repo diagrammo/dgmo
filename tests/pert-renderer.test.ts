@@ -91,6 +91,76 @@ describe('pert renderer — structural assertions', () => {
     expect(edges.length).toBeGreaterThan(0);
   });
 
+  it('critical-path edges also carry data-critical-path="true" (mirror of nodes)', () => {
+    const svg = renderForTest(loadFixture('three-point.dgmo'));
+    const doc = parseDom(svg);
+    const cp = doc.querySelectorAll(
+      'path.pert-edge[data-critical-path="true"]'
+    );
+    const cpLegacy = doc.querySelectorAll(
+      'path.pert-edge[data-critical="true"]'
+    );
+    expect(cp.length).toBe(cpLegacy.length);
+    expect(cp.length).toBeGreaterThan(0);
+  });
+
+  it('group g wrappers carry data-critical-path matching member criticality', () => {
+    const c = document.createElement('div');
+    document.body.appendChild(c);
+
+    const parsed = parsePert(loadFixture('with-groups.dgmo'));
+    const resolved = analyzePert(parsed);
+    const layout = relayoutPert(resolved, {});
+    const colors = getPalette('nord').light;
+    renderPert(c as HTMLDivElement, resolved, layout, colors, false, {
+      title: parsed.title,
+    });
+
+    const groupEls = c.querySelectorAll('g.pert-group');
+    expect(groupEls.length).toBeGreaterThan(0);
+    for (const g of groupEls) {
+      const groupId = g.getAttribute('data-group-id')!;
+      const memberCritical = resolved.activities.some(
+        (a) => a.activity.groupId === groupId && a.isCriticalPath
+      );
+      expect(g.getAttribute('data-critical-path')).toBe(String(memberCritical));
+    }
+
+    document.body.removeChild(c);
+  });
+
+  it('highlightPertCriticalPath fades non-critical activities', async () => {
+    const { highlightPertCriticalPath, resetPertCriticalPath } =
+      await import('../src/pert/renderer');
+    const c = document.createElement('div');
+    document.body.appendChild(c);
+
+    const parsed = parsePert(loadFixture('three-point.dgmo'));
+    const resolved = analyzePert(parsed);
+    const layout = relayoutPert(resolved, {});
+    const colors = getPalette('nord').light;
+    renderPert(c as HTMLDivElement, resolved, layout, colors, false, {
+      title: parsed.title,
+    });
+
+    highlightPertCriticalPath(c);
+    const svg = c.querySelector('svg')!;
+    expect(svg.getAttribute('data-critical-path-active')).toBe('true');
+
+    const fadedNodes = c.querySelectorAll('g.pert-node[opacity="0.15"]');
+    const fullNodes = c.querySelectorAll('g.pert-node[opacity="1"]');
+    // Some critical, some not — both buckets must be non-empty for the
+    // fade to be doing something useful.
+    expect(fadedNodes.length).toBeGreaterThan(0);
+    expect(fullNodes.length).toBeGreaterThan(0);
+
+    resetPertCriticalPath(c);
+    expect(svg.getAttribute('data-critical-path-active')).toBeNull();
+    expect(c.querySelectorAll('g.pert-node[opacity]').length).toBe(0);
+
+    document.body.removeChild(c);
+  });
+
   it('milestone activities render with the textbook card just like activities', () => {
     const svg = renderForTest(loadFixture('with-milestones.dgmo'));
     const doc = parseDom(svg);
