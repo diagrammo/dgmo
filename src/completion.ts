@@ -411,12 +411,14 @@ export const COMPLETION_REGISTRY = new Map<string, DirectiveSpec>([
         description: 'Node visual density',
         values: ['compact', 'full'],
       },
-      trials: { description: 'Monte Carlo trial count (default 10000)' },
-      seed: { description: 'Monte Carlo PRNG seed (deterministic)' },
+      trials: {
+        description:
+          'Monte Carlo trial count (auto-derived from activity count)',
+      },
+      seed: { description: 'Monte Carlo PRNG seed (auto-derived from title)' },
       'scrubber-trials': {
         description: 'Fast-MC trials for the duration scrubber (default 300)',
       },
-      milestone: { description: 'Zero-duration named event (diamond shape)' },
     }),
   ],
   [

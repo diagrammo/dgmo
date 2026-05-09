@@ -30,7 +30,7 @@ const FIXTURE_NAMES = [
   'basic.dgmo',
   'three-point.dgmo',
   'with-groups.dgmo',
-  'with-milestones.dgmo',
+  'with-zero-duration.dgmo',
   'with-aliases.dgmo',
   'tbd-poison.dgmo',
   'pirate-voyage.dgmo',
@@ -165,8 +165,10 @@ describe('pert renderer — structural assertions', () => {
   });
 
   it('milestone activities render with the textbook card just like activities', () => {
-    const svg = renderForTest(loadFixture('with-milestones.dgmo'));
+    const svg = renderForTest(loadFixture('with-zero-duration.dgmo'));
     const doc = parseDom(svg);
+    // The renamed fixture uses 0-duration activities (no `milestone`
+    // primitives); names normalize to lowercase canonical ids.
     const milestoneIds = ['voyage approved', 'landfall'];
     for (const id of milestoneIds) {
       const wrapper = doc.querySelector(
@@ -439,23 +441,29 @@ describe('pert renderer — date anchoring', () => {
   }
 
   it('forward anchor: source ES renders as the literal start-date', () => {
-    // recruit crew is the first activity after the milestone, so its
-    // ES is the start-date carried through. Renderer formats as ISO.
+    // recruit crew is the first non-zero-duration activity, so its ES
+    // is the start-date carried through. Renderer formats as ISO.
     const svg = renderForTest(loadFixture('start-date.dgmo'));
     expect(svg).toContain('2026-06-01');
     // No D10 annotation in forward mode.
     expect(svg).not.toContain('Backward-anchored');
   });
 
-  it('backward anchor: D10 italic annotation names end-date AND derived projectStart', () => {
+  it('backward anchor: D10 italic annotation lives in the caption box and names both dates', () => {
     const svg = renderForTest(loadFixture('end-date.dgmo'));
-    // Annotation names BOTH dates so the reader sees the schedule
-    // envelope at a glance (per F11 review fix).
+    // Annotation now sits as the FINAL bullet inside the yellow caption
+    // box (not a standalone subtitle above the diagram). Names BOTH the
+    // end-date and the derived projectStart so the reader sees the
+    // schedule envelope at a glance.
     expect(svg).toContain('end-date 2026-09-15');
     expect(svg).toContain('project start');
     expect(svg).toContain('Backward-anchored');
+    // The bullet's tspan carries font-style="italic"; the standalone
+    // subtitle element no longer exists.
     expect(svg).toContain('font-style="italic"');
-    expect(svg).toContain('class="pert-anchor-annotation"');
+    expect(svg).not.toContain('class="pert-anchor-annotation"');
+    // The italic bullet has no `•` glyph (contextual note, not a fact).
+    expect(svg).not.toContain('• Backward-anchored');
   });
 
   it('backward anchor + TBD upstream: schedule cells fall back to "?"', () => {

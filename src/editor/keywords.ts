@@ -238,7 +238,6 @@ export const DIRECTIVE_KEYWORDS = new Set([
   'trials',
   'seed',
   'scrubber-trials',
-  'milestone',
 ]);
 
 /** Control flow keywords — structural blocks. */

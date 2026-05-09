@@ -58,8 +58,8 @@ describe('pert parser — fixtures', () => {
     expect(outfitShip!.classification).toBeDefined();
   });
 
-  it('parses with-milestones.dgmo as zero-duration diamond nodes', () => {
-    const parsed = parsePert(loadFixture('with-milestones.dgmo'));
+  it('flags zero-duration activities as milestones', () => {
+    const parsed = parsePert(loadFixture('with-zero-duration.dgmo'));
     expect(parsed.error).toBeNull();
     const milestones = parsed.activities.filter((a) => a.isMilestone);
     expect(milestones.map((m) => m.name)).toContain('voyage approved');
@@ -123,9 +123,17 @@ describe('pert parser — duration validation', () => {
     expect(diag!.message).toContain('Did you mean (2 3 5)?');
   });
 
-  it('rejects zero/negative durations', () => {
-    const parsedZero = parsePert(`pert\nA 0 0 0\n`);
-    expect(findError(parsedZero, 'Duration must be > 0')).toBeDefined();
+  it('accepts zero-duration activities and flags them as milestones', () => {
+    const parsed = parsePert(`pert\nA 0 0 0\nB 0\n`);
+    expect(parsed.error).toBeNull();
+    expect(parsed.activities[0].isMilestone).toBe(true);
+    expect(parsed.activities[1].isMilestone).toBe(true);
+  });
+
+  it('rejects the `milestone` keyword as unknown', () => {
+    const parsed = parsePert(`pert\nmilestone voyage approved\n`);
+    const diag = findError(parsed, "Unknown keyword 'milestone'");
+    expect(diag).toBeDefined();
   });
 
   it('accepts M-only with confidence-based heuristic (downstream of analyzer)', () => {
@@ -222,7 +230,8 @@ describe('pert parser — extractPertSymbols', () => {
     expect(symbols.entities).toContain('recruit crew');
     expect(symbols.entities).toContain('rc'); // alias
     expect(symbols.entities).toContain('outfit ship'); // group
-    expect(symbols.keywords).toContain('milestone');
+    // `milestone` keyword removed — zero-duration activities replace it.
+    expect(symbols.keywords).not.toContain('milestone');
     // `analysis` and `monte-carlo` were removed from autocomplete after
     // the directive became reserved-but-inert; lock the removal in.
     expect(symbols.keywords).not.toContain('analysis');
@@ -429,10 +438,6 @@ describe('pert share normalizer', () => {
 });
 
 describe('pert parser — looksLikePert inference', () => {
-  it('matches when content has a `milestone <name>` line', () => {
-    expect(looksLikePert('milestone go-live\n  -> A 1 2 3\n')).toBe(true);
-  });
-
   it('matches when content has `analysis monte-carlo`', () => {
     expect(looksLikePert('analysis monte-carlo\nA 1 2 3\n')).toBe(true);
   });

@@ -82,8 +82,6 @@ export interface DeclarationSite {
   lineNumber: number;
   /** Pending group id from the enclosing block at the source line. */
   groupHint?: string;
-  /** Set when this is a `milestone <name>` primitive. */
-  isMilestone: boolean;
 }
 
 /** Pass 1 raw reference record. */

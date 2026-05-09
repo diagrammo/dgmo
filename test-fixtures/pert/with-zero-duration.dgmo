@@ -1,15 +1,13 @@
 pert
 time-unit w
 
-milestone voyage approved
-
-voyage approved
+voyage approved 0
   -> recruit crew
 
 recruit crew 1 2 4
   -> sail home
 
-sail home 3 5 8
+sail home 5
   -> landfall
 
-milestone landfall
+landfall 0

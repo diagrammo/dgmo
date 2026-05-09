@@ -1,19 +1,14 @@
 pert Pirate Voyage with Monte Carlo
 time-unit w
 confidence medium
-analysis monte-carlo
-trials 5000
-seed 42
 
-milestone voyage approved
-
-voyage approved
+voyage approved 0
   -> recruit crew
 
 [outfit ship]
   recruit crew 1 2 4 as rc
     -> load powder
-  careen hull 1 1.5 2.5
+  careen hull 1.5
     -> load powder
   load powder 0.5 1 2
     -> sail to atoll
@@ -22,7 +17,7 @@ sail to atoll 3 5 8
   -> count gold
   -> repair hull
 
-count gold 1 2 3
+count gold 2
   -> divvy shares
 
 repair hull 2 3 5

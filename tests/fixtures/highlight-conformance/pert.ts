@@ -11,7 +11,7 @@ node-detail compact
 trials 10000
 seed 42
 
-milestone start
+start 0
 
 start
   -> recruit crew
@@ -29,7 +29,6 @@ sail 3 5 8
     { text: 'node-detail', role: 'keyword' },
     { text: 'trials', role: 'keyword' },
     { text: 'seed', role: 'keyword' },
-    { text: 'milestone', role: 'keyword' },
     { text: 'as', role: 'modifier' },
   ],
 };

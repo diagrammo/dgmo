@@ -3,9 +3,7 @@ time-unit w
 confidence medium
 start-date 2026-06-01
 
-milestone voyage approved
-
-voyage approved
+voyage approved 0
   -> recruit crew
 
 recruit crew 1 2 4 as rc

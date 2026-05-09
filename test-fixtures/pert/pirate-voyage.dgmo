@@ -2,25 +2,21 @@ pert Pirate Voyage
 time-unit w
 confidence medium
 
-milestone voyage approved
-
-voyage approved
+voyage approved 0
   -> recruit crew
 
 [outfit ship]
   recruit crew 1 2 4 as rc | confidence: low
     -> load powder
-  careen hull 1 1.5 2.5
+  careen hull 1.5
     -> load powder
   load powder 0.5 1 2
     -> sail to atoll
 
-sail to atoll 3 5 8
+sail to atoll 5
   -> atoll sighted
 
-milestone atoll sighted
-
-atoll sighted
+atoll sighted 0
   -> decode map
   -> scout reef
 

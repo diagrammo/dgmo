@@ -3,8 +3,7 @@
 // ============================================================
 //
 // Pass 1: scan source line-by-line, collect declarations, references,
-//         groups, milestones. Indent-tracked state machine, no
-//         resolution.
+//         groups. Indent-tracked state machine, no resolution.
 // Pass 2: resolve aliases → canonical ids; classify groups (hammock vs
 //         cluster); detect conflicts; emit diagnostics.
 //
@@ -68,16 +67,45 @@ const ALIAS_SUFFIX_RE = /\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/;
 const ESTIMATE_TOKEN_RE = /^(\d+(?:\.\d+)?)(min|bd|d|w|m|q|y|h|s)?$/;
 
 /** Default options when nothing is declared. */
+/**
+ * Sentinel values mean "user didn't author this directive — derive a
+ * sensible default from the parsed graph at the end of parsePert".
+ * `trials`: scaled to activity count (see `deriveTrials`).
+ * `seed`:   FNV-1a hash of the title or sorted activity names.
+ */
 const DEFAULT_OPTIONS: PertOptions = {
   timeUnit: 'd',
   direction: 'LR',
   nodeDetail: 'compact',
   confidence: 'medium',
-  trials: 10000,
-  seed: 1,
+  trials: -1,
+  seed: -1,
   scrubberTrials: 300,
   anchor: null,
 };
+
+/**
+ * Auto-derive `trials` from activity count: small plans run fast, big
+ * plans get more samples. Clamped to [5000, 20000].
+ */
+function deriveTrials(activityCount: number): number {
+  const t = Math.round(1000 * Math.sqrt(Math.max(activityCount, 1)));
+  return Math.max(5000, Math.min(20000, t));
+}
+
+/**
+ * Auto-derive `seed` from a stable string (title or activity names).
+ * FNV-1a 32-bit. Returns a positive 31-bit integer so it round-trips
+ * cleanly through JSON / share-link encoding.
+ */
+function deriveSeed(s: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return h >>> 1;
+}
 
 // ============================================================
 // Utility helpers
@@ -224,8 +252,8 @@ function buildEstimate(
       diagnose(`Invalid duration token '${t}'.`);
       return null;
     }
-    if (dur.amount <= 0) {
-      diagnose(`Duration must be > 0; got '${t}'.`);
+    if (dur.amount < 0) {
+      diagnose(`Duration must be ≥ 0; got '${t}'.`);
       return null;
     }
     parsed.push(dur);
@@ -446,29 +474,6 @@ export function parsePert(content: string): ParsedPert {
       continue;
     }
 
-    // ── `milestone <name>` primitive.
-    {
-      const milestoneMatch = trimmed.match(/^milestone\s+(.+?)\s*$/i);
-      if (milestoneMatch) {
-        const name = milestoneMatch[1].trim();
-        const peeled = peelAlias(name);
-        const site: DeclarationSite = {
-          name: peeled.head,
-          ...(peeled.alias !== undefined && { alias: peeled.alias }),
-          durationTokens: [],
-          lineNumber,
-          ...(currentGroupId() !== undefined && {
-            groupHint: currentGroupId(),
-          }),
-          isMilestone: true,
-        };
-        registerSite(site);
-        currentSourceName = peeled.head;
-        currentSourceIndent = indent;
-        continue;
-      }
-    }
-
     // ── Diagram-level directives (bare keyword + optional value).
     {
       const firstSpace = trimmed.indexOf(' ');
@@ -508,6 +513,13 @@ export function parsePert(content: string): ParsedPert {
       }
     }
 
+    // ── Reject the `milestone` keyword outright — zero-duration
+    // activities (`<name> 0`) cover the use case.
+    if (/^milestone(\s|$)/i.test(trimmed)) {
+      error(lineNumber, `Unknown keyword 'milestone'.`);
+      continue;
+    }
+
     // ── Activity declaration: `<name> <durs?> [as <id>] [| meta]`.
     {
       const tok = tokenizeActivityLine(trimmed);
@@ -538,7 +550,6 @@ export function parsePert(content: string): ParsedPert {
         }),
         lineNumber,
         ...(currentGroupId() !== undefined && { groupHint: currentGroupId() }),
-        isMilestone: false,
       };
       registerSite(site);
       currentSourceName = tok.name;
@@ -658,13 +669,9 @@ export function parsePert(content: string): ParsedPert {
       continue;
     }
     const existingHasInfo =
-      existing.durationTokens.length > 0 ||
-      existing.alias !== undefined ||
-      existing.isMilestone;
+      existing.durationTokens.length > 0 || existing.alias !== undefined;
     const incomingHasInfo =
-      decl.durationTokens.length > 0 ||
-      decl.alias !== undefined ||
-      decl.isMilestone;
+      decl.durationTokens.length > 0 || decl.alias !== undefined;
     if (!existingHasInfo && incomingHasInfo) {
       bestDeclByName.set(key, decl);
     }
@@ -672,23 +679,28 @@ export function parsePert(content: string): ParsedPert {
 
   const activitiesById = new Map<string, PertActivity>();
   for (const [id, decl] of bestDeclByName) {
-    const estimate = decl.isMilestone
-      ? milestoneEstimate(options.timeUnit)
-      : buildEstimate(decl.durationTokens, options.timeUnit, (msg) =>
-          error(decl.lineNumber, msg)
-        );
+    const estimate = buildEstimate(
+      decl.durationTokens,
+      options.timeUnit,
+      (msg) => error(decl.lineNumber, msg)
+    );
     const meta = decl.pipeMetadata ? parsePipeMetadata(decl.pipeMetadata) : {};
+    // Zero-duration activities (O = M = P = 0) are flagged as milestones
+    // so the renderer can mark them with the diamond glyph.
+    const isMilestone =
+      estimate !== null &&
+      estimate.o.amount === 0 &&
+      estimate.m.amount === 0 &&
+      estimate.p.amount === 0;
     activitiesById.set(id, {
       id,
       name: decl.name,
       ...(decl.alias !== undefined && { alias: decl.alias }),
-      duration: decl.isMilestone
-        ? milestoneEstimate(options.timeUnit)
-        : estimate,
+      duration: estimate,
       ...(meta.confidence && { confidence: meta.confidence }),
       ...(decl.groupHint !== undefined && { groupId: decl.groupHint }),
       lineNumber: decl.lineNumber,
-      isMilestone: decl.isMilestone,
+      isMilestone,
     });
   }
 
@@ -724,6 +736,22 @@ export function parsePert(content: string): ParsedPert {
     if (a) activities.push(a);
   }
 
+  // Resolve auto-derived defaults for `trials` and `seed`. The directive
+  // sets the value verbatim; -1 sentinel means "user didn't author it".
+  if (options.trials === -1) {
+    options.trials = deriveTrials(activities.length);
+  }
+  if (options.seed === -1) {
+    const seedSource =
+      title ||
+      activities
+        .map((a) => a.name)
+        .sort()
+        .join('\n') ||
+      'pert';
+    options.seed = deriveSeed(seedSource);
+  }
+
   const firstFatal = diagnostics.find((d) => d.severity === 'error');
   return {
     title,
@@ -740,11 +768,6 @@ export function parsePert(content: string): ParsedPert {
 // ============================================================
 // Helpers continued
 // ============================================================
-
-function milestoneEstimate(unit: DurationUnit): DurationEstimate {
-  const dur: Duration = { amount: 0, unit };
-  return { o: dur, m: dur, p: dur, mOnly: false };
-}
 
 function applyDirective(
   key: string,
@@ -983,7 +1006,6 @@ export function extractPertSymbols(docText: string): DiagramSymbols {
       'scrubber-trials',
       'start-date',
       'end-date',
-      'milestone',
       'as',
     ],
   };
@@ -998,17 +1020,14 @@ export function extractPertSymbols(docText: string): DiagramSymbols {
  * PERT diagram. Per spec § Implementation Decisions: drop the
  * "three-number durations" heuristic (too generic) — require any of:
  *   (a) literal `pert` chart-type line (already handled by parseFirstLine)
- *   (b) a `milestone <name>` directive
- *   (c) an `analysis monte-carlo` directive
+ *   (b) an `analysis monte-carlo` directive
  *
- * This function is for case (b) / (c) inference — case (a) is handled
- * upstream.
+ * This function is for case (b) inference — case (a) is handled upstream.
  */
 export function looksLikePert(content: string): boolean {
   for (const raw of content.split('\n')) {
     const line = raw.trim();
     if (!line || line.startsWith('//') || line.startsWith('#')) continue;
-    if (/^milestone\s+\S/i.test(line)) return true;
     if (/^analysis\s+monte-carlo\b/i.test(line)) return true;
   }
   return false;
