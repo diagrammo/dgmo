@@ -210,7 +210,9 @@ export function renderPert(
   }
   const captionBoxHeight =
     captionBullets.length > 0
-      ? captionBullets.length * CAPTION_LINE_HEIGHT + 2 * CAPTION_BOX_PADDING_Y
+      ? captionBullets.length * CAPTION_LINE_HEIGHT +
+        2 * CAPTION_BOX_PADDING_Y +
+        CAPTION_HEADER_BAND_HEIGHT
       : 0;
   // The caption block reserves: a top gap (between diagram and box) +
   // the box itself. When no caption fires, contributes zero height.
@@ -315,7 +317,9 @@ export function renderPertForExport(
   }
   const captionBoxHeight =
     captionBullets.length > 0
-      ? captionBullets.length * CAPTION_LINE_HEIGHT + 2 * CAPTION_BOX_PADDING_Y
+      ? captionBullets.length * CAPTION_LINE_HEIGHT +
+        2 * CAPTION_BOX_PADDING_Y +
+        CAPTION_HEADER_BAND_HEIGHT
       : 0;
   const captionBlockHeight =
     captionBullets.length > 0 ? CAPTION_TOP_GAP + captionBoxHeight : 0;
@@ -1269,11 +1273,17 @@ interface CaptionBlockArgs {
 /**
  * Render the project-stats caption as a node-styled rectangle below
  * the diagram body. Mirrors the textbook-card recipe: rounded corners,
- * `palette.primary` stroke, 25% tint fill via `shapeFill`. Text is
- * left-aligned with a `•` bullet glyph prefixing each line; sub-bullets
- * (level 1) sit indented under the preceding top-level bullet.
+ * `palette.primary` stroke, 25% tint fill via `shapeFill`. A centered
+ * "Summary" header sits above a hairline divider; bullets follow,
+ * left-aligned with a `•` glyph and sub-bullets (level 1) indented
+ * under the preceding top-level bullet.
  */
 const SUB_BULLET_INDENT = 20;
+// Vertical space the header band reserves: the "Summary" line itself
+// (CAPTION_LINE_HEIGHT) plus a small gap between divider and the first
+// bullet. Used by renderPert / renderPertForExport when sizing the
+// caption box.
+const CAPTION_HEADER_BAND_HEIGHT = CAPTION_LINE_HEIGHT + 8;
 
 function renderCaptionBlock(
   svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
@@ -1307,8 +1317,32 @@ function renderCaptionBlock(
     .attr('stroke', baseColor)
     .attr('stroke-width', NODE_STROKE_WIDTH);
 
+  block
+    .append('text')
+    .attr('class', 'pert-caption-header')
+    .attr('x', x + width / 2)
+    .attr('y', y + CAPTION_BOX_PADDING_Y + CAPTION_FONT_SIZE)
+    .attr('text-anchor', 'middle')
+    .attr('fill', labelColor)
+    .attr('font-size', CAPTION_FONT_SIZE)
+    .attr('font-weight', '700')
+    .text('Summary');
+
+  const dividerY = y + CAPTION_BOX_PADDING_Y + CAPTION_LINE_HEIGHT;
+  block
+    .append('line')
+    .attr('class', 'pert-caption-divider')
+    .attr('x1', x + CAPTION_BOX_PADDING_X)
+    .attr('x2', x + width - CAPTION_BOX_PADDING_X)
+    .attr('y1', dividerY)
+    .attr('y2', dividerY)
+    .attr('stroke', baseColor)
+    .attr('stroke-width', 1)
+    .attr('opacity', 0.5);
+
   const textX = x + CAPTION_BOX_PADDING_X;
-  const firstBaselineY = y + CAPTION_BOX_PADDING_Y + CAPTION_FONT_SIZE;
+  const firstBaselineY =
+    y + CAPTION_BOX_PADDING_Y + CAPTION_HEADER_BAND_HEIGHT + CAPTION_FONT_SIZE;
   const text = block
     .append('text')
     .attr('class', 'pert-caption')
