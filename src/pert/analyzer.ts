@@ -15,6 +15,7 @@ import { makeDgmoError } from '../diagnostics';
 import type { DgmoError } from '../diagnostics';
 import type { Duration, DurationUnit } from '../gantt/types';
 import type {
+  Anchor,
   ParsedPert,
   PertActivity,
   PertEdge,
@@ -28,6 +29,7 @@ import type { DurationEstimate } from './internal';
 import {
   addCalendarDays,
   resolveConfidence,
+  unitToDays,
   CONFIDENCE_TABLE,
 } from './internal';
 import { simulateCanonical, type ExpandedActivity } from './monte-carlo';
@@ -438,6 +440,7 @@ export function analyzePert(parsed: ParsedPert): ResolvedPert {
     trialsClamped,
     collapsedGroupIds: new Set(),
     groups: parsed.groups,
+    anchor: parsed.options.anchor,
   });
 
   return {
@@ -562,6 +565,12 @@ export interface BuildSummaryInput {
   trialsClamped: boolean;
   collapsedGroupIds: ReadonlySet<string>;
   groups: PertGroup[];
+  /**
+   * Date anchor — when set, "Expected duration" becomes a date and
+   * Monte-Carlo percentiles render as ISO dates instead of durations.
+   * Forward → end-date bullets; backward → start-date bullets.
+   */
+  anchor?: Anchor;
 }
 
 export function buildSummary(input: BuildSummaryInput): string | null {
@@ -578,6 +587,7 @@ export function buildSummary(input: BuildSummaryInput): string | null {
     collapsedGroupIds,
     groups,
   } = input;
+  const anchor = input.anchor ?? null;
 
   if (parsedActivities.length === 0) return null;
 
@@ -603,28 +613,59 @@ export function buildSummary(input: BuildSummaryInput): string | null {
     for (const aid of g.activityIds) collapsedGroupByMember.set(aid, g.id);
   }
 
-  // 1. Expected duration
-  lines.push(
-    `Expected duration: ${roundForCaption(projectMu)} ${pluralizeUnit(projectMu, unit)}.`
-  );
-
-  // 2. Standard deviation
-  if (showMcDetail) {
+  // 1. Expected duration / finish / start — fold σ into a "(± X)"
+  // parenthetical when MC ran with σ > 0. Reads more naturally than a
+  // separate "Standard deviation:" bullet; for a roughly-normal
+  // distribution ±1σ covers ~68% of outcomes.
+  // Forward anchor → expected finish date; backward anchor → expected
+  // start date (the latest acceptable start that hits end-date with
+  // 50% probability under the M-world). No anchor → duration.
+  const sigmaParen = showMcDetail
+    ? ` (± ${roundForCaption(projectSigma!)} ${pluralizeUnit(projectSigma!, unit)})`
+    : '';
+  if (anchor && anchor.kind === 'forward') {
+    const projectMuDays = projectMu * unitToDays(unit);
     lines.push(
-      `Standard deviation: ${roundForCaption(projectSigma!)} ${pluralizeUnit(projectSigma!, unit)}.`
+      `Expected finish: ${addCalendarDays(anchor.date, projectMuDays)}${sigmaParen}.`
     );
+  } else if (anchor && anchor.kind === 'backward') {
+    const projectMuDays = projectMu * unitToDays(unit);
+    lines.push(
+      `Expected start: ${addCalendarDays(anchor.date, -projectMuDays)}${sigmaParen}.`
+    );
+  } else {
+    const muStr = `${roundForCaption(projectMu)} ${pluralizeUnit(projectMu, unit)}`;
+    lines.push(`Expected duration: ${muStr}${sigmaParen}.`);
   }
 
-  // 3. Percentiles (in canonical days — convert to source unit)
+  // 3. Percentiles
+  // Forward anchor → end-date for each percentile (start-date + Pn).
+  // Backward anchor → start-date for each percentile (end-date - Pn) —
+  // the latest acceptable start that hits end-date with N% probability.
+  // No anchor → single combined duration line (existing behavior).
   if (showMcDetail) {
-    const p50 = fromDays(monteCarloResult!.p50, unit);
-    const p80 = fromDays(monteCarloResult!.p80, unit);
-    const p95 = fromDays(monteCarloResult!.p95, unit);
-    lines.push(
-      `50th-percentile finish: ${formatPercentile(p50, unit)}. ` +
-        `80th-percentile: ${formatPercentile(p80, unit)}. ` +
-        `95th-percentile: ${formatPercentile(p95, unit)}.`
-    );
+    if (anchor) {
+      const direction = anchor.kind === 'forward' ? 1 : -1;
+      const noun = anchor.kind === 'forward' ? 'end date' : 'start date';
+      for (const [pct, days] of [
+        [50, monteCarloResult!.p50],
+        [80, monteCarloResult!.p80],
+        [95, monteCarloResult!.p95],
+      ] as const) {
+        lines.push(
+          `${pct}th percentile ${noun}: ${addCalendarDays(anchor.date, direction * days)}.`
+        );
+      }
+    } else {
+      const p50 = fromDays(monteCarloResult!.p50, unit);
+      const p80 = fromDays(monteCarloResult!.p80, unit);
+      const p95 = fromDays(monteCarloResult!.p95, unit);
+      lines.push(
+        `50th-percentile finish: ${formatPercentile(p50, unit)}. ` +
+          `80th-percentile: ${formatPercentile(p80, unit)}. ` +
+          `95th-percentile: ${formatPercentile(p95, unit)}.`
+      );
+    }
   }
 
   // 4. Critical path

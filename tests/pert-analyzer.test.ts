@@ -269,7 +269,7 @@ A
     expect(r.summaryText!).toContain('Critical path:');
   });
 
-  it('AC9: MC caption emits expected/std/percentiles/critical/bottleneck in order', () => {
+  it('AC9: MC caption emits expected (with ±σ)/percentiles/critical/bottleneck in order', () => {
     const r = analyze(`pert
 time-unit d
 trials 500
@@ -284,10 +284,14 @@ B
 `);
     expect(r.mode).toBe('monte-carlo');
     const lines = r.summaryText!.split('\n');
-    expect(lines[0]).toMatch(/^Expected duration:/);
-    expect(lines[1]).toMatch(/^Standard deviation:/);
-    expect(lines[2]).toMatch(/^50th-percentile finish:/);
-    expect(lines[3]).toMatch(/^Critical path:/);
+    // Expected-duration line carries σ as "(± X)" parenthetical —
+    // standalone "Standard deviation:" bullet is gone.
+    expect(lines[0]).toMatch(/^Expected duration:.*\(±\s/);
+    expect(lines[1]).toMatch(/^50th-percentile finish:/);
+    expect(lines[2]).toMatch(/^Critical path:/);
+    expect(
+      lines.find((l) => l.startsWith('Standard deviation:'))
+    ).toBeUndefined();
     expect(lines.find((l) => l.startsWith('Bottleneck:'))).toBeDefined();
   });
 
@@ -314,6 +318,88 @@ describe('pert analyzer — cycle bailout (AC26/AC27)', () => {
     for (const ra of r.activities) {
       expect(ra.isAuthored).toBe(false);
     }
+  });
+});
+
+describe('pert analyzer — caption with date anchor', () => {
+  it('forward anchor: Expected finish renders as a date and percentile bullets show end-dates', () => {
+    const r = analyze(`pert
+time-unit w
+trials 500
+seed 42
+start-date 2026-06-01
+A 1 2 4
+  -> B
+B 1 2 4
+  -> C
+C 1 2 4
+`);
+    expect(r.mode).toBe('monte-carlo');
+    const lines = r.summaryText!.split('\n');
+    // Expected-finish line carries σ as "(± X)" parenthetical; standalone
+    // "Standard deviation:" bullet is gone (line 1 is now the first
+    // percentile end-date).
+    expect(lines[0]).toMatch(
+      /^Expected finish: \d{4}-\d{2}-\d{2} \(±\s.+\)\.$/
+    );
+    expect(lines[1]).toMatch(/^50th percentile end date: \d{4}-\d{2}-\d{2}\.$/);
+    expect(lines[2]).toMatch(/^80th percentile end date: \d{4}-\d{2}-\d{2}\.$/);
+    expect(lines[3]).toMatch(/^95th percentile end date: \d{4}-\d{2}-\d{2}\.$/);
+    // No anchored caption should mention the legacy "Nth-percentile finish" prose.
+    expect(r.summaryText).not.toContain('Expected duration');
+    expect(r.summaryText).not.toContain('50th-percentile finish');
+  });
+
+  it('backward anchor: Expected start renders as a date and percentile bullets show start-dates', () => {
+    const r = analyze(`pert
+time-unit w
+trials 500
+seed 42
+end-date 2026-09-15
+A 1 2 4
+  -> B
+B 1 2 4
+  -> C
+C 1 2 4
+`);
+    expect(r.mode).toBe('monte-carlo');
+    const lines = r.summaryText!.split('\n');
+    expect(lines[0]).toMatch(/^Expected start: \d{4}-\d{2}-\d{2} \(±\s.+\)\.$/);
+    expect(lines[1]).toMatch(
+      /^50th percentile start date: \d{4}-\d{2}-\d{2}\.$/
+    );
+    expect(lines[2]).toMatch(
+      /^80th percentile start date: \d{4}-\d{2}-\d{2}\.$/
+    );
+    expect(lines[3]).toMatch(
+      /^95th percentile start date: \d{4}-\d{2}-\d{2}\.$/
+    );
+  });
+
+  it('forward anchor + analytical mode: Expected finish only (no percentile bullets)', () => {
+    // M-only durations → analytical mode → no MC, no percentile lines.
+    const r = analyze(`pert
+time-unit w
+start-date 2026-06-01
+A 2
+  -> B
+B 3
+`);
+    expect(r.mode).toBe('analytical');
+    expect(r.summaryText).toMatch(/^Expected finish: \d{4}-\d{2}-\d{2}\./);
+    expect(r.summaryText).not.toContain('percentile');
+  });
+
+  it('no anchor: caption keeps the original duration phrasing (regression)', () => {
+    const r = analyze(`pert
+time-unit d
+A 2
+  -> B
+B 3
+`);
+    expect(r.summaryText!.startsWith('Expected duration:')).toBe(true);
+    expect(r.summaryText).not.toContain('Expected finish');
+    expect(r.summaryText).not.toContain('Expected start');
   });
 });
 
