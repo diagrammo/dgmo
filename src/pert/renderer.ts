@@ -459,6 +459,24 @@ function renderEdges(
     activityGroup.set(a.activity.id, a.activity.groupId);
     critById.set(a.activity.id, a.criticality);
   }
+  // When a group is collapsed, its id appears as `e.source` / `e.target`
+  // on super-edges. Roll up criticality so super-edges pick up the
+  // right band: max member.criticality (MC mode) or 1.0 if any member
+  // is on the binary critical path (analytical mode).
+  for (const rg of resolved.groups) {
+    if (!collapsedSet.has(rg.group.id)) continue;
+    let anyCritical = false;
+    let maxC: number | null = null;
+    for (const aid of rg.group.activityIds) {
+      if (criticalSet.has(aid)) anyCritical = true;
+      const c = critById.get(aid);
+      if (typeof c === 'number') {
+        maxC = maxC === null ? c : Math.max(maxC, c);
+      }
+    }
+    if (anyCritical) criticalSet.add(rg.group.id);
+    critById.set(rg.group.id, maxC);
+  }
 
   for (const e of layout.edges) {
     if (e.points.length < 2) continue;
