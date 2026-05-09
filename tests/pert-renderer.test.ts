@@ -161,6 +161,54 @@ describe('pert renderer — structural assertions', () => {
     document.body.removeChild(c);
   });
 
+  it('collapsedGroupIds hides interior activities and adds rolled-up summary', () => {
+    const c = document.createElement('div');
+    document.body.appendChild(c);
+
+    const parsed = parsePert(loadFixture('with-groups.dgmo'));
+    const resolved = analyzePert(parsed);
+    const groupId = resolved.groups[0]!.group.id;
+    const memberIds = new Set(resolved.groups[0]!.group.activityIds);
+
+    const layout = relayoutPert(resolved, {});
+    const colors = getPalette('nord').light;
+    renderPert(c as HTMLDivElement, resolved, layout, colors, false, {
+      title: parsed.title,
+      collapsedGroupIds: [groupId],
+    });
+
+    // The group wrapper carries data-collapsed="true" and includes a
+    // "<count> activities · μ <value>" summary text.
+    const groupG = c.querySelector(`g.pert-group[data-group-id="${groupId}"]`);
+    expect(groupG).not.toBeNull();
+    expect(groupG!.getAttribute('data-collapsed')).toBe('true');
+    const summaryText = Array.from(groupG!.querySelectorAll('text'))
+      .map((t) => t.textContent ?? '')
+      .find((t) => t.includes('activit') && t.includes('μ'));
+    expect(summaryText).toBeDefined();
+
+    // Interior activities are skipped — no .pert-node for any member id.
+    for (const id of memberIds) {
+      expect(
+        c.querySelector(`g.pert-node[data-activity-id="${id}"]`)
+      ).toBeNull();
+    }
+
+    // Internal-only edges (both endpoints inside the collapsed group)
+    // are suppressed; cross-boundary edges still render.
+    for (const e of resolved.edges) {
+      const path = c.querySelector(
+        `path.pert-edge[data-source="${e.source}"][data-target="${e.target}"]`
+      );
+      const internal = memberIds.has(e.source) && memberIds.has(e.target);
+      if (internal) {
+        expect(path).toBeNull();
+      }
+    }
+
+    document.body.removeChild(c);
+  });
+
   it('renders cleanly across all 10 palettes (smoke)', () => {
     const palettes = [
       'nord',

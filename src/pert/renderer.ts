@@ -74,6 +74,16 @@ export interface PertRenderOptions {
    * via `relayoutPert(resolved, { [id]: {width, height} })`.
    */
   expandedActivityId?: string | null;
+  /**
+   * Group ids that should render as a single collapsed surface.
+   * When set, the renderer:
+   *   - draws the group rect with a solid fill and a rolled-up
+   *     summary label (name · N activities · μ in time-unit)
+   *   - skips every activity node whose `groupId` is in this set
+   *   - skips every edge whose source AND target are both inside a
+   *     collapsed group (i.e. internal-only edges)
+   */
+  collapsedGroupIds?: readonly string[];
 }
 
 export function renderPert(
@@ -126,8 +136,10 @@ export function renderPert(
     .append('g')
     .attr('transform', `translate(${offsetX}, ${offsetY})`);
 
-  renderGroups(root, resolved, layout, palette, isDark);
-  renderEdges(root, resolved, layout, palette);
+  const collapsedSet = new Set(options.collapsedGroupIds ?? []);
+
+  renderGroups(root, resolved, layout, palette, isDark, collapsedSet);
+  renderEdges(root, resolved, layout, palette, collapsedSet);
   renderNodes(
     root,
     defs,
@@ -136,7 +148,8 @@ export function renderPert(
     palette,
     isDark,
     options.onClickItem,
-    options.expandedActivityId ?? null
+    options.expandedActivityId ?? null,
+    collapsedSet
   );
   renderSummary(root, resolved, layout, palette);
 }
@@ -219,21 +232,32 @@ function renderGroups(
   resolved: ResolvedPert,
   layout: LayoutResult,
   palette: PaletteColors,
-  isDark: boolean
+  isDark: boolean,
+  collapsedSet: ReadonlySet<string>
 ): void {
   if (layout.groups.length === 0) return;
   const layer = root.append('g').attr('class', 'pert-groups');
+  const unit = resolved.options.timeUnit;
   for (const grp of layout.groups) {
     if (grp.width <= 0 || grp.height <= 0) continue;
     const resolvedGroup = resolved.groups.find((rg) => rg.group.id === grp.id);
     const label = resolvedGroup?.group.name ?? grp.id;
-    const fill = mix(palette.surface, palette.bg, isDark ? 60 : 80);
-    const stroke = palette.border;
+    const isCollapsed = collapsedSet.has(grp.id);
+    const fill = isCollapsed
+      ? mix(palette.accent, palette.surface, 22)
+      : mix(palette.surface, palette.bg, isDark ? 60 : 80);
+    const stroke = isCollapsed ? palette.accent : palette.border;
+    const dashArray = isCollapsed
+      ? 'none'
+      : grp.classification === 'cluster'
+        ? '5,3'
+        : 'none';
 
     const g = layer
       .append('g')
       .attr('class', 'pert-group')
       .attr('data-group-id', grp.id)
+      .attr('data-collapsed', String(isCollapsed))
       .attr('data-line-number', String(resolvedGroup?.group.lineNumber ?? 0));
 
     g.append('rect')
@@ -245,11 +269,8 @@ function renderGroups(
       .attr('ry', 8)
       .attr('fill', fill)
       .attr('stroke', stroke)
-      .attr('stroke-width', 1)
-      .attr(
-        'stroke-dasharray',
-        grp.classification === 'cluster' ? '5,3' : 'none'
-      );
+      .attr('stroke-width', isCollapsed ? 1.5 : 1)
+      .attr('stroke-dasharray', dashArray);
 
     g.append('text')
       .attr('x', grp.x + 10)
@@ -258,6 +279,25 @@ function renderGroups(
       .attr('font-size', SUMMARY_FONT_SIZE)
       .attr('font-weight', 600)
       .text(label);
+
+    if (isCollapsed) {
+      const memberCount = resolvedGroup?.group.activityIds.length ?? 0;
+      const muStr = formatDuration(resolvedGroup?.rolledMu ?? null, unit, '?');
+      const summary = `${memberCount} ${memberCount === 1 ? 'activity' : 'activities'} · μ ${muStr}`;
+      const textColor = contrastText(
+        fill,
+        palette.textOnFillLight,
+        palette.textOnFillDark
+      );
+      g.append('text')
+        .attr('x', grp.x + grp.width / 2)
+        .attr('y', grp.y + grp.height / 2 + 4)
+        .attr('text-anchor', 'middle')
+        .attr('fill', textColor)
+        .attr('font-size', NODE_FONT_SIZE)
+        .attr('font-weight', 600)
+        .text(summary);
+    }
   }
 }
 
@@ -269,12 +309,31 @@ function renderEdges(
   root: RootSel,
   resolved: ResolvedPert,
   layout: LayoutResult,
-  palette: PaletteColors
+  palette: PaletteColors,
+  collapsedSet: ReadonlySet<string>
 ): void {
   const layer = root.append('g').attr('class', 'pert-edges');
   const criticalSet = new Set(resolved.criticalPath);
+
+  // Map activity → group for fast lookup so we can suppress edges
+  // that live entirely inside a collapsed group.
+  const activityGroup = new Map<string, string | undefined>();
+  for (const a of resolved.activities) {
+    activityGroup.set(a.activity.id, a.activity.groupId);
+  }
+
   for (const e of layout.edges) {
     if (e.points.length < 2) continue;
+    const srcGroup = activityGroup.get(e.source);
+    const tgtGroup = activityGroup.get(e.target);
+    if (
+      srcGroup &&
+      tgtGroup &&
+      srcGroup === tgtGroup &&
+      collapsedSet.has(srcGroup)
+    ) {
+      continue; // internal-only edge of a collapsed group
+    }
     const isCritical = criticalSet.has(e.source) && criticalSet.has(e.target);
     const path = lineGenerator(e.points);
     if (!path) continue;
@@ -309,7 +368,8 @@ function renderNodes(
   palette: PaletteColors,
   isDark: boolean,
   onClickItem?: (lineNumber: number) => void,
-  expandedActivityId: string | null = null
+  expandedActivityId: string | null = null,
+  collapsedSet: ReadonlySet<string> = new Set()
 ): void {
   const layer = root.append('g').attr('class', 'pert-nodes');
   const byId = new Map(resolved.activities.map((r) => [r.activity.id, r]));
@@ -321,6 +381,9 @@ function renderNodes(
   for (const node of layout.nodes) {
     const r = byId.get(node.id);
     if (!r) continue;
+    // Hide activities inside a collapsed group — the group's summary
+    // text supplies the rolled-up duration.
+    if (r.activity.groupId && collapsedSet.has(r.activity.groupId)) continue;
     const isCritical = r.isCriticalPath;
     const isMilestone = r.activity.isMilestone;
     const isTbd = tbdSet.has(node.id);
