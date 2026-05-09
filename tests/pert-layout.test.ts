@@ -30,14 +30,12 @@ describe('pert layout', () => {
     }
   });
 
-  it('AC5.1: compact dimensions when no overrides given', () => {
+  it('AC5.1: default node dimensions match the textbook 3×3 card', () => {
     const { resolved } = pipeline(loadFixture('basic.dgmo'));
     const layout = layoutPert(resolved);
-    // Milestones share dimensions with activities now (160×64) so the
-    // visual treatment matches infra/org node styling.
     for (const node of layout.nodes) {
-      expect(node.width).toBe(160);
-      expect(node.height).toBe(64);
+      expect(node.width).toBe(210);
+      expect(node.height).toBe(90);
     }
   });
 

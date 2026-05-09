@@ -91,7 +91,7 @@ describe('pert renderer — structural assertions', () => {
     expect(edges.length).toBeGreaterThan(0);
   });
 
-  it('milestone activities render as rectangles with no body row (centered name)', () => {
+  it('milestone activities render with the textbook card just like activities', () => {
     const svg = renderForTest(loadFixture('with-milestones.dgmo'));
     const doc = parseDom(svg);
     const milestoneIds = ['voyage approved', 'landfall'];
@@ -103,10 +103,11 @@ describe('pert renderer — structural assertions', () => {
       // Same rect treatment as activities — no diamond polygon.
       expect(wrapper!.querySelector('polygon')).toBeNull();
       expect(wrapper!.querySelector('rect')).not.toBeNull();
-      // No separator line and exactly one text row (the name) since
-      // milestones don't have a μ body row.
-      expect(wrapper!.querySelector('line')).toBeNull();
-      expect(wrapper!.querySelectorAll('text').length).toBe(1);
+      // Textbook 3×3 grid: 6 internal divider lines (2 horizontal, 4
+      // vertical-half-row segments).
+      expect(wrapper!.querySelectorAll('line').length).toBe(6);
+      // 7 text cells: ES, dur, EF, name, LS, slack, LF.
+      expect(wrapper!.querySelectorAll('text').length).toBe(7);
     }
   });
 
@@ -122,47 +123,31 @@ describe('pert renderer — structural assertions', () => {
     expect(celebrate!.getAttribute('stroke-dasharray')).toBe('4,3');
   });
 
-  it('summary box appears in the SVG', () => {
-    const svg = renderForTest(loadFixture('basic.dgmo'));
-    expect(svg).toContain('Project μ:');
-  });
-
   it('handles empty content without throwing', () => {
     expect(() => renderForTest('pert\n')).not.toThrow();
   });
 
-  it('expandedActivityId leaves the wrapper empty so the host can overlay React content', () => {
+  it('every activity renders the textbook 3×3 card (7 text cells, 6 grid lines)', () => {
     const c = document.createElement('div');
     document.body.appendChild(c);
 
     const parsed = parsePert(loadFixture('basic.dgmo'));
     const resolved = analyzePert(parsed);
-    const expandedId = resolved.activities[0]!.activity.id;
-    const layout = relayoutPert(resolved, {
-      [expandedId]: { width: 280, height: 180 },
-    });
+    const layout = relayoutPert(resolved, {});
     const colors = getPalette('nord').light;
     renderPert(c as HTMLDivElement, resolved, layout, colors, false, {
       title: parsed.title,
-      expandedActivityId: expandedId,
     });
 
-    const expandedG = c.querySelector(
-      `g.pert-node[data-activity-id="${expandedId}"]`
-    );
-    expect(expandedG).not.toBeNull();
-    // Wrapper kept (data attrs intact for adapter click resolution)
-    // but rect / text / foreignObject are all suppressed so the host
-    // app can mount its own React overlay on top.
-    expect(expandedG!.querySelector('rect')).toBeNull();
-    expect(expandedG!.querySelector('text')).toBeNull();
-    expect(expandedG!.querySelector('foreignObject')).toBeNull();
-
-    // Other activities still render as rect+text normally
-    const otherG = c.querySelector(
-      `g.pert-node:not([data-activity-id="${expandedId}"])`
-    );
-    expect(otherG?.querySelector('rect')).not.toBeNull();
+    const wrappers = c.querySelectorAll('g.pert-node');
+    expect(wrappers.length).toBeGreaterThan(0);
+    for (const w of wrappers) {
+      // 7 cells: ES, dur, EF, name, LS, slack, LF.
+      expect(w.querySelectorAll('text').length).toBe(7);
+      // 6 grid divider segments (2 horizontal full-width, 2 vertical
+      // top-row, 2 vertical bottom-row).
+      expect(w.querySelectorAll('line').length).toBe(6);
+    }
 
     document.body.removeChild(c);
   });
@@ -176,22 +161,21 @@ describe('pert renderer — structural assertions', () => {
     const groupId = resolved.groups[0]!.group.id;
     const memberIds = new Set(resolved.groups[0]!.group.activityIds);
 
-    const layout = relayoutPert(resolved, {});
+    const layout = relayoutPert(resolved, {}, new Set([groupId]));
     const colors = getPalette('nord').light;
     renderPert(c as HTMLDivElement, resolved, layout, colors, false, {
       title: parsed.title,
       collapsedGroupIds: [groupId],
     });
 
-    // The group wrapper carries data-collapsed="true" and includes a
-    // "<count> activities · μ <value>" summary text.
+    // The group wrapper carries data-collapsed="true" and renders the
+    // rolled-up envelope as a textbook 3×3 card with the group name in
+    // the middle band.
     const groupG = c.querySelector(`g.pert-group[data-group-id="${groupId}"]`);
     expect(groupG).not.toBeNull();
     expect(groupG!.getAttribute('data-collapsed')).toBe('true');
-    const summaryText = Array.from(groupG!.querySelectorAll('text'))
-      .map((t) => t.textContent ?? '')
-      .find((t) => t.includes('activit') && t.includes('μ'));
-    expect(summaryText).toBeDefined();
+    // 7 text cells: ES, dur, EF, group name, LS, slack, LF.
+    expect(groupG!.querySelectorAll('text').length).toBe(7);
 
     // Interior activities are skipped — no .pert-node for any member id.
     for (const id of memberIds) {

@@ -169,6 +169,22 @@ export interface ResolvedGroup {
   /** Group entry/exit ids derived in Pass 2. */
   entries: string[];
   exits: string[];
+  /**
+   * Rolled-up schedule envelope across member activities.
+   *   ES = min member.es
+   *   EF = max member.ef
+   *   LS = min member.ls
+   *   LF = max member.lf
+   *   slack = LS − ES
+   *   criticality = max member.criticality (when MC is on)
+   * Each is `null` when no member has a non-null value (e.g. all-TBD group).
+   */
+  es: number | null;
+  ef: number | null;
+  ls: number | null;
+  lf: number | null;
+  slack: number | null;
+  criticality: number | null;
 }
 
 /**
@@ -252,6 +268,12 @@ export interface PertLayoutGroup {
   width: number;
   height: number;
   classification: 'hammock' | 'cluster';
+  /**
+   * True when the group is currently collapsed. Layout sized this rect
+   * as a single rolled-up node and hid the group's member activities
+   * from `nodes` / re-routed external edges to land on this rect.
+   */
+  collapsed?: boolean;
 }
 
 export interface LayoutResult {

@@ -7664,7 +7664,7 @@ export async function renderForExport(
     const pertResolved = analyzePert(pertParsed);
     const pertLayout = layoutPert(pertResolved);
 
-    const titleHeight = pertParsed.title ? 40 : 0;
+    const titleHeight = pertParsed.title ? 80 : 0;
     const PERT_PADDING = 20;
     const exportW = pertLayout.width + PERT_PADDING * 2;
     const exportH = pertLayout.height + PERT_PADDING * 2 + titleHeight;

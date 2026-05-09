@@ -373,8 +373,11 @@ export function analyzePert(parsed: ParsedPert): ResolvedPert {
     monteCarloResult && monteCarloResult.modalCriticalPath.length > 0
       ? new Set(monteCarloResult.modalCriticalPath)
       : criticalSet;
+  const resolvedById = new Map(
+    resolvedActivities.map((r) => [r.activity.id, r])
+  );
   const resolvedGroups: ResolvedGroup[] = parsed.groups.map((g) =>
-    rollupGroup(g, expandedById, rollupSet, unit)
+    rollupGroup(g, expandedById, resolvedById, rollupSet, unit)
   );
 
   // Always populate the public expanded-activities cache so Workers
@@ -422,6 +425,7 @@ function firstFatal(diagnostics: DgmoError[]): string | null {
 function rollupGroup(
   group: PertGroup,
   expandedById: Map<string, ExpandedEstimate | null>,
+  resolvedById: Map<string, ResolvedActivity>,
   criticalSet: Set<string>,
   unit: DurationUnit
 ): ResolvedGroup {
@@ -436,12 +440,41 @@ function rollupGroup(
     varDays += exp.sigma * exp.sigma;
     usable = true;
   }
+
+  // Schedule envelope across member activities (in source unit, not days).
+  let es: number | null = null;
+  let ef: number | null = null;
+  let ls: number | null = null;
+  let lf: number | null = null;
+  let criticality: number | null = null;
+  for (const id of group.activityIds) {
+    const r = resolvedById.get(id);
+    if (!r) continue;
+    if (r.es !== null) es = es === null ? r.es : Math.min(es, r.es);
+    if (r.ef !== null) ef = ef === null ? r.ef : Math.max(ef, r.ef);
+    if (r.ls !== null) ls = ls === null ? r.ls : Math.min(ls, r.ls);
+    if (r.lf !== null) lf = lf === null ? r.lf : Math.max(lf, r.lf);
+    if (r.criticality !== null) {
+      criticality =
+        criticality === null
+          ? r.criticality
+          : Math.max(criticality, r.criticality);
+    }
+  }
+  const slack = ls !== null && es !== null ? ls - es : null;
+
   return {
     group,
     rolledMu: usable ? fromDays(muDays, unit) : null,
     rolledSigma: usable ? fromDays(Math.sqrt(varDays), unit) : null,
     entries: [],
     exits: [],
+    es,
+    ef,
+    ls,
+    lf,
+    slack,
+    criticality,
   };
 }
 
@@ -470,6 +503,12 @@ function emptyResolved(
       rolledSigma: null,
       entries: [],
       exits: [],
+      es: null,
+      ef: null,
+      ls: null,
+      lf: null,
+      slack: null,
+      criticality: null,
     })),
     projectMu: null,
     projectSigma: null,
