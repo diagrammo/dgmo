@@ -699,12 +699,14 @@ function renderNodes(
   );
 
   // Anchor "pin" set — nodes whose label gets a map-pin icon prefix
-  // because one of their schedule cells comes directly from the
-  // user-supplied date (not a derived offset).
+  // and whose anchor-side corner cells (ES+LS for forward, EF+LF for
+  // backward) render bold, because those cells carry the user-supplied
+  // date directly rather than a derived offset.
   //   forward  → activities with no predecessors (ES = start-date)
   //   backward → activities with no successors   (LF = end-date)
   // No anchor → empty set, no pins drawn anywhere.
   const pinnedSet = computeAnchorPinSet(resolved);
+  const anchorKind = resolved.options.anchor?.kind ?? null;
 
   for (const node of layout.nodes) {
     const r = byId.get(node.id);
@@ -781,7 +783,7 @@ function renderNodes(
       labelColor,
       dashArray,
       emphasis: isTopMu ? 'top' : isBottomMu ? 'bottom' : null,
-      pinned: pinnedSet.has(node.id),
+      pinned: pinnedSet.has(node.id) ? anchorKind : null,
     });
   }
 }
@@ -851,12 +853,13 @@ interface TextbookCardArgs {
    */
   emphasis?: 'top' | 'bottom' | null;
   /**
-   * When true, prefix the middle-row name with a small map-pin icon —
-   * a hint that this activity carries one of the user-supplied anchor
-   * dates directly (ES of a source node in forward mode, LF of a sink
-   * node in backward mode). All other cards leave the label plain.
+   * When set, prefix the middle-row name with a small map-pin icon and
+   * bold the corner cells that carry the user-supplied anchor date
+   * directly. `'forward'` = source node under `start-date` (bold ES + LS);
+   * `'backward'` = sink node under `end-date` (bold EF + LF). `null` /
+   * undefined leaves the card plain.
    */
-  pinned?: boolean;
+  pinned?: 'forward' | 'backward' | null;
 }
 
 type AnySel = d3Selection.Selection<SVGGElement, unknown, null, undefined>;
@@ -928,10 +931,17 @@ function drawTextbookCard(g: AnySel, a: TextbookCardArgs): void {
 
   // Top row: ES | dur | EF — the dur cell carries the duration-rank
   // emphasis: bold for top-20%, faded for bottom-20%, plain otherwise.
+  // ES bolds when this card is a forward-anchored source; EF bolds when
+  // it's a backward-anchored sink — those cells equal the user-supplied
+  // anchor date and deserve visual weight as the "given".
   const topMid = y + NODE_TOP_ROW_HEIGHT / 2;
   const durWeight: 'normal' | 'bold' = a.emphasis === 'top' ? 'bold' : 'normal';
   const durOpacity = a.emphasis === 'bottom' ? DURATION_FADE_OPACITY : 1;
-  drawCell(x + colW / 2, topMid, a.es);
+  const esWeight: 'normal' | 'bold' =
+    a.pinned === 'forward' ? 'bold' : 'normal';
+  const efWeight: 'normal' | 'bold' =
+    a.pinned === 'backward' ? 'bold' : 'normal';
+  drawCell(x + colW / 2, topMid, a.es, esWeight);
   drawCell(
     x + colW * 1.5,
     topMid,
@@ -940,7 +950,7 @@ function drawTextbookCard(g: AnySel, a: TextbookCardArgs): void {
     NODE_CELL_FONT_SIZE,
     durOpacity
   );
-  drawCell(x + colW * 2.5, topMid, a.ef);
+  drawCell(x + colW * 2.5, topMid, a.ef, efWeight);
 
   // Middle row: name (spans full width). When `pinned`, shift the
   // name slightly right and draw a small map-pin icon to its left so
@@ -964,11 +974,14 @@ function drawTextbookCard(g: AnySel, a: TextbookCardArgs): void {
     drawCell(x + w / 2, midCenterY, a.name, 'bold', NODE_FONT_SIZE);
   }
 
-  // Bottom row: LS | slack | LF
+  // Bottom row: LS | slack | LF — LS / LF bold under the same anchor
+  // rule as the top row.
   const botMid = y + h - NODE_BOTTOM_ROW_HEIGHT / 2;
-  drawCell(x + colW / 2, botMid, a.ls);
+  const lsWeight: 'normal' | 'bold' = esWeight;
+  const lfWeight: 'normal' | 'bold' = efWeight;
+  drawCell(x + colW / 2, botMid, a.ls, lsWeight);
   drawCell(x + colW * 1.5, botMid, a.slack);
-  drawCell(x + colW * 2.5, botMid, a.lf);
+  drawCell(x + colW * 2.5, botMid, a.lf, lfWeight);
 }
 
 // ============================================================

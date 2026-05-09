@@ -136,6 +136,39 @@ describe('pert parser — duration validation', () => {
     expect(diag).toBeDefined();
   });
 
+  it('flags near-directive typos with a "did you mean" hint', () => {
+    // `confidence medium` (missing the `default-` prefix) used to silently
+    // register a TBD activity, which poisoned backward-anchor rollups
+    // into a chart full of `?` cells with no actionable diagnostic.
+    const cases: Array<{ line: string; canonical: string }> = [
+      { line: 'confidence medium', canonical: 'default-confidence' },
+      { line: 'confidence low', canonical: 'default-confidence' },
+      { line: 'start 2026-06-01', canonical: 'start-date' },
+      { line: 'start now', canonical: 'start-date' },
+      { line: 'end 2026-09-15', canonical: 'end-date' },
+      { line: 'time w', canonical: 'time-unit' },
+    ];
+    for (const { line, canonical } of cases) {
+      const parsed = parsePert(`pert\n${line}\nA 1\n`);
+      const diag = findError(parsed, `Did you mean '${canonical}'`);
+      expect(diag, `expected hint for: ${line}`).toBeDefined();
+      expect(diag?.code).toBe('E_PERT_NEAR_DIRECTIVE');
+      // The bad line is skipped — no rogue activity registered.
+      expect(
+        parsed.activities.find((a) => a.name === line.split(' ')[0])
+      ).toBeUndefined();
+    }
+  });
+
+  it('does not flag activity names that share a directive stem', () => {
+    // `start the engines 1 2 3` is a legitimate activity, not a typo for
+    // `start-date`. The hint matcher only fires when the value matches
+    // the directive's expected value shape (date, confidence level, etc.).
+    const parsed = parsePert(`pert\nstart the engines 1 2 3\n`);
+    expect(findError(parsed, 'Did you mean')).toBeUndefined();
+    expect(parsed.activities[0]?.name).toBe('start the engines');
+  });
+
   it('accepts M-only with confidence-based heuristic (downstream of analyzer)', () => {
     const parsed = parsePert(`pert\ntime-unit w\nA 2\n`);
     expect(parsed.error).toBeNull();

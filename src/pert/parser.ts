@@ -51,6 +51,40 @@ const DIRECTIVE_KEYS = new Set([
   'end-date',
 ]);
 
+/**
+ * Common typo stems for directive keywords. When a line starts with one
+ * of these AND its value would be valid for the canonical directive, we
+ * emit a clear error instead of silently registering a TBD activity —
+ * the latter previously poisoned backward-anchored rollups, leaving the
+ * user to debug a chart full of `?` cells with no diagnostic to follow.
+ */
+const NEAR_DIRECTIVE_HINTS: ReadonlyArray<{
+  stem: string;
+  canonical: string;
+  matches: RegExp;
+}> = [
+  {
+    stem: 'confidence',
+    canonical: 'default-confidence',
+    matches: /^(low|medium|high)$/i,
+  },
+  {
+    stem: 'start',
+    canonical: 'start-date',
+    matches: /^(\d{4}-\d{2}-\d{2}|now)$/i,
+  },
+  {
+    stem: 'end',
+    canonical: 'end-date',
+    matches: /^\d{4}-\d{2}-\d{2}$/,
+  },
+  {
+    stem: 'time',
+    canonical: 'time-unit',
+    matches: /^(d|w|m|q|y|h|min|bd|s)$/i,
+  },
+];
+
 /** Group header: `[name]` with optional `| collapsed: true` etc. */
 const GROUP_HEADER_RE = /^\[([^\]]+)\]\s*(?:\|\s*(.+))?$/;
 
@@ -510,6 +544,28 @@ export function parsePert(content: string): ParsedPert {
         }
         applyDirective(head, value, lineNumber, options, error, warn);
         continue;
+      }
+    }
+
+    // ── Near-directive typos: `confidence medium` (meaning
+    // `default-confidence medium`), `start 2026-06-01`, `end YYYY-MM-DD`,
+    // `time w`. Without this check the line was silently parsed as a
+    // TBD activity, which propagates `?` through every corner cell in
+    // backward-anchor mode with no actionable error to fix.
+    {
+      const firstSpace = trimmed.indexOf(' ');
+      if (firstSpace > 0) {
+        const head = trimmed.slice(0, firstSpace).toLowerCase();
+        const value = trimmed.slice(firstSpace + 1).trim();
+        const hint = NEAR_DIRECTIVE_HINTS.find((h) => h.stem === head);
+        if (hint && hint.matches.test(value)) {
+          error(
+            lineNumber,
+            `Unknown directive '${head}'. Did you mean '${hint.canonical}'?`,
+            'E_PERT_NEAR_DIRECTIVE'
+          );
+          continue;
+        }
       }
     }
 
