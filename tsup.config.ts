@@ -117,6 +117,26 @@ export default defineConfig([
     external: ['jsdom'],
     esbuildPlugins: [fixJsdomXhrWorker],
   },
+  // PERT subpath — minimal Monte Carlo simulator surface for Web Workers.
+  // Excludes d3/echarts/jsdom so workers don't ship the renderer.
+  {
+    entry: { pert: 'src/pert/index.ts' },
+    format: ['esm', 'cjs'],
+    dts: true,
+    sourcemap: true,
+    splitting: false,
+    external: [
+      'd3-selection',
+      'd3-shape',
+      'd3-array',
+      'd3-scale',
+      'd3-hierarchy',
+      'd3-cloud',
+      '@dagrejs/dagre',
+      'echarts',
+      'jsdom',
+    ],
+  },
   {
     entry: ['src/cli.ts'],
     format: ['cjs'],

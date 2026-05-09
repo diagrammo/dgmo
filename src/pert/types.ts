@@ -191,6 +191,20 @@ export interface MonteCarloResult {
   modalCriticalPath: string[];
 }
 
+/**
+ * Per-activity (O, M, P) in canonical days — the analyzer's
+ * expanded-estimate cache, populated for every activity that has an
+ * estimate (TBDs are omitted). Workers re-running Monte Carlo on an
+ * already-resolved PERT can read this directly instead of re-parsing
+ * + re-expanding from source.
+ */
+export interface PertExpandedActivity {
+  id: string;
+  o: number;
+  m: number;
+  p: number;
+}
+
 export interface ResolvedPert {
   options: PertOptions;
   activities: ResolvedActivity[];
@@ -204,6 +218,13 @@ export interface ResolvedPert {
   criticalPath: string[];
   /** Phase 2: populated when `options.analysis === 'monte-carlo'`. */
   monteCarloResult: MonteCarloResult | null;
+  /**
+   * Per-activity (O, M, P) in canonical days. Always populated; used
+   * by Phase 3b Worker / scrubber so the simulator can re-run on a
+   * postMessage-cloned ResolvedPert without needing the original
+   * ParsedPert or analyzer state.
+   */
+  expandedActivities: PertExpandedActivity[];
   diagnostics: DgmoError[];
   error: string | null;
 }

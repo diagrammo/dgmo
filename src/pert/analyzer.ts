@@ -351,6 +351,7 @@ export function analyzePert(parsed: ParsedPert): ResolvedPert {
         projectSigma: null,
         criticalPath,
         monteCarloResult: null,
+        expandedActivities: expandedArr,
         diagnostics: [],
         error: null,
       };
@@ -376,6 +377,16 @@ export function analyzePert(parsed: ParsedPert): ResolvedPert {
     rollupGroup(g, expandedById, rollupSet, unit)
   );
 
+  // Always populate the public expanded-activities cache so Workers
+  // (Phase 3b) can re-run the simulator without needing the original
+  // ParsedPert. TBDs are omitted; the simulator already treats absent
+  // entries as zero-duration.
+  const publicExpanded: ExpandedActivity[] = [];
+  for (const a of activities) {
+    const exp = expandedById.get(a.id);
+    if (exp) publicExpanded.push({ id: a.id, o: exp.o, m: exp.m, p: exp.p });
+  }
+
   return {
     options: parsed.options,
     activities: resolvedActivities,
@@ -386,6 +397,7 @@ export function analyzePert(parsed: ParsedPert): ResolvedPert {
       projectSigmaDays === null ? null : fromDays(projectSigmaDays, unit),
     criticalPath,
     monteCarloResult,
+    expandedActivities: publicExpanded,
     diagnostics,
     error: parsed.error ?? firstFatal(diagnostics),
   };
@@ -463,6 +475,7 @@ function emptyResolved(
     projectSigma: null,
     criticalPath: [],
     monteCarloResult: null,
+    expandedActivities: [],
     diagnostics,
     error: firstFatal(diagnostics) ?? parsed.error,
   };
