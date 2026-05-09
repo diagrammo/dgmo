@@ -426,8 +426,6 @@ export function analyzePert(parsed: ParsedPert): ResolvedPert {
     }
   }
 
-  // Build the canonical caption (no collapse). Renderer re-invokes with
-  // a non-empty collapsed set when groups are collapsed at render time.
   const summaryText = buildSummary({
     mode,
     projectMu: projectMuOut,
@@ -438,8 +436,6 @@ export function analyzePert(parsed: ParsedPert): ResolvedPert {
     parsedActivities: activities,
     monteCarloResult,
     trialsClamped,
-    collapsedGroupIds: new Set(),
-    groups: parsed.groups,
     anchor: parsed.options.anchor,
   });
 
@@ -563,8 +559,6 @@ export interface BuildSummaryInput {
   parsedActivities: PertActivity[];
   monteCarloResult: MonteCarloResult | null;
   trialsClamped: boolean;
-  collapsedGroupIds: ReadonlySet<string>;
-  groups: PertGroup[];
   /**
    * Date anchor — when set, "Expected duration" becomes a date and
    * Monte-Carlo percentiles render as ISO dates instead of durations.
@@ -584,8 +578,6 @@ export function buildSummary(input: BuildSummaryInput): string | null {
     parsedActivities,
     monteCarloResult,
     trialsClamped,
-    collapsedGroupIds,
-    groups,
   } = input;
   const anchor = input.anchor ?? null;
 
@@ -605,12 +597,6 @@ export function buildSummary(input: BuildSummaryInput): string | null {
   const mc = mode === 'monte-carlo' && monteCarloResult !== null;
   const sigmaPositive = projectSigma !== null && projectSigma > 0;
   const showMcDetail = mc && sigmaPositive;
-  const groupsById = new Map(groups.map((g) => [g.id, g]));
-  const collapsedGroupByMember = new Map<string, string>();
-  for (const g of groups) {
-    if (!collapsedGroupIds.has(g.id)) continue;
-    for (const aid of g.activityIds) collapsedGroupByMember.set(aid, g.id);
-  }
 
   // 1. Expected duration / finish / start — fold σ into a "(± X)"
   // parenthetical when MC ran with σ > 0. Reads more naturally than a
@@ -683,28 +669,10 @@ export function buildSummary(input: BuildSummaryInput): string | null {
   // top-20% activities (bold cell text) so the longest sticks out
   // visually without naming any single one as THE bottleneck.
 
-  // 7. Hidden risk (top 1, optionally a second within 0.10 of the first)
-  if (showMcDetail) {
-    const hidden = findHiddenRisk(
-      criticalPath,
-      activities,
-      monteCarloResult!.criticalityByActivity
-    );
-    for (const h of hidden) {
-      const groupId = collapsedGroupByMember.get(h.activity.id);
-      const group = groupId ? groupsById.get(groupId) : undefined;
-      const pct = Math.round(h.criticality * 100);
-      if (group) {
-        lines.push(
-          `${group.name} (collapsed) lands on the critical path in ${pct}% of simulations.`
-        );
-      } else {
-        lines.push(
-          `${h.activity.name} lands on the critical path in ${pct}% of simulations.`
-        );
-      }
-    }
-  }
+  // 7. Hidden risk — intentionally NOT a caption bullet. The red node
+  // border + edge stroke already mark off-CPM activities that frequently
+  // become critical; spelling out a percentage adds noise without
+  // changing the reader's action.
 
   // 8. Heuristic-variance caveat
   if (showMcDetail) {
@@ -716,7 +684,7 @@ export function buildSummary(input: BuildSummaryInput): string | null {
     }
   }
 
-  // 9. Zero-variance fallback (replaces percentile/bottleneck/hidden-risk)
+  // 9. Zero-variance fallback (replaces percentile bullets)
   if (mc && projectSigma === 0) {
     const filtered: string[] = lines.filter((line) =>
       line.startsWith('Expected duration:')
@@ -735,39 +703,6 @@ export function buildSummary(input: BuildSummaryInput): string | null {
   }
 
   return lines.join('\n');
-}
-
-interface HiddenRiskEntry {
-  activity: PertActivity;
-  criticality: number;
-}
-
-function findHiddenRisk(
-  criticalPath: string[],
-  activities: ResolvedActivity[],
-  criticalityByActivity: Record<string, number>
-): HiddenRiskEntry[] {
-  const onCpm = new Set(criticalPath);
-  const offCpm: HiddenRiskEntry[] = [];
-  for (const r of activities) {
-    if (onCpm.has(r.activity.id)) continue;
-    if (r.activity.isMilestone) continue;
-    const c = criticalityByActivity[r.activity.id];
-    if (typeof c !== 'number' || c < 0.25) continue;
-    offCpm.push({ activity: r.activity, criticality: c });
-  }
-  if (offCpm.length === 0) return [];
-  offCpm.sort((a, b) => b.criticality - a.criticality);
-  const top = offCpm[0];
-  if (offCpm.length === 1) return [top];
-  const second = offCpm[1];
-  if (
-    second.criticality >= 0.25 &&
-    top.criticality - second.criticality <= 0.1
-  ) {
-    return [top, second];
-  }
-  return [top];
 }
 
 function computeHeuristicVarianceFraction(

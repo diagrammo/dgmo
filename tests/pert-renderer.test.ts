@@ -360,55 +360,6 @@ A
     expect(tspans[0]!.textContent).toContain('Expected duration unknown');
   });
 
-  it('AC12: hidden-risk activity inside collapsed group surfaces the group name', () => {
-    // Diamond with a high-criticality off-CPM arm inside a group. Both
-    // arms are similar length so C lands on the critical path often
-    // enough to clear the 0.25 threshold. Collapse the group at render
-    // time → caption should name the group, not C.
-    const c = document.createElement('div');
-    document.body.appendChild(c);
-    const src = `pert
-time-unit w
-trials 2000
-seed 7
-
-A 1 1 1
-B 4 5 6
-[hidden-team]
-  C 4 5 6
-D 1 1 1
-
-A
-  -> B
-  -> C
-B
-  -> D
-C
-  -> D
-`;
-    const parsed = parsePert(src);
-    const resolved = analyzePert(parsed);
-    const groupId = resolved.groups[0]!.group.id;
-    // Sanity: the group must actually contain C so the collapse-aware
-    // hidden-risk substitution has something to find.
-    expect(resolved.groups[0]!.group.activityIds).toContain('c');
-    const layout = relayoutPert(resolved, {}, new Set([groupId]));
-    const colors = getPalette('nord').light;
-    renderPert(c as HTMLDivElement, resolved, layout, colors, false, {
-      title: parsed.title,
-      collapsedGroupIds: [groupId],
-    });
-    const captionText = c.querySelector('text.pert-caption')!.textContent ?? '';
-    // Hidden-risk sentence may or may not fire (criticality depends on
-    // seed). When it does, it MUST name the group, never the inner
-    // activity.
-    if (captionText.includes('lands on the critical path')) {
-      expect(captionText).toContain('hidden-team (collapsed)');
-      expect(/\bC lands on the critical path/.test(captionText)).toBe(false);
-    }
-    document.body.removeChild(c);
-  });
-
   it('renders cleanly across all 10 palettes (smoke)', () => {
     const palettes = [
       'nord',

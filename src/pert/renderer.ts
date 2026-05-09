@@ -47,7 +47,7 @@ import {
 } from '../utils/title-constants';
 import type { LayoutResult, ResolvedActivity, ResolvedPert } from './types';
 import { parsePert } from './parser';
-import { analyzePert, buildSummary } from './analyzer';
+import { analyzePert } from './analyzer';
 import { layoutPert } from './layout';
 import { addCalendarDays, unitToDays } from './internal';
 import type { Duration, DurationUnit } from '../gantt/types';
@@ -195,11 +195,8 @@ export function renderPert(
   // companion bullet naming the start-date for symmetry.
   const anchorAnnotation = anchorAnnotationText(resolved);
 
-  // Caption: re-invoke buildSummary when groups are collapsed at render
-  // time so hidden-risk callouts can name the visible group surface
-  // instead of an inner activity. Skip caption when analyzer bailed.
   const collapsedSet = new Set(options.collapsedGroupIds ?? []);
-  const captionText = chooseCaptionText(resolved, collapsedSet);
+  const captionText = resolved.error !== null ? null : resolved.summaryText;
   const captionBullets: CaptionBullet[] =
     captionText !== null && captionText.length > 0
       ? bulletizeCaption(captionText)
@@ -1186,20 +1183,6 @@ export function resetPertCriticalPath(container: Element): void {
   }
 }
 
-// ============================================================
-// Section: caption text selection
-// ============================================================
-
-/**
- * Pick the caption string the renderer paints. Returns the canonical
- * `resolved.summaryText` when nothing is collapsed, or re-invokes
- * `buildSummary` with the collapsed-group set so hidden-risk callouts
- * can name a visible group surface instead of a hidden member.
- *
- * Returns `null` when the analyzer bailed (cycle, etc.) or when there
- * is no summary to render — caller skips caption and reverts to the
- * `titleHeight`-only layout.
- */
 /**
  * Build the anchor framing bullet, or `null` when no anchor is set.
  * Surfaces which end of the schedule the user pinned and (for
@@ -1331,32 +1314,6 @@ function renderCaptionBlock(
       .text(bullet.italic ? bullet.text : `• ${bullet.text}`);
     if (bullet.italic) tspan.attr('font-style', 'italic');
     if (i > 0) tspan.attr('dy', CAPTION_LINE_HEIGHT);
-  });
-}
-
-function chooseCaptionText(
-  resolved: ResolvedPert,
-  collapsedSet: ReadonlySet<string>
-): string | null {
-  if (resolved.error !== null) return null;
-  if (resolved.summaryText === null) return null;
-  if (collapsedSet.size === 0) return resolved.summaryText;
-
-  const dataDrivenMC = resolved.activities.some((r) => r.isAuthored);
-  const trialsClamped = dataDrivenMC && resolved.options.trials < 100;
-  return buildSummary({
-    mode: resolved.mode,
-    projectMu: resolved.projectMu,
-    projectSigma: resolved.projectSigma,
-    unit: resolved.options.timeUnit,
-    criticalPath: resolved.criticalPath,
-    activities: resolved.activities,
-    parsedActivities: resolved.activities.map((r) => r.activity),
-    monteCarloResult: resolved.monteCarloResult,
-    trialsClamped,
-    collapsedGroupIds: collapsedSet,
-    groups: resolved.groups.map((g) => g.group),
-    anchor: resolved.options.anchor,
   });
 }
 

@@ -573,78 +573,8 @@ function stubResolved(
   };
 }
 
-describe('buildSummary — AC11 (two hidden-risk sentences within 0.10)', () => {
-  it('reports both off-CPM activities in descending order when within 0.10 and ≥0.25', () => {
-    const cpm = stubResolved('a', 5, true);
-    const b = stubResolved('b', 4, true, { isCriticalPath: false });
-    const c = stubResolved('c', 4, true, { isCriticalPath: false });
-    const mc: MonteCarloResult = {
-      trials: 1000,
-      seed: 1,
-      p50: 5,
-      p80: 5,
-      p95: 5,
-      criticalityByActivity: { a: 1.0, b: 0.5, c: 0.45 },
-      modalCriticalPath: ['a'],
-    };
-    const summary = buildSummary({
-      mode: 'monte-carlo',
-      projectMu: 5,
-      projectSigma: 0.5,
-      unit: 'd',
-      criticalPath: ['a'],
-      activities: [cpm, b, c],
-      parsedActivities: [cpm.activity, b.activity, c.activity],
-      monteCarloResult: mc,
-      trialsClamped: false,
-      collapsedGroupIds: new Set(),
-      groups: [],
-    });
-    expect(summary).not.toBeNull();
-    const hidden = summary!
-      .split('\n')
-      .filter((l) => l.includes('lands on the critical path'));
-    expect(hidden.length).toBe(2);
-    expect(hidden[0]).toMatch(/^b lands.*50%/);
-    expect(hidden[1]).toMatch(/^c lands.*45%/);
-  });
-
-  it('reports only top hidden-risk when second activity is more than 0.10 below', () => {
-    const cpm = stubResolved('a', 5, true);
-    const b = stubResolved('b', 4, true, { isCriticalPath: false });
-    const c = stubResolved('c', 4, true, { isCriticalPath: false });
-    const mc: MonteCarloResult = {
-      trials: 1000,
-      seed: 1,
-      p50: 5,
-      p80: 5,
-      p95: 5,
-      criticalityByActivity: { a: 1.0, b: 0.5, c: 0.3 },
-      modalCriticalPath: ['a'],
-    };
-    const summary = buildSummary({
-      mode: 'monte-carlo',
-      projectMu: 5,
-      projectSigma: 0.5,
-      unit: 'd',
-      criticalPath: ['a'],
-      activities: [cpm, b, c],
-      parsedActivities: [cpm.activity, b.activity, c.activity],
-      monteCarloResult: mc,
-      trialsClamped: false,
-      collapsedGroupIds: new Set(),
-      groups: [],
-    });
-    const hidden = summary!
-      .split('\n')
-      .filter((l) => l.includes('lands on the critical path'));
-    expect(hidden.length).toBe(1);
-    expect(hidden[0]).toMatch(/^b lands/);
-  });
-});
-
 describe('buildSummary — AC14 (zero-variance fallback)', () => {
-  it('replaces percentile/bottleneck/hidden-risk with the (No variance...) parenthetical', () => {
+  it('replaces percentile bullets with the (No variance...) parenthetical', () => {
     const a = stubResolved('a', 5, true, { sigma: 0 });
     const b = stubResolved('b', 3, true, { sigma: 0 });
     const c = stubResolved('c', 2, true, { sigma: 0 });
@@ -667,15 +597,11 @@ describe('buildSummary — AC14 (zero-variance fallback)', () => {
       parsedActivities: [a, b, c].map((r) => r.activity),
       monteCarloResult: mc,
       trialsClamped: false,
-      collapsedGroupIds: new Set(),
-      groups: [],
     });
     expect(summary!).toContain(
       '(No variance in estimates — all activities have O = M = P.)'
     );
     expect(summary!).not.toContain('percentile');
-    expect(summary!).not.toContain('Bottleneck:');
-    expect(summary!).not.toContain('lands on the critical path');
     expect(summary!).toContain('Expected duration:');
     // Critical-path bullet was dropped — diagram conveys the chain.
     expect(summary!).not.toContain('Critical path:');
@@ -706,8 +632,6 @@ describe('buildSummary — AC17/AC18 (heuristic-variance caveat)', () => {
       parsedActivities: [a, b, c].map((r) => r.activity),
       monteCarloResult: mc,
       trialsClamped: false,
-      collapsedGroupIds: new Set(),
-      groups: [],
     });
     expect(summary!).toContain(
       'Variance estimates derive primarily from the `confidence` heuristic'
@@ -737,8 +661,6 @@ describe('buildSummary — AC17/AC18 (heuristic-variance caveat)', () => {
       parsedActivities: [a, b, c].map((r) => r.activity),
       monteCarloResult: mc,
       trialsClamped: false,
-      collapsedGroupIds: new Set(),
-      groups: [],
     });
     expect(summary!).not.toContain('Variance estimates derive primarily');
   });
