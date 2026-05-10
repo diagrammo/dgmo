@@ -147,9 +147,9 @@ export function computeNodeSizing(resolved: ResolvedPert): NodeSizing {
 
   const outerCell = Math.ceil(maxOuterChars * cellCharW) + 2 * CELL_PAD_X;
   const midCell = Math.ceil(maxMidChars * cellCharW) + 2 * CELL_PAD_X;
-  const outerColW = Math.max(MIN_CELL_WIDTH, outerCell);
-  const midColW = Math.max(MIN_CELL_WIDTH, midCell);
-  const cellsTotalW = 2 * outerColW + midColW;
+  const outerNeeded = Math.max(MIN_CELL_WIDTH, outerCell);
+  const midNeeded = Math.max(MIN_CELL_WIDTH, midCell);
+  const cellsTotalW = 2 * outerNeeded + midNeeded;
 
   // The name dictates a lower bound too — anchor-pinned cards reserve
   // a NAME_PIN_WIDTH on the left, so size for the worst case.
@@ -160,6 +160,20 @@ export function computeNodeSizing(resolved: ResolvedPert): NodeSizing {
     MIN_NODE_WIDTH,
     Math.min(MAX_NODE_WIDTH, Math.max(cellsTotalW, nameTotalW))
   );
+
+  // Distribute the chosen activityWidth across columns. The ES/EF/LS/LF
+  // pillars must always be the same dimension, so any slack between
+  // `cellsTotalW` and `activityWidth` (from MIN_NODE_WIDTH inflation or
+  // a long name) goes to the outer columns. The middle stays at its
+  // natural need so the dur/slack cells don't grow needlessly wide. If
+  // mid's natural need ever exceeds the outer share, fall back to three
+  // equal columns so the middle never reads as the widest cell.
+  let midColW = midNeeded;
+  let outerColW = (activityWidth - midColW) / 2;
+  if (midColW > outerColW) {
+    outerColW = activityWidth / 3;
+    midColW = activityWidth - 2 * outerColW;
+  }
 
   // Milestones are independent: a one-cell-tall date row, a name row,
   // and (optionally) a slack row. Width should fit whichever is widest.
