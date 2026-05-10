@@ -257,6 +257,14 @@ export interface PertRenderOptions {
    * readers want a cleaner chart.
    */
   showSummary?: boolean;
+  /**
+   * Render the Tornado sensitivity chart below the diagram. Reads
+   * existing Monte-Carlo output (criticality + per-activity sigma)
+   * and ranks activities by Schedule Sensitivity Index. Off by
+   * default; the desktop app exposes it as a cog toggle.
+   * When MC didn't run (analytical mode), the widget renders nothing.
+   */
+  showTornado?: boolean;
 }
 
 export function renderPert(
@@ -307,6 +315,12 @@ export function renderPert(
   // falls back to a default height.
   const showFieldLegend = options.showFieldLegend ?? false;
   const showSummary = options.showSummary ?? true;
+  // Tornado only renders when MC ran — analytical mode produces no
+  // criticality/sigma data to rank against.
+  const tornadoRows =
+    (options.showTornado ?? false) ? buildTornadoRows(resolved) : [];
+  const showTornado = tornadoRows.length > 0;
+  const tornadoBoxHeight = showTornado ? tornadoBoxHeightFor(tornadoRows) : 0;
   const effectiveCaptionBoxHeight = showSummary ? captionBoxHeight : 0;
   const fieldLegendHeight = showFieldLegend
     ? effectiveCaptionBoxHeight > 0
@@ -317,6 +331,12 @@ export function renderPert(
     effectiveCaptionBoxHeight,
     fieldLegendHeight
   );
+  // Tornado adds CAPTION_TOP_GAP + box. When the Summary/Legend band
+  // is also present, this gap separates the two stacked rows so the
+  // chrome reads as two distinct widgets.
+  const tornadoBlockHeight = showTornado
+    ? CAPTION_TOP_GAP + tornadoBoxHeight
+    : 0;
   // The caption block reserves: a top gap (between diagram and box) +
   // the bottom band itself. When neither fires, contributes zero.
   const captionBlockHeight =
@@ -329,7 +349,14 @@ export function renderPert(
   const naturalChartWidth = layout.width + DIAGRAM_PADDING * 2;
   const summaryShownWithLegend =
     showFieldLegend && showSummary && captionBullets.length > 0;
-  const pairSummaryWidth = summaryShownWithLegend ? CAPTION_BOX_MAX_WIDTH : 0;
+  // Size the Summary box to its content rather than always claiming
+  // CAPTION_BOX_MAX_WIDTH. The MAX is kept as a safety upper bound for
+  // pathological one-line bullets.
+  const naturalCaptionWidth = Math.min(
+    captionNaturalWidth(captionBullets),
+    CAPTION_BOX_MAX_WIDTH
+  );
+  const pairSummaryWidth = summaryShownWithLegend ? naturalCaptionWidth : 0;
   const pairGap = summaryShownWithLegend ? FIELD_LEGEND_GAP_X : 0;
   const pairContainerWidth = showFieldLegend
     ? pairSummaryWidth + pairGap + FIELD_LEGEND_WIDTH
@@ -338,7 +365,11 @@ export function renderPert(
     ? Math.max(naturalChartWidth, pairContainerWidth + 2 * DIAGRAM_PADDING)
     : naturalChartWidth;
   const naturalHeight =
-    layout.height + DIAGRAM_PADDING * 2 + titleHeight + captionBlockHeight;
+    layout.height +
+    DIAGRAM_PADDING * 2 +
+    titleHeight +
+    captionBlockHeight +
+    tornadoBlockHeight;
   const exportWidth = Math.max(
     options.exportDims?.width ?? naturalWidth,
     naturalWidth
@@ -399,7 +430,7 @@ export function renderPert(
   const pairLeft = (exportWidth - pairContainerWidth) / 2;
   const captionWidth = showFieldLegend
     ? pairSummaryWidth
-    : Math.min(exportWidth - 2 * DIAGRAM_PADDING, CAPTION_BOX_MAX_WIDTH);
+    : Math.min(naturalCaptionWidth, exportWidth - 2 * DIAGRAM_PADDING);
   const captionX = showFieldLegend
     ? pairLeft
     : (exportWidth - captionWidth) / 2;
@@ -423,6 +454,29 @@ export function renderPert(
       y: offsetY + layout.height + CAPTION_TOP_GAP,
       width: FIELD_LEGEND_WIDTH,
       height: fieldLegendHeight,
+      palette,
+      isDark,
+    });
+  }
+
+  if (showTornado) {
+    const tornadoWidth = Math.min(
+      exportWidth - 2 * DIAGRAM_PADDING,
+      TORNADO_BOX_WIDTH
+    );
+    // Drop the tornado below the existing bottom band — Summary +
+    // Legend on row 1, tornado on row 2. When the Summary/Legend pair
+    // is empty, tornado abuts the diagram via CAPTION_TOP_GAP only.
+    const tornadoY =
+      offsetY +
+      layout.height +
+      CAPTION_TOP_GAP +
+      (bottomBoxHeight > 0 ? bottomBoxHeight + CAPTION_TOP_GAP : 0);
+    renderTornadoBlock(svg, tornadoRows, {
+      x: (exportWidth - tornadoWidth) / 2,
+      y: tornadoY,
+      width: tornadoWidth,
+      height: tornadoBoxHeight,
       palette,
       isDark,
     });
@@ -982,6 +1036,7 @@ function renderNodes(
         fill,
         stroke: baseColor,
         labelColor,
+        highlightColor: palette.colors.blue,
         dashArray,
         pinned: pinnedSet.has(node.id) ? anchorKind : null,
       });
@@ -1002,6 +1057,7 @@ function renderNodes(
       lf: fmtSchedule(r.lf, isTbd),
       fill,
       stroke: baseColor,
+      highlightColor: palette.colors.blue,
       labelColor,
       dashArray,
       emphasis: isTopMu ? 'top' : isBottomMu ? 'bottom' : null,
@@ -1066,6 +1122,12 @@ interface TextbookCardArgs {
   /** Stroke for internal cell-grid lines. Defaults to `stroke`. */
   gridStroke?: string;
   labelColor: string;
+  /**
+   * Tint applied behind a cell when the field-legend hover-cross-link
+   * activates it. Each cell carries `data-field` + a transparent
+   * highlight rect; the React layer flips fill-opacity to 0.25.
+   */
+  highlightColor: string;
   dashArray?: string;
   /**
    * Duration-rank emphasis. Affects ONLY the `dur` cell: 'top' bolds
@@ -1126,6 +1188,36 @@ function drawTextbookCard(g: AnySel, a: TextbookCardArgs): void {
   grid(colX2, y, colX2, topY);
   grid(colX1, bottomY, colX1, y + h);
   grid(colX2, bottomY, colX2, y + h);
+
+  // Per-cell highlight overlays — invisible by default, lit by the
+  // React layer when the field-legend's matching cell is hovered.
+  // Drawn before the text so the cell text stays at full opacity on
+  // top of the tint. `pointer-events: none` keeps the rects from
+  // intercepting clicks meant for the node wrapper.
+  const drawCellHighlight = (
+    field: string,
+    cx: number,
+    cy: number,
+    cw: number,
+    ch: number
+  ): void => {
+    g.append('rect')
+      .attr('class', 'pert-cell-highlight')
+      .attr('data-field', field)
+      .attr('x', cx)
+      .attr('y', cy)
+      .attr('width', cw)
+      .attr('height', ch)
+      .attr('fill', a.highlightColor)
+      .attr('fill-opacity', 0)
+      .attr('pointer-events', 'none');
+  };
+  drawCellHighlight('es', x, y, colW, NODE_TOP_ROW_HEIGHT);
+  drawCellHighlight('dur', x + colW, y, colW, NODE_TOP_ROW_HEIGHT);
+  drawCellHighlight('ef', x + colW * 2, y, colW, NODE_TOP_ROW_HEIGHT);
+  drawCellHighlight('ls', x, bottomY, colW, NODE_BOTTOM_ROW_HEIGHT);
+  drawCellHighlight('slack', x + colW, bottomY, colW, NODE_BOTTOM_ROW_HEIGHT);
+  drawCellHighlight('lf', x + colW * 2, bottomY, colW, NODE_BOTTOM_ROW_HEIGHT);
 
   // Cell text — vertically centered within each row. Defaults to
   // normal weight; the name cell and the dur cell pass an explicit
@@ -1223,6 +1315,8 @@ interface MilestonePillArgs {
   fill: string;
   stroke: string;
   labelColor: string;
+  /** See `TextbookCardArgs.highlightColor`. */
+  highlightColor: string;
   dashArray?: string;
   pinned?: 'forward' | 'backward' | null;
 }
@@ -1673,11 +1767,44 @@ const SUB_BULLET_INDENT = 20;
 // bullet. Used by renderPert / renderPertForExport when sizing the
 // caption box.
 const CAPTION_HEADER_BAND_HEIGHT = CAPTION_LINE_HEIGHT + 8;
+
+/**
+ * Natural width of the Summary caption block at its current content —
+ * the longest bullet (with bullet glyph + indent for sub-bullets) plus
+ * the box's left/right padding. Used so the box doesn't claim more
+ * horizontal space than it needs to display its bullets in one line each.
+ *
+ * Width is approximated with a 0.55× char-width factor against
+ * CAPTION_FONT_SIZE — same approximation used elsewhere in the file
+ * for label width estimates.
+ */
+function captionNaturalWidth(bullets: CaptionBullet[]): number {
+  const charW = CAPTION_FONT_SIZE * 0.55;
+  // Header text "Summary" sets a soft floor so a single short bullet
+  // doesn't produce a box narrower than the centered header label.
+  let max = 'Summary'.length * charW;
+  for (const b of bullets) {
+    const indent = b.level === 1 ? SUB_BULLET_INDENT : 0;
+    const w = indent + `• ${b.text}`.length * charW;
+    if (w > max) max = w;
+  }
+  return Math.ceil(max + 2 * CAPTION_BOX_PADDING_X);
+}
 // Caption box max width — wide enough for the longest current bullet
 // (the backward-anchor framing note ≈ 700px at 13pt) plus padding.
 // Wider PERT charts get a centered, fixed-column box rather than a
 // stretched-edge-to-edge one which left a sea of empty space inside.
 const CAPTION_BOX_MAX_WIDTH = 800;
+
+// Tornado widget — Monte-Carlo sensitivity ranking. Same yellow-tint
+// box treatment as the Summary so the bottom band reads as one family.
+const TORNADO_BOX_WIDTH = 800;
+const TORNADO_TOP_N = 10;
+const TORNADO_ROW_HEIGHT = 22;
+const TORNADO_NAME_COL_W = 220;
+const TORNADO_VALUE_COL_W = 80;
+const TORNADO_BAR_FONT_SIZE = 11;
+const TORNADO_BAR_HEIGHT = 14;
 
 function renderCaptionBlock(
   svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
@@ -1886,6 +2013,177 @@ function renderFieldLegendBlock(
       const tspan = descText.append('tspan').attr('x', cx).text(line);
       if (idx > 0) tspan.attr('dy', FIELD_LEGEND_DESC_LINE_HEIGHT);
     });
+  });
+}
+
+// ============================================================
+// Section: tornado (sensitivity) widget
+// ============================================================
+
+interface TornadoRow {
+  id: string;
+  name: string;
+  /** Schedule Sensitivity Index = sigma × criticality. */
+  ssi: number;
+  /** Criticality band drives bar color (red/orange/yellow/green/blue). */
+  band: Band;
+}
+
+/**
+ * Build the top-N tornado rows from MC output. SSI = sigma × criticality
+ * so an activity needs both volatility AND a real chance of landing on
+ * the critical path to rank highly. Returns an empty array when MC
+ * didn't run (analytical mode) or no activity has positive SSI.
+ */
+function buildTornadoRows(resolved: ResolvedPert): TornadoRow[] {
+  if (resolved.monteCarloResult === null) return [];
+  const rows: TornadoRow[] = [];
+  for (const a of resolved.activities) {
+    if (a.activity.isMilestone) continue;
+    const sigma = a.sigma;
+    const c = a.criticality;
+    if (sigma === null || c === null) continue;
+    const ssi = sigma * c;
+    if (ssi <= 0) continue;
+    rows.push({
+      id: a.activity.id,
+      name: a.activity.name,
+      ssi,
+      band: criticalityBand(c),
+    });
+  }
+  rows.sort((a, b) => b.ssi - a.ssi);
+  return rows.slice(0, TORNADO_TOP_N);
+}
+
+function tornadoBoxHeightFor(rows: TornadoRow[]): number {
+  return (
+    rows.length * TORNADO_ROW_HEIGHT +
+    2 * CAPTION_BOX_PADDING_Y +
+    CAPTION_HEADER_BAND_HEIGHT
+  );
+}
+
+interface TornadoBlockArgs {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  palette: PaletteColors;
+  isDark: boolean;
+}
+
+function renderTornadoBlock(
+  svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
+  rows: TornadoRow[],
+  args: TornadoBlockArgs
+): void {
+  const { x, y, width, height, palette, isDark } = args;
+  const baseColor = palette.colors.yellow;
+  const fill = shapeFill(palette, baseColor, isDark);
+  const labelColor = contrastText(
+    fill,
+    palette.textOnFillLight,
+    palette.textOnFillDark
+  );
+
+  const block = svg
+    .append('g')
+    .attr('class', 'pert-tornado-block')
+    .attr('data-pert-tornado', '');
+
+  block
+    .append('rect')
+    .attr('class', 'pert-tornado-rect')
+    .attr('x', x)
+    .attr('y', y)
+    .attr('width', width)
+    .attr('height', height)
+    .attr('rx', NODE_RADIUS)
+    .attr('ry', NODE_RADIUS)
+    .attr('fill', fill)
+    .attr('stroke', baseColor)
+    .attr('stroke-width', NODE_STROKE_WIDTH);
+
+  block
+    .append('text')
+    .attr('class', 'pert-tornado-header')
+    .attr('x', x + width / 2)
+    .attr('y', y + CAPTION_BOX_PADDING_Y + CAPTION_FONT_SIZE)
+    .attr('text-anchor', 'middle')
+    .attr('fill', labelColor)
+    .attr('font-size', CAPTION_FONT_SIZE)
+    .attr('font-weight', '700')
+    .text('Sensitivity (top schedule risks)');
+
+  const dividerY = y + CAPTION_BOX_PADDING_Y + CAPTION_LINE_HEIGHT;
+  block
+    .append('line')
+    .attr('class', 'pert-tornado-divider')
+    .attr('x1', x + CAPTION_BOX_PADDING_X)
+    .attr('x2', x + width - CAPTION_BOX_PADDING_X)
+    .attr('y1', dividerY)
+    .attr('y2', dividerY)
+    .attr('stroke', baseColor)
+    .attr('stroke-width', 1)
+    .attr('opacity', 0.5);
+
+  // Bar geometry. Activity name on the left, value on the right, bar
+  // fills the middle column. Longest SSI gets the full bar width.
+  const maxSsi = rows.reduce((acc, r) => Math.max(acc, r.ssi), 0) || 1;
+  const nameX = x + CAPTION_BOX_PADDING_X;
+  const barLeft = nameX + TORNADO_NAME_COL_W;
+  const valueX = x + width - CAPTION_BOX_PADDING_X;
+  const barRightLimit = valueX - TORNADO_VALUE_COL_W;
+  const maxBarWidth = Math.max(barRightLimit - barLeft, 0);
+  const firstRowY = y + CAPTION_BOX_PADDING_Y + CAPTION_HEADER_BAND_HEIGHT;
+
+  rows.forEach((row, i) => {
+    const rowY = firstRowY + i * TORNADO_ROW_HEIGHT;
+    const labelY =
+      rowY + TORNADO_ROW_HEIGHT / 2 + TORNADO_BAR_FONT_SIZE / 2 - 2;
+    const barW = (row.ssi / maxSsi) * maxBarWidth;
+    const barColor = bandColor(row.band, palette, palette.primary);
+    const barFill = shapeFill(palette, barColor, isDark);
+
+    // Activity name (truncate via ellipsis when overlong — quick approx
+    // by char width since SVG truncation needs measurement).
+    const truncated =
+      row.name.length > 24 ? row.name.slice(0, 23) + '…' : row.name;
+    block
+      .append('text')
+      .attr('class', 'pert-tornado-name')
+      .attr('x', nameX)
+      .attr('y', labelY)
+      .attr('text-anchor', 'start')
+      .attr('fill', labelColor)
+      .attr('font-size', TORNADO_BAR_FONT_SIZE)
+      .text(truncated);
+
+    block
+      .append('rect')
+      .attr('class', 'pert-tornado-bar')
+      .attr('x', barLeft)
+      .attr('y', rowY + (TORNADO_ROW_HEIGHT - TORNADO_BAR_HEIGHT) / 2)
+      .attr('width', barW)
+      .attr('height', TORNADO_BAR_HEIGHT)
+      .attr('rx', 2)
+      .attr('ry', 2)
+      .attr('fill', barFill)
+      .attr('stroke', barColor)
+      .attr('stroke-width', 1)
+      .attr('data-activity-id', row.id);
+
+    // SSI value, right-aligned.
+    block
+      .append('text')
+      .attr('class', 'pert-tornado-value')
+      .attr('x', valueX)
+      .attr('y', labelY)
+      .attr('text-anchor', 'end')
+      .attr('fill', labelColor)
+      .attr('font-size', TORNADO_BAR_FONT_SIZE)
+      .text(row.ssi.toFixed(2));
   });
 }
 

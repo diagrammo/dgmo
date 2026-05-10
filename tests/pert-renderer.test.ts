@@ -398,6 +398,57 @@ A
     expect(doc.querySelectorAll('text.pert-edge-label').length).toBe(0);
   });
 
+  it('tornado widget is omitted by default', () => {
+    const svg = renderForTest(loadFixture('three-point.dgmo'));
+    const doc = parseDom(svg);
+    expect(doc.querySelectorAll('g.pert-tornado-block').length).toBe(0);
+  });
+
+  it('tornado renders top-N bars when showTornado: true and MC ran', () => {
+    const c = document.createElement('div');
+    document.body.appendChild(c);
+    const parsed = parsePert(loadFixture('three-point.dgmo'));
+    const resolved = analyzePert(parsed);
+    const layout = relayoutPert(resolved, {});
+    const colors = getPalette('nord').light;
+    renderPert(c as HTMLDivElement, resolved, layout, colors, false, {
+      title: parsed.title,
+      showTornado: true,
+    });
+    const block = c.querySelector('g.pert-tornado-block');
+    expect(block).not.toBeNull();
+    expect(block!.querySelector('text.pert-tornado-header')!.textContent).toBe(
+      'Sensitivity (top schedule risks)'
+    );
+    // At least one bar + value pair, capped at TORNADO_TOP_N (=10).
+    const bars = block!.querySelectorAll('rect.pert-tornado-bar');
+    expect(bars.length).toBeGreaterThan(0);
+    expect(bars.length).toBeLessThanOrEqual(10);
+    document.body.removeChild(c);
+  });
+
+  it('tornado is silently omitted in analytical mode (no MC output)', () => {
+    const c = document.createElement('div');
+    document.body.appendChild(c);
+    // M-only durations → analytical mode, no MC result.
+    const parsed = parsePert(`pert
+time-unit w
+A 2
+B 3
+A
+  -> B
+`);
+    const resolved = analyzePert(parsed);
+    expect(resolved.monteCarloResult).toBeNull();
+    const layout = relayoutPert(resolved, {});
+    const colors = getPalette('nord').light;
+    renderPert(c as HTMLDivElement, resolved, layout, colors, false, {
+      showTornado: true,
+    });
+    expect(c.querySelectorAll('g.pert-tornado-block').length).toBe(0);
+    document.body.removeChild(c);
+  });
+
   it('renders cleanly across all 10 palettes (smoke)', () => {
     const palettes = [
       'nord',
