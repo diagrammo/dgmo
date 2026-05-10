@@ -45,7 +45,12 @@ import {
   CAPTION_BOX_PADDING_X,
   CAPTION_BOX_PADDING_Y,
 } from '../utils/title-constants';
-import type { LayoutResult, ResolvedActivity, ResolvedPert } from './types';
+import type {
+  LayoutResult,
+  PertEdge,
+  ResolvedActivity,
+  ResolvedPert,
+} from './types';
 import { parsePert } from './parser';
 import { analyzePert } from './analyzer';
 import { layoutPert } from './layout';
@@ -710,6 +715,15 @@ function renderEdges(
   const criticalSet = new Set(resolved.criticalPath);
   const mcOn = resolved.monteCarloResult !== null;
 
+  // Index parsed edges by `source->target` so the renderer can look up
+  // the dependency type + lag for each layout edge. Super-edges between
+  // collapsed groups won't match (their source/target are group ids);
+  // they fall back to the unlabeled default render.
+  const edgeByKey = new Map<string, PertEdge>();
+  for (const e of resolved.edges) {
+    edgeByKey.set(`${e.source}->${e.target}`, e);
+  }
+
   // Map activity → group for fast lookup so we can suppress edges
   // that live entirely inside a collapsed group.
   const activityGroup = new Map<string, string | undefined>();
@@ -781,7 +795,47 @@ function renderEdges(
       .attr('data-critical', String(isCritical))
       .attr('data-critical-path', String(isCritical))
       .attr('data-criticality-band', band ?? '');
+
+    // Edge label: only drawn when the dependency type or lag deviates
+    // from the FS+0 default. Mirrors Primavera/MS Project's midpoint
+    // label convention.
+    const parsedEdge = edgeByKey.get(`${e.source}->${e.target}`);
+    const labelText = parsedEdge ? formatEdgeLabel(parsedEdge) : null;
+    if (labelText) {
+      const mid = e.points[Math.floor(e.points.length / 2)];
+      layer
+        .append('text')
+        .attr('class', 'pert-edge-label')
+        .attr('x', mid.x)
+        .attr('y', mid.y - 4)
+        .attr('text-anchor', 'middle')
+        .attr('fill', palette.textMuted)
+        .attr('font-size', 10)
+        .attr('paint-order', 'stroke')
+        .attr('stroke', palette.bg)
+        .attr('stroke-width', 3)
+        .attr('stroke-linejoin', 'round')
+        .attr('data-edge-source', e.source)
+        .attr('data-edge-target', e.target)
+        .text(labelText);
+    }
   }
+}
+
+/**
+ * Render an edge label like `SS +2d`, `FF -1d`, or `+2d` (FS-only lag).
+ * Returns `null` when the edge is the default FS+0 — those stay clean.
+ */
+function formatEdgeLabel(edge: PertEdge): string | null {
+  if (edge.type === 'FS' && edge.lag === null) return null;
+  const parts: string[] = [];
+  if (edge.type !== 'FS') parts.push(edge.type);
+  if (edge.lag) {
+    const sign = edge.lag.amount >= 0 ? '+' : '-';
+    const amount = Math.abs(edge.lag.amount);
+    parts.push(`${sign}${amount}${edge.lag.unit}`);
+  }
+  return parts.join(' ');
 }
 
 // ============================================================
