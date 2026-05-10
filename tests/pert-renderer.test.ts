@@ -391,40 +391,39 @@ describe('pert renderer — date anchoring', () => {
     return renderPertForExport(input, 'light', colors);
   }
 
-  it('forward anchor: source ES renders as the literal start-date and a "Forward-anchored" bullet appears', () => {
+  it('forward anchor: source ES renders as the literal start-date and a "Start date" bullet appears', () => {
     // recruit crew is the first non-zero-duration activity, so its ES
     // is the start-date carried through. Renderer formats as ISO.
     const svg = renderForTest(loadFixture('start-date.dgmo'));
     expect(svg).toContain('2026-06-01');
-    // Forward emits its own anchor bullet (symmetric with backward).
-    expect(svg).toContain('Forward-anchored from start-date 2026-06-01');
-    expect(svg).not.toContain('Backward-anchored');
+    // Forward anchor surfaces the user-pinned start-date in plain words.
+    expect(svg).toContain('Start date: 2026-06-01');
+    expect(svg).not.toContain('Deadline:');
   });
 
-  it('backward anchor: D10 italic annotation lives in the caption box and names both dates', () => {
+  it('backward anchor: italic Deadline bullet lives in the caption box', () => {
     const svg = renderForTest(loadFixture('end-date.dgmo'));
-    // Annotation now sits as the FINAL bullet inside the yellow caption
-    // box (not a standalone subtitle above the diagram). Names BOTH the
-    // end-date and the derived projectStart so the reader sees the
-    // schedule envelope at a glance.
-    expect(svg).toContain('end-date 2026-09-15');
-    expect(svg).toContain('project start');
-    expect(svg).toContain('Backward-anchored');
+    // Annotation sits as the FINAL bullet inside the yellow caption
+    // box. The percentile bullets above already cover when work needs
+    // to start, so this line stays narrowly focused on the deadline.
+    expect(svg).toContain('Deadline: 2026-09-15');
+    expect(svg).not.toContain('project start');
+    expect(svg).not.toContain('earliest possible');
     // The bullet's tspan carries font-style="italic"; the standalone
     // subtitle element no longer exists.
     expect(svg).toContain('font-style="italic"');
     expect(svg).not.toContain('class="pert-anchor-annotation"');
     // Anchor note is rendered as a regular bullet — every line in the
     // Summary box wears the `•` glyph for visual consistency.
-    expect(svg).toContain('• Backward-anchored');
+    expect(svg).toContain('• Deadline: 2026-09-15');
   });
 
   it('backward anchor + TBD upstream: schedule cells fall back to "?"', () => {
     const svg = renderForTest(loadFixture('backward-tbd.dgmo'));
-    // Annotation still names the end-date, even when projectStart can't
-    // be derived because of upstream TBDs (uses the fallback phrasing).
-    expect(svg).toContain('Backward-anchored from end-date 2026-09-15');
-    expect(svg).toContain('Project start is unknown');
+    // Annotation still names the deadline, plus a tail explaining the
+    // `?` cells when projectStart can't be derived.
+    expect(svg).toContain('Deadline: 2026-09-15');
+    expect(svg).toContain('upstream activities still need estimates');
     // No date strings should appear in node bodies — projectStart is null
     // so every schedule cell renders nullLabel='?'.
     expect(svg).not.toContain('2026-09-15</text>');

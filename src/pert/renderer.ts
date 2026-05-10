@@ -93,11 +93,76 @@ const FADE_OPACITY = 0.15;
 // Less aggressive than FADE_OPACITY because these cards still need to
 // be readable; this is a hint, not a hide.
 const DURATION_FADE_OPACITY = 0.55;
-// Anchor-pin glyph dimensions (Lucide map-pin path, scaled to fit
+// Anchor glyph dimensions (Lucide `anchor` path, scaled to fit
 // next to the 13pt bold name label). Width drives the layout math;
 // height is a derived target for vertical centering.
-const PIN_ICON_W = 12;
-const PIN_ICON_H = 14;
+const PIN_ICON_W = 13;
+const PIN_ICON_H = 13;
+
+// Field-reference legend — a 3×2 mini-card that mirrors the schedule
+// cells of the textbook PERT card so readers can map each cell's value
+// back to its meaning. Sits in the bottom band, right-aligned with the
+// chart's right edge so it doesn't push the canvas wider, and matches
+// the Summary box's height so it doesn't push the canvas taller.
+const FIELD_LEGEND_WIDTH = 580;
+const FIELD_LEGEND_GAP_X = 16;
+// Falls back to this height only when the Summary is hidden / empty;
+// otherwise the legend matches captionBoxHeight exactly.
+const FIELD_LEGEND_DEFAULT_HEIGHT = 130;
+const FIELD_LEGEND_LABEL_FONT_SIZE = 13;
+const FIELD_LEGEND_DESC_FONT_SIZE = 11;
+const FIELD_LEGEND_DESC_LINE_HEIGHT = 14;
+const FIELD_LEGEND_LABEL_DESC_GAP = 4;
+// Greedy word-wrap budget per line — calibrated for 11pt Inter at the
+// cell width minus padding.
+const FIELD_LEGEND_DESC_WRAP_CHARS = 27;
+// Six cells, top row then bottom row — same order as the textbook card:
+//   top:    [ ES | dur | EF ]
+//   bottom: [ LS | slack | LF ]
+const FIELD_LEGEND_CELLS: readonly { label: string; desc: string }[] = [
+  {
+    label: 'Early Start',
+    desc: 'earliest this activity can begin once predecessors finish',
+  },
+  {
+    label: 'Duration',
+    desc: 'expected time needed to complete the work',
+  },
+  {
+    label: 'Early Finish',
+    desc: 'earliest this activity can be fully completed',
+  },
+  {
+    label: 'Late Start',
+    desc: 'latest this activity can begin without delaying the project',
+  },
+  {
+    label: 'Slack',
+    desc: "extra time before this activity's delay pushes the deadline",
+  },
+  {
+    label: 'Late Finish',
+    desc: 'latest this activity can finish without delaying the project',
+  },
+];
+
+function wrapTextByChars(text: string, maxChars: number): string[] {
+  const words = text.split(/\s+/);
+  const lines: string[] = [];
+  let line = '';
+  for (const word of words) {
+    if (line.length === 0) {
+      line = word;
+    } else if (line.length + 1 + word.length <= maxChars) {
+      line += ` ${word}`;
+    } else {
+      lines.push(line);
+      line = word;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
 
 const lineGenerator = d3Shape
   .line<{ x: number; y: number }>()
@@ -172,6 +237,21 @@ export interface PertRenderOptions {
    *     collapsed group (i.e. internal-only edges)
    */
   collapsedGroupIds?: readonly string[];
+  /**
+   * Render the 3×2 field-reference mini-card to the right of the
+   * Summary box. Helps presenters explain what each schedule cell
+   * (ES / dur / EF / LS / slack / LF) means while reviewing the
+   * diagram. Off by default; the desktop app turns it on with the
+   * "Field labels" toggle.
+   */
+  showFieldLegend?: boolean;
+  /**
+   * Render the project-stats Summary box below the diagram. Defaults
+   * to true so CLI exports / share-link images keep showing it; the
+   * desktop app's cog has a "Summary" toggle that flips this off when
+   * readers want a cleaner chart.
+   */
+  showSummary?: boolean;
 }
 
 export function renderPert(
@@ -214,15 +294,43 @@ export function renderPert(
         2 * CAPTION_BOX_PADDING_Y +
         CAPTION_HEADER_BAND_HEIGHT
       : 0;
+  // Field-reference legend sits inside the chart-width band, right-
+  // aligned with the chart's right edge. Its height matches the
+  // Summary's so the bottom band never grows beyond what the Summary
+  // alone would claim. When the Summary is hidden or empty, the legend
+  // falls back to a default height.
+  const showFieldLegend = options.showFieldLegend ?? false;
+  const showSummary = options.showSummary ?? true;
+  const effectiveCaptionBoxHeight = showSummary ? captionBoxHeight : 0;
+  const fieldLegendHeight = showFieldLegend
+    ? effectiveCaptionBoxHeight > 0
+      ? effectiveCaptionBoxHeight
+      : FIELD_LEGEND_DEFAULT_HEIGHT
+    : 0;
+  const bottomBoxHeight = Math.max(
+    effectiveCaptionBoxHeight,
+    fieldLegendHeight
+  );
   // The caption block reserves: a top gap (between diagram and box) +
-  // the box itself. When no caption fires, contributes zero height.
+  // the bottom band itself. When neither fires, contributes zero.
   const captionBlockHeight =
-    captionBullets.length > 0 ? CAPTION_TOP_GAP + captionBoxHeight : 0;
+    bottomBoxHeight > 0 ? CAPTION_TOP_GAP + bottomBoxHeight : 0;
 
-  // Natural size — fits all chrome without clipping. We always expand
-  // a supplied `exportDims` to at least this; smaller hints would
-  // crop the diagram body off-screen.
-  const naturalWidth = layout.width + DIAGRAM_PADDING * 2;
+  // Natural size — fits all chrome without clipping. With the legend
+  // on, the bottom row pairs the Summary (capped at CAPTION_BOX_MAX_WIDTH)
+  // with the legend; the canvas grows just enough to hold both side-by-
+  // side when the chart is narrower than the pair.
+  const naturalChartWidth = layout.width + DIAGRAM_PADDING * 2;
+  const summaryShownWithLegend =
+    showFieldLegend && showSummary && captionBullets.length > 0;
+  const pairSummaryWidth = summaryShownWithLegend ? CAPTION_BOX_MAX_WIDTH : 0;
+  const pairGap = summaryShownWithLegend ? FIELD_LEGEND_GAP_X : 0;
+  const pairContainerWidth = showFieldLegend
+    ? pairSummaryWidth + pairGap + FIELD_LEGEND_WIDTH
+    : 0;
+  const naturalWidth = showFieldLegend
+    ? Math.max(naturalChartWidth, pairContainerWidth + 2 * DIAGRAM_PADDING)
+    : naturalChartWidth;
   const naturalHeight =
     layout.height + DIAGRAM_PADDING * 2 + titleHeight + captionBlockHeight;
   const exportWidth = Math.max(
@@ -279,12 +387,36 @@ export function renderPert(
     collapsedSet
   );
 
-  if (captionBullets.length > 0) {
+  // Place the bottom band. With the legend on, the Summary + Legend
+  // pair is centered horizontally as a unit. With the legend off, the
+  // Summary uses its existing centered-column treatment.
+  const pairLeft = (exportWidth - pairContainerWidth) / 2;
+  const captionWidth = showFieldLegend
+    ? pairSummaryWidth
+    : Math.min(exportWidth - 2 * DIAGRAM_PADDING, CAPTION_BOX_MAX_WIDTH);
+  const captionX = showFieldLegend
+    ? pairLeft
+    : (exportWidth - captionWidth) / 2;
+  const legendX = summaryShownWithLegend
+    ? pairLeft + pairSummaryWidth + FIELD_LEGEND_GAP_X
+    : pairLeft;
+  if (showSummary && captionBullets.length > 0) {
     renderCaptionBlock(svg, captionBullets, {
-      x: DIAGRAM_PADDING,
+      x: captionX,
       y: offsetY + layout.height + CAPTION_TOP_GAP,
-      width: exportWidth - 2 * DIAGRAM_PADDING,
+      width: captionWidth,
       height: captionBoxHeight,
+      palette,
+      isDark,
+    });
+  }
+
+  if (showFieldLegend) {
+    renderFieldLegendBlock(svg, {
+      x: legendX,
+      y: offsetY + layout.height + CAPTION_TOP_GAP,
+      width: FIELD_LEGEND_WIDTH,
+      height: fieldLegendHeight,
       palette,
       isDark,
     });
@@ -702,7 +834,7 @@ function renderNodes(
     resolved.activities
   );
 
-  // Anchor "pin" set — nodes whose label gets a map-pin icon prefix
+  // Anchor set — nodes whose label gets an anchor icon prefix
   // and whose anchor-side corner cells (ES+LS for forward, EF+LF for
   // backward) render bold, because those cells carry the user-supplied
   // date directly rather than a derived offset.
@@ -857,7 +989,7 @@ interface TextbookCardArgs {
    */
   emphasis?: 'top' | 'bottom' | null;
   /**
-   * When set, prefix the middle-row name with a small map-pin icon and
+   * When set, prefix the middle-row name with a small anchor icon and
    * bold the corner cells that carry the user-supplied anchor date
    * directly. `'forward'` = source node under `start-date` (bold ES + LS);
    * `'backward'` = sink node under `end-date` (bold EF + LF). `null` /
@@ -957,7 +1089,7 @@ function drawTextbookCard(g: AnySel, a: TextbookCardArgs): void {
   drawCell(x + colW * 2.5, topMid, a.ef, efWeight);
 
   // Middle row: name (spans full width). When `pinned`, shift the
-  // name slightly right and draw a small map-pin icon to its left so
+  // name slightly right and draw a small anchor icon to its left so
   // the combined glyph reads as one centered unit.
   const midRowTop = y + NODE_TOP_ROW_HEIGHT;
   const midRowH = h - NODE_TOP_ROW_HEIGHT - NODE_BOTTOM_ROW_HEIGHT;
@@ -971,7 +1103,7 @@ function drawTextbookCard(g: AnySel, a: TextbookCardArgs): void {
     const combined = PIN_ICON_W + gap + approxTextW;
     const groupLeft = x + w / 2 - combined / 2;
     drawAnchorPin(g, groupLeft, midCenterY, a.labelColor);
-    // Center text on (groupLeft + pin + gap) + textW/2.
+    // Center text on (groupLeft + icon + gap) + textW/2.
     const textCx = groupLeft + PIN_ICON_W + gap + approxTextW / 2;
     drawCell(textCx, midCenterY, a.name, 'bold', NODE_FONT_SIZE);
   } else {
@@ -993,10 +1125,9 @@ function drawTextbookCard(g: AnySel, a: TextbookCardArgs): void {
 // ============================================================
 
 /**
- * Render a Lucide-style push-pin (thumbtack) glyph at `(left, centerY)`,
- * sized to PIN_ICON_W × PIN_ICON_H. Two paths — the cap with its
- * pinch and the down-stroke — both inherit the supplied color so the
- * pin tracks the node's tint.
+ * Render a Lucide-style anchor glyph at `(left, centerY)`, sized to
+ * PIN_ICON_W × PIN_ICON_H. Ring + shaft/arms inherit the supplied
+ * color so the anchor tracks the node's tint.
  */
 function drawAnchorPin(
   g: AnySel,
@@ -1004,7 +1135,7 @@ function drawAnchorPin(
   centerY: number,
   color: string
 ): void {
-  // Lucide `pin` icon authored on a 24×24 viewbox — scale to PIN_ICON_W.
+  // Lucide `anchor` icon authored on a 24×24 viewbox — scale to PIN_ICON_W.
   const scale = PIN_ICON_W / 24;
   const top = centerY - PIN_ICON_H / 2;
   const pin = g
@@ -1012,22 +1143,27 @@ function drawAnchorPin(
     .attr('class', 'pert-pin')
     .attr('data-pert-pin', '')
     .attr('transform', `translate(${left}, ${top}) scale(${scale})`);
-  // Body of the thumbtack: head, pinched neck, stem-pad shape.
+  // Vertical shaft + curved arms (path) and ring at the top (circle).
   pin
     .append('path')
-    .attr(
-      'd',
-      'M12 17v5 M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V5a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z'
-    )
+    .attr('d', 'M12 22V8 M5 12H2a10 10 0 0 0 20 0h-3')
     .attr('fill', 'none')
     .attr('stroke', color)
     .attr('stroke-width', 2)
     .attr('stroke-linecap', 'round')
     .attr('stroke-linejoin', 'round');
+  pin
+    .append('circle')
+    .attr('cx', 12)
+    .attr('cy', 5)
+    .attr('r', 3)
+    .attr('fill', 'none')
+    .attr('stroke', color)
+    .attr('stroke-width', 2);
 }
 
 /**
- * Build the set of activity ids whose label gets a map-pin icon
+ * Build the set of activity ids whose label gets an anchor icon
  * because their card carries a user-supplied anchor date directly:
  *   forward  → activities with no predecessors (ES = start-date)
  *   backward → activities with no successors   (LF = end-date)
@@ -1202,25 +1338,23 @@ export function resetPertCriticalPath(container: Element): void {
 
 /**
  * Build the anchor framing bullet, or `null` when no anchor is set.
- * Surfaces which end of the schedule the user pinned and (for
- * backward) the derived project-start date so the envelope is
- * legible at a glance. Rendered as an italic bullet at the bottom
- * of the caption box.
+ * Surfaces the user-pinned date in plain language; the start/finish
+ * percentile bullets above already speak to the other end, so this
+ * line stays narrowly focused on the fixed boundary.
  */
 function anchorAnnotationText(resolved: ResolvedPert): string | null {
   const anchor = resolved.options.anchor;
   if (anchor === null) return null;
   if (anchor.kind === 'forward') {
-    return `Forward-anchored from start-date ${anchor.date}.`;
+    return `Start date: ${anchor.date}.`;
   }
-  // Backward — surface BOTH the user-supplied end-date AND the derived
-  // projectStart so the reader can see the schedule envelope at a
-  // glance. Falls back to a generic phrasing when projectStart is null
-  // (TBD upstream — the body cells will show `?`).
+  // Backward — TBD upstream still needs a hint that schedule cells will
+  // render `?` until estimates land, otherwise readers see ?-filled
+  // cards under a deadline with no explanation.
   if (resolved.projectStart) {
-    return `Backward-anchored: end-date ${anchor.date} → project start ${resolved.projectStart}. Non-critical dates show earliest possible.`;
+    return `Deadline: ${anchor.date}.`;
   }
-  return `Backward-anchored from end-date ${anchor.date}. Project start is unknown until upstream activities are estimated.`;
+  return `Deadline: ${anchor.date} — upstream activities still need estimates.`;
 }
 
 interface CaptionBullet {
@@ -1284,6 +1418,11 @@ const SUB_BULLET_INDENT = 20;
 // bullet. Used by renderPert / renderPertForExport when sizing the
 // caption box.
 const CAPTION_HEADER_BAND_HEIGHT = CAPTION_LINE_HEIGHT + 8;
+// Caption box max width — wide enough for the longest current bullet
+// (the backward-anchor framing note ≈ 700px at 13pt) plus padding.
+// Wider PERT charts get a centered, fixed-column box rather than a
+// stretched-edge-to-edge one which left a sea of empty space inside.
+const CAPTION_BOX_MAX_WIDTH = 800;
 
 function renderCaptionBlock(
   svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
@@ -1361,6 +1500,137 @@ function renderCaptionBlock(
       .text(`• ${bullet.text}`);
     if (bullet.italic) tspan.attr('font-style', 'italic');
     if (i > 0) tspan.attr('dy', CAPTION_LINE_HEIGHT);
+  });
+}
+
+interface FieldLegendArgs {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  palette: PaletteColors;
+  isDark: boolean;
+}
+
+/**
+ * Render the 3×2 PERT-field reference card. A neutral-tinted rounded
+ * rect with a "Activity card fields" header band on top (mirroring the
+ * Summary's typographic idiom) and a 3×2 grid of labeled definitions
+ * below — so the cells map 1-to-1 to the schedule cells of every
+ * activity card without pretending to be a node themselves.
+ *
+ * The cell content is vertically centered inside each row, so the
+ * legend looks balanced whether it's sized to a tall Summary (lots of
+ * bullets) or its compact default height.
+ *
+ * Cell order follows `drawTextbookCard`:
+ *   top:    [ Early Start | Duration | Early Finish ]
+ *   bottom: [ Late Start  | Slack    | Late Finish  ]
+ */
+function renderFieldLegendBlock(
+  svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
+  args: FieldLegendArgs
+): void {
+  const { x, y, width, height, palette, isDark } = args;
+  // Neutral gray base so the legend reads as informational chrome
+  // (like the Summary box) rather than competing with the criticality-
+  // tinted activity cards. shapeFill + contrastText still produce a
+  // theme-correct light fill / dark text combo.
+  const baseColor = palette.textMuted;
+  const fill = shapeFill(palette, baseColor, isDark);
+  const labelColor = contrastText(
+    fill,
+    palette.textOnFillLight,
+    palette.textOnFillDark
+  );
+
+  const colW = width / 3;
+  const gridTop = y;
+  const rowH = height / 2;
+
+  const block = svg
+    .append('g')
+    .attr('class', 'pert-field-legend')
+    .attr('data-pert-field-legend', '');
+
+  block
+    .append('rect')
+    .attr('class', 'pert-field-legend-rect')
+    .attr('x', x)
+    .attr('y', y)
+    .attr('width', width)
+    .attr('height', height)
+    .attr('rx', NODE_RADIUS)
+    .attr('ry', NODE_RADIUS)
+    .attr('fill', fill)
+    .attr('stroke', baseColor)
+    .attr('stroke-width', NODE_STROKE_WIDTH);
+
+  // Internal grid lines for the 3×2 cell area (matches
+  // drawTextbookCard's low-opacity divider pattern).
+  const grid = (x1: number, y1: number, x2: number, y2: number): void => {
+    block
+      .append('line')
+      .attr('x1', x1)
+      .attr('y1', y1)
+      .attr('x2', x2)
+      .attr('y2', y2)
+      .attr('stroke', baseColor)
+      .attr('stroke-opacity', 0.3)
+      .attr('stroke-width', 1);
+  };
+  grid(x, gridTop + rowH, x + width, gridTop + rowH);
+  grid(x + colW, gridTop, x + colW, y + height);
+  grid(x + colW * 2, gridTop, x + colW * 2, y + height);
+
+  // Cells — bold label above a wrapped description, both centered
+  // vertically inside the row. Each cell sizes its own stack so 2-line
+  // and 3-line descriptions still sit centered in the same row height.
+  FIELD_LEGEND_CELLS.forEach((cell, i) => {
+    const col = i % 3;
+    const row = Math.floor(i / 3);
+    const cx = x + col * colW + colW / 2;
+    const cellTop = gridTop + row * rowH;
+
+    const descLines = wrapTextByChars(cell.desc, FIELD_LEGEND_DESC_WRAP_CHARS);
+    const descBlockHeight =
+      FIELD_LEGEND_DESC_FONT_SIZE +
+      Math.max(descLines.length - 1, 0) * FIELD_LEGEND_DESC_LINE_HEIGHT;
+    const stackHeight =
+      FIELD_LEGEND_LABEL_FONT_SIZE +
+      FIELD_LEGEND_LABEL_DESC_GAP +
+      descBlockHeight;
+    const stackTop = cellTop + Math.max((rowH - stackHeight) / 2, 0);
+    const labelY = stackTop + FIELD_LEGEND_LABEL_FONT_SIZE;
+    const firstDescY =
+      labelY + FIELD_LEGEND_LABEL_DESC_GAP + FIELD_LEGEND_DESC_FONT_SIZE;
+
+    block
+      .append('text')
+      .attr('class', 'pert-field-legend-label')
+      .attr('x', cx)
+      .attr('y', labelY)
+      .attr('text-anchor', 'middle')
+      .attr('font-family', FONT_FAMILY)
+      .attr('font-size', FIELD_LEGEND_LABEL_FONT_SIZE)
+      .attr('font-weight', 600)
+      .attr('fill', labelColor)
+      .text(cell.label);
+
+    const descText = block
+      .append('text')
+      .attr('class', 'pert-field-legend-desc')
+      .attr('x', cx)
+      .attr('y', firstDescY)
+      .attr('text-anchor', 'middle')
+      .attr('font-family', FONT_FAMILY)
+      .attr('font-size', FIELD_LEGEND_DESC_FONT_SIZE)
+      .attr('fill', labelColor)
+      .attr('opacity', 0.85);
+    descLines.forEach((line, idx) => {
+      const tspan = descText.append('tspan').attr('x', cx).text(line);
+      if (idx > 0) tspan.attr('dy', FIELD_LEGEND_DESC_LINE_HEIGHT);
+    });
   });
 }
 
