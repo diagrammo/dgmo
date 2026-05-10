@@ -1,0 +1,22 @@
+pert Concrete Foundation
+time-unit d
+
+# Real-world lag (cure time) + SS overlap (parallel crews). Covers the
+# `-Nd->` lag-only shortcut and the `-SS+Nd->` parallel-start form.
+
+dig footings 2 3 5
+pour concrete 1 1 2
+frame walls 4 6 8
+roof 3 4 5
+inspect 1 1 1
+
+dig footings
+  -> pour concrete
+pour concrete
+  -3d-> frame walls
+frame walls
+  -SS+2d-> roof
+frame walls
+  -> inspect
+roof
+  -> inspect

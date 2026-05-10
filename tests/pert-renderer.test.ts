@@ -37,6 +37,8 @@ const FIXTURE_NAMES = [
   'start-date.dgmo',
   'end-date.dgmo',
   'backward-tbd.dgmo',
+  'edge-types.dgmo',
+  'edge-lag.dgmo',
 ];
 
 // Snapshot suite: each fixture × {nord light, tokyo-night dark}. Keeps
@@ -358,6 +360,36 @@ A
     const tspans = doc.querySelectorAll('text.pert-caption tspan');
     expect(tspans.length).toBe(1);
     expect(tspans[0]!.textContent).toContain('Expected duration unknown');
+  });
+
+  it('edge labels appear for non-default dependency types', () => {
+    const svg = renderForTest(loadFixture('edge-types.dgmo'));
+    const doc = parseDom(svg);
+    const labels = Array.from(doc.querySelectorAll('text.pert-edge-label')).map(
+      (el) => el.textContent
+    );
+    // edge-types.dgmo has: -2d->, -SS+3d->, -FF->, -> (FS+0), -> (FS+0)
+    expect(labels).toContain('+2d');
+    expect(labels).toContain('SS +3d');
+    expect(labels).toContain('FF');
+    // Default FS+0 edges contribute no label.
+    expect(labels.length).toBe(3);
+  });
+
+  it('edge labels render for edge-lag fixture (cure time + parallel start)', () => {
+    const svg = renderForTest(loadFixture('edge-lag.dgmo'));
+    const doc = parseDom(svg);
+    const labels = Array.from(doc.querySelectorAll('text.pert-edge-label')).map(
+      (el) => el.textContent
+    );
+    expect(labels).toContain('+3d');
+    expect(labels).toContain('SS +2d');
+  });
+
+  it('default FS+0 edges render no edge label (regression check)', () => {
+    const svg = renderForTest(loadFixture('basic.dgmo'));
+    const doc = parseDom(svg);
+    expect(doc.querySelectorAll('text.pert-edge-label').length).toBe(0);
   });
 
   it('renders cleanly across all 10 palettes (smoke)', () => {

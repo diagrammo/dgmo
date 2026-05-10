@@ -1,0 +1,12 @@
+pert Lead Exceeds Predecessor Duration
+time-unit d
+
+# A 2d → FS-3d → B. The 3d lead exceeds A's 2d duration, implying B
+# starts before A starts — logically impossible for FS. Should emit a
+# warning diagnostic; analyzer still computes a schedule.
+
+A 2 2 2
+B 2 2 2
+
+A
+  -FS-3d-> B

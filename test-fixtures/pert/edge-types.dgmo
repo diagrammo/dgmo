@@ -1,0 +1,23 @@
+pert Edge Types
+time-unit d
+
+# Covers each dependency type plus a lag/lead variant. Used by the
+# parser, analyzer, and renderer suites to verify FS/SS/FF/SF math
+# and edge-label paint.
+
+design 3 5 8
+write spec 2 3 5
+build prototype 5 7 10
+review 2 3 4
+ship 1 1 2
+
+design
+  -2d-> write spec
+design
+  -SS+3d-> build prototype
+write spec
+  -FF-> review
+build prototype
+  -> ship
+review
+  -> ship
