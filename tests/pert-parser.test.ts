@@ -479,3 +479,95 @@ describe('pert parser — looksLikePert inference', () => {
     expect(looksLikePert('A 1 2 3\nB 1 2 3\n')).toBe(false);
   });
 });
+
+describe('pert parser — edge types and lag/lead', () => {
+  function parseTwoActivityEdge(line: string) {
+    const dsl = `pert\ntime-unit w\nA 1 1 1\nB 1 1 1\nA\n  ${line}\n`;
+    return parsePert(dsl);
+  }
+
+  it('bare arrow `-> B` parses as FS with null lag (existing behavior)', () => {
+    const r = parseTwoActivityEdge('-> B');
+    expect(r.diagnostics.filter((d) => d.severity === 'error')).toEqual([]);
+    expect(r.edges).toHaveLength(1);
+    expect(r.edges[0].type).toBe('FS');
+    expect(r.edges[0].lag).toBeNull();
+  });
+
+  it('`-SS-> B` parses as SS with null lag', () => {
+    const r = parseTwoActivityEdge('-SS-> B');
+    expect(r.edges[0].type).toBe('SS');
+    expect(r.edges[0].lag).toBeNull();
+  });
+
+  it('`-FF-> B` parses as FF', () => {
+    const r = parseTwoActivityEdge('-FF-> B');
+    expect(r.edges[0].type).toBe('FF');
+  });
+
+  it('`-SF-> B` parses as SF', () => {
+    const r = parseTwoActivityEdge('-SF-> B');
+    expect(r.edges[0].type).toBe('SF');
+  });
+
+  it('`-2d-> B` parses as FS with +2d lag (lag-only shortcut)', () => {
+    const r = parseTwoActivityEdge('-2d-> B');
+    expect(r.edges[0].type).toBe('FS');
+    expect(r.edges[0].lag).toEqual({ amount: 2, unit: 'd' });
+  });
+
+  it('`-SS+2d-> B` parses as SS with +2d lag', () => {
+    const r = parseTwoActivityEdge('-SS+2d-> B');
+    expect(r.edges[0].type).toBe('SS');
+    expect(r.edges[0].lag).toEqual({ amount: 2, unit: 'd' });
+  });
+
+  it('`-FF-1d-> B` parses as FF with -1d lead (negative lag)', () => {
+    const r = parseTwoActivityEdge('-FF-1d-> B');
+    expect(r.edges[0].type).toBe('FF');
+    expect(r.edges[0].lag).toEqual({ amount: -1, unit: 'd' });
+  });
+
+  it('lowercase types accepted: `-ss+2d-> B` normalizes to SS', () => {
+    const r = parseTwoActivityEdge('-ss+2d-> B');
+    expect(r.edges[0].type).toBe('SS');
+    expect(r.edges[0].lag).toEqual({ amount: 2, unit: 'd' });
+  });
+
+  it('`-SS+2-> B` with `time-unit w` inherits weeks', () => {
+    const r = parseTwoActivityEdge('-SS+2-> B');
+    expect(r.edges[0].lag).toEqual({ amount: 2, unit: 'w' });
+  });
+
+  it('per-edge unit override: `-2h-> B` uses hours regardless of `time-unit w`', () => {
+    const r = parseTwoActivityEdge('-2h-> B');
+    expect(r.edges[0].lag).toEqual({ amount: 2, unit: 'h' });
+  });
+
+  it('zero lag normalizes to null: `-SS+0-> B` has type=SS, lag=null', () => {
+    const r = parseTwoActivityEdge('-SS+0-> B');
+    expect(r.edges[0].type).toBe('SS');
+    expect(r.edges[0].lag).toBeNull();
+  });
+
+  it('decimal lag: `-1.5d-> B` parses correctly', () => {
+    const r = parseTwoActivityEdge('-1.5d-> B');
+    expect(r.edges[0].lag).toEqual({ amount: 1.5, unit: 'd' });
+  });
+
+  it('invalid type emits a diagnostic: `-XY+2d-> B`', () => {
+    const r = parseTwoActivityEdge('-XY+2d-> B');
+    const err = r.diagnostics.find(
+      (d) => d.severity === 'error' && /Invalid edge label/.test(d.message)
+    );
+    expect(err).toBeDefined();
+  });
+
+  it('invalid unit emits a diagnostic: `-SS+2x-> B`', () => {
+    const r = parseTwoActivityEdge('-SS+2x-> B');
+    const err = r.diagnostics.find(
+      (d) => d.severity === 'error' && /Invalid edge label/.test(d.message)
+    );
+    expect(err).toBeDefined();
+  });
+});

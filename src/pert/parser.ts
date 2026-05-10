@@ -17,6 +17,7 @@ import { measureIndent } from '../utils/parsing';
 import { normalizeName } from '../utils/name-normalize';
 import type { Duration, DurationUnit } from '../gantt/types';
 import type {
+  EdgeType,
   ParsedPert,
   PertActivity,
   PertEdge,
@@ -88,8 +89,73 @@ const NEAR_DIRECTIVE_HINTS: ReadonlyArray<{
 /** Group header: `[name]` with optional `| collapsed: true` etc. */
 const GROUP_HEADER_RE = /^\[([^\]]+)\]\s*(?:\|\s*(.+))?$/;
 
-/** Indented reference: `-> dest`. */
+/** Indented reference, no edge label: `-> dest`. */
 const ARROW_RE = /^->\s*(.+?)\s*$/;
+
+/**
+ * Indented reference with edge label: `-LABEL-> dest` where LABEL encodes
+ * dependency type and/or lag (e.g. `SS`, `2d`, `SS+2d`, `FF-1d`).
+ * The leading `-` and trailing `->` frame the label.
+ */
+const LABELED_ARROW_RE = /^-(.+?)->\s*(.+?)\s*$/;
+
+/**
+ * Parse an edge label into `{ type, lag }`. Returns `null` when the
+ * label is malformed; emits no diagnostics — caller decides phrasing.
+ *
+ * Grammar: `[TYPE][SIGN NUMBER UNIT?]` — at least one of TYPE / lag must
+ * be present. TYPE is FS/SS/FF/SF (case-insensitive). NUMBER may be
+ * decimal. UNIT defaults to the diagram-level `time-unit`.
+ */
+export function parseEdgeLabel(
+  label: string,
+  defaultUnit: Duration['unit']
+): { type: EdgeType; lag: Duration | null } | null {
+  const trimmed = label.trim();
+  if (trimmed === '') return null;
+  // [TYPE][SIGN NUMBER UNIT?] — TYPE optional, lag optional, but at least
+  // one must be present (re-checked below).
+  const m = trimmed.match(/^(fs|ss|ff|sf)?([+-]?\d+(?:\.\d+)?)?\s*([a-z]+)?$/i);
+  if (!m) return null;
+  const typeRaw = m[1];
+  const numRaw = m[2];
+  const unitRaw = m[3];
+  // Reject empty match where neither piece was provided.
+  if (!typeRaw && !numRaw) return null;
+  // Unit alone (no number) is not a valid lag.
+  if (unitRaw && !numRaw) return null;
+  const type: EdgeType = typeRaw ? (typeRaw.toUpperCase() as EdgeType) : 'FS';
+  let lag: Duration | null = null;
+  if (numRaw) {
+    const amount = parseFloat(numRaw);
+    if (amount !== 0) {
+      const unit = unitRaw
+        ? (unitRaw.toLowerCase() as Duration['unit'])
+        : defaultUnit;
+      // Whitelist valid units to surface typos instead of silently
+      // accepting `A -SS+2x-> B`.
+      if (!isValidDurationUnit(unit)) return null;
+      lag = { amount, unit };
+    }
+  }
+  return { type, lag };
+}
+
+const VALID_DURATION_UNITS: ReadonlySet<string> = new Set([
+  'min',
+  'h',
+  'd',
+  'bd',
+  'w',
+  'm',
+  'q',
+  'y',
+  's',
+]);
+
+function isValidDurationUnit(u: string): u is Duration['unit'] {
+  return VALID_DURATION_UNITS.has(u);
+}
 
 /** Trailing `as <ident>` (alias) suffix; `<ident>` ≤ 12 chars. */
 const ALIAS_SUFFIX_RE = /\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/;
@@ -405,11 +471,12 @@ export function parsePert(content: string): ParsedPert {
       if (indent <= top.indent) groupStack.pop();
       else break;
     }
-    // Ditto for current source: indented `->` lines must be deeper than the source.
+    // Ditto for current source: indented arrow lines (`-> dest` or
+    // `-LABEL-> dest`) must be deeper than the source.
     if (
       currentSourceIndent >= 0 &&
       indent <= currentSourceIndent &&
-      !trimmed.startsWith('->')
+      !trimmed.startsWith('-')
     ) {
       currentSourceName = null;
       currentSourceIndent = -1;
@@ -448,21 +515,45 @@ export function parsePert(content: string): ParsedPert {
       continue;
     }
 
-    // ── Indented arrow line: `-> dest [durations] [as <id>] [| meta]`.
-    if (trimmed.startsWith('->')) {
-      const arrowMatch = trimmed.match(ARROW_RE);
-      if (!arrowMatch) {
-        error(lineNumber, `Malformed arrow line: '${trimmed}'.`);
-        continue;
+    // ── Indented arrow line: `-> dest` or `-LABEL-> dest` where LABEL
+    // is `[TYPE][±LAG]` (e.g. `SS`, `2d`, `SS+2d`, `FF-1d`). Type
+    // defaults to FS, lag to zero.
+    if (trimmed.startsWith('-')) {
+      let arrowTargetText: string;
+      let edgeType: EdgeType = 'FS';
+      let edgeLag: Duration | null = null;
+
+      const bareMatch = trimmed.match(ARROW_RE);
+      if (bareMatch) {
+        arrowTargetText = bareMatch[1];
+      } else {
+        const labeledMatch = trimmed.match(LABELED_ARROW_RE);
+        if (!labeledMatch) {
+          error(lineNumber, `Malformed arrow line: '${trimmed}'.`);
+          continue;
+        }
+        const parsedLabel = parseEdgeLabel(labeledMatch[1], options.timeUnit);
+        if (!parsedLabel) {
+          error(
+            lineNumber,
+            `Invalid edge label '${labeledMatch[1]}' in '${trimmed}'. ` +
+              `Expected a dependency type (FS/SS/FF/SF) and/or lag (e.g. '+2d', '-1d').`
+          );
+          continue;
+        }
+        arrowTargetText = labeledMatch[2];
+        edgeType = parsedLabel.type;
+        edgeLag = parsedLabel.lag;
       }
+
       if (!currentSourceName) {
         error(
           lineNumber,
-          `'-> ${arrowMatch[1]}' has no source — declare an activity above on a non-indented line.`
+          `'-> ${arrowTargetText}' has no source — declare an activity above on a non-indented line.`
         );
         continue;
       }
-      const tok = tokenizeActivityLine(arrowMatch[1]);
+      const tok = tokenizeActivityLine(arrowTargetText);
       const targetName = tok.name;
       if (!targetName) {
         error(lineNumber, `'-> …' is missing a target name.`);
@@ -491,7 +582,7 @@ export function parsePert(content: string): ParsedPert {
             : '';
         error(
           lineNumber,
-          `Inline forward-declaration not allowed on '-> ${arrowMatch[1]}' ` +
+          `Inline forward-declaration not allowed on '-> ${arrowTargetText}' ` +
             `(${extras.join(', ')}). ` +
             `Move attributes to a source-line: '${targetName}${durHint}' ` +
             `then '-> ${targetName}'.`
@@ -504,6 +595,8 @@ export function parsePert(content: string): ParsedPert {
         sourceLineNumber: -1, // resolved in Pass 2 from declarations
         targetName,
         targetLineNumber: lineNumber,
+        type: edgeType,
+        lag: edgeLag,
       });
       continue;
     }
@@ -770,6 +863,8 @@ export function parsePert(content: string): ParsedPert {
       source: sourceId,
       target: targetId,
       lineNumber: ref.targetLineNumber,
+      type: ref.type,
+      lag: ref.lag,
     });
   }
 

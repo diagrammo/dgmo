@@ -96,11 +96,26 @@ export interface PertActivity {
  */
 export type PertMilestone = PertActivity & { isMilestone: true };
 
-/** Directed dependency edge from `source` activity to `target`. */
+/**
+ * Dependency type — defaults to FS (Finish-to-Start), the dominant case.
+ * - FS: `B.ES ≥ A.EF + lag` (most edges)
+ * - SS: `B.ES ≥ A.ES + lag` (parallel start)
+ * - FF: `B.EF ≥ A.EF + lag` (synchronized finish)
+ * - SF: `B.EF ≥ A.ES + lag` (rare; included for completeness)
+ */
+export type EdgeType = 'FS' | 'SS' | 'FF' | 'SF';
+
+/**
+ * Directed dependency edge from `source` activity to `target`.
+ * `type` defaults to FS, `lag` to null (zero offset). Lag amount may be
+ * negative (a lead — predecessor and successor overlap).
+ */
 export interface PertEdge {
   source: string;
   target: string;
   lineNumber: number;
+  type: EdgeType;
+  lag: Duration | null;
 }
 
 /** Group declared via `[group-name] | metadata`. */

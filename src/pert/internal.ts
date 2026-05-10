@@ -92,6 +92,10 @@ export interface ReferenceSite {
   /** Target name as written. */
   targetName: string;
   targetLineNumber: number;
+  /** Dependency type (default FS when no edge label). */
+  type: import('./types').EdgeType;
+  /** Lag duration; null = zero offset. Negative amount = lead. */
+  lag: import('../gantt/types').Duration | null;
 }
 
 // ============================================================
