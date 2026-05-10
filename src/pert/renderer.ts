@@ -966,7 +966,10 @@ function renderNodes(
         height: node.height,
         x: -node.width / 2,
         y: -node.height / 2,
-        name: r.activity.name,
+        // Diamond glyph prefix marks this row as a milestone at a
+        // glance — reads as a sync point even when the surrounding
+        // visual context (lane / palette) doesn't make it obvious.
+        name: `◆ ${r.activity.name}`,
         date: fmtSchedule(r.es, isTbd),
         slack: slackText,
         slackHidden,
