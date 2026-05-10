@@ -45,6 +45,13 @@ import {
   CAPTION_BOX_PADDING_X,
   CAPTION_BOX_PADDING_Y,
 } from '../utils/title-constants';
+import {
+  LEGEND_HEIGHT as LEGEND_HEIGHT_CONST,
+  LEGEND_PILL_FONT_SIZE as LEGEND_PILL_FONT_SIZE_CONST,
+  LEGEND_ENTRY_DOT_GAP as LEGEND_ENTRY_DOT_GAP_CONST,
+  LEGEND_DOT_R as LEGEND_DOT_R_CONST,
+  measureLegendText,
+} from '../utils/legend-constants';
 import type {
   LayoutResult,
   PertEdge,
@@ -104,15 +111,27 @@ const DURATION_FADE_OPACITY = 0.55;
 const PIN_ICON_W = 13;
 const PIN_ICON_H = 13;
 
+// Top legend — a horizontal row of pills (Critical Path, Anchor,
+// Milestone) that sits between the title and the diagram body. Pills
+// match the visual conventions of the shared `renderLegendD3` legend
+// used by Cycle/Mindmap/BoxesAndLines (see `utils/legend-constants.ts`):
+// 28px tall, 11pt label, fully-rounded rx, mix-fill against surface.
+const LEGEND_PILL_HEIGHT = LEGEND_HEIGHT_CONST;
+const LEGEND_PILL_PADDING_X = 8;
+const LEGEND_PILL_GAP = 8;
+const LEGEND_SWATCH_GAP = LEGEND_ENTRY_DOT_GAP_CONST;
+const LEGEND_FONT_SIZE = LEGEND_PILL_FONT_SIZE_CONST;
+// Top gap is the breathing room between the title baseline (or canvas
+// top when there's no title) and the pill row. Bottom gap separates
+// the pills from the diagram body. Together with LEGEND_PILL_HEIGHT
+// they make up the block's reserved height.
+const LEGEND_TOP_GAP = 12;
+const LEGEND_BOTTOM_GAP = 12;
+
 // Field-reference legend — a 3×2 mini-card that mirrors the schedule
 // cells of the textbook PERT card so readers can map each cell's value
-// back to its meaning. Sits in the bottom band, right-aligned with the
-// chart's right edge so it doesn't push the canvas wider, and matches
-// the Summary box's height so it doesn't push the canvas taller.
-const FIELD_LEGEND_WIDTH = 580;
-const FIELD_LEGEND_GAP_X = 16;
-// Falls back to this height only when the Summary is hidden / empty;
-// otherwise the legend matches captionBoxHeight exactly.
+// back to its meaning. Renders as its own full-width row below the
+// Analysis row.
 const FIELD_LEGEND_DEFAULT_HEIGHT = 130;
 const FIELD_LEGEND_LABEL_FONT_SIZE = 13;
 const FIELD_LEGEND_DESC_FONT_SIZE = 11;
@@ -251,6 +270,15 @@ export interface PertRenderOptions {
    */
   showFieldLegend?: boolean;
   /**
+   * Render the top legend (Critical Path / Anchor / Milestone pills)
+   * inside the SVG, between the title and the diagram. Defaults to
+   * true so CLI exports and share-link images include the legend; the
+   * desktop preview flips it off and renders the legend in a sibling
+   * native-pixel SVG instead, so the pill text stays at intended size
+   * even when the diagram SVG gets scale-to-fit'd into the panel.
+   */
+  showTopLegend?: boolean;
+  /**
    * Render the project-stats Summary box below the diagram. Defaults
    * to true so CLI exports / share-link images keep showing it; the
    * desktop app's cog has a "Summary" toggle that flips this off when
@@ -334,59 +362,58 @@ export function renderPert(
     (options.showScurve ?? false) ? buildScurveData(resolved) : null;
   const showScurve = scurveData !== null;
   const scurveBoxHeight = showScurve ? SCURVE_BOX_HEIGHT : 0;
-  const effectiveCaptionBoxHeight = showSummary ? captionBoxHeight : 0;
-  const fieldLegendHeight = showFieldLegend
-    ? effectiveCaptionBoxHeight > 0
-      ? effectiveCaptionBoxHeight
-      : FIELD_LEGEND_DEFAULT_HEIGHT
-    : 0;
-  const bottomBoxHeight = Math.max(
-    effectiveCaptionBoxHeight,
-    fieldLegendHeight
-  );
-  // Tornado adds CAPTION_TOP_GAP + box. When the Summary/Legend band
-  // is also present, this gap separates the two stacked rows so the
-  // chrome reads as two distinct widgets.
-  const tornadoBlockHeight = showTornado
-    ? CAPTION_TOP_GAP + tornadoBoxHeight
-    : 0;
-  // S-curve stacks below tornado (or below the bottom band when tornado
-  // is off). Same gap pattern: each widget owns its top gap.
-  const scurveBlockHeight = showScurve ? CAPTION_TOP_GAP + scurveBoxHeight : 0;
-  // The caption block reserves: a top gap (between diagram and box) +
-  // the bottom band itself. When neither fires, contributes zero.
-  const captionBlockHeight =
-    bottomBoxHeight > 0 ? CAPTION_TOP_GAP + bottomBoxHeight : 0;
+  const summaryRendered = showSummary && captionBullets.length > 0;
 
-  // Natural size — fits all chrome without clipping. With the legend
-  // on, the bottom row pairs the Summary (capped at CAPTION_BOX_MAX_WIDTH)
-  // with the legend; the canvas grows just enough to hold both side-by-
-  // side when the chart is narrower than the pair.
-  const naturalChartWidth = layout.width + DIAGRAM_PADDING * 2;
-  const summaryShownWithLegend =
-    showFieldLegend && showSummary && captionBullets.length > 0;
-  // Size the Summary box to its content rather than always claiming
-  // CAPTION_BOX_MAX_WIDTH. The MAX is kept as a safety upper bound for
-  // pathological one-line bullets.
-  const naturalCaptionWidth = Math.min(
-    captionNaturalWidth(captionBullets),
-    CAPTION_BOX_MAX_WIDTH
-  );
-  const pairSummaryWidth = summaryShownWithLegend ? naturalCaptionWidth : 0;
-  const pairGap = summaryShownWithLegend ? FIELD_LEGEND_GAP_X : 0;
-  const pairContainerWidth = showFieldLegend
-    ? pairSummaryWidth + pairGap + FIELD_LEGEND_WIDTH
+  // ── Analysis row (Summary + Tornado + S-curve, side-by-side) ────
+  // The three MC widgets pack horizontally into one row at full canvas
+  // width. Each gets an equal share of the row's content area; the row
+  // height = max widget content height so they top-align.
+  type AnalysisKind = 'summary' | 'tornado' | 'scurve';
+  const analysisWidgets: { kind: AnalysisKind; contentHeight: number }[] = [];
+  if (summaryRendered)
+    analysisWidgets.push({ kind: 'summary', contentHeight: captionBoxHeight });
+  if (showTornado)
+    analysisWidgets.push({ kind: 'tornado', contentHeight: tornadoBoxHeight });
+  if (showScurve)
+    analysisWidgets.push({ kind: 'scurve', contentHeight: scurveBoxHeight });
+  const analysisRowHeight =
+    analysisWidgets.length > 0
+      ? Math.max(...analysisWidgets.map((w) => w.contentHeight))
+      : 0;
+  const analysisBlockHeight =
+    analysisWidgets.length > 0 ? CAPTION_TOP_GAP + analysisRowHeight : 0;
+
+  // ── Field-labels row (Reference, separate from Analysis) ────────
+  // Lives below the Analysis row in its own band — different category
+  // (educational chrome, not data) so it gets its own visual slot.
+  const fieldLegendHeight = showFieldLegend ? FIELD_LEGEND_DEFAULT_HEIGHT : 0;
+  const fieldLegendBlockHeight = showFieldLegend
+    ? CAPTION_TOP_GAP + fieldLegendHeight
     : 0;
-  const naturalWidth = showFieldLegend
-    ? Math.max(naturalChartWidth, pairContainerWidth + 2 * DIAGRAM_PADDING)
-    : naturalChartWidth;
+  // Top legend (Critical Path / Anchor / Milestone). Reserves vertical
+  // space for the pill row plus its top/bottom breathing room. The
+  // desktop preview suppresses this and renders the legend in a sibling
+  // SVG instead, so the pills stay at native pixel size.
+  const showTopLegend = options.showTopLegend ?? true;
+  const legendEntries = showTopLegend ? pertLegendEntries(resolved) : [];
+  const legendBlockHeight =
+    legendEntries.length > 0
+      ? LEGEND_TOP_GAP + LEGEND_PILL_HEIGHT + LEGEND_BOTTOM_GAP
+      : 0;
+
+  // Natural size — fits all chrome without clipping. The diagram body
+  // claims the full canvas width; Analysis and Field-labels rows stack
+  // below at full width too. Horizontal space is precious for the
+  // diagram, so neither row competes with it.
+  const naturalChartWidth = layout.width + DIAGRAM_PADDING * 2;
+  const naturalWidth = naturalChartWidth;
   const naturalHeight =
     layout.height +
     DIAGRAM_PADDING * 2 +
     titleHeight +
-    captionBlockHeight +
-    tornadoBlockHeight +
-    scurveBlockHeight;
+    legendBlockHeight +
+    analysisBlockHeight +
+    fieldLegendBlockHeight;
   const exportWidth = Math.max(
     options.exportDims?.width ?? naturalWidth,
     naturalWidth
@@ -422,7 +449,17 @@ export function renderPert(
   }
 
   const offsetX = DIAGRAM_PADDING;
-  const offsetY = DIAGRAM_PADDING + titleHeight;
+  const offsetY = DIAGRAM_PADDING + titleHeight + legendBlockHeight;
+
+  if (legendEntries.length > 0) {
+    renderLegendBlock(svg, legendEntries, {
+      x: 0,
+      y: DIAGRAM_PADDING + titleHeight + LEGEND_TOP_GAP,
+      width: exportWidth,
+      palette,
+      isDark,
+    });
+  }
 
   const root = svg
     .append('g')
@@ -441,76 +478,70 @@ export function renderPert(
     collapsedSet
   );
 
-  // Place the bottom band. With the legend on, the Summary + Legend
-  // pair is centered horizontally as a unit. With the legend off, the
-  // Summary uses its existing centered-column treatment.
-  const pairLeft = (exportWidth - pairContainerWidth) / 2;
-  const captionWidth = showFieldLegend
-    ? pairSummaryWidth
-    : Math.min(naturalCaptionWidth, exportWidth - 2 * DIAGRAM_PADDING);
-  const captionX = showFieldLegend
-    ? pairLeft
-    : (exportWidth - captionWidth) / 2;
-  const legendX = summaryShownWithLegend
-    ? pairLeft + pairSummaryWidth + FIELD_LEGEND_GAP_X
-    : pairLeft;
-  if (showSummary && captionBullets.length > 0) {
-    renderCaptionBlock(svg, captionBullets, {
-      x: captionX,
-      y: offsetY + layout.height + CAPTION_TOP_GAP,
-      width: captionWidth,
-      height: captionBoxHeight,
-      palette,
-      isDark,
-    });
+  // ── Place rows below the diagram ──────────────────────────────
+  // Layout:
+  //   [Diagram body]
+  //   (gap) [Analysis row — Summary | Tornado | S-curve, side-by-side]
+  //   (gap) [Field-labels row — full width]
+  // Each row spans the full canvas width; Analysis splits its area
+  // equally among the active widgets.
+  let bandY = offsetY + layout.height;
+
+  if (analysisWidgets.length > 0) {
+    bandY += CAPTION_TOP_GAP;
+    const ANALYSIS_GAP = 16;
+    const availWidth = exportWidth - 2 * DIAGRAM_PADDING;
+    const nGaps = analysisWidgets.length - 1;
+    // Weighted column widths: Summary is text-only and reads well at
+    // narrow widths; Tornado / S-curve are charts that benefit from the
+    // extra horizontal room. Weights 2 / 3 / 3 give Summary ~25% and
+    // each chart ~37.5% of the row.
+    const ANALYSIS_WEIGHTS: Record<AnalysisKind, number> = {
+      summary: 2,
+      tornado: 3,
+      scurve: 3,
+    };
+    const totalWeight = analysisWidgets.reduce(
+      (acc, w) => acc + ANALYSIS_WEIGHTS[w.kind],
+      0
+    );
+    const usableWidth = availWidth - nGaps * ANALYSIS_GAP;
+    let cursorX = DIAGRAM_PADDING;
+    for (const w of analysisWidgets) {
+      const widgetWidth =
+        (usableWidth * ANALYSIS_WEIGHTS[w.kind]) / totalWeight;
+      const args = {
+        x: cursorX,
+        y: bandY,
+        width: widgetWidth,
+        height: analysisRowHeight,
+        palette,
+        isDark,
+      };
+      if (w.kind === 'summary') {
+        renderCaptionBlock(svg, captionBullets, args);
+      } else if (w.kind === 'tornado') {
+        renderTornadoBlock(svg, tornadoRows, args);
+      } else {
+        renderScurveBlock(svg, scurveData!, {
+          ...args,
+          unit: resolved.options.timeUnit,
+        });
+      }
+      cursorX += widgetWidth + ANALYSIS_GAP;
+    }
+    bandY += analysisRowHeight;
   }
 
   if (showFieldLegend) {
+    bandY += CAPTION_TOP_GAP;
     renderFieldLegendBlock(svg, {
-      x: legendX,
-      y: offsetY + layout.height + CAPTION_TOP_GAP,
-      width: FIELD_LEGEND_WIDTH,
+      x: DIAGRAM_PADDING,
+      y: bandY,
+      width: exportWidth - 2 * DIAGRAM_PADDING,
       height: fieldLegendHeight,
       palette,
       isDark,
-    });
-  }
-
-  // The bottom-band stack is: [Summary | Legend pair] then [Tornado]
-  // then [S-curve]. Each widget claims a CAPTION_TOP_GAP above itself
-  // when present. Cursor `widgetY` walks down the stack as we render.
-  let widgetY = offsetY + layout.height + CAPTION_TOP_GAP;
-  if (bottomBoxHeight > 0) widgetY += bottomBoxHeight + CAPTION_TOP_GAP;
-
-  if (showTornado) {
-    const tornadoWidth = Math.min(
-      exportWidth - 2 * DIAGRAM_PADDING,
-      TORNADO_BOX_WIDTH
-    );
-    renderTornadoBlock(svg, tornadoRows, {
-      x: (exportWidth - tornadoWidth) / 2,
-      y: widgetY,
-      width: tornadoWidth,
-      height: tornadoBoxHeight,
-      palette,
-      isDark,
-    });
-    widgetY += tornadoBoxHeight + CAPTION_TOP_GAP;
-  }
-
-  if (showScurve) {
-    const scurveWidth = Math.min(
-      exportWidth - 2 * DIAGRAM_PADDING,
-      SCURVE_BOX_WIDTH
-    );
-    renderScurveBlock(svg, scurveData, {
-      x: (exportWidth - scurveWidth) / 2,
-      y: widgetY,
-      width: scurveWidth,
-      height: scurveBoxHeight,
-      palette,
-      isDark,
-      unit: resolved.options.timeUnit,
     });
   }
 }
@@ -547,9 +578,20 @@ export function renderPertForExport(
       : 0;
   const captionBlockHeight =
     captionBullets.length > 0 ? CAPTION_TOP_GAP + captionBoxHeight : 0;
+  // Mirror renderPert's top-legend reservation so the offscreen
+  // container matches the natural canvas height.
+  const legendEntries = pertLegendEntries(resolved);
+  const legendBlockHeight =
+    legendEntries.length > 0
+      ? LEGEND_TOP_GAP + LEGEND_PILL_HEIGHT + LEGEND_BOTTOM_GAP
+      : 0;
   const exportWidth = layout.width + DIAGRAM_PADDING * 2;
   const exportHeight =
-    layout.height + DIAGRAM_PADDING * 2 + titleHeight + captionBlockHeight;
+    layout.height +
+    DIAGRAM_PADDING * 2 +
+    titleHeight +
+    legendBlockHeight +
+    captionBlockHeight;
 
   const container = document.createElement('div');
   container.style.width = `${exportWidth}px`;
@@ -1028,6 +1070,13 @@ function renderNodes(
       .attr('data-critical-path', String(isCritical))
       .attr('data-criticality-band', band ?? '')
       .attr('data-duration-rank', isTopMu ? 'top' : isBottomMu ? 'bottom' : '');
+
+    // Anchored source/sink nodes — the React-layer top legend uses
+    // this to fade everything except anchored nodes when "Anchor" is
+    // hovered/clicked.
+    if (pinnedSet.has(node.id) && anchorKind) {
+      g.attr('data-anchor', anchorKind);
+    }
 
     if (onClickItem) {
       g.style('cursor', 'pointer').on('click', () =>
@@ -1682,14 +1731,34 @@ function isCritical(el: Element, mcOn: boolean): boolean {
 }
 
 /**
- * Fade non-critical activities, edges, and group containers in the
- * PERT diagram inside `container`. Auto-detects MC vs analytical mode
- * from the rendered attributes — no extra arguments needed.
- *
- * No-op when nothing qualifies as critical (e.g. TBD-poisoned terminals
- * with no MC) so the user doesn't get a "fade everything" surprise.
+ * Predicate for whether a node/edge belongs to the highlighted set
+ * for a given legend entry. Edges only apply to the critical kind —
+ * anchor and milestone are node-only properties.
  */
-export function highlightPertCriticalPath(container: Element): void {
+function isInHighlightSet(
+  el: Element,
+  kind: LegendKind,
+  mcOn: boolean
+): boolean {
+  if (kind === 'critical') return isCritical(el, mcOn);
+  if (kind === 'milestone') {
+    return el.getAttribute('data-milestone') === 'true';
+  }
+  // anchor
+  return el.hasAttribute('data-anchor');
+}
+
+/**
+ * Fade everything in the diagram that doesn't belong to the given
+ * legend set (`'critical'`, `'anchor'`, or `'milestone'`). Auto-detects
+ * MC vs analytical mode for the critical-path rule.
+ *
+ * No-op when nothing qualifies (e.g. hovering Anchor on a diagram with
+ * no anchor — shouldn't happen because the pill wouldn't render, but
+ * defensive). The React layer is responsible for resetting via
+ * `resetPertHighlight` when hover/click goes away.
+ */
+export function highlightPertSet(container: Element, kind: LegendKind): void {
   const svg = container.querySelector('svg');
   if (!svg) return;
   // Detect MC mode: edges in MC mode have non-empty data-criticality-band
@@ -1699,51 +1768,68 @@ export function highlightPertCriticalPath(container: Element): void {
     return b !== null && b !== '' && b !== 'red';
   });
 
-  const targets = svg.querySelectorAll(
+  const candidates = svg.querySelectorAll(
     '.pert-node, .pert-edge, .pert-group-collapsed'
   );
-  let anyCritical = false;
-  for (const el of targets) {
-    if (isCritical(el, mcOn)) {
-      anyCritical = true;
+  let anyMatch = false;
+  for (const el of candidates) {
+    if (isInHighlightSet(el, kind, mcOn)) {
+      anyMatch = true;
       break;
     }
   }
-  if (!anyCritical) return;
+  if (!anyMatch) return;
 
-  svg.setAttribute('data-critical-path-active', 'true');
+  svg.setAttribute('data-pert-highlight-active', kind);
   for (const el of svg.querySelectorAll('.pert-node, .pert-edge')) {
     (el as SVGElement).setAttribute(
       'opacity',
-      isCritical(el, mcOn) ? '1' : String(FADE_OPACITY)
+      isInHighlightSet(el, kind, mcOn) ? '1' : String(FADE_OPACITY)
     );
   }
-  // Group containers (non-collapsed) always dim to scenery; collapsed
-  // group cards behave like nodes and follow the critical/non-critical
-  // rule (data-critical-path is set on the wrapper from member roll-up).
+  // Group containers always dim to scenery; collapsed group cards
+  // behave like nodes and follow the membership rule.
   for (const el of svg.querySelectorAll('.pert-group')) {
-    const opacity = el.classList.contains('pert-group-collapsed')
-      ? isCritical(el, mcOn)
-        ? '1'
-        : String(FADE_OPACITY)
-      : String(FADE_OPACITY);
-    (el as SVGElement).setAttribute('opacity', opacity);
+    const inSet =
+      el.classList.contains('pert-group-collapsed') &&
+      isInHighlightSet(el, kind, mcOn);
+    (el as SVGElement).setAttribute(
+      'opacity',
+      inSet ? '1' : String(FADE_OPACITY)
+    );
   }
 }
 
 /**
- * Reset opacities applied by `highlightPertCriticalPath`. Safe to
- * call when no highlight is active.
+ * Critical-path-specific shorthand for `highlightPertSet(container,
+ * 'critical')`. Kept for backwards compatibility with existing callers.
  */
-export function resetPertCriticalPath(container: Element): void {
+export function highlightPertCriticalPath(container: Element): void {
+  highlightPertSet(container, 'critical');
+}
+
+/**
+ * Reset opacities applied by `highlightPertSet`. Safe to call when no
+ * highlight is active.
+ */
+export function resetPertHighlight(container: Element): void {
   const svg = container.querySelector('svg');
   if (!svg) return;
+  svg.removeAttribute('data-pert-highlight-active');
+  // Drop the legacy attribute too in case an older bundle wrote it.
   svg.removeAttribute('data-critical-path-active');
   for (const el of svg.querySelectorAll(
     '.pert-node, .pert-edge, .pert-group'
   )) {
     (el as SVGElement).removeAttribute('opacity');
   }
+}
+
+/**
+ * Backwards-compatible alias for `resetPertHighlight`.
+ */
+export function resetPertCriticalPath(container: Element): void {
+  resetPertHighlight(container);
 }
 
 /**
@@ -1829,48 +1915,16 @@ const SUB_BULLET_INDENT = 20;
 // caption box.
 const CAPTION_HEADER_BAND_HEIGHT = CAPTION_LINE_HEIGHT + 8;
 
-/**
- * Natural width of the Summary caption block at its current content —
- * the longest bullet (with bullet glyph + indent for sub-bullets) plus
- * the box's left/right padding. Used so the box doesn't claim more
- * horizontal space than it needs to display its bullets in one line each.
- *
- * Width is approximated with a 0.55× char-width factor against
- * CAPTION_FONT_SIZE — same approximation used elsewhere in the file
- * for label width estimates.
- */
-function captionNaturalWidth(bullets: CaptionBullet[]): number {
-  const charW = CAPTION_FONT_SIZE * 0.55;
-  // Header text "Summary" sets a soft floor so a single short bullet
-  // doesn't produce a box narrower than the centered header label.
-  let max = 'Summary'.length * charW;
-  for (const b of bullets) {
-    const indent = b.level === 1 ? SUB_BULLET_INDENT : 0;
-    const w = indent + `• ${b.text}`.length * charW;
-    if (w > max) max = w;
-  }
-  return Math.ceil(max + 2 * CAPTION_BOX_PADDING_X);
-}
-// Caption box max width — wide enough for the longest current bullet
-// (the backward-anchor framing note ≈ 700px at 13pt) plus padding.
-// Wider PERT charts get a centered, fixed-column box rather than a
-// stretched-edge-to-edge one which left a sea of empty space inside.
-const CAPTION_BOX_MAX_WIDTH = 800;
-
-// Tornado widget — Monte-Carlo sensitivity ranking. Same yellow-tint
-// box treatment as the Summary so the bottom band reads as one family.
-const TORNADO_BOX_WIDTH = 800;
+// Tornado widget — Monte-Carlo sensitivity ranking. Renders inside
+// the Analysis row at width determined by the row's column allocation.
 const TORNADO_TOP_N = 10;
 const TORNADO_ROW_HEIGHT = 22;
-const TORNADO_NAME_COL_W = 220;
-const TORNADO_VALUE_COL_W = 80;
+const TORNADO_NAME_COL_W = 160;
+const TORNADO_VALUE_COL_W = 60;
 const TORNADO_BAR_FONT_SIZE = 11;
 const TORNADO_BAR_HEIGHT = 14;
 
-// S-curve widget — empirical CDF of MC trial finish times. Same yellow
-// box family. Plots cumulative P(done by t) over the t-range covered
-// by the simulation.
-const SCURVE_BOX_WIDTH = 800;
+// S-curve widget — empirical CDF of MC trial finish times.
 const SCURVE_BOX_HEIGHT = 220;
 const SCURVE_PLOT_PADDING_X = 56; // y-axis labels + tick gap
 const SCURVE_PLOT_PADDING_RIGHT = 16;
@@ -1884,7 +1938,9 @@ function renderCaptionBlock(
   args: CaptionBlockArgs
 ): void {
   const { x, y, width, height, palette, isDark } = args;
-  const baseColor = palette.colors.yellow;
+  // Neutral gray base (matches the field-legend block) so yellow-band
+  // bars and dots inside Tornado / S-curve don't fight a yellow shell.
+  const baseColor = palette.textMuted;
   const fill = shapeFill(palette, baseColor, isDark);
   const labelColor = contrastText(
     fill,
@@ -1981,6 +2037,180 @@ interface FieldLegendArgs {
  *   top:    [ Early Start | Duration | Early Finish ]
  *   bottom: [ Late Start  | Slack    | Late Finish  ]
  */
+// ============================================================
+// Section: top legend (Critical Path / Anchor / Milestone pills)
+// ============================================================
+
+type LegendKind = 'critical' | 'anchor' | 'milestone';
+
+interface LegendEntry {
+  kind: LegendKind;
+  label: string;
+}
+
+/**
+ * Returns the legend entries that apply to this diagram. Critical Path
+ * is always present (every non-empty PERT has one); Anchor only when a
+ * `start-date` / `end-date` is set; Milestone only when at least one
+ * activity has zero duration. App-side hover/click wiring is keyed by
+ * `entry.kind`.
+ */
+export function pertLegendEntries(resolved: ResolvedPert): LegendEntry[] {
+  const entries: LegendEntry[] = [];
+  if (resolved.activities.length > 0) {
+    entries.push({ kind: 'critical', label: 'Critical Path' });
+  }
+  if (resolved.options.anchor !== null) {
+    entries.push({ kind: 'anchor', label: 'Anchor' });
+  }
+  if (resolved.activities.some((a) => a.activity.isMilestone)) {
+    entries.push({ kind: 'milestone', label: 'Milestone' });
+  }
+  return entries;
+}
+
+// Visual swatch widths per kind. Critical = a small filled circle the
+// same size as the entry-dot used by the shared legend (renders as a
+// crisp 8px dot). Anchor = anchor icon at PIN_ICON_W. Milestone = ◆
+// glyph rendered at the pill font size.
+function legendSwatchWidth(kind: LegendKind): number {
+  if (kind === 'critical') return LEGEND_DOT_R_CONST * 2;
+  if (kind === 'anchor') return PIN_ICON_W;
+  return LEGEND_FONT_SIZE; // ◆ glyph width approx = font size
+}
+
+function legendPillWidth(entry: LegendEntry): number {
+  const labelW = measureLegendText(entry.label, LEGEND_FONT_SIZE);
+  return Math.ceil(
+    LEGEND_PILL_PADDING_X +
+      legendSwatchWidth(entry.kind) +
+      LEGEND_SWATCH_GAP +
+      labelW +
+      LEGEND_PILL_PADDING_X
+  );
+}
+
+function legendNaturalWidth(entries: LegendEntry[]): number {
+  if (entries.length === 0) return 0;
+  let total = 0;
+  for (const e of entries) total += legendPillWidth(e);
+  total += (entries.length - 1) * LEGEND_PILL_GAP;
+  return total;
+}
+
+interface LegendBlockArgs {
+  x: number;
+  y: number;
+  width: number;
+  palette: PaletteColors;
+  isDark: boolean;
+}
+
+/**
+ * Render the top-legend pill row. Each pill carries
+ * `data-legend-entry="critical|anchor|milestone"` so the React layer
+ * can attach hover/click wiring to fade the matching set.
+ *
+ * Visual style mirrors the shared `renderLegendD3` pill convention so
+ * PERT looks consistent with Cycle / Mindmap / BoxesAndLines: 28px tall,
+ * fully-rounded rx, mix-fill against surface, no stroke, 11pt label.
+ */
+export const PERT_LEGEND_PILL_HEIGHT = LEGEND_PILL_HEIGHT;
+
+export function pertLegendBlockWidth(entries: LegendEntry[]): number {
+  return legendNaturalWidth(entries);
+}
+
+export function renderLegendBlock(
+  svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
+  entries: LegendEntry[],
+  args: LegendBlockArgs
+): void {
+  if (entries.length === 0) return;
+  const { x, y, width, palette, isDark } = args;
+  // Same fill recipe as the shared legend pills.
+  const groupBg = isDark
+    ? mix(palette.surface, palette.bg, 50)
+    : mix(palette.surface, palette.bg, 30);
+
+  const block = svg
+    .append('g')
+    .attr('class', 'pert-legend')
+    .attr('data-pert-legend', '');
+
+  // Pill row centered horizontally inside [x, x+width].
+  const totalW = legendNaturalWidth(entries);
+  let pillX = x + (width - totalW) / 2;
+
+  for (const entry of entries) {
+    const pillW = legendPillWidth(entry);
+    const pill = block
+      .append('g')
+      .attr('class', 'pert-legend-entry')
+      .attr('data-legend-entry', entry.kind)
+      .attr('transform', `translate(${pillX}, ${y})`)
+      .style('cursor', 'pointer');
+
+    pill
+      .append('rect')
+      .attr('class', 'pert-legend-pill')
+      .attr('width', pillW)
+      .attr('height', LEGEND_PILL_HEIGHT)
+      .attr('rx', LEGEND_PILL_HEIGHT / 2)
+      .attr('ry', LEGEND_PILL_HEIGHT / 2)
+      .attr('fill', groupBg);
+
+    // Swatch — small inline mark for the kind. Critical = filled dot
+    // matching the shared-legend entry-dot style; Anchor = anchor icon;
+    // Milestone = ◆ glyph.
+    const swatchW = legendSwatchWidth(entry.kind);
+    const swatchCx = LEGEND_PILL_PADDING_X + swatchW / 2;
+    const swatchCy = LEGEND_PILL_HEIGHT / 2;
+    if (entry.kind === 'critical') {
+      pill
+        .append('circle')
+        .attr('class', 'pert-legend-swatch')
+        .attr('cx', swatchCx)
+        .attr('cy', swatchCy)
+        .attr('r', LEGEND_DOT_R_CONST)
+        .attr('fill', palette.colors.red);
+    } else if (entry.kind === 'anchor') {
+      drawAnchorPin(
+        pill,
+        swatchCx - PIN_ICON_W / 2,
+        swatchCy,
+        palette.textMuted
+      );
+    } else {
+      pill
+        .append('text')
+        .attr('class', 'pert-legend-swatch')
+        .attr('x', swatchCx)
+        .attr('y', swatchCy)
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'central')
+        .attr('font-family', FONT_FAMILY)
+        .attr('font-size', LEGEND_FONT_SIZE + 1)
+        .attr('fill', palette.textMuted)
+        .text('◆');
+    }
+
+    pill
+      .append('text')
+      .attr('class', 'pert-legend-label')
+      .attr('x', LEGEND_PILL_PADDING_X + swatchW + LEGEND_SWATCH_GAP)
+      .attr('y', swatchCy)
+      .attr('dominant-baseline', 'central')
+      .attr('font-family', FONT_FAMILY)
+      .attr('font-size', LEGEND_FONT_SIZE)
+      .attr('font-weight', 500)
+      .attr('fill', palette.textMuted)
+      .text(entry.label);
+
+    pillX += pillW + LEGEND_PILL_GAP;
+  }
+}
+
 function renderFieldLegendBlock(
   svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
   args: FieldLegendArgs
@@ -2182,7 +2412,9 @@ function renderTornadoBlock(
   args: TornadoBlockArgs
 ): void {
   const { x, y, width, height, palette, isDark } = args;
-  const baseColor = palette.colors.yellow;
+  // Neutral gray base (matches the field-legend block) so yellow-band
+  // bars and dots inside Tornado / S-curve don't fight a yellow shell.
+  const baseColor = palette.textMuted;
   const fill = shapeFill(palette, baseColor, isDark);
   const labelColor = contrastText(
     fill,
@@ -2348,7 +2580,8 @@ function renderScurveBlock(
   args: ScurveBlockArgs
 ): void {
   const { x, y, width, height, palette, isDark, unit } = args;
-  const baseColor = palette.colors.yellow;
+  // Neutral gray base — same family as Summary / Tornado / Field-legend.
+  const baseColor = palette.textMuted;
   const fill = shapeFill(palette, baseColor, isDark);
   const labelColor = contrastText(
     fill,
