@@ -193,6 +193,47 @@ A
   });
 });
 
+describe('pert analyzer — sprint mode', () => {
+  it('time-unit s with default sprint-length (2w) computes durations in sprint units', () => {
+    // A 2 sprints, B 1 sprint, FS chain. Expected duration = 3 sprints.
+    const r = analyze(`pert
+time-unit s
+A 2 2 2
+B 1 1 1
+A
+  -> B
+`);
+    expect(r.error).toBeNull();
+    expect(r.options.sprintMode).toBe('auto');
+    const A = r.activities.find((x) => x.activity.name === 'A')!;
+    const B = r.activities.find((x) => x.activity.name === 'B')!;
+    expect(A.es).toBe(0);
+    expect(A.ef).toBe(2);
+    expect(B.es).toBe(2);
+    expect(B.ef).toBe(3);
+    expect(r.projectMu).toBe(3);
+  });
+
+  it('custom sprint-length is honored end-to-end', () => {
+    // With sprint-length 3w (21 days), one sprint = 21 days. So A 2s = 42d.
+    // mu in sprint units stays 2; the underlying canonical-day math
+    // uses 21 days/sprint instead of the 14-day fallback.
+    const r = analyze(`pert
+time-unit s
+sprint-length 3w
+A 2 2 2
+B 1 1 1
+A
+  -> B
+`);
+    expect(r.error).toBeNull();
+    expect(r.options.sprintLength).toEqual({ amount: 3, unit: 'w' });
+    const A = r.activities.find((x) => x.activity.name === 'A')!;
+    expect(A.ef).toBe(2); // still 2 sprints in display unit
+    expect(r.projectMu).toBe(3);
+  });
+});
+
 describe('pert analyzer — cycle detection', () => {
   it('AC2.5: cycle emits diagnostic identifying an activity by name', () => {
     const resolved = analyze(loadFixture('cycle-error.dgmo'));

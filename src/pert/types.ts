@@ -57,6 +57,16 @@ export interface PertOptions {
   anchor: Anchor;
   /** When true, the renderer suppresses the diagram banner title. */
   noTitle?: boolean;
+  /**
+   * Sprint mode (mirrors Gantt's surface). Activated automatically when
+   * `time-unit s` is set, or explicitly when any `sprint-*` directive
+   * appears. Schedule cells render as `S<n>` instead of numeric offsets
+   * or ISO dates.
+   */
+  sprintLength: Duration | null; // default { amount: 2, unit: 'w' } when sprint mode active
+  sprintNumber: number | null; // which sprint the chart starts at (default 1)
+  sprintStart: string | null; // YYYY-MM-DD — date that sprintNumber begins (optional)
+  sprintMode: 'auto' | 'explicit' | null; // auto = activated by `s` unit, explicit = sprint-* directive present
 }
 
 // ── Parsed elements ─────────────────────────────────────────

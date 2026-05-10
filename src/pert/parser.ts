@@ -51,6 +51,9 @@ const DIRECTIVE_KEYS = new Set([
   'start-date',
   'end-date',
   'no-title',
+  'sprint-length',
+  'sprint-number',
+  'sprint-start',
 ]);
 
 /**
@@ -183,6 +186,10 @@ const DEFAULT_OPTIONS: PertOptions = {
   seed: -1,
   scrubberTrials: 300,
   anchor: null,
+  sprintLength: null,
+  sprintNumber: null,
+  sprintStart: null,
+  sprintMode: null,
 };
 
 /**
@@ -904,6 +911,36 @@ export function parsePert(content: string): ParsedPert {
     options.seed = deriveSeed(seedSource);
   }
 
+  // Sprint-mode detection (mirrors Gantt). `time-unit s` → auto;
+  // any explicit `sprint-*` directive → explicit (wins over auto).
+  // Apply sensible defaults when sprint mode is active.
+  const hasSprintOption =
+    options.sprintLength !== null ||
+    options.sprintNumber !== null ||
+    options.sprintStart !== null;
+  const hasSprintUnit =
+    options.timeUnit === 's' ||
+    activities.some(
+      (a) =>
+        a.duration !== null &&
+        (a.duration.o.unit === 's' ||
+          a.duration.m.unit === 's' ||
+          a.duration.p.unit === 's')
+    );
+  if (hasSprintOption) {
+    options.sprintMode = 'explicit';
+  } else if (hasSprintUnit) {
+    options.sprintMode = 'auto';
+  }
+  if (options.sprintMode) {
+    if (!options.sprintLength) {
+      options.sprintLength = { amount: 2, unit: 'w' };
+    }
+    if (options.sprintNumber === null) {
+      options.sprintNumber = 1;
+    }
+  }
+
   const firstFatal = diagnostics.find((d) => d.severity === 'error');
   return {
     title,
@@ -931,7 +968,17 @@ function applyDirective(
 ): void {
   switch (key) {
     case 'time-unit': {
-      const valid: DurationUnit[] = ['min', 'h', 'd', 'bd', 'w', 'm', 'q', 'y'];
+      const valid: DurationUnit[] = [
+        'min',
+        'h',
+        'd',
+        'bd',
+        'w',
+        'm',
+        'q',
+        'y',
+        's',
+      ];
       if (!(valid as string[]).includes(value)) {
         error(
           lineNumber,
@@ -950,6 +997,55 @@ function applyDirective(
     case 'no-title': {
       // Bare boolean directive — suppresses the diagram banner title.
       options.noTitle = true;
+      return;
+    }
+    case 'sprint-length': {
+      const dur = parseDuration(value);
+      if (!dur) {
+        warn(
+          lineNumber,
+          `Invalid sprint-length value: "${value}". Expected a duration like "2w" or "10d".`
+        );
+      } else if (dur.unit !== 'd' && dur.unit !== 'w') {
+        warn(
+          lineNumber,
+          `sprint-length only accepts "d" or "w" units, got "${dur.unit}".`
+        );
+      } else if (dur.amount <= 0) {
+        warn(lineNumber, `sprint-length must be greater than 0.`);
+      } else if (!Number.isInteger(dur.amount * (dur.unit === 'w' ? 7 : 1))) {
+        warn(
+          lineNumber,
+          `sprint-length must resolve to a whole number of days.`
+        );
+      } else {
+        options.sprintLength = dur;
+      }
+      return;
+    }
+    case 'sprint-number': {
+      const n = Number(value);
+      if (!Number.isFinite(n) || !Number.isInteger(n) || n <= 0) {
+        warn(
+          lineNumber,
+          `sprint-number must be a positive integer, got "${value}".`
+        );
+      } else {
+        options.sprintNumber = n;
+      }
+      return;
+    }
+    case 'sprint-start': {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        warn(
+          lineNumber,
+          `sprint-start requires a full date (YYYY-MM-DD), got "${value}".`
+        );
+      } else if (Number.isNaN(new Date(value + 'T00:00:00').getTime())) {
+        warn(lineNumber, `sprint-start is not a valid date: "${value}".`);
+      } else {
+        options.sprintStart = value;
+      }
       return;
     }
     case 'direction': {

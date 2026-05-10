@@ -48,15 +48,35 @@ const UNIT_TO_DAYS: Record<DurationUnit, number> = {
   m: 30,
   q: 90,
   y: 365,
-  s: 14, // fallback; sprints aren't really PERT-native
+  s: 14, // fallback when sprint-length isn't authored; the analyzer
+  // overrides this from `options.sprintLength` when in sprint mode.
 };
 
-function toDays(d: Duration): number {
-  return d.amount * UNIT_TO_DAYS[d.unit];
+function unitDays(unit: DurationUnit, sprintDaysOverride?: number): number {
+  if (unit === 's' && sprintDaysOverride !== undefined) {
+    return sprintDaysOverride;
+  }
+  return UNIT_TO_DAYS[unit];
 }
 
-function fromDays(days: number, unit: DurationUnit): number {
-  return days / UNIT_TO_DAYS[unit];
+function toDays(d: Duration, sprintDaysOverride?: number): number {
+  return d.amount * unitDays(d.unit, sprintDaysOverride);
+}
+
+function fromDays(
+  days: number,
+  unit: DurationUnit,
+  sprintDaysOverride?: number
+): number {
+  return days / unitDays(unit, sprintDaysOverride);
+}
+
+function resolveSprintDays(opts: {
+  sprintMode: 'auto' | 'explicit' | null;
+  sprintLength: Duration | null;
+}): number | undefined {
+  if (!opts.sprintMode || !opts.sprintLength) return undefined;
+  return opts.sprintLength.amount * UNIT_TO_DAYS[opts.sprintLength.unit];
 }
 
 // ============================================================
@@ -79,11 +99,12 @@ interface ExpandedEstimate {
 function expandEstimate(
   estimate: DurationEstimate,
   diagramConfidence: string,
-  activityConfidence: string | undefined
+  activityConfidence: string | undefined,
+  sprintDays?: number
 ): ExpandedEstimate {
-  const o = toDays(estimate.o);
-  const m = toDays(estimate.m);
-  const p = toDays(estimate.p);
+  const o = toDays(estimate.o, sprintDays);
+  const m = toDays(estimate.m, sprintDays);
+  const p = toDays(estimate.p, sprintDays);
 
   // Heuristic-pending sentinel: parser set `mOnly = true` when only a
   // single M token was given. Expand using confidence factors.
@@ -122,6 +143,13 @@ export function analyzePert(parsed: ParsedPert): ResolvedPert {
     diagnostics.push(makeDgmoError(line, msg, 'warning'));
   };
 
+  // Sprint mode override: when the diagram opts into sprint mode, the
+  // `s` unit means "one sprint" worth of canonical days as configured
+  // by `sprint-length`. Without this, every `s` defaults to the 14-day
+  // fallback, which silently disagrees with the user's `sprint-length`
+  // directive.
+  const sprintDays = resolveSprintDays(parsed.options);
+
   // Build successor/predecessor maps keyed by activity id, plus parallel
   // maps keyed-by-edge-direction so the forward/backward pass can read
   // dep-type and lag for each (source, target) link.
@@ -151,8 +179,8 @@ export function analyzePert(parsed: ParsedPert): ResolvedPert {
     if (!e.lag || e.lag.amount >= 0) continue;
     const src = activities.find((a) => a.id === e.source);
     if (!src || !src.duration) continue;
-    const leadDays = -toDays(e.lag);
-    const srcDurDays = toDays(src.duration.m);
+    const leadDays = -toDays(e.lag, sprintDays);
+    const srcDurDays = toDays(src.duration.m, sprintDays);
     if (e.type === 'FS' && leadDays > srcDurDays) {
       warn(
         e.lineNumber,
@@ -201,7 +229,12 @@ export function analyzePert(parsed: ParsedPert): ResolvedPert {
     }
     expandedById.set(
       a.id,
-      expandEstimate(a.duration, parsed.options.confidence, a.confidence)
+      expandEstimate(
+        a.duration,
+        parsed.options.confidence,
+        a.confidence,
+        sprintDays
+      )
     );
   }
 
@@ -248,7 +281,7 @@ export function analyzePert(parsed: ParsedPert): ResolvedPert {
       const aEs = es.get(edge.source);
       const aEf = ef.get(edge.source);
       if (aEs == null || aEf == null) continue;
-      const lagDays = edge.lag ? toDays(edge.lag) : 0;
+      const lagDays = edge.lag ? toDays(edge.lag, sprintDays) : 0;
       switch (edge.type) {
         case 'FS':
           esLower = Math.max(esLower, aEf + lagDays);
@@ -342,7 +375,7 @@ export function analyzePert(parsed: ParsedPert): ResolvedPert {
       const bLs = ls.get(edge.target);
       const bLf = lf.get(edge.target);
       if (bLs == null || bLf == null) continue;
-      const lagDays = edge.lag ? toDays(edge.lag) : 0;
+      const lagDays = edge.lag ? toDays(edge.lag, sprintDays) : 0;
       switch (edge.type) {
         case 'FS':
           lfUpper = Math.min(lfUpper, bLs - lagDays);
@@ -413,14 +446,14 @@ export function analyzePert(parsed: ParsedPert): ResolvedPert {
         : null;
     return {
       activity: a,
-      es: nullableToUnit(es.get(a.id) ?? null, unit),
-      ef: nullableToUnit(ef.get(a.id) ?? null, unit),
-      ls: nullableToUnit(ls.get(a.id) ?? null, unit),
-      lf: nullableToUnit(lf.get(a.id) ?? null, unit),
-      slack: nullableToUnit(slackDays, unit),
+      es: nullableToUnit(es.get(a.id) ?? null, unit, sprintDays),
+      ef: nullableToUnit(ef.get(a.id) ?? null, unit, sprintDays),
+      ls: nullableToUnit(ls.get(a.id) ?? null, unit, sprintDays),
+      lf: nullableToUnit(lf.get(a.id) ?? null, unit, sprintDays),
+      slack: nullableToUnit(slackDays, unit, sprintDays),
       isCriticalPath: criticalSet.has(a.id),
-      mu: exp ? fromDays(exp.mean, unit) : null,
-      sigma: exp ? fromDays(exp.sigma, unit) : null,
+      mu: exp ? fromDays(exp.mean, unit, sprintDays) : null,
+      sigma: exp ? fromDays(exp.sigma, unit, sprintDays) : null,
       criticality: null,
       isAuthored: a.duration !== null && !a.duration.mOnly && !a.isMilestone,
     };
@@ -495,7 +528,7 @@ export function analyzePert(parsed: ParsedPert): ResolvedPert {
     resolvedActivities.map((r) => [r.activity.id, r])
   );
   const resolvedGroups: ResolvedGroup[] = parsed.groups.map((g) =>
-    rollupGroup(g, expandedById, resolvedById, rollupSet, unit)
+    rollupGroup(g, expandedById, resolvedById, rollupSet, unit, sprintDays)
   );
 
   // Always populate the public expanded-activities cache so Workers
@@ -509,9 +542,11 @@ export function analyzePert(parsed: ParsedPert): ResolvedPert {
   }
 
   const projectMuOut =
-    projectMuDays === null ? null : fromDays(projectMuDays, unit);
+    projectMuDays === null ? null : fromDays(projectMuDays, unit, sprintDays);
   const projectSigmaOut =
-    projectSigmaDays === null ? null : fromDays(projectSigmaDays, unit);
+    projectSigmaDays === null
+      ? null
+      : fromDays(projectSigmaDays, unit, sprintDays);
 
   // Derive projectStart from the optional anchor. Renderer reads this
   // directly — no mode-specific logic in the presentation layer.
@@ -537,6 +572,7 @@ export function analyzePert(parsed: ParsedPert): ResolvedPert {
     monteCarloResult,
     trialsClamped,
     anchor: parsed.options.anchor,
+    sprintDays,
   });
 
   return {
@@ -572,9 +608,10 @@ function has3PointEstimate(a: PertActivity): boolean {
 
 function nullableToUnit(
   value: number | null,
-  unit: DurationUnit
+  unit: DurationUnit,
+  sprintDays?: number
 ): number | null {
-  return value === null ? null : fromDays(value, unit);
+  return value === null ? null : fromDays(value, unit, sprintDays);
 }
 
 function firstFatal(diagnostics: DgmoError[]): string | null {
@@ -587,7 +624,8 @@ function rollupGroup(
   expandedById: Map<string, ExpandedEstimate | null>,
   resolvedById: Map<string, ResolvedActivity>,
   criticalSet: Set<string>,
-  unit: DurationUnit
+  unit: DurationUnit,
+  sprintDays?: number
 ): ResolvedGroup {
   let muDays = 0;
   let varDays = 0;
@@ -625,8 +663,8 @@ function rollupGroup(
 
   return {
     group,
-    rolledMu: usable ? fromDays(muDays, unit) : null,
-    rolledSigma: usable ? fromDays(Math.sqrt(varDays), unit) : null,
+    rolledMu: usable ? fromDays(muDays, unit, sprintDays) : null,
+    rolledSigma: usable ? fromDays(Math.sqrt(varDays), unit, sprintDays) : null,
     entries: [],
     exits: [],
     es,
@@ -663,6 +701,12 @@ export interface BuildSummaryInput {
    * Forward → end-date bullets; backward → start-date bullets.
    */
   anchor?: Anchor;
+  /**
+   * Days-per-sprint when sprint mode is active. Used to convert
+   * Monte-Carlo percentile durations (canonical days) into the
+   * displayed unit when `unit === 's'`.
+   */
+  sprintDays?: number;
 }
 
 export function buildSummary(input: BuildSummaryInput): string | null {
@@ -674,6 +718,7 @@ export function buildSummary(input: BuildSummaryInput): string | null {
     parsedActivities,
     monteCarloResult,
     trialsClamped,
+    sprintDays,
   } = input;
   const anchor = input.anchor ?? null;
 
@@ -741,9 +786,9 @@ export function buildSummary(input: BuildSummaryInput): string | null {
       });
       lines.push(fragments.join('. ') + '.');
     } else {
-      const p50 = fromDays(monteCarloResult!.p50, unit);
-      const p80 = fromDays(monteCarloResult!.p80, unit);
-      const p95 = fromDays(monteCarloResult!.p95, unit);
+      const p50 = fromDays(monteCarloResult!.p50, unit, sprintDays);
+      const p80 = fromDays(monteCarloResult!.p80, unit, sprintDays);
+      const p95 = fromDays(monteCarloResult!.p95, unit, sprintDays);
       lines.push(
         `50th-percentile finish: ${formatPercentile(p50, unit)}. ` +
           `80th-percentile: ${formatPercentile(p80, unit)}. ` +
@@ -816,7 +861,7 @@ const UNIT_WORDS: Record<DurationUnit, [string, string]> = {
   m: ['month', 'months'],
   q: ['quarter', 'quarters'],
   y: ['year', 'years'],
-  s: ['day', 'days'],
+  s: ['sprint', 'sprints'],
 };
 
 function pluralizeUnit(value: number, unit: DurationUnit): string {

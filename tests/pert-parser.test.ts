@@ -470,6 +470,77 @@ describe('pert share normalizer', () => {
   });
 });
 
+describe('pert parser — sprint mode', () => {
+  it('time-unit s auto-activates sprint mode with default sprint-length', () => {
+    const r = parsePert(`pert
+time-unit s
+A 1 2 3
+B 1 1 1
+A
+  -> B
+`);
+    expect(r.options.sprintMode).toBe('auto');
+    expect(r.options.sprintLength).toEqual({ amount: 2, unit: 'w' });
+    expect(r.options.sprintNumber).toBe(1);
+  });
+
+  it('explicit sprint-length triggers explicit mode and overrides default', () => {
+    const r = parsePert(`pert
+time-unit s
+sprint-length 3w
+sprint-number 5
+A 1 2 3
+`);
+    expect(r.options.sprintMode).toBe('explicit');
+    expect(r.options.sprintLength).toEqual({ amount: 3, unit: 'w' });
+    expect(r.options.sprintNumber).toBe(5);
+  });
+
+  it('sprint-start is parsed as ISO date', () => {
+    const r = parsePert(`pert
+time-unit s
+sprint-start 2026-06-01
+A 1 1 1
+`);
+    expect(r.options.sprintMode).toBe('explicit');
+    expect(r.options.sprintStart).toBe('2026-06-01');
+  });
+
+  it('rejects sprint-length with unsupported unit', () => {
+    const r = parsePert(`pert
+sprint-length 5h
+A 1 1 1
+`);
+    const w = r.diagnostics.find(
+      (d) =>
+        d.severity === 'warning' && /sprint-length only accepts/.test(d.message)
+    );
+    expect(w).toBeDefined();
+  });
+
+  it('rejects non-positive integer sprint-number', () => {
+    const r = parsePert(`pert
+sprint-number 0
+A 1 1 1
+`);
+    const w = r.diagnostics.find(
+      (d) =>
+        d.severity === 'warning' &&
+        /sprint-number must be a positive integer/.test(d.message)
+    );
+    expect(w).toBeDefined();
+  });
+
+  it('does not activate sprint mode when no `s` unit and no sprint-* directive', () => {
+    const r = parsePert(`pert
+time-unit w
+A 1 2 3
+`);
+    expect(r.options.sprintMode).toBeNull();
+    expect(r.options.sprintLength).toBeNull();
+  });
+});
+
 describe('pert parser — looksLikePert inference', () => {
   it('matches when content has `analysis monte-carlo`', () => {
     expect(looksLikePert('analysis monte-carlo\nA 1 2 3\n')).toBe(true);

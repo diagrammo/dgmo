@@ -859,6 +859,8 @@ function renderNodes(
     resolved.activities.filter((r) => r.es === null).map((r) => r.activity.id)
   );
   const unit = resolved.options.timeUnit;
+  const sprintMode = resolved.options.sprintMode;
+  const sprintNumber = resolved.options.sprintNumber ?? 1;
 
   // Match org / infra default-node treatment:
   //   fill   = 25% tint of the node's intent color on surface (via shapeFill)
@@ -868,11 +870,15 @@ function renderNodes(
   // therefore tracks the border so a red-bordered card reads as red-tinted,
   // an orange one as orange-tinted, etc. — same convention as org / infra.
   const projectStart = resolved.projectStart;
-  // Three formatter roles, distinct semantics: schedule cells become
-  // dates when anchored, slack normalizes to days when anchored, and
-  // mu/dur is always a duration label regardless of mode.
-  const fmtSchedule = (v: number | null, isTbd: boolean): string =>
-    formatScheduleValue(v, projectStart, unit, isTbd ? '?' : null);
+  // Four formatter roles. Schedule cells become sprint labels (`S5`)
+  // when sprint mode is active, dates when anchored to a calendar,
+  // numeric durations otherwise. Slack normalizes to days when
+  // anchored. Mu/dur is always a duration label regardless of mode.
+  const fmtSchedule = (v: number | null, isTbd: boolean): string => {
+    if (sprintMode)
+      return formatSprintCell(v, sprintNumber, isTbd ? '?' : null);
+    return formatScheduleValue(v, projectStart, unit, isTbd ? '?' : null);
+  };
   const fmtSlack = (v: number | null, isTbd: boolean): string =>
     formatSlackValue(v, projectStart, unit, isTbd ? '?' : null);
   const fmtDur = (v: number | null, isTbd: boolean): string =>
@@ -1458,6 +1464,22 @@ function formatScheduleValue(
   if (value === null) return nullLabel ?? '?';
   if (projectStart === null) return formatDuration(value, unit, nullLabel);
   return addCalendarDays(projectStart, value * unitToDays(unit));
+}
+
+/**
+ * Format a sprint-indexed schedule cell as `S<n>`. The activity's value
+ * is in sprint units (offset from `sprint-number`), so display = base +
+ * round(value). Fractional sprint offsets are rounded to nearest int —
+ * sprints are inherently discrete iteration boundaries.
+ */
+function formatSprintCell(
+  value: number | null,
+  sprintNumber: number,
+  nullLabel: string | null
+): string {
+  if (value === null) return nullLabel ?? '?';
+  const rounded = Math.round(value);
+  return `S${sprintNumber + rounded}`;
 }
 
 /**
