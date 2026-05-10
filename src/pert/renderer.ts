@@ -482,10 +482,28 @@ export function renderPert(
 
   // Natural size — fits all chrome without clipping. The diagram body
   // claims the full canvas width; Analysis and Field-labels rows stack
-  // below at full width too. Horizontal space is precious for the
-  // diagram, so neither row competes with it.
+  // below at full width too.
   const naturalChartWidth = layout.width + DIAGRAM_PADDING * 2;
-  const naturalWidth = naturalChartWidth;
+  // When the diagram is narrow but Analysis is on, force the canvas
+  // wider so the Analysis row has enough horizontal room to render
+  // sensibly. Each chart widget has a minimum width below which axis
+  // labels overlap and bars collapse — bump the canvas to honor those
+  // minimums instead of producing an unreadable squeeze.
+  const TORNADO_MIN_W = 340;
+  const SCURVE_MIN_W = 320;
+  const ANALYSIS_GAP_W = 16;
+  let minAnalysisRowW = 0;
+  if (analysisHasContent) {
+    const col1Used = summaryRendered || fieldLegendInAnalysisRow;
+    if (col1Used) minAnalysisRowW += col1Width;
+    const minByKind = (kind: AnalysisKind): number =>
+      kind === 'tornado' ? TORNADO_MIN_W : SCURVE_MIN_W;
+    for (const w of analysisCharts) minAnalysisRowW += minByKind(w.kind);
+    const colCount = (col1Used ? 1 : 0) + analysisCharts.length;
+    if (colCount > 1) minAnalysisRowW += (colCount - 1) * ANALYSIS_GAP_W;
+    minAnalysisRowW += 2 * DIAGRAM_PADDING;
+  }
+  const naturalWidth = Math.max(naturalChartWidth, minAnalysisRowW);
   const naturalHeight =
     layout.height +
     DIAGRAM_PADDING * 2 +
@@ -527,7 +545,10 @@ export function renderPert(
       .text(effectiveTitle);
   }
 
-  const offsetX = DIAGRAM_PADDING;
+  // Center the diagram horizontally when the canvas is wider than its
+  // natural chart width (the Analysis row may have forced the canvas
+  // wider than the diagram needs).
+  const offsetX = Math.max(DIAGRAM_PADDING, (exportWidth - layout.width) / 2);
   const offsetY = DIAGRAM_PADDING + titleHeight + legendBlockHeight;
 
   if (legendEntries.length > 0) {
