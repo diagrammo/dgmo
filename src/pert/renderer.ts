@@ -269,7 +269,8 @@ export function renderPert(
 ): void {
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
 
-  const titleHeight = options.title ? 80 : 0;
+  const effectiveTitle = options.title;
+  const titleHeight = effectiveTitle ? 80 : 0;
 
   // D10 — backward-anchor annotation. Italic framing note that names
   // the end-date and tells readers ES/EF show "earliest possible"
@@ -359,17 +360,17 @@ export function renderPert(
   const defs = svg.append('defs');
   buildArrowheads(defs, palette);
 
-  if (options.title) {
+  if (effectiveTitle) {
     svg
       .append('text')
-      .attr('class', 'pert-title')
+      .attr('class', 'pert-title chart-title')
       .attr('x', exportWidth / 2)
       .attr('y', TITLE_Y)
       .attr('text-anchor', 'middle')
       .attr('fill', palette.text)
       .attr('font-size', TITLE_FONT_SIZE)
       .attr('font-weight', TITLE_FONT_WEIGHT)
-      .text(options.title);
+      .text(effectiveTitle);
   }
 
   const offsetX = DIAGRAM_PADDING;
@@ -440,7 +441,7 @@ export function renderPertForExport(
   const layout = layoutPert(resolved);
   const isDark = theme === 'dark';
 
-  const titleHeight = parsed.title ? 80 : 0;
+  const titleHeight = parsed.title && !resolved.options.noTitle ? 80 : 0;
   // Mirror the bullet-list assembly inside renderPert so exportDims
   // matches the natural height (anchor annotation now lives inside
   // the caption box as a final italic bullet).
@@ -949,19 +950,41 @@ function renderNodes(
       palette.textOnFillDark
     );
 
-    // Zero-duration activities (formerly milestone primitive) get a
-    // ◆ glyph prefix so authors can spot sync points at a glance. The
-    // node geometry is identical to a regular activity.
-    const displayName = r.activity.isMilestone
-      ? `◆ ${r.activity.name}`
-      : r.activity.name;
+    if (r.activity.isMilestone) {
+      // Critical-path milestones have slack ≈ 0; suppressing the slack
+      // cell removes a noisy "0d" and a redundant divider since there's
+      // no schedule envelope to communicate. Slack is computed as
+      // `LS - ES`, which can land on a tiny float instead of exactly 0,
+      // so detect via the formatted display ("0", "0d", "0w") — that's
+      // what the user would have read in the cell anyway.
+      const slackText = fmtSlack(r.slack, isTbd);
+      const slackHidden = !isTbd && /^0[a-z]?$/.test(slackText);
+      g.attr('data-milestone', 'true');
+      if (slackHidden) g.attr('data-milestone-slack-hidden', 'true');
+      drawMilestonePill(g, {
+        width: node.width,
+        height: node.height,
+        x: -node.width / 2,
+        y: -node.height / 2,
+        name: r.activity.name,
+        date: fmtSchedule(r.es, isTbd),
+        slack: slackText,
+        slackHidden,
+        fill,
+        stroke: baseColor,
+        labelColor,
+        dashArray,
+        pinned: pinnedSet.has(node.id) ? anchorKind : null,
+      });
+      continue;
+    }
 
     drawTextbookCard(g, {
       width: node.width,
       height: node.height,
       x: -node.width / 2,
       y: -node.height / 2,
-      name: displayName,
+      name: r.activity.name,
       es: fmtSchedule(r.es, isTbd),
       dur: fmtDur(r.mu, isTbd),
       ef: fmtSchedule(r.ef, isTbd),
@@ -1172,6 +1195,126 @@ function drawTextbookCard(g: AnySel, a: TextbookCardArgs): void {
   drawCell(x + colW / 2, botMid, a.ls, lsWeight);
   drawCell(x + colW * 1.5, botMid, a.slack);
   drawCell(x + colW * 2.5, botMid, a.lf, lfWeight);
+}
+
+interface MilestonePillArgs {
+  width: number;
+  height: number;
+  x: number;
+  y: number;
+  name: string;
+  date: string;
+  slack: string;
+  /**
+   * When true, suppress the slack cell entirely — both the text and the
+   * bottom row divider. Used for zero-slack (critical-path) milestones
+   * where "0d" / "0w" would just add noise.
+   */
+  slackHidden?: boolean;
+  fill: string;
+  stroke: string;
+  labelColor: string;
+  dashArray?: string;
+  pinned?: 'forward' | 'backward' | null;
+}
+
+function drawMilestonePill(g: AnySel, a: MilestonePillArgs): void {
+  const { width: w, height: h, x, y } = a;
+  // Row heights mirror the textbook card's top/bottom rows so the date
+  // and slack sit on the same horizontal rhythm as ES/LF on neighboring
+  // full cards — the dividers line up across the lane.
+  const topRowH = NODE_TOP_ROW_HEIGHT;
+  const botRowH = NODE_BOTTOM_ROW_HEIGHT;
+  const topY = y + topRowH;
+  const bottomY = y + h - botRowH;
+
+  g.append('rect')
+    .attr('x', x)
+    .attr('y', y)
+    .attr('width', w)
+    .attr('height', h)
+    .attr('rx', NODE_RADIUS)
+    .attr('ry', NODE_RADIUS)
+    .attr('fill', a.fill)
+    .attr('stroke', a.stroke)
+    .attr('stroke-width', NODE_STROKE_WIDTH)
+    .attr('stroke-dasharray', a.dashArray ?? 'none');
+
+  // Two horizontal dividers — same low-opacity grid stroke as the
+  // textbook card's row separators, so the pill reads as a sibling
+  // shape, just narrower.
+  const grid = (x1: number, y1: number, x2: number, y2: number): void => {
+    g.append('line')
+      .attr('x1', x1)
+      .attr('y1', y1)
+      .attr('x2', x2)
+      .attr('y2', y2)
+      .attr('stroke', a.stroke)
+      .attr('stroke-opacity', 0.3)
+      .attr('stroke-width', 1);
+  };
+  grid(x, topY, x + w, topY);
+  if (!a.slackHidden) grid(x, bottomY, x + w, bottomY);
+
+  const drawCenteredText = (
+    cx: number,
+    cy: number,
+    text: string,
+    weight: 'normal' | 'bold',
+    size: number
+  ): void => {
+    g.append('text')
+      .attr('x', cx)
+      .attr('y', cy + size / 2 - 2)
+      .attr('text-anchor', 'middle')
+      .attr('font-family', FONT_FAMILY)
+      .attr('fill', a.labelColor)
+      .attr('font-size', size)
+      .attr('font-weight', weight)
+      .text(text);
+  };
+
+  // Top: milestone date (single value — ES = EF for any zero-duration
+  // activity, so two cells would just repeat).
+  drawCenteredText(
+    x + w / 2,
+    y + topRowH / 2,
+    a.date,
+    'normal',
+    NODE_CELL_FONT_SIZE
+  );
+
+  // Middle: name. Smaller than the regular card's name (12 vs 13) so
+  // longer milestone names still fit in the narrower pill.
+  const midRowTop = y + topRowH;
+  const midRowH = h - topRowH - botRowH;
+  const midCenterY = midRowTop + midRowH / 2;
+  const nameSize = 12;
+  if (a.pinned) {
+    const approxTextW = a.name.length * nameSize * 0.55;
+    const gap = 4;
+    const combined = PIN_ICON_W + gap + approxTextW;
+    const groupLeft = x + w / 2 - combined / 2;
+    drawAnchorPin(g, groupLeft, midCenterY, a.labelColor);
+    const textCx = groupLeft + PIN_ICON_W + gap + approxTextW / 2;
+    drawCenteredText(textCx, midCenterY, a.name, 'bold', nameSize);
+  } else {
+    drawCenteredText(x + w / 2, midCenterY, a.name, 'bold', nameSize);
+  }
+
+  // Bottom: slack — preserves the textbook card's bottom-row slack
+  // position, so the eye finds slack in the same place on every node.
+  // Suppressed entirely when slack is zero (critical-path milestone) —
+  // the empty cell + divider would just be noise.
+  if (!a.slackHidden) {
+    drawCenteredText(
+      x + w / 2,
+      y + h - botRowH / 2,
+      a.slack,
+      'normal',
+      NODE_CELL_FONT_SIZE
+    );
+  }
 }
 
 // ============================================================

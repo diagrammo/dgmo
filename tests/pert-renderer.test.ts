@@ -166,25 +166,30 @@ describe('pert renderer — structural assertions', () => {
     document.body.removeChild(c);
   });
 
-  it('milestone activities render with the textbook card just like activities', () => {
+  it('milestone activities render as a compact pill', () => {
     const svg = renderForTest(loadFixture('with-zero-duration.dgmo'));
     const doc = parseDom(svg);
-    // The renamed fixture uses 0-duration activities (no `milestone`
-    // primitives); names normalize to lowercase canonical ids.
     const milestoneIds = ['voyage approved', 'landfall'];
     for (const id of milestoneIds) {
       const wrapper = doc.querySelector(
         `g.pert-node[data-activity-id="${id}"]`
       );
       expect(wrapper).not.toBeNull();
-      // Same rect treatment as activities — no diamond polygon.
+      // Marker for the hover-label overlay and downstream consumers.
+      expect(wrapper!.getAttribute('data-milestone')).toBe('true');
+      // Same rect-based shape as the textbook card — no diamond polygon.
       expect(wrapper!.querySelector('polygon')).toBeNull();
       expect(wrapper!.querySelector('rect')).not.toBeNull();
-      // Textbook 3×3 grid: 6 internal divider lines (2 horizontal, 4
-      // vertical-half-row segments).
-      expect(wrapper!.querySelectorAll('line').length).toBe(6);
-      // 7 text cells: ES, dur, EF, name, LS, slack, LF.
-      expect(wrapper!.querySelectorAll('text').length).toBe(7);
+      // Cell count depends on whether slack got suppressed (zero slack
+      // = no bottom divider + no slack text).
+      const slackHidden =
+        wrapper!.getAttribute('data-milestone-slack-hidden') === 'true';
+      expect(wrapper!.querySelectorAll('line').length).toBe(
+        slackHidden ? 1 : 2
+      );
+      expect(wrapper!.querySelectorAll('text').length).toBe(
+        slackHidden ? 2 : 3
+      );
     }
   });
 

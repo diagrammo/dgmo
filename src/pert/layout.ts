@@ -19,6 +19,12 @@ import type { LayoutOverrides } from './internal';
 // [name spanning all three columns], bottom row [LS | slack | LF].
 const DEFAULT_NODE_WIDTH = 210;
 const DEFAULT_NODE_HEIGHT = 90;
+// Milestones (zero-duration sync points) carry only one signal apiece —
+// the milestone date and the slack — so they render as a compact pill
+// rather than the full 3×3 card. Width is reclaimed; height matches the
+// regular activity card so row dividers line up across the lane.
+const MILESTONE_NODE_WIDTH = 110;
+const MILESTONE_NODE_HEIGHT = DEFAULT_NODE_HEIGHT;
 // Collapsed groups use the same shape so the rolled-up envelope reads
 // identically to a regular activity card.
 const COLLAPSED_GROUP_WIDTH = 210;
@@ -31,17 +37,17 @@ const GROUP_PADDING = 18;
 const GROUP_TOP_PADDING = 28;
 
 function nodeDimensions(
-  _resolved: ResolvedPert,
+  resolved: ResolvedPert,
   id: string,
   overrides?: LayoutOverrides
 ): { width: number; height: number } {
   if (overrides && overrides[id]) {
     return { width: overrides[id].width, height: overrides[id].height };
   }
-  // Milestones use the same dimensions as activities so they style
-  // consistently with the rest of the network. The semantic
-  // distinction (zero duration, sync point) shows in the body — no
-  // μ row, just a centered name.
+  const r = resolved.activities.find((a) => a.activity.id === id);
+  if (r?.activity.isMilestone) {
+    return { width: MILESTONE_NODE_WIDTH, height: MILESTONE_NODE_HEIGHT };
+  }
   return { width: DEFAULT_NODE_WIDTH, height: DEFAULT_NODE_HEIGHT };
 }
 
