@@ -427,6 +427,60 @@ A
     document.body.removeChild(c);
   });
 
+  it('s-curve widget is omitted by default', () => {
+    const svg = renderForTest(loadFixture('three-point.dgmo'));
+    const doc = parseDom(svg);
+    expect(doc.querySelectorAll('g.pert-scurve-block').length).toBe(0);
+  });
+
+  it('s-curve renders header + percentile dots when showScurve: true and MC ran', () => {
+    const c = document.createElement('div');
+    document.body.appendChild(c);
+    const parsed = parsePert(loadFixture('three-point.dgmo'));
+    const resolved = analyzePert(parsed);
+    const layout = relayoutPert(resolved, {});
+    const colors = getPalette('nord').light;
+    renderPert(c as HTMLDivElement, resolved, layout, colors, false, {
+      title: parsed.title,
+      showScurve: true,
+    });
+    const block = c.querySelector('g.pert-scurve-block');
+    expect(block).not.toBeNull();
+    expect(block!.querySelector('text.pert-scurve-header')!.textContent).toBe(
+      'Completion probability'
+    );
+    // Three percentile dots: P50, P80, P95.
+    expect(
+      block!.querySelectorAll('circle.pert-scurve-percentile-dot').length
+    ).toBe(3);
+    const labels = Array.from(
+      block!.querySelectorAll('text.pert-scurve-percentile-label')
+    ).map((el) => el.textContent);
+    expect(labels).toEqual(['P50', 'P80', 'P95']);
+    document.body.removeChild(c);
+  });
+
+  it('s-curve is silently omitted in analytical mode (no MC output)', () => {
+    const c = document.createElement('div');
+    document.body.appendChild(c);
+    const parsed = parsePert(`pert
+time-unit w
+A 2
+B 3
+A
+  -> B
+`);
+    const resolved = analyzePert(parsed);
+    expect(resolved.monteCarloResult).toBeNull();
+    const layout = relayoutPert(resolved, {});
+    const colors = getPalette('nord').light;
+    renderPert(c as HTMLDivElement, resolved, layout, colors, false, {
+      showScurve: true,
+    });
+    expect(c.querySelectorAll('g.pert-scurve-block').length).toBe(0);
+    document.body.removeChild(c);
+  });
+
   it('tornado is silently omitted in analytical mode (no MC output)', () => {
     const c = document.createElement('div');
     document.body.appendChild(c);

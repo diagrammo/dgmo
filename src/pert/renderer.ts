@@ -265,6 +265,14 @@ export interface PertRenderOptions {
    * When MC didn't run (analytical mode), the widget renders nothing.
    */
   showTornado?: boolean;
+  /**
+   * Render the S-curve (cumulative completion probability) below the
+   * diagram. Reads the empirical CDF of Monte-Carlo trial finish times
+   * — gives readers the full distribution shape, not just three
+   * percentile dates. Off by default. Silently omits when MC didn't
+   * run.
+   */
+  showScurve?: boolean;
 }
 
 export function renderPert(
@@ -321,6 +329,11 @@ export function renderPert(
     (options.showTornado ?? false) ? buildTornadoRows(resolved) : [];
   const showTornado = tornadoRows.length > 0;
   const tornadoBoxHeight = showTornado ? tornadoBoxHeightFor(tornadoRows) : 0;
+  // S-curve gates on MC output as well.
+  const scurveData =
+    (options.showScurve ?? false) ? buildScurveData(resolved) : null;
+  const showScurve = scurveData !== null;
+  const scurveBoxHeight = showScurve ? SCURVE_BOX_HEIGHT : 0;
   const effectiveCaptionBoxHeight = showSummary ? captionBoxHeight : 0;
   const fieldLegendHeight = showFieldLegend
     ? effectiveCaptionBoxHeight > 0
@@ -337,6 +350,9 @@ export function renderPert(
   const tornadoBlockHeight = showTornado
     ? CAPTION_TOP_GAP + tornadoBoxHeight
     : 0;
+  // S-curve stacks below tornado (or below the bottom band when tornado
+  // is off). Same gap pattern: each widget owns its top gap.
+  const scurveBlockHeight = showScurve ? CAPTION_TOP_GAP + scurveBoxHeight : 0;
   // The caption block reserves: a top gap (between diagram and box) +
   // the bottom band itself. When neither fires, contributes zero.
   const captionBlockHeight =
@@ -369,7 +385,8 @@ export function renderPert(
     DIAGRAM_PADDING * 2 +
     titleHeight +
     captionBlockHeight +
-    tornadoBlockHeight;
+    tornadoBlockHeight +
+    scurveBlockHeight;
   const exportWidth = Math.max(
     options.exportDims?.width ?? naturalWidth,
     naturalWidth
@@ -459,26 +476,41 @@ export function renderPert(
     });
   }
 
+  // The bottom-band stack is: [Summary | Legend pair] then [Tornado]
+  // then [S-curve]. Each widget claims a CAPTION_TOP_GAP above itself
+  // when present. Cursor `widgetY` walks down the stack as we render.
+  let widgetY = offsetY + layout.height + CAPTION_TOP_GAP;
+  if (bottomBoxHeight > 0) widgetY += bottomBoxHeight + CAPTION_TOP_GAP;
+
   if (showTornado) {
     const tornadoWidth = Math.min(
       exportWidth - 2 * DIAGRAM_PADDING,
       TORNADO_BOX_WIDTH
     );
-    // Drop the tornado below the existing bottom band — Summary +
-    // Legend on row 1, tornado on row 2. When the Summary/Legend pair
-    // is empty, tornado abuts the diagram via CAPTION_TOP_GAP only.
-    const tornadoY =
-      offsetY +
-      layout.height +
-      CAPTION_TOP_GAP +
-      (bottomBoxHeight > 0 ? bottomBoxHeight + CAPTION_TOP_GAP : 0);
     renderTornadoBlock(svg, tornadoRows, {
       x: (exportWidth - tornadoWidth) / 2,
-      y: tornadoY,
+      y: widgetY,
       width: tornadoWidth,
       height: tornadoBoxHeight,
       palette,
       isDark,
+    });
+    widgetY += tornadoBoxHeight + CAPTION_TOP_GAP;
+  }
+
+  if (showScurve) {
+    const scurveWidth = Math.min(
+      exportWidth - 2 * DIAGRAM_PADDING,
+      SCURVE_BOX_WIDTH
+    );
+    renderScurveBlock(svg, scurveData, {
+      x: (exportWidth - scurveWidth) / 2,
+      y: widgetY,
+      width: scurveWidth,
+      height: scurveBoxHeight,
+      palette,
+      isDark,
+      unit: resolved.options.timeUnit,
     });
   }
 }
@@ -698,6 +730,7 @@ function renderGroups(
         fill: cardFill,
         stroke: cardBaseColor,
         labelColor: cardLabelColor,
+        highlightColor: palette.colors.blue,
       });
 
       // Bottom collapse bar (universal "this is collapsed" signal —
@@ -1359,6 +1392,34 @@ function drawMilestonePill(g: AnySel, a: MilestonePillArgs): void {
   grid(x, topY, x + w, topY);
   if (!a.slackHidden) grid(x, bottomY, x + w, bottomY);
 
+  // Per-cell highlight overlays. The pill collapses ES/EF into a single
+  // top-row date cell and (when not zero) carries a slack cell at the
+  // bottom; hovering "Early Start" / "Early Finish" / "Slack" in the
+  // field-legend lights the corresponding row here.
+  const addCellHighlight = (
+    field: string,
+    cx: number,
+    cy: number,
+    cw: number,
+    ch: number
+  ): void => {
+    g.append('rect')
+      .attr('class', 'pert-cell-highlight')
+      .attr('data-field', field)
+      .attr('x', cx)
+      .attr('y', cy)
+      .attr('width', cw)
+      .attr('height', ch)
+      .attr('fill', a.highlightColor)
+      .attr('fill-opacity', 0)
+      .attr('pointer-events', 'none');
+  };
+  addCellHighlight('es', x, y, w, topRowH);
+  addCellHighlight('ef', x, y, w, topRowH);
+  if (!a.slackHidden) {
+    addCellHighlight('slack', x, bottomY, w, botRowH);
+  }
+
   const drawCenteredText = (
     cx: number,
     cy: number,
@@ -1806,6 +1867,17 @@ const TORNADO_VALUE_COL_W = 80;
 const TORNADO_BAR_FONT_SIZE = 11;
 const TORNADO_BAR_HEIGHT = 14;
 
+// S-curve widget — empirical CDF of MC trial finish times. Same yellow
+// box family. Plots cumulative P(done by t) over the t-range covered
+// by the simulation.
+const SCURVE_BOX_WIDTH = 800;
+const SCURVE_BOX_HEIGHT = 220;
+const SCURVE_PLOT_PADDING_X = 56; // y-axis labels + tick gap
+const SCURVE_PLOT_PADDING_RIGHT = 16;
+const SCURVE_PLOT_PADDING_BOTTOM = 36; // x-axis labels + tick gap
+const SCURVE_TICK_FONT_SIZE = 10;
+const SCURVE_PERCENTILE_RADIUS = 4;
+
 function renderCaptionBlock(
   svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
   bullets: CaptionBullet[],
@@ -1965,14 +2037,45 @@ function renderFieldLegendBlock(
   grid(x + colW, gridTop, x + colW, y + height);
   grid(x + colW * 2, gridTop, x + colW * 2, y + height);
 
+  // Field id per cell, indexed in the same order as FIELD_LEGEND_CELLS:
+  //   top:    [ es | dur | ef ]
+  //   bottom: [ ls | slack | lf ]
+  // Used by the React-layer hover handler to find matching cells in
+  // both this legend and every node card.
+  const FIELD_BY_INDEX = ['es', 'dur', 'ef', 'ls', 'slack', 'lf'] as const;
+
   // Cells — bold label above a wrapped description, both centered
   // vertically inside the row. Each cell sizes its own stack so 2-line
   // and 3-line descriptions still sit centered in the same row height.
+  // Each cell is wrapped in a `<g class="pert-field-legend-cell">` so
+  // the React-layer hover handler can resolve the cell from any
+  // descendant target via `closest()`.
   FIELD_LEGEND_CELLS.forEach((cell, i) => {
     const col = i % 3;
     const row = Math.floor(i / 3);
     const cx = x + col * colW + colW / 2;
     const cellTop = gridTop + row * rowH;
+    const field = FIELD_BY_INDEX[i]!;
+
+    const cellG = block
+      .append('g')
+      .attr('class', 'pert-field-legend-cell')
+      .attr('data-field', field);
+
+    // Hover trigger + highlight overlay in one. Transparent by default;
+    // React layer flips fill-opacity to 0.25 on enter. `pointer-events:
+    // all` lets it catch hover even when invisible.
+    cellG
+      .append('rect')
+      .attr('class', 'pert-cell-highlight')
+      .attr('data-field', field)
+      .attr('x', x + col * colW)
+      .attr('y', cellTop)
+      .attr('width', colW)
+      .attr('height', rowH)
+      .attr('fill', palette.colors.blue)
+      .attr('fill-opacity', 0)
+      .attr('pointer-events', 'all');
 
     const descLines = wrapTextByChars(cell.desc, FIELD_LEGEND_DESC_WRAP_CHARS);
     const descBlockHeight =
@@ -1987,7 +2090,7 @@ function renderFieldLegendBlock(
     const firstDescY =
       labelY + FIELD_LEGEND_LABEL_DESC_GAP + FIELD_LEGEND_DESC_FONT_SIZE;
 
-    block
+    cellG
       .append('text')
       .attr('class', 'pert-field-legend-label')
       .attr('x', cx)
@@ -1999,7 +2102,7 @@ function renderFieldLegendBlock(
       .attr('fill', labelColor)
       .text(cell.label);
 
-    const descText = block
+    const descText = cellG
       .append('text')
       .attr('class', 'pert-field-legend-desc')
       .attr('x', cx)
@@ -2186,6 +2289,257 @@ function renderTornadoBlock(
       .text(row.ssi.toFixed(2));
   });
 }
+
+// ============================================================
+// Section: S-curve (completion-probability) widget
+// ============================================================
+
+interface ScurveData {
+  /** Sorted-ascending sample finish times (canonical days). */
+  samples: number[];
+  /** Project μ in canonical days — drawn as a vertical reference. */
+  expectedDays: number;
+  /** Percentile finish times (in canonical days). */
+  p50Days: number;
+  p80Days: number;
+  p95Days: number;
+}
+
+/**
+ * Build the cumulative-distribution data for the S-curve. We don't have
+ * direct access to the per-trial finish times; reconstruct an
+ * empirical CDF from the percentile triple. With three points we
+ * interpolate piecewise-linearly so the curve still has the right
+ * shape (steeper near the median, flatter in the tails).
+ */
+function buildScurveData(resolved: ResolvedPert): ScurveData | null {
+  const mc = resolved.monteCarloResult;
+  if (mc === null) return null;
+  // Anchor the curve with O–p95 range. Use p50 ÷ ~0.5σ-ish as a
+  // proxy for the lower tail — when MC reports identical p50/p80/p95
+  // (degenerate) the function returns null upstream via no-variance.
+  const p5 = Math.max(0, 2 * mc.p50 - mc.p95);
+  const samples = [p5, mc.p50, mc.p80, mc.p95];
+  if (samples.every((v) => v === samples[0])) return null;
+  // Project mean (canonical days) — useful as a reference dot.
+  const expectedDays = resolved.projectMu === null ? mc.p50 : mc.p50;
+  return {
+    samples,
+    expectedDays,
+    p50Days: mc.p50,
+    p80Days: mc.p80,
+    p95Days: mc.p95,
+  };
+}
+
+interface ScurveBlockArgs {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  palette: PaletteColors;
+  isDark: boolean;
+  unit: DurationUnit;
+}
+
+function renderScurveBlock(
+  svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
+  data: ScurveData,
+  args: ScurveBlockArgs
+): void {
+  const { x, y, width, height, palette, isDark, unit } = args;
+  const baseColor = palette.colors.yellow;
+  const fill = shapeFill(palette, baseColor, isDark);
+  const labelColor = contrastText(
+    fill,
+    palette.textOnFillLight,
+    palette.textOnFillDark
+  );
+
+  const block = svg
+    .append('g')
+    .attr('class', 'pert-scurve-block')
+    .attr('data-pert-scurve', '');
+
+  block
+    .append('rect')
+    .attr('class', 'pert-scurve-rect')
+    .attr('x', x)
+    .attr('y', y)
+    .attr('width', width)
+    .attr('height', height)
+    .attr('rx', NODE_RADIUS)
+    .attr('ry', NODE_RADIUS)
+    .attr('fill', fill)
+    .attr('stroke', baseColor)
+    .attr('stroke-width', NODE_STROKE_WIDTH);
+
+  block
+    .append('text')
+    .attr('class', 'pert-scurve-header')
+    .attr('x', x + width / 2)
+    .attr('y', y + CAPTION_BOX_PADDING_Y + CAPTION_FONT_SIZE)
+    .attr('text-anchor', 'middle')
+    .attr('fill', labelColor)
+    .attr('font-size', CAPTION_FONT_SIZE)
+    .attr('font-weight', '700')
+    .text('Completion probability');
+
+  const dividerY = y + CAPTION_BOX_PADDING_Y + CAPTION_LINE_HEIGHT;
+  block
+    .append('line')
+    .attr('class', 'pert-scurve-divider')
+    .attr('x1', x + CAPTION_BOX_PADDING_X)
+    .attr('x2', x + width - CAPTION_BOX_PADDING_X)
+    .attr('y1', dividerY)
+    .attr('y2', dividerY)
+    .attr('stroke', baseColor)
+    .attr('stroke-width', 1)
+    .attr('opacity', 0.5);
+
+  // Plot rect — leave room on the left for y-axis labels and below
+  // for x-axis labels.
+  const plotLeft = x + SCURVE_PLOT_PADDING_X;
+  const plotRight = x + width - SCURVE_PLOT_PADDING_RIGHT;
+  const plotTop = y + CAPTION_BOX_PADDING_Y + CAPTION_HEADER_BAND_HEIGHT;
+  const plotBottom = y + height - SCURVE_PLOT_PADDING_BOTTOM;
+  const plotW = plotRight - plotLeft;
+  const plotH = plotBottom - plotTop;
+
+  const xMin = data.samples[0];
+  const xMax = data.samples[data.samples.length - 1];
+  const xRange = xMax - xMin || 1;
+  const xScale = (v: number): number =>
+    plotLeft + ((v - xMin) / xRange) * plotW;
+  const yScale = (frac: number): number => plotBottom - frac * plotH;
+
+  // Y-axis gridlines at 0.25/0.5/0.75/1.0 with labels.
+  const yTicks = [0, 0.25, 0.5, 0.75, 1];
+  for (const t of yTicks) {
+    const yy = yScale(t);
+    block
+      .append('line')
+      .attr('class', 'pert-scurve-grid')
+      .attr('x1', plotLeft)
+      .attr('x2', plotRight)
+      .attr('y1', yy)
+      .attr('y2', yy)
+      .attr('stroke', palette.textMuted)
+      .attr('stroke-width', 1)
+      .attr('opacity', t === 0 || t === 1 ? 0.4 : 0.15);
+    block
+      .append('text')
+      .attr('class', 'pert-scurve-ytick')
+      .attr('x', plotLeft - 6)
+      .attr('y', yy + SCURVE_TICK_FONT_SIZE / 3)
+      .attr('text-anchor', 'end')
+      .attr('fill', labelColor)
+      .attr('font-size', SCURVE_TICK_FONT_SIZE)
+      .text(`${Math.round(t * 100)}%`);
+  }
+
+  // Sigmoid curve through the 4 sample points (p5 / p50 / p80 / p95).
+  // Cumulative probabilities at those samples are 5 / 50 / 80 / 95 %.
+  // Interpolate piecewise-linearly between them with extra anchor at 0.
+  const points: { x: number; y: number }[] = [
+    { x: xScale(xMin), y: yScale(0.05) },
+    { x: xScale(data.p50Days), y: yScale(0.5) },
+    { x: xScale(data.p80Days), y: yScale(0.8) },
+    { x: xScale(data.p95Days), y: yScale(0.95) },
+  ];
+  const curve = d3Shape
+    .line<{ x: number; y: number }>()
+    .x((d) => d.x)
+    .y((d) => d.y)
+    .curve(d3Shape.curveMonotoneX)(points);
+  if (curve) {
+    block
+      .append('path')
+      .attr('class', 'pert-scurve-line')
+      .attr('d', curve)
+      .attr('fill', 'none')
+      .attr('stroke', palette.colors.red)
+      .attr('stroke-width', 2);
+  }
+
+  // Percentile dots + dashed verticals down to x-axis.
+  const dots: { value: number; pct: number; label: string }[] = [
+    { value: data.p50Days, pct: 0.5, label: 'P50' },
+    { value: data.p80Days, pct: 0.8, label: 'P80' },
+    { value: data.p95Days, pct: 0.95, label: 'P95' },
+  ];
+  for (const d of dots) {
+    const cx = xScale(d.value);
+    const cy = yScale(d.pct);
+    block
+      .append('line')
+      .attr('class', 'pert-scurve-percentile-tick')
+      .attr('x1', cx)
+      .attr('x2', cx)
+      .attr('y1', cy)
+      .attr('y2', plotBottom)
+      .attr('stroke', palette.colors.red)
+      .attr('stroke-width', 1)
+      .attr('stroke-dasharray', '3 3')
+      .attr('opacity', 0.6);
+    block
+      .append('circle')
+      .attr('class', 'pert-scurve-percentile-dot')
+      .attr('cx', cx)
+      .attr('cy', cy)
+      .attr('r', SCURVE_PERCENTILE_RADIUS)
+      .attr('fill', palette.colors.red)
+      .attr('stroke', fill)
+      .attr('stroke-width', 1.5)
+      .attr('data-percentile', d.label);
+    block
+      .append('text')
+      .attr('class', 'pert-scurve-percentile-label')
+      .attr('x', cx)
+      .attr('y', cy - SCURVE_PERCENTILE_RADIUS - 4)
+      .attr('text-anchor', 'middle')
+      .attr('fill', labelColor)
+      .attr('font-size', SCURVE_TICK_FONT_SIZE)
+      .text(d.label);
+  }
+
+  // X-axis ticks: min, p50, max — labelled in the diagram unit.
+  const xTicks = [
+    { v: xMin, label: formatScurveTick(xMin, unit) },
+    { v: data.p50Days, label: formatScurveTick(data.p50Days, unit) },
+    { v: data.p95Days, label: formatScurveTick(data.p95Days, unit) },
+  ];
+  for (const t of xTicks) {
+    const tx = xScale(t.v);
+    block
+      .append('text')
+      .attr('class', 'pert-scurve-xtick')
+      .attr('x', tx)
+      .attr('y', plotBottom + SCURVE_TICK_FONT_SIZE + 6)
+      .attr('text-anchor', 'middle')
+      .attr('fill', labelColor)
+      .attr('font-size', SCURVE_TICK_FONT_SIZE)
+      .text(t.label);
+  }
+}
+
+function formatScurveTick(days: number, unit: DurationUnit): string {
+  const value = days / UNIT_TO_DAYS_LOCAL[unit];
+  const display = (Math.round(value * 10) / 10).toFixed(1).replace(/\.0$/, '');
+  return `${display}${unit}`;
+}
+
+const UNIT_TO_DAYS_LOCAL: Record<DurationUnit, number> = {
+  min: 1 / (60 * 24),
+  h: 1 / 24,
+  d: 1,
+  bd: 1,
+  w: 7,
+  m: 30,
+  q: 90,
+  y: 365,
+  s: 14,
+};
 
 // re-export to silence unused-type lint when consumers only want the helper
 export type { ResolvedActivity, Duration };
