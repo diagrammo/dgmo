@@ -32,7 +32,7 @@ const ANNOTATION_RE = /^(pain|opportunity|thought)\s*:\s*(.+)$/i;
 /** Known journey-map options (key-value). */
 const KNOWN_OPTIONS = new Set(['active-tag']);
 /** Known journey-map boolean options (bare keyword = on). */
-const KNOWN_BOOLEANS = new Set(['no-legend', 'solid-fill']);
+const KNOWN_BOOLEANS = new Set(['no-legend', 'solid-fill', 'no-title']);
 
 // ============================================================
 // Parser

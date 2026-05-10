@@ -119,7 +119,8 @@ export function renderOrg(
   const height = exportDims?.height ?? container.clientHeight;
   if (width <= 0 || height <= 0) return;
 
-  const titleOffset = parsed.title ? TITLE_HEIGHT : 0;
+  const showTitle = !!parsed.title && parsed.options['no-title'] !== 'on';
+  const titleOffset = showTitle ? TITLE_HEIGHT : 0;
   const legendOnly = layout.nodes.length === 0;
   const hasLegend = layout.legend.length > 0;
 
@@ -135,7 +136,7 @@ export function renderOrg(
 
   // Similarly, render the title at fixed size outside the scaled group in
   // non-export mode so it stays legible regardless of how small the chart scale is.
-  const fixedTitle = !exportDims && !!parsed.title;
+  const fixedTitle = !exportDims && showTitle;
   const titleReserve = fixedTitle ? TITLE_HEIGHT : 0;
 
   // Ancestor breadcrumb trail (focus mode) — rendered inside the scaled group
@@ -182,7 +183,7 @@ export function renderOrg(
   // In non-export mode (fixedTitle), render at native size directly on the SVG
   // so it stays legible regardless of chart scale. In export mode, render inside
   // mainG so it scales with the diagram to match the exported dimensions.
-  if (parsed.title) {
+  if (showTitle) {
     const titleParent = fixedTitle ? svg : mainG;
     const titleX = fixedTitle ? width / 2 : diagramW / 2;
     const titleY = fixedTitle
@@ -869,7 +870,8 @@ export function renderOrgForExport(
   const layout = layoutOrg(parsed, undefined, undefined, exportHidden);
   const isDark = theme === 'dark';
 
-  const titleOffset = parsed.title ? TITLE_HEIGHT : 0;
+  const titleOffset =
+    parsed.title && parsed.options['no-title'] !== 'on' ? TITLE_HEIGHT : 0;
   const exportWidth = layout.width + DIAGRAM_PADDING * 2;
   const exportHeight = layout.height + DIAGRAM_PADDING * 2 + titleOffset;
 

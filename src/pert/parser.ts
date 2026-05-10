@@ -50,6 +50,7 @@ const DIRECTIVE_KEYS = new Set([
   'scrubber-trials',
   'start-date',
   'end-date',
+  'no-title',
 ]);
 
 /**
@@ -944,6 +945,11 @@ function applyDirective(
     case 'default-confidence': {
       // Verbatim — `resolveConfidence` validates at analyzer time.
       options.confidence = value || 'medium';
+      return;
+    }
+    case 'no-title': {
+      // Bare boolean directive — suppresses the diagram banner title.
+      options.noTitle = true;
       return;
     }
     case 'direction': {

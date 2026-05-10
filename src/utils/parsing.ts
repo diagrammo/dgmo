@@ -116,8 +116,27 @@ export function extractColor(
 export const OPTION_NOCOLON_RE = /^([a-z][a-z0-9-]*)\s+(.+)$/i;
 
 /**
- * Try to parse a line as a cross-chart-type bare-keyword option (currently only
- * `solid-fill`). Returns true if the line matched and the option was set.
+ * Cross-chart-type bare-boolean directives recognized in every chart parser.
+ * Add new universal flags here so each parser's `tryParseSharedOption()` call
+ * picks them up uniformly without per-parser changes.
+ */
+export const GLOBAL_BOOLEANS: ReadonlySet<string> = new Set([
+  'solid-fill',
+  'no-title',
+]);
+
+/**
+ * If `token` (after trim, case-insensitive) matches a registered cross-cutting
+ * boolean directive, returns its canonical key. Otherwise returns null.
+ */
+export function recognizeGlobalBoolean(token: string): string | null {
+  const t = token.trim().toLowerCase();
+  return GLOBAL_BOOLEANS.has(t) ? t : null;
+}
+
+/**
+ * Try to parse a line as a cross-chart-type bare-keyword option. Returns true
+ * if the line matched (and the option was set on `options[key] = 'on'`).
  *
  * Use inside each parser's option block so the keyword is recognized uniformly
  * across all chart types without each parser duplicating the regex.
@@ -126,8 +145,9 @@ export function tryParseSharedOption(
   line: string,
   options: Record<string, string>
 ): boolean {
-  if (/^solid-fill$/i.test(line.trim())) {
-    options['solid-fill'] = 'on';
+  const key = recognizeGlobalBoolean(line);
+  if (key) {
+    options[key] = 'on';
     return true;
   }
   return false;

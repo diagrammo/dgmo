@@ -135,6 +135,8 @@ export interface GanttOptions {
   sprintMode: 'auto' | 'explicit' | null; // auto = activated by `s` unit, explicit = sprint-* option present
   /** When true, render bars at full intent saturation instead of the canonical 25% tint. */
   solidFill: boolean;
+  /** When true, the renderer suppresses the chart banner title. */
+  noTitle: boolean;
 }
 
 // ── Parsed Result ───────────────────────────────────────────

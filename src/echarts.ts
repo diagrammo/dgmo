@@ -132,6 +132,8 @@ export interface ParsedExtendedChart {
   shade?: boolean;
   /** Render with full intent saturation instead of the canonical 25% tint. */
   solidFill?: boolean;
+  /** Cross-chart-type: when true, the renderer suppresses the chart title. */
+  noTitle?: boolean;
   categoryColors?: Record<string, string>;
   categoryLineNumbers?: Record<string, number>;
   nodeColors?: Record<string, string>;
@@ -492,7 +494,9 @@ export function parseExtendedChart(
         !isNaN(parseFloat(normalizeNumericToken(lastTok) ?? lastTok));
       const isBareKeywordOption =
         spaceIdx < 0 &&
-        /^(solid-fill|no-name|no-value|no-percent|shade)$/i.test(trimmed);
+        /^(solid-fill|no-name|no-value|no-percent|shade|no-title)$/i.test(
+          trimmed
+        );
       if (!hasNumericSuffix && !isBareKeywordOption) {
         while (sankeyStack.length && sankeyStack.at(-1)!.indent >= indent) {
           sankeyStack.pop();
@@ -631,6 +635,10 @@ export function parseExtendedChart(
     }
     if (firstToken === 'solid-fill') {
       result.solidFill = true;
+      continue;
+    }
+    if (firstToken === 'no-title' && spaceIdx < 0) {
+      result.noTitle = true;
       continue;
     }
     // Silent-ignore unrecognized no-* flags (typos, future flags).
@@ -801,7 +809,7 @@ export function parseExtendedChart(
  * Computes the shared set of theme-derived variables used by all chart option builders.
  */
 function buildChartCommons(
-  parsed: { title?: string; error?: string | null },
+  parsed: { title?: string; noTitle?: boolean; error?: string | null },
   palette: PaletteColors,
   isDark: boolean
 ) {
@@ -810,19 +818,20 @@ function buildChartCommons(
   const splitLineColor = palette.border;
   const gridOpacity = isDark ? 0.7 : 0.55;
   const colors = getSeriesColors(palette);
-  const titleConfig = parsed.title
-    ? {
-        text: parsed.title,
-        left: 'center' as const,
-        top: 8,
-        textStyle: {
-          color: textColor,
-          fontSize: 20,
-          fontWeight: 'bold' as const,
-          fontFamily: FONT_FAMILY,
-        },
-      }
-    : undefined;
+  const titleConfig =
+    parsed.title && !parsed.noTitle
+      ? {
+          text: parsed.title,
+          left: 'center' as const,
+          top: 8,
+          textStyle: {
+            color: textColor,
+            fontSize: 20,
+            fontWeight: 'bold' as const,
+            fontFamily: FONT_FAMILY,
+          },
+        }
+      : undefined;
   return {
     textColor,
     axisLineColor,
@@ -1251,7 +1260,7 @@ function buildFunctionOption(
       left: '4%',
       right: '4%',
       bottom: '15%',
-      top: parsed.title ? '15%' : '5%',
+      top: parsed.title && !parsed.noTitle ? '15%' : '5%',
       containLabel: true,
     },
     xAxis: {
@@ -1723,7 +1732,7 @@ function buildScatterOption(
   const gridLeft = parsed.ylabel ? 12 : 3;
   const gridRight = 4;
   const gridBottom = hasCategories ? 15 : parsed.xlabel ? 10 : 3;
-  const gridTop = parsed.title ? 15 : 5;
+  const gridTop = parsed.title && !parsed.noTitle ? 15 : 5;
 
   // Compute custom label graphics for SSR when labels are enabled
   let graphic: Record<string, unknown>[] | undefined;
@@ -1991,7 +2000,7 @@ function buildHeatmapOption(
       left: '3%',
       right: '3%',
       bottom: '3%',
-      top: parsed.title ? '15%' : '5%',
+      top: parsed.title && !parsed.noTitle ? '15%' : '5%',
       containLabel: true,
     },
     xAxis: {
@@ -2113,7 +2122,7 @@ function buildFunnelOption(
     );
   }
 
-  const funnelTop = parsed.title ? 60 : 20;
+  const funnelTop = parsed.title && !parsed.noTitle ? 60 : 20;
   const funnelLayout = {
     left: '20%',
     top: funnelTop,
@@ -2519,7 +2528,7 @@ function buildBarOption(
     grid: makeChartGrid({
       xLabel,
       yLabel,
-      hasTitle: !!parsed.title,
+      hasTitle: !!parsed.title && !parsed.noTitle,
       isHorizontal,
     }),
     xAxis: isHorizontal ? valueAxis : categoryAxis,
@@ -2617,7 +2626,11 @@ function buildLineOption(
   return {
     ...CHART_BASE,
     title: titleConfig,
-    grid: makeChartGrid({ xLabel, yLabel, hasTitle: !!parsed.title }),
+    grid: makeChartGrid({
+      xLabel,
+      yLabel,
+      hasTitle: !!parsed.title && !parsed.noTitle,
+    }),
     xAxis: makeGridAxis(
       'category',
       textColor,
@@ -2722,7 +2735,7 @@ function buildMultiLineOption(
     grid: makeChartGrid({
       xLabel,
       yLabel,
-      hasTitle: !!parsed.title,
+      hasTitle: !!parsed.title && !parsed.noTitle,
       hasLegend: true,
     }),
     xAxis: makeGridAxis(
@@ -2773,7 +2786,11 @@ function buildAreaOption(
   return {
     ...CHART_BASE,
     title: titleConfig,
-    grid: makeChartGrid({ xLabel, yLabel, hasTitle: !!parsed.title }),
+    grid: makeChartGrid({
+      xLabel,
+      yLabel,
+      hasTitle: !!parsed.title && !parsed.noTitle,
+    }),
     xAxis: makeGridAxis(
       'category',
       textColor,
@@ -3150,7 +3167,7 @@ function buildBarStackedOption(
     grid: makeChartGrid({
       xLabel,
       yLabel,
-      hasTitle: !!parsed.title,
+      hasTitle: !!parsed.title && !parsed.noTitle,
       hasLegend: true,
     }),
     xAxis: isHorizontal ? valueAxis : categoryAxis,

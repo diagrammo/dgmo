@@ -145,7 +145,8 @@ export function renderJourneyMap(
     .attr('stop-opacity', 0.3);
 
   // ── Title ────────────────────────────────────────────────
-  if (parsed.title) {
+  const showTitle = !!parsed.title && parsed.options['no-title'] !== 'on';
+  if (showTitle) {
     const titleG = svg.append('g').attr('class', 'chart-title');
     if (parsed.titleLineNumber) {
       titleG.attr('data-line-number', parsed.titleLineNumber);
@@ -157,7 +158,7 @@ export function renderJourneyMap(
       .attr('font-size', FONT_SIZE_TITLE)
       .attr('font-weight', 'bold')
       .attr('fill', palette.text)
-      .text(parsed.title);
+      .text(parsed.title!);
 
     if (onNavigateToLine && parsed.titleLineNumber) {
       titleG.style('cursor', 'pointer').on('click', () => {
@@ -299,7 +300,7 @@ export function renderJourneyMap(
   // ── Legend ──────────────────────────────────────────────
   if (parsed.options['no-legend'] !== 'on') {
     const legendX = PADDING;
-    const legendY = PADDING + (parsed.title ? FONT_SIZE_TITLE + 8 : 0);
+    const legendY = PADDING + (showTitle ? FONT_SIZE_TITLE + 8 : 0);
     const legendG = svg
       .append('g')
       .attr('class', 'journey-legend')

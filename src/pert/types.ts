@@ -55,6 +55,8 @@ export interface PertOptions {
    * `null` when no `start-date`/`end-date` directive was authored.
    */
   anchor: Anchor;
+  /** When true, the renderer suppresses the diagram banner title. */
+  noTitle?: boolean;
 }
 
 // ── Parsed elements ─────────────────────────────────────────

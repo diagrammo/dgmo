@@ -203,7 +203,8 @@ export function renderClassDiagram(
   const legendEntries = collectClassTypes(parsed);
   const hasLegend = legendEntries.length > 1; // only show when multiple types present
 
-  const titleHeight = parsed.title ? 40 : 0;
+  const showTitle = !!parsed.title && parsed.options['no-title'] !== 'on';
+  const titleHeight = showTitle ? 40 : 0;
   const LEGEND_FIXED_GAP = 8;
   const legendReserve = hasLegend ? LEGEND_HEIGHT + LEGEND_FIXED_GAP : 0;
   const diagramW = layout.width;
@@ -328,7 +329,7 @@ export function renderClassDiagram(
     .attr('stroke-width', 1.5);
 
   // ── Title ──
-  if (parsed.title) {
+  if (showTitle) {
     const titleEl = svg
       .append('text')
       .attr('class', 'chart-title')
@@ -342,7 +343,7 @@ export function renderClassDiagram(
         'cursor',
         onClickItem && parsed.titleLineNumber ? 'pointer' : 'default'
       )
-      .text(parsed.title);
+      .text(parsed.title!);
 
     if (parsed.titleLineNumber) {
       titleEl.attr('data-line-number', parsed.titleLineNumber);

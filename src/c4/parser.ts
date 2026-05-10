@@ -92,7 +92,11 @@ const VALID_SHAPES = new Set<string>([
 const KNOWN_C4_OPTIONS = new Set<string>(['layout', 'active-tag']);
 
 /** Known C4 boolean options (bare keyword = on). */
-const KNOWN_C4_BOOLEANS = new Set<string>(['direction-tb', 'solid-fill']);
+const KNOWN_C4_BOOLEANS = new Set<string>([
+  'direction-tb',
+  'solid-fill',
+  'no-title',
+]);
 
 const ALL_CHART_TYPES = [
   'c4',

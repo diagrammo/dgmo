@@ -51,6 +51,8 @@ export interface ParsedChart {
   noPercent?: boolean;
   /** Render with full intent saturation instead of the canonical 25% tint. */
   solidFill?: boolean;
+  /** Cross-chart-type: when true, the renderer suppresses the chart title. */
+  noTitle?: boolean;
   data: ChartDataPoint[];
   eras?: ChartEra[];
   diagnostics: DgmoError[];
@@ -105,7 +107,11 @@ const KNOWN_OPTIONS = new Set([
 ]);
 
 /** Known boolean options for the simple chart parser. */
-const KNOWN_BOOLEANS = new Set(['orientation-horizontal', 'solid-fill']);
+const KNOWN_BOOLEANS = new Set([
+  'orientation-horizontal',
+  'solid-fill',
+  'no-title',
+]);
 
 /**
  * Parses the simple chart text format into a structured object.
@@ -244,6 +250,8 @@ export function parseChart(
         result.orientation = 'horizontal';
       } else if (firstToken === 'solid-fill') {
         result.solidFill = true;
+      } else if (firstToken === 'no-title') {
+        result.noTitle = true;
       }
       continue;
     }

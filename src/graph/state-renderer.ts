@@ -107,7 +107,8 @@ export function renderState(
   const height = exportDims?.height ?? container.clientHeight;
   if (width <= 0 || height <= 0) return;
 
-  const titleHeight = graph.title ? 40 : 0;
+  const showTitle = !!graph.title && graph.options['no-title'] !== 'on';
+  const titleHeight = showTitle ? 40 : 0;
 
   const diagramW = layout.width;
   const diagramH = layout.height;
@@ -165,7 +166,7 @@ export function renderState(
   }
 
   // Title
-  if (graph.title) {
+  if (showTitle) {
     const titleEl = svg
       .append('text')
       .attr('class', 'chart-title')
@@ -179,7 +180,7 @@ export function renderState(
         'cursor',
         onClickItem && graph.titleLineNumber ? 'pointer' : 'default'
       )
-      .text(graph.title);
+      .text(graph.title!);
 
     if (graph.titleLineNumber) {
       titleEl.attr('data-line-number', graph.titleLineNumber);
@@ -589,7 +590,9 @@ export function renderStateForExport(
   const container = document.createElement('div');
   const exportWidth = layout.width + DIAGRAM_PADDING * 2;
   const exportHeight =
-    layout.height + DIAGRAM_PADDING * 2 + (parsed.title ? 40 : 0);
+    layout.height +
+    DIAGRAM_PADDING * 2 +
+    (parsed.title && parsed.options['no-title'] !== 'on' ? 40 : 0);
   container.style.width = `${exportWidth}px`;
   container.style.height = `${exportHeight}px`;
   container.style.position = 'absolute';

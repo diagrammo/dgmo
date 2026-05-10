@@ -311,7 +311,8 @@ export function renderGantt(
 
   // Vertical layout — matches timeline pattern (d3.ts:3649-3655)
   const title = resolved.options.title;
-  const titleHeight = title ? 50 : 20;
+  const showTitle = !!title && !resolved.options.noTitle;
+  const titleHeight = showTitle ? 50 : 20;
   const tagLegendReserve =
     resolved.tagGroups.length > 0 || hasCriticalPath || hasDependencies
       ? LEGEND_HEIGHT + 8
@@ -374,9 +375,10 @@ export function renderGantt(
 
   // ── Title (y=30, consistent with timeline) ──
 
-  if (title) {
+  if (showTitle) {
     svg
       .append('text')
+      .attr('class', 'chart-title')
       .attr('x', containerWidth / 2)
       .attr('y', TITLE_Y)
       .attr('text-anchor', 'middle')

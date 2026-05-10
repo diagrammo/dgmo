@@ -136,7 +136,8 @@ export function renderWireframe(
 
   // Title — only rendered in SVG for export; live preview renders in HTML
   let titleOffset = 0;
-  if (isExport && parsed.title) {
+  const showTitle = !!parsed.title && parsed.options['no-title'] !== 'on';
+  if (isExport && showTitle) {
     mainG
       .append('text')
       .attr('x', 0)

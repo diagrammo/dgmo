@@ -1416,7 +1416,8 @@ export function renderSequenceDiagram(
   const GROUP_LABEL_SIZE = 11;
 
   // Compute cumulative Y positions for each step, with section dividers as stable anchors
-  const titleOffset = title ? TITLE_HEIGHT : 0;
+  const showTitle = !!title && parsedOptions['no-title'] !== 'on';
+  const titleOffset = showTitle ? TITLE_HEIGHT : 0;
   const LEGEND_FIXED_GAP = 8;
   const legendTopSpace =
     parsed.tagGroups.length > 0 ? LEGEND_HEIGHT + LEGEND_FIXED_GAP : 0;
@@ -1723,7 +1724,7 @@ export function renderSequenceDiagram(
   };
 
   // Render title
-  if (title) {
+  if (showTitle) {
     const titleEl = svg
       .append('text')
       .attr('class', 'chart-title')

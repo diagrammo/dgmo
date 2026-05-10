@@ -78,6 +78,7 @@ const KNOWN_OPTIONS = new Set(['roles', 'palette', 'theme', 'active-tag']);
 /** Header options that are bare booleans (presence = on). */
 const KNOWN_BOOLEANS = new Set<string>([
   'no-rule-enforcement',
+  'no-title',
   ...Object.keys(VARIANT_LOCK_DIRECTIVES),
 ]);
 

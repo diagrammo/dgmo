@@ -103,7 +103,7 @@ export function layoutJourneyMap(
   }
 ): JourneyMapLayout {
   const isDark = options?.isDark ?? false;
-  const hasTitle = !!parsed.title;
+  const hasTitle = !!parsed.title && parsed.options['no-title'] !== 'on';
   const hasPersona = !!parsed.persona;
   const hasPhases = parsed.phases.length > 0;
 
@@ -362,12 +362,12 @@ export function layoutJourneyMap(
   // don't collapse into each other when the diagram has few steps. Without
   // this, a single-step journey produces a totalWidth that's narrower than
   // the title + persona row, and the persona panel overlaps the title.
-  const headerTitleWidth = parsed.title
-    ? parsed.title.length * TITLE_HEADER_CHAR_WIDTH
+  const headerTitleWidth = hasTitle
+    ? parsed.title!.length * TITLE_HEADER_CHAR_WIDTH
     : 0;
   const personaPanelWidth = parsed.persona ? PERSONA_PANEL_WIDTH : 0;
   const headerWidth =
-    parsed.title && parsed.persona
+    hasTitle && parsed.persona
       ? PADDING + headerTitleWidth + HEADER_GAP + personaPanelWidth + PADDING
       : Math.max(
           PADDING + headerTitleWidth + PADDING,

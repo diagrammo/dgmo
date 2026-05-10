@@ -131,15 +131,16 @@ export function renderSitemap(
   // and legend at fixed size at the bottom.
   // Layout order: Title → Diagram content → Legend (bottom).
   const layoutLegendShift = LEGEND_HEIGHT + LEGEND_GROUP_GAP; // 40px — what layout added
+  const showTitle = !!parsed.title && parsed.options['no-title'] !== 'on';
   const fixedLegend = !exportDims && hasLegend;
-  const fixedTitle = fixedLegend && !!parsed.title;
+  const fixedTitle = fixedLegend && showTitle;
   const fixedTitleH = fixedTitle ? TITLE_HEIGHT : 0;
   const legendReserveH = fixedLegend ? LEGEND_HEIGHT + LEGEND_FIXED_GAP : 0;
   // Space reserved above content (title + legend)
   const fixedReserveTop = fixedTitleH + legendReserveH;
   const fixedReserveBottom = 0;
   // Title inside scaled group only when legend is NOT fixed
-  const titleOffset = !fixedTitle && parsed.title ? TITLE_HEIGHT : 0;
+  const titleOffset = !fixedTitle && showTitle ? TITLE_HEIGHT : 0;
 
   // Compute scale to fit diagram in viewport
   const diagramW = layout.width;
@@ -210,7 +211,7 @@ export function renderSitemap(
     .attr('transform', `translate(${offsetX}, ${offsetY}) scale(${scale})`);
 
   // Title (scaled, only when legend is NOT fixed)
-  if (!fixedTitle && parsed.title) {
+  if (!fixedTitle && showTitle) {
     const titleEl = mainG
       .append('text')
       .attr('x', diagramW / 2)

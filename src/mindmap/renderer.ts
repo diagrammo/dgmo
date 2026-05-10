@@ -119,7 +119,8 @@ export function renderMindmap(
   const hasLegend = parsed.tagGroups.length > 0 || hasControls;
   const fixedLegend = !isExport && hasLegend;
   const legendReserve = fixedLegend ? LEGEND_HEIGHT + LEGEND_GROUP_GAP : 0;
-  const fixedTitle = !isExport && !!parsed.title;
+  const showTitle = !!parsed.title && parsed.options['no-title'] !== 'on';
+  const fixedTitle = !isExport && showTitle;
   const titleReserve = fixedTitle ? TITLE_HEIGHT : 0;
 
   // Compute scale to fit diagram in available space
@@ -151,7 +152,7 @@ export function renderMindmap(
     .attr('transform', `translate(${offsetX}, ${offsetY}) scale(${scale})`);
 
   // Title — fixed at top in app mode (above legend), inside scaled group in export
-  if (parsed.title) {
+  if (showTitle) {
     const titleParent = fixedTitle ? svg : mainG;
     const titleX = fixedTitle ? containerWidth / 2 : layout.width / 2;
     const titleY = fixedTitle
@@ -534,7 +535,8 @@ export function renderMindmapForExport(
     hideDescriptions,
   });
 
-  const titleOffset = parsed.title ? TITLE_HEIGHT : 0;
+  const titleOffset =
+    parsed.title && parsed.options['no-title'] !== 'on' ? TITLE_HEIGHT : 0;
   const exportWidth = layout.width + DIAGRAM_PADDING * 2;
   const exportHeight = layout.height + DIAGRAM_PADDING * 2 + titleOffset;
 

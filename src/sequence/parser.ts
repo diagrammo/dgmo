@@ -56,7 +56,7 @@ function isHardRemovedToken(
 const KNOWN_SEQ_OPTIONS = new Set(['active-tag']);
 
 /** Known sequence-diagram boolean options (bare keyword or `no-` prefix). */
-const KNOWN_SEQ_BOOLEANS = new Set(['activations', 'solid-fill']);
+const KNOWN_SEQ_BOOLEANS = new Set(['activations', 'solid-fill', 'no-title']);
 
 /**
  * Participant types that can be declared via "Name is a type" syntax.
@@ -898,8 +898,11 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
           continue;
         }
       }
-      // Bare boolean keyword: `solid-fill`
-      if (KNOWN_SEQ_BOOLEANS.has(optLower) && optLower === 'solid-fill') {
+      // Bare boolean keyword: `solid-fill` / `no-title`
+      if (
+        KNOWN_SEQ_BOOLEANS.has(optLower) &&
+        (optLower === 'solid-fill' || optLower === 'no-title')
+      ) {
         if (contentStarted) {
           pushError(
             lineNumber,
@@ -907,7 +910,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
           );
           continue;
         }
-        result.options['solid-fill'] = 'on';
+        result.options[optLower] = 'on';
         continue;
       }
     }

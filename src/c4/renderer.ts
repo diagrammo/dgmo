@@ -240,7 +240,8 @@ export function renderC4Context(
   const height = exportDims?.height ?? container.clientHeight;
   if (width <= 0 || height <= 0) return;
 
-  const titleHeight = parsed.title ? TITLE_HEIGHT + 10 : 0;
+  const titleHeight =
+    parsed.title && parsed.options['no-title'] !== 'on' ? TITLE_HEIGHT + 10 : 0;
   const diagramW = layout.width;
   const hasLegend = layout.legend.length > 0;
   // In app mode, legend is a fixed overlay outside the scaled group.
@@ -303,7 +304,7 @@ export function renderC4Context(
     .attr('fill', palette.textMuted);
 
   // ── Title ──
-  if (parsed.title) {
+  if (parsed.title && parsed.options['no-title'] !== 'on') {
     const titleEl = svg
       .append('text')
       .attr('class', 'chart-title')
@@ -656,7 +657,8 @@ export function renderC4ContextForExport(
   const isDark = theme === 'dark';
 
   const container = document.createElement('div');
-  const titleOffset = parsed.title ? TITLE_HEIGHT + 10 : 0;
+  const titleOffset =
+    parsed.title && parsed.options['no-title'] !== 'on' ? TITLE_HEIGHT + 10 : 0;
   const exportWidth = layout.width + DIAGRAM_PADDING * 2;
   const exportHeight = layout.height + DIAGRAM_PADDING * 2 + titleOffset;
 
@@ -1306,7 +1308,8 @@ export function renderC4Containers(
   const height = exportDims?.height ?? container.clientHeight;
   if (width <= 0 || height <= 0) return;
 
-  const titleHeight = parsed.title ? TITLE_HEIGHT + 10 : 0;
+  const titleHeight =
+    parsed.title && parsed.options['no-title'] !== 'on' ? TITLE_HEIGHT + 10 : 0;
   const diagramW = layout.width;
   const hasLegend = layout.legend.length > 0;
   // In app mode, legend is a fixed overlay outside the scaled group.
@@ -1367,7 +1370,7 @@ export function renderC4Containers(
     .attr('fill', palette.textMuted);
 
   // ── Title ──
-  if (parsed.title) {
+  if (parsed.title && parsed.options['no-title'] !== 'on') {
     const titleEl = svg
       .append('text')
       .attr('class', 'chart-title')
@@ -1826,7 +1829,8 @@ export function renderC4ContainersForExport(
   const isDark = theme === 'dark';
 
   const el = document.createElement('div');
-  const titleOffset = parsed.title ? TITLE_HEIGHT + 10 : 0;
+  const titleOffset =
+    parsed.title && parsed.options['no-title'] !== 'on' ? TITLE_HEIGHT + 10 : 0;
   const exportWidth = layout.width + DIAGRAM_PADDING * 2;
   const exportHeight = layout.height + DIAGRAM_PADDING * 2 + titleOffset;
 
@@ -1878,7 +1882,8 @@ export function renderC4ComponentsForExport(
   const isDark = theme === 'dark';
 
   const el = document.createElement('div');
-  const titleOffset = parsed.title ? TITLE_HEIGHT + 10 : 0;
+  const titleOffset =
+    parsed.title && parsed.options['no-title'] !== 'on' ? TITLE_HEIGHT + 10 : 0;
   const exportWidth = layout.width + DIAGRAM_PADDING * 2;
   const exportHeight = layout.height + DIAGRAM_PADDING * 2 + titleOffset;
 
@@ -1959,7 +1964,8 @@ export function renderC4DeploymentForExport(
   const isDark = theme === 'dark';
 
   const el = document.createElement('div');
-  const titleOffset = parsed.title ? TITLE_HEIGHT + 10 : 0;
+  const titleOffset =
+    parsed.title && parsed.options['no-title'] !== 'on' ? TITLE_HEIGHT + 10 : 0;
   const exportWidth = layout.width + DIAGRAM_PADDING * 2;
   const exportHeight = layout.height + DIAGRAM_PADDING * 2 + titleOffset;
 

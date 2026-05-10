@@ -87,7 +87,8 @@ export function renderPyramid(
   const hasAnyDescription = parsed.layers.some((l) => l.description.length > 0);
 
   // ── Geometry (baseline, single-column layout) ───────────────
-  const titleH = parsed.title ? TITLE_AREA_HEIGHT : 0;
+  const showTitle = !!parsed.title && parsed.options['no-title'] !== 'on';
+  const titleH = showTitle ? TITLE_AREA_HEIGHT : 0;
   const bodyTop = titleH + V_MARGIN;
   const bodyBottom = height - V_MARGIN;
   const bodyHeight = Math.max(60, bodyBottom - bodyTop);
@@ -149,7 +150,7 @@ export function renderPyramid(
     .attr('fill', palette.bg);
 
   // Title
-  if (parsed.title) {
+  if (showTitle) {
     const titleText = svg
       .append('text')
       .attr('class', 'chart-title')

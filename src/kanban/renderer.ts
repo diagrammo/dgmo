@@ -137,7 +137,8 @@ function computeLayout(
   hiddenMetaGroups?: string[]
 ): { columns: ColumnLayout[]; totalWidth: number; totalHeight: number } {
   // Title row
-  const headerHeight = parsed.title ? TITLE_HEIGHT + 8 : 0;
+  const showTitle = !!parsed.title && parsed.options['no-title'] !== 'on';
+  const headerHeight = showTitle ? TITLE_HEIGHT + 8 : 0;
   const startY = DIAGRAM_PADDING + headerHeight;
 
   // Estimate column widths based on content
@@ -305,7 +306,8 @@ export function renderKanban(
     .style('background', palette.bg);
 
   // Title
-  if (parsed.title) {
+  const showTopTitle = !!parsed.title && parsed.options['no-title'] !== 'on';
+  if (showTopTitle) {
     svg
       .append('text')
       .attr('class', 'chart-title')
@@ -315,13 +317,13 @@ export function renderKanban(
       .attr('font-size', TITLE_FONT_SIZE)
       .attr('font-weight', TITLE_FONT_WEIGHT)
       .attr('fill', palette.text)
-      .text(parsed.title);
+      .text(parsed.title!);
   }
 
   // Legend (top-right, inline with title)
   if (parsed.tagGroups.length > 0) {
-    const titleTextWidth = parsed.title
-      ? measureLegendText(parsed.title, TITLE_FONT_SIZE) + 16
+    const titleTextWidth = showTopTitle
+      ? measureLegendText(parsed.title!, TITLE_FONT_SIZE) + 16
       : 0;
     const legendX = DIAGRAM_PADDING + titleTextWidth;
     const legendY = DIAGRAM_PADDING + (TITLE_FONT_SIZE - LEGEND_HEIGHT) / 2;
@@ -824,7 +826,8 @@ function computeSwimlaneLayout(
   collapsedColumns?: Set<string>,
   hiddenMetaGroups?: string[]
 ): SwimlaneBoardLayout {
-  const headerHeight = parsed.title ? TITLE_HEIGHT + 8 : 0;
+  const headerHeight =
+    parsed.title && parsed.options['no-title'] !== 'on' ? TITLE_HEIGHT + 8 : 0;
   const startY = DIAGRAM_PADDING + headerHeight;
 
   // Column x positions: shift right by LANE_HEADER_WIDTH, reuse widths from base layout.

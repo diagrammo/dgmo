@@ -64,6 +64,7 @@ const KNOWN_BOOLEANS = new Set([
   'show-sub-node-count',
   'direction-tb',
   'solid-fill',
+  'no-title',
 ]);
 
 // ============================================================

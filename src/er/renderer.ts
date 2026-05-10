@@ -239,7 +239,8 @@ export function renderERDiagram(
       ? LEGEND_HEIGHT + LEGEND_FIXED_GAP
       : 0;
 
-  const titleHeight = parsed.title ? 40 : 0;
+  const showTitle = !!parsed.title && parsed.options['no-title'] !== 'on';
+  const titleHeight = showTitle ? 40 : 0;
   const diagramW = layout.width;
   const diagramH = layout.height;
 
@@ -289,7 +290,7 @@ export function renderERDiagram(
     .style('font-family', FONT_FAMILY);
 
   // ── Title ──
-  if (parsed.title) {
+  if (showTitle) {
     const titleEl = svg
       .append('text')
       .attr('class', 'chart-title')
@@ -303,7 +304,7 @@ export function renderERDiagram(
         'cursor',
         onClickItem && parsed.titleLineNumber ? 'pointer' : 'default'
       )
-      .text(parsed.title);
+      .text(parsed.title!);
 
     if (parsed.titleLineNumber) {
       titleEl.attr('data-line-number', parsed.titleLineNumber);
@@ -642,7 +643,9 @@ export function renderERDiagramForExport(
   const container = document.createElement('div');
   const exportWidth = layout.width + DIAGRAM_PADDING * 2;
   const exportHeight =
-    layout.height + DIAGRAM_PADDING * 2 + (parsed.title ? 40 : 0);
+    layout.height +
+    DIAGRAM_PADDING * 2 +
+    (parsed.title && parsed.options['no-title'] !== 'on' ? 40 : 0);
   container.style.width = `${exportWidth}px`;
   container.style.height = `${exportHeight}px`;
   container.style.position = 'absolute';

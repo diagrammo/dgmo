@@ -130,7 +130,8 @@ export function renderTechRadar(
 
   // ── Title ──
   const titleY = 24;
-  if (parsed.title) {
+  const showTitle = !!parsed.title && parsed.options['no-title'] !== 'on';
+  if (showTitle) {
     svg
       .append('text')
       .attr('x', radarWidth / 2)
@@ -146,7 +147,7 @@ export function renderTechRadar(
   // ── Legend controls (centered, standard legend system) ──
   let legendReservedHeight = 0;
   if (!exportDims && options?.onToggleListing) {
-    const legendY = parsed.title ? titleY + 8 : 4;
+    const legendY = showTitle ? titleY + 8 : 4;
     const legendG = svg
       .append('g')
       .attr('transform', `translate(0, ${legendY})`);
@@ -228,7 +229,7 @@ export function renderTechRadar(
     legendReservedHeight = LEGEND_HEIGHT + 8;
   }
 
-  const radarTop = (parsed.title ? titleY + 16 : 8) + legendReservedHeight;
+  const radarTop = (showTitle ? titleY + 16 : 8) + legendReservedHeight;
   const radarAreaHeight = radarHeight - radarTop;
   const radarAreaWidth = radarWidth;
 

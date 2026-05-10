@@ -177,6 +177,8 @@ export interface ParsedVisualization {
   noPercent?: boolean;
   /** Render with full intent saturation instead of the canonical 25% tint. */
   solidFill?: boolean;
+  /** Cross-chart-type: when true, the renderer suppresses the chart title. */
+  noTitle?: boolean;
   diagnostics: DgmoError[];
   error: string | null;
 }
@@ -909,7 +911,7 @@ export function parseVisualization(
       // Skip cross-chart bare-keyword options so they don't get parsed as
       // a 4th set name (the bare-keyword block at line ~1132 runs AFTER
       // type-specific parsing).
-      if (/^(solid-fill|no-name|no-value|no-percent)$/i.test(line)) {
+      if (/^(solid-fill|no-name|no-value|no-percent|no-title)$/i.test(line)) {
         // Fall through to the bare-keyword block below.
       } else if (/\+/.test(line)) {
         // Build lookup of known set names and aliases for label extraction
@@ -960,7 +962,7 @@ export function parseVisualization(
       // Set declaration: "Name(color) as <alias>" / "Name as <alias>" / "Name(color)" / "Name"
       // Legacy "Name(color) alias <token>" emits E_VENN_ALIAS_KEYWORD_REMOVED.
       // Only attempt set parsing if the line wasn't a bare-keyword option (handled above).
-      if (!/^(solid-fill|no-name|no-value|no-percent)$/i.test(line)) {
+      if (!/^(solid-fill|no-name|no-value|no-percent|no-title)$/i.test(line)) {
         // Detect legacy `alias` keyword first — graceful degradation parses
         // the rest of the line so the set still appears.
         const legacyAliasMatch = line.match(
@@ -1191,6 +1193,10 @@ export function parseVisualization(
       }
       if (bareToken === 'solid-fill') {
         result.solidFill = true;
+        continue;
+      }
+      if (bareToken === 'no-title') {
+        result.noTitle = true;
         continue;
       }
       // Silent-ignore unrecognized no-* flags (typos, future flags).
@@ -1885,7 +1891,8 @@ export function renderSlopeChart(
   onClickItem?: (lineNumber: number) => void,
   exportDims?: D3ExportDimensions
 ): void {
-  const { periods, data, title } = parsed;
+  const { periods, data } = parsed;
+  const title = parsed.noTitle ? null : parsed.title;
   if (data.length === 0 || periods.length < 2) return;
 
   const init = initD3Chart(container, palette, exportDims);
@@ -2302,7 +2309,8 @@ export function renderArcDiagram(
   onClickItem?: (lineNumber: number) => void,
   exportDims?: D3ExportDimensions
 ): void {
-  const { links, title, orientation, arcOrder, arcNodeGroups } = parsed;
+  const { links, orientation, arcOrder, arcNodeGroups } = parsed;
+  const title = parsed.noTitle ? null : parsed.title;
   if (links.length === 0) return;
 
   const init = initD3Chart(container, palette, exportDims);
@@ -3503,9 +3511,9 @@ export function renderTimeline(
     timelineSort,
     timelineScale,
     timelineSwimlanes,
-    title,
     orientation,
   } = parsed;
+  const title = parsed.noTitle ? null : parsed.title;
   if (timelineEvents.length === 0) return;
 
   // When sort: tag is set and no explicit swimlane param, use the default
@@ -5286,7 +5294,8 @@ export function renderWordCloud(
   onClickItem?: (lineNumber: number) => void,
   exportDims?: D3ExportDimensions
 ): void {
-  const { words, title, cloudOptions } = parsed;
+  const { words, cloudOptions } = parsed;
+  const title = parsed.noTitle ? null : parsed.title;
   if (words.length === 0) return;
 
   const init = initD3Chart(container, palette, exportDims);
@@ -5375,7 +5384,8 @@ function renderWordCloudAsync(
   return new Promise((resolve) => {
     d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
 
-    const { words, title, cloudOptions } = parsed;
+    const { words, cloudOptions } = parsed;
+    const title = parsed.noTitle ? null : parsed.title;
     if (words.length === 0) {
       resolve();
       return;
@@ -5574,7 +5584,8 @@ export function renderVenn(
   onClickItem?: (lineNumber: number) => void,
   exportDims?: D3ExportDimensions
 ): void {
-  const { vennSets, vennOverlaps, title } = parsed;
+  const { vennSets, vennOverlaps } = parsed;
+  const title = parsed.noTitle ? null : parsed.title;
   if (vennSets.length < 2 || vennSets.length > 3) return;
 
   const init = initD3Chart(container, palette, exportDims);
@@ -6474,7 +6485,6 @@ export function renderQuadrant(
   exportDims?: D3ExportDimensions
 ): void {
   const {
-    title,
     quadrantLabels,
     quadrantPoints,
     quadrantXAxis,
@@ -6483,6 +6493,7 @@ export function renderQuadrant(
     quadrantXAxisLineNumber,
     quadrantYAxisLineNumber,
   } = parsed;
+  const title = parsed.noTitle ? null : parsed.title;
 
   if (quadrantPoints.length === 0) return;
 
@@ -7616,7 +7627,9 @@ export async function renderForExport(
       viewState?.tag ?? options?.tagGroup
     );
 
-    const titleOffset = infraParsed.title ? 40 : 0;
+    const showInfraTitle =
+      !!infraParsed.title && infraParsed.options['no-title'] !== 'on';
+    const titleOffset = showInfraTitle ? 40 : 0;
     const legendGroups = computeInfraLegendGroups(
       infraLayout.nodes,
       infraParsed.tagGroups,
@@ -7632,8 +7645,8 @@ export async function renderForExport(
       infraLayout,
       effectivePalette,
       theme === 'dark',
-      infraParsed.title,
-      infraParsed.titleLineNumber,
+      showInfraTitle ? infraParsed.title : null,
+      showInfraTitle ? infraParsed.titleLineNumber : null,
       infraParsed.tagGroups,
       activeTagGroup,
       false,
@@ -7664,7 +7677,8 @@ export async function renderForExport(
     const pertResolved = analyzePert(pertParsed);
     const pertLayout = layoutPert(pertResolved);
 
-    const titleHeight = pertParsed.title ? 80 : 0;
+    const titleHeight =
+      pertParsed.title && !pertParsed.options.noTitle ? 80 : 0;
     const PERT_PADDING = 20;
     const exportW = pertLayout.width + PERT_PADDING * 2;
     const exportH = pertLayout.height + PERT_PADDING * 2 + titleHeight;

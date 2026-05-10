@@ -354,7 +354,8 @@ export function renderBoxesAndLines(
   for (const ln of layout.nodes) layoutNodeMap.set(ln.label, ln);
 
   // Compute diagram bounds for scaling
-  const titleOffset = parsed.title ? 40 : 0;
+  const showTitle = !!parsed.title && parsed.options['no-title'] !== 'on';
+  const titleOffset = showTitle ? 40 : 0;
   const hasAnyDescriptions = parsed.nodes.some(
     (n) => n.description && n.description.length > 0
   );
@@ -393,7 +394,7 @@ export function renderBoxesAndLines(
   const defs = svg.append('defs');
 
   // Title
-  if (parsed.title) {
+  if (showTitle) {
     svg
       .append('text')
       .attr('x', width / 2)

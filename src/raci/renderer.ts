@@ -374,7 +374,8 @@ export function renderRaci(
   const onMarkerDragStart = opts.onMarkerDragStart;
   const hideLegend = opts.hideLegend ?? false;
   const collapsedPhases = opts.collapsedPhases ?? new Set<string>();
-  const hideTitle = opts.hideTitle ?? false;
+  const hideTitle =
+    (opts.hideTitle ?? false) || parsed.options['no-title'] === 'on';
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
   const width = exportDims?.width ?? container.clientWidth;
   const height = exportDims?.height ?? container.clientHeight;

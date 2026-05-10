@@ -145,6 +145,7 @@ export function parseGantt(
       sprintStart: null,
       sprintMode: null,
       solidFill: false,
+      noTitle: false,
     },
     diagnostics,
     error: null,
@@ -603,6 +604,9 @@ export function parseGantt(
           break;
         case 'solid-fill':
           result.options.solidFill = true;
+          break;
+        case 'no-title':
+          result.options.noTitle = true;
           break;
       }
       continue;
@@ -1160,6 +1164,7 @@ const KNOWN_BOOLEANS = new Set([
   'today-marker',
   'dependencies',
   'solid-fill',
+  'no-title',
 ]);
 
 function isKnownOption(key: string): boolean {

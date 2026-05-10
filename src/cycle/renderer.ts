@@ -83,9 +83,10 @@ export function renderCycle(
   const hasLegend = hasDescriptions && !!renderOptions?.onToggleDescriptions;
 
   // Layout
+  const showTitle = !!parsed.title && parsed.options['no-title'] !== 'on';
   const legendOffset = hasLegend ? LEGEND_HEIGHT : 0;
   const layoutHeight =
-    height - (parsed.title ? TITLE_AREA_HEIGHT : 0) - legendOffset;
+    height - (showTitle ? TITLE_AREA_HEIGHT : 0) - legendOffset;
   const layout = computeCycleLayout(parsed, {
     width,
     height: layoutHeight,
@@ -109,7 +110,7 @@ export function renderCycle(
     .attr('fill', palette.bg);
 
   // Title
-  if (parsed.title) {
+  if (showTitle) {
     const titleText = svg
       .append('text')
       .attr('x', width / 2)
@@ -161,7 +162,7 @@ export function renderCycle(
         }
       },
     };
-    const titleOffset = parsed.title ? TITLE_AREA_HEIGHT : 0;
+    const titleOffset = showTitle ? TITLE_AREA_HEIGHT : 0;
     const legendG = svg
       .append('g')
       .attr('transform', `translate(0, ${titleOffset + 4})`);
@@ -177,7 +178,7 @@ export function renderCycle(
   }
 
   // Main diagram group
-  const diagramTop = (parsed.title ? TITLE_AREA_HEIGHT : 0) + legendOffset;
+  const diagramTop = (showTitle ? TITLE_AREA_HEIGHT : 0) + legendOffset;
   const g = svg.append('g').attr('transform', `translate(0, ${diagramTop})`);
 
   // Defs for arrowheads

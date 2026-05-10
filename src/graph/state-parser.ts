@@ -14,6 +14,7 @@ import {
   parseFirstLine,
   OPTION_NOCOLON_RE,
   ALL_CHART_TYPES,
+  tryParseSharedOption,
 } from '../utils/parsing';
 import { normalizeName, displayName } from '../utils/name-normalize';
 import type { ParsedGraph, GraphNode, GraphGroup } from './types';
@@ -376,6 +377,11 @@ export function parseState(
       // Bare boolean: no-color (toggles color off)
       if (/^no-color$/i.test(trimmed)) {
         result.options['color'] = 'off';
+        continue;
+      }
+
+      // Cross-chart-type bare booleans (no-title, etc.)
+      if (tryParseSharedOption(trimmed, result.options)) {
         continue;
       }
 

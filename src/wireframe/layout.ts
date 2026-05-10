@@ -126,7 +126,8 @@ export function layoutWireframe(
   const defaultWidth =
     parsed.formFactor === 'mobile' ? MOBILE_WIDTH : DESKTOP_WIDTH;
   const frameWidth = overrideWidth ?? defaultWidth;
-  const titleHeight = parsed.title ? TITLE_HEIGHT : 0;
+  const titleHeight =
+    parsed.title && parsed.options['no-title'] !== 'on' ? TITLE_HEIGHT : 0;
 
   const contentWidth = frameWidth - FRAME_PADDING * 2;
 

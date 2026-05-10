@@ -406,7 +406,8 @@ export function renderFlowchart(
   const height = exportDims?.height ?? container.clientHeight;
   if (width <= 0 || height <= 0) return;
 
-  const titleHeight = graph.title ? 40 : 0;
+  const showTitle = !!graph.title && graph.options['no-title'] !== 'on';
+  const titleHeight = showTitle ? 40 : 0;
 
   // Compute scale to fit diagram in available space below title
   const diagramW = layout.width;
@@ -468,7 +469,7 @@ export function renderFlowchart(
   }
 
   // Title (rendered directly on SVG, not inside scaled group)
-  if (graph.title) {
+  if (showTitle) {
     const titleEl = svg
       .append('text')
       .attr('class', 'chart-title')
@@ -482,7 +483,7 @@ export function renderFlowchart(
         'cursor',
         onClickItem && graph.titleLineNumber ? 'pointer' : 'default'
       )
-      .text(graph.title);
+      .text(graph.title!);
 
     if (graph.titleLineNumber) {
       titleEl.attr('data-line-number', graph.titleLineNumber);
@@ -697,14 +698,16 @@ export function renderFlowchartForExport(
   // Create offscreen container
   const container = document.createElement('div');
   container.style.width = `${layout.width + DIAGRAM_PADDING * 2}px`;
-  container.style.height = `${layout.height + DIAGRAM_PADDING * 2 + (parsed.title ? 40 : 0)}px`;
+  container.style.height = `${layout.height + DIAGRAM_PADDING * 2 + (parsed.title && parsed.options['no-title'] !== 'on' ? 40 : 0)}px`;
   container.style.position = 'absolute';
   container.style.left = '-9999px';
   document.body.appendChild(container);
 
   const exportWidth = layout.width + DIAGRAM_PADDING * 2;
   const exportHeight =
-    layout.height + DIAGRAM_PADDING * 2 + (parsed.title ? 40 : 0);
+    layout.height +
+    DIAGRAM_PADDING * 2 +
+    (parsed.title && parsed.options['no-title'] !== 'on' ? 40 : 0);
 
   try {
     renderFlowchart(container, parsed, layout, palette, isDark, undefined, {
