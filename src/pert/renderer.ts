@@ -492,24 +492,28 @@ export function renderPert(
     const ANALYSIS_GAP = 16;
     const availWidth = exportWidth - 2 * DIAGRAM_PADDING;
     const nGaps = analysisWidgets.length - 1;
-    // Weighted column widths: Summary is text-only and reads well at
-    // narrow widths; Tornado / S-curve are charts that benefit from the
-    // extra horizontal room. Weights 2 / 3 / 3 give Summary ~25% and
-    // each chart ~37.5% of the row.
-    const ANALYSIS_WEIGHTS: Record<AnalysisKind, number> = {
-      summary: 2,
-      tornado: 3,
-      scurve: 3,
-    };
-    const totalWeight = analysisWidgets.reduce(
-      (acc, w) => acc + ANALYSIS_WEIGHTS[w.kind],
-      0
-    );
     const usableWidth = availWidth - nGaps * ANALYSIS_GAP;
+    // Sizing rule: Summary takes only the width its bullets need
+    // (clamped to a sensible min/max), and the remaining width splits
+    // evenly across the chart widgets. Summary is text-only — extra
+    // horizontal whitespace there is wasted, while charts gain visual
+    // resolution from every pixel.
+    const SUMMARY_MIN_W = 260;
+    const SUMMARY_MAX_W = 420;
+    const summaryWidth = summaryRendered
+      ? Math.max(
+          SUMMARY_MIN_W,
+          Math.min(SUMMARY_MAX_W, captionNaturalWidth(captionBullets))
+        )
+      : 0;
+    const chartCount = analysisWidgets.filter(
+      (w) => w.kind !== 'summary'
+    ).length;
+    const chartWidth =
+      chartCount > 0 ? (usableWidth - summaryWidth) / chartCount : 0;
     let cursorX = DIAGRAM_PADDING;
     for (const w of analysisWidgets) {
-      const widgetWidth =
-        (usableWidth * ANALYSIS_WEIGHTS[w.kind]) / totalWeight;
+      const widgetWidth = w.kind === 'summary' ? summaryWidth : chartWidth;
       const args = {
         x: cursorX,
         y: bandY,
@@ -1914,6 +1918,30 @@ const SUB_BULLET_INDENT = 20;
 // bullet. Used by renderPert / renderPertForExport when sizing the
 // caption box.
 const CAPTION_HEADER_BAND_HEIGHT = CAPTION_LINE_HEIGHT + 8;
+
+/**
+ * Estimate the Summary box's natural pixel width given its bullets.
+ * Picks the longest bullet (with `• ` glyph + sub-bullet indent) and
+ * adds box padding. Used to size the Summary to its content rather
+ * than always claiming a fixed share of the Analysis row.
+ *
+ * 0.55 × CAPTION_FONT_SIZE approximates Inter's average glyph width
+ * at 13pt for mixed-case English content. Tighter than the typical
+ * 0.6 estimator — works because bullet text is mostly ASCII numerics
+ * and short labels.
+ */
+function captionNaturalWidth(bullets: CaptionBullet[]): number {
+  const charW = CAPTION_FONT_SIZE * 0.55;
+  // Header text "Summary" sets a soft floor so a one-bullet caption
+  // doesn't end up narrower than its centered header label.
+  let max = 'Summary'.length * charW;
+  for (const b of bullets) {
+    const indent = b.level === 1 ? SUB_BULLET_INDENT : 0;
+    const w = indent + `• ${b.text}`.length * charW;
+    if (w > max) max = w;
+  }
+  return Math.ceil(max + 2 * CAPTION_BOX_PADDING_X);
+}
 
 // Tornado widget — Monte-Carlo sensitivity ranking. Renders inside
 // the Analysis row at width determined by the row's column allocation.
