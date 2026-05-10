@@ -150,7 +150,7 @@ describe('pert renderer — structural assertions', () => {
 
     highlightPertCriticalPath(c);
     const svg = c.querySelector('svg')!;
-    expect(svg.getAttribute('data-critical-path-active')).toBe('true');
+    expect(svg.getAttribute('data-pert-highlight-active')).toBe('critical');
 
     const fadedNodes = c.querySelectorAll('g.pert-node[opacity="0.15"]');
     const fullNodes = c.querySelectorAll('g.pert-node[opacity="1"]');
@@ -160,7 +160,7 @@ describe('pert renderer — structural assertions', () => {
     expect(fullNodes.length).toBeGreaterThan(0);
 
     resetPertCriticalPath(c);
-    expect(svg.getAttribute('data-critical-path-active')).toBeNull();
+    expect(svg.getAttribute('data-pert-highlight-active')).toBeNull();
     expect(c.querySelectorAll('g.pert-node[opacity]').length).toBe(0);
 
     document.body.removeChild(c);
