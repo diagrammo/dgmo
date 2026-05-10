@@ -180,16 +180,17 @@ describe('pert renderer — structural assertions', () => {
       // Same rect-based shape as the textbook card — no diamond polygon.
       expect(wrapper!.querySelector('polygon')).toBeNull();
       expect(wrapper!.querySelector('rect')).not.toBeNull();
-      // Cell count depends on whether slack got suppressed (zero slack
-      // = no bottom divider + no slack text).
+      // Divider count depends on whether slack got suppressed (zero
+      // slack = no bottom divider).
       const slackHidden =
         wrapper!.getAttribute('data-milestone-slack-hidden') === 'true';
       expect(wrapper!.querySelectorAll('line').length).toBe(
         slackHidden ? 1 : 2
       );
-      expect(wrapper!.querySelectorAll('text').length).toBe(
-        slackHidden ? 2 : 3
-      );
+      // At minimum: a date row + at least one name line. (Long names
+      // can wrap to two lines, so don't assert an exact text count.)
+      const texts = wrapper!.querySelectorAll('text');
+      expect(texts.length).toBeGreaterThanOrEqual(slackHidden ? 2 : 3);
     }
   });
 

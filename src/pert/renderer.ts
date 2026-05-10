@@ -1288,22 +1288,55 @@ function drawMilestonePill(g: AnySel, a: MilestonePillArgs): void {
   );
 
   // Middle: name. Smaller than the regular card's name (12 vs 13) so
-  // longer milestone names still fit in the narrower pill.
+  // longer milestone names still fit in the narrower pill. Wrap to
+  // multiple lines when the name overflows; if a single word still
+  // doesn't fit, truncate it with an ellipsis. Anchor pin (when the
+  // milestone is the forward source / backward sink) sits to the left
+  // of the text block.
   const midRowTop = y + topRowH;
   const midRowH = h - topRowH - botRowH;
   const midCenterY = midRowTop + midRowH / 2;
   const nameSize = 12;
+  const NAME_PAD_X = 6;
+  const NAME_PIN_GAP = 4;
+  const NAME_LINE_HEIGHT = 14;
+  const charW = nameSize * 0.55;
+
+  let textAreaLeft = x + NAME_PAD_X;
+  const textAreaRight = x + w - NAME_PAD_X;
   if (a.pinned) {
-    const approxTextW = a.name.length * nameSize * 0.55;
-    const gap = 4;
-    const combined = PIN_ICON_W + gap + approxTextW;
-    const groupLeft = x + w / 2 - combined / 2;
-    drawAnchorPin(g, groupLeft, midCenterY, a.labelColor);
-    const textCx = groupLeft + PIN_ICON_W + gap + approxTextW / 2;
-    drawCenteredText(textCx, midCenterY, a.name, 'bold', nameSize);
-  } else {
-    drawCenteredText(x + w / 2, midCenterY, a.name, 'bold', nameSize);
+    drawAnchorPin(g, x + NAME_PAD_X, midCenterY, a.labelColor);
+    textAreaLeft = x + NAME_PAD_X + PIN_ICON_W + NAME_PIN_GAP;
   }
+  const textCx = (textAreaLeft + textAreaRight) / 2;
+  const availW = textAreaRight - textAreaLeft;
+  const maxChars = Math.max(1, Math.floor(availW / charW));
+  const lines = wrapTextByChars(a.name, maxChars).map((line) =>
+    line.length > maxChars
+      ? line.slice(0, Math.max(1, maxChars - 1)) + '…'
+      : line
+  );
+  // Cap the rendered lines at what fits in the middle row.
+  const maxLines = Math.max(1, Math.floor(midRowH / NAME_LINE_HEIGHT));
+  const visibleLines = lines.slice(0, maxLines);
+  if (lines.length > maxLines && visibleLines.length > 0) {
+    const last = visibleLines[visibleLines.length - 1]!;
+    visibleLines[visibleLines.length - 1] =
+      last.length > maxChars - 1
+        ? last.slice(0, Math.max(1, maxChars - 1)) + '…'
+        : last + '…';
+  }
+  const startCy =
+    midCenterY - ((visibleLines.length - 1) * NAME_LINE_HEIGHT) / 2;
+  visibleLines.forEach((line, i) => {
+    drawCenteredText(
+      textCx,
+      startCy + i * NAME_LINE_HEIGHT,
+      line,
+      'bold',
+      nameSize
+    );
+  });
 
   // Bottom: slack — preserves the textbook card's bottom-row slack
   // position, so the eye finds slack in the same place on every node.
