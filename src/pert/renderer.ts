@@ -395,13 +395,9 @@ export function renderPert(
   // falls back to a default height.
   const showFieldLegend = options.showFieldLegend ?? false;
   const showSummary = options.showSummary ?? true;
-  // Tornado only renders when MC ran — analytical mode produces no
-  // criticality/sigma data to rank against.
-  const tornadoRows =
-    (options.showTornado ?? false) ? buildTornadoRows(resolved) : [];
-  const showTornado = tornadoRows.length > 0;
-  const tornadoBoxHeight = showTornado ? tornadoBoxHeightFor(tornadoRows) : 0;
-  // S-curve gates on MC output as well.
+  // Tornado / S-curve only render when MC ran — analytical mode
+  // produces no criticality/sigma data.
+  const tornadoOn = options.showTornado ?? false;
   const scurveData =
     (options.showScurve ?? false) ? buildScurveData(resolved) : null;
   const showScurve = scurveData !== null;
@@ -415,17 +411,16 @@ export function renderPert(
   // the Analysis row stacked below Summary in column 1 (so it visually
   // belongs to the same band rather than getting its own row).
   type AnalysisKind = 'summary' | 'tornado' | 'scurve';
-  const analysisCharts: { kind: AnalysisKind; contentHeight: number }[] = [];
-  if (showTornado)
-    analysisCharts.push({ kind: 'tornado', contentHeight: tornadoBoxHeight });
-  if (showScurve)
-    analysisCharts.push({ kind: 'scurve', contentHeight: scurveBoxHeight });
-  const chartMaxHeight = analysisCharts.reduce(
-    (acc, w) => Math.max(acc, w.contentHeight),
-    0
-  );
+  // Initial pass: Tornado defaults to TORNADO_TOP_N rows so we can
+  // estimate its content height. After we know the final row height
+  // (set by col1 / S-curve / default tornado), we'll grow Tornado to
+  // fill any leftover vertical room.
+  let tornadoRows = tornadoOn ? buildTornadoRows(resolved) : [];
+  const showTornado = tornadoRows.length > 0;
+  let tornadoBoxHeight = showTornado ? tornadoBoxHeightFor(tornadoRows) : 0;
+
   const fieldLegendInAnalysisRow =
-    showFieldLegend && (summaryRendered || analysisCharts.length > 0);
+    showFieldLegend && (summaryRendered || showTornado || showScurve);
   // Column 1 width is content-fit on Summary (when present) or a
   // sensible default (when only Field-labels lives in col 1). We need
   // it BEFORE the height calc so we can size Field-labels to its
@@ -451,7 +446,32 @@ export function renderPert(
   const col1Height = col1Items.length
     ? col1Items.reduce((a, b) => a + b, 0) + (col1Items.length - 1) * 8
     : 0;
-  const analysisRowHeight = Math.max(col1Height, chartMaxHeight);
+  // First-cut row height: max of column heights at current tornado N.
+  let analysisRowHeight = Math.max(
+    col1Height,
+    scurveBoxHeight,
+    tornadoBoxHeight
+  );
+  // If there's leftover vertical room in the row (e.g. col 1 is taller
+  // than 10-row tornado), grow Tornado to fill it with more activities.
+  if (showTornado) {
+    const targetTornadoH = analysisRowHeight;
+    const maxRows = tornadoMaxRowsFor(targetTornadoH);
+    if (maxRows > tornadoRows.length) {
+      tornadoRows = buildTornadoRows(resolved, maxRows);
+      tornadoBoxHeight = tornadoBoxHeightFor(tornadoRows);
+      analysisRowHeight = Math.max(
+        col1Height,
+        scurveBoxHeight,
+        tornadoBoxHeight
+      );
+    }
+  }
+  const analysisCharts: { kind: AnalysisKind; contentHeight: number }[] = [];
+  if (showTornado)
+    analysisCharts.push({ kind: 'tornado', contentHeight: tornadoBoxHeight });
+  if (showScurve)
+    analysisCharts.push({ kind: 'scurve', contentHeight: scurveBoxHeight });
   const analysisHasContent =
     summaryRendered || analysisCharts.length > 0 || fieldLegendInAnalysisRow;
   const analysisBlockHeight = analysisHasContent
@@ -2489,7 +2509,10 @@ interface TornadoRow {
  * the critical path to rank highly. Returns an empty array when MC
  * didn't run (analytical mode) or no activity has positive SSI.
  */
-function buildTornadoRows(resolved: ResolvedPert): TornadoRow[] {
+function buildTornadoRows(
+  resolved: ResolvedPert,
+  maxN: number = TORNADO_TOP_N
+): TornadoRow[] {
   if (resolved.monteCarloResult === null) return [];
   const rows: TornadoRow[] = [];
   for (const a of resolved.activities) {
@@ -2507,7 +2530,18 @@ function buildTornadoRows(resolved: ResolvedPert): TornadoRow[] {
     });
   }
   rows.sort((a, b) => b.ssi - a.ssi);
-  return rows.slice(0, TORNADO_TOP_N);
+  return rows.slice(0, Math.max(1, maxN));
+}
+
+/**
+ * Maximum number of tornado rows that fit inside a box of the given
+ * height. Reverses tornadoBoxHeightFor(): subtracts header band and
+ * box padding, then floors by row height.
+ */
+function tornadoMaxRowsFor(boxHeight: number): number {
+  const rowSpace =
+    boxHeight - 2 * CAPTION_BOX_PADDING_Y - CAPTION_HEADER_BAND_HEIGHT;
+  return Math.max(1, Math.floor(rowSpace / TORNADO_ROW_HEIGHT));
 }
 
 function tornadoBoxHeightFor(rows: TornadoRow[]): number {
