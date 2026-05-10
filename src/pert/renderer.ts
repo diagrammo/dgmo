@@ -2678,10 +2678,30 @@ function renderTornadoBlock(
     const lowW = (row.lowSwing / maxSwing) * halfPlot;
     const highW = (row.highSwing / maxSwing) * halfPlot;
 
+    // Wrap the full row in a `<g class="pert-tornado-row">` so the
+    // React-layer hover handler can resolve the activity id from any
+    // descendant target via `closest()`.
+    const rowG = block
+      .append('g')
+      .attr('class', 'pert-tornado-row')
+      .attr('data-activity-id', row.id);
+
+    // Transparent overlay rect spans the entire row, captures pointer
+    // events even over whitespace (between bars / over the value column).
+    rowG
+      .append('rect')
+      .attr('class', 'pert-tornado-row-hit')
+      .attr('x', nameX)
+      .attr('y', rowY)
+      .attr('width', valueX - nameX)
+      .attr('height', TORNADO_ROW_HEIGHT)
+      .attr('fill', 'transparent')
+      .attr('pointer-events', 'all');
+
     // Activity name (truncate when overlong).
     const truncated =
       row.name.length > 22 ? row.name.slice(0, 21) + '…' : row.name;
-    block
+    rowG
       .append('text')
       .attr('class', 'pert-tornado-name')
       .attr('x', nameX)
@@ -2693,7 +2713,7 @@ function renderTornadoBlock(
 
     // Left bar (low swing) — grows from center toward the left.
     if (lowW > 0) {
-      block
+      rowG
         .append('rect')
         .attr('class', 'pert-tornado-bar pert-tornado-bar-low')
         .attr('x', centerX - lowW)
@@ -2704,13 +2724,12 @@ function renderTornadoBlock(
         .attr('ry', 2)
         .attr('fill', barFill)
         .attr('stroke', barColor)
-        .attr('stroke-width', 1)
-        .attr('data-activity-id', row.id);
+        .attr('stroke-width', 1);
     }
 
     // Right bar (high swing) — grows from center toward the right.
     if (highW > 0) {
-      block
+      rowG
         .append('rect')
         .attr('class', 'pert-tornado-bar pert-tornado-bar-high')
         .attr('x', centerX)
@@ -2721,8 +2740,7 @@ function renderTornadoBlock(
         .attr('ry', 2)
         .attr('fill', barFill)
         .attr('stroke', barColor)
-        .attr('stroke-width', 1)
-        .attr('data-activity-id', row.id);
+        .attr('stroke-width', 1);
     }
 
     // Swing magnitudes on the far right: `-low / +high` in display unit.
@@ -2730,7 +2748,7 @@ function renderTornadoBlock(
       const r = Math.round(v * 100) / 100;
       return r.toFixed(2).replace(/\.?0+$/, '');
     };
-    block
+    rowG
       .append('text')
       .attr('class', 'pert-tornado-value')
       .attr('x', valueX)
