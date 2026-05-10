@@ -105,6 +105,94 @@ describe('pert analyzer — TBD propagation', () => {
   });
 });
 
+describe('pert analyzer — edge types and lag/lead', () => {
+  it('FS+lag: B.ES = A.EF + lag', () => {
+    // A 2d → +3d lag → B 2d
+    const r = analyze(`pert
+time-unit d
+A 2 2 2
+B 2 2 2
+A
+  -3d-> B
+`);
+    expect(r.error).toBeNull();
+    const A = r.activities.find((x) => x.activity.name === 'A')!;
+    const B = r.activities.find((x) => x.activity.name === 'B')!;
+    expect(A.es).toBe(0);
+    expect(A.ef).toBe(2);
+    expect(B.es).toBe(5); // A.ef (2) + lag (3) = 5
+    expect(B.ef).toBe(7);
+    expect(r.projectMu).toBe(7);
+  });
+
+  it('SS+lag: B.ES = A.ES + lag (parallel start with offset)', () => {
+    // A 5d → SS+1d → B 3d. B starts 1d after A starts; both finish independently.
+    const r = analyze(`pert
+time-unit d
+A 5 5 5
+B 3 3 3
+A
+  -SS+1d-> B
+`);
+    expect(r.error).toBeNull();
+    const A = r.activities.find((x) => x.activity.name === 'A')!;
+    const B = r.activities.find((x) => x.activity.name === 'B')!;
+    expect(A.es).toBe(0);
+    expect(A.ef).toBe(5);
+    expect(B.es).toBe(1); // A.ES (0) + 1d
+    expect(B.ef).toBe(4); // 1 + 3
+    // projectMu = max(EF) over all activities = max(5, 4) = 5
+    expect(r.projectMu).toBe(5);
+  });
+
+  it('FF+lag: B.EF = A.EF + lag (synchronized finish, B may push later)', () => {
+    // A 5d → FF+1d → B 2d. B's EF must be A.EF + 1 = 6, so B.ES = 4.
+    const r = analyze(`pert
+time-unit d
+A 5 5 5
+B 2 2 2
+A
+  -FF+1d-> B
+`);
+    expect(r.error).toBeNull();
+    const B = r.activities.find((x) => x.activity.name === 'B')!;
+    expect(B.ef).toBe(6); // A.EF (5) + 1d
+    expect(B.es).toBe(4); // 6 - 2 (B's duration)
+  });
+
+  it('FS lead (negative lag): B.ES = A.EF − lead', () => {
+    // A 5d → FS-2d → B 3d. B starts 2d before A finishes (overlap).
+    const r = analyze(`pert
+time-unit d
+A 5 5 5
+B 3 3 3
+A
+  -FS-2d-> B
+`);
+    expect(r.error).toBeNull();
+    const B = r.activities.find((x) => x.activity.name === 'B')!;
+    expect(B.es).toBe(3); // A.EF (5) - 2d = 3
+    expect(B.ef).toBe(6);
+  });
+
+  it('lead exceeding predecessor duration emits a warning', () => {
+    // A 2d → FS-3d → B 2d. Lead (3d) > A.duration (2d) → impossible overlap.
+    const r = analyze(`pert
+time-unit d
+A 2 2 2
+B 2 2 2
+A
+  -FS-3d-> B
+`);
+    const w = r.diagnostics.find(
+      (d) =>
+        d.severity === 'warning' &&
+        /Lead .* exceeds predecessor/.test(d.message)
+    );
+    expect(w).toBeDefined();
+  });
+});
+
 describe('pert analyzer — cycle detection', () => {
   it('AC2.5: cycle emits diagnostic identifying an activity by name', () => {
     const resolved = analyze(loadFixture('cycle-error.dgmo'));

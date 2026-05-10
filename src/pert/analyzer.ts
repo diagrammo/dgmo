@@ -118,17 +118,48 @@ export function analyzePert(parsed: ParsedPert): ResolvedPert {
 
   const activities = parsed.activities;
   const edges = parsed.edges;
+  const warn = (line: number, msg: string): void => {
+    diagnostics.push(makeDgmoError(line, msg, 'warning'));
+  };
 
-  // Build successor/predecessor maps keyed by activity id.
+  // Build successor/predecessor maps keyed by activity id, plus parallel
+  // maps keyed-by-edge-direction so the forward/backward pass can read
+  // dep-type and lag for each (source, target) link.
   const successors = new Map<string, string[]>();
   const predecessors = new Map<string, string[]>();
+  const incomingEdges = new Map<string, PertEdge[]>();
+  const outgoingEdges = new Map<string, PertEdge[]>();
   for (const a of activities) {
     successors.set(a.id, []);
     predecessors.set(a.id, []);
+    incomingEdges.set(a.id, []);
+    outgoingEdges.set(a.id, []);
   }
   for (const e of edges) {
     successors.get(e.source)?.push(e.target);
     predecessors.get(e.target)?.push(e.source);
+    incomingEdges.get(e.target)?.push(e);
+    outgoingEdges.get(e.source)?.push(e);
+  }
+
+  // Lead-exceeds-duration validation. For an FS edge with negative lag
+  // (lead) of magnitude L, if L > predecessor's duration, the constraint
+  // implies B.ES < A.ES — logically impossible without an SS/SF edge.
+  // Surface as a warning so the user can correct it; analyzer still
+  // computes a schedule (the warning is informational).
+  for (const e of edges) {
+    if (!e.lag || e.lag.amount >= 0) continue;
+    const src = activities.find((a) => a.id === e.source);
+    if (!src || !src.duration) continue;
+    const leadDays = -toDays(e.lag);
+    const srcDurDays = toDays(src.duration.m);
+    if (e.type === 'FS' && leadDays > srcDurDays) {
+      warn(
+        e.lineNumber,
+        `Lead (${-e.lag.amount}${e.lag.unit}) exceeds predecessor "${src.name}" duration — ` +
+          `the FS edge implies the successor starts before the predecessor.`
+      );
+    }
   }
 
   // Topological sort (Kahn's algorithm). On cycle, emit diagnostic.
@@ -194,6 +225,12 @@ export function analyzePert(parsed: ParsedPert): ResolvedPert {
   }
 
   // Forward pass: ES/EF for each non-poisoned activity, in topo order.
+  // Each incoming edge contributes a lower bound according to its type:
+  //   FS:  B.ES ≥ A.EF + lag        (constrains ES)
+  //   SS:  B.ES ≥ A.ES + lag        (constrains ES)
+  //   FF:  B.EF ≥ A.EF + lag        (constrains EF)
+  //   SF:  B.EF ≥ A.ES + lag        (constrains EF)
+  // ES then EF are picked so EF − ES = duration, and both bounds hold.
   const es = new Map<string, number | null>();
   const ef = new Map<string, number | null>();
   for (const id of topo) {
@@ -202,28 +239,58 @@ export function analyzePert(parsed: ParsedPert): ResolvedPert {
       ef.set(id, null);
       continue;
     }
-    const preds = predecessors.get(id)!;
-    const preEf =
-      preds.length === 0 ? 0 : Math.max(...preds.map((p) => ef.get(p)!));
-    es.set(id, preEf);
     const expanded = expandedById.get(id)!;
-    ef.set(id, preEf + expanded.mean);
+    const dur = expanded.mean;
+
+    let esLower = 0;
+    let efLower = -Infinity;
+    for (const edge of incomingEdges.get(id) ?? []) {
+      const aEs = es.get(edge.source);
+      const aEf = ef.get(edge.source);
+      if (aEs == null || aEf == null) continue;
+      const lagDays = edge.lag ? toDays(edge.lag) : 0;
+      switch (edge.type) {
+        case 'FS':
+          esLower = Math.max(esLower, aEf + lagDays);
+          break;
+        case 'SS':
+          esLower = Math.max(esLower, aEs + lagDays);
+          break;
+        case 'FF':
+          efLower = Math.max(efLower, aEf + lagDays);
+          break;
+        case 'SF':
+          efLower = Math.max(efLower, aEs + lagDays);
+          break;
+      }
+    }
+    // Pin EF = ES + dur, then bump ES forward if EF-side constraints
+    // demand a later finish than ES + dur supports.
+    let esVal = esLower;
+    let efVal = esVal + dur;
+    if (efLower > efVal) {
+      efVal = efLower;
+      esVal = efVal - dur;
+    }
+    es.set(id, esVal);
+    ef.set(id, efVal);
   }
 
-  // Project μ = max(EF) over terminal activities (no successors).
+  // Project μ = max(EF) over all non-poisoned activities. Pure FS graphs
+  // have monotonic EF along edges so terminals always carry the project
+  // end, but SS/FF/SF edges break that invariant — a non-terminal
+  // predecessor can finish after its SS-successor. Considering every
+  // activity gives the right answer for any mix of dep types.
   // If ANY terminal is poisoned, projectMu becomes null — the actual
   // project end is unknowable until TBDs are estimated. Per AC2.3 +
-  // AC3.3a: poisoned terminals invalidate the analytical projectMu;
-  // partial-graph MC mode can still run over the un-poisoned subgraph
-  // and report subgraph stats (Phase 2).
+  // AC3.3a: poisoned terminals invalidate the analytical projectMu.
   let projectMuDays: number | null = null;
   let endId: string | null = null;
   let anyTerminalPoisoned = false;
   for (const a of activities) {
-    const succ = successors.get(a.id) ?? [];
-    if (succ.length > 0) continue;
+    const isTerminal = (successors.get(a.id) ?? []).length === 0;
     if (poisoned.has(a.id)) {
-      anyTerminalPoisoned = true;
+      if (isTerminal) anyTerminalPoisoned = true;
       continue;
     }
     const efVal = ef.get(a.id);
@@ -254,16 +321,51 @@ export function analyzePert(parsed: ParsedPert): ResolvedPert {
       ls.set(a.id, projectMuDays - exp.mean);
     }
   }
-  // Walk topo in reverse.
+  // Walk topo in reverse. Each outgoing edge contributes an upper bound:
+  //   FS:  A.LF ≤ B.LS − lag
+  //   SS:  A.LS ≤ B.LS − lag
+  //   FF:  A.LF ≤ B.LF − lag
+  //   SF:  A.LS ≤ B.LF − lag
+  // LS then LF are picked so LF − LS = duration, and both bounds hold.
   for (let i = topo.length - 1; i >= 0; i--) {
     const id = topo[i];
     if (poisoned.has(id) || projectMuDays === null) continue;
-    const succ = successors.get(id) ?? [];
-    if (succ.length === 0) continue; // already initialized to projectMu
-    const minLs = Math.min(...succ.map((s) => ls.get(s)!));
-    lf.set(id, minLs);
+    const out = outgoingEdges.get(id) ?? [];
+    if (out.length === 0) continue; // already initialized to projectMu
+
     const exp = expandedById.get(id)!;
-    ls.set(id, minLs - exp.mean);
+    const dur = exp.mean;
+
+    let lfUpper = Infinity;
+    let lsUpper = Infinity;
+    for (const edge of out) {
+      const bLs = ls.get(edge.target);
+      const bLf = lf.get(edge.target);
+      if (bLs == null || bLf == null) continue;
+      const lagDays = edge.lag ? toDays(edge.lag) : 0;
+      switch (edge.type) {
+        case 'FS':
+          lfUpper = Math.min(lfUpper, bLs - lagDays);
+          break;
+        case 'SS':
+          lsUpper = Math.min(lsUpper, bLs - lagDays);
+          break;
+        case 'FF':
+          lfUpper = Math.min(lfUpper, bLf - lagDays);
+          break;
+        case 'SF':
+          lsUpper = Math.min(lsUpper, bLf - lagDays);
+          break;
+      }
+    }
+    let lfVal = lfUpper;
+    let lsVal = lfVal - dur;
+    if (lsUpper < lsVal) {
+      lsVal = lsUpper;
+      lfVal = lsVal + dur;
+    }
+    lf.set(id, lfVal);
+    ls.set(id, lsVal);
   }
 
   // Critical path = walk backward from `endId` taking the predecessor
