@@ -130,16 +130,54 @@ const LEGEND_BOTTOM_GAP = 12;
 
 // Field-reference legend — a 3×2 mini-card that mirrors the schedule
 // cells of the textbook PERT card so readers can map each cell's value
-// back to its meaning. Renders as its own full-width row below the
-// Analysis row.
-const FIELD_LEGEND_DEFAULT_HEIGHT = 130;
+// back to its meaning. Renders inside the Analysis row when both are
+// on (stacks below Summary in column 1), or in its own full-width row
+// when Analysis is off.
+// Header band height inlined here (CAPTION_HEADER_BAND_HEIGHT is
+// defined later in the file).
+const FIELD_LEGEND_HEADER_BAND_HEIGHT = 26;
+// Top + bottom padding inside each cell.
+const FIELD_LEGEND_CELL_VPAD = 14;
+// Pixel height per row in the field-legend grid given how many text
+// lines the longest description in that row wraps to. Used by both
+// the layout (to reserve canvas height) and the renderer.
+function fieldLegendRowHeight(maxDescLines: number): number {
+  return (
+    FIELD_LEGEND_CELL_VPAD * 2 +
+    FIELD_LEGEND_LABEL_FONT_SIZE +
+    FIELD_LEGEND_LABEL_DESC_GAP +
+    maxDescLines * FIELD_LEGEND_DESC_LINE_HEIGHT
+  );
+}
+// Chars-per-line the description text wraps at for the given column
+// width. 0.55× char-width estimator; floors at 10 so a long single
+// word doesn't run off.
+function fieldLegendWrapChars(colW: number): number {
+  const charW = FIELD_LEGEND_DESC_FONT_SIZE * 0.55;
+  return Math.max(10, Math.floor((colW - 8) / charW));
+}
+// Total height the field-legend block needs at the given outer width.
+// Accounts for the worst-case description wrap across all 6 cells.
+function fieldLegendHeightFor(width: number): number {
+  const colW = width / 3;
+  const wrapChars = fieldLegendWrapChars(colW);
+  let maxLines = 1;
+  for (const cell of FIELD_LEGEND_CELLS) {
+    const n = wrapTextByChars(cell.desc, wrapChars).length;
+    if (n > maxLines) maxLines = n;
+  }
+  return (
+    FIELD_LEGEND_HEADER_BAND_HEIGHT +
+    fieldLegendRowHeight(maxLines) * 2 +
+    CAPTION_BOX_PADDING_Y
+  );
+}
 const FIELD_LEGEND_LABEL_FONT_SIZE = 13;
 const FIELD_LEGEND_DESC_FONT_SIZE = 11;
 const FIELD_LEGEND_DESC_LINE_HEIGHT = 14;
 const FIELD_LEGEND_LABEL_DESC_GAP = 4;
 // Greedy word-wrap budget per line — calibrated for 11pt Inter at the
 // cell width minus padding.
-const FIELD_LEGEND_DESC_WRAP_CHARS = 27;
 // Six cells, top row then bottom row — same order as the textbook card:
 //   top:    [ ES | dur | EF ]
 //   bottom: [ LS | slack | LF ]
@@ -365,30 +403,65 @@ export function renderPert(
   const summaryRendered = showSummary && captionBullets.length > 0;
 
   // ── Analysis row (Summary + Tornado + S-curve, side-by-side) ────
-  // The three MC widgets pack horizontally into one row at full canvas
-  // width. Each gets an equal share of the row's content area; the row
-  // height = max widget content height so they top-align.
+  // The MC widgets pack horizontally into one row at full canvas
+  // width. Each chart gets an equal share of the row's content area;
+  // Summary is content-fit. When Field labels is also on, it joins
+  // the Analysis row stacked below Summary in column 1 (so it visually
+  // belongs to the same band rather than getting its own row).
   type AnalysisKind = 'summary' | 'tornado' | 'scurve';
-  const analysisWidgets: { kind: AnalysisKind; contentHeight: number }[] = [];
-  if (summaryRendered)
-    analysisWidgets.push({ kind: 'summary', contentHeight: captionBoxHeight });
+  const analysisCharts: { kind: AnalysisKind; contentHeight: number }[] = [];
   if (showTornado)
-    analysisWidgets.push({ kind: 'tornado', contentHeight: tornadoBoxHeight });
+    analysisCharts.push({ kind: 'tornado', contentHeight: tornadoBoxHeight });
   if (showScurve)
-    analysisWidgets.push({ kind: 'scurve', contentHeight: scurveBoxHeight });
-  const analysisRowHeight =
-    analysisWidgets.length > 0
-      ? Math.max(...analysisWidgets.map((w) => w.contentHeight))
+    analysisCharts.push({ kind: 'scurve', contentHeight: scurveBoxHeight });
+  const chartMaxHeight = analysisCharts.reduce(
+    (acc, w) => Math.max(acc, w.contentHeight),
+    0
+  );
+  const fieldLegendInAnalysisRow =
+    showFieldLegend && (summaryRendered || analysisCharts.length > 0);
+  // Column 1 width is content-fit on Summary (when present) or a
+  // sensible default (when only Field-labels lives in col 1). We need
+  // it BEFORE the height calc so we can size Field-labels to its
+  // wrapped descriptions at that width.
+  const SUMMARY_MIN_W = 260;
+  const SUMMARY_MAX_W = 420;
+  const col1Width = summaryRendered
+    ? Math.max(
+        SUMMARY_MIN_W,
+        Math.min(SUMMARY_MAX_W, captionNaturalWidth(captionBullets))
+      )
+    : fieldLegendInAnalysisRow
+      ? SUMMARY_MAX_W
       : 0;
-  const analysisBlockHeight =
-    analysisWidgets.length > 0 ? CAPTION_TOP_GAP + analysisRowHeight : 0;
+  // Field-legend height when it lives in col 1 — depends on col1Width.
+  const fieldLegendCol1Height = fieldLegendInAnalysisRow
+    ? fieldLegendHeightFor(col1Width)
+    : 0;
+  // Column-1 stack: Summary on top, Field-labels below (when both on).
+  const col1Items: number[] = [];
+  if (summaryRendered) col1Items.push(captionBoxHeight);
+  if (fieldLegendInAnalysisRow) col1Items.push(fieldLegendCol1Height);
+  const col1Height = col1Items.length
+    ? col1Items.reduce((a, b) => a + b, 0) + (col1Items.length - 1) * 8
+    : 0;
+  const analysisRowHeight = Math.max(col1Height, chartMaxHeight);
+  const analysisHasContent =
+    summaryRendered || analysisCharts.length > 0 || fieldLegendInAnalysisRow;
+  const analysisBlockHeight = analysisHasContent
+    ? CAPTION_TOP_GAP + analysisRowHeight
+    : 0;
 
-  // ── Field-labels row (Reference, separate from Analysis) ────────
-  // Lives below the Analysis row in its own band — different category
-  // (educational chrome, not data) so it gets its own visual slot.
-  const fieldLegendHeight = showFieldLegend ? FIELD_LEGEND_DEFAULT_HEIGHT : 0;
-  const fieldLegendBlockHeight = showFieldLegend
-    ? CAPTION_TOP_GAP + fieldLegendHeight
+  // Standalone Field-labels row — only when Analysis is fully off and
+  // Field labels is on. Otherwise Field labels joins the Analysis row.
+  const fieldLegendStandalone = showFieldLegend && !fieldLegendInAnalysisRow;
+  const standaloneFieldLegendWidth =
+    layout.width + DIAGRAM_PADDING * 2 - 2 * DIAGRAM_PADDING;
+  const fieldLegendStandaloneHeight = fieldLegendStandalone
+    ? fieldLegendHeightFor(standaloneFieldLegendWidth)
+    : 0;
+  const fieldLegendBlockHeight = fieldLegendStandalone
+    ? CAPTION_TOP_GAP + fieldLegendStandaloneHeight
     : 0;
   // Top legend (Critical Path / Anchor / Milestone). Reserves vertical
   // space for the pill row plus its top/bottom breathing room. The
@@ -487,44 +560,55 @@ export function renderPert(
   // equally among the active widgets.
   let bandY = offsetY + layout.height;
 
-  if (analysisWidgets.length > 0) {
+  if (analysisHasContent) {
     bandY += CAPTION_TOP_GAP;
     const ANALYSIS_GAP = 16;
+    const COL1_VSTACK_GAP = 8;
     const availWidth = exportWidth - 2 * DIAGRAM_PADDING;
-    const nGaps = analysisWidgets.length - 1;
+    const col1Used = summaryRendered || fieldLegendInAnalysisRow;
+    const colCount = (col1Used ? 1 : 0) + analysisCharts.length;
+    const nGaps = Math.max(0, colCount - 1);
     const usableWidth = availWidth - nGaps * ANALYSIS_GAP;
-    // Sizing rule: Summary takes only the width its bullets need
-    // (clamped to a sensible min/max), and the remaining width splits
-    // evenly across the chart widgets. Summary is text-only — extra
-    // horizontal whitespace there is wasted, while charts gain visual
-    // resolution from every pixel.
-    const SUMMARY_MIN_W = 260;
-    const SUMMARY_MAX_W = 420;
-    const summaryWidth = summaryRendered
-      ? Math.max(
-          SUMMARY_MIN_W,
-          Math.min(SUMMARY_MAX_W, captionNaturalWidth(captionBullets))
-        )
-      : 0;
-    const chartCount = analysisWidgets.filter(
-      (w) => w.kind !== 'summary'
-    ).length;
     const chartWidth =
-      chartCount > 0 ? (usableWidth - summaryWidth) / chartCount : 0;
+      analysisCharts.length > 0
+        ? (usableWidth - col1Width) / analysisCharts.length
+        : 0;
     let cursorX = DIAGRAM_PADDING;
-    for (const w of analysisWidgets) {
-      const widgetWidth = w.kind === 'summary' ? summaryWidth : chartWidth;
+    if (col1Used) {
+      let stackY = bandY;
+      if (summaryRendered) {
+        renderCaptionBlock(svg, captionBullets, {
+          x: cursorX,
+          y: stackY,
+          width: col1Width,
+          height: captionBoxHeight,
+          palette,
+          isDark,
+        });
+        stackY += captionBoxHeight + COL1_VSTACK_GAP;
+      }
+      if (fieldLegendInAnalysisRow) {
+        renderFieldLegendBlock(svg, {
+          x: cursorX,
+          y: stackY,
+          width: col1Width,
+          height: fieldLegendCol1Height,
+          palette,
+          isDark,
+        });
+      }
+      cursorX += col1Width + ANALYSIS_GAP;
+    }
+    for (const w of analysisCharts) {
       const args = {
         x: cursorX,
         y: bandY,
-        width: widgetWidth,
+        width: chartWidth,
         height: analysisRowHeight,
         palette,
         isDark,
       };
-      if (w.kind === 'summary') {
-        renderCaptionBlock(svg, captionBullets, args);
-      } else if (w.kind === 'tornado') {
+      if (w.kind === 'tornado') {
         renderTornadoBlock(svg, tornadoRows, args);
       } else {
         renderScurveBlock(svg, scurveData!, {
@@ -532,18 +616,18 @@ export function renderPert(
           unit: resolved.options.timeUnit,
         });
       }
-      cursorX += widgetWidth + ANALYSIS_GAP;
+      cursorX += chartWidth + ANALYSIS_GAP;
     }
     bandY += analysisRowHeight;
   }
 
-  if (showFieldLegend) {
+  if (fieldLegendStandalone) {
     bandY += CAPTION_TOP_GAP;
     renderFieldLegendBlock(svg, {
       x: DIAGRAM_PADDING,
       y: bandY,
       width: exportWidth - 2 * DIAGRAM_PADDING,
-      height: fieldLegendHeight,
+      height: fieldLegendStandaloneHeight,
       palette,
       isDark,
     });
@@ -2256,9 +2340,15 @@ function renderFieldLegendBlock(
     palette.textOnFillDark
   );
 
+  // Header band — matches the Summary / Tornado / S-curve treatment so
+  // all four Analysis-row widgets share one visual family.
+  const headerY = y + CAPTION_BOX_PADDING_Y + CAPTION_FONT_SIZE;
+  const dividerY = y + CAPTION_BOX_PADDING_Y + CAPTION_LINE_HEIGHT;
   const colW = width / 3;
-  const gridTop = y;
-  const rowH = height / 2;
+  // Grid starts BELOW the header band.
+  const gridTop = y + CAPTION_BOX_PADDING_Y + CAPTION_HEADER_BAND_HEIGHT;
+  const gridBottom = y + height;
+  const rowH = (gridBottom - gridTop) / 2;
 
   const block = svg
     .append('g')
@@ -2278,6 +2368,28 @@ function renderFieldLegendBlock(
     .attr('stroke', baseColor)
     .attr('stroke-width', NODE_STROKE_WIDTH);
 
+  // Centered bold header + hairline divider — matches Summary etc.
+  block
+    .append('text')
+    .attr('class', 'pert-field-legend-header')
+    .attr('x', x + width / 2)
+    .attr('y', headerY)
+    .attr('text-anchor', 'middle')
+    .attr('fill', labelColor)
+    .attr('font-size', CAPTION_FONT_SIZE)
+    .attr('font-weight', '700')
+    .text('Field labels');
+  block
+    .append('line')
+    .attr('class', 'pert-field-legend-divider')
+    .attr('x1', x + CAPTION_BOX_PADDING_X)
+    .attr('x2', x + width - CAPTION_BOX_PADDING_X)
+    .attr('y1', dividerY)
+    .attr('y2', dividerY)
+    .attr('stroke', baseColor)
+    .attr('stroke-width', 1)
+    .attr('opacity', 0.5);
+
   // Internal grid lines for the 3×2 cell area (matches
   // drawTextbookCard's low-opacity divider pattern).
   const grid = (x1: number, y1: number, x2: number, y2: number): void => {
@@ -2292,8 +2404,8 @@ function renderFieldLegendBlock(
       .attr('stroke-width', 1);
   };
   grid(x, gridTop + rowH, x + width, gridTop + rowH);
-  grid(x + colW, gridTop, x + colW, y + height);
-  grid(x + colW * 2, gridTop, x + colW * 2, y + height);
+  grid(x + colW, gridTop, x + colW, gridBottom);
+  grid(x + colW * 2, gridTop, x + colW * 2, gridBottom);
 
   // Field id per cell, indexed in the same order as FIELD_LEGEND_CELLS:
   //   top:    [ es | dur | ef ]
@@ -2335,7 +2447,7 @@ function renderFieldLegendBlock(
       .attr('fill-opacity', 0)
       .attr('pointer-events', 'all');
 
-    const descLines = wrapTextByChars(cell.desc, FIELD_LEGEND_DESC_WRAP_CHARS);
+    const descLines = wrapTextByChars(cell.desc, fieldLegendWrapChars(colW));
     const descBlockHeight =
       FIELD_LEGEND_DESC_FONT_SIZE +
       Math.max(descLines.length - 1, 0) * FIELD_LEGEND_DESC_LINE_HEIGHT;
