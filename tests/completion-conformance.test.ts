@@ -115,7 +115,7 @@ const fixtures: ConformanceFixture[] = [
   wireframeFixture,
 ];
 
-const UNIVERSAL_DIRECTIVES = ['palette', 'theme'];
+const UNIVERSAL_DIRECTIVES = ['palette', 'theme', 'no-title'];
 
 for (const f of fixtures) {
   describe(`completion conformance — ${f.chartType} (spec §${f.specSection})`, () => {

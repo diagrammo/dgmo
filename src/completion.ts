@@ -109,6 +109,9 @@ const GLOBAL_DIRECTIVES: Record<string, DirectiveValueSpec> = {
     description: 'Color theme',
     values: ['light', 'dark', 'transparent'],
   },
+  'no-title': {
+    description: 'Hide the diagram title',
+  },
 };
 
 function withGlobals(
