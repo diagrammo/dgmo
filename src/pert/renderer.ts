@@ -60,8 +60,14 @@ import type {
 } from './types';
 import { parsePert } from './parser';
 import { analyzePert } from './analyzer';
-import { layoutPert } from './layout';
-import { addCalendarDays, unitToDays } from './internal';
+import { layoutPert, computeNodeSizing } from './layout';
+import type { NodeSizing } from './layout';
+import {
+  formatDuration,
+  formatScheduleValue,
+  formatSprintCell,
+  formatSlackValue,
+} from './internal';
 import type { Duration, DurationUnit } from '../gantt/types';
 
 // ============================================================
@@ -538,7 +544,8 @@ export function renderPert(
     .append('g')
     .attr('transform', `translate(${offsetX}, ${offsetY})`);
 
-  renderGroups(root, resolved, layout, palette, isDark, collapsedSet);
+  const sizing = computeNodeSizing(resolved);
+  renderGroups(root, resolved, layout, palette, isDark, collapsedSet, sizing);
   renderEdges(root, resolved, layout, palette, collapsedSet);
   renderNodes(
     root,
@@ -547,6 +554,7 @@ export function renderPert(
     layout,
     palette,
     isDark,
+    sizing,
     options.onClickItem,
     collapsedSet
   );
@@ -746,7 +754,8 @@ function renderGroups(
   layout: LayoutResult,
   palette: PaletteColors,
   isDark: boolean,
-  collapsedSet: ReadonlySet<string>
+  collapsedSet: ReadonlySet<string>,
+  sizing: NodeSizing
 ): void {
   if (layout.groups.length === 0) return;
   const layer = root.append('g').attr('class', 'pert-groups');
@@ -861,6 +870,8 @@ function renderGroups(
         stroke: cardBaseColor,
         labelColor: cardLabelColor,
         highlightColor: palette.colors.blue,
+        outerColW: sizing.outerColW,
+        midColW: sizing.midColW,
       });
 
       // Bottom collapse bar (universal "this is collapsed" signal —
@@ -1067,6 +1078,7 @@ function renderNodes(
   layout: LayoutResult,
   palette: PaletteColors,
   isDark: boolean,
+  sizing: NodeSizing,
   onClickItem?: (lineNumber: number) => void,
   collapsedSet: ReadonlySet<string> = new Set()
 ): void {
@@ -1232,6 +1244,8 @@ function renderNodes(
       dashArray,
       emphasis: isTopMu ? 'top' : isBottomMu ? 'bottom' : null,
       pinned: pinnedSet.has(node.id) ? anchorKind : null,
+      outerColW: sizing.outerColW,
+      midColW: sizing.midColW,
     });
   }
 }
@@ -1314,17 +1328,27 @@ interface TextbookCardArgs {
    * undefined leaves the card plain.
    */
   pinned?: 'forward' | 'backward' | null;
+  /**
+   * Asymmetric column widths. Outer cells (ES/EF/LS/LF) hold the
+   * widest content (date strings) and `midColW` shrinks for the
+   * narrow dur/slack labels. Sum of (2*outerColW + midColW) === width.
+   */
+  outerColW: number;
+  midColW: number;
 }
 
 type AnySel = d3Selection.Selection<SVGGElement, unknown, null, undefined>;
 
 function drawTextbookCard(g: AnySel, a: TextbookCardArgs): void {
   const { width: w, height: h, x, y } = a;
-  const colW = w / 3;
+  // Asymmetric columns: outer cells hold the widest content (typically
+  // ES/EF/LS/LF dates), the middle cell shrinks to fit dur/slack.
+  const outerColW = a.outerColW;
+  const midColW = a.midColW;
   const topY = y + NODE_TOP_ROW_HEIGHT;
   const bottomY = y + h - NODE_BOTTOM_ROW_HEIGHT;
-  const colX1 = x + colW;
-  const colX2 = x + colW * 2;
+  const colX1 = x + outerColW;
+  const colX2 = x + outerColW + midColW;
 
   g.append('rect')
     .attr('x', x)
@@ -1382,12 +1406,30 @@ function drawTextbookCard(g: AnySel, a: TextbookCardArgs): void {
       .attr('fill-opacity', 0)
       .attr('pointer-events', 'none');
   };
-  drawCellHighlight('es', x, y, colW, NODE_TOP_ROW_HEIGHT);
-  drawCellHighlight('dur', x + colW, y, colW, NODE_TOP_ROW_HEIGHT);
-  drawCellHighlight('ef', x + colW * 2, y, colW, NODE_TOP_ROW_HEIGHT);
-  drawCellHighlight('ls', x, bottomY, colW, NODE_BOTTOM_ROW_HEIGHT);
-  drawCellHighlight('slack', x + colW, bottomY, colW, NODE_BOTTOM_ROW_HEIGHT);
-  drawCellHighlight('lf', x + colW * 2, bottomY, colW, NODE_BOTTOM_ROW_HEIGHT);
+  drawCellHighlight('es', x, y, outerColW, NODE_TOP_ROW_HEIGHT);
+  drawCellHighlight('dur', x + outerColW, y, midColW, NODE_TOP_ROW_HEIGHT);
+  drawCellHighlight(
+    'ef',
+    x + outerColW + midColW,
+    y,
+    outerColW,
+    NODE_TOP_ROW_HEIGHT
+  );
+  drawCellHighlight('ls', x, bottomY, outerColW, NODE_BOTTOM_ROW_HEIGHT);
+  drawCellHighlight(
+    'slack',
+    x + outerColW,
+    bottomY,
+    midColW,
+    NODE_BOTTOM_ROW_HEIGHT
+  );
+  drawCellHighlight(
+    'lf',
+    x + outerColW + midColW,
+    bottomY,
+    outerColW,
+    NODE_BOTTOM_ROW_HEIGHT
+  );
 
   // Cell text — vertically centered within each row. Defaults to
   // normal weight; the name cell and the dur cell pass an explicit
@@ -1425,37 +1467,44 @@ function drawTextbookCard(g: AnySel, a: TextbookCardArgs): void {
     a.pinned === 'forward' ? 'bold' : 'normal';
   const efWeight: 'normal' | 'bold' =
     a.pinned === 'backward' ? 'bold' : 'normal';
-  drawCell(x + colW / 2, topMid, a.es, esWeight);
+  drawCell(x + outerColW / 2, topMid, a.es, esWeight);
   drawCell(
-    x + colW * 1.5,
+    x + outerColW + midColW / 2,
     topMid,
     a.dur,
     durWeight,
     NODE_CELL_FONT_SIZE,
     durOpacity
   );
-  drawCell(x + colW * 2.5, topMid, a.ef, efWeight);
+  drawCell(x + outerColW + midColW + outerColW / 2, topMid, a.ef, efWeight);
 
   // Middle row: name (spans full width). When `pinned`, shift the
   // name slightly right and draw a small anchor icon to its left so
-  // the combined glyph reads as one centered unit.
+  // the combined glyph reads as one centered unit. Names that exceed
+  // the available width truncate with an ellipsis so text never
+  // overflows the card.
   const midRowTop = y + NODE_TOP_ROW_HEIGHT;
   const midRowH = h - NODE_TOP_ROW_HEIGHT - NODE_BOTTOM_ROW_HEIGHT;
   const midCenterY = midRowTop + midRowH / 2;
+  const NAME_PAD_X = 6;
+  const NAME_PIN_GAP = 4;
+  const charW = NODE_FONT_SIZE * 0.55;
+  const pinReserve = a.pinned ? PIN_ICON_W + NAME_PIN_GAP : 0;
+  const availTextW = Math.max(0, w - 2 * NAME_PAD_X - pinReserve);
+  const maxChars = Math.max(1, Math.floor(availTextW / charW));
+  const displayName =
+    a.name.length > maxChars
+      ? a.name.slice(0, Math.max(1, maxChars - 1)) + '…'
+      : a.name;
   if (a.pinned) {
-    // Approximate text width — sans-serif average char width ≈ 0.55 *
-    // font-size. Off by a couple pixels for variable-width text but
-    // close enough for a small adornment.
-    const approxTextW = a.name.length * NODE_FONT_SIZE * 0.55;
-    const gap = 4;
-    const combined = PIN_ICON_W + gap + approxTextW;
+    const approxTextW = displayName.length * charW;
+    const combined = PIN_ICON_W + NAME_PIN_GAP + approxTextW;
     const groupLeft = x + w / 2 - combined / 2;
     drawAnchorPin(g, groupLeft, midCenterY, a.labelColor);
-    // Center text on (groupLeft + icon + gap) + textW/2.
-    const textCx = groupLeft + PIN_ICON_W + gap + approxTextW / 2;
-    drawCell(textCx, midCenterY, a.name, 'bold', NODE_FONT_SIZE);
+    const textCx = groupLeft + PIN_ICON_W + NAME_PIN_GAP + approxTextW / 2;
+    drawCell(textCx, midCenterY, displayName, 'bold', NODE_FONT_SIZE);
   } else {
-    drawCell(x + w / 2, midCenterY, a.name, 'bold', NODE_FONT_SIZE);
+    drawCell(x + w / 2, midCenterY, displayName, 'bold', NODE_FONT_SIZE);
   }
 
   // Bottom row: LS | slack | LF — LS / LF bold under the same anchor
@@ -1463,9 +1512,9 @@ function drawTextbookCard(g: AnySel, a: TextbookCardArgs): void {
   const botMid = y + h - NODE_BOTTOM_ROW_HEIGHT / 2;
   const lsWeight: 'normal' | 'bold' = esWeight;
   const lfWeight: 'normal' | 'bold' = efWeight;
-  drawCell(x + colW / 2, botMid, a.ls, lsWeight);
-  drawCell(x + colW * 1.5, botMid, a.slack);
-  drawCell(x + colW * 2.5, botMid, a.lf, lfWeight);
+  drawCell(x + outerColW / 2, botMid, a.ls, lsWeight);
+  drawCell(x + outerColW + midColW / 2, botMid, a.slack);
+  drawCell(x + outerColW + midColW + outerColW / 2, botMid, a.lf, lfWeight);
 }
 
 interface MilestonePillArgs {
@@ -1727,72 +1776,6 @@ function computeAnchorPinSet(resolved: ResolvedPert): Set<string> {
     }
   }
   return pinned;
-}
-
-function formatDuration(
-  value: number | null,
-  unit: DurationUnit,
-  nullLabel: string | null
-): string {
-  if (value === null) return nullLabel ?? '?';
-  // Round to 2 decimals; trim trailing zeros for cleanliness.
-  const rounded = Math.round(value * 100) / 100;
-  const display = rounded.toFixed(2).replace(/\.?0+$/, '');
-  return `${display}${unit}`;
-}
-
-/**
- * Format an ES / EF / LS / LF cell. When `projectStart` is set, the
- * numeric offset (in `unit`) becomes a calendar date; otherwise we
- * fall back to the numeric duration label so unanchored diagrams keep
- * their original output byte-for-byte.
- */
-function formatScheduleValue(
-  value: number | null,
-  projectStart: string | null,
-  unit: DurationUnit,
-  nullLabel: string | null
-): string {
-  if (value === null) return nullLabel ?? '?';
-  if (projectStart === null) return formatDuration(value, unit, nullLabel);
-  return addCalendarDays(projectStart, value * unitToDays(unit));
-}
-
-/**
- * Format a sprint-indexed schedule cell as `S<n>`. The activity's value
- * is in sprint units (offset from `sprint-number`), so display = base +
- * round(value). Fractional sprint offsets are rounded to nearest int —
- * sprints are inherently discrete iteration boundaries.
- */
-function formatSprintCell(
-  value: number | null,
-  sprintNumber: number,
-  nullLabel: string | null
-): string {
-  if (value === null) return nullLabel ?? '?';
-  const rounded = Math.round(value);
-  return `S${sprintNumber + rounded}`;
-}
-
-/**
- * Format a slack cell. Anchored diagrams normalize slack to calendar
- * days regardless of `time-unit` (per spec C6); unanchored diagrams
- * keep the original behavior.
- */
-function formatSlackValue(
-  value: number | null,
-  projectStart: string | null,
-  unit: DurationUnit,
-  nullLabel: string | null
-): string {
-  if (value === null) return nullLabel ?? '?';
-  if (projectStart === null) return formatDuration(value, unit, nullLabel);
-  // Convert from `unit` to calendar days so a 3-week slack reads "21d"
-  // instead of "3w" when dates are showing.
-  const days = value * unitToDays(unit);
-  const rounded = Math.round(days * 100) / 100;
-  const display = rounded.toFixed(2).replace(/\.?0+$/, '');
-  return `${display}d`;
 }
 
 // ============================================================
@@ -2089,18 +2072,6 @@ function renderCaptionBlock(
     .attr('font-weight', '700')
     .text('Summary');
 
-  const dividerY = y + CAPTION_BOX_PADDING_Y + CAPTION_LINE_HEIGHT;
-  block
-    .append('line')
-    .attr('class', 'pert-caption-divider')
-    .attr('x1', x + CAPTION_BOX_PADDING_X)
-    .attr('x2', x + width - CAPTION_BOX_PADDING_X)
-    .attr('y1', dividerY)
-    .attr('y2', dividerY)
-    .attr('stroke', baseColor)
-    .attr('stroke-width', 1)
-    .attr('opacity', 0.5);
-
   const textX = x + CAPTION_BOX_PADDING_X;
   const firstBaselineY =
     y + CAPTION_BOX_PADDING_Y + CAPTION_HEADER_BAND_HEIGHT + CAPTION_FONT_SIZE;
@@ -2343,7 +2314,6 @@ function renderFieldLegendBlock(
   // Header band — matches the Summary / Tornado / S-curve treatment so
   // all four Analysis-row widgets share one visual family.
   const headerY = y + CAPTION_BOX_PADDING_Y + CAPTION_FONT_SIZE;
-  const dividerY = y + CAPTION_BOX_PADDING_Y + CAPTION_LINE_HEIGHT;
   const colW = width / 3;
   // Grid starts BELOW the header band.
   const gridTop = y + CAPTION_BOX_PADDING_Y + CAPTION_HEADER_BAND_HEIGHT;
@@ -2379,16 +2349,6 @@ function renderFieldLegendBlock(
     .attr('font-size', CAPTION_FONT_SIZE)
     .attr('font-weight', '700')
     .text('Field labels');
-  block
-    .append('line')
-    .attr('class', 'pert-field-legend-divider')
-    .attr('x1', x + CAPTION_BOX_PADDING_X)
-    .attr('x2', x + width - CAPTION_BOX_PADDING_X)
-    .attr('y1', dividerY)
-    .attr('y2', dividerY)
-    .attr('stroke', baseColor)
-    .attr('stroke-width', 1)
-    .attr('opacity', 0.5);
 
   // Internal grid lines for the 3×2 cell area (matches
   // drawTextbookCard's low-opacity divider pattern).
@@ -2591,18 +2551,6 @@ function renderTornadoBlock(
     .attr('font-weight', '700')
     .text('Sensitivity (top schedule risks)');
 
-  const dividerY = y + CAPTION_BOX_PADDING_Y + CAPTION_LINE_HEIGHT;
-  block
-    .append('line')
-    .attr('class', 'pert-tornado-divider')
-    .attr('x1', x + CAPTION_BOX_PADDING_X)
-    .attr('x2', x + width - CAPTION_BOX_PADDING_X)
-    .attr('y1', dividerY)
-    .attr('y2', dividerY)
-    .attr('stroke', baseColor)
-    .attr('stroke-width', 1)
-    .attr('opacity', 0.5);
-
   // Bar geometry. Activity name on the left, value on the right, bar
   // fills the middle column. Longest SSI gets the full bar width.
   const maxSsi = rows.reduce((acc, r) => Math.max(acc, r.ssi), 0) || 1;
@@ -2757,18 +2705,6 @@ function renderScurveBlock(
     .attr('font-size', CAPTION_FONT_SIZE)
     .attr('font-weight', '700')
     .text('Completion probability');
-
-  const dividerY = y + CAPTION_BOX_PADDING_Y + CAPTION_LINE_HEIGHT;
-  block
-    .append('line')
-    .attr('class', 'pert-scurve-divider')
-    .attr('x1', x + CAPTION_BOX_PADDING_X)
-    .attr('x2', x + width - CAPTION_BOX_PADDING_X)
-    .attr('y1', dividerY)
-    .attr('y2', dividerY)
-    .attr('stroke', baseColor)
-    .attr('stroke-width', 1)
-    .attr('opacity', 0.5);
 
   // Plot rect — leave room on the left for y-axis labels and below
   // for x-axis labels.
