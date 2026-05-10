@@ -24,6 +24,7 @@ import type {
   ResolvedGroup,
   ResolvedPert,
   MonteCarloResult,
+  TornadoSwing,
 } from './types';
 import type { DurationEstimate } from './internal';
 import {
@@ -516,6 +517,19 @@ export function analyzePert(parsed: ParsedPert): ResolvedPert {
         const c = monteCarloResult.criticalityByActivity[ra.activity.id];
         ra.criticality = typeof c === 'number' ? c : null;
       }
+      // True tornado swings — for each activity, hold every other at μ
+      // and re-run the deterministic forward pass twice (at O, then at P)
+      // to measure how much the project end-date moves. Stored in the MC
+      // result so the renderer can paint two-sided bars.
+      monteCarloResult.tornadoSwings = computeTornadoSwings(
+        activities,
+        topo,
+        incomingEdges,
+        expandedById,
+        poisoned,
+        monteCarloResult.criticalityByActivity,
+        sprintDays
+      );
     }
   }
 
@@ -600,6 +614,143 @@ export function analyzePert(parsed: ParsedPert): ResolvedPert {
  */
 function has3PointEstimate(a: PertActivity): boolean {
   return a.duration !== null && !a.duration.mOnly && !a.isMilestone;
+}
+
+/**
+ * Type-aware deterministic forward pass: project end (max EF across
+ * activities) in canonical days, given a duration per activity.
+ * Mirrors the edge-aware schedule math in `analyzePert` so SS / FF /
+ * SF / lag are honored. Poisoned activities contribute 0 days but
+ * still propagate edges (we treat them as zero-duration sentinels).
+ */
+function computeProjectEndDays(
+  activities: PertActivity[],
+  topo: string[],
+  incomingEdges: Map<string, PertEdge[]>,
+  durations: Map<string, number>,
+  poisoned: Set<string>,
+  sprintDays: number | undefined
+): number {
+  const es = new Map<string, number>();
+  const ef = new Map<string, number>();
+  for (const id of topo) {
+    const dur = poisoned.has(id) ? 0 : (durations.get(id) ?? 0);
+    let esLower = 0;
+    let efLower = -Infinity;
+    for (const edge of incomingEdges.get(id) ?? []) {
+      const aEs = es.get(edge.source) ?? 0;
+      const aEf = ef.get(edge.source) ?? 0;
+      const lag = edge.lag ? toDays(edge.lag, sprintDays) : 0;
+      switch (edge.type) {
+        case 'FS':
+          esLower = Math.max(esLower, aEf + lag);
+          break;
+        case 'SS':
+          esLower = Math.max(esLower, aEs + lag);
+          break;
+        case 'FF':
+          efLower = Math.max(efLower, aEf + lag);
+          break;
+        case 'SF':
+          efLower = Math.max(efLower, aEs + lag);
+          break;
+      }
+    }
+    let esVal = esLower;
+    let efVal = esVal + dur;
+    if (efLower > efVal) {
+      efVal = efLower;
+      esVal = efVal - dur;
+    }
+    es.set(id, esVal);
+    ef.set(id, efVal);
+  }
+  let projectEnd = 0;
+  for (const a of activities) {
+    const e = ef.get(a.id) ?? 0;
+    if (e > projectEnd) projectEnd = e;
+  }
+  return projectEnd;
+}
+
+/**
+ * Build true two-sided tornado swings. For each activity:
+ *   1. Hold every other activity at its μ
+ *   2. Run the forward pass once with this activity = O → low end
+ *   3. Run again with this activity = P → high end
+ *   4. lowSwing = baseline - low end, highSwing = high end - baseline
+ *
+ * Returns an array sorted descending by total swing. Milestones,
+ * poisoned activities, and activities with zero swing in both
+ * directions are excluded.
+ */
+function computeTornadoSwings(
+  activities: PertActivity[],
+  topo: string[],
+  incomingEdges: Map<string, PertEdge[]>,
+  expandedById: Map<string, ExpandedEstimate | null>,
+  poisoned: Set<string>,
+  criticalityByActivity: Record<string, number>,
+  sprintDays?: number
+): TornadoSwing[] {
+  const meansById = new Map<string, number>();
+  for (const a of activities) {
+    if (poisoned.has(a.id)) continue;
+    const exp = expandedById.get(a.id);
+    if (exp) meansById.set(a.id, exp.mean);
+  }
+  const baseline = computeProjectEndDays(
+    activities,
+    topo,
+    incomingEdges,
+    meansById,
+    poisoned,
+    sprintDays
+  );
+  const swings: TornadoSwing[] = [];
+  for (const a of activities) {
+    if (a.isMilestone || a.duration === null || poisoned.has(a.id)) continue;
+    const exp = expandedById.get(a.id);
+    if (!exp) continue;
+    // O ≈ M means zero-width swing — skip the work AND skip the row.
+    if (exp.o === exp.m && exp.p === exp.m) continue;
+
+    const lowMap = new Map(meansById);
+    lowMap.set(a.id, exp.o);
+    const lowEnd = computeProjectEndDays(
+      activities,
+      topo,
+      incomingEdges,
+      lowMap,
+      poisoned,
+      sprintDays
+    );
+
+    const highMap = new Map(meansById);
+    highMap.set(a.id, exp.p);
+    const highEnd = computeProjectEndDays(
+      activities,
+      topo,
+      incomingEdges,
+      highMap,
+      poisoned,
+      sprintDays
+    );
+
+    const lowSwing = Math.max(0, baseline - lowEnd);
+    const highSwing = Math.max(0, highEnd - baseline);
+    if (lowSwing === 0 && highSwing === 0) continue;
+    const c = criticalityByActivity[a.id];
+    swings.push({
+      id: a.id,
+      name: a.name,
+      lowSwing,
+      highSwing,
+      criticality: typeof c === 'number' ? c : null,
+    });
+  }
+  swings.sort((a, b) => b.lowSwing + b.highSwing - (a.lowSwing + a.highSwing));
+  return swings;
 }
 
 // ============================================================

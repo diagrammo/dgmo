@@ -305,6 +305,11 @@ function simulate(
     p95: pct(0.95),
     criticalityByActivity,
     modalCriticalPath: pathById.get(modalKey) ?? [],
+    // Analyzer populates this after MC returns by running the
+    // deterministic per-activity tornado pass. Empty here so the
+    // type contract is satisfied even in scrubber/fast paths that
+    // never compute swings.
+    tornadoSwings: [],
   };
 }
 

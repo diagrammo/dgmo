@@ -418,12 +418,12 @@ A
     const block = c.querySelector('g.pert-tornado-block');
     expect(block).not.toBeNull();
     expect(block!.querySelector('text.pert-tornado-header')!.textContent).toBe(
-      'Sensitivity (top schedule risks)'
+      'Tornado — project-end swing per activity'
     );
-    // At least one bar + value pair, capped at TORNADO_TOP_N (=10).
+    // Two-sided tornado: each row gets up to 2 bars (low + high). At
+    // least one swing exists for the three-point.dgmo fixture.
     const bars = block!.querySelectorAll('rect.pert-tornado-bar');
     expect(bars.length).toBeGreaterThan(0);
-    expect(bars.length).toBeLessThanOrEqual(10);
     document.body.removeChild(c);
   });
 

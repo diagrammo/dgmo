@@ -248,6 +248,33 @@ export interface MonteCarloResult {
   criticalityByActivity: Record<string, number>;
   /** Modal-longest-path tuple (activity ids). */
   modalCriticalPath: string[];
+  /**
+   * Per-activity tornado swings — how much the project end-date
+   * moves when this activity comes in at its optimistic (O) or
+   * pessimistic (P) extreme while every other activity stays at
+   * its mean (μ). Sorted descending by total swing.
+   *
+   * `lowSwing` and `highSwing` are in canonical days (≥ 0).
+   * Renderer converts to display unit.
+   */
+  tornadoSwings: TornadoSwing[];
+}
+
+/**
+ * One row of a true two-sided tornado: the project end-date moves
+ * lowSwing days earlier when the activity is at its optimistic
+ * extreme, and highSwing days later when at its pessimistic extreme.
+ * All other activities held at their μ.
+ */
+export interface TornadoSwing {
+  id: string;
+  name: string;
+  /** Days the project finishes EARLIER when this activity ≈ O. */
+  lowSwing: number;
+  /** Days the project finishes LATER when this activity ≈ P. */
+  highSwing: number;
+  /** Per-activity MC criticality index, used by the renderer for bar color. */
+  criticality: number | null;
 }
 
 /**

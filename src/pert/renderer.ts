@@ -2056,7 +2056,7 @@ function captionNaturalWidth(bullets: CaptionBullet[]): number {
 const TORNADO_TOP_N = 10;
 const TORNADO_ROW_HEIGHT = 22;
 const TORNADO_NAME_COL_W = 160;
-const TORNADO_VALUE_COL_W = 60;
+const TORNADO_VALUE_COL_W = 110;
 const TORNADO_BAR_FONT_SIZE = 11;
 const TORNADO_BAR_HEIGHT = 14;
 
@@ -2497,41 +2497,71 @@ function renderFieldLegendBlock(
 interface TornadoRow {
   id: string;
   name: string;
-  /** Schedule Sensitivity Index = sigma × criticality. */
-  ssi: number;
+  /** Days the project finishes EARLIER when this activity = O. */
+  lowSwing: number;
+  /** Days the project finishes LATER when this activity = P. */
+  highSwing: number;
   /** Criticality band drives bar color (red/orange/yellow/green/blue). */
   band: Band;
 }
 
 /**
- * Build the top-N tornado rows from MC output. SSI = sigma × criticality
- * so an activity needs both volatility AND a real chance of landing on
- * the critical path to rank highly. Returns an empty array when MC
- * didn't run (analytical mode) or no activity has positive SSI.
+ * Build the top-N tornado rows from MC output. Reads the pre-computed
+ * `tornadoSwings` array on the MonteCarloResult, converts swings from
+ * canonical days to the display unit, and assigns criticality bands.
+ * Returns an empty array when MC didn't run or no activity has
+ * non-zero swing.
  */
 function buildTornadoRows(
   resolved: ResolvedPert,
   maxN: number = TORNADO_TOP_N
 ): TornadoRow[] {
   if (resolved.monteCarloResult === null) return [];
-  const rows: TornadoRow[] = [];
-  for (const a of resolved.activities) {
-    if (a.activity.isMilestone) continue;
-    const sigma = a.sigma;
-    const c = a.criticality;
-    if (sigma === null || c === null) continue;
-    const ssi = sigma * c;
-    if (ssi <= 0) continue;
-    rows.push({
-      id: a.activity.id,
-      name: a.activity.name,
-      ssi,
-      band: criticalityBand(c),
-    });
-  }
-  rows.sort((a, b) => b.ssi - a.ssi);
+  const swings = resolved.monteCarloResult.tornadoSwings ?? [];
+  if (swings.length === 0) return [];
+  const sprintDays = resolveSprintDaysFromOptions(resolved.options);
+  const unit = resolved.options.timeUnit;
+  const rows: TornadoRow[] = swings.map((s) => ({
+    id: s.id,
+    name: s.name,
+    lowSwing: fromDisplayUnit(s.lowSwing, unit, sprintDays),
+    highSwing: fromDisplayUnit(s.highSwing, unit, sprintDays),
+    band: criticalityBand(s.criticality),
+  }));
   return rows.slice(0, Math.max(1, maxN));
 }
+
+// Days → display-unit count (e.g., days → weeks). Inlined here so the
+// renderer doesn't need to import the analyzer's helpers.
+function fromDisplayUnit(
+  days: number,
+  unit: DurationUnit,
+  sprintDays: number | undefined
+): number {
+  const unitDays =
+    unit === 's' && sprintDays !== undefined ? sprintDays : DAYS_PER_UNIT[unit];
+  return days / unitDays;
+}
+
+function resolveSprintDaysFromOptions(opts: {
+  sprintMode: 'auto' | 'explicit' | null;
+  sprintLength: Duration | null;
+}): number | undefined {
+  if (!opts.sprintMode || !opts.sprintLength) return undefined;
+  return opts.sprintLength.amount * DAYS_PER_UNIT[opts.sprintLength.unit];
+}
+
+const DAYS_PER_UNIT: Record<DurationUnit, number> = {
+  min: 1 / (60 * 24),
+  h: 1 / 24,
+  d: 1,
+  bd: 1,
+  w: 7,
+  m: 30,
+  q: 90,
+  y: 365,
+  s: 14,
+};
 
 /**
  * Maximum number of tornado rows that fit inside a box of the given
@@ -2604,30 +2634,53 @@ function renderTornadoBlock(
     .attr('fill', labelColor)
     .attr('font-size', CAPTION_FONT_SIZE)
     .attr('font-weight', '700')
-    .text('Sensitivity (top schedule risks)');
+    .text('Tornado — project-end swing per activity');
 
-  // Bar geometry. Activity name on the left, value on the right, bar
-  // fills the middle column. Longest SSI gets the full bar width.
-  const maxSsi = rows.reduce((acc, r) => Math.max(acc, r.ssi), 0) || 1;
+  // Two-sided bar geometry. Activity name on the far left, then a
+  // bidirectional plot area with a vertical baseline axis at its
+  // center: each row paints a `low` bar growing LEFT (project finishes
+  // earlier) and a `high` bar growing RIGHT (project finishes later).
+  // Magnitude column on the far right shows `-low / +high` swings.
+  const maxSwing =
+    rows.reduce((acc, r) => Math.max(acc, r.lowSwing, r.highSwing), 0) || 1;
   const nameX = x + CAPTION_BOX_PADDING_X;
-  const barLeft = nameX + TORNADO_NAME_COL_W;
+  const plotLeft = nameX + TORNADO_NAME_COL_W;
   const valueX = x + width - CAPTION_BOX_PADDING_X;
-  const barRightLimit = valueX - TORNADO_VALUE_COL_W;
-  const maxBarWidth = Math.max(barRightLimit - barLeft, 0);
+  const plotRight = valueX - TORNADO_VALUE_COL_W;
+  const plotWidth = Math.max(plotRight - plotLeft, 0);
+  const centerX = plotLeft + plotWidth / 2;
+  const halfPlot = plotWidth / 2;
   const firstRowY = y + CAPTION_BOX_PADDING_Y + CAPTION_HEADER_BAND_HEIGHT;
+
+  // Center baseline axis — vertical line drawn the full height of the
+  // bar area, behind the bars.
+  if (rows.length > 0) {
+    const axisTop = firstRowY;
+    const axisBottom = firstRowY + rows.length * TORNADO_ROW_HEIGHT;
+    block
+      .append('line')
+      .attr('class', 'pert-tornado-axis')
+      .attr('x1', centerX)
+      .attr('x2', centerX)
+      .attr('y1', axisTop)
+      .attr('y2', axisBottom)
+      .attr('stroke', baseColor)
+      .attr('stroke-width', 1)
+      .attr('opacity', 0.6);
+  }
 
   rows.forEach((row, i) => {
     const rowY = firstRowY + i * TORNADO_ROW_HEIGHT;
     const labelY =
       rowY + TORNADO_ROW_HEIGHT / 2 + TORNADO_BAR_FONT_SIZE / 2 - 2;
-    const barW = (row.ssi / maxSsi) * maxBarWidth;
     const barColor = bandColor(row.band, palette, palette.primary);
     const barFill = shapeFill(palette, barColor, isDark);
+    const lowW = (row.lowSwing / maxSwing) * halfPlot;
+    const highW = (row.highSwing / maxSwing) * halfPlot;
 
-    // Activity name (truncate via ellipsis when overlong — quick approx
-    // by char width since SVG truncation needs measurement).
+    // Activity name (truncate when overlong).
     const truncated =
-      row.name.length > 24 ? row.name.slice(0, 23) + '…' : row.name;
+      row.name.length > 22 ? row.name.slice(0, 21) + '…' : row.name;
     block
       .append('text')
       .attr('class', 'pert-tornado-name')
@@ -2638,21 +2691,45 @@ function renderTornadoBlock(
       .attr('font-size', TORNADO_BAR_FONT_SIZE)
       .text(truncated);
 
-    block
-      .append('rect')
-      .attr('class', 'pert-tornado-bar')
-      .attr('x', barLeft)
-      .attr('y', rowY + (TORNADO_ROW_HEIGHT - TORNADO_BAR_HEIGHT) / 2)
-      .attr('width', barW)
-      .attr('height', TORNADO_BAR_HEIGHT)
-      .attr('rx', 2)
-      .attr('ry', 2)
-      .attr('fill', barFill)
-      .attr('stroke', barColor)
-      .attr('stroke-width', 1)
-      .attr('data-activity-id', row.id);
+    // Left bar (low swing) — grows from center toward the left.
+    if (lowW > 0) {
+      block
+        .append('rect')
+        .attr('class', 'pert-tornado-bar pert-tornado-bar-low')
+        .attr('x', centerX - lowW)
+        .attr('y', rowY + (TORNADO_ROW_HEIGHT - TORNADO_BAR_HEIGHT) / 2)
+        .attr('width', lowW)
+        .attr('height', TORNADO_BAR_HEIGHT)
+        .attr('rx', 2)
+        .attr('ry', 2)
+        .attr('fill', barFill)
+        .attr('stroke', barColor)
+        .attr('stroke-width', 1)
+        .attr('data-activity-id', row.id);
+    }
 
-    // SSI value, right-aligned.
+    // Right bar (high swing) — grows from center toward the right.
+    if (highW > 0) {
+      block
+        .append('rect')
+        .attr('class', 'pert-tornado-bar pert-tornado-bar-high')
+        .attr('x', centerX)
+        .attr('y', rowY + (TORNADO_ROW_HEIGHT - TORNADO_BAR_HEIGHT) / 2)
+        .attr('width', highW)
+        .attr('height', TORNADO_BAR_HEIGHT)
+        .attr('rx', 2)
+        .attr('ry', 2)
+        .attr('fill', barFill)
+        .attr('stroke', barColor)
+        .attr('stroke-width', 1)
+        .attr('data-activity-id', row.id);
+    }
+
+    // Swing magnitudes on the far right: `-low / +high` in display unit.
+    const fmt = (v: number): string => {
+      const r = Math.round(v * 100) / 100;
+      return r.toFixed(2).replace(/\.?0+$/, '');
+    };
     block
       .append('text')
       .attr('class', 'pert-tornado-value')
@@ -2661,7 +2738,7 @@ function renderTornadoBlock(
       .attr('text-anchor', 'end')
       .attr('fill', labelColor)
       .attr('font-size', TORNADO_BAR_FONT_SIZE)
-      .text(row.ssi.toFixed(2));
+      .text(`−${fmt(row.lowSwing)} / +${fmt(row.highSwing)}`);
   });
 }
 
