@@ -30,13 +30,30 @@ describe('pert layout', () => {
     }
   });
 
-  it('AC5.1: default node dimensions match the textbook 3×3 card', () => {
+  it('AC5.1: default node dimensions size to content with a uniform width', () => {
     const { resolved } = pipeline(loadFixture('basic.dgmo'));
     const layout = layoutPert(resolved);
+    // Every non-milestone node shares one width (uniform grid).
+    const widths = new Set(layout.nodes.map((n) => n.width));
+    expect(widths.size).toBe(1);
     for (const node of layout.nodes) {
-      expect(node.width).toBe(210);
+      // Stays within the computed-sizing clamp range.
+      expect(node.width).toBeGreaterThanOrEqual(120);
+      expect(node.width).toBeLessThanOrEqual(280);
       expect(node.height).toBe(90);
     }
+  });
+
+  it('date-anchored diagrams produce wider nodes than non-anchored', () => {
+    const { resolved: plain } = pipeline(loadFixture('basic.dgmo'));
+    const plainLayout = layoutPert(plain);
+    const { resolved: dated } = pipeline(loadFixture('start-date.dgmo'));
+    const datedLayout = layoutPert(dated);
+    // Outer cells hold `YYYY-MM-DD` (10 chars) vs. a short `5w`-style
+    // duration — so the date variant must be the wider of the two.
+    expect(datedLayout.nodes[0]!.width).toBeGreaterThan(
+      plainLayout.nodes[0]!.width
+    );
   });
 
   it('AC5.2: relayoutPert with override grows the targeted node and ripples neighbors', () => {

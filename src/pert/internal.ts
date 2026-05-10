@@ -175,3 +175,77 @@ export function addCalendarDays(iso: string, days: number): string {
   );
   return formatLocalISODate(result);
 }
+
+// ============================================================
+// Cell value formatters
+// ============================================================
+//
+// Shared by `layout.ts` (for column-width measurement) and
+// `renderer.ts` (for actual cell text). Pure functions; identical
+// inputs → identical outputs so the measured width matches the
+// rendered text exactly.
+
+export function formatDuration(
+  value: number | null,
+  unit: DurationUnit,
+  nullLabel: string | null
+): string {
+  if (value === null) return nullLabel ?? '?';
+  const rounded = Math.round(value * 100) / 100;
+  const display = rounded.toFixed(2).replace(/\.?0+$/, '');
+  return `${display}${unit}`;
+}
+
+/**
+ * Format an ES / EF / LS / LF cell. When `projectStart` is set, the
+ * numeric offset (in `unit`) becomes a calendar date; otherwise we
+ * fall back to the numeric duration label so unanchored diagrams keep
+ * their original output byte-for-byte.
+ */
+export function formatScheduleValue(
+  value: number | null,
+  projectStart: string | null,
+  unit: DurationUnit,
+  nullLabel: string | null
+): string {
+  if (value === null) return nullLabel ?? '?';
+  if (projectStart === null) return formatDuration(value, unit, nullLabel);
+  return addCalendarDays(projectStart, value * unitToDays(unit));
+}
+
+/**
+ * Format a sprint-indexed schedule cell as `S<n>`. The activity's value
+ * is in sprint units (offset from `sprint-number`), so display = base +
+ * round(value). Fractional sprint offsets are rounded to nearest int —
+ * sprints are inherently discrete iteration boundaries.
+ */
+export function formatSprintCell(
+  value: number | null,
+  sprintNumber: number,
+  nullLabel: string | null
+): string {
+  if (value === null) return nullLabel ?? '?';
+  const rounded = Math.round(value);
+  return `S${sprintNumber + rounded}`;
+}
+
+/**
+ * Format a slack cell. Anchored diagrams normalize slack to calendar
+ * days regardless of `time-unit` (per spec C6); unanchored diagrams
+ * keep the original behavior.
+ */
+export function formatSlackValue(
+  value: number | null,
+  projectStart: string | null,
+  unit: DurationUnit,
+  nullLabel: string | null
+): string {
+  if (value === null) return nullLabel ?? '?';
+  if (projectStart === null) return formatDuration(value, unit, nullLabel);
+  // Convert from `unit` to calendar days so a 3-week slack reads "21d"
+  // instead of "3w" when dates are showing.
+  const days = value * unitToDays(unit);
+  const rounded = Math.round(days * 100) / 100;
+  const display = rounded.toFixed(2).replace(/\.?0+$/, '');
+  return `${display}d`;
+}

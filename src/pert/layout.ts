@@ -14,20 +14,21 @@ import type {
   PertDirection,
 } from './types';
 import type { LayoutOverrides } from './internal';
+import {
+  formatDuration,
+  formatScheduleValue,
+  formatSprintCell,
+  formatSlackValue,
+} from './internal';
 
 // Textbook 3×3 PERT/CPM box: top row [ES | dur | EF], middle row
 // [name spanning all three columns], bottom row [LS | slack | LF].
-const DEFAULT_NODE_WIDTH = 210;
+// Heights are fixed; widths are computed from cell content via
+// `computeNodeSizing` so a non-date diagram (where ES/EF are short
+// duration labels) renders narrower than a date-anchored diagram
+// (where those cells hold a 10-char `YYYY-MM-DD`).
 const DEFAULT_NODE_HEIGHT = 90;
-// Milestones (zero-duration sync points) carry only one signal apiece —
-// the milestone date and the slack — so they render as a compact pill
-// rather than the full 3×3 card. Width is reclaimed; height matches the
-// regular activity card so row dividers line up across the lane.
-const MILESTONE_NODE_WIDTH = 110;
 const MILESTONE_NODE_HEIGHT = DEFAULT_NODE_HEIGHT;
-// Collapsed groups use the same shape so the rolled-up envelope reads
-// identically to a regular activity card.
-const COLLAPSED_GROUP_WIDTH = 210;
 const COLLAPSED_GROUP_HEIGHT = 90;
 const DIAGRAM_PADDING = 20;
 const GROUP_PADDING = 18;
@@ -36,9 +37,155 @@ const GROUP_PADDING = 18;
 // conventions.md` §2 ("Reserved header band").
 const GROUP_TOP_PADDING = 28;
 
+// Cell-sizing constants — see `computeNodeSizing` below.
+const NODE_CELL_FONT_SIZE = 11;
+const NODE_NAME_FONT_SIZE = 13;
+// Average char width for Inter at sans-serif weights. Conservative;
+// produces a small over-estimate which prevents text from clipping.
+const CELL_CHAR_WIDTH_RATIO = 0.55;
+const CELL_PAD_X = 8;
+const NAME_PAD_X = 6;
+// Anchor icon + gap (renderer reserves space to the left of the name
+// when the activity is the forward source / backward sink).
+const NAME_PIN_WIDTH = 13 + 4;
+const MIN_CELL_WIDTH = 30;
+const MIN_NODE_WIDTH = 120;
+const MAX_NODE_WIDTH = 280;
+const MIN_MILESTONE_WIDTH = 80;
+const MAX_MILESTONE_WIDTH = 160;
+
+/**
+ * Per-diagram node geometry. All non-milestone activity nodes (and any
+ * collapsed-group cards) share `activityWidth` so the lane reads as a
+ * uniform grid; `outerColW`/`midColW` distribute that width so the
+ * outer cells (ES/EF/LS/LF) fit their longest displayed value and the
+ * middle cells (dur/slack) fit theirs. Milestones get their own width.
+ */
+export interface NodeSizing {
+  activityWidth: number;
+  milestoneWidth: number;
+  outerColW: number;
+  midColW: number;
+}
+
+/**
+ * Walk every resolved activity, format each cell with the same fn the
+ * renderer uses, and return the column/node widths needed to hold the
+ * longest cell text (plus the longest name, capped at MAX_NODE_WIDTH —
+ * names beyond that truncate with ellipsis at draw time). Sprint /
+ * date / duration modes each have a characteristic cell-width profile,
+ * so the diagram tightens automatically when ES/EF only hold "5w" vs.
+ * "2026-05-15".
+ */
+export function computeNodeSizing(resolved: ResolvedPert): NodeSizing {
+  const unit = resolved.options.timeUnit;
+  const sprintMode = resolved.options.sprintMode;
+  const sprintNumber = resolved.options.sprintNumber ?? 1;
+  const projectStart = resolved.projectStart;
+  const cellCharW = NODE_CELL_FONT_SIZE * CELL_CHAR_WIDTH_RATIO;
+  const nameCharW = NODE_NAME_FONT_SIZE * CELL_CHAR_WIDTH_RATIO;
+
+  const fmtSchedule = (v: number | null, isTbd: boolean): string =>
+    sprintMode
+      ? formatSprintCell(v, sprintNumber, isTbd ? '?' : null)
+      : formatScheduleValue(v, projectStart, unit, isTbd ? '?' : null);
+  const fmtSlack = (v: number | null, isTbd: boolean): string =>
+    formatSlackValue(v, projectStart, unit, isTbd ? '?' : null);
+  const fmtDur = (v: number | null, isTbd: boolean): string =>
+    formatDuration(v, unit, isTbd ? '?' : null);
+
+  let maxOuterChars = 1;
+  let maxMidChars = 1;
+  let maxNameChars = 1;
+  let maxMilestoneTopChars = 1;
+  let maxMilestoneSlackChars = 0;
+  let maxMilestoneNameChars = 1;
+
+  for (const r of resolved.activities) {
+    const isTbd = r.es === null;
+    if (r.activity.isMilestone) {
+      const dateStr = fmtSchedule(r.es, isTbd);
+      const slackStr = fmtSlack(r.slack, isTbd);
+      const slackHidden = !isTbd && /^0[a-z]?$/.test(slackStr);
+      maxMilestoneTopChars = Math.max(maxMilestoneTopChars, dateStr.length);
+      if (!slackHidden) {
+        maxMilestoneSlackChars = Math.max(
+          maxMilestoneSlackChars,
+          slackStr.length
+        );
+      }
+      // The milestone glyph prefix `◆ ` (2 chars worth of width).
+      maxMilestoneNameChars = Math.max(
+        maxMilestoneNameChars,
+        r.activity.name.length + 2
+      );
+      continue;
+    }
+    const esStr = fmtSchedule(r.es, isTbd);
+    const efStr = fmtSchedule(r.ef, isTbd);
+    const lsStr = fmtSchedule(r.ls, isTbd);
+    const lfStr = fmtSchedule(r.lf, isTbd);
+    const durStr = fmtDur(r.mu, isTbd);
+    const slackStr = fmtSlack(r.slack, isTbd);
+    maxOuterChars = Math.max(
+      maxOuterChars,
+      esStr.length,
+      efStr.length,
+      lsStr.length,
+      lfStr.length
+    );
+    maxMidChars = Math.max(maxMidChars, durStr.length, slackStr.length);
+    maxNameChars = Math.max(maxNameChars, r.activity.name.length);
+  }
+
+  // Also account for any collapsed-group rolled-up label width — the
+  // renderer draws those with the same textbook-card chrome, so their
+  // name needs to fit in the shared `activityWidth`.
+  for (const rg of resolved.groups) {
+    maxNameChars = Math.max(maxNameChars, rg.group.name.length);
+  }
+
+  const outerCell = Math.ceil(maxOuterChars * cellCharW) + 2 * CELL_PAD_X;
+  const midCell = Math.ceil(maxMidChars * cellCharW) + 2 * CELL_PAD_X;
+  const outerColW = Math.max(MIN_CELL_WIDTH, outerCell);
+  const midColW = Math.max(MIN_CELL_WIDTH, midCell);
+  const cellsTotalW = 2 * outerColW + midColW;
+
+  // The name dictates a lower bound too — anchor-pinned cards reserve
+  // a NAME_PIN_WIDTH on the left, so size for the worst case.
+  const nameTextW = Math.ceil(maxNameChars * nameCharW);
+  const nameTotalW = nameTextW + NAME_PIN_WIDTH + 2 * NAME_PAD_X;
+
+  const activityWidth = Math.max(
+    MIN_NODE_WIDTH,
+    Math.min(MAX_NODE_WIDTH, Math.max(cellsTotalW, nameTotalW))
+  );
+
+  // Milestones are independent: a one-cell-tall date row, a name row,
+  // and (optionally) a slack row. Width should fit whichever is widest.
+  const mTop = Math.ceil(maxMilestoneTopChars * cellCharW) + 2 * CELL_PAD_X;
+  const mSlack =
+    maxMilestoneSlackChars > 0
+      ? Math.ceil(maxMilestoneSlackChars * cellCharW) + 2 * CELL_PAD_X
+      : 0;
+  // Milestone name renders at 12pt with anchor-pin reserve.
+  const mNameCharW = 12 * CELL_CHAR_WIDTH_RATIO;
+  const mName =
+    Math.ceil(maxMilestoneNameChars * mNameCharW) +
+    NAME_PIN_WIDTH +
+    2 * NAME_PAD_X;
+  const milestoneWidth = Math.max(
+    MIN_MILESTONE_WIDTH,
+    Math.min(MAX_MILESTONE_WIDTH, Math.max(mTop, mSlack, mName))
+  );
+
+  return { activityWidth, milestoneWidth, outerColW, midColW };
+}
+
 function nodeDimensions(
   resolved: ResolvedPert,
   id: string,
+  sizing: NodeSizing,
   overrides?: LayoutOverrides
 ): { width: number; height: number } {
   if (overrides && overrides[id]) {
@@ -46,9 +193,9 @@ function nodeDimensions(
   }
   const r = resolved.activities.find((a) => a.activity.id === id);
   if (r?.activity.isMilestone) {
-    return { width: MILESTONE_NODE_WIDTH, height: MILESTONE_NODE_HEIGHT };
+    return { width: sizing.milestoneWidth, height: MILESTONE_NODE_HEIGHT };
   }
-  return { width: DEFAULT_NODE_WIDTH, height: DEFAULT_NODE_HEIGHT };
+  return { width: sizing.activityWidth, height: DEFAULT_NODE_HEIGHT };
 }
 
 export function layoutPert(resolved: ResolvedPert): LayoutResult {
@@ -87,21 +234,25 @@ export function relayoutPert(
   });
   g.setDefaultEdgeLabel(() => ({}));
 
+  const sizing = computeNodeSizing(resolved);
+
   // Add real activity nodes (skipping members of collapsed groups).
   for (const r of resolved.activities) {
     if (memberToGroup.has(r.activity.id)) continue;
     const { width, height } = nodeDimensions(
       resolved,
       r.activity.id,
+      sizing,
       overrides
     );
     g.setNode(r.activity.id, { width, height });
   }
-  // Add one virtual node per collapsed group at a fixed compact size.
+  // Add one virtual node per collapsed group — uses the same shared
+  // activity width so the rolled-up envelope lines up with siblings.
   for (const rg of resolved.groups) {
     if (collapsedGroupIds.has(rg.group.id)) {
       g.setNode(rg.group.id, {
-        width: COLLAPSED_GROUP_WIDTH,
+        width: sizing.activityWidth,
         height: COLLAPSED_GROUP_HEIGHT,
       });
     }
