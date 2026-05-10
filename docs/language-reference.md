@@ -123,6 +123,15 @@ no-option-name       // off
 - Bare keyword = on; `no-` prefix = off
 - Must appear before diagram content
 
+**Cross-cutting boolean directives** (recognized in every chart type that has the corresponding rendering surface):
+
+| Directive | Effect |
+| --- | --- |
+| `solid-fill` | Render nodes/bars at full intent saturation instead of the canonical 25% tint |
+| `no-title` | Hide the diagram banner title in the rendered output (does not mutate the parsed model) |
+
+Examples: `no-legend` (journey-map), `no-color` (flowchart, state), `no-title` (all chart types with a banner title).
+
 ### 1.9 In-Arrow Message Labels
 
 An **in-arrow label** is the text embedded inside an arrow between the opening delimiter and the arrow token, as in `A -label-> B`.
