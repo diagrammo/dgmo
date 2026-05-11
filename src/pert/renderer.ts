@@ -2997,25 +2997,14 @@ const DAYS_PER_UNIT: Record<DurationUnit, number> = {
   s: 14,
 };
 
-// Subline under the Tornado header — explains the bidirectional
-// encoding so a first-time reader doesn't have to infer it. 11pt
-// muted, sits right below the bold title.
-const TORNADO_SUBLINE_FONT_SIZE = 11;
-const TORNADO_SUBLINE_HEIGHT = 16;
-const TORNADO_SUBLINE_TEXT =
-  'left = best case · right = worst case · green = delay-only';
-
 /**
  * Maximum number of tornado rows that fit inside a box of the given
- * height. Reverses tornadoBoxHeightFor(): subtracts header band,
- * subline, and box padding, then floors by row height.
+ * height. Reverses tornadoBoxHeightFor(): subtracts header band and
+ * box padding, then floors by row height.
  */
 function tornadoMaxRowsFor(boxHeight: number): number {
   const rowSpace =
-    boxHeight -
-    2 * CAPTION_BOX_PADDING_Y -
-    CAPTION_HEADER_BAND_HEIGHT -
-    TORNADO_SUBLINE_HEIGHT;
+    boxHeight - 2 * CAPTION_BOX_PADDING_Y - CAPTION_HEADER_BAND_HEIGHT;
   return Math.max(1, Math.floor(rowSpace / TORNADO_ROW_HEIGHT));
 }
 
@@ -3023,8 +3012,7 @@ function tornadoBoxHeightFor(rows: TornadoRow[]): number {
   return (
     rows.length * TORNADO_ROW_HEIGHT +
     2 * CAPTION_BOX_PADDING_Y +
-    CAPTION_HEADER_BAND_HEIGHT +
-    TORNADO_SUBLINE_HEIGHT
+    CAPTION_HEADER_BAND_HEIGHT
   );
 }
 
@@ -3080,59 +3068,75 @@ function renderTornadoBlock(
     .attr('fill', labelColor)
     .attr('font-size', CAPTION_FONT_SIZE)
     .attr('font-weight', '700')
-    .text('Tornado — project-end swing per activity');
-  block
-    .append('text')
-    .attr('class', 'pert-tornado-subline')
-    .attr('x', x + width / 2)
-    .attr(
-      'y',
-      y +
-        CAPTION_BOX_PADDING_Y +
-        CAPTION_HEADER_BAND_HEIGHT +
-        TORNADO_SUBLINE_FONT_SIZE
-    )
-    .attr('text-anchor', 'middle')
-    .attr('fill', labelColor)
-    .attr('font-size', TORNADO_SUBLINE_FONT_SIZE)
-    .attr('opacity', 0.75)
-    .text(TORNADO_SUBLINE_TEXT);
+    .text('Tornado');
 
   // Two-sided bar geometry. Activity name on the far left, then a
-  // bidirectional plot area with a vertical baseline axis at its
-  // center: each row paints a `low` bar growing LEFT (project finishes
-  // earlier) and a `high` bar growing RIGHT (project finishes later).
-  // Magnitudes sit at the END of each bar — `−low` left of the
-  // low bar, `+high` right of the high bar — so the eye binds the
-  // number to its own bar instead of parsing a combined cell.
-  const maxSwing =
-    rows.reduce((acc, r) => Math.max(acc, r.lowSwing, r.highSwing), 0) || 1;
-  const nameX = x + CAPTION_BOX_PADDING_X;
-  const plotLeft = nameX + TORNADO_NAME_COL_W;
-  const plotRight = x + width - CAPTION_BOX_PADDING_X;
-  // Reserve gutter at each end for the value labels so a max-width
-  // bar's end-label has room without bleeding into the box edge.
-  const VALUE_GUTTER = 56;
-  const VALUE_GAP = 6;
-  const innerLeft = plotLeft + VALUE_GUTTER;
-  const innerRight = plotRight - VALUE_GUTTER;
-  const plotWidth = Math.max(innerRight - innerLeft, 0);
-  const centerX = innerLeft + plotWidth / 2;
-  const halfPlot = plotWidth / 2;
-  const firstRowY =
-    y +
-    CAPTION_BOX_PADDING_Y +
-    CAPTION_HEADER_BAND_HEIGHT +
-    TORNADO_SUBLINE_HEIGHT;
-
-  // Center baseline axis is drawn AFTER bars below — see end of fn —
-  // so it reads as the canonical zero-line instead of getting buried
-  // under the bar rects (which span centerX).
-
+  // bidirectional plot area with a vertical zero-line: each row paints
+  // a `low` bar growing LEFT (project finishes earlier) and a `high`
+  // bar growing RIGHT (project finishes later). Magnitudes sit at the
+  // END of each bar — `−low` left of the low bar, `+high` right of the
+  // high bar — so the eye binds the number to its own bar instead of
+  // parsing a combined cell.
+  //
+  // The zero-line is positioned asymmetrically so the longest left bar
+  // exactly reaches `innerLeft` and the longest right bar exactly
+  // reaches `innerRight`. A single uniform pixels-per-unit scale spans
+  // both sides — bars on the left and right remain magnitude-comparable
+  // — but the plot allocates space proportionally to maxLow vs maxHigh
+  // instead of wasting half on the shorter side. With maxLow == maxHigh
+  // the line lands dead-center (legacy behavior).
   const fmt = (v: number): string => {
     const r = Math.round(v * 100) / 100;
     return r.toFixed(2).replace(/\.?0+$/, '');
   };
+
+  const maxLow = rows.reduce((acc, r) => Math.max(acc, r.lowSwing), 0);
+  const maxHigh = rows.reduce((acc, r) => Math.max(acc, r.highSwing), 0);
+  const totalRange = maxLow + maxHigh || 1;
+  const nameX = x + CAPTION_BOX_PADDING_X;
+  const plotLeft = nameX + TORNADO_NAME_COL_W;
+  const plotRight = x + width - CAPTION_BOX_PADDING_X;
+  // Reserve gutter at each end for the value labels so a max-width
+  // bar's end-label has room without bleeding into the box edge. The
+  // gutters are sized to the actual longest label on each side rather
+  // than a hardcoded width — `+8.54` only needs ~37px, not the legacy
+  // 56px reserve. Less wasted gutter = wider plot area = bars that use
+  // more of the box. When one side has zero extent (delay-only chart)
+  // its gutter collapses to zero.
+  const VALUE_GAP = 6;
+  // Inter at TORNADO_BAR_FONT_SIZE — digits and `+`/`−` average ~0.55em.
+  // Slight over-estimate (0.6) so labels never crash into the box edge
+  // even with 1-2px font-rendering variance across platforms.
+  const CHAR_W = TORNADO_BAR_FONT_SIZE * 0.6;
+  const longestLeftLabelChars = rows.reduce(
+    (acc, r) =>
+      r.lowSwing > 0 ? Math.max(acc, `−${fmt(r.lowSwing)}`.length) : acc,
+    0
+  );
+  const longestRightLabelChars = rows.reduce(
+    (acc, r) =>
+      r.highSwing > 0 ? Math.max(acc, `+${fmt(r.highSwing)}`.length) : acc,
+    0
+  );
+  const leftGutter =
+    longestLeftLabelChars > 0
+      ? longestLeftLabelChars * CHAR_W + VALUE_GAP + 2
+      : 0;
+  const rightGutter =
+    longestRightLabelChars > 0
+      ? longestRightLabelChars * CHAR_W + VALUE_GAP + 2
+      : 0;
+  const innerLeft = plotLeft + leftGutter;
+  const innerRight = plotRight - rightGutter;
+  const plotWidth = Math.max(innerRight - innerLeft, 0);
+  const pixelsPerUnit = plotWidth / totalRange;
+  const leftWidth = maxLow * pixelsPerUnit;
+  const centerX = innerLeft + leftWidth;
+  const firstRowY = y + CAPTION_BOX_PADDING_Y + CAPTION_HEADER_BAND_HEIGHT;
+
+  // Center baseline axis is drawn AFTER bars below — see end of fn —
+  // so it reads as the canonical zero-line instead of getting buried
+  // under the bar rects (which span centerX).
 
   rows.forEach((row, i) => {
     const rowY = firstRowY + i * TORNADO_ROW_HEIGHT;
@@ -3140,13 +3144,17 @@ function renderTornadoBlock(
       rowY + TORNADO_ROW_HEIGHT / 2 + TORNADO_BAR_FONT_SIZE / 2 - 2;
     const barColor = bandColor(row.band, palette, palette.primary);
     const barFill = shapeFill(palette, barColor, isDark);
-    const lowW = (row.lowSwing / maxSwing) * halfPlot;
-    const highW = (row.highSwing / maxSwing) * halfPlot;
+    const lowW = row.lowSwing * pixelsPerUnit;
+    const highW = row.highSwing * pixelsPerUnit;
 
     const rowG = block
       .append('g')
       .attr('class', 'pert-tornado-row')
-      .attr('data-activity-id', row.id);
+      .attr('data-activity-id', row.id)
+      // Total swing (low + high) in display-units. Consumers (the app's
+      // sensitivity-heatmap overlay) read this to map nodes to opacity
+      // by leverage without needing a parallel data feed.
+      .attr('data-tornado-swing', String(row.lowSwing + row.highSwing));
 
     // Transparent overlay rect spans the entire row, captures pointer
     // events even over whitespace between bars and value labels.

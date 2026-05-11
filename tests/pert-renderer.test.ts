@@ -418,7 +418,7 @@ A
     const block = c.querySelector('g.pert-tornado-block');
     expect(block).not.toBeNull();
     expect(block!.querySelector('text.pert-tornado-header')!.textContent).toBe(
-      'Tornado — project-end swing per activity'
+      'Tornado'
     );
     // Two-sided tornado: each row gets up to 2 bars (low + high). At
     // least one swing exists for the three-point.dgmo fixture.
