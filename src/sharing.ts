@@ -33,6 +33,7 @@ export interface CompactViewState {
   cbd?: boolean; // color by depth (mindmap)
   rq?: string; // radar quadrant focus (tech-radar position)
   an?: boolean; // analysis layer on (PERT: tornado + S-curve)
+  fl?: boolean; // field-labels reference card included (PERT)
 }
 
 export interface DecodedDiagramUrl {

@@ -7682,15 +7682,17 @@ export async function renderForExport(
       pertParsed.title && !pertParsed.options.noTitle ? 80 : 0;
     const PERT_PADDING = 20;
     const analysisOn = viewState?.an === true;
+    const fieldLabelsOn = viewState?.fl === true;
     const exportW = pertLayout.width + PERT_PADDING * 2;
-    const analysisMeasured = analysisOn
-      ? measurePertAnalysisBlock(pertResolved, exportW - 2 * PERT_PADDING, {
-          showSummary: false,
-          showTornado: true,
-          showScurve: true,
-          showFieldLegend: false,
-        })
-      : { width: 0, height: 0 };
+    const analysisMeasured =
+      analysisOn || fieldLabelsOn
+        ? measurePertAnalysisBlock(pertResolved, exportW - 2 * PERT_PADDING, {
+            showSummary: false,
+            showTornado: analysisOn,
+            showScurve: analysisOn,
+            showFieldLegend: fieldLabelsOn,
+          })
+        : { width: 0, height: 0 };
     const exportH =
       pertLayout.height +
       PERT_PADDING * 2 +
@@ -7710,6 +7712,7 @@ export async function renderForExport(
         showSummary: false,
         showTornado: analysisOn,
         showScurve: analysisOn,
+        showFieldLegend: fieldLabelsOn,
       }
     );
     return finalizeSvgExport(container, theme, effectivePalette);
