@@ -179,8 +179,8 @@ function fieldLegendHeightFor(width: number): number {
   );
 }
 const FIELD_LEGEND_LABEL_FONT_SIZE = 13;
-const FIELD_LEGEND_DESC_FONT_SIZE = 11;
-const FIELD_LEGEND_DESC_LINE_HEIGHT = 14;
+const FIELD_LEGEND_DESC_FONT_SIZE = 13;
+const FIELD_LEGEND_DESC_LINE_HEIGHT = 17;
 const FIELD_LEGEND_LABEL_DESC_GAP = 4;
 // Greedy word-wrap budget per line — calibrated for 11pt Inter at the
 // cell width minus padding.
@@ -2054,18 +2054,18 @@ function captionNaturalWidth(bullets: CaptionBullet[]): number {
 // Tornado widget — Monte-Carlo sensitivity ranking. Renders inside
 // the Analysis row at width determined by the row's column allocation.
 const TORNADO_TOP_N = 10;
-const TORNADO_ROW_HEIGHT = 22;
+const TORNADO_ROW_HEIGHT = 26;
 const TORNADO_NAME_COL_W = 160;
 const TORNADO_VALUE_COL_W = 110;
-const TORNADO_BAR_FONT_SIZE = 11;
-const TORNADO_BAR_HEIGHT = 14;
+const TORNADO_BAR_FONT_SIZE = 13;
+const TORNADO_BAR_HEIGHT = 16;
 
 // S-curve widget — empirical CDF of MC trial finish times.
 const SCURVE_BOX_HEIGHT = 220;
-const SCURVE_PLOT_PADDING_X = 56; // y-axis labels + tick gap
+const SCURVE_PLOT_PADDING_X = 64; // y-axis labels + tick gap (13pt ticks)
 const SCURVE_PLOT_PADDING_RIGHT = 16;
-const SCURVE_PLOT_PADDING_BOTTOM = 36; // x-axis labels + tick gap
-const SCURVE_TICK_FONT_SIZE = 10;
+const SCURVE_PLOT_PADDING_BOTTOM = 44; // x-axis labels + tick gap (13pt ticks)
+const SCURVE_TICK_FONT_SIZE = 13;
 const SCURVE_PERCENTILE_RADIUS = 4;
 
 function renderCaptionBlock(
