@@ -49,8 +49,9 @@ const FIXTURE_NAMES = [
 // Frozen "today" for snapshot determinism — backward-mode anchor
 // annotations now carry "(as of YYYY-MM-DD)" and the analyzer flags
 // past latest-safe-starts against this date. The constant matches the
-// date used by the spec's worked examples (§13A.12).
-const SNAPSHOT_NOW = new Date('2026-05-10');
+// date used by the spec's worked examples (§13A.12). Local-time noon
+// keeps the parsed "today" stable across TZs (CI runs UTC).
+const SNAPSHOT_NOW = new Date(2026, 4, 10, 12);
 
 describe('pert renderer — snapshots', () => {
   for (const name of FIXTURE_NAMES) {

@@ -11,6 +11,6 @@ sail to atoll 3 5 8 as sa
 
 count gold 1 2 3
 
-# bare alias source-line references the aliased activity
+# the next source-line references "sail to atoll" by its short token
 sa
   -> count gold
