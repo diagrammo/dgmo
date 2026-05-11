@@ -63,6 +63,7 @@ import { analyzePert } from './analyzer';
 import { layoutPert, computeNodeSizing } from './layout';
 import type { NodeSizing } from './layout';
 import {
+  addCalendarDays,
   formatDuration,
   formatScheduleValue,
   formatSprintCell,
@@ -3258,12 +3259,40 @@ function renderTornadoBlock(
 interface ScurveData {
   /** Sorted-ascending sample finish times (canonical days). */
   samples: number[];
-  /** Project μ in canonical days — drawn as a vertical reference. */
-  expectedDays: number;
+  /**
+   * Central 68% empirical range — same MC trials that produced p50.
+   * The shaded band on the chart spans [p16, p84]. Honest about
+   * skewness (the band is asymmetric around p50 if the project is
+   * skewed) and uses no normality assumption.
+   */
+  p16Days: number;
+  p84Days: number;
   /** Percentile finish times (in canonical days). */
   p50Days: number;
   p80Days: number;
   p95Days: number;
+  /**
+   * Optional contextual framing line — currently the anchor annotation
+   * (e.g. "End-date anchored: dates shown are earliest possible").
+   * Rendered as the S-curve subline when present.
+   */
+  framingNote: string | null;
+  /**
+   * Project start date (ISO yyyy-mm-dd) when the diagram is anchored.
+   * Lets the x-axis display calendar dates (in addition to durations)
+   * so date-driven projects can read finish dates directly off the
+   * completion-probability chart.
+   */
+  anchorDate: string | null;
+  /**
+   * Hard deadline (canonical days from projectStart) when the diagram
+   * is end-date-anchored. Drawn as a vertical line on the plot so
+   * readers can see at a glance how close the percentile finishes
+   * land to the constraint. Null for forward-anchored or unanchored.
+   */
+  deadlineDays: number | null;
+  /** Deadline date as ISO yyyy-mm-dd, used for the on-chart label. */
+  deadlineDate: string | null;
 }
 
 /**
@@ -3282,14 +3311,36 @@ function buildScurveData(resolved: ResolvedPert): ScurveData | null {
   const p5 = Math.max(0, 2 * mc.p50 - mc.p95);
   const samples = [p5, mc.p50, mc.p80, mc.p95];
   if (samples.every((v) => v === samples[0])) return null;
-  // Project mean (canonical days) — useful as a reference dot.
-  const expectedDays = resolved.projectMu === null ? mc.p50 : mc.p50;
+  // Deadline only exists for end-date-anchored diagrams. The anchor's
+  // date is the hard finish constraint; convert it to days-from-start
+  // so it fits on the same x-scale as the percentile dots.
+  let deadlineDays: number | null = null;
+  let deadlineDate: string | null = null;
+  const anchor = resolved.options.anchor;
+  if (
+    anchor !== null &&
+    anchor.kind === 'backward' &&
+    resolved.projectStart !== null
+  ) {
+    const startMs = Date.parse(resolved.projectStart);
+    const endMs = Date.parse(anchor.date);
+    if (!isNaN(startMs) && !isNaN(endMs)) {
+      deadlineDays = (endMs - startMs) / (1000 * 60 * 60 * 24);
+      deadlineDate = anchor.date;
+    }
+  }
+
   return {
     samples,
-    expectedDays,
+    p16Days: mc.p16,
+    p84Days: mc.p84,
     p50Days: mc.p50,
     p80Days: mc.p80,
     p95Days: mc.p95,
+    framingNote: anchorAnnotationText(resolved),
+    anchorDate: resolved.projectStart,
+    deadlineDays,
+    deadlineDate,
   };
 }
 
@@ -3336,28 +3387,43 @@ function renderScurveBlock(
     .attr('stroke', baseColor)
     .attr('stroke-width', NODE_STROKE_WIDTH);
 
-  block
-    .append('text')
-    .attr('class', 'pert-scurve-header')
-    .attr('x', x + width / 2)
-    .attr('y', y + CAPTION_BOX_PADDING_Y + CAPTION_FONT_SIZE)
-    .attr('text-anchor', 'middle')
-    .attr('fill', labelColor)
-    .attr('font-size', CAPTION_FONT_SIZE)
-    .attr('font-weight', '700')
-    .text('Completion probability');
+  // No header text and no subline — the rotated y-axis title plus the
+  // colored P50/P80/P95 dots make the chart self-identifying, and the
+  // deadline (when present) draws its own labeled line directly on
+  // the plot. Both of those reclaim ~42px of vertical room for the
+  // plot vs. the old design.
+  //
+  // Anchor-framing kept only as a top reservation for the deadline
+  // label when the diagram is end-date-anchored.
+  const SCURVE_DEADLINE_LABEL_HEIGHT = 16;
+  const hasDeadline = data.deadlineDays !== null;
 
   // Plot rect — leave room on the left for y-axis labels and below
-  // for x-axis labels.
+  // for x-axis labels. Top reserve for the deadline label when the
+  // diagram is end-date-anchored.
   const plotLeft = x + SCURVE_PLOT_PADDING_X;
   const plotRight = x + width - SCURVE_PLOT_PADDING_RIGHT;
-  const plotTop = y + CAPTION_BOX_PADDING_Y + CAPTION_HEADER_BAND_HEIGHT;
-  const plotBottom = y + height - SCURVE_PLOT_PADDING_BOTTOM;
+  const plotTop =
+    y +
+    CAPTION_BOX_PADDING_Y +
+    (hasDeadline ? SCURVE_DEADLINE_LABEL_HEIGHT : 0);
+  // When the diagram is date-anchored, the x-axis carries dates AND
+  // durations (two-line label at each percentile tick). Reserve extra
+  // bottom padding so the second line fits.
+  const isAnchored = data.anchorDate !== null;
+  const SCURVE_PERCENTILE_LINE_GAP = 14;
+  const extraBottom = isAnchored ? SCURVE_PERCENTILE_LINE_GAP : 0;
+  const plotBottom = y + height - SCURVE_PLOT_PADDING_BOTTOM - extraBottom;
   const plotW = plotRight - plotLeft;
   const plotH = plotBottom - plotTop;
 
-  const xMin = data.samples[0];
+  // Extend xMin a small buffer below min(p5, p16) so the empirical
+  // 68% band has visible unshaded area to its left — reads more
+  // clearly as "this is the likely-finish span" than a band flush
+  // against the plot edge.
   const xMax = data.samples[data.samples.length - 1];
+  const xMinNatural = Math.min(data.samples[0], data.p16Days);
+  const xMin = xMinNatural - 0.05 * (xMax - xMinNatural);
   const xRange = xMax - xMin || 1;
   const xScale = (v: number): number =>
     plotLeft + ((v - xMin) / xRange) * plotW;
@@ -3388,11 +3454,98 @@ function renderScurveBlock(
       .text(`${Math.round(t * 100)}%`);
   }
 
+  // Y-axis title — rotated 90° on the far left of the plot, centered
+  // vertically. The 0-100% ticks are obviously percentages, but
+  // "probability of what?" needs an explicit axis title.
+  const yAxisLabelCx = x + 14;
+  const yAxisLabelCy = plotTop + plotH / 2;
+  block
+    .append('text')
+    .attr('class', 'pert-scurve-y-axis-title')
+    .attr(
+      'transform',
+      `translate(${yAxisLabelCx}, ${yAxisLabelCy}) rotate(-90)`
+    )
+    .attr('text-anchor', 'middle')
+    .attr('fill', labelColor)
+    .attr('font-size', SCURVE_TICK_FONT_SIZE - 1)
+    .attr('font-weight', '600')
+    .attr('opacity', 0.85)
+    // Two-word title fits at full plot heights (~146px non-anchored,
+    // ~132px anchored after the subline shrinks the plot). The card
+    // header was removed once this title took over, so this is now
+    // the only place the chart names itself.
+    .text('Completion Probability');
+
+  // Empirical 68% band [P16, P84] — same MC trials that produced the
+  // P50/P80/P95 dots, so the math story stays consistent: every
+  // visual element on the chart comes from one simulation run. The
+  // band visually answers "where will the project most likely land?"
+  // without assuming the finish-time distribution is normal.
+  if (data.p84Days > data.p16Days) {
+    const bandLeftRaw = xScale(data.p16Days);
+    const bandRightRaw = xScale(data.p84Days);
+    const bandLeft = Math.max(plotLeft, bandLeftRaw);
+    const bandRight = Math.min(plotRight, bandRightRaw);
+    if (bandRight > bandLeft) {
+      block
+        .append('rect')
+        .attr('class', 'pert-scurve-likely-band')
+        .attr('x', bandLeft)
+        .attr('y', plotTop)
+        .attr('width', bandRight - bandLeft)
+        .attr('height', plotH)
+        .attr('fill', palette.colors.blue)
+        .attr('opacity', 0.12);
+    }
+  }
+
+  // Deadline — vertical line at the hard end-date constraint. The
+  // label sits ABOVE the 100% gridline (above plotTop) so it doesn't
+  // compete with curve labels inside the plot, and the line + label
+  // share a distinct purple color so they read as a hard constraint
+  // distinct from the colored dashed percentile ticks.
+  if (data.deadlineDays !== null && data.deadlineDate !== null) {
+    const dx = xScale(data.deadlineDays);
+    if (dx >= plotLeft - 1 && dx <= plotRight + 1) {
+      const deadlineColor = palette.colors.purple;
+      // Label first so it appears above the plot (in the reserved top
+      // strip). Mirrors the inward-anchor logic used for percentiles
+      // so the label doesn't clip at the plot edges.
+      const edgePad = 4;
+      let anchor: 'middle' | 'start' | 'end' = 'middle';
+      if (dx <= plotLeft + edgePad) anchor = 'start';
+      else if (dx >= plotRight - edgePad) anchor = 'end';
+      block
+        .append('text')
+        .attr('class', 'pert-scurve-deadline-label')
+        .attr('x', dx)
+        .attr('y', plotTop - 4)
+        .attr('text-anchor', anchor)
+        .attr('fill', deadlineColor)
+        .attr('font-size', SCURVE_TICK_FONT_SIZE)
+        .attr('font-weight', '700')
+        .text(`Deadline · ${formatScurveDate(data.deadlineDate)}`);
+      block
+        .append('line')
+        .attr('class', 'pert-scurve-deadline-line')
+        .attr('x1', dx)
+        .attr('x2', dx)
+        .attr('y1', plotTop)
+        .attr('y2', plotBottom)
+        .attr('stroke', deadlineColor)
+        .attr('stroke-width', 1.5)
+        .attr('opacity', 0.9);
+    }
+  }
+
   // Sigmoid curve through the 4 sample points (p5 / p50 / p80 / p95).
   // Cumulative probabilities at those samples are 5 / 50 / 80 / 95 %.
   // Interpolate piecewise-linearly between them with extra anchor at 0.
+  // Curve starts at samples[0] (p5), not xMin — xMin may extend below
+  // to give the μ±σ band a left buffer.
   const points: { x: number; y: number }[] = [
-    { x: xScale(xMin), y: yScale(0.05) },
+    { x: xScale(data.samples[0]), y: yScale(0.05) },
     { x: xScale(data.p50Days), y: yScale(0.5) },
     { x: xScale(data.p80Days), y: yScale(0.8) },
     { x: xScale(data.p95Days), y: yScale(0.95) },
@@ -3412,15 +3565,24 @@ function renderScurveBlock(
       .attr('stroke-width', 2);
   }
 
-  // Percentile dots + dashed verticals down to x-axis.
-  const dots: { value: number; pct: number; label: string }[] = [
-    { value: data.p50Days, pct: 0.5, label: 'P50' },
-    { value: data.p80Days, pct: 0.8, label: 'P80' },
-    { value: data.p95Days, pct: 0.95, label: 'P95' },
+  // Percentile dots + dashed verticals + x-axis value labels. Each
+  // percentile gets its own color so the eye can match dot → dashed
+  // line → x-axis label as a single unit. Yellow/orange/red mirrors
+  // the criticality bands used elsewhere in the diagram so colors
+  // read consistently across widgets.
+  type Band = 'yellow' | 'orange' | 'red';
+  const dots: { value: number; pct: number; label: string; band: Band }[] = [
+    { value: data.p50Days, pct: 0.5, label: 'P50', band: 'yellow' },
+    { value: data.p80Days, pct: 0.8, label: 'P80', band: 'orange' },
+    { value: data.p95Days, pct: 0.95, label: 'P95', band: 'red' },
   ];
+  // Pre-compute percentile x positions for use by the x-axis tick
+  // collision pass below.
+  const percentileXs: number[] = dots.map((d) => xScale(d.value));
   for (const d of dots) {
     const cx = xScale(d.value);
     const cy = yScale(d.pct);
+    const color = palette.colors[d.band];
     block
       .append('line')
       .attr('class', 'pert-scurve-percentile-tick')
@@ -3428,23 +3590,24 @@ function renderScurveBlock(
       .attr('x2', cx)
       .attr('y1', cy)
       .attr('y2', plotBottom)
-      .attr('stroke', palette.colors.red)
+      .attr('stroke', color)
       .attr('stroke-width', 1)
       .attr('stroke-dasharray', '3 3')
-      .attr('opacity', 0.6);
+      .attr('opacity', 0.7);
     block
       .append('circle')
       .attr('class', 'pert-scurve-percentile-dot')
       .attr('cx', cx)
       .attr('cy', cy)
       .attr('r', SCURVE_PERCENTILE_RADIUS)
-      .attr('fill', palette.colors.red)
+      .attr('fill', color)
       .attr('stroke', fill)
       .attr('stroke-width', 1.5)
       .attr('data-percentile', d.label);
-    // Anchor labels inward at the plot edges so the rightmost
-    // percentile (P95, which lands at plotRight) doesn't half-clip
-    // past the box.
+    // Above-the-dot label is just the percentile name. The numeric
+    // value lives on the x-axis (color-matched), so we don't repeat
+    // "P50 · 47.8w" at the dot — readers track dot → dashed line →
+    // colored x-axis label.
     const edgePad = 4;
     let percentileAnchor: 'middle' | 'start' | 'end' = 'middle';
     if (cx <= plotLeft + edgePad) percentileAnchor = 'start';
@@ -3455,9 +3618,48 @@ function renderScurveBlock(
       .attr('x', cx)
       .attr('y', cy - SCURVE_PERCENTILE_RADIUS - 4)
       .attr('text-anchor', percentileAnchor)
-      .attr('fill', labelColor)
+      .attr('fill', color)
       .attr('font-size', SCURVE_TICK_FONT_SIZE)
+      .attr('font-weight', '700')
       .text(d.label);
+    // X-axis label — bold, percentile-colored, sits alongside (and
+    // visually overrides) the regular auto-ticks at the same position.
+    // When the diagram is date-anchored, the label is two-line: date
+    // on top, duration below, so readers see both at once.
+    const baseTickY = plotBottom + SCURVE_TICK_FONT_SIZE + 6;
+    if (isAnchored) {
+      block
+        .append('text')
+        .attr('class', 'pert-scurve-percentile-xtick')
+        .attr('x', cx)
+        .attr('y', baseTickY)
+        .attr('text-anchor', percentileAnchor)
+        .attr('fill', color)
+        .attr('font-size', SCURVE_TICK_FONT_SIZE)
+        .attr('font-weight', '700')
+        .text(formatScurveDate(addCalendarDays(data.anchorDate!, d.value)));
+      block
+        .append('text')
+        .attr('class', 'pert-scurve-percentile-xtick-sub')
+        .attr('x', cx)
+        .attr('y', baseTickY + SCURVE_PERCENTILE_LINE_GAP)
+        .attr('text-anchor', percentileAnchor)
+        .attr('fill', color)
+        .attr('font-size', SCURVE_TICK_FONT_SIZE - 2)
+        .attr('opacity', 0.85)
+        .text(formatScurveTick(d.value, unit));
+    } else {
+      block
+        .append('text')
+        .attr('class', 'pert-scurve-percentile-xtick')
+        .attr('x', cx)
+        .attr('y', baseTickY)
+        .attr('text-anchor', percentileAnchor)
+        .attr('fill', color)
+        .attr('font-size', SCURVE_TICK_FONT_SIZE)
+        .attr('font-weight', '700')
+        .text(formatScurveTick(d.value, unit));
+    }
   }
 
   // X-axis ticks: evenly spaced across the x-range. More ticks let
@@ -3467,8 +3669,10 @@ function renderScurveBlock(
   // either neighbour given the end-anchored last tick eats label-width
   // worth of room on its left.
   type Tick = { v: number; x: number; anchor: 'start' | 'middle' | 'end' };
-  const N_X_TICKS = 6;
-  const LABEL_W_EST = 36; // ~"25.4w" at 13pt Inter
+  // "Mon DD" dates (~48px) sit between durations (~36px) and ISO
+  // dates (~72px). 5 ticks gives a comfortable scale without crowding.
+  const N_X_TICKS = isAnchored ? 5 : 6;
+  const LABEL_W_EST = isAnchored ? 48 : 36; // "Sep 16" vs "25.4w"
   const TICK_MIN_GAP = 6;
   const footprint = (t: Tick): [number, number] => {
     if (t.anchor === 'start') return [t.x, t.x + LABEL_W_EST];
@@ -3485,21 +3689,50 @@ function renderScurveBlock(
       anchor: i === 0 ? 'start' : i === N_X_TICKS - 1 ? 'end' : 'middle',
     });
   }
-  const kept: Tick[] = [all[0]];
+  // Percentile-label footprints (each ~LABEL_W_EST wide). Regular
+  // auto-ticks within this span get suppressed so the colored
+  // percentile labels stand alone on the x-axis without competing
+  // text underneath.
+  const percentileFootprints: [number, number][] = percentileXs.map((px) => [
+    px - LABEL_W_EST / 2,
+    px + LABEL_W_EST / 2,
+  ]);
+  const overlapsPercentile = (l: number, r: number): boolean =>
+    percentileFootprints.some(
+      ([pl, pr]) => r + TICK_MIN_GAP > pl && l - TICK_MIN_GAP < pr
+    );
+  const kept: Tick[] = [];
+  // First tick: skip if it'd overlap a percentile label.
+  const firstFp = footprint(all[0]);
+  if (!overlapsPercentile(firstFp[0], firstFp[1])) {
+    kept.push(all[0]);
+  }
   const last = all[all.length - 1];
-  const lastLeft = footprint(last)[0];
-  let rightEdge = footprint(all[0])[1];
+  const lastFp = footprint(last);
+  const lastLeft = lastFp[0];
+  let rightEdge = kept.length > 0 ? firstFp[1] : -Infinity;
   for (let i = 1; i < all.length - 1; i++) {
     const t = all[i];
     const [l, r] = footprint(t);
     if (r + TICK_MIN_GAP > lastLeft) continue;
     if (l - TICK_MIN_GAP < rightEdge) continue;
+    if (overlapsPercentile(l, r)) continue;
     kept.push(t);
     rightEdge = r;
   }
-  kept.push(last);
+  // Last tick: skip if it'd overlap a percentile label (P95 typically
+  // lands at xMax so the rightmost auto-tick and the P95 label fight
+  // for the same pixel — let the colored P95 win).
+  if (!overlapsPercentile(lastFp[0], lastFp[1])) {
+    kept.push(last);
+  }
 
   for (const t of kept) {
+    // Anchored: show calendar date (the durations live on the
+    // percentile labels). Unanchored: show duration as before.
+    const labelText = isAnchored
+      ? formatScurveDate(addCalendarDays(data.anchorDate!, t.v))
+      : formatScurveTick(t.v, unit);
     block
       .append('text')
       .attr('class', 'pert-scurve-xtick')
@@ -3508,7 +3741,7 @@ function renderScurveBlock(
       .attr('text-anchor', t.anchor)
       .attr('fill', labelColor)
       .attr('font-size', SCURVE_TICK_FONT_SIZE)
-      .text(formatScurveTick(t.v, unit));
+      .text(labelText);
   }
 }
 
@@ -3516,6 +3749,33 @@ function formatScurveTick(days: number, unit: DurationUnit): string {
   const value = days / UNIT_TO_DAYS_LOCAL[unit];
   const display = (Math.round(value * 10) / 10).toFixed(1).replace(/\.0$/, '');
   return `${display}${unit}`;
+}
+
+// Compact date format for S-curve x-axis labels ("Sep 16" / "Oct 2").
+// The year is omitted — it already shows up in the subline (e.g.
+// "Deadline: 2026-09-15."), and including it on every tick forces
+// collisions at typical panel widths.
+const SCURVE_MONTH_NAMES = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+function formatScurveDate(iso: string): string {
+  const parts = iso.split('-');
+  if (parts.length !== 3) return iso;
+  const month = parseInt(parts[1], 10) - 1;
+  const day = parseInt(parts[2], 10);
+  if (month < 0 || month > 11 || isNaN(day)) return iso;
+  return `${SCURVE_MONTH_NAMES[month]} ${day}`;
 }
 
 const UNIT_TO_DAYS_LOCAL: Record<DurationUnit, number> = {

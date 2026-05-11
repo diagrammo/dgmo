@@ -303,6 +303,8 @@ function simulate(
     p50: pct(0.5),
     p80: pct(0.8),
     p95: pct(0.95),
+    p16: pct(0.16),
+    p84: pct(0.84),
     criticalityByActivity,
     modalCriticalPath: pathById.get(modalKey) ?? [],
     // Analyzer populates this after MC returns by running the

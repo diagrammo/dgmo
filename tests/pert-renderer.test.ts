@@ -446,17 +446,28 @@ A
     });
     const block = c.querySelector('g.pert-scurve-block');
     expect(block).not.toBeNull();
-    expect(block!.querySelector('text.pert-scurve-header')!.textContent).toBe(
-      'Completion probability'
-    );
+    // The chart no longer carries a dedicated header text — the
+    // rotated y-axis title ("Completion Probability") plus the
+    // colored P50/P80/P95 dots make the chart self-identifying.
+    expect(
+      block!.querySelector('text.pert-scurve-y-axis-title')!.textContent
+    ).toBe('Completion Probability');
     // Three percentile dots: P50, P80, P95.
     expect(
       block!.querySelectorAll('circle.pert-scurve-percentile-dot').length
     ).toBe(3);
-    const labels = Array.from(
+    // Above each dot: just the percentile name (color-coded). The
+    // numeric value lives separately on the x-axis as a colored tick
+    // — see pert-scurve-percentile-xtick.
+    const dotLabels = Array.from(
       block!.querySelectorAll('text.pert-scurve-percentile-label')
-    ).map((el) => el.textContent);
-    expect(labels).toEqual(['P50', 'P80', 'P95']);
+    ).map((el) => el.textContent ?? '');
+    expect(dotLabels).toEqual(['P50', 'P80', 'P95']);
+    const xLabels = Array.from(
+      block!.querySelectorAll('text.pert-scurve-percentile-xtick')
+    ).map((el) => el.textContent ?? '');
+    expect(xLabels).toHaveLength(3);
+    expect(xLabels[0]).toMatch(/^[\d.]+/);
     document.body.removeChild(c);
   });
 

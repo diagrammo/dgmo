@@ -244,6 +244,13 @@ export interface MonteCarloResult {
   p50: number;
   p80: number;
   p95: number;
+  /**
+   * Central ~68% band — empirical equivalent of a ±1σ window. Used by
+   * the S-curve to draw a "where the project most likely lands" shaded
+   * region without assuming the finish-time distribution is normal.
+   */
+  p16: number;
+  p84: number;
   /** Per-activity criticality index, keyed by activity id. */
   criticalityByActivity: Record<string, number>;
   /** Modal-longest-path tuple (activity ids). */
