@@ -470,18 +470,19 @@ A
     expect(
       block!.querySelectorAll('circle.pert-scurve-percentile-dot').length
     ).toBe(3);
-    // Above each dot: just the percentile name (color-coded). The
-    // numeric value lives separately on the x-axis as a colored tick
-    // — see pert-scurve-percentile-xtick.
+    // Each dot now carries a single inline "P{X} · {value}" label.
+    // Unanchored: value is the duration. Anchored: value is the date.
     const dotLabels = Array.from(
       block!.querySelectorAll('text.pert-scurve-percentile-label')
     ).map((el) => el.textContent ?? '');
-    expect(dotLabels).toEqual(['P50', 'P80', 'P95']);
-    const xLabels = Array.from(
-      block!.querySelectorAll('text.pert-scurve-percentile-xtick')
-    ).map((el) => el.textContent ?? '');
-    expect(xLabels).toHaveLength(3);
-    expect(xLabels[0]).toMatch(/^[\d.]+/);
+    expect(dotLabels).toHaveLength(3);
+    expect(dotLabels[0]).toMatch(/^P50 · /);
+    expect(dotLabels[1]).toMatch(/^P80 · /);
+    expect(dotLabels[2]).toMatch(/^P95 · /);
+    // Bottom-of-plot percentile labels are gone (inlined next to dots).
+    expect(
+      block!.querySelectorAll('text.pert-scurve-percentile-xtick').length
+    ).toBe(0);
     document.body.removeChild(c);
   });
 
@@ -761,10 +762,10 @@ describe('pert renderer — S-curve backward-mode framing (Path B)', () => {
     document.body.removeChild(c);
   });
 
-  it('backward mode x-axis labels are start dates from the caption', () => {
-    // The percentile xtick labels must match the latest-safe-start
-    // dates the caption reports — proves the curve is plotted in
-    // candidate-start space, not duration space.
+  it('backward inline labels carry the latest-safe-start dates from the caption', () => {
+    // The percentile labels (now inline next to each dot) must match
+    // the latest-safe-start dates the caption reports — proves the
+    // curve is plotted in candidate-start space, not duration space.
     const parsed = parsePert(loadFixture('backward-monte-carlo.dgmo'), {
       now: NOW,
     });
@@ -776,9 +777,9 @@ describe('pert renderer — S-curve backward-mode framing (Path B)', () => {
 
     const c = renderWithFixture('backward-monte-carlo.dgmo');
     const block = c.querySelector('g.pert-scurve-block')!;
-    const xticks = Array.from(
-      block.querySelectorAll('text.pert-scurve-percentile-xtick')
-    ).map((t) => t.textContent);
+    const labels = Array.from(
+      block.querySelectorAll('text.pert-scurve-percentile-label')
+    ).map((t) => t.textContent ?? '');
     // formatScurveDate produces "Mon DD" (e.g. "May 19"). Convert the
     // caption ISO dates to the same shape for comparison.
     const monthShort = [
@@ -795,11 +796,12 @@ describe('pert renderer — S-curve backward-mode framing (Path B)', () => {
       'Nov',
       'Dec',
     ];
-    const expected = startDates.map((iso) => {
+    const expected = startDates.map((iso, i) => {
       const [, mm, dd] = iso.split('-');
-      return `${monthShort[parseInt(mm, 10) - 1]} ${parseInt(dd, 10)}`;
+      const pct = [50, 80, 95][i];
+      return `P${pct} · ${monthShort[parseInt(mm, 10) - 1]} ${parseInt(dd, 10)}`;
     });
-    expect(xticks).toEqual(expected);
+    expect(labels).toEqual(expected);
     document.body.removeChild(c);
   });
 

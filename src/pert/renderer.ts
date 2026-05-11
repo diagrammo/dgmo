@@ -414,9 +414,6 @@ export function renderPert(
     showFieldLegend: options.showFieldLegend ?? false,
   });
   const standaloneFieldLegendWidthForExport = layout.width;
-  const analysisBlockHeight = analysisLayer.analysisHasContent
-    ? CAPTION_TOP_GAP + analysisLayer.analysisRowHeight
-    : 0;
   const fieldLegendBlockHeight = analysisLayer.fieldLegendStandalone
     ? CAPTION_TOP_GAP +
       fieldLegendHeightFor(standaloneFieldLegendWidthForExport)
@@ -443,6 +440,16 @@ export function renderPert(
     ? analysisLayer.minContentWidth + 2 * DIAGRAM_PADDING
     : 0;
   const naturalWidth = Math.max(naturalChartWidth, minAnalysisRowW);
+  // Width-dependent height — field-legend-under-tornado uses the
+  // tornado column width to size the legend, so the canvas must reserve
+  // the right amount of vertical space.
+  const analysisAvailableWidth = Math.max(
+    0,
+    naturalWidth - 2 * DIAGRAM_PADDING
+  );
+  const analysisBlockHeight = analysisLayer.analysisHasContent
+    ? analysisLayerHeightAt(analysisLayer, analysisAvailableWidth)
+    : 0;
   const naturalHeight =
     layout.height +
     DIAGRAM_PADDING * 2 +
@@ -642,6 +649,12 @@ interface AnalysisLayerState {
   showScurve: boolean;
   fieldLegendInAnalysisRow: boolean;
   fieldLegendStandalone: boolean;
+  // When true, the field-legend stacks directly under the Tornado box
+  // inside the tornado column (instead of col 1 or its own full-width
+  // row). Activated when both `showFieldLegend` and `showTornado` resolve
+  // to true. In this mode tornado is hard-capped at 5 rows to keep the
+  // combined column from dominating the analysis area.
+  fieldLegendUnderTornado: boolean;
   analysisHasContent: boolean;
 
   // Computed widget content (cached so paint matches precompute).
@@ -663,6 +676,11 @@ interface AnalysisLayerState {
   minContentWidth: number;
 }
 
+// Hard cap on tornado rows when the field-legend stacks below it in the
+// same column. Keeps the combined (tornado + legend) column from
+// crowding out the S-curve column next to it.
+const TORNADO_TOP_N_WITH_FIELD_LEGEND = 5;
+
 function computeAnalysisLayer(
   resolved: ResolvedPert,
   captionBullets: CaptionBullet[],
@@ -675,16 +693,27 @@ function computeAnalysisLayer(
       CAPTION_HEADER_BAND_HEIGHT
     : 0;
   // Tornado / S-curve only render when MC ran — analytical mode
-  // produces no criticality/sigma data.
-  let tornadoRows = opts.showTornado ? buildTornadoRows(resolved) : [];
+  // produces no criticality/sigma data. When the field-legend stacks
+  // below the tornado box (Field labels toggle on), hard-cap tornado at
+  // 5 rows so the combined column doesn't dwarf the S-curve next to it.
+  const tornadoInitialMax =
+    opts.showFieldLegend && opts.showTornado
+      ? TORNADO_TOP_N_WITH_FIELD_LEGEND
+      : undefined;
+  let tornadoRows = opts.showTornado
+    ? buildTornadoRows(resolved, tornadoInitialMax)
+    : [];
   const showTornado = tornadoRows.length > 0;
   let tornadoBoxHeight = showTornado ? tornadoBoxHeightFor(tornadoRows) : 0;
   const scurveData = opts.showScurve ? buildScurveData(resolved) : null;
   const showScurve = scurveData !== null;
   const scurveBoxHeight = showScurve ? SCURVE_BOX_HEIGHT : 0;
 
+  const fieldLegendUnderTornado = opts.showFieldLegend && showTornado;
   const fieldLegendInAnalysisRow =
-    opts.showFieldLegend && (summaryRendered || showTornado || showScurve);
+    opts.showFieldLegend &&
+    !fieldLegendUnderTornado &&
+    (summaryRendered || showScurve);
   const col1Width = summaryRendered
     ? Math.max(
         SUMMARY_MIN_W,
@@ -710,8 +739,10 @@ function computeAnalysisLayer(
     tornadoBoxHeight
   );
   // Grow Tornado to fill leftover vertical room when col 1 / S-curve
-  // are taller than the default-N row count would produce.
-  if (showTornado) {
+  // are taller than the default-N row count would produce. Skip when
+  // the field-legend will stack below tornado — the cap is intentional
+  // there to leave room for the legend.
+  if (showTornado && !fieldLegendUnderTornado) {
     const maxRows = tornadoMaxRowsFor(analysisRowHeight);
     if (maxRows > tornadoRows.length) {
       tornadoRows = buildTornadoRows(resolved, maxRows);
@@ -732,7 +763,9 @@ function computeAnalysisLayer(
   const analysisHasContent =
     summaryRendered || analysisCharts.length > 0 || fieldLegendInAnalysisRow;
   const fieldLegendStandalone =
-    opts.showFieldLegend && !fieldLegendInAnalysisRow;
+    opts.showFieldLegend &&
+    !fieldLegendInAnalysisRow &&
+    !fieldLegendUnderTornado;
 
   // Minimum content width — col1 + sum of chart minimums + gaps.
   let minContentWidth = 0;
@@ -752,6 +785,7 @@ function computeAnalysisLayer(
     showScurve,
     fieldLegendInAnalysisRow,
     fieldLegendStandalone,
+    fieldLegendUnderTornado,
     analysisHasContent,
     tornadoRows,
     scurveData,
@@ -765,6 +799,21 @@ function computeAnalysisLayer(
     analysisRowHeight,
     minContentWidth,
   };
+}
+
+// Width-dependent helper: in row mode, how much vertical space the
+// tornado column needs once the field-legend stacks below its box.
+// Returns 0 when the legend is not under-tornado in row mode.
+function tornadoColumnHeightWithLegend(
+  state: AnalysisLayerState,
+  tornadoColumnWidth: number
+): number {
+  if (!state.fieldLegendUnderTornado) return 0;
+  return (
+    state.tornadoBoxHeight +
+    COL1_VSTACK_GAP +
+    fieldLegendHeightFor(tornadoColumnWidth)
+  );
 }
 
 /**
@@ -783,7 +832,25 @@ function analysisLayerHeightAt(
       : 0;
   }
   if (availableWidth >= state.minContentWidth) {
-    return CAPTION_TOP_GAP + state.analysisRowHeight;
+    // In row mode, the field-legend stacked under tornado expands the
+    // analysis row to fit the tornado column's combined height.
+    let rowHeight = state.analysisRowHeight;
+    if (state.fieldLegendUnderTornado) {
+      const col1Used = state.summaryRendered || state.fieldLegendInAnalysisRow;
+      const colCount = (col1Used ? 1 : 0) + state.analysisCharts.length;
+      const nGaps = Math.max(0, colCount - 1);
+      const usableWidth = availableWidth - nGaps * ANALYSIS_GAP;
+      const tornadoColumnWidth =
+        state.analysisCharts.length > 0
+          ? (usableWidth - state.col1Width) / state.analysisCharts.length
+          : 0;
+      const tornadoColH = tornadoColumnHeightWithLegend(
+        state,
+        tornadoColumnWidth
+      );
+      rowHeight = Math.max(rowHeight, tornadoColH);
+    }
+    return CAPTION_TOP_GAP + rowHeight;
   }
   // Stack mode — type-grouped rows; sum per-row max heights.
   const rows = packRows(state, availableWidth);
@@ -877,23 +944,54 @@ function paintAnalysisRowMode(
     state.analysisCharts.length > 0
       ? (usableWidth - state.col1Width) / state.analysisCharts.length
       : 0;
+  // When the field-legend stacks under the tornado column, columns
+  // render at their natural heights instead of stretching to the row's
+  // tallest column — the legend itself supplies the extra vertical
+  // space, and stretching e.g. the S-curve box just produces empty
+  // bottom padding.
+  const tornadoColumnHeight = state.fieldLegendUnderTornado
+    ? tornadoColumnHeightWithLegend(state, chartWidth)
+    : 0;
+  const rowHeight = state.fieldLegendUnderTornado
+    ? Math.max(tornadoColumnHeight, state.scurveBoxHeight, state.col1Height)
+    : state.analysisRowHeight;
   // Charts first (Tornado then S-curve), then col-1 stack on the
   // right so Summary's percentile numbers tie visually to the S-curve.
   let cursorX = x;
   for (const w of state.analysisCharts) {
-    const args = {
-      x: cursorX,
-      y: bandY,
-      width: chartWidth,
-      height: state.analysisRowHeight,
-      palette,
-      isDark,
-    };
     if (w.kind === 'tornado') {
-      renderTornadoBlock(svg, state.tornadoRows, args);
+      const tornadoH = state.fieldLegendUnderTornado
+        ? state.tornadoBoxHeight
+        : rowHeight;
+      renderTornadoBlock(svg, state.tornadoRows, {
+        x: cursorX,
+        y: bandY,
+        width: chartWidth,
+        height: tornadoH,
+        palette,
+        isDark,
+      });
+      if (state.fieldLegendUnderTornado) {
+        renderFieldLegendBlock(svg, {
+          x: cursorX,
+          y: bandY + tornadoH + COL1_VSTACK_GAP,
+          width: chartWidth,
+          height: fieldLegendHeightFor(chartWidth),
+          palette,
+          isDark,
+        });
+      }
     } else {
+      const scurveH = state.fieldLegendUnderTornado
+        ? state.scurveBoxHeight
+        : rowHeight;
       renderScurveBlock(svg, state.scurveData!, {
-        ...args,
+        x: cursorX,
+        y: bandY,
+        width: chartWidth,
+        height: scurveH,
+        palette,
+        isDark,
         unit: resolved.options.timeUnit,
       });
     }
@@ -923,7 +1021,7 @@ function paintAnalysisRowMode(
       });
     }
   }
-  return CAPTION_TOP_GAP + state.analysisRowHeight;
+  return CAPTION_TOP_GAP + rowHeight;
 }
 
 type StackItemKind = 'summary' | 'tornado' | 'scurve' | 'field';
@@ -969,6 +1067,20 @@ function packRows(
     }
   } else if (charts.length === 1) {
     rows.push([{ kind: charts[0].kind, paintWidth: availableWidth }]);
+  }
+
+  // Field-legend stacks immediately after tornado when the
+  // "Field labels under Activity Risk" mode is active. Insert it after
+  // the row that contains the tornado item so it follows visually.
+  if (state.fieldLegendUnderTornado) {
+    let insertAt = rows.length;
+    for (let i = 0; i < rows.length; i++) {
+      if (rows[i].some((it) => it.kind === 'tornado')) {
+        insertAt = i + 1;
+        break;
+      }
+    }
+    rows.splice(insertAt, 0, [{ kind: 'field', paintWidth: availableWidth }]);
   }
 
   // ── Texts row ──────────────────────────────────────────────
@@ -3519,13 +3631,12 @@ function renderScurveBlock(
     y +
     CAPTION_BOX_PADDING_Y +
     (hasDeadline ? SCURVE_DEADLINE_LABEL_HEIGHT : 0);
-  // When the diagram is date-anchored, the x-axis carries dates AND
-  // durations (two-line label at each percentile tick). Reserve extra
-  // bottom padding so the second line fits.
+  // Percentile metadata (date / duration) now lives inline next to
+  // each dot rather than stacked below the plot, so no extra bottom
+  // padding is needed for a second line. The x-axis carries only the
+  // general-scale ticks.
   const isAnchored = data.anchorDate !== null;
-  const SCURVE_PERCENTILE_LINE_GAP = 14;
-  const extraBottom = isAnchored ? SCURVE_PERCENTILE_LINE_GAP : 0;
-  const plotBottom = y + height - SCURVE_PLOT_PADDING_BOTTOM - extraBottom;
+  const plotBottom = y + height - SCURVE_PLOT_PADDING_BOTTOM;
   const plotW = plotRight - plotLeft;
   const plotH = plotBottom - plotTop;
 
@@ -3727,9 +3838,6 @@ function renderScurveBlock(
       isPast: data.referenceLines[2]?.isPast ?? false,
     },
   ];
-  // Pre-compute percentile x positions for use by the x-axis tick
-  // collision pass below.
-  const percentileXs: number[] = dots.map((d) => xScale(d.value));
   for (const d of dots) {
     const cx = xScale(d.value);
     const cy = yScale(d.pct);
@@ -3755,75 +3863,43 @@ function renderScurveBlock(
       .attr('stroke', fill)
       .attr('stroke-width', 1.5)
       .attr('data-percentile', d.label);
-    // Above-the-dot label is just the percentile name. The numeric
-    // value lives on the x-axis (color-matched), so we don't repeat
-    // "P50 · 47.8w" at the dot — readers track dot → dashed line →
-    // colored x-axis label.
-    const edgePad = 4;
-    let percentileAnchor: 'middle' | 'start' | 'end' = 'middle';
-    if (cx <= plotLeft + edgePad) percentileAnchor = 'start';
-    else if (cx >= plotRight - edgePad) percentileAnchor = 'end';
+    // Inline label next to the dot: "P{X} · {date}" when anchored,
+    // "P{X} · {duration}" otherwise. The natural y-spacing between
+    // P50/P80/P95 (≈ 45 % of plot height) gives each label its own
+    // row, so this layout stays legible even when dots are bunched
+    // together horizontally (e.g. backward mode with a narrow
+    // candidate-start span). Replaces the old "name above + x-axis
+    // two-line label below" combo, which collided when dots overlapped.
+    const valueText = isAnchored
+      ? formatScurveDate(addCalendarDays(data.anchorDate!, d.value))
+      : formatScurveTick(d.durationDays, unit);
+    const inlineText = `${d.label} · ${valueText}`;
+    // Place to the right of the dot by default; flip to the left when
+    // the dot is in the right half so the label can't run off the
+    // plot. Forward-mode P95 lands near the right edge and benefits
+    // from the flip; backward-mode P95 is near the left edge and
+    // stays right-anchored.
+    const plotMid = plotLeft + (plotRight - plotLeft) / 2;
+    const placeLeft = cx > plotMid;
+    const inlineGap = SCURVE_PERCENTILE_RADIUS + 6;
+    const inlineX = placeLeft ? cx - inlineGap : cx + inlineGap;
     block
       .append('text')
       .attr('class', 'pert-scurve-percentile-label')
-      .attr('x', cx)
-      .attr('y', cy - SCURVE_PERCENTILE_RADIUS - 4)
-      .attr('text-anchor', percentileAnchor)
+      .attr('x', inlineX)
+      .attr('y', cy + SCURVE_TICK_FONT_SIZE / 3)
+      .attr('text-anchor', placeLeft ? 'end' : 'start')
       .attr('fill', color)
       .attr('font-size', SCURVE_TICK_FONT_SIZE)
       .attr('font-weight', '700')
-      .text(d.label);
-    // X-axis label — bold, percentile-colored, sits alongside (and
-    // visually overrides) the regular auto-ticks at the same position.
-    // When the diagram is date-anchored, the label is two-line: date
-    // on top, duration below, so readers see both at once.
-    const baseTickY = plotBottom + SCURVE_TICK_FONT_SIZE + 6;
-    if (isAnchored) {
-      block
-        .append('text')
-        .attr('class', 'pert-scurve-percentile-xtick')
-        .attr('x', cx)
-        .attr('y', baseTickY)
-        .attr('text-anchor', percentileAnchor)
-        .attr('fill', color)
-        .attr('font-size', SCURVE_TICK_FONT_SIZE)
-        .attr('font-weight', '700')
-        .text(formatScurveDate(addCalendarDays(data.anchorDate!, d.value)));
-      block
-        .append('text')
-        .attr('class', 'pert-scurve-percentile-xtick-sub')
-        .attr('x', cx)
-        .attr('y', baseTickY + SCURVE_PERCENTILE_LINE_GAP)
-        .attr('text-anchor', percentileAnchor)
-        .attr('fill', color)
-        .attr('font-size', SCURVE_TICK_FONT_SIZE - 2)
-        .attr('opacity', 0.85)
-        // Always the original duration value — `d.value` reflects the
-        // plotting position which differs from duration in backward mode.
-        .text(formatScurveTick(d.durationDays, unit));
-    } else {
-      // Unanchored: only the duration matters (no calendar). `d.value`
-      // equals `d.durationDays` in forward mode so this is a no-op
-      // relative to pre-flip behavior.
-      block
-        .append('text')
-        .attr('class', 'pert-scurve-percentile-xtick')
-        .attr('x', cx)
-        .attr('y', baseTickY)
-        .attr('text-anchor', percentileAnchor)
-        .attr('fill', color)
-        .attr('font-size', SCURVE_TICK_FONT_SIZE)
-        .attr('font-weight', '700')
-        .text(formatScurveTick(d.durationDays, unit));
-    }
+      .text(inlineText);
   }
 
-  // X-axis ticks: evenly spaced across the x-range. More ticks let
-  // readers eyeball P(done by t) for any t, not just the percentile
-  // dots. Endpoint labels anchor inward so they don't clip the box.
-  // A collision pass drops middle ticks whose label would overlap
-  // either neighbour given the end-anchored last tick eats label-width
-  // worth of room on its left.
+  // X-axis ticks: evenly spaced across the x-range. Endpoint labels
+  // anchor inward so they don't clip the box. The percentile-collision
+  // pass that used to suppress auto-ticks under colored labels is gone
+  // now that percentile values live inline next to their dots — the
+  // x-axis carries only the "general scale" markers.
   type Tick = { v: number; x: number; anchor: 'start' | 'middle' | 'end' };
   // "Mon DD" dates (~48px) sit between durations (~36px) and ISO
   // dates (~72px). 5 ticks gives a comfortable scale without crowding.
@@ -3845,43 +3921,19 @@ function renderScurveBlock(
       anchor: i === 0 ? 'start' : i === N_X_TICKS - 1 ? 'end' : 'middle',
     });
   }
-  // Percentile-label footprints (each ~LABEL_W_EST wide). Regular
-  // auto-ticks within this span get suppressed so the colored
-  // percentile labels stand alone on the x-axis without competing
-  // text underneath.
-  const percentileFootprints: [number, number][] = percentileXs.map((px) => [
-    px - LABEL_W_EST / 2,
-    px + LABEL_W_EST / 2,
-  ]);
-  const overlapsPercentile = (l: number, r: number): boolean =>
-    percentileFootprints.some(
-      ([pl, pr]) => r + TICK_MIN_GAP > pl && l - TICK_MIN_GAP < pr
-    );
-  const kept: Tick[] = [];
-  // First tick: skip if it'd overlap a percentile label.
-  const firstFp = footprint(all[0]);
-  if (!overlapsPercentile(firstFp[0], firstFp[1])) {
-    kept.push(all[0]);
-  }
+  const kept: Tick[] = [all[0]];
   const last = all[all.length - 1];
-  const lastFp = footprint(last);
-  const lastLeft = lastFp[0];
-  let rightEdge = kept.length > 0 ? firstFp[1] : -Infinity;
+  const lastLeft = footprint(last)[0];
+  let rightEdge = footprint(all[0])[1];
   for (let i = 1; i < all.length - 1; i++) {
     const t = all[i];
     const [l, r] = footprint(t);
     if (r + TICK_MIN_GAP > lastLeft) continue;
     if (l - TICK_MIN_GAP < rightEdge) continue;
-    if (overlapsPercentile(l, r)) continue;
     kept.push(t);
     rightEdge = r;
   }
-  // Last tick: skip if it'd overlap a percentile label (P95 typically
-  // lands at xMax so the rightmost auto-tick and the P95 label fight
-  // for the same pixel — let the colored P95 win).
-  if (!overlapsPercentile(lastFp[0], lastFp[1])) {
-    kept.push(last);
-  }
+  kept.push(last);
 
   for (const t of kept) {
     // Anchored: show calendar date (the durations live on the
