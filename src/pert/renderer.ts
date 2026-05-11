@@ -3883,15 +3883,30 @@ function renderScurveBlock(
     const placeLeft = cx > plotMid;
     const inlineGap = SCURVE_PERCENTILE_RADIUS + 6;
     const inlineX = placeLeft ? cx - inlineGap : cx + inlineGap;
+    // Percentile colors (yellow/orange/red) are tuned for filled
+    // shapes at 25 % tint. Free-standing on the panel bg they lose
+    // contrast — yellow especially, against light themes — so we
+    // shift each label color 25 % toward `palette.text` (dark in
+    // light theme, light in dark theme) to push it back into the
+    // readable band without abandoning its band identity.
+    const labelFill = mix(color, palette.text, 25);
     block
       .append('text')
       .attr('class', 'pert-scurve-percentile-label')
       .attr('x', inlineX)
       .attr('y', cy + SCURVE_TICK_FONT_SIZE / 3)
       .attr('text-anchor', placeLeft ? 'end' : 'start')
-      .attr('fill', color)
+      .attr('fill', labelFill)
       .attr('font-size', SCURVE_TICK_FONT_SIZE)
       .attr('font-weight', '700')
+      // Paint-order halo with the panel fill — knocks out the band
+      // and dashed gridlines behind each letter so the label reads
+      // against the panel bg, not the visual noise behind it.
+      .attr('paint-order', 'stroke fill')
+      .attr('stroke', fill)
+      .attr('stroke-width', 3)
+      .attr('stroke-linejoin', 'round')
+      .attr('stroke-opacity', 0.95)
       .text(inlineText);
   }
 
