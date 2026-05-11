@@ -32,6 +32,7 @@ export interface CompactViewState {
   hd?: boolean; // hide descriptions (mindmap)
   cbd?: boolean; // color by depth (mindmap)
   rq?: string; // radar quadrant focus (tech-radar position)
+  an?: boolean; // analysis layer on (PERT: tornado + S-curve)
 }
 
 export interface DecodedDiagramUrl {

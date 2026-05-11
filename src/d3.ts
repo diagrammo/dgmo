@@ -7668,7 +7668,8 @@ export async function renderForExport(
     const { parsePert } = await import('./pert/parser');
     const { analyzePert } = await import('./pert/analyzer');
     const { layoutPert } = await import('./pert/layout');
-    const { renderPert } = await import('./pert/renderer');
+    const { renderPert, measurePertAnalysisBlock } =
+      await import('./pert/renderer');
 
     const effectivePalette = await resolveExportPalette(theme, palette);
     const pertParsed = parsePert(content);
@@ -7680,8 +7681,21 @@ export async function renderForExport(
     const titleHeight =
       pertParsed.title && !pertParsed.options.noTitle ? 80 : 0;
     const PERT_PADDING = 20;
+    const analysisOn = viewState?.an === true;
     const exportW = pertLayout.width + PERT_PADDING * 2;
-    const exportH = pertLayout.height + PERT_PADDING * 2 + titleHeight;
+    const analysisMeasured = analysisOn
+      ? measurePertAnalysisBlock(pertResolved, exportW - 2 * PERT_PADDING, {
+          showSummary: false,
+          showTornado: true,
+          showScurve: true,
+          showFieldLegend: false,
+        })
+      : { width: 0, height: 0 };
+    const exportH =
+      pertLayout.height +
+      PERT_PADDING * 2 +
+      titleHeight +
+      analysisMeasured.height;
     const container = createExportContainer(exportW, exportH);
 
     renderPert(
@@ -7693,6 +7707,9 @@ export async function renderForExport(
       {
         title: pertParsed.title,
         exportDims: { width: exportW, height: exportH },
+        showSummary: false,
+        showTornado: analysisOn,
+        showScurve: analysisOn,
       }
     );
     return finalizeSvgExport(container, theme, effectivePalette);
