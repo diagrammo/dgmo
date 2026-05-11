@@ -382,112 +382,25 @@ export function renderPert(
       italic: true,
     });
   }
-  const captionBoxHeight =
-    captionBullets.length > 0
-      ? captionBullets.length * CAPTION_LINE_HEIGHT +
-        2 * CAPTION_BOX_PADDING_Y +
-        CAPTION_HEADER_BAND_HEIGHT
-      : 0;
-  // Field-reference legend sits inside the chart-width band, right-
-  // aligned with the chart's right edge. Its height matches the
-  // Summary's so the bottom band never grows beyond what the Summary
-  // alone would claim. When the Summary is hidden or empty, the legend
-  // falls back to a default height.
-  const showFieldLegend = options.showFieldLegend ?? false;
-  const showSummary = options.showSummary ?? true;
-  // Tornado / S-curve only render when MC ran — analytical mode
-  // produces no criticality/sigma data.
-  const tornadoOn = options.showTornado ?? false;
-  const scurveData =
-    (options.showScurve ?? false) ? buildScurveData(resolved) : null;
-  const showScurve = scurveData !== null;
-  const scurveBoxHeight = showScurve ? SCURVE_BOX_HEIGHT : 0;
-  const summaryRendered = showSummary && captionBullets.length > 0;
-
-  // ── Analysis row (Summary + Tornado + S-curve, side-by-side) ────
-  // The MC widgets pack horizontally into one row at full canvas
-  // width. Each chart gets an equal share of the row's content area;
-  // Summary is content-fit. When Field labels is also on, it joins
-  // the Analysis row stacked below Summary in column 1 (so it visually
-  // belongs to the same band rather than getting its own row).
-  type AnalysisKind = 'summary' | 'tornado' | 'scurve';
-  // Initial pass: Tornado defaults to TORNADO_TOP_N rows so we can
-  // estimate its content height. After we know the final row height
-  // (set by col1 / S-curve / default tornado), we'll grow Tornado to
-  // fill any leftover vertical room.
-  let tornadoRows = tornadoOn ? buildTornadoRows(resolved) : [];
-  const showTornado = tornadoRows.length > 0;
-  let tornadoBoxHeight = showTornado ? tornadoBoxHeightFor(tornadoRows) : 0;
-
-  const fieldLegendInAnalysisRow =
-    showFieldLegend && (summaryRendered || showTornado || showScurve);
-  // Column 1 width is content-fit on Summary (when present) or a
-  // sensible default (when only Field-labels lives in col 1). We need
-  // it BEFORE the height calc so we can size Field-labels to its
-  // wrapped descriptions at that width.
-  const SUMMARY_MIN_W = 260;
-  const SUMMARY_MAX_W = 420;
-  const col1Width = summaryRendered
-    ? Math.max(
-        SUMMARY_MIN_W,
-        Math.min(SUMMARY_MAX_W, captionNaturalWidth(captionBullets))
-      )
-    : fieldLegendInAnalysisRow
-      ? SUMMARY_MAX_W
-      : 0;
-  // Field-legend height when it lives in col 1 — depends on col1Width.
-  const fieldLegendCol1Height = fieldLegendInAnalysisRow
-    ? fieldLegendHeightFor(col1Width)
+  // ── Analysis layer (Summary + Tornado + S-curve + Field labels) ──
+  // Hand off layout to the shared helper that's also used by the
+  // sibling-SVG path in the desktop preview. The helper packs the
+  // active widgets into one row at full canvas width (Field labels
+  // stacks under Summary in column 1) and falls back to a standalone
+  // Field-labels row when no other analysis widget is on.
+  const analysisLayer = computeAnalysisLayer(resolved, captionBullets, {
+    showSummary: options.showSummary ?? true,
+    showTornado: options.showTornado ?? false,
+    showScurve: options.showScurve ?? false,
+    showFieldLegend: options.showFieldLegend ?? false,
+  });
+  const standaloneFieldLegendWidthForExport = layout.width;
+  const analysisBlockHeight = analysisLayer.analysisHasContent
+    ? CAPTION_TOP_GAP + analysisLayer.analysisRowHeight
     : 0;
-  // Column-1 stack: Summary on top, Field-labels below (when both on).
-  const col1Items: number[] = [];
-  if (summaryRendered) col1Items.push(captionBoxHeight);
-  if (fieldLegendInAnalysisRow) col1Items.push(fieldLegendCol1Height);
-  const col1Height = col1Items.length
-    ? col1Items.reduce((a, b) => a + b, 0) + (col1Items.length - 1) * 8
-    : 0;
-  // First-cut row height: max of column heights at current tornado N.
-  let analysisRowHeight = Math.max(
-    col1Height,
-    scurveBoxHeight,
-    tornadoBoxHeight
-  );
-  // If there's leftover vertical room in the row (e.g. col 1 is taller
-  // than 10-row tornado), grow Tornado to fill it with more activities.
-  if (showTornado) {
-    const targetTornadoH = analysisRowHeight;
-    const maxRows = tornadoMaxRowsFor(targetTornadoH);
-    if (maxRows > tornadoRows.length) {
-      tornadoRows = buildTornadoRows(resolved, maxRows);
-      tornadoBoxHeight = tornadoBoxHeightFor(tornadoRows);
-      analysisRowHeight = Math.max(
-        col1Height,
-        scurveBoxHeight,
-        tornadoBoxHeight
-      );
-    }
-  }
-  const analysisCharts: { kind: AnalysisKind; contentHeight: number }[] = [];
-  if (showTornado)
-    analysisCharts.push({ kind: 'tornado', contentHeight: tornadoBoxHeight });
-  if (showScurve)
-    analysisCharts.push({ kind: 'scurve', contentHeight: scurveBoxHeight });
-  const analysisHasContent =
-    summaryRendered || analysisCharts.length > 0 || fieldLegendInAnalysisRow;
-  const analysisBlockHeight = analysisHasContent
-    ? CAPTION_TOP_GAP + analysisRowHeight
-    : 0;
-
-  // Standalone Field-labels row — only when Analysis is fully off and
-  // Field labels is on. Otherwise Field labels joins the Analysis row.
-  const fieldLegendStandalone = showFieldLegend && !fieldLegendInAnalysisRow;
-  const standaloneFieldLegendWidth =
-    layout.width + DIAGRAM_PADDING * 2 - 2 * DIAGRAM_PADDING;
-  const fieldLegendStandaloneHeight = fieldLegendStandalone
-    ? fieldLegendHeightFor(standaloneFieldLegendWidth)
-    : 0;
-  const fieldLegendBlockHeight = fieldLegendStandalone
-    ? CAPTION_TOP_GAP + fieldLegendStandaloneHeight
+  const fieldLegendBlockHeight = analysisLayer.fieldLegendStandalone
+    ? CAPTION_TOP_GAP +
+      fieldLegendHeightFor(standaloneFieldLegendWidthForExport)
     : 0;
   // Top legend (Critical Path / Anchor / Milestone). Reserves vertical
   // space for the pill row plus its top/bottom breathing room. The
@@ -502,27 +415,14 @@ export function renderPert(
 
   // Natural size — fits all chrome without clipping. The diagram body
   // claims the full canvas width; Analysis and Field-labels rows stack
-  // below at full width too.
+  // below at full width too. When the diagram is narrow but Analysis is
+  // on, the analysis layer reports a minimum width below which axis
+  // labels overlap and bars collapse — bump the canvas to honor it
+  // instead of producing an unreadable squeeze.
   const naturalChartWidth = layout.width + DIAGRAM_PADDING * 2;
-  // When the diagram is narrow but Analysis is on, force the canvas
-  // wider so the Analysis row has enough horizontal room to render
-  // sensibly. Each chart widget has a minimum width below which axis
-  // labels overlap and bars collapse — bump the canvas to honor those
-  // minimums instead of producing an unreadable squeeze.
-  const TORNADO_MIN_W = 340;
-  const SCURVE_MIN_W = 320;
-  const ANALYSIS_GAP_W = 16;
-  let minAnalysisRowW = 0;
-  if (analysisHasContent) {
-    const col1Used = summaryRendered || fieldLegendInAnalysisRow;
-    if (col1Used) minAnalysisRowW += col1Width;
-    const minByKind = (kind: AnalysisKind): number =>
-      kind === 'tornado' ? TORNADO_MIN_W : SCURVE_MIN_W;
-    for (const w of analysisCharts) minAnalysisRowW += minByKind(w.kind);
-    const colCount = (col1Used ? 1 : 0) + analysisCharts.length;
-    if (colCount > 1) minAnalysisRowW += (colCount - 1) * ANALYSIS_GAP_W;
-    minAnalysisRowW += 2 * DIAGRAM_PADDING;
-  }
+  const minAnalysisRowW = analysisLayer.analysisHasContent
+    ? analysisLayer.minContentWidth + 2 * DIAGRAM_PADDING
+    : 0;
   const naturalWidth = Math.max(naturalChartWidth, minAnalysisRowW);
   const naturalHeight =
     layout.height +
@@ -605,84 +505,18 @@ export function renderPert(
   //   [Diagram body]
   //   (gap) [Analysis row — Summary | Tornado | S-curve, side-by-side]
   //   (gap) [Field-labels row — full width]
-  // Each row spans the full canvas width; Analysis splits its area
-  // equally among the active widgets.
-  let bandY = offsetY + layout.height;
-
-  if (analysisHasContent) {
-    bandY += CAPTION_TOP_GAP;
-    const ANALYSIS_GAP = 16;
-    const COL1_VSTACK_GAP = 8;
-    const availWidth = exportWidth - 2 * DIAGRAM_PADDING;
-    const col1Used = summaryRendered || fieldLegendInAnalysisRow;
-    const colCount = (col1Used ? 1 : 0) + analysisCharts.length;
-    const nGaps = Math.max(0, colCount - 1);
-    const usableWidth = availWidth - nGaps * ANALYSIS_GAP;
-    const chartWidth =
-      analysisCharts.length > 0
-        ? (usableWidth - col1Width) / analysisCharts.length
-        : 0;
-    // Layout order: charts first (Tornado then S-curve), then the col-1
-    // stack (Summary + Field labels) on the RIGHT. Summary's percentile
-    // numbers tie visually to the S-curve next to it.
-    let cursorX = DIAGRAM_PADDING;
-    for (const w of analysisCharts) {
-      const args = {
-        x: cursorX,
-        y: bandY,
-        width: chartWidth,
-        height: analysisRowHeight,
-        palette,
-        isDark,
-      };
-      if (w.kind === 'tornado') {
-        renderTornadoBlock(svg, tornadoRows, args);
-      } else {
-        renderScurveBlock(svg, scurveData!, {
-          ...args,
-          unit: resolved.options.timeUnit,
-        });
-      }
-      cursorX += chartWidth + ANALYSIS_GAP;
-    }
-    if (col1Used) {
-      let stackY = bandY;
-      if (summaryRendered) {
-        renderCaptionBlock(svg, captionBullets, {
-          x: cursorX,
-          y: stackY,
-          width: col1Width,
-          height: captionBoxHeight,
-          palette,
-          isDark,
-        });
-        stackY += captionBoxHeight + COL1_VSTACK_GAP;
-      }
-      if (fieldLegendInAnalysisRow) {
-        renderFieldLegendBlock(svg, {
-          x: cursorX,
-          y: stackY,
-          width: col1Width,
-          height: fieldLegendCol1Height,
-          palette,
-          isDark,
-        });
-      }
-    }
-    bandY += analysisRowHeight;
-  }
-
-  if (fieldLegendStandalone) {
-    bandY += CAPTION_TOP_GAP;
-    renderFieldLegendBlock(svg, {
-      x: DIAGRAM_PADDING,
-      y: bandY,
-      width: exportWidth - 2 * DIAGRAM_PADDING,
-      height: fieldLegendStandaloneHeight,
-      palette,
-      isDark,
-    });
-  }
+  // The helper handles both rows; layout fills the canvas width.
+  paintAnalysisLayer(
+    svg,
+    resolved,
+    palette,
+    isDark,
+    analysisLayer,
+    captionBullets,
+    DIAGRAM_PADDING,
+    offsetY + layout.height,
+    exportWidth - 2 * DIAGRAM_PADDING
+  );
 }
 
 export function renderPertForExport(
@@ -754,6 +588,593 @@ export function renderPertForExport(
   } finally {
     document.body.removeChild(container);
   }
+}
+
+// ============================================================
+// Analysis layer (Summary + Tornado + S-curve + Field labels)
+// ============================================================
+//
+// Shared by the inline renderPert path (analysis row below the diagram)
+// and the standalone sibling-SVG path used by the desktop preview
+// (renderPertAnalysisBlock). The desktop preview renders the layer in
+// a separate native-pixel SVG so its text stays readable regardless of
+// the scale applied to the main diagram SVG.
+
+type AnalysisKind = 'summary' | 'tornado' | 'scurve';
+
+interface AnalysisLayerOptions {
+  showSummary: boolean;
+  showTornado: boolean;
+  showScurve: boolean;
+  showFieldLegend: boolean;
+}
+
+interface AnalysisLayerState {
+  // Resolved on/off states (data availability has been considered).
+  summaryRendered: boolean;
+  showTornado: boolean;
+  showScurve: boolean;
+  fieldLegendInAnalysisRow: boolean;
+  fieldLegendStandalone: boolean;
+  analysisHasContent: boolean;
+
+  // Computed widget content (cached so paint matches precompute).
+  tornadoRows: TornadoRow[];
+  scurveData: ScurveData | null;
+  analysisCharts: { kind: AnalysisKind; contentHeight: number }[];
+
+  // Sub-block heights (width-independent).
+  captionBoxHeight: number;
+  fieldLegendCol1Height: number;
+  tornadoBoxHeight: number;
+  scurveBoxHeight: number;
+  col1Width: number;
+  col1Height: number;
+  analysisRowHeight: number;
+
+  // Minimum content width (excludes outer padding) below which the
+  // analysis row's chart axes overlap. Caller adds outer padding.
+  minContentWidth: number;
+}
+
+function computeAnalysisLayer(
+  resolved: ResolvedPert,
+  captionBullets: CaptionBullet[],
+  opts: AnalysisLayerOptions
+): AnalysisLayerState {
+  const summaryRendered = opts.showSummary && captionBullets.length > 0;
+  const captionBoxHeight = summaryRendered
+    ? captionBullets.length * CAPTION_LINE_HEIGHT +
+      2 * CAPTION_BOX_PADDING_Y +
+      CAPTION_HEADER_BAND_HEIGHT
+    : 0;
+  // Tornado / S-curve only render when MC ran — analytical mode
+  // produces no criticality/sigma data.
+  let tornadoRows = opts.showTornado ? buildTornadoRows(resolved) : [];
+  const showTornado = tornadoRows.length > 0;
+  let tornadoBoxHeight = showTornado ? tornadoBoxHeightFor(tornadoRows) : 0;
+  const scurveData = opts.showScurve ? buildScurveData(resolved) : null;
+  const showScurve = scurveData !== null;
+  const scurveBoxHeight = showScurve ? SCURVE_BOX_HEIGHT : 0;
+
+  const fieldLegendInAnalysisRow =
+    opts.showFieldLegend && (summaryRendered || showTornado || showScurve);
+  const col1Width = summaryRendered
+    ? Math.max(
+        SUMMARY_MIN_W,
+        Math.min(SUMMARY_MAX_W, captionNaturalWidth(captionBullets))
+      )
+    : fieldLegendInAnalysisRow
+      ? SUMMARY_MAX_W
+      : 0;
+  const fieldLegendCol1Height = fieldLegendInAnalysisRow
+    ? fieldLegendHeightFor(col1Width)
+    : 0;
+  const col1Items: number[] = [];
+  if (summaryRendered) col1Items.push(captionBoxHeight);
+  if (fieldLegendInAnalysisRow) col1Items.push(fieldLegendCol1Height);
+  const col1Height = col1Items.length
+    ? col1Items.reduce((a, b) => a + b, 0) +
+      (col1Items.length - 1) * COL1_VSTACK_GAP
+    : 0;
+
+  let analysisRowHeight = Math.max(
+    col1Height,
+    scurveBoxHeight,
+    tornadoBoxHeight
+  );
+  // Grow Tornado to fill leftover vertical room when col 1 / S-curve
+  // are taller than the default-N row count would produce.
+  if (showTornado) {
+    const maxRows = tornadoMaxRowsFor(analysisRowHeight);
+    if (maxRows > tornadoRows.length) {
+      tornadoRows = buildTornadoRows(resolved, maxRows);
+      tornadoBoxHeight = tornadoBoxHeightFor(tornadoRows);
+      analysisRowHeight = Math.max(
+        col1Height,
+        scurveBoxHeight,
+        tornadoBoxHeight
+      );
+    }
+  }
+
+  const analysisCharts: { kind: AnalysisKind; contentHeight: number }[] = [];
+  if (showTornado)
+    analysisCharts.push({ kind: 'tornado', contentHeight: tornadoBoxHeight });
+  if (showScurve)
+    analysisCharts.push({ kind: 'scurve', contentHeight: scurveBoxHeight });
+  const analysisHasContent =
+    summaryRendered || analysisCharts.length > 0 || fieldLegendInAnalysisRow;
+  const fieldLegendStandalone =
+    opts.showFieldLegend && !fieldLegendInAnalysisRow;
+
+  // Minimum content width — col1 + sum of chart minimums + gaps.
+  let minContentWidth = 0;
+  if (analysisHasContent) {
+    const col1Used = summaryRendered || fieldLegendInAnalysisRow;
+    if (col1Used) minContentWidth += col1Width;
+    for (const w of analysisCharts) {
+      minContentWidth += w.kind === 'tornado' ? TORNADO_MIN_W : SCURVE_MIN_W;
+    }
+    const colCount = (col1Used ? 1 : 0) + analysisCharts.length;
+    if (colCount > 1) minContentWidth += (colCount - 1) * ANALYSIS_GAP;
+  }
+
+  return {
+    summaryRendered,
+    showTornado,
+    showScurve,
+    fieldLegendInAnalysisRow,
+    fieldLegendStandalone,
+    analysisHasContent,
+    tornadoRows,
+    scurveData,
+    analysisCharts,
+    captionBoxHeight,
+    fieldLegendCol1Height,
+    tornadoBoxHeight,
+    scurveBoxHeight,
+    col1Width,
+    col1Height,
+    analysisRowHeight,
+    minContentWidth,
+  };
+}
+
+/**
+ * Total height the analysis layer needs at the given availableWidth.
+ * Mirrors paintAnalysisLayer's mode selection: row mode when width fits
+ * the single-row minimum, otherwise greedy-packed multi-row stack mode.
+ * Returns 0 when nothing renders.
+ */
+function analysisLayerHeightAt(
+  state: AnalysisLayerState,
+  availableWidth: number
+): number {
+  if (!state.analysisHasContent) {
+    return state.fieldLegendStandalone
+      ? CAPTION_TOP_GAP + fieldLegendHeightFor(availableWidth)
+      : 0;
+  }
+  if (availableWidth >= state.minContentWidth) {
+    return CAPTION_TOP_GAP + state.analysisRowHeight;
+  }
+  // Stack mode — type-grouped rows; sum per-row max heights.
+  const rows = packRows(state, availableWidth);
+  let total = 0;
+  rows.forEach((row, i) => {
+    let rowHeight = 0;
+    for (const item of row) {
+      rowHeight = Math.max(
+        rowHeight,
+        itemContentHeight(state, item.kind, item.paintWidth)
+      );
+    }
+    total += rowHeight;
+    if (i < rows.length - 1) total += ANALYSIS_GAP;
+  });
+  return CAPTION_TOP_GAP + total;
+}
+
+function paintAnalysisLayer(
+  svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
+  resolved: ResolvedPert,
+  palette: PaletteColors,
+  isDark: boolean,
+  state: AnalysisLayerState,
+  captionBullets: CaptionBullet[],
+  x: number,
+  y: number,
+  availableWidth: number
+): number {
+  if (!state.analysisHasContent) {
+    if (!state.fieldLegendStandalone) return 0;
+    const bandY = y + CAPTION_TOP_GAP;
+    const h = fieldLegendHeightFor(availableWidth);
+    renderFieldLegendBlock(svg, {
+      x,
+      y: bandY,
+      width: availableWidth,
+      height: h,
+      palette,
+      isDark,
+    });
+    return CAPTION_TOP_GAP + h;
+  }
+
+  // When the panel is wide enough for a single row, use the original
+  // side-by-side layout. Otherwise fall back to stack mode so nothing
+  // overflows horizontally — text stays at native pixel size in both.
+  if (availableWidth >= state.minContentWidth) {
+    return paintAnalysisRowMode(
+      svg,
+      resolved,
+      palette,
+      isDark,
+      state,
+      captionBullets,
+      x,
+      y,
+      availableWidth
+    );
+  }
+  return paintAnalysisStackMode(
+    svg,
+    resolved,
+    palette,
+    isDark,
+    state,
+    captionBullets,
+    x,
+    y,
+    availableWidth
+  );
+}
+
+function paintAnalysisRowMode(
+  svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
+  resolved: ResolvedPert,
+  palette: PaletteColors,
+  isDark: boolean,
+  state: AnalysisLayerState,
+  captionBullets: CaptionBullet[],
+  x: number,
+  y: number,
+  availableWidth: number
+): number {
+  const bandY = y + CAPTION_TOP_GAP;
+  const col1Used = state.summaryRendered || state.fieldLegendInAnalysisRow;
+  const colCount = (col1Used ? 1 : 0) + state.analysisCharts.length;
+  const nGaps = Math.max(0, colCount - 1);
+  const usableWidth = availableWidth - nGaps * ANALYSIS_GAP;
+  const chartWidth =
+    state.analysisCharts.length > 0
+      ? (usableWidth - state.col1Width) / state.analysisCharts.length
+      : 0;
+  // Charts first (Tornado then S-curve), then col-1 stack on the
+  // right so Summary's percentile numbers tie visually to the S-curve.
+  let cursorX = x;
+  for (const w of state.analysisCharts) {
+    const args = {
+      x: cursorX,
+      y: bandY,
+      width: chartWidth,
+      height: state.analysisRowHeight,
+      palette,
+      isDark,
+    };
+    if (w.kind === 'tornado') {
+      renderTornadoBlock(svg, state.tornadoRows, args);
+    } else {
+      renderScurveBlock(svg, state.scurveData!, {
+        ...args,
+        unit: resolved.options.timeUnit,
+      });
+    }
+    cursorX += chartWidth + ANALYSIS_GAP;
+  }
+  if (col1Used) {
+    let stackY = bandY;
+    if (state.summaryRendered) {
+      renderCaptionBlock(svg, captionBullets, {
+        x: cursorX,
+        y: stackY,
+        width: state.col1Width,
+        height: state.captionBoxHeight,
+        palette,
+        isDark,
+      });
+      stackY += state.captionBoxHeight + COL1_VSTACK_GAP;
+    }
+    if (state.fieldLegendInAnalysisRow) {
+      renderFieldLegendBlock(svg, {
+        x: cursorX,
+        y: stackY,
+        width: state.col1Width,
+        height: state.fieldLegendCol1Height,
+        palette,
+        isDark,
+      });
+    }
+  }
+  return CAPTION_TOP_GAP + state.analysisRowHeight;
+}
+
+type StackItemKind = 'summary' | 'tornado' | 'scurve' | 'field';
+interface PaintItem {
+  kind: StackItemKind;
+  paintWidth: number;
+}
+
+// Field labels wraps to any width; this is a "looks OK" floor so it
+// doesn't get squeezed paper-thin alongside another item.
+const FIELD_LEGEND_MIN_W = 220;
+
+// Type-grouped packing. Charts (tornado, scurve) share a row so they
+// stay expressive at narrow widths instead of getting squeezed next to
+// Summary's content-fit box. Texts (summary, field) share their own
+// row with Summary at content-fit and Field labels filling the rest —
+// that puts the leftover width where wrapped descriptions actually
+// benefit from it. Each row falls back to vertical stacking when its
+// side-by-side minimums don't fit the available width.
+function packRows(
+  state: AnalysisLayerState,
+  availableWidth: number
+): PaintItem[][] {
+  const rows: PaintItem[][] = [];
+
+  // ── Charts row ─────────────────────────────────────────────
+  const charts = state.analysisCharts;
+  if (charts.length === 2) {
+    const minTwo =
+      (charts[0].kind === 'tornado' ? TORNADO_MIN_W : SCURVE_MIN_W) +
+      ANALYSIS_GAP +
+      (charts[1].kind === 'tornado' ? TORNADO_MIN_W : SCURVE_MIN_W);
+    if (availableWidth >= minTwo) {
+      const itemW = (availableWidth - ANALYSIS_GAP) / 2;
+      rows.push([
+        { kind: charts[0].kind, paintWidth: itemW },
+        { kind: charts[1].kind, paintWidth: itemW },
+      ]);
+    } else {
+      for (const c of charts) {
+        rows.push([{ kind: c.kind, paintWidth: availableWidth }]);
+      }
+    }
+  } else if (charts.length === 1) {
+    rows.push([{ kind: charts[0].kind, paintWidth: availableWidth }]);
+  }
+
+  // ── Texts row ──────────────────────────────────────────────
+  const hasSummary = state.summaryRendered;
+  const hasField = state.fieldLegendInAnalysisRow;
+  if (hasSummary && hasField) {
+    const summaryW = state.col1Width;
+    const fieldW = availableWidth - summaryW - ANALYSIS_GAP;
+    if (fieldW >= FIELD_LEGEND_MIN_W) {
+      rows.push([
+        { kind: 'summary', paintWidth: summaryW },
+        { kind: 'field', paintWidth: fieldW },
+      ]);
+    } else {
+      rows.push([{ kind: 'summary', paintWidth: summaryW }]);
+      rows.push([{ kind: 'field', paintWidth: availableWidth }]);
+    }
+  } else if (hasSummary) {
+    rows.push([{ kind: 'summary', paintWidth: state.col1Width }]);
+  } else if (hasField) {
+    rows.push([{ kind: 'field', paintWidth: availableWidth }]);
+  }
+
+  return rows;
+}
+
+function itemContentHeight(
+  state: AnalysisLayerState,
+  kind: StackItemKind,
+  paintWidth: number
+): number {
+  switch (kind) {
+    case 'tornado':
+      return state.tornadoBoxHeight;
+    case 'scurve':
+      return state.scurveBoxHeight;
+    case 'summary':
+      return state.captionBoxHeight;
+    case 'field':
+      return fieldLegendHeightFor(paintWidth);
+  }
+}
+
+function paintAnalysisStackMode(
+  svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
+  resolved: ResolvedPert,
+  palette: PaletteColors,
+  isDark: boolean,
+  state: AnalysisLayerState,
+  captionBullets: CaptionBullet[],
+  x: number,
+  y: number,
+  availableWidth: number
+): number {
+  const rows = packRows(state, availableWidth);
+  let cursorY = y + CAPTION_TOP_GAP;
+  rows.forEach((row, rowIndex) => {
+    const gaps = Math.max(0, row.length - 1) * ANALYSIS_GAP;
+    const totalRowW = row.reduce((a, it) => a + it.paintWidth, 0) + gaps;
+    // Center a sub-width row inside the available space (e.g. Summary
+    // alone at content-fit width sitting in a wide panel).
+    const rowOffset = Math.max(0, (availableWidth - totalRowW) / 2);
+    let rowHeight = 0;
+    for (const item of row) {
+      rowHeight = Math.max(
+        rowHeight,
+        itemContentHeight(state, item.kind, item.paintWidth)
+      );
+    }
+    let cursorX = x + rowOffset;
+    for (const item of row) {
+      const args = {
+        x: cursorX,
+        y: cursorY,
+        width: item.paintWidth,
+        height: rowHeight,
+        palette,
+        isDark,
+      };
+      switch (item.kind) {
+        case 'tornado':
+          renderTornadoBlock(svg, state.tornadoRows, args);
+          break;
+        case 'scurve':
+          renderScurveBlock(svg, state.scurveData!, {
+            ...args,
+            unit: resolved.options.timeUnit,
+          });
+          break;
+        case 'summary':
+          renderCaptionBlock(svg, captionBullets, args);
+          break;
+        case 'field':
+          renderFieldLegendBlock(svg, args);
+          break;
+      }
+      cursorX += item.paintWidth + ANALYSIS_GAP;
+    }
+    cursorY += rowHeight;
+    if (rowIndex < rows.length - 1) cursorY += ANALYSIS_GAP;
+  });
+  return cursorY - y;
+}
+
+/**
+ * Measure (without painting) the natural dimensions the analysis layer
+ * would consume at the given width. Used by callers that need to lay
+ * out the analysis SVG alongside other content — most importantly the
+ * desktop preview, which fits diagram + analysis into a fixed panel
+ * height by scaling proportionally when natural sizes overflow.
+ */
+export function measurePertAnalysisBlock(
+  resolved: ResolvedPert,
+  width: number,
+  options: {
+    showSummary?: boolean;
+    showTornado?: boolean;
+    showScurve?: boolean;
+    showFieldLegend?: boolean;
+  }
+): { width: number; height: number } {
+  const captionText = resolved.error !== null ? null : resolved.summaryText;
+  const captionBullets: CaptionBullet[] =
+    captionText !== null && captionText.length > 0
+      ? bulletizeCaption(captionText)
+      : [];
+  const anchorAnnotation = anchorAnnotationText(resolved);
+  if (anchorAnnotation) {
+    captionBullets.push({ text: anchorAnnotation, level: 0, italic: true });
+  }
+  const state = computeAnalysisLayer(resolved, captionBullets, {
+    showSummary: options.showSummary ?? true,
+    showTornado: options.showTornado ?? false,
+    showScurve: options.showScurve ?? false,
+    showFieldLegend: options.showFieldLegend ?? false,
+  });
+  if (!state.analysisHasContent && !state.fieldLegendStandalone) {
+    return { width: 0, height: 0 };
+  }
+  const itemMinW = Math.max(
+    state.summaryRendered ? SUMMARY_MIN_W : 0,
+    state.showTornado ? TORNADO_MIN_W : 0,
+    state.showScurve ? SCURVE_MIN_W : 0,
+    0
+  );
+  const w = Math.max(width, itemMinW);
+  return { width: w, height: analysisLayerHeightAt(state, w) };
+}
+
+/**
+ * Render the PERT analysis layer (Summary + Tornado + S-curve + Field
+ * labels) into its own sibling SVG at native pixel size. Used by the
+ * desktop preview so the analysis text stays at intended size even when
+ * the main diagram SVG is scale-to-fit'd into the panel.
+ */
+export function renderPertAnalysisBlock(
+  container: HTMLDivElement,
+  resolved: ResolvedPert,
+  palette: PaletteColors,
+  isDark: boolean,
+  options: {
+    width: number;
+    showSummary?: boolean;
+    showTornado?: boolean;
+    showScurve?: boolean;
+    showFieldLegend?: boolean;
+  }
+): void {
+  d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
+
+  // Mirror renderPert's caption assembly: project-stats bullets +
+  // optional anchor-annotation as the closing italic bullet.
+  const captionText = resolved.error !== null ? null : resolved.summaryText;
+  const captionBullets: CaptionBullet[] =
+    captionText !== null && captionText.length > 0
+      ? bulletizeCaption(captionText)
+      : [];
+  const anchorAnnotation = anchorAnnotationText(resolved);
+  if (anchorAnnotation) {
+    captionBullets.push({ text: anchorAnnotation, level: 0, italic: true });
+  }
+
+  const state = computeAnalysisLayer(resolved, captionBullets, {
+    showSummary: options.showSummary ?? true,
+    showTornado: options.showTornado ?? false,
+    showScurve: options.showScurve ?? false,
+    showFieldLegend: options.showFieldLegend ?? false,
+  });
+
+  if (!state.analysisHasContent && !state.fieldLegendStandalone) return;
+
+  // The desktop preview never wants horizontal scrolling — it'd defeat
+  // the whole point of pulling Analysis out of the scale-to-fit SVG.
+  // Honor options.width as the hard ceiling; paintAnalysisLayer falls
+  // back to stack mode when it can't fit a single row at that width.
+  // The absolute floor is the widest single item (since stacked items
+  // each need their own minimum).
+  const itemMinW = Math.max(
+    state.summaryRendered ? SUMMARY_MIN_W : 0,
+    state.showTornado ? TORNADO_MIN_W : 0,
+    state.showScurve ? SCURVE_MIN_W : 0,
+    // Field labels has no hard min — it wraps to whatever width it gets.
+    0
+  );
+  const width = Math.max(options.width, itemMinW);
+  const totalHeight = analysisLayerHeightAt(state, width);
+  if (totalHeight <= 0 || width <= 0) return;
+
+  // overflow visible so block strokes (1.5px wide → 0.75px past rect)
+  // don't get clipped at the SVG's viewBox edges. The wrapper around
+  // the SVG already supplies canvas-edge padding so the extra stroke
+  // pixels sit harmlessly inside that gutter.
+  const svg = d3Selection
+    .select(container)
+    .append('svg')
+    .attr('width', width)
+    .attr('height', totalHeight)
+    .attr('viewBox', `0 0 ${width} ${totalHeight}`)
+    .style('font-family', FONT_FAMILY)
+    .style('overflow', 'visible');
+
+  paintAnalysisLayer(
+    svg,
+    resolved,
+    palette,
+    isDark,
+    state,
+    captionBullets,
+    0,
+    0,
+    width
+  );
 }
 
 // ============================================================
@@ -2061,6 +2482,18 @@ const TORNADO_NAME_COL_W = 160;
 const TORNADO_BAR_FONT_SIZE = 13;
 const TORNADO_BAR_HEIGHT = 16;
 
+// Analysis row layout — shared between the inline (CLI / export) path
+// inside renderPert and the standalone sibling-SVG path used by the
+// desktop preview (renderPertAnalysisBlock).
+const SUMMARY_MIN_W = 260;
+const SUMMARY_MAX_W = 420;
+const ANALYSIS_GAP = 16;
+const COL1_VSTACK_GAP = 8;
+// Each chart's minimum readable width — below these axis labels overlap
+// and bars collapse. The canvas widens to honor them when needed.
+const TORNADO_MIN_W = 340;
+const SCURVE_MIN_W = 320;
+
 // S-curve widget — empirical CDF of MC trial finish times.
 const SCURVE_BOX_HEIGHT = 220;
 const SCURVE_PLOT_PADDING_X = 64; // y-axis labels + tick gap (13pt ticks)
@@ -2341,14 +2774,13 @@ function renderFieldLegendBlock(
   args: FieldLegendArgs
 ): void {
   const { x, y, width, height, palette, isDark } = args;
-  // Neutral gray base so the legend reads as informational chrome
-  // (like the Summary box) rather than competing with the criticality-
-  // tinted activity cards. shapeFill + contrastText still produce a
-  // theme-correct light fill / dark text combo.
+  // Field labels is a teaching aid (what each schedule cell means) —
+  // visually subordinate to Summary / Tornado / S-curve which carry
+  // data. Use a transparent fill + faint hairline border so the block
+  // reads as reference chrome, not a panel of its own.
   const baseColor = palette.textMuted;
-  const fill = shapeFill(palette, baseColor, isDark);
   const labelColor = contrastText(
-    fill,
+    shapeFill(palette, baseColor, isDark),
     palette.textOnFillLight,
     palette.textOnFillDark
   );
@@ -2376,9 +2808,10 @@ function renderFieldLegendBlock(
     .attr('height', height)
     .attr('rx', NODE_RADIUS)
     .attr('ry', NODE_RADIUS)
-    .attr('fill', fill)
+    .attr('fill', 'none')
     .attr('stroke', baseColor)
-    .attr('stroke-width', NODE_STROKE_WIDTH);
+    .attr('stroke-opacity', 0.4)
+    .attr('stroke-width', 1);
 
   // Centered bold header + hairline divider — matches Summary etc.
   block
@@ -2564,14 +2997,25 @@ const DAYS_PER_UNIT: Record<DurationUnit, number> = {
   s: 14,
 };
 
+// Subline under the Tornado header — explains the bidirectional
+// encoding so a first-time reader doesn't have to infer it. 11pt
+// muted, sits right below the bold title.
+const TORNADO_SUBLINE_FONT_SIZE = 11;
+const TORNADO_SUBLINE_HEIGHT = 16;
+const TORNADO_SUBLINE_TEXT =
+  'left = best case · right = worst case · green = delay-only';
+
 /**
  * Maximum number of tornado rows that fit inside a box of the given
- * height. Reverses tornadoBoxHeightFor(): subtracts header band and
- * box padding, then floors by row height.
+ * height. Reverses tornadoBoxHeightFor(): subtracts header band,
+ * subline, and box padding, then floors by row height.
  */
 function tornadoMaxRowsFor(boxHeight: number): number {
   const rowSpace =
-    boxHeight - 2 * CAPTION_BOX_PADDING_Y - CAPTION_HEADER_BAND_HEIGHT;
+    boxHeight -
+    2 * CAPTION_BOX_PADDING_Y -
+    CAPTION_HEADER_BAND_HEIGHT -
+    TORNADO_SUBLINE_HEIGHT;
   return Math.max(1, Math.floor(rowSpace / TORNADO_ROW_HEIGHT));
 }
 
@@ -2579,7 +3023,8 @@ function tornadoBoxHeightFor(rows: TornadoRow[]): number {
   return (
     rows.length * TORNADO_ROW_HEIGHT +
     2 * CAPTION_BOX_PADDING_Y +
-    CAPTION_HEADER_BAND_HEIGHT
+    CAPTION_HEADER_BAND_HEIGHT +
+    TORNADO_SUBLINE_HEIGHT
   );
 }
 
@@ -2636,6 +3081,22 @@ function renderTornadoBlock(
     .attr('font-size', CAPTION_FONT_SIZE)
     .attr('font-weight', '700')
     .text('Tornado — project-end swing per activity');
+  block
+    .append('text')
+    .attr('class', 'pert-tornado-subline')
+    .attr('x', x + width / 2)
+    .attr(
+      'y',
+      y +
+        CAPTION_BOX_PADDING_Y +
+        CAPTION_HEADER_BAND_HEIGHT +
+        TORNADO_SUBLINE_FONT_SIZE
+    )
+    .attr('text-anchor', 'middle')
+    .attr('fill', labelColor)
+    .attr('font-size', TORNADO_SUBLINE_FONT_SIZE)
+    .attr('opacity', 0.75)
+    .text(TORNADO_SUBLINE_TEXT);
 
   // Two-sided bar geometry. Activity name on the far left, then a
   // bidirectional plot area with a vertical baseline axis at its
@@ -2658,24 +3119,15 @@ function renderTornadoBlock(
   const plotWidth = Math.max(innerRight - innerLeft, 0);
   const centerX = innerLeft + plotWidth / 2;
   const halfPlot = plotWidth / 2;
-  const firstRowY = y + CAPTION_BOX_PADDING_Y + CAPTION_HEADER_BAND_HEIGHT;
+  const firstRowY =
+    y +
+    CAPTION_BOX_PADDING_Y +
+    CAPTION_HEADER_BAND_HEIGHT +
+    TORNADO_SUBLINE_HEIGHT;
 
-  // Center baseline axis — vertical line drawn the full height of the
-  // bar area, behind the bars.
-  if (rows.length > 0) {
-    const axisTop = firstRowY;
-    const axisBottom = firstRowY + rows.length * TORNADO_ROW_HEIGHT;
-    block
-      .append('line')
-      .attr('class', 'pert-tornado-axis')
-      .attr('x1', centerX)
-      .attr('x2', centerX)
-      .attr('y1', axisTop)
-      .attr('y2', axisBottom)
-      .attr('stroke', baseColor)
-      .attr('stroke-width', 1)
-      .attr('opacity', 0.6);
-  }
+  // Center baseline axis is drawn AFTER bars below — see end of fn —
+  // so it reads as the canonical zero-line instead of getting buried
+  // under the bar rects (which span centerX).
 
   const fmt = (v: number): string => {
     const r = Math.round(v * 100) / 100;
@@ -2771,6 +3223,24 @@ function renderTornadoBlock(
         .text(`+${fmt(row.highSwing)}`);
     }
   });
+
+  // Zero axis — vertical rule at the bar pivot, drawn AFTER bars so it
+  // visibly anchors the eye to the project-end-unchanged baseline.
+  // labelColor reads "ink, not data" against the gray block fill.
+  if (rows.length > 0) {
+    const axisTop = firstRowY;
+    const axisBottom = firstRowY + rows.length * TORNADO_ROW_HEIGHT;
+    block
+      .append('line')
+      .attr('class', 'pert-tornado-axis')
+      .attr('x1', centerX)
+      .attr('x2', centerX)
+      .attr('y1', axisTop)
+      .attr('y2', axisBottom)
+      .attr('stroke', labelColor)
+      .attr('stroke-width', 1)
+      .attr('opacity', 0.5);
+  }
 }
 
 // ============================================================
@@ -2985,20 +3455,52 @@ function renderScurveBlock(
   // X-axis ticks: evenly spaced across the x-range. More ticks let
   // readers eyeball P(done by t) for any t, not just the percentile
   // dots. Endpoint labels anchor inward so they don't clip the box.
+  // A collision pass drops middle ticks whose label would overlap
+  // either neighbour given the end-anchored last tick eats label-width
+  // worth of room on its left.
+  type Tick = { v: number; x: number; anchor: 'start' | 'middle' | 'end' };
   const N_X_TICKS = 6;
+  const LABEL_W_EST = 36; // ~"25.4w" at 13pt Inter
+  const TICK_MIN_GAP = 6;
+  const footprint = (t: Tick): [number, number] => {
+    if (t.anchor === 'start') return [t.x, t.x + LABEL_W_EST];
+    if (t.anchor === 'end') return [t.x - LABEL_W_EST, t.x];
+    return [t.x - LABEL_W_EST / 2, t.x + LABEL_W_EST / 2];
+  };
+
+  const all: Tick[] = [];
   for (let i = 0; i < N_X_TICKS; i++) {
     const v = xMin + (xRange * i) / (N_X_TICKS - 1);
-    const anchor: 'middle' | 'start' | 'end' =
-      i === 0 ? 'start' : i === N_X_TICKS - 1 ? 'end' : 'middle';
+    all.push({
+      v,
+      x: xScale(v),
+      anchor: i === 0 ? 'start' : i === N_X_TICKS - 1 ? 'end' : 'middle',
+    });
+  }
+  const kept: Tick[] = [all[0]];
+  const last = all[all.length - 1];
+  const lastLeft = footprint(last)[0];
+  let rightEdge = footprint(all[0])[1];
+  for (let i = 1; i < all.length - 1; i++) {
+    const t = all[i];
+    const [l, r] = footprint(t);
+    if (r + TICK_MIN_GAP > lastLeft) continue;
+    if (l - TICK_MIN_GAP < rightEdge) continue;
+    kept.push(t);
+    rightEdge = r;
+  }
+  kept.push(last);
+
+  for (const t of kept) {
     block
       .append('text')
       .attr('class', 'pert-scurve-xtick')
-      .attr('x', xScale(v))
+      .attr('x', t.x)
       .attr('y', plotBottom + SCURVE_TICK_FONT_SIZE + 6)
-      .attr('text-anchor', anchor)
+      .attr('text-anchor', t.anchor)
       .attr('fill', labelColor)
       .attr('font-size', SCURVE_TICK_FONT_SIZE)
-      .text(formatScurveTick(v, unit));
+      .text(formatScurveTick(t.v, unit));
   }
 }
 

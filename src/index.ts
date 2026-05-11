@@ -374,6 +374,8 @@ export { normalizePertSourceForShare } from './pert/share-normalize';
 export {
   renderPert,
   renderPertForExport,
+  renderPertAnalysisBlock,
+  measurePertAnalysisBlock,
   highlightPertCriticalPath,
   highlightPertSet,
   pertLegendEntries,
