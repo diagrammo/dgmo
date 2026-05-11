@@ -2056,7 +2056,6 @@ function captionNaturalWidth(bullets: CaptionBullet[]): number {
 const TORNADO_TOP_N = 10;
 const TORNADO_ROW_HEIGHT = 26;
 const TORNADO_NAME_COL_W = 160;
-const TORNADO_VALUE_COL_W = 110;
 const TORNADO_BAR_FONT_SIZE = 13;
 const TORNADO_BAR_HEIGHT = 16;
 
@@ -2640,15 +2639,22 @@ function renderTornadoBlock(
   // bidirectional plot area with a vertical baseline axis at its
   // center: each row paints a `low` bar growing LEFT (project finishes
   // earlier) and a `high` bar growing RIGHT (project finishes later).
-  // Magnitude column on the far right shows `-low / +high` swings.
+  // Magnitudes sit at the END of each bar — `−low` left of the
+  // low bar, `+high` right of the high bar — so the eye binds the
+  // number to its own bar instead of parsing a combined cell.
   const maxSwing =
     rows.reduce((acc, r) => Math.max(acc, r.lowSwing, r.highSwing), 0) || 1;
   const nameX = x + CAPTION_BOX_PADDING_X;
   const plotLeft = nameX + TORNADO_NAME_COL_W;
-  const valueX = x + width - CAPTION_BOX_PADDING_X;
-  const plotRight = valueX - TORNADO_VALUE_COL_W;
-  const plotWidth = Math.max(plotRight - plotLeft, 0);
-  const centerX = plotLeft + plotWidth / 2;
+  const plotRight = x + width - CAPTION_BOX_PADDING_X;
+  // Reserve gutter at each end for the value labels so a max-width
+  // bar's end-label has room without bleeding into the box edge.
+  const VALUE_GUTTER = 56;
+  const VALUE_GAP = 6;
+  const innerLeft = plotLeft + VALUE_GUTTER;
+  const innerRight = plotRight - VALUE_GUTTER;
+  const plotWidth = Math.max(innerRight - innerLeft, 0);
+  const centerX = innerLeft + plotWidth / 2;
   const halfPlot = plotWidth / 2;
   const firstRowY = y + CAPTION_BOX_PADDING_Y + CAPTION_HEADER_BAND_HEIGHT;
 
@@ -2669,6 +2675,11 @@ function renderTornadoBlock(
       .attr('opacity', 0.6);
   }
 
+  const fmt = (v: number): string => {
+    const r = Math.round(v * 100) / 100;
+    return r.toFixed(2).replace(/\.?0+$/, '');
+  };
+
   rows.forEach((row, i) => {
     const rowY = firstRowY + i * TORNADO_ROW_HEIGHT;
     const labelY =
@@ -2678,22 +2689,19 @@ function renderTornadoBlock(
     const lowW = (row.lowSwing / maxSwing) * halfPlot;
     const highW = (row.highSwing / maxSwing) * halfPlot;
 
-    // Wrap the full row in a `<g class="pert-tornado-row">` so the
-    // React-layer hover handler can resolve the activity id from any
-    // descendant target via `closest()`.
     const rowG = block
       .append('g')
       .attr('class', 'pert-tornado-row')
       .attr('data-activity-id', row.id);
 
     // Transparent overlay rect spans the entire row, captures pointer
-    // events even over whitespace (between bars / over the value column).
+    // events even over whitespace between bars and value labels.
     rowG
       .append('rect')
       .attr('class', 'pert-tornado-row-hit')
       .attr('x', nameX)
       .attr('y', rowY)
-      .attr('width', valueX - nameX)
+      .attr('width', plotRight - nameX)
       .attr('height', TORNADO_ROW_HEIGHT)
       .attr('fill', 'transparent')
       .attr('pointer-events', 'all');
@@ -2711,7 +2719,7 @@ function renderTornadoBlock(
       .attr('font-size', TORNADO_BAR_FONT_SIZE)
       .text(truncated);
 
-    // Left bar (low swing) — grows from center toward the left.
+    // Left bar + its `−low` label at the bar's outer (left) end.
     if (lowW > 0) {
       rowG
         .append('rect')
@@ -2725,9 +2733,18 @@ function renderTornadoBlock(
         .attr('fill', barFill)
         .attr('stroke', barColor)
         .attr('stroke-width', 1);
+      rowG
+        .append('text')
+        .attr('class', 'pert-tornado-value pert-tornado-value-low')
+        .attr('x', centerX - lowW - VALUE_GAP)
+        .attr('y', labelY)
+        .attr('text-anchor', 'end')
+        .attr('fill', labelColor)
+        .attr('font-size', TORNADO_BAR_FONT_SIZE)
+        .text(`−${fmt(row.lowSwing)}`);
     }
 
-    // Right bar (high swing) — grows from center toward the right.
+    // Right bar + its `+high` label at the bar's outer (right) end.
     if (highW > 0) {
       rowG
         .append('rect')
@@ -2741,22 +2758,16 @@ function renderTornadoBlock(
         .attr('fill', barFill)
         .attr('stroke', barColor)
         .attr('stroke-width', 1);
+      rowG
+        .append('text')
+        .attr('class', 'pert-tornado-value pert-tornado-value-high')
+        .attr('x', centerX + highW + VALUE_GAP)
+        .attr('y', labelY)
+        .attr('text-anchor', 'start')
+        .attr('fill', labelColor)
+        .attr('font-size', TORNADO_BAR_FONT_SIZE)
+        .text(`+${fmt(row.highSwing)}`);
     }
-
-    // Swing magnitudes on the far right: `-low / +high` in display unit.
-    const fmt = (v: number): string => {
-      const r = Math.round(v * 100) / 100;
-      return r.toFixed(2).replace(/\.?0+$/, '');
-    };
-    rowG
-      .append('text')
-      .attr('class', 'pert-tornado-value')
-      .attr('x', valueX)
-      .attr('y', labelY)
-      .attr('text-anchor', 'end')
-      .attr('fill', labelColor)
-      .attr('font-size', TORNADO_BAR_FONT_SIZE)
-      .text(`−${fmt(row.lowSwing)} / +${fmt(row.highSwing)}`);
   });
 }
 
