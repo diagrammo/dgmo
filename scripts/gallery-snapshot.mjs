@@ -127,7 +127,10 @@ function renderOne(fixturePath, outputPath) {
       '--theme', THEME,
       '-o', outputPath,
     ];
-    execFile('node', args, { timeout: 30_000 }, (err, _stdout, stderr) => {
+    execFile('node', args, {
+      timeout: 30_000,
+      env: { ...process.env, TZ: 'UTC' },
+    }, (err, _stdout, stderr) => {
       if (err) {
         res({ ok: false, error: stderr || err.message });
       } else {
