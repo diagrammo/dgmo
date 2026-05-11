@@ -1,0 +1,22 @@
+pert Pirate Voyage
+time-unit w
+trials 500
+seed 42
+end-date 2026-08-07
+
+voyage approved 0
+  -> recruit crew
+
+recruit crew 1 2 4 as rc
+  -> load powder
+
+load powder 0.5 1 2
+  -> sail to atoll
+
+sail to atoll 3 5 8
+  -> count gold
+
+count gold 0.5 1 1.5
+  -> divvy shares
+
+divvy shares 1 2 3

@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { parsePert } from '../src/pert/parser';
 import { analyzePert, buildSummary } from '../src/pert/analyzer';
 import type {
+  CaptionRow,
   MonteCarloResult,
   PertActivity,
   ResolvedActivity,
@@ -17,6 +18,17 @@ function loadFixture(name: string): string {
 function analyze(input: string) {
   const parsed = parsePert(input);
   return analyzePert(parsed);
+}
+
+/**
+ * Legacy compatibility shim. The analyzer now emits `summaryRows`
+ * (structured) instead of `summaryText`; many existing tests still
+ * assert on the joined text form, so this rebuilds that string from
+ * the row list. Backward-mode caption tests use `summaryRows` directly.
+ */
+function summaryText(rows: CaptionRow[] | null): string | null {
+  if (rows === null) return null;
+  return rows.map((r) => r.text).join('\n');
 }
 
 const APPROX = (actual: number | null, expected: number, eps = 1e-6) => {
@@ -343,8 +355,10 @@ A
 `);
     expect(r.mode).toBe('analytical');
     expect(r.monteCarloResult).toBeNull();
-    expect(r.summaryText).not.toBeNull();
-    expect(r.summaryText!).toContain('Insufficient trials configured');
+    expect(summaryText(r.summaryRows)).not.toBeNull();
+    expect(summaryText(r.summaryRows)!).toContain(
+      'Insufficient trials configured'
+    );
   });
 });
 
@@ -393,9 +407,11 @@ B 3
 A
   -> B
 `);
-    expect(r.summaryText).not.toBeNull();
-    expect(r.summaryText!.startsWith('Expected duration:')).toBe(true);
-    expect(r.summaryText!).not.toContain('Critical path:');
+    expect(summaryText(r.summaryRows)).not.toBeNull();
+    expect(summaryText(r.summaryRows)!.startsWith('Expected duration:')).toBe(
+      true
+    );
+    expect(summaryText(r.summaryRows)!).not.toContain('Critical path:');
   });
 
   it('AC9: MC caption emits expected (with ±σ)/percentiles/critical/bottleneck in order', () => {
@@ -412,13 +428,17 @@ B
   -> C
 `);
     expect(r.mode).toBe('monte-carlo');
-    const lines = r.summaryText!.split('\n');
+    const lines = summaryText(r.summaryRows)!.split('\n');
     // Expected-duration line carries σ as "(± X)" parenthetical.
+    // Per spec §13A.10 the percentile rows now use the uniform
+    // "P{X}: <duration>" shape (no anchor → bare duration).
     // Standalone "Standard deviation:" / "Critical path:" /
     // "Most-frequent critical path..." bullets are intentionally gone
     // (the diagram's red coloring shows the critical chain).
     expect(lines[0]).toMatch(/^Expected duration:.*\(±\s/);
-    expect(lines[1]).toMatch(/^50th-percentile finish:/);
+    expect(lines[1]).toMatch(/^P50:/);
+    expect(lines[2]).toMatch(/^P80:/);
+    expect(lines[3]).toMatch(/^P95:/);
     expect(
       lines.find((l) => l.startsWith('Standard deviation:'))
     ).toBeUndefined();
@@ -438,7 +458,7 @@ A
   -> B
 `);
     expect(r.projectMu).toBeNull();
-    expect(r.summaryText).toBe(
+    expect(summaryText(r.summaryRows)).toBe(
       'Expected duration unknown — 1 activity has no estimate.'
     );
   });
@@ -448,7 +468,7 @@ describe('pert analyzer — cycle bailout (AC26/AC27)', () => {
   it('cycle returns analytical mode, null summary, every activity isAuthored=false', () => {
     const r = analyze(loadFixture('cycle-error.dgmo'));
     expect(r.mode).toBe('analytical');
-    expect(r.summaryText).toBeNull();
+    expect(summaryText(r.summaryRows)).toBeNull();
     for (const ra of r.activities) {
       expect(ra.isAuthored).toBe(false);
     }
@@ -469,20 +489,20 @@ B 1 2 4
 C 1 2 4
 `);
     expect(r.mode).toBe('monte-carlo');
-    const lines = r.summaryText!.split('\n');
+    const lines = summaryText(r.summaryRows)!.split('\n');
     // Expected-finish line carries σ as "(± X)" parenthetical.
     expect(lines[0]).toMatch(
       /^Expected finish: \d{4}-\d{2}-\d{2} \(±\s.+\)\.$/
     );
-    // The three percentile sentences live on a single line joined by
-    // ". " — bulletizeCaption splits them into indented sub-bullets
-    // under "Expected finish" (matches unanchored shape).
-    expect(lines[1]).toMatch(
-      /^50th percentile end date: \d{4}-\d{2}-\d{2}\. 80th percentile end date: \d{4}-\d{2}-\d{2}\. 95th percentile end date: \d{4}-\d{2}-\d{2}\.$/
-    );
-    // No anchored caption should mention the legacy "Nth-percentile finish" prose.
-    expect(r.summaryText).not.toContain('Expected duration');
-    expect(r.summaryText).not.toContain('50th-percentile finish');
+    // Per spec §13A.10, percentile rows render as one row per
+    // percentile (level 1 sub-rows under "Expected finish").
+    expect(lines[1]).toMatch(/^P50 finish: \d{4}-\d{2}-\d{2}\.$/);
+    expect(lines[2]).toMatch(/^P80 finish: \d{4}-\d{2}-\d{2}\.$/);
+    expect(lines[3]).toMatch(/^P95 finish: \d{4}-\d{2}-\d{2}\.$/);
+    // No anchored caption should mention the legacy duration phrasing
+    // or the pre-refactor "Nth-percentile finish" prose.
+    expect(summaryText(r.summaryRows)).not.toContain('Expected duration');
+    expect(summaryText(r.summaryRows)).not.toContain('50th-percentile finish');
   });
 
   it('backward anchor: Expected start renders as a date and percentile bullets show start-dates', () => {
@@ -498,12 +518,13 @@ B 1 2 4
 C 1 2 4
 `);
     expect(r.mode).toBe('monte-carlo');
-    const lines = r.summaryText!.split('\n');
+    const lines = summaryText(r.summaryRows)!.split('\n');
     expect(lines[0]).toMatch(/^Expected start: \d{4}-\d{2}-\d{2} \(±\s.+\)\.$/);
-    // Single ". "-joined line — three percentile sub-bullets after split.
-    expect(lines[1]).toMatch(
-      /^50th percentile start date: \d{4}-\d{2}-\d{2}\. 80th percentile start date: \d{4}-\d{2}-\d{2}\. 95th percentile start date: \d{4}-\d{2}-\d{2}\.$/
-    );
+    // Per spec §13A.12, backward-mode percentile rows now render as
+    // separate "P{X} latest-safe start: <date>" rows (level 1).
+    expect(lines[1]).toMatch(/^P50 latest-safe start: \d{4}-\d{2}-\d{2}/);
+    expect(lines[2]).toMatch(/^P80 latest-safe start: \d{4}-\d{2}-\d{2}/);
+    expect(lines[3]).toMatch(/^P95 latest-safe start: \d{4}-\d{2}-\d{2}/);
   });
 
   it('forward anchor + analytical mode: Expected finish only (no percentile bullets)', () => {
@@ -516,8 +537,10 @@ A 2
 B 3
 `);
     expect(r.mode).toBe('analytical');
-    expect(r.summaryText).toMatch(/^Expected finish: \d{4}-\d{2}-\d{2}\./);
-    expect(r.summaryText).not.toContain('percentile');
+    expect(summaryText(r.summaryRows)).toMatch(
+      /^Expected finish: \d{4}-\d{2}-\d{2}\./
+    );
+    expect(summaryText(r.summaryRows)).not.toContain('percentile');
   });
 
   it('no anchor: caption keeps the original duration phrasing (regression)', () => {
@@ -527,9 +550,124 @@ A 2
   -> B
 B 3
 `);
-    expect(r.summaryText!.startsWith('Expected duration:')).toBe(true);
-    expect(r.summaryText).not.toContain('Expected finish');
-    expect(r.summaryText).not.toContain('Expected start');
+    expect(summaryText(r.summaryRows)!.startsWith('Expected duration:')).toBe(
+      true
+    );
+    expect(summaryText(r.summaryRows)).not.toContain('Expected finish');
+    expect(summaryText(r.summaryRows)).not.toContain('Expected start');
+  });
+});
+
+// ── Backward-anchor framing tests (tech-spec §13A.10 / §13A.12) ─────
+
+describe('pert analyzer — backward-anchor caption framing (Task 10)', () => {
+  // Local-time anchor; matches the parser's `formatLocalISODate(now)`
+  // semantics across machines without UTC drift.
+  const NOW = new Date(2026, 4, 10);
+
+  function analyzeWithNow(input: string) {
+    return analyzePert(parsePert(input, { now: NOW }));
+  }
+
+  it('AC 1 + AC 2: backward + MC emits "P{X} latest-safe start" rows with isPast flag', () => {
+    const r = analyzeWithNow(loadFixture('backward-monte-carlo.dgmo'));
+    expect(r.mode).toBe('monte-carlo');
+    const rows = r.summaryRows!;
+    // First row is "Expected start: <date> (± σ)." level 0.
+    expect(rows[0].text).toMatch(/^Expected start:/);
+    // Three level-1 percentile rows follow, in P50/P80/P95 order.
+    expect(rows[1].text).toMatch(/^P50 latest-safe start: \d{4}-\d{2}-\d{2}/);
+    expect(rows[2].text).toMatch(/^P80 latest-safe start: \d{4}-\d{2}-\d{2}/);
+    expect(rows[3].text).toMatch(/^P95 latest-safe start: \d{4}-\d{2}-\d{2}/);
+    // Fixture is calibrated so P50/P80 are feasible and P95 is past.
+    expect(rows[1].isPast).toBeFalsy();
+    expect(rows[2].isPast).toBeFalsy();
+    expect(rows[3].isPast).toBe(true);
+    expect(rows[3].text).toMatch(/\(latest-safe start has passed\)$/);
+  });
+
+  it('AC 4: backward + TBD upstream → `?` placeholders for every percentile', () => {
+    const r = analyzeWithNow(`pert
+time-unit w
+trials 200
+end-date 2026-09-15
+A
+B 1 2 3
+A
+  -> B
+`);
+    expect(r.projectMu).toBeNull();
+    const rows = r.summaryRows!;
+    expect(rows[0].text).toBe('Expected duration: ?');
+    expect(rows[1].text).toBe('P50 latest-safe start: ?');
+    expect(rows[2].text).toBe('P80 latest-safe start: ?');
+    expect(rows[3].text).toBe('P95 latest-safe start: ?');
+  });
+
+  it('AC 5: backward + analytical mode (M-only) emits no percentile rows', () => {
+    const r = analyzeWithNow(`pert
+time-unit w
+end-date 2026-09-15
+A 2
+  -> B
+B 3
+`);
+    expect(r.mode).toBe('analytical');
+    const rows = r.summaryRows!;
+    expect(rows.every((row) => !row.text.includes('latest-safe start'))).toBe(
+      true
+    );
+    // Expected-start row is still emitted (μ-derived), but no percentile rows.
+    expect(rows.some((row) => row.text.startsWith('Expected start:'))).toBe(
+      true
+    );
+  });
+
+  it('AC 6: backward rounding is conservative (latest-safe start lands earlier)', () => {
+    // Synthesize a controlled scenario: 50.7-day P80 against
+    // end-date 2026-09-15 → 51-day offset → 2026-07-26 latest-safe start
+    // (NOT 2026-07-27 which would round the offset down to 50).
+    const rows = buildSummary({
+      mode: 'monte-carlo',
+      projectMu: 50.7,
+      projectSigma: 1,
+      unit: 'd',
+      parsedActivities: [
+        {
+          id: 'a',
+          name: 'a',
+          duration: {
+            o: { amount: 50, unit: 'd' },
+            m: { amount: 51, unit: 'd' },
+            p: { amount: 52, unit: 'd' },
+          },
+          lineNumber: 1,
+          isMilestone: false,
+        },
+      ],
+      monteCarloResult: {
+        trials: 1000,
+        seed: 1,
+        p50: 50.5,
+        p80: 50.7,
+        p95: 51.2,
+        p16: 50.2,
+        p84: 50.9,
+        minDurationDays: 50,
+        maxDurationDays: 52,
+        criticalityByActivity: { a: 1 },
+        modalCriticalPath: ['a'],
+        tornadoSwings: [],
+      },
+      trialsClamped: false,
+      anchor: { kind: 'backward', date: '2026-09-15' },
+      today: '2026-05-10',
+    })!;
+    const p80Row = rows.find((row) =>
+      row.text.startsWith('P80 latest-safe start:')
+    )!;
+    // 50.7 → ceil → 51-day offset; end_date − 51d = 2026-07-26.
+    expect(p80Row.text).toMatch(/2026-07-26/);
   });
 });
 
@@ -713,10 +851,15 @@ describe('buildSummary — AC14 (zero-variance fallback)', () => {
       p50: 10,
       p80: 10,
       p95: 10,
+      p16: 10,
+      p84: 10,
+      minDurationDays: 10,
+      maxDurationDays: 10,
       criticalityByActivity: { a: 1, b: 1, c: 1 },
       modalCriticalPath: ['a', 'b', 'c'],
+      tornadoSwings: [],
     };
-    const summary = buildSummary({
+    const rows = buildSummary({
       mode: 'monte-carlo',
       projectMu: 10,
       projectSigma: 0,
@@ -724,13 +867,15 @@ describe('buildSummary — AC14 (zero-variance fallback)', () => {
       parsedActivities: [a, b, c].map((r) => r.activity),
       monteCarloResult: mc,
       trialsClamped: false,
+      today: '',
     });
-    expect(summary!).toContain(
+    const text = summaryText(rows)!;
+    expect(text).toContain(
       '(No variance in estimates — all activities have O = M = P.)'
     );
-    expect(summary!).not.toContain('percentile');
-    expect(summary!).toContain('Expected duration:');
+    expect(text).not.toContain('percentile');
+    expect(text).toContain('Expected duration:');
     // Critical-path bullet was dropped — diagram conveys the chain.
-    expect(summary!).not.toContain('Critical path:');
+    expect(text).not.toContain('Critical path:');
   });
 });

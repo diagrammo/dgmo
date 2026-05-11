@@ -2,9 +2,16 @@ import { describe, it, expect } from 'vitest';
 import { parsePert } from '../src/pert/parser';
 import { analyzePert } from '../src/pert/analyzer';
 import { mulberry32, sampleBetaPert } from '../src/pert/monte-carlo';
+import type { CaptionRow } from '../src/pert/types';
 
 function analyze(input: string) {
   return analyzePert(parsePert(input));
+}
+
+/** Legacy compatibility shim — see notes in pert-analyzer.test.ts. */
+function summaryText(rows: CaptionRow[] | null): string | null {
+  if (rows === null) return null;
+  return rows.map((r) => r.text).join('\n');
 }
 
 describe('mulberry32 PRNG', () => {
@@ -103,8 +110,10 @@ A
 `);
     expect(r.mode).toBe('analytical');
     expect(r.monteCarloResult).toBeNull();
-    expect(r.summaryText).not.toBeNull();
-    expect(r.summaryText!).toContain('Insufficient trials configured');
+    expect(summaryText(r.summaryRows)).not.toBeNull();
+    expect(summaryText(r.summaryRows)!).toContain(
+      'Insufficient trials configured'
+    );
   });
 
   it('MC populates criticality + percentiles', () => {
@@ -206,7 +215,7 @@ A
     expect(
       r.diagnostics.find((d) => d.message.includes('Cannot run Monte Carlo'))
     ).toBeUndefined();
-    expect(r.summaryText).toContain('Expected duration unknown');
+    expect(summaryText(r.summaryRows)).toContain('Expected duration unknown');
   });
 
   it('MC-derived hammock rollup uses modal critical path', () => {

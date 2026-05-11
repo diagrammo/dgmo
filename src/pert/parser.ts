@@ -190,6 +190,7 @@ const DEFAULT_OPTIONS: PertOptions = {
   sprintNumber: null,
   sprintStart: null,
   sprintMode: null,
+  today: '',
 };
 
 /**
@@ -412,7 +413,19 @@ function parsePipeMetadata(raw: string): Record<string, string> {
 // parsePert
 // ============================================================
 
-export function parsePert(content: string): ParsedPert {
+export interface ParsePertOptions {
+  /**
+   * "Today" reference for `start-date now` and `options.today`. Defaults
+   * to `new Date()` at call time; tests inject a fixed date for
+   * deterministic snapshots and past-row assertions.
+   */
+  now?: Date;
+}
+
+export function parsePert(
+  content: string,
+  parseOpts: ParsePertOptions = {}
+): ParsedPert {
   const lines = content.split('\n');
   const diagnostics: DgmoError[] = [];
   const error = (line: number, msg: string, code?: string): void => {
@@ -422,7 +435,14 @@ export function parsePert(content: string): ParsedPert {
     diagnostics.push(makeDgmoError(line, msg, 'warning', code));
   };
 
-  const options: PertOptions = { ...DEFAULT_OPTIONS };
+  // Parse-time "today" — single capture, used both for `start-date now`
+  // resolution AND surfaced to the analyzer via `options.today`. Baking
+  // at parse time matches the spec: shared share-links land on the
+  // recipient's render path with a frozen `today`, and `(as of …)`
+  // suffixes reflect the author's clock.
+  const today = formatLocalISODate(parseOpts.now ?? new Date());
+
+  const options: PertOptions = { ...DEFAULT_OPTIONS, today };
   let title: string | null = null;
 
   // Track the line of the FIRST anchor directive so a later collision
@@ -1186,7 +1206,9 @@ function applyAnchorDirective(
       );
       return;
     }
-    options.anchor = { kind: 'forward', date: formatLocalISODate(new Date()) };
+    // Resolve `now` from the parse-time today snapshot stored on
+    // `options.today` (single source — see parsePert entry).
+    options.anchor = { kind: 'forward', date: options.today };
     return;
   }
 

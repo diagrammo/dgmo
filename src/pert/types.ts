@@ -30,6 +30,29 @@ export type Anchor =
   | { kind: 'backward'; date: string }
   | null;
 
+/**
+ * One row of the project-stats caption. Replaces the previous
+ * `\n`-joined `summaryText` string with a structured shape so the
+ * renderer doesn't have to recover bullet structure by splitting on
+ * `\n` / `. ` and tests can assert on `isPast` directly instead of
+ * matching the trailing `(latest-safe start has passed)` suffix.
+ */
+export interface CaptionRow {
+  /** Pre-formatted caption text for this row (no leading bullet glyph). */
+  text: string;
+  /** 0 = top-level row; 1 = sub-row (indented under the previous level-0 row). */
+  level: 0 | 1;
+  /** When true, renderer paints the text italic. */
+  italic?: boolean;
+  /**
+   * Backward-mode flag — true when the row reports a latest-safe-start
+   * date that precedes `options.today`. The text already carries a
+   * `(latest-safe start has passed)` suffix; the flag is for downstream
+   * styling/test assertions.
+   */
+  isPast?: boolean;
+}
+
 /** Diagram-level options collected by the parser. */
 export interface PertOptions {
   /** Time unit for μ/σ/ES/EF formatting and M-only heuristics. */
@@ -67,6 +90,17 @@ export interface PertOptions {
   sprintNumber: number | null; // which sprint the chart starts at (default 1)
   sprintStart: string | null; // YYYY-MM-DD — date that sprintNumber begins (optional)
   sprintMode: 'auto' | 'explicit' | null; // auto = activated by `s` unit, explicit = sprint-* directive present
+  /**
+   * "Today" baked in at parse time (ISO YYYY-MM-DD). Same source as
+   * `start-date now`, captured for every parse regardless of whether
+   * `now` was authored. Analyzer reads this to flag past latest-safe
+   * starts in backward mode; renderer surfaces it in the
+   * `(as of YYYY-MM-DD)` anchor annotation. Empty string when the
+   * parser was given no `now` and no `start-date now` directive (legacy
+   * fixtures pre-dating this field) — consumers treat empty as
+   * "no today known" and skip past-flagging.
+   */
+  today: string;
 }
 
 // ── Parsed elements ─────────────────────────────────────────
@@ -251,6 +285,21 @@ export interface MonteCarloResult {
    */
   p16: number;
   p84: number;
+  /**
+   * Empirical lower bound — minimum trial duration in canonical days.
+   * Used by the S-curve to anchor its x-axis at the actually-observed
+   * span rather than an analytical extrapolation. Backward-mode reads
+   * this through `end_date − max` to land the left edge of the
+   * candidate-start axis.
+   */
+  minDurationDays: number;
+  /**
+   * Empirical upper bound — maximum trial duration in canonical days.
+   * Symmetric counterpart to `minDurationDays`. Backward-mode reads
+   * this as the latest candidate start that still has a chance of
+   * hitting the deadline.
+   */
+  maxDurationDays: number;
   /** Per-activity criticality index, keyed by activity id. */
   criticalityByActivity: Record<string, number>;
   /** Modal-longest-path tuple (activity ids). */
@@ -310,11 +359,13 @@ export interface ResolvedPert {
    */
   mode: 'monte-carlo' | 'analytical';
   /**
-   * Project-stats caption text. One `<tspan>` per `\n`-delimited line.
-   * Null only when analysis bails out before producing any output (e.g.
-   * cycle detection); non-null in every successful analyze() run.
+   * Project-stats caption rows. Each row is one bullet in the rendered
+   * caption box; level-1 rows render indented under the preceding
+   * level-0 row. Null only when analysis bails out before producing
+   * any output (e.g. cycle detection); non-null in every successful
+   * analyze() run.
    */
-  summaryText: string | null;
+  summaryRows: CaptionRow[] | null;
   /** μ along the M-world critical path (max EF over all activities). */
   projectMu: number | null;
   /** σ along the M-world critical path (sqrt of variance sum). */
@@ -377,4 +428,121 @@ export interface LayoutResult {
   groups: PertLayoutGroup[];
   width: number;
   height: number;
+}
+
+// ── S-curve (completion-probability widget) ─────────────────
+
+/**
+ * One reference line drawn on the S-curve plot — a colored vertical
+ * dropped at a percentile's mode-appropriate x-coordinate. Forward
+ * mode places lines at P50/P80/P95 finishes; backward mode places
+ * them at P50/P80/P95 latest-safe starts. `isPast` flips to `true`
+ * when the resolved date precedes `options.today` (backward-only);
+ * the renderer paints those lines dashed and the label carries a
+ * trailing `" (past)"`.
+ */
+export interface ScurveReferenceLine {
+  /**
+   * X-coordinate in canonical x-axis days. Forward: the percentile
+   * duration. Backward: candidate-start canonical days
+   * (= `deadlineDays − duration_PX`), so the vertical lands at the
+   * latest-safe-start date when projected through the renderer's
+   * `xScale`.
+   */
+  x: number;
+  /** Cumulative probability at the percentile (0.50 / 0.80 / 0.95). */
+  y: number;
+  /**
+   * Original duration in canonical days. Backward mode keeps this for
+   * the secondary "≈ Nw of work" sub-label below each percentile dot;
+   * forward mode mirrors `x`.
+   */
+  durationDays: number;
+  /** Label text (already past-suffixed by `buildScurveData` when applicable). */
+  label: string;
+  /** True in backward mode when the date precedes `options.today`. */
+  isPast: boolean;
+}
+
+/**
+ * Data backing the S-curve widget. `buildScurveData` populates this
+ * once per render; `renderScurveBlock` reads it directly. The
+ * structure is mode-discriminated so renderer code stays mode-blind
+ * outside of the dashed-line / past-suffix decision (Path B per
+ * tech-spec §13A.12).
+ */
+export interface ScurveData {
+  /** Forward mode = finish-date axis; backward mode = candidate-start axis. */
+  mode: 'forward' | 'backward';
+  /** Mode-appropriate y-axis title. */
+  yAxisLabel: string;
+  /**
+   * Curve points ready to plot, ordered ascending by `x`. Forward mode
+   * rises 0.05 → 0.95; backward mode falls 0.95 → 0.05. `x` is in
+   * canonical x-axis days (matches `xScale`), `y` is cumulative
+   * probability. Pre-projecting here lets the renderer stay
+   * mode-blind for curve construction.
+   */
+  curvePoints: { x: number; y: number }[];
+  /**
+   * Sorted-ascending sample x-coordinates in canonical days. Forward:
+   * empirical duration samples. Backward: `deadlineDays − duration`
+   * for the same trials, so samples[0] is the leftmost candidate-start
+   * x. Retained for callers that want raw samples; the renderer reads
+   * `curvePoints` for plotting.
+   */
+  samples: number[];
+  /**
+   * Central 68% band edges in canonical x-axis days (left/right of the
+   * shaded region). Forward: `[duration_p16, duration_p84]`. Backward:
+   * `[deadlineDays − duration_p84, deadlineDays − duration_p16]` so
+   * `p16Days ≤ p84Days` always holds.
+   */
+  p16Days: number;
+  p84Days: number;
+  /**
+   * Percentile *plotting positions* in canonical x-axis days. Forward:
+   * the duration value. Backward: `deadlineDays − duration_PX`, so
+   * each dot lands on its candidate-start-date column.
+   */
+  p50Days: number;
+  p80Days: number;
+  p95Days: number;
+  /**
+   * X-axis bounds in canonical x-axis days. Forward:
+   * `[minDurationDays, maxDurationDays]` — the empirical duration
+   * span. Backward: `[deadlineDays − maxDurationDays, deadlineDays]`
+   * — the candidate-start span, with the right edge at the deadline
+   * (= `projectMu` canonical days from `projectStart`). May be
+   * negative when the longest trial exceeds the M-world span.
+   */
+  xMinDays: number;
+  xMaxDays: number;
+  /**
+   * Three percentile reference lines (P50, P80, P95). Order is
+   * preserved; `isPast` is meaningful only in backward mode.
+   */
+  referenceLines: ScurveReferenceLine[];
+  /**
+   * Optional contextual framing line — currently the anchor annotation
+   * (e.g. "Backward-anchored from end-date YYYY-MM-DD (as of YYYY-MM-DD)").
+   * Rendered as the S-curve subline when present.
+   */
+  framingNote: string | null;
+  /**
+   * Project start date (ISO yyyy-mm-dd) when the diagram is anchored.
+   * Lets the x-axis display calendar dates (in addition to durations).
+   * Backward mode also fills this (with the implied start = end − μ)
+   * so the renderer's existing date-axis code stays mode-blind.
+   */
+  anchorDate: string | null;
+  /**
+   * Hard deadline (canonical days from projectStart) when the diagram
+   * is end-date-anchored. Drawn as a vertical line on the plot so
+   * readers can see at a glance how close the percentile finishes
+   * land to the constraint. Null for forward-anchored or unanchored.
+   */
+  deadlineDays: number | null;
+  /** Deadline date as ISO yyyy-mm-dd, used for the on-chart label. */
+  deadlineDate: string | null;
 }

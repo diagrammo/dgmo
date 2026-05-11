@@ -16,6 +16,7 @@ import type { DgmoError } from '../diagnostics';
 import type { Duration, DurationUnit } from '../gantt/types';
 import type {
   Anchor,
+  CaptionRow,
   ParsedPert,
   PertActivity,
   PertEdge,
@@ -497,7 +498,7 @@ export function analyzePert(parsed: ParsedPert): ResolvedPert {
         edges,
         groups: [],
         mode: 'monte-carlo',
-        summaryText: null,
+        summaryRows: null,
         projectMu: null,
         projectSigma: null,
         criticalPath,
@@ -577,7 +578,7 @@ export function analyzePert(parsed: ParsedPert): ResolvedPert {
     }
   }
 
-  const summaryText = buildSummary({
+  const summaryRows = buildSummary({
     mode,
     projectMu: projectMuOut,
     projectSigma: projectSigmaOut,
@@ -586,6 +587,7 @@ export function analyzePert(parsed: ParsedPert): ResolvedPert {
     monteCarloResult,
     trialsClamped,
     anchor: parsed.options.anchor,
+    today: parsed.options.today,
     sprintDays,
   });
 
@@ -595,7 +597,7 @@ export function analyzePert(parsed: ParsedPert): ResolvedPert {
     edges,
     groups: resolvedGroups,
     mode,
-    summaryText,
+    summaryRows,
     projectMu: projectMuOut,
     projectSigma: projectSigmaOut,
     criticalPath,
@@ -832,11 +834,9 @@ function rollupGroup(
 // ============================================================
 
 /**
- * Build the project-stats caption emitted as `ResolvedPert.summaryText`.
- * Renderer reads the returned string and emits one `<tspan>` per
- * `\n`-delimited line. Returns the empty string if the analyzer
- * produced no output (e.g. cycle bailout) — caller decides whether to
- * map that to `null`.
+ * Build the project-stats caption emitted as `ResolvedPert.summaryRows`.
+ * Each `CaptionRow` is one bullet in the rendered caption box. Returns
+ * `null` when the analyzer produced no output (e.g. cycle bailout).
  */
 export interface BuildSummaryInput {
   mode: 'monte-carlo' | 'analytical';
@@ -849,9 +849,15 @@ export interface BuildSummaryInput {
   /**
    * Date anchor — when set, "Expected duration" becomes a date and
    * Monte-Carlo percentiles render as ISO dates instead of durations.
-   * Forward → end-date bullets; backward → start-date bullets.
+   * Forward → finish-date rows; backward → latest-safe-start rows.
    */
   anchor?: Anchor;
+  /**
+   * Parse-time "today" (ISO YYYY-MM-DD). Used to flag backward-mode
+   * latest-safe-start rows that have already passed. Empty string is
+   * treated as "unknown" — no past flagging.
+   */
+  today: string;
   /**
    * Days-per-sprint when sprint mode is active. Used to convert
    * Monte-Carlo percentile durations (canonical days) into the
@@ -860,7 +866,25 @@ export interface BuildSummaryInput {
   sprintDays?: number;
 }
 
-export function buildSummary(input: BuildSummaryInput): string | null {
+/**
+ * Round a fractional canonical-days duration toward whichever direction
+ * pushes the resulting date further from "now":
+ *   - forward  → ceil (the finish lands later, more conservative)
+ *   - backward → ceil (the latest-safe start lands earlier, more
+ *                       conservative — `end_date − ceil(d)` is smaller)
+ *
+ * Both modes ceil because callers apply opposite signs (`+` vs `−`).
+ * Keeping the rule in one helper avoids drift between caption math
+ * and S-curve math.
+ */
+function roundConservative(
+  durationDays: number,
+  _mode: 'forward' | 'backward'
+): number {
+  return Math.ceil(durationDays);
+}
+
+export function buildSummary(input: BuildSummaryInput): CaptionRow[] | null {
   const {
     mode,
     projectMu,
@@ -870,22 +894,42 @@ export function buildSummary(input: BuildSummaryInput): string | null {
     monteCarloResult,
     trialsClamped,
     sprintDays,
+    today,
   } = input;
   const anchor = input.anchor ?? null;
 
   if (parsedActivities.length === 0) return null;
 
-  // TBD fallback — no project end resolvable.
+  // Indeterminate projectMu — TBD upstream of the sink.
   if (projectMu === null) {
+    // Backward + TBD: spec §13A.12 mandates `?` placeholders for both
+    // Expected duration AND each percentile latest-safe start so the
+    // caption shape stays parallel to the feasible case (one top row +
+    // three percentile sub-rows).
+    if (anchor && anchor.kind === 'backward') {
+      return [
+        { text: 'Expected duration: ?', level: 0 },
+        { text: 'P50 latest-safe start: ?', level: 0 },
+        { text: 'P80 latest-safe start: ?', level: 0 },
+        { text: 'P95 latest-safe start: ?', level: 0 },
+      ];
+    }
+    // Forward / unanchored: existing wording — names the unestimated
+    // activities so the author knows what to fill in.
     const tbdCount = parsedActivities.filter(
       (a) => a.duration === null && !a.isMilestone
     ).length;
-    return `Expected duration unknown — ${tbdCount} ${
-      tbdCount === 1 ? 'activity has' : 'activities have'
-    } no estimate.`;
+    return [
+      {
+        text: `Expected duration unknown — ${tbdCount} ${
+          tbdCount === 1 ? 'activity has' : 'activities have'
+        } no estimate.`,
+        level: 0,
+      },
+    ];
   }
 
-  const lines: string[] = [];
+  const rows: CaptionRow[] = [];
   const mc = mode === 'monte-carlo' && monteCarloResult !== null;
   const sigmaPositive = projectSigma !== null && projectSigma > 0;
   const showMcDetail = mc && sigmaPositive;
@@ -894,102 +938,92 @@ export function buildSummary(input: BuildSummaryInput): string | null {
   // parenthetical when MC ran with σ > 0. Reads more naturally than a
   // separate "Standard deviation:" bullet; for a roughly-normal
   // distribution ±1σ covers ~68% of outcomes.
-  // Forward anchor → expected finish date; backward anchor → expected
-  // start date (the latest acceptable start that hits end-date with
-  // 50% probability under the M-world). No anchor → duration.
   const sigmaParen = showMcDetail
     ? ` (± ${roundForCaption(projectSigma!)} ${pluralizeUnit(projectSigma!, unit)})`
     : '';
   if (anchor && anchor.kind === 'forward') {
     const projectMuDays = projectMu * unitToDays(unit);
-    lines.push(
-      `Expected finish: ${addCalendarDays(anchor.date, projectMuDays)}${sigmaParen}.`
-    );
+    rows.push({
+      text: `Expected finish: ${addCalendarDays(anchor.date, projectMuDays)}${sigmaParen}.`,
+      level: 0,
+    });
   } else if (anchor && anchor.kind === 'backward') {
     const projectMuDays = projectMu * unitToDays(unit);
-    lines.push(
-      `Expected start: ${addCalendarDays(anchor.date, -projectMuDays)}${sigmaParen}.`
-    );
+    rows.push({
+      text: `Expected start: ${addCalendarDays(anchor.date, -projectMuDays)}${sigmaParen}.`,
+      level: 0,
+    });
   } else {
     const muStr = `${roundForCaption(projectMu)} ${pluralizeUnit(projectMu, unit)}`;
-    lines.push(`Expected duration: ${muStr}${sigmaParen}.`);
+    rows.push({
+      text: `Expected duration: ${muStr}${sigmaParen}.`,
+      level: 0,
+    });
   }
 
-  // 3. Percentiles
-  // Forward anchor → end-date for each percentile (start-date + Pn).
-  // Backward anchor → start-date for each percentile (end-date - Pn) —
-  // the latest acceptable start that hits end-date with N% probability.
-  // No anchor → single combined duration line (existing behavior).
+  // 2. Percentiles — uniform shape per spec §13A.10/§13A.12:
+  //   - Forward:    P{X} finish: <date>
+  //   - Backward:   P{X} latest-safe start: <date> [(latest-safe start has passed)]
+  //   - Unanchored: P{X}: <duration>
+  // Sub-rows (level 1) so they indent under the preceding "Expected …"
+  // row, matching the existing visual rhythm.
   if (showMcDetail) {
-    if (anchor) {
-      const direction = anchor.kind === 'forward' ? 1 : -1;
-      const noun = anchor.kind === 'forward' ? 'end date' : 'start date';
-      // Join the three percentile sentences with ". " so bulletizeCaption
-      // splits them into indented sub-bullets under "Expected finish" /
-      // "Expected start" — matches the unanchored caption shape.
-      const fragments = [50, 80, 95].map((pct, i) => {
-        const days = [
-          monteCarloResult!.p50,
-          monteCarloResult!.p80,
-          monteCarloResult!.p95,
-        ][i];
-        return `${pct}th percentile ${noun}: ${addCalendarDays(anchor.date, direction * days)}`;
-      });
-      lines.push(fragments.join('. ') + '.');
+    const percentiles: Array<{ pct: 50 | 80 | 95; days: number }> = [
+      { pct: 50, days: monteCarloResult!.p50 },
+      { pct: 80, days: monteCarloResult!.p80 },
+      { pct: 95, days: monteCarloResult!.p95 },
+    ];
+    if (anchor && anchor.kind === 'forward') {
+      for (const { pct, days } of percentiles) {
+        const offsetDays = roundConservative(days, 'forward');
+        const date = addCalendarDays(anchor.date, offsetDays);
+        rows.push({ text: `P${pct} finish: ${date}.`, level: 1 });
+      }
+    } else if (anchor && anchor.kind === 'backward') {
+      for (const { pct, days } of percentiles) {
+        const offsetDays = roundConservative(days, 'backward');
+        const date = addCalendarDays(anchor.date, -offsetDays);
+        // ISO YYYY-MM-DD strings are lexicographically sortable, so a
+        // string compare is the correct past-date check here.
+        const isPast = today.length > 0 && date < today;
+        const suffix = isPast ? ' (latest-safe start has passed)' : '';
+        const row: CaptionRow = {
+          text: `P${pct} latest-safe start: ${date}${suffix}`,
+          level: 1,
+        };
+        if (isPast) row.isPast = true;
+        rows.push(row);
+      }
     } else {
-      const p50 = fromDays(monteCarloResult!.p50, unit, sprintDays);
-      const p80 = fromDays(monteCarloResult!.p80, unit, sprintDays);
-      const p95 = fromDays(monteCarloResult!.p95, unit, sprintDays);
-      lines.push(
-        `50th-percentile finish: ${formatPercentile(p50, unit)}. ` +
-          `80th-percentile: ${formatPercentile(p80, unit)}. ` +
-          `95th-percentile: ${formatPercentile(p95, unit)}.`
-      );
+      for (const { pct, days } of percentiles) {
+        const v = fromDays(days, unit, sprintDays);
+        rows.push({ text: `P${pct}: ${formatPercentile(v, unit)}.`, level: 1 });
+      }
     }
   }
 
-  // 4. Critical path — intentionally NOT a caption bullet. The diagram
-  // already shows the critical chain via red node borders + edge stroke;
-  // duplicating the names in text adds noise without information.
-  // Modal-vs-deterministic divergence is dropped for the same reason
-  // (it only makes sense as a contrast to "Critical path").
-
-  // 6. Bottleneck — intentionally NOT a caption bullet. Calling out a
-  // single "longest critical activity" overclaims; on a critical path
-  // every activity is a constraint. The diagram itself shows the dur
-  // cell on every red-bordered card, and the renderer now emphasizes
-  // top-20% activities (bold cell text) so the longest sticks out
-  // visually without naming any single one as THE bottleneck.
-
-  // 7. Hidden risk — intentionally NOT a caption bullet. The red node
-  // border + edge stroke already mark off-CPM activities that frequently
-  // become critical; spelling out a percentage adds noise without
-  // changing the reader's action.
-
-  // 8. Heuristic-variance caveat — intentionally NOT a caption bullet.
-  // The ±σ parenthetical on "Expected duration" already flags how wide
-  // the distribution is; readers don't need a meta-statement that the
-  // numbers are "indicative."
-
-  // 9. Zero-variance fallback (replaces percentile bullets)
+  // 3. Zero-variance fallback (replaces percentile rows when O=M=P
+  // across every authored activity).
   if (mc && projectSigma === 0) {
-    const filtered: string[] = lines.filter((line) =>
-      line.startsWith('Expected duration:')
+    const filtered: CaptionRow[] = rows.filter((r) =>
+      r.text.startsWith('Expected ')
     );
-    filtered.push(
-      '(No variance in estimates — all activities have O = M = P.)'
-    );
-    return filtered.join('\n');
+    filtered.push({
+      text: '(No variance in estimates — all activities have O = M = P.)',
+      level: 0,
+    });
+    return filtered;
   }
 
-  // 10. Trials caveat (mode auto-derived to MC then clamped back)
+  // 4. Trials caveat (mode auto-derived to MC then clamped back).
   if (trialsClamped) {
-    lines.push(
-      'Insufficient trials configured (`trials` < 100) — falling back to deterministic analysis.'
-    );
+    rows.push({
+      text: 'Insufficient trials configured (`trials` < 100) — falling back to deterministic analysis.',
+      level: 0,
+    });
   }
 
-  return lines.join('\n');
+  return rows;
 }
 
 function roundForCaption(n: number): string {
@@ -1058,7 +1092,7 @@ function emptyResolved(
       criticality: null,
     })),
     mode: 'analytical',
-    summaryText: null,
+    summaryRows: null,
     projectMu: null,
     projectSigma: null,
     criticalPath: [],

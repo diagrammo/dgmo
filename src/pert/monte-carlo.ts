@@ -270,6 +270,11 @@ function simulate(
     );
     return completionTimes[idx] ?? 0;
   };
+  // After sort, min/max are the endpoints. Backward-mode S-curve uses
+  // these to bound the candidate-start axis; forward-mode reads them
+  // for symmetric x-axis bounds.
+  const minDurationDays = completionTimes[0] ?? 0;
+  const maxDurationDays = completionTimes[completionTimes.length - 1] ?? 0;
 
   // Modal critical path with deterministic tiebreak (count desc → variance sum desc → lex).
   let modalKey = '';
@@ -312,6 +317,8 @@ function simulate(
     // type contract is satisfied even in scrubber/fast paths that
     // never compute swings.
     tornadoSwings: [],
+    minDurationDays,
+    maxDurationDays,
   };
 }
 

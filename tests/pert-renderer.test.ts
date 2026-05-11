@@ -37,6 +37,7 @@ const FIXTURE_NAMES = [
   'start-date.dgmo',
   'end-date.dgmo',
   'backward-tbd.dgmo',
+  'backward-monte-carlo.dgmo',
   'edge-types.dgmo',
   'edge-lag.dgmo',
 ];
@@ -45,13 +46,24 @@ const FIXTURE_NAMES = [
 // the snapshot count manageable in Phase 1 while still asserting both
 // light and dark output across two palettes; remaining palettes/themes
 // are covered by the structural assertions below.
+// Frozen "today" for snapshot determinism — backward-mode anchor
+// annotations now carry "(as of YYYY-MM-DD)" and the analyzer flags
+// past latest-safe-starts against this date. The constant matches the
+// date used by the spec's worked examples (§13A.12).
+const SNAPSHOT_NOW = new Date('2026-05-10');
+
 describe('pert renderer — snapshots', () => {
   for (const name of FIXTURE_NAMES) {
     for (const palette of ['nord', 'tokyo-night'] as const) {
       for (const theme of ['light', 'dark'] as const) {
         it(`${name} | ${palette} | ${theme}`, () => {
           const colors = getPalette(palette)[theme];
-          const svg = renderPertForExport(loadFixture(name), theme, colors);
+          const svg = renderPertForExport(
+            loadFixture(name),
+            theme,
+            colors,
+            SNAPSHOT_NOW
+          );
           expect(svg).toMatchSnapshot();
         });
       }
@@ -325,7 +337,7 @@ describe('pert renderer — structural assertions', () => {
     document.body.removeChild(c);
   });
 
-  it('AC21: TB and LR layouts produce byte-identical summaryText', () => {
+  it('AC21: TB and LR layouts produce byte-identical summaryRows', () => {
     const lr = `pert
 direction LR
 A 1 2 4
@@ -342,7 +354,7 @@ A
 `;
     const resLr = analyzePert(parsePert(lr));
     const resTb = analyzePert(parsePert(tb));
-    expect(resLr.summaryText).toBe(resTb.summaryText);
+    expect(resLr.summaryRows).toEqual(resTb.summaryRows);
   });
 
   it('AC25: monte-carlo.dgmo (with deprecated `analysis monte-carlo`) still renders', () => {
@@ -447,11 +459,13 @@ A
     const block = c.querySelector('g.pert-scurve-block');
     expect(block).not.toBeNull();
     // The chart no longer carries a dedicated header text — the
-    // rotated y-axis title ("Completion Probability") plus the
-    // colored P50/P80/P95 dots make the chart self-identifying.
+    // rotated y-axis title (now mode-aware per spec §13A.12) plus the
+    // colored P50/P80/P95 dots make the chart self-identifying. The
+    // forward / no-anchor label is "P(finish ≤ x)"; backward emits
+    // "P(hit deadline | start by x)".
     expect(
       block!.querySelector('text.pert-scurve-y-axis-title')!.textContent
-    ).toBe('Completion Probability');
+    ).toBe('P(finish ≤ x)');
     // Three percentile dots: P50, P80, P95.
     expect(
       block!.querySelectorAll('circle.pert-scurve-percentile-dot').length
@@ -545,22 +559,25 @@ describe('pert renderer — date anchoring', () => {
     return renderPertForExport(input, 'light', colors);
   }
 
-  it('forward anchor: source ES renders as the literal start-date and a "Start date" bullet appears', () => {
+  it('forward anchor: source ES renders as the literal start-date and a "Forward from start-date" bullet appears', () => {
     // recruit crew is the first non-zero-duration activity, so its ES
     // is the start-date carried through. Renderer formats as ISO.
     const svg = renderForTest(loadFixture('start-date.dgmo'));
     expect(svg).toContain('2026-06-01');
-    // Forward anchor surfaces the user-pinned start-date in plain words.
-    expect(svg).toContain('Start date: 2026-06-01');
-    expect(svg).not.toContain('Deadline:');
+    // Per spec §13A.12, forward anchor surfaces "Forward from
+    // start-date YYYY-MM-DD" — symmetric with the backward annotation.
+    expect(svg).toContain('Forward from start-date 2026-06-01');
+    expect(svg).not.toContain('Backward-anchored');
   });
 
-  it('backward anchor: italic Deadline bullet lives in the caption box', () => {
+  it('backward anchor: italic anchor-framing bullet lives in the caption box', () => {
     const svg = renderForTest(loadFixture('end-date.dgmo'));
     // Annotation sits as the FINAL bullet inside the yellow caption
-    // box. The percentile bullets above already cover when work needs
-    // to start, so this line stays narrowly focused on the deadline.
-    expect(svg).toContain('Deadline: 2026-09-15');
+    // box. Per spec §13A.12, backward anchor renders as
+    // "Backward-anchored from end-date YYYY-MM-DD (as of YYYY-MM-DD)"
+    // where the "as of" carries the parse-time today.
+    expect(svg).toContain('Backward-anchored from end-date 2026-09-15');
+    expect(svg).toContain('(as of ');
     expect(svg).not.toContain('project start');
     expect(svg).not.toContain('earliest possible');
     // The bullet's tspan carries font-style="italic"; the standalone
@@ -569,14 +586,14 @@ describe('pert renderer — date anchoring', () => {
     expect(svg).not.toContain('class="pert-anchor-annotation"');
     // Anchor note is rendered as a regular bullet — every line in the
     // Summary box wears the `•` glyph for visual consistency.
-    expect(svg).toContain('• Deadline: 2026-09-15');
+    expect(svg).toContain('• Backward-anchored from end-date 2026-09-15');
   });
 
   it('backward anchor + TBD upstream: schedule cells fall back to "?"', () => {
     const svg = renderForTest(loadFixture('backward-tbd.dgmo'));
-    // Annotation still names the deadline, plus a tail explaining the
+    // Annotation still names the end date, plus a tail explaining the
     // `?` cells when projectStart can't be derived.
-    expect(svg).toContain('Deadline: 2026-09-15');
+    expect(svg).toContain('Backward-anchored from end-date 2026-09-15');
     expect(svg).toContain('upstream activities still need estimates');
     // No date strings should appear in node bodies — projectStart is null
     // so every schedule cell renders nullLabel='?'.
@@ -672,5 +689,166 @@ describe('pert renderer — date anchoring', () => {
     const svg = renderForTest(loadFixture('basic.dgmo'));
     // No anchor present, so no ISO-date strings should leak in.
     expect(svg).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+  });
+});
+
+// ── Backward-anchor S-curve structural assertions (Task 11) ─────────
+
+describe('pert renderer — S-curve backward-mode framing (Path B)', () => {
+  // Local-time NOW so the parser's `formatLocalISODate(now)` matches
+  // the analyzer's past-date comparison across machines.
+  const NOW = new Date(2026, 4, 10);
+
+  function renderWithFixture(name: string) {
+    const c = document.createElement('div');
+    document.body.appendChild(c);
+    const colors = getPalette('nord').light;
+    const parsed = parsePert(loadFixture(name), { now: NOW });
+    const resolved = analyzePert(parsed);
+    const layout = relayoutPert(resolved);
+    renderPert(c as HTMLDivElement, resolved, layout, colors, false, {
+      title: parsed.title,
+      showScurve: true,
+    });
+    return c;
+  }
+
+  it('AC 9: y-axis title flips to "P(hit deadline | start by x)" in backward mode', () => {
+    const c = renderWithFixture('backward-monte-carlo.dgmo');
+    const block = c.querySelector('g.pert-scurve-block');
+    expect(block).not.toBeNull();
+    expect(
+      block!.querySelector('text.pert-scurve-y-axis-title')!.textContent
+    ).toBe('P(hit deadline | start by x)');
+    document.body.removeChild(c);
+  });
+
+  it('AC 11: past P95 reference line renders with stroke-dasharray="4,2"', () => {
+    const c = renderWithFixture('backward-monte-carlo.dgmo');
+    const block = c.querySelector('g.pert-scurve-block')!;
+    const ticks = Array.from(
+      block.querySelectorAll('line.pert-scurve-percentile-tick')
+    );
+    // Expect 3 percentile ticks; the P95 one (index 2) should be dashed
+    // "4,2" because the fixture is calibrated with P95 in the past.
+    expect(ticks.length).toBe(3);
+    expect(ticks[2].getAttribute('stroke-dasharray')).toBe('4,2');
+    // Feasible percentiles keep the default "3 3" dash.
+    expect(ticks[0].getAttribute('stroke-dasharray')).toBe('3 3');
+    expect(ticks[1].getAttribute('stroke-dasharray')).toBe('3 3');
+    document.body.removeChild(c);
+  });
+
+  it('backward mode plots percentiles in candidate-start space (P95 left of P50)', () => {
+    // Coordinate-space regression: a previous iteration left
+    // p50Days/p80Days/p95Days as raw duration days even in backward
+    // mode, which silently re-rendered the forward CDF under a flipped
+    // label. Larger duration ↔ earlier candidate-start, so P95 must
+    // sit to the LEFT of P50 on the plot.
+    const c = renderWithFixture('backward-monte-carlo.dgmo');
+    const block = c.querySelector('g.pert-scurve-block')!;
+    const dots = Array.from(
+      block.querySelectorAll('circle.pert-scurve-percentile-dot')
+    );
+    const cxOf = (label: string): number =>
+      parseFloat(
+        dots
+          .find((d) => d.getAttribute('data-percentile') === label)!
+          .getAttribute('cx')!
+      );
+    expect(cxOf('P95')).toBeLessThan(cxOf('P80'));
+    expect(cxOf('P80')).toBeLessThan(cxOf('P50'));
+    document.body.removeChild(c);
+  });
+
+  it('backward mode x-axis labels are start dates from the caption', () => {
+    // The percentile xtick labels must match the latest-safe-start
+    // dates the caption reports — proves the curve is plotted in
+    // candidate-start space, not duration space.
+    const parsed = parsePert(loadFixture('backward-monte-carlo.dgmo'), {
+      now: NOW,
+    });
+    const resolved = analyzePert(parsed);
+    const startDates = (resolved.summaryRows ?? [])
+      .filter((row) => row.text.startsWith('P'))
+      .map((row) => row.text.match(/(\d{4}-\d{2}-\d{2})/)![1]);
+    expect(startDates.length).toBe(3);
+
+    const c = renderWithFixture('backward-monte-carlo.dgmo');
+    const block = c.querySelector('g.pert-scurve-block')!;
+    const xticks = Array.from(
+      block.querySelectorAll('text.pert-scurve-percentile-xtick')
+    ).map((t) => t.textContent);
+    // formatScurveDate produces "Mon DD" (e.g. "May 19"). Convert the
+    // caption ISO dates to the same shape for comparison.
+    const monthShort = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    const expected = startDates.map((iso) => {
+      const [, mm, dd] = iso.split('-');
+      return `${monthShort[parseInt(mm, 10) - 1]} ${parseInt(dd, 10)}`;
+    });
+    expect(xticks).toEqual(expected);
+    document.body.removeChild(c);
+  });
+
+  it('backward curve falls left-to-right (path y increases with x)', () => {
+    // SVG y grows downward, so a visually falling curve (high P on
+    // the left, low P on the right) means y *increases* with x.
+    // Extract every coordinate pair from the path's `d` (d3's
+    // curveMonotoneX uses cubic Bezier segments, so the regex needs
+    // to be command-agnostic).
+    const c = renderWithFixture('backward-monte-carlo.dgmo');
+    const block = c.querySelector('g.pert-scurve-block')!;
+    const d = block.querySelector('path.pert-scurve-line')!.getAttribute('d')!;
+    const coords: { x: number; y: number }[] = [];
+    for (const match of d.matchAll(/(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/g)) {
+      coords.push({ x: parseFloat(match[1]), y: parseFloat(match[2]) });
+    }
+    expect(coords.length).toBeGreaterThanOrEqual(2);
+    const first = coords[0];
+    const last = coords[coords.length - 1];
+    // Falling curve: as x grows, y grows (SVG-y increases downward).
+    expect(last.x).toBeGreaterThan(first.x);
+    expect(last.y).toBeGreaterThan(first.y);
+    document.body.removeChild(c);
+  });
+});
+
+describe('pert renderer — S-curve buildScurveData structural fields', () => {
+  // Re-exposes buildScurveData indirectly: renderScurveBlock's
+  // y-axis title text mirrors data.yAxisLabel, and the percentile
+  // dashes mirror data.referenceLines[i].isPast. Forward-mode
+  // assertions live in the existing structural suite above.
+
+  it('forward fixture → y-axis label "P(finish ≤ x)" (AC 12 regression)', () => {
+    const c = document.createElement('div');
+    document.body.appendChild(c);
+    const colors = getPalette('nord').light;
+    const parsed = parsePert(loadFixture('three-point.dgmo'), {
+      now: new Date(2026, 4, 10),
+    });
+    const resolved = analyzePert(parsed);
+    const layout = relayoutPert(resolved);
+    renderPert(c as HTMLDivElement, resolved, layout, colors, false, {
+      title: parsed.title,
+      showScurve: true,
+    });
+    const block = c.querySelector('g.pert-scurve-block')!;
+    expect(
+      block.querySelector('text.pert-scurve-y-axis-title')!.textContent
+    ).toBe('P(finish ≤ x)');
+    document.body.removeChild(c);
   });
 });
