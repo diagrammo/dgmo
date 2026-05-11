@@ -83,6 +83,21 @@ const NODE_CELL_FONT_SIZE = 11;
 // reads as the primary label (mirroring textbook proportions).
 const NODE_RADIUS = 6;
 const NODE_STROKE_WIDTH = 1.5;
+
+// Analysis-block chrome (Summary / Activity Risk / Completion / Field
+// labels). These sit BELOW the diagram and shouldn't compete with it
+// for visual weight — softer fill (8% tint vs the 25% used by activity
+// nodes) and a desaturated stroke recede so the diagram stays primary.
+function analysisBlockChrome(
+  palette: PaletteColors,
+  isDark: boolean
+): { fill: string; stroke: string } {
+  const surfaceBg = isDark ? palette.surface : palette.bg;
+  return {
+    fill: mix(palette.textMuted, surfaceBg, 8),
+    stroke: mix(palette.textMuted, surfaceBg, 35),
+  };
+}
 const NODE_TOP_ROW_HEIGHT = 26;
 const NODE_BOTTOM_ROW_HEIGHT = 26;
 // Edge styling: non-critical edges follow `diagram-visual-conventions.md`
@@ -2509,10 +2524,7 @@ function renderCaptionBlock(
   args: CaptionBlockArgs
 ): void {
   const { x, y, width, height, palette, isDark } = args;
-  // Neutral gray base (matches the field-legend block) so yellow-band
-  // bars and dots inside Tornado / S-curve don't fight a yellow shell.
-  const baseColor = palette.textMuted;
-  const fill = shapeFill(palette, baseColor, isDark);
+  const { fill, stroke: chromeStroke } = analysisBlockChrome(palette, isDark);
   const labelColor = contrastText(
     fill,
     palette.textOnFillLight,
@@ -2534,7 +2546,7 @@ function renderCaptionBlock(
     .attr('rx', NODE_RADIUS)
     .attr('ry', NODE_RADIUS)
     .attr('fill', fill)
-    .attr('stroke', baseColor)
+    .attr('stroke', chromeStroke)
     .attr('stroke-width', NODE_STROKE_WIDTH);
 
   block
@@ -3032,10 +3044,7 @@ function renderTornadoBlock(
   args: TornadoBlockArgs
 ): void {
   const { x, y, width, height, palette, isDark } = args;
-  // Neutral gray base (matches the field-legend block) so yellow-band
-  // bars and dots inside Tornado / S-curve don't fight a yellow shell.
-  const baseColor = palette.textMuted;
-  const fill = shapeFill(palette, baseColor, isDark);
+  const { fill, stroke: chromeStroke } = analysisBlockChrome(palette, isDark);
   const labelColor = contrastText(
     fill,
     palette.textOnFillLight,
@@ -3057,7 +3066,7 @@ function renderTornadoBlock(
     .attr('rx', NODE_RADIUS)
     .attr('ry', NODE_RADIUS)
     .attr('fill', fill)
-    .attr('stroke', baseColor)
+    .attr('stroke', chromeStroke)
     .attr('stroke-width', NODE_STROKE_WIDTH);
 
   block
@@ -3069,7 +3078,7 @@ function renderTornadoBlock(
     .attr('fill', labelColor)
     .attr('font-size', CAPTION_FONT_SIZE)
     .attr('font-weight', '700')
-    .text('Tornado');
+    .text('Activity Risk');
 
   // Two-sided bar geometry. Activity name on the far left, then a
   // bidirectional plot area with a vertical zero-line: each row paints
@@ -3360,9 +3369,7 @@ function renderScurveBlock(
   args: ScurveBlockArgs
 ): void {
   const { x, y, width, height, palette, isDark, unit } = args;
-  // Neutral gray base — same family as Summary / Tornado / Field-legend.
-  const baseColor = palette.textMuted;
-  const fill = shapeFill(palette, baseColor, isDark);
+  const { fill, stroke: chromeStroke } = analysisBlockChrome(palette, isDark);
   const labelColor = contrastText(
     fill,
     palette.textOnFillLight,
@@ -3384,7 +3391,7 @@ function renderScurveBlock(
     .attr('rx', NODE_RADIUS)
     .attr('ry', NODE_RADIUS)
     .attr('fill', fill)
-    .attr('stroke', baseColor)
+    .attr('stroke', chromeStroke)
     .attr('stroke-width', NODE_STROKE_WIDTH);
 
   // No header text and no subline — the rotated y-axis title plus the
