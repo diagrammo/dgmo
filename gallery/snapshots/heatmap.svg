@@ -1,15 +1,5 @@
 <svg style="background: #eceff4; font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif" width="1200" height="800" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" baseProfile="full" viewBox="0 0 1200 800">
 <rect width="1200" height="800" x="0" y="0" fill="none"></rect>
-<path d="M81.8 140l1082.2 0l0 127.2l-1082.2 0Z" fill="rgb(234,237,245)" fill-opacity="0.5" class="zr0-cls-0"></path>
-<path d="M81.8 267.2l1082.2 0l0 127.2l-1082.2 0Z" fill="rgb(255,255,255)" fill-opacity="0" class="zr0-cls-0"></path>
-<path d="M81.8 394.4l1082.2 0l0 127.2l-1082.2 0Z" fill="rgb(234,237,245)" fill-opacity="0.5" class="zr0-cls-0"></path>
-<path d="M81.8 521.6l1082.2 0l0 127.2l-1082.2 0Z" fill="rgb(255,255,255)" fill-opacity="0" class="zr0-cls-0"></path>
-<path d="M81.8 648.8l1082.2 0l0 127.2l-1082.2 0Z" fill="rgb(234,237,245)" fill-opacity="0.5" class="zr0-cls-0"></path>
-<path d="M81.8 140l216.4 0l0 636l-216.4 0Z" fill="rgb(234,237,245)" fill-opacity="0.5" class="zr0-cls-0"></path>
-<path d="M298.2 140l216.4 0l0 636l-216.4 0Z" fill="rgb(255,255,255)" fill-opacity="0" class="zr0-cls-0"></path>
-<path d="M514.7 140l216.4 0l0 636l-216.4 0Z" fill="rgb(234,237,245)" fill-opacity="0.5" class="zr0-cls-0"></path>
-<path d="M731.1 140l216.4 0l0 636l-216.4 0Z" fill="rgb(255,255,255)" fill-opacity="0" class="zr0-cls-0"></path>
-<path d="M947.6 140l216.4 0l0 636l-216.4 0Z" fill="rgb(234,237,245)" fill-opacity="0.5" class="zr0-cls-0"></path>
 <path d="M82.5 140L82.5 776" fill="none" pointer-events="visible" stroke="#d8dee9" stroke-linecap="round" class="zr0-cls-0"></path>
 <path d="M81.8 140.5L1164 140.5" fill="none" pointer-events="visible" stroke="#d8dee9" stroke-linecap="round" class="zr0-cls-0"></path>
 <text dominant-baseline="central" text-anchor="end" style="font-size:12px;font-family:sans-serif;" xml:space="preserve" transform="translate(73.8 203.6)" fill="#2e3440">6 AM</text>
@@ -47,31 +37,31 @@
 <path d="M514.4 648.6l216.9 0l0 127.7l-216.9 0Z" fill="rgb(204,216,228)" stroke="#eceff4" stroke-width="2" ecmeta_series_index="0" ecmeta_data_index="22" ecmeta_ssr_type="chart" class="zr0-cls-1"></path>
 <path d="M730.9 648.6l216.9 0l0 127.7l-216.9 0Z" fill="rgb(206,220,231)" stroke="#eceff4" stroke-width="2" ecmeta_series_index="0" ecmeta_data_index="23" ecmeta_ssr_type="chart" class="zr0-cls-2"></path>
 <path d="M947.3 648.6l216.9 0l0 127.7l-216.9 0Z" fill="rgb(204,216,228)" stroke="#eceff4" stroke-width="2" ecmeta_series_index="0" ecmeta_data_index="24" ecmeta_ssr_type="chart" class="zr0-cls-1"></path>
-<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(190.02 203.6)" fill="#2e3440">1</text>
-<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(406.46 203.6)" fill="#2e3440">2</text>
-<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(622.9 203.6)" fill="#2e3440">0</text>
-<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(839.34 203.6)" fill="#2e3440">1</text>
-<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(1055.78 203.6)" fill="#2e3440">0</text>
-<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(190.02 330.8)" fill="#2e3440">5</text>
-<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(406.46 330.8)" fill="#2e3440">8</text>
-<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(622.9 330.8)" fill="#2e3440">6</text>
-<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(839.34 330.8)" fill="#2e3440">7</text>
-<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(1055.78 330.8)" fill="#2e3440">4</text>
-<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(190.02 458)" fill="#2e3440">3</text>
-<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(406.46 458)" fill="#2e3440">4</text>
-<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(622.9 458)" fill="#2e3440">5</text>
-<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(839.34 458)" fill="#2e3440">3</text>
-<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(1055.78 458)" fill="#2e3440">2</text>
-<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(190.02 585.2)" fill="#2e3440">8</text>
-<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(406.46 585.2)" fill="#2e3440">12</text>
-<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(622.9 585.2)" fill="#2e3440">9</text>
-<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(839.34 585.2)" fill="#2e3440">10</text>
-<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(1055.78 585.2)" fill="#2e3440">6</text>
-<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(190.02 712.4)" fill="#2e3440">2</text>
-<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(406.46 712.4)" fill="#2e3440">3</text>
-<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(622.9 712.4)" fill="#2e3440">1</text>
-<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(839.34 712.4)" fill="#2e3440">2</text>
-<text dominant-baseline="central" text-anchor="middle" style="font-size:14px;font-family:sans-serif;font-weight:bold;" transform="translate(1055.78 712.4)" fill="#2e3440">1</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:72px;font-family:sans-serif;font-weight:bold;" transform="translate(190.02 203.6)" fill="#224c77">1</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:72px;font-family:sans-serif;font-weight:bold;" transform="translate(406.46 203.6)" fill="#1f537a">2</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:72px;font-family:sans-serif;font-weight:bold;" transform="translate(622.9 203.6)" fill="#224777">0</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:72px;font-family:sans-serif;font-weight:bold;" transform="translate(839.34 203.6)" fill="#224c77">1</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:72px;font-family:sans-serif;font-weight:bold;" transform="translate(1055.78 203.6)" fill="#224777">0</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:72px;font-family:sans-serif;font-weight:bold;" transform="translate(190.02 330.8)" fill="#266273">5</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:72px;font-family:sans-serif;font-weight:bold;" transform="translate(406.46 330.8)" fill="#785b21">8</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:72px;font-family:sans-serif;font-weight:bold;" transform="translate(622.9 330.8)" fill="#267354">6</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:72px;font-family:sans-serif;font-weight:bold;" transform="translate(839.34 330.8)" fill="#736a26">7</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:72px;font-family:sans-serif;font-weight:bold;" transform="translate(1055.78 330.8)" fill="#1d5c7c">4</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:72px;font-family:sans-serif;font-weight:bold;" transform="translate(190.02 458)" fill="#1f547a">3</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:72px;font-family:sans-serif;font-weight:bold;" transform="translate(406.46 458)" fill="#1d5c7c">4</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:72px;font-family:sans-serif;font-weight:bold;" transform="translate(622.9 458)" fill="#266273">5</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:72px;font-family:sans-serif;font-weight:bold;" transform="translate(839.34 458)" fill="#1f547a">3</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:72px;font-family:sans-serif;font-weight:bold;" transform="translate(1055.78 458)" fill="#1f537a">2</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:72px;font-family:sans-serif;font-weight:bold;" transform="translate(190.02 585.2)" fill="#785b21">8</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:72px;font-family:sans-serif;font-weight:bold;" transform="translate(406.46 585.2)" fill="#742f25">12</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:72px;font-family:sans-serif;font-weight:bold;" transform="translate(622.9 585.2)" fill="#775122">9</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:72px;font-family:sans-serif;font-weight:bold;" transform="translate(839.34 585.2)" fill="#764323">10</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:72px;font-family:sans-serif;font-weight:bold;" transform="translate(1055.78 585.2)" fill="#267354">6</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:72px;font-family:sans-serif;font-weight:bold;" transform="translate(190.02 712.4)" fill="#1f537a">2</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:72px;font-family:sans-serif;font-weight:bold;" transform="translate(406.46 712.4)" fill="#1f547a">3</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:72px;font-family:sans-serif;font-weight:bold;" transform="translate(622.9 712.4)" fill="#224c77">1</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:72px;font-family:sans-serif;font-weight:bold;" transform="translate(839.34 712.4)" fill="#1f537a">2</text>
+<text dominant-baseline="central" text-anchor="middle" style="font-size:72px;font-family:sans-serif;font-weight:bold;" transform="translate(1055.78 712.4)" fill="#224c77">1</text>
 <path d="M-164.5 -5l329 0l0 30l-329 0Z" transform="translate(600 13)" fill="rgb(0,0,0)" fill-opacity="0" stroke="#3c3c41" stroke-width="0" class="zr0-cls-0"></path>
 <text dominant-baseline="central" text-anchor="middle" style="font-size:20px;font-family:Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;font-weight:bold;" xml:space="preserve" y="10" transform="translate(600 13)" fill="#2e3440">Deploy Frequency by Day and Hour</text>
 <style ><![CDATA[
