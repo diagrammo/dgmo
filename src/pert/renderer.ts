@@ -53,10 +53,13 @@ import {
   measureLegendText,
 } from '../utils/legend-constants';
 import type {
+  CaptionRow,
   LayoutResult,
   PertEdge,
   ResolvedActivity,
   ResolvedPert,
+  ScurveData,
+  ScurveReferenceLine,
 } from './types';
 import { parsePert } from './parser';
 import { analyzePert } from './analyzer';
@@ -386,10 +389,10 @@ export function renderPert(
   const anchorAnnotation = anchorAnnotationText(resolved);
 
   const collapsedSet = new Set(options.collapsedGroupIds ?? []);
-  const captionText = resolved.error !== null ? null : resolved.summaryText;
+  const captionRows = resolved.error !== null ? null : resolved.summaryRows;
   const captionBullets: CaptionBullet[] =
-    captionText !== null && captionText.length > 0
-      ? bulletizeCaption(captionText)
+    captionRows !== null && captionRows.length > 0
+      ? bulletizeCaption(captionRows)
       : [];
   if (anchorAnnotation) {
     captionBullets.push({
@@ -538,9 +541,16 @@ export function renderPert(
 export function renderPertForExport(
   content: string,
   theme: 'light' | 'dark' | 'transparent',
-  palette: PaletteColors
+  palette: PaletteColors,
+  /**
+   * Optional parse-time "today" override. Threads through to
+   * `parsePert({ now })` so the analyzer's backward-mode past-date
+   * check + the anchor annotation's "(as of YYYY-MM-DD)" suffix stay
+   * deterministic. Test snapshots pin this; production code omits it.
+   */
+  now?: Date
 ): string {
-  const parsed = parsePert(content);
+  const parsed = parsePert(content, { now });
   if (parsed.error || parsed.activities.length === 0) return '';
 
   const resolved = analyzePert(parsed);
@@ -552,8 +562,8 @@ export function renderPertForExport(
   // matches the natural height (anchor annotation now lives inside
   // the caption box as a final italic bullet).
   const captionBullets: CaptionBullet[] =
-    resolved.summaryText !== null && resolved.summaryText.length > 0
-      ? bulletizeCaption(resolved.summaryText)
+    resolved.summaryRows !== null && resolved.summaryRows.length > 0
+      ? bulletizeCaption(resolved.summaryRows)
       : [];
   const anchorNote = anchorAnnotationText(resolved);
   if (anchorNote) {
@@ -1080,10 +1090,10 @@ export function measurePertAnalysisBlock(
     showFieldLegend?: boolean;
   }
 ): { width: number; height: number } {
-  const captionText = resolved.error !== null ? null : resolved.summaryText;
+  const captionRows = resolved.error !== null ? null : resolved.summaryRows;
   const captionBullets: CaptionBullet[] =
-    captionText !== null && captionText.length > 0
-      ? bulletizeCaption(captionText)
+    captionRows !== null && captionRows.length > 0
+      ? bulletizeCaption(captionRows)
       : [];
   const anchorAnnotation = anchorAnnotationText(resolved);
   if (anchorAnnotation) {
@@ -1131,10 +1141,10 @@ export function renderPertAnalysisBlock(
 
   // Mirror renderPert's caption assembly: project-stats bullets +
   // optional anchor-annotation as the closing italic bullet.
-  const captionText = resolved.error !== null ? null : resolved.summaryText;
+  const captionRows = resolved.error !== null ? null : resolved.summaryRows;
   const captionBullets: CaptionBullet[] =
-    captionText !== null && captionText.length > 0
-      ? bulletizeCaption(captionText)
+    captionRows !== null && captionRows.length > 0
+      ? bulletizeCaption(captionRows)
       : [];
   const anchorAnnotation = anchorAnnotationText(resolved);
   if (anchorAnnotation) {
@@ -2392,16 +2402,20 @@ export function resetPertCriticalPath(container: Element): void {
 function anchorAnnotationText(resolved: ResolvedPert): string | null {
   const anchor = resolved.options.anchor;
   if (anchor === null) return null;
+  const today = resolved.options.today;
   if (anchor.kind === 'forward') {
-    return `Start date: ${anchor.date}.`;
+    return `Forward from start-date ${anchor.date}`;
   }
-  // Backward — TBD upstream still needs a hint that schedule cells will
-  // render `?` until estimates land, otherwise readers see ?-filled
-  // cards under a deadline with no explanation.
+  // Backward mode — surface the parse-time "today" so shared-link
+  // recipients see how fresh the past-date annotations are.
+  const asOf = today ? ` (as of ${today})` : '';
+  // TBD upstream still needs a hint that schedule cells will render
+  // `?` until estimates land, otherwise readers see ?-filled cards
+  // under a deadline with no explanation.
   if (resolved.projectStart) {
-    return `Deadline: ${anchor.date}.`;
+    return `Backward-anchored from end-date ${anchor.date}${asOf}`;
   }
-  return `Deadline: ${anchor.date} — upstream activities still need estimates.`;
+  return `Backward-anchored from end-date ${anchor.date}${asOf} — upstream activities still need estimates`;
 }
 
 interface CaptionBullet {
@@ -2414,32 +2428,30 @@ interface CaptionBullet {
    * anchor framing note at the bottom of the caption box.
    */
   italic?: boolean;
+  /**
+   * Backward-mode flag carried over from the analyzer's `CaptionRow`.
+   * True when the row reports a latest-safe-start date that already
+   * precedes `options.today`; the underlying text already carries the
+   * `(latest-safe start has passed)` suffix.
+   */
+  isPast?: boolean;
 }
 
 /**
- * Split the analyzer's `summaryText` into one bullet per logical
- * sentence. Per-line strings already correspond to one bullet each,
- * except the percentile line which packs three sentences into one
- * line (separated by ". "). Fragments produced by that split are
- * rendered as sub-bullets indented under the preceding top-level
- * bullet (Expected duration).
+ * Pass-through adapter from the analyzer's structured `CaptionRow[]`
+ * to the renderer's `CaptionBullet[]` shape. The analyzer now emits
+ * one row per logical bullet (with `level`/`italic`/`isPast`), so the
+ * renderer no longer has to recover bullet structure by splitting on
+ * `\n` / `. ` and assertions on `isPast` flow through directly to
+ * downstream styling.
  */
-function bulletizeCaption(summaryText: string): CaptionBullet[] {
-  const bullets: CaptionBullet[] = [];
-  for (const line of summaryText.split('\n')) {
-    if (!line.includes('. ')) {
-      bullets.push({ text: line, level: 0 });
-      continue;
-    }
-    // Split on ". " — every fragment is a sub-bullet under the previous
-    // top-level. Rejoin the period so each fragment ends with one.
-    const parts = line.split('. ');
-    parts.forEach((p, i) => {
-      const text = i < parts.length - 1 ? `${p}.` : p;
-      bullets.push({ text, level: 1 });
-    });
-  }
-  return bullets;
+function bulletizeCaption(rows: CaptionRow[]): CaptionBullet[] {
+  return rows.map((row) => {
+    const out: CaptionBullet = { text: row.text, level: row.level };
+    if (row.italic) out.italic = true;
+    if (row.isPast) out.isPast = true;
+    return out;
+  });
 }
 
 interface CaptionBlockArgs {
@@ -3265,67 +3277,52 @@ function renderTornadoBlock(
 // Section: S-curve (completion-probability) widget
 // ============================================================
 
-interface ScurveData {
-  /** Sorted-ascending sample finish times (canonical days). */
-  samples: number[];
-  /**
-   * Central 68% empirical range — same MC trials that produced p50.
-   * The shaded band on the chart spans [p16, p84]. Honest about
-   * skewness (the band is asymmetric around p50 if the project is
-   * skewed) and uses no normality assumption.
-   */
-  p16Days: number;
-  p84Days: number;
-  /** Percentile finish times (in canonical days). */
-  p50Days: number;
-  p80Days: number;
-  p95Days: number;
-  /**
-   * Optional contextual framing line — currently the anchor annotation
-   * (e.g. "End-date anchored: dates shown are earliest possible").
-   * Rendered as the S-curve subline when present.
-   */
-  framingNote: string | null;
-  /**
-   * Project start date (ISO yyyy-mm-dd) when the diagram is anchored.
-   * Lets the x-axis display calendar dates (in addition to durations)
-   * so date-driven projects can read finish dates directly off the
-   * completion-probability chart.
-   */
-  anchorDate: string | null;
-  /**
-   * Hard deadline (canonical days from projectStart) when the diagram
-   * is end-date-anchored. Drawn as a vertical line on the plot so
-   * readers can see at a glance how close the percentile finishes
-   * land to the constraint. Null for forward-anchored or unanchored.
-   */
-  deadlineDays: number | null;
-  /** Deadline date as ISO yyyy-mm-dd, used for the on-chart label. */
-  deadlineDate: string | null;
-}
+// `ScurveData` is defined in `./types` (Path B mode-discriminated shape).
+// Previously declared inline here; promoted alongside the
+// backward-anchor framing flip — see tech-spec §13A.12.
 
 /**
- * Build the cumulative-distribution data for the S-curve. We don't have
- * direct access to the per-trial finish times; reconstruct an
- * empirical CDF from the percentile triple. With three points we
- * interpolate piecewise-linearly so the curve still has the right
- * shape (steeper near the median, flatter in the tails).
+ * Build the cumulative-distribution data for the S-curve.
+ *
+ * Two modes share most of the data; the renderer reads `data.mode` and
+ * the `referenceLines[].isPast` flag for the only mode-discriminated
+ * styling (dashed strokes for past latest-safe-starts). Forward-mode
+ * fields preserve the pre-change semantics so existing snapshots stay
+ * stable (AC 12).
+ *
+ * Forward (no anchor or `start-date`):
+ *   - x-axis = duration / finish date; y rises 0 → 1.
+ *   - referenceLines at P50/P80/P95 finishes; `isPast` always `false`.
+ *
+ * Backward (`end-date`):
+ *   - x-axis = candidate-start date; y falls 1 → 0.
+ *   - referenceLines at P50/P80/P95 latest-safe starts;
+ *     `isPast` flips `true` when the resolved date precedes
+ *     `options.today`, and the label appends `" (past)"`.
  */
 function buildScurveData(resolved: ResolvedPert): ScurveData | null {
   const mc = resolved.monteCarloResult;
   if (mc === null) return null;
-  // Anchor the curve with O–p95 range. Use p50 ÷ ~0.5σ-ish as a
-  // proxy for the lower tail — when MC reports identical p50/p80/p95
-  // (degenerate) the function returns null upstream via no-variance.
+  // Anchor the curve with O–p95 range. Use 2·p50 − p95 as a proxy for
+  // the lower tail; when MC reports a degenerate p50/p80/p95 (collapse
+  // to one value) the function returns null and the no-variance
+  // fallback caption row covers the case.
   const p5 = Math.max(0, 2 * mc.p50 - mc.p95);
-  const samples = [p5, mc.p50, mc.p80, mc.p95];
-  if (samples.every((v) => v === samples[0])) return null;
-  // Deadline only exists for end-date-anchored diagrams. The anchor's
-  // date is the hard finish constraint; convert it to days-from-start
-  // so it fits on the same x-scale as the percentile dots.
+  const durationSamples = [p5, mc.p50, mc.p80, mc.p95];
+  if (durationSamples.every((v) => v === durationSamples[0])) return null;
+
+  const anchor = resolved.options.anchor;
+  const mode: 'forward' | 'backward' =
+    anchor?.kind === 'backward' ? 'backward' : 'forward';
+  const yAxisLabel =
+    mode === 'backward' ? 'P(hit deadline | start by x)' : 'P(finish ≤ x)';
+  const today = resolved.options.today;
+
+  // Deadline canonical days = `end_date − projectStart` for backward
+  // mode. Backward also uses this as the right edge of the x-axis
+  // (= candidate-start of "the deadline itself" = 0% probability).
   let deadlineDays: number | null = null;
   let deadlineDate: string | null = null;
-  const anchor = resolved.options.anchor;
   if (
     anchor !== null &&
     anchor.kind === 'backward' &&
@@ -3339,13 +3336,121 @@ function buildScurveData(resolved: ResolvedPert): ScurveData | null {
     }
   }
 
+  // ── Project everything into "canonical x-axis days" ────────────
+  //
+  // Forward: x-axis days = duration days from projectStart. Sample
+  // values, percentiles, and band edges are all already in this
+  // space — pass through unchanged.
+  //
+  // Backward: x-axis days = candidate-start days from projectStart,
+  // so a candidate-start date `s` projects to `s − projectStart`
+  // canonical days, and the deadline at `end_date` sits at
+  // `deadlineDays` canonical days (the right edge). For each duration
+  // `d`, the candidate-start that just barely fits is
+  // `deadlineDays − d`. P95 (longest duration) → leftmost (earliest
+  // start); P5_proxy (shortest) → rightmost (latest candidate start).
+  //
+  // Two projection helpers: `projectSmooth` keeps fractional days so
+  // the curve interpolates smoothly; `projectRounded` applies the
+  // same `Math.ceil` rounding the analyzer uses (`roundConservative`)
+  // so percentile dots and their date labels match the caption rows
+  // byte-for-byte.
+  const projectSmooth = (durationDays: number): number =>
+    mode === 'backward' && deadlineDays !== null
+      ? deadlineDays - durationDays
+      : durationDays;
+  const projectRounded = (durationDays: number): number =>
+    mode === 'backward' && deadlineDays !== null
+      ? deadlineDays - Math.ceil(durationDays)
+      : durationDays;
+
+  // Curve points, ordered ascending by `x`. Forward rises; backward
+  // falls. Same MC trial set in both — only the projection flips.
+  // Smooth projection (no ceil) so the cubic interpolation between
+  // (P50, P80, P95) doesn't step.
+  const durationProbPairs: Array<{ d: number; p: number }> = [
+    { d: durationSamples[0], p: 0.05 },
+    { d: mc.p50, p: 0.5 },
+    { d: mc.p80, p: 0.8 },
+    { d: mc.p95, p: 0.95 },
+  ];
+  const curvePoints = durationProbPairs
+    .map(({ d, p }) => ({ x: projectSmooth(d), y: p }))
+    .sort((a, b) => a.x - b.x);
+
+  const samples = durationSamples.map(projectSmooth).sort((a, b) => a - b);
+
+  // Band edges. In backward mode the projection inverts ordering, so
+  // we explicitly assign the smaller projected value to `p16Days` and
+  // the larger to `p84Days` — the renderer relies on `p16Days ≤
+  // p84Days`.
+  const p16Proj = projectSmooth(mc.p16);
+  const p84Proj = projectSmooth(mc.p84);
+  const bandLeft = Math.min(p16Proj, p84Proj);
+  const bandRight = Math.max(p16Proj, p84Proj);
+
+  // Percentile reference lines — same MC outputs, mode-dependent
+  // wording and projection. `durationDays` keeps the original duration
+  // so the renderer can paint the "≈ Nw of work" sub-label below each
+  // dot in backward mode.
+  const referenceLines: ScurveReferenceLine[] = (
+    [
+      { pct: 50, days: mc.p50 },
+      { pct: 80, days: mc.p80 },
+      { pct: 95, days: mc.p95 },
+    ] as Array<{ pct: 50 | 80 | 95; days: number }>
+  ).map(({ pct, days }) => {
+    const yFrac = pct / 100;
+    if (mode === 'backward' && anchor?.kind === 'backward') {
+      const offsetDays = Math.ceil(days);
+      const date = addCalendarDays(anchor.date, -offsetDays);
+      const isPast = today.length > 0 && date < today;
+      const label = `P${pct} latest-safe start${isPast ? ' (past)' : ''}`;
+      return {
+        x: projectRounded(days),
+        y: yFrac,
+        durationDays: days,
+        label,
+        isPast,
+      };
+    }
+    return {
+      x: days,
+      y: yFrac,
+      durationDays: days,
+      label: `P${pct} finish`,
+      isPast: false,
+    };
+  });
+
+  // Axis bounds. Backward right edge = the deadline itself (the
+  // candidate-start = deadline column, where 0% chance remains).
+  const xMinDays =
+    mode === 'backward' && deadlineDays !== null
+      ? deadlineDays - mc.maxDurationDays
+      : Math.min(durationSamples[0], mc.minDurationDays);
+  const xMaxDays =
+    mode === 'backward' && deadlineDays !== null
+      ? deadlineDays
+      : Math.max(mc.p95, mc.maxDurationDays);
+
   return {
+    mode,
+    yAxisLabel,
+    curvePoints,
     samples,
-    p16Days: mc.p16,
-    p84Days: mc.p84,
-    p50Days: mc.p50,
-    p80Days: mc.p80,
-    p95Days: mc.p95,
+    p16Days: bandLeft,
+    p84Days: bandRight,
+    // Percentile dots/date-labels — `projectRounded` matches the
+    // analyzer's `roundConservative` (Math.ceil of the duration), so
+    // each dot's date label is byte-identical to the caption's
+    // "P{X} latest-safe start: <date>" row.
+    p50Days: projectRounded(mc.p50),
+    p80Days: projectRounded(mc.p80),
+    p95Days: projectRounded(mc.p95),
+    xMinDays,
+    xMaxDays,
+    referenceLines,
     framingNote: anchorAnnotationText(resolved),
     anchorDate: resolved.projectStart,
     deadlineDays,
@@ -3424,13 +3529,15 @@ function renderScurveBlock(
   const plotW = plotRight - plotLeft;
   const plotH = plotBottom - plotTop;
 
-  // Extend xMin a small buffer below min(p5, p16) so the empirical
-  // 68% band has visible unshaded area to its left — reads more
-  // clearly as "this is the likely-finish span" than a band flush
-  // against the plot edge.
-  const xMax = data.samples[data.samples.length - 1];
-  const xMinNatural = Math.min(data.samples[0], data.p16Days);
-  const xMin = xMinNatural - 0.05 * (xMax - xMinNatural);
+  // Axis bounds come pre-projected from `buildScurveData` so the
+  // renderer stays mode-blind. Extend the left edge by a small buffer
+  // below `min(curve start, band left)` so the empirical 68% band has
+  // visible unshaded area to its left — reads more clearly as "this
+  // is the likely-finish span" than a band flush against the edge.
+  const xMaxRaw = data.xMaxDays;
+  const xMinNatural = Math.min(data.xMinDays, data.p16Days);
+  const xMin = xMinNatural - 0.05 * (xMaxRaw - xMinNatural);
+  const xMax = xMaxRaw;
   const xRange = xMax - xMin || 1;
   const xScale = (v: number): number =>
     plotLeft + ((v - xMin) / xRange) * plotW;
@@ -3478,11 +3585,13 @@ function renderScurveBlock(
     .attr('font-size', SCURVE_TICK_FONT_SIZE - 1)
     .attr('font-weight', '600')
     .attr('opacity', 0.85)
-    // Two-word title fits at full plot heights (~146px non-anchored,
-    // ~132px anchored after the subline shrinks the plot). The card
-    // header was removed once this title took over, so this is now
-    // the only place the chart names itself.
-    .text('Completion Probability');
+    // Forward emits "P(finish ≤ x)"; backward emits
+    // "P(hit deadline | start by x)". The two-word title fits at full
+    // plot heights — backward's longer label leans on jsdom's relaxed
+    // SVG measurement at test time, and on the canvas's auto-shrink
+    // at render time. The card header was removed once this title
+    // took over, so this is now the only place the chart names itself.
+    .text(data.yAxisLabel);
 
   // Empirical 68% band [P16, P84] — same MC trials that produced the
   // P50/P80/P95 dots, so the math story stays consistent: every
@@ -3546,17 +3655,15 @@ function renderScurveBlock(
     }
   }
 
-  // Sigmoid curve through the 4 sample points (p5 / p50 / p80 / p95).
-  // Cumulative probabilities at those samples are 5 / 50 / 80 / 95 %.
-  // Interpolate piecewise-linearly between them with extra anchor at 0.
-  // Curve starts at samples[0] (p5), not xMin — xMin may extend below
-  // to give the μ±σ band a left buffer.
-  const points: { x: number; y: number }[] = [
-    { x: xScale(data.samples[0]), y: yScale(0.05) },
-    { x: xScale(data.p50Days), y: yScale(0.5) },
-    { x: xScale(data.p80Days), y: yScale(0.8) },
-    { x: xScale(data.p95Days), y: yScale(0.95) },
-  ];
+  // Sigmoid curve through the 4 sample points. Forward mode rises
+  // 0.05 → 0.95; backward mode falls 0.95 → 0.05. The pairs come from
+  // `buildScurveData`, already projected into the right x-axis space
+  // (duration days vs candidate-start days), so this site stays
+  // mode-blind.
+  const points: { x: number; y: number }[] = data.curvePoints.map((pt) => ({
+    x: xScale(pt.x),
+    y: yScale(pt.y),
+  }));
   const curve = d3Shape
     .line<{ x: number; y: number }>()
     .x((d) => d.x)
@@ -3578,10 +3685,47 @@ function renderScurveBlock(
   // the criticality bands used elsewhere in the diagram so colors
   // read consistently across widgets.
   type Band = 'yellow' | 'orange' | 'red';
-  const dots: { value: number; pct: number; label: string; band: Band }[] = [
-    { value: data.p50Days, pct: 0.5, label: 'P50', band: 'yellow' },
-    { value: data.p80Days, pct: 0.8, label: 'P80', band: 'orange' },
-    { value: data.p95Days, pct: 0.95, label: 'P95', band: 'red' },
+  // Reference-line `isPast` flag comes from `buildScurveData`'s
+  // backward-mode pass (forward mode always emits `false`). Past lines
+  // render with a longer dash so they read as "deadline has slipped"
+  // at a glance — matches the `(past)` label suffix on the same line.
+  // `value` is the x-axis plotting position (mode-projected by
+  // `buildScurveData`); `durationDays` is the original duration so
+  // the secondary sub-label can still surface "≈ Nw of work" in
+  // backward mode, where `value` is a candidate-start position
+  // rather than a duration.
+  const dots: {
+    value: number;
+    durationDays: number;
+    pct: number;
+    label: string;
+    band: Band;
+    isPast: boolean;
+  }[] = [
+    {
+      value: data.p50Days,
+      durationDays: data.referenceLines[0]?.durationDays ?? data.p50Days,
+      pct: 0.5,
+      label: 'P50',
+      band: 'yellow',
+      isPast: data.referenceLines[0]?.isPast ?? false,
+    },
+    {
+      value: data.p80Days,
+      durationDays: data.referenceLines[1]?.durationDays ?? data.p80Days,
+      pct: 0.8,
+      label: 'P80',
+      band: 'orange',
+      isPast: data.referenceLines[1]?.isPast ?? false,
+    },
+    {
+      value: data.p95Days,
+      durationDays: data.referenceLines[2]?.durationDays ?? data.p95Days,
+      pct: 0.95,
+      label: 'P95',
+      band: 'red',
+      isPast: data.referenceLines[2]?.isPast ?? false,
+    },
   ];
   // Pre-compute percentile x positions for use by the x-axis tick
   // collision pass below.
@@ -3599,7 +3743,7 @@ function renderScurveBlock(
       .attr('y2', plotBottom)
       .attr('stroke', color)
       .attr('stroke-width', 1)
-      .attr('stroke-dasharray', '3 3')
+      .attr('stroke-dasharray', d.isPast ? '4,2' : '3 3')
       .attr('opacity', 0.7);
     block
       .append('circle')
@@ -3654,8 +3798,13 @@ function renderScurveBlock(
         .attr('fill', color)
         .attr('font-size', SCURVE_TICK_FONT_SIZE - 2)
         .attr('opacity', 0.85)
-        .text(formatScurveTick(d.value, unit));
+        // Always the original duration value — `d.value` reflects the
+        // plotting position which differs from duration in backward mode.
+        .text(formatScurveTick(d.durationDays, unit));
     } else {
+      // Unanchored: only the duration matters (no calendar). `d.value`
+      // equals `d.durationDays` in forward mode so this is a no-op
+      // relative to pre-flip behavior.
       block
         .append('text')
         .attr('class', 'pert-scurve-percentile-xtick')
@@ -3665,7 +3814,7 @@ function renderScurveBlock(
         .attr('fill', color)
         .attr('font-size', SCURVE_TICK_FONT_SIZE)
         .attr('font-weight', '700')
-        .text(formatScurveTick(d.value, unit));
+        .text(formatScurveTick(d.durationDays, unit));
     }
   }
 
