@@ -622,7 +622,29 @@ export function renderPert(
       analysisCharts.length > 0
         ? (usableWidth - col1Width) / analysisCharts.length
         : 0;
+    // Layout order: charts first (Tornado then S-curve), then the col-1
+    // stack (Summary + Field labels) on the RIGHT. Summary's percentile
+    // numbers tie visually to the S-curve next to it.
     let cursorX = DIAGRAM_PADDING;
+    for (const w of analysisCharts) {
+      const args = {
+        x: cursorX,
+        y: bandY,
+        width: chartWidth,
+        height: analysisRowHeight,
+        palette,
+        isDark,
+      };
+      if (w.kind === 'tornado') {
+        renderTornadoBlock(svg, tornadoRows, args);
+      } else {
+        renderScurveBlock(svg, scurveData!, {
+          ...args,
+          unit: resolved.options.timeUnit,
+        });
+      }
+      cursorX += chartWidth + ANALYSIS_GAP;
+    }
     if (col1Used) {
       let stackY = bandY;
       if (summaryRendered) {
@@ -646,26 +668,6 @@ export function renderPert(
           isDark,
         });
       }
-      cursorX += col1Width + ANALYSIS_GAP;
-    }
-    for (const w of analysisCharts) {
-      const args = {
-        x: cursorX,
-        y: bandY,
-        width: chartWidth,
-        height: analysisRowHeight,
-        palette,
-        isDark,
-      };
-      if (w.kind === 'tornado') {
-        renderTornadoBlock(svg, tornadoRows, args);
-      } else {
-        renderScurveBlock(svg, scurveData!, {
-          ...args,
-          unit: resolved.options.timeUnit,
-        });
-      }
-      cursorX += chartWidth + ANALYSIS_GAP;
     }
     bandY += analysisRowHeight;
   }
@@ -2962,34 +2964,41 @@ function renderScurveBlock(
       .attr('stroke', fill)
       .attr('stroke-width', 1.5)
       .attr('data-percentile', d.label);
+    // Anchor labels inward at the plot edges so the rightmost
+    // percentile (P95, which lands at plotRight) doesn't half-clip
+    // past the box.
+    const edgePad = 4;
+    let percentileAnchor: 'middle' | 'start' | 'end' = 'middle';
+    if (cx <= plotLeft + edgePad) percentileAnchor = 'start';
+    else if (cx >= plotRight - edgePad) percentileAnchor = 'end';
     block
       .append('text')
       .attr('class', 'pert-scurve-percentile-label')
       .attr('x', cx)
       .attr('y', cy - SCURVE_PERCENTILE_RADIUS - 4)
-      .attr('text-anchor', 'middle')
+      .attr('text-anchor', percentileAnchor)
       .attr('fill', labelColor)
       .attr('font-size', SCURVE_TICK_FONT_SIZE)
       .text(d.label);
   }
 
-  // X-axis ticks: min, p50, max — labelled in the diagram unit.
-  const xTicks = [
-    { v: xMin, label: formatScurveTick(xMin, unit) },
-    { v: data.p50Days, label: formatScurveTick(data.p50Days, unit) },
-    { v: data.p95Days, label: formatScurveTick(data.p95Days, unit) },
-  ];
-  for (const t of xTicks) {
-    const tx = xScale(t.v);
+  // X-axis ticks: evenly spaced across the x-range. More ticks let
+  // readers eyeball P(done by t) for any t, not just the percentile
+  // dots. Endpoint labels anchor inward so they don't clip the box.
+  const N_X_TICKS = 6;
+  for (let i = 0; i < N_X_TICKS; i++) {
+    const v = xMin + (xRange * i) / (N_X_TICKS - 1);
+    const anchor: 'middle' | 'start' | 'end' =
+      i === 0 ? 'start' : i === N_X_TICKS - 1 ? 'end' : 'middle';
     block
       .append('text')
       .attr('class', 'pert-scurve-xtick')
-      .attr('x', tx)
+      .attr('x', xScale(v))
       .attr('y', plotBottom + SCURVE_TICK_FONT_SIZE + 6)
-      .attr('text-anchor', 'middle')
+      .attr('text-anchor', anchor)
       .attr('fill', labelColor)
       .attr('font-size', SCURVE_TICK_FONT_SIZE)
-      .text(t.label);
+      .text(formatScurveTick(v, unit));
   }
 }
 
