@@ -414,6 +414,9 @@ export function renderPert(
     showFieldLegend: options.showFieldLegend ?? false,
   });
   const standaloneFieldLegendWidthForExport = layout.width;
+  const analysisBlockHeight = analysisLayer.analysisHasContent
+    ? CAPTION_TOP_GAP + analysisLayer.analysisRowHeight
+    : 0;
   const fieldLegendBlockHeight = analysisLayer.fieldLegendStandalone
     ? CAPTION_TOP_GAP +
       fieldLegendHeightFor(standaloneFieldLegendWidthForExport)
@@ -440,16 +443,6 @@ export function renderPert(
     ? analysisLayer.minContentWidth + 2 * DIAGRAM_PADDING
     : 0;
   const naturalWidth = Math.max(naturalChartWidth, minAnalysisRowW);
-  // Width-dependent height — field-legend-under-tornado uses the
-  // tornado column width to size the legend, so the canvas must reserve
-  // the right amount of vertical space.
-  const analysisAvailableWidth = Math.max(
-    0,
-    naturalWidth - 2 * DIAGRAM_PADDING
-  );
-  const analysisBlockHeight = analysisLayer.analysisHasContent
-    ? analysisLayerHeightAt(analysisLayer, analysisAvailableWidth)
-    : 0;
   const naturalHeight =
     layout.height +
     DIAGRAM_PADDING * 2 +
@@ -649,12 +642,6 @@ interface AnalysisLayerState {
   showScurve: boolean;
   fieldLegendInAnalysisRow: boolean;
   fieldLegendStandalone: boolean;
-  // When true, the field-legend stacks directly under the Tornado box
-  // inside the tornado column (instead of col 1 or its own full-width
-  // row). Activated when both `showFieldLegend` and `showTornado` resolve
-  // to true. In this mode tornado is hard-capped at 5 rows to keep the
-  // combined column from dominating the analysis area.
-  fieldLegendUnderTornado: boolean;
   analysisHasContent: boolean;
 
   // Computed widget content (cached so paint matches precompute).
@@ -676,11 +663,6 @@ interface AnalysisLayerState {
   minContentWidth: number;
 }
 
-// Hard cap on tornado rows when the field-legend stacks below it in the
-// same column. Keeps the combined (tornado + legend) column from
-// crowding out the S-curve column next to it.
-const TORNADO_TOP_N_WITH_FIELD_LEGEND = 5;
-
 function computeAnalysisLayer(
   resolved: ResolvedPert,
   captionBullets: CaptionBullet[],
@@ -693,27 +675,16 @@ function computeAnalysisLayer(
       CAPTION_HEADER_BAND_HEIGHT
     : 0;
   // Tornado / S-curve only render when MC ran — analytical mode
-  // produces no criticality/sigma data. When the field-legend stacks
-  // below the tornado box (Field labels toggle on), hard-cap tornado at
-  // 5 rows so the combined column doesn't dwarf the S-curve next to it.
-  const tornadoInitialMax =
-    opts.showFieldLegend && opts.showTornado
-      ? TORNADO_TOP_N_WITH_FIELD_LEGEND
-      : undefined;
-  let tornadoRows = opts.showTornado
-    ? buildTornadoRows(resolved, tornadoInitialMax)
-    : [];
+  // produces no criticality/sigma data.
+  let tornadoRows = opts.showTornado ? buildTornadoRows(resolved) : [];
   const showTornado = tornadoRows.length > 0;
   let tornadoBoxHeight = showTornado ? tornadoBoxHeightFor(tornadoRows) : 0;
   const scurveData = opts.showScurve ? buildScurveData(resolved) : null;
   const showScurve = scurveData !== null;
   const scurveBoxHeight = showScurve ? SCURVE_BOX_HEIGHT : 0;
 
-  const fieldLegendUnderTornado = opts.showFieldLegend && showTornado;
   const fieldLegendInAnalysisRow =
-    opts.showFieldLegend &&
-    !fieldLegendUnderTornado &&
-    (summaryRendered || showScurve);
+    opts.showFieldLegend && (summaryRendered || showTornado || showScurve);
   const col1Width = summaryRendered
     ? Math.max(
         SUMMARY_MIN_W,
@@ -739,10 +710,8 @@ function computeAnalysisLayer(
     tornadoBoxHeight
   );
   // Grow Tornado to fill leftover vertical room when col 1 / S-curve
-  // are taller than the default-N row count would produce. Skip when
-  // the field-legend will stack below tornado — the cap is intentional
-  // there to leave room for the legend.
-  if (showTornado && !fieldLegendUnderTornado) {
+  // are taller than the default-N row count would produce.
+  if (showTornado) {
     const maxRows = tornadoMaxRowsFor(analysisRowHeight);
     if (maxRows > tornadoRows.length) {
       tornadoRows = buildTornadoRows(resolved, maxRows);
@@ -763,9 +732,7 @@ function computeAnalysisLayer(
   const analysisHasContent =
     summaryRendered || analysisCharts.length > 0 || fieldLegendInAnalysisRow;
   const fieldLegendStandalone =
-    opts.showFieldLegend &&
-    !fieldLegendInAnalysisRow &&
-    !fieldLegendUnderTornado;
+    opts.showFieldLegend && !fieldLegendInAnalysisRow;
 
   // Minimum content width — col1 + sum of chart minimums + gaps.
   let minContentWidth = 0;
@@ -785,7 +752,6 @@ function computeAnalysisLayer(
     showScurve,
     fieldLegendInAnalysisRow,
     fieldLegendStandalone,
-    fieldLegendUnderTornado,
     analysisHasContent,
     tornadoRows,
     scurveData,
@@ -799,21 +765,6 @@ function computeAnalysisLayer(
     analysisRowHeight,
     minContentWidth,
   };
-}
-
-// Width-dependent helper: in row mode, how much vertical space the
-// tornado column needs once the field-legend stacks below its box.
-// Returns 0 when the legend is not under-tornado in row mode.
-function tornadoColumnHeightWithLegend(
-  state: AnalysisLayerState,
-  tornadoColumnWidth: number
-): number {
-  if (!state.fieldLegendUnderTornado) return 0;
-  return (
-    state.tornadoBoxHeight +
-    COL1_VSTACK_GAP +
-    fieldLegendHeightFor(tornadoColumnWidth)
-  );
 }
 
 /**
@@ -832,25 +783,7 @@ function analysisLayerHeightAt(
       : 0;
   }
   if (availableWidth >= state.minContentWidth) {
-    // In row mode, the field-legend stacked under tornado expands the
-    // analysis row to fit the tornado column's combined height.
-    let rowHeight = state.analysisRowHeight;
-    if (state.fieldLegendUnderTornado) {
-      const col1Used = state.summaryRendered || state.fieldLegendInAnalysisRow;
-      const colCount = (col1Used ? 1 : 0) + state.analysisCharts.length;
-      const nGaps = Math.max(0, colCount - 1);
-      const usableWidth = availableWidth - nGaps * ANALYSIS_GAP;
-      const tornadoColumnWidth =
-        state.analysisCharts.length > 0
-          ? (usableWidth - state.col1Width) / state.analysisCharts.length
-          : 0;
-      const tornadoColH = tornadoColumnHeightWithLegend(
-        state,
-        tornadoColumnWidth
-      );
-      rowHeight = Math.max(rowHeight, tornadoColH);
-    }
-    return CAPTION_TOP_GAP + rowHeight;
+    return CAPTION_TOP_GAP + state.analysisRowHeight;
   }
   // Stack mode — type-grouped rows; sum per-row max heights.
   const rows = packRows(state, availableWidth);
@@ -944,54 +877,23 @@ function paintAnalysisRowMode(
     state.analysisCharts.length > 0
       ? (usableWidth - state.col1Width) / state.analysisCharts.length
       : 0;
-  // When the field-legend stacks under the tornado column, columns
-  // render at their natural heights instead of stretching to the row's
-  // tallest column — the legend itself supplies the extra vertical
-  // space, and stretching e.g. the S-curve box just produces empty
-  // bottom padding.
-  const tornadoColumnHeight = state.fieldLegendUnderTornado
-    ? tornadoColumnHeightWithLegend(state, chartWidth)
-    : 0;
-  const rowHeight = state.fieldLegendUnderTornado
-    ? Math.max(tornadoColumnHeight, state.scurveBoxHeight, state.col1Height)
-    : state.analysisRowHeight;
   // Charts first (Tornado then S-curve), then col-1 stack on the
   // right so Summary's percentile numbers tie visually to the S-curve.
   let cursorX = x;
   for (const w of state.analysisCharts) {
+    const args = {
+      x: cursorX,
+      y: bandY,
+      width: chartWidth,
+      height: state.analysisRowHeight,
+      palette,
+      isDark,
+    };
     if (w.kind === 'tornado') {
-      const tornadoH = state.fieldLegendUnderTornado
-        ? state.tornadoBoxHeight
-        : rowHeight;
-      renderTornadoBlock(svg, state.tornadoRows, {
-        x: cursorX,
-        y: bandY,
-        width: chartWidth,
-        height: tornadoH,
-        palette,
-        isDark,
-      });
-      if (state.fieldLegendUnderTornado) {
-        renderFieldLegendBlock(svg, {
-          x: cursorX,
-          y: bandY + tornadoH + COL1_VSTACK_GAP,
-          width: chartWidth,
-          height: fieldLegendHeightFor(chartWidth),
-          palette,
-          isDark,
-        });
-      }
+      renderTornadoBlock(svg, state.tornadoRows, args);
     } else {
-      const scurveH = state.fieldLegendUnderTornado
-        ? state.scurveBoxHeight
-        : rowHeight;
       renderScurveBlock(svg, state.scurveData!, {
-        x: cursorX,
-        y: bandY,
-        width: chartWidth,
-        height: scurveH,
-        palette,
-        isDark,
+        ...args,
         unit: resolved.options.timeUnit,
       });
     }
@@ -1021,7 +923,7 @@ function paintAnalysisRowMode(
       });
     }
   }
-  return CAPTION_TOP_GAP + rowHeight;
+  return CAPTION_TOP_GAP + state.analysisRowHeight;
 }
 
 type StackItemKind = 'summary' | 'tornado' | 'scurve' | 'field';
@@ -1067,20 +969,6 @@ function packRows(
     }
   } else if (charts.length === 1) {
     rows.push([{ kind: charts[0].kind, paintWidth: availableWidth }]);
-  }
-
-  // Field-legend stacks immediately after tornado when the
-  // "Field labels under Activity Risk" mode is active. Insert it after
-  // the row that contains the tornado item so it follows visually.
-  if (state.fieldLegendUnderTornado) {
-    let insertAt = rows.length;
-    for (let i = 0; i < rows.length; i++) {
-      if (rows[i].some((it) => it.kind === 'tornado')) {
-        insertAt = i + 1;
-        break;
-      }
-    }
-    rows.splice(insertAt, 0, [{ kind: 'field', paintWidth: availableWidth }]);
   }
 
   // ── Texts row ──────────────────────────────────────────────
@@ -3426,8 +3314,12 @@ function buildScurveData(resolved: ResolvedPert): ScurveData | null {
   const anchor = resolved.options.anchor;
   const mode: 'forward' | 'backward' =
     anchor?.kind === 'backward' ? 'backward' : 'forward';
-  const yAxisLabel =
-    mode === 'backward' ? 'P(hit deadline | start by x)' : 'P(finish ≤ x)';
+  // Mode-agnostic y-axis label. The mode-specific reading lives on
+  // the x-axis (finish date vs candidate-start date) and in the
+  // inline percentile labels; the y-axis is a probability scale in
+  // both cases, so a plain-English label reads more cleanly than
+  // mathematical notation.
+  const yAxisLabel = 'Probability of completion';
   const today = resolved.options.today;
 
   // Deadline canonical days = `end_date − projectStart` for backward
@@ -3696,12 +3588,12 @@ function renderScurveBlock(
     .attr('font-size', SCURVE_TICK_FONT_SIZE - 1)
     .attr('font-weight', '600')
     .attr('opacity', 0.85)
-    // Forward emits "P(finish ≤ x)"; backward emits
-    // "P(hit deadline | start by x)". The two-word title fits at full
-    // plot heights — backward's longer label leans on jsdom's relaxed
-    // SVG measurement at test time, and on the canvas's auto-shrink
-    // at render time. The card header was removed once this title
-    // took over, so this is now the only place the chart names itself.
+    // Plain-English "Probability of completion" — same label in
+    // both modes. The mode-specific reading comes from the x-axis
+    // (finish date vs candidate-start date) and the inline P50/P80/
+    // P95 labels; the y-axis is a probability scale either way.
+    // The card header was removed once this title took over, so
+    // this is now the only place the chart names itself.
     .text(data.yAxisLabel);
 
   // Empirical 68% band [P16, P84] — same MC trials that produced the

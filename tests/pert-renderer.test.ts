@@ -459,13 +459,13 @@ A
     const block = c.querySelector('g.pert-scurve-block');
     expect(block).not.toBeNull();
     // The chart no longer carries a dedicated header text — the
-    // rotated y-axis title (now mode-aware per spec §13A.12) plus the
-    // colored P50/P80/P95 dots make the chart self-identifying. The
-    // forward / no-anchor label is "P(finish ≤ x)"; backward emits
-    // "P(hit deadline | start by x)".
+    // rotated y-axis title plus the colored P50/P80/P95 dots make
+    // the chart self-identifying. The y-axis label is plain-English
+    // and mode-agnostic ("Probability of completion") — the mode-
+    // specific reading lives on the x-axis and inline labels.
     expect(
       block!.querySelector('text.pert-scurve-y-axis-title')!.textContent
-    ).toBe('P(finish ≤ x)');
+    ).toBe('Probability of completion');
     // Three percentile dots: P50, P80, P95.
     expect(
       block!.querySelectorAll('circle.pert-scurve-percentile-dot').length
@@ -714,13 +714,16 @@ describe('pert renderer — S-curve backward-mode framing (Path B)', () => {
     return c;
   }
 
-  it('AC 9: y-axis title flips to "P(hit deadline | start by x)" in backward mode', () => {
+  it('AC 9: backward mode keeps the plain-English y-axis title', () => {
+    // Mode-agnostic "Probability of completion" — the mode-specific
+    // reading lives on the x-axis (candidate-start dates) and the
+    // inline percentile labels ("P50 · May 19" etc.).
     const c = renderWithFixture('backward-monte-carlo.dgmo');
     const block = c.querySelector('g.pert-scurve-block');
     expect(block).not.toBeNull();
     expect(
       block!.querySelector('text.pert-scurve-y-axis-title')!.textContent
-    ).toBe('P(hit deadline | start by x)');
+    ).toBe('Probability of completion');
     document.body.removeChild(c);
   });
 
@@ -834,7 +837,7 @@ describe('pert renderer — S-curve buildScurveData structural fields', () => {
   // dashes mirror data.referenceLines[i].isPast. Forward-mode
   // assertions live in the existing structural suite above.
 
-  it('forward fixture → y-axis label "P(finish ≤ x)" (AC 12 regression)', () => {
+  it('forward fixture keeps the plain-English y-axis title', () => {
     const c = document.createElement('div');
     document.body.appendChild(c);
     const colors = getPalette('nord').light;
@@ -850,7 +853,7 @@ describe('pert renderer — S-curve buildScurveData structural fields', () => {
     const block = c.querySelector('g.pert-scurve-block')!;
     expect(
       block.querySelector('text.pert-scurve-y-axis-title')!.textContent
-    ).toBe('P(finish ≤ x)');
+    ).toBe('Probability of completion');
     document.body.removeChild(c);
   });
 });
