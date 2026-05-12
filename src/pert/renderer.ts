@@ -89,15 +89,17 @@ const NODE_STROKE_WIDTH = 1.5;
 
 // Analysis-block chrome (Summary / Activity Risk / Completion / Field
 // labels). These sit BELOW the diagram and shouldn't compete with it
-// for visual weight — softer fill (8% tint vs the 25% used by activity
-// nodes) and a desaturated stroke recede so the diagram stays primary.
+// for visual weight. Match the uncolored group-container recipe (§2:
+// `mix(surface, bg, 40)`) so the panels read as the same neutral
+// containers as PERT group rects. Keep the stroke desaturated so the
+// diagram stays the primary visual focus.
 function analysisBlockChrome(
   palette: PaletteColors,
   isDark: boolean
 ): { fill: string; stroke: string } {
   const surfaceBg = isDark ? palette.surface : palette.bg;
   return {
-    fill: mix(palette.textMuted, surfaceBg, 8),
+    fill: mix(palette.surface, palette.bg, 40),
     stroke: mix(palette.textMuted, surfaceBg, 35),
   };
 }
