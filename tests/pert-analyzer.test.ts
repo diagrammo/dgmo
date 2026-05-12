@@ -306,16 +306,21 @@ describe('pert analyzer — zero-duration activity semantics', () => {
 });
 
 describe('pert analyzer — mode auto-derivation (AC1–AC4)', () => {
-  it('AC1: all M-only activities → analytical mode, no MC result', () => {
+  it('AC1: all M-only activities → monte-carlo mode via default-confidence spreads', () => {
+    // M-only durations get O/P filled from `default-confidence` (medium by
+    // default); the simulator runs on those filled-in triples. Analytical
+    // mode already uses those spreads to compute project σ, so MC is the
+    // honest extension of that.
     const r = analyze(`pert
 time-unit w
+trials 500
 A 2
 B 3
 A
   -> B
 `);
-    expect(r.mode).toBe('analytical');
-    expect(r.monteCarloResult).toBeNull();
+    expect(r.mode).toBe('monte-carlo');
+    expect(r.monteCarloResult).not.toBeNull();
   });
 
   it('AC2: at least one O/M/P triple → monte-carlo mode', () => {
@@ -363,10 +368,22 @@ A
 });
 
 describe('pert analyzer — `analysis` directive does not force mode (AC6)', () => {
-  it('analysis directive with M-only data → analytical (data wins)', () => {
+  it('analysis directive is inert; mode is data-driven', () => {
+    // The directive is deprecated. Mode comes from data: M-only (with
+    // default-confidence spreads) triggers MC. The directive itself
+    // neither forces nor blocks it.
     const r = analyze(`pert
 analysis monte-carlo
 A 2
+`);
+    expect(r.mode).toBe('monte-carlo');
+  });
+
+  it('analysis directive cannot force MC when there is no data to simulate', () => {
+    // No durations → nothing to simulate; analytical wins regardless.
+    const r = analyze(`pert
+analysis monte-carlo
+A
 `);
     expect(r.mode).toBe('analytical');
   });
@@ -528,9 +545,12 @@ C 1 2 4
   });
 
   it('forward anchor + analytical mode: Expected finish only (no percentile bullets)', () => {
-    // M-only durations → analytical mode → no MC, no percentile lines.
+    // `trials < 100` clamps to analytical → no MC, no percentile lines.
+    // (M-only durations now trigger MC via default-confidence; this test
+    // uses the trials clamp to exercise the analytical caption path.)
     const r = analyze(`pert
 time-unit w
+trials 50
 start-date 2026-06-01
 A 2
   -> B
@@ -604,9 +624,13 @@ A
     expect(rows[3].text).toBe('P95 latest-safe start: ?');
   });
 
-  it('AC 5: backward + analytical mode (M-only) emits no percentile rows', () => {
+  it('AC 5: backward + analytical mode emits no percentile rows', () => {
+    // Use `trials 50` clamp to land in analytical mode. (M-only now
+    // triggers MC via default-confidence, so we can't rely on duration
+    // form alone to choose analytical.)
     const r = analyzeWithNow(`pert
 time-unit w
+trials 50
 end-date 2026-09-15
 A 2
   -> B

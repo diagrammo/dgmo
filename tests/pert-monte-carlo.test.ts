@@ -84,19 +84,66 @@ A
     expect(r.monteCarloResult).not.toBeNull();
   });
 
-  it('Auto-derive: no MC when all activities are M-only', () => {
+  it('Auto-derive: all-M-only diagram fires MC via default-confidence spreads', () => {
+    // M-only activities get O and P filled from `default-confidence` (medium
+    // by default). The simulator runs on those filled-in triples — analytical
+    // mode already uses the same spreads to compute project σ, so MC is the
+    // honest extension.
     const r = analyze(`pert
 time-unit w
+trials 500
+seed 1
 A 2
 B 3
 A
   -> B
 `);
-    expect(r.mode).toBe('analytical');
-    expect(r.monteCarloResult).toBeNull();
-    for (const ra of r.activities) {
-      expect(ra.criticality).toBeNull();
-    }
+    expect(r.mode).toBe('monte-carlo');
+    expect(r.monteCarloResult).not.toBeNull();
+    expect(r.monteCarloResult!.p50).toBeLessThanOrEqual(
+      r.monteCarloResult!.p80
+    );
+    expect(r.monteCarloResult!.p80).toBeLessThanOrEqual(
+      r.monteCarloResult!.p95
+    );
+    // Both activities are on the only path → criticality = 1
+    expect(r.monteCarloResult!.criticalityByActivity['a']).toBe(1);
+    expect(r.monteCarloResult!.criticalityByActivity['b']).toBe(1);
+  });
+
+  it('Auto-derive: a tighter default-confidence narrows the percentile spread', () => {
+    // Same M-only diagram run with `high` vs `low` default-confidence should
+    // shift P95 — high confidence narrows the band, low widens it. Proves the
+    // M-only MC bands are actually driven by the directive (not a constant).
+    const tight = analyze(`pert
+time-unit w
+trials 2000
+seed 1
+default-confidence high
+A 2
+B 3
+A
+  -> B
+`);
+    const loose = analyze(`pert
+time-unit w
+trials 2000
+seed 1
+default-confidence low
+A 2
+B 3
+A
+  -> B
+`);
+    expect(tight.monteCarloResult).not.toBeNull();
+    expect(loose.monteCarloResult).not.toBeNull();
+    // Same seed and topology — P95 spread above P50 must grow with looser
+    // confidence.
+    const tightSpread =
+      tight.monteCarloResult!.p95 - tight.monteCarloResult!.p50;
+    const looseSpread =
+      loose.monteCarloResult!.p95 - loose.monteCarloResult!.p50;
+    expect(looseSpread).toBeGreaterThan(tightSpread);
   });
 
   it('Trials clamp: trials < 100 forces analytical with caveat', () => {

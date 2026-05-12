@@ -467,8 +467,10 @@ export function analyzePert(parsed: ParsedPert): ResolvedPert {
   let monteCarloResult: MonteCarloResult | null = null;
 
   // Auto-derive mode from data: monte-carlo when at least one
-  // non-milestone activity carries a three-point estimate.
-  const dataDrivenMC = activities.some((a) => has3PointEstimate(a));
+  // non-milestone activity carries a duration. M-only activities count —
+  // the parser fills O and P from `default-confidence`, and analytical
+  // mode already uses those spreads to compute project σ.
+  const dataDrivenMC = activities.some((a) => hasDuration(a));
   // Trials clamp: nonsense percentiles from low-N samples → fall back
   // to analytical and surface the reason in the caption.
   const trialsClamped = dataDrivenMC && parsed.options.trials < 100;
@@ -610,12 +612,16 @@ export function analyzePert(parsed: ParsedPert): ResolvedPert {
 }
 
 /**
- * True iff the source supplied an explicit O/M/P triple for the
- * activity. Milestones report false (they're zero-duration sentinels,
- * not estimated work).
+ * True iff the activity has a duration we can simulate — either an
+ * explicit O/M/P triple or an M-only value (whose O/P are filled from
+ * `default-confidence`). Milestones report false (zero-duration
+ * sentinels); zero-duration M-only activities also report false since
+ * factor × 0 = 0 → no spread for MC to simulate.
  */
-function has3PointEstimate(a: PertActivity): boolean {
-  return a.duration !== null && !a.duration.mOnly && !a.isMilestone;
+function hasDuration(a: PertActivity): boolean {
+  if (a.duration === null || a.isMilestone) return false;
+  if (a.duration.mOnly) return a.duration.m.amount > 0;
+  return true;
 }
 
 /**

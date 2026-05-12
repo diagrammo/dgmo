@@ -490,8 +490,11 @@ A
   it('s-curve is silently omitted in analytical mode (no MC output)', () => {
     const c = document.createElement('div');
     document.body.appendChild(c);
+    // `trials 50` clamps to analytical so monteCarloResult is null.
+    // (M-only now triggers MC via default-confidence spreads.)
     const parsed = parsePert(`pert
 time-unit w
+trials 50
 A 2
 B 3
 A
@@ -511,9 +514,10 @@ A
   it('tornado is silently omitted in analytical mode (no MC output)', () => {
     const c = document.createElement('div');
     document.body.appendChild(c);
-    // M-only durations → analytical mode, no MC result.
+    // `trials 50` clamps to analytical, no MC result.
     const parsed = parsePert(`pert
 time-unit w
+trials 50
 A 2
 B 3
 A
