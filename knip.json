@@ -3,8 +3,12 @@
   "ignoreBinaries": ["du"],
   "ignore": [
     "src/editor/tokens.ts",
+    "src/utils/alias-bind.ts",
     "scripts/audit-solid-fill-contrast.ts",
-    "scripts/generate-examples-gallery.mjs"
+    "scripts/generate-examples-gallery.mjs",
+    "scripts/check-bundle-size.cjs",
+    "scripts/migrate-as-aliases.mjs",
+    "scripts/migrate-as-aliases.test.mjs"
   ],
   "ignoreExportsUsedInFile": true,
   "rules": {
