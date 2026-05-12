@@ -37,6 +37,12 @@ const GROUP_PADDING = 18;
 // conventions.md` §2 ("Reserved header band").
 const GROUP_TOP_PADDING = 28;
 
+// Swim-lane layout constants. When a diagram has groups, members are
+// placed in horizontal (LR) or vertical (TB) bands so group rectangles
+// never overlap, even when cross-group edges scatter members across ranks.
+const SWIMLANE_SLOT_SEP = 40;
+const SWIMLANE_GAP = 24;
+
 // Cell-sizing constants — see `computeNodeSizing` below.
 const NODE_CELL_FONT_SIZE = 11;
 const NODE_NAME_FONT_SIZE = 13;
@@ -288,13 +294,34 @@ export function relayoutPert(
 
   dagre.layout(g);
 
-  // Pull critical-path activities toward the vertical center of each
-  // rank. Dagre orders nodes within a rank to minimize edge crossings,
-  // which is criticality-blind — so the dominant path drifts wherever
-  // dagre chose. After layout, swap y-positions per rank so the
-  // highest-criticality node sits in the middle and lower-criticality
-  // ones fan out to the edges.
-  centerByCriticality(g, resolved, memberToGroup, collapsedGroupIds);
+  // When the diagram has any expanded group, switch to swim-lane layout:
+  // ungrouped activities merge into the largest group's lane (the
+  // "spine") so they share the same row as the spine's members, and any
+  // additional groups get their own horizontal band below — guarantees
+  // group rectangles never overlap and cross-group edges read as
+  // explicit lane transitions. Falls back to per-rank criticality
+  // centering when there are no groups (or all collapsed).
+  const swimApplied = applySwimLanes(
+    g,
+    resolved,
+    memberToGroup,
+    collapsedGroupIds
+  );
+  if (!swimApplied) {
+    // Pull critical-path activities toward the vertical center of each
+    // rank. Dagre orders nodes within a rank to minimize edge crossings,
+    // which is criticality-blind — so the dominant path drifts wherever
+    // dagre chose. After layout, swap y-positions per rank so the
+    // highest-criticality node sits in the middle and lower-criticality
+    // ones fan out to the edges.
+    centerByCriticality(g, resolved, memberToGroup, collapsedGroupIds);
+    // Criticality centering is crossing-blind — it can undo dagre's
+    // barycenter ordering and reintroduce edge crossings. Run a greedy
+    // adjacent-swap sweep that keeps any swap that reduces total edge
+    // crossings, preserving criticality-at-center where it doesn't
+    // conflict.
+    reduceCrossings(g, resolved.options.direction);
+  }
 
   // Output nodes — only un-collapsed activities (virtual group nodes
   // are rendered through the `groups` channel, not here).
@@ -397,6 +424,12 @@ export function relayoutPert(
       if (top < minY) minY = top;
       if (bottom > maxY) maxY = bottom;
     }
+    // Group rectangle is a tight bounding box around its members plus
+    // label-band + bottom padding. Swim-lane placement already guarantees
+    // non-overlap by giving each group a distinct slot band, so we don't
+    // need to extend the rect to the full lane height — that would just
+    // bake in empty space when the spine lane absorbs ungrouped members
+    // at ranks the spine doesn't span.
     return {
       id: rg.group.id,
       x: minX - GROUP_PADDING,
@@ -429,6 +462,202 @@ export function relayoutPert(
     width: totalW + DIAGRAM_PADDING,
     height: totalH + DIAGRAM_PADDING,
   };
+}
+
+// ============================================================
+// Swim-lane layout (post-process pass)
+// ============================================================
+//
+// When the diagram declares any group, dagre's rank-only layout will
+// scatter group members across ranks that the OTHER group also occupies,
+// causing post-hoc bounding rectangles to overlap (the classic "two
+// groups crammed into the same column band" failure). To fix this, we
+// reassign positions along the slot axis so each group gets its own
+// contiguous band along the slot axis. Dagre's rank assignments (rank
+// axis) are preserved so the diagram still reads as a topological flow.
+//
+// Lane order: the SPINE lane (the largest expanded group by member
+// count) goes first, with all ungrouped activities + collapsed-group
+// cards merged into it so they share the spine's primary row — wreck-
+// located, dive-ops member, log-inventory all sit at the same y in LR.
+// Other expanded groups stack below in source-declaration order. The
+// spine group's rectangle remains tight around its own members (not the
+// merged-in ungrouped ones), so ungrouped nodes sit at the spine row
+// but outside the rect, in the columns the spine doesn't span.
+
+function applySwimLanes(
+  g: any,
+  resolved: ResolvedPert,
+  memberToGroup: Map<string, string>,
+  collapsedGroupIds: ReadonlySet<string>
+): boolean {
+  const expanded = resolved.groups.filter(
+    (rg) => !collapsedGroupIds.has(rg.group.id)
+  );
+  if (expanded.length === 0) return false;
+
+  const isLR = resolved.options.direction !== 'TB';
+  const rankAxis = isLR ? 'x' : 'y';
+  const slotAxis = isLR ? 'y' : 'x';
+
+  // Spine = largest expanded group; ungrouped activities (and collapsed-
+  // group cards) all merge into this lane so they ride the spine row.
+  // Tiebreak by source-declaration order (first largest wins).
+  let spineIdx = 1;
+  let spineMembers = 0;
+  expanded.forEach((rg, i) => {
+    if (rg.group.activityIds.length > spineMembers) {
+      spineMembers = rg.group.activityIds.length;
+      spineIdx = i + 1;
+    }
+  });
+
+  // Lane index per node. 1..N = expanded groups in declaration order;
+  // ungrouped activities + collapsed-group cards get spineIdx so they
+  // share the band with the spine's members.
+  const laneOf = new Map<string, number>();
+  expanded.forEach((rg, i) => {
+    for (const aid of rg.group.activityIds) laneOf.set(aid, i + 1);
+  });
+  for (const id of g.nodes()) {
+    if (!laneOf.has(id)) laneOf.set(id, spineIdx);
+  }
+
+  // Track which nodes are "spine members" — group members of the spine
+  // (NOT the merged-in ungrouped nodes). This drives in-cell ordering:
+  // spine members sit at the top slots so they form a continuous row.
+  const spineMemberSet = new Set<string>(
+    expanded[spineIdx - 1]?.group.activityIds ?? []
+  );
+
+  // Bucket every dagre node by rank, then by lane within each rank.
+  const numLanes = expanded.length + 1; // index 0 unused (kept for clarity)
+  const rankBuckets = new Map<number, Map<number, string[]>>();
+  for (const id of g.nodes()) {
+    const node = g.node(id);
+    if (!node) continue;
+    const rankKey = Math.round(node[rankAxis] as number);
+    const laneIdx = laneOf.get(id) ?? spineIdx;
+    let byLane = rankBuckets.get(rankKey);
+    if (!byLane) {
+      byLane = new Map();
+      rankBuckets.set(rankKey, byLane);
+    }
+    if (!byLane.has(laneIdx)) byLane.set(laneIdx, []);
+    byLane.get(laneIdx)!.push(id);
+  }
+
+  // Per-lane slot capacity = max members of that lane in any single rank.
+  const laneSlots = new Array<number>(numLanes).fill(0);
+  for (const byLane of rankBuckets.values()) {
+    for (const [li, members] of byLane) {
+      if (members.length > laneSlots[li]) laneSlots[li] = members.length;
+    }
+  }
+
+  // Slot size along the slot axis. All non-milestone activity / collapsed-
+  // group nodes share DEFAULT_NODE_HEIGHT in LR; in TB we use the uniform
+  // activityWidth (first node's width is representative).
+  const slotSize = isLR
+    ? DEFAULT_NODE_HEIGHT
+    : (g.node(g.nodes()[0])?.width ?? DEFAULT_NODE_HEIGHT);
+
+  // Lane sizes (along the slot axis) = LABEL_PAD + slot strip + BOTTOM_PAD
+  // for any lane with at least one member; empty lanes contribute 0.
+  const laneSize: number[] = new Array<number>(numLanes).fill(0);
+  for (let i = 1; i < numLanes; i++) {
+    const slots = laneSlots[i];
+    if (slots === 0) {
+      laneSize[i] = 0;
+      continue;
+    }
+    const slotsExtent =
+      slots * slotSize + Math.max(0, slots - 1) * SWIMLANE_SLOT_SEP;
+    laneSize[i] = GROUP_TOP_PADDING + slotsExtent + GROUP_PADDING;
+  }
+
+  // Lane start offsets along the slot axis (cumulative). Spine goes first
+  // so the spine row sits at the top of the diagram; other lanes stack
+  // below in declaration order.
+  const laneOrder: number[] = [
+    spineIdx,
+    ...Array.from({ length: expanded.length }, (_, i) => i + 1).filter(
+      (i) => i !== spineIdx
+    ),
+  ];
+  const laneStart: number[] = new Array<number>(numLanes).fill(0);
+  let cursor = DIAGRAM_PADDING;
+  for (const li of laneOrder) {
+    laneStart[li] = cursor;
+    if (laneSize[li] > 0) cursor += laneSize[li] + SWIMLANE_GAP;
+  }
+
+  // Criticality lookup — used as a tie-breaker when ordering peers in
+  // the same cell.
+  const critOf = (id: string): number => {
+    const r = resolved.activities.find((a) => a.activity.id === id);
+    if (r) {
+      return r.criticality !== null ? r.criticality : r.isCriticalPath ? 1 : 0;
+    }
+    const rg = resolved.groups.find((x) => x.group.id === id);
+    if (!rg) return 0;
+    let m = 0;
+    for (const aid of rg.group.activityIds) {
+      const ar = resolved.activities.find((a) => a.activity.id === aid);
+      if (!ar) continue;
+      const c =
+        ar.criticality !== null ? ar.criticality : ar.isCriticalPath ? 1 : 0;
+      if (c > m) m = c;
+    }
+    return m;
+  };
+
+  // Pre-shuffle slot positions for stable tie-breaking.
+  const oldSlot = new Map<string, number>();
+  for (const id of g.nodes()) {
+    oldSlot.set(id, g.node(id)![slotAxis] as number);
+  }
+
+  // Reposition each node into its (lane, rank) cell — packed from the
+  // band top so slot 1 stays at the same y across ranks (the "spine
+  // row"). Spine members win the top slot; ungrouped tag along beneath.
+  for (const byLane of rankBuckets.values()) {
+    for (const [li, members] of byLane) {
+      const slotStripStart = laneStart[li] + GROUP_TOP_PADDING;
+
+      const sorted = [...members].sort((a, b) => {
+        // Spine members first (so they own slot 1 — the spine row).
+        const aSpine = spineMemberSet.has(a) ? 0 : 1;
+        const bSpine = spineMemberSet.has(b) ? 0 : 1;
+        if (aSpine !== bSpine) return aSpine - bSpine;
+        const ca = critOf(a);
+        const cb = critOf(b);
+        if (cb !== ca) return cb - ca;
+        return (oldSlot.get(a) ?? 0) - (oldSlot.get(b) ?? 0);
+      });
+
+      sorted.forEach((id, idx) => {
+        const node = g.node(id);
+        node[slotAxis] =
+          slotStripStart + slotSize / 2 + idx * (slotSize + SWIMLANE_SLOT_SEP);
+      });
+    }
+  }
+
+  // Re-route every edge with a clean S-curve — almost every node moved
+  // along the slot axis, so dagre's original control points are now
+  // routed through empty space at best, through other nodes at worst.
+  const dir = resolved.options.direction;
+  for (const e of g.edges()) {
+    const src = g.node(e.v);
+    const tgt = g.node(e.w);
+    if (!src || !tgt) continue;
+    const data = g.edge(e);
+    if (!data) continue;
+    data.points = smoothEdge(src, tgt, dir);
+  }
+
+  return true;
 }
 
 // ============================================================
@@ -596,4 +825,131 @@ function smoothEdge(
     { x: tx - Math.sign(span || 1) * pad, y: tgt.y },
     { x: tx, y: tgt.y },
   ];
+}
+
+// ============================================================
+// Crossing reduction (post-process pass)
+// ============================================================
+//
+// Greedy adjacent-swap sweep that runs after `centerByCriticality` so
+// crossings introduced by criticality permutation can be reversed when
+// the swap reduces total edge crossings. Edges are modeled as straight
+// segments between node centers — geometrically exact for the polyline
+// shape `smoothEdge` produces (the curve only deflects along the flow
+// axis, not the slot axis, so two edges cross visually iff their slot-
+// axis center segments cross). Caps iterations to bound cost.
+
+function reduceCrossings(g: any, direction: PertDirection): void {
+  const isLR = direction !== 'TB';
+  const rankAxis = isLR ? 'x' : 'y';
+  const slotAxis = isLR ? 'y' : 'x';
+
+  // Bucket nodes by rank.
+  const buckets = new Map<number, string[]>();
+  for (const id of g.nodes()) {
+    const node = g.node(id);
+    if (!node) continue;
+    const key = Math.round(node[rankAxis] as number);
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key)!.push(id);
+  }
+
+  // Collect edges once — each is a pair of node ids whose current
+  // positions we read on every count.
+  const edges: Array<{ v: string; w: string }> = g
+    .edges()
+    .map((e: { v: string; w: string }) => ({ v: e.v, w: e.w }));
+
+  const countCrossings = (): number => {
+    let total = 0;
+    for (let i = 0; i < edges.length; i++) {
+      const a = edges[i];
+      const a1 = g.node(a.v);
+      const a2 = g.node(a.w);
+      if (!a1 || !a2) continue;
+      for (let j = i + 1; j < edges.length; j++) {
+        const b = edges[j];
+        // Shared endpoint → segments meet at a node, not a crossing.
+        if (a.v === b.v || a.v === b.w || a.w === b.v || a.w === b.w) continue;
+        const b1 = g.node(b.v);
+        const b2 = g.node(b.w);
+        if (!b1 || !b2) continue;
+        if (segmentsCross(a1, a2, b1, b2)) total++;
+      }
+    }
+    return total;
+  };
+
+  // Cap iterations — bubble-style sweep converges fast on small DAGs,
+  // but a pathological case shouldn't spend O(rank * pairs) per pass
+  // indefinitely.
+  const MAX_ITER = 8;
+  let baseline = countCrossings();
+  if (baseline === 0) return;
+
+  for (let iter = 0; iter < MAX_ITER; iter++) {
+    let improved = false;
+    for (const ids of buckets.values()) {
+      if (ids.length < 2) continue;
+      const sorted = ids
+        .slice()
+        .sort(
+          (a, b) =>
+            (g.node(a)![slotAxis] as number) - (g.node(b)![slotAxis] as number)
+        );
+      for (let i = 0; i < sorted.length - 1; i++) {
+        const a = sorted[i];
+        const b = sorted[i + 1];
+        const an = g.node(a)!;
+        const bn = g.node(b)!;
+        const av = an[slotAxis] as number;
+        const bv = bn[slotAxis] as number;
+        an[slotAxis] = bv;
+        bn[slotAxis] = av;
+        const after = countCrossings();
+        if (after < baseline) {
+          baseline = after;
+          improved = true;
+        } else {
+          an[slotAxis] = av;
+          bn[slotAxis] = bv;
+        }
+      }
+    }
+    if (!improved || baseline === 0) break;
+  }
+
+  // Re-route every edge — node slot positions changed, so dagre's
+  // original control points no longer connect cleanly.
+  for (const e of g.edges()) {
+    const src = g.node(e.v);
+    const tgt = g.node(e.w);
+    if (!src || !tgt) continue;
+    const data = g.edge(e);
+    if (!data) continue;
+    data.points = smoothEdge(src, tgt, direction);
+  }
+}
+
+// Standard CCW segment-intersection test. Returns true only for proper
+// (non-collinear, non-endpoint-shared) crossings.
+function segmentsCross(
+  a1: { x: number; y: number },
+  a2: { x: number; y: number },
+  b1: { x: number; y: number },
+  b2: { x: number; y: number }
+): boolean {
+  const ccw = (
+    p: { x: number; y: number },
+    q: { x: number; y: number },
+    r: { x: number; y: number }
+  ) => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+  const d1 = ccw(b1, b2, a1);
+  const d2 = ccw(b1, b2, a2);
+  const d3 = ccw(a1, a2, b1);
+  const d4 = ccw(a1, a2, b2);
+  return (
+    ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
+    ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))
+  );
 }
