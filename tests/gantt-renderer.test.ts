@@ -574,8 +574,15 @@ describe('tag swimlane rendering', () => {
     expect(progressBars.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('renders swimlane icon when tag groups exist', () => {
-    const container = renderFromInput(TAG_SWIMLANE_INPUT);
+  it('renders swimlane icon when a tag group is active', () => {
+    // Per spec §1.3, tag groups are collapsed-by-default. The swimlane
+    // icon lives inside the active capsule, so coloring/expansion
+    // requires an explicit `currentActiveGroup` (mirroring an
+    // `active-tag` directive or user click).
+    const container = renderFromInput(TAG_SWIMLANE_INPUT, {
+      currentActiveGroup: 'Team',
+      currentSwimlaneGroup: 'Team',
+    });
     const icons = container.querySelectorAll('.gantt-swimlane-icon');
     expect(icons.length).toBeGreaterThanOrEqual(1);
   });

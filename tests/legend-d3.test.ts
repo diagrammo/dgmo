@@ -230,7 +230,10 @@ describe('renderLegendD3', () => {
     expect(ctrl!.getAttribute('data-export-ignore')).toBe('true');
   });
 
-  it('inactive pills have data-export-ignore, active capsule does not', () => {
+  it('collapsed pills survive export (no data-export-ignore)', () => {
+    // Per spec §1.3, collapsed tag-group pills must remain visible in
+    // static exports so readers see the tag dimensions exist even when
+    // no group is active. Only interactive controls strip in export.
     const g = makeContainer();
     const container = select(g);
     renderLegendD3(
@@ -241,18 +244,16 @@ describe('renderLegendD3', () => {
       false
     );
 
-    // The inactive pill (Status) should have data-export-ignore
     const statusPill = g.querySelector('[data-legend-group="status"]');
     expect(statusPill).not.toBeNull();
-    expect(statusPill!.getAttribute('data-export-ignore')).toBe('true');
+    expect(statusPill!.getAttribute('data-export-ignore')).toBeNull();
 
-    // The active capsule (Priority) should NOT have data-export-ignore
     const priorityCapsule = g.querySelector('[data-legend-group="priority"]');
     expect(priorityCapsule).not.toBeNull();
     expect(priorityCapsule!.getAttribute('data-export-ignore')).toBeNull();
   });
 
-  it('all pills have data-export-ignore when no group is active', () => {
+  it('all pills survive export when no group is active', () => {
     const g = makeContainer();
     const container = select(g);
     renderLegendD3(
@@ -266,7 +267,7 @@ describe('renderLegendD3', () => {
     const pills = g.querySelectorAll('[data-legend-group]');
     expect(pills.length).toBe(2);
     for (const pill of pills) {
-      expect(pill.getAttribute('data-export-ignore')).toBe('true');
+      expect(pill.getAttribute('data-export-ignore')).toBeNull();
     }
   });
 

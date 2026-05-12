@@ -129,15 +129,17 @@ Alice -hello-> Bob`;
     document.body.removeChild(container);
   });
 
-  it('auto-activates first tag group when no explicit activeTagGroup', () => {
+  it('no auto-activation when activeTagGroup is omitted (collapsed-by-default per spec §1.3)', () => {
     const parsed = parseSequenceDgmo(src);
     const container = document.createElement('div');
     document.body.appendChild(container);
     renderSequenceDiagram(container, parsed, palette, false, undefined, {
       exportWidth: 800,
     });
-    // Auto-activation: first declared tag group (REGION) becomes active
-    assertLegendActive(container, 'REGION');
+    // Coloring is opt-in: no group becomes active without an explicit
+    // `active-tag` directive or programmatic override.
+    const legend = container.querySelector('[data-legend-active]');
+    expect(legend?.getAttribute('data-legend-active')).toBeFalsy();
     document.body.removeChild(container);
   });
 });

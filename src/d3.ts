@@ -7215,7 +7215,7 @@ export async function renderForExport(
       hiddenCounts.size > 0 ? hiddenCounts : undefined,
       activeTagGroup,
       hiddenAttributes,
-      true // expandAllLegend — show all tag groups expanded in export
+      false // expandAllLegend off — collapsed-by-default per §1.3
     );
 
     const PADDING = 20;
@@ -7672,7 +7672,7 @@ export async function renderForExport(
       await import('./pert/renderer');
 
     const effectivePalette = await resolveExportPalette(theme, palette);
-    const pertParsed = parsePert(content);
+    const pertParsed = parsePert(content, { palette: effectivePalette });
     if (pertParsed.error || pertParsed.activities.length === 0) return '';
 
     const pertResolved = analyzePert(pertParsed);

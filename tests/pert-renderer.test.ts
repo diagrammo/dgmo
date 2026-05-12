@@ -179,6 +179,99 @@ describe('pert renderer — structural assertions', () => {
     document.body.removeChild(c);
   });
 
+  describe('anchor pin never collides with name text', () => {
+    // The bug: char-width approximation underestimated wide-glyph text
+    // widths (caps, M, W). When `actualTextW > approxTextW` the centered
+    // pin+text combo collapsed and the pin overlapped the name's left
+    // edge. The fix (flush-left pin + centered text in reserved area)
+    // makes overlap geometrically impossible. This test pins that.
+    it('forward-anchored card: pin right edge ≤ text left edge', () => {
+      const svg = renderForTest(loadFixture('start-date.dgmo'));
+      const doc = parseDom(svg);
+      const pinnedCards = doc.querySelectorAll(
+        'g.pert-node[data-anchor="forward"]'
+      );
+      expect(pinnedCards.length).toBeGreaterThan(0);
+      for (const card of pinnedCards) {
+        const pin = card.querySelector('g.pert-pin');
+        const name = Array.from(card.querySelectorAll('text')).find(
+          (t) => t.getAttribute('font-weight') === 'bold'
+        );
+        if (!pin || !name) continue;
+        // Pin transform = `translate(<x>, <y>) scale(<s>)` — pin width
+        // is fixed at PIN_ICON_W (13px).
+        const m = pin.getAttribute('transform')?.match(/translate\(([\d.-]+)/);
+        if (!m) continue;
+        const pinLeft = parseFloat(m[1]!);
+        const pinRight = pinLeft + 13; // PIN_ICON_W
+        // Text is `text-anchor="middle"`, so its visual left edge is
+        // `textX - measured/2`. We don't have measure access in jsdom;
+        // assert the upstream invariant instead: pin must sit to the
+        // LEFT of the text's anchor x (gap of at least NAME_PIN_GAP).
+        const textX = parseFloat(name.getAttribute('x')!);
+        expect(pinRight + 4).toBeLessThanOrEqual(textX);
+      }
+    });
+
+    it('backward-anchored card: pin right edge ≤ text left edge', () => {
+      const svg = renderForTest(loadFixture('end-date.dgmo'));
+      const doc = parseDom(svg);
+      const pinnedCards = doc.querySelectorAll(
+        'g.pert-node[data-anchor="backward"]'
+      );
+      expect(pinnedCards.length).toBeGreaterThan(0);
+      for (const card of pinnedCards) {
+        const pin = card.querySelector('g.pert-pin');
+        const name = Array.from(card.querySelectorAll('text')).find(
+          (t) => t.getAttribute('font-weight') === 'bold'
+        );
+        if (!pin || !name) continue;
+        const m = pin.getAttribute('transform')?.match(/translate\(([\d.-]+)/);
+        if (!m) continue;
+        const pinLeft = parseFloat(m[1]!);
+        const pinRight = pinLeft + 13;
+        const textX = parseFloat(name.getAttribute('x')!);
+        expect(pinRight + 4).toBeLessThanOrEqual(textX);
+      }
+    });
+  });
+
+  describe('project subtitle', () => {
+    it('unanchored Monte-Carlo emits ≈ μ unit (± σ)', () => {
+      const svg = renderForTest(loadFixture('basic.dgmo'));
+      const doc = parseDom(svg);
+      const subtitle = doc.querySelector('text.pert-subtitle');
+      expect(subtitle).not.toBeNull();
+      const text = subtitle!.textContent ?? '';
+      expect(text).toMatch(/^≈ \d/);
+      expect(text).toMatch(/\(± \d/);
+    });
+
+    it('forward anchor emits Expected finish: <date> · ≈ μ unit of work', () => {
+      const svg = renderForTest(loadFixture('start-date.dgmo'));
+      const doc = parseDom(svg);
+      const text = doc.querySelector('text.pert-subtitle')!.textContent ?? '';
+      expect(text).toMatch(/^Expected finish: \d{4}-\d{2}-\d{2} · ≈ /);
+      expect(text).toContain('of work');
+    });
+
+    it('backward anchor emits Expected start: <date> · ≈ μ unit lead time', () => {
+      const svg = renderForTest(loadFixture('end-date.dgmo'));
+      const doc = parseDom(svg);
+      const text = doc.querySelector('text.pert-subtitle')!.textContent ?? '';
+      expect(text).toMatch(/^Expected start: \d{4}-\d{2}-\d{2} · ≈ /);
+      expect(text).toContain('lead time');
+    });
+
+    it('backward + TBD preserves the slot with ? placeholders', () => {
+      const svg = renderForTest(loadFixture('backward-tbd.dgmo'));
+      const doc = parseDom(svg);
+      const text = doc.querySelector('text.pert-subtitle')!.textContent ?? '';
+      expect(text).toMatch(/^Expected start: \? · ≈ \? /);
+      expect(text).toContain('lead time');
+    });
+  });
+
   it('milestone activities render as a compact pill', () => {
     const svg = renderForTest(loadFixture('with-zero-duration.dgmo'));
     const doc = parseDom(svg);

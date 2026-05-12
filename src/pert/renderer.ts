@@ -52,6 +52,8 @@ import {
   LEGEND_DOT_R as LEGEND_DOT_R_CONST,
   measureLegendText,
 } from '../utils/legend-constants';
+import { resolveActiveTagGroup, resolveTagColor } from '../utils/tag-groups';
+import { renderLegendD3 } from '../utils/legend-d3';
 import type {
   CaptionRow,
   LayoutResult,
@@ -306,6 +308,16 @@ function bandArrow(band: Band): string {
 export interface PertRenderOptions {
   /** Optional title rendered above the diagram. */
   title?: string | null;
+  /**
+   * Optional one-line project subtitle rendered under the title (or in
+   * the title slot when the title is suppressed via `no-title`). Carries
+   * the project-level μ ± σ + anchor-derived date(s) so the duration
+   * stays visible even when the Analysis row is toggled off. Pass `null`
+   * to suppress (the desktop preview does this — it draws an HTML
+   * subtitle below the React `<h1>` instead). Typically wired from
+   * `resolved.projectSubtitle`.
+   */
+  subtitle?: string | null;
   /** Optional callback for click → editor sync. */
   onClickItem?: (lineNumber: number) => void;
   /**
@@ -366,6 +378,16 @@ export interface PertRenderOptions {
    * run.
    */
   showScurve?: boolean;
+  /**
+   * Programmatic override for the active tag group — wins over
+   * `options.activeTag` from the parsed source. Used by the desktop
+   * preview when the user clicks a tag-legend pill: that interaction
+   * sets the override (without mutating the parsed source) and
+   * triggers a re-render with the new coloring. Pass `null` (or
+   * `'none'`) to explicitly suppress tag coloring; omit to fall
+   * through to the parsed `active-tag` directive.
+   */
+  activeTagOverride?: string | null;
 }
 
 export function renderPert(
@@ -379,7 +401,12 @@ export function renderPert(
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
 
   const effectiveTitle = options.title;
-  const titleHeight = effectiveTitle ? 80 : 0;
+  const effectiveSubtitle = options.subtitle ?? null;
+  // Title region reserves 80px when a title is present (legacy). When
+  // only the subtitle is present (e.g. `no-title` directive), reserve
+  // 50px — just enough to seat the subtitle line under the same top
+  // padding the title used.
+  const titleHeight = effectiveTitle ? 80 : effectiveSubtitle ? 50 : 0;
 
   // D10 — backward-anchor annotation. Italic framing note that names
   // the end-date and tells readers ES/EF show "earliest possible"
@@ -429,10 +456,23 @@ export function renderPert(
   // SVG instead, so the pills stay at native pixel size.
   const showTopLegend = options.showTopLegend ?? true;
   const legendEntries = showTopLegend ? pertLegendEntries(resolved) : [];
+  // Tag legend lives on a second row below the kind pills, using the
+  // shared `renderLegendD3` capsule so the active group expands to
+  // show its values (matches org / kanban / gantt behavior). Suppressed
+  // when `active-tag none` or no groups are declared.
+  const tagLegendActive = resolveActiveTagGroup(
+    resolved.tagGroups,
+    resolved.options.activeTag,
+    options.activeTagOverride
+  );
+  const showTagLegend = showTopLegend && resolved.tagGroups.length > 0;
+  const tagLegendBlockHeight = showTagLegend
+    ? LEGEND_PILL_HEIGHT + LEGEND_BOTTOM_GAP
+    : 0;
   const legendBlockHeight =
-    legendEntries.length > 0
+    (legendEntries.length > 0
       ? LEGEND_TOP_GAP + LEGEND_PILL_HEIGHT + LEGEND_BOTTOM_GAP
-      : 0;
+      : 0) + tagLegendBlockHeight;
 
   // Natural size — fits all chrome without clipping. The diagram body
   // claims the full canvas width; Analysis and Field-labels rows stack
@@ -485,6 +525,21 @@ export function renderPert(
       .attr('font-weight', TITLE_FONT_WEIGHT)
       .text(effectiveTitle);
   }
+  if (effectiveSubtitle) {
+    // When the title is present sit ~26px below its baseline; when only
+    // the subtitle is present, take the title's slot.
+    const subtitleY = effectiveTitle ? TITLE_Y + 26 : TITLE_Y;
+    svg
+      .append('text')
+      .attr('class', 'pert-subtitle')
+      .attr('x', exportWidth / 2)
+      .attr('y', subtitleY)
+      .attr('text-anchor', 'middle')
+      .attr('fill', palette.textMuted)
+      .attr('font-size', 13)
+      .attr('font-weight', 400)
+      .text(effectiveSubtitle);
+  }
 
   // Center the diagram horizontally when the canvas is wider than its
   // natural chart width (the Analysis row may have forced the canvas
@@ -499,6 +554,20 @@ export function renderPert(
       width: exportWidth,
       palette,
       isDark,
+    });
+  }
+  if (showTagLegend) {
+    const tagLegendY =
+      DIAGRAM_PADDING +
+      titleHeight +
+      (legendEntries.length > 0
+        ? LEGEND_TOP_GAP + LEGEND_PILL_HEIGHT
+        : LEGEND_TOP_GAP);
+    renderTagLegendRow(svg, resolved, palette, isDark, {
+      x: 0,
+      y: tagLegendY,
+      width: exportWidth,
+      activeGroup: tagLegendActive,
     });
   }
 
@@ -518,7 +587,8 @@ export function renderPert(
     isDark,
     sizing,
     options.onClickItem,
-    collapsedSet
+    collapsedSet,
+    options.activeTagOverride
   );
 
   // ── Place rows below the diagram ──────────────────────────────
@@ -552,14 +622,19 @@ export function renderPertForExport(
    */
   now?: Date
 ): string {
-  const parsed = parsePert(content, { now });
+  const parsed = parsePert(content, { now, palette });
   if (parsed.error || parsed.activities.length === 0) return '';
 
   const resolved = analyzePert(parsed);
   const layout = layoutPert(resolved);
   const isDark = theme === 'dark';
 
-  const titleHeight = parsed.title && !resolved.options.noTitle ? 80 : 0;
+  // Mirror renderPert's reservation: 80 for title (subtitle nests below it),
+  // 50 for subtitle-only, 0 when neither is present. `no-title` suppresses
+  // the title but the subtitle (project μ ± σ) is project-level and stays.
+  const hasTitle = !!parsed.title && !resolved.options.noTitle;
+  const hasSubtitle = resolved.projectSubtitle !== null;
+  const titleHeight = hasTitle ? 80 : hasSubtitle ? 50 : 0;
   // Mirror the bullet-list assembly inside renderPert so exportDims
   // matches the natural height (anchor annotation now lives inside
   // the caption box as a final italic bullet).
@@ -603,7 +678,8 @@ export function renderPertForExport(
 
   try {
     renderPert(container, resolved, layout, palette, isDark, {
-      title: parsed.title,
+      title: hasTitle ? parsed.title : null,
+      subtitle: resolved.projectSubtitle,
       exportDims: { width: exportWidth, height: exportHeight },
     });
     const svgEl = container.querySelector('svg');
@@ -894,9 +970,19 @@ function paintAnalysisRowMode(
     if (w.kind === 'tornado') {
       renderTornadoBlock(svg, state.tornadoRows, args);
     } else {
+      // Promote the first caption row ("Expected duration: …") into
+      // the S-curve's header band when the Summary card is suppressed,
+      // so the project's headline stat still appears somewhere. When
+      // Summary IS rendered alongside, the title is omitted to avoid
+      // duplicating the same line in two places.
+      const scurveTitle =
+        !state.summaryRendered && captionBullets.length > 0
+          ? captionBullets[0].text
+          : undefined;
       renderScurveBlock(svg, state.scurveData!, {
         ...args,
         unit: resolved.options.timeUnit,
+        title: scurveTitle,
       });
     }
     cursorX += chartWidth + ANALYSIS_GAP;
@@ -1054,12 +1140,21 @@ function paintAnalysisStackMode(
         case 'tornado':
           renderTornadoBlock(svg, state.tornadoRows, args);
           break;
-        case 'scurve':
+        case 'scurve': {
+          // Same rule as the side-by-side path: promote the headline
+          // caption row to the S-curve's header band when Summary is
+          // suppressed, otherwise omit to avoid duplication.
+          const scurveTitle =
+            !state.summaryRendered && captionBullets.length > 0
+              ? captionBullets[0].text
+              : undefined;
           renderScurveBlock(svg, state.scurveData!, {
             ...args,
             unit: resolved.options.timeUnit,
+            title: scurveTitle,
           });
           break;
+        }
         case 'summary':
           renderCaptionBlock(svg, captionBullets, args);
           break;
@@ -1572,7 +1667,8 @@ function renderNodes(
   isDark: boolean,
   sizing: NodeSizing,
   onClickItem?: (lineNumber: number) => void,
-  collapsedSet: ReadonlySet<string> = new Set()
+  collapsedSet: ReadonlySet<string> = new Set(),
+  activeTagOverride?: string | null
 ): void {
   const layer = root.append('g').attr('class', 'pert-nodes');
   const byId = new Map(resolved.activities.map((r) => [r.activity.id, r]));
@@ -1582,6 +1678,15 @@ function renderNodes(
   const unit = resolved.options.timeUnit;
   const sprintMode = resolved.options.sprintMode;
   const sprintNumber = resolved.options.sprintNumber ?? 1;
+
+  // Active tag group resolution. Programmatic override (e.g. desktop
+  // legend click) wins; otherwise the source's `active-tag` directive;
+  // otherwise null (collapsed-by-default per spec §1.3).
+  const activeTagGroup = resolveActiveTagGroup(
+    resolved.tagGroups,
+    resolved.options.activeTag,
+    activeTagOverride
+  );
 
   // Match org / infra default-node treatment:
   //   fill   = 25% tint of the node's intent color on surface (via shapeFill)
@@ -1663,6 +1768,15 @@ function renderNodes(
       .attr('data-criticality-band', band ?? '')
       .attr('data-duration-rank', isTopMu ? 'top' : isBottomMu ? 'bottom' : '');
 
+    // Tag metadata as `data-tag-<key>` attributes — drives the
+    // app-side legend-hover dimming (CSS-only). Identical contract
+    // to org / kanban / gantt.
+    if (r.activity.tags) {
+      for (const [tagKey, tagValue] of Object.entries(r.activity.tags)) {
+        g.attr(`data-tag-${tagKey}`, String(tagValue).toLowerCase());
+      }
+    }
+
     // Anchored source/sink nodes — the React-layer top legend uses
     // this to fade everything except anchored nodes when "Anchor" is
     // hovered/clicked.
@@ -1683,6 +1797,26 @@ function renderNodes(
       palette.textOnFillLight,
       palette.textOnFillDark
     );
+
+    // Tag-driven color. Activities paint the middle (name) band only
+    // so the criticality border stays the dominant signal; milestones
+    // paint the entire pill since they have a single shape.
+    const tagColor = resolveTagColor(
+      r.activity.tags ?? {},
+      resolved.tagGroups,
+      activeTagGroup
+    );
+    const hasTagColor = tagColor !== undefined && tagColor !== '#999999';
+    const tagBandFill = hasTagColor
+      ? shapeFill(palette, tagColor as string, isDark)
+      : undefined;
+    const tagLabelColor = hasTagColor
+      ? contrastText(
+          tagBandFill as string,
+          palette.textOnFillLight,
+          palette.textOnFillDark
+        )
+      : undefined;
 
     if (r.activity.isMilestone) {
       // Critical-path milestones have slack ≈ 0; suppressing the slack
@@ -1707,9 +1841,9 @@ function renderNodes(
         date: fmtSchedule(r.es, isTbd),
         slack: slackText,
         slackHidden,
-        fill,
+        fill: tagBandFill ?? fill,
         stroke: baseColor,
-        labelColor,
+        labelColor: tagLabelColor ?? labelColor,
         highlightColor: palette.colors.blue,
         dashArray,
         pinned: pinnedSet.has(node.id) ? anchorKind : null,
@@ -1738,6 +1872,10 @@ function renderNodes(
       pinned: pinnedSet.has(node.id) ? anchorKind : null,
       outerColW: sizing.outerColW,
       midColW: sizing.midColW,
+      ...(tagBandFill !== undefined && {
+        midBandFill: tagBandFill,
+        midBandLabelColor: tagLabelColor,
+      }),
     });
   }
 }
@@ -1827,6 +1965,19 @@ interface TextbookCardArgs {
    */
   outerColW: number;
   midColW: number;
+  /**
+   * Optional fill for the middle (name) band only. When set, painted
+   * on top of the base card fill so corner cells keep `fill` and only
+   * the name region picks up the tag color. The card border (stroke)
+   * is unaffected — it continues to communicate criticality.
+   */
+  midBandFill?: string;
+  /**
+   * Label color used for the name when `midBandFill` is set. Computed
+   * via `contrastText()` against the tag-tinted band so the name stays
+   * readable regardless of palette/theme.
+   */
+  midBandLabelColor?: string;
 }
 
 type AnySel = d3Selection.Selection<SVGGElement, unknown, null, undefined>;
@@ -1853,6 +2004,19 @@ function drawTextbookCard(g: AnySel, a: TextbookCardArgs): void {
     .attr('stroke', a.stroke)
     .attr('stroke-width', NODE_STROKE_WIDTH)
     .attr('stroke-dasharray', a.dashArray ?? 'none');
+
+  // Tag-driven middle-band fill. Painted between the top-row and
+  // bottom-row dividers so corner cells (ES/EF/LS/LF/dur/slack) keep
+  // the base fill — only the name region picks up the tag tint.
+  if (a.midBandFill) {
+    g.append('rect')
+      .attr('x', x)
+      .attr('y', topY)
+      .attr('width', w)
+      .attr('height', bottomY - topY)
+      .attr('fill', a.midBandFill)
+      .attr('pointer-events', 'none');
+  }
 
   // Internal grid lines — low-opacity divider stroke. Defaults to the
   // border color but can be overridden so a critical-path (red) border
@@ -1925,14 +2089,16 @@ function drawTextbookCard(g: AnySel, a: TextbookCardArgs): void {
 
   // Cell text — vertically centered within each row. Defaults to
   // normal weight; the name cell and the dur cell pass an explicit
-  // weight when needed.
+  // weight when needed. `colorOverride` lets the middle-band name use
+  // a contrast-correct color when a tag fill repaints that band.
   const drawCell = (
     cx: number,
     cy: number,
     text: string,
     weight: 'normal' | 'bold' = 'normal',
     size: number = NODE_CELL_FONT_SIZE,
-    opacity = 1
+    opacity = 1,
+    colorOverride?: string
   ): void => {
     const t = g
       .append('text')
@@ -1940,7 +2106,7 @@ function drawTextbookCard(g: AnySel, a: TextbookCardArgs): void {
       .attr('y', cy + size / 2 - 2)
       .attr('text-anchor', 'middle')
       .attr('font-family', FONT_FAMILY)
-      .attr('fill', a.labelColor)
+      .attr('fill', colorOverride ?? a.labelColor)
       .attr('font-size', size)
       .attr('font-weight', weight)
       .text(text);
@@ -1980,7 +2146,9 @@ function drawTextbookCard(g: AnySel, a: TextbookCardArgs): void {
   const midCenterY = midRowTop + midRowH / 2;
   const NAME_PAD_X = 6;
   const NAME_PIN_GAP = 4;
-  const charW = NODE_FONT_SIZE * 0.55;
+  // Inter average ≈ 0.55× for lowercase; 0.62× absorbs caps + wide
+  // glyphs so the truncation check stays conservative.
+  const charW = NODE_FONT_SIZE * 0.62;
   const pinReserve = a.pinned ? PIN_ICON_W + NAME_PIN_GAP : 0;
   const availTextW = Math.max(0, w - 2 * NAME_PAD_X - pinReserve);
   const maxChars = Math.max(1, Math.floor(availTextW / charW));
@@ -1988,15 +2156,35 @@ function drawTextbookCard(g: AnySel, a: TextbookCardArgs): void {
     a.name.length > maxChars
       ? a.name.slice(0, Math.max(1, maxChars - 1)) + '…'
       : a.name;
+  const nameColor = a.midBandLabelColor ?? a.labelColor;
   if (a.pinned) {
-    const approxTextW = displayName.length * charW;
-    const combined = PIN_ICON_W + NAME_PIN_GAP + approxTextW;
-    const groupLeft = x + w / 2 - combined / 2;
-    drawAnchorPin(g, groupLeft, midCenterY, a.labelColor);
-    const textCx = groupLeft + PIN_ICON_W + NAME_PIN_GAP + approxTextW / 2;
-    drawCell(textCx, midCenterY, displayName, 'bold', NODE_FONT_SIZE);
+    // Flush-left pin + text centered inside the reserved area. Same
+    // structural pattern as the milestone pill (renderMilestoneNode) —
+    // pin and text occupy non-overlapping rectangles by construction,
+    // so no char-width estimate error can collapse them onto each other.
+    drawAnchorPin(g, x + NAME_PAD_X, midCenterY, nameColor);
+    const textAreaLeft = x + NAME_PAD_X + PIN_ICON_W + NAME_PIN_GAP;
+    const textAreaRight = x + w - NAME_PAD_X;
+    const textCx = (textAreaLeft + textAreaRight) / 2;
+    drawCell(
+      textCx,
+      midCenterY,
+      displayName,
+      'bold',
+      NODE_FONT_SIZE,
+      1,
+      a.midBandLabelColor
+    );
   } else {
-    drawCell(x + w / 2, midCenterY, displayName, 'bold', NODE_FONT_SIZE);
+    drawCell(
+      x + w / 2,
+      midCenterY,
+      displayName,
+      'bold',
+      NODE_FONT_SIZE,
+      1,
+      a.midBandLabelColor
+    );
   }
 
   // Bottom row: LS | slack | LF — LS / LF bold under the same anchor
@@ -2139,7 +2327,9 @@ function drawMilestonePill(g: AnySel, a: MilestonePillArgs): void {
   const NAME_PAD_X = 6;
   const NAME_PIN_GAP = 4;
   const NAME_LINE_HEIGHT = 14;
-  const charW = nameSize * 0.55;
+  // Inter average ≈ 0.55× for lowercase; 0.62× absorbs caps + wide
+  // glyphs so wrap-fit doesn't underestimate and spill into the pin.
+  const charW = nameSize * 0.62;
 
   let textAreaLeft = x + NAME_PAD_X;
   const textAreaRight = x + w - NAME_PAD_X;
@@ -2634,11 +2824,10 @@ interface LegendEntry {
 }
 
 /**
- * Returns the legend entries that apply to this diagram. Critical Path
- * is always present (every non-empty PERT has one); Anchor only when a
- * `start-date` / `end-date` is set; Milestone only when at least one
- * activity has zero duration. App-side hover/click wiring is keyed by
- * `entry.kind`.
+ * Returns the PERT-specific legend entries (Critical Path / Anchor /
+ * Milestone). Tag groups are rendered separately via the shared
+ * `renderLegendD3` helper so they get the standard collapsible-capsule
+ * treatment used by org / kanban / gantt.
  */
 export function pertLegendEntries(resolved: ResolvedPert): LegendEntry[] {
   const entries: LegendEntry[] = [];
@@ -2794,6 +2983,55 @@ export function renderLegendBlock(
 
     pillX += pillW + LEGEND_PILL_GAP;
   }
+}
+
+interface TagLegendArgs {
+  x: number;
+  y: number;
+  width: number;
+  activeGroup: string | null;
+}
+
+/**
+ * Render the tag-group legend row using the shared `renderLegendD3`
+ * capsule. Inactive groups appear as collapsible pills; the active
+ * group expands to show its values + colored dots. Each rendered
+ * group <g> is tagged with `data-tag-legend-group="<name>"` so app-side
+ * hover wiring can scope dimming the same way org / kanban do.
+ */
+function renderTagLegendRow(
+  svg: d3Selection.Selection<SVGSVGElement, unknown, null, undefined>,
+  resolved: ResolvedPert,
+  palette: PaletteColors,
+  isDark: boolean,
+  args: TagLegendArgs
+): void {
+  if (resolved.tagGroups.length === 0) return;
+
+  const { x, y, width, activeGroup } = args;
+  const groups = resolved.tagGroups.map((g) => ({
+    name: g.name,
+    entries: g.entries.map((e) => ({ value: e.value, color: e.color })),
+  }));
+
+  const block = svg
+    .append('g')
+    .attr('class', 'pert-tag-legend')
+    .attr('transform', `translate(${x}, ${y})`);
+
+  renderLegendD3(
+    block,
+    {
+      groups,
+      position: { placement: 'top-center', titleRelation: 'below-title' },
+      mode: 'fixed',
+    },
+    { activeGroup },
+    palette,
+    isDark,
+    undefined,
+    width
+  );
 }
 
 function renderFieldLegendBlock(
@@ -3472,6 +3710,12 @@ interface ScurveBlockArgs {
   palette: PaletteColors;
   isDark: boolean;
   unit: DurationUnit;
+  // Header text painted in the top band of the block, matching the
+  // "Summary" header treatment in renderCaptionBlock. Used to surface
+  // the project's headline stat ("Expected duration: 11 days (± 2 days).")
+  // so the chart carries its own context now that the Summary card is
+  // gone from the desktop preview.
+  title?: string;
 }
 
 function renderScurveBlock(
@@ -3479,7 +3723,7 @@ function renderScurveBlock(
   data: ScurveData,
   args: ScurveBlockArgs
 ): void {
-  const { x, y, width, height, palette, isDark, unit } = args;
+  const { x, y, width, height, palette, isDark, unit, title } = args;
   const { fill, stroke: chromeStroke } = analysisBlockChrome(palette, isDark);
   const labelColor = contrastText(
     fill,
@@ -3505,25 +3749,45 @@ function renderScurveBlock(
     .attr('stroke', chromeStroke)
     .attr('stroke-width', NODE_STROKE_WIDTH);
 
-  // No header text and no subline — the rotated y-axis title plus the
-  // colored P50/P80/P95 dots make the chart self-identifying, and the
-  // deadline (when present) draws its own labeled line directly on
-  // the plot. Both of those reclaim ~42px of vertical room for the
-  // plot vs. the old design.
-  //
+  // Header band — mirrors the Summary card's title treatment. Only
+  // reserved when a title is provided; the inline renderPert path
+  // (which still pairs S-curve with a Summary card) passes none, so
+  // the plot keeps its full height there.
+  const hasTitle = typeof title === 'string' && title.length > 0;
+  if (hasTitle) {
+    // Strip the trailing period — the caption-box renders this same
+    // string as a sentence-style bullet, but as a bold header it reads
+    // cleaner without terminal punctuation.
+    const titleText = title!.replace(/\.$/, '');
+    block
+      .append('text')
+      .attr('class', 'pert-scurve-header')
+      .attr('x', x + width / 2)
+      .attr('y', y + CAPTION_BOX_PADDING_Y + CAPTION_FONT_SIZE)
+      .attr('text-anchor', 'middle')
+      .attr('fill', labelColor)
+      .attr('font-size', CAPTION_FONT_SIZE)
+      .attr('font-weight', '700')
+      .text(titleText);
+  }
+
   // Anchor-framing kept only as a top reservation for the deadline
-  // label when the diagram is end-date-anchored.
+  // label when the diagram is end-date-anchored. The rotated y-axis
+  // title plus the colored P50/P80/P95 dots make the chart self-
+  // identifying for the axis story; the header band (when present)
+  // names the chart with the project's headline stat.
   const SCURVE_DEADLINE_LABEL_HEIGHT = 16;
   const hasDeadline = data.deadlineDays !== null;
 
-  // Plot rect — leave room on the left for y-axis labels and below
-  // for x-axis labels. Top reserve for the deadline label when the
-  // diagram is end-date-anchored.
+  // Plot rect — leave room on the left for y-axis labels, below for
+  // x-axis labels, above for the header band (when titled) and the
+  // deadline label (when end-date-anchored).
   const plotLeft = x + SCURVE_PLOT_PADDING_X;
   const plotRight = x + width - SCURVE_PLOT_PADDING_RIGHT;
   const plotTop =
     y +
     CAPTION_BOX_PADDING_Y +
+    (hasTitle ? CAPTION_HEADER_BAND_HEIGHT : 0) +
     (hasDeadline ? SCURVE_DEADLINE_LABEL_HEIGHT : 0);
   // Percentile metadata (date / duration) now lives inline next to
   // each dot rather than stacked below the plot, so no extra bottom
@@ -3534,15 +3798,22 @@ function renderScurveBlock(
   const plotW = plotRight - plotLeft;
   const plotH = plotBottom - plotTop;
 
-  // Axis bounds come pre-projected from `buildScurveData` so the
-  // renderer stays mode-blind. Extend the left edge by a small buffer
-  // below `min(curve start, band left)` so the empirical 68% band has
-  // visible unshaded area to its left — reads more clearly as "this
-  // is the likely-finish span" than a band flush against the edge.
-  const xMaxRaw = data.xMaxDays;
-  const xMinNatural = Math.min(data.xMinDays, data.p16Days);
-  const xMin = xMinNatural - 0.05 * (xMaxRaw - xMinNatural);
-  const xMax = xMaxRaw;
+  // Tighten the visible x-range to the percentile cluster + a small
+  // margin so P50/P80/P95 spread across most of the plot instead of
+  // bunching against one edge of a wide-tail MC sample range. Always
+  // keep the empirical 68% band [p16Days, p84Days] in frame so the
+  // shaded "likely-finish span" reads cleanly. Backward mode keeps
+  // the deadline as the right edge (it's the "0% chance" boundary);
+  // forward mode pads past the rightmost dot symmetrically.
+  const dotPositions = [data.p50Days, data.p80Days, data.p95Days];
+  const dotMin = Math.min(...dotPositions);
+  const dotMax = Math.max(...dotPositions);
+  const dotSpan = Math.max(1, dotMax - dotMin);
+  const xMin = Math.min(data.p16Days, dotMin - 0.2 * dotSpan);
+  const xMax =
+    data.mode === 'backward' && data.deadlineDays !== null
+      ? data.deadlineDays
+      : Math.max(data.p84Days, dotMax + 0.2 * dotSpan);
   const xRange = xMax - xMin || 1;
   const xScale = (v: number): number =>
     plotLeft + ((v - xMin) / xRange) * plotW;
@@ -3675,13 +3946,29 @@ function renderScurveBlock(
     .y((d) => d.y)
     .curve(d3Shape.curveMonotoneX)(points);
   if (curve) {
+    // Clip the curve to the plot rect. After the x-axis tightening,
+    // the spline's boundary tangent can overshoot below y=0 % at
+    // xMin (where the next sample point lies outside the visible
+    // range), which leaks a dangling tail past the chart's left
+    // edge. Per-S-curve clipPath id keeps multiple PERT diagrams on
+    // the same page from sharing the same clip.
+    const clipId = `pert-scurve-clip-${Math.random().toString(36).slice(2, 10)}`;
+    block
+      .append('clipPath')
+      .attr('id', clipId)
+      .append('rect')
+      .attr('x', plotLeft)
+      .attr('y', plotTop)
+      .attr('width', plotW)
+      .attr('height', plotH);
     block
       .append('path')
       .attr('class', 'pert-scurve-line')
       .attr('d', curve)
       .attr('fill', 'none')
       .attr('stroke', palette.colors.red)
-      .attr('stroke-width', 2);
+      .attr('stroke-width', 2)
+      .attr('clip-path', `url(#${clipId})`);
   }
 
   // Percentile dots + dashed verticals + x-axis value labels. Each
@@ -3732,11 +4019,93 @@ function renderScurveBlock(
       isPast: data.referenceLines[2]?.isPast ?? false,
     },
   ];
+  // Inline CSS for the hover swap. Putting it inside the block means
+  // the behavior travels with the SVG — saved SVGs viewed in a browser
+  // still get the same hover-to-expand affordance. resvg (PNG export)
+  // ignores :hover entirely, so PNGs render the terse default just as
+  // they did before. The selectors are class-scoped to .pert-scurve-
+  // percentile, so the rules can't leak into other diagrams sharing
+  // the page.
+  block
+    .append('style')
+    .text(
+      '.pert-scurve-percentile-verbose{opacity:0;pointer-events:none}' +
+        '.pert-scurve-percentile:hover .pert-scurve-percentile-label{opacity:0}' +
+        '.pert-scurve-percentile:hover .pert-scurve-percentile-verbose{opacity:1}'
+    );
+
+  // Capture the percentile dot x-positions so the x-axis tick pass
+  // below can drop any auto-tick that would land directly under the
+  // inline value label ("14.7w" auto-tick + "P80 · 14.7w" inline
+  // label = duplicated number on the chart).
+  const dotXs: number[] = dots.map((d) => xScale(d.value));
+
   for (const d of dots) {
     const cx = xScale(d.value);
     const cy = yScale(d.pct);
     const color = palette.colors[d.band];
-    block
+    const valueText = isAnchored
+      ? formatScurveDate(addCalendarDays(data.anchorDate!, d.value))
+      : formatScurveTick(d.durationDays, unit);
+    const inlineText = `${d.label} · ${valueText}`;
+    // Verbose phrasing revealed on hover. Compressed wordings so the
+    // overlay stays narrow enough to fit on the plot at typical widths.
+    // The terse label already carries the date/duration, so the verbose
+    // omits it in backward mode (where it'd duplicate "P50 · Mar 28").
+    // Past dates aren't called out — the terse label already shows the
+    // date and the dashed tick line's "4,2" pattern signals past.
+    const pctInt = Math.round(d.pct * 100);
+    const verboseText =
+      data.mode === 'backward'
+        ? `${pctInt}% chance of meeting deadline`
+        : isAnchored
+          ? `${pctInt}% chance to finish by ${valueText}`
+          : `${pctInt}% chance within ${valueText}`;
+    // Shared placement for terse + verbose: pick the side of the dot
+    // that fits the wider element (the verbose phrasing) without
+    // overflowing the plot. Sharing the anchor means the hover swap
+    // is truly in-place — the terse "P95 · 15.8w" can't sit right of
+    // the dot only to have the verbose flip left on hover.
+    const verboseCharW = SCURVE_TICK_FONT_SIZE * 0.55;
+    const verboseW = verboseText.length * verboseCharW;
+    const inlineGap = SCURVE_PERCENTILE_RADIUS + 6;
+    const roomRight = plotRight - cx - inlineGap;
+    const roomLeft = cx - plotLeft - inlineGap;
+    let labelX: number;
+    let labelAnchor: 'start' | 'end';
+    if (verboseW <= roomRight) {
+      labelX = cx + inlineGap;
+      labelAnchor = 'start';
+    } else if (verboseW <= roomLeft) {
+      labelX = cx - inlineGap;
+      labelAnchor = 'end';
+    } else if (roomRight >= roomLeft) {
+      // Verbose wider than either side around the dot — clamp to the
+      // plot edge with more room. Terse follows so the hover swap
+      // still happens in place (the terse just sits a bit farther
+      // from its dot than usual at this edge).
+      labelX = plotRight;
+      labelAnchor = 'end';
+    } else {
+      labelX = plotLeft;
+      labelAnchor = 'start';
+    }
+    // Percentile colors (yellow/orange/red) are tuned for filled
+    // shapes at 25 % tint. Free-standing on the panel bg they lose
+    // contrast — yellow especially, against light themes — so we
+    // shift each label color 25 % toward `palette.text` (dark in
+    // light theme, light in dark theme) to push it back into the
+    // readable band without abandoning its band identity.
+    const labelFill = mix(color, palette.text, 25);
+
+    // Group wraps tick + dot + hit area + both labels so `:hover` on
+    // any part of the cluster triggers the swap.
+    const dotGroup = block
+      .append('g')
+      .attr('class', 'pert-scurve-percentile')
+      .attr('data-percentile', d.label);
+
+    dotGroup
       .append('line')
       .attr('class', 'pert-scurve-percentile-tick')
       .attr('x1', cx)
@@ -3747,7 +4116,7 @@ function renderScurveBlock(
       .attr('stroke-width', 1)
       .attr('stroke-dasharray', d.isPast ? '4,2' : '3 3')
       .attr('opacity', 0.7);
-    block
+    dotGroup
       .append('circle')
       .attr('class', 'pert-scurve-percentile-dot')
       .attr('cx', cx)
@@ -3756,7 +4125,22 @@ function renderScurveBlock(
       .attr('fill', color)
       .attr('stroke', fill)
       .attr('stroke-width', 1.5)
+      // Mirrored on the parent group so the hover :hover selector can
+      // attach to the cluster as a whole; kept here too for back-
+      // compat with consumers querying `circle[data-percentile]`.
       .attr('data-percentile', d.label);
+    // Generous transparent hit-area — a 4 px dot is too small a target
+    // for the hover affordance to feel discoverable. The hit circle
+    // sits on top so any pointer within 14 px registers a hover on
+    // the parent group.
+    dotGroup
+      .append('circle')
+      .attr('class', 'pert-scurve-percentile-hit')
+      .attr('cx', cx)
+      .attr('cy', cy)
+      .attr('r', 14)
+      .attr('fill', 'transparent')
+      .attr('pointer-events', 'all');
     // Inline label next to the dot: "P{X} · {date}" when anchored,
     // "P{X} · {duration}" otherwise. The natural y-spacing between
     // P50/P80/P95 (≈ 45 % of plot height) gives each label its own
@@ -3764,32 +4148,12 @@ function renderScurveBlock(
     // together horizontally (e.g. backward mode with a narrow
     // candidate-start span). Replaces the old "name above + x-axis
     // two-line label below" combo, which collided when dots overlapped.
-    const valueText = isAnchored
-      ? formatScurveDate(addCalendarDays(data.anchorDate!, d.value))
-      : formatScurveTick(d.durationDays, unit);
-    const inlineText = `${d.label} · ${valueText}`;
-    // Place to the right of the dot by default; flip to the left when
-    // the dot is in the right half so the label can't run off the
-    // plot. Forward-mode P95 lands near the right edge and benefits
-    // from the flip; backward-mode P95 is near the left edge and
-    // stays right-anchored.
-    const plotMid = plotLeft + (plotRight - plotLeft) / 2;
-    const placeLeft = cx > plotMid;
-    const inlineGap = SCURVE_PERCENTILE_RADIUS + 6;
-    const inlineX = placeLeft ? cx - inlineGap : cx + inlineGap;
-    // Percentile colors (yellow/orange/red) are tuned for filled
-    // shapes at 25 % tint. Free-standing on the panel bg they lose
-    // contrast — yellow especially, against light themes — so we
-    // shift each label color 25 % toward `palette.text` (dark in
-    // light theme, light in dark theme) to push it back into the
-    // readable band without abandoning its band identity.
-    const labelFill = mix(color, palette.text, 25);
-    block
+    dotGroup
       .append('text')
       .attr('class', 'pert-scurve-percentile-label')
-      .attr('x', inlineX)
+      .attr('x', labelX)
       .attr('y', cy + SCURVE_TICK_FONT_SIZE / 3)
-      .attr('text-anchor', placeLeft ? 'end' : 'start')
+      .attr('text-anchor', labelAnchor)
       .attr('fill', labelFill)
       .attr('font-size', SCURVE_TICK_FONT_SIZE)
       .attr('font-weight', '700')
@@ -3802,6 +4166,26 @@ function renderScurveBlock(
       .attr('stroke-linejoin', 'round')
       .attr('stroke-opacity', 0.95)
       .text(inlineText);
+    // Verbose label shares the terse's anchor and x so the hover
+    // swap reads as an in-place expansion. Hidden by default via the
+    // inline <style> above; revealed when the surrounding group is
+    // hovered. Same halo treatment so the longer phrase stays
+    // readable across the colored band and the gridlines.
+    dotGroup
+      .append('text')
+      .attr('class', 'pert-scurve-percentile-verbose')
+      .attr('x', labelX)
+      .attr('y', cy + SCURVE_TICK_FONT_SIZE / 3)
+      .attr('text-anchor', labelAnchor)
+      .attr('fill', labelFill)
+      .attr('font-size', SCURVE_TICK_FONT_SIZE)
+      .attr('font-weight', '700')
+      .attr('paint-order', 'stroke fill')
+      .attr('stroke', fill)
+      .attr('stroke-width', 3)
+      .attr('stroke-linejoin', 'round')
+      .attr('stroke-opacity', 0.95)
+      .text(verboseText);
   }
 
   // X-axis ticks: evenly spaced across the x-range. Endpoint labels
@@ -3830,12 +4214,21 @@ function renderScurveBlock(
       anchor: i === 0 ? 'start' : i === N_X_TICKS - 1 ? 'end' : 'middle',
     });
   }
+  // Auto-tick suppression near percentile dots — drop any middle tick
+  // whose label would visually duplicate the inline "P{X} · {value}"
+  // pair (e.g. P80 at exactly 14.7w would otherwise render the same
+  // "14.7w" twice). The ~28 px tolerance is roughly half a duration
+  // label width, so adjacent-but-distinct values keep their tick.
+  const TICK_DOT_PROXIMITY = 28;
+  const collidesWithDot = (t: Tick): boolean =>
+    dotXs.some((dx) => Math.abs(t.x - dx) < TICK_DOT_PROXIMITY);
   const kept: Tick[] = [all[0]];
   const last = all[all.length - 1];
   const lastLeft = footprint(last)[0];
   let rightEdge = footprint(all[0])[1];
   for (let i = 1; i < all.length - 1; i++) {
     const t = all[i];
+    if (collidesWithDot(t)) continue;
     const [l, r] = footprint(t);
     if (r + TICK_MIN_GAP > lastLeft) continue;
     if (l - TICK_MIN_GAP < rightEdge) continue;

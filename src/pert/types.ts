@@ -9,6 +9,7 @@
 
 import type { DgmoError } from '../diagnostics';
 import type { Duration } from '../gantt/types';
+import type { TagGroup } from '../utils/tag-groups';
 import type { DurationEstimate } from './internal';
 
 // ── Directives ──────────────────────────────────────────────
@@ -81,6 +82,13 @@ export interface PertOptions {
   /** When true, the renderer suppresses the diagram banner title. */
   noTitle?: boolean;
   /**
+   * `active-tag <name>` directive — selects which declared tag group
+   * drives node fill via `resolveTagColor()`. `'none'` (case-insensitive)
+   * suppresses tag coloring; `undefined` lets `resolveActiveTagGroup()`
+   * auto-activate the first declared group.
+   */
+  activeTag?: string;
+  /**
    * Sprint mode (mirrors Gantt's surface). Activated automatically when
    * `time-unit s` is set, or explicitly when any `sprint-*` directive
    * appears. Schedule cells render as `S<n>` instead of numeric offsets
@@ -133,6 +141,14 @@ export interface PertActivity {
   lineNumber: number;
   /** True for `milestone <name>` primitives (zero-duration, diamond shape). */
   isMilestone: boolean;
+  /**
+   * Resolved tag-group metadata from pipe-metadata aliases. Keys are
+   * lowercased tag-group names (e.g. `priority`, `team`); values are the
+   * authored tag entry names. Drives node fill via `resolveTagColor()`
+   * when an `active-tag` group is set. Empty when no tag groups are
+   * declared or the activity carried no tag metadata.
+   */
+  tags?: Record<string, string>;
 }
 
 /**
@@ -175,6 +191,13 @@ export interface PertGroup {
   /** Source line of the `[group-name]` header (1-based). */
   lineNumber: number;
   /**
+   * Resolved tag-group metadata for the cluster header — same shape as
+   * `PertActivity.tags`. Currently informational; default-tag injection
+   * skips groups (containers) so they appear "untagged" unless the user
+   * authors an explicit value via pipe metadata.
+   */
+  tags?: Record<string, string>;
+  /**
    * Auto-detected group topology (Pass 2 result).
    * - `hammock`: single entry + single exit — collapses to a super-edge.
    * - `cluster`: multi-entry or multi-exit — collapses to a bounding rect.
@@ -190,6 +213,12 @@ export interface ParsedPert {
   activities: PertActivity[];
   edges: PertEdge[];
   groups: PertGroup[];
+  /**
+   * Tag groups declared at the top of the diagram (`tag Priority as p
+   * High(red), Low(green)`). Drive node fill via `resolveTagColor()`.
+   * Empty when no `tag` blocks are declared.
+   */
+  tagGroups: TagGroup[];
   /**
    * Map alias-or-name → canonical activity id. Useful for the analyzer
    * and for editor autocomplete; also populated in Pass 2.
@@ -353,6 +382,12 @@ export interface ResolvedPert {
   edges: PertEdge[];
   groups: ResolvedGroup[];
   /**
+   * Tag groups copied from the parsed source. The renderer reads this
+   * + `options.activeTag` to drive node fill via `resolveTagColor()`
+   * and to render the legend.
+   */
+  tagGroups: TagGroup[];
+  /**
    * Analysis mode auto-derived from data: `monte-carlo` when at least
    * one non-milestone activity carries an O/M/P triple AND `trials >= 100`,
    * otherwise `analytical`.
@@ -366,6 +401,15 @@ export interface ResolvedPert {
    * analyze() run.
    */
   summaryRows: CaptionRow[] | null;
+  /**
+   * One-line project summary rendered as a subtitle under the diagram title.
+   * Shape per mode (see §13A.7):
+   *   - Forward:    `Expected finish: <date> · ≈ <μ> <unit> of work (± <σ>)`
+   *   - Backward:   `Expected start: <date> · ≈ <μ> <unit> lead time (± <σ>)`
+   *   - Unanchored: `≈ <μ> <unit> (± <σ>)`
+   * Null when analysis bails out before producing any output.
+   */
+  projectSubtitle: string | null;
   /** μ along the M-world critical path (max EF over all activities). */
   projectMu: number | null;
   /** σ along the M-world critical path (sqrt of variance sum). */

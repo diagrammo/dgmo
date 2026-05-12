@@ -564,7 +564,7 @@ Boss
 // ============================================================
 
 describe('legend rendering', () => {
-  it('renders legend in export mode (inactive pills stripped)', () => {
+  it('renders collapsed pills in export mode (no auto-activation, pills survive)', () => {
     const input = `org
 
 tag Location
@@ -576,8 +576,9 @@ Alice
 Bob
   location: LA`;
     const svg = renderOrgForExport(input, 'light', palette.light);
-    // Inactive pills are stripped via data-export-ignore in export mode
-    expect(svg).not.toContain('data-legend-group');
+    // Per spec §1.3, no group is auto-active. Pills survive export so
+    // readers see the tag dimension exists.
+    expect(svg).toContain('data-legend-group="location"');
     expect(svg).toContain('Location');
   });
 

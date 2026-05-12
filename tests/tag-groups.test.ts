@@ -679,14 +679,14 @@ describe('resolveActiveTagGroup', () => {
     expect(resolveActiveTagGroup(groups, 'NONE')).toBeNull();
   });
 
-  // -- Auto-activation --
+  // -- Collapsed-by-default (no auto-activation; coloring is opt-in per spec §1.3) --
 
-  it('explicit empty string falls through to auto-activation', () => {
-    expect(resolveActiveTagGroup(groups, '')).toBe('Priority');
+  it('explicit empty string → null (no auto-activation)', () => {
+    expect(resolveActiveTagGroup(groups, '')).toBeNull();
   });
 
-  it('no explicit tag + tag groups present → first group name', () => {
-    expect(resolveActiveTagGroup(groups, undefined)).toBe('Priority');
+  it('no explicit tag + tag groups present → null (collapsed-by-default)', () => {
+    expect(resolveActiveTagGroup(groups, undefined)).toBeNull();
   });
 
   it('no explicit tag + no tag groups → null', () => {
@@ -703,9 +703,7 @@ describe('resolveActiveTagGroup', () => {
     expect(resolveActiveTagGroup(groups, 'Team', undefined)).toBe('Team');
   });
 
-  it('programmatic undefined + no explicit → auto-activates', () => {
-    expect(resolveActiveTagGroup(groups, undefined, undefined)).toBe(
-      'Priority'
-    );
+  it('programmatic undefined + no explicit → null (collapsed-by-default)', () => {
+    expect(resolveActiveTagGroup(groups, undefined, undefined)).toBeNull();
   });
 });

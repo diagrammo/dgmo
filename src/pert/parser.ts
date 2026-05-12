@@ -13,9 +13,19 @@
 import { makeDgmoError, suggest } from '../diagnostics';
 import type { DgmoError } from '../diagnostics';
 import { parseDuration } from '../utils/duration';
-import { measureIndent } from '../utils/parsing';
+import { extractColor, measureIndent } from '../utils/parsing';
 import { normalizeName } from '../utils/name-normalize';
+import {
+  emitTagLegacyDiagnostic,
+  injectDefaultTagMetadata,
+  matchTagBlockHeading,
+  stripDefaultModifier,
+  validateTagGroupNames,
+  validateTagValues,
+  type TagGroup,
+} from '../utils/tag-groups';
 import type { Duration, DurationUnit } from '../gantt/types';
+import type { PaletteColors } from '../palettes';
 import type {
   EdgeType,
   ParsedPert,
@@ -54,6 +64,16 @@ const DIRECTIVE_KEYS = new Set([
   'sprint-length',
   'sprint-number',
   'sprint-start',
+  'active-tag',
+]);
+
+/**
+ * Pipe-metadata keys that PERT consumes for non-tag purposes. Anything
+ * else after alias resolution is treated as tag metadata.
+ */
+const RESERVED_PIPE_KEYS: ReadonlySet<string> = new Set([
+  'confidence',
+  'collapsed',
 ]);
 
 /**
@@ -392,17 +412,23 @@ function buildEstimate(
 
 /**
  * Pipe metadata: `key: value, key2: value2`.
- * PERT only consumes one key in v1 (`confidence`, plus `collapsed` on
- * groups), but we parse the full surface for forward-compat.
+ * Reserved keys (`confidence`, `collapsed`) flow into their dedicated
+ * activity/group fields; everything else is treated as tag metadata
+ * once aliases (`p` → `priority`) are resolved against the diagram's
+ * declared tag groups.
  */
-function parsePipeMetadata(raw: string): Record<string, string> {
+function parsePipeMetadata(
+  raw: string,
+  aliasMap: Map<string, string> = new Map()
+): Record<string, string> {
   const out: Record<string, string> = {};
   for (const part of raw.split(',')) {
     const trimmed = part.trim();
     if (!trimmed) continue;
     const idx = trimmed.indexOf(':');
     if (idx <= 0) continue;
-    const key = trimmed.slice(0, idx).trim().toLowerCase();
+    const rawKey = trimmed.slice(0, idx).trim().toLowerCase();
+    const key = aliasMap.get(rawKey) ?? rawKey;
     const value = trimmed.slice(idx + 1).trim();
     out[key] = value;
   }
@@ -420,6 +446,12 @@ export interface ParsePertOptions {
    * deterministic snapshots and past-row assertions.
    */
   now?: Date;
+  /**
+   * Active palette — used when resolving color names on `tag` entries
+   * (e.g. `High(red)` → palette.colors.red). Optional; when omitted the
+   * universal default color map is used.
+   */
+  palette?: PaletteColors;
 }
 
 export function parsePert(
@@ -468,6 +500,26 @@ export function parsePert(
 
   /** Groups discovered in source order; activityIds populated in Pass 2. */
   const groups: PertGroup[] = [];
+
+  /**
+   * Tag groups declared at the top of the diagram. A `tag …` heading
+   * opens a block; entries (indented `Value(color)` lines) accumulate
+   * until the first non-tag content line closes it.
+   */
+  const tagGroups: TagGroup[] = [];
+  let currentTagGroup: TagGroup | null = null;
+  /**
+   * Tag-block phase ends as soon as the parser sees any directive,
+   * group header, activity, or arrow line. After `contentStarted`
+   * flips, further `tag …` headings are rejected with an error.
+   */
+  let contentStarted = false;
+  /**
+   * Map of pipe-metadata alias → canonical tag-group key (lowercased
+   * tag-group name). `tag Priority as p` adds `p → priority`, so
+   * `| p: High` resolves to `priority: High` at activity-parse time.
+   */
+  const metaAliasMap = new Map<string, string>();
 
   /** Stack of (groupId, indent) — the group at the bottom is the open one. */
   type GroupFrame = { groupId: string; indent: number };
@@ -524,18 +576,108 @@ export function parsePert(
       // layer is responsible for routing.
     }
 
+    // ── Tag-block phase. `tag Priority as p\n  High(red)\n  Low(green)`
+    // lives BEFORE diagram content; once any group / activity / arrow
+    // is seen, `contentStarted` flips and further `tag …` headings
+    // emit an error.
+    if (!contentStarted) {
+      const tagBlockMatch = matchTagBlockHeading(trimmed);
+      if (tagBlockMatch) {
+        emitTagLegacyDiagnostic(tagBlockMatch, lineNumber, diagnostics);
+        currentTagGroup = {
+          name: tagBlockMatch.name,
+          ...(tagBlockMatch.alias !== undefined && {
+            alias: tagBlockMatch.alias,
+          }),
+          entries: [],
+          lineNumber,
+        };
+        if (tagBlockMatch.alias) {
+          metaAliasMap.set(
+            tagBlockMatch.alias.toLowerCase(),
+            tagBlockMatch.name.toLowerCase()
+          );
+        }
+        tagGroups.push(currentTagGroup);
+        // Inline values (e.g. `tag Priority as p Low(green), High(red)`).
+        if (tagBlockMatch.inlineValues) {
+          for (const raw of tagBlockMatch.inlineValues) {
+            const { text, isDefault } = stripDefaultModifier(raw);
+            const { label, color } = extractColor(
+              text,
+              parseOpts.palette,
+              diagnostics,
+              lineNumber
+            );
+            if (!color) {
+              warn(
+                lineNumber,
+                `Expected 'Value(color)' in tag group '${currentTagGroup.name}'`
+              );
+              continue;
+            }
+            if (isDefault || currentTagGroup.entries.length === 0) {
+              currentTagGroup.defaultValue = label;
+            }
+            currentTagGroup.entries.push({ value: label, color, lineNumber });
+          }
+        }
+        continue;
+      }
+      // Indented `Value(color)` entry under an open tag block.
+      if (currentTagGroup && indent > 0) {
+        const { text, isDefault } = stripDefaultModifier(trimmed);
+        const { label, color } = extractColor(
+          text,
+          parseOpts.palette,
+          diagnostics,
+          lineNumber
+        );
+        if (!color) {
+          warn(
+            lineNumber,
+            `Expected 'Value(color)' in tag group '${currentTagGroup.name}'`
+          );
+          continue;
+        }
+        if (isDefault || currentTagGroup.entries.length === 0) {
+          currentTagGroup.defaultValue = label;
+        }
+        currentTagGroup.entries.push({ value: label, color, lineNumber });
+        continue;
+      }
+      // Any other line at indent 0 closes the tag block (and content phase begins).
+      currentTagGroup = null;
+    } else if (matchTagBlockHeading(trimmed)) {
+      // `tag …` after content has started — must live at the top of the file.
+      error(
+        lineNumber,
+        `'tag' declarations must appear before activities and groups.`
+      );
+      continue;
+    }
+
     // ── Group header: `[group-name] | collapsed: true`.
     const groupMatch = trimmed.match(GROUP_HEADER_RE);
     if (groupMatch) {
+      contentStarted = true;
+      currentTagGroup = null;
       const name = groupMatch[1].trim();
-      const meta = groupMatch[2] ? parsePipeMetadata(groupMatch[2]) : {};
+      const meta = groupMatch[2]
+        ? parsePipeMetadata(groupMatch[2], metaAliasMap)
+        : {};
       const id = `[${normalizeName(name)}]`;
+      const tags: Record<string, string> = {};
+      for (const [k, v] of Object.entries(meta)) {
+        if (!RESERVED_PIPE_KEYS.has(k)) tags[k] = v;
+      }
       groups.push({
         id,
         name,
         activityIds: [],
         collapsed: meta.collapsed === 'true',
         lineNumber,
+        ...(Object.keys(tags).length > 0 && { tags }),
       });
       groupStack.push({ groupId: id, indent });
       currentSourceName = null;
@@ -547,6 +689,8 @@ export function parsePert(
     // is `[TYPE][±LAG]` (e.g. `SS`, `2d`, `SS+2d`, `FF-1d`). Type
     // defaults to FS, lag to zero.
     if (trimmed.startsWith('-')) {
+      contentStarted = true;
+      currentTagGroup = null;
       let arrowTargetText: string;
       let edgeType: EdgeType = 'FS';
       let edgeLag: Duration | null = null;
@@ -704,6 +848,8 @@ export function parsePert(
         error(lineNumber, `Empty activity name: '${trimmed}'.`);
         continue;
       }
+      contentStarted = true;
+      currentTagGroup = null;
 
       // Bare source-line referencing an existing alias: don't register a
       // duplicate activity — just point currentSource at the canonical
@@ -861,7 +1007,14 @@ export function parsePert(
       options.timeUnit,
       (msg) => error(decl.lineNumber, msg)
     );
-    const meta = decl.pipeMetadata ? parsePipeMetadata(decl.pipeMetadata) : {};
+    const meta = decl.pipeMetadata
+      ? parsePipeMetadata(decl.pipeMetadata, metaAliasMap)
+      : {};
+    // Split reserved keys (`confidence`) from tag metadata.
+    const tags: Record<string, string> = {};
+    for (const [k, v] of Object.entries(meta)) {
+      if (!RESERVED_PIPE_KEYS.has(k)) tags[k] = v;
+    }
     // Zero-duration activities (O = M = P = 0) are flagged as milestones
     // so the renderer can mark them with the diamond glyph.
     const isMilestone =
@@ -878,6 +1031,7 @@ export function parsePert(
       ...(decl.groupHint !== undefined && { groupId: decl.groupHint }),
       lineNumber: decl.lineNumber,
       isMilestone,
+      ...(Object.keys(tags).length > 0 && { tags }),
     });
   }
 
@@ -961,6 +1115,42 @@ export function parsePert(
     }
   }
 
+  // ── Tag-group post-validation + default injection ───────
+  if (tagGroups.length > 0) {
+    validateTagGroupNames(
+      tagGroups.map((g) => ({
+        name: g.name,
+        alias: g.alias ?? null,
+        lineNumber: g.lineNumber,
+      })),
+      warn,
+      error
+    );
+    const ensureTags = (
+      entity: PertActivity | PertGroup
+    ): { metadata: Record<string, string>; lineNumber: number } => {
+      if (!entity.tags) entity.tags = {};
+      return { metadata: entity.tags, lineNumber: entity.lineNumber };
+    };
+    const activityShells = activities.map(ensureTags);
+    const groupShells = groups.map(ensureTags);
+    validateTagValues(
+      [...activityShells, ...groupShells],
+      tagGroups,
+      warn,
+      suggest
+    );
+    // Default-tag injection: only activities (containers stay structural).
+    injectDefaultTagMetadata(activityShells, tagGroups);
+    // Strip empty tags maps for cleaner downstream consumption.
+    for (const a of activities) {
+      if (a.tags && Object.keys(a.tags).length === 0) delete a.tags;
+    }
+    for (const g of groups) {
+      if (g.tags && Object.keys(g.tags).length === 0) delete g.tags;
+    }
+  }
+
   const firstFatal = diagnostics.find((d) => d.severity === 'error');
   return {
     title,
@@ -968,6 +1158,7 @@ export function parsePert(
     activities,
     edges,
     groups,
+    tagGroups,
     idMap,
     diagnostics,
     error: firstFatal ? firstFatal.message : null,
@@ -1017,6 +1208,14 @@ function applyDirective(
     case 'no-title': {
       // Bare boolean directive — suppresses the diagram banner title.
       options.noTitle = true;
+      return;
+    }
+    case 'active-tag': {
+      // Selects which declared tag group drives node fill.
+      // `none` (case-insensitive) suppresses coloring entirely;
+      // an unrecognized name resolves to no color at render time.
+      // Unset → first declared group auto-activates.
+      options.activeTag = value;
       return;
     }
     case 'sprint-length': {
@@ -1281,6 +1480,8 @@ export function extractPertSymbols(docText: string): DiagramSymbols {
       'scrubber-trials',
       'start-date',
       'end-date',
+      'active-tag',
+      'tag',
       'as',
     ],
   };

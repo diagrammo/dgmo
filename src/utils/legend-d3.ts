@@ -270,11 +270,15 @@ function renderPill(
   groupBg: string,
   callbacks?: LegendCallbacks
 ): void {
+  // Collapsed tag-group pills survive static export so readers see
+  // that the diagram has tag dimensions even when no group is active.
+  // (Per spec §1.3 "Coloring is opt-in" — exports default to collapsed
+  // pills, no node coloring.) Interactive controls keep
+  // `data-export-ignore` separately.
   const g = parent
     .append('g')
     .attr('transform', `translate(${pill.x},${pill.y})`)
     .attr('data-legend-group', pill.groupName.toLowerCase())
-    .attr('data-export-ignore', 'true')
     .style('cursor', 'pointer');
 
   g.append('rect')

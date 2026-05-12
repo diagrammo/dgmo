@@ -499,8 +499,10 @@ export function analyzePert(parsed: ParsedPert): ResolvedPert {
         activities: resolvedActivities,
         edges,
         groups: [],
+        tagGroups: parsed.tagGroups,
         mode: 'monte-carlo',
         summaryRows: null,
+        projectSubtitle: null,
         projectMu: null,
         projectSigma: null,
         criticalPath,
@@ -593,13 +595,22 @@ export function analyzePert(parsed: ParsedPert): ResolvedPert {
     sprintDays,
   });
 
+  const projectSubtitle = buildProjectSubtitle({
+    projectMu: projectMuOut,
+    projectSigma: projectSigmaOut,
+    unit,
+    anchor: parsed.options.anchor,
+  });
+
   return {
     options: parsed.options,
     activities: resolvedActivities,
     edges,
     groups: resolvedGroups,
+    tagGroups: parsed.tagGroups,
     mode,
     summaryRows,
+    projectSubtitle,
     projectMu: projectMuOut,
     projectSigma: projectSigmaOut,
     criticalPath,
@@ -1032,6 +1043,61 @@ export function buildSummary(input: BuildSummaryInput): CaptionRow[] | null {
   return rows;
 }
 
+/**
+ * Build the one-line project subtitle rendered under the diagram title.
+ * Distinct from `buildSummary` because the subtitle sits in the title
+ * region (always visible, independent of the Analysis-row toggle) and
+ * collapses the σ + duration restatement into a single bullet-free line.
+ *
+ * Shape per mode (§13A.7):
+ *   - Forward:    `Expected finish: <date> · ≈ <μ> <unit> of work (± <σ>)`
+ *   - Backward:   `Expected start: <date> · ≈ <μ> <unit> lead time (± <σ>)`
+ *   - Unanchored: `≈ <μ> <unit> (± <σ>)`
+ *
+ * Returns null when projectMu is indeterminate (TBD upstream) AND no
+ * anchor is present — there's nothing useful to say. With an anchor we
+ * still render `Expected finish: ? · ≈ ? <unit>` to preserve the slot.
+ */
+export function buildProjectSubtitle(input: {
+  projectMu: number | null;
+  projectSigma: number | null;
+  unit: DurationUnit;
+  anchor?: Anchor;
+}): string | null {
+  const anchor = input.anchor ?? null;
+  const { projectMu, projectSigma, unit } = input;
+
+  const sigmaPositive = projectSigma !== null && projectSigma > 0;
+  const sigmaParen = sigmaPositive
+    ? ` (± ${roundForCaption(projectSigma!)})`
+    : '';
+
+  if (projectMu === null) {
+    // Anchored + TBD: keep the framing prefix, mark the math as ?.
+    if (anchor && anchor.kind === 'forward') {
+      return `Expected finish: ? · ≈ ? ${pluralizeUnit(2, unit)} of work`;
+    }
+    if (anchor && anchor.kind === 'backward') {
+      return `Expected start: ? · ≈ ? ${pluralizeUnit(2, unit)} lead time`;
+    }
+    // Unanchored + TBD: surface that the total is unknown. The per-node
+    // `?` placeholders convey which activities are missing estimates.
+    return `≈ ? ${pluralizeUnit(2, unit)}`;
+  }
+
+  const muStr = `${roundForCaption(projectMu)} ${pluralizeUnit(projectMu, unit)}`;
+
+  if (anchor && anchor.kind === 'forward') {
+    const projectMuDays = projectMu * unitToDays(unit);
+    return `Expected finish: ${addCalendarDays(anchor.date, projectMuDays)} · ≈ ${muStr} of work${sigmaParen}`;
+  }
+  if (anchor && anchor.kind === 'backward') {
+    const projectMuDays = projectMu * unitToDays(unit);
+    return `Expected start: ${addCalendarDays(anchor.date, -projectMuDays)} · ≈ ${muStr} lead time${sigmaParen}`;
+  }
+  return `≈ ${muStr}${sigmaParen}`;
+}
+
 function roundForCaption(n: number): string {
   let rounded: number;
   const abs = Math.abs(n);
@@ -1097,8 +1163,10 @@ function emptyResolved(
       slack: null,
       criticality: null,
     })),
+    tagGroups: parsed.tagGroups,
     mode: 'analytical',
     summaryRows: null,
+    projectSubtitle: null,
     projectMu: null,
     projectSigma: null,
     criticalPath: [],
