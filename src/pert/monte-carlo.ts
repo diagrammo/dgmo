@@ -340,16 +340,6 @@ function pathVariance(
 // Public entry points
 // ============================================================
 
-export interface BuildSimulationInputArgs {
-  resolved: ResolvedPert;
-  /**
-   * Per-activity (O, M, P) in canonical days as the analyzer computes
-   * them — used directly by the sampler. Caller is responsible for
-   * supplying these from the analyzer's expanded-estimate cache.
-   */
-  expanded: ExpandedActivity[];
-}
-
 export interface SimulateOptions {
   trials: number;
   seed: number;

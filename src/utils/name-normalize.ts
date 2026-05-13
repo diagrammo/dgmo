@@ -221,18 +221,6 @@ export function bindAlias(
   return { bound: { alias, entry } };
 }
 
-/**
- * Pre-flight check: returns true if the given canonical literal
- * (LHS of a `Name as <alias>` declaration) is itself already a
- * registered alias. The caller then emits `E_ALIAS_OF_ALIAS`.
- */
-export function isAliasLiteral(
-  canonical: string,
-  aliasStore: AliasMap
-): boolean {
-  return aliasStore.has(canonical.trim());
-}
-
 // ============================================================
 // ParseContext (W2 threading model)
 // ============================================================

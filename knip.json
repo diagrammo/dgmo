@@ -3,7 +3,6 @@
   "ignoreBinaries": ["du"],
   "ignore": [
     "src/editor/tokens.ts",
-    "src/utils/alias-bind.ts",
     "scripts/audit-solid-fill-contrast.ts",
     "scripts/generate-examples-gallery.mjs",
     "scripts/check-bundle-size.cjs",

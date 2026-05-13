@@ -334,11 +334,3 @@ export const VARIANTS: Readonly<Record<RaciVariant, VariantRuleSet>> = {
     ],
   },
 };
-
-/** Returns true if `s` is a single character that is a marker in `variant`'s alphabet. */
-export function isVariantMarker(
-  s: string,
-  variant: RaciVariant
-): s is RaciMarker {
-  return VARIANTS[variant].alphabet.includes(s as RaciMarker);
-}

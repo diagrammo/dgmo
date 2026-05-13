@@ -11,12 +11,7 @@ export {
   cellRemove,
   cellCycle,
 } from './mutations';
-export {
-  VARIANTS,
-  RACI_ERROR_CODES,
-  RACI_WARNING_CODES,
-  isVariantMarker,
-} from './variants';
+export { VARIANTS, RACI_ERROR_CODES, RACI_WARNING_CODES } from './variants';
 export type { ConstraintRule, VariantRuleSet } from './variants';
 export type {
   ParsedRaci,

@@ -637,9 +637,6 @@ export interface PipeKeySpec {
  *   - tech-radar: `quadrant`, `blip`
  *   - journey-map: `step`
  *
- * Consumers that don't classify lines beyond node/edge can fall back to
- * the union of all contexts via `unionPipeKeys(spec)` below.
- *
  * IMPORTANT: NEVER add 'sequence' here. The `|` character in sequence
  * diagrams separates display names from identifiers and tag metadata.
  * Adding sequence would trigger false pipe-metadata completions on every `|`.
@@ -806,22 +803,6 @@ export const PIPE_METADATA = new Map<string, PipeContextMap>([
     },
   ],
 ]);
-
-/**
- * Union of all pipe-metadata keys across every context for a chart.
- * Use this when a consumer can't precisely classify which line context
- * the cursor is on (e.g. raci role vs phase) and wants to surface every
- * potentially-valid key. Returns an empty record for unknown chart types.
- */
-export function unionPipeKeys(chartType: string): Record<string, PipeKeySpec> {
-  const spec = PIPE_METADATA.get(chartType);
-  if (!spec) return {};
-  const merged: Record<string, PipeKeySpec> = {};
-  for (const ctx of Object.values(spec)) {
-    Object.assign(merged, ctx);
-  }
-  return merged;
-}
 
 // ============================================================
 // Derived metadata key set

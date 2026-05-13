@@ -123,15 +123,6 @@ export const NAME_DIAGNOSTIC_CODES = {
   AKA_REMOVED: 'E_AKA_REMOVED',
 } as const;
 
-export const NAME_DIAGNOSTIC_SEVERITY: Record<
-  keyof typeof NAME_DIAGNOSTIC_CODES,
-  DgmoSeverity
-> = {
-  NAME_MERGED: 'warning',
-  NAME_RESERVED_CHAR: 'error',
-  AKA_REMOVED: 'error',
-};
-
 /**
  * Canonical message for `I_NAME_MERGED`. Emitted when two distinct
  * source labels normalize to the same key AND their displayed forms
@@ -151,15 +142,6 @@ export function nameMergedMessage(args: {
     `'${args.existingDisplay}' (line ${args.existingLine}) — ` +
     'names differ only in case/whitespace'
   );
-}
-
-/**
- * Canonical message for `E_NAME_RESERVED_CHAR`. The `char` argument
- * is the offending character (`|`, `:`, etc.) — the wording names
- * it explicitly so the diagnostic is actionable.
- */
-export function nameReservedCharMessage(char: string): string {
-  return `name contains reserved character '${char}' — wrap in "..." to use literally`;
 }
 
 /**
@@ -204,24 +186,6 @@ export const ALIAS_DIAGNOSTIC_CODES = {
   /** Alias declared but referenced ≤1 time. */
   ALIAS_UNDERUSED: 'W_ALIAS_UNDERUSED',
 } as const;
-
-export const ALIAS_DIAGNOSTIC_SEVERITY: Record<
-  keyof typeof ALIAS_DIAGNOSTIC_CODES,
-  DgmoSeverity
-> = {
-  ALIAS_BEFORE_DECL: 'error',
-  ALIAS_COLLISION: 'error',
-  ALIAS_SHADOWS_NAME: 'error',
-  ALIAS_REBINDING: 'error',
-  ALIAS_OF_ALIAS: 'error',
-  ALIAS_RESERVED_KEYWORD: 'error',
-  ALIAS_INVALID_FORMAT: 'error',
-  ALIAS_AFTER_CANONICAL: 'error',
-  TAG_SHORTHAND_REMOVED: 'error',
-  VENN_ALIAS_KEYWORD_REMOVED: 'error',
-  ALIAS_CASE_NEAR_MATCH: 'warning',
-  ALIAS_UNDERUSED: 'warning',
-};
 
 export function aliasBeforeDeclMessage(token: string): string {
   return (
