@@ -187,51 +187,6 @@ export const ALIAS_DIAGNOSTIC_CODES = {
   ALIAS_UNDERUSED: 'W_ALIAS_UNDERUSED',
 } as const;
 
-export function aliasBeforeDeclMessage(token: string): string {
-  return (
-    `Alias '${token}' used before declaration. ` +
-    `Declare '<canonical> as ${token}' on or above this line.`
-  );
-}
-
-export function aliasCollisionMessage(args: {
-  token: string;
-  existingCanonical: string;
-  existingLine: number;
-  incomingCanonical: string;
-}): string {
-  return (
-    `Alias '${args.token}' is already bound to '${args.existingCanonical}' ` +
-    `(line ${args.existingLine}). Cannot rebind to '${args.incomingCanonical}'.`
-  );
-}
-
-export function aliasShadowsNameMessage(token: string): string {
-  return `Alias '${token}' would shadow an existing canonical name. Choose a different alias.`;
-}
-
-export function aliasRebindingMessage(args: {
-  canonical: string;
-  existingAlias: string;
-  existingLine: number;
-  incomingAlias: string;
-}): string {
-  return (
-    `'${args.canonical}' is already aliased as '${args.existingAlias}' ` +
-    `(line ${args.existingLine}). Cannot also alias as '${args.incomingAlias}'.`
-  );
-}
-
-export function aliasOfAliasMessage(args: {
-  token: string;
-  canonical: string;
-}): string {
-  return (
-    `'${args.token}' is itself an alias for '${args.canonical}'. ` +
-    `Cannot alias an alias — alias the canonical instead.`
-  );
-}
-
 export function aliasReservedKeywordMessage(token: string): string {
   return `'${token}' is a reserved keyword and cannot be used as an alias.`;
 }
@@ -240,16 +195,6 @@ export function aliasInvalidFormatMessage(token: string): string {
   return (
     `Alias '${token}' must match [A-Za-z][A-Za-z0-9_]{0,11} ` +
     `(letter start, letters/digits/underscore, max 12 chars).`
-  );
-}
-
-export function aliasAfterCanonicalMessage(args: {
-  canonical: string;
-  existingLine: number;
-}): string {
-  return (
-    `'${args.canonical}' was already used as a canonical name (line ${args.existingLine}). ` +
-    `Aliases must be declared on or before first use.`
   );
 }
 
@@ -270,22 +215,5 @@ export function vennAliasKeywordRemovedMessage(args: {
   return (
     `Venn 'alias' keyword was removed. ` +
     `Use 'as' instead — '${args.name} as ${args.alias}'.`
-  );
-}
-
-export function aliasCaseNearMatchMessage(args: {
-  reference: string;
-  declared: string;
-}): string {
-  return (
-    `'${args.reference}' differs only in case from declared alias '${args.declared}'. ` +
-    `Did you mean '${args.declared}'?`
-  );
-}
-
-export function aliasUnderusedMessage(token: string): string {
-  return (
-    `Alias '${token}' is declared but referenced ≤1 time. ` +
-    `Aliases earn their keep on names that repeat 3+ times.`
   );
 }
