@@ -5,7 +5,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/diagrammo/dgmo.git"
+    "url": "git+https://github.com/diagrammo/dgmo.git"
   },
   "homepage": "https://github.com/diagrammo/dgmo#readme",
   "type": "module",
@@ -79,7 +79,12 @@
     "./fonts/*": "./fonts/*"
   },
   "files": [
-    "dist",
+    "dist/*.js",
+    "dist/*.cjs",
+    "dist/*.mjs",
+    "dist/*.d.ts",
+    "dist/*.d.cts",
+    "dist/*.css",
     "fonts",
     "src",
     "docs/*.md",
