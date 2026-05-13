@@ -787,7 +787,7 @@ export function parseGantt(
       // TD-18: peel optional `as <alias>` from the group label.
       const groupPeeled = peelAlias(groupMatch[1]);
       if (groupPeeled.alias)
-        nameAliasMap.set(normalizeName(groupPeeled.alias), groupPeeled.label);
+        nameAliasMap.set(groupPeeled.alias, groupPeeled.label);
       const group: GanttGroup = {
         name: groupPeeled.label,
         color,
@@ -1003,7 +1003,7 @@ export function parseGantt(
     // TD-18: peel optional `as <alias>` from the label (pre-pipe).
     const peeled = peelAlias(segments[0]);
     const label = peeled.label;
-    if (peeled.alias) nameAliasMap.set(normalizeName(peeled.alias), label);
+    if (peeled.alias) nameAliasMap.set(peeled.alias, label);
 
     // Check for reserved keyword
     if (label.toLowerCase() === 'parallel') {

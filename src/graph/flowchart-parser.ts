@@ -412,8 +412,7 @@ export function parseFlowchart(
       const ref = parseNodeRef(peeled.seg);
       if (ref) {
         const node = getOrCreateNode(ref, lineNumber);
-        if (peeled.alias)
-          nameAliasMap.set(normalizeName(peeled.alias), node.id);
+        if (peeled.alias) nameAliasMap.set(peeled.alias, node.id);
         indentStack.push({ nodeId: node.id, indent });
         return node.id;
       }
@@ -467,7 +466,7 @@ export function parseFlowchart(
       if (!ref) continue;
 
       const node = getOrCreateNode(ref, lineNumber);
-      if (peeled.alias) nameAliasMap.set(normalizeName(peeled.alias), node.id);
+      if (peeled.alias) nameAliasMap.set(peeled.alias, node.id);
 
       if (pendingArrow !== null) {
         const sourceId = lastNodeId ?? implicitSourceId;

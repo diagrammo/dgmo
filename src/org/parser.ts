@@ -291,7 +291,7 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
 
       containerCounter++;
       const containerId = `container-${containerCounter}`;
-      if (asMatch) nameAliasMap.set(normalizeName(asMatch[2]), containerId);
+      if (asMatch) nameAliasMap.set(asMatch[2], containerId);
       const node: OrgNode = {
         id: containerId,
         label,

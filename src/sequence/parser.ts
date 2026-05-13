@@ -956,7 +956,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
         /^(.*?)\s*\bas\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/
       );
       if (asInRemainder) {
-        nameAliasMap.set(normalizeName(asInRemainder[2]), id);
+        nameAliasMap.set(asInRemainder[2], id);
         remainder = asInRemainder[1].trim();
       }
 

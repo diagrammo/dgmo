@@ -40,9 +40,11 @@ const ENTITY_VAR_RE = /(Map|Set|Ids|Labels|ByKey)$/;
 
 // Receivers whose name matches the entity-storage suffix pattern but which
 // are NOT entity-name stores. The spec carves these out (tag aliases,
-// tag-value sets) — normalizing them would change unrelated behavior.
+// universal aliases, tag-value sets) — normalizing them would change
+// unrelated behavior.
 const NON_ENTITY_VARS = new Set([
   'aliasMap', // tag aliases per `tag Name [alias]`
+  'nameAliasMap', // universal alias map per spec §2A.2 — aliases are NEVER UNH-normalized (case-sensitive exact match)
   'tagValueSets', // sets of tag values
 ]);
 

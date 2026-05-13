@@ -279,7 +279,7 @@ export function parseKanban(
       }
 
       const colId = `col-${columnCounter}`;
-      if (colAlias) nameAliasMap.set(normalizeName(colAlias), colId);
+      if (colAlias) nameAliasMap.set(colAlias, colId);
       currentColumn = {
         id: colId,
         name: colName,

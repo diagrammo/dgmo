@@ -402,7 +402,7 @@ export function parseSitemap(
 
       containerCounter++;
       const containerId = `container-${containerCounter}`;
-      if (asMatch) nameAliasMap.set(normalizeName(asMatch[2]), containerId);
+      if (asMatch) nameAliasMap.set(asMatch[2], containerId);
       const node: SitemapNode = {
         id: containerId,
         label,

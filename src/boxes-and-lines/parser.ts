@@ -443,7 +443,7 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
       const groupPeeled = peelAlias(groupMatch[1]);
       const label = groupPeeled.label;
       if (groupPeeled.alias)
-        nameAliasMap.set(normalizeName(groupPeeled.alias), groupId(label));
+        nameAliasMap.set(groupPeeled.alias, groupId(label));
 
       // Check nesting depth
       const currentDepth = groupStack.length + 1;

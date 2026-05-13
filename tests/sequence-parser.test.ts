@@ -1754,4 +1754,30 @@ x -hi-> y`);
     expect(b.messages[0].from).toBe('x');
     expect(b.messages[0].to).toBe('y');
   });
+
+  it('uppercase aliases resolve (spec §2A.2: aliases are never UNH-normalized)', () => {
+    const result = parseSequenceDgmo(`sequence
+Lookout is an actor as L
+Captain is an actor as C
+L -spotted-> C`);
+    expect(
+      result.diagnostics.filter((d) => d.severity === 'error')
+    ).toHaveLength(0);
+    expect(result.participants).toHaveLength(2);
+    expect(result.participants.map((p) => p.id)).toEqual([
+      'Lookout',
+      'Captain',
+    ]);
+    expect(result.messages[0].from).toBe('Lookout');
+    expect(result.messages[0].to).toBe('Captain');
+  });
+
+  it('case-sensitive: lowercase lookup misses uppercase-declared alias', () => {
+    const result = parseSequenceDgmo(`sequence
+Alice is a service as A
+a -hi-> Bob`);
+    // `a` was never declared — should be a literal participant, not Alice
+    expect(result.messages[0].from).toBe('a');
+    expect(result.messages[0].to).toBe('Bob');
+  });
 });

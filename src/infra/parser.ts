@@ -375,7 +375,7 @@ export function parseInfra(content: string): ParsedInfra {
         const gLabel = groupMatch[1].trim();
         const groupAlias = groupMatch[2];
         const gId = groupId(gLabel);
-        if (groupAlias) nameAliasMap.set(normalizeName(groupAlias), gId);
+        if (groupAlias) nameAliasMap.set(groupAlias, gId);
         const groupMeta = groupMatch[3]
           ? extractPipeMetadata('|' + groupMatch[3]).tags
           : undefined;
@@ -404,7 +404,7 @@ export function parseInfra(content: string): ParsedInfra {
         const rest = compMatch[3] || '';
         const { tags } = extractPipeMetadata(rest);
         const id = nodeId(name);
-        if (peeled.alias) nameAliasMap.set(normalizeName(peeled.alias), id);
+        if (peeled.alias) nameAliasMap.set(peeled.alias, id);
         const isEdge = EDGE_NODE_NAMES.has(id.toLowerCase());
 
         currentNode = {
@@ -487,7 +487,7 @@ export function parseInfra(content: string): ParsedInfra {
         const rest = compMatch[3] || '';
         const { tags: nodeTags } = extractPipeMetadata(rest);
         const id = nodeId(name);
-        if (peeled.alias) nameAliasMap.set(normalizeName(peeled.alias), id);
+        if (peeled.alias) nameAliasMap.set(peeled.alias, id);
         // Cascade group metadata into node tags; node-level metadata overrides
         const tags: Record<string, string> = currentGroup.metadata
           ? { ...currentGroup.metadata, ...nodeTags }
@@ -769,7 +769,7 @@ export function parseInfra(content: string): ParsedInfra {
         const rest = compMatch[3] || '';
         const { tags: nodeTags } = extractPipeMetadata(rest);
         const id = nodeId(name);
-        if (peeled.alias) nameAliasMap.set(normalizeName(peeled.alias), id);
+        if (peeled.alias) nameAliasMap.set(peeled.alias, id);
         const tags: Record<string, string> = currentGroup.metadata
           ? { ...currentGroup.metadata, ...nodeTags }
           : nodeTags;

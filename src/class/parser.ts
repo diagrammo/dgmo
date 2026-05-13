@@ -389,8 +389,7 @@ export function parseClassDiagram(
       const node = getOrCreateClass(name, lineNumber);
       if (modifier) node.modifier = modifier;
       if (color) node.color = color;
-      if (aliasLiteral)
-        nameAliasMap.set(normalizeName(aliasLiteral), classId(name));
+      if (aliasLiteral) nameAliasMap.set(aliasLiteral, classId(name));
       // Update line number to the declaration line (may have been created by relationship)
       node.lineNumber = lineNumber;
 

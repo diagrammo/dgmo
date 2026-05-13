@@ -636,7 +636,7 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
         /^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*(\|.*)?$/
       );
       if (asPostfix) {
-        nameAliasMap.set(normalizeName(asPostfix[2]), namePart);
+        nameAliasMap.set(asPostfix[2], namePart);
         remainder = (asPostfix[1] + (asPostfix[3] ?? '')).trim();
       } else {
         // Or peel from the namePart itself in `Name as <alias> is a TYPE` form.
@@ -645,7 +645,7 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
         );
         if (asInName) {
           namePart = asInName[1].trim();
-          nameAliasMap.set(normalizeName(asInName[2]), namePart);
+          nameAliasMap.set(asInName[2], namePart);
         }
       }
 

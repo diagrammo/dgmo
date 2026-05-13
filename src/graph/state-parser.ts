@@ -433,8 +433,7 @@ export function parseState(
       const ref = parseStateNodeRef(peeled.seg);
       if (ref) {
         const node = getOrCreateNode(ref, lineNumber);
-        if (peeled.alias)
-          nameAliasMap.set(normalizeName(peeled.alias), node.id);
+        if (peeled.alias) nameAliasMap.set(peeled.alias, node.id);
         // Standalone heading is the "definition" — update lineNumber so
         // clicking the node in the preview navigates here, not to the
         // first edge mention.
@@ -489,7 +488,7 @@ export function parseState(
       if (!ref) continue;
 
       const node = getOrCreateNode(ref, lineNumber);
-      if (peeled.alias) nameAliasMap.set(normalizeName(peeled.alias), node.id);
+      if (peeled.alias) nameAliasMap.set(peeled.alias, node.id);
 
       if (pendingArrow !== null) {
         // Use explicit source if available, else implicit from indent

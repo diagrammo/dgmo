@@ -465,7 +465,7 @@ export function parseERDiagram(
       // TD-18: peel optional `as <alias>` from the name slot.
       const peeled = peelAlias(rawName);
       const name = peeled.label;
-      if (peeled.alias) nameAliasMap.set(normalizeName(peeled.alias), name);
+      if (peeled.alias) nameAliasMap.set(peeled.alias, name);
       const colorName = tableDecl[3]?.trim();
       const color = colorName
         ? resolveColorWithDiagnostic(
