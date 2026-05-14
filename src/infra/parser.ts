@@ -892,7 +892,7 @@ export function parseInfra(content: string): ParsedInfra {
 // Symbol extraction (for completion API)
 // ============================================================
 
-import type { DiagramSymbols } from '../completion';
+import type { DiagramSymbols } from '../completion-types';
 
 /**
  * Extract component names (entities) from infra document text.

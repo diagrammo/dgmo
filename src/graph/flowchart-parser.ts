@@ -663,7 +663,7 @@ export function looksLikeFlowchart(content: string): boolean {
 // Symbol extraction (for completion API)
 // ============================================================
 
-import type { DiagramSymbols } from '../completion';
+import type { DiagramSymbols } from '../completion-types';
 
 // Node ID: identifier at line start followed by a shape delimiter or space (arrow line)
 const NODE_ID_RE = /^([a-zA-Z_][\w-]*)[\s([</{]/;

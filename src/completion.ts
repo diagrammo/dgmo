@@ -17,29 +17,22 @@ import { extractSymbols as extractInfraSymbols } from './infra/parser';
 import { extractSymbols as extractClassSymbols } from './class/parser';
 import { extractPertSymbols } from './pert/parser';
 import { parseFirstLine, ALL_CHART_TYPES } from './utils/parsing';
-import { CHART_TYPE_DESCRIPTIONS } from './dgmo-router';
+// Read chart-type descriptions directly from the source-of-truth data
+// module instead of via dgmo-router.ts. dgmo-router imports every
+// parser, and the parsers (Class/ER/Infra/Pert/Flowchart) type-only
+// import DiagramSymbols back from this file — creating a hub of cycles
+// through completion ↔ dgmo-router. Going through chart-types.ts (a
+// leaf module with zero imports) breaks 7 of the 10 known cycles.
+import { chartTypes } from './chart-types';
 
 // ============================================================
 // Symbol extraction
 // ============================================================
 
-// ChartType is just a string — alias here for documentation clarity.
-export type ChartType = string;
-
-export interface DiagramSymbols {
-  kind: ChartType;
-  entities: string[]; // table names, node IDs, class names, etc.
-  keywords: string[]; // diagram-specific reserved words
-  /**
-   * Map of alias-literal → canonical entity name, collected from
-   * `Name as <alias>` declarations in the document. Editor surfaces
-   * both forms in autocomplete; selecting an alias inserts the alias
-   * literal (the alias is input convenience, not a display name).
-   */
-  aliases?: Record<string, string>;
-}
-
-export type ExtractFn = (docText: string) => DiagramSymbols;
+// Types live in ./completion-types so the chart-type parsers can
+// import them without taking a cycle through this file.
+import type { ChartType, DiagramSymbols, ExtractFn } from './completion-types';
+export type { ChartType, DiagramSymbols, ExtractFn };
 
 const extractorRegistry = new Map<ChartType, ExtractFn>();
 
@@ -575,6 +568,10 @@ for (const [type, spec] of COMPLETION_REGISTRY) {
 // ============================================================
 
 /** All chart types with descriptions, for chart type autocomplete. Excludes `multi-line` alias. */
+const CHART_TYPE_DESCRIPTIONS: Record<string, string> = Object.fromEntries(
+  chartTypes.map((c) => [c.id, c.description])
+);
+
 export const CHART_TYPES: ReadonlyArray<{ name: string; description: string }> =
   [...ALL_CHART_TYPES]
     .filter((t) => t !== 'multi-line')

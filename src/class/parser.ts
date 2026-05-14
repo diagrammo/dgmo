@@ -548,7 +548,7 @@ export function looksLikeClassDiagram(content: string): boolean {
 // Symbol extraction (for completion API)
 // ============================================================
 
-import type { DiagramSymbols } from '../completion';
+import type { DiagramSymbols } from '../completion-types';
 
 /**
  * Extract class names (entities) from class diagram document text.

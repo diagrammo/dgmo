@@ -42,7 +42,7 @@ import type {
   DeclarationSite,
   ReferenceSite,
 } from './internal';
-import type { DiagramSymbols } from '../completion';
+import type { DiagramSymbols } from '../completion-types';
 
 // ============================================================
 // Regexes / constants

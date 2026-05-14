@@ -628,7 +628,7 @@ export function looksLikeERDiagram(content: string): boolean {
 // Symbol extraction (for completion API)
 // ============================================================
 
-import type { DiagramSymbols } from '../completion';
+import type { DiagramSymbols } from '../completion-types';
 
 /**
  * Extract table names (entities) and ER keywords from document text.
