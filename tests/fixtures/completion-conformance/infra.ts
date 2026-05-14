@@ -1,8 +1,6 @@
 import type { ConformanceFixture } from './_types';
 
 // Spec §4 §3.6 Infra Options. Many performance/SLO knobs.
-// `slo-warning-margin` is in completion but not §3.6 — kept under
-// allowExtras until either spec catches up or the option is removed.
 export const fixture: ConformanceFixture = {
   chartType: 'infra',
   specSection: '4',
@@ -14,6 +12,7 @@ export const fixture: ConformanceFixture = {
     'default-uptime',
     'slo-availability',
     'slo-p90-latency-ms',
+    'slo-warning-margin',
     'animate',
     'no-animate',
     'active-tag',
@@ -43,6 +42,5 @@ export const fixture: ConformanceFixture = {
     ],
     edge: ['split', 'fanout'],
   },
-  allowExtras: ['slo-warning-margin'],
   enumChecks: [{ directive: 'palette', source: 'palettes' }],
 };

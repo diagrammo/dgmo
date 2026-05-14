@@ -138,6 +138,7 @@ export const DIRECTIVE_KEYWORDS = new Set([
   'split',
   'slo-p90-latency-ms',
   'slo-availability',
+  'slo-warning-margin',
   'cache-hit',
   'concurrency',
   'duration-ms',

@@ -194,6 +194,24 @@ export function parseInfra(content: string): ParsedInfra {
     if (!m) return { label: trimmed };
     return { label: m[1].trim(), alias: m[2] };
   }
+
+  // Infra nodes have no "is a <type>" declaration — capability comes from
+  // properties (cache-hit, buffer, drain-rate, …). Strip the suffix if a
+  // user wrote it (likely copying from sequence/c4 syntax) and warn.
+  const IS_A_SUFFIX = /^(.*?)\s+is\s+an?\s+[A-Za-z][\w-]*\s*$/i;
+  function peelInfraDecorations(
+    rawName: string,
+    lineNumber: number
+  ): { label: string; alias?: string } {
+    const peeled = peelAlias(rawName);
+    const m = peeled.label.match(IS_A_SUFFIX);
+    if (!m) return peeled;
+    warn(
+      lineNumber,
+      `Infra nodes don't use 'is a <type>' — types are inferred from properties (cache-hit, buffer, drain-rate, …). Drop the 'is a' suffix.`
+    );
+    return { label: m[1].trim(), alias: peeled.alias };
+  }
   /**
    * Resolve a connection-target token. If the token exactly matches a
    * declared alias, return the bound canonical id. Otherwise fall
@@ -399,7 +417,7 @@ export function parseInfra(content: string): ParsedInfra {
         finishCurrentTagGroup();
 
         const rawName = (compMatch[1] ?? compMatch[2] ?? '').trim();
-        const peeled = peelAlias(rawName);
+        const peeled = peelInfraDecorations(rawName, lineNumber);
         const name = peeled.label;
         const rest = compMatch[3] || '';
         const { tags } = extractPipeMetadata(rest);
@@ -482,7 +500,7 @@ export function parseInfra(content: string): ParsedInfra {
       if (compMatch) {
         finishCurrentTagGroup();
         const rawName = (compMatch[1] ?? compMatch[2] ?? '').trim();
-        const peeled = peelAlias(rawName);
+        const peeled = peelInfraDecorations(rawName, lineNumber);
         const name = peeled.label;
         const rest = compMatch[3] || '';
         const { tags: nodeTags } = extractPipeMetadata(rest);
@@ -764,7 +782,7 @@ export function parseInfra(content: string): ParsedInfra {
       const compMatch = trimmed.match(COMPONENT_RE);
       if (compMatch) {
         const rawName = (compMatch[1] ?? compMatch[2] ?? '').trim();
-        const peeled = peelAlias(rawName);
+        const peeled = peelInfraDecorations(rawName, lineNumber);
         const name = peeled.label;
         const rest = compMatch[3] || '';
         const { tags: nodeTags } = extractPipeMetadata(rest);
@@ -796,10 +814,13 @@ export function parseInfra(content: string): ParsedInfra {
         finishCurrentTagGroup();
         currentGroup = null;
 
-        const name = (compMatch[1] ?? compMatch[2] ?? '').trim();
+        const rawName = (compMatch[1] ?? compMatch[2] ?? '').trim();
+        const peeled = peelInfraDecorations(rawName, lineNumber);
+        const name = peeled.label;
         const rest = compMatch[3] || '';
         const { tags } = extractPipeMetadata(rest);
         const id = nodeId(name);
+        if (peeled.alias) nameAliasMap.set(peeled.alias, id);
 
         currentNode = {
           id,
@@ -877,6 +898,17 @@ import type { DiagramSymbols } from '../completion';
  * Extract component names (entities) from infra document text.
  * Used by the dgmo completion API for ghost hints and popup completions.
  */
+/** Strip ` as <alias>` and ` is a/an <type>` decorations from a node name
+ *  so completion suggests the bare identifier the user will reference. */
+function stripNodeDecorations(name: string): string {
+  let s = name.trim();
+  const aliasMatch = s.match(/^(.*?)\s+as\s+[A-Za-z][A-Za-z0-9_]{0,11}\s*$/);
+  if (aliasMatch) s = aliasMatch[1].trim();
+  const isAMatch = s.match(/^(.*?)\s+is\s+an?\s+[A-Za-z][\w-]*\s*$/i);
+  if (isAMatch) s = isAMatch[1].trim();
+  return s;
+}
+
 export function extractSymbols(docText: string): DiagramSymbols {
   const entities: string[] = [];
   let inMetadata = true;
@@ -916,7 +948,7 @@ export function extractSymbols(docText: string): DiagramSymbols {
       if (/^\[/.test(line)) continue; // [Group] header
       const m = COMPONENT_RE.exec(line);
       if (m) {
-        const name = (m[1] ?? m[2] ?? '').trim();
+        const name = stripNodeDecorations((m[1] ?? m[2] ?? '').trim());
         if (name && !entities.includes(name)) entities.push(name);
       }
     } else {
@@ -940,7 +972,7 @@ export function extractSymbols(docText: string): DiagramSymbols {
         continue;
       const m = COMPONENT_RE.exec(line);
       if (m) {
-        const name = (m[1] ?? m[2] ?? '').trim();
+        const name = stripNodeDecorations((m[1] ?? m[2] ?? '').trim());
         if (name && !entities.includes(name)) entities.push(name);
       }
     }
