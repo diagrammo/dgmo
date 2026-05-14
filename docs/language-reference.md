@@ -482,22 +482,27 @@ parallel label
 
 ## 4. Infrastructure Diagrams
 
-### 3.1 Declaration
+### 4.1 Declaration
 
 ```
 infra [Title]
 ```
 
-### 3.2 Nodes
+### 4.2 Nodes
 
 ```
 NodeName
 NodeName | key: value
+NodeName as alias
+"Node name with spaces or | reserved chars"
 ```
 
-Nodes are plain names. Capabilities come from properties (see 3.3), not type declarations.
+Nodes are plain names. Capabilities come from properties (see §4.3), not type declarations.
 
-### 3.3 Node Properties (Indented, Space-Separated, NO Colon)
+- **Aliases** (§2A): `NodeName as alias` binds a short alias used by edges and group references. Alias must start with a letter/underscore and be ≤12 chars.
+- **Quoted names**: wrap the label in double quotes when it contains spaces followed by reserved chars (`|`, `:`, `(`).
+
+### 4.3 Node Properties (Indented, Space-Separated, NO Colon)
 
 ```
 NodeName
@@ -519,12 +524,12 @@ Properties use a known schema with space-separated values:
 | `ratelimit-rps` | Rate limiter | Max RPS passed through |
 | `latency-ms` | Latency | Adds to path latency |
 | `uptime` | Availability | Multiplied along path for SLO |
-| `instances` | Horizontal scaling | Multiplies capacity |
+| `instances` | Horizontal scaling | Multiplies capacity (number or `min-max` range) |
 | `max-rps` | Capacity ceiling | Max RPS node handles |
 | `cb-error-threshold` | Circuit breaker | Error rate trip threshold |
 | `cb-latency-threshold-ms` | Circuit breaker | Latency trip threshold |
-| `concurrency` | Concurrency limit | Max concurrent requests |
-| `duration-ms` | Processing time | Time spent processing |
+| `concurrency` | Concurrency limit | Max concurrent requests (serverless) |
+| `duration-ms` | Processing time | Time spent processing (serverless) |
 | `cold-start-ms` | Serverless | Cold start penalty |
 | `buffer` | Queue | Buffer size |
 | `drain-rate` | Queue | Consumption rate |
@@ -532,7 +537,9 @@ Properties use a known schema with space-separated values:
 | `partitions` | Queue | Partition count |
 | `description` | Display | Description text |
 
-### 3.4 Connections
+**Mutually exclusive:** `concurrency` ≠ `instances` ≠ `max-rps`; `buffer` ≠ `max-rps`. A node is serverless, traditional, or a queue — not two at once.
+
+### 4.4 Connections
 
 | Type | Syntax |
 |------|--------|
@@ -543,35 +550,78 @@ Properties use a known schema with space-separated values:
 
 - Connection metadata: `| split: 50%, fanout: 3` (colons in pipe metadata)
 - Indented under source node
+- Async edges (`~>`) render with a wiggle pattern
+- Target may be a node id, an alias, or a group ref `[Group Name]`
 
-### 3.5 Groups
+### 4.5 Fanout
+
+```
+SearchAPI
+  -> SearchShards | fanout: 6
+```
+
+`fanout: N` multiplies the per-edge RPS delivered to the target by `N` (request amplification — scatter-gather, shard fanout, pub/sub).
+
+- Effect: `target_rps = source_post_behavior_rps × fanout` (then split-distributed across declared targets)
+- Combine with `split`: `-> Target | split: 50%, fanout: 3`
+- `N` must be ≥ 1; sub-1 values are warned and clamped
+- Sources with at least one `fanout > 1` outgoing edge gain the **Fan-Out** capability badge
+- The legacy `xN` suffix (e.g. `... -> Target x5`) is removed — use `| fanout: N`
+
+### 4.6 Groups
 
 ```
 [Group Name]
-[Group Name](color)
+[Group Name] as alias
 [Group Name] | key: value
 ```
 
-Bracket syntax only. Optional color and pipe metadata.
+- Bracket syntax only. Group coloring via tags.
+- Optional `as <alias>` postfix and pipe metadata.
+- **No nesting.** A group cannot contain another `[...]` group; only indented components.
+- Group properties (indented under the bracket line):
+  - `instances N` or `instances N-M` — capacity multiplier on children (auto-scaling)
+  - `collapsed true` — start collapsed; renders as a single node showing the worst child health
 
-### 3.6 Infra Options (Space-Separated, NO Colon)
+### 4.7 Infra Options (Space-Separated, NO Colon)
 
 - `direction-tb` (boolean; default is LR)
 - `default-latency-ms N`
-- `default-rps N`
+- `default-rps N` — fallback edge RPS when no `rps` is declared on the edge node
 - `default-uptime DECIMAL`
-- `slo-availability DECIMAL`
-- `slo-p90-latency-ms N`
+- `slo-availability DECIMAL` — target availability for SLO compliance highlighting
+- `slo-p90-latency-ms N` — target p90 for SLO compliance highlighting
+- `slo-warning-margin DECIMAL` — margin below SLO that triggers warning state
 - `animate` / `no-animate`
+- `active-tag GroupName` / `active-tag none` — pre-select a tag filter on render
 
-### 3.7 Edge Nodes
+The universal options `solid-fill` and `no-title` also apply.
+
+### 4.8 Edge Nodes
 
 ```
 edge
 internet
 ```
 
-Special top-level entry points. `internet` only accepts `rps` property.
+Special top-level entry points. Either name works; `internet` only accepts `rps` and the `description` is silently ignored on entry-point nodes.
+
+### 4.9 Node Descriptions
+
+```
+API Gateway
+  description Handles routing and auth
+  description Supports rate limiting
+  latency-ms 50
+  max-rps 8000
+```
+
+- `description` keyword followed by text (NO colon)
+- Multiple `description` lines accumulate into a multi-line description
+- **Keywordless form:** indented prose lines that don't match a known property key or numeric value are treated as descriptions automatically
+- Supports inline markdown: `**bold**`, `*italic*`, `` `code` ``, `[links](url)`
+- `- bullet text` renders as `• bullet text`
+- Descriptions are ignored on `edge` and `internet` nodes
 
 ---
 
