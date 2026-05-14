@@ -56,16 +56,6 @@
         "default": "./dist/internal.cjs"
       }
     },
-    "./pert": {
-      "import": {
-        "types": "./dist/pert.d.ts",
-        "default": "./dist/pert.js"
-      },
-      "require": {
-        "types": "./dist/pert.d.cts",
-        "default": "./dist/pert.cjs"
-      }
-    },
     "./auto": {
       "import": {
         "types": "./dist/auto.d.ts",

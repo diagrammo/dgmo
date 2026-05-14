@@ -21,7 +21,7 @@ import {
   parseSitemap,
   parseGantt,
   parseBoxesAndLines,
-} from '../src/index';
+} from '../src/internal';
 import { getPalette } from '../src/palettes';
 
 const palette = getPalette('nord').light;

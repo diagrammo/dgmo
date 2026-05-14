@@ -6,7 +6,7 @@ import {
   isSequenceNote,
   type SequenceBlock,
   type SequenceNote,
-} from '../src/index';
+} from '../src/internal';
 
 // ============================================================
 // Old syntax produces errors

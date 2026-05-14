@@ -18,7 +18,11 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { COMPLETION_REGISTRY, PIPE_METADATA, ALL_CHART_TYPES } from '../src';
+import {
+  COMPLETION_REGISTRY,
+  PIPE_METADATA,
+  ALL_CHART_TYPES,
+} from '../src/internal';
 import { getAvailablePalettes } from '../src/palettes';
 
 import type { ConformanceFixture } from './fixtures/completion-conformance/_types';
