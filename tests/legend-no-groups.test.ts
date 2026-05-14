@@ -25,8 +25,6 @@ import { parseInfra } from '../src/infra/parser';
 import { computeInfra } from '../src/infra/compute';
 import { layoutInfra } from '../src/infra/layout';
 import { renderInfra } from '../src/infra/renderer';
-// ER imports removed: the legacy "no legend" test was made obsolete by Phase
-// C — see the it.skip below.
 import { parseVisualization, renderTimeline } from '../src/d3';
 
 beforeAll(() => {
@@ -192,19 +190,9 @@ edge
 });
 
 // ── ER ────────────────────────────────────────────────────────────────────────
-
-describe('No-groups: ER', () => {
-  // Note: the original test used `User { id int PK }` curly-brace syntax that
-  // the ER parser silently rejected, producing 0 tables and trivially no
-  // legend. After Phase C relaxed the table-decl regex to accept multi-word
-  // names, the parser correctly produces tables — and ER's semantic-role
-  // legend kicks in by default for tables without tag groups (semanticColors
-  // mode). This is intentional behavior; the original test premise is moot.
-  it.skip('renders no legend elements when no tag groups defined', () => {
-    // Obsolete after Phase C — ER renders a semantic-role legend whenever
-    // tables exist without tag groups or explicit colors.
-  });
-});
+// ER intentionally renders a semantic-role legend whenever tables exist
+// without tag groups or explicit colors, so a "no legend" assertion does
+// not apply.
 
 // ── Timeline ──────────────────────────────────────────────────────────────────
 

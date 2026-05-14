@@ -265,9 +265,11 @@ const D3_TYPES = [
   'ring',
 ];
 
-// Wordcloud requires HTMLCanvasElement.getContext('2d') for d3-cloud text measurement —
-// not available in JSDOM without the `canvas` npm package.
-const D3_CANVAS_TYPES = ['wordcloud'];
+// Wordcloud is intentionally not covered here: it requires
+// HTMLCanvasElement.getContext('2d') for d3-cloud text measurement, which
+// JSDOM does not provide. Wordcloud has parser, completion, and diagnostics
+// coverage elsewhere; adding the `canvas` native dep just for one render
+// smoke-test is not worth the toolchain weight.
 
 const ECHART_INPUTS: Record<string, string> = {
   scatter: `scatter
@@ -364,12 +366,6 @@ describe('renderForExport', () => {
       expect(svg).toBeTruthy();
       expect(svg).toContain('<svg');
     });
-  }
-
-  for (const type of D3_CANVAS_TYPES) {
-    it.todo(
-      `renders ${type} chart to non-empty SVG (requires canvas npm package)`
-    );
   }
 });
 
