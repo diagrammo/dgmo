@@ -382,6 +382,18 @@ export { analyzePert } from './pert/analyzer';
 export { layoutPert, relayoutPert } from './pert/layout';
 export type { LayoutOverrides as PertLayoutOverrides } from './pert/internal';
 export { normalizePertSourceForShare } from './pert/share-normalize';
+
+// Monte Carlo simulator surface (formerly the `/pert` subpath, now folded
+// in here since there were zero subpath consumers and modern tree-shaking
+// handles the Web Worker bundle-size case).
+export {
+  mulberry32,
+  sampleBetaPert,
+  simulateCanonical,
+  simulateFast,
+  buildSimulationContext,
+} from './pert/monte-carlo';
+export type { ExpandedActivity, SimulateOptions } from './pert/monte-carlo';
 export {
   renderPert,
   renderPertForExport,

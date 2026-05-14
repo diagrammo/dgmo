@@ -1,497 +1,175 @@
 # @diagrammo/dgmo — Public API
 
-## Design Decisions
+This is the frozen, stable surface. ~12 exports at the root. Everything else
+is reachable via `@diagrammo/dgmo/internal` (unstable — no semver) or via
+the three stable subpaths: `@diagrammo/dgmo/editor`, `/highlight`, `/auto`.
 
-### Flat exports (not namespaced)
-
-All functions are exported flat from the package root. This is the modern npm convention — it enables tree-shaking, simpler imports, and works well with TypeScript auto-import.
-
-```ts
-// Recommended
-import { parseChart, buildSimpleChartOption } from '@diagrammo/dgmo';
-
-// NOT: dgmo.parse.chartjs() or dgmo.chartjs.parse()
+```bash
+npm install @diagrammo/dgmo
 ```
 
-### Palette system is optional
+## Quickstart
 
-Parsers accept an optional `palette` parameter. When omitted, they fall back to the built-in Nord palette for color resolution. Renderers and config builders require palette and `isDark` explicitly — no implicit theming.
+```ts
+import { render } from '@diagrammo/dgmo';
 
-### Visualization renderers mutate a container element
+const { svg } = await render(`pie Languages
+TypeScript 45
+Python 30
+Rust 25`);
 
-The visualization and sequence renderers follow a `render(container, parsed, palette, isDark)` pattern — they append SVG content into a provided `HTMLDivElement`. This is the natural pattern and works well for browser-based consumers.
+document.getElementById('chart').innerHTML = svg;
+```
 
-For headless/SSR use cases, `renderForExport()` creates a temporary offscreen container and returns an SVG string.
-
-### Config builders return plain objects
-
-`buildSimpleChartOption()` and `buildExtendedChartOption()` return framework config objects. The consumer brings their own ECharts runtime — the library has zero runtime dependency on those frameworks.
-
----
+Three lines. Defaults to Nord palette, light theme. Renders an inline error
+SVG on bad input so the user sees what's wrong without you writing
+fallback UI.
 
 ## API Reference
 
-### Routing
+### `render(text, options?)`
 
-Determine the render category for a given `.dgmo` chart type.
-
-| Function              | Signature                                        | Description                                          |
-| --------------------- | ------------------------------------------------ | ---------------------------------------------------- |
-| `parseDgmoChartType`  | `(content: string) => string \| null`            | Extract chart type from file content                 |
-| `getRenderCategory`   | `(chartType: string) => RenderCategory \| null`  | Map chart type to its render category                |
-| `isExtendedChartType` | `(chartType: string) => boolean`                 | True for extended chart types (scatter, sankey, etc.) |
+Render DGMO source to SVG.
 
 ```ts
-import { parseDgmoChartType, getRenderCategory, isExtendedChartType } from '@diagrammo/dgmo';
-
-const chartType = parseDgmoChartType(fileContent); // "bar"
-const category = getRenderCategory(chartType);     // "data-chart"
-const isExtended = isExtendedChartType(chartType); // false
+function render(
+  text: string,
+  options?: {
+    theme?: Theme;           // 'light' | 'dark' | 'transparent'  (default 'light')
+    palette?: PaletteConfig; // see `palettes` namespace          (default palettes.nord)
+    onError?: 'svg' | 'silent' | 'throw'; // (default 'svg')
+  }
+): Promise<{ svg: string; diagnostics: DgmoError[] }>;
 ```
 
-**Types**: `RenderCategory = 'data-chart' | 'visualization' | 'diagram'`
-
-- **`data-chart`**: bar, line, area, pie, doughnut, radar, polar-area, bar-stacked, multi-line, scatter, sankey, chord, function, heatmap, funnel
-- **`visualization`**: slope, wordcloud, arc, timeline, venn, quadrant, tech-radar
-- **`diagram`**: sequence, flowchart, class, er, org, kanban, c4, state, sitemap, infra, gantt, boxes-and-lines
-
----
-
-### Parsers
-
-All parsers take a `.dgmo` text string and return a structured parsed object. Parsing is pure — no DOM, no side effects.
-
-#### Standard Data Charts
-
-| Function     | Signature                                                   |
-| ------------ | ----------------------------------------------------------- |
-| `parseChart` | `(content: string, palette?: PaletteColors) => ParsedChart` |
+**`onError` modes:**
+- `'svg'` (default) — on parse errors, render an inline error SVG listing the
+  first few diagnostics. The user sees what's broken without your code
+  inspecting `diagnostics`.
+- `'silent'` — return empty `svg` plus the diagnostics. Caller handles UI.
+- `'throw'` — throw an `Error` carrying the formatted diagnostics.
 
 ```ts
-import { parseChart, nordPalette } from '@diagrammo/dgmo';
-
-const parsed = parseChart(fileContent, nordPalette.light);
-if (parsed.error) console.error(parsed.error);
-// parsed.type — "bar" | "line" | "pie" | "doughnut" | "radar" | "polar"
-// parsed.data — array of { label, values, lineNumber }
-```
-
-**Types**: `ParsedChart`, `ChartType`, `ChartDataPoint`
-
-#### Extended Data Charts
-
-| Function             | Signature                                                          |
-| -------------------- | ------------------------------------------------------------------ |
-| `parseExtendedChart` | `(content: string, palette?: PaletteColors) => ParsedExtendedChart` |
-
-```ts
-import { parseExtendedChart } from '@diagrammo/dgmo';
-
-const parsed = parseExtendedChart(fileContent);
-// parsed.type — "scatter" | "sankey" | "chord" | "function" | "heatmap" | "funnel"
-// parsed.data, parsed.scatterPoints, parsed.links, etc.
-```
-
-**Types**: `ParsedExtendedChart`, `ExtendedChartType`
-
-#### Visualizations
-
-| Function             | Signature                                                          |
-| -------------------- | ------------------------------------------------------------------ |
-| `parseVisualization` | `(content: string, palette?: PaletteColors) => ParsedVisualization` |
-
-```ts
-import { parseVisualization } from '@diagrammo/dgmo';
-
-const parsed = parseVisualization(fileContent);
-// parsed.type — "slope" | "arc" | "timeline" | "wordcloud" | "venn" | "quadrant"
-```
-
-**Types**: `ParsedVisualization`, `VisualizationType`, `ArcLink`, `ArcNodeGroup`
-
-#### Sequence Diagram
-
-| Function            | Signature                                      |
-| ------------------- | ---------------------------------------------- |
-| `parseSequenceDgmo` | `(content: string) => ParsedSequenceDgmo`      |
-| `looksLikeSequence` | `(content: string) => boolean`                 |
-| `isSequenceBlock`   | `(el: SequenceElement) => el is SequenceBlock` |
-
-```ts
-import { parseSequenceDgmo } from '@diagrammo/dgmo';
-
-const parsed = parseSequenceDgmo(fileContent);
-// parsed.participants, parsed.messages, parsed.blocks, parsed.sections, parsed.groups, parsed.tagGroups
-```
-
-**Types**: `ParsedSequenceDgmo`, `SequenceParticipant`, `SequenceMessage`, `SequenceBlock`, `SequenceSection`, `SequenceGroup`, `SequenceElement`, `ParticipantType`, `SequenceTagGroup`, `SequenceTagEntry`
-
-#### Org Chart
-
-| Function          | Signature                                                            |
-| ----------------- | -------------------------------------------------------------------- |
-| `parseOrg`        | `(content: string, palette?: PaletteColors) => ParsedOrg`           |
-| `collapseOrgTree` | `(original: ParsedOrg, collapsedIds: Set<string>) => CollapsedOrgResult` |
-
-```ts
-import { parseOrg, collapseOrgTree, nordPalette } from '@diagrammo/dgmo';
-
-const parsed = parseOrg(fileContent, nordPalette.light);
-// parsed.roots — top-level OrgNode[]
-// parsed.title, parsed.tagGroups
-
-// Collapse subtrees interactively
-const collapsed = collapseOrgTree(parsed, new Set(['node-id']));
-// collapsed.parsed — new ParsedOrg with subtrees removed
-// collapsed.hiddenCounts — Map<string, number> of hidden node counts
-```
-
-**Types**: `ParsedOrg`, `OrgNode`, `OrgTagGroup`, `OrgTagEntry`, `CollapsedOrgResult`
-
-#### Gantt Chart
-
-| Function            | Signature                                                            |
-| ------------------- | -------------------------------------------------------------------- |
-| `parseGantt`        | `(content: string, palette?: PaletteColors) => ParsedGantt`         |
-| `calculateSchedule` | `(parsed: ParsedGantt) => ResolvedSchedule`                         |
-
-```ts
-import { parseGantt, calculateSchedule, nordPalette } from '@diagrammo/dgmo';
-
-const parsed = parseGantt(fileContent, nordPalette.light);
-if (parsed.error) console.error(parsed.error);
-
-const schedule = calculateSchedule(parsed);
-// schedule.tasks — resolved tasks with computed start/end dates
-// schedule.diagnostics — warnings (e.g. cycle detection, unresolved deps)
-// schedule.criticalPath — set of task IDs on the critical path
-// schedule.tagGroups, schedule.options
-```
-
-**Types**: `ParsedGantt`, `GanttTask`, `GanttGroup`, `GanttNode`, `GanttDependency`, `GanttOptions`, `GanttMarker`, `GanttEra`, `GanttHolidays`, `ResolvedSchedule`, `GanttInteractiveOptions`
-
-#### Boxes and Lines
-
-| Function                 | Signature                                                                              |
-| ------------------------ | -------------------------------------------------------------------------------------- |
-| `parseBoxesAndLines`     | `(content: string) => ParsedBoxesAndLines`                                             |
-| `layoutBoxesAndLines`    | `(parsed: ParsedBoxesAndLines, hiddenTagValues?: Set<string>) => BLLayoutResult`       |
-| `collapseBoxesAndLines`  | `(parsed: ParsedBoxesAndLines, hiddenValues: Set<string>) => BLCollapseResult`         |
-
-```ts
-import { parseBoxesAndLines, layoutBoxesAndLines } from '@diagrammo/dgmo';
-
-const parsed = parseBoxesAndLines(fileContent);
-// parsed.title, parsed.nodes, parsed.edges, parsed.groups, parsed.tagGroups
-// parsed.options — { direction, activeTag, hide, mode }
-
-const layout = layoutBoxesAndLines(parsed);
-// layout.nodes — positioned BLLayoutNode[]
-// layout.edges — routed BLLayoutEdge[]
-// layout.groups — BLLayoutGroup[] with bounding boxes
-// layout.width, layout.height
-```
-
-**Types**: `ParsedBoxesAndLines`, `BLNode`, `BLEdge`, `BLGroup`, `BLLayoutResult`, `BLLayoutNode`, `BLLayoutEdge`, `BLLayoutGroup`, `BLCollapseResult`
-
-#### Infrastructure Diagram
-
-| Function     | Signature                                      |
-| ------------ | ---------------------------------------------- |
-| `parseInfra` | `(content: string) => ParsedInfra`             |
-
-```ts
-import { parseInfra } from '@diagrammo/dgmo';
-
-const parsed = parseInfra(fileContent);
-// parsed.title, parsed.nodes, parsed.edges, parsed.groups, parsed.tagGroups
-```
-
-**Types**: `ParsedInfra`, `InfraNode`, `InfraEdge`, `InfraGroup`, `InfraProperty`, `ComputedInfraNode`
-
-`InfraNode` fields include:
-- `description?: string[]` — Multi-line node description text. Supports inline markdown, bullets (`- text` → `•`), and bare URL normalization.
-
-#### Sitemap
-
-| Function       | Signature                                                        |
-| -------------- | ---------------------------------------------------------------- |
-| `parseSitemap` | `(content: string, palette?: PaletteColors) => ParsedSitemap`   |
-
-```ts
-import { parseSitemap, nordPalette } from '@diagrammo/dgmo';
-
-const parsed = parseSitemap(fileContent, nordPalette.light);
-// parsed.title, parsed.roots, parsed.edges, parsed.tagGroups
-```
-
-**Types**: `ParsedSitemap`, `SitemapNode`, `SitemapEdge`, `SitemapDirection`
-
-`SitemapNode` fields include:
-- `description?: string[]` — Multi-line node description text. Supports inline markdown, bullets (`- text` → `•`), and bare URL normalization.
-
-#### Mindmap
-
-| Function       | Signature                                                        |
-| -------------- | ---------------------------------------------------------------- |
-| `parseMindmap` | `(content: string, palette?: PaletteColors) => ParsedMindmap`   |
-
-```ts
-import { parseMindmap, nordPalette } from '@diagrammo/dgmo';
-
-const parsed = parseMindmap(fileContent, nordPalette.light);
-// parsed.title, parsed.roots, parsed.tagGroups, parsed.options
-```
-
-**Types**: `ParsedMindmap`, `MindmapNode`
-
-`MindmapNode` fields include:
-- `description?: string[]` — Multi-line node description text. Supports inline markdown, bullets (`- text` → `•`), and bare URL normalization.
-
-#### C4 Architecture Diagram
-
-| Function  | Signature                                                     |
-| --------- | ------------------------------------------------------------- |
-| `parseC4` | `(content: string, palette?: PaletteColors) => ParsedC4`     |
-
-```ts
-import { parseC4, nordPalette } from '@diagrammo/dgmo';
-
-const parsed = parseC4(fileContent, nordPalette.light);
-// parsed.elements, parsed.tagGroups, parsed.deployment
-```
-
-**Types**: `ParsedC4`, `C4Element`, `C4ElementType`, `C4Shape`, `C4Relationship`, `C4ArrowType`, `C4Group`, `C4DeploymentNode`
-
-`C4Element` fields include:
-- `description?: string[]` — Multi-line node description text. Supports inline markdown, bullets (`- text` → `•`), and bare URL normalization.
-
-#### Quadrant (Mermaid bridge)
-
-| Function        | Signature                             |
-| --------------- | ------------------------------------- |
-| `parseQuadrant` | `(content: string) => ParsedQuadrant` |
-
-**Types**: `ParsedQuadrant`
-
----
-
-### Config Builders
-
-Produce framework-specific configuration objects from parsed data. The consumer provides the rendering runtime (ECharts, Mermaid).
-
-| Function                  | Signature                                                                                                         | Output                 |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------- | ---------------------- |
-| `buildSimpleChartOption`  | `(parsed: ParsedChart, palette: PaletteColors, isDark: boolean) => EChartsOption`                                | ECharts option for standard chart types (bar, line, pie, etc.) |
-| `buildExtendedChartOption` | `(parsed: ParsedExtendedChart, palette: PaletteColors, isDark: boolean) => EChartsOption`                       | ECharts option for extended chart types (scatter, sankey, etc.) |
-| `buildMermaidQuadrant`    | `(parsed: ParsedQuadrant, options?: { isDark?: boolean; textColor?: string; mutedTextColor?: string }) => string` | Mermaid syntax string  |
-
-```ts
-import { parseChart, buildSimpleChartOption, getPalette } from '@diagrammo/dgmo';
-import * as echarts from 'echarts';
-
-const parsed = parseChart(content, nordPalette.light);
-const option = buildSimpleChartOption(parsed, nordPalette.light, false);
-
-// Consumer provides ECharts runtime
-echarts.init(containerElement).setOption(option);
-```
-
----
-
-### Renderers
-
-Render parsed data to SVG. Visualization and sequence renderers operate on a DOM container element.
-
-#### Visualization Renderers
-
-All share the same signature pattern:
-
-```ts
-(container: HTMLDivElement, parsed: ParsedVisualization, palette: PaletteColors, isDark: boolean, onClickItem?: (lineNumber: number) => void) => void
-```
-
-| Function           | Chart Type                                 |
-| ------------------ | ------------------------------------------ |
-| `renderSlopeChart` | Slope chart (before/after comparisons)     |
-| `renderArcDiagram` | Arc diagram (network relationships)        |
-| `renderTimeline`   | Timeline (Gantt-style date ranges)         |
-| `renderWordCloud`  | Word cloud (weighted text)                 |
-| `renderVenn`       | Venn diagram (set intersections)           |
-| `renderQuadrant`   | Quadrant chart (2D scatter with quadrants) |
-
-```ts
-import { parseVisualization, renderSlopeChart, nordPalette } from '@diagrammo/dgmo';
-
-const parsed = parseVisualization(content, nordPalette.light);
-const container = document.getElementById('chart') as HTMLDivElement;
-
-renderSlopeChart(container, parsed, nordPalette.light, false, (line) => {
-  console.log('Clicked element from line', line);
+import { render, palettes, themes } from '@diagrammo/dgmo';
+
+const { svg } = await render(text, {
+  palette: palettes.catppuccin,
+  theme: themes.dark,
 });
 ```
 
-#### Sequence Diagram Renderer
+### `validate(text)`
 
-| Function                | Signature                                                                                                                                             |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `renderSequenceDiagram` | `(container: HTMLDivElement, parsed: ParsedSequenceDgmo, palette: PaletteColors, isDark: boolean, onNavigateToLine?: (line: number) => void) => void` |
+Fast-path syntax check without rendering. Use in editor diagnostics, lint
+hooks, or anywhere you need to know "is this valid DGMO?" without paying
+for layout + SVG generation.
 
 ```ts
-import {
-  parseSequenceDgmo,
-  renderSequenceDiagram,
-  nordPalette,
-} from '@diagrammo/dgmo';
-
-const parsed = parseSequenceDgmo(content);
-renderSequenceDiagram(container, parsed, nordPalette.light, false);
+function validate(text: string): {
+  chartType: string | null;
+  diagnostics: DgmoError[];
+};
 ```
 
-#### Org Chart Renderer
+### `formatDgmoError(err)`
 
-| Function             | Signature                                                                                                                          |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `renderOrg`          | `(container: HTMLDivElement, parsed: ParsedOrg, layout: OrgLayoutResult, palette: PaletteColors, isDark: boolean, onClickItem?: (lineNumber: number) => void, exportDims?: { width?: number; height?: number }) => void` |
-| `renderOrgForExport` | `(content: string, theme: 'light' \| 'dark' \| 'transparent', palette: PaletteColors) => string`                                  |
-| `layoutOrg`          | `(parsed: ParsedOrg, hiddenCounts?: Map<string, number>) => OrgLayoutResult`                                                       |
+Format a `DgmoError` into a display string (`"Line N: message"`).
 
 ```ts
-import { parseOrg, layoutOrg, renderOrg, nordPalette } from '@diagrammo/dgmo';
-
-const parsed = parseOrg(content, nordPalette.light);
-const layout = layoutOrg(parsed);
-const container = document.getElementById('chart') as HTMLDivElement;
-
-renderOrg(container, parsed, layout, nordPalette.light, false, (line) => {
-  console.log('Clicked node from line', line);
-});
+function formatDgmoError(err: DgmoError): string;
 ```
 
-**Types**: `OrgLayoutResult`, `OrgLayoutNode`, `OrgLayoutEdge`, `OrgContainerBounds`
+### `encodeDiagramUrl(text, options?)`
 
-#### Gantt Chart Renderer
-
-| Function      | Signature |
-| ------------- | --------- |
-| `renderGantt` | `(container: HTMLDivElement, schedule: ResolvedSchedule, palette: PaletteColors, isDark: boolean, options?: GanttInteractiveOptions) => void` |
+Compress DGMO source into a shareable URL. Returns `null` if the
+compressed payload exceeds the 8 KB URL limit.
 
 ```ts
-import { parseGantt, calculateSchedule, renderGantt, nordPalette } from '@diagrammo/dgmo';
-
-const parsed = parseGantt(content, nordPalette.light);
-const schedule = calculateSchedule(parsed);
-const container = document.getElementById('chart') as HTMLDivElement;
-
-renderGantt(container, schedule, nordPalette.light, false, {
-  onClickItem: (lineNumber) => console.log('Clicked line', lineNumber),
-  collapsedGroups: new Set(),
-  onToggleGroup: (groupName) => { /* toggle collapse */ },
-});
+function encodeDiagramUrl(
+  text: string,
+  options?: {
+    baseUrl?: string;        // default: 'https://online.diagrammo.app'
+    palette?: PaletteConfig;
+    theme?: Theme;
+    filename?: string;
+  }
+): string | null;
 ```
 
-#### Boxes and Lines Renderer
-
-| Function                          | Signature |
-| --------------------------------- | --------- |
-| `renderBoxesAndLines`             | `(container: HTMLDivElement, parsed: ParsedBoxesAndLines, layout: BLLayoutResult, palette: PaletteColors, isDark: boolean, onClickItem?: (lineNumber: number) => void) => void` |
-| `renderBoxesAndLinesForExport`    | `(content: string, theme: 'light' \| 'dark' \| 'transparent', palette: PaletteColors) => string` |
-
 ```ts
-import {
-  parseBoxesAndLines,
-  layoutBoxesAndLines,
-  renderBoxesAndLines,
-  nordPalette,
-} from '@diagrammo/dgmo';
+import { encodeDiagramUrl, palettes } from '@diagrammo/dgmo';
 
-const parsed = parseBoxesAndLines(content);
-const layout = layoutBoxesAndLines(parsed);
-const container = document.getElementById('chart') as HTMLDivElement;
-
-renderBoxesAndLines(container, parsed, layout, nordPalette.light, false, (line) => {
-  console.log('Clicked node from line', line);
-});
+const url = encodeDiagramUrl(text, { palette: palettes.tokyoNight });
+if (!url) console.warn('Diagram too long to share');
 ```
 
-#### Export Renderer (SVG string output)
+### `decodeDiagramUrl(url)`
 
-| Function           | Signature                                                                                                   |
-| ------------------ | ----------------------------------------------------------------------------------------------------------- |
-| `renderForExport`  | `(content: string, theme: 'light' \| 'dark' \| 'transparent', palette?: PaletteColors) => Promise<string>` |
-
-Returns a complete SVG string. Works for all diagram and visualization types including sequence diagrams. Creates a temporary offscreen container internally.
+Decode a share URL back to DGMO source plus optional palette/theme. Returns
+`null` if the URL has no valid DGMO payload.
 
 ```ts
-import { renderForExport } from '@diagrammo/dgmo';
-
-const svgString = await renderForExport(content, 'light');
-// Use in Node.js (with jsdom), SSR, or for file export
+function decodeDiagramUrl(url: string): {
+  text: string;
+  palette?: PaletteConfig;
+  theme?: Theme;
+  filename?: string;
+} | null;
 ```
 
-#### Sequence Renderer Internals
-
-Lower-level functions for custom sequence rendering pipelines:
-
-| Function                 | Signature                                                                                 | Description                                         |
-| ------------------------ | ----------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| `buildRenderSequence`    | `(messages: SequenceMessage[]) => RenderStep[]`                                           | Build ordered render sequence with inferred returns |
-| `computeActivations`     | `(steps: RenderStep[]) => Activation[]`                                                   | Compute activation bar positions                    |
-| `applyPositionOverrides` | `(participants: SequenceParticipant[]) => SequenceParticipant[]`                          | Apply explicit position overrides                   |
-| `applyGroupOrdering`     | `(participants: SequenceParticipant[], groups: SequenceGroup[]) => SequenceParticipant[]` | Reorder participants by group membership            |
-
-**Types**: `RenderStep`, `Activation`
-
----
-
-### Palette System
-
-#### Palette Registry
-
-| Function               | Signature                          | Description                            |
-| ---------------------- | ---------------------------------- | -------------------------------------- |
-| `getPalette`           | `(id: string) => PaletteConfig`    | Get palette by ID (falls back to Nord) |
-| `getAvailablePalettes` | `() => PaletteConfig[]`            | List all registered palettes           |
-| `registerPalette`      | `(palette: PaletteConfig) => void` | Register a custom palette              |
-
 ```ts
-import {
-  getPalette,
-  registerPalette,
-  type PaletteConfig,
-} from '@diagrammo/dgmo';
-
-const nord = getPalette('nord');
-const lightColors = nord.light; // PaletteColors for light mode
-const darkColors = nord.dark; // PaletteColors for dark mode
-
-// Register a custom palette
-registerPalette({
-  id: 'my-theme',
-  name: 'My Theme',
-  light: { bg: '#ffffff', surface: '#f5f5f5' /* ... all 19 fields */ },
-  dark: { bg: '#1a1a1a', surface: '#2a2a2a' /* ... all 19 fields */ },
-});
+const decoded = decodeDiagramUrl(window.location.search);
+if (decoded) {
+  const { svg } = await render(decoded.text, {
+    palette: decoded.palette,
+    theme: decoded.theme,
+  });
+  el.innerHTML = svg;
+}
 ```
 
-#### Built-in Palettes
+### `palettes`
 
-8 built-in palettes, each a `PaletteConfig` with `.light` and `.dark` variants:
-
-| Export              | ID              |
-| ------------------- | --------------- |
-| `nordPalette`       | `"nord"`        |
-| `solarizedPalette`  | `"solarized"`   |
-| `catppuccinPalette` | `"catppuccin"`  |
-| `rosePinePalette`   | `"rose-pine"`   |
-| `gruvboxPalette`    | `"gruvbox"`     |
-| `tokyoNightPalette` | `"tokyo-night"` |
-| `oneDarkPalette`    | `"one-dark"`    |
-| `boldPalette`       | `"bold"`        |
-
-#### Types
+Namespace containing all 10 built-in palettes, keyed by camelCase id. Each
+value is a `PaletteConfig`.
 
 ```ts
+palettes.nord
+palettes.catppuccin
+palettes.solarized
+palettes.gruvbox
+palettes.tokyoNight
+palettes.oneDark
+palettes.rosePine
+palettes.dracula
+palettes.monokai
+palettes.bold
+```
+
+Each palette's `.id` field is the canonical kebab-case string used by
+share URLs and the CLI `--palette` flag (`'tokyo-night'`, `'rose-pine'`,
+etc.). Use `Object.values(palettes)` to iterate.
+
+Custom palettes are not supported on the public surface — use
+`/internal`'s `registerPalette` if you genuinely need to add one and accept
+the no-semver contract.
+
+### `themes`
+
+Namespace for the three render modes. The underlying type is a string
+literal union, so passing `'dark'` directly also works.
+
+```ts
+themes.light
+themes.dark        // dark background, light text
+themes.transparent // no background — for embedding in colored containers
+```
+
+### Types
+
+```ts
+type Theme = 'light' | 'dark' | 'transparent';
+
 interface PaletteConfig {
   id: string;
   name: string;
@@ -500,186 +178,165 @@ interface PaletteConfig {
 }
 
 interface PaletteColors {
-  bg: string; // Page background
-  surface: string; // Card/panel background
-  border: string; // Border color
-  text: string; // Primary text
-  textMuted: string; // Secondary text
-  primary: string; // Accent / links
-  // Chart series colors (8 named slots):
-  red: string;
-  orange: string;
-  yellow: string;
-  green: string;
-  cyan: string;
-  blue: string;
-  purple: string;
-  pink: string;
-  // Semantic:
-  success: string;
-  warning: string;
-  error: string;
-  info: string;
+  // 10 semantic UI colors + 11 named accent colors. See palettes/types.ts
+  // for the full shape.
+}
+
+type DgmoSeverity = 'error' | 'warning';
+
+interface DgmoError {
+  line: number;
+  message: string;
+  severity: DgmoSeverity;
 }
 ```
 
----
+## Subpaths
 
-### Color Utilities
+### `@diagrammo/dgmo/editor` (stable)
 
-| Function          | Signature                                                     | Description                              |
-| ----------------- | ------------------------------------------------------------- | ---------------------------------------- |
-| `resolveColor`    | `(color: string, palette?) => string \| null`                 | Resolve named color to CSS color (hex codes rejected, returns null for unknown names) |
-| `getSeriesColors` | `(palette: PaletteColors) => string[]`                        | Get 8-color series rotation from palette |
-| `contrastText`    | `(bg: string, lightText: string, darkText: string) => string` | Pick contrast text color (WCAG)          |
-| `hexToHSL`        | `(hex: string) => { h, s, l }`                                | Hex to HSL object                        |
-| `hslToHex`        | `(h, s, l) => string`                                         | HSL values to hex string                 |
-| `hexToHSLString`  | `(hex: string) => string`                                     | Hex to `"H S% L%"` CSS string            |
-| `mute`            | `(hex: string) => string`                                     | Desaturated/darkened variant             |
-| `tint`            | `(hex: string, amount: number) => string`                     | Blend toward white                       |
-| `shade`           | `(hex: string, base: string, amount: number) => string`       | Blend toward dark base                   |
-| `isValidHex`      | `(value: string) => boolean`                                  | Validate hex format                      |
-
-#### Mermaid Theme Bridge
-
-| Function                | Signature                                                            | Description                                        |
-| ----------------------- | -------------------------------------------------------------------- | -------------------------------------------------- |
-| `buildMermaidThemeVars` | `(colors: PaletteColors, isDark: boolean) => Record<string, string>` | Generate ~121 Mermaid theme variables from palette |
-| `buildThemeCSS`         | `(palette: PaletteColors, isDark: boolean) => string`                | Generate CSS overrides for Mermaid SVGs            |
-
----
-
-## Typical Usage Patterns
-
-### Parse + Render a visualization (browser)
+CodeMirror 6 extension for editing DGMO with syntax highlighting,
+autocomplete, and inline diagnostics. For anyone building a DGMO editor.
 
 ```ts
-import {
-  parseDgmoChartType,
-  getRenderCategory,
-  parseVisualization,
-  renderSlopeChart,
-  getPalette,
-} from '@diagrammo/dgmo';
+import { EditorView, basicSetup } from 'codemirror';
+import { dgmoExtension } from '@diagrammo/dgmo/editor';
 
-const content = `slope
-period Before After
-Alice 3 7
-Bob 8 4`;
-
-const palette = getPalette('nord');
-const colors = palette.light;
-const chartType = parseDgmoChartType(content); // "slope"
-const category = getRenderCategory(chartType); // "visualization"
-
-const parsed = parseVisualization(content, colors);
-const container = document.getElementById('chart') as HTMLDivElement;
-renderSlopeChart(container, parsed, colors, false);
+new EditorView({
+  doc: 'gantt Roadmap\n...',
+  extensions: [basicSetup, dgmoExtension()],
+  parent: document.getElementById('editor'),
+});
 ```
 
-### Parse + Build config for standard charts
+### `@diagrammo/dgmo/highlight` (stable)
+
+Tokenizer for rendering DGMO code as styled HTML. Used for docs sites,
+code blocks, and anywhere you want pre-rendered syntax highlighting.
 
 ```ts
-import { parseChart, buildSimpleChartOption, getPalette } from '@diagrammo/dgmo';
-import * as echarts from 'echarts';
+import { highlightDgmo, NORD_ROLE_STYLES } from '@diagrammo/dgmo/highlight';
 
-const content = `bar Sales
+const tokens = highlightDgmo('gantt Roadmap\n...');
+// Apply NORD_ROLE_STYLES to each token's role, or supply your own
+// role-to-CSS mapping.
+```
+
+### `@diagrammo/dgmo/auto` (stable)
+
+Drop-in IIFE bundle for static HTML pages. Add a single `<script>` tag and
+any `.dgmo` / `.language-dgmo` element on the page auto-renders. No build
+pipeline required.
+
+```html
+<script src="https://unpkg.com/@diagrammo/dgmo/dist/auto.js"></script>
+
+<pre class="language-dgmo">
+gantt Roadmap
+Design 2026-01-01 ~ 2026-02-15
+Build  2026-02-15 ~ 2026-04-01
+</pre>
+```
+
+Configuration via `<script data-config='{...}'>` or `window.dgmo.initialize(...)`.
+
+### `@diagrammo/dgmo/internal` (unstable — NOT public API)
+
+> **These exports are not part of the public API.** They will be renamed,
+> removed, or behave differently in any release — including patch versions.
+> There is no migration path or deprecation period.
+>
+> Use only if the documented public API cannot meet your needs and you accept
+> this contract. Most consumers should never need to import from this path.
+> If you find yourself reaching here, please open an issue describing your
+> use case — we may be able to promote it to the public surface.
+
+The subpath exposes implementation details: per-chart-type parsers
+(`parseGantt`, `parseSequenceDgmo`, ...), layout engines (`layoutOrg`,
+`layoutInfra`, ...), individual renderers, view-state encoding
+(`CompactViewState`, rich `encodeDiagramUrl`/`decodeDiagramUrl`),
+collapse/focus mutations, completion-registry constants, chart-type
+scoring (`suggestChartTypes`), legend helpers, color utilities, and the
+sequence renderer's internals.
+
+## Usage patterns
+
+### Astro / Next.js server components (SSR)
+
+```astro
+---
+import { render, palettes } from '@diagrammo/dgmo';
+
+const source = `sequence
+A -hello-> B
+B -reply-> A`;
+
+const { svg } = await render(source, { palette: palettes.tokyoNight });
+---
+
+<div set:html={svg} />
+```
+
+### React server component
+
+```tsx
+import { render, palettes } from '@diagrammo/dgmo';
+
+export async function Diagram({ text }: { text: string }) {
+  const { svg } = await render(text, { palette: palettes.rosePine });
+  return <div dangerouslySetInnerHTML={{ __html: svg }} />;
+}
+```
+
+### Vanilla JS
+
+```html
+<script type="module">
+  import { render } from 'https://esm.sh/@diagrammo/dgmo';
+
+  const { svg } = await render(`bar Sales
 Q1 100
 Q2 150
-Q3 200`;
+Q3 200`);
 
-const { light } = getPalette('catppuccin');
-const parsed = parseChart(content, light);
-const option = buildSimpleChartOption(parsed, light, false);
-
-echarts.init(document.getElementById('chart')).setOption(option);
+  document.getElementById('chart').innerHTML = svg;
+</script>
 ```
 
-### Export to SVG string
+### Building a palette picker
 
 ```ts
-import { renderForExport } from '@diagrammo/dgmo';
+import { palettes } from '@diagrammo/dgmo';
 
-const svg = await renderForExport(dgmoContent, 'dark');
-fs.writeFileSync('output.svg', svg);
+const options = Object.values(palettes).sort((a, b) =>
+  a.name.localeCompare(b.name)
+);
+// → [{ id: 'bold', name: 'Bold', ... }, { id: 'catppuccin', ... }, ...]
 ```
 
-### Custom palette
+### Custom error handling
 
 ```ts
-import {
-  registerPalette,
-  getPalette,
-  parseChart,
-  buildSimpleChartOption,
-} from '@diagrammo/dgmo';
+const { svg, diagnostics } = await render(text, { onError: 'silent' });
 
-registerPalette({
-  id: 'corporate',
-  name: 'Corporate',
-  light: {
-    bg: '#ffffff',
-    surface: '#f8f9fa',
-    border: '#dee2e6',
-    text: '#212529',
-    textMuted: '#6c757d',
-    primary: '#0d6efd',
-    red: '#dc3545',
-    orange: '#fd7e14',
-    yellow: '#ffc107',
-    green: '#198754',
-    cyan: '#0dcaf0',
-    blue: '#0d6efd',
-    purple: '#6f42c1',
-    pink: '#d63384',
-    success: '#198754',
-    warning: '#ffc107',
-    error: '#dc3545',
-    info: '#0dcaf0',
-  },
-  dark: {
-    /* ... */
-  },
-});
-
-const palette = getPalette('corporate');
+if (diagnostics.length > 0) {
+  // Your custom fallback UI
+  showErrorBanner(diagnostics.map(formatDgmoError));
+} else {
+  el.innerHTML = svg;
+}
 ```
 
----
+## Versioning
 
-## API Tiers
+@diagrammo/dgmo follows semver on the public root export surface and the
+three stable subpaths (`/editor`, `/highlight`, `/auto`). Breaking changes
+to these require a major version bump.
 
-### Primary (stable, documented)
+`@diagrammo/dgmo/internal` does NOT follow semver. Treat it as
+implementation detail.
 
-Core parse/render/build functions — these are the main library API:
+## Language reference
 
-- `parseDgmoChartType`, `getRenderCategory`, `isExtendedChartType`
-- `parseChart`, `parseExtendedChart`, `parseVisualization`, `parseSequenceDgmo`, `parseQuadrant`
-- `buildSimpleChartOption`, `buildExtendedChartOption`, `buildMermaidQuadrant`
-- `renderSlopeChart`, `renderArcDiagram`, `renderTimeline`, `renderWordCloud`, `renderVenn`, `renderQuadrant`
-- `renderSequenceDiagram`, `renderForExport`
-- `parseOrg`, `layoutOrg`, `renderOrg`, `renderOrgForExport`, `collapseOrgTree`
-- `parseGantt`, `calculateSchedule`, `renderGantt`
-- `parseInfra`
-- `parseSitemap`
-- `parseMindmap`
-- `parseC4`
-- `parseBoxesAndLines`, `layoutBoxesAndLines`, `renderBoxesAndLines`, `renderBoxesAndLinesForExport`, `collapseBoxesAndLines`
-- `getPalette`, `getAvailablePalettes`, `registerPalette`
-- All `PaletteConfig` definitions
-
-### Secondary (stable, less common)
-
-Useful for advanced consumers:
-
-- `buildRenderSequence`, `computeActivations`, `applyPositionOverrides`, `applyGroupOrdering`
-- `resolveColor`, `getSeriesColors`, `contrastText`
-- `buildMermaidThemeVars`, `buildThemeCSS`
-- Color utilities: `hexToHSL`, `hslToHex`, `mute`, `tint`, `shade`
-- `looksLikeSequence`, `looksLikeGantt`, `looksLikeC4`, `looksLikeSitemap`, `isSequenceBlock`, `inferParticipantType`
-
-### Internal (exported for testing, may change)
-
-- `RULE_COUNT`
-- `orderArcNodes`, `parseTimelineDate`, `addDurationToDate`, `computeTimeTicks`, `formatDateLabel`
-- `colorNames`, `nord`, `seriesColors`, `isValidHex`, `hexToHSLString`
+For DGMO syntax (the markup language itself, separate from this JavaScript
+API), see <https://diagrammo.app/docs/language-reference>.
