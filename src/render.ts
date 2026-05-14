@@ -13,7 +13,7 @@ import type { CompactViewState } from './sharing';
 async function ensureDom(): Promise<void> {
   if (typeof document !== 'undefined') return;
 
-  const { JSDOM } = await import('jsdom');
+  const { JSDOM } = await loadJsdom();
   const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>');
   const win = dom.window;
 
@@ -37,6 +37,22 @@ async function ensureDom(): Promise<void> {
     value: win.SVGElement,
     configurable: true,
   });
+}
+
+/**
+ * Load jsdom server-side. The specifier is constructed at runtime so
+ * downstream bundlers (Vite, Rollup, esbuild, webpack) cannot statically
+ * resolve it. Without this indirection, every browser bundle of
+ * @diagrammo/dgmo emits a 5+ MB jsdom chunk even though `ensureDom()`
+ * guards execution with a `typeof document` check — the guard prevents
+ * runtime evaluation, but the static dependency edge still pulls jsdom
+ * into the bundle.
+ */
+async function loadJsdom(): Promise<typeof import('jsdom')> {
+  const spec = ['js', 'dom'].join('');
+  return import(/* @vite-ignore */ /* webpackIgnore: true */ spec) as Promise<
+    typeof import('jsdom')
+  >;
 }
 
 /**
