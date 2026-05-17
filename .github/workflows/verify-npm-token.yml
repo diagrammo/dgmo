@@ -1,0 +1,27 @@
+name: Verify NPM Token Scope
+
+# Throwaway workflow — verifies that the org-level NPM_TOKEN secret has
+# write access to both @diagrammo/* and the unscoped wrapper packages.
+# Delete after a successful run.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: whoami
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm whoami
+
+      - name: List packages this token can publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm access list packages
