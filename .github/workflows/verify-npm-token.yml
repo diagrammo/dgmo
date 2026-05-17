@@ -1,7 +1,8 @@
 name: Verify NPM Token Scope
 
 # Throwaway workflow — verifies that the org-level NPM_TOKEN secret has
-# write access to both @diagrammo/* and the unscoped wrapper packages.
+# write access to both @diagrammo/* and the unscoped wrapper packages,
+# by performing an idempotent dist-tag round-trip on each (add + remove).
 # Delete after a successful run.
 
 on:
@@ -21,7 +22,22 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm whoami
 
-      - name: List packages this token can publish
+      - name: Verify write access via dist-tag round-trip
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm access list packages
+        run: |
+          set -e
+          fail=0
+          for pkg in @diagrammo/dgmo @diagrammo/dgmo-mcp remark-dgmo astro-dgmo docusaurus-plugin-dgmo fumadocs-dgmo; do
+            version=$(npm view "$pkg" version)
+            echo "::group::$pkg @ $version"
+            if npm dist-tag add "$pkg@$version" verify-token-tmp 2>&1; then
+              npm dist-tag rm "$pkg" verify-token-tmp || true
+              echo "OK $pkg"
+            else
+              echo "::error::FAIL $pkg — token cannot write"
+              fail=1
+            fi
+            echo "::endgroup::"
+          done
+          exit $fail
