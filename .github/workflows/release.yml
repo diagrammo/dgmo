@@ -10,7 +10,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -53,10 +52,12 @@ jobs:
         run: pnpm build
 
       - name: Publish to npm
-        # Auth via OIDC (Trusted Publishers configured on npmjs.com).
-        # Node 24 ships with npm 11.x which has trusted-publisher support.
-        # No NODE_AUTH_TOKEN — npm prefers the env token if present.
-        run: npm publish --access public --provenance
+        # Auth via NODE_AUTH_TOKEN sourced from the org-level NPM_TOKEN
+        # secret (granular, all-packages, bypass-2FA). Matches the wrapper
+        # repos (remark-dgmo, astro-dgmo, docusaurus-plugin-dgmo, fumadocs-dgmo).
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v3
