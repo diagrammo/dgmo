@@ -705,7 +705,9 @@ async function main(): Promise<void> {
 
   if (opts.cat) {
     const useColor =
-      !opts.noColor && !process.env.NO_COLOR && process.stdout.isTTY === true;
+      !opts.noColor &&
+      !process.env['NO_COLOR'] &&
+      process.stdout.isTTY === true;
 
     let catContent: string;
     if (opts.input && opts.input !== '-') {
@@ -822,9 +824,9 @@ async function main(): Promise<void> {
         }
       }
       const mcpServers =
-        (settings.mcpServers as Record<string, unknown> | undefined) ?? {};
+        (settings['mcpServers'] as Record<string, unknown> | undefined) ?? {};
       mcpServers['dgmo'] = mcpEntry;
-      settings.mcpServers = mcpServers;
+      settings['mcpServers'] = mcpServers;
       writeFileSync(
         settingsPath,
         JSON.stringify(settings, null, 2) + '\n',
@@ -842,9 +844,9 @@ async function main(): Promise<void> {
         }
       }
       const mcpServers =
-        (mcp.mcpServers as Record<string, unknown> | undefined) ?? {};
+        (mcp['mcpServers'] as Record<string, unknown> | undefined) ?? {};
       mcpServers['dgmo'] = mcpEntry;
-      mcp.mcpServers = mcpServers;
+      mcp['mcpServers'] = mcpServers;
       writeFileSync(mcpPath, JSON.stringify(mcp, null, 2) + '\n', 'utf-8');
       console.log(
         `✓ MCP server configured: ${join(process.cwd(), '.mcp.json')}`
@@ -1118,7 +1120,7 @@ async function main(): Promise<void> {
       );
     } else if (os === 'win32') {
       const appData =
-        process.env.APPDATA ?? join(homedir(), 'AppData', 'Roaming');
+        process.env['APPDATA'] ?? join(homedir(), 'AppData', 'Roaming');
       configPath = join(appData, 'Claude', 'claude_desktop_config.json');
     } else {
       configPath = join(
@@ -1154,7 +1156,7 @@ async function main(): Promise<void> {
       }
     }
 
-    const existingDgmo = config.mcpServers?.dgmo;
+    const existingDgmo = config.mcpServers?.['dgmo'];
     if (existingDgmo && existingDgmo.command === 'dgmo-mcp') {
       console.log(`✓ dgmo MCP server already configured in ${configPath}`);
     } else {

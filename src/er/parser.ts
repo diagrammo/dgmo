@@ -229,14 +229,6 @@ export function parseERDiagram(
     error: null,
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _fail = (line: number, message: string): ParsedERDiagram => {
-    const diag = makeDgmoError(line, message);
-    result.diagnostics.push(diag);
-    result.error = formatDgmoError(diag);
-    return result;
-  };
-
   const pushError = (line: number, message: string): void => {
     const diag = makeDgmoError(line, message);
     result.diagnostics.push(diag);

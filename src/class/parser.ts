@@ -184,14 +184,6 @@ export function parseClassDiagram(
     error: null,
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _fail = (line: number, message: string): ParsedClassDiagram => {
-    const diag = makeDgmoError(line, message);
-    result.diagnostics.push(diag);
-    result.error = formatDgmoError(diag);
-    return result;
-  };
-
   const classMap = new Map<string, ClassNode>();
 
   // Per-parse alias literal → canonical class id (TD-18). Per C8.

@@ -235,7 +235,7 @@ export function renderOrg(
   const rootNodeIds = new Set(parsed.roots.map((r) => r.id));
 
   // Render container backgrounds (bottom layer)
-  const colorOff = parsed.options?.color === 'off';
+  const colorOff = parsed.options?.['color'] === 'off';
   for (const c of layout.containers) {
     const cG = contentG
       .append('g')

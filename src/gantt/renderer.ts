@@ -1973,7 +1973,7 @@ function renderTagLegend(
   isDark: boolean,
   hasCriticalPath: boolean,
   criticalPathActive: boolean,
-  optionLineNumbers: Record<string, number>,
+  _optionLineNumbers: Record<string, number>,
   onToggle?: (groupName: string) => void,
   onToggleControlsExpand?: () => void,
   currentSwimlaneGroup?: string | null,
@@ -3633,7 +3633,7 @@ function resolveTaskColor(
 function renderTimeScaleHorizontal(
   g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
   scale: d3Scale.ScaleLinear<number, number>,
-  innerWidth: number,
+  _innerWidth: number,
   innerHeight: number,
   textColor: string
 ): void {

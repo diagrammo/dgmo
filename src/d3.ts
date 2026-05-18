@@ -5580,7 +5580,7 @@ export function renderVenn(
   container: HTMLDivElement,
   parsed: ParsedVisualization,
   palette: PaletteColors,
-  isDark: boolean,
+  _isDark: boolean,
   onClickItem?: (lineNumber: number) => void,
   exportDims?: D3ExportDimensions
 ): void {
@@ -5955,7 +5955,7 @@ export function renderVenn(
   const gcx = circles.reduce((s, c) => s + c.x, 0) / n;
   const gcy = circles.reduce((s, c) => s + c.y, 0) / n;
 
-  function exclusiveHSpan(px: number, py: number, ci: number): number {
+  function exclusiveHSpan(_px: number, py: number, ci: number): number {
     const dy = py - circles[ci].y;
     const halfChord = Math.sqrt(
       Math.max(0, circles[ci].r * circles[ci].r - dy * dy)

@@ -268,7 +268,10 @@ function renderGroup(
   const el = node.element;
 
   // Inline rows and label-field wrappers — no group chrome, just render children
-  if (el.metadata._inlineRow === 'true' || el.metadata._labelField === 'true') {
+  if (
+    el.metadata['_inlineRow'] === 'true' ||
+    el.metadata['_labelField'] === 'true'
+  ) {
     for (const child of node.children) {
       renderNode(g, child, ctx, depth);
     }
@@ -637,7 +640,7 @@ function renderText(
   const el = node.element;
 
   // Check if this is a label-field wrapper
-  if (el.metadata._labelField === 'true' && el.children.length >= 2) {
+  if (el.metadata['_labelField'] === 'true' && el.children.length >= 2) {
     for (const child of node.children) {
       renderNode(g, child, ctx, 0);
     }

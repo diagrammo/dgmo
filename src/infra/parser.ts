@@ -351,11 +351,11 @@ export function parseInfra(content: string): ParsedInfra {
 
       // animate (default ON) / no-animate
       if (trimmed === 'animate') {
-        result.options.animate = 'on';
+        result.options['animate'] = 'on';
         continue;
       }
       if (trimmed === 'no-animate') {
-        result.options.animate = 'off';
+        result.options['animate'] = 'off';
         continue;
       }
 
@@ -550,11 +550,11 @@ export function parseInfra(content: string): ParsedInfra {
         const pipeMeta = extractPipeMetadata(targetRaw);
         const targetName = pipeMeta.clean || targetRaw;
         warnUnparsedPipeMeta(targetName, lineNumber, warn);
-        const split = pipeMeta.tags.split
-          ? parseFloat(pipeMeta.tags.split)
+        const split = pipeMeta.tags['split']
+          ? parseFloat(pipeMeta.tags['split'])
           : null;
-        const fanoutRaw = pipeMeta.tags.fanout
-          ? parseInt(pipeMeta.tags.fanout, 10)
+        const fanoutRaw = pipeMeta.tags['fanout']
+          ? parseInt(pipeMeta.tags['fanout'], 10)
           : null;
         if (fanoutRaw !== null && fanoutRaw < 1) {
           warn(
@@ -588,11 +588,11 @@ export function parseInfra(content: string): ParsedInfra {
         const pipeMeta = extractPipeMetadata(targetRaw);
         const targetName = pipeMeta.clean || targetRaw;
         warnUnparsedPipeMeta(targetName, lineNumber, warn);
-        const split = pipeMeta.tags.split
-          ? parseFloat(pipeMeta.tags.split)
+        const split = pipeMeta.tags['split']
+          ? parseFloat(pipeMeta.tags['split'])
           : null;
-        const fanoutRaw = pipeMeta.tags.fanout
-          ? parseInt(pipeMeta.tags.fanout, 10)
+        const fanoutRaw = pipeMeta.tags['fanout']
+          ? parseInt(pipeMeta.tags['fanout'], 10)
           : null;
         if (fanoutRaw !== null && fanoutRaw < 1) {
           warn(
@@ -631,11 +631,11 @@ export function parseInfra(content: string): ParsedInfra {
         const pipeMeta = extractPipeMetadata(targetRaw);
         const targetName = pipeMeta.clean || targetRaw;
         warnUnparsedPipeMeta(targetName, lineNumber, warn);
-        const split = pipeMeta.tags.split
-          ? parseFloat(pipeMeta.tags.split)
+        const split = pipeMeta.tags['split']
+          ? parseFloat(pipeMeta.tags['split'])
           : null;
-        const fanoutRaw = pipeMeta.tags.fanout
-          ? parseInt(pipeMeta.tags.fanout, 10)
+        const fanoutRaw = pipeMeta.tags['fanout']
+          ? parseInt(pipeMeta.tags['fanout'], 10)
           : null;
         if (fanoutRaw !== null && fanoutRaw < 1) {
           warn(
@@ -669,11 +669,11 @@ export function parseInfra(content: string): ParsedInfra {
         const pipeMeta = extractPipeMetadata(targetRaw);
         const targetName = pipeMeta.clean || targetRaw;
         warnUnparsedPipeMeta(targetName, lineNumber, warn);
-        const split = pipeMeta.tags.split
-          ? parseFloat(pipeMeta.tags.split)
+        const split = pipeMeta.tags['split']
+          ? parseFloat(pipeMeta.tags['split'])
           : null;
-        const fanoutRaw = pipeMeta.tags.fanout
-          ? parseInt(pipeMeta.tags.fanout, 10)
+        const fanoutRaw = pipeMeta.tags['fanout']
+          ? parseInt(pipeMeta.tags['fanout'], 10)
           : null;
         if (fanoutRaw !== null && fanoutRaw < 1) {
           warn(

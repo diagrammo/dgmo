@@ -188,7 +188,7 @@ function renderQuarterCircle(
   width: number,
   height: number,
   mutedColor: string,
-  tooltip: HTMLDivElement,
+  _tooltip: HTMLDivElement,
   rootContainer: HTMLElement,
   onClickItem?: (lineNumber: number) => void
 ): void {

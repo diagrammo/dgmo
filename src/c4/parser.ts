@@ -421,7 +421,7 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
         );
         const shape = inferC4Shape(
           nodeName,
-          metadata.tech ?? metadata.technology
+          metadata['tech'] ?? metadata['technology']
         );
 
         const dNode: C4DeploymentNode = {
@@ -555,11 +555,11 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
           // parsePipeMetadata expects segments split by |; first segment is pre-pipe
           const meta = parsePipeMetadata(['', metaPart], metaAliasMap);
           // tech/technology on pipe overrides [tech] in label
-          if (meta.tech) {
-            technology = meta.tech;
+          if (meta['tech']) {
+            technology = meta['tech'];
           }
-          if (meta.technology) {
-            technology = meta.technology;
+          if (meta['technology']) {
+            technology = meta['technology'];
           }
         }
 
@@ -729,7 +729,7 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
 
       const shape =
         explicitShape ??
-        inferC4Shape(namePart, metadata.tech ?? metadata.technology);
+        inferC4Shape(namePart, metadata['tech'] ?? metadata['technology']);
 
       // Extract description from pipe metadata into dedicated field
       let isADescription: string[] | undefined;
@@ -806,7 +806,7 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
       // Determine shape: explicit > inference
       const shape =
         explicitShape ??
-        inferC4Shape(namePart, metadata.tech ?? metadata.technology);
+        inferC4Shape(namePart, metadata['tech'] ?? metadata['technology']);
 
       // Extract description from pipe metadata into dedicated field
       let prefixDescription: string[] | undefined;

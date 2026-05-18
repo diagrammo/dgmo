@@ -1150,7 +1150,7 @@ function renderTaskRow(
   surfaceBg: string,
   solid: boolean,
   taskDiagnostics: Map<string, TaskDiagnosticBucket> | null,
-  hasAnyDiagnostic: boolean,
+  _hasAnyDiagnostic: boolean,
   rowContent: RowContent | undefined,
   onClickLine?: (lineNumber: number) => void,
   _onMarkerDragStart?: (source: RaciDragSource, e: PointerEvent) => void

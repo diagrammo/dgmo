@@ -949,9 +949,6 @@ export function renderSequenceDiagram(
   const messages = collapsed ? collapsed.messages : parsed.messages;
   const elements = collapsed ? collapsed.elements : parsed.elements;
   const groups = collapsed ? collapsed.groups : parsed.groups;
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const collapsedGroupIds = collapsed?.collapsedGroupIds ?? new Map();
-
   const collapsedSections = options?.collapsedSections;
 
   const sourceParticipants = collapsed
@@ -1006,7 +1003,7 @@ export function renderSequenceDiagram(
   const charsForWidth = (maxW: number): number =>
     Math.floor((maxW - NOTE_PAD_H * 2 - NOTE_FOLD) / NOTE_CHAR_W);
 
-  const activationsOff = parsedOptions.activations?.toLowerCase() === 'off';
+  const activationsOff = parsedOptions['activations']?.toLowerCase() === 'off';
 
   // Tag resolution — shared utility handles priority chain:
   // programmatic override → diagram-level active-tag → auto-activate first group

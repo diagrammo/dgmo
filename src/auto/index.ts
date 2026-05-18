@@ -532,14 +532,14 @@ interface ProcessOutcome {
 
 async function processElement(el: Element): Promise<ProcessOutcome> {
   if (!(el instanceof HTMLElement)) return {};
-  if (el.dataset.dgmoProcessed === 'true') return {};
+  if (el.dataset['dgmoProcessed'] === 'true') return {};
 
   // Mark the source synchronously so a concurrent run() (e.g. a SPA
   // hydration race firing right after auto-bootstrap) can't double-process
   // the same element while we await render(). The wrapper inherits the
   // flag below; on error paths we DO clear it (see error handlers) so the
   // user can retry with `dgmo.run()` after fixing the source.
-  el.dataset.dgmoProcessed = 'true';
+  el.dataset['dgmoProcessed'] = 'true';
 
   const source = el.textContent || '';
   const sourceBytes = new TextEncoder().encode(source).byteLength;
@@ -564,7 +564,7 @@ async function processElement(el: Element): Promise<ProcessOutcome> {
     resolvedTheme === 'transparent' ? 'transparent' : resolvedTheme;
   const ariaLabel = deriveAriaLabel(source);
 
-  const perElementShowSource = el.dataset.showSource;
+  const perElementShowSource = el.dataset['showSource'];
   let showSource = cfg.showSource;
   // Strict allowlist: only the exact strings 'true' / 'false' override the
   // global. Anything else (e.g. 'yes', '1') is ignored with a warning.
@@ -640,7 +640,7 @@ async function processElement(el: Element): Promise<ProcessOutcome> {
         ? 'dgmo-theme-transparent'
         : 'dgmo-theme-light';
   wrapper.className = `dgmo-rendered ${themeClass}`;
-  wrapper.dataset.dgmoProcessed = 'true';
+  wrapper.dataset['dgmoProcessed'] = 'true';
 
   // Insert SVG via a detached holder + post-insertion sanitization. The
   // spec said "never assign user-supplied content to innerHTML"; we treat
@@ -759,15 +759,16 @@ export function initialize(opts: AutoConfig = {}): void {
     }
   }
   const next = { ...activeConfig };
-  if (isValidTheme(opts.theme)) {
-    next.theme = opts.theme;
+  if (isValidTheme(opts['theme'])) {
+    next.theme = opts['theme'];
   }
-  if (typeof opts.palette === 'string' && paletteExists(opts.palette)) {
-    next.palette = opts.palette;
+  if (typeof opts['palette'] === 'string' && paletteExists(opts['palette'])) {
+    next.palette = opts['palette'];
   }
-  if (typeof opts.showSource === 'boolean') next.showSource = opts.showSource;
-  if (typeof opts.showEditorLink === 'boolean')
-    next.showEditorLink = opts.showEditorLink;
+  if (typeof opts['showSource'] === 'boolean')
+    next.showSource = opts['showSource'];
+  if (typeof opts['showEditorLink'] === 'boolean')
+    next.showEditorLink = opts['showEditorLink'];
   activeConfig = next;
 }
 
@@ -826,7 +827,7 @@ function rerenderAllForTheme(): void {
     placeholder.className = 'dgmo';
     placeholder.textContent = t.source;
     if (t.perElementShowSource !== null) {
-      placeholder.dataset.showSource = String(t.perElementShowSource);
+      placeholder.dataset['showSource'] = String(t.perElementShowSource);
     }
     t.wrapper.replaceWith(placeholder);
     wrappers.delete(t);
@@ -867,7 +868,7 @@ function unhideAllSources(): void {
   });
   // Also drop the anti-flash flag so subsequent loads re-inject if needed.
   if (document.documentElement && document.documentElement.dataset) {
-    document.documentElement.dataset.dgmoAutoFailed = '1';
+    document.documentElement.dataset['dgmoAutoFailed'] = '1';
   }
 }
 

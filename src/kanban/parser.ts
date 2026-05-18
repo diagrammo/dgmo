@@ -270,8 +270,8 @@ export function parseKanban(
           parsePipeMetadata(pipeSegments, metaAliasMap)
         );
         // Extract wip from metadata
-        if (columnMetadata.wip) {
-          const wipVal = parseInt(columnMetadata.wip, 10);
+        if (columnMetadata['wip']) {
+          const wipVal = parseInt(columnMetadata['wip'], 10);
           if (!isNaN(wipVal)) {
             wipLimit = wipVal;
           }

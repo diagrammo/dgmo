@@ -9,7 +9,7 @@
 // 3. Forward pass: resolve dates using universal max rule
 // 4. (Optional) Critical path: backward pass to find zero-slack chain
 
-import { makeDgmoError, formatDgmoError } from '../diagnostics';
+import { makeDgmoError } from '../diagnostics';
 import type { DgmoError } from '../diagnostics';
 import type {
   ParsedGantt,
@@ -67,14 +67,6 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
     diagnostics.push(makeDgmoError(line, message, 'warning'));
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _fail = (line: number, message: string): ResolvedSchedule => {
-    const diag = makeDgmoError(line, message);
-    diagnostics.push(diag);
-    result.error = formatDgmoError(diag);
-    return result;
-  };
-
   // ── Build holiday set ───────────────────────────────────
 
   const holidaySet = buildHolidaySet(parsed.holidays);
@@ -124,8 +116,6 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
   // ── Resolve explicit -> dependencies ────────────────────
 
   for (const task of allTasks) {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const _node = taskMap.get(task.id)!;
     for (const dep of task.dependencies) {
       const resolved = resolveTaskName(dep.targetName, allTasks);
       if (isResolverError(resolved)) {

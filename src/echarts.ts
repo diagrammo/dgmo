@@ -1026,7 +1026,7 @@ function buildChordOption(
   isDark: boolean,
   textColor: string,
   colors: string[],
-  bg: string,
+  _bg: string,
   titleConfig: EChartsOption['title']
 ): EChartsOption {
   // Extract unique nodes from links
@@ -1185,7 +1185,7 @@ function evaluateExpression(expr: string, x: number): number {
 function buildFunctionOption(
   parsed: ParsedExtendedChart,
   palette: PaletteColors,
-  isDark: boolean,
+  _isDark: boolean,
   textColor: string,
   axisLineColor: string,
   gridOpacity: number,
@@ -2092,7 +2092,7 @@ function buildFunnelOption(
   isDark: boolean,
   textColor: string,
   colors: string[],
-  bg: string,
+  _bg: string,
   titleConfig: EChartsOption['title']
 ): EChartsOption {
   // Sort data descending by value for funnel ordering
@@ -2464,7 +2464,7 @@ function buildBarOption(
   splitLineColor: string,
   gridOpacity: number,
   colors: string[],
-  bg: string,
+  _bg: string,
   titleConfig: EChartsOption['title'],
   chartWidth?: number
 ): EChartsOption {
@@ -2893,7 +2893,7 @@ function buildPieOption(
   isDark: boolean,
   textColor: string,
   colors: string[],
-  bg: string,
+  _bg: string,
   titleConfig: EChartsOption['title'],
   isDoughnut: boolean
 ): EChartsOption {
@@ -3021,7 +3021,7 @@ function buildPolarAreaOption(
   isDark: boolean,
   textColor: string,
   colors: string[],
-  bg: string,
+  _bg: string,
   titleConfig: EChartsOption['title']
 ): EChartsOption {
   const data = parsed.data.map((d, i) => {
@@ -3079,7 +3079,7 @@ function buildBarStackedOption(
   splitLineColor: string,
   gridOpacity: number,
   colors: string[],
-  bg: string,
+  _bg: string,
   titleConfig: EChartsOption['title'],
   chartWidth?: number
 ): EChartsOption {
@@ -3282,11 +3282,11 @@ export async function renderExtendedChartForExport(
       // In static export, expand the first group so entries are visible
       // Extract grid offsets for plot-area-centered legend
       const grid = option.grid as Record<string, unknown> | undefined;
-      const gridLeftPct = grid?.left
-        ? parseFloat(String(grid.left))
+      const gridLeftPct = grid?.['left']
+        ? parseFloat(String(grid['left']))
         : undefined;
-      const gridRightPct = grid?.right
-        ? parseFloat(String(grid.right))
+      const gridRightPct = grid?.['right']
+        ? parseFloat(String(grid['right']))
         : undefined;
       const { svg: legendSvgStr } = renderLegendSvg(legendGroups, {
         palette: effectivePalette,

@@ -389,7 +389,7 @@ function parseNodeLabel(
   trimmed: string,
   _indent: number,
   lineNumber: number,
-  palette: PaletteColors | undefined,
+  _palette: PaletteColors | undefined,
   counter: number,
   metaAliasMap: Map<string, string> = new Map(),
   warnFn?: (line: number, msg: string) => void,

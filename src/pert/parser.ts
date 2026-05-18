@@ -675,7 +675,7 @@ export function parsePert(
         id,
         name,
         activityIds: [],
-        collapsed: meta.collapsed === 'true',
+        collapsed: meta['collapsed'] === 'true',
         lineNumber,
         ...(Object.keys(tags).length > 0 && { tags }),
       });
@@ -1027,7 +1027,7 @@ export function parsePert(
       name: decl.name,
       ...(decl.alias !== undefined && { alias: decl.alias }),
       duration: estimate,
-      ...(meta.confidence && { confidence: meta.confidence }),
+      ...(meta['confidence'] && { confidence: meta['confidence'] }),
       ...(decl.groupHint !== undefined && { groupId: decl.groupHint }),
       lineNumber: decl.lineNumber,
       isMilestone,

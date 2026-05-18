@@ -435,15 +435,15 @@ export function parseGantt(
             metaAliasMap,
             () => warn(lineNumber, MULTIPLE_PIPE_ERROR)
           );
-          if (meta.lag || meta.lead) {
-            const key = meta.lag ? 'lag' : 'lead';
+          if (meta['lag'] || meta['lead']) {
+            const key = meta['lag'] ? 'lag' : 'lead';
             softError(
               lineNumber,
               `"${key}" is no longer supported — use "offset: ${meta[key]}" instead.${key === 'lead' ? ' Negate the value for lead behavior: "offset: -...".' : ''}`
             );
           }
-          if (meta.offset) {
-            const raw = meta.offset;
+          if (meta['offset']) {
+            const raw = meta['offset'];
             if (raw.trim().startsWith('+')) {
               warn(
                 lineNumber,
@@ -903,15 +903,15 @@ export function parseGantt(
           metaAliasMap,
           () => warn(lineNumber, MULTIPLE_PIPE_ERROR)
         );
-        if (meta.lag || meta.lead) {
-          const key = meta.lag ? 'lag' : 'lead';
+        if (meta['lag'] || meta['lead']) {
+          const key = meta['lag'] ? 'lag' : 'lead';
           softError(
             lineNumber,
             `"${key}" is no longer supported — use "offset: ${meta[key]}" instead.${key === 'lead' ? ' Negate the value for lead behavior: "offset: -...".' : ''}`
           );
         }
-        if (meta.offset) {
-          const raw = meta.offset;
+        if (meta['offset']) {
+          const raw = meta['offset'];
           if (raw.trim().startsWith('+')) {
             warn(
               lineNumber,
@@ -1023,9 +1023,9 @@ export function parseGantt(
 
     // Extract progress from metadata or shorthand
     let progress: number | null = null;
-    if (metadata.progress) {
-      progress = parseFloat(metadata.progress);
-      delete metadata.progress;
+    if (metadata['progress']) {
+      progress = parseFloat(metadata['progress']);
+      delete metadata['progress'];
     }
     // Check for progress shorthand: `| 80%` or `| t:X, 80%`
     for (const part of segments.slice(1).join(',').split(',')) {
@@ -1037,8 +1037,8 @@ export function parseGantt(
     }
 
     // Reject lag/lead — use offset instead
-    if (metadata.lag || metadata.lead) {
-      const key = metadata.lag ? 'lag' : 'lead';
+    if (metadata['lag'] || metadata['lead']) {
+      const key = metadata['lag'] ? 'lag' : 'lead';
       softError(
         ln,
         `"${key}" is no longer supported — use "offset: ${metadata[key]}" instead.${key === 'lead' ? ' Negate the value for lead behavior: "offset: -...".' : ''}`
@@ -1047,8 +1047,8 @@ export function parseGantt(
 
     // Extract task-level offset from metadata
     let taskOffset: Offset | undefined;
-    if (metadata.offset) {
-      const raw = metadata.offset;
+    if (metadata['offset']) {
+      const raw = metadata['offset'];
       if (raw.trim().startsWith('+')) {
         warn(
           ln,
@@ -1063,7 +1063,7 @@ export function parseGantt(
           );
         }
       }
-      delete metadata.offset;
+      delete metadata['offset'];
     }
 
     // Inherit metadata from parent groups (tag inheritance)

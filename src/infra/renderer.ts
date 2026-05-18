@@ -1165,7 +1165,7 @@ function renderEdgePaths(
   nodes: InfraLayoutNode[],
   groups: InfraLayoutGroup[],
   palette: PaletteColors,
-  isDark: boolean,
+  _isDark: boolean,
   animate: boolean,
   direction: 'LR' | 'TB',
   speedMultiplier: number = 1
@@ -1245,7 +1245,7 @@ function renderEdgeLabels(
   nodes: InfraLayoutNode[],
   groups: InfraLayoutGroup[],
   palette: PaletteColors,
-  isDark: boolean,
+  _isDark: boolean,
   animate: boolean,
   direction: 'LR' | 'TB'
 ) {

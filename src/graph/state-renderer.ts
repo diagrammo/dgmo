@@ -431,7 +431,7 @@ export function renderState(
   }
 
   // Render nodes (top layer)
-  const colorOff = graph.options?.color === 'off';
+  const colorOff = graph.options?.['color'] === 'off';
   const solid = graph.options?.['solid-fill'] === 'on';
   for (const node of layout.nodes) {
     const isCollapsedGroup = collapsedGroupIds.has(node.id);

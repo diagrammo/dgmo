@@ -389,9 +389,9 @@ export function parseRaci(
           let roleColor: string | undefined;
           if (segments.length > 1) {
             const meta = parsePipeMetadata(segments);
-            if (meta.color) {
+            if (meta['color']) {
               roleColor = resolveColorWithDiagnostic(
-                meta.color,
+                meta['color'],
                 j + 1,
                 result.diagnostics,
                 palette
@@ -473,9 +473,9 @@ export function parseRaci(
         let phaseColor: string | undefined;
         if (phaseMatch[2]) {
           const meta = parsePipeMetadata(['', phaseMatch[2]]);
-          if (meta.color) {
+          if (meta['color']) {
             phaseColor = resolveColorWithDiagnostic(
-              meta.color,
+              meta['color'],
               lineNumber,
               result.diagnostics,
               palette

@@ -64,7 +64,7 @@ interface PositionedNode {
 
 export function layoutMindmap(
   parsed: ParsedMindmap,
-  palette: PaletteColors,
+  _palette: PaletteColors,
   options?: {
     interactive?: boolean;
     hiddenCounts?: Map<string, number>;

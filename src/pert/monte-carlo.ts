@@ -134,8 +134,8 @@ interface SimulationOptions {
 function simulate(
   resolved: ResolvedPert,
   expanded: ExpandedActivity[],
-  predecessors: Map<string, string[]>,
-  successors: Map<string, string[]>,
+  _predecessors: Map<string, string[]>,
+  _successors: Map<string, string[]>,
   topo: string[],
   terminals: string[],
   poisoned: Set<string>,

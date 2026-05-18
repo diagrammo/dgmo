@@ -333,7 +333,8 @@ function layoutElement(
 
   // Container — layout children
   const isInlineRow =
-    el.metadata._inlineRow === 'true' || el.metadata._labelField === 'true';
+    el.metadata['_inlineRow'] === 'true' ||
+    el.metadata['_labelField'] === 'true';
   const padTop = isInlineRow ? 0 : GROUP_PADDING_TOP;
   const padBottom = isInlineRow ? 0 : GROUP_PADDING_BOTTOM;
   const padX = isInlineRow ? 0 : GROUP_PADDING_X;
@@ -402,8 +403,8 @@ function allocateEqualWidths(
 function getElementHeight(el: WireframeElement): number {
   if (el.type === 'heading') {
     return el.headingLevel === 2
-      ? (ELEMENT_HEIGHTS.subheading ?? 36)
-      : (ELEMENT_HEIGHTS.heading ?? 48);
+      ? (ELEMENT_HEIGHTS['subheading'] ?? 36)
+      : (ELEMENT_HEIGHTS['heading'] ?? 48);
   }
 
   if (el.type === 'textInput' && el.fieldVariant === 'textarea') {
@@ -421,11 +422,11 @@ function getElementHeight(el: WireframeElement): number {
   if (el.type === 'image') {
     if (el.imageHint === 'round') return 80;
     if (el.imageHint === 'wide') return 80;
-    return ELEMENT_HEIGHTS.image ?? 120;
+    return ELEMENT_HEIGHTS['image'] ?? 120;
   }
 
   // Label-field wrapper
-  if (el.metadata._labelField === 'true') {
+  if (el.metadata['_labelField'] === 'true') {
     return 36; // input height
   }
 
@@ -434,7 +435,7 @@ function getElementHeight(el: WireframeElement): number {
 
 function getSpacingAfter(el: WireframeElement): number {
   if (el.type === 'heading' && el.headingLevel === 2) {
-    return SPACING_AFTER.subheading ?? 12;
+    return SPACING_AFTER['subheading'] ?? 12;
   }
   return SPACING_AFTER[el.type] ?? 8;
 }
@@ -448,7 +449,10 @@ function computeFieldAlignX(children: WireframeElement[]): number {
   let labelFieldCount = 0;
 
   for (const child of children) {
-    if (child.metadata._labelField === 'true' && child.children.length >= 2) {
+    if (
+      child.metadata['_labelField'] === 'true' &&
+      child.children.length >= 2
+    ) {
       const labelEl = child.children[0];
       const labelWidth = labelEl.label.length * CHAR_WIDTH;
       maxLabelWidth = Math.max(maxLabelWidth, labelWidth);

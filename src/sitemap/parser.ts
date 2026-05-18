@@ -566,7 +566,7 @@ export function parseSitemap(
 function parseNodeLabel(
   trimmed: string,
   lineNumber: number,
-  palette: PaletteColors | undefined,
+  _palette: PaletteColors | undefined,
   counter: number,
   metaAliasMap: Map<string, string> = new Map(),
   warnFn?: (line: number, msg: string) => void,

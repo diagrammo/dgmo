@@ -488,7 +488,7 @@ export function relayoutPert(
 function applySwimLanes(
   g: any,
   resolved: ResolvedPert,
-  memberToGroup: Map<string, string>,
+  _memberToGroup: Map<string, string>,
   collapsedGroupIds: ReadonlySet<string>
 ): boolean {
   const expanded = resolved.groups.filter(

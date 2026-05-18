@@ -340,7 +340,7 @@ export function renderERDiagram(
     semanticRoles !== null && (semanticColorsActive ?? true);
 
   // ── Edges (behind nodes) ──
-  const useLabels = parsed.options.notation === 'labels';
+  const useLabels = parsed.options['notation'] === 'labels';
 
   for (const edge of layout.edges) {
     if (edge.points.length < 2) continue;

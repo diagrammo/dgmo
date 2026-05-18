@@ -650,7 +650,7 @@ export function parseWireframe(content: string): ParsedWireframe {
     wrapper.isContainer = true;
     wrapper.orientation = 'horizontal';
     wrapper.children = children;
-    wrapper.metadata._inlineRow = 'true';
+    wrapper.metadata['_inlineRow'] = 'true';
     pushElement(wrapper);
   }
 
@@ -852,7 +852,7 @@ export function parseWireframe(content: string): ParsedWireframe {
             wrapper.isContainer = true;
             wrapper.orientation = 'horizontal';
             wrapper.children.push(labelEl, fieldEl);
-            wrapper.metadata._labelField = 'true';
+            wrapper.metadata['_labelField'] = 'true';
             pushElement(wrapper);
           }
         } else {

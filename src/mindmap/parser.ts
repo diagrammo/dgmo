@@ -297,7 +297,7 @@ export function parseMindmap(
 function parseNodeLine(
   trimmed: string,
   lineNumber: number,
-  palette: PaletteColors | undefined,
+  _palette: PaletteColors | undefined,
   counter: number,
   aliasMap: Map<string, string>,
   warnFn: (line: number, msg: string) => void

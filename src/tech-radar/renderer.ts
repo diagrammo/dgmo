@@ -920,7 +920,7 @@ import type { TechRadarBlip } from './types';
 
 function createBlipPopover(
   container: HTMLElement,
-  palette: PaletteColors,
+  _palette: PaletteColors,
   isDark: boolean
 ): HTMLDivElement {
   container.style.position = 'relative';
