@@ -173,7 +173,12 @@
     "VPAD",
     "VSTACK",
     "xtick",
-    "ytick"
+    "ytick",
+    "elkjs",
+    "Bendpoints",
+    "Brandes",
+    "Koepf",
+    "Coffman"
   ],
   "ignorePaths": [
     "node_modules",

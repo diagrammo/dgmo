@@ -128,6 +128,13 @@ export default defineConfig([
     esbuildPlugins: [fixJsdomXhrWorker],
   },
   {
+    entry: { pert: 'src/pert/index.ts' },
+    format: ['esm', 'cjs'],
+    dts: true,
+    sourcemap: true,
+    splitting: false,
+  },
+  {
     entry: ['src/cli.ts'],
     format: ['cjs'],
     dts: false,

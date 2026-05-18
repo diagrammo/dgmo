@@ -1,6 +1,6 @@
 {
   "name": "@diagrammo/dgmo",
-  "version": "0.15.0",
+  "version": "0.15.1",
   "description": "DGMO diagram markup language — parser, renderer, and color system",
   "license": "MIT",
   "repository": {
@@ -67,6 +67,16 @@
       "require": {
         "types": "./dist/internal.d.cts",
         "default": "./dist/internal.cjs"
+      }
+    },
+    "./pert": {
+      "import": {
+        "types": "./dist/pert.d.ts",
+        "default": "./dist/pert.js"
+      },
+      "require": {
+        "types": "./dist/pert.d.cts",
+        "default": "./dist/pert.cjs"
       }
     },
     "./auto": {
