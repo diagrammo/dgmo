@@ -204,7 +204,7 @@ export function decodeDiagramUrl(url: string): DecodedDiagramUrl | null {
 // Palettes + themes (namespaces)
 // ============================================================
 
-export { palettes } from './palettes';
+export { palettes, getPalette } from './palettes';
 export { themes, type Theme } from './themes';
 
 // ============================================================
