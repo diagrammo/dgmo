@@ -108,6 +108,16 @@ export default defineConfig([
     // Inline Lezer so consumers have zero peer deps
   },
   {
+    entry: { advanced: 'src/advanced.ts' },
+    format: ['esm', 'cjs'],
+    dts: true,
+    sourcemap: true,
+    splitting: false,
+    noExternal: ['lz-string'],
+    external: ['jsdom'],
+    esbuildPlugins: [fixJsdomXhrWorker],
+  },
+  {
     entry: { internal: 'src/internal.ts' },
     format: ['esm', 'cjs'],
     dts: true,
