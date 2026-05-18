@@ -7731,11 +7731,10 @@ export async function renderForExport(
       }
     }
 
-    const { layoutBoxesAndLines } = await import('./boxes-and-lines/layout');
     const { renderBoxesAndLinesForExport } =
       await import('./boxes-and-lines/renderer');
-
-    const blLayout = layoutBoxesAndLines(blParsed);
+    const { layoutBoxesAndLines } = await import('./boxes-and-lines/layout');
+    const blLayout = await layoutBoxesAndLines(blParsed);
     const PADDING = 20;
     const titleOffset = blParsed.title ? 40 : 0;
     const exportWidth = blLayout.width + PADDING * 2;
