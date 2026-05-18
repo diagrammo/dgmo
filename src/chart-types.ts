@@ -490,8 +490,3 @@ export const chartTypes: readonly ChartTypeMeta[] = [
     fallback: true,
   },
 ] as const;
-
-// Chart-type ids currently flagged as beta. Renderers/UIs use this set to
-// surface a "β BETA" badge next to titles, nav entries, and template tiles.
-// Promote/demote by editing this set + the corresponding registry titles.
-export const BETA_CHART_IDS: ReadonlySet<string> = new Set(['c4', 'venn']);
