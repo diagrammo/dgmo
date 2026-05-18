@@ -3868,6 +3868,314 @@ function makeTimelineHoverHelpers(): TimelineHoverHelpers {
 }
 
 // ============================================================
+// Timeline — tag-legend overlay (extracted from renderTimeline)
+// ============================================================
+
+function renderTimelineTagLegendOverlay(
+  container: HTMLDivElement,
+  parsed: ParsedVisualization,
+  palette: PaletteColors,
+  isDark: boolean,
+  setup: TimelineSetup,
+  hovers: TimelineHoverHelpers,
+  onClickItem: ((lineNumber: number) => void) | undefined,
+  exportDims: D3ExportDimensions | undefined,
+  swimlaneTagGroup: string | null | undefined,
+  activeTagGroup: string | null | undefined,
+  onTagStateChange:
+    | ((activeTagGroup: string | null, swimlaneTagGroup: string | null) => void)
+    | undefined,
+  viewMode: boolean | undefined
+): void {
+  if (parsed.timelineTagGroups.length === 0) return;
+
+  const { width, textColor, groupColorMap, solid } = setup;
+  const { FADE_OPACITY, fadeReset, fadeToTagValue } = hovers;
+  const title = parsed.noTitle ? null : parsed.title;
+  const { timelineEvents } = parsed;
+
+  const LG_HEIGHT = TL_LEGEND_HEIGHT;
+  const LG_PILL_PAD = TL_LEGEND_PILL_PAD;
+  const LG_PILL_FONT_SIZE = TL_LEGEND_PILL_FONT_SIZE;
+  const LG_CAPSULE_PAD = TL_LEGEND_CAPSULE_PAD;
+  const LG_DOT_R = TL_LEGEND_DOT_R;
+  const LG_ENTRY_FONT_SIZE = TL_LEGEND_ENTRY_FONT_SIZE;
+  const LG_ENTRY_DOT_GAP = TL_LEGEND_ENTRY_DOT_GAP;
+  const LG_ENTRY_TRAIL = TL_LEGEND_ENTRY_TRAIL;
+  // LG_GROUP_GAP no longer needed — centralized legend handles spacing
+  const LG_ICON_W = 20; // swimlane icon area (icon + surrounding space) — local
+
+  const mainSvg = d3Selection.select(container).select<SVGSVGElement>('svg');
+  const mainG = mainSvg.select<SVGGElement>('g');
+  if (!mainSvg.empty() && !mainG.empty()) {
+    // Position legend at top, below title
+    const legendY = title ? 50 : 10;
+
+    // Pre-compute group widths (minified and expanded)
+    type LegendGroup = {
+      group: TagGroup;
+      minifiedWidth: number;
+      expandedWidth: number;
+    };
+    const legendGroups: LegendGroup[] = parsed.timelineTagGroups.map((g) => {
+      const pillW = measureLegendText(g.name, LG_PILL_FONT_SIZE) + LG_PILL_PAD;
+      // Expanded: pill + icon (unless viewMode) + entries
+      const iconSpace = viewMode ? 8 : LG_ICON_W + 4;
+      let entryX = LG_CAPSULE_PAD + pillW + iconSpace;
+      for (const entry of g.entries) {
+        const textX = entryX + LG_DOT_R * 2 + LG_ENTRY_DOT_GAP;
+        entryX =
+          textX +
+          measureLegendText(entry.value, LG_ENTRY_FONT_SIZE) +
+          LG_ENTRY_TRAIL;
+      }
+      return {
+        group: g,
+        minifiedWidth: pillW,
+        expandedWidth: entryX + LG_CAPSULE_PAD,
+      };
+    });
+
+    // Two independent state axes: swimlane source + color source
+    let currentActiveGroup: string | null = activeTagGroup ?? null;
+    let currentSwimlaneGroup: string | null = swimlaneTagGroup ?? null;
+
+    /** Render the swimlane icon (3 horizontal bars of varying width) */
+    function drawSwimlaneIcon(
+      parent: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
+      x: number,
+      y: number,
+      isSwimActive: boolean
+    ) {
+      const iconG = parent
+        .append('g')
+        .attr('class', 'tl-swimlane-icon')
+        .attr('transform', `translate(${x}, ${y})`)
+        .style('cursor', 'pointer');
+
+      const barColor = isSwimActive ? palette.primary : palette.textMuted;
+      const barOpacity = isSwimActive ? 1 : 0.35;
+      const bars = [
+        { y: 0, w: 8 },
+        { y: 4, w: 12 },
+        { y: 8, w: 6 },
+      ];
+      for (const bar of bars) {
+        iconG
+          .append('rect')
+          .attr('x', 0)
+          .attr('y', bar.y)
+          .attr('width', bar.w)
+          .attr('height', 2)
+          .attr('rx', 1)
+          .attr('fill', barColor)
+          .attr('opacity', barOpacity);
+      }
+      return iconG;
+    }
+
+    /** Full re-render with updated swimlane state */
+    function relayout() {
+      renderTimeline(
+        container,
+        parsed,
+        palette,
+        isDark,
+        onClickItem,
+        exportDims,
+        currentActiveGroup,
+        currentSwimlaneGroup,
+        onTagStateChange,
+        viewMode
+      );
+    }
+
+    function drawLegend() {
+      // Remove previous legend
+      mainSvg.selectAll('.tl-tag-legend-group').remove();
+      mainSvg.selectAll('.tl-tag-legend-container').remove();
+
+      // Effective color source: explicit color group > swimlane group
+      const effectiveColorKey =
+        (currentActiveGroup ?? currentSwimlaneGroup)?.toLowerCase() ?? null;
+
+      // In view mode, only show the color-driving tag group (expanded, non-interactive).
+      // Skip the swimlane group if it's separate from the color group (lane headers already label it).
+      const visibleGroups = viewMode
+        ? legendGroups.filter(
+            (lg) =>
+              effectiveColorKey != null &&
+              lg.group.name.toLowerCase() === effectiveColorKey
+          )
+        : legendGroups;
+
+      if (visibleGroups.length === 0) return;
+
+      // Legend container for data-legend-active attribute
+      const legendContainer = mainSvg
+        .append('g')
+        .attr('class', 'tl-tag-legend-container');
+      if (currentActiveGroup) {
+        legendContainer.attr(
+          'data-legend-active',
+          currentActiveGroup.toLowerCase()
+        );
+      }
+
+      // Render tag groups via centralized legend system
+      const iconAddon = viewMode ? 0 : LG_ICON_W;
+      const centralGroups = visibleGroups.map((lg) => ({
+        name: lg.group.name,
+        entries: lg.group.entries.map((e) => ({
+          value: e.value,
+          color: e.color,
+        })),
+      }));
+
+      // Determine effective active group for centralized renderer
+      const centralActive = viewMode ? effectiveColorKey : currentActiveGroup;
+
+      const centralConfig: LegendConfig = {
+        groups: centralGroups,
+        position: { placement: 'top-center', titleRelation: 'below-title' },
+        mode: 'fixed',
+        capsulePillAddonWidth: iconAddon,
+      };
+      const centralState: LegendState = { activeGroup: centralActive };
+
+      const centralCallbacks: LegendCallbacks = viewMode
+        ? {}
+        : {
+            onGroupToggle: (groupName) => {
+              currentActiveGroup =
+                currentActiveGroup === groupName.toLowerCase()
+                  ? null
+                  : groupName.toLowerCase();
+              drawLegend();
+              recolorEvents();
+              onTagStateChange?.(currentActiveGroup, currentSwimlaneGroup);
+            },
+            onEntryHover: (groupName, entryValue) => {
+              const tagKey = groupName.toLowerCase();
+              if (entryValue) {
+                const tagVal = entryValue.toLowerCase();
+                fadeToTagValue(mainG, tagKey, tagVal);
+                mainSvg
+                  .selectAll<SVGGElement, unknown>('[data-legend-entry]')
+                  .each(function () {
+                    const el = d3Selection.select(this);
+                    const ev = el.attr('data-legend-entry');
+                    const eg =
+                      el.attr('data-tag-group') ??
+                      (el.node() as Element)
+                        ?.closest?.('[data-tag-group]')
+                        ?.getAttribute('data-tag-group');
+                    el.attr(
+                      'opacity',
+                      eg === tagKey && ev === tagVal ? 1 : FADE_OPACITY
+                    );
+                  });
+              } else {
+                fadeReset(mainG);
+                mainSvg
+                  .selectAll<SVGGElement, unknown>('[data-legend-entry]')
+                  .attr('opacity', 1);
+              }
+            },
+            onGroupRendered: (groupName, groupEl, isActive) => {
+              const groupKey = groupName.toLowerCase();
+              groupEl.attr('data-tag-group', groupKey);
+              if (isActive && !viewMode) {
+                const isSwimActive =
+                  currentSwimlaneGroup != null &&
+                  currentSwimlaneGroup.toLowerCase() === groupKey;
+                const pillWidth =
+                  measureLegendText(groupName, LG_PILL_FONT_SIZE) + LG_PILL_PAD;
+                const pillXOff = LG_CAPSULE_PAD;
+                const iconX = pillXOff + pillWidth + 5;
+                const iconY = (LG_HEIGHT - 10) / 2;
+                const iconEl = drawSwimlaneIcon(
+                  groupEl,
+                  iconX,
+                  iconY,
+                  isSwimActive
+                );
+                iconEl
+                  .attr('data-swimlane-toggle', groupKey)
+                  .on('click', (event: MouseEvent) => {
+                    event.stopPropagation();
+                    currentSwimlaneGroup =
+                      currentSwimlaneGroup === groupKey ? null : groupKey;
+                    onTagStateChange?.(
+                      currentActiveGroup,
+                      currentSwimlaneGroup
+                    );
+                    relayout();
+                  });
+              }
+            },
+          };
+
+      const legendInnerG = legendContainer
+        .append('g')
+        .attr('transform', `translate(0, ${legendY})`);
+      renderLegendD3(
+        legendInnerG,
+        centralConfig,
+        centralState,
+        palette,
+        isDark,
+        centralCallbacks,
+        width
+      );
+    }
+
+    // Build a quick lineNumber→event lookup
+    const eventByLine = new Map<string, TimelineEvent>();
+    for (const ev of timelineEvents) {
+      eventByLine.set(String(ev.lineNumber), ev);
+    }
+
+    function recolorEvents() {
+      const colorTG = currentActiveGroup ?? swimlaneTagGroup ?? null;
+      mainG.selectAll<SVGGElement, unknown>('.tl-event').each(function () {
+        const el = d3Selection.select(this);
+        const lineNum = el.attr('data-line-number');
+        const ev = lineNum ? eventByLine.get(lineNum) : undefined;
+        if (!ev) return;
+
+        let color: string;
+        if (colorTG) {
+          const tagColor = resolveTagColor(
+            ev.metadata,
+            parsed.timelineTagGroups,
+            colorTG
+          );
+          color =
+            tagColor ??
+            (ev.group && groupColorMap.has(ev.group)
+              ? groupColorMap.get(ev.group)!
+              : textColor);
+        } else {
+          color =
+            ev.group && groupColorMap.has(ev.group)
+              ? groupColorMap.get(ev.group)!
+              : textColor;
+        }
+        el.selectAll('rect')
+          .attr('fill', shapeFill(palette, color, isDark, { solid }))
+          .attr('stroke', color);
+        el.selectAll('circle:not(.tl-event-point-outline)')
+          .attr('fill', shapeFill(palette, color, isDark, { solid }))
+          .attr('stroke', color);
+      });
+    }
+
+    drawLegend();
+  }
+}
+
+// ============================================================
 // Timeline — horizontal-time-sort renderer (extracted from renderTimeline)
 // ============================================================
 
@@ -5223,12 +5531,8 @@ export function renderTimeline(
   if (!setup) return;
   swimlaneTagGroup = setup.swimlaneTagGroup;
 
-  const { isVertical, tagLanes, width, textColor, groupColorMap, solid } =
-    setup;
+  const { isVertical, tagLanes } = setup;
   const hovers = makeTimelineHoverHelpers();
-  const { FADE_OPACITY, fadeReset, fadeToTagValue } = hovers;
-  const title = parsed.noTitle ? null : parsed.title;
-  const { timelineEvents } = parsed;
 
   if (isVertical) {
     renderTimelineVertical(
@@ -5283,290 +5587,20 @@ export function renderTimeline(
     );
   }
 
-  // ── Tag Legend (org-chart-style pills) ──
-  if (parsed.timelineTagGroups.length > 0) {
-    const LG_HEIGHT = TL_LEGEND_HEIGHT;
-    const LG_PILL_PAD = TL_LEGEND_PILL_PAD;
-    const LG_PILL_FONT_SIZE = TL_LEGEND_PILL_FONT_SIZE;
-    const LG_CAPSULE_PAD = TL_LEGEND_CAPSULE_PAD;
-    const LG_DOT_R = TL_LEGEND_DOT_R;
-    const LG_ENTRY_FONT_SIZE = TL_LEGEND_ENTRY_FONT_SIZE;
-    const LG_ENTRY_DOT_GAP = TL_LEGEND_ENTRY_DOT_GAP;
-    const LG_ENTRY_TRAIL = TL_LEGEND_ENTRY_TRAIL;
-    // LG_GROUP_GAP no longer needed — centralized legend handles spacing
-    const LG_ICON_W = 20; // swimlane icon area (icon + surrounding space) — local
-
-    const mainSvg = d3Selection.select(container).select<SVGSVGElement>('svg');
-    const mainG = mainSvg.select<SVGGElement>('g');
-    if (!mainSvg.empty() && !mainG.empty()) {
-      // Position legend at top, below title
-      const legendY = title ? 50 : 10;
-
-      // Pre-compute group widths (minified and expanded)
-      type LegendGroup = {
-        group: TagGroup;
-        minifiedWidth: number;
-        expandedWidth: number;
-      };
-      const legendGroups: LegendGroup[] = parsed.timelineTagGroups.map((g) => {
-        const pillW =
-          measureLegendText(g.name, LG_PILL_FONT_SIZE) + LG_PILL_PAD;
-        // Expanded: pill + icon (unless viewMode) + entries
-        const iconSpace = viewMode ? 8 : LG_ICON_W + 4;
-        let entryX = LG_CAPSULE_PAD + pillW + iconSpace;
-        for (const entry of g.entries) {
-          const textX = entryX + LG_DOT_R * 2 + LG_ENTRY_DOT_GAP;
-          entryX =
-            textX +
-            measureLegendText(entry.value, LG_ENTRY_FONT_SIZE) +
-            LG_ENTRY_TRAIL;
-        }
-        return {
-          group: g,
-          minifiedWidth: pillW,
-          expandedWidth: entryX + LG_CAPSULE_PAD,
-        };
-      });
-
-      // Two independent state axes: swimlane source + color source
-      let currentActiveGroup: string | null = activeTagGroup ?? null;
-      let currentSwimlaneGroup: string | null = swimlaneTagGroup ?? null;
-
-      /** Render the swimlane icon (3 horizontal bars of varying width) */
-      function drawSwimlaneIcon(
-        parent: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
-        x: number,
-        y: number,
-        isSwimActive: boolean
-      ) {
-        const iconG = parent
-          .append('g')
-          .attr('class', 'tl-swimlane-icon')
-          .attr('transform', `translate(${x}, ${y})`)
-          .style('cursor', 'pointer');
-
-        const barColor = isSwimActive ? palette.primary : palette.textMuted;
-        const barOpacity = isSwimActive ? 1 : 0.35;
-        const bars = [
-          { y: 0, w: 8 },
-          { y: 4, w: 12 },
-          { y: 8, w: 6 },
-        ];
-        for (const bar of bars) {
-          iconG
-            .append('rect')
-            .attr('x', 0)
-            .attr('y', bar.y)
-            .attr('width', bar.w)
-            .attr('height', 2)
-            .attr('rx', 1)
-            .attr('fill', barColor)
-            .attr('opacity', barOpacity);
-        }
-        return iconG;
-      }
-
-      /** Full re-render with updated swimlane state */
-      function relayout() {
-        renderTimeline(
-          container,
-          parsed,
-          palette,
-          isDark,
-          onClickItem,
-          exportDims,
-          currentActiveGroup,
-          currentSwimlaneGroup,
-          onTagStateChange,
-          viewMode
-        );
-      }
-
-      function drawLegend() {
-        // Remove previous legend
-        mainSvg.selectAll('.tl-tag-legend-group').remove();
-        mainSvg.selectAll('.tl-tag-legend-container').remove();
-
-        // Effective color source: explicit color group > swimlane group
-        const effectiveColorKey =
-          (currentActiveGroup ?? currentSwimlaneGroup)?.toLowerCase() ?? null;
-
-        // In view mode, only show the color-driving tag group (expanded, non-interactive).
-        // Skip the swimlane group if it's separate from the color group (lane headers already label it).
-        const visibleGroups = viewMode
-          ? legendGroups.filter(
-              (lg) =>
-                effectiveColorKey != null &&
-                lg.group.name.toLowerCase() === effectiveColorKey
-            )
-          : legendGroups;
-
-        if (visibleGroups.length === 0) return;
-
-        // Legend container for data-legend-active attribute
-        const legendContainer = mainSvg
-          .append('g')
-          .attr('class', 'tl-tag-legend-container');
-        if (currentActiveGroup) {
-          legendContainer.attr(
-            'data-legend-active',
-            currentActiveGroup.toLowerCase()
-          );
-        }
-
-        // Render tag groups via centralized legend system
-        const iconAddon = viewMode ? 0 : LG_ICON_W;
-        const centralGroups = visibleGroups.map((lg) => ({
-          name: lg.group.name,
-          entries: lg.group.entries.map((e) => ({
-            value: e.value,
-            color: e.color,
-          })),
-        }));
-
-        // Determine effective active group for centralized renderer
-        const centralActive = viewMode ? effectiveColorKey : currentActiveGroup;
-
-        const centralConfig: LegendConfig = {
-          groups: centralGroups,
-          position: { placement: 'top-center', titleRelation: 'below-title' },
-          mode: 'fixed',
-          capsulePillAddonWidth: iconAddon,
-        };
-        const centralState: LegendState = { activeGroup: centralActive };
-
-        const centralCallbacks: LegendCallbacks = viewMode
-          ? {}
-          : {
-              onGroupToggle: (groupName) => {
-                currentActiveGroup =
-                  currentActiveGroup === groupName.toLowerCase()
-                    ? null
-                    : groupName.toLowerCase();
-                drawLegend();
-                recolorEvents();
-                onTagStateChange?.(currentActiveGroup, currentSwimlaneGroup);
-              },
-              onEntryHover: (groupName, entryValue) => {
-                const tagKey = groupName.toLowerCase();
-                if (entryValue) {
-                  const tagVal = entryValue.toLowerCase();
-                  fadeToTagValue(mainG, tagKey, tagVal);
-                  mainSvg
-                    .selectAll<SVGGElement, unknown>('[data-legend-entry]')
-                    .each(function () {
-                      const el = d3Selection.select(this);
-                      const ev = el.attr('data-legend-entry');
-                      const eg =
-                        el.attr('data-tag-group') ??
-                        (el.node() as Element)
-                          ?.closest?.('[data-tag-group]')
-                          ?.getAttribute('data-tag-group');
-                      el.attr(
-                        'opacity',
-                        eg === tagKey && ev === tagVal ? 1 : FADE_OPACITY
-                      );
-                    });
-                } else {
-                  fadeReset(mainG);
-                  mainSvg
-                    .selectAll<SVGGElement, unknown>('[data-legend-entry]')
-                    .attr('opacity', 1);
-                }
-              },
-              onGroupRendered: (groupName, groupEl, isActive) => {
-                const groupKey = groupName.toLowerCase();
-                groupEl.attr('data-tag-group', groupKey);
-                if (isActive && !viewMode) {
-                  const isSwimActive =
-                    currentSwimlaneGroup != null &&
-                    currentSwimlaneGroup.toLowerCase() === groupKey;
-                  const pillWidth =
-                    measureLegendText(groupName, LG_PILL_FONT_SIZE) +
-                    LG_PILL_PAD;
-                  const pillXOff = LG_CAPSULE_PAD;
-                  const iconX = pillXOff + pillWidth + 5;
-                  const iconY = (LG_HEIGHT - 10) / 2;
-                  const iconEl = drawSwimlaneIcon(
-                    groupEl,
-                    iconX,
-                    iconY,
-                    isSwimActive
-                  );
-                  iconEl
-                    .attr('data-swimlane-toggle', groupKey)
-                    .on('click', (event: MouseEvent) => {
-                      event.stopPropagation();
-                      currentSwimlaneGroup =
-                        currentSwimlaneGroup === groupKey ? null : groupKey;
-                      onTagStateChange?.(
-                        currentActiveGroup,
-                        currentSwimlaneGroup
-                      );
-                      relayout();
-                    });
-                }
-              },
-            };
-
-        const legendInnerG = legendContainer
-          .append('g')
-          .attr('transform', `translate(0, ${legendY})`);
-        renderLegendD3(
-          legendInnerG,
-          centralConfig,
-          centralState,
-          palette,
-          isDark,
-          centralCallbacks,
-          width
-        );
-      }
-
-      // Build a quick lineNumber→event lookup
-      const eventByLine = new Map<string, TimelineEvent>();
-      for (const ev of timelineEvents) {
-        eventByLine.set(String(ev.lineNumber), ev);
-      }
-
-      function recolorEvents() {
-        const colorTG = currentActiveGroup ?? swimlaneTagGroup ?? null;
-        mainG.selectAll<SVGGElement, unknown>('.tl-event').each(function () {
-          const el = d3Selection.select(this);
-          const lineNum = el.attr('data-line-number');
-          const ev = lineNum ? eventByLine.get(lineNum) : undefined;
-          if (!ev) return;
-
-          let color: string;
-          if (colorTG) {
-            const tagColor = resolveTagColor(
-              ev.metadata,
-              parsed.timelineTagGroups,
-              colorTG
-            );
-            color =
-              tagColor ??
-              (ev.group && groupColorMap.has(ev.group)
-                ? groupColorMap.get(ev.group)!
-                : textColor);
-          } else {
-            color =
-              ev.group && groupColorMap.has(ev.group)
-                ? groupColorMap.get(ev.group)!
-                : textColor;
-          }
-          el.selectAll('rect')
-            .attr('fill', shapeFill(palette, color, isDark, { solid }))
-            .attr('stroke', color);
-          el.selectAll('circle:not(.tl-event-point-outline)')
-            .attr('fill', shapeFill(palette, color, isDark, { solid }))
-            .attr('stroke', color);
-        });
-      }
-
-      drawLegend();
-    }
-  }
+  renderTimelineTagLegendOverlay(
+    container,
+    parsed,
+    palette,
+    isDark,
+    setup,
+    hovers,
+    onClickItem,
+    exportDims,
+    swimlaneTagGroup,
+    activeTagGroup,
+    onTagStateChange,
+    viewMode
+  );
 }
 
 // ============================================================
