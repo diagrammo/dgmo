@@ -3868,6 +3868,408 @@ function makeTimelineHoverHelpers(): TimelineHoverHelpers {
 }
 
 // ============================================================
+// Timeline — horizontal-grouped renderer (extracted from renderTimeline)
+// ============================================================
+
+function renderTimelineHorizontalGrouped(
+  container: HTMLDivElement,
+  parsed: ParsedVisualization,
+  palette: PaletteColors,
+  isDark: boolean,
+  setup: TimelineSetup,
+  hovers: TimelineHoverHelpers,
+  onClickItem: ((lineNumber: number) => void) | undefined,
+  _exportDims: D3ExportDimensions | undefined,
+  _swimlaneTagGroup: string | null | undefined,
+  _activeTagGroup: string | null | undefined,
+  _onTagStateChange:
+    | ((activeTagGroup: string | null, swimlaneTagGroup: string | null) => void)
+    | undefined,
+  _viewMode: boolean | undefined
+): void {
+  const {
+    width,
+    height,
+    tooltip,
+    solid,
+    textColor,
+    bgColor,
+    bg,
+    groupColorMap,
+    tagLanes,
+    eventColor,
+    minDate,
+    maxDate,
+    datePadding,
+    earliestStartDateStr,
+    latestEndDateStr,
+    tagLegendReserve,
+  } = setup;
+  const { fadeToGroup, fadeToEra, fadeToMarker, fadeReset, setTagAttrs } =
+    hovers;
+  const {
+    timelineEvents,
+    timelineGroups,
+    timelineEras,
+    timelineMarkers,
+    timelineScale,
+    timelineSwimlanes,
+  } = parsed;
+  const title = parsed.noTitle ? null : parsed.title;
+
+  const BAR_H = 22;
+  const GROUP_GAP = 12;
+
+  // === GROUPED: swim-lanes stacked vertically, events on own rows ===
+  let lanes: Lane[];
+
+  if (tagLanes) {
+    lanes = tagLanes;
+  } else {
+    const groupNames = timelineGroups.map((gr) => gr.name);
+    const ungroupedEvents = timelineEvents.filter(
+      (ev) => ev.group === null || !groupNames.includes(ev.group)
+    );
+    const laneNames =
+      ungroupedEvents.length > 0 ? [...groupNames, '(Other)'] : groupNames;
+    lanes = laneNames.map((name) => ({
+      name,
+      events: timelineEvents.filter((ev) =>
+        name === '(Other)'
+          ? ev.group === null || !groupNames.includes(ev.group)
+          : ev.group === name
+      ),
+    }));
+  }
+
+  const totalEventRows = lanes.reduce((s, l) => s + l.events.length, 0);
+  const scaleMargin = timelineScale ? 24 : 0;
+  // Per-feature header rows: era + marker each get their own row, reserved
+  // only when present (mirrors the gantt header stack).
+  const ERA_ROW_H = 22;
+  const MARKER_ROW_H = 22;
+  const eraReserve = timelineEras.length > 0 ? ERA_ROW_H : 0;
+  const markerReserve = timelineMarkers.length > 0 ? MARKER_ROW_H : 0;
+  const topScaleH = timelineScale ? 40 : 0;
+  // Calculate left margin based on longest group name (~7px per char + padding)
+  const maxGroupNameLen = Math.max(...lanes.map((l) => l.name.length));
+  const dynamicLeftMargin = Math.max(120, maxGroupNameLen * 7 + 30);
+  // Group-sorted doesn't need legend space (group names shown on left)
+  const baseTopMargin = title ? 50 : 20;
+  const margin = {
+    top:
+      baseTopMargin + topScaleH + eraReserve + markerReserve + tagLegendReserve,
+    right: 40,
+    bottom: 40 + scaleMargin,
+    left: dynamicLeftMargin,
+  };
+  // Y offsets for label rows (negative = above chart's y=0).
+  const markerLabelY = markerReserve ? -(topScaleH + MARKER_ROW_H / 2) : 0;
+  const eraLabelY = eraReserve
+    ? -(topScaleH + markerReserve + ERA_ROW_H / 2)
+    : 0;
+  const innerWidth = width - margin.left - margin.right;
+  const innerHeight = height - margin.top - margin.bottom;
+  const totalGaps = (lanes.length - 1) * GROUP_GAP;
+  const rowH = Math.min(28, (innerHeight - totalGaps) / totalEventRows);
+
+  const xScale = d3Scale
+    .scaleLinear()
+    .domain([minDate - datePadding, maxDate + datePadding])
+    .range([0, innerWidth]);
+
+  const svg = d3Selection
+    .select(container)
+    .append('svg')
+    .attr('width', width)
+    .attr('height', height)
+    .style('background', bgColor);
+
+  const g = svg
+    .append('g')
+    .attr('transform', `translate(${margin.left},${margin.top})`);
+
+  renderChartTitle(
+    svg,
+    title,
+    parsed.titleLineNumber,
+    width,
+    textColor,
+    onClickItem
+  );
+
+  renderEras(
+    g,
+    timelineEras,
+    xScale,
+    false,
+    innerWidth,
+    innerHeight,
+    (s, e) => fadeToEra(g, s, e),
+    () => fadeReset(g),
+    timelineScale,
+    tooltip,
+    palette,
+    eraReserve ? eraLabelY : undefined
+  );
+
+  renderMarkers(
+    g,
+    timelineMarkers,
+    xScale,
+    false,
+    innerWidth,
+    innerHeight,
+    (d) => fadeToMarker(g, d),
+    () => fadeReset(g),
+    timelineScale,
+    tooltip,
+    palette,
+    markerReserve ? markerLabelY : undefined
+  );
+
+  if (timelineScale) {
+    renderTimeScale(
+      g,
+      xScale,
+      false,
+      innerWidth,
+      innerHeight,
+      textColor,
+      minDate,
+      maxDate,
+      formatBoundaryLabel(earliestStartDateStr, latestEndDateStr),
+      formatBoundaryLabel(latestEndDateStr, earliestStartDateStr)
+    );
+  }
+
+  // Marker labels now live in their reserved row above the chart, so
+  // events can start at y=0 (chart top edge).
+  let curY = 0;
+
+  // Render swimlane backgrounds first (so they appear behind events)
+  // Extend into left margin to include group names
+  if (timelineSwimlanes || tagLanes) {
+    let swimY = 0;
+    lanes.forEach((lane, idx) => {
+      const laneSpan = lane.events.length * rowH;
+      // Alternate between light gray and transparent for visual separation
+      const fillColor = idx % 2 === 0 ? textColor : 'transparent';
+      g.append('rect')
+        .attr('class', 'tl-swimlane')
+        .attr('data-group', lane.name)
+        .attr('x', -margin.left)
+        .attr('y', swimY)
+        .attr('width', innerWidth + margin.left)
+        .attr('height', laneSpan + (idx < lanes.length - 1 ? GROUP_GAP : 0))
+        .attr('fill', fillColor)
+        .attr('opacity', 0.06);
+      swimY += laneSpan + GROUP_GAP;
+    });
+  }
+
+  for (const lane of lanes) {
+    const laneColor = groupColorMap.get(lane.name) ?? textColor;
+    const laneSpan = lane.events.length * rowH;
+
+    // Group label — left of lane, vertically centred
+    const group = timelineGroups.find((grp) => grp.name === lane.name);
+    const headerG = g
+      .append('g')
+      .attr('class', 'tl-lane-header')
+      .attr('data-group', lane.name)
+      .style('cursor', 'pointer')
+      .on('mouseenter', () => fadeToGroup(g, lane.name))
+      .on('mouseleave', () => fadeReset(g))
+      .on('click', () => {
+        if (onClickItem && group?.lineNumber) onClickItem(group.lineNumber);
+      });
+
+    headerG
+      .append('text')
+      .attr('x', -margin.left + 10)
+      .attr('y', curY + laneSpan / 2)
+      .attr('dy', '0.35em')
+      .attr('text-anchor', 'start')
+      .attr('fill', laneColor)
+      .attr('font-size', '12px')
+      .attr('font-weight', '600')
+      .text(lane.name);
+
+    lane.events.forEach((ev, i) => {
+      const y = curY + i * rowH + rowH / 2;
+      const x = xScale(parseTimelineDate(ev.date));
+
+      const evG = g
+        .append('g')
+        .attr('class', 'tl-event')
+        .attr('data-group', lane.name)
+        .attr('data-line-number', String(ev.lineNumber))
+        .attr('data-date', String(parseTimelineDate(ev.date)))
+        .attr(
+          'data-end-date',
+          ev.endDate ? String(parseTimelineDate(ev.endDate)) : null
+        )
+        .style('cursor', 'pointer')
+        .on('mouseenter', function (event: MouseEvent) {
+          fadeToGroup(g, lane.name);
+          if (timelineScale) {
+            showEventDatesOnScale(
+              g,
+              xScale,
+              ev.date,
+              ev.endDate,
+              innerHeight,
+              laneColor
+            );
+          } else {
+            showTooltip(tooltip, buildEventTooltipHtml(ev), event);
+          }
+        })
+        .on('mouseleave', function () {
+          fadeReset(g);
+          if (timelineScale) {
+            hideEventDatesOnScale(g);
+          } else {
+            hideTooltip(tooltip);
+          }
+        })
+        .on('mousemove', function (event: MouseEvent) {
+          if (!timelineScale) {
+            showTooltip(tooltip, buildEventTooltipHtml(ev), event);
+          }
+        })
+        .on('click', () => {
+          if (onClickItem && ev.lineNumber) onClickItem(ev.lineNumber);
+        });
+      setTagAttrs(evG, ev);
+
+      const evColor = eventColor(ev);
+
+      if (ev.endDate) {
+        const x2 = xScale(parseTimelineDate(ev.endDate));
+        const rectW = Math.max(x2 - x, 4);
+        // Estimate label width (~7px per char at 13px font) + padding
+        const estLabelWidth = ev.label.length * 7 + 16;
+        const labelFitsInside = rectW >= estLabelWidth;
+
+        let fill: string = shapeFill(palette, evColor, isDark, { solid });
+        let stroke: string = evColor;
+        if (ev.uncertain) {
+          // Create gradient for uncertain end - fades last 20%
+          const gradientId = `uncertain-${ev.lineNumber}`;
+          const strokeGradientId = `uncertain-s-${ev.lineNumber}`;
+          const defs = svg.select('defs').node() || svg.append('defs').node();
+          const defsEl = d3Selection.select(defs as Element);
+          defsEl
+            .append('linearGradient')
+            .attr('id', gradientId)
+            .attr('x1', '0%')
+            .attr('y1', '0%')
+            .attr('x2', '100%')
+            .attr('y2', '0%')
+            .selectAll('stop')
+            .data([
+              { offset: '0%', opacity: 1 },
+              { offset: '80%', opacity: 1 },
+              { offset: '100%', opacity: 0 },
+            ])
+            .enter()
+            .append('stop')
+            .attr('offset', (d) => d.offset)
+            .attr('stop-color', mix(evColor, bg, 30))
+            .attr('stop-opacity', (d) => d.opacity);
+          defsEl
+            .append('linearGradient')
+            .attr('id', strokeGradientId)
+            .attr('x1', '0%')
+            .attr('y1', '0%')
+            .attr('x2', '100%')
+            .attr('y2', '0%')
+            .selectAll('stop')
+            .data([
+              { offset: '0%', opacity: 1 },
+              { offset: '80%', opacity: 1 },
+              { offset: '100%', opacity: 0 },
+            ])
+            .enter()
+            .append('stop')
+            .attr('offset', (d) => d.offset)
+            .attr('stop-color', evColor)
+            .attr('stop-opacity', (d) => d.opacity);
+          fill = `url(#${gradientId})`;
+          stroke = `url(#${strokeGradientId})`;
+        }
+
+        evG
+          .append('rect')
+          .attr('x', x)
+          .attr('y', y - BAR_H / 2)
+          .attr('width', rectW)
+          .attr('height', BAR_H)
+          .attr('rx', 4)
+          .attr('fill', fill)
+          .attr('stroke', stroke)
+          .attr('stroke-width', 2);
+
+        if (labelFitsInside) {
+          // Text inside bar - use textColor for readability on muted fill
+          evG
+            .append('text')
+            .attr('x', x + 8)
+            .attr('y', y)
+            .attr('dy', '0.35em')
+            .attr('text-anchor', 'start')
+            .attr('fill', textColor)
+            .attr('font-size', '13px')
+            .text(ev.label);
+        } else {
+          // Text outside bar - check if it fits on left or must go right
+          const wouldFlipLeft = x + rectW > innerWidth * 0.6;
+          const labelFitsLeft = x - 6 - estLabelWidth > 0;
+          const flipLeft = wouldFlipLeft && labelFitsLeft;
+          evG
+            .append('text')
+            .attr('x', flipLeft ? x - 6 : x + rectW + 6)
+            .attr('y', y)
+            .attr('dy', '0.35em')
+            .attr('text-anchor', flipLeft ? 'end' : 'start')
+            .attr('fill', textColor)
+            .attr('font-size', '13px')
+            .text(ev.label);
+        }
+      } else {
+        // Point event (no end date) - render as circle with label
+        const estLabelWidth = ev.label.length * 7;
+        // Only flip left if past 60% AND label fits without colliding with group name area
+        const wouldFlipLeft = x > innerWidth * 0.6;
+        const labelFitsLeft = x - 10 - estLabelWidth > 0;
+        const flipLeft = wouldFlipLeft && labelFitsLeft;
+        evG
+          .append('circle')
+          .attr('cx', x)
+          .attr('cy', y)
+          .attr('r', 5)
+          .attr('fill', shapeFill(palette, evColor, isDark, { solid }))
+          .attr('stroke', evColor)
+          .attr('stroke-width', 2);
+        evG
+          .append('text')
+          .attr('x', flipLeft ? x - 10 : x + 10)
+          .attr('y', y)
+          .attr('dy', '0.35em')
+          .attr('text-anchor', flipLeft ? 'end' : 'start')
+          .attr('fill', textColor)
+          .attr('font-size', '12px')
+          .text(ev.label);
+      }
+    });
+
+    curY += laneSpan + GROUP_GAP;
+  }
+}
+
+// ============================================================
 // Timeline — vertical-orientation renderer (extracted from renderTimeline)
 // ============================================================
 
@@ -4514,7 +4916,6 @@ export function renderTimeline(
     timelineMarkers,
     timelineSort,
     timelineScale,
-    timelineSwimlanes,
   } = parsed;
   const title = parsed.noTitle ? null : parsed.title;
 
@@ -4556,362 +4957,24 @@ export function renderTimeline(
   // ================================================================
 
   const BAR_H = 22; // range bar thickness (tall enough for text inside)
-  const GROUP_GAP = 12; // vertical gap between group swim-lanes
 
   const useGroupedHorizontal =
     tagLanes != null || (timelineSort === 'group' && timelineGroups.length > 0);
   if (useGroupedHorizontal) {
-    // === GROUPED: swim-lanes stacked vertically, events on own rows ===
-    let lanes: Lane[];
-
-    if (tagLanes) {
-      lanes = tagLanes;
-    } else {
-      const groupNames = timelineGroups.map((gr) => gr.name);
-      const ungroupedEvents = timelineEvents.filter(
-        (ev) => ev.group === null || !groupNames.includes(ev.group)
-      );
-      const laneNames =
-        ungroupedEvents.length > 0 ? [...groupNames, '(Other)'] : groupNames;
-      lanes = laneNames.map((name) => ({
-        name,
-        events: timelineEvents.filter((ev) =>
-          name === '(Other)'
-            ? ev.group === null || !groupNames.includes(ev.group)
-            : ev.group === name
-        ),
-      }));
-    }
-
-    const totalEventRows = lanes.reduce((s, l) => s + l.events.length, 0);
-    const scaleMargin = timelineScale ? 24 : 0;
-    // Per-feature header rows: era + marker each get their own row, reserved
-    // only when present (mirrors the gantt header stack).
-    const ERA_ROW_H = 22;
-    const MARKER_ROW_H = 22;
-    const eraReserve = timelineEras.length > 0 ? ERA_ROW_H : 0;
-    const markerReserve = timelineMarkers.length > 0 ? MARKER_ROW_H : 0;
-    const topScaleH = timelineScale ? 40 : 0;
-    // Calculate left margin based on longest group name (~7px per char + padding)
-    const maxGroupNameLen = Math.max(...lanes.map((l) => l.name.length));
-    const dynamicLeftMargin = Math.max(120, maxGroupNameLen * 7 + 30);
-    // Group-sorted doesn't need legend space (group names shown on left)
-    const baseTopMargin = title ? 50 : 20;
-    const margin = {
-      top:
-        baseTopMargin +
-        topScaleH +
-        eraReserve +
-        markerReserve +
-        tagLegendReserve,
-      right: 40,
-      bottom: 40 + scaleMargin,
-      left: dynamicLeftMargin,
-    };
-    // Y offsets for label rows (negative = above chart's y=0).
-    const markerLabelY = markerReserve ? -(topScaleH + MARKER_ROW_H / 2) : 0;
-    const eraLabelY = eraReserve
-      ? -(topScaleH + markerReserve + ERA_ROW_H / 2)
-      : 0;
-    const innerWidth = width - margin.left - margin.right;
-    const innerHeight = height - margin.top - margin.bottom;
-    const totalGaps = (lanes.length - 1) * GROUP_GAP;
-    const rowH = Math.min(28, (innerHeight - totalGaps) / totalEventRows);
-
-    const xScale = d3Scale
-      .scaleLinear()
-      .domain([minDate - datePadding, maxDate + datePadding])
-      .range([0, innerWidth]);
-
-    const svg = d3Selection
-      .select(container)
-      .append('svg')
-      .attr('width', width)
-      .attr('height', height)
-      .style('background', bgColor);
-
-    const g = svg
-      .append('g')
-      .attr('transform', `translate(${margin.left},${margin.top})`);
-
-    renderChartTitle(
-      svg,
-      title,
-      parsed.titleLineNumber,
-      width,
-      textColor,
-      onClickItem
-    );
-
-    renderEras(
-      g,
-      timelineEras,
-      xScale,
-      false,
-      innerWidth,
-      innerHeight,
-      (s, e) => fadeToEra(g, s, e),
-      () => fadeReset(g),
-      timelineScale,
-      tooltip,
+    renderTimelineHorizontalGrouped(
+      container,
+      parsed,
       palette,
-      eraReserve ? eraLabelY : undefined
+      isDark,
+      setup,
+      hovers,
+      onClickItem,
+      exportDims,
+      swimlaneTagGroup,
+      activeTagGroup,
+      onTagStateChange,
+      viewMode
     );
-
-    renderMarkers(
-      g,
-      timelineMarkers,
-      xScale,
-      false,
-      innerWidth,
-      innerHeight,
-      (d) => fadeToMarker(g, d),
-      () => fadeReset(g),
-      timelineScale,
-      tooltip,
-      palette,
-      markerReserve ? markerLabelY : undefined
-    );
-
-    if (timelineScale) {
-      renderTimeScale(
-        g,
-        xScale,
-        false,
-        innerWidth,
-        innerHeight,
-        textColor,
-        minDate,
-        maxDate,
-        formatBoundaryLabel(earliestStartDateStr, latestEndDateStr),
-        formatBoundaryLabel(latestEndDateStr, earliestStartDateStr)
-      );
-    }
-
-    // Marker labels now live in their reserved row above the chart, so
-    // events can start at y=0 (chart top edge).
-    let curY = 0;
-
-    // Render swimlane backgrounds first (so they appear behind events)
-    // Extend into left margin to include group names
-    if (timelineSwimlanes || tagLanes) {
-      let swimY = 0;
-      lanes.forEach((lane, idx) => {
-        const laneSpan = lane.events.length * rowH;
-        // Alternate between light gray and transparent for visual separation
-        const fillColor = idx % 2 === 0 ? textColor : 'transparent';
-        g.append('rect')
-          .attr('class', 'tl-swimlane')
-          .attr('data-group', lane.name)
-          .attr('x', -margin.left)
-          .attr('y', swimY)
-          .attr('width', innerWidth + margin.left)
-          .attr('height', laneSpan + (idx < lanes.length - 1 ? GROUP_GAP : 0))
-          .attr('fill', fillColor)
-          .attr('opacity', 0.06);
-        swimY += laneSpan + GROUP_GAP;
-      });
-    }
-
-    for (const lane of lanes) {
-      const laneColor = groupColorMap.get(lane.name) ?? textColor;
-      const laneSpan = lane.events.length * rowH;
-
-      // Group label — left of lane, vertically centred
-      const group = timelineGroups.find((grp) => grp.name === lane.name);
-      const headerG = g
-        .append('g')
-        .attr('class', 'tl-lane-header')
-        .attr('data-group', lane.name)
-        .style('cursor', 'pointer')
-        .on('mouseenter', () => fadeToGroup(g, lane.name))
-        .on('mouseleave', () => fadeReset(g))
-        .on('click', () => {
-          if (onClickItem && group?.lineNumber) onClickItem(group.lineNumber);
-        });
-
-      headerG
-        .append('text')
-        .attr('x', -margin.left + 10)
-        .attr('y', curY + laneSpan / 2)
-        .attr('dy', '0.35em')
-        .attr('text-anchor', 'start')
-        .attr('fill', laneColor)
-        .attr('font-size', '12px')
-        .attr('font-weight', '600')
-        .text(lane.name);
-
-      lane.events.forEach((ev, i) => {
-        const y = curY + i * rowH + rowH / 2;
-        const x = xScale(parseTimelineDate(ev.date));
-
-        const evG = g
-          .append('g')
-          .attr('class', 'tl-event')
-          .attr('data-group', lane.name)
-          .attr('data-line-number', String(ev.lineNumber))
-          .attr('data-date', String(parseTimelineDate(ev.date)))
-          .attr(
-            'data-end-date',
-            ev.endDate ? String(parseTimelineDate(ev.endDate)) : null
-          )
-          .style('cursor', 'pointer')
-          .on('mouseenter', function (event: MouseEvent) {
-            fadeToGroup(g, lane.name);
-            if (timelineScale) {
-              showEventDatesOnScale(
-                g,
-                xScale,
-                ev.date,
-                ev.endDate,
-                innerHeight,
-                laneColor
-              );
-            } else {
-              showTooltip(tooltip, buildEventTooltipHtml(ev), event);
-            }
-          })
-          .on('mouseleave', function () {
-            fadeReset(g);
-            if (timelineScale) {
-              hideEventDatesOnScale(g);
-            } else {
-              hideTooltip(tooltip);
-            }
-          })
-          .on('mousemove', function (event: MouseEvent) {
-            if (!timelineScale) {
-              showTooltip(tooltip, buildEventTooltipHtml(ev), event);
-            }
-          })
-          .on('click', () => {
-            if (onClickItem && ev.lineNumber) onClickItem(ev.lineNumber);
-          });
-        setTagAttrs(evG, ev);
-
-        const evColor = eventColor(ev);
-
-        if (ev.endDate) {
-          const x2 = xScale(parseTimelineDate(ev.endDate));
-          const rectW = Math.max(x2 - x, 4);
-          // Estimate label width (~7px per char at 13px font) + padding
-          const estLabelWidth = ev.label.length * 7 + 16;
-          const labelFitsInside = rectW >= estLabelWidth;
-
-          let fill: string = shapeFill(palette, evColor, isDark, { solid });
-          let stroke: string = evColor;
-          if (ev.uncertain) {
-            // Create gradient for uncertain end - fades last 20%
-            const gradientId = `uncertain-${ev.lineNumber}`;
-            const strokeGradientId = `uncertain-s-${ev.lineNumber}`;
-            const defs = svg.select('defs').node() || svg.append('defs').node();
-            const defsEl = d3Selection.select(defs as Element);
-            defsEl
-              .append('linearGradient')
-              .attr('id', gradientId)
-              .attr('x1', '0%')
-              .attr('y1', '0%')
-              .attr('x2', '100%')
-              .attr('y2', '0%')
-              .selectAll('stop')
-              .data([
-                { offset: '0%', opacity: 1 },
-                { offset: '80%', opacity: 1 },
-                { offset: '100%', opacity: 0 },
-              ])
-              .enter()
-              .append('stop')
-              .attr('offset', (d) => d.offset)
-              .attr('stop-color', mix(evColor, bg, 30))
-              .attr('stop-opacity', (d) => d.opacity);
-            defsEl
-              .append('linearGradient')
-              .attr('id', strokeGradientId)
-              .attr('x1', '0%')
-              .attr('y1', '0%')
-              .attr('x2', '100%')
-              .attr('y2', '0%')
-              .selectAll('stop')
-              .data([
-                { offset: '0%', opacity: 1 },
-                { offset: '80%', opacity: 1 },
-                { offset: '100%', opacity: 0 },
-              ])
-              .enter()
-              .append('stop')
-              .attr('offset', (d) => d.offset)
-              .attr('stop-color', evColor)
-              .attr('stop-opacity', (d) => d.opacity);
-            fill = `url(#${gradientId})`;
-            stroke = `url(#${strokeGradientId})`;
-          }
-
-          evG
-            .append('rect')
-            .attr('x', x)
-            .attr('y', y - BAR_H / 2)
-            .attr('width', rectW)
-            .attr('height', BAR_H)
-            .attr('rx', 4)
-            .attr('fill', fill)
-            .attr('stroke', stroke)
-            .attr('stroke-width', 2);
-
-          if (labelFitsInside) {
-            // Text inside bar - use textColor for readability on muted fill
-            evG
-              .append('text')
-              .attr('x', x + 8)
-              .attr('y', y)
-              .attr('dy', '0.35em')
-              .attr('text-anchor', 'start')
-              .attr('fill', textColor)
-              .attr('font-size', '13px')
-              .text(ev.label);
-          } else {
-            // Text outside bar - check if it fits on left or must go right
-            const wouldFlipLeft = x + rectW > innerWidth * 0.6;
-            const labelFitsLeft = x - 6 - estLabelWidth > 0;
-            const flipLeft = wouldFlipLeft && labelFitsLeft;
-            evG
-              .append('text')
-              .attr('x', flipLeft ? x - 6 : x + rectW + 6)
-              .attr('y', y)
-              .attr('dy', '0.35em')
-              .attr('text-anchor', flipLeft ? 'end' : 'start')
-              .attr('fill', textColor)
-              .attr('font-size', '13px')
-              .text(ev.label);
-          }
-        } else {
-          // Point event (no end date) - render as circle with label
-          const estLabelWidth = ev.label.length * 7;
-          // Only flip left if past 60% AND label fits without colliding with group name area
-          const wouldFlipLeft = x > innerWidth * 0.6;
-          const labelFitsLeft = x - 10 - estLabelWidth > 0;
-          const flipLeft = wouldFlipLeft && labelFitsLeft;
-          evG
-            .append('circle')
-            .attr('cx', x)
-            .attr('cy', y)
-            .attr('r', 5)
-            .attr('fill', shapeFill(palette, evColor, isDark, { solid }))
-            .attr('stroke', evColor)
-            .attr('stroke-width', 2);
-          evG
-            .append('text')
-            .attr('x', flipLeft ? x - 10 : x + 10)
-            .attr('y', y)
-            .attr('dy', '0.35em')
-            .attr('text-anchor', flipLeft ? 'end' : 'start')
-            .attr('fill', textColor)
-            .attr('font-size', '12px')
-            .text(ev.label);
-        }
-      });
-
-      curY += laneSpan + GROUP_GAP;
-    }
   } else {
     // === TIME SORT, horizontal: each event on its own row ===
     const sorted = timelineEvents
