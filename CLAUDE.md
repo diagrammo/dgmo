@@ -52,6 +52,16 @@ src/
 ├── gantt/                      # Gantt charts + scheduler
 ├── sitemap/                    # Sitemaps
 ├── boxes-and-lines/            # Boxes-and-lines diagrams
+├── cycle/                      # Cycle / lifecycle diagrams
+├── journey-map/                # Customer journey maps
+├── mindmap/                    # Mind maps
+├── pert/                       # PERT charts (multiple layered renderers)
+├── pyramid/                    # Pyramid diagrams
+├── raci/                       # RACI matrices
+├── ring/                       # Ring / radial diagrams
+├── tech-radar/                 # Tech radar
+├── wireframe/                  # Wireframe / UI sketch diagrams
+├── auto/                       # Auto-render entry (browser script tag bootstrap)
 ├── editor/                     # CodeMirror grammar/highlight helpers
 ├── utils/                      # Shared utilities (parsing, legend, time ticks, inline markdown, tag groups)
 └── palettes/
@@ -71,7 +81,7 @@ src/
 - **Flowchart / state / generic graph** → `graph/` subparsers + renderers
 - **D3 chart types** (slope, arc, timeline, wordcloud, venn, quadrant) → `d3.ts`
 - **ECharts chart types** (sankey, chord, scatter, heatmap, etc.) → `echarts.ts`
-- **Structured diagrams** (c4, class, er, kanban, org, infra, gantt, sitemap, boxes-and-lines) → own subfolders with parser + layout + renderer
+- **Structured diagrams** (c4, class, er, kanban, org, infra, gantt, sitemap, boxes-and-lines, cycle, journey-map, mindmap, pert, pyramid, raci, ring, tech-radar, wireframe) → own subfolders with parser + layout + renderer
 
 ### Sequence Parser
 
