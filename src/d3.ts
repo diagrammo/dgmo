@@ -3868,6 +3868,340 @@ function makeTimelineHoverHelpers(): TimelineHoverHelpers {
 }
 
 // ============================================================
+// Timeline — horizontal-time-sort renderer (extracted from renderTimeline)
+// ============================================================
+
+function renderTimelineHorizontalTimeSort(
+  container: HTMLDivElement,
+  parsed: ParsedVisualization,
+  palette: PaletteColors,
+  isDark: boolean,
+  setup: TimelineSetup,
+  hovers: TimelineHoverHelpers,
+  onClickItem: ((lineNumber: number) => void) | undefined,
+  _exportDims: D3ExportDimensions | undefined,
+  _swimlaneTagGroup: string | null | undefined,
+  _activeTagGroup: string | null | undefined,
+  _onTagStateChange:
+    | ((activeTagGroup: string | null, swimlaneTagGroup: string | null) => void)
+    | undefined,
+  _viewMode: boolean | undefined
+): void {
+  const {
+    width,
+    height,
+    tooltip,
+    solid,
+    textColor,
+    bgColor,
+    bg,
+    groupColorMap,
+    eventColor,
+    minDate,
+    maxDate,
+    datePadding,
+    earliestStartDateStr,
+    latestEndDateStr,
+    tagLegendReserve,
+  } = setup;
+  const { fadeToGroup, fadeToEra, fadeToMarker, fadeReset, setTagAttrs } =
+    hovers;
+  const {
+    timelineEvents,
+    timelineGroups,
+    timelineEras,
+    timelineMarkers,
+    timelineScale,
+  } = parsed;
+  const title = parsed.noTitle ? null : parsed.title;
+
+  const BAR_H = 22;
+
+  // === TIME SORT, horizontal: each event on its own row ===
+  const sorted = timelineEvents
+    .slice()
+    .sort((a, b) => parseTimelineDate(a.date) - parseTimelineDate(b.date));
+
+  const scaleMargin = timelineScale ? 24 : 0;
+  // Per-feature header rows: era + marker each get their own row, reserved
+  // only when present (mirrors the gantt header stack).
+  const ERA_ROW_H = 22;
+  const MARKER_ROW_H = 22;
+  const eraReserve = timelineEras.length > 0 ? ERA_ROW_H : 0;
+  const markerReserve = timelineMarkers.length > 0 ? MARKER_ROW_H : 0;
+  const topScaleH = timelineScale ? 40 : 0;
+  const margin = {
+    top: 104 + topScaleH + eraReserve + markerReserve + tagLegendReserve,
+    right: 40,
+    bottom: 40 + scaleMargin,
+    left: 60,
+  };
+  const markerLabelY = markerReserve ? -(topScaleH + MARKER_ROW_H / 2) : 0;
+  const eraLabelY = eraReserve
+    ? -(topScaleH + markerReserve + ERA_ROW_H / 2)
+    : 0;
+  const innerWidth = width - margin.left - margin.right;
+  const innerHeight = height - margin.top - margin.bottom;
+  const rowH = Math.min(28, innerHeight / sorted.length);
+
+  const xScale = d3Scale
+    .scaleLinear()
+    .domain([minDate - datePadding, maxDate + datePadding])
+    .range([0, innerWidth]);
+
+  const svg = d3Selection
+    .select(container)
+    .append('svg')
+    .attr('width', width)
+    .attr('height', height)
+    .style('background', bgColor);
+
+  const g = svg
+    .append('g')
+    .attr('transform', `translate(${margin.left},${margin.top})`);
+
+  renderChartTitle(
+    svg,
+    title,
+    parsed.titleLineNumber,
+    width,
+    textColor,
+    onClickItem
+  );
+
+  renderEras(
+    g,
+    timelineEras,
+    xScale,
+    false,
+    innerWidth,
+    innerHeight,
+    (s, e) => fadeToEra(g, s, e),
+    () => fadeReset(g),
+    timelineScale,
+    tooltip,
+    palette,
+    eraReserve ? eraLabelY : undefined
+  );
+
+  renderMarkers(
+    g,
+    timelineMarkers,
+    xScale,
+    false,
+    innerWidth,
+    innerHeight,
+    (d) => fadeToMarker(g, d),
+    () => fadeReset(g),
+    timelineScale,
+    tooltip,
+    palette,
+    markerReserve ? markerLabelY : undefined
+  );
+
+  if (timelineScale) {
+    renderTimeScale(
+      g,
+      xScale,
+      false,
+      innerWidth,
+      innerHeight,
+      textColor,
+      minDate,
+      maxDate,
+      formatBoundaryLabel(earliestStartDateStr, latestEndDateStr),
+      formatBoundaryLabel(latestEndDateStr, earliestStartDateStr)
+    );
+  }
+
+  // Group legend at top-left (pill style)
+  if (timelineGroups.length > 0) {
+    const legendY = timelineScale ? -75 : -55;
+    renderTimelineGroupLegend(
+      g,
+      timelineGroups,
+      groupColorMap,
+      textColor,
+      palette,
+      isDark,
+      legendY,
+      (name) => fadeToGroup(g, name),
+      () => fadeReset(g)
+    );
+  }
+
+  sorted.forEach((ev, i) => {
+    // Marker labels live in their reserved row above the chart, so the
+    // first event sits at the chart top edge.
+    const y = i * rowH + rowH / 2;
+    const x = xScale(parseTimelineDate(ev.date));
+    const color = eventColor(ev);
+
+    const evG = g
+      .append('g')
+      .attr('class', 'tl-event')
+      .attr('data-group', ev.group || '')
+      .attr('data-line-number', String(ev.lineNumber))
+      .attr('data-date', String(parseTimelineDate(ev.date)))
+      .attr(
+        'data-end-date',
+        ev.endDate ? String(parseTimelineDate(ev.endDate)) : null
+      )
+      .style('cursor', 'pointer')
+      .on('mouseenter', function (event: MouseEvent) {
+        if (ev.group && timelineGroups.length > 0) fadeToGroup(g, ev.group);
+        if (timelineScale) {
+          showEventDatesOnScale(
+            g,
+            xScale,
+            ev.date,
+            ev.endDate,
+            innerHeight,
+            color
+          );
+        } else {
+          showTooltip(tooltip, buildEventTooltipHtml(ev), event);
+        }
+      })
+      .on('mouseleave', function () {
+        fadeReset(g);
+        if (timelineScale) {
+          hideEventDatesOnScale(g);
+        } else {
+          hideTooltip(tooltip);
+        }
+      })
+      .on('mousemove', function (event: MouseEvent) {
+        if (!timelineScale) {
+          showTooltip(tooltip, buildEventTooltipHtml(ev), event);
+        }
+      })
+      .on('click', () => {
+        if (onClickItem && ev.lineNumber) onClickItem(ev.lineNumber);
+      });
+    setTagAttrs(evG, ev);
+
+    if (ev.endDate) {
+      const x2 = xScale(parseTimelineDate(ev.endDate));
+      const rectW = Math.max(x2 - x, 4);
+      // Estimate label width (~7px per char at 13px font) + padding
+      const estLabelWidth = ev.label.length * 7 + 16;
+      const labelFitsInside = rectW >= estLabelWidth;
+
+      let fill: string = shapeFill(palette, color, isDark, { solid });
+      let stroke: string = color;
+      if (ev.uncertain) {
+        // Create gradient for uncertain end - fades last 20%
+        const gradientId = `uncertain-ts-${ev.lineNumber}`;
+        const strokeGradientId = `uncertain-ts-s-${ev.lineNumber}`;
+        const defs = svg.select('defs').node() || svg.append('defs').node();
+        const defsEl = d3Selection.select(defs as Element);
+        defsEl
+          .append('linearGradient')
+          .attr('id', gradientId)
+          .attr('x1', '0%')
+          .attr('y1', '0%')
+          .attr('x2', '100%')
+          .attr('y2', '0%')
+          .selectAll('stop')
+          .data([
+            { offset: '0%', opacity: 1 },
+            { offset: '80%', opacity: 1 },
+            { offset: '100%', opacity: 0 },
+          ])
+          .enter()
+          .append('stop')
+          .attr('offset', (d) => d.offset)
+          .attr('stop-color', mix(color, bg, 30))
+          .attr('stop-opacity', (d) => d.opacity);
+        defsEl
+          .append('linearGradient')
+          .attr('id', strokeGradientId)
+          .attr('x1', '0%')
+          .attr('y1', '0%')
+          .attr('x2', '100%')
+          .attr('y2', '0%')
+          .selectAll('stop')
+          .data([
+            { offset: '0%', opacity: 1 },
+            { offset: '80%', opacity: 1 },
+            { offset: '100%', opacity: 0 },
+          ])
+          .enter()
+          .append('stop')
+          .attr('offset', (d) => d.offset)
+          .attr('stop-color', color)
+          .attr('stop-opacity', (d) => d.opacity);
+        fill = `url(#${gradientId})`;
+        stroke = `url(#${strokeGradientId})`;
+      }
+
+      evG
+        .append('rect')
+        .attr('x', x)
+        .attr('y', y - BAR_H / 2)
+        .attr('width', rectW)
+        .attr('height', BAR_H)
+        .attr('rx', 4)
+        .attr('fill', fill)
+        .attr('stroke', stroke)
+        .attr('stroke-width', 2);
+
+      if (labelFitsInside) {
+        // Text inside bar - use textColor for readability on muted fill
+        evG
+          .append('text')
+          .attr('x', x + 8)
+          .attr('y', y)
+          .attr('dy', '0.35em')
+          .attr('text-anchor', 'start')
+          .attr('fill', textColor)
+          .attr('font-size', '13px')
+          .text(ev.label);
+      } else {
+        // Text outside bar - check if it fits on left or must go right
+        const wouldFlipLeft = x + rectW > innerWidth * 0.6;
+        const labelFitsLeft = x - 6 - estLabelWidth > 0;
+        const flipLeft = wouldFlipLeft && labelFitsLeft;
+        evG
+          .append('text')
+          .attr('x', flipLeft ? x - 6 : x + rectW + 6)
+          .attr('y', y)
+          .attr('dy', '0.35em')
+          .attr('text-anchor', flipLeft ? 'end' : 'start')
+          .attr('fill', textColor)
+          .attr('font-size', '13px')
+          .text(ev.label);
+      }
+    } else {
+      // Point event (no end date) - render as circle with label
+      const estLabelWidth = ev.label.length * 7;
+      // Only flip left if past 60% AND label fits without going off-chart
+      const wouldFlipLeft = x > innerWidth * 0.6;
+      const labelFitsLeft = x - 10 - estLabelWidth > 0;
+      const flipLeft = wouldFlipLeft && labelFitsLeft;
+      evG
+        .append('circle')
+        .attr('cx', x)
+        .attr('cy', y)
+        .attr('r', 5)
+        .attr('fill', shapeFill(palette, color, isDark, { solid }))
+        .attr('stroke', color)
+        .attr('stroke-width', 2);
+      evG
+        .append('text')
+        .attr('x', flipLeft ? x - 10 : x + 10)
+        .attr('y', y)
+        .attr('dy', '0.35em')
+        .attr('text-anchor', flipLeft ? 'end' : 'start')
+        .attr('fill', textColor)
+        .attr('font-size', '12px')
+        .text(ev.label);
+    }
+  });
+}
+
+// ============================================================
 // Timeline — horizontal-grouped renderer (extracted from renderTimeline)
 // ============================================================
 
@@ -4889,50 +5223,13 @@ export function renderTimeline(
   if (!setup) return;
   swimlaneTagGroup = setup.swimlaneTagGroup;
 
-  const {
-    isVertical,
-    solid,
-    width,
-    height,
-    tooltip,
-    textColor,
-    bgColor,
-    bg,
-    groupColorMap,
-    tagLanes,
-    eventColor,
-    minDate,
-    maxDate,
-    datePadding,
-    earliestStartDateStr,
-    latestEndDateStr,
-    tagLegendReserve,
-  } = setup;
-
-  const {
-    timelineEvents,
-    timelineGroups,
-    timelineEras,
-    timelineMarkers,
-    timelineSort,
-    timelineScale,
-  } = parsed;
-  const title = parsed.noTitle ? null : parsed.title;
-
+  const { isVertical, tagLanes, width, textColor, groupColorMap, solid } =
+    setup;
   const hovers = makeTimelineHoverHelpers();
-  const {
-    FADE_OPACITY,
-    fadeToGroup,
-    fadeToEra,
-    fadeToMarker,
-    fadeReset,
-    fadeToTagValue,
-    setTagAttrs,
-  } = hovers;
+  const { FADE_OPACITY, fadeReset, fadeToTagValue } = hovers;
+  const title = parsed.noTitle ? null : parsed.title;
+  const { timelineEvents } = parsed;
 
-  // ================================================================
-  // VERTICAL orientation (time flows top→bottom)
-  // ================================================================
   if (isVertical) {
     renderTimelineVertical(
       container,
@@ -4951,15 +5248,9 @@ export function renderTimeline(
     return;
   }
 
-  // ================================================================
-  // HORIZONTAL orientation (default — time flows left→right)
-  // Each event gets its own row, stacked vertically.
-  // ================================================================
-
-  const BAR_H = 22; // range bar thickness (tall enough for text inside)
-
   const useGroupedHorizontal =
-    tagLanes != null || (timelineSort === 'group' && timelineGroups.length > 0);
+    tagLanes != null ||
+    (parsed.timelineSort === 'group' && parsed.timelineGroups.length > 0);
   if (useGroupedHorizontal) {
     renderTimelineHorizontalGrouped(
       container,
@@ -4976,288 +5267,20 @@ export function renderTimeline(
       viewMode
     );
   } else {
-    // === TIME SORT, horizontal: each event on its own row ===
-    const sorted = timelineEvents
-      .slice()
-      .sort((a, b) => parseTimelineDate(a.date) - parseTimelineDate(b.date));
-
-    const scaleMargin = timelineScale ? 24 : 0;
-    // Per-feature header rows: era + marker each get their own row, reserved
-    // only when present (mirrors the gantt header stack).
-    const ERA_ROW_H = 22;
-    const MARKER_ROW_H = 22;
-    const eraReserve = timelineEras.length > 0 ? ERA_ROW_H : 0;
-    const markerReserve = timelineMarkers.length > 0 ? MARKER_ROW_H : 0;
-    const topScaleH = timelineScale ? 40 : 0;
-    const margin = {
-      top: 104 + topScaleH + eraReserve + markerReserve + tagLegendReserve,
-      right: 40,
-      bottom: 40 + scaleMargin,
-      left: 60,
-    };
-    const markerLabelY = markerReserve ? -(topScaleH + MARKER_ROW_H / 2) : 0;
-    const eraLabelY = eraReserve
-      ? -(topScaleH + markerReserve + ERA_ROW_H / 2)
-      : 0;
-    const innerWidth = width - margin.left - margin.right;
-    const innerHeight = height - margin.top - margin.bottom;
-    const rowH = Math.min(28, innerHeight / sorted.length);
-
-    const xScale = d3Scale
-      .scaleLinear()
-      .domain([minDate - datePadding, maxDate + datePadding])
-      .range([0, innerWidth]);
-
-    const svg = d3Selection
-      .select(container)
-      .append('svg')
-      .attr('width', width)
-      .attr('height', height)
-      .style('background', bgColor);
-
-    const g = svg
-      .append('g')
-      .attr('transform', `translate(${margin.left},${margin.top})`);
-
-    renderChartTitle(
-      svg,
-      title,
-      parsed.titleLineNumber,
-      width,
-      textColor,
-      onClickItem
-    );
-
-    renderEras(
-      g,
-      timelineEras,
-      xScale,
-      false,
-      innerWidth,
-      innerHeight,
-      (s, e) => fadeToEra(g, s, e),
-      () => fadeReset(g),
-      timelineScale,
-      tooltip,
+    renderTimelineHorizontalTimeSort(
+      container,
+      parsed,
       palette,
-      eraReserve ? eraLabelY : undefined
+      isDark,
+      setup,
+      hovers,
+      onClickItem,
+      exportDims,
+      swimlaneTagGroup,
+      activeTagGroup,
+      onTagStateChange,
+      viewMode
     );
-
-    renderMarkers(
-      g,
-      timelineMarkers,
-      xScale,
-      false,
-      innerWidth,
-      innerHeight,
-      (d) => fadeToMarker(g, d),
-      () => fadeReset(g),
-      timelineScale,
-      tooltip,
-      palette,
-      markerReserve ? markerLabelY : undefined
-    );
-
-    if (timelineScale) {
-      renderTimeScale(
-        g,
-        xScale,
-        false,
-        innerWidth,
-        innerHeight,
-        textColor,
-        minDate,
-        maxDate,
-        formatBoundaryLabel(earliestStartDateStr, latestEndDateStr),
-        formatBoundaryLabel(latestEndDateStr, earliestStartDateStr)
-      );
-    }
-
-    // Group legend at top-left (pill style)
-    if (timelineGroups.length > 0) {
-      const legendY = timelineScale ? -75 : -55;
-      renderTimelineGroupLegend(
-        g,
-        timelineGroups,
-        groupColorMap,
-        textColor,
-        palette,
-        isDark,
-        legendY,
-        (name) => fadeToGroup(g, name),
-        () => fadeReset(g)
-      );
-    }
-
-    sorted.forEach((ev, i) => {
-      // Marker labels live in their reserved row above the chart, so the
-      // first event sits at the chart top edge.
-      const y = i * rowH + rowH / 2;
-      const x = xScale(parseTimelineDate(ev.date));
-      const color = eventColor(ev);
-
-      const evG = g
-        .append('g')
-        .attr('class', 'tl-event')
-        .attr('data-group', ev.group || '')
-        .attr('data-line-number', String(ev.lineNumber))
-        .attr('data-date', String(parseTimelineDate(ev.date)))
-        .attr(
-          'data-end-date',
-          ev.endDate ? String(parseTimelineDate(ev.endDate)) : null
-        )
-        .style('cursor', 'pointer')
-        .on('mouseenter', function (event: MouseEvent) {
-          if (ev.group && timelineGroups.length > 0) fadeToGroup(g, ev.group);
-          if (timelineScale) {
-            showEventDatesOnScale(
-              g,
-              xScale,
-              ev.date,
-              ev.endDate,
-              innerHeight,
-              color
-            );
-          } else {
-            showTooltip(tooltip, buildEventTooltipHtml(ev), event);
-          }
-        })
-        .on('mouseleave', function () {
-          fadeReset(g);
-          if (timelineScale) {
-            hideEventDatesOnScale(g);
-          } else {
-            hideTooltip(tooltip);
-          }
-        })
-        .on('mousemove', function (event: MouseEvent) {
-          if (!timelineScale) {
-            showTooltip(tooltip, buildEventTooltipHtml(ev), event);
-          }
-        })
-        .on('click', () => {
-          if (onClickItem && ev.lineNumber) onClickItem(ev.lineNumber);
-        });
-      setTagAttrs(evG, ev);
-
-      if (ev.endDate) {
-        const x2 = xScale(parseTimelineDate(ev.endDate));
-        const rectW = Math.max(x2 - x, 4);
-        // Estimate label width (~7px per char at 13px font) + padding
-        const estLabelWidth = ev.label.length * 7 + 16;
-        const labelFitsInside = rectW >= estLabelWidth;
-
-        let fill: string = shapeFill(palette, color, isDark, { solid });
-        let stroke: string = color;
-        if (ev.uncertain) {
-          // Create gradient for uncertain end - fades last 20%
-          const gradientId = `uncertain-ts-${ev.lineNumber}`;
-          const strokeGradientId = `uncertain-ts-s-${ev.lineNumber}`;
-          const defs = svg.select('defs').node() || svg.append('defs').node();
-          const defsEl = d3Selection.select(defs as Element);
-          defsEl
-            .append('linearGradient')
-            .attr('id', gradientId)
-            .attr('x1', '0%')
-            .attr('y1', '0%')
-            .attr('x2', '100%')
-            .attr('y2', '0%')
-            .selectAll('stop')
-            .data([
-              { offset: '0%', opacity: 1 },
-              { offset: '80%', opacity: 1 },
-              { offset: '100%', opacity: 0 },
-            ])
-            .enter()
-            .append('stop')
-            .attr('offset', (d) => d.offset)
-            .attr('stop-color', mix(color, bg, 30))
-            .attr('stop-opacity', (d) => d.opacity);
-          defsEl
-            .append('linearGradient')
-            .attr('id', strokeGradientId)
-            .attr('x1', '0%')
-            .attr('y1', '0%')
-            .attr('x2', '100%')
-            .attr('y2', '0%')
-            .selectAll('stop')
-            .data([
-              { offset: '0%', opacity: 1 },
-              { offset: '80%', opacity: 1 },
-              { offset: '100%', opacity: 0 },
-            ])
-            .enter()
-            .append('stop')
-            .attr('offset', (d) => d.offset)
-            .attr('stop-color', color)
-            .attr('stop-opacity', (d) => d.opacity);
-          fill = `url(#${gradientId})`;
-          stroke = `url(#${strokeGradientId})`;
-        }
-
-        evG
-          .append('rect')
-          .attr('x', x)
-          .attr('y', y - BAR_H / 2)
-          .attr('width', rectW)
-          .attr('height', BAR_H)
-          .attr('rx', 4)
-          .attr('fill', fill)
-          .attr('stroke', stroke)
-          .attr('stroke-width', 2);
-
-        if (labelFitsInside) {
-          // Text inside bar - use textColor for readability on muted fill
-          evG
-            .append('text')
-            .attr('x', x + 8)
-            .attr('y', y)
-            .attr('dy', '0.35em')
-            .attr('text-anchor', 'start')
-            .attr('fill', textColor)
-            .attr('font-size', '13px')
-            .text(ev.label);
-        } else {
-          // Text outside bar - check if it fits on left or must go right
-          const wouldFlipLeft = x + rectW > innerWidth * 0.6;
-          const labelFitsLeft = x - 6 - estLabelWidth > 0;
-          const flipLeft = wouldFlipLeft && labelFitsLeft;
-          evG
-            .append('text')
-            .attr('x', flipLeft ? x - 6 : x + rectW + 6)
-            .attr('y', y)
-            .attr('dy', '0.35em')
-            .attr('text-anchor', flipLeft ? 'end' : 'start')
-            .attr('fill', textColor)
-            .attr('font-size', '13px')
-            .text(ev.label);
-        }
-      } else {
-        // Point event (no end date) - render as circle with label
-        const estLabelWidth = ev.label.length * 7;
-        // Only flip left if past 60% AND label fits without going off-chart
-        const wouldFlipLeft = x > innerWidth * 0.6;
-        const labelFitsLeft = x - 10 - estLabelWidth > 0;
-        const flipLeft = wouldFlipLeft && labelFitsLeft;
-        evG
-          .append('circle')
-          .attr('cx', x)
-          .attr('cy', y)
-          .attr('r', 5)
-          .attr('fill', shapeFill(palette, color, isDark, { solid }))
-          .attr('stroke', color)
-          .attr('stroke-width', 2);
-        evG
-          .append('text')
-          .attr('x', flipLeft ? x - 10 : x + 10)
-          .attr('y', y)
-          .attr('dy', '0.35em')
-          .attr('text-anchor', flipLeft ? 'end' : 'start')
-          .attr('fill', textColor)
-          .attr('font-size', '12px')
-          .text(ev.label);
-      }
-    });
   }
 
   // ── Tag Legend (org-chart-style pills) ──
