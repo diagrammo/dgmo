@@ -1,1 +1,6 @@
+if command -v gitleaks >/dev/null 2>&1; then
+  gitleaks protect --staged --redact --verbose || exit 1
+else
+  echo "warn: gitleaks not installed; secrets will only be caught in CI. brew install gitleaks"
+fi
 pnpm exec lint-staged
