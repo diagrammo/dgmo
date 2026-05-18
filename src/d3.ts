@@ -3867,6 +3867,595 @@ function makeTimelineHoverHelpers(): TimelineHoverHelpers {
   };
 }
 
+// ============================================================
+// Timeline — vertical-orientation renderer (extracted from renderTimeline)
+// ============================================================
+
+function renderTimelineVertical(
+  container: HTMLDivElement,
+  parsed: ParsedVisualization,
+  palette: PaletteColors,
+  isDark: boolean,
+  setup: TimelineSetup,
+  hovers: TimelineHoverHelpers,
+  onClickItem: ((lineNumber: number) => void) | undefined,
+  exportDims: D3ExportDimensions | undefined,
+  _swimlaneTagGroup: string | null | undefined,
+  _activeTagGroup: string | null | undefined,
+  _onTagStateChange:
+    | ((activeTagGroup: string | null, swimlaneTagGroup: string | null) => void)
+    | undefined,
+  _viewMode: boolean | undefined
+): void {
+  const {
+    width,
+    height,
+    tooltip,
+    solid,
+    textColor,
+    mutedColor,
+    bgColor,
+    bg,
+    groupColorMap,
+    tagLanes,
+    eventColor,
+    minDate,
+    maxDate,
+    datePadding,
+    earliestStartDateStr,
+    latestEndDateStr,
+    tagLegendReserve,
+  } = setup;
+  const { fadeToGroup, fadeToEra, fadeToMarker, fadeReset, setTagAttrs } =
+    hovers;
+  const {
+    timelineEvents,
+    timelineGroups,
+    timelineEras,
+    timelineMarkers,
+    timelineSort,
+    timelineScale,
+    timelineSwimlanes,
+  } = parsed;
+  const title = parsed.noTitle ? null : parsed.title;
+
+  const useGroupedVertical =
+    tagLanes != null || (timelineSort === 'group' && timelineGroups.length > 0);
+  if (useGroupedVertical) {
+    // === GROUPED: one column/lane per group, vertical ===
+    let laneNames: string[];
+    let laneEventsByName: Map<string, TimelineEvent[]>;
+
+    if (tagLanes) {
+      laneNames = tagLanes.map((l) => l.name);
+      laneEventsByName = new Map(tagLanes.map((l) => [l.name, l.events]));
+    } else {
+      const groupNames = timelineGroups.map((gr) => gr.name);
+      const ungroupedEvents = timelineEvents.filter(
+        (ev) => ev.group === null || !groupNames.includes(ev.group)
+      );
+      laneNames =
+        ungroupedEvents.length > 0 ? [...groupNames, '(Other)'] : groupNames;
+      laneEventsByName = new Map(
+        laneNames.map((name) => [
+          name,
+          timelineEvents.filter((ev) =>
+            name === '(Other)'
+              ? ev.group === null || !groupNames.includes(ev.group)
+              : ev.group === name
+          ),
+        ])
+      );
+    }
+
+    const laneCount = laneNames.length;
+    const scaleMargin = timelineScale ? 40 : 0;
+    const markerMargin = timelineMarkers.length > 0 ? 30 : 0;
+    const margin = {
+      top: 104 + markerMargin + tagLegendReserve,
+      right: 40 + scaleMargin,
+      bottom: 40,
+      left: 60 + scaleMargin,
+    };
+    const innerWidth = width - margin.left - margin.right;
+    const innerHeight = height - margin.top - margin.bottom;
+    const laneWidth = innerWidth / laneCount;
+
+    const yScale = d3Scale
+      .scaleLinear()
+      .domain([minDate - datePadding, maxDate + datePadding])
+      .range([0, innerHeight]);
+
+    const svg = d3Selection
+      .select(container)
+      .append('svg')
+      .attr('viewBox', `0 0 ${width} ${height}`)
+      .attr('width', exportDims ? width : '100%')
+      .attr('preserveAspectRatio', 'xMidYMin meet')
+      .style('background', bgColor);
+
+    const g = svg
+      .append('g')
+      .attr('transform', `translate(${margin.left},${margin.top})`);
+
+    renderChartTitle(
+      svg,
+      title,
+      parsed.titleLineNumber,
+      width,
+      textColor,
+      onClickItem
+    );
+
+    renderEras(
+      g,
+      timelineEras,
+      yScale,
+      true,
+      innerWidth,
+      innerHeight,
+      (s, e) => fadeToEra(g, s, e),
+      () => fadeReset(g),
+      timelineScale,
+      tooltip,
+      palette
+    );
+
+    renderMarkers(
+      g,
+      timelineMarkers,
+      yScale,
+      true,
+      innerWidth,
+      innerHeight,
+      (d) => fadeToMarker(g, d),
+      () => fadeReset(g),
+      timelineScale,
+      tooltip,
+      palette
+    );
+
+    if (timelineScale) {
+      renderTimeScale(
+        g,
+        yScale,
+        true,
+        innerWidth,
+        innerHeight,
+        textColor,
+        minDate,
+        maxDate,
+        formatBoundaryLabel(earliestStartDateStr, latestEndDateStr),
+        formatBoundaryLabel(latestEndDateStr, earliestStartDateStr)
+      );
+    }
+
+    // Render swimlane backgrounds for vertical lanes
+    if (timelineSwimlanes || tagLanes) {
+      laneNames.forEach((laneName, laneIdx) => {
+        const laneX = laneIdx * laneWidth;
+        const fillColor = laneIdx % 2 === 0 ? textColor : 'transparent';
+        g.append('rect')
+          .attr('class', 'tl-swimlane')
+          .attr('data-group', laneName)
+          .attr('x', laneX)
+          .attr('y', 0)
+          .attr('width', laneWidth)
+          .attr('height', innerHeight)
+          .attr('fill', fillColor)
+          .attr('opacity', 0.06);
+      });
+    }
+
+    laneNames.forEach((laneName, laneIdx) => {
+      const laneX = laneIdx * laneWidth;
+      const laneColor = groupColorMap.get(laneName) ?? textColor;
+      const laneCenter = laneX + laneWidth / 2;
+
+      const headerG = g
+        .append('g')
+        .attr('class', 'tl-lane-header')
+        .attr('data-group', laneName)
+        .style('cursor', 'pointer')
+        .on('mouseenter', () => fadeToGroup(g, laneName))
+        .on('mouseleave', () => fadeReset(g));
+
+      headerG
+        .append('text')
+        .attr('x', laneCenter)
+        .attr('y', -15)
+        .attr('text-anchor', 'middle')
+        .attr('fill', laneColor)
+        .attr('font-size', '12px')
+        .attr('font-weight', '600')
+        .text(laneName);
+
+      g.append('line')
+        .attr('x1', laneCenter)
+        .attr('y1', 0)
+        .attr('x2', laneCenter)
+        .attr('y2', innerHeight)
+        .attr('stroke', mutedColor)
+        .attr('stroke-width', 1)
+        .attr('stroke-dasharray', '4,4');
+
+      const laneEvents = laneEventsByName.get(laneName) ?? [];
+
+      for (const ev of laneEvents) {
+        const y = yScale(parseTimelineDate(ev.date));
+        const evG = g
+          .append('g')
+          .attr('class', 'tl-event')
+          .attr('data-group', laneName)
+          .attr('data-line-number', String(ev.lineNumber))
+          .attr('data-date', String(parseTimelineDate(ev.date)))
+          .attr(
+            'data-end-date',
+            ev.endDate ? String(parseTimelineDate(ev.endDate)) : null
+          )
+          .style('cursor', 'pointer')
+          .on('mouseenter', function (event: MouseEvent) {
+            fadeToGroup(g, laneName);
+            showTooltip(tooltip, buildEventTooltipHtml(ev), event);
+          })
+          .on('mouseleave', function () {
+            fadeReset(g);
+            hideTooltip(tooltip);
+          })
+          .on('mousemove', function (event: MouseEvent) {
+            showTooltip(tooltip, buildEventTooltipHtml(ev), event);
+          })
+          .on('click', () => {
+            if (onClickItem && ev.lineNumber) onClickItem(ev.lineNumber);
+          });
+        setTagAttrs(evG, ev);
+
+        const evColor = eventColor(ev);
+
+        if (ev.endDate) {
+          const y2 = yScale(parseTimelineDate(ev.endDate));
+          const rectH = Math.max(y2 - y, 4);
+
+          let fill: string = shapeFill(palette, evColor, isDark, { solid });
+          let stroke: string = evColor;
+          if (ev.uncertain) {
+            const gradientId = `uncertain-vg-${ev.lineNumber}`;
+            const strokeGradientId = `uncertain-vg-s-${ev.lineNumber}`;
+            const defs = svg.select('defs').node() || svg.append('defs').node();
+            const defsEl = d3Selection.select(defs as Element);
+            defsEl
+              .append('linearGradient')
+              .attr('id', gradientId)
+              .attr('x1', '0%')
+              .attr('y1', '0%')
+              .attr('x2', '0%')
+              .attr('y2', '100%')
+              .selectAll('stop')
+              .data([
+                { offset: '0%', opacity: 1 },
+                { offset: '80%', opacity: 1 },
+                { offset: '100%', opacity: 0 },
+              ])
+              .enter()
+              .append('stop')
+              .attr('offset', (d) => d.offset)
+              .attr('stop-color', mix(laneColor, bg, 30))
+              .attr('stop-opacity', (d) => d.opacity);
+            defsEl
+              .append('linearGradient')
+              .attr('id', strokeGradientId)
+              .attr('x1', '0%')
+              .attr('y1', '0%')
+              .attr('x2', '0%')
+              .attr('y2', '100%')
+              .selectAll('stop')
+              .data([
+                { offset: '0%', opacity: 1 },
+                { offset: '80%', opacity: 1 },
+                { offset: '100%', opacity: 0 },
+              ])
+              .enter()
+              .append('stop')
+              .attr('offset', (d) => d.offset)
+              .attr('stop-color', evColor)
+              .attr('stop-opacity', (d) => d.opacity);
+            fill = `url(#${gradientId})`;
+            stroke = `url(#${strokeGradientId})`;
+          }
+
+          evG
+            .append('rect')
+            .attr('x', laneCenter - 6)
+            .attr('y', y)
+            .attr('width', 12)
+            .attr('height', rectH)
+            .attr('rx', 4)
+            .attr('fill', fill)
+            .attr('stroke', stroke)
+            .attr('stroke-width', 2);
+          evG
+            .append('text')
+            .attr('x', laneCenter + 14)
+            .attr('y', y + rectH / 2)
+            .attr('dy', '0.35em')
+            .attr('fill', textColor)
+            .attr('font-size', '10px')
+            .text(ev.label);
+        } else {
+          evG
+            .append('circle')
+            .attr('cx', laneCenter)
+            .attr('cy', y)
+            .attr('r', 4)
+            .attr('fill', shapeFill(palette, evColor, isDark, { solid }))
+            .attr('stroke', evColor)
+            .attr('stroke-width', 2);
+          evG
+            .append('text')
+            .attr('x', laneCenter + 10)
+            .attr('y', y)
+            .attr('dy', '0.35em')
+            .attr('fill', textColor)
+            .attr('font-size', '10px')
+            .text(ev.label);
+        }
+      }
+    });
+  } else {
+    // === TIME SORT, vertical: single vertical axis ===
+    const scaleMargin = timelineScale ? 40 : 0;
+    const markerMargin = timelineMarkers.length > 0 ? 30 : 0;
+    const margin = {
+      top: 104 + markerMargin + tagLegendReserve,
+      right: 200,
+      bottom: 40,
+      left: 60 + scaleMargin,
+    };
+    const innerWidth = width - margin.left - margin.right;
+    const innerHeight = height - margin.top - margin.bottom;
+    const axisX = 20;
+
+    const yScale = d3Scale
+      .scaleLinear()
+      .domain([minDate - datePadding, maxDate + datePadding])
+      .range([0, innerHeight]);
+
+    const sorted = timelineEvents
+      .slice()
+      .sort((a, b) => parseTimelineDate(a.date) - parseTimelineDate(b.date));
+
+    const svg = d3Selection
+      .select(container)
+      .append('svg')
+      .attr('viewBox', `0 0 ${width} ${height}`)
+      .attr('width', exportDims ? width : '100%')
+      .attr('preserveAspectRatio', 'xMidYMin meet')
+      .style('background', bgColor);
+
+    const g = svg
+      .append('g')
+      .attr('transform', `translate(${margin.left},${margin.top})`);
+
+    renderChartTitle(
+      svg,
+      title,
+      parsed.titleLineNumber,
+      width,
+      textColor,
+      onClickItem
+    );
+
+    renderEras(
+      g,
+      timelineEras,
+      yScale,
+      true,
+      innerWidth,
+      innerHeight,
+      (s, e) => fadeToEra(g, s, e),
+      () => fadeReset(g),
+      timelineScale,
+      tooltip,
+      palette
+    );
+
+    renderMarkers(
+      g,
+      timelineMarkers,
+      yScale,
+      true,
+      innerWidth,
+      innerHeight,
+      (d) => fadeToMarker(g, d),
+      () => fadeReset(g),
+      timelineScale,
+      tooltip,
+      palette
+    );
+
+    if (timelineScale) {
+      renderTimeScale(
+        g,
+        yScale,
+        true,
+        innerWidth,
+        innerHeight,
+        textColor,
+        minDate,
+        maxDate,
+        formatBoundaryLabel(earliestStartDateStr, latestEndDateStr),
+        formatBoundaryLabel(latestEndDateStr, earliestStartDateStr)
+      );
+    }
+
+    // Group legend (pill style)
+    if (timelineGroups.length > 0) {
+      renderTimelineGroupLegend(
+        g,
+        timelineGroups,
+        groupColorMap,
+        textColor,
+        palette,
+        isDark,
+        -55,
+        (name) => fadeToGroup(g, name),
+        () => fadeReset(g)
+      );
+    }
+
+    g.append('line')
+      .attr('x1', axisX)
+      .attr('y1', 0)
+      .attr('x2', axisX)
+      .attr('y2', innerHeight)
+      .attr('stroke', mutedColor)
+      .attr('stroke-width', 1)
+      .attr('stroke-dasharray', '4,4');
+
+    for (const ev of sorted) {
+      const y = yScale(parseTimelineDate(ev.date));
+      const color = eventColor(ev);
+
+      const evG = g
+        .append('g')
+        .attr('class', 'tl-event')
+        .attr('data-group', ev.group || '')
+        .attr('data-line-number', String(ev.lineNumber))
+        .attr('data-date', String(parseTimelineDate(ev.date)))
+        .attr(
+          'data-end-date',
+          ev.endDate ? String(parseTimelineDate(ev.endDate)) : null
+        )
+        .style('cursor', 'pointer')
+        .on('mouseenter', function (event: MouseEvent) {
+          if (ev.group && timelineGroups.length > 0) fadeToGroup(g, ev.group);
+          showTooltip(tooltip, buildEventTooltipHtml(ev), event);
+        })
+        .on('mouseleave', function () {
+          fadeReset(g);
+          hideTooltip(tooltip);
+        })
+        .on('mousemove', function (event: MouseEvent) {
+          showTooltip(tooltip, buildEventTooltipHtml(ev), event);
+        })
+        .on('click', () => {
+          if (onClickItem && ev.lineNumber) onClickItem(ev.lineNumber);
+        });
+      setTagAttrs(evG, ev);
+
+      if (ev.endDate) {
+        const y2 = yScale(parseTimelineDate(ev.endDate));
+        const rectH = Math.max(y2 - y, 4);
+
+        let fill: string = shapeFill(palette, color, isDark, { solid });
+        let stroke: string = color;
+        if (ev.uncertain) {
+          const gradientId = `uncertain-v-${ev.lineNumber}`;
+          const strokeGradientId = `uncertain-v-s-${ev.lineNumber}`;
+          const defs = svg.select('defs').node() || svg.append('defs').node();
+          const defsEl = d3Selection.select(defs as Element);
+          defsEl
+            .append('linearGradient')
+            .attr('id', gradientId)
+            .attr('x1', '0%')
+            .attr('y1', '0%')
+            .attr('x2', '0%')
+            .attr('y2', '100%')
+            .selectAll('stop')
+            .data([
+              { offset: '0%', opacity: 1 },
+              { offset: '80%', opacity: 1 },
+              { offset: '100%', opacity: 0 },
+            ])
+            .enter()
+            .append('stop')
+            .attr('offset', (d) => d.offset)
+            .attr('stop-color', mix(color, bg, 30))
+            .attr('stop-opacity', (d) => d.opacity);
+          defsEl
+            .append('linearGradient')
+            .attr('id', strokeGradientId)
+            .attr('x1', '0%')
+            .attr('y1', '0%')
+            .attr('x2', '0%')
+            .attr('y2', '100%')
+            .selectAll('stop')
+            .data([
+              { offset: '0%', opacity: 1 },
+              { offset: '80%', opacity: 1 },
+              { offset: '100%', opacity: 0 },
+            ])
+            .enter()
+            .append('stop')
+            .attr('offset', (d) => d.offset)
+            .attr('stop-color', color)
+            .attr('stop-opacity', (d) => d.opacity);
+          fill = `url(#${gradientId})`;
+          stroke = `url(#${strokeGradientId})`;
+        }
+
+        evG
+          .append('rect')
+          .attr('x', axisX - 6)
+          .attr('y', y)
+          .attr('width', 12)
+          .attr('height', rectH)
+          .attr('rx', 4)
+          .attr('fill', fill)
+          .attr('stroke', stroke)
+          .attr('stroke-width', 2);
+        evG
+          .append('text')
+          .attr('x', axisX + 16)
+          .attr('y', y + rectH / 2)
+          .attr('dy', '0.35em')
+          .attr('fill', textColor)
+          .attr('font-size', '11px')
+          .text(ev.label);
+      } else {
+        evG
+          .append('circle')
+          .attr('cx', axisX)
+          .attr('cy', y)
+          .attr('r', 4)
+          .attr('fill', shapeFill(palette, color, isDark, { solid }))
+          .attr('stroke', color)
+          .attr('stroke-width', 2);
+        evG
+          .append('text')
+          .attr('x', axisX + 16)
+          .attr('y', y)
+          .attr('dy', '0.35em')
+          .attr('fill', textColor)
+          .attr('font-size', '11px')
+          .text(ev.label);
+      }
+
+      // Date label to the left
+      evG
+        .append('text')
+        .attr('x', axisX - 14)
+        .attr(
+          'y',
+          ev.endDate
+            ? yScale(parseTimelineDate(ev.date)) +
+                Math.max(
+                  yScale(parseTimelineDate(ev.endDate)) -
+                    yScale(parseTimelineDate(ev.date)),
+                  4
+                ) /
+                  2
+            : y
+        )
+        .attr('dy', '0.35em')
+        .attr('text-anchor', 'end')
+        .attr('fill', mutedColor)
+        .attr('font-size', '10px')
+        .text(ev.date + (ev.endDate ? `→${ev.endDate}` : ''));
+    }
+  }
+}
+
 /**
  * Renders a timeline chart into the given container using D3.
  * Supports horizontal (default) and vertical orientation.
@@ -3905,7 +4494,6 @@ export function renderTimeline(
     height,
     tooltip,
     textColor,
-    mutedColor,
     bgColor,
     bg,
     groupColorMap,
@@ -3930,6 +4518,7 @@ export function renderTimeline(
   } = parsed;
   const title = parsed.noTitle ? null : parsed.title;
 
+  const hovers = makeTimelineHoverHelpers();
   const {
     FADE_OPACITY,
     fadeToGroup,
@@ -3938,551 +4527,27 @@ export function renderTimeline(
     fadeReset,
     fadeToTagValue,
     setTagAttrs,
-  } = makeTimelineHoverHelpers();
+  } = hovers;
 
   // ================================================================
   // VERTICAL orientation (time flows top→bottom)
   // ================================================================
   if (isVertical) {
-    const useGroupedVertical =
-      tagLanes != null ||
-      (timelineSort === 'group' && timelineGroups.length > 0);
-    if (useGroupedVertical) {
-      // === GROUPED: one column/lane per group, vertical ===
-      let laneNames: string[];
-      let laneEventsByName: Map<string, TimelineEvent[]>;
-
-      if (tagLanes) {
-        laneNames = tagLanes.map((l) => l.name);
-        laneEventsByName = new Map(tagLanes.map((l) => [l.name, l.events]));
-      } else {
-        const groupNames = timelineGroups.map((gr) => gr.name);
-        const ungroupedEvents = timelineEvents.filter(
-          (ev) => ev.group === null || !groupNames.includes(ev.group)
-        );
-        laneNames =
-          ungroupedEvents.length > 0 ? [...groupNames, '(Other)'] : groupNames;
-        laneEventsByName = new Map(
-          laneNames.map((name) => [
-            name,
-            timelineEvents.filter((ev) =>
-              name === '(Other)'
-                ? ev.group === null || !groupNames.includes(ev.group)
-                : ev.group === name
-            ),
-          ])
-        );
-      }
-
-      const laneCount = laneNames.length;
-      const scaleMargin = timelineScale ? 40 : 0;
-      const markerMargin = timelineMarkers.length > 0 ? 30 : 0;
-      const margin = {
-        top: 104 + markerMargin + tagLegendReserve,
-        right: 40 + scaleMargin,
-        bottom: 40,
-        left: 60 + scaleMargin,
-      };
-      const innerWidth = width - margin.left - margin.right;
-      const innerHeight = height - margin.top - margin.bottom;
-      const laneWidth = innerWidth / laneCount;
-
-      const yScale = d3Scale
-        .scaleLinear()
-        .domain([minDate - datePadding, maxDate + datePadding])
-        .range([0, innerHeight]);
-
-      const svg = d3Selection
-        .select(container)
-        .append('svg')
-        .attr('viewBox', `0 0 ${width} ${height}`)
-        .attr('width', exportDims ? width : '100%')
-        .attr('preserveAspectRatio', 'xMidYMin meet')
-        .style('background', bgColor);
-
-      const g = svg
-        .append('g')
-        .attr('transform', `translate(${margin.left},${margin.top})`);
-
-      renderChartTitle(
-        svg,
-        title,
-        parsed.titleLineNumber,
-        width,
-        textColor,
-        onClickItem
-      );
-
-      renderEras(
-        g,
-        timelineEras,
-        yScale,
-        true,
-        innerWidth,
-        innerHeight,
-        (s, e) => fadeToEra(g, s, e),
-        () => fadeReset(g),
-        timelineScale,
-        tooltip,
-        palette
-      );
-
-      renderMarkers(
-        g,
-        timelineMarkers,
-        yScale,
-        true,
-        innerWidth,
-        innerHeight,
-        (d) => fadeToMarker(g, d),
-        () => fadeReset(g),
-        timelineScale,
-        tooltip,
-        palette
-      );
-
-      if (timelineScale) {
-        renderTimeScale(
-          g,
-          yScale,
-          true,
-          innerWidth,
-          innerHeight,
-          textColor,
-          minDate,
-          maxDate,
-          formatBoundaryLabel(earliestStartDateStr, latestEndDateStr),
-          formatBoundaryLabel(latestEndDateStr, earliestStartDateStr)
-        );
-      }
-
-      // Render swimlane backgrounds for vertical lanes
-      if (timelineSwimlanes || tagLanes) {
-        laneNames.forEach((laneName, laneIdx) => {
-          const laneX = laneIdx * laneWidth;
-          const fillColor = laneIdx % 2 === 0 ? textColor : 'transparent';
-          g.append('rect')
-            .attr('class', 'tl-swimlane')
-            .attr('data-group', laneName)
-            .attr('x', laneX)
-            .attr('y', 0)
-            .attr('width', laneWidth)
-            .attr('height', innerHeight)
-            .attr('fill', fillColor)
-            .attr('opacity', 0.06);
-        });
-      }
-
-      laneNames.forEach((laneName, laneIdx) => {
-        const laneX = laneIdx * laneWidth;
-        const laneColor = groupColorMap.get(laneName) ?? textColor;
-        const laneCenter = laneX + laneWidth / 2;
-
-        const headerG = g
-          .append('g')
-          .attr('class', 'tl-lane-header')
-          .attr('data-group', laneName)
-          .style('cursor', 'pointer')
-          .on('mouseenter', () => fadeToGroup(g, laneName))
-          .on('mouseleave', () => fadeReset(g));
-
-        headerG
-          .append('text')
-          .attr('x', laneCenter)
-          .attr('y', -15)
-          .attr('text-anchor', 'middle')
-          .attr('fill', laneColor)
-          .attr('font-size', '12px')
-          .attr('font-weight', '600')
-          .text(laneName);
-
-        g.append('line')
-          .attr('x1', laneCenter)
-          .attr('y1', 0)
-          .attr('x2', laneCenter)
-          .attr('y2', innerHeight)
-          .attr('stroke', mutedColor)
-          .attr('stroke-width', 1)
-          .attr('stroke-dasharray', '4,4');
-
-        const laneEvents = laneEventsByName.get(laneName) ?? [];
-
-        for (const ev of laneEvents) {
-          const y = yScale(parseTimelineDate(ev.date));
-          const evG = g
-            .append('g')
-            .attr('class', 'tl-event')
-            .attr('data-group', laneName)
-            .attr('data-line-number', String(ev.lineNumber))
-            .attr('data-date', String(parseTimelineDate(ev.date)))
-            .attr(
-              'data-end-date',
-              ev.endDate ? String(parseTimelineDate(ev.endDate)) : null
-            )
-            .style('cursor', 'pointer')
-            .on('mouseenter', function (event: MouseEvent) {
-              fadeToGroup(g, laneName);
-              showTooltip(tooltip, buildEventTooltipHtml(ev), event);
-            })
-            .on('mouseleave', function () {
-              fadeReset(g);
-              hideTooltip(tooltip);
-            })
-            .on('mousemove', function (event: MouseEvent) {
-              showTooltip(tooltip, buildEventTooltipHtml(ev), event);
-            })
-            .on('click', () => {
-              if (onClickItem && ev.lineNumber) onClickItem(ev.lineNumber);
-            });
-          setTagAttrs(evG, ev);
-
-          const evColor = eventColor(ev);
-
-          if (ev.endDate) {
-            const y2 = yScale(parseTimelineDate(ev.endDate));
-            const rectH = Math.max(y2 - y, 4);
-
-            let fill: string = shapeFill(palette, evColor, isDark, { solid });
-            let stroke: string = evColor;
-            if (ev.uncertain) {
-              const gradientId = `uncertain-vg-${ev.lineNumber}`;
-              const strokeGradientId = `uncertain-vg-s-${ev.lineNumber}`;
-              const defs =
-                svg.select('defs').node() || svg.append('defs').node();
-              const defsEl = d3Selection.select(defs as Element);
-              defsEl
-                .append('linearGradient')
-                .attr('id', gradientId)
-                .attr('x1', '0%')
-                .attr('y1', '0%')
-                .attr('x2', '0%')
-                .attr('y2', '100%')
-                .selectAll('stop')
-                .data([
-                  { offset: '0%', opacity: 1 },
-                  { offset: '80%', opacity: 1 },
-                  { offset: '100%', opacity: 0 },
-                ])
-                .enter()
-                .append('stop')
-                .attr('offset', (d) => d.offset)
-                .attr('stop-color', mix(laneColor, bg, 30))
-                .attr('stop-opacity', (d) => d.opacity);
-              defsEl
-                .append('linearGradient')
-                .attr('id', strokeGradientId)
-                .attr('x1', '0%')
-                .attr('y1', '0%')
-                .attr('x2', '0%')
-                .attr('y2', '100%')
-                .selectAll('stop')
-                .data([
-                  { offset: '0%', opacity: 1 },
-                  { offset: '80%', opacity: 1 },
-                  { offset: '100%', opacity: 0 },
-                ])
-                .enter()
-                .append('stop')
-                .attr('offset', (d) => d.offset)
-                .attr('stop-color', evColor)
-                .attr('stop-opacity', (d) => d.opacity);
-              fill = `url(#${gradientId})`;
-              stroke = `url(#${strokeGradientId})`;
-            }
-
-            evG
-              .append('rect')
-              .attr('x', laneCenter - 6)
-              .attr('y', y)
-              .attr('width', 12)
-              .attr('height', rectH)
-              .attr('rx', 4)
-              .attr('fill', fill)
-              .attr('stroke', stroke)
-              .attr('stroke-width', 2);
-            evG
-              .append('text')
-              .attr('x', laneCenter + 14)
-              .attr('y', y + rectH / 2)
-              .attr('dy', '0.35em')
-              .attr('fill', textColor)
-              .attr('font-size', '10px')
-              .text(ev.label);
-          } else {
-            evG
-              .append('circle')
-              .attr('cx', laneCenter)
-              .attr('cy', y)
-              .attr('r', 4)
-              .attr('fill', shapeFill(palette, evColor, isDark, { solid }))
-              .attr('stroke', evColor)
-              .attr('stroke-width', 2);
-            evG
-              .append('text')
-              .attr('x', laneCenter + 10)
-              .attr('y', y)
-              .attr('dy', '0.35em')
-              .attr('fill', textColor)
-              .attr('font-size', '10px')
-              .text(ev.label);
-          }
-        }
-      });
-    } else {
-      // === TIME SORT, vertical: single vertical axis ===
-      const scaleMargin = timelineScale ? 40 : 0;
-      const markerMargin = timelineMarkers.length > 0 ? 30 : 0;
-      const margin = {
-        top: 104 + markerMargin + tagLegendReserve,
-        right: 200,
-        bottom: 40,
-        left: 60 + scaleMargin,
-      };
-      const innerWidth = width - margin.left - margin.right;
-      const innerHeight = height - margin.top - margin.bottom;
-      const axisX = 20;
-
-      const yScale = d3Scale
-        .scaleLinear()
-        .domain([minDate - datePadding, maxDate + datePadding])
-        .range([0, innerHeight]);
-
-      const sorted = timelineEvents
-        .slice()
-        .sort((a, b) => parseTimelineDate(a.date) - parseTimelineDate(b.date));
-
-      const svg = d3Selection
-        .select(container)
-        .append('svg')
-        .attr('viewBox', `0 0 ${width} ${height}`)
-        .attr('width', exportDims ? width : '100%')
-        .attr('preserveAspectRatio', 'xMidYMin meet')
-        .style('background', bgColor);
-
-      const g = svg
-        .append('g')
-        .attr('transform', `translate(${margin.left},${margin.top})`);
-
-      renderChartTitle(
-        svg,
-        title,
-        parsed.titleLineNumber,
-        width,
-        textColor,
-        onClickItem
-      );
-
-      renderEras(
-        g,
-        timelineEras,
-        yScale,
-        true,
-        innerWidth,
-        innerHeight,
-        (s, e) => fadeToEra(g, s, e),
-        () => fadeReset(g),
-        timelineScale,
-        tooltip,
-        palette
-      );
-
-      renderMarkers(
-        g,
-        timelineMarkers,
-        yScale,
-        true,
-        innerWidth,
-        innerHeight,
-        (d) => fadeToMarker(g, d),
-        () => fadeReset(g),
-        timelineScale,
-        tooltip,
-        palette
-      );
-
-      if (timelineScale) {
-        renderTimeScale(
-          g,
-          yScale,
-          true,
-          innerWidth,
-          innerHeight,
-          textColor,
-          minDate,
-          maxDate,
-          formatBoundaryLabel(earliestStartDateStr, latestEndDateStr),
-          formatBoundaryLabel(latestEndDateStr, earliestStartDateStr)
-        );
-      }
-
-      // Group legend (pill style)
-      if (timelineGroups.length > 0) {
-        renderTimelineGroupLegend(
-          g,
-          timelineGroups,
-          groupColorMap,
-          textColor,
-          palette,
-          isDark,
-          -55,
-          (name) => fadeToGroup(g, name),
-          () => fadeReset(g)
-        );
-      }
-
-      g.append('line')
-        .attr('x1', axisX)
-        .attr('y1', 0)
-        .attr('x2', axisX)
-        .attr('y2', innerHeight)
-        .attr('stroke', mutedColor)
-        .attr('stroke-width', 1)
-        .attr('stroke-dasharray', '4,4');
-
-      for (const ev of sorted) {
-        const y = yScale(parseTimelineDate(ev.date));
-        const color = eventColor(ev);
-
-        const evG = g
-          .append('g')
-          .attr('class', 'tl-event')
-          .attr('data-group', ev.group || '')
-          .attr('data-line-number', String(ev.lineNumber))
-          .attr('data-date', String(parseTimelineDate(ev.date)))
-          .attr(
-            'data-end-date',
-            ev.endDate ? String(parseTimelineDate(ev.endDate)) : null
-          )
-          .style('cursor', 'pointer')
-          .on('mouseenter', function (event: MouseEvent) {
-            if (ev.group && timelineGroups.length > 0) fadeToGroup(g, ev.group);
-            showTooltip(tooltip, buildEventTooltipHtml(ev), event);
-          })
-          .on('mouseleave', function () {
-            fadeReset(g);
-            hideTooltip(tooltip);
-          })
-          .on('mousemove', function (event: MouseEvent) {
-            showTooltip(tooltip, buildEventTooltipHtml(ev), event);
-          })
-          .on('click', () => {
-            if (onClickItem && ev.lineNumber) onClickItem(ev.lineNumber);
-          });
-        setTagAttrs(evG, ev);
-
-        if (ev.endDate) {
-          const y2 = yScale(parseTimelineDate(ev.endDate));
-          const rectH = Math.max(y2 - y, 4);
-
-          let fill: string = shapeFill(palette, color, isDark, { solid });
-          let stroke: string = color;
-          if (ev.uncertain) {
-            const gradientId = `uncertain-v-${ev.lineNumber}`;
-            const strokeGradientId = `uncertain-v-s-${ev.lineNumber}`;
-            const defs = svg.select('defs').node() || svg.append('defs').node();
-            const defsEl = d3Selection.select(defs as Element);
-            defsEl
-              .append('linearGradient')
-              .attr('id', gradientId)
-              .attr('x1', '0%')
-              .attr('y1', '0%')
-              .attr('x2', '0%')
-              .attr('y2', '100%')
-              .selectAll('stop')
-              .data([
-                { offset: '0%', opacity: 1 },
-                { offset: '80%', opacity: 1 },
-                { offset: '100%', opacity: 0 },
-              ])
-              .enter()
-              .append('stop')
-              .attr('offset', (d) => d.offset)
-              .attr('stop-color', mix(color, bg, 30))
-              .attr('stop-opacity', (d) => d.opacity);
-            defsEl
-              .append('linearGradient')
-              .attr('id', strokeGradientId)
-              .attr('x1', '0%')
-              .attr('y1', '0%')
-              .attr('x2', '0%')
-              .attr('y2', '100%')
-              .selectAll('stop')
-              .data([
-                { offset: '0%', opacity: 1 },
-                { offset: '80%', opacity: 1 },
-                { offset: '100%', opacity: 0 },
-              ])
-              .enter()
-              .append('stop')
-              .attr('offset', (d) => d.offset)
-              .attr('stop-color', color)
-              .attr('stop-opacity', (d) => d.opacity);
-            fill = `url(#${gradientId})`;
-            stroke = `url(#${strokeGradientId})`;
-          }
-
-          evG
-            .append('rect')
-            .attr('x', axisX - 6)
-            .attr('y', y)
-            .attr('width', 12)
-            .attr('height', rectH)
-            .attr('rx', 4)
-            .attr('fill', fill)
-            .attr('stroke', stroke)
-            .attr('stroke-width', 2);
-          evG
-            .append('text')
-            .attr('x', axisX + 16)
-            .attr('y', y + rectH / 2)
-            .attr('dy', '0.35em')
-            .attr('fill', textColor)
-            .attr('font-size', '11px')
-            .text(ev.label);
-        } else {
-          evG
-            .append('circle')
-            .attr('cx', axisX)
-            .attr('cy', y)
-            .attr('r', 4)
-            .attr('fill', shapeFill(palette, color, isDark, { solid }))
-            .attr('stroke', color)
-            .attr('stroke-width', 2);
-          evG
-            .append('text')
-            .attr('x', axisX + 16)
-            .attr('y', y)
-            .attr('dy', '0.35em')
-            .attr('fill', textColor)
-            .attr('font-size', '11px')
-            .text(ev.label);
-        }
-
-        // Date label to the left
-        evG
-          .append('text')
-          .attr('x', axisX - 14)
-          .attr(
-            'y',
-            ev.endDate
-              ? yScale(parseTimelineDate(ev.date)) +
-                  Math.max(
-                    yScale(parseTimelineDate(ev.endDate)) -
-                      yScale(parseTimelineDate(ev.date)),
-                    4
-                  ) /
-                    2
-              : y
-          )
-          .attr('dy', '0.35em')
-          .attr('text-anchor', 'end')
-          .attr('fill', mutedColor)
-          .attr('font-size', '10px')
-          .text(ev.date + (ev.endDate ? `→${ev.endDate}` : ''));
-      }
-    }
-
-    return; // vertical done
+    renderTimelineVertical(
+      container,
+      parsed,
+      palette,
+      isDark,
+      setup,
+      hovers,
+      onClickItem,
+      exportDims,
+      swimlaneTagGroup,
+      activeTagGroup,
+      onTagStateChange,
+      viewMode
+    );
+    return;
   }
 
   // ================================================================
