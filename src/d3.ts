@@ -3692,74 +3692,45 @@ function setupTimeline(
   };
 }
 
+// ============================================================
+// Timeline — hover helpers (extracted from renderTimeline)
+// ============================================================
+
+type TimelineHoverHelpers = {
+  FADE_OPACITY: number;
+  fadeToGroup: (
+    g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
+    groupName: string
+  ) => void;
+  fadeToEra: (
+    g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
+    eraStart: number,
+    eraEnd: number
+  ) => void;
+  fadeToMarker: (
+    g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
+    markerDate: number
+  ) => void;
+  fadeReset: (
+    g: d3Selection.Selection<SVGGElement, unknown, null, undefined>
+  ) => void;
+  fadeToTagValue: (
+    g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
+    tagKey: string,
+    tagValue: string
+  ) => void;
+  setTagAttrs: (
+    evG: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
+    ev: TimelineEvent
+  ) => void;
+};
+
 /**
- * Renders a timeline chart into the given container using D3.
- * Supports horizontal (default) and vertical orientation.
+ * Shared hover helpers for timeline rendering. Operate on CSS classes,
+ * orientation-agnostic. Used by all three rendering branches.
  */
-export function renderTimeline(
-  container: HTMLDivElement,
-  parsed: ParsedVisualization,
-  palette: PaletteColors,
-  isDark: boolean,
-  onClickItem?: (lineNumber: number) => void,
-  exportDims?: D3ExportDimensions,
-  activeTagGroup?: string | null,
-  swimlaneTagGroup?: string | null,
-  onTagStateChange?: (
-    activeTagGroup: string | null,
-    swimlaneTagGroup: string | null
-  ) => void,
-  viewMode?: boolean
-): void {
-  const setup = setupTimeline(
-    container,
-    parsed,
-    palette,
-    isDark,
-    exportDims,
-    activeTagGroup,
-    swimlaneTagGroup
-  );
-  if (!setup) return;
-  swimlaneTagGroup = setup.swimlaneTagGroup;
-
-  const {
-    isVertical,
-    solid,
-    width,
-    height,
-    tooltip,
-    textColor,
-    mutedColor,
-    bgColor,
-    bg,
-    groupColorMap,
-    tagLanes,
-    eventColor,
-    minDate,
-    maxDate,
-    datePadding,
-    earliestStartDateStr,
-    latestEndDateStr,
-    tagLegendReserve,
-  } = setup;
-
-  const {
-    timelineEvents,
-    timelineGroups,
-    timelineEras,
-    timelineMarkers,
-    timelineSort,
-    timelineScale,
-    timelineSwimlanes,
-  } = parsed;
-  const title = parsed.noTitle ? null : parsed.title;
-
+function makeTimelineHoverHelpers(): TimelineHoverHelpers {
   const FADE_OPACITY = 0.1;
-
-  // ------------------------------------------------------------------
-  // Shared hover helpers (operate on CSS classes, orientation-agnostic)
-  // ------------------------------------------------------------------
 
   function fadeToGroup(
     g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
@@ -3863,11 +3834,10 @@ export function renderTimeline(
       'opacity',
       FADE_OPACITY
     );
-    // Fade legend entry dots/labels that don't match (keep group pill visible)
     g.selectAll<SVGGElement, unknown>('.tl-tag-legend-entry').each(function () {
       const el = d3Selection.select(this);
       const entryValue = el.attr('data-legend-entry');
-      if (entryValue === '__group__') return; // keep group pill at full opacity
+      if (entryValue === '__group__') return;
       const entryGroup = el.attr('data-tag-group');
       el.attr(
         'opacity',
@@ -3885,6 +3855,90 @@ export function renderTimeline(
       evG.attr(`data-tag-${key}`, value.toLowerCase());
     }
   }
+
+  return {
+    FADE_OPACITY,
+    fadeToGroup,
+    fadeToEra,
+    fadeToMarker,
+    fadeReset,
+    fadeToTagValue,
+    setTagAttrs,
+  };
+}
+
+/**
+ * Renders a timeline chart into the given container using D3.
+ * Supports horizontal (default) and vertical orientation.
+ */
+export function renderTimeline(
+  container: HTMLDivElement,
+  parsed: ParsedVisualization,
+  palette: PaletteColors,
+  isDark: boolean,
+  onClickItem?: (lineNumber: number) => void,
+  exportDims?: D3ExportDimensions,
+  activeTagGroup?: string | null,
+  swimlaneTagGroup?: string | null,
+  onTagStateChange?: (
+    activeTagGroup: string | null,
+    swimlaneTagGroup: string | null
+  ) => void,
+  viewMode?: boolean
+): void {
+  const setup = setupTimeline(
+    container,
+    parsed,
+    palette,
+    isDark,
+    exportDims,
+    activeTagGroup,
+    swimlaneTagGroup
+  );
+  if (!setup) return;
+  swimlaneTagGroup = setup.swimlaneTagGroup;
+
+  const {
+    isVertical,
+    solid,
+    width,
+    height,
+    tooltip,
+    textColor,
+    mutedColor,
+    bgColor,
+    bg,
+    groupColorMap,
+    tagLanes,
+    eventColor,
+    minDate,
+    maxDate,
+    datePadding,
+    earliestStartDateStr,
+    latestEndDateStr,
+    tagLegendReserve,
+  } = setup;
+
+  const {
+    timelineEvents,
+    timelineGroups,
+    timelineEras,
+    timelineMarkers,
+    timelineSort,
+    timelineScale,
+    timelineSwimlanes,
+  } = parsed;
+  const title = parsed.noTitle ? null : parsed.title;
+
+  const {
+    FADE_OPACITY,
+    fadeToGroup,
+    fadeToEra,
+    fadeToMarker,
+    fadeReset,
+    fadeToTagValue,
+    setTagAttrs,
+  } = makeTimelineHoverHelpers();
 
   // ================================================================
   // VERTICAL orientation (time flows top→bottom)
