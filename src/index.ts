@@ -13,12 +13,15 @@ import { render as renderInternal } from './render';
 import {
   encodeDiagramUrl as encodeDiagramUrlInternal,
   decodeDiagramUrl as decodeDiagramUrlInternal,
+  type CompactViewState,
 } from './sharing';
 import { parseDgmo as validate } from './dgmo-router';
 import { palettes, getPalette } from './palettes';
 import type { PaletteConfig } from './palettes/types';
 import type { Theme } from './themes';
 import { formatDgmoError, type DgmoError } from './diagnostics';
+
+export type { CompactViewState } from './sharing';
 
 // ============================================================
 // render(text, options?)
@@ -34,6 +37,12 @@ export interface RenderOptions {
    *   'throw'  — throw an Error with the diagnostics
    */
   onError?: 'svg' | 'silent' | 'throw';
+  /**
+   * Pre-applied interactive view state — collapsed sections/columns,
+   * active swimlane tag-group, etc. Used to render a specific view
+   * non-interactively (server-side render, share-link decode).
+   */
+  viewState?: CompactViewState;
 }
 
 export interface RenderResult {
@@ -65,6 +74,7 @@ export async function render(
   const result = await renderInternal(text, {
     theme: options?.theme,
     palette: palette.id,
+    viewState: options?.viewState,
   });
 
   const errors = result.diagnostics.filter((d) => d.severity === 'error');
@@ -139,6 +149,11 @@ export interface EncodeDiagramUrlOptions {
   palette?: PaletteConfig;
   theme?: Theme;
   filename?: string;
+  /**
+   * Initial view state to embed in the URL — re-applied when the link is
+   * decoded so recipients open the diagram in the same configuration.
+   */
+  viewState?: CompactViewState;
 }
 
 /**
@@ -158,6 +173,7 @@ export function encodeDiagramUrl(
     palette: options?.palette?.id,
     theme: internalTheme,
     filename: options?.filename,
+    viewState: options?.viewState,
   });
   return 'error' in result && result.error ? null : (result.url ?? null);
 }
