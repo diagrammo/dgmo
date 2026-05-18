@@ -710,7 +710,20 @@ const svg = await renderExtendedChartForExport(content, 'light');
 
 Both accept an optional third argument for a custom `PaletteColors` object (defaults to Nord).
 
-## API overview
+## API tiers
+
+`@diagrammo/dgmo` ships three import paths with different stability contracts:
+
+| Path | Surface | SemVer contract |
+|------|---------|-----------------|
+| `@diagrammo/dgmo` | `render`, `validate`, `encodeDiagramUrl`, `decodeDiagramUrl`, `palettes`, `getPalette`, `themes`, plus the `RenderOptions`, `RenderResult`, `CompactViewState`, `PaletteConfig`, `PaletteColors`, `Theme`, `DgmoError` types | **Stable.** Breaking changes only in major versions. Pin `^0.x` (or `^1.x` once we hit 1.0). |
+| `@diagrammo/dgmo/highlight` | `highlightDgmo`, `NORD_ROLE_STYLES` and other role-style sets | **Stable.** Same policy as root. |
+| `@diagrammo/dgmo/editor` | CodeMirror grammar + language support | **Stable.** Same policy as root. |
+| `@diagrammo/dgmo/advanced` | Parsers (`parseChart`, `parseVisualization`, `parseSequenceDgmo`, …), layout helpers, config builders, low-level renderers, palette-color utilities, sequence internals — see the table below | **Reduced semver.** Symbols may be renamed, signatures may change, or exports may be removed in **minor** versions. Patch versions only fix bugs. Pin `~0.x.y` if you depend on `/advanced`. |
+
+The `@diagrammo/dgmo/internal` subpath was renamed to `/advanced` in 0.15.x and exists as a re-export alias for one minor version. It will be removed in 0.17.x — update your imports to `/advanced` before then.
+
+## /advanced exports
 
 ### Router
 
