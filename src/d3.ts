@@ -3481,25 +3481,51 @@ function renderTimelineGroupLegend(
   }
 }
 
+// ============================================================
+// Timeline — setup helper (extracted from renderTimeline)
+// ============================================================
+
+type Lane = { name: string; events: TimelineEvent[] };
+
+type TimelineSetup = {
+  width: number;
+  height: number;
+  isVertical: boolean;
+  tooltip: HTMLDivElement;
+  solid: boolean;
+  textColor: string;
+  mutedColor: string;
+  bgColor: string;
+  bg: string;
+  swimlaneTagGroup: string | null;
+  groupColorMap: Map<string, string>;
+  tagLanes: Lane[] | null;
+  eventColor: (ev: TimelineEvent) => string;
+  minDate: number;
+  maxDate: number;
+  datePadding: number;
+  earliestStartDateStr: string;
+  latestEndDateStr: string;
+  tagLegendReserve: number;
+};
+
 /**
- * Renders a timeline chart into the given container using D3.
- * Supports horizontal (default) and vertical orientation.
+ * Computes layout context (dimensions, colors, date domain, tag lanes,
+ * event-color resolver) for a timeline before the orientation-specific
+ * rendering branch runs. Returns null when there is nothing to render
+ * (empty events or zero-sized container).
+ *
+ * Side effects: clears the container and creates the tooltip element.
  */
-export function renderTimeline(
+function setupTimeline(
   container: HTMLDivElement,
   parsed: ParsedVisualization,
   palette: PaletteColors,
   isDark: boolean,
-  onClickItem?: (lineNumber: number) => void,
-  exportDims?: D3ExportDimensions,
-  activeTagGroup?: string | null,
-  swimlaneTagGroup?: string | null,
-  onTagStateChange?: (
-    activeTagGroup: string | null,
-    swimlaneTagGroup: string | null
-  ) => void,
-  viewMode?: boolean
-): void {
+  exportDims: D3ExportDimensions | undefined,
+  activeTagGroup: string | null | undefined,
+  swimlaneTagGroup: string | null | undefined
+): TimelineSetup | null {
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
   const solid = parsed.solidFill === true;
 
@@ -3509,55 +3535,46 @@ export function renderTimeline(
     timelineEras,
     timelineMarkers,
     timelineSort,
-    timelineScale,
-    timelineSwimlanes,
     orientation,
   } = parsed;
-  const title = parsed.noTitle ? null : parsed.title;
-  if (timelineEvents.length === 0) return;
+  if (timelineEvents.length === 0) return null;
 
-  // When sort: tag is set and no explicit swimlane param, use the default
+  let resolvedSwimlaneTG: string | null = swimlaneTagGroup ?? null;
   if (
-    swimlaneTagGroup == null &&
+    resolvedSwimlaneTG == null &&
     timelineSort === 'tag' &&
     parsed.timelineDefaultSwimlaneTG
   ) {
-    swimlaneTagGroup = parsed.timelineDefaultSwimlaneTG;
+    resolvedSwimlaneTG = parsed.timelineDefaultSwimlaneTG;
   }
 
   const tooltip = createTooltip(container, palette, isDark);
 
   const width = exportDims?.width ?? container.clientWidth;
   const height = exportDims?.height ?? container.clientHeight;
-  if (width <= 0 || height <= 0) return;
+  if (width <= 0 || height <= 0) return null;
 
   const isVertical = orientation === 'vertical';
 
-  // Theme colors
   const textColor = palette.text;
   const mutedColor = palette.border;
   const bgColor = palette.bg;
   const bg = isDark ? palette.surface : palette.bg;
   const colors = getSeriesColors(palette);
 
-  // Assign colors to groups
   const groupColorMap = new Map<string, string>();
   timelineGroups.forEach((grp, i) => {
     groupColorMap.set(grp.name, grp.color ?? colors[i % colors.length]);
   });
 
-  // When tag-based swimlanes are active, compute lanes from tag values
-  // and populate groupColorMap with tag entry colors for lane headers.
-  type Lane = { name: string; events: TimelineEvent[] };
   let tagLanes: Lane[] | null = null;
 
-  if (swimlaneTagGroup) {
-    const tagKey = swimlaneTagGroup.toLowerCase();
+  if (resolvedSwimlaneTG) {
+    const tagKey = resolvedSwimlaneTG.toLowerCase();
     const tagGroup = parsed.timelineTagGroups.find(
       (g) => g.name.toLowerCase() === tagKey
     );
     if (tagGroup) {
-      // Collect events per tag value
       const buckets = new Map<string, TimelineEvent[]>();
       const otherEvents: TimelineEvent[] = [];
       for (const ev of timelineEvents) {
@@ -3571,7 +3588,6 @@ export function renderTimeline(
         }
       }
 
-      // Order lanes by earliest event date
       const laneEntries = [...buckets.entries()].sort((a, b) => {
         const aMin = Math.min(...a[1].map((e) => parseTimelineDate(e.date)));
         const bMin = Math.min(...b[1].map((e) => parseTimelineDate(e.date)));
@@ -3583,18 +3599,15 @@ export function renderTimeline(
         tagLanes.push({ name: '(Other)', events: otherEvents });
       }
 
-      // Populate groupColorMap from tag entry colors
       for (const entry of tagGroup.entries) {
         groupColorMap.set(entry.value, entry.color);
       }
     }
   }
 
-  // Determine effective color source: explicit colorTG > swimlaneTG > group
-  const effectiveColorTG = activeTagGroup ?? swimlaneTagGroup ?? null;
+  const effectiveColorTG = activeTagGroup ?? resolvedSwimlaneTG ?? null;
 
   function eventColor(ev: TimelineEvent): string {
-    // Tag color takes priority when a tag group is active
     if (effectiveColorTG) {
       const tagColor = resolveTagColor(
         ev.metadata,
@@ -3609,7 +3622,6 @@ export function renderTimeline(
     return textColor;
   }
 
-  // Convert dates to numeric values and find boundary dates
   let minDate = Infinity;
   let maxDate = -Infinity;
   let earliestStartDateStr = '';
@@ -3629,8 +3641,6 @@ export function renderTimeline(
     }
   }
 
-  // Eras and markers anchor the time axis — fold their dates into the
-  // domain so out-of-range items still render within the chart.
   for (const era of timelineEras) {
     const eraStartNum = parseTimelineDate(era.startDate);
     const eraEndNum = parseTimelineDate(era.endDate);
@@ -3656,6 +3666,94 @@ export function renderTimeline(
     }
   }
   const datePadding = (maxDate - minDate) * 0.05 || 0.5;
+
+  const tagLegendReserve = parsed.timelineTagGroups.length > 0 ? 36 : 0;
+
+  return {
+    width,
+    height,
+    isVertical,
+    tooltip,
+    solid,
+    textColor,
+    mutedColor,
+    bgColor,
+    bg,
+    swimlaneTagGroup: resolvedSwimlaneTG,
+    groupColorMap,
+    tagLanes,
+    eventColor,
+    minDate,
+    maxDate,
+    datePadding,
+    earliestStartDateStr,
+    latestEndDateStr,
+    tagLegendReserve,
+  };
+}
+
+/**
+ * Renders a timeline chart into the given container using D3.
+ * Supports horizontal (default) and vertical orientation.
+ */
+export function renderTimeline(
+  container: HTMLDivElement,
+  parsed: ParsedVisualization,
+  palette: PaletteColors,
+  isDark: boolean,
+  onClickItem?: (lineNumber: number) => void,
+  exportDims?: D3ExportDimensions,
+  activeTagGroup?: string | null,
+  swimlaneTagGroup?: string | null,
+  onTagStateChange?: (
+    activeTagGroup: string | null,
+    swimlaneTagGroup: string | null
+  ) => void,
+  viewMode?: boolean
+): void {
+  const setup = setupTimeline(
+    container,
+    parsed,
+    palette,
+    isDark,
+    exportDims,
+    activeTagGroup,
+    swimlaneTagGroup
+  );
+  if (!setup) return;
+  swimlaneTagGroup = setup.swimlaneTagGroup;
+
+  const {
+    isVertical,
+    solid,
+    width,
+    height,
+    tooltip,
+    textColor,
+    mutedColor,
+    bgColor,
+    bg,
+    groupColorMap,
+    tagLanes,
+    eventColor,
+    minDate,
+    maxDate,
+    datePadding,
+    earliestStartDateStr,
+    latestEndDateStr,
+    tagLegendReserve,
+  } = setup;
+
+  const {
+    timelineEvents,
+    timelineGroups,
+    timelineEras,
+    timelineMarkers,
+    timelineSort,
+    timelineScale,
+    timelineSwimlanes,
+  } = parsed;
+  const title = parsed.noTitle ? null : parsed.title;
 
   const FADE_OPACITY = 0.1;
 
@@ -3787,9 +3885,6 @@ export function renderTimeline(
       evG.attr(`data-tag-${key}`, value.toLowerCase());
     }
   }
-
-  // Reserve space for tag legend at the top of chart content (below title/headers)
-  const tagLegendReserve = parsed.timelineTagGroups.length > 0 ? 36 : 0;
 
   // ================================================================
   // VERTICAL orientation (time flows top→bottom)
