@@ -418,25 +418,21 @@ export function injectDefaultTagMetadata(
  *
  * 1. Programmatic override (from render API / CLI flag) — highest priority
  * 2. Diagram-level `active-tag` option (from parsed source)
- * 3. No coloring (null) — collapsed-by-default
+ * 3. Auto-activate first declared tag group
+ * 4. No coloring (null)
  *
  * The sentinel value `"none"` (case-insensitive) at any level means
- * "suppress tag coloring."
+ * "suppress tag coloring." Diagrams with tag groups render colored by
+ * default across every render path (CLI, export, share-link, app); use
+ * `active-tag none` to opt out.
  *
- * Note: there is no auto-activate-first-group fallback. Coloring is
- * opt-in: either the source carries `active-tag <name>` or the caller
- * (typically the app on user click) supplies a programmatic override.
- * Static exports therefore render the legend as a row of collapsed
- * pills with nodes uncolored — consistent with the app's pre-click
- * default.
- *
- * @param _tagGroups    Declared tag groups (kept for API stability; unused since auto-activation removed)
+ * @param tagGroups     Declared tag groups (only `.name` is used)
  * @param explicitActiveTag  Value of `active-tag` option from parsed diagram, if any
  * @param programmaticOverride  Value from render API / CLI; `undefined` = not set,
  *                              `null` or `''` = explicitly no coloring
  */
 export function resolveActiveTagGroup(
-  _tagGroups: ReadonlyArray<{ name: string }>,
+  tagGroups: ReadonlyArray<{ name: string }>,
   explicitActiveTag: string | undefined,
   programmaticOverride?: string | null
 ): string | null {
@@ -453,7 +449,10 @@ export function resolveActiveTagGroup(
     return explicitActiveTag;
   }
 
-  // 3. No explicit activation → no coloring (collapsed-by-default)
+  // 3. Auto-activate first declared group
+  if (tagGroups.length > 0) return tagGroups[0].name;
+
+  // 4. No tag groups → no coloring
   return null;
 }
 

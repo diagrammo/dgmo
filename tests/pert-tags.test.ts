@@ -213,25 +213,28 @@ describe('PERT tag rendering', () => {
     expect(svg).toContain('data-legend-group="crew"');
   });
 
-  it('no `active-tag` directive → no node middle-band fill rect', () => {
-    // Without an active tag group, resolveTagColor returns undefined
-    // and the renderer skips the midBandFill rect entirely. Crit-band
-    // and base card fills still render as usual.
-    const svgNoActive = render(
+  it('no `active-tag` directive → auto-activates first declared group', () => {
+    // Without an explicit directive, resolveActiveTagGroup auto-activates
+    // the first declared tag group → coloring is on by default. Use
+    // `active-tag none` to opt out.
+    const svgImplicit = render(
       `pert\n` +
         `tag Crew as c\n  Captain(red)\n  Bosun(orange)\n\n` +
         `task A 1 2 4 | c: Captain`
     );
-    const svgActive = render(
+    const svgExplicit = render(
       `pert\nactive-tag Crew\n` +
         `tag Crew as c\n  Captain(red)\n  Bosun(orange)\n\n` +
         `task A 1 2 4 | c: Captain`
     );
-    // Both render the same node count, but only the active-tag variant
-    // triggers tag coloring → at least one extra <rect> attribute path
-    // (data-legend-active="crew") appears in the legend.
-    expect(svgActive).toContain('data-legend-active="crew"');
-    expect(svgNoActive).not.toContain('data-legend-active="crew"');
+    const svgOptOut = render(
+      `pert\nactive-tag none\n` +
+        `tag Crew as c\n  Captain(red)\n  Bosun(orange)\n\n` +
+        `task A 1 2 4 | c: Captain`
+    );
+    expect(svgImplicit).toContain('data-legend-active="crew"');
+    expect(svgExplicit).toContain('data-legend-active="crew"');
+    expect(svgOptOut).not.toContain('data-legend-active="crew"');
   });
 
   it('milestone activity gets a data-tag attribute too', () => {

@@ -129,17 +129,16 @@ Alice -hello-> Bob`;
     document.body.removeChild(container);
   });
 
-  it('no auto-activation when activeTagGroup is omitted (collapsed-by-default per spec §1.3)', () => {
+  it('auto-activates first tag group when activeTagGroup is omitted', () => {
     const parsed = parseSequenceDgmo(src);
     const container = document.createElement('div');
     document.body.appendChild(container);
     renderSequenceDiagram(container, parsed, palette, false, undefined, {
       exportWidth: 800,
     });
-    // Coloring is opt-in: no group becomes active without an explicit
-    // `active-tag` directive or programmatic override.
-    const legend = container.querySelector('[data-legend-active]');
-    expect(legend?.getAttribute('data-legend-active')).toBeFalsy();
+    // First declared group becomes active when no explicit override
+    // or `active-tag` directive is provided.
+    assertLegendActive(container, 'REGION');
     document.body.removeChild(container);
   });
 });
