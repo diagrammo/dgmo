@@ -9,6 +9,9 @@
   },
   "homepage": "https://github.com/diagrammo/dgmo#readme",
   "type": "module",
+  "engines": {
+    "node": ">=20.6"
+  },
   "bin": {
     "dgmo": "dist/cli.cjs"
   },
