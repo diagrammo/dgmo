@@ -2,15 +2,15 @@ sitemap Grand Slam Tickets
 direction-tb
 
 tag Auth
-  Public(green)
-  Required(blue)
-  Admin(red)
+  Public green
+  Required blue
+  Admin red
 
 tag Type
-  Landing(purple)
-  Form(orange)
-  Content(cyan)
-  Transactional(yellow)
+  Landing purple
+  Form orange
+  Content cyan
+  Transactional yellow
 
 Home
   Auth: Public

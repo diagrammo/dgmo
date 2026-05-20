@@ -59,14 +59,15 @@ These patterns are shared across all or most diagram types.
 
 ```
 tag GroupName as <alias>
-  Value1(color)
-  Value2(color) [default]
+  Value1 color
+  Value2 color
 ```
 
 - `tag` keyword, NO colon
 - Alias: optional postfix `as <alias>` per §2A (universal alias syntax — `[A-Za-z][A-Za-z0-9_]{0,11}`)
-- Inline values also supported: `tag Priority as p Low(green), High(red)`
-- First entry is default unless another is marked `default`
+- Inline values also supported: `tag Priority as p Low green, High red`
+- Color follows the value as a bare trailing token (see §1.5). Capitalize the color word (`Red`, `Yellow`) to keep it as a literal value with no color.
+- First entry is the default — reorder to change
 - Must appear before diagram content
 - Legacy bare shorthand (`tag Priority p`) and `alias` keyword (`tag Priority alias p`) emit `E_TAG_SHORTHAND_REMOVED` per TD-18
 
@@ -85,15 +86,36 @@ EntityName | key: value, key2: value2
 
 ### 1.5 Color Suffixes
 
+Color is set by typing the color name at the end of a label, lowercase. Example: `Done green` colors Done green. Eleven colors exist: `red`, `orange`, `yellow`, `green`, `blue`, `purple`, `teal`, `cyan`, `gray`, `black`, `white`. To use a color word as a literal label, capitalize it: `Red` stays as the word `Red`.
+
 ```
-Label(colorName)
+Label color           // bare trailing color token
+Done green            // value=Done, color=green
+Senior Engineer red   // value="Senior Engineer", color=red
+Red                   // value=Red, no color (capitalized → escape hatch)
 ```
 
-- **Allowed color names (exactly these 10):** `red`, `orange`, `yellow`, `green`, `blue`, `purple`, `teal`, `cyan`, `lightblue`, `gray`
-- Any other value — including hex codes (`#ff0000`), CSS keywords (`black`, `white`, `pink`), or typos — is a parse error and produces an inline diagnostic in the editor (with a "did you mean?" suggestion when close to a known name)
-- The actual hex value rendered for each name comes from the active palette/theme; users cannot extend or override the allowed list
-- Appears at end of labels, node names, tag values, series names
-- Color is stripped from display text
+**The universal rule** — color trails the label:
+
+> Color is the trailing whitespace-delimited token of a label region, when that token (case-sensitive, lowercase) is one of the 11 names above. Otherwise the label region has no color.
+
+The "label region" is everything left after the parser strips off structural terminators it owns: `as <alias>`, `| <pipe metadata>`, numeric values, date ranges, structural brackets. Parsers split those off BEFORE invoking the color rule. So `Tortuga Distillery orange 3000` → `{ label: "Tortuga Distillery", color: "orange", value: 3000 }`: numeric value first, then the color trails the remaining label.
+
+**Where the rule applies**: tag values, kanban columns (`[Done] green`), venn / quadrant items (color before `as`), gantt / timeline eras and markers, data-chart series + rows, sankey nodes + link lines, cycle / pyramid / ring / RACI / boxes-and-lines node labels (shortcut for `| color: <name>` when color is the only metadata).
+
+**Long form preserved for multi-key pipe metadata**:
+
+```
+Spring | color: green                 // shortcut and long form are equivalent
+Spring | color: green, icon: ❄        // long form REQUIRED when other keys accompany color
+```
+
+**Accepted tradeoffs**:
+
+- **No typo diagnostics**: `Done grren` is a 2-word label with no color, no warning.
+- **Case-sensitivity is the escape hatch**: `Red`, `Yellow`, `Green` stay as labels.
+- **No edge color** on flowchart, state, sitemap. Sankey links DO accept a trailing color word after the numeric value.
+- **11-name palette is a frozen public contract**: adding a 12th color is itself a breaking change.
 
 ### 1.6 Indentation
 
@@ -104,12 +126,12 @@ Label(colorName)
 
 ```
 [Group Name]
-[Group Name](color)
+[Group Name] color
 [Group Name] | key: value
 ```
 
 - Bracket-enclosed name
-- Optional color suffix
+- Optional trailing-token color (kanban columns, scatter categories, era/marker labels)
 - Optional pipe metadata (outside brackets)
 - Indented content below belongs to the group
 
@@ -162,7 +184,7 @@ A -日本語-> B
 A -🎉-> B
 
 // punctuation is literal — no markdown interpretation
-A -(parenthetical)-> B      // label = "(parenthetical)"  (NOT a color)
+A -(parenthetical)-> B      // label = "(parenthetical)"
 A -*emphasis*-> B           // label = "*emphasis*"       (NOT bold)
 A -`code`-> B               // label = "`code`"           (NOT a code span)
 
@@ -185,23 +207,21 @@ A -Makes calls-> B | tech: HTTP   // preferred: technology on target metadata
 - **Plain text only**: no markdown interpretation. `*foo*` renders as `*foo*`, not italicized. `[label](url)` renders as literal `[label](url)`, not a hyperlink. Clickable URLs belong in notes, not in in-arrow labels.
 - **HTML-safe**: all renderers emit label text as a DOM text node. `<script>alert(1)</script>` renders as literal text — the entire label is a sequence of codepoints, not a markup fragment.
 
-#### Color suffix (flowchart and state only)
+#### Edge color is not a feature
+
+Edges on flowchart, state, and sitemap diagrams have NO color slot. `A -(red)-> B` is a literal label with text `(red)`; `A -yes-> B` and `A -no-> B` no longer auto-color the arrow. Arrows render with the default theme color, period. To color a *node*, use tags (§1.3).
+
+Sankey link lines DO accept a trailing-token color, because the link itself carries data:
 
 ```
-A -(red)-> B         // colored edge, no label
-A -(notacolor)-> B   // label = "(notacolor)" (fall-through)
-A -(red) uses-> B    // label = "(red) uses" (combined form not supported)
-A -red-> B           // label = "red" (bare word is always a label)
+Sugar Plantations -> Tortuga Distillery 3000 red    // link is colored red
 ```
-
-A parenthesized palette color is only recognized when the entire label between the opening `-` and the arrow token is exactly `(colorName)` and `colorName` is one of the 11 names in §1.5. Any other content falls through to the label. To combine a color and a label, use the post-colon or pipe-metadata form instead.
 
 #### Migrating from pre-gauntlet syntax
 
-Two legacy forms changed with this spec:
+One legacy form changed with this spec:
 
 1. **C4 trailing `[technology]` sugar is removed.** A C4 arrow like `-Makes calls [HTTPS]-> API` used to extract `HTTPS` as the technology annotation. The full `Makes calls [HTTPS]` is now the label. Use the post-colon or pipe form for technology: `-Makes calls-> API | tech: HTTPS`.
-2. **Bare palette color suffixes are a literal label.** `A -red-> B` on flowchart/state used to be accepted as a bare color suffix in some surfaces. It is now always a label with text `red`. To color an edge, use the `-(red)->` parens form.
 
 No code migration is required for in-arrow label character escaping — any label that was valid before remains valid, with one exception: if your label happened to contain the literal substring `->` or `~>`, the parser now rejects it with `E_ARROW_SUBSTRING_IN_LABEL`. Move those labels to the post-colon form.
 
@@ -290,8 +310,8 @@ b -ack-> a
 
 ```
 venn
-Swordsmanship(red) as sw
-Navigation(blue) as nav
+Swordsmanship red as sw
+Navigation blue as nav
 sw + nav Sea Raiders
 ```
 
@@ -304,7 +324,7 @@ tag Concern as c
 
 - **Token shape**: `[A-Za-z][A-Za-z0-9_]{0,11}` — letter start,
   letters/digits/underscore, length 1–12. **Case-sensitive**.
-- **Modifier order on declarations**: `<name> [(color)] [is a type] as <alias> [| key: value, …]`.
+- **Modifier order on declarations**: `<name> [color] [is a type] as <alias> [| key: value, …]`.
 - **Strict ordering**: aliases must be declared on or before first use.
 - **Flat global namespace**: one alias literal has exactly one binding per source.
 - **Aliases are NEVER UNH-normalized** — exact-match short-codes only.
@@ -328,7 +348,7 @@ rarely benefit. Aliases should aid comprehension, not obscure it.
 |-----|-----|
 | `tag Priority p` (bare shorthand) | `tag Priority as p` |
 | `tag Priority alias p` (explicit) | `tag Priority as p` |
-| `Swordsmanship(red) alias sw` (venn) | `Swordsmanship(red) as sw` |
+| `Swordsmanship red alias sw` (venn) | `Swordsmanship red as sw` |
 
 ### 2A.6 Error Codes
 
@@ -644,7 +664,7 @@ flowchart [Title]
 | Subroutine | `[[Label]]` | `[[Validate]]` |
 | Document | `[Label~]` | `[Report~]` |
 
-- Color suffix: `(Start(green))`
+- Node coloring: use tags (§1.3) — flowchart nodes have no color suffix
 
 ### 4.3 Arrows
 
@@ -652,8 +672,6 @@ flowchart [Title]
 |------|--------|
 | Unlabeled | `->` |
 | Labeled | `-label->` |
-| Colored | `-(color)->` |
-| Labeled + colored | `-label(color)->` |
 
 - Color inference: `yes/success/ok/true` infers green; `no/fail/error/false` infers red
 
@@ -695,7 +713,7 @@ state [Title]
 
 ```
 StateName
-StateName(color)
+StateName color
 [*]                    // initial/final pseudostate
 ```
 
@@ -705,13 +723,12 @@ StateName(color)
 |------|--------|
 | Unlabeled | `Idle -> Active` |
 | Labeled | `Idle -submit-> Processing` |
-| Colored | `Idle -(blue)-> Active` |
 
 ### 5.4 Groups
 
 ```
 [Group Name]
-[Group Name](color)
+[Group Name] color
 ```
 
 ### 5.5 Options
@@ -742,7 +759,7 @@ CEO
   CFO
 ```
 
-- Color suffix: `Alice(blue)`
+- Node coloring: per-node indented metadata `\n  color: blue` (deferred to a follow-up spec; tag groups inside org also work)
 - Pipe metadata: `Alice | role: CEO, t: Exec`
 
 ### 6.3 Metadata (Indented, Colon REQUIRED)
@@ -863,7 +880,7 @@ er [Title]
 
 ```
 users
-users(blue)
+users blue
 users | domain: Core
 ```
 
@@ -986,7 +1003,7 @@ Columns represent workflow stages and must flow left-to-right from least-done to
 
 ```
 [Column Name]
-[Column Name](color) | wip: 3
+[Column Name] color | wip: 3
 ```
 
 ### 10.3 Cards (Indented Under Columns)
@@ -1118,14 +1135,14 @@ Top-level directive (not nested under `holiday`).
 
 **Flat form:**
 ```
-era 2026-04-06 -> 2026-04-10 Conference (purple)
+era 2026-04-06 -> 2026-04-10 Conference purple
 ```
 
 **Block form:**
 ```
 era
-  2026-04-06 -> 2026-04-10 Conference (purple)
-  2026-06-01 -> 2026-06-05 Sprint Review (blue)
+  2026-04-06 -> 2026-04-10 Conference purple
+  2026-06-01 -> 2026-06-05 Sprint Review blue
 ```
 
 ### 12.6 Markers
@@ -1139,7 +1156,7 @@ marker 2026-03-27 Board Review
 ```
 marker
   2026-03-27 Board Review
-  2026-06-15 Release (green)
+  2026-06-15 Release green
 ```
 
 ### 12.7 Groups (Swimlanes)
@@ -1322,21 +1339,21 @@ era 1716 -> 1718 Nassau Republic
 ```
 era
   1716 -> 1718 Nassau Republic
-  1718 -> 1720 Woodes Rogers Era (orange)
+  1718 -> 1720 Woodes Rogers Era orange
 ```
 
 ### 14.4 Markers
 
 **Flat form:**
 ```
-marker 1718-07 Woodes Rogers arrives (orange)
+marker 1718-07 Woodes Rogers arrives orange
 ```
 
 **Block form:**
 ```
 marker
-  1718-07 Woodes Rogers arrives (orange)
-  1720-01 End of Golden Age (red)
+  1718-07 Woodes Rogers arrives orange
+  1720-01 End of Golden Age red
 ```
 
 ### 14.5 Groups
@@ -1365,11 +1382,11 @@ Q1 400, 700, 300, 500  ⚠  tolerated; use spaces
 
 ```
 series                            ✅  preferred
-  Cloud Platform (blue)
-  Legacy Suite (red)
-  Mobile App (green)
+  Cloud Platform blue
+  Legacy Suite red
+  Mobile App green
 
-series Cloud (blue), Legacy (red) ⚠  tolerated; prefer the block
+series Cloud blue, Legacy red ⚠  tolerated; prefer the block
 ```
 
 Parsers accept either form. The rules above are authoring guidance.
@@ -1381,8 +1398,8 @@ Parsers accept either form. The rules above are authoring guidance.
 **Series** — follows Rule B (prefer the indented block):
 ```
 series
-  Cloud Platform (blue)
-  Legacy Suite (red)
+  Cloud Platform blue
+  Legacy Suite red
 ```
 
 Short one-line form is tolerated: `series Revenue` or `series A B`.
@@ -1391,7 +1408,7 @@ Short one-line form is tolerated: `series Revenue` or `series A B`.
 ```
 Label 100
 Label 100 200 300
-Label(color) 100
+Label color 100        // trailing color before numeric values
 Q1 400 700 300 500
 ```
 
@@ -1425,7 +1442,7 @@ Each chart honors the subset of flags that has a renderable atom on it:
 
 **Eras (line/area only):**
 ```
-era Day 1 -> Day 3 Rough Seas (red)
+era Day 1 -> Day 3 Rough Seas red
 ```
 
 ### 15.2 Scatter / Bubble Charts
@@ -1438,7 +1455,7 @@ Name x y size
 
 **Categories:**
 ```
-[Caribbean](red)
+[Caribbean] red
   Blackbeard 90 8500
 ```
 
@@ -1477,8 +1494,8 @@ x-label Distance
 y-label Height
 x 0 to 250
 
-15 degrees(blue): -0.001*x^2 + 0.27*x
-45 degrees(red): -0.003*x^2 + 0.75*x
+15 degrees blue: -0.001*x^2 + 0.27*x
+45 degrees red: -0.003*x^2 + 0.75*x
 ```
 
 The colon between name and expression is **required** — both sides can contain spaces, so colon is the unambiguous delimiter.
@@ -1490,8 +1507,8 @@ The colon between name and expression is **required** — both sides can contain
 
 **Tree structure (indented, space-separated):**
 ```
-Sugar Plantations(green)
-  Tortuga Distillery(orange) 3000
+Sugar Plantations green
+  Tortuga Distillery orange 3000
   Nassau Distillery 2500
 ```
 
@@ -1544,7 +1561,7 @@ Roberts 12 52
   ```
 - Data rows: `Label value1 value2` — follows §15 Rule A (space-separated; commas between values tolerated for back-compat but not idiomatic)
 - Thousands commas within values supported (e.g., `1,000`)
-- Color annotations: `Label (color) value1 value2`
+- Color annotations: `Label color value1 value2` (trailing color word before numeric values)
 - Minimum 2 periods required
 
 ### 16.2 Wordcloud
@@ -1567,7 +1584,7 @@ navigation 88
 ```
 arc Pirate Alliances
 
-[Caribbean](red)
+[Caribbean] red
   Blackbeard -> Bonnet 8
   Blackbeard -> Vane 5
 
@@ -1582,15 +1599,15 @@ order group
 ```
 venn Skill Overlap
 
-Swordsmanship(red) as sw
-Navigation(blue) as nav
-Leadership(green) as lead
+Swordsmanship red as sw
+Navigation blue as nav
+Leadership green as lead
 
 sw + nav Sea Raiders
 sw + nav + lead Legendary Pirates
 ```
 
-- Set declaration: `Name(color) as <alias>` — uses the universal alias syntax (§2A)
+- Set declaration: `Name [color] as <alias>` — color is an optional trailing token BEFORE `as` (universal alias syntax, §2A)
 - Intersections: `Set1 + Set2 Label` — label follows the last set reference (no colon)
 - Legacy `Name(color) alias X` emits `E_VENN_ALIAS_KEYWORD_REMOVED` per TD-18
 
@@ -1601,10 +1618,10 @@ quadrant Crew Assessment
 x-label Low Skill, High Skill
 y-label Low Loyalty, High Loyalty
 
-top-right Promote (green)
-top-left Train (yellow)
-bottom-left Maroon (red)
-bottom-right Watch Closely (purple)
+top-right Promote green
+top-left Train yellow
+bottom-left Maroon red
+bottom-right Watch Closely purple
 
 Quartermaster 0.9 0.95
 Navigator 0.85 0.8

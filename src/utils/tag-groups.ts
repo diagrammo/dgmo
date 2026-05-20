@@ -9,8 +9,9 @@ import {
   tagShorthandRemovedMessage,
   type DgmoError,
 } from '../diagnostics';
+import { RECOGNIZED_COLOR_NAMES } from '../colors';
 
-/** A single entry inside a tag group: `Value(color)` */
+/** A single entry inside a tag group: `Value color` */
 export interface TagEntry {
   value: string;
   color: string;
@@ -117,12 +118,26 @@ export function parseTagDeclaration(line: string): TagBlockMatch | null {
   let restStartIdx = 1;
 
   // Locate any keyword separator (`as` or legacy `alias`) that appears
-  // BEFORE the first inline-value token. Inline values are tokens that
-  // contain `(` (color suffix) or follow a comma.
+  // BEFORE the first inline-value token. Inline values are recognized by
+  // a comma in the line: scan tokens for one. Under §1.5 trailing-token
+  // syntax there's no `(color)` marker anymore — a comma anywhere after
+  // the name span signals that inline values follow.
   let valueStart = tokens.length;
   for (let i = 1; i < tokens.length; i++) {
-    if (tokens[i].includes('(')) {
+    if (tokens[i].includes(',')) {
+      // valueStart is the FIRST token of the first inline value, which is
+      // the token immediately following the alias / keyword span. Walk
+      // back to the start of the value span by finding the most recent
+      // word boundary — but for the simple heuristic here, the inline
+      // value list starts at the previous non-keyword token.
       valueStart = i;
+      // The token containing the comma might be `High` (in `High red,`)
+      // or `red,` (in `High red,` if tokenized differently). Treat the
+      // value span as starting at the token BEFORE the first comma
+      // unless that token is the alias / keyword.
+      // Simpler: use this index as a coarse upper bound. The keyword
+      // search below uses [1, valueStart) — anything past `as`/`alias`
+      // belongs to the value span.
       break;
     }
   }
@@ -170,16 +185,77 @@ export function parseTagDeclaration(line: string): TagBlockMatch | null {
   } else {
     // No `as`/`alias` keyword — try legacy bare-shorthand. The trailing
     // token of the name span (just before inline values) is the alias
-    // candidate; if it passes the universal alias regex, accept it and
-    // mark legacyForm='bare-shorthand'.
-    if (tokens[0][0] === '"' || tokens[0][0] === "'") {
+    // candidate; if it passes the universal alias regex AND is NOT a
+    // recognized palette color (§1.5 escape hatch), accept it.
+    //
+    // When inline values are present (valueStart < tokens.length), the
+    // tokens immediately before the first value-segment-with-color form
+    // the (name + alias) prefix. The first value contains at least the
+    // value name + trailing color, so we walk back to find where it
+    // starts: skip the trailing color token, then 1+ name tokens.
+    const isColorWord = (s: string): boolean =>
+      (RECOGNIZED_COLOR_NAMES as readonly string[]).includes(s);
+
+    if (valueStart < tokens.length) {
+      // Inline values are present (we found a comma at valueStart).
+      // The first value's last token is at index commaIdx; strip the
+      // comma to inspect. Walk back to determine the value name length.
+      const commaTokenIdx = valueStart;
+      // Find where the first value starts: the value contains at least
+      // 1 word + optional trailing color. Walk back from commaTokenIdx
+      // while the previous tokens look like value-name words (i.e. not
+      // a recognized alias-shaped lowercase short token that is followed
+      // by a value start).
+      // Simpler heuristic: pre-comma trailing color is the last token if
+      // it's a recognized color (after stripping comma). The value's
+      // name is the token immediately before that. So the value spans
+      // (firstValueStart..=commaTokenIdx). The "name + alias" prefix
+      // is [0, firstValueStart).
+      const lastBeforeComma = tokens[commaTokenIdx].replace(/,$/, '');
+      // value = `<name word(s)> <color>` if trailing token is a recognized
+      // palette word; otherwise value = `<name word(s)>` (no color).
+      const firstValueStart = isColorWord(lastBeforeComma)
+        ? commaTokenIdx - 1
+        : commaTokenIdx;
+      // Now firstValueStart points at the first token of value #1.
+      // [0, firstValueStart) is the `<name + optional alias>` prefix.
+      const prefixEnd = firstValueStart;
+      const aliasCandidate = prefixEnd > 1 ? tokens[prefixEnd - 1] : undefined;
+      if (
+        aliasCandidate &&
+        isAliasToken(aliasCandidate) &&
+        !isColorWord(aliasCandidate)
+      ) {
+        alias = aliasCandidate;
+        legacyForm = 'bare-shorthand';
+        name = tokens
+          .slice(0, prefixEnd - 1)
+          .map((t) => stripQuotes(t))
+          .join(' ');
+        restStartIdx = prefixEnd;
+      } else {
+        name = tokens
+          .slice(0, prefixEnd)
+          .map((t) => stripQuotes(t))
+          .join(' ');
+        restStartIdx = prefixEnd;
+      }
+    } else if (tokens[0][0] === '"' || tokens[0][0] === "'") {
       // Quoted name. Check the next token for legacy bare alias.
-      if (tokens.length > 1 && isAliasToken(tokens[1]) && valueStart > 1) {
+      if (
+        tokens.length > 1 &&
+        isAliasToken(tokens[1]) &&
+        !isColorWord(tokens[1])
+      ) {
         alias = tokens[1];
         legacyForm = 'bare-shorthand';
         restStartIdx = 2;
       }
-    } else if (valueStart > 1 && isAliasToken(tokens[valueStart - 1])) {
+    } else if (
+      valueStart > 1 &&
+      isAliasToken(tokens[valueStart - 1]) &&
+      !isColorWord(tokens[valueStart - 1])
+    ) {
       // Bare shorthand at the end of the name span.
       alias = tokens[valueStart - 1];
       legacyForm = 'bare-shorthand';
@@ -207,12 +283,16 @@ export function parseTagDeclaration(line: string): TagBlockMatch | null {
       .filter(Boolean);
   }
 
-  // Trailing `(color)` on the name itself (no inline values).
+  // Trailing recognized-color token on the name itself (no inline values).
+  // Per §1.5 universal trailing-token: case-sensitive lowercase match.
   if (!inlineValues || inlineValues.length === 0) {
-    const colorMatch = name.match(/\(([^)]+)\)\s*$/);
-    if (colorMatch) {
-      colorHint = colorMatch[1];
-      name = name.substring(0, colorMatch.index!).trim();
+    const lastSpaceIdx = name.lastIndexOf(' ');
+    if (lastSpaceIdx > 0) {
+      const trailing = name.substring(lastSpaceIdx + 1);
+      if ((RECOGNIZED_COLOR_NAMES as readonly string[]).includes(trailing)) {
+        colorHint = trailing;
+        name = name.substring(0, lastSpaceIdx).trimEnd();
+      }
     }
   }
 

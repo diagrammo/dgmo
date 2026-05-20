@@ -3,6 +3,6 @@ x-label x
 y-label f(x)
 
 x -6 to 6
-f(x) (blue) sin(x)
-g(x) (red) x^2 / 10
-h(x) (green) cos(x) * 2
+f(x) blue: sin(x)
+g(x) red: x^2 / 10
+h(x) green: cos(x) * 2

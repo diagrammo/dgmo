@@ -215,7 +215,10 @@ const IS_A_PATTERN = /^([^:]+?)\s+is\s+an?\s+(\w+)(?:\s+(.+))?$/i;
 const POSITION_ONLY_PATTERN = /^([^:]+?)\s+position\s+(-?\d+)$/i;
 
 // Colored participant declaration — e.g. "Tapin2(green)", "API(blue)"
-const COLORED_PARTICIPANT_PATTERN = /^(\S+?)\(([^)]+)\)\s*$/;
+// Scoped to recognized 11-name palette colors only (§1.5) so legitimate
+// `funcCall(arg)` lines don't trigger the legacy-color diagnostic.
+const COLORED_PARTICIPANT_PATTERN =
+  /^(\S+?)\((red|orange|yellow|green|blue|purple|teal|cyan|gray|black|white)\)\s*$/;
 
 // Group heading pattern — "[Backend]", "[Backend] | t: Product"
 // Group 1: name (no ] or | inside brackets), Group 2: color in parens, Group 3: after-bracket text
@@ -678,7 +681,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       if (groupColor) {
         pushWarning(
           lineNumber,
-          `(${groupColor}) color syntax removed from sequence diagrams — use 'tag:' groups for coloring`
+          `'(${groupColor})' parens-color syntax removed from sequence diagrams — use 'tag:' groups for coloring`
         );
       }
       contentStarted = true;
@@ -765,7 +768,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       continue;
     }
 
-    // Tag group entries (indented Value(color) under tag heading)
+    // Tag group entries (indented Value color under tag heading)
     // First entry is the default unless another is marked `default`
     if (currentTagGroup && !contentStarted && measureIndent(raw) > 0) {
       const { text: cleanEntry, isDefault } = stripDefaultModifier(trimmed);
@@ -778,7 +781,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       if (!color) {
         pushError(
           lineNumber,
-          `Expected 'Value(color)' in tag group '${currentTagGroup.name}'`
+          `Expected 'Value color' in tag group '${currentTagGroup.name}'`
         );
         continue;
       }
@@ -807,11 +810,14 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
         blockStack.pop();
       }
       const labelRaw = sectionMatch[1].trim();
-      const colorMatch = labelRaw.match(/^(.+?)\(([^)]+)\)$/);
+      // Scoped to recognized 11-name palette colors only (§1.5).
+      const colorMatch = labelRaw.match(
+        /^(.+?)\((red|orange|yellow|green|blue|purple|teal|cyan|gray|black|white)\)$/
+      );
       if (colorMatch) {
         pushWarning(
           lineNumber,
-          `(${colorMatch[2].trim()}) color syntax removed from sequence diagrams — use 'tag:' groups for coloring`
+          `'(${colorMatch[2]})' parens-color syntax removed from sequence diagrams — use 'tag:' groups for coloring`
         );
       }
       contentStarted = true;
@@ -1016,8 +1022,8 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       continue;
     }
 
-    // Colored participant declaration — "Name(color)" at any level
-    // Color syntax is deprecated — emit warning and register without color
+    // Legacy `Name(color)` participant declaration at any level (§1.5 hard
+    // break). Scoped to the 11-name palette so `funcCall(arg)` doesn't trip.
     const { core: colorCore, meta: colorMeta } = splitPipe(trimmed, lineNumber);
     const coloredMatch = colorCore.match(COLORED_PARTICIPANT_PATTERN);
     if (coloredMatch && !ARROW_PATTERN.test(colorCore)) {
@@ -1025,7 +1031,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       const color = coloredMatch[2].trim();
       pushError(
         lineNumber,
-        `'${id}(${color})' syntax is no longer supported — use 'tag:' groups for coloring`
+        `'${id}(${color})' parens-color syntax is no longer supported — use 'tag:' groups for coloring`
       );
       contentStarted = true;
       const key = addParticipant(id, lineNumber, { metadata: colorMeta });

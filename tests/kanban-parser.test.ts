@@ -115,21 +115,21 @@ describe('parseKanban', () => {
     });
 
     it('card (color) suffix is literal', () => {
-      const result = parseKanban('kanban\n[To Do]\n  Urgent task(red)');
+      const result = parseKanban('kanban\n[To Do]\n  Urgent task red');
       const card = result.columns[0].cards[0];
-      expect(card.title).toBe('Urgent task(red)');
+      expect(card.title).toBe('Urgent task red');
       expect(card.color).toBeUndefined();
     });
 
     it('parses column with color suffix', () => {
-      const result = parseKanban('kanban\n[Done](green)\n  Task 1');
+      const result = parseKanban('kanban\n[Done] green\n  Task 1');
       expect(result.columns[0].name).toBe('Done');
       expect(result.columns[0].color).toBeDefined();
     });
 
     it('parses column with color and wip limit', () => {
       const result = parseKanban(
-        'kanban\n[In Progress](blue) | wip: 3\n  Task 1'
+        'kanban\n[In Progress] blue | wip: 3\n  Task 1'
       );
       expect(result.columns[0].name).toBe('In Progress');
       expect(result.columns[0].color).toBeDefined();
@@ -166,7 +166,7 @@ describe('parseKanban', () => {
   describe('tag groups', () => {
     it('parses tag group with entries', () => {
       const result = parseKanban(
-        'kanban\ntag Priority\n  High(red)\n  Low(green)\n\n[To Do]\n  Task 1'
+        'kanban\ntag Priority\n  High red\n  Low green\n\n[To Do]\n  Task 1'
       );
       expect(result.tagGroups).toHaveLength(1);
       expect(result.tagGroups[0].name).toBe('Priority');
@@ -177,7 +177,7 @@ describe('parseKanban', () => {
 
     it('parses tag group with alias', () => {
       const result = parseKanban(
-        'kanban\ntag Priority p\n  High(red)\n  Low(green)\n\n[To Do]\n  Task | p: High'
+        'kanban\ntag Priority p\n  High red\n  Low green\n\n[To Do]\n  Task | p: High'
       );
       expect(result.tagGroups[0].alias).toBe('p');
       // Alias resolves to group name
@@ -187,7 +187,7 @@ describe('parseKanban', () => {
 
     it('first entry is default', () => {
       const result = parseKanban(
-        'kanban\ntag Priority\n  Low(green)\n  High(red)\n\n[To Do]\n  Task 1'
+        'kanban\ntag Priority\n  Low green\n  High red\n\n[To Do]\n  Task 1'
       );
       expect(result.tagGroups[0].defaultValue).toBe('Low');
     });
@@ -198,7 +198,7 @@ describe('parseKanban', () => {
       );
       expect(
         result.diagnostics.some((d) =>
-          d.message.includes("Expected 'Value(color)'")
+          d.message.includes("Expected 'Value color'")
         )
       ).toBe(true);
     });
@@ -208,7 +208,7 @@ describe('parseKanban', () => {
   describe('tag block syntax', () => {
     it('parses tag heading with entries', () => {
       const result = parseKanban(
-        'kanban\ntag Priority\n  High(red)\n  Low(green)\n\n[To Do]\n  Task 1'
+        'kanban\ntag Priority\n  High red\n  Low green\n\n[To Do]\n  Task 1'
       );
       expect(result.tagGroups).toHaveLength(1);
       expect(result.tagGroups[0].name).toBe('Priority');
@@ -217,7 +217,7 @@ describe('parseKanban', () => {
 
     it('parses tag with alias', () => {
       const result = parseKanban(
-        'kanban\ntag Priority p\n  High(red)\n  Low(green)\n\n[To Do]\n  Task | p: High'
+        'kanban\ntag Priority p\n  High red\n  Low green\n\n[To Do]\n  Task | p: High'
       );
       expect(result.tagGroups[0].alias).toBe('p');
       expect(result.columns[0].cards[0].tags).toEqual({ priority: 'High' });
@@ -225,21 +225,21 @@ describe('parseKanban', () => {
 
     it('first entry is default', () => {
       const result = parseKanban(
-        'kanban\ntag Priority\n  Low(green)\n  High(red)\n\n[To Do]\n  Task 1'
+        'kanban\ntag Priority\n  Low green\n  High red\n\n[To Do]\n  Task 1'
       );
       expect(result.tagGroups[0].defaultValue).toBe('Low');
     });
 
     it('is case-insensitive', () => {
       const result = parseKanban(
-        'kanban\nTag Priority\n  High(red)\n\n[To Do]\n  Task 1'
+        'kanban\nTag Priority\n  High red\n\n[To Do]\n  Task 1'
       );
       expect(result.tagGroups[0].name).toBe('Priority');
     });
 
     it('does not emit deprecation warning for tag syntax', () => {
       const result = parseKanban(
-        'kanban\ntag Priority\n  High(red)\n\n[To Do]\n  Task 1'
+        'kanban\ntag Priority\n  High red\n\n[To Do]\n  Task 1'
       );
       const warnings = result.diagnostics.filter((d) =>
         d.message.includes('deprecated')
@@ -249,7 +249,7 @@ describe('parseKanban', () => {
 
     it('ignores ## syntax (no longer recognized as tag heading)', () => {
       const result = parseKanban(
-        'kanban\n## Priority\n  High(red)\n\n[To Do]\n  Task 1'
+        'kanban\n## Priority\n  High red\n\n[To Do]\n  Task 1'
       );
       expect(result.tagGroups).toHaveLength(0);
     });
@@ -279,7 +279,7 @@ describe('parseKanban', () => {
 
     it('warns on unknown tag value', () => {
       const result = parseKanban(
-        'kanban\ntag Priority\n  High(red)\n  Low(green)\n\n[To Do]\n  Task | priority: Medium'
+        'kanban\ntag Priority\n  High red\n  Low green\n\n[To Do]\n  Task | priority: Medium'
       );
       expect(
         result.diagnostics.some((d) =>
@@ -342,13 +342,13 @@ describe('parseKanban', () => {
       const input = `kanban Sprint 12
 
 tag Priority
-  High(red)
-  Medium(yellow)
-  Low(green)
+  High red
+  Medium yellow
+  Low green
 
 tag Assignee a
-  Alice(blue)
-  Bob(purple)
+  Alice blue
+  Bob purple
 
 [To Do]
   Build login page | priority: High, a: Alice
@@ -561,8 +561,8 @@ describe('computeCardArchive', () => {
     const tagBoard = `kanban
 
 tag Priority
-  High(red)
-  Low(green)
+  High red
+  Low green
 
 [In Progress]
   Build login | priority: High

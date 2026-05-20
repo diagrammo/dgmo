@@ -200,8 +200,8 @@ describe('renderERDiagram', () => {
     const ER_WITH_TAGS = `er
 
 tag Domain d
-  Billing(blue)
-  Shipping(green)
+  Billing blue
+  Shipping green
 
 Users | d: Billing
   id int pk
@@ -320,14 +320,14 @@ posts
     const ER_WITH_TAGS = `er
 
 tag Domain d
-  Billing(blue)
+  Billing blue
 
 users | d: Billing
   id int pk`;
 
     const ER_WITH_EXPLICIT_COLOR = `er
 
-users(blue)
+users blue
   id int pk
 
 posts

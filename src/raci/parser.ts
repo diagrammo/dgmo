@@ -24,6 +24,7 @@ import {
   measureIndent,
   parseFirstLine,
   parsePipeMetadata,
+  peelTrailingColorName,
   OPTION_NOCOLON_RE,
   tryParseSharedOption,
 } from '../utils/parsing';
@@ -82,10 +83,10 @@ const KNOWN_BOOLEANS = new Set<string>([
   ...Object.keys(VARIANT_LOCK_DIRECTIVES),
 ]);
 
-// Allow optional trailing `| key: value, ...` after the bracket,
-// e.g. `[Voyage] | color: blue` — matches the modern dgmo idiom
-// (cycle / pyramid / ring / journey-map / boxes-and-lines).
-const PHASE_RE = /^\[(.+?)\]\s*(?:\|\s*(.+))?\s*$/;
+// Allow optional trailing color shortcut and/or pipe metadata after the
+// bracket: `[Voyage] blue | desc: …` (per §1.5 universal trailing-token
+// rule + the modern cycle/pyramid/ring/journey-map/b&l idiom).
+const PHASE_RE = /^\[(.+?)\](?:\s+(\S+))?(?:\s*\|\s*(.+))?\s*$/;
 const ROLE_ASSIGNMENT_RE = /^([^:]+):\s*(.*)$/;
 
 /**
@@ -382,10 +383,10 @@ export function parseRaci(
           // Strip a possible trailing comma (user habit tolerance,
           // matches `collectIndentedValues`).
           const stripped = nextTrim.replace(/,\s*$/, '');
-          // Optional pipe metadata: `Cap | color: blue` — matches
-          // every modern chart-type's per-element styling form.
+          // Optional pipe metadata: `Cap | color: blue` — long form.
+          // Optional trailing-token shortcut: `Cap blue` — short form (§1.5).
           const segments = stripped.split('|').map((s) => s.trim());
-          const roleLabel = segments[0] ?? '';
+          let roleLabel = segments[0] ?? '';
           let roleColor: string | undefined;
           if (segments.length > 1) {
             const meta = parsePipeMetadata(segments);
@@ -396,6 +397,20 @@ export function parseRaci(
                 result.diagnostics,
                 palette
               );
+            }
+          }
+          // Apply shortcut only when pipe metadata didn't already set color.
+          if (!roleColor) {
+            const { label: stripLabel, colorName: shortcutColor } =
+              peelTrailingColorName(roleLabel);
+            if (shortcutColor) {
+              roleColor = resolveColorWithDiagnostic(
+                shortcutColor,
+                j + 1,
+                result.diagnostics,
+                palette
+              );
+              roleLabel = stripLabel;
             }
           }
           if (roleLabel) getOrAddRole(roleLabel, j + 1, roleColor);
@@ -469,13 +484,28 @@ export function parseRaci(
           errorAt(lineNumber, 'Phase label is empty.');
           continue;
         }
-        // Optional pipe metadata: `[Voyage] | color: blue`.
+        // PHASE_RE captures: 1=label, 2=optional trailing-token color, 3=pipe meta.
+        // Long pipe form (`[Voyage] | color: blue`) wins over the shortcut.
         let phaseColor: string | undefined;
-        if (phaseMatch[2]) {
-          const meta = parsePipeMetadata(['', phaseMatch[2]]);
+        const trailingToken = phaseMatch[2];
+        const pipeMeta = phaseMatch[3];
+        if (pipeMeta) {
+          const meta = parsePipeMetadata(['', pipeMeta]);
           if (meta['color']) {
             phaseColor = resolveColorWithDiagnostic(
               meta['color'],
+              lineNumber,
+              result.diagnostics,
+              palette
+            );
+          }
+        }
+        if (!phaseColor && trailingToken) {
+          // Trailing token must be a recognized color word, or it's a parse error.
+          const { colorName } = peelTrailingColorName(`x ${trailingToken}`);
+          if (colorName) {
+            phaseColor = resolveColorWithDiagnostic(
+              colorName,
               lineNumber,
               result.diagnostics,
               palette

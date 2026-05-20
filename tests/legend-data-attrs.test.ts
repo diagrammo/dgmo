@@ -99,8 +99,8 @@ describe('Data attrs: Sequence', () => {
   const src = `sequence
 
 tag REGION
-  North(blue)
-  South(red)
+  North blue
+  South red
 
 Alice is a actor | region: North
 Bob is a actor | region: South
@@ -149,8 +149,8 @@ describe('Data attrs: C4', () => {
   const src = `c4
 
 tag DOMAIN
-  Auth(blue)
-  Core(green)
+  Auth blue
+  Core green
 
 User is a person
 AuthSvc is a system | domain: Auth
@@ -209,8 +209,8 @@ describe('Data attrs: Kanban', () => {
   const src = `kanban
 
 tag PRIORITY
-  High(red)
-  Low(green)
+  High red
+  Low green
 
 [To Do]
   Fix bug | priority: High
@@ -253,8 +253,8 @@ describe('Data attrs: Org', () => {
   const src = `org
 
 tag REGION
-  North(blue)
-  South(green)
+  North blue
+  South green
 
 CEO
   VP North | region: North
@@ -314,8 +314,8 @@ describe('Data attrs: Sitemap', () => {
   const src = `sitemap
 
 tag SECTION
-  Docs(blue)
-  Blog(green)
+  Docs blue
+  Blog green
 
 Home
   Docs | section: Docs
@@ -374,8 +374,8 @@ describe('Data attrs: Infra', () => {
   const src = `infra
 
 tag TEAM
-  Platform(blue)
-  App(green)
+  Platform blue
+  App green
 
 edge
   rps 1000
@@ -461,8 +461,8 @@ describe('Data attrs: ER', () => {
   const src = `er
 
 tag DOMAIN
-  Auth(blue)
-  Core(green)
+  Auth blue
+  Core green
 
 User {
   id int PK | domain: Auth
@@ -523,8 +523,8 @@ describe('Data attrs: Timeline', () => {
   const src = `timeline
 
 tag STATUS
-  Done(green)
-  Active(blue)
+  Done green
+  Active blue
 
 2024-01-01 -> 2024-06-01: Feature A | status: Done
 2024-03-01 -> 2024-12-01: Feature B | status: Active`;

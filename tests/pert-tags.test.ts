@@ -38,8 +38,8 @@ describe('PERT tag declarations', () => {
     const parsed = parsePert(
       `pert\n` +
         `tag Crew as c\n` +
-        `  Captain(red)\n` +
-        `  Bosun(orange)\n\n` +
+        `  Captain red\n` +
+        `  Bosun orange\n\n` +
         `task A 1 2 4`
     );
     ok(parsed);
@@ -54,8 +54,8 @@ describe('PERT tag declarations', () => {
   it('parses multiple tag groups in declaration order', () => {
     const parsed = parsePert(
       `pert\n` +
-        `tag Crew as c\n  Captain(red)\n  Bosun(orange)\n` +
-        `tag Risk as r\n  Safe(green)\n  Critical(red)\n\n` +
+        `tag Crew as c\n  Captain red\n  Bosun orange\n` +
+        `tag Risk as r\n  Safe green\n  Critical red\n\n` +
         `task A 1 2 4`
     );
     ok(parsed);
@@ -64,9 +64,7 @@ describe('PERT tag declarations', () => {
 
   it('first entry is the default value', () => {
     const parsed = parsePert(
-      `pert\n` +
-        `tag Risk as r\n  Safe(green)\n  Critical(red)\n\n` +
-        `task A 1`
+      `pert\n` + `tag Risk as r\n  Safe green\n  Critical red\n\n` + `task A 1`
     );
     ok(parsed);
     expect(parsed.tagGroups[0].defaultValue).toBe('Safe');
@@ -74,7 +72,7 @@ describe('PERT tag declarations', () => {
 
   it('rejects a `tag …` heading after activities have started', () => {
     const parsed = parsePert(
-      `pert\n` + `task A 1\n` + `tag Crew as c\n  Captain(red)`
+      `pert\n` + `task A 1\n` + `tag Crew as c\n  Captain red`
     );
     const tagErr = parsed.diagnostics.find((d) =>
       d.message.includes("'tag' declarations must appear before activities")
@@ -82,9 +80,9 @@ describe('PERT tag declarations', () => {
     expect(tagErr).toBeDefined();
   });
 
-  it('inline form: `tag Crew as c Captain(red), Bosun(orange)`', () => {
+  it('inline form: `tag Crew as c Captain red, Bosun orange`', () => {
     const parsed = parsePert(
-      `pert\n` + `tag Crew as c Captain(red), Bosun(orange)\n\n` + `task A 1`
+      `pert\n` + `tag Crew as c Captain red, Bosun orange\n\n` + `task A 1`
     );
     ok(parsed);
     const g = parsed.tagGroups[0];
@@ -96,7 +94,7 @@ describe('PERT tag application via pipe metadata', () => {
   it('alias resolves to canonical group name (lowercased)', () => {
     const parsed = parsePert(
       `pert\n` +
-        `tag Crew as c\n  Captain(red)\n  Bosun(orange)\n\n` +
+        `tag Crew as c\n  Captain red\n  Bosun orange\n\n` +
         `task A 1 | c: Captain`
     );
     ok(parsed);
@@ -107,7 +105,7 @@ describe('PERT tag application via pipe metadata', () => {
   it('reserved keys (`confidence`, `collapsed`) do not bleed into tags', () => {
     const parsed = parsePert(
       `pert\ndefault-confidence medium\n` +
-        `tag Crew as c\n  Captain(red)\n\n` +
+        `tag Crew as c\n  Captain red\n\n` +
         `task A 1 2 4 | confidence: low, c: Captain`
     );
     ok(parsed);
@@ -119,7 +117,7 @@ describe('PERT tag application via pipe metadata', () => {
   it('default value is injected on activities that lack the key', () => {
     const parsed = parsePert(
       `pert\n` +
-        `tag Risk as r\n  Safe(green)\n  Critical(red)\n\n` +
+        `tag Risk as r\n  Safe green\n  Critical red\n\n` +
         `task A 1\n` +
         `task B 1 | r: Critical`
     );
@@ -133,7 +131,7 @@ describe('PERT tag application via pipe metadata', () => {
   it('group headers also accept tag aliases', () => {
     const parsed = parsePert(
       `pert\n` +
-        `tag Crew as c\n  Captain(red)\n  Bosun(orange)\n\n` +
+        `tag Crew as c\n  Captain red\n  Bosun orange\n\n` +
         `[outfit ship] | c: Bosun\n` +
         `  task A 1`
     );
@@ -145,7 +143,7 @@ describe('PERT tag application via pipe metadata', () => {
   it('warns on unknown tag value', () => {
     const parsed = parsePert(
       `pert\n` +
-        `tag Risk as r\n  Safe(green)\n  Critical(red)\n\n` +
+        `tag Risk as r\n  Safe green\n  Critical red\n\n` +
         `task A 1 | r: Bananas`
     );
     const warn = parsed.diagnostics.find(
@@ -161,7 +159,7 @@ describe('PERT active-tag directive', () => {
   it('stores the directive value on options.activeTag', () => {
     const parsed = parsePert(
       `pert\nactive-tag Crew\n` +
-        `tag Crew as c\n  Captain(red)\n\n` +
+        `tag Crew as c\n  Captain red\n\n` +
         `task A 1 | c: Captain`
     );
     ok(parsed);
@@ -170,7 +168,7 @@ describe('PERT active-tag directive', () => {
 
   it('omitting active-tag leaves options.activeTag undefined', () => {
     const parsed = parsePert(
-      `pert\n` + `tag Crew as c\n  Captain(red)\n\n` + `task A 1 | c: Captain`
+      `pert\n` + `tag Crew as c\n  Captain red\n\n` + `task A 1 | c: Captain`
     );
     ok(parsed);
     expect(parsed.options.activeTag).toBeUndefined();
@@ -179,7 +177,7 @@ describe('PERT active-tag directive', () => {
   it('active-tag none is preserved verbatim', () => {
     const parsed = parsePert(
       `pert\nactive-tag none\n` +
-        `tag Crew as c\n  Captain(red)\n\n` +
+        `tag Crew as c\n  Captain red\n\n` +
         `task A 1`
     );
     ok(parsed);
@@ -195,7 +193,7 @@ describe('PERT tag rendering', () => {
   it('emits data-tag-* attributes on activity nodes', () => {
     const svg = render(
       `pert\n` +
-        `tag Crew as c\n  Captain(red)\n  Bosun(orange)\n\n` +
+        `tag Crew as c\n  Captain red\n  Bosun orange\n\n` +
         `task A 1 2 4 | c: Captain\n` +
         `task B 1 2 4 | c: Bosun`
     );
@@ -205,9 +203,7 @@ describe('PERT tag rendering', () => {
 
   it('renders a tag legend container when groups are declared', () => {
     const svg = render(
-      `pert\n` +
-        `tag Crew as c\n  Captain(red)\n  Bosun(orange)\n\n` +
-        `task A 1`
+      `pert\n` + `tag Crew as c\n  Captain red\n  Bosun orange\n\n` + `task A 1`
     );
     expect(svg).toContain('pert-tag-legend');
     expect(svg).toContain('data-legend-group="crew"');
@@ -219,17 +215,17 @@ describe('PERT tag rendering', () => {
     // `active-tag none` to opt out.
     const svgImplicit = render(
       `pert\n` +
-        `tag Crew as c\n  Captain(red)\n  Bosun(orange)\n\n` +
+        `tag Crew as c\n  Captain red\n  Bosun orange\n\n` +
         `task A 1 2 4 | c: Captain`
     );
     const svgExplicit = render(
       `pert\nactive-tag Crew\n` +
-        `tag Crew as c\n  Captain(red)\n  Bosun(orange)\n\n` +
+        `tag Crew as c\n  Captain red\n  Bosun orange\n\n` +
         `task A 1 2 4 | c: Captain`
     );
     const svgOptOut = render(
       `pert\nactive-tag none\n` +
-        `tag Crew as c\n  Captain(red)\n  Bosun(orange)\n\n` +
+        `tag Crew as c\n  Captain red\n  Bosun orange\n\n` +
         `task A 1 2 4 | c: Captain`
     );
     expect(svgImplicit).toContain('data-legend-active="crew"');
@@ -240,7 +236,7 @@ describe('PERT tag rendering', () => {
   it('milestone activity gets a data-tag attribute too', () => {
     const svg = render(
       `pert\n` +
-        `tag Crew as c\n  Captain(red)\n\n` +
+        `tag Crew as c\n  Captain red\n\n` +
         `voyage approved 0 | c: Captain\n` +
         `  -> task A\n` +
         `task A 1`
@@ -253,7 +249,7 @@ describe('PERT tag analyzer pass-through', () => {
   it('analyzer carries tagGroups from parsed → resolved', () => {
     const parsed = parsePert(
       `pert\n` +
-        `tag Crew as c\n  Captain(red)\n  Bosun(orange)\n\n` +
+        `tag Crew as c\n  Captain red\n  Bosun orange\n\n` +
         `task A 1 | c: Captain`
     );
     ok(parsed);

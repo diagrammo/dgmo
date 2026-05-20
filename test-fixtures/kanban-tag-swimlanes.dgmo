@@ -3,14 +3,14 @@ kanban
 title Sprint Board
 
 tag Team
-  Frontend(blue)
-  Backend(green)
-  QA(orange)
+  Frontend blue
+  Backend green
+  QA orange
 
 tag Priority
-  High(red)
-  Medium(yellow)
-  Low(green)
+  High red
+  Medium yellow
+  Low green
 
 [Backlog]
   Redesign login screen | team: Frontend, priority: High

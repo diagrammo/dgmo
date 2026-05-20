@@ -362,9 +362,9 @@ LB
 infra Production Traffic Flow
 
 tag Team t
-  Backend(blue)
-  Platform(teal)
-  Commerce(orange)
+  Backend blue
+  Platform teal
+  Commerce orange
 
 edge
   rps 10000

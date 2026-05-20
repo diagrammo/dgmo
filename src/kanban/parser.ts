@@ -26,10 +26,11 @@ import type {
 // Regex patterns
 // ============================================================
 
-// [Column Name], [Column Name](color), [Column Name] as <alias>, [Column Name] | wip: 3, etc.
+// [Column Name], [Column Name] color, [Column Name] as <alias>, [Column Name] | wip: 3, etc.
+// Universal §1.5 trailing-token: color is a bare token after `]`.
 // Captures: [1]=label [2]=color [3]=alias (TD-18) [4]=pipe meta
 const COLUMN_RE =
-  /^\[(.+?)\](?:\s*\(([^)]+)\))?(?:\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11}))?\s*(?:\|\s*(.+))?$/;
+  /^\[(.+?)\](?:\s+(\S+))?(?:\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11}))?\s*(?:\|\s*(.+))?$/;
 // Legacy delimiter
 const LEGACY_COLUMN_RE = /^==\s+(.+?)\s*(?:\[wip:\s*(\d+)\])?\s*==$/;
 
@@ -180,7 +181,7 @@ export function parseKanban(
       }
     }
 
-    // Tag group entries (indented Value(color) under tag heading)
+    // Tag group entries (indented Value color under tag heading)
     // First entry is the default unless another is marked `default`
     if (currentTagGroup && !contentStarted) {
       const indent = measureIndent(line);
@@ -190,7 +191,7 @@ export function parseKanban(
         if (!color) {
           warn(
             lineNumber,
-            `Expected 'Value(color)' in tag group '${currentTagGroup.name}'`
+            `Expected 'Value color' in tag group '${currentTagGroup.name}'`
           );
           continue;
         }
@@ -247,9 +248,12 @@ export function parseKanban(
 
       columnCounter++;
       const colName = columnMatch[1].trim();
-      const colColor = columnMatch[2]
+      // Trailing token after `]` must be a recognized color word (§1.5).
+      // If it isn't, the line is malformed — emit the standard diagnostic.
+      const rawTrailing = columnMatch[2]?.trim();
+      const colColor = rawTrailing
         ? resolveColorWithDiagnostic(
-            columnMatch[2].trim(),
+            rawTrailing,
             lineNumber,
             result.diagnostics,
             palette

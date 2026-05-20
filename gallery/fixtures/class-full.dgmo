@@ -4,7 +4,7 @@ Drawable [interface]
   + draw(): void
   + resize(w: number, h: number): void
 
-Shape implements Drawable [abstract] (purple)
+Shape implements Drawable [abstract] purple
   # x: number
   # y: number
   + area(): number
@@ -20,7 +20,7 @@ Rectangle extends Shape
   - height: number
   + getDiagonal(): number
 
-Color [enum] (yellow)
+Color [enum] yellow
   Red
   Green
   Blue

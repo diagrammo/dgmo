@@ -179,8 +179,8 @@ palette: catppuccin    // override palette
 // This is a comment (only // syntax — not #)
 \`\`\`
 
-Inline colors on most elements: append \`(colorname)\` — e.g. \`North(red): 850\`, \`[Process(blue)]\`.
-Named colors: \`red\`, \`orange\`, \`yellow\`, \`green\`, \`blue\`, \`purple\`, \`teal\`, \`cyan\`, \`gray\`.
+Inline colors on most elements: append the color name as the trailing token — e.g. \`North red 850\`, \`[Process] blue\`. To use a color word as a literal label, capitalize it (\`Red\` stays as the word Red).
+Named colors: \`red\`, \`orange\`, \`yellow\`, \`green\`, \`blue\`, \`purple\`, \`teal\`, \`cyan\`, \`gray\`, \`black\`, \`white\`.
 
 ### sequence (most commonly used)
 
@@ -234,7 +234,7 @@ North: 850
 South: 620
 
 // line (multi-series)
-series: Sales(red), Costs(blue)
+series: Sales red, Costs blue
 Q1: 100, 50
 Q2: 120, 55
 
@@ -295,7 +295,7 @@ API
 async A -> B: msg  ❌  use A ~msg~> B
 A <- B             ❌  left-pointing arrows removed — use B -> A
 parallel else      ❌  not supported — use separate parallel blocks
-== Foo(#ff0000) == ❌  hex colors not supported — use named colors: == Foo(red) ==
+== Foo #ff0000 == ❌  hex colors not supported — use named colors: == Foo red ==
 A -routes to /api-> B  ❌  -> inside a label is ambiguous — rephrase the label
 end                ❌  not needed — indentation closes blocks in sequence diagrams
 \`\`\`
@@ -427,8 +427,8 @@ bar, line, multi-line, area, pie, doughnut, radar, polar-area, bar-stacked, scat
 
 - First line: chart type keyword (e.g. \`sequence\`, \`flowchart\`, \`bar\`), optionally followed by a title (\`bar Revenue\`)
 - \`// comment\` — only \`//\` comments (not \`#\`)
-- \`(colorname)\` — inline colors on data series, tag values, kanban columns: \`Label(red) 100\`
-- \`series A(red), B(blue)\` — multi-series with colors
+- Trailing color name — inline colors on data series, tag values, kanban columns: \`Label red 100\`
+- \`series A red, B blue\` — multi-series with colors
 
 ## Rendering via CLI
 

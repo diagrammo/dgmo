@@ -25,8 +25,8 @@ describe('diagnostic precedence — legacy-syntax outranks alias semantics', () 
   it('venn `Name(color) alias x` fires E_VENN_ALIAS_KEYWORD_REMOVED, not alias collisions', () => {
     const r = parseVisualization(
       `venn
-Frontend(blue) alias fe
-Backend(green) alias fe`,
+Frontend blue alias fe
+Backend green alias fe`,
       palette
     );
     const codes = r.diagnostics.map((d) => d.code);

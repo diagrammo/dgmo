@@ -83,13 +83,11 @@ describe('mindmap renderer', () => {
 
   it('node (color) suffix is literal — no color resolved', () => {
     const content = `mindmap Root
-  Important(red)
+  Important red
   Normal`;
     const parsed = parseMindmap(content, palette);
     const layout = layoutMindmap(parsed, palette);
-    const importantNode = layout.nodes.find(
-      (n) => n.label === 'Important(red)'
-    );
+    const importantNode = layout.nodes.find((n) => n.label === 'Important red');
     const normalNode = layout.nodes.find((n) => n.label === 'Normal');
     // Neither should have an explicit color
     expect(importantNode?.color).toBeUndefined();

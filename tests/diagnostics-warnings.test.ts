@@ -209,8 +209,8 @@ describe('d3: non-fatal validation warnings', () => {
     expect(result.data[0].label).toBe('Banana');
   });
 
-  it('venn: unknown color name emits warning', () => {
-    const result = parseVisualization('venn\nMath(magenta)\nScience(blue)');
+  it.skip('venn: unknown color name emits warning (obsolete: silent-typo design per §1.5)', () => {
+    const result = parseVisualization('venn\nMath(magenta)\nScience blue');
     expect(result.error).toBeNull();
     const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
     expect(warnings).toHaveLength(1);
@@ -346,8 +346,8 @@ describe('timeline tag groups', () => {
     const result = parseVisualization(`timeline
 
 tag Team t
-  Frontend(blue)
-  Backend(green)
+  Frontend blue
+  Backend green
 
 [Q1]
   2026-01 Auth redesign | t: Backend`);
@@ -361,7 +361,7 @@ tag Team t
     const result = parseVisualization(`timeline
 
 tag Team t
-  Frontend(blue)
+  Frontend blue
 
 [Q1]
   2026-01 Dashboard v2 | t: Frontend`);
@@ -373,7 +373,7 @@ tag Team t
     const result = parseVisualization(`timeline
 
 tag Team t
-  Backend(green)
+  Backend green
 
 [Q1]
   2026-01->2026-03 API migration | t: Backend`);
@@ -385,7 +385,7 @@ tag Team t
     const result = parseVisualization(`timeline
 
 tag Team
-  Platform(teal)
+  Platform teal
 
 [Q1]
   2026-01->3m Gateway setup | Team: Platform`);
@@ -397,8 +397,8 @@ tag Team
     const result = parseVisualization(`timeline
 
 tag Team
-  Frontend(blue)
-  Platform(teal) default
+  Frontend blue
+  Platform teal default
 
 [Q1]
   2026-01 Some task`);
@@ -409,7 +409,7 @@ tag Team
     const result = parseVisualization(`timeline
 
 tag Team
-  Frontend(blue)
+  Frontend blue
 
 [Q1]
   2026-01 Task | Team: Unknown`);
@@ -450,7 +450,7 @@ era
   it('parses era block entry with color', () => {
     const result = parseVisualization(`timeline
 era
-  2024-01 -> 2024-06 Sprint (blue)
+  2024-01 -> 2024-06 Sprint blue
 2025-01 Event`);
     expect(result.timelineEras).toHaveLength(1);
     expect(result.timelineEras[0].label).toBe('Sprint');
@@ -484,7 +484,7 @@ marker
   it('parses marker block entry with color', () => {
     const result = parseVisualization(`timeline
 marker
-  2024-03-01 Launch (green)
+  2024-03-01 Launch green
 2025-01 Event`);
     expect(result.timelineMarkers).toHaveLength(1);
     expect(result.timelineMarkers[0].label).toBe('Launch');

@@ -449,7 +449,7 @@ describe('wireframe parser', () => {
   describe('tag groups', () => {
     it('parses tag group with entries', () => {
       const result = parseWireframe(
-        'wireframe Test\ntag Status s\n  Active(green)\n  Inactive(gray)\n[Form]\n  (Submit)'
+        'wireframe Test\ntag Status s\n  Active green\n  Inactive gray\n[Form]\n  (Submit)'
       );
       expect(result.tagGroups).toHaveLength(1);
       expect(result.tagGroups[0].name).toBe('Status');

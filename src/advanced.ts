@@ -28,7 +28,6 @@ export type { DgmoError, DgmoSeverity } from './diagnostics';
 export {
   parseInArrowLabel,
   validateLabelCharacters,
-  matchColorParens,
   ARROW_DIAGNOSTIC_CODES,
 } from './utils/arrows';
 export type { ParseInArrowLabelResult } from './utils/arrows';

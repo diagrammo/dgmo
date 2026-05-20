@@ -7,6 +7,7 @@ import {
   measureIndent,
   parseFirstLine,
   parsePipeMetadata,
+  peelTrailingColorName,
   tryParseSharedOption,
 } from '../utils/parsing';
 import type { ParsedCycle, CycleNode, CycleEdge } from './types';
@@ -149,6 +150,7 @@ export function parseCycle(content: string): ParsedCycle {
       }
 
       // Parse node: Label | color: blue, span: 3, description: text
+      // OR shortcut form (color only): `Label color` (universal §1.5)
       const pipeIdx = trimmed.indexOf('|');
       let label: string;
       let metadata: Record<string, string> = {};
@@ -164,6 +166,18 @@ export function parseCycle(content: string): ParsedCycle {
       if (!label) {
         warn(lineNum, 'Empty node label.');
         continue;
+      }
+
+      // Universal trailing-token shortcut: if no `| color:` was set explicitly
+      // and the label ends in a recognized color word, treat that word as the
+      // color and strip it from the label.
+      if (!metadata['color']) {
+        const { label: stripped, colorName: shortcutColor } =
+          peelTrailingColorName(label);
+        if (shortcutColor) {
+          metadata['color'] = shortcutColor;
+          label = stripped;
+        }
       }
 
       // Extract known keys from metadata

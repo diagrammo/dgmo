@@ -17,6 +17,11 @@ import { extractSymbols as extractInfraSymbols } from './infra/parser';
 import { extractSymbols as extractClassSymbols } from './class/parser';
 import { extractPertSymbols } from './pert/parser';
 import { parseFirstLine, ALL_CHART_TYPES } from './utils/parsing';
+import { RECOGNIZED_COLOR_NAMES } from './colors';
+
+const RECOGNIZED_COLOR_SET: ReadonlySet<string> = new Set(
+  RECOGNIZED_COLOR_NAMES
+);
 // Read chart-type descriptions directly from the source-of-truth data
 // module instead of via dgmo-router.ts. dgmo-router imports every
 // parser, and the parsers (Class/ER/Infra/Pert/Flowchart) type-only
@@ -968,10 +973,15 @@ export function extractTagDeclarations(docText: string): Map<string, string[]> {
       (raw[0] === ' ' || raw[0] === '\t')
     ) {
       if (trimmed && !trimmed.startsWith('//')) {
-        // Strip color annotation: Frontend(blue) → Frontend
-        const colorIdx = trimmed.indexOf('(');
+        // Strip trailing-token color (§1.5): `Frontend blue` → `Frontend`.
+        // Whitespace-split; if the last token is a recognized color word,
+        // drop it; otherwise the whole trimmed string is the value.
+        const lastSpaceIdx = trimmed.lastIndexOf(' ');
         const value =
-          colorIdx > 0 ? trimmed.substring(0, colorIdx).trim() : trimmed;
+          lastSpaceIdx > 0 &&
+          RECOGNIZED_COLOR_SET.has(trimmed.substring(lastSpaceIdx + 1))
+            ? trimmed.substring(0, lastSpaceIdx).trim()
+            : trimmed;
         if (value) currentValues.push(value);
       }
       continue;

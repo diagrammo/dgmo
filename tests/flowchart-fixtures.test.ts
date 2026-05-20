@@ -126,15 +126,15 @@ describe('flowchart fixtures', () => {
     expect(result.nodes.length).toBeGreaterThanOrEqual(10);
   });
 
-  it('flowchart-colors has nodes and edges with custom colors', () => {
+  it('flowchart-colors fixture parses cleanly (edges have no color per §1.7)', () => {
     const content = readFileSync(
       resolve(FIXTURE_DIR, 'flowchart-colors.dgmo'),
       'utf-8'
     );
     const result = parseFlowchart(content);
-    const coloredNodes = result.nodes.filter((n) => n.color);
-    expect(coloredNodes).toHaveLength(0);
-    const coloredEdges = result.edges.filter((e) => e.color);
-    expect(coloredEdges.length).toBeGreaterThanOrEqual(2);
+    expect(result.nodes.filter((n) => n.color)).toHaveLength(0);
+    expect(
+      result.edges.filter((e) => (e as { color?: string }).color)
+    ).toHaveLength(0);
   });
 });

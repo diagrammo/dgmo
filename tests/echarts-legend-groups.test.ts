@@ -9,7 +9,10 @@ import { describe, it, expect } from 'vitest';
 import { getPalette, getSeriesColors } from '../src/palettes';
 import { parseExtendedChart } from '../src/echarts';
 import { parseChart } from '../src/chart';
-import { getExtendedChartLegendGroups, getSimpleChartLegendGroups } from '../src/echarts';
+import {
+  getExtendedChartLegendGroups,
+  getSimpleChartLegendGroups,
+} from '../src/echarts';
 
 const palette = getPalette('nord').light;
 const colors = getSeriesColors(palette);
@@ -18,11 +21,11 @@ describe('getExtendedChartLegendGroups', () => {
   it('extracts scatter categories with original casing', () => {
     const content = `scatter Test
 
-[SaaS](blue)
+[SaaS] blue
   A: 1, 2
   B: 3, 4
 
-[Fintech](green)
+[Fintech] green
   C: 5, 6`;
     const parsed = parseExtendedChart(content, palette);
     const groups = getExtendedChartLegendGroups(parsed, colors);
@@ -45,8 +48,8 @@ B: 3, 4`;
   it('extracts function names with original casing', () => {
     const content = `function
 x -5 to 5
-f(x) (blue): sin(x)
-g(x) (red): cos(x)`;
+f(x) blue: sin(x)
+g(x) red: cos(x)`;
     const parsed = parseExtendedChart(content, palette);
     const groups = getExtendedChartLegendGroups(parsed, colors);
     expect(groups).toHaveLength(1);

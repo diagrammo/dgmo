@@ -1,14 +1,14 @@
 infra E-Commerce Platform — Full Infrastructure
 
 tag Team as t
-  Backend(blue)
-  Platform(teal)
-  Data(purple)
+  Backend blue
+  Platform teal
+  Data purple
 
 tag Tier as r
-  Edge(green)
-  Core(blue)
-  Storage(orange)
+  Edge green
+  Core blue
+  Storage orange
 
 edge
   rps: 15000

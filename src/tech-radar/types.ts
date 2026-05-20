@@ -78,4 +78,6 @@ export interface TechRadarRenderOptions {
   onLegendGroupToggle?: (groupName: string) => void;
   /** Active line from the editor cursor — triggers popover/expansion for that blip. */
   activeLine?: number | null;
+  /** True when rendering for export (PNG/SVG/PDF) — controls whether collapsed legend pills and cog are stripped. */
+  exportMode?: boolean;
 }

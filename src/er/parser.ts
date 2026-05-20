@@ -46,15 +46,15 @@ function tableId(name: string): string {
 // Regex patterns
 // ============================================================
 
-// Table declaration: name or name (color) or name | key: value
-// Multi-word names allowed; quote `"name with reserved chars"` if the name
-// contains pipe / paren / colon. Captures:
+// Table declaration: `name`, `name color` (trailing-token §1.5), or
+// `name | key: value`. Multi-word names allowed; quote `"name with reserved
+// chars"` if the name contains pipe / paren / colon. Captures:
 //   1: quoted-name content (without surrounding quotes), or undefined
 //   2: bare-name (trimmed at call site), or undefined
-//   3: color (inside parens), or undefined
+//   3: trailing-token color (recognized palette word), or undefined
 //   4: pipe metadata (without leading `|`), or undefined
 const TABLE_DECL_RE =
-  /^(?:"([^"]+)"|([a-zA-Z_][^|":(]*?))(?:\s*\(([^)]+)\))?(?:\s*\|(.+))?$/;
+  /^(?:"([^"]+)"|([a-zA-Z_][^|":(]*?))(?:\s+(red|orange|yellow|green|blue|purple|teal|cyan|gray|black|white))?(?:\s*\|(.+))?$/;
 
 // Column: name [type] [constraints...]  — space-separated, no colon, no brackets
 // First token is always the name. Second token is the type if it's not a constraint keyword.
@@ -350,7 +350,7 @@ export function parseERDiagram(
         result.diagnostics.push(
           makeDgmoError(
             lineNumber,
-            `Expected 'Value(color)' in tag group '${currentTagGroup.name}'`,
+            `Expected 'Value color' in tag group '${currentTagGroup.name}'`,
             'warning'
           )
         );
@@ -632,15 +632,22 @@ export function extractSymbols(docText: string): DiagramSymbols {
   for (const rawLine of docText.split('\n')) {
     const line = rawLine.trim();
     if (inMetadata && /^er(\s|$)/i.test(line)) continue;
-    if (inMetadata && OPTION_NOCOLON_RE.test(line)) continue; // option line
-    inMetadata = false;
-    if (line.length === 0) continue;
+    // Under §1.5 trailing-token, `Users blue` matches OPTION_NOCOLON_RE
+    // (key=Users, value=blue) but is actually a table with a color.
+    // Detect tables FIRST so they aren't swallowed by the option fallback.
     if (/^\s/.test(rawLine)) continue; // indented = column definition, not table
+    if (line.length === 0) continue;
     const m = TABLE_DECL_RE.exec(line);
     if (m) {
       const name = (m[1] ?? m[2] ?? '').trim();
-      if (name) entities.push(name);
+      if (name) {
+        inMetadata = false;
+        entities.push(name);
+        continue;
+      }
     }
+    if (inMetadata && OPTION_NOCOLON_RE.test(line)) continue; // option line
+    inMetadata = false;
   }
   return {
     kind: 'er',

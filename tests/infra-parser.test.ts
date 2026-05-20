@@ -309,9 +309,9 @@ infra
 infra
 
 tag Team t
-  Backend(blue)
-  Platform(teal)
-  Commerce(orange)
+  Backend blue
+  Platform teal
+  Commerce orange
 `);
       expect(result.tagGroups).toHaveLength(1);
       expect(result.tagGroups[0].name).toBe('Team');
@@ -341,7 +341,7 @@ tag Environment
 infra
 
 tag Team t
-  Backend(blue)
+  Backend blue
 
 CloudFront | t: Backend
   cache-hit 80%
@@ -357,9 +357,9 @@ CloudFront | t: Backend
 infra Production Traffic Flow
 
 tag Team t
-  Backend(blue)
-  Platform(teal)
-  Commerce(orange)
+  Backend blue
+  Platform teal
+  Commerce orange
 
 edge
   rps 10000

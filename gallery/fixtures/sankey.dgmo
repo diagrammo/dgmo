@@ -1,22 +1,22 @@
 sankey Website Traffic Flow
 
 // Source channels — colored by type
-Organic Search (green)
+Organic Search green
   Landing Page 450
-Paid Ads (orange)
+Paid Ads orange
   Landing Page 280
-Social Media (blue)
+Social Media blue
   Landing Page 180
-Email (purple)
+Email purple
   Landing Page 120
-Direct (teal)
+Direct teal
   Landing Page 90
 
 // Engagement & Conversion
 Landing Page
   Sign Up 340
   Browse Products 520
-  Bounce 260 (red)
+  Bounce 260 red
 
 Sign Up
   Free Trial 240
@@ -24,8 +24,8 @@ Sign Up
 
 Browse Products
   Add to Cart 310
-  Exit 210 (red)
+  Exit 210 red
 
 Add to Cart
-  Purchase (green) 220
-  Abandon 90 (red)
+  Purchase green 220
+  Abandon 90 red

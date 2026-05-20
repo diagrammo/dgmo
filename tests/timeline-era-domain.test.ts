@@ -139,7 +139,7 @@ era 1950->2050 Wide span`;
 
   it('marker before earliest event lands within chart width', () => {
     const src = `timeline
-marker 1900 Pre-history (orange)
+marker 1900 Pre-history orange
 2000 First event
 2010 Second event`;
     const container = renderToContainer(src);

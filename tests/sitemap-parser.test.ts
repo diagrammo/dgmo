@@ -1,7 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import { parseSitemap, looksLikeSitemap } from '../src/sitemap/parser';
-import { resolveColor } from '../src/colors';
-import { getPalette } from '../src/palettes';
 
 describe('parseSitemap', () => {
   // === Chart type ===
@@ -225,18 +223,18 @@ describe('parseSitemap', () => {
       expect(result.edges[0].label).toBe('navigate');
     });
 
-    it('colored arrow -(red)-> Target', () => {
+    it('-(red)-> parses as literal label "(red)" (spec §1.7: no edge color)', () => {
       const result = parseSitemap('Home\n  -(red)-> About\nAbout');
       expect(result.edges).toHaveLength(1);
-      expect(result.edges[0].color).toBeDefined();
-      expect(result.edges[0].label).toBeUndefined();
+      expect((result.edges[0] as { color?: string }).color).toBeUndefined();
+      expect(result.edges[0].label).toBe('(red)');
     });
 
-    it('labeled and colored arrow -label(blue)-> Target', () => {
-      const result = parseSitemap('Home\n  -browse(blue)-> About\nAbout');
+    it('-label blue-> parses with whole-token label "browse blue"', () => {
+      const result = parseSitemap('Home\n  -browse blue-> About\nAbout');
       expect(result.edges).toHaveLength(1);
-      expect(result.edges[0].label).toBe('browse');
-      expect(result.edges[0].color).toBeDefined();
+      expect(result.edges[0].label).toBe('browse blue');
+      expect((result.edges[0] as { color?: string }).color).toBeUndefined();
     });
 
     it('arrow target not found produces error with suggestion', () => {
@@ -299,54 +297,20 @@ describe('parseSitemap', () => {
     });
   });
 
-  // === Arrow color inference ===
-  describe('arrow color inference', () => {
-    // Inferred colors are resolved through the active palette so they match
-    // the diagram's palette rather than raw CSS "green"/"red".
-    const greenHex = resolveColor('green', getPalette('nord').light);
-    const redHex = resolveColor('red', getPalette('nord').light);
-    const orangeHex = resolveColor('orange', getPalette('nord').light);
-    const blueHex = resolveColor('blue', getPalette('nord').light);
-
-    it('-yes-> infers palette green', () => {
+  // === Label-inferred edge color is removed per spec §1.7 ===
+  describe('label-inferred edge color is removed (spec §1.7)', () => {
+    it('-yes-> has no color (label only)', () => {
       const result = parseSitemap('Home\n  -yes-> About\nAbout');
-      expect(result.edges[0].color).toBe(greenHex);
+      expect(result.edges[0].label).toBe('yes');
+      expect((result.edges[0] as { color?: string }).color).toBeUndefined();
     });
 
-    it('-no-> infers palette red', () => {
-      const result = parseSitemap('Home\n  -no-> About\nAbout');
-      expect(result.edges[0].color).toBe(redHex);
-    });
-
-    it('-maybe-> infers palette orange', () => {
-      const result = parseSitemap('Home\n  -maybe-> About\nAbout');
-      expect(result.edges[0].color).toBe(orangeHex);
-    });
-
-    it('-YES-> infers palette green (case-insensitive)', () => {
-      const result = parseSitemap('Home\n  -YES-> About\nAbout');
-      expect(result.edges[0].color).toBe(greenHex);
-    });
-
-    it('-yesterday-> does NOT infer color (not exact match)', () => {
-      const result = parseSitemap('Home\n  -yesterday-> About\nAbout');
-      expect(result.edges[0].color).toBeUndefined();
-    });
-
-    it('-no(blue)-> uses explicit blue, not inferred red', () => {
-      const result = parseSitemap('Home\n  -no(blue)-> About\nAbout');
-      expect(result.edges[0].color).toBe(blueHex);
-      expect(result.edges[0].color).not.toBe(redHex);
-    });
-
-    it('-success-> infers palette green', () => {
-      const result = parseSitemap('Home\n  -success-> About\nAbout');
-      expect(result.edges[0].color).toBe(greenHex);
-    });
-
-    it('-error-> infers palette red', () => {
-      const result = parseSitemap('Home\n  -error-> About\nAbout');
-      expect(result.edges[0].color).toBe(redHex);
+    it('-no-> / -maybe-> / -success-> / -error-> have no color', () => {
+      for (const word of ['no', 'maybe', 'success', 'error']) {
+        const result = parseSitemap(`Home\n  -${word}-> About\nAbout`);
+        expect(result.edges[0].label).toBe(word);
+        expect((result.edges[0] as { color?: string }).color).toBeUndefined();
+      }
     });
   });
 
@@ -356,8 +320,8 @@ describe('parseSitemap', () => {
       const content = [
         'sitemap',
         'tag Auth',
-        '  Public(green)',
-        '  Required(blue)',
+        '  Public green',
+        '  Required blue',
         '',
         'Home',
         '  Auth: Public',
@@ -371,7 +335,7 @@ describe('parseSitemap', () => {
     it('validates tag values', () => {
       const content = [
         'tag Auth',
-        '  Public(green)',
+        '  Public green',
         '',
         'Home',
         '  Auth: Secret',
@@ -387,7 +351,7 @@ describe('parseSitemap', () => {
     });
 
     it('tag group after content produces error', () => {
-      const content = 'Home\ntag Auth\n  Public(green)';
+      const content = 'Home\ntag Auth\n  Public green';
       const result = parseSitemap(content);
       expect(
         result.diagnostics.some((d) =>
@@ -399,7 +363,7 @@ describe('parseSitemap', () => {
     it('tag group with alias', () => {
       const content = [
         'tag Authorization auth',
-        '  Public(green)',
+        '  Public green',
         '',
         'Home',
         '  auth: Public',
@@ -413,8 +377,10 @@ describe('parseSitemap', () => {
 
   // === Node color ===
   describe('node color', () => {
-    it('(color) suffix is literal on page', () => {
-      const result = parseSitemap('Home(blue)');
+    // Sitemap pages have no color slot — use tag groups for coloring.
+    // Old `(color)` parens form is now literal label text.
+    it('(color) parens suffix on a page is literal', () => {
+      const result = parseSitemap('sitemap\nHome(blue)');
       expect(result.roots[0].label).toBe('Home(blue)');
       expect(result.roots[0].color).toBeUndefined();
     });
@@ -436,8 +402,8 @@ describe('parseSitemap', () => {
         'direction-tb',
         '',
         'tag Auth',
-        '  Public(green)',
-        '  Required(blue)',
+        '  Public green',
+        '  Required blue',
         '',
         'Home',
         '  Auth: Public',
@@ -590,17 +556,17 @@ describe('parseSitemap', () => {
       expect(result.edges[1].targetId).toBe(fooContainer.id);
     });
 
-    it('labeled and colored arrow: -shop(red)-> [Container]', () => {
+    it('-shop red-> [Container] parses as whole-label "shop red" (no edge color)', () => {
       const content = [
         'Home',
-        '  -shop(red)-> [Port Market]',
+        '  -shop red-> [Port Market]',
         '[Port Market]',
         '  Shop',
       ].join('\n');
       const result = parseSitemap(content);
       expect(result.edges).toHaveLength(1);
-      expect(result.edges[0].label).toBe('shop');
-      expect(result.edges[0].color).toBeDefined();
+      expect(result.edges[0].label).toBe('shop red');
+      expect((result.edges[0] as { color?: string }).color).toBeUndefined();
       expect(result.edges[0].targetId).toBe(result.roots[1].id);
     });
 

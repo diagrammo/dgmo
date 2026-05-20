@@ -255,7 +255,7 @@ describe('boxes-and-lines parser', () => {
   describe('tag declarations', () => {
     it('parses inline tag declaration', () => {
       const result = parseBoxesAndLines(
-        'boxes-and-lines\ntag Team t Backend(blue), Frontend(green)\nAPI | t: Backend'
+        'boxes-and-lines\ntag Team t Backend blue, Frontend green\nAPI | t: Backend'
       );
       expect(result.tagGroups).toHaveLength(1);
       expect(result.tagGroups[0].name).toBe('Team');
@@ -265,7 +265,7 @@ describe('boxes-and-lines parser', () => {
 
     it('resolves in metadata', () => {
       const result = parseBoxesAndLines(
-        'boxes-and-lines\ntag Team t Backend(blue), Frontend(green)\nAPI | t: Backend'
+        'boxes-and-lines\ntag Team t Backend blue, Frontend green\nAPI | t: Backend'
       );
       expect(result.nodes.find((n) => n.label === 'API')?.metadata.team).toBe(
         'Backend'
@@ -274,7 +274,7 @@ describe('boxes-and-lines parser', () => {
 
     it('validates tag values', () => {
       const result = parseBoxesAndLines(
-        'boxes-and-lines\ntag Team t Backend(blue), Frontend(green)\nAPI | t: Unknown'
+        'boxes-and-lines\ntag Team t Backend blue, Frontend green\nAPI | t: Unknown'
       );
       expect(
         result.diagnostics.some((d) => d.message.includes('Unknown'))
@@ -283,14 +283,14 @@ describe('boxes-and-lines parser', () => {
 
     it('uses first entry as default when no default keyword', () => {
       const result = parseBoxesAndLines(
-        'boxes-and-lines\ntag Status s\n  Done(green)\n  Doing(yellow)\n  Todo(red)\nAPI | s: Doing'
+        'boxes-and-lines\ntag Status s\n  Done green\n  Doing yellow\n  Todo red\nAPI | s: Doing'
       );
       expect(result.tagGroups[0].defaultValue).toBe('Done');
     });
 
     it('uses entry marked default instead of first entry', () => {
       const result = parseBoxesAndLines(
-        'boxes-and-lines\ntag Status s\n  Done(green)\n  Doing(yellow)\n  Todo(red)\n  NA(gray) default\nAPI | s: Doing'
+        'boxes-and-lines\ntag Status s\n  Done green\n  Doing yellow\n  Todo red\n  NA gray default\nAPI | s: Doing'
       );
       expect(result.tagGroups[0].defaultValue).toBe('NA');
       expect(result.tagGroups[0].entries).toHaveLength(4);
@@ -300,14 +300,14 @@ describe('boxes-and-lines parser', () => {
 
     it('supports default keyword in inline tag declaration', () => {
       const result = parseBoxesAndLines(
-        'boxes-and-lines\ntag Status s Done(green), NA(gray) default\nAPI'
+        'boxes-and-lines\ntag Status s Done green, NA gray default\nAPI'
       );
       expect(result.tagGroups[0].defaultValue).toBe('NA');
     });
 
     it('injects default tag value into untagged nodes', () => {
       const result = parseBoxesAndLines(
-        'boxes-and-lines\ntag Status s\n  Done(green)\n  NA(gray) default\nAPI\nDB | s: Done'
+        'boxes-and-lines\ntag Status s\n  Done green\n  NA gray default\nAPI\nDB | s: Done'
       );
       // API has no s: metadata — should get the default (NA)
       const api = result.nodes.find((n) => n.label === 'API');
@@ -319,7 +319,7 @@ describe('boxes-and-lines parser', () => {
 
     it('rejects tags after content', () => {
       const result = parseBoxesAndLines(
-        'boxes-and-lines\nAPI\ntag Team t Backend(blue)'
+        'boxes-and-lines\nAPI\ntag Team t Backend blue'
       );
       expect(
         result.diagnostics.some((d) =>

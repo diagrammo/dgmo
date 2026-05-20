@@ -25,7 +25,6 @@ export interface LayoutEdge {
   target: string;
   points: { x: number; y: number }[];
   label?: string;
-  color?: string;
   lineNumber: number;
 }
 
@@ -179,7 +178,6 @@ export function layoutGraph(
       target: edge.target,
       points: edgeData?.points ?? [],
       label: edge.label,
-      color: edge.color,
       lineNumber: edge.lineNumber,
     };
   });

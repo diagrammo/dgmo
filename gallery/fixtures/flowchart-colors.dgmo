@@ -1,5 +1,5 @@
 flowchart Color Demo
 
-(Start(green)) -> [Parse Input] -> <Valid?(blue)>
-  -yes(green)-> [Process(teal)] -> (Success(green))
-  -no(red)-> [Error Handler(red)] -> /Log Error(orange)/ -> (Failure(red))
+(Start) -> [Parse Input] -> <Valid?>
+  -yes-> [Process] -> (Success)
+  -no-> [Error Handler] -> /Log Error/ -> (Failure)

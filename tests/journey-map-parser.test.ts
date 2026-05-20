@@ -77,7 +77,7 @@ describe('journey-map parser', () => {
   describe('tag blocks', () => {
     it('parses tag group with entries', () => {
       const result = parseJourneyMap(
-        'journey-map Test\n\ntag Channel ch\n  Web(blue)\n  Mobile(purple)\n\n[Phase]\n  Step | 3, ch: Web'
+        'journey-map Test\n\ntag Channel ch\n  Web blue\n  Mobile purple\n\n[Phase]\n  Step | 3, ch: Web'
       );
       expect(result.tagGroups).toHaveLength(1);
       expect(result.tagGroups[0].name).toBe('Channel');
@@ -87,7 +87,7 @@ describe('journey-map parser', () => {
 
     it('resolves tag alias in step metadata', () => {
       const result = parseJourneyMap(
-        'journey-map Test\n\ntag Channel ch\n  Web(blue)\n  Mobile(purple)\n\n[Phase]\n  Step | 3, ch: Web'
+        'journey-map Test\n\ntag Channel ch\n  Web blue\n  Mobile purple\n\n[Phase]\n  Step | 3, ch: Web'
       );
       const step = result.phases[0].steps[0];
       expect(step.tags).toHaveProperty('channel', 'Web');
@@ -157,7 +157,7 @@ describe('journey-map parser', () => {
 
     it('parses step with score, label, and metadata', () => {
       const result = parseJourneyMap(
-        'journey-map Test\n\ntag Channel ch\n  Web(blue)\n\n[Phase]\n  Hit error | 1 Frustrated, ch: Web'
+        'journey-map Test\n\ntag Channel ch\n  Web blue\n\n[Phase]\n  Hit error | 1 Frustrated, ch: Web'
       );
       const step = result.phases[0].steps[0];
       expect(step.score).toBe(1);
@@ -207,7 +207,7 @@ describe('journey-map parser', () => {
 
     it('| 4, ch: Web — score + metadata', () => {
       const result = parseJourneyMap(
-        'journey-map Test\n\ntag Channel ch\n  Web(blue)\n\n[Phase]\n  Step | 4, ch: Web'
+        'journey-map Test\n\ntag Channel ch\n  Web blue\n\n[Phase]\n  Step | 4, ch: Web'
       );
       const step = result.phases[0].steps[0];
       expect(step.score).toBe(4);
@@ -224,7 +224,7 @@ describe('journey-map parser', () => {
 
     it('| 4 Delighted, ch: Web — score + label + metadata', () => {
       const result = parseJourneyMap(
-        'journey-map Test\n\ntag Channel ch\n  Web(blue)\n\n[Phase]\n  Step | 4 Delighted, ch: Web'
+        'journey-map Test\n\ntag Channel ch\n  Web blue\n\n[Phase]\n  Step | 4 Delighted, ch: Web'
       );
       const step = result.phases[0].steps[0];
       expect(step.score).toBe(4);
@@ -247,7 +247,7 @@ describe('journey-map parser', () => {
 
     it('| score: 4, ch: Web — explicit score key', () => {
       const result = parseJourneyMap(
-        'journey-map Test\n\ntag Channel ch\n  Web(blue)\n\n[Phase]\n  Step | score: 4, ch: Web'
+        'journey-map Test\n\ntag Channel ch\n  Web blue\n\n[Phase]\n  Step | score: 4, ch: Web'
       );
       const step = result.phases[0].steps[0];
       expect(step.score).toBe(4);
@@ -256,7 +256,7 @@ describe('journey-map parser', () => {
 
     it('| ch: Web — no score produces diagnostic hint', () => {
       const result = parseJourneyMap(
-        'journey-map Test\n\ntag Channel ch\n  Web(blue)\n\n[Phase]\n  Step | ch: Web'
+        'journey-map Test\n\ntag Channel ch\n  Web blue\n\n[Phase]\n  Step | ch: Web'
       );
       const step = result.phases[0].steps[0];
       expect(step.score).toBeUndefined();
@@ -319,10 +319,10 @@ describe('journey-map parser', () => {
 
     it('bare and explicit score produce same result', () => {
       const r1 = parseJourneyMap(
-        'journey-map Test\n\ntag Channel ch\n  Web(blue)\n\n[Phase]\n  Step | 4, ch: Web'
+        'journey-map Test\n\ntag Channel ch\n  Web blue\n\n[Phase]\n  Step | 4, ch: Web'
       );
       const r2 = parseJourneyMap(
-        'journey-map Test\n\ntag Channel ch\n  Web(blue)\n\n[Phase]\n  Step | score: 4, ch: Web'
+        'journey-map Test\n\ntag Channel ch\n  Web blue\n\n[Phase]\n  Step | score: 4, ch: Web'
       );
       expect(r1.phases[0].steps[0].score).toBe(r2.phases[0].steps[0].score);
       expect(r1.phases[0].steps[0].tags).toEqual(r2.phases[0].steps[0].tags);
@@ -364,7 +364,7 @@ describe('journey-map parser', () => {
 
     it('parses active-tag option', () => {
       const result = parseJourneyMap(
-        'journey-map Test\n\ntag Channel ch\n  Web(blue)\n\nactive-tag Channel\n\n[Phase]\n  Step | 3'
+        'journey-map Test\n\ntag Channel ch\n  Web blue\n\nactive-tag Channel\n\n[Phase]\n  Step | 3'
       );
       expect(result.options['active-tag']).toBe('Channel');
     });
@@ -375,7 +375,7 @@ describe('journey-map parser', () => {
   describe('tag validation', () => {
     it('warns on unknown tag value', () => {
       const result = parseJourneyMap(
-        'journey-map Test\n\ntag Channel ch\n  Web(blue)\n  Mobile(purple)\n\n[Phase]\n  Step | 3, ch: Desktop'
+        'journey-map Test\n\ntag Channel ch\n  Web blue\n  Mobile purple\n\n[Phase]\n  Step | 3, ch: Desktop'
       );
       const warning = result.diagnostics.find((d) =>
         d.message.includes('Unknown tag value')
@@ -385,7 +385,7 @@ describe('journey-map parser', () => {
 
     it('no warning for valid tag value', () => {
       const result = parseJourneyMap(
-        'journey-map Test\n\ntag Channel ch\n  Web(blue)\n  Mobile(purple)\n\n[Phase]\n  Step | 3, ch: Web'
+        'journey-map Test\n\ntag Channel ch\n  Web blue\n  Mobile purple\n\n[Phase]\n  Step | 3, ch: Web'
       );
       const warning = result.diagnostics.find((d) =>
         d.message.includes('Unknown tag value')
@@ -418,10 +418,10 @@ persona Tech-Savvy Shopper
   28yo developer, price-sensitive, does extensive research
 
 tag Channel ch
-  Web(blue)
-  Mobile(purple)
-  Email(teal)
-  In-Person(green)
+  Web blue
+  Mobile purple
+  Email teal
+  In-Person green
 
 [Research]
   Compare specs | 4, ch: Web

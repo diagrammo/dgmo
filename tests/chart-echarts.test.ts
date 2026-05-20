@@ -328,7 +328,7 @@ describe('collectIndentedValues', () => {
 describe('Era parsing', () => {
   it('parses era with color', () => {
     const parsed = parseChart(
-      "line\nera '77 -> '81 Carter (blue)\n'77 7\n'81 108",
+      "line\nera '77 -> '81 Carter blue\n'77 7\n'81 108",
       palette
     );
     expect(parsed.eras).toHaveLength(1);
@@ -368,7 +368,7 @@ describe('Era parsing', () => {
 
   it('parses apostrophe labels cleanly', () => {
     const parsed = parseChart(
-      "line\nera '93 -> '01 Clinton (blue)\n'93 587\n'01 550",
+      "line\nera '93 -> '01 Clinton blue\n'93 587\n'01 550",
       palette
     );
     expect(parsed.eras![0].start).toBe("'93");
@@ -526,15 +526,15 @@ describe('Era bands — line chart', () => {
     const sprContent = `line U.S. Strategic Petroleum Reserve
 y-label Million Barrels
 
-era '77 -> '81 Carter (blue)
-era '81 -> '89 Reagan (red)
-era '89 -> '93 Bush (red)
-era '93 -> '01 Clinton (blue)
-era '01 -> '09 Bush (red)
-era '09 -> '17 Obama (blue)
-era '17 -> '21 Trump (red)
-era '21 -> '25 Biden (blue)
-era '25 -> '25 Trump (red)
+era '77 -> '81 Carter blue
+era '81 -> '89 Reagan red
+era '89 -> '93 Bush red
+era '93 -> '01 Clinton blue
+era '01 -> '09 Bush red
+era '09 -> '17 Obama blue
+era '17 -> '21 Trump red
+era '21 -> '25 Biden blue
+era '25 -> '25 Trump red
 
 '77 7
 '78 67
@@ -615,9 +615,9 @@ describe('parseChart — multi-line series', () => {
     const input = [
       'bar-stacked',
       'series',
-      '  Rum (red)',
-      '  Spices (green)',
-      '  Gold (yellow)',
+      '  Rum red',
+      '  Spices green',
+      '  Gold yellow',
       '',
       'Q1 10, 20, 30',
     ].join('\n');
@@ -921,7 +921,7 @@ describe('parseExtendedChart — sankey color annotations', () => {
     const input = [
       'sankey',
       '',
-      'Revenue (green)',
+      'Revenue green',
       '  Costs 600',
       '  Profit 400',
     ].join('\n');
@@ -938,8 +938,8 @@ describe('parseExtendedChart — sankey color annotations', () => {
       'sankey',
       '',
       'Revenue',
-      '  Costs (red) 600',
-      '  Profit (blue) 400',
+      '  Costs red 600',
+      '  Profit blue 400',
     ].join('\n');
     const parsed = parseExtendedChart(input, palette);
     expect(parsed.nodeColors!['Costs']).toBe('#bf616a');
@@ -949,7 +949,7 @@ describe('parseExtendedChart — sankey color annotations', () => {
   });
 
   it('node colors via arrow syntax', () => {
-    const input = ['sankey', '', 'A (blue) -> B (red) 100'].join('\n');
+    const input = ['sankey', '', 'A blue -> B red 100'].join('\n');
     const parsed = parseExtendedChart(input, palette);
     expect(parsed.nodeColors!['A']).toBe('#5e81ac');
     expect(parsed.nodeColors!['B']).toBe('#bf616a');
@@ -958,14 +958,14 @@ describe('parseExtendedChart — sankey color annotations', () => {
   });
 
   it('link color via indentation syntax', () => {
-    const input = ['sankey', '', 'Revenue', '  Costs 600 (orange)'].join('\n');
+    const input = ['sankey', '', 'Revenue', '  Costs 600 orange'].join('\n');
     const parsed = parseExtendedChart(input, palette);
     expect(parsed.links![0].color).toBe('#d08770');
     expect(parsed.links![0].value).toBe(600);
   });
 
   it('link color via arrow syntax', () => {
-    const input = ['sankey', '', 'A -> B 100 (purple)'].join('\n');
+    const input = ['sankey', '', 'A -> B 100 purple'].join('\n');
     const parsed = parseExtendedChart(input, palette);
     expect(parsed.links![0].color).toBe('#b48ead');
     expect(parsed.links![0].value).toBe(100);
@@ -989,7 +989,7 @@ describe('buildSankeyOption — color annotations', () => {
   }
 
   it('uses nodeColors for node itemStyle.color', () => {
-    const input = ['sankey', '', 'A (green) -> B (red) 100', 'B -> C 50'].join(
+    const input = ['sankey', '', 'A green -> B red 100', 'B -> C 50'].join(
       '\n'
     );
     const opt = buildSankey(input);
@@ -1007,7 +1007,7 @@ describe('buildSankeyOption — color annotations', () => {
   });
 
   it('applies lineStyle.color on colored links', () => {
-    const input = ['sankey', '', 'A -> B 100 (orange)', 'A -> C 50'].join('\n');
+    const input = ['sankey', '', 'A -> B 100 orange', 'A -> C 50'].join('\n');
     const opt = buildSankey(input);
     const s = series(opt)[0];
     const linkAB = s.links.find(

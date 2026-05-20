@@ -3,11 +3,11 @@ x-label Month
 y-label Tickets
 
 series
-  Critical (red)
-  High (orange)
-  Medium (yellow)
-  Low (green)
-  Info (blue)
+  Critical red
+  High orange
+  Medium yellow
+  Low green
+  Info blue
 
 January 8 24 45 62 31
 February 12 19 51 58 28

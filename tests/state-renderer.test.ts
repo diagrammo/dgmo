@@ -166,7 +166,7 @@ describe('renderState', () => {
   describe('group rendering', () => {
     it('renders group box rect', () => {
       const container = renderToContainer(
-        '[Processing](blue)\n  Validating -> Approved'
+        '[Processing] blue\n  Validating -> Approved'
       );
       const groupRects = container.querySelectorAll('rect.st-group');
       expect(groupRects.length).toBe(1);
@@ -260,7 +260,7 @@ describe('renderState', () => {
 
     it('collapsed-group fill equals raw group color when solid-fill is on', () => {
       const parsed = parseState(
-        'solid-fill\n[Processing](red)\n  Validating -> Approved',
+        'solid-fill\n[Processing] red\n  Validating -> Approved',
         testPalette
       );
       expect(parsed.error).toBeNull();
@@ -295,7 +295,7 @@ describe('renderState', () => {
 
     it('collapsed-group fill is the 25% mix when solid-fill is absent', () => {
       const parsed = parseState(
-        '[Processing](red)\n  Validating -> Approved',
+        '[Processing] red\n  Validating -> Approved',
         testPalette
       );
       expect(parsed.error).toBeNull();

@@ -21,7 +21,7 @@ function renderToContainer(content: string, isDark = false) {
     isDark ? getPalette('nord').dark : palette,
     isDark,
     undefined,
-    { width: 800, height: 600 },
+    { width: 800, height: 600 }
   );
 
   return { container, parsed, layout };
@@ -94,12 +94,11 @@ describe('renderSitemap', () => {
     document.body.removeChild(container);
   });
 
-  it('renders colored arrowheads', () => {
-    const content = 'Home\n  -(red)-> About\nAbout';
+  it('renders default arrowhead marker (no edge color slot per §1.7)', () => {
+    const content = 'Home\n  -browse-> About\nAbout';
     const { container } = renderToContainer(content);
     const markers = container.querySelectorAll('marker');
-    // Default + colored marker
-    expect(markers.length).toBeGreaterThanOrEqual(2);
+    expect(markers.length).toBeGreaterThanOrEqual(1);
     document.body.removeChild(container);
   });
 

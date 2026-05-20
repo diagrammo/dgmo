@@ -51,8 +51,8 @@ describe('extractAlias — happy-path', () => {
   });
 
   it('preserves color and type modifiers in canonical', () => {
-    expect(extractAlias('Alice(red) is a service as a')).toEqual({
-      canonical: 'Alice(red) is a service',
+    expect(extractAlias('Alice red is a service as a')).toEqual({
+      canonical: 'Alice red is a service',
       alias: 'a',
     });
   });

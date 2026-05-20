@@ -3,7 +3,6 @@
 // ============================================================
 
 import type { PaletteColors } from '../palettes';
-import { resolveColorWithDiagnostic } from '../colors';
 import type { DgmoError } from '../diagnostics';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
 import { normalizeName } from '../utils/name-normalize';
@@ -20,7 +19,6 @@ import {
   measureIndent,
   extractColor,
   parsePipeMetadata,
-  inferArrowColor,
   MULTIPLE_PIPE_ERROR,
   parseFirstLine,
   OPTION_NOCOLON_RE,
@@ -39,10 +37,11 @@ const CONTAINER_RE = /^\[([^\]]+)\]\s*(?:\|\s*(.+))?$/;
 const METADATA_RE = /^([^:]+):\s*(.+)$/;
 
 /**
- * Arrow line: `-label->`, `-(color)->`, `-label(color)->`, `->` followed by target label.
- * Captures: [1] label, [2] color, [3] target
+ * Arrow line: `-label->` or `->` followed by target label.
+ * Edges have no color slot (spec §1.7).
+ * Captures: [1] label, [2] target
  */
-const ARROW_RE = /^-([^(>][^(>]*?)?\s*(?:\(([^)]+)\))?\s*->\s*(.+)$/;
+const ARROW_RE = /^-([^>][^>]*?)?\s*->\s*(.+)$/;
 const BARE_ARROW_RE = /^->\s*(.+)$/;
 
 // ============================================================
@@ -51,12 +50,11 @@ const BARE_ARROW_RE = /^->\s*(.+)$/;
 
 function parseArrowLine(
   trimmed: string,
-  palette: PaletteColors | undefined,
-  lineNumber: number,
-  diagnostics: DgmoError[]
+  _palette: PaletteColors | undefined,
+  _lineNumber: number,
+  _diagnostics: DgmoError[]
 ): {
   label?: string;
-  color?: string;
   target: string;
   targetIsGroup: boolean;
 } | null {
@@ -71,33 +69,14 @@ function parseArrowLine(
     };
   }
 
-  // Labeled/colored arrow: -label(color)-> Target
+  // Labeled arrow: -label-> Target
   const arrowMatch = trimmed.match(ARROW_RE);
   if (arrowMatch) {
     const label = arrowMatch[1]?.trim() || undefined;
-    let color = arrowMatch[2]
-      ? resolveColorWithDiagnostic(
-          arrowMatch[2].trim(),
-          lineNumber,
-          diagnostics,
-          palette
-        )
-      : undefined;
-    if (label && !color) {
-      const inferred = inferArrowColor(label);
-      if (inferred)
-        color = resolveColorWithDiagnostic(
-          inferred,
-          lineNumber,
-          diagnostics,
-          palette
-        );
-    }
-    const rawTarget = arrowMatch[3].trim();
+    const rawTarget = arrowMatch[2].trim();
     const groupMatch = rawTarget.match(/^\[(.+)\]$/);
     return {
       label,
-      color,
       target: groupMatch ? groupMatch[1].trim() : rawTarget,
       targetIsGroup: !!groupMatch,
     };
@@ -216,7 +195,6 @@ export function parseSitemap(
     targetLabel: string;
     targetIsGroup: boolean;
     label?: string;
-    color?: string;
     lineNumber: number;
   }[] = [];
 
@@ -309,7 +287,7 @@ export function parseSitemap(
       }
     }
 
-    // Tag group entries (indented Value(color) under tag heading)
+    // Tag group entries (indented `Value color` under tag heading; §1.5)
     // First entry is the default unless another is marked `default`
     if (currentTagGroup && !contentStarted) {
       const indent = measureIndent(line);
@@ -319,7 +297,7 @@ export function parseSitemap(
         if (!color) {
           pushError(
             lineNumber,
-            `Expected 'Value(color)' in tag group '${currentTagGroup.name}'`
+            `Expected 'Value color' in tag group '${currentTagGroup.name}'`
           );
           continue;
         }
@@ -365,7 +343,6 @@ export function parseSitemap(
           targetLabel: arrowInfo.target,
           targetIsGroup: arrowInfo.targetIsGroup,
           label: arrowInfo.label,
-          color: arrowInfo.color,
           lineNumber,
         });
       }
@@ -486,7 +463,6 @@ export function parseSitemap(
         sourceId: arrow.sourceNode.id,
         targetId: aliasHit,
         label: arrow.label,
-        color: arrow.color,
         lineNumber: arrow.lineNumber,
       });
       continue;
@@ -508,7 +484,6 @@ export function parseSitemap(
         sourceId: arrow.sourceNode.id,
         targetId: targetContainer.id,
         label: arrow.label,
-        color: arrow.color,
         lineNumber: arrow.lineNumber,
       });
     } else {
@@ -526,7 +501,6 @@ export function parseSitemap(
         sourceId: arrow.sourceNode.id,
         targetId: targetNode.id,
         label: arrow.label,
-        color: arrow.color,
         lineNumber: arrow.lineNumber,
       });
     }

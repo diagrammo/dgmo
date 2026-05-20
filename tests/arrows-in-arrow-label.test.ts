@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import {
   parseInArrowLabel,
   validateLabelCharacters,
-  matchColorParens,
   ARROW_DIAGNOSTIC_CODES,
 } from '../src/utils/arrows';
 
@@ -90,44 +89,10 @@ describe('parseInArrowLabel', () => {
     });
   });
 
-  describe('TD-11 color parens (via shared matchColorParens helper)', () => {
-    // `parseInArrowLabel` deliberately does NOT implement color-parens
-    // recognition — it's a chart-agnostic label validator. Flowchart and
-    // state implement TD-11 in `parseArrowToken` using the shared
-    // `matchColorParens` helper exported from utils/arrows.ts.
-    it('recognizes (red) as a palette color', () => {
-      expect(matchColorParens('(red)')).toBe('red');
-    });
-    it('recognizes all 11 palette colors', () => {
-      const all = [
-        'red',
-        'orange',
-        'yellow',
-        'green',
-        'blue',
-        'purple',
-        'teal',
-        'cyan',
-        'gray',
-        'black',
-        'white',
-      ];
-      for (const c of all) {
-        expect(matchColorParens(`(${c})`)).toBe(c);
-      }
-    });
-    it('returns null for non-palette color names', () => {
-      expect(matchColorParens('(notacolor)')).toBeNull();
-    });
-    it('returns null for mixed content (TD-11 fall-through)', () => {
-      expect(matchColorParens('(red) uses')).toBeNull();
-    });
-    it('is case-insensitive', () => {
-      expect(matchColorParens('(RED)')).toBe('red');
-      expect(matchColorParens('(Blue)')).toBe('blue');
-    });
-    it('parseInArrowLabel itself never recognizes color parens', () => {
-      // The whole point of the split is: validator doesn't touch color.
+  describe('edge color is not a feature (spec §1.7)', () => {
+    // The whole point: validator passes parens through as literal text;
+    // no chart type interprets edge content as color anymore.
+    it('treats parens content as literal label', () => {
       const r = parseInArrowLabel('(red)', 1);
       expect(r.label).toBe('(red)');
       expect((r as { color?: string }).color).toBeUndefined();

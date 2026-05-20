@@ -22,7 +22,6 @@
 
 import type { DgmoError } from '../diagnostics';
 import { makeDgmoError } from '../diagnostics';
-import { RECOGNIZED_COLOR_NAMES } from '../colors';
 
 interface ParsedArrow {
   from: string;
@@ -140,10 +139,9 @@ export interface ParseInArrowLabelResult {
  *
  * This helper is intentionally chart-agnostic: it operates on an already
  * extracted label string, leaving each chart's existing arrow-finding
- * tokenization in place. TD-11 color-parens is handled inside the
- * flowchart and state `parseArrowToken` functions because those are the
- * only charts that interpret `-(color)->` as a colored edge; they use
- * `matchColorParens()` from this module for the shared lookup.
+ * tokenization in place. Edges no longer have a color slot on any chart
+ * type (see spec §1.7 "Edge color is not a feature"); arrow content is
+ * pure label text.
  */
 export function parseInArrowLabel(
   rawLabel: string,
@@ -160,29 +158,6 @@ export function parseInArrowLabel(
   const diagnostics = validateLabelCharacters(trimmed, lineNumber);
 
   return { label: trimmed, diagnostics };
-}
-
-// ============================================================
-// matchColorParens — shared TD-11 helper for flowchart and state
-// ============================================================
-
-/**
- * Test whether a string matches the TD-11 color-parens form `(colorName)`
- * where `colorName` is one of the 11 recognized palette color names from
- * `src/colors.ts:RECOGNIZED_COLOR_NAMES`. Returns the lowercase color name
- * on a match, or `null` on fall-through (whole string becomes a label).
- *
- * Used by flowchart and state parsers to keep the color-parens recognition
- * rule in one place — do NOT re-implement the regex in chart parsers.
- */
-export function matchColorParens(content: string): string | null {
-  const m = content.match(/^\(([A-Za-z]+)\)$/);
-  if (!m) return null;
-  const candidate = m[1].toLowerCase();
-  if ((RECOGNIZED_COLOR_NAMES as readonly string[]).includes(candidate)) {
-    return candidate;
-  }
-  return null;
 }
 
 // Forward (call) patterns — participant names may contain spaces, so use non-greedy (.+?)

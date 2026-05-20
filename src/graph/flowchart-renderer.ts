@@ -447,11 +447,8 @@ export function renderFlowchart(
     .attr('points', `0,0 ${ARROWHEAD_W},${ARROWHEAD_H / 2} 0,${ARROWHEAD_H}`)
     .attr('fill', palette.textMuted);
 
-  // Collect unique edge colors for custom markers
+  // Edges have no color slot (§1.7); keep empty set for marker iteration.
   const edgeColors = new Set<string>();
-  for (const edge of layout.edges) {
-    if (edge.color) edgeColors.add(edge.color);
-  }
   for (const color of edgeColors) {
     const id = `fc-arrow-${color.replace('#', '')}`;
     defs
@@ -569,10 +566,8 @@ export function renderFlowchart(
       .attr('class', 'fc-edge-group')
       .attr('data-line-number', String(edge.lineNumber));
 
-    const edgeColor = edge.color ?? palette.textMuted;
-    const markerId = edge.color
-      ? `fc-arrow-${edge.color.replace('#', '')}`
-      : 'fc-arrow';
+    const edgeColor = palette.textMuted;
+    const markerId = 'fc-arrow';
 
     const pathD = lineGenerator(edge.points);
     if (pathD) {

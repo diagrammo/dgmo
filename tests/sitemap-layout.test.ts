@@ -91,8 +91,8 @@ describe('layoutSitemap', () => {
   it('computes legend for tag groups', () => {
     const content = [
       'tag Auth',
-      '  Public(green)',
-      '  Required(blue)',
+      '  Public green',
+      '  Required blue',
       '',
       'Home',
       '  Auth: Public',
@@ -130,8 +130,8 @@ describe('layoutSitemap', () => {
       'direction-tb',
       '',
       'tag Auth',
-      '  Public(green)',
-      '  Required(blue)',
+      '  Public green',
+      '  Required blue',
       '',
       'Home',
       '  Auth: Public',

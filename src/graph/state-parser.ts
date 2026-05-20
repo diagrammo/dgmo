@@ -8,7 +8,7 @@ import {
   NAME_DIAGNOSTIC_CODES,
   nameMergedMessage,
 } from '../diagnostics';
-import { parseInArrowLabel, matchColorParens } from '../utils/arrows';
+import { parseInArrowLabel } from '../utils/arrows';
 import {
   measureIndent,
   parseFirstLine,
@@ -26,7 +26,10 @@ import type { ParsedGraph, GraphNode, GraphGroup } from './types';
 const PSEUDOSTATE_ID = 'pseudostate:[*]';
 const PSEUDOSTATE_LABEL = '[*]';
 
-const GROUP_BRACKET_RE = /^\[([^\]]+)\](?:\(([^)]+)\))?\s*$/;
+// `[Group]` or `[Group] color` (universal §1.5 trailing-token).
+// Color (group 2) must be a recognized lowercase palette word.
+const GROUP_BRACKET_RE =
+  /^\[([^\]]+)\](?:\s+(red|orange|yellow|green|blue|purple|teal|cyan|gray|black|white))?\s*$/;
 
 // ============================================================
 // Arrow splitter
@@ -36,7 +39,7 @@ const GROUP_BRACKET_RE = /^\[([^\]]+)\](?:\(([^)]+)\))?\s*$/;
  * Split a line on `->` arrows, returning alternating segments:
  * [nodeText, arrowToken, nodeText, ...]
  *
- * Arrows: `->`, `-label->`, `-(color)->`, `-label(color)->`
+ * Arrows: `->`, `-label->`. Edges have no color slot (spec §1.7).
  */
 function splitArrows(line: string): string[] {
   // Mirrors flowchart-parser.ts splitArrows. TD-9 longest-match: arrow token
@@ -46,7 +49,6 @@ function splitArrows(line: string): string[] {
     start: number;
     end: number;
     label?: string;
-    color?: string;
   }[] = [];
 
   let searchFrom = 0;
@@ -61,7 +63,6 @@ function splitArrows(line: string): string[] {
 
     let arrowStart: number;
     let label: string | undefined;
-    let color: string | undefined;
 
     let openingStart = -1;
     for (let i = scanFloor; i < runStart; i++) {
@@ -78,22 +79,14 @@ function splitArrows(line: string): string[] {
       let openingEnd = openingStart;
       while (openingEnd < runStart && line[openingEnd] === '-') openingEnd++;
 
-      const arrowContent = line.substring(openingEnd, runStart);
-      const colorMatch = arrowContent.match(/\(([^)]+)\)\s*$/);
-      if (colorMatch) {
-        color = colorMatch[1].trim();
-        const labelPart = arrowContent.substring(0, colorMatch.index!).trim();
-        if (labelPart) label = labelPart;
-      } else {
-        const labelPart = arrowContent.trim();
-        if (labelPart) label = labelPart;
-      }
+      const labelPart = line.substring(openingEnd, runStart).trim();
+      if (labelPart) label = labelPart;
       arrowStart = openingStart;
     } else {
       arrowStart = runStart;
     }
 
-    arrowPositions.push({ start: arrowStart, end: arrowEnd, label, color });
+    arrowPositions.push({ start: arrowStart, end: arrowEnd, label });
     searchFrom = arrowEnd;
     scanFloor = arrowEnd;
   }
@@ -106,11 +99,7 @@ function splitArrows(line: string): string[] {
     const beforeText = line.substring(lastIndex, arrow.start).trim();
     if (beforeText || i === 0) segments.push(beforeText);
 
-    let arrowToken = '->';
-    if (arrow.label && arrow.color)
-      arrowToken = `-${arrow.label}(${arrow.color})->`;
-    else if (arrow.label) arrowToken = `-${arrow.label}->`;
-    else if (arrow.color) arrowToken = `-(${arrow.color})->`;
+    const arrowToken = arrow.label ? `-${arrow.label}->` : '->';
     segments.push(arrowToken);
     lastIndex = arrow.end;
   }
@@ -122,49 +111,23 @@ function splitArrows(line: string): string[] {
 
 interface ArrowInfo {
   label?: string;
-  color?: string;
 }
 
 function parseArrowToken(
   token: string,
-  palette: PaletteColors | undefined,
+  _palette: PaletteColors | undefined,
   lineNumber: number,
   diagnostics: DgmoError[]
 ): ArrowInfo {
   if (token === '->') return {};
-  // TD-11: `-(X)->` is a color if and only if X is a recognized palette
-  // color; otherwise the whole `(X)` becomes the label. Delegate recognition
-  // to the shared `matchColorParens` helper.
-  const bareParen = token.match(/^-(\([A-Za-z]+\))->$/);
-  if (bareParen) {
-    const colorName = matchColorParens(bareParen[1]);
-    if (colorName) {
-      return {
-        color: resolveColorWithDiagnostic(
-          colorName,
-          lineNumber,
-          diagnostics,
-          palette
-        ),
-      };
-    }
-    // fall through — whole `(X)` becomes label
-  }
-  const m = token.match(/^-(.+?)(?:\(([^)]+)\))?->$/);
+  // Edges have no color slot (§1.7); arrow content between `-` and `->`
+  // is pure label text.
+  const m = token.match(/^-(.+?)->$/);
   if (m) {
     const rawLabel = m[1] ?? '';
     const labelResult = parseInArrowLabel(rawLabel, lineNumber);
     diagnostics.push(...labelResult.diagnostics);
-    const label = labelResult.label;
-    const color = m[2]
-      ? resolveColorWithDiagnostic(
-          m[2].trim(),
-          lineNumber,
-          diagnostics,
-          palette
-        )
-      : undefined;
-    return { label, color };
+    return { label: labelResult.label };
   }
   return {};
 }
@@ -292,15 +255,13 @@ export function parseState(
     sourceId: string,
     targetId: string,
     lineNumber: number,
-    label?: string,
-    color?: string
+    label?: string
   ): void {
     result.edges.push({
       source: sourceId,
       target: targetId,
       lineNumber,
       ...(label && { label }),
-      ...(color && { color }),
     });
   }
 
@@ -494,13 +455,7 @@ export function parseState(
         // Use explicit source if available, else implicit from indent
         const sourceId = lastNodeId ?? implicitSourceId;
         if (sourceId) {
-          addEdge(
-            sourceId,
-            node.id,
-            lineNumber,
-            pendingArrow.label,
-            pendingArrow.color
-          );
+          addEdge(sourceId, node.id, lineNumber, pendingArrow.label);
         }
         pendingArrow = null;
       }

@@ -189,7 +189,7 @@ describe('renderFlowchart', () => {
 
   describe('colors', () => {
     it('applies node color when specified', () => {
-      const container = renderToContainer('[Process(blue)]');
+      const container = renderToContainer('[Process blue]');
       const rects = container.querySelectorAll('g.fc-node rect');
       expect(rects.length).toBeGreaterThanOrEqual(1);
       const stroke = rects[0].getAttribute('stroke');
@@ -197,13 +197,12 @@ describe('renderFlowchart', () => {
       document.body.removeChild(container);
     });
 
-    it('applies edge color when specified', () => {
+    it('-(blue)-> renders with default theme color (no edge color per §1.7)', () => {
       const container = renderToContainer('[A] -(blue)-> [B]');
       const edgePaths = container.querySelectorAll('path.fc-edge');
       expect(edgePaths.length).toBe(1);
       const stroke = edgePaths[0].getAttribute('stroke');
-      expect(stroke).toBeTruthy();
-      expect(stroke).not.toBe(testPalette.textMuted);
+      expect(stroke).toBe(testPalette.textMuted);
       document.body.removeChild(container);
     });
   });

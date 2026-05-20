@@ -2,9 +2,9 @@ area Memory Usage Over Time
 x-label Hour
 y-label GB
 
-era 12am -> 9am Night (blue)
-era 9am -> 6pm Day (green)
-era 6pm -> 11pm Evening (purple)
+era 12am -> 9am Night blue
+era 9am -> 6pm Day green
+era 6pm -> 11pm Evening purple
 
 12am 2.1
 3am 1.8

@@ -718,7 +718,7 @@ export function parseWireframe(content: string): ParsedWireframe {
         }
       }
 
-      // Indented tag entry: `Value(color)` or `Value(color) default`
+      // Indented tag entry: `Value color` or `Value color default`
       if (indent > 0 && currentTagGroup) {
         const { text: cleanEntry, isDefault } = stripDefaultModifier(trimmed);
         const { label, color } = extractColor(cleanEntry);
@@ -736,7 +736,7 @@ export function parseWireframe(content: string): ParsedWireframe {
         } else {
           pushWarning(
             lineNumber,
-            `Expected 'Value(color)' in tag group '${currentTagGroup.name}'`
+            `Expected 'Value color' in tag group '${currentTagGroup.name}'`
           );
         }
         continue;

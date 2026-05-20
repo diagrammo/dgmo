@@ -35,10 +35,11 @@ function classId(name: string): string {
 // Regex patterns
 // ============================================================
 
-// Class declaration: [modifier] ClassName [extends Parent] [implements Interface] (color)
-// Multi-word names allowed (`Customer Service`); quote with `"name"` if name
-// contains reserved chars. ClassName must start with uppercase to keep the
-// convention. Captures (positional):
+// Class declaration: [modifier] ClassName [extends Parent] [implements Interface] [color] [as alias]
+// Color is the universal §1.5 trailing-token form (a bare lowercase palette
+// color word after structural slots). Multi-word names allowed
+// (`Customer Service`); quote with `"name"` if name contains reserved chars.
+// ClassName must start with uppercase. Captures (positional):
 //   1: modifier (abstract|interface|enum) | undefined
 //   2: quotedClassName | undefined
 //   3: bareClassName | undefined
@@ -47,10 +48,10 @@ function classId(name: string): string {
 //   6: quotedImplements | undefined
 //   7: bareImplements | undefined
 //   8: legacy bracket modifier | undefined
-//   9: color | undefined
+//   9: color (trailing token; recognized palette word) | undefined
 //  10: alias literal (TD-18) | undefined
 const CLASS_DECL_RE =
-  /^(?:(abstract|interface|enum)\s+)?(?:"([^"]+)"|([A-Z][^":]*?))(?:\s+extends\s+(?:"([^"]+)"|([A-Z][^":]*?)))?(?:\s+implements\s+(?:"([^"]+)"|([A-Z][^":]*?)))?(?:\s+\[(abstract|interface|enum)\])?(?:\s+\(([^)]+)\))?(?:\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11}))?\s*$/;
+  /^(?:(abstract|interface|enum)\s+)?(?:"([^"]+)"|([A-Z][^":]*?))(?:\s+extends\s+(?:"([^"]+)"|([A-Z][^":]*?)))?(?:\s+implements\s+(?:"([^"]+)"|([A-Z][^":]*?)))?(?:\s+\[(abstract|interface|enum)\])?(?:\s+(red|orange|yellow|green|blue|purple|teal|cyan|gray|black|white))?(?:\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11}))?\s*$/;
 
 // Relationship — arrow syntax (indented under source class).
 // Arrows: --|>  ..|>  *--  o--  ..>  ->

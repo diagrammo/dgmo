@@ -27,7 +27,11 @@ describe('resolveOrgImports', () => {
 
 Alice
   Bob`;
-    const result = await resolveOrgImports(content, '/proj/org.dgmo', mockReader({}));
+    const result = await resolveOrgImports(
+      content,
+      '/proj/org.dgmo',
+      mockReader({})
+    );
     expect(result.diagnostics).toEqual([]);
     expect(result.content).toContain('Alice');
     expect(result.content).toContain('Bob');
@@ -38,8 +42,8 @@ Alice
   // ----------------------------------------------------------
   it('loads tag groups from external tags file', async () => {
     const tagsFile = `tag Department
-  Engineering (blue)
-  Product (green)`;
+  Engineering blue
+  Product green`;
 
     const content = `org Test
 tags shared-tags.dgmo
@@ -53,7 +57,7 @@ Alice | department: Engineering`;
     const result = await resolveOrgImports(content, '/proj/org.dgmo', reader);
     expect(result.diagnostics).toEqual([]);
     expect(result.content).toContain('tag Department');
-    expect(result.content).toContain('Engineering (blue)');
+    expect(result.content).toContain('Engineering blue');
     expect(result.content).toContain('Alice | department: Engineering');
     // tags directive should be stripped
     expect(result.content).not.toMatch(/^tags\s+\S+\.dgmo/m);
@@ -64,15 +68,15 @@ Alice | department: Engineering`;
   // ----------------------------------------------------------
   it('inline tag groups override same-name groups from tags file', async () => {
     const tagsFile = `tag Department
-  Engineering (blue)
-  Product (green)`;
+  Engineering blue
+  Product green`;
 
     const content = `org
 tags shared-tags.dgmo
 
 tag Department
-  Engineering (red)
-  Sales (purple)
+  Engineering red
+  Sales purple
 
 Alice | department: Engineering`;
 
@@ -82,9 +86,9 @@ Alice | department: Engineering`;
 
     const result = await resolveOrgImports(content, '/proj/org.dgmo', reader);
     expect(result.diagnostics).toEqual([]);
-    // Should have the inline version (red) not the tags file version (blue)
-    expect(result.content).toContain('Engineering (red)');
-    expect(result.content).not.toContain('Engineering (blue)');
+    // Should have the inline version red not the tags file version blue
+    expect(result.content).toContain('Engineering red');
+    expect(result.content).not.toContain('Engineering blue');
   });
 
   // ----------------------------------------------------------
@@ -94,7 +98,7 @@ Alice | department: Engineering`;
     const tagsFile = `org Other Chart
 
 tag Department
-  Engineering (blue)
+  Engineering blue
 
 CEO
   CTO`;
@@ -111,7 +115,7 @@ Alice`;
     const result = await resolveOrgImports(content, '/proj/org.dgmo', reader);
     expect(result.diagnostics).toEqual([]);
     expect(result.content).toContain('tag Department');
-    expect(result.content).toContain('Engineering (blue)');
+    expect(result.content).toContain('Engineering blue');
     expect(result.content).toContain('Alice');
     // The non-tag content from the tags file should NOT be included
     expect(result.content).not.toContain('CEO');
@@ -127,7 +131,11 @@ tags missing.dgmo
 
 Alice`;
 
-    const result = await resolveOrgImports(content, '/proj/org.dgmo', mockReader({}));
+    const result = await resolveOrgImports(
+      content,
+      '/proj/org.dgmo',
+      mockReader({})
+    );
     expect(result.diagnostics).toHaveLength(1);
     expect(result.diagnostics[0].message).toContain('Tags file not found');
     expect(result.content).toContain('Alice');
@@ -265,16 +273,16 @@ Alice
   // ----------------------------------------------------------
   it('merges tag groups with correct precedence', async () => {
     const tagsFile = `tag Department
-  Engineering (blue)
+  Engineering blue
 
 tag Location
   NY (nord-8)`;
 
     const importedFile = `tag Department
-  Engineering (green)
+  Engineering green
 
 tag Status
-  Active (yellow)
+  Active yellow
 
 Alice`;
 
@@ -282,7 +290,7 @@ Alice`;
 tags tags.dgmo
 
 tag Department
-  Engineering (red)
+  Engineering red
 
 CEO
   import imported.dgmo`;
@@ -294,14 +302,14 @@ CEO
 
     const result = await resolveOrgImports(content, '/proj/org.dgmo', reader);
     expect(result.diagnostics).toEqual([]);
-    // Inline wins for Department (red)
-    expect(result.content).toContain('Engineering (red)');
-    expect(result.content).not.toContain('Engineering (blue)');
-    expect(result.content).not.toContain('Engineering (green)');
+    // Inline wins for Department red
+    expect(result.content).toContain('Engineering red');
+    expect(result.content).not.toContain('Engineering blue');
+    expect(result.content).not.toContain('Engineering green');
     // Location from tags file
     expect(result.content).toContain('NY (nord-8)');
     // Status from imported file (additive)
-    expect(result.content).toContain('Active (yellow)');
+    expect(result.content).toContain('Active yellow');
   });
 
   // ----------------------------------------------------------
@@ -309,14 +317,14 @@ CEO
   // ----------------------------------------------------------
   it('adds new tag groups from imported files', async () => {
     const importedFile = `tag Role
-  Manager (orange)
+  Manager orange
 
 Alice | role: Manager`;
 
     const content = `org
 
 tag Department
-  Engineering (blue)
+  Engineering blue
 
 CEO
   import team.dgmo`;
@@ -329,7 +337,7 @@ CEO
     expect(result.diagnostics).toEqual([]);
     expect(result.content).toContain('tag Department');
     expect(result.content).toContain('tag Role');
-    expect(result.content).toContain('Manager (orange)');
+    expect(result.content).toContain('Manager orange');
   });
 
   // ----------------------------------------------------------
@@ -337,7 +345,7 @@ CEO
   // ----------------------------------------------------------
   it('resolves tags in imported files before merging', async () => {
     const sharedTags = `tag Department
-  Engineering (blue)`;
+  Engineering blue`;
 
     const importedFile = `org
 tags ../shared-tags.dgmo
@@ -379,7 +387,9 @@ Alice
 
     const result = await resolveOrgImports(content, '/proj/a.dgmo', reader);
     expect(result.diagnostics.length).toBeGreaterThan(0);
-    expect(result.diagnostics.some(d => d.message.includes('Circular import'))).toBe(true);
+    expect(
+      result.diagnostics.some((d) => d.message.includes('Circular import'))
+    ).toBe(true);
   });
 
   // ----------------------------------------------------------
@@ -423,7 +433,11 @@ CEO
   import missing.dgmo
   Alice`;
 
-    const result = await resolveOrgImports(content, '/proj/org.dgmo', mockReader({}));
+    const result = await resolveOrgImports(
+      content,
+      '/proj/org.dgmo',
+      mockReader({})
+    );
     expect(result.diagnostics).toHaveLength(1);
     expect(result.diagnostics[0].message).toContain('Import file not found');
     expect(result.content).toContain('Alice');
@@ -467,7 +481,11 @@ Alice
       '/proj/parent.dgmo': parentFile,
     });
 
-    const result = await resolveOrgImports(content, '/proj/sub/org.dgmo', reader);
+    const result = await resolveOrgImports(
+      content,
+      '/proj/sub/org.dgmo',
+      reader
+    );
     expect(result.diagnostics).toEqual([]);
     expect(result.content).toContain('  Charlie');
     expect(result.content).toContain('  Dave');
@@ -478,8 +496,8 @@ Alice
   // ----------------------------------------------------------
   it('produces output that parses correctly with parseOrg', async () => {
     const tagsFile = `tag Department
-  Engineering (blue)
-  Product (green)`;
+  Engineering blue
+  Product green`;
 
     const teamFile = `[Platform Team]
   Alice Chen | department: Engineering
@@ -520,8 +538,8 @@ CEO | department: Engineering
   // ----------------------------------------------------------
   it('loads tag groups from tags file using tag syntax', async () => {
     const tagsFile = `tag Department
-  Engineering (blue)
-  Product (green)`;
+  Engineering blue
+  Product green`;
 
     const content = `org Test
 tags shared-tags.dgmo
@@ -535,7 +553,7 @@ Alice | department: Engineering`;
     const result = await resolveOrgImports(content, '/proj/org.dgmo', reader);
     expect(result.diagnostics).toEqual([]);
     expect(result.content).toContain('tag Department');
-    expect(result.content).toContain('Engineering (blue)');
+    expect(result.content).toContain('Engineering blue');
   });
 
   // ----------------------------------------------------------
@@ -543,14 +561,14 @@ Alice | department: Engineering`;
   // ----------------------------------------------------------
   it('merges tag groups across imported files', async () => {
     const importedFile = `tag Role
-  Manager (orange)
+  Manager orange
 
 Alice | role: Manager`;
 
     const content = `org
 
 tag Department
-  Engineering (blue)
+  Engineering blue
 
 CEO
   import team.dgmo`;
@@ -563,7 +581,7 @@ CEO
     expect(result.diagnostics).toEqual([]);
     expect(result.content).toContain('tag Department');
     expect(result.content).toContain('tag Role');
-    expect(result.content).toContain('Manager (orange)');
+    expect(result.content).toContain('Manager orange');
   });
 
   // ----------------------------------------------------------
@@ -571,15 +589,15 @@ CEO
   // ----------------------------------------------------------
   it('inline tag groups override same-name groups from tags file', async () => {
     const tagsFile = `tag Department
-  Engineering (blue)
-  Product (green)`;
+  Engineering blue
+  Product green`;
 
     const content = `org
 tags shared-tags.dgmo
 
 tag Department
-  Engineering (red)
-  Sales (purple)
+  Engineering red
+  Sales purple
 
 Alice | department: Engineering`;
 
@@ -589,8 +607,8 @@ Alice | department: Engineering`;
 
     const result = await resolveOrgImports(content, '/proj/org.dgmo', reader);
     expect(result.diagnostics).toEqual([]);
-    expect(result.content).toContain('Engineering (red)');
-    expect(result.content).not.toContain('Engineering (blue)');
+    expect(result.content).toContain('Engineering red');
+    expect(result.content).not.toContain('Engineering blue');
   });
 
   // ----------------------------------------------------------
@@ -601,7 +619,11 @@ Alice | department: Engineering`;
 
 Alice
   Bob`;
-    const result = await resolveOrgImports(content, '/proj/org.dgmo', mockReader({}));
+    const result = await resolveOrgImports(
+      content,
+      '/proj/org.dgmo',
+      mockReader({})
+    );
     expect(result.importSourceMap).toBeDefined();
     // All entries should be null (no imports)
     for (let i = 1; i < result.importSourceMap.length; i++) {
@@ -631,8 +653,8 @@ CEO
 
     // Find imported lines in resolved content
     const lines = result.content.split('\n');
-    const aliceIdx = lines.findIndex(l => l.includes('Alice Chen'));
-    const bobIdx = lines.findIndex(l => l.includes('Bob Rivera'));
+    const aliceIdx = lines.findIndex((l) => l.includes('Alice Chen'));
+    const bobIdx = lines.findIndex((l) => l.includes('Bob Rivera'));
     expect(aliceIdx).toBeGreaterThan(0);
     expect(bobIdx).toBeGreaterThan(0);
 
@@ -672,7 +694,7 @@ Alice
     expect(result.diagnostics).toEqual([]);
 
     const lines = result.content.split('\n');
-    const charlieIdx = lines.findIndex(l => l.includes('Charlie'));
+    const charlieIdx = lines.findIndex((l) => l.includes('Charlie'));
     expect(charlieIdx).toBeGreaterThan(0);
 
     // Charlie comes from c.dgmo (deepest source), not b.dgmo
@@ -704,15 +726,17 @@ CEO
     const lines = result.content.split('\n');
 
     // CEO and Bob are from the main file — should be null
-    const ceoIdx = lines.findIndex(l => l.trim() === 'CEO');
-    const bobIdx = lines.findIndex(l => l.includes('Bob'));
+    const ceoIdx = lines.findIndex((l) => l.trim() === 'CEO');
+    const bobIdx = lines.findIndex((l) => l.includes('Bob'));
     expect(result.importSourceMap[ceoIdx + 1]).toBeNull();
     expect(result.importSourceMap[bobIdx + 1]).toBeNull();
 
     // Alice is imported — should have source
-    const aliceIdx = lines.findIndex(l => l.includes('Alice'));
+    const aliceIdx = lines.findIndex((l) => l.includes('Alice'));
     expect(result.importSourceMap[aliceIdx + 1]).not.toBeNull();
-    expect(result.importSourceMap[aliceIdx + 1]!.filePath).toBe('/proj/team.dgmo');
+    expect(result.importSourceMap[aliceIdx + 1]!.filePath).toBe(
+      '/proj/team.dgmo'
+    );
   });
 
   // ----------------------------------------------------------
@@ -720,7 +744,7 @@ CEO
   // ----------------------------------------------------------
   it('still accepts tags: and import: with colon for backward compat', async () => {
     const tagsFile = `tag Department
-  Engineering (blue)`;
+  Engineering blue`;
 
     const content = `org Test
 tags: shared-tags.dgmo
@@ -745,7 +769,7 @@ CEO
   // Regression: title on first line with trailing whitespace
   // ----------------------------------------------------------
   it('preserves title from first line with trailing whitespace', async () => {
-    const tagsFile = `tag Status s\n  Active(green)\n  Inactive(gray)\n`;
+    const tagsFile = `tag Status s\n  Active green\n  Inactive gray\n`;
     const content = `org My Org \nsub-node-label Reports\ntags tags.dgmo\n\nAlice\n  Bob\n`;
 
     const reader = mockReader({ '/proj/tags.dgmo': tagsFile });

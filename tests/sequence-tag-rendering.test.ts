@@ -57,8 +57,8 @@ const tagDiagram = [
   'sequence',
   '',
   'tag Concern',
-  '  Caching(blue)',
-  '  Auth(red)',
+  '  Caching blue',
+  '  Auth red',
   '',
   'API is a service | concern: Caching',
   'DB is a database',
@@ -79,7 +79,7 @@ describe('Sequence tag-driven recoloring', () => {
     const apiG = svg!.querySelector('g[data-participant-id="API"]');
     expect(apiG).not.toBeNull();
 
-    // The participant rect should have a fill derived from the tag color (blue)
+    // The participant rect should have a fill derived from the tag color blue
     const rect = apiG!.querySelector('rect');
     expect(rect).not.toBeNull();
     const rectFill = rect!.getAttribute('fill');
@@ -170,7 +170,7 @@ describe('Sequence tag-driven recoloring', () => {
       'sequence',
       '',
       'tag Concern',
-      '  Caching(blue)',
+      '  Caching blue',
       '',
       '[Backend] | concern: Caching',
       '  API',
@@ -183,7 +183,7 @@ describe('Sequence tag-driven recoloring', () => {
     const groupBox = svg!.querySelector('.group-box');
     expect(groupBox).not.toBeNull();
 
-    // Stroke should be the tag color (blue), not the default textMuted
+    // Stroke should be the tag color blue, not the default textMuted
     const stroke = groupBox!.getAttribute('stroke');
     const blueHex = resolveColor('blue');
     expect(stroke).toBe(blueHex);
@@ -194,7 +194,7 @@ describe('Sequence tag-driven recoloring', () => {
       'sequence',
       '',
       'tag Concern',
-      '  Caching(blue)',
+      '  Caching blue',
       '',
       '[Backend]',
       '  API',
@@ -221,7 +221,7 @@ describe('Sequence tag-driven recoloring', () => {
       'sequence',
       '',
       'tag Concern',
-      '  Caching(blue)',
+      '  Caching blue',
       '',
       'API',
       'DB',
@@ -256,12 +256,12 @@ const multiGroupDiagram = [
   'sequence',
   '',
   'tag Concern',
-  '  Caching(blue)',
-  '  Auth(red)',
+  '  Caching blue',
+  '  Auth red',
   '',
   'tag Team',
-  '  Alpha(purple)',
-  '  Beta(orange)',
+  '  Alpha purple',
+  '  Beta orange',
   '',
   'API is a service | concern: Caching',
   'DB is a database',
@@ -325,7 +325,7 @@ describe('Sequence legend rendering', () => {
       'tag Empty',
       '',
       'tag Concern',
-      '  Caching(blue)',
+      '  Caching blue',
       '',
       'API -query-> DB',
     ].join('\n');
@@ -342,7 +342,7 @@ describe('Sequence legend rendering', () => {
       'active-tag: Concern',
       '',
       'tag Concern',
-      '  Caching(blue)',
+      '  Caching blue',
       '',
       'API is a service | concern: Caching',
       'DB is a database',

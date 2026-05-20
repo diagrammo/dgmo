@@ -155,8 +155,8 @@ describe('layoutOrg', () => {
     const content = `org
 
 tag Location
-  NY(blue)
-  LA(yellow)
+  NY blue
+  LA yellow
 
 Alice
   location: NY
@@ -174,12 +174,12 @@ Bob
 
   it('node (color) suffix is literal — no color resolved', () => {
     const content = `org
-Alice(red)
+Alice red
 Bob`;
     const parsed = parseOrg(content, palette.light);
     const layout = layoutOrg(parsed);
 
-    const alice = layout.nodes.find((n) => n.label === 'Alice(red)')!;
+    const alice = layout.nodes.find((n) => n.label === 'Alice red')!;
     const bob = layout.nodes.find((n) => n.label === 'Bob')!;
     expect(alice.color).toBeUndefined();
     expect(bob.color).toBeUndefined();
@@ -325,10 +325,10 @@ Alice
 
   it('renders tag group names with original casing as display labels', () => {
     const input = `tag Title t
-  CTO(purple)
+  CTO purple
 
 tag Location loc
-  NY(blue)
+  NY blue
 
 Sean Curtis| t: CTO, loc: NY`;
     const svg = renderOrgForExport(input, 'light', palette.light);
@@ -568,8 +568,8 @@ describe('legend rendering', () => {
     const input = `org
 
 tag Location
-  NY(blue)
-  LA(yellow)
+  NY blue
+  LA yellow
 
 Alice
   location: NY
@@ -594,11 +594,11 @@ Alice
     const input = `org
 
 tag Location
-  NY(blue)
-  LA(yellow)
+  NY blue
+  LA yellow
 
 tag Status
-  FTE(green)
+  FTE green
 
 Alice | location: NY, status: FTE`;
     const parsed = parseOrg(input, palette.light);
@@ -623,8 +623,8 @@ Alice | location: NY, status: FTE`;
     const input = `org
 
 tag Location
-  NY(blue)
-  LA(yellow)
+  NY blue
+  LA yellow
 
 Alice | location: NY
 Bob | location: LA`;
@@ -659,8 +659,8 @@ Bob | location: LA`;
     const input = `org
 
 tag Location
-  NY(blue)
-  LA(yellow)
+  NY blue
+  LA yellow
 
 Alice | location: NY`;
     const parsed = parseOrg(input, palette.light);
@@ -691,8 +691,8 @@ Alice | location: NY`;
     const input = `org
 
 tag Location
-  NY(blue)
-  LA(yellow)
+  NY blue
+  LA yellow
 
 Alice
   location: NY
@@ -714,15 +714,15 @@ Bob
     const input = `org
 
 tag Location
-  NY(blue)
+  NY blue
 
-Alice(red)
+Alice red
   location: NY`;
     const parsed = parseOrg(input, palette.light);
     const layout = layoutOrg(parsed, undefined, 'location');
 
     // No explicit color — tag group color applies
-    expect(layout.nodes.find((n) => n.label === 'Alice(red)')).toBeDefined();
+    expect(layout.nodes.find((n) => n.label === 'Alice red')).toBeDefined();
     expect(parsed.roots[0].color).toBeUndefined();
   });
 
@@ -730,7 +730,7 @@ Alice(red)
     const input = `org
 
 tag Location
-  NY(blue)
+  NY blue
 
 Alice
   location: NY
@@ -749,8 +749,8 @@ Bob`;
     const input = `org
 
 tag Location
-  CO(green)
-  NY(blue)
+  CO green
+  NY blue
 
 Alice
   location: NY
@@ -771,12 +771,12 @@ Bob`;
     const input = `org
 
 tag Location
-  CO(green)
-  NY(blue)
+  CO green
+  NY blue
 
 tag Status
-  FTE(green)
-  Contractor(orange)
+  FTE green
+  Contractor orange
 
 Alice
   location: NY
@@ -798,8 +798,8 @@ Bob`;
     const input = `org
 
 tag Location
-  CO(green)
-  NY(blue)
+  CO green
+  NY blue
 
 Alice
   location: NY`;
@@ -814,7 +814,7 @@ Alice
     const input = `org
 
 tag Status
-  FTE(green)
+  FTE green
 
 [Engineering]
   Alice`;
@@ -831,8 +831,8 @@ tag Status
     const input = `org
 
 tag Location
-  CO(green)
-  NY(blue)
+  CO green
+  NY blue
 
 [Engineering]
   Alice
@@ -852,8 +852,8 @@ tag Location
     const input = `org
 
 tag Location
-  CO(green)
-  NY(blue)
+  CO green
+  NY blue
 
 Alice
   location: NY`;
@@ -870,11 +870,11 @@ Alice
     const input = `org
 
 tag Location
-  NY(blue)
-  LA(yellow)
+  NY blue
+  LA yellow
 
 tag Status
-  FTE(green)
+  FTE green
 
 Alice | location: NY, status: FTE`;
     const parsed = parseOrg(input, palette.light);
@@ -896,7 +896,7 @@ Alice | location: NY, status: FTE`;
     const input = `org
 
 tag Location
-  NY(blue)
+  NY blue
 
 Alice | location: NY
   Bob | location: NY`;
@@ -914,8 +914,8 @@ Alice | location: NY
     const input = `org
 
 tag Location
-  NY(blue)
-  LA(yellow)
+  NY blue
+  LA yellow
 
 Alice | location: NY`;
     const parsed = parseOrg(input, palette.light);
@@ -936,10 +936,10 @@ Alice | location: NY`;
     const input = `org
 
 tag Location
-  NY(blue)
+  NY blue
 
 tag Status
-  FTE(green)
+  FTE green
 
 Alice | location: NY, status: FTE`;
     const parsed = parseOrg(input, palette.light);
@@ -975,10 +975,10 @@ Alice | location: NY, status: FTE`;
     const input = `org
 
 tag Location
-  NY(blue)
+  NY blue
 
 tag Status
-  FTE(green)
+  FTE green
 
 Alice | location: NY, status: FTE`;
     const parsed = parseOrg(input, palette.light);
@@ -1003,8 +1003,8 @@ Alice | location: NY, status: FTE`;
     const input = `org
 
 tag Location
-  NY(blue)
-  LA(yellow)
+  NY blue
+  LA yellow
 
 Alice | location: NY`;
     const parsed = parseOrg(input, palette.light);
@@ -1046,11 +1046,11 @@ describe('hiddenAttributes visibility', () => {
   const input = `org
 
 tag Location
-  NY(blue)
-  LA(yellow)
+  NY blue
+  LA yellow
 
 tag Status
-  FTE(green)
+  FTE green
 
 Alice
   location: NY
@@ -1094,7 +1094,7 @@ Bob
     const inputWithDefaults = `org
 
 tag Status
-  FTE(green)
+  FTE green
 
 Alice`;
     const parsed = parseOrg(inputWithDefaults, palette.light);
@@ -1111,7 +1111,7 @@ Alice`;
     const containerInput = `org
 
 tag Status
-  FTE(green)
+  FTE green
 
 [Engineering]
   status: FTE
@@ -1184,10 +1184,10 @@ tag Status
 hide location
 
 tag Location
-  NY(blue)
+  NY blue
 
 tag Status
-  FTE(green)
+  FTE green
 
 Alice
   location: NY
@@ -1208,12 +1208,12 @@ Alice
 
 describe('tag-group-only legend', () => {
   const tagGroupOnlyInput = `tag Rank r
-  Captain(red)
-  Sailor(blue)
+  Captain red
+  Sailor blue
 
 tag Status
-  Active(green)
-  Inactive(gray)`;
+  Active green
+  Inactive gray`;
 
   it('layoutOrg produces legend groups with no nodes', () => {
     const parsed = parseOrg(tagGroupOnlyInput);
@@ -1274,8 +1274,8 @@ describe('legend entry hover attributes', () => {
     const input = `org
 
 tag Location
-  NY(blue)
-  LA(yellow)
+  NY blue
+  LA yellow
 
 Alice | location: NY
 Bob | location: LA`;
@@ -1310,7 +1310,7 @@ Bob | location: LA`;
     const input = `org
 
 tag Location
-  NY(blue)
+  NY blue
 
 Alice | location: NY`;
     const parsed = parseOrg(input, palette.light);
@@ -1341,8 +1341,8 @@ Alice | location: NY`;
     const input = `org
 
 tag Location
-  NY(blue)
-  LA(yellow)
+  NY blue
+  LA yellow
 
 Alice
   location: NY
@@ -1376,7 +1376,7 @@ Bob
     const input = `org
 
 tag Location
-  NY(blue)
+  NY blue
 
 Alice
   location: NY`;
@@ -1397,7 +1397,7 @@ Alice
     const input = `org
 
 tag Status
-  Active(green)
+  Active green
 
 [Engineering]
   status: Active

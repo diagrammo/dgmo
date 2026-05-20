@@ -3,8 +3,6 @@ import {
   parseFlowchart,
   looksLikeFlowchart,
 } from '../src/graph/flowchart-parser';
-import { resolveColor } from '../src/colors';
-import { getPalette } from '../src/palettes';
 
 describe('parseFlowchart', () => {
   // === AC 11: Metadata ===
@@ -140,18 +138,18 @@ describe('parseFlowchart', () => {
       expect(result.edges[0].label).toBe('yes');
     });
 
-    it('parses colored edge -(blue)->', () => {
+    it('-(blue)-> parses as literal label "(blue)" (spec §1.7: no edge color)', () => {
       const result = parseFlowchart('[A] -(blue)-> [B]');
       expect(result.edges).toHaveLength(1);
-      expect(result.edges[0].color).toBeDefined();
-      expect(result.edges[0].label).toBeUndefined();
+      expect((result.edges[0] as { color?: string }).color).toBeUndefined();
+      expect(result.edges[0].label).toBe('(blue)');
     });
 
-    it('parses labeled+colored edge -yes(red)->', () => {
-      const result = parseFlowchart('[A] -yes(red)-> [B]');
+    it('-yes red-> parses with whole-token label "yes red" (no color)', () => {
+      const result = parseFlowchart('[A] -yes red-> [B]');
       expect(result.edges).toHaveLength(1);
-      expect(result.edges[0].label).toBe('yes');
-      expect(result.edges[0].color).toBeDefined();
+      expect(result.edges[0].label).toBe('yes red');
+      expect((result.edges[0] as { color?: string }).color).toBeUndefined();
     });
 
     // === AC-1 (TD-9): arrow-shape longest match ===
@@ -160,7 +158,7 @@ describe('parseFlowchart', () => {
         const result = parseFlowchart('[A] --foo---> [B]');
         expect(result.edges).toHaveLength(1);
         expect(result.edges[0].label).toBe('foo');
-        expect(result.edges[0].color).toBeUndefined();
+        expect((result.edges[0] as { color?: string }).color).toBeUndefined();
         expect(
           result.diagnostics.filter((d) => d.severity === 'error')
         ).toHaveLength(0);
@@ -177,85 +175,55 @@ describe('parseFlowchart', () => {
       });
     });
 
-    // === AC-5 (TD-11): color parens fall-through to label ===
-    describe('TD-11 color parens', () => {
-      it('AC-5: -(red)-> → color red, no label', () => {
+    // === Spec §1.7: edge color is not a feature. Parens are literal. ===
+    describe('edge color removal (spec §1.7)', () => {
+      it('-(red)-> parses as literal label "(red)", no color', () => {
         const result = parseFlowchart('[A] -(red)-> [B]');
-        expect(result.edges[0].color).toBeDefined();
-        expect(result.edges[0].label).toBeUndefined();
+        expect((result.edges[0] as { color?: string }).color).toBeUndefined();
+        expect(result.edges[0].label).toBe('(red)');
       });
-      it('AC-5: -(notacolor)-> → label (notacolor), no color', () => {
+      it('-(notacolor)-> parses as literal label "(notacolor)"', () => {
         const result = parseFlowchart('[A] -(notacolor)-> [B]');
-        expect(result.edges[0].color).toBeUndefined();
+        expect((result.edges[0] as { color?: string }).color).toBeUndefined();
         expect(result.edges[0].label).toBe('(notacolor)');
       });
-      it('AC-5: -(red) uses-> → label "(red) uses", no color', () => {
+      it('-(red) uses-> parses as label "(red) uses"', () => {
         const result = parseFlowchart('[A] -(red) uses-> [B]');
-        expect(result.edges[0].color).toBeUndefined();
+        expect((result.edges[0] as { color?: string }).color).toBeUndefined();
         expect(result.edges[0].label).toBe('(red) uses');
       });
-    });
-
-    // === AC-6 (TD-4): bare -red-> → label "red" (no color) ===
-    describe('TD-4 bare-color is a literal label', () => {
-      it('AC-6: -red-> parses as label red, no color', () => {
+      it('-red-> parses as label "red", no color', () => {
         const result = parseFlowchart('[A] -red-> [B]');
         expect(result.edges[0].label).toBe('red');
-        expect(result.edges[0].color).toBeUndefined();
+        expect((result.edges[0] as { color?: string }).color).toBeUndefined();
       });
     });
   });
 
-  // === Arrow color inference ===
-  describe('arrow color inference', () => {
-    // Inferred colors are resolved through the active palette so they match
-    // the rest of the diagram (no raw CSS "green"/"red"). We assert that the
-    // resolved color for yes/success matches the resolved color for "green",
-    // etc., rather than the literal string.
-    const greenHex = resolveColor('green', getPalette('nord').light);
-    const redHex = resolveColor('red', getPalette('nord').light);
-    const orangeHex = resolveColor('orange', getPalette('nord').light);
-    const blueHex = resolveColor('blue', getPalette('nord').light);
-
-    it('-yes-> infers palette green', () => {
+  // === Label-inferred edge color (yes→green, no→red, maybe→orange) ===
+  // was removed by spec §1.7 alongside the broader edge-color deletion.
+  describe('label-inferred edge color is removed (spec §1.7)', () => {
+    it('-yes-> has no color', () => {
       const result = parseFlowchart('[A] -yes-> [B]');
-      expect(result.edges[0].color).toBe(greenHex);
+      expect(result.edges[0].label).toBe('yes');
+      expect((result.edges[0] as { color?: string }).color).toBeUndefined();
     });
-
-    it('-no-> infers palette red', () => {
+    it('-no-> has no color', () => {
       const result = parseFlowchart('[A] -no-> [B]');
-      expect(result.edges[0].color).toBe(redHex);
+      expect(result.edges[0].label).toBe('no');
+      expect((result.edges[0] as { color?: string }).color).toBeUndefined();
     });
-
-    it('-maybe-> infers palette orange', () => {
+    it('-maybe-> has no color', () => {
       const result = parseFlowchart('[A] -maybe-> [B]');
-      expect(result.edges[0].color).toBe(orangeHex);
+      expect(result.edges[0].label).toBe('maybe');
+      expect((result.edges[0] as { color?: string }).color).toBeUndefined();
     });
-
-    it('-YES-> infers palette green (case-insensitive)', () => {
-      const result = parseFlowchart('[A] -YES-> [B]');
-      expect(result.edges[0].color).toBe(greenHex);
-    });
-
-    it('-yesterday-> does NOT infer color (not exact match)', () => {
-      const result = parseFlowchart('[A] -yesterday-> [B]');
-      expect(result.edges[0].color).toBeUndefined();
-    });
-
-    it('-no(blue)-> uses explicit blue, not inferred red', () => {
-      const result = parseFlowchart('[A] -no(blue)-> [B]');
-      expect(result.edges[0].color).toBe(blueHex);
-      expect(result.edges[0].color).not.toBe(redHex);
-    });
-
-    it('-success-> infers palette green', () => {
-      const result = parseFlowchart('[A] -success-> [B]');
-      expect(result.edges[0].color).toBe(greenHex);
-    });
-
-    it('-error-> infers palette red', () => {
-      const result = parseFlowchart('[A] -error-> [B]');
-      expect(result.edges[0].color).toBe(redHex);
+    it('-success-> / -error-> / -fail-> have no color', () => {
+      for (const word of ['success', 'error', 'fail']) {
+        const result = parseFlowchart(`[A] -${word}-> [B]`);
+        expect(result.edges[0].label).toBe(word);
+        expect((result.edges[0] as { color?: string }).color).toBeUndefined();
+      }
     });
   });
 
@@ -350,10 +318,10 @@ describe('parseFlowchart', () => {
 
   // === Color suffix in label (no extractColor on nodes) ===
   describe('color suffix in label', () => {
-    it('(color) suffix is literal label text [Process(blue)]', () => {
-      const result = parseFlowchart('[Process(blue)]');
+    it('(color) suffix is literal label text [Process blue]', () => {
+      const result = parseFlowchart('[Process blue]');
       expect(result.nodes).toHaveLength(1);
-      expect(result.nodes[0].label).toBe('Process(blue)');
+      expect(result.nodes[0].label).toBe('Process blue');
       expect(result.nodes[0].color).toBeUndefined();
     });
 
@@ -364,19 +332,19 @@ describe('parseFlowchart', () => {
       expect(result.nodes[0].color).toBeUndefined();
     });
 
-    it('(color) suffix is literal on document [Report(teal)~]', () => {
-      const result = parseFlowchart('[Report(teal)~]');
+    it('(color) suffix is literal on document [Report teal~]', () => {
+      const result = parseFlowchart('[Report teal~]');
       expect(result.nodes).toHaveLength(1);
-      expect(result.nodes[0].label).toBe('Report(teal)');
+      expect(result.nodes[0].label).toBe('Report teal');
       expect(result.nodes[0].color).toBeUndefined();
     });
 
-    it('(color) suffix is literal on terminal (Start(green))', () => {
-      const result = parseFlowchart('(Start(green)) -> (End(red))');
+    it('(color) suffix is literal on terminal (Start green)', () => {
+      const result = parseFlowchart('(Start green) -> (End red)');
       expect(result.nodes).toHaveLength(2);
-      expect(result.nodes[0].label).toBe('Start(green)');
+      expect(result.nodes[0].label).toBe('Start green');
       expect(result.nodes[0].color).toBeUndefined();
-      expect(result.nodes[1].label).toBe('End(red)');
+      expect(result.nodes[1].label).toBe('End red');
       expect(result.nodes[1].color).toBeUndefined();
     });
   });

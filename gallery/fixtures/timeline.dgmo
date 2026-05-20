@@ -2,9 +2,9 @@ timeline Product Roadmap 2024-2025
 sort tag:Team
 
 tag Team as t
-  Engineering(blue)
-  Design(purple)
-  Product(green)
+  Engineering blue
+  Design purple
+  Product green
 
 era 2024-01 -> 2024-06 Phase 1 - Foundation
 era 2024-07 -> 2024-12 Phase 2 - Growth

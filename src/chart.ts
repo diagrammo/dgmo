@@ -63,7 +63,7 @@ export interface ParsedChart {
 // Colors
 // ============================================================
 
-import { resolveColorWithDiagnostic } from './colors';
+import { resolveColorWithDiagnostic, RECOGNIZED_COLOR_NAMES } from './colors';
 import type { PaletteColors } from './palettes';
 import { makeDgmoError, formatDgmoError, suggest } from './diagnostics';
 import {
@@ -212,21 +212,30 @@ export function parseChart(
       // Fall through — first line might be a data row or option
     }
 
-    // Era line: era Day 1 -> Day 3 Rough Seas (blue) — colon-free
-    const eraMatch = trimmed.match(
-      /^era\s+(.+?)\s*->\s*(.+?)(?:\s*\(([^)]+)\))?\s*$/
-    );
+    // Era line (§1.5 trailing-token):
+    //   `era Day 1 -> Day 3 Rough Seas`        (no color)
+    //   `era Day 1 -> Day 3 Rough Seas blue`   (trailing color word)
+    // Color (if any) is the last whitespace-delimited token of the label.
+    const eraMatch = trimmed.match(/^era\s+(.+?)\s*->\s*(.+?)\s*$/);
     if (eraMatch) {
-      // Store start and raw afterArrow — resolved against data labels after parsing
       const afterArrow = eraMatch[2].trim();
       const spaceIdx = afterArrow.indexOf(' ');
       if (spaceIdx >= 0) {
+        // Peel trailing-token color off the after-arrow label region.
+        const lastSpaceIdx = afterArrow.lastIndexOf(' ');
+        const trailing = afterArrow.substring(lastSpaceIdx + 1);
+        const hasColor = RECOGNIZED_COLOR_NAMES.includes(
+          trailing as (typeof RECOGNIZED_COLOR_NAMES)[number]
+        );
+        const labelPart = hasColor
+          ? afterArrow.substring(0, lastSpaceIdx).trimEnd()
+          : afterArrow;
         rawEras.push({
           start: eraMatch[1].trim(),
-          afterArrow,
-          color: eraMatch[3]
+          afterArrow: labelPart,
+          color: hasColor
             ? (resolveColorWithDiagnostic(
-                eraMatch[3].trim(),
+                trailing,
                 lineNumber,
                 result.diagnostics,
                 palette

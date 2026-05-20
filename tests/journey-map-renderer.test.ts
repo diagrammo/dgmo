@@ -51,8 +51,8 @@ persona Tech-Savvy Shopper
   28yo developer
 
 tag Channel ch
-  Web(blue)
-  Mobile(purple)
+  Web blue
+  Mobile purple
 
 [Research]
   Compare specs | 4, ch: Web
@@ -123,7 +123,7 @@ tag Channel ch
       const input = `journey-map Test
 
 tag Channel ch
-  Web(blue)
+  Web blue
 
 no-legend
 

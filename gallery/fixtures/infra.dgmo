@@ -1,8 +1,8 @@
 infra Production Traffic Flow
 
 tag Team as t
-  Backend(blue)
-  Platform(teal)
+  Backend blue
+  Platform teal
 
 edge
   rps: 10000

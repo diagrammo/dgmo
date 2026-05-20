@@ -96,8 +96,8 @@ describe('Placement: Sequence legend at top', () => {
   const src = `sequence
 
 tag Team
-  Frontend(blue)
-  Backend(red)
+  Frontend blue
+  Backend red
 
 Alice is a actor | team: Frontend
 Bob is a actor | team: Backend
@@ -168,8 +168,8 @@ describe('Placement: C4 legend below diagram nodes', () => {
   const src = `c4
 
 tag Domain
-  Auth(blue)
-  Payments(green)
+  Auth blue
+  Payments green
 
 User is a person
 AuthService is a system | domain: Auth
@@ -204,8 +204,8 @@ describe('Placement: Kanban legend at bottom', () => {
   const src = `kanban
 
 tag Priority
-  High(red)
-  Low(green)
+  High red
+  Low green
 
 [To Do]
   Fix bug | priority: High
@@ -235,8 +235,8 @@ describe('Placement: Org legend at top (app mode)', () => {
   const src = `org
 
 tag Region
-  North(blue)
-  South(green)
+  North blue
+  South green
 
 CEO
   VP North | region: North
@@ -268,8 +268,8 @@ describe('Placement: Sitemap legend at top (app mode)', () => {
   const src = `sitemap
 
 tag Section
-  Docs(blue)
-  Blog(green)
+  Docs blue
+  Blog green
 
 Home
   Docs | section: Docs
@@ -301,8 +301,8 @@ describe('Placement: Infra legend at top (export mode)', () => {
   const src = `infra
 
 tag Team
-  Platform(blue)
-  App(green)
+  Platform blue
+  App green
 
 edge
   rps 1000
@@ -357,8 +357,8 @@ describe('Placement: ER legend at top', () => {
   const src = `er
 
 tag Domain
-  Auth(blue)
-  Core(green)
+  Auth blue
+  Core green
 
 User {
   id int PK | domain: Auth
@@ -394,8 +394,8 @@ describe('Placement: Timeline legend at top', () => {
   const src = `timeline
 
 tag Status
-  Done(green)
-  Active(blue)
+  Done green
+  Active blue
 
 2024-01-01 -> 2024-06-01: Feature A | status: Done
 2024-03-01 -> 2024-12-01: Feature B | status: Active`;

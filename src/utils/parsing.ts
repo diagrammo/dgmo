@@ -4,9 +4,17 @@
  * pipe-metadata parsing.
  */
 
-import { resolveColor, resolveColorWithDiagnostic } from '../colors';
+import {
+  RECOGNIZED_COLOR_NAMES,
+  resolveColor,
+  resolveColorWithDiagnostic,
+} from '../colors';
 import type { DgmoError } from '../diagnostics';
 import type { PaletteColors } from '../palettes';
+
+const RECOGNIZED_COLOR_SET: ReadonlySet<string> = new Set(
+  RECOGNIZED_COLOR_NAMES
+);
 
 // ── All known chart types ────────────────────────────────────
 /** Complete set of recognized chart type identifiers. */
@@ -87,27 +95,47 @@ export function measureIndent(line: string): number {
   return indent;
 }
 
-/** Matches a trailing `(colorName)` suffix on a label. */
-export const COLOR_SUFFIX_RE = /\(([^)]+)\)\s*$/;
-
-/** Extract an optional trailing color suffix from a label, resolving via palette. */
+/**
+ * Trailing-token color rule (see docs/dgmo-language-spec.md §1.5).
+ *
+ * Caller contract: `label` must be a pre-split LABEL REGION — the parser is
+ * responsible for stripping structural terminators (`as <alias>`, `| pipe
+ * metadata`, numeric values, date ranges, brackets, arrow constructs) BEFORE
+ * invoking this function. The color rule operates only on what remains.
+ *
+ * Algorithm: split the label on whitespace; if the final token is exactly one
+ * of `RECOGNIZED_COLOR_NAMES` (case-sensitive, lowercase only), peel it off
+ * as color and return the rest as the label. Otherwise the entire input
+ * stays as the label, no color.
+ *
+ * Case-sensitivity is deliberate: it provides the escape hatch (`Red`,
+ * `Yellow`, `Green` stay as labels — useful for traffic-light tag groups).
+ *
+ * Returns `{ label, color? }` where `color` is the palette-resolved hex string
+ * (or undefined if no color word matched).
+ */
 export function extractColor(
   label: string,
   palette?: PaletteColors,
   diagnostics?: DgmoError[],
   line?: number
 ): { label: string; color?: string } {
-  const m = label.match(COLOR_SUFFIX_RE);
-  if (!m) return { label };
-  const colorName = m[1].trim();
+  const lastSpaceIdx = Math.max(
+    label.lastIndexOf(' '),
+    label.lastIndexOf('\t')
+  );
+  if (lastSpaceIdx < 0) return { label };
+  const trailing = label.substring(lastSpaceIdx + 1);
+  // Case-sensitive lowercase match against the closed 11-name palette.
+  if (!RECOGNIZED_COLOR_SET.has(trailing)) return { label };
   let color: string | undefined;
   if (diagnostics && line !== undefined) {
-    color = resolveColorWithDiagnostic(colorName, line, diagnostics, palette);
+    color = resolveColorWithDiagnostic(trailing, line, diagnostics, palette);
   } else {
-    color = resolveColor(colorName, palette) ?? undefined;
+    color = resolveColor(trailing, palette) ?? undefined;
   }
   return {
-    label: label.substring(0, m.index!).trim(),
+    label: label.substring(0, lastSpaceIdx).trimEnd(),
     color,
   };
 }
@@ -457,31 +485,32 @@ export function parseSeriesNames(
 }
 
 /**
- * Infer arrow color from label text.
- * Returns a named palette color or undefined if no inference applies.
- * Case-insensitive, exact match only (not prefix/substring).
+ * Peel a trailing recognized color name from a label region, returning the
+ * raw color name (not a resolved hex). Used by chart types that pair the
+ * universal trailing-token shortcut with their own pipe-metadata `color: …`
+ * long form (cycle, pyramid, ring, raci, boxes-and-lines).
+ *
+ * Caller contract: `label` must already have pipe metadata stripped — this
+ * function operates only on the label region.
+ *
+ * Returns `{ label, colorName? }`. If the trailing token is not a recognized
+ * lowercase color, returns the original label and `colorName: undefined`.
  */
-export function inferArrowColor(label: string): string | undefined {
-  const lower = label.toLowerCase();
-  // Green: positive/affirmative
-  if (
-    lower === 'yes' ||
-    lower === 'success' ||
-    lower === 'ok' ||
-    lower === 'true'
-  )
-    return 'green';
-  // Red: negative/failure
-  if (
-    lower === 'no' ||
-    lower === 'fail' ||
-    lower === 'error' ||
-    lower === 'false'
-  )
-    return 'red';
-  // Orange: uncertain/warning
-  if (lower === 'maybe' || lower === 'warning') return 'orange';
-  return undefined;
+export function peelTrailingColorName(label: string): {
+  label: string;
+  colorName?: string;
+} {
+  const lastSpaceIdx = Math.max(
+    label.lastIndexOf(' '),
+    label.lastIndexOf('\t')
+  );
+  if (lastSpaceIdx < 0) return { label };
+  const trailing = label.substring(lastSpaceIdx + 1);
+  if (!RECOGNIZED_COLOR_SET.has(trailing)) return { label };
+  return {
+    label: label.substring(0, lastSpaceIdx).trimEnd(),
+    colorName: trailing,
+  };
 }
 
 /** Error message for multiple pipes on a single line. */

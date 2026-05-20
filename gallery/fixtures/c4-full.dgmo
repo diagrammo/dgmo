@@ -1,16 +1,16 @@
 c4 Online Bookstore — C4 Architecture
 
 tag Technology as tech
-  React(blue)
-  Node(green)
-  Python(orange)
-  PostgreSQL(purple)
+  React blue
+  Node green
+  Python orange
+  PostgreSQL purple
 
 tag Team as t
-  Frontend(blue)
-  Backend(green)
-  Platform(teal)
-  Data(purple)
+  Frontend blue
+  Backend green
+  Platform teal
+  Data purple
 
 Customer is a person | t: Frontend
   description: Browses and purchases books online

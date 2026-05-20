@@ -82,7 +82,7 @@ describe('ER extractSymbols', () => {
   });
 
   it('strips color annotations from entity names', () => {
-    const doc = 'er\nUsers(blue)\nOrders(red)\n';
+    const doc = 'er\nUsers blue\nOrders red\n';
     expect(extractErSymbols(doc).entities).toEqual(['Users', 'Orders']);
   });
 
@@ -688,14 +688,14 @@ describe('State extractSymbols', () => {
 describe('extractTagDeclarations', () => {
   it('extracts tag group with alias', () => {
     const doc =
-      'sequence\ntag Team t\n  Frontend(blue)\n  Backend(green)\nA -> B\n';
+      'sequence\ntag Team t\n  Frontend blue\n  Backend green\nA -> B\n';
     const result = extractTagDeclarations(doc);
     expect(result.get('t')).toEqual(['Frontend', 'Backend']);
   });
 
   it('extracts tag group with shorthand alias (no alias keyword)', () => {
     const doc =
-      'gantt\ntag Team t\n  Rebels(red)\n  Sharks(orange)\ntag TopGoal tg\n  TG1(red)\n  TG2(green)\n';
+      'gantt\ntag Team t\n  Rebels red\n  Sharks orange\ntag TopGoal tg\n  TG1 red\n  TG2 green\n';
     const result = extractTagDeclarations(doc);
     expect(result.get('t')).toEqual(['Rebels', 'Sharks']);
     expect(result.get('tg')).toEqual(['TG1', 'TG2']);
@@ -716,7 +716,7 @@ describe('extractTagDeclarations', () => {
   });
 
   it('strips color annotations from values', () => {
-    const doc = 'org\ntag Team t\n  Alpha(blue)\n  Beta(red)\n';
+    const doc = 'org\ntag Team t\n  Alpha blue\n  Beta red\n';
     const result = extractTagDeclarations(doc);
     expect(result.get('t')).toEqual(['Alpha', 'Beta']);
   });

@@ -56,28 +56,27 @@ describe('color name validation — flowchart (TD-11 fall-through)', () => {
 });
 
 describe('color name validation — sequence', () => {
-  it('emits warning for unknown tag color in sequence diagram', () => {
+  it('silently accepts unrecognized trailing-token color (spec §1.5)', () => {
+    // Under the universal trailing-token rule, an unrecognized color word
+    // is just label text — no diagnostic. Accepted tradeoff (silent typo).
     const src = [
       'sequence Demo',
       'tag env',
-      '  prod(magenta)',
-      '  dev(green)',
+      '  prod magenta',
+      '  dev green',
       '',
       'A -> B msg',
     ].join('\n');
     const result = parseSequenceDgmo(src);
-    const diags = colorDiags(result.diagnostics);
-    expect(diags.length).toBeGreaterThanOrEqual(1);
-    expect(diags[0].severity).toBe('warning');
-    expect(diags[0].message).toContain('"magenta"');
+    expect(colorDiags(result.diagnostics).length).toBe(0);
   });
 
   it('produces no color diagnostics for valid colors', () => {
     const src = [
       'sequence Demo',
       'tag env',
-      '  prod(red)',
-      '  dev(green)',
+      '  prod red',
+      '  dev green',
       '',
       'A -> B msg',
     ].join('\n');
@@ -89,8 +88,8 @@ describe('color name validation — sequence', () => {
     const src = [
       'sequence Demo',
       'tag env',
-      '  prod(black)',
-      '  dev(white)',
+      '  prod black',
+      '  dev white',
       '',
       'A -> B msg',
     ].join('\n');
@@ -100,8 +99,11 @@ describe('color name validation — sequence', () => {
 });
 
 describe('color name validation — kanban', () => {
-  it('emits warning for unknown column color', () => {
-    const src = ['kanban', '[Todo](magenta)', '  Card 1'].join('\n');
+  it('emits warning for unknown trailing-token color on column', () => {
+    // Kanban's COLUMN_RE captures the trailing token explicitly so it can
+    // still flag a non-palette color word. Other chart types that defer
+    // to extractColor get the silent-typo path.
+    const src = ['kanban', '[Todo] magenta', '  Card 1'].join('\n');
     const result = parseKanban(src);
     const diags = colorDiags(result.diagnostics);
     expect(diags.length).toBeGreaterThanOrEqual(1);
@@ -110,7 +112,7 @@ describe('color name validation — kanban', () => {
   });
 
   it('produces no diagnostics for valid column color', () => {
-    const src = ['kanban', '[Todo](red)', '  Card 1'].join('\n');
+    const src = ['kanban', '[Todo] red', '  Card 1'].join('\n');
     const result = parseKanban(src);
     expect(colorDiags(result.diagnostics).length).toBe(0);
   });
@@ -118,9 +120,9 @@ describe('color name validation — kanban', () => {
   it('produces no diagnostics for black and white column colors', () => {
     const src = [
       'kanban',
-      '[Todo](black)',
+      '[Todo] black',
       '  Card 1',
-      '[Done](white)',
+      '[Done] white',
       '  Card 2',
     ].join('\n');
     const result = parseKanban(src);

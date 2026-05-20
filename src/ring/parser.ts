@@ -8,6 +8,7 @@ import {
   measureIndent,
   parseFirstLine,
   parsePipeMetadata,
+  peelTrailingColorName,
   tryParseSharedOption,
   PIPE_KEY_VALUE_PREFIX_RE,
   PIPE_LIKELY_STRUCTURED_TAIL_RE,
@@ -173,6 +174,17 @@ export function parseRing(content: string): ParsedRing {
       if (!label) {
         warn(lineNum, 'Empty layer label.');
         continue;
+      }
+
+      // Universal trailing-token shortcut: `Label color` equivalent to
+      // `Label | color: <name>` when color is not already set (§1.5).
+      if (!color) {
+        const { label: stripped, colorName: shortcutColor } =
+          peelTrailingColorName(label);
+        if (shortcutColor) {
+          color = shortcutColor;
+          label = stripped;
+        }
       }
 
       currentLayer = {

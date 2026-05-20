@@ -4,7 +4,6 @@ import {
   extractColor,
   parsePipeMetadata,
   OPTION_NOCOLON_RE,
-  COLOR_SUFFIX_RE,
   ALL_CHART_TYPES,
   parseFirstLine,
   prescanOptions,
@@ -21,14 +20,30 @@ describe('measureIndent', () => {
   it('returns 0 for empty string', () => expect(measureIndent('')).toBe(0));
 });
 
-describe('extractColor', () => {
-  it('extracts trailing color suffix', () => {
-    const r = extractColor('Server (red)');
-    expect(r.label).toBe('Server');
+describe('extractColor — trailing-token rule', () => {
+  it('extracts trailing color word from single-word + color', () => {
+    const r = extractColor('Done green');
+    expect(r.label).toBe('Done');
     expect(r.color).toBeDefined();
   });
-  it('returns label unchanged when no suffix', () => {
+  it('extracts trailing color word from multi-word label', () => {
+    const r = extractColor('Senior Engineer red');
+    expect(r.label).toBe('Senior Engineer');
+    expect(r.color).toBeDefined();
+  });
+  it('returns label unchanged when no color word', () => {
     expect(extractColor('NoColor')).toEqual({ label: 'NoColor' });
+  });
+  it('returns label unchanged for capitalized color word (escape hatch)', () => {
+    expect(extractColor('Red')).toEqual({ label: 'Red' });
+    expect(extractColor('Status Yellow')).toEqual({ label: 'Status Yellow' });
+  });
+  it('returns label unchanged on silent typo (no diagnostic)', () => {
+    expect(extractColor('Done grren')).toEqual({ label: 'Done grren' });
+  });
+  it('treats old parens form as literal label text', () => {
+    // Hard break: `Done(green)` no longer parses as colored — parens stay literal.
+    expect(extractColor('Done(green)')).toEqual({ label: 'Done(green)' });
   });
 });
 
@@ -64,12 +79,6 @@ describe('parsePipeMetadata', () => {
       errored = true;
     });
     expect(errored).toBe(false);
-  });
-});
-
-describe('header regexes', () => {
-  it('COLOR_SUFFIX_RE matches trailing parens', () => {
-    expect('Label (blue)'.match(COLOR_SUFFIX_RE)?.[1]).toBe('blue');
   });
 });
 

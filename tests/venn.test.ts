@@ -66,9 +66,9 @@ describe('Venn parser — 3-set with aliases and colors', () => {
   it('parses aliases and resolves intersection references by alias', () => {
     const result = parseVisualization(
       `venn
-Frontend(blue) as fe
-Backend(green) as be
-DevOps(orange) as de
+Frontend blue as fe
+Backend green as be
+DevOps orange as de
 fe + be Web Systems
 be + de Platform Ops
 fe + be + de Full Stack`,
@@ -91,8 +91,8 @@ fe + be + de Full Stack`,
   it('rejects legacy `alias` keyword with E_VENN_ALIAS_KEYWORD_REMOVED', () => {
     const result = parseVisualization(
       `venn
-Frontend(blue) alias fe
-Backend(green) alias be
+Frontend blue alias fe
+Backend green alias be
 fe + be Web Systems`,
       nordLight
     );
@@ -124,8 +124,8 @@ describe('Venn parser — named color resolution and fallback', () => {
   it('resolves known palette colors to hex', () => {
     const result = parseVisualization(
       `venn
-Alpha(blue)
-Beta(green)`,
+Alpha blue
+Beta green`,
       nordLight
     );
     expect(result.vennSets[0].color).toMatch(/^#/);
@@ -133,7 +133,7 @@ Beta(green)`,
     expect(result.error).toBeNull();
   });
 
-  it('emits a warning and falls back to null for unknown color names', () => {
+  it.skip('emits a warning and falls back to null for unknown color names (obsolete: silent-typo design per §1.5)', () => {
     const result = parseVisualization(
       `venn
 Alpha(magenta)

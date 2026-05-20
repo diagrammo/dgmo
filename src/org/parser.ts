@@ -235,7 +235,7 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
       }
     }
 
-    // Tag group entries (indented Value(color) under tag heading)
+    // Tag group entries (indented Value color under tag heading)
     // First entry is the default unless another is marked `default`
     if (currentTagGroup && !contentStarted) {
       const indent = measureIndent(line);
@@ -245,7 +245,7 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
         if (!color) {
           pushError(
             lineNumber,
-            `Expected 'Value(color)' in tag group '${currentTagGroup.name}'`
+            `Expected 'Value color' in tag group '${currentTagGroup.name}'`
           );
           continue;
         }

@@ -43,7 +43,7 @@ describe('parseERDiagram', () => {
     });
 
     it('parses table with color', () => {
-      const result = parseERDiagram('users (red)\n  id int pk');
+      const result = parseERDiagram('users red\n  id int pk');
       expect(result.tables[0].color).toBeDefined();
     });
 
@@ -323,8 +323,8 @@ describe('tag groups', () => {
     const result = parseERDiagram(`er
 
 tag Domain d
-  Billing(blue)
-  Shipping(green)
+  Billing blue
+  Shipping green
 
 Users | d: Billing
   id int pk`);
@@ -340,7 +340,7 @@ Users | d: Billing
     const result = parseERDiagram(`er
 
 tag Domain d
-  Billing(blue)
+  Billing blue
 
 Users | d: Billing
   id int pk`);
@@ -351,7 +351,7 @@ Users | d: Billing
     const result = parseERDiagram(`er
 
 tag Domain d
-  Billing(blue)
+  Billing blue
 
 Orders | d: Billing
   id int pk`);
@@ -363,8 +363,8 @@ Orders | d: Billing
     const result = parseERDiagram(`er
 
 tag Domain
-  Core(gray)
-  Billing(blue)
+  Core gray
+  Billing blue
 
 Users
   id int pk`);
@@ -376,8 +376,8 @@ Users
     const result = parseERDiagram(`er
 
 tag Domain
-  Billing(blue)
-  Shipping(green)
+  Billing blue
+  Shipping green
 
 Users | Domain: Unknown
   id int pk`);
@@ -391,9 +391,9 @@ Users | Domain: Unknown
     const result = parseERDiagram(`er
 
 tag Domain
-  Billing(blue)
+  Billing blue
 
-Users(red) | Domain: Billing
+Users red | Domain: Billing
   id int pk`);
     expect(result.tables[0].color).toBeDefined();
     expect(result.tables[0].metadata.domain).toBe('Billing');
@@ -417,7 +417,7 @@ Orders
     const result = parseERDiagram(`er
 
 ## Domain
-  Billing(blue)
+  Billing blue
 
 Users | Domain: Billing
   id int pk`);

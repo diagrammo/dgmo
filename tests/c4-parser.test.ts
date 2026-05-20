@@ -224,7 +224,7 @@ describe('parseC4', () => {
 
     it('resolves tag group aliases in metadata', () => {
       const result = parseC4(
-        'c4\ntag Technology tech\n  React(blue)\n\nBanking is a system | tech: Node.js'
+        'c4\ntag Technology tech\n  React blue\n\nBanking is a system | tech: Node.js'
       );
       expect(result.elements[0].metadata.technology).toBe('Node.js');
     });
@@ -501,8 +501,8 @@ describe('parseC4', () => {
         [
           'c4',
           'tag Technology tech',
-          '  React(blue)',
-          '  Node.js(green)',
+          '  React blue',
+          '  Node.js green',
           '',
           'Alice is a person',
         ].join('\n')
@@ -518,8 +518,8 @@ describe('parseC4', () => {
         [
           'c4',
           'tag Team t',
-          '  Platform(blue)',
-          '  Payments(orange)',
+          '  Platform blue',
+          '  Payments orange',
           '',
           'Alice is a person',
         ].join('\n')
@@ -529,7 +529,7 @@ describe('parseC4', () => {
 
     it('rejects tag groups after content', () => {
       const result = parseC4(
-        ['c4', 'Alice is a person', 'tag Team t', '  Platform(blue)'].join('\n')
+        ['c4', 'Alice is a person', 'tag Team t', '  Platform blue'].join('\n')
       );
       expect(
         result.diagnostics.some((d) => d.message.includes('must appear before'))
@@ -541,7 +541,7 @@ describe('parseC4', () => {
         [
           'c4',
           'tag Team t',
-          '  Platform(blue)',
+          '  Platform blue',
           '',
           'Banking is a system | t: Platform',
         ].join('\n')
@@ -558,8 +558,8 @@ describe('parseC4', () => {
         [
           'c4',
           'tag Technology tech',
-          '  React(blue)',
-          '  Node.js(green)',
+          '  React blue',
+          '  Node.js green',
           '',
           'Alice is a person',
         ].join('\n')
@@ -575,8 +575,8 @@ describe('parseC4', () => {
         [
           'c4',
           'tag Team t',
-          '  Platform(blue)',
-          '  Payments(orange)',
+          '  Platform blue',
+          '  Payments orange',
           '',
           'Alice is a person',
         ].join('\n')
@@ -586,7 +586,7 @@ describe('parseC4', () => {
 
     it('is case-insensitive', () => {
       const result = parseC4(
-        ['c4', 'Tag Team', '  Platform(blue)', '', 'Alice is a person'].join(
+        ['c4', 'Tag Team', '  Platform blue', '', 'Alice is a person'].join(
           '\n'
         )
       );
@@ -595,7 +595,7 @@ describe('parseC4', () => {
 
     it('does not emit deprecation warning for tag syntax', () => {
       const result = parseC4(
-        ['c4', 'tag Team', '  Platform(blue)', '', 'Alice is a person'].join(
+        ['c4', 'tag Team', '  Platform blue', '', 'Alice is a person'].join(
           '\n'
         )
       );
@@ -607,9 +607,7 @@ describe('parseC4', () => {
 
     it('ignores ## syntax (no longer recognized as tag heading)', () => {
       const result = parseC4(
-        ['c4', '## Team', '  Platform(blue)', '', 'Alice is a person'].join(
-          '\n'
-        )
+        ['c4', '## Team', '  Platform blue', '', 'Alice is a person'].join('\n')
       );
       expect(result.tagGroups).toHaveLength(0);
     });
@@ -619,7 +617,7 @@ describe('parseC4', () => {
         [
           'c4',
           'tag Team t',
-          '  Platform(blue)',
+          '  Platform blue',
           '',
           'Banking is a system | t: Platform',
         ].join('\n')
@@ -680,7 +678,7 @@ describe('parseC4', () => {
 
     it('tracks line numbers on tag groups', () => {
       const result = parseC4(
-        'c4\ntag Team\n  Platform(blue)\n\nAlice is a person'
+        'c4\ntag Team\n  Platform blue\n\nAlice is a person'
       );
       expect(result.tagGroups[0].lineNumber).toBe(2);
       expect(result.tagGroups[0].entries[0].lineNumber).toBe(3);
@@ -747,18 +745,18 @@ describe('parseC4', () => {
         'c4 Internet Banking System',
         '',
         'tag Technology tech',
-        '  React(blue)',
-        '  Node.js(green)',
-        '  PostgreSQL(purple)',
-        '  Redis(red)',
+        '  React blue',
+        '  Node.js green',
+        '  PostgreSQL purple',
+        '  Redis red',
         '',
         'tag Team t',
-        '  Platform(blue)',
-        '  Payments(orange)',
+        '  Platform blue',
+        '  Payments orange',
         '',
         'tag Scope sc',
-        '  Internal(blue)',
-        '  External(gray)',
+        '  Internal blue',
+        '  External gray',
         '',
         'Customer is a person',
         '  description: A customer of the bank',

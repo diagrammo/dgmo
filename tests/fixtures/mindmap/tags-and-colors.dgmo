@@ -1,19 +1,19 @@
-mindmap Strategy(blue)
+mindmap Strategy blue
 
 tag Priority as p
-  High(red)
-  Medium(yellow)
-  Low(green)
+  High red
+  Medium yellow
+  Low green
 
 tag Department as d
-  Engineering(blue)
-  Design(purple)
-  Marketing(orange)
+  Engineering blue
+  Design purple
+  Marketing orange
 
 active-tag Priority
 no-descriptions
 
-Feature A(red) | p: High, d: Engineering
+Feature A red | p: High, d: Engineering
   description: This should be hidden
   Sub A1
 Feature B | p: Low, d: Design

@@ -73,8 +73,8 @@ describe('parseState', () => {
     });
 
     it('(color) suffix is literal label text', () => {
-      const result = parseState('Active(green) -> Done');
-      expect(result.nodes[0].label).toBe('Active(green)');
+      const result = parseState('Active green -> Done');
+      expect(result.nodes[0].label).toBe('Active green');
       expect(result.nodes[0].color).toBeUndefined();
     });
 
@@ -131,18 +131,18 @@ describe('parseState', () => {
       expect(result.edges[0].label).toBe('start');
     });
 
-    it('parses colored transition', () => {
+    it('-(red)-> parses as literal label "(red)" (spec §1.7: no edge color)', () => {
       const result = parseState('A -(red)-> B');
       expect(result.edges).toHaveLength(1);
-      expect(result.edges[0].color).toBeDefined();
-      expect(result.edges[0].label).toBeUndefined();
+      expect((result.edges[0] as { color?: string }).color).toBeUndefined();
+      expect(result.edges[0].label).toBe('(red)');
     });
 
-    it('parses labeled+colored transition', () => {
-      const result = parseState('A -fail(red)-> B');
+    it('-fail red-> parses with whole label "fail red", no color', () => {
+      const result = parseState('A -fail red-> B');
       expect(result.edges).toHaveLength(1);
-      expect(result.edges[0].label).toBe('fail');
-      expect(result.edges[0].color).toBeDefined();
+      expect(result.edges[0].label).toBe('fail red');
+      expect((result.edges[0] as { color?: string }).color).toBeUndefined();
     });
 
     it('tracks source and target IDs correctly', () => {
@@ -200,7 +200,7 @@ describe('parseState', () => {
   // === Groups ===
   describe('groups', () => {
     it('parses [Group](color) with indented member states', () => {
-      const input = '[Processing](blue)\n  Validating -> Approved';
+      const input = '[Processing] blue\n  Validating -> Approved';
       const result = parseState(input);
       expect(result.error).toBeNull();
       expect(result.groups).toHaveLength(1);
@@ -315,7 +315,7 @@ describe('parseState', () => {
         'state Order Lifecycle',
         '',
         '',
-        '[Processing](blue)',
+        '[Processing] blue',
         '  Validating -valid-> Approved',
         '  Validating -invalid-> Rejected',
         '',

@@ -1,4 +1,5 @@
 import type { PaletteColors } from '../palettes';
+import { resolveColorWithDiagnostic } from '../colors';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
 import {
   matchTagBlockHeading,
@@ -138,8 +139,14 @@ export function parseJourneyMap(
               const key = part.substring(0, colonIdx).trim().toLowerCase();
               const value = part.substring(colonIdx + 1).trim();
               if (key === 'color') {
-                const resolved = extractColor(`x(${value})`, palette);
-                personaColor = resolved.color;
+                // Resolve the color name directly (no synthetic parens wrap).
+                personaColor =
+                  resolveColorWithDiagnostic(
+                    value,
+                    lineNumber,
+                    result.diagnostics,
+                    palette
+                  ) ?? undefined;
               }
             }
           }
@@ -209,7 +216,7 @@ export function parseJourneyMap(
         if (!color) {
           warn(
             lineNumber,
-            `Expected 'Value(color)' in tag group '${currentTagGroup.name}'`
+            `Expected 'Value color' in tag group '${currentTagGroup.name}'`
           );
           continue;
         }

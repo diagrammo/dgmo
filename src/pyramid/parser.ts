@@ -7,6 +7,7 @@ import {
   measureIndent,
   parseFirstLine,
   parsePipeMetadata,
+  peelTrailingColorName,
   tryParseSharedOption,
 } from '../utils/parsing';
 import type { ParsedPyramid, PyramidLayer } from './types';
@@ -144,6 +145,17 @@ export function parsePyramid(content: string): ParsedPyramid {
       if (!label) {
         warn(lineNum, 'Empty layer label.');
         continue;
+      }
+
+      // Universal trailing-token shortcut: `Label color` is equivalent to
+      // `Label | color: <name>` when color is the only metadata key (§1.5).
+      if (!color) {
+        const { label: stripped, colorName: shortcutColor } =
+          peelTrailingColorName(label);
+        if (shortcutColor) {
+          color = shortcutColor;
+          label = stripped;
+        }
       }
 
       currentLayer = {

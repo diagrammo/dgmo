@@ -456,10 +456,10 @@ Banking is a system
 const containerInput = `c4 Container View
 
 tag Technology tech
-  React(blue)
-  Node.js(green)
-  PostgreSQL(purple)
-  Redis(red)
+  React blue
+  Node.js green
+  PostgreSQL purple
+  Redis red
 
 Customer is a person
 Banking is a system | description: Internet banking system
@@ -869,9 +869,9 @@ Analytics is a system
 const componentInput = `c4 Component View
 
 tag Technology tech
-  Spring(green)
-  React(blue)
-  PostgreSQL(purple)
+  Spring green
+  React blue
+  PostgreSQL purple
 
 Customer is a person
 Ride Platform is a system | description: Ride-sharing platform

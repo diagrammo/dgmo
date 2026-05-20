@@ -41,7 +41,6 @@ export interface SitemapLayoutEdge {
   targetId: string;
   points: { x: number; y: number }[];
   label?: string;
-  color?: string;
   lineNumber: number;
   /** True for edges deferred from dagre (container endpoints) — use linear curve */
   deferred?: boolean;
@@ -652,7 +651,6 @@ export function layoutSitemap(
       targetId: edge.targetId,
       points,
       label: edge.label,
-      color: edge.color,
       lineNumber: edge.lineNumber,
       deferred: deferredSet.has(i) || undefined,
     });

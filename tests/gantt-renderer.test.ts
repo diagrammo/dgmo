@@ -73,14 +73,14 @@ start 2024-01-15
 critical-path
 
 tag Team t
-  Engineering(blue)
-  Design(purple)
-  QA(orange)
+  Engineering blue
+  Design purple
+  QA orange
 
 tag Phase p
-  Design(green)
-  Build(orange)
-  Test(red)
+  Design green
+  Build orange
+  Test red
 
 era 2024-01 -> 2024-06 Phase 1
 marker 2024-03-01 Kickoff
@@ -172,7 +172,7 @@ describe('gantt renderer', () => {
 
   it('sets data-tag attributes on task elements', () => {
     const input =
-      'gantt\ntag Team t\n  Engineering(blue)\nstart 2024-01-15\n10d Task | t: Engineering';
+      'gantt\ntag Team t\n  Engineering blue\nstart 2024-01-15\n10d Task | t: Engineering';
     const container = renderFromInput(input);
     const task = container.querySelector('.gantt-task');
     expect(task).not.toBeNull();
@@ -430,8 +430,8 @@ describe('buildTagLaneRowList', () => {
     const input = `gantt
 start 2024-01-15
 tag Status
-  Active(green)
-  Deferred(gray)
+  Active green
+  Deferred gray
 10d Task A | Status: Active`;
     const resolved = resolveFromInput(input);
     const rows = buildTagLaneRowList(resolved, 'Status')!;
@@ -449,8 +449,8 @@ tag Status
     const input = `gantt
 start 2024-01-15
 tag Team
-  Engineering(blue)
-  Design(purple)
+  Engineering blue
+  Design purple
 10d Task A
 5d Task B`;
     const resolved = resolveFromInput(input);
@@ -470,8 +470,8 @@ tag Team
     const input = `gantt
 start 2024-01-15
 tag Team
-  A(blue)
-  B(red)
+  A blue
+  B red
 10d Task 1 | Team: A
 5d Task 2 | Team: B`;
     const resolved = resolveFromInput(input);
@@ -485,7 +485,7 @@ tag Team
     const input = `gantt
 start 2024-01-15
 tag Team
-  Eng(blue)
+  Eng blue
 10d Task A | Team: Eng, 80%
 10d Task B | Team: Eng, 40%
 10d Task C | Team: Eng`;
@@ -740,8 +740,8 @@ describe('dependency arrows in tag mode', () => {
     const input = `gantt
 start 2024-01-15
 tag Lane
-  Alpha(blue)
-  Beta(red)
+  Alpha blue
+  Beta red
 parallel
   10d Task A | Lane: Alpha
     -> Task B
@@ -818,8 +818,8 @@ describe('left panel visual enhancements', () => {
   const groupedInput = `gantt
 start 2024-01-15
 tag Team t
-  Engineering(blue)
-  Design(purple)
+  Engineering blue
+  Design purple
 
 [Backend]
   10d Database Layer | t: Engineering

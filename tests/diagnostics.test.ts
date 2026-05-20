@@ -65,11 +65,13 @@ describe('suggest()', () => {
 
 describe('sequence: multiple recoverable errors', () => {
   it('collects color deprecation warnings across group + section, continues parsing', () => {
+    // Warnings are scoped to the 11-name palette per §1.5; legacy parens
+    // form `(red)` / `(green)` triggers deprecation. Hex codes pass through.
     const content = [
       'sequence',
-      '[Backend(#ff0000)]',
+      '[Backend(red)]',
       '  API',
-      '== Phase(#00ff00) ==',
+      '== Phase(green) ==',
       'User -request-> API',
     ].join('\n');
 
@@ -77,8 +79,8 @@ describe('sequence: multiple recoverable errors', () => {
     const warnings = result.diagnostics.filter((d) => d.severity === 'warning');
     // Both color lines should produce deprecation warnings
     expect(warnings.length).toBeGreaterThanOrEqual(2);
-    expect(warnings[0].message).toContain('color syntax removed');
-    expect(warnings[1].message).toContain('color syntax removed');
+    expect(warnings[0].message).toContain('parens-color syntax');
+    expect(warnings[1].message).toContain('parens-color syntax');
     // The message should still be parsed
     expect(result.messages).toHaveLength(1);
   });

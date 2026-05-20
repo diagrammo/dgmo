@@ -1,16 +1,16 @@
 infra Global E-Commerce Infrastructure — Stress Test
 
 tag Team as t
-  Edge(green)
-  Backend(blue)
-  Platform(teal)
-  Data(purple)
-  ML(orange)
+  Edge green
+  Backend blue
+  Platform teal
+  Data purple
+  ML orange
 
 tag Region as r
-  US(blue)
-  EU(green)
-  APAC(orange)
+  US blue
+  EU green
+  APAC orange
 
 // ── Edge Layer ──────────────────────────────────────────────
 

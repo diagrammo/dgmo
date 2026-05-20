@@ -152,7 +152,7 @@ describe('gantt parser', () => {
 
     it('parses group with pipe metadata', () => {
       const input =
-        'gantt\ntag Team t\n  Engineering(blue)\n[Backend] | t: Engineering\n  10d Task';
+        'gantt\ntag Team t\n  Engineering blue\n[Backend] | t: Engineering\n  10d Task';
       const result = parseGantt(input, palette);
       expect(result.error).toBeNull();
       const group = result.nodes[0];
@@ -456,7 +456,7 @@ describe('gantt parser', () => {
   describe('tag groups', () => {
     it('parses tag block with entries', () => {
       const input =
-        'gantt\ntag Team t\n  Engineering(blue)\n  Design(purple)\n10d Task | t: Engineering';
+        'gantt\ntag Team t\n  Engineering blue\n  Design purple\n10d Task | t: Engineering';
       const result = parseGantt(input, palette);
       expect(result.tagGroups).toHaveLength(1);
       expect(result.tagGroups[0].name).toBe('Team');
@@ -466,14 +466,14 @@ describe('gantt parser', () => {
 
     it('first entry is default', () => {
       const input =
-        'gantt\ntag Team t\n  Engineering(blue)\n  Design(purple)\n10d Task';
+        'gantt\ntag Team t\n  Engineering blue\n  Design purple\n10d Task';
       const result = parseGantt(input, palette);
       expect(result.tagGroups[0].defaultValue).toBe('Engineering');
     });
 
     it('tag inheritance from parent group', () => {
       const input =
-        'gantt\ntag Team t\n  Engineering(blue)\n[Backend] | t: Engineering\n  10d Task';
+        'gantt\ntag Team t\n  Engineering blue\n[Backend] | t: Engineering\n  10d Task';
       const result = parseGantt(input, palette);
       const group = result.nodes[0];
       if (group.kind === 'group') {
@@ -486,7 +486,7 @@ describe('gantt parser', () => {
 
     it('child overrides inherited tag', () => {
       const input =
-        'gantt\ntag Team t\n  Engineering(blue)\n  QA(orange)\n[Backend] | t: Engineering\n  10d Task | t: QA';
+        'gantt\ntag Team t\n  Engineering blue\n  QA orange\n[Backend] | t: Engineering\n  10d Task | t: QA';
       const result = parseGantt(input, palette);
       const group = result.nodes[0];
       if (group.kind === 'group') {
@@ -617,7 +617,7 @@ describe('gantt parser', () => {
     });
 
     it('parses era block entry with color', () => {
-      const input = 'gantt\nera\n  2024-01 -> 2024-06 Sprint (blue)\n10d Task';
+      const input = 'gantt\nera\n  2024-01 -> 2024-06 Sprint blue\n10d Task';
       const result = parseGantt(input, palette);
       expect(result.eras).toHaveLength(1);
       expect(result.eras[0].label).toBe('Sprint');
@@ -645,7 +645,7 @@ describe('gantt parser', () => {
     });
 
     it('parses marker block entry with color', () => {
-      const input = 'gantt\nmarker\n  2024-03-01 Launch (green)\n10d Task';
+      const input = 'gantt\nmarker\n  2024-03-01 Launch green\n10d Task';
       const result = parseGantt(input, palette);
       expect(result.markers).toHaveLength(1);
       expect(result.markers[0].label).toBe('Launch');
@@ -791,7 +791,7 @@ describe('gantt parser', () => {
   describe('sort tag directive', () => {
     it('parses sort tag', () => {
       const input =
-        'gantt\nsort tag\ntag Team\n  Eng(blue)\nstart 2024-01-15\n10d Task';
+        'gantt\nsort tag\ntag Team\n  Eng blue\nstart 2024-01-15\n10d Task';
       const result = parseGantt(input, palette);
       expect(result.error).toBeNull();
       expect(result.options.sort).toBe('tag');
@@ -800,7 +800,7 @@ describe('gantt parser', () => {
 
     it('parses sort tag:Team', () => {
       const input =
-        'gantt\nsort tag:Team\ntag Team\n  Eng(blue)\nstart 2024-01-15\n10d Task';
+        'gantt\nsort tag:Team\ntag Team\n  Eng blue\nstart 2024-01-15\n10d Task';
       const result = parseGantt(input, palette);
       expect(result.error).toBeNull();
       expect(result.options.sort).toBe('tag');

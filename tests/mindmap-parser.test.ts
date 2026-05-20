@@ -256,8 +256,8 @@ Q2 Goals
       `mindmap Root
 
 tag Priority p
-  High(red)
-  Low(green)
+  High red
+  Low green
 
   Task | p: High`,
       palette
@@ -273,8 +273,8 @@ tag Priority p
       `mindmap Root
 
 tag Priority p
-  High(red)
-  Low(green)
+  High red
+  Low green
 
   Task | p: High`,
       palette
@@ -303,7 +303,7 @@ no-descriptions
       `mindmap Root
 
 tag Priority p
-  High(red)
+  High red
 
 active-tag Priority
 
@@ -345,8 +345,8 @@ active-tag Priority
       `mindmap Root
 
 tag Status s
-  Active(green)
-  Done(blue)
+  Active green
+  Done blue
 
   First Node | s: Active`,
       palette

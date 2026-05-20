@@ -144,11 +144,8 @@ export function renderState(
     .attr('points', `0,0 ${ARROWHEAD_W},${ARROWHEAD_H / 2} 0,${ARROWHEAD_H}`)
     .attr('fill', palette.textMuted);
 
-  // Custom colored markers
+  // Edges have no color slot (§1.7); keep empty set for marker iteration.
   const edgeColors = new Set<string>();
-  for (const edge of layout.edges) {
-    if (edge.color) edgeColors.add(edge.color);
-  }
   for (const color of edgeColors) {
     const id = `st-arrow-${color.replace('#', '')}`;
     defs
@@ -345,10 +342,8 @@ export function renderState(
       .attr('class', 'st-edge-group')
       .attr('data-line-number', String(edge.lineNumber));
 
-    const edgeColor = edge.color ?? palette.textMuted;
-    const markerId = edge.color
-      ? `st-arrow-${edge.color.replace('#', '')}`
-      : 'st-arrow';
+    const edgeColor = palette.textMuted;
+    const markerId = 'st-arrow';
 
     if (edge.source === edge.target) {
       // Self-loop

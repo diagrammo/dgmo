@@ -350,7 +350,7 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
         if (!color) {
           pushError(
             lineNumber,
-            `Expected 'Value(color)' in tag group '${currentTagGroup.name}'`
+            `Expected 'Value color' in tag group '${currentTagGroup.name}'`
           );
           continue;
         }

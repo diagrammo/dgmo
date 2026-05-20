@@ -380,7 +380,7 @@ export function parseGantt(
         currentTagGroup = null;
         // fall through to process this line normally
       } else {
-        // Parse tag entry: `Value(color)` or `Value`
+        // Parse tag entry: `Value color` or `Value`
         // First entry is the default unless another is marked `default`
         if (COMMENT_RE.test(line)) continue;
         const { text: cleanEntry, isDefault } = stripDefaultModifier(line);

@@ -40,9 +40,9 @@ describe('legend entry hover attributes', () => {
   const input = `kanban
 
 tag Priority
-  High(red)
-  Medium(yellow)
-  Low(green)
+  High red
+  Medium yellow
+  Low green
 
 [To Do]
   Fix login bug | priority: High
@@ -132,13 +132,13 @@ describe('kanban tag swimlane rendering', () => {
   const swimInput = `kanban
 
 tag Team
-  Frontend(blue)
-  Backend(green)
-  QA(orange)
+  Frontend blue
+  Backend green
+  QA orange
 
 tag Priority
-  High(red)
-  Low(yellow)
+  High red
+  Low yellow
 
 [Backlog]
   Redesign | team: Frontend, priority: High
@@ -261,8 +261,8 @@ tag Priority
     const inputWithDefault = `kanban
 
 tag Team
-  Frontend(blue) default
-  Backend(green)
+  Frontend blue default
+  Backend green
 
 [Backlog]
   Untagged card`;
@@ -306,8 +306,8 @@ describe('kanban collapsed columns', () => {
   const input = `kanban
 
 tag Priority
-  High(red)
-  Low(green)
+  High red
+  Low green
 
 [Backlog]
   Fix login | priority: High
@@ -376,9 +376,9 @@ describe('kanban collapsed lanes', () => {
   const swimInput = `kanban
 
 tag Team
-  Frontend(blue)
-  Backend(green)
-  QA(orange)
+  Frontend blue
+  Backend green
+  QA orange
 
 [Backlog]
   Redesign | team: Frontend
@@ -443,12 +443,12 @@ describe('kanban compact meta', () => {
   const input = `kanban
 
 tag Team
-  Frontend(blue)
-  Backend(green)
+  Frontend blue
+  Backend green
 
 tag Priority
-  High(red)
-  Low(yellow)
+  High red
+  Low yellow
 
 [Backlog]
   Fix login | team: Frontend, priority: High
@@ -487,8 +487,8 @@ describe('kanban partial view state', () => {
   const input = `kanban
 
 tag Crew
-  Blackbeard(red)
-  Anne Bonny(blue)
+  Blackbeard red
+  Anne Bonny blue
 
 [Backlog]
   Swab deck | crew: Blackbeard

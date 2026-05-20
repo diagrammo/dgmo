@@ -410,16 +410,17 @@ describe('Story 47.1 — syntax cleanup', () => {
       expect(result.groups[0].name).toBe('Backend');
     });
 
-    it('warns on hex color in section divider', () => {
+    // Sequence deprecation warnings are scoped to the recognized 11-name
+    // palette only — `funcCall(arg)` and hex codes pass through.
+    it('hex color in section divider does NOT warn (not a palette word)', () => {
       const result = parseSequenceDgmo('A -msg-> B\n== Phase 2(#abc123) ==');
       expect(result.error).toBeNull();
       const warnings = result.diagnostics.filter(
         (d) => d.severity === 'warning'
       );
       expect(
-        warnings.some((w) => w.message.includes('color syntax removed'))
-      ).toBe(true);
-      expect(result.sections[0].label).toBe('Phase 2');
+        warnings.some((w) => w.message.includes('parens-color syntax removed'))
+      ).toBe(false);
     });
 
     it('warns on named color in group (no longer stored)', () => {
@@ -469,7 +470,7 @@ describe('Story 47.2 — Parser tolerance', () => {
       expect(result.groups[0].name).toBe('Order Service');
     });
 
-    it('multi-word group with color emits warning', () => {
+    it('multi-word group with legacy parens-color emits warning', () => {
       const result = parseSequenceDgmo(
         '[Payment Gateway(blue)]\n  API\n\nA -msg-> B'
       );
@@ -508,7 +509,7 @@ describe('Story 47.2 — Parser tolerance', () => {
       expect(result.sections[0].label).toBe('Phase One');
     });
 
-    it('section without trailing == and with color emits warning', () => {
+    it('section without trailing == and with legacy parens-color emits warning', () => {
       const result = parseSequenceDgmo('A -msg-> B\n== Critical(red)');
       expect(result.error).toBeNull();
       expect(result.sections[0].label).toBe('Critical');
@@ -518,7 +519,7 @@ describe('Story 47.2 — Parser tolerance', () => {
       expect(warnings.some((w) => w.message.includes('(red)'))).toBe(true);
     });
 
-    it('section with trailing == and color emits warning', () => {
+    it('section with trailing == and legacy parens-color emits warning', () => {
       const result = parseSequenceDgmo('A -msg-> B\n== Critical(red) ==');
       expect(result.error).toBeNull();
       expect(result.sections[0].label).toBe('Critical');
@@ -590,7 +591,7 @@ describe('Story 47.3 — parser validation', () => {
   describe('duplicate participant group membership', () => {
     it('participant in two groups produces error', () => {
       const result = parseSequenceDgmo(
-        '[Backend(blue)]\n  API\n\n[Frontend(red)]\n  API\nAPI -query-> DB'
+        '[Backend]\n  API\n\n[Frontend]\n  API\nAPI -query-> DB'
       );
       expect(result.error).toMatch(
         /Line 5.*Participant 'API' is already in group 'Backend'/
@@ -608,7 +609,7 @@ describe('Story 47.3 — parser validation', () => {
 
     it('different participants in different groups is fine', () => {
       const result = parseSequenceDgmo(
-        '[Backend(blue)]\n  API\n  DB\n\n[Frontend(red)]\n  App\nAPI -query-> DB\nApp -request-> API'
+        '[Backend]\n  API\n  DB\n\n[Frontend]\n  App\nAPI -query-> DB\nApp -request-> API'
       );
       expect(result.error).toBeNull();
       expect(result.groups).toHaveLength(2);
@@ -1114,8 +1115,8 @@ describe('tag group declarations', () => {
   it('parses a single tag group with entries', () => {
     const content = [
       'tag Concern c',
-      '  Caching(blue)',
-      '  Auth(green)',
+      '  Caching blue',
+      '  Auth green',
       '',
       'A -req-> B',
     ].join('\n');
@@ -1132,11 +1133,11 @@ describe('tag group declarations', () => {
   it('parses multiple tag groups', () => {
     const content = [
       'tag Concern c',
-      '  Caching(blue)',
-      '  Auth(green)',
+      '  Caching blue',
+      '  Auth green',
       'tag Team t',
-      '  Platform(purple)',
-      '  Product(orange)',
+      '  Platform purple',
+      '  Product orange',
       '',
       'A -req-> B',
     ].join('\n');
@@ -1150,8 +1151,8 @@ describe('tag group declarations', () => {
   it('first tag entry is the default', () => {
     const content = [
       'tag Role',
-      '  Gateway(blue)',
-      '  Service(green)',
+      '  Gateway blue',
+      '  Service green',
       '',
       'A -req-> B',
     ].join('\n');
@@ -1162,7 +1163,7 @@ describe('tag group declarations', () => {
   it('registers aliases in aliasMap', () => {
     const content = [
       'tag Concern c',
-      '  Caching(blue)',
+      '  Caching blue',
       '',
       'A -req-> B | c: Caching',
     ].join('\n');
@@ -1172,7 +1173,7 @@ describe('tag group declarations', () => {
   });
 
   it('errors when tag group appears after content', () => {
-    const content = ['A -req-> B', 'tag Concern', '  Caching(blue)'].join('\n');
+    const content = ['A -req-> B', 'tag Concern', '  Caching blue'].join('\n');
     const result = parseSequenceDgmo(content);
     expect(
       result.diagnostics.some((d) =>
@@ -1186,7 +1187,7 @@ describe('tag group declarations', () => {
     const result = parseSequenceDgmo(content);
     expect(
       result.diagnostics.some((d) =>
-        d.message.includes("Expected 'Value(color)'")
+        d.message.includes("Expected 'Value color'")
       )
     ).toBe(true);
   });
@@ -1217,7 +1218,7 @@ describe('pipe metadata on participants', () => {
     expect(db?.metadata).toBeUndefined();
   });
 
-  it('parses metadata on colored participant (color stripped with error)', () => {
+  it('parses metadata on legacy parens-colored participant (color stripped with error)', () => {
     const content = ['API(blue) | role: Gateway', 'API -req-> DB'].join('\n');
     const result = parseSequenceDgmo(content);
     const api = result.participants.find((p) => p.id === 'API');
@@ -1242,8 +1243,8 @@ describe('pipe metadata on participants', () => {
   it('parses metadata on bare top-level participant', () => {
     const content = [
       'tag Location l',
-      '  Park(red)',
-      '  Cloud(blue)',
+      '  Park red',
+      '  Cloud blue',
       '',
       'Tapin2 | l:Park',
       '',
@@ -1257,8 +1258,8 @@ describe('pipe metadata on participants', () => {
   it('parses metadata on bare top-level participant after groups', () => {
     const content = [
       'tag Location l',
-      '  Park(red)',
-      '  Cloud(blue)',
+      '  Park red',
+      '  Cloud blue',
       '',
       '[Backend]',
       '  API',
@@ -1295,7 +1296,7 @@ describe('pipe metadata on participants', () => {
   it('resolves in participant metadata', () => {
     const content = [
       'tag Concern c',
-      '  Caching(blue)',
+      '  Caching blue',
       '',
       'API is a gateway | c: Caching',
       'API -req-> DB',
@@ -1361,7 +1362,7 @@ describe('pipe metadata on messages', () => {
   it('resolves in message metadata', () => {
     const content = [
       'tag Concern c',
-      '  Caching(blue)',
+      '  Caching blue',
       '',
       'A -req-> B | c: Caching',
     ].join('\n');
@@ -1416,7 +1417,7 @@ describe('pipe metadata on group headers', () => {
     expect(result.error).toMatch(/\[Backend\] \| t: Engineering/);
   });
 
-  it('pipe inside brackets with color emits error', () => {
+  it('pipe inside brackets with legacy parens-color emits error', () => {
     const content = [
       '[Backend(blue) | t: Product]',
       '  API',
@@ -1434,7 +1435,7 @@ describe('pipe metadata on group headers', () => {
     expect(result.groups[0].metadata).toBeUndefined();
   });
 
-  it('[Backend(blue)] still emits color deprecation warning', () => {
+  it('[Backend(blue)] still emits legacy color deprecation warning', () => {
     const content = ['[Backend(blue)]', '  API', '', 'API -req-> DB'].join(
       '\n'
     );
@@ -1523,8 +1524,8 @@ describe('tag validation on sequence diagrams', () => {
   it('warns on unknown tag value in message', () => {
     const content = [
       'tag Concern',
-      '  Caching(blue)',
-      '  Auth(green)',
+      '  Caching blue',
+      '  Auth green',
       '',
       'A -req-> B | concern: Typo',
     ].join('\n');
@@ -1538,7 +1539,7 @@ describe('tag validation on sequence diagrams', () => {
   it('no warning for valid tag value', () => {
     const content = [
       'tag Concern',
-      '  Caching(blue)',
+      '  Caching blue',
       '',
       'A -req-> B | concern: Caching',
     ].join('\n');
@@ -1550,7 +1551,7 @@ describe('tag validation on sequence diagrams', () => {
   it('warns on unknown value with did-you-mean', () => {
     const content = [
       'tag Concern',
-      '  Caching(blue)',
+      '  Caching blue',
       '',
       'A -req-> B | concern: Cachng',
     ].join('\n');

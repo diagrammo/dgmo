@@ -1,14 +1,14 @@
 org Acme Corp
 
 tag Location
-  NY(blue)
-  LA(yellow)
-  CO(green)
-  Remote(purple)
+  NY blue
+  LA yellow
+  CO green
+  Remote purple
 
 tag Status
-  FTE(green)
-  Contractor(orange)
+  FTE green
+  Contractor orange
 
 Jane Smith
   role: CEO

@@ -231,7 +231,7 @@ describe('1. Valid syntax', () => {
 
     it('slope: color annotations', () => {
       const r = parseVisualization(
-        'slope\nperiod 2020 2022 2025\nPython (blue) 3 1 1',
+        'slope\nperiod 2020 2022 2025\nPython blue 3 1 1',
         palette
       );
       expect(hasNoErrors(r)).toBe(true);

@@ -96,8 +96,8 @@ describe('Baseline: Sequence legend position', () => {
   const src = `sequence
 
 tag Team
-  Frontend(blue)
-  Backend(red)
+  Frontend blue
+  Backend red
 
 Alice is a actor | team: Frontend
 Bob is a actor | team: Backend
@@ -127,8 +127,8 @@ describe('Baseline: C4 legend position', () => {
   const src = `c4
 
 tag Domain
-  Auth(blue)
-  Payments(green)
+  Auth blue
+  Payments green
 
 User is a person
 AuthService is a system | domain: Auth
@@ -160,8 +160,8 @@ describe('Baseline: Kanban legend position', () => {
   const src = `kanban
 
 tag Priority
-  High(red)
-  Low(green)
+  High red
+  Low green
 
 [To Do]
   Fix bug | priority: High
@@ -185,8 +185,8 @@ describe('Baseline: Org legend position', () => {
   const src = `org
 
 tag Region
-  North(blue)
-  South(green)
+  North blue
+  South green
 
 CEO
   VP North | region: North
@@ -215,8 +215,8 @@ describe('Baseline: Sitemap legend position', () => {
   const src = `sitemap
 
 tag Section
-  Docs(blue)
-  Blog(green)
+  Docs blue
+  Blog green
 
 Home
   Docs | section: Docs
@@ -245,8 +245,8 @@ describe('Baseline: Infra legend position', () => {
   const src = `infra
 
 tag Team
-  Platform(blue)
-  App(green)
+  Platform blue
+  App green
 
 edge
   rps 1000
@@ -412,8 +412,8 @@ describe('Baseline: ER legend position', () => {
   const src = `er
 
 tag Domain
-  Auth(blue)
-  Core(green)
+  Auth blue
+  Core green
 
 User {
   id int PK | domain: Auth
@@ -443,8 +443,8 @@ describe('Baseline: Timeline legend position', () => {
   const src = `timeline
 
 tag Status
-  Done(green)
-  Active(blue)
+  Done green
+  Active blue
 
 2024-01-01 -> 2024-06-01: Feature A | status: Done
 2024-03-01 -> 2024-12-01: Feature B | status: Active`;

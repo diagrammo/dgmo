@@ -503,7 +503,7 @@ export function parsePert(
 
   /**
    * Tag groups declared at the top of the diagram. A `tag …` heading
-   * opens a block; entries (indented `Value(color)` lines) accumulate
+   * opens a block; entries (indented `Value color` lines) accumulate
    * until the first non-tag content line closes it.
    */
   const tagGroups: TagGroup[] = [];
@@ -612,7 +612,7 @@ export function parsePert(
             if (!color) {
               warn(
                 lineNumber,
-                `Expected 'Value(color)' in tag group '${currentTagGroup.name}'`
+                `Expected 'Value color' in tag group '${currentTagGroup.name}'`
               );
               continue;
             }
@@ -624,7 +624,7 @@ export function parsePert(
         }
         continue;
       }
-      // Indented `Value(color)` entry under an open tag block.
+      // Indented `Value color` entry under an open tag block.
       if (currentTagGroup && indent > 0) {
         const { text, isDefault } = stripDefaultModifier(trimmed);
         const { label, color } = extractColor(
@@ -636,7 +636,7 @@ export function parsePert(
         if (!color) {
           warn(
             lineNumber,
-            `Expected 'Value(color)' in tag group '${currentTagGroup.name}'`
+            `Expected 'Value color' in tag group '${currentTagGroup.name}'`
           );
           continue;
         }

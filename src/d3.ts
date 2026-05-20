@@ -205,6 +205,7 @@ import {
   normalizeNumericToken,
   parseFirstLine,
   parsePipeMetadata,
+  peelTrailingColorName,
   MULTIPLE_PIPE_ERROR,
 } from './utils/parsing';
 import {
@@ -698,8 +699,12 @@ export function parseVisualization(
         // fall through to process this line normally
       } else {
         if (line.startsWith('//')) continue;
+        // Timeline era block entry (\u00a71.5 trailing-token):
+        //   `<start> -> <end> Label`           (no color)
+        //   `<start> -> <end> Label color`     (trailing color word)
+        // Color (group 4) must be a recognized lowercase palette word.
         const eraEntryMatch = line.match(
-          /^(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s*(?:->|\u2013>)\s*(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s+(.+?)(?:\s*\(([^)]+)\))?\s*$/
+          /^(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s*(?:->|\u2013>)\s*(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s+(.+?)(?:\s+(red|orange|yellow|green|blue|purple|teal|cyan|gray|black|white))?\s*$/
         );
         if (eraEntryMatch) {
           const colorAnnotation = eraEntryMatch[4]?.trim() || null;
@@ -731,8 +736,9 @@ export function parseVisualization(
         // fall through to process this line normally
       } else {
         if (line.startsWith('//')) continue;
+        // Timeline marker block entry (§1.5 trailing-token).
         const markerEntryMatch = line.match(
-          /^(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s+(.+?)(?:\s*\(([^)]+)\))?\s*$/
+          /^(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s+(.+?)(?:\s+(red|orange|yellow|green|blue|purple|teal|cyan|gray|black|white))?\s*$/
         );
         if (markerEntryMatch) {
           const colorAnnotation = markerEntryMatch[3]?.trim() || null;
@@ -959,19 +965,20 @@ export function parseVisualization(
         }
       }
 
-      // Set declaration: "Name(color) as <alias>" / "Name as <alias>" / "Name(color)" / "Name"
-      // Legacy "Name(color) alias <token>" emits E_VENN_ALIAS_KEYWORD_REMOVED.
+      // Set declaration (§1.5 universal trailing-token):
+      //   `Name` / `Name color` / `Name as <alias>` / `Name color as <alias>`
+      // Legacy `Name color alias <token>` emits E_VENN_ALIAS_KEYWORD_REMOVED.
       // Only attempt set parsing if the line wasn't a bare-keyword option (handled above).
       if (!/^(solid-fill|no-name|no-value|no-percent|no-title)$/i.test(line)) {
         // Detect legacy `alias` keyword first — graceful degradation parses
         // the rest of the line so the set still appears.
-        const legacyAliasMatch = line.match(
-          /^([^(:]+?)(?:\(([^)]+)\))?\s+alias\s+(\S+)\s*$/i
-        );
+        const legacyAliasMatch = line.match(/^(.+?)\s+alias\s+(\S+)\s*$/i);
         if (legacyAliasMatch) {
-          const name = legacyAliasMatch[1].trim();
-          const colorName = legacyAliasMatch[2]?.trim() ?? null;
-          const aliasToken = legacyAliasMatch[3].trim();
+          const nameWithMaybeColor = legacyAliasMatch[1].trim();
+          const aliasToken = legacyAliasMatch[2].trim();
+          // Split off trailing-token color from the name region.
+          const { label: name, colorName } =
+            peelTrailingColorName(nameWithMaybeColor);
           let color: string | null = null;
           if (colorName) {
             color =
@@ -995,11 +1002,14 @@ export function parseVisualization(
         }
 
         const setDeclMatch = line.match(
-          /^([^(:]+?)(?:\(([^)]+)\))?(?:\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11}))?\s*$/i
+          /^(.+?)(?:\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11}))?\s*$/i
         );
         if (setDeclMatch) {
-          const name = setDeclMatch[1].trim();
-          const colorName = setDeclMatch[2]?.trim() ?? null;
+          const nameWithMaybeColor = setDeclMatch[1].trim();
+          const alias = setDeclMatch[2]?.trim() ?? null;
+          // Split off trailing-token color from the name region (before `as`).
+          const { label: name, colorName } =
+            peelTrailingColorName(nameWithMaybeColor);
           let color: string | null = null;
           if (colorName) {
             color =
@@ -1010,7 +1020,6 @@ export function parseVisualization(
                 palette
               ) ?? null;
           }
-          const alias = setDeclMatch[3]?.trim() ?? null;
           result.vennSets.push({ name, alias, color, lineNumber });
           continue;
         }
@@ -1325,12 +1334,12 @@ export function parseVisualization(
           continue;
         }
 
-        // Color annotation: `Label (color)` → extract color
-        const colorMatch = joinedLabel.match(/^(.+?)\(([^)]+)\)\s*$/);
-        const labelPart = colorMatch ? colorMatch[1].trim() : joinedLabel;
-        const colorPart = colorMatch
+        // Color annotation (§1.5 trailing-token): `Label color` → split.
+        const { label: labelPart, colorName: colorWord } =
+          peelTrailingColorName(joinedLabel);
+        const colorPart = colorWord
           ? (resolveColorWithDiagnostic(
-              colorMatch[2].trim(),
+              colorWord,
               lineNumber,
               result.diagnostics,
               palette

@@ -184,11 +184,9 @@ export function renderSitemap(
     .attr('points', `0,0 ${ARROWHEAD_W},${ARROWHEAD_H / 2} 0,${ARROWHEAD_H}`)
     .attr('fill', palette.textMuted);
 
-  // Colored arrowheads
+  // Edges have no color slot (spec §1.7); keep empty set so the marker-setup
+  // loop is a no-op but the symbol stays available for future color sources.
   const edgeColors = new Set<string>();
-  for (const edge of layout.edges) {
-    if (edge.color) edgeColors.add(edge.color);
-  }
   for (const color of edgeColors) {
     const id = `sm-arrow-${color.replace('#', '')}`;
     defs
@@ -379,10 +377,8 @@ export function renderSitemap(
       .attr('class', 'sitemap-edge-group')
       .attr('data-line-number', String(edge.lineNumber));
 
-    const edgeColor = edge.color ?? palette.textMuted;
-    const markerId = edge.color
-      ? `sm-arrow-${edge.color.replace('#', '')}`
-      : 'sm-arrow';
+    const edgeColor = palette.textMuted;
+    const markerId = 'sm-arrow';
 
     const gen = edge.deferred ? lineGeneratorLinear : lineGenerator;
     const pathD = gen(edge.points);

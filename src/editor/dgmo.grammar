@@ -8,7 +8,6 @@ contentPart {
   SectionMarker |
   Url |
   OpenBracket | CloseBracket | OpenParen | CloseParen | OpenAngle | CloseAngle |
-  ColorAnnotation |
   Pipe | Colon | Comma | Plus | Dash | Tilde | Star | Question |
   ChartType |
   TagKeyword | DirectiveKeyword | ControlKeyword | ModifierKeyword |
@@ -38,7 +37,6 @@ contentPart {
 
   SectionMarker { "==" }
   Url { "http" "s"? "://" ![ \t\n|,)\]>]+ }
-  ColorAnnotation { "(" $[a-z\-]+ ")" }
 
   Pipe { "|" }
   Colon { ":" }
@@ -66,7 +64,7 @@ contentPart {
 
   @precedence {
     Comment, SyncArrow, AsyncArrow,
-    Duration, DateLiteral, Percentage, Number, SectionMarker, Url, ColorAnnotation,
+    Duration, DateLiteral, Percentage, Number, SectionMarker, Url,
     Pipe, Colon, Comma, Plus, Dash, Tilde, Star, Question,
     OpenBracket, CloseBracket, OpenParen, CloseParen, OpenAngle, CloseAngle,
     QuotedString, Identifier, Punct

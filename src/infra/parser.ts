@@ -14,7 +14,6 @@ import {
   nameMergedMessage,
 } from '../diagnostics';
 import { tryStripDescriptionKeyword } from '../utils/description-helpers';
-import { resolveColorWithDiagnostic } from '../colors';
 import { parseInArrowLabel } from '../utils/arrows';
 import {
   measureIndent,
@@ -22,6 +21,7 @@ import {
   OPTION_NOCOLON_RE,
   tryParseSharedOption,
 } from '../utils/parsing';
+import { isRecognizedColorName } from '../colors';
 import { normalizeName, displayName } from '../utils/name-normalize';
 import {
   matchTagBlockHeading,
@@ -62,9 +62,11 @@ const DEPRECATED_FANOUT_RE = /\bx(\d+)\s*$/;
 const GROUP_RE =
   /^\[([^\]]+)\]\s*(?:as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*)?(?:\|\s*(.+))?$/;
 
-// Tag value: Name  or  Name(color)
-// Note: `default` keyword removed — first value is the default.
-const TAG_VALUE_RE = /^(\w[\w\s]*?)(?:\(([^)]+)\))?\s*$/;
+// Tag value: `Name` or `Name color` (trailing-token color form). Color is
+// extracted via the shared `extractColor` helper at use-site (see
+// `dgmo/src/utils/parsing.ts:extractColor`), not via this regex. This regex
+// just confirms the line shape is a valid tag value (no reserved sigils).
+const TAG_VALUE_RE = /^(\w[\w\s]+?)\s*$/;
 
 // Component line. Accepts either a quoted name ("name with | : reserved chars")
 // or a bare name (multi-word allowed; must start with letter/underscore so digit-
@@ -445,14 +447,22 @@ export function parseInfra(content: string): ParsedInfra {
     // Tag value inside tag group — first value is the default unless another is marked `default`
     if (currentTagGroup && indent > 0) {
       const { text: cleanEntry, isDefault } = stripDefaultModifier(trimmed);
-      const tvMatch = cleanEntry.match(TAG_VALUE_RE);
-      if (tvMatch) {
-        const valueName = tvMatch[1].trim();
-        const rawColor = tvMatch[2]?.trim();
-        if (rawColor) {
-          // Validate the color name; emit diagnostic if invalid
-          resolveColorWithDiagnostic(rawColor, lineNumber, result.diagnostics);
+      // Trailing-token color (universal rule, §1.5): peel off a lowercase
+      // recognized color word from the end of the line. Downstream stores
+      // the raw color NAME (not the palette hex) so the renderer can resolve
+      // against whichever theme/palette is active at render time.
+      const lastSpaceIdx = cleanEntry.lastIndexOf(' ');
+      let valueName = cleanEntry;
+      let rawColor: string | undefined;
+      if (lastSpaceIdx > 0) {
+        const trailing = cleanEntry.substring(lastSpaceIdx + 1);
+        if (isRecognizedColorName(trailing)) {
+          rawColor = trailing;
+          valueName = cleanEntry.substring(0, lastSpaceIdx).trimEnd();
         }
+      }
+      const tvMatch = valueName.match(TAG_VALUE_RE);
+      if (tvMatch || /^\w+$/.test(valueName)) {
         currentTagGroup.values.push({
           name: valueName,
           color: rawColor,

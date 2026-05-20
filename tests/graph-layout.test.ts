@@ -188,7 +188,7 @@ describe('layoutGraph', () => {
     expect(yesNode.x).not.toEqual(noNode.x);
   });
 
-  it('preserves edge labels and colors in layout result', () => {
+  it('preserves edge labels in layout result (edges have no color per §1.7)', () => {
     const graph = makeGraph({
       nodes: [
         { id: 'a', label: 'A', shape: 'process', lineNumber: 1 },
@@ -199,7 +199,6 @@ describe('layoutGraph', () => {
           source: 'a',
           target: 'b',
           label: 'next',
-          color: 'green',
           lineNumber: 3,
         },
       ],
@@ -207,14 +206,11 @@ describe('layoutGraph', () => {
 
     const result = layoutGraph(graph);
     expect(result.edges[0].label).toBe('next');
-    expect(result.edges[0].color).toBe('green');
   });
 
   it('preserves node shape, label, and lineNumber in layout result', () => {
     const graph = makeGraph({
-      nodes: [
-        { id: 'n1', label: 'Start', shape: 'terminal', lineNumber: 7 },
-      ],
+      nodes: [{ id: 'n1', label: 'Start', shape: 'terminal', lineNumber: 7 }],
       edges: [],
     });
 
@@ -257,9 +253,7 @@ describe('layoutGraph', () => {
 
     const result = layoutGraph(graph);
     const nodeMap = new Map(result.nodes.map((n) => [n.id, n]));
-    expect(nodeMap.get('d')!.height).toBeGreaterThan(
-      nodeMap.get('p')!.height
-    );
+    expect(nodeMap.get('d')!.height).toBeGreaterThan(nodeMap.get('p')!.height);
   });
 
   it('handles empty graph', () => {

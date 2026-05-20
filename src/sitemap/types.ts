@@ -22,7 +22,6 @@ export interface SitemapEdge {
   sourceId: string;
   targetId: string;
   label?: string;
-  color?: string;
   lineNumber: number;
 }
 

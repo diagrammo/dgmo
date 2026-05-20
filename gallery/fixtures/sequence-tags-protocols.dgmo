@@ -2,16 +2,16 @@ sequence Order Fulfillment — Protocols & Ownership
 active-tag Protocol
 
 tag Protocol as p
-  REST(blue)
-  gRPC(green)
-  Async(orange)
-  SQL(purple)
+  REST blue
+  gRPC green
+  Async orange
+  SQL purple
 
 tag Owner as o
-  Checkout(teal)
-  Fulfillment(orange)
-  Payments(red)
-  Data(blue)
+  Checkout teal
+  Fulfillment orange
+  Payments red
+  Data blue
 
 Buyer is an actor
 CheckoutSvc is a service | o: Checkout

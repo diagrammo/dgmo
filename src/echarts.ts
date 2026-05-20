@@ -367,12 +367,15 @@ export function parseExtendedChart(
     }
 
     // [Category] container header with optional color: [Category Name] or [Category Name](color)
-    const categoryMatch = trimmed.match(/^\[(.+?)\](?:\s*\(([^)]+)\))?\s*$/);
+    // Category brackets with optional trailing-token color (§1.5):
+    // `[Name]` or `[Name] color`. Per universal rule, color is a bare token.
+    const categoryMatch = trimmed.match(/^\[(.+?)\](?:\s+(\S+))?\s*$/);
     if (categoryMatch) {
       const catName = categoryMatch[1].trim();
-      const catColor = categoryMatch[2]
+      const rawCatColor = categoryMatch[2]?.trim();
+      const catColor = rawCatColor
         ? (resolveColorWithDiagnostic(
-            categoryMatch[2].trim(),
+            rawCatColor,
             lineNumber,
             result.diagnostics,
             palette
@@ -388,9 +391,14 @@ export function parseExtendedChart(
       continue;
     }
 
-    // Sankey/chord link syntax: Source -> Target Value (directed) or Source -- Target Value (undirected)
+    // Sankey/chord link syntax (§1.5 universal trailing-token):
+    //   `Source -> Target value`           (directed, no link color)
+    //   `Source -> Target value linkColor` (directed, trailing-token link color)
+    //   `Source -- Target value`           (undirected)
+    // Link color (if present) must be a recognized lowercase palette word.
+    // Source/target labels still accept trailing-token color via extractColor.
     const arrowMatch = trimmed.match(
-      /^(.+?)\s*(->|--)\s*(.+?)\s+(-?[\d,_]+(?:\.[\d]+)?)\s*(?:\(([^)]+)\))?\s*$/
+      /^(.+?)\s*(->|--)\s*(.+?)\s+(-?[\d,_]+(?:\.[\d]+)?)(?:\s+(red|orange|yellow|green|blue|purple|teal|cyan|gray|black|white))?\s*$/
     );
     if (arrowMatch) {
       const [, rawSource, arrow, rawTarget, rawVal, rawLinkColor] = arrowMatch;
@@ -441,13 +449,22 @@ export function parseExtendedChart(
           sankeyStack.pop();
         }
         if (sankeyStack.length > 0) {
-          // Parse "TargetName value (linkColor)" or "TargetName(nodeColor) value (linkColor)"
-          // Strip trailing (color) annotation before parseDataRowValues — it can't handle it
+          // Indented sankey child (§1.5 trailing-token):
+          //   `TargetName value`                  — link, no link color
+          //   `TargetName value linkColor`        — link with link color
+          //   `TargetName nodeColor value`        — node-colored child
+          //   `TargetName nodeColor value linkColor` — both
+          // Strategy: peel a trailing recognized color word (after the value)
+          // first, then run parseDataRowValues on the remainder. Trailing
+          // tokens that aren't recognized colors stay in the data row.
           const valColorMatch = trimmed.match(
-            /(-?[\d,_]+(?:\.[\d]+)?)\s*\(([^)]+)\)\s*$/
+            /(-?[\d,_]+(?:\.[\d]+)?)\s+(red|orange|yellow|green|blue|purple|teal|cyan|gray|black|white)\s*$/
           );
           const strippedLine = valColorMatch
-            ? trimmed.replace(/\s*\([^)]+\)\s*$/, '')
+            ? trimmed.replace(
+                /\s+(red|orange|yellow|green|blue|purple|teal|cyan|gray|black|white)\s*$/,
+                ''
+              )
             : trimmed;
           const dataRow = parseDataRowValues(strippedLine);
           if (dataRow && dataRow.values.length === 1) {

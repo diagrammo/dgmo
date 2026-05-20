@@ -46,7 +46,6 @@ const NODE_TO_ROLE: Record<string, string> = {
   Percentage: 'number',
   SectionMarker: 'heading',
   Url: 'url',
-  ColorAnnotation: 'colorAnnotation',
   OpenBracket: 'bracket',
   CloseBracket: 'bracket',
   OpenParen: 'bracket',

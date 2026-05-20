@@ -179,7 +179,7 @@ export function parseMindmap(
       }
     }
 
-    // Tag group entries (indented Value(color) under tag heading)
+    // Tag group entries (indented Value color under tag heading)
     if (currentTagGroup && !contentStarted) {
       const indent = measureIndent(line);
       if (indent > 0) {
@@ -188,7 +188,7 @@ export function parseMindmap(
         if (!color) {
           pushError(
             lineNumber,
-            `Expected 'Value(color)' in tag group '${currentTagGroup.name}'`
+            `Expected 'Value color' in tag group '${currentTagGroup.name}'`
           );
           continue;
         }

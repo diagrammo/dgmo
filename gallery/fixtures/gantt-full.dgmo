@@ -5,20 +5,20 @@ critical-path
 dependencies
 
 tag Team as t
-  Engineering(blue)
-  Design(purple)
-  QA(orange)
-  Marketing(green)
+  Engineering blue
+  Design purple
+  QA orange
+  Marketing green
 
 tag Phase as p
-  Foundation(green)
-  Growth(orange)
-  Launch(red)
+  Foundation green
+  Growth orange
+  Launch red
 
 era 2024-01-15 -> 2024-02-15 Investor Review
-era 2024-03-10 -> 2024-03-14 GDC 2024 (purple)
+era 2024-03-10 -> 2024-03-14 GDC 2024 purple
 marker 2024-02-26 Board Meeting
-marker 2024-04-08 Trade Show Demo (orange)
+marker 2024-04-08 Trade Show Demo orange
 
 // Independent task with offset — starts 8bd after project start
 10bd Brand Guidelines | t: Design, p: Foundation, offset: 8bd

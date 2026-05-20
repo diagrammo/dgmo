@@ -194,7 +194,7 @@ Alice
     const content = `org My Org
 
 tag Location
-  NY(blue)
+  NY blue
 
 Alice
   location: NY
@@ -285,7 +285,7 @@ Alice
     const content = `org My Org
 
 tag Location
-  NY(blue)
+  NY blue
 
 Alice
   location: NY

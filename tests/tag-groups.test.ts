@@ -19,29 +19,29 @@ import type { TagGroup } from '../src/utils/tag-groups';
 
 describe('stripDefaultModifier', () => {
   it('strips trailing default keyword', () => {
-    expect(stripDefaultModifier('NA(gray) default')).toEqual({
-      text: 'NA(gray)',
+    expect(stripDefaultModifier('NA gray default')).toEqual({
+      text: 'NA gray',
       isDefault: true,
     });
   });
 
   it('handles default with extra trailing whitespace', () => {
-    expect(stripDefaultModifier('NA(gray) default  ')).toEqual({
-      text: 'NA(gray)',
+    expect(stripDefaultModifier('NA gray default  ')).toEqual({
+      text: 'NA gray',
       isDefault: true,
     });
   });
 
   it('returns original text when no default keyword', () => {
-    expect(stripDefaultModifier('Done(green)')).toEqual({
-      text: 'Done(green)',
+    expect(stripDefaultModifier('Done green')).toEqual({
+      text: 'Done green',
       isDefault: false,
     });
   });
 
   it('does not match default in the middle of a string', () => {
-    expect(stripDefaultModifier('default(blue)')).toEqual({
-      text: 'default(blue)',
+    expect(stripDefaultModifier('default blue')).toEqual({
+      text: 'default blue',
       isDefault: false,
     });
   });
@@ -58,7 +58,7 @@ describe('isTagBlockHeading', () => {
   it('returns true for tag syntax (no colon)', () => {
     expect(isTagBlockHeading('tag Location')).toBe(true);
     expect(isTagBlockHeading('Tag Location loc')).toBe(true);
-    expect(isTagBlockHeading('TAG Rank(blue)')).toBe(true);
+    expect(isTagBlockHeading('TAG Rank blue')).toBe(true);
   });
 
   it('returns false for tag: syntax (deprecated)', () => {
@@ -222,45 +222,45 @@ describe('parseTagDeclaration', () => {
   });
 
   it('parses single-line values (canonical `as` form)', () => {
-    const r = parseTagDeclaration('tag Priority as p High(red), Low(blue)');
+    const r = parseTagDeclaration('tag Priority as p High red, Low blue');
     expect(r?.name).toBe('Priority');
     expect(r?.alias).toBe('p');
-    expect(r?.inlineValues).toEqual(['High(red)', 'Low(blue)']);
+    expect(r?.inlineValues).toEqual(['High red', 'Low blue']);
     expect(r?.legacyForm).toBeUndefined();
   });
 
   it('parses single-line values with multi-word name (canonical)', () => {
-    const r = parseTagDeclaration('tag Risk Level as lo High(red), Low(blue)');
+    const r = parseTagDeclaration('tag Risk Level as lo High red, Low blue');
     expect(r?.name).toBe('Risk Level');
     expect(r?.alias).toBe('lo');
-    expect(r?.inlineValues).toEqual(['High(red)', 'Low(blue)']);
+    expect(r?.inlineValues).toEqual(['High red', 'Low blue']);
     expect(r?.legacyForm).toBeUndefined();
   });
 
   it('parses single-line values with legacy multi-word bare shorthand', () => {
-    const r = parseTagDeclaration('tag Risk Level lo High(red), Low(blue)');
+    const r = parseTagDeclaration('tag Risk Level lo High red, Low blue');
     expect(r?.name).toBe('Risk Level');
     expect(r?.alias).toBe('lo');
     expect(r?.legacyForm).toBe('bare-shorthand');
   });
 
   it('parses tag with color hint on name', () => {
-    const r = parseTagDeclaration('tag Location(blue)');
+    const r = parseTagDeclaration('tag Location blue');
     expect(r?.name).toBe('Location');
     expect(r?.colorHint).toBe('blue');
   });
 
   it('parses values without alias', () => {
     const r = parseTagDeclaration(
-      'tag Phase Planning(blue), Execution(green), Review(purple)'
+      'tag Phase Planning blue, Execution green, Review purple'
     );
     expect(r?.name).toBe('Phase');
     expect(r?.alias).toBeUndefined();
-    // 'Planning(blue)' starts inline values due to `(`
+    // 'Planning blue' starts inline values due to `(`
     expect(r?.inlineValues).toEqual([
-      'Planning(blue)',
-      'Execution(green)',
-      'Review(purple)',
+      'Planning blue',
+      'Execution green',
+      'Review purple',
     ]);
   });
 
@@ -307,7 +307,7 @@ describe('matchTagBlockHeading (via parseTagDeclaration)', () => {
 describe('isTagBlockHeading (no-colon only)', () => {
   it('returns true for no-colon syntax', () => {
     expect(isTagBlockHeading('tag Priority')).toBe(true);
-    expect(isTagBlockHeading('tag Priority p High(red), Low(blue)')).toBe(true);
+    expect(isTagBlockHeading('tag Priority p High red, Low blue')).toBe(true);
   });
 
   it('returns false for old syntaxes', () => {

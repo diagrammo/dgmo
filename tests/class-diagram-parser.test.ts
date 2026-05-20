@@ -69,14 +69,12 @@ describe('parseClassDiagram', () => {
     });
 
     it('parses class with color', () => {
-      const result = parseClassDiagram('Animal (red)\n  name: string');
+      const result = parseClassDiagram('Animal red\n  name: string');
       expect(result.classes[0].color).toBeDefined();
     });
 
     it('parses class with bare modifier and color', () => {
-      const result = parseClassDiagram(
-        'abstract Animal (blue)\n  name: string'
-      );
+      const result = parseClassDiagram('abstract Animal blue\n  name: string');
       expect(result.classes[0].modifier).toBe('abstract');
       expect(result.classes[0].color).toBeDefined();
     });
@@ -239,7 +237,7 @@ describe('parseClassDiagram', () => {
 
     it('extends with color', () => {
       const result = parseClassDiagram(
-        'Dog extends Animal (red)\n  breed: string'
+        'Dog extends Animal red\n  breed: string'
       );
       expect(result.relationships[0].type).toBe('extends');
       const dog = result.classes.find((c) => c.name === 'Dog')!;
