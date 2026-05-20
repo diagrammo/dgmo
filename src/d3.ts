@@ -594,8 +594,12 @@ export function parseVisualization(
       currentTimelineTagGroup = null;
     }
 
-    // [Group] container headers for arc diagram node grouping and timeline eras
-    const groupMatch = line.match(/^\[(.+?)\](?:\s*\(([^)]+)\))?\s*$/);
+    // [Group] container headers for arc / timeline (§1.5 trailing-token):
+    //   `[Group]`           — no color
+    //   `[Group] color`     — trailing-token color (recognized palette word)
+    const groupMatch = line.match(
+      /^\[(.+?)\](?:\s+(red|orange|yellow|green|blue|purple|teal|cyan|gray|black|white))?\s*$/
+    );
     if (groupMatch) {
       if (result.type === 'arc') {
         const name = groupMatch[1].trim();
@@ -650,10 +654,11 @@ export function parseVisualization(
       currentTimelineGroup = null;
     }
 
-    // Arc link line: source -> target(color) weight
+    // Arc link line (§1.5 trailing-token):
+    //   `source -> target [color] [weight]` — color before weight
     if (result.type === 'arc') {
       const linkMatch = line.match(
-        /^(.+?)\s*->\s*(.+?)(?:\(([^)]+)\))?\s*(?:\s+(-?[\d,_]+(?:\.[\d]+)?))?$/
+        /^(.+?)\s*->\s*(.+?)(?:\s+(red|orange|yellow|green|blue|purple|teal|cyan|gray|black|white))?(?:\s+(-?[\d,_]+(?:\.[\d]+)?))?$/
       );
       if (linkMatch) {
         const source = linkMatch[1].trim();
@@ -778,9 +783,11 @@ export function parseVisualization(
         continue;
       }
 
-      // Timeline era lines (inline): era YYYY->YYYY Label (color)
+      // Timeline era lines, inline (\u00a71.5 trailing-token):
+      //   `era YYYY->YYYY Label`        \u2014 no color
+      //   `era YYYY->YYYY Label color`  \u2014 trailing-token color (recognized palette word)
       const eraMatch = line.match(
-        /^era\s+(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s*(?:->|\u2013>)\s*(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s+(.+?)(?:\s*\(([^)]+)\))?\s*$/
+        /^era\s+(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s*(?:->|\u2013>)\s*(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s+(.+?)(?:\s+(red|orange|yellow|green|blue|purple|teal|cyan|gray|black|white))?\s*$/
       );
       if (eraMatch) {
         const colorAnnotation = eraMatch[4]?.trim() || null;
@@ -801,9 +808,11 @@ export function parseVisualization(
         continue;
       }
 
-      // Timeline marker lines (inline): marker YYYY Label (color)
+      // Timeline marker lines, inline (§1.5 trailing-token):
+      //   `marker YYYY Label`        — no color
+      //   `marker YYYY Label color`  — trailing-token color
       const markerMatch = line.match(
-        /^marker\s+(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s+(.+?)(?:\s*\(([^)]+)\))?\s*$/
+        /^marker\s+(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s+(.+?)(?:\s+(red|orange|yellow|green|blue|purple|teal|cyan|gray|black|white))?\s*$/
       );
       if (markerMatch) {
         const colorAnnotation = markerMatch[3]?.trim() || null;
@@ -1066,19 +1075,20 @@ export function parseVisualization(
         continue;
       }
 
-      // Quadrant position labels: top-right Label (color)
+      // Quadrant position labels (§1.5 trailing-token):
+      //   `top-right Label`        — no color
+      //   `top-right Label color`  — trailing-token color (recognized palette word)
       const quadrantLabelRe =
         /^(top-right|top-left|bottom-left|bottom-right)\s+(.+)/i;
       const quadrantMatch = line.match(quadrantLabelRe);
       if (quadrantMatch) {
         const position = quadrantMatch[1].toLowerCase();
         const labelPart = quadrantMatch[2].trim();
-        // Check for color annotation: "Label (color)" or "Label(color)"
-        const labelColorMatch = labelPart.match(/^(.+?)\s*\(([^)]+)\)\s*$/);
-        const text = labelColorMatch ? labelColorMatch[1].trim() : labelPart;
-        const color = labelColorMatch
+        // Peel trailing recognized color word from the label.
+        const { label: text, colorName } = peelTrailingColorName(labelPart);
+        const color = colorName
           ? (resolveColorWithDiagnostic(
-              labelColorMatch[2].trim(),
+              colorName,
               lineNumber,
               result.diagnostics,
               palette
