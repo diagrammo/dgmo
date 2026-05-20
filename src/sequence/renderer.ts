@@ -2762,7 +2762,7 @@ export function renderSequenceDiagram(
     const legendConfig: LegendConfig = {
       groups: resolvedGroups,
       position: { placement: 'top-center', titleRelation: 'below-title' },
-      mode: 'fixed',
+      mode: 'preview',
     };
     const legendState: LegendState = {
       activeGroup: activeTagGroup ?? null,

@@ -192,7 +192,8 @@ export function renderClassDiagram(
   isDark: boolean,
   onClickItem?: (lineNumber: number) => void,
   exportDims?: { width?: number; height?: number },
-  legendActive?: boolean | null
+  legendActive?: boolean | null,
+  exportMode?: boolean
 ): void {
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
 
@@ -376,7 +377,7 @@ export function renderClassDiagram(
     const legendConfig: LegendConfig = {
       groups: legendGroups,
       position: { placement: 'top-center', titleRelation: 'below-title' },
-      mode: 'fixed',
+      mode: exportMode ? 'export' : 'preview',
     };
     const legendState: LegendState = {
       activeGroup: isLegendExpanded ? LEGEND_GROUP_NAME : null,
@@ -697,10 +698,20 @@ export function renderClassDiagramForExport(
     legendReserve;
 
   return runInExportContainer(exportWidth, exportHeight, (container) => {
-    renderClassDiagram(container, parsed, layout, palette, isDark, undefined, {
-      width: exportWidth,
-      height: exportHeight,
-    });
+    renderClassDiagram(
+      container,
+      parsed,
+      layout,
+      palette,
+      isDark,
+      undefined,
+      {
+        width: exportWidth,
+        height: exportHeight,
+      },
+      true, // legendActive for export
+      true // exportMode
+    );
     return extractExportSvg(container, theme);
   });
 }

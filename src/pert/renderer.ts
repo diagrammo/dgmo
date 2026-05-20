@@ -388,6 +388,8 @@ export interface PertRenderOptions {
    * through to the parsed `active-tag` directive.
    */
   activeTagOverride?: string | null;
+  /** True when rendering for export — strips collapsed pills and cog from legend. */
+  exportMode?: boolean;
 }
 
 export function renderPert(
@@ -568,6 +570,7 @@ export function renderPert(
       y: tagLegendY,
       width: exportWidth,
       activeGroup: tagLegendActive,
+      exportMode: options.exportMode,
     });
   }
 
@@ -681,6 +684,7 @@ export function renderPertForExport(
       title: hasTitle ? parsed.title : null,
       subtitle: resolved.projectSubtitle,
       exportDims: { width: exportWidth, height: exportHeight },
+      exportMode: true,
     });
     const svgEl = container.querySelector('svg');
     if (!svgEl) return '';
@@ -2990,6 +2994,7 @@ interface TagLegendArgs {
   y: number;
   width: number;
   activeGroup: string | null;
+  exportMode?: boolean;
 }
 
 /**
@@ -3008,7 +3013,7 @@ function renderTagLegendRow(
 ): void {
   if (resolved.tagGroups.length === 0) return;
 
-  const { x, y, width, activeGroup } = args;
+  const { x, y, width, activeGroup, exportMode } = args;
   const groups = resolved.tagGroups.map((g) => ({
     name: g.name,
     entries: g.entries.map((e) => ({ value: e.value, color: e.color })),
@@ -3024,7 +3029,7 @@ function renderTagLegendRow(
     {
       groups,
       position: { placement: 'top-center', titleRelation: 'below-title' },
-      mode: 'fixed',
+      mode: exportMode ? 'export' : 'preview',
     },
     { activeGroup },
     palette,

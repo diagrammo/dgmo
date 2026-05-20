@@ -37,7 +37,7 @@ export interface LegendPosition {
   titleRelation: 'below-title' | 'inline-with-title';
 }
 
-export type LegendMode = 'fixed' | 'inline';
+export type LegendMode = 'preview' | 'export';
 
 export type LegendControlExportBehavior = 'include' | 'strip' | 'static';
 

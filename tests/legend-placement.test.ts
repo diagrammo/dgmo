@@ -323,7 +323,9 @@ edge
       parsed.title,
       parsed.titleLineNumber,
       parsed.tagGroups,
-      null,
+      // Pass an active group so export mode renders the active capsule
+      // (no active group → empty legend in `mode: 'export'`).
+      'team',
       false,
       null,
       null,

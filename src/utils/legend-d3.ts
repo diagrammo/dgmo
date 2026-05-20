@@ -46,7 +46,14 @@ export function renderLegendD3(
   let currentState = { ...state };
   let currentLayout: LegendLayout;
 
-  const legendG = container.append('g').attr('class', 'dgmo-legend');
+  const legendG = container
+    .append('g')
+    .attr('class', 'dgmo-legend')
+    .attr('data-legend-title-relation', config.position.titleRelation)
+    .attr(
+      'data-legend-capsule-addon-width',
+      String(config.capsulePillAddonWidth ?? 0)
+    );
 
   function render() {
     currentLayout = computeLegendLayout(config, currentState, width);
@@ -270,11 +277,10 @@ function renderPill(
   groupBg: string,
   callbacks?: LegendCallbacks
 ): void {
-  // Collapsed tag-group pills survive static export so readers see
-  // that the diagram has tag dimensions even when no group is active.
-  // (Per spec §1.3 "Coloring is opt-in" — exports default to collapsed
-  // pills, no node coloring.) Interactive controls keep
-  // `data-export-ignore` separately.
+  // Collapsed tag-group pills are hidden in export mode
+  // (`LegendConfig.mode === 'export'`) — the layout engine filters them
+  // in `computeLegendLayout`. See
+  // tech-spec-hide-inactive-tag-pills-in-exports.md.
   const g = parent
     .append('g')
     .attr('transform', `translate(${pill.x},${pill.y})`)

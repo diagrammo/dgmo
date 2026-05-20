@@ -36,6 +36,7 @@ export interface JourneyMapInteractiveOptions {
   collapsedPhases?: Set<string>;
   /** Called when a phase is toggled */
   onPhaseToggle?: (phaseName: string) => void;
+  exportMode?: boolean;
 }
 
 // ============================================================
@@ -313,7 +314,7 @@ export function renderJourneyMap(
         titleRelation: 'inline-with-title',
       },
       titleWidth: 0,
-      mode: exportDims ? 'inline' : 'fixed',
+      mode: options?.exportMode ? 'export' : 'preview',
     };
 
     const legendState: LegendState = { activeGroup: effectiveActiveGroup };
@@ -1559,6 +1560,7 @@ export function renderJourneyMapForExport(
   const container = document.createElement('div');
   renderJourneyMap(container, parsed, palette, isDark, {
     exportDims: { width: layout.totalWidth, height: layout.totalHeight },
+    exportMode: true,
   });
 
   const svgEl = container.querySelector('svg');

@@ -235,7 +235,7 @@ export function computeLegendLayout(
   containerWidth: number
 ): LegendLayout {
   const { groups, controls: configControls, mode } = config;
-  const isExport = mode === 'inline';
+  const isExport = mode === 'export';
 
   // Filter groups for export: only active group shown
   const activeGroupName = state.activeGroup?.toLowerCase() ?? null;

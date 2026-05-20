@@ -271,7 +271,7 @@ edge
       false,
       null,
       null,
-      true
+      false // exportMode: false — baseline preview-mode rendering
     );
     const groups = container.querySelectorAll('[data-legend-group]');
     expect(groups.length).toBeGreaterThan(0);
@@ -314,7 +314,7 @@ edge
       false,
       playback,
       null,
-      true
+      false // exportMode: false — baseline preview-mode rendering
     );
     const pill = container.querySelector('.infra-playback-pill');
     expect(pill).not.toBeNull();
@@ -339,7 +339,7 @@ edge
       false,
       playback,
       null,
-      true
+      false // exportMode: false — baseline preview-mode rendering
     );
     const toggle = container.querySelector(
       '[data-playback-action="toggle-pause"]'
@@ -366,7 +366,7 @@ edge
       false,
       playback,
       null,
-      true
+      false // exportMode: false — baseline preview-mode rendering
     );
     const speedBadges = container.querySelectorAll(
       '[data-playback-action="set-speed"]'
@@ -394,7 +394,7 @@ edge
       false,
       collapsed,
       null,
-      true
+      false // exportMode: false — baseline preview-mode rendering
     );
     const pill = container.querySelector('.infra-playback-pill');
     expect(pill).not.toBeNull();

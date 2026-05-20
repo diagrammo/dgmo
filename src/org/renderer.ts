@@ -110,7 +110,8 @@ export function renderOrg(
   exportDims?: { width?: number; height?: number },
   activeTagGroup?: string | null,
   hiddenAttributes?: Set<string>,
-  ancestorPath?: AncestorInfo[]
+  ancestorPath?: AncestorInfo[],
+  exportMode?: boolean
 ): void {
   // Clear existing content
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
@@ -759,7 +760,7 @@ export function renderOrg(
             },
           ],
           position: { placement: 'top-center', titleRelation: 'below-title' },
-          mode: 'fixed',
+          mode: exportMode ? 'export' : 'preview',
         };
         const singleState: LegendState = { activeGroup: lg.name };
         const groupG = legendParentBase
@@ -783,7 +784,7 @@ export function renderOrg(
       const legendConfig: LegendConfig = {
         groups,
         position: { placement: 'top-center', titleRelation: 'below-title' },
-        mode: 'fixed',
+        mode: exportMode ? 'export' : 'preview',
         capsulePillAddonWidth: eyeAddonWidth,
       };
       const legendState: LegendState = { activeGroup: activeTagGroup ?? null };

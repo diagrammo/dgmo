@@ -163,7 +163,7 @@ export function renderTechRadar(
         },
       ],
       position: { placement: 'top-center', titleRelation: 'below-title' },
-      mode: 'fixed',
+      mode: options?.exportMode ? 'export' : 'preview',
       controlsGroup: {
         toggles: [
           {
@@ -1195,7 +1195,8 @@ export function renderTechRadarForExport(
   palette: PaletteColors,
   isDark: boolean,
   exportDims?: D3ExportDimensions,
-  viewState?: CompactViewState
+  viewState?: CompactViewState,
+  exportMode?: boolean
 ): void {
   renderTechRadar(
     container,
@@ -1204,6 +1205,7 @@ export function renderTechRadarForExport(
     isDark,
     undefined,
     exportDims,
-    viewState
+    viewState,
+    { exportMode }
   );
 }

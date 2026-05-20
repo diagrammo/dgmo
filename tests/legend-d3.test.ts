@@ -49,7 +49,7 @@ const groups: LegendGroupData[] = [
 const defaultConfig: LegendConfig = {
   groups,
   position: { placement: 'top-center', titleRelation: 'below-title' },
-  mode: 'fixed',
+  mode: 'preview',
 };
 
 describe('renderLegendD3', () => {
@@ -181,7 +181,7 @@ describe('renderLegendD3', () => {
     const config: LegendConfig = {
       groups: [],
       position: { placement: 'top-center', titleRelation: 'below-title' },
-      mode: 'fixed',
+      mode: 'preview',
     };
     const handle = renderLegendD3(
       container,

@@ -116,7 +116,8 @@ export function renderSitemap(
   onClickItem?: (lineNumber: number) => void,
   exportDims?: { width?: number; height?: number },
   activeTagGroup?: string | null,
-  hiddenAttributes?: Set<string>
+  hiddenAttributes?: Set<string>,
+  exportMode?: boolean
 ): void {
   // Clear existing content
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
@@ -598,7 +599,8 @@ export function renderSitemap(
       isDark,
       activeTagGroup,
       undefined,
-      hiddenAttributes
+      hiddenAttributes,
+      exportMode
     );
   }
 
@@ -643,7 +645,8 @@ export function renderSitemap(
       isDark,
       activeTagGroup,
       width,
-      hiddenAttributes
+      hiddenAttributes,
+      exportMode
     );
   }
 }
@@ -659,7 +662,8 @@ function renderLegend(
   isDark: boolean,
   activeTagGroup?: string | null,
   fixedWidth?: number,
-  hiddenAttributes?: Set<string>
+  hiddenAttributes?: Set<string>,
+  exportMode?: boolean
 ): void {
   if (legendGroups.length === 0) return;
 
@@ -674,7 +678,7 @@ function renderLegend(
   const legendConfig: LegendConfig = {
     groups,
     position: { placement: 'top-center', titleRelation: 'below-title' },
-    mode: 'fixed',
+    mode: exportMode ? 'export' : 'preview',
     capsulePillAddonWidth: eyeAddonWidth,
   };
   const legendState: LegendState = { activeGroup: activeTagGroup ?? null };

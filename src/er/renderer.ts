@@ -225,7 +225,8 @@ export function renderERDiagram(
   exportDims?: { width?: number; height?: number },
   activeTagGroup?: string | null,
   /** When false, semantic role colors are suppressed and entities use a neutral color. */
-  semanticColorsActive?: boolean
+  semanticColorsActive?: boolean,
+  exportMode?: boolean
 ): void {
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
 
@@ -560,7 +561,7 @@ export function renderERDiagram(
     const legendConfig: LegendConfig = {
       groups: parsed.tagGroups,
       position: { placement: 'top-center', titleRelation: 'below-title' },
-      mode: 'fixed',
+      mode: exportMode ? 'export' : 'preview',
     };
     const legendState: LegendState = { activeGroup: activeTagGroup ?? null };
     const legendG = svg
@@ -602,7 +603,7 @@ export function renderERDiagram(
       const legendConfig: LegendConfig = {
         groups: semanticGroups,
         position: { placement: 'top-center', titleRelation: 'below-title' },
-        mode: 'fixed',
+        mode: exportMode ? 'export' : 'preview',
       };
       const legendState: LegendState = {
         activeGroup: semanticActive ? 'Role' : null,
@@ -653,10 +654,21 @@ export function renderERDiagramForExport(
   document.body.appendChild(container);
 
   try {
-    renderERDiagram(container, parsed, layout, palette, isDark, undefined, {
-      width: exportWidth,
-      height: exportHeight,
-    });
+    renderERDiagram(
+      container,
+      parsed,
+      layout,
+      palette,
+      isDark,
+      undefined,
+      {
+        width: exportWidth,
+        height: exportHeight,
+      },
+      undefined,
+      undefined,
+      true
+    );
 
     const svgEl = container.querySelector('svg');
     if (!svgEl) return '';

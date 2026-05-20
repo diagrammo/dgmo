@@ -95,6 +95,7 @@ export function renderMindmap(
     onToggleDescriptions?: (active: boolean) => void;
     controlsExpanded?: boolean;
     onToggleControlsExpand?: () => void;
+    exportMode?: boolean;
   }
 ): void {
   const isExport = !!exportDims;
@@ -234,7 +235,7 @@ export function renderMindmap(
         };
       }),
       position: { placement: 'top-center', titleRelation: 'below-title' },
-      mode: 'fixed',
+      mode: options?.exportMode ? 'export' : 'preview',
       controlsGroup: controlsToggles,
     };
     const legendState: LegendState = {

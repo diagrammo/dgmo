@@ -46,6 +46,7 @@ export interface CycleRenderOptions {
   controlsExpanded?: boolean;
   onToggleDescriptions?: (active: boolean) => void;
   onToggleControlsExpand?: () => void;
+  exportMode?: boolean;
 }
 
 /**
@@ -144,7 +145,7 @@ export function renderCycle(
     const legendConfig: LegendConfig = {
       groups: [],
       position: { placement: 'top-center', titleRelation: 'below-title' },
-      mode: 'fixed',
+      mode: renderOptions?.exportMode ? 'export' : 'preview',
       controlsGroup,
     };
     const legendState: LegendState = {
@@ -519,7 +520,8 @@ export function renderCycleForExport(
   palette: PaletteColors,
   isDark: boolean,
   exportDims?: D3ExportDimensions,
-  viewState?: CompactViewState
+  viewState?: CompactViewState,
+  exportMode?: boolean
 ): void {
   renderCycle(
     container,
@@ -528,7 +530,8 @@ export function renderCycleForExport(
     isDark,
     undefined,
     exportDims,
-    viewState
+    viewState,
+    { exportMode }
   );
 }
 

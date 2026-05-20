@@ -32,7 +32,7 @@ const groups: LegendGroupData[] = [
 const exportConfig = (overrides?: Partial<LegendConfig>): LegendConfig => ({
   groups,
   position: { placement: 'top-center', titleRelation: 'below-title' },
-  mode: 'inline', // export mode
+  mode: 'export', // export mode
   ...overrides,
 });
 

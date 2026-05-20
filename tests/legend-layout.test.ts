@@ -36,7 +36,7 @@ const defaultConfig = (
 ): LegendConfig => ({
   groups,
   position: { placement: 'top-center', titleRelation: 'below-title' },
-  mode: 'fixed',
+  mode: 'preview',
   ...overrides,
 });
 
@@ -156,7 +156,7 @@ describe('computeLegendLayout', () => {
   it('strips controls with exportBehavior strip in export mode', () => {
     const groups = makeGroups(1);
     const config = defaultConfig(groups, {
-      mode: 'inline',
+      mode: 'export',
       controls: [
         {
           id: 'eye',
@@ -183,7 +183,7 @@ describe('computeLegendLayout', () => {
 
   it('export mode with no active group returns height 0', () => {
     const groups = makeGroups(2);
-    const config = defaultConfig(groups, { mode: 'inline' });
+    const config = defaultConfig(groups, { mode: 'export' });
     const layout = computeLegendLayout(config, noActiveState, 800);
     expect(layout.height).toBe(0);
     expect(layout.pills).toHaveLength(0);
@@ -192,7 +192,7 @@ describe('computeLegendLayout', () => {
 
   it('export mode with active group shows only that group', () => {
     const groups = makeGroups(3);
-    const config = defaultConfig(groups, { mode: 'inline' });
+    const config = defaultConfig(groups, { mode: 'export' });
     const state: LegendState = { activeGroup: 'Group2' };
     const layout = computeLegendLayout(config, state, 800);
     expect(layout.activeCapsule).toBeDefined();
@@ -200,6 +200,38 @@ describe('computeLegendLayout', () => {
     // No collapsed pills in export
     expect(layout.pills).toHaveLength(0);
     expect(layout.height).toBe(LEGEND_HEIGHT);
+  });
+
+  it('export mode drops the controlsGroup wholesale', () => {
+    const groups = makeGroups(2);
+    const config = defaultConfig(groups, {
+      mode: 'export',
+      controlsGroup: {
+        toggles: [
+          {
+            id: 'descriptions',
+            type: 'toggle',
+            label: 'Descriptions',
+            active: true,
+            onToggle: () => {},
+          },
+        ],
+      },
+    });
+    const state: LegendState = { activeGroup: 'Group1' };
+    const layout = computeLegendLayout(config, state, 800);
+    expect(layout.controlsGroup).toBeUndefined();
+  });
+
+  it('export mode centers a single active capsule within containerWidth', () => {
+    const groups = makeGroups(2);
+    const config = defaultConfig(groups, { mode: 'export' });
+    const state: LegendState = { activeGroup: 'Group1' };
+    const containerWidth = 1200;
+    const layout = computeLegendLayout(config, state, containerWidth);
+    const capsule = layout.activeCapsule!;
+    const centerX = capsule.x + capsule.width / 2;
+    expect(Math.abs(centerX - containerWidth / 2)).toBeLessThan(0.5);
   });
 
   // ── Height reservation ───────────────────────────────────
@@ -214,7 +246,7 @@ describe('computeLegendLayout', () => {
   });
 
   it('getLegendReservedHeight is 0 for export with no active group', () => {
-    const config = defaultConfig(makeGroups(2), { mode: 'inline' });
+    const config = defaultConfig(makeGroups(2), { mode: 'export' });
     expect(getLegendReservedHeight(config, noActiveState, 800)).toBe(0);
   });
 

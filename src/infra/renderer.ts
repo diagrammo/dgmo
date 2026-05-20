@@ -2024,7 +2024,8 @@ function renderLegend(
   palette: PaletteColors,
   isDark: boolean,
   activeGroup: string | null,
-  playback?: InfraPlaybackState
+  playback?: InfraPlaybackState,
+  exportMode = false
 ) {
   if (legendGroups.length === 0 && !playback) return;
 
@@ -2049,7 +2050,7 @@ function renderLegend(
   const legendConfig: LegendConfig = {
     groups: allGroups,
     position: { placement: 'top-center', titleRelation: 'below-title' },
-    mode: 'fixed',
+    mode: exportMode ? 'export' : 'preview',
     showEmptyGroups: true,
   };
   const legendState: LegendState = { activeGroup };
@@ -2394,7 +2395,8 @@ export function renderInfra(
         palette,
         isDark,
         activeGroup ?? null,
-        playback ?? undefined
+        playback ?? undefined,
+        exportMode
       );
       // Re-enable pointer events on interactive legend elements
       legendSvg
@@ -2410,7 +2412,8 @@ export function renderInfra(
         palette,
         isDark,
         activeGroup ?? null,
-        playback ?? undefined
+        playback ?? undefined,
+        exportMode
       );
     }
   }

@@ -37,6 +37,7 @@ interface KanbanInteractiveOptions {
   collapsedLanes?: Set<string>;
   collapsedColumns?: Set<string>;
   compactMeta?: boolean;
+  exportMode?: boolean;
 }
 
 // ============================================================
@@ -330,7 +331,7 @@ export function renderKanban(
     const legendConfig: LegendConfig = {
       groups: parsed.tagGroups,
       position: { placement: 'top-center', titleRelation: 'inline-with-title' },
-      mode: exportDims ? 'inline' : 'fixed',
+      mode: options?.exportMode ? 'export' : 'preview',
     };
     const legendState: LegendState = { activeGroup: activeTagGroup ?? null };
     const legendG = svg
@@ -682,6 +683,7 @@ export function renderKanbanForExport(
   const container = document.createElement('div');
   renderKanban(container, parsed, palette, isDark, {
     exportDims: { width: layout.totalWidth, height: layout.totalHeight },
+    exportMode: true,
   });
 
   const svgEl = container.querySelector('svg');

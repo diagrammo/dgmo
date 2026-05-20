@@ -3894,7 +3894,8 @@ function renderTimelineTagLegendOverlay(
   onTagStateChange:
     | ((activeTagGroup: string | null, swimlaneTagGroup: string | null) => void)
     | undefined,
-  viewMode: boolean | undefined
+  viewMode: boolean | undefined,
+  exportMode?: boolean
 ): void {
   if (parsed.timelineTagGroups.length === 0) return;
 
@@ -4047,7 +4048,7 @@ function renderTimelineTagLegendOverlay(
       const centralConfig: LegendConfig = {
         groups: centralGroups,
         position: { placement: 'top-center', titleRelation: 'below-title' },
-        mode: 'fixed',
+        mode: exportMode ? 'export' : 'preview',
         capsulePillAddonWidth: iconAddon,
       };
       const centralState: LegendState = { activeGroup: centralActive };
@@ -5526,7 +5527,8 @@ export function renderTimeline(
     activeTagGroup: string | null,
     swimlaneTagGroup: string | null
   ) => void,
-  viewMode?: boolean
+  viewMode?: boolean,
+  exportMode?: boolean
 ): void {
   const setup = setupTimeline(
     container,
@@ -5608,7 +5610,8 @@ export function renderTimeline(
     swimlaneTagGroup,
     activeTagGroup,
     onTagStateChange,
-    viewMode
+    viewMode,
+    exportMode
   );
 }
 
@@ -7521,8 +7524,10 @@ export async function renderForExport(
     c4System?: string;
     c4Container?: string;
     tagGroup?: string;
+    exportMode?: boolean;
   }
 ): Promise<string> {
+  const exportMode = options?.exportMode ?? false;
   // Flowchart and org chart use their own parser pipelines — intercept before parseVisualization()
   const { parseDgmoChartType } = await import('./dgmo-router');
   const detectedType = parseDgmoChartType(content);
@@ -7576,7 +7581,9 @@ export async function renderForExport(
       undefined,
       { width: exportWidth, height: exportHeight },
       activeTagGroup,
-      hiddenAttributes
+      hiddenAttributes,
+      undefined,
+      exportMode
     );
     return finalizeSvgExport(container, theme, effectivePalette);
   }
@@ -7630,7 +7637,8 @@ export async function renderForExport(
       undefined,
       { width: exportWidth, height: exportHeight },
       activeTagGroup,
-      hiddenAttributes
+      hiddenAttributes,
+      exportMode
     );
     return finalizeSvgExport(container, theme, effectivePalette);
   }
@@ -7659,6 +7667,7 @@ export async function renderForExport(
       collapsedLanes: viewState?.cl ? new Set(viewState.cl) : undefined,
       collapsedColumns: viewState?.cc ? new Set(viewState.cc) : undefined,
       compactMeta: viewState?.cm,
+      exportMode,
     });
     return finalizeSvgExport(container, theme, effectivePalette);
   }
@@ -7686,7 +7695,9 @@ export async function renderForExport(
       effectivePalette,
       theme === 'dark',
       undefined,
-      { width: exportWidth, height: exportHeight }
+      { width: exportWidth, height: exportHeight },
+      undefined,
+      exportMode
     );
     return finalizeSvgExport(container, theme, effectivePalette);
   }
@@ -7720,7 +7731,8 @@ export async function renderForExport(
         erParsed.options['active-tag'],
         viewState?.tag ?? options?.tagGroup
       ),
-      viewState?.sem
+      viewState?.sem,
+      exportMode
     );
     return finalizeSvgExport(container, theme, effectivePalette);
   }
@@ -7760,6 +7772,7 @@ export async function renderForExport(
         exportDims: { width: exportWidth, height: exportHeight },
         activeTagGroup: viewState?.tag ?? options?.tagGroup,
         hiddenTagValues: blHiddenTagValues,
+        exportMode,
       }
     );
     return finalizeSvgExport(container, theme, effectivePalette);
@@ -7819,7 +7832,7 @@ export async function renderForExport(
       undefined,
       hideDescriptions,
       colorByDepth ? null : activeTagGroup,
-      colorByDepth ? { colorByDepth: true } : undefined
+      colorByDepth ? { colorByDepth: true, exportMode } : { exportMode }
     );
     return finalizeSvgExport(container, theme, effectivePalette);
   }
@@ -7921,7 +7934,8 @@ export async function renderForExport(
         c4Parsed.tagGroups,
         c4Parsed.options['active-tag'],
         viewState?.tag ?? options?.tagGroup
-      )
+      ),
+      exportMode
     );
     return finalizeSvgExport(container, theme, effectivePalette);
   }
@@ -8088,6 +8102,7 @@ export async function renderForExport(
           resolved.options.activeTag ?? undefined,
           viewState?.tag ?? options?.tagGroup
         ),
+        exportMode,
       },
       { width: EXPORT_W, height: EXPORT_H }
     );
@@ -8135,7 +8150,8 @@ export async function renderForExport(
       effectivePalette,
       theme === 'dark',
       { width: RADAR_EXPORT_W, height: RADAR_EXPORT_H },
-      viewState
+      viewState,
+      exportMode
     );
     return finalizeSvgExport(container, theme, effectivePalette);
   }
@@ -8162,6 +8178,7 @@ export async function renderForExport(
     );
     renderJourneyMap(container, jmParsed, effectivePalette, theme === 'dark', {
       exportDims: { width: jmLayout.totalWidth, height: jmLayout.totalHeight },
+      exportMode,
     });
     return finalizeSvgExport(container, theme, effectivePalette);
   }
@@ -8181,7 +8198,8 @@ export async function renderForExport(
       effectivePalette,
       theme === 'dark',
       { width: EXPORT_WIDTH, height: EXPORT_HEIGHT },
-      viewState
+      viewState,
+      exportMode
     );
     return finalizeSvgExport(container, theme, effectivePalette);
   }
@@ -8320,7 +8338,10 @@ export async function renderForExport(
         undefined,
         viewState?.tag ?? options?.tagGroup
       ),
-      viewState?.swim
+      viewState?.swim,
+      undefined,
+      undefined,
+      exportMode
     );
   } else if (parsed.type === 'venn') {
     renderVenn(container, parsed, effectivePalette, isDark, undefined, dims);

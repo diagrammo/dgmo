@@ -5,6 +5,29 @@ All notable changes to `@diagrammo/dgmo` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Static exports hide collapsed tag-group pills and the gear/cog control.**
+  When a diagram is exported (PNG / SVG / PDF) via the desktop or web app,
+  the legend now shows only the active tag-group capsule centered above the
+  diagram. Collapsed group pills, interactive toggles, and the cog disappear
+  — they convey no meaning in a static image. Interactive previews and
+  shared `online.diagrammo.app` views are unchanged. The dgmo CLI also
+  preserves the full legend by default; pass `exportMode: true` to
+  `renderForExport()` for static-export semantics.
+
+### Breaking changes (Type API)
+
+- `LegendMode` literal values changed from `'fixed' | 'inline'` to
+  `'preview' | 'export'`. Re-exported via `@diagrammo/dgmo/advanced`.
+  Audited workspace-internal consumers (`obsidian-dgmo`,
+  `diagrammo_app_site`, `remark-dgmo`, `astro-dgmo`,
+  `docusaurus-plugin-dgmo`, `fumadocs-dgmo`) — zero direct usages. External
+  npm consumers that read `LegendMode` literal values directly will need
+  to update.
+
 ## [0.8.23] - 2026-04-22
 
 ### Added

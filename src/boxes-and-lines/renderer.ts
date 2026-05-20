@@ -309,6 +309,7 @@ interface BLRenderOptions {
   controlsExpanded?: boolean;
   onToggleDescriptions?: (active: boolean) => void;
   onToggleControlsExpand?: () => void;
+  exportMode?: boolean;
 }
 
 export function renderBoxesAndLines(
@@ -328,6 +329,7 @@ export function renderBoxesAndLines(
     controlsExpanded,
     onToggleDescriptions,
     onToggleControlsExpand,
+    exportMode = false,
   } = options ?? {};
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
 
@@ -974,7 +976,7 @@ export function renderBoxesAndLines(
     const legendConfig: LegendConfig = {
       groups: parsed.tagGroups,
       position: { placement: 'top-center', titleRelation: 'below-title' },
-      mode: 'fixed',
+      mode: exportMode ? 'export' : 'preview',
       controlsGroup,
     };
     const legendState: LegendState = {
@@ -1017,11 +1019,13 @@ export function renderBoxesAndLinesForExport(
     exportDims?: { width: number; height: number };
     activeTagGroup?: string | null;
     hiddenTagValues?: Map<string, Set<string>>;
+    exportMode?: boolean;
   }
 ): void {
   renderBoxesAndLines(container, parsed, layout, palette, isDark, {
     exportDims: options?.exportDims,
     activeTagGroup: options?.activeTagGroup,
     hiddenTagValues: options?.hiddenTagValues,
+    exportMode: options?.exportMode,
   });
 }

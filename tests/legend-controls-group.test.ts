@@ -60,7 +60,7 @@ const makeGroups = (count: number): LegendGroupData[] =>
 const defaultConfig = (overrides?: Partial<LegendConfig>): LegendConfig => ({
   groups: [],
   position: { placement: 'top-center', titleRelation: 'below-title' },
-  mode: 'fixed',
+  mode: 'preview',
   ...overrides,
 });
 
@@ -135,7 +135,7 @@ describe('controls group layout', () => {
     });
     const groups = makeGroups(1);
     const layout = computeLegendLayout(
-      defaultConfig({ controlsGroup: cg, groups, mode: 'inline' }),
+      defaultConfig({ controlsGroup: cg, groups, mode: 'export' }),
       { activeGroup: 'Group1', controlsExpanded: true },
       800
     );

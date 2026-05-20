@@ -232,7 +232,8 @@ export function renderC4Context(
   isDark: boolean,
   onClickItem?: (lineNumber: number) => void,
   exportDims?: { width?: number; height?: number },
-  activeTagGroup?: string | null
+  activeTagGroup?: string | null,
+  exportMode?: boolean
 ): void {
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
 
@@ -636,7 +637,8 @@ export function renderC4Context(
       palette,
       isDark,
       activeTagGroup,
-      fixedLegend ? width : null
+      fixedLegend ? width : null,
+      exportMode
     );
   }
 }
@@ -1259,7 +1261,8 @@ function renderLegend(
   palette: PaletteColors,
   isDark: boolean,
   activeTagGroup?: string | null,
-  fixedWidth?: number | null
+  fixedWidth?: number | null,
+  exportMode?: boolean
 ): void {
   const groups = layout.legend.map((g) => ({
     name: g.name,
@@ -1268,7 +1271,7 @@ function renderLegend(
   const legendConfig: LegendConfig = {
     groups,
     position: { placement: 'top-center', titleRelation: 'below-title' },
-    mode: 'fixed',
+    mode: exportMode ? 'export' : 'preview',
   };
   const legendState: LegendState = { activeGroup: activeTagGroup ?? null };
   const containerWidth = fixedWidth ?? layout.width;
@@ -1300,7 +1303,8 @@ export function renderC4Containers(
   isDark: boolean,
   onClickItem?: (lineNumber: number) => void,
   exportDims?: { width?: number; height?: number },
-  activeTagGroup?: string | null
+  activeTagGroup?: string | null,
+  exportMode?: boolean
 ): void {
   d3Selection.select(container).selectAll(':not([data-d3-tooltip])').remove();
 
@@ -1805,7 +1809,8 @@ export function renderC4Containers(
       palette,
       isDark,
       activeTagGroup,
-      fixedLegend ? width : null
+      fixedLegend ? width : null,
+      exportMode
     );
   }
 }
@@ -1933,7 +1938,8 @@ export function renderC4Deployment(
   isDark: boolean,
   onClickItem?: (lineNumber: number) => void,
   exportDims?: { width?: number; height?: number },
-  activeTagGroup?: string | null
+  activeTagGroup?: string | null,
+  exportMode?: boolean
 ): void {
   renderC4Containers(
     container,
@@ -1943,7 +1949,8 @@ export function renderC4Deployment(
     isDark,
     onClickItem,
     exportDims,
-    activeTagGroup
+    activeTagGroup,
+    exportMode
   );
 }
 

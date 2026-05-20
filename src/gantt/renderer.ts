@@ -208,6 +208,7 @@ export interface GanttInteractiveOptions {
   collapsedLanes?: Set<string>;
   onToggleLane?: (laneName: string) => void;
   viewMode?: boolean;
+  exportMode?: boolean;
 }
 
 // ── Main Renderer ───────────────────────────────────────────
@@ -439,7 +440,8 @@ export function renderGantt(
             ).attr('display', active ? null : 'none');
           }
           drawLegend();
-        }
+        },
+        options?.exportMode ?? false
       );
     }
   }
@@ -1983,7 +1985,8 @@ function renderTagLegend(
   controlsExpanded = false,
   hasDependencies = false,
   dependenciesActive = false,
-  onControlsToggle?: (toggleId: string, active: boolean) => void
+  onControlsToggle?: (toggleId: string, active: boolean) => void,
+  exportMode = false
 ): void {
   // Build visible groups: active group expanded + swimlane group as compact pill
   let visibleGroups: TagGroup[];
@@ -2117,7 +2120,7 @@ function renderTagLegend(
         placement: 'top-center' as const,
         titleRelation: 'below-title' as const,
       },
-      mode: 'fixed' as const,
+      mode: exportMode ? 'export' : 'preview',
       capsulePillAddonWidth: iconReserve,
       controlsGroup:
         controlsToggles.length > 0 ? { toggles: controlsToggles } : undefined,
@@ -2263,7 +2266,7 @@ function renderTagLegend(
         placement: 'top-center' as const,
         titleRelation: 'below-title' as const,
       },
-      mode: 'fixed' as const,
+      mode: exportMode ? 'export' : 'preview',
       controlsGroup: { toggles: controlsToggles },
     };
 
