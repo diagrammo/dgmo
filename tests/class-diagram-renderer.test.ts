@@ -299,7 +299,7 @@ describe('renderClassDiagram', () => {
 
     it('does not render legend when all classes have explicit colors', () => {
       const container = renderToContainer(
-        'Animal red\n  name: string\n\nDrawable [interface] (green)\n  draw(): void'
+        'Animal red\n  name: string\n\nDrawable [interface] green\n  draw(): void'
       );
       const legend = container.querySelector('.cd-legend');
       expect(legend).toBeNull();

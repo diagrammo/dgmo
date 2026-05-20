@@ -33,7 +33,7 @@ interface TagBlockMatch {
   name: string;
   alias: string | undefined;
   colorHint: string | undefined;
-  /** Inline tag values parsed from single-line form (e.g., `tag Priority as p High(red), Low(blue)`) */
+  /** Inline tag values parsed from single-line form (e.g., `tag Priority as p High red, Low blue`) */
   inlineValues?: string[];
   /**
    * If the heading used the legacy `tag Name <alias>` (bare shorthand)
@@ -52,8 +52,8 @@ interface TagBlockMatch {
  * Returns the cleaned text and whether the keyword was present.
  *
  * Examples:
- *   "NA(gray) default" → { text: "NA(gray)", isDefault: true }
- *   "Done(green)"      → { text: "Done(green)", isDefault: false }
+ *   "NA gray default" → { text: "NA gray", isDefault: true }
+ *   "Done green"      → { text: "Done green", isDefault: false }
  */
 export function stripDefaultModifier(text: string): {
   text: string;
@@ -91,7 +91,7 @@ export function isTagBlockHeading(trimmed: string): boolean {
 /**
  * Parse a tag declaration line: `tag Name [as <alias>] [Values...]`
  *
- * Canonical form (post-TD-18): `tag Priority as p High(red), Low(blue)`.
+ * Canonical form: `tag Priority as p High red, Low blue` (universal §1.5).
  *
  * Legacy forms still parse for graceful degradation but set
  * `legacyForm` on the result so the caller can emit

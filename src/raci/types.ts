@@ -67,9 +67,10 @@ export interface ParsedRaci {
   /** Display name for each role (parallel to `roles`). */
   roleDisplayNames: string[];
   /**
-   * Optional per-role palette color from `Cap(blue)` suffix in the
-   * roles block. Parallel to `roles`; entries default to `undefined`
-   * (renderer falls back to the neutral column tint).
+   * Optional per-role palette color from the `Cap blue` trailing-token
+   * suffix in the roles block (or the long pipe form `Cap | color: blue`).
+   * Parallel to `roles`; entries default to `undefined` (renderer falls
+   * back to the neutral column tint).
    */
   roleColors: Array<string | undefined>;
   phases: RaciPhase[];

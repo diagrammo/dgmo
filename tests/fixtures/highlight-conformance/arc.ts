@@ -6,7 +6,7 @@ export const fixture: HighlightFixture = {
   source: `arc Alliances
 order group
 
-[Caribbean](red)
+[Caribbean] red
   Blackbeard -> Bonnet 8
 `,
   assertions: [

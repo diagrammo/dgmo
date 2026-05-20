@@ -215,7 +215,7 @@ export interface ParsedPert {
   groups: PertGroup[];
   /**
    * Tag groups declared at the top of the diagram (`tag Priority as p
-   * High(red), Low(green)`). Drive node fill via `resolveTagColor()`.
+   * High red, Low green`). Drive node fill via `resolveTagColor()`.
    * Empty when no `tag` blocks are declared.
    */
   tagGroups: TagGroup[];

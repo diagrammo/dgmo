@@ -7,10 +7,10 @@ export const fixture: HighlightFixture = {
 x-label Low Skill, High Skill
 y-label Low Loyalty, High Loyalty
 
-top-right Promote (green)
-top-left Train (yellow)
-bottom-right Watch (purple)
-bottom-left Maroon (red)
+top-right Promote green
+top-left Train yellow
+bottom-right Watch purple
+bottom-left Maroon red
 
 Quartermaster 0.9 0.95
 `,

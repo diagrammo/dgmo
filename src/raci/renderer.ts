@@ -602,7 +602,8 @@ export function renderRaci(
   parsed.roles.forEach((roleId, i) => {
     const cx = roleX(i) + COLUMN_INSET;
     const cw = roleColW - 2 * COLUMN_INSET;
-    // Per-role color from `Cap(blue)` syntax. When the user provides
+    // Per-role color from `Cap blue` trailing-token (or `Cap | color: blue`)
+    // syntax. When the user provides
     // one, it wins; otherwise rotate through marker-safe accents so
     // each column has a subtle visual identity instead of every column
     // reading as the same neutral gray.

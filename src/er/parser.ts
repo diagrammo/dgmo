@@ -494,7 +494,7 @@ export function parseERDiagram(
   if (result.tables.length === 0 && !result.error) {
     const diag = makeDgmoError(
       1,
-      'No tables found. Add table declarations like "users" or "orders (blue)".'
+      'No tables found. Add table declarations like "users" or "orders blue".'
     );
     result.diagnostics.push(diag);
     result.error = formatDgmoError(diag);

@@ -448,7 +448,7 @@ export interface ParsePertOptions {
   now?: Date;
   /**
    * Active palette — used when resolving color names on `tag` entries
-   * (e.g. `High(red)` → palette.colors.red). Optional; when omitted the
+   * (e.g. `High red` → palette.colors.red). Optional; when omitted the
    * universal default color map is used.
    */
   palette?: PaletteColors;
@@ -576,7 +576,7 @@ export function parsePert(
       // layer is responsible for routing.
     }
 
-    // ── Tag-block phase. `tag Priority as p\n  High(red)\n  Low(green)`
+    // ── Tag-block phase. `tag Priority as p\n  High red\n  Low green`
     // lives BEFORE diagram content; once any group / activity / arrow
     // is seen, `contentStarted` flips and further `tag …` headings
     // emit an error.
@@ -599,7 +599,7 @@ export function parsePert(
           );
         }
         tagGroups.push(currentTagGroup);
-        // Inline values (e.g. `tag Priority as p Low(green), High(red)`).
+        // Inline values (e.g. `tag Priority as p Low green, High red`).
         if (tagBlockMatch.inlineValues) {
           for (const raw of tagBlockMatch.inlineValues) {
             const { text, isDefault } = stripDefaultModifier(raw);
