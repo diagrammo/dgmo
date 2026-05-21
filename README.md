@@ -167,9 +167,9 @@ const colors = getPalette('nord').light;
 const content = `
 sankey Energy Flow
 
-Coal (orange)
+Coal orange
   Electricity 50
-Gas (blue)
+Gas blue
   Electricity 30
 Electricity -> Industry 45
 Electricity -> Homes 35
@@ -334,8 +334,8 @@ const content = `
 org Engineering
 
 tag Location
-  NY(blue)
-  SF(green)
+  NY blue
+  SF green
 
 Alex Chen
   role: CTO
@@ -389,13 +389,13 @@ Containers can nest and carry their own metadata (key: value pairs). Children ar
 
 ```
 tag Location as l
-  NY(blue)
-  SF(green)
-  Remote(purple) default
+  NY blue
+  SF green
+  Remote purple default
 ```
 
-- `tag GroupName` starts a tag group; `alias` provides a shorthand for metadata keys
-- `Value(color)` maps a metadata value to a color
+- `tag GroupName` starts a tag group; `as <alias>` provides a shorthand for metadata keys
+- `Value color` maps a metadata value to a color (trailing-token form per spec §1.5)
 - `default` marks the fallback value for nodes without that metadata
 - Nodes whose metadata matches a tag group value get color-coded automatically
 - `##` syntax is deprecated but still accepted — use `tag` for new diagrams
