@@ -411,7 +411,8 @@ export function collectIndentedValues(
   const lineNumbers: number[] = [];
   let j = startIndex + 1;
   for (; j < lines.length; j++) {
-    const raw = lines[j];
+    // In-bounds by loop guard.
+    const raw = lines[j]!;
     const trimmed = raw.trim();
     // Skip blank lines within the block
     if (!trimmed) continue;
@@ -468,18 +469,20 @@ export function parseSeriesNames(
   const names: string[] = [];
   const nameColors: (string | undefined)[] = [];
   for (let i = 0; i < rawNames.length; i++) {
-    const raw = rawNames[i];
+    // Loop bound guarantees both are defined; nameLineNumbers is built
+    // 1:1 with rawNames in both upstream branches.
+    const raw = rawNames[i]!;
     const extracted = extractColor(
       raw,
       palette,
       diagnostics,
-      nameLineNumbers[i]
+      nameLineNumbers[i]!
     );
     nameColors.push(extracted.color);
     names.push(extracted.label);
   }
   if (names.length === 1) {
-    series = names[0];
+    series = names[0]!;
   }
   return { series, names, nameColors, nameLineNumbers, newIndex };
 }

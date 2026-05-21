@@ -39,7 +39,8 @@ const DEFAULT_W = 0.56;
 export function measureLegendText(text: string, fontSize: number): number {
   let w = 0;
   for (let i = 0; i < text.length; i++) {
-    w += (CHAR_W[text[i]] ?? DEFAULT_W) * fontSize;
+    // charAt returns '' for out-of-bounds, never undefined.
+    w += (CHAR_W[text.charAt(i)] ?? DEFAULT_W) * fontSize;
   }
   return w;
 }

@@ -95,11 +95,11 @@ export function computeTimeTicks(
         const val = y + (m - 1) / 12;
         if (val > domainMax) break;
         if (val >= domainMin) {
+          // m is 1..12, so MONTH_ABBR[m-1] is always defined.
+          const abbr = MONTH_ABBR[m - 1]!;
           ticks.push({
             pos: scale(val),
-            label: crossesYear
-              ? `${MONTH_ABBR[m - 1]} '${String(y).slice(-2)}`
-              : MONTH_ABBR[m - 1],
+            label: crossesYear ? `${abbr} '${String(y).slice(-2)}` : abbr,
           });
         }
       }

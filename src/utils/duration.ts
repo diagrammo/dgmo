@@ -31,7 +31,8 @@ export function isWorkday(
   workweek: Weekday[],
   holidaySet: Set<string>
 ): boolean {
-  const dayName = JS_DAY_TO_WEEKDAY[date.getDay()];
+  // date.getDay() returns 0..6; JS_DAY_TO_WEEKDAY is length 7.
+  const dayName = JS_DAY_TO_WEEKDAY[date.getDay()]!;
   if (!workweek.includes(dayName)) return false;
   if (holidaySet.has(formatDateKey(date))) return false;
   return true;
@@ -220,7 +221,7 @@ export function addGanttDuration(
 export function parseDuration(s: string): Duration | null {
   const match = s.trim().match(/^(\d+(?:\.\d+)?)(min|bd|d|w|m|q|y|h|s)$/);
   if (!match) return null;
-  return { amount: parseFloat(match[1]), unit: match[2] as DurationUnit };
+  return { amount: parseFloat(match[1]!), unit: match[2] as DurationUnit };
 }
 
 /**
@@ -261,8 +262,8 @@ export function parseGanttDate(s: string): Date {
     const timePart = s.slice(spaceIdx + 1);
     const timeParts = timePart.split(':');
     if (timeParts.length === 2) {
-      const h = parseInt(timeParts[0], 10);
-      const m = parseInt(timeParts[1], 10);
+      const h = parseInt(timeParts[0]!, 10);
+      const m = parseInt(timeParts[1]!, 10);
       if (h >= 0 && h <= 23 && m >= 0 && m <= 59) {
         hour = h;
         minute = m;
@@ -271,9 +272,10 @@ export function parseGanttDate(s: string): Date {
   }
 
   const parts = datePart.split('-').map((p) => parseInt(p, 10));
-  const year = parts[0];
-  const month = parts.length >= 2 ? parts[1] - 1 : 0; // JS months are 0-based
-  const day = parts.length >= 3 ? parts[2] : 1;
+  // split() always returns ≥1 element, so parts[0] is defined.
+  const year = parts[0]!;
+  const month = parts.length >= 2 ? parts[1]! - 1 : 0; // JS months are 0-based
+  const day = parts.length >= 3 ? parts[2]! : 1;
   return new Date(year, month, day, hour, minute);
 }
 

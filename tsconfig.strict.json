@@ -17,6 +17,7 @@
   },
   "include": [
     "src/fonts.ts",
-    "src/palettes/**/*.ts"
+    "src/palettes/**/*.ts",
+    "src/utils/**/*.ts"
   ]
 }

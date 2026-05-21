@@ -89,7 +89,7 @@ export function resolveColor(
     const named = palette.colors[lower];
     if (named) return named;
   }
-  return colorNames[lower];
+  return colorNames[lower] ?? null;
 }
 
 import type { DgmoError } from './diagnostics';

@@ -110,7 +110,7 @@ export function parseTagDeclaration(line: string): TagBlockMatch | null {
   const tokens = tokenizeQuoteAware(afterTag);
   if (tokens.length === 0) return null;
 
-  let name = stripQuotes(tokens[0]);
+  let name = stripQuotes(tokens[0]!);
   let alias: string | undefined;
   let inlineValues: string[] | undefined;
   let colorHint: string | undefined;
@@ -124,7 +124,7 @@ export function parseTagDeclaration(line: string): TagBlockMatch | null {
   // the name span signals that inline values follow.
   let valueStart = tokens.length;
   for (let i = 1; i < tokens.length; i++) {
-    if (tokens[i].includes(',')) {
+    if (tokens[i]!.includes(',')) {
       // valueStart is the FIRST token of the first inline value, which is
       // the token immediately following the alias / keyword span. Walk
       // back to the start of the value span by finding the most recent
@@ -146,7 +146,7 @@ export function parseTagDeclaration(line: string): TagBlockMatch | null {
   let keywordIdx = -1;
   let keywordKind: 'as' | 'alias' | null = null;
   for (let i = 1; i < valueStart; i++) {
-    const t = tokens[i].toLowerCase();
+    const t = tokens[i]!.toLowerCase();
     if (t === 'as') {
       keywordIdx = i;
       keywordKind = 'as';
@@ -161,7 +161,7 @@ export function parseTagDeclaration(line: string): TagBlockMatch | null {
 
   if (keywordIdx > 0 && keywordIdx + 1 < tokens.length) {
     // `tag Name [Multi Word] (as|alias) <token> [Values...]`
-    const candidate = tokens[keywordIdx + 1];
+    const candidate = tokens[keywordIdx + 1]!;
     if (isAliasToken(candidate)) {
       // Name is everything before the keyword (joined for multi-word names).
       // First token may be quoted; preserve stripQuotes behavior.
@@ -211,7 +211,7 @@ export function parseTagDeclaration(line: string): TagBlockMatch | null {
       // name is the token immediately before that. So the value spans
       // (firstValueStart..=commaTokenIdx). The "name + alias" prefix
       // is [0, firstValueStart).
-      const lastBeforeComma = tokens[commaTokenIdx].replace(/,$/, '');
+      const lastBeforeComma = tokens[commaTokenIdx]!.replace(/,$/, '');
       // value = `<name word(s)> <color>` if trailing token is a recognized
       // palette word; otherwise value = `<name word(s)>` (no color).
       const firstValueStart = isColorWord(lastBeforeComma)
@@ -240,24 +240,24 @@ export function parseTagDeclaration(line: string): TagBlockMatch | null {
           .join(' ');
         restStartIdx = prefixEnd;
       }
-    } else if (tokens[0][0] === '"' || tokens[0][0] === "'") {
+    } else if (tokens[0]![0] === '"' || tokens[0]![0] === "'") {
       // Quoted name. Check the next token for legacy bare alias.
       if (
         tokens.length > 1 &&
-        isAliasToken(tokens[1]) &&
-        !isColorWord(tokens[1])
+        isAliasToken(tokens[1]!) &&
+        !isColorWord(tokens[1]!)
       ) {
-        alias = tokens[1];
+        alias = tokens[1]!;
         legacyForm = 'bare-shorthand';
         restStartIdx = 2;
       }
     } else if (
       valueStart > 1 &&
-      isAliasToken(tokens[valueStart - 1]) &&
-      !isColorWord(tokens[valueStart - 1])
+      isAliasToken(tokens[valueStart - 1]!) &&
+      !isColorWord(tokens[valueStart - 1]!)
     ) {
       // Bare shorthand at the end of the name span.
-      alias = tokens[valueStart - 1];
+      alias = tokens[valueStart - 1]!;
       legacyForm = 'bare-shorthand';
       name = tokens
         .slice(0, valueStart - 1)
@@ -530,7 +530,7 @@ export function resolveActiveTagGroup(
   }
 
   // 3. Auto-activate first declared group
-  if (tagGroups.length > 0) return tagGroups[0].name;
+  if (tagGroups.length > 0) return tagGroups[0]!.name;
 
   // 4. No tag groups → no coloring
   return null;

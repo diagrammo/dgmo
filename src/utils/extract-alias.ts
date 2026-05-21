@@ -101,7 +101,8 @@ export function extractAlias(
   const match = trimmed.match(ALIAS_POSTFIX_RE);
   if (!match) return { canonical: trimmed };
 
-  const candidate = match[2];
+  // ALIAS_POSTFIX_RE has 2 capture groups; both always exist when matched.
+  const candidate = match[2]!;
   const isFormatValid = ALIAS_TOKEN_RE.test(candidate);
   const isReserved = isFormatValid && RESERVED_ALIAS_TOKENS.has(candidate);
 
@@ -133,5 +134,5 @@ export function extractAlias(
     return { canonical: trimmed };
   }
 
-  return { canonical: match[1].trim(), alias: candidate };
+  return { canonical: match[1]!.trim(), alias: candidate };
 }

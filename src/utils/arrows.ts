@@ -201,9 +201,10 @@ export function parseArrow(
   if (RETURN_SYNC_LABELED_RE.test(line) || RETURN_ASYNC_LABELED_RE.test(line)) {
     const m =
       line.match(RETURN_SYNC_LABELED_RE) ?? line.match(RETURN_ASYNC_LABELED_RE);
-    const from = m![3];
-    const to = m![1];
-    const label = m![2].trim();
+    // RETURN_*_LABELED_RE both have 3 capture groups by construction.
+    const from = m![3]!;
+    const to = m![1]!;
+    const label = m![2]!.trim();
     return {
       error: `Left-pointing arrows are no longer supported. Write '${from} -${label}-> ${to}' instead`,
     };
@@ -221,14 +222,15 @@ export function parseArrow(
     const m = line.match(re);
     if (!m) continue;
 
-    const label = m[2].trim();
+    // SYNC_LABELED_RE / ASYNC_LABELED_RE both have 3 capture groups.
+    const label = m[2]!.trim();
 
     // Empty label (e.g. `--> B`) — fall through to plain arrow handling
     if (!label) return null;
 
     return {
-      from: m[1],
-      to: m[3],
+      from: m[1]!,
+      to: m[3]!,
       label,
       async: isAsync,
     };

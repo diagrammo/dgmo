@@ -47,16 +47,17 @@ function levenshtein(a: string, b: string): number {
     .map((_, i) => i);
 
   for (let i = 1; i <= m; i++) {
-    let prev = dp[0];
+    // dp has length n+1, all indices 0..n are valid by construction.
+    let prev = dp[0]!;
     dp[0] = i;
     for (let j = 1; j <= n; j++) {
-      const tmp = dp[j];
+      const tmp = dp[j]!;
       dp[j] =
-        a[i - 1] === b[j - 1] ? prev : 1 + Math.min(prev, dp[j], dp[j - 1]);
+        a[i - 1] === b[j - 1] ? prev : 1 + Math.min(prev, dp[j]!, dp[j - 1]!);
       prev = tmp;
     }
   }
-  return dp[n];
+  return dp[n]!;
 }
 
 /**

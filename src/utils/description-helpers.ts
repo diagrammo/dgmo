@@ -12,7 +12,8 @@ export function tryStripDescriptionKeyword(line: string): {
   text: string;
 } {
   const match = line.match(/^description\s*:?\s+(.+)$/i);
-  if (match) return { isKeyword: true, text: match[1] };
+  // Capture group 1 always exists when the regex matches.
+  if (match) return { isKeyword: true, text: match[1]! };
   return { isKeyword: false, text: line };
 }
 

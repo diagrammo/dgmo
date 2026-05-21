@@ -119,7 +119,7 @@ function capsuleWidth(
   let visible = 0;
 
   for (let i = 0; i < entries.length; i++) {
-    const ew2 = entryWidth(entries[i].value);
+    const ew2 = entryWidth(entries[i]!.value);
     if (rowX + ew2 > rowWidth && i > 0) {
       row++;
       rowX = 0;
@@ -429,7 +429,8 @@ function buildCapsuleLayout(
   let currentRow = 0;
 
   for (let i = 0; i < info.visibleEntries; i++) {
-    const entry = group.entries[i];
+    // visibleEntries is bounded by group.entries.length upstream.
+    const entry = group.entries[i]!;
     const ew = entryWidth(entry.value);
 
     // Wrap to next row if needed. Only check when capsuleWidth decided
@@ -539,14 +540,15 @@ function layoutRows(
   if (controls.length > 0) {
     let cx = containerWidth;
     for (let i = controls.length - 1; i >= 0; i--) {
-      cx -= controls[i].width;
-      controls[i].x = cx;
-      controls[i].y = 0;
+      const ctrl = controls[i]!;
+      cx -= ctrl.width;
+      ctrl.x = cx;
+      ctrl.y = 0;
       cx -= CONTROL_GAP;
     }
     // Controls go on first row
     if (rows.length > 0) {
-      rows[0].items.push(...controls);
+      rows[0]!.items.push(...controls);
     } else if (currentRowItems.length > 0) {
       currentRowItems.push(...controls);
     } else {
@@ -570,7 +572,7 @@ function layoutRows(
       (it) => 'groupName' in it
     ) as Array<LegendPillLayout | LegendCapsuleLayout>;
     if (groupItemsInRow0.length > 0) {
-      const last = groupItemsInRow0[groupItemsInRow0.length - 1];
+      const last = groupItemsInRow0[groupItemsInRow0.length - 1]!;
       controlsGroup.x = last.x + last.width + LEGEND_GROUP_GAP;
     } else {
       // No group items — center the controls group

@@ -29,7 +29,8 @@ export function safeHref(url: string | undefined | null): string | null {
     return url;
   }
 
-  const scheme = match[1].toLowerCase();
+  // Capture group 1 always exists when SCHEME_RE matches.
+  const scheme = match[1]!.toLowerCase();
   if ((ALLOWED_SCHEMES as readonly string[]).includes(scheme)) {
     return url;
   }
