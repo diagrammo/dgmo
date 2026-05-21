@@ -7,10 +7,7 @@ import type { PaletteColors } from './types';
 /** Convert hex (#RRGGBB or #RGB) to { h, s, l } with h in degrees, s/l as percentages. */
 export function hexToHSL(hex: string): { h: number; s: number; l: number } {
   const raw = hex.replace('#', '');
-  const full =
-    raw.length === 3
-      ? raw[0] + raw[0] + raw[1] + raw[1] + raw[2] + raw[2]
-      : raw;
+  const full = raw.length === 3 ? [...raw].map((c) => c + c).join('') : raw;
 
   const r = parseInt(full.substring(0, 2), 16) / 255;
   const g = parseInt(full.substring(2, 4), 16) / 255;
@@ -90,10 +87,7 @@ export function hexToHSLString(hex: string): string {
  */
 export function tint(hex: string, amount: number): string {
   const raw = hex.replace('#', '');
-  const full =
-    raw.length === 3
-      ? raw[0] + raw[0] + raw[1] + raw[1] + raw[2] + raw[2]
-      : raw;
+  const full = raw.length === 3 ? [...raw].map((c) => c + c).join('') : raw;
 
   const r = parseInt(full.substring(0, 2), 16);
   const g = parseInt(full.substring(2, 4), 16);
@@ -113,10 +107,7 @@ export function tint(hex: string, amount: number): string {
 export function shade(hex: string, base: string, amount: number): string {
   const parse = (h: string): [number, number, number] => {
     const raw = h.replace('#', '');
-    const full =
-      raw.length === 3
-        ? raw[0] + raw[0] + raw[1] + raw[1] + raw[2] + raw[2]
-        : raw;
+    const full = raw.length === 3 ? [...raw].map((c) => c + c).join('') : raw;
     return [
       parseInt(full.substring(0, 2), 16),
       parseInt(full.substring(2, 4), 16),
@@ -145,9 +136,9 @@ export function shade(hex: string, base: string, amount: number): string {
  * Used by all renderers for tinted fills and strokes.
  */
 export function mix(a: string, b: string, pct: number): string {
-  const parse = (h: string) => {
+  const parse = (h: string): [number, number, number] => {
     const r = h.replace('#', '');
-    const f = r.length === 3 ? r[0] + r[0] + r[1] + r[1] + r[2] + r[2] : r;
+    const f = r.length === 3 ? [...r].map((c) => c + c).join('') : r;
     return [
       parseInt(f.substring(0, 2), 16),
       parseInt(f.substring(2, 4), 16),
@@ -171,18 +162,19 @@ export function mix(a: string, b: string, pct: number): string {
 /** WCAG 2.1 relative luminance (0 = black, 1 = white). */
 export function relativeLuminance(hex: string): number {
   const raw = hex.replace('#', '');
-  const full =
-    raw.length === 3
-      ? raw[0] + raw[0] + raw[1] + raw[1] + raw[2] + raw[2]
-      : raw;
+  const full = raw.length === 3 ? [...raw].map((c) => c + c).join('') : raw;
 
-  const srgb = [
+  const [r, g, b] = [
     parseInt(full.substring(0, 2), 16) / 255,
     parseInt(full.substring(2, 4), 16) / 255,
     parseInt(full.substring(4, 6), 16) / 255,
-  ].map((c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+  ].map((c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)) as [
+    number,
+    number,
+    number,
+  ];
 
-  return 0.2126 * srgb[0] + 0.7152 * srgb[1] + 0.0722 * srgb[2];
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
 /**
@@ -231,10 +223,7 @@ export function contrastText(
   const L = relativeLuminance(bg);
   if (L > 0.55) return darkText;
   const raw = bg.replace('#', '');
-  const full =
-    raw.length === 3
-      ? raw[0] + raw[0] + raw[1] + raw[1] + raw[2] + raw[2]
-      : raw;
+  const full = raw.length === 3 ? [...raw].map((c) => c + c).join('') : raw;
   const r = parseInt(full.substring(0, 2), 16);
   const g = parseInt(full.substring(2, 4), 16);
   const b = parseInt(full.substring(4, 6), 16);
@@ -310,8 +299,9 @@ export function getSegmentColors(
   const avgS = Math.round(hsls.reduce((s, c) => s + c.s, 0) / hsls.length);
   const avgL = Math.round(hsls.reduce((s, c) => s + c.l, 0) / hsls.length);
 
-  // Start from the palette's blue hue (first in series) for consistency
-  const startHue = hsls[0].h;
+  // Start from the palette's blue hue (first in series) for consistency.
+  // hsls has at least 1 entry because getSeriesColors always returns 8.
+  const startHue = hsls[0]?.h ?? 0;
   const step = 360 / count;
 
   return Array.from({ length: count }, (_, i) =>

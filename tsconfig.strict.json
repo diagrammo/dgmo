@@ -16,6 +16,7 @@
     "noUncheckedIndexedAccess": true
   },
   "include": [
-    "src/fonts.ts"
+    "src/fonts.ts",
+    "src/palettes/**/*.ts"
   ]
 }
