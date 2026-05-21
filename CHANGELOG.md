@@ -7,6 +7,68 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### ⚠ BREAKING: Universal trailing-token color syntax
+
+Color is now the **trailing whitespace-delimited token** of a label region
+(case-sensitive lowercase, matching one of 11 palette names: `red, orange,
+yellow, green, blue, purple, teal, cyan, gray, black, white`). The old
+`Label(color)` parens form is gone — parens are now literal label text.
+
+```dgmo
+Done(green)             →  Done green
+[Done](green)           →  [Done] green
+Swordsmanship(red) as s →  Swordsmanship red as s
+era 1718 -> 1720 Foo(red) → era 1718 -> 1720 Foo red
+```
+
+**The label region** is whatever the parser hands to the color rule after
+stripping its own structural terminators (`as <alias>`, `| pipe`, numeric
+values, date ranges, brackets, arrow constructs). This applies uniformly
+across every chart type that carries color in label position.
+
+**Capitalize to escape**: `Red`, `Yellow`, `Green` stay as literal labels
+— useful for traffic-light tag groups that want the color word as the
+name itself.
+
+**The 11-name palette is now a frozen public contract.** Adding a 12th
+color name in any future release is itself a breaking grammar change
+requiring a major version bump, because any user diagram with the new
+word as a label would silently change behavior.
+
+#### Edge color removed (flowchart, state, sitemap)
+
+Edges on these three chart types no longer have a color slot. `A -(red)-> B`
+parses as a label `(red)`; `A -yes-> B` and `A -no-> B` no longer auto-color
+the arrow. All edges render with the default theme color. To color a *node*,
+use tags. Sankey/chord links are the one exception — they carry data, so a
+trailing color word after the numeric flow value colors the link
+(`Source -> Target 3000 red`).
+
+The `inferArrowColor()` function (label-semantic `yes→green`, `no→red`,
+`maybe→orange`) and `matchColorParens()` helper are both deleted; their
+`@diagrammo/dgmo/advanced` re-exports are gone.
+
+#### Cycle / pyramid / ring / RACI / boxes-and-lines: pipe-shortcut
+
+These five chart types pair the universal trailing-token form with their
+existing `| color: <name>` pipe-metadata long form. Both produce the same
+AST; the trailing-token form is a shortcut when color is the sole metadata:
+
+```dgmo
+Spring green                       // shortcut
+Spring | color: green              // long form (equivalent)
+Spring | color: green, icon: ❄     // long form REQUIRED when other keys
+```
+
+#### Accepted tradeoffs
+
+- **No typo diagnostics**: `Done grren` parses silently as a 2-word label
+  with no color. Internal corpus has a near-miss smoke test; user content
+  gets no help.
+- **Case-sensitivity is the escape hatch**: only lowercase recognized.
+- **Lezer grammar** drops the `ColorAnnotation` token; trailing color
+  words now tokenize as plain `Identifier` nodes.
+
 ### Changed
 
 - **Static exports hide collapsed tag-group pills and the gear/cog control.**
@@ -27,6 +89,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `docusaurus-plugin-dgmo`, `fumadocs-dgmo`) — zero direct usages. External
   npm consumers that read `LegendMode` literal values directly will need
   to update.
+- `matchColorParens()` and `inferArrowColor()` removed from
+  `@diagrammo/dgmo/advanced`. External consumers that imported them must
+  drop the calls — edges no longer carry color, and `(color)` parens are
+  no longer recognized.
+- `GraphEdge.color`, `SitemapEdge.color`, `LayoutEdge.color` (sitemap +
+  graph) fields removed from public types.
 
 ## [0.8.23] - 2026-04-22
 
