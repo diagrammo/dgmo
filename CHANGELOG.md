@@ -7,6 +7,80 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-05-21
+
+### ⚠ BREAKING: Sequence participant types trimmed from 9 → 4 + default
+
+The sequence diagram retains only the types whose shape carries semantic
+weight at a glance:
+
+| Kept type | Shape |
+|-----------|-------|
+| `actor` | Stick figure |
+| `database` | Vertical cylinder |
+| `cache` | Dashed vertical cylinder |
+| `queue` | Horizontal pipe |
+| _default_ | Plain rectangle (used when `is a` is omitted) |
+
+The keywords `service`, `frontend`, `networking`, `gateway`, and `external`
+were **removed** — using any of them in `is a X` is a hard parse error
+(`E_PARTICIPANT_TYPE_REMOVED`), one diagnostic per offending line.
+
+```dgmo
+sequence
+Auth is a service       // E_PARTICIPANT_TYPE_REMOVED — drop the override
+WebApp is a frontend    // E_PARTICIPANT_TYPE_REMOVED
+LB is a networking      // E_PARTICIPANT_TYPE_REMOVED
+API is a gateway        // E_PARTICIPANT_TYPE_REMOVED
+Stripe is an external   // E_PARTICIPANT_TYPE_REMOVED
+```
+
+**Inference also shrinks** — the rule table goes from 223 → 82 rules.
+Names that previously inferred to a removed type — `AuthService`, `WebApp`,
+`Cloudflare`, `API Gateway`, `Stripe`, `Webhook` — now fall through to
+the default rectangle. That fall-through is the intended outcome of the
+trim: the differentiation went away because the underlying distinction
+didn't carry its weight.
+
+**Renderer impact:** 5 D3 helpers deleted (`renderServiceParticipant`,
+`renderFrontendParticipant`, `renderNetworkingParticipant`,
+`renderExternalParticipant`, `renderGatewayParticipant`) plus their
+shape-dispatch switch cases (~200 lines).
+
+**Sequence-only scope** — `external` / `database` / `cache` / `queue`
+remain valid in C4, infra, and org diagrams under their own taxonomies.
+
+#### Known breakage surfaces
+
+Pre-existing share URLs (`online.diagrammo.app`) and third-party MDX
+content via `remark-dgmo` / `astro-dgmo` / `docusaurus-plugin-dgmo` /
+`fumadocs-dgmo` will surface the parse error once those wrappers
+upgrade to `^0.17.0`. Share URLs do not pin a dgmo version.
+
+#### Migration
+
+Drop the `is a {removed-type}` override — the participant renders as
+the default rectangle:
+
+```dgmo
+// Before
+Auth is a service
+WebApp is a frontend
+
+// After
+Auth
+WebApp
+```
+
+#### Public API
+
+- `ParticipantType` union narrowed to `'default' | 'database' | 'actor' | 'queue' | 'cache'`. Re-exported via `@diagrammo/dgmo/advanced`. Consumers that read the literal string values must update.
+- `RULE_COUNT` (`participant-inference`) drops to 82 (was 223).
+- `NAME_DIAGNOSTIC_CODES.PARTICIPANT_TYPE_REMOVED` and `participantTypeRemovedMessage(type)` added to `@diagrammo/dgmo/advanced`.
+- `SERVICE_BORDER_RADIUS` renderer constant removed (was unused outside the deleted `renderServiceParticipant`).
+
+## [0.16.0] - 2026-05-20
+
 ### ⚠ BREAKING: Universal trailing-token color syntax
 
 Color is now the **trailing whitespace-delimited token** of a label region
