@@ -2,7 +2,7 @@
 // Time axis tick computation — shared by d3.ts and gantt/renderer.ts
 // ============================================================
 
-import * as d3Scale from 'd3-scale';
+import type * as d3Scale from 'd3-scale';
 
 export const MONTH_ABBR = [
   'Jan',

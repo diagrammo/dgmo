@@ -259,7 +259,7 @@ export function parseClassDiagram(
     // First line: bare chart type + optional title (new syntax)
     if (!contentStarted && indent === 0 && i === 0) {
       const firstLine = parseFirstLine(trimmed);
-      if (firstLine && firstLine.chartType === 'class') {
+      if (firstLine?.chartType === 'class') {
         if (firstLine.title) {
           result.title = firstLine.title;
           result.titleLineNumber = lineNumber;

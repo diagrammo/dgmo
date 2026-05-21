@@ -89,7 +89,7 @@ export function parsePyramid(content: string): ParsedPyramid {
     // ── First line: chart type declaration ──
     if (!headerParsed) {
       const firstLineResult = parseFirstLine(trimmed);
-      if (firstLineResult && firstLineResult.chartType === 'pyramid') {
+      if (firstLineResult?.chartType === 'pyramid') {
         result.title = firstLineResult.title ?? '';
         result.titleLineNumber = lineNum;
         headerParsed = true;

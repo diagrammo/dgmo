@@ -496,7 +496,7 @@ export function parseVisualization(
     result.diagnostics.push(makeDgmoError(line, message, 'warning'));
   };
 
-  if (!content || !content.trim()) {
+  if (!content?.trim()) {
     return fail(0, 'Empty content');
   }
 
@@ -4107,8 +4107,7 @@ function renderTimelineTagLegendOverlay(
               groupEl.attr('data-tag-group', groupKey);
               if (isActive && !viewMode) {
                 const isSwimActive =
-                  currentSwimlaneGroup != null &&
-                  currentSwimlaneGroup.toLowerCase() === groupKey;
+                  currentSwimlaneGroup?.toLowerCase() === groupKey;
                 const pillWidth =
                   measureLegendText(groupName, LG_PILL_FONT_SIZE) + LG_PILL_PAD;
                 const pillXOff = LG_CAPSULE_PAD;

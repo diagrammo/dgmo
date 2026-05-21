@@ -62,7 +62,7 @@ export function parseTechRadar(content: string): ParsedTechRadar {
     result.diagnostics.push(makeDgmoError(line, message, 'warning'));
   };
 
-  if (!content || !content.trim()) {
+  if (!content?.trim()) {
     return fail(0, 'No content provided');
   }
 
@@ -115,7 +115,7 @@ export function parseTechRadar(content: string): ParsedTechRadar {
     // --- First line: chart type + title ---
     if (!headerParsed) {
       const firstLine = parseFirstLine(trimmed);
-      if (firstLine && firstLine.chartType === 'tech-radar') {
+      if (firstLine?.chartType === 'tech-radar') {
         result.title = firstLine.title ?? '';
         result.titleLineNumber = lineNumber;
         headerParsed = true;

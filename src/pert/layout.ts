@@ -208,7 +208,7 @@ function nodeDimensions(
   sizing: NodeSizing,
   overrides?: LayoutOverrides
 ): { width: number; height: number } {
-  if (overrides && overrides[id]) {
+  if (overrides?.[id]) {
     return { width: overrides[id].width, height: overrides[id].height };
   }
   const r = resolved.activities.find((a) => a.activity.id === id);

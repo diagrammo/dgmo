@@ -823,7 +823,7 @@ export function parsePert(
         const head = trimmed.slice(0, firstSpace).toLowerCase();
         const value = trimmed.slice(firstSpace + 1).trim();
         const hint = NEAR_DIRECTIVE_HINTS.find((h) => h.stem === head);
-        if (hint && hint.matches.test(value)) {
+        if (hint?.matches.test(value)) {
           error(
             lineNumber,
             `Unknown directive '${head}'. Did you mean '${hint.canonical}'?`,

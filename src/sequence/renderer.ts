@@ -1415,7 +1415,7 @@ export function renderSequenceDiagram(
   // Ensure contentBottomY accounts for all note extents
   const lastStep = renderSteps[renderSteps.length - 1];
   const lastIsSelfCall =
-    lastStep && lastStep.type === 'call' && lastStep.from === lastStep.to;
+    lastStep?.type === 'call' && lastStep.from === lastStep.to;
   const lastStepTrailing = lastIsSelfCall ? SELF_CALL_HEIGHT + 25 : stepSpacing;
   let contentBottomY =
     renderSteps.length > 0

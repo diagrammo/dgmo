@@ -178,7 +178,7 @@ export function parseRaci(
     result.diagnostics.push(makeDgmoError(line, message, 'error', code));
   };
 
-  if (!content || !content.trim()) {
+  if (!content?.trim()) {
     return fail(0, 'No content provided');
   }
 
@@ -624,7 +624,7 @@ export function parseRaci(
           // detect by whether it was declared before `bodyStarted`.
           // We piggyback the `declaredLine` we recorded.
           const entry = roleStore.get(roleId);
-          if (entry && entry.declaredLine === lineNumber) {
+          if (entry?.declaredLine === lineNumber) {
             const candidates = result.roleDisplayNames.filter(
               (n) => n !== entry.displayName
             );

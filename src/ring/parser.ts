@@ -74,7 +74,7 @@ export function parseRing(content: string): ParsedRing {
     // ── First line: chart type declaration ──
     if (!headerParsed) {
       const firstLineResult = parseFirstLine(trimmed);
-      if (firstLineResult && firstLineResult.chartType === 'ring') {
+      if (firstLineResult?.chartType === 'ring') {
         result.title = firstLineResult.title ?? '';
         result.titleLineNumber = lineNum;
         headerParsed = true;

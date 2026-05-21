@@ -103,7 +103,7 @@ export function parseCycle(content: string): ParsedCycle {
     // ── First line: chart type declaration ──
     if (!headerParsed) {
       const firstLineResult = parseFirstLine(trimmed);
-      if (firstLineResult && firstLineResult.chartType === 'cycle') {
+      if (firstLineResult?.chartType === 'cycle') {
         result.title = firstLineResult.title ?? '';
         result.titleLineNumber = lineNum;
         headerParsed = true;

@@ -492,7 +492,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     result.diagnostics.push(makeDgmoError(line, message, 'warning'));
   };
 
-  if (!content || !content.trim()) {
+  if (!content?.trim()) {
     return fail(0, 'Empty content');
   }
 
@@ -506,7 +506,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     const fl = lines[fi].trim();
     if (!fl || fl.startsWith('//')) continue;
     const parsed = parseFirstLine(fl);
-    if (parsed && parsed.chartType === 'sequence') {
+    if (parsed?.chartType === 'sequence') {
       hasExplicitChart = true;
       firstLineIndex = fi;
       if (parsed.title) {

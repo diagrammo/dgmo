@@ -1157,7 +1157,7 @@ async function main(): Promise<void> {
     }
 
     const existingDgmo = config.mcpServers?.['dgmo'];
-    if (existingDgmo && existingDgmo.command === 'dgmo-mcp') {
+    if (existingDgmo?.command === 'dgmo-mcp') {
       console.log(`✓ dgmo MCP server already configured in ${configPath}`);
     } else {
       if (existingDgmo) {

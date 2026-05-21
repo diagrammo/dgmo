@@ -115,7 +115,7 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
     result.diagnostics.push(makeDgmoError(line, message, 'warning'));
   };
 
-  if (!content || !content.trim()) {
+  if (!content?.trim()) {
     return fail(0, 'No content provided');
   }
 

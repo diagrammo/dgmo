@@ -279,7 +279,7 @@ export function resolveTheme(
 function ensureStyles(): void {
   if (typeof document === 'undefined') return;
   const html = document.documentElement;
-  if (html && html.dataset && html.dataset[STYLE_FLAG] === '1') return;
+  if (html?.dataset?.[STYLE_FLAG] === '1') return;
 
   // If a <link rel="stylesheet"> for our css is already linked, skip inline.
   const linked = document.querySelector(
@@ -509,7 +509,7 @@ function determineReplaceTarget(matched: Element): Element {
   // If matched is a <code> whose only child of <pre> is itself, replace <pre>.
   if (matched.tagName === 'CODE') {
     const parent = matched.parentElement;
-    if (parent && parent.tagName === 'PRE') {
+    if (parent?.tagName === 'PRE') {
       const meaningfulChildren = Array.from(parent.childNodes).filter(
         (n) =>
           n.nodeType === 1 ||

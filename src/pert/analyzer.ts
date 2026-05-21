@@ -180,7 +180,7 @@ export function analyzePert(parsed: ParsedPert): ResolvedPert {
   for (const e of edges) {
     if (!e.lag || e.lag.amount >= 0) continue;
     const src = activities.find((a) => a.id === e.source);
-    if (!src || !src.duration) continue;
+    if (!src?.duration) continue;
     const leadDays = -toDays(e.lag, sprintDays);
     const srcDurDays = toDays(src.duration.m, sprintDays);
     if (e.type === 'FS' && leadDays > srcDurDays) {
@@ -923,7 +923,7 @@ export function buildSummary(input: BuildSummaryInput): CaptionRow[] | null {
     // Expected duration AND each percentile latest-safe start so the
     // caption shape stays parallel to the feasible case (one top row +
     // three percentile sub-rows).
-    if (anchor && anchor.kind === 'backward') {
+    if (anchor?.kind === 'backward') {
       return [
         { text: 'Expected duration: ?', level: 0 },
         { text: 'P50 latest-safe start: ?', level: 0 },
@@ -958,13 +958,13 @@ export function buildSummary(input: BuildSummaryInput): CaptionRow[] | null {
   const sigmaParen = showMcDetail
     ? ` (± ${roundForCaption(projectSigma!)} ${pluralizeUnit(projectSigma!, unit)})`
     : '';
-  if (anchor && anchor.kind === 'forward') {
+  if (anchor?.kind === 'forward') {
     const projectMuDays = projectMu * unitToDays(unit);
     rows.push({
       text: `Expected finish: ${addCalendarDays(anchor.date, projectMuDays)}${sigmaParen}.`,
       level: 0,
     });
-  } else if (anchor && anchor.kind === 'backward') {
+  } else if (anchor?.kind === 'backward') {
     const projectMuDays = projectMu * unitToDays(unit);
     rows.push({
       text: `Expected start: ${addCalendarDays(anchor.date, -projectMuDays)}${sigmaParen}.`,
@@ -990,13 +990,13 @@ export function buildSummary(input: BuildSummaryInput): CaptionRow[] | null {
       { pct: 80, days: monteCarloResult!.p80 },
       { pct: 95, days: monteCarloResult!.p95 },
     ];
-    if (anchor && anchor.kind === 'forward') {
+    if (anchor?.kind === 'forward') {
       for (const { pct, days } of percentiles) {
         const offsetDays = roundConservative(days, 'forward');
         const date = addCalendarDays(anchor.date, offsetDays);
         rows.push({ text: `P${pct} finish: ${date}.`, level: 1 });
       }
-    } else if (anchor && anchor.kind === 'backward') {
+    } else if (anchor?.kind === 'backward') {
       for (const { pct, days } of percentiles) {
         const offsetDays = roundConservative(days, 'backward');
         const date = addCalendarDays(anchor.date, -offsetDays);
@@ -1074,10 +1074,10 @@ export function buildProjectSubtitle(input: {
 
   if (projectMu === null) {
     // Anchored + TBD: keep the framing prefix, mark the math as ?.
-    if (anchor && anchor.kind === 'forward') {
+    if (anchor?.kind === 'forward') {
       return `Expected finish: ? · ≈ ? ${pluralizeUnit(2, unit)} of work`;
     }
-    if (anchor && anchor.kind === 'backward') {
+    if (anchor?.kind === 'backward') {
       return `Expected start: ? · ≈ ? ${pluralizeUnit(2, unit)} lead time`;
     }
     // Unanchored + TBD: surface that the total is unknown. The per-node
@@ -1087,11 +1087,11 @@ export function buildProjectSubtitle(input: {
 
   const muStr = `${roundForCaption(projectMu)} ${pluralizeUnit(projectMu, unit)}`;
 
-  if (anchor && anchor.kind === 'forward') {
+  if (anchor?.kind === 'forward') {
     const projectMuDays = projectMu * unitToDays(unit);
     return `Expected finish: ${addCalendarDays(anchor.date, projectMuDays)} · ≈ ${muStr} of work${sigmaParen}`;
   }
-  if (anchor && anchor.kind === 'backward') {
+  if (anchor?.kind === 'backward') {
     const projectMuDays = projectMu * unitToDays(unit);
     return `Expected start: ${addCalendarDays(anchor.date, -projectMuDays)} · ≈ ${muStr} lead time${sigmaParen}`;
   }

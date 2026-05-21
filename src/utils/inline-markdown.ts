@@ -2,7 +2,7 @@
 // Inline Markdown — shared parsing + SVG rendering for text fields
 // ============================================================
 
-import * as d3Selection from 'd3-selection';
+import type * as d3Selection from 'd3-selection';
 import type { PaletteColors } from '../palettes';
 import { safeHref } from './safe-href';
 

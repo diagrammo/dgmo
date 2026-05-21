@@ -668,7 +668,7 @@ export function parseWireframe(content: string): ParsedWireframe {
     if (phase === 'header') {
       // First line: chart type declaration
       const firstLineResult = parseFirstLine(trimmed);
-      if (firstLineResult && firstLineResult.chartType === 'wireframe') {
+      if (firstLineResult?.chartType === 'wireframe') {
         title = firstLineResult.title || null;
         titleLineNumber = lineNumber;
         continue;

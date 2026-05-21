@@ -1733,8 +1733,7 @@ function renderNodes(
       }
 
       // Role badge dots — only shown when Capabilities legend is expanded
-      const showDots =
-        activeGroup != null && activeGroup.toLowerCase() === 'capabilities';
+      const showDots = activeGroup?.toLowerCase() === 'capabilities';
       const roles = showDots && !node.isEdge ? inferRoles(node.properties) : [];
       if (roles.length > 0) {
         // Move dots up above the collapse bar for collapsed groups

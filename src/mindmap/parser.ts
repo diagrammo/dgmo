@@ -62,7 +62,7 @@ export function parseMindmap(
     result.diagnostics.push(makeDgmoError(line, message, 'warning'));
   };
 
-  if (!content || !content.trim()) {
+  if (!content?.trim()) {
     return fail(0, 'No content provided');
   }
 
@@ -278,8 +278,7 @@ export function parseMindmap(
     result.diagnostics.push(diag);
     result.error = formatDgmoError(diag);
   } else if (
-    titleRoot &&
-    titleRoot.children.length === 0 &&
+    titleRoot?.children.length === 0 &&
     result.roots.length === 1 &&
     !result.error
   ) {

@@ -232,7 +232,7 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
     return result;
   };
 
-  if (!content || !content.trim()) {
+  if (!content?.trim()) {
     return fail(0, 'No content provided');
   }
 

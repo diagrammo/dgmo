@@ -308,7 +308,7 @@ export function parseERDiagram(
     // First line: chart type + optional title
     if (!firstLineParsed && indent === 0) {
       const firstLineResult = parseFirstLine(trimmed);
-      if (firstLineResult && firstLineResult.chartType === 'er') {
+      if (firstLineResult?.chartType === 'er') {
         firstLineParsed = true;
         if (firstLineResult.title) {
           result.title = firstLineResult.title;

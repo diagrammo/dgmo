@@ -467,7 +467,7 @@ export function parseExtendedChart(
               )
             : trimmed;
           const dataRow = parseDataRowValues(strippedLine);
-          if (dataRow && dataRow.values.length === 1) {
+          if (dataRow?.values.length === 1) {
             const source = sankeyStack.at(-1)!.name;
             const linkColor = valColorMatch?.[2]
               ? resolveColorWithDiagnostic(
@@ -745,7 +745,7 @@ export function parseExtendedChart(
 
     // Funnel / generic data point: "Label value"
     const dataRow = parseDataRowValues(trimmed);
-    if (dataRow && dataRow.values.length === 1) {
+    if (dataRow?.values.length === 1) {
       const { label: rawLabel, color: pointColor } = extractColor(
         dataRow.label,
         palette

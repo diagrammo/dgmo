@@ -636,8 +636,7 @@ export async function layoutBoxesAndLines(
       const edge = parsed.edges[i];
       if (edgeParallelCounts[i] === 0) continue;
       const elkEdge = edgeById.get(`e${i}`);
-      if (!elkEdge || !elkEdge.sections || elkEdge.sections.length === 0)
-        continue;
+      if (!elkEdge?.sections || elkEdge.sections.length === 0) continue;
       const container = elkEdge.container ?? 'root';
       const off = containerAbs.get(container) ?? { x: 0, y: 0 };
       const s = elkEdge.sections[0];
