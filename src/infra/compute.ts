@@ -40,7 +40,8 @@ function getNumProp(node: InfraNode, key: string, fallback: number): number {
 function getInstanceRange(node: InfraNode): { min: number; max: number } {
   const prop = node.properties.find((p) => p.key === 'instances');
   if (!prop) return { min: 1, max: 1 };
-  if (typeof prop.value === 'number') return { min: prop.value, max: prop.value };
+  if (typeof prop.value === 'number')
+    return { min: prop.value, max: prop.value };
   const str = String(prop.value);
   const dash = str.indexOf('-');
   if (dash >= 0) {
@@ -79,7 +80,13 @@ function computeDynamicInstances(node: InfraNode, computedRps: number): number {
 }
 
 /** Determine circuit breaker state from thresholds and current load. */
-function computeCbState(node: InfraNode, computedRps: number, computedLatencyMs: number, instanceOverride?: number, groupMultiplier = 1): InfraCbState {
+function computeCbState(
+  node: InfraNode,
+  computedRps: number,
+  computedLatencyMs: number,
+  instanceOverride?: number,
+  groupMultiplier = 1
+): InfraCbState {
   const errorThreshold = getNumProp(node, 'cb-error-threshold', 0);
   const latencyThreshold = getNumProp(node, 'cb-latency-threshold-ms', 0);
   if (errorThreshold <= 0 && latencyThreshold <= 0) return 'closed';
@@ -90,17 +97,22 @@ function computeCbState(node: InfraNode, computedRps: number, computedLatencyMs:
     capacity = serverlessCapacity(node);
   } else {
     const maxRps = getNumProp(node, 'max-rps', 0);
-    const instances = instanceOverride ?? computeDynamicInstances(node, computedRps);
+    const instances =
+      instanceOverride ?? computeDynamicInstances(node, computedRps);
     capacity = maxRps > 0 ? maxRps * instances * groupMultiplier : 0;
   }
 
   if (errorThreshold > 0 && capacity > 0) {
-    const errorRate = computedRps > capacity ? ((computedRps - capacity) / computedRps) * 100 : 0;
+    const errorRate =
+      computedRps > capacity
+        ? ((computedRps - capacity) / computedRps) * 100
+        : 0;
     if (errorRate >= errorThreshold) return 'open';
   }
 
   // Latency-based
-  if (latencyThreshold > 0 && computedLatencyMs > latencyThreshold) return 'open';
+  if (latencyThreshold > 0 && computedLatencyMs > latencyThreshold)
+    return 'open';
 
   return 'closed';
 }
@@ -111,7 +123,13 @@ function computeCbState(node: InfraNode, computedRps: number, computedLatencyMs:
  * Cache-hit and firewall-block are NOT availability reducers — they're
  * successful traffic reductions (cache serves, firewall correctly blocks).
  */
-function computeLocalAvailability(node: InfraNode, inboundRps: number, instanceOverride?: number, groupMultiplier = 1, defaultUptime = 100): number {
+function computeLocalAvailability(
+  node: InfraNode,
+  inboundRps: number,
+  instanceOverride?: number,
+  groupMultiplier = 1,
+  defaultUptime = 100
+): number {
   if (node.isEdge) return 1;
 
   let avail = 1;
@@ -148,7 +166,8 @@ function computeLocalAvailability(node: InfraNode, inboundRps: number, instanceO
   } else {
     const maxRps = getNumProp(node, 'max-rps', 0);
     if (maxRps > 0 && inboundRps > 0) {
-      const instances = instanceOverride ?? computeDynamicInstances(node, inboundRps);
+      const instances =
+        instanceOverride ?? computeDynamicInstances(node, inboundRps);
       const capacity = maxRps * instances * groupMultiplier;
       if (inboundRps > capacity) {
         avail *= capacity / inboundRps;
@@ -181,7 +200,11 @@ function computeLocalAvailability(node: InfraNode, inboundRps: number, instanceO
  * - firewall-block: N% → only (100 - N)% passes through
  * - ratelimit-rps: N → caps outbound at N rps
  */
-function applyBehaviors(node: InfraNode, inboundRps: number, groupMultiplier = 1): number {
+function applyBehaviors(
+  node: InfraNode,
+  inboundRps: number,
+  groupMultiplier = 1
+): number {
   let rps = inboundRps;
 
   const cacheHit = getNumProp(node, 'cache-hit', 0);
@@ -221,8 +244,14 @@ interface CollapseResult {
   groupInstances: Map<string, number>;
 }
 
-function collapseGroups(parsed: ParsedInfra, collapsedIds: Set<string>, defaultLatencyMs = 0, defaultUptime = 100): CollapseResult {
-  if (collapsedIds.size === 0) return { parsed, childCapacities: new Map(), groupInstances: new Map() };
+function collapseGroups(
+  parsed: ParsedInfra,
+  collapsedIds: Set<string>,
+  defaultLatencyMs = 0,
+  defaultUptime = 100
+): CollapseResult {
+  if (collapsedIds.size === 0)
+    return { parsed, childCapacities: new Map(), groupInstances: new Map() };
 
   // Build child sets per collapsed group
   const groupChildren = new Map<string, InfraNode[]>();
@@ -303,16 +332,25 @@ function collapseGroups(parsed: ParsedInfra, collapsedIds: Set<string>, defaultL
     for (const child of children) {
       // Latency: use explicit value, or diagram default (matching BFS behavior)
       const latencyProp = child.properties.find((p) => p.key === 'latency-ms');
-      const childIsServerless = child.properties.some((p) => p.key === 'concurrency');
+      const childIsServerless = child.properties.some(
+        (p) => p.key === 'concurrency'
+      );
       let childLat: number;
       if (childIsServerless) {
         // Serverless nodes use duration-ms as latency contribution
-        const durationProp = child.properties.find((p) => p.key === 'duration-ms');
+        const durationProp = child.properties.find(
+          (p) => p.key === 'duration-ms'
+        );
         childLat = durationProp
-          ? (typeof durationProp.value === 'number' ? durationProp.value : parseFloat(String(durationProp.value)) || 100)
+          ? typeof durationProp.value === 'number'
+            ? durationProp.value
+            : parseFloat(String(durationProp.value)) || 100
           : 100;
       } else if (latencyProp) {
-        childLat = typeof latencyProp.value === 'number' ? latencyProp.value : parseFloat(String(latencyProp.value)) || 0;
+        childLat =
+          typeof latencyProp.value === 'number'
+            ? latencyProp.value
+            : parseFloat(String(latencyProp.value)) || 0;
       } else {
         childLat = defaultLatencyMs;
       }
@@ -321,28 +359,50 @@ function collapseGroups(parsed: ParsedInfra, collapsedIds: Set<string>, defaultL
       const maxRps = child.properties.find((p) => p.key === 'max-rps');
       if (maxRps) {
         hasMaxRps = true;
-        const val = typeof maxRps.value === 'number' ? maxRps.value : parseFloat(String(maxRps.value)) || 0;
+        const val =
+          typeof maxRps.value === 'number'
+            ? maxRps.value
+            : parseFloat(String(maxRps.value)) || 0;
         // Effective capacity = max-rps × child instances
-        const childInstProp = child.properties.find((p) => p.key === 'instances');
-        const childInst = childInstProp && typeof childInstProp.value === 'number' ? childInstProp.value : 1;
+        const childInstProp = child.properties.find(
+          (p) => p.key === 'instances'
+        );
+        const childInst =
+          childInstProp && typeof childInstProp.value === 'number'
+            ? childInstProp.value
+            : 1;
         const effectiveCapacity = val * childInst;
-        if (effectiveCapacity < minEffectiveCapacity) minEffectiveCapacity = effectiveCapacity;
+        if (effectiveCapacity < minEffectiveCapacity)
+          minEffectiveCapacity = effectiveCapacity;
         perChildCapacities.push(effectiveCapacity);
       }
 
       // Uptime: use explicit value, or diagram default (matching BFS behavior)
       const uptimeProp = child.properties.find((p) => p.key === 'uptime');
       const uptimeVal = uptimeProp
-        ? (typeof uptimeProp.value === 'number' ? uptimeProp.value : parseFloat(String(uptimeProp.value)) || 100)
+        ? typeof uptimeProp.value === 'number'
+          ? uptimeProp.value
+          : parseFloat(String(uptimeProp.value)) || 100
         : defaultUptime;
       composedUptime *= uptimeVal / 100;
 
       // Collect behavior keys (cache-hit, firewall-block, ratelimit-rps)
       // and queue/serverless properties
       for (const prop of child.properties) {
-        if (['cache-hit', 'firewall-block', 'ratelimit-rps',
-             'buffer', 'drain-rate', 'retention-hours', 'partitions',
-             'concurrency', 'duration-ms', 'cold-start-ms'].includes(prop.key)) {
+        if (
+          [
+            'cache-hit',
+            'firewall-block',
+            'ratelimit-rps',
+            'buffer',
+            'drain-rate',
+            'retention-hours',
+            'partitions',
+            'concurrency',
+            'duration-ms',
+            'cold-start-ms',
+          ].includes(prop.key)
+        ) {
           behaviorProps.push(prop);
         }
       }
@@ -369,7 +429,8 @@ function collapseGroups(parsed: ParsedInfra, collapsedIds: Set<string>, defaultL
     // Build forward adjacency for internal edges scoped to this group
     const fwdAdj = new Map<string, string[]>();
     for (const edge of internalEdges) {
-      if (!childIdSet.has(edge.sourceId) || !childIdSet.has(edge.targetId)) continue;
+      if (!childIdSet.has(edge.sourceId) || !childIdSet.has(edge.targetId))
+        continue;
       const list = fwdAdj.get(edge.sourceId) ?? [];
       list.push(edge.targetId);
       fwdAdj.set(edge.sourceId, list);
@@ -388,14 +449,18 @@ function collapseGroups(parsed: ParsedInfra, collapsedIds: Set<string>, defaultL
 
     const dist = new Map<string, number>();
     for (const child of children) {
-      dist.set(child.id, entryIds.has(child.id) ? (childLatencies.get(child.id) ?? 0) : -Infinity);
+      dist.set(
+        child.id,
+        entryIds.has(child.id) ? (childLatencies.get(child.id) ?? 0) : -Infinity
+      );
     }
     for (const nodeId of topoOrder) {
       const curDist = dist.get(nodeId) ?? -Infinity;
       if (curDist === -Infinity) continue;
       for (const nextId of fwdAdj.get(nodeId) ?? []) {
         const newDist = curDist + (childLatencies.get(nextId) ?? 0);
-        if (newDist > (dist.get(nextId) ?? -Infinity)) dist.set(nextId, newDist);
+        if (newDist > (dist.get(nextId) ?? -Infinity))
+          dist.set(nextId, newDist);
       }
     }
 
@@ -403,7 +468,8 @@ function collapseGroups(parsed: ParsedInfra, collapsedIds: Set<string>, defaultL
     if (exitIds.size > 0) {
       for (const id of exitIds) {
         const d = dist.get(id);
-        if (d !== undefined && d > -Infinity && d > totalLatency) totalLatency = d;
+        if (d !== undefined && d > -Infinity && d > totalLatency)
+          totalLatency = d;
       }
     } else if (entryIds.size > 0) {
       // No explicit exits — use max reachable distance from entry nodes
@@ -417,16 +483,30 @@ function collapseGroups(parsed: ParsedInfra, collapsedIds: Set<string>, defaultL
 
     // Build virtual node properties
     const props: InfraProperty[] = [];
-    if (totalLatency > 0) props.push({ key: 'latency-ms', value: totalLatency, lineNumber: group.lineNumber });
+    if (totalLatency > 0)
+      props.push({
+        key: 'latency-ms',
+        value: totalLatency,
+        lineNumber: group.lineNumber,
+      });
 
     // Apply group instances multiplier to bottleneck capacity
     // minEffectiveCapacity already includes child instances; multiply by group instances
-    const groupInstances = typeof group.instances === 'number' ? group.instances : 1;
+    const groupInstances =
+      typeof group.instances === 'number' ? group.instances : 1;
     if (hasMaxRps && minEffectiveCapacity < Infinity) {
-      props.push({ key: 'max-rps', value: Math.round(minEffectiveCapacity * groupInstances), lineNumber: group.lineNumber });
+      props.push({
+        key: 'max-rps',
+        value: Math.round(minEffectiveCapacity * groupInstances),
+        lineNumber: group.lineNumber,
+      });
     }
     if (composedUptime < 1) {
-      props.push({ key: 'uptime', value: Math.round(composedUptime * 10000) / 100, lineNumber: group.lineNumber });
+      props.push({
+        key: 'uptime',
+        value: Math.round(composedUptime * 10000) / 100,
+        lineNumber: group.lineNumber,
+      });
     }
     // Note: we do NOT push `instances` as a node property because max-rps is
     // already multiplied by groupInstances. Adding instances would double-count
@@ -434,8 +514,15 @@ function collapseGroups(parsed: ParsedInfra, collapsedIds: Set<string>, defaultL
     // drain-rate scales with group instances (more consumers), buffer does NOT.
     for (const bp of behaviorProps) {
       if (bp.key === 'drain-rate') {
-        const val = typeof bp.value === 'number' ? bp.value : parseFloat(String(bp.value)) || 0;
-        props.push({ ...bp, value: val * groupInstances, lineNumber: group.lineNumber });
+        const val =
+          typeof bp.value === 'number'
+            ? bp.value
+            : parseFloat(String(bp.value)) || 0;
+        props.push({
+          ...bp,
+          value: val * groupInstances,
+          lineNumber: group.lineNumber,
+        });
       } else {
         props.push({ ...bp, lineNumber: group.lineNumber });
       }
@@ -495,7 +582,11 @@ function collapseGroups(parsed: ParsedInfra, collapsedIds: Set<string>, defaultL
     const key = `${srcGroupId}->${tgtGroupId}`;
     if (seenEdgeKeys.has(key)) continue;
     seenEdgeKeys.add(key);
-    rewrittenEdges.push({ ...edge, sourceId: srcGroupId, targetId: tgtGroupId });
+    rewrittenEdges.push({
+      ...edge,
+      sourceId: srcGroupId,
+      targetId: tgtGroupId,
+    });
   }
 
   // Build new node list: non-child nodes + virtual nodes
@@ -534,11 +625,12 @@ interface ResolvedSplit {
  */
 function resolveSplits(
   outbound: ParsedInfra['edges'],
-  diagnostics: InfraDiagnostic[],
+  diagnostics: InfraDiagnostic[]
 ): ResolvedSplit[] {
   if (outbound.length === 0) return [];
   if (outbound.length === 1) {
-    return [{ edge: outbound[0], split: 100 }];
+    // In-bounds: outbound.length === 1.
+    return [{ edge: outbound[0]!, split: 100 }];
   }
 
   const declared = outbound.filter((e) => e.split !== null);
@@ -550,7 +642,8 @@ function resolveSplits(
     if (Math.abs(sum - 100) > 0.01) {
       diagnostics.push({
         type: 'SPLIT_SUM',
-        line: declared[0].lineNumber,
+        // In-bounds: declared.length === outbound.length > 1 here.
+        line: declared[0]!.lineNumber,
         message: `Split percentages sum to ${sum}%, expected 100%.`,
       });
     }
@@ -570,12 +663,14 @@ function resolveSplits(
   if (remainder < 0) {
     diagnostics.push({
       type: 'SPLIT_SUM',
-      line: declared[0].lineNumber,
+      // In-bounds: this branch runs only when declared.length > 0 (some declared).
+      line: declared[0]!.lineNumber,
       message: `Declared splits sum to ${declaredSum}%, exceeding 100%.`,
     });
   }
 
-  const evenRemainder = undeclared.length > 0 ? remainder / undeclared.length : 0;
+  const evenRemainder =
+    undeclared.length > 0 ? remainder / undeclared.length : 0;
 
   return outbound.map((e) => ({
     edge: e,
@@ -589,13 +684,15 @@ function resolveSplits(
 
 export function computeInfra(
   parsed: ParsedInfra,
-  params: InfraComputeParams = {},
+  params: InfraComputeParams = {}
 ): ComputedInfraModel {
   const diagnostics: InfraDiagnostic[] = [];
 
   // Chart-level defaults for latency and uptime
-  const defaultLatencyMs = parseFloat(parsed.options['default-latency-ms'] ?? '') || 0;
-  const defaultUptime = parseFloat(parsed.options['default-uptime'] ?? '') || 100;
+  const defaultLatencyMs =
+    parseFloat(parsed.options['default-latency-ms'] ?? '') || 0;
+  const defaultUptime =
+    parseFloat(parsed.options['default-uptime'] ?? '') || 100;
 
   // Apply per-node property overrides (from interactive sliders)
   let effectiveNodes = parsed.nodes;
@@ -618,16 +715,24 @@ export function computeInfra(
     });
   }
 
-  let effectiveParsed = effectiveNodes === parsed.nodes ? parsed : { ...parsed, nodes: effectiveNodes };
+  let effectiveParsed =
+    effectiveNodes === parsed.nodes
+      ? parsed
+      : { ...parsed, nodes: effectiveNodes };
 
   // ── Collapse groups into virtual nodes ──
-  const collapsedGroups = params.collapsedGroups ?? new Set(
-    parsed.groups.filter((g) => g.collapsed).map((g) => g.id)
-  );
+  const collapsedGroups =
+    params.collapsedGroups ??
+    new Set(parsed.groups.filter((g) => g.collapsed).map((g) => g.id));
   let collapseChildCaps = new Map<string, number[]>();
   let collapseGroupInst = new Map<string, number>();
   if (collapsedGroups.size > 0) {
-    const cr = collapseGroups(effectiveParsed, collapsedGroups, defaultLatencyMs, defaultUptime);
+    const cr = collapseGroups(
+      effectiveParsed,
+      collapsedGroups,
+      defaultLatencyMs,
+      defaultUptime
+    );
     effectiveParsed = cr.parsed;
     collapseChildCaps = cr.childCapacities;
     collapseGroupInst = cr.groupInstances;
@@ -654,8 +759,12 @@ export function computeInfra(
   // When a group has `instances: N`, each child's effective capacity is multiplied by N
   const groupInstMultiplier = new Map<string, number>();
   for (const group of effectiveParsed.groups) {
-    const gi = typeof group.instances === 'number' ? group.instances :
-      typeof group.instances === 'string' ? parseInt(group.instances, 10) || 1 : 1;
+    const gi =
+      typeof group.instances === 'number'
+        ? group.instances
+        : typeof group.instances === 'string'
+          ? parseInt(group.instances, 10) || 1
+          : 1;
     if (gi > 1) {
       const children = groupChildMap.get(group.id) ?? [];
       for (const childId of children) {
@@ -709,23 +818,30 @@ export function computeInfra(
 
       // Add this node's latency and uptime
       // Serverless nodes use duration-ms as their latency contribution
-      const nodeLatency = currentNode.isEdge ? 0
-        : isServerless(currentNode) ? getNumProp(currentNode, 'duration-ms', 100)
-        : getNumProp(currentNode, 'latency-ms', defaultLatencyMs);
-      const nodeUptime = currentNode.isEdge ? 1 : getNumProp(currentNode, 'uptime', defaultUptime) / 100;
+      const nodeLatency = currentNode.isEdge
+        ? 0
+        : isServerless(currentNode)
+          ? getNumProp(currentNode, 'duration-ms', 100)
+          : getNumProp(currentNode, 'latency-ms', defaultLatencyMs);
+      const nodeUptime = currentNode.isEdge
+        ? 1
+        : getNumProp(currentNode, 'uptime', defaultUptime) / 100;
       const cumulativeLatency = currentLatency + nodeLatency;
       const cumulativeUptime = currentUptime * nodeUptime;
 
       // Apply behavior transformations to get outbound rps
       const gMul = groupInstMultiplier.get(currentId) ?? 1;
-      const outboundRps = currentNode.isEdge ? inbound : applyBehaviors(currentNode, inbound, gMul);
+      const outboundRps = currentNode.isEdge
+        ? inbound
+        : applyBehaviors(currentNode, inbound, gMul);
 
       // Queue latency boundary: downstream latency starts from queue wait time, not cumulative
       let downstreamLatency = cumulativeLatency;
       if (isQueue(currentNode)) {
         const drainRate = getNumProp(currentNode, 'drain-rate', 0) * gMul;
         const fillRate = drainRate > 0 ? Math.max(0, inbound - drainRate) : 0;
-        const waitTimeMs = fillRate > 0 && drainRate > 0 ? (fillRate / drainRate) * 1000 : 0;
+        const waitTimeMs =
+          fillRate > 0 && drainRate > 0 ? (fillRate / drainRate) * 1000 : 0;
         downstreamLatency = waitTimeMs; // reset: consumer-side starts fresh from queue wait
       }
 
@@ -738,7 +854,8 @@ export function computeInfra(
 
       for (const { edge, split } of resolved) {
         const edgeRps = outboundRps * (split / 100);
-        const fanout = (edge.fanout != null && edge.fanout >= 1) ? edge.fanout : 1;
+        const fanout =
+          edge.fanout != null && edge.fanout >= 1 ? edge.fanout : 1;
         const fanoutedRps = edgeRps * fanout;
         const edgeKey = `${edge.sourceId}->${edge.targetId}`;
         computedEdgeRps.set(edgeKey, fanoutedRps);
@@ -783,13 +900,25 @@ export function computeInfra(
   const instanceOverrides = params.instanceOverrides ?? {};
   for (const node of effectiveParsed.nodes) {
     const rps = computedRps.get(node.id) ?? 0;
-    localAvailability.set(node.id, computeLocalAvailability(node, rps, instanceOverrides[node.id], groupInstMultiplier.get(node.id) ?? 1, defaultUptime));
+    localAvailability.set(
+      node.id,
+      computeLocalAvailability(
+        node,
+        rps,
+        instanceOverrides[node.id],
+        groupInstMultiplier.get(node.id) ?? 1,
+        defaultUptime
+      )
+    );
   }
 
   // Propagate compound availability via second BFS
   const compoundAvailability = new Map<string, number>();
   if (edgeNode) {
-    compoundAvailability.set(edgeNode.id, localAvailability.get(edgeNode.id) ?? 1);
+    compoundAvailability.set(
+      edgeNode.id,
+      localAvailability.get(edgeNode.id) ?? 1
+    );
     const queue2: string[] = [edgeNode.id];
     const visited2 = new Set<string>();
     while (queue2.length > 0) {
@@ -799,11 +928,17 @@ export function computeInfra(
       const cumAvail = compoundAvailability.get(currentId) ?? 1;
       const currentNode = nodeMap.get(currentId);
       // Queue boundary: downstream availability starts fresh (producer-side decoupled)
-      const propagatedAvail = currentNode && isQueue(currentNode) ? localAvailability.get(currentId) ?? 1 : cumAvail;
+      const propagatedAvail =
+        currentNode && isQueue(currentNode)
+          ? (localAvailability.get(currentId) ?? 1)
+          : cumAvail;
       const outbound = outboundMap.get(currentId) ?? [];
       for (const edge of outbound) {
         const groupChildren = groupChildMap.get(edge.targetId);
-        const targetIds = (groupChildren && groupChildren.length > 0) ? groupChildren : [edge.targetId];
+        const targetIds =
+          groupChildren && groupChildren.length > 0
+            ? groupChildren
+            : [edge.targetId];
         for (const targetId of targetIds) {
           const targetLocal = localAvailability.get(targetId) ?? 1;
           const newCompound = propagatedAvail * targetLocal;
@@ -822,7 +957,12 @@ export function computeInfra(
   // For each node, collect all downstream leaf paths (latency, weight) via DFS,
   // then derive p50/p90/p99 weighted by traffic.
 
-  type LeafPath = { latency: number; uptime: number; availability: number; weight: number };
+  type LeafPath = {
+    latency: number;
+    uptime: number;
+    availability: number;
+    weight: number;
+  };
   const nodeLeafCache = new Map<string, LeafPath[]>();
 
   /** Collect leaf paths reachable from `nodeId` with accumulated extra latency/uptime. */
@@ -846,17 +986,22 @@ export function computeInfra(
       const drainRate = getNumProp(node, 'drain-rate', 0) * qGMul;
       const inbound = computedRps.get(nodeId) ?? 0;
       const fillRate = drainRate > 0 ? Math.max(0, inbound - drainRate) : 0;
-      nodeLatency = fillRate > 0 && drainRate > 0 ? (fillRate / drainRate) * 1000 : 0;
+      nodeLatency =
+        fillRate > 0 && drainRate > 0 ? (fillRate / drainRate) * 1000 : 0;
     } else if (isServerless(node)) {
       nodeLatency = getNumProp(node, 'duration-ms', 100);
     } else {
       nodeLatency = getNumProp(node, 'latency-ms', defaultLatencyMs);
     }
-    const nodeUptimeFrac = node.isEdge ? 1 : getNumProp(node, 'uptime', defaultUptime) / 100;
+    const nodeUptimeFrac = node.isEdge
+      ? 1
+      : getNumProp(node, 'uptime', defaultUptime) / 100;
     const nodeAvail = localAvailability.get(nodeId) ?? 1;
 
     // Serverless cold-start latency: split into warm (95%) and cold (5%) paths
-    const coldStartMs = isServerless(node) ? getNumProp(node, 'cold-start-ms', 0) : 0;
+    const coldStartMs = isServerless(node)
+      ? getNumProp(node, 'cold-start-ms', 0)
+      : 0;
     const coldLatency = nodeLatency + coldStartMs;
 
     const outbound = outboundMap.get(nodeId) ?? [];
@@ -870,11 +1015,28 @@ export function computeInfra(
         // Split into warm/cold paths for percentile accuracy
         // 95/5 split: cold starts affect ~5% of requests, visible at p99
         result = [
-          { latency: nodeLatency, uptime: nodeUptimeFrac, availability: nodeAvail, weight: rps * 0.95 },
-          { latency: coldLatency, uptime: nodeUptimeFrac, availability: nodeAvail, weight: rps * 0.05 },
+          {
+            latency: nodeLatency,
+            uptime: nodeUptimeFrac,
+            availability: nodeAvail,
+            weight: rps * 0.95,
+          },
+          {
+            latency: coldLatency,
+            uptime: nodeUptimeFrac,
+            availability: nodeAvail,
+            weight: rps * 0.05,
+          },
         ];
       } else {
-        result = [{ latency: nodeLatency, uptime: nodeUptimeFrac, availability: nodeAvail, weight: rps }];
+        result = [
+          {
+            latency: nodeLatency,
+            uptime: nodeUptimeFrac,
+            availability: nodeAvail,
+            weight: rps,
+          },
+        ];
       }
       nodeLeafCache.set(nodeId, result);
       return result;
@@ -885,10 +1047,12 @@ export function computeInfra(
     const paths: LeafPath[] = [];
 
     for (const { edge, split } of resolved) {
-      const fanout = (edge.fanout != null && edge.fanout >= 1) ? edge.fanout : 1;
+      const fanout = edge.fanout != null && edge.fanout >= 1 ? edge.fanout : 1;
       const groupChildren = groupChildMap.get(edge.targetId);
-      const targetIds = (groupChildren && groupChildren.length > 0)
-        ? groupChildren : [edge.targetId];
+      const targetIds =
+        groupChildren && groupChildren.length > 0
+          ? groupChildren
+          : [edge.targetId];
 
       for (const targetId of targetIds) {
         const childPaths = collectLeafPaths(targetId, new Set(visited));
@@ -899,21 +1063,27 @@ export function computeInfra(
               latency: nodeLatency + cp.latency,
               uptime: nodeUptimeFrac * cp.uptime,
               availability: nodeAvail * cp.availability,
-              weight: cp.weight * (split / 100) / targetIds.length * fanout * 0.95,
+              weight:
+                ((cp.weight * (split / 100)) / targetIds.length) *
+                fanout *
+                0.95,
             });
             // Cold path (5% of requests)
             paths.push({
               latency: coldLatency + cp.latency,
               uptime: nodeUptimeFrac * cp.uptime,
               availability: nodeAvail * cp.availability,
-              weight: cp.weight * (split / 100) / targetIds.length * fanout * 0.05,
+              weight:
+                ((cp.weight * (split / 100)) / targetIds.length) *
+                fanout *
+                0.05,
             });
           } else {
             paths.push({
               latency: nodeLatency + cp.latency,
               uptime: nodeUptimeFrac * cp.uptime,
               availability: nodeAvail * cp.availability,
-              weight: cp.weight * (split / 100) / targetIds.length * fanout,
+              weight: ((cp.weight * (split / 100)) / targetIds.length) * fanout,
             });
           }
         }
@@ -938,14 +1108,17 @@ export function computeInfra(
         cumulative += p.weight;
         if (cumulative >= target) return p.latency;
       }
-      return sorted[sorted.length - 1].latency;
+      // In-bounds: paths.length > 0 guarded above, so sorted is non-empty.
+      return sorted[sorted.length - 1]!.latency;
     };
 
     return { p50: getP(50), p90: getP(90), p99: getP(99) };
   }
 
   /** Compute availability percentiles from weighted leaf paths. */
-  function availabilityPercentilesFromPaths(paths: LeafPath[]): InfraAvailabilityPercentiles {
+  function availabilityPercentilesFromPaths(
+    paths: LeafPath[]
+  ): InfraAvailabilityPercentiles {
     if (paths.length === 0) return { p50: 1, p90: 1, p99: 1 };
     // Sort ascending by availability (worst paths first)
     const sorted = [...paths].sort((a, b) => a.availability - b.availability);
@@ -959,7 +1132,8 @@ export function computeInfra(
         cumulative += p.weight;
         if (cumulative >= target) return p.availability;
       }
-      return sorted[sorted.length - 1].availability;
+      // In-bounds: paths.length > 0 guarded above, so sorted is non-empty.
+      return sorted[sorted.length - 1]!.availability;
     };
 
     return { p50: getP(50), p90: getP(90), p99: getP(99) };
@@ -973,18 +1147,27 @@ export function computeInfra(
   // System-wide percentiles (from edge node)
   const edgeLeafPaths = edgeNode ? (nodeLeafCache.get(edgeNode.id) ?? []) : [];
   const edgeLatency = percentilesFromPaths(edgeLeafPaths);
-  const systemUptime = edgeLeafPaths.length > 0
-    ? (() => {
-        const tw = edgeLeafPaths.reduce((s, p) => s + p.weight, 0);
-        return tw > 0 ? edgeLeafPaths.reduce((s, p) => s + p.uptime * (p.weight / tw), 0) : 1;
-      })()
-    : 1;
-  const systemAvailability = edgeLeafPaths.length > 0
-    ? (() => {
-        const tw = edgeLeafPaths.reduce((s, p) => s + p.weight, 0);
-        return tw > 0 ? edgeLeafPaths.reduce((s, p) => s + p.availability * (p.weight / tw), 0) : 1;
-      })()
-    : 1;
+  const systemUptime =
+    edgeLeafPaths.length > 0
+      ? (() => {
+          const tw = edgeLeafPaths.reduce((s, p) => s + p.weight, 0);
+          return tw > 0
+            ? edgeLeafPaths.reduce((s, p) => s + p.uptime * (p.weight / tw), 0)
+            : 1;
+        })()
+      : 1;
+  const systemAvailability =
+    edgeLeafPaths.length > 0
+      ? (() => {
+          const tw = edgeLeafPaths.reduce((s, p) => s + p.weight, 0);
+          return tw > 0
+            ? edgeLeafPaths.reduce(
+                (s, p) => s + p.availability * (p.weight / tw),
+                0
+              )
+            : 1;
+        })()
+      : 1;
 
   // Per-node percentiles + downstream availability map
   const nodePercentiles = new Map<string, InfraLatencyPercentiles>();
@@ -1000,154 +1183,189 @@ export function computeInfra(
     } else {
       // Weighted average of compound availability across all downstream leaf paths
       const tw = paths.reduce((s, p) => s + p.weight, 0);
-      downstreamAvailability.set(node.id, tw > 0
-        ? paths.reduce((s, p) => s + p.availability * (p.weight / tw), 0)
-        : localAvailability.get(node.id) ?? 1);
+      downstreamAvailability.set(
+        node.id,
+        tw > 0
+          ? paths.reduce((s, p) => s + p.availability * (p.weight / tw), 0)
+          : (localAvailability.get(node.id) ?? 1)
+      );
     }
   }
 
   // Build computed nodes
-  const computedNodes: ComputedInfraNode[] = effectiveParsed.nodes.map((node) => {
-    const rps = computedRps.get(node.id) ?? 0;
-    const gMul = groupInstMultiplier.get(node.id) ?? 1;
-    let capacity: number;
-    let dynInstances: number;
+  const computedNodes: ComputedInfraNode[] = effectiveParsed.nodes.map(
+    (node) => {
+      const rps = computedRps.get(node.id) ?? 0;
+      const gMul = groupInstMultiplier.get(node.id) ?? 1;
+      let capacity: number;
+      let dynInstances: number;
 
-    if (isServerless(node)) {
-      capacity = serverlessCapacity(node);
-      dynInstances = 0; // serverless has no instances
-    } else {
-      const maxRps = getNumProp(node, 'max-rps', 0);
-      dynInstances = instanceOverrides[node.id] ?? computeDynamicInstances(node, rps);
-      capacity = maxRps > 0 ? maxRps * dynInstances * gMul : 0;
-    }
-    const overloaded = capacity > 0 && rps > capacity;
-
-    // Rate-limit check: is inbound RPS (after cache/fw/bot) exceeding ratelimit-rps?
-    let rateLimited = false;
-    if (!node.isEdge) {
-      const rl = getNumProp(node, 'ratelimit-rps', 0);
-      if (rl > 0 && rps > 0) {
-        let preRl = rps;
-        const ch = getNumProp(node, 'cache-hit', 0);
-        if (ch > 0) preRl *= (100 - ch) / 100;
-        const fw = getNumProp(node, 'firewall-block', 0);
-        if (fw > 0) preRl *= (100 - fw) / 100;
-        rateLimited = preRl > rl;
+      if (isServerless(node)) {
+        capacity = serverlessCapacity(node);
+        dynInstances = 0; // serverless has no instances
+      } else {
+        const maxRps = getNumProp(node, 'max-rps', 0);
+        dynInstances =
+          instanceOverrides[node.id] ?? computeDynamicInstances(node, rps);
+        capacity = maxRps > 0 ? maxRps * dynInstances * gMul : 0;
       }
-    }
+      const overloaded = capacity > 0 && rps > capacity;
 
-    // Serverless nodes use duration-ms as their latency contribution
-    const nodeLatency = node.isEdge ? 0
-      : isServerless(node) ? getNumProp(node, 'duration-ms', 100)
-      : getNumProp(node, 'latency-ms', defaultLatencyMs);
-    const cumulativeLatency = (computedLatency.get(node.id) ?? 0) + nodeLatency;
-    const nodeUptime = node.isEdge ? 1 : getNumProp(node, 'uptime', defaultUptime) / 100;
-    const cumulativeUptime = (computedUptime.get(node.id) ?? 1) * nodeUptime;
-
-    const cbState = computeCbState(node, rps, cumulativeLatency, instanceOverrides[node.id], gMul);
-
-    if (overloaded) {
-      const capDetail = isServerless(node)
-        ? `concurrency ${getNumProp(node, 'concurrency', 0)} / ${getNumProp(node, 'duration-ms', 100)}ms`
-        : `${getNumProp(node, 'max-rps', 0)} x ${dynInstances}${gMul > 1 ? ` x ${gMul} group` : ''}`;
-      diagnostics.push({
-        type: 'OVERLOAD',
-        line: node.lineNumber,
-        message: `${node.label} is overloaded: ${Math.round(rps)} rps exceeds capacity ${Math.round(capacity)} rps (${capDetail}).`,
-      });
-    }
-    if (rateLimited) {
-      diagnostics.push({
-        type: 'RATE_LIMITED',
-        line: node.lineNumber,
-        message: `${node.label} is rate-limiting: inbound traffic exceeds ratelimit-rps.`,
-      });
-    }
-
-    // For collapsed group nodes: compute worst child health state
-    let childHealthState: 'normal' | 'warning' | 'overloaded' | undefined;
-    const childCaps = collapseChildCaps.get(node.id);
-    if (childCaps && childCaps.length > 0) {
-      const gInst = collapseGroupInst.get(node.id) ?? 1;
-      const perInstanceRps = rps / gInst;
-      let worst: 'normal' | 'warning' | 'overloaded' = 'normal';
-      for (const cap of childCaps) {
-        if (cap > 0 && perInstanceRps > cap) worst = 'overloaded';
-        else if (cap > 0 && perInstanceRps > cap * 0.7 && worst !== 'overloaded') worst = 'warning';
+      // Rate-limit check: is inbound RPS (after cache/fw/bot) exceeding ratelimit-rps?
+      let rateLimited = false;
+      if (!node.isEdge) {
+        const rl = getNumProp(node, 'ratelimit-rps', 0);
+        if (rl > 0 && rps > 0) {
+          let preRl = rps;
+          const ch = getNumProp(node, 'cache-hit', 0);
+          if (ch > 0) preRl *= (100 - ch) / 100;
+          const fw = getNumProp(node, 'firewall-block', 0);
+          if (fw > 0) preRl *= (100 - fw) / 100;
+          rateLimited = preRl > rl;
+        }
       }
-      childHealthState = worst;
-    }
 
-    // Queue metrics — drain-rate scales with group instances, buffer does NOT
-    let queueMetrics: ComputedInfraNode['queueMetrics'];
-    if (isQueue(node)) {
-      const buffer = getNumProp(node, 'buffer', 0);
-      const drainRate = getNumProp(node, 'drain-rate', 0) * gMul;
-      const fillRate = drainRate > 0 ? Math.max(0, rps - drainRate) : 0;
-      const timeToOverflow = fillRate > 0 ? buffer / fillRate : Infinity;
-      const waitTimeMs = fillRate > 0 && drainRate > 0 ? (fillRate / drainRate) * 1000 : 0;
-      queueMetrics = { fillRate, timeToOverflow, waitTimeMs };
-    }
+      // Serverless nodes use duration-ms as their latency contribution
+      const nodeLatency = node.isEdge
+        ? 0
+        : isServerless(node)
+          ? getNumProp(node, 'duration-ms', 100)
+          : getNumProp(node, 'latency-ms', defaultLatencyMs);
+      const cumulativeLatency =
+        (computedLatency.get(node.id) ?? 0) + nodeLatency;
+      const nodeUptime = node.isEdge
+        ? 1
+        : getNumProp(node, 'uptime', defaultUptime) / 100;
+      const cumulativeUptime = (computedUptime.get(node.id) ?? 1) * nodeUptime;
 
-    return {
-      id: node.id,
-      label: node.label,
-      groupId: node.groupId,
-      isEdge: node.isEdge,
-      computedRps: rps,
-      overloaded,
-      rateLimited,
-      computedLatencyMs: cumulativeLatency,
-      computedLatencyPercentiles: nodePercentiles.get(node.id) ?? { p50: 0, p90: 0, p99: 0 },
-      computedUptime: cumulativeUptime,
-      computedAvailability: downstreamAvailability.get(node.id) ?? 1,
-      computedAvailabilityPercentiles: nodeAvailPercentiles.get(node.id) ?? { p50: 1, p90: 1, p99: 1 },
-      computedCbState: cbState,
-      computedInstances: (collapseGroupInst.get(node.id) ?? dynInstances) * gMul,
-      computedConcurrentInvocations: isServerless(node)
-        ? Math.ceil(rps * getNumProp(node, 'duration-ms', 100) / 1000)
-        : 0,
-      childHealthState,
-      queueMetrics,
-      properties: node.properties,
-      tags: node.tags,
-      description: node.description,
-      lineNumber: node.lineNumber,
-    };
-  });
+      const cbState = computeCbState(
+        node,
+        rps,
+        cumulativeLatency,
+        instanceOverrides[node.id],
+        gMul
+      );
+
+      if (overloaded) {
+        const capDetail = isServerless(node)
+          ? `concurrency ${getNumProp(node, 'concurrency', 0)} / ${getNumProp(node, 'duration-ms', 100)}ms`
+          : `${getNumProp(node, 'max-rps', 0)} x ${dynInstances}${gMul > 1 ? ` x ${gMul} group` : ''}`;
+        diagnostics.push({
+          type: 'OVERLOAD',
+          line: node.lineNumber,
+          message: `${node.label} is overloaded: ${Math.round(rps)} rps exceeds capacity ${Math.round(capacity)} rps (${capDetail}).`,
+        });
+      }
+      if (rateLimited) {
+        diagnostics.push({
+          type: 'RATE_LIMITED',
+          line: node.lineNumber,
+          message: `${node.label} is rate-limiting: inbound traffic exceeds ratelimit-rps.`,
+        });
+      }
+
+      // For collapsed group nodes: compute worst child health state
+      let childHealthState: 'normal' | 'warning' | 'overloaded' | undefined;
+      const childCaps = collapseChildCaps.get(node.id);
+      if (childCaps && childCaps.length > 0) {
+        const gInst = collapseGroupInst.get(node.id) ?? 1;
+        const perInstanceRps = rps / gInst;
+        let worst: 'normal' | 'warning' | 'overloaded' = 'normal';
+        for (const cap of childCaps) {
+          if (cap > 0 && perInstanceRps > cap) worst = 'overloaded';
+          else if (
+            cap > 0 &&
+            perInstanceRps > cap * 0.7 &&
+            worst !== 'overloaded'
+          )
+            worst = 'warning';
+        }
+        childHealthState = worst;
+      }
+
+      // Queue metrics — drain-rate scales with group instances, buffer does NOT
+      let queueMetrics: ComputedInfraNode['queueMetrics'];
+      if (isQueue(node)) {
+        const buffer = getNumProp(node, 'buffer', 0);
+        const drainRate = getNumProp(node, 'drain-rate', 0) * gMul;
+        const fillRate = drainRate > 0 ? Math.max(0, rps - drainRate) : 0;
+        const timeToOverflow = fillRate > 0 ? buffer / fillRate : Infinity;
+        const waitTimeMs =
+          fillRate > 0 && drainRate > 0 ? (fillRate / drainRate) * 1000 : 0;
+        queueMetrics = { fillRate, timeToOverflow, waitTimeMs };
+      }
+
+      return {
+        id: node.id,
+        label: node.label,
+        groupId: node.groupId,
+        isEdge: node.isEdge,
+        computedRps: rps,
+        overloaded,
+        rateLimited,
+        computedLatencyMs: cumulativeLatency,
+        computedLatencyPercentiles: nodePercentiles.get(node.id) ?? {
+          p50: 0,
+          p90: 0,
+          p99: 0,
+        },
+        computedUptime: cumulativeUptime,
+        computedAvailability: downstreamAvailability.get(node.id) ?? 1,
+        computedAvailabilityPercentiles: nodeAvailPercentiles.get(node.id) ?? {
+          p50: 1,
+          p90: 1,
+          p99: 1,
+        },
+        computedCbState: cbState,
+        computedInstances:
+          (collapseGroupInst.get(node.id) ?? dynInstances) * gMul,
+        computedConcurrentInvocations: isServerless(node)
+          ? Math.ceil((rps * getNumProp(node, 'duration-ms', 100)) / 1000)
+          : 0,
+        childHealthState,
+        queueMetrics,
+        properties: node.properties,
+        tags: node.tags,
+        description: node.description,
+        lineNumber: node.lineNumber,
+      };
+    }
+  );
 
   // Build computed edges with resolved splits and rps
-  const computedEdges: ComputedInfraEdge[] = effectiveParsed.edges.map((edge) => {
-    const edgeKey = `${edge.sourceId}->${edge.targetId}`;
-    const rps = computedEdgeRps.get(edgeKey) ?? 0;
+  const computedEdges: ComputedInfraEdge[] = effectiveParsed.edges.map(
+    (edge) => {
+      const edgeKey = `${edge.sourceId}->${edge.targetId}`;
+      const rps = computedEdgeRps.get(edgeKey) ?? 0;
 
-    // Get resolved split
-    const outbound = outboundMap.get(edge.sourceId) ?? [];
-    let resolvedSplit = edge.split ?? 100;
-    if (outbound.length > 1 && edge.split === null) {
-      // Was inferred
-      const declared = outbound.filter((e) => e.split !== null);
-      if (declared.length === 0) {
-        resolvedSplit = 100 / outbound.length;
-      } else {
-        const declaredSum = declared.reduce((s, e) => s + (e.split ?? 0), 0);
-        const undeclared = outbound.filter((e) => e.split === null);
-        resolvedSplit = undeclared.length > 0 ? (100 - declaredSum) / undeclared.length : 0;
+      // Get resolved split
+      const outbound = outboundMap.get(edge.sourceId) ?? [];
+      let resolvedSplit = edge.split ?? 100;
+      if (outbound.length > 1 && edge.split === null) {
+        // Was inferred
+        const declared = outbound.filter((e) => e.split !== null);
+        if (declared.length === 0) {
+          resolvedSplit = 100 / outbound.length;
+        } else {
+          const declaredSum = declared.reduce((s, e) => s + (e.split ?? 0), 0);
+          const undeclared = outbound.filter((e) => e.split === null);
+          resolvedSplit =
+            undeclared.length > 0 ? (100 - declaredSum) / undeclared.length : 0;
+        }
       }
-    }
 
-    return {
-      sourceId: edge.sourceId,
-      targetId: edge.targetId,
-      label: edge.label,
-      async: edge.async,
-      computedRps: rps,
-      split: resolvedSplit,
-      fanout: edge.fanout,
-      lineNumber: edge.lineNumber,
-    };
-  });
+      return {
+        sourceId: edge.sourceId,
+        targetId: edge.targetId,
+        label: edge.label,
+        async: edge.async,
+        computedRps: rps,
+        split: resolvedSplit,
+        fanout: edge.fanout,
+        lineNumber: edge.lineNumber,
+      };
+    }
+  );
 
   return {
     nodes: computedNodes,

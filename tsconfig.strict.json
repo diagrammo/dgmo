@@ -34,6 +34,7 @@
     "src/wireframe/**/*.ts",
     "src/org/**/*.ts",
     "src/cycle/**/*.ts",
-    "src/pert/**/*.ts"
+    "src/pert/**/*.ts",
+    "src/infra/**/*.ts"
   ]
 }

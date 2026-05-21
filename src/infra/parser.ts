@@ -119,7 +119,8 @@ function groupId(name: string): string {
 
 function parsePropertyValue(raw: string): string | number {
   const pct = raw.match(PERCENT_RE);
-  if (pct) return parseFloat(pct[1]);
+  // Capture group 1 in-bounds after successful match.
+  if (pct) return parseFloat(pct[1]!);
 
   const num = parseFloat(raw);
   if (!isNaN(num) && String(num) === raw.trim()) return num;
@@ -136,7 +137,8 @@ function extractPipeMetadata(rest: string): {
   let match: RegExpExecArray | null;
   PIPE_META_RE.lastIndex = 0;
   while ((match = PIPE_META_RE.exec(rest)) !== null) {
-    tags[match[1].trim()] = match[2].trim();
+    // Capture groups 1 & 2 in-bounds after successful match.
+    tags[match[1]!.trim()] = match[2]!.trim();
     clean = clean.replace(match[0], '');
   }
   return { tags, clean: clean.trim() };
@@ -194,7 +196,8 @@ export function parseInfra(content: string): ParsedInfra {
     const trimmed = label.trim();
     const m = trimmed.match(/^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/);
     if (!m) return { label: trimmed };
-    return { label: m[1].trim(), alias: m[2] };
+    // Capture groups 1 & 2 in-bounds after successful match.
+    return { label: m[1]!.trim(), alias: m[2] };
   }
 
   // Infra nodes have no "is a <type>" declaration — capability comes from
@@ -212,7 +215,8 @@ export function parseInfra(content: string): ParsedInfra {
       lineNumber,
       `Infra nodes don't use 'is a <type>' — types are inferred from properties (cache-hit, buffer, drain-rate, …). Drop the 'is a' suffix.`
     );
-    return { label: m[1].trim(), alias: peeled.alias };
+    // Capture group 1 in-bounds after successful match.
+    return { label: m[1]!.trim(), alias: peeled.alias };
   }
   /**
    * Resolve a connection-target token. If the token exactly matches a
@@ -311,7 +315,8 @@ export function parseInfra(content: string): ParsedInfra {
   }
 
   for (let i = 0; i < lines.length; i++) {
-    const raw = lines[i];
+    // In-bounds by loop guard.
+    const raw = lines[i]!;
     const lineNumber = i + 1;
     const trimmed = raw.trim();
     const indent = measureIndent(raw);
@@ -367,8 +372,9 @@ export function parseInfra(content: string): ParsedInfra {
 
       // Top-level options: `key value` (space-separated, no colon)
       const optMatch = trimmed.match(OPTION_NOCOLON_RE);
-      if (optMatch && TOP_LEVEL_OPTIONS.has(optMatch[1].toLowerCase())) {
-        result.options[optMatch[1].toLowerCase()] = optMatch[2].trim();
+      // Capture groups 1 & 2 in-bounds after successful match.
+      if (optMatch && TOP_LEVEL_OPTIONS.has(optMatch[1]!.toLowerCase())) {
+        result.options[optMatch[1]!.toLowerCase()] = optMatch[2]!.trim();
         continue;
       }
 
@@ -392,7 +398,8 @@ export function parseInfra(content: string): ParsedInfra {
       if (groupMatch) {
         finishCurrentNode();
         finishCurrentTagGroup();
-        const gLabel = groupMatch[1].trim();
+        // Capture group 1 in-bounds after successful match.
+        const gLabel = groupMatch[1]!.trim();
         const groupAlias = groupMatch[2];
         const gId = groupId(gLabel);
         if (groupAlias) nameAliasMap.set(groupAlias, gId);
@@ -486,8 +493,9 @@ export function parseInfra(content: string): ParsedInfra {
       // Group-level properties (instances, collapsed)
       const propMatch = trimmed.match(PROPERTY_RE);
       if (propMatch) {
-        const key = propMatch[1].toLowerCase();
-        const val = propMatch[2].trim();
+        // Capture groups 1 & 2 in-bounds after successful match.
+        const key = propMatch[1]!.toLowerCase();
+        const val = propMatch[2]!.trim();
         if (key === 'instances') {
           const rangeM = val.match(RANGE_RE);
           if (rangeM) {
@@ -556,7 +564,8 @@ export function parseInfra(content: string): ParsedInfra {
       // Async simple connection: ~> Target
       const asyncSimpleConn = trimmed.match(ASYNC_SIMPLE_CONNECTION_RE);
       if (asyncSimpleConn) {
-        const targetRaw = asyncSimpleConn[1].trim();
+        // Capture group 1 in-bounds after successful match.
+        const targetRaw = asyncSimpleConn[1]!.trim();
         const pipeMeta = extractPipeMetadata(targetRaw);
         const targetName = pipeMeta.clean || targetRaw;
         warnUnparsedPipeMeta(targetName, lineNumber, warn);
@@ -594,7 +603,8 @@ export function parseInfra(content: string): ParsedInfra {
         const labelResult = parseInArrowLabel(rawLabel, lineNumber);
         result.diagnostics.push(...labelResult.diagnostics);
         const label = labelResult.label ?? '';
-        const targetRaw = asyncConnMatch[2].trim();
+        // Capture group 2 in-bounds after successful match.
+        const targetRaw = asyncConnMatch[2]!.trim();
         const pipeMeta = extractPipeMetadata(targetRaw);
         const targetName = pipeMeta.clean || targetRaw;
         warnUnparsedPipeMeta(targetName, lineNumber, warn);
@@ -615,7 +625,8 @@ export function parseInfra(content: string): ParsedInfra {
         let targetId: string;
         const targetGroupMatch = targetName.match(/^\[([^\]]+)\]/);
         if (targetGroupMatch) {
-          targetId = groupId(targetGroupMatch[1]);
+          // Capture group 1 in-bounds after successful match.
+          targetId = groupId(targetGroupMatch[1]!);
           rememberTargetDisplay(targetId, `[${targetGroupMatch[1]}]`);
         } else {
           targetId = resolveTargetId(targetName);
@@ -637,7 +648,8 @@ export function parseInfra(content: string): ParsedInfra {
       // Simple connection: -> Target  or  -> Target | fanout: 5
       const simpleConn = trimmed.match(SIMPLE_CONNECTION_RE);
       if (simpleConn) {
-        const targetRaw = simpleConn[1].trim();
+        // Capture group 1 in-bounds after successful match.
+        const targetRaw = simpleConn[1]!.trim();
         const pipeMeta = extractPipeMetadata(targetRaw);
         const targetName = pipeMeta.clean || targetRaw;
         warnUnparsedPipeMeta(targetName, lineNumber, warn);
@@ -675,7 +687,8 @@ export function parseInfra(content: string): ParsedInfra {
         const labelResult = parseInArrowLabel(rawLabel, lineNumber);
         result.diagnostics.push(...labelResult.diagnostics);
         const label = labelResult.label ?? '';
-        const targetRaw = connMatch[2].trim();
+        // Capture group 2 in-bounds after successful match.
+        const targetRaw = connMatch[2]!.trim();
         const pipeMeta = extractPipeMetadata(targetRaw);
         const targetName = pipeMeta.clean || targetRaw;
         warnUnparsedPipeMeta(targetName, lineNumber, warn);
@@ -697,7 +710,8 @@ export function parseInfra(content: string): ParsedInfra {
         let targetId: string;
         const targetGroupMatch = targetName.match(/^\[([^\]]+)\]/);
         if (targetGroupMatch) {
-          targetId = groupId(targetGroupMatch[1]);
+          // Capture group 1 in-bounds after successful match.
+          targetId = groupId(targetGroupMatch[1]!);
           rememberTargetDisplay(targetId, `[${targetGroupMatch[1]}]`);
         } else {
           targetId = resolveTargetId(targetName);
@@ -722,8 +736,9 @@ export function parseInfra(content: string): ParsedInfra {
       // Property: key: value
       const propMatch = trimmed.match(PROPERTY_RE);
       if (propMatch) {
-        const key = propMatch[1].toLowerCase();
-        const rawVal = propMatch[2].trim();
+        // Capture groups 1 & 2 in-bounds after successful match.
+        const key = propMatch[1]!.toLowerCase();
+        const rawVal = propMatch[2]!.trim();
 
         // description is display metadata, not a behavior key; silently ignored on edge nodes.
         // Single-line only — no length enforcement, but keep it short for legibility.
@@ -913,9 +928,11 @@ import type { DiagramSymbols } from '../completion-types';
 function stripNodeDecorations(name: string): string {
   let s = name.trim();
   const aliasMatch = s.match(/^(.*?)\s+as\s+[A-Za-z][A-Za-z0-9_]{0,11}\s*$/);
-  if (aliasMatch) s = aliasMatch[1].trim();
+  // Capture group 1 in-bounds after successful match.
+  if (aliasMatch) s = aliasMatch[1]!.trim();
   const isAMatch = s.match(/^(.*?)\s+is\s+an?\s+[A-Za-z][\w-]*\s*$/i);
-  if (isAMatch) s = isAMatch[1].trim();
+  // Capture group 1 in-bounds after successful match.
+  if (isAMatch) s = isAMatch[1]!.trim();
   return s;
 }
 
@@ -970,7 +987,8 @@ export function extractSymbols(docText: string): DiagramSymbols {
       if (/^~[^~]+~>/.test(line)) continue; // async labeled connection
       if (/^\w[\w-]*\s*:/.test(line)) continue; // property (key: value) legacy
       // New-style property: first token is a known behavior/property key
-      const firstToken = line.split(/\s/)[0].toLowerCase();
+      // String.split always returns at least one element; line.length > 0 here.
+      const firstToken = line.split(/\s/)[0]!.toLowerCase();
       if (
         (INFRA_BEHAVIOR_KEYS.has(firstToken) ||
           EDGE_ONLY_KEYS.has(firstToken) ||

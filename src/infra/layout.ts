@@ -486,8 +486,9 @@ export function separateGroups(
     let anyOverlap = false;
     for (let i = 0; i < groups.length; i++) {
       for (let j = i + 1; j < groups.length; j++) {
-        const ga = groups[i];
-        const gb = groups[j];
+        // In-bounds by loop guard.
+        const ga = groups[i]!;
+        const gb = groups[j]!;
 
         // Symmetric primary-axis overlap (Y for LR, X for TB)
         const primaryOverlap = isLR
@@ -709,7 +710,8 @@ export function layoutInfra(
     const children = groupChildren.get(edge.targetId);
     if (children && children.length > 0) {
       // Use the first child's edge points as representative
-      const edgeData = g.edge(edge.sourceId, children[0]);
+      // In-bounds: children.length > 0 guarded above.
+      const edgeData = g.edge(edge.sourceId, children[0]!);
       layoutEdges.push({
         sourceId: edge.sourceId,
         targetId: edge.targetId,

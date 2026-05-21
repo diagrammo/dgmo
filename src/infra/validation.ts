@@ -88,7 +88,8 @@ function validateSplits(parsed: ParsedInfra): InfraDiagnostic[] {
       if (Math.abs(sum - 100) > 0.01) {
         diagnostics.push({
           type: 'SPLIT_SUM',
-          line: declared[0].lineNumber,
+          // In-bounds: declared.length === edges.length > 1 here.
+          line: declared[0]!.lineNumber,
           message: `Splits from '${sourceId}' sum to ${sum}%, expected 100%.`,
         });
       }
@@ -98,7 +99,8 @@ function validateSplits(parsed: ParsedInfra): InfraDiagnostic[] {
       if (declaredSum > 100) {
         diagnostics.push({
           type: 'SPLIT_SUM',
-          line: declared[0].lineNumber,
+          // In-bounds: declared.length > 0 here.
+          line: declared[0]!.lineNumber,
           message: `Declared splits from '${sourceId}' sum to ${declaredSum}%, exceeding 100%.`,
         });
       }
@@ -175,7 +177,9 @@ export function validateInfra(parsed: ParsedInfra): InfraDiagnostic[] {
  * Validate computed model (post-computation warnings).
  * Call after computeInfra() to get uptime/SLA warnings.
  */
-export function validateComputed(computed: ComputedInfraModel): InfraDiagnostic[] {
+export function validateComputed(
+  computed: ComputedInfraModel
+): InfraDiagnostic[] {
   const diagnostics: InfraDiagnostic[] = [];
 
   // Uptime warning: if system uptime is below 99%

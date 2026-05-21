@@ -216,7 +216,8 @@ function computePortPts(
     const n = sorted.length;
     for (let i = 0; i < n; i++) {
       const frac = n === 1 ? 0.5 : PAD + ((1 - 2 * PAD) * i) / (n - 1);
-      const { e, t } = sorted[i];
+      // In-bounds by loop guard.
+      const { e, t } = sorted[i]!;
       const isBackward = direction === 'LR' ? t.x < source.x : t.y < source.y;
       if (direction === 'LR') {
         srcPts.set(`${e.sourceId}:${e.targetId}`, {
@@ -255,7 +256,8 @@ function computePortPts(
     const n = sorted.length;
     for (let i = 0; i < n; i++) {
       const frac = n === 1 ? 0.5 : PAD + ((1 - 2 * PAD) * i) / (n - 1);
-      const { e, s } = sorted[i];
+      // In-bounds by loop guard.
+      const { e, s } = sorted[i]!;
       const isBackward = direction === 'LR' ? target.x < s.x : target.y < s.y;
       if (direction === 'LR') {
         tgtPts.set(`${e.sourceId}:${e.targetId}`, {
@@ -299,8 +301,12 @@ function findRoutingLane(
   for (const r of sorted) {
     const lo = r.y - MERGE_SLOP;
     const hi = r.y + r.height + MERGE_SLOP;
-    if (merged.length && lo <= merged[merged.length - 1][1]) {
-      merged[merged.length - 1][1] = Math.max(merged[merged.length - 1][1], hi);
+    // In-bounds: merged.length > 0 guarded on this branch.
+    if (merged.length && lo <= merged[merged.length - 1]![1]) {
+      merged[merged.length - 1]![1] = Math.max(
+        merged[merged.length - 1]![1],
+        hi
+      );
     } else {
       merged.push([lo, hi]);
     }
@@ -311,12 +317,14 @@ function findRoutingLane(
   // MIN_GAP: allow narrow gaps (edge is ~1.5px, so even 10px clearance is fine).
   const MIN_GAP = 10;
   const candidates: number[] = [
-    merged[0][0] - margin, // above all blocking rects
-    merged[merged.length - 1][1] + margin, // below all blocking rects
+    // In-bounds: merged.length > 0 guarded above.
+    merged[0]![0] - margin, // above all blocking rects
+    merged[merged.length - 1]![1] + margin, // below all blocking rects
   ];
   for (let i = 0; i < merged.length - 1; i++) {
-    const gapLo = merged[i][1];
-    const gapHi = merged[i + 1][0];
+    // In-bounds by loop guard.
+    const gapLo = merged[i]![1];
+    const gapHi = merged[i + 1]![0];
     if (gapHi - gapLo >= MIN_GAP) {
       candidates.push((gapLo + gapHi) / 2); // thread through the gap
     }
@@ -324,8 +332,9 @@ function findRoutingLane(
 
   // Return the candidate closest to targetY (tightest arc)
   return candidates.reduce(
+    // candidates[0] is a non-empty array (two seed values pushed above).
     (best, c) => (Math.abs(c - targetY) < Math.abs(best - targetY) ? c : best),
-    candidates[0]
+    candidates[0]!
   );
 }
 
@@ -1272,6 +1281,7 @@ function renderEdgeLabels(
     );
     // Label midpoint: middle waypoint of the routed path
     const midPt = wps[Math.floor(wps.length / 2)];
+    if (!midPt) continue;
     const labelText = edge.label;
 
     const g = svg.append('g').attr('class', animate ? 'infra-edge-label' : '');
@@ -1463,7 +1473,8 @@ function renderNodes(
         expanded && node.description && !node.isEdge ? node.description : [];
       const descH = descLines.length * META_LINE_HEIGHT;
       for (let di = 0; di < descLines.length; di++) {
-        const rawLine = descLines[di];
+        // In-bounds by loop guard.
+        const rawLine = descLines[di]!;
         const processed = preprocessDescriptionLine(rawLine);
         const descTruncated = truncateDesc(processed);
         const isTruncated = descTruncated !== processed;
@@ -1747,7 +1758,8 @@ function renderNodes(
             .attr('cx', startX + i * (ROLE_DOT_RADIUS * 2 + 2))
             .attr('cy', dotY)
             .attr('r', ROLE_DOT_RADIUS)
-            .attr('fill', roles[i].color);
+            // In-bounds by loop guard.
+            .attr('fill', roles[i]!.color);
         }
       }
 
