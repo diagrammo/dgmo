@@ -1968,6 +1968,13 @@ export function renderSequenceDiagram(
   // FRAME_PADDING_TOP declared earlier (near BLOCK_HEADER_SPACE)
   const FRAME_PADDING_BOTTOM = 15;
   const FRAME_LABEL_HEIGHT = 18;
+  // Self-loop projects ACTIVATION_WIDTH/2 + SELF_CALL_WIDTH (=35) past the
+  // lifeline; FRAME_PADDING_X (=30) leaves no breathing room. When a block
+  // contains a self-arrow, extend the frame on the loop's side so the loop
+  // sits comfortably inside.
+  const SELF_ARROW_PROJECTION = ACTIVATION_WIDTH / 2 + SELF_CALL_WIDTH;
+  const SELF_ARROW_FRAME_PAD = 10;
+  const frameRightmostX = Math.max(...Array.from(participantX.values()));
 
   // Collect message indices from an element subtree
   const collectMsgIndices = (els: SequenceElement[]): number[] => {
@@ -2063,14 +2070,46 @@ export function renderSequenceDiagram(
         }
       }
 
-      const frameX = minPX - FRAME_PADDING_X;
+      // Self-arrow geometry: extend frame on the loop's side so loops sit
+      // comfortably inside, and extend vertically if the block's last step
+      // is a self-call (whose loop drops SELF_CALL_HEIGHT below stepY).
+      let extraLeft = 0;
+      let extraRight = 0;
+      let maxStepIsSelfCall = false;
+      for (const mi of allIndices) {
+        const m = messages[mi];
+        if (m.from === m.to) {
+          const px = participantX.get(m.from);
+          if (px !== undefined) {
+            const flipLeft = px === frameRightmostX;
+            if (flipLeft) {
+              const loopMin = px - SELF_ARROW_PROJECTION;
+              const need =
+                minPX - FRAME_PADDING_X - loopMin + SELF_ARROW_FRAME_PAD;
+              if (need > 0) extraLeft = Math.max(extraLeft, need);
+            } else {
+              const loopMax = px + SELF_ARROW_PROJECTION;
+              const need =
+                loopMax - (maxPX + FRAME_PADDING_X) + SELF_ARROW_FRAME_PAD;
+              if (need > 0) extraRight = Math.max(extraRight, need);
+            }
+          }
+          if (msgToLastStep.get(mi) === maxStep) {
+            maxStepIsSelfCall = true;
+          }
+        }
+      }
+
+      const frameX = minPX - FRAME_PADDING_X - extraLeft;
       const frameY = stepY(minStep) - FRAME_PADDING_TOP;
-      const frameW = maxPX - minPX + FRAME_PADDING_X * 2;
+      const frameW =
+        maxPX - minPX + FRAME_PADDING_X * 2 + extraLeft + extraRight;
       const frameH =
         stepY(maxStep) -
         stepY(minStep) +
         FRAME_PADDING_TOP +
-        FRAME_PADDING_BOTTOM;
+        FRAME_PADDING_BOTTOM +
+        (maxStepIsSelfCall ? SELF_CALL_HEIGHT : 0);
 
       // Frame border
       svg
@@ -2292,7 +2331,7 @@ export function renderSequenceDiagram(
 
   // Render section dividers
   const leftmostX = Math.min(...Array.from(participantX.values()));
-  const rightmostX = Math.max(...Array.from(participantX.values()));
+  const rightmostX = frameRightmostX;
   const sectionLineX1 = leftmostX - PARTICIPANT_BOX_WIDTH / 2 - 10;
   const sectionLineX2 = rightmostX + PARTICIPANT_BOX_WIDTH / 2 + 10;
 
