@@ -2132,7 +2132,7 @@ export function renderSequenceDiagram(
         x: frameX + 6,
         y: frameY + FRAME_LABEL_HEIGHT - 4,
         text: `${el.type} ${el.label}`,
-        bold: true,
+        bold: false,
         italic: false,
         blockLine: el.lineNumber,
       });
@@ -2160,7 +2160,7 @@ export function renderSequenceDiagram(
               y: dividerY + 14,
               text: `else if ${branchData.label}`,
               bold: false,
-              italic: true,
+              italic: false,
               blockLine: branchData.lineNumber,
             });
           }
@@ -2189,7 +2189,7 @@ export function renderSequenceDiagram(
             y: dividerY + 14,
             text: 'else',
             bold: false,
-            italic: true,
+            italic: false,
             blockLine: el.elseLineNumber,
           });
         }
