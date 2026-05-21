@@ -319,7 +319,8 @@ function parseNoteLine(
   // 2. Bare note: `note text` or `note left [of] X text`
   const bareMatch = trimmed.match(NOTE_BARE);
   if (bareMatch) {
-    const rest = bareMatch[1].trim();
+    // Capture group 1 guaranteed present after successful match.
+    const rest = bareMatch[1]!.trim();
     const restLower = rest.toLowerCase();
 
     // Check for positioned note: `note left/right ...`
@@ -413,7 +414,8 @@ function resolveParticipantAndText(
 ): { participantId: string; text: string } | null {
   // Handle quoted participant: `"Auth Service" text`
   if (input.startsWith('"') || input.startsWith("'")) {
-    const quote = input[0];
+    // input[0] guaranteed by the startsWith check above.
+    const quote = input[0]!;
     const endQuote = input.indexOf(quote, 1);
     if (endQuote > 0) {
       const name = input.substring(1, endQuote);
@@ -503,7 +505,8 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
 
   // Handle first non-empty, non-comment line for `sequence Title` syntax
   for (let fi = 0; fi < lines.length; fi++) {
-    const fl = lines[fi].trim();
+    // In-bounds by loop guard.
+    const fl = lines[fi]!.trim();
     if (!fl || fl.startsWith('//')) continue;
     const parsed = parseFirstLine(fl);
     if (parsed?.chartType === 'sequence') {
@@ -641,7 +644,8 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
   }[] = [];
   const currentContainer = (): SequenceElement[] => {
     if (blockStack.length === 0) return result.elements;
-    const top = blockStack[blockStack.length - 1];
+    // In-bounds by the length check above.
+    const top = blockStack[blockStack.length - 1]!;
     if (top.activeElseIfBranch) return top.activeElseIfBranch.children;
     return top.inElse ? top.block.elseChildren : top.block.children;
   };
@@ -650,7 +654,8 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
   let lastMsgFrom: string | null = null;
 
   for (let i = 0; i < lines.length; i++) {
-    const raw = lines[i];
+    // In-bounds by loop guard.
+    const raw = lines[i]!;
     const trimmed = raw.trim();
     const lineNumber = i + 1;
 
@@ -667,7 +672,8 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     // Parse group heading — [Group Name] or [Group Name] | k: v
     const groupMatch = trimmed.match(GROUP_HEADING_PATTERN);
     if (groupMatch) {
-      const groupName = groupMatch[1].trim();
+      // Capture group 1 guaranteed present after successful match.
+      const groupName = groupMatch[1]!.trim();
       const groupColor = groupMatch[2]?.trim();
       let groupMeta: Record<string, string> | undefined;
 
@@ -711,8 +717,9 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     // Detect pipe-inside-brackets error: [Name | meta] → suggest [Name] | meta
     if (trimmed.startsWith('[')) {
       const fallbackMatch = trimmed.match(GROUP_HEADING_FALLBACK);
-      if (fallbackMatch && fallbackMatch[1].includes('|')) {
-        const rawInside = fallbackMatch[1];
+      // Capture group 1 guaranteed present after successful match.
+      if (fallbackMatch && fallbackMatch[1]!.includes('|')) {
+        const rawInside = fallbackMatch[1]!;
         const pipeIdx = rawInside.indexOf('|');
         const cleanName = rawInside
           .substring(0, pipeIdx)
@@ -731,7 +738,8 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     // Reject legacy ## group syntax with migration hint
     if (trimmed.match(LEGACY_GROUP_PATTERN)) {
       const legacyMatch = trimmed.match(LEGACY_GROUP_PATTERN)!;
-      const name = legacyMatch[1].trim();
+      // Capture group 1 guaranteed present after successful match.
+      const name = legacyMatch[1]!.trim();
       const color = legacyMatch[2]?.trim();
       const suggestion = color ? `[${name}(${color})]` : `[${name}]`;
       pushError(
@@ -817,11 +825,13 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     if (sectionMatch) {
       const sectionIndent = measureIndent(raw);
       while (blockStack.length > 0) {
-        const top = blockStack[blockStack.length - 1];
+        // In-bounds by the length check above.
+        const top = blockStack[blockStack.length - 1]!;
         if (sectionIndent > top.indent) break;
         blockStack.pop();
       }
-      const labelRaw = sectionMatch[1].trim();
+      // Capture group 1 guaranteed present after successful match.
+      const labelRaw = sectionMatch[1]!.trim();
       // Scoped to recognized 11-name palette colors only (§1.5).
       const colorMatch = labelRaw.match(
         /^(.+?)\((red|orange|yellow|green|blue|purple|teal|cyan|gray|black|white)\)$/
@@ -835,7 +845,8 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       contentStarted = true;
       const section: SequenceSection = {
         kind: 'section',
-        label: colorMatch ? colorMatch[1].trim() : labelRaw,
+        // Capture group 1 guaranteed present after successful match.
+        label: colorMatch ? colorMatch[1]!.trim() : labelRaw,
         lineNumber,
       };
       result.sections.push(section);
@@ -902,8 +913,9 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       // Key-value option: `active-tag Priority`
       const spaceMatch = trimmed.match(OPTION_NOCOLON_RE);
       if (spaceMatch) {
-        const optKey = spaceMatch[1].toLowerCase();
-        const optVal = spaceMatch[2].trim();
+        // Capture groups 1 and 2 guaranteed present after successful match.
+        const optKey = spaceMatch[1]!.toLowerCase();
+        const optVal = spaceMatch[2]!.trim();
         if (KNOWN_SEQ_OPTIONS.has(optKey) || KNOWN_SEQ_BOOLEANS.has(optKey)) {
           if (contentStarted) {
             pushError(
@@ -944,8 +956,9 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       : null;
     if (isAMatch) {
       contentStarted = true;
-      const id = isAMatch[1];
-      const typeStr = isAMatch[2].toLowerCase();
+      // Capture groups 1 and 2 guaranteed present after successful match.
+      const id = isAMatch[1]!;
+      const typeStr = isAMatch[2]!.toLowerCase();
       let remainder = isAMatch[3]?.trim() || '';
 
       // Reject the 5 removed-type keywords with a hard parse error
@@ -991,12 +1004,14 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
         /^(.*?)\s*\bas\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/
       );
       if (asInRemainder) {
-        nameAliasMap.set(asInRemainder[2], id);
-        remainder = asInRemainder[1].trim();
+        // Capture groups 1 and 2 guaranteed present after successful match.
+        nameAliasMap.set(asInRemainder[2]!, id);
+        remainder = asInRemainder[1]!.trim();
       }
 
       const posMatch = remainder.match(/\bposition\s+(-?\d+)/i);
-      const position = posMatch ? parseInt(posMatch[1], 10) : undefined;
+      // Capture group 1 guaranteed present after successful match.
+      const position = posMatch ? parseInt(posMatch[1]!, 10) : undefined;
 
       // Avoid duplicate participant declarations
       const key = addParticipant(id, lineNumber, {
@@ -1027,8 +1042,9 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     const posOnlyMatch = posCore.match(POSITION_ONLY_PATTERN);
     if (posOnlyMatch) {
       contentStarted = true;
-      const id = posOnlyMatch[1];
-      const position = parseInt(posOnlyMatch[2], 10);
+      // Capture groups 1 and 2 guaranteed present after successful match.
+      const id = posOnlyMatch[1]!;
+      const position = parseInt(posOnlyMatch[2]!, 10);
 
       const key = addParticipant(id, lineNumber, {
         position,
@@ -1056,8 +1072,9 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     const { core: colorCore, meta: colorMeta } = splitPipe(trimmed, lineNumber);
     const coloredMatch = colorCore.match(COLORED_PARTICIPANT_PATTERN);
     if (coloredMatch && !ARROW_PATTERN.test(colorCore)) {
-      const id = coloredMatch[1];
-      const color = coloredMatch[2].trim();
+      // Capture groups 1 and 2 guaranteed present after successful match.
+      const id = coloredMatch[1]!;
+      const color = coloredMatch[2]!.trim();
       pushError(
         lineNumber,
         `'${id}(${color})' parens-color syntax is no longer supported — use 'tag:' groups for coloring`
@@ -1115,7 +1132,8 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
 
     // Close blocks whose scope has ended (indent decreased)
     while (blockStack.length > 0) {
-      const top = blockStack[blockStack.length - 1];
+      // In-bounds by the length check above.
+      const top = blockStack[blockStack.length - 1]!;
       if (indent > top.indent) break;
       // Keep block on stack when 'else' or 'else if' matches current indent — handled below
       if (
@@ -1134,7 +1152,8 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     // Parse message lines first — arrows take priority over keywords
     // Reject "async" keyword prefix — use ~> instead
     const asyncPrefixMatch = arrowCore.match(/^async\s+(.+)$/i);
-    if (asyncPrefixMatch && ARROW_PATTERN.test(asyncPrefixMatch[1])) {
+    // Capture group 1 guaranteed present after successful match.
+    if (asyncPrefixMatch && ARROW_PATTERN.test(asyncPrefixMatch[1]!)) {
       pushError(lineNumber, 'Use ~> for async messages: A ~> B: message');
       continue;
     }
@@ -1180,9 +1199,10 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     );
     const colonPostfix = colonPostfixSync || colonPostfixAsync;
     if (colonPostfix) {
-      const a = colonPostfix[1];
-      const b = colonPostfix[2];
-      const msg = colonPostfix[3].trim();
+      // Capture groups 1-3 guaranteed present after successful match.
+      const a = colonPostfix[1]!;
+      const b = colonPostfix[2]!;
+      const msg = colonPostfix[3]!.trim();
       const arrowChar = colonPostfixAsync ? '~' : '-';
       const arrowEnd = colonPostfixAsync ? '~>' : '->';
       pushError(
@@ -1222,8 +1242,9 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     const bareCall = bareCallSync || bareCallAsync;
     if (bareCall) {
       contentStarted = true;
-      const from = bareCall[1];
-      const to = bareCall[2];
+      // Capture groups 1 and 2 guaranteed present after successful match.
+      const from = bareCall[1]!;
+      const to = bareCall[2]!;
       const fromKey = addParticipant(resolveAlias(from), lineNumber);
       const toKey = addParticipant(resolveAlias(to), lineNumber);
       lastMsgFrom = fromKey;
@@ -1248,7 +1269,8 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       const block: SequenceBlock = {
         kind: 'block',
         type: 'if',
-        label: ifMatch[1].trim(),
+        // Capture group 1 guaranteed present after successful match.
+        label: ifMatch[1]!.trim(),
         children: [],
         elseChildren: [],
         lineNumber,
@@ -1265,7 +1287,8 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       const block: SequenceBlock = {
         kind: 'block',
         type: 'loop',
-        label: loopMatch[1].trim(),
+        // Capture group 1 guaranteed present after successful match.
+        label: loopMatch[1]!.trim(),
         children: [],
         elseChildren: [],
         lineNumber,
@@ -1297,9 +1320,11 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     if (elseIfMatch) {
       if (
         blockStack.length > 0 &&
-        blockStack[blockStack.length - 1].indent === indent
+        // In-bounds by the length check above.
+        blockStack[blockStack.length - 1]!.indent === indent
       ) {
-        const top = blockStack[blockStack.length - 1];
+        // In-bounds by the length check above.
+        const top = blockStack[blockStack.length - 1]!;
         if (top.block.type === 'parallel') {
           pushError(
             lineNumber,
@@ -1309,7 +1334,8 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
         }
         if (top.block.type === 'if') {
           const branch: ElseIfBranch = {
-            label: elseIfMatch[1].trim(),
+            // Capture group 1 guaranteed present after successful match.
+            label: elseIfMatch[1]!.trim(),
             children: [],
             lineNumber,
           };
@@ -1326,9 +1352,11 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     if (trimmed.toLowerCase() === 'else') {
       if (
         blockStack.length > 0 &&
-        blockStack[blockStack.length - 1].indent === indent
+        // In-bounds by the length check above.
+        blockStack[blockStack.length - 1]!.indent === indent
       ) {
-        const top = blockStack[blockStack.length - 1];
+        // In-bounds by the length check above.
+        const top = blockStack[blockStack.length - 1]!;
         if (top.block.type === 'parallel') {
           pushError(
             lineNumber,
@@ -1348,7 +1376,8 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     // 'elif <label>' → suggest 'else if <label>'
     const elifMatch = trimmed.match(/^elif\b\s*(.*)$/i);
     if (elifMatch) {
-      const tailRaw = elifMatch[1].trim();
+      // Capture group 1 guaranteed present after successful match.
+      const tailRaw = elifMatch[1]!.trim();
       const tail = tailRaw ? ' ' + tailRaw : '';
       pushError(
         lineNumber,
@@ -1360,7 +1389,8 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     // 'else <text>' (where text isn't 'if …') → suggest 'else if <text>'
     const elseLabelMatch = trimmed.match(/^else\s+(.+)$/i);
     if (elseLabelMatch) {
-      const tail = elseLabelMatch[1].trim();
+      // Capture group 1 guaranteed present after successful match.
+      const tail = elseLabelMatch[1]!.trim();
       pushError(
         lineNumber,
         `'else' does not take a label. Did you mean 'else if ${tail}'?`
@@ -1398,7 +1428,8 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
           // Collect indented body lines
           const noteLines: string[] = [];
           while (i + 1 < lines.length) {
-            const nextRaw = lines[i + 1];
+            // In-bounds by the length check above.
+            const nextRaw = lines[i + 1]!;
             const nextTrimmed = nextRaw.trim();
             if (!nextTrimmed) break;
             const nextIndent = measureIndent(nextRaw);

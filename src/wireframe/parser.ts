@@ -168,7 +168,8 @@ function parseWireframeMetadata(raw: string): {
       states.push(lower);
     } else if (part.includes(':')) {
       const [key, ...rest] = part.split(':');
-      metadata[key.trim()] = rest.join(':').trim();
+      // In-bounds: split(':') on string containing ':' returns at least 2 elements.
+      metadata[key!.trim()] = rest.join(':').trim();
     } else {
       annotations.push(part);
     }
@@ -215,7 +216,8 @@ function matchKeyword(segment: string): {
   param?: string;
 } | null {
   const words = segment.split(/\s+/);
-  const first = words[0].toLowerCase();
+  // In-bounds: split always returns at least one element.
+  const first = words[0]!.toLowerCase();
   const kw = ELEMENT_KEYWORDS[first];
   if (!kw) return null;
 
@@ -281,10 +283,11 @@ function parseSegment(
   // Heading: `# text` or `## text`
   const headingMatch = trimmed.match(HEADING_RE);
   if (headingMatch) {
-    const level = headingMatch[1].length as 1 | 2;
+    // In-bounds: HEADING_RE has 2 capture groups; matched groups are defined.
+    const level = headingMatch[1]!.length as 1 | 2;
     const el = makeElement(
       'heading',
-      headingMatch[2].trim(),
+      headingMatch[2]!.trim(),
       lineNumber,
       indent
     );
@@ -316,7 +319,8 @@ function parseSegment(
   if (radioSelMatch) {
     const el = makeElement(
       'radio',
-      radioSelMatch[1].trim(),
+      // In-bounds: regex has one capture group; matched group is defined.
+      radioSelMatch[1]!.trim(),
       lineNumber,
       indent
     );
@@ -329,7 +333,8 @@ function parseSegment(
   if (radioUnselMatch) {
     const el = makeElement(
       'radio',
-      radioUnselMatch[1].trim(),
+      // In-bounds: regex has one capture group; matched group is defined.
+      radioUnselMatch[1]!.trim(),
       lineNumber,
       indent
     );
@@ -340,11 +345,18 @@ function parseSegment(
   // Checkbox with label: `<x> Label` or `< > Label`
   const checkLabelMatch = trimmed.match(/^(<\s*x?\s*>)\s+(.+)$/i);
   if (checkLabelMatch) {
-    const isChecked = /x/i.test(checkLabelMatch[1]);
+    // In-bounds: regex has 2 capture groups; matched groups are defined.
+    const isChecked = /x/i.test(checkLabelMatch[1]!);
     // Check for `| toggle` or other metadata
-    const labelPart = checkLabelMatch[2];
+    const labelPart = checkLabelMatch[2]!;
     const pipeSplit = labelPart.split(/\s*\|\s*/);
-    const el = makeElement('checkbox', pipeSplit[0].trim(), lineNumber, indent);
+    // In-bounds: split always returns at least one element.
+    const el = makeElement(
+      'checkbox',
+      pipeSplit[0]!.trim(),
+      lineNumber,
+      indent
+    );
     el.checked = isChecked;
     if (pipeSplit.length > 1) {
       applyMetadata(el, pipeSplit.slice(1).join(', '));
@@ -355,7 +367,8 @@ function parseSegment(
   // Dropdown: `{opt1 | opt2 | opt3}` (optional trailing metadata after closing brace)
   const dropdownMatch = trimmed.match(DROPDOWN_RE);
   if (dropdownMatch) {
-    const options = dropdownMatch[1]
+    // In-bounds: DROPDOWN_RE has 2 capture groups; first is required by match.
+    const options = dropdownMatch[1]!
       .split('|')
       .map((s) => s.trim())
       .filter(Boolean);
@@ -371,11 +384,12 @@ function parseSegment(
     diagnostics.push(
       makeDgmoError(
         lineNumber,
-        `Did you mean a dropdown? Use braces: {${parenPipeMatch[1]}} instead of (${parenPipeMatch[1]})`,
+        // In-bounds: regex has one capture group; matched group is defined.
+        `Did you mean a dropdown? Use braces: {${parenPipeMatch[1]!}} instead of (${parenPipeMatch[1]!})`,
         'warning'
       )
     );
-    const options = parenPipeMatch[1]
+    const options = parenPipeMatch[1]!
       .split('|')
       .map((s) => s.trim())
       .filter(Boolean);
@@ -387,7 +401,13 @@ function parseSegment(
   // Button: `(label)` (must come after radio/checkbox checks)
   const buttonMatch = trimmed.match(BUTTON_RE);
   if (buttonMatch) {
-    const el = makeElement('button', buttonMatch[1].trim(), lineNumber, indent);
+    // In-bounds: BUTTON_RE has 2 capture groups; first is required by match.
+    const el = makeElement(
+      'button',
+      buttonMatch[1]!.trim(),
+      lineNumber,
+      indent
+    );
     applyMetadata(el, buttonMatch[2]);
     return el;
   }
@@ -396,7 +416,13 @@ function parseSegment(
   const bracketMatch = trimmed.match(BRACKET_RE);
   if (bracketMatch) {
     // Will be disambiguated as group vs input later (by children or EC1 metadata)
-    const el = makeElement('group', bracketMatch[1].trim(), lineNumber, indent);
+    // In-bounds: BRACKET_RE has 2 capture groups; first is required by match.
+    const el = makeElement(
+      'group',
+      bracketMatch[1]!.trim(),
+      lineNumber,
+      indent
+    );
     applyMetadata(el, bracketMatch[2]);
     // If no group-forcing metadata applied, default to textInput — will be
     // overridden to 'group' if children are added during indent-stack processing
@@ -412,7 +438,8 @@ function parseSegment(
   // List item: `- text` (F38: anchored to segment start)
   const listMatch = trimmed.match(LIST_ITEM_RE);
   if (listMatch) {
-    return makeElement('listItem', listMatch[1].trim(), lineNumber, indent);
+    // In-bounds: LIST_ITEM_RE has one capture group; matched group is defined.
+    return makeElement('listItem', listMatch[1]!.trim(), lineNumber, indent);
   }
 
   // Keyword elements
@@ -435,8 +462,9 @@ function parseSegment(
       // Check for skeleton shorthand
       const skelMatch = `table ${kwMatch.param || ''}`.match(TABLE_SKELETON_RE);
       if (skelMatch) {
-        el.tableRows = parseInt(skelMatch[1], 10);
-        el.tableCols = parseInt(skelMatch[2], 10);
+        // In-bounds: TABLE_SKELETON_RE has 2 capture groups; matched groups are defined.
+        el.tableRows = parseInt(skelMatch[1]!, 10);
+        el.tableCols = parseInt(skelMatch[2]!, 10);
       }
     }
     // Block keywords become containers
@@ -490,7 +518,8 @@ function parseSegment(
   // Bare text (with optional pipe metadata for inline alerts)
   const pipeParts = trimmed.split(/\s*\|\s*/);
   if (pipeParts.length > 1) {
-    const textContent = pipeParts[0].trim();
+    // In-bounds: split always returns at least one element.
+    const textContent = pipeParts[0]!.trim();
     const metaStr = pipeParts.slice(1).join(', ');
     const { states } = parseWireframeMetadata(metaStr);
 
@@ -565,7 +594,8 @@ export function parseWireframe(content: string): ParsedWireframe {
     // Pop nodes at same or deeper indent
     while (
       indentStack.length > 0 &&
-      indentStack[indentStack.length - 1].indent >= indent
+      // In-bounds by length-check guard above.
+      indentStack[indentStack.length - 1]!.indent >= indent
     ) {
       const popped = indentStack.pop()!;
       // When a node had children pushed to it, mark as container
@@ -578,7 +608,8 @@ export function parseWireframe(content: string): ParsedWireframe {
       }
     }
     return indentStack.length > 0
-      ? indentStack[indentStack.length - 1].node
+      ? // In-bounds by length-check.
+        indentStack[indentStack.length - 1]!.node
       : null;
   }
 
@@ -596,7 +627,8 @@ export function parseWireframe(content: string): ParsedWireframe {
     if (indentStack.length === 0) {
       roots.push(el);
     } else {
-      const parent = indentStack[indentStack.length - 1].node;
+      // In-bounds by length-check above.
+      const parent = indentStack[indentStack.length - 1]!.node;
       parent.children.push(el);
       // Propagate skeleton flag
       if (parent.type === 'skeleton' || parent.isSkeleton) {
@@ -641,7 +673,8 @@ export function parseWireframe(content: string): ParsedWireframe {
     }
     if (children.length === 0) return;
     if (children.length === 1) {
-      pushElement(children[0]);
+      // In-bounds by length-check above.
+      pushElement(children[0]!);
       return;
     }
     // Wrap in a horizontal inline row
@@ -655,7 +688,8 @@ export function parseWireframe(content: string): ParsedWireframe {
   }
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+    // In-bounds by loop guard.
+    const line = lines[i]!;
     const lineNumber = i + 1;
     const trimmed = line.trim();
 
@@ -685,8 +719,9 @@ export function parseWireframe(content: string): ParsedWireframe {
       }
 
       const optMatch = trimmed.match(OPTION_NOCOLON_RE);
-      if (optMatch && KNOWN_OPTIONS.has(optMatch[1].toLowerCase())) {
-        options[optMatch[1]] = optMatch[2] || '';
+      // In-bounds: OPTION_NOCOLON_RE has 2 capture groups; first is required by match.
+      if (optMatch && KNOWN_OPTIONS.has(optMatch[1]!.toLowerCase())) {
+        options[optMatch[1]!] = optMatch[2] || '';
         continue;
       }
 
@@ -767,7 +802,8 @@ export function parseWireframe(content: string): ParsedWireframe {
         !trimmed.startsWith('(')
       ) {
         // Only treat as option if it looks like one (palette, theme, active-tag, etc.)
-        const key = optMatch[1];
+        // In-bounds: OPTION_NOCOLON_RE has 2 capture groups; first is required by match.
+        const key = optMatch[1]!;
         if (['palette', 'theme', 'active-tag'].includes(key)) {
           options[key] = optMatch[2] || '';
           continue;
@@ -788,7 +824,8 @@ export function parseWireframe(content: string): ParsedWireframe {
 
     // Table data rows (comma-separated, indented under a table element)
     if (indentStack.length > 0) {
-      const topNode = indentStack[indentStack.length - 1].node;
+      // In-bounds by length-check above.
+      const topNode = indentStack[indentStack.length - 1]!.node;
       if (topNode.type === 'table' && indent > topNode.indent) {
         // Parse as table row
         const cells = parseTableRow(trimmed);
@@ -813,26 +850,29 @@ export function parseWireframe(content: string): ParsedWireframe {
 
     if (segments.length === 1) {
       // Single element
-      const el = parseSegment(segments[0], lineNumber, indent, diagnostics);
+      // In-bounds by length-check above.
+      const el = parseSegment(segments[0]!, lineNumber, indent, diagnostics);
       if (el) pushElement(el);
     } else if (segments.length === 2) {
       // Check for orphaned pipe metadata (EC5): second segment starts with `|`
-      if (segments[1].startsWith('|')) {
-        const el = parseSegment(segments[0], lineNumber, indent, diagnostics);
+      // In-bounds by length-check above.
+      if (segments[1]!.startsWith('|')) {
+        const el = parseSegment(segments[0]!, lineNumber, indent, diagnostics);
         if (el) {
-          applyMetadata(el, segments[1].substring(1).trim());
+          applyMetadata(el, segments[1]!.substring(1).trim());
           pushElement(el);
         }
       } else {
         // Check for label-field pairing (ADR-9):
         // First is bare text AND second contains bracket-mnemonic element
-        const firstIsBare = isBareText(segments[0]);
-        const secondIsElement = hasBracketMnemonic(segments[1]);
+        // In-bounds by length-check above.
+        const firstIsBare = isBareText(segments[0]!);
+        const secondIsElement = hasBracketMnemonic(segments[1]!);
 
         if (firstIsBare && secondIsElement) {
           // Label-for-element pairing
           const fieldEl = parseSegment(
-            segments[1],
+            segments[1]!,
             lineNumber,
             indent,
             diagnostics
@@ -840,7 +880,7 @@ export function parseWireframe(content: string): ParsedWireframe {
           if (fieldEl) {
             const labelEl = makeElement(
               'text',
-              segments[0].trim(),
+              segments[0]!.trim(),
               lineNumber,
               indent
             );

@@ -153,8 +153,9 @@ export function layoutWireframe(
 
   const totalHeight =
     (modalNodes.length > 0
-      ? modalNodes[modalNodes.length - 1].y +
-        modalNodes[modalNodes.length - 1].height
+      ? // In-bounds by length-check above.
+        modalNodes[modalNodes.length - 1]!.y +
+        modalNodes[modalNodes.length - 1]!.height
       : maxY) +
     FRAME_PADDING * 2 +
     titleHeight;
@@ -185,7 +186,8 @@ function layoutTopLevel(
   let currentRow: WireframeElement[] = [];
 
   for (const root of roots) {
-    const regionName = root.label.toLowerCase().split(/\s+/)[0];
+    // In-bounds: split always returns at least one element.
+    const regionName = root.label.toLowerCase().split(/\s+/)[0]!;
     if (FULL_WIDTH_REGIONS.has(regionName) || formFactor === 'mobile') {
       // Full-width: flush current row first, then add as its own row
       if (currentRow.length > 0) {
@@ -202,8 +204,10 @@ function layoutTopLevel(
   // Layout each row
   for (const row of rows) {
     if (row.length === 1 && formFactor !== 'mobile') {
-      const el = row[0];
-      const regionName = el.label.toLowerCase().split(/\s+/)[0];
+      // In-bounds by length-check above.
+      const el = row[0]!;
+      // In-bounds: split always returns at least one element.
+      const regionName = el.label.toLowerCase().split(/\s+/)[0]!;
 
       if (FULL_WIDTH_REGIONS.has(regionName)) {
         // Full-width strip
@@ -235,8 +239,9 @@ function layoutTopLevel(
       const rowNodes: WireframeLayoutNode[] = [];
 
       for (let i = 0; i < row.length; i++) {
-        const w = allocated[i];
-        const node = layoutElement(row[i], x, y, w);
+        // In-bounds by loop guard.
+        const w = allocated[i]!;
+        const node = layoutElement(row[i]!, x, y, w);
         rowNodes.push(node);
         maxHeight = Math.max(maxHeight, node.height);
         x += w + 12; // gap between horizontal siblings
@@ -271,12 +276,13 @@ function allocateHorizontalWidths(
   let fillCount = 0;
 
   for (let i = 0; i < elements.length; i++) {
-    const name = elements[i].label.toLowerCase().split(/\s+/)[0];
+    // In-bounds by loop guard; split always returns at least one element.
+    const name = elements[i]!.label.toLowerCase().split(/\s+/)[0]!;
     const fraction = REGION_SIZES[name];
 
     if (fraction !== undefined && fraction > 0) {
       widths[i] = available * fraction;
-      allocated += widths[i];
+      allocated += widths[i]!;
     } else if (fraction === 0) {
       // Fill remaining
       fillCount++;
@@ -297,7 +303,8 @@ function allocateHorizontalWidths(
 
   // Clamp all widths to minimum
   for (let i = 0; i < widths.length; i++) {
-    widths[i] = Math.max(40, widths[i]);
+    // In-bounds by loop guard.
+    widths[i] = Math.max(40, widths[i]!);
   }
 
   return widths;
@@ -348,8 +355,9 @@ function layoutElement(
     let maxChildHeight = 0;
 
     for (let i = 0; i < el.children.length; i++) {
-      const child = el.children[i];
-      const cw = childWidths[i];
+      // In-bounds by loop guard.
+      const child = el.children[i]!;
+      const cw = childWidths[i]!;
       const childNode = layoutElement(child, cx, padTop, cw);
       node.children.push(childNode);
       maxChildHeight = Math.max(maxChildHeight, childNode.height);
@@ -453,7 +461,8 @@ function computeFieldAlignX(children: WireframeElement[]): number {
       child.metadata['_labelField'] === 'true' &&
       child.children.length >= 2
     ) {
-      const labelEl = child.children[0];
+      // In-bounds by length-check above.
+      const labelEl = child.children[0]!;
       const labelWidth = labelEl.label.length * CHAR_WIDTH;
       maxLabelWidth = Math.max(maxLabelWidth, labelWidth);
       labelFieldCount++;

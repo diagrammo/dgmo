@@ -383,7 +383,8 @@ export function renderC4Context(
     // Label at midpoint
     if (edge.label || edge.technology) {
       const midIdx = Math.floor(edge.points.length / 2);
-      const midPt = edge.points[midIdx];
+      // In-bounds: edge.points.length >= 2 guard at top of loop.
+      const midPt = edge.points[midIdx]!;
 
       const labelText = edge.label ?? '';
       const techText = edge.technology ? `[${edge.technology}]` : '';

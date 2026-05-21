@@ -282,7 +282,8 @@ function renderGroup(
   // mix(a, b, pct) — pct is 0-100 where 100 = 100% of a.
   // depth 0 → 12% textMuted, depth 1 → 7%, depth 2 → 4%, depth 3+ → 2%
   const tintSteps = [12, 7, 4, 2];
-  const tintPct = tintSteps[Math.min(depth, tintSteps.length - 1)];
+  // In-bounds: Math.min clamps to a valid index of the literal array.
+  const tintPct = tintSteps[Math.min(depth, tintSteps.length - 1)]!;
   const fillColor = mix(palette.textMuted, palette.bg, tintPct);
 
   // Container background — solid border + depth-based shading
@@ -850,7 +851,8 @@ function renderTable(
           .attr('opacity', 0.25)
           .attr('rx', 2);
       } else if (data[r]) {
-        const cellText = data[r][c] || '';
+        // In-bounds by the data[r] truthy check above.
+        const cellText = data[r]![c] || '';
         renderTableCell(g, cellText, c * colW + 10, ry, colW - 20, rowH, ctx);
       }
     }
@@ -873,7 +875,8 @@ function renderTableCell(
   // Button pattern: `(Label)` or `(Label) | state`
   const btnMatch = trimmed.match(/^\(([^)]+)\)(?:\s*\|\s*(.+))?$/);
   if (btnMatch) {
-    const label = btnMatch[1];
+    // In-bounds: regex has 2 capture groups; first is required by match.
+    const label = btnMatch[1]!;
     const stateStr = btnMatch[2]?.trim().toLowerCase();
     const isGhost = stateStr === 'ghost';
     const isDestructive = stateStr === 'destructive';
@@ -1174,7 +1177,7 @@ function renderChart(
 
   if (hint === 'line') {
     // Wavy line
-    const points = [
+    const points: [number, number][] = [
       [0, innerH * 0.7],
       [innerW * 0.2, innerH * 0.4],
       [innerW * 0.4, innerH * 0.6],
@@ -1198,7 +1201,8 @@ function renderChart(
     const barW = innerW / (barCount * 2);
     const barHeights = [0.6, 0.8, 0.5, 0.9, 0.7];
     for (let i = 0; i < barCount; i++) {
-      const bh = innerH * barHeights[i];
+      // In-bounds: loop count matches literal array length.
+      const bh = innerH * barHeights[i]!;
       g.append('rect')
         .attr('x', padX + i * (innerW / barCount) + barW / 2)
         .attr('y', padY + innerH - bh)
@@ -1222,18 +1226,20 @@ function renderChart(
     ];
     let startAngle = 0;
     for (let i = 0; i < slices.length; i++) {
-      const endAngle = startAngle + slices[i] * Math.PI * 2;
+      // In-bounds by loop guard.
+      const endAngle = startAngle + slices[i]! * Math.PI * 2;
       const x1 = cx + r * Math.cos(startAngle);
       const y1 = cy + r * Math.sin(startAngle);
       const x2 = cx + r * Math.cos(endAngle);
       const y2 = cy + r * Math.sin(endAngle);
-      const largeArc = slices[i] > 0.5 ? 1 : 0;
+      const largeArc = slices[i]! > 0.5 ? 1 : 0;
       g.append('path')
         .attr(
           'd',
           `M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${largeArc},1 ${x2},${y2} Z`
         )
-        .attr('fill', colors[i])
+        // In-bounds: colors literal has 4 entries matching slices length.
+        .attr('fill', colors[i]!)
         .attr('opacity', 0.7);
       startAngle = endAngle;
     }

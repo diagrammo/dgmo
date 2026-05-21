@@ -29,6 +29,8 @@
     "src/raci/**/*.ts",
     "src/sitemap/**/*.ts",
     "src/er/**/*.ts",
-    "src/journey-map/**/*.ts"
+    "src/journey-map/**/*.ts",
+    "src/c4/**/*.ts",
+    "src/wireframe/**/*.ts"
   ]
 }

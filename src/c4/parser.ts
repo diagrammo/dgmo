@@ -264,7 +264,8 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
   const deployStack: { node: C4DeploymentNode; indent: number }[] = [];
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+    // In-bounds by loop guard.
+    const line = lines[i]!;
     const lineNumber = i + 1;
     const trimmed = line.trim();
 
@@ -333,9 +334,10 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
 
       const optMatch = trimmed.match(OPTION_NOCOLON_RE);
       if (optMatch) {
-        const key = optMatch[1].trim().toLowerCase();
+        // Capture groups [1] and [2] guaranteed by regex match.
+        const key = optMatch[1]!.trim().toLowerCase();
         if (KNOWN_C4_OPTIONS.has(key)) {
-          result.options[key] = optMatch[2].trim();
+          result.options[key] = optMatch[2]!.trim();
           continue;
         }
       }
@@ -383,7 +385,8 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
     if (inDeployment) {
       // Pop deployment stack for decreased indent
       while (deployStack.length > 0) {
-        const top = deployStack[deployStack.length - 1];
+        // In-bounds by length > 0 check.
+        const top = deployStack[deployStack.length - 1]!;
         if (top.indent < indent) break;
         deployStack.pop();
       }
@@ -399,9 +402,11 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
         // container X reference?
         const refMatch = trimmed.match(CONTAINER_REF_RE);
         if (refMatch) {
-          const refName = refMatch[1].trim();
+          // Capture group [1] guaranteed by regex match.
+          const refName = refMatch[1]!.trim();
           if (deployStack.length > 0) {
-            deployStack[deployStack.length - 1].node.containerRefs.push(
+            // In-bounds by length > 0 check.
+            deployStack[deployStack.length - 1]!.node.containerRefs.push(
               refName
             );
           } else {
@@ -415,7 +420,8 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
 
         // Otherwise it's a deployment node (possibly with pipe metadata)
         const segments = trimmed.split('|').map((s) => s.trim());
-        const nodeName = segments[0];
+        // split() always produces at least one segment.
+        const nodeName = segments[0]!;
         const metadata = parsePipeMetadata(segments, metaAliasMap, () =>
           pushError(lineNumber, MULTIPLE_PIPE_ERROR)
         );
@@ -434,7 +440,8 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
         };
 
         if (deployStack.length > 0) {
-          deployStack[deployStack.length - 1].node.children.push(dNode);
+          // In-bounds by length > 0 check.
+          deployStack[deployStack.length - 1]!.node.children.push(dNode);
         } else {
           result.deployment.push(dNode);
         }
@@ -446,7 +453,8 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
     // ── Section headers ─────────────────────────────────────
     const sectionMatch = trimmed.match(SECTION_HEADER_RE);
     if (sectionMatch) {
-      const sectionType = sectionMatch[1].toLowerCase();
+      // Capture group [1] guaranteed by regex match.
+      const sectionType = sectionMatch[1]!.toLowerCase();
 
       if (sectionType === 'deployment') {
         inDeployment = true;
@@ -474,7 +482,8 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
 
     // ── Pop stack for decreased indent ──────────────────────
     while (stack.length > 0) {
-      const top = stack[stack.length - 1];
+      // In-bounds by length > 0 check.
+      const top = stack[stack.length - 1]!;
       if (top.indent < indent) break;
       stack.pop();
     }
@@ -482,7 +491,8 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
     // ── Group boundaries: [Group Name] ──────────────────────
     const containerMatch = trimmed.match(CONTAINER_RE);
     if (containerMatch) {
-      const groupName = containerMatch[1].trim();
+      // Capture group [1] guaranteed by regex match.
+      const groupName = containerMatch[1]!.trim();
       const parentEntry = findParentElement(indent, stack);
       if (parentEntry) {
         const group: C4Group = {
@@ -519,8 +529,9 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
       for (const { re, arrowType } of labeledPatterns) {
         const m = trimmed.match(re);
         if (!m) continue;
-        const rawLabel = m[1].trim();
-        const targetBody = m[2].trim();
+        // Capture groups [1] and [2] guaranteed by regex match.
+        const rawLabel = m[1]!.trim();
+        const targetBody = m[2]!.trim();
         if (!rawLabel) break; // empty label — fall through to plain arrow
 
         // Reject bidirectional arrows
@@ -586,15 +597,16 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
     // ── Relationships (plain arrows: ->, ~>) ─────────────────
     const relMatch = trimmed.match(RELATIONSHIP_RE);
     if (relMatch) {
-      const arrowType = parseArrowType(relMatch[1]);
+      // Capture groups [1] and [2] guaranteed by regex match.
+      const arrowType = parseArrowType(relMatch[1]!);
       if (arrowType) {
         // Reject bidirectional arrows
         if (
           arrowType === 'bidirectional' ||
           arrowType === 'bidirectional-async'
         ) {
-          const arrow = relMatch[1];
-          const target = relMatch[2].trim();
+          const arrow = relMatch[1]!;
+          const target = relMatch[2]!.trim();
           const source = findParentElement(indent, stack)?.element.name ?? '?';
           pushError(
             lineNumber,
@@ -604,7 +616,7 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
         }
 
         // Plain arrow: entire body is the target (no colon label, no technology)
-        const target = relMatch[2].trim();
+        const target = relMatch[2]!.trim();
         const rel: C4Relationship = {
           target: resolveNameRef(target),
           arrowType,
@@ -626,9 +638,10 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
     // ── "Name is a type" declarations (preferred syntax) ────
     const isATypeMatch = trimmed.match(C4_IS_A_RE);
     if (isATypeMatch) {
-      let namePart = isATypeMatch[1].trim();
-      const rawType = isATypeMatch[2].toLowerCase();
-      let remainder = isATypeMatch[3];
+      // Capture groups [1], [2], [3] guaranteed by regex match.
+      let namePart = isATypeMatch[1]!.trim();
+      const rawType = isATypeMatch[2]!.toLowerCase();
+      let remainder = isATypeMatch[3]!;
 
       // TD-18: peel optional `as <alias>` from the trailing remainder
       // (modifier order: `Name is a TYPE [is a SHAPE] as <alias> [| meta]`).
@@ -636,16 +649,18 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
         /^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*(\|.*)?$/
       );
       if (asPostfix) {
-        nameAliasMap.set(asPostfix[2], namePart);
-        remainder = (asPostfix[1] + (asPostfix[3] ?? '')).trim();
+        // Capture groups [1] and [2] guaranteed by regex match.
+        nameAliasMap.set(asPostfix[2]!, namePart);
+        remainder = (asPostfix[1]! + (asPostfix[3] ?? '')).trim();
       } else {
         // Or peel from the namePart itself in `Name as <alias> is a TYPE` form.
         const asInName = namePart.match(
           /^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/
         );
         if (asInName) {
-          namePart = asInName[1].trim();
-          nameAliasMap.set(asInName[2], namePart);
+          // Capture groups [1] and [2] guaranteed by regex match.
+          namePart = asInName[1]!.trim();
+          nameAliasMap.set(asInName[2]!, namePart);
         }
       }
 
@@ -684,7 +699,8 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
         /^\s*is\s+a(?:n)?\s+(\w+)\s*(.*)$/i
       );
       if (remainderIsA) {
-        const shapeName = remainderIsA[1].toLowerCase();
+        // Capture groups [1] and [2] guaranteed by regex match.
+        const shapeName = remainderIsA[1]!.toLowerCase();
         if (VALID_SHAPES.has(shapeName)) {
           explicitShape = shapeName as C4Shape;
         } else {
@@ -694,7 +710,7 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
           );
         }
         // Re-parse remainder after shape
-        const afterShape = remainderIsA[2].trim();
+        const afterShape = remainderIsA[2]!.trim();
         if (afterShape.startsWith('|')) {
           segments = [
             '',
@@ -711,7 +727,8 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
       // Also check for `is a <shape>` within the name part itself
       const nameIsAMatch = namePart.match(IS_A_RE);
       if (nameIsAMatch) {
-        const shapeName = nameIsAMatch[1].toLowerCase();
+        // Capture group [1] guaranteed by regex match.
+        const shapeName = nameIsAMatch[1]!.toLowerCase();
         if (VALID_SHAPES.has(shapeName)) {
           explicitShape = shapeName as C4Shape;
         } else {
@@ -770,18 +787,21 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
     // ── Element declarations (deprecated prefix syntax) ─────
     const elementMatch = trimmed.match(ELEMENT_RE);
     if (elementMatch) {
-      const elementType = elementMatch[1].toLowerCase() as C4ElementType;
-      const nameAndRest = elementMatch[2];
+      // Capture groups [1] and [2] guaranteed by regex match.
+      const elementType = elementMatch[1]!.toLowerCase() as C4ElementType;
+      const nameAndRest = elementMatch[2]!;
 
       // Split on pipe for inline metadata
       const segments = nameAndRest.split('|').map((s) => s.trim());
-      let namePart = segments[0];
+      // split() always produces at least one segment.
+      let namePart = segments[0]!;
 
       // Check for `is a <shape>` in the name portion
       let explicitShape: C4Shape | null = null;
       const isAMatch = namePart.match(IS_A_RE);
       if (isAMatch) {
-        const shapeName = isAMatch[1].toLowerCase();
+        // Capture group [1] guaranteed by regex match.
+        const shapeName = isAMatch[1]!.toLowerCase();
         if (VALID_SHAPES.has(shapeName)) {
           explicitShape = shapeName as C4Shape;
         } else {
@@ -851,16 +871,17 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
     if (metadataMatch && !ELEMENT_RE.test(trimmed)) {
       const parentEntry = findParentElement(indent, stack);
       if (parentEntry) {
-        const rawKey = metadataMatch[1].trim().toLowerCase();
+        // Capture groups [1] and [2] guaranteed by regex match.
+        const rawKey = metadataMatch[1]!.trim().toLowerCase();
 
         // Special case: `import: file.dgmo`
         if (rawKey === 'import') {
-          parentEntry.element.importPath = metadataMatch[2].trim();
+          parentEntry.element.importPath = metadataMatch[2]!.trim();
           continue;
         }
 
         const key = metaAliasMap.get(rawKey) ?? rawKey;
-        const value = metadataMatch[2].trim();
+        const value = metadataMatch[2]!.trim();
 
         // Extract description into dedicated field
         if (key === 'description') {
@@ -877,7 +898,8 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
 
     // ── Unknown line ────────────────────────────────────────
     // Check if it looks like a misspelled element keyword
-    const firstWord = trimmed.split(/\s+/)[0].toLowerCase();
+    // split() always produces at least one segment.
+    const firstWord = trimmed.split(/\s+/)[0]!.toLowerCase();
     if (firstWord.length > 3) {
       const hint = suggest(firstWord, [...VALID_ELEMENT_TYPES]);
       if (hint) {
@@ -918,7 +940,8 @@ function findParentElement(
   stack: StackEntry[]
 ): ElementStackEntry | null {
   for (let i = stack.length - 1; i >= 0; i--) {
-    const entry = stack[i];
+    // In-bounds by loop guard.
+    const entry = stack[i]!;
     if (entry.indent >= indent) continue;
     if (entry.kind === 'element') return entry;
     if (entry.kind === 'group') {
@@ -947,7 +970,8 @@ function attachElement(
   let attached = false;
 
   for (let i = stack.length - 1; i >= 0; i--) {
-    const entry = stack[i];
+    // In-bounds by loop guard.
+    const entry = stack[i]!;
     if (entry.indent >= indent) continue;
 
     if (entry.kind === 'group') {
