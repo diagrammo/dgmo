@@ -529,10 +529,12 @@ export function buildRenderSequence(messages: SequenceMessage[]): RenderStep[] {
   }[] = [];
 
   for (let mi = 0; mi < messages.length; mi++) {
-    const msg = messages[mi];
+    // In-bounds by loop guard.
+    const msg = messages[mi]!;
     // Pop returns for callees that are no longer the sender
     while (stack.length > 0) {
-      const top = stack[stack.length - 1];
+      // In-bounds: stack.length > 0 guard above.
+      const top = stack[stack.length - 1]!;
       if (top.to === msg.from) break; // callee is still working
       stack.pop();
       steps.push({
@@ -619,7 +621,8 @@ export function computeActivations(steps: RenderStep[]): Activation[] {
   };
 
   for (let i = 0; i < steps.length; i++) {
-    const step = steps[i];
+    // In-bounds by loop guard.
+    const step = steps[i]!;
     if (step.type === 'call') {
       const s = getStack(step.to);
       s.push(i);
@@ -701,7 +704,9 @@ export function applyPositionOverrides(
   let uIdx = 0;
   for (let i = 0; i < total; i++) {
     if (result[i] === null) {
-      result[i] = unpositioned[uIdx++];
+      // In-bounds: positioned.length + unpositioned.length === total, so the
+      // remaining `null` slots equal unpositioned.length.
+      result[i] = unpositioned[uIdx++]!;
     }
   }
 
@@ -970,11 +975,10 @@ export function renderSequenceDiagram(
     let closestMsgIndex = -1;
     let closestLine = -1;
     for (let mi = 0; mi < messages.length; mi++) {
-      if (
-        messages[mi].lineNumber < note.lineNumber &&
-        messages[mi].lineNumber > closestLine
-      ) {
-        closestLine = messages[mi].lineNumber;
+      // In-bounds by loop guard.
+      const m = messages[mi]!;
+      if (m.lineNumber < note.lineNumber && m.lineNumber > closestLine) {
+        closestLine = m.lineNumber;
         closestMsgIndex = mi;
       }
     }
@@ -993,16 +997,16 @@ export function renderSequenceDiagram(
     let closestMsgIndex = -1;
     let closestLine = -1;
     for (let mi = 0; mi < messages.length; mi++) {
-      if (
-        messages[mi].lineNumber < note.lineNumber &&
-        messages[mi].lineNumber > closestLine
-      ) {
-        closestLine = messages[mi].lineNumber;
+      // In-bounds by loop guard.
+      const m = messages[mi]!;
+      if (m.lineNumber < note.lineNumber && m.lineNumber > closestLine) {
+        closestLine = m.lineNumber;
         closestMsgIndex = mi;
       }
     }
     if (closestMsgIndex < 0) return false;
-    const msg = messages[closestMsgIndex];
+    // In-bounds: closestMsgIndex was set from a valid `mi` above.
+    const msg = messages[closestMsgIndex]!;
     return msg.from === msg.to;
   };
 
@@ -1052,7 +1056,8 @@ export function renderSequenceDiagram(
 
   const markBlockSpacing = (els: SequenceElement[]): void => {
     for (let i = 0; i < els.length; i++) {
-      const el = els[i];
+      // In-bounds by loop guard.
+      const el = els[i]!;
       if (isSequenceSection(el)) continue; // sections handled separately
       if (!isSequenceBlock(el)) continue;
 
@@ -1074,7 +1079,8 @@ export function renderSequenceDiagram(
       markBlockSpacing(el.elseChildren);
 
       if (i + 1 < els.length) {
-        const nextIdx = findFirstMsgIndex([els[i + 1]]);
+        // In-bounds: i + 1 < els.length guard.
+        const nextIdx = findFirstMsgIndex([els[i + 1]!]);
         if (nextIdx >= 0) addExtra(nextIdx, BLOCK_AFTER_SPACE);
       }
     }
@@ -1100,7 +1106,8 @@ export function renderSequenceDiagram(
   let trailingNoteSpace = 0; // extra space for notes at the end with no following message
   const markNoteSpacing = (els: SequenceElement[]): void => {
     for (let i = 0; i < els.length; i++) {
-      const el = els[i];
+      // In-bounds by loop guard.
+      const el = els[i]!;
       if (isSequenceNote(el)) {
         // Total vertical extent of notes from the message arrow:
         //   offset (gap above first note — larger after self-calls)
@@ -1109,8 +1116,10 @@ export function renderSequenceDiagram(
         const firstOffset = noteOffsetBelow(el as SequenceNote);
         let totalExtent = firstOffset;
         let j = i;
-        while (j < els.length && isSequenceNote(els[j])) {
-          const note = els[j] as SequenceNote;
+        // In-bounds: j < els.length guard inside the while.
+        while (j < els.length && isSequenceNote(els[j]!)) {
+          // In-bounds: same guard as while.
+          const note = els[j]! as SequenceNote;
           const sc = isNoteAfterSelfCall(note);
           const maxW = noteEffectiveMaxW(note.participantId, note.position, sc);
           const noteH = computeNoteHeight(note.text, charsForWidth(maxW));
@@ -1124,13 +1133,15 @@ export function renderSequenceDiagram(
         // Scan forward past sections, blocks, and other non-message elements to find next message
         let nextMsgIdx = -1;
         for (let k = j; k < els.length; k++) {
-          nextMsgIdx = findFirstMsgIndex([els[k]]);
+          // In-bounds by loop guard.
+          nextMsgIdx = findFirstMsgIndex([els[k]!]);
           if (nextMsgIdx >= 0) break;
         }
         // If a block follows, its frame extends FRAME_PADDING_TOP above the first
         // message but only BLOCK_HEADER_SPACE is reserved. Add the difference so
         // the note doesn't overlap the frame.
-        if (j < els.length && isSequenceBlock(els[j])) {
+        // In-bounds: j < els.length guard.
+        if (j < els.length && isSequenceBlock(els[j]!)) {
           extraNeeded += FRAME_PADDING_TOP - BLOCK_HEADER_SPACE;
         }
         if (nextMsgIdx >= 0) {
@@ -1239,7 +1250,8 @@ export function renderSequenceDiagram(
   {
     let fi = 0;
     for (let oi = 0; oi < allRenderSteps.length; oi++) {
-      const step = allRenderSteps[oi];
+      // In-bounds by loop guard.
+      const step = allRenderSteps[oi]!;
       if (
         !hiddenMsgIndices.has(step.messageIndex) &&
         (step.type === 'call' || step.label)
@@ -1271,7 +1283,8 @@ export function renderSequenceDiagram(
       trailingSections.push(region.section);
       continue;
     }
-    const firstMsgIdx = region.msgIndices[0];
+    // In-bounds: msgIndices.length === 0 guard above.
+    const firstMsgIdx = region.msgIndices[0]!;
     const origStep = allMsgToFirstStep.get(firstMsgIdx);
     if (origStep === undefined) {
       trailingSections.push(region.section);
@@ -1334,7 +1347,8 @@ export function renderSequenceDiagram(
         }
       }
 
-      const step = renderSteps[i];
+      // In-bounds by loop guard.
+      const step = renderSteps[i]!;
       // Add extra spacing before the first render step of a flagged message (block spacing)
       if (msgToFirstStep.get(step.messageIndex) === i) {
         const extra = extraBeforeMsg.get(step.messageIndex) || 0;
@@ -1361,21 +1375,25 @@ export function renderSequenceDiagram(
   }
 
   // Helper: compute Y for a step index
-  const stepY = (i: number) => stepYPositions[i];
+  // Callers always pass a valid filtered step index from renderSteps (which is
+  // 1:1 with stepYPositions by construction in the layout loop above).
+  const stepY = (i: number) => stepYPositions[i]!;
 
   // Compute absolute Y positions for each note element
   const noteYMap = new Map<SequenceNote, number>();
   {
     const computeNotePositions = (els: SequenceElement[]): void => {
       for (let i = 0; i < els.length; i++) {
-        const el = els[i];
+        // In-bounds by loop guard.
+        const el = els[i]!;
         if (isSequenceNote(el)) {
           const si = findAssociatedLastStep(el);
           if (si < 0) continue;
           // Check if there's a preceding note that we should stack below
+          // In-bounds: i > 0 guard.
           const prevNote =
-            i > 0 && isSequenceNote(els[i - 1])
-              ? (els[i - 1] as SequenceNote)
+            i > 0 && isSequenceNote(els[i - 1]!)
+              ? (els[i - 1]! as SequenceNote)
               : null;
           const prevNoteY = prevNote ? noteYMap.get(prevNote) : undefined;
           let noteTopY: number;
@@ -1420,7 +1438,9 @@ export function renderSequenceDiagram(
   let contentBottomY =
     renderSteps.length > 0
       ? Math.max(
-          stepYPositions[stepYPositions.length - 1] + lastStepTrailing,
+          // In-bounds: renderSteps.length > 0 guarantees stepYPositions is
+          // non-empty (1:1 with renderSteps in the layout loop above).
+          stepYPositions[stepYPositions.length - 1]! + lastStepTrailing,
           layoutEndY
         )
       : layoutEndY;
@@ -1944,8 +1964,11 @@ export function renderSequenceDiagram(
       // Find participant X range
       const involved = new Set<string>();
       for (const mi of allIndices) {
-        involved.add(messages[mi].from);
-        involved.add(messages[mi].to);
+        // In-bounds: allIndices is built from valid message indices via
+        // collectMsgIndices (only pushes `idx >= 0` from messages.indexOf).
+        const m = messages[mi]!;
+        involved.add(m.from);
+        involved.add(m.to);
       }
       let minPX = Infinity;
       let maxPX = -Infinity;
@@ -1964,7 +1987,8 @@ export function renderSequenceDiagram(
       let extraRight = 0;
       let maxStepIsSelfCall = false;
       for (const mi of allIndices) {
-        const m = messages[mi];
+        // In-bounds: same guarantee as above (allIndices built from valid indices).
+        const m = messages[mi]!;
         if (m.from === m.to) {
           const px = participantX.get(m.from);
           if (px !== undefined) {
@@ -2111,12 +2135,17 @@ export function renderSequenceDiagram(
     const coveredLines: number[] = [];
     for (let si = act.startStep; si <= act.endStep; si++) {
       const step = renderSteps[si];
+      if (!step) continue;
       const msg = messages[step.messageIndex];
       if (msg) coveredLines.push(msg.lineNumber);
     }
 
     // Determine activation color from triggering message's tag
-    const triggerMsg = messages[renderSteps[act.startStep]?.messageIndex];
+    const triggerStep = renderSteps[act.startStep];
+    const triggerMsg =
+      triggerStep !== undefined
+        ? messages[triggerStep.messageIndex]
+        : undefined;
     const actTagValue = triggerMsg
       ? tagMap?.messages.get(triggerMsg.lineNumber)
       : undefined;
@@ -2314,7 +2343,9 @@ export function renderSequenceDiagram(
     const HIT_H = 20; // transparent hit area height (10px above + below arrow)
 
     // Resolve tag color for this message
-    const msg = messages[step.messageIndex];
+    // In-bounds: step.messageIndex is built from a valid messages[] index by
+    // buildRenderSequence/computeActivations (no synthetic step indices exist).
+    const msg = messages[step.messageIndex]!;
     const msgTagValue = msg ? tagMap?.messages.get(msg.lineNumber) : undefined;
     const msgTagColor = getTagColor(msgTagValue);
 
@@ -2339,10 +2370,7 @@ export function renderSequenceDiagram(
           .attr('height', SELF_CALL_HEIGHT + 10)
           .attr('fill', 'transparent')
           .attr('class', 'message-hit-area')
-          .attr(
-            'data-line-number',
-            String(messages[step.messageIndex].lineNumber)
-          )
+          .attr('data-line-number', String(msg.lineNumber))
           .attr('data-msg-index', String(step.messageIndex))
           .attr('data-step-index', String(i));
 
@@ -2354,10 +2382,7 @@ export function renderSequenceDiagram(
           .attr('stroke-width', 1.2)
           .attr('marker-end', coloredMarker('call', msgTagColor))
           .attr('class', 'message-arrow self-call')
-          .attr(
-            'data-line-number',
-            String(messages[step.messageIndex].lineNumber)
-          )
+          .attr('data-line-number', String(msg.lineNumber))
           .attr('data-msg-index', String(step.messageIndex))
           .attr('data-step-index', String(i))
           .attr('data-from', step.from)
@@ -2379,10 +2404,7 @@ export function renderSequenceDiagram(
             .attr('stroke-linejoin', 'round')
             .attr('font-size', 12)
             .attr('class', 'message-label')
-            .attr(
-              'data-line-number',
-              String(messages[step.messageIndex].lineNumber)
-            )
+            .attr('data-line-number', String(msg.lineNumber))
             .attr('data-msg-index', String(step.messageIndex))
             .attr('data-step-index', String(i));
           if (tagKey && msgTagValue) {
@@ -2407,10 +2429,7 @@ export function renderSequenceDiagram(
           .attr('height', HIT_H)
           .attr('fill', 'transparent')
           .attr('class', 'message-hit-area')
-          .attr(
-            'data-line-number',
-            String(messages[step.messageIndex].lineNumber)
-          )
+          .attr('data-line-number', String(msg.lineNumber))
           .attr('data-msg-index', String(step.messageIndex))
           .attr('data-step-index', String(i));
 
@@ -2427,10 +2446,7 @@ export function renderSequenceDiagram(
           .attr('stroke-width', 1.2)
           .attr('marker-end', markerRef)
           .attr('class', 'message-arrow')
-          .attr(
-            'data-line-number',
-            String(messages[step.messageIndex].lineNumber)
-          )
+          .attr('data-line-number', String(msg.lineNumber))
           .attr('data-msg-index', String(step.messageIndex))
           .attr('data-step-index', String(i))
           .attr('data-from', step.from)
@@ -2453,10 +2469,7 @@ export function renderSequenceDiagram(
             .attr('stroke-linejoin', 'round')
             .attr('font-size', 12)
             .attr('class', 'message-label')
-            .attr(
-              'data-line-number',
-              String(messages[step.messageIndex].lineNumber)
-            )
+            .attr('data-line-number', String(msg.lineNumber))
             .attr('data-msg-index', String(step.messageIndex))
             .attr('data-step-index', String(i));
           if (tagKey && msgTagValue) {
@@ -2487,10 +2500,7 @@ export function renderSequenceDiagram(
         .attr('height', HIT_H)
         .attr('fill', 'transparent')
         .attr('class', 'message-hit-area')
-        .attr(
-          'data-line-number',
-          String(messages[step.messageIndex].lineNumber)
-        )
+        .attr('data-line-number', String(msg.lineNumber))
         .attr('data-msg-index', String(step.messageIndex))
         .attr('data-step-index', String(i));
 
@@ -2505,10 +2515,7 @@ export function renderSequenceDiagram(
         .attr('stroke-dasharray', '6 4')
         .attr('marker-end', coloredMarker('return', msgTagColor))
         .attr('class', 'return-arrow')
-        .attr(
-          'data-line-number',
-          String(messages[step.messageIndex].lineNumber)
-        )
+        .attr('data-line-number', String(msg.lineNumber))
         .attr('data-msg-index', String(step.messageIndex))
         .attr('data-step-index', String(i))
         .attr('data-from', step.from)
@@ -2531,10 +2538,7 @@ export function renderSequenceDiagram(
           .attr('stroke-linejoin', 'round')
           .attr('font-size', 11)
           .attr('class', 'message-label')
-          .attr(
-            'data-line-number',
-            String(messages[step.messageIndex].lineNumber)
-          )
+          .attr('data-line-number', String(msg.lineNumber))
           .attr('data-msg-index', String(step.messageIndex))
           .attr('data-step-index', String(i));
         if (tagKey && msgTagValue) {

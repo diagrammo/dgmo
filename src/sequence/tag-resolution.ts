@@ -31,7 +31,7 @@ export interface ResolvedTagMap {
  */
 export function propagateGroupTags(
   participantMeta: Map<string, Record<string, string>>,
-  groups: ReadonlyArray<SequenceGroup>,
+  groups: ReadonlyArray<SequenceGroup>
 ): void {
   for (const group of groups) {
     if (!group.metadata) continue;
@@ -60,7 +60,7 @@ export function computeReceiverInheritance(
   participants: ReadonlyArray<SequenceParticipant>,
   messages: ReadonlyArray<SequenceMessage>,
   groupKey: string,
-  participantMeta: Map<string, Record<string, string>>,
+  participantMeta: Map<string, Record<string, string>>
 ): Map<string, string> {
   const inheritance = new Map<string, string>();
 
@@ -77,7 +77,8 @@ export function computeReceiverInheritance(
     }
 
     if (incomingValues.size === 1) {
-      inheritance.set(p.id, [...incomingValues][0]);
+      // In-bounds: size === 1 guarantees [0] exists.
+      inheritance.set(p.id, [...incomingValues][0]!);
     }
   }
 
@@ -93,7 +94,7 @@ export function computeReceiverInheritance(
  */
 export function resolveSequenceTags(
   parsed: ParsedSequenceDgmo,
-  activeTagGroup: string,
+  activeTagGroup: string
 ): ResolvedTagMap {
   const result: ResolvedTagMap = {
     participants: new Map(),
@@ -102,7 +103,7 @@ export function resolveSequenceTags(
 
   // Find the active tag group
   const group = parsed.tagGroups.find(
-    (g) => g.name.toLowerCase() === activeTagGroup.toLowerCase(),
+    (g) => g.name.toLowerCase() === activeTagGroup.toLowerCase()
   );
   if (!group) {
     // No matching group — all neutral
@@ -131,7 +132,7 @@ export function resolveSequenceTags(
     parsed.participants,
     parsed.messages,
     groupKey,
-    participantMeta,
+    participantMeta
   );
   for (const [id, value] of inherited) {
     const meta = participantMeta.get(id)!;

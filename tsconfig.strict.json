@@ -38,6 +38,7 @@
     "src/infra/**/*.ts",
     "src/graph/**/*.ts",
     "src/gantt/**/*.ts",
-    "src/boxes-and-lines/**/*.ts"
+    "src/boxes-and-lines/**/*.ts",
+    "src/sequence/**/*.ts"
   ]
 }
