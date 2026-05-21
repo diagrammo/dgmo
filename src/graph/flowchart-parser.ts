@@ -44,42 +44,48 @@ function parseNodeRef(text: string): NodeRef | null {
   // Subroutine: [[Label]]
   let m = t.match(/^\[\[([^\]]+)\]\]$/);
   if (m) {
-    const label = m[1].trim();
+    // Capture group 1 guaranteed present by successful regex match.
+    const label = m[1]!.trim();
     return { id: nodeId('subroutine', label), label, shape: 'subroutine' };
   }
 
   // Document: [Label~]
   m = t.match(/^\[([^\]]+)~\]$/);
   if (m) {
-    const label = m[1].trim();
+    // Capture group 1 guaranteed present by successful regex match.
+    const label = m[1]!.trim();
     return { id: nodeId('document', label), label, shape: 'document' };
   }
 
   // Process: [Label]
   m = t.match(/^\[([^\]]+)\]$/);
   if (m) {
-    const label = m[1].trim();
+    // Capture group 1 guaranteed present by successful regex match.
+    const label = m[1]!.trim();
     return { id: nodeId('process', label), label, shape: 'process' };
   }
 
   // Terminal: (Label) — use .+ (greedy) so (Label(color)) matches outermost parens
   m = t.match(/^\((.+)\)$/);
   if (m) {
-    const label = m[1].trim();
+    // Capture group 1 guaranteed present by successful regex match.
+    const label = m[1]!.trim();
     return { id: nodeId('terminal', label), label, shape: 'terminal' };
   }
 
   // Decision: <Label>
   m = t.match(/^<([^>]+)>$/);
   if (m) {
-    const label = m[1].trim();
+    // Capture group 1 guaranteed present by successful regex match.
+    const label = m[1]!.trim();
     return { id: nodeId('decision', label), label, shape: 'decision' };
   }
 
   // I/O: /Label/
   m = t.match(/^\/([^/]+)\/$/);
   if (m) {
-    const label = m[1].trim();
+    // Capture group 1 guaranteed present by successful regex match.
+    const label = m[1]!.trim();
     return { id: nodeId('io', label), label, shape: 'io' };
   }
 
@@ -133,7 +139,7 @@ function splitArrows(line: string): string[] {
     for (let i = scanFloor; i < runStart; i++) {
       if (line[i] !== '-') continue;
       const prevIsWsOrFloor =
-        i === 0 || i === scanFloor || /\s/.test(line[i - 1]);
+        i === 0 || i === scanFloor || /\s/.test(line.charAt(i - 1));
       if (prevIsWsOrFloor) {
         openingStart = i;
         break;
@@ -172,7 +178,8 @@ function splitArrows(line: string): string[] {
   // in the source is collapsed here.
   let lastIndex = 0;
   for (let i = 0; i < arrowPositions.length; i++) {
-    const arrow = arrowPositions[i];
+    // In-bounds by loop guard.
+    const arrow = arrowPositions[i]!;
     const beforeText = line.substring(lastIndex, arrow.start).trim();
     if (beforeText || i === 0) {
       segments.push(beforeText);
@@ -260,7 +267,8 @@ export function parseFlowchart(
     const trimmed = seg.trim();
     const m = trimmed.match(/^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/);
     if (!m) return { seg: trimmed };
-    return { seg: m[1].trim(), alias: m[2] };
+    // Capture groups 1 and 2 guaranteed present by successful regex match.
+    return { seg: m[1]!.trim(), alias: m[2]! };
   }
 
   function getOrCreateNode(ref: NodeRef, lineNumber: number): GraphNode {
@@ -329,7 +337,8 @@ export function parseFlowchart(
     // Determine implicit source from indent stack
     // Pop stack entries that are at same or deeper indent level
     while (indentStack.length > 0) {
-      const top = indentStack[indentStack.length - 1];
+      // In-bounds: length > 0 guarded by while.
+      const top = indentStack[indentStack.length - 1]!;
       if (top.indent >= indent) {
         indentStack.pop();
       } else {
@@ -339,7 +348,8 @@ export function parseFlowchart(
 
     const implicitSourceId =
       indentStack.length > 0
-        ? indentStack[indentStack.length - 1].nodeId
+        ? // In-bounds: length > 0 guarded by ternary.
+          indentStack[indentStack.length - 1]!.nodeId
         : null;
 
     // Split line into segments around arrows
@@ -348,7 +358,8 @@ export function parseFlowchart(
     if (segments.length === 1) {
       // Single node reference, no arrows. May carry an `as <alias>`
       // postfix per TD-18.
-      const peeled = peelAlias(segments[0]);
+      // In-bounds: length === 1 guarded above.
+      const peeled = peelAlias(segments[0]!);
       const ref = parseNodeRef(peeled.seg);
       if (ref) {
         const node = getOrCreateNode(ref, lineNumber);
@@ -371,7 +382,8 @@ export function parseFlowchart(
     let pendingArrow: ArrowInfo | null = null;
 
     for (let i = 0; i < segments.length; i++) {
-      const seg = segments[i];
+      // In-bounds by loop guard.
+      const seg = segments[i]!;
 
       // Check if this is an arrow token
       if (seg === '->' || /^-.+->$/.test(seg)) {
@@ -447,7 +459,8 @@ export function parseFlowchart(
 
   // === Main loop ===
   for (let i = 0; i < lines.length; i++) {
-    const raw = lines[i];
+    // In-bounds by loop guard.
+    const raw = lines[i]!;
     const trimmed = raw.trim();
     const lineNumber = i + 1;
     const indent = measureIndent(raw);
@@ -505,8 +518,9 @@ export function parseFlowchart(
 
       const optMatch = trimmed.match(OPTION_NOCOLON_RE);
       if (optMatch && !trimmed.includes('->')) {
-        const key = optMatch[1].toLowerCase();
-        const value = optMatch[2].trim();
+        // Capture groups 1 and 2 guaranteed present by successful regex match.
+        const key = optMatch[1]!.toLowerCase();
+        const value = optMatch[2]!.trim();
 
         // Boolean: no-color = color off
         if (key === 'no-color') {

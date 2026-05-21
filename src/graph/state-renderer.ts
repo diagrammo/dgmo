@@ -283,7 +283,8 @@ export function renderState(
   const labelPositions: LabelPos[] = [];
 
   for (let ei = 0; ei < layout.edges.length; ei++) {
-    const edge = layout.edges[ei];
+    // In-bounds by loop guard.
+    const edge = layout.edges[ei]!;
     if (!edge.label) continue;
     const bgW = edge.label.length * LABEL_CHAR_W + LABEL_PAD;
     let lx: number, ly: number;
@@ -295,10 +296,11 @@ export function renderState(
       ly = node.y;
     } else if (edge.points.length >= 2) {
       const midIdx = Math.floor(edge.points.length / 2);
-      const midPt = edge.points[midIdx];
+      // In-bounds by length check (>= 2) and clamps below.
+      const midPt = edge.points[midIdx]!;
       // Compute perpendicular offset from edge direction at midpoint
-      const prev = edge.points[Math.max(0, midIdx - 1)];
-      const next = edge.points[Math.min(edge.points.length - 1, midIdx + 1)];
+      const prev = edge.points[Math.max(0, midIdx - 1)]!;
+      const next = edge.points[Math.min(edge.points.length - 1, midIdx + 1)]!;
       const dx = next.x - prev.x;
       const dy = next.y - prev.y;
       const len = Math.sqrt(dx * dx + dy * dy);
@@ -320,8 +322,9 @@ export function renderState(
   labelPositions.sort((a, b) => a.y - b.y);
   for (let i = 0; i < labelPositions.length; i++) {
     for (let j = i + 1; j < labelPositions.length; j++) {
-      const a = labelPositions[i];
-      const b = labelPositions[j];
+      // In-bounds by loop guards.
+      const a = labelPositions[i]!;
+      const b = labelPositions[j]!;
       const overlapX = Math.abs(a.x - b.x) < (a.w + b.w) / 2;
       const overlapY = Math.abs(a.y - b.y) < (a.h + b.h) / 2;
       if (overlapX && overlapY) {
@@ -336,7 +339,8 @@ export function renderState(
 
   // Render edges (middle layer)
   for (let ei = 0; ei < layout.edges.length; ei++) {
-    const edge = layout.edges[ei];
+    // In-bounds by loop guard.
+    const edge = layout.edges[ei]!;
     const edgeG = contentG
       .append('g')
       .attr('class', 'st-edge-group')

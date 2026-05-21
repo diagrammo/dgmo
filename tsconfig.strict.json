@@ -35,6 +35,7 @@
     "src/org/**/*.ts",
     "src/cycle/**/*.ts",
     "src/pert/**/*.ts",
-    "src/infra/**/*.ts"
+    "src/infra/**/*.ts",
+    "src/graph/**/*.ts"
   ]
 }

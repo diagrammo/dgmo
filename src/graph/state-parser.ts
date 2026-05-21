@@ -68,7 +68,7 @@ function splitArrows(line: string): string[] {
     for (let i = scanFloor; i < runStart; i++) {
       if (line[i] !== '-') continue;
       const prevIsWsOrFloor =
-        i === 0 || i === scanFloor || /\s/.test(line[i - 1]);
+        i === 0 || i === scanFloor || /\s/.test(line.charAt(i - 1));
       if (prevIsWsOrFloor) {
         openingStart = i;
         break;
@@ -95,7 +95,8 @@ function splitArrows(line: string): string[] {
 
   let lastIndex = 0;
   for (let i = 0; i < arrowPositions.length; i++) {
-    const arrow = arrowPositions[i];
+    // In-bounds by loop guard.
+    const arrow = arrowPositions[i]!;
     const beforeText = line.substring(lastIndex, arrow.start).trim();
     if (beforeText || i === 0) segments.push(beforeText);
 
@@ -206,7 +207,8 @@ export function parseState(
     const trimmed = seg.trim();
     const m = trimmed.match(/^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/);
     if (!m) return { seg: trimmed };
-    return { seg: m[1].trim(), alias: m[2] };
+    // Regex capture groups 1 and 2 are guaranteed by the match above.
+    return { seg: m[1]!.trim(), alias: m[2]! };
   }
 
   function getOrCreateNode(ref: NodeRef, lineNumber: number): GraphNode {
@@ -267,7 +269,8 @@ export function parseState(
 
   // === Main loop ===
   for (let i = 0; i < lines.length; i++) {
-    const raw = lines[i];
+    // In-bounds by loop guard.
+    const raw = lines[i]!;
     const trimmed = raw.trim();
     const lineNumber = i + 1;
     const indent = measureIndent(raw);
@@ -297,8 +300,9 @@ export function parseState(
 
     // Group brackets: [Name] or [Name](color)
     const groupMatch = trimmed.match(GROUP_BRACKET_RE);
-    if (groupMatch && groupMatch[1].trim() !== '*') {
-      const groupLabel = groupMatch[1].trim();
+    // Regex capture group 1 is mandatory in GROUP_BRACKET_RE.
+    if (groupMatch && groupMatch[1]!.trim() !== '*') {
+      const groupLabel = groupMatch[1]!.trim();
       const groupColorName = groupMatch[2]?.trim();
       const groupColor = groupColorName
         ? resolveColorWithDiagnostic(
@@ -348,8 +352,9 @@ export function parseState(
 
       const optMatch = trimmed.match(OPTION_NOCOLON_RE);
       if (optMatch && !trimmed.includes('->')) {
-        const key = optMatch[1].toLowerCase();
-        const value = optMatch[2].trim();
+        // Regex capture groups 1 and 2 are mandatory in OPTION_NOCOLON_RE.
+        const key = optMatch[1]!.toLowerCase();
+        const value = optMatch[2]!.trim();
 
         // Boolean: no-color = color off
         if (key === 'no-color') {
@@ -373,7 +378,8 @@ export function parseState(
 
     // Pop indent stack entries at same or deeper indent
     while (indentStack.length > 0) {
-      const top = indentStack[indentStack.length - 1];
+      // In-bounds by length check above.
+      const top = indentStack[indentStack.length - 1]!;
       if (top.indent >= indent) {
         indentStack.pop();
       } else {
@@ -383,14 +389,16 @@ export function parseState(
 
     const implicitSourceId =
       indentStack.length > 0
-        ? indentStack[indentStack.length - 1].nodeId
+        ? // In-bounds by length check above.
+          indentStack[indentStack.length - 1]!.nodeId
         : null;
 
     const segments = splitArrows(trimmed);
 
     if (segments.length === 1) {
       // Single state reference, no arrows — this is the canonical definition
-      const peeled = peelAlias(segments[0]);
+      // In-bounds by length check above.
+      const peeled = peelAlias(segments[0]!);
       const ref = parseStateNodeRef(peeled.seg);
       if (ref) {
         const node = getOrCreateNode(ref, lineNumber);
@@ -415,7 +423,8 @@ export function parseState(
     let pendingArrow: ArrowInfo | null = null;
 
     for (let j = 0; j < segments.length; j++) {
-      const seg = segments[j];
+      // In-bounds by loop guard.
+      const seg = segments[j]!;
 
       if (seg === '->' || /^-.+->$/.test(seg)) {
         pendingArrow = parseArrowToken(
