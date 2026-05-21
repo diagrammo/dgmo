@@ -26,6 +26,10 @@ export default tseslint.config(
       'no-console': ['warn', { allow: ['warn', 'error'] }],
       '@typescript-eslint/no-floating-promises': 'error',
       '@typescript-eslint/no-misused-promises': 'error',
+      '@typescript-eslint/switch-exhaustiveness-check': [
+        'error',
+        { considerDefaultExhaustiveForUnions: true },
+      ],
       // Disable noisy type-checked rules that don't catch real bugs
       '@typescript-eslint/no-unsafe-assignment': 'off',
       '@typescript-eslint/no-unsafe-member-access': 'off',

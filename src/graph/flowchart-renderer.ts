@@ -373,6 +373,9 @@ function renderNodeShape(
     case 'document':
       renderDocument(g, node, palette, isDark, colorOff, solid);
       break;
+    default:
+      // state/pseudostate are routed through state-renderer; ignored here.
+      break;
   }
 }
 
