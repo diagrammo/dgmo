@@ -997,7 +997,8 @@ export function renderGantt(
       const depth = rt.groupPath.length;
       const indent = depth <= 2 ? depth * 14 : 2 * 14 + (depth - 2) * 8;
       const taskLabelX = isTagMode ? 20 : 6 + indent;
-      const topGroup = rt.groupPath.length > 0 ? rt.groupPath[0] : null;
+      // In-bounds by length check above.
+      const topGroup = rt.groupPath.length > 0 ? rt.groupPath[0]! : null;
       const taskLabel = svg
         .append('text')
         .attr('class', 'gantt-task-label')
@@ -1419,7 +1420,8 @@ function renderWeekendBands(
   let bandStart: Date | null = null;
 
   while (current <= end) {
-    const dayName = JS_DAY_TO_WEEKDAY[current.getDay()];
+    // getDay() returns 0-6; JS_DAY_TO_WEEKDAY has 7 entries.
+    const dayName = JS_DAY_TO_WEEKDAY[current.getDay()]!;
     const isWeekend = !workweek.has(dayName);
 
     if (isWeekend && !bandStart) {
@@ -1925,7 +1927,7 @@ function drawSwimlaneIcon(
       .append('rect')
       .attr('x', 0)
       .attr('y', i * gap)
-      .attr('width', barWidths[i])
+      .attr('width', barWidths[i]!) // In-bounds by loop guard.
       .attr('height', barH)
       .attr('rx', 1)
       .attr('fill', color)
@@ -2131,7 +2133,8 @@ function renderTagLegend(
     };
 
     let tagGroupsW =
-      visibleGroups.reduce((s, _, i) => s + groupWidths[i], 0) +
+      // In-bounds: groupWidths has one entry per visibleGroups item.
+      visibleGroups.reduce((s, _, i) => s + groupWidths[i]!, 0) +
       Math.max(0, (visibleGroups.length - 1) * LEGEND_GROUP_GAP);
     // Add controls group space to the renderLegendD3 container width
     if (hasControls) {
@@ -2308,7 +2311,9 @@ function renderErasAndMarkers(
   // Eras: semi-transparent background bands
   for (let i = 0; i < resolved.eras.length; i++) {
     const era = resolved.eras[i];
-    const color = era.color || ERA_COLORS[i % ERA_COLORS.length];
+    if (!era) continue; // In-bounds by loop guard; appeases TS.
+    // In-bounds: ERA_COLORS has 5 entries and i % 5 is always 0-4.
+    const color = era.color || ERA_COLORS[i % ERA_COLORS.length]!;
     const sx = xScale(parseDateToFractionalYear(era.startDate));
     const ex = xScale(parseDateToFractionalYear(era.endDate));
     if (ex <= sx) continue;
@@ -2411,11 +2416,14 @@ function renderErasAndMarkers(
   const markerXs = resolved.markers.map((m) =>
     xScale(parseDateToFractionalYear(m.date))
   );
-  const innerWidth = xScale.range()[1];
+  // d3 scale.range() returns a 2-element array.
+  const innerWidth = xScale.range()[1]!;
   for (let i = 0; i < resolved.markers.length; i++) {
     const marker = resolved.markers[i];
+    if (!marker) continue; // In-bounds by loop guard; appeases TS.
     const color = marker.color || palette.accent || '#d08770';
-    const mx = markerXs[i];
+    // In-bounds: markerXs.length === resolved.markers.length.
+    const mx = markerXs[i]!;
     const markerDate = parseDateStringToDate(marker.date);
     const diamondSize = 5;
     const labelY = markerLabelY;
@@ -2427,7 +2435,8 @@ function renderErasAndMarkers(
     let nearestDist = Math.min(mx, innerWidth - mx);
     for (let j = 0; j < markerXs.length; j++) {
       if (j === i) continue;
-      const d = Math.abs(markerXs[j] - mx);
+      // In-bounds by loop guard.
+      const d = Math.abs(markerXs[j]! - mx);
       if (d < nearestDist) nearestDist = d;
     }
     const markerLabelMaxW = Math.max(0, nearestDist - 8);
@@ -2580,6 +2589,7 @@ function renderSprintBands(
 
   for (let i = 0; i < resolved.sprints.length; i++) {
     const sprint = resolved.sprints[i];
+    if (!sprint) continue; // In-bounds by loop guard; appeases TS.
     const rawSx = xScale(dateToFractionalYear(sprint.startDate));
     const rawEx = xScale(dateToFractionalYear(sprint.endDate));
     if (rawEx <= rawSx) continue;
@@ -2784,7 +2794,8 @@ function renderSprintBands(
   }
 
   // Boundary line at end of last sprint
-  const lastSprint = resolved.sprints[resolved.sprints.length - 1];
+  // In-bounds: early return above when sprints.length === 0.
+  const lastSprint = resolved.sprints[resolved.sprints.length - 1]!;
   const lastEx = xScale(dateToFractionalYear(lastSprint.endDate));
   g.append('line')
     .attr('class', 'gantt-sprint-boundary')
@@ -2804,9 +2815,10 @@ function renderSprintBands(
  */
 function parseDateStringToDate(s: string): Date {
   const parts = s.split('-').map((p) => parseInt(p, 10));
-  const year = parts[0];
-  const month = parts.length >= 2 ? parts[1] - 1 : 0;
-  const day = parts.length >= 3 ? parts[2] : 1;
+  // In-bounds: split() returns at least one element.
+  const year = parts[0]!;
+  const month = parts.length >= 2 ? parts[1]! - 1 : 0;
+  const day = parts.length >= 3 ? parts[2]! : 1;
   return new Date(year, month, day);
 }
 
@@ -3281,6 +3293,7 @@ function buildRowList(
     // Insert group rows for any groups in the path not yet seen
     for (let i = 0; i < rt.groupPath.length; i++) {
       const groupName = rt.groupPath[i];
+      if (groupName === undefined) continue; // In-bounds by loop guard; appeases TS.
       if (!seenGroups.has(groupName)) {
         seenGroups.add(groupName);
         const group = groupMap.get(groupName);
@@ -3620,12 +3633,15 @@ function resolveTaskColor(
 
   // Fall back to group-based coloring
   if (rt.groupPath.length > 0) {
-    const topGroup = rt.groupPath[0];
+    // In-bounds by length check above.
+    const topGroup = rt.groupPath[0]!;
     const groupIdx = resolved.groups.findIndex((g) => g.name === topGroup);
     if (groupIdx >= 0) {
-      const group = resolved.groups[groupIdx];
+      // In-bounds: findIndex >= 0 means index is valid.
+      const group = resolved.groups[groupIdx]!;
       if (group.color) return group.color;
-      return seriesColors[groupIdx % seriesColors.length];
+      // In-bounds: i % n is always 0..n-1 for n > 0; seriesColors is non-empty here.
+      return seriesColors[groupIdx % seriesColors.length]!;
     }
   }
 
@@ -3640,7 +3656,10 @@ function renderTimeScaleHorizontal(
   innerHeight: number,
   textColor: string
 ): void {
-  const [domainMin, domainMax] = scale.domain();
+  const domain = scale.domain();
+  // In-bounds: d3 ScaleLinear.domain() returns at least 2 elements.
+  const domainMin = domain[0]!;
+  const domainMax = domain[1]!;
   const ticks = computeTimeTicks(domainMin, domainMax, scale);
   if (ticks.length < 2) return;
 

@@ -176,7 +176,8 @@ export function parseGantt(
     const trimmed = label.trim();
     const m = trimmed.match(/^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/);
     if (!m) return { label: trimmed };
-    return { label: m[1].trim(), alias: m[2] };
+    // Capture groups 1 and 2 are guaranteed by successful regex match.
+    return { label: m[1]!.trim(), alias: m[2]! };
   }
   function resolveAliasTarget(token: string): string {
     return nameAliasMap.get(token.trim()) ?? token;
@@ -188,7 +189,8 @@ export function parseGantt(
 
   const currentContainer = (): GanttNode[] => {
     if (blockStack.length === 0) return result.nodes;
-    const top = blockStack[blockStack.length - 1];
+    // In-bounds by length > 0 guard above.
+    const top = blockStack[blockStack.length - 1]!;
     return top.node.children;
   };
 
@@ -221,7 +223,8 @@ export function parseGantt(
   // ── Main Parse Loop ─────────────────────────────────────
 
   for (let i = 0; i < lines.length; i++) {
-    const rawLine = lines[i];
+    // In-bounds by loop guard.
+    const rawLine = lines[i]!;
     const line = rawLine.trim();
     const indent = measureIndent(rawLine);
     const lineNumber = i + 1;
@@ -278,10 +281,11 @@ export function parseGantt(
         // Parse holiday entries
         const rangeMatch = line.match(HOLIDAY_RANGE_RE);
         if (rangeMatch) {
+          // Capture groups 1-3 guaranteed by successful regex match.
           result.holidays.ranges.push({
-            startDate: rangeMatch[1],
-            endDate: rangeMatch[2],
-            label: rangeMatch[3].trim(),
+            startDate: rangeMatch[1]!,
+            endDate: rangeMatch[2]!,
+            label: rangeMatch[3]!.trim(),
             lineNumber,
           });
           continue;
@@ -289,9 +293,10 @@ export function parseGantt(
 
         const dateMatch = line.match(HOLIDAY_DATE_RE);
         if (dateMatch) {
+          // Capture groups 1-2 guaranteed by successful regex match.
           result.holidays.dates.push({
-            date: dateMatch[1],
-            label: dateMatch[2].trim(),
+            date: dateMatch[1]!,
+            label: dateMatch[2]!.trim(),
             lineNumber,
           });
           continue;
@@ -299,7 +304,8 @@ export function parseGantt(
 
         const workweekMatch = line.match(WORKWEEK_RE);
         if (workweekMatch) {
-          const days = parseWorkweek(workweekMatch[1].trim());
+          // Capture group 1 guaranteed by successful regex match.
+          const days = parseWorkweek(workweekMatch[1]!.trim());
           if (days) {
             result.holidays.workweek = days;
           } else {
@@ -329,11 +335,12 @@ export function parseGantt(
         if (COMMENT_RE.test(line)) continue;
         const eraEntryMatch = line.match(ERA_ENTRY_RE);
         if (eraEntryMatch) {
-          const eraLabelRaw = eraEntryMatch[3].trim();
+          // Capture groups 1-3 guaranteed by successful regex match.
+          const eraLabelRaw = eraEntryMatch[3]!.trim();
           const eraExtracted = extractColor(eraLabelRaw, palette);
           result.eras.push({
-            startDate: eraEntryMatch[1],
-            endDate: eraEntryMatch[2],
+            startDate: eraEntryMatch[1]!,
+            endDate: eraEntryMatch[2]!,
             label: eraExtracted.label,
             color: eraExtracted.color || null,
             lineNumber,
@@ -355,10 +362,11 @@ export function parseGantt(
         if (COMMENT_RE.test(line)) continue;
         const markerEntryMatch = line.match(MARKER_ENTRY_RE);
         if (markerEntryMatch) {
-          const markerLabelRaw = markerEntryMatch[2].trim();
+          // Capture groups 1-2 guaranteed by successful regex match.
+          const markerLabelRaw = markerEntryMatch[2]!.trim();
           const markerExtracted = extractColor(markerLabelRaw, palette);
           result.markers.push({
-            date: markerEntryMatch[1],
+            date: markerEntryMatch[1]!,
             label: markerExtracted.label,
             color: markerExtracted.color || null,
             lineNumber,
@@ -408,7 +416,8 @@ export function parseGantt(
     // CRITICAL: close blocks BEFORE matching new elements
 
     while (blockStack.length > 0) {
-      const top = blockStack[blockStack.length - 1];
+      // In-bounds by while-loop guard.
+      const top = blockStack[blockStack.length - 1]!;
       if (indent <= top.indent) {
         blockStack.pop();
         lastTaskNode = null;
@@ -424,9 +433,11 @@ export function parseGantt(
       const depMatch = line.match(DEPENDENCY_RE);
       if (depMatch) {
         const label = depMatch[1]?.trim() || undefined;
-        const depParts = depMatch[2].split('|');
-        // TD-18: resolve alias literal → canonical task label.
-        const targetName = resolveAliasTarget(depParts[0].trim());
+        // Capture group 2 guaranteed by successful regex match.
+        const depParts = depMatch[2]!.split('|');
+        // TD-18: resolve alias literal → canonical task label; depParts has at
+        // least one element from split.
+        const targetName = resolveAliasTarget(depParts[0]!.trim());
         let offset: Offset | undefined;
 
         if (depParts.length > 1) {
@@ -498,9 +509,10 @@ export function parseGantt(
       /^holiday\s+(\d{4}-\d{2}-\d{2})\s+(.+)$/i
     );
     if (holidayInlineMatch) {
+      // Capture groups 1-2 guaranteed by successful regex match.
       result.holidays.dates.push({
-        date: holidayInlineMatch[1],
-        label: holidayInlineMatch[2].trim(),
+        date: holidayInlineMatch[1]!,
+        label: holidayInlineMatch[2]!.trim(),
         lineNumber,
       });
       result.options.holidaysLineNumber ??= lineNumber;
@@ -531,7 +543,8 @@ export function parseGantt(
     // Top-level workweek (outside holiday block)
     const topWorkweekMatch = line.match(WORKWEEK_RE);
     if (topWorkweekMatch) {
-      const days = parseWorkweek(topWorkweekMatch[1].trim());
+      // Capture group 1 guaranteed by successful regex match.
+      const days = parseWorkweek(topWorkweekMatch[1]!.trim());
       if (days) {
         result.holidays.workweek = days;
       } else {
@@ -553,11 +566,12 @@ export function parseGantt(
     // Era (inline)
     const eraMatch = line.match(ERA_RE);
     if (eraMatch) {
-      const eraLabelRaw = eraMatch[3].trim();
+      // Capture groups 1-3 guaranteed by successful regex match.
+      const eraLabelRaw = eraMatch[3]!.trim();
       const eraExtracted = extractColor(eraLabelRaw, palette);
       result.eras.push({
-        startDate: eraMatch[1],
-        endDate: eraMatch[2],
+        startDate: eraMatch[1]!,
+        endDate: eraMatch[2]!,
         label: eraExtracted.label,
         color: eraExtracted.color || null,
         lineNumber,
@@ -575,10 +589,11 @@ export function parseGantt(
     // Marker (inline)
     const markerMatch = line.match(MARKER_RE);
     if (markerMatch) {
-      const markerLabelRaw = markerMatch[2].trim();
+      // Capture groups 1-2 guaranteed by successful regex match.
+      const markerLabelRaw = markerMatch[2]!.trim();
       const markerExtracted = extractColor(markerLabelRaw, palette);
       result.markers.push({
-        date: markerMatch[1],
+        date: markerMatch[1]!,
         label: markerExtracted.label,
         color: markerExtracted.color || null,
         lineNumber,
@@ -592,8 +607,9 @@ export function parseGantt(
     const bareKeyword = line.match(/^([a-z][a-z0-9-]*)$/i);
 
     // Bare boolean keywords
-    if (bareKeyword && KNOWN_BOOLEANS.has(bareKeyword[1].toLowerCase())) {
-      const key = bareKeyword[1].toLowerCase();
+    // Capture group 1 guaranteed by successful regex match.
+    if (bareKeyword && KNOWN_BOOLEANS.has(bareKeyword[1]!.toLowerCase())) {
+      const key = bareKeyword[1]!.toLowerCase();
       result.options.optionLineNumbers[key] = lineNumber;
       switch (key) {
         case 'critical-path':
@@ -613,8 +629,9 @@ export function parseGantt(
     }
 
     // Negated booleans: `no-dependencies`, `no-critical-path`
-    if (bareKeyword && bareKeyword[1].toLowerCase().startsWith('no-')) {
-      const base = bareKeyword[1].toLowerCase().substring(3);
+    // Capture group 1 guaranteed by successful regex match.
+    if (bareKeyword && bareKeyword[1]!.toLowerCase().startsWith('no-')) {
+      const base = bareKeyword[1]!.toLowerCase().substring(3);
       if (KNOWN_BOOLEANS.has(base)) {
         result.options.optionLineNumbers[base] = lineNumber;
         switch (base) {
@@ -632,9 +649,10 @@ export function parseGantt(
       }
     }
 
-    if (optNoColonMatch && isKnownOption(optNoColonMatch[1].toLowerCase())) {
-      const key = optNoColonMatch[1].toLowerCase();
-      const value = optNoColonMatch[2].trim();
+    // Capture groups 1-2 guaranteed by successful regex match.
+    if (optNoColonMatch && isKnownOption(optNoColonMatch[1]!.toLowerCase())) {
+      const key = optNoColonMatch[1]!.toLowerCase();
+      const value = optNoColonMatch[2]!.trim();
       result.options.optionLineNumbers[key] = lineNumber;
 
       switch (key) {
@@ -754,9 +772,10 @@ export function parseGantt(
     const groupMatch = line.match(GROUP_RE);
     if (groupMatch) {
       // Validate nesting: group under a task is invalid
+      // In-bounds by blockStack.length > 0 guard.
       if (
         blockStack.length > 0 &&
-        blockStack[blockStack.length - 1].containerType === 'task'
+        blockStack[blockStack.length - 1]!.containerType === 'task'
       ) {
         softError(
           lineNumber,
@@ -765,7 +784,8 @@ export function parseGantt(
         continue;
       }
 
-      const afterBrackets = groupMatch[2].trim();
+      // Capture group 2 guaranteed by successful regex match.
+      const afterBrackets = groupMatch[2]!.trim();
       const segments = afterBrackets ? afterBrackets.split('|') : [];
 
       // First segment could be empty (just `[Group]`) or have metadata
@@ -773,7 +793,8 @@ export function parseGantt(
       const color: string | null = null;
 
       const pipeWarn = () => warn(lineNumber, MULTIPLE_PIPE_ERROR);
-      if (segments.length > 0 && segments[0].trim()) {
+      // In-bounds by segments.length > 0 guard.
+      if (segments.length > 0 && segments[0]!.trim()) {
         // Check if first segment after brackets is pipe metadata
         metadata = parsePipeMetadata(['', ...segments], metaAliasMap, pipeWarn);
       } else if (segments.length > 1) {
@@ -785,7 +806,8 @@ export function parseGantt(
       }
 
       // TD-18: peel optional `as <alias>` from the group label.
-      const groupPeeled = peelAlias(groupMatch[1]);
+      // Capture group 1 guaranteed by successful regex match.
+      const groupPeeled = peelAlias(groupMatch[1]!);
       if (groupPeeled.alias)
         nameAliasMap.set(groupPeeled.alias, groupPeeled.label);
       const group: GanttGroup = {
@@ -810,11 +832,12 @@ export function parseGantt(
 
     const timelineDurMatch = line.match(TIMELINE_DURATION_RE);
     if (timelineDurMatch) {
-      const startDate = timelineDurMatch[1];
-      const amount = parseFloat(timelineDurMatch[2]);
+      // Capture groups 1, 2, 3, 5 guaranteed by successful regex match; group 4 is optional.
+      const startDate = timelineDurMatch[1]!;
+      const amount = parseFloat(timelineDurMatch[2]!);
       const unit = timelineDurMatch[3] as DurationUnit;
       const uncertain = !!timelineDurMatch[4];
-      const labelRaw = timelineDurMatch[5];
+      const labelRaw = timelineDurMatch[5]!;
 
       const task = makeTask(
         labelRaw,
@@ -838,10 +861,11 @@ export function parseGantt(
 
     const durMatch = line.match(DURATION_RE);
     if (durMatch) {
-      const amount = parseFloat(durMatch[1]);
+      // Capture groups 1, 2, 4 guaranteed by successful regex match; group 3 is optional.
+      const amount = parseFloat(durMatch[1]!);
       const unit = durMatch[2] as DurationUnit;
       const uncertain = !!durMatch[3];
-      const labelRaw = durMatch[4];
+      const labelRaw = durMatch[4]!;
 
       const task = makeTask(labelRaw, { amount, unit }, uncertain, lineNumber);
       const taskNode: GanttNode = { kind: 'task', ...task };
@@ -859,12 +883,13 @@ export function parseGantt(
 
     const explicitDateMatch = line.match(EXPLICIT_DATE_RE);
     if (explicitDateMatch) {
+      // Capture groups 1-2 guaranteed by successful regex match.
       const task = makeTask(
-        explicitDateMatch[2],
+        explicitDateMatch[2]!,
         null, // no duration — it's a date anchor / milestone
         false,
         lineNumber,
-        explicitDateMatch[1]
+        explicitDateMatch[1]!
       );
       // Explicit date tasks with no duration are milestones
       const taskNode: GanttNode = { kind: 'task', ...task };
@@ -892,9 +917,11 @@ export function parseGantt(
       }
       // This happens when the dep is at the same indent as the task
       const label = depMatch[1]?.trim() || undefined;
-      const depParts = depMatch[2].split('|');
-      // TD-18: resolve alias literal → canonical task label.
-      const targetName = resolveAliasTarget(depParts[0].trim());
+      // Capture group 2 guaranteed by successful regex match.
+      const depParts = depMatch[2]!.split('|');
+      // TD-18: resolve alias literal → canonical task label; depParts has at
+      // least one element from split.
+      const targetName = resolveAliasTarget(depParts[0]!.trim());
       let offset: Offset | undefined;
 
       if (depParts.length > 1) {
@@ -1001,7 +1028,8 @@ export function parseGantt(
   ): GanttTask {
     const segments = labelRaw.split('|');
     // TD-18: peel optional `as <alias>` from the label (pre-pipe).
-    const peeled = peelAlias(segments[0]);
+    // split('|') always yields at least one element.
+    const peeled = peelAlias(segments[0]!);
     const label = peeled.label;
     if (peeled.alias) nameAliasMap.set(peeled.alias, label);
 
@@ -1032,7 +1060,8 @@ export function parseGantt(
       const seg = part.trim();
       const progressMatch = seg.match(/^(\d+)%$/);
       if (progressMatch) {
-        progress = parseInt(progressMatch[1], 10);
+        // Capture group 1 guaranteed by successful regex match.
+        progress = parseInt(progressMatch[1]!, 10);
       }
     }
 
@@ -1103,8 +1132,9 @@ function parseWorkweek(s: string): Weekday[] | null {
   // Try range format: "sun-thu"
   const rangeParts = s.toLowerCase().split('-');
   if (rangeParts.length === 2) {
-    const start = WEEKDAY_MAP[rangeParts[0].trim()];
-    const end = WEEKDAY_MAP[rangeParts[1].trim()];
+    // In-bounds by length === 2 check.
+    const start = WEEKDAY_MAP[rangeParts[0]!.trim()];
+    const end = WEEKDAY_MAP[rangeParts[1]!.trim()];
     if (start && end) {
       const allDays: Weekday[] = [
         'mon',
@@ -1120,7 +1150,8 @@ function parseWorkweek(s: string): Weekday[] | null {
       const days: Weekday[] = [];
       let idx = startIdx;
       while (true) {
-        days.push(allDays[idx]);
+        // In-bounds: allDays has length 7 and idx stays in [0..6] via % 7.
+        days.push(allDays[idx]!);
         if (idx === endIdx) break;
         idx = (idx + 1) % 7;
       }

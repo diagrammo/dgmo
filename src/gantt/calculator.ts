@@ -152,7 +152,8 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
     const cycle = findCycle(taskMap);
     const cycleStr = cycle.map((id) => taskMap.get(id)!.task.label).join(' → ');
     warn(
-      taskMap.get(cycle[0])!.task.lineNumber,
+      // Cycle is non-empty when topo sort failed; preserves prior crash-on-empty behavior.
+      taskMap.get(cycle[0]!)!.task.lineNumber,
       `Circular dependency detected: ${cycleStr}. The cycle-creating dependency was dropped.`
     );
 
@@ -342,8 +343,9 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
   // ── Compute overall date range ──────────────────────────
 
   if (result.tasks.length > 0) {
-    let minDate = result.tasks[0].startDate;
-    let maxDate = result.tasks[0].endDate;
+    // In-bounds by result.tasks.length > 0 guard.
+    let minDate = result.tasks[0]!.startDate;
+    let maxDate = result.tasks[0]!.endDate;
     for (const t of result.tasks) {
       if (t.startDate.getTime() < minDate.getTime()) minDate = t.startDate;
       if (t.endDate.getTime() > maxDate.getTime()) maxDate = t.endDate;
@@ -368,7 +370,8 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
 
     // Extend chart range to include the last sprint's end so it doesn't clip
     if (result.sprints.length > 0) {
-      const lastSprintEnd = result.sprints[result.sprints.length - 1].endDate;
+      // In-bounds by result.sprints.length > 0 guard.
+      const lastSprintEnd = result.sprints[result.sprints.length - 1]!.endDate;
       if (lastSprintEnd.getTime() > result.endDate.getTime()) {
         result.endDate = lastSprintEnd;
       }
@@ -384,7 +387,8 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
       (g) => (g as GanttGroup & { kind: 'group' }).name
     );
     warn(
-      topLevelGroups[0].lineNumber,
+      // In-bounds by topLevelGroups.length >= 2 guard above.
+      topLevelGroups[0]!.lineNumber,
       `${names.join(' and ')} are sequential. Wrap in \`parallel\` if they should run concurrently.`
     );
   }
@@ -461,7 +465,8 @@ function buildImplicitDeps(
           prevTaskId = null;
           const nextIdx = children.indexOf(node) + 1;
           if (nextIdx < children.length) {
-            const nextFirstId = findFirstTask([children[nextIdx]]);
+            // In-bounds by nextIdx < children.length guard.
+            const nextFirstId = findFirstTask([children[nextIdx]!]);
             if (nextFirstId) {
               const nextNode = taskMap.get(nextFirstId);
               if (nextNode) {
@@ -520,7 +525,8 @@ function findFirstTask(nodes: GanttNode[]): string | null {
 /** Find the last task ID in a tree (depth-first, last branch). */
 function findLastTask(nodes: GanttNode[]): string | null {
   for (let i = nodes.length - 1; i >= 0; i--) {
-    const node = nodes[i];
+    // In-bounds by reverse loop guard (i ranges over valid indices).
+    const node = nodes[i]!;
     if (node.kind === 'task') return node.id;
     if (node.kind === 'group' || node.kind === 'parallel') {
       const found = findLastTask(node.children);
@@ -622,8 +628,9 @@ function breakCycle(
 ): void {
   if (cycle.length < 3) return; // need at least [A, B, A]
   // Remove the edge from second-to-last → first (i.e. the edge that closes the cycle)
-  const fromId = cycle[cycle.length - 2];
-  const toId = cycle[0];
+  // In-bounds by cycle.length >= 3 guard above.
+  const fromId = cycle[cycle.length - 2]!;
+  const toId = cycle[0]!;
   const toNode = taskMap.get(toId);
   if (toNode) {
     const idx = toNode.predecessors.indexOf(fromId);
@@ -668,7 +675,8 @@ function computeCriticalPath(
 
   // Backward pass (reverse order)
   for (let i = sortedIds.length - 1; i >= 0; i--) {
-    const id = sortedIds[i];
+    // In-bounds by loop guard.
+    const id = sortedIds[i]!;
     const node = taskMap.get(id)!;
     const succs = successors.get(id) ?? [];
 

@@ -66,7 +66,8 @@ export function resolveTaskName(
     (t) => normalizeName(t.label) === normTrimmed
   );
   if (exactMatches.length === 1) {
-    return { task: exactMatches[0] };
+    // In-bounds by length === 1 check.
+    return { task: exactMatches[0]! };
   }
   if (exactMatches.length > 1) {
     // Multiple tasks with same name — need disambiguation
@@ -93,7 +94,8 @@ export function resolveTaskName(
     });
 
     if (matches.length === 1) {
-      return { task: matches[0] };
+      // In-bounds by length === 1 check.
+      return { task: matches[0]! };
     }
     if (matches.length > 1) {
       const suggestions = matches.map((t) =>
