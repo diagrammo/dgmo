@@ -140,7 +140,8 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
     const trimmed = label.trim();
     const m = trimmed.match(/^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/);
     if (!m) return { label: trimmed };
-    return { label: m[1].trim(), alias: m[2] };
+    // Regex capture groups present after successful match.
+    return { label: m[1]!.trim(), alias: m[2]! };
   }
   const pushWarning = (lineNumber: number, message: string) => {
     result.diagnostics.push(makeDgmoError(lineNumber, message, 'warning'));
@@ -148,14 +149,16 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
 
   /** Get the innermost active group, if any */
   function currentGroupState(): GroupState | null {
-    return groupStack.length > 0 ? groupStack[groupStack.length - 1] : null;
+    // In-bounds by length guard.
+    return groupStack.length > 0 ? groupStack[groupStack.length - 1]! : null;
   }
 
   /** Close groups that are at or deeper than a given indent level */
   function closeGroupsToIndent(indent: number) {
     while (
       groupStack.length > 0 &&
-      groupStack[groupStack.length - 1].indent >= indent
+      // In-bounds by length guard.
+      groupStack[groupStack.length - 1]!.indent >= indent
     ) {
       const gs = groupStack.pop()!;
       result.groups.push(gs.group);
@@ -177,7 +180,8 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
 
   for (let i = 0; i < lines.length; i++) {
     const lineNum = i + 1;
-    const raw = lines[i];
+    // In-bounds by loop guard.
+    const raw = lines[i]!;
     const trimmed = raw.trim();
     const indent = measureIndent(raw);
 
@@ -208,14 +212,16 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
       // direction TB / direction LR
       const dirMatch = trimmed.match(/^direction\s+(TB|LR)$/i);
       if (dirMatch) {
-        result.direction = dirMatch[1].toUpperCase() as 'LR' | 'TB';
+        // Regex capture group present after successful match.
+        result.direction = dirMatch[1]!.toUpperCase() as 'LR' | 'TB';
         continue;
       }
 
       // hide directive: `hide team:Backend, team:Frontend`
       const hideMatch = trimmed.match(/^hide\s+(.+)/i);
       if (hideMatch && !trimmed.match(/^hide\s*\|/)) {
-        const pairs = hideMatch[1].split(',');
+        // Regex capture group present after successful match.
+        const pairs = hideMatch[1]!.split(',');
         for (const pair of pairs) {
           const colonIdx = pair.indexOf(':');
           if (colonIdx > 0) {
@@ -239,8 +245,9 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
       if (!contentStarted) {
         const optMatch = trimmed.match(OPTION_NOCOLON_RE);
         if (optMatch) {
-          const key = optMatch[1].toLowerCase();
-          const value = optMatch[2].trim();
+          // Regex capture groups present after successful match.
+          const key = optMatch[1]!.toLowerCase();
+          const value = optMatch[2]!.trim();
           if (key === 'active-tag') {
             result.options[key] = value;
             continue;
@@ -293,7 +300,8 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
           !currentTagGroup.defaultValue &&
           currentTagGroup.entries.length > 0
         ) {
-          currentTagGroup.defaultValue = currentTagGroup.entries[0].value;
+          // In-bounds by length guard.
+          currentTagGroup.defaultValue = currentTagGroup.entries[0]!.value;
         }
       }
       result.tagGroups.push(currentTagGroup);
@@ -393,8 +401,9 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
       }
 
       result.edges.push({
-        source: groupId(sourceLabel),
-        target: groupId(targetLabel),
+        // Regex capture groups present after successful match.
+        source: groupId(sourceLabel!),
+        target: groupId(targetLabel!),
         label: undefined,
         bidirectional: arrow === '<->',
         lineNumber: lineNum,
@@ -423,8 +432,9 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
       }
 
       result.edges.push({
-        source: groupId(sourceLabel),
-        target: groupId(targetLabel),
+        // Regex capture groups present after successful match.
+        source: groupId(sourceLabel!),
+        target: groupId(targetLabel!),
         label: (biLabel ?? uniLabel)?.trim(),
         bidirectional: !!biLabel,
         lineNumber: lineNum,
@@ -440,7 +450,8 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
       currentTagGroup = null;
       flushDescription();
       // TD-18: peel optional `as <alias>` from the group label.
-      const groupPeeled = peelAlias(groupMatch[1]);
+      // Regex capture group present after successful match.
+      const groupPeeled = peelAlias(groupMatch[1]!);
       const label = groupPeeled.label;
       if (groupPeeled.alias)
         nameAliasMap.set(groupPeeled.alias, groupId(label));
@@ -693,8 +704,9 @@ function parseNodeLine(
   // TD-18: peel optional `as <alias>` from label.
   const asMatch = label.match(/^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/);
   if (asMatch) {
-    label = asMatch[1].trim();
-    nameAliasMap?.set(normalizeName(asMatch[2]), label);
+    // Regex capture groups present after successful match.
+    label = asMatch[1]!.trim();
+    nameAliasMap?.set(normalizeName(asMatch[2]!), label);
   }
 
   if (!label) return null;
@@ -716,7 +728,8 @@ function resolveEndpoint(
   nameAliasMap?: Map<string, string>
 ): string {
   const m = name.match(/^\[(.+)\]$/);
-  if (m) return groupId(m[1].trim());
+  // Regex capture group present after successful match.
+  if (m) return groupId(m[1]!.trim());
   if (nameAliasMap) {
     const aliased = nameAliasMap.get(name.trim());
     if (aliased !== undefined) return aliased;
@@ -745,11 +758,12 @@ function parseEdgeLine(
   // Check for bidirectional labeled: `Source <-label-> Target`
   const biLabeledMatch = trimmed.match(/^(.+?)\s*<-(.+)->\s*(.+)$/);
   if (biLabeledMatch) {
-    const source = resolveEndpoint(biLabeledMatch[1].trim(), nameAliasMap);
-    const labelResult = parseInArrowLabel(biLabeledMatch[2], lineNum);
+    // Regex capture groups present after successful match.
+    const source = resolveEndpoint(biLabeledMatch[1]!.trim(), nameAliasMap);
+    const labelResult = parseInArrowLabel(biLabeledMatch[2]!, lineNum);
     diagnostics.push(...labelResult.diagnostics);
     const label = labelResult.label;
-    let rest = biLabeledMatch[3].trim();
+    let rest = biLabeledMatch[3]!.trim();
 
     let metadata: Record<string, string> = {};
     const pipeIdx = rest.indexOf('|');
@@ -818,11 +832,12 @@ function parseEdgeLine(
   // Check for labeled arrow: `Source -label-> Target`
   const labeledMatch = trimmed.match(/^(.+?)\s+-(.+)->\s*(.+)$/);
   if (labeledMatch) {
-    const source = resolveEndpoint(labeledMatch[1].trim(), nameAliasMap);
-    const labelResult = parseInArrowLabel(labeledMatch[2], lineNum);
+    // Regex capture groups present after successful match.
+    const source = resolveEndpoint(labeledMatch[1]!.trim(), nameAliasMap);
+    const labelResult = parseInArrowLabel(labeledMatch[2]!, lineNum);
     diagnostics.push(...labelResult.diagnostics);
     const label = labelResult.label;
-    let rest = labeledMatch[3].trim();
+    let rest = labeledMatch[3]!.trim();
 
     if (label) {
       let metadata: Record<string, string> = {};

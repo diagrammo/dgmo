@@ -72,9 +72,10 @@ function splitCamelCase(word: string): string[] {
   const parts: string[] = [];
   let start = 0;
   for (let i = 1; i < word.length; i++) {
-    const prev = word[i - 1];
-    const curr = word[i];
-    const next = i + 1 < word.length ? word[i + 1] : '';
+    // In-bounds by loop guard (i >= 1 and i < word.length).
+    const prev = word[i - 1]!;
+    const curr = word[i]!;
+    const next = i + 1 < word.length ? word[i + 1]! : '';
     const lowerToUpper =
       prev >= 'a' && prev <= 'z' && curr >= 'A' && curr <= 'Z';
     const upperRunEnd =
@@ -155,7 +156,8 @@ function fitLabelToHeader(
       .map((l) =>
         l.length > maxChars ? l.slice(0, maxChars - 1) + '\u2026' : l
       );
-    const last = result[maxLines - 1];
+    // In-bounds: result has exactly maxLines entries (from .slice(0, maxLines)).
+    const last = result[maxLines - 1]!;
     if (!last.endsWith('\u2026')) {
       result[maxLines - 1] =
         last.length >= maxChars
@@ -275,8 +277,9 @@ function resolveEdgeLabelOverlaps(
     let moved = false;
     for (let i = 0; i < labels.length; i++) {
       for (let j = i + 1; j < labels.length; j++) {
-        const a = labels[i];
-        const b = labels[j];
+        // In-bounds by loop guard.
+        const a = labels[i]!;
+        const b = labels[j]!;
         const dx = Math.abs(a.x - b.x);
         const dy = Math.abs(a.y - b.y);
         const overlapX = (a.width + b.width) / 2 + PAD - dx;
@@ -418,7 +421,8 @@ export function renderBoxesAndLines(
   const edgeColorMap = new Map<number, string>();
   for (let i = 0; i < layout.edges.length; i++) {
     const c = edgeColor(
-      layout.edges[i],
+      // In-bounds by loop guard.
+      layout.edges[i]!,
       parsed.tagGroups,
       activeGroup,
       palette
@@ -521,7 +525,8 @@ export function renderBoxesAndLines(
           .attr('font-size', fitted.fontSize)
           .attr('font-weight', '600')
           .attr('fill', palette.text)
-          .text(fitted.lines[li]);
+          // In-bounds by loop guard.
+          .text(fitted.lines[li]!);
       }
     } else {
       // Expanded: background container with label
@@ -566,7 +571,8 @@ export function renderBoxesAndLines(
   const edgeGroups = new Map<number, D3G>();
 
   for (let i = 0; i < layout.edges.length; i++) {
-    const le = layout.edges[i];
+    // In-bounds by loop guard.
+    const le = layout.edges[i]!;
     const color = edgeColorMap.get(i) ?? palette.textMuted;
 
     // Check if hidden
@@ -702,7 +708,8 @@ export function renderBoxesAndLines(
 
   // Render edge labels into their edge groups
   for (const lp of labelPositions) {
-    const le = layout.edges[lp.idx];
+    // In-bounds: lp.idx was set from a valid index into layout.edges above.
+    const le = layout.edges[lp.idx]!;
     if (!le.label) continue;
 
     const edgeG = edgeGroups.get(lp.idx);
@@ -819,7 +826,8 @@ export function renderBoxesAndLines(
           .attr('font-size', fitted.fontSize)
           .attr('font-weight', '600')
           .attr('fill', colors.text)
-          .text(labelLines[li]);
+          // In-bounds by loop guard.
+          .text(labelLines[li]!);
       }
 
       // Separator line (full width, matches infra style)
@@ -884,7 +892,8 @@ export function renderBoxesAndLines(
       const BULLET_BODY_X = BULLET_GLYPH_X + 10;
 
       for (let li = 0; li < visibleLines.length; li++) {
-        const line = visibleLines[li];
+        // In-bounds by loop guard.
+        const line = visibleLines[li]!;
         let lineText = line.text;
         // Truncate last line if there are more lines beyond the cap
         if (truncated && li === visibleLines.length - 1) {
@@ -945,7 +954,8 @@ export function renderBoxesAndLines(
           .attr('font-size', fitted.fontSize)
           .attr('font-weight', '600')
           .attr('fill', colors.text)
-          .text(fitted.lines[li]);
+          // In-bounds by loop guard.
+          .text(fitted.lines[li]!);
       }
     }
   }

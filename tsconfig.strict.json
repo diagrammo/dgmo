@@ -37,6 +37,7 @@
     "src/pert/**/*.ts",
     "src/infra/**/*.ts",
     "src/graph/**/*.ts",
-    "src/gantt/**/*.ts"
+    "src/gantt/**/*.ts",
+    "src/boxes-and-lines/**/*.ts"
   ]
 }

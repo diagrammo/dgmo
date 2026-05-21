@@ -84,9 +84,10 @@ function splitCamelCase(word: string): string[] {
   const parts: string[] = [];
   let start = 0;
   for (let i = 1; i < word.length; i++) {
-    const prev = word[i - 1];
-    const curr = word[i];
-    const next = i + 1 < word.length ? word[i + 1] : '';
+    // In-bounds by loop guard (i >= 1 and i < word.length).
+    const prev = word.charAt(i - 1);
+    const curr = word.charAt(i);
+    const next = i + 1 < word.length ? word.charAt(i + 1) : '';
     const lowerToUpper =
       prev >= 'a' && prev <= 'z' && curr >= 'A' && curr <= 'Z';
     const upperRunEnd =
@@ -309,19 +310,24 @@ function getVariants(): Variant[] {
 function countCrossings(edges: BLLayoutEdge[]): number {
   let count = 0;
   for (let i = 0; i < edges.length; i++) {
-    const a = edges[i].points;
+    // In-bounds by loop guard.
+    const edgeI = edges[i]!;
+    const a = edgeI.points;
     if (a.length < 2) continue;
     for (let j = i + 1; j < edges.length; j++) {
-      const b = edges[j].points;
+      // In-bounds by loop guard.
+      const edgeJ = edges[j]!;
+      const b = edgeJ.points;
       if (b.length < 2) continue;
       // Skip edges that share an endpoint — they meet at a node, not a crossing
-      if (edges[i].source === edges[j].source) continue;
-      if (edges[i].source === edges[j].target) continue;
-      if (edges[i].target === edges[j].source) continue;
-      if (edges[i].target === edges[j].target) continue;
+      if (edgeI.source === edgeJ.source) continue;
+      if (edgeI.source === edgeJ.target) continue;
+      if (edgeI.target === edgeJ.source) continue;
+      if (edgeI.target === edgeJ.target) continue;
       for (let ai = 0; ai < a.length - 1; ai++) {
         for (let bi = 0; bi < b.length - 1; bi++) {
-          if (segmentsCross(a[ai], a[ai + 1], b[bi], b[bi + 1])) count++;
+          // In-bounds by loop guard (ai < a.length - 1, bi < b.length - 1).
+          if (segmentsCross(a[ai]!, a[ai + 1]!, b[bi]!, b[bi + 1]!)) count++;
         }
       }
     }
@@ -515,7 +521,8 @@ export async function layoutBoxesAndLines(
 
     const rootEdges: ElkLayoutEdge[] = [];
     for (let i = 0; i < parsed.edges.length; i++) {
-      const edge = parsed.edges[i];
+      // In-bounds by loop guard.
+      const edge = parsed.edges[i]!;
       if (!nodeById.has(edge.source) || !nodeById.has(edge.target)) continue;
       rootEdges.push({
         id: `e${i}`,
@@ -606,7 +613,8 @@ export async function layoutBoxesAndLines(
     const edgeParallelCounts: number[] = new Array(parsed.edges.length).fill(1);
     const parallelGroups = new Map<string, number[]>();
     for (let i = 0; i < parsed.edges.length; i++) {
-      const edge = parsed.edges[i];
+      // In-bounds by loop guard.
+      const edge = parsed.edges[i]!;
       const [a, b] =
         edge.source < edge.target
           ? [edge.source, edge.target]
@@ -622,9 +630,11 @@ export async function layoutBoxesAndLines(
       }
       if (capped.length < 2) continue;
       for (let j = 0; j < capped.length; j++) {
-        edgeYOffsets[capped[j]] =
+        // In-bounds by loop guard.
+        const cappedJ = capped[j]!;
+        edgeYOffsets[cappedJ] =
           (j - (capped.length - 1) / 2) * PARALLEL_SPACING;
-        edgeParallelCounts[capped[j]] = capped.length;
+        edgeParallelCounts[cappedJ] = capped.length;
       }
     }
 
@@ -633,13 +643,15 @@ export async function layoutBoxesAndLines(
 
     const layoutEdges: BLLayoutEdge[] = [];
     for (let i = 0; i < parsed.edges.length; i++) {
-      const edge = parsed.edges[i];
+      // In-bounds by loop guard.
+      const edge = parsed.edges[i]!;
       if (edgeParallelCounts[i] === 0) continue;
       const elkEdge = edgeById.get(`e${i}`);
       if (!elkEdge?.sections || elkEdge.sections.length === 0) continue;
       const container = elkEdge.container ?? 'root';
       const off = containerAbs.get(container) ?? { x: 0, y: 0 };
-      const s = elkEdge.sections[0];
+      // In-bounds — length check above guarantees sections[0] exists.
+      const s = elkEdge.sections[0]!;
       const points = [
         { x: s.startPoint.x + off.x, y: s.startPoint.y + off.y },
         ...(s.bendPoints ?? []).map((p) => ({
@@ -652,8 +664,10 @@ export async function layoutBoxesAndLines(
       let labelY: number | undefined;
       if (edge.label && points.length >= 2) {
         const mid = Math.floor(points.length / 2);
-        labelX = points[mid].x;
-        labelY = points[mid].y - 10;
+        // In-bounds — mid < points.length guaranteed by length >= 2 check.
+        const midPoint = points[mid]!;
+        labelX = midPoint.x;
+        labelY = midPoint.y - 10;
       }
       layoutEdges.push({
         source: edge.source,
@@ -664,8 +678,9 @@ export async function layoutBoxesAndLines(
         points,
         labelX,
         labelY,
-        yOffset: edgeYOffsets[i],
-        parallelCount: edgeParallelCounts[i],
+        // In-bounds — i < parsed.edges.length, arrays sized to that length.
+        yOffset: edgeYOffsets[i]!,
+        parallelCount: edgeParallelCounts[i]!,
         metadata: edge.metadata,
         deferred: true,
       });
@@ -695,16 +710,20 @@ export async function layoutBoxesAndLines(
   const N = parsed.nodes.length + parsed.groups.length;
   const E = parsed.edges.length;
   const trivial = N < 8 && E < 10;
-  const variants = trivial ? [getVariants()[1]] : getVariants();
+  // In-bounds — getVariants() returns 5 variants, index 1 always exists.
+  const variants = trivial ? [getVariants()[1]!] : getVariants();
 
   const results = await Promise.all(variants.map((v) => runVariant(v)));
 
-  let best = results[0];
+  // In-bounds — variants is non-empty (trivial branch has 1, normal has 5).
+  let best = results[0]!;
   let bestScore = scoreLayout(best);
   for (let i = 1; i < results.length; i++) {
-    const s = scoreLayout(results[i]);
+    // In-bounds by loop guard.
+    const resultI = results[i]!;
+    const s = scoreLayout(resultI);
     if (cmpScore(s, bestScore) < 0) {
-      best = results[i];
+      best = resultI;
       bestScore = s;
     }
   }
