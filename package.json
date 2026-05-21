@@ -131,6 +131,8 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write src/",
     "format:check": "prettier --check src/",
+    "check:api": "pnpm build && bash scripts/check-api.sh check",
+    "check:api:update": "pnpm build && bash scripts/check-api.sh update",
     "check:duplication": "jscpd ./src",
     "check:deadcode": "knip",
     "check:spelling": "cspell \"src/**/*.ts\" \"tests/**/*.ts\"",

@@ -46,5 +46,12 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # Epic 105 Story 105.NEW / Epic 106 Story 106.2 — public type
+      # surface diff. dgmo's published .d.ts files are consumed by 7
+      # downstream packages; strictness changes can leak as breaking
+      # type changes if not caught here.
+      - name: API surface diff
+        run: bash scripts/check-api.sh check
+
       - name: Gallery snapshot
         run: pnpm gallery:snapshot
