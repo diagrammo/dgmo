@@ -101,7 +101,8 @@ export function layoutMindmap(
 
   if (roots.length === 1) {
     return layoutSingleRoot(
-      roots[0],
+      // In-bounds: roots.length === 1 from condition above.
+      roots[0]!,
       hiddenCounts,
       hideDescriptions,
       tagGroups,
@@ -438,14 +439,16 @@ function finalize(
     const parent = nodeMap.get(parentId)!;
     const px = parent.x + offsetX;
     const py = parent.y + offsetY;
-    const isLeft = children[0].direction === 'left';
+    // In-bounds: groupedEdges only contains non-empty children arrays.
+    const isLeft = children[0]!.direction === 'left';
 
     // Parent connection point
     const srcX = isLeft ? px : px + parent.width;
     const srcY = py + parent.height / 2;
 
     // Midpoint X between parent edge and children column
-    const firstChild = children[0];
+    // In-bounds: children is non-empty (see above).
+    const firstChild = children[0]!;
     const childEdgeX = isLeft
       ? firstChild.x + offsetX + firstChild.width
       : firstChild.x + offsetX;
@@ -453,7 +456,8 @@ function finalize(
 
     if (children.length === 1) {
       // Single child — simple elbow, no bus needed
-      const c = children[0];
+      // In-bounds: children.length === 1.
+      const c = children[0]!;
       const tgtX = isLeft ? c.x + offsetX + c.width : c.x + offsetX;
       const tgtY = c.y + offsetY + c.height / 2;
       edges.push({
@@ -482,9 +486,10 @@ function finalize(
 
       // 3. Individual horizontal drops from midX to each child
       for (let i = 0; i < children.length; i++) {
-        const c = children[i];
+        // In-bounds by loop guard (i < children.length); childYs derived from children.
+        const c = children[i]!;
         const tgtX = isLeft ? c.x + offsetX + c.width : c.x + offsetX;
-        const tgtY = childYs[i];
+        const tgtY = childYs[i]!;
         edges.push({
           sourceId: parentId,
           targetId: c.node.id,
@@ -510,7 +515,8 @@ function balancedSplit(
     return { right: children, left: [] };
   }
   if (children.length === 2) {
-    return { right: [children[0]], left: [children[1]] };
+    // In-bounds: children.length === 2.
+    return { right: [children[0]!], left: [children[1]!] };
   }
 
   // Compute subtree heights for weighting

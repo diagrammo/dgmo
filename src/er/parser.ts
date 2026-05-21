@@ -127,8 +127,9 @@ function parseRelationship(
   // Captures: [1]=qSrc [2]=bareSrc [3]=fromCard [4]=toCard [5]=qTarget [6]=bareTarget [7]=label
   const sym = trimmed.match(REL_SYMBOLIC_RE);
   if (sym) {
-    const fromCard = parseCardSide(sym[3]);
-    const toCard = parseCardSide(sym[4]);
+    // Groups 3 and 4 are non-optional in REL_SYMBOLIC_RE — always defined on match.
+    const fromCard = parseCardSide(sym[3]!);
+    const toCard = parseCardSide(sym[4]!);
     if (fromCard && toCard) {
       const sourceName = (sym[1] ?? sym[2] ?? '').trim();
       const targetName = (sym[5] ?? sym[6] ?? '').trim();
@@ -154,11 +155,14 @@ function parseRelationship(
   if (kw) {
     const sourceName = (kw[1] ?? kw[2] ?? '').trim();
     const targetName = (kw[5] ?? kw[6] ?? '').trim();
-    const fromSym = KEYWORD_TO_SYMBOL[kw[3].toLowerCase()] ?? kw[3];
-    const toSym = KEYWORD_TO_SYMBOL[kw[4].toLowerCase()] ?? kw[4];
+    // Groups 3 and 4 are non-optional in REL_KEYWORD_RE — always defined on match.
+    const fromKw = kw[3]!;
+    const toKw = kw[4]!;
+    const fromSym = KEYWORD_TO_SYMBOL[fromKw.toLowerCase()] ?? fromKw;
+    const toSym = KEYWORD_TO_SYMBOL[toKw.toLowerCase()] ?? toKw;
     pushError(
       lineNumber,
-      `Use symbolic cardinality (1--*, ?--1, *--*) instead of "${kw[3]}-to-${kw[4]}". Example: ${sourceName} ${fromSym}--${toSym} ${targetName}`
+      `Use symbolic cardinality (1--*, ?--1, *--*) instead of "${fromKw}-to-${toKw}". Example: ${sourceName} ${fromSym}--${toSym} ${targetName}`
     );
     return null;
   }
@@ -180,7 +184,8 @@ function parseColumn(trimmed: string): {
   const rawTokens = tokenizeQuoteAware(trimmed);
   if (rawTokens.length === 0) return null;
 
-  const firstRaw = rawTokens[0];
+  // In-bounds by length-0 guard above.
+  const firstRaw = rawTokens[0]!;
   const wasQuoted = firstRaw.startsWith('"') || firstRaw.startsWith("'");
   const name = stripQuotes(firstRaw);
 
@@ -193,7 +198,8 @@ function parseColumn(trimmed: string): {
   let type: string | undefined;
 
   for (let i = 1; i < rawTokens.length; i++) {
-    const tok = stripQuotes(rawTokens[i]);
+    // In-bounds by loop guard.
+    const tok = stripQuotes(rawTokens[i]!);
     const lower = tok.toLowerCase();
     const constraint = CONSTRAINT_MAP[lower];
     if (constraint) {
@@ -247,7 +253,8 @@ export function parseERDiagram(
     const trimmed = label.trim();
     const m = trimmed.match(/^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/);
     if (!m) return { label: trimmed };
-    return { label: m[1].trim(), alias: m[2] };
+    // Groups 1 and 2 are non-optional — always defined on match.
+    return { label: m[1]!.trim(), alias: m[2]! };
   }
   function resolveAliasName(token: string): string {
     return nameAliasMap.get(token.trim()) ?? token;
@@ -291,7 +298,8 @@ export function parseERDiagram(
   }
 
   for (let i = 0; i < lines.length; i++) {
-    const raw = lines[i];
+    // In-bounds by loop guard.
+    const raw = lines[i]!;
     const trimmed = raw.trim();
     const lineNumber = i + 1;
     const indent = measureIndent(raw);
@@ -374,8 +382,9 @@ export function parseERDiagram(
     if (!contentStarted && indent === 0) {
       const optMatch = trimmed.match(OPTION_NOCOLON_RE);
       if (optMatch) {
-        const key = optMatch[1].toLowerCase();
-        const value = optMatch[2].trim();
+        // Groups 1 and 2 are non-optional in OPTION_NOCOLON_RE — always defined on match.
+        const key = optMatch[1]!.toLowerCase();
+        const value = optMatch[2]!.trim();
         if (KNOWN_OPTIONS.has(key)) {
           result.options[key] = value.toLowerCase();
           continue;
@@ -396,8 +405,9 @@ export function parseERDiagram(
       // [4]=qTarget [5]=bareTarget
       const indentRel = trimmed.match(INDENT_REL_RE);
       if (indentRel) {
-        const fromCard = parseCardSide(indentRel[1]);
-        const toCard = parseCardSide(indentRel[3]);
+        // Groups 1 and 3 are non-optional in INDENT_REL_RE — always defined on match.
+        const fromCard = parseCardSide(indentRel[1]!);
+        const toCard = parseCardSide(indentRel[3]!);
         if (fromCard && toCard) {
           const rawTarget = (indentRel[4] ?? indentRel[5] ?? '').trim();
           // TD-18: resolve alias literal → canonical table name.

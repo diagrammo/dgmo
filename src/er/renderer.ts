@@ -366,20 +366,20 @@ export function renderERDiagram(
 
     // Cardinality markers at endpoints
     const pts = edge.points;
-    // Source side (from cardinality)
+    // Source side (from cardinality) — in-bounds: edge.points.length < 2 was skipped above.
     drawCardinality(
       edgeG,
-      pts[0],
-      pts[1],
+      pts[0]!,
+      pts[1]!,
       edge.cardinality.from,
       edgeColor,
       useLabels
     );
-    // Target side (to cardinality)
+    // Target side (to cardinality) — in-bounds: pts.length >= 2 guaranteed above.
     drawCardinality(
       edgeG,
-      pts[pts.length - 1],
-      pts[pts.length - 2],
+      pts[pts.length - 1]!,
+      pts[pts.length - 2]!,
       edge.cardinality.to,
       edgeColor,
       useLabels
@@ -388,7 +388,8 @@ export function renderERDiagram(
     // Edge label at midpoint
     if (edge.label) {
       const midIdx = Math.floor(pts.length / 2);
-      const midPt = pts[midIdx];
+      // In-bounds: midIdx is in [0, pts.length-1] since pts.length >= 2.
+      const midPt = pts[midIdx]!;
       const labelLen = edge.label.length;
       const bgW = labelLen * 7 + 8;
       const bgH = 16;
@@ -418,7 +419,8 @@ export function renderERDiagram(
 
   // ── Nodes (top layer) ──
   for (let ni = 0; ni < layout.nodes.length; ni++) {
-    const node = layout.nodes[ni];
+    // In-bounds by loop guard.
+    const node = layout.nodes[ni]!;
     const tagColor = resolveTagColor(
       node.metadata,
       parsed.tagGroups,
@@ -435,7 +437,8 @@ export function renderERDiagram(
       node.color ??
       tagColor ??
       semanticColor ??
-      seriesColors[ni % seriesColors.length];
+      // In-bounds by modulo: seriesColors is non-empty from the palette.
+      seriesColors[ni % seriesColors.length]!;
 
     const nodeG = contentG
       .append('g')

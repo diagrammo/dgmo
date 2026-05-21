@@ -230,7 +230,8 @@ function renderQuarterCircle(
     const fillColor =
       ri % 2 === 0 ? palette.bg : mix(palette.bg, palette.border, 0.15);
 
-    const ringName = parsed.rings[ri].name;
+    // In-bounds by loop guard (ri < parsed.rings.length).
+    const ringName = parsed.rings[ri]!.name;
 
     // Background ring arc
     svg
@@ -297,7 +298,8 @@ function renderQuarterCircle(
     const rMid = (rInner + rOuter) / 2;
 
     for (let bi = 0; bi < blips.length; bi++) {
-      const blip = blips[bi];
+      // In-bounds by loop guard (bi < blips.length).
+      const blip = blips[bi]!;
       const angle =
         blips.length === 1
           ? (usableArcStart + usableArcEnd) / 2
@@ -929,7 +931,8 @@ function renderQuarterCircleStatic(
       .attr('font-size', 11)
       .attr('font-weight', '600')
       .attr('opacity', 0.5)
-      .text(parsed.rings[ri].name);
+      // In-bounds by loop guard (ri < parsed.rings.length).
+      .text(parsed.rings[ri]!.name);
   }
 
   // Blip dots
@@ -955,7 +958,8 @@ function renderQuarterCircleStatic(
     const rMid = (rInner + rOuter) / 2;
 
     for (let bi = 0; bi < blips.length; bi++) {
-      const blip = blips[bi];
+      // In-bounds by loop guard (bi < blips.length).
+      const blip = blips[bi]!;
       const angle =
         blips.length === 1
           ? (usableArcStart + usableArcEnd) / 2

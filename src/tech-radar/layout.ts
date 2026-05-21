@@ -102,7 +102,8 @@ export function computeRadarLayout(
       const placedPoints: { angle: number; radius: number }[] = [];
 
       for (let bi = 0; bi < blips.length; bi++) {
-        const blip = blips[bi];
+        // In-bounds by loop guard (bi < blips.length).
+        const blip = blips[bi]!;
 
         // Spread across arc evenly
         let angle: number;

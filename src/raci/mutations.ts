@@ -81,8 +81,9 @@ export function cellReplace(
       return lines.join('\n');
     }
 
+    // In-bounds: existing.lineNumber refers to a valid line in lines.
     lines[existing.lineNumber - 1] = rewriteAssignmentLine(
-      lines[existing.lineNumber - 1],
+      lines[existing.lineNumber - 1]!,
       existing.displayName,
       [marker]
     );
@@ -125,8 +126,9 @@ export function cellAppendMarker(
   if (existing.markers.includes(marker)) return null;
 
   const lines = content.split('\n');
+  // In-bounds: existing.lineNumber refers to a valid line in lines.
   lines[existing.lineNumber - 1] = rewriteAssignmentLine(
-    lines[existing.lineNumber - 1],
+    lines[existing.lineNumber - 1]!,
     existing.displayName,
     [...existing.markers, marker]
   );
@@ -169,8 +171,9 @@ export function cellRemove(
     return lines.join('\n');
   }
 
+  // In-bounds: existing.lineNumber refers to a valid line in lines.
   lines[existing.lineNumber - 1] = rewriteAssignmentLine(
-    lines[existing.lineNumber - 1],
+    lines[existing.lineNumber - 1]!,
     existing.displayName,
     nextMarkers
   );
@@ -205,19 +208,23 @@ export function cellCycle(
 
   let next: RaciMarker | null;
   if (current.length === 0) {
-    next = alphabet[0];
+    // In-bounds: alphabet.length > 0 guard at top of function.
+    next = alphabet[0]!;
   } else {
-    const dominant = current[0];
+    // In-bounds: current.length > 0 from condition above.
+    const dominant = current[0]!;
     const idx = alphabet.indexOf(dominant);
     if (idx < 0) {
       // First marker is not in alphabet (shouldn't normally happen —
       // parser would have flagged it). Restart the cycle.
-      next = alphabet[0];
+      // In-bounds: alphabet.length > 0 guard at top of function.
+      next = alphabet[0]!;
     } else if (idx === alphabet.length - 1) {
       // Wrap → blank
       next = null;
     } else {
-      next = alphabet[idx + 1];
+      // In-bounds: idx < alphabet.length - 1, so idx + 1 < alphabet.length.
+      next = alphabet[idx + 1]!;
     }
   }
 
@@ -264,9 +271,11 @@ function rewriteAssignmentLine(
  */
 function inferAssignmentIndent(task: RaciTask, lines: string[]): number {
   if (task.roleAssignments.length > 0) {
-    return measureIndent(lines[task.roleAssignments[0].lineNumber - 1]);
+    // In-bounds: roleAssignments[0] exists from length>0; lineNumber references a valid line.
+    return measureIndent(lines[task.roleAssignments[0]!.lineNumber - 1]!);
   }
-  const taskIndent = measureIndent(lines[task.lineNumber - 1]);
+  // In-bounds: task.lineNumber references a valid line in the source.
+  const taskIndent = measureIndent(lines[task.lineNumber - 1]!);
   return taskIndent + 2;
 }
 

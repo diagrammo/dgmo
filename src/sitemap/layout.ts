@@ -492,7 +492,8 @@ export function layoutSitemap(
   // Add user edges — defer edges touching expanded containers
   const deferredEdgeIndices: number[] = [];
   for (let i = 0; i < parsed.edges.length; i++) {
-    const edge = parsed.edges[i];
+    // In-bounds by loop guard.
+    const edge = parsed.edges[i]!;
     if (!g.hasNode(edge.sourceId) || !g.hasNode(edge.targetId)) continue;
     if (
       expandedContainerIds.has(edge.sourceId) ||
@@ -607,7 +608,8 @@ export function layoutSitemap(
   const deferredSet = new Set(deferredEdgeIndices);
   const layoutEdges: SitemapLayoutEdge[] = [];
   for (let i = 0; i < parsed.edges.length; i++) {
-    const edge = parsed.edges[i];
+    // In-bounds by loop guard.
+    const edge = parsed.edges[i]!;
     if (!g.hasNode(edge.sourceId) || !g.hasNode(edge.targetId)) continue;
 
     let points: { x: number; y: number }[];

@@ -273,7 +273,8 @@ export function renderJourneyMap(
         .attr('y', panelY + titleRowH + descLineH * (li + 1))
         .attr('font-size', FONT_SIZE_META)
         .attr('fill', onPersonaText);
-      renderInlineText(lineEl, descLines[li], palette, FONT_SIZE_META);
+      // In-bounds by loop guard.
+      renderInlineText(lineEl, descLines[li]!, palette, FONT_SIZE_META);
     }
 
     if (onNavigateToLine) {
@@ -446,8 +447,9 @@ export function renderJourneyMap(
   // Emotion curve (area fill + line)
   if (layout.curvePoints.length >= 2) {
     // Extend curve to edges with flat continuations
-    const first = layout.curvePoints[0];
-    const last = layout.curvePoints[layout.curvePoints.length - 1];
+    // In-bounds by length >= 2 check above.
+    const first = layout.curvePoints[0]!;
+    const last = layout.curvePoints[layout.curvePoints.length - 1]!;
     const extendedPoints: CurvePoint[] = [
       {
         x: PADDING,
@@ -524,7 +526,8 @@ export function renderJourneyMap(
     }
   } else if (layout.curvePoints.length === 1) {
     // Single point — face only, no curve
-    const pt = layout.curvePoints[0];
+    // In-bounds by length === 1 check above.
+    const pt = layout.curvePoints[0]!;
     const allSteps =
       parsed.phases.length > 0
         ? parsed.phases.flatMap((p) => p.steps)
@@ -928,7 +931,8 @@ export function renderJourneyMap(
           .attr('font-size', THOUGHT_FONT)
           .attr('font-style', 'italic')
           .attr('fill', palette.textMuted)
-          .text(lines[i]);
+          // In-bounds by loop guard.
+          .text(lines[i]!);
       }
     };
 
@@ -1184,7 +1188,8 @@ function renderStepCard(
       .attr('font-size', FONT_SIZE_STEP)
       .attr('font-weight', '500')
       .attr('fill', onCardText)
-      .text(titleLines[i]);
+      // In-bounds by loop guard.
+      .text(titleLines[i]!);
   }
 
   const titleBlockH =
@@ -1264,7 +1269,8 @@ function renderStepCard(
         .attr('y', metaY)
         .attr('font-size', FONT_SIZE_META)
         .attr('fill', onCardText)
-        .text(annoLines[li]);
+        // In-bounds by loop guard.
+        .text(annoLines[li]!);
       metaY += CARD_META_LINE_HEIGHT;
     }
   }

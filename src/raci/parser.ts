@@ -112,8 +112,9 @@ function parseRoleAssignmentLine(
   const colonMatch = trimmed.match(ROLE_ASSIGNMENT_RE);
   if (colonMatch) {
     return {
-      rawRole: colonMatch[1].trim(),
-      markersBlob: colonMatch[2].trim(),
+      // Capture groups [1] and [2] guaranteed by ROLE_ASSIGNMENT_RE shape.
+      rawRole: colonMatch[1]!.trim(),
+      markersBlob: colonMatch[2]!.trim(),
     };
   }
   const tokens = trimmed.split(/\s+/).filter((t) => t.length > 0);
@@ -127,7 +128,8 @@ function parseRoleAssignmentLine(
   };
   let firstMarkerIdx = -1;
   for (let j = 0; j < tokens.length; j++) {
-    if (isAllMarkers(tokens[j])) {
+    // In-bounds by loop guard (j < tokens.length).
+    if (isAllMarkers(tokens[j]!)) {
       firstMarkerIdx = j;
       break;
     }
@@ -200,7 +202,8 @@ export function parseRaci(
 
   // First non-empty / non-comment line: chart type + optional title.
   for (; i < lines.length; i++) {
-    const trimmed = lines[i].trim();
+    // In-bounds by loop guard (i < lines.length).
+    const trimmed = lines[i]!.trim();
     if (!trimmed || trimmed.startsWith('//')) continue;
     const firstLine = parseFirstLine(trimmed);
     if (!firstLine) {
@@ -334,7 +337,8 @@ export function parseRaci(
   const finalizeTask = (uptoLineExclusive: number): void => {
     if (!currentTask) return;
     let end = uptoLineExclusive - 1;
-    while (end > currentTask.lineNumber && !lines[end - 1].trim()) end--;
+    // In-bounds: end > currentTask.lineNumber >= 1, so end-1 >= 1 and < lines.length.
+    while (end > currentTask.lineNumber && !lines[end - 1]!.trim()) end--;
     currentTask.endLineNumber = end;
     if (currentPhase) currentPhase.endLineNumber = end;
     currentTask = null;
@@ -346,14 +350,16 @@ export function parseRaci(
     if (currentTask) finalizeTask(uptoLineExclusive);
     if (currentPhase) {
       let end = uptoLineExclusive - 1;
-      while (end > currentPhase.lineNumber && !lines[end - 1].trim()) end--;
+      // In-bounds: end > currentPhase.lineNumber >= 1, so end-1 >= 1 and < lines.length.
+      while (end > currentPhase.lineNumber && !lines[end - 1]!.trim()) end--;
       currentPhase.endLineNumber = Math.max(currentPhase.endLineNumber, end);
       currentPhase = null;
     }
   };
 
   for (; i < lines.length; i++) {
-    const raw = lines[i];
+    // In-bounds by loop guard (i < lines.length).
+    const raw = lines[i]!;
     const lineNumber = i + 1;
     const trimmed = raw.trim();
     const indent = measureIndent(raw);
@@ -374,7 +380,8 @@ export function parseRaci(
         rolesExplicit = true;
         let j = i + 1;
         for (; j < lines.length; j++) {
-          const next = lines[j];
+          // In-bounds by loop guard (j < lines.length).
+          const next = lines[j]!;
           const nextTrim = next.trim();
           if (!nextTrim) continue;
           if (nextTrim.startsWith('//')) continue;
@@ -424,7 +431,8 @@ export function parseRaci(
       const lower = trimmed.toLowerCase();
       if (KNOWN_BOOLEANS.has(lower)) {
         if (lower in VARIANT_LOCK_DIRECTIVES) {
-          const v = VARIANT_LOCK_DIRECTIVES[lower];
+          // In-bounds: guarded by `lower in VARIANT_LOCK_DIRECTIVES`.
+          const v = VARIANT_LOCK_DIRECTIVES[lower]!;
           if (lockedVariant !== null) {
             // Redundant restatement of the same lock is fine; conflicting
             // locks (e.g. `rasci` chart type + `variant-daci`) error out.
@@ -449,9 +457,10 @@ export function parseRaci(
 
       const optMatch = trimmed.match(OPTION_NOCOLON_RE);
       if (optMatch) {
-        const key = optMatch[1].trim().toLowerCase();
+        // Capture groups [1] and [2] guaranteed by OPTION_NOCOLON_RE shape.
+        const key = optMatch[1]!.trim().toLowerCase();
         if (KNOWN_OPTIONS.has(key)) {
-          const value = optMatch[2].trim();
+          const value = optMatch[2]!.trim();
           if (key === 'roles') {
             rolesExplicit = true;
             // Inline form is name-only. For per-role color use the
@@ -478,7 +487,8 @@ export function parseRaci(
       if (phaseMatch) {
         bodyStarted = true;
         finalizePhase(lineNumber);
-        const label = phaseMatch[1].trim();
+        // Capture group [1] guaranteed by PHASE_RE shape.
+        const label = phaseMatch[1]!.trim();
         const display = displayNameOf(label);
         if (!display) {
           errorAt(lineNumber, 'Phase label is empty.');
@@ -764,7 +774,8 @@ export function parseRaci(
       }
     }
     for (let i = 0; i < result.roles.length; i++) {
-      const roleId = result.roles[i];
+      // In-bounds by loop guard (i < result.roles.length).
+      const roleId = result.roles[i]!;
       if (usedRoleIds.has(roleId)) continue;
       const declared = roleStore.get(roleId);
       const displayName = result.roleDisplayNames[i] ?? roleId;

@@ -96,7 +96,8 @@ export function parseTechRadar(content: string): ParsedTechRadar {
   let currentRing: string | null = null; // active ring section (new syntax)
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+    // In-bounds by loop guard (i < lines.length).
+    const line = lines[i]!;
     const lineNumber = i + 1;
     const trimmed = line.trim();
     const indent = measureIndent(line);
@@ -143,8 +144,9 @@ export function parseTechRadar(content: string): ParsedTechRadar {
         const aliasMatch = trimmed.match(/^(.+?)\s+(?:alias|aka)\s+(\S+)\s*$/i);
         if (aliasMatch) {
           result.rings.push({
-            name: aliasMatch[1].trim(),
-            alias: aliasMatch[2].trim(),
+            // Capture groups [1] and [2] guaranteed by regex match.
+            name: aliasMatch[1]!.trim(),
+            alias: aliasMatch[2]!.trim(),
             lineNumber,
           });
         } else {
@@ -159,9 +161,10 @@ export function parseTechRadar(content: string): ParsedTechRadar {
     if (indent === 0 && !trimmed.includes('|')) {
       const optMatch = trimmed.match(OPTION_NOCOLON_RE);
       if (optMatch) {
-        const key = optMatch[1].toLowerCase();
+        // Capture groups [1] and [2] guaranteed by OPTION_NOCOLON_RE shape.
+        const key = optMatch[1]!.toLowerCase();
         if (KNOWN_OPTIONS.has(key)) {
-          result.options[key] = optMatch[2].trim();
+          result.options[key] = optMatch[2]!.trim();
           currentBlip = null;
           continue;
         }
@@ -200,7 +203,8 @@ export function parseTechRadar(content: string): ParsedTechRadar {
           continue;
         }
 
-        const name = segments[0].trim();
+        // In-bounds: split() always returns at least one element.
+        const name = segments[0]!.trim();
         const color = meta['color'] ?? null;
 
         currentQuadrant = {
@@ -251,7 +255,7 @@ export function parseTechRadar(content: string): ParsedTechRadar {
           result.diagnostics.push(
             makeDgmoError(
               lineNumber,
-              `Blip "${segments[0].trim()}" has no ring assignment. Use a ring section header or add "ring: RingName" metadata.`
+              `Blip "${segments[0]!.trim()}" has no ring assignment. Use a ring section header or add "ring: RingName" metadata.`
             )
           );
           continue;
@@ -267,7 +271,7 @@ export function parseTechRadar(content: string): ParsedTechRadar {
             explicitRing,
             result.rings.map((r) => r.name)
           );
-          let msg = `Unknown ring "${explicitRing}" on blip "${segments[0].trim()}"`;
+          let msg = `Unknown ring "${explicitRing}" on blip "${segments[0]!.trim()}"`;
           if (hint) msg += `. ${hint}`;
           result.diagnostics.push(makeDgmoError(lineNumber, msg));
           continue;
@@ -279,7 +283,7 @@ export function parseTechRadar(content: string): ParsedTechRadar {
           const trendVal = meta['trend'].toLowerCase() as BlipTrend;
           if (!VALID_TRENDS.includes(trendVal)) {
             const hint = suggest(meta['trend'], [...VALID_TRENDS]);
-            let msg = `Unknown trend "${meta['trend']}" on blip "${segments[0].trim()}". Must be one of: ${VALID_TRENDS.join(', ')}`;
+            let msg = `Unknown trend "${meta['trend']}" on blip "${segments[0]!.trim()}". Must be one of: ${VALID_TRENDS.join(', ')}`;
             if (hint) msg += `. ${hint}`;
             result.diagnostics.push(makeDgmoError(lineNumber, msg, 'warning'));
           } else {
@@ -288,7 +292,8 @@ export function parseTechRadar(content: string): ParsedTechRadar {
         }
 
         currentBlip = {
-          name: segments[0].trim(),
+          // In-bounds: split() always returns at least one element.
+          name: segments[0]!.trim(),
           ring: effectiveRing,
           trend,
           description: [],

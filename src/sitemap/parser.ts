@@ -61,10 +61,11 @@ function parseArrowLine(
   // Bare arrow: -> Target
   const bareMatch = trimmed.match(BARE_ARROW_RE);
   if (bareMatch) {
-    const rawTarget = bareMatch[1].trim();
+    // Capture group 1 present by regex shape.
+    const rawTarget = bareMatch[1]!.trim();
     const groupMatch = rawTarget.match(/^\[(.+)\]$/);
     return {
-      target: groupMatch ? groupMatch[1].trim() : rawTarget,
+      target: groupMatch ? groupMatch[1]!.trim() : rawTarget,
       targetIsGroup: !!groupMatch,
     };
   }
@@ -73,11 +74,12 @@ function parseArrowLine(
   const arrowMatch = trimmed.match(ARROW_RE);
   if (arrowMatch) {
     const label = arrowMatch[1]?.trim() || undefined;
-    const rawTarget = arrowMatch[2].trim();
+    // Capture group 2 present by regex shape.
+    const rawTarget = arrowMatch[2]!.trim();
     const groupMatch = rawTarget.match(/^\[(.+)\]$/);
     return {
       label,
-      target: groupMatch ? groupMatch[1].trim() : rawTarget,
+      target: groupMatch ? groupMatch[1]!.trim() : rawTarget,
       targetIsGroup: !!groupMatch,
     };
   }
@@ -199,7 +201,8 @@ export function parseSitemap(
   }[] = [];
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+    // In-bounds by loop guard.
+    const line = lines[i]!;
     const lineNumber = i + 1;
     const trimmed = line.trim();
 
@@ -281,8 +284,9 @@ export function parseSitemap(
 
       const optMatch = trimmed.match(OPTION_NOCOLON_RE);
       if (optMatch) {
-        const key = optMatch[1].trim().toLowerCase();
-        result.options[key] = optMatch[2].trim();
+        // Capture groups 1 and 2 present by regex shape.
+        const key = optMatch[1]!.trim().toLowerCase();
+        result.options[key] = optMatch[2]!.trim();
         continue;
       }
     }
@@ -359,11 +363,13 @@ export function parseSitemap(
 
     if (containerMatch) {
       // TD-18: peel optional `as <alias>` from container label.
-      const rawLabel = containerMatch[1].trim();
+      // Capture group 1 present by regex shape.
+      const rawLabel = containerMatch[1]!.trim();
       const asMatch = rawLabel.match(
         /^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/
       );
-      const label = asMatch ? asMatch[1].trim() : rawLabel;
+      // Capture groups 1 and 2 present by regex shape.
+      const label = asMatch ? asMatch[1]!.trim() : rawLabel;
 
       // Parse optional pipe metadata on the container line
       const pipeStr = containerMatch[2];
@@ -379,7 +385,7 @@ export function parseSitemap(
 
       containerCounter++;
       const containerId = `container-${containerCounter}`;
-      if (asMatch) nameAliasMap.set(asMatch[2], containerId);
+      if (asMatch) nameAliasMap.set(asMatch[2]!, containerId);
       const node: SitemapNode = {
         id: containerId,
         label,
@@ -396,9 +402,10 @@ export function parseSitemap(
       labelToContainer.set(key, node);
     } else if (metadataMatch && indentStack.length > 0) {
       // Metadata line — attach to parent
-      const rawKey = metadataMatch[1].trim().toLowerCase();
+      // Capture groups 1 and 2 present by regex shape.
+      const rawKey = metadataMatch[1]!.trim().toLowerCase();
       const key = metaAliasMap.get(rawKey) ?? rawKey;
-      const value = metadataMatch[2].trim();
+      const value = metadataMatch[2]!.trim();
 
       const parent = findParentNode(indent, indentStack);
       if (!parent) {
@@ -549,12 +556,14 @@ function parseNodeLabel(
 ): SitemapNode {
   const segments = trimmed.split('|').map((s) => s.trim());
   // TD-18: peel optional `as <alias>` from the label slot.
-  let label = segments[0];
+  // split() always returns at least one element.
+  let label = segments[0]!;
   const asMatch = label.match(/^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/);
   const id = `node-${counter}`;
   if (asMatch) {
-    label = asMatch[1].trim();
-    nameAliasMap?.set(normalizeName(asMatch[2]), id);
+    // Capture groups 1 and 2 present by regex shape.
+    label = asMatch[1]!.trim();
+    nameAliasMap?.set(normalizeName(asMatch[2]!), id);
   }
   const metadata = parsePipeMetadata(
     segments,
@@ -565,7 +574,7 @@ function parseNodeLabel(
   // Extract description from pipe metadata into dedicated field
   let description: string[] | undefined;
   if ('description' in metadata) {
-    const descVal = metadata['description'].trim();
+    const descVal = metadata['description']!.trim();
     if (descVal) {
       description = [descVal];
     }
@@ -592,13 +601,15 @@ function attachNode(
 ): void {
   // Pop stack entries with indent >= current indent
   while (indentStack.length > 0) {
-    const top = indentStack[indentStack.length - 1];
+    // In-bounds by length check above.
+    const top = indentStack[indentStack.length - 1]!;
     if (top.indent < indent) break;
     indentStack.pop();
   }
 
   if (indentStack.length > 0) {
-    const parent = indentStack[indentStack.length - 1].node;
+    // In-bounds by length check above.
+    const parent = indentStack[indentStack.length - 1]!.node;
     node.parentId = parent.id;
     // Cascade container metadata to child nodes (child overrides on conflict)
     if (
@@ -621,12 +632,14 @@ function findParentNode(
   indentStack: { node: SitemapNode; indent: number }[]
 ): SitemapNode | null {
   for (let i = indentStack.length - 1; i >= 0; i--) {
-    if (indentStack[i].indent < indent) {
-      return indentStack[i].node;
+    // In-bounds by loop guard.
+    if (indentStack[i]!.indent < indent) {
+      return indentStack[i]!.node;
     }
   }
   if (indentStack.length > 0) {
-    return indentStack[indentStack.length - 1].node;
+    // In-bounds by length check above.
+    return indentStack[indentStack.length - 1]!.node;
   }
   return null;
 }

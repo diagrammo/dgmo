@@ -320,7 +320,8 @@ export function renderSitemap(
       const metaStartY = CONTAINER_HEADER_HEIGHT + CONTAINER_META_FONT_SIZE - 2;
 
       for (let i = 0; i < metaEntries.length; i++) {
-        const [key, value] = metaEntries[i];
+        // In-bounds by loop guard.
+        const [key, value] = metaEntries[i]!;
         const displayKey = metaDisplayKeys[i];
         const rowY = metaStartY + i * CONTAINER_META_LINE_HEIGHT;
         const valColor =
@@ -396,7 +397,8 @@ export function renderSitemap(
 
     // Edge label with background badge
     if (edge.label && edge.points.length >= 2) {
-      const mid = edge.points[Math.floor(edge.points.length / 2)];
+      // In-bounds by length >= 2 check above.
+      const mid = edge.points[Math.floor(edge.points.length / 2)]!;
       const labelW = edge.label.length * EDGE_LABEL_FONT_SIZE * 0.6 + 10;
       const labelH = EDGE_LABEL_FONT_SIZE + 6;
 
@@ -505,7 +507,8 @@ export function renderSitemap(
       const valueX = 10 + (maxKeyLen + 2) * (META_FONT_SIZE * 0.6);
 
       for (let i = 0; i < metaEntries.length; i++) {
-        const [key, value] = metaEntries[i];
+        // In-bounds by loop guard.
+        const [key, value] = metaEntries[i]!;
         const displayKey = metaDisplayKeys[i];
         const rowY =
           HEADER_HEIGHT + SEPARATOR_GAP + (i + 1) * META_LINE_HEIGHT - 4;
@@ -554,7 +557,8 @@ export function renderSitemap(
       const descStartY =
         HEADER_HEIGHT + SEPARATOR_GAP + metaCount * META_LINE_HEIGHT;
       for (let di = 0; di < node.description.length; di++) {
-        const processed = preprocessDescriptionLine(node.description[di]);
+        // In-bounds by loop guard.
+        const processed = preprocessDescriptionLine(node.description[di]!);
         const rowY = descStartY + (di + 1) * META_LINE_HEIGHT - 4;
         const textEl = nodeG
           .append('text')
@@ -683,7 +687,8 @@ function renderLegend(
   };
   const legendState: LegendState = { activeGroup: activeTagGroup ?? null };
   const containerWidth =
-    fixedWidth ?? legendGroups[0]?.x + (legendGroups[0]?.width ?? 200);
+    // In-bounds by length === 0 early return at top of function.
+    fixedWidth ?? legendGroups[0]!.x + (legendGroups[0]!.width ?? 200);
 
   const legendHandle = renderLegendD3(
     parent,

@@ -166,15 +166,18 @@ export function decodeDiagramUrl(hash: string): DecodedDiagramUrl {
   // lz-string's compressToEncodedURIComponent alphabet (A-Za-z0-9+-$) never
   // produces '&', so this split is safe.
   const parts = raw.split('&');
-  let payload = parts[0];
+  // In-bounds: split() always returns at least one element.
+  let payload = parts[0]!;
 
   // Parse extra params
   let viewState: CompactViewState = {};
   for (let i = 1; i < parts.length; i++) {
-    const eq = parts[i].indexOf('=');
+    // In-bounds by loop guard (i < parts.length).
+    const part = parts[i]!;
+    const eq = part.indexOf('=');
     if (eq === -1) continue;
-    const key = parts[i].slice(0, eq);
-    const val = parts[i].slice(eq + 1);
+    const key = part.slice(0, eq);
+    const val = part.slice(eq + 1);
     if (key === 'vs' && val) {
       viewState = decodeViewState(val);
     }

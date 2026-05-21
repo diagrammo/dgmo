@@ -388,7 +388,8 @@ export function renderMindmap(
         .attr('font-size', fontSize)
         .attr('font-weight', isRoot ? 'bold' : 'normal')
         .attr('fill', onFillText)
-        .text(labelLines[0]);
+        // labelLineCount <= 1 implies labelLines has exactly one element here.
+        .text(labelLines[0]!);
     } else {
       // Multi-line — use tspan elements
       // Visual text block spans from first baseline to last baseline:
@@ -410,7 +411,8 @@ export function renderMindmap(
           .append('tspan')
           .attr('x', centerX)
           .attr('y', firstBaselineY + i * LABEL_LINE_HEIGHT)
-          .text(labelLines[i]);
+          // In-bounds by loop guard (i < labelLines.length).
+          .text(labelLines[i]!);
       }
     }
 
@@ -437,7 +439,8 @@ export function renderMindmap(
       // Description text (with inline markdown + preprocessing)
       if (descLines.length <= 1) {
         const descY = separatorY + 4 + descFontSize;
-        const processed = preprocessDescriptionLine(descLines[0]);
+        // descLines.length > 0 from outer guard and <= 1 here means exactly one.
+        const processed = preprocessDescriptionLine(descLines[0]!);
         const textEl = nodeG
           .append('text')
           .attr('x', centerX)
@@ -449,7 +452,8 @@ export function renderMindmap(
       } else {
         const descStartY = separatorY + 4 + descFontSize;
         for (let i = 0; i < descLines.length; i++) {
-          const processed = preprocessDescriptionLine(descLines[i]);
+          // In-bounds by loop guard (i < descLines.length).
+          const processed = preprocessDescriptionLine(descLines[i]!);
           const textEl = nodeG
             .append('text')
             .attr('x', centerX)

@@ -250,7 +250,8 @@ export function renderTechRadar(
     const outerR = (ri + 1) * ringBandWidth;
     const fillColor =
       ri % 2 === 0 ? palette.bg : mix(palette.bg, palette.border, 0.15);
-    const ringName = parsed.rings[ri].name;
+    // In-bounds by loop guard (ri in [0, parsed.rings.length)).
+    const ringName = parsed.rings[ri]!.name;
 
     for (const quadrant of parsed.quadrants) {
       const { startAngle, endAngle } = getQuadrantArc(quadrant.position);
@@ -310,7 +311,8 @@ export function renderTechRadar(
         .attr('font-size', RING_LABEL_FONT_SIZE)
         .attr('font-weight', '600')
         .attr('opacity', 0.5)
-        .text(parsed.rings[ri].name);
+        // In-bounds by loop guard (ri < parsed.rings.length).
+        .text(parsed.rings[ri]!.name);
     } else {
       // Above center
       radarGroup
@@ -324,7 +326,8 @@ export function renderTechRadar(
         .attr('font-size', RING_LABEL_FONT_SIZE)
         .attr('font-weight', '600')
         .attr('opacity', 0.5)
-        .text(parsed.rings[ri].name);
+        // In-bounds by loop guard (ri < parsed.rings.length).
+        .text(parsed.rings[ri]!.name);
 
       // Below center (mirrored)
       radarGroup
@@ -338,7 +341,8 @@ export function renderTechRadar(
         .attr('font-size', RING_LABEL_FONT_SIZE)
         .attr('font-weight', '600')
         .attr('opacity', 0.5)
-        .text(parsed.rings[ri].name);
+        // In-bounds by loop guard (ri < parsed.rings.length).
+        .text(parsed.rings[ri]!.name);
     }
   }
 
@@ -639,7 +643,8 @@ function renderBlipListing(
   );
 
   for (let ci = 0; ci < sortedQuadrants.length; ci++) {
-    const quadrant = sortedQuadrants[ci];
+    // In-bounds by loop guard (ci < sortedQuadrants.length).
+    const quadrant = sortedQuadrants[ci]!;
     const qColor = resolveQuadrantColor(
       quadrant.position,
       quadrant.color,
@@ -825,7 +830,8 @@ function renderRingHoverAreas(
     for (let ri = 0; ri < parsed.rings.length; ri++) {
       const innerR = ri * ringBandWidth;
       const outerR = (ri + 1) * ringBandWidth;
-      const ringName = parsed.rings[ri].name;
+      // In-bounds by loop guard (ri < parsed.rings.length).
+      const ringName = parsed.rings[ri]!.name;
 
       const path = buildArcSlicePath(
         cx,
@@ -1146,7 +1152,8 @@ function renderQuadrantLabel(
       .attr('font-family', FONT_FAMILY)
       .attr('font-size', fontSize)
       .attr('font-weight', 'bold')
-      .text(lines[i]);
+      // In-bounds by loop guard (i < lines.length).
+      .text(lines[i]!);
   }
 }
 

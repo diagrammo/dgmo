@@ -83,7 +83,8 @@ export function parseJourneyMap(
   const tagValueSets = new Map<string, Set<string>>();
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+    // In-bounds by loop guard.
+    const line = lines[i]!;
     const lineNumber = i + 1;
     const trimmed = line.trim();
 
@@ -124,7 +125,8 @@ export function parseJourneyMap(
     if (!contentStarted && !currentTagGroup && indent === 0) {
       const personaMatch = trimmed.match(/^persona\s+(.+)$/i);
       if (personaMatch) {
-        const afterKeyword = personaMatch[1].trim();
+        // Capture group 1 present by regex shape.
+        const afterKeyword = personaMatch[1]!.trim();
         const pipeIdx = afterKeyword.indexOf('|');
         let personaName: string;
         let personaColor: string | undefined;
@@ -235,9 +237,10 @@ export function parseJourneyMap(
     if (!contentStarted && !currentTagGroup && indent === 0) {
       const optMatch = trimmed.match(OPTION_NOCOLON_RE);
       if (optMatch && !PHASE_RE.test(trimmed)) {
-        const key = optMatch[1].trim().toLowerCase();
+        // Capture groups 1 and 2 present by regex shape.
+        const key = optMatch[1]!.trim().toLowerCase();
         if (KNOWN_OPTIONS.has(key)) {
-          result.options[key] = optMatch[2].trim();
+          result.options[key] = optMatch[2]!.trim();
           continue;
         }
       }
@@ -269,7 +272,8 @@ export function parseJourneyMap(
       phaseCounter++;
       currentPhase = {
         id: `phase-${phaseCounter}`,
-        name: phaseMatch[1].trim(),
+        // Capture group 1 present by regex shape.
+        name: phaseMatch[1]!.trim(),
         steps: [],
         lineNumber,
       };
@@ -310,9 +314,10 @@ export function parseJourneyMap(
       // Check for annotation keywords
       const annoMatch = trimmed.match(ANNOTATION_RE);
       if (annoMatch) {
+        // Capture groups 1 and 2 present by regex shape.
         currentStep.annotations.push({
-          type: annoMatch[1].toLowerCase() as JourneyMapAnnotation['type'],
-          text: annoMatch[2].trim(),
+          type: annoMatch[1]!.toLowerCase() as JourneyMapAnnotation['type'],
+          text: annoMatch[2]!.trim(),
         });
         currentStep.endLineNumber = lineNumber;
         continue;
@@ -460,7 +465,8 @@ function parseStepLine(
       const scoreMatch = firstSegment.match(SCORE_RE);
 
       if (scoreMatch) {
-        const rawScore = scoreMatch[1];
+        // Capture group 1 present by regex shape; group 2 is optional.
+        const rawScore = scoreMatch[1]!;
         const label = scoreMatch[2];
 
         if (rawScore.includes('.')) {
@@ -493,9 +499,10 @@ function parseStepLine(
         // First segment didn't match score regex
         // Check if it's a multi-word emotion label attempt (number followed by multiple words)
         const multiWordCheck = firstSegment.match(/^(\d+)\s+(.+)$/);
-        if (multiWordCheck && multiWordCheck[2].includes(' ')) {
+        // Capture groups 1 and 2 present by regex shape.
+        if (multiWordCheck && multiWordCheck[2]!.includes(' ')) {
           // Preserve the score but warn about the multi-word label
-          const mwScore = parseInt(multiWordCheck[1], 10);
+          const mwScore = parseInt(multiWordCheck[1]!, 10);
           if (mwScore >= 1 && mwScore <= 5) {
             score = mwScore;
           }

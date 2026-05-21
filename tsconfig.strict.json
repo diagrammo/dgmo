@@ -23,6 +23,12 @@
     "src/class/**/*.ts",
     "src/ring/**/*.ts",
     "src/pyramid/**/*.ts",
-    "src/editor/**/*.ts"
+    "src/editor/**/*.ts",
+    "src/tech-radar/**/*.ts",
+    "src/mindmap/**/*.ts",
+    "src/raci/**/*.ts",
+    "src/sitemap/**/*.ts",
+    "src/er/**/*.ts",
+    "src/journey-map/**/*.ts"
   ]
 }

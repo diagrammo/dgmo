@@ -95,11 +95,13 @@ export function classifyEREntities(
   for (const rel of relationships) {
     if (rel.source === rel.target) continue;
     if (rel.cardinality.from === '*') {
-      if (!tableStarNeighbors.has(rel.source)) tableStarNeighbors.set(rel.source, new Set());
+      if (!tableStarNeighbors.has(rel.source))
+        tableStarNeighbors.set(rel.source, new Set());
       tableStarNeighbors.get(rel.source)!.add(rel.target);
     }
     if (rel.cardinality.to === '*') {
-      if (!tableStarNeighbors.has(rel.target)) tableStarNeighbors.set(rel.target, new Set());
+      if (!tableStarNeighbors.has(rel.target))
+        tableStarNeighbors.set(rel.target, new Set());
       tableStarNeighbors.get(rel.target)!.add(rel.source);
     }
   }
@@ -110,16 +112,20 @@ export function classifyEREntities(
 
   // Hub outlier statistics
   const indegreeValues = Object.values(indegreeMap);
-  const mean = indegreeValues.reduce((a, b) => a + b, 0) / indegreeValues.length;
-  const variance = indegreeValues.reduce((a, b) => a + (b - mean) ** 2, 0) / indegreeValues.length;
+  const mean =
+    indegreeValues.reduce((a, b) => a + b, 0) / indegreeValues.length;
+  const variance =
+    indegreeValues.reduce((a, b) => a + (b - mean) ** 2, 0) /
+    indegreeValues.length;
   const stddev = Math.sqrt(variance);
 
   // Median indegree (for lookup detection: table must be referenced above-median)
   const sorted = [...indegreeValues].sort((a, b) => a - b);
+  // In-bounds: sorted.length === tables.length and tables.length > 0 is guaranteed above.
   const median =
     sorted.length % 2 === 0
-      ? (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2
-      : sorted[Math.floor(sorted.length / 2)];
+      ? (sorted[sorted.length / 2 - 1]! + sorted[sorted.length / 2]!) / 2
+      : sorted[Math.floor(sorted.length / 2)]!;
 
   // ── Per-table classification ──────────────────────────────────────────────
 
@@ -139,7 +145,9 @@ export function classifyEREntities(
     const externalRels = relationships.filter(
       (r) => (r.source === id || r.target === id) && r.source !== r.target
     );
-    const hasSelfRef = relationships.some((r) => r.source === id && r.target === id);
+    const hasSelfRef = relationships.some(
+      (r) => r.source === id && r.target === id
+    );
 
     // Distinct external tables this table relates to
     const externalTargets = new Set<string>();
@@ -157,9 +165,11 @@ export function classifyEREntities(
 
     // 2. Junction: any one of three signals qualifies.
     //    Inheritance exception: composite PK FKs all pointing to a single parent → skip ratio signal.
-    const isInheritancePattern = pkFkCols.length >= 2 && externalTargets.size === 1;
+    const isInheritancePattern =
+      pkFkCols.length >= 2 && externalTargets.size === 1;
     const junctionByRatio = fkRatio >= 0.6 && !isInheritancePattern;
-    const junctionByCompositePk = pkFkCols.length >= 2 && externalTargets.size >= 2;
+    const junctionByCompositePk =
+      pkFkCols.length >= 2 && externalTargets.size >= 2;
     const junctionByMm = mmParticipants.has(id);
     if (junctionByRatio || junctionByCompositePk || junctionByMm) {
       result.set(id, 'junction');
@@ -167,15 +177,27 @@ export function classifyEREntities(
     }
 
     // 3. Ambiguous: FK ratio 0.4–0.59, no composite PK FKs, not M:M participant
-    if (fkRatio >= 0.4 && fkRatio < 0.6 && pkFkCols.length < 2 && !mmParticipants.has(id)) {
+    if (
+      fkRatio >= 0.4 &&
+      fkRatio < 0.6 &&
+      pkFkCols.length < 2 &&
+      !mmParticipants.has(id)
+    ) {
       result.set(id, 'ambiguous');
       continue;
     }
 
     // 4. Lookup: naming convention match + structural guards
     //    Naming only applies when cols ≤ 6 AND fkCount ≤ 1; structure overrides for larger tables.
-    const nameMatchesLookup = LOOKUP_NAME_SUFFIXES.some((s) => nameLower.endsWith(s));
-    if (nameMatchesLookup && cols.length <= 6 && fkCount <= 1 && indegree > median) {
+    const nameMatchesLookup = LOOKUP_NAME_SUFFIXES.some((s) =>
+      nameLower.endsWith(s)
+    );
+    if (
+      nameMatchesLookup &&
+      cols.length <= 6 &&
+      fkCount <= 1 &&
+      indegree > median
+    ) {
       result.set(id, 'lookup');
       continue;
     }

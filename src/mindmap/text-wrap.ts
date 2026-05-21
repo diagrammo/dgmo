@@ -83,7 +83,8 @@ function truncateLastLine(
   const maxChars = Math.max(1, Math.floor(availWidth / charWidth));
 
   const result = [...lines];
-  const last = result[result.length - 1];
+  // In-bounds: caller passes non-empty lines; tryWrap returns at least one line.
+  const last = result[result.length - 1]!;
   if (last.length > maxChars) {
     result[result.length - 1] = last.substring(0, maxChars - 1) + '\u2026';
   }
@@ -127,7 +128,8 @@ export function wrapText(
   const truncated = truncateLastLine(capped, maxWidth, minFontSize);
   // If we dropped lines, append ellipsis to indicate overflow
   if (allLines.length > maxLines) {
-    const last = truncated[truncated.length - 1];
+    // In-bounds: truncated is derived from allLines which has at least one entry (allLines.length > maxLines >= 0).
+    const last = truncated[truncated.length - 1]!;
     if (!last.endsWith('\u2026')) {
       const availWidth = maxWidth - H_PAD;
       const charWidth = minFontSize * CHAR_WIDTH_RATIO;

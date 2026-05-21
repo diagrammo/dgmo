@@ -197,7 +197,8 @@ export function layoutJourneyMap(
         let stepX = phaseX + COLUMN_PADDING;
 
         for (let si = 0; si < phase.steps.length; si++) {
-          const step = phase.steps[si];
+          // In-bounds by loop guard.
+          const step = phase.steps[si]!;
           const color =
             step.score !== undefined
               ? scoreToColor(step.score, palette)
@@ -238,7 +239,8 @@ export function layoutJourneyMap(
         const padX = COLUMN_PADDING + FACE_ICON_SIZE;
         const availW = phaseWidth - padX * 2;
         for (let si = 0; si < stepCount; si++) {
-          const step = phase.steps[si];
+          // In-bounds by loop guard.
+          const step = phase.steps[si]!;
           if (step.score !== undefined) {
             const curveX =
               stepCount === 1
@@ -304,7 +306,8 @@ export function layoutJourneyMap(
     let stepX = PADDING;
 
     for (let si = 0; si < parsed.steps.length; si++) {
-      const step = parsed.steps[si];
+      // In-bounds by loop guard.
+      const step = parsed.steps[si]!;
       const color =
         step.score !== undefined
           ? scoreToColor(step.score, palette)
@@ -340,21 +343,22 @@ export function layoutJourneyMap(
   }
 
   // Compute total dimensions
+  // In-bounds by length checks below.
   const rightEdge = hasPhases
     ? phaseLayouts.length > 0
-      ? phaseLayouts[phaseLayouts.length - 1].x +
-        phaseLayouts[phaseLayouts.length - 1].width +
+      ? phaseLayouts[phaseLayouts.length - 1]!.x +
+        phaseLayouts[phaseLayouts.length - 1]!.width +
         PADDING
       : PADDING * 2
     : flatStepLayouts.length > 0
-      ? flatStepLayouts[flatStepLayouts.length - 1].x +
+      ? flatStepLayouts[flatStepLayouts.length - 1]!.x +
         STEP_CARD_WIDTH +
         PADDING
       : PADDING * 2;
 
   const bottomEdge = hasPhases
     ? phaseLayouts.length > 0
-      ? phaseLayouts[0].y + phaseLayouts[0].height + PADDING + 40
+      ? phaseLayouts[0]!.y + phaseLayouts[0]!.height + PADDING + 40
       : cardAreaTop + PADDING
     : cardAreaTop + CARD_GAP + tagStripOffset + maxCardHeight + PADDING + 40;
 

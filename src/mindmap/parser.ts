@@ -84,7 +84,8 @@ export function parseMindmap(
   let titleRoot: MindmapNode | null = null;
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+    // In-bounds by loop guard (i < lines.length).
+    const line = lines[i]!;
     const lineNumber = i + 1;
     const trimmed = line.trim();
 
@@ -162,9 +163,10 @@ export function parseMindmap(
     if (!contentStarted && !currentTagGroup && measureIndent(line) === 0) {
       const optMatch = trimmed.match(OPTION_NOCOLON_RE);
       if (optMatch) {
-        const key = optMatch[1].trim().toLowerCase();
+        // Capture groups [1] and [2] are guaranteed by OPTION_NOCOLON_RE shape.
+        const key = optMatch[1]!.trim().toLowerCase();
         if (KNOWN_OPTIONS.has(key)) {
-          result.options[key] = optMatch[2].trim();
+          result.options[key] = optMatch[2]!.trim();
           continue;
         }
       }
@@ -254,8 +256,9 @@ export function parseMindmap(
 
   // If no title and roots exist, infer title from first root
   if (result.title === null && result.roots.length > 0) {
-    result.title = result.roots[0].label;
-    result.titleLineNumber = result.roots[0].lineNumber;
+    // In-bounds: roots.length > 0 from the condition above.
+    result.title = result.roots[0]!.label;
+    result.titleLineNumber = result.roots[0]!.lineNumber;
   }
 
   // Validate tag group values
@@ -302,7 +305,8 @@ function parseNodeLine(
   warnFn: (line: number, msg: string) => void
 ): MindmapNode {
   const segments = trimmed.split('|').map((s) => s.trim());
-  const label = segments[0];
+  // In-bounds: String.prototype.split always returns at least one element.
+  const label = segments[0]!;
 
   const metadata = parsePipeMetadata(segments, aliasMap, () =>
     warnFn(lineNumber, MULTIPLE_PIPE_ERROR)
@@ -346,13 +350,15 @@ function attachNode(
 ): void {
   // Pop stack entries with indent >= current indent
   while (indentStack.length > 0) {
-    const top = indentStack[indentStack.length - 1];
+    // In-bounds: indentStack.length > 0 from loop guard.
+    const top = indentStack[indentStack.length - 1]!;
     if (top.indent < indent) break;
     indentStack.pop();
   }
 
   if (indentStack.length > 0) {
-    const parent = indentStack[indentStack.length - 1].node;
+    // In-bounds: indentStack.length > 0 from condition above.
+    const parent = indentStack[indentStack.length - 1]!.node;
     node.parentId = parent.id;
     parent.children.push(node);
     nodesWithChildren.add(parent.id);
@@ -368,12 +374,15 @@ function findMetadataParent(
   indentStack: { node: MindmapNode; indent: number }[]
 ): MindmapNode | null {
   for (let i = indentStack.length - 1; i >= 0; i--) {
-    if (indentStack[i].indent < indent) {
-      return indentStack[i].node;
+    // In-bounds by loop guard (i in [0, indentStack.length)).
+    const entry = indentStack[i]!;
+    if (entry.indent < indent) {
+      return entry.node;
     }
   }
   if (indentStack.length > 0) {
-    return indentStack[indentStack.length - 1].node;
+    // In-bounds: indentStack.length > 0 from condition above.
+    return indentStack[indentStack.length - 1]!.node;
   }
   return null;
 }

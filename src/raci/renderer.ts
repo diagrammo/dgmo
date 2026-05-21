@@ -112,7 +112,8 @@ function groupDiagnosticsByTask(parsed: ParsedRaci): Map<
 function trimTaskPrefix(message: string): string {
   const prefix = message.match(/^Task '[^']*'\s+(.+)$/);
   if (prefix) {
-    const rest = prefix[1];
+    // Capture group [1] guaranteed by regex match.
+    const rest = prefix[1]!;
     return rest.charAt(0).toUpperCase() + rest.slice(1);
   }
   return message.replace(/\s+on task '[^']*'/, '');
@@ -298,7 +299,8 @@ const AUTO_ACCENTS: ReadonlyArray<keyof PaletteColors['colors']> = [
 ];
 
 function autoAccent(index: number, palette: PaletteColors): string {
-  return palette.colors[AUTO_ACCENTS[index % AUTO_ACCENTS.length]];
+  // In-bounds: (index % AUTO_ACCENTS.length) is always within bounds (AUTO_ACCENTS is non-empty).
+  return palette.colors[AUTO_ACCENTS[index % AUTO_ACCENTS.length]!];
 }
 
 function markerColor(marker: RaciMarker, palette: PaletteColors): string {
@@ -579,7 +581,8 @@ export function renderRaci(
       if (row.kind !== 'task') return;
       const taskIdx = parsed.tasksWithoutPhase.indexOf(row.task);
       if (taskIdx < 0) return;
-      const yTop = rowYs[i];
+      // In-bounds: forEach index i is < rowYs.length (rowYs aligned with phasedRows).
+      const yTop = rowYs[i]!;
       const rh = taskRowContent.get(row.task.id)?.rowHeight ?? ROW_HEIGHT;
       bandsG
         .append('rect')
@@ -692,8 +695,9 @@ export function renderRaci(
   }
 
   for (let i = 0; i < phasedRows.length; i++) {
-    const row = phasedRows[i];
-    const y = rowYs[i];
+    // In-bounds by loop guard (i < phasedRows.length); rowYs aligned with phasedRows.
+    const row = phasedRows[i]!;
+    const y = rowYs[i]!;
     if (row.kind === 'phase') {
       const phaseIdx = parsed.phases.indexOf(row.phase);
       renderPhaseBar(
@@ -1542,7 +1546,8 @@ function parseQuotedSegments(message: string): Segment[] {
   while ((m = re.exec(message)) !== null) {
     if (m.index > last)
       out.push({ text: message.slice(last, m.index), bold: false });
-    out.push({ text: m[1], bold: true });
+    // Capture group [1] guaranteed by the regex pattern.
+    out.push({ text: m[1]!, bold: true });
     last = m.index + m[0].length;
   }
   if (last < message.length)

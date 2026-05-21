@@ -121,7 +121,14 @@ interface ComponentLayout {
   /** Node center positions relative to this component's top-left origin */
   nodePositions: Map<
     string,
-    { x: number; y: number; width: number; height: number; headerHeight: number; columnsHeight: number }
+    {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      headerHeight: number;
+      columnsHeight: number;
+    }
   >;
   /** Edge waypoints keyed by relationship lineNumber, relative to origin */
   edgePoints: Map<number, { x: number; y: number }[]>;
@@ -132,19 +139,45 @@ interface ComponentLayout {
 function layoutComponent(
   tables: ERTable[],
   rels: ERRelationship[],
-  dimMap: Map<string, { width: number; height: number; headerHeight: number; columnsHeight: number }>
+  dimMap: Map<
+    string,
+    {
+      width: number;
+      height: number;
+      headerHeight: number;
+      columnsHeight: number;
+    }
+  >
 ): ComponentLayout {
   const nodePositions = new Map<
     string,
-    { x: number; y: number; width: number; height: number; headerHeight: number; columnsHeight: number }
+    {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      headerHeight: number;
+      columnsHeight: number;
+    }
   >();
   const edgePoints = new Map<number, { x: number; y: number }[]>();
 
   if (tables.length === 1) {
     // Single node — skip dagre
-    const dims = dimMap.get(tables[0].id)!;
-    nodePositions.set(tables[0].id, { x: dims.width / 2, y: dims.height / 2, ...dims });
-    return { nodePositions, edgePoints, width: dims.width, height: dims.height };
+    // In-bounds by length-1 guard above.
+    const onlyTable = tables[0]!;
+    const dims = dimMap.get(onlyTable.id)!;
+    nodePositions.set(onlyTable.id, {
+      x: dims.width / 2,
+      y: dims.height / 2,
+      ...dims,
+    });
+    return {
+      nodePositions,
+      edgePoints,
+      width: dims.width,
+      height: dims.height,
+    };
   }
 
   const g = new dagre.graphlib.Graph({ multigraph: true });
@@ -158,13 +191,21 @@ function layoutComponent(
 
   // Use lineNumber as edge name to support multigraph (multiple edges between same pair)
   for (const rel of rels) {
-    g.setEdge(rel.source, rel.target, { label: rel.label ?? '' }, String(rel.lineNumber));
+    g.setEdge(
+      rel.source,
+      rel.target,
+      { label: rel.label ?? '' },
+      String(rel.lineNumber)
+    );
   }
 
   dagre.layout(g);
 
   // Compute bounding box (dagre coordinates)
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  let minX = Infinity,
+    minY = Infinity,
+    maxX = -Infinity,
+    maxY = -Infinity;
 
   for (const table of tables) {
     const pos = g.node(table.id);
@@ -206,7 +247,10 @@ function layoutComponent(
     const ed = g.edge(rel.source, rel.target, String(rel.lineNumber));
     edgePoints.set(
       rel.lineNumber,
-      (ed?.points ?? []).map((pt: { x: number; y: number }) => ({ x: pt.x - minX, y: pt.y - minY }))
+      (ed?.points ?? []).map((pt: { x: number; y: number }) => ({
+        x: pt.x - minX,
+        y: pt.y - minY,
+      }))
     );
   }
 
@@ -245,12 +289,15 @@ function packComponents(
 
   // Target width: sqrt of total content area × aspect factor (~1.5 = slightly landscape)
   const totalArea = items.reduce(
-    (s, c) => s + (c.compLayout.width || MIN_WIDTH) * (c.compLayout.height || HEADER_BASE),
+    (s, c) =>
+      s +
+      (c.compLayout.width || MIN_WIDTH) * (c.compLayout.height || HEADER_BASE),
     0
   );
   const targetW = Math.max(
     Math.sqrt(totalArea) * 1.5,
-    sorted[0].compLayout.width // at least as wide as the widest component
+    // In-bounds: sorted.length === items.length and items.length === 0 returned above.
+    sorted[0]!.compLayout.width // at least as wide as the widest component
   );
 
   const placements: PackedComponent[] = [];
@@ -269,7 +316,12 @@ function packComponents(
       rowH = 0;
     }
 
-    placements.push({ compIds: item.compIds, compLayout: item.compLayout, offsetX: curX, offsetY: curY });
+    placements.push({
+      compIds: item.compIds,
+      compLayout: item.compLayout,
+      offsetX: curX,
+      offsetY: curY,
+    });
     curX += w + COMP_GAP;
     rowH = Math.max(rowH, h);
   }
@@ -289,7 +341,12 @@ export function layoutERDiagram(parsed: ParsedERDiagram): ERLayoutResult {
   // ── 1. Node dimensions ──────────────────────────────────────────────────────
   const dimMap = new Map<
     string,
-    { width: number; height: number; headerHeight: number; columnsHeight: number }
+    {
+      width: number;
+      height: number;
+      headerHeight: number;
+      columnsHeight: number;
+    }
   >();
   for (const table of parsed.tables) {
     dimMap.set(table.id, computeNodeDimensions(table));
