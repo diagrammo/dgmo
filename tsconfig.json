@@ -6,6 +6,7 @@
     "moduleResolution": "bundler",
     "strict": true,
     "noImplicitOverride": true,
+    "noImplicitReturns": true,
     "noPropertyAccessFromIndexSignature": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
