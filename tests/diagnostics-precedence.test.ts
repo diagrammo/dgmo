@@ -47,9 +47,9 @@ tag Team t
     expect(codes).toContain('E_TAG_SHORTHAND_REMOVED');
   });
 
-  it('sequence `Alice is a service aka X` fires E_AKA_REMOVED, not alias-format', () => {
+  it('sequence `Alice is an actor aka X` fires E_AKA_REMOVED, not alias-format', () => {
     const r = parseSequenceDgmo(`sequence
-Alice is a service aka Authenticator`);
+Alice is an actor aka Authenticator`);
     const codes = r.diagnostics.map((d) => d.code);
     expect(codes).toContain('E_AKA_REMOVED');
     // No alias-format diagnostic — `aka` rejection is a strict pre-check.

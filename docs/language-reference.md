@@ -263,7 +263,7 @@ quote.
 
 ### 2.3 Examples
 
-- `Auth Service is a service` — bare multi-word, no quoting needed
+- `Auth Database is a database` — bare multi-word, no quoting needed
 - `"first name" varchar` — quote when name contains a reserved char (the `:` ER type separator)
 - `"Order | Items"` — quote the pipe
 - `class "Customer Service"` — bare multi-word also accepts in class
@@ -289,6 +289,7 @@ These are intentionally outside the universal rule:
 - `I_NAME_MERGED` (warning) — two source-distinct names normalize to the same key with different displayed forms
 - `E_NAME_RESERVED_CHAR` (error) — bare name contains a reserved char without quoting
 - `E_AKA_REMOVED` (error) — removed `aka` keyword used in sequence participant declaration
+- `E_PARTICIPANT_TYPE_REMOVED` (error) — sequence `is a X` declaration used a removed type keyword (`service`, `frontend`, `networking`, `gateway`, `external`)
 
 ---
 
@@ -302,7 +303,7 @@ tag-shorthand and venn `alias` keyword forms with a uniform rule.
 
 ```
 sequence
-Alice is a service as a
+Alice is an actor as a
 Bob is a database as b
 a -hello-> b
 b -ack-> a
@@ -376,42 +377,37 @@ Name is a <type> [position N]
 Name | key: value
 ```
 
-Types: `service`, `database`, `actor`, `queue`, `cache`, `gateway`, `external`, `networking`, `frontend`
+Types: `actor`, `database`, `cache`, `queue` (plus default — the plain rectangle, used when `is a` is omitted).
+
+Type names in `is a X` are **case-insensitive** (`is a Actor`, `is an ACTOR`, `is an actor` all parse the same). The keywords `service`, `frontend`, `networking`, `gateway`, and `external` were removed in 0.16.0 and now emit `E_PARTICIPANT_TYPE_REMOVED`; drop the override and the participant renders as the default rectangle.
+
+A participant *named* with a removed-type keyword (e.g. `service -> User: hi` declares a participant named "service") remains valid. The trim affects only the `is a X` declaration syntax, not name resolution.
 
 **Inference rules** — the parser infers the type (and shape) from the participant name. Only use `is a` when the name does not match or you want to override:
 
 | Inferred Type | Shape | Name Patterns (examples) |
 |--------------|-------|--------------------------|
-| actor | Stick figure | `User`, `Customer`, `Client`, `Admin`, `Agent`, `Person`, `Buyer`, `Seller`, `Guest`, `Visitor`, `Operator`, Alice, Bob, Charlie, `*User`, `*Actor`, `*Analyst`, `*Staff` |
-| service | Rounded rectangle | `*Service`, `*Svc`, `*API`, Lambda, `*Function`, `*Fn`, `*Job`, Cron, Auth, SSO, OAuth, Stripe, Twilio, S3, Vercel, Docker, K8s, Vault, KMS, IAM, LLM, GPT, Claude, `*Pipeline`, `*Engine`, and many `-er`/`-or` suffixes (Scheduler, Handler, Processor, Worker, etc.) |
-| database | Cylinder (vertical) | `*DB`, `Database`, `*Store`, `Storage`, `*Repo`, `SQL`, Postgres, MySQL, Mongo, Dynamo, Aurora, Spanner, Supabase, Firebase, BigQuery, Redshift, Snowflake, Cassandra, Neo4j, ClickHouse, Elastic, OpenSearch, Pinecone, Weaviate, `*Table` |
+| actor | Stick figure | `User`, `Customer`, `Admin`, `Agent`, `Person`, `Buyer`, `Seller`, `Guest`, `Visitor`, `Operator`, `Developer`, Alice, Bob, Charlie, Fan, Purchaser, Reviewer, `*User`, `*Actor`, `*Analyst`, `*Staff` |
+| database | Cylinder (vertical) | `*DB`, `Database`, `Datastore`, `*Store`, `Storage`, `*Repo`, `Repository`, `SQL`, Postgres, MySQL, Mongo, Dynamo, Aurora, Spanner, Supabase, Firebase, BigQuery, Redshift, Snowflake, Cassandra, Neo4j, ClickHouse, Elastic, OpenSearch, Druid, Trino, Pinecone, Weaviate, Qdrant, Milvus, Presto, `*Table` |
 | cache | Dashed cylinder | `*Cache`, Redis, Memcache, KeyDB, Dragonfly, Hazelcast, Valkey |
-| queue | Horizontal cylinder (pipe) | `*Queue`, `*MQ`, SQS, Kafka, RabbitMQ, `EventBus`, `*Bus`, `Topic`, `*Stream`, SNS, PubSub, NATS, Pulsar, Kinesis, EventBridge, Celery, Sidekiq, `*Channel`, `*Broker` |
-| networking | Hexagon | `*Router`, `*Balancer`, `Gateway`, `Proxy`, `LB`, `CDN`, `Firewall`, `WAF`, `DNS`, `Ingress`, Nginx, Traefik, Envoy, Istio, Kong, Akamai, Cloudflare, `*Mesh` |
-| frontend | Monitor (screen + stand) | `*App`, `Application`, `Mobile`, iOS, Android, `Web`, `Browser`, `Frontend`, `*UI`, `Dashboard`, `*CLI`, `Terminal`, React, Vue, Angular, Svelte, NextJS, Electron, Tauri, `*Widget`, `Portal`, `*Console`, SPA, PWA |
-| gateway | Rectangle (same as default) | matched via `is a gateway` only |
-| external | Dashed rectangle | `External`, `*Ext`, `ThirdParty`, `*3P`, `Vendor`, `Webhook`, `Upstream`, `Downstream`, `Callback`, AWS, GCP, Azure |
+| queue | Horizontal cylinder (pipe) | `*Queue`, `*MQ`, SQS, Kafka, RabbitMQ, `EventBus`, `MessageBus`, `*Bus`, `Topic`, `*Stream`, SNS, PubSub, `*Broker`, NATS, Pulsar, Kinesis, EventBridge, CloudEvents, Celery, Sidekiq, EventHub, `*Channel` |
 | default | Rectangle | Everything else (no `is a` needed) |
 
 **Inference handles it (skip `is a`):**
 ```
-AuthService          // service (matches *Service)
 PostgresDB           // database (matches *DB)
 Redis                // cache (exact match)
 User                 // actor (exact match)
 Kafka                // queue (exact match)
-API Gateway          // networking (matches Gateway)
-WebApp               // frontend (matches *App)
-Stripe               // service (exact match)
 ```
 
 **Inference would miss (use `is a`):**
 ```
-Payments is a service       // "Payments" matches no rule
-Vault is a database         // "Vault" infers as service, but you want database
+Vault is a database         // "Vault" matches no rule, but you want database
 Notifications is a queue    // "Notifications" matches no rule
-Analytics is a frontend     // "Analytics" matches no rule
 ```
+
+Names that previously inferred to a removed type — `AuthService`, `WebApp`, `Cloudflare`, `API Gateway`, `Stripe`, `Webhook` — now fall through to default (plain rectangle). That is the intended outcome of the trim: the visual differentiation is gone because the underlying distinction did not pull its weight.
 
 ### 2.2 Participant Groups
 

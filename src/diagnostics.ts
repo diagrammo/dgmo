@@ -121,6 +121,14 @@ export const NAME_DIAGNOSTIC_CODES = {
    * unnecessary; the diagnostic directs users to the new syntax.
    */
   AKA_REMOVED: 'E_AKA_REMOVED',
+  /**
+   * Error: a removed sequence participant-type keyword was used in
+   * an `is a X` declaration. The 0.16.0 trim retained only
+   * `actor`/`database`/`cache`/`queue`; `service`/`frontend`/
+   * `networking`/`gateway`/`external` no longer carry semantic
+   * weight and emit this error so users drop the override.
+   */
+  PARTICIPANT_TYPE_REMOVED: 'E_PARTICIPANT_TYPE_REMOVED',
 } as const;
 
 /**
@@ -150,6 +158,18 @@ export function nameMergedMessage(args: {
  */
 export function akaRemovedMessage(): string {
   return `'aka' is no longer supported — use the participant name directly`;
+}
+
+/**
+ * Canonical message for `E_PARTICIPANT_TYPE_REMOVED`. Emitted when a
+ * sequence participant declaration uses a removed type keyword
+ * (`service`, `frontend`, `networking`, `gateway`, `external`).
+ */
+export function participantTypeRemovedMessage(type: string): string {
+  return (
+    `'${type}' is no longer supported — drop 'is a ${type}'; ` +
+    `the participant renders as the default rectangle`
+  );
 }
 
 // ============================================================

@@ -35,7 +35,7 @@ describe('sequence: unused participant warnings', () => {
 
   it('does not warn in incomplete diagrams (no messages)', () => {
     const result = parseSequenceDgmo(
-      'sequence\nDB is a database\nAPI is a service'
+      'sequence\nDB is a database\nAPI is an actor'
     );
     expect(result.error).toBeNull();
     expect(

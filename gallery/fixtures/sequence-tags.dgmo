@@ -13,12 +13,12 @@ tag Team as t
   Security red
 
 Mobile is an actor
-Gateway is a gateway | t: Platform
+Gateway | t: Platform
 Redis is a cache | c: Caching, t: Platform
 
 [Backend] | t: Product
-  UserAPI is a service
-  OrderAPI is a service
+  UserAPI
+  OrderAPI
   DB is a database
 
 == Authentication ==

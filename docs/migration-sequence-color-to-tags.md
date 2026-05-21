@@ -27,7 +27,7 @@ tag: Role
   Gateway(blue)
   Storage(green)
 
-API is a service | role: Gateway
+API | role: Gateway
 DB is a database | role: Storage
 ```
 

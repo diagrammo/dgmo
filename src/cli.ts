@@ -190,8 +190,8 @@ title: Auth Flow
 
 // Participants auto-inferred, or declare explicitly:
 User is an actor
-API is a service
 DB is a database
+Cache is a cache
 
 User -Login-> API
 API -Find user-> DB

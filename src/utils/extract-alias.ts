@@ -32,7 +32,7 @@ export const ALIAS_TOKEN_RE = /^[A-Za-z][A-Za-z0-9_]{0,11}$/;
  * DGMO grammar keywords with all chart-type tokens (per F5).
  *
  * Articles (`a`, `an`, `the`) are intentionally NOT reserved — the
- * spec's worked examples use `Alice is a service as a`, where `a`
+ * spec's worked examples use `Alice is an actor as a`, where `a`
  * is a perfectly fine single-letter alias. Reserving English
  * articles would break the canonical example pattern.
  */

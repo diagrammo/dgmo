@@ -1,10 +1,10 @@
 sequence E-Commerce Checkout
 
 User is an actor
-App is a frontend
-API is a gateway
-Orders is a service
-Payments is an external
+App
+API
+Orders
+Payments
 DB is a database
 
 [Place Order]

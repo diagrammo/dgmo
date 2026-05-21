@@ -11,6 +11,7 @@ import {
   NAME_DIAGNOSTIC_CODES,
   nameMergedMessage,
   akaRemovedMessage,
+  participantTypeRemovedMessage,
 } from '../diagnostics';
 import { normalizeName, displayName } from '../utils/name-normalize';
 import { parseArrow, parseInArrowLabel } from '../utils/arrows';
@@ -60,29 +61,40 @@ const KNOWN_SEQ_BOOLEANS = new Set(['activations', 'solid-fill', 'no-title']);
 
 /**
  * Participant types that can be declared via "Name is a type" syntax.
+ *
+ * The 0.16.0 trim retained only the types whose shapes carry semantic
+ * weight at a glance: stick figure (actor), cylinder (database),
+ * dashed cylinder (cache), horizontal pipe (queue), plus the default
+ * rectangle. The legacy `service`/`frontend`/`networking`/`gateway`/
+ * `external` keywords are rejected at parse time via
+ * `E_PARTICIPANT_TYPE_REMOVED`.
  */
 export type ParticipantType =
   | 'default'
-  | 'service'
   | 'database'
   | 'actor'
   | 'queue'
-  | 'cache'
-  | 'gateway'
-  | 'external'
-  | 'networking'
-  | 'frontend';
+  | 'cache';
 
 const VALID_PARTICIPANT_TYPES: ReadonlySet<string> = new Set([
-  'service',
   'database',
   'actor',
   'queue',
   'cache',
+]);
+
+/**
+ * Participant-type keywords that were removed in 0.16.0. Used to
+ * gate `is a X` declarations with a hard parse error rather than
+ * silent fall-through to default — aligns with the pre-1.0
+ * break-and-bump policy (see `E_AKA_REMOVED` precedent).
+ */
+const REMOVED_PARTICIPANT_TYPES: ReadonlySet<string> = new Set([
+  'service',
+  'frontend',
+  'networking',
   'gateway',
   'external',
-  'networking',
-  'frontend',
 ]);
 
 /**
@@ -205,9 +217,9 @@ export interface ParsedSequenceDgmo {
   error: string | null;
 }
 
-// "Name is a type" pattern — e.g. "Auth Server is a service"
+// "Name is a type" pattern — e.g. "Auth Server is a database"
 // Participant names may contain spaces; [^:]+? stops at colons so that
-// note lines like "note right of A: this is a service" are not falsely matched.
+// note lines like "note right of A: this is an actor" are not falsely matched.
 // Remainder after type is parsed separately for `position N` modifier.
 const IS_A_PATTERN = /^([^:]+?)\s+is\s+an?\s+(\w+)(?:\s+(.+))?$/i;
 
@@ -936,6 +948,23 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       const typeStr = isAMatch[2].toLowerCase();
       let remainder = isAMatch[3]?.trim() || '';
 
+      // Reject the 5 removed-type keywords with a hard parse error
+      // (per Decision #2 / break-and-bump policy). Skip participant
+      // registration for the bad line — downstream message references
+      // will surface a "participant not declared" diagnostic, which
+      // is the intended behavior.
+      if (REMOVED_PARTICIPANT_TYPES.has(typeStr)) {
+        result.diagnostics.push(
+          makeDgmoError(
+            lineNumber,
+            participantTypeRemovedMessage(typeStr),
+            'error',
+            NAME_DIAGNOSTIC_CODES.PARTICIPANT_TYPE_REMOVED
+          )
+        );
+        continue;
+      }
+
       const participantType: ParticipantType = VALID_PARTICIPANT_TYPES.has(
         typeStr
       )
@@ -957,7 +986,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       // register it. Order on the line is `Name is a TYPE [position N] as <alias>`.
       // The leading `(.*?)\s*\b` allows the remainder to be just
       // `as <alias>` (empty prefix) — the canonical example writes
-      // `Alice is a service as a` where the entire remainder is `as a`.
+      // `Alice is an actor as a` where the entire remainder is `as a`.
       const asInRemainder = remainder.match(
         /^(.*?)\s*\bas\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/
       );

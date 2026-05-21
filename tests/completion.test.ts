@@ -736,11 +736,8 @@ describe('ENTITY_TYPES', () => {
   it('has correct sequence participant types', () => {
     const types = ENTITY_TYPES.get('sequence');
     expect(types).toBeDefined();
-    expect(types).toContain('service');
-    expect(types).toContain('database');
-    expect(types).toContain('actor');
-    expect(types).toContain('frontend');
-    expect(types).toHaveLength(9);
+    expect(types).toEqual(['actor', 'database', 'queue', 'cache']);
+    expect(types).toHaveLength(4);
   });
 
   it('has correct C4 types', () => {

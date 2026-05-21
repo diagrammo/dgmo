@@ -595,20 +595,7 @@ export const CHART_TYPES: ReadonlyArray<{ name: string; description: string }> =
  * C4_IS_A_RE).
  */
 export const ENTITY_TYPES = new Map<string, string[]>([
-  [
-    'sequence',
-    [
-      'service',
-      'database',
-      'actor',
-      'queue',
-      'cache',
-      'gateway',
-      'external',
-      'networking',
-      'frontend',
-    ],
-  ],
+  ['sequence', ['actor', 'database', 'queue', 'cache']],
   [
     'c4',
     ['person', 'system', 'container', 'component', 'external', 'database'],

@@ -52,11 +52,11 @@ const ADAPTERS: ParserAdapter[] = [
   {
     name: 'sequence',
     declAndRef: `sequence
-Alice is a service as a
+Alice is an actor as a
 Bob is a database as b
 a -hello-> b`,
     freshAfter: `sequence
-Carol is a service as a
+Carol is an actor as a
 a -hi-> Dan`,
     run(src) {
       const r = parseSequenceDgmo(src);
@@ -357,7 +357,7 @@ describe('alias conformance — SaaS-naming false-positive guard (F2)', () => {
   describe.each(SAAS_PATTERNS)('input "%s"', (saas) => {
     it('sequence preserves SaaS-style names verbatim', () => {
       const r = parseSequenceDgmo(`sequence
-"${saas}" is a service`);
+"${saas}" is an actor`);
       expect(r.diagnostics.filter((d) => d.severity === 'error')).toHaveLength(
         0
       );

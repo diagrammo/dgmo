@@ -123,7 +123,7 @@ a + o Cider`;
   const before = `sequence
 tag Priority as p
   High(red), Low(blue)
-Alice is a service as al
+Alice is an actor as al
 al -> Bob`;
   const after = runOnFixture(before);
   assert.equal(after, before, 'already-canonical input → unchanged');

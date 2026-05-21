@@ -12,7 +12,7 @@ import { parseSequenceDgmo } from '../src/sequence/parser';
 describe('LSP incremental parse — alias map is per-parse, never persisted', () => {
   it('alias from parse 1 does NOT leak into parse 2', () => {
     const a = parseSequenceDgmo(`sequence
-Alice is a service as al
+Alice is an actor as al
 al -hi-> Bob`);
     expect(a.messages[0].from).toBe('Alice');
 
@@ -27,10 +27,10 @@ al -hi-> Bob`);
 
   it('two parses with differently-bound aliases do not interfere', () => {
     const a = parseSequenceDgmo(`sequence
-Alice is a service as x
+Alice is an actor as x
 x -hi-> Bob`);
     const b = parseSequenceDgmo(`sequence
-Carol is a service as x
+Carol is an actor as x
 x -hi-> Dan`);
     expect(a.messages[0].from).toBe('Alice');
     expect(b.messages[0].from).toBe('Carol');
@@ -38,7 +38,7 @@ x -hi-> Dan`);
 
   it('repeating the same parse is idempotent', () => {
     const source = `sequence
-Alice is a service as a
+Alice is an actor as a
 a -hi-> Bob`;
     const a = parseSequenceDgmo(source);
     const b = parseSequenceDgmo(source);

@@ -14,9 +14,9 @@ tag Owner as o
   Data blue
 
 Buyer is an actor
-CheckoutSvc is a service | o: Checkout
-InventorySvc is a service | o: Fulfillment
-PaymentSvc is a service | o: Payments
+CheckoutSvc | o: Checkout
+InventorySvc | o: Fulfillment
+PaymentSvc | o: Payments
 OrderDB is a database | o: Data
 EventBus is a queue
 

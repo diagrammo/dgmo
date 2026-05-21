@@ -60,7 +60,7 @@ const tagDiagram = [
   '  Caching blue',
   '  Auth red',
   '',
-  'API is a service | concern: Caching',
+  'API | concern: Caching',
   'DB is a database',
   'User is a actor',
   'User -login-> API | concern: Auth',
@@ -263,7 +263,7 @@ const multiGroupDiagram = [
   '  Alpha purple',
   '  Beta orange',
   '',
-  'API is a service | concern: Caching',
+  'API | concern: Caching',
   'DB is a database',
   'API -query-> DB',
 ].join('\n');
@@ -344,7 +344,7 @@ describe('Sequence legend rendering', () => {
       'tag Concern',
       '  Caching blue',
       '',
-      'API is a service | concern: Caching',
+      'API | concern: Caching',
       'DB is a database',
       'API -query-> DB',
     ].join('\n');

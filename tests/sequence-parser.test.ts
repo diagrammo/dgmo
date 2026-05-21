@@ -575,7 +575,7 @@ describe('Story 47.3 — parser validation', () => {
 
     it('option after a participant declaration produces error', () => {
       const result = parseSequenceDgmo(
-        'sequence\nAPI is a service\nno-activations\nAPI -query-> DB'
+        'sequence\nAPI is a database\nno-activations\nAPI -query-> DB'
       );
       expect(result.error).toMatch(/Line 3.*must appear before/);
     });
@@ -600,7 +600,7 @@ describe('Story 47.3 — parser validation', () => {
 
     it('participant in two groups via "is a" syntax produces error', () => {
       const result = parseSequenceDgmo(
-        '[Backend]\n  API is a service\n\n[Frontend]\n  API is a gateway\nAPI -query-> DB'
+        '[Backend]\n  API is a database\n\n[Frontend]\n  API is an actor\nAPI -query-> DB'
       );
       expect(result.error).toMatch(
         /Line 5.*Participant 'API' is already in group 'Backend'/
@@ -1284,7 +1284,7 @@ describe('tag group declarations', () => {
 describe('pipe metadata on participants', () => {
   it('parses metadata on "is a" declaration', () => {
     const content = [
-      'API is a gateway | role: Gateway, team: Platform',
+      'API is an actor | role: Gateway, team: Platform',
       'DB is a database',
       'API -query-> DB',
     ].join('\n');
@@ -1376,7 +1376,7 @@ describe('pipe metadata on participants', () => {
       'tag Concern c',
       '  Caching blue',
       '',
-      'API is a gateway | c: Caching',
+      'API is an actor | c: Caching',
       'API -req-> DB',
     ].join('\n');
     const result = parseSequenceDgmo(content);
@@ -1645,7 +1645,7 @@ describe('tag validation on sequence diagrams', () => {
 describe('multi-word participant names', () => {
   it('declares a participant with spaces using is-a syntax', () => {
     const result = parseSequenceDgmo(
-      'Auth Server is a service\nAuth Server -ping-> App'
+      'Auth Server is a database\nAuth Server -ping-> App'
     );
     expect(result.error).toBeNull();
     expect(result.participants.some((p) => p.id === 'Auth Server')).toBe(true);
@@ -1725,9 +1725,9 @@ describe('multi-word participant names', () => {
       'sequence OAuth 2.0 — Authorization Code Flow',
       '',
       'User is an actor',
-      'App is a service',
-      'Auth Server is a service',
-      'Resource Server is a service',
+      'App',
+      'Auth Server',
+      'Resource Server',
       '',
       '== 1. Initiate Login ==',
       '',
@@ -1758,10 +1758,80 @@ describe('multi-word participant names', () => {
   });
 });
 
+describe('participant-type removal (0.16.0)', () => {
+  it.each([
+    ['service'],
+    ['frontend'],
+    ['networking'],
+    ['gateway'],
+    ['external'],
+  ])('emits E_PARTICIPANT_TYPE_REMOVED for "is a %s"', (removedType) => {
+    const result = parseSequenceDgmo(`sequence\nAuth is a ${removedType}`);
+    const errors = result.diagnostics.filter(
+      (d) => d.code === 'E_PARTICIPANT_TYPE_REMOVED'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0].severity).toBe('error');
+    expect(errors[0].line).toBe(2);
+    expect(errors[0].message).toContain(
+      `'${removedType}' is no longer supported`
+    );
+    expect(errors[0].message).toContain('renders as the default rectangle');
+  });
+
+  it('collects all removed-type diagnostics in one pass (Decision #8)', () => {
+    const result = parseSequenceDgmo(`sequence
+Auth is a service
+Web is a frontend
+LB is a networking`);
+    const errors = result.diagnostics.filter(
+      (d) => d.code === 'E_PARTICIPANT_TYPE_REMOVED'
+    );
+    expect(errors).toHaveLength(3);
+    expect(errors.map((e) => e.line)).toEqual([2, 3, 4]);
+  });
+
+  it.each([['Service'], ['SERVICE'], ['serVice']])(
+    'case-insensitive: "is a %s" still fires E_PARTICIPANT_TYPE_REMOVED (Decision #10)',
+    (variant) => {
+      const result = parseSequenceDgmo(`sequence\nAuth is a ${variant}`);
+      const errors = result.diagnostics.filter(
+        (d) => d.code === 'E_PARTICIPANT_TYPE_REMOVED'
+      );
+      expect(errors).toHaveLength(1);
+    }
+  );
+
+  it('does not register a participant for a removed-type declaration (AC7)', () => {
+    const result = parseSequenceDgmo(`sequence\nAuth is a service`);
+    expect(result.participants).toHaveLength(0);
+  });
+
+  it('unknown type still silently falls through to default (AC5)', () => {
+    const result = parseSequenceDgmo(`sequence
+Foo is a banana
+Foo -hi-> Bar`);
+    expect(
+      result.diagnostics.filter((d) => d.code === 'E_PARTICIPANT_TYPE_REMOVED')
+    ).toHaveLength(0);
+    const foo = result.participants.find((p) => p.id === 'Foo');
+    expect(foo?.type).toBe('default');
+  });
+
+  it('participant *named* with a removed-type keyword is valid (Decision #9 / AC6)', () => {
+    const result = parseSequenceDgmo(`sequence
+service -hi-> User`);
+    expect(
+      result.diagnostics.filter((d) => d.code === 'E_PARTICIPANT_TYPE_REMOVED')
+    ).toHaveLength(0);
+    expect(result.participants.some((p) => p.id === 'service')).toBe(true);
+  });
+});
+
 describe('aka removal (Phase D)', () => {
   it('emits E_AKA_REMOVED when aka appears in a participant declaration', () => {
     const result = parseSequenceDgmo(`sequence
-Alice is a service aka Authenticator
+Alice is an actor aka Authenticator
 Alice -hi-> Bob`);
     const akaErrors = result.diagnostics.filter(
       (d) => d.code === 'E_AKA_REMOVED'
@@ -1773,7 +1843,7 @@ Alice -hi-> Bob`);
 
   it('does not register a participant when its declaration uses aka', () => {
     const result = parseSequenceDgmo(`sequence
-Alice is a service aka Authenticator`);
+Alice is an actor aka Authenticator`);
     expect(result.participants).toHaveLength(0);
   });
 
@@ -1789,7 +1859,7 @@ Alice is a service aka Authenticator`);
 describe('sequence parser — universal alias syntax (TD-18)', () => {
   it('extracts alias from `Name is a TYPE as <alias>` declaration', () => {
     const result = parseSequenceDgmo(`sequence
-Alice is a service as a
+Alice is an actor as a
 Bob is a database as b
 a -hello-> b
 b -ack-> a`);
@@ -1808,7 +1878,7 @@ b -ack-> a`);
 
   it('alias resolves via case-sensitive exact match', () => {
     const result = parseSequenceDgmo(`sequence
-Alice is a service as a
+Alice is an actor as a
 a -hello-> Bob`);
     expect(result.messages[0].from).toBe('Alice');
     expect(result.messages[0].to).toBe('Bob');
@@ -1816,7 +1886,7 @@ a -hello-> Bob`);
 
   it('keeps `position N as <alias>` working', () => {
     const result = parseSequenceDgmo(`sequence
-Alice is a service position 1 as a
+Alice is an actor position 1 as a
 a -hi-> Bob`);
     expect(result.participants[0].position).toBe(1);
     expect(result.messages[0].from).toBe('Alice');
@@ -1824,7 +1894,7 @@ a -hi-> Bob`);
 
   it('aliases do not leak across separate parse calls (C8)', () => {
     const a = parseSequenceDgmo(`sequence
-Alice is a service as x
+Alice is an actor as x
 x -hi-> Bob`);
     expect(a.messages[0].from).toBe('Alice');
     const b = parseSequenceDgmo(`sequence
@@ -1853,7 +1923,7 @@ L -spotted-> C`);
 
   it('case-sensitive: lowercase lookup misses uppercase-declared alias', () => {
     const result = parseSequenceDgmo(`sequence
-Alice is a service as A
+Alice is an actor as A
 a -hi-> Bob`);
     // `a` was never declared — should be a literal participant, not Alice
     expect(result.messages[0].from).toBe('a');

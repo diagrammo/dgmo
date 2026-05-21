@@ -49,7 +49,6 @@ const PARTICIPANT_BOX_HEIGHT = 50;
 const TOP_MARGIN = 20;
 const TITLE_HEIGHT = 30;
 const PARTICIPANT_Y_OFFSET = 10;
-const SERVICE_BORDER_RADIUS = 10;
 const MESSAGE_START_OFFSET = 30;
 const LIFELINE_TAIL = 30;
 const ARROWHEAD_SIZE = 8;
@@ -175,25 +174,6 @@ function renderRectParticipant(
     .attr('height', H)
     .attr('rx', 2)
     .attr('ry', 2)
-    .attr('fill', fill(palette, isDark, color, solid))
-    .attr('stroke', stroke(palette, color))
-    .attr('stroke-width', SW);
-}
-
-function renderServiceParticipant(
-  g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
-  palette: PaletteColors,
-  isDark: boolean,
-  color?: string,
-  solid?: boolean
-): void {
-  g.append('rect')
-    .attr('x', -W / 2)
-    .attr('y', 0)
-    .attr('width', W)
-    .attr('height', H)
-    .attr('rx', SERVICE_BORDER_RADIUS)
-    .attr('ry', SERVICE_BORDER_RADIUS)
     .attr('fill', fill(palette, isDark, color, solid))
     .attr('stroke', stroke(palette, color))
     .attr('stroke-width', SW);
@@ -441,99 +421,6 @@ function renderCacheParticipant(
     .attr('stroke', s)
     .attr('stroke-width', SW)
     .attr('stroke-dasharray', dash);
-}
-
-function renderNetworkingParticipant(
-  g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
-  palette: PaletteColors,
-  isDark: boolean,
-  color?: string,
-  solid?: boolean
-): void {
-  // Hexagon fitting within W x H
-  const inset = 16;
-  const points = [
-    `${-W / 2 + inset},0`,
-    `${W / 2 - inset},0`,
-    `${W / 2},${H / 2}`,
-    `${W / 2 - inset},${H}`,
-    `${-W / 2 + inset},${H}`,
-    `${-W / 2},${H / 2}`,
-  ].join(' ');
-  g.append('polygon')
-    .attr('points', points)
-    .attr('fill', fill(palette, isDark, color, solid))
-    .attr('stroke', stroke(palette, color))
-    .attr('stroke-width', SW);
-}
-
-function renderFrontendParticipant(
-  g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
-  palette: PaletteColors,
-  isDark: boolean,
-  color?: string,
-  solid?: boolean
-): void {
-  // Monitor shape fitting within W x H
-  const screenH = H - 10;
-  const s = stroke(palette, color);
-  g.append('rect')
-    .attr('x', -W / 2)
-    .attr('y', 0)
-    .attr('width', W)
-    .attr('height', screenH)
-    .attr('rx', 3)
-    .attr('ry', 3)
-    .attr('fill', fill(palette, isDark, color, solid))
-    .attr('stroke', s)
-    .attr('stroke-width', SW);
-  // Stand
-  g.append('line')
-    .attr('x1', 0)
-    .attr('y1', screenH)
-    .attr('x2', 0)
-    .attr('y2', H - 2)
-    .attr('stroke', s)
-    .attr('stroke-width', SW);
-  // Base
-  g.append('line')
-    .attr('x1', -14)
-    .attr('y1', H - 2)
-    .attr('x2', 14)
-    .attr('y2', H - 2)
-    .attr('stroke', s)
-    .attr('stroke-width', SW);
-}
-
-function renderExternalParticipant(
-  g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
-  palette: PaletteColors,
-  isDark: boolean,
-  color?: string,
-  solid?: boolean
-): void {
-  // Dashed border rectangle
-  g.append('rect')
-    .attr('x', -W / 2)
-    .attr('y', 0)
-    .attr('width', W)
-    .attr('height', H)
-    .attr('rx', 2)
-    .attr('ry', 2)
-    .attr('fill', fill(palette, isDark, color, solid))
-    .attr('stroke', stroke(palette, color))
-    .attr('stroke-width', SW)
-    .attr('stroke-dasharray', '6 3');
-}
-
-function renderGatewayParticipant(
-  g: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
-  palette: PaletteColors,
-  isDark: boolean,
-  color?: string,
-  _solid?: boolean
-): void {
-  renderRectParticipant(g, palette, isDark, color);
 }
 
 // ============================================================
@@ -2892,26 +2779,11 @@ function renderParticipant(
     case 'database':
       renderDatabaseParticipant(g, palette, isDark, color, solid);
       break;
-    case 'service':
-      renderServiceParticipant(g, palette, isDark, color, solid);
-      break;
     case 'queue':
       renderQueueParticipant(g, palette, isDark, color, solid);
       break;
     case 'cache':
       renderCacheParticipant(g, palette, isDark, color, solid);
-      break;
-    case 'networking':
-      renderNetworkingParticipant(g, palette, isDark, color, solid);
-      break;
-    case 'frontend':
-      renderFrontendParticipant(g, palette, isDark, color, solid);
-      break;
-    case 'external':
-      renderExternalParticipant(g, palette, isDark, color, solid);
-      break;
-    case 'gateway':
-      renderGatewayParticipant(g, palette, isDark, color, solid);
       break;
     default:
       renderRectParticipant(g, palette, isDark, color, solid);
