@@ -1316,6 +1316,29 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       continue;
     }
 
+    // 'elif <label>' → suggest 'else if <label>'
+    const elifMatch = trimmed.match(/^elif\b\s*(.*)$/i);
+    if (elifMatch) {
+      const tailRaw = elifMatch[1].trim();
+      const tail = tailRaw ? ' ' + tailRaw : '';
+      pushError(
+        lineNumber,
+        `'elif' is not a keyword. Did you mean 'else if${tail}'?`
+      );
+      continue;
+    }
+
+    // 'else <text>' (where text isn't 'if …') → suggest 'else if <text>'
+    const elseLabelMatch = trimmed.match(/^else\s+(.+)$/i);
+    if (elseLabelMatch) {
+      const tail = elseLabelMatch[1].trim();
+      pushError(
+        lineNumber,
+        `'else' does not take a label. Did you mean 'else if ${tail}'?`
+      );
+      continue;
+    }
+
     // ---- Note parsing (space-separated only) ----
     // Strategy:
     // 1. Try bare note: `note text` — position defaults, text is everything after `note`

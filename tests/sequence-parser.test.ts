@@ -821,6 +821,84 @@ describe('Story 47.4 — else if support', () => {
 });
 
 // ============================================================
+// elif / else <text> diagnostics
+// ============================================================
+describe('elif / else <text> diagnostics', () => {
+  it('AC 1: `elif foo` emits diagnostic suggesting `else if foo`', () => {
+    const content = ['if cond', '  A -yes-> B', 'elif foo', '  A -no-> C'].join(
+      '\n'
+    );
+    const result = parseSequenceDgmo(content);
+    expect(result.diagnostics[0].message).toMatch(/'elif' is not a keyword/);
+    expect(result.diagnostics[0].message).toMatch(/'else if foo'/);
+  });
+
+  it('AC 2: bare `elif` suggests `else if` with no trailing label', () => {
+    const content = ['if cond', '  A -yes-> B', 'elif', '  A -no-> C'].join(
+      '\n'
+    );
+    const result = parseSequenceDgmo(content);
+    expect(result.diagnostics[0].message).toMatch(/'else if'\?/);
+  });
+
+  it('AC 3: `ELIF Foo` (mixed case) emits the same diagnostic', () => {
+    const content = ['if cond', '  A -yes-> B', 'ELIF Foo', '  A -no-> C'].join(
+      '\n'
+    );
+    const result = parseSequenceDgmo(content);
+    expect(result.diagnostics[0].message).toMatch(/'elif' is not a keyword/);
+  });
+
+  it('AC 4: `elif   multi word label` trims whitespace in suggestion', () => {
+    const content = [
+      'if cond',
+      '  A -yes-> B',
+      'elif   multi word label',
+      '  A -no-> C',
+    ].join('\n');
+    const result = parseSequenceDgmo(content);
+    expect(result.diagnostics[0].message).toContain(
+      "'else if multi word label'"
+    );
+  });
+
+  it('AC 5: `else bar baz` emits diagnostic suggesting `else if bar baz`', () => {
+    const content = [
+      'if foo',
+      '  A -yes-> B',
+      'else bar baz',
+      '  A -no-> C',
+    ].join('\n');
+    const result = parseSequenceDgmo(content);
+    expect(result.diagnostics[0].message).toMatch(
+      /'else' does not take a label/
+    );
+    expect(result.diagnostics[0].message).toMatch(/'else if bar baz'/);
+  });
+
+  it('AC 6: valid `if / else if / else` still parses cleanly (regression)', () => {
+    const content = [
+      'if a',
+      '  A -yes-> B',
+      'else if b',
+      '  A -maybe-> C',
+      'else',
+      '  A -no-> D',
+    ].join('\n');
+    const result = parseSequenceDgmo(content);
+    expect(result.error).toBeNull();
+  });
+
+  it('AC 7: valid `if / else` (bare else, no label) still populates elseChildren', () => {
+    const content = ['if a', '  A -yes-> B', 'else', '  A -no-> C'].join('\n');
+    const result = parseSequenceDgmo(content);
+    expect(result.error).toBeNull();
+    const block = result.elements[0] as SequenceBlock;
+    expect(block.elseChildren).toHaveLength(1);
+  });
+});
+
+// ============================================================
 // Story 47.5 — note syntax
 // ============================================================
 describe('Story 47.5 — note syntax', () => {
