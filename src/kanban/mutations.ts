@@ -51,10 +51,7 @@ export function computeCardMove(
   const cardLines = lines.slice(startIdx, endIdx + 1);
 
   // Remove the card lines from content
-  const withoutCard = [
-    ...lines.slice(0, startIdx),
-    ...lines.slice(endIdx + 1),
-  ];
+  const withoutCard = [...lines.slice(0, startIdx), ...lines.slice(endIdx + 1)];
 
   // Compute insertion point (0-based index in withoutCard)
   let insertIdx: number;
@@ -133,10 +130,7 @@ export function computeCardArchive(
   const cardLines = lines.slice(startIdx, endIdx + 1);
 
   // Remove card from its current position
-  const withoutCard = [
-    ...lines.slice(0, startIdx),
-    ...lines.slice(endIdx + 1),
-  ];
+  const withoutCard = [...lines.slice(0, startIdx), ...lines.slice(endIdx + 1)];
 
   // Check if an Archive column already exists
   const archiveCol = parsed.columns.find(
@@ -149,7 +143,7 @@ export function computeCardArchive(
     const removedCount = endIdx - startIdx + 1;
     let archiveEndLine = archiveCol.lineNumber;
     if (archiveCol.cards.length > 0) {
-      const lastCard = archiveCol.cards[archiveCol.cards.length - 1];
+      const lastCard = archiveCol.cards[archiveCol.cards.length - 1]!;
       archiveEndLine = lastCard.endLineNumber;
     }
     // Adjust for removed lines
@@ -166,14 +160,12 @@ export function computeCardArchive(
   } else {
     // Create archive section at end of file
     // Ensure trailing newline before the new section
-    const trimmedEnd = withoutCard.length > 0 && withoutCard[withoutCard.length - 1].trim() === ''
-      ? withoutCard
-      : [...withoutCard, ''];
-    return [
-      ...trimmedEnd,
-      '[Archive]',
-      ...cardLines,
-    ].join('\n');
+    const trimmedEnd =
+      withoutCard.length > 0 &&
+      withoutCard[withoutCard.length - 1]!.trim() === ''
+        ? withoutCard
+        : [...withoutCard, ''];
+    return [...trimmedEnd, '[Archive]', ...cardLines].join('\n');
   }
 }
 

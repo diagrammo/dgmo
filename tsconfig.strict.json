@@ -18,6 +18,11 @@
   "include": [
     "src/fonts.ts",
     "src/palettes/**/*.ts",
-    "src/utils/**/*.ts"
+    "src/utils/**/*.ts",
+    "src/kanban/**/*.ts",
+    "src/class/**/*.ts",
+    "src/ring/**/*.ts",
+    "src/pyramid/**/*.ts",
+    "src/editor/**/*.ts"
   ]
 }

@@ -119,7 +119,8 @@ function parseMember(
   let visibility: MemberVisibility = 'public';
   const visMatch = text.match(VISIBILITY_RE);
   if (visMatch) {
-    visibility = parseVisibility(visMatch[1]);
+    // VISIBILITY_RE captures the prefix; group 1 always exists when matched.
+    visibility = parseVisibility(visMatch[1]!);
     text = text.substring(visMatch[0].length);
   }
 
@@ -133,9 +134,10 @@ function parseMember(
   // Method: name(params) : returnType
   const methodMatch = text.match(METHOD_RE);
   if (methodMatch) {
+    // METHOD_RE: [1]=name, [2]=params, [3]=optional returnType.
     return {
-      name: methodMatch[1].trim(),
-      params: methodMatch[2].trim(),
+      name: methodMatch[1]!.trim(),
+      params: methodMatch[2]!.trim(),
       type: methodMatch[3]?.trim(),
       visibility,
       isStatic,
@@ -147,9 +149,10 @@ function parseMember(
   // Field: name : type
   const fieldMatch = text.match(FIELD_RE);
   if (fieldMatch) {
+    // FIELD_RE: [1]=name, [2]=type.
     return {
-      name: fieldMatch[1].trim(),
-      type: fieldMatch[2].trim(),
+      name: fieldMatch[1]!.trim(),
+      type: fieldMatch[2]!.trim(),
       visibility,
       isStatic,
       isMethod: false,
@@ -241,7 +244,8 @@ export function parseClassDiagram(
   }
 
   for (let i = 0; i < lines.length; i++) {
-    const raw = lines[i];
+    // In-bounds by loop guard.
+    const raw = lines[i]!;
     const trimmed = raw.trim();
     const lineNumber = i + 1;
     const indent = measureIndent(raw);
@@ -281,8 +285,9 @@ export function parseClassDiagram(
       }
       const optMatch = trimmed.match(OPTION_NOCOLON_RE);
       if (optMatch) {
-        const key = optMatch[1].toLowerCase();
-        const value = optMatch[2].trim();
+        // OPTION_NOCOLON_RE: [1]=key, [2]=value.
+        const key = optMatch[1]!.toLowerCase();
+        const value = optMatch[2]!.trim();
         // Don't swallow lines that look like class modifier keywords
         if (key !== 'abstract' && key !== 'interface' && key !== 'enum') {
           result.options[key] = value;
@@ -297,7 +302,8 @@ export function parseClassDiagram(
       // Captures: [1]=arrow [2]=quotedTarget [3]=bareTarget [4]=label
       const indentRel = trimmed.match(INDENT_REL_ARROW_RE);
       if (indentRel) {
-        const arrow = indentRel[1];
+        // INDENT_REL_ARROW_RE: [1]=arrow (always present on match).
+        const arrow = indentRel[1]!;
         const rawTarget = (indentRel[2] ?? indentRel[3] ?? '').trim();
         // TD-18: resolve alias literal → canonical class name.
         const targetName = resolveAliasName(rawTarget) ?? rawTarget;
@@ -313,7 +319,8 @@ export function parseClassDiagram(
         result.relationships.push({
           source: currentClass.id,
           target: classId(targetName),
-          type: ARROW_TO_TYPE[arrow],
+          // INDENT_REL_ARROW_RE only matches arrows present in ARROW_TO_TYPE.
+          type: ARROW_TO_TYPE[arrow]!,
           ...(label && { label }),
           lineNumber,
         });
@@ -560,7 +567,7 @@ export function extractSymbols(docText: string): DiagramSymbols {
       continue;
     if (inMetadata && line.toLowerCase() === 'no-auto-color') continue;
     if (inMetadata && /^[a-z]/.test(line) && OPTION_NOCOLON_RE.test(line)) {
-      const key = line.match(OPTION_NOCOLON_RE)![1].toLowerCase();
+      const key = line.match(OPTION_NOCOLON_RE)![1]!.toLowerCase();
       if (key !== 'abstract' && key !== 'interface' && key !== 'enum') continue;
     }
     inMetadata = false;

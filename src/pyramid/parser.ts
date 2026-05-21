@@ -79,7 +79,8 @@ export function parsePyramid(content: string): ParsedPyramid {
 
   for (let i = 0; i < lines.length; i++) {
     const lineNum = i + 1;
-    const raw = lines[i];
+    // In-bounds by loop guard.
+    const raw = lines[i]!;
     const trimmed = raw.trim();
 
     if (!trimmed || trimmed.startsWith('//')) continue;

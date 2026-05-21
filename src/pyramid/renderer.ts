@@ -176,14 +176,16 @@ export function renderPyramid(
       const named = resolveColor(layer.color, palette);
       if (named) return named;
     }
-    return seriesColors[i % seriesColors.length];
+    // seriesColors is always non-empty (8 series colors).
+    return seriesColors[i % seriesColors.length]!;
   };
 
   // ── Render layers ───────────────────────────────────────────
   const diagramG = svg.append('g').attr('class', 'pyramid-body');
 
   for (let i = 0; i < N; i++) {
-    const layer = parsed.layers[i];
+    // In-bounds by loop guard (N = parsed.layers.length).
+    const layer = parsed.layers[i]!;
     const topEdgeY = layout.pyramidTop + i * layout.layerH;
     const botEdgeY = topEdgeY + layout.layerH;
     const topHalf = halfWidthAt(i, N, layout.baseWidth, parsed.inverted);
@@ -269,7 +271,7 @@ export function renderPyramid(
           ? 'right'
           : 'left'
         : 'right';
-      const wrap = layout.wraps[i];
+      const wrap = layout.wraps[i]!;
       renderLayerDescriptions(
         diagramG,
         layer,
@@ -574,7 +576,8 @@ function truncateWithEllipsis(
   if (lines.length <= maxLines) return lines.slice();
   const visible = lines.slice(0, maxLines);
   if (visible.length === 0) return visible;
-  const last = visible[visible.length - 1];
+  // Length checked above.
+  const last = visible[visible.length - 1]!;
   visible[visible.length - 1] = {
     ...last,
     text: last.text.endsWith('…') ? last.text : `${last.text} …`,
@@ -586,7 +589,8 @@ function buildShortLines(wrap: WrappedDescription): WrappedDescLine[] {
   if (!wrap.overflows) return wrap.allLines.slice();
   const visible = wrap.allLines.slice(0, wrap.shortLineCount);
   if (visible.length === 0) return [];
-  const last = visible[visible.length - 1];
+  // Length checked above.
+  const last = visible[visible.length - 1]!;
   visible[visible.length - 1] = {
     ...last,
     text: last.text.endsWith('…') ? last.text : `${last.text} …`,
@@ -683,7 +687,8 @@ function renderDescriptionVariant(args: RenderVariantArgs): void {
     .attr('fill', accentColor);
 
   for (let j = 0; j < lines.length; j++) {
-    const line = lines[j];
+    // In-bounds by loop guard.
+    const line = lines[j]!;
     const y = startY + j * descLineHeight;
     const isBullet =
       line.kind === 'bullet-first' || line.kind === 'bullet-cont';

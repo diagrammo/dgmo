@@ -190,10 +190,10 @@ function applyLabelOverrides(tokens: HighlightToken[]): void {
   // Split tokens into lines
   const lines: LineTokenRef[][] = [[]];
   for (let i = 0; i < tokens.length; i++) {
-    const t = tokens[i];
-    // If the token contains newlines, it belongs to the current line
-    // but signals the start of a new line after it
-    const currentLine = lines[lines.length - 1];
+    // In-bounds by loop guard.
+    const t = tokens[i]!;
+    // lines is initialized to `[[]]`, so always at least 1 element.
+    const currentLine = lines[lines.length - 1]!;
     const role = t.role;
 
     // Determine which node name this token likely had
@@ -249,10 +249,11 @@ function applyLabelOverrides(tokens: HighlightToken[]): void {
 
   for (const line of lines) {
     // Skip empty lines and whitespace-only
-    const nonWs = line.filter((ref) => tokens[ref.idx].text.trim().length > 0);
+    // ref.idx is always a valid index into tokens (built from the same array).
+    const nonWs = line.filter((ref) => tokens[ref.idx]!.text.trim().length > 0);
     if (nonWs.length === 0) continue;
 
-    const firstTok = nonWs[0];
+    const firstTok = nonWs[0]!;
 
     // Skip keyword-led lines
     if (KEYWORD_STARTS.has(firstTok.nodeName)) continue;
@@ -269,7 +270,7 @@ function applyLabelOverrides(tokens: HighlightToken[]): void {
     let lastArrowIdx = -1;
 
     for (let li = 0; li < nonWs.length; li++) {
-      const ref = nonWs[li];
+      const ref = nonWs[li]!;
       if (
         (ref.nodeName === 'Dash' || ref.nodeName === 'Tilde') &&
         firstDashTildeIdx < 0
@@ -287,13 +288,13 @@ function applyLabelOverrides(tokens: HighlightToken[]): void {
 
     // Override tokens in label zone (between first dash/tilde and last arrow)
     for (let li = firstDashTildeIdx + 1; li < lastArrowIdx; li++) {
-      const ref = nonWs[li];
+      const ref = nonWs[li]!;
       if (OVERRIDE_IN_LABEL.has(ref.nodeName)) {
-        tokens[ref.idx].role = 'default';
+        tokens[ref.idx]!.role = 'default';
       }
       // ChartType in label also overridden
       if (ref.nodeName === 'ChartType') {
-        tokens[ref.idx].role = 'default';
+        tokens[ref.idx]!.role = 'default';
       }
     }
   }

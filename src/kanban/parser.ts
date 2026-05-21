@@ -93,7 +93,8 @@ export function parseKanban(
   const tagValueSets = new Map<string, Set<string>>();
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+    // In-bounds by loop guard.
+    const line = lines[i]!;
     const lineNumber = i + 1;
     const trimmed = line.trim();
 
@@ -165,9 +166,10 @@ export function parseKanban(
     if (!contentStarted && !currentTagGroup && measureIndent(line) === 0) {
       const optMatch = trimmed.match(OPTION_NOCOLON_RE);
       if (optMatch && !COLUMN_RE.test(trimmed)) {
-        const key = optMatch[1].trim().toLowerCase();
+        // OPTION_NOCOLON_RE has 2 capture groups; both exist when matched.
+        const key = optMatch[1]!.trim().toLowerCase();
         if (KNOWN_OPTIONS.has(key)) {
-          result.options[key] = optMatch[2].trim();
+          result.options[key] = optMatch[2]!.trim();
           continue;
         }
       }
@@ -218,7 +220,7 @@ export function parseKanban(
     // Reject legacy == Column == syntax
     if (LEGACY_COLUMN_RE.test(trimmed)) {
       const legacyMatch = trimmed.match(LEGACY_COLUMN_RE)!;
-      const name = legacyMatch[1].replace(/\s*\(.*\)\s*$/, '').trim();
+      const name = legacyMatch[1]!.replace(/\s*\(.*\)\s*$/, '').trim();
       result.diagnostics.push(
         makeDgmoError(
           lineNumber,
@@ -239,7 +241,7 @@ export function parseKanban(
         currentCard.endLineNumber = lineNumber - 1;
         while (
           currentCard.endLineNumber > currentCard.lineNumber &&
-          !lines[currentCard.endLineNumber - 1].trim()
+          !lines[currentCard.endLineNumber - 1]!.trim()
         ) {
           currentCard.endLineNumber--;
         }
@@ -247,7 +249,7 @@ export function parseKanban(
       currentCard = null;
 
       columnCounter++;
-      const colName = columnMatch[1].trim();
+      const colName = columnMatch[1]!.trim();
       // Trailing token after `]` must be a recognized color word (§1.5).
       // If it isn't, the line is malformed — emit the standard diagnostic.
       const rawTrailing = columnMatch[2]?.trim();

@@ -112,8 +112,9 @@ function collectClassTypes(parsed: ParsedClassDiagram): ClassLegendEntry[] {
     if (c.color) continue; // explicit color override — skip
     present.add(c.modifier ?? 'class');
   }
+  // CLASS_TYPE_ORDER keys are all present in CLASS_TYPE_MAP by construction.
   return CLASS_TYPE_ORDER.filter((k) => present.has(k)).map(
-    (k) => CLASS_TYPE_MAP[k]
+    (k) => CLASS_TYPE_MAP[k]!
   );
 }
 
@@ -440,7 +441,8 @@ export function renderClassDiagram(
     // Edge label at midpoint
     if (edge.label) {
       const midIdx = Math.floor(edge.points.length / 2);
-      const midPt = edge.points[midIdx];
+      // Edges are always non-empty (drawn from a valid graph layout).
+      const midPt = edge.points[midIdx]!;
       const labelLen = edge.label.length;
       const bgW = labelLen * 7 + 8;
       const bgH = 16;

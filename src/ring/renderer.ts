@@ -166,7 +166,8 @@ export function renderRing(
       const named = resolveColor(layer.color, palette);
       if (named) return named;
     }
-    return seriesColors[i % seriesColors.length];
+    // seriesColors is always non-empty (8 series colors).
+    return seriesColors[i % seriesColors.length]!;
   };
   const solid = parsed.options['solid-fill'] === 'on';
   const layerColors = parsed.layers.map((l, i) => resolveLayerColor(l, i));
@@ -187,10 +188,11 @@ export function renderRing(
   const strokeColor = palette.text;
 
   for (let i = 0; i < N; i++) {
-    const layer = parsed.layers[i];
+    // In-bounds by loop guard (N = parsed.layers.length).
+    const layer = parsed.layers[i]!;
     const rOuter = (i + 1) * thickness;
     const rInner = i * thickness;
-    const fill = layerFills[i];
+    const fill = layerFills[i]!;
 
     const layerG = diagramG
       .append('g')
@@ -243,8 +245,9 @@ export function renderRing(
   if (inBandLabelsVisible) {
     const labelsG = svg.append('g').attr('class', 'ring-labels');
     for (let i = 0; i < N; i++) {
-      const layer = parsed.layers[i];
-      const fill = layerFills[i];
+      // In-bounds by loop guard.
+      const layer = parsed.layers[i]!;
+      const fill = layerFills[i]!;
       const isInnermost = i === 0;
       const labelY = isInnermost ? cy : cy - (i + 0.5) * thickness;
       // Font is sized purely by band thickness; horizontal overflow into
@@ -386,9 +389,10 @@ function renderSideDescriptions(args: SideDescArgs): void {
   let cursorY = topY + Math.max(0, (availableH - totalH) / 2);
 
   for (let i = 0; i < layers.length; i++) {
-    const layer = layers[i];
-    const lines = wraps[i];
-    const blockH = blockHeights[i];
+    // In-bounds by loop guard. layers/wraps/blockHeights are parallel arrays.
+    const layer = layers[i]!;
+    const lines = wraps[i]!;
+    const blockH = blockHeights[i]!;
 
     const blockG = parentG
       .append('g')
@@ -407,7 +411,7 @@ function renderSideDescriptions(args: SideDescArgs): void {
       .attr('width', DESC_ACCENT_WIDTH)
       .attr('height', blockH)
       .attr('rx', DESC_ACCENT_WIDTH / 2)
-      .attr('fill', colors[i]);
+      .attr('fill', colors[i]!);
 
     // Layer name as the description block heading.
     const labelEl = blockG
@@ -459,7 +463,8 @@ function truncateWithEllipsis(
   if (lines.length <= cap) return lines.slice();
   const visible = lines.slice(0, cap);
   if (visible.length === 0) return visible;
-  const last = visible[visible.length - 1];
+  // Length checked above.
+  const last = visible[visible.length - 1]!;
   visible[visible.length - 1] = {
     ...last,
     text: last.text.endsWith('…') ? last.text : `${last.text} …`,
