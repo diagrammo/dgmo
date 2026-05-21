@@ -55,8 +55,9 @@ export function resolveConfidence(value: string): ConfidenceFactors | null {
   }
   const factorMatch = trimmed.match(/^(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)$/);
   if (factorMatch) {
-    const oFactor = parseFloat(factorMatch[1]);
-    const pFactor = parseFloat(factorMatch[2]);
+    // In-bounds by regex match: groups 1 and 2 are guaranteed present.
+    const oFactor = parseFloat(factorMatch[1]!);
+    const pFactor = parseFloat(factorMatch[2]!);
     if (oFactor > 0 && pFactor > 0) return { oFactor, pFactor };
   }
   return null;

@@ -269,14 +269,16 @@ function centerHeavyChildren(node: TreeNode): void {
   let right = mid;
 
   for (let i = 0; i < weighted.length; i++) {
+    // In-bounds by loop guard.
+    const w = weighted[i]!;
     if (i === 0) {
-      result[mid] = weighted[i].child;
+      result[mid] = w.child;
     } else if (i % 2 === 1) {
       right++;
-      result[right] = weighted[i].child;
+      result[right] = w.child;
     } else {
       left--;
-      result[left] = weighted[i].child;
+      result[left] = w.child;
     }
   }
 
@@ -422,7 +424,8 @@ export function layoutOrg(
   // Single root or virtual root for multiple roots
   let root: TreeNode;
   if (treeNodes.length === 1) {
-    root = treeNodes[0];
+    // In-bounds by length === 1 guard.
+    root = treeNodes[0]!;
   } else {
     root = {
       orgNode: {
@@ -576,8 +579,8 @@ export function layoutOrg(
     if (!d.data.orgNode.isContainer) continue;
     if (!d.children || d.children.length === 0) continue;
 
-    // Actual gap between this container and its direct children
-    const childY = d.children[0].y!;
+    // Actual gap between this container and its direct children — in-bounds by length > 0 guard above.
+    const childY = d.children[0]!.y!;
     const actualLevelGap = childY - d.y!;
 
     const metaCount = Object.keys(d.data.orgNode.metadata).length;
@@ -682,23 +685,27 @@ export function layoutOrg(
         };
       });
 
+      // children filtered to length >= 2 above, so first and last are in-bounds.
       const currentCenter =
-        (children[0].x! + children[children.length - 1].x!) / 2;
+        (children[0]!.x! + children[children.length - 1]!.x!) / 2;
 
       const positions: number[] = [0];
       for (let i = 1; i < children.length; i++) {
-        const prevRight = positions[i - 1] + extents[i - 1].relRight;
-        positions[i] = prevRight + H_GAP - extents[i].relLeft;
+        // In-bounds: i >= 1 so i-1 >= 0, and extents is parallel to children.
+        const prevRight = positions[i - 1]! + extents[i - 1]!.relRight;
+        positions[i] = prevRight + H_GAP - extents[i]!.relLeft;
       }
 
-      const newCenter = (positions[0] + positions[positions.length - 1]) / 2;
+      // positions has at least one element (initialized with [0]).
+      const newCenter = (positions[0]! + positions[positions.length - 1]!) / 2;
       const centerShift = currentCenter - newCenter;
 
       for (let i = 0; i < children.length; i++) {
-        const newX = positions[i] + centerShift;
-        const dx = newX - children[i].x!;
+        // In-bounds by loop guard.
+        const newX = positions[i]! + centerShift;
+        const dx = newX - children[i]!.x!;
         if (Math.abs(dx) > 0.001) {
-          shiftX(children[i], dx);
+          shiftX(children[i]!, dx);
         }
       }
     }
@@ -912,8 +919,8 @@ export function layoutOrg(
     const { parentX, parentBottomY, children } = group;
 
     if (children.length === 1) {
-      // Single child: simple elbow (no overlap possible)
-      const child = children[0];
+      // Single child: simple elbow (no overlap possible) — in-bounds by length === 1.
+      const child = children[0]!;
       const midY = (parentBottomY + child.topY) / 2;
       layoutEdges.push({
         sourceId: parentId,
@@ -926,8 +933,8 @@ export function layoutOrg(
         ],
       });
     } else {
-      // Bus pattern: trunk + horizontal bar + per-child drops
-      const midY = (parentBottomY + children[0].topY) / 2;
+      // Bus pattern: trunk + horizontal bar + per-child drops — length >= 2 here.
+      const midY = (parentBottomY + children[0]!.topY) / 2;
       const childXs = children.map((c) => c.x);
       const leftX = Math.min(...childXs);
       const rightX = Math.max(...childXs);

@@ -158,7 +158,9 @@ function parseFileHeader(lines: string[]): ParsedHeader {
     // Skip tag group lines
     if (tagGroupLineSet.has(i)) continue;
 
-    const trimmed = lines[i].trim();
+    // In-bounds by loop guard.
+    const rawLine = lines[i]!;
+    const trimmed = rawLine.trim();
 
     // Skip blank/comment lines in header region
     if (!headerDone && (trimmed === '' || trimmed.startsWith('//'))) continue;
@@ -169,17 +171,19 @@ function parseFileHeader(lines: string[]): ParsedHeader {
 
       const tagsMatch = trimmed.match(TAGS_RE);
       if (tagsMatch) {
-        tagsDirective = tagsMatch[1].trim();
+        // Capture group 1 guaranteed by TAGS_RE match.
+        tagsDirective = tagsMatch[1]!.trim();
         continue;
       }
 
       // Known option header lines (space-separated `key value` or bare boolean)
       if (
-        !lines[i].match(/^\s/) &&
+        !rawLine.match(/^\s/) &&
         !isTagBlockHeading(trimmed) &&
         !trimmed.includes('|')
       ) {
-        const firstToken = trimmed.split(/\s/)[0].toLowerCase();
+        // String.split always returns at least one element.
+        const firstToken = trimmed.split(/\s/)[0]!.toLowerCase();
         if (KNOWN_HEADER_OPTIONS.has(firstToken)) {
           continue;
         }
@@ -188,7 +192,7 @@ function parseFileHeader(lines: string[]): ParsedHeader {
       headerDone = true;
     }
 
-    contentLines.push(lines[i]);
+    contentLines.push(rawLine);
     contentLineIndices.push(i);
   }
 
@@ -252,22 +256,25 @@ async function resolveFile(
   // Collect header lines (chart:, title:, options, tags:)
   let tagsLineNumber = 0; // 1-based line number of the tags directive
   for (let i = 0; i < bodyStartIndex; i++) {
-    const trimmed = lines[i].trim();
+    // In-bounds: bodyStartIndex <= lines.length by construction.
+    const rawLine = lines[i]!;
+    const trimmed = rawLine.trim();
     if (trimmed === '' || trimmed.startsWith('//')) {
-      headerLines.push({ text: lines[i], originalLine: i + 1 });
+      headerLines.push({ text: rawLine, originalLine: i + 1 });
       continue;
     }
     if (isTagBlockHeading(trimmed)) continue; // skip inline tag group headings
-    if (/^\s/.test(lines[i])) continue; // skip tag group entries (indented lines)
+    if (/^\s/.test(rawLine)) continue; // skip tag group entries (indented lines)
 
     const tagsMatch = trimmed.match(TAGS_RE);
     if (tagsMatch) {
-      tagsDirective = tagsMatch[1].trim();
+      // Capture group 1 guaranteed by TAGS_RE match.
+      tagsDirective = tagsMatch[1]!.trim();
       tagsLineNumber = i + 1; // 1-based
       continue;
     }
 
-    headerLines.push({ text: lines[i], originalLine: i + 1 });
+    headerLines.push({ text: rawLine, originalLine: i + 1 });
   }
 
   // ---- Step 2: Resolve tags directive ----
@@ -295,7 +302,8 @@ async function resolveFile(
   const importedTagGroups: TagGroupBlock[] = [];
 
   for (let i = 0; i < bodyLines.length; i++) {
-    const line = bodyLines[i];
+    // In-bounds by loop guard.
+    const line = bodyLines[i]!;
     const lineNumber = bodyStartIndex + i + 1; // 1-based for diagnostics
     const importMatch = line.match(IMPORT_RE);
 
@@ -316,8 +324,9 @@ async function resolveFile(
       continue;
     }
 
-    const indent = importMatch[1];
-    const importRelPath = importMatch[2].trim();
+    // Capture groups 1 and 2 guaranteed by IMPORT_RE match.
+    const indent = importMatch[1]!;
+    const importRelPath = importMatch[2]!.trim();
     const importAbsPath = resolvePath(filePath, importRelPath);
 
     // Depth check
@@ -377,10 +386,13 @@ async function resolveFile(
     // Re-indent and insert content lines, computing import source for each
     const importedContentLines: { text: string; index: number }[] = [];
     for (let j = 0; j < parsed.contentLines.length; j++) {
-      if (parsed.contentLines[j].trim() !== '') {
+      // In-bounds by loop guard; contentLineIndices is parallel by construction.
+      const cText = parsed.contentLines[j]!;
+      const cIndex = parsed.contentLineIndices[j]!;
+      if (cText.trim() !== '') {
         importedContentLines.push({
-          text: parsed.contentLines[j],
-          index: parsed.contentLineIndices[j],
+          text: cText,
+          index: cIndex,
         });
       }
     }
@@ -389,7 +401,7 @@ async function resolveFile(
     let lastNonEmpty = importedContentLines.length - 1;
     while (
       lastNonEmpty >= 0 &&
-      importedContentLines[lastNonEmpty].text.trim() === ''
+      importedContentLines[lastNonEmpty]!.text.trim() === ''
     ) {
       lastNonEmpty--;
     }
@@ -457,7 +469,8 @@ async function resolveFile(
     // Ensure blank line before tag groups if header has content
     if (
       outputLines.length > 0 &&
-      outputLines[outputLines.length - 1].trim() !== ''
+      // In-bounds by length guard.
+      outputLines[outputLines.length - 1]!.trim() !== ''
     ) {
       outputLines.push('');
       lineMap.push(null);
@@ -489,7 +502,8 @@ async function resolveFile(
   if (
     resolvedBodyLines.length > 0 &&
     outputLines.length > 0 &&
-    outputLines[outputLines.length - 1].trim() !== ''
+    // In-bounds by length guard.
+    outputLines[outputLines.length - 1]!.trim() !== ''
   ) {
     outputLines.push('');
     lineMap.push(null);
@@ -515,7 +529,9 @@ function findBodyStart(lines: string[]): number {
   let inTagGroup = false;
 
   for (let i = 0; i < lines.length; i++) {
-    const trimmed = lines[i].trim();
+    // In-bounds by loop guard.
+    const rawLine = lines[i]!;
+    const trimmed = rawLine.trim();
 
     if (trimmed === '' || trimmed.startsWith('//')) {
       if (inTagGroup) inTagGroup = false;
@@ -529,7 +545,7 @@ function findBodyStart(lines: string[]): number {
     }
 
     // Tag group entry (indented under heading)
-    if (inTagGroup && lines[i].match(/^\s+/)) {
+    if (inTagGroup && rawLine.match(/^\s+/)) {
       continue;
     }
 
@@ -543,11 +559,12 @@ function findBodyStart(lines: string[]): number {
 
     // Known option lines (space-separated `key value` or bare boolean before content)
     if (
-      !lines[i].match(/^\s/) &&
+      !rawLine.match(/^\s/) &&
       !trimmed.includes('|') &&
       !isTagBlockHeading(trimmed)
     ) {
-      const firstToken = trimmed.split(/\s/)[0].toLowerCase();
+      // String.split always returns at least one element.
+      const firstToken = trimmed.split(/\s/)[0]!.toLowerCase();
       if (KNOWN_HEADER_OPTIONS.has(firstToken)) {
         continue;
       }
@@ -571,10 +588,12 @@ function isTagGroupEntry(
   if (!line.match(/^\s+/)) return false;
   // Walk backwards to find the nearest non-blank, non-comment, non-entry line
   for (let i = index - 1; i >= 0; i--) {
-    const prev = allLines[i].trim();
+    // In-bounds by reverse-for loop guard.
+    const prevRaw = allLines[i]!;
+    const prev = prevRaw.trim();
     if (prev === '' || prev.startsWith('//')) continue;
     if (isTagBlockHeading(prev)) return true;
-    if (allLines[i].match(/^\s+/)) continue; // another entry
+    if (prevRaw.match(/^\s+/)) continue; // another entry
     return false;
   }
   return false;

@@ -310,8 +310,9 @@ export function renderOrg(
 
       const metaStartY = CONTAINER_HEADER_HEIGHT + CONTAINER_META_FONT_SIZE - 2;
       for (let i = 0; i < metaEntries.length; i++) {
-        const [, value] = metaEntries[i];
-        const displayKey = metaDisplayKeys[i];
+        // In-bounds by loop guard; metaDisplayKeys is parallel by construction.
+        const [, value] = metaEntries[i]!;
+        const displayKey = metaDisplayKeys[i]!;
         const rowY = metaStartY + i * CONTAINER_META_LINE_HEIGHT;
 
         cG.append('text')
@@ -395,9 +396,11 @@ export function renderOrg(
     if (edge.points.length < 2) continue;
 
     const pathParts: string[] = [];
-    pathParts.push(`M ${edge.points[0].x} ${edge.points[0].y}`);
+    // In-bounds by length >= 2 guard above.
+    pathParts.push(`M ${edge.points[0]!.x} ${edge.points[0]!.y}`);
     for (let i = 1; i < edge.points.length; i++) {
-      pathParts.push(`L ${edge.points[i].x} ${edge.points[i].y}`);
+      // In-bounds by loop guard.
+      pathParts.push(`L ${edge.points[i]!.x} ${edge.points[i]!.y}`);
     }
 
     contentG
@@ -514,8 +517,9 @@ export function renderOrg(
 
       const metaStartY = HEADER_HEIGHT + SEPARATOR_GAP + META_FONT_SIZE;
       for (let i = 0; i < metaEntries.length; i++) {
-        const [, value] = metaEntries[i];
-        const displayKey = metaDisplayKeys[i];
+        // In-bounds by loop guard; metaDisplayKeys is parallel by construction.
+        const [, value] = metaEntries[i]!;
+        const displayKey = metaDisplayKeys[i]!;
         const rowY = metaStartY + i * META_LINE_HEIGHT;
 
         // Key — must contrast against fill (textMuted is illegible on solid fills)
@@ -644,8 +648,8 @@ export function renderOrg(
         dotPositions.push(trailBottomY - fromBottom * ANCESTOR_ROW_HEIGHT);
       }
 
-      // Single continuous line from topmost dot to root node top edge
-      const lineTopY = dotPositions[0];
+      // Single continuous line from topmost dot to root node top edge — in-bounds because hasAncestorTrail implies count >= 1.
+      const lineTopY = dotPositions[0]!;
       trailG
         .append('line')
         .attr('x1', rootCenterX)
@@ -658,8 +662,9 @@ export function renderOrg(
 
       // Dots and labels on top of the line
       for (let i = 0; i < count; i++) {
-        const ancestor = ancestorPath![i];
-        const dotY = dotPositions[i];
+        // In-bounds: count === ancestorPath.length; dotPositions parallel by construction.
+        const ancestor = ancestorPath![i]!;
+        const dotY = dotPositions[i]!;
 
         // Resolve color from tag groups (same logic as node cards)
         const resolvedColor =

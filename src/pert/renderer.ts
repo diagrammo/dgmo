@@ -981,7 +981,8 @@ function paintAnalysisRowMode(
       // duplicating the same line in two places.
       const scurveTitle =
         !state.summaryRendered && captionBullets.length > 0
-          ? captionBullets[0].text
+          ? // In-bounds by length check.
+            captionBullets[0]!.text
           : undefined;
       renderScurveBlock(svg, state.scurveData!, {
         ...args,
@@ -1044,15 +1045,16 @@ function packRows(
   // ── Charts row ─────────────────────────────────────────────
   const charts = state.analysisCharts;
   if (charts.length === 2) {
+    // In-bounds by length === 2 check.
     const minTwo =
-      (charts[0].kind === 'tornado' ? TORNADO_MIN_W : SCURVE_MIN_W) +
+      (charts[0]!.kind === 'tornado' ? TORNADO_MIN_W : SCURVE_MIN_W) +
       ANALYSIS_GAP +
-      (charts[1].kind === 'tornado' ? TORNADO_MIN_W : SCURVE_MIN_W);
+      (charts[1]!.kind === 'tornado' ? TORNADO_MIN_W : SCURVE_MIN_W);
     if (availableWidth >= minTwo) {
       const itemW = (availableWidth - ANALYSIS_GAP) / 2;
       rows.push([
-        { kind: charts[0].kind, paintWidth: itemW },
-        { kind: charts[1].kind, paintWidth: itemW },
+        { kind: charts[0]!.kind, paintWidth: itemW },
+        { kind: charts[1]!.kind, paintWidth: itemW },
       ]);
     } else {
       for (const c of charts) {
@@ -1060,7 +1062,8 @@ function packRows(
       }
     }
   } else if (charts.length === 1) {
-    rows.push([{ kind: charts[0].kind, paintWidth: availableWidth }]);
+    // In-bounds by length === 1 check.
+    rows.push([{ kind: charts[0]!.kind, paintWidth: availableWidth }]);
   }
 
   // ── Texts row ──────────────────────────────────────────────
@@ -1150,7 +1153,8 @@ function paintAnalysisStackMode(
           // suppressed, otherwise omit to avoid duplication.
           const scurveTitle =
             !state.summaryRendered && captionBullets.length > 0
-              ? captionBullets[0].text
+              ? // In-bounds by length check.
+                captionBullets[0]!.text
               : undefined;
           renderScurveBlock(svg, state.scurveData!, {
             ...args,
@@ -1622,7 +1626,8 @@ function renderEdges(
     const parsedEdge = edgeByKey.get(`${e.source}->${e.target}`);
     const labelText = parsedEdge ? formatEdgeLabel(parsedEdge) : null;
     if (labelText) {
-      const mid = e.points[Math.floor(e.points.length / 2)];
+      // In-bounds: edge polyline always has at least 2 points; midpoint is valid.
+      const mid = e.points[Math.floor(e.points.length / 2)]!;
       layer
         .append('text')
         .attr('class', 'pert-edge-label')
@@ -3618,7 +3623,8 @@ function buildScurveData(resolved: ResolvedPert): ScurveData | null {
   // Smooth projection (no ceil) so the cubic interpolation between
   // (P50, P80, P95) doesn't step.
   const durationProbPairs: Array<{ d: number; p: number }> = [
-    { d: durationSamples[0], p: 0.05 },
+    // In-bounds: MC always produces samples; consumers gate on `mc.minDurationDays !== null`.
+    { d: durationSamples[0]!, p: 0.05 },
     { d: mc.p50, p: 0.5 },
     { d: mc.p80, p: 0.8 },
     { d: mc.p95, p: 0.95 },
@@ -3677,7 +3683,8 @@ function buildScurveData(resolved: ResolvedPert): ScurveData | null {
   const xMinDays =
     mode === 'backward' && deadlineDays !== null
       ? deadlineDays - mc.maxDurationDays
-      : Math.min(durationSamples[0], mc.minDurationDays);
+      : // In-bounds: MC always produces samples.
+        Math.min(durationSamples[0]!, mc.minDurationDays);
   const xMaxDays =
     mode === 'backward' && deadlineDays !== null
       ? deadlineDays
@@ -4227,12 +4234,14 @@ function renderScurveBlock(
   const TICK_DOT_PROXIMITY = 28;
   const collidesWithDot = (t: Tick): boolean =>
     dotXs.some((dx) => Math.abs(t.x - dx) < TICK_DOT_PROXIMITY);
-  const kept: Tick[] = [all[0]];
-  const last = all[all.length - 1];
+  // In-bounds: N_X_TICKS > 0, so `all` has at least one entry.
+  const kept: Tick[] = [all[0]!];
+  const last = all[all.length - 1]!;
   const lastLeft = footprint(last)[0];
-  let rightEdge = footprint(all[0])[1];
+  let rightEdge = footprint(all[0]!)[1];
   for (let i = 1; i < all.length - 1; i++) {
-    const t = all[i];
+    // In-bounds by loop guard.
+    const t = all[i]!;
     if (collidesWithDot(t)) continue;
     const [l, r] = footprint(t);
     if (r + TICK_MIN_GAP > lastLeft) continue;
@@ -4287,8 +4296,9 @@ const SCURVE_MONTH_NAMES = [
 function formatScurveDate(iso: string): string {
   const parts = iso.split('-');
   if (parts.length !== 3) return iso;
-  const month = parseInt(parts[1], 10) - 1;
-  const day = parseInt(parts[2], 10);
+  // In-bounds by length === 3 check.
+  const month = parseInt(parts[1]!, 10) - 1;
+  const day = parseInt(parts[2]!, 10);
   if (month < 0 || month > 11 || isNaN(day)) return iso;
   return `${SCURVE_MONTH_NAMES[month]} ${day}`;
 }

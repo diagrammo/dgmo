@@ -245,7 +245,8 @@ function stripTrailingComment(line: string): string {
   // Only strip when `#` is preceded by whitespace; preserves names that
   // happen to contain `#` literally (none in PERT today, but cheap).
   const m = line.match(/^(.*?)\s+#.*$/);
-  return (m ? m[1] : line).trimEnd();
+  // In-bounds by regex match: group 1 is guaranteed present.
+  return (m ? m[1]! : line).trimEnd();
 }
 
 /**
@@ -297,7 +298,8 @@ function tokenizeActivityLine(line: string): {
 
   let firstNumIdx = -1;
   for (let i = 0; i < rawTokens.length; i++) {
-    if (ESTIMATE_TOKEN_RE.test(rawTokens[i])) {
+    // In-bounds by loop guard.
+    if (ESTIMATE_TOKEN_RE.test(rawTokens[i]!)) {
       firstNumIdx = i;
       break;
     }
@@ -332,7 +334,8 @@ function parseEstimateToken(
 ): Duration | null {
   const m = token.match(ESTIMATE_TOKEN_RE);
   if (!m) return null;
-  const amount = parseFloat(m[1]);
+  // In-bounds by regex match: group 1 is guaranteed present.
+  const amount = parseFloat(m[1]!);
   if (!Number.isFinite(amount)) return null;
   const unit = (m[2] as DurationUnit | undefined) ?? defaultUnit;
   if (unit === 's') {
@@ -361,9 +364,10 @@ function buildEstimate(
 ): DurationEstimate | null {
   if (tokens.length === 0) return null;
   if (tokens.length === 2) {
+    // In-bounds by length check above: tokens[0] and tokens[1] are guaranteed present.
     diagnose(
       `Expected 1 (M) or 3 (O M P) durations; got 2 (${tokens.join(' ')}). ` +
-        `Did you mean '${tokens[0]} ${(parseFloat(tokens[0]) + parseFloat(tokens[1])) / 2} ${tokens[1]}'?`
+        `Did you mean '${tokens[0]!} ${(parseFloat(tokens[0]!) + parseFloat(tokens[1]!)) / 2} ${tokens[1]!}'?`
     );
     return null;
   }
@@ -392,11 +396,13 @@ function buildEstimate(
     // M-only — analyzer expands using confidence factors. Stash M in
     // all three slots; the `mOnly` flag (not value-equality) is the
     // sentinel, so a literal "1 1 1" triple is correctly preserved.
-    return { o: parsed[0], m: parsed[0], p: parsed[0], mOnly: true };
+    // In-bounds by length === 1 check.
+    return { o: parsed[0]!, m: parsed[0]!, p: parsed[0]!, mOnly: true };
   }
 
   // 3-tuple — validate O ≤ M ≤ P (after unit-normalization on amounts).
-  const [o, m, p] = parsed;
+  // In-bounds: validated to be length 3 above.
+  const [o, m, p] = parsed as [Duration, Duration, Duration];
   // For mixed units we compare with same-unit normalization; for v1 we
   // compare amounts directly when units match (the common case).
   const sameUnit = o.unit === m.unit && m.unit === p.unit;
@@ -526,7 +532,8 @@ export function parsePert(
   const groupStack: GroupFrame[] = [];
   const currentGroupId = (): string | undefined =>
     groupStack.length > 0
-      ? groupStack[groupStack.length - 1].groupId
+      ? // In-bounds by length check.
+        groupStack[groupStack.length - 1]!.groupId
       : undefined;
 
   /** Tracks the most recent activity declaration line (for `-> dest` source). */
@@ -537,7 +544,8 @@ export function parsePert(
   let pastFirstLine = false;
 
   for (let i = 0; i < lines.length; i++) {
-    const rawLine = lines[i];
+    // In-bounds by loop guard.
+    const rawLine = lines[i]!;
     const lineNumber = i + 1;
     const trimmed = stripTrailingComment(rawLine).trim();
     if (!trimmed) continue;
@@ -547,7 +555,8 @@ export function parsePert(
 
     // Pop any group frames whose indent ≥ this line's indent (block closes).
     while (groupStack.length > 0) {
-      const top = groupStack[groupStack.length - 1];
+      // In-bounds by length check.
+      const top = groupStack[groupStack.length - 1]!;
       if (indent <= top.indent) groupStack.pop();
       else break;
     }
@@ -566,7 +575,8 @@ export function parsePert(
     if (!pastFirstLine) {
       pastFirstLine = true;
       const tokens = trimmed.split(/\s+/);
-      const head = tokens[0].toLowerCase();
+      // In-bounds: split always returns at least one element.
+      const head = tokens[0]!.toLowerCase();
       if (head === 'pert') {
         if (tokens.length > 1) title = tokens.slice(1).join(' ');
         continue;
@@ -662,7 +672,8 @@ export function parsePert(
     if (groupMatch) {
       contentStarted = true;
       currentTagGroup = null;
-      const name = groupMatch[1].trim();
+      // In-bounds by regex match: group 1 is guaranteed present.
+      const name = groupMatch[1]!.trim();
       const meta = groupMatch[2]
         ? parsePipeMetadata(groupMatch[2], metaAliasMap)
         : {};
@@ -697,23 +708,25 @@ export function parsePert(
 
       const bareMatch = trimmed.match(ARROW_RE);
       if (bareMatch) {
-        arrowTargetText = bareMatch[1];
+        // In-bounds by regex match: group 1 is guaranteed present.
+        arrowTargetText = bareMatch[1]!;
       } else {
         const labeledMatch = trimmed.match(LABELED_ARROW_RE);
         if (!labeledMatch) {
           error(lineNumber, `Malformed arrow line: '${trimmed}'.`);
           continue;
         }
-        const parsedLabel = parseEdgeLabel(labeledMatch[1], options.timeUnit);
+        // In-bounds by regex match: groups 1 and 2 are guaranteed present.
+        const parsedLabel = parseEdgeLabel(labeledMatch[1]!, options.timeUnit);
         if (!parsedLabel) {
           error(
             lineNumber,
-            `Invalid edge label '${labeledMatch[1]}' in '${trimmed}'. ` +
+            `Invalid edge label '${labeledMatch[1]!}' in '${trimmed}'. ` +
               `Expected a dependency type (FS/SS/FF/SF) and/or lag (e.g. '+2d', '-1d').`
           );
           continue;
         }
-        arrowTargetText = labeledMatch[2];
+        arrowTargetText = labeledMatch[2]!;
         edgeType = parsedLabel.type;
         edgeLag = parsedLabel.lag;
       }
@@ -932,8 +945,9 @@ export function parsePert(
         .map((s) => `line ${s.lineNumber} (${s.durationTokens.join(' ')})`)
         .join(' and ');
       // Anchor the diagnostic on the first site so navigation lands somewhere stable.
+      // In-bounds: explicit.length >= 2 above.
       error(
-        explicit[0].lineNumber,
+        explicit[0]!.lineNumber,
         `Conflicting estimates for "${declarationsByName.get(key)!.name}" on ${lineList}. Keep one declaration site.`
       );
     }

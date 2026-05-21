@@ -140,7 +140,7 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
   const indentStack: { node: OrgNode; indent: number }[] = [];
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+    const line = lines[i]!; // In-bounds by loop guard.
     const lineNumber = i + 1;
     const trimmed = line.trim();
 
@@ -222,9 +222,10 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
     if (!contentStarted && !currentTagGroup && measureIndent(line) === 0) {
       const optMatch = trimmed.match(OPTION_NOCOLON_RE);
       if (optMatch) {
-        const key = optMatch[1].trim().toLowerCase();
+        // Capture groups 1 and 2 guaranteed by OPTION_NOCOLON_RE match.
+        const key = optMatch[1]!.trim().toLowerCase();
         if (KNOWN_OPTIONS.has(key)) {
-          result.options[key] = optMatch[2].trim();
+          result.options[key] = optMatch[2]!.trim();
           continue;
         }
       }
@@ -283,15 +284,17 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
 
     if (containerMatch) {
       // It's a container node — supports `as <alias>` postfix per TD-18.
-      const rawLabel = containerMatch[1].trim();
+      // Capture group 1 guaranteed by CONTAINER_RE match.
+      const rawLabel = containerMatch[1]!.trim();
       const asMatch = rawLabel.match(
         /^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/
       );
-      const label = asMatch ? asMatch[1].trim() : rawLabel;
+      // Capture groups 1 and 2 guaranteed by the regex above when asMatch is truthy.
+      const label = asMatch ? asMatch[1]!.trim() : rawLabel;
 
       containerCounter++;
       const containerId = `container-${containerCounter}`;
-      if (asMatch) nameAliasMap.set(asMatch[2], containerId);
+      if (asMatch) nameAliasMap.set(asMatch[2]!, containerId);
       const node: OrgNode = {
         id: containerId,
         label,
@@ -305,9 +308,10 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
       attachNode(node, indent, indentStack, result);
     } else if (metadataMatch && indentStack.length > 0) {
       // It's a metadata line — attach to most recent node on stack at shallower indent
-      const rawKey = metadataMatch[1].trim().toLowerCase();
+      // Capture groups 1 and 2 guaranteed by METADATA_RE match.
+      const rawKey = metadataMatch[1]!.trim().toLowerCase();
       const key = metaAliasMap.get(rawKey) ?? rawKey;
-      const value = metadataMatch[2].trim();
+      const value = metadataMatch[2]!.trim();
 
       // Find the parent node: top of stack (the most recent node)
       const parent = findMetadataParent(indent, indentStack);
@@ -399,12 +403,14 @@ function parseNodeLabel(
   const segments = trimmed.split('|').map((s) => s.trim());
 
   // TD-18: peel optional `as <alias>` from the label (pre-pipe).
-  let label = segments[0];
+  // String.split always returns at least one element.
+  let label = segments[0]!;
   const asMatch = label.match(/^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/);
   const id = `node-${counter}`;
   if (asMatch) {
-    label = asMatch[1].trim();
-    nameAliasMap?.set(normalizeName(asMatch[2]), id);
+    // Capture groups 1 and 2 guaranteed by the regex above.
+    label = asMatch[1]!.trim();
+    nameAliasMap?.set(normalizeName(asMatch[2]!), id);
   }
 
   const metadata = parsePipeMetadata(
@@ -432,14 +438,15 @@ function attachNode(
 ): void {
   // Pop stack entries with indent >= current indent
   while (indentStack.length > 0) {
-    const top = indentStack[indentStack.length - 1];
+    // In-bounds by while-loop length guard.
+    const top = indentStack[indentStack.length - 1]!;
     if (top.indent < indent) break;
     indentStack.pop();
   }
 
   if (indentStack.length > 0) {
-    // Stack top becomes parent
-    const parent = indentStack[indentStack.length - 1].node;
+    // Stack top becomes parent — in-bounds by length guard.
+    const parent = indentStack[indentStack.length - 1]!.node;
     node.parentId = parent.id;
     parent.children.push(node);
   } else {
@@ -458,13 +465,16 @@ function findMetadataParent(
   // Walk backward from the top of the stack to find the most recent node
   // at a shallower indent than the metadata line
   for (let i = indentStack.length - 1; i >= 0; i--) {
-    if (indentStack[i].indent < indent) {
-      return indentStack[i].node;
+    // In-bounds by reverse-for loop guard.
+    const entry = indentStack[i]!;
+    if (entry.indent < indent) {
+      return entry.node;
     }
   }
   // If metadata is at same indent as top node, attach to top node
   if (indentStack.length > 0) {
-    return indentStack[indentStack.length - 1].node;
+    // In-bounds by length guard.
+    return indentStack[indentStack.length - 1]!.node;
   }
   return null;
 }

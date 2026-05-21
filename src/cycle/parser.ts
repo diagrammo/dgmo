@@ -92,7 +92,8 @@ export function parseCycle(content: string): ParsedCycle {
 
   for (let i = 0; i < lines.length; i++) {
     const lineNum = i + 1;
-    const raw = lines[i];
+    // In-bounds by loop guard.
+    const raw = lines[i]!;
     const trimmed = raw.trim();
 
     // Skip blanks and comments
@@ -340,7 +341,8 @@ export function parseCycle(content: string): ParsedCycle {
     // Check explicit target diagnostic
     const typed = edge as CycleEdge & { _explicitTarget?: string };
     if (typed._explicitTarget) {
-      const actualTarget = result.nodes[edge.targetIndex].label;
+      // In-bounds: targetIndex computed as (sourceIndex + 1) % nodeCount.
+      const actualTarget = result.nodes[edge.targetIndex]!.label;
       if (typed._explicitTarget !== actualTarget) {
         info(
           edge.lineNumber!,

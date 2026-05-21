@@ -30,7 +30,8 @@ const START_DATE_NOW_RE = /^(\s*start-date\s+)now(\s*)$/i;
 function splitTrailingComment(line: string): { code: string; comment: string } {
   const m = line.match(/^(.*?)(\s+#.*)$/);
   if (!m) return { code: line, comment: '' };
-  return { code: m[1], comment: m[2] };
+  // In-bounds by regex match: groups 1 and 2 are guaranteed present.
+  return { code: m[1]!, comment: m[2]! };
 }
 
 /**

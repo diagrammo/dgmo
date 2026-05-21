@@ -363,7 +363,8 @@ export function analyzePert(parsed: ParsedPert): ResolvedPert {
   //   SF:  A.LS ≤ B.LF − lag
   // LS then LF are picked so LF − LS = duration, and both bounds hold.
   for (let i = topo.length - 1; i >= 0; i--) {
-    const id = topo[i];
+    // In-bounds by loop guard.
+    const id = topo[i]!;
     if (poisoned.has(id) || projectMuDays === null) continue;
     const out = outgoingEdges.get(id) ?? [];
     if (out.length === 0) continue; // already initialized to projectMu

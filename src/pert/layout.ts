@@ -342,7 +342,8 @@ export function relayoutPert(
   // at virtual group ids when a side is collapsed, which the renderer
   // uses verbatim for `data-source` / `data-target`.
   const edges = Array.from(seenEdges).map((k) => {
-    const [source, target] = k.split('|');
+    // In-bounds: `seenEdges` keys are always `source|target` (built via join).
+    const [source, target] = k.split('|') as [string, string];
     const data = g.edge(source, target);
     return { source, target, points: data?.points ?? [] };
   });
@@ -551,7 +552,8 @@ function applySwimLanes(
   const laneSlots = new Array<number>(numLanes).fill(0);
   for (const byLane of rankBuckets.values()) {
     for (const [li, members] of byLane) {
-      if (members.length > laneSlots[li]) laneSlots[li] = members.length;
+      // In-bounds: laneSlots indexed by li from byLane which was keyed under numLanes.
+      if (members.length > laneSlots[li]!) laneSlots[li] = members.length;
     }
   }
 
@@ -566,7 +568,8 @@ function applySwimLanes(
   // for any lane with at least one member; empty lanes contribute 0.
   const laneSize: number[] = new Array<number>(numLanes).fill(0);
   for (let i = 1; i < numLanes; i++) {
-    const slots = laneSlots[i];
+    // In-bounds by loop guard.
+    const slots = laneSlots[i]!;
     if (slots === 0) {
       laneSize[i] = 0;
       continue;
@@ -589,7 +592,8 @@ function applySwimLanes(
   let cursor = DIAGRAM_PADDING;
   for (const li of laneOrder) {
     laneStart[li] = cursor;
-    if (laneSize[li] > 0) cursor += laneSize[li] + SWIMLANE_GAP;
+    // In-bounds: laneSize is sized numLanes; li drawn from laneOrder which contains valid indices.
+    if (laneSize[li]! > 0) cursor += laneSize[li]! + SWIMLANE_GAP;
   }
 
   // Criticality lookup — used as a tie-breaker when ordering peers in
@@ -623,7 +627,8 @@ function applySwimLanes(
   // row"). Spine members win the top slot; ungrouped tag along beneath.
   for (const byLane of rankBuckets.values()) {
     for (const [li, members] of byLane) {
-      const slotStripStart = laneStart[li] + GROUP_TOP_PADDING;
+      // In-bounds: laneStart sized numLanes; li drawn from the same lane-index domain.
+      const slotStripStart = laneStart[li]! + GROUP_TOP_PADDING;
 
       const sorted = [...members].sort((a, b) => {
         // Spine members first (so they own slot 1 — the spine row).
@@ -761,7 +766,8 @@ function centerByCriticality(
     newOrder.forEach((id, i) => {
       const node = g.node(id);
       const oldVal = node[slotAxis] as number;
-      const newVal = slots[i];
+      // In-bounds: slots was built with same length as newOrder above.
+      const newVal = slots[i]!;
       shifts.set(id, newVal - oldVal);
       (node as Record<string, unknown>)[slotAxis] = newVal;
     });
@@ -863,12 +869,14 @@ function reduceCrossings(g: any, direction: PertDirection): void {
   const countCrossings = (): number => {
     let total = 0;
     for (let i = 0; i < edges.length; i++) {
-      const a = edges[i];
+      // In-bounds by loop guard.
+      const a = edges[i]!;
       const a1 = g.node(a.v);
       const a2 = g.node(a.w);
       if (!a1 || !a2) continue;
       for (let j = i + 1; j < edges.length; j++) {
-        const b = edges[j];
+        // In-bounds by loop guard.
+        const b = edges[j]!;
         // Shared endpoint → segments meet at a node, not a crossing.
         if (a.v === b.v || a.v === b.w || a.w === b.v || a.w === b.w) continue;
         const b1 = g.node(b.v);

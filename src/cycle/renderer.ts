@@ -206,8 +206,9 @@ export function renderCycle(
     edge: (typeof parsed.edges)[number];
   }> = [];
   for (let i = 0; i < layout.edges.length; i++) {
-    const le = layout.edges[i];
-    const edge = parsed.edges[i];
+    // In-bounds by loop guard; layout.edges and parsed.edges are parallel arrays.
+    const le = layout.edges[i]!;
+    const edge = parsed.edges[i]!;
     const color = resolveEdgeColor(edge, parsed, palette, defaultNodeColor);
     const strokeWidth = Math.max(
       edge.width ?? DEFAULT_EDGE_WIDTH,
@@ -252,8 +253,9 @@ export function renderCycle(
   );
 
   for (let i = 0; i < layout.nodes.length; i++) {
-    const ln = layout.nodes[i];
-    const node = parsed.nodes[i];
+    // In-bounds by loop guard; layout.nodes and parsed.nodes are parallel arrays.
+    const ln = layout.nodes[i]!;
+    const node = parsed.nodes[i]!;
     const solidColor = resolveNodeColor(node.color, palette, defaultNodeColor);
     // Canonical 25% tinted fill via shapeFill() (or full intent when solid-fill is on).
     const fillColor = shapeFill(palette, solidColor, isDark, { solid });

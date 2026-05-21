@@ -31,6 +31,9 @@
     "src/er/**/*.ts",
     "src/journey-map/**/*.ts",
     "src/c4/**/*.ts",
-    "src/wireframe/**/*.ts"
+    "src/wireframe/**/*.ts",
+    "src/org/**/*.ts",
+    "src/cycle/**/*.ts",
+    "src/pert/**/*.ts"
   ]
 }

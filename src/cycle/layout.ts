@@ -130,7 +130,8 @@ export function computeCycleLayout(
       d.height = maxDiam;
       // Re-wrap descriptions to fit the larger circle
       const nodeIdx = nodeDims.indexOf(d);
-      const node = parsed.nodes[nodeIdx];
+      // In-bounds: nodeDims is built 1:1 from parsed.nodes.
+      const node = parsed.nodes[nodeIdx]!;
       const hasDesc = !hideDescriptions && node.description.length > 0;
       if (hasDesc) {
         d.wrappedDesc = wrapLinesForCircle(node.description, maxDiam / 2).map(
@@ -168,11 +169,14 @@ export function computeCycleLayout(
   let minRadiusForNodes = 0;
   for (let i = 0; i < nodeCount; i++) {
     const j = (i + 1) % nodeCount;
-    const diA = Math.sqrt(nodeDims[i].width ** 2 + nodeDims[i].height ** 2) / 2;
-    const diB = Math.sqrt(nodeDims[j].width ** 2 + nodeDims[j].height ** 2) / 2;
+    // In-bounds: i and j are within [0, nodeCount), nodeDims.length === nodeCount.
+    const diA =
+      Math.sqrt(nodeDims[i]!.width ** 2 + nodeDims[i]!.height ** 2) / 2;
+    const diB =
+      Math.sqrt(nodeDims[j]!.width ** 2 + nodeDims[j]!.height ** 2) / 2;
     const neededChord = diA + diB + GAP;
     // chord = 2 * r * sin(angle/2)  →  r = chord / (2 * sin(angle/2))
-    const halfAngle = rawAngles[i] / 2;
+    const halfAngle = rawAngles[i]! / 2;
     if (halfAngle > 0.001) {
       const r = neededChord / (2 * Math.sin(halfAngle));
       minRadiusForNodes = Math.max(minRadiusForNodes, r);
@@ -200,8 +204,9 @@ export function computeCycleLayout(
     // so chars-per-line stays roughly constant — but line *count* must match
     // the new height budget).
     for (let i = 0; i < nodeDims.length; i++) {
-      const d = nodeDims[i];
-      const node = parsed.nodes[i];
+      // In-bounds by loop guard; nodeDims and parsed.nodes are parallel arrays.
+      const d = nodeDims[i]!;
+      const node = parsed.nodes[i]!;
       const hasDesc = !hideDescriptions && node.description.length > 0;
       const newW = Math.max(50, d.width * scale);
       if (circleNodes) {
@@ -246,8 +251,9 @@ export function computeCycleLayout(
       const theta = nodeAngles[i];
       const approxX = cx + radius * Math.cos(theta);
       const approxY = cy + radius * Math.sin(theta);
-      const hw = nodeDims[i].width / 2;
-      const hh = nodeDims[i].height / 2;
+      // In-bounds by loop guard.
+      const hw = nodeDims[i]!.width / 2;
+      const hh = nodeDims[i]!.height / 2;
       let exitCW: number, exitCCW: number;
       if (circleNodes) {
         const nodeR = hw; // width === height for circles
@@ -295,8 +301,9 @@ export function computeCycleLayout(
     for (let i = 0; i < nodeCount; i++) {
       nodeAngles[i] = cumAngle;
       const nextIdx = (i + 1) % nodeCount;
+      // In-bounds: i, nextIdx in [0, nodeCount); arrays sized to nodeCount.
       const advance =
-        footprints[i] / 2 + gapAngles[i] + footprints[nextIdx] / 2;
+        footprints[i] / 2 + gapAngles[i]! + footprints[nextIdx] / 2;
       cumAngle += isClockwise ? advance : -advance;
     }
   }
@@ -304,15 +311,16 @@ export function computeCycleLayout(
   // ── Build layout nodes at converged positions ──
   const layoutNodes: CycleLayoutNode[] = [];
   for (let i = 0; i < nodeCount; i++) {
+    // In-bounds by loop guard; all arrays sized to nodeCount.
     const angle = nodeAngles[i];
     layoutNodes.push({
-      label: parsed.nodes[i].label,
+      label: parsed.nodes[i]!.label,
       x: cx + radius * Math.cos(angle),
       y: cy + radius * Math.sin(angle),
       angle,
-      width: nodeDims[i].width,
-      height: nodeDims[i].height,
-      wrappedDesc: nodeDims[i].wrappedDesc,
+      width: nodeDims[i]!.width,
+      height: nodeDims[i]!.height,
+      wrappedDesc: nodeDims[i]!.wrappedDesc,
       isCircle: circleNodes,
     });
   }
@@ -343,8 +351,9 @@ export function computeCycleLayout(
     radius = fitResult.radius;
     // Reposition nodes on the smaller circle
     for (let i = 0; i < nodeCount; i++) {
-      layoutNodes[i].x = cx + radius * Math.cos(nodeAngles[i]);
-      layoutNodes[i].y = cy + radius * Math.sin(nodeAngles[i]);
+      // In-bounds by loop guard.
+      layoutNodes[i]!.x = cx + radius * Math.cos(nodeAngles[i]);
+      layoutNodes[i]!.y = cy + radius * Math.sin(nodeAngles[i]);
     }
     layoutEdges = computeEdgePaths(
       layoutNodes,
@@ -684,8 +693,9 @@ function computeEdgePaths(
   isClockwise: boolean
 ): CycleLayoutEdge[] {
   return parsed.edges.map((edge) => {
-    const src = layoutNodes[edge.sourceIndex];
-    const tgt = layoutNodes[edge.targetIndex];
+    // In-bounds: sourceIndex/targetIndex are validated by the parser to point into nodes.
+    const src = layoutNodes[edge.sourceIndex]!;
+    const tgt = layoutNodes[edge.targetIndex]!;
     const strokeWidth = Math.max(
       edge.width ?? DEFAULT_EDGE_WIDTH,
       MIN_EDGE_WIDTH
@@ -887,8 +897,9 @@ function fitToCanvas(
   // Edge label extents (estimate text width from character count, accounting
   // for line-wrapping that the renderer will apply to long edge labels).
   for (let i = 0; i < edges.length; i++) {
-    const le = edges[i];
-    const edge = parsed.edges[i];
+    // In-bounds by loop guard; edges and parsed.edges are parallel arrays.
+    const le = edges[i]!;
+    const edge = parsed.edges[i]!;
 
     const { labelLines, descLines } = wrapEdgeLabelText(
       le.label,
