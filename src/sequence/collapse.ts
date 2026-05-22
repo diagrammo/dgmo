@@ -8,6 +8,7 @@
 
 import type {
   ParsedSequenceDgmo,
+  ParticipantId,
   SequenceElement,
   SequenceGroup,
   SequenceMessage,
@@ -20,8 +21,8 @@ export interface CollapsedView {
   messages: SequenceMessage[];
   elements: SequenceElement[];
   groups: SequenceGroup[];
-  /** Maps member participant ID → collapsed group name */
-  collapsedGroupIds: Map<string, string>;
+  /** Maps member participant ID → collapsed group name (as a virtual ParticipantId). */
+  collapsedGroupIds: Map<ParticipantId, ParticipantId>;
 }
 
 /**
@@ -45,14 +46,16 @@ export function applyCollapseProjection(
     };
   }
 
-  // Build memberToGroup map: participantId → group name
-  const memberToGroup = new Map<string, string>();
+  // Build memberToGroup map: participantId → group name (as virtual ParticipantId).
+  // Group names become virtual participant IDs post-collapse — they're minted here
+  // and the rest of the pipeline treats them as bona fide ParticipantIds.
+  const memberToGroup = new Map<ParticipantId, ParticipantId>();
   const collapsedGroupNames = new Set<string>();
   for (const group of parsed.groups) {
     if (collapsedGroups.has(group.lineNumber)) {
       collapsedGroupNames.add(group.name);
       for (const memberId of group.participantIds) {
-        memberToGroup.set(memberId, group.name);
+        memberToGroup.set(memberId, group.name as ParticipantId);
       }
     }
   }
@@ -72,7 +75,7 @@ export function applyCollapseProjection(
           (g) => g.name === groupName && collapsedGroups.has(g.lineNumber)
         )!;
         participants.push({
-          id: groupName,
+          id: groupName, // already ParticipantId from memberToGroup value type
           label: groupName,
           type: 'default',
           lineNumber: group.lineNumber,
@@ -87,8 +90,9 @@ export function applyCollapseProjection(
     }
   }
 
-  // Remap helper
-  const remap = (id: string): string => memberToGroup.get(id) ?? id;
+  // Remap helper — collapse member IDs to their group's virtual participant ID.
+  const remap = (id: ParticipantId): ParticipantId =>
+    memberToGroup.get(id) ?? id;
 
   // Messages: remap from/to, preserving order
   const messages: SequenceMessage[] = parsed.messages.map((msg) => ({
@@ -119,9 +123,10 @@ export function applyCollapseProjection(
  */
 function remapElements(
   elements: SequenceElement[],
-  memberToGroup: Map<string, string>
+  memberToGroup: Map<ParticipantId, ParticipantId>
 ): SequenceElement[] {
-  const remap = (id: string): string => memberToGroup.get(id) ?? id;
+  const remap = (id: ParticipantId): ParticipantId =>
+    memberToGroup.get(id) ?? id;
   const result: SequenceElement[] = [];
 
   for (const el of elements) {

@@ -3,6 +3,7 @@
 // ============================================================
 
 import { inferParticipantType } from './participant-inference';
+import type { Brand } from '../utils/brand';
 import type { DgmoError } from '../diagnostics';
 import {
   makeDgmoError,
@@ -98,11 +99,20 @@ const REMOVED_PARTICIPANT_TYPES: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * Branded participant identifier — a normalized name string that has
+ * been minted through `addParticipant` and registered in the parser's
+ * `participantMap`. Distinct from a raw display label or any other
+ * `string`, so the type system catches "passed label where id expected"
+ * at compile time.
+ */
+export type ParticipantId = Brand<string, 'ParticipantId'>;
+
+/**
  * A declared or inferred participant in the sequence diagram.
  */
 export interface SequenceParticipant {
   /** Internal identifier (e.g. "AuthService") */
-  id: string;
+  id: ParticipantId;
   /** Display label — first-seen casing/spacing of the name */
   label: string;
   /** Participant shape type */
@@ -123,8 +133,8 @@ export interface SequenceParticipant {
  */
 export interface SequenceMessage {
   kind: 'message';
-  from: string;
-  to: string;
+  from: ParticipantId;
+  to: ParticipantId;
   label: string;
   lineNumber: number;
   async?: boolean;
@@ -168,7 +178,7 @@ export interface SequenceNote {
   kind: 'note';
   text: string;
   position: 'right' | 'left';
-  participantId: string;
+  participantId: ParticipantId;
   lineNumber: number;
   endLineNumber: number;
 }
@@ -200,7 +210,7 @@ export function isSequenceNote(el: SequenceElement): el is SequenceNote {
  */
 export interface SequenceGroup {
   name: string;
-  participantIds: string[];
+  participantIds: ParticipantId[];
   lineNumber: number;
   /** Pipe-delimited tag metadata (e.g. `[Backend | t: Product]`) */
   metadata?: Record<string, string>;
@@ -269,10 +279,14 @@ type NoteParseResult =
   | {
       kind: 'single';
       position: 'right' | 'left';
-      participantId: string;
+      participantId: ParticipantId;
       text: string;
     }
-  | { kind: 'multi-head'; position: 'right' | 'left'; participantId: string }
+  | {
+      kind: 'multi-head';
+      position: 'right' | 'left';
+      participantId: ParticipantId;
+    }
   | { kind: 'skip' }
   | null; // not a note line at all
 
@@ -318,7 +332,8 @@ function parseNoteLine(
       return {
         kind: 'multi-head',
         position,
-        participantId: found?.id ?? participantId,
+        // Verified participant — `participantIds.has(lookupKey)` confirmed.
+        participantId: found?.id ?? (participantId as ParticipantId),
       };
     }
     // Participant not found — fall through to bare-note handler for proper resolution
@@ -349,7 +364,12 @@ function parseNoteLine(
         if (!lastMsgFrom) return { kind: 'skip' };
         if (!participantIds.has(normalizeName(lastMsgFrom)))
           return { kind: 'skip' };
-        return { kind: 'multi-head', position, participantId: lastMsgFrom };
+        // Verified — participantIds.has confirmed lastMsgFrom is registered.
+        return {
+          kind: 'multi-head',
+          position,
+          participantId: lastMsgFrom as ParticipantId,
+        };
       }
 
       // Try to match a known participant at the start of afterPos
@@ -389,7 +409,8 @@ function parseNoteLine(
       return {
         kind: 'single',
         position,
-        participantId: lastMsgFrom,
+        // Verified by participantIds.has check above.
+        participantId: lastMsgFrom as ParticipantId,
         text: afterPos,
       };
     }
@@ -401,7 +422,8 @@ function parseNoteLine(
     return {
       kind: 'single',
       position: 'right',
-      participantId: lastMsgFrom,
+      // Verified by participantIds.has check above.
+      participantId: lastMsgFrom as ParticipantId,
       text: rest,
     };
   }
@@ -419,7 +441,7 @@ function resolveParticipantAndText(
   participants: SequenceParticipant[],
   participantIds: Set<string>,
   sortedParticipantsCache: SequenceParticipant[]
-): { participantId: string; text: string } | null {
+): { participantId: ParticipantId; text: string } | null {
   // Handle quoted participant: `"Auth Service" text`
   if (input.startsWith('"') || input.startsWith("'")) {
     // input[0] guaranteed by the startsWith check above.
@@ -431,7 +453,8 @@ function resolveParticipantAndText(
       if (participantIds.has(key)) {
         const text = input.substring(endQuote + 1).trim();
         const found = participants.find((p) => normalizeName(p.id) === key);
-        return { participantId: found?.id ?? name, text };
+        // Verified by participantIds.has(key) above.
+        return { participantId: found?.id ?? (name as ParticipantId), text };
       }
     }
     return null;
@@ -558,9 +581,9 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       label?: string;
       metadata?: Record<string, string>;
     }
-  ): string => {
+  ): ParticipantId => {
     const key = normalizeName(name);
-    const trimmed = name.trim();
+    const trimmed = name.trim() as ParticipantId;
     const incomingLabel = extras?.label ?? trimmed;
     if (participantIds.has(key)) {
       const existing = result.participants.find(
@@ -588,7 +611,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
         return existing.id;
       }
       // Fallback: idByKey lookup hit but participant somehow missing.
-      return idByKey.get(key) ?? trimmed;
+      return (idByKey.get(key) ?? trimmed) as ParticipantId;
     }
     participantIds.add(key);
 
