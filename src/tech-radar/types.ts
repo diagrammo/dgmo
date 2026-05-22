@@ -13,38 +13,38 @@ export type QuadrantPosition =
 export type BlipTrend = 'new' | 'up' | 'down' | 'stable';
 
 export interface TechRadarRing {
-  name: string;
-  alias: string | null;
-  lineNumber: number;
+  readonly name: string;
+  readonly alias: string | null;
+  readonly lineNumber: number;
 }
 
 export interface TechRadarBlip {
-  name: string;
-  ring: string;
-  trend: BlipTrend | null;
-  description: string[];
-  lineNumber: number;
+  readonly name: string;
+  readonly ring: string;
+  readonly trend: BlipTrend | null;
+  readonly description: readonly string[];
+  readonly lineNumber: number;
   /** Assigned after parsing — global numbering across all quadrants. */
-  globalNumber: number;
+  readonly globalNumber: number;
 }
 
 export interface TechRadarQuadrant {
-  name: string;
-  position: QuadrantPosition;
-  color: string | null;
-  lineNumber: number;
-  blips: TechRadarBlip[];
+  readonly name: string;
+  readonly position: QuadrantPosition;
+  readonly color: string | null;
+  readonly lineNumber: number;
+  readonly blips: readonly TechRadarBlip[];
 }
 
 export interface ParsedTechRadar {
-  type: 'tech-radar';
-  title: string;
-  titleLineNumber: number;
-  rings: TechRadarRing[];
-  quadrants: TechRadarQuadrant[];
-  options: Record<string, string>;
-  diagnostics: DgmoError[];
-  error: string | null;
+  readonly type: 'tech-radar';
+  readonly title: string;
+  readonly titleLineNumber: number;
+  readonly rings: readonly TechRadarRing[];
+  readonly quadrants: readonly TechRadarQuadrant[];
+  readonly options: Readonly<Record<string, string>>;
+  readonly diagnostics: readonly DgmoError[];
+  readonly error: string | null;
 }
 
 // ============================================================

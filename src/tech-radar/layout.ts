@@ -1,5 +1,6 @@
 import type {
   ParsedTechRadar,
+  TechRadarBlip,
   TechRadarLayoutPoint,
   QuadrantPosition,
 } from './types';
@@ -76,7 +77,7 @@ export function computeRadarLayout(
     const usableArcEnd = endAngle - angularPadding;
 
     // Group blips by ring
-    const blipsByRing = new Map<string, typeof quadrant.blips>();
+    const blipsByRing = new Map<string, TechRadarBlip[]>();
     for (const blip of quadrant.blips) {
       const list = blipsByRing.get(blip.ring) ?? [];
       list.push(blip);

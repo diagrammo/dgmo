@@ -2,27 +2,29 @@ import type { DgmoError } from '../diagnostics.js';
 import type { TagGroup } from '../utils/tag-groups.js';
 
 export interface MindmapNode {
-  id: string;
-  label: string;
-  description?: string[];
-  metadata: Record<string, string>;
-  children: MindmapNode[];
-  parentId: string | null;
-  lineNumber: number;
-  color?: string;
-  collapsed?: boolean;
+  readonly id: string;
+  readonly label: string;
+  readonly description?: readonly string[];
+  readonly metadata: Readonly<Record<string, string>>;
+  readonly children: readonly MindmapNode[];
+  readonly parentId: string | null;
+  readonly lineNumber: number;
+  readonly color?: string;
+  readonly collapsed?: boolean;
 }
 
 export interface ParsedMindmap {
-  title: string | null;
-  titleLineNumber: number | null;
-  roots: MindmapNode[];
-  tagGroups: TagGroup[];
-  options: Record<string, string>;
-  diagnostics: DgmoError[];
-  error: string | null;
+  readonly title: string | null;
+  readonly titleLineNumber: number | null;
+  readonly roots: readonly MindmapNode[];
+  readonly tagGroups: readonly TagGroup[];
+  readonly options: Readonly<Record<string, string>>;
+  readonly diagnostics: readonly DgmoError[];
+  readonly error: string | null;
 }
 
+// Layout types — keep mutable for now; will be addressed in wave 4
+// (layout result types) so layout helpers can incrementally build them.
 export interface MindmapLayoutNode {
   id: string;
   label: string;

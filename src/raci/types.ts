@@ -23,60 +23,60 @@ export type RaciVariant = 'raci' | 'rasci' | 'daci';
  * first-seen casing/spacing for rendering.
  */
 export interface RaciRoleAssignment {
-  id: string;
-  displayName: string;
-  markers: RaciMarker[];
-  lineNumber: number;
-  endLineNumber: number;
+  readonly id: string;
+  readonly displayName: string;
+  readonly markers: readonly RaciMarker[];
+  readonly lineNumber: number;
+  readonly endLineNumber: number;
 }
 
 /** One task — flush-left under a phase or directly under the chart. */
 export interface RaciTask {
-  id: string;
-  displayName: string;
-  description: string;
-  roleAssignments: RaciRoleAssignment[];
-  lineNumber: number;
-  endLineNumber: number;
+  readonly id: string;
+  readonly displayName: string;
+  readonly description: string;
+  readonly roleAssignments: readonly RaciRoleAssignment[];
+  readonly lineNumber: number;
+  readonly endLineNumber: number;
 }
 
 /** Optional `[Phase Label]` group header — one level deep. */
 export interface RaciPhase {
-  id: string;
-  displayName: string;
+  readonly id: string;
+  readonly displayName: string;
   /** Optional palette color from a `[Label](color)` suffix on the bracket. */
-  color?: string;
-  tasks: RaciTask[];
-  lineNumber: number;
-  endLineNumber: number;
+  readonly color?: string;
+  readonly tasks: readonly RaciTask[];
+  readonly lineNumber: number;
+  readonly endLineNumber: number;
 }
 
 /** Top-level parse result. */
 export interface ParsedRaci {
-  type: 'raci';
+  readonly type: 'raci';
   /** Optional title from the chart-type header line. */
-  title?: string;
-  titleLineNumber?: number;
+  readonly title?: string;
+  readonly titleLineNumber?: number;
   /** Variant selected by directive, or by chart-type id when absent. */
-  variant: RaciVariant;
+  readonly variant: RaciVariant;
   /**
    * Canonical column order. Populated either from an explicit
    * `roles:` directive or, when absent, from first-seen role usage.
    */
-  roles: string[];
+  readonly roles: readonly string[];
   /** Display name for each role (parallel to `roles`). */
-  roleDisplayNames: string[];
+  readonly roleDisplayNames: readonly string[];
   /**
    * Optional per-role palette color from the `Cap blue` trailing-token
    * suffix in the roles block (or the long pipe form `Cap | color: blue`).
    * Parallel to `roles`; entries default to `undefined` (renderer falls
    * back to the neutral column tint).
    */
-  roleColors: Array<string | undefined>;
-  phases: RaciPhase[];
+  readonly roleColors: ReadonlyArray<string | undefined>;
+  readonly phases: readonly RaciPhase[];
   /** Tasks declared without a parent phase. */
-  tasksWithoutPhase: RaciTask[];
-  options: Record<string, string>;
-  diagnostics: DgmoError[];
-  error: string | null;
+  readonly tasksWithoutPhase: readonly RaciTask[];
+  readonly options: Readonly<Record<string, string>>;
+  readonly diagnostics: readonly DgmoError[];
+  readonly error: string | null;
 }

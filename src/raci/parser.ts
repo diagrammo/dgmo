@@ -49,6 +49,7 @@ import type {
   RaciTask,
   RaciVariant,
 } from './types';
+import type { Writable } from '../utils/brand';
 
 /**
  * Chart-type ids accepted on the first line. All three route here via the
@@ -152,7 +153,8 @@ export function parseRaci(
   content: string,
   palette?: PaletteColors
 ): ParsedRaci {
-  const result: ParsedRaci = {
+  const options: Record<string, string> = {};
+  const result: Writable<ParsedRaci> = {
     type: 'raci',
     variant: 'raci',
     roles: [],
@@ -160,7 +162,7 @@ export function parseRaci(
     roleColors: [],
     phases: [],
     tasksWithoutPhase: [],
-    options: {},
+    options,
     diagnostics: [],
     error: null,
   };
@@ -257,8 +259,8 @@ export function parseRaci(
 
   // Stack-based indent tracking: which phase / task is currently
   // accepting children?
-  let currentPhase: RaciPhase | null = null;
-  let currentTask: RaciTask | null = null;
+  let currentPhase: Writable<RaciPhase> | null = null;
+  let currentTask: Writable<RaciTask> | null = null;
   /** Indent of the task line itself (children must be deeper than this). */
   let taskIndent = 0;
   /** True once we've parsed at least one role assignment under `currentTask`.
@@ -447,13 +449,13 @@ export function parseRaci(
             lockedVariant = v;
             lockedVariantLine = lineNumber;
           }
-          result.options[lower] = 'on';
+          options[lower] = 'on';
           continue;
         }
-        result.options[lower] = 'on';
+        options[lower] = 'on';
         continue;
       }
-      if (tryParseSharedOption(trimmed, result.options)) continue;
+      if (tryParseSharedOption(trimmed, options)) continue;
 
       const optMatch = trimmed.match(OPTION_NOCOLON_RE);
       if (optMatch) {
@@ -473,7 +475,7 @@ export function parseRaci(
               getOrAddRole(rawRole, lineNumber);
             }
           } else {
-            result.options[key] = value;
+            options[key] = value;
           }
           continue;
         }
@@ -545,7 +547,7 @@ export function parseRaci(
       }
       const taskId = registerTask(display, lineNumber);
 
-      const task: RaciTask = {
+      const task: Writable<RaciTask> = {
         id: taskId,
         displayName: display,
         description: '',
@@ -595,7 +597,7 @@ export function parseRaci(
       // Snapshot — `let`-binding narrowing is lost across nested
       // closures (warn/errorAt/getOrAddRole), so capture the
       // narrowed reference once and use it for the rest of the block.
-      const task: RaciTask = currentTask;
+      const task: Writable<RaciTask> = currentTask;
       // Resolve to (rawRole, markersBlob) for either the colon form
       // (`Bos: A R`) or the colon-less form (`Bos A R`, `Bos AR`).
       const parsedAssign = parseRoleAssignmentLine(trimmed);
@@ -740,7 +742,7 @@ export function parseRaci(
           );
         }
       }
-      a.markers = kept;
+      (a as Writable<RaciRoleAssignment>).markers = kept;
     }
   }
 

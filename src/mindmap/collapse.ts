@@ -3,6 +3,7 @@
 // ============================================================
 
 import type { MindmapNode } from './types';
+import type { Writable } from '../utils/brand';
 
 // ============================================================
 // Types
@@ -19,11 +20,13 @@ export interface CollapsedMindmapResult {
 // Helpers
 // ============================================================
 
-function cloneNode(node: MindmapNode): MindmapNode {
+function cloneNode(node: MindmapNode): Writable<MindmapNode> {
   return {
     id: node.id,
     label: node.label,
-    ...(node.description !== undefined && { description: node.description }),
+    ...(node.description !== undefined && {
+      description: [...node.description],
+    }),
     metadata: { ...node.metadata },
     children: node.children.map(cloneNode),
     parentId: node.parentId,
@@ -42,7 +45,7 @@ function countDescendants(node: MindmapNode): number {
 }
 
 function computeHiddenCounts(
-  nodes: MindmapNode[],
+  nodes: readonly MindmapNode[],
   collapsedIds: Set<string>,
   hiddenCounts: Map<string, number>
 ): void {
@@ -54,9 +57,12 @@ function computeHiddenCounts(
   }
 }
 
-function pruneCollapsed(node: MindmapNode, collapsedIds: Set<string>): void {
+function pruneCollapsed(
+  node: Writable<MindmapNode>,
+  collapsedIds: Set<string>
+): void {
   for (const child of node.children) {
-    pruneCollapsed(child, collapsedIds);
+    pruneCollapsed(child as Writable<MindmapNode>, collapsedIds);
   }
   if (collapsedIds.has(node.id) && node.children.length > 0) {
     node.children = [];
@@ -68,13 +74,13 @@ function pruneCollapsed(node: MindmapNode, collapsedIds: Set<string>): void {
 // ============================================================
 
 export function collapseMindmapTree(
-  roots: MindmapNode[],
+  roots: readonly MindmapNode[],
   collapsedIds: Set<string>
 ): CollapsedMindmapResult {
   const hiddenCounts = new Map<string, number>();
 
   if (collapsedIds.size === 0) {
-    return { roots, hiddenCounts };
+    return { roots: [...roots], hiddenCounts };
   }
 
   computeHiddenCounts(roots, collapsedIds, hiddenCounts);

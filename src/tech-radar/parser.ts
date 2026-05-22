@@ -5,6 +5,7 @@ import {
   parsePipeMetadata,
   OPTION_NOCOLON_RE,
 } from '../utils/parsing';
+import type { Writable } from '../utils/brand';
 import type {
   ParsedTechRadar,
   TechRadarQuadrant,
@@ -12,6 +13,17 @@ import type {
   QuadrantPosition,
   BlipTrend,
 } from './types';
+
+type WritableQuadrant = Omit<Writable<TechRadarQuadrant>, 'blips'> & {
+  blips: Writable<TechRadarBlip>[];
+};
+type WritableResult = Omit<
+  Writable<ParsedTechRadar>,
+  'quadrants' | 'options'
+> & {
+  quadrants: WritableQuadrant[];
+  options: Record<string, string>;
+};
 
 const VALID_POSITIONS: readonly QuadrantPosition[] = [
   'top-left',
@@ -40,7 +52,7 @@ const KNOWN_BOOLEANS = new Set<string>([
 ]);
 
 export function parseTechRadar(content: string): ParsedTechRadar {
-  const result: ParsedTechRadar = {
+  const result: WritableResult = {
     type: 'tech-radar',
     title: '',
     titleLineNumber: 0,
@@ -90,8 +102,8 @@ export function parseTechRadar(content: string): ParsedTechRadar {
   const lines = content.split('\n');
   let headerParsed = false;
   let inRingsBlock = false;
-  let currentQuadrant: TechRadarQuadrant | null = null;
-  let currentBlip: TechRadarBlip | null = null;
+  let currentQuadrant: WritableQuadrant | null = null;
+  let currentBlip: Writable<TechRadarBlip> | null = null;
   let blipBaseIndent = 0;
   let currentRing: string | null = null; // active ring section (new syntax)
 
@@ -372,7 +384,7 @@ export function parseTechRadar(content: string): ParsedTechRadar {
  * 2. Within each quadrant: rings from innermost to outermost
  * 3. Within each ring: declaration order
  */
-function assignGlobalNumbers(result: ParsedTechRadar): void {
+function assignGlobalNumbers(result: WritableResult): void {
   const ringOrder = result.rings.map((r) => r.name);
   let counter = 1;
 

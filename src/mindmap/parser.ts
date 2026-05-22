@@ -36,12 +36,13 @@ export function parseMindmap(
   content: string,
   palette?: PaletteColors
 ): ParsedMindmap {
-  const result: ParsedMindmap = {
+  const options: Record<string, string> = {};
+  const result: Writable<ParsedMindmap> = {
     title: null,
     titleLineNumber: null,
     roots: [],
     tagGroups: [],
-    options: {},
+    options,
     diagnostics: [],
     error: null,
   };
@@ -76,13 +77,13 @@ export function parseMindmap(
   const aliasMap = new Map<string, string>();
 
   // Indent stack for hierarchy tracking
-  const indentStack: { node: MindmapNode; indent: number }[] = [];
+  const indentStack: { node: Writable<MindmapNode>; indent: number }[] = [];
 
   // Track which nodes have had a child added (for late-description warnings)
   const nodesWithChildren = new Set<string>();
 
   // Title-derived root node (if title exists on first line)
-  let titleRoot: MindmapNode | null = null;
+  let titleRoot: Writable<MindmapNode> | null = null;
 
   for (let i = 0; i < lines.length; i++) {
     // In-bounds by loop guard (i < lines.length).
@@ -120,10 +121,11 @@ export function parseMindmap(
           result.titleLineNumber = lineNumber;
 
           nodeCounter++;
+          const titleMetadata: Record<string, string> = {};
           titleRoot = {
             id: `node-${nodeCounter}`,
             label,
-            metadata: {},
+            metadata: titleMetadata,
             children: [],
             parentId: null,
             lineNumber,
@@ -169,17 +171,17 @@ export function parseMindmap(
         // Capture groups [1] and [2] are guaranteed by OPTION_NOCOLON_RE shape.
         const key = optMatch[1]!.trim().toLowerCase();
         if (KNOWN_OPTIONS.has(key)) {
-          result.options[key] = optMatch[2]!.trim();
+          options[key] = optMatch[2]!.trim();
           continue;
         }
       }
       // Bare keyword option: no-descriptions
       const lower = trimmed.toLowerCase();
       if (lower === 'no-descriptions') {
-        result.options['no-descriptions'] = 'true';
+        options['no-descriptions'] = 'true';
         continue;
       }
-      if (tryParseSharedOption(trimmed, result.options)) {
+      if (tryParseSharedOption(trimmed, options)) {
         continue;
       }
     }
@@ -238,8 +240,11 @@ export function parseMindmap(
             );
             continue;
           }
-          if (!parent.description) parent.description = [];
-          parent.description.push(descValue);
+          const existing: string[] = parent.description
+            ? [...parent.description]
+            : [];
+          existing.push(descValue);
+          parent.description = existing;
           continue;
         }
       }
@@ -267,7 +272,7 @@ export function parseMindmap(
   // Validate tag group values
   if (result.tagGroups.length > 0) {
     const allNodes: MindmapNode[] = [];
-    const collectAll = (nodes: MindmapNode[]) => {
+    const collectAll = (nodes: readonly MindmapNode[]) => {
       for (const node of nodes) {
         allNodes.push(node);
         collectAll(node.children);
@@ -306,7 +311,7 @@ function parseNodeLine(
   counter: number,
   aliasMap: Map<string, string>,
   warnFn: (line: number, msg: string) => void
-): MindmapNode {
+): Writable<MindmapNode> {
   const segments = trimmed.split('|').map((s) => s.trim());
   // In-bounds: String.prototype.split always returns at least one element.
   const label = segments[0]!;
@@ -345,10 +350,10 @@ function parseNodeLine(
 }
 
 function attachNode(
-  node: MindmapNode,
+  node: Writable<MindmapNode>,
   indent: number,
-  indentStack: { node: MindmapNode; indent: number }[],
-  result: ParsedMindmap,
+  indentStack: { node: Writable<MindmapNode>; indent: number }[],
+  result: Writable<ParsedMindmap>,
   nodesWithChildren: Set<string>
 ): void {
   // Pop stack entries with indent >= current indent
@@ -374,8 +379,8 @@ function attachNode(
 
 function findMetadataParent(
   indent: number,
-  indentStack: { node: MindmapNode; indent: number }[]
-): MindmapNode | null {
+  indentStack: { node: Writable<MindmapNode>; indent: number }[]
+): Writable<MindmapNode> | null {
   for (let i = indentStack.length - 1; i >= 0; i--) {
     // In-bounds by loop guard (i in [0, indentStack.length)).
     const entry = indentStack[i]!;

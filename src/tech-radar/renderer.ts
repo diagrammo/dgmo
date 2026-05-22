@@ -1036,7 +1036,7 @@ function hideBlipPopover(popover: HTMLDivElement): void {
  * Bullets (lines starting with -, *, •) stay as separate entries.
  * Blank lines create paragraph breaks.
  */
-function joinDescriptionParagraphs(lines: string[]): string[] {
+function joinDescriptionParagraphs(lines: readonly string[]): string[] {
   const result: string[] = [];
   let currentPara = '';
 

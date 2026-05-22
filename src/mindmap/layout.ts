@@ -86,7 +86,7 @@ export function layoutMindmap(
 
   // Inject default tag metadata (idempotent — fills empty metadata keys)
   const allNodes: MindmapNode[] = [];
-  const collectAll = (nodes: MindmapNode[]) => {
+  const collectAll = (nodes: readonly MindmapNode[]) => {
     for (const n of nodes) {
       allNodes.push(n);
       collectAll(n.children);
@@ -127,7 +127,7 @@ function layoutSingleRoot(
   root: MindmapNode,
   hiddenCounts: Map<string, number>,
   hideDescriptions: boolean,
-  tagGroups: TagGroup[] = [],
+  tagGroups: readonly TagGroup[] = [],
   activeTagGroup: string | null = null
 ): MindmapLayoutResult {
   const positioned: PositionedNode[] = [];
@@ -202,11 +202,11 @@ function layoutSingleRoot(
 // ============================================================
 
 function layoutMultiRoot(
-  roots: MindmapNode[],
+  roots: readonly MindmapNode[],
   _parsed: ParsedMindmap,
   hiddenCounts: Map<string, number>,
   hideDescriptions: boolean,
-  tagGroups: TagGroup[],
+  tagGroups: readonly TagGroup[],
   activeTagGroup: string | null
 ): MindmapLayoutResult {
   const subResults: MindmapLayoutResult[] = [];
@@ -260,7 +260,7 @@ function layoutMultiRoot(
 // ============================================================
 
 function layoutSide(
-  children: MindmapNode[],
+  children: readonly MindmapNode[],
   startX: number,
   parentCenterY: number,
   depth: number,
@@ -318,7 +318,7 @@ function layoutSide(
 
 /** Total height of a group of siblings (including their subtrees) */
 function computeGroupHeight(
-  children: MindmapNode[],
+  children: readonly MindmapNode[],
   depth: number,
   hideDescriptions: boolean
 ): number {
@@ -353,12 +353,12 @@ function computeSubtreeHeight(
 
 function resolveNodeColor(
   node: MindmapNode,
-  tagGroups: TagGroup[],
+  tagGroups: readonly TagGroup[],
   activeGroupName: string | null
 ): string | undefined {
   // Explicit inline (color) always wins
   if (node.color) return node.color;
-  return resolveTagColor(node.metadata, tagGroups, activeGroupName);
+  return resolveTagColor(node.metadata, [...tagGroups], activeGroupName);
 }
 
 function finalize(
@@ -366,7 +366,7 @@ function finalize(
   hiddenCounts: Map<string, number>,
   _hideDescriptions: boolean,
   _rootMindmapNode: MindmapNode,
-  tagGroups: TagGroup[] = [],
+  tagGroups: readonly TagGroup[] = [],
   activeTagGroup: string | null = null
 ): MindmapLayoutResult {
   // Compute bounding box
@@ -402,9 +402,9 @@ function finalize(
       id: p.node.id,
       label: p.node.label,
       ...(p.node.description !== undefined && {
-        description: p.node.description,
+        description: [...p.node.description],
       }),
-      metadata: p.node.metadata,
+      metadata: { ...p.node.metadata },
       lineNumber: p.node.lineNumber,
       ...(resolvedColor !== undefined && { color: resolvedColor }),
       x: p.x + offsetX,
@@ -512,11 +512,11 @@ function finalize(
  * lighter side keeps both sides visually balanced.
  */
 function balancedSplit(
-  children: MindmapNode[],
+  children: readonly MindmapNode[],
   hideDescriptions: boolean
 ): { right: MindmapNode[]; left: MindmapNode[] } {
   if (children.length <= 1) {
-    return { right: children, left: [] };
+    return { right: [...children], left: [] };
   }
   if (children.length === 2) {
     // In-bounds: children.length === 2.
@@ -573,7 +573,7 @@ function nodeHeight(node: MindmapNode, hideDescriptions: boolean): number {
   const w = nodeWidth(depth);
   const text = computeNodeText(
     node.label,
-    node.description,
+    node.description ? [...node.description] : undefined,
     depth,
     w,
     hideDescriptions
@@ -603,9 +603,9 @@ function getNodeDepth(node: MindmapNode): number {
 const nodeDepthCache = new Map<string, number>();
 
 /** Populate depth cache by walking the tree. Call before layout. */
-function populateDepthCache(roots: MindmapNode[]): void {
+function populateDepthCache(roots: readonly MindmapNode[]): void {
   nodeDepthCache.clear();
-  const walk = (nodes: MindmapNode[], depth: number) => {
+  const walk = (nodes: readonly MindmapNode[], depth: number) => {
     for (const n of nodes) {
       nodeDepthCache.set(n.id, depth);
       walk(n.children, depth + 1);

@@ -6,6 +6,7 @@ import type { D3ExportDimensions } from '../utils/d3-types';
 import type {
   ParsedTechRadar,
   QuadrantPosition,
+  TechRadarBlip,
   TechRadarRenderOptions,
 } from './types';
 import { getQuadrantArc } from './layout';
@@ -283,7 +284,7 @@ function renderQuarterCircle(
   const usableArcEnd = endAngle - angularPadding;
   const arcSpan = usableArcEnd - usableArcStart;
 
-  const blipsByRing = new Map<string, typeof quadrant.blips>();
+  const blipsByRing = new Map<string, TechRadarBlip[]>();
   for (const blip of quadrant.blips) {
     const list = blipsByRing.get(blip.ring) ?? [];
     list.push(blip);
@@ -668,7 +669,7 @@ function renderHtmlPanel(
 // ============================================================
 
 function renderDescriptionHtml(
-  lines: string[],
+  lines: readonly string[],
   palette: PaletteColors
 ): string {
   // Join prose lines into paragraphs, keep bullets separate
@@ -691,7 +692,7 @@ function renderDescriptionHtml(
   return html;
 }
 
-function joinParagraphs(lines: string[]): string[] {
+function joinParagraphs(lines: readonly string[]): string[] {
   const result: string[] = [];
   let currentPara = '';
 
@@ -943,7 +944,7 @@ function renderQuarterCircleStatic(
   const usableArcEnd = endAngle - angularPadding;
   const arcSpan = usableArcEnd - usableArcStart;
 
-  const blipsByRing = new Map<string, typeof quadrant.blips>();
+  const blipsByRing = new Map<string, TechRadarBlip[]>();
   for (const blip of quadrant.blips) {
     const list = blipsByRing.get(blip.ring) ?? [];
     list.push(blip);

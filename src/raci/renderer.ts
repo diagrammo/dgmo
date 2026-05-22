@@ -1272,7 +1272,7 @@ function renderTaskRow(
   }
 
   // Build a quick lookup: roleId → markers[]
-  const cellByRole = new Map<string, RaciMarker[]>();
+  const cellByRole = new Map<string, readonly RaciMarker[]>();
   for (const a of task.roleAssignments) {
     cellByRole.set(a.id, a.markers);
   }
