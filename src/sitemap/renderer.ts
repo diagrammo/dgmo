@@ -663,7 +663,7 @@ export function renderSitemap(
 
 function renderLegend(
   parent: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
-  legendGroups: SitemapLegendGroup[],
+  legendGroups: readonly SitemapLegendGroup[],
   palette: PaletteColors,
   isDark: boolean,
   activeTagGroup?: string | null,

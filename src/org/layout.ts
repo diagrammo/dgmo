@@ -4,6 +4,7 @@
 
 import { hierarchy, tree } from 'd3-hierarchy';
 import type { ParsedOrg, OrgNode } from './parser';
+import type { Writable } from '../utils/brand';
 import type { TagGroup } from '../utils/tag-groups';
 import { resolveTagColor, injectDefaultTagMetadata } from '../utils/tag-groups';
 import {
@@ -17,73 +18,73 @@ import {
 // ============================================================
 
 export interface OrgLayoutNode {
-  id: string;
-  label: string;
-  metadata: Record<string, string>;
+  readonly id: string;
+  readonly label: string;
+  readonly metadata: Readonly<Record<string, string>>;
   /** Original (unfiltered) metadata — used for tag-based hover dimming even when the group is hidden */
-  tagMetadata: Record<string, string>;
-  isContainer: boolean;
-  lineNumber: number;
-  color?: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
+  readonly tagMetadata: Readonly<Record<string, string>>;
+  readonly isContainer: boolean;
+  readonly lineNumber: number;
+  readonly color?: string;
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
   /** Count of hidden descendants when this node is collapsed */
-  hiddenCount?: number;
+  readonly hiddenCount?: number;
   /** True if node has children (expanded or collapsed) — drives toggle UI */
-  hasChildren?: boolean;
+  readonly hasChildren?: boolean;
 }
 
 export interface OrgLayoutEdge {
-  sourceId: string;
-  targetId: string;
-  points: { x: number; y: number }[];
+  readonly sourceId: string;
+  readonly targetId: string;
+  readonly points: ReadonlyArray<{ readonly x: number; readonly y: number }>;
 }
 
 export interface OrgContainerBounds {
-  nodeId: string;
-  label: string;
-  lineNumber: number;
-  color?: string;
-  metadata: Record<string, string>;
+  readonly nodeId: string;
+  readonly label: string;
+  readonly lineNumber: number;
+  readonly color?: string;
+  readonly metadata: Readonly<Record<string, string>>;
   /** Original (unfiltered) metadata — used for tag-based hover dimming even when the group is hidden */
-  tagMetadata: Record<string, string>;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  labelHeight: number;
+  readonly tagMetadata: Readonly<Record<string, string>>;
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+  readonly labelHeight: number;
   /** Count of hidden descendants when this container is collapsed */
-  hiddenCount?: number;
+  readonly hiddenCount?: number;
   /** True if container has children (expanded or collapsed) — drives toggle UI */
-  hasChildren?: boolean;
+  readonly hasChildren?: boolean;
 }
 
 export interface OrgLegendEntry {
-  value: string;
-  color: string;
+  readonly value: string;
+  readonly color: string;
 }
 
 export interface OrgLegendGroup {
-  name: string;
-  alias?: string;
-  entries: OrgLegendEntry[];
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  minifiedWidth: number;
-  minifiedHeight: number;
+  readonly name: string;
+  readonly alias?: string;
+  readonly entries: readonly OrgLegendEntry[];
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+  readonly minifiedWidth: number;
+  readonly minifiedHeight: number;
 }
 
 export interface OrgLayoutResult {
-  nodes: OrgLayoutNode[];
-  edges: OrgLayoutEdge[];
-  containers: OrgContainerBounds[];
-  legend: OrgLegendGroup[];
-  width: number;
-  height: number;
+  readonly nodes: readonly OrgLayoutNode[];
+  readonly edges: readonly OrgLayoutEdge[];
+  readonly containers: readonly OrgContainerBounds[];
+  readonly legend: readonly OrgLegendGroup[];
+  readonly width: number;
+  readonly height: number;
 }
 
 // ============================================================
@@ -293,8 +294,8 @@ function computeLegendGroups(
   tagGroups: readonly TagGroup[],
   showEyeIcons: boolean,
   usedValuesByGroup?: Map<string, Set<string>>
-): OrgLegendGroup[] {
-  const groups: OrgLegendGroup[] = [];
+): Writable<OrgLegendGroup>[] {
+  const groups: Writable<OrgLegendGroup>[] = [];
 
   for (const group of tagGroups) {
     if (group.entries.length === 0) continue;
@@ -737,8 +738,8 @@ export function layoutOrg(
   }
 
   // Collect positioned nodes and edges
-  const layoutNodes: OrgLayoutNode[] = [];
-  const layoutEdges: OrgLayoutEdge[] = [];
+  const layoutNodes: Writable<OrgLayoutNode>[] = [];
+  const layoutEdges: Writable<OrgLayoutEdge>[] = [];
 
   // Find bounding box and build outputs
   let minX = Infinity;
@@ -995,7 +996,7 @@ export function layoutOrg(
     { minX: number; maxX: number; minY: number; maxY: number }
   >();
 
-  const containers: OrgContainerBounds[] = [];
+  const containers: Writable<OrgContainerBounds>[] = [];
 
   // First pass: childless containers — simple boxes at their own position.
   // Must be computed before parent containers so their bounds are available.
@@ -1225,7 +1226,8 @@ export function layoutOrg(
     for (const n of layoutNodes) n.y += legendShift;
     for (const c of containers) c.y += legendShift;
     for (const e of layoutEdges) {
-      for (const p of e.points) p.y += legendShift;
+      for (const p of e.points as Writable<(typeof e.points)[number]>[])
+        p.y += legendShift;
     }
 
     const totalGroupsWidth =

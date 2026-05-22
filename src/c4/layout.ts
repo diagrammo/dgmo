@@ -12,6 +12,12 @@ import type {
   C4DeploymentNode,
 } from './types';
 import type { TagGroup } from '../utils/tag-groups';
+import type { Writable } from '../utils/brand';
+
+/** Mutable edge variant for in-place position shifts during layout. */
+type MutableC4LayoutEdge = Writable<C4LayoutEdge> & {
+  points: { x: number; y: number }[];
+};
 import {
   LEGEND_PILL_FONT_SIZE,
   LEGEND_ENTRY_FONT_SIZE,
@@ -44,65 +50,65 @@ const gEdge = (g: any, v: string, w: string): DagreEdgeLabel | undefined =>
 // ============================================================
 
 export interface C4LayoutNode {
-  id: string;
-  name: string;
-  type: 'person' | 'system' | 'container' | 'component';
-  description?: string;
-  metadata: Record<string, string>;
-  lineNumber: number;
-  color?: string;
-  shape?: C4Shape;
-  technology?: string;
-  drillable?: boolean;
-  importPath?: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
+  readonly id: string;
+  readonly name: string;
+  readonly type: 'person' | 'system' | 'container' | 'component';
+  readonly description?: string;
+  readonly metadata: Readonly<Record<string, string>>;
+  readonly lineNumber: number;
+  readonly color?: string;
+  readonly shape?: C4Shape;
+  readonly technology?: string;
+  readonly drillable?: boolean;
+  readonly importPath?: string;
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
 }
 
 export interface C4LayoutEdge {
-  source: string;
-  target: string;
-  arrowType: C4ArrowType;
-  label?: string;
-  technology?: string;
-  lineNumber: number;
-  points: { x: number; y: number }[];
+  readonly source: string;
+  readonly target: string;
+  readonly arrowType: C4ArrowType;
+  readonly label?: string;
+  readonly technology?: string;
+  readonly lineNumber: number;
+  readonly points: ReadonlyArray<{ readonly x: number; readonly y: number }>;
 }
 
 export interface C4LegendEntry {
-  value: string;
-  color: string;
+  readonly value: string;
+  readonly color: string;
 }
 
 export interface C4LegendGroup {
-  name: string;
-  entries: C4LegendEntry[];
-  x: number;
-  y: number;
-  width: number;
-  height: number;
+  readonly name: string;
+  readonly entries: readonly C4LegendEntry[];
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
 }
 
 export interface C4LayoutBoundary {
-  label: string;
-  typeLabel: string;
-  lineNumber: number;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
+  readonly label: string;
+  readonly typeLabel: string;
+  readonly lineNumber: number;
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
 }
 
 export interface C4LayoutResult {
-  nodes: C4LayoutNode[];
-  edges: C4LayoutEdge[];
-  legend: C4LegendGroup[];
-  boundary?: C4LayoutBoundary;
-  groupBoundaries: C4LayoutBoundary[];
-  width: number;
-  height: number;
+  readonly nodes: readonly C4LayoutNode[];
+  readonly edges: readonly C4LayoutEdge[];
+  readonly legend: readonly C4LegendGroup[];
+  readonly boundary?: C4LayoutBoundary;
+  readonly groupBoundaries: readonly C4LayoutBoundary[];
+  readonly width: number;
+  readonly height: number;
 }
 
 // ============================================================
@@ -737,8 +743,10 @@ export function computeC4NodeDimensions(
 // Legend Helpers
 // ============================================================
 
-function computeLegendGroups(tagGroups: readonly TagGroup[]): C4LegendGroup[] {
-  const result: C4LegendGroup[] = [];
+function computeLegendGroups(
+  tagGroups: readonly TagGroup[]
+): Writable<C4LegendGroup>[] {
+  const result: Writable<C4LegendGroup>[] = [];
 
   for (const group of tagGroups) {
     const entries: C4LegendEntry[] = [];
@@ -875,48 +883,52 @@ export function layoutC4Context(
   );
 
   // Extract positioned nodes
-  const nodes: C4LayoutNode[] = contextElements.map((el): C4LayoutNode => {
-    const pos = g.node(el.name);
-    const color = resolveNodeColor(
-      el,
-      parsed.tagGroups,
-      activeTagGroup ?? null
-    );
-    const hasContainers =
-      el.children.some((c) => c.type === 'container') ||
-      el.groups.some((g) => g.children.some((c) => c.type === 'container'));
-    const description = el.description?.join('\n');
-    const drillable = hasContainers || el.importPath ? true : undefined;
-    return {
-      id: el.name,
-      name: el.name,
-      type: el.type as 'person' | 'system',
-      ...(description !== undefined && { description }),
-      metadata: el.metadata,
-      lineNumber: el.lineNumber,
-      ...(color !== undefined && { color }),
-      ...(drillable !== undefined && { drillable }),
-      ...(el.importPath !== undefined && { importPath: el.importPath }),
-      x: pos.x,
-      y: pos.y,
-      width: pos.width,
-      height: pos.height,
-    };
-  });
+  const nodes: Writable<C4LayoutNode>[] = contextElements.map(
+    (el): Writable<C4LayoutNode> => {
+      const pos = g.node(el.name);
+      const color = resolveNodeColor(
+        el,
+        parsed.tagGroups,
+        activeTagGroup ?? null
+      );
+      const hasContainers =
+        el.children.some((c) => c.type === 'container') ||
+        el.groups.some((g) => g.children.some((c) => c.type === 'container'));
+      const description = el.description?.join('\n');
+      const drillable = hasContainers || el.importPath ? true : undefined;
+      return {
+        id: el.name,
+        name: el.name,
+        type: el.type as 'person' | 'system',
+        ...(description !== undefined && { description }),
+        metadata: el.metadata,
+        lineNumber: el.lineNumber,
+        ...(color !== undefined && { color }),
+        ...(drillable !== undefined && { drillable }),
+        ...(el.importPath !== undefined && { importPath: el.importPath }),
+        x: pos.x,
+        y: pos.y,
+        width: pos.width,
+        height: pos.height,
+      };
+    }
+  );
 
   // Extract edges with waypoints
-  const edges: C4LayoutEdge[] = validRels.map((rel): C4LayoutEdge => {
-    const edgeData = g.edge(rel.sourceName, rel.targetName);
-    return {
-      source: rel.sourceName,
-      target: rel.targetName,
-      arrowType: rel.arrowType,
-      ...(rel.label !== undefined && { label: rel.label }),
-      ...(rel.technology !== undefined && { technology: rel.technology }),
-      lineNumber: rel.lineNumber,
-      points: edgeData?.points ?? [],
-    };
-  });
+  const edges: MutableC4LayoutEdge[] = validRels.map(
+    (rel): MutableC4LayoutEdge => {
+      const edgeData = g.edge(rel.sourceName, rel.targetName);
+      return {
+        source: rel.sourceName,
+        target: rel.targetName,
+        arrowType: rel.arrowType,
+        ...(rel.label !== undefined && { label: rel.label }),
+        ...(rel.technology !== undefined && { technology: rel.technology }),
+        lineNumber: rel.lineNumber,
+        points: edgeData?.points ?? [],
+      };
+    }
+  );
 
   // Compute bounding box of all content (nodes + edge points)
   let minX = Infinity,
@@ -1229,7 +1241,7 @@ export function layoutC4Containers(
   );
 
   // Extract positioned nodes
-  const nodes: C4LayoutNode[] = [];
+  const nodes: Writable<C4LayoutNode>[] = [];
   for (const el of containers) {
     const pos = g.node(el.name);
     const color = resolveNodeColor(
@@ -1286,12 +1298,12 @@ export function layoutC4Containers(
   }
 
   // Extract edges
-  const edges: C4LayoutEdge[] = containerRels
+  const edges: MutableC4LayoutEdge[] = containerRels
     .filter(
       (rel) =>
         nameToElement.has(rel.sourceName) && nameToElement.has(rel.targetName)
     )
-    .map((rel): C4LayoutEdge => {
+    .map((rel): MutableC4LayoutEdge => {
       const edgeData = g.edge(rel.sourceName, rel.targetName);
       return {
         source: rel.sourceName,
@@ -1321,7 +1333,7 @@ export function layoutC4Containers(
     if (bottom > bMaxY) bMaxY = bottom;
   }
 
-  const boundary: C4LayoutBoundary = {
+  const boundary: Writable<C4LayoutBoundary> = {
     label: system.name,
     typeLabel: 'system',
     lineNumber: system.lineNumber,
@@ -1332,12 +1344,12 @@ export function layoutC4Containers(
   };
 
   // Compute group boundaries from member node positions
-  const groupBoundaries: C4LayoutBoundary[] = [];
+  const groupBoundaries: Writable<C4LayoutBoundary>[] = [];
   if (hasGroups) {
     const nodeMap = new Map(containerNodes.map((n) => [n.name, n]));
     const seenGroups = new Map<
       string,
-      { lineNumber: number; members: C4LayoutNode[] }
+      { lineNumber: number; members: Writable<C4LayoutNode>[] }
     >();
     for (const [elName, grp] of elementToGroup) {
       const node = nodeMap.get(elName);
@@ -1777,7 +1789,7 @@ export function layoutC4Components(
   const ancestors = [targetContainer, system];
 
   // Extract positioned nodes
-  const nodes: C4LayoutNode[] = [];
+  const nodes: Writable<C4LayoutNode>[] = [];
   for (const el of components) {
     const pos = g.node(el.name);
     const color = resolveNodeColor(
@@ -1835,12 +1847,12 @@ export function layoutC4Components(
   }
 
   // Extract edges
-  const edges: C4LayoutEdge[] = componentRels
+  const edges: MutableC4LayoutEdge[] = componentRels
     .filter(
       (rel) =>
         nameToElement.has(rel.sourceName) && nameToElement.has(rel.targetName)
     )
-    .map((rel): C4LayoutEdge => {
+    .map((rel): MutableC4LayoutEdge => {
       const edgeData = g.edge(rel.sourceName, rel.targetName);
       return {
         source: rel.sourceName,
@@ -1870,7 +1882,7 @@ export function layoutC4Components(
     if (bottom > bMaxY) bMaxY = bottom;
   }
 
-  const boundary: C4LayoutBoundary = {
+  const boundary: Writable<C4LayoutBoundary> = {
     label: targetContainer.name,
     typeLabel: 'container',
     lineNumber: targetContainer.lineNumber,
@@ -1881,12 +1893,12 @@ export function layoutC4Components(
   };
 
   // Compute group boundaries from member node positions
-  const groupBoundaries: C4LayoutBoundary[] = [];
+  const groupBoundaries: Writable<C4LayoutBoundary>[] = [];
   if (hasGroups) {
     const nodeMap = new Map(componentNodes.map((n) => [n.name, n]));
     const seenGroups = new Map<
       string,
-      { lineNumber: number; members: C4LayoutNode[] }
+      { lineNumber: number; members: Writable<C4LayoutNode>[] }
     >();
     for (const [elName, grp] of elementToGroup) {
       const node = nodeMap.get(elName);
@@ -2233,7 +2245,7 @@ export function layoutC4Deployment(
   );
 
   // Extract positioned nodes
-  const nodes: C4LayoutNode[] = [];
+  const nodes: Writable<C4LayoutNode>[] = [];
   for (const r of refEntries) {
     const pos = g.node(r.element.name);
     const color = resolveNodeColor(
@@ -2261,12 +2273,12 @@ export function layoutC4Deployment(
   }
 
   // Extract edges
-  const edges: C4LayoutEdge[] = deployRels
+  const edges: MutableC4LayoutEdge[] = deployRels
     .filter(
       (rel) =>
         nameToElement.has(rel.sourceName) && nameToElement.has(rel.targetName)
     )
-    .map((rel): C4LayoutEdge => {
+    .map((rel): MutableC4LayoutEdge => {
       const edgeData = g.edge(rel.sourceName, rel.targetName);
       return {
         source: rel.sourceName,
@@ -2280,11 +2292,11 @@ export function layoutC4Deployment(
     });
 
   // Compute infrastructure boundary boxes from member node positions
-  const groupBoundaries: C4LayoutBoundary[] = [];
+  const groupBoundaries: Writable<C4LayoutBoundary>[] = [];
   const nodeMap = new Map(nodes.map((n) => [n.name, n]));
 
   // Collect members for each infra node (containers directly inside it)
-  const infraMembers = new Map<string, C4LayoutNode[]>();
+  const infraMembers = new Map<string, Writable<C4LayoutNode>[]>();
   for (const r of refEntries) {
     const members = infraMembers.get(r.infraId) ?? [];
     const node = nodeMap.get(r.element.name);

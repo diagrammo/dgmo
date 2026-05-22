@@ -2,6 +2,7 @@
 // Wireframe Diagram Layout Engine (Document Flow)
 // ============================================================
 
+import type { Writable } from '../utils/brand';
 import type {
   WireframeElement,
   ParsedWireframe,
@@ -91,23 +92,23 @@ const FOOTER_REGION_HEIGHT = 40;
 // ============================================================
 
 export interface WireframeLayoutNode {
-  id: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  element: WireframeElement;
-  children: WireframeLayoutNode[];
+  readonly id: string;
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+  readonly element: WireframeElement;
+  readonly children: readonly WireframeLayoutNode[];
   /** For label-field pairs: the x offset where fields align */
-  fieldAlignX?: number;
+  readonly fieldAlignX?: number;
 }
 
 export interface WireframeLayout {
-  width: number;
-  height: number;
-  titleHeight: number;
-  nodes: WireframeLayoutNode[];
-  modalNodes: WireframeLayoutNode[];
+  readonly width: number;
+  readonly height: number;
+  readonly titleHeight: number;
+  readonly nodes: readonly WireframeLayoutNode[];
+  readonly modalNodes: readonly WireframeLayoutNode[];
 }
 
 // ============================================================
@@ -141,7 +142,7 @@ export function layoutWireframe(
   }
 
   // Layout modals below main content
-  const modalNodes: WireframeLayoutNode[] = [];
+  const modalNodes: Writable<WireframeLayoutNode>[] = [];
   let modalY = maxY + 24;
   for (const modal of parsed.modals) {
     const modalWidth = Math.min(contentWidth * 0.7, 600);
@@ -177,8 +178,8 @@ function layoutTopLevel(
   roots: readonly WireframeElement[],
   contentWidth: number,
   formFactor: WireframeFormFactor
-): WireframeLayoutNode[] {
-  const result: WireframeLayoutNode[] = [];
+): Writable<WireframeLayoutNode>[] {
+  const result: Writable<WireframeLayoutNode>[] = [];
   let y = 0;
 
   // Classify roots into rows
@@ -236,7 +237,7 @@ function layoutTopLevel(
       const allocated = allocateHorizontalWidths(row, contentWidth);
       let x = 0;
       let maxHeight = 0;
-      const rowNodes: WireframeLayoutNode[] = [];
+      const rowNodes: Writable<WireframeLayoutNode>[] = [];
 
       for (let i = 0; i < row.length; i++) {
         // In-bounds by loop guard.
@@ -318,8 +319,8 @@ function layoutElement(
   x: number,
   y: number,
   width: number
-): WireframeLayoutNode {
-  const node: WireframeLayoutNode = {
+): Writable<WireframeLayoutNode> {
+  const node: Writable<WireframeLayoutNode> = {
     id: el.id,
     x,
     y,
@@ -353,19 +354,21 @@ function layoutElement(
     const childWidths = allocateEqualWidths(el.children, innerWidth);
     let cx = innerX;
     let maxChildHeight = 0;
+    const horizChildren: Writable<WireframeLayoutNode>[] = [];
 
     for (let i = 0; i < el.children.length; i++) {
       // In-bounds by loop guard.
       const child = el.children[i]!;
       const cw = childWidths[i]!;
       const childNode = layoutElement(child, cx, padTop, cw);
+      horizChildren.push(childNode);
       node.children.push(childNode);
       maxChildHeight = Math.max(maxChildHeight, childNode.height);
       cx += cw + 8;
     }
 
     // Equalize child heights
-    for (const cn of node.children) {
+    for (const cn of horizChildren) {
       cn.height = maxChildHeight;
     }
 

@@ -778,7 +778,7 @@ function drawCardRect(
 
 function renderEdges(
   contentG: GSelection,
-  edges: C4LayoutEdge[],
+  edges: readonly C4LayoutEdge[],
   palette: PaletteColors,
   onClickItem?: (lineNumber: number) => void,
   obstacleRects?: { x: number; y: number; w: number; h: number }[]
@@ -912,7 +912,7 @@ function renderEdges(
 
 /** Interpolate a point at fraction t (0–1) along a polyline path. */
 function interpolateAlongPath(
-  points: { x: number; y: number }[],
+  points: readonly { readonly x: number; readonly y: number }[],
   t: number
 ): { x: number; y: number } {
   if (points.length < 2) return points[0]!;
@@ -968,7 +968,7 @@ function pointToSegmentDist(
 /** Minimum distance from point p to a polyline path. */
 function pointToPolylineDist(
   p: { x: number; y: number },
-  points: { x: number; y: number }[]
+  points: readonly { readonly x: number; readonly y: number }[]
 ): number {
   let minDist = Infinity;
   for (let i = 1; i < points.length; i++) {
@@ -1010,7 +1010,7 @@ function rectsOverlap(
  */
 /** Compute the tangent direction at fraction t along a polyline. */
 function tangentAt(
-  points: { x: number; y: number }[],
+  points: readonly { readonly x: number; readonly y: number }[],
   t: number
 ): { x: number; y: number } {
   if (points.length < 2) return { x: 0, y: 1 };
@@ -1042,7 +1042,7 @@ function placeEdgeLabels(
     x: number;
     y: number;
   }[],
-  edges: C4LayoutEdge[],
+  edges: readonly C4LayoutEdge[],
   obstacleRects?: { x: number; y: number; w: number; h: number }[]
 ): void {
   if (labels.length === 0) return;

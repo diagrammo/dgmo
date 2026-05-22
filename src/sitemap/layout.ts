@@ -3,6 +3,7 @@
 // ============================================================
 
 import dagre from '@dagrejs/dagre';
+import type { Writable } from '../utils/brand';
 import type { ParsedSitemap, SitemapNode } from './types';
 import type { TagGroup } from '../utils/tag-groups';
 import { resolveTagColor, injectDefaultTagMetadata } from '../utils/tag-groups';
@@ -17,78 +18,78 @@ import {
 // ============================================================
 
 export interface SitemapLayoutNode {
-  id: string;
-  label: string;
-  metadata: Record<string, string>;
+  readonly id: string;
+  readonly label: string;
+  readonly metadata: Readonly<Record<string, string>>;
   /** Original (unfiltered) metadata for tag-based coloring and hover dimming */
-  tagMetadata: Record<string, string>;
-  description?: string[];
-  isContainer: boolean;
-  lineNumber: number;
-  color?: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
+  readonly tagMetadata: Readonly<Record<string, string>>;
+  readonly description?: readonly string[];
+  readonly isContainer: boolean;
+  readonly lineNumber: number;
+  readonly color?: string;
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
   /** Count of hidden descendants when collapsed */
-  hiddenCount?: number;
+  readonly hiddenCount?: number;
   /** True if node has children (expanded or collapsed) — drives toggle UI */
-  hasChildren?: boolean;
+  readonly hasChildren?: boolean;
 }
 
 export interface SitemapLayoutEdge {
-  sourceId: string;
-  targetId: string;
-  points: { x: number; y: number }[];
-  label?: string;
-  lineNumber: number;
+  readonly sourceId: string;
+  readonly targetId: string;
+  readonly points: ReadonlyArray<{ readonly x: number; readonly y: number }>;
+  readonly label?: string;
+  readonly lineNumber: number;
   /** True for edges deferred from dagre (container endpoints) — use linear curve */
-  deferred?: boolean;
+  readonly deferred?: boolean;
 }
 
 export interface SitemapContainerBounds {
-  nodeId: string;
-  label: string;
-  lineNumber: number;
-  color?: string;
-  metadata: Record<string, string>;
+  readonly nodeId: string;
+  readonly label: string;
+  readonly lineNumber: number;
+  readonly color?: string;
+  readonly metadata: Readonly<Record<string, string>>;
   /** Original (unfiltered) metadata for tag-based coloring and hover dimming */
-  tagMetadata: Record<string, string>;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  labelHeight: number;
+  readonly tagMetadata: Readonly<Record<string, string>>;
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+  readonly labelHeight: number;
   /** Count of hidden descendants when collapsed */
-  hiddenCount?: number;
+  readonly hiddenCount?: number;
   /** True if container has children (expanded or collapsed) */
-  hasChildren?: boolean;
+  readonly hasChildren?: boolean;
 }
 
 export interface SitemapLegendEntry {
-  value: string;
-  color: string;
+  readonly value: string;
+  readonly color: string;
 }
 
 export interface SitemapLegendGroup {
-  name: string;
-  alias?: string;
-  entries: SitemapLegendEntry[];
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  minifiedWidth: number;
-  minifiedHeight: number;
+  readonly name: string;
+  readonly alias?: string;
+  readonly entries: readonly SitemapLegendEntry[];
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+  readonly minifiedWidth: number;
+  readonly minifiedHeight: number;
 }
 
 export interface SitemapLayoutResult {
-  nodes: SitemapLayoutNode[];
-  edges: SitemapLayoutEdge[];
-  containers: SitemapContainerBounds[];
-  legend: SitemapLegendGroup[];
-  width: number;
-  height: number;
+  readonly nodes: readonly SitemapLayoutNode[];
+  readonly edges: readonly SitemapLayoutEdge[];
+  readonly containers: readonly SitemapContainerBounds[];
+  readonly legend: readonly SitemapLegendGroup[];
+  readonly width: number;
+  readonly height: number;
 }
 
 /**
@@ -217,8 +218,8 @@ const OVERLAP_GAP = 20;
 function computeLegendGroups(
   tagGroups: readonly TagGroup[],
   usedValuesByGroup?: Map<string, Set<string>>
-): SitemapLegendGroup[] {
-  const groups: SitemapLegendGroup[] = [];
+): Writable<SitemapLegendGroup>[] {
+  const groups: Writable<SitemapLegendGroup>[] = [];
 
   for (const group of tagGroups) {
     if (group.entries.length === 0) continue;
@@ -517,8 +518,8 @@ export function layoutSitemap(
   dagre.layout(g);
 
   // Extract layout results — all positions from dagre
-  const layoutNodes: SitemapLayoutNode[] = [];
-  const layoutContainers: SitemapContainerBounds[] = [];
+  const layoutNodes: Writable<SitemapLayoutNode>[] = [];
+  const layoutContainers: Writable<SitemapContainerBounds>[] = [];
 
   // Page nodes
   for (const flat of flatNodes) {
@@ -621,7 +622,7 @@ export function layoutSitemap(
 
   // Edge waypoints from dagre (named edges for multigraph) + deferred edges
   const deferredSet = new Set(deferredEdgeIndices);
-  const layoutEdges: SitemapLayoutEdge[] = [];
+  const layoutEdges: Writable<SitemapLayoutEdge>[] = [];
   for (let i = 0; i < parsed.edges.length; i++) {
     // In-bounds by loop guard.
     const edge = parsed.edges[i]!;
@@ -813,7 +814,10 @@ export function layoutSitemap(
             const srcIsolated = isolatedNodeIds.has(e.sourceId);
             const tgtIsolated = isolatedNodeIds.has(e.targetId);
             if (srcIsolated || tgtIsolated) {
-              for (const p of e.points) {
+              for (const p of e.points as Writable<{
+                x: number;
+                y: number;
+              }>[]) {
                 p.x += shiftX;
                 p.y += shiftY;
               }

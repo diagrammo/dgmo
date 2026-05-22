@@ -6,6 +6,7 @@
 // post-layout bounding box wrappers around their children.
 
 import dagre from '@dagrejs/dagre';
+import type { Writable } from '../utils/brand';
 import type { ComputedInfraModel, ComputedInfraNode } from './types';
 
 // ============================================================
@@ -13,65 +14,65 @@ import type { ComputedInfraModel, ComputedInfraNode } from './types';
 // ============================================================
 
 export interface InfraLayoutNode {
-  id: string;
-  label: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  computedRps: number;
-  overloaded: boolean;
-  rateLimited: boolean;
-  isEdge: boolean;
-  groupId: string | null;
-  computedLatencyMs: number;
-  computedLatencyPercentiles: ComputedInfraNode['computedLatencyPercentiles'];
-  computedUptime: number;
-  computedAvailability: number;
-  computedAvailabilityPercentiles: ComputedInfraNode['computedAvailabilityPercentiles'];
-  computedInstances: number;
-  computedConcurrentInvocations: number;
-  computedCbState: ComputedInfraNode['computedCbState'];
-  childHealthState?: ComputedInfraNode['childHealthState'];
-  properties: ComputedInfraNode['properties'];
-  queueMetrics?: ComputedInfraNode['queueMetrics'];
-  tags: Record<string, string>;
-  description?: string[];
-  lineNumber: number;
+  readonly id: string;
+  readonly label: string;
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+  readonly computedRps: number;
+  readonly overloaded: boolean;
+  readonly rateLimited: boolean;
+  readonly isEdge: boolean;
+  readonly groupId: string | null;
+  readonly computedLatencyMs: number;
+  readonly computedLatencyPercentiles: ComputedInfraNode['computedLatencyPercentiles'];
+  readonly computedUptime: number;
+  readonly computedAvailability: number;
+  readonly computedAvailabilityPercentiles: ComputedInfraNode['computedAvailabilityPercentiles'];
+  readonly computedInstances: number;
+  readonly computedConcurrentInvocations: number;
+  readonly computedCbState: ComputedInfraNode['computedCbState'];
+  readonly childHealthState?: ComputedInfraNode['childHealthState'];
+  readonly properties: ComputedInfraNode['properties'];
+  readonly queueMetrics?: ComputedInfraNode['queueMetrics'];
+  readonly tags: Readonly<Record<string, string>>;
+  readonly description?: readonly string[];
+  readonly lineNumber: number;
 }
 
 export interface InfraLayoutEdge {
-  sourceId: string;
-  targetId: string;
-  label: string;
-  async: boolean;
-  computedRps: number;
-  split: number;
-  fanout: number | null;
-  points: { x: number; y: number }[];
-  lineNumber: number;
+  readonly sourceId: string;
+  readonly targetId: string;
+  readonly label: string;
+  readonly async: boolean;
+  readonly computedRps: number;
+  readonly split: number;
+  readonly fanout: number | null;
+  readonly points: ReadonlyArray<{ readonly x: number; readonly y: number }>;
+  readonly lineNumber: number;
 }
 
 export interface InfraLayoutGroup {
-  id: string;
-  label: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  instances?: number | string;
-  lineNumber: number;
+  readonly id: string;
+  readonly label: string;
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+  readonly instances?: number | string;
+  readonly lineNumber: number;
 }
 
 export interface InfraLayoutResult {
-  nodes: InfraLayoutNode[];
-  edges: InfraLayoutEdge[];
-  groups: InfraLayoutGroup[];
+  readonly nodes: readonly InfraLayoutNode[];
+  readonly edges: readonly InfraLayoutEdge[];
+  readonly groups: readonly InfraLayoutGroup[];
   /** Diagram-level options (e.g., default-latency-ms, default-uptime). */
-  options: Record<string, string>;
-  direction: 'LR' | 'TB';
-  width: number;
-  height: number;
+  readonly options: Readonly<Record<string, string>>;
+  readonly direction: 'LR' | 'TB';
+  readonly width: number;
+  readonly height: number;
 }
 
 // ============================================================
@@ -471,8 +472,8 @@ function formatUptime(fraction: number): string {
 const GROUP_GAP = GROUP_PADDING * 2 + GROUP_HEADER_HEIGHT; // min clear gap between group boxes
 
 export function separateGroups(
-  groups: InfraLayoutGroup[],
-  nodes: InfraLayoutNode[],
+  groups: Writable<InfraLayoutGroup>[],
+  nodes: Writable<InfraLayoutNode>[],
   isLR: boolean,
   maxIterations = 20
 ): Map<string, { dx: number; dy: number }> {
@@ -548,8 +549,8 @@ export function separateGroups(
 }
 
 export function fixEdgeWaypoints(
-  edges: InfraLayoutEdge[],
-  nodes: InfraLayoutNode[],
+  edges: Writable<InfraLayoutEdge>[],
+  nodes: Writable<InfraLayoutNode>[],
   groupDeltas: Map<string, { dx: number; dy: number }>
 ): void {
   if (groupDeltas.size === 0) return;
@@ -573,7 +574,7 @@ export function fixEdgeWaypoints(
     }
 
     const delta = srcDelta ?? tgtDelta!;
-    for (const pt of edge.points) {
+    for (const pt of edge.points as Writable<{ x: number; y: number }>[]) {
       pt.x += delta.dx;
       pt.y += delta.dy;
     }
@@ -673,8 +674,8 @@ export function layoutInfra(
   dagre.layout(g);
 
   // Extract positioned nodes
-  const layoutNodes: InfraLayoutNode[] = computed.nodes.map(
-    (node): InfraLayoutNode => {
+  const layoutNodes: Writable<InfraLayoutNode>[] = computed.nodes.map(
+    (node): Writable<InfraLayoutNode> => {
       const pos = g.node(node.id);
       return {
         id: node.id,
@@ -713,7 +714,7 @@ export function layoutInfra(
   );
 
   // Extract edge waypoints
-  const layoutEdges: InfraLayoutEdge[] = [];
+  const layoutEdges: Writable<InfraLayoutEdge>[] = [];
   for (const edge of computed.edges) {
     const children = groupChildren.get(edge.targetId);
     if (children && children.length > 0) {
@@ -748,8 +749,8 @@ export function layoutInfra(
   }
 
   // Compute group bounding boxes from children
-  const layoutGroups: InfraLayoutGroup[] = computed.groups.map(
-    (group): InfraLayoutGroup => {
+  const layoutGroups: Writable<InfraLayoutGroup>[] = computed.groups.map(
+    (group): Writable<InfraLayoutGroup> => {
       const childNodes = layoutNodes.filter((n) => n.groupId === group.id);
       if (childNodes.length === 0) {
         return {
@@ -842,7 +843,7 @@ export function layoutInfra(
     node.y += shiftY;
   }
   for (const edge of layoutEdges) {
-    for (const pt of edge.points) {
+    for (const pt of edge.points as Writable<{ x: number; y: number }>[]) {
       pt.x += shiftX;
       pt.y += shiftY;
     }

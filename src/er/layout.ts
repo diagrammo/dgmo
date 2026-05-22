@@ -6,28 +6,28 @@ import type { ParsedERDiagram, ERTable, ERRelationship } from './types';
 // ============================================================
 
 export interface ERLayoutNode extends ERTable {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  headerHeight: number;
-  columnsHeight: number;
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+  readonly headerHeight: number;
+  readonly columnsHeight: number;
 }
 
 export interface ERLayoutEdge {
-  source: string;
-  target: string;
-  cardinality: { from: string; to: string };
-  points: { x: number; y: number }[];
-  label?: string;
-  lineNumber: number;
+  readonly source: string;
+  readonly target: string;
+  readonly cardinality: { readonly from: string; readonly to: string };
+  readonly points: ReadonlyArray<{ readonly x: number; readonly y: number }>;
+  readonly label?: string;
+  readonly lineNumber: number;
 }
 
 export interface ERLayoutResult {
-  nodes: ERLayoutNode[];
-  edges: ERLayoutEdge[];
-  width: number;
-  height: number;
+  readonly nodes: readonly ERLayoutNode[];
+  readonly edges: readonly ERLayoutEdge[];
+  readonly width: number;
+  readonly height: number;
 }
 
 // ============================================================

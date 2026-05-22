@@ -8,36 +8,36 @@ import type {
 } from './types';
 
 export interface LayoutNode {
-  id: string;
-  label: string;
-  shape: GraphShape;
-  color?: string;
-  group?: string;
-  lineNumber: number;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
+  readonly id: string;
+  readonly label: string;
+  readonly shape: GraphShape;
+  readonly color?: string;
+  readonly group?: string;
+  readonly lineNumber: number;
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
 }
 
 export interface LayoutEdge {
-  source: string;
-  target: string;
-  points: { x: number; y: number }[];
-  label?: string;
-  lineNumber: number;
+  readonly source: string;
+  readonly target: string;
+  readonly points: ReadonlyArray<{ readonly x: number; readonly y: number }>;
+  readonly label?: string;
+  readonly lineNumber: number;
 }
 
 export interface LayoutGroup {
-  id: string;
-  label: string;
-  color?: string;
-  lineNumber: number;
-  collapsed?: boolean;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
+  readonly id: string;
+  readonly label: string;
+  readonly color?: string;
+  readonly lineNumber: number;
+  readonly collapsed?: boolean;
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
 }
 
 export interface LayoutOptions {
@@ -48,11 +48,11 @@ export interface LayoutOptions {
 }
 
 export interface LayoutResult {
-  nodes: LayoutNode[];
-  edges: LayoutEdge[];
-  groups: LayoutGroup[];
-  width: number;
-  height: number;
+  readonly nodes: readonly LayoutNode[];
+  readonly edges: readonly LayoutEdge[];
+  readonly groups: readonly LayoutGroup[];
+  readonly width: number;
+  readonly height: number;
 }
 
 const GROUP_PADDING = 20;

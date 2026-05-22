@@ -187,7 +187,7 @@ type Rect = { x: number; y: number; width: number; height: number };
  *  - srcPts: port-ordered exit point on the source border
  *  - tgtPts: port-ordered enter point on the target border */
 function computePortPts(
-  edges: InfraLayoutEdge[],
+  edges: readonly InfraLayoutEdge[],
   nodeMap: Map<string, InfraLayoutNode>,
   direction: 'LR' | 'TB'
 ): { srcPts: Map<string, Pt>; tgtPts: Map<string, Pt> } {
@@ -421,8 +421,8 @@ function curveIntersectsRect(
 function edgeWaypoints(
   source: InfraLayoutNode,
   target: InfraLayoutNode,
-  groups: InfraLayoutGroup[],
-  nodes: InfraLayoutNode[],
+  groups: readonly InfraLayoutGroup[],
+  nodes: readonly InfraLayoutNode[],
   direction: 'LR' | 'TB',
   margin = 30,
   srcExitPt?: Pt, // port-ordered exit point on source border
@@ -1122,7 +1122,7 @@ function edgeWidth(): number {
 
 function renderGroups(
   svg: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
-  groups: InfraLayoutGroup[],
+  groups: readonly InfraLayoutGroup[],
   palette: PaletteColors,
   _isDark: boolean
 ) {
@@ -1181,9 +1181,9 @@ function renderGroups(
 
 function renderEdgePaths(
   svg: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
-  edges: InfraLayoutEdge[],
-  nodes: InfraLayoutNode[],
-  groups: InfraLayoutGroup[],
+  edges: readonly InfraLayoutEdge[],
+  nodes: readonly InfraLayoutNode[],
+  groups: readonly InfraLayoutGroup[],
   palette: PaletteColors,
   _isDark: boolean,
   animate: boolean,
@@ -1261,9 +1261,9 @@ function renderEdgePaths(
 
 function renderEdgeLabels(
   svg: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
-  edges: InfraLayoutEdge[],
-  nodes: InfraLayoutNode[],
-  groups: InfraLayoutGroup[],
+  edges: readonly InfraLayoutEdge[],
+  nodes: readonly InfraLayoutNode[],
+  groups: readonly InfraLayoutGroup[],
   palette: PaletteColors,
   _isDark: boolean,
   animate: boolean,
@@ -1352,7 +1352,7 @@ function resolveActiveTagStroke(
 
 function renderNodes(
   svg: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
-  nodes: InfraLayoutNode[],
+  nodes: readonly InfraLayoutNode[],
   palette: PaletteColors,
   isDark: boolean,
   animate: boolean,
@@ -1865,7 +1865,7 @@ function computeRejectedRps(node: InfraLayoutNode): number {
 
 function renderRejectParticles(
   svg: d3Selection.Selection<SVGGElement, unknown, null, undefined>,
-  nodes: InfraLayoutNode[],
+  nodes: readonly InfraLayoutNode[],
   speedMultiplier: number = 1
 ) {
   // Compute max rejected RPS across all nodes for scaling
@@ -1963,10 +1963,10 @@ export interface InfraLegendGroup {
 
 /** Build legend groups from roles + tags. */
 export function computeInfraLegendGroups(
-  nodes: InfraLayoutNode[],
+  nodes: readonly InfraLayoutNode[],
   tagGroups: readonly InfraTagGroup[],
   palette: PaletteColors,
-  edges?: InfraLayoutEdge[]
+  edges?: readonly InfraLayoutEdge[]
 ): InfraLegendGroup[] {
   const groups: InfraLegendGroup[] = [];
 
@@ -1974,7 +1974,7 @@ export function computeInfraLegendGroups(
   const roles = collectDiagramRoles(
     nodes.filter((n) => !n.isEdge).map((n) => n.properties)
   );
-  if (edges && collectFanoutSourceIds(edges).size > 0) {
+  if (edges && collectFanoutSourceIds([...edges]).size > 0) {
     roles.push(FANOUT_ROLE);
   }
   if (roles.length > 0) {
@@ -2350,7 +2350,7 @@ export function renderInfra(
     layout.direction,
     speedMultiplier
   );
-  const fanoutSourceIds = collectFanoutSourceIds(layout.edges);
+  const fanoutSourceIds = collectFanoutSourceIds([...layout.edges]);
   const scaledGroupIds = new Set<string>(
     layout.groups
       .filter((g) => {

@@ -6,29 +6,29 @@ import type { ParsedClassDiagram, ClassNode, RelationshipType } from './types';
 // ============================================================
 
 export interface ClassLayoutNode extends ClassNode {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  headerHeight: number;
-  fieldsHeight: number;
-  methodsHeight: number;
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+  readonly headerHeight: number;
+  readonly fieldsHeight: number;
+  readonly methodsHeight: number;
 }
 
 export interface ClassLayoutEdge {
-  source: string;
-  target: string;
-  type: RelationshipType;
-  points: { x: number; y: number }[];
-  label?: string;
-  lineNumber: number;
+  readonly source: string;
+  readonly target: string;
+  readonly type: RelationshipType;
+  readonly points: ReadonlyArray<{ readonly x: number; readonly y: number }>;
+  readonly label?: string;
+  readonly lineNumber: number;
 }
 
 export interface ClassLayoutResult {
-  nodes: ClassLayoutNode[];
-  edges: ClassLayoutEdge[];
-  width: number;
-  height: number;
+  readonly nodes: readonly ClassLayoutNode[];
+  readonly edges: readonly ClassLayoutEdge[];
+  readonly width: number;
+  readonly height: number;
 }
 
 // ============================================================

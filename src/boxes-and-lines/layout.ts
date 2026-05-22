@@ -35,47 +35,47 @@ const LABEL_PAD = 12;
 // ── Result types ───────────────────────────────────────────
 
 export interface BLLayoutNode {
-  label: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
+  readonly label: string;
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
 }
 
 export interface BLLayoutEdge {
-  source: string;
-  target: string;
-  label?: string;
-  bidirectional: boolean;
-  lineNumber: number;
-  points: { x: number; y: number }[];
-  labelX?: number;
-  labelY?: number;
-  yOffset: number;
-  parallelCount: number;
-  metadata: Record<string, string>;
+  readonly source: string;
+  readonly target: string;
+  readonly label?: string;
+  readonly bidirectional: boolean;
+  readonly lineNumber: number;
+  readonly points: ReadonlyArray<{ readonly x: number; readonly y: number }>;
+  readonly labelX?: number;
+  readonly labelY?: number;
+  readonly yOffset: number;
+  readonly parallelCount: number;
+  readonly metadata: Readonly<Record<string, string>>;
   /** Marker for renderer: draw with linear curve, not curveBasis (ELK gives
    * us orthogonal polylines and curveBasis would smooth corners into waves) */
-  deferred?: boolean;
+  readonly deferred?: boolean;
 }
 
 export interface BLLayoutGroup {
-  label: string;
-  lineNumber: number;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  collapsed: boolean;
-  childCount?: number;
+  readonly label: string;
+  readonly lineNumber: number;
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+  readonly collapsed: boolean;
+  readonly childCount?: number;
 }
 
 export interface BLLayoutResult {
-  nodes: BLLayoutNode[];
-  edges: BLLayoutEdge[];
-  groups: BLLayoutGroup[];
-  width: number;
-  height: number;
+  readonly nodes: readonly BLLayoutNode[];
+  readonly edges: readonly BLLayoutEdge[];
+  readonly groups: readonly BLLayoutGroup[];
+  readonly width: number;
+  readonly height: number;
 }
 
 // ── Node sizing ────────────────────────────────────────────
@@ -307,7 +307,7 @@ function getVariants(): Variant[] {
  * checked for proper intersection (interior, not endpoint-touch).
  * O((E × P)²) where P = avg points per edge. For E~30, P~5, ~22k pairs ≈ 1-3ms.
  */
-function countCrossings(edges: BLLayoutEdge[]): number {
+function countCrossings(edges: readonly BLLayoutEdge[]): number {
   let count = 0;
   for (let i = 0; i < edges.length; i++) {
     // In-bounds by loop guard.
@@ -353,7 +353,7 @@ function segmentsCross(
   return t > EPS && t < 1 - EPS && s > EPS && s < 1 - EPS;
 }
 
-function countTotalBends(edges: BLLayoutEdge[]): number {
+function countTotalBends(edges: readonly BLLayoutEdge[]): number {
   let bends = 0;
   for (const e of edges) bends += Math.max(0, e.points.length - 2);
   return bends;
