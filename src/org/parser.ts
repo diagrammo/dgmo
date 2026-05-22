@@ -26,24 +26,24 @@ import { normalizeName } from '../utils/name-normalize';
 // ============================================================
 
 export interface OrgNode {
-  id: string;
-  label: string;
-  metadata: Record<string, string>;
-  children: OrgNode[];
-  parentId: string | null;
-  isContainer: boolean;
-  lineNumber: number;
-  color?: string;
+  readonly id: string;
+  readonly label: string;
+  readonly metadata: Readonly<Record<string, string>>;
+  readonly children: readonly OrgNode[];
+  readonly parentId: string | null;
+  readonly isContainer: boolean;
+  readonly lineNumber: number;
+  readonly color?: string;
 }
 
 export interface ParsedOrg {
-  title: string | null;
-  titleLineNumber: number | null;
-  roots: OrgNode[];
-  tagGroups: TagGroup[];
-  options: Record<string, string>;
-  diagnostics: DgmoError[];
-  error: string | null;
+  readonly title: string | null;
+  readonly titleLineNumber: number | null;
+  readonly roots: readonly OrgNode[];
+  readonly tagGroups: readonly TagGroup[];
+  readonly options: Readonly<Record<string, string>>;
+  readonly diagnostics: readonly DgmoError[];
+  readonly error: string | null;
 }
 
 // ============================================================
@@ -87,12 +87,13 @@ export function looksLikeOrg(content: string): boolean {
 // ============================================================
 
 export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
-  const result: ParsedOrg = {
+  const options: Record<string, string> = {};
+  const result: Writable<ParsedOrg> = {
     title: null,
     titleLineNumber: null,
     roots: [],
     tagGroups: [],
-    options: {},
+    options,
     diagnostics: [],
     error: null,
   };
@@ -138,7 +139,7 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
 
   // Indent stack for hierarchy tracking
   // Each entry: { node, indent }
-  const indentStack: { node: OrgNode; indent: number }[] = [];
+  const indentStack: { node: Writable<OrgNode>; indent: number }[] = [];
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]!; // In-bounds by loop guard.
@@ -228,13 +229,13 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
         // Capture groups 1 and 2 guaranteed by OPTION_NOCOLON_RE match.
         const key = optMatch[1]!.trim().toLowerCase();
         if (KNOWN_OPTIONS.has(key)) {
-          result.options[key] = optMatch[2]!.trim();
+          options[key] = optMatch[2]!.trim();
           continue;
         }
       }
       // Bare boolean option (single keyword, no value)
       if (KNOWN_BOOLEANS.has(trimmed.toLowerCase())) {
-        result.options[trimmed.toLowerCase()] = 'on';
+        options[trimmed.toLowerCase()] = 'on';
         continue;
       }
     }
@@ -298,7 +299,7 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
       containerCounter++;
       const containerId = `container-${containerCounter}`;
       if (asMatch) nameAliasMap.set(asMatch[2]!, containerId);
-      const node: OrgNode = {
+      const node: Writable<OrgNode> = {
         id: containerId,
         label,
         metadata: {},
@@ -321,7 +322,7 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
       if (!parent) {
         pushError(lineNumber, 'Metadata has no parent node');
       } else {
-        parent.metadata[key] = value;
+        parent.metadata = { ...parent.metadata, [key]: value };
       }
     } else if (metadataMatch && indentStack.length === 0) {
       // Metadata with no parent — could be a node label that happens to contain ':'
@@ -363,7 +364,7 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
   if (result.tagGroups.length > 0) {
     // Flatten all nodes for the shared validation utility
     const allNodes: OrgNode[] = [];
-    const collectAll = (nodes: OrgNode[]) => {
+    const collectAll = (nodes: readonly OrgNode[]) => {
       for (const node of nodes) {
         allNodes.push(node);
         collectAll(node.children);
@@ -401,7 +402,7 @@ function parseNodeLabel(
   metaAliasMap: Map<string, string> = new Map(),
   warnFn?: (line: number, msg: string) => void,
   nameAliasMap?: Map<string, string>
-): OrgNode {
+): Writable<OrgNode> {
   // Check for single-line compact metadata: "Alice Park | role: Senior, location: NY"
   const segments = trimmed.split('|').map((s) => s.trim());
 
@@ -434,10 +435,10 @@ function parseNodeLabel(
 }
 
 function attachNode(
-  node: OrgNode,
+  node: Writable<OrgNode>,
   indent: number,
-  indentStack: { node: OrgNode; indent: number }[],
-  result: ParsedOrg
+  indentStack: { node: Writable<OrgNode>; indent: number }[],
+  result: Writable<ParsedOrg>
 ): void {
   // Pop stack entries with indent >= current indent
   while (indentStack.length > 0) {
@@ -463,8 +464,8 @@ function attachNode(
 
 function findMetadataParent(
   indent: number,
-  indentStack: { node: OrgNode; indent: number }[]
-): OrgNode | null {
+  indentStack: { node: Writable<OrgNode>; indent: number }[]
+): Writable<OrgNode> | null {
   // Walk backward from the top of the stack to find the most recent node
   // at a shallower indent than the metadata line
   for (let i = indentStack.length - 1; i >= 0; i--) {

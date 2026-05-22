@@ -498,9 +498,9 @@ export function analyzePert(parsed: ParsedPert): ResolvedPert {
       const prelim: ResolvedPert = {
         options: parsed.options,
         activities: resolvedActivities,
-        edges,
+        edges: edges.slice(),
         groups: [],
-        tagGroups: parsed.tagGroups,
+        tagGroups: parsed.tagGroups.slice(),
         mode: 'monte-carlo',
         summaryRows: null,
         projectSubtitle: null,
@@ -606,9 +606,9 @@ export function analyzePert(parsed: ParsedPert): ResolvedPert {
   return {
     options: parsed.options,
     activities: resolvedActivities,
-    edges,
+    edges: edges.slice(),
     groups: resolvedGroups,
-    tagGroups: parsed.tagGroups,
+    tagGroups: parsed.tagGroups.slice(),
     mode,
     summaryRows,
     projectSubtitle,
@@ -644,7 +644,7 @@ function hasDuration(a: PertActivity): boolean {
  * still propagate edges (we treat them as zero-duration sentinels).
  */
 function computeProjectEndDays(
-  activities: PertActivity[],
+  activities: readonly PertActivity[],
   topo: string[],
   incomingEdges: Map<string, PertEdge[]>,
   durations: Map<string, number>,
@@ -705,7 +705,7 @@ function computeProjectEndDays(
  * directions are excluded.
  */
 function computeTornadoSwings(
-  activities: PertActivity[],
+  activities: readonly PertActivity[],
   topo: string[],
   incomingEdges: Map<string, PertEdge[]>,
   expandedById: Map<string, ExpandedEstimate | null>,
@@ -861,7 +861,7 @@ export interface BuildSummaryInput {
   projectMu: number | null;
   projectSigma: number | null;
   unit: DurationUnit;
-  parsedActivities: PertActivity[];
+  parsedActivities: readonly PertActivity[];
   monteCarloResult: MonteCarloResult | null;
   trialsClamped: boolean;
   /**
@@ -1150,7 +1150,7 @@ function emptyResolved(
       criticality: null,
       isAuthored: false,
     })),
-    edges: parsed.edges,
+    edges: parsed.edges.slice(),
     groups: parsed.groups.map((g) => ({
       group: g,
       rolledMu: null,
@@ -1164,7 +1164,7 @@ function emptyResolved(
       slack: null,
       criticality: null,
     })),
-    tagGroups: parsed.tagGroups,
+    tagGroups: parsed.tagGroups.slice(),
     mode: 'analytical',
     summaryRows: null,
     projectSubtitle: null,

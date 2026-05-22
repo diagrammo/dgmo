@@ -510,7 +510,7 @@ export function parsePert(
   const references: ReferenceSite[] = [];
 
   /** Groups discovered in source order; activityIds populated in Pass 2. */
-  const groups: PertGroup[] = [];
+  const groups: Writable<PertGroup>[] = [];
 
   /**
    * Tag groups declared at the top of the diagram. A `tag …` heading
@@ -1020,7 +1020,7 @@ export function parsePert(
     }
   }
 
-  const activitiesById = new Map<string, PertActivity>();
+  const activitiesById = new Map<string, Writable<PertActivity>>();
   for (const [id, decl] of bestDeclByName) {
     const estimate = buildEstimate(
       decl.durationTokens,
@@ -1080,7 +1080,7 @@ export function parsePert(
 
   // 2f) Final ordering — preserve source order from `allDeclarations`.
   const seen = new Set<string>();
-  const activities: PertActivity[] = [];
+  const activities: Writable<PertActivity>[] = [];
   for (const decl of allDeclarations) {
     const id = canonicalIdFromDeclaration(decl);
     if (seen.has(id)) continue;
@@ -1147,10 +1147,13 @@ export function parsePert(
       error
     );
     const ensureTags = (
-      entity: PertActivity | PertGroup
+      entity: Writable<PertActivity> | Writable<PertGroup>
     ): { metadata: Record<string, string>; lineNumber: number } => {
       if (!entity.tags) entity.tags = {};
-      return { metadata: entity.tags, lineNumber: entity.lineNumber };
+      return {
+        metadata: entity.tags as Record<string, string>,
+        lineNumber: entity.lineNumber,
+      };
     };
     const activityShells = activities.map(ensureTags);
     const groupShells = groups.map(ensureTags);

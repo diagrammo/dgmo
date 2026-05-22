@@ -673,7 +673,7 @@ export function renderOrg(
           ancestor.color ??
           resolveTagColor(
             ancestor.metadata,
-            parsed.tagGroups,
+            [...parsed.tagGroups],
             activeTagGroup ?? null,
             ancestor.isContainer
           );

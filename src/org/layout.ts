@@ -182,14 +182,14 @@ function computeCardHeight(meta: Record<string, string>): number {
 
 function resolveNodeColor(
   node: OrgNode,
-  tagGroups: TagGroup[],
+  tagGroups: readonly TagGroup[],
   activeGroupName: string | null
 ): string | undefined {
   // Explicit inline (color) always wins — handled before tag resolution
   if (node.color) return node.color;
   return resolveTagColor(
     node.metadata,
-    tagGroups,
+    [...tagGroups],
     activeGroupName,
     node.isContainer
   );
@@ -207,7 +207,7 @@ interface TreeNode {
 }
 
 function buildTreeNodes(
-  nodes: OrgNode[],
+  nodes: readonly OrgNode[],
   hiddenCounts?: Map<string, number>,
   hiddenAttributes?: Set<string>,
   subNodeLabel?: string,
@@ -290,7 +290,7 @@ function centerHeavyChildren(node: TreeNode): void {
 // ============================================================
 
 function computeLegendGroups(
-  tagGroups: TagGroup[],
+  tagGroups: readonly TagGroup[],
   showEyeIcons: boolean,
   usedValuesByGroup?: Map<string, Set<string>>
 ): OrgLegendGroup[] {
@@ -347,7 +347,10 @@ function computeLegendGroups(
  * Inject default tag group values into non-container node metadata.
  * Delegates to shared `injectDefaultTagMetadata` with org-specific skip logic.
  */
-function injectDefaultMetadata(roots: OrgNode[], tagGroups: TagGroup[]): void {
+function injectDefaultMetadata(
+  roots: readonly OrgNode[],
+  tagGroups: readonly TagGroup[]
+): void {
   // Flatten all nodes (recursive) for the shared utility
   const allNodes: OrgNode[] = [];
   const collect = (node: OrgNode) => {

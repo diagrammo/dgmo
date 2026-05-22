@@ -8107,9 +8107,10 @@ export async function renderForExport(
     const showInfraTitle =
       !!infraParsed.title && infraParsed.options['no-title'] !== 'on';
     const titleOffset = showInfraTitle ? 40 : 0;
+    const infraTagGroups = [...infraParsed.tagGroups];
     const legendGroups = computeInfraLegendGroups(
       infraLayout.nodes,
-      infraParsed.tagGroups,
+      infraTagGroups,
       effectivePalette
     );
     const legendOffset = legendGroups.length > 0 ? 28 : 0;
@@ -8124,7 +8125,7 @@ export async function renderForExport(
       theme === 'dark',
       showInfraTitle ? infraParsed.title : null,
       showInfraTitle ? infraParsed.titleLineNumber : null,
-      infraParsed.tagGroups,
+      infraTagGroups,
       activeTagGroup,
       false,
       null,

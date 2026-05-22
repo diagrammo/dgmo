@@ -7,7 +7,12 @@
 // - DAG validation — no cycles (FR20)
 // - Orphan detection
 
-import type { ParsedInfra, InfraDiagnostic, ComputedInfraModel } from './types';
+import type {
+  ParsedInfra,
+  InfraDiagnostic,
+  ComputedInfraModel,
+  InfraEdge,
+} from './types';
 
 // ============================================================
 // Cycle Detection
@@ -71,7 +76,7 @@ function validateSplits(parsed: ParsedInfra): InfraDiagnostic[] {
   const diagnostics: InfraDiagnostic[] = [];
 
   // Group edges by source
-  const outbound = new Map<string, typeof parsed.edges>();
+  const outbound = new Map<string, InfraEdge[]>();
   for (const edge of parsed.edges) {
     const list = outbound.get(edge.sourceId) ?? [];
     list.push(edge);

@@ -36,6 +36,7 @@ import type {
   InfraTagGroup,
 } from './types';
 import { INFRA_BEHAVIOR_KEYS, EDGE_ONLY_KEYS } from './types';
+import type { Writable } from '../utils/brand';
 
 // ============================================================
 // Regex patterns
@@ -174,7 +175,8 @@ function warnUnparsedPipeMeta(
 
 export function parseInfra(content: string): ParsedInfra {
   const lines = content.split('\n');
-  const result: ParsedInfra = {
+  const options: Record<string, string> = {};
+  const result: Writable<ParsedInfra> = {
     type: 'infra',
     title: null,
     titleLineNumber: null,
@@ -183,12 +185,23 @@ export function parseInfra(content: string): ParsedInfra {
     edges: [],
     groups: [],
     tagGroups: [],
-    options: {},
+    options,
     diagnostics: [],
     error: null,
   };
 
-  const nodeMap = new Map<string, InfraNode>();
+  const nodeMap = new Map<string, Writable<InfraNode>>();
+  // Sidecar mutable tag-records, keyed by node id. The same Record object is
+  // also referenced from `node.tags`; mutating it here updates both views.
+  const nodeMutableTags = new Map<string, Record<string, string>>();
+
+  // Push a description line onto a node. Manages the underlying mutable
+  // array and assigns it back so `node.description` stays in sync.
+  function pushDescription(node: Writable<InfraNode>, text: string): void {
+    const existing = (node.description as string[] | undefined) ?? [];
+    existing.push(text);
+    node.description = existing;
+  }
 
   // Per-parse alias literal → canonical node id (TD-18). Per C8.
   const nameAliasMap = new Map<string, string>();
@@ -251,9 +264,9 @@ export function parseInfra(content: string): ParsedInfra {
   };
 
   // Track parser state
-  let currentNode: InfraNode | null = null;
-  let currentGroup: InfraGroup | null = null;
-  let currentTagGroup: InfraTagGroup | null = null;
+  let currentNode: Writable<InfraNode> | null = null;
+  let currentGroup: Writable<InfraGroup> | null = null;
+  let currentTagGroup: Writable<InfraTagGroup> | null = null;
   let baseIndent = 0; // indent of the current component line
 
   function finishCurrentNode() {
@@ -361,15 +374,15 @@ export function parseInfra(content: string): ParsedInfra {
 
       // animate (default ON) / no-animate
       if (trimmed === 'animate') {
-        result.options['animate'] = 'on';
+        options['animate'] = 'on';
         continue;
       }
       if (trimmed === 'no-animate') {
-        result.options['animate'] = 'off';
+        options['animate'] = 'off';
         continue;
       }
 
-      if (tryParseSharedOption(trimmed, result.options)) {
+      if (tryParseSharedOption(trimmed, options)) {
         continue;
       }
 
@@ -377,7 +390,7 @@ export function parseInfra(content: string): ParsedInfra {
       const optMatch = trimmed.match(OPTION_NOCOLON_RE);
       // Capture groups 1 & 2 in-bounds after successful match.
       if (optMatch && TOP_LEVEL_OPTIONS.has(optMatch[1]!.toLowerCase())) {
-        result.options[optMatch[1]!.toLowerCase()] = optMatch[2]!.trim();
+        options[optMatch[1]!.toLowerCase()] = optMatch[2]!.trim();
         continue;
       }
 
@@ -410,7 +423,7 @@ export function parseInfra(content: string): ParsedInfra {
           ? extractPipeMetadata('|' + groupMatch[3]).tags
           : undefined;
         const hasMeta = groupMeta && Object.keys(groupMeta).length > 0;
-        const newGroup: InfraGroup = {
+        const newGroup: Writable<InfraGroup> = {
           id: gId,
           label: gLabel,
           ...(hasMeta && { metadata: groupMeta }),
@@ -445,6 +458,7 @@ export function parseInfra(content: string): ParsedInfra {
           isEdge,
           lineNumber,
         };
+        nodeMutableTags.set(id, tags);
         currentGroup = null;
         baseIndent = 0;
         continue;
@@ -540,6 +554,7 @@ export function parseInfra(content: string): ParsedInfra {
           isEdge: false,
           lineNumber,
         };
+        nodeMutableTags.set(id, tags);
         baseIndent = indent;
         continue;
       }
@@ -746,8 +761,7 @@ export function parseInfra(content: string): ParsedInfra {
         // Single-line only — no length enforcement, but keep it short for legibility.
         if (key === 'description' && currentNode) {
           if (!currentNode.isEdge) {
-            if (!currentNode.description) currentNode.description = [];
-            currentNode.description.push(rawVal);
+            pushDescription(currentNode, rawVal);
           }
           continue;
         }
@@ -767,8 +781,7 @@ export function parseInfra(content: string): ParsedInfra {
             warn(lineNumber, msg);
           } else if (!currentNode.isEdge) {
             // Likely prose — collect as description
-            if (!currentNode.description) currentNode.description = [];
-            currentNode.description.push(trimmed);
+            pushDescription(currentNode, trimmed);
             continue;
           }
           continue;
@@ -791,8 +804,7 @@ export function parseInfra(content: string): ParsedInfra {
       if (!currentNode.isEdge) {
         const descResult = tryStripDescriptionKeyword(trimmed);
         const descText = descResult.isKeyword ? descResult.text : trimmed;
-        if (!currentNode.description) currentNode.description = [];
-        currentNode.description.push(descText);
+        pushDescription(currentNode, descText);
         continue;
       }
       warn(
@@ -828,6 +840,7 @@ export function parseInfra(content: string): ParsedInfra {
           isEdge: false,
           lineNumber,
         };
+        nodeMutableTags.set(id, tags);
         baseIndent = indent;
         continue;
       }
@@ -858,6 +871,7 @@ export function parseInfra(content: string): ParsedInfra {
           isEdge: EDGE_NODE_NAMES.has(id.toLowerCase()),
           lineNumber,
         };
+        nodeMutableTags.set(id, tags);
         baseIndent = 0;
         continue;
       }
@@ -881,12 +895,13 @@ export function parseInfra(content: string): ParsedInfra {
         // recovers the user's first-seen casing so the rendered SVG shows
         // 'CDN' instead of the lowercased internal id.
         const stubDisplay = targetDisplays.get(edge.targetId) ?? edge.targetId;
-        const stub: InfraNode = {
+        const stubTags: Record<string, string> = {};
+        const stub: Writable<InfraNode> = {
           id: edge.targetId,
           label: stubDisplay,
           properties: [],
           groupId: null,
-          tags: {},
+          tags: stubTags,
           isEdge: false,
           lineNumber: edge.lineNumber,
         };
@@ -894,6 +909,7 @@ export function parseInfra(content: string): ParsedInfra {
         // eslint-disable-next-line name-normalize/required-at-insertion
         nodeMap.set(stub.id, stub);
         result.nodes.push(stub);
+        nodeMutableTags.set(stub.id, stubTags);
       }
     }
   }
@@ -905,7 +921,8 @@ export function parseInfra(content: string): ParsedInfra {
     for (const node of result.nodes) {
       if (node.isEdge) continue;
       if (!(key in node.tags)) {
-        node.tags[key] = tg.defaultValue;
+        const tags = nodeMutableTags.get(node.id);
+        if (tags) tags[key] = tg.defaultValue;
       }
     }
   }

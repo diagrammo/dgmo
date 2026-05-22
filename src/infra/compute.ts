@@ -774,7 +774,7 @@ export function computeInfra(
   }
 
   // Build outbound edge map (sourceId -> edges[])
-  const outboundMap = new Map<string, typeof effectiveParsed.edges>();
+  const outboundMap = new Map<string, InfraEdge[]>();
   for (const edge of effectiveParsed.edges) {
     const list = outboundMap.get(edge.sourceId) ?? [];
     list.push(edge);
@@ -1324,10 +1324,10 @@ export function computeInfra(
           : 0,
         ...(childHealthState !== undefined && { childHealthState }),
         ...(queueMetrics !== undefined && { queueMetrics }),
-        properties: node.properties,
-        tags: node.tags,
+        properties: [...node.properties],
+        tags: { ...node.tags },
         ...(node.description !== undefined && {
-          description: node.description,
+          description: [...node.description],
         }),
         lineNumber: node.lineNumber,
       };
@@ -1372,14 +1372,14 @@ export function computeInfra(
   return {
     nodes: computedNodes,
     edges: computedEdges,
-    groups: effectiveParsed.groups,
-    tagGroups: effectiveParsed.tagGroups,
+    groups: [...effectiveParsed.groups],
+    tagGroups: [...effectiveParsed.tagGroups],
     title: effectiveParsed.title,
     direction: effectiveParsed.direction,
     edgeLatency,
     systemUptime,
     systemAvailability,
-    options: parsed.options,
+    options: { ...parsed.options },
     diagnostics,
   };
 }

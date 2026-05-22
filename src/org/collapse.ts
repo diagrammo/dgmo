@@ -2,6 +2,7 @@
 // Org Chart Collapse/Expand — prune subtrees of collapsed nodes
 // ============================================================
 
+import type { Writable } from '../utils/brand';
 import type { OrgNode, ParsedOrg } from './parser';
 
 // ============================================================
@@ -35,7 +36,7 @@ export interface FocusOrgResult {
 // Helpers
 // ============================================================
 
-function cloneNode(node: OrgNode): OrgNode {
+function cloneNode(node: OrgNode): Writable<OrgNode> {
   return {
     id: node.id,
     label: node.label,
@@ -59,7 +60,7 @@ function countDescendants(node: OrgNode): number {
 /** Compute hidden counts from the ORIGINAL (unpruned) tree so nested
  *  collapses don't lose ancestor descendant totals. */
 function computeHiddenCounts(
-  nodes: OrgNode[],
+  nodes: readonly OrgNode[],
   collapsedIds: Set<string>,
   hiddenCounts: Map<string, number>
 ): void {
@@ -72,9 +73,12 @@ function computeHiddenCounts(
 }
 
 /** Remove children of collapsed nodes on the cloned tree. */
-function pruneCollapsed(node: OrgNode, collapsedIds: Set<string>): void {
+function pruneCollapsed(
+  node: Writable<OrgNode>,
+  collapsedIds: Set<string>
+): void {
   for (const child of node.children) {
-    pruneCollapsed(child, collapsedIds);
+    pruneCollapsed(child as Writable<OrgNode>, collapsedIds);
   }
   if (collapsedIds.has(node.id) && node.children.length > 0) {
     node.children = [];
@@ -119,7 +123,7 @@ export function collapseOrgTree(
 
 /** Find a node by ID and collect the ancestor path leading to it. */
 function findNodeWithPath(
-  nodes: OrgNode[],
+  nodes: readonly OrgNode[],
   targetId: string,
   path: AncestorInfo[]
 ): { node: OrgNode; path: AncestorInfo[] } | null {

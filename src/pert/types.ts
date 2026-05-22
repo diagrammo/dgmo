@@ -120,27 +120,27 @@ export interface PertOptions {
  */
 export interface PertActivity {
   /** Stable id — alias if `as` was given, otherwise normalized name. */
-  id: string;
+  readonly id: string;
   /** Human-readable label as written in source. */
-  name: string;
+  readonly name: string;
   /** Optional alias from `<name> <durs> as <id>`. */
-  alias?: string;
+  readonly alias?: string;
   /**
    * Activity duration estimate.
    * - `null` → TBD (no estimate); analyzer poisons descendants with `null`.
    */
-  duration: DurationEstimate | null;
+  readonly duration: DurationEstimate | null;
   /**
    * Per-activity confidence override from pipe metadata (`| confidence: low`).
    * When unset, analyzer uses `options.confidence`.
    */
-  confidence?: string;
+  readonly confidence?: string;
   /** Group id this activity belongs to (post-resolve). */
-  groupId?: string;
+  readonly groupId?: string;
   /** Source line of the declaration site (1-based). */
-  lineNumber: number;
+  readonly lineNumber: number;
   /** True for `milestone <name>` primitives (zero-duration, diamond shape). */
-  isMilestone: boolean;
+  readonly isMilestone: boolean;
   /**
    * Resolved tag-group metadata from pipe-metadata aliases. Keys are
    * lowercased tag-group names (e.g. `priority`, `team`); values are the
@@ -148,7 +148,7 @@ export interface PertActivity {
    * when an `active-tag` group is set. Empty when no tag groups are
    * declared or the activity carried no tag metadata.
    */
-  tags?: Record<string, string>;
+  readonly tags?: Readonly<Record<string, string>>;
 }
 
 /**
@@ -173,60 +173,60 @@ export type EdgeType = 'FS' | 'SS' | 'FF' | 'SF';
  * negative (a lead — predecessor and successor overlap).
  */
 export interface PertEdge {
-  source: string;
-  target: string;
-  lineNumber: number;
-  type: EdgeType;
-  lag: Duration | null;
+  readonly source: string;
+  readonly target: string;
+  readonly lineNumber: number;
+  readonly type: EdgeType;
+  readonly lag: Duration | null;
 }
 
 /** Group declared via `[group-name] | metadata`. */
 export interface PertGroup {
-  id: string;
-  name: string;
+  readonly id: string;
+  readonly name: string;
   /** Activity ids belonging to this group, populated in Pass 2. */
-  activityIds: string[];
+  readonly activityIds: readonly string[];
   /** Whether the user authored `| collapsed: true`. */
-  collapsed: boolean;
+  readonly collapsed: boolean;
   /** Source line of the `[group-name]` header (1-based). */
-  lineNumber: number;
+  readonly lineNumber: number;
   /**
    * Resolved tag-group metadata for the cluster header — same shape as
    * `PertActivity.tags`. Currently informational; default-tag injection
    * skips groups (containers) so they appear "untagged" unless the user
    * authors an explicit value via pipe metadata.
    */
-  tags?: Record<string, string>;
+  readonly tags?: Readonly<Record<string, string>>;
   /**
    * Auto-detected group topology (Pass 2 result).
    * - `hammock`: single entry + single exit — collapses to a super-edge.
    * - `cluster`: multi-entry or multi-exit — collapses to a bounding rect.
    */
-  classification?: 'hammock' | 'cluster';
+  readonly classification?: 'hammock' | 'cluster';
 }
 
 /** Output of `parsePert(content)`. */
 export interface ParsedPert {
   /** Optional title parsed from `pert <title>`. */
-  title: string | null;
-  options: PertOptions;
-  activities: PertActivity[];
-  edges: PertEdge[];
-  groups: PertGroup[];
+  readonly title: string | null;
+  readonly options: PertOptions;
+  readonly activities: readonly PertActivity[];
+  readonly edges: readonly PertEdge[];
+  readonly groups: readonly PertGroup[];
   /**
    * Tag groups declared at the top of the diagram (`tag Priority as p
    * High red, Low green`). Drive node fill via `resolveTagColor()`.
    * Empty when no `tag` blocks are declared.
    */
-  tagGroups: TagGroup[];
+  readonly tagGroups: readonly TagGroup[];
   /**
    * Map alias-or-name → canonical activity id. Useful for the analyzer
    * and for editor autocomplete; also populated in Pass 2.
    */
-  idMap: Record<string, string>;
-  diagnostics: DgmoError[];
+  readonly idMap: Readonly<Record<string, string>>;
+  readonly diagnostics: readonly DgmoError[];
   /** First fatal error message; `null` when parse succeeded. */
-  error: string | null;
+  readonly error: string | null;
 }
 
 // ── Resolved (post-analyzer) ────────────────────────────────

@@ -1333,7 +1333,7 @@ function renderEdgeLabels(
 function resolveActiveTagStroke(
   node: InfraLayoutNode,
   activeGroup: string,
-  tagGroups: InfraTagGroup[],
+  tagGroups: readonly InfraTagGroup[],
   palette: PaletteColors
 ): string | null {
   const tg = tagGroups.find(
@@ -1360,7 +1360,7 @@ function renderNodes(
   activeGroup?: string | null,
   diagramOptions?: Record<string, string>,
   collapsedNodes?: Set<string> | null,
-  tagGroups?: InfraTagGroup[],
+  tagGroups?: readonly InfraTagGroup[],
   fanoutSourceIds?: Set<string>,
   scaledGroupIds?: Set<string>
 ) {
@@ -1964,7 +1964,7 @@ export interface InfraLegendGroup {
 /** Build legend groups from roles + tags. */
 export function computeInfraLegendGroups(
   nodes: InfraLayoutNode[],
-  tagGroups: InfraTagGroup[],
+  tagGroups: readonly InfraTagGroup[],
   palette: PaletteColors,
   edges?: InfraLayoutEdge[]
 ): InfraLegendGroup[] {
@@ -2195,7 +2195,7 @@ export function renderInfra(
   isDark: boolean,
   title: string | null,
   titleLineNumber: number | null,
-  tagGroups?: InfraTagGroup[],
+  tagGroups?: readonly InfraTagGroup[],
   activeGroup?: string | null,
   animate?: boolean,
   playback?: InfraPlaybackState | null,

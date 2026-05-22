@@ -50,70 +50,70 @@ export const INFRA_BEHAVIOR_KEYS = new Set<string>([
 export const EDGE_ONLY_KEYS = new Set<string>(['rps']);
 
 export interface InfraProperty {
-  key: string;
-  value: string | number;
-  lineNumber: number;
+  readonly key: string;
+  readonly value: string | number;
+  readonly lineNumber: number;
 }
 
 export interface InfraNode {
-  id: string;
-  label: string;
-  properties: InfraProperty[];
-  groupId: string | null;
-  tags: Record<string, string>; // tagGroup -> tagValue
-  isEdge: boolean; // true for the `edge` entry-point component
-  description?: string[];
-  lineNumber: number;
+  readonly id: string;
+  readonly label: string;
+  readonly properties: readonly InfraProperty[];
+  readonly groupId: string | null;
+  readonly tags: Readonly<Record<string, string>>; // tagGroup -> tagValue
+  readonly isEdge: boolean; // true for the `edge` entry-point component
+  readonly description?: readonly string[];
+  readonly lineNumber: number;
 }
 
 export interface InfraEdge {
-  sourceId: string;
-  targetId: string;
-  label: string;
-  async: boolean;
-  split: number | null; // percentage 0-100, or null if not declared
-  fanout: number | null; // request multiplier: target receives inbound * (split/100) * fanout RPS
-  lineNumber: number;
+  readonly sourceId: string;
+  readonly targetId: string;
+  readonly label: string;
+  readonly async: boolean;
+  readonly split: number | null; // percentage 0-100, or null if not declared
+  readonly fanout: number | null; // request multiplier: target receives inbound * (split/100) * fanout RPS
+  readonly lineNumber: number;
 }
 
 export interface InfraGroup {
-  id: string;
-  label: string;
+  readonly id: string;
+  readonly label: string;
   /** Number of instances (or auto-scaling range "N-M") of this group as a unit. */
-  instances?: number | string;
+  readonly instances?: number | string;
   /** Whether this group should be collapsed by default in the source. */
-  collapsed?: boolean;
+  readonly collapsed?: boolean;
   /** Pipe metadata on the group header, cascaded to children. */
-  metadata?: Record<string, string>;
-  lineNumber: number;
+  readonly metadata?: Readonly<Record<string, string>>;
+  readonly lineNumber: number;
 }
 
 export interface InfraTagValue {
-  name: string;
-  color?: string;
+  readonly name: string;
+  readonly color?: string;
 }
 
 export interface InfraTagGroup {
-  name: string;
-  alias: string | null;
-  values: InfraTagValue[];
+  readonly name: string;
+  readonly alias: string | null;
+  readonly values: readonly InfraTagValue[];
   /** Value of the entry marked `default` (nodes without this tag get it automatically). */
-  defaultValue?: string;
-  lineNumber: number;
+  readonly defaultValue?: string;
+  readonly lineNumber: number;
 }
 
 export interface ParsedInfra {
-  type: 'infra';
-  title: string | null;
-  titleLineNumber: number | null;
-  direction: 'LR' | 'TB';
-  nodes: InfraNode[];
-  edges: InfraEdge[];
-  groups: InfraGroup[];
-  tagGroups: InfraTagGroup[];
-  options: Record<string, string>;
-  diagnostics: DgmoError[];
-  error: string | null;
+  readonly type: 'infra';
+  readonly title: string | null;
+  readonly titleLineNumber: number | null;
+  readonly direction: 'LR' | 'TB';
+  readonly nodes: readonly InfraNode[];
+  readonly edges: readonly InfraEdge[];
+  readonly groups: readonly InfraGroup[];
+  readonly tagGroups: readonly InfraTagGroup[];
+  readonly options: Readonly<Record<string, string>>;
+  readonly diagnostics: readonly DgmoError[];
+  readonly error: string | null;
 }
 
 // ============================================================
