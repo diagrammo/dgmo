@@ -7,32 +7,32 @@ export type KanbanTagEntry = TagEntry;
 export type KanbanTagGroup = TagGroup;
 
 export interface KanbanCard {
-  id: string;
-  title: string;
-  tags: Record<string, string>; // groupName → value
-  details: string[]; // freeform indented lines
-  lineNumber: number; // first line of the card (1-based)
-  endLineNumber: number; // last line inclusive (1-based)
-  color?: string; // explicit color override via (color) suffix
+  readonly id: string;
+  readonly title: string;
+  readonly tags: Readonly<Record<string, string>>; // groupName → value
+  readonly details: readonly string[]; // freeform indented lines
+  readonly lineNumber: number; // first line of the card (1-based)
+  readonly endLineNumber: number; // last line inclusive (1-based)
+  readonly color?: string; // explicit color override via (color) suffix
 }
 
 export interface KanbanColumn {
-  id: string;
-  name: string;
-  wipLimit?: number;
-  color?: string;
-  metadata?: Record<string, string>;
-  cards: KanbanCard[];
-  lineNumber: number;
+  readonly id: string;
+  readonly name: string;
+  readonly wipLimit?: number;
+  readonly color?: string;
+  readonly metadata?: Readonly<Record<string, string>>;
+  readonly cards: readonly KanbanCard[];
+  readonly lineNumber: number;
 }
 
 export interface ParsedKanban {
-  type: 'kanban';
-  title?: string;
-  titleLineNumber?: number;
-  columns: KanbanColumn[];
-  tagGroups: KanbanTagGroup[];
-  options: Record<string, string>;
-  diagnostics: DgmoError[];
-  error: string | null;
+  readonly type: 'kanban';
+  readonly title?: string;
+  readonly titleLineNumber?: number;
+  readonly columns: readonly KanbanColumn[];
+  readonly tagGroups: readonly KanbanTagGroup[];
+  readonly options: Readonly<Record<string, string>>;
+  readonly diagnostics: readonly DgmoError[];
+  readonly error: string | null;
 }

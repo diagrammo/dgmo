@@ -76,7 +76,7 @@ export interface ControlsGroupConfig {
 // ── Config ──────────────────────────────────────────────────
 
 export interface LegendConfig {
-  groups: import('./legend-svg').LegendGroupData[];
+  groups: readonly import('./legend-svg').LegendGroupData[];
   position: LegendPosition;
   controls?: LegendControl[];
   controlsGroup?: ControlsGroupConfig;

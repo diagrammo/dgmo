@@ -52,11 +52,12 @@ export function parseKanban(
   content: string,
   palette?: PaletteColors
 ): ParsedKanban {
-  const result: ParsedKanban = {
+  const options: Record<string, string> = {};
+  const result: Writable<ParsedKanban> = {
     type: 'kanban',
     columns: [],
     tagGroups: [],
-    options: {},
+    options,
     diagnostics: [],
     error: null,
   };
@@ -79,8 +80,8 @@ export function parseKanban(
   const lines = content.split('\n');
   let contentStarted = false;
   let currentTagGroup: Writable<KanbanTagGroup> | null = null;
-  let currentColumn: KanbanColumn | null = null;
-  let currentCard: KanbanCard | null = null;
+  let currentColumn: Writable<KanbanColumn> | null = null;
+  let currentCard: Writable<KanbanCard> | null = null;
   let cardBaseIndent = 0; // indent level of current card (for detail detection)
   let columnCounter = 0;
   let cardCounter = 0;
@@ -172,7 +173,7 @@ export function parseKanban(
         // OPTION_NOCOLON_RE has 2 capture groups; both exist when matched.
         const key = optMatch[1]!.trim().toLowerCase();
         if (KNOWN_OPTIONS.has(key)) {
-          result.options[key] = optMatch[2]!.trim();
+          options[key] = optMatch[2]!.trim();
           continue;
         }
       }
@@ -181,7 +182,7 @@ export function parseKanban(
         KNOWN_BOOLEANS.has(trimmed.toLowerCase()) &&
         !COLUMN_RE.test(trimmed)
       ) {
-        result.options[trimmed.toLowerCase()] = 'on';
+        options[trimmed.toLowerCase()] = 'on';
         continue;
       }
     }
@@ -334,15 +335,16 @@ export function parseKanban(
       // Cascade column metadata to card tags (card overrides on conflict)
       // Exclude 'wip' from cascading — it's a column-level property, not a card tag
       if (currentColumn.metadata) {
+        const cardTags = card.tags as Record<string, string>;
         for (const [key, value] of Object.entries(currentColumn.metadata)) {
           if (key === 'wip') continue;
-          if (!(key in card.tags)) {
-            card.tags[key] = value;
+          if (!(key in cardTags)) {
+            cardTags[key] = value;
           }
         }
       }
       cardBaseIndent = indent;
-      currentCard = card;
+      currentCard = card as Writable<KanbanCard>;
       currentColumn.cards.push(card);
       continue;
     }

@@ -224,7 +224,7 @@ export const CHART_TYPE_DESCRIPTIONS: Record<string, string> =
 // Parser registry — single source of truth for id → parser
 // ============================================================
 
-type ParseResult = { diagnostics: DgmoError[] };
+type ParseResult = { diagnostics: readonly DgmoError[] };
 type ParseFn = (content: string) => ParseResult;
 
 /**

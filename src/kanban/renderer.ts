@@ -74,7 +74,7 @@ const COLLAPSED_LANE_HEIGHT = 26;
 
 function resolveCardTagMeta(
   card: KanbanCard,
-  tagGroups: KanbanTagGroup[],
+  tagGroups: readonly KanbanTagGroup[],
   hiddenMetaGroups?: string[]
 ): { label: string; value: string; color?: string }[] {
   const meta: { label: string; value: string; color?: string }[] = [];
@@ -97,7 +97,7 @@ function resolveCardTagMeta(
 
 function resolveCardTagColor(
   card: KanbanCard,
-  tagGroups: KanbanTagGroup[],
+  tagGroups: readonly KanbanTagGroup[],
   activeTagGroup: string | null
 ): string | undefined {
   if (!activeTagGroup) return card.color;
@@ -809,7 +809,7 @@ interface SwimlaneBoardLayout {
 
 function computeCardHeight(
   card: KanbanCard,
-  tagGroups: KanbanTagGroup[],
+  tagGroups: readonly KanbanTagGroup[],
   hiddenMetaGroups?: string[]
 ) {
   const tagMeta = resolveCardTagMeta(card, tagGroups, hiddenMetaGroups);
@@ -1204,7 +1204,7 @@ function renderSwimlaneBoard(
 function renderSwimlaneCard(
   parent: D3Sel,
   cardLayout: CardLayout,
-  tagGroups: KanbanTagGroup[],
+  tagGroups: readonly KanbanTagGroup[],
   activeTagGroup: string | null,
   palette: PaletteColors,
   isDark: boolean,

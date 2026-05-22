@@ -93,7 +93,7 @@ function groupTotalWidth(
 // ── Main renderer ────────────────────────────────────────────
 
 export function renderLegendSvg(
-  groups: LegendGroupData[],
+  groups: readonly LegendGroupData[],
   options: LegendRenderOptions
 ): LegendRenderResult {
   if (groups.length === 0) return { svg: '', height: 0, width: 0 };
