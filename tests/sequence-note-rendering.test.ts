@@ -221,7 +221,7 @@ describe('buildNoteMessageMap', () => {
     const map = buildNoteMessageMap(parsed.elements);
     const notes = parsed.elements.filter(
       (el): el is import('../src/sequence/parser').SequenceNote =>
-        'kind' in el && el.kind === 'note'
+        el.kind === 'note'
     );
 
     expect(notes.length).toBe(2);

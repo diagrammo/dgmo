@@ -75,7 +75,7 @@ describe('applyCollapseProjection', () => {
       const { view } = collapseFixture(dgmo);
       // DB -> API (unlabeled return between members) should be suppressed in elements
       const elementMessages = view.elements.filter(
-        (el) => !('kind' in el)
+        (el) => el.kind === 'message'
       ) as Array<{ from: string; to: string; label: string }>;
       // Only User -> Backend and Backend -> Backend (query) should remain
       expect(elementMessages).toHaveLength(2);
@@ -91,7 +91,7 @@ describe('applyCollapseProjection', () => {
       ].join('\n');
       const { view } = collapseFixture(dgmo);
       const elementMessages = view.elements.filter(
-        (el) => !('kind' in el)
+        (el) => el.kind === 'message'
       ) as Array<{ from: string; to: string; label: string }>;
       expect(elementMessages).toHaveLength(2);
       expect(elementMessages[1].from).toBe('Backend');
@@ -129,7 +129,7 @@ describe('applyCollapseProjection', () => {
       ].join('\n');
       const { view } = collapseFixture(dgmo);
       const notes = view.elements.filter(
-        (el) => 'kind' in el && (el as SequenceNote).kind === 'note'
+        (el) => el.kind === 'note'
       ) as SequenceNote[];
       expect(notes.length).toBeGreaterThan(0);
       expect(notes[0].participantId).toBe('Backend');
@@ -261,7 +261,7 @@ describe('applyCollapseProjection', () => {
       ].join('\n');
       const { view } = collapseFixture(dgmo);
       const sections = view.elements.filter(
-        (el) => 'kind' in el && (el as SequenceSection).kind === 'section'
+        (el) => el.kind === 'section'
       ) as SequenceSection[];
       expect(sections).toHaveLength(1);
       expect(sections[0].label).toBe('Phase 2');

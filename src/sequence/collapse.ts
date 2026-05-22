@@ -150,8 +150,8 @@ function remapElements(
           : {}),
       });
     } else {
-      // Message element
-      const msg = el as SequenceMessage;
+      // Message element (narrowed by discriminator: kind === 'message')
+      const msg = el;
       const from = remap(msg.from);
       const to = remap(msg.to);
 

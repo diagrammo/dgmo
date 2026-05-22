@@ -1900,7 +1900,8 @@ export function renderSequenceDiagram(
           }
         }
       } else if (!isSequenceSection(el) && !isSequenceNote(el)) {
-        const idx = messages.indexOf(el as SequenceMessage);
+        // Narrowed to SequenceMessage by the discriminator (kind === 'message')
+        const idx = messages.indexOf(el);
         if (idx >= 0) indices.push(idx);
       }
     }
@@ -2749,9 +2750,8 @@ export function buildNoteMessageMap(
         }
         walk(el.elseChildren);
       } else if (!isSequenceSection(el)) {
-        // It's a message
-        const msg = el as SequenceMessage;
-        lastMessageLine = msg.lineNumber;
+        // Narrowed to SequenceMessage by the discriminator (kind === 'message')
+        lastMessageLine = el.lineNumber;
       }
     }
   };

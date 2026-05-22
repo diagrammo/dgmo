@@ -117,8 +117,12 @@ export interface SequenceParticipant {
 
 /**
  * A message between two participants.
+ *
+ * `kind: 'message'` is the discriminator for the SequenceElement union.
+ * Pre-1.0 type addition — Epic 105 Story 105.17.
  */
 export interface SequenceMessage {
+  kind: 'message';
   from: string;
   to: string;
   label: string;
@@ -175,16 +179,20 @@ export type SequenceElement =
   | SequenceSection
   | SequenceNote;
 
+export function isSequenceMessage(el: SequenceElement): el is SequenceMessage {
+  return el.kind === 'message';
+}
+
 export function isSequenceBlock(el: SequenceElement): el is SequenceBlock {
-  return 'kind' in el && (el as SequenceBlock).kind === 'block';
+  return el.kind === 'block';
 }
 
 export function isSequenceSection(el: SequenceElement): el is SequenceSection {
-  return 'kind' in el && (el as SequenceSection).kind === 'section';
+  return el.kind === 'section';
 }
 
 export function isSequenceNote(el: SequenceElement): el is SequenceNote {
-  return 'kind' in el && (el as SequenceNote).kind === 'note';
+  return el.kind === 'note';
 }
 
 /**
@@ -1185,6 +1193,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       const label = labelResult.label ?? rawLabel;
 
       const msg: SequenceMessage = {
+        kind: 'message',
         from: fromKey,
         to: toKey,
         label,
@@ -1257,6 +1266,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       lastMsgFrom = fromKey;
 
       const msg: SequenceMessage = {
+        kind: 'message',
         from: fromKey,
         to: toKey,
         label: '',
