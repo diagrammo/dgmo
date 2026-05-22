@@ -7,40 +7,43 @@ export type ERConstraint = 'pk' | 'fk' | 'unique' | 'nullable';
 export type ERCardinality = '1' | '*' | '?';
 
 export interface ERColumn {
-  name: string;
-  type?: string;
-  constraints: ERConstraint[];
-  lineNumber: number;
+  readonly name: string;
+  readonly type?: string;
+  readonly constraints: readonly ERConstraint[];
+  readonly lineNumber: number;
 }
 
 export interface ERTable {
-  id: string;
-  name: string;
-  color?: string;
-  columns: ERColumn[];
-  metadata: Record<string, string>;
-  lineNumber: number;
+  readonly id: string;
+  readonly name: string;
+  readonly color?: string;
+  readonly columns: readonly ERColumn[];
+  readonly metadata: Readonly<Record<string, string>>;
+  readonly lineNumber: number;
 }
 
 export interface ERRelationship {
-  source: string; // table id
-  target: string; // table id
-  cardinality: { from: ERCardinality; to: ERCardinality };
-  label?: string;
-  lineNumber: number;
+  readonly source: string; // table id
+  readonly target: string; // table id
+  readonly cardinality: {
+    readonly from: ERCardinality;
+    readonly to: ERCardinality;
+  };
+  readonly label?: string;
+  readonly lineNumber: number;
 }
 
 import type { DgmoError } from '../diagnostics';
 import type { TagGroup } from '../utils/tag-groups';
 
 export interface ParsedERDiagram {
-  type: 'er';
-  title?: string;
-  titleLineNumber?: number;
-  options: Record<string, string>;
-  tables: ERTable[];
-  relationships: ERRelationship[];
-  tagGroups: TagGroup[];
-  diagnostics: DgmoError[];
-  error: string | null;
+  readonly type: 'er';
+  readonly title?: string;
+  readonly titleLineNumber?: number;
+  readonly options: Readonly<Record<string, string>>;
+  readonly tables: readonly ERTable[];
+  readonly relationships: readonly ERRelationship[];
+  readonly tagGroups: readonly TagGroup[];
+  readonly diagnostics: readonly DgmoError[];
+  readonly error: string | null;
 }

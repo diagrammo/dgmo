@@ -2,46 +2,46 @@ import type { DgmoError } from '../diagnostics';
 import type { TagGroup } from '../utils/tag-groups';
 
 export interface JourneyMapAnnotation {
-  type: 'pain' | 'opportunity' | 'thought';
-  text: string;
+  readonly type: 'pain' | 'opportunity' | 'thought';
+  readonly text: string;
 }
 
 export interface JourneyMapStep {
-  id: string;
-  title: string;
-  score?: number;
-  emotionLabel?: string;
-  tags: Record<string, string>;
-  annotations: JourneyMapAnnotation[];
-  description?: string;
-  lineNumber: number;
-  endLineNumber: number;
+  readonly id: string;
+  readonly title: string;
+  readonly score?: number;
+  readonly emotionLabel?: string;
+  readonly tags: Readonly<Record<string, string>>;
+  readonly annotations: readonly JourneyMapAnnotation[];
+  readonly description?: string;
+  readonly lineNumber: number;
+  readonly endLineNumber: number;
 }
 
 export interface JourneyMapPhase {
-  id: string;
-  name: string;
-  steps: JourneyMapStep[];
-  lineNumber: number;
+  readonly id: string;
+  readonly name: string;
+  readonly steps: readonly JourneyMapStep[];
+  readonly lineNumber: number;
 }
 
 export interface JourneyMapPersona {
-  name: string;
-  description?: string;
-  color?: string;
-  lineNumber: number;
+  readonly name: string;
+  readonly description?: string;
+  readonly color?: string;
+  readonly lineNumber: number;
 }
 
 export interface ParsedJourneyMap {
-  type: 'journey-map';
-  title?: string;
-  titleLineNumber?: number;
-  persona?: JourneyMapPersona;
-  phases: JourneyMapPhase[];
+  readonly type: 'journey-map';
+  readonly title?: string;
+  readonly titleLineNumber?: number;
+  readonly persona?: JourneyMapPersona;
+  readonly phases: readonly JourneyMapPhase[];
   /** Flat-mode steps (not inside any phase) */
-  steps: JourneyMapStep[];
-  tagGroups: TagGroup[];
-  options: Record<string, string>;
-  diagnostics: DgmoError[];
-  error: string | null;
+  readonly steps: readonly JourneyMapStep[];
+  readonly tagGroups: readonly TagGroup[];
+  readonly options: Readonly<Record<string, string>>;
+  readonly diagnostics: readonly DgmoError[];
+  readonly error: string | null;
 }

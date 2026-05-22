@@ -18,6 +18,7 @@ import type {
   ParsedJourneyMap,
   JourneyMapPhase,
   JourneyMapStep,
+  JourneyMapPersona,
   JourneyMapAnnotation,
 } from './types';
 import type { TagGroup } from '../utils/tag-groups';
@@ -44,12 +45,13 @@ export function parseJourneyMap(
   content: string,
   palette?: PaletteColors
 ): ParsedJourneyMap {
-  const result: ParsedJourneyMap = {
+  const options: Record<string, string> = {};
+  const result: Writable<ParsedJourneyMap> = {
     type: 'journey-map',
     phases: [],
     steps: [],
     tagGroups: [],
-    options: {},
+    options,
     diagnostics: [],
     error: null,
   };
@@ -73,8 +75,9 @@ export function parseJourneyMap(
   let contentStarted = false;
   let currentTagGroup: Writable<TagGroup> | null = null;
   let inPersona = false;
-  let currentPhase: JourneyMapPhase | null = null;
-  let currentStep: JourneyMapStep | null = null;
+  let currentPhase: Writable<JourneyMapPhase> | null = null;
+  let currentStep: Writable<JourneyMapStep> | null = null;
+  let currentPersona: Writable<JourneyMapPersona> | null = null;
   let stepBaseIndent = 0;
   let phaseCounter = 0;
   let stepCounter = 0;
@@ -161,11 +164,12 @@ export function parseJourneyMap(
           return fail(lineNumber, 'persona requires a name');
         }
 
-        result.persona = {
+        currentPersona = {
           name: personaName,
           ...(personaColor !== undefined && { color: personaColor }),
           lineNumber,
         };
+        result.persona = currentPersona;
         inPersona = true;
         continue;
       }
@@ -176,9 +180,9 @@ export function parseJourneyMap(
 
     // Persona description (indented lines while inPersona)
     if (inPersona && indent > 0) {
-      if (result.persona) {
-        result.persona.description = result.persona.description
-          ? result.persona.description + '\n' + trimmed
+      if (currentPersona) {
+        currentPersona.description = currentPersona.description
+          ? currentPersona.description + '\n' + trimmed
           : trimmed;
       }
       continue;
@@ -243,7 +247,7 @@ export function parseJourneyMap(
         // Capture groups 1 and 2 present by regex shape.
         const key = optMatch[1]!.trim().toLowerCase();
         if (KNOWN_OPTIONS.has(key)) {
-          result.options[key] = optMatch[2]!.trim();
+          options[key] = optMatch[2]!.trim();
           continue;
         }
       }
@@ -251,7 +255,7 @@ export function parseJourneyMap(
         KNOWN_BOOLEANS.has(trimmed.toLowerCase()) &&
         !PHASE_RE.test(trimmed)
       ) {
-        result.options[trimmed.toLowerCase()] = 'on';
+        options[trimmed.toLowerCase()] = 'on';
         continue;
       }
     }
@@ -444,7 +448,7 @@ function parseStepLine(
   counter: number,
   aliasMap: Map<string, string>,
   warn: (line: number, message: string) => void
-): JourneyMapStep {
+): Writable<JourneyMapStep> {
   const pipeIdx = trimmed.indexOf('|');
   let title: string;
   let score: number | undefined;

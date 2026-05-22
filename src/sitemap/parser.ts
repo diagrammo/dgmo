@@ -136,14 +136,15 @@ export function parseSitemap(
   content: string,
   palette?: PaletteColors
 ): ParsedSitemap {
-  const result: ParsedSitemap = {
+  const options: Record<string, string> = {};
+  const result: Writable<ParsedSitemap> = {
     title: null,
     titleLineNumber: null,
     direction: 'LR',
     roots: [],
     edges: [],
     tagGroups: [],
-    options: {},
+    options,
     diagnostics: [],
     error: null,
   };
@@ -184,17 +185,17 @@ export function parseSitemap(
   const nameAliasMap = new Map<string, string>();
 
   // Indent stack for hierarchy tracking
-  const indentStack: { node: SitemapNode; indent: number }[] = [];
+  const indentStack: { node: Writable<SitemapNode>; indent: number }[] = [];
 
   // Map label (lowercased) -> node for arrow target resolution
-  const labelToNode = new Map<string, SitemapNode>();
+  const labelToNode = new Map<string, Writable<SitemapNode>>();
 
   // Map label (lowercased) -> container for group-targeted arrow resolution
-  const labelToContainer = new Map<string, SitemapNode>();
+  const labelToContainer = new Map<string, Writable<SitemapNode>>();
 
   // Deferred arrows: { sourceNode, arrow info, lineNumber }
   const deferredArrows: {
-    sourceNode: SitemapNode;
+    sourceNode: Writable<SitemapNode>;
     targetLabel: string;
     targetIsGroup: boolean;
     label?: string;
@@ -282,7 +283,7 @@ export function parseSitemap(
         continue;
       }
 
-      if (tryParseSharedOption(trimmed, result.options)) {
+      if (tryParseSharedOption(trimmed, options)) {
         continue;
       }
 
@@ -290,7 +291,7 @@ export function parseSitemap(
       if (optMatch) {
         // Capture groups 1 and 2 present by regex shape.
         const key = optMatch[1]!.trim().toLowerCase();
-        result.options[key] = optMatch[2]!.trim();
+        options[key] = optMatch[2]!.trim();
         continue;
       }
     }
@@ -390,7 +391,7 @@ export function parseSitemap(
       containerCounter++;
       const containerId = `container-${containerCounter}`;
       if (asMatch) nameAliasMap.set(asMatch[2]!, containerId);
-      const node: SitemapNode = {
+      const node: Writable<SitemapNode> = {
         id: containerId,
         label,
         metadata: containerMetadata,
@@ -415,7 +416,7 @@ export function parseSitemap(
       if (!parent) {
         pushError(lineNumber, 'Metadata has no parent node');
       } else {
-        parent.metadata[key] = value;
+        parent.metadata = { ...parent.metadata, [key]: value };
       }
     } else if (metadataMatch && indentStack.length === 0) {
       // Could be a node label containing ':'
@@ -442,8 +443,10 @@ export function parseSitemap(
       if (descResult.isKeyword && indentStack.length > 0) {
         const parent = findParentNode(indent, indentStack);
         if (parent) {
-          if (!parent.description) parent.description = [];
-          parent.description.push(descResult.text.trim());
+          parent.description = [
+            ...(parent.description ?? []),
+            descResult.text.trim(),
+          ];
           continue;
         }
       }
@@ -520,7 +523,7 @@ export function parseSitemap(
   // Validate tag group values on all nodes
   if (result.tagGroups.length > 0) {
     const allNodes: SitemapNode[] = [];
-    const collectAll = (nodes: SitemapNode[]) => {
+    const collectAll = (nodes: readonly SitemapNode[]) => {
       for (const node of nodes) {
         allNodes.push(node);
         collectAll(node.children);
@@ -557,7 +560,7 @@ function parseNodeLabel(
   warnFn?: (line: number, msg: string) => void,
   _diagnostics?: DgmoError[],
   nameAliasMap?: Map<string, string>
-): SitemapNode {
+): Writable<SitemapNode> {
   const segments = trimmed.split('|').map((s) => s.trim());
   // TD-18: peel optional `as <alias>` from the label slot.
   // split() always returns at least one element.
@@ -598,10 +601,10 @@ function parseNodeLabel(
 }
 
 function attachNode(
-  node: SitemapNode,
+  node: Writable<SitemapNode>,
   indent: number,
-  indentStack: { node: SitemapNode; indent: number }[],
-  result: ParsedSitemap
+  indentStack: { node: Writable<SitemapNode>; indent: number }[],
+  result: Writable<ParsedSitemap>
 ): void {
   // Pop stack entries with indent >= current indent
   while (indentStack.length > 0) {
@@ -633,8 +636,8 @@ function attachNode(
 
 function findParentNode(
   indent: number,
-  indentStack: { node: SitemapNode; indent: number }[]
-): SitemapNode | null {
+  indentStack: { node: Writable<SitemapNode>; indent: number }[]
+): Writable<SitemapNode> | null {
   for (let i = indentStack.length - 1; i >= 0; i--) {
     // In-bounds by loop guard.
     if (indentStack[i]!.indent < indent) {

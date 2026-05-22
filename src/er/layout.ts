@@ -83,7 +83,7 @@ function computeNodeDimensions(table: ERTable): {
 
 function findConnectedComponents(
   tableIds: string[],
-  relationships: ERRelationship[]
+  relationships: readonly ERRelationship[]
 ): string[][] {
   const adj = new Map<string, Set<string>>();
   for (const id of tableIds) adj.set(id, new Set());

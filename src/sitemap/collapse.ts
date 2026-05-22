@@ -3,6 +3,7 @@
 // ============================================================
 
 import type { SitemapNode, SitemapEdge, ParsedSitemap } from './types';
+import type { Writable } from '../utils/brand';
 
 // ============================================================
 // Types
@@ -19,7 +20,7 @@ export interface CollapsedSitemapResult {
 // Helpers
 // ============================================================
 
-function cloneNode(node: SitemapNode): SitemapNode {
+function cloneNode(node: SitemapNode): Writable<SitemapNode> {
   return {
     id: node.id,
     label: node.label,
@@ -42,7 +43,7 @@ function countDescendants(node: SitemapNode): number {
 
 /** Compute hidden counts from the ORIGINAL (unpruned) tree. */
 function computeHiddenCounts(
-  nodes: SitemapNode[],
+  nodes: readonly SitemapNode[],
   collapsedIds: Set<string>,
   hiddenCounts: Map<string, number>
 ): void {
@@ -55,9 +56,12 @@ function computeHiddenCounts(
 }
 
 /** Remove children of collapsed nodes on the cloned tree. */
-function pruneCollapsed(node: SitemapNode, collapsedIds: Set<string>): void {
+function pruneCollapsed(
+  node: Writable<SitemapNode>,
+  collapsedIds: Set<string>
+): void {
   for (const child of node.children) {
-    pruneCollapsed(child, collapsedIds);
+    pruneCollapsed(child as Writable<SitemapNode>, collapsedIds);
   }
   if (collapsedIds.has(node.id) && node.children.length > 0) {
     node.children = [];
@@ -65,7 +69,7 @@ function pruneCollapsed(node: SitemapNode, collapsedIds: Set<string>): void {
 }
 
 /** Collect all node IDs reachable in a tree. */
-function collectNodeIds(nodes: SitemapNode[], ids: Set<string>): void {
+function collectNodeIds(nodes: readonly SitemapNode[], ids: Set<string>): void {
   for (const node of nodes) {
     ids.add(node.id);
     collectNodeIds(node.children, ids);
@@ -95,7 +99,10 @@ function findVisibleAncestor(
 }
 
 /** Build nodeId → parentId map from the original tree. */
-function buildParentMap(nodes: SitemapNode[], map: Map<string, string>): void {
+function buildParentMap(
+  nodes: readonly SitemapNode[],
+  map: Map<string, string>
+): void {
   for (const node of nodes) {
     for (const child of node.children) {
       map.set(child.id, node.id);

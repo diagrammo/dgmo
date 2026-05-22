@@ -6,37 +6,37 @@ import type { DgmoError } from '../diagnostics';
 import type { TagGroup } from '../utils/tag-groups';
 
 export interface SitemapNode {
-  id: string;
-  label: string;
-  metadata: Record<string, string>;
-  children: SitemapNode[];
-  parentId: string | null;
-  description?: string[];
+  readonly id: string;
+  readonly label: string;
+  readonly metadata: Readonly<Record<string, string>>;
+  readonly children: readonly SitemapNode[];
+  readonly parentId: string | null;
+  readonly description?: readonly string[];
   /** True for [Group Name] container nodes */
-  isContainer: boolean;
-  lineNumber: number;
-  color?: string;
+  readonly isContainer: boolean;
+  readonly lineNumber: number;
+  readonly color?: string;
 }
 
 export interface SitemapEdge {
-  sourceId: string;
-  targetId: string;
-  label?: string;
-  lineNumber: number;
+  readonly sourceId: string;
+  readonly targetId: string;
+  readonly label?: string;
+  readonly lineNumber: number;
 }
 
 export type SitemapDirection = 'TB' | 'LR';
 
 export interface ParsedSitemap {
-  title: string | null;
-  titleLineNumber: number | null;
-  direction: SitemapDirection;
+  readonly title: string | null;
+  readonly titleLineNumber: number | null;
+  readonly direction: SitemapDirection;
   /** Top-level nodes (roots of the hierarchy) */
-  roots: SitemapNode[];
+  readonly roots: readonly SitemapNode[];
   /** All cross-link edges */
-  edges: SitemapEdge[];
-  tagGroups: TagGroup[];
-  options: Record<string, string>;
-  diagnostics: DgmoError[];
-  error: string | null;
+  readonly edges: readonly SitemapEdge[];
+  readonly tagGroups: readonly TagGroup[];
+  readonly options: Readonly<Record<string, string>>;
+  readonly diagnostics: readonly DgmoError[];
+  readonly error: string | null;
 }

@@ -334,7 +334,7 @@ export function renderERDiagram(
   // Classify entities whenever conditions allow; suppress colors when user collapses the legend.
   // (useSemanticColors was computed above for legend reserve height)
   const semanticRoles: Map<string, EntityRole> | null = useSemanticColors
-    ? classifyEREntities(parsed.tables, parsed.relationships)
+    ? classifyEREntities([...parsed.tables], [...parsed.relationships])
     : null;
   // semanticColorsActive defaults to true; false = legend collapsed, neutral color applied
   const semanticActive =
@@ -423,7 +423,7 @@ export function renderERDiagram(
     const node = layout.nodes[ni]!;
     const tagColor = resolveTagColor(
       node.metadata,
-      parsed.tagGroups,
+      [...parsed.tagGroups],
       activeTagGroup ?? null
     );
     const semanticColor = semanticActive

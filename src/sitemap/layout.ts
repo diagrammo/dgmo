@@ -164,7 +164,7 @@ function filterMetadata(
 function computeCardWidth(
   label: string,
   meta: Record<string, string>,
-  descLines?: string[]
+  descLines?: readonly string[]
 ): number {
   let maxChars = label.length;
   for (const [key, value] of Object.entries(meta)) {
@@ -196,13 +196,13 @@ function computeCardHeight(
 
 function resolveNodeColor(
   node: SitemapNode,
-  tagGroups: TagGroup[],
+  tagGroups: readonly TagGroup[],
   activeGroupName: string | null
 ): string | undefined {
   if (node.color) return node.color;
   return resolveTagColor(
     node.metadata,
-    tagGroups,
+    [...tagGroups],
     activeGroupName,
     node.isContainer
   );
@@ -215,7 +215,7 @@ const OVERLAP_GAP = 20;
 // ============================================================
 
 function computeLegendGroups(
-  tagGroups: TagGroup[],
+  tagGroups: readonly TagGroup[],
   usedValuesByGroup?: Map<string, Set<string>>
 ): SitemapLegendGroup[] {
   const groups: SitemapLegendGroup[] = [];
@@ -278,7 +278,7 @@ interface FlatNode {
 }
 
 function flattenNodes(
-  nodes: SitemapNode[],
+  nodes: readonly SitemapNode[],
   parentContainerId: string | null,
   parentPageId: string | null,
   hiddenCounts: Map<string, number> | undefined,
@@ -538,7 +538,9 @@ export function layoutSitemap(
       label: node.label,
       metadata: flat.meta,
       tagMetadata: flat.fullMeta,
-      ...(node.description !== undefined && { description: node.description }),
+      ...(node.description !== undefined && {
+        description: [...node.description],
+      }),
       isContainer: false,
       lineNumber: node.lineNumber,
       ...(resolvedColor !== undefined && { color: resolvedColor }),

@@ -1074,7 +1074,7 @@ function resolveStepColor(
   step: JourneyMapStep,
   scoreColor: string,
   activeGroup: string | null,
-  tagGroups: import('../utils/tag-groups').TagGroup[],
+  tagGroups: readonly import('../utils/tag-groups').TagGroup[],
   _palette: PaletteColors
 ): string | undefined {
   if (!activeGroup) return undefined;
@@ -1105,7 +1105,7 @@ function renderStepCard(
   palette: PaletteColors,
   isDark: boolean,
   activeGroup: string | null,
-  tagGroups: import('../utils/tag-groups').TagGroup[],
+  tagGroups: readonly import('../utils/tag-groups').TagGroup[],
   onNavigateToLine?: (line: number) => void,
   solid?: boolean
 ): void {

@@ -226,9 +226,10 @@ export function parseERDiagram(
   palette?: PaletteColors
 ): ParsedERDiagram {
   const lines = content.split('\n');
-  const result: ParsedERDiagram = {
+  const options: Record<string, string> = {};
+  const result: Writable<ParsedERDiagram> = {
     type: 'er',
-    options: {},
+    options,
     tables: [],
     relationships: [],
     tagGroups: [],
@@ -242,8 +243,11 @@ export function parseERDiagram(
     if (!result.error) result.error = formatDgmoError(diag);
   };
 
-  const tableMap = new Map<string, ERTable>();
-  let currentTable: ERTable | null = null;
+  const tableMap = new Map<string, Writable<ERTable>>();
+  // Sidecar: track each table's metadata as a mutable Record so we can
+  // assign into it (table.metadata is `Readonly<Record<...>>` per the spec).
+  const tableMetadataMap = new Map<string, Record<string, string>>();
+  let currentTable: Writable<ERTable> | null = null;
   let contentStarted = false;
   let currentTagGroup: Writable<TagGroup> | null = null;
   // metaAliasMap: tag-group metadata-key aliases (per A1 convention).
@@ -262,7 +266,10 @@ export function parseERDiagram(
   }
   let firstLineParsed = false;
 
-  function getOrCreateTable(name: string, lineNumber: number): ERTable {
+  function getOrCreateTable(
+    name: string,
+    lineNumber: number
+  ): Writable<ERTable> {
     const key = tableId(name);
     const existing = tableMap.get(key);
     if (existing) {
@@ -286,14 +293,16 @@ export function parseERDiagram(
       return existing;
     }
 
-    const table: ERTable = {
+    const metadata: Record<string, string> = {};
+    const table: Writable<ERTable> = {
       id: key,
       name,
       columns: [],
-      metadata: {},
+      metadata,
       lineNumber,
     };
     tableMap.set(key, table);
+    tableMetadataMap.set(key, metadata);
     result.tables.push(table);
     return table;
   }
@@ -389,11 +398,11 @@ export function parseERDiagram(
         const key = optMatch[1]!.toLowerCase();
         const value = optMatch[2]!.trim();
         if (KNOWN_OPTIONS.has(key)) {
-          result.options[key] = value.toLowerCase();
+          options[key] = value.toLowerCase();
           continue;
         }
       }
-      if (tryParseSharedOption(trimmed, result.options)) {
+      if (tryParseSharedOption(trimmed, options)) {
         continue;
       }
     }
@@ -490,7 +499,8 @@ export function parseERDiagram(
       if (pipeStr) {
         const pipeSegments = pipeStr.split('|');
         const meta = parsePipeMetadata(['', ...pipeSegments], metaAliasMap);
-        Object.assign(table.metadata, meta);
+        const mutableMeta = tableMetadataMap.get(table.id);
+        if (mutableMeta) Object.assign(mutableMeta, meta);
       }
 
       currentTable = table;
@@ -536,7 +546,8 @@ export function parseERDiagram(
       const key = group.name.toLowerCase();
       for (const table of result.tables) {
         if (!table.metadata[key]) {
-          table.metadata[key] = group.defaultValue;
+          const mutableMeta = tableMetadataMap.get(table.id);
+          if (mutableMeta) mutableMeta[key] = group.defaultValue;
         }
       }
     }
