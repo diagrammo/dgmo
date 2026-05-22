@@ -31,59 +31,59 @@ export type C4ArrowType =
 // ── Relationships ────────────────────────────────────────────
 
 export interface C4Relationship {
-  target: string;
-  label?: string;
-  technology?: string;
-  arrowType: C4ArrowType;
-  lineNumber: number;
+  readonly target: string;
+  readonly label?: string;
+  readonly technology?: string;
+  readonly arrowType: C4ArrowType;
+  readonly lineNumber: number;
 }
 
 // ── Groups ───────────────────────────────────────────────────
 
 export interface C4Group {
-  name: string;
-  children: C4Element[];
-  lineNumber: number;
+  readonly name: string;
+  readonly children: readonly C4Element[];
+  readonly lineNumber: number;
 }
 
 // ── Elements ─────────────────────────────────────────────────
 
 export interface C4Element {
-  name: string;
-  type: C4ElementType;
-  shape: C4Shape;
-  metadata: Record<string, string>;
-  description?: string[];
-  children: C4Element[];
-  groups: C4Group[];
-  relationships: C4Relationship[];
-  importPath?: string;
-  lineNumber: number;
-  sectionHeader?: 'containers' | 'components';
-  sectionHeaderLineNumber?: number;
+  readonly name: string;
+  readonly type: C4ElementType;
+  readonly shape: C4Shape;
+  readonly metadata: Readonly<Record<string, string>>;
+  readonly description?: readonly string[];
+  readonly children: readonly C4Element[];
+  readonly groups: readonly C4Group[];
+  readonly relationships: readonly C4Relationship[];
+  readonly importPath?: string;
+  readonly lineNumber: number;
+  readonly sectionHeader?: 'containers' | 'components';
+  readonly sectionHeaderLineNumber?: number;
 }
 
 // ── Deployment ───────────────────────────────────────────────
 
 export interface C4DeploymentNode {
-  name: string;
-  metadata: Record<string, string>;
-  shape: C4Shape;
-  children: C4DeploymentNode[];
-  containerRefs: string[];
-  lineNumber: number;
+  readonly name: string;
+  readonly metadata: Readonly<Record<string, string>>;
+  readonly shape: C4Shape;
+  readonly children: readonly C4DeploymentNode[];
+  readonly containerRefs: readonly string[];
+  readonly lineNumber: number;
 }
 
 // ── Parsed result ────────────────────────────────────────────
 
 export interface ParsedC4 {
-  title: string | null;
-  titleLineNumber: number | null;
-  options: Record<string, string>;
-  tagGroups: TagGroup[];
-  elements: C4Element[];
-  relationships: C4Relationship[];
-  deployment: C4DeploymentNode[];
-  diagnostics: DgmoError[];
-  error: string | null;
+  readonly title: string | null;
+  readonly titleLineNumber: number | null;
+  readonly options: Readonly<Record<string, string>>;
+  readonly tagGroups: readonly TagGroup[];
+  readonly elements: readonly C4Element[];
+  readonly relationships: readonly C4Relationship[];
+  readonly deployment: readonly C4DeploymentNode[];
+  readonly diagnostics: readonly DgmoError[];
+  readonly error: string | null;
 }

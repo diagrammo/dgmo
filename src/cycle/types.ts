@@ -5,35 +5,35 @@ import type { DgmoError } from '../diagnostics';
 // ============================================================
 
 export interface CycleNode {
-  label: string;
-  lineNumber: number;
-  color?: string;
-  span: number;
-  description: string[];
-  metadata: Record<string, string>;
+  readonly label: string;
+  readonly lineNumber: number;
+  readonly color?: string;
+  readonly span: number;
+  readonly description: readonly string[];
+  readonly metadata: Readonly<Record<string, string>>;
 }
 
 export interface CycleEdge {
-  sourceIndex: number;
-  targetIndex: number;
-  label?: string;
-  color?: string;
-  width?: number;
-  description: string[];
-  lineNumber?: number;
-  metadata: Record<string, string>;
+  readonly sourceIndex: number;
+  readonly targetIndex: number;
+  readonly label?: string;
+  readonly color?: string;
+  readonly width?: number;
+  readonly description: readonly string[];
+  readonly lineNumber?: number;
+  readonly metadata: Readonly<Record<string, string>>;
 }
 
 export interface ParsedCycle {
-  type: 'cycle';
-  title: string;
-  titleLineNumber: number;
-  nodes: CycleNode[];
-  edges: CycleEdge[];
-  direction: 'clockwise' | 'counterclockwise';
-  options: Record<string, string>;
-  diagnostics: DgmoError[];
-  error: string | null;
+  readonly type: 'cycle';
+  readonly title: string;
+  readonly titleLineNumber: number;
+  readonly nodes: readonly CycleNode[];
+  readonly edges: readonly CycleEdge[];
+  readonly direction: 'clockwise' | 'counterclockwise';
+  readonly options: Readonly<Record<string, string>>;
+  readonly diagnostics: readonly DgmoError[];
+  readonly error: string | null;
 }
 
 // ============================================================

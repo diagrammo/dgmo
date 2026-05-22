@@ -384,7 +384,7 @@ export function computeCycleLayout(
  * boxes instead of tall thin columns.
  */
 function chooseDescribedRectDims(
-  description: string[],
+  description: readonly string[],
   labelWidth: number
 ): { width: number; height: number; wrappedDesc: WrappedDescLine[] } {
   const minW = Math.min(
@@ -418,12 +418,12 @@ function chooseDescribedRectDims(
 
 /** Wrap description lines for a rect node of the given total width. */
 function wrapDescForWidth(
-  description: string[],
+  description: readonly string[],
   nodeWidth: number
 ): WrappedDescLine[] {
   const textWidth = nodeWidth - NODE_PAD_X * 2;
   const charsPerLine = Math.max(8, Math.floor(textWidth / DESC_CHAR_W));
-  return wrapDescriptionLines(description, charsPerLine);
+  return wrapDescriptionLines([...description], charsPerLine);
 }
 
 // ── Renderer-aligned font/line-height clamps ──
@@ -476,7 +476,7 @@ export const EDGE_LABEL_MAX_CHARS = 32;
  */
 export function wrapEdgeLabelText(
   label: string | undefined,
-  description: string[],
+  description: readonly string[],
   maxChars: number = EDGE_LABEL_MAX_CHARS
 ): { labelLines: string[]; descLines: string[] } {
   const labelLines = label ? wrapLines([label], maxChars) : [];
@@ -489,7 +489,7 @@ export function wrapEdgeLabelText(
 
 // ── Helper: word-wrap lines ──
 
-function wrapLines(lines: string[], charsPerLine: number): string[] {
+function wrapLines(lines: readonly string[], charsPerLine: number): string[] {
   const result: string[] = [];
   for (const line of lines) {
     const words = line.split(/\s+/);
@@ -511,7 +511,7 @@ function wrapLines(lines: string[], charsPerLine: number): string[] {
 // ── Helper: circle node dimensions ──
 
 function computeCircleNodeDims(
-  node: { label: string; description: string[] },
+  node: { label: string; description: readonly string[] },
   hasDesc: boolean
 ): { width: number; height: number; wrappedDesc: WrappedDescLine[] } {
   if (!hasDesc) {
@@ -558,7 +558,10 @@ function computeCircleNodeDims(
  * Each line gets a different max width based on its vertical position
  * within the circle — wider at the center, narrower near edges.
  */
-function wrapLinesForCircle(descriptions: string[], radius: number): string[] {
+function wrapLinesForCircle(
+  descriptions: readonly string[],
+  radius: number
+): string[] {
   // First pass: wrap with center-width to estimate line count
   const centerWidth = radius * 2 * 0.75;
   const centerChars = Math.max(8, Math.floor(centerWidth / DESC_CHAR_W));

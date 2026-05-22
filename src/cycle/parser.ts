@@ -10,6 +10,7 @@ import {
   peelTrailingColorName,
   tryParseSharedOption,
 } from '../utils/parsing';
+import type { Writable } from '../utils/brand';
 import type { ParsedCycle, CycleNode, CycleEdge } from './types';
 
 // ── Edge pattern: `->`, `-label->` with optional target and pipe metadata ──
@@ -34,14 +35,15 @@ const LABELED_EDGE_RE = /^-(.+?)->\s*(.*)?$/;
  * ```
  */
 export function parseCycle(content: string): ParsedCycle {
-  const result: ParsedCycle = {
+  const options: Record<string, string> = {};
+  const result: Writable<ParsedCycle> = {
     type: 'cycle',
     title: '',
     titleLineNumber: 0,
     nodes: [],
     edges: [],
     direction: 'clockwise',
-    options: {},
+    options,
     diagnostics: [],
     error: null,
   };
@@ -52,8 +54,8 @@ export function parseCycle(content: string): ParsedCycle {
   // State machine
   type State = 'top' | 'node' | 'edge';
   let state: State = 'top';
-  let currentNode: CycleNode | null = null;
-  let currentEdge: CycleEdge | null = null;
+  let currentNode: Writable<CycleNode> | null = null;
+  let currentEdge: Writable<CycleEdge> | null = null;
   // nodeBaseIndent tracking removed — indent-based nesting not used in cycle
 
   const fail = (line: number, message: string): ParsedCycle => {
@@ -121,18 +123,18 @@ export function parseCycle(content: string): ParsedCycle {
 
     // ── Bare keyword: no-descriptions ──
     if (indent === 0 && trimmed.toLowerCase() === 'no-descriptions') {
-      result.options['no-descriptions'] = 'true';
+      options['no-descriptions'] = 'true';
       continue;
     }
 
     // ── Bare keyword: circle-nodes ──
     if (indent === 0 && trimmed.toLowerCase() === 'circle-nodes') {
-      result.options['circle-nodes'] = 'true';
+      options['circle-nodes'] = 'true';
       continue;
     }
 
     // ── Shared bare keyword: solid-fill ──
-    if (indent === 0 && tryParseSharedOption(trimmed, result.options)) {
+    if (indent === 0 && tryParseSharedOption(trimmed, options)) {
       continue;
     }
 
@@ -332,14 +334,14 @@ export function parseCycle(content: string): ParsedCycle {
 
   // ── Resolve edge targets and generate implicit edges ──
   const nodeCount = result.nodes.length;
-  const edgeBySource = new Map<number, CycleEdge>();
-  for (const edge of result.edges) {
+  const edgeBySource = new Map<number, Writable<CycleEdge>>();
+  for (const edge of result.edges as Writable<CycleEdge>[]) {
     // Fix target index to wrap around
     edge.targetIndex = (edge.sourceIndex + 1) % nodeCount;
     edgeBySource.set(edge.sourceIndex, edge);
 
     // Check explicit target diagnostic
-    const typed = edge as CycleEdge & { _explicitTarget?: string };
+    const typed = edge as Writable<CycleEdge> & { _explicitTarget?: string };
     if (typed._explicitTarget) {
       // In-bounds: targetIndex computed as (sourceIndex + 1) % nodeCount.
       const actualTarget = result.nodes[edge.targetIndex]!.label;
@@ -354,7 +356,7 @@ export function parseCycle(content: string): ParsedCycle {
   }
 
   // Generate implicit edges for nodes without explicit edge annotations
-  const allEdges: CycleEdge[] = [];
+  const allEdges: Writable<CycleEdge>[] = [];
   for (let i = 0; i < nodeCount; i++) {
     const existing = edgeBySource.get(i);
     if (existing) {

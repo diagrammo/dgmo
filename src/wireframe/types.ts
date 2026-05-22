@@ -37,74 +37,74 @@ export type WireframeElementType =
  * with sensible defaults (isContainer=false, orientation='vertical', isSkeleton=false).
  */
 export interface WireframeElement {
-  id: string;
-  type: WireframeElementType;
+  readonly id: string;
+  readonly type: WireframeElementType;
   /** Display label / placeholder text / heading text */
-  label: string;
+  readonly label: string;
   /** Child elements (non-empty only when isContainer=true) */
-  children: WireframeElement[];
+  readonly children: readonly WireframeElement[];
   /** Pipe metadata key-value pairs */
-  metadata: Record<string, string>;
+  readonly metadata: Readonly<Record<string, string>>;
   /** State keywords: disabled, active, ghost, destructive, etc. */
-  states: string[];
+  readonly states: readonly string[];
   /** Free-text annotations from pipe metadata */
-  annotations: string[];
+  readonly annotations: readonly string[];
   /** 1-based line number in source */
-  lineNumber: number;
+  readonly lineNumber: number;
   /** Measured indentation (column) */
-  indent: number;
+  readonly indent: number;
   /** True when element has children (set during parse via indent stack) */
-  isContainer: boolean;
+  readonly isContainer: boolean;
   /** Stacking direction for group children */
-  orientation: 'vertical' | 'horizontal';
+  readonly orientation: 'vertical' | 'horizontal';
   /** True when inside a skeleton block */
-  isSkeleton: boolean;
+  readonly isSkeleton: boolean;
 
   // ── Type-specific fields ─────────────────────────────────
   /** Heading level: 1 for `#`, 2 for `##` */
-  headingLevel?: number;
+  readonly headingLevel?: number;
   /** Dropdown options (for type='dropdown') */
-  options?: string[];
+  readonly options?: readonly string[];
   /** Checked state (for type='checkbox') */
-  checked?: boolean;
+  readonly checked?: boolean;
   /** Selected state (for type='radio') */
-  selected?: boolean;
+  readonly selected?: boolean;
   /** Image hint: 'default' | 'round' | 'wide' */
-  imageHint?: 'default' | 'round' | 'wide';
+  readonly imageHint?: 'default' | 'round' | 'wide';
   /** Progress value 0-100 (for type='progress') */
-  progressValue?: number;
+  readonly progressValue?: number;
   /** Chart hint: 'line' | 'bar' | 'pie' */
-  chartHint?: 'line' | 'bar' | 'pie';
+  readonly chartHint?: 'line' | 'bar' | 'pie';
   /** Table dimensions for skeleton shorthand (for type='table') */
-  tableRows?: number;
-  tableCols?: number;
+  readonly tableRows?: number;
+  readonly tableCols?: number;
   /** Table header row labels (for type='table') */
-  tableHeaders?: string[];
+  readonly tableHeaders?: readonly string[];
   /** Table data rows — each row is an array of cell content strings (for type='table') */
-  tableData?: string[][];
+  readonly tableData?: ReadonlyArray<readonly string[]>;
   /** Inline elements on the same line (multi-element line) */
-  inlineElements?: WireframeElement[];
+  readonly inlineElements?: readonly WireframeElement[];
   /** Label element for label-field pairing */
-  labelFor?: WireframeElement;
+  readonly labelFor?: WireframeElement;
   /** Color from tag system */
-  color?: string;
+  readonly color?: string;
   /** Field variant: password, textarea */
-  fieldVariant?: 'password' | 'textarea';
+  readonly fieldVariant?: 'password' | 'textarea';
 }
 
 /** Form factor / layout mode */
 export type WireframeFormFactor = 'desktop' | 'mobile';
 
 export interface ParsedWireframe {
-  title: string | null;
-  titleLineNumber: number | null;
-  formFactor: WireframeFormFactor;
+  readonly title: string | null;
+  readonly titleLineNumber: number | null;
+  readonly formFactor: WireframeFormFactor;
   /** Top-level elements (roots of the hierarchy) */
-  roots: WireframeElement[];
+  readonly roots: readonly WireframeElement[];
   /** Modal elements (rendered separately below main) */
-  modals: WireframeElement[];
-  tagGroups: TagGroup[];
-  options: Record<string, string>;
-  diagnostics: DgmoError[];
-  error: string | null;
+  readonly modals: readonly WireframeElement[];
+  readonly tagGroups: readonly TagGroup[];
+  readonly options: Readonly<Record<string, string>>;
+  readonly diagnostics: readonly DgmoError[];
+  readonly error: string | null;
 }

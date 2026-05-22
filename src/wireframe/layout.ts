@@ -174,7 +174,7 @@ export function layoutWireframe(
  * and horizontal siblings, then stack vertically.
  */
 function layoutTopLevel(
-  roots: WireframeElement[],
+  roots: readonly WireframeElement[],
   contentWidth: number,
   formFactor: WireframeFormFactor
 ): WireframeLayoutNode[] {
@@ -399,7 +399,7 @@ function layoutElement(
 }
 
 function allocateEqualWidths(
-  children: WireframeElement[],
+  children: readonly WireframeElement[],
   totalWidth: number
 ): number[] {
   const gap = 8;
@@ -452,7 +452,7 @@ function getSpacingAfter(el: WireframeElement): number {
  * Compute auto-alignment X offset for label-field pairs in a group (ADR-4, EC8).
  * Returns 0 if no label-field pattern detected.
  */
-function computeFieldAlignX(children: WireframeElement[]): number {
+function computeFieldAlignX(children: readonly WireframeElement[]): number {
   let maxLabelWidth = 0;
   let labelFieldCount = 0;
 

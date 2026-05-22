@@ -168,27 +168,27 @@ function parseArrowType(arrow: string): C4ArrowType | null {
 
 interface ElementStackEntry {
   kind: 'element';
-  element: C4Element;
+  element: Writable<C4Element>;
   indent: number;
 }
 
 interface GroupStackEntry {
   kind: 'group';
-  group: C4Group;
-  parentElement: C4Element;
+  group: Writable<C4Group>;
+  parentElement: Writable<C4Element>;
   indent: number;
 }
 
 interface SectionStackEntry {
   kind: 'section';
   sectionType: 'containers' | 'components';
-  parentElement: C4Element;
+  parentElement: Writable<C4Element>;
   indent: number;
 }
 
 interface DeploymentStackEntry {
   kind: 'deployment';
-  node: C4DeploymentNode;
+  node: Writable<C4DeploymentNode>;
   indent: number;
 }
 
@@ -203,10 +203,11 @@ type StackEntry =
 // ============================================================
 
 export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
-  const result: ParsedC4 = {
+  const options: Record<string, string> = {};
+  const result: Writable<ParsedC4> = {
     title: null,
     titleLineNumber: null,
-    options: {},
+    options,
     tagGroups: [],
     elements: [],
     relationships: [],
@@ -258,11 +259,22 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
   // Name uniqueness tracking
   const knownNames = new Map<string, number>(); // name → lineNumber
 
+  // Sidecar: each element's metadata is a mutable Record we own. The
+  // C4Element.metadata field types it as Readonly, so post-construction
+  // mutation goes through this map.
+  const elementMetadata = new WeakMap<
+    Writable<C4Element>,
+    Record<string, string>
+  >();
+  // Sidecar: each element's description is a mutable string[] we own.
+  const elementDescription = new WeakMap<Writable<C4Element>, string[]>();
+
   // Indent stack for hierarchy tracking
   const stack: StackEntry[] = [];
 
   // Deployment indent stack
-  const deployStack: { node: C4DeploymentNode; indent: number }[] = [];
+  const deployStack: { node: Writable<C4DeploymentNode>; indent: number }[] =
+    [];
 
   for (let i = 0; i < lines.length; i++) {
     // In-bounds by loop guard.
@@ -331,7 +343,7 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
     if (!contentStarted && !currentTagGroup && measureIndent(line) === 0) {
       // Bare boolean options
       if (KNOWN_C4_BOOLEANS.has(trimmed.toLowerCase())) {
-        result.options[trimmed.toLowerCase()] = 'on';
+        options[trimmed.toLowerCase()] = 'on';
         continue;
       }
 
@@ -340,7 +352,7 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
         // Capture groups [1] and [2] guaranteed by regex match.
         const key = optMatch[1]!.trim().toLowerCase();
         if (KNOWN_C4_OPTIONS.has(key)) {
-          result.options[key] = optMatch[2]!.trim();
+          options[key] = optMatch[2]!.trim();
           continue;
         }
       }
@@ -433,7 +445,7 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
           metadata['tech'] ?? metadata['technology']
         );
 
-        const dNode: C4DeploymentNode = {
+        const dNode: Writable<C4DeploymentNode> = {
           name: nodeName,
           metadata,
           shape,
@@ -498,7 +510,7 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
       const groupName = containerMatch[1]!.trim();
       const parentEntry = findParentElement(indent, stack);
       if (parentEntry) {
-        const group: C4Group = {
+        const group: Writable<C4Group> = {
           name: groupName,
           children: [],
           lineNumber,
@@ -759,7 +771,7 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
         delete metadata['description'];
       }
 
-      const element: C4Element = {
+      const element: Writable<C4Element> = {
         name: namePart,
         type: elementType,
         shape,
@@ -770,6 +782,9 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
         relationships: [],
         lineNumber,
       };
+      elementMetadata.set(element, metadata);
+      if (isADescription !== undefined)
+        elementDescription.set(element, isADescription);
 
       // Check for duplicate name (forgiving: case + whitespace insensitive)
       const key = normalizeName(namePart);
@@ -839,7 +854,7 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
         delete metadata['description'];
       }
 
-      const element: C4Element = {
+      const element: Writable<C4Element> = {
         name: namePart,
         type: elementType,
         shape,
@@ -852,6 +867,9 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
         relationships: [],
         lineNumber,
       };
+      elementMetadata.set(element, metadata);
+      if (prefixDescription !== undefined)
+        elementDescription.set(element, prefixDescription);
 
       // Check for duplicate name (forgiving: case + whitespace insensitive)
       const key = normalizeName(namePart);
@@ -890,13 +908,18 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
 
         // Extract description into dedicated field
         if (key === 'description') {
-          if (!parentEntry.element.description)
-            parentEntry.element.description = [];
-          parentEntry.element.description.push(value);
+          let desc = elementDescription.get(parentEntry.element);
+          if (!desc) {
+            desc = [];
+            elementDescription.set(parentEntry.element, desc);
+            parentEntry.element.description = desc;
+          }
+          desc.push(value);
           continue;
         }
 
-        parentEntry.element.metadata[key] = value;
+        const meta = elementMetadata.get(parentEntry.element);
+        if (meta) meta[key] = value;
         continue;
       }
     }
@@ -918,8 +941,13 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
     if (parent) {
       const descResult = tryStripDescriptionKeyword(trimmed);
       const descText = descResult.isKeyword ? descResult.text : trimmed;
-      if (!parent.element.description) parent.element.description = [];
-      parent.element.description.push(descText);
+      let desc = elementDescription.get(parent.element);
+      if (!desc) {
+        desc = [];
+        elementDescription.set(parent.element, desc);
+        parent.element.description = desc;
+      }
+      desc.push(descText);
     } else {
       pushError(lineNumber, `Unexpected content: "${trimmed}"`);
     }
@@ -966,10 +994,10 @@ function findParentElement(
 }
 
 function attachElement(
-  element: C4Element,
+  element: Writable<C4Element>,
   indent: number,
   stack: StackEntry[],
-  result: ParsedC4
+  result: Writable<ParsedC4>
 ): void {
   // Find the immediate context: group, section, or parent element
   let attached = false;
@@ -1018,7 +1046,7 @@ function validateRelationshipTargets(
     severity?: 'error' | 'warning'
   ) => void
 ): void {
-  function walkRels(elements: C4Element[]) {
+  function walkRels(elements: readonly C4Element[]) {
     for (const el of elements) {
       for (const rel of el.relationships) {
         if (!knownNames.has(normalizeName(rel.target))) {
@@ -1058,7 +1086,7 @@ function validateDeploymentRefs(
     severity?: 'error' | 'warning'
   ) => void
 ): void {
-  function walkDeploy(nodes: C4DeploymentNode[]) {
+  function walkDeploy(nodes: readonly C4DeploymentNode[]) {
     for (const node of nodes) {
       for (const ref of node.containerRefs) {
         if (!knownNames.has(normalizeName(ref))) {

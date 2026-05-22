@@ -28,6 +28,22 @@ import type {
 } from './types';
 
 // ============================================================
+// Internal mutable view of WireframeElement for parser construction.
+// Strips readonly from optional array fields that Writable<T> can't reach
+// through `T | undefined` unions.
+// ============================================================
+
+type MutableWireframeElement = Omit<
+  Writable<WireframeElement>,
+  'options' | 'tableHeaders' | 'tableData' | 'inlineElements'
+> & {
+  options?: string[];
+  tableHeaders?: string[];
+  tableData?: string[][];
+  inlineElements?: WireframeElement[];
+};
+
+// ============================================================
 // Constants
 // ============================================================
 
@@ -129,7 +145,7 @@ function makeElement(
   label: string,
   lineNumber: number,
   indent: number
-): WireframeElement {
+): MutableWireframeElement {
   return {
     id: genId(lineNumber, indent),
     type,
@@ -182,7 +198,7 @@ function parseWireframeMetadata(raw: string): {
  * Apply parsed metadata to an element.
  */
 function applyMetadata(
-  el: WireframeElement,
+  el: MutableWireframeElement,
   metaStr: string | undefined
 ): void {
   if (!metaStr) return;
@@ -277,7 +293,7 @@ function parseSegment(
   lineNumber: number,
   indent: number,
   diagnostics: DgmoError[]
-): WireframeElement | null {
+): MutableWireframeElement | null {
   const trimmed = segment.trim();
   if (!trimmed) return null;
 
@@ -563,8 +579,8 @@ export function parseWireframe(content: string): ParsedWireframe {
   let title: string | null = null;
   let titleLineNumber: number | null = null;
   let formFactor: WireframeFormFactor = 'desktop';
-  const roots: WireframeElement[] = [];
-  const modals: WireframeElement[] = [];
+  const roots: MutableWireframeElement[] = [];
+  const modals: MutableWireframeElement[] = [];
   const tagGroups: TagGroup[] = [];
   const options: Record<string, string> = {};
 
@@ -592,9 +608,9 @@ export function parseWireframe(content: string): ParsedWireframe {
   }
 
   // Indent stack for hierarchy
-  const indentStack: { node: WireframeElement; indent: number }[] = [];
+  const indentStack: { node: MutableWireframeElement; indent: number }[] = [];
 
-  function findParent(indent: number): WireframeElement | null {
+  function findParent(indent: number): MutableWireframeElement | null {
     // Pop nodes at same or deeper indent
     while (
       indentStack.length > 0 &&
@@ -617,7 +633,7 @@ export function parseWireframe(content: string): ParsedWireframe {
       : null;
   }
 
-  function pushElement(el: WireframeElement): void {
+  function pushElement(el: MutableWireframeElement): void {
     // Modal elements go to separate array
     if (el.type === 'modal') {
       modals.push(el);
@@ -661,8 +677,8 @@ export function parseWireframe(content: string): ParsedWireframe {
     indent: number,
     diags: DgmoError[]
   ): void {
-    const children: WireframeElement[] = [];
-    let lastEl: WireframeElement | null = null;
+    const children: MutableWireframeElement[] = [];
+    let lastEl: MutableWireframeElement | null = null;
     for (const seg of segments) {
       // EC5: segment starting with `|` attaches to previous element
       if (seg.startsWith('|') && lastEl) {
@@ -687,7 +703,8 @@ export function parseWireframe(content: string): ParsedWireframe {
     wrapper.isContainer = true;
     wrapper.orientation = 'horizontal';
     wrapper.children = children;
-    wrapper.metadata['_inlineRow'] = 'true';
+    const wrapperMetadata: Record<string, string> = { _inlineRow: 'true' };
+    wrapper.metadata = wrapperMetadata;
     pushElement(wrapper);
   }
 
@@ -896,7 +913,10 @@ export function parseWireframe(content: string): ParsedWireframe {
             wrapper.isContainer = true;
             wrapper.orientation = 'horizontal';
             wrapper.children.push(labelEl, fieldEl);
-            wrapper.metadata['_labelField'] = 'true';
+            const wrapperMetadata: Record<string, string> = {
+              _labelField: 'true',
+            };
+            wrapper.metadata = wrapperMetadata;
             pushElement(wrapper);
           }
         } else {

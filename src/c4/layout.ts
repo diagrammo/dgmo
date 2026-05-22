@@ -479,7 +479,9 @@ export interface ContextRelationship {
  * Build a map from element name → top-level ancestor name.
  * Top-level elements map to themselves.
  */
-function buildOwnershipMap(elements: C4Element[]): Map<string, string> {
+function buildOwnershipMap(
+  elements: readonly C4Element[]
+): Map<string, string> {
   const map = new Map<string, string>();
 
   function walk(el: C4Element, ancestor: string): void {
@@ -505,7 +507,7 @@ function buildOwnershipMap(elements: C4Element[]): Map<string, string> {
  * Collect all relationships from the entire element tree.
  */
 function collectAllRelationships(
-  elements: C4Element[],
+  elements: readonly C4Element[],
   _ownerMap: Map<string, string>
 ): { sourceName: string; rel: C4Relationship }[] {
   const result: { sourceName: string; rel: C4Relationship }[] = [];
@@ -597,9 +599,9 @@ export function rollUpContextRelationships(
 
 function resolveNodeColor(
   el: C4Element,
-  tagGroups: TagGroup[],
+  tagGroups: readonly TagGroup[],
   activeGroupName: string | null,
-  ancestors?: C4Element[]
+  ancestors?: readonly C4Element[]
 ): string | undefined {
   // Check metadata for explicit color
   const colorMeta = el.metadata['color'];
@@ -735,7 +737,7 @@ export function computeC4NodeDimensions(
 // Legend Helpers
 // ============================================================
 
-function computeLegendGroups(tagGroups: TagGroup[]): C4LegendGroup[] {
+function computeLegendGroups(tagGroups: readonly TagGroup[]): C4LegendGroup[] {
   const result: C4LegendGroup[] = [];
 
   for (const group of tagGroups) {
@@ -2048,7 +2050,7 @@ interface DeploymentRefEntry {
 }
 
 function collectDeploymentRefs(
-  nodes: C4DeploymentNode[],
+  nodes: readonly C4DeploymentNode[],
   parsed: ParsedC4,
   parentId: string | null,
   refs: DeploymentRefEntry[],
