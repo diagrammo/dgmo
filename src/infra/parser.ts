@@ -197,7 +197,7 @@ export function parseInfra(content: string): ParsedInfra {
     const m = trimmed.match(/^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/);
     if (!m) return { label: trimmed };
     // Capture groups 1 & 2 in-bounds after successful match.
-    return { label: m[1]!.trim(), alias: m[2] };
+    return { label: m[1]!.trim(), ...(m[2] !== undefined && { alias: m[2] }) };
   }
 
   // Infra nodes have no "is a <type>" declaration — capability comes from
@@ -216,7 +216,10 @@ export function parseInfra(content: string): ParsedInfra {
       `Infra nodes don't use 'is a <type>' — types are inferred from properties (cache-hit, buffer, drain-rate, …). Drop the 'is a' suffix.`
     );
     // Capture group 1 in-bounds after successful match.
-    return { label: m[1]!.trim(), alias: peeled.alias };
+    return {
+      label: m[1]!.trim(),
+      ...(peeled.alias !== undefined && { alias: peeled.alias }),
+    };
   }
   /**
    * Resolve a connection-target token. If the token exactly matches a
@@ -406,16 +409,15 @@ export function parseInfra(content: string): ParsedInfra {
         const groupMeta = groupMatch[3]
           ? extractPipeMetadata('|' + groupMatch[3]).tags
           : undefined;
-        currentGroup = {
+        const hasMeta = groupMeta && Object.keys(groupMeta).length > 0;
+        const newGroup: InfraGroup = {
           id: gId,
           label: gLabel,
-          metadata:
-            groupMeta && Object.keys(groupMeta).length > 0
-              ? groupMeta
-              : undefined,
+          ...(hasMeta && { metadata: groupMeta }),
           lineNumber,
         };
-        result.groups.push(currentGroup);
+        currentGroup = newGroup;
+        result.groups.push(newGroup);
         continue;
       }
 
@@ -472,7 +474,7 @@ export function parseInfra(content: string): ParsedInfra {
       if (tvMatch || /^\w+$/.test(valueName)) {
         currentTagGroup.values.push({
           name: valueName,
-          color: rawColor,
+          ...(rawColor !== undefined && { color: rawColor }),
         });
         if (isDefault) {
           currentTagGroup.defaultValue = valueName;

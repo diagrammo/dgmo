@@ -581,7 +581,7 @@ export function parseWireframe(content: string): ParsedWireframe {
     emitTagLegacyDiagnostic(match, lineNumber, diagnostics);
     return {
       name: match.name,
-      alias: match.alias,
+      ...(match.alias !== undefined && { alias: match.alias }),
       entries: [],
       lineNumber,
     };

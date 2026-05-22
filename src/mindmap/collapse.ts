@@ -23,13 +23,13 @@ function cloneNode(node: MindmapNode): MindmapNode {
   return {
     id: node.id,
     label: node.label,
-    description: node.description,
+    ...(node.description !== undefined && { description: node.description }),
     metadata: { ...node.metadata },
     children: node.children.map(cloneNode),
     parentId: node.parentId,
     lineNumber: node.lineNumber,
-    color: node.color,
-    collapsed: node.collapsed,
+    ...(node.color !== undefined && { color: node.color }),
+    ...(node.collapsed !== undefined && { collapsed: node.collapsed }),
   };
 }
 

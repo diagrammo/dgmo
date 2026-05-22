@@ -518,7 +518,7 @@ function renderLayerDescriptions(
       palette,
       topBound,
       bottomBound,
-      onClickItem,
+      ...(onClickItem !== undefined && { onClickItem }),
       variant: 'short',
     });
     return;
@@ -543,7 +543,7 @@ function renderLayerDescriptions(
     palette,
     topBound,
     bottomBound,
-    onClickItem,
+    ...(onClickItem !== undefined && { onClickItem }),
     variant: 'short',
   });
 
@@ -564,7 +564,7 @@ function renderLayerDescriptions(
     palette,
     topBound,
     bottomBound,
-    onClickItem,
+    ...(onClickItem !== undefined && { onClickItem }),
     variant: 'full',
   });
 }

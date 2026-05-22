@@ -146,7 +146,9 @@ export function parseKanban(
         emitTagLegacyDiagnostic(tagBlockMatch, lineNumber, result.diagnostics);
         currentTagGroup = {
           name: tagBlockMatch.name,
-          alias: tagBlockMatch.alias,
+          ...(tagBlockMatch.alias !== undefined && {
+            alias: tagBlockMatch.alias,
+          }),
           entries: [],
           lineNumber,
         };
@@ -289,8 +291,8 @@ export function parseKanban(
       currentColumn = {
         id: colId,
         name: colName,
-        wipLimit,
-        color: colColor,
+        ...(wipLimit !== undefined && { wipLimit }),
+        ...(colColor !== undefined && { color: colColor }),
         cards: [],
         lineNumber,
         metadata: columnMetadata,

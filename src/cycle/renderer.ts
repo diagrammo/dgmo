@@ -150,10 +150,14 @@ export function renderCycle(
     };
     const legendState: LegendState = {
       activeGroup: null,
-      controlsExpanded: renderOptions?.controlsExpanded,
+      ...(renderOptions?.controlsExpanded !== undefined && {
+        controlsExpanded: renderOptions.controlsExpanded,
+      }),
     };
     const legendCallbacks: LegendCallbacks = {
-      onControlsExpand: renderOptions?.onToggleControlsExpand,
+      ...(renderOptions?.onToggleControlsExpand !== undefined && {
+        onControlsExpand: renderOptions.onToggleControlsExpand,
+      }),
       onControlsToggle: (toggleId, active) => {
         if (
           toggleId === 'descriptions' &&
@@ -533,7 +537,7 @@ export function renderCycleForExport(
     undefined,
     exportDims,
     viewState,
-    { exportMode }
+    { ...(exportMode !== undefined && { exportMode }) }
   );
 }
 

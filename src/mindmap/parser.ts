@@ -145,7 +145,9 @@ export function parseMindmap(
       }
       currentTagGroup = {
         name: tagBlockMatch.name,
-        alias: tagBlockMatch.alias,
+        ...(tagBlockMatch.alias !== undefined && {
+          alias: tagBlockMatch.alias,
+        }),
         entries: [],
         lineNumber,
       };
@@ -332,12 +334,12 @@ function parseNodeLine(
   return {
     id: `node-${counter}`,
     label,
-    description,
+    ...(description !== undefined && { description }),
     metadata,
     children: [],
     parentId: null,
     lineNumber,
-    collapsed,
+    ...(collapsed !== undefined && { collapsed }),
   };
 }
 

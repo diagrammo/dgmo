@@ -525,7 +525,7 @@ export function parseRaci(
         currentPhase = {
           id: normalizeName(display),
           displayName: display,
-          color: phaseColor,
+          ...(phaseColor !== undefined && { color: phaseColor }),
           tasks: [],
           lineNumber,
           endLineNumber: lineNumber,

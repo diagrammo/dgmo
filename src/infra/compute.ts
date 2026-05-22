@@ -1322,11 +1322,13 @@ export function computeInfra(
         computedConcurrentInvocations: isServerless(node)
           ? Math.ceil((rps * getNumProp(node, 'duration-ms', 100)) / 1000)
           : 0,
-        childHealthState,
-        queueMetrics,
+        ...(childHealthState !== undefined && { childHealthState }),
+        ...(queueMetrics !== undefined && { queueMetrics }),
         properties: node.properties,
         tags: node.tags,
-        description: node.description,
+        ...(node.description !== undefined && {
+          description: node.description,
+        }),
         lineNumber: node.lineNumber,
       };
     }

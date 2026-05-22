@@ -194,12 +194,18 @@ export function decodeDiagramUrl(hash: string): DecodedDiagramUrl {
     payload = payload.slice(5);
   }
 
-  if (!payload) return { dsl: '', viewState, palette, theme, filename };
+  const extras = {
+    ...(palette !== undefined && { palette }),
+    ...(theme !== undefined && { theme }),
+    ...(filename !== undefined && { filename }),
+  };
+
+  if (!payload) return { dsl: '', viewState, ...extras };
 
   try {
     const result = decompressFromEncodedURIComponent(payload);
-    return { dsl: result ?? '', viewState, palette, theme, filename };
+    return { dsl: result ?? '', viewState, ...extras };
   } catch {
-    return { dsl: '', viewState, palette, theme, filename };
+    return { dsl: '', viewState, ...extras };
   }
 }

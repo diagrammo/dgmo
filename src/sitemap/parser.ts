@@ -78,7 +78,7 @@ function parseArrowLine(
     const rawTarget = arrowMatch[2]!.trim();
     const groupMatch = rawTarget.match(/^\[(.+)\]$/);
     return {
-      label,
+      ...(label !== undefined && { label }),
       target: groupMatch ? groupMatch[1]!.trim() : rawTarget,
       targetIsGroup: !!groupMatch,
     };
@@ -247,19 +247,22 @@ export function parseSitemap(
         pushError(lineNumber, 'Tag groups must appear before sitemap content');
         continue;
       }
-      currentTagGroup = {
+      const newTagGroup: TagGroup = {
         name: tagBlockMatch.name,
-        alias: tagBlockMatch.alias,
+        ...(tagBlockMatch.alias !== undefined && {
+          alias: tagBlockMatch.alias,
+        }),
         entries: [],
         lineNumber,
       };
+      currentTagGroup = newTagGroup;
       if (tagBlockMatch.alias) {
         metaAliasMap.set(
           normalizeName(tagBlockMatch.alias),
           tagBlockMatch.name.toLowerCase()
         );
       }
-      result.tagGroups.push(currentTagGroup);
+      result.tagGroups.push(newTagGroup);
       continue;
     }
 
@@ -346,7 +349,7 @@ export function parseSitemap(
           sourceNode: source,
           targetLabel: arrowInfo.target,
           targetIsGroup: arrowInfo.targetIsGroup,
-          label: arrowInfo.label,
+          ...(arrowInfo.label !== undefined && { label: arrowInfo.label }),
           lineNumber,
         });
       }
@@ -469,7 +472,7 @@ export function parseSitemap(
       result.edges.push({
         sourceId: arrow.sourceNode.id,
         targetId: aliasHit,
-        label: arrow.label,
+        ...(arrow.label !== undefined && { label: arrow.label }),
         lineNumber: arrow.lineNumber,
       });
       continue;
@@ -490,7 +493,7 @@ export function parseSitemap(
       result.edges.push({
         sourceId: arrow.sourceNode.id,
         targetId: targetContainer.id,
-        label: arrow.label,
+        ...(arrow.label !== undefined && { label: arrow.label }),
         lineNumber: arrow.lineNumber,
       });
     } else {
@@ -507,7 +510,7 @@ export function parseSitemap(
       result.edges.push({
         sourceId: arrow.sourceNode.id,
         targetId: targetNode.id,
-        label: arrow.label,
+        ...(arrow.label !== undefined && { label: arrow.label }),
         lineNumber: arrow.lineNumber,
       });
     }
@@ -585,7 +588,7 @@ function parseNodeLabel(
     id,
     label,
     metadata,
-    description,
+    ...(description !== undefined && { description }),
     children: [],
     parentId: null,
     isContainer: false,

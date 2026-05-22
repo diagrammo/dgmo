@@ -715,7 +715,12 @@ function getComputedRows(
       concurrency > 0
         ? `${formatCount(demand)} / ${formatCount(concurrency)}`
         : `${formatCount(demand)}`;
-    rows.push({ key: 'instances', value, color, inverted: color != null });
+    rows.push({
+      key: 'instances',
+      value,
+      ...(color !== undefined && { color }),
+      inverted: color != null,
+    });
   }
 
   const p = node.computedLatencyPercentiles;
@@ -791,7 +796,7 @@ function getComputedRows(
     rows.push({
       key: 'availability',
       value: formatUptimeShort(node.computedAvailability),
-      color,
+      ...(color !== undefined && { color }),
       inverted: color != null && color !== COLOR_HEALTHY,
     });
   }
@@ -1048,7 +1053,9 @@ function nodeColor(
   // Fills are visibly LOUDER than pre-spec 8-20% color; combined with
   // the 2x OVERLOAD_STROKE_WIDTH, severity reads cleanly without a badge.
   if (severity === 'overloaded') {
-    const fill = shapeFill(palette, COLOR_OVERLOADED, isDark, { solid });
+    const fill = shapeFill(palette, COLOR_OVERLOADED, isDark, {
+      ...(solid !== undefined && { solid }),
+    });
     return {
       fill,
       stroke: COLOR_OVERLOADED,
@@ -1060,7 +1067,9 @@ function nodeColor(
     };
   }
   if (severity === 'warning') {
-    const fill = shapeFill(palette, COLOR_WARNING, isDark, { solid });
+    const fill = shapeFill(palette, COLOR_WARNING, isDark, {
+      ...(solid !== undefined && { solid }),
+    });
     return {
       fill,
       stroke: COLOR_WARNING,
@@ -1072,7 +1081,9 @@ function nodeColor(
     };
   }
   if (severity === 'healthy') {
-    const fill = shapeFill(palette, COLOR_HEALTHY, isDark, { solid });
+    const fill = shapeFill(palette, COLOR_HEALTHY, isDark, {
+      ...(solid !== undefined && { solid }),
+    });
     return {
       fill,
       stroke: COLOR_HEALTHY,
@@ -1585,7 +1596,7 @@ function renderNodes(
             valueFill: rpsColor,
             fontWeight: '500',
             inverted: rpsInverted,
-            invertedBg: rpsInverted ? rpsColor : undefined,
+            ...(rpsInverted && { invertedBg: rpsColor }),
           });
         }
         for (const cr of computedRows) {
@@ -1594,8 +1605,9 @@ function renderNodes(
             value: cr.value,
             valueFill: cr.color ?? textFill,
             fontWeight: 'normal',
-            inverted: cr.inverted,
-            invertedBg: cr.inverted ? cr.color : undefined,
+            ...(cr.inverted !== undefined && { inverted: cr.inverted }),
+            ...(cr.inverted &&
+              cr.color !== undefined && { invertedBg: cr.color }),
           });
         }
 
@@ -1630,7 +1642,7 @@ function renderNodes(
             valueFill: propColor,
             fontWeight: 'normal',
             inverted,
-            invertedBg,
+            ...(invertedBg !== undefined && { invertedBg }),
           });
         }
 

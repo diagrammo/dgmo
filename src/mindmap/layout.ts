@@ -396,13 +396,17 @@ function finalize(
   const edges: MindmapLayoutEdge[] = [];
 
   for (const p of positioned) {
+    const resolvedColor = resolveNodeColor(p.node, tagGroups, activeTagGroup);
+    const hiddenCount = hiddenCounts.get(p.node.id);
     nodes.push({
       id: p.node.id,
       label: p.node.label,
-      description: p.node.description,
+      ...(p.node.description !== undefined && {
+        description: p.node.description,
+      }),
       metadata: p.node.metadata,
       lineNumber: p.node.lineNumber,
-      color: resolveNodeColor(p.node, tagGroups, activeTagGroup),
+      ...(resolvedColor !== undefined && { color: resolvedColor }),
       x: p.x + offsetX,
       y: p.y + offsetY,
       width: p.width,
@@ -410,7 +414,7 @@ function finalize(
       depth: p.depth,
       angle: 0,
       radius: 0,
-      hiddenCount: hiddenCounts.get(p.node.id),
+      ...(hiddenCount !== undefined && { hiddenCount }),
       hasChildren: hiddenCounts.has(p.node.id) || p.node.children.length > 0,
     });
   }

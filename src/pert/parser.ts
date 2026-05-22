@@ -259,7 +259,11 @@ function peelAlias(text: string): { head: string; alias?: string } {
   const trimmed = text.trim();
   const m = trimmed.match(ALIAS_SUFFIX_RE);
   if (!m) return { head: trimmed };
-  return { head: trimmed.slice(0, m.index!).trim(), alias: m[1] };
+  const alias = m[1];
+  return {
+    head: trimmed.slice(0, m.index!).trim(),
+    ...(alias !== undefined && { alias }),
+  };
 }
 
 /**
@@ -877,6 +881,7 @@ export function parsePert(
         continue;
       }
 
+      const groupHint = currentGroupId();
       const site: DeclarationSite = {
         name: tok.name,
         ...(tok.alias !== undefined && { alias: tok.alias }),
@@ -885,7 +890,7 @@ export function parsePert(
           pipeMetadata: tok.pipeMetadata,
         }),
         lineNumber,
-        ...(currentGroupId() !== undefined && { groupHint: currentGroupId() }),
+        ...(groupHint !== undefined && { groupHint }),
       };
       registerSite(site);
       currentSourceName = tok.name;

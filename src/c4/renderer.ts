@@ -98,7 +98,9 @@ function nodeFill(
   solid?: boolean
 ): string {
   const color = typeColor(type, palette, nodeColor);
-  return shapeFill(palette, color, isDark, { solid });
+  return shapeFill(palette, color, isDark, {
+    ...(solid !== undefined && { solid }),
+  });
 }
 
 function nodeStroke(

@@ -570,7 +570,9 @@ export function renderPert(
       y: tagLegendY,
       width: exportWidth,
       activeGroup: tagLegendActive,
-      exportMode: options.exportMode,
+      ...(options.exportMode !== undefined && {
+        exportMode: options.exportMode,
+      }),
     });
   }
 
@@ -625,7 +627,10 @@ export function renderPertForExport(
    */
   now?: Date
 ): string {
-  const parsed = parsePert(content, { now, palette });
+  const parsed = parsePert(content, {
+    ...(now !== undefined && { now }),
+    palette,
+  });
   if (parsed.error || parsed.activities.length === 0) return '';
 
   const resolved = analyzePert(parsed);
@@ -987,7 +992,7 @@ function paintAnalysisRowMode(
       renderScurveBlock(svg, state.scurveData!, {
         ...args,
         unit: resolved.options.timeUnit,
-        title: scurveTitle,
+        ...(scurveTitle !== undefined && { title: scurveTitle }),
       });
     }
     cursorX += chartWidth + ANALYSIS_GAP;
@@ -1159,7 +1164,7 @@ function paintAnalysisStackMode(
           renderScurveBlock(svg, state.scurveData!, {
             ...args,
             unit: resolved.options.timeUnit,
-            title: scurveTitle,
+            ...(scurveTitle !== undefined && { title: scurveTitle }),
           });
           break;
         }
@@ -1881,10 +1886,8 @@ function renderNodes(
       pinned: pinnedSet.has(node.id) ? anchorKind : null,
       outerColW: sizing.outerColW,
       midColW: sizing.midColW,
-      ...(tagBandFill !== undefined && {
-        midBandFill: tagBandFill,
-        midBandLabelColor: tagLabelColor,
-      }),
+      ...(tagBandFill !== undefined && { midBandFill: tagBandFill }),
+      ...(tagLabelColor !== undefined && { midBandLabelColor: tagLabelColor }),
     });
   }
 }

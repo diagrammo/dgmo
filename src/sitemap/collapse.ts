@@ -28,7 +28,7 @@ function cloneNode(node: SitemapNode): SitemapNode {
     parentId: node.parentId,
     isContainer: node.isContainer,
     lineNumber: node.lineNumber,
-    color: node.color,
+    ...(node.color !== undefined && { color: node.color }),
   };
 }
 
@@ -44,7 +44,7 @@ function countDescendants(node: SitemapNode): number {
 function computeHiddenCounts(
   nodes: SitemapNode[],
   collapsedIds: Set<string>,
-  hiddenCounts: Map<string, number>,
+  hiddenCounts: Map<string, number>
 ): void {
   for (const node of nodes) {
     if (collapsedIds.has(node.id) && node.children.length > 0) {
@@ -80,7 +80,7 @@ function findVisibleAncestor(
   nodeId: string,
   parentMap: Map<string, string>,
   visibleIds: Set<string>,
-  collapsedIds: Set<string>,
+  collapsedIds: Set<string>
 ): string | null {
   let current = nodeId;
   while (true) {
@@ -110,7 +110,7 @@ function buildParentMap(nodes: SitemapNode[], map: Map<string, string>): void {
 
 export function collapseSitemapTree(
   original: ParsedSitemap,
-  collapsedIds: Set<string>,
+  collapsedIds: Set<string>
 ): CollapsedSitemapResult {
   const hiddenCounts = new Map<string, number>();
 
@@ -156,12 +156,22 @@ export function collapseSitemapTree(
 
     // Re-terminate hidden endpoints
     if (!sourceVisible) {
-      const ancestor = findVisibleAncestor(sourceId, parentMap, visibleIds, collapsedIds);
+      const ancestor = findVisibleAncestor(
+        sourceId,
+        parentMap,
+        visibleIds,
+        collapsedIds
+      );
       if (!ancestor) continue; // both endpoints hidden with no visible ancestor
       sourceId = ancestor;
     }
     if (!targetVisible) {
-      const ancestor = findVisibleAncestor(targetId, parentMap, visibleIds, collapsedIds);
+      const ancestor = findVisibleAncestor(
+        targetId,
+        parentMap,
+        visibleIds,
+        collapsedIds
+      );
       if (!ancestor) continue;
       targetId = ancestor;
     }

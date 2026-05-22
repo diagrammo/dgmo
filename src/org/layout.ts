@@ -326,7 +326,7 @@ function computeLegendGroups(
 
     groups.push({
       name: group.name,
-      alias: group.alias,
+      ...(group.alias !== undefined && { alias: group.alias }),
       entries: visibleEntries.map((e) => ({
         value: e.value,
         color: e.color,
@@ -814,6 +814,13 @@ export function layoutOrg(
       const count = countDescendantNodes(ec.orgNode, hiddenCounts);
       if (count > 0) meta[subNodeKey] = String(count);
     }
+    const ecColor = resolveNodeColor(
+      ec.orgNode,
+      parsed.tagGroups,
+      activeTagGroup ?? null
+    );
+    const ecHasChildren =
+      ec.orgNode.children.length > 0 || (hc != null && hc > 0) || undefined;
     layoutNodes.push({
       id: ec.orgNode.id,
       label: ec.orgNode.label,
@@ -821,18 +828,13 @@ export function layoutOrg(
       tagMetadata: { ...ec.orgNode.metadata },
       isContainer: ec.orgNode.isContainer,
       lineNumber: ec.orgNode.lineNumber,
-      color: resolveNodeColor(
-        ec.orgNode,
-        parsed.tagGroups,
-        activeTagGroup ?? null
-      ),
+      ...(ecColor !== undefined && { color: ecColor }),
       x: ec.cx + offsetX,
       y: ec.cy + offsetY,
       width: ec.width,
       height: ec.height,
-      hiddenCount: hc,
-      hasChildren:
-        ec.orgNode.children.length > 0 || (hc != null && hc > 0) || undefined,
+      ...(hc !== undefined && { hiddenCount: hc }),
+      ...(ecHasChildren !== undefined && { hasChildren: ecHasChildren }),
     });
   }
 
@@ -862,6 +864,15 @@ export function layoutOrg(
       const count = countDescendantNodes(orgNode, hiddenCounts);
       if (count > 0) nodeMeta[subNodeKey] = String(count);
     }
+    const nodeColor = resolveNodeColor(
+      orgNode,
+      parsed.tagGroups,
+      activeTagGroup ?? null
+    );
+    const nodeHasChildren =
+      (d.children != null && d.children.length > 0) ||
+      (hc != null && hc > 0) ||
+      undefined;
     layoutNodes.push({
       id: orgNode.id,
       label: orgNode.label,
@@ -869,20 +880,13 @@ export function layoutOrg(
       tagMetadata: { ...orgNode.metadata },
       isContainer: orgNode.isContainer,
       lineNumber: orgNode.lineNumber,
-      color: resolveNodeColor(
-        orgNode,
-        parsed.tagGroups,
-        activeTagGroup ?? null
-      ),
+      ...(nodeColor !== undefined && { color: nodeColor }),
       x,
       y,
       width: w,
       height: ht,
-      hiddenCount: hc,
-      hasChildren:
-        (d.children != null && d.children.length > 0) ||
-        (hc != null && hc > 0) ||
-        undefined,
+      ...(hc !== undefined && { hiddenCount: hc }),
+      ...(nodeHasChildren !== undefined && { hasChildren: nodeHasChildren }),
     });
 
     // Collect children per parent for bus-style edge generation
@@ -1018,15 +1022,17 @@ export function layoutOrg(
 
     const chc = hiddenCounts?.get(d.data.orgNode.id);
     const cMeta = filterMetadata(d.data.orgNode.metadata, hiddenAttributes);
+    const cColor = resolveNodeColor(
+      d.data.orgNode,
+      parsed.tagGroups,
+      activeTagGroup ?? null
+    );
+    const cHasChildren = (chc != null && chc > 0) || undefined;
     containers.push({
       nodeId: d.data.orgNode.id,
       label: d.data.orgNode.label,
       lineNumber: d.data.orgNode.lineNumber,
-      color: resolveNodeColor(
-        d.data.orgNode,
-        parsed.tagGroups,
-        activeTagGroup ?? null
-      ),
+      ...(cColor !== undefined && { color: cColor }),
       metadata: cMeta,
       tagMetadata: { ...d.data.orgNode.metadata },
       x: boxX,
@@ -1034,8 +1040,8 @@ export function layoutOrg(
       width: boxWidth,
       height: boxHeight,
       labelHeight,
-      hiddenCount: chc,
-      hasChildren: (chc != null && chc > 0) || undefined,
+      ...(chc !== undefined && { hiddenCount: chc }),
+      ...(cHasChildren !== undefined && { hasChildren: cHasChildren }),
     });
   }
 
@@ -1128,15 +1134,16 @@ export function layoutOrg(
 
     const chc2 = hiddenCounts?.get(d.data.orgNode.id);
     const cMeta2 = filterMetadata(d.data.orgNode.metadata, hiddenAttributes);
+    const c2Color = resolveNodeColor(
+      d.data.orgNode,
+      parsed.tagGroups,
+      activeTagGroup ?? null
+    );
     containers.push({
       nodeId: d.data.orgNode.id,
       label: d.data.orgNode.label,
       lineNumber: d.data.orgNode.lineNumber,
-      color: resolveNodeColor(
-        d.data.orgNode,
-        parsed.tagGroups,
-        activeTagGroup ?? null
-      ),
+      ...(c2Color !== undefined && { color: c2Color }),
       metadata: cMeta2,
       tagMetadata: { ...d.data.orgNode.metadata },
       x: centeredBoxX,
@@ -1144,7 +1151,7 @@ export function layoutOrg(
       width: finalBoxWidth,
       height: boxHeight,
       labelHeight,
-      hiddenCount: chc2,
+      ...(chc2 !== undefined && { hiddenCount: chc2 }),
       hasChildren: true,
     });
   }

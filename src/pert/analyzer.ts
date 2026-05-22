@@ -593,7 +593,7 @@ export function analyzePert(parsed: ParsedPert): ResolvedPert {
     trialsClamped,
     anchor: parsed.options.anchor,
     today: parsed.options.today,
-    sprintDays,
+    ...(sprintDays !== undefined && { sprintDays }),
   });
 
   const projectSubtitle = buildProjectSubtitle({

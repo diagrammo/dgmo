@@ -673,36 +673,44 @@ export function layoutInfra(
   dagre.layout(g);
 
   // Extract positioned nodes
-  const layoutNodes: InfraLayoutNode[] = computed.nodes.map((node) => {
-    const pos = g.node(node.id);
-    return {
-      id: node.id,
-      label: node.label,
-      x: pos.x,
-      y: pos.y,
-      width: widthMap.get(node.id) ?? MIN_NODE_WIDTH,
-      height: heightMap.get(node.id) ?? NODE_HEADER_HEIGHT + NODE_PAD_BOTTOM,
-      computedRps: node.computedRps,
-      overloaded: node.overloaded,
-      rateLimited: node.rateLimited,
-      isEdge: node.isEdge,
-      groupId: node.groupId,
-      computedLatencyMs: node.computedLatencyMs,
-      computedLatencyPercentiles: node.computedLatencyPercentiles,
-      computedUptime: node.computedUptime,
-      computedAvailability: node.computedAvailability,
-      computedAvailabilityPercentiles: node.computedAvailabilityPercentiles,
-      computedInstances: node.computedInstances,
-      computedConcurrentInvocations: node.computedConcurrentInvocations,
-      computedCbState: node.computedCbState,
-      childHealthState: node.childHealthState,
-      queueMetrics: node.queueMetrics,
-      properties: node.properties,
-      tags: node.tags,
-      description: node.description,
-      lineNumber: node.lineNumber,
-    };
-  });
+  const layoutNodes: InfraLayoutNode[] = computed.nodes.map(
+    (node): InfraLayoutNode => {
+      const pos = g.node(node.id);
+      return {
+        id: node.id,
+        label: node.label,
+        x: pos.x,
+        y: pos.y,
+        width: widthMap.get(node.id) ?? MIN_NODE_WIDTH,
+        height: heightMap.get(node.id) ?? NODE_HEADER_HEIGHT + NODE_PAD_BOTTOM,
+        computedRps: node.computedRps,
+        overloaded: node.overloaded,
+        rateLimited: node.rateLimited,
+        isEdge: node.isEdge,
+        groupId: node.groupId,
+        computedLatencyMs: node.computedLatencyMs,
+        computedLatencyPercentiles: node.computedLatencyPercentiles,
+        computedUptime: node.computedUptime,
+        computedAvailability: node.computedAvailability,
+        computedAvailabilityPercentiles: node.computedAvailabilityPercentiles,
+        computedInstances: node.computedInstances,
+        computedConcurrentInvocations: node.computedConcurrentInvocations,
+        computedCbState: node.computedCbState,
+        ...(node.childHealthState !== undefined && {
+          childHealthState: node.childHealthState,
+        }),
+        ...(node.queueMetrics !== undefined && {
+          queueMetrics: node.queueMetrics,
+        }),
+        properties: node.properties,
+        tags: node.tags,
+        ...(node.description !== undefined && {
+          description: node.description,
+        }),
+        lineNumber: node.lineNumber,
+      };
+    }
+  );
 
   // Extract edge waypoints
   const layoutEdges: InfraLayoutEdge[] = [];
@@ -740,45 +748,47 @@ export function layoutInfra(
   }
 
   // Compute group bounding boxes from children
-  const layoutGroups: InfraLayoutGroup[] = computed.groups.map((group) => {
-    const childNodes = layoutNodes.filter((n) => n.groupId === group.id);
-    if (childNodes.length === 0) {
+  const layoutGroups: InfraLayoutGroup[] = computed.groups.map(
+    (group): InfraLayoutGroup => {
+      const childNodes = layoutNodes.filter((n) => n.groupId === group.id);
+      if (childNodes.length === 0) {
+        return {
+          id: group.id,
+          label: group.label,
+          x: 0,
+          y: 0,
+          width: MIN_NODE_WIDTH,
+          height: NODE_HEADER_HEIGHT + NODE_PAD_BOTTOM,
+          ...(group.instances !== undefined && { instances: group.instances }),
+          lineNumber: group.lineNumber,
+        };
+      }
+      let minX = Infinity,
+        minY = Infinity,
+        maxX = -Infinity,
+        maxY = -Infinity;
+      for (const child of childNodes) {
+        const left = child.x - child.width / 2;
+        const right = child.x + child.width / 2;
+        const top = child.y - child.height / 2;
+        const bottom = child.y + child.height / 2;
+        if (left < minX) minX = left;
+        if (right > maxX) maxX = right;
+        if (top < minY) minY = top;
+        if (bottom > maxY) maxY = bottom;
+      }
       return {
         id: group.id,
         label: group.label,
-        x: 0,
-        y: 0,
-        width: MIN_NODE_WIDTH,
-        height: NODE_HEADER_HEIGHT + NODE_PAD_BOTTOM,
-        instances: group.instances,
+        x: minX - GROUP_PADDING,
+        y: minY - GROUP_PADDING - GROUP_HEADER_HEIGHT,
+        width: maxX - minX + GROUP_PADDING * 2,
+        height: maxY - minY + GROUP_PADDING * 2 + GROUP_HEADER_HEIGHT,
+        ...(group.instances !== undefined && { instances: group.instances }),
         lineNumber: group.lineNumber,
       };
     }
-    let minX = Infinity,
-      minY = Infinity,
-      maxX = -Infinity,
-      maxY = -Infinity;
-    for (const child of childNodes) {
-      const left = child.x - child.width / 2;
-      const right = child.x + child.width / 2;
-      const top = child.y - child.height / 2;
-      const bottom = child.y + child.height / 2;
-      if (left < minX) minX = left;
-      if (right > maxX) maxX = right;
-      if (top < minY) minY = top;
-      if (bottom > maxY) maxY = bottom;
-    }
-    return {
-      id: group.id,
-      label: group.label,
-      x: minX - GROUP_PADDING,
-      y: minY - GROUP_PADDING - GROUP_HEADER_HEIGHT,
-      width: maxX - minX + GROUP_PADDING * 2,
-      height: maxY - minY + GROUP_PADDING * 2 + GROUP_HEADER_HEIGHT,
-      instances: group.instances,
-      lineNumber: group.lineNumber,
-    };
-  });
+  );
 
   // Separate overlapping groups (post-layout pass) and fix stale edge waypoints
   const groupDeltas = separateGroups(layoutGroups, layoutNodes, isLR);

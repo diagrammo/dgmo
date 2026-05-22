@@ -162,7 +162,7 @@ export function parseJourneyMap(
 
         result.persona = {
           name: personaName,
-          color: personaColor,
+          ...(personaColor !== undefined && { color: personaColor }),
           lineNumber,
         };
         inPersona = true;
@@ -195,7 +195,9 @@ export function parseJourneyMap(
         emitTagLegacyDiagnostic(tagBlockMatch, lineNumber, result.diagnostics);
         currentTagGroup = {
           name: tagBlockMatch.name,
-          alias: tagBlockMatch.alias,
+          ...(tagBlockMatch.alias !== undefined && {
+            alias: tagBlockMatch.alias,
+          }),
           entries: [],
           lineNumber,
         };
@@ -550,8 +552,8 @@ function parseStepLine(
   return {
     id: `step-${counter}`,
     title,
-    score,
-    emotionLabel,
+    ...(score !== undefined && { score }),
+    ...(emotionLabel !== undefined && { emotionLabel }),
     tags,
     annotations: [],
     lineNumber,

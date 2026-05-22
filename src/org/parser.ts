@@ -203,7 +203,9 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
       }
       currentTagGroup = {
         name: tagBlockMatch.name,
-        alias: tagBlockMatch.alias,
+        ...(tagBlockMatch.alias !== undefined && {
+          alias: tagBlockMatch.alias,
+        }),
         entries: [],
         lineNumber,
       };

@@ -162,7 +162,7 @@ export function parsePyramid(content: string): ParsedPyramid {
       currentLayer = {
         label,
         lineNumber: lineNum,
-        color,
+        ...(color !== undefined && { color }),
         description,
         metadata: restMeta,
       };

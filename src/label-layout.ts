@@ -278,7 +278,7 @@ export function computeQuadrantPointLabels(
       x: best.textX,
       y: best.textY,
       anchor: best.anchor,
-      connectorLine,
+      ...(connectorLine !== undefined && { connectorLine }),
     });
   }
 

@@ -162,7 +162,11 @@ function splitArrows(line: string): string[] {
       arrowStart = runStart;
     }
 
-    arrowPositions.push({ start: arrowStart, end: arrowEnd, label });
+    arrowPositions.push({
+      start: arrowStart,
+      end: arrowEnd,
+      ...(label !== undefined && { label }),
+    });
     searchFrom = arrowEnd;
     scanFloor = arrowEnd;
   }
@@ -215,7 +219,9 @@ function parseArrowToken(
     const rawLabel = m[1] ?? '';
     const labelResult = parseInArrowLabel(rawLabel, lineNumber);
     diagnostics.push(...labelResult.diagnostics);
-    return { label: labelResult.label };
+    return {
+      ...(labelResult.label !== undefined && { label: labelResult.label }),
+    };
   }
   return {};
 }

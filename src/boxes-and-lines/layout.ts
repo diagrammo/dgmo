@@ -579,6 +579,9 @@ export async function layoutBoxesAndLines(
             (g) => g.label === label
           );
           const pg = parsed.groups.find((g) => g.label === label);
+          const childCount = collapsed
+            ? (collapseInfo?.collapsedChildCounts.get(label) ?? 0)
+            : undefined;
           layoutGroups.push({
             label,
             lineNumber: pg?.lineNumber ?? og?.lineNumber ?? 0,
@@ -587,9 +590,7 @@ export async function layoutBoxesAndLines(
             width: nw,
             height: nh,
             collapsed,
-            childCount: collapsed
-              ? (collapseInfo?.collapsedChildCounts.get(label) ?? 0)
-              : undefined,
+            ...(childCount !== undefined && { childCount }),
           });
           if (!collapsed) containerAbs.set(n.id, { x: nx, y: ny });
         } else {
@@ -672,12 +673,12 @@ export async function layoutBoxesAndLines(
       layoutEdges.push({
         source: edge.source,
         target: edge.target,
-        label: edge.label,
+        ...(edge.label !== undefined && { label: edge.label }),
         bidirectional: edge.bidirectional,
         lineNumber: edge.lineNumber,
         points,
-        labelX,
-        labelY,
+        ...(labelX !== undefined && { labelX }),
+        ...(labelY !== undefined && { labelY }),
         // In-bounds — i < parsed.edges.length, arrays sized to that length.
         yOffset: edgeYOffsets[i]!,
         parallelCount: edgeParallelCounts[i]!,

@@ -31,7 +31,11 @@ export function parseInlineMarkdown(text: string): InlineSpan[] {
     else if (match[5])
       spans.push({ text: match[5], code: true }); // `code`
     else if (match[6])
-      spans.push({ text: match[6], href: match[7] }); // [text](url)
+      spans.push({
+        text: match[6],
+        ...(match[7] !== undefined && { href: match[7] }),
+      });
+    // [text](url)
     else if (match[8]) {
       // bare URL
       const url = match[8];

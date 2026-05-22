@@ -88,7 +88,7 @@ export function renderJourneyMap(
 
   const layout = layoutJourneyMap(parsed, palette, {
     collapsedPhases,
-    exportDims,
+    ...(exportDims !== undefined && { exportDims }),
     isDark,
   });
 
@@ -1138,9 +1138,7 @@ function renderStepCard(
     palette,
     resolvedColor ?? palette.primary,
     isDark,
-    {
-      solid,
-    }
+    { ...(solid !== undefined && { solid }) }
   );
   const cardStroke = resolvedColor ?? palette.textMuted;
   // Text drawn on top of the card must contrast against the fill,
@@ -1287,7 +1285,9 @@ function renderStepCard(
     const TAG_GAP = 6;
     const stripY = cy - TAG_STRIP_HEIGHT - TAG_GAP;
     // Canonical 25% tint via shapeFill() (or full intent when solid-fill is on)
-    const stripFill = shapeFill(palette, stripColor, isDark, { solid });
+    const stripFill = shapeFill(palette, stripColor, isDark, {
+      ...(solid !== undefined && { solid }),
+    });
 
     stepG
       .append('rect')

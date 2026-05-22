@@ -104,8 +104,12 @@ export async function render(
     options?.viewState ??
     (options?.legendState
       ? {
-          tag: options.legendState.activeGroup ?? undefined,
-          ha: options.legendState.hiddenAttributes,
+          ...(options.legendState.activeGroup !== undefined && {
+            tag: options.legendState.activeGroup,
+          }),
+          ...(options.legendState.hiddenAttributes !== undefined && {
+            ha: options.legendState.hiddenAttributes,
+          }),
         }
       : undefined);
 
@@ -121,10 +125,12 @@ export async function render(
   // Visualization/diagram and unknown/null types all go through the unified renderer
   await ensureDom();
   const svg = await renderForExport(content, theme, paletteColors, viewState, {
-    c4Level: options?.c4Level,
-    c4System: options?.c4System,
-    c4Container: options?.c4Container,
-    tagGroup: options?.tagGroup,
+    ...(options?.c4Level !== undefined && { c4Level: options.c4Level }),
+    ...(options?.c4System !== undefined && { c4System: options.c4System }),
+    ...(options?.c4Container !== undefined && {
+      c4Container: options.c4Container,
+    }),
+    ...(options?.tagGroup !== undefined && { tagGroup: options.tagGroup }),
   });
   return { svg, diagnostics };
 }

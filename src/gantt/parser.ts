@@ -474,8 +474,8 @@ export function parseGantt(
 
         lastTaskNode.dependencies.push({
           targetName,
-          label,
-          offset,
+          ...(label !== undefined && { label }),
+          ...(offset !== undefined && { offset }),
           lineNumber,
         });
         continue;
@@ -527,7 +527,7 @@ export function parseGantt(
       tagBlockIndent = indent;
       currentTagGroup = {
         name: tagMatch.name,
-        alias: tagMatch.alias,
+        ...(tagMatch.alias !== undefined && { alias: tagMatch.alias }),
         entries: [],
         lineNumber,
       };
@@ -956,7 +956,12 @@ export function parseGantt(
         }
       }
 
-      lastTaskNode.dependencies.push({ targetName, label, offset, lineNumber });
+      lastTaskNode.dependencies.push({
+        targetName,
+        ...(label !== undefined && { label }),
+        ...(offset !== undefined && { offset }),
+        lineNumber,
+      });
       continue;
     }
 
@@ -1114,10 +1119,10 @@ export function parseGantt(
       id,
       label,
       duration,
-      explicitStart,
+      ...(explicitStart !== undefined && { explicitStart }),
       uncertain,
       progress,
-      offset: taskOffset,
+      ...(taskOffset !== undefined && { offset: taskOffset }),
       dependencies: [],
       metadata: effectiveMetadata,
       lineNumber: ln,

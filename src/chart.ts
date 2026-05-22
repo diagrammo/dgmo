@@ -310,12 +310,13 @@ export function parseChart(
       }
 
       if (firstToken === 'color') {
-        result.color = resolveColorWithDiagnostic(
+        const resolvedColor = resolveColorWithDiagnostic(
           value.trim(),
           lineNumber,
           result.diagnostics,
           palette
         );
+        if (resolvedColor !== undefined) result.color = resolvedColor;
         continue;
       }
 
@@ -384,7 +385,7 @@ export function parseChart(
     const multiValue = seriesCount >= 2;
     const dataValues = parseDataRowValues(trimmed, {
       multiValue,
-      expectedValues: multiValue ? seriesCount : undefined,
+      ...(multiValue && { expectedValues: seriesCount }),
     });
     if (dataValues) {
       const { label: rawLabel, color: pointColor } = extractColor(
@@ -444,7 +445,7 @@ export function parseChart(
 
   // Eras are only valid for line, multi-line (aliased to 'line'), and area chart types
   if (result.type !== 'line' && result.type !== 'area') {
-    result.eras = undefined;
+    result.eras = [];
   }
 
   // Validation

@@ -187,7 +187,9 @@ function nodeColors(
 ): { fill: string; stroke: string; text: string } {
   const tagColor = resolveTagColor(node.metadata, tagGroups, activeGroupName);
   if (tagColor) {
-    const fill = shapeFill(palette, tagColor, isDark, { solid });
+    const fill = shapeFill(palette, tagColor, isDark, {
+      ...(solid !== undefined && { solid }),
+    });
     const stroke = tagColor;
     const text = contrastText(
       fill,
@@ -987,14 +989,16 @@ export function renderBoxesAndLines(
       groups: parsed.tagGroups,
       position: { placement: 'top-center', titleRelation: 'below-title' },
       mode: exportMode ? 'export' : 'preview',
-      controlsGroup,
+      ...(controlsGroup !== undefined && { controlsGroup }),
     };
     const legendState: LegendState = {
       activeGroup,
-      controlsExpanded,
+      ...(controlsExpanded !== undefined && { controlsExpanded }),
     };
     const legendCallbacks: LegendCallbacks = {
-      onControlsExpand: onToggleControlsExpand,
+      ...(onToggleControlsExpand !== undefined && {
+        onControlsExpand: onToggleControlsExpand,
+      }),
       onControlsToggle: (toggleId, active) => {
         if (toggleId === 'descriptions' && onToggleDescriptions) {
           onToggleDescriptions(active);
@@ -1033,9 +1037,17 @@ export function renderBoxesAndLinesForExport(
   }
 ): void {
   renderBoxesAndLines(container, parsed, layout, palette, isDark, {
-    exportDims: options?.exportDims,
-    activeTagGroup: options?.activeTagGroup,
-    hiddenTagValues: options?.hiddenTagValues,
-    exportMode: options?.exportMode,
+    ...(options?.exportDims !== undefined && {
+      exportDims: options.exportDims,
+    }),
+    ...(options?.activeTagGroup !== undefined && {
+      activeTagGroup: options.activeTagGroup,
+    }),
+    ...(options?.hiddenTagValues !== undefined && {
+      hiddenTagValues: options.hiddenTagValues,
+    }),
+    ...(options?.exportMode !== undefined && {
+      exportMode: options.exportMode,
+    }),
   });
 }

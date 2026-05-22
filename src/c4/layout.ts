@@ -560,8 +560,8 @@ export function rollUpContextRelationships(
     const entry: ContextRelationship = {
       sourceName: sourceAncestor,
       targetName: targetAncestor,
-      label: rel.label,
-      technology: rel.technology,
+      ...(rel.label !== undefined && { label: rel.label }),
+      ...(rel.technology !== undefined && { technology: rel.technology }),
       arrowType: rel.arrowType,
       lineNumber: rel.lineNumber,
     };
@@ -873,7 +873,7 @@ export function layoutC4Context(
   );
 
   // Extract positioned nodes
-  const nodes: C4LayoutNode[] = contextElements.map((el) => {
+  const nodes: C4LayoutNode[] = contextElements.map((el): C4LayoutNode => {
     const pos = g.node(el.name);
     const color = resolveNodeColor(
       el,
@@ -883,16 +883,18 @@ export function layoutC4Context(
     const hasContainers =
       el.children.some((c) => c.type === 'container') ||
       el.groups.some((g) => g.children.some((c) => c.type === 'container'));
+    const description = el.description?.join('\n');
+    const drillable = hasContainers || el.importPath ? true : undefined;
     return {
       id: el.name,
       name: el.name,
       type: el.type as 'person' | 'system',
-      description: el.description?.join('\n'),
+      ...(description !== undefined && { description }),
       metadata: el.metadata,
       lineNumber: el.lineNumber,
-      color,
-      drillable: hasContainers || el.importPath ? true : undefined,
-      importPath: el.importPath,
+      ...(color !== undefined && { color }),
+      ...(drillable !== undefined && { drillable }),
+      ...(el.importPath !== undefined && { importPath: el.importPath }),
       x: pos.x,
       y: pos.y,
       width: pos.width,
@@ -901,14 +903,14 @@ export function layoutC4Context(
   });
 
   // Extract edges with waypoints
-  const edges: C4LayoutEdge[] = validRels.map((rel) => {
+  const edges: C4LayoutEdge[] = validRels.map((rel): C4LayoutEdge => {
     const edgeData = g.edge(rel.sourceName, rel.targetName);
     return {
       source: rel.sourceName,
       target: rel.targetName,
       arrowType: rel.arrowType,
-      label: rel.label,
-      technology: rel.technology,
+      ...(rel.label !== undefined && { label: rel.label }),
+      ...(rel.technology !== undefined && { technology: rel.technology }),
       lineNumber: rel.lineNumber,
       points: edgeData?.points ?? [],
     };
@@ -1156,8 +1158,8 @@ export function layoutC4Containers(
         containerRels.push({
           sourceName: container.name,
           targetName: rel.target,
-          label: rel.label,
-          technology: rel.technology,
+          ...(rel.label !== undefined && { label: rel.label }),
+          ...(rel.technology !== undefined && { technology: rel.technology }),
           arrowType: rel.arrowType,
           lineNumber: rel.lineNumber,
         });
@@ -1178,8 +1180,8 @@ export function layoutC4Containers(
         containerRels.push({
           sourceName: sourceAncestor,
           targetName: rel.target,
-          label: rel.label,
-          technology: rel.technology,
+          ...(rel.label !== undefined && { label: rel.label }),
+          ...(rel.technology !== undefined && { technology: rel.technology }),
           arrowType: rel.arrowType,
           lineNumber: rel.lineNumber,
         });
@@ -1237,18 +1239,20 @@ export function layoutC4Containers(
     const hasComponents =
       el.children.some((c) => c.type === 'component') ||
       el.groups.some((grp) => grp.children.some((c) => c.type === 'component'));
+    const description = el.description?.join('\n');
+    const drillable = hasComponents || el.importPath ? true : undefined;
     nodes.push({
       id: el.name,
       name: el.name,
       type: 'container',
-      description: el.description?.join('\n'),
+      ...(description !== undefined && { description }),
       metadata: el.metadata,
       lineNumber: el.lineNumber,
-      color,
+      ...(color !== undefined && { color }),
       shape: el.shape,
-      technology: tech,
-      drillable: hasComponents || el.importPath ? true : undefined,
-      importPath: el.importPath,
+      ...(tech !== undefined && { technology: tech }),
+      ...(drillable !== undefined && { drillable }),
+      ...(el.importPath !== undefined && { importPath: el.importPath }),
       x: pos.x,
       y: pos.y,
       width: pos.width,
@@ -1263,14 +1267,15 @@ export function layoutC4Containers(
       parsed.tagGroups,
       activeTagGroup ?? null
     );
+    const description = el.description?.join('\n');
     nodes.push({
       id: el.name,
       name: el.name,
       type: el.type as 'person' | 'system',
-      description: el.description?.join('\n'),
+      ...(description !== undefined && { description }),
       metadata: el.metadata,
       lineNumber: el.lineNumber,
-      color,
+      ...(color !== undefined && { color }),
       x: pos.x,
       y: pos.y,
       width: pos.width,
@@ -1284,14 +1289,14 @@ export function layoutC4Containers(
       (rel) =>
         nameToElement.has(rel.sourceName) && nameToElement.has(rel.targetName)
     )
-    .map((rel) => {
+    .map((rel): C4LayoutEdge => {
       const edgeData = g.edge(rel.sourceName, rel.targetName);
       return {
         source: rel.sourceName,
         target: rel.targetName,
         arrowType: rel.arrowType,
-        label: rel.label,
-        technology: rel.technology,
+        ...(rel.label !== undefined && { label: rel.label }),
+        ...(rel.technology !== undefined && { technology: rel.technology }),
         lineNumber: rel.lineNumber,
         points: edgeData?.points ?? [],
       };
@@ -1688,8 +1693,8 @@ export function layoutC4Components(
         componentRels.push({
           sourceName: component.name,
           targetName: rel.target,
-          label: rel.label,
-          technology: rel.technology,
+          ...(rel.label !== undefined && { label: rel.label }),
+          ...(rel.technology !== undefined && { technology: rel.technology }),
           arrowType: rel.arrowType,
           lineNumber: rel.lineNumber,
         });
@@ -1721,8 +1726,8 @@ export function layoutC4Components(
       componentRels.push({
         sourceName: resolvedSource,
         targetName: rel.target,
-        label: rel.label,
-        technology: rel.technology,
+        ...(rel.label !== undefined && { label: rel.label }),
+        ...(rel.technology !== undefined && { technology: rel.technology }),
         arrowType: rel.arrowType,
         lineNumber: rel.lineNumber,
       });
@@ -1783,18 +1788,20 @@ export function layoutC4Components(
     const hasComponents =
       el.children.some((c) => c.type === 'component') ||
       el.groups.some((grp) => grp.children.some((c) => c.type === 'component'));
+    const description = el.description?.join('\n');
+    const drillable = hasComponents || el.importPath ? true : undefined;
     nodes.push({
       id: el.name,
       name: el.name,
       type: 'component',
-      description: el.description?.join('\n'),
+      ...(description !== undefined && { description }),
       metadata: el.metadata,
       lineNumber: el.lineNumber,
-      color,
+      ...(color !== undefined && { color }),
       shape: el.shape,
-      technology: tech,
-      drillable: hasComponents || el.importPath ? true : undefined,
-      importPath: el.importPath,
+      ...(tech !== undefined && { technology: tech }),
+      ...(drillable !== undefined && { drillable }),
+      ...(el.importPath !== undefined && { importPath: el.importPath }),
       x: pos.x,
       y: pos.y,
       width: pos.width,
@@ -1809,14 +1816,15 @@ export function layoutC4Components(
       parsed.tagGroups,
       activeTagGroup ?? null
     );
+    const description = el.description?.join('\n');
     nodes.push({
       id: el.name,
       name: el.name,
       type: el.type as 'person' | 'system' | 'container',
-      description: el.description?.join('\n'),
+      ...(description !== undefined && { description }),
       metadata: el.metadata,
       lineNumber: el.lineNumber,
-      color,
+      ...(color !== undefined && { color }),
       x: pos.x,
       y: pos.y,
       width: pos.width,
@@ -1830,14 +1838,14 @@ export function layoutC4Components(
       (rel) =>
         nameToElement.has(rel.sourceName) && nameToElement.has(rel.targetName)
     )
-    .map((rel) => {
+    .map((rel): C4LayoutEdge => {
       const edgeData = g.edge(rel.sourceName, rel.targetName);
       return {
         source: rel.sourceName,
         target: rel.targetName,
         arrowType: rel.arrowType,
-        label: rel.label,
-        technology: rel.technology,
+        ...(rel.label !== undefined && { label: rel.label }),
+        ...(rel.technology !== undefined && { technology: rel.technology }),
         lineNumber: rel.lineNumber,
         points: edgeData?.points ?? [],
       };
@@ -2176,8 +2184,8 @@ export function layoutC4Deployment(
           deployRels.push({
             sourceName: r.element.name,
             targetName: rel.target,
-            label: rel.label,
-            technology: rel.technology,
+            ...(rel.label !== undefined && { label: rel.label }),
+            ...(rel.technology !== undefined && { technology: rel.technology }),
             arrowType: rel.arrowType,
             lineNumber: rel.lineNumber,
           });
@@ -2232,16 +2240,17 @@ export function layoutC4Deployment(
       activeTagGroup ?? null
     );
     const tech = r.element.metadata['tech'] ?? r.element.metadata['technology'];
+    const description = r.element.description?.join('\n');
     nodes.push({
       id: r.element.name,
       name: r.element.name,
       type: 'container',
-      description: r.element.description?.join('\n'),
+      ...(description !== undefined && { description }),
       metadata: r.element.metadata,
       lineNumber: r.element.lineNumber,
-      color,
+      ...(color !== undefined && { color }),
       shape: r.element.shape,
-      technology: tech,
+      ...(tech !== undefined && { technology: tech }),
       x: pos.x,
       y: pos.y,
       width: pos.width,
@@ -2255,14 +2264,14 @@ export function layoutC4Deployment(
       (rel) =>
         nameToElement.has(rel.sourceName) && nameToElement.has(rel.targetName)
     )
-    .map((rel) => {
+    .map((rel): C4LayoutEdge => {
       const edgeData = g.edge(rel.sourceName, rel.targetName);
       return {
         source: rel.sourceName,
         target: rel.targetName,
         arrowType: rel.arrowType,
-        label: rel.label,
-        technology: rel.technology,
+        ...(rel.label !== undefined && { label: rel.label }),
+        ...(rel.technology !== undefined && { technology: rel.technology }),
         lineNumber: rel.lineNumber,
         points: edgeData?.points ?? [],
       };

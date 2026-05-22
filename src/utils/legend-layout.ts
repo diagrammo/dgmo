@@ -248,7 +248,6 @@ export function computeLegendLayout(
       rows: [],
       controls: [],
       pills: [],
-      activeCapsule: undefined,
     };
   }
 
@@ -271,7 +270,6 @@ export function computeLegendLayout(
       rows: [],
       controls: [],
       pills: [],
-      activeCapsule: undefined,
     };
   }
 
@@ -282,6 +280,14 @@ export function computeLegendLayout(
   if (configControls && !isExport) {
     for (const ctrl of configControls) {
       const w = controlWidth(ctrl);
+      const children = ctrl.children?.map((c) => ({
+        id: c.id,
+        label: c.label,
+        x: 0,
+        y: 0,
+        width: measureLegendText(c.label, CONTROL_FONT_SIZE) + 12,
+        ...(c.isActive !== undefined && { isActive: c.isActive }),
+      }));
       controlLayouts.push({
         id: ctrl.id,
         x: 0, // positioned later
@@ -289,16 +295,9 @@ export function computeLegendLayout(
         width: w,
         height: LEGEND_HEIGHT,
         icon: ctrl.icon,
-        label: ctrl.label,
+        ...(ctrl.label !== undefined && { label: ctrl.label }),
         exportBehavior: ctrl.exportBehavior,
-        children: ctrl.children?.map((c) => ({
-          id: c.id,
-          label: c.label,
-          x: 0,
-          y: 0,
-          width: measureLegendText(c.label, CONTROL_FONT_SIZE) + 12,
-          isActive: c.isActive,
-        })),
+        ...(children !== undefined && { children }),
       });
       totalControlsW += w + CONTROL_GAP;
     }
@@ -308,6 +307,14 @@ export function computeLegendLayout(
     for (const ctrl of configControls) {
       if (ctrl.exportBehavior === 'strip') continue;
       const w = controlWidth(ctrl);
+      const children = ctrl.children?.map((c) => ({
+        id: c.id,
+        label: c.label,
+        x: 0,
+        y: 0,
+        width: measureLegendText(c.label, CONTROL_FONT_SIZE) + 12,
+        ...(c.isActive !== undefined && { isActive: c.isActive }),
+      }));
       controlLayouts.push({
         id: ctrl.id,
         x: 0,
@@ -315,16 +322,9 @@ export function computeLegendLayout(
         width: w,
         height: LEGEND_HEIGHT,
         icon: ctrl.icon,
-        label: ctrl.label,
+        ...(ctrl.label !== undefined && { label: ctrl.label }),
         exportBehavior: ctrl.exportBehavior,
-        children: ctrl.children?.map((c) => ({
-          id: c.id,
-          label: c.label,
-          x: 0,
-          y: 0,
-          width: measureLegendText(c.label, CONTROL_FONT_SIZE) + 12,
-          isActive: c.isActive,
-        })),
+        ...(children !== undefined && { children }),
       });
       totalControlsW += w + CONTROL_GAP;
     }
@@ -388,10 +388,12 @@ export function computeLegendLayout(
     height,
     width,
     rows,
-    activeCapsule,
+    ...(activeCapsule !== undefined && { activeCapsule }),
     controls: controlLayouts,
     pills,
-    controlsGroup: controlsGroupLayout,
+    ...(controlsGroupLayout !== undefined && {
+      controlsGroup: controlsGroupLayout,
+    }),
   };
 }
 
@@ -472,8 +474,8 @@ function buildCapsuleLayout(
     height: capsuleH,
     pill,
     entries,
-    moreCount: info.moreCount > 0 ? info.moreCount : undefined,
-    addonX: addonWidth > 0 ? LEGEND_CAPSULE_PAD + pw + 4 : undefined,
+    ...(info.moreCount > 0 && { moreCount: info.moreCount }),
+    ...(addonWidth > 0 && { addonX: LEGEND_CAPSULE_PAD + pw + 4 }),
   };
 }
 

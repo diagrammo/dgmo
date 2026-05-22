@@ -144,7 +144,7 @@ function parseRelationship(
         target: tableId(targetName),
         from: fromCard,
         to: toCard,
-        label,
+        ...(label !== undefined && { label }),
       };
     }
   }
@@ -213,7 +213,7 @@ function parseColumn(trimmed: string): {
     }
   }
 
-  return { name, type, constraints };
+  return { name, ...(type !== undefined && { type }), constraints };
 }
 
 // ============================================================
@@ -335,7 +335,9 @@ export function parseERDiagram(
         emitTagLegacyDiagnostic(tagBlockMatch, lineNumber, result.diagnostics);
         currentTagGroup = {
           name: tagBlockMatch.name,
-          alias: tagBlockMatch.alias,
+          ...(tagBlockMatch.alias !== undefined && {
+            alias: tagBlockMatch.alias,
+          }),
           entries: [],
           lineNumber,
         };

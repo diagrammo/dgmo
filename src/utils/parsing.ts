@@ -136,7 +136,7 @@ export function extractColor(
   }
   return {
     label: label.substring(0, lastSpaceIdx).trimEnd(),
-    color,
+    ...(color !== undefined && { color }),
   };
 }
 

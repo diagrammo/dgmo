@@ -310,7 +310,9 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
       }
       currentTagGroup = {
         name: tagBlockMatch.name,
-        alias: tagBlockMatch.alias,
+        ...(tagBlockMatch.alias !== undefined && {
+          alias: tagBlockMatch.alias,
+        }),
         entries: [],
         lineNumber,
       };
@@ -576,8 +578,8 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
 
         const rel: C4Relationship = {
           target: resolveNameRef(target),
-          label,
-          technology,
+          ...(label !== undefined && { label }),
+          ...(technology !== undefined && { technology }),
           arrowType,
           lineNumber,
         };
@@ -761,7 +763,7 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
         type: elementType,
         shape,
         metadata,
-        description: isADescription,
+        ...(isADescription !== undefined && { description: isADescription }),
         children: [],
         groups: [],
         relationships: [],
@@ -841,7 +843,9 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
         type: elementType,
         shape,
         metadata,
-        description: prefixDescription,
+        ...(prefixDescription !== undefined && {
+          description: prefixDescription,
+        }),
         children: [],
         groups: [],
         relationships: [],

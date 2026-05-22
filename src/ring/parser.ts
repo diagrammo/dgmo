@@ -191,7 +191,7 @@ export function parseRing(content: string): ParsedRing {
       currentLayer = {
         label,
         lineNumber: lineNum,
-        color,
+        ...(color !== undefined && { color }),
         description,
         metadata: restMeta,
       };

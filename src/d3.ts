@@ -558,19 +558,22 @@ export function parseVisualization(
     if (result.type === 'timeline' && indent === 0) {
       const tagBlockMatch = matchTagBlockHeading(line);
       if (tagBlockMatch) {
-        currentTimelineTagGroup = {
+        const newGroup: TagGroup = {
           name: tagBlockMatch.name,
-          alias: tagBlockMatch.alias,
+          ...(tagBlockMatch.alias !== undefined && {
+            alias: tagBlockMatch.alias,
+          }),
           entries: [],
           lineNumber,
         };
+        currentTimelineTagGroup = newGroup;
         if (tagBlockMatch.alias) {
           timelineAliasMap.set(
             tagBlockMatch.alias.toLowerCase(),
             tagBlockMatch.name.toLowerCase()
           );
         }
-        result.timelineTagGroups.push(currentTimelineTagGroup);
+        result.timelineTagGroups.push(newGroup);
         continue;
       }
     }
@@ -7759,6 +7762,12 @@ export async function renderForExport(
     container.style.left = '-9999px';
     document.body.appendChild(container);
 
+    const kanbanCollapsedLanes = viewState?.cl
+      ? new Set(viewState.cl)
+      : undefined;
+    const kanbanCollapsedColumns = viewState?.cc
+      ? new Set(viewState.cc)
+      : undefined;
     renderKanban(container, kanbanParsed, effectivePalette, theme === 'dark', {
       activeTagGroup: resolveActiveTagGroup(
         kanbanParsed.tagGroups,
@@ -7766,9 +7775,13 @@ export async function renderForExport(
         viewState?.tag ?? options?.tagGroup
       ),
       currentSwimlaneGroup: viewState?.swim ?? null,
-      collapsedLanes: viewState?.cl ? new Set(viewState.cl) : undefined,
-      collapsedColumns: viewState?.cc ? new Set(viewState.cc) : undefined,
-      compactMeta: viewState?.cm,
+      ...(kanbanCollapsedLanes !== undefined && {
+        collapsedLanes: kanbanCollapsedLanes,
+      }),
+      ...(kanbanCollapsedColumns !== undefined && {
+        collapsedColumns: kanbanCollapsedColumns,
+      }),
+      ...(viewState?.cm !== undefined && { compactMeta: viewState.cm }),
       exportMode,
     });
     return finalizeSvgExport(container, theme, effectivePalette);
@@ -7864,6 +7877,7 @@ export async function renderForExport(
     const exportHeight = blLayout.height + PADDING * 2 + titleOffset;
     const container = createExportContainer(exportWidth, exportHeight);
 
+    const blActiveTagGroup = viewState?.tag ?? options?.tagGroup;
     renderBoxesAndLinesForExport(
       container,
       blParsed,
@@ -7872,8 +7886,12 @@ export async function renderForExport(
       theme === 'dark',
       {
         exportDims: { width: exportWidth, height: exportHeight },
-        activeTagGroup: viewState?.tag ?? options?.tagGroup,
-        hiddenTagValues: blHiddenTagValues,
+        ...(blActiveTagGroup !== undefined && {
+          activeTagGroup: blActiveTagGroup,
+        }),
+        ...(blHiddenTagValues !== undefined && {
+          hiddenTagValues: blHiddenTagValues,
+        }),
         exportMode,
       }
     );
@@ -7910,7 +7928,7 @@ export async function renderForExport(
 
     const mmLayout = layoutMindmap(effectiveParsed, effectivePalette, {
       interactive: false,
-      hiddenCounts: hiddenCounts.size > 0 ? hiddenCounts : undefined,
+      ...(hiddenCounts.size > 0 && { hiddenCounts }),
       activeTagGroup,
       hideDescriptions,
     });
@@ -8190,15 +8208,28 @@ export async function renderForExport(
     const EXPORT_H = 800;
     const container = createExportContainer(EXPORT_W, EXPORT_H);
 
+    const ganttCollapsedGroups = viewState?.cg
+      ? new Set(viewState.cg)
+      : undefined;
+    const ganttSwimlaneGroup = viewState?.swim ?? undefined;
+    const ganttCollapsedLanes = viewState?.cl
+      ? new Set(viewState.cl)
+      : undefined;
     renderGantt(
       container,
       resolved,
       effectivePalette,
       theme === 'dark',
       {
-        collapsedGroups: viewState?.cg ? new Set(viewState.cg) : undefined,
-        currentSwimlaneGroup: viewState?.swim ?? undefined,
-        collapsedLanes: viewState?.cl ? new Set(viewState.cl) : undefined,
+        ...(ganttCollapsedGroups !== undefined && {
+          collapsedGroups: ganttCollapsedGroups,
+        }),
+        ...(ganttSwimlaneGroup !== undefined && {
+          currentSwimlaneGroup: ganttSwimlaneGroup,
+        }),
+        ...(ganttCollapsedLanes !== undefined && {
+          collapsedLanes: ganttCollapsedLanes,
+        }),
         currentActiveGroup: resolveActiveTagGroup(
           resolved.tagGroups,
           resolved.options.activeTag ?? undefined,
@@ -8407,7 +8438,9 @@ export async function renderForExport(
       undefined,
       {
         exportWidth: EXPORT_WIDTH,
-        activeTagGroup: options?.tagGroup,
+        ...(options?.tagGroup !== undefined && {
+          activeTagGroup: options.tagGroup,
+        }),
       }
     );
   } else if (parsed.type === 'wordcloud') {

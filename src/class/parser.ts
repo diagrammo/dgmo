@@ -135,10 +135,11 @@ function parseMember(
   const methodMatch = text.match(METHOD_RE);
   if (methodMatch) {
     // METHOD_RE: [1]=name, [2]=params, [3]=optional returnType.
+    const methodType = methodMatch[3]?.trim();
     return {
       name: methodMatch[1]!.trim(),
       params: methodMatch[2]!.trim(),
-      type: methodMatch[3]?.trim(),
+      ...(methodType !== undefined && { type: methodType }),
       visibility,
       isStatic,
       isMethod: true,

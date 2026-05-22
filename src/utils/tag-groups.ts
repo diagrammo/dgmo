@@ -34,7 +34,8 @@ interface TagBlockMatch {
   alias: string | undefined;
   colorHint: string | undefined;
   /** Inline tag values parsed from single-line form (e.g., `tag Priority as p High red, Low blue`) */
-  inlineValues?: string[];
+  // eOPT: widened — constructor always assigns this slot
+  inlineValues?: string[] | undefined;
   /**
    * If the heading used the legacy `tag Name <alias>` (bare shorthand)
    * or `tag Name alias <alias>` (explicit-keyword) syntax, this is set
@@ -42,7 +43,8 @@ interface TagBlockMatch {
    * hard-break — bare shorthand still parses for graceful degradation
    * but is no longer a valid form.
    */
-  legacyForm?: 'bare-shorthand' | 'alias-keyword';
+  // eOPT: widened — constructor always assigns this slot
+  legacyForm?: 'bare-shorthand' | 'alias-keyword' | undefined;
 }
 
 // ── Default Modifier ────────────────────────────────────────

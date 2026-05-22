@@ -247,7 +247,7 @@ function computeLegendGroups(
 
     groups.push({
       name: group.name,
-      alias: group.alias,
+      ...(group.alias !== undefined && { alias: group.alias }),
       entries: visibleEntries.map((e) => ({ value: e.value, color: e.color })),
       x: 0,
       y: 0,
@@ -528,22 +528,28 @@ export function layoutSitemap(
     if (!pos) continue;
 
     const hc = hiddenCounts?.get(node.id);
+    const resolvedColor = resolveNodeColor(
+      node,
+      parsed.tagGroups,
+      activeTagGroup ?? null
+    );
     layoutNodes.push({
       id: node.id,
       label: node.label,
       metadata: flat.meta,
       tagMetadata: flat.fullMeta,
-      description: node.description,
+      ...(node.description !== undefined && { description: node.description }),
       isContainer: false,
       lineNumber: node.lineNumber,
-      color: resolveNodeColor(node, parsed.tagGroups, activeTagGroup ?? null),
+      ...(resolvedColor !== undefined && { color: resolvedColor }),
       x: pos.x,
       y: pos.y - pos.height / 2,
       width: pos.width,
       height: pos.height,
-      hiddenCount: hc,
-      hasChildren:
-        node.children.length > 0 || (hc != null && hc > 0) || undefined,
+      ...(hc !== undefined && { hiddenCount: hc }),
+      ...((node.children.length > 0 || (hc != null && hc > 0)) && {
+        hasChildren: true,
+      }),
     });
   }
 
@@ -558,12 +564,17 @@ export function layoutSitemap(
     const labelHeight =
       CONTAINER_LABEL_HEIGHT + metaCount * CONTAINER_META_LINE_HEIGHT;
 
+    const containerColor = resolveNodeColor(
+      node,
+      parsed.tagGroups,
+      activeTagGroup ?? null
+    );
     if (pos) {
       layoutContainers.push({
         nodeId: node.id,
         label: node.label,
         lineNumber: node.lineNumber,
-        color: resolveNodeColor(node, parsed.tagGroups, activeTagGroup ?? null),
+        ...(containerColor !== undefined && { color: containerColor }),
         metadata: flat.meta,
         tagMetadata: flat.fullMeta,
         x: pos.x - pos.width / 2,
@@ -571,9 +582,10 @@ export function layoutSitemap(
         width: pos.width,
         height: pos.height,
         labelHeight,
-        hiddenCount: hc,
-        hasChildren:
-          node.children.length > 0 || (hc != null && hc > 0) || undefined,
+        ...(hc !== undefined && { hiddenCount: hc }),
+        ...((node.children.length > 0 || (hc != null && hc > 0)) && {
+          hasChildren: true,
+        }),
       });
     } else {
       // Fallback — still apply the floor for consistency
@@ -589,7 +601,7 @@ export function layoutSitemap(
         nodeId: node.id,
         label: node.label,
         lineNumber: node.lineNumber,
-        color: resolveNodeColor(node, parsed.tagGroups, activeTagGroup ?? null),
+        ...(containerColor !== undefined && { color: containerColor }),
         metadata: flat.meta,
         tagMetadata: flat.fullMeta,
         x: MARGIN,
@@ -597,9 +609,10 @@ export function layoutSitemap(
         width: flooredW,
         height: flooredH,
         labelHeight,
-        hiddenCount: hc,
-        hasChildren:
-          node.children.length > 0 || (hc != null && hc > 0) || undefined,
+        ...(hc !== undefined && { hiddenCount: hc }),
+        ...((node.children.length > 0 || (hc != null && hc > 0)) && {
+          hasChildren: true,
+        }),
       });
     }
   }
@@ -652,9 +665,9 @@ export function layoutSitemap(
       sourceId: edge.sourceId,
       targetId: edge.targetId,
       points,
-      label: edge.label,
+      ...(edge.label !== undefined && { label: edge.label }),
       lineNumber: edge.lineNumber,
-      deferred: deferredSet.has(i) || undefined,
+      ...(deferredSet.has(i) && { deferred: true }),
     });
   }
 

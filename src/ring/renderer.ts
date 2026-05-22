@@ -295,7 +295,7 @@ export function renderRing(
       descFont,
       descLineHeight,
       palette,
-      onClickItem,
+      ...(onClickItem !== undefined && { onClickItem }),
     });
   }
 }

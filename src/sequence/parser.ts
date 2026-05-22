@@ -772,19 +772,22 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
         pushError(lineNumber, 'Tag groups must appear before sequence content');
         continue;
       }
-      currentTagGroup = {
+      const newTagGroup: TagGroup = {
         name: tagBlockMatch.name,
-        alias: tagBlockMatch.alias,
+        ...(tagBlockMatch.alias !== undefined && {
+          alias: tagBlockMatch.alias,
+        }),
         entries: [],
         lineNumber,
       };
+      currentTagGroup = newTagGroup;
       if (tagBlockMatch.alias) {
         aliasMap.set(
           tagBlockMatch.alias.toLowerCase(),
           tagBlockMatch.name.toLowerCase()
         );
       }
-      result.tagGroups.push(currentTagGroup);
+      result.tagGroups.push(newTagGroup);
       continue;
     }
 
@@ -1016,8 +1019,8 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       // Avoid duplicate participant declarations
       const key = addParticipant(id, lineNumber, {
         type: participantType,
-        position,
-        metadata: isAMeta,
+        ...(position !== undefined && { position }),
+        ...(isAMeta !== undefined && { metadata: isAMeta }),
       });
       // Track group membership
       if (activeGroup && !activeGroup.participantIds.includes(key)) {
@@ -1048,7 +1051,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
 
       const key = addParticipant(id, lineNumber, {
         position,
-        metadata: posMeta,
+        ...(posMeta !== undefined && { metadata: posMeta }),
       });
       // Track group membership
       if (activeGroup && !activeGroup.participantIds.includes(key)) {
@@ -1080,7 +1083,9 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
         `'${id}(${color})' parens-color syntax is no longer supported — use 'tag:' groups for coloring`
       );
       contentStarted = true;
-      const key = addParticipant(id, lineNumber, { metadata: colorMeta });
+      const key = addParticipant(id, lineNumber, {
+        ...(colorMeta !== undefined && { metadata: colorMeta }),
+      });
       if (activeGroup && !activeGroup.participantIds.includes(key)) {
         const existingGroup = participantGroupMap.get(key);
         if (existingGroup) {
@@ -1109,7 +1114,9 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       ) {
         contentStarted = true;
         const id = bareCore;
-        const key = addParticipant(id, lineNumber, { metadata: bareMeta });
+        const key = addParticipant(id, lineNumber, {
+          ...(bareMeta !== undefined && { metadata: bareMeta }),
+        });
         if (activeGroup && !activeGroup.participantIds.includes(key)) {
           const existingGroup = participantGroupMap.get(key);
           if (existingGroup) {
@@ -1366,7 +1373,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
         }
         if (top.block.type === 'if') {
           top.inElse = true;
-          top.activeElseIfBranch = undefined;
+          delete top.activeElseIfBranch;
           top.block.elseLineNumber = lineNumber;
         }
       }

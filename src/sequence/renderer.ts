@@ -146,7 +146,9 @@ const fill = (
   solid?: boolean
 ): string =>
   color
-    ? shapeFill(palette, color, isDark, { solid })
+    ? shapeFill(palette, color, isDark, {
+        ...(solid !== undefined && { solid }),
+      })
     : isDark
       ? mix(palette.overlay, palette.surface, 50)
       : mix(palette.bg, palette.surface, 50);
@@ -1658,7 +1660,7 @@ export function renderSequenceDiagram(
       collapsedGroupNames.add(group.name);
       collapsedGroupMeta.set(group.name, {
         lineNumber: group.lineNumber,
-        metadata: group.metadata,
+        ...(group.metadata !== undefined && { metadata: group.metadata }),
       });
     }
   }
@@ -2093,7 +2095,9 @@ export function renderSequenceDiagram(
             y1: dividerY,
             x2: frameX + frameW,
             y2: dividerY,
-            blockLine: el.elseLineNumber,
+            ...(el.elseLineNumber !== undefined && {
+              blockLine: el.elseLineNumber,
+            }),
           });
           deferredLabels.push({
             x: frameX + 6,
@@ -2101,7 +2105,9 @@ export function renderSequenceDiagram(
             text: 'else',
             bold: false,
             italic: false,
-            blockLine: el.elseLineNumber,
+            ...(el.elseLineNumber !== undefined && {
+              blockLine: el.elseLineNumber,
+            }),
           });
         }
       }

@@ -71,7 +71,7 @@ function parsePipeMetadata(
     // Bare words are ignored (no status system)
   }
 
-  return { metadata, description };
+  return { metadata, ...(description !== undefined && { description }) };
 }
 
 /** Convert group label to internal ID */
@@ -273,12 +273,15 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
         );
         continue;
       }
-      currentTagGroup = {
+      const newTagGroup: TagGroup = {
         name: tagBlockMatch.name,
-        alias: tagBlockMatch.alias,
+        ...(tagBlockMatch.alias !== undefined && {
+          alias: tagBlockMatch.alias,
+        }),
         entries: [],
         lineNumber: lineNum,
       };
+      currentTagGroup = newTagGroup;
       if (tagBlockMatch.alias) {
         metaAliasMap.set(
           normalizeName(tagBlockMatch.alias),
@@ -289,22 +292,19 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
         for (const rawVal of tagBlockMatch.inlineValues) {
           const { text: cleanVal, isDefault } = stripDefaultModifier(rawVal);
           const { label, color } = extractColor(cleanVal);
-          currentTagGroup.entries.push({
+          newTagGroup.entries.push({
             value: label,
             color: color ?? '',
             lineNumber: lineNum,
           });
-          if (isDefault) currentTagGroup.defaultValue = label;
+          if (isDefault) newTagGroup.defaultValue = label;
         }
-        if (
-          !currentTagGroup.defaultValue &&
-          currentTagGroup.entries.length > 0
-        ) {
+        if (!newTagGroup.defaultValue && newTagGroup.entries.length > 0) {
           // In-bounds by length guard.
-          currentTagGroup.defaultValue = currentTagGroup.entries[0]!.value;
+          newTagGroup.defaultValue = newTagGroup.entries[0]!.value;
         }
       }
-      result.tagGroups.push(currentTagGroup);
+      result.tagGroups.push(newTagGroup);
       continue;
     }
 
@@ -404,7 +404,6 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
         // Regex capture groups present after successful match.
         source: groupId(sourceLabel!),
         target: groupId(targetLabel!),
-        label: undefined,
         bidirectional: arrow === '<->',
         lineNumber: lineNum,
         metadata: edgeMeta,
@@ -431,11 +430,12 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
         edgeMeta = parsed.metadata;
       }
 
+      const labeledEdgeLabel = (biLabel ?? uniLabel)?.trim();
       result.edges.push({
         // Regex capture groups present after successful match.
         source: groupId(sourceLabel!),
         target: groupId(targetLabel!),
-        label: (biLabel ?? uniLabel)?.trim(),
+        ...(labeledEdgeLabel !== undefined && { label: labeledEdgeLabel }),
         bidirectional: !!biLabel,
         lineNumber: lineNum,
         metadata: edgeMeta,
@@ -715,7 +715,7 @@ function parseNodeLine(
     label,
     lineNumber: lineNum,
     metadata,
-    description,
+    ...(description !== undefined && { description }),
   };
 }
 
@@ -786,7 +786,7 @@ function parseEdgeLine(
     return {
       source,
       target: resolveEndpoint(rest, nameAliasMap),
-      label,
+      ...(label !== undefined && { label }),
       bidirectional: true,
       lineNumber: lineNum,
       metadata,

@@ -972,9 +972,9 @@ WebApp is a system
       expect(rels[0]).toMatchObject({
         target: 'API',
         label: 'Makes calls [JSON/HTTPS]',
-        technology: undefined,
         arrowType: 'sync',
       });
+      expect(rels[0]?.technology).toBeUndefined();
     });
 
     it('TD-5: technology metadata via pipe on target works', () => {

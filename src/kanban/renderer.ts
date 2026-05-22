@@ -86,7 +86,11 @@ function resolveCardTagMeta(
     const entry = group.entries.find(
       (e) => e.value.toLowerCase() === value.toLowerCase()
     );
-    meta.push({ label: group.name, value, color: entry?.color });
+    meta.push({
+      label: group.name,
+      value,
+      ...(entry?.color !== undefined && { color: entry.color }),
+    });
   }
   return meta;
 }
@@ -1218,7 +1222,7 @@ function renderSwimlaneCard(
     resolvedColor ?? palette.primary,
     isDark,
     {
-      solid,
+      ...(solid !== undefined && { solid }),
     }
   );
   const cardStroke = resolvedColor ?? palette.textMuted;

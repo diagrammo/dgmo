@@ -178,7 +178,9 @@ export function renderTechRadar(
     };
     const legendState: LegendState = {
       activeGroup: options?.activeLegendGroup ?? null,
-      controlsExpanded: options.controlsExpanded,
+      ...(options.controlsExpanded !== undefined && {
+        controlsExpanded: options.controlsExpanded,
+      }),
     };
     const legendPalette: LegendPalette = {
       text: palette.text,
@@ -188,8 +190,12 @@ export function renderTechRadar(
       primary: palette.primary,
     };
     const legendCallbacks: LegendCallbacks = {
-      onGroupToggle: options.onLegendGroupToggle,
-      onControlsExpand: options.onToggleControlsExpand,
+      ...(options.onLegendGroupToggle !== undefined && {
+        onGroupToggle: options.onLegendGroupToggle,
+      }),
+      ...(options.onToggleControlsExpand !== undefined && {
+        onControlsExpand: options.onToggleControlsExpand,
+      }),
       onControlsToggle: (id, active) => {
         if (id === 'blip-legend' && options.onToggleListing) {
           options.onToggleListing(active);
@@ -965,7 +971,9 @@ function showBlipPopover(
   event: MouseEvent,
   solid?: boolean
 ): void {
-  const fillColor = shapeFill(palette, qColor, isDark, { solid });
+  const fillColor = shapeFill(palette, qColor, isDark, {
+    ...(solid !== undefined && { solid }),
+  });
   const hasDesc = blip.description.length > 0;
   const onFillText = contrastText(
     fillColor,
@@ -1213,6 +1221,6 @@ export function renderTechRadarForExport(
     undefined,
     exportDims,
     viewState,
-    { exportMode }
+    { ...(exportMode !== undefined && { exportMode }) }
   );
 }

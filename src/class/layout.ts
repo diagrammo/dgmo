@@ -1,9 +1,5 @@
 import dagre from '@dagrejs/dagre';
-import type {
-  ParsedClassDiagram,
-  ClassNode,
-  RelationshipType,
-} from './types';
+import type { ParsedClassDiagram, ClassNode, RelationshipType } from './types';
 
 // ============================================================
 // Layout types
@@ -198,14 +194,15 @@ export function layoutClassDiagram(
   // Extract edge waypoints
   const layoutEdges: ClassLayoutEdge[] = parsed.relationships.map((rel) => {
     const edgeData = g.edge(rel.source, rel.target);
-    return {
+    const layoutEdge: ClassLayoutEdge = {
       source: rel.source,
       target: rel.target,
       type: rel.type,
       points: edgeData?.points ?? [],
-      label: rel.label,
+      ...(rel.label !== undefined && { label: rel.label }),
       lineNumber: rel.lineNumber,
     };
+    return layoutEdge;
   });
 
   // Compute total dimensions

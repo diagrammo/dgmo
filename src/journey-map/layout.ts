@@ -225,7 +225,9 @@ export function layoutJourneyMap(
               x: curveX,
               y: curveY,
               score: step.score,
-              emotionLabel: step.emotionLabel,
+              ...(step.emotionLabel !== undefined && {
+                emotionLabel: step.emotionLabel,
+              }),
               stepIndex: globalStepIndex,
             });
           }
@@ -254,7 +256,9 @@ export function layoutJourneyMap(
               x: curveX,
               y: curveY,
               score: step.score,
-              emotionLabel: step.emotionLabel,
+              ...(step.emotionLabel !== undefined && {
+                emotionLabel: step.emotionLabel,
+              }),
               stepIndex: globalStepIndex,
             });
           }
@@ -332,7 +336,9 @@ export function layoutJourneyMap(
           x: curveX,
           y: curveY,
           score: step.score,
-          emotionLabel: step.emotionLabel,
+          ...(step.emotionLabel !== undefined && {
+            emotionLabel: step.emotionLabel,
+          }),
           stepIndex: si,
         });
       }

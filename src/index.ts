@@ -72,9 +72,9 @@ export async function render(
   const onError = options?.onError ?? 'svg';
 
   const result = await renderInternal(text, {
-    theme: options?.theme,
+    ...(options?.theme !== undefined && { theme: options.theme }),
     palette: palette.id,
-    viewState: options?.viewState,
+    ...(options?.viewState !== undefined && { viewState: options.viewState }),
   });
 
   const errors = result.diagnostics.filter((d) => d.severity === 'error');
@@ -169,11 +169,11 @@ export function encodeDiagramUrl(
       ? options.theme
       : undefined;
   const result = encodeDiagramUrlInternal(text, {
-    baseUrl: options?.baseUrl,
-    palette: options?.palette?.id,
-    theme: internalTheme,
-    filename: options?.filename,
-    viewState: options?.viewState,
+    ...(options?.baseUrl !== undefined && { baseUrl: options.baseUrl }),
+    ...(options?.palette?.id !== undefined && { palette: options.palette.id }),
+    ...(internalTheme !== undefined && { theme: internalTheme }),
+    ...(options?.filename !== undefined && { filename: options.filename }),
+    ...(options?.viewState !== undefined && { viewState: options.viewState }),
   });
   return 'error' in result && result.error ? null : (result.url ?? null);
 }

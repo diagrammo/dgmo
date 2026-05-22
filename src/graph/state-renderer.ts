@@ -50,7 +50,9 @@ function stateFill(
   solid?: boolean
 ): string {
   const color = nodeColor ?? stateDefaultColor(palette, colorOff);
-  return shapeFill(palette, color, isDark, { solid });
+  return shapeFill(palette, color, isDark, {
+    ...(solid !== undefined && { solid }),
+  });
 }
 
 function stateStroke(

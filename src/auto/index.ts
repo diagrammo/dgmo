@@ -611,7 +611,7 @@ async function processElement(el: Element): Promise<ProcessOutcome> {
       message: d.message,
       severity: d.severity,
       line: d.line,
-      column: d.column,
+      ...(d.column !== undefined && { column: d.column }),
     });
     el.parentElement?.insertBefore(banner, el);
     warn('diagnostic:', d.message, d.line, d.column);

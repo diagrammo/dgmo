@@ -73,7 +73,9 @@ function nodeFill(
 ): string {
   const color =
     nodeColor ?? shapeDefaultColor(shape, palette, isEndTerminal, colorOff);
-  return shapeFill(palette, color, isDark, { solid });
+  return shapeFill(palette, color, isDark, {
+    ...(solid !== undefined && { solid }),
+  });
 }
 
 function nodeStroke(

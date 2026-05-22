@@ -44,7 +44,7 @@ function cloneNode(node: OrgNode): OrgNode {
     parentId: node.parentId,
     isContainer: node.isContainer,
     lineNumber: node.lineNumber,
-    color: node.color,
+    ...(node.color !== undefined && { color: node.color }),
   };
 }
 
@@ -133,7 +133,7 @@ function findNodeWithPath(
         id: node.id,
         label: node.label,
         lineNumber: node.lineNumber,
-        color: node.color,
+        ...(node.color !== undefined && { color: node.color }),
         metadata: { ...node.metadata },
         isContainer: node.isContainer,
       },

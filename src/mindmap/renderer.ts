@@ -45,7 +45,9 @@ function nodeFill(
   solid?: boolean
 ): string {
   const color = nodeColor ?? palette.primary;
-  return shapeFill(palette, color, isDark, { solid });
+  return shapeFill(palette, color, isDark, {
+    ...(solid !== undefined && { solid }),
+  });
 }
 
 function nodeStroke(palette: PaletteColors, nodeColor?: string): string {
@@ -228,7 +230,7 @@ export function renderMindmap(
         const used = usedValues.get(tg.name.toLowerCase());
         return {
           name: tg.name,
-          alias: tg.alias,
+          ...(tg.alias !== undefined && { alias: tg.alias }),
           entries: tg.entries
             .filter((e) => used?.has(e.value.toLowerCase()))
             .map((e) => ({ value: e.value, color: e.color })),
@@ -236,7 +238,7 @@ export function renderMindmap(
       }),
       position: { placement: 'top-center', titleRelation: 'below-title' },
       mode: options?.exportMode ? 'export' : 'preview',
-      controlsGroup: controlsToggles,
+      ...(controlsToggles !== undefined && { controlsGroup: controlsToggles }),
     };
     const legendState: LegendState = {
       activeGroup: options?.colorByDepth
@@ -245,7 +247,9 @@ export function renderMindmap(
           ? activeTagGroup
           : (parsed.options['active-tag'] ?? null),
       hiddenAttributes: new Set(),
-      controlsExpanded: options?.controlsExpanded,
+      ...(options?.controlsExpanded !== undefined && {
+        controlsExpanded: options.controlsExpanded,
+      }),
     };
     const legendPalette = {
       text: palette.text,
@@ -255,7 +259,9 @@ export function renderMindmap(
       primary: palette.primary,
     };
     const legendCallbacks: import('../utils/legend-types').LegendCallbacks = {
-      onControlsExpand: options?.onToggleControlsExpand,
+      ...(options?.onToggleControlsExpand !== undefined && {
+        onControlsExpand: options.onToggleControlsExpand,
+      }),
       onControlsToggle: (id, active) => {
         if (id === 'depth-colors' && options?.onToggleColorByDepth) {
           options.onToggleColorByDepth(active);

@@ -154,14 +154,14 @@ export function layoutGraph(
     ? new Set(collapsedChildCounts.keys())
     : new Set<string>();
 
-  const layoutNodes: LayoutNode[] = allNodes.map((node) => {
+  const layoutNodes: LayoutNode[] = allNodes.map((node): LayoutNode => {
     const pos = g.node(node.id);
     return {
       id: node.id,
       label: node.label,
       shape: node.shape,
-      color: node.color,
-      group: node.group,
+      ...(node.color !== undefined && { color: node.color }),
+      ...(node.group !== undefined && { group: node.group }),
       lineNumber: node.lineNumber,
       x: pos.x,
       y: pos.y,
@@ -171,13 +171,13 @@ export function layoutGraph(
   });
 
   // Extract edge waypoints
-  const layoutEdges: LayoutEdge[] = graph.edges.map((edge) => {
+  const layoutEdges: LayoutEdge[] = graph.edges.map((edge): LayoutEdge => {
     const edgeData = g.edge(edge.source, edge.target);
     return {
       source: edge.source,
       target: edge.target,
       points: edgeData?.points ?? [],
-      label: edge.label,
+      ...(edge.label !== undefined && { label: edge.label }),
       lineNumber: edge.lineNumber,
     };
   });
@@ -197,7 +197,7 @@ export function layoutGraph(
           layoutGroups.push({
             id: group.id,
             label: group.label,
-            color: group.color,
+            ...(group.color !== undefined && { color: group.color }),
             lineNumber: group.lineNumber,
             collapsed: true,
             x: syntheticNode.x - syntheticNode.width / 2,
@@ -221,7 +221,7 @@ export function layoutGraph(
         layoutGroups.push({
           id: group.id,
           label: group.label,
-          color: group.color,
+          ...(group.color !== undefined && { color: group.color }),
           lineNumber: group.lineNumber,
           x: 0,
           y: 0,
@@ -250,7 +250,7 @@ export function layoutGraph(
       layoutGroups.push({
         id: group.id,
         label: group.label,
-        color: group.color,
+        ...(group.color !== undefined && { color: group.color }),
         lineNumber: group.lineNumber,
         x: minX - GROUP_PADDING,
         y: minY - GROUP_PADDING,

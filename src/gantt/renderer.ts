@@ -159,7 +159,12 @@ function renderLabelBand(
     .attr('width', bandW)
     .attr('height', BAR_H)
     .attr('rx', BAND_RADIUS)
-    .attr('fill', shapeFill(palette, color, isDark, { solid }))
+    .attr(
+      'fill',
+      shapeFill(palette, color, isDark, {
+        ...(solid !== undefined && { solid }),
+      })
+    )
     .style('pointer-events', 'none');
 
   // Accent strip inside the tint, clipped to the band's rounded shape
@@ -2124,8 +2129,9 @@ function renderTagLegend(
       },
       mode: exportMode ? 'export' : 'preview',
       capsulePillAddonWidth: iconReserve,
-      controlsGroup:
-        controlsToggles.length > 0 ? { toggles: controlsToggles } : undefined,
+      ...(controlsToggles.length > 0 && {
+        controlsGroup: { toggles: controlsToggles },
+      }),
     };
     const legendState: LegendState = {
       activeGroup: activeGroupName,
@@ -2146,9 +2152,11 @@ function renderTagLegend(
     const tagGroupG = legendRow.append('g');
 
     const legendCallbacks: LegendCallbacks = {
-      onGroupToggle: onToggle,
-      onControlsExpand: onToggleControlsExpand,
-      onControlsToggle,
+      ...(onToggle !== undefined && { onGroupToggle: onToggle }),
+      ...(onToggleControlsExpand !== undefined && {
+        onControlsExpand: onToggleControlsExpand,
+      }),
+      ...(onControlsToggle !== undefined && { onControlsToggle }),
       onEntryHover: (groupName, entryValue) => {
         const tagKey = groupName.toLowerCase();
         if (entryValue) {
@@ -2281,8 +2289,10 @@ function renderTagLegend(
       palette,
       isDark,
       {
-        onControlsExpand: onToggleControlsExpand,
-        onControlsToggle,
+        ...(onToggleControlsExpand !== undefined && {
+          onControlsExpand: onToggleControlsExpand,
+        }),
+        ...(onControlsToggle !== undefined && { onControlsToggle }),
       },
       totalW
     );

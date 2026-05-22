@@ -244,7 +244,7 @@ function parseScatterRow(
     // In-bounds by length >= 2 guard above.
     x: dataRow.values[0]!,
     y: dataRow.values[1]!,
-    size: dataRow.values[2] !== undefined ? dataRow.values[2] : undefined,
+    ...(dataRow.values[2] !== undefined && { size: dataRow.values[2] }),
     ...(pointColor && { color: pointColor }),
     ...(currentCategory !== 'Default' && { category: currentCategory }),
     lineNumber,
@@ -1005,7 +1005,7 @@ function buildSankeyOption(
 
   return {
     ...CHART_BASE,
-    title: titleConfig,
+    ...(titleConfig !== undefined && { title: titleConfig }),
     xAxis: { show: false },
     yAxis: { show: false },
     series: [
@@ -1021,16 +1021,19 @@ function buildSankeyOption(
         nodeGap: 12,
         nodeWidth: 20,
         data: nodes,
-        links: (parsed.links ?? []).map((link) => ({
-          source: link.source,
-          target: link.target,
-          value: link.value,
-          lineStyle: {
-            color: link.color
-              ? tintLink(link.color)
-              : nodeColorMap.get(link.source),
-          },
-        })),
+        links: (parsed.links ?? []).map((link) => {
+          const linkColor = link.color
+            ? tintLink(link.color)
+            : nodeColorMap.get(link.source);
+          return {
+            source: link.source,
+            target: link.target,
+            value: link.value,
+            lineStyle: {
+              ...(linkColor !== undefined && { color: linkColor }),
+            },
+          };
+        }),
         lineStyle: {
           curveness: 0.5,
           opacity: 0.6,
@@ -1103,7 +1106,7 @@ function buildChordOption(
 
   return {
     ...CHART_BASE,
-    title: titleConfig,
+    ...(titleConfig !== undefined && { title: titleConfig }),
     xAxis: { show: false },
     yAxis: { show: false },
     series: [
@@ -1154,7 +1157,8 @@ function buildChordOption(
               }),
               lineStyle: {
                 width: Math.max(1, Math.min(link.value / 20, 10)),
-                color: colors[nodeNames.indexOf(link.source) % colors.length],
+                // colors is a non-empty palette array; modulo index is always in-bounds.
+                color: colors[nodeNames.indexOf(link.source) % colors.length]!,
                 curveness,
                 opacity: 0.6,
               },
@@ -1239,7 +1243,8 @@ function buildFunctionOption(
       return [x, y];
     });
 
-    const fnColor = fn.color ?? colors[index % colors.length];
+    // colors is a non-empty palette array; modulo index is always in-bounds.
+    const fnColor = fn.color ?? colors[index % colors.length]!;
     return {
       name: fn.name,
       type: 'line' as const,
@@ -1278,7 +1283,7 @@ function buildFunctionOption(
 
   return {
     ...CHART_BASE,
-    title: titleConfig,
+    ...(titleConfig !== undefined && { title: titleConfig }),
     legend: {
       data: (parsed.functions ?? []).map((fn) => fn.name),
       bottom: 10,
@@ -1805,7 +1810,13 @@ function buildScatterOption(
           ECHART_EXPORT_WIDTH,
           ECHART_EXPORT_HEIGHT
         );
-        labelPoints.push({ name: pt.name, px, py, color, size: pt.size });
+        labelPoints.push({
+          name: pt.name,
+          px,
+          py,
+          color,
+          ...(pt.size !== undefined && { size: pt.size }),
+        });
       }
     } else {
       points.forEach((pt, index) => {
@@ -1825,7 +1836,13 @@ function buildScatterOption(
           ECHART_EXPORT_WIDTH,
           ECHART_EXPORT_HEIGHT
         );
-        labelPoints.push({ name: pt.name, px, py, color, size: pt.size });
+        labelPoints.push({
+          name: pt.name,
+          px,
+          py,
+          color,
+          ...(pt.size !== undefined && { size: pt.size }),
+        });
       });
     }
 
@@ -1858,7 +1875,7 @@ function buildScatterOption(
 
   return {
     ...CHART_BASE,
-    title: titleConfig,
+    ...(titleConfig !== undefined && { title: titleConfig }),
     ...(legendConfig && { legend: legendConfig }),
     grid: {
       left: `${gridLeft}%`,
@@ -1869,7 +1886,7 @@ function buildScatterOption(
     },
     xAxis: {
       type: 'value',
-      name: parsed.xlabel,
+      ...(parsed.xlabel !== undefined && { name: parsed.xlabel }),
       nameLocation: 'middle',
       nameGap: 40,
       nameTextStyle: {
@@ -1894,7 +1911,7 @@ function buildScatterOption(
     },
     yAxis: {
       type: 'value',
-      name: parsed.ylabel,
+      ...(parsed.ylabel !== undefined && { name: parsed.ylabel }),
       nameLocation: 'middle',
       nameGap: 50,
       nameTextStyle: {
@@ -2038,7 +2055,7 @@ function buildHeatmapOption(
 
   return {
     ...CHART_BASE,
-    title: titleConfig,
+    ...(titleConfig !== undefined && { title: titleConfig }),
     grid: {
       left: '3%',
       right: '3%',
@@ -2180,7 +2197,7 @@ function buildFunnelOption(
 
   return {
     ...CHART_BASE,
-    title: titleConfig,
+    ...(titleConfig !== undefined && { title: titleConfig }),
     xAxis: { show: false },
     yAxis: { show: false },
     series: [
@@ -2244,9 +2261,11 @@ function resolveAxisLabels(parsed: ParsedChart): {
   yLabel?: string;
 } {
   const isHorizontal = parsed.orientation === 'horizontal';
+  const xLabel = parsed.xlabel ?? (isHorizontal ? parsed.label : undefined);
+  const yLabel = parsed.ylabel ?? (isHorizontal ? undefined : parsed.label);
   return {
-    xLabel: parsed.xlabel ?? (isHorizontal ? parsed.label : undefined),
-    yLabel: parsed.ylabel ?? (isHorizontal ? undefined : parsed.label),
+    ...(xLabel !== undefined && { xLabel }),
+    ...(yLabel !== undefined && { yLabel }),
   };
 }
 
@@ -2465,11 +2484,13 @@ export function buildSimpleChartOption(
  * Builds a standard chart grid object with consistent spacing rules.
  */
 function makeChartGrid(options: {
-  xLabel?: string;
-  yLabel?: string;
+  // eOPT: widened — call sites destructure from resolveAxisLabels and pass
+  // the slot through directly; the function only checks truthiness.
+  xLabel?: string | undefined;
+  yLabel?: string | undefined;
   hasTitle: boolean;
-  hasLegend?: boolean;
-  isHorizontal?: boolean;
+  hasLegend?: boolean | undefined;
+  isHorizontal?: boolean | undefined;
 }): Record<string, unknown> {
   const left = options.yLabel ? '12%' : '3%';
   return {
@@ -2570,7 +2591,7 @@ function buildBarOption(
 
   return {
     ...CHART_BASE,
-    title: titleConfig,
+    ...(titleConfig !== undefined && { title: titleConfig }),
     grid: makeChartGrid({
       xLabel,
       yLabel,
@@ -2671,7 +2692,7 @@ function buildLineOption(
 
   return {
     ...CHART_BASE,
-    title: titleConfig,
+    ...(titleConfig !== undefined && { title: titleConfig }),
     grid: makeChartGrid({
       xLabel,
       yLabel,
@@ -2743,7 +2764,9 @@ function buildMultiLineOption(
   const markArea = buildMarkArea(eras, labels, textColor, palette.colors.blue);
 
   const series = seriesNames.map((name, idx) => {
-    const color = parsed.seriesNameColors?.[idx] ?? colors[idx % colors.length];
+    // colors is a non-empty palette array; modulo index is always in-bounds.
+    const color =
+      parsed.seriesNameColors?.[idx] ?? colors[idx % colors.length]!;
     const data = parsed.data.map((dp) =>
       idx === 0 ? dp.value : (dp.extraValues?.[idx - 1] ?? 0)
     );
@@ -2772,7 +2795,7 @@ function buildMultiLineOption(
 
   return {
     ...CHART_BASE,
-    title: titleConfig,
+    ...(titleConfig !== undefined && { title: titleConfig }),
     legend: {
       data: seriesNames,
       bottom: 10,
@@ -2831,7 +2854,7 @@ function buildAreaOption(
 
   return {
     ...CHART_BASE,
-    title: titleConfig,
+    ...(titleConfig !== undefined && { title: titleConfig }),
     grid: makeChartGrid({
       xLabel,
       yLabel,
@@ -2966,7 +2989,7 @@ function buildPieOption(
   return {
     ...CHART_BASE,
     ...HIDE_AXES,
-    title: titleConfig,
+    ...(titleConfig !== undefined && { title: titleConfig }),
     series: [
       {
         type: 'pie',
@@ -3011,7 +3034,7 @@ function buildRadarOption(
 
   return {
     ...CHART_BASE,
-    title: titleConfig,
+    ...(titleConfig !== undefined && { title: titleConfig }),
     xAxis: { show: false },
     yAxis: { show: false },
     radar: {
@@ -3090,7 +3113,7 @@ function buildPolarAreaOption(
 
   return {
     ...CHART_BASE,
-    title: titleConfig,
+    ...(titleConfig !== undefined && { title: titleConfig }),
     xAxis: { show: false },
     yAxis: { show: false },
     series: [
@@ -3209,7 +3232,7 @@ function buildBarStackedOption(
 
   return {
     ...CHART_BASE,
-    title: titleConfig,
+    ...(titleConfig !== undefined && { title: titleConfig }),
     legend: {
       data: seriesNames,
       bottom: 10,
@@ -3301,7 +3324,9 @@ export async function renderExtendedChartForExport(
 
   // When using custom legend, strip ECharts' built-in legend
   if (legendGroups.length > 0) {
-    option = { ...option, legend: undefined };
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { legend: _legend, ...rest } = option;
+    option = rest;
   }
 
   const chart = echarts.init(null, null, {
@@ -3343,8 +3368,8 @@ export async function renderExtendedChartForExport(
         palette: effectivePalette,
         isDark,
         containerWidth: ECHART_EXPORT_WIDTH,
-        gridLeftPct,
-        gridRightPct,
+        ...(gridLeftPct !== undefined && { gridLeftPct }),
+        ...(gridRightPct !== undefined && { gridRightPct }),
         // In-bounds by legendGroups.length > 0 guard above.
         activeGroup: legendGroups[0]!.name,
         className: 'chart-legend',

@@ -210,7 +210,7 @@ export function parseCycle(content: string): ParsedCycle {
       currentNode = {
         label,
         lineNumber: lineNum,
-        color,
+        ...(color !== undefined && { color }),
         span,
         description,
         metadata: restMeta,
@@ -273,9 +273,9 @@ export function parseCycle(content: string): ParsedCycle {
         currentEdge = {
           sourceIndex,
           targetIndex,
-          label: edgeLabel,
-          color: edgeColor,
-          width: edgeWidth,
+          ...(edgeLabel !== undefined && { label: edgeLabel }),
+          ...(edgeColor !== undefined && { color: edgeColor }),
+          ...(edgeWidth !== undefined && { width: edgeWidth }),
           description: edgeDescFromPipe ? [edgeDescFromPipe] : [],
           lineNumber: lineNum,
           metadata: edgeRestMeta,

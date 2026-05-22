@@ -733,15 +733,16 @@ function computeEdgePaths(
       maxCharLen,
       layoutNodes
     );
-    return {
+    const layoutEdge: CycleLayoutEdge = {
       sourceIndex: edge.sourceIndex,
       targetIndex: edge.targetIndex,
       path,
       labelX,
       labelY,
       labelAngle,
-      label: edge.label,
+      ...(edge.label !== undefined && { label: edge.label }),
     };
+    return layoutEdge;
   });
 }
 

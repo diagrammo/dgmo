@@ -410,7 +410,7 @@ export function layoutERDiagram(parsed: ParsedERDiagram): ERLayoutResult {
         x: pt.x + (p?.offsetX ?? 0) + HALF_MARGIN,
         y: pt.y + (p?.offsetY ?? 0) + HALF_MARGIN,
       })),
-      label: rel.label,
+      ...(rel.label !== undefined && { label: rel.label }),
       lineNumber: rel.lineNumber,
     };
   });
