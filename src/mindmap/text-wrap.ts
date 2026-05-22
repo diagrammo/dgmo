@@ -174,7 +174,7 @@ interface NodeTextLayout {
  */
 export function computeNodeText(
   label: string,
-  description: string[] | undefined,
+  description: readonly string[] | undefined,
   depth: number,
   nodeWidth: number,
   hideDescriptions: boolean

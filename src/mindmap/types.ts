@@ -23,35 +23,34 @@ export interface ParsedMindmap {
   readonly error: string | null;
 }
 
-// Layout types — keep mutable for now; will be addressed in wave 4
-// (layout result types) so layout helpers can incrementally build them.
+// Layout types — wave 4 of Story 105.18b.
 export interface MindmapLayoutNode {
-  id: string;
-  label: string;
-  description?: string[];
-  metadata: Record<string, string>;
-  lineNumber: number;
-  color?: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  depth: number;
-  angle: number;
-  radius: number;
-  hiddenCount?: number;
-  hasChildren?: boolean;
+  readonly id: string;
+  readonly label: string;
+  readonly description?: readonly string[];
+  readonly metadata: Readonly<Record<string, string>>;
+  readonly lineNumber: number;
+  readonly color?: string;
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+  readonly depth: number;
+  readonly angle: number;
+  readonly radius: number;
+  readonly hiddenCount?: number;
+  readonly hasChildren?: boolean;
 }
 
 export interface MindmapLayoutEdge {
-  sourceId: string;
-  targetId: string;
-  path: string; // SVG path d attribute
+  readonly sourceId: string;
+  readonly targetId: string;
+  readonly path: string; // SVG path d attribute
 }
 
 export interface MindmapLayoutResult {
-  nodes: MindmapLayoutNode[];
-  edges: MindmapLayoutEdge[];
-  width: number;
-  height: number;
+  readonly nodes: readonly MindmapLayoutNode[];
+  readonly edges: readonly MindmapLayoutEdge[];
+  readonly width: number;
+  readonly height: number;
 }

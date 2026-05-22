@@ -438,40 +438,40 @@ export interface ResolvedPert {
 // ── Layout result ───────────────────────────────────────────
 
 export interface PertLayoutNode {
-  id: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
+  readonly id: string;
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
 }
 
 export interface PertLayoutEdge {
-  source: string;
-  target: string;
-  points: { x: number; y: number }[];
+  readonly source: string;
+  readonly target: string;
+  readonly points: ReadonlyArray<{ readonly x: number; readonly y: number }>;
 }
 
 export interface PertLayoutGroup {
-  id: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  classification: 'hammock' | 'cluster';
+  readonly id: string;
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+  readonly classification: 'hammock' | 'cluster';
   /**
    * True when the group is currently collapsed. Layout sized this rect
    * as a single rolled-up node and hid the group's member activities
    * from `nodes` / re-routed external edges to land on this rect.
    */
-  collapsed?: boolean;
+  readonly collapsed?: boolean;
 }
 
 export interface LayoutResult {
-  nodes: PertLayoutNode[];
-  edges: PertLayoutEdge[];
-  groups: PertLayoutGroup[];
-  width: number;
-  height: number;
+  readonly nodes: readonly PertLayoutNode[];
+  readonly edges: readonly PertLayoutEdge[];
+  readonly groups: readonly PertLayoutGroup[];
+  readonly width: number;
+  readonly height: number;
 }
 
 // ── S-curve (completion-probability widget) ─────────────────

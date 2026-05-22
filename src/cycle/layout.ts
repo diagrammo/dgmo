@@ -11,6 +11,7 @@ import {
   type CycleLayoutEdge,
   type CycleLayoutResult,
 } from './types';
+import type { Writable } from '../utils/brand';
 import {
   wrapDescriptionLines,
   type WrappedDescLine,
@@ -309,7 +310,7 @@ export function computeCycleLayout(
   }
 
   // ── Build layout nodes at converged positions ──
-  const layoutNodes: CycleLayoutNode[] = [];
+  const layoutNodes: Writable<CycleLayoutNode>[] = [];
   for (let i = 0; i < nodeCount; i++) {
     // In-bounds by loop guard; all arrays sized to nodeCount.
     const angle = nodeAngles[i];

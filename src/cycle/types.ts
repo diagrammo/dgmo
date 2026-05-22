@@ -44,27 +44,27 @@ export type { WrappedDescLine } from '../utils/wrapped-desc';
 import type { WrappedDescLine } from '../utils/wrapped-desc';
 
 export interface CycleLayoutNode {
-  label: string;
-  x: number;
-  y: number;
-  angle: number;
-  width: number;
-  height: number;
+  readonly label: string;
+  readonly x: number;
+  readonly y: number;
+  readonly angle: number;
+  readonly width: number;
+  readonly height: number;
   /** Pre-wrapped description lines (fit to node width). Empty if no descriptions. */
-  wrappedDesc: WrappedDescLine[];
+  readonly wrappedDesc: readonly WrappedDescLine[];
   /** Whether this node should be rendered as a circle. */
-  isCircle: boolean;
+  readonly isCircle: boolean;
 }
 
 export interface CycleLayoutEdge {
-  sourceIndex: number;
-  targetIndex: number;
-  path: string;
-  labelX: number;
-  labelY: number;
+  readonly sourceIndex: number;
+  readonly targetIndex: number;
+  readonly path: string;
+  readonly labelX: number;
+  readonly labelY: number;
   /** Angle of the label position on the circle (radians), for text-anchor. */
-  labelAngle: number;
-  label?: string;
+  readonly labelAngle: number;
+  readonly label?: string;
 }
 
 // ============================================================
@@ -89,13 +89,13 @@ export function arrowHeadLength(strokeWidth: number): number {
 }
 
 export interface CycleLayoutResult {
-  nodes: CycleLayoutNode[];
-  edges: CycleLayoutEdge[];
-  cx: number;
-  cy: number;
-  radius: number;
-  width: number;
-  height: number;
+  readonly nodes: readonly CycleLayoutNode[];
+  readonly edges: readonly CycleLayoutEdge[];
+  readonly cx: number;
+  readonly cy: number;
+  readonly radius: number;
+  readonly width: number;
+  readonly height: number;
   /** Scale factor applied to nodes (1 = no scaling, <1 = shrunk to fit). */
-  scale: number;
+  readonly scale: number;
 }
