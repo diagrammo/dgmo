@@ -80,17 +80,38 @@ function groupId(label: string): string {
   return `__group_${label}`;
 }
 
+// Local mutable shapes — element-level metadata/description need to be
+// mutated during parse (cascading group metadata, description collection).
+// These widen the readonly fields to writable; assignment back into the
+// readonly-typed ParsedBoxesAndLines is covariant on Record → Readonly<Record>.
+type MutBLNode = Omit<Writable<BLNode>, 'metadata' | 'description'> & {
+  metadata: Record<string, string>;
+  description?: string[];
+};
+type MutBLEdge = Omit<Writable<BLEdge>, 'metadata'> & {
+  metadata: Record<string, string>;
+};
+type MutBLGroup = Omit<Writable<BLGroup>, 'metadata' | 'children'> & {
+  metadata: Record<string, string>;
+  children: string[];
+};
+
 export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
-  const result: ParsedBoxesAndLines = {
+  const options: Record<string, string> = {};
+  const initialHiddenTagValues = new Map<string, Set<string>>();
+  const nodes: MutBLNode[] = [];
+  const edges: MutBLEdge[] = [];
+  const groups: MutBLGroup[] = [];
+  const result: Writable<ParsedBoxesAndLines> = {
     type: 'boxes-and-lines',
     title: null,
     titleLineNumber: null,
-    nodes: [],
-    edges: [],
-    groups: [],
+    nodes,
+    edges,
+    groups,
     tagGroups: [],
-    options: {},
-    initialHiddenTagValues: new Map(),
+    options,
+    initialHiddenTagValues,
     direction: 'LR',
     diagnostics: [],
     error: null,
@@ -113,7 +134,7 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
 
   function flushDescription() {
     if (descState && descState.lines.length > 0) {
-      const node = result.nodes.find((n) => n.label === descState!.nodeLabel);
+      const node = nodes.find((n) => n.label === descState!.nodeLabel);
       if (node) {
         const existing = node.description ?? [];
         node.description = [...existing, ...descState!.lines];
@@ -124,7 +145,7 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
 
   // Group stack for nesting
   interface GroupState {
-    group: BLGroup;
+    group: MutBLGroup;
     indent: number;
     depth: number;
   }
@@ -232,10 +253,10 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
               .trim()
               .toLowerCase();
             if (groupKey && value) {
-              if (!result.initialHiddenTagValues.has(groupKey)) {
-                result.initialHiddenTagValues.set(groupKey, new Set());
+              if (!initialHiddenTagValues.has(groupKey)) {
+                initialHiddenTagValues.set(groupKey, new Set());
               }
-              result.initialHiddenTagValues.get(groupKey)!.add(value);
+              initialHiddenTagValues.get(groupKey)!.add(value);
             }
           }
         }
@@ -250,11 +271,11 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
           const key = optMatch[1]!.toLowerCase();
           const value = optMatch[2]!.trim();
           if (key === 'active-tag') {
-            result.options[key] = value;
+            options[key] = value;
             continue;
           }
         }
-        if (tryParseSharedOption(trimmed, result.options)) {
+        if (tryParseSharedOption(trimmed, options)) {
           continue;
         }
       }
@@ -485,7 +506,7 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
       }
 
       const parentGs = currentGroupState();
-      const group: BLGroup = {
+      const group: MutBLGroup = {
         label,
         children: [],
         lineNumber: lineNum,
@@ -684,7 +705,7 @@ function parseNodeLine(
   metaAliasMap: Map<string, string>,
   _diagnostics: DgmoError[],
   nameAliasMap?: Map<string, string>
-): BLNode | null {
+): MutBLNode | null {
   let metadata: Record<string, string> = {};
   let description: string[] | undefined;
 

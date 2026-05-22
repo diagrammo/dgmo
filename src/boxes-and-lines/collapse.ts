@@ -2,12 +2,12 @@
 // Boxes and Lines — Collapse/Expand Transform
 // ============================================================
 
-import type { ParsedBoxesAndLines, BLGroup } from './types';
+import type { ParsedBoxesAndLines, BLGroup, BLEdge } from './types';
 
 export interface BLCollapseResult {
   parsed: ParsedBoxesAndLines;
   collapsedChildCounts: Map<string, number>;
-  originalGroups: BLGroup[];
+  originalGroups: readonly BLGroup[];
 }
 
 /**
@@ -72,7 +72,7 @@ export function collapseBoxesAndLines(
 
   // Remap and deduplicate edges
   const edgeKeys = new Set<string>();
-  const edges: typeof parsed.edges = [];
+  const edges: BLEdge[] = [];
   for (const edge of parsed.edges) {
     const src = nodeToGroup.get(edge.source) ?? edge.source;
     const tgt = nodeToGroup.get(edge.target) ?? edge.target;

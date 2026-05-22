@@ -447,8 +447,8 @@ export interface SequenceRenderOptions {
  * Only top-level sections are collapsible — sections inside blocks are excluded.
  */
 export function groupMessagesBySection(
-  elements: SequenceElement[],
-  messages: SequenceMessage[]
+  elements: readonly SequenceElement[],
+  messages: readonly SequenceMessage[]
 ): SectionMessageGroup[] {
   const groups: SectionMessageGroup[] = [];
   let currentGroup: SectionMessageGroup | null = null;
@@ -460,7 +460,7 @@ export function groupMessagesBySection(
   messages.forEach((m, i) => msgLineToIdx.set(m.lineNumber, i));
 
   // Recursively collect all message indices from an element subtree
-  const collectIndices = (els: SequenceElement[]): number[] => {
+  const collectIndices = (els: readonly SequenceElement[]): number[] => {
     const indices: number[] = [];
     for (const el of els) {
       if (isSequenceBlock(el)) {
@@ -522,7 +522,9 @@ export interface RenderStep {
  * Uses a call stack to infer where returns should be placed:
  * returns appear after all nested sub-calls complete.
  */
-export function buildRenderSequence(messages: SequenceMessage[]): RenderStep[] {
+export function buildRenderSequence(
+  messages: readonly SequenceMessage[]
+): RenderStep[] {
   const steps: RenderStep[] = [];
   const stack: {
     from: string;
@@ -656,9 +658,12 @@ export function computeActivations(steps: RenderStep[]): Activation[] {
  * Unpositioned participants maintain their relative order, filling remaining slots.
  */
 export function applyPositionOverrides(
-  participants: SequenceParticipant[]
+  participants: readonly SequenceParticipant[]
 ): SequenceParticipant[] {
-  if (!participants.some((p) => p.position !== undefined)) return participants;
+  // Copy to a mutable array on the no-op path so callers always get a
+  // fresh `SequenceParticipant[]` regardless of input mutability.
+  if (!participants.some((p) => p.position !== undefined))
+    return [...participants];
 
   const total = participants.length;
   const positioned: { participant: SequenceParticipant; index: number }[] = [];
@@ -728,11 +733,13 @@ export function applyPositionOverrides(
  * Explicit `position` overrides are handled separately by `applyPositionOverrides`.
  */
 export function applyGroupOrdering(
-  participants: SequenceParticipant[],
-  groups: SequenceGroup[],
-  messages: SequenceMessage[] = []
+  participants: readonly SequenceParticipant[],
+  groups: readonly SequenceGroup[],
+  messages: readonly SequenceMessage[] = []
 ): SequenceParticipant[] {
-  if (groups.length === 0) return participants;
+  // Copy to a mutable array on the no-op path so callers always get a
+  // fresh `SequenceParticipant[]` regardless of input mutability.
+  if (groups.length === 0) return [...participants];
 
   // Build a map: participantId → group
   const idToGroup = new Map<string, SequenceGroup>();
@@ -1025,7 +1032,7 @@ export function renderSequenceDiagram(
   const msgLineToIdx = new Map<number, number>();
   messages.forEach((m, i) => msgLineToIdx.set(m.lineNumber, i));
 
-  const findFirstMsgIndex = (els: SequenceElement[]): number => {
+  const findFirstMsgIndex = (els: readonly SequenceElement[]): number => {
     for (const el of els) {
       if (isSequenceBlock(el)) {
         const idx = findFirstMsgIndex(el.children);
@@ -1056,7 +1063,7 @@ export function renderSequenceDiagram(
     extraBeforeMsg.set(msgIdx, (extraBeforeMsg.get(msgIdx) || 0) + amount);
   };
 
-  const markBlockSpacing = (els: SequenceElement[]): void => {
+  const markBlockSpacing = (els: readonly SequenceElement[]): void => {
     for (let i = 0; i < els.length; i++) {
       // In-bounds by loop guard.
       const el = els[i]!;
@@ -1106,7 +1113,7 @@ export function renderSequenceDiagram(
     return lines.length * NOTE_LINE_H + NOTE_PAD_V * 2;
   };
   let trailingNoteSpace = 0; // extra space for notes at the end with no following message
-  const markNoteSpacing = (els: SequenceElement[]): void => {
+  const markNoteSpacing = (els: readonly SequenceElement[]): void => {
     for (let i = 0; i < els.length; i++) {
       // In-bounds by loop guard.
       const el = els[i]!;
@@ -1384,7 +1391,7 @@ export function renderSequenceDiagram(
   // Compute absolute Y positions for each note element
   const noteYMap = new Map<SequenceNote, number>();
   {
-    const computeNotePositions = (els: SequenceElement[]): void => {
+    const computeNotePositions = (els: readonly SequenceElement[]): void => {
       for (let i = 0; i < els.length; i++) {
         // In-bounds by loop guard.
         const el = els[i]!;
@@ -1886,7 +1893,7 @@ export function renderSequenceDiagram(
   const frameRightmostX = Math.max(...Array.from(participantX.values()));
 
   // Collect message indices from an element subtree
-  const collectMsgIndices = (els: SequenceElement[]): number[] => {
+  const collectMsgIndices = (els: readonly SequenceElement[]): number[] => {
     const indices: number[] = [];
     for (const el of els) {
       if (isSequenceBlock(el)) {
@@ -1926,7 +1933,10 @@ export function renderSequenceDiagram(
   }> = [];
 
   // Recursive block renderer — draws borders/dividers now, defers label text
-  const renderBlockFrames = (els: SequenceElement[], depth: number): void => {
+  const renderBlockFrames = (
+    els: readonly SequenceElement[],
+    depth: number
+  ): void => {
     for (const el of els) {
       if (!isSequenceBlock(el)) continue;
 
@@ -2566,7 +2576,7 @@ export function renderSequenceDiagram(
     ? mix(palette.surface, palette.bg, 50)
     : mix(palette.bg, palette.surface, 15);
 
-  const renderNoteElements = (els: SequenceElement[]): void => {
+  const renderNoteElements = (els: readonly SequenceElement[]): void => {
     for (const el of els) {
       if (isSequenceNote(el)) {
         const px = participantX.get(el.participantId);
@@ -2730,12 +2740,12 @@ export function renderSequenceDiagram(
  * Used by the app to highlight the associated message when cursor is on a note.
  */
 export function buildNoteMessageMap(
-  elements: SequenceElement[]
+  elements: readonly SequenceElement[]
 ): Map<number, number> {
   const map = new Map<number, number>();
   let lastMessageLine = -1;
 
-  const walk = (els: SequenceElement[]): void => {
+  const walk = (els: readonly SequenceElement[]): void => {
     for (const el of els) {
       if (isSequenceNote(el)) {
         if (lastMessageLine >= 0) {

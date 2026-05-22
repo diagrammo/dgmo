@@ -17,10 +17,10 @@ import type {
 import { isSequenceBlock, isSequenceNote, isSequenceSection } from './parser';
 
 export interface CollapsedView {
-  participants: SequenceParticipant[];
-  messages: SequenceMessage[];
-  elements: SequenceElement[];
-  groups: SequenceGroup[];
+  participants: readonly SequenceParticipant[];
+  messages: readonly SequenceMessage[];
+  elements: readonly SequenceElement[];
+  groups: readonly SequenceGroup[];
   /** Maps member participant ID → collapsed group name (as a virtual ParticipantId). */
   collapsedGroupIds: Map<ParticipantId, ParticipantId>;
 }
@@ -122,7 +122,7 @@ export function applyCollapseProjection(
  * Deep clone and remap elements, suppressing internal returns within collapsed groups.
  */
 function remapElements(
-  elements: SequenceElement[],
+  elements: readonly SequenceElement[],
   memberToGroup: Map<ParticipantId, ParticipantId>
 ): SequenceElement[] {
   const remap = (id: ParticipantId): ParticipantId =>

@@ -392,7 +392,7 @@ export async function layoutBoxesAndLines(
   parsed: ParsedBoxesAndLines,
   collapseInfo?: {
     collapsedChildCounts: Map<string, number>;
-    originalGroups: BLGroup[];
+    originalGroups: readonly BLGroup[];
   },
   layoutOptions?: { hideDescriptions?: boolean }
 ): Promise<BLLayoutResult> {

@@ -112,17 +112,17 @@ export type ParticipantId = Brand<string, 'ParticipantId'>;
  */
 export interface SequenceParticipant {
   /** Internal identifier (e.g. "AuthService") */
-  id: ParticipantId;
+  readonly id: ParticipantId;
   /** Display label — first-seen casing/spacing of the name */
-  label: string;
+  readonly label: string;
   /** Participant shape type */
-  type: ParticipantType;
+  readonly type: ParticipantType;
   /** Source line number (1-based) */
-  lineNumber: number;
+  readonly lineNumber: number;
   /** Explicit layout position override (0-based from left, negative from right) */
-  position?: number;
+  readonly position?: number;
   /** Pipe-delimited tag metadata (e.g. `| role: Gateway`) */
-  metadata?: Record<string, string>;
+  readonly metadata?: Readonly<Record<string, string>>;
 }
 
 /**
@@ -132,55 +132,55 @@ export interface SequenceParticipant {
  * Pre-1.0 type addition — Epic 105 Story 105.17.
  */
 export interface SequenceMessage {
-  kind: 'message';
-  from: ParticipantId;
-  to: ParticipantId;
-  label: string;
-  lineNumber: number;
-  async?: boolean;
+  readonly kind: 'message';
+  readonly from: ParticipantId;
+  readonly to: ParticipantId;
+  readonly label: string;
+  readonly lineNumber: number;
+  readonly async?: boolean;
   /** Pipe-delimited tag metadata (e.g. `| c: Caching`) */
-  metadata?: Record<string, string>;
+  readonly metadata?: Readonly<Record<string, string>>;
 }
 
 /**
  * A conditional or loop block in the sequence diagram.
  */
 export interface ElseIfBranch {
-  label: string;
-  children: SequenceElement[];
-  lineNumber: number;
+  readonly label: string;
+  readonly children: readonly SequenceElement[];
+  readonly lineNumber: number;
 }
 
 export interface SequenceBlock {
-  kind: 'block';
-  type: 'if' | 'loop' | 'parallel';
-  label: string;
-  children: SequenceElement[];
-  elseChildren: SequenceElement[];
-  elseIfBranches?: ElseIfBranch[];
-  elseLineNumber?: number;
-  lineNumber: number;
+  readonly kind: 'block';
+  readonly type: 'if' | 'loop' | 'parallel';
+  readonly label: string;
+  readonly children: readonly SequenceElement[];
+  readonly elseChildren: readonly SequenceElement[];
+  readonly elseIfBranches?: readonly ElseIfBranch[];
+  readonly elseLineNumber?: number;
+  readonly lineNumber: number;
 }
 
 /**
  * A labeled horizontal divider between message phases.
  */
 export interface SequenceSection {
-  kind: 'section';
-  label: string;
-  lineNumber: number;
+  readonly kind: 'section';
+  readonly label: string;
+  readonly lineNumber: number;
 }
 
 /**
  * An annotation attached to a message, rendered as a folded-corner box.
  */
 export interface SequenceNote {
-  kind: 'note';
-  text: string;
-  position: 'right' | 'left';
-  participantId: ParticipantId;
-  lineNumber: number;
-  endLineNumber: number;
+  readonly kind: 'note';
+  readonly text: string;
+  readonly position: 'right' | 'left';
+  readonly participantId: ParticipantId;
+  readonly lineNumber: number;
+  readonly endLineNumber: number;
 }
 
 export type SequenceElement =
@@ -209,30 +209,30 @@ export function isSequenceNote(el: SequenceElement): el is SequenceNote {
  * A named group of participants rendered as a labeled box.
  */
 export interface SequenceGroup {
-  name: string;
-  participantIds: ParticipantId[];
-  lineNumber: number;
+  readonly name: string;
+  readonly participantIds: readonly ParticipantId[];
+  readonly lineNumber: number;
   /** Pipe-delimited tag metadata (e.g. `[Backend | t: Product]`) */
-  metadata?: Record<string, string>;
+  readonly metadata?: Readonly<Record<string, string>>;
   /** Whether this group is collapsed by default */
-  collapsed?: boolean;
+  readonly collapsed?: boolean;
 }
 
 /**
  * Parsed result from a .dgmo sequence diagram.
  */
 export interface ParsedSequenceDgmo {
-  title: string | null;
-  titleLineNumber: number | null;
-  participants: SequenceParticipant[];
-  messages: SequenceMessage[];
-  elements: SequenceElement[];
-  groups: SequenceGroup[];
-  sections: SequenceSection[];
-  tagGroups: TagGroup[];
-  options: Record<string, string>;
-  diagnostics: DgmoError[];
-  error: string | null;
+  readonly title: string | null;
+  readonly titleLineNumber: number | null;
+  readonly participants: readonly SequenceParticipant[];
+  readonly messages: readonly SequenceMessage[];
+  readonly elements: readonly SequenceElement[];
+  readonly groups: readonly SequenceGroup[];
+  readonly sections: readonly SequenceSection[];
+  readonly tagGroups: readonly TagGroup[];
+  readonly options: Readonly<Record<string, string>>;
+  readonly diagnostics: readonly DgmoError[];
+  readonly error: string | null;
 }
 
 // "Name is a type" pattern — e.g. "Auth Server is a database"
@@ -482,7 +482,12 @@ function resolveParticipantAndText(
  * Parse a .dgmo file with `chart: sequence` into a structured representation.
  */
 export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
-  const result: ParsedSequenceDgmo = {
+  // Diagram-level options accumulator (Readonly<Record<...>> on the public
+  // type; mutated locally during parse and assigned back via `result.options`).
+  const optionsAccumulator: Record<string, string> = {};
+  const result: Writable<ParsedSequenceDgmo> & {
+    options: Record<string, string>;
+  } = {
     title: null,
     titleLineNumber: null,
     participants: [],
@@ -491,7 +496,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     groups: [],
     sections: [],
     tagGroups: [],
-    options: {},
+    options: optionsAccumulator,
     diagnostics: [],
     error: null,
   };
@@ -551,8 +556,10 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     break;
   }
 
-  // Group parsing state — tracks the active [Group] heading
-  let activeGroup: SequenceGroup | null = null;
+  // Group parsing state — tracks the active [Group] heading.
+  // Mutated during parse (participantIds.push); typed Writable so the
+  // local accumulator can grow before the readonly-typed value is exposed.
+  let activeGroup: Writable<SequenceGroup> | null = null;
 
   // Fast lookup set for participant existence checks (mirrors result.participants).
   // Holds NORMALIZED participant keys so 'Auth Service' and 'auth service' fold
@@ -666,12 +673,13 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     return Object.keys(meta).length > 0 ? { core, meta } : { core };
   };
 
-  // Block parsing state
+  // Block parsing state — blocks are built mutably during parse, then
+  // assigned back into the readonly-typed `ParsedSequenceDgmo`.
   const blockStack: {
-    block: SequenceBlock;
+    block: Writable<SequenceBlock>;
     indent: number;
     inElse: boolean;
-    activeElseIfBranch?: ElseIfBranch;
+    activeElseIfBranch?: Writable<ElseIfBranch>;
   }[] = [];
   const currentContainer = (): SequenceElement[] => {
     if (blockStack.length === 0) return result.elements;
@@ -1306,7 +1314,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     const ifMatch = trimmed.match(/^if\s+(.+)$/i);
     if (ifMatch) {
       contentStarted = true;
-      const block: SequenceBlock = {
+      const block: Writable<SequenceBlock> = {
         kind: 'block',
         type: 'if',
         // Capture group 1 guaranteed present after successful match.
@@ -1324,7 +1332,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     const loopMatch = trimmed.match(/^loop\s+(.+)$/i);
     if (loopMatch) {
       contentStarted = true;
-      const block: SequenceBlock = {
+      const block: Writable<SequenceBlock> = {
         kind: 'block',
         type: 'loop',
         // Capture group 1 guaranteed present after successful match.
@@ -1342,7 +1350,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
     const parallelMatch = trimmed.match(/^parallel(?:\s+(.+))?$/i);
     if (parallelMatch) {
       contentStarted = true;
-      const block: SequenceBlock = {
+      const block: Writable<SequenceBlock> = {
         kind: 'block',
         type: 'parallel',
         label: parallelMatch[1]?.trim() || '',
@@ -1373,14 +1381,18 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
           continue;
         }
         if (top.block.type === 'if') {
-          const branch: ElseIfBranch = {
+          const branch: Writable<ElseIfBranch> = {
             // Capture group 1 guaranteed present after successful match.
             label: elseIfMatch[1]!.trim(),
             children: [],
             lineNumber,
           };
+          // `elseIfBranches` is optional on SequenceBlock — Writable<>'s
+          // shallow strip doesn't unwrap optional readonly arrays, so seed
+          // and access through a typed-mutable local alias.
           if (!top.block.elseIfBranches) top.block.elseIfBranches = [];
-          top.block.elseIfBranches.push(branch);
+          const branches = top.block.elseIfBranches as Writable<ElseIfBranch>[];
+          branches.push(branch);
           top.activeElseIfBranch = branch;
           top.inElse = false;
         }
@@ -1519,7 +1531,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
       usedIds.add(msg.to);
     }
     // Walk elements recursively to find note participant references
-    const walkElements = (elements: SequenceElement[]): void => {
+    const walkElements = (elements: readonly SequenceElement[]): void => {
       for (const el of elements) {
         if (isSequenceNote(el)) {
           // eslint-disable-next-line name-normalize/required-at-insertion

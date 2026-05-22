@@ -179,13 +179,17 @@ function fitLabelToHeader(
 
 function nodeColors(
   node: BLNode,
-  tagGroups: TagGroup[],
+  tagGroups: readonly TagGroup[],
   activeGroupName: string | null,
   palette: PaletteColors,
   isDark: boolean,
   solid?: boolean
 ): { fill: string; stroke: string; text: string } {
-  const tagColor = resolveTagColor(node.metadata, tagGroups, activeGroupName);
+  const tagColor = resolveTagColor(
+    node.metadata,
+    [...tagGroups],
+    activeGroupName
+  );
   if (tagColor) {
     const fill = shapeFill(palette, tagColor, isDark, {
       ...(solid !== undefined && { solid }),
@@ -208,7 +212,7 @@ function nodeColors(
 
 function edgeColor(
   edge: BLLayoutEdge,
-  tagGroups: TagGroup[],
+  tagGroups: readonly TagGroup[],
   activeGroupName: string | null,
   palette: PaletteColors
 ): string {
@@ -216,7 +220,11 @@ function edgeColor(
   const hasTagMeta =
     Object.keys(edge.metadata).length > 0 && activeGroupName != null;
   if (hasTagMeta) {
-    const tagColor = resolveTagColor(edge.metadata, tagGroups, activeGroupName);
+    const tagColor = resolveTagColor(
+      edge.metadata,
+      [...tagGroups],
+      activeGroupName
+    );
     if (tagColor) return tagColor;
   }
   return palette.textMuted;
