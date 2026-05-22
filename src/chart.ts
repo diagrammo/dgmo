@@ -156,7 +156,8 @@ export function parseChart(
   let firstLineParsed = false;
 
   for (let i = 0; i < lines.length; i++) {
-    const trimmed = lines[i].trim();
+    // In-bounds by loop guard.
+    const trimmed = lines[i]!.trim();
     const lineNumber = i + 1;
 
     // Skip empty lines
@@ -218,7 +219,8 @@ export function parseChart(
     // Color (if any) is the last whitespace-delimited token of the label.
     const eraMatch = trimmed.match(/^era\s+(.+?)\s*->\s*(.+?)\s*$/);
     if (eraMatch) {
-      const afterArrow = eraMatch[2].trim();
+      // Capture group 2 guaranteed present after regex match.
+      const afterArrow = eraMatch[2]!.trim();
       const spaceIdx = afterArrow.indexOf(' ');
       if (spaceIdx >= 0) {
         // Peel trailing-token color off the after-arrow label region.
@@ -231,7 +233,8 @@ export function parseChart(
           ? afterArrow.substring(0, lastSpaceIdx).trimEnd()
           : afterArrow;
         rawEras.push({
-          start: eraMatch[1].trim(),
+          // Capture group 1 guaranteed present after regex match.
+          start: eraMatch[1]!.trim(),
           afterArrow: labelPart,
           color: hasColor
             ? (resolveColorWithDiagnostic(
@@ -391,7 +394,8 @@ export function parseChart(
       const [first, ...rest] = dataValues.values;
       result.data.push({
         label: rawLabel,
-        value: first,
+        // parseDataRowValues guarantees values.length >= 1.
+        value: first!,
         ...(rest.length > 0 && { extraValues: rest }),
         ...(pointColor && { color: pointColor }),
         lineNumber,
@@ -425,7 +429,8 @@ export function parseChart(
     }
     if (!matched) {
       // Fallback: first token = end, rest = label
-      end = words[0];
+      // String.split always returns at least one element.
+      end = words[0]!;
       label = words.slice(1).join(' ');
     }
     parsedEras.push({
@@ -519,14 +524,17 @@ export function parseDataRowValues(
   // merge it with the previous segment
   const normalized: string[] = [];
   for (let i = 0; i < segments.length; i++) {
-    const seg = segments[i].trim();
+    // In-bounds by loop guard.
+    const seg = segments[i]!.trim();
     // Check if this segment is a continuation of a grouped number.
     // A continuation starts with exactly 3 digits (possibly followed by a decimal like ".65")
     // and follows a segment ending in digits.
     // Grouped numbers have NO space around the comma (e.g., "1,087"), so skip if
     // the raw segment has leading whitespace (e.g., ", 350" is a value separator).
-    if (i > 0 && /^\d{3}(\.\d+)?$/.test(seg) && !/^\s/.test(segments[i])) {
-      const prevSeg = normalized[normalized.length - 1].trimEnd();
+    // In-bounds by loop guard.
+    if (i > 0 && /^\d{3}(\.\d+)?$/.test(seg) && !/^\s/.test(segments[i]!)) {
+      // i > 0 means iteration 0 already pushed once; normalized.length >= 1.
+      const prevSeg = normalized[normalized.length - 1]!.trimEnd();
       // Check if previous segment ends with a number (1-3 digits at the end of the last token)
       if (/\d{1,3}$/.test(prevSeg)) {
         // Check if the combined token would be a valid grouped number
@@ -541,7 +549,8 @@ export function parseDataRowValues(
         }
       }
     }
-    normalized.push(segments[i]);
+    // In-bounds by loop guard.
+    normalized.push(segments[i]!);
   }
 
   const rebuilt = normalized.join(',');
@@ -557,8 +566,9 @@ export function parseDataRowValues(
     // Find how many trailing comma-separated parts are numeric
     let numericCount = 0;
     for (let j = commaParts.length - 1; j >= 0; j--) {
+      // In-bounds by loop guard.
       const part =
-        normalizeNumericToken(commaParts[j].trim()) ?? commaParts[j].trim();
+        normalizeNumericToken(commaParts[j]!.trim()) ?? commaParts[j]!.trim();
       if (part && !isNaN(parseFloat(part)) && isFinite(Number(part))) {
         numericCount++;
       } else {
@@ -609,7 +619,8 @@ export function parseDataRowValues(
     const values: number[] = [];
     let idx = tokens.length - 1;
     while (idx >= 1 && values.length < limit) {
-      const tok = tokens[idx];
+      // In-bounds by loop guard (idx >= 1 and idx <= tokens.length - 1).
+      const tok = tokens[idx]!;
       const normTok = normalizeNumericToken(tok) ?? tok;
       const num = parseFloat(normTok);
       if (isNaN(num) || !isFinite(Number(normTok))) break;
@@ -623,7 +634,8 @@ export function parseDataRowValues(
   }
 
   // Single-value mode: only the last space-separated token
-  const lastToken = tokens[tokens.length - 1];
+  // tokens.length >= 2 by the earlier length check.
+  const lastToken = tokens[tokens.length - 1]!;
   const normalizedLast = normalizeNumericToken(lastToken) ?? lastToken;
   const num = parseFloat(normalizedLast);
   if (isNaN(num) || !isFinite(Number(normalizedLast))) return null;

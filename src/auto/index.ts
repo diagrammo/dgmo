@@ -605,7 +605,7 @@ async function processElement(el: Element): Promise<ProcessOutcome> {
     // Keep `data-dgmo-processed` set so a follow-up run() doesn't loop on
     // the same broken source. Users wanting to retry after editing should
     // clear the attribute manually or replace the element.
-    const d = result.diagnostics[0];
+    const d = result.diagnostics[0]!; // In-bounds by length > 0 check above.
     // d may have shape { severity, message, line, column } from diagnostics.ts
     const banner = buildErrorBanner({
       message: d.message,

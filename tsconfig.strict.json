@@ -39,6 +39,23 @@
     "src/graph/**/*.ts",
     "src/gantt/**/*.ts",
     "src/boxes-and-lines/**/*.ts",
-    "src/sequence/**/*.ts"
+    "src/sequence/**/*.ts",
+    "src/sharing.ts",
+    "src/label-layout.ts",
+    "src/themes.ts",
+    "src/completion-types.ts",
+    "src/chart.ts",
+    "src/chart-types.ts",
+    "src/chart-type-scoring.ts",
+    "src/dgmo-router.ts",
+    "src/completion.ts",
+    "src/d3.ts",
+    "src/echarts.ts",
+    "src/cli.ts",
+    "src/render.ts",
+    "src/index.ts",
+    "src/internal.ts",
+    "src/advanced.ts",
+    "src/auto/**/*.ts"
   ]
 }

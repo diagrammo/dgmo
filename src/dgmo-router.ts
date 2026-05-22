@@ -353,15 +353,17 @@ export function parseDgmo(content: string): {
 function detectColonChartType(content: string): DgmoError | null {
   const lines = content.split('\n');
   for (let i = 0; i < lines.length; i++) {
-    const trimmed = lines[i].trim();
+    // In-bounds by loop guard.
+    const trimmed = lines[i]!.trim();
     if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('//'))
       continue;
 
     const match = trimmed.match(/^(\w[\w-]*)\s*:\s*(.*)$/);
     if (!match) return null; // First non-empty line doesn't match colon pattern
 
-    const word = match[1].toLowerCase();
-    const rest = match[2].trim();
+    // Regex captured groups 1 and 2 by successful match.
+    const word = match[1]!.toLowerCase();
+    const rest = match[2]!.trim();
 
     if (ALL_KNOWN_TYPES.has(word)) {
       const example = rest ? `${word} ${rest}` : word;

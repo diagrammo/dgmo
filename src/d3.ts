@@ -336,15 +336,17 @@ export function parseTimelineDate(s: string): number {
     const timePart = s.slice(spaceIdx + 1);
     const timeParts = timePart.split(':');
     if (timeParts.length === 2) {
-      hour = parseInt(timeParts[0], 10);
-      minute = parseInt(timeParts[1], 10);
+      // In-bounds by length check above.
+      hour = parseInt(timeParts[0]!, 10);
+      minute = parseInt(timeParts[1]!, 10);
     }
   }
 
   const parts = datePart.split('-').map((p) => parseInt(p, 10));
-  const year = parts[0];
-  const month = parts.length >= 2 ? parts[1] : 1;
-  const day = parts.length >= 3 ? parts[2] : 1;
+  // parts is always non-empty (split returns at least one element).
+  const year = parts[0]!;
+  const month = parts.length >= 2 ? parts[1]! : 1;
+  const day = parts.length >= 3 ? parts[2]! : 1;
   return (
     year + (month - 1) / 12 + (day - 1) / 365 + hour / 8760 + minute / 525600
   );
@@ -372,15 +374,17 @@ export function addDurationToDate(
     const timePart = startDate.slice(spaceIdx + 1);
     const tp = timePart.split(':');
     if (tp.length === 2) {
-      hour = parseInt(tp[0], 10);
-      minute = parseInt(tp[1], 10);
+      // In-bounds by length check above.
+      hour = parseInt(tp[0]!, 10);
+      minute = parseInt(tp[1]!, 10);
     }
   }
 
   const parts = datePart.split('-').map((p) => parseInt(p, 10));
-  const year = parts[0];
-  const month = parts.length >= 2 ? parts[1] : 1;
-  const day = parts.length >= 3 ? parts[2] : 1;
+  // parts is always non-empty (split returns at least one element).
+  const year = parts[0]!;
+  const month = parts.length >= 2 ? parts[1]! : 1;
+  const day = parts.length >= 3 ? parts[2]! : 1;
 
   const date = new Date(year, month - 1, day, hour, minute);
 
@@ -523,7 +527,8 @@ export function parseVisualization(
   let firstLineParsed = false;
 
   for (let i = 0; i < lines.length; i++) {
-    const rawLine = lines[i];
+    // In-bounds by loop guard.
+    const rawLine = lines[i]!;
     const line = rawLine.trim();
     const indent = rawLine.length - rawLine.trimStart().length;
     const lineNumber = i + 1;
@@ -602,7 +607,8 @@ export function parseVisualization(
     );
     if (groupMatch) {
       if (result.type === 'arc') {
-        const name = groupMatch[1].trim();
+        // Capture group 1 is guaranteed by the regex match.
+        const name = groupMatch[1]!.trim();
         const color = groupMatch[2]
           ? (resolveColorWithDiagnostic(
               groupMatch[2].trim(),
@@ -614,7 +620,8 @@ export function parseVisualization(
         result.arcNodeGroups.push({ name, nodes: [], color, lineNumber });
         currentArcGroup = name;
       } else if (result.type === 'timeline') {
-        const name = groupMatch[1].trim();
+        // Capture group 1 is guaranteed by the regex match.
+        const name = groupMatch[1]!.trim();
         const color = groupMatch[2]
           ? (resolveColorWithDiagnostic(
               groupMatch[2].trim(),
@@ -661,8 +668,9 @@ export function parseVisualization(
         /^(.+?)\s*->\s*(.+?)(?:\s+(red|orange|yellow|green|blue|purple|teal|cyan|gray|black|white))?(?:\s+(-?[\d,_]+(?:\.[\d]+)?))?$/
       );
       if (linkMatch) {
-        const source = linkMatch[1].trim();
-        const target = linkMatch[2].trim();
+        // Capture groups 1 and 2 are guaranteed by the regex match.
+        const source = linkMatch[1]!.trim();
+        const target = linkMatch[2]!.trim();
         const linkColor = linkMatch[3]
           ? (resolveColorWithDiagnostic(
               linkMatch[3].trim(),
@@ -714,9 +722,10 @@ export function parseVisualization(
         if (eraEntryMatch) {
           const colorAnnotation = eraEntryMatch[4]?.trim() || null;
           result.timelineEras.push({
-            startDate: eraEntryMatch[1],
-            endDate: eraEntryMatch[2],
-            label: eraEntryMatch[3].trim(),
+            // Capture groups 1-3 guaranteed by the regex match.
+            startDate: eraEntryMatch[1]!,
+            endDate: eraEntryMatch[2]!,
+            label: eraEntryMatch[3]!.trim(),
             color: colorAnnotation
               ? (resolveColorWithDiagnostic(
                   colorAnnotation,
@@ -748,8 +757,9 @@ export function parseVisualization(
         if (markerEntryMatch) {
           const colorAnnotation = markerEntryMatch[3]?.trim() || null;
           result.timelineMarkers.push({
-            date: markerEntryMatch[1],
-            label: markerEntryMatch[2].trim(),
+            // Capture groups 1-2 guaranteed by the regex match.
+            date: markerEntryMatch[1]!,
+            label: markerEntryMatch[2]!.trim(),
             color: colorAnnotation
               ? (resolveColorWithDiagnostic(
                   colorAnnotation,
@@ -792,9 +802,10 @@ export function parseVisualization(
       if (eraMatch) {
         const colorAnnotation = eraMatch[4]?.trim() || null;
         result.timelineEras.push({
-          startDate: eraMatch[1],
-          endDate: eraMatch[2],
-          label: eraMatch[3].trim(),
+          // Capture groups 1-3 guaranteed by the regex match.
+          startDate: eraMatch[1]!,
+          endDate: eraMatch[2]!,
+          label: eraMatch[3]!.trim(),
           color: colorAnnotation
             ? (resolveColorWithDiagnostic(
                 colorAnnotation,
@@ -817,8 +828,9 @@ export function parseVisualization(
       if (markerMatch) {
         const colorAnnotation = markerMatch[3]?.trim() || null;
         result.timelineMarkers.push({
-          date: markerMatch[1],
-          label: markerMatch[2].trim(),
+          // Capture groups 1-2 guaranteed by the regex match.
+          date: markerMatch[1]!,
+          label: markerMatch[2]!.trim(),
           color: colorAnnotation
             ? (resolveColorWithDiagnostic(
                 colorAnnotation,
@@ -843,12 +855,13 @@ export function parseVisualization(
         /^(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s*(?:->|\u2013>)\s*(\d+(?:\.\d{1,2})?)(min|[dwmyh])(\?)?\s+(.+)$/
       );
       if (durationMatch) {
-        const startDate = durationMatch[1];
+        // Capture groups 1-5 guaranteed by the regex match.
+        const startDate = durationMatch[1]!;
         const uncertain = durationMatch[4] === '?';
-        const amount = parseFloat(durationMatch[2]);
+        const amount = parseFloat(durationMatch[2]!);
         const unit = durationMatch[3] as 'd' | 'w' | 'm' | 'y' | 'h' | 'min';
         const endDate = addDurationToDate(startDate, amount, unit);
-        const segments = durationMatch[5].split('|');
+        const segments = durationMatch[5]!.split('|');
         const metadata =
           segments.length > 1
             ? parsePipeMetadata(
@@ -860,7 +873,8 @@ export function parseVisualization(
         result.timelineEvents.push({
           date: startDate,
           endDate,
-          label: segments[0].trim(),
+          // segments is non-empty (split always returns at least one).
+          label: segments[0]!.trim(),
           group: currentTimelineGroup,
           metadata,
           lineNumber,
@@ -876,7 +890,8 @@ export function parseVisualization(
         /^(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)\s*(?:->|\u2013>)\s*(\d{4}(?:-\d{2})?(?:-\d{2}(?: \d{2}:\d{2})?)?)(\?)?\s+(.+)$/
       );
       if (rangeMatch) {
-        const segments = rangeMatch[4].split('|');
+        // Capture group 4 guaranteed by the regex match.
+        const segments = rangeMatch[4]!.split('|');
         const metadata =
           segments.length > 1
             ? parsePipeMetadata(
@@ -886,9 +901,11 @@ export function parseVisualization(
               )
             : {};
         result.timelineEvents.push({
-          date: rangeMatch[1],
-          endDate: rangeMatch[2],
-          label: segments[0].trim(),
+          // Capture groups 1-2 guaranteed by the regex match.
+          date: rangeMatch[1]!,
+          endDate: rangeMatch[2]!,
+          // segments is non-empty (split always returns at least one).
+          label: segments[0]!.trim(),
           group: currentTimelineGroup,
           metadata,
           lineNumber,
@@ -900,7 +917,8 @@ export function parseVisualization(
       // Point event: 1718 description
       const pointMatch = line.match(/^(\d{4}(?:-\d{2})?(?:-\d{2})?)\s+(.+)$/);
       if (pointMatch) {
-        const segments = pointMatch[2].split('|');
+        // Capture group 2 guaranteed by the regex match.
+        const segments = pointMatch[2]!.split('|');
         const metadata =
           segments.length > 1
             ? parsePipeMetadata(
@@ -910,9 +928,11 @@ export function parseVisualization(
               )
             : {};
         result.timelineEvents.push({
-          date: pointMatch[1],
+          // Capture group 1 guaranteed by the regex match.
+          date: pointMatch[1]!,
           endDate: null,
-          label: segments[0].trim(),
+          // segments is non-empty (split always returns at least one).
+          label: segments[0]!.trim(),
           group: currentTimelineGroup,
           metadata,
           lineNumber,
@@ -943,7 +963,8 @@ export function parseVisualization(
         if (segments.length >= 2) {
           // All segments except the last are pure set references
           const rawSets = segments.slice(0, -1);
-          const lastSeg = segments[segments.length - 1];
+          // In-bounds by length check (segments.length >= 2).
+          const lastSeg = segments[segments.length - 1]!;
 
           // For the last segment, extract set reference and optional label.
           // Find where the set reference ends and label begins.
@@ -965,7 +986,8 @@ export function parseVisualization(
               words.length > matchLen ? words.slice(matchLen).join(' ') : null;
           } else {
             // No known set matched — assume first word is the set ref, rest is label
-            lastSetRef = words[0];
+            // words is non-empty (split always returns at least one).
+            lastSetRef = words[0]!;
             label = words.length > 1 ? words.slice(1).join(' ') : null;
           }
           rawSets.push(lastSetRef);
@@ -983,8 +1005,9 @@ export function parseVisualization(
         // the rest of the line so the set still appears.
         const legacyAliasMatch = line.match(/^(.+?)\s+alias\s+(\S+)\s*$/i);
         if (legacyAliasMatch) {
-          const nameWithMaybeColor = legacyAliasMatch[1].trim();
-          const aliasToken = legacyAliasMatch[2].trim();
+          // Capture groups 1-2 guaranteed by the regex match.
+          const nameWithMaybeColor = legacyAliasMatch[1]!.trim();
+          const aliasToken = legacyAliasMatch[2]!.trim();
           // Split off trailing-token color from the name region.
           const { label: name, colorName } =
             peelTrailingColorName(nameWithMaybeColor);
@@ -1014,7 +1037,8 @@ export function parseVisualization(
           /^(.+?)(?:\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11}))?\s*$/i
         );
         if (setDeclMatch) {
-          const nameWithMaybeColor = setDeclMatch[1].trim();
+          // Capture group 1 guaranteed by the regex match.
+          const nameWithMaybeColor = setDeclMatch[1]!.trim();
           const alias = setDeclMatch[2]?.trim() ?? null;
           // Split off trailing-token color from the name region (before `as`).
           const { label: name, colorName } =
@@ -1040,7 +1064,8 @@ export function parseVisualization(
       // x-label Low, High  — or indented multi-line
       const xAxisMatch = line.match(/^x-label\s+(.*)/i);
       if (xAxisMatch) {
-        const val = xAxisMatch[1].trim();
+        // Capture group 1 guaranteed by the regex match.
+        const val = xAxisMatch[1]!.trim();
         let parts: string[];
         if (val) {
           parts = val.split(',').map((s) => s.trim());
@@ -1050,7 +1075,8 @@ export function parseVisualization(
           parts = collected.values;
         }
         if (parts.length >= 2) {
-          result.quadrantXAxis = [parts[0], parts[1]];
+          // In-bounds by length check above.
+          result.quadrantXAxis = [parts[0]!, parts[1]!];
           result.quadrantXAxisLineNumber = lineNumber;
         }
         continue;
@@ -1059,7 +1085,8 @@ export function parseVisualization(
       // y-label Low, High  — or indented multi-line
       const yAxisMatch = line.match(/^y-label\s+(.*)/i);
       if (yAxisMatch) {
-        const val = yAxisMatch[1].trim();
+        // Capture group 1 guaranteed by the regex match.
+        const val = yAxisMatch[1]!.trim();
         let parts: string[];
         if (val) {
           parts = val.split(',').map((s) => s.trim());
@@ -1069,7 +1096,8 @@ export function parseVisualization(
           parts = collected.values;
         }
         if (parts.length >= 2) {
-          result.quadrantYAxis = [parts[0], parts[1]];
+          // In-bounds by length check above.
+          result.quadrantYAxis = [parts[0]!, parts[1]!];
           result.quadrantYAxisLineNumber = lineNumber;
         }
         continue;
@@ -1082,8 +1110,9 @@ export function parseVisualization(
         /^(top-right|top-left|bottom-left|bottom-right)\s+(.+)/i;
       const quadrantMatch = line.match(quadrantLabelRe);
       if (quadrantMatch) {
-        const position = quadrantMatch[1].toLowerCase();
-        const labelPart = quadrantMatch[2].trim();
+        // Capture groups 1-2 guaranteed by the regex match.
+        const position = quadrantMatch[1]!.toLowerCase();
+        const labelPart = quadrantMatch[2]!.trim();
         // Peel trailing recognized color word from the label.
         const { label: text, colorName } = peelTrailingColorName(labelPart);
         const color = colorName
@@ -1110,7 +1139,8 @@ export function parseVisualization(
         /^(.+?)\s+(-?[0-9][0-9,_]*(?:\.[0-9]+)?)\s*[,\s]\s*(-?[0-9][0-9,_]*(?:\.[0-9]+)?)\s*$/
       );
       if (pointMatch) {
-        const label = pointMatch[1].trim();
+        // Capture groups 1-3 guaranteed by the regex match.
+        const label = pointMatch[1]!.trim();
         // Skip if it looks like a quadrant position keyword
         const lowerLabel = label.toLowerCase();
         if (
@@ -1122,10 +1152,10 @@ export function parseVisualization(
           result.quadrantPoints.push({
             label,
             x: parseFloat(
-              normalizeNumericToken(pointMatch[2]) ?? pointMatch[2]
+              normalizeNumericToken(pointMatch[2]!) ?? pointMatch[2]!
             ),
             y: parseFloat(
-              normalizeNumericToken(pointMatch[3]) ?? pointMatch[3]
+              normalizeNumericToken(pointMatch[3]!) ?? pointMatch[3]!
             ),
             lineNumber,
           });
@@ -1186,10 +1216,12 @@ export function parseVisualization(
         if (
           parts.length === 2 &&
           parts.every((n) => !isNaN(n) && n > 0) &&
-          parts[0] < parts[1]
+          // In-bounds by length === 2 check.
+          parts[0]! < parts[1]!
         ) {
-          result.cloudOptions.minSize = parts[0];
-          result.cloudOptions.maxSize = parts[1];
+          // In-bounds by length === 2 check.
+          result.cloudOptions.minSize = parts[0]!;
+          result.cloudOptions.maxSize = parts[1]!;
         }
         continue;
       }
@@ -1249,7 +1281,8 @@ export function parseVisualization(
               `Duplicate 'period' directive — periods are already defined`
             );
           }
-          const rest = periodMatch[1].trim();
+          // Capture group 1 guaranteed by the regex match.
+          const rest = periodMatch[1]!.trim();
           if (rest) {
             // One-line: `period 1715 1725`
             const periodLabels = rest.split(/\s+/);
@@ -1313,8 +1346,9 @@ export function parseVisualization(
         // Scan from right, capped at P values
         let rightIdx = tokens.length - 1;
         while (rightIdx >= 0 && values.length < P) {
-          const raw =
-            normalizeNumericToken(tokens[rightIdx]) ?? tokens[rightIdx];
+          // In-bounds by while condition (rightIdx >= 0 && < tokens.length).
+          const tok = tokens[rightIdx]!;
+          const raw = normalizeNumericToken(tok) ?? tok;
           const num = parseFloat(raw);
           if (!isNaN(num) && /^-?\d/.test(raw)) {
             values.unshift(num);
@@ -1443,19 +1477,22 @@ export function parseVisualization(
         if (
           parts.length === 2 &&
           parts.every((n) => !isNaN(n) && n > 0) &&
-          parts[0] < parts[1]
+          // In-bounds by length === 2 check.
+          parts[0]! < parts[1]!
         ) {
-          result.cloudOptions.minSize = parts[0];
-          result.cloudOptions.maxSize = parts[1];
+          // In-bounds by length === 2 check.
+          result.cloudOptions.minSize = parts[0]!;
+          result.cloudOptions.maxSize = parts[1]!;
         }
         continue;
       }
 
       // Data line: "Label: value1, value2" or "Label(color): value1, value2"
-      const labelPart = colorMatch ? colorMatch[1].trim() : rawKey;
+      // Capture groups 1-2 guaranteed by the regex match.
+      const labelPart = colorMatch ? colorMatch[1]!.trim() : rawKey;
       const colorPart = colorMatch
         ? (resolveColorWithDiagnostic(
-            colorMatch[2].trim(),
+            colorMatch[2]!.trim(),
             lineNumber,
             result.diagnostics,
             palette
@@ -1531,8 +1568,9 @@ export function parseVisualization(
     const validD3Types = [...VALID_D3_TYPES];
     const firstNonEmpty =
       lines.find((l) => l.trim() && !l.trim().startsWith('//'))?.trim() ?? '';
+    // split always returns at least one element.
     const hint = suggest(
-      firstNonEmpty.split(/\s/)[0].toLowerCase(),
+      firstNonEmpty.split(/\s/)[0]!.toLowerCase(),
       validD3Types
     );
     let msg = `Unsupported chart type: "${firstNonEmpty.split(/\s/)[0]}". Supported types: ${validD3Types.join(', ')}`;
@@ -1670,8 +1708,9 @@ export function parseVisualization(
             )
           );
           if (!result.error)
+            // diagnostics non-empty: we just pushed to it.
             result.error = formatDgmoError(
-              result.diagnostics[result.diagnostics.length - 1]
+              result.diagnostics[result.diagnostics.length - 1]!
             );
           valid = false;
           break;
@@ -1992,14 +2031,17 @@ export function renderSlopeChart(
   // Line generator
   const lineGen = d3Shape
     .line<number>()
-    .x((_d, i) => xScale(periods[i])!)
+    // periods[i] is in-bounds — i comes from d3 line's index callback over the data array.
+    .x((_d, i) => xScale(periods[i]!)!)
     .y((d) => yScale(d));
 
   // Pre-compute per-series data for label collision resolution
   const seriesInfo = data.map((item, idx) => {
-    const color = item.color ?? colors[idx % colors.length];
-    const firstVal = item.values[0];
-    const lastVal = item.values[item.values.length - 1];
+    // colors is non-empty; modulo guarantees in-bounds.
+    const color = item.color ?? colors[idx % colors.length]!;
+    // values is non-empty by parser validation (slope requires P>=2 values per series).
+    const firstVal = item.values[0]!;
+    const lastVal = item.values[item.values.length - 1]!;
     const absChange = lastVal - firstVal;
     const pctChange = firstVal !== 0 ? (absChange / firstVal) * 100 : null;
     const sign = absChange > 0 ? '+' : '';
@@ -2008,7 +2050,8 @@ export function renderSlopeChart(
     const tipHtml = tipLines.join('<br>');
 
     // Compute right-side label text and wrapping info
-    const lastX = xScale(periods[periods.length - 1])!;
+    // periods is non-empty (slope requires P >= 2 periods).
+    const lastX = xScale(periods[periods.length - 1]!)!;
     const labelText = `${lastVal} — ${item.label}`;
     const availableWidth = rightMargin - 15;
     const maxChars = Math.floor(availableWidth / SLOPE_CHAR_WIDTH);
@@ -2058,7 +2101,8 @@ export function renderSlopeChart(
   const leftLabelCollisions: Map<number, number[]> = new Map();
   for (let pi = 0; pi < periods.length - 1; pi++) {
     const entries = data.map((item) => ({
-      naturalY: yScale(item.values[pi]),
+      // pi is in-bounds by loop guard against periods.length, and each data row has periods.length values.
+      naturalY: yScale(item.values[pi]!),
       height: leftLabelHeight,
     }));
     leftLabelCollisions.set(
@@ -2080,7 +2124,8 @@ export function renderSlopeChart(
 
   // Render each data series
   data.forEach((item, idx) => {
-    const si = seriesInfo[idx];
+    // seriesInfo was built by data.map() above, so idx is in-bounds.
+    const si = seriesInfo[idx]!;
     const color = si.color;
 
     // Wrap each series in a group with data-line-number for sync adapter
@@ -2120,7 +2165,8 @@ export function renderSlopeChart(
 
     // Points and value labels
     item.values.forEach((val, i) => {
-      const x = xScale(periods[i])!;
+      // periods[i] is in-bounds because item.values.length === periods.length (slope contract).
+      const x = xScale(periods[i]!)!;
       const y = yScale(val);
 
       // Point circle
@@ -2148,7 +2194,8 @@ export function renderSlopeChart(
       const isFirst = i === 0;
       const isLast = i === periods.length - 1;
       if (!isLast) {
-        const adjustedY = leftLabelCollisions.get(i)![idx];
+        // leftLabelCollisions was set for every i in [0, periods.length-1); idx is in-bounds by data.map.
+        const adjustedY = leftLabelCollisions.get(i)![idx]!;
         seriesG
           .append('text')
           .attr('x', isFirst ? x - 10 : x)
@@ -2162,7 +2209,8 @@ export function renderSlopeChart(
     });
 
     // Series label with value at end of line — wraps if it exceeds available space
-    const adjustedLastY = rightAdjustedY[idx];
+    // rightAdjustedY was produced from rightEntries.length === seriesInfo.length === data.length.
+    const adjustedLastY = rightAdjustedY[idx]!;
 
     const labelEl = seriesG
       .append('text')
@@ -2544,7 +2592,8 @@ export function renderArcDiagram(
       const midY = (y1 + y2) / 2;
       const distance = Math.abs(y2 - y1);
       const controlX = baseX + distance * 0.4;
-      const color = link.color ?? colors[idx % colors.length];
+      // colors is non-empty; modulo guarantees in-bounds.
+      const color = link.color ?? colors[idx % colors.length]!;
 
       g.append('path')
         .attr('class', 'arc-link')
@@ -2684,7 +2733,8 @@ export function renderArcDiagram(
       const midX = (x1 + x2) / 2;
       const distance = Math.abs(x2 - x1);
       const controlY = baseY - distance * 0.4;
-      const color = link.color ?? colors[idx % colors.length];
+      // colors is non-empty; modulo guarantees in-bounds.
+      const color = link.color ?? colors[idx % colors.length]!;
 
       g.append('path')
         .attr('class', 'arc-link')
@@ -2794,7 +2844,8 @@ function renderEras(
     const start = scale(startVal);
     const end = scale(endVal);
     if (!Number.isFinite(start) || !Number.isFinite(end)) return;
-    const color = era.color || eraColors[i % eraColors.length];
+    // eraColors is non-empty; modulo guarantees in-bounds.
+    const color = era.color || eraColors[i % eraColors.length]!;
 
     const eraG = g
       .append('g')
@@ -2915,7 +2966,8 @@ function renderMarkers(
   markers.forEach((marker, i) => {
     const dateVal = parseTimelineDate(marker.date);
     if (!Number.isFinite(dateVal)) return;
-    const pos = positions[i];
+    // positions is produced by markers.map(), so i is in-bounds.
+    const pos = positions[i]!;
     if (!Number.isFinite(pos)) return;
     const color = marker.color || defaultColor;
     const lineOpacity = 0.5;
@@ -2987,7 +3039,8 @@ function renderMarkers(
         let nearestDist = Math.min(pos, innerWidth - pos);
         for (let j = 0; j < positions.length; j++) {
           if (j === i) continue;
-          const other = positions[j];
+          // In-bounds by loop guard.
+          const other = positions[j]!;
           if (!Number.isFinite(other)) continue;
           const d = Math.abs(other - pos);
           if (d < nearestDist) nearestDist = d;
@@ -3065,11 +3118,14 @@ export function formatDateLabel(dateStr: string): string {
   }
 
   const parts = datePart.split('-');
-  const year = parts[0];
+  // split returns at least one element.
+  const year = parts[0]!;
   if (parts.length === 1) return year + timeSuffix;
-  const month = MONTH_ABBR[parseInt(parts[1], 10) - 1];
+  // In-bounds by length check above.
+  const month = MONTH_ABBR[parseInt(parts[1]!, 10) - 1];
   if (parts.length === 2) return `${month} ${year}${timeSuffix}`;
-  const day = parseInt(parts[2], 10);
+  // In-bounds by length check above.
+  const day = parseInt(parts[2]!, 10);
   return `${month} ${day}, ${year}${timeSuffix}`;
 }
 
@@ -3109,7 +3165,8 @@ function renderTimeScale(
   boundaryStartLabel?: string,
   boundaryEndLabel?: string
 ): void {
-  const [domainMin, domainMax] = scale.domain();
+  // d3 linear scales always return a 2-element domain.
+  const [domainMin, domainMax] = scale.domain() as [number, number];
   const ticks = computeTimeTicks(
     domainMin,
     domainMax,
@@ -3583,7 +3640,8 @@ function setupTimeline(
 
   const groupColorMap = new Map<string, string>();
   timelineGroups.forEach((grp, i) => {
-    groupColorMap.set(grp.name, grp.color ?? colors[i % colors.length]);
+    // colors is non-empty; modulo guarantees in-bounds.
+    groupColorMap.set(grp.name, grp.color ?? colors[i % colors.length]!);
   });
 
   let tagLanes: Lane[] | null = null;
@@ -5703,7 +5761,8 @@ export function renderWordCloud(
         .style('font-size', (d) => `${d.size}px`)
         .style('font-family', FONT_FAMILY)
         .style('font-weight', '600')
-        .style('fill', (_d, i) => colors[i % colors.length])
+        // colors is non-empty; modulo guarantees in-bounds.
+        .style('fill', (_d, i) => colors[i % colors.length]!)
         .style('cursor', (d) =>
           onClickItem && (d as WordCloudWord).lineNumber ? 'pointer' : 'default'
         )
@@ -5803,7 +5862,8 @@ function renderWordCloudAsync(
           .style('font-size', (d) => `${d.size}px`)
           .style('font-family', FONT_FAMILY)
           .style('font-weight', '600')
-          .style('fill', (_d, i) => colors[i % colors.length])
+          // colors is non-empty; modulo guarantees in-bounds.
+          .style('fill', (_d, i) => colors[i % colors.length]!)
           .attr('text-anchor', 'middle')
           .attr(
             'transform',
@@ -5897,7 +5957,8 @@ function regionCentroid(circles: Circle[], inside: boolean[]): Point {
       const y = minY + gj * stepY;
       let match = true;
       for (let j = 0; j < circles.length; j++) {
-        const isIn = pointInCircle({ x, y }, circles[j]);
+        // In-bounds by loop guard.
+        const isIn = pointInCircle({ x, y }, circles[j]!);
         if (isIn !== inside[j]) {
           match = false;
           break;
@@ -5917,8 +5978,9 @@ function regionCentroid(circles: Circle[], inside: boolean[]): Point {
       fc = 0;
     for (let j = 0; j < circles.length; j++) {
       if (inside[j]) {
-        fx += circles[j].x;
-        fy += circles[j].y;
+        // In-bounds by loop guard.
+        fx += circles[j]!.x;
+        fy += circles[j]!.y;
         fc++;
       }
     }
@@ -5973,7 +6035,8 @@ export function renderVenn(
 
   // Resolve colors for each set
   const setColors = vennSets.map(
-    (s, i) => s.color ?? colors[i % colors.length]
+    // colors is non-empty; modulo guarantees in-bounds.
+    (s, i) => s.color ?? colors[i % colors.length]!
   );
 
   // ── Layout-aware centering with label space ──
@@ -5989,10 +6052,11 @@ export function renderVenn(
   const labelTextPad = 4;
 
   for (let i = 0; i < n; i++) {
+    // In-bounds by loop guard (n === vennSets.length === rawCircles.length).
     const estimatedWidth =
-      vennSets[i].name.length * 8.5 + stubLen + edgePad + labelTextPad;
-    const dx = rawCircles[i].x - clusterCx;
-    const dy = rawCircles[i].y - clusterCy;
+      vennSets[i]!.name.length * 8.5 + stubLen + edgePad + labelTextPad;
+    const dx = rawCircles[i]!.x - clusterCx;
+    const dy = rawCircles[i]!.y - clusterCy;
     if (Math.abs(dx) >= Math.abs(dy)) {
       if (dx >= 0) marginRight = Math.max(marginRight, estimatedWidth);
       else marginLeft = Math.max(marginLeft, estimatedWidth);
@@ -6043,16 +6107,18 @@ export function renderVenn(
       let sx = 0,
         sy = 0;
       for (const ei of excluded) {
-        sx += rawCircles[ei].x;
-        sy += rawCircles[ei].y;
+        // ei comes from rawCircles' index map above.
+        sx += rawCircles[ei]!.x;
+        sy += rawCircles[ei]!.y;
       }
       sx /= excluded.length;
       sy /= excluded.length;
       let cx = 0,
         cy = 0;
       for (const ci of idxs) {
-        cx += rawCircles[ci].x;
-        cy += rawCircles[ci].y;
+        // ci is a valid index into rawCircles by caller's contract.
+        cx += rawCircles[ci]!.x;
+        cy += rawCircles[ci]!.y;
       }
       cx /= idxs.length;
       cy /= idxs.length;
@@ -6122,7 +6188,8 @@ export function renderVenn(
     marginBottom
   ).map((c) => ({ ...c, y: c.y + titleHeight }));
 
-  const scaledR = circles[0].r;
+  // circles is non-empty: vennSets.length >= 2 guard above ensures rawCircles is sized.
+  const scaledR = circles[0]!.r;
 
   // Suppress WebKit focus ring on interactive SVG elements
   svg
@@ -6155,9 +6222,10 @@ export function renderVenn(
       .attr('cx', c.x)
       .attr('cy', c.y)
       .attr('r', c.r)
-      .attr('fill', setColors[i])
+      // setColors was built from vennSets via map, so i is in-bounds.
+      .attr('fill', setColors[i]!)
       .attr('fill-opacity', 0.35)
-      .attr('stroke', setColors[i])
+      .attr('stroke', setColors[i]!)
       .attr('stroke-width', 2)
       .style('pointer-events', 'none') as d3Selection.Selection<
       SVGCircleElement,
@@ -6204,17 +6272,20 @@ export function renderVenn(
     );
 
     // Build nested clipPath for intersection of all idxs
-    let clipId = `vcp-${idxs[0]}`;
+    // idxs is non-empty by construction in regionIdxSets.
+    let clipId = `vcp-${idxs[0]!}`;
     for (let k = 1; k < idxs.length; k++) {
       const nestedId = `vcp-n-${idxs.slice(0, k + 1).join('-')}`;
-      const ci = idxs[k];
+      // k is in-bounds by loop guard.
+      const ci = idxs[k]!;
       defs
         .append('clipPath')
         .attr('id', nestedId)
         .append('circle')
-        .attr('cx', circles[ci].x)
-        .attr('cy', circles[ci].y)
-        .attr('r', circles[ci].r)
+        // ci is a valid index into circles by caller's contract.
+        .attr('cx', circles[ci]!.x)
+        .attr('cy', circles[ci]!.y)
+        .attr('r', circles[ci]!.r)
         .attr('clip-path', `url(#${clipId})`);
       clipId = nestedId;
     }
@@ -6222,9 +6293,10 @@ export function renderVenn(
     // Determine line number for this region (for editor sync)
     let regionLineNumber: number | null = null; // eslint-disable-line no-useless-assignment
     if (idxs.length === 1) {
-      regionLineNumber = vennSets[idxs[0]].lineNumber;
+      // idxs[0] guaranteed by length check above.
+      regionLineNumber = vennSets[idxs[0]!]!.lineNumber;
     } else {
-      const sortedNames = idxs.map((i) => vennSets[i].name).sort();
+      const sortedNames = idxs.map((i) => vennSets[i]!.name).sort();
       const ov = vennOverlaps.find(
         (o) =>
           o.sets.length === sortedNames.length &&
@@ -6260,11 +6332,12 @@ export function renderVenn(
         .attr('height', height)
         .attr('fill', 'white');
       for (const j of excluded) {
+        // excluded is built from circles' indices, so j is in-bounds.
         mask
           .append('circle')
-          .attr('cx', circles[j].x)
-          .attr('cy', circles[j].y)
-          .attr('r', circles[j].r)
+          .attr('cx', circles[j]!.x)
+          .attr('cy', circles[j]!.y)
+          .attr('r', circles[j]!.r)
           .attr('fill', 'black');
       }
       el.attr('mask', `url(#${maskId})`);
@@ -6311,19 +6384,21 @@ export function renderVenn(
   const gcy = circles.reduce((s, c) => s + c.y, 0) / n;
 
   function exclusiveHSpan(_px: number, py: number, ci: number): number {
-    const dy = py - circles[ci].y;
-    const halfChord = Math.sqrt(
-      Math.max(0, circles[ci].r * circles[ci].r - dy * dy)
-    );
-    let left = circles[ci].x - halfChord;
-    let right = circles[ci].x + halfChord;
+    // ci is in-bounds: caller passes a circle index.
+    const cci = circles[ci]!;
+    const dy = py - cci.y;
+    const halfChord = Math.sqrt(Math.max(0, cci.r * cci.r - dy * dy));
+    let left = cci.x - halfChord;
+    let right = cci.x + halfChord;
     for (let j = 0; j < n; j++) {
       if (j === ci) continue;
-      const djy = py - circles[j].y;
-      if (Math.abs(djy) >= circles[j].r) continue;
-      const hc = Math.sqrt(circles[j].r * circles[j].r - djy * djy);
-      const jLeft = circles[j].x - hc;
-      const jRight = circles[j].x + hc;
+      // In-bounds: n === circles.length.
+      const cj = circles[j]!;
+      const djy = py - cj.y;
+      if (Math.abs(djy) >= cj.r) continue;
+      const hc = Math.sqrt(cj.r * cj.r - djy * djy);
+      const jLeft = cj.x - hc;
+      const jRight = cj.x + hc;
       if (jLeft <= left && jRight >= right) return 0;
       if (jLeft <= left && jRight > left) left = jRight;
       if (jRight >= right && jLeft < right) right = jLeft;
@@ -6345,7 +6420,8 @@ export function renderVenn(
 
   // Set name labels: prefer inside exclusive region, fall back to external leader line
   circles.forEach((c, i) => {
-    const text = vennSets[i].name;
+    // vennSets.length === circles.length by construction.
+    const text = vennSets[i]!.name;
     const inside = circles.map((_, j) => j === i);
     const centroid = regionCentroid(circles, inside);
 
@@ -6518,8 +6594,9 @@ export function renderVenn(
       let sx = 0,
         sy = 0;
       for (const ei of excluded) {
-        sx += circles[ei].x;
-        sy += circles[ei].y;
+        // excluded was built from circles' indices.
+        sx += circles[ei]!.x;
+        sy += circles[ei]!.y;
       }
       sx /= excluded.length;
       sy /= excluded.length;
@@ -6544,7 +6621,8 @@ export function renderVenn(
   function lensExit(c0: Point, dir: Point, idxs: number[]): Point {
     let minT = Infinity;
     for (const i of idxs) {
-      const c = circles[i];
+      // idxs only contains valid circle indices (built from regionIdxSets).
+      const c = circles[i]!;
       const dx = c0.x - c.x;
       const dy = c0.y - c.y;
       const B = dx * dir.x + dy * dir.y;
@@ -6582,7 +6660,8 @@ export function renderVenn(
       const next = { x: p.x + dir.x * STEP, y: p.y + dir.y * STEP };
       p = next;
       if (!leftOverlap) {
-        leftOverlap = !idxs.every((ci) => pointInCircle(next, circles[ci]));
+        // ci is a valid circle index by caller's contract.
+        leftOverlap = !idxs.every((ci) => pointInCircle(next, circles[ci]!));
         if (!leftOverlap) continue;
       }
       const insideAny = circles.some((c) => pointInCircle(next, c));
@@ -6680,10 +6759,12 @@ export function renderVenn(
     // Tint the leader + text with the average of the constituent set
     // colors so the label visually ties to its overlap region. Mix a bit
     // of the body text color in to keep contrast against the bg.
-    let tinted = setColors[idxs[0]];
+    // idxs is non-empty; its entries are valid indices into setColors (same length as vennSets).
+    let tinted = setColors[idxs[0]!]!;
     for (let k = 1; k < idxs.length; k++) {
       const pct = (k / (k + 1)) * 100;
-      tinted = mix(tinted, setColors[idxs[k]], pct);
+      // k in-bounds by loop; idxs[k] is a valid setColors index.
+      tinted = mix(tinted, setColors[idxs[k]!]!, pct);
     }
     const overlapColor = mix(tinted, textColor, 90);
 
@@ -6745,7 +6826,8 @@ export function renderVenn(
       .attr('fill', 'transparent')
       .attr('stroke', 'none')
       .attr('class', 'venn-hit-target')
-      .attr('data-line-number', String(vennSets[i].lineNumber))
+      // vennSets[i] in-bounds: circles.length === vennSets.length.
+      .attr('data-line-number', String(vennSets[i]!.lineNumber))
       .style('cursor', onClickItem ? 'pointer' : 'default')
       .style('outline-solid', 'none')
       .on('mouseenter', () => {
@@ -6756,8 +6838,8 @@ export function renderVenn(
       })
       .on('click', function () {
         (this as SVGElement).blur?.();
-        if (onClickItem && vennSets[i].lineNumber)
-          onClickItem(vennSets[i].lineNumber);
+        if (onClickItem && vennSets[i]!.lineNumber)
+          onClickItem(vennSets[i]!.lineNumber);
       });
   });
 
@@ -6766,22 +6848,25 @@ export function renderVenn(
 
   const subsets: { idxs: number[]; sets: string[] }[] = [];
   if (n === 2) {
+    // n === 2 ⇒ vennSets has at least 2 entries.
     subsets.push({
       idxs: [0, 1],
-      sets: [vennSets[0].name, vennSets[1].name].sort(),
+      sets: [vennSets[0]!.name, vennSets[1]!.name].sort(),
     });
   } else {
     for (let a = 0; a < n; a++) {
       for (let b = a + 1; b < n; b++) {
+        // a and b are valid vennSets indices (n === vennSets.length).
         subsets.push({
           idxs: [a, b],
-          sets: [vennSets[a].name, vennSets[b].name].sort(),
+          sets: [vennSets[a]!.name, vennSets[b]!.name].sort(),
         });
       }
     }
+    // n === 3 path ⇒ vennSets has 3 entries.
     subsets.push({
       idxs: [0, 1, 2],
-      sets: [vennSets[0].name, vennSets[1].name, vennSets[2].name].sort(),
+      sets: [vennSets[0]!.name, vennSets[1]!.name, vennSets[2]!.name].sort(),
     });
   }
 
@@ -6898,9 +6983,11 @@ export function renderQuadrant(
 
   // Mix two hex colors: pct=100 → all `a`, pct=0 → all `b`
   const mixHex = (a: string, b: string, pct: number): string => {
-    const parse = (h: string) => {
+    const parse = (h: string): [number, number, number] => {
       const r = h.replace('#', '');
-      const f = r.length === 3 ? r[0] + r[0] + r[1] + r[1] + r[2] + r[2] : r;
+      // In-bounds: 3-char path indexes [0],[1],[2].
+      const f =
+        r.length === 3 ? r[0]! + r[0]! + r[1]! + r[1]! + r[2]! + r[2]! : r;
       return [
         parseInt(f.substring(0, 2), 16),
         parseInt(f.substring(2, 4), 16),
@@ -6924,7 +7011,8 @@ export function renderQuadrant(
     label: QuadrantLabel | null,
     defaultIdx: number
   ): string => {
-    return label?.color ?? defaultColors[defaultIdx % defaultColors.length];
+    // defaultColors is non-empty; modulo guarantees in-bounds.
+    return label?.color ?? defaultColors[defaultIdx % defaultColors.length]!;
   };
 
   // Muted fill: palette color blended 30% toward bg — matches other chart fill style
@@ -7108,7 +7196,8 @@ export function renderQuadrant(
       .attr('font-size', `${layout.fontSize}px`)
       .attr('font-weight', '700');
     if (layout.lines.length === 1) {
-      el.text(layout.lines[0]);
+      // In-bounds by length === 1 check.
+      el.text(layout.lines[0]!);
     } else {
       const lineH = layout.fontSize * 1.2;
       const totalH = layout.lines.length * lineH;
@@ -7337,9 +7426,12 @@ export function renderQuadrant(
     const cy = yScale(point.y);
     const quadrant = getPointQuadrant(point.x, point.y);
     const quadDef = quadrantDefs.find((d) => d.position === quadrant);
+    // defaultColors is non-empty; in-bounds by modulo / fallback to index 0.
     const pointColor =
-      quadDef?.label?.color ?? defaultColors[quadDef?.colorIdx ?? 0];
-    const placed = placedPointLabels[i];
+      quadDef?.label?.color ?? defaultColors[quadDef?.colorIdx ?? 0]!;
+    // placedPointLabels was produced by computeQuadrantPointLabels from pointPixels,
+    // which has the same length as quadrantPoints.
+    const placed = placedPointLabels[i]!;
 
     const pointG = pointsG
       .append('g')
@@ -7443,7 +7535,8 @@ export function renderQuadrant(
       );
       // Dim points not in this quadrant
       pointsG.selectAll('g.point-group').each(function (_, i) {
-        const pt = quadrantPoints[i];
+        // selectAll iterates over point-group elements, so i indexes into quadrantPoints.
+        const pt = quadrantPoints[i]!;
         const ptQuad = getPointQuadrant(pt.x, pt.y);
         d3Selection
           .select(this)

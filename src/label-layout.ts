@@ -83,7 +83,7 @@ export function computeQuadrantPointLabels(
   const results: PlacedQuadrantLabel[] = [];
 
   for (let i = 0; i < points.length; i++) {
-    const pt = points[i];
+    const pt = points[i]!; // In-bounds by loop guard.
     const labelWidth = pt.label.length * fontSize * CHAR_WIDTH_RATIO + 8;
 
     // Try 4 directions: above, below, left, right

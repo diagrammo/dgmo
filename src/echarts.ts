@@ -241,8 +241,9 @@ function parseScatterRow(
   );
   return {
     name: rawLabel,
-    x: dataRow.values[0],
-    y: dataRow.values[1],
+    // In-bounds by length >= 2 guard above.
+    x: dataRow.values[0]!,
+    y: dataRow.values[1]!,
     size: dataRow.values[2] !== undefined ? dataRow.values[2] : undefined,
     ...(pointColor && { color: pointColor }),
     ...(currentCategory !== 'Default' && { category: currentCategory }),
@@ -289,8 +290,9 @@ export function parseExtendedChart(
     const trimmed = raw.trim();
     const m = trimmed.match(/^(.*?)\s+as\s+([A-Za-z][A-Za-z0-9_]{0,11})\s*$/);
     if (m) {
-      const canonical = m[1].trim();
-      nameAliasMap.set(m[2], canonical);
+      // Regex capture groups [1] and [2] are non-optional in the pattern.
+      const canonical = m[1]!.trim();
+      nameAliasMap.set(m[2]!, canonical);
       return canonical;
     }
     const aliased = nameAliasMap.get(trimmed);
@@ -298,7 +300,8 @@ export function parseExtendedChart(
   }
 
   for (let i = 0; i < lines.length; i++) {
-    const trimmed = lines[i].trim();
+    // In-bounds by loop guard.
+    const trimmed = lines[i]!.trim();
     const lineNumber = i + 1;
 
     // Skip empty lines
@@ -371,7 +374,8 @@ export function parseExtendedChart(
     // `[Name]` or `[Name] color`. Per universal rule, color is a bare token.
     const categoryMatch = trimmed.match(/^\[(.+?)\](?:\s+(\S+))?\s*$/);
     if (categoryMatch) {
-      const catName = categoryMatch[1].trim();
+      // Regex capture group [1] is non-optional in the pattern.
+      const catName = categoryMatch[1]!.trim();
       const rawCatColor = categoryMatch[2]?.trim();
       const catColor = rawCatColor
         ? (resolveColorWithDiagnostic(
@@ -402,10 +406,11 @@ export function parseExtendedChart(
     );
     if (arrowMatch) {
       const [, rawSource, arrow, rawTarget, rawVal, rawLinkColor] = arrowMatch;
-      const val = normalizeNumericToken(rawVal) ?? rawVal;
+      // Captures 1-4 are non-optional in the regex pattern.
+      const val = normalizeNumericToken(rawVal!) ?? rawVal!;
       // TD-18: peel/resolve aliases on source and target before color extraction.
-      const sourceResolved = resolveSlot(rawSource);
-      const targetResolved = resolveSlot(rawTarget);
+      const sourceResolved = resolveSlot(rawSource!);
+      const targetResolved = resolveSlot(rawTarget!);
       const { label: source, color: sourceColor } = extractColor(
         sourceResolved,
         palette
@@ -441,7 +446,8 @@ export function parseExtendedChart(
 
     // Sankey: bare label (no numeric value) at any indent = source node for indented children
     if (result.type === 'sankey') {
-      const indent = measureIndent(lines[i]);
+      // In-bounds by loop guard (i < lines.length).
+      const indent = measureIndent(lines[i]!);
       // Sankey indented child: "  Target value (color)" under a source on the stack
       if (indent > 0 && sankeyStack.length > 0) {
         // Pop entries at same or deeper indent to find the parent
@@ -491,7 +497,8 @@ export function parseExtendedChart(
             result.links.push({
               source,
               target,
-              value: dataRow.values[0],
+              // In-bounds by values.length === 1 guard above.
+              value: dataRow.values[0]!,
               ...(linkColor && { color: linkColor }),
               lineNumber,
             });
@@ -625,8 +632,9 @@ export function parseExtendedChart(
         const rangeMatch = value.match(/^(-?[\d.]+)\s+to\s+(-?[\d.]+)$/);
         if (rangeMatch) {
           result.xRange = {
-            min: parseFloat(rangeMatch[1]),
-            max: parseFloat(rangeMatch[2]),
+            // Regex capture groups [1] and [2] are non-optional in the pattern.
+            min: parseFloat(rangeMatch[1]!),
+            max: parseFloat(rangeMatch[2]!),
           };
         }
         continue;
@@ -752,7 +760,8 @@ export function parseExtendedChart(
       );
       result.data.push({
         label: rawLabel,
-        value: dataRow.values[0],
+        // In-bounds by values.length === 1 guard above.
+        value: dataRow.values[0]!,
         ...(pointColor && { color: pointColor }),
         lineNumber,
       });
@@ -987,7 +996,8 @@ function buildSankeyOption(
 
   const nodeColorMap = new Map<string, string>();
   const nodes = Array.from(nodeSet).map((name, index) => {
-    const raw = parsed.nodeColors?.[name] ?? colors[index % colors.length];
+    // colors is a non-empty palette array; modulo index is always in-bounds.
+    const raw = parsed.nodeColors?.[name] ?? colors[index % colors.length]!;
     const tinted = tintNode(raw);
     nodeColorMap.set(name, tintLink(raw));
     return { name, itemStyle: { color: tinted } };
@@ -1068,14 +1078,17 @@ function buildChordOption(
       const sourceIndex = nodeNames.indexOf(link.source);
       const targetIndex = nodeNames.indexOf(link.target);
       if (sourceIndex !== -1 && targetIndex !== -1) {
-        matrix[sourceIndex][targetIndex] = link.value;
+        // sourceIndex/targetIndex are valid (indexOf !== -1) and matrix rows
+        // were pre-allocated to nodeCount entries above.
+        matrix[sourceIndex]![targetIndex] = link.value;
       }
     }
   }
 
   // Create category data for nodes with colors
   const categories = nodeNames.map((name, index) => {
-    const stroke = colors[index % colors.length];
+    // colors is a non-empty palette array; modulo index is always in-bounds.
+    const stroke = colors[index % colors.length]!;
     return {
       name,
       itemStyle: {
@@ -1332,7 +1345,8 @@ export function getSimpleChartLegendGroups(
       name: 'Series',
       entries: parsed.seriesNames.map((name, i) => ({
         value: name,
-        color: parsed.seriesNameColors?.[i] ?? colors[i % colors.length],
+        // colors is a non-empty palette array; modulo index is always in-bounds.
+        color: parsed.seriesNameColors?.[i] ?? colors[i % colors.length]!,
       })),
     },
   ];
@@ -1357,7 +1371,8 @@ export function getExtendedChartLegendGroups(
         name: 'Group',
         entries: categories.map((cat, i) => ({
           value: cat,
-          color: parsed.categoryColors?.[cat] ?? colors[i % colors.length],
+          // colors is a non-empty palette array; modulo index is always in-bounds.
+          color: parsed.categoryColors?.[cat] ?? colors[i % colors.length]!,
         })),
       },
     ];
@@ -1371,7 +1386,8 @@ export function getExtendedChartLegendGroups(
         name: 'Function',
         entries: fns.map((fn, i) => ({
           value: fn.name,
-          color: fn.color ?? colors[i % colors.length],
+          // colors is a non-empty palette array; modulo index is always in-bounds.
+          color: fn.color ?? colors[i % colors.length]!,
         })),
       },
     ];
@@ -1420,7 +1436,8 @@ export function computeScatterLabelGraphics(
   const elements: Record<string, unknown>[] = [];
 
   for (let i = 0; i < points.length; i++) {
-    const pt = points[i];
+    // In-bounds by loop guard (i < points.length).
+    const pt = points[i]!;
     const ptSize = pt.size ?? symbolSize;
     const minGap = ptSize / 2 + 4;
     const labelWidth = pt.name.length * fontSize * 0.6 + 8;
@@ -1664,8 +1681,9 @@ function buildScatterOption(
 
     series = categories.map((category, catIndex) => {
       const categoryPoints = points.filter((p) => p.category === category);
+      // colors is a non-empty palette array; modulo index is always in-bounds.
       const catColor =
-        parsed.categoryColors?.[category] ?? colors[catIndex % colors.length];
+        parsed.categoryColors?.[category] ?? colors[catIndex % colors.length]!;
 
       const data = categoryPoints.map((p) => ({
         name: p.name,
@@ -1686,7 +1704,9 @@ function buildScatterOption(
         type: 'scatter' as const,
         data,
         ...(hasSize
-          ? { symbolSize: (val: number[]) => val[2] }
+          ? // val[2] is guaranteed by hasSize (every point has size) — ECharts
+            // builds val from [p.x, p.y, p.size ?? 0] above.
+            { symbolSize: (val: number[]) => val[2]! }
           : { symbolSize: defaultSize }),
         itemStyle: {
           color: shapeFill(palette, catColor, isDark, {
@@ -1703,7 +1723,8 @@ function buildScatterOption(
   } else {
     // Single series — per-point colors
     const data = points.map((p, index) => {
-      const stroke = p.color ?? colors[index % colors.length];
+      // colors is a non-empty palette array; modulo index is always in-bounds.
+      const stroke = p.color ?? colors[index % colors.length]!;
       return {
         name: p.name,
         value: hasSize ? [p.x, p.y, p.size ?? 0] : [p.x, p.y],
@@ -1761,12 +1782,14 @@ function buildScatterOption(
         ...new Set(points.map((p) => p.category).filter(Boolean)),
       ] as string[];
       for (let idx = 0; idx < points.length; idx++) {
-        const pt = points[idx];
+        // In-bounds by loop guard (idx < points.length).
+        const pt = points[idx]!;
         const catIndex = pt.category ? categories.indexOf(pt.category) : -1;
+        // colors is a non-empty palette array; modulo index is always in-bounds.
         const catColor = pt.category
           ? (parsed.categoryColors?.[pt.category] ??
-            colors[catIndex % colors.length])
-          : colors[idx % colors.length];
+            colors[catIndex % colors.length]!)
+          : colors[idx % colors.length]!;
         const color = pt.color ?? catColor;
         const { px, py } = dataToPixel(
           pt.x,
@@ -1786,7 +1809,8 @@ function buildScatterOption(
       }
     } else {
       points.forEach((pt, index) => {
-        const color = pt.color ?? colors[index % colors.length];
+        // colors is a non-empty palette array; modulo index is always in-bounds.
+        const color = pt.color ?? colors[index % colors.length]!;
         const { px, py } = dataToPixel(
           pt.x,
           pt.y,
@@ -1933,12 +1957,14 @@ function buildHeatmapOption(
     shapeFill(palette, palette.colors.orange, isDark),
   ];
   const gradientAt = (t: number): string => {
-    if (gradientStops.length === 1) return gradientStops[0];
+    // In-bounds: gradientStops is a 4-element literal; length === 1 guard for [0],
+    // and idx is clamped to length-2 so idx and idx+1 are both valid.
+    if (gradientStops.length === 1) return gradientStops[0]!;
     const tt = Math.max(0, Math.min(1, t));
     const seg = 1 / (gradientStops.length - 1);
     const idx = Math.min(gradientStops.length - 2, Math.floor(tt / seg));
     const localT = (tt - idx * seg) / seg;
-    return mix(gradientStops[idx + 1], gradientStops[idx], localT * 100);
+    return mix(gradientStops[idx + 1]!, gradientStops[idx]!, localT * 100);
   };
   const labelTint = (cellColor: string): string => {
     const { h, s } = hexToHSL(cellColor);
@@ -2116,7 +2142,8 @@ function buildFunnelOption(
   const sorted = [...parsed.data].sort((a, b) => b.value - a.value);
 
   const data = sorted.map((d) => {
-    const stroke = d.color ?? colors[parsed.data.indexOf(d) % colors.length];
+    // colors is a non-empty palette array; modulo index is always in-bounds.
+    const stroke = d.color ?? colors[parsed.data.indexOf(d) % colors.length]!;
     return {
       name: d.label,
       value: d.value,
@@ -2133,9 +2160,10 @@ function buildFunnelOption(
   // Build lookup for tooltip: previous step value (in sorted order)
   const prevValueMap = new Map<string, number>();
   for (let i = 0; i < sorted.length; i++) {
+    // In-bounds by loop guard (i < sorted.length); i-1 valid when i > 0.
     prevValueMap.set(
-      sorted[i].label,
-      i > 0 ? sorted[i - 1].value : sorted[i].value
+      sorted[i]!.label,
+      i > 0 ? sorted[i - 1]!.value : sorted[i]!.value
     );
   }
 
@@ -2489,7 +2517,8 @@ function buildBarOption(
   const isHorizontal = parsed.orientation === 'horizontal';
   const labels = parsed.data.map((d) => d.label);
   const data = parsed.data.map((d, i) => {
-    const stroke = d.color ?? colors[i % colors.length];
+    // colors is a non-empty palette array; modulo index is always in-bounds.
+    const stroke = d.color ?? colors[i % colors.length]!;
     return {
       value: d.value,
       itemStyle: {
@@ -2867,7 +2896,8 @@ function segmentLabelFormatter(parsed: ParsedChart): string {
   if (showPercent) parts.push('{d}%');
 
   if (parts.length === 0) return '{b}'; // fallback: always show name
-  if (parts.length === 1) return parts[0];
+  // In-bounds by parts.length === 1 guard.
+  if (parts.length === 1) return parts[0]!;
 
   // Name is joined with " — ", value+percent are grouped with parens when all three
   if (showName && showValue && showPercent) return '{b} — {c} ({d}%)';
@@ -2916,7 +2946,8 @@ function buildPieOption(
 ): EChartsOption {
   const HIDE_AXES = { xAxis: { show: false }, yAxis: { show: false } };
   const data = parsed.data.map((d, i) => {
-    const stroke = d.color ?? colors[i % colors.length];
+    // colors is a non-empty palette array; modulo index is always in-bounds.
+    const stroke = d.color ?? colors[i % colors.length]!;
     return {
       name: d.label,
       value: d.value,
@@ -3042,7 +3073,8 @@ function buildPolarAreaOption(
   titleConfig: EChartsOption['title']
 ): EChartsOption {
   const data = parsed.data.map((d, i) => {
-    const stroke = d.color ?? colors[i % colors.length];
+    // colors is a non-empty palette array; modulo index is always in-bounds.
+    const stroke = d.color ?? colors[i % colors.length]!;
     return {
       name: d.label,
       value: d.value,
@@ -3106,7 +3138,9 @@ function buildBarStackedOption(
   const labels = parsed.data.map((d) => d.label);
 
   const series = seriesNames.map((name, idx) => {
-    const color = parsed.seriesNameColors?.[idx] ?? colors[idx % colors.length];
+    // colors is a non-empty palette array; modulo index is always in-bounds.
+    const color =
+      parsed.seriesNameColors?.[idx] ?? colors[idx % colors.length]!;
     const segmentFill = shapeFill(palette, color, isDark, {
       solid: parsed.solidFill === true,
     });
@@ -3311,7 +3345,8 @@ export async function renderExtendedChartForExport(
         containerWidth: ECHART_EXPORT_WIDTH,
         gridLeftPct,
         gridRightPct,
-        activeGroup: legendGroups[0].name,
+        // In-bounds by legendGroups.length > 0 guard above.
+        activeGroup: legendGroups[0]!.name,
         className: 'chart-legend',
       });
       // Insert legend group right after the opening <svg ...> tag

@@ -567,7 +567,7 @@ function parseArgs(argv: string[]): {
       i++;
     } else if (arg === '--palette') {
       const val = args[++i];
-      if (!PALETTES.includes(val)) {
+      if (val === undefined || !PALETTES.includes(val)) {
         console.error(
           `Error: Unknown palette "${val}". Valid palettes: ${PALETTES.join(', ')}`
         );
@@ -1341,7 +1341,7 @@ async function main(): Promise<void> {
   // Print errors and exit
   if (errors.length > 0) {
     if (opts.json) {
-      const firstError = errors[0];
+      const firstError = errors[0]!; // In-bounds by length > 0 check above.
       exitWithJsonError(formatDgmoError(firstError), firstError.line);
     }
     for (const e of errors) {

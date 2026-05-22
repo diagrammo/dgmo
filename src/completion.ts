@@ -835,7 +835,8 @@ function extractSequenceSymbols(docText: string): DiagramSymbols {
     }
 
     // Skip metadata lines
-    const firstToken = trimmed.split(/\s+/)[0].toLowerCase();
+    // split(/\s+/) on non-empty `trimmed` always yields at least one element.
+    const firstToken = trimmed.split(/\s+/)[0]!.toLowerCase();
     if (METADATA_KEY_SET.has(firstToken)) continue;
 
     // Skip sections, structural keywords
@@ -889,13 +890,15 @@ function extractStateSymbols(docText: string): DiagramSymbols {
     }
 
     // Skip metadata lines
-    const firstToken = trimmed.split(/\s+/)[0].toLowerCase();
+    // split(/\s+/) on non-empty `trimmed` always yields at least one element.
+    const firstToken = trimmed.split(/\s+/)[0]!.toLowerCase();
     if (METADATA_KEY_SET.has(firstToken)) continue;
 
     const arrowMatch = trimmed.match(STATE_ARROW_RE);
     if (arrowMatch) {
-      const src = arrowMatch[1].split('|')[0].trim();
-      const dst = arrowMatch[2].split('|')[0].trim();
+      // Regex captured groups 1 and 2 by successful match; split('|')[0] always defined.
+      const src = arrowMatch[1]!.split('|')[0]!.trim();
+      const dst = arrowMatch[2]!.split('|')[0]!.trim();
       if (src && !entities.includes(src)) entities.push(src);
       if (dst && !entities.includes(dst)) entities.push(dst);
     }
@@ -926,7 +929,8 @@ export function extractTagDeclarations(docText: string): Map<string, string[]> {
   let currentValues: string[] = [];
 
   for (let i = 0; i < lines.length; i++) {
-    const raw = lines[i];
+    // In-bounds by loop guard.
+    const raw = lines[i]!;
     const trimmed = raw.trim();
 
     // Check for tag declaration — try explicit `alias` keyword first, then shorthand
@@ -937,7 +941,8 @@ export function extractTagDeclarations(docText: string): Map<string, string[]> {
       if (currentAlias !== null) {
         result.set(currentAlias, currentValues);
       }
-      const name = tagMatch[1];
+      // Both regexes capture groups 1 (and 2 for explicit) on successful match.
+      const name = tagMatch[1]!;
       const alias = tagMatch[2] ?? name;
       currentAlias = alias;
       currentValues = [];
@@ -948,7 +953,8 @@ export function extractTagDeclarations(docText: string): Map<string, string[]> {
       if (currentAlias !== null) {
         result.set(currentAlias, currentValues);
       }
-      currentAlias = trimmed.match(/^tag\s+(\S+)/i)![1];
+      // Regex captured group 1 by successful re-match (test passed above).
+      currentAlias = trimmed.match(/^tag\s+(\S+)/i)![1]!;
       currentValues = [];
       continue;
     }
@@ -1020,8 +1026,9 @@ export function extractAliasDeclarations(
     if (!trimmed || trimmed.startsWith('//')) continue;
     const match = trimmed.match(ALIAS_POSTFIX_DECL_RE);
     if (!match) continue;
-    const canonical = match[1].trim();
-    const alias = match[2];
+    // Regex captured groups 1 and 2 by successful match.
+    const canonical = match[1]!.trim();
+    const alias = match[2]!;
     // Skip if canonical itself looks structural (arrow / pipe-only / brackets-only)
     if (!canonical || canonical === '[' || canonical === ']') continue;
     if (!(alias in aliases)) {
@@ -1057,7 +1064,8 @@ function extractSitemapSymbols(docText: string): DiagramSymbols {
     }
 
     // Skip metadata lines
-    const firstToken = trimmed.split(/\s+/)[0].toLowerCase();
+    // split(/\s+/) on non-empty `trimmed` always yields at least one element.
+    const firstToken = trimmed.split(/\s+/)[0]!.toLowerCase();
     if (METADATA_KEY_SET.has(firstToken)) continue;
 
     // Track tag blocks
@@ -1074,7 +1082,8 @@ function extractSitemapSymbols(docText: string): DiagramSymbols {
     // Containers: [GroupName]
     const containerMatch = trimmed.match(SITEMAP_CONTAINER_RE);
     if (containerMatch) {
-      const name = containerMatch[1].split('|')[0].trim();
+      // Regex captured group 1 by successful match; split('|')[0] always defined.
+      const name = containerMatch[1]!.split('|')[0]!.trim();
       if (name && !entities.includes(name)) entities.push(name);
       lastNodeIndent = indent;
       continue;
@@ -1084,8 +1093,9 @@ function extractSitemapSymbols(docText: string): DiagramSymbols {
     const bareArrow = trimmed.match(SITEMAP_BARE_ARROW_RE);
     const labeledArrow = !bareArrow ? trimmed.match(SITEMAP_ARROW_RE) : null;
     if (bareArrow || labeledArrow) {
+      // split('|')[0] always defined on any string.
       const target = (bareArrow?.[1] ?? labeledArrow?.[1] ?? '')
-        .split('|')[0]
+        .split('|')[0]!
         .trim();
       if (target && !entities.includes(target)) entities.push(target);
       continue;
@@ -1102,7 +1112,8 @@ function extractSitemapSymbols(docText: string): DiagramSymbols {
     }
 
     // Page label (anything else that's not special)
-    const label = trimmed.split('|')[0].trim();
+    // split('|')[0] always defined on any string.
+    const label = trimmed.split('|')[0]!.trim();
     if (label) {
       if (!entities.includes(label)) entities.push(label);
       lastNodeIndent = indent;
@@ -1138,7 +1149,8 @@ function extractC4Symbols(docText: string): DiagramSymbols {
       continue;
     }
 
-    const firstToken = trimmed.split(/\s+/)[0].toLowerCase();
+    // split(/\s+/) on non-empty `trimmed` always yields at least one element.
+    const firstToken = trimmed.split(/\s+/)[0]!.toLowerCase();
     if (METADATA_KEY_SET.has(firstToken)) continue;
 
     if (/^tag\s+/i.test(trimmed)) {
@@ -1157,7 +1169,8 @@ function extractC4Symbols(docText: string): DiagramSymbols {
     // Element declaration: person Name, system Name, etc.
     const elemMatch = trimmed.match(C4_ELEMENT_RE);
     if (elemMatch) {
-      const name = elemMatch[2].split('|')[0].trim();
+      // Regex captured group 2 by successful match; split('|')[0] always defined.
+      const name = elemMatch[2]!.split('|')[0]!.trim();
       if (name && !entities.includes(name)) entities.push(name);
       continue;
     }
@@ -1165,7 +1178,8 @@ function extractC4Symbols(docText: string): DiagramSymbols {
     // Is-a declaration: Name is a person
     const isAMatch = trimmed.match(C4_IS_A_RE);
     if (isAMatch) {
-      const name = isAMatch[1].split('|')[0].trim();
+      // Regex captured group 1 by successful match; split('|')[0] always defined.
+      const name = isAMatch[1]!.split('|')[0]!.trim();
       if (name && !entities.includes(name)) entities.push(name);
       continue;
     }
@@ -1173,8 +1187,9 @@ function extractC4Symbols(docText: string): DiagramSymbols {
     // Arrow lines: Source -> Target, Source ~> Target, etc.
     const arrowMatch = trimmed.match(C4_ARROW_RE);
     if (arrowMatch) {
-      const src = arrowMatch[1].split('|')[0].trim();
-      const dst = arrowMatch[2].split('|')[0].trim();
+      // Regex captured groups 1 and 2 by successful match; split('|')[0] always defined.
+      const src = arrowMatch[1]!.split('|')[0]!.trim();
+      const dst = arrowMatch[2]!.split('|')[0]!.trim();
       if (src && !entities.includes(src)) entities.push(src);
       if (dst && !entities.includes(dst)) entities.push(dst);
       continue;
@@ -1212,7 +1227,8 @@ function extractGanttSymbols(docText: string): DiagramSymbols {
       continue;
     }
 
-    const firstToken = trimmed.split(/\s+/)[0].toLowerCase();
+    // split(/\s+/) on non-empty `trimmed` always yields at least one element.
+    const firstToken = trimmed.split(/\s+/)[0]!.toLowerCase();
     if (METADATA_KEY_SET.has(firstToken)) continue;
 
     if (/^tag\s+/i.test(trimmed)) {
@@ -1231,7 +1247,8 @@ function extractGanttSymbols(docText: string): DiagramSymbols {
     // Groups: [GroupName]
     const groupMatch = trimmed.match(GANTT_GROUP_RE);
     if (groupMatch) {
-      const name = groupMatch[1].trim();
+      // Regex captured group 1 by successful match.
+      const name = groupMatch[1]!.trim();
       if (name && !entities.includes(name)) entities.push(name);
       continue;
     }
@@ -1240,7 +1257,8 @@ function extractGanttSymbols(docText: string): DiagramSymbols {
     const durMatch = trimmed.match(GANTT_DURATION_RE);
     if (durMatch) {
       // Strip pipe metadata and dependency arrows from task name
-      let taskName = durMatch[3].split('|')[0].trim();
+      // Regex captured group 3 by successful match; split('|')[0] always defined.
+      let taskName = durMatch[3]!.split('|')[0]!.trim();
       // Remove trailing dependency: "Task Name -> Other" → "Task Name"
       const arrowIdx = taskName.indexOf('->');
       if (arrowIdx > 0)
@@ -1255,7 +1273,8 @@ function extractGanttSymbols(docText: string): DiagramSymbols {
     // Tasks by date: 2024-01-15 Task Name
     const dateMatch = trimmed.match(GANTT_DATE_RE);
     if (dateMatch) {
-      let taskName = dateMatch[2].split('|')[0].trim();
+      // Regex captured group 2 by successful match; split('|')[0] always defined.
+      let taskName = dateMatch[2]!.split('|')[0]!.trim();
       const arrowIdx = taskName.indexOf('->');
       if (arrowIdx > 0)
         taskName = taskName
@@ -1291,7 +1310,8 @@ function extractBoxesAndLinesSymbols(docText: string): DiagramSymbols {
       continue;
     }
 
-    const firstToken = trimmed.split(/\s+/)[0].toLowerCase();
+    // split(/\s+/) on non-empty `trimmed` always yields at least one element.
+    const firstToken = trimmed.split(/\s+/)[0]!.toLowerCase();
     if (METADATA_KEY_SET.has(firstToken)) continue;
 
     if (/^tag\s+/i.test(trimmed)) {
@@ -1310,15 +1330,17 @@ function extractBoxesAndLinesSymbols(docText: string): DiagramSymbols {
     // Edge lines
     const arrowMatch = trimmed.match(BL_ARROW_RE);
     if (arrowMatch) {
-      const src = arrowMatch[1].split('|')[0].trim();
-      const dst = arrowMatch[2].split('|')[0].trim();
+      // Regex captured groups 1 and 2 by successful match; split('|')[0] always defined.
+      const src = arrowMatch[1]!.split('|')[0]!.trim();
+      const dst = arrowMatch[2]!.split('|')[0]!.trim();
       if (src && !entities.includes(src)) entities.push(src);
       if (dst && !entities.includes(dst)) entities.push(dst);
       continue;
     }
 
     // Node lines
-    const label = trimmed.split('|')[0].split('[')[0].trim();
+    // split('|')[0] and chained split('[')[0] always defined on any string.
+    const label = trimmed.split('|')[0]!.split('[')[0]!.trim();
     if (label && !entities.includes(label)) entities.push(label);
   }
 
@@ -1384,8 +1406,9 @@ function extractTechRadarSymbols(docText: string): DiagramSymbols {
       // Parse ring name (and alias)
       const aliasMatch = trimmed.match(/^(.+?)\s+(?:alias|aka)\s+(\S+)\s*$/i);
       if (aliasMatch) {
-        entities.push(aliasMatch[1].trim());
-        entities.push(aliasMatch[2].trim());
+        // Regex captured groups 1 and 2 by successful match.
+        entities.push(aliasMatch[1]!.trim());
+        entities.push(aliasMatch[2]!.trim());
       } else {
         entities.push(trimmed);
       }
@@ -1414,7 +1437,8 @@ function extractCycleSymbols(docText: string): DiagramSymbols {
     }
 
     // Skip directives/metadata
-    const firstToken = trimmed.split(/\s+/)[0].toLowerCase();
+    // split(/\s+/) on non-empty `trimmed` always yields at least one element.
+    const firstToken = trimmed.split(/\s+/)[0]!.toLowerCase();
     if (METADATA_KEY_SET.has(firstToken)) continue;
     if (
       firstToken === 'direction-counterclockwise' ||
@@ -1427,7 +1451,8 @@ function extractCycleSymbols(docText: string): DiagramSymbols {
     if (line[0] === ' ' || line[0] === '\t') continue;
 
     // Node label (strip pipe metadata)
-    const label = trimmed.split('|')[0].trim();
+    // split('|')[0] always defined on any string.
+    const label = trimmed.split('|')[0]!.trim();
     if (label && !entities.includes(label)) entities.push(label);
   }
 
@@ -1470,7 +1495,8 @@ function extractRaciSymbols(docText: string): DiagramSymbols {
 
     if (!pastFirstLine) {
       pastFirstLine = true;
-      const firstToken = trimmed.split(/\s+/)[0].toLowerCase();
+      // split(/\s+/) on non-empty `trimmed` always yields at least one element.
+      const firstToken = trimmed.split(/\s+/)[0]!.toLowerCase();
       if (
         firstToken === 'raci' ||
         firstToken === 'rasci' ||
@@ -1487,11 +1513,14 @@ function extractRaciSymbols(docText: string): DiagramSymbols {
     if (indent === 0) {
       const rolesMatch = trimmed.match(RACI_ROLES_DIRECTIVE_RE);
       if (rolesMatch) {
-        for (const r of rolesMatch[1].split(',')) push(r);
+        // Regex captured group 1 by successful match.
+        for (const r of rolesMatch[1]!.split(',')) push(r);
         continue;
       }
       if (RACI_VARIANT_DIRECTIVE_RE.test(trimmed)) continue;
-      if (METADATA_KEY_SET.has(trimmed.split(/\s+/)[0].toLowerCase())) continue;
+      // split(/\s+/) on non-empty `trimmed` always yields at least one element.
+      if (METADATA_KEY_SET.has(trimmed.split(/\s+/)[0]!.toLowerCase()))
+        continue;
       if (
         trimmed.toLowerCase() === 'draft' ||
         trimmed.toLowerCase() === 'solid-fill'
@@ -1502,7 +1531,8 @@ function extractRaciSymbols(docText: string): DiagramSymbols {
     // [Phase Label]
     const phaseMatch = trimmed.match(RACI_PHASE_RE);
     if (phaseMatch && indent === 0) {
-      push(phaseMatch[1]);
+      // Regex captured group 1 by successful match.
+      push(phaseMatch[1]!);
       underTask = false;
       continue;
     }
@@ -1511,7 +1541,8 @@ function extractRaciSymbols(docText: string): DiagramSymbols {
     const roleMatch = trimmed.match(RACI_ROLE_ASSIGNMENT_RE);
     if (underTask && roleMatch) {
       // Strip a possible trailing `# annotation`
-      const rolePart = roleMatch[1].trim();
+      // Regex captured group 1 by successful match.
+      const rolePart = roleMatch[1]!.trim();
       push(rolePart);
       continue;
     }
@@ -1544,7 +1575,8 @@ function extractJourneyMapSymbols(docText: string): DiagramSymbols {
     }
 
     // Skip directives/metadata at indent 0
-    const firstToken = trimmed.split(/\s+/)[0].toLowerCase();
+    // split(/\s+/) on non-empty `trimmed` always yields at least one element.
+    const firstToken = trimmed.split(/\s+/)[0]!.toLowerCase();
     if (METADATA_KEY_SET.has(firstToken)) continue;
     if (
       firstToken === 'persona' ||
@@ -1568,12 +1600,14 @@ function extractJourneyMapSymbols(docText: string): DiagramSymbols {
     // Phase header
     const phaseMatch = trimmed.match(/^\[(.+?)\]$/);
     if (phaseMatch) {
-      entities.push(phaseMatch[1].trim());
+      // Regex captured group 1 by successful match.
+      entities.push(phaseMatch[1]!.trim());
       continue;
     }
 
     // Step label (strip pipe metadata) — works for both indent 0 and indented steps
-    const label = trimmed.split('|')[0].trim();
+    // split('|')[0] always defined on any string.
+    const label = trimmed.split('|')[0]!.trim();
     if (label && !entities.includes(label)) entities.push(label);
   }
 
