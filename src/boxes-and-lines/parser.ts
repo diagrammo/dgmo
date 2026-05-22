@@ -16,6 +16,7 @@ import {
   stripDefaultModifier,
 } from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
+import type { Writable } from '../utils/brand';
 import {
   extractColor,
   parseFirstLine,
@@ -131,7 +132,7 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
 
   // Tag block state
   let contentStarted = false;
-  let currentTagGroup: TagGroup | null = null;
+  let currentTagGroup: Writable<TagGroup> | null = null;
   // metaAliasMap: tag-group metadata-key aliases (per A1).
   const metaAliasMap = new Map<string, string>();
   // nameAliasMap: TD-18 entity-name aliases (`a` → `<canonical id>`). Per C8.
@@ -273,7 +274,7 @@ export function parseBoxesAndLines(content: string): ParsedBoxesAndLines {
         );
         continue;
       }
-      const newTagGroup: TagGroup = {
+      const newTagGroup: Writable<TagGroup> = {
         name: tagBlockMatch.name,
         ...(tagBlockMatch.alias !== undefined && {
           alias: tagBlockMatch.alias,

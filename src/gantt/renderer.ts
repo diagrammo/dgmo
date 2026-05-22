@@ -2028,7 +2028,7 @@ function renderTagLegend(
   }
 
   // Filter entries to only those used in the current view
-  const filteredEntries = new Map<string, TagEntry[]>();
+  const filteredEntries = new Map<string, readonly TagEntry[]>();
   for (const group of visibleGroups) {
     const key = group.name.toLowerCase();
     const used = usedValues.get(key);

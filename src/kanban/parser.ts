@@ -15,6 +15,7 @@ import {
   OPTION_NOCOLON_RE,
 } from '../utils/parsing';
 import { normalizeName } from '../utils/name-normalize';
+import type { Writable } from '../utils/brand';
 import type {
   ParsedKanban,
   KanbanColumn,
@@ -77,7 +78,7 @@ export function parseKanban(
 
   const lines = content.split('\n');
   let contentStarted = false;
-  let currentTagGroup: KanbanTagGroup | null = null;
+  let currentTagGroup: Writable<KanbanTagGroup> | null = null;
   let currentColumn: KanbanColumn | null = null;
   let currentCard: KanbanCard | null = null;
   let cardBaseIndent = 0; // indent level of current card (for detail detection)

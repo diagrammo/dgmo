@@ -7,6 +7,7 @@ import type { DgmoError } from '../diagnostics';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
 import { normalizeName } from '../utils/name-normalize';
 import type { TagGroup } from '../utils/tag-groups';
+import type { Writable } from '../utils/brand';
 import {
   isTagBlockHeading,
   matchTagBlockHeading,
@@ -175,7 +176,7 @@ export function parseSitemap(
   let firstLineParsed = false;
 
   // Tag group parsing state
-  let currentTagGroup: TagGroup | null = null;
+  let currentTagGroup: Writable<TagGroup> | null = null;
 
   // metaAliasMap: tag-group metadata-key aliases (per A1 convention).
   const metaAliasMap = new Map<string, string>();
@@ -247,7 +248,7 @@ export function parseSitemap(
         pushError(lineNumber, 'Tag groups must appear before sitemap content');
         continue;
       }
-      const newTagGroup: TagGroup = {
+      const newTagGroup: Writable<TagGroup> = {
         name: tagBlockMatch.name,
         ...(tagBlockMatch.alias !== undefined && {
           alias: tagBlockMatch.alias,

@@ -27,6 +27,7 @@ import {
   stripDefaultModifier,
 } from '../utils/tag-groups';
 import type { TagGroup } from '../utils/tag-groups';
+import type { Writable } from '../utils/brand';
 import type {
   ParsedERDiagram,
   ERTable,
@@ -244,7 +245,7 @@ export function parseERDiagram(
   const tableMap = new Map<string, ERTable>();
   let currentTable: ERTable | null = null;
   let contentStarted = false;
-  let currentTagGroup: TagGroup | null = null;
+  let currentTagGroup: Writable<TagGroup> | null = null;
   // metaAliasMap: tag-group metadata-key aliases (per A1 convention).
   const metaAliasMap = new Map<string, string>();
   // nameAliasMap: TD-18 entity-name aliases (`u` → `users`). Per C8.

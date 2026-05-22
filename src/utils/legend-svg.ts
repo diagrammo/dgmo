@@ -26,8 +26,11 @@ import { FONT_FAMILY } from '../fonts';
 // ── Types ────────────────────────────────────────────────────
 
 export interface LegendGroupData {
-  name: string;
-  entries: Array<{ value: string; color: string }>;
+  readonly name: string;
+  readonly entries: ReadonlyArray<{
+    readonly value: string;
+    readonly color: string;
+  }>;
 }
 
 interface LegendRenderOptions {
@@ -63,7 +66,9 @@ function pillWidth(name: string): number {
   return measureLegendText(name, LEGEND_PILL_FONT_SIZE) + LEGEND_PILL_PAD;
 }
 
-function entriesWidth(entries: Array<{ value: string }>): number {
+function entriesWidth(
+  entries: ReadonlyArray<{ readonly value: string }>
+): number {
   let w = 0;
   for (const e of entries) {
     w +=
@@ -77,7 +82,7 @@ function entriesWidth(entries: Array<{ value: string }>): number {
 
 function groupTotalWidth(
   name: string,
-  entries: Array<{ value: string }>,
+  entries: ReadonlyArray<{ readonly value: string }>,
   isActive: boolean
 ): number {
   const pw = pillWidth(name);

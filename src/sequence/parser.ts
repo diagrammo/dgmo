@@ -3,7 +3,7 @@
 // ============================================================
 
 import { inferParticipantType } from './participant-inference';
-import type { Brand } from '../utils/brand';
+import type { Brand, Writable } from '../utils/brand';
 import type { DgmoError } from '../diagnostics';
 import {
   makeDgmoError,
@@ -648,7 +648,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
   const participantGroupMap = new Map<string, string>();
 
   // Tag group parsing state
-  let currentTagGroup: TagGroup | null = null;
+  let currentTagGroup: Writable<TagGroup> | null = null;
   const aliasMap = new Map<string, string>();
 
   /** Split pipe metadata from a line: "core | k: v" → { core, meta } */
@@ -803,7 +803,7 @@ export function parseSequenceDgmo(content: string): ParsedSequenceDgmo {
         pushError(lineNumber, 'Tag groups must appear before sequence content');
         continue;
       }
-      const newTagGroup: TagGroup = {
+      const newTagGroup: Writable<TagGroup> = {
         name: tagBlockMatch.name,
         ...(tagBlockMatch.alias !== undefined && {
           alias: tagBlockMatch.alias,

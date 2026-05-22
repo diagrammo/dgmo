@@ -43,3 +43,36 @@ export function asBrand<B>(
 ): B {
   return value as B;
 }
+
+// ============================================================
+// Writable<T> — escape hatch for parsers that need a mutable
+// construction phase before returning a `readonly`-typed value.
+// ============================================================
+//
+// Usage:
+//
+//   interface ParsedKanban {
+//     readonly columns: readonly KanbanColumn[];
+//     ...
+//   }
+//
+//   function parseKanban(): ParsedKanban {
+//     const result: Writable<ParsedKanban> = { columns: [], ... };
+//     result.columns.push(...); // OK — Writable strips the readonly
+//     return result;             // OK — assignable back to ParsedKanban
+//   }
+//
+// `Writable<T>` flips `readonly` modifiers off shallowly. Nested
+// `readonly` arrays/objects keep their immutability — `WritableDeep`
+// is intentionally NOT provided because parsers rarely need it and
+// it's a sharp tool.
+
+/**
+ * Strip top-level `readonly` modifiers from an object type, including
+ * unwrapping `readonly T[]` array fields to mutable `T[]`. Element types
+ * inside arrays/objects keep their own immutability — Writable is
+ * intentionally shallow.
+ */
+export type Writable<T> = {
+  -readonly [K in keyof T]: T[K] extends readonly (infer U)[] ? U[] : T[K];
+};

@@ -5,6 +5,7 @@
 import type { DgmoError } from '../diagnostics';
 import { makeDgmoError, formatDgmoError } from '../diagnostics';
 import type { TagGroup } from '../utils/tag-groups';
+import type { Writable } from '../utils/brand';
 import {
   isTagBlockHeading,
   matchTagBlockHeading,
@@ -569,13 +570,16 @@ export function parseWireframe(content: string): ParsedWireframe {
 
   // Parsing state
   let phase: 'header' | 'tags' | 'content' = 'header';
-  let currentTagGroup: TagGroup | null = null;
+  let currentTagGroup: Writable<TagGroup> | null = null;
 
   function pushWarning(line: number, msg: string): void {
     diagnostics.push(makeDgmoError(line, msg, 'warning'));
   }
 
-  function makeTagGroup(trimmed: string, lineNumber: number): TagGroup | null {
+  function makeTagGroup(
+    trimmed: string,
+    lineNumber: number
+  ): Writable<TagGroup> | null {
     const match = matchTagBlockHeading(trimmed);
     if (!match) return null;
     emitTagLegacyDiagnostic(match, lineNumber, diagnostics);

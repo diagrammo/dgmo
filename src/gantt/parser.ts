@@ -5,6 +5,7 @@
 import { makeDgmoError, formatDgmoError } from '../diagnostics';
 import type { DgmoError } from '../diagnostics';
 import type { TagGroup } from '../utils/tag-groups';
+import type { Writable } from '../utils/brand';
 import {
   matchTagBlockHeading,
   emitTagLegacyDiagnostic,
@@ -210,7 +211,7 @@ export function parseGantt(
   let inHolidaysBlock = false;
   let holidaysBlockIndent = 0;
   let inTagBlock = false;
-  let currentTagGroup: TagGroup | null = null;
+  let currentTagGroup: Writable<TagGroup> | null = null;
   let tagBlockIndent = 0;
   let inEraBlock = false;
   let eraBlockIndent = 0;

@@ -1,6 +1,7 @@
 import type { PaletteColors } from '../palettes';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
 import type { TagGroup } from '../utils/tag-groups';
+import type { Writable } from '../utils/brand';
 import {
   matchTagBlockHeading,
   emitTagLegacyDiagnostic,
@@ -71,7 +72,7 @@ export function parseMindmap(
   let nodeCounter = 0;
 
   // Tag group parsing state
-  let currentTagGroup: TagGroup | null = null;
+  let currentTagGroup: Writable<TagGroup> | null = null;
   const aliasMap = new Map<string, string>();
 
   // Indent stack for hierarchy tracking

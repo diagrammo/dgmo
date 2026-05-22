@@ -24,6 +24,7 @@ import {
   validateTagValues,
   type TagGroup,
 } from '../utils/tag-groups';
+import type { Writable } from '../utils/brand';
 import type { Duration, DurationUnit } from '../gantt/types';
 import type { PaletteColors } from '../palettes';
 import type {
@@ -517,7 +518,7 @@ export function parsePert(
    * until the first non-tag content line closes it.
    */
   const tagGroups: TagGroup[] = [];
-  let currentTagGroup: TagGroup | null = null;
+  let currentTagGroup: Writable<TagGroup> | null = null;
   /**
    * Tag-block phase ends as soon as the parser sees any directive,
    * group header, activity, or arrow line. After `contentStarted`

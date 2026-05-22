@@ -7,6 +7,7 @@ import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
 import { parseInArrowLabel } from '../utils/arrows';
 import { normalizeName } from '../utils/name-normalize';
 import type { TagGroup } from '../utils/tag-groups';
+import type { Writable } from '../utils/brand';
 import {
   matchTagBlockHeading,
   emitTagLegacyDiagnostic,
@@ -242,7 +243,7 @@ export function parseC4(content: string, palette?: PaletteColors): ParsedC4 {
   let inDeployment = false;
 
   // Tag group parsing state
-  let currentTagGroup: TagGroup | null = null;
+  let currentTagGroup: Writable<TagGroup> | null = null;
   // metaAliasMap: pipe-metadata-key aliases (`tech:` → `technology:`).
   // Distinct from nameAliasMap below per the A1 naming convention.
   const metaAliasMap = new Map<string, string>();

@@ -217,6 +217,7 @@ import {
   stripDefaultModifier,
 } from './utils/tag-groups';
 import type { TagGroup } from './utils/tag-groups';
+import type { Writable } from './utils/brand';
 import {
   LEGEND_HEIGHT as TL_LEGEND_HEIGHT,
   LEGEND_PILL_PAD as TL_LEGEND_PILL_PAD,
@@ -508,7 +509,7 @@ export function parseVisualization(
   const freeformLines: string[] = [];
   let currentArcGroup: string | null = null;
   let currentTimelineGroup: string | null = null;
-  let currentTimelineTagGroup: TagGroup | null = null;
+  let currentTimelineTagGroup: Writable<TagGroup> | null = null;
   let inTimelineEraBlock = false;
   let timelineEraBlockIndent = 0;
   let inTimelineMarkerBlock = false;
@@ -558,7 +559,7 @@ export function parseVisualization(
     if (result.type === 'timeline' && indent === 0) {
       const tagBlockMatch = matchTagBlockHeading(line);
       if (tagBlockMatch) {
-        const newGroup: TagGroup = {
+        const newGroup: Writable<TagGroup> = {
           name: tagBlockMatch.name,
           ...(tagBlockMatch.alias !== undefined && {
             alias: tagBlockMatch.alias,

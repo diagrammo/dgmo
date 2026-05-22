@@ -21,6 +21,7 @@ import type {
   JourneyMapAnnotation,
 } from './types';
 import type { TagGroup } from '../utils/tag-groups';
+import type { Writable } from '../utils/brand';
 
 // ============================================================
 // Regex patterns
@@ -70,7 +71,7 @@ export function parseJourneyMap(
 
   const lines = content.split('\n');
   let contentStarted = false;
-  let currentTagGroup: TagGroup | null = null;
+  let currentTagGroup: Writable<TagGroup> | null = null;
   let inPersona = false;
   let currentPhase: JourneyMapPhase | null = null;
   let currentStep: JourneyMapStep | null = null;

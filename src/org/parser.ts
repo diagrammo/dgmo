@@ -2,6 +2,7 @@ import type { PaletteColors } from '../palettes';
 import type { DgmoError } from '../diagnostics';
 import { makeDgmoError, formatDgmoError, suggest } from '../diagnostics';
 import type { TagGroup } from '../utils/tag-groups';
+import type { Writable } from '../utils/brand';
 import {
   isTagBlockHeading,
   matchTagBlockHeading,
@@ -125,7 +126,7 @@ export function parseOrg(content: string, palette?: PaletteColors): ParsedOrg {
   let containerCounter = 0;
 
   // Tag group parsing state
-  let currentTagGroup: TagGroup | null = null;
+  let currentTagGroup: Writable<TagGroup> | null = null;
 
   // Alias map: alias (lowercased) → group name (lowercased)
   // metaAliasMap: tag-group metadata-key aliases (e.g. `p` → `priority`).

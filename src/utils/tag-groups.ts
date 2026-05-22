@@ -13,19 +13,24 @@ import { RECOGNIZED_COLOR_NAMES } from '../colors';
 
 /** A single entry inside a tag group: `Value color` */
 export interface TagEntry {
-  value: string;
-  color: string;
-  lineNumber: number;
+  readonly value: string;
+  readonly color: string;
+  readonly lineNumber: number;
 }
 
-/** A tag group block: heading + entries */
+/**
+ * A tag group block: heading + entries.
+ *
+ * Parser internals build via `Writable<TagGroup>` from `utils/brand.ts`;
+ * once returned to a chart-type parser, consumers see the readonly view.
+ */
 export interface TagGroup {
-  name: string;
-  alias?: string;
-  entries: TagEntry[];
+  readonly name: string;
+  readonly alias?: string;
+  readonly entries: readonly TagEntry[];
   /** Default value for nodes without explicit metadata. First entry unless another is marked `default`. */
-  defaultValue?: string;
-  lineNumber: number;
+  readonly defaultValue?: string;
+  readonly lineNumber: number;
 }
 
 /** Result of matching a tag block heading */
