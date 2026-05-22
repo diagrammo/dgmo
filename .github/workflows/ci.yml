@@ -29,14 +29,6 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
-      # Epic 106 — noUncheckedIndexedAccess migration. Strict-check
-      # runs against tsconfig.strict.json, which only includes folders
-      # that have been migrated. continue-on-error keeps this
-      # informational until Story 106.18 flips the flag globally.
-      - name: Typecheck (strict — Epic 106 migration)
-        run: pnpm typecheck:strict
-        continue-on-error: true
-
       - name: Lint
         run: pnpm lint
 

@@ -117,7 +117,6 @@
     "prebuild": "rm -rf dist && pnpm codegen",
     "build": "tsup",
     "typecheck": "tsc --noEmit",
-    "typecheck:strict": "tsc --noEmit -p tsconfig.strict.json",
     "dev": "tsup --watch",
     "pretest": "pnpm codegen",
     "test": "vitest run --coverage",

@@ -1,5 +1,7 @@
 # `noUncheckedIndexedAccess` Migration Notes
 
+> **Status: Migration complete (2026-05-21).** Epic 106 closed. The flag is now in the main `tsconfig.json`; the parallel `tsconfig.strict.json` and `pnpm typecheck:strict` script have been removed. `pnpm typecheck` now enforces `noUncheckedIndexedAccess` across the whole codebase. The "How to migrate a folder" and "parallel-tsconfig pattern" sections below are kept as historical context for the patterns established — new code should compile clean under the flag from day one.
+
 Working notes for Epic 106 — folder-by-folder migration of dgmo to compile cleanly under TypeScript's `noUncheckedIndexedAccess` flag.
 
 ## Why this flag
