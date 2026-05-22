@@ -5,23 +5,23 @@ import type { DgmoError } from '../diagnostics';
 // ============================================================
 
 export interface RingLayer {
-  label: string;
-  lineNumber: number;
+  readonly label: string;
+  readonly lineNumber: number;
   /** Optional palette color name (red/green/blue/…). */
-  color?: string;
+  readonly color?: string;
   /** Description lines — from bare pipe shorthand or indented body. */
-  description: string[];
+  readonly description: readonly string[];
   /** Unconsumed pipe metadata (reserved for future use). */
-  metadata: Record<string, string>;
+  readonly metadata: Readonly<Record<string, string>>;
 }
 
 export interface ParsedRing {
-  type: 'ring';
-  title: string;
-  titleLineNumber: number;
+  readonly type: 'ring';
+  readonly title: string;
+  readonly titleLineNumber: number;
   /** Source order: layers[0] = innermost (filled disc); last = outermost ring. */
-  layers: RingLayer[];
-  options: Record<string, string>;
-  diagnostics: DgmoError[];
-  error: string | null;
+  readonly layers: readonly RingLayer[];
+  readonly options: Readonly<Record<string, string>>;
+  readonly diagnostics: readonly DgmoError[];
+  readonly error: string | null;
 }

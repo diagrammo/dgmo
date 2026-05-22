@@ -14,6 +14,7 @@ import {
   tryParseSharedOption,
 } from '../utils/parsing';
 import { normalizeName, displayName } from '../utils/name-normalize';
+import type { Writable } from '../utils/brand';
 import type {
   ParsedClassDiagram,
   ClassNode,
@@ -180,16 +181,17 @@ export function parseClassDiagram(
   palette?: PaletteColors
 ): ParsedClassDiagram {
   const lines = content.split('\n');
-  const result: ParsedClassDiagram = {
+  const options: Record<string, string> = {};
+  const result: Writable<ParsedClassDiagram> = {
     type: 'class',
     classes: [],
     relationships: [],
-    options: {},
+    options,
     diagnostics: [],
     error: null,
   };
 
-  const classMap = new Map<string, ClassNode>();
+  const classMap = new Map<string, Writable<ClassNode>>();
 
   // Per-parse alias literal → canonical class id (TD-18). Per C8.
   const nameAliasMap = new Map<string, string>();
@@ -206,10 +208,13 @@ export function parseClassDiagram(
     }
     return token;
   }
-  let currentClass: ClassNode | null = null;
+  let currentClass: Writable<ClassNode> | null = null;
   let contentStarted = false;
 
-  function getOrCreateClass(name: string, lineNumber: number): ClassNode {
+  function getOrCreateClass(
+    name: string,
+    lineNumber: number
+  ): Writable<ClassNode> {
     const key = classId(name);
     const existing = classMap.get(key);
     if (existing) {
@@ -233,7 +238,7 @@ export function parseClassDiagram(
       return existing;
     }
 
-    const node: ClassNode = {
+    const node: Writable<ClassNode> = {
       id: key,
       name,
       members: [],
@@ -278,10 +283,10 @@ export function parseClassDiagram(
     if (!contentStarted && indent === 0 && /^[a-z]/.test(trimmed)) {
       // Bare boolean option (single keyword, no value)
       if (trimmed.toLowerCase() === 'no-auto-color') {
-        result.options['no-auto-color'] = 'on';
+        options['no-auto-color'] = 'on';
         continue;
       }
-      if (tryParseSharedOption(trimmed, result.options)) {
+      if (tryParseSharedOption(trimmed, options)) {
         continue;
       }
       const optMatch = trimmed.match(OPTION_NOCOLON_RE);
@@ -291,7 +296,7 @@ export function parseClassDiagram(
         const value = optMatch[2]!.trim();
         // Don't swallow lines that look like class modifier keywords
         if (key !== 'abstract' && key !== 'interface' && key !== 'enum') {
-          result.options[key] = value;
+          options[key] = value;
           continue;
         }
       }

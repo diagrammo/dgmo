@@ -3,6 +3,7 @@
 // ============================================================
 
 import { makeDgmoError, formatDgmoError } from '../diagnostics';
+import type { Writable } from '../utils/brand';
 import {
   measureIndent,
   parseFirstLine,
@@ -40,20 +41,21 @@ const MAX_LAYERS = 15;
  * ```
  */
 export function parsePyramid(content: string): ParsedPyramid {
-  const result: ParsedPyramid = {
+  const options: Record<string, string> = {};
+  const result: Writable<ParsedPyramid> = {
     type: 'pyramid',
     title: '',
     titleLineNumber: 0,
     layers: [],
     inverted: false,
-    options: {},
+    options,
     diagnostics: [],
     error: null,
   };
 
   const lines = content.split('\n');
   let headerParsed = false;
-  let currentLayer: PyramidLayer | null = null;
+  let currentLayer: Writable<PyramidLayer> | null = null;
 
   const fail = (line: number, message: string): ParsedPyramid => {
     const diag = makeDgmoError(line, message);
@@ -106,7 +108,7 @@ export function parsePyramid(content: string): ParsedPyramid {
     }
 
     // ── Shared bare keyword: solid-fill ──
-    if (indent === 0 && tryParseSharedOption(trimmed, result.options)) {
+    if (indent === 0 && tryParseSharedOption(trimmed, options)) {
       continue;
     }
 

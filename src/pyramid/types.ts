@@ -5,24 +5,24 @@ import type { DgmoError } from '../diagnostics';
 // ============================================================
 
 export interface PyramidLayer {
-  label: string;
-  lineNumber: number;
+  readonly label: string;
+  readonly lineNumber: number;
   /** Optional palette color name (red/green/blue/…). */
-  color?: string;
+  readonly color?: string;
   /** Description lines — from bare pipe shorthand or indented body. */
-  description: string[];
+  readonly description: readonly string[];
   /** Unconsumed pipe metadata (reserved for future use). */
-  metadata: Record<string, string>;
+  readonly metadata: Readonly<Record<string, string>>;
 }
 
 export interface ParsedPyramid {
-  type: 'pyramid';
-  title: string;
-  titleLineNumber: number;
-  layers: PyramidLayer[];
+  readonly type: 'pyramid';
+  readonly title: string;
+  readonly titleLineNumber: number;
+  readonly layers: readonly PyramidLayer[];
   /** When true, apex points down instead of up. */
-  inverted: boolean;
-  options: Record<string, string>;
-  diagnostics: DgmoError[];
-  error: string | null;
+  readonly inverted: boolean;
+  readonly options: Readonly<Record<string, string>>;
+  readonly diagnostics: readonly DgmoError[];
+  readonly error: string | null;
 }

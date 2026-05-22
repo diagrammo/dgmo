@@ -13,6 +13,7 @@ import {
   PIPE_KEY_VALUE_PREFIX_RE,
   PIPE_LIKELY_STRUCTURED_TAIL_RE,
 } from '../utils/parsing';
+import type { Writable } from '../utils/brand';
 import type { ParsedRing, RingLayer } from './types';
 
 const MAX_LAYERS = 15;
@@ -26,19 +27,20 @@ const KNOWN_PIPE_KEYS = new Set(['color', 'description']);
  * Last layer in source = outermost ring.
  */
 export function parseRing(content: string): ParsedRing {
-  const result: ParsedRing = {
+  const options: Record<string, string> = {};
+  const result: Writable<ParsedRing> = {
     type: 'ring',
     title: '',
     titleLineNumber: 0,
     layers: [],
-    options: {},
+    options,
     diagnostics: [],
     error: null,
   };
 
   const lines = content.split('\n');
   let headerParsed = false;
-  let currentLayer: RingLayer | null = null;
+  let currentLayer: Writable<RingLayer> | null = null;
 
   const fail = (line: number, message: string): ParsedRing => {
     const diag = makeDgmoError(line, message);
@@ -96,7 +98,7 @@ export function parseRing(content: string): ParsedRing {
     }
 
     // ── Shared bare keyword: solid-fill ──
-    if (indent === 0 && tryParseSharedOption(trimmed, result.options)) {
+    if (indent === 0 && tryParseSharedOption(trimmed, options)) {
       continue;
     }
 

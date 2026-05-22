@@ -312,7 +312,7 @@ interface LayoutInput {
   sideMargin: number;
   bodyTop: number;
   bodyHeight: number;
-  layers: PyramidLayer[];
+  layers: readonly PyramidLayer[];
   hasDescription: boolean;
   alternate: boolean;
 }
@@ -731,7 +731,7 @@ function renderDescriptionVariant(args: RenderVariantArgs): void {
  * paragraph spacing.
  */
 function wrapDescription(
-  lines: string[],
+  lines: readonly string[],
   maxWidth: number,
   fontSize: number
 ): WrappedDescLine[] {

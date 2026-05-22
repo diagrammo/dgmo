@@ -319,7 +319,7 @@ export function renderRingForExport(
 
 interface SideDescArgs {
   parentG: d3Selection.Selection<SVGGElement, unknown, null, undefined>;
-  layers: RingLayer[];
+  layers: readonly RingLayer[];
   colors: string[];
   accentX: number;
   textX: number;
@@ -364,7 +364,7 @@ function renderSideDescriptions(args: SideDescArgs): void {
   ): { wraps: WrappedDescLine[][]; blockHeights: number[]; totalH: number } => {
     const wraps = layers.map((l) =>
       truncateWithEllipsis(
-        wrapDescriptionLines(l.description, charsPerLine),
+        wrapDescriptionLines(l.description.slice(), charsPerLine),
         cap
       )
     );
