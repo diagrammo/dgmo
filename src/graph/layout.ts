@@ -44,7 +44,7 @@ export interface LayoutOptions {
   /** Map of group ID → number of child nodes (for collapsed groups) */
   collapsedChildCounts?: Map<string, number>;
   /** Original groups before collapse (includes collapsed ones) */
-  originalGroups?: GraphGroup[];
+  originalGroups?: readonly GraphGroup[];
 }
 
 export interface LayoutResult {

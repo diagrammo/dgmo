@@ -32,39 +32,39 @@ export interface Offset {
 // ── Parsed Elements ─────────────────────────────────────────
 
 export interface GanttDependency {
-  targetName: string; // raw string from `-> X` or `-> Group.X`
-  label?: string; // optional label from `-label-> X` syntax
-  offset?: Offset;
-  lineNumber: number;
+  readonly targetName: string; // raw string from `-> X` or `-> Group.X`
+  readonly label?: string; // optional label from `-label-> X` syntax
+  readonly offset?: Offset;
+  readonly lineNumber: number;
 }
 
 export interface GanttTask {
-  id: string; // unique, generated during parse (e.g. "group:taskIdx")
-  label: string;
-  duration: Duration | null; // null for explicit-date-only tasks
-  explicitStart?: string; // YYYY-MM-DD from `2024-01-15 -> 30d:` or `2024-01-15:`
-  uncertain: boolean;
-  progress: number | null; // 0-100 or null
-  offset?: Offset; // task-level offset: shifts start date forward (+) or backward (-)
-  dependencies: GanttDependency[];
-  metadata: Record<string, string>; // tag values from pipe metadata
-  lineNumber: number;
-  groupPath: string[]; // e.g. ["Backend", "API"] for nested groups
-  comment?: string; // accumulated // comment lines
+  readonly id: string; // unique, generated during parse (e.g. "group:taskIdx")
+  readonly label: string;
+  readonly duration: Duration | null; // null for explicit-date-only tasks
+  readonly explicitStart?: string; // YYYY-MM-DD from `2024-01-15 -> 30d:` or `2024-01-15:`
+  readonly uncertain: boolean;
+  readonly progress: number | null; // 0-100 or null
+  readonly offset?: Offset; // task-level offset: shifts start date forward (+) or backward (-)
+  readonly dependencies: readonly GanttDependency[];
+  readonly metadata: Readonly<Record<string, string>>; // tag values from pipe metadata
+  readonly lineNumber: number;
+  readonly groupPath: readonly string[]; // e.g. ["Backend", "API"] for nested groups
+  readonly comment?: string; // accumulated // comment lines
 }
 
 export interface GanttGroup {
-  name: string;
-  color: string | null;
-  metadata: Record<string, string>;
-  lineNumber: number;
-  children: GanttNode[];
+  readonly name: string;
+  readonly color: string | null;
+  readonly metadata: Readonly<Record<string, string>>;
+  readonly lineNumber: number;
+  readonly children: readonly GanttNode[];
 }
 
 export interface GanttParallelBlock {
-  kind: 'parallel';
-  lineNumber: number;
-  children: GanttNode[];
+  readonly kind: 'parallel';
+  readonly lineNumber: number;
+  readonly children: readonly GanttNode[];
 }
 
 /** A node in the gantt tree: either a task, group, or parallel block. */
@@ -78,39 +78,39 @@ export type GanttNode =
 export type Weekday = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
 
 export interface HolidayDate {
-  date: string; // YYYY-MM-DD
-  label: string;
-  lineNumber: number;
+  readonly date: string; // YYYY-MM-DD
+  readonly label: string;
+  readonly lineNumber: number;
 }
 
 export interface HolidayRange {
-  startDate: string; // YYYY-MM-DD
-  endDate: string; // YYYY-MM-DD
-  label: string;
-  lineNumber: number;
+  readonly startDate: string; // YYYY-MM-DD
+  readonly endDate: string; // YYYY-MM-DD
+  readonly label: string;
+  readonly lineNumber: number;
 }
 
 export interface GanttHolidays {
-  dates: HolidayDate[];
-  ranges: HolidayRange[];
-  workweek: Weekday[]; // default: ['mon', 'tue', 'wed', 'thu', 'fri']
+  readonly dates: readonly HolidayDate[];
+  readonly ranges: readonly HolidayRange[];
+  readonly workweek: readonly Weekday[]; // default: ['mon', 'tue', 'wed', 'thu', 'fri']
 }
 
 // ── Eras & Markers (reuse timeline types) ───────────────────
 
 export interface GanttEra {
-  startDate: string;
-  endDate: string;
-  label: string;
-  color: string | null;
-  lineNumber: number;
+  readonly startDate: string;
+  readonly endDate: string;
+  readonly label: string;
+  readonly color: string | null;
+  readonly lineNumber: number;
 }
 
 export interface GanttMarker {
-  date: string;
-  label: string;
-  color: string | null;
-  lineNumber: number;
+  readonly date: string;
+  readonly label: string;
+  readonly color: string | null;
+  readonly lineNumber: number;
 }
 
 // ── Chart Options ───────────────────────────────────────────
@@ -142,14 +142,14 @@ export interface GanttOptions {
 // ── Parsed Result ───────────────────────────────────────────
 
 export interface ParsedGantt {
-  nodes: GanttNode[]; // top-level tree (groups, tasks, parallel blocks)
-  holidays: GanttHolidays;
-  tagGroups: TagGroup[];
-  eras: GanttEra[];
-  markers: GanttMarker[];
-  options: GanttOptions;
-  diagnostics: DgmoError[];
-  error: string | null;
+  readonly nodes: readonly GanttNode[]; // top-level tree (groups, tasks, parallel blocks)
+  readonly holidays: GanttHolidays;
+  readonly tagGroups: readonly TagGroup[];
+  readonly eras: readonly GanttEra[];
+  readonly markers: readonly GanttMarker[];
+  readonly options: GanttOptions;
+  readonly diagnostics: readonly DgmoError[];
+  readonly error: string | null;
 }
 
 // ── Resolved Schedule ───────────────────────────────────────

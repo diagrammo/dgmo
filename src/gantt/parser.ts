@@ -105,7 +105,7 @@ const WEEKDAY_MAP: Record<string, Weekday> = {
 type ContainerType = 'group' | 'parallel' | 'task';
 
 interface BlockEntry {
-  node: GanttGroup | GanttParallelBlock;
+  node: Writable<GanttGroup> | Writable<GanttParallelBlock>;
   indent: number;
   containerType: ContainerType;
 }
@@ -119,13 +119,14 @@ export function parseGantt(
   const lines = content.split('\n');
   const diagnostics: DgmoError[] = [];
 
-  const result: ParsedGantt = {
+  const holidays: Writable<ParsedGantt['holidays']> = {
+    dates: [],
+    ranges: [],
+    workweek: ['mon', 'tue', 'wed', 'thu', 'fri'],
+  };
+  const result: Writable<ParsedGantt> = {
     nodes: [],
-    holidays: {
-      dates: [],
-      ranges: [],
-      workweek: ['mon', 'tue', 'wed', 'thu', 'fri'],
-    },
+    holidays,
     tagGroups: [],
     eras: [],
     markers: [],
@@ -217,7 +218,7 @@ export function parseGantt(
   let eraBlockIndent = 0;
   let inMarkerBlock = false;
   let markerBlockIndent = 0;
-  let lastTaskNode: (GanttNode & { kind: 'task' }) | null = null;
+  let lastTaskNode: Writable<GanttNode & { kind: 'task' }> | null = null;
   let taskIdCounter = 0;
   const seriesColors = palette ? getSeriesColors(palette) : [];
 
@@ -283,7 +284,7 @@ export function parseGantt(
         const rangeMatch = line.match(HOLIDAY_RANGE_RE);
         if (rangeMatch) {
           // Capture groups 1-3 guaranteed by successful regex match.
-          result.holidays.ranges.push({
+          holidays.ranges.push({
             startDate: rangeMatch[1]!,
             endDate: rangeMatch[2]!,
             label: rangeMatch[3]!.trim(),
@@ -295,7 +296,7 @@ export function parseGantt(
         const dateMatch = line.match(HOLIDAY_DATE_RE);
         if (dateMatch) {
           // Capture groups 1-2 guaranteed by successful regex match.
-          result.holidays.dates.push({
+          holidays.dates.push({
             date: dateMatch[1]!,
             label: dateMatch[2]!.trim(),
             lineNumber,
@@ -308,7 +309,7 @@ export function parseGantt(
           // Capture group 1 guaranteed by successful regex match.
           const days = parseWorkweek(workweekMatch[1]!.trim());
           if (days) {
-            result.holidays.workweek = days;
+            holidays.workweek = days;
           } else {
             warn(
               lineNumber,
@@ -511,7 +512,7 @@ export function parseGantt(
     );
     if (holidayInlineMatch) {
       // Capture groups 1-2 guaranteed by successful regex match.
-      result.holidays.dates.push({
+      holidays.dates.push({
         date: holidayInlineMatch[1]!,
         label: holidayInlineMatch[2]!.trim(),
         lineNumber,
@@ -547,7 +548,7 @@ export function parseGantt(
       // Capture group 1 guaranteed by successful regex match.
       const days = parseWorkweek(topWorkweekMatch[1]!.trim());
       if (days) {
-        result.holidays.workweek = days;
+        holidays.workweek = days;
       } else {
         warn(
           lineNumber,
@@ -757,7 +758,7 @@ export function parseGantt(
     // ── Parallel block ────────────────────────────────────
 
     if (line === 'parallel') {
-      const parallel: GanttParallelBlock = {
+      const parallel: Writable<GanttParallelBlock> = {
         kind: 'parallel',
         lineNumber,
         children: [],
@@ -811,7 +812,7 @@ export function parseGantt(
       const groupPeeled = peelAlias(groupMatch[1]!);
       if (groupPeeled.alias)
         nameAliasMap.set(groupPeeled.alias, groupPeeled.label);
-      const group: GanttGroup = {
+      const group: Writable<GanttGroup> = {
         name: groupPeeled.label,
         color,
         metadata,
@@ -821,7 +822,7 @@ export function parseGantt(
       const groupNode: GanttNode = { kind: 'group', ...group };
       currentContainer().push(groupNode);
       blockStack.push({
-        node: groupNode as GanttGroup,
+        node: groupNode as unknown as Writable<GanttGroup>,
         indent,
         containerType: 'group',
       });
@@ -849,9 +850,9 @@ export function parseGantt(
       );
       const taskNode: GanttNode = { kind: 'task', ...task };
       currentContainer().push(taskNode);
-      lastTaskNode = taskNode as GanttNode & { kind: 'task' };
+      lastTaskNode = taskNode as Writable<GanttNode & { kind: 'task' }>;
       blockStack.push({
-        node: taskNode as unknown as GanttGroup,
+        node: taskNode as unknown as Writable<GanttGroup>,
         indent,
         containerType: 'task',
       });
@@ -871,9 +872,9 @@ export function parseGantt(
       const task = makeTask(labelRaw, { amount, unit }, uncertain, lineNumber);
       const taskNode: GanttNode = { kind: 'task', ...task };
       currentContainer().push(taskNode);
-      lastTaskNode = taskNode as GanttNode & { kind: 'task' };
+      lastTaskNode = taskNode as Writable<GanttNode & { kind: 'task' }>;
       blockStack.push({
-        node: taskNode as unknown as GanttGroup,
+        node: taskNode as unknown as Writable<GanttGroup>,
         indent,
         containerType: 'task',
       });
@@ -895,9 +896,9 @@ export function parseGantt(
       // Explicit date tasks with no duration are milestones
       const taskNode: GanttNode = { kind: 'task', ...task };
       currentContainer().push(taskNode);
-      lastTaskNode = taskNode as GanttNode & { kind: 'task' };
+      lastTaskNode = taskNode as Writable<GanttNode & { kind: 'task' }>;
       blockStack.push({
-        node: taskNode as unknown as GanttGroup,
+        node: taskNode as unknown as Writable<GanttGroup>,
         indent,
         containerType: 'task',
       });
@@ -1209,7 +1210,7 @@ function isKnownOption(key: string): boolean {
 }
 
 /** Check if any task in the tree uses the `s` (sprint) duration unit. */
-function hasSprintDurationUnit(nodes: GanttNode[]): boolean {
+function hasSprintDurationUnit(nodes: readonly GanttNode[]): boolean {
   for (const node of nodes) {
     if (node.kind === 'task') {
       if (node.duration?.unit === 's') return true;

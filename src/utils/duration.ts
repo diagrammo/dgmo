@@ -28,7 +28,7 @@ const JS_DAY_TO_WEEKDAY: Weekday[] = [
  */
 export function isWorkday(
   date: Date,
-  workweek: Weekday[],
+  workweek: readonly Weekday[],
   holidaySet: Set<string>
 ): boolean {
   // date.getDay() returns 0..6; JS_DAY_TO_WEEKDAY is length 7.
@@ -81,7 +81,7 @@ export function buildHolidaySet(holidays: GanttHolidays): Set<string> {
 export function addBusinessDays(
   startDate: Date,
   count: number,
-  workweek: Weekday[],
+  workweek: readonly Weekday[],
   holidaySet: Set<string>,
   direction: 1 | -1 = 1
 ): Date {

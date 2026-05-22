@@ -17,6 +17,7 @@ import {
   tryParseSharedOption,
 } from '../utils/parsing';
 import { normalizeName, displayName } from '../utils/name-normalize';
+import type { Writable } from '../utils/brand';
 import type { ParsedGraph, GraphNode, GraphGroup } from './types';
 
 // ============================================================
@@ -182,12 +183,13 @@ export function parseState(
   palette?: PaletteColors
 ): ParsedGraph {
   const lines = content.split('\n');
-  const result: ParsedGraph = {
+  const options: Record<string, string> = {};
+  const result: Writable<ParsedGraph> = {
     type: 'state',
     direction: 'LR',
     nodes: [],
     edges: [],
-    options: {},
+    options,
     diagnostics: [],
     error: null,
   };
@@ -199,11 +201,11 @@ export function parseState(
     return result;
   };
 
-  const nodeMap = new Map<string, GraphNode>();
+  const nodeMap = new Map<string, Writable<GraphNode>>();
   const indentStack: { nodeId: string; indent: number }[] = [];
-  let currentGroup: GraphGroup | null = null;
+  let currentGroup: Writable<GraphGroup> | null = null;
   let groupIndent = -1;
-  const groups: GraphGroup[] = [];
+  const groups: Writable<GraphGroup>[] = [];
   let contentStarted = false;
   let firstLineParsed = false;
 
@@ -217,7 +219,10 @@ export function parseState(
     return { seg: m[1]!.trim(), alias: m[2]! };
   }
 
-  function getOrCreateNode(ref: NodeRef, lineNumber: number): GraphNode {
+  function getOrCreateNode(
+    ref: NodeRef,
+    lineNumber: number
+  ): Writable<GraphNode> {
     const key = ref.id;
     const existing = nodeMap.get(key);
     if (existing) {
@@ -241,7 +246,7 @@ export function parseState(
       return existing;
     }
 
-    const node: GraphNode = {
+    const node: Writable<GraphNode> = {
       id: key,
       label: ref.label,
       shape: ref.shape,
@@ -341,18 +346,18 @@ export function parseState(
 
       // Bare boolean: solid-fill
       if (/^solid-fill$/i.test(trimmed)) {
-        result.options['solid-fill'] = 'on';
+        options['solid-fill'] = 'on';
         continue;
       }
 
       // Bare boolean: no-color (toggles color off)
       if (/^no-color$/i.test(trimmed)) {
-        result.options['color'] = 'off';
+        options['color'] = 'off';
         continue;
       }
 
       // Cross-chart-type bare booleans (no-title, etc.)
-      if (tryParseSharedOption(trimmed, result.options)) {
+      if (tryParseSharedOption(trimmed, options)) {
         continue;
       }
 
@@ -364,11 +369,11 @@ export function parseState(
 
         // Boolean: no-color = color off
         if (key === 'no-color') {
-          result.options['color'] = 'off';
+          options['color'] = 'off';
           continue;
         }
 
-        result.options[key] = value;
+        options[key] = value;
         continue;
       }
     }

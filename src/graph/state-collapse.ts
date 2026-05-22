@@ -2,12 +2,12 @@
 // State Diagram — Collapse/Expand Transform
 // ============================================================
 
-import type { ParsedGraph, GraphGroup } from './types';
+import type { ParsedGraph, GraphGroup, GraphEdge } from './types';
 
 export interface StateCollapseResult {
   parsed: ParsedGraph;
   collapsedChildCounts: Map<string, number>;
-  originalGroups: GraphGroup[];
+  originalGroups: readonly GraphGroup[];
 }
 
 /**
@@ -55,7 +55,7 @@ export function collapseStateGroups(
 
   // Remap and deduplicate edges
   const edgeKeys = new Set<string>();
-  const edges: typeof parsed.edges = [];
+  const edges: GraphEdge[] = [];
   for (const edge of parsed.edges) {
     const src = nodeToGroup.get(edge.source) ?? edge.source;
     const tgt = nodeToGroup.get(edge.target) ?? edge.target;

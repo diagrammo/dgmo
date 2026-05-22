@@ -52,9 +52,9 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
     startDate: new Date(),
     endDate: new Date(),
     holidays: parsed.holidays,
-    tagGroups: parsed.tagGroups,
-    eras: parsed.eras,
-    markers: parsed.markers,
+    tagGroups: parsed.tagGroups.slice(),
+    eras: parsed.eras.slice(),
+    markers: parsed.markers.slice(),
     sprints: [],
     options: parsed.options,
     diagnostics,
@@ -331,8 +331,8 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
       isMilestone:
         node.task.duration?.amount === 0 ||
         (!node.task.duration && !node.task.explicitStart),
-      groupPath: node.task.groupPath,
-      effectiveMetadata: node.task.metadata,
+      groupPath: node.task.groupPath.slice(),
+      effectiveMetadata: { ...node.task.metadata },
     });
   }
 
@@ -405,12 +405,15 @@ export function calculateSchedule(parsed: ParsedGantt): ResolvedSchedule {
  * - Groups: children are sequential within the group
  */
 function buildImplicitDeps(
-  nodes: GanttNode[],
+  nodes: readonly GanttNode[],
   taskMap: Map<string, TaskNode>
 ): void {
   walkChildren(nodes, null);
 
-  function walkChildren(children: GanttNode[], afterTaskId: string | null) {
+  function walkChildren(
+    children: readonly GanttNode[],
+    afterTaskId: string | null
+  ) {
     let prevTaskId = afterTaskId;
 
     for (const node of children) {
@@ -484,7 +487,7 @@ function buildImplicitDeps(
   }
 
   function walkSequential(
-    children: GanttNode[],
+    children: readonly GanttNode[],
     afterTaskId: string | null
   ): string | null {
     let prevTaskId = afterTaskId;
@@ -511,7 +514,7 @@ function buildImplicitDeps(
 }
 
 /** Find the first task ID in a tree (depth-first). */
-function findFirstTask(nodes: GanttNode[]): string | null {
+function findFirstTask(nodes: readonly GanttNode[]): string | null {
   for (const node of nodes) {
     if (node.kind === 'task') return node.id;
     if (node.kind === 'group' || node.kind === 'parallel') {
@@ -523,7 +526,7 @@ function findFirstTask(nodes: GanttNode[]): string | null {
 }
 
 /** Find the last task ID in a tree (depth-first, last branch). */
-function findLastTask(nodes: GanttNode[]): string | null {
+function findLastTask(nodes: readonly GanttNode[]): string | null {
   for (let i = nodes.length - 1; i >= 0; i--) {
     // In-bounds by reverse loop guard (i ranges over valid indices).
     const node = nodes[i]!;
@@ -744,7 +747,7 @@ function computeCriticalPath(
 // ── Resolved groups builder ─────────────────────────────────
 
 function buildResolvedGroups(
-  nodes: GanttNode[],
+  nodes: readonly GanttNode[],
   taskMap: Map<string, TaskNode>,
   groups: ResolvedGroup[],
   depth: number

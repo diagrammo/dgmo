@@ -27,9 +27,9 @@ export function isResolverError(r: ResolverResult): r is ResolverError {
  * Collect all tasks from a tree of GanttNodes, annotating each with its
  * fully qualified group path (e.g., ["Backend", "API"]).
  */
-export function collectTasks(nodes: GanttNode[]): GanttTask[] {
+export function collectTasks(nodes: readonly GanttNode[]): GanttTask[] {
   const tasks: GanttTask[] = [];
-  function walk(children: GanttNode[]) {
+  function walk(children: readonly GanttNode[]) {
     for (const node of children) {
       if (node.kind === 'task') {
         tasks.push(node);
@@ -133,7 +133,10 @@ export function resolveTaskName(
  * Example: groupPath = ["Backend", "API"], prefix = "API" → true
  * Example: groupPath = ["Backend", "API"], prefix = "Backend.API" → true
  */
-function matchesGroupPath(groupPath: string[], prefix: string): boolean {
+function matchesGroupPath(
+  groupPath: readonly string[],
+  prefix: string
+): boolean {
   const normPrefix = normalizeName(prefix);
   // Simple case: prefix is a single segment
   if (!prefix.includes('.')) {

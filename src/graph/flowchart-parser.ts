@@ -16,6 +16,7 @@ import {
   tryParseSharedOption,
 } from '../utils/parsing';
 import { normalizeName, displayName } from '../utils/name-normalize';
+import type { Writable } from '../utils/brand';
 import type { ParsedGraph, GraphNode, GraphEdge, GraphShape } from './types';
 
 // ============================================================
@@ -239,12 +240,13 @@ export function parseFlowchart(
   palette?: PaletteColors
 ): ParsedGraph {
   const lines = content.split('\n');
-  const result: ParsedGraph = {
+  const options: Record<string, string> = {};
+  const result: Writable<ParsedGraph> = {
     type: 'flowchart',
     direction: 'TB',
     nodes: [],
     edges: [],
-    options: {},
+    options,
     diagnostics: [],
     error: null,
   };
@@ -507,18 +509,18 @@ export function parseFlowchart(
 
       // Bare boolean: solid-fill
       if (/^solid-fill$/i.test(trimmed)) {
-        result.options['solid-fill'] = 'on';
+        options['solid-fill'] = 'on';
         continue;
       }
 
       // Bare boolean: no-color (toggles color off)
       if (/^no-color$/i.test(trimmed)) {
-        result.options['color'] = 'off';
+        options['color'] = 'off';
         continue;
       }
 
       // Cross-chart-type bare booleans (no-title, etc.)
-      if (tryParseSharedOption(trimmed, result.options)) {
+      if (tryParseSharedOption(trimmed, options)) {
         continue;
       }
 
@@ -530,12 +532,12 @@ export function parseFlowchart(
 
         // Boolean: no-color = color off
         if (key === 'no-color') {
-          result.options['color'] = 'off';
+          options['color'] = 'off';
           continue;
         }
 
         // Store other options (e.g., color off)
-        result.options[key] = value;
+        options[key] = value;
         continue;
       }
     }

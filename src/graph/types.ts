@@ -11,41 +11,41 @@ export type GraphShape =
 export type GraphDirection = 'TB' | 'LR';
 
 export interface GraphNode {
-  id: string;
-  label: string;
-  shape: GraphShape;
-  color?: string;
-  group?: string;
-  lineNumber: number;
+  readonly id: string;
+  readonly label: string;
+  readonly shape: GraphShape;
+  readonly color?: string;
+  readonly group?: string;
+  readonly lineNumber: number;
 }
 
 export interface GraphEdge {
-  source: string;
-  target: string;
-  label?: string;
-  color?: string;
-  lineNumber: number;
+  readonly source: string;
+  readonly target: string;
+  readonly label?: string;
+  readonly color?: string;
+  readonly lineNumber: number;
 }
 
 export interface GraphGroup {
-  id: string;
-  label: string;
-  color?: string;
-  nodeIds: string[];
-  lineNumber: number;
+  readonly id: string;
+  readonly label: string;
+  readonly color?: string;
+  readonly nodeIds: readonly string[];
+  readonly lineNumber: number;
 }
 
 import type { DgmoError } from '../diagnostics';
 
 export interface ParsedGraph {
-  type: 'flowchart' | 'state';
-  title?: string;
-  titleLineNumber?: number;
-  direction: GraphDirection;
-  nodes: GraphNode[];
-  edges: GraphEdge[];
-  groups?: GraphGroup[];
-  options: Record<string, string>;
-  diagnostics: DgmoError[];
-  error: string | null;
+  readonly type: 'flowchart' | 'state';
+  readonly title?: string;
+  readonly titleLineNumber?: number;
+  readonly direction: GraphDirection;
+  readonly nodes: readonly GraphNode[];
+  readonly edges: readonly GraphEdge[];
+  readonly groups?: readonly GraphGroup[];
+  readonly options: Readonly<Record<string, string>>;
+  readonly diagnostics: readonly DgmoError[];
+  readonly error: string | null;
 }
