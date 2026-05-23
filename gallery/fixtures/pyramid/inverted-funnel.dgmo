@@ -2,15 +2,15 @@ pyramid Acquisition Funnel
 
 inverted
 
-Visitors | color: blue
+Visitors blue
   Landed on the site from any channel
   this month.
 
-Signups | color: cyan
+Signups cyan
   Provided an email and confirmed.
 
-Activated | color: green
+Activated green
   Completed the first meaningful action.
 
-Paid | color: orange
+Paid orange
   Converted to a paid plan.

@@ -1,24 +1,24 @@
 cycle OODA Loop
 
-Observe | color: blue
+Observe blue
   Gather raw information from the environment
   Monitor unfolding circumstances
   -Unfold circumstances-> | color: blue
     Synthesize raw data into actionable context
     Identify **key patterns** and anomalies
 
-Orient | color: green
+Orient green
   Analyze and synthesize observations
   Form a mental model of the situation
   -Form hypothesis-> | color: green
     Apply previous experience and cultural filters
     Perform *destructive deduction* to break old models
 
-Decide | color: orange
+Decide orange
   Select a course of action
   -Commit to action-> | color: orange
 
-Act | color: red
+Act red
   Execute the chosen course of action
   Generate results that feed back
   -Generate feedback-> | color: red

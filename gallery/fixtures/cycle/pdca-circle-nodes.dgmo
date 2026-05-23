@@ -2,11 +2,11 @@ cycle PDCA
 
 circle-nodes
 
-Plan | color: blue
+Plan blue
   Define goals and processes
-Do | color: green
+Do green
   Implement the plan
-Check | color: orange
+Check orange
   Evaluate results
-Act | color: red
+Act red
   Adjust and improve

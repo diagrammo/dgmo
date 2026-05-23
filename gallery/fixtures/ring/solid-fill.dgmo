@@ -2,17 +2,17 @@ ring OSI Layered Model
 
 solid-fill
 
-Physical | color: red
+Physical red
   Cables, voltages, signal timing — the wire itself.
 
-Data Link | color: orange
+Data Link orange
   Frames between adjacent nodes; MAC addressing.
 
-Network | color: yellow
+Network yellow
   IP routing across networks.
 
-Transport | color: green
+Transport green
   End-to-end reliability; TCP and UDP.
 
-Application | color: blue
+Application blue
   HTTP, SMTP, SSH — what the user sees.
