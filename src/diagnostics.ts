@@ -309,7 +309,7 @@ export function pipeOperatorRemovedMessage(): string {
     `The '|' metadata delimiter was removed. ` +
     `Write metadata as 'key: value, key: value' inline after the name ` +
     `(no delimiter), or indent 'key: value' under the entity. ` +
-    `See spec §1.4. Run 'dgmo migrate' to convert legacy content.`
+    `Run 'dgmo migrate' to convert legacy content.`
   );
 }
 
